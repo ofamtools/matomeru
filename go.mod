@@ -28,6 +28,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/unixsuperhero/oden v0.0.0-00010101000000-000000000000
 	github.com/xo/terminfo v1.0.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
@@ -37,3 +38,5 @@ require (
 )
 
 replace github.com/unixsuperhero/ochazuke => /Users/unixsuperhero/proj/ochazuke
+
+replace github.com/unixsuperhero/oden => /Users/unixsuperhero/proj/oden

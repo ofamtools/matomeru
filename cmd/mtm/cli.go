@@ -20,7 +20,8 @@ import (
 // the same registry the keys and the palette dispatch into. It knows no
 // noun, verb or key: a command's words are the operation key, its --ARG
 // flags are typed by the operation's own parameters, and everything else
-// is the framework's.
+// is the framework's. A VERB may be a unique prefix of one of the noun's
+// verbs (the noun's prefix is resolved by the oden shell, oden.go).
 //
 // After the operation it settles the work the operation scheduled (the
 // pending commands, delivered through Runtime.Deliver as the Bubble Tea
@@ -69,7 +70,11 @@ func (s *shell) run(args []string) error {
 	if len(args) < 2 {
 		return errors.New(cliUsage)
 	}
-	q, yes, err := s.request(args[0], args[1], args[2:])
+	verb, err := s.verb(args[0], args[1])
+	if err != nil {
+		return err
+	}
+	q, yes, err := s.request(args[0], verb, args[2:])
 	if err != nil {
 		return err
 	}
@@ -122,6 +127,29 @@ func (s *shell) run(args []string) error {
 		return err
 	}
 	return settled
+}
+
+// verb resolves a verb word of noun: the exact verb, else the one verb
+// of noun starting with it (task l is task launch). Several are an error
+// naming them; none is the word unchanged, which request reports.
+func (s *shell) verb(noun, word string) (string, error) {
+	if _, ok := s.r.Operations[noun+"."+word]; ok {
+		return word, nil
+	}
+	var matches []string
+	for _, op := range s.r.Operations {
+		if op.Noun == noun && strings.HasPrefix(op.Verb, word) {
+			matches = append(matches, op.Verb)
+		}
+	}
+	sort.Strings(matches)
+	switch len(matches) {
+	case 0:
+		return word, nil
+	case 1:
+		return matches[0], nil
+	}
+	return "", fmt.Errorf("%s %s is ambiguous: %s", noun, word, strings.Join(matches, ", "))
 }
 
 // ownersOf is the instances a command of noun without --target can act

@@ -17,6 +17,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
+	"github.com/unixsuperhero/oden"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
@@ -26,8 +27,7 @@ import (
 
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, "mtm:", err)
-		os.Exit(1)
+		os.Exit(oden.Report(os.Stderr, "mtm", err))
 	}
 }
 
@@ -92,8 +92,9 @@ func DefaultData() string {
 	return filepath.Join(base, "matomeru", "mtm.db")
 }
 
-// run is the TUI with no words, else one CLI command (NOUN VERB ..., see
-// cli.go) against the same app.
+// run is the TUI with no words, else one command resolved by the oden
+// shell (oden.go): a builtin, a noun (NOUN VERB ..., see cli.go) or an
+// mtm-<word> executable on PATH.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("mtm", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -103,10 +104,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	flags.StringVar(&opts.Socket, "socket", "", "TUIOS daemon socket; when set it wins over -server (TUIOS_SOCKET alone does not)")
 	flags.StringVar(&opts.Harnesses, "harnesses", harness.ConfigPath(os.Getenv, os.UserHomeDir), "Harness definitions (JSON array) merged by name over the built-ins claude, omp and codex; a missing file is the built-ins")
 	flags.StringVar(&opts.Server, "server", defaultServer(), "TUIOS server mtm runs on, started when missing (env MTM_SERVER); \""+DefaultDaemon+"\" is your own daemon (TUIOS_SOCKET or the runtime dir), never started")
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	words := []string{"help"} // -h and --help list the commands after the flags
+	if err := flags.Parse(args); err == nil {
+		words = flags.Args()
+	} else if !errors.Is(err, flag.ErrHelp) {
 		return err
 	}
 	app, err := New(opts)
@@ -119,20 +120,16 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stdout, ansi.Strip(app.m.View().Content))
 		return nil
 	}
-	if flags.NArg() > 0 {
-		if err := app.ensure(context.Background()); err != nil {
-			fmt.Fprintln(stderr, "mtm:", err)
-			app.setPanes(nil, err)
+	tui := func() error {
+		// The daemon is ensured and the pane list loads off the loop; the
+		// first update starts the job.
+		if err := app.ensureDaemon(); err != nil {
+			return err
 		}
-		return app.shell(stdin, stdout, stderr).run(flags.Args())
-	}
-	// The daemon is ensured and the pane list loads off the loop; the
-	// first update starts the job.
-	if err := app.ensureDaemon(); err != nil {
+		_, err := tea.NewProgram(app.m).Run()
 		return err
 	}
-	_, err = tea.NewProgram(app.m).Run()
-	return err
+	return app.commands(words, stdin, stdout, stderr, tui).Run(context.Background())
 }
 
 // shell is the CLI over this app's runtime; reveal is how it reaches a
