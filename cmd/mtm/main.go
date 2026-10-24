@@ -81,14 +81,21 @@ type App struct {
 	daemon *daemon.Client
 
 	projects []work.Project
+	current  string // the open project's id; its tasks fill the tasks stop
+	tasks    []work.Task
 
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
 	projectList *ochazuke.List
+	taskList    *ochazuke.List
+
+	field *ochazuke.Input
+	ask   *question
 }
 
-// New opens the store and wires the first page: a projects list under the
-// work page, filled from the projects table.
+// New opens the store and wires the work page: two stops, the projects list
+// filled from the projects table, then the tasks of the open project. } and
+// { (the framework's focus.next and focus.previous) move between them.
 func New(opts Options) (*App, error) {
 	db, err := store.Open(opts.Data)
 	if err != nil {
@@ -102,10 +109,12 @@ func New(opts Options) (*App, error) {
 	r := ochazuke.NewRuntime()
 	a := &App{db: db, work: w, daemon: daemon.New(opts.Socket), r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
+	a.registerPrompt()
 
 	r.Define("project").
-		Verb("open", a.openProject, "Open the project's tasks").
+		Verb("open", a.openProject, "Open the project's tasks in the tasks stop").
 		Mode("normal").Bind("enter", ochazuke.Do("project.open"))
+	a.defineTask()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
@@ -115,6 +124,12 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	a.projectList = list
+	if a.taskList, err = r.AddList("tasks", nil, ochazuke.Parent("work")); err != nil {
+		return nil, err
+	}
+	if err := a.bindTaskStop(); err != nil {
+		return nil, err
+	}
 	if err := a.refreshProjects(); err != nil {
 		db.Close()
 		return nil, err
@@ -170,12 +185,34 @@ func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if !ok {
 		return ochazuke.Failed(fmt.Errorf("project %s is not loaded", ctx.Instance.ID))
 	}
+	a.current = p.ID
+	if err := a.refreshTasks(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.taskList.Focus(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	return ochazuke.Done(p)
 }
 
 func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	s := ochazuke.NewStyles(*a.m.Appearance)
-	header := fmt.Sprintf("projects (%d)", len(a.projects))
-	body := s.Muted.Render(header) + "\n" + strings.TrimRight(a.projectList.View(width, max(1, height-1)), "\n")
-	return ochazuke.Text(body)
+	top := max(1, (height-2)/2)
+	projects := s.Muted.Render(fmt.Sprintf("projects (%d)", len(a.projects))) + "\n" + a.view(a.projectList, width, top)
+	tasks := "tasks: open a project with enter"
+	if p, ok := a.project(a.current); ok {
+		tasks = fmt.Sprintf("tasks: %s (%d)", p.Name, len(a.tasks))
+	}
+	tasks = s.Muted.Render(tasks) + "\n" + a.view(a.taskList, width, max(1, height-2-top))
+	return ochazuke.Text(projects + "\n" + tasks)
+}
+
+// view renders a list into exactly height lines, so the stop below it
+// starts at a fixed row.
+func (a *App) view(l *ochazuke.List, width, height int) string {
+	lines := strings.Split(strings.TrimRight(l.View(width, height), "\n"), "\n")
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines[:height], "\n")
 }

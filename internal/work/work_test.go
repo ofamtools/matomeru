@@ -51,3 +51,47 @@ func TestProjectsAndTasksRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAddRetitleDone(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.PutTask(Task{ID: "t1", ProjectID: "p1", Title: "a", Position: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.AddTask("p1", "  "); err == nil {
+		t.Fatal("blank title accepted")
+	}
+	if _, err := w.AddTask("", "b"); err == nil {
+		t.Fatal("task without a project accepted")
+	}
+	added, err := w.AddTask("p1", " b ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added.Title != "b" || added.Status != StatusTodo || added.Position != 5 || len(added.ID) != 32 || added.Created == 0 {
+		t.Fatalf("added = %+v", added)
+	}
+	if _, err := w.Retitle(added.ID, "c"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Done(added.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := w.Task(added.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "c" || got.Status != StatusDone || got.Updated < got.Created {
+		t.Fatalf("task = %+v", got)
+	}
+	if _, err := w.Done("missing"); err == nil {
+		t.Fatal("done on a missing task succeeded")
+	}
+}

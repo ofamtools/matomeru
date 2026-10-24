@@ -5,8 +5,13 @@ package work
 
 import (
 	"cmp"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/store"
 )
@@ -121,6 +126,81 @@ func (s *Store) PutProject(p Project) error {
 func (s *Store) PutTask(t Task) error {
 	return s.db.Tx([]string{"tasks"}, func(tx *store.Tx) error { return tx.Put("tasks", t.ID, t) })
 }
+
+// Task statuses this unit writes; the database also holds "open", "active"
+// and "skipped" from matomeru-old, which read unchanged.
+const (
+	StatusTodo = "todo"
+	StatusDone = "done"
+)
+
+// Task reads one task row by id.
+func (s *Store) Task(id string) (Task, error) {
+	var t Task
+	err := s.db.Get("tasks", id, &t)
+	return t, err
+}
+
+// AddTask creates a todo task at the end of a project's board.
+func (s *Store) AddTask(projectID, title string) (Task, error) {
+	title = strings.TrimSpace(title)
+	if projectID == "" {
+		return Task{}, errors.New("a task needs a project")
+	}
+	if title == "" {
+		return Task{}, errors.New("a task needs a title")
+	}
+	siblings, err := s.Tasks(projectID)
+	if err != nil {
+		return Task{}, err
+	}
+	var position int64
+	for _, t := range siblings {
+		position = max(position, t.Position)
+	}
+	now := Now()
+	t := Task{ID: NewID(), ProjectID: projectID, Title: title, Position: position + 1, Status: StatusTodo, Created: now, Updated: now}
+	return t, s.PutTask(t)
+}
+
+// Retitle sets a task's title.
+func (s *Store) Retitle(id, title string) (Task, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Task{}, errors.New("a task needs a title")
+	}
+	return s.patchTask(id, func(t *Task) { t.Title = title })
+}
+
+// Done marks a task done.
+func (s *Store) Done(id string) (Task, error) {
+	return s.patchTask(id, func(t *Task) { t.Status = StatusDone })
+}
+
+func (s *Store) patchTask(id string, change func(*Task)) (Task, error) {
+	var t Task
+	err := s.db.Tx([]string{"tasks"}, func(tx *store.Tx) error {
+		if err := tx.Get("tasks", id, &t); err != nil {
+			return err
+		}
+		change(&t)
+		t.Updated = Now()
+		return tx.Put("tasks", t.ID, t)
+	})
+	return t, err
+}
+
+// NewID is a row id in the shape matomeru-old wrote: 32 hex digits.
+func NewID() string {
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(id[:])
+}
+
+// Now is a row timestamp in matomeru-old's unit, Unix milliseconds.
+func Now() int64 { return time.Now().UnixMilli() }
 
 func all[T any](db *store.Store, table string) ([]T, error) {
 	raws, err := db.All(table)
