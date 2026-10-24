@@ -56,7 +56,7 @@ const attachedFrame = `  ◆ Matomeru                                           
   ┃                                                                          ┃
   ┃                                                                          ┃
   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-  jobs: #1 panes.refresh done
+  jobs: none
   ────────────────────────────────────────────────────────────────────────────
   ctrl+a leader: d detaches, ctrl+a sends ctrl+a · <paste> terminal.paste: Pa…
 `
@@ -82,7 +82,7 @@ const previewFrame = `  ◆ Matomeru                                            
   │                                                                          │
   │                                                                          │
   ╰──────────────────────────────────────────────────────────────────────────╯
-  jobs: #2 pane.preview done · #1 panes.refresh done
+  jobs: pane.preview done
   ────────────────────────────────────────────────────────────────────────────
   ctrl+c app.quit: Exit the application · enter pane.attach: Attach the pane …
 `

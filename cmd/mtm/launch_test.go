@@ -256,7 +256,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	if len(jobs) != 1 || jobs[0].Verb != "agent.start" || jobs[0].State != ochazuke.JobRunning || jobs[0].Owner != "work" {
 		t.Fatalf("jobs after y = %+v", jobs)
 	}
-	if !strings.Contains(frame(app), "jobs: #1 agent.start running") {
+	if !strings.Contains(frame(app), "jobs: agent.start running") {
 		t.Fatalf("rail lacks the running job:\n%s", frame(app))
 	}
 	runOnce(app, cmd) // the launch lands attached; its terminal's read waits for a frame
@@ -270,7 +270,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	if len(app.panes) != 2 || app.panes[0].ID != "w1" || app.r.Instances["pane:matomeru/w1"] == nil {
 		t.Fatalf("panes = %+v", app.panes)
 	}
-	if !strings.Contains(frame(app), "jobs: #1 agent.start done") {
+	if !strings.Contains(frame(app), "jobs: agent.start done") {
 		t.Fatalf("rail lacks the done job:\n%s", frame(app))
 	}
 	out, err := app.r.Execute(ochazuke.Request{Verb: "list", Noun: "jobs"})

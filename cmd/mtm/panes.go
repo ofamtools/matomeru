@@ -102,7 +102,12 @@ func (a *App) definePanes() {
 		Bind("p", ochazuke.Do("pane.preview")).
 		Bind("K", ochazuke.Do("pane.kill"))
 	r.Define("panes").Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon")
+	a.quietVerb("panes", "refresh")
 }
+
+// quietVerb marks noun.verb as bookkeeping (it only reloads a list), so
+// the rail does not show its jobs.
+func (a *App) quietVerb(noun, verb string) { a.quiet[noun+"."+verb] = true }
 
 // addPanesPage builds the page: the list first, so the page starts on it.
 func (a *App) addPanesPage() error {

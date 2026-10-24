@@ -67,6 +67,11 @@ func TestAcceptingNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	if got := f.shells[0]; got.Session != "matomeru" || got.Cwd != "/src/matomeru" || got.Name != shellName || len(got.Command) != 0 || got.Focus {
 		t.Fatalf("shell request = %+v", got)
 	}
+	// The wire request says focus false (the daemon defaults to true), so a
+	// new shell never steals the user's focus in TUIOS.
+	if wire, _ := json.Marshal(f.shells[0]); !strings.Contains(string(wire), `"focus":false`) {
+		t.Fatalf("new-window params = %s", wire)
+	}
 	if len(f.launches) != 0 {
 		t.Fatalf("pane.new started an agent: %+v", f.launches)
 	}

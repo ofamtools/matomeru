@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -12,7 +11,7 @@ func TestTheRailShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 	press(t, app, "j", "enter")
 	key(t, app, "l")
 	cmd := key(t, app, "y")
-	if r := app.rail(); r != "jobs: #1 agent.start running" {
+	if r := app.rail(); r != "jobs: agent.start running" {
 		t.Fatalf("rail while launching = %q", r)
 	}
 	runOnce(app, cmd) // lands attached: the terminal's read job is running
@@ -28,7 +27,7 @@ func TestTheRailShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 	if reads == 0 {
 		t.Fatal("no read job to hide")
 	}
-	if r := app.rail(); r != "jobs: #1 agent.start done" || strings.Contains(frame(app), " read ") {
+	if r := app.rail(); r != "jobs: agent.start done" || strings.Contains(frame(app), " read ") {
 		t.Fatalf("rail while attached = %q\n%s", r, frame(app))
 	}
 	// Newest first, at most three.
@@ -37,11 +36,22 @@ func TestTheRailShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 		settle(app, key(t, app, "p"))
 	}
 	r := app.rail()
-	if strings.Count(r, "#") != 3 || !strings.HasPrefix(r, "jobs: #") || strings.Contains(r, "agent.start") {
-		t.Fatalf("rail = %q", r)
+	if want := "jobs: pane.preview done · "; !strings.HasPrefix(r, want) || strings.Count(r, "pane.preview") != 3 || strings.Contains(r, "agent.start") || strings.Contains(r, "#") {
+		t.Fatalf("rail = %q, want three pane.preview jobs, newest (done) first, no job numbers", r)
 	}
-	jobs := app.r.Jobs()
-	if want := "#" + strconv.FormatUint(jobs[len(jobs)-1].Job, 10) + " pane.preview done"; !strings.HasPrefix(r, "jobs: "+want) {
-		t.Fatalf("rail = %q, want it to start with %q", r, want)
+}
+
+// List reloads (panes.refresh runs at startup and after every launch and
+// kill) are bookkeeping, not work the user asked for: the rail skips them.
+func TestTheRailSkipsQuietVerbs(t *testing.T) {
+	app, _ := panesApp(t)
+	if len(jobsOf(app, "panes.refresh")) == 0 {
+		t.Fatal("no panes.refresh job to hide")
+	}
+	if !app.quiet["panes.refresh"] {
+		t.Fatal("panes.refresh is not marked quiet")
+	}
+	if r := app.rail(); r != "jobs: none" {
+		t.Fatalf("rail = %q", r)
 	}
 }

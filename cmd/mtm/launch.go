@@ -525,18 +525,20 @@ const railJobs = 3
 
 // rail is the status rail: the newest jobs of the jobs list (read without
 // consuming the finished ones) that run an application verb, newest
-// first. Framework jobs (a terminal's stream read runs under the
-// unregistered verb "read") are not work the user asked for, so the
-// registry's operation kind decides, not a list of verbs.
+// first, as "verb state". Framework jobs (a terminal's stream read runs
+// under the unregistered verb "read") are not work the user asked for, so
+// the registry's operation kind decides, not a list of verbs; nor are the
+// quiet verbs, which their definition marks (a.quietVerb) as list reloads.
+// Job numbers count every internal read, so the rail does not show them.
 func (a *App) rail() string {
 	jobs := a.r.Jobs()
 	parts := make([]string, 0, railJobs)
 	for i := len(jobs) - 1; i >= 0 && len(parts) < railJobs; i-- {
 		j := jobs[i]
-		if a.r.Operations[j.Verb].Kind != ochazuke.KindApplication {
+		if a.r.Operations[j.Verb].Kind != ochazuke.KindApplication || a.quiet[j.Verb] {
 			continue
 		}
-		part := fmt.Sprintf("#%d %s %s", j.Job, j.Verb, j.State)
+		part := j.Verb + " " + j.State
 		if j.Error != "" {
 			part += ": " + j.Error
 		}

@@ -130,6 +130,8 @@ type App struct {
 	captureErr string // why the opened review's last capture failed
 	reviewErr  string // why recording a finished launch's review failed
 
+	quiet map[string]bool // application verbs (noun.verb) that only reload a list; the rail leaves them out
+
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
 	projectList *ochazuke.List
@@ -160,7 +162,7 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := daemon.New(opts.Socket)
-	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, quiet: map[string]bool{}, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 

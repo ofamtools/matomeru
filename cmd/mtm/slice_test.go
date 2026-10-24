@@ -62,7 +62,7 @@ func TestSliceEndToEnd(t *testing.T) {
 		t.Fatalf("after y: page %s focus %s mode %s", app.r.Page, app.r.Focus, app.r.Mode.Name)
 	}
 	has("━ matomeru/write the brief ━")
-	has("jobs: #1 agent.start done")
+	has("jobs: agent.start done")
 
 	step("ctrl+a")
 	step("d")
