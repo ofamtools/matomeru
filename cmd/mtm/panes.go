@@ -206,7 +206,8 @@ func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 
 // attachPane is pane.attach: replace any attached terminal with one fed by
 // the pane's stream and focus it. CloseOnDetach makes the leader's d remove
-// the terminal, which releases the stream.
+// the terminal, which releases the stream, and FocusOnClose lands focus back
+// on the row the attach came from, so enter re-attaches at once.
 func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
@@ -216,7 +217,7 @@ func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	stream := a.panesd.OpenStream(p)
-	if _, err := ctx.Runtime.AddTerminal(paneTermID, stream, ochazuke.Parent(panesPage), ochazuke.CloseOnDetach()); err != nil {
+	if _, err := ctx.Runtime.AddTerminal(paneTermID, stream, ochazuke.Parent(panesPage), ochazuke.CloseOnDetach(), ochazuke.FocusOnClose(ctx.Instance.ID)); err != nil {
 		stream.Release() // never added, so no Terminal.Close releases it
 		return ochazuke.Failed(err)
 	}

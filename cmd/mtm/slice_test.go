@@ -69,9 +69,8 @@ func TestSliceEndToEnd(t *testing.T) {
 	if app.r.Terminal(paneTermID) != nil {
 		t.Fatal("ctrl+a d left the terminal")
 	}
-	step("}")
-	if app.r.Focus != "pane:matomeru/a1" {
-		t.Fatalf("}: focus %s", app.r.Focus)
+	if app.r.Focus != "pane:matomeru/a1" { // detach lands on the row, so enter re-attaches
+		t.Fatalf("after detach: focus %s", app.r.Focus)
 	}
 	read := step("enter")
 	feed("claude: re-attached")

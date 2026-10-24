@@ -262,8 +262,8 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	if !s.released || s.lease != [2]int{} {
 		t.Fatalf("lease not released: released %v lease %v", s.released, s.lease)
 	}
-	// A CloseOnDetach detach focuses the terminal's parent, the page.
-	if app.r.Focus != panesPage || app.r.Mode.Name != "normal" {
+	// Detach lands back on the row the attach came from.
+	if app.r.Focus != "pane:matomeru/w1" || app.r.Mode.Name != "normal" {
 		t.Fatalf("after detach: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
 	}
 	if fr := frame(app); strings.Contains(fr, "━ matomeru/claude") {
@@ -275,10 +275,8 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	app, f := panesApp(t)
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
-	// From the page, } lands on the list's selected row.
-	press(t, app, "}")
 	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("} after detach: focus %s", app.r.Focus)
+		t.Fatalf("after detach: focus %s", app.r.Focus)
 	}
 	key(t, app, "j")
 	key(t, app, "enter")
