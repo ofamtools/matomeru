@@ -34,7 +34,7 @@ func tool(t *testing.T) (*Tool, *bytes.Buffer, *[][]string) {
 		"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com",
 	)
-	tl := &Tool{Stdout: &out, Stderr: &errOut, Env: env, Home: home, Prog: "mtm-proj", User: "tester",
+	tl := &Tool{Stdout: &out, Stderr: &errOut, Env: env, Home: home, Prog: "o-proj", User: "tester",
 		Now: func() time.Time { return time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC) }}
 	tl.Run = func(dir, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
@@ -395,10 +395,9 @@ func TestTemplateEscapeRejected(t *testing.T) {
 }
 
 func TestProgName(t *testing.T) {
-	if got := progName(func(string) string { return "" }); got != "mtm-proj" {
-		t.Fatal(got)
-	}
-	if got := progName(func(k string) string { return map[string]string{"ODEN_PARENT": "mtm"}[k] }); got != "mtm proj" {
-		t.Fatal(got)
+	for parent, want := range map[string]string{"": "o-proj", "mtm": "mtm proj", "o": "o proj"} {
+		if got := progName(func(k string) string { return map[string]string{"ODEN_PARENT": parent}[k] }); got != want {
+			t.Fatalf("ODEN_PARENT=%q: %q, want %q", parent, got, want)
+		}
 	}
 }

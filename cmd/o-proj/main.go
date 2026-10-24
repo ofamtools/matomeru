@@ -1,15 +1,16 @@
-// Command mtm-proj creates and guards projects: the first external mtm
-// command, so mtm proj ARGS runs it (oden finds mtm-<sub> on PATH). Making a
+// Command o-proj creates and guards projects: a family tool (o-<tool>), so
+// o proj ARGS runs it, and so does mtm proj ARGS (mtm discovers o-<sub>
+// after its own mtm-<sub>, oden.WithPrefixes). Making a
 // project always goes through new, which creates the directory, runs git
 // init there and verifies that the directory is its own repository before
 // anything is committed; check is the guard to run before the first commit
 // in any directory. The home directory is itself a git repository, so a
 // directory without its own git init commits into it silently.
 //
-//	mtm-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public]
-//	mtm-proj check [DIR] [--root DIR]
-//	mtm-proj list
-//	mtm-proj templates
+//	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public]
+//	o-proj check [DIR] [--root DIR]
+//	o-proj list
+//	o-proj templates
 //
 // -data (before the command or after it) is mtm's database, with mtm's
 // default. No daemon is started and there is no TUI.
@@ -45,7 +46,7 @@ type Tool struct {
 	Stdout, Stderr io.Writer
 	Env            []string
 	Home           string
-	Prog           string // "mtm proj" under mtm, else "mtm-proj"; messages only
+	Prog           string // "mtm proj" under mtm, "o proj" under o, else "o-proj"; messages only
 	User           string // a template's {{.User}}
 	Now            func() time.Time
 	Run            func(dir, name string, args ...string) ([]byte, error)
@@ -67,7 +68,7 @@ func progName(getenv func(string) string) string {
 	if parent := getenv("ODEN_PARENT"); parent != "" {
 		return parent + " proj"
 	}
-	return "mtm-proj"
+	return "o-proj"
 }
 
 func (t *Tool) exec(dir, name string, args ...string) ([]byte, error) {
@@ -116,7 +117,7 @@ func (t *Tool) Main(args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return &oden.ExitError{Code: 2}
 	}
-	app := oden.New("mtm-proj", flags.Args(), oden.WithBuiltins(), oden.WithStdio(os.Stdin, t.Stdout, t.Stderr), oden.WithEnv(t.Env))
+	app := oden.New("o-proj", flags.Args(), oden.WithBuiltins(), oden.WithStdio(os.Stdin, t.Stdout, t.Stderr), oden.WithEnv(t.Env))
 	app.Add(
 		oden.Command{Name: "new", Summary: "create ROOT/NAME, git init it, verify, commit, register", Run: func(_ context.Context, a []string) error { return t.New(*data, a) }},
 		oden.Command{Name: "check", Summary: "refuse a directory whose git toplevel is $HOME or above the project root", Run: func(_ context.Context, a []string) error { return t.Check(a) }},
@@ -224,7 +225,7 @@ func (t *Tool) New(data string, args []string) error {
 		t.say("template: %s (%s) wrote %d files", tpl.Name, tpl.Kind, len(files))
 	}
 	for _, f := range []struct{ name, body string }{
-		{"AGENTS.md", "# " + name + "\n\nCreated by mtm-proj.\n"},
+		{"AGENTS.md", "# " + name + "\n\nCreated by o-proj.\n"},
 		{".gitignore", ".DS_Store\n"},
 	} {
 		path := filepath.Join(dir, f.name)

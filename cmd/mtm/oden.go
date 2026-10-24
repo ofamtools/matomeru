@@ -16,7 +16,9 @@ import (
 //     launch is task launch;
 //  2. an executable mtm-<word> on PATH, run with the remaining words, so a
 //     third party adds mtm web by installing mtm-web; a noun wins over a
-//     same-named executable, which help lists as shadowed;
+//     same-named executable, which help lists as shadowed; then a family
+//     tool o-<word> (oden.WithPrefixes("o")), so mtm proj runs o-proj
+//     unless an mtm-proj is on PATH;
 //  3. else Default: the TUI with no words, the shell with any (which names
 //     an unknown operation).
 //
@@ -25,7 +27,7 @@ import (
 // commands is the oden App for one invocation; tui runs the TUI. opts are
 // for tests (a fake PATH).
 func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer, tui func() error, opts ...oden.Option) *oden.App {
-	app := oden.New("mtm", args, append([]oden.Option{oden.WithBuiltins(), oden.WithStdio(stdin, stdout, stderr)}, opts...)...)
+	app := oden.New("mtm", args, append([]oden.Option{oden.WithBuiltins(), oden.WithPrefixes("o"), oden.WithStdio(stdin, stdout, stderr)}, opts...)...)
 	sh := a.shell(stdin, stdout, stderr)
 	app.Default = func(ctx context.Context, words []string) error {
 		if len(words) == 0 {

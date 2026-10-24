@@ -108,3 +108,25 @@ func TestNounWinsOverSameNamedBin(t *testing.T) {
 		t.Fatalf("which task: %v %q", err, out)
 	}
 }
+
+// mtm proj runs the family tool o-proj (WithPrefixes("o")) with
+// ODEN_PARENT=mtm; an mtm-proj on the same PATH wins over it.
+func TestFamilyToolOProjRunsAndMtmProjWins(t *testing.T) {
+	app, _ := cliApp(t)
+	dir := bins(t, map[string]string{"o-proj": `echo "o-proj $* parent=$ODEN_PARENT"`})
+	out, errOut, err := mtm(app, dir, "proj", "check")
+	if err != nil || out != "o-proj check parent=mtm\n" {
+		t.Fatalf("mtm proj check: %v %q %q", err, out, errOut)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "mtm-proj"), []byte("#!/bin/sh\necho \"mtm-proj $*\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, errOut, err = mtm(app, dir, "proj", "check")
+	if err != nil || out != "mtm-proj check\n" {
+		t.Fatalf("mtm proj check with mtm-proj: %v %q %q", err, out, errOut)
+	}
+	out, _, err = mtm(app, dir, "help")
+	if err != nil || !strings.Contains(out, "shadows external "+filepath.Join(dir, "o-proj")) {
+		t.Fatalf("help: %v\n%s", err, out)
+	}
+}
