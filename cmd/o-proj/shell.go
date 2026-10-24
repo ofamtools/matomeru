@@ -69,7 +69,11 @@ func (t *Tool) shell(data string) (*ocli.Shell, error) {
 		Verb("link", func(c ochazuke.Ctx) ochazuke.Result {
 			all, _ := c.Args["all"].(bool)
 			return result(t.LinkProjects(data, ochazuke.StringArg(c.Args, "hub", t.DefaultHub()), ochazuke.StringArg(c.Args, "name", ""), all))
-		}, "link one registered project (name) or all of them (all) from the hub: {linked, kept, missing}").
+		}, "link one registered project (name) or every one made by o-proj (all) from the hub: {linked, kept, missing, skipped}").
+		Verb("unlink", func(c ochazuke.Ctx) ochazuke.Result {
+			all, _ := c.Args["all"].(bool)
+			return result(t.UnlinkProjects(data, ochazuke.StringArg(c.Args, "hub", t.DefaultHub()), ochazuke.StringArg(c.Args, "name", ""), all))
+		}, "remove the hub link of one registered project (name) or of every project not made by o-proj (all): {unlinked, kept}").
 		Verb("check", func(c ochazuke.Ctx) ochazuke.Result {
 			dir, top, err := t.guard(ochazuke.StringArg(c.Args, "dir", "."), t.DefaultRoot())
 			if err != nil {
@@ -110,7 +114,12 @@ func (t *Tool) shell(data string) (*ocli.Shell, error) {
 	})
 	params("project.link", map[string]ochazuke.Parameter{
 		"name": {Type: "string", Description: "the registered project to link (or all)"},
-		"all":  {Type: "boolean", Description: "link every registered project"},
+		"all":  {Type: "boolean", Description: "link every project made by o-proj"},
+		"hub":  {Type: "string", Description: "the hub directory (default $O_PROJ_HUB, else ~/hub/o)"},
+	})
+	params("project.unlink", map[string]ochazuke.Parameter{
+		"name": {Type: "string", Description: "the registered project to unlink (or all)"},
+		"all":  {Type: "boolean", Description: "unlink every project not made by o-proj"},
 		"hub":  {Type: "string", Description: "the hub directory (default $O_PROJ_HUB, else ~/hub/o)"},
 	})
 	params("project.check", map[string]ochazuke.Parameter{

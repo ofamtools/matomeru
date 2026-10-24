@@ -9,13 +9,15 @@
 //
 //	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none] [--hub DIR|none]
 //	o-proj link NAME | --all [--hub DIR]
+//	o-proj unlink NAME | --all [--hub DIR]
+//	o-proj adopt NAME
 //	o-proj check [DIR] [--root DIR]
 //	o-proj list
 //	o-proj templates
 //	o-proj project VERB [ARG...] [--ARG VALUE] [--target ID] [--json '{...}']
 //	o-proj catalog
 //
-// The first five are the inline commands; project is the same work as an
+// The first seven are the inline commands; project is the same work as an
 // ochazuke noun (shell.go), whose verbs print JSON, and catalog describes it
 // for a host that mounts this bin.
 //
@@ -43,6 +45,10 @@ import (
 	ocli "github.com/unixsuperhero/ochazuke/cli"
 	"github.com/unixsuperhero/oden"
 )
+
+// Origin is the provenance new (and --existing, and adopt) records on the
+// projects it registers; link --all links only these.
+const Origin = "o-proj"
 
 // GitHubOwner is the account new --github creates repositories under.
 const GitHubOwner = "unixsuperhero"
@@ -130,7 +136,9 @@ func (t *Tool) Main(args []string) error {
 		oden.Command{Name: "new", Summary: "create ROOT/NAME, git init it, verify, commit, register, link from the hub", Run: func(_ context.Context, a []string) error { return t.New(*data, a) }},
 		oden.Command{Name: "check", Summary: "refuse a directory whose git toplevel is $HOME or above the project root", Run: func(_ context.Context, a []string) error { return t.Check(a) }},
 		oden.Command{Name: "templates", Summary: "the template catalog: name, kind (dir|tar.gz), path; .tmpl files render with Go text/template", Run: func(_ context.Context, a []string) error { return t.ListTemplates(a) }},
-		oden.Command{Name: "link", Summary: "link one registered project (NAME) or all of them (--all) from the hub, ~/hub/o/NAME -> DIR", Run: func(_ context.Context, a []string) error { return t.Link(*data, a) }},
+		oden.Command{Name: "link", Summary: "link one registered project (NAME) or every one made by o-proj (--all) from the hub, ~/hub/o/NAME -> DIR", Run: func(_ context.Context, a []string) error { return t.Link(*data, a) }},
+		oden.Command{Name: "unlink", Summary: "remove the hub link of one registered project (NAME) or of every project not made by o-proj (--all)", Run: func(_ context.Context, a []string) error { return t.Unlink(*data, a) }},
+		oden.Command{Name: "adopt", Summary: "record a registered project as made by o-proj without touching its tree", Run: func(_ context.Context, a []string) error { return t.Adopt(*data, a) }},
 		oden.Command{Name: "list", Summary: "the projects in mtm's store with their trees (JSON)", Run: func(_ context.Context, a []string) error { return t.List(*data, a) }},
 	)
 	sh, err := t.shell(*data)
@@ -373,10 +381,15 @@ func (t *Tool) register(data, name, dir, repo string) error {
 		for _, tr := range p.Trees {
 			if samePath(tr.Path, dir) {
 				t.say("register: project %s (%s) already has tree %s", name, p.ID, dir)
-				return nil
+				if p.Origin == Origin {
+					return nil
+				}
+				p.Origin = Origin
+				return w.PutProject(p)
 			}
 		}
 		p.Trees = append(p.Trees, tree)
+		p.Origin = Origin
 		if p.DefaultTree == "" {
 			p.DefaultTree = dir
 		}
@@ -389,7 +402,7 @@ func (t *Tool) register(data, name, dir, repo string) error {
 		t.say("register: added tree %s to project %s (%s) in %s", dir, name, p.ID, data)
 		return nil
 	}
-	p := work.Project{ID: work.NewID(), Name: name, Status: "open", Created: work.Now(), Repo: repo, Trees: []work.Tree{tree}, DefaultTree: dir}
+	p := work.Project{ID: work.NewID(), Name: name, Status: "open", Created: work.Now(), Repo: repo, Trees: []work.Tree{tree}, DefaultTree: dir, Origin: Origin}
 	if err := w.PutProject(p); err != nil {
 		return err
 	}

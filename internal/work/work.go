@@ -27,6 +27,9 @@ type Project struct {
 	Trees       []Tree          `json:"trees"`
 	DefaultTree string          `json:"default_tree"`
 	Settings    ProjectSettings `json:"settings"`
+	// Origin is the tool that created or adopted the project ("o-proj");
+	// rows written before it existed, and by mtm itself, leave it empty.
+	Origin string `json:"origin,omitempty"`
 }
 
 // Theme is the colour and glyph a project or task is drawn with.

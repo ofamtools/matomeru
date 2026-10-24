@@ -520,7 +520,7 @@ func TestCatalogDescribesProjectNoun(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]string{"list": "application/project", "new": "application/", "check": "application/", "templates": "application/", "open": "application/", "link": "application/"}
+	want := map[string]string{"list": "application/project", "new": "application/", "check": "application/", "templates": "application/", "open": "application/", "link": "application/", "unlink": "application/"}
 	if !maps.Equal(verbs, want) {
 		t.Fatalf("project verbs %v, want %v", verbs, want)
 	}
