@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -130,13 +129,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return err
 	}
 	return app.commands(words, stdin, stdout, stderr, tui).Run(context.Background())
-}
-
-// shell is the CLI over this app's runtime; reveal is how it reaches a
-// target no list shows yet, owners which instance a noun with none of its
-// own acts for.
-func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *shell {
-	return &shell{r: a.r, reveal: a.reveal, owners: a.owners, in: bufio.NewReader(stdin), out: stdout, errOut: stderr}
 }
 
 // reveal loads the rows that hold id, so a CLI --target names a row

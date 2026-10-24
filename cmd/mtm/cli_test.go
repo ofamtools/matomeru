@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"regexp"
@@ -18,7 +19,7 @@ import (
 // stderr and the error the process would exit with.
 func cli(a *App, stdin string, args ...string) (string, string, error) {
 	var out, errOut bytes.Buffer
-	err := a.shell(strings.NewReader(stdin), &out, &errOut).run(args)
+	err := a.shell(strings.NewReader(stdin), &out, &errOut).Run(context.Background(), args)
 	return out.String(), errOut.String(), err
 }
 
