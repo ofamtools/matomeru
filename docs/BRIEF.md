@@ -41,6 +41,9 @@ Never show a session picker. `project → session name` is a pure function in th
 
 ## Order of work
 
+use 1 subagent per step, do sequentially (in serial one after another)
+use opus 5.5 unless u need fable then u can use fable 5.1
+
 1. Module skeleton, store and daemon client lifted, `--smoke` renders the work page with real projects. Commit.
 2. Projects and tasks lists, open and edit through prompts. Commit.
 3. Launch with the confirm prompt and the job in the status rail. Commit.
@@ -49,3 +52,6 @@ Never show a session picker. `project → session name` is a pure function in th
 6. `bindings list`, `history.list`, CLI `mtm task launch --target t12` all work, which proves the shell is generic.
 
 Each step: `go test -race ./...` green, ValidateBindings in a test, no key-name switches, no verb-specific branches in the shell (the matomeru post-mortem's failure mode).
+
+COMMIT and merge AFTER EVERY STEP
+no need to use separate worktrees, use main
