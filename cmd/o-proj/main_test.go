@@ -79,7 +79,7 @@ func TestNewCreatesVerifiesCommitsRegisters(t *testing.T) {
 	if got := git(t, tl, dir, "log", "--format=%s"); got != "chore: new project demo" {
 		t.Fatalf("log %q", got)
 	}
-	if got := git(t, tl, dir, "ls-tree", "--name-only", "HEAD"); got != ".gitignore\nAGENTS.md" {
+	if got := git(t, tl, dir, "ls-tree", "--name-only", "HEAD"); got != ".gitignore\nAGENTS.md\nLICENSE" {
 		t.Fatalf("tree %q", got)
 	}
 	if got := lastLine(out.String()); got != "cd "+dir {
@@ -136,7 +136,7 @@ func TestNewRefusesNonEmptyWithoutExisting(t *testing.T) {
 		t.Fatal(err, out)
 	}
 	// the adopted file is not committed; only what new wrote is
-	if got := git(t, tl, dir, "ls-tree", "--name-only", "HEAD"); got != ".gitignore\nAGENTS.md" {
+	if got := git(t, tl, dir, "ls-tree", "--name-only", "HEAD"); got != ".gitignore\nAGENTS.md\nLICENSE" {
 		t.Fatalf("tree %q", got)
 	}
 }
@@ -252,6 +252,86 @@ func TestList(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].Name != "listed" || len(rows[0].Trees) != 1 || rows[0].Trees[0].Path != filepath.Join(root, "listed") {
 		t.Fatalf("rows %+v", rows)
+	}
+}
+
+// licensed runs new with args in a fresh temp home and returns the project dir.
+func licensed(t *testing.T, tl *Tool, args ...string) string {
+	t.Helper()
+	root := filepath.Join(tl.Home, "proj")
+	if err := tl.Main(append([]string{"new", "lic", "--root", root, "--no-register"}, args...)); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(root, "lic")
+}
+
+func TestNewLicenseDefaultIsMIT(t *testing.T) {
+	tl, _, _ := tool(t)
+	cfg := filepath.Join(tl.Home, "gitconfig")
+	if err := os.WriteFile(cfg, []byte("[user]\n\tname = Ada Lovelace\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tl.Env = append(tl.Env, "GIT_CONFIG_GLOBAL="+cfg)
+	dir := licensed(t, tl)
+	body, err := os.ReadFile(filepath.Join(dir, "LICENSE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(body), "MIT License\n\nCopyright (c) 2026 Ada Lovelace\n") || !strings.Contains(string(body), "WITHOUT WARRANTY OF ANY KIND") {
+		t.Fatalf("LICENSE %q", body)
+	}
+	if got := git(t, tl, dir, "ls-tree", "--name-only", "HEAD"); got != ".gitignore\nAGENTS.md\nLICENSE" {
+		t.Fatalf("tree %q", got)
+	}
+}
+
+func TestNewLicenseHolderFallsBackToUser(t *testing.T) {
+	tl, _, _ := tool(t)
+	tl.Env = append(tl.Env, "USER=someone")
+	body, err := os.ReadFile(filepath.Join(licensed(t, tl, "--license", "mit"), "LICENSE"))
+	if err != nil || !strings.Contains(string(body), "Copyright (c) 2026 someone\n") {
+		t.Fatalf("LICENSE %q %v", body, err)
+	}
+}
+
+func TestNewLicenseNone(t *testing.T) {
+	tl, _, _ := tool(t)
+	dir := licensed(t, tl, "--license", "none")
+	if _, err := os.Stat(filepath.Join(dir, "LICENSE")); !os.IsNotExist(err) {
+		t.Fatalf("LICENSE written: %v", err)
+	}
+	if got := git(t, tl, dir, "ls-tree", "--name-only", "HEAD"); got != ".gitignore\nAGENTS.md" {
+		t.Fatalf("tree %q", got)
+	}
+}
+
+func TestNewLicenseKeepsExisting(t *testing.T) {
+	tl, out, _ := tool(t)
+	dir := filepath.Join(tl.Home, "proj", "lic")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte("mine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	licensed(t, tl, "--existing")
+	if body, _ := os.ReadFile(filepath.Join(dir, "LICENSE")); string(body) != "mine\n" {
+		t.Fatalf("LICENSE overwritten: %q", body)
+	}
+	if !strings.Contains(out.String(), "keep: "+filepath.Join(dir, "LICENSE")+" exists") {
+		t.Fatalf("out %q", out)
+	}
+}
+
+func TestNewLicenseRejectsUnknown(t *testing.T) {
+	tl, _, _ := tool(t)
+	root := filepath.Join(tl.Home, "proj")
+	err := tl.Main([]string{"new", "lic", "--root", root, "--no-register", "--license", "gpl"})
+	if err == nil || !strings.Contains(err.Error(), `--license "gpl": choose one of mit, none`) {
+		t.Fatalf("err %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "lic")); !os.IsNotExist(err) {
+		t.Fatal("a directory was made for a refused license")
 	}
 }
 

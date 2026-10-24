@@ -7,7 +7,7 @@
 // in any directory. The home directory is itself a git repository, so a
 // directory without its own git init commits into it silently.
 //
-//	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public]
+//	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none]
 //	o-proj check [DIR] [--root DIR]
 //	o-proj list
 //	o-proj templates
@@ -157,13 +157,14 @@ func (t *Tool) New(data string, args []string) error {
 	github := flags.Bool("github", false, "create github.com/"+GitHubOwner+"/NAME and push")
 	private := flags.Bool("private", false, "the GitHub repository is private (the default)")
 	public := flags.Bool("public", false, "the GitHub repository is public")
+	license := flags.String("license", Licenses[0], "the LICENSE written where absent: "+strings.Join(Licenses, " or "))
 	flags.StringVar(&data, "data", data, "SQLite database path (mtm's)")
 	words, err := parse(flags, args)
 	if err != nil {
 		return err
 	}
 	if len(words) != 1 {
-		return fmt.Errorf("usage: %s new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public]", t.Prog)
+		return fmt.Errorf("usage: %s new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none]", t.Prog)
 	}
 	name := words[0]
 	if name == "." || name == ".." || name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, "-") {
@@ -171,6 +172,9 @@ func (t *Tool) New(data string, args []string) error {
 	}
 	if *private && *public {
 		return errors.New("--private and --public are exclusive")
+	}
+	if err := checkLicense(*license); err != nil {
+		return err
 	}
 	base, err := filepath.Abs(*root)
 	if err != nil {
@@ -224,14 +228,21 @@ func (t *Tool) New(data string, args []string) error {
 		wrote = append(wrote, files...)
 		t.say("template: %s (%s) wrote %d files", tpl.Name, tpl.Kind, len(files))
 	}
-	for _, f := range []struct{ name, body string }{
+	minimal := []struct{ name, body string }{
 		{"AGENTS.md", "# " + name + "\n\nCreated by o-proj.\n"},
 		{".gitignore", ".DS_Store\n"},
-	} {
+	}
+	if *license != "none" {
+		minimal = append(minimal, struct{ name, body string }{"LICENSE", ""})
+	}
+	for _, f := range minimal {
 		path := filepath.Join(dir, f.name)
 		if _, err := os.Lstat(path); err == nil {
 			t.say("keep: %s exists", path)
 			continue
+		}
+		if f.name == "LICENSE" {
+			f.body = licenseText(*license, t.Now().Year(), t.holder(dir))
 		}
 		if err := os.WriteFile(path, []byte(f.body), 0o644); err != nil {
 			return err
