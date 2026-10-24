@@ -28,6 +28,8 @@ App = { store: sqlite, daemon: tuiosClient, projects, tasks, panes, reviews, ui:
 
 Store and daemon client are lifted from `matomeru-old/internal/store` and `internal/daemon` (971 lines) or `gmtm/internal/tuios` (1,551 lines, includes the protocol notes). Pick one, do not write a third.
 
+Decision (step 1): matomeru-old. Its store is the one the existing `~/.local/share/matomeru/mtm.db` was written with, so real projects and tasks open unchanged; its daemon client already has `start-agent`, `capture-pane`, `LaunchWorkspace` and the stream-pane lease frames that steps 3 and 4 need; and it is the smaller of the two. gmtm's client is Bubble Tea v1 era, has no store, and its pooled-connection interface would have been a third design to adapt. The lift is verbatim except for inlining the two things it took from the old `core` package (`Event`, `newID`) into `internal/daemon/event.go`. The row shapes live in `internal/work`.
+
 ## Off-loop work (the delivery contract)
 
 - `agent.launch` → `Pending(work)`, accumulate; its completion refreshes the pane list and shows up in `jobs.list` (the status rail renders that list).
