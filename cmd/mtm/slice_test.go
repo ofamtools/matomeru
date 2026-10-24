@@ -26,7 +26,7 @@ func TestSliceEndToEnd(t *testing.T) {
 	// waits for a frame and a leader's timer would fire the timeout.
 	step := func(k string) tea.Cmd {
 		t.Helper()
-		before := frame(app)
+		before := rawFrame(app)
 		_, cmd := app.m.Update(keyMsg(k))
 		if k == "y" || app.r.Page == reviewsPage && k == "enter" {
 			runOnce(app, cmd)
@@ -34,7 +34,7 @@ func TestSliceEndToEnd(t *testing.T) {
 		if app.m.Status != "" {
 			t.Fatalf("key %q: %s", k, app.m.Status)
 		}
-		if frame(app) == before {
+		if rawFrame(app) == before { // raw: a moved highlight is a change
 			t.Fatalf("key %q changed nothing (focus %s mode %s):\n%s", k, app.r.Focus, app.r.Mode.Name, before)
 		}
 		return cmd

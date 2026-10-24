@@ -113,9 +113,13 @@ func key(t *testing.T, a *App, k string) tea.Cmd {
 	return cmd
 }
 
-func frame(a *App) string {
+func frame(a *App) string { return ansi.Strip(rawFrame(a)) }
+
+// rawFrame is the frame with its styles: the focused list's selected row
+// is reverse video, with no marker in the text.
+func rawFrame(a *App) string {
 	a.m.Width, a.m.Height = 120, 24
-	return ansi.Strip(a.m.View().Content)
+	return a.m.View().Content
 }
 
 func TestSessionForSlugsTheProjectName(t *testing.T) {

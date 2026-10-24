@@ -40,8 +40,8 @@ const attachedFrame = `  ◆ Matomeru                                           
    Work  › Panes  Review
   ────────────────────────────────────────────────────────────────────────────
   panes (2)
-  > matomeru/claude
-    ochazuke/shell
+  matomeru/claude
+  ochazuke/shell
 
 
 
@@ -68,8 +68,8 @@ const previewFrame = `  ◆ Matomeru                                            
    Work  › Panes  Review
   ────────────────────────────────────────────────────────────────────────────
   panes (2)
-  > matomeru/claude
-    ochazuke/shell
+  matomeru/claude
+  ochazuke/shell
 
 
   ╭─ matomeru/claude · preview ──────────────────────────────────────────────╮
@@ -111,4 +111,41 @@ func TestPanesDetailSnapshots(t *testing.T) {
 	if app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
+}
+
+// highlighted is the stripped text of a frame's reverse-video rows.
+func highlighted(raw string) []string {
+	var out []string
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.Contains(line, "\x1b[7m") {
+			out = append(out, strings.TrimSpace(ansi.Strip(line)))
+		}
+	}
+	return out
+}
+
+// The work page draws projects and tasks; only the focused list's selected
+// row stands out (reverse video), and no row carries a cursor marker.
+func TestWorkPageShowsOneSelectedRow(t *testing.T) {
+	app := open(t)
+	mono(t, app)
+	check := func(want string) {
+		t.Helper()
+		raw := rawFrame(app)
+		if got := highlighted(raw); len(got) != 1 || !strings.Contains(got[0], want) {
+			t.Fatalf("highlighted rows %q, want one with %q:\n%s", got, want, ansi.Strip(raw))
+		}
+		for _, line := range strings.Split(ansi.Strip(raw), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "> ") {
+				t.Fatalf("a row carries a cursor marker: %q", line)
+			}
+		}
+	}
+	check("ochazuke")
+	app.m.Update(keyMsg("j"))
+	app.m.Update(keyMsg("enter")) // matomeru's tasks: the focus moves to them
+	if !strings.Contains(frame(app), "write the brief") {
+		t.Fatalf("tasks not shown:\n%s", frame(app))
+	}
+	check("write the brief")
 }
