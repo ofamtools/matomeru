@@ -123,3 +123,44 @@ func TestLastLaunchedAndAddProject(t *testing.T) {
 		t.Fatalf("last launched = %q, %v", id, err)
 	}
 }
+
+func TestReviewsRoundTrip(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.AddReview(Review{ProjectID: "p1"}); err == nil {
+		t.Fatal("a review without a pane was added")
+	}
+	r, err := w.AddReview(Review{ProjectID: "p1", TaskID: "t1", Session: "s", Window: "w1", Pane: "s/claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Status != ReviewPending || r.ID == "" {
+		t.Fatalf("added = %+v", r)
+	}
+	if _, err := w.SetReviewStatus(r.ID, "maybe"); err == nil {
+		t.Fatal("an unknown status was accepted")
+	}
+	if _, err := w.SetReviewStatus(r.ID, ReviewAccepted); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.SaveOutput(r.ID, "done."); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.SaveAnswer(r.ID, "it works"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := w.Reviews()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Status != ReviewAccepted || got[0].Output != "done." || got[0].CapturedAt == 0 || got[0].Answer != "it works" || got[0].TaskID != "t1" {
+		t.Fatalf("reviews = %+v", got)
+	}
+}

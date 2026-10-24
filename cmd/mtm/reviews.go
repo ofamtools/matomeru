@@ -1,0 +1,330 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/x/ansi"
+	"github.com/unixsuperhero/ochazuke"
+
+	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/work"
+)
+
+// The review page: two stops, the reviews list (rows of the review noun,
+// one per launched agent, oldest first) and the answer area (an input of
+// the answer noun, insert pinned). A finished launch job records a pending
+// review of its pane. review.open captures the pane's screen off the loop
+// in the list's "capture" slot, stores it as the review's output and shows
+// it in the detail; the answer area then holds that review's answer, enter
+// saves it, esc restores it. review.accept and review.reject set the
+// status; neither touches the task: closing or finishing a pane never
+// implies the work is done (znbu outline/panes.md, "Pane closure"), so
+// marking the task done stays task.done's job. review.saveAnswer asks for
+// the answer in the app's prompt, or takes it as the answer argument.
+
+const (
+	reviewsPage  = "reviews"
+	reviewListID = "reviews/list"
+	answerID     = "reviews/answer"
+)
+
+// defineReviews adds the review noun and the answer area's noun.
+func (a *App) defineReviews() {
+	r := a.r
+	r.Define("review").
+		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
+		Verb("accept", a.acceptReview, "Mark the review accepted (the task is left as it is)").
+		Verb("reject", a.rejectReview, "Mark the review rejected").
+		Verb("saveAnswer", a.saveAnswer, "Save the review's answer (omit answer to be asked in a prompt)").
+		Mode("normal").
+		Bind("enter", ochazuke.Do("review.open")).
+		Bind("a", ochazuke.Do("review.accept")).
+		Bind("r", ochazuke.Do("review.reject")).
+		Bind("s", ochazuke.Do("review.saveAnswer"))
+	a.parameters("review.saveAnswer", map[string]ochazuke.Parameter{"answer": {Type: "string", Description: "Omit to be asked in a prompt"}})
+	r.Define("answer").Pin("insert").
+		Verb("save", a.saveAnswerArea, "Save the answer area as the opened review's answer").
+		Verb("cancel", a.cancelAnswerArea, "Restore the opened review's saved answer and return to the list").
+		Mode("insert").
+		Bind("enter", ochazuke.Do("answer.save")).
+		Bind("esc", ochazuke.Do("answer.cancel"))
+}
+
+// addReviewPage builds the page: the list first, so the page starts on it,
+// then the answer area.
+func (a *App) addReviewPage() error {
+	a.r.Instance(reviewsPage, ochazuke.Kind("page"))
+	list, err := a.r.AddList(reviewListID, nil, ochazuke.Parent(reviewsPage))
+	if err != nil {
+		return err
+	}
+	a.reviewList = list
+	a.answer = ochazuke.NewInput(answerID, "", false)
+	if err := a.r.AddInput(a.answer, ochazuke.Parent(reviewsPage), ochazuke.Kind("answer")); err != nil {
+		return err
+	}
+	_, err = a.r.AddPage(reviewsPage, "Review", a.renderReviews, ochazuke.Focus(reviewListID))
+	return err
+}
+
+// refreshReviews reloads the review rows and pushes them to the list.
+func (a *App) refreshReviews() error {
+	reviews, err := a.work.Reviews()
+	if err != nil {
+		return err
+	}
+	a.reviews = reviews
+	items := make([]ochazuke.ListItem, 0, len(reviews))
+	for _, rv := range reviews {
+		items = append(items, ochazuke.ListItem{ID: rv.ID, Label: a.reviewLabel(rv), Noun: "review"})
+	}
+	return a.reviewList.SetItems(items)
+}
+
+// reviewLabel is the row text: the status, the project, the task and the
+// pane, and a mark when an answer is saved.
+func (a *App) reviewLabel(rv work.Review) string {
+	project := rv.ProjectID
+	if p, ok := a.project(rv.ProjectID); ok {
+		project = p.Name
+	}
+	task := "(no task)"
+	if rv.TaskID != "" {
+		task = rv.TaskID
+		if t, err := a.work.Task(rv.TaskID); err == nil {
+			task = t.Title
+		}
+	}
+	label := fmt.Sprintf("[%s] %s · %s · %s", rv.Status, project, task, rv.Pane)
+	if rv.Answer != "" {
+		label += "  (answered)"
+	}
+	return label
+}
+
+// recordReview is a finished launch's review: the project, the task and
+// the new pane. A failure is kept for the page's header.
+func (a *App) recordReview(projectID, taskID string, started daemon.StartAgentResult) {
+	p := pane{Session: started.Session, Pane: daemon.Pane{ID: started.WindowID, Name: started.Name}}
+	_, err := a.work.AddReview(work.Review{ProjectID: projectID, TaskID: taskID, Session: p.Session, Window: p.ID, Pane: p.label()})
+	if err == nil {
+		err = a.refreshReviews()
+	}
+	a.reviewErr = ""
+	if err != nil {
+		a.reviewErr = "record review: " + err.Error()
+	}
+}
+
+// review reads the addressed row's review fresh from the store.
+func (a *App) review(ctx ochazuke.Ctx) (work.Review, error) {
+	if ctx.Instance == nil || ctx.Instance.Noun != "review" {
+		return work.Review{}, errors.New("no review is selected")
+	}
+	rv, err := a.work.Review(ctx.Instance.ID)
+	if err != nil {
+		return work.Review{}, fmt.Errorf("review %s: %w", ctx.Instance.ID, err)
+	}
+	return rv, nil
+}
+
+// setAnswerText puts text in the answer area.
+func (a *App) setAnswerText(text string) error {
+	if err := a.answer.Replace(0, len(a.answer.Text), text); err != nil {
+		return err
+	}
+	a.answer.Cursor = len(a.answer.Text)
+	return nil
+}
+
+// openReview is review.open: the review becomes the detail, its answer
+// fills the answer area, and its pane is captured off the loop; a newer
+// open replaces an older capture.
+func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
+	rv, err := a.review(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.opened, a.captureErr = rv.ID, ""
+	if err := a.setAnswerText(rv.Answer); err != nil {
+		return ochazuke.Failed(err)
+	}
+	d := a.panesd
+	target := pane{Session: rv.Session, Pane: daemon.Pane{ID: rv.Window}}
+	res := ochazuke.Pending(func(c context.Context) (any, error) {
+		text, err := d.CapturePane(c, target)
+		if err != nil {
+			return nil, fmt.Errorf("capture %s: %w", rv.Pane, err)
+		}
+		return text, nil
+	}).Replacing("capture").Then(func(_ ochazuke.Ctx, v any, err error) {
+		if err != nil {
+			a.captureErr = err.Error()
+			return
+		}
+		text, _ := v.(string)
+		if _, err := a.work.SaveOutput(rv.ID, text); err != nil {
+			a.captureErr = err.Error()
+			return
+		}
+		if err := a.refreshReviews(); err != nil {
+			a.captureErr = err.Error()
+		}
+	})
+	ticket, err := ctx.Runtime.Launch(reviewListID, "review.open", res, ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(ticket)
+}
+
+func (a *App) acceptReview(ctx ochazuke.Ctx) ochazuke.Result {
+	return a.setReviewStatus(ctx, work.ReviewAccepted)
+}
+
+func (a *App) rejectReview(ctx ochazuke.Ctx) ochazuke.Result {
+	return a.setReviewStatus(ctx, work.ReviewRejected)
+}
+
+// setReviewStatus writes the status and pushes the rows again.
+func (a *App) setReviewStatus(ctx ochazuke.Ctx, status string) ochazuke.Result {
+	rv, err := a.review(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if rv, err = a.work.SetReviewStatus(rv.ID, status); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.refreshReviews(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(rv)
+}
+
+// saveAnswer is review.saveAnswer: the answer argument saves at once,
+// else the prompt opens with the saved answer and enter saves its text.
+func (a *App) saveAnswer(ctx ochazuke.Ctx) ochazuke.Result {
+	rv, err := a.review(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	commit := a.answerCommit(rv)
+	if answer := ochazuke.StringArg(ctx.Args, "answer", ""); answer != "" {
+		if err := commit(answer); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(answer)
+	}
+	if err := a.prompt("Answer", "Answer for "+a.reviewLabel(rv), rv.Answer, commit); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(rv)
+}
+
+// answerCommit saves an answer for a review (an unchanged one writes
+// nothing), keeps the answer area in step when it is the opened review,
+// and pushes the rows again.
+func (a *App) answerCommit(rv work.Review) func(string) error {
+	return func(text string) error {
+		if text == rv.Answer {
+			return nil
+		}
+		if _, err := a.work.SaveAnswer(rv.ID, text); err != nil {
+			return err
+		}
+		if a.opened == rv.ID {
+			if err := a.setAnswerText(text); err != nil {
+				return err
+			}
+		}
+		return a.refreshReviews()
+	}
+}
+
+// openedReview is the review in the detail.
+func (a *App) openedReview() (work.Review, bool) {
+	for _, rv := range a.reviews {
+		if rv.ID == a.opened {
+			return rv, true
+		}
+	}
+	return work.Review{}, false
+}
+
+// backToReview returns focus to the opened review's row (else the list).
+func (a *App) backToReview() error {
+	if _, ok := a.openedReview(); ok {
+		if err := a.reviewList.Select(a.opened); err != nil {
+			return err
+		}
+	}
+	return a.reviewList.Focus()
+}
+
+// saveAnswerArea is answer.save: the area's text becomes the opened
+// review's answer.
+func (a *App) saveAnswerArea(ochazuke.Ctx) ochazuke.Result {
+	rv, ok := a.openedReview()
+	if !ok {
+		return ochazuke.Failed(errors.New("open a review first (enter on a review row)"))
+	}
+	text := string(a.answer.Text)
+	if err := a.answerCommit(rv)(text); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.backToReview(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(text)
+}
+
+// cancelAnswerArea is answer.cancel: the area goes back to the saved
+// answer and focus to the list.
+func (a *App) cancelAnswerArea(ochazuke.Ctx) ochazuke.Result {
+	rv, _ := a.openedReview()
+	if err := a.setAnswerText(rv.Answer); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.backToReview(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(nil)
+}
+
+func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
+	s := ochazuke.NewStyles(*a.m.Appearance)
+	top := max(1, (height-5)/3)
+	head := fmt.Sprintf("reviews (%d)", len(a.reviews))
+	list := a.view(a.reviewList, width, top)
+	switch {
+	case a.reviewErr != "":
+		head += ": " + a.reviewErr
+	case len(a.reviews) == 0:
+		list = a.fill("no reviews; a launch records one when it finishes", top)
+	}
+	rows := max(1, height-5-top)
+	detail, body, answer := "detail: enter captures the review's pane", a.fill("", rows), "answer: open a review with enter, then } edits it"
+	if rv, ok := a.openedReview(); ok {
+		detail = "output: " + rv.Pane + " [" + rv.Status + "]"
+		switch {
+		case a.captureErr != "":
+			detail += " · " + a.captureErr
+		case rv.CapturedAt != 0:
+			detail += " · captured " + time.UnixMilli(rv.CapturedAt).Format("15:04:05")
+		}
+		body = a.fill(rv.Output, rows, width)
+		answer = "answer (s or } edits, enter saves):"
+	}
+	lines := []string{s.Muted.Render(ansi.Truncate(head, width, "…")), list, s.Muted.Render(ansi.Truncate(detail, width, "…")), body, s.Muted.Render(ansi.Truncate(answer, width, "…"))}
+	before := strings.Count(strings.Join(lines, "\n"), "\n") + 1
+	field := ochazuke.Text(ansi.Truncate(string(a.answer.Text), width, "…"))
+	if a.r.Focus == answerID {
+		field = ochazuke.InputBlock(a.answer, max(1, width), 1).Offset(0, before)
+	}
+	text := strings.Join(append(lines, field.Text, s.Muted.Render(ansi.Truncate(a.rail(), width, "…"))), "\n")
+	return field.WithText(text)
+}

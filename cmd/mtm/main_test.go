@@ -78,6 +78,12 @@ func open(t *testing.T) *App {
 		}
 	}
 	db.Close()
+	return openAt(t, path)
+}
+
+// openAt builds the app on an existing database file.
+func openAt(t *testing.T, path string) *App {
+	t.Helper()
 	app, err := New(Options{Data: path})
 	if err != nil {
 		t.Fatal(err)

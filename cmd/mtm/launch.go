@@ -325,7 +325,8 @@ func (a *App) start(ctx ochazuke.Ctx, to target) ochazuke.Result {
 }
 
 // startAgent is agent.start, the confirmed launch: it records the project as
-// the last launched and starts the agent off the loop.
+// the last launched and starts the agent off the loop; its completion
+// reloads the pane list and records a pending review of the new pane.
 func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	p, ok := a.project(ochazuke.StringArg(ctx.Args, "project", ""))
 	if !ok {
@@ -348,6 +349,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.work.SetLastLaunched(p.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
+	task := ochazuke.StringArg(ctx.Args, "task", "")
 	d, panes := a.launcher, a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		started, err := d.Launch(c, params)
@@ -362,6 +364,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	}).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.setPanes(done.Panes, nil)
+			a.recordReview(p.ID, task, done.Pane)
 		}
 	})
 }

@@ -70,6 +70,7 @@ var Tables = []store.Table{
 	{Name: "projects", Owner: "work", Key: "id", Version: 1},
 	{Name: "tasks", Owner: "work", Key: "id", Version: 1},
 	{Name: "launch_state", Owner: "work", Key: "id", Version: 1},
+	{Name: "reviews", Owner: "work", Key: "id", Version: 1},
 }
 
 // launchState is the one row of launch_state: the project the last launch

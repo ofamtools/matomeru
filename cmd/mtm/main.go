@@ -96,11 +96,18 @@ type App struct {
 	attached pane    // the pane the attached terminal streams
 	stream   paneStream
 
+	reviews    []work.Review
+	opened     string // the review in the detail; review.open sets it
+	captureErr string // why the opened review's last capture failed
+	reviewErr  string // why recording a finished launch's review failed
+
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
 	projectList *ochazuke.List
 	taskList    *ochazuke.List
 	paneList    *ochazuke.List
+	reviewList  *ochazuke.List
+	answer      *ochazuke.Input
 
 	field *ochazuke.Input
 	ask   *question
@@ -109,8 +116,9 @@ type App struct {
 // New opens the store and wires the work page: two stops, the projects list
 // filled from the projects table, then the tasks of the open project. } and
 // { (the framework's focus.next and focus.previous) move between them. The
-// panes page follows it (see panes.go); ctrl+j and ctrl+k (the framework's
-// page.next and page.previous) move between the pages.
+// panes page follows it (see panes.go), then the review page (see
+// reviews.go); ctrl+j and ctrl+k (the framework's page.next and
+// page.previous) move between the pages.
 func New(opts Options) (*App, error) {
 	db, err := store.Open(opts.Data)
 	if err != nil {
@@ -136,6 +144,7 @@ func New(opts Options) (*App, error) {
 	a.defineTask()
 	a.defineLaunch()
 	a.definePanes()
+	a.defineReviews()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
@@ -154,7 +163,14 @@ func New(opts Options) (*App, error) {
 	if err := a.addPanesPage(); err != nil {
 		return nil, err
 	}
+	if err := a.addReviewPage(); err != nil {
+		return nil, err
+	}
 	if err := a.refreshProjects(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := a.refreshReviews(); err != nil {
 		db.Close()
 		return nil, err
 	}
