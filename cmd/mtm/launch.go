@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
@@ -148,7 +149,7 @@ type launched struct {
 func (a *App) defineLaunch() {
 	r := a.r
 	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)").
-		Verb("state", a.state, "Every list's rows in one call: {projects, harness} (the catalog's state, for a host)").State()
+		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label} for projects and harness (the catalog's state, for a host)").State()
 	r.Define("harness").
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").
 		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
@@ -242,9 +243,16 @@ func (a *App) projectChoices() []ochazuke.Choice {
 }
 
 // state is the catalog's state source: the rows of projects list and
-// harness list in one process, keyed by those nouns.
+// harness list in one process, as JSON Lines tagged by those nouns.
 func (a *App) state(ochazuke.Ctx) ochazuke.Result {
-	return ochazuke.Done(map[string]any{"projects": a.projectChoices(), "harness": a.harnesses.List()})
+	var out ocli.Lines
+	for _, p := range a.projectChoices() {
+		out = append(out, ocli.Row{Noun: "projects", ID: p.ID, Label: p.Label})
+	}
+	for _, h := range a.harnesses.List() {
+		out = append(out, ocli.Row{Noun: "harness", ID: h.Name, Label: h.Name})
+	}
+	return ochazuke.Done(out)
 }
 
 // Where an inferred launch target came from, in precedence order.

@@ -486,10 +486,12 @@ func TestProjectsStateAnswersBothLists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state := out.(map[string]any)
-	projects, _ := state["projects"].([]ochazuke.Choice)
-	if len(projects) != len(app.projects) || len(projects) == 0 || state["harness"] == nil {
-		t.Fatalf("state %+v", state)
+	count := map[string]int{}
+	for _, line := range out.(ocli.Lines) {
+		count[line.(ocli.Row).Noun]++
+	}
+	if count["projects"] != len(app.projects) || count["projects"] == 0 || count["harness"] != len(app.harnesses.List()) || len(count) != 2 {
+		t.Fatalf("state %+v", out)
 	}
 	data, err := ocli.Catalog(app.r, "mtm", "test")
 	if err != nil || !strings.Contains(string(data), `"state": "projects.state"`) {
