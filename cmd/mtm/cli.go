@@ -51,7 +51,7 @@ type shell struct {
 	errOut io.Writer
 }
 
-const cliUsage = "usage: mtm [--data PATH] [--socket PATH] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]\n(operations list prints every NOUN VERB and its parameters)"
+const cliUsage = "usage: mtm [--data PATH] [--server NAME|default] [--socket PATH] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]\n(operations list prints every NOUN VERB and its parameters)"
 
 // run executes one command and prints its result as JSON.
 func (s *shell) run(args []string) error {

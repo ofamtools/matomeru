@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -94,6 +95,7 @@ func openAt(t *testing.T, path string) *App {
 	app.getwd = func() (string, error) { return "/nowhere", nil }
 	// No test reaches the real daemon.
 	app.panesd = newFakePanes()
+	app.ensure = func(context.Context) error { return nil }
 	return app
 }
 

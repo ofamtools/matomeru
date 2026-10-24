@@ -17,41 +17,65 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 const maxLine = 32 << 20
 
-type Client struct{ Socket string }
+// Client talks to one daemon socket. Server names the TUIOS server the
+// socket belongs to when the client may start it (see Ensure); a client
+// with no Server only connects.
+type Client struct {
+	Socket string
+	Server string
+	Start  StartFunc     // how Ensure starts Server; nil runs StartServer
+	Wait   time.Duration // how long Ensure waits for a started server; 0 is ensureWait
+	mu     sync.Mutex    // serializes Ensure, so two calls start one server
+}
 
+// New is the client for socket; an empty socket is TUIOS_SOCKET, else the
+// socket of the server TUIOS_SERVER names (the default daemon when unset).
 func New(socket string) *Client {
 	if socket == "" {
 		socket = os.Getenv("TUIOS_SOCKET")
 	}
 	if socket == "" {
-		base := os.Getenv("XDG_RUNTIME_DIR")
-		if base == "" && runtime.GOOS != "darwin" {
-			dir := filepath.Join("/run/user", strconv.Itoa(os.Getuid()))
-			if info, err := os.Lstat(dir); err == nil && info.IsDir() && info.Mode().Perm() == 0o700 {
-				if stat, ok := info.Sys().(*syscall.Stat_t); ok && int(stat.Uid) == os.Getuid() {
-					base = dir
-				}
-			}
-		}
-		if base == "" {
-			base = filepath.Join("/tmp", "tuios-"+strconv.Itoa(os.Getuid()))
-		} else {
-			base = filepath.Join(base, "tuios")
-		}
-		if server := os.Getenv("TUIOS_SERVER"); server != "" {
-			if strings.ContainsAny(server, "/\\") || server == "." || server == ".." {
-				return &Client{}
-			}
-			base = filepath.Join(base, "servers", server)
-		}
-		socket = filepath.Join(base, "tuios.sock")
+		socket = SocketFor(os.Getenv("TUIOS_SERVER"))
 	}
 	return &Client{Socket: socket}
 }
+
+// SocketFor is the socket of the TUIOS server named name under the runtime
+// dir (XDG_RUNTIME_DIR/tuios, /run/user/UID or /tmp/tuios-UID), where
+// tuios --server NAME puts it: servers/NAME/tuios.sock. An empty name is
+// the default daemon's socket; a name that is not one path element is "".
+func SocketFor(name string) string {
+	base := os.Getenv("XDG_RUNTIME_DIR")
+	if base == "" && runtime.GOOS != "darwin" {
+		dir := filepath.Join("/run/user", strconv.Itoa(os.Getuid()))
+		if info, err := os.Lstat(dir); err == nil && info.IsDir() && info.Mode().Perm() == 0o700 {
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok && int(stat.Uid) == os.Getuid() {
+				base = dir
+			}
+		}
+	}
+	if base == "" {
+		base = filepath.Join("/tmp", "tuios-"+strconv.Itoa(os.Getuid()))
+	} else {
+		base = filepath.Join(base, "tuios")
+	}
+	if name != "" {
+		if strings.ContainsAny(name, "/\\") || name == "." || name == ".." {
+			return ""
+		}
+		base = filepath.Join(base, "servers", name)
+	}
+	return filepath.Join(base, "tuios.sock")
+}
+
+// ForServer is the client of the TUIOS server named name, which Ensure
+// starts when it is not running.
+func ForServer(name string) *Client { return &Client{Socket: SocketFor(name), Server: name} }
 
 type Error struct {
 	Code    string         `json:"code"`

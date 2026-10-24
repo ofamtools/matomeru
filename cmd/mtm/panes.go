@@ -103,6 +103,8 @@ func (a *App) definePanes() {
 		Bind("K", ochazuke.Do("pane.kill"))
 	r.Define("panes").Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon")
 	a.quietVerb("panes", "refresh")
+	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list")
+	a.quietVerb("daemon", "ensure")
 }
 
 // quietVerb marks noun.verb as bookkeeping (it only reloads a list), so
@@ -130,6 +132,30 @@ func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 		panes, _ := v.([]pane)
 		a.setPanes(panes, err)
 	})
+}
+
+// ensureVerb is daemon.ensure: make the daemon answer off the loop (Ensure
+// starts mtm's server when missing), then reload the pane list. A failure
+// fails the job (the footer shows it) and is the panes page's hint.
+func (a *App) ensureVerb(ochazuke.Ctx) ochazuke.Result {
+	ensure := a.ensure
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		return nil, ensure(c)
+	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
+		if err != nil {
+			a.setPanes(nil, err)
+			return
+		}
+		if err := a.reloadPanes(); err != nil {
+			a.paneErr = err.Error()
+		}
+	})
+}
+
+// ensureDaemon runs daemon.ensure on the pane list.
+func (a *App) ensureDaemon() error {
+	_, err := a.r.Execute(ochazuke.Request{Verb: "ensure", Noun: "daemon", Target: paneListID})
+	return err
 }
 
 // reloadPanes runs panes.refresh on the list.

@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,11 +29,47 @@ func main() {
 	}
 }
 
-// Options are the command line: where the database is and which daemon
-// socket to talk to. Empty values resolve to the defaults below.
+// Options are the command line: where the database is and which daemon to
+// talk to. Empty values resolve to the defaults below.
 type Options struct {
 	Data   string
-	Socket string
+	Socket string // an explicit daemon socket; it wins over Server
+	Server string // the TUIOS server mtm runs on; "" or DefaultDaemon is the user's own daemon
+}
+
+const (
+	// MtmServer is the TUIOS server mtm runs on unless told otherwise; it
+	// is started when it is not running.
+	MtmServer = "mtm-daemon"
+	// DefaultDaemon is the reserved -server value for the user's own
+	// daemon (TUIOS_SOCKET or the runtime dir), which mtm never starts.
+	DefaultDaemon = "default"
+)
+
+// serverStart starts a named server; tests replace it.
+var serverStart daemon.StartFunc = daemon.StartServer
+
+// client is the daemon these options name: an explicit -socket, else the
+// user's own daemon for -server default (or ""), else the named server,
+// which Ensure starts when missing.
+func (o Options) client() *daemon.Client {
+	if o.Socket != "" {
+		return daemon.New(o.Socket)
+	}
+	if o.Server == "" || o.Server == DefaultDaemon {
+		return daemon.New("")
+	}
+	c := daemon.ForServer(o.Server)
+	c.Start = serverStart
+	return c
+}
+
+// defaultServer is the -server default: MTM_SERVER when set, else MtmServer.
+func defaultServer() string {
+	if s, ok := os.LookupEnv("MTM_SERVER"); ok {
+		return s
+	}
+	return MtmServer
 }
 
 // DefaultData is the database matomeru-old wrote, so existing projects and
@@ -57,7 +94,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit")
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
-	flags.StringVar(&opts.Socket, "socket", "", "TUIOS daemon socket (default: TUIOS_SOCKET or the runtime dir)")
+	flags.StringVar(&opts.Socket, "socket", "", "TUIOS daemon socket; when set it wins over -server (TUIOS_SOCKET alone does not)")
+	flags.StringVar(&opts.Server, "server", defaultServer(), "TUIOS server mtm runs on, started when missing (env MTM_SERVER); \""+DefaultDaemon+"\" is your own daemon (TUIOS_SOCKET or the runtime dir), never started")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -75,10 +113,15 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return nil
 	}
 	if flags.NArg() > 0 {
+		if err := app.ensure(context.Background()); err != nil {
+			fmt.Fprintln(stderr, "mtm:", err)
+			app.setPanes(nil, err)
+		}
 		return app.shell(stdin, stdout, stderr).run(flags.Args())
 	}
-	// The pane list loads off the loop; the first update starts the job.
-	if err := app.reloadPanes(); err != nil {
+	// The daemon is ensured and the pane list loads off the loop; the
+	// first update starts the job.
+	if err := app.ensureDaemon(); err != nil {
 		return err
 	}
 	_, err = tea.NewProgram(app.m).Run()
@@ -112,6 +155,7 @@ type App struct {
 	db       *store.Store
 	work     *work.Store
 	daemon   *daemon.Client
+	ensure   func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
 	launcher launcher
 	panesd   paneDaemon
 	getwd    func() (string, error) // the working directory launch inference reads; tests replace it
@@ -161,8 +205,8 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	r := ochazuke.NewRuntime()
-	client := daemon.New(opts.Socket)
-	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, quiet: map[string]bool{}, r: r, m: ochazuke.NewModel(r)}
+	client := opts.client()
+	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, quiet: map[string]bool{}, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 

@@ -30,6 +30,10 @@ Store and daemon client are lifted from `matomeru-old/internal/store` and `inter
 
 Decision (step 1): matomeru-old. Its store is the one the existing `~/.local/share/matomeru/mtm.db` was written with, so real projects and tasks open unchanged; its daemon client already has `start-agent`, `capture-pane`, `LaunchWorkspace` and the stream-pane lease frames that steps 3 and 4 need; and it is the smaller of the two. gmtm's client is Bubble Tea v1 era, has no store, and its pooled-connection interface would have been a third design to adapt. The lift is verbatim except for inlining the two things it took from the old `core` package (`Event`, `newID`) into `internal/daemon/event.go`. The row shapes live in `internal/work`.
 
+## Daemon
+
+mtm talks to its own TUIOS server, `mtm-daemon` (`tuios --server mtm-daemon`, socket `<runtime dir>/servers/mtm-daemon/tuios.sock`), and starts it with `tuios --server mtm-daemon start-server` when nothing listens there (`daemon.Client.Ensure`: probe, start once, poll up to 5 s). The TUI ensures off the loop (`daemon.ensure`, a quiet job, then `panes.refresh`), so it opens at once; the CLI ensures before dispatch; `--smoke` never does. A server that cannot start is the panes page hint and the footer error (`daemon mtm-daemon not running: ...`) and the rest of the app keeps working. `-server NAME` (or `MTM_SERVER`; the flag beats the env, the env beats `mtm-daemon`) picks another server; `-server default` is the user's own daemon (`TUIOS_SOCKET` or the runtime dir), which mtm only probes and never starts. An explicit `-socket PATH` wins over both; `TUIOS_SOCKET` alone does not, so mtm run inside the user's tuios still uses `mtm-daemon`. Panes mtm launches live on that daemon and are attached through mtm, not through the user's main tuios.
+
 ## Off-loop work (the delivery contract)
 
 - `agent.launch` → `Pending(work)`, accumulate; its completion refreshes the pane list and shows up in `jobs.list` (the status rail renders that list).
@@ -76,7 +80,7 @@ All six steps are done on main:
 | 6. CLI shell: `bindings list`, `history list`, `task launch --target` | c88549e |
 | Follow-up pass | item 5 (panes use ReplacingAt and CloseOnDetach) 3f4b260; item 4 (`pane.new`) e2af2fe; item 1 (a launch ends with the pane on screen) c5b5a58; item 2 (terminal and preview borders) 588b1c8; item 3 (page tabs: the framework's header already lists them and marks the active one, now tested) this commit |
 
-CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--socket P] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]` runs the operation in-process through `Runtime.HandleCall` (history source `cli`), settles its jobs, prints JSON. A `--target` no list shows is revealed by the app (`App.reveal`: a task id opens its project; anything else reloads panes). A confirm takes `--yes`, else reads y/n from stdin (EOF declines, non-zero exit). Any other modal is an error. The CLI has no screen: a terminal a command adds (a launch lands attached) is removed before the shell runs more work, which releases its stream and lets the process exit. History is in memory, per invocation.
+CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--server NAME|default] [--socket P] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]` runs the operation in-process through `Runtime.HandleCall` (history source `cli`), settles its jobs, prints JSON. A `--target` no list shows is revealed by the app (`App.reveal`: a task id opens its project; anything else reloads panes). A confirm takes `--yes`, else reads y/n from stdin (EOF declines, non-zero exit). Any other modal is an error. The CLI has no screen: a terminal a command adds (a launch lands attached) is removed before the shell runs more work, which releases its stream and lets the process exit. History is in memory, per invocation.
 
 Known gaps:
 
