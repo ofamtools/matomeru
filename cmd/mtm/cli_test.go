@@ -61,8 +61,13 @@ func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
 	if !strings.Contains(errOut, "job #1 agent.start done") {
 		t.Fatalf("stderr lacks the finished job: %q", errOut)
 	}
-	var ticket ochazuke.Ticket
-	if err := json.Unmarshal([]byte(out), &ticket); err != nil || ticket.Job != 1 || ticket.Owner != "work" {
+	// The shell prints the settled job's value: the pane it landed.
+	var landed struct {
+		Pane struct {
+			Window string `json:"window"`
+		} `json:"Pane"`
+	}
+	if err := json.Unmarshal([]byte(out), &landed); err != nil || landed.Pane.Window == "" {
 		t.Fatalf("stdout = %q (%v)", out, err)
 	}
 	reviews, err := app.work.Reviews()

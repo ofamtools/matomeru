@@ -166,8 +166,12 @@ func TestCLIPaneNew(t *testing.T) {
 	if !strings.Contains(errOut, "pane.start done") {
 		t.Fatalf("stderr lacks the finished job: %q", errOut)
 	}
-	var ticket ochazuke.Ticket
-	if err := json.Unmarshal([]byte(out), &ticket); err != nil || ticket.Owner != panesPage {
+	var landed struct {
+		Window struct {
+			Window string `json:"window"`
+		} `json:"Window"`
+	}
+	if err := json.Unmarshal([]byte(out), &landed); err != nil || landed.Window.Window != "s1" {
 		t.Fatalf("stdout = %q (%v)", out, err)
 	}
 	if app.r.Instances["pane:ochazuke/s1"] == nil {
