@@ -2,26 +2,35 @@
 
 Design note, no code. The layer above oden: a library for CLI tools that speak ochazuke (nouns, verbs, rows, pages, bindings), the `register`/`catalog` handshake that turns an `mtm-<name>` bin into real mtm nouns and pages, and `mtm-ai` as the first extension hub.
 
+**Rule: mtm stays a thin standalone binary.** It holds the slice nouns (`project`, `task`, `pane`, `agent`, `review`), the store, the TUIOS daemon client, and two imports: `oden` and the CLI glue package `ochazuke/cli`. It never grows a feature that could be an extension; anything more complex arrives as an `mtm-<name>` extension or package. mtm does not move into the framework. The only code that leaves mtm is the generic CLI glue in `cmd/mtm/cli.go`, extracted so extensions do not copy it (section 1).
+
 What exists today and is reused as is: oden's `App`/`Catalog`/`Child`/`RunEntry` and `ODEN_PARENT`/`ODEN_ROOT`; ochazuke's `Operation`, `Parameter`, `Binding`, `ListItem`, `Request`/`Response`, `Runtime.Catalog()` (`operations.list`), `HandleCall`, `Listen`, `LoadBindings`, `ValidateBindings`, `Pending(...).Replacing(slot)`; matomeru's `store.Table{name, owner, key, version, appendOnly}` with `Declare` and `__deck_tables`, and the harness model (built-ins plus a JSON file merged by name).
 
 ## Layers
 
-```mermaid
-flowchart TB
-  oden["oden (stdlib only)<br/>mtm-&lt;sub&gt; on PATH, resolve, RunEntry,<br/>ODEN_PARENT / ODEN_ROOT, help / commands / which"]
-  och["ochazuke (root package)<br/>Runtime: nouns, verbs, rows, pages,<br/>bindings, jobs, history, HandleCall, Listen"]
-  cli["ochazuke/cli (new)<br/>NOUN VERB shell, catalog schema + projection,<br/>extension main, proxy mounting, command noun"]
-  mtm["mtm<br/>work, panes, review (core slice),<br/>extension noun, extensions table"]
-  ext["extensions: mtm-ai, mtm-git, ...<br/>any bin answering catalog with JSON"]
-  oden --> cli
-  och --> cli
-  cli --> mtm
-  cli --> ext
-  mtm -- "exec mtm-&lt;name&gt; catalog / NOUN VERB --json" --> ext
-  ext -- "ODEN_ROOT=mtm: mtm extension register" --> mtm
+```js
+layers = [
+  { name: "oden",          job: "argv -> command",
+    owns: "mtm-<sub> on PATH, resolve by name/alias/prefix, RunEntry, ODEN_PARENT / ODEN_ROOT, help / commands / which",
+    imports: ["stdlib"] },
+  { name: "ochazuke/cli",  job: "command -> HandleCall request; catalog",
+    owns: "NOUN VERB argv -> Request, --target/--yes/--json, confirm from stdin, job settling, JSON output, the catalog answer, Mount, Extension main",
+    imports: ["oden", "ochazuke (root: Runtime, nouns, verbs, rows, pages, bindings, jobs, HandleCall, Listen)"] },
+  { name: "mtm",           job: "the slice; mounts both",
+    owns: "project, task, pane, agent, review; store (mtm.db); daemon client; extension noun + extensions table",
+    imports: ["oden", "ochazuke/cli"] },
+  { name: "mtm-ai",        job: "same shape as mtm; registers with mtm",
+    owns: "skill, agent, mcp, mcp-tool nouns; the AI page",
+    imports: ["oden", "ochazuke/cli"],
+    talks: ["mtm execs: mtm-ai catalog / NOUN VERB --json", "mtm-ai execs: $ODEN_ROOT extension register --name ai"] },
+]
 ```
 
-## 1. Where the layer lives
+Every extension (`mtm-ai`, `mtm-git`, a script answering `catalog` with JSON) sits beside mtm in the last row, not above or inside it.
+
+## 1. Where the generic CLI glue lives
+
+The glue in `cmd/mtm/cli.go` knows no noun, verb or key: argv → `HandleCall` request, `--target`/`--yes`/`--json`/`--ARG` handling, a confirm answered from stdin, settling the jobs an operation scheduled, JSON output, and (new) the `catalog` answer. It is framework-shaped, and every ochazuke-based extension needs exactly the same thing, so it is extracted into a small package that mtm and every extension import. This is extracting the generic CLI glue so extensions do not copy it; mtm's nouns, store, daemon client and launch logic stay in mtm.
 
 | Option | For | Against |
 |---|---|---|
@@ -34,13 +43,15 @@ What it holds, all lifted or generalized from code that exists:
 
 ```js
 cli = {
-  Shell:     "mtm's cmd/mtm/cli.go, unchanged in behavior: NOUN VERB --target --json --ARG --yes, settle, confirm, owners, reveal hook",
+  Shell:     "the generic glue from mtm's cmd/mtm/cli.go, same behavior: NOUN VERB --target --json --ARG --yes, settle, confirm; the bin name, usage line, reveal and owners are passed in by the app",
   Catalog:   "Runtime -> catalog JSON (Runtime.Catalog() + pages + bindings + tables + ai)",
   Extension: "main() for an extension: oden App + headless Runtime + builtins catalog/register/unregister/refresh/serve",
   Mount:     "catalog JSON -> Define/Verb proxies, AddPage/AddList, LoadBindings in a host Runtime",
   Commands:  "oden Catalog -> noun `command` with rows = entries (the TUI seam, section 7)",
 }
 ```
+
+What stays in mtm after the extraction: `oden.go` (the oden App named `mtm`, nouns as inline commands), the `reveal` hook (load the rows that hold a target) and the `owners` map (`panes → panes/list`), the usage text with mtm's own flags (`--data`, `--server`, `--socket`), and everything in the slice.
 
 The owner's "subcmd chains: nouns list, verbs list, actions list" are already one table: `operations list` (every `noun.verb` with kind, confirm, params). `cli` adds `nouns list` and `verbs list --noun N` as views of `Runtime.Catalog()`, not new registries.
 
@@ -103,7 +114,7 @@ catalog = {
 The owner's spelling is `mtm ai register`. oden resolves `ai` to the external `mtm-ai` before mtm sees `register`, and the shell must not grow verb-specific branches, so the handshake is split in two ordinary pieces:
 
 - mtm defines a noun **`extension`** with verbs `register`, `unregister`, `refresh`, `list` (plain application operations, CLI `mtm extension register --name ai`).
-- every extension built on `ochazuke/cli` gets builtins `register`/`unregister`/`refresh` that run `$ODEN_ROOT extension <verb> --name <sub>` ((the sub is its own name minus `$ODEN_PARENT-`)). Run standalone (no `ODEN_ROOT`) they fail with "run it as mtm ai register". A script extension uses the `mtm extension ...` spelling directly.
+- every extension built on `ochazuke/cli` gets builtins `register`/`unregister`/`refresh` that run `$ODEN_ROOT extension <verb> --name <sub>` (the sub is its own name minus `$ODEN_PARENT-`). Run standalone (no `ODEN_ROOT`) they fail with "run it as mtm ai register". A script extension uses the `mtm extension ...` spelling directly.
 
 ```mermaid
 sequenceDiagram
@@ -182,7 +193,7 @@ env      = { ODEN_PARENT: "mtm", ODEN_ROOT: "mtm", MTM_DATA: "~/.local/share/mat
 
 **Recommend B.** Extensions run as their own processes and work without mtm (`mtm-ai skills` alone), so their data must not depend on mtm's file, and the file exists only when `tables` is non-empty (mtm-ai has none), which answers "sounds like a bit much".
 
-Migration story: the extension calls `Declare` for every table in its catalog at startup, exactly as `work.Open` does. `Declare` already refuses a changed `owner/key/version/appendOnly` ("conflicts with persisted metadata"), so a version bump ships with a migration step that, in one `Tx`, rewrites the rows and updates `__deck_tables`. `refresh` shows `table ai_pins v1 -> v2`. Gaps: `internal/store` is internal to matomeru and must move to an importable package (`ochazuke/cli/store` or its own module) for extensions to use it; it has no `Migrate`; a `Store.Migrate(from, to Table, rewrite func(json.RawMessage) (any, error))` belongs there, not in each extension.
+Migration story: the extension calls `Declare` for every table in its catalog at startup, exactly as `work.Open` does. `Declare` already refuses a changed `owner/key/version/appendOnly` ("conflicts with persisted metadata"), so a version bump ships with a migration step that, in one `Tx`, rewrites the rows and updates `__deck_tables`. `refresh` shows `table ai_pins v1 -> v2`. Gaps: `internal/store` is internal to matomeru; it stays in matomeru (the store is part of the slice) but is exported (`github.com/unixsuperhero/matomeru/store`, dropping `internal/`) so extensions can import it; it has no `Migrate`; a `Store.Migrate(from, to Table, rewrite func(json.RawMessage) (any, error))` belongs there, not in each extension.
 
 ## 6. `mtm-ai`, the worked example
 
@@ -235,13 +246,13 @@ oden's README describes the seam: an oden app hands its `Catalog` to an ochazuke
 
 One commit per step, smallest first; each step keeps `gofmt -l . && go vet ./... && go test -race ./...` green in every touched repo, `go run ./cmd/mtm --smoke` renders, and `ValidateBindings` runs in a test.
 
-1. **`ochazuke/cli.Shell`**: move mtm's `cmd/mtm/cli.go` shell into ochazuke (reveal and owners stay hooks); mtm calls it. Check: mtm's CLI tests pass unchanged; `mtm task launch --target t12` and `mtm bindings list` print what they did before.
+1. **`ochazuke/cli.Shell`**: extract the generic CLI glue from mtm's `cmd/mtm/cli.go` (argv → `HandleCall` request, `--target`/`--yes`/`--json`, confirm from stdin, job settling, JSON output) into `ochazuke/cli` so extensions do not copy it; mtm imports it and keeps its slice, `oden.go`, the usage text and the `reveal`/`owners` hooks it passes in. Check: mtm's CLI tests pass unchanged; `mtm task launch --target t12` and `mtm bindings list` print what they did before.
 2. **Catalog schema and projection**: `cli.Catalog(r)` and `cli.Validate(json)`, `nouns list`/`verbs list` views. Check: golden test of `examples/csv`'s catalog; a catalog with a colliding noun, unknown field or `schema: 2` is refused with the reason.
 3. **`cli.Extension` main and `examples/ext-hello`**: oden app + headless runtime + builtins `catalog`, `register`, `unregister`, `refresh`. Check: `ext-hello catalog` validates; `ext-hello greet say --json '{"name":"x"}'` prints JSON; `register` without `ODEN_ROOT` fails with the hint.
 4. **mtm `extension` noun and `extensions` table**: register/unregister/refresh/list. Check: a test with a fake PATH holding `mtm-hello` registers, prints `1 new noun, 1 verb`, is idempotent, refresh prints a diff, unregister removes the row.
 5. **Mounting**: proxy verbs, `pending`/`slot`, rows from `source`, bindings, `cli.ListsRender` pages (closes gaps a and b). Check: `--smoke` with `mtm-hello` registered renders its page tab; `mtm greet say` execs the bin; the jobs list shows a pending proxy; a stale bin shows the hint.
 6. **`cmd/mtm-ai` with `skill list`** from the two skill roots and `ai-sources.json`. Check: `mtm ai skills` lists both roots with shadowing; `mtm ai register` prints the summary; the AI page shows skills.
 7. **agents, mcps, `mcp tools`**: config readers per harness, pending `tools/list`. Check: `mtm ai mcps` lists `tuios` and `mtm` from `~/.claude.json` and codex's servers; `mtm ai mcp tools --server tuios` lists its tools.
-8. **Store for extensions**: move `store` to an importable package, add `Migrate`, per-extension files. Check: a fixture extension declares v1, migrates to v2, `refresh` shows the bump, `--purge` deletes the file.
+8. **Store for extensions**: export mtm's `store` (drop `internal/`; it stays in matomeru), add `Migrate`, per-extension files. Check: a fixture extension declares v1, migrates to v2, `refresh` shows the bump, `--purge` deletes the file.
 9. **`command` noun and `Commands` page** (section 7), local pty stream. Check: `examples/hello` with `cli.TUI` lists its commands and `run` attaches one.
 10. **`serve` mode** only when an extension needs it. Check: proxies prefer a live socket and fall back to exec, same results.
