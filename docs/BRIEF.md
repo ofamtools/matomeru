@@ -57,3 +57,23 @@ Each step: `go test -race ./...` green, ValidateBindings in a test, no key-name 
 
 COMMIT and merge AFTER EVERY STEP
 no need to use separate worktrees, use main
+
+## Status
+
+All six steps are done on main:
+
+| Step | Commits |
+|---|---|
+| 1. Skeleton, store and daemon lifted, `--smoke` | 33f7547, 82f10da |
+| 2. Projects and tasks, open/edit through prompts | 33c854d |
+| 3. Launch with confirm, job in the status rail | f31d289, 3e15cb1 |
+| 4. Panes: list, preview, attach/detach | bf0155b |
+| 5. Review page, save answer | d0af710 |
+| 6. CLI shell: `bindings list`, `history list`, `task launch --target` | the commit that adds this section |
+
+CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--socket P] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]` runs the operation in-process through `Runtime.HandleCall` (history source `cli`), settles its jobs, prints JSON. A `--target` no list shows is revealed by the app (`App.reveal`: a task id opens its project; anything else reloads panes). A confirm takes `--yes`, else reads y/n from stdin (EOF declines, non-zero exit). Any other modal is an error. History is in memory, per invocation.
+
+Known gaps:
+
+- Framework: Pending slots are per owner (ReplacingAt only scopes them); `terminal.detach` only moves focus; `Terminal.Close` does not notify the stream; `{{label}}` ignores arguments other than `label`; `execute` (runtime.go) rejects a target that is not an instance and has no resolver hook (the app's `reveal` covers it); there is no importable CLI entry (only `cmd/ochazuke`, a socket client), so the in-process shell lives in the app; `bindings.list` is focus-scoped, so an app-wide listing is one `--target` per stop; history is not persisted.
+- App: the harness is always claude; the fallback launch (`agent.into`) creates the project before the confirm; there is no "review this pane" verb.

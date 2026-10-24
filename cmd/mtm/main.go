@@ -3,9 +3,11 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +22,7 @@ import (
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "mtm:", err)
 		os.Exit(1)
 	}
@@ -47,8 +49,11 @@ func DefaultData() string {
 	return filepath.Join(base, "matomeru", "mtm.db")
 }
 
-func run(args []string) error {
+// run is the TUI with no words, else one CLI command (NOUN VERB ..., see
+// cli.go) against the same app.
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("mtm", flag.ContinueOnError)
+	flags.SetOutput(stderr)
 	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit")
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
@@ -66,8 +71,11 @@ func run(args []string) error {
 	defer app.Close()
 	if *smoke {
 		app.m.Width, app.m.Height = 80, 24
-		fmt.Println(ansi.Strip(app.m.View().Content))
+		fmt.Fprintln(stdout, ansi.Strip(app.m.View().Content))
 		return nil
+	}
+	if flags.NArg() > 0 {
+		return app.shell(stdin, stdout, stderr).run(flags.Args())
 	}
 	// The pane list loads off the loop; the first update starts the job.
 	if err := app.reloadPanes(); err != nil {
@@ -75,6 +83,27 @@ func run(args []string) error {
 	}
 	_, err = tea.NewProgram(app.m).Run()
 	return err
+}
+
+// shell is the CLI over this app's runtime; reveal is how it reaches a
+// target no list shows yet.
+func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *shell {
+	return &shell{r: a.r, reveal: a.reveal, in: bufio.NewReader(stdin), out: stdout, errOut: stderr}
+}
+
+// reveal loads the rows that hold id, so a CLI --target names a row
+// instance: a task id opens its project (project.open fills the tasks
+// stop), anything else reloads the pane list. Projects and reviews are
+// loaded at startup.
+func (a *App) reveal(id string) error {
+	if t, err := a.work.Task(id); err == nil {
+		if t.ProjectID == "" {
+			return fmt.Errorf("task %s has no project, so no list shows it", id)
+		}
+		_, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "project", Target: t.ProjectID})
+		return err
+	}
+	return a.reloadPanes()
 }
 
 // App owns domain state (the store, the daemon client, the rows); the
