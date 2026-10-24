@@ -147,7 +147,8 @@ type launched struct {
 // parameters.
 func (a *App) defineLaunch() {
 	r := a.r
-	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)")
+	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)").
+		Verb("state", a.state, "Every list's rows in one call: {projects, harness} (the catalog's state, for a host)").State()
 	r.Define("harness").
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").
 		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
@@ -230,12 +231,20 @@ func (a *App) parameters(key string, params map[string]ochazuke.Parameter) {
 	a.r.Operations[key] = op
 }
 
-func (a *App) listProjects(ochazuke.Ctx) ochazuke.Result {
+func (a *App) listProjects(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(a.projectChoices()) }
+
+func (a *App) projectChoices() []ochazuke.Choice {
 	out := make([]ochazuke.Choice, 0, len(a.projects))
 	for _, p := range a.projects {
 		out = append(out, ochazuke.Choice{ID: p.ID, Label: p.Name})
 	}
-	return ochazuke.Done(out)
+	return out
+}
+
+// state is the catalog's state source: the rows of projects list and
+// harness list in one process, keyed by those nouns.
+func (a *App) state(ochazuke.Ctx) ochazuke.Result {
+	return ochazuke.Done(map[string]any{"projects": a.projectChoices(), "harness": a.harnesses.List()})
 }
 
 // Where an inferred launch target came from, in precedence order.

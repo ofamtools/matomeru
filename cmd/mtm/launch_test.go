@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
@@ -474,5 +475,24 @@ func now(cmd tea.Cmd) tea.Msg {
 		return msg
 	case <-time.After(100 * time.Millisecond):
 		return nil
+	}
+}
+
+// projects state is the catalog's state source: both row-source lists in
+// one call, keyed by the nouns a host would otherwise run list on.
+func TestProjectsStateAnswersBothLists(t *testing.T) {
+	app := open(t)
+	out, err := app.r.Execute(ochazuke.Request{Noun: "projects", Verb: "state"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := out.(map[string]any)
+	projects, _ := state["projects"].([]ochazuke.Choice)
+	if len(projects) != len(app.projects) || len(projects) == 0 || state["harness"] == nil {
+		t.Fatalf("state %+v", state)
+	}
+	data, err := ocli.Catalog(app.r, "mtm", "test")
+	if err != nil || !strings.Contains(string(data), `"state": "projects.state"`) {
+		t.Fatalf("catalog state: %v %.200s", err, data)
 	}
 }
