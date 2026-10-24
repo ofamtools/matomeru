@@ -301,13 +301,14 @@ func TestList(t *testing.T) {
 		t.Fatal(err)
 	}
 	var rows []struct {
-		Name  string      `json:"name"`
-		Trees []work.Tree `json:"trees"`
+		Name   string      `json:"name"`
+		Trees  []work.Tree `json:"trees"`
+		Origin string      `json:"origin"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
 		t.Fatal(err, out)
 	}
-	if len(rows) != 1 || rows[0].Name != "listed" || len(rows[0].Trees) != 1 || rows[0].Trees[0].Path != filepath.Join(root, "listed") {
+	if len(rows) != 1 || rows[0].Name != "listed" || rows[0].Origin != Origin || len(rows[0].Trees) != 1 || rows[0].Trees[0].Path != filepath.Join(root, "listed") {
 		t.Fatalf("rows %+v", rows)
 	}
 }

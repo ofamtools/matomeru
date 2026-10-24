@@ -531,6 +531,7 @@ func (t *Tool) List(data string, args []string) error {
 		Repo        string      `json:"repo,omitempty"`
 		DefaultTree string      `json:"default_tree,omitempty"`
 		Trees       []work.Tree `json:"trees"`
+		Origin      string      `json:"origin,omitempty"`
 	}
 	rows := make([]row, 0, len(projects))
 	for _, p := range projects {
@@ -538,7 +539,7 @@ func (t *Tool) List(data string, args []string) error {
 		if trees == nil {
 			trees = []work.Tree{}
 		}
-		rows = append(rows, row{ID: p.ID, Name: p.Name, Status: p.Status, Repo: p.Repo, DefaultTree: p.DefaultTree, Trees: trees})
+		rows = append(rows, row{ID: p.ID, Name: p.Name, Status: p.Status, Repo: p.Repo, DefaultTree: p.DefaultTree, Trees: trees, Origin: p.Origin})
 	}
 	enc := json.NewEncoder(t.Stdout)
 	enc.SetIndent("", "  ")
