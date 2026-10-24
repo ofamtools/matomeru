@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -44,7 +45,8 @@ type pane struct {
 // prefix keeps them apart from project and task rows.
 func (p pane) rowID() string { return "pane:" + p.Session + "/" + p.ID }
 
-// label is the row text and the {{label}} a confirm prompt reads.
+// label is the row text, the panel title and the {{label}} a confirm
+// prompt reads. A uuid-named session shows its first 8 characters.
 func (p pane) label() string {
 	name := p.Name
 	if name == "" {
@@ -53,7 +55,18 @@ func (p pane) label() string {
 	if name == "" {
 		name = p.ID
 	}
-	return p.Session + "/" + name
+	return shortSession(p.Session) + "/" + name
+}
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// shortSession is a session name for display: a uuid's first 8
+// characters, any other name in full.
+func shortSession(name string) string {
+	if uuidPattern.MatchString(name) {
+		return name[:8]
+	}
+	return name
 }
 
 // paneDaemon is the part of the daemon the panes page needs; tests replace it.

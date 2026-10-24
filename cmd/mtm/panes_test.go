@@ -378,3 +378,22 @@ func TestDaemonKeyNames(t *testing.T) {
 		}
 	}
 }
+
+func TestPaneLabelShortensUUIDSessions(t *testing.T) {
+	for _, c := range []struct {
+		p    pane
+		want string
+	}{
+		{pane{Session: "9332c352-fd31-49a0-bb93-6b18ed187d8d", Pane: daemon.Pane{ID: "w1", Name: "Terminal 7984e10b"}}, "9332c352/Terminal 7984e10b"},
+		{pane{Session: "matomeru", Pane: daemon.Pane{ID: "w1", Name: "claude"}}, "matomeru/claude"},
+		{pane{Session: "9332c352-fd31-49a0-bb93", Pane: daemon.Pane{ID: "w1", Name: "x"}}, "9332c352-fd31-49a0-bb93/x"},
+	} {
+		if got := c.p.label(); got != c.want {
+			t.Errorf("label(%s) = %q, want %q", c.p.Session, got, c.want)
+		}
+	}
+	p := pane{Session: "9332c352-fd31-49a0-bb93-6b18ed187d8d", Pane: daemon.Pane{ID: "w1"}}
+	if got := p.rowID(); got != "pane:9332c352-fd31-49a0-bb93-6b18ed187d8d/w1" {
+		t.Errorf("rowID = %q", got)
+	}
+}
