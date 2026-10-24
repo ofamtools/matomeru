@@ -39,7 +39,7 @@ Decision (step 1): matomeru-old. Its store is the one the existing `~/.local/sha
 
 ## Session inference (znbu requirement)
 
-Never show a session picker. `project → session name` is a pure function in the app; the destination is shown in the launch confirm prompt (`Launch into session {{session}}?` via `{{<arg>}}`).
+Never show a session picker. `project → session name` is a pure function in the app; the destination is shown in the launch confirm prompt (`Launch into {{session}}?` via `{{<arg>}}`). Launch never asks for a project either: it infers one (the task under the cursor, the project row under the cursor, the project whose tree holds the cwd, the last launched) and opens the palette on `agent into` only when nothing is inferred.
 
 ## Order of work
 
