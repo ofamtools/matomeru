@@ -34,6 +34,7 @@ func tool(t *testing.T) (*Tool, *bytes.Buffer, *[][]string) {
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com",
+		"O_PROJ_HUB=",
 	)
 	tl := &Tool{Stdout: &out, Stderr: &errOut, Env: env, Home: home, Prog: "o-proj", User: "tester",
 		Now: func() time.Time { return time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC) }}
@@ -514,12 +515,12 @@ func TestCatalogDescribesProjectNoun(t *testing.T) {
 		}
 		for _, v := range n.Verbs {
 			verbs[v.Name] = v.Kind + "/" + v.Rows
-			if v.Name == "new" && len(v.Params) != 8 {
+			if v.Name == "new" && len(v.Params) != 9 {
 				t.Fatalf("new params %v", v.Params)
 			}
 		}
 	}
-	want := map[string]string{"list": "application/project", "new": "application/", "check": "application/", "templates": "application/", "open": "application/"}
+	want := map[string]string{"list": "application/project", "new": "application/", "check": "application/", "templates": "application/", "open": "application/", "link": "application/"}
 	if !maps.Equal(verbs, want) {
 		t.Fatalf("project verbs %v, want %v", verbs, want)
 	}

@@ -7,14 +7,15 @@
 // in any directory. The home directory is itself a git repository, so a
 // directory without its own git init commits into it silently.
 //
-//	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none]
+//	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none] [--hub DIR|none]
+//	o-proj link NAME | --all [--hub DIR]
 //	o-proj check [DIR] [--root DIR]
 //	o-proj list
 //	o-proj templates
 //	o-proj project VERB [ARG...] [--ARG VALUE] [--target ID] [--json '{...}']
 //	o-proj catalog
 //
-// The first four are the inline commands; project is the same work as an
+// The first five are the inline commands; project is the same work as an
 // ochazuke noun (shell.go), whose verbs print JSON, and catalog describes it
 // for a host that mounts this bin.
 //
@@ -126,9 +127,10 @@ func (t *Tool) Main(args []string) error {
 	}
 	app := oden.New("o-proj", flags.Args(), oden.WithBuiltins(), oden.WithStdio(os.Stdin, t.Stdout, t.Stderr), oden.WithEnv(t.Env))
 	app.Add(
-		oden.Command{Name: "new", Summary: "create ROOT/NAME, git init it, verify, commit, register", Run: func(_ context.Context, a []string) error { return t.New(*data, a) }},
+		oden.Command{Name: "new", Summary: "create ROOT/NAME, git init it, verify, commit, register, link from the hub", Run: func(_ context.Context, a []string) error { return t.New(*data, a) }},
 		oden.Command{Name: "check", Summary: "refuse a directory whose git toplevel is $HOME or above the project root", Run: func(_ context.Context, a []string) error { return t.Check(a) }},
 		oden.Command{Name: "templates", Summary: "the template catalog: name, kind (dir|tar.gz), path; .tmpl files render with Go text/template", Run: func(_ context.Context, a []string) error { return t.ListTemplates(a) }},
+		oden.Command{Name: "link", Summary: "link one registered project (NAME) or all of them (--all) from the hub, ~/hub/o/NAME -> DIR", Run: func(_ context.Context, a []string) error { return t.Link(*data, a) }},
 		oden.Command{Name: "list", Summary: "the projects in mtm's store with their trees (JSON)", Run: func(_ context.Context, a []string) error { return t.List(*data, a) }},
 	)
 	sh, err := t.shell(*data)
@@ -170,13 +172,14 @@ func (t *Tool) New(data string, args []string) error {
 	private := flags.Bool("private", false, "the GitHub repository is private (the default)")
 	public := flags.Bool("public", false, "the GitHub repository is public")
 	license := flags.String("license", Licenses[0], "the LICENSE written where absent: "+strings.Join(Licenses, " or "))
+	hub := flags.String("hub", t.DefaultHub(), "the hub directory that links NAME -> DIR ($O_PROJ_HUB, else ~/hub/o); none skips the link")
 	flags.StringVar(&data, "data", data, "SQLite database path (mtm's)")
 	words, err := parse(flags, args)
 	if err != nil {
 		return err
 	}
 	if len(words) != 1 {
-		return fmt.Errorf("usage: %s new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none]", t.Prog)
+		return fmt.Errorf("usage: %s new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none] [--hub DIR|none]", t.Prog)
 	}
 	name := words[0]
 	if name == "." || name == ".." || name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, "-") {
@@ -300,6 +303,11 @@ func (t *Tool) New(data string, args []string) error {
 	if *noRegister {
 		t.say("register: skipped (--no-register)")
 	} else if err := t.register(data, name, dir, repo); err != nil {
+		return err
+	}
+	if *hub == NoHub {
+		t.say("link: skipped (--hub none)")
+	} else if _, err := t.link(*hub, name, dir); err != nil {
 		return err
 	}
 	t.say("cd %s", dir)

@@ -65,7 +65,11 @@ func (t *Tool) shell(data string) (*ocli.Shell, error) {
 		Verb("list", func(ochazuke.Ctx) ochazuke.Result { return result(load()) },
 			"the projects in mtm's store: {id, label, data: {trees}}").Rows("project").
 		Verb("new", func(c ochazuke.Ctx) ochazuke.Result { return result(t.newFromArgs(data, c.Args)) },
-			"create ROOT/NAME, git init it, verify, commit, register").
+			"create ROOT/NAME, git init it, verify, commit, register, link from the hub").
+		Verb("link", func(c ochazuke.Ctx) ochazuke.Result {
+			all, _ := c.Args["all"].(bool)
+			return result(t.LinkProjects(data, ochazuke.StringArg(c.Args, "hub", t.DefaultHub()), ochazuke.StringArg(c.Args, "name", ""), all))
+		}, "link one registered project (name) or all of them (all) from the hub: {linked, kept, missing}").
 		Verb("check", func(c ochazuke.Ctx) ochazuke.Result {
 			dir, top, err := t.guard(ochazuke.StringArg(c.Args, "dir", "."), t.DefaultRoot())
 			if err != nil {
@@ -102,6 +106,12 @@ func (t *Tool) shell(data string) (*ocli.Shell, error) {
 		"license":  {Type: "string", Enum: Licenses, Description: "the LICENSE written where absent (default mit)"},
 		"existing": {Type: "boolean", Description: "adopt a directory that already has files"},
 		"register": {Type: "boolean", Description: "add the project to mtm's store (default true)"},
+		"hub":      {Type: "string", Description: "the hub directory that links NAME -> DIR (default $O_PROJ_HUB, else ~/hub/o); none skips"},
+	})
+	params("project.link", map[string]ochazuke.Parameter{
+		"name": {Type: "string", Description: "the registered project to link (or all)"},
+		"all":  {Type: "boolean", Description: "link every registered project"},
+		"hub":  {Type: "string", Description: "the hub directory (default $O_PROJ_HUB, else ~/hub/o)"},
 	})
 	params("project.check", map[string]ochazuke.Parameter{
 		"dir": {Type: "string", Description: "the directory to check (default the working directory)"},
@@ -118,7 +128,7 @@ func (t *Tool) newFromArgs(data string, args ochazuke.Arguments) (map[string]str
 	name := ochazuke.StringArg(args, "name", "")
 	root := ochazuke.StringArg(args, "root", t.DefaultRoot())
 	argv := []string{"--root", root}
-	for _, flag := range []string{"template", "license"} {
+	for _, flag := range []string{"template", "license", "hub"} {
 		if v := ochazuke.StringArg(args, flag, ""); v != "" {
 			argv = append(argv, "--"+flag, v)
 		}
