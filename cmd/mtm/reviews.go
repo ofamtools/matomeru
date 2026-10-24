@@ -91,6 +91,8 @@ func (a *App) reviewLabel(rv work.Review) string {
 	project := rv.ProjectID
 	if p, ok := a.project(rv.ProjectID); ok {
 		project = p.Name
+	} else if project == "" {
+		project = "(no project)"
 	}
 	task := "(no task)"
 	if rv.TaskID != "" {

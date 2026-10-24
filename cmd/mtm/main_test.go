@@ -93,6 +93,7 @@ func openAt(t *testing.T, path string) *App {
 	// No seeded project has a tree here, so launch inference never reads
 	// the test process's directory.
 	app.getwd = func() (string, error) { return "/nowhere", nil }
+	app.home = func() (string, error) { return "/home/test", nil }
 	// No test reaches the real daemon.
 	app.panesd = newFakePanes()
 	app.ensure = func(context.Context) error { return nil }

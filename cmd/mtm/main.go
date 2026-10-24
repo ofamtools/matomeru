@@ -159,6 +159,7 @@ type App struct {
 	launcher launcher
 	panesd   paneDaemon
 	getwd    func() (string, error) // the working directory launch inference reads; tests replace it
+	home     func() (string, error) // where a launch with no project starts; tests replace it
 
 	projects []work.Project
 	current  string // the open project's id; its tasks fill the tasks stop
@@ -206,7 +207,7 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := opts.client()
-	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, quiet: map[string]bool{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, quiet: map[string]bool{}, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -21,11 +20,9 @@ import (
 // as an argument, so its confirm prompt names the destination on every path:
 // a row's l, the palette and the CLI. agent.start does the work: it returns
 // Pending, so the launch is a job of the work page in jobs.list, and its
-// completion reloads the pane list. Only when nothing is inferred does a
-// launch open the palette on agent.into, whose project word completes from
-// projects.list and accepts free text: a name no project has becomes a
-// project only when the launch is confirmed (agent.start's newProject), so
-// declining leaves nothing behind.
+// completion reloads the pane list. When nothing is inferred a launch still
+// never asks: it goes to the fixed session noProjectSession, with no
+// project, and pane.new to mtmOnlySession.
 
 // agentHarness is the CLI every launch starts; model picks its --model.
 const agentHarness = "claude"
@@ -63,6 +60,15 @@ func sessionFor(p work.Project) string {
 	}
 	return "mtm"
 }
+
+// The fixed sessions a launch with no project goes to: agents (agent.launch
+// and its siblings) into noProjectSession, plain shells (pane.new) into
+// mtmOnlySession. They are fixed names, not derived, because the owner types
+// them by hand (tuios attach no-project) to find that work again.
+const (
+	noProjectSession = "no-project"
+	mtmOnlySession   = "mtm-only"
+)
 
 // projectCwd is where a project's agents start: its default tree, else its
 // first tree, else the daemon's default.
@@ -124,27 +130,20 @@ func (a *App) defineLaunch() {
 	r := a.r
 	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)")
 	r.Define("agent").
-		Verb("launch", a.launch, "Launch an agent into the inferred project's session (asks only when nothing is inferred)").
-		Verb("into", a.launchInto, "Launch an agent into a project by id or name, creating it when none matches").
+		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
 		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it").Confirm(launchConfirm)
 	model := ochazuke.Parameter{Type: "string", Enum: models, Description: "Model passed to " + agentHarness + " --model (default " + models[0] + ")"}
 	task := ochazuke.Parameter{Type: "string", Description: "Task id; its title is the agent's first prompt"}
-	newProject := ochazuke.Parameter{Type: "string", Description: "A name for a project to create once confirmed (into with a new name fills it)"}
 	a.parameters("agent.launch", map[string]ochazuke.Parameter{
 		"model":   model,
 		"project": {Type: "string", Source: "projects.list", Description: "Omit to infer it"},
 		"task":    task,
 	})
-	a.parameters("agent.into", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Required: true, Source: "projects.list", Free: true, Description: "A project id or name; a new name creates the project"},
-		"model":   model,
-	})
 	a.parameters("agent.start", map[string]ochazuke.Parameter{
-		"project":    {Type: "string", Source: "projects.list", Description: "The project id; one of project and newProject is required"},
-		"newProject": newProject,
-		"session":    {Type: "string", Required: true, Description: "The session the confirm prompt names"},
-		"model":      model,
-		"task":       task,
+		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the agent runs in no project (cwd: the home directory)"},
+		"session": {Type: "string", Required: true, Description: "The session the confirm prompt names"},
+		"model":   model,
+		"task":    task,
 	})
 	a.parameters("project.launch", map[string]ochazuke.Parameter{"model": model})
 	a.parameters("task.launch", map[string]ochazuke.Parameter{"model": model})
@@ -184,7 +183,8 @@ type target struct {
 // inferLaunch is the one place a launch's project is chosen, in order: the
 // task row under the cursor (at or an ancestor of it), else the project row
 // under the cursor, else the project whose tree holds the working directory,
-// else the last launched project.
+// else the last launched project. Not inferred, the caller uses its fixed
+// session (noProjectSession, mtmOnlySession).
 func (a *App) inferLaunch(at *ochazuke.Instance) (target, bool) {
 	if at != nil {
 		for _, kind := range []string{"task", "project"} {
@@ -247,7 +247,7 @@ func (a *App) projectAt(dir string) (work.Project, bool) {
 // launch is project.launch, task.launch and agent.launch: an explicit
 // project or task argument wins, else inferLaunch; the result runs
 // agent.start, whose confirm names the session. With nothing inferred it
-// asks through the palette on agent.into.
+// launches into noProjectSession with no project; it never asks.
 func (a *App) launch(ctx ochazuke.Ctx) ochazuke.Result {
 	var to target
 	switch project, task := ochazuke.StringArg(ctx.Args, "project", ""), ochazuke.StringArg(ctx.Args, "task", ""); {
@@ -268,102 +268,53 @@ func (a *App) launch(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		to = target{Project: p, Task: t.ID}
 	default:
-		var ok bool
-		if to, ok = a.inferLaunch(ctx.Instance); !ok {
-			return a.askProject(ctx, "agent into ")
-		}
+		to, _ = a.inferLaunch(ctx.Instance)
 	}
 	return a.start(ctx, to)
 }
 
-// askProject is the fallback when nothing is inferred: the palette opens on
-// line ("agent into ", "pane into "), so the next word completes from
-// projects.list and accepts a new name. (A model argument is not carried
-// over: the palette's words are positional and the project comes first.)
-func (a *App) askProject(ctx ochazuke.Ctx, line string) ochazuke.Result {
-	if _, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "open", Noun: "palette"}); err != nil {
-		return ochazuke.Failed(fmt.Errorf("no project to launch into: %w", err))
-	}
-	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "set", Noun: "palette", Args: ochazuke.Arguments{"text": line}})
-	if err != nil {
-		return ochazuke.Failed(fmt.Errorf("no project to launch into: %w", err))
-	}
-	return ochazuke.Done(out)
-}
-
-// launchInto is agent.into: the project is an id or a name; a value that
-// matches no project is launched into as a new project, which agent.start
-// creates only once the launch is confirmed.
-func (a *App) launchInto(ctx ochazuke.Ctx) ochazuke.Result {
-	value := strings.TrimSpace(ochazuke.StringArg(ctx.Args, "project", ""))
-	p, err := a.resolveProject(value)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.start(ctx, target{Project: p})
-}
-
-// resolveProject finds a project by id, else by name (ignoring case);
-// with no match it is the would-be project of that name, with no id: the
-// confirmed step creates it (startProject).
-func (a *App) resolveProject(value string) (work.Project, error) {
-	if value == "" {
-		return work.Project{}, errors.New("a project needs a name")
-	}
-	if p, ok := a.project(value); ok {
-		return p, nil
-	}
-	var named []work.Project
-	for _, p := range a.projects {
-		if strings.EqualFold(p.Name, value) {
-			named = append(named, p)
-		}
-	}
-	switch len(named) {
-	case 1:
-		return named[0], nil
-	case 0:
-	default:
-		return work.Project{}, fmt.Errorf("%d projects are named %q; use an id", len(named), value)
-	}
-	return work.Project{Name: value}, nil
-}
-
-// projectArgs names a project for agent.start and pane.start: its id, or
-// for a would-be project (no id) its name as newProject.
-func projectArgs(p work.Project) ochazuke.Arguments {
+// projectArgs names a project for agent.start and pane.start: its id and
+// its session, or with no project (no id) only the fixed session.
+func projectArgs(p work.Project, fixed string) ochazuke.Arguments {
 	if p.ID == "" {
-		return ochazuke.Arguments{"newProject": p.Name, "session": sessionFor(p)}
+		return ochazuke.Arguments{"session": fixed}
 	}
 	return ochazuke.Arguments{"project": p.ID, "session": sessionFor(p)}
 }
 
 // startProject is the project a confirmed agent.start or pane.start runs
-// in: the loaded project by id, else the newProject name, created now and
-// pushed to the rows.
+// in: the loaded project by id, or none (the zero project) when the
+// request names none.
 func (a *App) startProject(ctx ochazuke.Ctx) (work.Project, error) {
-	if id := ochazuke.StringArg(ctx.Args, "project", ""); id != "" {
-		if p, ok := a.project(id); ok {
-			return p, nil
-		}
-		return work.Project{}, fmt.Errorf("project %s is not loaded", id)
+	id := ochazuke.StringArg(ctx.Args, "project", "")
+	if id == "" {
+		return work.Project{}, nil
 	}
-	name := strings.TrimSpace(ochazuke.StringArg(ctx.Args, "newProject", ""))
-	if name == "" {
-		return work.Project{}, errors.New("no project: give project or newProject")
+	if p, ok := a.project(id); ok {
+		return p, nil
 	}
-	p, err := a.work.AddProject(name)
+	return work.Project{}, fmt.Errorf("project %s is not loaded", id)
+}
+
+// startCwd is where a confirmed start runs: the project's tree, or the
+// home directory when there is no project (the daemon's default when the
+// home directory is unknown).
+func (a *App) startCwd(p work.Project) string {
+	if p.ID != "" {
+		return projectCwd(p)
+	}
+	home, err := a.home()
 	if err != nil {
-		return work.Project{}, err
+		return ""
 	}
-	return p, a.refreshProjects()
+	return home
 }
 
 // start runs agent.start on the work page with the inferred session, so its
 // confirm names the destination and the job outlives the row it was asked
 // from (opening another project replaces the task rows).
 func (a *App) start(ctx ochazuke.Ctx, to target) ochazuke.Result {
-	args := projectArgs(to.Project)
+	args := projectArgs(to.Project, noProjectSession)
 	if to.Task != "" {
 		args["task"] = to.Task
 	}
@@ -377,10 +328,12 @@ func (a *App) start(ctx ochazuke.Ctx, to target) ochazuke.Result {
 	return ochazuke.Done(out)
 }
 
-// startAgent is agent.start, the confirmed launch: it creates a new
-// project when asked to (newProject), records the project as the last
-// launched and starts the agent off the loop; its completion reloads the
-// pane list and records a pending review of the new pane.
+// startAgent is agent.start, the confirmed launch: it records the project
+// as the last launched and starts the agent off the loop; its completion
+// reloads the pane list and records a pending review of the new pane. A
+// launch with no project is not recorded as the last launched: last
+// launched names a project, and with none the next uninferred launch goes
+// to noProjectSession anyway.
 func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.startProject(ctx)
 	if err != nil {
@@ -391,7 +344,10 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 		Agent:   agentHarness,
 		Args:    []string{"--model", ochazuke.StringArg(ctx.Args, "model", models[0])},
 		Name:    p.Name,
-		Cwd:     projectCwd(p),
+		Cwd:     a.startCwd(p),
+	}
+	if params.Name == "" {
+		params.Name = agentHarness
 	}
 	if id := ochazuke.StringArg(ctx.Args, "task", ""); id != "" {
 		t, err := a.work.Task(id)
@@ -400,8 +356,10 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		params.Name, params.Prompt = t.Title, t.Title
 	}
-	if err := a.work.SetLastLaunched(p.ID); err != nil {
-		return ochazuke.Failed(err)
+	if p.ID != "" {
+		if err := a.work.SetLastLaunched(p.ID); err != nil {
+			return ochazuke.Failed(err)
+		}
 	}
 	task := ochazuke.StringArg(ctx.Args, "task", "")
 	d, panes := a.launcher, a.panesd
@@ -427,7 +385,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 // the same inference and the same completion as a launch: pane.new infers
 // the project (inferLaunch) and runs pane.start with the session as an
 // argument, so its confirm names the destination; with nothing inferred
-// the palette opens on pane.into. pane.start creates the window off the
+// the shell goes to mtmOnlySession, in the home directory. pane.start creates the window off the
 // loop and lands it like a launch (landPane).
 
 // shellPane is what a finished pane.new job returns: the new window, the
@@ -438,23 +396,18 @@ type shellPane struct {
 	Panes   []pane
 }
 
-// defineShell adds pane.new, pane.into and pane.start to the pane noun.
+// defineShell adds pane.new and pane.start to the pane noun.
 // pane.new is a row of the pane noun and of the pane list itself, so it
 // answers on a pane row and on an empty list alike.
 func (a *App) defineShell() error {
 	a.r.Define("pane").
-		Verb("new", a.newPane, "Open a shell pane in the inferred project's session (asks only when nothing is inferred)").
-		Verb("into", a.newPaneInto, "Open a shell pane in a project's session by id or name, creating the project when none matches").
+		Verb("new", a.newPane, "Open a shell pane in the inferred project's session ("+mtmOnlySession+" when nothing is inferred)").
 		Verb("start", a.startShell, "Open a shell pane in a project's session, off the loop; new and into fill it").Confirm(shellConfirm).
 		Mode("normal").
 		Bind("n", ochazuke.Do("pane.new"))
-	a.parameters("pane.into", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Required: true, Source: "projects.list", Free: true, Description: "A project id or name; a new name creates the project"},
-	})
 	a.parameters("pane.start", map[string]ochazuke.Parameter{
-		"project":    {Type: "string", Source: "projects.list", Description: "The project id; one of project and newProject is required"},
-		"newProject": {Type: "string", Description: "A name for a project to create once confirmed (into with a new name fills it)"},
-		"session":    {Type: "string", Required: true, Description: "The session the confirm prompt names"},
+		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the shell runs in no project (cwd: the home directory)"},
+		"session": {Type: "string", Required: true, Description: "The session the confirm prompt names"},
 	})
 	row := ochazuke.Do("pane.new")
 	row.Instance, row.Mode, row.Keys = paneListID, "normal", "n"
@@ -462,46 +415,33 @@ func (a *App) defineShell() error {
 }
 
 // newPane is pane.new: inferLaunch picks the project (a task row gives its
-// project; the task itself is not used), else the palette asks.
+// project; the task itself is not used), else mtmOnlySession with none.
 func (a *App) newPane(ctx ochazuke.Ctx) ochazuke.Result {
-	to, ok := a.inferLaunch(ctx.Instance)
-	if !ok {
-		return a.askProject(ctx, "pane into ")
-	}
+	to, _ := a.inferLaunch(ctx.Instance)
 	return a.shellIn(ctx, to.Project)
-}
-
-// newPaneInto is pane.into: the project by id or name; a new name is
-// created only once pane.start is confirmed.
-func (a *App) newPaneInto(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.resolveProject(strings.TrimSpace(ochazuke.StringArg(ctx.Args, "project", "")))
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.shellIn(ctx, p)
 }
 
 // shellIn runs pane.start on the panes page with the project's session, so
 // its confirm names the destination and the job outlives the row it was
 // asked from.
 func (a *App) shellIn(ctx ochazuke.Ctx, p work.Project) ochazuke.Result {
-	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "start", Noun: "pane", Target: panesPage, Args: projectArgs(p)})
+	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "start", Noun: "pane", Target: panesPage, Args: projectArgs(p, mtmOnlySession)})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(out)
 }
 
-// startShell is pane.start, the confirmed pane.new: it creates a new
-// project when asked to (newProject), then opens a shell window
-// in the session with the project's tree as its working directory, off the
-// loop, then lands it like a launch.
+// startShell is pane.start, the confirmed pane.new: it opens a shell window
+// in the session with the project's tree (or, with no project, the home
+// directory) as its working directory, off the loop, then lands it like a
+// launch.
 func (a *App) startShell(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.startProject(ctx)
 	if err != nil {
 		return ochazuke.Failed(fmt.Errorf("new pane: %w", err))
 	}
-	params := daemon.NewWindowParams{Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)), Name: shellName, Cwd: projectCwd(p)}
+	params := daemon.NewWindowParams{Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)), Name: shellName, Cwd: a.startCwd(p)}
 	d, panes := a.launcher, a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		created, err := d.NewShell(c, params)

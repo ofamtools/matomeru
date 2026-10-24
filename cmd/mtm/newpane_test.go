@@ -125,22 +125,28 @@ func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 	}
 }
 
-func TestNewPaneWithNothingInferredAsksThroughThePalette(t *testing.T) {
+func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
 	app := open(t)
 	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
 	app.launcher = f
 	press(t, app, "ctrl+j")
 	key(t, app, "n")
-	if !app.m.Palette.IsOpen() || app.m.Palette.Text() != "pane into " {
-		t.Fatalf("palette open = %v, line = %q", app.m.Palette.IsOpen(), app.m.Palette.Text())
+	if app.m.Palette.IsOpen() {
+		t.Fatalf("pane.new with nothing inferred opened the palette on %q", app.m.Palette.Text())
 	}
-	typeText(t, app, "ochazuke")
-	press(t, app, "enter")
-	if prompt, q := confirmPrompt(t, app); prompt != "New pane in ochazuke?" || q.Key() != "pane.start" {
+	prompt, q := confirmPrompt(t, app)
+	if _, named := q.Args["project"]; prompt != "New pane in mtm-only?" || q.Key() != "pane.start" || q.Args["session"] != mtmOnlySession || named {
 		t.Fatalf("confirm = %q, %+v", prompt, q)
 	}
-	if len(app.projects) != 2 {
-		t.Fatalf("an existing name created a project: %+v", app.projects)
+	runOnce(app, key(t, app, "y"))
+	if len(f.shells) != 1 || f.shells[0].Session != "mtm-only" || f.shells[0].Cwd != "/home/test" {
+		t.Fatalf("shells = %+v", f.shells)
+	}
+	if app.r.Instances["pane:mtm-only/s1"] == nil {
+		t.Fatalf("the list lacks the new pane: %+v", app.panes)
+	}
+	if last, _ := app.work.LastLaunched(); last != "" {
+		t.Fatalf("a shell recorded %q as last launched", last)
 	}
 }
 

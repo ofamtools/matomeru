@@ -10,7 +10,7 @@ import (
 )
 
 // Review is one row of the reviews table: the result of one launched agent,
-// tied to its project, the task it was launched on (empty when launched from
+// tied to its project (empty for a launch with no project), the task it was launched on (empty when launched from
 // a project row) and the pane it runs in. Output is the pane's screen as
 // last captured; Answer is the text the user saved against it.
 type Review struct {
@@ -54,10 +54,11 @@ func (s *Store) Review(id string) (Review, error) {
 	return r, err
 }
 
-// AddReview records a pending review of a launched pane.
+// AddReview records a pending review of a launched pane. The project is
+// optional: a launch with no project records none.
 func (s *Store) AddReview(r Review) (Review, error) {
-	if r.ProjectID == "" || r.Session == "" || r.Window == "" {
-		return Review{}, errors.New("a review needs a project, a session and a window")
+	if r.Session == "" || r.Window == "" {
+		return Review{}, errors.New("a review needs a session and a window")
 	}
 	now := Now()
 	r.ID, r.Status, r.Created, r.Updated = NewID(), ReviewPending, now, now

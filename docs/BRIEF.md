@@ -47,7 +47,7 @@ mtm talks to its own TUIOS server, `mtm-daemon` (`tuios --server mtm-daemon`, so
 
 ## Session inference (znbu requirement)
 
-Never show a session picker. `project → session name` is a pure function in the app; the destination is shown in the launch confirm prompt (`Launch into {{session}}?` via `{{<arg>}}`). Launch never asks for a project either: it infers one (the task under the cursor, the project row under the cursor, the project whose tree holds the cwd, the last launched) and opens the palette on `agent into` only when nothing is inferred.
+Never show a session picker. `project → session name` is a pure function in the app; the destination is shown in the launch confirm prompt (`Launch into {{session}}?` via `{{<arg>}}`). Launch never asks for a project either: it infers one (the task under the cursor, the project row under the cursor, the project whose tree holds the cwd, the last launched) and, when nothing is inferred, goes to a fixed session with no project: an agent launch into `no-project` (`Launch into no-project?`), a plain shell (`pane.new`) into `mtm-only` (`New pane in mtm-only?`), both started in the home directory. The names are fixed so the owner can type them by hand. A launch with no project does not change the last launched project, and its review row shows `(no project)` and the pane `no-project/<pane>`.
 
 ## Order of work
 
@@ -85,4 +85,4 @@ CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--server NAME|default] [--socket P] NOU
 Known gaps:
 
 - Framework: `execute` (runtime.go) rejects a target that is not an instance and has no resolver hook (the app's `reveal` covers it); there is no importable CLI entry (only `cmd/ochazuke`, a socket client), so the in-process shell lives in the app; `bindings.list` is focus-scoped, so an app-wide listing is one `--target` per stop; history is not persisted.
-- App: the harness is always claude; there is no "review this pane" verb. (The fallback launch, `agent.into`/`pane.into` with a new name, now creates the project only on `y`: `agent.start`/`pane.start` take `newProject`.)
+- App: the harness is always claude; there is no "review this pane" verb.

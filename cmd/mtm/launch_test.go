@@ -321,10 +321,7 @@ func TestAgentLaunchParameters(t *testing.T) {
 	if p := launch.Parameters["project"]; p.Required || p.Source != "projects.list" || len(launch.Parameters["model"].Enum) == 0 {
 		t.Fatalf("agent.launch parameters = %+v", launch.Parameters)
 	}
-	if p := app.r.Operations["agent.into"].Parameters["project"]; !p.Required || !p.Free || p.Source != "projects.list" {
-		t.Fatalf("agent.into project = %+v", p)
-	}
-	for _, key := range []string{"project.launch", "task.launch", "agent.launch", "agent.into"} {
+	for _, key := range []string{"project.launch", "task.launch", "agent.launch"} {
 		if c := app.r.Operations[key].Confirm; c != "" {
 			t.Fatalf("%s confirms itself (%q); agent.start holds the confirm", key, c)
 		}
@@ -354,97 +351,76 @@ func TestAgentLaunchParameters(t *testing.T) {
 	}
 }
 
-// fallback runs agent.launch where nothing is inferred: the work page has
-// focus, the cwd is in no tree and nothing was launched yet.
-func fallback(t *testing.T, a *App) {
+// noProjectLaunch runs agent.launch where nothing is inferred (the work
+// page has focus, the cwd is in no tree, the last launched project is
+// gone) and returns the confirm's prompt and request.
+func noProjectLaunch(t *testing.T, a *App) (string, ochazuke.Request) {
 	t.Helper()
+	if err := a.work.SetLastLaunched("gone"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Target: "work"}); err != nil {
 		t.Fatal(err)
 	}
-	if !a.m.Palette.IsOpen() || a.m.Palette.Text() != "agent into " {
-		t.Fatalf("palette open = %v, line = %q", a.m.Palette.IsOpen(), a.m.Palette.Text())
+	if a.m.Palette.IsOpen() {
+		t.Fatalf("a launch with nothing inferred opened the palette on %q", a.m.Palette.Text())
 	}
+	return confirmPrompt(t, a)
 }
 
-func TestNothingInferredAsksThroughTheCompletingPalette(t *testing.T) {
+func TestNothingInferredLaunchesIntoNoProject(t *testing.T) {
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
-	fallback(t, app)
-	// The project word completes from projects.list.
-	if f := frame(app); !strings.Contains(f, "ochazuke") || !strings.Contains(f, "matomeru") {
-		t.Fatalf("palette lacks the project completions:\n%s", f)
+	prompt, q := noProjectLaunch(t, app)
+	if _, named := q.Args["project"]; prompt != "Launch into no-project?" || q.Key() != "agent.start" || q.Args["session"] != noProjectSession || named {
+		t.Fatalf("confirm = %q, request = %+v", prompt, q)
 	}
-	// A name no project has confirms its would-be session; declining
-	// creates nothing.
-	typeText(t, app, "scratch")
-	press(t, app, "enter")
-	if prompt, q := confirmPrompt(t, app); prompt != "Launch into scratch?" || q.Args["newProject"] != "scratch" {
-		t.Fatalf("confirm = %q, %+v", prompt, q)
+	if fr := frame(app); !strings.Contains(fr, "Launch into no-project?") {
+		t.Fatalf("frame:\n%s", fr)
 	}
-	settle(app, key(t, app, "n"))
-	if stored, err := app.work.Projects(); err != nil || len(stored) != 2 || len(app.projects) != 2 || len(f.launches) != 0 {
-		t.Fatalf("declined: stored %+v, %v; rows %d; launches %+v", stored, err, len(app.projects), f.launches)
-	}
-	// Accepting creates the project, then launches into it.
-	press(t, app, ":")
-	typeText(t, app, "agent into scratch")
-	press(t, app, "enter")
 	runOnce(app, key(t, app, "y"))
-	if len(app.projects) != 3 || app.projects[2].Name != "scratch" {
-		t.Fatalf("projects = %+v", app.projects)
-	}
-	created := app.projects[2]
-	if stored, err := app.work.Projects(); err != nil || len(stored) != 3 {
-		t.Fatalf("stored projects = %+v, %v", stored, err)
-	}
-	if len(f.launches) != 1 || f.launches[0].Session != "scratch" {
+	if len(f.launches) != 1 {
 		t.Fatalf("launches = %+v", f.launches)
 	}
-	if last, _ := app.work.LastLaunched(); last != created.ID {
-		t.Fatalf("last launched = %q, want %q", last, created.ID)
+	if got := f.launches[0]; got.Session != "no-project" || got.Cwd != "/home/test" || got.Name != agentHarness || got.Prompt != "" {
+		t.Fatalf("launch = %+v", got)
+	}
+	if stored, err := app.work.Projects(); err != nil || len(stored) != 2 {
+		t.Fatalf("a no-project launch created a project: %+v, %v", stored, err)
+	}
+	// The last launched project is left as it was.
+	if last, err := app.work.LastLaunched(); err != nil || last != "gone" {
+		t.Fatalf("last launched = %q, %v", last, err)
 	}
 }
 
-func TestPaneIntoANewNameCreatesTheProjectOnlyOnConfirm(t *testing.T) {
-	app, f := shellApp(t)
-	run := func() {
-		press(t, app, ":")
-		typeText(t, app, "pane into scratch")
-		press(t, app, "enter")
-	}
-	run()
-	if prompt, _ := confirmPrompt(t, app); prompt != "New pane in scratch?" {
-		t.Fatalf("confirm = %q", prompt)
-	}
-	settle(app, key(t, app, "n"))
-	if stored, _ := app.work.Projects(); len(stored) != 2 || len(f.shells) != 0 {
-		t.Fatalf("declined: stored %+v shells %+v", stored, f.shells)
-	}
-	run()
-	runOnce(app, key(t, app, "y"))
-	if stored, _ := app.work.Projects(); len(stored) != 3 || stored[2].Name != "scratch" || len(f.shells) != 1 || f.shells[0].Session != "scratch" {
-		t.Fatalf("accepted: stored %+v shells %+v", stored, f.shells)
-	}
-}
-
-func TestNothingInferredAcceptsAnExistingProjectByName(t *testing.T) {
+func TestANoProjectReviewListsAndOpens(t *testing.T) {
 	app := open(t)
+	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{}
-	if err := app.work.PutProject(work.Project{ID: "p9", Name: "Second Brain", Created: 9}); err != nil {
-		t.Fatal(err)
+	noProjectLaunch(t, app)
+	runOnce(app, key(t, app, "y"))
+	reviews, err := app.work.Reviews()
+	if err != nil || len(reviews) != 1 {
+		t.Fatalf("reviews = %+v, %v", reviews, err)
 	}
-	if err := app.refreshProjects(); err != nil {
-		t.Fatal(err)
+	rv := reviews[0]
+	if rv.ProjectID != "" || rv.TaskID != "" || rv.Session != "no-project" || rv.Pane != "no-project/claude" {
+		t.Fatalf("review = %+v", rv)
 	}
-	fallback(t, app)
-	press(t, app, "esc", "esc")
-	// By name, ignoring case: no project is created.
-	out, err := app.r.Execute(ochazuke.Request{Verb: "into", Noun: "agent", Target: "work", Args: ochazuke.Arguments{"project": "second brain"}})
-	if err != nil {
-		t.Fatal(err)
+	press(t, app, "ctrl+a", "d", "ctrl+j")
+	if app.r.Page != reviewsPage || app.r.Focus != rv.ID {
+		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}
-	if m, ok := out.(map[string]any); !ok || m["prompt"] != "Launch into second-brain?" || len(app.projects) != 3 {
-		t.Fatalf("agent.into = %#v, projects = %d", out, len(app.projects))
+	if fr := frame(app); !strings.Contains(fr, "[pending] (no project) · (no task) · no-project/claude") {
+		t.Fatalf("frame:\n%s", fr)
+	}
+	settle(app, key(t, app, "enter"))
+	if len(f.captured) != 1 || f.captured[0] != "w1" {
+		t.Fatalf("captured = %v", f.captured)
+	}
+	if fr := frame(app); !strings.Contains(fr, "output: no-project/claude [pending]") {
+		t.Fatalf("frame after open:\n%s", fr)
 	}
 }
