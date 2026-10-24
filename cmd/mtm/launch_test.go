@@ -375,9 +375,22 @@ func TestNothingInferredAsksThroughTheCompletingPalette(t *testing.T) {
 	if f := frame(app); !strings.Contains(f, "ochazuke") || !strings.Contains(f, "matomeru") {
 		t.Fatalf("palette lacks the project completions:\n%s", f)
 	}
-	// A name no project has creates the project, then confirms its session.
+	// A name no project has confirms its would-be session; declining
+	// creates nothing.
 	typeText(t, app, "scratch")
 	press(t, app, "enter")
+	if prompt, q := confirmPrompt(t, app); prompt != "Launch into scratch?" || q.Args["newProject"] != "scratch" {
+		t.Fatalf("confirm = %q, %+v", prompt, q)
+	}
+	settle(app, key(t, app, "n"))
+	if stored, err := app.work.Projects(); err != nil || len(stored) != 2 || len(app.projects) != 2 || len(f.launches) != 0 {
+		t.Fatalf("declined: stored %+v, %v; rows %d; launches %+v", stored, err, len(app.projects), f.launches)
+	}
+	// Accepting creates the project, then launches into it.
+	press(t, app, ":")
+	typeText(t, app, "agent into scratch")
+	press(t, app, "enter")
+	runOnce(app, key(t, app, "y"))
 	if len(app.projects) != 3 || app.projects[2].Name != "scratch" {
 		t.Fatalf("projects = %+v", app.projects)
 	}
@@ -385,15 +398,33 @@ func TestNothingInferredAsksThroughTheCompletingPalette(t *testing.T) {
 	if stored, err := app.work.Projects(); err != nil || len(stored) != 3 {
 		t.Fatalf("stored projects = %+v, %v", stored, err)
 	}
-	if prompt, _ := confirmPrompt(t, app); prompt != "Launch into scratch?" {
-		t.Fatalf("confirm = %q", prompt)
-	}
-	runOnce(app, key(t, app, "y"))
 	if len(f.launches) != 1 || f.launches[0].Session != "scratch" {
 		t.Fatalf("launches = %+v", f.launches)
 	}
 	if last, _ := app.work.LastLaunched(); last != created.ID {
 		t.Fatalf("last launched = %q, want %q", last, created.ID)
+	}
+}
+
+func TestPaneIntoANewNameCreatesTheProjectOnlyOnConfirm(t *testing.T) {
+	app, f := shellApp(t)
+	run := func() {
+		press(t, app, ":")
+		typeText(t, app, "pane into scratch")
+		press(t, app, "enter")
+	}
+	run()
+	if prompt, _ := confirmPrompt(t, app); prompt != "New pane in scratch?" {
+		t.Fatalf("confirm = %q", prompt)
+	}
+	settle(app, key(t, app, "n"))
+	if stored, _ := app.work.Projects(); len(stored) != 2 || len(f.shells) != 0 {
+		t.Fatalf("declined: stored %+v shells %+v", stored, f.shells)
+	}
+	run()
+	runOnce(app, key(t, app, "y"))
+	if stored, _ := app.work.Projects(); len(stored) != 3 || stored[2].Name != "scratch" || len(f.shells) != 1 || f.shells[0].Session != "scratch" {
+		t.Fatalf("accepted: stored %+v shells %+v", stored, f.shells)
 	}
 }
 

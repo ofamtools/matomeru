@@ -81,4 +81,4 @@ CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--socket P] NOUN VERB [--target ID] [--
 Known gaps:
 
 - Framework: `execute` (runtime.go) rejects a target that is not an instance and has no resolver hook (the app's `reveal` covers it); there is no importable CLI entry (only `cmd/ochazuke`, a socket client), so the in-process shell lives in the app; `bindings.list` is focus-scoped, so an app-wide listing is one `--target` per stop; history is not persisted.
-- App: the harness is always claude; the fallback launch (`agent.into`) creates the project before the confirm; there is no "review this pane" verb.
+- App: the harness is always claude; there is no "review this pane" verb. (The fallback launch, `agent.into`/`pane.into` with a new name, now creates the project only on `y`: `agent.start`/`pane.start` take `newProject`.)
