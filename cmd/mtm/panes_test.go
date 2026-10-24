@@ -245,9 +245,9 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 		t.Fatalf("frame while attached:\n%s", fr)
 	}
 	// The lease is the panel's inner cells: the 120x24 frame's body is
-	// 116x18, the list takes 1+5 rows and the panel the other 11 (the
-	// rail is the last row).
-	if cw, ch := ochazuke.PanelContentSize(116, 11); s.lease != [2]int{cw, ch} {
+	// 116x18, the list takes 1+5 rows and the panel the other 12 (no job
+	// shows, so the framework's ticker takes no rows).
+	if cw, ch := ochazuke.PanelContentSize(116, 12); s.lease != [2]int{cw, ch} {
 		t.Fatalf("size lease = %v, want %dx%d", s.lease, cw, ch)
 	}
 	// Keys go to the pane; } and ctrl+j are the pane's keys here.

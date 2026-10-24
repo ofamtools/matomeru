@@ -175,7 +175,6 @@ type App struct {
 	captureErr string // why the opened review's last capture failed
 	reviewErr  string // why recording a finished launch's review failed
 
-	quiet  map[string]bool   // application verbs (noun.verb) that only reload a list; the rail leaves them out
 	owners map[string]string // nouns with no instance of their own → the instance their verbs act for (panes → the pane list); the CLI targets it
 
 	r           *ochazuke.Runtime
@@ -213,7 +212,7 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := opts.client()
-	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, quiet: map[string]bool{}, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
@@ -330,8 +329,8 @@ func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block 
 	if p, ok := a.project(a.current); ok {
 		tasks = fmt.Sprintf("tasks: %s (%d)", p.Name, len(a.tasks))
 	}
-	tasks = s.Muted.Render(tasks) + "\n" + a.view(a.taskList, width, max(1, height-3-top))
-	return ochazuke.Text(projects + "\n" + tasks + "\n" + s.Muted.Render(ansi.Truncate(a.rail(), width, "…")))
+	tasks = s.Muted.Render(tasks) + "\n" + a.view(a.taskList, width, max(1, height-2-top))
+	return ochazuke.Text(projects + "\n" + tasks)
 }
 
 // view renders a list into exactly height lines, so the stop below it

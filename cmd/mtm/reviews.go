@@ -308,7 +308,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	case len(a.reviews) == 0:
 		list = a.fill("no reviews; a launch records one when it finishes", top)
 	}
-	rows := max(1, height-5-top)
+	rows := max(1, height-4-top)
 	detail, body, answer := "detail: enter captures the review's pane", a.fill("", rows), "answer: open a review with enter, then } edits it"
 	if rv, ok := a.openedReview(); ok {
 		detail = "output: " + rv.Pane + " [" + rv.Status + "]"
@@ -327,6 +327,6 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	if a.r.Focus == answerID {
 		field = ochazuke.InputBlock(a.answer, max(1, width), 1).Offset(0, before)
 	}
-	text := strings.Join(append(lines, field.Text, s.Muted.Render(ansi.Truncate(a.rail(), width, "…"))), "\n")
+	text := strings.Join(append(lines, field.Text), "\n")
 	return field.WithText(text)
 }

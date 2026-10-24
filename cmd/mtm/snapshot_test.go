@@ -55,20 +55,21 @@ const attachedFrame = `  ◆ Matomeru                                           
   ┃                                                                          ┃
   ┃                                                                          ┃
   ┃                                                                          ┃
+  ┃                                                                          ┃
   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-  jobs: none
   ────────────────────────────────────────────────────────────────────────────
-  ctrl+a leader: d detaches, ctrl+a sends ctrl+a · <paste> terminal.paste: Pa…
+  ctrl+a leader: d detaches, ctrl+a sends ctrl+a · <paste> terminal.paste · <…
 `
 
-// The same page with a preview and the focus on the list: a plain panel.
+// The same page with a preview and the focus on the list: a plain panel,
+// the preview's job on the framework's ticker above the footer rule (the
+// attached frame has no job to show, so the ticker takes no rows).
 const previewFrame = `  ◆ Matomeru                                                           NORMAL
    Work  › Panes  Review
   ────────────────────────────────────────────────────────────────────────────
   panes (2)
   > matomeru/claude
     ochazuke/shell
-
 
 
   ╭─ matomeru/claude · preview ──────────────────────────────────────────────╮
@@ -81,10 +82,11 @@ const previewFrame = `  ◆ Matomeru                                            
   │                                                                          │
   │                                                                          │
   │                                                                          │
+  │                                                                          │
   ╰──────────────────────────────────────────────────────────────────────────╯
-  jobs: pane.preview done
+  pane.preview done
   ────────────────────────────────────────────────────────────────────────────
-  ctrl+c app.quit: Exit the application · enter pane.attach: Attach the pane …
+  ctrl+c app.quit · enter pane.attach · p pane.preview · K pane.kill · n pane…
 `
 
 func TestPanesDetailSnapshots(t *testing.T) {

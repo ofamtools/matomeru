@@ -101,10 +101,9 @@ func (a *App) definePanes() {
 		Bind("enter", ochazuke.Do("pane.attach")).
 		Bind("p", ochazuke.Do("pane.preview")).
 		Bind("K", ochazuke.Do("pane.kill"))
-	r.Define("panes").Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon")
-	a.quietVerb("panes", "refresh")
-	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list")
-	a.quietVerb("daemon", "ensure")
+	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
+	r.Define("panes").Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Quiet()
+	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
 	a.ownedBy("panes", paneListID)
 	a.ownedBy("daemon", paneListID)
 }
@@ -113,10 +112,6 @@ func (a *App) definePanes() {
 // for instance (their jobs are scoped to it), so a CLI command of that noun
 // without --target targets it.
 func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
-
-// quietVerb marks noun.verb as bookkeeping (it only reloads a list), so
-// the rail does not show its jobs.
-func (a *App) quietVerb(noun, verb string) { a.quiet[noun+"."+verb] = true }
 
 // addPanesPage builds the page: the list first, so the page starts on it.
 func (a *App) addPanesPage() error {
@@ -336,7 +331,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	if a.landErr != "" {
 		head += ": " + a.landErr
 	}
-	rows := max(1, height-2-top)
+	rows := max(1, height-1-top)
 	cw, ch := ochazuke.PanelContentSize(width, rows)
 	var detail ochazuke.Block
 	if t := a.r.Terminal(paneTermID); t != nil {
@@ -361,7 +356,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		detail = ochazuke.Text(layout.Panel("detail", "p previews, enter attaches", width, rows, false))
 	}
 	above := 1 + top // the head row and the list
-	return detail.Offset(0, above).WithText(s.Muted.Render(head) + "\n" + list + "\n" + detail.Text + "\n" + s.Muted.Render(ansi.Truncate(a.rail(), width, "…")))
+	return detail.Offset(0, above).WithText(s.Muted.Render(head) + "\n" + list + "\n" + detail.Text)
 }
 
 // fill fits text into exactly height lines, each cut to width when given.
