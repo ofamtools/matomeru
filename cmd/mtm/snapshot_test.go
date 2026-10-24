@@ -56,7 +56,7 @@ const attachedFrame = `  ◆ Matomeru                                           
   ┃                                                                          ┃
   ┃                                                                          ┃
   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-  jobs: #1 panes.refresh done · #2 read done · #3 read running
+  jobs: #1 panes.refresh done
   ────────────────────────────────────────────────────────────────────────────
   ctrl+c app.quit: Exit the application · ctrl+a mode.enter: Enter a pending …
 `
@@ -82,7 +82,7 @@ const previewFrame = `  ◆ Matomeru                                            
   │                                                                          │
   │                                                                          │
   ╰──────────────────────────────────────────────────────────────────────────╯
-  jobs: #1 panes.refresh done · #2 pane.preview done
+  jobs: #2 pane.preview done · #1 panes.refresh done
   ────────────────────────────────────────────────────────────────────────────
   ctrl+c app.quit: Exit the application · enter pane.attach: Attach the pane …
 `

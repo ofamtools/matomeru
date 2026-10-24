@@ -483,23 +483,30 @@ func (a *App) startShell(ctx ochazuke.Ctx) ochazuke.Result {
 	})
 }
 
-// railJobs is how many jobs the rail shows, newest last.
+// railJobs is how many jobs the rail shows, newest first.
 const railJobs = 3
 
-// rail is the status rail: the newest jobs of the jobs list (the data
-// jobs.list returns, read without consuming the finished ones), one line.
+// rail is the status rail: the newest jobs of the jobs list (read without
+// consuming the finished ones) that run an application verb, newest
+// first. Framework jobs (a terminal's stream read runs under the
+// unregistered verb "read") are not work the user asked for, so the
+// registry's operation kind decides, not a list of verbs.
 func (a *App) rail() string {
 	jobs := a.r.Jobs()
-	if len(jobs) == 0 {
-		return "jobs: none"
-	}
 	parts := make([]string, 0, railJobs)
-	for _, j := range jobs[max(0, len(jobs)-railJobs):] {
+	for i := len(jobs) - 1; i >= 0 && len(parts) < railJobs; i-- {
+		j := jobs[i]
+		if a.r.Operations[j.Verb].Kind != ochazuke.KindApplication {
+			continue
+		}
 		part := fmt.Sprintf("#%d %s %s", j.Job, j.Verb, j.State)
 		if j.Error != "" {
 			part += ": " + j.Error
 		}
 		parts = append(parts, part)
+	}
+	if len(parts) == 0 {
+		return "jobs: none"
 	}
 	return "jobs: " + strings.Join(parts, " · ")
 }
