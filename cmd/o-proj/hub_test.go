@@ -33,10 +33,13 @@ func TestNewLinksFromHub(t *testing.T) {
 		t.Fatalf("link -> %q, want %q", got, dir)
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if got := lines[len(lines)-2]; got != "link: "+filepath.Join(hub, "demo")+" -> "+dir {
+	if got := lines[len(lines)-3]; got != "link: "+filepath.Join(hub, "demo")+" -> "+dir {
 		t.Fatalf("link line %q", got)
 	}
-	if !strings.HasPrefix(lines[len(lines)-3], "register: ") {
+	if !strings.HasPrefix(lines[len(lines)-2], "hook: ") {
+		t.Fatalf("hook after link: %q", lines)
+	}
+	if !strings.HasPrefix(lines[len(lines)-4], "register: ") {
 		t.Fatalf("register before link: %q", lines)
 	}
 }

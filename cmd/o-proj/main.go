@@ -3,7 +3,8 @@
 // after its own mtm-<sub>, oden.WithPrefixes). Making a
 // project always goes through new, which creates the directory, runs git
 // init there and verifies that the directory is its own repository before
-// anything is committed; check is the guard to run before the first commit
+// anything is committed (and, last, installs o-inventory's hooks when
+// o-inventory is on PATH); check is the guard to run before the first commit
 // in any directory. The home directory is itself a git repository, so a
 // directory without its own git init commits into it silently.
 //
@@ -318,8 +319,40 @@ func (t *Tool) New(data string, args []string) error {
 	} else if _, err := t.link(*hub, name, dir); err != nil {
 		return err
 	}
+	t.hook(dir)
 	t.say("cd %s", dir)
 	return nil
+}
+
+// hook installs o-inventory's git hooks in dir, best-effort: a missing
+// o-inventory (looked up on the Tool's PATH) or a failed install is a line
+// of output, never an error, since the project already exists.
+func (t *Tool) hook(dir string) {
+	bin := t.lookPath("o-inventory")
+	if bin == "" {
+		t.say("hook: skipped (o-inventory not on PATH)")
+		return
+	}
+	if _, err := t.Run(dir, bin, "hook", "install", dir); err != nil {
+		t.say("hook: failed (%v)", err)
+		return
+	}
+	t.say("hook: installed")
+}
+
+// lookPath finds an executable file named name on the PATH in t.Env, ""
+// when there is none.
+func (t *Tool) lookPath(name string) string {
+	for _, d := range filepath.SplitList(lookup(t.Env, "PATH")) {
+		if d == "" {
+			continue
+		}
+		path := filepath.Join(d, name)
+		if fi, err := os.Stat(path); err == nil && fi.Mode().IsRegular() && fi.Mode()&0o111 != 0 {
+			return path
+		}
+	}
+	return ""
 }
 
 // verify is the point of this tool: dir must be its own repository's

@@ -35,6 +35,9 @@ func tool(t *testing.T) (*Tool, *bytes.Buffer, *[][]string) {
 		"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com",
 		"O_PROJ_HUB=",
+		// git's directory and the system dirs only: a real o-inventory
+		// (~/bin) never runs from a test.
+		"PATH="+testPath(t),
 	)
 	tl := &Tool{Stdout: &out, Stderr: &errOut, Env: env, Home: home, Prog: "o-proj", User: "tester",
 		Now: func() time.Time { return time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC) }}
@@ -46,6 +49,58 @@ func tool(t *testing.T) (*Tool, *bytes.Buffer, *[][]string) {
 		return tl.exec(dir, name, args...)
 	}
 	return tl, &out, &gh
+}
+
+func testPath(t *testing.T) string {
+	t.Helper()
+	g, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Join([]string{filepath.Dir(g), "/usr/bin", "/bin"}, string(filepath.ListSeparator))
+}
+
+// setEnv replaces key in tl.Env.
+func setEnv(tl *Tool, key, value string) {
+	tl.Env = append(slices.DeleteFunc(tl.Env, func(kv string) bool { return strings.HasPrefix(kv, key+"=") }), key+"="+value)
+}
+
+func TestNewInstallsInventoryHook(t *testing.T) {
+	tl, out, _ := tool(t)
+	bin := t.TempDir()
+	argv := filepath.Join(t.TempDir(), "argv")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argv + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "o-inventory"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	setEnv(tl, "PATH", bin+string(filepath.ListSeparator)+testPath(t))
+	root := filepath.Join(tl.Home, "proj")
+	if err := tl.Main([]string{"-data", filepath.Join(tl.Home, "mtm.db"), "new", "demo", "--root", root}); err != nil {
+		t.Fatal(err, out)
+	}
+	dir := filepath.Join(root, "demo")
+	got, err := os.ReadFile(argv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "hook\ninstall\n" + dir + "\n"; string(got) != want {
+		t.Fatalf("argv %q, want %q", got, want)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if n := len(lines); n < 2 || lines[n-2] != "hook: installed" || lines[n-1] != "cd "+dir {
+		t.Fatalf("tail %q", lines)
+	}
+}
+
+func TestNewSkipsHookWithoutInventory(t *testing.T) {
+	tl, out, _ := tool(t)
+	root := filepath.Join(tl.Home, "proj")
+	if err := tl.Main([]string{"-data", filepath.Join(tl.Home, "mtm.db"), "new", "demo", "--root", root}); err != nil {
+		t.Fatal(err, out)
+	}
+	if !strings.Contains(out.String(), "hook: skipped (o-inventory not on PATH)\ncd ") {
+		t.Fatalf("out %q", out)
+	}
 }
 
 func git(t *testing.T, tl *Tool, dir string, args ...string) string {
