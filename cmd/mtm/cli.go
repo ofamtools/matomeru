@@ -36,6 +36,14 @@ import (
 // run: its stream is released and its first read, cancelled, returns at
 // once instead of waiting for the pane to change.
 //
+// A command without --target has no focus to act from, so the shell names
+// the owner: the instance the app declares for a noun that has none of its
+// own (owners: panes → panes/list, so panes refresh, whose job is scoped to
+// the list, runs), else the one instance of the operation's noun when
+// exactly one exists. With several the command runs as before and, if it
+// fails, the error lists them to pass as --target (pane preview: one per
+// pane row); with none it runs as before.
+//
 // The action history is in memory and per process: history list shows the
 // requests this invocation ran.
 
@@ -46,6 +54,9 @@ type shell struct {
 	// app loads the rows that hold it); the shell settles what it
 	// scheduled and checks again.
 	reveal func(id string) error
+	// owners maps a noun with no instance of its own to the instance its
+	// verbs act for; a command of that noun without --target targets it.
+	owners map[string]string
 	in     *bufio.Reader
 	out    io.Writer
 	errOut io.Writer
@@ -70,9 +81,19 @@ func (s *shell) run(args []string) error {
 			return fmt.Errorf("target %s: %w", q.Target, err)
 		}
 	}
+	var candidates []string
+	if q.Target == "" {
+		candidates = s.ownersOf(q.Noun)
+		if len(candidates) == 1 {
+			q.Target = candidates[0]
+		}
+	}
 	jobs := len(s.r.Jobs())
 	value, err := s.call(q)
 	if err != nil {
+		if len(candidates) > 1 {
+			return fmt.Errorf("%w; pass --target, one of: %s", err, listed(candidates))
+		}
 		return err
 	}
 	for {
@@ -101,6 +122,34 @@ func (s *shell) run(args []string) error {
 		return err
 	}
 	return settled
+}
+
+// ownersOf is the instances a command of noun without --target can act
+// for: the declared owner when it exists, else every instance of noun (app
+// aside), in id order.
+func (s *shell) ownersOf(noun string) []string {
+	if id := s.owners[noun]; id != "" && s.r.Instances[id] != nil {
+		return []string{id}
+	}
+	var ids []string
+	for id, inst := range s.r.Instances {
+		if id != "app" && inst.Noun == noun {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// maxCandidates is how many instance ids an ambiguous command's error lists.
+const maxCandidates = 10
+
+// listed joins ids for an error, at most maxCandidates of them.
+func listed(ids []string) string {
+	if len(ids) <= maxCandidates {
+		return strings.Join(ids, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(ids[:maxCandidates], ", "), len(ids)-maxCandidates)
 }
 
 // request builds the operation request: --target, --json and --yes are the

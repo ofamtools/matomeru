@@ -10,6 +10,7 @@ import (
 
 	"github.com/unixsuperhero/ochazuke"
 
+	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -206,4 +207,35 @@ func TestCLIThroughRun(t *testing.T) {
 	if err := run(append(args, "--smoke"), strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), "projects (0)") {
 		t.Fatalf("smoke: %v\n%s", err, out.String())
 	}
+}
+
+func TestCLIPanesRefreshTargetsTheOnlyPaneList(t *testing.T) {
+	app, _ := cliApp(t)
+	f := app.panesd.(*fakePanes)
+	if err := app.reloadPanes(); err != nil {
+		t.Fatal(err)
+	}
+	settle(app, app.r.PendingCommands())
+	f.panes = append(f.panes, pane{Session: "matomeru", Pane: daemon.Pane{ID: "w3", Name: "late"}})
+	_, errOut, err := cli(app, "", "panes", "refresh")
+	if err != nil {
+		t.Fatalf("panes refresh: %v\n%s", err, errOut)
+	}
+	if !strings.Contains(errOut, "panes.refresh done") || len(app.panes) != 3 || app.r.Instances["pane:matomeru/w3"] == nil {
+		t.Fatalf("stderr %q, panes %+v", errOut, app.panes)
+	}
+}
+
+func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
+	app, _ := cliApp(t)
+	if err := app.reloadPanes(); err != nil {
+		t.Fatal(err)
+	}
+	settle(app, app.r.PendingCommands())
+	_, _, err := cli(app, "", "pane", "preview")
+	if err == nil || !strings.Contains(err.Error(), "pass --target, one of: pane:matomeru/w1, pane:ochazuke/w2") {
+		t.Fatalf("pane preview without a target: %v", err)
+	}
+	// With the target it runs.
+	mustCLI(t, app, "pane", "preview", "--target", "pane:ochazuke/w2")
 }

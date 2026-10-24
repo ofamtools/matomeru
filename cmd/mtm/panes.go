@@ -105,7 +105,14 @@ func (a *App) definePanes() {
 	a.quietVerb("panes", "refresh")
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list")
 	a.quietVerb("daemon", "ensure")
+	a.ownedBy("panes", paneListID)
+	a.ownedBy("daemon", paneListID)
 }
+
+// ownedBy records that noun has no instance of its own and its verbs act
+// for instance (their jobs are scoped to it), so a CLI command of that noun
+// without --target targets it.
+func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
 
 // quietVerb marks noun.verb as bookkeeping (it only reloads a list), so
 // the rail does not show its jobs.

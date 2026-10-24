@@ -129,9 +129,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 }
 
 // shell is the CLI over this app's runtime; reveal is how it reaches a
-// target no list shows yet.
+// target no list shows yet, owners which instance a noun with none of its
+// own acts for.
 func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *shell {
-	return &shell{r: a.r, reveal: a.reveal, in: bufio.NewReader(stdin), out: stdout, errOut: stderr}
+	return &shell{r: a.r, reveal: a.reveal, owners: a.owners, in: bufio.NewReader(stdin), out: stdout, errOut: stderr}
 }
 
 // reveal loads the rows that hold id, so a CLI --target names a row
@@ -175,7 +176,8 @@ type App struct {
 	captureErr string // why the opened review's last capture failed
 	reviewErr  string // why recording a finished launch's review failed
 
-	quiet map[string]bool // application verbs (noun.verb) that only reload a list; the rail leaves them out
+	quiet  map[string]bool   // application verbs (noun.verb) that only reload a list; the rail leaves them out
+	owners map[string]string // nouns with no instance of their own → the instance their verbs act for (panes → the pane list); the CLI targets it
 
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
@@ -207,7 +209,7 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := opts.client()
-	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, quiet: map[string]bool{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, quiet: map[string]bool{}, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
