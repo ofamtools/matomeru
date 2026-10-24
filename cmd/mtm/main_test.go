@@ -17,22 +17,24 @@ import (
 // the first error the model shows.
 func press(t *testing.T, a *App, keys ...string) {
 	t.Helper()
-	codes := map[string]rune{"enter": tea.KeyEnter, "esc": tea.KeyEscape}
 	for _, key := range keys {
-		var msg tea.KeyPressMsg
-		switch {
-		case codes[key] != 0:
-			msg = tea.KeyPressMsg{Code: codes[key]}
-		case strings.HasPrefix(key, "ctrl+"):
-			msg = tea.KeyPressMsg{Code: rune(key[5]), Mod: tea.ModCtrl}
-		default:
-			msg = tea.KeyPressMsg{Code: rune(key[0]), Text: key}
-		}
-		a.m.Update(msg)
+		a.m.Update(keyMsg(key))
 		if a.m.Status != "" {
 			t.Fatalf("key %q: %s", key, a.m.Status)
 		}
 	}
+}
+
+// keyMsg is one named key as Bubble Tea v2 delivers it.
+func keyMsg(key string) tea.KeyPressMsg {
+	codes := map[string]rune{"enter": tea.KeyEnter, "esc": tea.KeyEscape}
+	switch {
+	case codes[key] != 0:
+		return tea.KeyPressMsg{Code: codes[key]}
+	case strings.HasPrefix(key, "ctrl+"):
+		return tea.KeyPressMsg{Code: rune(key[5]), Mod: tea.ModCtrl}
+	}
+	return tea.KeyPressMsg{Code: rune(key[0]), Text: key}
 }
 
 // typeText types text rune by rune.

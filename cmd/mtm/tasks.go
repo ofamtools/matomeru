@@ -20,7 +20,9 @@ func (a *App) defineTask() {
 		Verb("edit", a.editTask, "Edit the task's title (omit title to be asked in a prompt)").
 		Verb("done", a.doneTask, "Mark the task done").
 		Verb("new", a.newTask, "Add a task to the open project (omit title to be asked in a prompt)").
+		Verb("launch", a.launchTask, "Launch an agent on the task into its project's session").Confirm(launchConfirm).
 		Mode("normal").
+		Bind("l", ochazuke.Do("task.launch")).
 		Bind("enter", ochazuke.Do("task.open")).
 		Bind("i", ochazuke.Do("task.edit")).
 		Bind("x", ochazuke.Do("task.done"))
@@ -54,7 +56,16 @@ func (a *App) refreshTasks() error {
 	for _, t := range tasks {
 		items = append(items, ochazuke.ListItem{ID: t.ID, Label: taskLabel(t), Noun: "task"})
 	}
-	return a.taskList.SetItems(items)
+	if err := a.taskList.SetItems(items); err != nil {
+		return err
+	}
+	p, _ := a.project(a.current)
+	for _, t := range tasks {
+		if err := a.launchRow(t.ID, "task.launch", sessionFor(p)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // taskLabel is the row text: a done box, the title, and any other status.

@@ -76,13 +76,15 @@ func run(args []string) error {
 // App owns domain state (the store, the daemon client, the rows); the
 // runtime owns interaction state.
 type App struct {
-	db     *store.Store
-	work   *work.Store
-	daemon *daemon.Client
+	db       *store.Store
+	work     *work.Store
+	daemon   *daemon.Client
+	launcher launcher
 
 	projects []work.Project
 	current  string // the open project's id; its tasks fill the tasks stop
 	tasks    []work.Task
+	panes    []daemon.Pane // the inferred sessions' panes, refreshed by launches
 
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
@@ -107,14 +109,19 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	r := ochazuke.NewRuntime()
-	a := &App{db: db, work: w, daemon: daemon.New(opts.Socket), r: r, m: ochazuke.NewModel(r)}
+	client := daemon.New(opts.Socket)
+	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
 	r.Define("project").
 		Verb("open", a.openProject, "Open the project's tasks in the tasks stop").
-		Mode("normal").Bind("enter", ochazuke.Do("project.open"))
+		Verb("launch", a.launchProject, "Launch an agent into the project's session").Confirm(launchConfirm).
+		Mode("normal").
+		Bind("enter", ochazuke.Do("project.open")).
+		Bind("l", ochazuke.Do("project.launch"))
 	a.defineTask()
+	a.defineLaunch()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
@@ -154,7 +161,15 @@ func (a *App) refreshProjects() error {
 	for _, p := range projects {
 		items = append(items, ochazuke.ListItem{ID: p.ID, Label: projectLabel(p), Noun: "project"})
 	}
-	return a.projectList.SetItems(items)
+	if err := a.projectList.SetItems(items); err != nil {
+		return err
+	}
+	for _, p := range projects {
+		if err := a.launchRow(p.ID, "project.launch", sessionFor(p)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // projectLabel is the row text: the theme glyph, the name, and the default
@@ -197,14 +212,14 @@ func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
 
 func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	s := ochazuke.NewStyles(*a.m.Appearance)
-	top := max(1, (height-2)/2)
+	top := max(1, (height-3)/2)
 	projects := s.Muted.Render(fmt.Sprintf("projects (%d)", len(a.projects))) + "\n" + a.view(a.projectList, width, top)
 	tasks := "tasks: open a project with enter"
 	if p, ok := a.project(a.current); ok {
 		tasks = fmt.Sprintf("tasks: %s (%d)", p.Name, len(a.tasks))
 	}
-	tasks = s.Muted.Render(tasks) + "\n" + a.view(a.taskList, width, max(1, height-2-top))
-	return ochazuke.Text(projects + "\n" + tasks)
+	tasks = s.Muted.Render(tasks) + "\n" + a.view(a.taskList, width, max(1, height-3-top))
+	return ochazuke.Text(projects + "\n" + tasks + "\n" + s.Muted.Render(ansi.Truncate(a.rail(), width, "…")))
 }
 
 // view renders a list into exactly height lines, so the stop below it
