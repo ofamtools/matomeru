@@ -119,11 +119,10 @@ type App struct {
 	projects []work.Project
 	current  string // the open project's id; its tasks fill the tasks stop
 	tasks    []work.Task
-	panes    []pane  // every pane the daemon reports; launches, kills and detaches reload it
+	panes    []pane  // every pane the daemon reports; launches and kills reload it
 	paneErr  string  // why the last listing failed (the daemon is not reachable)
 	preview  preview // the last captured screen, shown while no terminal is attached
 	attached pane    // the pane the attached terminal streams
-	stream   paneStream
 
 	reviews    []work.Review
 	opened     string // the review in the detail; review.open sets it
@@ -209,7 +208,7 @@ func New(opts Options) (*App, error) {
 	return a, r.SetFocus("projects")
 }
 
-// Close releases an attached pane's stream and the store.
+// Close removes an attached terminal (releasing its stream) and closes the store.
 func (a *App) Close() error { return errors.Join(a.closeTerminal(), a.db.Close()) }
 
 // refreshProjects reloads the project rows and pushes them to the list.

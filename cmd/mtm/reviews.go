@@ -18,7 +18,7 @@ import (
 // one per launched agent, oldest first) and the answer area (an input of
 // the answer noun, insert pinned). A finished launch job records a pending
 // review of its pane. review.open captures the pane's screen off the loop
-// in the list's "capture" slot, stores it as the review's output and shows
+// in the "capture" slot scoped to the list, stores it as the review's output and shows
 // it in the detail; the answer area then holds that review's answer, enter
 // saves it, esc restores it. review.accept and review.reject set the
 // status; neither touches the task: closing or finishing a pane never
@@ -155,13 +155,13 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	d := a.panesd
 	target := pane{Session: rv.Session, Pane: daemon.Pane{ID: rv.Window}}
-	res := ochazuke.Pending(func(c context.Context) (any, error) {
+	return ochazuke.Pending(func(c context.Context) (any, error) {
 		text, err := d.CapturePane(c, target)
 		if err != nil {
 			return nil, fmt.Errorf("capture %s: %w", rv.Pane, err)
 		}
 		return text, nil
-	}).Replacing("capture").Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).ReplacingAt(reviewListID, "capture").Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			a.captureErr = err.Error()
 			return
@@ -175,11 +175,6 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 			a.captureErr = err.Error()
 		}
 	})
-	ticket, err := ctx.Runtime.Launch(reviewListID, "review.open", res, ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(ticket)
 }
 
 func (a *App) acceptReview(ctx ochazuke.Ctx) ochazuke.Result {

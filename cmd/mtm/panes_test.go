@@ -174,8 +174,18 @@ func TestALaunchReloadsThePaneList(t *testing.T) {
 func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 	app, f := panesApp(t)
 	cmd := key(t, app, "p")
-	jobs := jobsOf(app, "pane.preview")
-	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Owner != paneListID || jobs[0].State != ochazuke.JobRunning {
+	// The job belongs to the row; its slot is scoped to the list.
+	out, err := app.r.Execute(ochazuke.Request{Verb: "list", Noun: "jobs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var jobs []ochazuke.JobInfo
+	for _, j := range out.([]ochazuke.JobInfo) {
+		if j.Verb == "pane.preview" {
+			jobs = append(jobs, j)
+		}
+	}
+	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Scope != paneListID || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].State != ochazuke.JobRunning {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, cmd)
@@ -198,7 +208,9 @@ func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 			running = append(running, j)
 		}
 	}
-	if jobs := jobsOf(app, "pane.preview"); len(running) != 1 || len(jobs) != 2 || jobs[0].State != ochazuke.JobCancelled {
+	// Two rows asked; the list's slot keeps only the newest running.
+	if jobs := jobsOf(app, "pane.preview"); len(running) != 1 || len(jobs) != 2 || jobs[0].State != ochazuke.JobCancelled ||
+		jobs[0].Owner != "pane:matomeru/w1" || running[0].Owner != "pane:ochazuke/w2" || running[0].Scope != paneListID {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, second)
@@ -237,13 +249,14 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 		t.Fatalf("sent = %v", s.sent)
 	}
 	press(t, app, "ctrl+a", "d")
-	if app.r.Instances[paneTermID] != nil || app.stream != nil {
+	if app.r.Instances[paneTermID] != nil {
 		t.Fatal("detach left the terminal")
 	}
 	if !s.released || s.lease != [2]int{} {
 		t.Fatalf("lease not released: released %v lease %v", s.released, s.lease)
 	}
-	if app.r.Focus != "pane:matomeru/w1" || app.r.Mode.Name != "normal" {
+	// A CloseOnDetach detach focuses the terminal's parent, the page.
+	if app.r.Focus != panesPage || app.r.Mode.Name != "normal" {
 		t.Fatalf("after detach: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
 	}
 	if fr := frame(app); strings.Contains(fr, "live:") {
@@ -252,14 +265,22 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 }
 
 func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
-	app, _ := panesApp(t)
+	app, f := panesApp(t)
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
+	// From the page, } lands on the list's selected row.
+	press(t, app, "}")
+	if app.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("} after detach: focus %s", app.r.Focus)
+	}
 	key(t, app, "j")
 	key(t, app, "enter")
-	press(t, app, "ctrl+a", "d")
+	press(t, app, "ctrl+a", "d", "}")
 	if app.r.Focus != "pane:ochazuke/w2" {
 		t.Fatalf("focus = %s", app.r.Focus)
+	}
+	if len(f.streams) != 2 || !f.streams[0].released || !f.streams[1].released {
+		t.Fatalf("streams not released: %+v", f.streams)
 	}
 	// Attach again, detach by the framework verb, then } reaches the terminal stop.
 	key(t, app, "enter")
@@ -269,6 +290,7 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	if app.r.Terminal(paneTermID) != nil {
 		t.Fatal("terminal.detach did not remove the terminal")
 	}
+	press(t, app, "}")
 	key(t, app, "enter")
 	if err := app.paneList.Focus(); err != nil {
 		t.Fatal(err)
@@ -300,6 +322,10 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	}
 	if app.r.Instances["pane:matomeru/w1"] != nil || app.r.Focus != "pane:ochazuke/w2" {
 		t.Fatalf("after kill: focus %s", app.r.Focus)
+	}
+	// The kill completed on its own row, which its completion removed.
+	if jobs := jobsOf(app, "pane.kill"); len(jobs) != 1 || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].State != ochazuke.JobDone {
+		t.Fatalf("kill jobs = %+v", jobs)
 	}
 	if fr := frame(app); !strings.Contains(fr, "panes (1)") {
 		t.Fatalf("frame after kill:\n%s", fr)

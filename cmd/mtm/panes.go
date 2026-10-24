@@ -16,20 +16,20 @@ import (
 
 // The panes page: two stops, the pane list (rows of the pane noun, every
 // window the daemon reports across its sessions) and the terminal detail.
-// pane.preview captures the pane's screen off the loop in the list's
-// "preview" slot; the detail shows it while no terminal is attached.
-// pane.attach adds a framework terminal under the page fed by the daemon's
-// stream-pane and focuses it; the terminal noun owns passthrough and the
-// ctrl+a leader, whose d runs terminal.detach. The page's noun overrides
-// terminal.detach (a noun Action on the focus stack) to remove the terminal,
-// which releases the stream's size lease. pane.kill confirms with the row's
-// label, closes the window and reloads the list.
+// pane.preview captures the pane's screen off the loop in the "preview"
+// slot scoped to the list, so a newer preview of any row replaces the
+// older; the detail shows it while no terminal is attached. pane.attach
+// adds a framework terminal under the page fed by the daemon's stream-pane
+// and focuses it; the terminal noun owns passthrough and the ctrl+a leader,
+// whose d runs terminal.detach. The terminal is added with CloseOnDetach,
+// so detach removes it, Terminal.Close releases the stream's size lease,
+// and focus returns to the page. pane.kill confirms with the row's label,
+// closes the window and reloads the list.
 
 const (
 	panesPage     = "panes"
 	paneListID    = "panes/list"
 	paneTermID    = "panes/terminal"
-	panesPageNoun = "panes-page"
 	killConfirm   = "Kill pane {{label}}?"
 	daemonTimeout = 5 * time.Second
 )
@@ -64,11 +64,11 @@ type paneDaemon interface {
 	OpenStream(p pane) paneStream
 }
 
-// paneStream is a terminal stream the app can release: Release drops the
-// size lease and closes the connection.
+// paneStream is a terminal stream the terminal releases when it closes:
+// Release drops the size lease and closes the connection.
 type paneStream interface {
 	ochazuke.TerminalStream
-	Release() error
+	ochazuke.TerminalReleaser
 }
 
 // preview is the last captured screen and the pane it came from.
@@ -77,8 +77,7 @@ type preview struct {
 	Text string
 }
 
-// definePanes adds the pane noun, the panes noun (refresh) and the page's
-// own noun, whose terminal.detach action removes the attached terminal.
+// definePanes adds the pane noun and the panes noun (refresh).
 func (a *App) definePanes() {
 	r := a.r
 	r.Define("pane").
@@ -90,41 +89,29 @@ func (a *App) definePanes() {
 		Bind("p", ochazuke.Do("pane.preview")).
 		Bind("K", ochazuke.Do("pane.kill"))
 	r.Define("panes").Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon")
-	r.Define(panesPageNoun).Action("terminal.detach", a.detachPane)
 }
 
 // addPanesPage builds the page: the list first, so the page starts on it.
 func (a *App) addPanesPage() error {
-	a.r.Instance(panesPage, ochazuke.Kind(panesPageNoun))
+	a.r.Instance(panesPage, ochazuke.Kind("page"))
 	list, err := a.r.AddList(paneListID, nil, ochazuke.Parent(panesPage))
 	if err != nil {
 		return err
 	}
 	a.paneList = list
-	_, err = a.r.AddPage(panesPage, "Panes", a.renderPanes, ochazuke.Focus(paneListID), ochazuke.Kind(panesPageNoun))
+	_, err = a.r.AddPage(panesPage, "Panes", a.renderPanes, ochazuke.Focus(paneListID))
 	return err
-}
-
-// onList launches pending work owned by the pane list rather than the row
-// it was asked from: slots are per owner, so a preview of any row replaces
-// the preview of another, and a kill's completion may remove its row.
-func (a *App) onList(ctx ochazuke.Ctx, verb string, res ochazuke.Result) ochazuke.Result {
-	ticket, err := ctx.Runtime.Launch(paneListID, verb, res, ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(ticket)
 }
 
 // refreshPanes is panes.refresh: list the panes off the loop, then push them.
 func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 	d := a.panesd
-	return a.onList(ctx, "panes.refresh", ochazuke.Pending(func(c context.Context) (any, error) {
+	return ochazuke.Pending(func(c context.Context) (any, error) {
 		return d.ListPanes(c)
-	}).Replacing("refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
 		panes, _ := v.([]pane)
 		a.setPanes(panes, err)
-	}))
+	})
 }
 
 // reloadPanes runs panes.refresh on the list.
@@ -163,29 +150,30 @@ func (a *App) paneAt(inst *ochazuke.Instance) (pane, error) {
 	return pane{}, errors.New("no pane selected")
 }
 
-// previewPane is pane.preview: capture the screen in the list's preview
-// slot; a newer preview cancels the older one.
+// previewPane is pane.preview: capture the screen in the preview slot
+// scoped to the list; a newer preview of any row cancels the older one.
 func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	d := a.panesd
-	return a.onList(ctx, "pane.preview", ochazuke.Pending(func(c context.Context) (any, error) {
+	return ochazuke.Pending(func(c context.Context) (any, error) {
 		text, err := d.CapturePane(c, p)
 		if err != nil {
 			return nil, fmt.Errorf("preview %s: %w", p.label(), err)
 		}
 		return preview{Pane: p.rowID(), Text: text}, nil
-	}).Replacing("preview").Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).ReplacingAt(paneListID, "preview").Then(func(_ ochazuke.Ctx, v any, err error) {
 		if got, ok := v.(preview); ok && err == nil {
 			a.preview = got
 		}
-	}))
+	})
 }
 
 // attachPane is pane.attach: replace any attached terminal with one fed by
-// the pane's stream and focus it.
+// the pane's stream and focus it. CloseOnDetach makes the leader's d remove
+// the terminal, which releases the stream.
 func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
@@ -195,44 +183,25 @@ func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	stream := a.panesd.OpenStream(p)
-	if _, err := ctx.Runtime.AddTerminal(paneTermID, stream, ochazuke.Parent(panesPage)); err != nil {
-		stream.Release()
+	if _, err := ctx.Runtime.AddTerminal(paneTermID, stream, ochazuke.Parent(panesPage), ochazuke.CloseOnDetach()); err != nil {
+		stream.Release() // never added, so no Terminal.Close releases it
 		return ochazuke.Failed(err)
 	}
-	a.attached, a.stream = p, stream
+	a.attached = p
 	if err := ctx.Runtime.SetFocus(paneTermID); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(p.label())
 }
 
-// detachPane overrides terminal.detach under the panes page: the terminal
-// is removed (its read cancelled), the lease released, and focus returns to
-// the attached pane's row.
-func (a *App) detachPane(r *ochazuke.Runtime, _ ochazuke.Context, _ ochazuke.Arguments) (any, error) {
-	label := a.attached.label()
-	if err := a.closeTerminal(); err != nil {
-		return nil, err
-	}
-	if err := a.paneList.Focus(); err != nil {
-		return nil, err
-	}
-	return label, a.reloadPanes()
-}
-
-// closeTerminal removes the attached terminal and releases its stream.
+// closeTerminal removes the attached terminal; Terminal.Close releases
+// its stream.
 func (a *App) closeTerminal() error {
-	if a.stream == nil {
+	a.attached = pane{}
+	if a.r.Instances[paneTermID] == nil {
 		return nil
 	}
-	stream := a.stream
-	a.stream, a.attached = nil, pane{}
-	if a.r.Instances[paneTermID] != nil {
-		if err := a.r.RemoveInstance(paneTermID); err != nil {
-			return err
-		}
-	}
-	return stream.Release()
+	return a.r.RemoveInstance(paneTermID)
 }
 
 // killPane is pane.kill, after its confirm: close the window off the loop
@@ -242,13 +211,13 @@ func (a *App) killPane(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if a.stream != nil && a.attached.rowID() == p.rowID() {
+	if a.r.Terminal(paneTermID) != nil && a.attached.rowID() == p.rowID() {
 		if err := a.closeTerminal(); err != nil {
 			return ochazuke.Failed(err)
 		}
 	}
 	d := a.panesd
-	return a.onList(ctx, "pane.kill", ochazuke.Pending(func(c context.Context) (any, error) {
+	return ochazuke.Pending(func(c context.Context) (any, error) {
 		if err := d.KillPane(c, p); err != nil {
 			return nil, fmt.Errorf("kill %s: %w", p.label(), err)
 		}
@@ -258,7 +227,7 @@ func (a *App) killPane(ctx ochazuke.Ctx) ochazuke.Result {
 			panes, _ := v.([]pane)
 			a.setPanes(panes, nil)
 		}
-	}))
+	})
 }
 
 func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
@@ -515,6 +484,7 @@ func (s *liveStream) Resize(cols, rows int) error {
 }
 
 // Release drops the size lease and closes the stream; it is idempotent.
+// Terminal.Close calls it (ochazuke.TerminalReleaser).
 func (s *liveStream) Release() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

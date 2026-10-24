@@ -97,7 +97,7 @@ func TestOpenCapturesThePaneIntoTheDetail(t *testing.T) {
 	app, f, rv := reviewApp(t)
 	cmd := key(t, app, "enter")
 	jobs := jobsOf(app, "review.open")
-	if len(jobs) != 1 || jobs[0].Slot != "capture" || jobs[0].Owner != reviewListID {
+	if len(jobs) != 1 || jobs[0].Slot != "capture" || jobs[0].Scope != reviewListID || jobs[0].Owner != rv.ID {
 		t.Fatalf("open jobs = %+v", jobs)
 	}
 	settle(app, cmd)
