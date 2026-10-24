@@ -12,12 +12,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
@@ -35,6 +37,10 @@ type Options struct {
 	Data   string
 	Socket string // an explicit daemon socket; it wins over Server
 	Server string // the TUIOS server mtm runs on; "" or DefaultDaemon is the user's own daemon
+	// Harnesses is the harness file merged over the built-in harnesses
+	// (harness.Load); "" is the built-ins alone. run defaults it to
+	// harness.ConfigPath.
+	Harnesses string
 }
 
 const (
@@ -95,6 +101,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
 	flags.StringVar(&opts.Socket, "socket", "", "TUIOS daemon socket; when set it wins over -server (TUIOS_SOCKET alone does not)")
+	flags.StringVar(&opts.Harnesses, "harnesses", harness.ConfigPath(os.Getenv, os.UserHomeDir), "Harness definitions (JSON array) merged by name over the built-ins claude, omp and codex; a missing file is the built-ins")
 	flags.StringVar(&opts.Server, "server", defaultServer(), "TUIOS server mtm runs on, started when missing (env MTM_SERVER); \""+DefaultDaemon+"\" is your own daemon (TUIOS_SOCKET or the runtime dir), never started")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -153,14 +160,17 @@ func (a *App) reveal(id string) error {
 // App owns domain state (the store, the daemon client, the rows); the
 // runtime owns interaction state.
 type App struct {
-	db       *store.Store
-	work     *work.Store
-	daemon   *daemon.Client
-	ensure   func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
-	launcher launcher
-	panesd   paneDaemon
-	getwd    func() (string, error) // the working directory launch inference reads; tests replace it
-	home     func() (string, error) // where a launch with no project starts; tests replace it
+	db          *store.Store
+	work        *work.Store
+	daemon      *daemon.Client
+	ensure      func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
+	launcher    harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
+	harnesses   *harness.Registry           // the built-ins merged with the harness file
+	promptDelay time.Duration               // the wait before typing into a pane whose harness has no readiness probe
+	sleep       func(context.Context, time.Duration) error
+	panesd      paneDaemon
+	getwd       func() (string, error) // the working directory launch inference reads; tests replace it
+	home        func() (string, error) // where a launch with no project starts; tests replace it
 
 	projects []work.Project
 	current  string // the open project's id; its tasks fill the tasks stop
@@ -207,9 +217,14 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	harnesses, err := harness.Load(opts.Harnesses)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("harnesses: %w", err)
+	}
 	r := ochazuke.NewRuntime()
 	client := opts.client()
-	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, quiet: map[string]bool{}, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, quiet: map[string]bool{}, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 

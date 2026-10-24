@@ -10,6 +10,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -24,11 +25,10 @@ import (
 // never asks: it goes to the fixed session noProjectSession, with no
 // project, and pane.new to mtmOnlySession.
 
-// agentHarness is the CLI every launch starts; model picks its --model.
-const agentHarness = "claude"
-
-// models are the choices of the model parameter; the first is the default.
-var models = []string{"opus", "sonnet", "haiku"}
+// defaultHarness is the harness a launch starts when neither its harness
+// argument nor its project's settings name one. Harnesses are data
+// (internal/harness): the built-ins plus harnesses.json, in a.harnesses.
+const defaultHarness = "claude"
 
 const (
 	launchConfirm = "Launch into {{session}}?"
@@ -84,43 +84,62 @@ func projectCwd(p work.Project) string {
 	return ""
 }
 
-// launcher is the part of the daemon a launch and pane.new need; tests
-// replace it.
-type launcher interface {
-	Launch(ctx context.Context, p daemon.StartAgentParams) (daemon.StartAgentResult, error)
-	NewShell(ctx context.Context, p daemon.NewWindowParams) (daemon.NewWindowResult, error)
-}
-
-// tuios launches through the lifted client: LaunchWorkspace creates the
-// session when it is missing and picks a workspace with room, then
-// start-agent opens the pane.
+// tuios is the harness.Driver over the lifted client, the three pane
+// operations every launch and pane.new use (harness.Launcher.Launch):
+// OpenWindow is LaunchWorkspace (which creates the session when it is
+// missing and picks a workspace with room) then new-window with the
+// harness's argv; WaitReady is wait-for; SendText is send-text with
+// submit, which pastes the text and presses the pane's Enter, so a plain
+// shell runs it as a command. start-agent is not used: it would be a
+// second path for the harnesses tuios knows, while this one runs any argv.
 type tuios struct{ *daemon.Client }
 
-func (t tuios) Launch(ctx context.Context, p daemon.StartAgentParams) (daemon.StartAgentResult, error) {
-	ws, err := daemon.LaunchWorkspace(ctx, t.Client, p.Session, 0, 0)
+func (t tuios) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
+	ws, err := daemon.LaunchWorkspace(ctx, t.Client, w.Session, 0, 0)
 	if err != nil {
-		return daemon.StartAgentResult{}, err
+		return "", err
 	}
-	p.Workspace = ws
-	return t.StartAgent(ctx, p)
+	out, err := t.NewWindow(ctx, windowParams(w, ws))
+	return out.WindowID, err
 }
 
-// NewShell opens a plain shell window the same way: LaunchWorkspace creates
-// the session when it is missing and picks a workspace, then new-window
-// opens the pane with no command.
-func (t tuios) NewShell(ctx context.Context, p daemon.NewWindowParams) (daemon.NewWindowResult, error) {
-	ws, err := daemon.LaunchWorkspace(ctx, t.Client, p.Session, 0, 0)
-	if err != nil {
-		return daemon.NewWindowResult{}, err
+// windowParams is new-window's request for w on workspace ws. Focus is
+// false on the wire (the daemon defaults to true), so a new pane never
+// steals the user's focus in TUIOS.
+func windowParams(w harness.Window, ws int) daemon.NewWindowParams {
+	return daemon.NewWindowParams{Session: w.Session, Name: w.Name, Workspace: ws, Cwd: w.Cwd, Command: w.Command}
+}
+
+func (t tuios) WaitReady(ctx context.Context, session, window string, r harness.Ready) error {
+	return t.WaitFor(ctx, waitParams(session, window, r))
+}
+
+// waitParams is wait-for's request for a readiness probe: the agent state
+// when the harness names one, else its output pattern.
+func waitParams(session, window string, r harness.Ready) daemon.WaitForParams {
+	p := daemon.WaitForParams{Session: session, Window: window, Timeout: r.TimeoutMS}
+	if r.State != "" {
+		p.Condition, p.Until = "agent-state", r.State
+	} else {
+		p.Condition, p.Pattern = "window-output", r.Pattern
 	}
-	p.Workspace = ws
-	return t.NewWindow(ctx, p)
+	return p
+}
+
+func (t tuios) SendText(ctx context.Context, session, window, text string) error {
+	return t.Client.SendText(ctx, daemon.SendTextParams{Session: session, Window: window, Text: text, Submit: true})
+}
+
+// launcherFor is the harness.Launcher over the app's driver, with the app's
+// fixed prompt delay (for a harness with no readiness probe).
+func (a *App) launcherFor() *harness.Launcher {
+	return &harness.Launcher{Driver: a.launcher, Delay: a.promptDelay, Sleep: a.sleep}
 }
 
 // launched is what a finished launch job returns: the new pane and every
 // pane after it, for the pane list.
 type launched struct {
-	Pane  daemon.StartAgentResult
+	Pane  harness.Result
 	Panes []pane
 }
 
@@ -129,12 +148,20 @@ type launched struct {
 func (a *App) defineLaunch() {
 	r := a.r
 	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)")
+	r.Define("harness").
+		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").
+		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
 	r.Define("agent").
 		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
 		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it").Confirm(launchConfirm)
-	model := ochazuke.Parameter{Type: "string", Enum: models, Description: "Model passed to " + agentHarness + " --model (default " + models[0] + ")"}
+	// The model is free text checked against the chosen harness's models
+	// (harness.Model): the pick list is every harness's, the check is the
+	// one harness's, and a harness that lists none takes any model.
+	model := ochazuke.Parameter{Type: "string", Source: "harness.models", Free: true, Description: "Model for the harness's model flag; one of its models when it lists any (default: its first)"}
+	agent := ochazuke.Parameter{Type: "string", Enum: a.harnesses.Names(), Description: "Harness to start (default: the project's harness setting, else " + defaultHarness + ")"}
 	task := ochazuke.Parameter{Type: "string", Description: "Task id; its title is the agent's first prompt"}
 	a.parameters("agent.launch", map[string]ochazuke.Parameter{
+		"harness": agent,
 		"model":   model,
 		"project": {Type: "string", Source: "projects.list", Description: "Omit to infer it"},
 		"task":    task,
@@ -142,11 +169,58 @@ func (a *App) defineLaunch() {
 	a.parameters("agent.start", map[string]ochazuke.Parameter{
 		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the agent runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the confirm prompt names"},
+		"harness": agent,
 		"model":   model,
 		"task":    task,
 	})
-	a.parameters("project.launch", map[string]ochazuke.Parameter{"model": model})
-	a.parameters("task.launch", map[string]ochazuke.Parameter{"model": model})
+	a.parameters("project.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model})
+	a.parameters("task.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model})
+}
+
+// listHarnesses is harness.list: the registry as data.
+func (a *App) listHarnesses(ochazuke.Ctx) ochazuke.Result {
+	return ochazuke.Done(a.harnesses.List())
+}
+
+// listModels is harness.models, the model parameter's pick list: every
+// harness's models, each once, labelled with the harnesses that list it.
+func (a *App) listModels(ochazuke.Ctx) ochazuke.Result {
+	var out []ochazuke.Choice
+	at := map[string]int{}
+	for _, h := range a.harnesses.List() {
+		for _, m := range h.Models {
+			if i, ok := at[m]; ok {
+				out[i].Label += ", " + h.Name
+				continue
+			}
+			at[m] = len(out)
+			out = append(out, ochazuke.Choice{ID: m, Label: m + " (" + h.Name})
+		}
+	}
+	for i := range out {
+		out[i].Label += ")"
+	}
+	return ochazuke.Done(out)
+}
+
+// harnessFor is the harness and model a launch in project p runs: the
+// harness argument, else the project's harness setting, else
+// defaultHarness; the model argument checked against that harness (empty:
+// its default).
+func (a *App) harnessFor(args ochazuke.Arguments, p work.Project) (harness.Harness, string, error) {
+	name := ochazuke.StringArg(args, "harness", "")
+	if name == "" {
+		name = p.Settings.Harness
+	}
+	if name == "" {
+		name = defaultHarness
+	}
+	h, err := a.harnesses.Lookup(name)
+	if err != nil {
+		return harness.Harness{}, "", err
+	}
+	model, err := h.Model(ochazuke.StringArg(args, "model", ""))
+	return h, model, err
 }
 
 // parameters sets an operation's parameters after Define registered it.
@@ -270,7 +344,11 @@ func (a *App) launch(ctx ochazuke.Ctx) ochazuke.Result {
 	default:
 		to, _ = a.inferLaunch(ctx.Instance)
 	}
-	return a.start(ctx, to)
+	h, model, err := a.harnessFor(ctx.Args, to.Project)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return a.start(ctx, to, h.Name, model)
 }
 
 // projectArgs names a project for agent.start and pane.start: its id and
@@ -313,13 +391,14 @@ func (a *App) startCwd(p work.Project) string {
 // start runs agent.start on the work page with the inferred session, so its
 // confirm names the destination and the job outlives the row it was asked
 // from (opening another project replaces the task rows).
-func (a *App) start(ctx ochazuke.Ctx, to target) ochazuke.Result {
+func (a *App) start(ctx ochazuke.Ctx, to target, harnessName, model string) ochazuke.Result {
 	args := projectArgs(to.Project, noProjectSession)
 	if to.Task != "" {
 		args["task"] = to.Task
 	}
-	if v, ok := ctx.Args["model"]; ok {
-		args["model"] = v
+	args["harness"] = harnessName
+	if model != "" {
+		args["model"] = model
 	}
 	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "start", Noun: "agent", Target: "work", Args: args})
 	if err != nil {
@@ -329,7 +408,9 @@ func (a *App) start(ctx ochazuke.Ctx, to target) ochazuke.Result {
 }
 
 // startAgent is agent.start, the confirmed launch: it records the project
-// as the last launched and starts the agent off the loop; its completion
+// as the last launched and starts the harness off the loop (the one launch
+// flow, harness.Launcher.Launch: a new-window running the harness's argv,
+// then the task title typed in with send-text once the pane is ready); its completion
 // reloads the pane list and records a pending review of the new pane. A
 // launch with no project is not recorded as the last launched: last
 // launched names a project, and with none the next uninferred launch goes
@@ -339,22 +420,25 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(fmt.Errorf("launch: %w", err))
 	}
-	params := daemon.StartAgentParams{
+	h, model, err := a.harnessFor(ctx.Args, p)
+	if err != nil {
+		return ochazuke.Failed(fmt.Errorf("launch: %w", err))
+	}
+	spec := harness.Spec{
 		Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)),
-		Agent:   agentHarness,
-		Args:    []string{"--model", ochazuke.StringArg(ctx.Args, "model", models[0])},
 		Name:    p.Name,
 		Cwd:     a.startCwd(p),
+		Model:   model,
 	}
-	if params.Name == "" {
-		params.Name = agentHarness
+	if spec.Name == "" {
+		spec.Name = h.Name
 	}
 	if id := ochazuke.StringArg(ctx.Args, "task", ""); id != "" {
 		t, err := a.work.Task(id)
 		if err != nil {
 			return ochazuke.Failed(fmt.Errorf("task %s: %w", id, err))
 		}
-		params.Name, params.Prompt = t.Title, t.Title
+		spec.Name, spec.Prompt = t.Title, t.Title
 	}
 	if p.ID != "" {
 		if err := a.work.SetLastLaunched(p.ID); err != nil {
@@ -362,21 +446,24 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 	}
 	task := ochazuke.StringArg(ctx.Args, "task", "")
-	d, panes := a.launcher, a.panesd
+	l, panes := a.launcherFor(), a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		started, err := d.Launch(c, params)
+		started, err := l.Launch(c, h, spec)
 		if err != nil {
-			return nil, fmt.Errorf("launch into %s: %w", params.Session, err)
+			return nil, fmt.Errorf("launch %s into %s: %w", h.Name, spec.Session, err)
 		}
 		listed, err := panes.ListPanes(c)
 		if err != nil {
-			return nil, fmt.Errorf("list panes after launching into %s: %w", params.Session, err)
+			return nil, fmt.Errorf("list panes after launching %s into %s: %w", h.Name, spec.Session, err)
 		}
 		return launched{Pane: started, Panes: listed}, nil
 	}).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.recordReview(p.ID, task, done.Pane)
-			a.landPane(pane{Session: done.Pane.Session, Pane: daemon.Pane{ID: done.Pane.WindowID}}, done.Panes)
+			a.landPane(pane{Session: done.Pane.Session, Pane: daemon.Pane{ID: done.Pane.Window}}, done.Panes)
+			if done.Pane.Prompt == harness.PromptNotSent {
+				a.landErr = strings.TrimPrefix(a.landErr+"; ", "; ") + "prompt not sent: " + done.Pane.Note
+			}
 		}
 	})
 }
@@ -391,9 +478,8 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 // shellPane is what a finished pane.new job returns: the new window, the
 // session it is in and every pane after it.
 type shellPane struct {
-	Session string
-	Window  daemon.NewWindowResult
-	Panes   []pane
+	Window harness.Result
+	Panes  []pane
 }
 
 // defineShell adds pane.new and pane.start to the pane noun.
@@ -441,21 +527,23 @@ func (a *App) startShell(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(fmt.Errorf("new pane: %w", err))
 	}
-	params := daemon.NewWindowParams{Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)), Name: shellName, Cwd: a.startCwd(p)}
-	d, panes := a.launcher, a.panesd
+	// A plain shell is the same launch flow with no harness (the zero
+	// Harness: no argv, so new-window starts a shell) and no prompt.
+	spec := harness.Spec{Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)), Name: shellName, Cwd: a.startCwd(p)}
+	l, panes := a.launcherFor(), a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		created, err := d.NewShell(c, params)
+		created, err := l.Launch(c, harness.Harness{}, spec)
 		if err != nil {
-			return nil, fmt.Errorf("new pane in %s: %w", params.Session, err)
+			return nil, fmt.Errorf("new pane in %s: %w", spec.Session, err)
 		}
 		listed, err := panes.ListPanes(c)
 		if err != nil {
-			return nil, fmt.Errorf("list panes after a new pane in %s: %w", params.Session, err)
+			return nil, fmt.Errorf("list panes after a new pane in %s: %w", spec.Session, err)
 		}
-		return shellPane{Session: params.Session, Window: created, Panes: listed}, nil
+		return shellPane{Window: created, Panes: listed}, nil
 	}).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(shellPane); ok && err == nil {
-			a.landPane(pane{Session: done.Session, Pane: daemon.Pane{ID: done.Window.WindowID}}, done.Panes)
+			a.landPane(pane{Session: done.Window.Session, Pane: daemon.Pane{ID: done.Window.Window}}, done.Panes)
 		}
 	})
 }

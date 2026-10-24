@@ -51,7 +51,7 @@ func storedReview(t *testing.T, a *App, id string) work.Review {
 
 func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 	app, _, rv := reviewApp(t)
-	want := work.Review{ProjectID: "matomeru", TaskID: "t1", Session: "matomeru", Window: "w1", Pane: "matomeru/write the brief", Status: work.ReviewPending}
+	want := work.Review{ProjectID: "matomeru", TaskID: "t1", Harness: "claude", Session: "matomeru", Window: "w1", Pane: "matomeru/write the brief", Status: work.ReviewPending}
 	got := rv
 	got.ID, got.Created, got.Updated = "", 0, 0
 	if got != want {
@@ -61,7 +61,7 @@ func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
 	fr := frame(app)
-	for _, want := range []string{"reviews (1)", "[pending] matomeru · write the brief · matomeru/write the brief", "enter captures"} {
+	for _, want := range []string{"reviews (1)", "[pending] matomeru · write the brief · claude · matomeru/write the brief", "enter captures"} {
 		if !strings.Contains(fr, want) {
 			t.Fatalf("frame lacks %q:\n%s", want, fr)
 		}

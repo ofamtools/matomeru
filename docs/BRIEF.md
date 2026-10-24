@@ -12,7 +12,8 @@ One complete workflow, end to end, before any second feature: select a project a
 define("project",  { verbs: { open, launch, star },                   bindings: { normal: { enter: "open", l: "launch" } } })
 define("task",     { verbs: { open, launch, done, edit },             bindings: { normal: { enter: "open", l: "launch", x: "done", i: "edit" } } })
 define("pane",     { verbs: { attach, preview, kill: { confirm: "Kill pane {{label}}?" } }, bindings: { normal: { enter: "attach", p: "preview", K: "kill" } } })
-define("agent",    { verbs: { launch: { params: { model: { enum: [...] }, project: { source: "projects.list" } } } } })
+define("agent",    { verbs: { launch: { params: { harness: { enum: registry.names }, model: { source: "harness.models", free: true }, project: { source: "projects.list" } } } } })
+define("harness",  { verbs: { list, models } })                       // data only: the registry and the model pick list
 define("review",   { verbs: { open, accept, reject, saveAnswer },      bindings: { normal: { enter: "open", a: "accept", r: "reject", s: "saveAnswer" } } })
 define("prompt",   framework noun: Readline, insert pinned)
 define("terminal", framework noun: passthrough, ctrl+a leader, d detaches)
@@ -33,6 +34,10 @@ Decision (step 1): matomeru-old. Its store is the one the existing `~/.local/sha
 ## Daemon
 
 mtm talks to its own TUIOS server, `mtm-daemon` (`tuios --server mtm-daemon`, socket `<runtime dir>/servers/mtm-daemon/tuios.sock`), and starts it with `tuios --server mtm-daemon start-server` when nothing listens there (`daemon.Client.Ensure`: probe, start once, poll up to 5 s). The TUI ensures off the loop (`daemon.ensure`, a quiet job, then `panes.refresh`), so it opens at once; the CLI ensures before dispatch; `--smoke` never does. A server that cannot start is the panes page hint and the footer error (`daemon mtm-daemon not running: ...`) and the rest of the app keeps working. `-server NAME` (or `MTM_SERVER`; the flag beats the env, the env beats `mtm-daemon`) picks another server; `-server default` is the user's own daemon (`TUIOS_SOCKET` or the runtime dir), which mtm only probes and never starts. An explicit `-socket PATH` wins over both; `TUIOS_SOCKET` alone does not, so mtm run inside the user's tuios still uses `mtm-daemon`. Panes mtm launches live on that daemon and are attached through mtm, not through the user's main tuios.
+
+## Harnesses
+
+A harness is data, not code: `internal/harness` holds `Harness{name, command, modelFlag, models, prompt: "send-text" | "arg", ready: {state | pattern, timeoutMs}, env}`, the built-ins `claude` (`claude --model opus|sonnet|haiku`), `omp` (`omp [--model provider/id]`, any model) and `codex` (`codex [--model m]`, any model), all typed into once tuios reports them `idle,done`. `$XDG_CONFIG_HOME/matomeru/harnesses.json` (else `~/.config/matomeru/harnesses.json`, or `-harnesses PATH`) is a JSON array merged by name over the built-ins: an entry naming a built-in changes only the fields it gives (`{"name": "omp", "command": ["omp-dev"]}`), any other adds a harness, and a bad entry (no name, empty command, unknown prompt mode, unknown field) stops startup with the file and the reason. Every launch is one flow (`harness.Launcher.Launch` over a three-call `Driver`): `LaunchWorkspace`, `new-window` running the harness's argv (`env K=V` first when it sets env, the model flag when a model is given, the prompt last for `prompt: "arg"`) in the project's tree, named from the task; then, when there is a prompt, `wait-for` the readiness probe (or a fixed delay when it has none) and `send-text` with submit. A pane that is not ready in time keeps its prompt unsent and says so in the panes header. `pane.new` is the same flow with no harness and no prompt. `start-agent` is not used: it would be a second path, for the harnesses tuios knows, beside one that runs any argv. The harness of a launch is its `harness` argument, else the project's `settings.harness`, else `claude`; the model is checked against that harness's models (free text when it lists none). The review row and the launch error name the harness; `mtm harness list` prints the registry. This is the last time harness code is written in the app: a new harness is a JSON entry, and the package imports nothing from the app, so it can move to its own repository as is.
 
 ## Off-loop work (the delivery contract)
 
@@ -85,4 +90,4 @@ CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--server NAME|default] [--socket P] NOU
 Known gaps:
 
 - Framework: `execute` (runtime.go) rejects a target that is not an instance and has no resolver hook (the app's `reveal` covers it); there is no importable CLI entry (only `cmd/ochazuke`, a socket client), so the in-process shell lives in the app; `bindings.list` is focus-scoped, so an app-wide listing is one `--target` per stop; history is not persisted.
-- App: the harness is always claude; there is no "review this pane" verb.
+- App: there is no "review this pane" verb; a job's rail label is its verb (the framework's `JobInfo` has no label), so the harness shows in the launch error and the review row, not in the rail.

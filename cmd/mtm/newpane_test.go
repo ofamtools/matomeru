@@ -64,12 +64,12 @@ func TestAcceptingNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	if len(f.shells) != 1 {
 		t.Fatalf("shells = %+v", f.shells)
 	}
-	if got := f.shells[0]; got.Session != "matomeru" || got.Cwd != "/src/matomeru" || got.Name != shellName || len(got.Command) != 0 || got.Focus {
-		t.Fatalf("shell request = %+v", got)
+	if got := f.shells[0]; got.Session != "matomeru" || got.Cwd != "/src/matomeru" || got.Name != shellName || len(got.Command) != 0 || got.Prompt != "" || len(got.Waits) != 0 || len(f.sends) != 0 {
+		t.Fatalf("shell request = %+v, sends %v", got, f.sends)
 	}
 	// The wire request says focus false (the daemon defaults to true), so a
 	// new shell never steals the user's focus in TUIOS.
-	if wire, _ := json.Marshal(f.shells[0]); !strings.Contains(string(wire), `"focus":false`) {
+	if wire, _ := json.Marshal(windowParams(f.shells[0].Window, 1)); !strings.Contains(string(wire), `"focus":false`) || strings.Contains(string(wire), `"command"`) {
 		t.Fatalf("new-window params = %s", wire)
 	}
 	if len(f.launches) != 0 {

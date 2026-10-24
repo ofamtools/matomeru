@@ -17,6 +17,7 @@ type Review struct {
 	ID         string `json:"id"`
 	ProjectID  string `json:"project_id"`
 	TaskID     string `json:"task_id,omitempty"`
+	Harness    string `json:"harness,omitempty"` // the harness the pane runs (empty: rows from before harnesses)
 	Session    string `json:"session"`
 	Window     string `json:"window"`
 	Pane       string `json:"pane"`

@@ -54,7 +54,7 @@ func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
 		t.Fatalf("launches = %+v", f.launches)
 	}
 	got := f.launches[0]
-	if got.Session != "matomeru" || got.Prompt != "lift the store" || strings.Join(got.Args, " ") != "--model sonnet" {
+	if got.Session != "matomeru" || got.Prompt != "lift the store" || strings.Join(got.Command, " ") != "claude --model sonnet" {
 		t.Fatalf("launch = %+v", got)
 	}
 	if !strings.Contains(errOut, "job #1 agent.start done") {
@@ -174,7 +174,8 @@ func TestCLIErrorsExitNonZero(t *testing.T) {
 		{[]string{"task", "fly"}, `unknown operation "task.fly"`},
 		{[]string{"task", "launch", "--target", "t99"}, `unknown target "t99"`},
 		{[]string{"task", "launch", "--target", "t1", "--colour", "red"}, `task.launch has no parameter "colour"`},
-		{[]string{"task", "launch", "--model", "gpt"}, "model must be one of opus, sonnet, haiku"},
+		{[]string{"task", "launch", "--model", "gpt"}, `model "gpt" is not one of claude's models: opus, sonnet, haiku`},
+		{[]string{"task", "launch", "--harness", "nope"}, "harness must be one of claude, omp, codex"},
 		{[]string{"task"}, "usage: mtm"},
 		{[]string{"task", "edit", "--target", "t1"}, "task.edit opened a mtm-prompt modal, which needs the TUI"},
 	} {

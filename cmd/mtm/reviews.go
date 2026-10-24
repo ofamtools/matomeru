@@ -11,6 +11,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -101,7 +102,11 @@ func (a *App) reviewLabel(rv work.Review) string {
 			task = t.Title
 		}
 	}
-	label := fmt.Sprintf("[%s] %s · %s · %s", rv.Status, project, task, rv.Pane)
+	pane := rv.Pane
+	if rv.Harness != "" {
+		pane = rv.Harness + " · " + pane
+	}
+	label := fmt.Sprintf("[%s] %s · %s · %s", rv.Status, project, task, pane)
 	if rv.Answer != "" {
 		label += "  (answered)"
 	}
@@ -110,9 +115,9 @@ func (a *App) reviewLabel(rv work.Review) string {
 
 // recordReview is a finished launch's review: the project, the task and
 // the new pane. A failure is kept for the page's header.
-func (a *App) recordReview(projectID, taskID string, started daemon.StartAgentResult) {
-	p := pane{Session: started.Session, Pane: daemon.Pane{ID: started.WindowID, Name: started.Name}}
-	_, err := a.work.AddReview(work.Review{ProjectID: projectID, TaskID: taskID, Session: p.Session, Window: p.ID, Pane: p.label()})
+func (a *App) recordReview(projectID, taskID string, started harness.Result) {
+	p := pane{Session: started.Session, Pane: daemon.Pane{ID: started.Window, Name: started.Name}}
+	_, err := a.work.AddReview(work.Review{ProjectID: projectID, TaskID: taskID, Harness: started.Harness, Session: p.Session, Window: p.ID, Pane: p.label()})
 	if err == nil {
 		err = a.refreshReviews()
 	}

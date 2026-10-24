@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -59,6 +60,12 @@ func stored(t *testing.T, a *App, id string) work.Task {
 // open builds the app on a fresh database seeded with two projects.
 func open(t *testing.T) *App {
 	t.Helper()
+	return openAt(t, seeded(t))
+}
+
+// seeded writes the seeded database (see open) and returns its path.
+func seeded(t *testing.T) string {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -79,13 +86,19 @@ func open(t *testing.T) *App {
 		}
 	}
 	db.Close()
-	return openAt(t, path)
+	return path
 }
 
 // openAt builds the app on an existing database file.
 func openAt(t *testing.T, path string) *App {
 	t.Helper()
-	app, err := New(Options{Data: path})
+	return openWith(t, Options{Data: path})
+}
+
+// openWith builds the app with opts and the test fakes.
+func openWith(t *testing.T, opts Options) *App {
+	t.Helper()
+	app, err := New(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,6 +110,7 @@ func openAt(t *testing.T, path string) *App {
 	// No test reaches the real daemon.
 	app.panesd = newFakePanes()
 	app.ensure = func(context.Context) error { return nil }
+	app.sleep = func(context.Context, time.Duration) error { return nil }
 	return app
 }
 

@@ -282,3 +282,19 @@ func (c *Client) History(ctx context.Context, p HistoryParams) ([]CommandEntry, 
 	err := c.Call(ctx, "command-history", p, &out)
 	return out.Commands, err
 }
+
+// WaitForParams are wait-for's parameters: block until the condition
+// matches or Timeout milliseconds pass (the daemon's timeout code).
+type WaitForParams struct {
+	Condition string `json:"condition"`
+	Session   string `json:"session,omitempty"`
+	Window    string `json:"window,omitempty"`
+	Until     string `json:"until,omitempty"`
+	Pattern   string `json:"pattern,omitempty"`
+	Timeout   int    `json:"timeout,omitempty"`
+}
+
+// WaitFor runs wait-for.
+func (c *Client) WaitFor(ctx context.Context, p WaitForParams) error {
+	return c.Call(ctx, "wait-for", p, nil)
+}

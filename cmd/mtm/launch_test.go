@@ -12,42 +12,76 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
-// fakeDaemon records launches and shell panes; err makes every one fail.
-// With panes set, every new pane joins that fake's listing (agents as a1,
-// a2, ..., shells as s1, s2, ...); without it a launch reports window w1.
+// fakeWindow is one pane the fake opened: the new-window request, the id
+// it got, the readiness probes waited on it and the text typed into it.
+type fakeWindow struct {
+	harness.Window
+	ID     string
+	Waits  []harness.Ready
+	Prompt string
+}
+
+// fakeDaemon is the harness.Driver of the tests. It records every window
+// it opens (agents, with an argv, in launches; shells in shells) and the
+// send-text calls; err makes every open fail, notReady every wait. With
+// panes set, every new pane joins that fake's listing (agents as a1, a2,
+// ..., shells as s1, s2, ...); without it an agent gets window w1.
 type fakeDaemon struct {
 	err      error
-	launches []daemon.StartAgentParams
-	shells   []daemon.NewWindowParams
+	notReady error
+	launches []*fakeWindow
+	shells   []*fakeWindow
+	sends    []string // "session/window: text"
 	panes    *fakePanes
 }
 
-func (f *fakeDaemon) Launch(_ context.Context, p daemon.StartAgentParams) (daemon.StartAgentResult, error) {
+func (f *fakeDaemon) OpenWindow(_ context.Context, w harness.Window) (string, error) {
 	if f.err != nil {
-		return daemon.StartAgentResult{}, f.err
+		return "", f.err
 	}
-	f.launches = append(f.launches, p)
-	id := "w1"
+	rec := &fakeWindow{Window: w}
+	if len(w.Command) == 0 {
+		f.shells = append(f.shells, rec)
+		rec.ID = "s" + strconv.Itoa(len(f.shells))
+	} else {
+		f.launches = append(f.launches, rec)
+		rec.ID = "w1"
+		if f.panes != nil {
+			rec.ID = "a" + strconv.Itoa(len(f.launches))
+		}
+	}
 	if f.panes != nil {
-		id = "a" + strconv.Itoa(len(f.launches))
-		f.panes.panes = append(f.panes.panes, pane{Session: p.Session, Pane: daemon.Pane{ID: id, Name: p.Name, Cwd: p.Cwd}})
+		f.panes.panes = append(f.panes.panes, pane{Session: w.Session, Pane: daemon.Pane{ID: rec.ID, Name: w.Name, Cwd: w.Cwd}})
 	}
-	return daemon.StartAgentResult{Session: p.Session, WindowID: id, Name: p.Name}, nil
+	return rec.ID, nil
 }
 
-func (f *fakeDaemon) NewShell(_ context.Context, p daemon.NewWindowParams) (daemon.NewWindowResult, error) {
-	if f.err != nil {
-		return daemon.NewWindowResult{}, f.err
+func (f *fakeDaemon) window(id string) *fakeWindow {
+	for _, w := range append(append([]*fakeWindow{}, f.launches...), f.shells...) {
+		if w.ID == id {
+			return w
+		}
 	}
-	f.shells = append(f.shells, p)
-	id := "s" + strconv.Itoa(len(f.shells))
-	if f.panes != nil {
-		f.panes.panes = append(f.panes.panes, pane{Session: p.Session, Pane: daemon.Pane{ID: id, Name: p.Name, Cwd: p.Cwd}})
+	return nil
+}
+
+func (f *fakeDaemon) WaitReady(_ context.Context, _, window string, r harness.Ready) error {
+	if w := f.window(window); w != nil {
+		w.Waits = append(w.Waits, r)
 	}
-	return daemon.NewWindowResult{WindowID: id, Name: p.Name, Workspace: 1}, nil
+	return f.notReady
+}
+
+func (f *fakeDaemon) SendText(_ context.Context, session, window, text string) error {
+	f.sends = append(f.sends, session+"/"+window+": "+text)
+	if w := f.window(window); w != nil {
+		w.Prompt = text
+	}
+	return nil
 }
 
 // settle runs the commands an update returned, as the Bubble Tea loop
@@ -264,7 +298,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 		t.Fatalf("launches = %+v", f.launches)
 	}
 	got := f.launches[0]
-	if got.Session != "matomeru" || got.Agent != agentHarness || got.Prompt != "write the brief" || strings.Join(got.Args, " ") != "--model opus" {
+	if got.Session != "matomeru" || got.Prompt != "write the brief" || strings.Join(got.Command, " ") != "claude --model opus" || len(got.Waits) != 1 || got.Waits[0].State != "idle,done" {
 		t.Fatalf("launch = %+v", got)
 	}
 	if len(app.panes) != 2 || app.panes[0].ID != "w1" || app.r.Instances["pane:matomeru/w1"] == nil {
@@ -302,7 +336,7 @@ func TestAFailingLaunchShowsInTheRail(t *testing.T) {
 	if len(jobs) != 1 || jobs[0].State != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "no daemon") {
 		t.Fatalf("jobs = %+v", jobs)
 	}
-	if !strings.Contains(frame(app), "agent.start failed: launch into ochazuke: dial: no daemon") {
+	if !strings.Contains(frame(app), "agent.start failed: launch claude into ochazuke: dial: no daemon") {
 		t.Fatalf("rail lacks the failure:\n%s", frame(app))
 	}
 	// The app keeps working: the next key runs.
@@ -318,7 +352,7 @@ func TestAgentLaunchParameters(t *testing.T) {
 	f := &fakeDaemon{}
 	app.launcher = f
 	launch := app.r.Operations["agent.launch"]
-	if p := launch.Parameters["project"]; p.Required || p.Source != "projects.list" || len(launch.Parameters["model"].Enum) == 0 {
+	if p := launch.Parameters["project"]; p.Required || p.Source != "projects.list" || launch.Parameters["model"].Source != "harness.models" || len(launch.Parameters["harness"].Enum) != 3 {
 		t.Fatalf("agent.launch parameters = %+v", launch.Parameters)
 	}
 	for _, key := range []string{"project.launch", "task.launch", "agent.launch"} {
@@ -343,7 +377,7 @@ func TestAgentLaunchParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 	runOnce(app, app.r.PendingCommands())
-	if len(f.launches) != 1 || strings.Join(f.launches[0].Args, " ") != "--model sonnet" || f.launches[0].Session != "matomeru" {
+	if len(f.launches) != 1 || strings.Join(f.launches[0].Command, " ") != "claude --model sonnet" || f.launches[0].Session != "matomeru" {
 		t.Fatalf("launches = %+v", f.launches)
 	}
 	if _, err := app.r.ValidateBindings(); err != nil {
@@ -383,7 +417,7 @@ func TestNothingInferredLaunchesIntoNoProject(t *testing.T) {
 	if len(f.launches) != 1 {
 		t.Fatalf("launches = %+v", f.launches)
 	}
-	if got := f.launches[0]; got.Session != "no-project" || got.Cwd != "/home/test" || got.Name != agentHarness || got.Prompt != "" {
+	if got := f.launches[0]; got.Session != "no-project" || got.Cwd != "/home/test" || got.Name != defaultHarness || got.Prompt != "" || len(f.sends) != 0 {
 		t.Fatalf("launch = %+v", got)
 	}
 	if stored, err := app.work.Projects(); err != nil || len(stored) != 2 {
@@ -413,7 +447,7 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 	if app.r.Page != reviewsPage || app.r.Focus != rv.ID {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}
-	if fr := frame(app); !strings.Contains(fr, "[pending] (no project) · (no task) · no-project/claude") {
+	if fr := frame(app); !strings.Contains(fr, "[pending] (no project) · (no task) · claude · no-project/claude") {
 		t.Fatalf("frame:\n%s", fr)
 	}
 	settle(app, key(t, app, "enter"))
