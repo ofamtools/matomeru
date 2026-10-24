@@ -255,6 +255,11 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	if !reflect.DeepEqual(s.sent, [][]string{{"x"}, {"}"}}) {
 		t.Fatalf("sent = %v", s.sent)
 	}
+	// ctrl+c reaches the pane while attached; it does not quit the app.
+	press(t, app, "ctrl+c")
+	if !reflect.DeepEqual(s.sent[len(s.sent)-1], []string{"ctrl+c"}) || app.r.Quit {
+		t.Fatalf("ctrl+c: sent = %v quit %v", s.sent, app.r.Quit)
+	}
 	press(t, app, "ctrl+a", "d")
 	if app.r.Instances[paneTermID] != nil {
 		t.Fatal("detach left the terminal")

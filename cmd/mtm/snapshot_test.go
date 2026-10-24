@@ -58,7 +58,7 @@ const attachedFrame = `  ◆ Matomeru                                           
   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
   jobs: #1 panes.refresh done
   ────────────────────────────────────────────────────────────────────────────
-  ctrl+c app.quit: Exit the application · ctrl+a mode.enter: Enter a pending …
+  ctrl+a leader: d detaches, ctrl+a sends ctrl+a · <paste> terminal.paste: Pa…
 `
 
 // The same page with a preview and the focus on the list: a plain panel.
