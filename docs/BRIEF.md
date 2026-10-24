@@ -74,7 +74,7 @@ All six steps are done on main:
 | 4. Panes: list, preview, attach/detach | bf0155b |
 | 5. Review page, save answer | d0af710 |
 | 6. CLI shell: `bindings list`, `history list`, `task launch --target` | c88549e |
-| Follow-up pass | item 5 (panes use ReplacingAt and CloseOnDetach) 3f4b260; item 4 (`pane.new`) e2af2fe; item 1 (a launch ends with the pane on screen) this commit; item 2 (terminal and preview borders) and item 3 (page tabs) follow |
+| Follow-up pass | item 5 (panes use ReplacingAt and CloseOnDetach) 3f4b260; item 4 (`pane.new`) e2af2fe; item 1 (a launch ends with the pane on screen) c5b5a58; item 2 (terminal and preview borders) this commit; item 3 (page tabs) follows |
 
 CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--socket P] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]` runs the operation in-process through `Runtime.HandleCall` (history source `cli`), settles its jobs, prints JSON. A `--target` no list shows is revealed by the app (`App.reveal`: a task id opens its project; anything else reloads panes). A confirm takes `--yes`, else reads y/n from stdin (EOF declines, non-zero exit). Any other modal is an error. The CLI has no screen: a terminal a command adds (a launch lands attached) is removed before the shell runs more work, which releases its stream and lets the process exit. History is in memory, per invocation.
 

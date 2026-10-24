@@ -193,7 +193,7 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, cmd)
-	if fr := frame(app); !strings.Contains(fr, "preview: matomeru/claude") || !strings.Contains(fr, "claude is thinking") {
+	if fr := frame(app); !strings.Contains(fr, "╭─ matomeru/claude · preview ─") || !strings.Contains(fr, "claude is thinking") {
 		t.Fatalf("frame after preview:\n%s", fr)
 	}
 	if !reflect.DeepEqual(f.captured, []string{"w1"}) {
@@ -241,11 +241,14 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	s.frames <- ochazuke.TerminalFrame{Lines: []string{"live screen"}, Hidden: true}
 	runOnce(app, cmd)
 	fr := frame(app)
-	if !strings.Contains(fr, "live: matomeru/claude") || !strings.Contains(fr, "live screen") {
+	if !strings.Contains(fr, "╭━ matomeru/claude ━") || !strings.Contains(fr, "┃ live screen") {
 		t.Fatalf("frame while attached:\n%s", fr)
 	}
-	if s.lease[0] == 0 || s.lease[1] == 0 {
-		t.Fatalf("no size lease after render: %v", s.lease)
+	// The lease is the panel's inner cells: the 120x24 frame's body is
+	// 116x18, the list takes 1+5 rows and the panel the other 11 (the
+	// rail is the last row).
+	if cw, ch := ochazuke.PanelContentSize(116, 11); s.lease != [2]int{cw, ch} {
+		t.Fatalf("size lease = %v, want %dx%d", s.lease, cw, ch)
 	}
 	// Keys go to the pane; } and ctrl+j are the pane's keys here.
 	press(t, app, "x", "}")
@@ -263,7 +266,7 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	if app.r.Focus != panesPage || app.r.Mode.Name != "normal" {
 		t.Fatalf("after detach: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
 	}
-	if fr := frame(app); strings.Contains(fr, "live:") {
+	if fr := frame(app); strings.Contains(fr, "━ matomeru/claude") {
 		t.Fatalf("frame after detach:\n%s", fr)
 	}
 }

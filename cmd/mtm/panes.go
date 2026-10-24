@@ -263,8 +263,14 @@ func (a *App) killPane(ctx ochazuke.Ctx) ochazuke.Result {
 	})
 }
 
+// renderPanes draws the pane list over the detail: a Layout.Panel titled
+// with the pane's session/name holding the attached terminal (focused
+// style while keys go to it, and its cursor) or the last preview. The
+// terminal is given the panel's inner cells (PanelContentSize), so the
+// stream's size lease matches what is shown.
 func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	s := ochazuke.NewStyles(*a.m.Appearance)
+	layout := ochazuke.Layout{Width: width, Height: height, Styles: s}
 	top := max(1, (height-3)/3)
 	head := fmt.Sprintf("panes (%d)", len(a.panes))
 	list := a.view(a.paneList, width, top)
@@ -278,24 +284,32 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	if a.landErr != "" {
 		head += ": " + a.landErr
 	}
-	rows := max(1, height-3-top)
-	detail, body := "detail: p previews, enter attaches", a.fill("", rows)
+	rows := max(1, height-2-top)
+	cw, ch := ochazuke.PanelContentSize(width, rows)
+	var detail ochazuke.Block
 	if t := a.r.Terminal(paneTermID); t != nil {
-		detail = "live: " + a.attached.label() + " (ctrl+a d detaches)"
+		title := a.attached.label()
 		if e := t.Err(); e != "" {
-			detail += ": " + e
+			title += ": " + e
 		}
-		body = t.View(width, rows)
+		body := ochazuke.Text(t.View(cw, ch))
+		if t.Focused() {
+			body = t.ViewBlock(cw, ch)
+		}
+		detail = layout.PanelBlock(title, body, width, rows, t.Focused())
 	} else if a.preview.Pane != "" {
-		detail = "preview: " + a.preview.Pane
+		title := a.preview.Pane
 		for _, p := range a.panes {
 			if p.rowID() == a.preview.Pane {
-				detail = "preview: " + p.label()
+				title = p.label()
 			}
 		}
-		body = a.fill(a.preview.Text, rows, width)
+		detail = ochazuke.Text(layout.Panel(title+" · preview", a.fill(a.preview.Text, ch, cw), width, rows, false))
+	} else {
+		detail = ochazuke.Text(layout.Panel("detail", "p previews, enter attaches", width, rows, false))
 	}
-	return ochazuke.Text(s.Muted.Render(head) + "\n" + list + "\n" + s.Muted.Render(ansi.Truncate(detail, width, "…")) + "\n" + body + "\n" + s.Muted.Render(ansi.Truncate(a.rail(), width, "…")))
+	above := 1 + top // the head row and the list
+	return detail.Offset(0, above).WithText(s.Muted.Render(head) + "\n" + list + "\n" + detail.Text + "\n" + s.Muted.Render(ansi.Truncate(a.rail(), width, "…")))
 }
 
 // fill fits text into exactly height lines, each cut to width when given.

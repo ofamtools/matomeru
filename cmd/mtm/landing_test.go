@@ -42,7 +42,7 @@ func assertLanded(t *testing.T, a *App, f *fakePanes, row, window string) {
 	if s := f.streams[len(f.streams)-1]; s.pane.ID != window || s.released {
 		t.Fatalf("stream = %+v, want window %s", s.pane, window)
 	}
-	if fr := frame(a); !strings.Contains(fr, "live: ") {
+	if fr := frame(a); !strings.Contains(fr, "╭━ ") { // the focused panel's border
 		t.Fatalf("frame lacks the live pane:\n%s", fr)
 	}
 	press(t, a, "ctrl+a", "d", "}")
