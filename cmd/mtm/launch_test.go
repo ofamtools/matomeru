@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -90,7 +91,7 @@ func settle(a *App, cmd tea.Cmd) {
 	if cmd == nil {
 		return
 	}
-	switch msg := cmd().(type) {
+	switch msg := now(cmd).(type) {
 	case tea.BatchMsg:
 		for _, c := range msg {
 			settle(a, c)
@@ -456,5 +457,18 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 	}
 	if fr := frame(app); !strings.Contains(fr, "output: no-project/claude [pending]") {
 		t.Fatalf("frame after open:\n%s", fr)
+	}
+}
+
+// now runs cmd, dropping one still waiting after 100ms (a timer such as the
+// jobs ticker's JobLinger tick) instead of sleeping through it.
+func now(cmd tea.Cmd) tea.Msg {
+	ch := make(chan tea.Msg, 1)
+	go func() { ch <- cmd() }()
+	select {
+	case msg := <-ch:
+		return msg
+	case <-time.After(100 * time.Millisecond):
+		return nil
 	}
 }

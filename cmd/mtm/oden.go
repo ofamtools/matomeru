@@ -35,6 +35,6 @@ func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer,
 		}
 		return sh.Run(ctx, words)
 	}
-	ocli.Mount(app, sh)
+	ocli.Mount(app, sh, "bindings", "history")
 	return app
 }

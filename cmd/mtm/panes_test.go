@@ -98,7 +98,7 @@ func runOnce(a *App, cmd tea.Cmd) {
 	if cmd == nil {
 		return
 	}
-	switch msg := cmd().(type) {
+	switch msg := now(cmd).(type) {
 	case tea.BatchMsg:
 		for _, c := range msg {
 			runOnce(a, c)

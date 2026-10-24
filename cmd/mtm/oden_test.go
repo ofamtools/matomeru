@@ -84,7 +84,7 @@ func TestVerbPrefixResolves(t *testing.T) {
 func TestAmbiguousPrefixListsCandidates(t *testing.T) {
 	app, _ := cliApp(t)
 	_, errOut, err := mtm(app, t.TempDir(), "pa", "list")
-	if oden.ExitCode(err) != 1 || !strings.Contains(errOut, `"pa" is ambiguous`) || !strings.Contains(errOut, "panes") || !strings.Contains(errOut, "palette") {
+	if oden.ExitCode(err) != 1 || !strings.Contains(errOut, `"pa" is ambiguous`) || !strings.Contains(errOut, "panes") || !strings.Contains(errOut, "pane ") {
 		t.Fatalf("mtm pa: %v\n%s", err, errOut)
 	}
 }
