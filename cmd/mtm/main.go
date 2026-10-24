@@ -69,6 +69,10 @@ func run(args []string) error {
 		fmt.Println(ansi.Strip(app.m.View().Content))
 		return nil
 	}
+	// The pane list loads off the loop; the first update starts the job.
+	if err := app.reloadPanes(); err != nil {
+		return err
+	}
 	_, err = tea.NewProgram(app.m).Run()
 	return err
 }
@@ -80,17 +84,23 @@ type App struct {
 	work     *work.Store
 	daemon   *daemon.Client
 	launcher launcher
+	panesd   paneDaemon
 	getwd    func() (string, error) // the working directory launch inference reads; tests replace it
 
 	projects []work.Project
 	current  string // the open project's id; its tasks fill the tasks stop
 	tasks    []work.Task
-	panes    []daemon.Pane // the inferred sessions' panes, refreshed by launches
+	panes    []pane  // every pane the daemon reports; launches, kills and detaches reload it
+	paneErr  string  // why the last listing failed (the daemon is not reachable)
+	preview  preview // the last captured screen, shown while no terminal is attached
+	attached pane    // the pane the attached terminal streams
+	stream   paneStream
 
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
 	projectList *ochazuke.List
 	taskList    *ochazuke.List
+	paneList    *ochazuke.List
 
 	field *ochazuke.Input
 	ask   *question
@@ -98,7 +108,9 @@ type App struct {
 
 // New opens the store and wires the work page: two stops, the projects list
 // filled from the projects table, then the tasks of the open project. } and
-// { (the framework's focus.next and focus.previous) move between them.
+// { (the framework's focus.next and focus.previous) move between them. The
+// panes page follows it (see panes.go); ctrl+j and ctrl+k (the framework's
+// page.next and page.previous) move between the pages.
 func New(opts Options) (*App, error) {
 	db, err := store.Open(opts.Data)
 	if err != nil {
@@ -111,7 +123,7 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := daemon.New(opts.Socket)
-	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, getwd: os.Getwd, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, panesd: tuios{client}, getwd: os.Getwd, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
@@ -123,6 +135,7 @@ func New(opts Options) (*App, error) {
 		Bind("l", ochazuke.Do("project.launch"))
 	a.defineTask()
 	a.defineLaunch()
+	a.definePanes()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
@@ -138,6 +151,9 @@ func New(opts Options) (*App, error) {
 	if err := a.bindTaskStop(); err != nil {
 		return nil, err
 	}
+	if err := a.addPanesPage(); err != nil {
+		return nil, err
+	}
 	if err := a.refreshProjects(); err != nil {
 		db.Close()
 		return nil, err
@@ -148,8 +164,8 @@ func New(opts Options) (*App, error) {
 	return a, r.SetFocus("projects")
 }
 
-// Close releases the store.
-func (a *App) Close() error { return a.db.Close() }
+// Close releases an attached pane's stream and the store.
+func (a *App) Close() error { return errors.Join(a.closeTerminal(), a.db.Close()) }
 
 // refreshProjects reloads the project rows and pushes them to the list.
 func (a *App) refreshProjects() error {

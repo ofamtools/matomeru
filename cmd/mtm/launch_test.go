@@ -28,10 +28,6 @@ func (f *fakeDaemon) Launch(_ context.Context, p daemon.StartAgentParams) (daemo
 	return daemon.StartAgentResult{Session: p.Session, WindowID: "w1", Name: p.Name}, nil
 }
 
-func (f *fakeDaemon) Panes(_ context.Context, session string) ([]daemon.Pane, error) {
-	return []daemon.Pane{{ID: "w1", Name: session}}, nil
-}
-
 // settle runs the commands an update returned, as the Bubble Tea loop
 // would, feeding every message back into the model.
 func settle(a *App, cmd tea.Cmd) {
@@ -249,7 +245,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	if got.Session != "matomeru" || got.Agent != agentHarness || got.Prompt != "write the brief" || strings.Join(got.Args, " ") != "--model opus" {
 		t.Fatalf("launch = %+v", got)
 	}
-	if len(app.panes) != 1 || app.panes[0].ID != "w1" {
+	if len(app.panes) != 2 || app.panes[0].ID != "w1" || app.r.Instances["pane:matomeru/w1"] == nil {
 		t.Fatalf("panes = %+v", app.panes)
 	}
 	if !strings.Contains(frame(app), "jobs: #1 agent.start done") {

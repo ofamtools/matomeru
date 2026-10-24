@@ -86,6 +86,8 @@ func open(t *testing.T) *App {
 	// No seeded project has a tree here, so launch inference never reads
 	// the test process's directory.
 	app.getwd = func() (string, error) { return "/nowhere", nil }
+	// No test reaches the real daemon.
+	app.panesd = newFakePanes()
 	return app
 }
 

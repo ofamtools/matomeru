@@ -21,7 +21,7 @@ import (
 // as an argument, so its confirm prompt names the destination on every path:
 // a row's l, the palette and the CLI. agent.start does the work: it returns
 // Pending, so the launch is a job of the work page in jobs.list, and its
-// completion refreshes App.panes. Only when nothing is inferred does a
+// completion reloads the pane list. Only when nothing is inferred does a
 // launch open the palette on agent.into, whose project word completes from
 // projects.list and accepts free text: a name no project has creates one.
 
@@ -75,7 +75,6 @@ func projectCwd(p work.Project) string {
 // launcher is the part of the daemon a launch needs; tests replace it.
 type launcher interface {
 	Launch(ctx context.Context, p daemon.StartAgentParams) (daemon.StartAgentResult, error)
-	Panes(ctx context.Context, session string) ([]daemon.Pane, error)
 }
 
 // tuios launches through the lifted client: LaunchWorkspace creates the
@@ -92,11 +91,11 @@ func (t tuios) Launch(ctx context.Context, p daemon.StartAgentParams) (daemon.St
 	return t.StartAgent(ctx, p)
 }
 
-// launched is what a finished launch job returns: the new pane and the
-// session's panes after it.
+// launched is what a finished launch job returns: the new pane and every
+// pane after it, for the pane list.
 type launched struct {
 	Pane  daemon.StartAgentResult
-	Panes []daemon.Pane
+	Panes []pane
 }
 
 // defineLaunch adds the agent noun, the projects.list source and the launch
@@ -349,20 +348,20 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.work.SetLastLaunched(p.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
-	d := a.launcher
+	d, panes := a.launcher, a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		pane, err := d.Launch(c, params)
+		started, err := d.Launch(c, params)
 		if err != nil {
 			return nil, fmt.Errorf("launch into %s: %w", params.Session, err)
 		}
-		panes, err := d.Panes(c, params.Session)
+		listed, err := panes.ListPanes(c)
 		if err != nil {
-			return nil, fmt.Errorf("list panes of %s: %w", params.Session, err)
+			return nil, fmt.Errorf("list panes after launching into %s: %w", params.Session, err)
 		}
-		return launched{Pane: pane, Panes: panes}, nil
+		return launched{Pane: started, Panes: listed}, nil
 	}).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
-			a.panes = done.Panes
+			a.setPanes(done.Panes, nil)
 		}
 	})
 }
