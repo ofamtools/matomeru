@@ -1,0 +1,32 @@
+package main
+
+import (
+	"strings"
+	"testing"
+)
+
+// The framework's header lists every page tab (Header.Tabs from the page
+// list) and marks the active one with its ActiveTab style, "› Title".
+func TestTheHeaderListsEveryPageTabAndMarksTheActiveOne(t *testing.T) {
+	app := open(t)
+	mono(t, app)
+	pages := []struct{ id, title string }{{"work", "Work"}, {panesPage, "Panes"}, {reviewsPage, "Review"}}
+	for i, want := range pages {
+		if i > 0 {
+			press(t, app, "ctrl+j")
+		}
+		if app.r.Page != want.id {
+			t.Fatalf("page = %s, want %s", app.r.Page, want.id)
+		}
+		tabs := strings.Split(monoFrame(t, app), "\n")[1]
+		for _, p := range pages {
+			marked := strings.Contains(tabs, "› "+p.title)
+			if !strings.Contains(tabs, p.title) || marked != (p.id == want.id) {
+				t.Fatalf("on %s the tab row is %q: %s listed %v, marked %v", want.id, tabs, p.title, strings.Contains(tabs, p.title), marked)
+			}
+		}
+		if strings.Count(tabs, "›") != 1 {
+			t.Fatalf("on %s the tab row marks %d tabs: %q", want.id, strings.Count(tabs, "›"), tabs)
+		}
+	}
+}
