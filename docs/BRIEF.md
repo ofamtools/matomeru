@@ -37,6 +37,10 @@ Decision (step 1): matomeru-old. Its store is the one the existing `~/.local/sha
 - Attach: `AddTerminal(id, Parent(panesPage), stream)` with the daemon's `stream-pane`; the terminal noun's leader contract handles detach. Size lease released on `Close`.
 - Everything else runs on the loop and returns `Done`.
 
+## A launch ends with the pane on screen (owner rule)
+
+`agent.launch` and `pane.new` are not done when the job completes. The completion handler opens the panes page, refreshes the list, focuses the new pane's row, and attaches (`pane.attach`); preview only if attach is undesirable. Test: after launch, `Runtime.Page == "panes"`, focus is the new row, a terminal instance exists. The header lists every page tab with the active one marked, so page switching is discoverable.
+
 ## Session inference (znbu requirement)
 
 Never show a session picker. `project → session name` is a pure function in the app; the destination is shown in the launch confirm prompt (`Launch into {{session}}?` via `{{<arg>}}`). Launch never asks for a project either: it infers one (the task under the cursor, the project row under the cursor, the project whose tree holds the cwd, the last launched) and opens the palette on `agent into` only when nothing is inferred.
@@ -69,11 +73,12 @@ All six steps are done on main:
 | 3. Launch with confirm, job in the status rail | f31d289, 3e15cb1 |
 | 4. Panes: list, preview, attach/detach | bf0155b |
 | 5. Review page, save answer | d0af710 |
-| 6. CLI shell: `bindings list`, `history list`, `task launch --target` | the commit that adds this section |
+| 6. CLI shell: `bindings list`, `history list`, `task launch --target` | c88549e |
+| Follow-up pass | item 5 (panes use ReplacingAt and CloseOnDetach) 3f4b260; item 4 (`pane.new`) e2af2fe; item 1 (a launch ends with the pane on screen) this commit; item 2 (terminal and preview borders) and item 3 (page tabs) follow |
 
-CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--socket P] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]` runs the operation in-process through `Runtime.HandleCall` (history source `cli`), settles its jobs, prints JSON. A `--target` no list shows is revealed by the app (`App.reveal`: a task id opens its project; anything else reloads panes). A confirm takes `--yes`, else reads y/n from stdin (EOF declines, non-zero exit). Any other modal is an error. History is in memory, per invocation.
+CLI (`cmd/mtm/cli.go`): `mtm [--data P] [--socket P] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]` runs the operation in-process through `Runtime.HandleCall` (history source `cli`), settles its jobs, prints JSON. A `--target` no list shows is revealed by the app (`App.reveal`: a task id opens its project; anything else reloads panes). A confirm takes `--yes`, else reads y/n from stdin (EOF declines, non-zero exit). Any other modal is an error. The CLI has no screen: a terminal a command adds (a launch lands attached) is removed before the shell runs more work, which releases its stream and lets the process exit. History is in memory, per invocation.
 
 Known gaps:
 
-- Framework: Pending slots are per owner (ReplacingAt only scopes them); `terminal.detach` only moves focus; `Terminal.Close` does not notify the stream; `{{label}}` ignores arguments other than `label`; `execute` (runtime.go) rejects a target that is not an instance and has no resolver hook (the app's `reveal` covers it); there is no importable CLI entry (only `cmd/ochazuke`, a socket client), so the in-process shell lives in the app; `bindings.list` is focus-scoped, so an app-wide listing is one `--target` per stop; history is not persisted.
+- Framework: `execute` (runtime.go) rejects a target that is not an instance and has no resolver hook (the app's `reveal` covers it); there is no importable CLI entry (only `cmd/ochazuke`, a socket client), so the in-process shell lives in the app; `bindings.list` is focus-scoped, so an app-wide listing is one `--target` per stop; history is not persisted.
 - App: the harness is always claude; the fallback launch (`agent.into`) creates the project before the confirm; there is no "review this pane" verb.

@@ -137,10 +137,37 @@ func (a *App) setPanes(panes []pane, err error) {
 	}
 }
 
-// landPane is the one completion of agent.start and pane.start: the job
-// listed the panes after creating p, and the list shows them.
-func (a *App) landPane(_ pane, panes []pane) {
+// landPane is the one completion of agent.start and pane.start (the owner
+// rule in docs/BRIEF.md: a launch ends with the pane on screen). The job
+// listed the panes after creating p; the list shows them, the panes page
+// opens (page.open), the new pane's row becomes the list's selection and
+// takes the focus (so a later } from the page lands on it), and pane.attach
+// runs on it through the registry, which moves the focus into the
+// terminal. A step that cannot run (a modal is open, the listing lacks
+// the pane) stops the landing and shows why in the page's header.
+func (a *App) landPane(p pane, panes []pane) {
 	a.setPanes(panes, nil)
+	a.landErr = ""
+	if err := a.land(p.rowID()); err != nil {
+		a.landErr = "show the new pane: " + err.Error()
+	}
+}
+
+func (a *App) land(row string) error {
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "page", Args: ochazuke.Arguments{"id": panesPage}}); err != nil {
+		return err
+	}
+	if a.r.Instances[row] == nil {
+		return fmt.Errorf("the pane list has no %s", row)
+	}
+	if err := a.paneList.Select(row); err != nil {
+		return err
+	}
+	if err := a.paneList.Focus(); err != nil {
+		return err
+	}
+	_, err := a.r.Execute(ochazuke.Request{Verb: "attach", Noun: "pane", Target: row})
+	return err
 }
 
 // paneAt is the pane a row instance fronts.
@@ -247,6 +274,9 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		list = a.fill(ansi.Truncate(a.paneErr, width, "…"), top)
 	case len(a.panes) == 0:
 		list = a.fill("no panes; n opens a shell, or launch an agent from the work page", top)
+	}
+	if a.landErr != "" {
+		head += ": " + a.landErr
 	}
 	rows := max(1, height-3-top)
 	detail, body := "detail: p previews, enter attaches", a.fill("", rows)

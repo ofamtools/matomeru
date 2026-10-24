@@ -123,6 +123,7 @@ type App struct {
 	paneErr  string  // why the last listing failed (the daemon is not reachable)
 	preview  preview // the last captured screen, shown while no terminal is attached
 	attached pane    // the pane the attached terminal streams
+	landErr  string  // why the last finished launch or pane.new did not reach the screen
 
 	reviews    []work.Review
 	opened     string // the review in the detail; review.open sets it

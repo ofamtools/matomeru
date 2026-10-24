@@ -164,10 +164,14 @@ func TestALaunchReloadsThePaneList(t *testing.T) {
 	press(t, app, "j", "k")
 	key(t, app, "l")
 	f.panes = append(f.panes, pane{Session: "ochazuke", Pane: daemon.Pane{ID: "w3", Name: "claude"}})
+	// The launch reports w1, which the ochazuke session lacks: the list
+	// reloads and the page opens, but there is no row to attach.
 	settle(app, key(t, app, "y"))
-	press(t, app, "ctrl+j")
-	if fr := frame(app); !strings.Contains(fr, "panes (3)") || !strings.Contains(fr, "ochazuke/claude") {
+	if fr := frame(app); !strings.Contains(fr, "panes (3)") || !strings.Contains(fr, "ochazuke/claude") || !strings.Contains(fr, "the pane list has no pane:ochazuke/w1") {
 		t.Fatalf("frame after launch:\n%s", fr)
+	}
+	if app.r.Page != panesPage || app.r.Terminal(paneTermID) != nil {
+		t.Fatalf("page %s terminal %v", app.r.Page, app.r.Terminal(paneTermID))
 	}
 }
 

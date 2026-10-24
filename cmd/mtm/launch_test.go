@@ -16,7 +16,8 @@ import (
 )
 
 // fakeDaemon records launches and shell panes; err makes every one fail.
-// With panes set, a shell pane is added to that fake's listing.
+// With panes set, every new pane joins that fake's listing (agents as a1,
+// a2, ..., shells as s1, s2, ...); without it a launch reports window w1.
 type fakeDaemon struct {
 	err      error
 	launches []daemon.StartAgentParams
@@ -29,7 +30,12 @@ func (f *fakeDaemon) Launch(_ context.Context, p daemon.StartAgentParams) (daemo
 		return daemon.StartAgentResult{}, f.err
 	}
 	f.launches = append(f.launches, p)
-	return daemon.StartAgentResult{Session: p.Session, WindowID: "w1", Name: p.Name}, nil
+	id := "w1"
+	if f.panes != nil {
+		id = "a" + strconv.Itoa(len(f.launches))
+		f.panes.panes = append(f.panes.panes, pane{Session: p.Session, Pane: daemon.Pane{ID: id, Name: p.Name, Cwd: p.Cwd}})
+	}
+	return daemon.StartAgentResult{Session: p.Session, WindowID: id, Name: p.Name}, nil
 }
 
 func (f *fakeDaemon) NewShell(_ context.Context, p daemon.NewWindowParams) (daemon.NewWindowResult, error) {
@@ -253,7 +259,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	if !strings.Contains(frame(app), "jobs: #1 agent.start running") {
 		t.Fatalf("rail lacks the running job:\n%s", frame(app))
 	}
-	settle(app, cmd)
+	runOnce(app, cmd) // the launch lands attached; its terminal's read waits for a frame
 	if len(f.launches) != 1 {
 		t.Fatalf("launches = %+v", f.launches)
 	}
@@ -271,8 +277,15 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if listed := out.([]ochazuke.JobInfo); len(listed) != 1 || listed[0].State != ochazuke.JobDone {
-		t.Fatalf("jobs.list = %+v", listed)
+	// The other listed job is the attached terminal's frame read.
+	var starts []ochazuke.JobInfo
+	for _, j := range out.([]ochazuke.JobInfo) {
+		if j.Verb == "agent.start" {
+			starts = append(starts, j)
+		}
+	}
+	if len(starts) != 1 || starts[0].State != ochazuke.JobDone {
+		t.Fatalf("jobs.list = %+v", out)
 	}
 	if last, err := app.work.LastLaunched(); err != nil || last != "matomeru" {
 		t.Fatalf("last launched = %q, %v", last, err)
@@ -332,7 +345,7 @@ func TestAgentLaunchParameters(t *testing.T) {
 	if _, err := app.r.Execute(ochazuke.Request{Verb: "accept", Noun: "confirm"}); err != nil {
 		t.Fatal(err)
 	}
-	settle(app, app.r.PendingCommands())
+	runOnce(app, app.r.PendingCommands())
 	if len(f.launches) != 1 || strings.Join(f.launches[0].Args, " ") != "--model sonnet" || f.launches[0].Session != "matomeru" {
 		t.Fatalf("launches = %+v", f.launches)
 	}
@@ -375,7 +388,7 @@ func TestNothingInferredAsksThroughTheCompletingPalette(t *testing.T) {
 	if prompt, _ := confirmPrompt(t, app); prompt != "Launch into scratch?" {
 		t.Fatalf("confirm = %q", prompt)
 	}
-	settle(app, key(t, app, "y"))
+	runOnce(app, key(t, app, "y"))
 	if len(f.launches) != 1 || f.launches[0].Session != "scratch" {
 		t.Fatalf("launches = %+v", f.launches)
 	}

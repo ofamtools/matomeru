@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -29,6 +30,11 @@ import (
 // stdin (y or yes accepts; anything else, or end of input, declines with
 // modal.pop and a non-zero exit). Any other modal (a prompt, the palette)
 // needs the TUI and fails, naming the arguments to pass instead.
+//
+// The CLI has no screen, so a terminal an operation or a completion adds
+// (a launch ends attached to its pane) is removed before the next work is
+// run: its stream is released and its first read, cancelled, returns at
+// once instead of waiting for the pane to change.
 //
 // The action history is in memory and per process: history list shows the
 // requests this invocation ran.
@@ -211,8 +217,30 @@ func (s *shell) accepts(prompt string) bool {
 // errors of the completions it delivered.
 func (s *shell) settle() error {
 	var errs []error
-	for cmd := s.r.PendingCommands(); cmd != nil; cmd = s.r.PendingCommands() {
+	for {
+		errs = append(errs, s.closeTerminals())
+		cmd := s.r.PendingCommands()
+		if cmd == nil {
+			break
+		}
 		errs = append(errs, s.deliver(cmd))
+	}
+	return errors.Join(errs...)
+}
+
+// closeTerminals removes every terminal instance, in id order; closing one
+// cancels its read and releases its stream.
+func (s *shell) closeTerminals() error {
+	var ids []string
+	for id := range s.r.Instances {
+		if s.r.Terminal(id) != nil {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	var errs []error
+	for _, id := range ids {
+		errs = append(errs, s.r.RemoveInstance(id))
 	}
 	return errors.Join(errs...)
 }

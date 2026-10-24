@@ -22,7 +22,7 @@ func reviewApp(t *testing.T) (*App, *fakePanes, work.Review) {
 	app.launcher = &fakeDaemon{}
 	press(t, app, "j", "enter")
 	key(t, app, "l")
-	settle(app, key(t, app, "y"))
+	runOnce(app, key(t, app, "y"))
 	reviews, err := app.work.Reviews()
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +30,9 @@ func reviewApp(t *testing.T) (*App, *fakePanes, work.Review) {
 	if len(reviews) != 1 {
 		t.Fatalf("reviews after launch = %+v", reviews)
 	}
-	press(t, app, "ctrl+j", "ctrl+j")
+	// The launch landed attached on the panes page: detach, then the
+	// next page is the review page.
+	press(t, app, "ctrl+a", "d", "ctrl+j")
 	if app.r.Page != reviewsPage {
 		t.Fatalf("page = %s", app.r.Page)
 	}
