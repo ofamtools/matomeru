@@ -148,7 +148,7 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 		}
 	}
 	press(t, app, "ctrl+k")
-	if app.r.Page != "work" || app.r.Focus != "projects" {
+	if app.r.Page != "work" || app.r.Focus != "ochazuke" {
 		t.Fatalf("ctrl+k: page %s focus %s", app.r.Page, app.r.Focus)
 	}
 	press(t, app, "ctrl+j")

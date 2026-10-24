@@ -209,7 +209,9 @@ func New(opts Options) (*App, error) {
 	if err := r.OpenPage("work"); err != nil {
 		return nil, err
 	}
-	return a, r.SetFocus("projects")
+	// The selected row (the first by default) takes the focus, so its keys
+	// answer at once; an empty list keeps it and its own rows answer.
+	return a, a.projectList.Focus()
 }
 
 // Close removes an attached terminal (releasing its stream) and closes the store.
