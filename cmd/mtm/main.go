@@ -80,6 +80,7 @@ type App struct {
 	work     *work.Store
 	daemon   *daemon.Client
 	launcher launcher
+	getwd    func() (string, error) // the working directory launch inference reads; tests replace it
 
 	projects []work.Project
 	current  string // the open project's id; its tasks fill the tasks stop
@@ -110,13 +111,13 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := daemon.New(opts.Socket)
-	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, launcher: tuios{client}, getwd: os.Getwd, r: r, m: ochazuke.NewModel(r)}
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
 	r.Define("project").
 		Verb("open", a.openProject, "Open the project's tasks in the tasks stop").
-		Verb("launch", a.launchProject, "Launch an agent into the project's session").Confirm(launchConfirm).
+		Verb("launch", a.launch, "Launch an agent into the project's session (inferred; never asked)").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("project.open")).
 		Bind("l", ochazuke.Do("project.launch"))
@@ -161,15 +162,7 @@ func (a *App) refreshProjects() error {
 	for _, p := range projects {
 		items = append(items, ochazuke.ListItem{ID: p.ID, Label: projectLabel(p), Noun: "project"})
 	}
-	if err := a.projectList.SetItems(items); err != nil {
-		return err
-	}
-	for _, p := range projects {
-		if err := a.launchRow(p.ID, "project.launch", sessionFor(p)); err != nil {
-			return err
-		}
-	}
-	return nil
+	return a.projectList.SetItems(items)
 }
 
 // projectLabel is the row text: the theme glyph, the name, and the default

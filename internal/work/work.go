@@ -69,6 +69,33 @@ type Task struct {
 var Tables = []store.Table{
 	{Name: "projects", Owner: "work", Key: "id", Version: 1},
 	{Name: "tasks", Owner: "work", Key: "id", Version: 1},
+	{Name: "launch_state", Owner: "work", Key: "id", Version: 1},
+}
+
+// launchState is the one row of launch_state: the project the last launch
+// went into, the fallback of launch inference.
+type launchState struct {
+	ProjectID string `json:"project_id"`
+}
+
+const lastLaunchID = "last"
+
+// LastLaunched is the id of the project the last launch went into, "" when
+// nothing was launched yet.
+func (s *Store) LastLaunched() (string, error) {
+	var st launchState
+	err := s.db.Get("launch_state", lastLaunchID, &st)
+	if errors.Is(err, store.ErrNotFound) {
+		return "", nil
+	}
+	return st.ProjectID, err
+}
+
+// SetLastLaunched records the project a launch went into.
+func (s *Store) SetLastLaunched(projectID string) error {
+	return s.db.Tx([]string{"launch_state"}, func(tx *store.Tx) error {
+		return tx.Put("launch_state", lastLaunchID, launchState{ProjectID: projectID})
+	})
 }
 
 // Store is the work unit's view of the database.
@@ -120,6 +147,16 @@ func (s *Store) Tasks(projectID string) ([]Task, error) {
 // PutProject writes a project row.
 func (s *Store) PutProject(p Project) error {
 	return s.db.Tx([]string{"projects"}, func(tx *store.Tx) error { return tx.Put("projects", p.ID, p) })
+}
+
+// AddProject creates an open project with a name and nothing else.
+func (s *Store) AddProject(name string) (Project, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Project{}, errors.New("a project needs a name")
+	}
+	p := Project{ID: NewID(), Name: name, Status: "open", Created: Now()}
+	return p, s.PutProject(p)
 }
 
 // PutTask writes a task row.

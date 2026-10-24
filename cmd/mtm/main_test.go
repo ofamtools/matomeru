@@ -83,6 +83,9 @@ func open(t *testing.T) *App {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { app.Close() })
+	// No seeded project has a tree here, so launch inference never reads
+	// the test process's directory.
+	app.getwd = func() (string, error) { return "/nowhere", nil }
 	return app
 }
 

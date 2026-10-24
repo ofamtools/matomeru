@@ -95,3 +95,31 @@ func TestAddRetitleDone(t *testing.T) {
 		t.Fatal("done on a missing task succeeded")
 	}
 }
+
+func TestLastLaunchedAndAddProject(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, err := w.LastLaunched(); err != nil || id != "" {
+		t.Fatalf("fresh last launched = %q, %v", id, err)
+	}
+	if _, err := w.AddProject("  "); err == nil {
+		t.Fatal("a blank project name was accepted")
+	}
+	p, err := w.AddProject(" scratch ")
+	if err != nil || p.Name != "scratch" || p.Status != "open" || len(p.ID) != 32 {
+		t.Fatalf("AddProject = %+v, %v", p, err)
+	}
+	if err := w.SetLastLaunched(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if id, err := w.LastLaunched(); err != nil || id != p.ID {
+		t.Fatalf("last launched = %q, %v", id, err)
+	}
+}
