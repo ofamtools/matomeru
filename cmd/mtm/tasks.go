@@ -22,8 +22,8 @@ func (a *App) defineTask() {
 		Verb("new", a.newTask, "Add a task to the open project (omit title to be asked in a prompt)").
 		Verb("launch", a.launch, "Launch an agent on the task into its project's session (inferred; never asked)").
 		Mode("normal").
-		Bind("l", ochazuke.Do("task.launch")).
 		Bind("enter", ochazuke.Do("task.open")).
+		Bind("l", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).
 		Bind("x", ochazuke.Do("task.done"))
 	title := map[string]ochazuke.Parameter{"title": {Type: "string", Description: "Omit to be asked in a prompt"}}
