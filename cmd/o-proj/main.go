@@ -11,6 +11,12 @@
 //	o-proj check [DIR] [--root DIR]
 //	o-proj list
 //	o-proj templates
+//	o-proj project VERB [ARG...] [--ARG VALUE] [--target ID] [--json '{...}']
+//	o-proj catalog
+//
+// The first four are the inline commands; project is the same work as an
+// ochazuke noun (shell.go), whose verbs print JSON, and catalog describes it
+// for a host that mounts this bin.
 //
 // -data (before the command or after it) is mtm's database, with mtm's
 // default. No daemon is started and there is no TUI.
@@ -33,6 +39,7 @@ import (
 
 	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 	"github.com/unixsuperhero/oden"
 )
 
@@ -124,6 +131,11 @@ func (t *Tool) Main(args []string) error {
 		oden.Command{Name: "templates", Summary: "the template catalog: name, kind (dir|tar.gz), path; .tmpl files render with Go text/template", Run: func(_ context.Context, a []string) error { return t.ListTemplates(a) }},
 		oden.Command{Name: "list", Summary: "the projects in mtm's store with their trees (JSON)", Run: func(_ context.Context, a []string) error { return t.List(*data, a) }},
 	)
+	sh, err := t.shell(*data)
+	if err != nil {
+		return err
+	}
+	ocli.Mount(app, sh)
 	return app.Run(context.Background())
 }
 
@@ -395,23 +407,33 @@ func (t *Tool) Check(args []string) error {
 	if len(words) == 1 {
 		dir = words[0]
 	}
-	dir, err = filepath.Abs(dir)
-	if err != nil {
-		return err
+	_, top, err := t.guard(dir, *root)
+	if top != "" {
+		t.say("%s", top)
 	}
-	out, err := t.Run(dir, "git", "rev-parse", "--show-toplevel")
+	return err
+}
+
+// guard resolves dir and its git toplevel and refuses the toplevel when it
+// is the home directory or contains root. top is "" when dir is in no
+// repository.
+func (t *Tool) guard(dir, root string) (abs, top string, err error) {
+	abs, err = filepath.Abs(dir)
 	if err != nil {
-		return fmt.Errorf("STOP: %s is not in a git repository; create it with %s new NAME (or --existing)", dir, t.Prog)
+		return "", "", err
 	}
-	top := strings.TrimSpace(string(out))
-	t.say("%s", top)
+	out, err := t.Run(abs, "git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		return abs, "", fmt.Errorf("STOP: %s is not in a git repository; create it with %s new NAME (or --existing)", abs, t.Prog)
+	}
+	top = strings.TrimSpace(string(out))
 	switch {
 	case t.Home != "" && samePath(top, t.Home):
-		return fmt.Errorf("STOP: the git toplevel of %s is the home directory %s; a commit here lands in the home repository. Run %s new NAME --existing", dir, top, t.Prog)
-	case within(real(*root), real(top)):
-		return fmt.Errorf("STOP: the git toplevel of %s is %s, which contains the project root %s, so it is not this project's repository. Run %s new NAME --existing", dir, top, *root, t.Prog)
+		return abs, top, fmt.Errorf("STOP: the git toplevel of %s is the home directory %s; a commit here lands in the home repository. Run %s new NAME --existing", abs, top, t.Prog)
+	case within(real(root), real(top)):
+		return abs, top, fmt.Errorf("STOP: the git toplevel of %s is %s, which contains the project root %s, so it is not this project's repository. Run %s new NAME --existing", abs, top, root, t.Prog)
 	}
-	return nil
+	return abs, top, nil
 }
 
 // ListTemplates prints the catalog, one template per line: name, kind, path.
@@ -444,16 +466,7 @@ func (t *Tool) List(data string, args []string) error {
 	if len(words) > 0 {
 		return fmt.Errorf("usage: %s list [-data PATH]", t.Prog)
 	}
-	db, err := store.Open(data)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	w, err := work.Open(db)
-	if err != nil {
-		return err
-	}
-	projects, err := w.Projects()
+	projects, err := t.projects(data)
 	if err != nil {
 		return err
 	}
@@ -476,4 +489,18 @@ func (t *Tool) List(data string, args []string) error {
 	enc := json.NewEncoder(t.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(rows)
+}
+
+// projects reads the projects in mtm's store at data.
+func (t *Tool) projects(data string) ([]work.Project, error) {
+	db, err := store.Open(data)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	w, err := work.Open(db)
+	if err != nil {
+		return nil, err
+	}
+	return w.Projects()
 }

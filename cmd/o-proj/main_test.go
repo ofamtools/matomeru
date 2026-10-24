@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -479,5 +480,130 @@ func TestProgName(t *testing.T) {
 		if got := progName(func(k string) string { return map[string]string{"ODEN_PARENT": parent}[k] }); got != want {
 			t.Fatalf("ODEN_PARENT=%q: %q, want %q", parent, got, want)
 		}
+	}
+}
+
+func TestCatalogDescribesProjectNoun(t *testing.T) {
+	tl, out, _ := tool(t)
+	if err := tl.Main([]string{"catalog"}); err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Schema int    `json:"schema"`
+		Name   string `json:"name"`
+		Nouns  []struct {
+			Name  string `json:"name"`
+			Verbs []struct {
+				Name   string                     `json:"name"`
+				Kind   string                     `json:"kind"`
+				Rows   string                     `json:"rows"`
+				Params map[string]json.RawMessage `json:"params"`
+			} `json:"verbs"`
+		} `json:"nouns"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatal(err, out)
+	}
+	if doc.Schema != 1 || doc.Name != "o-proj" {
+		t.Fatalf("schema %d name %q", doc.Schema, doc.Name)
+	}
+	verbs := map[string]string{}
+	for _, n := range doc.Nouns {
+		if n.Name != "project" {
+			continue
+		}
+		for _, v := range n.Verbs {
+			verbs[v.Name] = v.Kind + "/" + v.Rows
+			if v.Name == "new" && len(v.Params) != 8 {
+				t.Fatalf("new params %v", v.Params)
+			}
+		}
+	}
+	want := map[string]string{"list": "application/project", "new": "application/", "check": "application/", "templates": "application/", "open": "application/"}
+	if !maps.Equal(verbs, want) {
+		t.Fatalf("project verbs %v, want %v", verbs, want)
+	}
+}
+
+func TestProjectShellNewListOpen(t *testing.T) {
+	tl, out, _ := tool(t)
+	data := filepath.Join(tl.Home, "mtm.db")
+	root := filepath.Join(tl.Home, "proj")
+	if err := tl.Main([]string{"-data", data, "project", "new", "shelled", "--root", root, "--license", "none"}); err != nil {
+		t.Fatal(err, out)
+	}
+	dir := filepath.Join(root, "shelled")
+	for _, line := range []string{"git init: " + dir, "commit: ", "register: project shelled", "cd " + dir, `"dir": "` + dir + `"`} {
+		if !strings.Contains(out.String(), line) {
+			t.Fatalf("missing %q in %q", line, out)
+		}
+	}
+	if got := git(t, tl, dir, "ls-tree", "--name-only", "HEAD"); got != ".gitignore\nAGENTS.md" {
+		t.Fatalf("tree %q", got)
+	}
+
+	out.Reset()
+	if err := tl.Main([]string{"-data", data, "project", "list", "--json", "{}"}); err != nil {
+		t.Fatal(err, out)
+	}
+	var rows []struct {
+		ID    string `json:"id"`
+		Label string `json:"label"`
+		Data  struct {
+			Trees []work.Tree `json:"trees"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatal(err, out)
+	}
+	if len(rows) != 1 || rows[0].ID == "" || rows[0].Label != "shelled" || len(rows[0].Data.Trees) != 1 || rows[0].Data.Trees[0].Path != dir {
+		t.Fatalf("rows %+v", rows)
+	}
+
+	out.Reset()
+	if err := tl.Main([]string{"-data", data, "project", "open", "--target", rows[0].ID, "--json", "{}", "--yes"}); err != nil {
+		t.Fatal(err, out)
+	}
+	var trees []work.Tree
+	if err := json.Unmarshal(out.Bytes(), &trees); err != nil || len(trees) != 1 || trees[0].Path != dir {
+		t.Fatalf("open %q %v", out, err)
+	}
+	if err := tl.Main([]string{"-data", data, "project", "open"}); err == nil || !strings.Contains(err.Error(), "--target") {
+		t.Fatalf("open without target: %v", err)
+	}
+}
+
+func TestProjectShellNewFlags(t *testing.T) {
+	tl, out, gh := tool(t)
+	root := filepath.Join(tl.Home, "proj")
+	if err := tl.Main([]string{"project", "new", "--root", root, "pub", "--github", "--private=false", "--register=false"}); err != nil {
+		t.Fatal(err, out)
+	}
+	if len(*gh) != 1 || (*gh)[0][4] != "--public" {
+		t.Fatalf("gh %q", *gh)
+	}
+	if !strings.Contains(out.String(), "register: skipped") {
+		t.Fatalf("out %q", out)
+	}
+}
+
+func TestProjectShellCheckAndTemplates(t *testing.T) {
+	tl, out, _ := tool(t)
+	sub := homeRepo(t, tl)
+	if err := tl.Main([]string{"project", "check", sub}); err == nil || !strings.Contains(err.Error(), "home directory") {
+		t.Fatalf("err %v", err)
+	}
+	out.Reset()
+	if err := tl.Main([]string{"project", "templates"}); err != nil || strings.TrimSpace(out.String()) != "[]" {
+		t.Fatalf("templates %q %v", out, err)
+	}
+	catalog(t, tl)
+	out.Reset()
+	if err := tl.Main([]string{"project", "templates"}); err != nil {
+		t.Fatal(err)
+	}
+	var got []Template
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil || len(got) != 2 || got[0].Name != "packed" || got[1].Name != "plain" {
+		t.Fatalf("templates %q %v", out, err)
 	}
 }
