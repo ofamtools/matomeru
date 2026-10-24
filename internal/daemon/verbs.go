@@ -107,6 +107,33 @@ func (c *Client) StartAgent(ctx context.Context, p StartAgentParams) (StartAgent
 	return out, err
 }
 
+// NewWindowParams are new-window's parameters: a plain shell window when
+// Command is empty. Focus is always sent (the daemon defaults to true; mtm
+// never steals the daemon's focus).
+type NewWindowParams struct {
+	Session   string   `json:"session"`
+	Name      string   `json:"name,omitempty"`
+	Workspace int      `json:"workspace,omitempty"`
+	Cwd       string   `json:"cwd,omitempty"`
+	Focus     bool     `json:"focus"`
+	Command   []string `json:"command,omitempty"`
+}
+
+// NewWindowResult is the new-window reply.
+type NewWindowResult struct {
+	WindowID  string `json:"window_id"`
+	PTYID     string `json:"pty_id"`
+	Name      string `json:"name"`
+	Workspace int    `json:"workspace"`
+}
+
+// NewWindow opens a window in an existing session.
+func (c *Client) NewWindow(ctx context.Context, p NewWindowParams) (NewWindowResult, error) {
+	var out NewWindowResult
+	err := c.Call(ctx, "new-window", p, &out)
+	return out, err
+}
+
 type CaptureParams struct {
 	Session    string   `json:"session,omitempty"`
 	Window     string   `json:"window"`

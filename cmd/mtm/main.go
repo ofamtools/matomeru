@@ -191,6 +191,9 @@ func New(opts Options) (*App, error) {
 	if err := a.addPanesPage(); err != nil {
 		return nil, err
 	}
+	if err := a.defineShell(); err != nil {
+		return nil, err
+	}
 	if err := a.addReviewPage(); err != nil {
 		return nil, err
 	}

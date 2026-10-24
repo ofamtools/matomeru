@@ -137,6 +137,12 @@ func (a *App) setPanes(panes []pane, err error) {
 	}
 }
 
+// landPane is the one completion of agent.start and pane.start: the job
+// listed the panes after creating p, and the list shows them.
+func (a *App) landPane(_ pane, panes []pane) {
+	a.setPanes(panes, nil)
+}
+
 // paneAt is the pane a row instance fronts.
 func (a *App) paneAt(inst *ochazuke.Instance) (pane, error) {
 	if inst != nil {
@@ -240,7 +246,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		head = "panes: daemon not reachable"
 		list = a.fill(ansi.Truncate(a.paneErr, width, "…"), top)
 	case len(a.panes) == 0:
-		list = a.fill("no panes; launch an agent from the work page", top)
+		list = a.fill("no panes; n opens a shell, or launch an agent from the work page", top)
 	}
 	rows := max(1, height-3-top)
 	detail, body := "detail: p previews, enter attaches", a.fill("", rows)

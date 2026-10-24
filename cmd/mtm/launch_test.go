@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,10 +15,13 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
-// fakeDaemon records launches; err makes every launch fail.
+// fakeDaemon records launches and shell panes; err makes every one fail.
+// With panes set, a shell pane is added to that fake's listing.
 type fakeDaemon struct {
 	err      error
 	launches []daemon.StartAgentParams
+	shells   []daemon.NewWindowParams
+	panes    *fakePanes
 }
 
 func (f *fakeDaemon) Launch(_ context.Context, p daemon.StartAgentParams) (daemon.StartAgentResult, error) {
@@ -26,6 +30,18 @@ func (f *fakeDaemon) Launch(_ context.Context, p daemon.StartAgentParams) (daemo
 	}
 	f.launches = append(f.launches, p)
 	return daemon.StartAgentResult{Session: p.Session, WindowID: "w1", Name: p.Name}, nil
+}
+
+func (f *fakeDaemon) NewShell(_ context.Context, p daemon.NewWindowParams) (daemon.NewWindowResult, error) {
+	if f.err != nil {
+		return daemon.NewWindowResult{}, f.err
+	}
+	f.shells = append(f.shells, p)
+	id := "s" + strconv.Itoa(len(f.shells))
+	if f.panes != nil {
+		f.panes.panes = append(f.panes.panes, pane{Session: p.Session, Pane: daemon.Pane{ID: id, Name: p.Name, Cwd: p.Cwd}})
+	}
+	return daemon.NewWindowResult{WindowID: id, Name: p.Name, Workspace: 1}, nil
 }
 
 // settle runs the commands an update returned, as the Bubble Tea loop
