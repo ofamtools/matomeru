@@ -37,6 +37,14 @@ mtm creates and tracks data whether or not it is complete. Missing or unknown as
 - Deleting a parent never refuses: its children are kept, lose only that association (a deleted task's children keep its project), and record the former owner's id. Deletion still asks for confirmation.
 - Refusal is limited to operations that cannot be carried out at all, such as a path that cannot be written or a binary that is not installed. Even then, nothing the user typed is lost.
 
+### Ownership: one owner field, plus links
+
+- Every project-owned record carries its owner in its row: `project_id`, and `task_id` where it fits. Empty means unassociated.
+- A generic `links` table (`from_kind`, `from_id`, `to_kind`, `to_id`) holds everything else: many-to-many (a note on two tasks) and ownership of things mtm does not store itself.
+- TUIOS sessions and panes are owned by a project or unassociated, recorded in `links` at launch. A pane inherits its session's project unless linked on its own.
+- Every unassociated record can be associated or reassigned later with one `associate` verb; reassignment never moves a process or rewrites history snapshots (reviews keep their launch-time owner).
+- No SQL foreign keys: the store holds JSON rows, and record-first means a dangling id is kept, not rejected.
+
 ### List/detail is the default CRUD presentation
 
 - Selecting a row shows read-only information on the right. Viewing never writes.
@@ -112,11 +120,28 @@ Keep `Project.Trees` and `Project.DefaultTree`; do not introduce a competing dir
 
 ## Ordered implementation
 
-### 1. Add the explicit project pin
+### 1. Record ownership and links, including panes and sessions
+
+Likely files: `internal/work/work.go` (an `links` table, owner `work`), `internal/work/links.go`, `cmd/mtm/launch.go`, `cmd/mtm/panes.go`, focused tests.
+
+Add the generic `links` table and an `associate` verb that works on any project-owned noun. Record TUIOS session and pane ownership in mtm at launch, keyed by the daemon's stable session and pane ids. A pane inherits its session's project unless it has its own link. Panes and sessions mtm did not launch, or launched before this step, show as unassociated and can be reassigned. Reassigning moves no process and changes no cwd.
+
+Acceptance:
+- Launch a shell and an agent for project A: their session and panes read as A after an mtm restart, without parsing session names.
+- A pane started outside mtm lists as unassociated; `associate` moves it to A, then to B, then back to unassociated. Each move persists across restart.
+- Reassigning a session moves its panes that have no link of their own; a pane linked separately keeps its link.
+- Reassigning a task or review with `associate` updates its owner field; nothing else is touched.
+- A link to a pane that has ended is kept (history); live lists show only live panes.
+
+Verification: focused store tests for links and inheritance; real launch, restart, and reassign against an isolated TUIOS server.
+
+Dependencies: none.
+
+### 2. Add the explicit project pin
 
 Likely files: `internal/work/work.go`, `cmd/mtm/main.go`, `cmd/mtm/launch.go`, focused existing tests.
 
-Add persistent context and app state, project pin/unpin verbs, and the global pin indicator. Replace last-launch/cwd ownership fallback with the documented resolver. Implement shared project-scope reads across existing lists and details, plus the explicit All projects view. Preserve source-targeted actions. Keep shell and agent launches working through the cutover.
+Add persistent context and app state, project pin/unpin verbs, and the global pin indicator. Replace last-launch/cwd ownership fallback with the documented resolver. Implement shared project-scope reads across existing lists and details, using owner fields and links from step 1, plus the explicit All projects view. Preserve source-targeted actions. Keep shell and agent launches working through the cutover.
 
 Acceptance:
 - Pin A, browse B, switch to Panes, then launch a generic shell/agent. It uses A. A targeted B launch uses B and leaves A pinned.
@@ -127,9 +152,9 @@ Acceptance:
 
 Verification: focused context/launch behavior tests, CLI pin/read/unpin against an isolated database, and an interactive launch on an isolated TUIOS server.
 
-Dependencies: none.
+Dependencies: step 1 (scoping reads ownership and links).
 
-### 2. Add project list/detail CRUD
+### 3. Add project list/detail CRUD
 
 Likely files: `cmd/mtm/main.go`, a project editor file, `cmd/mtm/prompt.go`, `internal/work/work.go`, focused tests.
 
@@ -142,9 +167,9 @@ Acceptance:
 
 Verification: exercise the actual list/detail editor at wide and narrow widths, then reopen the isolated database to inspect persisted values. Cover deletion orphaning and cancel behavior with focused tests.
 
-Dependencies: step 1.
+Dependencies: step 2.
 
-### 3. Add tree CRUD and the default-directory action
+### 4. Add tree CRUD and the default-directory action
 
 Likely files: `internal/work/work.go`, project/tree editor files, `cmd/mtm/launch.go`, `cmd/o-proj/main.go`, focused tests.
 
@@ -157,9 +182,9 @@ Acceptance:
 
 Verification: focused store/default tests; o-proj registration regression checks; real shell `pwd` and agent launch on an isolated daemon.
 
-Dependencies: steps 1 and 2.
+Dependencies: steps 2 and 3.
 
-### 4. Apply list/detail CRUD to tasks
+### 5. Apply list/detail CRUD to tasks
 
 Likely files: `cmd/mtm/tasks.go`, task detail/editor file, `internal/work/work.go`, focused existing tests.
 
@@ -172,39 +197,9 @@ Acceptance:
 
 Verification: exercise task CRUD from the actual page and CLI; focused tests for cancellation, ownership precedence, unassociated creation, and deletion orphaning.
 
-Dependencies: step 2.
+Dependencies: step 3.
 
-### 5. Make scratch launch and explicit persistence work for shells/agents
-
-Likely files: `cmd/mtm/launch.go`, `cmd/mtm/panes.go`, shared work persistence for saved/live associations, focused launch tests.
-
-Expose explicit scratch and directory arguments consistently. Record live ownership independently of daemon session names. Add save/associate actions that require a project or explicit path and apply to the existing pane. Persist only metadata that can actually be used to reopen supported work. Do not claim to restore arbitrary shell process memory or agent conversations.
-
-Acceptance:
-- With A pinned, launch scratch shell and agent, interact, detach, and reattach. Both remain unassociated, and A stays pinned.
-- Save without project/path succeeds as an unassociated saved record in mtm-owned storage. Every save survives mtm restart and identifies the same live pane while it exists. Associating it later moves no process.
-- Associating scratch work does not spawn or relocate its process. Existing review history keeps its original launch ownership.
-
-Verification: real daemon launch/input/capture/reattach, inspect persisted associations after reopening mtm, and focused persistence-boundary tests.
-
-Dependencies: steps 1 and 3.
-
-### 6. Add real scratch Vim and saved-session CRUD
-
-Likely files: a small `internal/vim` package lifted selectively from matomeru-old, mtm Vim noun handlers, Panes integration, focused tests.
-
-Start real Neovim in a daemon pane. Reuse terminal attach/detach and scratch launch context. Add explicit session save, inspect, rename/association edit, reopen, and forget. Resume a running session without duplicating it; reopen a closed saved session with its session file and saved cwd.
-
-Acceptance:
-- Open Vim with no association despite a pin, type into it, detach, and reattach. No reusable saved session exists until explicit save.
-- Save to a project, an explicit session-file path, or neither (unassociated, mtm-owned storage); close the pane, restart mtm, and reopen with the expected cwd and session state. An unwritable explicit path falls back to mtm-owned storage with a notice; the live editor and its buffers are untouched.
-- Missing Neovim reports the missing binary. Forget removes mtm's saved registration and only mtm-owned session artifacts, never edited files or the running pane.
-
-Verification: launch the real installed Neovim against an isolated daemon, save/reopen an actual session, inspect the file and cwd, and run focused lifecycle/error tests. If Neovim is unavailable, report that acceptance as unverified rather than substituting a shell.
-
-Dependencies: steps 3 and 5.
-
-### 7. Add notes tied to the pin and the selected task
+### 6. Add notes tied to the pin and the selected task
 
 Likely files: `internal/work/work.go` (a `notes` table, owner `work`), a `cmd/mtm/notes.go` noun, task and project detail panels, focused tests. Lift the record shape from `~/proj/matomeru-old/internal/notes/notes.go` (id, text, task id, project id, created, updated); do not port its bus, registry, or provenance machinery. Check `~/proj/znbu/docs/outline/knowledge.md` for the contract before building.
 
@@ -218,7 +213,37 @@ Acceptance:
 
 Verification: focused store and ownership tests; exercise the notes page, task detail, and CLI against an isolated database.
 
-Dependencies: steps 1 and 4. Independent of steps 5 and 6; build it right after step 4.
+Dependencies: steps 2 and 5. Independent of steps 7 and 8; build it right after step 5.
+
+### 7. Make scratch launch and explicit persistence work for shells/agents
+
+Likely files: `cmd/mtm/launch.go`, `cmd/mtm/panes.go`, shared work persistence for saved/live associations, focused launch tests.
+
+Expose explicit scratch and directory arguments consistently. Live ownership already exists (step 1). Add save/associate actions that require a project or explicit path and apply to the existing pane. Persist only metadata that can actually be used to reopen supported work. Do not claim to restore arbitrary shell process memory or agent conversations.
+
+Acceptance:
+- With A pinned, launch scratch shell and agent, interact, detach, and reattach. Both remain unassociated, and A stays pinned.
+- Save without project/path succeeds as an unassociated saved record in mtm-owned storage. Every save survives mtm restart and identifies the same live pane while it exists. Associating it later moves no process.
+- Associating scratch work (step 1 `associate`) does not spawn or relocate its process. Existing review history keeps its original launch ownership.
+
+Verification: real daemon launch/input/capture/reattach, inspect persisted associations after reopening mtm, and focused persistence-boundary tests.
+
+Dependencies: steps 2 and 4.
+
+### 8. Add real scratch Vim and saved-session CRUD
+
+Likely files: a small `internal/vim` package lifted selectively from matomeru-old, mtm Vim noun handlers, Panes integration, focused tests.
+
+Start real Neovim in a daemon pane. Reuse terminal attach/detach and scratch launch context. Add explicit session save, inspect, rename/association edit, reopen, and forget. Resume a running session without duplicating it; reopen a closed saved session with its session file and saved cwd.
+
+Acceptance:
+- Open Vim with no association despite a pin, type into it, detach, and reattach. No reusable saved session exists until explicit save.
+- Save to a project, an explicit session-file path, or neither (unassociated, mtm-owned storage); close the pane, restart mtm, and reopen with the expected cwd and session state. An unwritable explicit path falls back to mtm-owned storage with a notice; the live editor and its buffers are untouched.
+- Missing Neovim reports the missing binary. Forget removes mtm's saved registration and only mtm-owned session artifacts, never edited files or the running pane.
+
+Verification: launch the real installed Neovim against an isolated daemon, save/reopen an actual session, inspect the file and cwd, and run focused lifecycle/error tests. If Neovim is unavailable, report that acceptance as unverified rather than substituting a shell.
+
+Dependencies: steps 4 and 7.
 
 ## Completion gate
 
