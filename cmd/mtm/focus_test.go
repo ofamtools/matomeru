@@ -13,13 +13,14 @@ import (
 
 func TestStartupFocusesTheFirstProjectRow(t *testing.T) {
 	app := open(t)
-	app.launcher = &fakeDaemon{}
+	f := &fakeDaemon{}
+	app.launcher = f
 	if app.r.Focus != "ochazuke" {
 		t.Fatalf("focus at startup = %s", app.r.Focus)
 	}
-	key(t, app, "l")
-	if prompt, _ := confirmPrompt(t, app); prompt != "Launch into ochazuke?" {
-		t.Fatalf("confirm = %q", prompt)
+	runOnce(app, key(t, app, "l"))
+	if len(f.launches) != 1 || f.launches[0].Session != "ochazuke" {
+		t.Fatalf("launches = %+v", f.launches)
 	}
 }
 

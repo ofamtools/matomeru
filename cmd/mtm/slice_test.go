@@ -28,7 +28,7 @@ func TestSliceEndToEnd(t *testing.T) {
 		t.Helper()
 		before := rawFrame(app)
 		_, cmd := app.m.Update(keyMsg(k))
-		if k == "y" || app.r.Page == reviewsPage && k == "enter" {
+		if k == "l" || app.r.Page == reviewsPage && k == "enter" {
 			runOnce(app, cmd)
 		}
 		if app.m.Status != "" {
@@ -55,9 +55,7 @@ func TestSliceEndToEnd(t *testing.T) {
 	if app.r.Focus != "t1" {
 		t.Fatalf("enter: focus %s", app.r.Focus)
 	}
-	step("l")
-	has("Launch into matomeru?")
-	step("y") // the launch lands attached on the panes page
+	step("l") // the launch lands attached on the panes page, unasked
 	if app.r.Page != panesPage || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
 		t.Fatalf("after y: page %s focus %s mode %s", app.r.Page, app.r.Focus, app.r.Mode.Name)
 	}

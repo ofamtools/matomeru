@@ -21,9 +21,8 @@ import (
 const defaultHarness = "claude"
 
 const (
-	launchConfirm = "Launch into {{session}}?"
-	shellConfirm  = "New pane in {{session}}?"
-	shellName     = "shell" // the window name of a pane.new shell
+	shellConfirm = "New pane in {{session}}?"
+	shellName    = "shell" // the window name of a pane.new shell
 )
 
 // sessionFor is the session a project's agents launch into: the project's
@@ -163,7 +162,7 @@ func (a *App) defineLaunch() {
 		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
 	r.Define("agent").
 		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
-		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it").Confirm(launchConfirm)
+		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it")
 	// The model is free text checked against the chosen harness's models
 	// (harness.Model): the pick list is every harness's, the check is the
 	// one harness's, and a harness that lists none takes any model.
@@ -464,6 +463,9 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(fmt.Errorf("launch: %w", err))
 	}
+	// A launch is cheap and K undoes it, so it does not ask; the notice
+	// says where it went.
+	a.m.Notify("Launching " + h.Name + " into " + ochazuke.StringArg(ctx.Args, "session", sessionFor(p)))
 	spec := harness.Spec{
 		Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)),
 		Name:    p.Name,

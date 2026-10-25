@@ -80,23 +80,33 @@ func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
 }
 
 func TestCLIConfirmReadsTheAnswerFromStdin(t *testing.T) {
-	app, f := cliApp(t)
-	_, errOut, err := cli(app, "n\n", "task", "launch", "--target", "t1")
-	if err == nil || !strings.Contains(err.Error(), "declined: Launch into matomeru?") {
-		t.Fatalf("declined launch: %v", err)
+	app, _ := cliApp(t)
+	note, err := app.work.AddNote("matomeru", "", "scratch")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(errOut, "Launch into matomeru? [y/N]") {
+	_, errOut, err := cli(app, "n\n", "note", "delete", "--target", note.ID)
+	if err == nil || !strings.Contains(err.Error(), "declined: Delete note scratch") {
+		t.Fatalf("declined delete: %v", err)
+	}
+	if !strings.Contains(errOut, "Delete note scratch? [y/N]") {
 		t.Fatalf("stderr lacks the prompt: %q", errOut)
 	}
-	if len(f.launches) != 0 || app.r.TopModal() != "" {
-		t.Fatalf("launches = %+v, modal = %q", f.launches, app.r.TopModal())
+	if _, err := app.work.Note(note.ID); err != nil || app.r.TopModal() != "" {
+		t.Fatalf("note %v, modal = %q", err, app.r.TopModal())
 	}
-	// End of input declines too, so a script never hangs or launches.
-	if _, _, err := cli(app, "", "task", "launch", "--target", "t1"); err == nil || len(f.launches) != 0 {
-		t.Fatalf("launch on empty stdin: %v, launches = %+v", err, f.launches)
+	// End of input declines too, so a script never hangs or deletes.
+	if _, _, err := cli(app, "", "note", "delete", "--target", note.ID); err == nil {
+		t.Fatal("delete on empty stdin")
 	}
-	if _, errOut, err := cli(app, "y\n", "task", "launch", "--target", "t1"); err != nil || len(f.launches) != 1 {
-		t.Fatalf("accepted launch: %v, launches = %+v\n%s", err, f.launches, errOut)
+	if _, err := app.work.Note(note.ID); err != nil {
+		t.Fatalf("empty stdin deleted: %v", err)
+	}
+	if _, errOut, err := cli(app, "y\n", "note", "delete", "--target", note.ID); err != nil {
+		t.Fatalf("accepted delete: %v\n%s", err, errOut)
+	}
+	if _, err := app.work.Note(note.ID); err == nil {
+		t.Fatal("y kept the note")
 	}
 }
 

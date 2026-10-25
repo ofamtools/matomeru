@@ -167,12 +167,13 @@ func (a *App) refreshNotes() error {
 	now := time.Now()
 	items := make([]ochazuke.ListItem, 0, len(notes)+len(drafts))
 	for _, note := range notes {
-		label := noteLabel(note.Text) + " (" + a.noteOwnerLabel(note) + ")"
+		// The label is the first line alone (a confirm reads it); the
+		// owner is in its own cells.
 		first := noteLabel(note.Text)
 		if marked[note.ID] {
-			label += " [draft]"
 			first += " [draft]"
 		}
+		label := first
 		project, task := a.noteOwnerCells(note)
 		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note", Cells: []string{first, project, task, sinceUse(note.Updated, now)}})
 	}

@@ -21,8 +21,7 @@ func reviewApp(t *testing.T) (*App, *fakePanes, work.Review) {
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{}
 	press(t, app, "j", "enter")
-	key(t, app, "l")
-	runOnce(app, key(t, app, "y"))
+	runOnce(app, key(t, app, "l"))
 	reviews, err := app.work.Reviews()
 	if err != nil {
 		t.Fatal(err)

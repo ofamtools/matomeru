@@ -172,18 +172,19 @@ func confirmPrompt(t *testing.T, a *App) (string, ochazuke.Request) {
 	return inst.Payload.Prompt, *inst.Payload.Request
 }
 
-func TestDecliningALaunchLeavesNoJob(t *testing.T) {
+// A launch is cheap and K undoes it: l starts at once, and the notice
+// names where it went.
+func TestALaunchDoesNotAsk(t *testing.T) {
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
 	press(t, app, "j")
-	key(t, app, "l")
-	settle(app, key(t, app, "n"))
-	if jobs := app.r.Jobs(); len(jobs) != 0 || len(f.launches) != 0 {
-		t.Fatalf("jobs = %+v, launches = %+v", jobs, f.launches)
+	settle(app, key(t, app, "l"))
+	if app.r.TopModal() != "" || len(f.launches) != 1 || f.launches[0].Session != "matomeru" {
+		t.Fatalf("modal %q launches %+v", app.r.TopModal(), f.launches)
 	}
-	if app.r.Focus != "matomeru" {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if !strings.Contains(strings.Join(app.m.Notices, "|"), "Launching claude into matomeru") {
+		t.Fatalf("notices %q", app.m.Notices)
 	}
 }
 
@@ -192,14 +193,10 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	f := &fakeDaemon{}
 	app.launcher = f
 	press(t, app, "j", "enter")
-	key(t, app, "l")
-	if !strings.Contains(frame(app), "Launch into matomeru?") {
-		t.Fatalf("frame lacks the confirm prompt:\n%s", frame(app))
-	}
-	cmd := key(t, app, "y")
+	cmd := key(t, app, "l")
 	jobs := app.r.Jobs()
 	if len(jobs) != 1 || jobs[0].Verb != "agent.start" || jobs[0].State != ochazuke.JobRunning || jobs[0].Owner != "work" {
-		t.Fatalf("jobs after y = %+v", jobs)
+		t.Fatalf("jobs after l = %+v", jobs)
 	}
 	if !strings.Contains(frame(app), "agent.start running") {
 		t.Fatalf("ticker lacks the running job:\n%s", frame(app))
@@ -238,8 +235,7 @@ func TestAFailingLaunchShowsInTheRail(t *testing.T) {
 	app := open(t)
 	app.launcher = &fakeDaemon{err: errors.New("dial: no daemon")}
 	press(t, app, "j", "k")
-	key(t, app, "l")
-	settle(app, key(t, app, "y"))
+	settle(app, key(t, app, "l"))
 	jobs := app.r.Jobs()
 	if len(jobs) != 1 || jobs[0].State != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "no daemon") {
 		t.Fatalf("jobs = %+v", jobs)
@@ -268,8 +264,8 @@ func TestAgentLaunchParameters(t *testing.T) {
 			t.Fatalf("%s confirms itself (%q); agent.start holds the confirm", key, c)
 		}
 	}
-	if got := app.r.Operations["agent.start"].Confirm; got != launchConfirm {
-		t.Fatalf("agent.start confirm = %q", got)
+	if got := app.r.Operations["agent.start"].Confirm; got != "" {
+		t.Fatalf("agent.start confirm = %q; a launch does not ask", got)
 	}
 	choices, err := app.r.Choices(app.r.Context(), launch.Parameters["project"])
 	if err != nil || len(choices) != 2 {
@@ -281,9 +277,6 @@ func TestAgentLaunchParameters(t *testing.T) {
 	if _, err := app.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Target: "work", Args: ochazuke.Arguments{"project": "matomeru", "model": "sonnet"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Verb: "accept", Noun: "confirm"}); err != nil {
-		t.Fatal(err)
-	}
 	runOnce(app, app.r.PendingCommands())
 	if len(f.launches) != 1 || strings.Join(f.launches[0].Command, " ") != "claude --model sonnet" || f.launches[0].Session != "matomeru" {
 		t.Fatalf("launches = %+v", f.launches)
@@ -293,7 +286,9 @@ func TestAgentLaunchParameters(t *testing.T) {
 	}
 }
 
-func noProjectLaunch(t *testing.T, a *App) (string, ochazuke.Request) {
+// noProjectLaunch launches with nothing inferred and returns the launch's
+// off-loop work.
+func noProjectLaunch(t *testing.T, a *App) tea.Cmd {
 	t.Helper()
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Target: "work"}); err != nil {
 		t.Fatal(err)
@@ -301,21 +296,21 @@ func noProjectLaunch(t *testing.T, a *App) (string, ochazuke.Request) {
 	if a.m.Palette.IsOpen() {
 		t.Fatalf("a launch with nothing inferred opened the palette on %q", a.m.Palette.Text())
 	}
-	return confirmPrompt(t, a)
+	if a.r.TopModal() != "" {
+		t.Fatalf("a launch asked: modal %q", a.r.TopModal())
+	}
+	return a.r.PendingCommands()
 }
 
 func TestNothingInferredLaunchesIntoNoProject(t *testing.T) {
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
-	prompt, q := noProjectLaunch(t, app)
-	if _, named := q.Args["project"]; prompt != "Launch into no-project?" || q.Key() != "agent.start" || q.Args["session"] != noProjectSession || named {
-		t.Fatalf("confirm = %q, request = %+v", prompt, q)
+	cmd := noProjectLaunch(t, app)
+	if !strings.Contains(strings.Join(app.m.Notices, "|"), "Launching claude into no-project") {
+		t.Fatalf("notices %q", app.m.Notices)
 	}
-	if fr := frame(app); !strings.Contains(fr, "Launch into no-project?") {
-		t.Fatalf("frame:\n%s", fr)
-	}
-	runOnce(app, key(t, app, "y"))
+	runOnce(app, cmd)
 	if len(f.launches) != 1 {
 		t.Fatalf("launches = %+v", f.launches)
 	}
@@ -331,8 +326,7 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 	app := open(t)
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{}
-	noProjectLaunch(t, app)
-	runOnce(app, key(t, app, "y"))
+	runOnce(app, noProjectLaunch(t, app))
 	reviews, err := app.work.Reviews()
 	if err != nil || len(reviews) != 1 {
 		t.Fatalf("reviews = %+v, %v", reviews, err)
