@@ -619,3 +619,10 @@ func directoryKey(path string) string {
 	}
 	return path
 }
+
+// refreshDirectoryRows pushes the directory rows again from the cache (a
+// project's directories changed; the known rows are unchanged).
+func (a *App) refreshDirectoryRows() {
+	a.directories.Query = "\x00"
+	a.filterDirectories()
+}

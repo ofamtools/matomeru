@@ -57,3 +57,41 @@ func TestProjectNewDirAndProjectsDirectories(t *testing.T) {
 		t.Fatalf("directories %v", got)
 	}
 }
+
+// project directory.remove and directory.edit from the command line: the
+// default moves to the next directory and the result says which; edit keeps
+// the default mark; the directories stay on disk.
+func TestProjectDirectoryRemoveAndEditCLI(t *testing.T) {
+	a, _ := cliApp(t)
+	base := t.TempDir()
+	one, two, three := filepath.Join(base, "one"), filepath.Join(base, "two"), filepath.Join(base, "three")
+	for _, dir := range []string{one, two, three} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var p work.Project
+	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "new", "demo", "--dir", one)), &p); err != nil {
+		t.Fatal(err)
+	}
+	mustCLI(t, a, "project", "directory", "--target", p.ID, "--path", two)
+	var removed struct {
+		work.Project
+		Promoted string `json:"promoted"`
+	}
+	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "directory.remove", "--target", p.ID, "--path", one)), &removed); err != nil {
+		t.Fatal(err)
+	}
+	if removed.Promoted != two || removed.DefaultTree != two || len(removed.Trees) != 1 {
+		t.Fatalf("removed %+v", removed)
+	}
+	if _, err := os.Stat(one); err != nil {
+		t.Fatalf("remove touched disk: %v", err)
+	}
+	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "directory.edit", "--target", p.ID, "--path", two, "--to", three)), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.DefaultTree != three || len(p.Trees) != 1 || p.Trees[0].Path != three {
+		t.Fatalf("edited %+v", p)
+	}
+}

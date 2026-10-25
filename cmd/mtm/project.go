@@ -2,6 +2,7 @@ package main
 
 import (
 	"charm.land/lipgloss/v2"
+	"errors"
 	"fmt"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
@@ -19,6 +20,8 @@ func (a *App) defineProject() {
 		Verb("launch", a.launchRecord, "Launch an agent into this project's session").
 		Verb("directory", a.addProjectDirectory, "Attach directory; omit path to choose").Positional("path").
 		Verb("default", a.defaultProjectDirectory, "Set default directory").Positional("path").
+		Verb("directory.remove", a.removeProjectDirectory, "Detach a directory (never touches disk); removing the default promotes the next").Positional("path").
+		Verb("directory.edit", a.editProjectDirectory, "Point an attached directory at another path, keeping its default mark").Positional("path").
 		Mode("normal").Bind("enter", ochazuke.Do("project.open")).
 		Bind("i", ochazuke.Do("project.edit")).Bind("l", ochazuke.Do("project.launch")).
 		Bind("d", ochazuke.Do("project.directory"))
@@ -26,6 +29,8 @@ func (a *App) defineProject() {
 	for _, verb := range []string{"project.directory", "project.default"} {
 		a.parameters(verb, map[string]ochazuke.Parameter{"path": {Type: "string"}})
 	}
+	a.parameters("project.directory.remove", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
+	a.parameters("project.directory.edit", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}, "to": {Type: "string", Required: true, Description: "The new path (a missing one is attached and flagged)"}})
 }
 
 func (a *App) editProject(ctx ochazuke.Ctx) ochazuke.Result {
@@ -92,6 +97,59 @@ func (a *App) defaultProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.refreshProjects(); err != nil {
 		return ochazuke.Failed(err)
 	}
+	return ochazuke.Done(p)
+}
+
+// removeProjectDirectory is project.directory.remove: the directory leaves
+// this project only (other projects sharing it keep it, the disk is never
+// touched); removing the default promotes the next and says so.
+func (a *App) removeProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
+	return a.detachDirectory(ctx.Instance.ID, expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
+}
+
+func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
+	p, promoted, err := a.work.RemoveTree(projectID, path)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	home, _ := a.home()
+	msg := "Removed " + tildePath(path, home) + " from " + projectName(p) + "; nothing on disk changed"
+	switch {
+	case promoted != "":
+		msg += "; default is now " + tildePath(promoted, home)
+	case len(p.Trees) == 0:
+		msg += "; it has no directories left"
+	}
+	a.m.Notify(msg)
+	a.directories.Ready = false
+	if err := a.refreshProjects(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.refreshDirectoryRows()
+	return ochazuke.Done(struct {
+		work.Project
+		Promoted string `json:"promoted,omitempty"`
+	}{p, promoted})
+}
+
+// editProjectDirectory is project.directory.edit: path is re-pointed at to.
+func (a *App) editProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
+	return a.replaceDirectory(ctx.Instance.ID, expandPath(ochazuke.StringArg(ctx.Args, "path", "")), ochazuke.StringArg(ctx.Args, "to", ""))
+}
+
+func (a *App) replaceDirectory(projectID, path, to string) ochazuke.Result {
+	if strings.TrimSpace(to) == "" {
+		return ochazuke.Failed(errors.New("to is required"))
+	}
+	p, err := a.work.ReplaceTree(projectID, path, inspectDirectory(expandPath(to)))
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.directories.Ready = false
+	if err := a.refreshProjects(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.refreshDirectoryRows()
 	return ochazuke.Done(p)
 }
 
