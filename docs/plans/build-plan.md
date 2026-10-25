@@ -10,8 +10,24 @@ Status: approved for build, 2026-10-25. This is the plan to execute. It supersed
 
 Pin a project. Launch terminals and agents into it through TUIOS. Tasks and notes made while it is pinned attach to it automatically. You can still switch the pin, browse other projects, and act on them directly. Anything mtm can't associate is saved as **unassociated** and can be reassigned later. mtm never refuses for missing context.
 
+**While a project is pinned, everything you see is that project's:** tasks, notes, TUIOS sessions, terminals (shell panes), agents, reviews, and later Vim sessions. Other projects and unassociated items appear only in the explicit `all` view.
+
 ## Rules every step follows
 
+- **The pin filters everything.** With a project pinned, every list, count, detail and preview of a project-owned thing shows only that project's items:
+
+  | List | Belongs to the pin when |
+  |---|---|
+  | Tasks | `project_id` is the pinned project |
+  | Notes | its own `project_id`, or its task's, is the pinned project |
+  | TUIOS sessions | its `session_owners` row is the pinned project |
+  | Terminals (shell panes) | its `assignments` row, or else its session's owner, is the pinned project |
+  | Agents (agent panes) | same as terminals |
+  | Reviews | its launch-time `project_id` is the pinned project |
+  | Project directories | they belong to the pinned project's record |
+  | Vim sessions (follow-up plan) | same rule when they are built |
+
+  The projects list itself stays global, so you can always see and pin another project. `all` shows everything with owner labels and doesn't change the pin. With nothing pinned, every list shows everything, unassociated items included and labeled. The command line's `list` verbs apply the same filter, with `--all` to widen it. Every lane filters the lists it builds, through one helper; there is never a second filtering path.
 - **Record first.** Missing or unknown association is never a reason to refuse. Refuse only when an operation is physically impossible, and never lose what the user typed.
 - **Ownership is a field.** Every stored record carries `project_id`, and `task_id` where it fits; empty means unassociated. Panes and sessions, which TUIOS stores rather than mtm, get their owners in mtm tables keyed by stable ids.
 - **One owner resolver.** `resolveOwner(ctx, args)` runs when an action is dispatched. Its order:
@@ -59,6 +75,7 @@ One agent, on main, before any lane starts.
 - **The unassociated task list:** a "no project" row in the projects list that opens the unassociated tasks.
 - **`former_project_id` / `former_task_id`** fields on `Task`, unused until integration.
 - **`internal/draft`:** save, load, list and clear a draft file per noun and id. Lanes B and C both use it.
+- **`inScope(owner)`**, the one filter helper: true when nothing is pinned, when the `all` view is on, or when the owner is the pinned project. Until lane A adds the pin it always returns true. The task list goes through it now; every later list must too.
 - **Tests:** replace the tests that assert refusals (`internal/work/work_test.go:68`) with tests that assert the record is saved.
 
 Acceptance: from the CLI and the TUI, create a nameless project, a titleless task with no project, and a task with an empty title. All save and are listed. The unassociated task opens through `--target` and launches into `no-project`. A draft written, then mtm restarted, then the draft reopened shows the typed text.
@@ -80,10 +97,12 @@ Files: `internal/work/owners.go`, `cmd/mtm/pin.go`, `cmd/mtm/launch.go`, `cmd/mt
 - `project.pin`, `project.unpin` and a pin picker reachable from every page. The pin shows in the app title ("Matomeru · A").
 - The resolver's pin step goes live. `inferLaunch`'s current-directory and last-launch guesses, and the last-launch API, are removed.
 - An `all` toggle verb shows every project's items with owner labels, without changing the pin.
+- `inScope` goes live. The panes page (sessions, terminals, agents) and the reviews page filter through it.
 - Launching into B while A is pinned opens the pane labeled "outside pin: B". A launch that finishes after the pin changed only notifies; it doesn't switch views.
 
 Acceptance:
 - Launch into a session whose name has nothing to do with the project; after a restart its panes still read as A.
+- With A pinned, the panes page shows only A's sessions, terminals and agents, and reviews shows only A's. `all` shows B's and unassociated ones, labeled, with A still pinned.
 - A pane started outside mtm lists as unassociated; associate it to A, then B, then unassociated, and each survives a restart.
 - Reassigning a session moves its panes that have no row of their own and leaves a separately linked pane alone.
 - Pin A, browse B, and launch a shell and an agent with no target: both go to A. A launch aimed at B goes to B, and A stays pinned.
@@ -97,6 +116,7 @@ Files: `cmd/mtm/project.go` (project verbs, never in `main.go`'s block), `cmd/mt
 
 - **B1, projects:** view, new, edit (name, theme, settings) and delete in the right-hand panel through `internal/draft`. Creating a project registers its name only; making directories on disk stays with `o proj new`. Deletion is built in integration.
 - **B2, directories:** in the project detail, add an existing directory (no-op if already attached; a missing path is attached and flagged) and set the default. The first one added becomes the default. These store functions are shared, and o-proj's registration moves onto them. Editing and removing directories wait for the follow-up plan.
+- Project directories and tasks are listed through `inScope`.
 - **B3, tasks:** selecting a task shows it and never opens the editor; `edit` does. Title and status edits, `new` through the resolver, `done` and `launch` kept. Deletion is built in integration.
 
 Acceptance:
@@ -111,6 +131,7 @@ Files: `internal/work/notes.go` (or `internal/notes`), `cmd/mtm/notes.go`.
 - The table is declared `{Name: "notes", Owner: "notes", Key: "id", Version: 1}`. Old rows load as they are, ignoring fields like `provenance` and keeping them when saved.
 - A `note` noun with new, view, edit and associate, plus a notes page. Editing uses the right-hand panel and `internal/draft`. New notes go through the resolver: the selected task, then the pin, then unassociated. An empty note saves.
 - `note new TEXT [--task ID] [--project ID]` on the command line follows the same rules, without reading any TUI's selection.
+- The notes page lists through `inScope`.
 - Notes inside task and project details are left to integration.
 
 Acceptance:
@@ -127,13 +148,13 @@ Acceptance:
 
 One agent, on main.
 
-- **Filter by the pin:** the projects, tasks, panes, reviews and notes lists, and their details, show only the pinned project's items; `all` shows everything. Changing the pin clears selections and details that fall outside it. A late pane preview or review capture can't bring back the previous project's information.
+- **Check the pin filter end to end:** with A pinned, tasks, notes, sessions, terminals, agents, reviews and directories, plus their counts, details and previews, contain nothing of B's and nothing unassociated. `all` and the command line's `--all` show them. Changing the pin clears selections and details that fall outside it. A late pane preview or review capture can't bring back the previous project's information.
 - **Notes in details:** task and project details list their notes.
 - **Deletion,** noun by noun: deleting a project or task orphans its tasks, notes, pane and session owners, with `former_*` set, and clears the pin if needed. The confirmation states how many records are affected.
 - **The final scenario** on a separate TUIOS server and a temporary database:
   1. Create a nameless project and name it later.
   2. Add two directories and set the default.
-  3. Pin the project.
+  3. Pin the project. Every list (tasks, notes, sessions, terminals, agents, reviews) now shows only its items.
   4. Launch a shell and an agent; both land in the default directory.
   5. Add a task and a note; both attach to the pin.
   6. Launch a scratch agent; it's unassociated.
