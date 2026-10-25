@@ -47,6 +47,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.m.Status = err.Error()
 	}
 	a.filterDirectories()
+	if a.r.Page != a.lastPage {
+		a.lastPage = a.r.Page
+		if a.r.Page == directoriesPage {
+			cmd = tea.Batch(cmd, a.openedDirectories())
+		}
+	}
 	return a, cmd
 }
 func (a *App) defineRecordEditor() {

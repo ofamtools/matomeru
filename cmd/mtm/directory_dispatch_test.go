@@ -7,6 +7,10 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
+// project.directory with no path (d) opens the directory chooser over the
+// current page and loads the known directories behind it; browse… goes to
+// the Directories page with the framework picker, and a typed path that
+// does not exist is still attached (record first).
 func TestProjectDirectoryChooserDeliversAcrossPages(t *testing.T) {
 	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
 	a := open(t)
@@ -15,24 +19,23 @@ func TestProjectDirectoryChooserDeliversAcrossPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())
-	if a.r.Page != "directories" || a.directories.ProjectID != "matomeru" || !a.directories.Ready {
-		t.Fatalf("chooser did not load: page=%s cache=%+v", a.r.Page, a.directories)
+	c := a.choosers.Get(dirChooser)
+	if a.r.Page != "work" || c == nil || !a.directories.Ready {
+		t.Fatalf("chooser did not load: page=%s modal=%q cache=%+v", a.r.Page, a.r.TopModal(), a.directories)
 	}
-	if a.directoryList.Len() != 1 {
-		t.Fatalf("expected only browse: %+v", a.directoryList.Items())
+	if got := labels(c.Matches()); len(got) != 1 || got[0] != "browse…" {
+		t.Fatalf("expected only browse: %q", got)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "directory-browse", Verb: "open", Target: "directory:browse"}); err != nil {
-		t.Fatal(err)
-	}
-	if a.r.TopModal() != "picker" {
-		t.Fatal("browse did not open framework picker")
+	press(t, a, "enter")
+	if a.r.Page != "directories" || a.r.TopModal() != "picker" || a.directories.ProjectID != "matomeru" {
+		t.Fatalf("browse: page %s modal %q project %q", a.r.Page, a.r.TopModal(), a.directories.ProjectID)
 	}
 	// Cancel browsing, then type an absent path; attachment must still record it.
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "picker", Verb: "close"}); err != nil {
 		t.Fatal(err)
 	}
-	a.r.Input("directories/path").Text = []rune("/missing-attachment")
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "directory-path", Verb: "attach", Target: "directories/path"}); err != nil {
+	a.r.Input(directoryPathID).Text = []rune("/missing-attachment")
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "directory-path", Verb: "attach", Target: directoryPathID}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := a.work.Project("matomeru")
@@ -41,5 +44,11 @@ func TestProjectDirectoryChooserDeliversAcrossPages(t *testing.T) {
 	}
 	if p.DefaultTree != "/missing-attachment" || len(p.Trees) != 1 {
 		t.Fatalf("missing path not attached: %+v", p)
+	}
+	if a.r.Input(directoryPathID) != nil || a.directories.Browse != "" || a.r.Page != "directories" {
+		t.Fatalf("browse did not close: page %s browse %q", a.r.Page, a.directories.Browse)
+	}
+	if a.projectDirList.Len() != 1 {
+		t.Fatalf("project directories %+v", a.projectDirList.Items())
 	}
 }

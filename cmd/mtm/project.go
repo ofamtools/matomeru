@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
-	"os"
 	"strings"
 )
 
@@ -68,14 +67,9 @@ func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	path, present := ctx.Args["path"]
 	if !present {
-		a.directories.ProjectID = p.ID
-		if err := a.r.OpenPage("directories"); err != nil {
-			return ochazuke.Failed(err)
-		}
-		if err := a.directoryList.Focus(); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return a.refreshDirectories(ctx)
+		// The chooser opens over the current page; a stale cache loads
+		// behind it.
+		return resultError(a.openDirectoryChooser(p.ID))
 	}
 	tree := inspectDirectory(expandPath(path.(string)))
 	p, err = a.work.AddTree(p.ID, tree)
@@ -185,32 +179,13 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 		detail += a.detailNotes(task.ProjectID, task.ID)
 	} else if p, ok := a.project(projectID); ok && a.inScope(p.ID) {
 		detail = fmt.Sprintf("%s\n\ncolor: %s  glyph: %s\nharness: %s\npreset: %s\n\ndirectories", projectLabel(p), p.Theme.Color, p.Theme.Glyph, p.Settings.Harness, p.Settings.Preset)
-		if a.inScope(p.ID) {
-			for _, tree := range p.Trees {
-				mark := ""
-				if tree.Path == p.DefaultTree {
-					mark = " [default]"
-				}
-				if st, err := os.Stat(tree.Path); err != nil || !st.IsDir() {
-					mark += " [missing]"
-				}
-				var shared []string
-				pathKey := directoryKey(tree.Path)
-				for _, other := range a.projects {
-					if other.ID != p.ID {
-						for _, t := range other.Trees {
-							if directoryKey(t.Path) == pathKey {
-								shared = append(shared, projectName(other))
-								break
-							}
-						}
-					}
-				}
-				if len(shared) > 0 {
-					mark += " [also: " + strings.Join(shared, ", ") + "]"
-				}
-				detail += "\n" + tree.Path + mark
+		home, _ := a.home()
+		for _, tree := range p.Trees {
+			line := tildePath(tree.Path, home)
+			if marks := a.treeMarks(p, tree); len(marks) > 0 {
+				line += "  [" + strings.Join(marks, "] [") + "]"
 			}
+			detail += "\n" + line
 		}
 		if a.inScope(p.ID) {
 			detail += a.detailNotes(p.ID, "")

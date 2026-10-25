@@ -178,7 +178,10 @@ type App struct {
 	editorFinish   map[string]func(editRecord) error
 	directories    directoryCache
 	directoryList  *ochazuke.List
+	projectDirList *ochazuke.List
+	baseList       *ochazuke.List
 	directoryQuery *ochazuke.Input
+	lastPage       string // the page the last update ended on; a change runs that page's open hook
 	choosers       *Choosers
 	detailTask     string
 	cli            bool
@@ -372,7 +375,11 @@ func (a *App) refreshProjects() error {
 	}
 	items = append(items, ochazuke.ListItem{ID: unassociatedID, Label: "no project (unassociated)", Noun: "unassociated"})
 	a.refreshTitle() // a name or default directory may have changed
-	return a.projectList.SetItems(items)
+	if err := a.projectList.SetItems(items); err != nil {
+		return err
+	}
+	a.refreshDirectoryRows() // owners and the target's directories follow the projects
+	return nil
 }
 
 // projectLabel stays global; owned directories belong in the scoped detail.

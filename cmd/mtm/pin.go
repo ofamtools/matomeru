@@ -182,11 +182,8 @@ func (a *App) refreshScope() error {
 	a.detailTask = ""
 	if !a.inScope(a.directories.ProjectID) {
 		a.directories.ProjectID = a.pin
-		a.directories.Browse = false
-		if input := a.r.Input("directories/path"); input != nil {
-			if err := input.Replace(0, len(input.Text), ""); err != nil {
-				return err
-			}
+		if err := a.endBrowse(); err != nil {
+			return err
 		}
 	}
 	if a.editor != nil {
@@ -205,6 +202,7 @@ func (a *App) refreshScope() error {
 			return err
 		}
 	}
+	a.refreshDirectoryRows()
 	if !a.inScope(a.current) {
 		a.current, a.tasksOpen = a.pin, a.pin != ""
 	}
