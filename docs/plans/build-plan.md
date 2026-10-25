@@ -191,6 +191,7 @@ One agent, on main.
 
 ## Checkouts and merging
 
+- **Who builds what:** step 0, lane A and integration run on astra (`command omp --allow-home -p --no-session --model openai-codex/gpt-6-astra --cwd <checkout>`, as a background process, always the `openai-codex` provider); lanes B and C run on Opus subagents.
 - Step 0 and integration run on `~/proj/matomeru` main.
 - Lanes run in plain clones beside it, `~/proj/matomeru-lane-a`, `-b` and `-c`, so `../ochazuke` still resolves. Branches are `lane/a`, `lane/b`, `lane/c`. No git worktrees.
 - Each lane rebases onto main and merges in the order A, B, C. After each merge, the merged result reruns its acceptance checks, not just a clean text merge.
