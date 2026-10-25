@@ -138,11 +138,13 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	}
 }
 
-func TestSaveAnswerThroughThePrompt(t *testing.T) {
+// s on a review row opens it and puts the answer area in insert mode;
+// enter saves and returns to the row, marked answered.
+func TestSaveAnswerThroughTheArea(t *testing.T) {
 	app, _, rv := reviewApp(t)
 	press(t, app, "s")
-	if app.r.Focus != fieldID || string(app.field.Text) != "" {
-		t.Fatalf("s: focus %s field %q", app.r.Focus, string(app.field.Text))
+	if app.r.Focus != answerID || app.r.Mode.Name != "insert" || app.opened != rv.ID {
+		t.Fatalf("s: focus %s mode %s opened %s", app.r.Focus, app.r.Mode.Name, app.opened)
 	}
 	typeText(t, app, "ship it")
 	press(t, app, "enter")
@@ -151,16 +153,6 @@ func TestSaveAnswerThroughThePrompt(t *testing.T) {
 	}
 	if app.r.Focus != rv.ID || !strings.HasSuffix(app.r.Instances[rv.ID].Label, "(answered)") {
 		t.Fatalf("after save: focus %s label %q", app.r.Focus, app.r.Instances[rv.ID].Label)
-	}
-	// The prompt opens with the saved answer; esc leaves it unchanged.
-	press(t, app, "s")
-	if string(app.field.Text) != "ship it" {
-		t.Fatalf("prefill = %q", string(app.field.Text))
-	}
-	typeText(t, app, " now")
-	press(t, app, "esc")
-	if got := storedReview(t, app, rv.ID).Answer; got != "ship it" || app.r.Focus != rv.ID {
-		t.Fatalf("esc: answer %q focus %s", got, app.r.Focus)
 	}
 }
 
@@ -177,13 +169,18 @@ func TestSaveAnswerTakesAnArgumentWithoutAPrompt(t *testing.T) {
 	}
 }
 
+// } lands on the answer area in normal mode, so a command key is never
+// typed into it; i types, enter saves. Esc keeps the typed text as a draft
+// (a file under the data directory) that comes back when the review
+// opens again; U drops it.
 func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 	app, _, rv := reviewApp(t)
 	settle(app, key(t, app, "enter"))
 	press(t, app, "}")
-	if app.r.Focus != answerID || app.r.Mode.Name != "insert" {
+	if app.r.Focus != answerID || app.r.Mode.Name != "normal" {
 		t.Fatalf("}: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
 	}
+	press(t, app, "i")
 	typeText(t, app, "looks right")
 	if fr := frame(app); !strings.Contains(fr, "looks right") {
 		t.Fatalf("frame while editing:\n%s", fr)
@@ -192,11 +189,34 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.Focus != rv.ID {
 		t.Fatalf("enter: answer %q focus %s", got, app.r.Focus)
 	}
-	press(t, app, "}")
+	press(t, app, "s")
 	typeText(t, app, " maybe")
 	press(t, app, "esc")
-	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || string(app.answer.Text) != "looks right" || app.r.Focus != rv.ID {
-		t.Fatalf("esc: answer %q area %q focus %s", got, string(app.answer.Text), app.r.Focus)
+	if app.r.Mode.Name != "normal" || string(app.answer.Text) != "looks right maybe" {
+		t.Fatalf("esc: mode %s area %q", app.r.Mode.Name, string(app.answer.Text))
+	}
+	press(t, app, "esc")
+	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.Focus != rv.ID {
+		t.Fatalf("leave: answer %q focus %s", got, app.r.Focus)
+	}
+	if draft, ok := app.answerDraftOf(rv.ID); !ok || draft != "looks right maybe" {
+		t.Fatalf("draft %q %v", draft, ok)
+	}
+	if !strings.Contains(app.r.Instances[rv.ID].Label, "answered") || !rowWith(frame(app), "draft") {
+		t.Fatalf("row does not show the draft:\n%s", frame(app))
+	}
+	// Opening the review again brings the draft back.
+	app.opened = ""
+	settle(app, key(t, app, "enter"))
+	if string(app.answer.Text) != "looks right maybe" {
+		t.Fatalf("reopen: area %q", string(app.answer.Text))
+	}
+	press(t, app, "}", "U")
+	if string(app.answer.Text) != "looks right" || app.r.Focus != rv.ID {
+		t.Fatalf("U: area %q focus %s", string(app.answer.Text), app.r.Focus)
+	}
+	if _, ok := app.answerDraftOf(rv.ID); ok {
+		t.Fatal("U kept the draft")
 	}
 }
 

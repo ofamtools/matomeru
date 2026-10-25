@@ -88,7 +88,7 @@ func TestSliceEndToEnd(t *testing.T) {
 	has("claude: brief written")
 	step("s")
 	typeText(t, app, "ship it") // a trailing space draws no cell, so no per-key check
-	has("│ ship it")
+	has("ship it")
 	step("enter")
 	step("a")
 	if got, _ := app.work.Review(rv); got.Answer != "ship it" || got.Status != work.ReviewAccepted || got.Output != "claude: brief written" {

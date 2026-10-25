@@ -223,6 +223,7 @@ type App struct {
 	paneList    *ochazuke.List
 	reviewList  *ochazuke.List
 	answer      *ochazuke.Input
+	answerDraft string // the answer text last written as the opened review's draft
 	noteList    *ochazuke.List
 	savedList   *ochazuke.List
 	vimList     *ochazuke.List

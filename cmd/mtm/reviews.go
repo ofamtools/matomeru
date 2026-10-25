@@ -41,19 +41,26 @@ func (a *App) defineReviews() {
 		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
 		Verb("accept", a.acceptReview, "Mark the review accepted (the task is left as it is)").
 		Verb("reject", a.rejectReview, "Mark the review rejected").
-		Verb("saveAnswer", a.saveAnswer, "Save the review's answer (omit answer to be asked in a prompt)").
+		Verb("saveAnswer", a.saveAnswer, "Save the review's answer; omit answer to type it in the answer area (autosaved as a draft)").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("review.open")).
 		Bind("a", ochazuke.Do("review.accept")).
 		Bind("r", ochazuke.Do("review.reject")).
 		Bind("s", ochazuke.Do("review.saveAnswer"))
-	a.parameters("review.saveAnswer", map[string]ochazuke.Parameter{"answer": {Type: "string", Description: "Omit to be asked in a prompt"}})
-	r.Define("answer").Pin("insert").
+	a.parameters("review.saveAnswer", map[string]ochazuke.Parameter{"answer": {Type: "string", Description: "Omit to type it in the answer area"}})
+	// The answer area is not insert-pinned: } lands on it in normal mode,
+	// so the next command key is never typed into it. Typing is autosaved
+	// as a draft; esc leaves insert and keeps the text.
+	r.Define("answer").
 		Verb("save", a.saveAnswerArea, "Save the answer area as the opened review's answer").
-		Verb("cancel", a.cancelAnswerArea, "Restore the opened review's saved answer and return to the list").
+		Verb("leave", a.leaveAnswerArea, "Return to the review list; the typed answer stays as a draft").
+		Verb("cancel", a.cancelAnswerArea, "Drop the draft: restore the saved answer and return to the list").
 		Mode("insert").
 		Bind("enter", ochazuke.Do("answer.save")).
-		Bind("esc", ochazuke.Do("answer.cancel"))
+		Mode("normal").
+		Bind("enter", ochazuke.Do("answer.save")).
+		Bind("esc", ochazuke.Do("answer.leave")).
+		Bind("U", ochazuke.Do("answer.cancel"))
 }
 
 // addReviewPage builds the page: the list first, so the page starts on it,
@@ -110,6 +117,9 @@ func (a *App) reviewCells(rv work.Review, now time.Time) []string {
 	status := rv.Status
 	if rv.Answer != "" {
 		status += " · answered"
+	}
+	if _, ok := a.answerDraftOf(rv.ID); ok {
+		status += " · draft"
 	}
 	task := ""
 	if rv.TaskID != "" {
@@ -178,13 +188,42 @@ func (a *App) review(ctx ochazuke.Ctx) (work.Review, error) {
 	return rv, nil
 }
 
-// setAnswerText puts text in the answer area.
+// setAnswerText puts text in the answer area; it is what the draft holds
+// already, so it is not saved again.
 func (a *App) setAnswerText(text string) error {
 	if err := a.answer.Replace(0, len(a.answer.Text), text); err != nil {
 		return err
 	}
 	a.answer.Cursor = len(a.answer.Text)
+	a.answerDraft = text
 	return nil
+}
+
+// autosaveAnswer writes the answer area as the opened review's draft
+// whenever its text changes (internal/draft, noun review); text equal to
+// the saved answer clears the draft.
+func (a *App) autosaveAnswer() error {
+	if a.opened == "" || a.answer == nil {
+		return nil
+	}
+	text := string(a.answer.Text)
+	if text == a.answerDraft {
+		return nil
+	}
+	a.answerDraft = text
+	if rv, ok := a.openedReview(); ok && text == rv.Answer {
+		return a.drafts.Clear("review", rv.ID)
+	}
+	return a.drafts.Save("review", a.opened, editRecord{Noun: "review", ID: a.opened, Text: text})
+}
+
+// answerDraftOf is a review's unsaved answer, if one was typed.
+func (a *App) answerDraftOf(id string) (string, bool) {
+	var d editRecord
+	if err := a.drafts.Load("review", id, &d); err != nil {
+		return "", false
+	}
+	return d.Text, true
 }
 
 // openReview is review.open: the review becomes the detail, its answer
@@ -195,8 +234,15 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	if err := a.autosaveAnswer(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	a.opened, a.captureErr = rv.ID, ""
-	if err := a.setAnswerText(rv.Answer); err != nil {
+	answer := rv.Answer
+	if draft, ok := a.answerDraftOf(rv.ID); ok {
+		answer = draft
+	}
+	if err := a.setAnswerText(answer); err != nil {
 		return ochazuke.Failed(err)
 	}
 	d := a.panesd
@@ -260,24 +306,30 @@ func (a *App) setReviewStatus(ctx ochazuke.Ctx, status string) ochazuke.Result {
 	return ochazuke.Done(rv)
 }
 
-// saveAnswer is review.saveAnswer: the answer argument saves at once,
-// else the prompt opens with the saved answer and enter saves its text.
+// saveAnswer is review.saveAnswer: the answer argument saves at once;
+// without one (the s key) the review opens and the answer area takes the
+// typing in insert mode, its draft or saved answer in it.
 func (a *App) saveAnswer(ctx ochazuke.Ctx) ochazuke.Result {
 	rv, err := a.review(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	commit := a.answerCommit(rv)
 	if answer := ochazuke.StringArg(ctx.Args, "answer", ""); answer != "" {
-		if err := commit(answer); err != nil {
+		if err := a.answerCommit(rv)(answer); err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(answer)
 	}
-	if err := a.prompt("Answer", "Answer for "+a.reviewLabel(rv), rv.Answer, commit); err != nil {
+	result := ochazuke.Done(rv)
+	if a.opened != rv.ID {
+		result = a.openReview(ctx)
+	}
+	if err := a.r.SetFocus(answerID); err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(rv)
+	a.answer.SetMode("insert")
+	a.answer.Cursor = len(a.answer.Text) // s appends, like A
+	return result
 }
 
 // answerCommit saves an answer for a review (an unchanged one writes
@@ -286,9 +338,12 @@ func (a *App) saveAnswer(ctx ochazuke.Ctx) ochazuke.Result {
 func (a *App) answerCommit(rv work.Review) func(string) error {
 	return func(text string) error {
 		if text == rv.Answer {
-			return nil
+			return a.drafts.Clear("review", rv.ID)
 		}
 		if _, err := a.work.SaveAnswer(rv.ID, text); err != nil {
+			return err
+		}
+		if err := a.drafts.Clear("review", rv.ID); err != nil {
 			return err
 		}
 		if a.opened == rv.ID {
@@ -337,10 +392,25 @@ func (a *App) saveAnswerArea(ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(text)
 }
 
-// cancelAnswerArea is answer.cancel: the area goes back to the saved
-// answer and focus to the list.
+// leaveAnswerArea is answer.leave (esc in normal mode): back to the list;
+// the text stays in the area and in its draft.
+func (a *App) leaveAnswerArea(ochazuke.Ctx) ochazuke.Result {
+	if err := a.autosaveAnswer(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.refreshReviews(); err != nil { // the row's draft mark
+		return ochazuke.Failed(err)
+	}
+	return resultError(a.backToReview())
+}
+
+// cancelAnswerArea is answer.cancel (U): the draft is dropped, the area
+// goes back to the saved answer and focus to the list.
 func (a *App) cancelAnswerArea(ochazuke.Ctx) ochazuke.Result {
 	rv, _ := a.openedReview()
+	if err := a.drafts.Clear("review", rv.ID); err != nil {
+		return ochazuke.Failed(err)
+	}
 	if err := a.setAnswerText(rv.Answer); err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -382,7 +452,10 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 			detail += " · captured " + time.UnixMilli(rv.CapturedAt).Format("15:04:05")
 		}
 		body = a.fill(rv.Output, rows, width)
-		answer = "answer (s or } edits, enter saves):"
+		answer = "answer (s edits, enter saves, U drops the draft):"
+		if _, ok := a.answerDraftOf(rv.ID); ok {
+			answer = "answer · draft (enter saves, U drops it):"
+		}
 	}
 	lines := []string{s.Muted.Render(ansi.Truncate(head, width, "…")), list, s.Muted.Render(ansi.Truncate(detail, width, "…")), body, s.Muted.Render(ansi.Truncate(answer, width, "…"))}
 	before := strings.Count(strings.Join(lines, "\n"), "\n") + 1

@@ -43,7 +43,7 @@ func (a *App) View() tea.View {
 }
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := a.m.Update(msg)
-	if err := a.autosave(); err != nil {
+	if err := errors.Join(a.autosave(), a.autosaveAnswer()); err != nil {
 		a.m.Status = err.Error()
 	}
 	a.filterDirectories()
