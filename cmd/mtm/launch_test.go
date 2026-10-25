@@ -160,37 +160,6 @@ func withTrees(t *testing.T, a *App) {
 	}
 }
 
-func TestInferLaunchPrecedence(t *testing.T) {
-	app := open(t)
-	withTrees(t, app)
-	for _, c := range []struct {
-		name, at, cwd, last string
-		project, task, from string
-	}{
-		{name: "task row beats project, cwd and last", at: "t1", cwd: "/src/ochazuke", last: "ochazuke", project: "matomeru", task: "t1", from: fromTask},
-		{name: "project row beats cwd and last", at: "ochazuke", cwd: "/src/matomeru", last: "matomeru", project: "ochazuke", from: fromProject},
-		{name: "cwd beats last", at: "work", cwd: "/src/ochazuke/internal", last: "matomeru", project: "ochazuke", from: fromCwd},
-		{name: "cwd is a tree itself", at: "work", cwd: "/src/matomeru", project: "matomeru", from: fromCwd},
-		{name: "deepest tree wins", at: "work", cwd: "/src/ochazuke/vendor/matomeru/x", last: "ochazuke", project: "matomeru", from: fromCwd},
-		{name: "a sibling path is not inside", at: "work", cwd: "/src/ochazuke2", last: "matomeru", project: "matomeru", from: fromLast},
-		{name: "last launched", at: "work", cwd: "/elsewhere", last: "ochazuke", project: "ochazuke", from: fromLast},
-		{name: "no instance", cwd: "/elsewhere", last: "matomeru", project: "matomeru", from: fromLast},
-		{name: "a deleted last project", at: "work", cwd: "/elsewhere", last: "gone"},
-		{name: "nothing", at: "work", cwd: "/elsewhere"},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			app.getwd = func() (string, error) { return c.cwd, nil }
-			if err := app.work.SetLastLaunched(c.last); err != nil {
-				t.Fatal(err)
-			}
-			got, ok := app.inferLaunch(app.r.Instances[c.at])
-			if ok != (c.project != "") || got.Project.ID != c.project || got.Task != c.task || got.From != c.from {
-				t.Fatalf("inferLaunch(%q) = %+v, %v; want %s/%s from %s", c.at, got, ok, c.project, c.task, c.from)
-			}
-		})
-	}
-}
-
 // confirmPrompt is the open confirm modal's prompt and stored request.
 func confirmPrompt(t *testing.T, a *App) (string, ochazuke.Request) {
 	t.Helper()
@@ -199,69 +168,6 @@ func confirmPrompt(t *testing.T, a *App) (string, ochazuke.Request) {
 		t.Fatalf("no confirm modal is open (top %q)", a.r.TopModal())
 	}
 	return inst.Payload.Prompt, *inst.Payload.Request
-}
-
-func TestEveryLaunchPathConfirmsTheInferredSession(t *testing.T) {
-	type path struct {
-		name string
-		run  func(t *testing.T, a *App)
-		want string
-	}
-	palette := func(line string) func(t *testing.T, a *App) {
-		return func(t *testing.T, a *App) {
-			press(t, a, ":")
-			typeText(t, a, line)
-			press(t, a, "enter")
-		}
-	}
-	for _, c := range []path{
-		{"l on a project row", func(t *testing.T, a *App) { press(t, a, "j", "k", "l") }, "ochazuke"},
-		{"l on a task row", func(t *testing.T, a *App) { press(t, a, "j", "enter", "l") }, "matomeru"},
-		{"palette project launch on a project row", func(t *testing.T, a *App) { press(t, a, "j", "k"); palette("project launch")(t, a) }, "ochazuke"},
-		{"palette task launch on a task row", func(t *testing.T, a *App) { press(t, a, "j", "enter"); palette("task launch")(t, a) }, "matomeru"},
-		{"palette agent launch on a task row", func(t *testing.T, a *App) { press(t, a, "j", "enter"); palette("agent launch")(t, a) }, "matomeru"},
-		{"palette agent launch on a project row", func(t *testing.T, a *App) { press(t, a, "j"); palette("agent launch")(t, a) }, "matomeru"},
-		{"CLI agent launch, no arguments, from the cwd", func(t *testing.T, a *App) {
-			a.getwd = func() (string, error) { return "/src/ochazuke", nil }
-			out, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Target: "work"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if m, ok := out.(map[string]any); !ok || m["prompt"] != "Launch into ochazuke?" {
-				t.Fatalf("agent.launch = %#v", out)
-			}
-		}, "ochazuke"},
-		{"CLI agent launch, no arguments, the last launched", func(t *testing.T, a *App) {
-			if err := a.work.SetLastLaunched("matomeru"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Target: "work"}); err != nil {
-				t.Fatal(err)
-			}
-		}, "matomeru"},
-		{"CLI agent launch with an explicit project", func(t *testing.T, a *App) {
-			if _, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Target: "work", Args: ochazuke.Arguments{"project": "ochazuke"}}); err != nil {
-				t.Fatal(err)
-			}
-		}, "ochazuke"},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			app := open(t)
-			withTrees(t, app)
-			if err := app.r.SetFocus("ochazuke"); err != nil {
-				t.Fatal(err)
-			}
-			app.launcher = &fakeDaemon{}
-			c.run(t, app)
-			prompt, q := confirmPrompt(t, app)
-			if want := "Launch into " + c.want + "?"; prompt != want || q.Key() != "agent.start" || q.Args["session"] != c.want {
-				t.Fatalf("confirm = %q, request = %+v; want %q", prompt, q, want)
-			}
-			if f := frame(app); !strings.Contains(f, "Launch into "+c.want+"?") || strings.Contains(f, "{{") {
-				t.Fatalf("frame:\n%s", f)
-			}
-		})
-	}
 }
 
 func TestDecliningALaunchLeavesNoJob(t *testing.T) {
@@ -276,9 +182,6 @@ func TestDecliningALaunchLeavesNoJob(t *testing.T) {
 	}
 	if app.r.Focus != "matomeru" {
 		t.Fatalf("focus = %s", app.r.Focus)
-	}
-	if last, _ := app.work.LastLaunched(); last != "" {
-		t.Fatalf("a declined launch recorded %q as last launched", last)
 	}
 }
 
@@ -326,9 +229,6 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	}
 	if len(starts) != 1 || starts[0].State != ochazuke.JobDone {
 		t.Fatalf("jobs.list = %+v", out)
-	}
-	if last, err := app.work.LastLaunched(); err != nil || last != "matomeru" {
-		t.Fatalf("last launched = %q, %v", last, err)
 	}
 }
 
@@ -391,14 +291,8 @@ func TestAgentLaunchParameters(t *testing.T) {
 	}
 }
 
-// noProjectLaunch runs agent.launch where nothing is inferred (the work
-// page has focus, the cwd is in no tree, the last launched project is
-// gone) and returns the confirm's prompt and request.
 func noProjectLaunch(t *testing.T, a *App) (string, ochazuke.Request) {
 	t.Helper()
-	if err := a.work.SetLastLaunched("gone"); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Target: "work"}); err != nil {
 		t.Fatal(err)
 	}
@@ -428,10 +322,6 @@ func TestNothingInferredLaunchesIntoNoProject(t *testing.T) {
 	}
 	if stored, err := app.work.Projects(); err != nil || len(stored) != 2 {
 		t.Fatalf("a no-project launch created a project: %+v, %v", stored, err)
-	}
-	// The last launched project is left as it was.
-	if last, err := app.work.LastLaunched(); err != nil || last != "gone" {
-		t.Fatalf("last launched = %q, %v", last, err)
 	}
 }
 

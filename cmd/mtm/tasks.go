@@ -16,7 +16,7 @@ func (a *App) defineTask() {
 		Verb("edit", a.editTask, "Edit the title; omit title to open the draft editor").Positional("title").
 		Verb("done", a.doneTask, "Mark the task done").
 		Verb("new", a.newTask, "Add a task; omit title to open the draft editor").Positional("title").
-		Verb("launch", a.launch, "Launch an agent on the task").
+		Verb("launch", a.launchRecord, "Launch an agent on the task").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.open")).Bind("l", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.done"))
@@ -32,14 +32,18 @@ func (a *App) bindTaskStop() error {
 	return a.r.Bind(row)
 }
 
-func (a *App) listTasks(ochazuke.Ctx) ochazuke.Result {
+func (a *App) listTasks(ctx ochazuke.Ctx) ochazuke.Result {
+	scope := *a
+	if all, _ := ctx.Args["all"].(bool); all {
+		scope.all = true
+	}
 	tasks, err := a.work.Tasks("")
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	out := make([]work.Task, 0, len(tasks))
 	for _, task := range tasks {
-		if a.inScope(task.ProjectID) {
+		if scope.inScope(task.ProjectID) {
 			out = append(out, task)
 		}
 	}
@@ -179,14 +183,18 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.refreshTasks(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.r.OpenPage("work"); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.taskList.Select(t.ID); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.taskList.Focus(); err != nil {
-		return ochazuke.Failed(err)
+	if a.inScope(t.ProjectID) {
+		if err := a.r.OpenPage("work"); err != nil {
+			return ochazuke.Failed(err)
+		}
+		if err := a.taskList.Select(t.ID); err != nil {
+			return ochazuke.Failed(err)
+		}
+		if err := a.taskList.Focus(); err != nil {
+			return ochazuke.Failed(err)
+		}
+	} else {
+		a.m.Notify("Task saved outside pin: " + a.ownerLabel(t.ProjectID))
 	}
 	return ochazuke.Done(struct {
 		work.Task

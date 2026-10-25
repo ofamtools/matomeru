@@ -37,6 +37,7 @@ const (
 func (a *App) defineReviews() {
 	r := a.r
 	r.Define("review").
+		Verb("list", a.listReviews, "List reviews in scope; --all widens the list").
 		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
 		Verb("accept", a.acceptReview, "Mark the review accepted (the task is left as it is)").
 		Verb("reject", a.rejectReview, "Mark the review rejected").
@@ -78,9 +79,13 @@ func (a *App) refreshReviews() error {
 	if err != nil {
 		return err
 	}
-	a.reviews = reviews
+	a.reviews = nil
 	items := make([]ochazuke.ListItem, 0, len(reviews))
 	for _, rv := range reviews {
+		if !a.inScope(rv.ProjectID) {
+			continue
+		}
+		a.reviews = append(a.reviews, rv)
 		items = append(items, ochazuke.ListItem{ID: rv.ID, Label: a.reviewLabel(rv), Noun: "review"})
 	}
 	return a.reviewList.SetItems(items)
@@ -169,6 +174,9 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return text, nil
 	}).ReplacingAt(reviewListID, "capture").Then(func(_ ochazuke.Ctx, v any, err error) {
+		if !a.inScope(rv.ProjectID) {
+			return
+		}
 		if err != nil {
 			a.captureErr = err.Error()
 			return
@@ -312,6 +320,16 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	detail, body, answer := "detail: enter captures the review's pane", a.fill("", rows), "answer: open a review with enter, then } edits it"
 	if rv, ok := a.openedReview(); ok {
 		detail = "output: " + rv.Pane + " [" + rv.Status + "]"
+		owner, err := a.work.PaneOwner(rv.Window, "")
+		if err == nil {
+			for _, p := range a.panes {
+				if p.ID == rv.Window {
+					owner = a.paneOwner(p)
+					break
+				}
+			}
+			detail += " · current owner: " + a.ownerLabel(owner.ProjectID)
+		}
 		switch {
 		case a.captureErr != "":
 			detail += " · " + a.captureErr
@@ -329,4 +347,22 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	}
 	text := strings.Join(append(lines, field.Text), "\n")
 	return field.WithText(text)
+}
+
+func (a *App) listReviews(ctx ochazuke.Ctx) ochazuke.Result {
+	rows, err := a.work.Reviews()
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	scope := *a
+	if all, _ := ctx.Args["all"].(bool); all {
+		scope.all = true
+	}
+	out := []work.Review{}
+	for _, rv := range rows {
+		if scope.inScope(rv.ProjectID) {
+			out = append(out, rv)
+		}
+	}
+	return ochazuke.Done(out)
 }

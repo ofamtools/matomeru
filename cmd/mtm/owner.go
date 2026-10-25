@@ -52,6 +52,18 @@ func (a *App) resolveOwner(ctx ochazuke.Ctx, args ochazuke.Arguments) (Owner, er
 	}
 	if !a.cli && ctx.Instance != nil {
 		switch ctx.Instance.Noun {
+		case "pane":
+			p, err := a.paneAt(ctx.Instance)
+			if err != nil {
+				return Owner{}, err
+			}
+			o, err := a.work.PaneOwner(p.ID, p.SessionID)
+			return Owner{ProjectID: o.ProjectID, TaskID: o.TaskID}, err
+		case "session":
+			if p, ok := ctx.Instance.Data.(pane); ok {
+				o, err := a.work.SessionOwner(p.SessionID)
+				return Owner{ProjectID: o.ProjectID}, err
+			}
 		case "task":
 			return a.resolveOwner(ctx, ochazuke.Arguments{"task": ctx.Instance.ID})
 		case "project":
@@ -82,9 +94,8 @@ func (a *App) resolveOwner(ctx ochazuke.Ctx, args ochazuke.Arguments) (Owner, er
 			return Owner{ProjectID: a.current}, nil
 		}
 	}
-	// Lane A supplies the persisted pin here. No pin exists in Step 0.
-	return Owner{}, nil
+	return Owner{ProjectID: a.pin}, nil
 }
 
-// inScope is the single list filter. Lane A activates pin/all state here.
-func (a *App) inScope(owner string) bool { return true }
+// inScope is the single filter for every project-owned list.
+func (a *App) inScope(owner string) bool { return a.pin == "" || a.all || owner == a.pin }

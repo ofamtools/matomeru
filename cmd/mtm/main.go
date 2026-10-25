@@ -137,6 +137,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 // stop), anything else reloads the pane list. Projects and reviews are
 // loaded at startup.
 func (a *App) reveal(id string) error {
+	if a.cli {
+		a.all = true
+	} // An explicit CLI target may be outside the pin.
 	if t, err := a.work.Task(id); err == nil {
 		if t.ProjectID == "" {
 			_, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "unassociated", Target: unassociatedID})
@@ -156,6 +159,9 @@ type App struct {
 	drafts      *draft.Store
 	editor      *recordEditor
 	cli         bool
+	pin         string
+	all         bool
+	pinVersion  uint64
 	daemon      *daemon.Client
 	ensure      func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
 	launcher    harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
@@ -163,7 +169,6 @@ type App struct {
 	promptDelay time.Duration               // the wait before typing into a pane whose harness has no readiness probe
 	sleep       func(context.Context, time.Duration) error
 	panesd      paneDaemon
-	getwd       func() (string, error) // the working directory launch inference reads; tests replace it
 	home        func() (string, error) // where a launch with no project starts; tests replace it
 
 	projects  []work.Project
@@ -218,14 +223,14 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := opts.client()
-	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
 	r.Define("project").
 		Verb("open", a.openProject, "Open the project's tasks in the tasks stop").
-		Verb("launch", a.launch, "Launch an agent into the project's session (inferred; never asked)").
+		Verb("launch", a.launchRecord, "Launch an agent into this project's session").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("project.open")).
 		Bind("l", ochazuke.Do("project.launch"))
@@ -235,6 +240,8 @@ func New(opts Options) (*App, error) {
 	a.defineLaunch()
 	a.definePanes()
 	a.defineReviews()
+	a.definePin()
+	a.defineOwners()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
@@ -269,6 +276,14 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	if err := a.refreshReviews(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if a.pin, err = a.work.Pin(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := a.refreshScope(); err != nil {
 		db.Close()
 		return nil, err
 	}

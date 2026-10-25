@@ -129,6 +129,23 @@ Acceptance:
 - Change the pin while a launch is running: the pane still belongs to the original project.
 - A pane start succeeds but listing panes fails: the owner is still recorded.
 
+### Lane A implementation and handoff
+
+A1/A2 implemented in `lane/a`, 2026-10-25; no merge or rebase. Project/task editors, directories, notes, and deletion remain with their assigned lanes/integration.
+
+- `internal/work/owners.go`: `Assignment`, `SessionOwner`; `SetPaneOwner`, `PaneOwner(window, sessionID)`, `SetSessionOwner`, `SessionOwner`, `AssociateTask`, `Pin`, and `SetPin`. The existing assignments/active metadata is unchanged. `session_owners` is owner `work`, key `id`, version 1. Empty assignment rows override inheritance. Legacy task assignments resolve their parent chain without rewriting original bytes. Import markers live in `active/singleton`; unknown active fields are preserved, the old task pin is cleared, and review import never overwrites an assignment.
+- `App.pin`, `App.all`, and `App.pinVersion` activate `inScope` and the resolver's pin fallback. `pin.go` owns project pin/unpin/pick, the `P` picker, and `S`/`scope.all`. `project.launch` and `task.launch` now use `launchRecord`; generic launch handlers ignore browsing selection. The small `tasks.go` changes also add CLI `--all` filtering and avoid selecting a saved out-of-scope task row.
+- `launch_owner.go` records newly created session ownership before opening its window and pane ownership before harness readiness. It retains created panes and warnings on ownership/listing failure. Both launch types capture the pin generation; late completion does not navigate. Explicit outside-pin launches attach without widening the list. `pane` carries `SessionID` from the daemon, including empty sessions.
+- Pane/session rows and review rows filter through `inScope`; pane and session labels name their owner or `unassociated`. `pane list`, `session list`, `review list`, and `task list` support `--all`. Association verbs are registered in `cmd/mtm/owners.go`, including `task.associate`, so lane B need not duplicate it. CLI target reveal permits an explicitly addressed out-of-scope record. `pane.attach` opens its page before focusing the terminal.
+- Integration should preserve these minimal shared changes in `main.go`, `tasks.go`, and `owner.go`. Lane B's extended editor and lane C's notes still own their refresh hooks; integration must add those to scope refresh and the final detail/deletion pass.
+
+Acceptance used only temporary databases and the named server `mtma-1792958`. Actual CLI invocations (each a new process) verified arbitrary session names, A-only pane/session/review lists, labeled `--all`, external-pane reassignment A → B → unassociated, session inheritance with explicit-row exceptions, generic and explicit shell/agent destinations, scratch sessions, persisted unpin, and attach directory recency. Real TUI captures verified browsing B while generic launches use A, all-view labels, both explicit outside-pin launch types, and changing A → B in the pin picker while an agent launch awaited readiness: its owner stayed A and completion stayed on Work.
+
+A temporary SQLite trigger forced an ownership write failure after a real pane opened: the result named the failure, retained the pane, and reassignment succeeded after removing the trigger. A temporary socket proxy forwarded real daemon creation but rejected the following list; it observed the session owner before `new-window` and the pane owner before the rejected list, and the result retained the created pane. A read-only backup of the real database rendered with its imported project pin; all existing table metadata and original assignment/note/Vim row bytes were unchanged (5 assignments, 0 notes, 2 Vim rows). Regression coverage includes pin/import persistence, precedence, scoping, session inheritance, a blocked-readiness stale completion, listing failure, outside-pin task creation, and `ValidateBindings`.
+
+Final checks passed: `gofmt -l .`, `go vet ./...`, `go test -race ./...`, and `go run ./cmd/mtm --data TEMP_DB --server mtma-1792958 --smoke`. A final real CLI pass verified explicit out-of-pin task creation, task reassignment A → B → unassociated, scoped/all task lists, and labeled session lists. The isolated server was stopped and temporary binaries/databases (including the real-data backup) were removed.
+
+
 ## Lane B: project editing, directories, task editing
 
 Files: `cmd/mtm/project.go` (project verbs, never in `main.go`'s block), `cmd/mtm/editor.go` (the right-hand panel editor), `cmd/mtm/tasks.go`, tree functions in `internal/work/work.go`.

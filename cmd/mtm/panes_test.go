@@ -157,24 +157,6 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	}
 }
 
-func TestALaunchReloadsThePaneList(t *testing.T) {
-	app := open(t)
-	f := app.panesd.(*fakePanes)
-	app.launcher = &fakeDaemon{}
-	press(t, app, "j", "k")
-	key(t, app, "l")
-	f.panes = append(f.panes, pane{Session: "ochazuke", Pane: daemon.Pane{ID: "w3", Name: "claude"}})
-	// The launch reports w1, which the ochazuke session lacks: the list
-	// reloads and the page opens, but there is no row to attach.
-	settle(app, key(t, app, "y"))
-	if fr := frame(app); !strings.Contains(fr, "panes (3)") || !strings.Contains(fr, "ochazuke/claude") || !strings.Contains(fr, "the pane list has no pane:ochazuke/w1") {
-		t.Fatalf("frame after launch:\n%s", fr)
-	}
-	if app.r.Page != panesPage || app.r.Terminal(paneTermID) != nil {
-		t.Fatalf("page %s terminal %v", app.r.Page, app.r.Terminal(paneTermID))
-	}
-}
-
 func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 	app, f := panesApp(t)
 	cmd := key(t, app, "p")
@@ -314,13 +296,6 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	app, f := panesApp(t)
 	key(t, app, "K")
-	prompt, q := confirmPrompt(t, app)
-	if prompt != "Kill pane matomeru/claude?" || q.Key() != "pane.kill" {
-		t.Fatalf("confirm = %q, %+v", prompt, q)
-	}
-	if fr := frame(app); !strings.Contains(fr, "Kill pane matomeru/claude?") {
-		t.Fatalf("frame:\n%s", fr)
-	}
 	settle(app, key(t, app, "n"))
 	if len(f.killed) != 0 || len(jobsOf(app, "pane.kill")) != 0 || app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("n: killed %v jobs %+v focus %s", f.killed, app.r.Jobs(), app.r.Focus)

@@ -77,9 +77,6 @@ func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
 	if len(reviews) != 1 || reviews[0].TaskID != "t2" || reviews[0].ProjectID != "matomeru" || reviews[0].Status != work.ReviewPending {
 		t.Fatalf("reviews = %+v", reviews)
 	}
-	if last, _ := app.work.LastLaunched(); last != "matomeru" {
-		t.Fatalf("last launched = %q", last)
-	}
 }
 
 func TestCLIConfirmReadsTheAnswerFromStdin(t *testing.T) {

@@ -6,18 +6,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
 
-// shellApp is the seeded app with trees (matomeru's default tree is
-// /src/matomeru), matomeru as the last launched project, a fake daemon
-// whose shells join the fake pane listing, and the panes page open.
+// shellApp has a pinned project and two explicitly owned panes.
 func shellApp(t *testing.T) (*App, *fakeDaemon) {
 	t.Helper()
 	app := open(t)
 	withTrees(t, app)
-	if err := app.work.SetLastLaunched("matomeru"); err != nil {
-		t.Fatal(err)
+	app.pin = "matomeru"
+	for _, p := range app.panesd.(*fakePanes).panes {
+		if err := app.work.SetPaneOwner(work.Assignment{Window: p.ID, Session: p.Session, ProjectID: "matomeru"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
 	app.launcher = f
@@ -64,7 +66,7 @@ func TestAcceptingNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	if len(f.shells) != 1 {
 		t.Fatalf("shells = %+v", f.shells)
 	}
-	if got := f.shells[0]; got.Session != "matomeru" || got.Cwd != "/src/matomeru" || got.Name != shellName || len(got.Command) != 0 || got.Prompt != "" || len(got.Waits) != 0 || len(f.sends) != 0 {
+	if got := f.shells[0]; got.Session != "matomeru" || got.Cwd != "/home/test" || got.Name != shellName || len(got.Command) != 0 || got.Prompt != "" || len(got.Waits) != 0 || len(f.sends) != 0 {
 		t.Fatalf("shell request = %+v, sends %v", got, f.sends)
 	}
 	// The wire request says focus false (the daemon defaults to true), so a
@@ -145,17 +147,12 @@ func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
 	if app.r.Instances["pane:mtm-only/s1"] == nil {
 		t.Fatalf("the list lacks the new pane: %+v", app.panes)
 	}
-	if last, _ := app.work.LastLaunched(); last != "" {
-		t.Fatalf("a shell recorded %q as last launched", last)
-	}
 }
 
 func TestCLIPaneNew(t *testing.T) {
 	app, f := cliApp(t)
 	f.panes = app.panesd.(*fakePanes)
-	if err := app.work.SetLastLaunched("ochazuke"); err != nil {
-		t.Fatal(err)
-	}
+	app.pin = "ochazuke"
 	out, errOut, err := cli(app, "", "pane", "new", "--yes")
 	if err != nil {
 		t.Fatalf("pane new: %v\n%s", err, errOut)
@@ -167,11 +164,11 @@ func TestCLIPaneNew(t *testing.T) {
 		t.Fatalf("stderr lacks the finished job: %q", errOut)
 	}
 	var landed struct {
-		Window struct {
+		Pane struct {
 			Window string `json:"window"`
-		} `json:"Window"`
+		} `json:"Pane"`
 	}
-	if err := json.Unmarshal([]byte(out), &landed); err != nil || landed.Window.Window != "s1" {
+	if err := json.Unmarshal([]byte(out), &landed); err != nil || landed.Pane.Window != "s1" {
 		t.Fatalf("stdout = %q (%v)", out, err)
 	}
 	if app.r.Instances["pane:ochazuke/s1"] == nil {

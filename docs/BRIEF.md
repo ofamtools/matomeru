@@ -48,11 +48,19 @@ A harness is data, not code: `internal/harness` holds `Harness{name, command, mo
 
 ## A launch ends with the pane on screen (owner rule)
 
-`agent.launch` and `pane.new` are not done when the job completes. The completion handler opens the panes page, refreshes the list, focuses the new pane's row, and attaches (`pane.attach`); preview only if attach is undesirable. Test: after launch, `Runtime.Page == "panes"`, focus is the new row, a terminal instance exists. The header lists every page tab with the active one marked, so page switching is discoverable.
+`agent.launch` and `pane.new` normally finish on the panes page with the new pane attached. An explicit launch outside the pin attaches with `outside pin: PROJECT`, without widening the list or changing the pin. If the pin changes while a launch is running, completion records its review and only notifies; it does not navigate. Ownership is captured before the job and saved immediately after creation, before readiness waits or listing. A failed listing retains the created pane; a failed ownership write reports the failure and leaves the pane available for reassignment.
 
-## Session inference (znbu requirement)
+## Project pin and launch ownership
 
-Never show a session picker. `project → session name` is a pure function in the app; the destination is shown in the launch confirm prompt (`Launch into {{session}}?` via `{{<arg>}}`). Launch never asks for a project either: it infers one (the task under the cursor, the project row under the cursor, the project whose tree holds the cwd, the last launched) and, when nothing is inferred, goes to a fixed session with no project: an agent launch into `no-project` (`Launch into no-project?`), a plain shell (`pane.new`) into `mtm-only` (`New pane in mtm-only?`), both started in the home directory. The names are fixed so the owner can type them by hand. A launch with no project does not change the last launched project, and its review row shows `(no project)` and the pane `no-project/<pane>`.
+`project pin ID` persists a project-only pin; `project unpin` persists an empty pin. `P` opens the pin picker from every page in normal mode. The title shows `Matomeru · PROJECT`. `S` (`scope all`) widens the current process's lists without changing the pin. `task list`, `pane list`, `session list`, and `review list` accept `--all`.
+
+Generic `agent launch` and `pane new` use explicit task/project arguments, then the pin, never a merely browsed project, cwd, or last launch. `project launch`, `task launch`, and explicit CLI `--target` actions use the addressed record. Task ownership wins conflicting project arguments. Other record creation continues through `resolveOwner`: explicit arguments, selected record, pin, unassociated. Unknown associations remain unassociated with a notice.
+
+`project → session name` remains a pure slug function; there is no session picker. `--scratch` overrides all ownership and confirms `no-project` for agents or `mtm-only` for shells. Unassociated launches start in home. A project's missing default directory also falls back to home with a notice. Every launch and attach records directory recency.
+
+Pane ownership lives in the existing `assignments` table keyed by window id. Session ownership lives in `session_owners` keyed by stable session id, not its display name. A pane without an assignment inherits its session; an empty assignment explicitly remains unassociated. `pane associate --target pane:SESSION/WINDOW --project ID`, `session associate --target session:ID --project ID`, and `task associate --target ID --project ID` reassign records; `--scratch` removes ownership. Reviews keep launch-time ownership and show the pane's current owner in their detail.
+
+On first open, existing assignments are preserved and missing pane assignments are imported from reviews once. The old `active/singleton` task pin becomes its project; otherwise legacy `launch_state/last` seeds the pin once. Subsequent explicit unpinning never reseeds it. The old last-launch API and cwd ownership inference are removed.
 
 ## CLI extensions
 

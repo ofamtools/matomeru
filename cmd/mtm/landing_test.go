@@ -120,9 +120,6 @@ func TestCLILaunchAndNewPaneCloseTheLandedTerminal(t *testing.T) {
 			app, d := cliApp(t)
 			f := app.panesd.(*fakePanes)
 			d.panes = f
-			if err := app.work.SetLastLaunched("matomeru"); err != nil {
-				t.Fatal(err)
-			}
 			_, errOut, err := cli(app, "", args...)
 			if err != nil {
 				t.Fatalf("%v\n%s", err, errOut)

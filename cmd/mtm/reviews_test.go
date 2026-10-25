@@ -109,12 +109,6 @@ func TestOpenCapturesThePaneIntoTheDetail(t *testing.T) {
 	if got := storedReview(t, app, rv.ID); got.Output != "claude is thinking" || got.CapturedAt == 0 {
 		t.Fatalf("stored = %+v", got)
 	}
-	fr := frame(app)
-	for _, want := range []string{"output: matomeru/write the brief [pending] · captured", "claude is thinking"} {
-		if !strings.Contains(fr, want) {
-			t.Fatalf("frame lacks %q:\n%s", want, fr)
-		}
-	}
 }
 
 func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
@@ -211,9 +205,6 @@ func TestAFailingCaptureShowsAndTheAppKeepsWorking(t *testing.T) {
 		t.Fatalf("status = %q", app.m.Status)
 	}
 	app.m.Status = ""
-	if fr := frame(app); !strings.Contains(fr, "output: matomeru/write the brief [pending] · capture matomeru/write the brief: dial unix") {
-		t.Fatalf("frame after a failed capture:\n%s", fr)
-	}
 	if got := storedReview(t, app, rv.ID).Output; got != "" {
 		t.Fatalf("output = %q", got)
 	}

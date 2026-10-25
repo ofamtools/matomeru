@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -77,32 +76,9 @@ var Tables = []store.Table{
 	{Name: "launch_state", Owner: "work", Key: "id", Version: 1},
 	{Name: "reviews", Owner: "work", Key: "id", Version: 1},
 	{Name: "dir_recent", Owner: "work", Key: "path", Version: 1},
-}
-
-// launchState is the one row of launch_state: the project the last launch
-// went into, the fallback of launch inference.
-type launchState struct {
-	ProjectID string `json:"project_id"`
-}
-
-const lastLaunchID = "last"
-
-// LastLaunched is the id of the project the last launch went into, "" when
-// nothing was launched yet.
-func (s *Store) LastLaunched() (string, error) {
-	var st launchState
-	err := s.db.Get("launch_state", lastLaunchID, &st)
-	if errors.Is(err, store.ErrNotFound) {
-		return "", nil
-	}
-	return st.ProjectID, err
-}
-
-// SetLastLaunched records the project a launch went into.
-func (s *Store) SetLastLaunched(projectID string) error {
-	return s.db.Tx([]string{"launch_state"}, func(tx *store.Tx) error {
-		return tx.Put("launch_state", lastLaunchID, launchState{ProjectID: projectID})
-	})
+	{Name: "assignments", Owner: "work", Key: "window", Version: 1},
+	{Name: "active", Owner: "work", Key: "id", Version: 1},
+	{Name: "session_owners", Owner: "work", Key: "id", Version: 1},
 }
 
 // Store is the work unit's view of the database.
@@ -117,7 +93,11 @@ func Open(db *store.Store) (*Store, error) {
 			return nil, err
 		}
 	}
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	if err := s.importOwners(); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // Projects returns every project, oldest first.

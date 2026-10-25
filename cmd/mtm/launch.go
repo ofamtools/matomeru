@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"path/filepath"
+	"os"
 	"strings"
 	"unicode"
 
@@ -14,17 +14,6 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
-
-// Launch never asks for a project. project.launch, task.launch and
-// agent.launch infer it (inferLaunch: the task under the cursor, the project
-// row under the cursor, the project whose tree holds the working directory,
-// the last launched project) and run agent.start with the inferred session
-// as an argument, so its confirm prompt names the destination on every path:
-// a row's l, the palette and the CLI. agent.start does the work: it returns
-// Pending, so the launch is a job of the work page in jobs.list, and its
-// completion reloads the pane list. When nothing is inferred a launch still
-// never asks: it goes to the fixed session noProjectSession, with no
-// project, and pane.new to mtmOnlySession.
 
 // defaultHarness is the harness a launch starts when neither its harness
 // argument nor its project's settings name one. Harnesses are data
@@ -131,17 +120,12 @@ func (t tuios) SendText(ctx context.Context, session, window, text string) error
 	return t.Client.SendText(ctx, daemon.SendTextParams{Session: session, Window: window, Text: text, Submit: true})
 }
 
-// launcherFor is the harness.Launcher over the app's driver, with the app's
-// fixed prompt delay (for a harness with no readiness probe).
-func (a *App) launcherFor() *harness.Launcher {
-	return &harness.Launcher{Driver: a.launcher, Delay: a.promptDelay, Sleep: a.sleep}
-}
-
 // launched is what a finished launch job returns: the new pane and every
 // pane after it, for the pane list.
 type launched struct {
 	Pane  harness.Result
 	Panes []pane
+	Note  string `json:"note,omitempty"`
 }
 
 // defineLaunch adds the agent noun, the projects.list source and the launch
@@ -167,6 +151,7 @@ func (a *App) defineLaunch() {
 		"model":   model,
 		"project": {Type: "string", Source: "projects.list", Description: "Omit to infer it"},
 		"task":    task,
+		"scratch": {Type: "boolean", Description: "Launch unassociated in no-project"},
 	})
 	a.parameters("agent.start", map[string]ochazuke.Parameter{
 		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the agent runs in no project (cwd: the home directory)"},
@@ -174,6 +159,7 @@ func (a *App) defineLaunch() {
 		"harness": agent,
 		"model":   model,
 		"task":    task,
+		"notice":  {Type: "string"},
 	})
 	a.parameters("project.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model})
 	a.parameters("task.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model})
@@ -255,114 +241,57 @@ func (a *App) state(ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(out)
 }
 
-// Where an inferred launch target came from, in precedence order.
-const (
-	fromTask    = "task"
-	fromProject = "project"
-	fromCwd     = "cwd"
-	fromLast    = "last"
-)
-
-// target is an inferred launch destination: the project, the task whose
-// title becomes the first prompt (only from a task row) and the source.
+// target is captured once at dispatch.
 type target struct {
 	Project work.Project
 	Task    string
-	From    string
+	Notice  string
 }
 
-// inferLaunch is the one place a launch's project is chosen, in order: the
-// task row under the cursor (at or an ancestor of it), else the project row
-// under the cursor, else the project whose tree holds the working directory,
-// else the last launched project. Not inferred, the caller uses its fixed
-// session (noProjectSession, mtmOnlySession).
-func (a *App) inferLaunch(at *ochazuke.Instance) (target, bool) {
-	if at != nil {
-		for _, kind := range []string{"task", "project"} {
-			for _, id := range a.r.Ancestry(at.ID) {
-				inst := a.r.Instances[id]
-				if inst == nil || inst.Noun != kind {
-					continue
-				}
-				if kind == "project" {
-					if p, ok := a.project(id); ok {
-						return target{Project: p, From: fromProject}, true
-					}
-					continue
-				}
-				if t, err := a.work.Task(id); err == nil {
-					if t.ProjectID == "" {
-						return target{Task: t.ID, From: fromTask}, true
-					}
-					if p, ok := a.project(t.ProjectID); ok {
-						return target{Project: p, Task: t.ID, From: fromTask}, true
-					}
+// launchRecord turns a record action into explicit ownership.
+func recordLaunchArgs(ctx ochazuke.Ctx) ochazuke.Arguments {
+	args := make(ochazuke.Arguments, len(ctx.Args)+1)
+	for k, v := range ctx.Args {
+		args[k] = v
+	}
+	if ctx.Instance != nil {
+		if _, explicit := args["project"]; !explicit {
+			if _, explicitTask := args["task"]; !explicitTask {
+				switch ctx.Instance.Noun {
+				case "project":
+					args["project"] = ctx.Instance.ID
+				case "task":
+					args["task"] = ctx.Instance.ID
 				}
 			}
 		}
 	}
-	if cwd, err := a.getwd(); err == nil {
-		if p, ok := a.projectAt(cwd); ok {
-			return target{Project: p, From: fromCwd}, true
-		}
-	}
-	if id, err := a.work.LastLaunched(); err == nil && id != "" {
-		if p, ok := a.project(id); ok {
-			return target{Project: p, From: fromLast}, true
-		}
-	}
-	return target{}, false
+	return args
 }
 
-// projectAt is the project with the deepest tree (default tree or any
-// tree) that is dir or holds it; the first project wins a tie.
-func (a *App) projectAt(dir string) (work.Project, bool) {
-	dir = filepath.Clean(dir)
-	var best work.Project
-	depth := -1
-	for _, p := range a.projects {
-		paths := []string{p.DefaultTree}
-		for _, t := range p.Trees {
-			paths = append(paths, t.Path)
-		}
-		for _, path := range paths {
-			if path == "" {
-				continue
-			}
-			path = filepath.Clean(path)
-			if (dir == path || strings.HasPrefix(dir, path+string(filepath.Separator))) && len(path) > depth {
-				best, depth = p, len(path)
-			}
-		}
-	}
-	return best, depth >= 0
+func (a *App) launchRecord(ctx ochazuke.Ctx) ochazuke.Result {
+	ctx.Args = recordLaunchArgs(ctx)
+	return a.launch(ctx)
 }
 
-// launch is project.launch, task.launch and agent.launch: an explicit
-// project or task argument wins, else inferLaunch; the result runs
-// agent.start, whose confirm names the session. With nothing inferred it
-// launches into noProjectSession with no project; it never asks.
+// Generic launches use explicit arguments or the pin, not browsing selection.
+func (a *App) launchTarget(ctx ochazuke.Ctx) (target, error) {
+	if a.cli {
+		ctx.Args = recordLaunchArgs(ctx)
+	}
+	owner, err := a.resolveOwner(ochazuke.Ctx{}, ctx.Args)
+	if err != nil {
+		return target{}, err
+	}
+	p, _ := a.project(owner.ProjectID)
+	return target{Project: p, Task: owner.TaskID, Notice: owner.Notice}, nil
+}
+
+// launch resolves ownership once, then confirms the captured destination.
 func (a *App) launch(ctx ochazuke.Ctx) ochazuke.Result {
-	var to target
-	switch project, task := ochazuke.StringArg(ctx.Args, "project", ""), ochazuke.StringArg(ctx.Args, "task", ""); {
-	case project != "":
-		p, ok := a.project(project)
-		if !ok {
-			return ochazuke.Failed(fmt.Errorf("project %s is not loaded", project))
-		}
-		to = target{Project: p, Task: task}
-	case task != "":
-		t, err := a.work.Task(task)
-		if err != nil {
-			return ochazuke.Failed(fmt.Errorf("task %s: %w", task, err))
-		}
-		p, ok := a.project(t.ProjectID)
-		if !ok && t.ProjectID != "" {
-			return ochazuke.Failed(fmt.Errorf("project %s is not loaded", t.ProjectID))
-		}
-		to = target{Project: p, Task: t.ID}
-	default:
-		to, _ = a.inferLaunch(ctx.Instance)
+	to, err := a.launchTarget(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
 	}
 	h, model, err := a.harnessFor(ctx.Args, to.Project)
 	if err != nil {
@@ -398,8 +327,11 @@ func (a *App) startProject(ctx ochazuke.Ctx) (work.Project, error) {
 // home directory when there is no project (the daemon's default when the
 // home directory is unknown).
 func (a *App) startCwd(p work.Project) string {
-	if p.ID != "" {
-		return projectCwd(p)
+	if dir := projectCwd(p); dir != "" {
+		if st, err := os.Stat(dir); err == nil && st.IsDir() {
+			return dir
+		}
+		a.m.Notify("default directory unavailable: " + dir + "; launching in home")
 	}
 	home, err := a.home()
 	if err != nil {
@@ -413,6 +345,7 @@ func (a *App) startCwd(p work.Project) string {
 // from (opening another project replaces the task rows).
 func (a *App) start(ctx ochazuke.Ctx, to target, harnessName, model string) ochazuke.Result {
 	args := projectArgs(to.Project, noProjectSession)
+	args["notice"] = to.Notice
 	if to.Task != "" {
 		args["task"] = to.Task
 	}
@@ -427,14 +360,7 @@ func (a *App) start(ctx ochazuke.Ctx, to target, harnessName, model string) ocha
 	return ochazuke.Done(out)
 }
 
-// startAgent is agent.start, the confirmed launch: it records the project
-// as the last launched and starts the harness off the loop (the one launch
-// flow, harness.Launcher.Launch: a new-window running the harness's argv,
-// then the task title typed in with send-text once the pane is ready); its completion
-// reloads the pane list and records a pending review of the new pane. A
-// launch with no project is not recorded as the last launched: last
-// launched names a project, and with none the next uninferred launch goes
-// to noProjectSession anyway.
+// startAgent captures the pin generation and persists owners before readiness.
 func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.startProject(ctx)
 	if err != nil {
@@ -460,46 +386,15 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		spec.Name, spec.Prompt = t.Title, t.Title
 	}
-	if p.ID != "" {
-		if err := a.work.SetLastLaunched(p.ID); err != nil {
-			return ochazuke.Failed(err)
-		}
-	}
 	task := ochazuke.StringArg(ctx.Args, "task", "")
-	l, panes := a.launcherFor(), a.panesd
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		started, err := l.Launch(c, h, spec)
-		if err != nil {
-			return nil, fmt.Errorf("launch %s into %s: %w", h.Name, spec.Session, err)
-		}
-		listed, err := panes.ListPanes(c)
-		if err != nil {
-			return nil, fmt.Errorf("list panes after launching %s into %s: %w", h.Name, spec.Session, err)
-		}
-		return launched{Pane: started, Panes: listed}, nil
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+	owner := Owner{ProjectID: p.ID, TaskID: task, Notice: ochazuke.StringArg(ctx.Args, "notice", "")}
+	version := a.pinVersion
+	return ochazuke.Pending(a.launchJob(owner, h, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.recordReview(p.ID, task, done.Pane)
-			a.landPane(pane{Session: done.Pane.Session, Pane: daemon.Pane{ID: done.Pane.Window}}, done.Panes)
-			if done.Pane.Prompt == harness.PromptNotSent {
-				a.landErr = strings.TrimPrefix(a.landErr+"; ", "; ") + "prompt not sent: " + done.Pane.Note
-			}
+			a.finishLaunch(done, owner, version)
 		}
 	})
-}
-
-// pane.new opens a plain shell pane in the inferred project's session, with
-// the same inference and the same completion as a launch: pane.new infers
-// the project (inferLaunch) and runs pane.start with the session as an
-// argument, so its confirm names the destination; with nothing inferred
-// the shell goes to mtmOnlySession, in the home directory. pane.start creates the window off the
-// loop and lands it like a launch (landPane).
-
-// shellPane is what a finished pane.new job returns: the new window, the
-// session it is in and every pane after it.
-type shellPane struct {
-	Window harness.Result
-	Panes  []pane
 }
 
 // defineShell adds pane.new and pane.start to the pane noun.
@@ -514,24 +409,38 @@ func (a *App) defineShell() error {
 	a.parameters("pane.start", map[string]ochazuke.Parameter{
 		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the shell runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the confirm prompt names"},
+		"task":    {Type: "string"},
+		"notice":  {Type: "string"},
+	})
+	a.parameters("pane.new", map[string]ochazuke.Parameter{
+		"project": {Type: "string", Source: "projects.list"},
+		"task":    {Type: "string"},
+		"scratch": {Type: "boolean", Description: "Launch unassociated in mtm-only"},
 	})
 	row := ochazuke.Do("pane.new")
 	row.Instance, row.Mode, row.Keys = paneListID, "normal", "n"
 	return a.r.Bind(row)
 }
 
-// newPane is pane.new: inferLaunch picks the project (a task row gives its
-// project; the task itself is not used), else mtmOnlySession with none.
+// newPane uses explicit ownership or the pin, never a browsed project.
 func (a *App) newPane(ctx ochazuke.Ctx) ochazuke.Result {
-	to, _ := a.inferLaunch(ctx.Instance)
-	return a.shellIn(ctx, to.Project)
+	to, err := a.launchTarget(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if to.Notice != "" {
+		a.m.Notify(to.Notice)
+	}
+	return a.shellIn(ctx, to)
 }
 
 // shellIn runs pane.start on the panes page with the project's session, so
 // its confirm names the destination and the job outlives the row it was
 // asked from.
-func (a *App) shellIn(ctx ochazuke.Ctx, p work.Project) ochazuke.Result {
-	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "start", Noun: "pane", Target: panesPage, Args: projectArgs(p, mtmOnlySession)})
+func (a *App) shellIn(ctx ochazuke.Ctx, to target) ochazuke.Result {
+	args := projectArgs(to.Project, mtmOnlySession)
+	args["task"], args["notice"] = to.Task, to.Notice
+	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "start", Noun: "pane", Target: panesPage, Args: args})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -550,20 +459,11 @@ func (a *App) startShell(ctx ochazuke.Ctx) ochazuke.Result {
 	// A plain shell is the same launch flow with no harness (the zero
 	// Harness: no argv, so new-window starts a shell) and no prompt.
 	spec := harness.Spec{Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)), Name: shellName, Cwd: a.startCwd(p)}
-	l, panes := a.launcherFor(), a.panesd
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		created, err := l.Launch(c, harness.Harness{}, spec)
-		if err != nil {
-			return nil, fmt.Errorf("new pane in %s: %w", spec.Session, err)
-		}
-		listed, err := panes.ListPanes(c)
-		if err != nil {
-			return nil, fmt.Errorf("list panes after a new pane in %s: %w", spec.Session, err)
-		}
-		return shellPane{Window: created, Panes: listed}, nil
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
-		if done, ok := v.(shellPane); ok && err == nil {
-			a.landPane(pane{Session: done.Window.Session, Pane: daemon.Pane{ID: done.Window.Window}}, done.Panes)
+	owner := Owner{ProjectID: p.ID, TaskID: ochazuke.StringArg(ctx.Args, "task", ""), Notice: ochazuke.StringArg(ctx.Args, "notice", "")}
+	version := a.pinVersion
+	return ochazuke.Pending(a.launchJob(owner, harness.Harness{}, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
+		if done, ok := v.(launched); ok && err == nil {
+			a.finishLaunch(done, owner, version)
 		}
 	})
 }

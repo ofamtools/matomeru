@@ -37,7 +37,9 @@ const (
 
 // pane is one row: a window and the session it lives in.
 type pane struct {
-	Session string
+	Session      string
+	SessionID    string
+	OwnerUnsaved bool
 	daemon.Pane
 }
 
@@ -175,8 +177,24 @@ func (a *App) setPanes(panes []pane, err error) {
 	}
 	a.panes = panes
 	items := make([]ochazuke.ListItem, 0, len(panes))
+	seen := map[string]bool{}
 	for _, p := range panes {
-		items = append(items, ochazuke.ListItem{ID: p.rowID(), Label: p.label(), Noun: "pane"})
+		if p.SessionID != "" && !seen[p.SessionID] {
+			seen[p.SessionID] = true
+			owner, err := a.work.SessionOwner(p.SessionID)
+			if err != nil {
+				a.paneErr = err.Error()
+			}
+			if a.inScope(owner.ProjectID) {
+				items = append(items, ochazuke.ListItem{ID: "session:" + p.SessionID, Label: "session " + p.Session + " · " + a.ownerLabel(owner.ProjectID), Noun: "session", Data: p})
+			}
+		}
+		if p.ID != "" {
+			owner := a.paneOwner(p)
+			if a.inScope(owner.ProjectID) || p.OwnerUnsaved {
+				items = append(items, ochazuke.ListItem{ID: p.rowID(), Label: p.label() + " · " + a.ownerLabel(owner.ProjectID), Noun: "pane", Data: p})
+			}
+		}
 	}
 	if err := a.paneList.SetItems(items); err != nil {
 		a.paneErr = err.Error()
@@ -244,7 +262,7 @@ func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return preview{Pane: p.rowID(), Text: text}, nil
 	}).ReplacingAt(paneListID, "preview").Then(func(_ ochazuke.Ctx, v any, err error) {
-		if got, ok := v.(preview); ok && err == nil {
+		if got, ok := v.(preview); ok && err == nil && a.inScope(a.paneOwner(p).ProjectID) {
 			a.preview = got
 		}
 	})
@@ -259,19 +277,32 @@ func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.closeTerminal(); err != nil {
+	if err := a.r.OpenPage(panesPage); err != nil {
 		return ochazuke.Failed(err)
 	}
-	stream := a.panesd.OpenStream(p)
-	if _, err := ctx.Runtime.AddTerminal(paneTermID, stream, ochazuke.Parent(panesPage), ochazuke.CloseOnDetach(), ochazuke.FocusOnClose(ctx.Instance.ID)); err != nil {
-		stream.Release() // never added, so no Terminal.Close releases it
-		return ochazuke.Failed(err)
-	}
-	a.attached = p
-	if err := ctx.Runtime.SetFocus(paneTermID); err != nil {
+	if err := a.attachLive(p, ctx.Instance.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(p.label())
+}
+
+func (a *App) attachLive(p pane, returnTo string) error {
+	if err := a.work.TouchDir(p.Cwd); err != nil {
+		a.m.Notify("directory recency: " + err.Error())
+	}
+	if err := a.closeTerminal(); err != nil {
+		return err
+	}
+	stream := a.panesd.OpenStream(p)
+	if _, err := a.r.AddTerminal(paneTermID, stream, ochazuke.Parent(panesPage), ochazuke.CloseOnDetach(), ochazuke.FocusOnClose(returnTo)); err != nil {
+		stream.Release() // never added, so no Terminal.Close releases it
+		return err
+	}
+	a.attached = p
+	if err := a.r.SetFocus(paneTermID); err != nil {
+		return err
+	}
+	return nil
 }
 
 // closeTerminal removes the attached terminal; Terminal.Close releases
@@ -319,13 +350,13 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	s := ochazuke.NewStyles(*a.m.Appearance)
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: s}
 	top := max(1, (height-3)/3)
-	head := fmt.Sprintf("panes (%d)", len(a.panes))
+	head := fmt.Sprintf("sessions and panes (%d)", a.paneList.Len())
 	list := a.view(a.paneList, width, top)
 	switch {
 	case a.paneErr != "":
 		head = "panes: daemon not reachable"
 		list = a.fill(ansi.Truncate(a.paneErr, width, "…"), top)
-	case len(a.panes) == 0:
+	case a.paneList.Len() == 0:
 		list = a.fill("no panes; n opens a shell, or launch an agent from the work page", top)
 	}
 	if a.landErr != "" {
@@ -336,6 +367,9 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	var detail ochazuke.Block
 	if t := a.r.Terminal(paneTermID); t != nil {
 		title := a.attached.label()
+		if a.pin != "" && a.paneOwner(a.attached).ProjectID != a.pin {
+			title += " · outside pin: " + a.ownerLabel(a.paneOwner(a.attached).ProjectID)
+		}
 		if e := t.Err(); e != "" {
 			title += ": " + e
 		}
@@ -388,8 +422,11 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 		if err != nil {
 			return nil, fmt.Errorf("list windows of %s: %w", s.Name, err)
 		}
+		if len(windows) == 0 {
+			out = append(out, pane{Session: s.Name, SessionID: s.ID})
+		}
 		for _, w := range windows {
-			out = append(out, pane{Session: s.Name, Pane: w})
+			out = append(out, pane{Session: s.Name, SessionID: s.ID, Pane: w})
 		}
 	}
 	return out, nil
