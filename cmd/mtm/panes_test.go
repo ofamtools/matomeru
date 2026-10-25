@@ -65,6 +65,29 @@ func (f *fakePanes) KillPane(_ context.Context, p pane) error {
 	return nil
 }
 
+func (f *fakePanes) KillSession(_ context.Context, session string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.killed = append(f.killed, "session:"+session)
+	var keep []pane
+	for _, q := range f.panes {
+		if q.Session != session {
+			keep = append(keep, q)
+		}
+	}
+	f.panes = keep
+	return nil
+}
+
+func (f *fakePanes) Activity(_ context.Context, p pane) (string, error) {
+	return "12:00:00  tool  Read  main.go", f.err
+}
+
+func (f *fakePanes) Transcript(_ context.Context, p pane) (string, error) {
+	return "user\nfix the tests\n\nassistant\ndone", f.err
+}
+
 func (f *fakePanes) OpenStream(p pane) paneStream {
 	s := &fakeStream{pane: p, frames: make(chan ochazuke.TerminalFrame, 4)}
 	f.streams = append(f.streams, s)
@@ -138,13 +161,20 @@ func jobsOf(a *App, verb string) []ochazuke.JobInfo {
 	return out
 }
 
+// follow delivers the follow timer for the current selection, as the
+// pause after a move does: the detail loads the selected row's tab.
+func follow(a *App) tea.Cmd {
+	_, cmd := a.Update(followDue{seq: a.pv.seq})
+	return cmd
+}
+
 func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	app, _ := panesApp(t)
 	if app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
 	f := frame(app)
-	for _, want := range []string{"panes (2)", "matomeru/claude", "ochazuke/shell", "p previews, enter attaches"} {
+	for _, want := range []string{"panes (2)", "unassociated (2)", "matomeru (1)", "claude", "ochazuke (1)", "shell", "[Screen] Activity Transcript Turns"} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("frame lacks %q:\n%s", want, f)
 		}
@@ -159,16 +189,13 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	}
 }
 
+// The Screen tab follows the selection: after the pause, pane.preview runs
+// in the list's replacing slot with no key pressed.
 func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 	app, f := panesApp(t)
-	cmd := key(t, app, "p")
-	// The job belongs to the row; its slot is scoped to the list.
-	out, err := app.r.Execute(ochazuke.Request{Verb: "list", Noun: "jobs"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	cmd := follow(app)
 	var jobs []ochazuke.JobInfo
-	for _, j := range out.([]ochazuke.JobInfo) {
+	for _, j := range app.r.Jobs() {
 		if j.Verb == "pane.preview" {
 			jobs = append(jobs, j)
 		}
@@ -177,19 +204,29 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, cmd)
-	if fr := frame(app); !strings.Contains(fr, "╭─ matomeru/claude · preview ─") || !strings.Contains(fr, "claude is thinking") {
+	if fr := frame(app); !strings.Contains(fr, "╭─ matomeru/claude · shell") || !strings.Contains(fr, "claude is thinking") {
 		t.Fatalf("frame after preview:\n%s", fr)
 	}
 	if !reflect.DeepEqual(f.captured, []string{"w1"}) {
 		t.Fatalf("captured = %v", f.captured)
 	}
+	// A stale timer (the selection moved on) loads nothing.
+	press(t, app, "j", "j")
+	stale := app.pv.seq - 1
+	app.Update(followDue{seq: stale})
+	if len(jobsOf(app, "pane.preview")) != 1 {
+		t.Fatalf("a stale follow timer previewed: %+v", jobsOf(app, "pane.preview"))
+	}
 }
 
 func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 	app, f := panesApp(t)
-	first := key(t, app, "p")
-	press(t, app, "j")
-	second := key(t, app, "p")
+	first := follow(app)
+	press(t, app, "j", "j")
+	if app.r.Focus != "pane:ochazuke/w2" {
+		t.Fatalf("focus = %s", app.r.Focus)
+	}
+	second := follow(app)
 	var running []ochazuke.JobInfo
 	for _, j := range jobsOf(app, "pane.preview") {
 		if j.State == ochazuke.JobRunning {
@@ -225,14 +262,14 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	s.frames <- ochazuke.TerminalFrame{Lines: []string{"live screen"}, Hidden: true}
 	runOnce(app, cmd)
 	fr := frame(app)
-	if !strings.Contains(fr, "╭━ matomeru/claude ━") || !strings.Contains(fr, "┃ live screen") {
+	if !strings.Contains(fr, "╭━ matomeru/claude · shell") || !strings.Contains(fr, "┃ live screen") || !strings.Contains(fr, "live · ctrl+a ? keys") {
 		t.Fatalf("frame while attached:\n%s", fr)
 	}
-	// The lease is the panel's inner cells: the 120x24 frame's body is
-	// 116x18, the list takes 1+5 rows and the panel the other 12 (no job
-	// shows, so the framework's ticker takes no rows).
-	if cw, ch := ochazuke.PanelContentSize(116, 12); s.lease != [2]int{cw, ch} {
-		t.Fatalf("size lease = %v, want %dx%d", s.lease, cw, ch)
+	// The lease is the detail panel's inner cells less the tab line: the
+	// 120x24 frame's body is 116x18, the tree takes 52 columns and a gap,
+	// the panel the other 63 (no job shows, so the ticker takes no rows).
+	if cw, ch := ochazuke.PanelContentSize(63, 18); s.lease != [2]int{cw, ch - 1} {
+		t.Fatalf("size lease = %v, want %dx%d", s.lease, cw, ch-1)
 	}
 	// Keys go to the pane; } and ctrl+j are the pane's keys here.
 	press(t, app, "x", "}")
@@ -243,6 +280,11 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	press(t, app, "ctrl+c")
 	if !reflect.DeepEqual(s.sent[len(s.sent)-1], []string{"ctrl+c"}) || app.r.Quit {
 		t.Fatalf("ctrl+c: sent = %v quit %v", s.sent, app.r.Quit)
+	}
+	// ctrl+a ctrl+a is one literal ctrl+a.
+	press(t, app, "ctrl+a", "ctrl+a")
+	if !reflect.DeepEqual(s.sent[len(s.sent)-1], []string{"ctrl+a"}) {
+		t.Fatalf("ctrl+a ctrl+a: sent = %v", s.sent)
 	}
 	press(t, app, "ctrl+a", "d")
 	if app.r.Instances[paneTermID] != nil {
@@ -255,8 +297,45 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	if app.r.Focus != "pane:matomeru/w1" || app.r.Mode.Name != "normal" {
 		t.Fatalf("after detach: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
 	}
-	if fr := frame(app); strings.Contains(fr, "━ matomeru/claude") {
+	if fr := frame(app); strings.Contains(fr, "╭━ matomeru/claude") {
 		t.Fatalf("frame after detach:\n%s", fr)
+	}
+}
+
+// ctrl+a z zooms the attached pane to the page body and back; every attach
+// starts unzoomed. ctrl+a j and k attach the next and previous pane.
+func TestLeaderZoomAndNextPane(t *testing.T) {
+	app, f := panesApp(t)
+	key(t, app, "enter")
+	if app.pv.zoom {
+		t.Fatal("attach started zoomed")
+	}
+	press(t, app, "ctrl+a", "z")
+	if !app.pv.zoom || !strings.Contains(frame(app), "zoomed · ctrl+a z restores") || strings.Contains(frame(app), "panes (2)") {
+		t.Fatalf("zoom: %v\n%s", app.pv.zoom, frame(app))
+	}
+	press(t, app, "ctrl+a", "j")
+	if app.attached.ID != "w2" || app.r.Focus != paneTermID || !app.pv.zoom || len(f.streams) != 2 || !f.streams[0].released {
+		t.Fatalf("ctrl+a j: attached %s focus %s zoom %v streams %d", app.attached.ID, app.r.Focus, app.pv.zoom, len(f.streams))
+	}
+	press(t, app, "ctrl+a", "j") // the last pane: a quiet edge
+	if app.attached.ID != "w2" {
+		t.Fatalf("ctrl+a j at the end: attached %s", app.attached.ID)
+	}
+	press(t, app, "ctrl+a", "z")
+	if app.pv.zoom || !strings.Contains(frame(app), "panes (2)") {
+		t.Fatalf("unzoom:\n%s", frame(app))
+	}
+	press(t, app, "ctrl+a", "k", "ctrl+a", "d")
+	if app.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("detach after ctrl+a k: focus %s", app.r.Focus)
+	}
+	key(t, app, "enter")
+	if app.pv.zoom {
+		t.Fatal("a new attach is zoomed")
+	}
+	if hints := ochazuke.BindingHints(app.r, app.r.Focus); !strings.Contains(hints, "z zoom") {
+		t.Fatalf("leader hint: %q", hints)
 	}
 }
 
@@ -267,24 +346,16 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	if app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("after detach: focus %s", app.r.Focus)
 	}
-	key(t, app, "j")
+	press(t, app, "j", "j")
 	key(t, app, "enter")
-	press(t, app, "ctrl+a", "d", "}")
+	press(t, app, "ctrl+a", "d")
 	if app.r.Focus != "pane:ochazuke/w2" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
 	if len(f.streams) != 2 || !f.streams[0].released || !f.streams[1].released {
 		t.Fatalf("streams not released: %+v", f.streams)
 	}
-	// Attach again, detach by the framework verb, then } reaches the terminal stop.
-	key(t, app, "enter")
-	if _, err := app.r.Execute(ochazuke.Request{Verb: "detach", Noun: "terminal"}); err != nil {
-		t.Fatal(err)
-	}
-	if app.r.Terminal(paneTermID) != nil {
-		t.Fatal("terminal.detach did not remove the terminal")
-	}
-	press(t, app, "}")
+	// Attach again, focus the list, then } reaches the terminal stop.
 	key(t, app, "enter")
 	if err := app.paneList.Focus(); err != nil {
 		t.Fatal(err)
@@ -297,12 +368,12 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 
 func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	app, f := panesApp(t)
-	key(t, app, "K")
+	key(t, app, "x")
 	settle(app, key(t, app, "n"))
 	if len(f.killed) != 0 || len(jobsOf(app, "pane.kill")) != 0 || app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("n: killed %v jobs %+v focus %s", f.killed, app.r.Jobs(), app.r.Focus)
 	}
-	key(t, app, "K")
+	key(t, app, "x")
 	settle(app, key(t, app, "y"))
 	if !reflect.DeepEqual(f.killed, []string{"w1"}) {
 		t.Fatalf("killed = %v", f.killed)
@@ -322,12 +393,9 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	app, f := panesApp(t)
 	f.err = errors.New("dial unix tuios.sock: connect: no such file or directory")
-	settle(app, key(t, app, "p"))
+	settle(app, follow(app))
 	if !strings.Contains(app.m.Status, "preview matomeru/claude: dial unix") {
 		t.Fatalf("status = %q", app.m.Status)
-	}
-	if fr := frame(app); !strings.Contains(fr, "Error: preview matomeru/claude: dial unix") {
-		t.Fatalf("footer lacks the error:\n%s", fr)
 	}
 	app.m.Status = ""
 	if err := app.reloadPanes(); err != nil {
@@ -336,11 +404,21 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	settle(app, app.r.PendingCommands())
 	app.m.Status = ""
 	fr := frame(app)
-	if !strings.Contains(fr, "daemon not reachable") || !strings.Contains(fr, "no such file") || strings.Contains(fr, "ochazuke/shell") || app.r.Instances["pane:matomeru/w1"] != nil {
+	// Two short lines and the remedy; the whole error is a notice.
+	if !strings.Contains(fr, "is not running") || !strings.Contains(fr, "e starts it (daemon.ensure)") || strings.Contains(fr, "ochazuke/shell") || app.r.Instances["pane:matomeru/w1"] != nil {
 		t.Fatalf("frame with no daemon:\n%s", fr)
+	}
+	if len(app.m.Notices) != 1 || !strings.Contains(app.m.Notices[0], "no such file") {
+		t.Fatalf("notices = %q", app.m.Notices)
 	}
 	if app.r.Focus != paneListID {
 		t.Fatalf("focus = %s", app.r.Focus)
+	}
+	// e runs daemon.ensure from the empty list, and the panes come back.
+	f.err = nil
+	settle(app, key(t, app, "e"))
+	if app.paneErr != "" || app.r.Instances["pane:matomeru/w1"] == nil {
+		t.Fatalf("after e: err %q", app.paneErr)
 	}
 	press(t, app, "ctrl+k", "j")
 	if app.r.Page != "work" || app.r.Focus != "matomeru" {
@@ -361,7 +439,7 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 		p    pane
 		want string
 	}{
-		{pane{Session: "9332c352-fd31-49a0-bb93-6b18ed187d8d", Pane: daemon.Pane{ID: "w1", Name: "Terminal 7984e10b"}}, "9332c352/Terminal 7984e10b"},
+		{pane{Session: "9332c352-fd31-49a0-bb93-6b18ed187d8d", Pane: daemon.Pane{ID: "w1", Name: "Terminal 7984e10b"}}, "9332c352/shell"},
 		{pane{Session: "matomeru", Pane: daemon.Pane{ID: "w1", Name: "claude"}}, "matomeru/claude"},
 		{pane{Session: "9332c352-fd31-49a0-bb93", Pane: daemon.Pane{ID: "w1", Name: "x"}}, "9332c352-fd31-49a0-bb93/x"},
 	} {
@@ -375,31 +453,35 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 	}
 }
 
-// The panes list is a table of the pane noun's columns: pane rows fill
-// every cell (the cwd under home as ~), session rows the pane and project.
-func TestPaneListIsATable(t *testing.T) {
+// The panes tree is a table: the pane (indented, its state glyph first),
+// its kind and state, the cwd under home as ~. One window is one row: an
+// agent's pane is the agent's row; a shell is a shell row.
+func TestPaneTreeIsATable(t *testing.T) {
 	app := open(t)
 	app.setPanes([]pane{
-		{Session: "work", SessionID: "s1", Pane: daemon.Pane{ID: "w1", Name: "claude", AgentState: "idle", Cwd: "/home/test/proj/x"}},
+		{Session: "work", SessionID: "s1", Harness: "claude", Pane: daemon.Pane{ID: "w1", Name: "Terminal 1a2b3c4d", AgentState: "idle", Cwd: "/home/test/proj/x"}},
+		{Session: "work", SessionID: "s1", Pane: daemon.Pane{ID: "w2", Name: "Terminal 5e6f7a8b", AgentState: "none", Cwd: "/home/test"}},
 	}, nil)
-	if got := app.paneList.Columns(); len(got) != 4 || got[0].Title != "pane" || got[3].Title != "cwd" {
+	if got := app.paneList.Columns(); len(got) != 3 || got[0].Title != "pane" || got[2].Title != "cwd" {
 		t.Fatalf("columns %+v", got)
 	}
 	items := app.paneList.Items()
-	if len(items) != 2 || items[0].Noun != "session" || !slices.Equal(items[0].Cells, []string{"session work", "unassociated", "", ""}) {
-		t.Fatalf("session row %+v", items)
+	if len(items) != 4 || items[0].Noun != "pane-project" || items[1].Noun != "session" || items[2].Noun != "pane" || items[3].Noun != "pane" {
+		t.Fatalf("rows %+v", items)
 	}
-	if !slices.Equal(items[1].Cells, []string{"work/claude", "unassociated", "idle", "~/proj/x"}) {
-		t.Fatalf("pane row %+v", items[1])
+	if !slices.Equal(items[2].Cells, []string{"      ○ claude", "claude · idle", "~/proj/x"}) || !slices.Equal(items[3].Cells, []string{"        shell", "shell", "~"}) {
+		t.Fatalf("pane rows %+v / %+v", items[2].Cells, items[3].Cells)
 	}
-	app.m.Width, app.m.Height = 80, 30
-	if _, err := app.r.Execute(ochazuke.Request{Verb: "open", Noun: "page", Args: ochazuke.Arguments{"id": panesPage}}); err != nil {
-		t.Fatal(err)
-	}
-	frame := ansi.Strip(app.m.View().Content)
-	for _, want := range []string{"pane", "project", "state", "cwd", "work/claude", "~/proj/x"} {
-		if !strings.Contains(frame, want) {
-			t.Fatalf("frame lacks %q:\n%s", want, frame)
+	for _, width := range []int{80, 120} {
+		app.m.Width, app.m.Height = width, 30
+		if _, err := app.r.Execute(ochazuke.Request{Verb: "open", Noun: "page", Args: ochazuke.Arguments{"id": panesPage}}); err != nil {
+			t.Fatal(err)
+		}
+		frame := ansi.Strip(app.m.View().Content)
+		for _, want := range []string{"pane", "state", "○ claude", "claude · idle", "unassociated (2)", "work (2)"} {
+			if !strings.Contains(frame, want) {
+				t.Fatalf("%d columns: frame lacks %q:\n%s", width, want, frame)
+			}
 		}
 	}
 }

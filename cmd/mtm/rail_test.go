@@ -43,10 +43,14 @@ func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 		t.Fatalf("attached frame:\n%s", frame(app))
 	}
 	press(t, app, "ctrl+a", "d", "}")
-	for range 3 {
-		settle(app, key(t, app, "p"))
+	// The detail's own captures are quiet; three renames are work.
+	settle(app, follow(app))
+	tickerIs(t, app, "a quiet preview", "agent.start done")
+	for _, name := range []string{"a", "b", "c"} {
+		executeA(t, app, "pane", "rename", app.r.Focus, map[string]any{"name": name})
+		settle(app, app.r.PendingCommands())
 	}
-	tickerIs(t, app, "three previews", "pane.preview done", "pane.preview done")
+	tickerIs(t, app, "three renames", "pane.rename done", "pane.rename done")
 }
 
 // List reloads (panes.refresh runs at startup and after every launch and

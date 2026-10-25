@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -110,7 +111,7 @@ func TestEnsureJobFailureShowsInFooterAndPanesHint(t *testing.T) {
 		t.Fatalf("footer: %q", app.m.Status)
 	}
 	press(t, app, "ctrl+j")
-	if f := ansi.Strip(app.m.View().Content); !strings.Contains(f, "daemon not reachable") || !strings.Contains(f, "daemon mtm-daemon not running: boom") {
+	if f := ansi.Strip(app.m.View().Content); !strings.Contains(f, "is not running") || !strings.Contains(f, "e starts it (daemon.ensure)") || !slices.ContainsFunc(app.m.Notices, func(n string) bool { return strings.Contains(n, "boom") }) {
 		t.Fatalf("panes page:\n%s", f)
 	}
 	app.ensure = func(context.Context) error { return nil }

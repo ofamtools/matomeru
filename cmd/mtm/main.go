@@ -221,7 +221,8 @@ type App struct {
 	m           *ochazuke.Model
 	projectList *ochazuke.List
 	taskList    *ochazuke.List
-	paneList    *ochazuke.List
+	paneList    *ochazuke.List // the pane tree's rows (panes_tree.go)
+	pv          *paneUI        // the panes page's tree, detail tabs and timers
 	reviewList  *ochazuke.List
 	answer      *ochazuke.Input
 	answerDraft string // the answer text last written as the opened review's draft

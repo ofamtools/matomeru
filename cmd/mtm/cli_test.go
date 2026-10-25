@@ -141,8 +141,8 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 	stops := map[string][]string{
 		"matomeru":         {"enter project.open", "l project.launch"},
 		"t1":               {"enter task.open", "l task.launch", "i task.edit", "x task.done", "a task.new"},
-		"pane:matomeru/w1": {"enter pane.attach", "p pane.preview", "K pane.kill", "n pane.new"},
-		paneListID:         {"n pane.new"},
+		"pane:matomeru/w1": {"enter pane.attach", "x pane.kill", "r pane.rename", "m pane.move", "n pane.new", "] panes.tab"},
+		paneListID:         {"n pane.new", "e daemon.ensure"},
 		reviews[0].ID:      {"enter review.open", "a review.accept", "r review.reject", "s review.saveAnswer"},
 	}
 	fkey := regexp.MustCompile(`(^|[ +])f\d+$`)

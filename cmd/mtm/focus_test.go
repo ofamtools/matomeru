@@ -24,9 +24,10 @@ func TestStartupFocusesTheFirstProjectRow(t *testing.T) {
 	}
 }
 
+// The Screen tab follows the selection after its pause, with no key.
 func TestThePanesPageAnswersPreviewAtOnce(t *testing.T) {
 	app, f := panesApp(t)
-	settle(app, key(t, app, "p"))
+	settle(app, follow(app))
 	if len(f.captured) != 1 || app.preview.Pane != "pane:matomeru/w1" {
 		t.Fatalf("captured %v preview %+v", f.captured, app.preview)
 	}

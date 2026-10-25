@@ -9,27 +9,31 @@ import (
 	"sync"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 )
 
-// The panes page: two stops, the pane list (rows of the pane noun, every
-// window the daemon reports across its sessions) and the terminal detail.
-// pane.preview captures the pane's screen off the loop in the "preview"
-// slot scoped to the list, so a newer preview of any row replaces the
-// older; the detail shows it while no terminal is attached. pane.attach
-// adds a framework terminal under the page fed by the daemon's stream-pane
-// and focuses it; the terminal noun owns passthrough and the ctrl+a leader,
-// whose d runs terminal.detach. The terminal is added with CloseOnDetach,
-// so detach removes it, Terminal.Close releases the stream's size lease,
-// and focus returns to the page. pane.kill confirms with the row's label,
-// closes the window and reloads the list.
+// The panes page: the pane tree on the left (panes_tree.go) and the
+// detail on the right (stacked under it when narrow), whose tabs are
+// Screen, Activity, Transcript and Turns (panes_detail.go). The Screen tab
+// follows the selection after a short pause: pane.preview captures the
+// screen off the loop in the "preview" slot scoped to the list, so a newer
+// preview of any row replaces the older. pane.attach (enter) adds a
+// framework terminal in the detail panel fed by the daemon's stream-pane
+// and focuses it; the terminal noun owns passthrough and the ctrl+a
+// leader, to which mtm adds z (zoom the pane to the page body, off on every
+// attach), j/k (the next or previous pane, live) and ? (the keys). The
+// terminal is added with CloseOnDetach, so detach removes it, releases the
+// stream's size lease and returns the focus to the row. The list reloads
+// on daemon events and every few seconds while the page is open, off the
+// loop, so no key waits on the daemon.
 
 const (
 	panesPage     = "panes"
-	paneListID    = "panes/list"
+	paneListID    = paneTreeID + "/list"
 	paneTermID    = "panes/terminal"
 	killConfirm   = "Kill pane {{label}}?"
 	daemonTimeout = 5 * time.Second
@@ -72,11 +76,15 @@ func tildePath(path, home string) string {
 	return path
 }
 
-// pane is one row: a window and the session it lives in.
+// pane is one row: a window, the session it lives in and, when an agent
+// runs in it, the agent (list-agents: harness, state time, needs you).
 type pane struct {
 	Session      string
 	SessionID    string
 	OwnerUnsaved bool
+	Harness      string `json:"harness,omitempty"`
+	StateAt      int64  `json:"state_at,omitempty"`
+	NeedsYou     bool   `json:"needs_you,omitempty"`
 	daemon.Pane
 }
 
@@ -88,8 +96,8 @@ func (p pane) rowID() string { return "pane:" + p.Session + "/" + p.ID }
 // prompt reads. A uuid-named session shows its first 8 characters.
 func (p pane) label() string {
 	name := p.Name
-	if name == "" {
-		name = p.Title
+	if name == "" || defaultWindowName.MatchString(name) {
+		name = p.baseName()
 	}
 	if name == "" {
 		name = p.ID
@@ -113,6 +121,9 @@ type paneDaemon interface {
 	ListPanes(ctx context.Context) ([]pane, error)
 	CapturePane(ctx context.Context, p pane) (string, error)
 	KillPane(ctx context.Context, p pane) error
+	KillSession(ctx context.Context, session string) error
+	Activity(ctx context.Context, p pane) (string, error)
+	Transcript(ctx context.Context, p pane) (string, error)
 	OpenStream(p pane) paneStream
 }
 
@@ -129,21 +140,79 @@ type preview struct {
 	Text string
 }
 
-// definePanes adds the pane noun and the panes noun (refresh).
+// paneUI is the panes page's own state (the App holds one).
+type paneUI struct {
+	tree     *ochazuke.Tree
+	view     paneView
+	tab      int    // the detail tab: tabScreen, tabActivity, tabTranscript, tabTurns
+	zoom     bool   // the attached pane fills the page body; off on every attach
+	followed string // the row the detail last followed
+	seq      uint64 // the follow timer's generation
+	armed    bool   // the refresh timer is set
+	// after schedules msg after d; nil (tests) schedules nothing.
+	after      func(d time.Duration, msg tea.Msg) tea.Cmd
+	text       map[string]string // row + tab → the Activity or Transcript text
+	lastState  map[string]string // window → the agent state at the last listing
+	turns      *ochazuke.Tree
+	turnsFor   string // the pane row the Turns tree shows
+	events     chan struct{}
+	subscribed bool
+}
+
+// Timers of the panes page.
+const (
+	followDelay  = 150 * time.Millisecond // the detail follows the selection after this pause
+	refreshEvery = 3 * time.Second        // the list reloads this often while the page is open
+)
+
+// followDue is the follow timer: when seq is still current, the detail
+// loads the selected row's tab.
+type followDue struct{ seq uint64 }
+
+// refreshDue is the reload timer of the open panes page.
+type refreshDue struct{}
+
+// daemonChanged is a daemon event about windows, sessions or agent state.
+type daemonChanged struct{}
+
+// definePanes adds the pane noun, the session rows' verbs and the panes
+// noun (refresh).
 func (a *App) definePanes() {
 	r := a.r
+	a.pv = &paneUI{text: map[string]string{}, lastState: map[string]string{}, after: func(d time.Duration, msg tea.Msg) tea.Cmd {
+		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
+	}}
 	r.Define("pane").
 		Columns(paneColumns...).
-		Verb("attach", a.attachPane, "Attach the pane live in the detail stop; ctrl+a d detaches").
-		Verb("preview", a.previewPane, "Capture the pane's screen into the detail stop").
+		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches, ctrl+a z zooms").
+		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Quiet().
 		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
+		Verb("move", a.movePane, "Move the pane to a project (a chooser; unassociated last)").
+		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Quiet().
+		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Quiet().
 		Mode("normal").
 		Bind("enter", ochazuke.Do("pane.attach")).
-		Bind("p", ochazuke.Do("pane.preview")).
-		Bind("K", ochazuke.Do("pane.kill"))
+		Bind("x", ochazuke.Do("pane.kill")).
+		Bind("m", ochazuke.Do("pane.move"))
+	r.Define("session").
+		Verb("attach", a.attachSession, "Attach the session's first pane").
+		Verb("move", a.moveSession, "Move the session to a project (a chooser; unassociated last)").
+		Verb("kill", a.killSession, "Close the session and every pane in it").Confirm("Kill {{label}} and its panes?").
+		Mode("normal").
+		Bind("enter", ochazuke.Do("session.attach")).
+		Bind("m", ochazuke.Do("session.move")).
+		Bind("x", ochazuke.Do("session.kill"))
+	r.Define("pane-project").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
 	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
-	r.Define("panes").Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Quiet()
+	r.Define("panes").
+		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Quiet().
+		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
+		Verb("waiting", a.nextWaiting, "Select the next pane that needs input")
+	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
+	a.parameters("pane.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
+	a.parameters("session.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
+	a.defineLiveKeys()
 	a.ownedBy("panes", paneListID)
 	a.ownedBy("daemon", paneListID)
 }
@@ -153,14 +222,42 @@ func (a *App) definePanes() {
 // without --target targets it.
 func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
 
-// addPanesPage builds the page: the list first, so the page starts on it.
+// addPanesPage builds the page: the tree first, so the page starts on it,
+// then the Turns tree of the detail. The page's own rows switch the tabs
+// and jump to a pane that needs input from any stop on it.
 func (a *App) addPanesPage() error {
 	a.r.Instance(panesPage, ochazuke.Kind("page"))
-	list, err := a.r.AddList(paneListID, nil, ochazuke.Parent(panesPage), ochazuke.Columns(a.r.Noun("pane").Columns...))
+	tree, err := a.r.AddTree(paneTreeID, nil, ochazuke.Parent(panesPage), ochazuke.Columns(paneTreeColumns...))
 	if err != nil {
 		return err
 	}
-	a.paneList = list
+	a.pv.tree = tree
+	a.paneList = tree.List()
+	if err := a.addTurns(); err != nil {
+		return err
+	}
+	for _, row := range []struct {
+		keys string
+		req  ochazuke.Binding
+	}{
+		{"]", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": 1})},
+		{"[", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": -1})},
+		{"w", ochazuke.Do("panes.waiting")},
+	} {
+		b := row.req
+		b.Instance, b.Mode, b.Keys = panesPage, "normal", row.keys
+		if err := a.r.Bind(b); err != nil {
+			return err
+		}
+	}
+	// An empty list (no panes, or the daemon is down) answers e with
+	// daemon.ensure; the rows keep their own keys.
+	a.r.DefineGuard("no-panes", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.paneList.Len() == 0 })
+	ensure := ochazuke.Do("daemon.ensure").Guard("no-panes")
+	ensure.Instance, ensure.Mode, ensure.Keys = paneListID, "normal", "e"
+	if err := a.r.Bind(ensure); err != nil {
+		return err
+	}
 	_, err = a.r.AddPage(panesPage, "Panes", a.renderPanes, ochazuke.Focus(paneListID))
 	return err
 }
@@ -206,37 +303,33 @@ func (a *App) reloadPanes() error {
 	return err
 }
 
-// setPanes stores a listing and pushes it to the list; a failed listing
-// empties the list and keeps the error for the hint.
+// setPanes stores a listing and pushes it to the tree; a failed listing
+// empties the tree and keeps the error for the hint. Agents that started
+// or finished a turn since the last listing are recorded (turns.go).
 func (a *App) setPanes(panes []pane, err error) {
+	was := a.paneErr
 	a.paneErr = ""
 	if err != nil {
 		panes, a.paneErr = nil, err.Error()
+		if was == "" {
+			// The page says the daemon is down in two lines; the whole
+			// error is a notice (notice.list), once per outage.
+			a.m.Notify("panes: " + a.paneErr)
+		}
 	}
 	a.panes = panes
-	home, _ := a.home()
-	items := make([]ochazuke.ListItem, 0, len(panes))
-	seen := map[string]bool{}
-	for _, p := range panes {
-		if p.SessionID != "" && !seen[p.SessionID] {
-			seen[p.SessionID] = true
-			owner, err := a.work.SessionOwner(p.SessionID)
-			if err != nil {
-				a.paneErr = err.Error()
-			}
-			if a.inScope(owner.ProjectID) {
-				items = append(items, ochazuke.ListItem{ID: "session:" + p.SessionID, Label: "session " + p.Session + " · " + a.ownerLabel(owner.ProjectID), Noun: "session", Data: p, Cells: sessionCells(p, a.ownerLabel(owner.ProjectID))})
-			}
-		}
-		if p.ID != "" {
-			owner := a.paneOwner(p)
-			if a.inScope(owner.ProjectID) || p.OwnerUnsaved {
-				items = append(items, ochazuke.ListItem{ID: p.rowID(), Label: p.label() + " · " + a.ownerLabel(owner.ProjectID), Noun: "pane", Data: p, Cells: paneCells(p, a.ownerLabel(owner.ProjectID), home)})
-			}
-		}
-	}
-	if err := a.paneList.SetItems(items); err != nil {
+	a.recordTurns(panes)
+	a.pv.view = a.buildPaneTree(panes, time.Now())
+	before, hadRow := a.pv.tree.Selected()
+	if err := a.pv.tree.SetNodes(a.pv.view.nodes); err != nil {
 		a.paneErr = err.Error()
+	}
+	// The page starts on its first pane (the one that most needs you), not
+	// on the group rows above it.
+	if after, ok := a.pv.tree.Selected(); ok && (!hadRow || before.ID != after.ID) && !strings.HasPrefix(after.ID, "pane:") && len(a.pv.view.order) > 0 {
+		if err := a.pv.tree.Select(a.pv.view.order[0]); err != nil {
+			a.paneErr = err.Error()
+		}
 	}
 }
 
@@ -263,7 +356,7 @@ func (a *App) land(row string) error {
 	if a.r.Instances[row] == nil {
 		return fmt.Errorf("the pane list has no %s", row)
 	}
-	if err := a.paneList.Select(row); err != nil {
+	if err := a.pv.tree.Select(row); err != nil {
 		return err
 	}
 	if err := a.paneList.Focus(); err != nil {
@@ -302,7 +395,7 @@ func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return preview{Pane: p.rowID(), Text: text}, nil
 	}).ReplacingAt(paneListID, "preview").Then(func(_ ochazuke.Ctx, v any, err error) {
-		if got, ok := v.(preview); ok && err == nil && version == a.pinVersion && a.inScope(a.paneOwner(p).ProjectID) {
+		if got, ok := v.(preview); ok && err == nil && version == a.pinVersion {
 			a.preview = got
 		}
 	})
@@ -339,6 +432,16 @@ func (a *App) attachLive(p pane, returnTo string) error {
 		return err
 	}
 	a.attached = p
+	a.pv.zoom = false
+	a.pv.tab = tabScreen
+	if a.r.Instances[p.rowID()] == nil && len(a.panes) > 0 {
+		// A pane outside the pin stays reachable as a labelled row while
+		// it is attached.
+		a.pv.view = a.buildPaneTree(a.panes, time.Now())
+		if err := a.pv.tree.SetNodes(a.pv.view.nodes); err != nil {
+			return err
+		}
+	}
 	if err := a.r.SetFocus(paneTermID); err != nil {
 		return err
 	}
@@ -349,6 +452,7 @@ func (a *App) attachLive(p pane, returnTo string) error {
 // its stream.
 func (a *App) closeTerminal() error {
 	a.attached = pane{}
+	a.pv.zoom = false
 	if a.r.Instances[paneTermID] == nil {
 		return nil
 	}
@@ -381,58 +485,6 @@ func (a *App) killPane(ctx ochazuke.Ctx) ochazuke.Result {
 	})
 }
 
-// renderPanes draws the pane list over the detail: a Layout.Panel titled
-// with the pane's session/name holding the attached terminal (focused
-// style while keys go to it, and its cursor) or the last preview. The
-// terminal is given the panel's inner cells (PanelContentSize), so the
-// stream's size lease matches what is shown.
-func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	s := ochazuke.NewStyles(*a.m.Appearance)
-	layout := ochazuke.Layout{Width: width, Height: height, Styles: s}
-	top := max(1, (height-3)/3)
-	head := fmt.Sprintf("sessions and panes (%d)", a.paneList.Len())
-	list := a.view(a.paneList, width, top)
-	switch {
-	case a.paneErr != "":
-		head = "panes: daemon not reachable"
-		list = a.fill(ansi.Truncate(a.paneErr, width, "…"), top)
-	case a.paneList.Len() == 0:
-		list = a.fill("no panes; n opens a shell, or launch an agent from the work page", top)
-	}
-	if a.landErr != "" {
-		head += ": " + a.landErr
-	}
-	rows := max(1, height-1-top)
-	cw, ch := ochazuke.PanelContentSize(width, rows)
-	var detail ochazuke.Block
-	if t := a.r.Terminal(paneTermID); t != nil {
-		title := a.attached.label()
-		if a.pin != "" && a.paneOwner(a.attached).ProjectID != a.pin {
-			title += " · outside pin: " + a.ownerLabel(a.paneOwner(a.attached).ProjectID)
-		}
-		if e := t.Err(); e != "" {
-			title += ": " + e
-		}
-		body := ochazuke.Text(t.View(cw, ch))
-		if t.Focused() {
-			body = t.ViewBlock(cw, ch)
-		}
-		detail = layout.PanelBlock(title, body, width, rows, t.Focused())
-	} else if a.preview.Pane != "" {
-		title := a.preview.Pane
-		for _, p := range a.panes {
-			if p.rowID() == a.preview.Pane {
-				title = p.label()
-			}
-		}
-		detail = ochazuke.Text(layout.Panel(title+" · preview", a.fill(a.preview.Text, ch, cw), width, rows, false))
-	} else {
-		detail = ochazuke.Text(layout.Panel("detail", "p previews, enter attaches", width, rows, false))
-	}
-	above := 1 + top // the head row and the list
-	return detail.Offset(0, above).WithText(s.Muted.Render(head) + "\n" + list + "\n" + detail.Text)
-}
-
 // fill fits text into exactly height lines, each cut to width when given.
 func (a *App) fill(text string, height int, width ...int) string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
@@ -448,6 +500,87 @@ func (a *App) fill(text string, height int, width ...int) string {
 	return strings.Join(lines, "\n")
 }
 
+// agentRow is one row of list-agents: the agent a window runs, if any.
+type agentRow struct {
+	Window   string `json:"window_id"`
+	Harness  string `json:"harness_id"`
+	State    string `json:"state"`
+	StateAt  int64  `json:"agent_state_at"`
+	NeedsYou bool   `json:"needs_you"`
+}
+
+// agents reads list-agents for every window of every session; a daemon
+// without it answers with no agents.
+func (t tuios) agents(ctx context.Context) map[string]agentRow {
+	var out struct {
+		Agents []agentRow `json:"agents"`
+	}
+	if err := t.Call(ctx, "list-agents", map[string]any{"all": true, "all_sessions": true}, &out); err != nil {
+		return nil
+	}
+	rows := map[string]agentRow{}
+	for _, a := range out.Agents {
+		rows[a.Window] = a
+	}
+	return rows
+}
+
+// KillSession closes a session and its windows.
+func (t tuios) KillSession(ctx context.Context, session string) error {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	return t.Call(ctx, "kill-session", map[string]any{"session": session}, nil)
+}
+
+// Activity is the agent's recent activity, one line per entry, newest last.
+func (t tuios) Activity(ctx context.Context, p pane) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	got, err := t.Client.Activity(ctx, daemon.ActivityParams{Session: p.Session, Window: p.ID, Limit: 200})
+	if err != nil {
+		return "", err
+	}
+	var lines []string
+	for _, e := range got.Entries {
+		line := time.UnixMilli(e.At).Format("15:04:05") + "  " + e.Kind
+		for _, part := range []string{e.Tool, e.Target, oneLine(e.Text)} {
+			if part != "" {
+				line += "  " + part
+			}
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+// Transcript is the agent's conversation, one entry per paragraph.
+func (t tuios) Transcript(ctx context.Context, p pane) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	got, err := t.Client.Transcript(ctx, daemon.TranscriptParams{Session: p.Session, Window: p.ID, Limit: 100})
+	if err != nil {
+		return "", err
+	}
+	var parts []string
+	for _, e := range got.Entries {
+		head := e.Role
+		if e.Tool != "" {
+			head += " · " + e.Tool
+		}
+		parts = append(parts, head+"\n"+strings.TrimSpace(e.Text))
+	}
+	return strings.Join(parts, "\n\n"), nil
+}
+
+// oneLine is text on one line, cut at 200 runes.
+func oneLine(text string) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if r := []rune(text); len(r) > 200 {
+		return string(r[:200]) + "…"
+	}
+	return text
+}
+
 // ListPanes lists every window of every session the daemon reports.
 func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
@@ -456,6 +589,7 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 	if err != nil {
 		return nil, err
 	}
+	agents := t.agents(ctx)
 	var out []pane
 	for _, s := range sessions {
 		windows, err := t.Panes(ctx, s.Name)
@@ -463,10 +597,17 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 			return nil, fmt.Errorf("list windows of %s: %w", s.Name, err)
 		}
 		if len(windows) == 0 {
-			out = append(out, pane{Session: s.Name, SessionID: s.ID})
+			out = append(out, pane{Session: s.Name, SessionID: s.ID, Pane: daemon.Pane{Cwd: s.Dir}})
 		}
 		for _, w := range windows {
-			out = append(out, pane{Session: s.Name, SessionID: s.ID, Pane: w})
+			p := pane{Session: s.Name, SessionID: s.ID, Pane: w}
+			if ag, ok := agents[w.ID]; ok {
+				p.Harness, p.StateAt, p.NeedsYou = ag.Harness, ag.StateAt/int64(time.Millisecond), ag.NeedsYou
+				if ag.State != "" {
+					p.AgentState = ag.State
+				}
+			}
+			out = append(out, p)
 		}
 	}
 	return out, nil

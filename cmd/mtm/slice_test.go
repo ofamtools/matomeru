@@ -59,7 +59,7 @@ func TestSliceEndToEnd(t *testing.T) {
 	if app.r.Page != panesPage || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
 		t.Fatalf("after y: page %s focus %s mode %s", app.r.Page, app.r.Focus, app.r.Mode.Name)
 	}
-	has("━ matomeru/write the brief ━")
+	has("━ matomeru/write the brief ·")
 	has("agent.start done")
 
 	step("ctrl+a")

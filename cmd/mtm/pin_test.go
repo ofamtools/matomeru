@@ -47,13 +47,13 @@ func TestPinFiltersAndAllPreservesPin(t *testing.T) {
 		t.Fatalf("scope rows %+v reviews %+v", a.paneList.Items(), a.reviews)
 	}
 	executeA(t, a, "scope", "all", "work", nil)
-	if a.pin != "matomeru" || len(a.reviews) != 3 || a.paneList.Len() != 5 {
+	// The all view is a tree: projects (unassociated last), their sessions
+	// (a session split between owners shows under each), then the panes.
+	if a.pin != "matomeru" || len(a.reviews) != 3 || a.paneList.Len() != 9 {
 		t.Fatalf("all rows %+v pin %s", a.paneList.Items(), a.pin)
 	}
-	for _, row := range a.paneList.Items() {
-		if row.ID == panes[2].rowID() && !strings.Contains(row.Label, "unassociated") {
-			t.Fatalf("unlabeled scratch %+v", row)
-		}
+	if items := a.paneList.Items(); items[len(items)-3].ID != "project:" || !strings.Contains(items[len(items)-3].Label, "unassociated") || items[len(items)-1].ID != panes[2].rowID() {
+		t.Fatalf("unassociated is not last: %+v", items)
 	}
 	executeA(t, a, "session", "associate", "session:sa", ochazuke.Arguments{"project": "ochazuke"})
 	if got, _ := a.work.PaneOwner("wa", "sa"); got.ProjectID != "ochazuke" {

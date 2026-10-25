@@ -46,13 +46,16 @@ func (a *App) editorPage(record editRecord) string {
 	return "work"
 }
 
-func (a *App) Init() tea.Cmd { return a.m.Init() }
+func (a *App) Init() tea.Cmd { return tea.Batch(a.m.Init(), a.subscribeEvents()) }
 func (a *App) View() tea.View {
 	a.fitTitle()
 	return a.m.View()
 }
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := a.m.Update(msg)
+	if panes := a.panesUpdate(msg); panes != nil {
+		cmd = tea.Batch(cmd, panes)
+	}
 	if err := errors.Join(a.autosave(), a.autosaveAnswer()); err != nil {
 		a.m.Status = err.Error()
 	}

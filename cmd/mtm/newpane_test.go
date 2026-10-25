@@ -120,8 +120,8 @@ func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 	if fr := frame(app); !strings.Contains(fr, "pane.start failed: new pane in matomeru: dial: no daemon") {
 		t.Fatalf("rail lacks the failure:\n%s", fr)
 	}
-	// The app keeps working.
-	press(t, app, "j")
+	// The app keeps working: j walks the tree, the next session's row first.
+	press(t, app, "j", "j")
 	if app.r.Focus != "pane:ochazuke/w2" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
