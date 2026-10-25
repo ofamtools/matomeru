@@ -181,6 +181,25 @@ Acceptance:
 - The same repo attached to A (as default) and B (as an extra directory): both details list it and name the other project; pinning B shows it in B's directories; A's launches use it and B's use B's default.
 - A shell and an agent launched for that project open in the default directory (check `pwd` in the real pane). A missing default directory launches in home with a notice.
 
+### Lane B implementation and handoff
+
+Lane B adds project view/edit and launch settings, task view versus explicit edit, and shared multi-field draft editing in `cmd/mtm/editor.go`. Saving patches the latest stored project or task instead of replacing its other fields. Drafts include every field and captured ownership. New task drafts start with status `todo`.
+
+The shared note editor extension consists of `App.editorSave`, `editorRefresh`, and `editorFinish` callbacks keyed by noun. `editRecord.TaskID` carries note ownership. A note input is multiline and preserves its text; insert-mode Enter inserts a newline, `ctrl+s` saves, and normal-mode `s` saves. Note handlers and persistence remain lane C's files.
+
+`internal/work/trees.go` exports `Project(id)`, `AddTree(id, tree)`, and `SetDefaultTree(id, path)`. Directory attachment is idempotent per project, permits shared paths and missing paths, and touches recency. `o-proj` registration uses the same attachment function. `SeedDirs` imports TUIOS activity without replacing recorded usage.
+
+`cmd/mtm/directories.go` owns base configuration, bounded symlink-aware repository discovery, the background directory cache, fuzzy filtering, and the framework picker. `dirs bases`, `dirs base.add PATH --depth N`, and `dirs base.remove PATH` expose base configuration. `project directory [PATH]` attaches or chooses; `project default PATH` selects the default.
+
+Lane B smoke uses temporary databases under `/tmp/mtm-lane-b-proof.QnOeHp` and the separate TUIOS server `mtmb-QnOeHp`. Actual TUI checks covered project draft navigation, process restart, cancel without changing the record, the known-directory chooser, shared-project labels, and attachment of a typed missing path. The attached path became the first known-directory row. CLI checks covered project/task creation and rename, task status, two retained directories with the second default, and explicit base overrides with a missing-base footer.
+
+Real shell and shell-backed agent panes printed the selected project's default directory with `pwd`. The missing-default home fallback and its TUI notice were exercised using a read-only build of lane A's launch implementation against the same B-created temporary records. `launch.go` remains unchanged in B; integration must retain A's `startCwd` implementation. Pin state and the live `inScope` implementation also remain lane A dependencies.
+
+Actual TUI checks also created and renamed a project, created a task with status `todo`, and edited a task's title and status through keyboard focus navigation. The smoke run found that input descendants were unreachable as separate focus stops. Additional fields now sit beside the main input under `work`; `TestTaskFieldKeyboardFocusAndSave` failed before the fix and passed afterward.
+
+`gofmt -l .`, `go vet ./...`, `go test -race ./...`, and isolated `go run ./cmd/mtm --smoke` passed. The race suite includes `ValidateBindings` coverage, draft restart/cancel, shared directory defaults, recency ordering, base configuration, discovery depth/symlink deduplication, and chooser delivery from a project row on another page. A read-only SQLite backup of the real database rendered with every pre-existing row and table declaration unchanged. The copy gained only the Step 0 `dir_recent` table declaration.
+
+
 ## Lane C: notes
 
 Files: `internal/work/notes.go` (or `internal/notes`), `cmd/mtm/notes.go`.

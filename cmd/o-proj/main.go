@@ -410,37 +410,30 @@ func (t *Tool) register(data, name, dir, repo string) error {
 	if err != nil {
 		return err
 	}
-	tree := work.Tree{Kind: "dir", Path: dir}
+	tree := work.Tree{Kind: "dir", Path: dir, Repo: repo}
 	for _, p := range projects {
 		if p.Name != name {
 			continue
 		}
-		for _, tr := range p.Trees {
-			if samePath(tr.Path, dir) {
-				t.say("register: project %s (%s) already has tree %s", name, p.ID, dir)
-				if p.Origin == Origin {
-					return nil
-				}
-				p.Origin = Origin
-				return w.PutProject(p)
-			}
+		if _, err := w.AddTree(p.ID, tree); err != nil {
+			return err
 		}
-		p.Trees = append(p.Trees, tree)
+		p, err = w.Project(p.ID)
+		if err != nil {
+			return err
+		}
 		p.Origin = Origin
-		if p.DefaultTree == "" {
-			p.DefaultTree = dir
-		}
-		if p.Repo == "" {
-			p.Repo = repo
-		}
 		if err := w.PutProject(p); err != nil {
 			return err
 		}
 		t.say("register: added tree %s to project %s (%s) in %s", dir, name, p.ID, data)
 		return nil
 	}
-	p := work.Project{ID: work.NewID(), Name: name, Status: "open", Created: work.Now(), Repo: repo, Trees: []work.Tree{tree}, DefaultTree: dir, Origin: Origin}
+	p := work.Project{ID: work.NewID(), Name: name, Status: "open", Created: work.Now(), Repo: repo, Origin: Origin}
 	if err := w.PutProject(p); err != nil {
+		return err
+	}
+	if _, err := w.AddTree(p.ID, tree); err != nil {
 		return err
 	}
 	t.say("register: project %s (%s) in %s", name, p.ID, data)

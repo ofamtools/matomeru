@@ -154,22 +154,29 @@ func (a *App) reveal(id string) error {
 // App owns domain state (the store, the daemon client, the rows); the
 // runtime owns interaction state.
 type App struct {
-	db          *store.Store
-	work        *work.Store
-	drafts      *draft.Store
-	editor      *recordEditor
-	cli         bool
-	pin         string
-	all         bool
-	pinVersion  uint64
-	daemon      *daemon.Client
-	ensure      func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
-	launcher    harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
-	harnesses   *harness.Registry           // the built-ins merged with the harness file
-	promptDelay time.Duration               // the wait before typing into a pane whose harness has no readiness probe
-	sleep       func(context.Context, time.Duration) error
-	panesd      paneDaemon
-	home        func() (string, error) // where a launch with no project starts; tests replace it
+	db             *store.Store
+	work           *work.Store
+	drafts         *draft.Store
+	editor         *recordEditor
+	editorSave     map[string]func(editRecord) (any, error)
+	editorRefresh  map[string]func() error
+	editorFinish   map[string]func(editRecord) error
+	directories    directoryCache
+	directoryList  *ochazuke.List
+	directoryQuery *ochazuke.Input
+	detailTask     string
+	cli            bool
+	pin            string
+	all            bool
+	pinVersion     uint64
+	daemon         *daemon.Client
+	ensure         func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
+	launcher       harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
+	harnesses      *harness.Registry           // the built-ins merged with the harness file
+	promptDelay    time.Duration               // the wait before typing into a pane whose harness has no readiness probe
+	sleep          func(context.Context, time.Duration) error
+	panesd         paneDaemon
+	home           func() (string, error) // where a launch with no project starts; tests replace it
 
 	projects  []work.Project
 	current   string // the open project's id; its tasks fill the tasks stop
@@ -225,15 +232,13 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.drafts = draft.New(filepath.Dir(opts.Data))
+	a.editorSave = make(map[string]func(editRecord) (any, error))
+	a.editorRefresh = make(map[string]func() error)
+	a.editorFinish = make(map[string]func(editRecord) error)
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
-	r.Define("project").
-		Verb("open", a.openProject, "Open the project's tasks in the tasks stop").
-		Verb("launch", a.launchRecord, "Launch an agent into this project's session").
-		Mode("normal").
-		Bind("enter", ochazuke.Do("project.open")).
-		Bind("l", ochazuke.Do("project.launch"))
+	a.defineProject()
 	a.defineTask()
 	a.defineProjectCreation()
 	a.defineRecordEditor()
@@ -269,6 +274,9 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	if err := a.addReviewPage(); err != nil {
+		return nil, err
+	}
+	if err := a.addDirectoriesPage(); err != nil {
 		return nil, err
 	}
 	if err := a.refreshProjects(); err != nil {
@@ -317,7 +325,7 @@ func (a *App) refreshProjects() error {
 	for _, p := range projects {
 		label := projectLabel(p)
 		if marked[p.ID] {
-			label += " [draft]"
+			label = "[draft] " + label
 		}
 		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project"})
 	}
@@ -365,6 +373,7 @@ func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.current = p.ID
+	a.detailTask = ""
 	a.tasksOpen = true
 	if err := a.refreshTasks(); err != nil {
 		return ochazuke.Failed(err)
@@ -373,28 +382,14 @@ func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(p)
+
 }
 
 func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	s := ochazuke.NewStyles(*a.m.Appearance)
 	if a.editor != nil {
 		return a.renderEditor(width, height)
 	}
-	top := max(1, (height-3)/2)
-	projects := s.Muted.Render(fmt.Sprintf("projects (%d)", len(a.projects))) + "\n" + a.view(a.projectList, width, top)
-	tasks := "tasks: open a project with enter"
-	if a.tasksOpen {
-		name := "no project (unassociated)"
-		if p, ok := a.project(a.current); ok {
-			name = p.Name
-			if name == "" {
-				name = "untitled"
-			}
-		}
-		tasks = fmt.Sprintf("tasks: %s (%d)", name, len(a.tasks))
-	}
-	tasks = s.Muted.Render(tasks) + "\n" + a.view(a.taskList, width, max(1, height-2-top))
-	return ochazuke.Text(projects + "\n" + tasks)
+	return a.renderWorkDetail(width, height)
 }
 
 // view renders a list into exactly height lines, so the stop below it

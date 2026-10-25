@@ -32,3 +32,27 @@ func (s *Store) TouchDir(path string) error {
 func (s *Store) RecentDirs() ([]DirRecent, error) {
 	return all[DirRecent](s.db, "dir_recent")
 }
+
+// SeedDirs imports daemon activity once, without replacing recorded usage.
+func (s *Store) SeedDirs(rows []DirRecent) error {
+	return s.db.Tx([]string{"dir_recent"}, func(tx *store.Tx) error {
+		for _, row := range rows {
+			if row.Path == "" {
+				continue
+			}
+			row.Path = filepath.Clean(row.Path)
+			var existing DirRecent
+			err := tx.Get("dir_recent", row.Path, &existing)
+			if err == nil {
+				continue
+			}
+			if !errors.Is(err, store.ErrNotFound) {
+				return err
+			}
+			if err := tx.Put("dir_recent", row.Path, row); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

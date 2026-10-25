@@ -12,15 +12,16 @@ func (a *App) defineTask() {
 	r := a.r
 	r.Define("task").
 		Verb("list", a.listTasks, "List tasks, including unassociated tasks").
-		Verb("open", a.openTask, "Open the task title or its saved draft in the right panel").
-		Verb("edit", a.editTask, "Edit the title; omit title to open the draft editor").Positional("title").
+		Verb("open", a.openTask, "View task without editing").
+		Verb("view", a.openTask, "View task without editing").
+		Verb("edit", a.editTask, "Edit title and status; omit arguments for draft editor").Positional("title").
 		Verb("done", a.doneTask, "Mark the task done").
 		Verb("new", a.newTask, "Add a task; omit title to open the draft editor").Positional("title").
 		Verb("launch", a.launchRecord, "Launch an agent on the task").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.open")).Bind("l", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.done"))
-	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}})
+	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string"}})
 	a.parameters("task.new", map[string]ochazuke.Parameter{
 		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"},
 	})
@@ -123,21 +124,33 @@ func (a *App) openTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.beginEdit(editRecord{Noun: "task", ID: t.ID, Text: t.Title, ProjectID: t.ProjectID}); err != nil {
+	if err := a.leaveEditor(); err != nil {
 		return ochazuke.Failed(err)
 	}
+	a.detailTask = t.ID
 	return ochazuke.Done(t)
 }
 
 func (a *App) editTask(ctx ochazuke.Ctx) ochazuke.Result {
-	if _, present := ctx.Args["title"]; !present {
-		return a.openTask(ctx)
+	if len(ctx.Args) == 0 {
+		t, err := a.task(ctx)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		return resultError(a.beginEdit(editRecord{Noun: "task", ID: t.ID, Text: t.Title, ProjectID: t.ProjectID, Fields: map[string]string{"status": t.Status}}))
 	}
 	t, err := a.task(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	t, err = a.work.Retitle(t.ID, ochazuke.StringArg(ctx.Args, "title", ""))
+	if _, present := ctx.Args["title"]; present {
+		t.Title = ochazuke.StringArg(ctx.Args, "title", "")
+	}
+	if _, present := ctx.Args["status"]; present {
+		t.Status = ochazuke.StringArg(ctx.Args, "status", "")
+	}
+	t.Updated = work.Now()
+	err = a.work.PutTask(t)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}

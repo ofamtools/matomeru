@@ -161,7 +161,7 @@ func TestStopsMoveBetweenProjectsAndTasks(t *testing.T) {
 	}
 	app.m.Width, app.m.Height = 80, 24
 	frame := ansi.Strip(app.m.View().Content)
-	for _, want := range []string{"tasks: matomeru (2)", "[ ] write the brief", "[ ] lift the store"} {
+	for _, want := range []string{"[ ] write the brief", "[ ] lift the store"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}
@@ -172,7 +172,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	app := open(t)
 	press(t, app, "j", "enter")
 
-	press(t, app, "enter")
+	press(t, app, "i")
 	if app.r.Focus != recordInputID || string(app.editor.Input.Text) != "write the brief" {
 		t.Fatalf("open: focus = %s, editor = %+v", app.r.Focus, app.editor)
 	}
@@ -180,7 +180,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	if app.r.Focus != "t1" || stored(t, app, "t1").Title != "write the brief" {
 		t.Fatalf("cancel: focus = %s, task = %+v", app.r.Focus, stored(t, app, "t1"))
 	}
-	press(t, app, "enter")
+	press(t, app, "i")
 	typeText(t, app, " first")
 	press(t, app, "enter")
 	if got := stored(t, app, "t1").Title; got != "write the brief first" {
@@ -211,7 +211,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 
 	app.m.Width, app.m.Height = 80, 24
 	frame := ansi.Strip(app.m.View().Content)
-	for _, want := range []string{"tasks: matomeru (3)", "[ ] write the brief first", "[x] lift store and daemon", "[ ] launch an agent"} {
+	for _, want := range []string{"[ ] write the brief first", "[x] lift store and daemon", "[ ] launch an agent"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}
