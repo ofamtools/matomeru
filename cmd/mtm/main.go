@@ -281,12 +281,12 @@ func New(opts Options) (*App, error) {
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
 	}
-	list, err := r.AddList("projects", nil, ochazuke.Parent("work"))
+	list, err := r.AddList("projects", nil, ochazuke.Parent("work"), ochazuke.Columns(projectColumns...))
 	if err != nil {
 		return nil, err
 	}
 	a.projectList = list
-	if a.taskList, err = r.AddList("tasks", nil, ochazuke.Parent("work")); err != nil {
+	if a.taskList, err = r.AddList("tasks", nil, ochazuke.Parent("work"), ochazuke.Columns(taskColumns...)); err != nil {
 		return nil, err
 	}
 	row := ochazuke.Do("project.new")
@@ -330,7 +330,15 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := a.refreshProjects(); err != nil { // the pin's 📌
+		db.Close()
+		return nil, err
+	}
 	if err := a.refreshScope(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := a.selectPinRow(); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -360,26 +368,72 @@ func (a *App) refreshProjects() error {
 	for _, d := range drafts {
 		marked[d.ID] = true
 	}
-	items := make([]ochazuke.ListItem, 0, len(projects))
+	tasks, err := a.work.Tasks("")
+	if err != nil {
+		return err
+	}
+	open := map[string]int{}
+	for _, t := range tasks {
+		if t.Status != work.StatusDone {
+			open[t.ProjectID]++
+		}
+	}
+	glyphs := false
+	for _, p := range projects {
+		glyphs = glyphs || p.Theme.Glyph != ""
+	}
+	home, _ := a.home()
+	items := make([]ochazuke.ListItem, 0, len(projects)+2)
 	for _, p := range projects {
 		label := projectLabel(p)
 		if marked[p.ID] {
 			label = "[draft] " + label
 		}
-		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project"})
+		name := projectName(p)
+		switch {
+		case p.Theme.Glyph != "":
+			name = p.Theme.Glyph + " " + name
+		case glyphs:
+			name = "  " + name // names line up beside the glyphed ones
+		}
+		if p.ID == a.pin {
+			name += " 📌"
+		}
+		if marked[p.ID] {
+			name += " [draft]"
+		}
+		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project", Cells: []string{name, countCell(open[p.ID]), tildePath(p.DefaultTree, home), p.Origin}})
 	}
 	for _, d := range drafts {
 		if _, exists := a.project(d.ID); !exists {
-			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d})
+			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d, Cells: []string{"untitled [draft]"}})
 		}
 	}
-	items = append(items, ochazuke.ListItem{ID: unassociatedID, Label: "no project (unassociated)", Noun: "unassociated"})
+	items = append(items, ochazuke.ListItem{ID: unassociatedID, Label: "no project (unassociated)", Noun: "unassociated", Cells: []string{"no project", countCell(open[""])}})
 	a.refreshTitle() // a name or default directory may have changed
 	if err := a.projectList.SetItems(items); err != nil {
 		return err
 	}
 	a.refreshDirectoryRows() // owners and the target's directories follow the projects
 	return nil
+}
+
+// countCell is a count for a table cell; zero is blank.
+func countCell(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprint(n)
+}
+
+// projectColumns are the project noun's table: the name (with its glyph,
+// the pin and a draft mark), its open tasks, default directory and the
+// tool that made it; narrow, the origin drops first, then the directory.
+var projectColumns = []ochazuke.Column{
+	{Title: "project", Min: 12},
+	{Title: "open", Align: ochazuke.AlignRight},
+	{Title: "directory", Min: 10, Priority: 2},
+	{Title: "origin", Priority: 3},
 }
 
 // projectLabel stays global; owned directories belong in the scoped detail.

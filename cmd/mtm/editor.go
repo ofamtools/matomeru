@@ -47,6 +47,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.m.Status = err.Error()
 	}
 	a.filterDirectories()
+	a.followProject()
 	if a.r.Page != a.lastPage {
 		a.lastPage = a.r.Page
 		if a.r.Page == directoriesPage {

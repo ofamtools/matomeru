@@ -61,10 +61,13 @@ func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
 	fr := frame(app)
-	for _, want := range []string{"reviews (1)", "[pending] matomeru · write the brief · claude · matomeru/write the brief", "enter captures"} {
+	for _, want := range []string{"reviews (1)", "enter captures"} {
 		if !strings.Contains(fr, want) {
 			t.Fatalf("frame lacks %q:\n%s", want, fr)
 		}
+	}
+	if !rowWith(fr, "pending", "matomeru/write the brief", "claude", "matomeru") {
+		t.Fatalf("frame lacks the review row:\n%s", fr)
 	}
 	if _, err := app.r.ValidateBindings(); err != nil {
 		t.Fatal(err)
@@ -117,7 +120,7 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewAccepted {
 		t.Fatalf("accept: status = %q", got)
 	}
-	if fr := frame(app); !strings.Contains(fr, "[accepted] matomeru") {
+	if fr := frame(app); !rowWith(fr, "accepted", "matomeru") {
 		t.Fatalf("frame after accept:\n%s", fr)
 	}
 	if got := stored(t, app, "t1").Status; got != work.StatusTodo {

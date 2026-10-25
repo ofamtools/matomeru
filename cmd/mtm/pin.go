@@ -145,10 +145,25 @@ func (a *App) setPin(id string) ochazuke.Result {
 	}
 	a.pin = id
 	a.pinVersion++
+	if err := a.refreshProjects(); err != nil { // the 📌 moves
+		return ochazuke.Failed(err)
+	}
 	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)
 	}
+	if err := a.selectPinRow(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	return ochazuke.Done(id)
+}
+
+// selectPinRow puts the projects list on the pinned project, so l and
+// enter act on the pin by default.
+func (a *App) selectPinRow() error {
+	if a.pin == "" || a.r.Instances[a.pin] == nil {
+		return nil
+	}
+	return a.projectList.Select(a.pin)
 }
 
 func (a *App) toggleAll(ochazuke.Ctx) ochazuke.Result {

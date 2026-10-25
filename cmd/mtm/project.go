@@ -4,6 +4,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"errors"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 	"strings"
@@ -12,7 +13,7 @@ import (
 const unassociatedID = "no-project"
 
 func (a *App) defineProject() {
-	a.r.Define("project").
+	a.r.Define("project").Columns(projectColumns...).
 		Verb("open", a.openProject, "View project and tasks").
 		Verb("view", a.openProject, "View project and tasks").
 		Verb("edit", a.editProject, "Edit name, theme and launch settings").Positional("name").
@@ -147,9 +148,55 @@ func (a *App) replaceDirectory(projectID, path, to string) ochazuke.Result {
 	return ochazuke.Done(p)
 }
 
+// workLists draws the projects table over the tasks table. Each takes the
+// rows it needs (its header plus its rows); when both cannot fit, the
+// projects get at least half and the tasks the rest.
 func (a *App) workLists(width, height int) string {
-	top := max(1, (height-3)/2)
-	return fmt.Sprintf("projects (%d)\n", len(a.projects)) + a.view(a.projectList, width, top) + "\ntasks\n" + a.view(a.taskList, width, max(1, height-top-3))
+	avail := max(2, height-2)
+	want := func(l *ochazuke.List) int { return l.Len() + 1 }
+	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
+	top = max(1, min(top, avail-1))
+	return fmt.Sprintf("projects (%d)\n", len(a.projects)) + a.view(a.projectList, width, top) + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top))
+}
+
+// tasksHeading names whose tasks the tasks list holds.
+func (a *App) tasksHeading() string {
+	switch {
+	case a.all:
+		return "tasks · all projects"
+	case !a.tasksOpen:
+		return "tasks"
+	case !a.inScope(a.current):
+		return "tasks · " + a.ownerLabel(a.current) + " is outside the pin (S shows all)"
+	}
+	return "tasks · " + a.ownerLabel(a.current)
+}
+
+// followProject makes the tasks list follow the highlighted project row,
+// so the tasks under the cursor's project show without enter.
+func (a *App) followProject() {
+	if a.editor != nil {
+		return
+	}
+	selected := a.r.Instances[a.r.BaseFocus()]
+	if selected == nil || selected.Parent != "projects" {
+		return
+	}
+	current := ""
+	switch selected.Noun {
+	case "project":
+		current = selected.ID
+	case "unassociated":
+	default:
+		return
+	}
+	if a.tasksOpen && current == a.current {
+		return
+	}
+	a.current, a.tasksOpen, a.detailTask = current, true, ""
+	if err := a.refreshTasks(); err != nil {
+		a.m.Status = err.Error()
+	}
 }
 
 func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
@@ -157,7 +204,17 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	rightWidth := max(1, width-leftWidth-2)
 	detail := ""
 	taskID, projectID := a.detailTask, a.current
-	if selected := a.r.Instances[a.r.BaseFocus()]; selected != nil {
+	selected := a.r.Instances[a.r.BaseFocus()]
+	// A focus on a list itself (a jump that has not landed on a row) shows
+	// that list's selected row.
+	for id, l := range map[string]*ochazuke.List{"projects": a.projectList, "tasks": a.taskList} {
+		if selected != nil && selected.ID == id {
+			if item, ok := l.Selected(); ok {
+				selected = a.r.Instances[item.ID]
+			}
+		}
+	}
+	if selected != nil {
 		switch selected.Noun {
 		case "task":
 			taskID = selected.ID
@@ -175,10 +232,19 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 		}
 	}
 	if task != nil {
-		detail = fmt.Sprintf("%s\n\nstatus: %s\nproject: %s", taskLabel(*task), task.Status, task.ProjectID)
+		detail = fmt.Sprintf("%s\n\nstatus: %s\nproject: %s", taskLabel(*task), task.Status, a.ownerLabel(task.ProjectID))
 		detail += a.detailNotes(task.ProjectID, task.ID)
+	} else if p, ok := a.project(projectID); ok && !a.inScope(p.ID) {
+		detail = projectLabel(p) + "\n\noutside the pin; P pins it, S shows all projects"
 	} else if p, ok := a.project(projectID); ok && a.inScope(p.ID) {
-		detail = fmt.Sprintf("%s\n\ncolor: %s  glyph: %s\nharness: %s\npreset: %s\n\ndirectories", projectLabel(p), p.Theme.Color, p.Theme.Glyph, p.Settings.Harness, p.Settings.Preset)
+		detail = projectLabel(p) + "\n"
+		// Only the settings that are set; i edits them all.
+		for _, f := range [][2]string{{"color", p.Theme.Color}, {"harness", p.Settings.Harness}, {"preset", p.Settings.Preset}, {"origin", p.Origin}} {
+			if f[1] != "" {
+				detail += "\n" + f[0] + ": " + f[1]
+			}
+		}
+		detail += fmt.Sprintf("\n\ndirectories (%d)", len(p.Trees))
 		home, _ := a.home()
 		for _, tree := range p.Trees {
 			line := tildePath(tree.Path, home)

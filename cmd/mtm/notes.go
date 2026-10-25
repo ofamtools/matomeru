@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -15,7 +16,7 @@ import (
 const notesPage = "notes"
 
 func (a *App) defineNotes() {
-	a.r.Define("note").
+	a.r.Define("note").Columns(noteColumns...).
 		Verb("list", a.listNotes, "List notes in the current scope").Rows("note").
 		Verb("new", a.newNote, "Create a note; omit text to open an autosaved draft").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
@@ -46,7 +47,7 @@ func (a *App) defineNotes() {
 func (a *App) addNotesPage() error {
 	a.r.Instance(notesPage, ochazuke.Kind("page"))
 	var err error
-	a.noteList, err = a.r.AddList("notes/list", nil, ochazuke.Parent(notesPage))
+	a.noteList, err = a.r.AddList("notes/list", nil, ochazuke.Parent(notesPage), ochazuke.Columns(noteColumns...))
 	if err != nil {
 		return err
 	}
@@ -114,6 +115,31 @@ func (a *App) noteOwnerLabel(note work.Note) string {
 	return label
 }
 
+// noteColumns are the note noun's table: the first line, the project, the
+// task and the last change; narrow, the change drops first, then the task.
+var noteColumns = []ochazuke.Column{
+	{Title: "note", Min: 16},
+	{Title: "project", Priority: 1},
+	{Title: "task", Priority: 2},
+	{Title: "updated", Priority: 3},
+}
+
+// noteOwnerCells are a note's project and task as table cells.
+func (a *App) noteOwnerCells(note work.Note) (string, string) {
+	project, err := a.work.NoteProject(note)
+	if err != nil {
+		return err.Error(), ""
+	}
+	task := ""
+	if note.TaskID != "" {
+		task = note.TaskID
+		if t, err := a.work.Task(note.TaskID); err == nil {
+			task = t.Title
+		}
+	}
+	return a.ownerLabel(project), task
+}
+
 func noteLabel(text string) string {
 	line, _, _ := strings.Cut(text, "\n")
 	if strings.TrimSpace(line) == "" {
@@ -138,17 +164,21 @@ func (a *App) refreshNotes() error {
 	for _, d := range drafts {
 		marked[d.ID] = true
 	}
+	now := time.Now()
 	items := make([]ochazuke.ListItem, 0, len(notes)+len(drafts))
 	for _, note := range notes {
 		label := noteLabel(note.Text) + " (" + a.noteOwnerLabel(note) + ")"
+		first := noteLabel(note.Text)
 		if marked[note.ID] {
 			label += " [draft]"
+			first += " [draft]"
 		}
-		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note"})
+		project, task := a.noteOwnerCells(note)
+		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note", Cells: []string{first, project, task, sinceUse(note.Updated, now)}})
 	}
 	for _, d := range drafts {
 		if d.New && a.inScope(d.ProjectID) {
-			items = append(items, ochazuke.ListItem{ID: d.ID, Label: noteLabel(d.Text) + " [draft]", Noun: "draft", Data: d})
+			items = append(items, ochazuke.ListItem{ID: d.ID, Label: noteLabel(d.Text) + " [draft]", Noun: "draft", Data: d, Cells: []string{noteLabel(d.Text) + " [draft]", a.ownerLabel(d.ProjectID)}})
 		}
 	}
 	return a.noteList.SetItems(items)

@@ -36,7 +36,7 @@ const (
 // defineReviews adds the review noun and the answer area's noun.
 func (a *App) defineReviews() {
 	r := a.r
-	r.Define("review").
+	r.Define("review").Columns(reviewColumns...).
 		Verb("list", a.listReviews, "List reviews in scope; --all widens the list").
 		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
 		Verb("accept", a.acceptReview, "Mark the review accepted (the task is left as it is)").
@@ -60,7 +60,7 @@ func (a *App) defineReviews() {
 // then the answer area.
 func (a *App) addReviewPage() error {
 	a.r.Instance(reviewsPage, ochazuke.Kind("page"))
-	list, err := a.r.AddList(reviewListID, nil, ochazuke.Parent(reviewsPage))
+	list, err := a.r.AddList(reviewListID, nil, ochazuke.Parent(reviewsPage), ochazuke.Columns(reviewColumns...))
 	if err != nil {
 		return err
 	}
@@ -80,15 +80,49 @@ func (a *App) refreshReviews() error {
 		return err
 	}
 	a.reviews = nil
+	now := time.Now()
 	items := make([]ochazuke.ListItem, 0, len(reviews))
 	for _, rv := range reviews {
 		if !a.inScope(rv.ProjectID) {
 			continue
 		}
 		a.reviews = append(a.reviews, rv)
-		items = append(items, ochazuke.ListItem{ID: rv.ID, Label: a.reviewLabel(rv), Noun: "review"})
+		items = append(items, ochazuke.ListItem{ID: rv.ID, Label: a.reviewLabel(rv), Noun: "review", Cells: a.reviewCells(rv, now)})
 	}
 	return a.reviewList.SetItems(items)
+}
+
+// reviewColumns are the review noun's table: the status (with "answered"
+// when an answer is saved), the pane, its harness, the project, the task
+// and when its screen was last captured; narrow, the capture time drops
+// first, then the harness, the project and the task.
+var reviewColumns = []ochazuke.Column{
+	{Title: "status", Min: 8},
+	{Title: "pane", Min: 12},
+	{Title: "harness", Priority: 3},
+	{Title: "project", Priority: 2},
+	{Title: "task", Priority: 1},
+	{Title: "captured", Priority: 4},
+}
+
+// reviewCells are a review row's cells in reviewColumns order.
+func (a *App) reviewCells(rv work.Review, now time.Time) []string {
+	status := rv.Status
+	if rv.Answer != "" {
+		status += " · answered"
+	}
+	task := ""
+	if rv.TaskID != "" {
+		task = rv.TaskID
+		if t, err := a.work.Task(rv.TaskID); err == nil {
+			task = t.Title
+		}
+	}
+	captured := ""
+	if rv.CapturedAt != 0 {
+		captured = sinceUse(rv.CapturedAt, now)
+	}
+	return []string{status, rv.Pane, rv.Harness, a.ownerLabel(rv.ProjectID), task, captured}
 }
 
 // reviewLabel is the row text: the status, the project, the task and the

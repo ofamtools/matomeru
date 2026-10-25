@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
@@ -10,7 +12,7 @@ import (
 
 func (a *App) defineTask() {
 	r := a.r
-	r.Define("task").
+	r.Define("task").Columns(taskColumns...).
 		Verb("list", a.listTasks, "List tasks, including unassociated tasks").
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
@@ -77,6 +79,14 @@ func (a *App) refreshTasks() error {
 	for _, d := range drafts {
 		marked[d.ID] = true
 	}
+	// The project column shows only when the rows can belong to more than
+	// one project (all projects).
+	cols := taskColumns
+	if !a.all {
+		cols = slices.DeleteFunc(slices.Clone(taskColumns), func(c ochazuke.Column) bool { return c.Title == "project" })
+	}
+	a.taskList.SetColumns(cols...)
+	now := time.Now()
 	items := make([]ochazuke.ListItem, 0, len(tasks))
 	for _, t := range tasks {
 		label := taskLabel(t)
@@ -86,14 +96,52 @@ func (a *App) refreshTasks() error {
 		if marked[t.ID] {
 			label += " [draft]"
 		}
-		items = append(items, ochazuke.ListItem{ID: t.ID, Label: label, Noun: "task"})
+		items = append(items, ochazuke.ListItem{ID: t.ID, Label: label, Noun: "task", Cells: a.taskCells(t, marked[t.ID], now)})
 	}
 	for _, d := range drafts {
 		if d.New && a.tasksOpen && (a.all || d.ProjectID == a.current) && a.inScope(d.ProjectID) {
-			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d})
+			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d, Cells: []string{"[ ] untitled [draft]"}})
 		}
 	}
 	return a.taskList.SetItems(items)
+}
+
+// taskColumns are the task noun's table: the checkbox and title (with a
+// draft mark), the status, the project (all projects only) and the last
+// change; narrow, the change drops first, then the project.
+var taskColumns = []ochazuke.Column{
+	{Title: "task", Min: 24},
+	{Title: "status", Priority: 1},
+	{Title: "project", Priority: 2},
+	{Title: "updated", Priority: 3},
+}
+
+// taskCells are a task row's cells in taskColumns order, the project
+// column left out unless the list shows all projects.
+func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
+	box := "[ ] "
+	if t.Status == work.StatusDone {
+		box = "[x] "
+	}
+	title := t.Title
+	if title == "" {
+		title = "untitled"
+	}
+	if draft {
+		title += " [draft]"
+	}
+	status := t.Status
+	if status == "" {
+		status = work.StatusTodo
+	}
+	updated := ""
+	if t.Updated != 0 {
+		updated = sinceUse(t.Updated, now)
+	}
+	if !a.all {
+		return []string{box + title, status, updated}
+	}
+	return []string{box + title, status, a.ownerLabel(t.ProjectID), updated}
 }
 
 func taskLabel(t work.Task) string {
