@@ -107,7 +107,7 @@ func openWith(t *testing.T, opts Options) *App {
 	// No test reaches the real daemon.
 	app.panesd = newFakePanes()
 	app.renamer = &fakeRenamer{panes: app.panesd.(*fakePanes)} // never the real daemon
-	app.pv.after = nil // no timers: tests deliver followDue and refreshDue themselves
+	app.pv.after = nil                                         // no timers: tests deliver followDue and refreshDue themselves
 	app.ensure = func(context.Context) error { return nil }
 	app.sleep = func(context.Context, time.Duration) error { return nil }
 	return app

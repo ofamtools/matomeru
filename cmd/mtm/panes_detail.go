@@ -172,9 +172,6 @@ func (a *App) paneText(ctx ochazuke.Ctx, tab int, read func(context.Context, pan
 	})
 }
 
-
-
-
 // killSession is session.kill, after its confirm.
 func (a *App) killSession(ctx ochazuke.Ctx) ochazuke.Result {
 	s, err := a.sessionAt(ctx.Instance)

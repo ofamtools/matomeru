@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/unixsuperhero/ochazuke"
 
@@ -76,7 +77,10 @@ func (a *App) openOutline(ctx ochazuke.Ctx) ochazuke.Result {
 		if !ids[parent] {
 			parent = ""
 		}
-		nodes = append(nodes, ochazuke.TreeNode{ID: t.ID, Parent: parent, Label: t.Title})
+		if parent != "" {
+			parent = outlineNode(parent)
+		}
+		nodes = append(nodes, ochazuke.TreeNode{ID: outlineNode(t.ID), Parent: parent, Label: t.Title})
 	}
 	if _, err := a.r.OpenModal(outlineModal, ochazuke.Payload{Prompt: projectName(p) + " · o add · i edit · tab nest · d d delete · u undo · esc closes"}); err != nil {
 		return ochazuke.Failed(err)
@@ -86,10 +90,10 @@ func (a *App) openOutline(ctx ochazuke.Ctx) ochazuke.Result {
 		_ = a.r.Pop()
 		return ochazuke.Failed(err)
 	}
-	tree.NewID = work.NewID
+	tree.NewID = func() string { return outlineNode(work.NewID()) }
 	tree.OnChange = func(c ochazuke.TreeChange) error { return a.writeOutline(projectID, tree, c) }
 	if focus != "" {
-		_ = tree.Select(focus)
+		_ = tree.Select(outlineNode(focus))
 	}
 	if err := tree.Focus(); err != nil {
 		return ochazuke.Failed(err)
@@ -119,9 +123,18 @@ func outlineOrder(tasks []work.Task, ids map[string]bool) []work.Task {
 	return out
 }
 
+// outlineNode is a task's row id in the outline; the Work page's task
+// rows already use the task ids.
+func outlineNode(taskID string) string { return "outline:" + taskID }
+
+// taskOf is the task id of an outline row id ("" stays "").
+func taskOf(node string) string { return strings.TrimPrefix(node, "outline:") }
+
 // writeOutline stores one outline change as task rows, then reloads the
 // Work page's tasks.
 func (a *App) writeOutline(projectID string, tree *ochazuke.Tree, c ochazuke.TreeChange) error {
+	nodeParent := c.Parent
+	c.ID, c.Parent = taskOf(c.ID), taskOf(c.Parent)
 	switch c.Op {
 	case ochazuke.TreeAdd:
 		now := work.Now()
@@ -152,7 +165,7 @@ func (a *App) writeOutline(projectID string, tree *ochazuke.Tree, c ochazuke.Tre
 		}
 	}
 	if c.Op != ochazuke.TreeRename && c.Op != ochazuke.TreeDelete {
-		if err := a.renumber(tree, c.Parent); err != nil {
+		if err := a.renumber(tree, nodeParent); err != nil {
 			return err
 		}
 	}
@@ -168,7 +181,7 @@ func (a *App) renumber(tree *ochazuke.Tree, parent string) error {
 		}
 	}
 	for i, id := range order {
-		t, err := a.work.Task(id)
+		t, err := a.work.Task(taskOf(id))
 		if err != nil {
 			continue // not written yet (a paste's later rows)
 		}
