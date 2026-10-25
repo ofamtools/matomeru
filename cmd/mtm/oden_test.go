@@ -101,7 +101,9 @@ func TestNounWinsOverSameNamedBin(t *testing.T) {
 		t.Fatal("the mtm-task bin ran instead of the noun")
 	}
 	out, _, err := mtm(app, dir, "help")
-	if err != nil || !strings.Contains(out, "shadows external "+filepath.Join(dir, "mtm-task")) {
+	// oden merges a same-named external into a noun group (inline verbs
+	// win); help names it under the row
+	if err != nil || !strings.Contains(out, "merges external "+filepath.Join(dir, "mtm-task")) {
 		t.Fatalf("help: %v\n%s", err, out)
 	}
 	out, _, err = mtm(app, dir, "which", "task")
@@ -110,25 +112,34 @@ func TestNounWinsOverSameNamedBin(t *testing.T) {
 	}
 }
 
-// mtm proj runs the family tool o-proj (WithPrefixes("o")) with
-// ODEN_PARENT=mtm; an mtm-proj on the same PATH wins over it.
-func TestFamilyToolOProjRunsAndMtmProjWins(t *testing.T) {
+// mtm proj is mtm's own project noun, never the family tool o-proj or an
+// mtm-proj on PATH; other family tools (o-ai) still resolve.
+func TestProjIsTheProjectNoun(t *testing.T) {
 	app, _ := cliApp(t)
-	dir := bins(t, map[string]string{"o-proj": `echo "o-proj $* parent=$ODEN_PARENT"`})
-	out, errOut, err := mtm(app, dir, "proj", "check")
-	if err != nil || out != "o-proj check parent=mtm\n" {
-		t.Fatalf("mtm proj check: %v %q %q", err, out, errOut)
+	dir := bins(t, map[string]string{
+		"o-proj":   `echo "o-proj $*"`,
+		"mtm-proj": `echo "mtm-proj $*"`,
+		"o-ai":     `echo "o-ai $* parent=$ODEN_PARENT"`,
+	})
+	out, errOut, err := mtm(app, dir, "proj", "new", "viaproj")
+	if err != nil || strings.Contains(out, "o-proj") || strings.Contains(out, "mtm-proj") || !strings.Contains(out, "viaproj") {
+		t.Fatalf("mtm proj new: %v %q %q", err, out, errOut)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "mtm-proj"), []byte("#!/bin/sh\necho \"mtm-proj $*\"\n"), 0o755); err != nil {
-		t.Fatal(err)
+	out, errOut, err = mtm(app, dir, "proj")
+	if strings.Contains(out+errOut, "o-proj") || !strings.Contains(out+errOut, "project") {
+		t.Fatalf("mtm proj: %v %q %q", err, out, errOut)
 	}
-	out, errOut, err = mtm(app, dir, "proj", "check")
-	if err != nil || out != "mtm-proj check\n" {
-		t.Fatalf("mtm proj check with mtm-proj: %v %q %q", err, out, errOut)
+	out, _, err = mtm(app, dir, "which", "proj")
+	if err != nil || strings.Contains(out, "external") {
+		t.Fatalf("which proj: %v %q", err, out)
 	}
-	out, _, err = mtm(app, dir, "help")
-	if err != nil || !strings.Contains(out, "shadows external "+filepath.Join(dir, "o-proj")) {
-		t.Fatalf("help: %v\n%s", err, out)
+	out, errOut, err = mtm(app, dir, "ai", "skills")
+	if err != nil || out != "o-ai skills parent=mtm\n" {
+		t.Fatalf("mtm ai: %v %q %q", err, out, errOut)
+	}
+	out, _, _ = mtm(app, dir, "help")
+	if strings.Contains(out, filepath.Join(dir, "o-proj")) {
+		t.Fatalf("help lists o-proj:\n%s", out)
 	}
 }
 
