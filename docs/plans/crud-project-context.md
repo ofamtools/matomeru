@@ -6,7 +6,7 @@ Status: proposed implementation plan, 2026-10-25. No application changes in this
 
 Most domain noun pages should support creating, viewing, editing, and deleting their records where those operations make sense. Keep the list on the left and the selected record's information or edit draft on the right. CRUD states do not require new first-class keyboard modes.
 
-An explicit app-wide pinned project scopes domain information and lists to that project's associated items and supplies defaults for actions on every page. Projects can gain directories and repositories after creation, with one default directory for terminal and agent launches. Shells, agents, and Vim can also run interactively without project ownership. Saving reusable work requires a project or an explicit durable path.
+An explicit app-wide pinned project scopes domain information and lists to that project's associated items and supplies defaults for actions on every page. Projects can gain directories and repositories after creation, with one default directory for terminal and agent launches. Shells, agents, and Vim can also run interactively without project ownership. Creating, saving, and launching never refuse for missing context: what mtm cannot associate is recorded as unassociated and can be associated later.
 
 ## Current behavior and gaps
 
@@ -26,6 +26,16 @@ An explicit app-wide pinned project scopes domain information and lists to that 
 The znbu outlines contain implementation claims about the older app. Treat them as reference contracts, not evidence that those packages exist in this rebuild.
 
 ## Decisions
+
+### Record first; never refuse for missing context
+
+mtm creates and tracks data whether or not it is complete. Missing or unknown association is never a reason to refuse.
+
+- A record with no resolvable project or task is saved as unassociated. Every list shows it with a visible "unassociated" label (no pin, or the All projects view), and an `associate` action attaches it later.
+- Missing optional fields are stored empty, not demanded up front. Drafts save with whatever was entered.
+- Where an operation would otherwise refuse, mtm records what it can, picks the documented fallback, and says what it did in the result or notice (for example, "launched in ~ (default directory missing)").
+- Deleting a parent never refuses: its children are kept, lose only that association (a deleted task's children keep its project), and record the former owner's id. Deletion still asks for confirmation.
+- Refusal is limited to operations that cannot be carried out at all, such as a path that cannot be written or a binary that is not installed. Even then, nothing the user typed is lost.
 
 ### List/detail is the default CRUD presentation
 
@@ -59,7 +69,7 @@ Proposed app state: `App.context.PinnedProjectID`, persisted as one explicit con
 - An empty pin is valid. Pinning a project never creates a task.
 - At action dispatch, resolve ownership once and snapshot it before confirmation or asynchronous work. Pin changes while a job runs cannot change its destination or saved ownership.
 - Precedence: explicit scratch choice; explicit target/arguments or source-record ownership; pinned project; no project. A targeted task/project action acts on that record, even if another project is pinned.
-- Reject conflicting explicit task/project values. Do not silently substitute the pin.
+- When explicit task and project values conflict, the task's project wins and the result says so. Do not silently substitute the pin.
 - Generic creation from a page without an owned source uses the pin. Generic navigation/help/settings actions need no project and must continue to work without one.
 - Existing records retain their ownership when opened or acted on. The pin supplies creation defaults; it does not reassign them.
 - Do not infer ownership from process cwd or last launch after this cutover. Remove their inference callers and obsolete last-launch API/state after migrating any useful prior default. `projectAt` may remain only if another real caller needs it.
@@ -81,11 +91,11 @@ Proposed app state: `App.context.PinnedProjectID`, persisted as one explicit con
 Keep `Project.Trees` and `Project.DefaultTree`; do not introduce a competing directory/repository inventory for this request.
 
 - A tree can be a plain directory, clone, or existing worktree. Adding it attaches an existing path; it does not run `git init`, clone, create worktrees, or delete files.
-- Normalize and validate paths at mutation boundaries. Reject duplicate normalized paths within the same project. Git discovery enriches repository metadata but must accept plain directories.
+- Normalize and validate paths at mutation boundaries. Adding a path the project already has is a no-op that selects the existing tree. Git discovery enriches repository metadata but must accept plain directories.
 - A project with zero trees is valid. With one or more trees, exactly one is default. The first added tree becomes default.
-- Changing a default tree's path updates `DefaultTree` atomically. Removing the default while others remain requires choosing its replacement in the same operation. Removing the last clears it.
+- Changing a default tree's path updates `DefaultTree` atomically. Removing the default while others remain makes the first remaining tree the default and says so; the user can change it. Removing the last clears it.
 - Keep legacy `Project.Repo` compatibility with o-proj, but do not use that scalar to limit a project to one repository. Per-tree metadata describes each checkout.
-- Launch cwd precedence: explicit directory, selected source tree when applicable, resolved project's default tree, home for scratch or pathless projects. Show home fallback in the launch confirmation. An explicitly configured missing/default path is an error, not a silent fallback.
+- Launch cwd precedence: explicit directory, selected source tree when applicable, resolved project's default tree, home for scratch or pathless projects. Show home fallback in the launch confirmation. A configured default path that no longer exists falls back to home with a visible notice, never silently.
 - Changing the default affects future launches only. Never change the cwd or ownership of a running process because the pin or default changed.
 
 ### Scratch lifetime and persistence are different
@@ -93,7 +103,7 @@ Keep `Project.Trees` and `Project.DefaultTree`; do not introduce a competing dir
 - Shell, agent, and Vim launch actions offer an explicit unassociated/scratch choice. This bypasses pin and inference without clearing the pin.
 - Scratch work uses the existing unassociated daemon destinations and remains attachable and interactive. Find it through the explicit All projects view in Panes while a project is pinned, or the ordinary unpinned list. Detach must not kill it.
 - A scratch process has a runtime cwd, usually home. That fallback is not consent to persist a workspace there.
-- Saving a reusable workspace/session requires either a valid project association or an explicitly chosen durable path. A path-only saved item remains unassociated; never invent a project from that path.
+- Saving a reusable workspace/session always succeeds. With a project it is saved under that project; with an explicit path it is saved there; with neither it is saved unassociated in mtm-owned storage. Never invent a project from a path.
 - Project-owned Vim session files live in mtm-owned storage beside the selected database, following the old editor contract. A path-only save uses the explicitly chosen session-file destination.
 - Save/associate updates the existing live item. Do not spawn a replacement process or move a running pane merely to match a project-derived session name. Future reopen uses its saved context.
 - Persist launch ownership on records that represent it; shell ownership must not exist only in a session name. Agent reviews keep the ownership snapshot from launch, including no project.
@@ -128,9 +138,9 @@ Build project read detail and create/edit drafts using the existing framework co
 Acceptance:
 - View, create, rename, and delete an empty project through the TUI and registered verbs. Cancelled edits leave the store unchanged.
 - Dirty draft navigation offers save/discard. Errors retain the draft and keep the list usable.
-- Confirm deletion. Refuse projects with dependent tasks, reviews, or saved workspace records until the user handles those records explicitly. Clear a deleted project's pin atomically. Deletion never deletes directories or kills panes.
+- Confirm deletion. A deleted project's tasks, notes, reviews, and saved workspace records are kept and become unassociated (former project id recorded); the confirmation states how many. Clear a deleted project's pin atomically. Deletion never deletes directories or kills panes.
 
-Verification: exercise the actual list/detail editor at wide and narrow widths, then reopen the isolated database to inspect persisted values. Cover deletion restrictions and cancel behavior with focused tests.
+Verification: exercise the actual list/detail editor at wide and narrow widths, then reopen the isolated database to inspect persisted values. Cover deletion orphaning and cancel behavior with focused tests.
 
 Dependencies: step 1.
 
@@ -142,8 +152,8 @@ Add project-scoped tree verbs and editing controls. Put shared mutations in the 
 
 Acceptance:
 - Create a pathless project, attach two existing directories from its detail, and mark the second default. Both remain attached after restart.
-- Edit/remove/default operations preserve the single-default rule. Invalid or duplicate paths produce no partial write. Removing an association leaves the filesystem untouched.
-- Pin the project and launch both a terminal and an agent. Observe the configured default cwd in the actual processes. A missing default path reports an error.
+- Edit/remove/default operations preserve the single-default rule. A duplicate path is a no-op; a path that does not exist is still attached and flagged missing. No partial writes. Removing an association leaves the filesystem untouched.
+- Pin the project and launch both a terminal and an agent. Observe the configured default cwd in the actual processes. A missing default path launches in home with a visible notice.
 
 Verification: focused store/default tests; o-proj registration regression checks; real shell `pwd` and agent launch on an isolated daemon.
 
@@ -157,10 +167,10 @@ Separate task viewing from editing. Support title and status edits, explicit cre
 
 Acceptance:
 - Selecting/opening a task shows information without opening an editor or writing. Edit/save/cancel retain list selection.
-- Creation uses the explicit project list context, otherwise the pin, and refuses when neither exists. It never silently chooses the first project.
-- Confirm deletion and refuse referenced tasks or parent tasks with children. Done remains a status change, not deletion. Pinning a project never pins or creates a task.
+- Creation uses the explicit project list context, otherwise the pin, otherwise creates an unassociated task. It never silently chooses the first project. A task with an empty title is still saved.
+- Confirm deletion. Deleting a task keeps its notes, reviews, and child tasks; they move to the task's project (or stay unassociated) with the former task id recorded. Done remains a status change, not deletion. Pinning a project never pins or creates a task.
 
-Verification: exercise task CRUD from the actual page and CLI; focused tests for cancellation, ownership precedence, and deletion restrictions.
+Verification: exercise task CRUD from the actual page and CLI; focused tests for cancellation, ownership precedence, unassociated creation, and deletion orphaning.
 
 Dependencies: step 2.
 
@@ -172,7 +182,7 @@ Expose explicit scratch and directory arguments consistently. Record live owners
 
 Acceptance:
 - With A pinned, launch scratch shell and agent, interact, detach, and reattach. Both remain unassociated, and A stays pinned.
-- Save without project/path refuses while leaving the process usable. Save with a project or explicit path survives mtm restart and identifies the same live pane while it exists.
+- Save without project/path succeeds as an unassociated saved record in mtm-owned storage. Every save survives mtm restart and identifies the same live pane while it exists. Associating it later moves no process.
 - Associating scratch work does not spawn or relocate its process. Existing review history keeps its original launch ownership.
 
 Verification: real daemon launch/input/capture/reattach, inspect persisted associations after reopening mtm, and focused persistence-boundary tests.
@@ -187,12 +197,28 @@ Start real Neovim in a daemon pane. Reuse terminal attach/detach and scratch lau
 
 Acceptance:
 - Open Vim with no association despite a pin, type into it, detach, and reattach. No reusable saved session exists until explicit save.
-- Save to a project or explicit session-file path, close the pane, restart mtm, and reopen with the expected cwd and session state. Invalid save destinations retain the live editor and its buffers.
+- Save to a project, an explicit session-file path, or neither (unassociated, mtm-owned storage); close the pane, restart mtm, and reopen with the expected cwd and session state. An unwritable explicit path falls back to mtm-owned storage with a notice; the live editor and its buffers are untouched.
 - Missing Neovim reports the missing binary. Forget removes mtm's saved registration and only mtm-owned session artifacts, never edited files or the running pane.
 
 Verification: launch the real installed Neovim against an isolated daemon, save/reopen an actual session, inspect the file and cwd, and run focused lifecycle/error tests. If Neovim is unavailable, report that acceptance as unverified rather than substituting a shell.
 
 Dependencies: steps 3 and 5.
+
+### 7. Add notes tied to the pin and the selected task
+
+Likely files: `internal/work/work.go` (a `notes` table, owner `work`), a `cmd/mtm/notes.go` noun, task and project detail panels, focused tests. Lift the record shape from `~/proj/matomeru-old/internal/notes/notes.go` (id, text, task id, project id, created, updated); do not port its bus, registry, or provenance machinery. Check `~/proj/znbu/docs/outline/knowledge.md` for the contract before building.
+
+A note attaches to the selected task when there is one, otherwise the pinned project, otherwise it is unassociated. The notes page is list/detail like tasks; task and project details show their notes. Notes are scoped by the pin like every other project-owned noun.
+
+Acceptance:
+- With A pinned and a task selected, `note new` attaches to that task and A. With no task, it attaches to A. With nothing pinned, it is saved unassociated and listed with that label.
+- An empty note saves. Editing or associating a note later never loses its text.
+- Deleting a task or project keeps its notes (see "Record first").
+- `note new TEXT` from the CLI follows the same rules as the TUI.
+
+Verification: focused store and ownership tests; exercise the notes page, task detail, and CLI against an isolated database.
+
+Dependencies: steps 1 and 4. Independent of steps 5 and 6; build it right after step 4.
 
 ## Completion gate
 
