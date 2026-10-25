@@ -296,6 +296,7 @@ func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 	}
 	return rows, strings.Join(footer, "; "), nil
 }
+
 // The Directories page, top to bottom: the target project's directories
 // (the pin, or the project a browse was started for), the known
 // directories as a table with a / search, then the project base dirs.
