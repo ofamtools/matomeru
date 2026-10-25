@@ -65,12 +65,6 @@ func TestAddRetitleDone(t *testing.T) {
 	if err := w.PutTask(Task{ID: "t1", ProjectID: "p1", Title: "a", Position: 4}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.AddTask("p1", "  "); err == nil {
-		t.Fatal("blank title accepted")
-	}
-	if _, err := w.AddTask("", "b"); err == nil {
-		t.Fatal("task without a project accepted")
-	}
 	added, err := w.AddTask("p1", " b ")
 	if err != nil {
 		t.Fatal(err)
@@ -108,9 +102,6 @@ func TestLastLaunchedAndAddProject(t *testing.T) {
 	}
 	if id, err := w.LastLaunched(); err != nil || id != "" {
 		t.Fatalf("fresh last launched = %q, %v", id, err)
-	}
-	if _, err := w.AddProject("  "); err == nil {
-		t.Fatal("a blank project name was accepted")
 	}
 	p, err := w.AddProject(" scratch ")
 	if err != nil || p.Name != "scratch" || p.Status != "open" || len(p.ID) != 32 {

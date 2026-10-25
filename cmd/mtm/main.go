@@ -19,6 +19,7 @@ import (
 	"github.com/unixsuperhero/oden"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/draft"
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -125,7 +126,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		if err := app.ensureDaemon(); err != nil {
 			return err
 		}
-		_, err := tea.NewProgram(app.m).Run()
+		_, err := tea.NewProgram(app).Run()
 		return err
 	}
 	return app.commands(words, stdin, stdout, stderr, tui).Run(context.Background())
@@ -138,7 +139,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 func (a *App) reveal(id string) error {
 	if t, err := a.work.Task(id); err == nil {
 		if t.ProjectID == "" {
-			return fmt.Errorf("task %s has no project, so no list shows it", id)
+			_, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "unassociated", Target: unassociatedID})
+			return err
 		}
 		_, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "project", Target: t.ProjectID})
 		return err
@@ -151,6 +153,9 @@ func (a *App) reveal(id string) error {
 type App struct {
 	db          *store.Store
 	work        *work.Store
+	drafts      *draft.Store
+	editor      *recordEditor
+	cli         bool
 	daemon      *daemon.Client
 	ensure      func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
 	launcher    harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
@@ -161,14 +166,15 @@ type App struct {
 	getwd       func() (string, error) // the working directory launch inference reads; tests replace it
 	home        func() (string, error) // where a launch with no project starts; tests replace it
 
-	projects []work.Project
-	current  string // the open project's id; its tasks fill the tasks stop
-	tasks    []work.Task
-	panes    []pane  // every pane the daemon reports; launches and kills reload it
-	paneErr  string  // why the last listing failed (the daemon is not reachable)
-	preview  preview // the last captured screen, shown while no terminal is attached
-	attached pane    // the pane the attached terminal streams
-	landErr  string  // why the last finished launch or pane.new did not reach the screen
+	projects  []work.Project
+	current   string // the open project's id; its tasks fill the tasks stop
+	tasksOpen bool
+	tasks     []work.Task
+	panes     []pane  // every pane the daemon reports; launches and kills reload it
+	paneErr   string  // why the last listing failed (the daemon is not reachable)
+	preview   preview // the last captured screen, shown while no terminal is attached
+	attached  pane    // the pane the attached terminal streams
+	landErr   string  // why the last finished launch or pane.new did not reach the screen
 
 	reviews    []work.Review
 	opened     string // the review in the detail; review.open sets it
@@ -213,6 +219,7 @@ func New(opts Options) (*App, error) {
 	r := ochazuke.NewRuntime()
 	client := opts.client()
 	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, getwd: os.Getwd, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
@@ -223,6 +230,8 @@ func New(opts Options) (*App, error) {
 		Bind("enter", ochazuke.Do("project.open")).
 		Bind("l", ochazuke.Do("project.launch"))
 	a.defineTask()
+	a.defineProjectCreation()
+	a.defineRecordEditor()
 	a.defineLaunch()
 	a.definePanes()
 	a.defineReviews()
@@ -236,6 +245,11 @@ func New(opts Options) (*App, error) {
 	}
 	a.projectList = list
 	if a.taskList, err = r.AddList("tasks", nil, ochazuke.Parent("work")); err != nil {
+		return nil, err
+	}
+	row := ochazuke.Do("project.new")
+	row.Instance, row.Mode, row.Keys = "projects", "normal", "a"
+	if err := r.Bind(row); err != nil {
 		return nil, err
 	}
 	if err := a.bindTaskStop(); err != nil {
@@ -276,10 +290,28 @@ func (a *App) refreshProjects() error {
 		return err
 	}
 	a.projects = projects
+	drafts, err := a.draftRecords("project")
+	if err != nil {
+		return err
+	}
+	marked := map[string]bool{}
+	for _, d := range drafts {
+		marked[d.ID] = true
+	}
 	items := make([]ochazuke.ListItem, 0, len(projects))
 	for _, p := range projects {
-		items = append(items, ochazuke.ListItem{ID: p.ID, Label: projectLabel(p), Noun: "project"})
+		label := projectLabel(p)
+		if marked[p.ID] {
+			label += " [draft]"
+		}
+		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project"})
 	}
+	for _, d := range drafts {
+		if _, exists := a.project(d.ID); !exists {
+			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d})
+		}
+	}
+	items = append(items, ochazuke.ListItem{ID: unassociatedID, Label: "no project (unassociated)", Noun: "unassociated"})
 	return a.projectList.SetItems(items)
 }
 
@@ -287,6 +319,9 @@ func (a *App) refreshProjects() error {
 // tree when the project has one.
 func projectLabel(p work.Project) string {
 	label := p.Name
+	if label == "" {
+		label = "untitled"
+	}
 	if p.Theme.Glyph != "" {
 		label = p.Theme.Glyph + " " + label
 	}
@@ -311,7 +346,11 @@ func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if !ok {
 		return ochazuke.Failed(fmt.Errorf("project %s is not loaded", ctx.Instance.ID))
 	}
+	if err := a.leaveEditor(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	a.current = p.ID
+	a.tasksOpen = true
 	if err := a.refreshTasks(); err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -323,11 +362,21 @@ func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
 
 func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	s := ochazuke.NewStyles(*a.m.Appearance)
+	if a.editor != nil {
+		return a.renderEditor(width, height)
+	}
 	top := max(1, (height-3)/2)
 	projects := s.Muted.Render(fmt.Sprintf("projects (%d)", len(a.projects))) + "\n" + a.view(a.projectList, width, top)
 	tasks := "tasks: open a project with enter"
-	if p, ok := a.project(a.current); ok {
-		tasks = fmt.Sprintf("tasks: %s (%d)", p.Name, len(a.tasks))
+	if a.tasksOpen {
+		name := "no project (unassociated)"
+		if p, ok := a.project(a.current); ok {
+			name = p.Name
+			if name == "" {
+				name = "untitled"
+			}
+		}
+		tasks = fmt.Sprintf("tasks: %s (%d)", name, len(a.tasks))
 	}
 	tasks = s.Muted.Render(tasks) + "\n" + a.view(a.taskList, width, max(1, height-2-top))
 	return ochazuke.Text(projects + "\n" + tasks)

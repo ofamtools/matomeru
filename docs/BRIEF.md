@@ -9,8 +9,8 @@ One complete workflow, end to end, before any second feature: select a project a
 ## Nouns and verbs (data; handlers are the app's)
 
 ```js
-define("project",  { verbs: { open, launch, star },                   bindings: { normal: { enter: "open", l: "launch" } } })
-define("task",     { verbs: { open, launch, done, edit },             bindings: { normal: { enter: "open", l: "launch", x: "done", i: "edit" } } })
+define("project",  { verbs: { new, open, launch },                  bindings: { normal: { enter: "open", l: "launch" } } })
+define("task",     { verbs: { list, new, open, launch, done, edit }, bindings: { normal: { enter: "open", l: "launch", x: "done", i: "edit" } } })
 define("pane",     { verbs: { attach, preview, kill: { confirm: "Kill pane {{label}}?" } }, bindings: { normal: { enter: "attach", p: "preview", K: "kill" } } })
 define("agent",    { verbs: { launch: { params: { harness: { enum: registry.names }, model: { source: "harness.models", free: true }, project: { source: "projects.list" } } } } })
 define("harness",  { verbs: { list, models } })                       // data only: the registry and the model pick list
@@ -94,6 +94,11 @@ All six steps are done on main:
 | Follow-up pass | item 5 (panes use ReplacingAt and CloseOnDetach) 3f4b260; item 4 (`pane.new`) e2af2fe; item 1 (a launch ends with the pane on screen) c5b5a58; item 2 (terminal and preview borders) 588b1c8; item 3 (page tabs: the framework's header already lists them and marks the active one, now tested) this commit |
 
 CLI (`ochazuke/cli`, configured in `cmd/mtm/cli.go`): `mtm [--data P] [--server NAME|default] [--socket P] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]` runs the operation in-process through `Runtime.HandleCall` (history source `cli`), settles its jobs, prints JSON. The shell, the oden mount of the nouns (`cli.Mount`, `cmd/mtm/oden.go`) and `mtm catalog` (the runtime as catalog JSON) are the framework's `cli` package; mtm passes its bin name, usage line and the hooks below. A `--target` no list shows is revealed by the app (`App.reveal`: a task id opens its project; anything else reloads panes). Without `--target` the shell picks the owner: the instance the app declares for a noun with none of its own (`App.ownedBy`: `panes` and `daemon` → `panes/list`, so `mtm panes refresh` runs), else the noun's only instance; with several (`mtm pane preview`) a failing command lists them as `--target` candidates. A confirm takes `--yes`, else reads y/n from stdin (EOF declines, non-zero exit). Any other modal is an error. The CLI has no screen: a terminal a command adds (a launch lands attached) is removed before the shell runs more work, which releases its stream and lets the process exit. History is in memory, per invocation.
+
+The [build plan's Step 0 handoff](plans/build-plan.md#step-0-implementation-and-handoff) supersedes the original task-prompt behavior. `project new ""`, `task new ""`, and `task edit --target ID --title ""` save empty values. Omitting the name/title opens a right-panel draft editor instead. `a` on the projects stop creates a project; `a` on the tasks stop creates a task. The `no project (unassociated)` project-list row opens unassociated tasks, and `--target` can reveal those tasks. `task list` includes unassociated records. Empty project names and task titles display as `untitled`.
+
+Project creation and task title editing autosave drafts under the database's sibling `drafts/` directory. Enter saves the record and clears the draft. Escape leaves insert mode without discarding text; normal-mode `s` saves and `q` cancels. Moving between stops or pages does not prompt. Reopening the draft after an mtm restart restores its text. The runtime still owns focus and keys; the app's Bubble Tea wrapper persists changes after each update. A draft is not a saved record until submitted.
+
 
 Known gaps:
 

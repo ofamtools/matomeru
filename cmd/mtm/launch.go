@@ -237,7 +237,7 @@ func (a *App) listProjects(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(
 func (a *App) projectChoices() []ochazuke.Choice {
 	out := make([]ochazuke.Choice, 0, len(a.projects))
 	for _, p := range a.projects {
-		out = append(out, ochazuke.Choice{ID: p.ID, Label: p.Name})
+		out = append(out, ochazuke.Choice{ID: p.ID, Label: projectLabel(p)})
 	}
 	return out
 }
@@ -291,6 +291,9 @@ func (a *App) inferLaunch(at *ochazuke.Instance) (target, bool) {
 					continue
 				}
 				if t, err := a.work.Task(id); err == nil {
+					if t.ProjectID == "" {
+						return target{Task: t.ID, From: fromTask}, true
+					}
 					if p, ok := a.project(t.ProjectID); ok {
 						return target{Project: p, Task: t.ID, From: fromTask}, true
 					}
@@ -354,7 +357,7 @@ func (a *App) launch(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(fmt.Errorf("task %s: %w", task, err))
 		}
 		p, ok := a.project(t.ProjectID)
-		if !ok {
+		if !ok && t.ProjectID != "" {
 			return ochazuke.Failed(fmt.Errorf("project %s is not loaded", t.ProjectID))
 		}
 		to = target{Project: p, Task: t.ID}

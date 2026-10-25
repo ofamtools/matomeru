@@ -20,7 +20,7 @@ import (
 func press(t *testing.T, a *App, keys ...string) {
 	t.Helper()
 	for _, key := range keys {
-		a.m.Update(keyMsg(key))
+		a.Update(keyMsg(key))
 		if a.m.Status != "" {
 			t.Fatalf("key %q: %s", key, a.m.Status)
 		}
@@ -171,21 +171,18 @@ func TestStopsMoveBetweenProjectsAndTasks(t *testing.T) {
 	}
 }
 
-func TestTaskVerbsPersistThroughPrompts(t *testing.T) {
+func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	app := open(t)
 	press(t, app, "j", "enter")
 
-	// enter opens the task in the prompt; esc closes it untouched.
 	press(t, app, "enter")
-	if app.r.Focus != fieldID || string(app.field.Text) != "write the brief" {
-		t.Fatalf("open: focus = %s, field = %q", app.r.Focus, string(app.field.Text))
+	if app.r.Focus != recordInputID || string(app.editor.Input.Text) != "write the brief" {
+		t.Fatalf("open: focus = %s, editor = %+v", app.r.Focus, app.editor)
 	}
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
 	if app.r.Focus != "t1" || stored(t, app, "t1").Title != "write the brief" {
 		t.Fatalf("cancel: focus = %s, task = %+v", app.r.Focus, stored(t, app, "t1"))
 	}
-
-	// enter commits an edit typed into the open prompt.
 	press(t, app, "enter")
 	typeText(t, app, " first")
 	press(t, app, "enter")

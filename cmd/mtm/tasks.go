@@ -4,75 +4,105 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unixsuperhero/ochazuke"
-
 	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/ochazuke"
 )
-
-// The task noun: rows of the tasks stop, the second stop of the work page.
-// project.open fills it; every verb writes through the work store and then
-// pushes the rows again with SetItems.
 
 func (a *App) defineTask() {
 	r := a.r
 	r.Define("task").
-		Verb("open", a.openTask, "Show the task in a prompt; enter saves the title, esc closes").
-		Verb("edit", a.editTask, "Edit the task's title (omit title to be asked in a prompt)").
+		Verb("list", a.listTasks, "List tasks, including unassociated tasks").
+		Verb("open", a.openTask, "Open the task title or its saved draft in the right panel").
+		Verb("edit", a.editTask, "Edit the title; omit title to open the draft editor").Positional("title").
 		Verb("done", a.doneTask, "Mark the task done").
-		Verb("new", a.newTask, "Add a task to the open project (omit title to be asked in a prompt)").
-		Verb("launch", a.launch, "Launch an agent on the task into its project's session (inferred; never asked)").
+		Verb("new", a.newTask, "Add a task; omit title to open the draft editor").Positional("title").
+		Verb("launch", a.launch, "Launch an agent on the task").
 		Mode("normal").
-		Bind("enter", ochazuke.Do("task.open")).
-		Bind("l", ochazuke.Do("task.launch")).
-		Bind("i", ochazuke.Do("task.edit")).
-		Bind("x", ochazuke.Do("task.done"))
-	title := map[string]ochazuke.Parameter{"title": {Type: "string", Description: "Omit to be asked in a prompt"}}
-	for _, key := range []string{"task.edit", "task.new"} {
-		op := r.Operations[key]
-		op.Parameters = title
-		r.Operations[key] = op
-	}
+		Bind("enter", ochazuke.Do("task.open")).Bind("l", ochazuke.Do("task.launch")).
+		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.done"))
+	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}})
+	a.parameters("task.new", map[string]ochazuke.Parameter{
+		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"},
+	})
 }
 
-// bindTaskStop puts the add row on the tasks list itself, so it answers on
-// a task row and on an empty list alike.
 func (a *App) bindTaskStop() error {
 	row := ochazuke.Do("task.new")
 	row.Instance, row.Mode, row.Keys = "tasks", "normal", "a"
 	return a.r.Bind(row)
 }
 
-// refreshTasks reloads the open project's tasks and pushes them to the list.
+func (a *App) listTasks(ochazuke.Ctx) ochazuke.Result {
+	tasks, err := a.work.Tasks("")
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	out := make([]work.Task, 0, len(tasks))
+	for _, task := range tasks {
+		if a.inScope(task.ProjectID) {
+			out = append(out, task)
+		}
+	}
+	return ochazuke.Done(out)
+}
+
 func (a *App) refreshTasks() error {
 	var tasks []work.Task
-	if a.current != "" {
-		var err error
-		if tasks, err = a.work.Tasks(a.current); err != nil {
+	if a.tasksOpen {
+		rows, err := a.work.Tasks(a.current)
+		if err != nil {
 			return err
+		}
+		for _, t := range rows {
+			if t.ProjectID == a.current && a.inScope(t.ProjectID) {
+				tasks = append(tasks, t)
+			}
 		}
 	}
 	a.tasks = tasks
+	drafts, err := a.draftRecords("task")
+	if err != nil {
+		return err
+	}
+	marked := map[string]bool{}
+	for _, d := range drafts {
+		marked[d.ID] = true
+	}
 	items := make([]ochazuke.ListItem, 0, len(tasks))
 	for _, t := range tasks {
-		items = append(items, ochazuke.ListItem{ID: t.ID, Label: taskLabel(t), Noun: "task"})
+		label := taskLabel(t)
+		if marked[t.ID] {
+			label += " [draft]"
+		}
+		items = append(items, ochazuke.ListItem{ID: t.ID, Label: label, Noun: "task"})
+	}
+	for _, d := range drafts {
+		if d.New && a.tasksOpen && d.ProjectID == a.current && a.inScope(d.ProjectID) {
+			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d})
+		}
 	}
 	return a.taskList.SetItems(items)
 }
 
-// taskLabel is the row text: a done box, the title, and any other status.
 func taskLabel(t work.Task) string {
 	box := "[ ] "
 	if t.Status == work.StatusDone {
 		box = "[x] "
 	}
-	label := box + t.Title
+	title := t.Title
+	if title == "" {
+		title = "untitled"
+	}
+	label := box + title
+	if t.ProjectID == "" {
+		label += " (unassociated)"
+	}
 	if t.Status != work.StatusDone && t.Status != work.StatusTodo && t.Status != "" {
 		label += "  (" + t.Status + ")"
 	}
 	return label
 }
 
-// task reads the addressed row's task fresh from the store.
 func (a *App) task(ctx ochazuke.Ctx) (work.Task, error) {
 	if ctx.Instance == nil || ctx.Instance.Noun != "task" {
 		return work.Task{}, errors.New("no task is selected")
@@ -89,51 +119,28 @@ func (a *App) openTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	project := t.ProjectID
-	if p, ok := a.project(t.ProjectID); ok {
-		project = p.Name
-	}
-	status := t.Status
-	if status == "" {
-		status = work.StatusTodo
-	}
-	label := fmt.Sprintf("%s · %s · %s", project, status, t.ID)
-	if err := a.prompt("Task", label, t.Title, a.retitle(t)); err != nil {
+	if err := a.beginEdit(editRecord{Noun: "task", ID: t.ID, Text: t.Title, ProjectID: t.ProjectID}); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(t)
 }
 
 func (a *App) editTask(ctx ochazuke.Ctx) ochazuke.Result {
+	if _, present := ctx.Args["title"]; !present {
+		return a.openTask(ctx)
+	}
 	t, err := a.task(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	commit := a.retitle(t)
-	if title := ochazuke.StringArg(ctx.Args, "title", ""); title != "" {
-		if err := commit(title); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return ochazuke.Done(title)
+	t, err = a.work.Retitle(t.ID, ochazuke.StringArg(ctx.Args, "title", ""))
+	if err != nil {
+		return ochazuke.Failed(err)
 	}
-	if err := a.prompt("Edit task", "Title", t.Title, commit); err != nil {
+	if err := a.refreshTasks(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(t)
-}
-
-// retitle is the commit of the open and edit prompts: an unchanged title
-// writes nothing.
-func (a *App) retitle(t work.Task) func(string) error {
-	return func(title string) error {
-		if title == t.Title {
-			return nil
-		}
-		if _, err := a.work.Retitle(t.ID, title); err != nil {
-			return err
-		}
-		return a.refreshTasks()
-	}
 }
 
 func (a *App) doneTask(ctx ochazuke.Ctx) ochazuke.Result {
@@ -151,34 +158,38 @@ func (a *App) doneTask(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
-	if a.current == "" {
-		return ochazuke.Failed(errors.New("open a project first"))
-	}
-	add := func(title string) error {
-		t, err := a.work.AddTask(a.current, title)
-		if err != nil {
-			return err
-		}
-		if err := a.refreshTasks(); err != nil {
-			return err
-		}
-		if err := a.taskList.Select(t.ID); err != nil {
-			return err
-		}
-		return a.taskList.Focus()
-	}
-	if title := ochazuke.StringArg(ctx.Args, "title", ""); title != "" {
-		if err := add(title); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return ochazuke.Done(title)
-	}
-	name := a.current
-	if p, ok := a.project(a.current); ok {
-		name = p.Name
-	}
-	if err := a.prompt("New task", "Title of a new task in "+name, "", add); err != nil {
+	owner, err := a.resolveOwner(ctx, ctx.Args)
+	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(nil)
+	if owner.Notice != "" {
+		a.m.Notify(owner.Notice)
+	}
+	a.current, a.tasksOpen = owner.ProjectID, true
+	if _, present := ctx.Args["title"]; !present {
+		if err := a.beginEdit(editRecord{Noun: "task", ID: work.NewID(), ProjectID: owner.ProjectID, New: true}); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(owner)
+	}
+	t, err := a.work.AddTask(owner.ProjectID, ochazuke.StringArg(ctx.Args, "title", ""))
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.refreshTasks(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.r.OpenPage("work"); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.taskList.Select(t.ID); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.taskList.Focus(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(struct {
+		work.Task
+		Notice string `json:"notice,omitempty"`
+	}{t, owner.Notice})
 }

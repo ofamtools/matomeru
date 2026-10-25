@@ -23,13 +23,6 @@ func TestStartupFocusesTheFirstProjectRow(t *testing.T) {
 	}
 }
 
-func TestStartupWithNoProjectsKeepsTheList(t *testing.T) {
-	app := openAt(t, filepath.Join(t.TempDir(), "mtm.db"))
-	if app.r.Focus != "projects" {
-		t.Fatalf("focus = %s", app.r.Focus)
-	}
-}
-
 func TestThePanesPageAnswersPreviewAtOnce(t *testing.T) {
 	app, f := panesApp(t)
 	settle(app, key(t, app, "p"))

@@ -54,17 +54,19 @@ type ProjectSettings struct {
 
 // Task is one row of the tasks table.
 type Task struct {
-	ID           string `json:"id"`
-	ParentID     string `json:"parent_id"`
-	ProjectID    string `json:"project_id"`
-	Title        string `json:"title"`
-	Position     int64  `json:"position"`
-	Theme        Theme  `json:"theme"`
-	Status       string `json:"status"`
-	Easy         bool   `json:"easy"`
-	SnoozedUntil int64  `json:"snoozed_until,omitempty"`
-	Created      int64  `json:"created"`
-	Updated      int64  `json:"updated"`
+	ID              string `json:"id"`
+	ParentID        string `json:"parent_id"`
+	ProjectID       string `json:"project_id"`
+	FormerProjectID string `json:"former_project_id,omitempty"`
+	FormerTaskID    string `json:"former_task_id,omitempty"`
+	Title           string `json:"title"`
+	Position        int64  `json:"position"`
+	Theme           Theme  `json:"theme"`
+	Status          string `json:"status"`
+	Easy            bool   `json:"easy"`
+	SnoozedUntil    int64  `json:"snoozed_until,omitempty"`
+	Created         int64  `json:"created"`
+	Updated         int64  `json:"updated"`
 }
 
 // Tables are the declarations this package owns; they match the persisted
@@ -74,6 +76,7 @@ var Tables = []store.Table{
 	{Name: "tasks", Owner: "work", Key: "id", Version: 1},
 	{Name: "launch_state", Owner: "work", Key: "id", Version: 1},
 	{Name: "reviews", Owner: "work", Key: "id", Version: 1},
+	{Name: "dir_recent", Owner: "work", Key: "path", Version: 1},
 }
 
 // launchState is the one row of launch_state: the project the last launch
@@ -156,9 +159,6 @@ func (s *Store) PutProject(p Project) error {
 // AddProject creates an open project with a name and nothing else.
 func (s *Store) AddProject(name string) (Project, error) {
 	name = strings.TrimSpace(name)
-	if name == "" {
-		return Project{}, errors.New("a project needs a name")
-	}
 	p := Project{ID: NewID(), Name: name, Status: "open", Created: Now()}
 	return p, s.PutProject(p)
 }
@@ -185,12 +185,6 @@ func (s *Store) Task(id string) (Task, error) {
 // AddTask creates a todo task at the end of a project's board.
 func (s *Store) AddTask(projectID, title string) (Task, error) {
 	title = strings.TrimSpace(title)
-	if projectID == "" {
-		return Task{}, errors.New("a task needs a project")
-	}
-	if title == "" {
-		return Task{}, errors.New("a task needs a title")
-	}
 	siblings, err := s.Tasks(projectID)
 	if err != nil {
 		return Task{}, err
@@ -207,9 +201,6 @@ func (s *Store) AddTask(projectID, title string) (Task, error) {
 // Retitle sets a task's title.
 func (s *Store) Retitle(id, title string) (Task, error) {
 	title = strings.TrimSpace(title)
-	if title == "" {
-		return Task{}, errors.New("a task needs a title")
-	}
 	return s.patchTask(id, func(t *Task) { t.Title = title })
 }
 

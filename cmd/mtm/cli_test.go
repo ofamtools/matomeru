@@ -183,7 +183,6 @@ func TestCLIErrorsExitNonZero(t *testing.T) {
 		{[]string{"task", "launch", "--model", "gpt"}, `model "gpt" is not one of claude's models: opus, sonnet, haiku`},
 		{[]string{"task", "launch", "--harness", "nope"}, "harness must be one of claude, omp, codex"},
 		{[]string{"task"}, "usage: mtm"},
-		{[]string{"task", "edit", "--target", "t1"}, "task.edit opened a mtm-prompt modal, which needs the TUI"},
 	} {
 		if _, _, err := cli(app, "", c.args...); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("mtm %s: err = %v, want %q", strings.Join(c.args, " "), err, c.want)

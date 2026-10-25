@@ -82,6 +82,22 @@ One agent, on main, before any lane starts.
 
 Acceptance: from the CLI and the TUI, create a nameless project, a titleless task with no project, and a task with an empty title. All save and are listed. The unassociated task opens through `--target` and launches into `no-project`. A draft written, then mtm restarted, then the draft reopened shows the typed text.
 
+### Step 0 implementation and handoff
+
+Completed on main, 2026-10-25. No lane A, B, C, or integration work is included.
+
+- `cmd/mtm/owner.go`: `(*App).resolveOwner(ctx ochazuke.Ctx, args ochazuke.Arguments) (Owner, error)` returns `Owner{ProjectID, TaskID, Notice}`. Explicit `task` wins over `project`; `scratch: true` and explicit empty ownership stay unassociated. Unknown explicit ids return an unassociated owner and a notice. TUI creation can use the selected project, task, review, or draft. CLI execution ignores selection. The pin fallback remains empty for lane A. Capture this value before an editor or job starts.
+- `(*App).inScope(owner string) bool` is the shared filter in `owner.go`. It returns true until lane A supplies pin/all state. Both `task.list` and the task page call it.
+- `internal/draft.New(dataDir) *draft.Store` stores files under `dataDir/drafts`. `Save(noun, id, value)`, `Load(noun, id, dst)`, `List(noun) ([]draft.Entry, error)`, and `Clear(noun, id)` use one JSON file per noun/id. `Entry` has `ID` and `Data json.RawMessage`. Save uses a synced temporary file and atomic rename. Missing loads return `os.ErrNotExist`; clearing a missing draft succeeds. The app passes the directory containing `--data`.
+- `cmd/mtm/editor.go` supplies the minimum right-panel editor needed for Step 0 acceptance: project creation and task title creation/editing. `editRecord` captures `Noun`, `ID`, `Text`, `ProjectID`, and `New`. The `App` Bubble Tea wrapper autosaves after input updates, including paste and undo. New rows are not stored until save. Draft rows reopen after restart. Enter saves; Escape returns to normal mode, where `s` saves and `q` cancels. Framework focus/page navigation remains available. Lane B can extend this editor for its additional fields; lane C uses the same draft store.
+- `internal/work`: `Task.FormerProjectID` and `Task.FormerTaskID` serialize as `former_project_id` and `former_task_id`. `(*Store).TouchDir(path string) error` updates the cleaned-path key in `dir_recent` with owner `work`, key `path`, version 1. Empty paths do nothing. `RecentDirs() ([]DirRecent, error)` returns `{Path, LastUsed, Uses}` with millisecond timestamps. It does not sort or infer ownership. Launch/attach and directory-assignment callers remain for lanes A and B.
+- The old `notes`, `assignments`, `active`, and `vim_sessions` declarations and rows are unchanged. Step 0 does not redeclare or migrate them.
+
+Verification used temporary databases and the separate TUIOS server `mtm0-BfVsjW`. CLI and actual TUI runs saved and listed a nameless project, unassociated titleless tasks, and a project-owned empty-title task. CLI retitle to `""` persisted. An unassociated `--target` opened successfully. CLI and TUI launches both created real `/bin/sh` panes through the configurable `shell-proof` harness in `no-project`; the TUI attached to its new pane. No AI worker was started.
+
+A TUI draft containing `restart-proof typed text` survived process exit and a new mtm process, reopened with the same text, and disappeared on cancel without creating a task. The full race suite covers owner precedence, CLI selection isolation, empty-record persistence, draft navigation/restart/cancel, directory recency, and `ValidateBindings`. `gofmt -l .`, `go vet ./...`, `go test -race ./...`, and isolated `go run ./cmd/mtm ... --smoke` passed. A read-only SQLite backup of the real database also rendered; all original metadata and every row byte in the four legacy owner tables matched before and after opening the copy.
+
+
 ## Lane A: pane and session ownership, then the pin
 
 Files: `internal/work/owners.go`, `cmd/mtm/pin.go`, `cmd/mtm/launch.go`, `cmd/mtm/panes.go`. The pin's verbs live in `pin.go` (`Define("project")` merges across files), never in `main.go`'s block.

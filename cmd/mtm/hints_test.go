@@ -43,7 +43,6 @@ func TestFooterLeadsWithTheRowsVerbs(t *testing.T) {
 		t.Helper()
 		starts(where, append([]string{"ctrl+c app.quit"}, want...)...)
 	}
-	check("project row", "enter project.open", "l project.launch", "j list.move")
 	press(t, app, "j", "enter")
 	check("task row", "enter task.open", "l task.launch", "i task.edit", "x task.done", "a task.new", "j list.move")
 	key(t, app, "l")
