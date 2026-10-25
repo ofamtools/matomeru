@@ -149,3 +149,30 @@ func TestLastLaunchSeedsPinOnlyOnce(t *testing.T) {
 		t.Fatalf("reseeded %q", pin)
 	}
 }
+
+func TestSetPinRecordsWhenEachProjectWasPinned(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if at, err := w.PinnedAt(); err != nil || len(at) != 0 {
+		t.Fatalf("fresh %v %v", at, err)
+	}
+	for _, id := range []string{"A", "B", "", "A"} {
+		if err := w.SetPin(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	at, err := w.PinnedAt()
+	if err != nil || len(at) != 2 || at["A"] < at["B"] || at["B"] == 0 {
+		t.Fatalf("pinned at %v %v", at, err)
+	}
+	if pin, _ := w.Pin(); pin != "A" {
+		t.Fatalf("pin %q", pin)
+	}
+}

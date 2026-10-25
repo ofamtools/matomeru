@@ -97,8 +97,32 @@ func (s *Store) SetPin(project string) error {
 			return err
 		}
 		row["project_id"], row["pin_initialized"], row["task_id"] = project, true, ""
+		if project != "" {
+			pinned, _ := row["pinned_at"].(map[string]any)
+			if pinned == nil {
+				pinned = map[string]any{}
+			}
+			pinned[project] = Now()
+			row["pinned_at"] = pinned
+		}
 		return tx.Put("active", "singleton", row)
 	})
+}
+
+// PinnedAt is when each project was last pinned, in Unix milliseconds; a
+// project never pinned is absent.
+func (s *Store) PinnedAt() (map[string]int64, error) {
+	var row struct {
+		PinnedAt map[string]int64 `json:"pinned_at"`
+	}
+	err := s.db.Get("active", "singleton", &row)
+	if errors.Is(err, store.ErrNotFound) {
+		err = nil
+	}
+	if row.PinnedAt == nil {
+		row.PinnedAt = map[string]int64{}
+	}
+	return row.PinnedAt, err
 }
 
 // importOwners runs once, atomically. Existing assignment bytes are never rewritten.
