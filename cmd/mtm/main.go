@@ -117,7 +117,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	defer app.Close()
 	if *smoke {
 		app.m.Width, app.m.Height = 80, 24
-		fmt.Fprintln(stdout, ansi.Strip(app.m.View().Content))
+		fmt.Fprintln(stdout, ansi.Strip(app.View().Content))
 		return nil
 	}
 	tui := func() error {
@@ -178,14 +178,16 @@ type App struct {
 	pin            string
 	all            bool
 	pinVersion     uint64
-	daemon         *daemon.Client
-	ensure         func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
-	launcher       harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
-	harnesses      *harness.Registry           // the built-ins merged with the harness file
-	promptDelay    time.Duration               // the wait before typing into a pane whose harness has no readiness probe
-	sleep          func(context.Context, time.Duration) error
-	panesd         paneDaemon
-	home           func() (string, error) // where a launch with no project starts; tests replace it
+	// titleHead and titleDir are the title row before fitting; see fitTitle.
+	titleHead, titleDir string
+	daemon              *daemon.Client
+	ensure              func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
+	launcher            harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
+	harnesses           *harness.Registry           // the built-ins merged with the harness file
+	promptDelay         time.Duration               // the wait before typing into a pane whose harness has no readiness probe
+	sleep               func(context.Context, time.Duration) error
+	panesd              paneDaemon
+	home                func() (string, error) // where a launch with no project starts; tests replace it
 
 	projects  []work.Project
 	current   string // the open project's id; its tasks fill the tasks stop
@@ -350,6 +352,7 @@ func (a *App) refreshProjects() error {
 		}
 	}
 	items = append(items, ochazuke.ListItem{ID: unassociatedID, Label: "no project (unassociated)", Noun: "unassociated"})
+	a.refreshTitle() // a name or default directory may have changed
 	return a.projectList.SetItems(items)
 }
 

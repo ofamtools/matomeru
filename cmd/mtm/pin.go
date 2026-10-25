@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -120,13 +122,7 @@ func projectDir(p work.Project) string {
 }
 
 func (a *App) refreshScope() error {
-	a.m.Title = "Matomeru"
-	if a.pin != "" {
-		a.m.Title += " · " + a.ownerLabel(a.pin)
-	}
-	if a.all {
-		a.m.Title += " · all"
-	}
+	a.refreshTitle()
 	a.preview = preview{}
 	a.captureErr, a.landErr = "", ""
 	a.detailTask = ""
@@ -173,4 +169,46 @@ func (a *App) refreshScope() error {
 		return a.setAnswerText("")
 	}
 	return nil
+}
+
+// refreshTitle sets the title row from the pin: "📌 <project> · all  <dir>"
+// when pinned, "Matomeru · no pin" when not, " · all" only with the
+// all-projects view. The directory comes last so it is the first to go.
+func (a *App) refreshTitle() {
+	a.titleHead, a.titleDir = "Matomeru · no pin", ""
+	if a.pin != "" {
+		a.titleHead = "📌 " + a.ownerLabel(a.pin)
+		if p, ok := a.project(a.pin); ok {
+			home, _ := a.home()
+			a.titleDir = tildePath(projectDir(p), home)
+		}
+	}
+	if a.all {
+		a.titleHead += " · all"
+	}
+	a.fitTitle()
+}
+
+// fitTitle shows the directory only when the whole of it fits beside the
+// project and the mode badge, so a narrow window drops the path rather than
+// cutting it, and the project name survives.
+func (a *App) fitTitle() {
+	a.m.Title = a.titleHead
+	if a.titleDir == "" {
+		return
+	}
+	if full := a.titleHead + "  " + a.titleDir; ansi.StringWidth(full) <= a.titleWidth() {
+		a.m.Title = full
+	}
+}
+
+// titleWidth is the cells ochazuke's title row leaves the title: the width
+// less the gutters, the "◆ " marker and the padded mode badge with its gap.
+func (a *App) titleWidth() int {
+	badge := strings.ToUpper(strings.ReplaceAll(a.r.Mode.Name, "_", " "))
+	if rec := a.r.Registers().Macro.Recording; rec != "" {
+		badge += " · REC @" + rec
+	}
+	const gutters, marker, badgePad = 4, 2, 3
+	return a.m.Width - gutters - marker - ansi.StringWidth(badge) - badgePad
 }

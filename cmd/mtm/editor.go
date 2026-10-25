@@ -36,8 +36,11 @@ type recordEditor struct {
 	Fields    []editorField
 }
 
-func (a *App) Init() tea.Cmd  { return a.m.Init() }
-func (a *App) View() tea.View { return a.m.View() }
+func (a *App) Init() tea.Cmd { return a.m.Init() }
+func (a *App) View() tea.View {
+	a.fitTitle()
+	return a.m.View()
+}
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := a.m.Update(msg)
 	if err := a.autosave(); err != nil {

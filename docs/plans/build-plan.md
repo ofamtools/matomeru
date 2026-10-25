@@ -113,7 +113,7 @@ Files: `internal/work/owners.go`, `cmd/mtm/pin.go`, `cmd/mtm/launch.go`, `cmd/mt
 
 **A2, the pin**
 - Stored in the old `active` table, row `singleton`. On first run, an old pinned task's project is imported (only the project, never the task); otherwise the last-launch project seeds it once. Unpinning survives a restart.
-- `project.pin`, `project.unpin` and a pin picker reachable from every page. The pin shows in the app title ("Matomeru · A").
+- `project.pin`, `project.unpin` and a pin picker reachable from every page, whose first row "no pin (unpin)" clears the pin. The pin leads the app title, always visible: "📌 A  ~/dir/of/A" when pinned, "Matomeru · no pin" when not, with " · all" after the name in the all-projects view. The directory is dropped whole when the window cannot hold it beside the name and mode badge. A project reads as its name, else its default directory's folder, else "untitled", everywhere.
 - The resolver's pin step goes live. `inferLaunch`'s current-directory and last-launch guesses, and the last-launch API, are removed. `projectAt` (first project wins a tie) goes with them.
 - An `all` toggle verb shows every project's items with owner labels, without changing the pin.
 - `inScope` goes live. The panes page (sessions, terminals, agents) and the reviews page filter through it.

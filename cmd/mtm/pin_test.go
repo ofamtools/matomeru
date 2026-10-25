@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"github.com/charmbracelet/x/ansi"
 	"strings"
 	"testing"
 
@@ -167,7 +168,7 @@ func TestUnpinSurvivesAppRestartAndPickerWorksEveryPage(t *testing.T) {
 	a := openAt(t, path)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	b := openAt(t, path)
-	if b.pin != "matomeru" || b.m.Title != "Matomeru · matomeru" {
+	if b.pin != "matomeru" || b.m.Title != "📌 matomeru" {
 		t.Fatalf("restart pin %q title %q", b.pin, b.m.Title)
 	}
 	executeA(t, b, "project", "unpin", "work", nil)
@@ -238,5 +239,96 @@ func TestProjectNameFallsBackToFolderThenUntitled(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("project rows %+v", a.projectList.Items())
+	}
+}
+
+// titled seeds a long default directory under a fake home for matomeru.
+func titled(t *testing.T) *App {
+	t.Helper()
+	a := open(t)
+	a.home = func() (string, error) { return "/home/u", nil }
+	if _, err := a.work.AddTree("matomeru", work.Tree{Kind: "dir", Path: "/home/u/proj/clients/acme/very-long-checkout-name/matomeru"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+// titleRow renders the app at width and returns its first row, trimmed.
+func titleRow(a *App, width int) string {
+	a.m.Width, a.m.Height = width, 24
+	return strings.TrimSpace(strings.SplitN(ansi.Strip(a.View().Content), "\n", 2)[0])
+}
+
+func TestTitleLeadsWithPin(t *testing.T) {
+	a := titled(t)
+	const dir = "~/proj/clients/acme/very-long-checkout-name/matomeru"
+	for _, c := range []struct {
+		pin  string
+		all  bool
+		want string
+	}{
+		{"", false, "◆ Matomeru · no pin"},
+		{"", true, "◆ Matomeru · no pin · all"},
+		{"matomeru", false, "◆ 📌 matomeru  " + dir},
+		{"matomeru", true, "◆ 📌 matomeru · all  " + dir},
+	} {
+		if a.pin != c.pin {
+			executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": c.pin})
+		}
+		if a.all != c.all {
+			executeA(t, a, "scope", "all", "work", nil)
+		}
+		row := titleRow(a, 120)
+		if !strings.HasPrefix(row, c.want) || !strings.HasSuffix(row, "NORMAL") {
+			t.Fatalf("pin %q all %v at 120: %q want %q", c.pin, c.all, row, c.want)
+		}
+		t.Logf("120: %s", row)
+	}
+	row := titleRow(a, 80)
+	if !strings.HasPrefix(row, "◆ 📌 matomeru · all") || strings.Contains(row, "~") || strings.Contains(row, "…") || !strings.HasSuffix(row, "NORMAL") {
+		t.Fatalf("at 80 the name must survive and the path go whole: %q", row)
+	}
+	t.Logf("80: %s", row)
+	executeA(t, a, "scope", "all", "work", nil)
+	if row := titleRow(a, 80); !strings.HasPrefix(row, "◆ 📌 matomeru  ~/proj") || strings.Contains(row, "…") {
+		t.Fatalf("a path that fits stays: %q", row)
+	}
+}
+
+func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
+	a := open(t)
+	a.home = func() (string, error) { return "/home/u", nil }
+	if err := a.work.PutProject(work.Project{ID: "nameless", Created: 9}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "nameless"})
+	if a.m.Title != "📌 untitled" {
+		t.Fatalf("pathless %q", a.m.Title)
+	}
+	if _, err := a.work.AddTree("nameless", work.Tree{Kind: "dir", Path: "/home/u/src/folder"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	if a.m.Title != "📌 folder  ~/src/folder" {
+		t.Fatalf("folder name %q", a.m.Title)
+	}
+	if _, err := a.work.AddTree("nameless", work.Tree{Kind: "dir", Path: "/elsewhere/other"}); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "default", "nameless", ochazuke.Arguments{"path": "/elsewhere/other"})
+	if a.m.Title != "📌 other  /elsewhere/other" {
+		t.Fatalf("default directory change %q", a.m.Title)
+	}
+	executeA(t, a, "project", "edit", "nameless", ochazuke.Arguments{"name": "renamed"})
+	if a.m.Title != "📌 renamed  /elsewhere/other" {
+		t.Fatalf("rename %q", a.m.Title)
 	}
 }
