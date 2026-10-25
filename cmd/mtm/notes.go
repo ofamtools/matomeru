@@ -354,7 +354,10 @@ func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	rightWidth := max(1, width-leftWidth-2)
 	left := fmt.Sprintf("notes (%d)\n", a.noteList.Len()) + a.view(a.noteList, leftWidth, max(1, height-1))
 	right := ochazuke.Text("Select a note; a creates one")
-	if selected, ok := a.noteList.Selected(); ok && selected.Noun == "note" {
+	if a.editor != nil && a.editor.Page == notesPage {
+		// The note is edited here, in this page's right-hand panel.
+		right = a.editorPanel(rightWidth, height)
+	} else if selected, ok := a.noteList.Selected(); ok && selected.Noun == "note" {
 		if note, err := a.work.Note(selected.ID); err == nil {
 			project, err := a.work.NoteProject(note)
 			if err == nil && a.inScope(project) {

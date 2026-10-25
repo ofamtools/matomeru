@@ -34,6 +34,16 @@ type recordEditor struct {
 	Input     *ochazuke.Input
 	SavedText string
 	Fields    []editorField
+	Page      string // the page whose right-hand panel holds the editor
+}
+
+// editorPage is where a record is edited: a note on the Notes page stays
+// there (its detail is the right-hand panel); everything else on Work.
+func (a *App) editorPage(record editRecord) string {
+	if record.Noun == "note" && a.r.Page == notesPage {
+		return notesPage
+	}
+	return "work"
 }
 
 func (a *App) Init() tea.Cmd { return a.m.Init() }
@@ -100,11 +110,12 @@ func (a *App) beginEdit(record editRecord) error {
 			record.Fields["status"] = work.StatusTodo
 		}
 	}
+	page := a.editorPage(record)
 	input := ochazuke.NewInput(recordInputID, record.Text, record.Noun == "note")
-	if err := a.r.AddInput(input, ochazuke.Parent("work"), ochazuke.Kind("record-editor")); err != nil {
+	if err := a.r.AddInput(input, ochazuke.Parent(page), ochazuke.Kind("record-editor")); err != nil {
 		return err
 	}
-	e := &recordEditor{Record: record, Input: input}
+	e := &recordEditor{Record: record, Input: input, Page: page}
 	a.editor = e
 	names := []string{}
 	switch record.Noun {
@@ -123,7 +134,7 @@ func (a *App) beginEdit(record editRecord) error {
 	for _, name := range names {
 		field := ochazuke.NewInput(recordInputID+"/"+name, record.Fields[name], false)
 		field.Cursor = len(field.Text)
-		if err := a.r.AddInput(field, ochazuke.Parent("work"), ochazuke.Kind("record-editor")); err != nil {
+		if err := a.r.AddInput(field, ochazuke.Parent(page), ochazuke.Kind("record-editor")); err != nil {
 			return err
 		}
 		e.Fields = append(e.Fields, editorField{name, field})
@@ -148,7 +159,7 @@ func (a *App) beginEdit(record editRecord) error {
 			return err
 		}
 	}
-	if err := a.r.OpenPage("work"); err != nil {
+	if err := a.r.OpenPage(page); err != nil {
 		return err
 	}
 	if err := a.r.SetFocus(recordInputID); err != nil {
@@ -288,7 +299,14 @@ func (a *App) draftRecords(noun string) ([]editRecord, error) {
 func (a *App) renderEditor(width, height int) ochazuke.Block {
 	leftWidth := max(1, width/2-1)
 	rightWidth := max(1, width-leftWidth-2)
-	left := a.workLists(leftWidth, height)
+	block := a.editorPanel(rightWidth, height)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(a.workLists(leftWidth, height)), block.Text)
+	return block.Offset(leftWidth+2, 0).WithText(body)
+}
+
+// editorPanel is the record editor as the right-hand panel: its fields
+// and the block of the focused one (for the cursor).
+func (a *App) editorPanel(rightWidth, height int) ochazuke.Block {
 	e := a.editor
 	label := "title"
 	if e.Record.Noun == "project" {
@@ -309,8 +327,7 @@ func (a *App) renderEditor(width, height int) ochazuke.Block {
 			block = row
 		}
 	}
-	body := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), text)
-	return block.Offset(leftWidth+2, 0).WithText(body)
+	return block.WithText(text)
 }
 func (a *App) leaveEditor() error {
 	if a.editor == nil {

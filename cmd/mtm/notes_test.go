@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -253,5 +254,30 @@ func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
 	}
 	if a.r.Instances[gone.ID] != nil {
 		t.Fatal("row survived")
+	}
+}
+
+// a on the Notes page edits the new note in the Notes page's own
+// right-hand panel; the page never jumps to Work.
+func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
+	a := open(t)
+	if err := a.r.OpenPage(notesPage); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "a")
+	if a.r.Page != notesPage || a.r.Focus != recordInputID || a.editor == nil || a.editor.Page != notesPage {
+		t.Fatalf("page %s focus %s", a.r.Page, a.r.Focus)
+	}
+	typeText(t, a, "kept here")
+	if fr := frame(a); !strings.Contains(fr, "note draft") || !strings.Contains(fr, "kept here") || !strings.Contains(fr, "notes (") {
+		t.Fatalf("frame:\n%s", fr)
+	}
+	press(t, a, "ctrl+s")
+	if a.r.Page != notesPage || a.editor != nil {
+		t.Fatalf("after save: page %s", a.r.Page)
+	}
+	notes, _ := a.work.Notes()
+	if len(notes) != 1 || notes[0].Text != "kept here" {
+		t.Fatalf("notes %+v", notes)
 	}
 }
