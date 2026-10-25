@@ -76,7 +76,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 		},
 		Choose: func(row ChooserRow) ochazuke.Result {
 			id, _ := row.Data.(string)
-			return a.setPin(id)
+			return a.pinAndAskDirectory(id)
 		},
 		Create: a.createPinnedProject,
 		CreateLabel: func(query string) string {
@@ -90,7 +90,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 }
 
 // createPinnedProject records a project named from the query (a nameless
-// one is fine) and pins it.
+// one is fine), pins it and asks for its directory.
 func (a *App) createPinnedProject(name string) ochazuke.Result {
 	p, err := a.work.AddProject(name)
 	if err != nil {
@@ -99,7 +99,19 @@ func (a *App) createPinnedProject(name string) ochazuke.Result {
 	if err := a.refreshProjects(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	return a.setPin(p.ID)
+	return a.pinAndAskDirectory(p.ID)
+}
+
+// pinAndAskDirectory pins id; a project without a default directory then
+// opens the directory chooser, whose esc leaves it pinned without one.
+func (a *App) pinAndAskDirectory(id string) ochazuke.Result {
+	result := a.setPin(id)
+	if p, ok := a.project(id); ok && p.DefaultTree == "" && a.pin == id {
+		if err := a.openDirectoryChooser(id); err != nil {
+			return ochazuke.Failed(err)
+		}
+	}
+	return result
 }
 
 func (a *App) unpinProject(ochazuke.Ctx) ochazuke.Result { return a.setPin("") }

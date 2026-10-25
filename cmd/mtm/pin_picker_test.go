@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,6 +20,20 @@ func openPicker(t *testing.T, a *App) *Chooser {
 		t.Fatalf("picker modal %q focus %q mode %q", a.r.TopModal(), a.r.Focus, a.r.Mode.Name)
 	}
 	return c
+}
+
+// leaveDirectoryChooser checks a directoryless pin landed in the directory
+// chooser and escapes it, keeping the pin.
+func leaveDirectoryChooser(t *testing.T, a *App) {
+	t.Helper()
+	pin := a.pin
+	if a.r.TopModal() != dirChooser || a.r.Focus != dirChooser+"/query" || a.r.Mode.Name != "insert" {
+		t.Fatalf("expected the directory chooser, modal %q focus %q", a.r.TopModal(), a.r.Focus)
+	}
+	press(t, a, "esc")
+	if a.r.TopModal() != "" || a.pin != pin {
+		t.Fatalf("esc: modal %q pin %q want %q", a.r.TopModal(), a.pin, pin)
+	}
 }
 
 func labels(rows []ChooserRow) []string {
@@ -43,9 +59,10 @@ func TestPinPickerEnterPinsTopMatch(t *testing.T) {
 		t.Fatalf("filtered %q", got)
 	}
 	press(t, a, "enter")
-	if a.pin != "ochazuke" || a.r.TopModal() != "" {
+	if a.pin != "ochazuke" || a.r.TopModal() == pinPicker {
 		t.Fatalf("pin %q modal %q", a.pin, a.r.TopModal())
 	}
+	leaveDirectoryChooser(t, a)
 }
 
 func TestPinPickerMovedHighlightWins(t *testing.T) {
@@ -64,6 +81,7 @@ func TestPinPickerMovedHighlightWins(t *testing.T) {
 	if a.pin != "ochazuke" {
 		t.Fatalf("pin %q", a.pin)
 	}
+	leaveDirectoryChooser(t, a)
 	// Most recently pinned leads the next time.
 	c = openPicker(t, a)
 	if row, _ := c.Highlighted(); row.Data != "ochazuke" {
@@ -84,6 +102,7 @@ func TestPinPickerCreatesOnMissAndOnCtrlN(t *testing.T) {
 	if !ok || p.Name != "zebra" || a.r.TopModal() == pinPicker {
 		t.Fatalf("miss created %+v pin %q", p, a.pin)
 	}
+	leaveDirectoryChooser(t, a)
 	c := openPicker(t, a)
 	typeText(t, a, "mato")
 	if len(c.Matches()) == 0 {
@@ -94,6 +113,7 @@ func TestPinPickerCreatesOnMissAndOnCtrlN(t *testing.T) {
 	if !ok || p.Name != "mato" || p.ID == "matomeru" {
 		t.Fatalf("ctrl+n created %+v pin %q", p, a.pin)
 	}
+	leaveDirectoryChooser(t, a)
 }
 
 func TestPinPickerEmptyQueryWithNoProjectsCreatesNameless(t *testing.T) {
@@ -110,6 +130,7 @@ func TestPinPickerEmptyQueryWithNoProjectsCreatesNameless(t *testing.T) {
 	if !ok || p.Name != "" || !strings.HasPrefix(a.m.Title, "📌 untitled") {
 		t.Fatalf("nameless %+v title %q", p, a.m.Title)
 	}
+	leaveDirectoryChooser(t, a)
 }
 
 func TestPinPickerUnpinRowIsLastAndClearsPinAcrossRestart(t *testing.T) {
@@ -164,5 +185,109 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 			}
 		}
 		t.Logf("frame at %d:\n%s", width, frame)
+	}
+}
+
+// pressSettle presses key and runs the background work it started.
+func pressSettle(t *testing.T, a *App, key string) {
+	t.Helper()
+	_, cmd := a.Update(keyMsg(key))
+	if a.m.Status != "" {
+		t.Fatalf("key %q: %s", key, a.m.Status)
+	}
+	settle(a, cmd)
+}
+
+// knownRepos makes git checkouts under a fresh base and points the
+// directory scan at it, with no daemon.
+func knownRepos(t *testing.T, a *App, names ...string) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, name := range names {
+		path := filepath.Join(root, name)
+		if out, err := exec.Command("git", "init", "-q", path).CombinedOutput(); err != nil {
+			t.Fatalf("git: %s %v", out, err)
+		}
+	}
+	t.Setenv("MTM_PROJECT_BASE_DIRS", root)
+	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "missing.sock")}.client()
+	return root
+}
+
+func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
+	a := open(t)
+	root := knownRepos(t, a, "alpha", "beta")
+	page := a.r.Page
+	openPicker(t, a)
+	typeText(t, a, "fresh")
+	pressSettle(t, a, "enter")
+	c := a.choosers.Get(dirChooser)
+	if c == nil {
+		t.Fatalf("no directory chooser, modal %q", a.r.TopModal())
+	}
+	if got := labels(c.Matches()); len(got) != 3 || got[2] != "browse…" {
+		t.Fatalf("directory rows %q", got)
+	}
+	typeText(t, a, "beta")
+	press(t, a, "enter")
+	p, _ := a.project(a.pin)
+	want := directoryKey(filepath.Join(root, "beta"))
+	if p.Name != "fresh" || p.DefaultTree != want || len(p.Trees) != 1 || a.r.TopModal() != "" || a.r.Page != page {
+		t.Fatalf("project %+v want default %s modal %q page %s", p, want, a.r.TopModal(), a.r.Page)
+	}
+	if !strings.HasPrefix(a.m.Title, "📌 fresh") {
+		t.Fatalf("title %q", a.m.Title)
+	}
+}
+
+func TestPinningDirectorylessProjectAsksAndMovedRowWins(t *testing.T) {
+	a := open(t)
+	root := knownRepos(t, a, "alpha", "beta")
+	executeA(t, a, "project", "unpin", "work", nil)
+	openPicker(t, a)
+	typeText(t, a, "matomeru")
+	pressSettle(t, a, "enter")
+	c := a.choosers.Get(dirChooser)
+	if c == nil || a.pin != "matomeru" {
+		t.Fatalf("pin %q modal %q", a.pin, a.r.TopModal())
+	}
+	press(t, a, "down", "enter")
+	p, _ := a.project("matomeru")
+	if want := directoryKey(filepath.Join(root, "beta")); p.DefaultTree != want {
+		t.Fatalf("default %q want %q", p.DefaultTree, want)
+	}
+	// With a default directory, pinning asks nothing.
+	executeA(t, a, "project", "unpin", "work", nil)
+	openPicker(t, a)
+	typeText(t, a, "matomeru")
+	press(t, a, "enter")
+	if a.pin != "matomeru" || a.r.TopModal() != "" {
+		t.Fatalf("pin %q modal %q", a.pin, a.r.TopModal())
+	}
+}
+
+func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
+	a := open(t)
+	knownRepos(t, a)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "plain"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "unpin", "work", nil)
+	openPicker(t, a)
+	typeText(t, a, "ochazuke")
+	pressSettle(t, a, "enter")
+	typeText(t, a, filepath.Join(dir, "plain"))
+	press(t, a, "enter")
+	if p, _ := a.project("ochazuke"); p.DefaultTree != filepath.Join(dir, "plain") {
+		t.Fatalf("typed path default %q", p.DefaultTree)
+	}
+	openPicker(t, a)
+	typeText(t, a, "matomeru")
+	press(t, a, "enter")
+	typeText(t, a, "browse")
+	press(t, a, "enter")
+	if a.r.Page != "directories" || a.r.TopModal() != "picker" || a.directories.ProjectID != "matomeru" {
+		t.Fatalf("browse: page %s modal %q project %q", a.r.Page, a.r.TopModal(), a.directories.ProjectID)
 	}
 }

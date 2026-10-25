@@ -296,6 +296,9 @@ func (a *App) refreshDirectories(ochazuke.Ctx) ochazuke.Result {
 		a.directories.Rows, a.directories.Footer, a.directories.Ready = loaded.Rows, loaded.Footer, true
 		a.directories.Query = "\x00"
 		a.filterDirectories()
+		if c := a.choosers.Get(dirChooser); c != nil {
+			c.SetRows(a.directoryChoices())
+		}
 	})
 }
 func (a *App) filterDirectories() {
@@ -309,19 +312,7 @@ func (a *App) filterDirectories() {
 	a.directories.Query = query
 	var items []ochazuke.ListItem
 	for i, row := range a.directories.Rows {
-		label := filepath.Base(row.Repo) + " " + row.Branch
-		if row.Repo == "" {
-			label = "directory"
-		}
-		if row.LastUsed != 0 {
-			label += "  " + time.UnixMilli(row.LastUsed).Format("2006-01-02 15:04")
-		} else {
-			label += "  never used"
-		}
-		if len(row.Projects) > 0 {
-			label += "  [" + strings.Join(row.Projects, ", ") + "]"
-		}
-		label += "  " + row.Path
+		label := directoryLabel(row)
 		if fuzzyMatch(query, label) {
 			items = append(items, ochazuke.ListItem{ID: fmt.Sprintf("directory:%d", i), Noun: "known-directory", Label: label, Data: row.Path})
 		}
@@ -331,6 +322,122 @@ func (a *App) filterDirectories() {
 		a.m.Status = err.Error()
 	}
 }
+
+// directoryLabel is how a known directory reads in the page and the chooser:
+// repo and branch, last use, owning projects, then the path.
+func directoryLabel(row knownDirectory) string {
+	label := filepath.Base(row.Repo) + " " + row.Branch
+	if row.Repo == "" {
+		label = "directory"
+	}
+	if row.LastUsed != 0 {
+		label += "  " + time.UnixMilli(row.LastUsed).Format("2006-01-02 15:04")
+	} else {
+		label += "  never used"
+	}
+	if len(row.Projects) > 0 {
+		label += "  [" + strings.Join(row.Projects, ", ") + "]"
+	}
+	return label + "  " + row.Path
+}
+
+// dirChooser is the known-directory chooser's modal kind.
+const dirChooser = "dir-chooser"
+
+// directoryChoices are the known directories as chooser rows, then browse….
+func (a *App) directoryChoices() []ChooserRow {
+	rows := make([]ChooserRow, 0, len(a.directories.Rows)+1)
+	for i, row := range a.directories.Rows {
+		rows = append(rows, ChooserRow{ID: fmt.Sprintf("directory:%d", i), Label: directoryLabel(row), Data: row.Path})
+	}
+	return append(rows, ChooserRow{ID: "directory:browse", Label: "browse…", Trailing: true})
+}
+
+// openDirectoryChooser asks for the project's directory the palette way:
+// enter attaches the top known directory (or the moved-to one) as the
+// default, browse… opens the path picker, esc leaves the project without
+// one. The known directories load in the background when not cached.
+func (a *App) openDirectoryChooser(projectID string) error {
+	var rows []ChooserRow
+	if a.directories.Ready {
+		rows = a.directoryChoices()
+	}
+	browse := func(query string) ochazuke.Result {
+		a.directories.ProjectID = projectID
+		if err := a.r.OpenPage("directories"); err != nil {
+			return ochazuke.Failed(err)
+		}
+		result := a.browseDirectory(ochazuke.Ctx{})
+		if input := a.r.Input("directories/path"); input != nil && query != "" {
+			if err := input.Replace(0, len(input.Text), query); err != nil {
+				return ochazuke.Failed(err)
+			}
+		}
+		return result
+	}
+	existing := func(query string) (string, bool) {
+		if strings.TrimSpace(query) == "" {
+			return "", false
+		}
+		path := expandPath(strings.TrimSpace(query))
+		info, err := os.Stat(path)
+		return path, err == nil && info.IsDir()
+	}
+	_, err := a.choosers.Open(ChooserSpec{
+		Kind:  dirChooser,
+		Title: "Directory for " + a.ownerLabel(projectID),
+		Rows:  rows,
+		Empty: "loading known directories…",
+		Filter: func(query string, row ChooserRow) bool {
+			if row.Trailing {
+				return strings.Contains(row.Label, strings.ToLower(strings.TrimSpace(query)))
+			}
+			return fuzzyMatch(query, row.Label)
+		},
+		Choose: func(row ChooserRow) ochazuke.Result {
+			if path, ok := row.Data.(string); ok {
+				return a.attachDefaultDirectory(projectID, path)
+			}
+			return browse("")
+		},
+		Create: func(query string) ochazuke.Result {
+			if path, ok := existing(query); ok {
+				return a.attachDefaultDirectory(projectID, path)
+			}
+			return browse(query)
+		},
+		CreateLabel: func(query string) string {
+			if path, ok := existing(query); ok {
+				return "attach " + path
+			}
+			return "browse…"
+		},
+	})
+	if err != nil || a.directories.Ready {
+		return err
+	}
+	_, err = a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "refresh", Target: dirChooser + "/query"})
+	return err
+}
+
+// attachDefaultDirectory attaches path to the project and makes it the
+// default when the project has none, without leaving the current page.
+func (a *App) attachDefaultDirectory(projectID, path string) ochazuke.Result {
+	tree := inspectDirectory(expandPath(path))
+	p, err := a.work.AddTree(projectID, tree)
+	if err == nil && p.DefaultTree == "" {
+		p, err = a.work.SetDefaultTree(projectID, tree.Path)
+	}
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.directories.Ready = false
+	if err := a.refreshProjects(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(p)
+}
+
 func (a *App) chooseDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 	path, ok := ctx.Instance.Data.(string)
 	if !ok {
