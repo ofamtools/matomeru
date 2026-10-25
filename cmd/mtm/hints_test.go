@@ -25,10 +25,10 @@ func hintKeys(a *App) []string {
 	return out
 }
 
-// The footer leads with the focused row's own verbs, right after the
-// framework's captured ctrl+c row (which the framework always lists
-// first), and before the list's and the app's framework rows. An attached
-// terminal is a passthrough mode: its footer leads with the leader.
+// The footer leads with the focused row's own verbs, before the list's and
+// the app's rows; motions (j/k, }/{, pages) and ctrl+c are left to ? help.
+// An attached terminal is a passthrough mode: its footer leads with the
+// leader.
 func TestFooterLeadsWithTheRowsVerbs(t *testing.T) {
 	app := open(t)
 	app.launcher = &fakeDaemon{}
@@ -41,7 +41,12 @@ func TestFooterLeadsWithTheRowsVerbs(t *testing.T) {
 	}
 	check := func(where string, want ...string) {
 		t.Helper()
-		starts(where, append([]string{"ctrl+c app.quit"}, want...)...)
+		starts(where, want...)
+		for _, h := range hintKeys(app) {
+			if strings.Contains(h, "list.move") || strings.Contains(h, "focus.") || strings.Contains(h, "page.") || h == "ctrl+c app.quit" {
+				t.Fatalf("%s: footer offers a motion or ctrl+c: %v", where, hintKeys(app))
+			}
+		}
 	}
 	press(t, app, "j", "enter")
 	key(t, app, "l")
@@ -55,9 +60,9 @@ func TestFooterLeadsWithTheRowsVerbs(t *testing.T) {
 		}
 	}
 	press(t, app, "ctrl+a", "d", "}")
-	check("pane row", "enter pane.attach", "p pane.preview", "K pane.kill", "n pane.new", "j list.move")
+	check("pane row", "enter pane.attach", "p pane.preview", "K pane.kill", "n pane.new")
 	press(t, app, "ctrl+j")
-	check("review row", "enter review.open", "a review.accept", "r review.reject", "s review.saveAnswer", "j list.move")
+	check("review row", "enter review.open", "a review.accept", "r review.reject", "s review.saveAnswer")
 }
 
 // ? opens the framework's help over the focus: on a task row it lists the
