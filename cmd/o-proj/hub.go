@@ -29,6 +29,23 @@ func (t *Tool) DefaultHub() string {
 	return filepath.Join(t.Home, "hub", "o")
 }
 
+// PlansDir is the family's plans, todos and roadmap: o-plans beside the
+// hub directory (~/hub/o gives ~/hub/o-plans), written with ~ for home.
+func (t *Tool) PlansDir() string {
+	return t.tilde(filepath.Join(filepath.Dir(t.expand(t.DefaultHub())), "o-plans"))
+}
+
+// agentsMD is the AGENTS.md a new project starts with: its name and a
+// pointer to the family's plans and todos.
+func (t *Tool) agentsMD(name string) string {
+	plans := t.PlansDir()
+	return "# " + name + "\n\nCreated by o-proj.\n\n" +
+		"## Plans and todos\n\n" +
+		"Family plans, todos and the roadmap live in `" + plans + "/` (`README.md` is the index). " +
+		"Read it before planning work; add or update items there. " +
+		"Do not add a TODO.md or docs/plans/ to this repo.\n"
+}
+
 // expand resolves a leading ~/ against the tool's home.
 func (t *Tool) expand(p string) string {
 	if rest, ok := strings.CutPrefix(p, "~/"); ok && t.Home != "" {

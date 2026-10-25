@@ -420,3 +420,34 @@ func TestUnlinkAllRemovesOnlyForeignLinks(t *testing.T) {
 		}
 	}
 }
+
+func TestNewAgentsPointsAtPlans(t *testing.T) {
+	tl, out, _ := tool(t)
+	root := filepath.Join(tl.Home, "proj")
+	if err := tl.Main([]string{"new", "a", "--root", root, "--no-register"}); err != nil {
+		t.Fatal(err, out)
+	}
+	want := "# a\n\nCreated by o-proj.\n\n## Plans and todos\n\n" +
+		"Family plans, todos and the roadmap live in `~/hub/o-plans/` (`README.md` is the index). " +
+		"Read it before planning work; add or update items there. " +
+		"Do not add a TODO.md or docs/plans/ to this repo.\n"
+	data, err := os.ReadFile(filepath.Join(root, "a", "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != want {
+		t.Fatalf("AGENTS.md:\n%s\nwant:\n%s", data, want)
+	}
+
+	outside := t.TempDir()
+	for _, c := range []struct{ hub, plans string }{
+		{filepath.Join(tl.Home, "work", "links"), "~/work/o-plans"},
+		{"~/notes/o", "~/notes/o-plans"},
+		{filepath.Join(outside, "o"), filepath.Join(outside, "o-plans")},
+	} {
+		tl.Env = append(tl.Env, "O_PROJ_HUB="+c.hub)
+		if got := tl.PlansDir(); got != c.plans {
+			t.Errorf("O_PROJ_HUB=%s: plans %q, want %q", c.hub, got, c.plans)
+		}
+	}
+}

@@ -255,7 +255,7 @@ func (t *Tool) New(data string, args []string) error {
 		t.say("template: %s (%s) wrote %d files", tpl.Name, tpl.Kind, len(files))
 	}
 	minimal := []struct{ name, body string }{
-		{"AGENTS.md", "# " + name + "\n\nCreated by o-proj.\n"},
+		{"AGENTS.md", t.agentsMD(name)},
 		{".gitignore", ".DS_Store\n"},
 	}
 	if *license != "none" {
