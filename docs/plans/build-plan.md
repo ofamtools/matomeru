@@ -76,6 +76,7 @@ One agent, on main, before any lane starts.
 - **The unassociated task list:** a "no project" row in the projects list that opens the unassociated tasks.
 - **`former_project_id` / `former_task_id`** fields on `Task`, unused until integration.
 - **`internal/draft`:** save, load, list and clear a draft file per noun and id. Lanes B and C both use it.
+- **Directory recency:** a `dir_recent` table (owner `work`, key = cleaned path; `{path, last_used, uses}`) and `work.TouchDir(path)`. Lane A calls it on every launch and attach; lane B calls it on every directory assignment.
 - **`inScope(owner)`**, the one filter helper: true when nothing is pinned, when the `all` view is on, or when the owner is the pinned project. Until lane A adds the pin it always returns true. The task list goes through it now; every later list must too.
 - **Tests:** replace the tests that assert refusals (`internal/work/work_test.go:68`) with tests that assert the record is saved.
 
@@ -91,6 +92,7 @@ Files: `internal/work/owners.go`, `cmd/mtm/pin.go`, `cmd/mtm/launch.go`, `cmd/mt
 - The owner is written as soon as TUIOS confirms the pane or session was created, before listing panes or any UI update. If that write fails, the result says so, and the pane is still listed and can be reassigned.
 - One-time import: existing `assignments` rows keep their owners, and agent panes recorded in `reviews` get their review's owner.
 - An `associate` verb on tasks, panes and sessions. Reviews are history and are never reassigned; a review's detail shows its pane's current owner.
+- Every launch and attach calls `work.TouchDir` with the pane's directory, so known directories put it first.
 - Explicit scratch launch: a `scratch` flag on `agent.launch` and `pane.new` makes the owner unassociated whatever the pin. Shells go to `mtm-only`, agents to `no-project`, and the confirmation names which.
 
 **A2, the pin**
@@ -116,13 +118,21 @@ Acceptance:
 Files: `cmd/mtm/project.go` (project verbs, never in `main.go`'s block), `cmd/mtm/editor.go` (the right-hand panel editor), `cmd/mtm/tasks.go`, tree functions in `internal/work/work.go`.
 
 - **B1, projects:** view, new, edit (name, theme, settings) and delete in the right-hand panel through `internal/draft`. Creating a project registers its name only; making directories on disk stays with `o proj new`. Deletion is built in integration.
-- **B2, directories:** in the project detail, add an existing directory (no-op if this project already has it; attaching a path another project has is allowed, and the detail lists the other projects that share it; a missing path is attached and flagged) and set the default. The first one added becomes the default. These store functions are shared, and o-proj's registration moves onto them. Editing and removing directories wait for the follow-up plan.
+- **Known directories**, the source the directory chooser lists from: `knownDirs()` merges
+  - every project's directories (from all projects, ignoring the pin), with their repo and branch;
+  - the directories of TUIOS sessions and the current directories of panes;
+  - `~/hub/o` links;
+  - git repos one level under `~/proj` (only folders with a `.git`; no deep scan).
+
+  Duplicates collapse by cleaned path. The order is most recently used first, by `dir_recent.last_used`, seeded on first run from TUIOS session `last_active`; never-used directories follow alphabetically. Each row shows the path, repo and branch, when it was last used, and which projects already have it. Fuzzy search filters the list; a `browse…` row opens ochazuke's directory picker for anything not listed. The list is cached and refreshed in the background, never on a keypress.
+- **B2, directories:** in the project detail, add a directory chosen from known directories (no-op if this project already has it; attaching a path another project has is allowed, and the detail lists the other projects that share it; a missing path is attached and flagged) and set the default. The first one added becomes the default. These store functions are shared, and o-proj's registration moves onto them. Editing and removing directories wait for the follow-up plan.
 - Project directories and tasks are listed through `inScope`.
 - **B3, tasks:** selecting a task shows it and never opens the editor; `edit` does. Title and status edits, `new` through the resolver, `done` and `launch` kept. Deletion is built in integration.
 
 Acceptance:
 - Create, view and rename a project and a task. A half-typed edit survives moving away, an mtm restart, and coming back. Cancel removes the draft and leaves the record unchanged.
 - A new project with two directories, with the second marked default, keeps both after a restart.
+- Known directories list a repo launched yesterday above one launched last week, and above repos never used; a repo already attached to B shows "B" beside it; a path typed in `browse…` is attached and appears at the top next time.
 - The same repo attached to A (as default) and B (as an extra directory): both details list it and name the other project; pinning B shows it in B's directories; A's launches use it and B's use B's default.
 - A shell and an agent launched for that project open in the default directory (check `pwd` in the real pane). A missing default directory launches in home with a notice.
 
