@@ -17,4 +17,6 @@ Rules:
 - Never bind function keys.
 - Commit after every step in the brief; do not amend.
 
+New repositories are made with `o proj new` (`~/proj/o-proj`, its own repo); `mtm proj` is mtm's own `project` noun (work context), not that tool.
+
 Run: `go run ./cmd/mtm` (or `--smoke`). ochazuke is a local replace on `../ochazuke`; drop the replace once ochazuke is tagged.
