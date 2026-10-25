@@ -163,7 +163,7 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 
 func (a *App) defineProjectCreation() {
 	a.r.Define("project").Verb("new", a.newProject, "Register a project; omit name to open a draft editor").Positional("name")
-	a.parameters("project.new", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "An empty name saves an untitled project"}})
+	a.parameters("project.new", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "An empty name saves an untitled project"}, "dir": {Type: "string", Description: "Attach this directory and make it the default (a missing path is attached and flagged)"}})
 	a.r.Define("unassociated").Verb("open", a.openUnassociated, "Show tasks with no project").
 		Mode("normal").Bind("enter", ochazuke.Do("unassociated.open"))
 }
@@ -175,6 +175,16 @@ func (a *App) newProject(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.work.AddProject(ochazuke.StringArg(ctx.Args, "name", ""))
 	if err != nil {
 		return ochazuke.Failed(err)
+	}
+	if dir := ochazuke.StringArg(ctx.Args, "dir", ""); dir != "" {
+		tree := inspectDirectory(expandPath(dir))
+		if _, err := a.work.AddTree(p.ID, tree); err != nil {
+			return ochazuke.Failed(err)
+		}
+		if p, err = a.work.SetDefaultTree(p.ID, tree.Path); err != nil {
+			return ochazuke.Failed(err)
+		}
+		a.directories.Ready = false
 	}
 	if err := a.refreshProjects(); err != nil {
 		return ochazuke.Failed(err)

@@ -133,6 +133,7 @@ type launched struct {
 func (a *App) defineLaunch() {
 	r := a.r
 	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)").
+		Verb("directories", a.projectDirectories, "Every project's directories as rows {id, label, data: {directories, default}}, paths resolved (absolute, symlinks followed); for tools asking whether a project already has a directory").
 		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
 	r.Define("harness").
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").
@@ -219,6 +220,33 @@ func (a *App) parameters(key string, params map[string]ochazuke.Parameter) {
 }
 
 func (a *App) listProjects(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(a.projectChoices()) }
+
+// projectDirectories is projects.directories: one row per project with its
+// directories as directoryKey resolves them, so a caller compares real
+// paths (a hub link and its target are one directory). A directory can
+// belong to many projects; this only reports.
+func (a *App) projectDirectories(ochazuke.Ctx) ochazuke.Result {
+	projects, err := a.work.Projects()
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	type dirs struct {
+		Directories []string `json:"directories"`
+		Default     string   `json:"default,omitempty"`
+	}
+	rows := make([]ocli.Row, 0, len(projects))
+	for _, p := range projects {
+		d := dirs{Directories: []string{}}
+		for _, tree := range p.Trees {
+			d.Directories = append(d.Directories, directoryKey(tree.Path))
+		}
+		if p.DefaultTree != "" {
+			d.Default = directoryKey(p.DefaultTree)
+		}
+		rows = append(rows, ocli.Row{Noun: "project", ID: p.ID, Label: projectName(p), Data: d})
+	}
+	return ochazuke.Done(rows)
+}
 
 func (a *App) projectChoices() []ochazuke.Choice {
 	out := make([]ochazuke.Choice, 0, len(a.projects))
