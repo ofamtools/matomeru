@@ -14,13 +14,16 @@ import (
 )
 
 // TestMain points XDG_CONFIG_HOME at an empty directory, so no test reads
-// the user's harnesses.json (run defaults -harnesses to it).
+// the user's harnesses.json (run defaults -harnesses to it), and turns off
+// the o-proj source of known directories.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "mtm-config")
 	if err != nil {
 		panic(err)
 	}
 	os.Setenv("XDG_CONFIG_HOME", dir)
+	// no test reads the user's o proj manifest (known directories)
+	os.Setenv("MTM_O_PROJ", "none")
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)

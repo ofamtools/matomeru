@@ -165,6 +165,43 @@ func scanBases(bases []projectBase) ([]string, []string) {
 	return paths, missing
 }
 
+// manifestDirs are the directories of o proj's manifest, read through its
+// command line (o-proj list, JSON rows with dir): $MTM_O_PROJ names the
+// binary ("none" skips; else o-proj on PATH). No o-proj is no source, not
+// an error; a failing one is a footer note.
+func manifestDirs(ctx context.Context) ([]string, error) {
+	bin := os.Getenv("MTM_O_PROJ")
+	if bin == "none" {
+		return nil, nil
+	}
+	if bin == "" {
+		found, err := exec.LookPath("o-proj")
+		if err != nil {
+			return nil, nil
+		}
+		bin = found
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, bin, "list").Output()
+	if err != nil {
+		return nil, fmt.Errorf("o-proj list: %w", err)
+	}
+	var rows []struct {
+		Dir string `json:"dir"`
+	}
+	if err := json.Unmarshal(output, &rows); err != nil {
+		return nil, fmt.Errorf("o-proj list: %w", err)
+	}
+	var dirs []string
+	for _, r := range rows {
+		if r.Dir != "" {
+			dirs = append(dirs, r.Dir)
+		}
+	}
+	return dirs, nil
+}
+
 // knownDirs runs only in a background refresh, never during rendering or typing.
 func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 	projects, err := a.work.Projects()
@@ -176,6 +213,8 @@ func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 		return nil, "", err
 	}
 	paths, missing := scanBases(bases)
+	manifest, manifestErr := manifestDirs(ctx)
+	paths = append(paths, manifest...)
 	sessions, daemonErr := a.daemon.Sessions(ctx)
 	seeds := map[string]int64{}
 	for _, session := range sessions {
@@ -247,6 +286,9 @@ func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 	}
 	if daemonErr != nil {
 		footer = append(footer, "TUIOS unavailable: "+daemonErr.Error())
+	}
+	if manifestErr != nil {
+		footer = append(footer, manifestErr.Error())
 	}
 	return rows, strings.Join(footer, "; "), nil
 }

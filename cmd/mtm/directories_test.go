@@ -237,3 +237,38 @@ func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 		}
 	}
 }
+
+// o proj's manifest is a known-directory source through o-proj list; a
+// failing o-proj is a footer note, and its absence is no source at all.
+func TestKnownDirectoriesIncludeOProjList(t *testing.T) {
+	base := t.TempDir()
+	repo := filepath.Join(base, "from-manifest")
+	if err := os.Mkdir(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(t.TempDir(), "o-proj")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n[ \"$1\" = list ] && echo '[{\"name\":\"m\",\"path\":\"~/x\",\"dir\":\""+repo+"\"}]'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MTM_PROJECT_BASE_DIRS", filepath.Join(base, "none"))
+	t.Setenv("MTM_O_PROJ", bin)
+	a := open(t)
+	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "missing.sock")}.client()
+	rows, _, err := a.knownDirs(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range rows {
+		found = found || r.Path == directoryKey(repo)
+	}
+	if !found {
+		t.Fatalf("manifest directory missing: %+v", rows)
+	}
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 2\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, footer, err := a.knownDirs(context.Background()); err != nil || !strings.Contains(footer, "o-proj list:") {
+		t.Fatalf("failing o-proj: %v %q", err, footer)
+	}
+}
