@@ -161,13 +161,6 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	return ochazuke.Text(lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(a.workLists(leftWidth, height)), lipgloss.NewStyle().Width(rightWidth).Render(detail)))
 }
 
-func projectName(p work.Project) string {
-	if p.Name == "" {
-		return "untitled"
-	}
-	return p.Name
-}
-
 func (a *App) defineProjectCreation() {
 	a.r.Define("project").Verb("new", a.newProject, "Register a project; omit name to open a draft editor").Positional("name")
 	a.parameters("project.new", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "An empty name saves an untitled project"}})

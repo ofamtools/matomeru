@@ -355,10 +355,7 @@ func (a *App) refreshProjects() error {
 
 // projectLabel stays global; owned directories belong in the scoped detail.
 func projectLabel(p work.Project) string {
-	label := p.Name
-	if label == "" {
-		label = "untitled"
-	}
+	label := projectName(p)
 	if p.Theme.Glyph != "" {
 		label = p.Theme.Glyph + " " + label
 	}

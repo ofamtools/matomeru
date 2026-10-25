@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
 
@@ -89,12 +91,32 @@ func (a *App) ownerLabel(id string) string {
 		return "unassociated"
 	}
 	if p, ok := a.project(id); ok {
-		if p.Name != "" {
-			return p.Name
-		}
-		return "untitled"
+		return projectName(p)
 	}
 	return id
+}
+
+// projectName is how a project reads everywhere: its name, else the folder
+// of its default directory, else "untitled".
+func projectName(p work.Project) string {
+	if p.Name != "" {
+		return p.Name
+	}
+	if dir := projectDir(p); dir != "" {
+		return filepath.Base(dir)
+	}
+	return "untitled"
+}
+
+// projectDir is the project's default directory, else its first one.
+func projectDir(p work.Project) string {
+	if p.DefaultTree != "" {
+		return p.DefaultTree
+	}
+	if len(p.Trees) > 0 {
+		return p.Trees[0].Path
+	}
+	return ""
 }
 
 func (a *App) refreshScope() error {

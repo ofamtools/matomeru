@@ -207,3 +207,36 @@ func TestCreatingAndAssociatingTaskOutsidePin(t *testing.T) {
 		t.Fatalf("association %+v %v", got, err)
 	}
 }
+
+func TestProjectNameFallsBackToFolderThenUntitled(t *testing.T) {
+	for _, c := range []struct {
+		p    work.Project
+		want string
+	}{
+		{work.Project{Name: "named", DefaultTree: "/src/other"}, "named"},
+		{work.Project{DefaultTree: "/src/deflt", Trees: []work.Tree{{Path: "/src/first"}, {Path: "/src/deflt"}}}, "deflt"},
+		{work.Project{Trees: []work.Tree{{Path: "/src/first"}}}, "first"},
+		{work.Project{}, "untitled"},
+	} {
+		if got := projectName(c.p); got != c.want {
+			t.Fatalf("%+v: got %q want %q", c.p, got, c.want)
+		}
+	}
+	a := open(t)
+	if err := a.work.PutProject(work.Project{ID: "nameless", DefaultTree: "/src/folder", Trees: []work.Tree{{Kind: "dir", Path: "/src/folder"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.ownerLabel("nameless"); got != "folder" {
+		t.Fatalf("owner label %q", got)
+	}
+	found := false
+	for _, item := range a.projectList.Items() {
+		found = found || item.ID == "nameless" && item.Label == "folder"
+	}
+	if !found {
+		t.Fatalf("project rows %+v", a.projectList.Items())
+	}
+}
