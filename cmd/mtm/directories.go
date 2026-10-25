@@ -642,19 +642,16 @@ func (a *App) refreshBases() {
 	}
 }
 
-// directoryLabel is how a known directory reads in the chooser: the path,
-// then repo and branch, last use and owning projects.
-func directoryLabel(row knownDirectory, owners []string, home string, now time.Time) string {
+// directoryCells are a known directory as chooser cells: its folder name
+// first (a long path would hide it), then branch, last use, owning
+// projects and the path.
+func directoryCells(row knownDirectory, owners []string, home string, now time.Time) []string {
 	cells := knownCells(row, owners, home, now)
-	label := cells[0]
-	if cells[1] != "" {
-		label += "  " + strings.TrimSpace(cells[1]+" "+cells[2])
-	}
-	label += "  " + cells[3]
+	projects := ""
 	if cells[4] != "" {
-		label += "  [" + cells[4] + "]"
+		projects = "[" + cells[4] + "]"
 	}
-	return label
+	return []string{filepath.Base(row.Path), cells[2], cells[3], projects, cells[0]}
 }
 
 // dirChooser is the known-directory chooser's modal kind.
@@ -667,7 +664,8 @@ func (a *App) directoryChoices() []ChooserRow {
 	now := time.Now()
 	rows := make([]ChooserRow, 0, len(a.directories.Rows)+1)
 	for _, row := range a.directories.Rows {
-		rows = append(rows, ChooserRow{ID: "directory:" + row.Path, Label: directoryLabel(row, owners[row.Path], home, now), Data: row.Path})
+		cells := directoryCells(row, owners[row.Path], home, now)
+		rows = append(rows, ChooserRow{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
 	}
 	return append(rows, ChooserRow{ID: "directory:browse", Label: "browse…", Trailing: true})
 }
