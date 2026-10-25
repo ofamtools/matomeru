@@ -122,7 +122,7 @@ Keep `Project.Trees` and `Project.DefaultTree`; do not introduce a competing dir
 
 ### 1. Record ownership and links, including panes and sessions
 
-Likely files: `internal/work/work.go` (an `links` table, owner `work`), `internal/work/links.go`, `cmd/mtm/launch.go`, `cmd/mtm/panes.go`, focused tests.
+Likely files: `internal/work/work.go` (a `links` table, owner `work`), `internal/work/links.go`, `cmd/mtm/launch.go`, `cmd/mtm/panes.go`, focused tests.
 
 Add the generic `links` table and an `associate` verb that works on any project-owned noun. Record TUIOS session and pane ownership in mtm at launch, keyed by the daemon's stable session and pane ids. A pane inherits its session's project unless it has its own link. Panes and sessions mtm did not launch, or launched before this step, show as unassociated and can be reassigned. Reassigning moves no process and changes no cwd.
 
@@ -219,7 +219,7 @@ Dependencies: steps 2 and 5. Independent of steps 7 and 8; build it right after 
 
 Likely files: `cmd/mtm/launch.go`, `cmd/mtm/panes.go`, shared work persistence for saved/live associations, focused launch tests.
 
-Expose explicit scratch and directory arguments consistently. Live ownership already exists (step 1). Add save/associate actions that require a project or explicit path and apply to the existing pane. Persist only metadata that can actually be used to reopen supported work. Do not claim to restore arbitrary shell process memory or agent conversations.
+Expose explicit scratch and directory arguments consistently. Live ownership already exists (step 1). Add a save action that applies to the existing pane and records it under a project, an explicit path, or unassociated. Persist only metadata that can actually be used to reopen supported work. Do not claim to restore arbitrary shell process memory or agent conversations.
 
 Acceptance:
 - With A pinned, launch scratch shell and agent, interact, detach, and reattach. Both remain unassociated, and A stays pinned.
