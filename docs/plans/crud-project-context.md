@@ -1,5 +1,7 @@
 # Noun editing, pinned project, and scratch work
 
+Superseded where it conflicts by `build-plan.md` (2026-10-25), which is the plan being executed.
+
 Status: proposed implementation plan, 2026-10-25. No application changes in this plan.
 
 ## Goal

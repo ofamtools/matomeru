@@ -1,5 +1,7 @@
 # Parallel lanes for the CRUD, pin, and notes plan
 
+Superseded by `build-plan.md` (2026-10-25).
+
 Status: proposed schedule, 2026-10-25. No code yet. Executes `docs/plans/crud-project-context.md` (steps 1 to 8); this note only decides what runs at the same time and how it merges.
 
 Goal of the slice: pin a project; launch terminals and agents through TUIOS into it; tasks and notes attach to the pin automatically; anything mtm cannot associate is saved unassociated and can be reassigned later ("Record first" in the main plan).

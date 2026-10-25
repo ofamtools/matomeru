@@ -125,4 +125,4 @@ These get rewritten to something a test can see:
 3. **Allowing nameless projects**, saved and shown as "untitled". Recommended: yes, under "record first".
 4. **Importing the old database's pane assignments** so existing panes keep their owners. Recommended: yes.
 
-Once you've picked, I revise both plan files, get one quick confirming pass from a reviewer, and start step 0.
+Owner's answers (2026-10-25): 1, keep editing in the right-hand panel and autosave the draft to a file; 2, 3, 4, yes. The resulting plan is `build-plan.md`.
