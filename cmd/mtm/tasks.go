@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -17,16 +19,20 @@ func (a *App) defineTask() {
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
 		Verb("edit", a.editTask, "Edit title and status; omit arguments for draft editor").Positional("title").
-		Verb("done", a.doneTask, "Mark the task done").
-		Verb("new", a.newTask, "Add a task; omit title to open the draft editor").Positional("title").
+		Verb("done", a.doneTask, "Mark the task done").Positional("id").
+		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo").
+		Verb("status", a.statusTask, "Set the task's status (todo, active, blocked, done); omit status to choose one").Positional("id", "status").
+		Verb("new", a.newTask, "Add a task (under --parent, else the pin or no project); omit title to open the draft editor").Positional("title").
 		Verb("launch", a.launchRecord, "Launch an agent on the task").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.open")).Bind("l", ochazuke.Do("task.launch")).
-		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.done"))
+		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.status"))
 	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string"}})
 	a.parameters("task.new", map[string]ochazuke.Parameter{
-		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"},
+		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"}, "parent": {Type: "string"},
 	})
+	a.parameters("task.done", map[string]ochazuke.Parameter{"id": {Type: "string"}})
+	a.parameters("task.status", map[string]ochazuke.Parameter{"id": {Type: "string"}, "status": {Type: "string", Enum: work.Statuses}})
 }
 
 func (a *App) bindTaskStop() error {
@@ -70,6 +76,9 @@ func (a *App) refreshTasks() error {
 			}
 		}
 	}
+	// Active first, then todo, blocked, other values and done; board
+	// order within a status.
+	slices.SortStableFunc(tasks, func(x, y work.Task) int { return work.StatusRank(x.Status) - work.StatusRank(y.Status) })
 	a.tasks = tasks
 	drafts, err := a.draftRecords("task")
 	if err != nil {
@@ -119,10 +128,7 @@ var taskColumns = []ochazuke.Column{
 // taskCells are a task row's cells in taskColumns order, the project
 // column left out unless the list shows all projects.
 func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
-	box := "[ ] "
-	if t.Status == work.StatusDone {
-		box = "[x] "
-	}
+	box := work.StatusGlyph(t.Status) + " "
 	title := t.Title
 	if title == "" {
 		title = "untitled"
@@ -130,10 +136,7 @@ func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
 	if draft {
 		title += " [draft]"
 	}
-	status := t.Status
-	if status == "" {
-		status = work.StatusTodo
-	}
+	status := work.NormalStatus(t.Status)
 	updated := ""
 	if t.Updated != 0 {
 		updated = sinceUse(t.Updated, now)
@@ -145,10 +148,7 @@ func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
 }
 
 func taskLabel(t work.Task) string {
-	box := "[ ] "
-	if t.Status == work.StatusDone {
-		box = "[x] "
-	}
+	box := work.StatusGlyph(t.Status) + " "
 	title := t.Title
 	if title == "" {
 		title = "untitled"
@@ -157,7 +157,7 @@ func taskLabel(t work.Task) string {
 	if t.ProjectID == "" {
 		label += " (unassociated)"
 	}
-	if t.Status != work.StatusDone && t.Status != work.StatusTodo && t.Status != "" {
+	if !work.ValidStatus(work.NormalStatus(t.Status)) {
 		label += "  (" + t.Status + ")"
 	}
 	return label
@@ -216,11 +216,46 @@ func (a *App) editTask(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) doneTask(ctx ochazuke.Ctx) ochazuke.Result {
-	t, err := a.task(ctx)
+	return a.changeTask(ctx, func(id string) (work.Task, error) { return a.work.Done(id) })
+}
+
+func (a *App) toggleTask(ctx ochazuke.Ctx) ochazuke.Result {
+	return a.changeTask(ctx, a.work.ToggleDone)
+}
+
+// statusTask is task.status: the status argument sets it; without one a
+// chooser of the four statuses opens on the task.
+func (a *App) statusTask(ctx ochazuke.Ctx) ochazuke.Result {
+	if status, ok := ctx.Args["status"].(string); ok {
+		return a.changeTask(ctx, func(id string) (work.Task, error) { return a.work.SetStatus(id, status) })
+	}
+	t, err := a.taskArg(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if t, err = a.work.Done(t.ID); err != nil {
+	return resultError(a.openStatusChooser(t, a.refreshTasks))
+}
+
+// taskArg is the task an id argument names, else the selected task.
+func (a *App) taskArg(ctx ochazuke.Ctx) (work.Task, error) {
+	if id, ok := ctx.Args["id"].(string); ok && id != "" {
+		t, err := a.work.Task(id)
+		if err != nil {
+			return work.Task{}, fmt.Errorf("task %s: %w", id, err)
+		}
+		return t, nil
+	}
+	return a.task(ctx)
+}
+
+// changeTask applies change to the task taskArg names and reloads the
+// task rows (and the open todo outline).
+func (a *App) changeTask(ctx ochazuke.Ctx, change func(id string) (work.Task, error)) ochazuke.Result {
+	t, err := a.taskArg(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if t, err = change(t.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.refreshTasks(); err != nil {
@@ -229,8 +264,57 @@ func (a *App) doneTask(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(t)
 }
 
+// statusChooser is the status chooser's modal kind.
+const statusChooser = "status-chooser"
+
+// openStatusChooser opens the four statuses for t; typing narrows by the
+// first letters (t, a, b, d) and enter sets the top one, then refresh runs.
+func (a *App) openStatusChooser(t work.Task, refresh func() error) error {
+	rows := make([]ChooserRow, 0, len(work.Statuses))
+	for _, s := range work.Statuses {
+		label := s
+		if s == t.Status {
+			label += " (current)"
+		}
+		rows = append(rows, ChooserRow{ID: "status-choice:" + s, Label: label, Data: s, Cells: []string{work.StatusGlyph(s), label}})
+	}
+	title := t.Title
+	if title == "" {
+		title = "untitled"
+	}
+	_, err := a.choosers.Open(ChooserSpec{
+		Kind:  statusChooser,
+		Title: "Status · " + title,
+		Rows:  rows,
+		Filter: func(query string, row ChooserRow) bool {
+			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
+		},
+		Choose: func(row ChooserRow) ochazuke.Result {
+			status, _ := row.Data.(string)
+			got, err := a.work.SetStatus(t.ID, status)
+			if err != nil {
+				return ochazuke.Failed(err)
+			}
+			if err := refresh(); err != nil {
+				return ochazuke.Failed(err)
+			}
+			return ochazuke.Done(got)
+		},
+	})
+	return err
+}
+
 func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
-	owner, err := a.resolveOwner(ctx, ctx.Args)
+	args := ctx.Args
+	if parent := ochazuke.StringArg(args, "parent", ""); parent != "" {
+		// A subtask belongs to its parent's project, whatever the pin.
+		if _, err := a.work.Task(parent); err != nil {
+			return ochazuke.Failed(fmt.Errorf("parent task %s: %w", parent, err))
+		}
+		args = maps.Clone(args)
+		args["task"] = parent
+	}
+	owner, err := a.resolveOwner(ctx, args)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -244,7 +328,12 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return ochazuke.Done(owner)
 	}
-	t, err := a.work.AddTask(owner.ProjectID, ochazuke.StringArg(ctx.Args, "title", ""))
+	var t work.Task
+	if parent := ochazuke.StringArg(ctx.Args, "parent", ""); parent != "" {
+		t, err = a.work.AddSubtask(owner.ProjectID, parent, ochazuke.StringArg(ctx.Args, "title", ""))
+	} else {
+		t, err = a.work.AddTask(owner.ProjectID, ochazuke.StringArg(ctx.Args, "title", ""))
+	}
 	if err != nil {
 		return ochazuke.Failed(err)
 	}

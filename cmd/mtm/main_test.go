@@ -203,11 +203,12 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 		t.Fatalf("done: status = %q", got)
 	}
 
-	// a adds a task to the open project and selects it.
+	// a adds a task to the open project and selects it; done tasks sort
+	// last.
 	press(t, app, "a")
 	typeText(t, app, "launch an agent")
 	press(t, app, "enter")
-	if len(app.tasks) != 3 || app.tasks[2].Title != "launch an agent" || app.r.Focus != app.tasks[2].ID {
+	if len(app.tasks) != 3 || app.tasks[1].Title != "launch an agent" || app.r.Focus != app.tasks[1].ID || app.tasks[2].ID != "t2" {
 		t.Fatalf("new: tasks = %+v, focus = %s", app.tasks, app.r.Focus)
 	}
 
