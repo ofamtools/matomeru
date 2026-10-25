@@ -52,6 +52,16 @@ func (a *App) resolveOwner(ctx ochazuke.Ctx, args ochazuke.Arguments) (Owner, er
 	}
 	if !a.cli && ctx.Instance != nil {
 		switch ctx.Instance.Noun {
+		case "saved":
+			row, err := a.work.SavedPane(ctx.Instance.ID)
+			return Owner{ProjectID: row.ProjectID, TaskID: row.TaskID}, err
+		case "vim":
+			row, err := a.work.VimSession(ctx.Instance.ID)
+			if err != nil {
+				return Owner{}, err
+			}
+			project, err := a.work.VimProject(row)
+			return Owner{ProjectID: project, TaskID: row.TaskID}, err
 		case "pane":
 			p, err := a.paneAt(ctx.Instance)
 			if err != nil {

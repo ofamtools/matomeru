@@ -146,6 +146,12 @@ func (a *App) reveal(id string) error {
 	if err := a.refreshReviews(); err != nil {
 		return err
 	}
+	if err := a.refreshSaved(); err != nil {
+		return err
+	}
+	if err := a.refreshVim(); err != nil {
+		return err
+	}
 	if a.r.Instances[id] != nil {
 		return nil
 	}
@@ -215,6 +221,9 @@ type App struct {
 	reviewList  *ochazuke.List
 	answer      *ochazuke.Input
 	noteList    *ochazuke.List
+	savedList   *ochazuke.List
+	vimList     *ochazuke.List
+	vimDir      string
 
 	field *ochazuke.Input
 	ask   *question
@@ -245,6 +254,7 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.drafts = draft.New(filepath.Dir(opts.Data))
+	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
 	a.editorSave = make(map[string]func(editRecord) (any, error))
 	a.editorRefresh = make(map[string]func() error)
 	a.editorFinish = make(map[string]func(editRecord) error)
@@ -262,6 +272,8 @@ func New(opts Options) (*App, error) {
 	a.definePin()
 	a.defineOwners()
 	a.defineDeletion()
+	a.defineSaved()
+	a.defineVim()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
@@ -299,6 +311,12 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	if err := a.addNotesPage(); err != nil {
+		return nil, err
+	}
+	if err := a.addSavedPage(); err != nil {
+		return nil, err
+	}
+	if err := a.addVimPage(); err != nil {
 		return nil, err
 	}
 	if err := a.refreshReviews(); err != nil {

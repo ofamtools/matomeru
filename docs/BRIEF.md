@@ -127,6 +127,16 @@ CLI preparation opens neutral Work focus before dispatch. Generic launches there
 
 Saved-pane metadata uses `saved_panes` with owner `work` and key `id`. Confirmed launch requests use `pane_recipes`, owner `work`, key `window`. Neovim metadata keeps the legacy `vim_sessions` declaration with owner `vim`, key `id`, version 1. All three retain project and task ownership. Deleting an owner orphans these records without removing panes or session files. Vim reads and writes preserve unknown legacy JSON fields.
 
+The Saved page lists shell and agent recipes through the project pin. `saved save PANE [NAME]` records a live pane, including its argv, model, flags, launch directory, and owner. Re-saving the same pane retains the record ID. `saved list --all` widens the CLI list without changing the pin. `saved reopen ID` attaches a live pane or launches the recorded argv again, without consulting changed harness defaults. `saved rename ID NAME`, `saved associate ID --project PROJECT` or `--task TASK` or `--scratch`, and `saved forget ID` change records without killing panes. Dead panes reopen in the current owner's project session or the shell/agent scratch session. Reopen restores the launch recipe, not an agent's conversation history.
+
+On a pane row, `s` saves its recipe. Saved rows bind `s` to save, `L` to list, Enter to reopen, `r` to rename, `a` to associate, and `x` to forget. Rename and association prompts commit on Enter. These keys do not run inside a live terminal or editor. The daemon does not expose exact launch argv for every external pane, so saving one can return an explicit unsupported-recipe error. A shell launched with daemon-default argv remains a daemon-default-shell recipe.
+
+The Vim page lists Neovim records through the same pin filter. `vim open [PATH]` launches real `nvim` in a daemon pane with its own RPC socket. No path opens Neovim without a file; `--scratch` forces unassociated ownership. A directory argument sets the working directory. The initial session snapshot lives beside the database in `vim-sessions/ID.vim`. `vim save [PATH] --id ID` runs `:mksession!` through RPC and reports Neovim errors. Saving does not write edited buffers. `--pane PANE` can select the editor instead.
+
+`vim reopen ID` reuses the live pane by stable ID, including after a session rename. Otherwise it starts `nvim -S SESSION_FILE`; records and saved layouts survive mtm restarts. `vim forget ID` removes its record and the mtm-owned session file, never edited files, explicit session paths, or live panes. Unmarked legacy session files are retained. A legacy live editor without a recorded RPC address must be closed and reopened before `vim save` can control it.
+
+Vim rows bind `a` to open, `s` to save the session, Enter to reopen, `x` to forget, and `r` to list. The empty list supports `a` and `r`. Live Neovim receives its own keys; `ctrl+a d` detaches through the framework terminal.
+
 
 Known gaps:
 
