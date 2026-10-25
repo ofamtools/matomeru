@@ -111,6 +111,7 @@ func (t *Tool) shell(data string) (*ocli.Shell, error) {
 		"existing": {Type: "boolean", Description: "adopt a directory that already has files"},
 		"register": {Type: "boolean", Description: "add the project to mtm's store (default true)"},
 		"hub":      {Type: "string", Description: "the hub directory that links NAME -> DIR (default $O_PROJ_HUB, else ~/hub/o); none skips"},
+		"family":   {Type: "boolean", Description: "link the project into the o/oden family hub (default true); false skips"},
 	})
 	params("project.link", map[string]ochazuke.Parameter{
 		"name": {Type: "string", Description: "the registered project to link (or all)"},
@@ -145,7 +146,7 @@ func (t *Tool) newFromArgs(data string, args ochazuke.Arguments) (map[string]str
 	for flag, when := range map[string]struct {
 		name string
 		want bool
-	}{"--github": {"github", true}, "--existing": {"existing", true}, "--no-register": {"register", false}, "--private": {"private", true}, "--public": {"private", false}} {
+	}{"--github": {"github", true}, "--existing": {"existing", true}, "--no-register": {"register", false}, "--private": {"private", true}, "--public": {"private", false}, "--family=false": {"family", false}} {
 		if v, set := args[when.name].(bool); set && v == when.want {
 			argv = append(argv, flag)
 		}

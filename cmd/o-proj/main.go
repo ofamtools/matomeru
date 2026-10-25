@@ -8,7 +8,7 @@
 // in any directory. The home directory is itself a git repository, so a
 // directory without its own git init commits into it silently.
 //
-//	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none] [--hub DIR|none]
+//	o-proj new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none] [--family|-o] [--hub DIR|none]
 //	o-proj link NAME | --all [--hub DIR]
 //	o-proj unlink NAME | --all [--hub DIR]
 //	o-proj adopt NAME
@@ -182,13 +182,15 @@ func (t *Tool) New(data string, args []string) error {
 	public := flags.Bool("public", false, "the GitHub repository is public")
 	license := flags.String("license", Licenses[0], "the LICENSE written where absent: "+strings.Join(Licenses, " or "))
 	hub := flags.String("hub", t.DefaultHub(), "the hub directory that links NAME -> DIR ($O_PROJ_HUB, else ~/hub/o); none skips the link")
+	family := flags.Bool("family", true, "link the project into the o/oden family hub; --family=false skips")
+	flags.BoolVar(family, "o", true, "alias for --family")
 	flags.StringVar(&data, "data", data, "SQLite database path (mtm's)")
 	words, err := parse(flags, args)
 	if err != nil {
 		return err
 	}
 	if len(words) != 1 {
-		return fmt.Errorf("usage: %s new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none] [--hub DIR|none]", t.Prog)
+		return fmt.Errorf("usage: %s new NAME [--root DIR] [--template T] [--existing] [--no-register] [--github] [--private|--public] [--license mit|none] [--family|-o] [--hub DIR|none]", t.Prog)
 	}
 	name := words[0]
 	if name == "." || name == ".." || name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, "-") {
@@ -314,7 +316,9 @@ func (t *Tool) New(data string, args []string) error {
 	} else if err := t.register(data, name, dir, repo); err != nil {
 		return err
 	}
-	if *hub == NoHub {
+	if !*family {
+		t.say("link: skipped (--family=false)")
+	} else if *hub == NoHub {
 		t.say("link: skipped (--hub none)")
 	} else if _, err := t.link(*hub, name, dir); err != nil {
 		return err

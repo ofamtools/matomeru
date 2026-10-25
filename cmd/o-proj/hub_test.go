@@ -64,6 +64,36 @@ func TestNewDefaultHubIsHomeHubO(t *testing.T) {
 	}
 }
 
+func TestNewFamilyFlags(t *testing.T) {
+	for _, flag := range []string{"--family", "-o", "--family=false", "-o=false"} {
+		t.Run(flag, func(t *testing.T) {
+			tl, out, _ := tool(t)
+			root := filepath.Join(tl.Home, "proj")
+			args := []string{"new", "demo", "--root", root, "--no-register", flag}
+			if err := tl.Main(args); err != nil {
+				t.Fatal(err, out)
+			}
+			path := filepath.Join(tl.Home, "hub", "o", "demo")
+			if strings.HasSuffix(flag, "=false") {
+				if _, err := os.Lstat(path); !os.IsNotExist(err) {
+					t.Fatalf("family link should be absent: %v", err)
+				}
+				return
+			}
+			want := filepath.Join(root, "demo")
+			if got := readlink(t, path); got != want {
+				t.Fatalf("link -> %q, want %q", got, want)
+			}
+			if err := tl.Main(append(args, "--existing")); err != nil {
+				t.Fatal(err, out)
+			}
+			if got := readlink(t, path); got != want {
+				t.Fatalf("repeat link -> %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestNewHubNoneSkips(t *testing.T) {
 	tl, out, _ := tool(t)
 	if err := tl.Main([]string{"new", "x", "--root", filepath.Join(tl.Home, "proj"), "--hub", "none", "--no-register"}); err != nil {

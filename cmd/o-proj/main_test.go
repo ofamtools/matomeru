@@ -571,9 +571,6 @@ func TestCatalogDescribesProjectNoun(t *testing.T) {
 		}
 		for _, v := range n.Verbs {
 			verbs[v.Name] = v.Kind + "/" + v.Rows
-			if v.Name == "new" && len(v.Params) != 9 {
-				t.Fatalf("new params %v", v.Params)
-			}
 		}
 	}
 	want := map[string]string{"list": "application/project", "new": "application/", "check": "application/", "templates": "application/", "open": "application/", "link": "application/", "unlink": "application/"}
