@@ -35,6 +35,42 @@ const (
 	daemonTimeout = 5 * time.Second
 )
 
+// paneColumns are the pane noun's table (the catalog's columns, so a host
+// mounting pane rows draws them too): the pane, its project, the agent
+// state and the working directory; narrow, cwd drops first, then project,
+// then state. Session rows fill pane and project.
+var paneColumns = []ochazuke.Column{
+	{Title: "pane"},
+	{Title: "project", Priority: 2},
+	{Title: "state", Priority: 1},
+	{Title: "cwd", Min: 12, Priority: 3},
+}
+
+// paneCells is a pane row's cells in paneColumns order; home shortens the
+// cwd to ~.
+func paneCells(p pane, owner, home string) []string {
+	return []string{p.label(), owner, p.AgentState, tildePath(p.Cwd, home)}
+}
+
+// sessionCells is a session row's cells in paneColumns order.
+func sessionCells(p pane, owner string) []string {
+	return []string{"session " + shortSession(p.Session), owner, "", ""}
+}
+
+// tildePath writes a path under home with ~ for home.
+func tildePath(path, home string) string {
+	if home == "" || path == "" {
+		return path
+	}
+	if path == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(path, strings.TrimSuffix(home, "/")+"/"); ok {
+		return "~/" + rest
+	}
+	return path
+}
+
 // pane is one row: a window and the session it lives in.
 type pane struct {
 	Session      string
@@ -96,6 +132,7 @@ type preview struct {
 func (a *App) definePanes() {
 	r := a.r
 	r.Define("pane").
+		Columns(paneColumns...).
 		Verb("attach", a.attachPane, "Attach the pane live in the detail stop; ctrl+a d detaches").
 		Verb("preview", a.previewPane, "Capture the pane's screen into the detail stop").
 		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
@@ -118,7 +155,7 @@ func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
 // addPanesPage builds the page: the list first, so the page starts on it.
 func (a *App) addPanesPage() error {
 	a.r.Instance(panesPage, ochazuke.Kind("page"))
-	list, err := a.r.AddList(paneListID, nil, ochazuke.Parent(panesPage))
+	list, err := a.r.AddList(paneListID, nil, ochazuke.Parent(panesPage), ochazuke.Columns(a.r.Noun("pane").Columns...))
 	if err != nil {
 		return err
 	}
@@ -176,6 +213,7 @@ func (a *App) setPanes(panes []pane, err error) {
 		panes, a.paneErr = nil, err.Error()
 	}
 	a.panes = panes
+	home, _ := a.home()
 	items := make([]ochazuke.ListItem, 0, len(panes))
 	seen := map[string]bool{}
 	for _, p := range panes {
@@ -186,13 +224,13 @@ func (a *App) setPanes(panes []pane, err error) {
 				a.paneErr = err.Error()
 			}
 			if a.inScope(owner.ProjectID) {
-				items = append(items, ochazuke.ListItem{ID: "session:" + p.SessionID, Label: "session " + p.Session + " · " + a.ownerLabel(owner.ProjectID), Noun: "session", Data: p})
+				items = append(items, ochazuke.ListItem{ID: "session:" + p.SessionID, Label: "session " + p.Session + " · " + a.ownerLabel(owner.ProjectID), Noun: "session", Data: p, Cells: sessionCells(p, a.ownerLabel(owner.ProjectID))})
 			}
 		}
 		if p.ID != "" {
 			owner := a.paneOwner(p)
 			if a.inScope(owner.ProjectID) || p.OwnerUnsaved {
-				items = append(items, ochazuke.ListItem{ID: p.rowID(), Label: p.label() + " · " + a.ownerLabel(owner.ProjectID), Noun: "pane", Data: p})
+				items = append(items, ochazuke.ListItem{ID: p.rowID(), Label: p.label() + " · " + a.ownerLabel(owner.ProjectID), Noun: "pane", Data: p, Cells: paneCells(p, a.ownerLabel(owner.ProjectID), home)})
 			}
 		}
 	}

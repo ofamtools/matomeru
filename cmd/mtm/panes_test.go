@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
@@ -370,5 +372,34 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 	p := pane{Session: "9332c352-fd31-49a0-bb93-6b18ed187d8d", Pane: daemon.Pane{ID: "w1"}}
 	if got := p.rowID(); got != "pane:9332c352-fd31-49a0-bb93-6b18ed187d8d/w1" {
 		t.Errorf("rowID = %q", got)
+	}
+}
+
+// The panes list is a table of the pane noun's columns: pane rows fill
+// every cell (the cwd under home as ~), session rows the pane and project.
+func TestPaneListIsATable(t *testing.T) {
+	app := open(t)
+	app.setPanes([]pane{
+		{Session: "work", SessionID: "s1", Pane: daemon.Pane{ID: "w1", Name: "claude", AgentState: "idle", Cwd: "/home/test/proj/x"}},
+	}, nil)
+	if got := app.paneList.Columns(); len(got) != 4 || got[0].Title != "pane" || got[3].Title != "cwd" {
+		t.Fatalf("columns %+v", got)
+	}
+	items := app.paneList.Items()
+	if len(items) != 2 || items[0].Noun != "session" || !slices.Equal(items[0].Cells, []string{"session work", "unassociated", "", ""}) {
+		t.Fatalf("session row %+v", items)
+	}
+	if !slices.Equal(items[1].Cells, []string{"work/claude", "unassociated", "idle", "~/proj/x"}) {
+		t.Fatalf("pane row %+v", items[1])
+	}
+	app.m.Width, app.m.Height = 80, 30
+	if _, err := app.r.Execute(ochazuke.Request{Verb: "open", Noun: "page", Args: ochazuke.Arguments{"id": panesPage}}); err != nil {
+		t.Fatal(err)
+	}
+	frame := ansi.Strip(app.m.View().Content)
+	for _, want := range []string{"pane", "project", "state", "cwd", "work/claude", "~/proj/x"} {
+		if !strings.Contains(frame, want) {
+			t.Fatalf("frame lacks %q:\n%s", want, frame)
+		}
 	}
 }

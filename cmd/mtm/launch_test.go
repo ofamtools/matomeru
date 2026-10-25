@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -368,23 +370,58 @@ func now(cmd tea.Cmd) tea.Msg {
 	}
 }
 
-// projects state is the catalog's state source: both row-source lists in
-// one call, keyed by the nouns a host would otherwise run list on.
-func TestProjectsStateAnswersBothLists(t *testing.T) {
-	app := open(t)
-	out, err := app.r.Execute(ochazuke.Request{Noun: "projects", Verb: "state"})
+// projects state is the catalog's state source: every row-source list in
+// one call, keyed by the nouns a host would otherwise run list on; pane
+// rows bring their cells in the pane noun's column order, which the
+// catalog declares.
+func TestProjectsStateAnswersEveryList(t *testing.T) {
+	app, _ := cliApp(t)
+	app.panesd.(*fakePanes).panes[0].Cwd = "/home/test/proj/matomeru"
+	app.panesd.(*fakePanes).panes[0].AgentState = "idle"
+	out, errOut, err := cli(app, "", "projects", "state")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("state: %v\n%s", err, errOut)
 	}
 	count := map[string]int{}
-	for _, line := range out.(ocli.Lines) {
-		count[line.(ocli.Row).Noun]++
+	var first ocli.Row
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var row ocli.Row
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			t.Fatalf("line %q: %v", line, err)
+		}
+		if row.Noun == "pane" && first.ID == "" {
+			first = row
+		}
+		count[row.Noun]++
 	}
-	if count["projects"] != len(app.projects) || count["projects"] == 0 || count["harness"] != len(app.harnesses.List()) || len(count) != 2 {
-		t.Fatalf("state %+v", out)
+	if count["projects"] != len(app.projects) || count["projects"] == 0 || count["harness"] != len(app.harnesses.List()) || count["pane"] != 2 {
+		t.Fatalf("state %v\n%s", count, out)
+	}
+	if first.ID != "pane:matomeru/w1" || !slices.Equal(first.Cells, []string{"matomeru/claude", "unassociated", "idle", "~/proj/matomeru"}) {
+		t.Fatalf("pane row %+v", first)
 	}
 	data, err := ocli.Catalog(app.r, "mtm", "test")
 	if err != nil || !strings.Contains(string(data), `"state": "projects.state"`) {
 		t.Fatalf("catalog state: %v %.200s", err, data)
+	}
+	var doc ocli.CatalogDoc
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range doc.Nouns {
+		if n.Name == "pane" && (len(n.Columns) != len(first.Cells) || n.Columns[0].Title != "pane") {
+			t.Fatalf("pane columns %+v", n.Columns)
+		}
+	}
+}
+
+// A daemon that does not answer leaves the live rows out of the state,
+// not the other lists.
+func TestProjectsStateWithoutTheDaemon(t *testing.T) {
+	app, _ := cliApp(t)
+	app.panesd.(*fakePanes).err = errors.New("no daemon")
+	out, errOut, err := cli(app, "", "projects", "state")
+	if err != nil || strings.Contains(out, `"noun":"pane"`) || !strings.Contains(out, `"noun":"projects"`) {
+		t.Fatalf("state: %v %s\n%s", err, errOut, out)
 	}
 }

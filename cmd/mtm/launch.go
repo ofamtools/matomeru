@@ -133,7 +133,7 @@ type launched struct {
 func (a *App) defineLaunch() {
 	r := a.r
 	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)").
-		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label} for projects and harness (the catalog's state, for a host)").State()
+		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
 	r.Define("harness").
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").
 		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
@@ -228,8 +228,13 @@ func (a *App) projectChoices() []ochazuke.Choice {
 	return out
 }
 
-// state is the catalog's state source: the rows of projects list and
-// harness list in one process, as JSON Lines tagged by those nouns.
+// state is the catalog's state source: the rows of projects list,
+// harness list, session list and pane list in one process, as JSON Lines
+// tagged by those nouns. Session and pane rows carry their ids as the
+// panes page's row instances (pane:SESSION/WINDOW, session:ID, what
+// --target takes) and cells in paneColumns order; they need the daemon, so
+// the answer is pending work, and a daemon that does not answer leaves
+// them out rather than failing the other lists.
 func (a *App) state(ochazuke.Ctx) ochazuke.Result {
 	var out ocli.Lines
 	for _, p := range a.projectChoices() {
@@ -238,7 +243,45 @@ func (a *App) state(ochazuke.Ctx) ochazuke.Result {
 	for _, h := range a.harnesses.List() {
 		out = append(out, ocli.Row{Noun: "harness", ID: h.Name, Label: h.Name})
 	}
-	return ochazuke.Done(out)
+	live := a.liveRows()
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		c, cancel := context.WithTimeout(c, daemonTimeout)
+		defer cancel()
+		return append(out, live(c)...), nil
+	})
+}
+
+// liveRows captures the scope on the loop and returns the off-loop work
+// listing the session and pane rows in it, as state lines.
+func (a *App) liveRows() func(context.Context) ocli.Lines {
+	d, w := a.panesd, a.work
+	scope := &App{pin: a.pin, all: a.all, projects: append([]work.Project(nil), a.projects...)}
+	home, _ := a.home()
+	return func(c context.Context) ocli.Lines {
+		panes, err := d.ListPanes(c)
+		if err != nil {
+			return nil
+		}
+		var out ocli.Lines
+		seen := map[string]bool{}
+		for _, p := range panes {
+			if p.SessionID != "" && !seen[p.SessionID] {
+				seen[p.SessionID] = true
+				if o, err := w.SessionOwner(p.SessionID); err == nil && scope.inScope(o.ProjectID) {
+					owner := scope.ownerLabel(o.ProjectID)
+					out = append(out, ocli.Row{Noun: "session", ID: "session:" + p.SessionID, Label: "session " + p.Session + " · " + owner, Cells: sessionCells(p, owner)})
+				}
+			}
+			if p.ID == "" {
+				continue
+			}
+			if o, err := w.PaneOwner(p.ID, p.SessionID); err == nil && scope.inScope(o.ProjectID) {
+				owner := scope.ownerLabel(o.ProjectID)
+				out = append(out, ocli.Row{Noun: "pane", ID: p.rowID(), Label: p.label() + " · " + owner, Cells: paneCells(p, owner, home)})
+			}
+		}
+		return out
+	}
 }
 
 // target is captured once at dispatch.
