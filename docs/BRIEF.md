@@ -125,6 +125,8 @@ Integration is complete. Pin changes clear out-of-scope editors, details, direct
 
 CLI preparation opens neutral Work focus before dispatch. Generic launches therefore use the pin even when the first project row belongs to another project. Explicit `--target` actions still address their record. The [integration evidence](~/hub/o-plans/plans/build-plan.md#integration-verification) records the isolated ten-step run, merged editor acceptance, compatibility-copy changes, and final checks.
 
+Saved-pane metadata uses `saved_panes` with owner `work` and key `id`. Confirmed launch requests use `pane_recipes`, owner `work`, key `window`. Neovim metadata keeps the legacy `vim_sessions` declaration with owner `vim`, key `id`, version 1. All three retain project and task ownership. Deleting an owner orphans these records without removing panes or session files. Vim reads and writes preserve unknown legacy JSON fields.
+
 
 Known gaps:
 

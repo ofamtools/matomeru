@@ -87,3 +87,60 @@ func TestDeleteOrphansWithoutLosingRecords(t *testing.T) {
 		t.Fatalf("reviews = %+v", reviews)
 	}
 }
+
+func TestDeleteOrphansSavedLaunchesAndVimSessions(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.PutProject(Project{ID: "project"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.PutTask(Task{ID: "task", ProjectID: "project"}); err != nil {
+		t.Fatal(err)
+	}
+	tables := []string{"saved_panes", "pane_recipes", "vim_sessions"}
+	if err := db.Tx(tables, func(tx *store.Tx) error {
+		for _, table := range tables {
+			if err := tx.Put(table, "record", map[string]any{
+				"id": "record", "window": "record", "task_id": "task",
+				"path": "/keep/session.vim", "command": []string{"sh", "-i"},
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	counts, err := w.Delete("task", "task")
+	if err != nil || counts.Saved != 1 || counts.Vim != 1 {
+		t.Fatalf("task deletion: %+v, %v", counts, err)
+	}
+	counts, err = w.Delete("project", "project")
+	if err != nil || counts.Saved != 1 || counts.Vim != 1 {
+		t.Fatalf("project deletion: %+v, %v", counts, err)
+	}
+	for _, table := range tables {
+		var row struct {
+			ProjectID       string   `json:"project_id"`
+			TaskID          string   `json:"task_id"`
+			FormerProjectID string   `json:"former_project_id"`
+			FormerTaskID    string   `json:"former_task_id"`
+			Path            string   `json:"path"`
+			Command         []string `json:"command"`
+		}
+		if err := db.Get(table, "record", &row); err != nil {
+			t.Fatal(err)
+		}
+		if row.ProjectID != "" || row.TaskID != "" || row.FormerProjectID != "project" || row.FormerTaskID != "task" ||
+			row.Path != "/keep/session.vim" || len(row.Command) != 2 || row.Command[0] != "sh" || row.Command[1] != "-i" {
+			t.Fatalf("%s lost record or ownership history: %+v", table, row)
+		}
+	}
+}

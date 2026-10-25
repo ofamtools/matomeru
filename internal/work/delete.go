@@ -13,10 +13,12 @@ type DeleteCounts struct {
 	Assignments int `json:"assignments"`
 	Sessions    int `json:"sessions"`
 	Reviews     int `json:"reviews"`
+	Saved       int `json:"saved"`
+	Vim         int `json:"vim"`
 }
 
 func (c DeleteCounts) String() string {
-	return fmt.Sprintf("%d tasks, %d notes, %d pane owners, %d session owners, %d reviews", c.Tasks, c.Notes, c.Assignments, c.Sessions, c.Reviews)
+	return fmt.Sprintf("%d tasks, %d notes, %d pane owners, %d session owners, %d reviews, %d saved panes, %d Vim sessions", c.Tasks, c.Notes, c.Assignments, c.Sessions, c.Reviews, c.Saved, c.Vim)
 }
 
 // DeletionImpact and Delete use the same ownership walk. Delete repeats it under
@@ -34,7 +36,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 	if noun != "project" && noun != "task" {
 		return counts, fmt.Errorf("cannot delete %s", noun)
 	}
-	tables := []string{"projects", "tasks", "notes", "assignments", "session_owners", "reviews", "active"}
+	tables := []string{"projects", "tasks", "notes", "assignments", "session_owners", "reviews", "active", "saved_panes", "pane_recipes", "vim_sessions"}
 	run := s.db.View
 	if apply {
 		run = s.db.Tx
@@ -76,6 +78,8 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 			{"tasks", "id", &counts.Tasks}, {"notes", "id", &counts.Notes},
 			{"assignments", "window", &counts.Assignments}, {"session_owners", "id", &counts.Sessions},
 			{"reviews", "id", &counts.Reviews}, {"active", "id", nil},
+			{"saved_panes", "id", &counts.Saved}, {"pane_recipes", "window", nil},
+			{"vim_sessions", "id", &counts.Vim},
 		} {
 			rows, err := tx.All(child.name)
 			if err != nil {
