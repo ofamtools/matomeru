@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -30,7 +31,8 @@ type ChooserRow struct {
 }
 
 // ChooserSpec opens a chooser. Kind is the modal's kind (one open chooser
-// per kind). Filter defaults to a fuzzy match on Label. Create is optional;
+// per kind). Filter defaults to a fuzzy match on Label; matches whose label
+// holds the query whole come first, otherwise in Rows order. Create is optional;
 // without it Enter on no match fails. CreateLabel names what Enter or
 // ctrl+n would create from the query. Empty is the line shown while there
 // are no rows at all ("loading…").
@@ -236,6 +238,12 @@ func (c *Chooser) refilter() {
 			head = append(head, row)
 		}
 	}
+	// A row whose label holds the query whole outranks a scattered fuzzy
+	// match, so the top match is the one the query spells.
+	needle := strings.ToLower(c.seen)
+	slices.SortStableFunc(head, func(x, y ChooserRow) int {
+		return cmpBool(strings.Contains(strings.ToLower(y.Label), needle), strings.Contains(strings.ToLower(x.Label), needle))
+	})
 	c.matches = append(head, tail...)
 	c.moved = false
 	c.cursor = -1
@@ -295,6 +303,17 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 		lines = append(lines, ansi.Truncate("  enter: "+c.spec.CreateLabel(c.Query()), width, "…"))
 	}
 	return line.WithText(strings.Join(lines, "\n"))
+}
+
+// cmpBool orders false before true.
+func cmpBool(x, y bool) int {
+	switch {
+	case x == y:
+		return 0
+	case x:
+		return 1
+	}
+	return -1
 }
 
 // fuzzyMatch reports whether query's runes appear in text in order,
