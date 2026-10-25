@@ -44,6 +44,7 @@ Pin a project. Launch terminals and agents into it through TUIOS. Tasks and note
   - Drafts survive an mtm restart.
 
   The record itself changes only on save. Text entry uses the existing insert mode; leaving it returns the keys to the page, so focus is never trapped.
+- **A directory can belong to many projects.** A directory, repo, clone or worktree can be attached to any number of projects; each project holds its own entry (`Project.Trees`) and its own default. Nothing enforces one project per path. Anything that maps a path back to projects returns all of them, never "the first wins"; launches take their project from the resolver, never from the directory. Removing a directory from one project leaves it attached to the others. A shared directory record (one place to rename a path for every project) waits for a real need.
 - **Deletion orphans, never cascades, never refuses.** Children keep their records, lose only the deleted owner, and record it in `former_project_id` / `former_task_id`. Deletion asks for confirmation and never deletes directories or kills panes.
 - **Old tables keep their owners.** The database already declares `notes` (owner `notes`), `assignments` (owner `work`, key `window`), `active` (owner `work`) and `vim_sessions` (owner `vim`). New code declares them exactly so; `store.Declare` refuses a mismatch and mtm would not start.
 - **Every commit:** `gofmt -l . && go vet ./... && go test -race ./...` green, `go run ./cmd/mtm --smoke` renders, `ochazuke.ValidateBindings` covered. No amends.
@@ -95,7 +96,7 @@ Files: `internal/work/owners.go`, `cmd/mtm/pin.go`, `cmd/mtm/launch.go`, `cmd/mt
 **A2, the pin**
 - Stored in the old `active` table, row `singleton`. On first run, an old pinned task's project is imported (only the project, never the task); otherwise the last-launch project seeds it once. Unpinning survives a restart.
 - `project.pin`, `project.unpin` and a pin picker reachable from every page. The pin shows in the app title ("Matomeru · A").
-- The resolver's pin step goes live. `inferLaunch`'s current-directory and last-launch guesses, and the last-launch API, are removed.
+- The resolver's pin step goes live. `inferLaunch`'s current-directory and last-launch guesses, and the last-launch API, are removed. `projectAt` (first project wins a tie) goes with them.
 - An `all` toggle verb shows every project's items with owner labels, without changing the pin.
 - `inScope` goes live. The panes page (sessions, terminals, agents) and the reviews page filter through it.
 - Launching into B while A is pinned opens the pane labeled "outside pin: B". A launch that finishes after the pin changed only notifies; it doesn't switch views.
@@ -115,13 +116,14 @@ Acceptance:
 Files: `cmd/mtm/project.go` (project verbs, never in `main.go`'s block), `cmd/mtm/editor.go` (the right-hand panel editor), `cmd/mtm/tasks.go`, tree functions in `internal/work/work.go`.
 
 - **B1, projects:** view, new, edit (name, theme, settings) and delete in the right-hand panel through `internal/draft`. Creating a project registers its name only; making directories on disk stays with `o proj new`. Deletion is built in integration.
-- **B2, directories:** in the project detail, add an existing directory (no-op if already attached; a missing path is attached and flagged) and set the default. The first one added becomes the default. These store functions are shared, and o-proj's registration moves onto them. Editing and removing directories wait for the follow-up plan.
+- **B2, directories:** in the project detail, add an existing directory (no-op if this project already has it; attaching a path another project has is allowed, and the detail lists the other projects that share it; a missing path is attached and flagged) and set the default. The first one added becomes the default. These store functions are shared, and o-proj's registration moves onto them. Editing and removing directories wait for the follow-up plan.
 - Project directories and tasks are listed through `inScope`.
 - **B3, tasks:** selecting a task shows it and never opens the editor; `edit` does. Title and status edits, `new` through the resolver, `done` and `launch` kept. Deletion is built in integration.
 
 Acceptance:
 - Create, view and rename a project and a task. A half-typed edit survives moving away, an mtm restart, and coming back. Cancel removes the draft and leaves the record unchanged.
 - A new project with two directories, with the second marked default, keeps both after a restart.
+- The same repo attached to A (as default) and B (as an extra directory): both details list it and name the other project; pinning B shows it in B's directories; A's launches use it and B's use B's default.
 - A shell and an agent launched for that project open in the default directory (check `pwd` in the real pane). A missing default directory launches in home with a notice.
 
 ## Lane C: notes
