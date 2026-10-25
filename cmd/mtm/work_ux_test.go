@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 )
 
 // With a pin, the work page starts on the pinned project's row, which
@@ -76,4 +78,28 @@ func rowWith(frame string, cells ...string) bool {
 		}
 	}
 	return false
+}
+
+// Harness state rows carry cells in the harness noun's columns, which the
+// catalog declares, so a host draws harnesses as a table.
+func TestHarnessRowsAreATable(t *testing.T) {
+	app, _ := cliApp(t)
+	out, errOut, err := cli(app, "", "projects", "state")
+	if err != nil {
+		t.Fatalf("state: %v\n%s", err, errOut)
+	}
+	var claude ocli.Row
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var row ocli.Row
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			t.Fatal(err)
+		}
+		if row.Noun == "harness" && row.ID == "claude" {
+			claude = row
+		}
+	}
+	cols := app.r.Noun("harness").Columns
+	if len(claude.Cells) != len(cols) || claude.Cells[0] != "claude" || !strings.Contains(claude.Cells[2], "opus") {
+		t.Fatalf("claude row %+v columns %+v", claude, cols)
+	}
 }

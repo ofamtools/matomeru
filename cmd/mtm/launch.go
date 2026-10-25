@@ -128,6 +128,29 @@ type launched struct {
 	Note  string `json:"note,omitempty"`
 }
 
+// harnessColumns are the harness noun's table (state rows carry the
+// cells, so a host draws harnesses as a table): the name, the command, its
+// models (the first the default) and how the first prompt is given.
+var harnessColumns = []ochazuke.Column{
+	{Title: "harness", Min: 8},
+	{Title: "command", Priority: 2},
+	{Title: "models", Priority: 1},
+	{Title: "prompt", Priority: 3},
+}
+
+// harnessCells are a harness's cells in harnessColumns order.
+func harnessCells(h harness.Harness) []string {
+	models := strings.Join(h.Models, ", ")
+	if models == "" && h.ModelFlag != "" {
+		models = "any"
+	}
+	prompt := h.Prompt
+	if prompt == "" {
+		prompt = harness.PromptSendText
+	}
+	return []string{h.Name, strings.Join(h.Command, " "), models, prompt}
+}
+
 // defineLaunch adds the agent noun, the projects.list source and the launch
 // parameters.
 func (a *App) defineLaunch() {
@@ -135,7 +158,7 @@ func (a *App) defineLaunch() {
 	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)").
 		Verb("directories", a.projectDirectories, "Every project's directories as rows {id, label, data: {directories, default}}, paths resolved (absolute, symlinks followed); for tools asking whether a project already has a directory").
 		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
-	r.Define("harness").
+	r.Define("harness").Columns(harnessColumns...).
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").
 		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
 	r.Define("agent").
@@ -269,7 +292,7 @@ func (a *App) state(ochazuke.Ctx) ochazuke.Result {
 		out = append(out, ocli.Row{Noun: "projects", ID: p.ID, Label: p.Label})
 	}
 	for _, h := range a.harnesses.List() {
-		out = append(out, ocli.Row{Noun: "harness", ID: h.Name, Label: h.Name})
+		out = append(out, ocli.Row{Noun: "harness", ID: h.Name, Label: h.Name, Cells: harnessCells(h)})
 	}
 	live := a.liveRows()
 	return ochazuke.Pending(func(c context.Context) (any, error) {
