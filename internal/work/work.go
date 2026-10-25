@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -126,6 +127,7 @@ func (s *Store) Tasks(projectID string) ([]Task, error) {
 	}
 	out := rows[:0]
 	for _, t := range rows {
+		t.Status = NormalStatus(t.Status)
 		if projectID == "" || t.ProjectID == projectID {
 			out = append(out, t)
 		}
@@ -153,17 +155,69 @@ func (s *Store) PutTask(t Task) error {
 	return s.db.Tx([]string{"tasks"}, func(tx *store.Tx) error { return tx.Put("tasks", t.ID, t) })
 }
 
-// Task statuses this unit writes; the database also holds "open", "active"
-// and "skipped" from matomeru-old, which read unchanged.
+// Task statuses this unit writes, in the order the task tables sort them.
+// The database also holds values from matomeru-old: "open" reads as todo
+// (and is written back as todo on the task's next change), "" reads as
+// todo, and any other value (such as "skipped") is kept and shown as-is.
 const (
-	StatusTodo = "todo"
-	StatusDone = "done"
+	StatusActive  = "active"
+	StatusTodo    = "todo"
+	StatusBlocked = "blocked"
+	StatusDone    = "done"
 )
 
-// Task reads one task row by id.
+// Statuses are the statuses a task can be set to, in table order.
+var Statuses = []string{StatusTodo, StatusActive, StatusBlocked, StatusDone}
+
+// NormalStatus is a stored status as it reads: legacy "open" and "" are
+// todo; every other value is kept.
+func NormalStatus(status string) string {
+	if status == "" || status == "open" {
+		return StatusTodo
+	}
+	return status
+}
+
+// ValidStatus reports whether status is one a task can be set to.
+func ValidStatus(status string) bool { return slices.Contains(Statuses, status) }
+
+// StatusGlyph is a status's checkbox: [ ] todo, [>] active, [!] blocked,
+// [x] done, [?] a value this unit does not write.
+func StatusGlyph(status string) string {
+	switch NormalStatus(status) {
+	case StatusTodo:
+		return "[ ]"
+	case StatusActive:
+		return "[>]"
+	case StatusBlocked:
+		return "[!]"
+	case StatusDone:
+		return "[x]"
+	}
+	return "[?]"
+}
+
+// StatusRank orders statuses for the task tables: active, todo, blocked,
+// any other value, done.
+func StatusRank(status string) int {
+	switch NormalStatus(status) {
+	case StatusActive:
+		return 0
+	case StatusTodo:
+		return 1
+	case StatusBlocked:
+		return 2
+	case StatusDone:
+		return 4
+	}
+	return 3
+}
+
+// Task reads one task row by id, its status normalized (NormalStatus).
 func (s *Store) Task(id string) (Task, error) {
 	var t Task
 	err := s.db.Get("tasks", id, &t)
+	t.Status = NormalStatus(t.Status)
 	return t, err
 }
 
@@ -191,7 +245,45 @@ func (s *Store) Retitle(id, title string) (Task, error) {
 
 // Done marks a task done.
 func (s *Store) Done(id string) (Task, error) {
-	return s.patchTask(id, func(t *Task) { t.Status = StatusDone })
+	return s.SetStatus(id, StatusDone)
+}
+
+// ToggleDone marks a task done, or a done task todo.
+func (s *Store) ToggleDone(id string) (Task, error) {
+	return s.patchTask(id, func(t *Task) {
+		if t.Status == StatusDone {
+			t.Status = StatusTodo
+		} else {
+			t.Status = StatusDone
+		}
+	})
+}
+
+// SetStatus sets a task's status to one of Statuses.
+func (s *Store) SetStatus(id, status string) (Task, error) {
+	if !ValidStatus(status) {
+		return Task{}, fmt.Errorf("status %q is not one of %s", status, strings.Join(Statuses, ", "))
+	}
+	return s.patchTask(id, func(t *Task) { t.Status = status })
+}
+
+// AddSubtask creates a todo task under parent (a task of the same
+// project, or "" for the top level), last among its siblings.
+func (s *Store) AddSubtask(projectID, parentID, title string) (Task, error) {
+	title = strings.TrimSpace(title)
+	siblings, err := s.Tasks(projectID)
+	if err != nil {
+		return Task{}, err
+	}
+	var position int64
+	for _, t := range siblings {
+		if t.ProjectID == projectID && t.ParentID == parentID {
+			position = max(position, t.Position)
+		}
+	}
+	now := Now()
+	t := Task{ID: NewID(), ProjectID: projectID, ParentID: parentID, Title: title, Position: position + 1, Status: StatusTodo, Created: now, Updated: now}
+	return t, s.PutTask(t)
 }
 
 func (s *Store) patchTask(id string, change func(*Task)) (Task, error) {
@@ -200,6 +292,7 @@ func (s *Store) patchTask(id string, change func(*Task)) (Task, error) {
 		if err := tx.Get("tasks", id, &t); err != nil {
 			return err
 		}
+		t.Status = NormalStatus(t.Status)
 		change(&t)
 		t.Updated = Now()
 		return tx.Put("tasks", t.ID, t)
