@@ -37,13 +37,14 @@ const (
 
 // paneColumns are the pane noun's table (the catalog's columns, so a host
 // mounting pane rows draws them too): the pane, its project, the agent
-// state and the working directory; narrow, cwd drops first, then project,
-// then state. Session rows fill pane and project.
+// state and the working directory; narrow, project drops first, then cwd,
+// then state, and the pane keeps at least 16 cells. Session rows fill pane
+// and project.
 var paneColumns = []ochazuke.Column{
-	{Title: "pane"},
-	{Title: "project", Priority: 2},
+	{Title: "pane", Min: 16},
+	{Title: "project", Priority: 3},
 	{Title: "state", Priority: 1},
-	{Title: "cwd", Min: 12, Priority: 3},
+	{Title: "cwd", Min: 12, Priority: 2},
 }
 
 // paneCells is a pane row's cells in paneColumns order; home shortens the
