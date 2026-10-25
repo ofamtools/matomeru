@@ -332,3 +332,26 @@ func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
 		t.Fatalf("rename %q", a.m.Title)
 	}
 }
+
+func TestPickerUnpinRowClearsPinAcrossRestart(t *testing.T) {
+	path := seeded(t)
+	a := openAt(t, path)
+	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
+	press(t, a, "P")
+	list := a.r.List("pin-picker/list")
+	if a.r.TopModal() != "pin-picker" || list == nil || list.Len() == 0 {
+		t.Fatal("picker did not open")
+	}
+	first := list.Items()[0]
+	if first.Label != "no pin (unpin)" || a.r.Focus != first.ID {
+		t.Fatalf("first row %+v focus %s", first, a.r.Focus)
+	}
+	press(t, a, "enter")
+	if a.pin != "" || a.r.TopModal() != "" || a.m.Title != "Matomeru · no pin" {
+		t.Fatalf("pin %q modal %q title %q", a.pin, a.r.TopModal(), a.m.Title)
+	}
+	b := openAt(t, path)
+	if b.pin != "" || b.m.Title != "Matomeru · no pin" {
+		t.Fatalf("reopened pin %q title %q", b.pin, b.m.Title)
+	}
+}

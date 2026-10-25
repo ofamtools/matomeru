@@ -45,7 +45,7 @@ func (a *App) pinProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if _, err := a.r.OpenModal("pin-picker", ochazuke.Payload{}); err != nil {
 		return ochazuke.Failed(err)
 	}
-	items := []ochazuke.ListItem{{ID: "pin-choice:none", Noun: "pin-choice", Label: "unpin", Data: ""}}
+	items := []ochazuke.ListItem{{ID: "pin-choice:none", Noun: "pin-choice", Label: "no pin (unpin)", Data: ""}}
 	for _, p := range a.projects {
 		items = append(items, ochazuke.ListItem{ID: "pin-choice:" + p.ID, Noun: "pin-choice", Label: projectLabel(p), Data: p.ID})
 	}
