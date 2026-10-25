@@ -121,8 +121,19 @@ Files: `cmd/mtm/project.go` (project verbs, never in `main.go`'s block), `cmd/mt
 - **Known directories**, the source the directory chooser lists from: `knownDirs()` merges
   - every project's directories (from all projects, ignoring the pin), with their repo and branch;
   - the directories of TUIOS sessions and the current directories of panes;
-  - `~/hub/o` links;
-  - git repos one level under `~/proj` (only folders with a `.git`; no deep scan).
+  - git repos found under the configured **project base dirs** (below).
+
+  **Project base dirs** are per machine, never hard-coded. They're read from `$XDG_CONFIG_HOME/matomeru/dirs.json` (else `~/.config/matomeru/dirs.json`, the same place as `harnesses.json`):
+
+  ```json
+  { "project_base_dirs": [ { "path": "~/proj" }, { "path": "~/hub/o" }, { "path": "~/work", "depth": 2 } ] }
+  ```
+
+  - `depth` is how many levels below the base to look for folders with a `.git` (default 1; no deeper scan). Symlinks are followed and deduplicated by their real path, so a folder of links like `~/hub/o` works as a base.
+  - `MTM_PROJECT_BASE_DIRS` (colon-separated paths, depth 1) overrides the file, for hosts reached over ssh or one-off runs.
+  - With no file and no variable, mtm uses whichever of `~/proj`, `~/projects`, `~/src`, `~/code`, `~/dev` exist; on a machine with none of them, known directories come only from projects and TUIOS.
+  - A configured base that doesn't exist is skipped and noted once in the list's footer, never an error.
+  - `dirs.bases` lists the effective bases and where each came from (file, variable or default); `dirs.base.add PATH` and `dirs.base.remove PATH` edit the file, so nobody has to edit JSON by hand.
 
   Duplicates collapse by cleaned path. The order is most recently used first, by `dir_recent.last_used`, seeded on first run from TUIOS session `last_active`; never-used directories follow alphabetically. Each row shows the path, repo and branch, when it was last used, and which projects already have it. Fuzzy search filters the list; a `browse…` row opens ochazuke's directory picker for anything not listed. The list is cached and refreshed in the background, never on a keypress.
 - **B2, directories:** in the project detail, add a directory chosen from known directories (no-op if this project already has it; attaching a path another project has is allowed, and the detail lists the other projects that share it; a missing path is attached and flagged) and set the default. The first one added becomes the default. These store functions are shared, and o-proj's registration moves onto them. Editing and removing directories wait for the follow-up plan.
@@ -132,6 +143,7 @@ Files: `cmd/mtm/project.go` (project verbs, never in `main.go`'s block), `cmd/mt
 Acceptance:
 - Create, view and rename a project and a task. A half-typed edit survives moving away, an mtm restart, and coming back. Cancel removes the draft and leaves the record unchanged.
 - A new project with two directories, with the second marked default, keeps both after a restart.
+- With `MTM_PROJECT_BASE_DIRS` pointing at a temporary folder holding two repos and no `~/proj` or `~/hub`, known directories list exactly those two plus project and TUIOS directories; a missing base shows in the footer and nothing fails.
 - Known directories list a repo launched yesterday above one launched last week, and above repos never used; a repo already attached to B shows "B" beside it; a path typed in `browse…` is attached and appears at the top next time.
 - The same repo attached to A (as default) and B (as an extra directory): both details list it and name the other project; pinning B shows it in B's directories; A's launches use it and B's use B's default.
 - A shell and an agent launched for that project open in the default directory (check `pwd` in the real pane). A missing default directory launches in home with a notice.
