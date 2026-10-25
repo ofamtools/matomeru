@@ -41,6 +41,12 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	sh.Settle = a.closeTerminals
 	sh.Prepare = func(ctx context.Context) error {
 		a.cli = true
+		if err := a.r.OpenPage("work"); err != nil {
+			return err
+		}
+		if err := a.r.SetFocus("work"); err != nil {
+			return err
+		}
 		if err := a.ensure(ctx); err != nil {
 			fmt.Fprintln(stderr, "mtm:", err)
 			a.setPanes(nil, err)

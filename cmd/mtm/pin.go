@@ -77,6 +77,7 @@ func (a *App) setPin(id string) ochazuke.Result {
 
 func (a *App) toggleAll(ochazuke.Ctx) ochazuke.Result {
 	a.all = !a.all
+	a.pinVersion++
 	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -105,6 +106,28 @@ func (a *App) refreshScope() error {
 		a.m.Title += " · all"
 	}
 	a.preview = preview{}
+	a.captureErr, a.landErr = "", ""
+	a.detailTask = ""
+	if !a.inScope(a.directories.ProjectID) {
+		a.directories.ProjectID = a.pin
+		a.directories.Browse = false
+		if input := a.r.Input("directories/path"); input != nil {
+			if err := input.Replace(0, len(input.Text), ""); err != nil {
+				return err
+			}
+		}
+	}
+	if a.editor != nil {
+		owner := a.editor.Record.ProjectID
+		if a.editor.Record.Noun == "project" {
+			owner = a.editor.Record.ID
+		}
+		if !a.inScope(owner) {
+			if err := a.leaveEditor(); err != nil {
+				return err
+			}
+		}
+	}
 	if a.attached.ID != "" && !a.inScope(a.paneOwner(a.attached).ProjectID) {
 		if err := a.closeTerminal(); err != nil {
 			return err
@@ -114,6 +137,9 @@ func (a *App) refreshScope() error {
 		a.current, a.tasksOpen = a.pin, a.pin != ""
 	}
 	if err := a.refreshTasks(); err != nil {
+		return err
+	}
+	if err := a.refreshNotes(); err != nil {
 		return err
 	}
 	a.setPanes(a.panes, nil)

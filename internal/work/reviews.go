@@ -14,19 +14,21 @@ import (
 // a project row) and the pane it runs in. Output is the pane's screen as
 // last captured; Answer is the text the user saved against it.
 type Review struct {
-	ID         string `json:"id"`
-	ProjectID  string `json:"project_id"`
-	TaskID     string `json:"task_id,omitempty"`
-	Harness    string `json:"harness,omitempty"` // the harness the pane runs (empty: rows from before harnesses)
-	Session    string `json:"session"`
-	Window     string `json:"window"`
-	Pane       string `json:"pane"`
-	Status     string `json:"status"`
-	Output     string `json:"output,omitempty"`
-	CapturedAt int64  `json:"captured_at,omitempty"`
-	Answer     string `json:"answer,omitempty"`
-	Created    int64  `json:"created"`
-	Updated    int64  `json:"updated"`
+	ID              string `json:"id"`
+	ProjectID       string `json:"project_id"`
+	TaskID          string `json:"task_id,omitempty"`
+	FormerProjectID string `json:"former_project_id,omitempty"`
+	FormerTaskID    string `json:"former_task_id,omitempty"`
+	Harness         string `json:"harness,omitempty"` // the harness the pane runs (empty: rows from before harnesses)
+	Session         string `json:"session"`
+	Window          string `json:"window"`
+	Pane            string `json:"pane"`
+	Status          string `json:"status"`
+	Output          string `json:"output,omitempty"`
+	CapturedAt      int64  `json:"captured_at,omitempty"`
+	Answer          string `json:"answer,omitempty"`
+	Created         int64  `json:"created"`
+	Updated         int64  `json:"updated"`
 }
 
 // Review statuses.

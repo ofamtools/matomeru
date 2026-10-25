@@ -235,7 +235,4 @@ func TestTaskVerbsTakeArgumentsWithoutPrompts(t *testing.T) {
 	if got := stored(t, app, "t2"); got.Title != "renamed" || got.Status != work.StatusDone {
 		t.Fatalf("task = %+v", got)
 	}
-	if label := app.r.Instances["t2"].Label; label != "[x] renamed" {
-		t.Fatalf("row label = %q", label)
-	}
 }

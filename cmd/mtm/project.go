@@ -124,7 +124,8 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	}
 	if task != nil {
 		detail = fmt.Sprintf("%s\n\nstatus: %s\nproject: %s", taskLabel(*task), task.Status, task.ProjectID)
-	} else if p, ok := a.project(projectID); ok {
+		detail += a.detailNotes(task.ProjectID, task.ID)
+	} else if p, ok := a.project(projectID); ok && a.inScope(p.ID) {
 		detail = fmt.Sprintf("%s\n\ncolor: %s  glyph: %s\nharness: %s\npreset: %s\n\ndirectories", projectLabel(p), p.Theme.Color, p.Theme.Glyph, p.Settings.Harness, p.Settings.Preset)
 		if a.inScope(p.ID) {
 			for _, tree := range p.Trees {
@@ -152,6 +153,9 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 				}
 				detail += "\n" + tree.Path + mark
 			}
+		}
+		if a.inScope(p.ID) {
+			detail += a.detailNotes(p.ID, "")
 		}
 	}
 	return ochazuke.Text(lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(a.workLists(leftWidth, height)), lipgloss.NewStyle().Width(rightWidth).Render(detail)))

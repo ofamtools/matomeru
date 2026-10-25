@@ -117,7 +117,13 @@ Notes have their own Notes page, reached with the framework page navigation. `a`
 
 CLI: `note new TEXT [--task ID] [--project ID]`, `note list [--all]`, `note view --target ID`, `note edit TEXT --target ID`, and `note associate --target ID [--task ID|--project ID|--scratch]`. Omitted text opens the shared editor; an explicit `""` saves empty. New notes capture `resolveOwner` once; task ownership wins over a conflicting project, and CLI creation never reads TUI selection. The list and saved preview use `inScope`, including task-only legacy notes whose project is inherited from their task. Association changes ownership without changing the saved body or losing an unfinished draft.
 
-`internal/work/notes.go` declares no migration: the existing notes table keeps owner `notes`, key `id`, version 1. Reads ignore unknown legacy fields; saving preserves them, including provenance. Task/project detail notes and deletion remain the separately assigned integration work.
+`internal/work/notes.go` declares no migration: the existing notes table keeps owner `notes`, key `id`, version 1. Reads ignore unknown legacy fields; saving preserves them, including provenance. Project and task details now list their scoped notes.
+
+Integration is complete. Pin changes clear out-of-scope editors, details, directory paths, and pane previews. Unfinished edits remain on disk. Preview and review completions check the pin version before publishing output. A review cannot capture a pane whose current owner is outside the pin. The project picker and known-directory chooser remain global by design; project details and task lists do not expose another project's contents while scoped.
+
+`project delete --target ID` and `task delete --target ID`, or normal-mode `D` on their rows, show a confirmation with separate counts for affected tasks, notes, pane owners, session owners, and reviews. `--yes` accepts through the framework CLI. Deletion preserves child records and unknown JSON fields, clears the deleted owner, and records `former_project_id` or `former_task_id`. Deleting a task preserves its children's effective project. Deleting the pinned project clears the pin. Related drafts lose the deleted owner without losing their text; the deleted record's own draft is removed. Neither directories nor live panes are deleted.
+
+CLI preparation opens neutral Work focus before dispatch. Generic launches therefore use the pin even when the first project row belongs to another project. Explicit `--target` actions still address their record. The [integration evidence](plans/build-plan.md#integration-verification) records the isolated ten-step run, merged editor acceptance, compatibility-copy changes, and final checks.
 
 
 Known gaps:

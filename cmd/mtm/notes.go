@@ -245,7 +245,7 @@ func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) saveNoteRecord(record editRecord) (work.Note, error) {
-	note := work.Note{ID: record.ID, ProjectID: record.ProjectID, TaskID: record.TaskID, Created: work.Now()}
+	note := work.Note{ID: record.ID, ProjectID: record.ProjectID, TaskID: record.TaskID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Created: work.Now()}
 	if !record.New {
 		var err error
 		note, err = a.work.Note(record.ID)
@@ -307,4 +307,22 @@ func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	}
 	body := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), right.Text)
 	return right.Offset(leftWidth+2, 0).WithText(body)
+}
+
+func (a *App) detailNotes(project, task string) string {
+	notes, err := a.scopedNotes()
+	if err != nil {
+		return "\n\nnotes: " + err.Error()
+	}
+	var lines []string
+	for _, note := range notes {
+		owner, err := a.work.NoteProject(note)
+		if err != nil {
+			return "\n\nnotes: " + err.Error()
+		}
+		if (task != "" && note.TaskID == task) || (task == "" && owner == project) {
+			lines = append(lines, note.Text)
+		}
+	}
+	return fmt.Sprintf("\n\nnotes (%d)\n%s", len(lines), strings.Join(lines, "\n\n"))
 }

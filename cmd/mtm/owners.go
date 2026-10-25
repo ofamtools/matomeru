@@ -94,7 +94,7 @@ func (a *App) associateTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if o.Notice != "" {
 		a.m.Notify(o.Notice)
 	}
-	if err := a.refreshTasks(); err != nil {
+	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(t)

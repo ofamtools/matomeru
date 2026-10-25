@@ -54,12 +54,16 @@ func (a *App) listTasks(ctx ochazuke.Ctx) ochazuke.Result {
 func (a *App) refreshTasks() error {
 	var tasks []work.Task
 	if a.tasksOpen {
-		rows, err := a.work.Tasks(a.current)
+		project := a.current
+		if a.all {
+			project = ""
+		}
+		rows, err := a.work.Tasks(project)
 		if err != nil {
 			return err
 		}
 		for _, t := range rows {
-			if t.ProjectID == a.current && a.inScope(t.ProjectID) {
+			if (a.all || t.ProjectID == a.current) && a.inScope(t.ProjectID) {
 				tasks = append(tasks, t)
 			}
 		}
@@ -76,13 +80,16 @@ func (a *App) refreshTasks() error {
 	items := make([]ochazuke.ListItem, 0, len(tasks))
 	for _, t := range tasks {
 		label := taskLabel(t)
+		if a.all || a.pin == "" {
+			label += " · " + a.ownerLabel(t.ProjectID)
+		}
 		if marked[t.ID] {
 			label += " [draft]"
 		}
 		items = append(items, ochazuke.ListItem{ID: t.ID, Label: label, Noun: "task"})
 	}
 	for _, d := range drafts {
-		if d.New && a.tasksOpen && d.ProjectID == a.current && a.inScope(d.ProjectID) {
+		if d.New && a.tasksOpen && (a.all || d.ProjectID == a.current) && a.inScope(d.ProjectID) {
 			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d})
 		}
 	}

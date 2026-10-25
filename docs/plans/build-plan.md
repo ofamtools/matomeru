@@ -256,6 +256,47 @@ One agent, on main.
 
   Then one full `go test -race ./...`.
 
+### Integration verification
+
+Completed on main after `559116b`, `0b88aad`, and `309c3af`. No follow-up features were added.
+
+The actual CLI and TUI run used the separate server `mtmi-bde1jj5k` and database `/var/folders/fq/njpv8bjs42bf7c6t17qtwfpc0000gn/T/mtm-integration-bde1jj5k/mtm.db`. Every app invocation supplied `--data`. Agent launches used the configured `proof` harness running `/bin/sh -i` in real TUIOS panes, not an AI inference session.
+
+All ten scenario steps ran:
+
+1. Created an empty-name project and renamed it `Integration A`.
+2. Attached `repos/one` and `repos/two`, then selected `repos/two` as default.
+3. Pinned A. CLI scoped/all counts were tasks 1/2, notes 2/4, panes 2/3, sessions 1/2, and reviews 1/2. The scoped rows belonged to A. Panes included both shell and agent-harness launches.
+4. Captured `pwd` from both live panes. Both printed the physical `/private/var/.../repos/two` path.
+5. Created a task and note without explicit ownership. Both persisted A's id.
+6. Launched a scratch agent into `no-project` and verified its empty owner.
+7. Used `S` in the TUI, browsed B, and launched its project row. The title retained A's pin; the new pane belonged to B and printed B's default directory.
+8. Associated the scratch pane with A through `pane associate`.
+9. Deleted the A task. Its note retained its text and project, cleared `task_id`, and stored `former_task_id`.
+10. Restarted the TUI and CLI. The A pin, directories, notes, pane ownership, and task deletion persisted.
+
+Merged B/C checks used the real editors and chooser. Project, task, and note drafts survived navigation and process restart, then cancelled without replacing the saved records. The task editor saved a renamed title and `done` status. The note editor saved a multiline body with Enter. Note creation covered all six ownership cases, including a selected B task while A remained pinned and a selected unassociated task. Conflicting explicit task/project arguments retained the task's owner and returned the precedence notice.
+
+The directory chooser found exactly the two initial repositories plus project and daemon directories, displayed the missing-base footer and shared-project labels, opened the framework picker, and attached a typed missing path. The new attachment became the most recent row. Temporary recency rows set to yesterday and last week sorted in that order; a subsequently added never-used repo sorted after both. A second project with a shared default launched real shell and agent-harness panes there, while B retained its own default. A missing default launched a shell in home, with the TUI's unavailable-directory notice visible.
+
+Project deletion was cancelled once, then accepted. A's task, five notes, five pane owners, session owner, and review became orphaned; the pin cleared. Existing pane ids and both repository directories survived. The final 80-column confirmation displayed every count and the directories/panes warning on separate lines. Task/project details displayed their notes. Opening a review after moving its pane outside the pin left its saved output and capture timestamp empty.
+
+The run found and fixed two integration defects: generic CLI launches could inherit the initially focused project instead of a non-first pin, and the deletion confirmation clipped its affected counts. CLI preparation now resets to neutral Work focus. Confirmation counts occupy separate lines. Regression coverage also checks late preview/review completion after pin changes, out-of-scope note drafts, inherited orphan owners, and saving an orphaned draft.
+
+Final checks passed:
+
+```sh
+gofmt -l . && go vet ./... && go test -race ./...
+go run ./cmd/mtm --data /var/folders/fq/njpv8bjs42bf7c6t17qtwfpc0000gn/T/mtm-integration-bde1jj5k/mtm.db --server mtmi-bde1jj5k --harnesses /var/folders/fq/njpv8bjs42bf7c6t17qtwfpc0000gn/T/mtm-integration-bde1jj5k/harnesses.json --smoke
+```
+
+`gofmt -l` printed nothing. The race suite includes `ValidateBindings`. The smoke rendered Work with B's persisted pin, task, shared-directory label, and note count.
+
+Compatibility used SQLite's backup API with a read-only connection to the owner's database. Only `compat.db` was opened by mtm. It contained zero notes, and `note list --all` returned `[]`. The initial open added the `session_owners` declaration, initialized the legacy active pin/import markers, and added three missing assignments from reviews. Existing assignments and every other pre-existing table row remained unchanged. A second CLI/smoke open changed no rows. Nonempty legacy-note preservation remains covered by fixtures, not by this empty real-note inventory.
+
+The isolated server was stopped after verification and the temporary executable was removed. The owner's daemon and database were not used for app execution.
+
+
 ## Checkouts and merging
 
 - **Who builds what:** step 0, lane A and integration run on astra (`command omp --allow-home -p --no-session --model openai-codex/gpt-6-astra --cwd <checkout>`, as a background process, always the `openai-codex` provider); lanes B and C run on Opus subagents.

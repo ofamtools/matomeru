@@ -255,6 +255,7 @@ func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	d := a.panesd
+	version := a.pinVersion
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		text, err := d.CapturePane(c, p)
 		if err != nil {
@@ -262,7 +263,7 @@ func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return preview{Pane: p.rowID(), Text: text}, nil
 	}).ReplacingAt(paneListID, "preview").Then(func(_ ochazuke.Ctx, v any, err error) {
-		if got, ok := v.(preview); ok && err == nil && a.inScope(a.paneOwner(p).ProjectID) {
+		if got, ok := v.(preview); ok && err == nil && version == a.pinVersion && a.inScope(a.paneOwner(p).ProjectID) {
 			a.preview = got
 		}
 	})

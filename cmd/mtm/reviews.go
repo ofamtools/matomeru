@@ -166,7 +166,18 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	d := a.panesd
+	version := a.pinVersion
 	target := pane{Session: rv.Session, Pane: daemon.Pane{ID: rv.Window}}
+	for _, p := range a.panes {
+		if p.ID == rv.Window && p.Session == rv.Session {
+			target = p
+			break
+		}
+	}
+	if !a.inScope(a.paneOwner(target).ProjectID) {
+		a.captureErr = "pane outside pin; showing saved output"
+		return ochazuke.Done(rv)
+	}
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		text, err := d.CapturePane(c, target)
 		if err != nil {
@@ -174,7 +185,7 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return text, nil
 	}).ReplacingAt(reviewListID, "capture").Then(func(_ ochazuke.Ctx, v any, err error) {
-		if !a.inScope(rv.ProjectID) {
+		if version != a.pinVersion || a.opened != rv.ID || !a.inScope(rv.ProjectID) || !a.inScope(a.paneOwner(target).ProjectID) {
 			return
 		}
 		if err != nil {

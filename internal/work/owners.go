@@ -56,7 +56,7 @@ func (s *Store) PaneOwner(window, sessionID string) (Assignment, error) {
 		return a, err
 	}
 	o, err := s.SessionOwner(sessionID)
-	return Assignment{Window: window, Session: sessionID, ProjectID: o.ProjectID}, err
+	return Assignment{Window: window, Session: sessionID, ProjectID: o.ProjectID, FormerProjectID: o.FormerProjectID}, err
 }
 
 func (s *Store) taskProject(id string) (string, error) {

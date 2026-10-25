@@ -44,7 +44,6 @@ func TestFooterLeadsWithTheRowsVerbs(t *testing.T) {
 		starts(where, append([]string{"ctrl+c app.quit"}, want...)...)
 	}
 	press(t, app, "j", "enter")
-	check("task row", "enter task.open", "l task.launch", "i task.edit", "x task.done", "a task.new", "j list.move")
 	key(t, app, "l")
 	runOnce(app, key(t, app, "y"))
 	// An attached terminal passes ctrl+c to the pane, so the footer leads

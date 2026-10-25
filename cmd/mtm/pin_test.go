@@ -85,6 +85,12 @@ func TestLaunchUsesPinWhileBrowsingAndScratchOverrides(t *testing.T) {
 		{[]string{"pane", "new", "--scratch", "--yes"}, "mtm-only", ""},
 		{[]string{"agent", "launch", "--scratch", "--yes"}, "no-project", ""},
 	} {
+		if err := a.r.OpenPage("work"); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.r.SetFocus("ochazuke"); err != nil {
+			t.Fatal(err)
+		}
 		_, stderr, err := cli(a, "", c.args...)
 		if err != nil {
 			t.Fatalf("%v: %v %s", c.args, err, stderr)

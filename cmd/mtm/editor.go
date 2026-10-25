@@ -15,13 +15,15 @@ import (
 const recordInputID = "work/editor"
 
 type editRecord struct {
-	Noun      string            `json:"noun"`
-	ID        string            `json:"id"`
-	Text      string            `json:"text"`
-	ProjectID string            `json:"project_id"`
-	TaskID    string            `json:"task_id,omitempty"`
-	New       bool              `json:"new"`
-	Fields    map[string]string `json:"fields,omitempty"`
+	Noun            string            `json:"noun"`
+	ID              string            `json:"id"`
+	Text            string            `json:"text"`
+	ProjectID       string            `json:"project_id"`
+	TaskID          string            `json:"task_id,omitempty"`
+	FormerProjectID string            `json:"former_project_id,omitempty"`
+	FormerTaskID    string            `json:"former_task_id,omitempty"`
+	New             bool              `json:"new"`
+	Fields          map[string]string `json:"fields,omitempty"`
 }
 type editorField struct {
 	Name  string
@@ -180,7 +182,7 @@ func (a *App) saveRecord(ochazuke.Ctx) ochazuke.Result {
 			err = a.work.PutProject(p)
 			value = p
 		case "task":
-			t := work.Task{ID: record.ID, ProjectID: record.ProjectID, Status: work.StatusTodo, Created: work.Now()}
+			t := work.Task{ID: record.ID, ProjectID: record.ProjectID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Status: work.StatusTodo, Created: work.Now()}
 			if record.New {
 				var rows []work.Task
 				rows, err = a.work.Tasks(record.ProjectID)

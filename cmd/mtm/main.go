@@ -140,6 +140,15 @@ func (a *App) reveal(id string) error {
 	if a.cli {
 		a.all = true
 	} // An explicit CLI target may be outside the pin.
+	if err := a.refreshNotes(); err != nil {
+		return err
+	}
+	if err := a.refreshReviews(); err != nil {
+		return err
+	}
+	if a.r.Instances[id] != nil {
+		return nil
+	}
 	if t, err := a.work.Task(id); err == nil {
 		if t.ProjectID == "" {
 			_, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "unassociated", Target: unassociatedID})
@@ -249,6 +258,7 @@ func New(opts Options) (*App, error) {
 	a.defineReviews()
 	a.definePin()
 	a.defineOwners()
+	a.defineDeletion()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
@@ -343,8 +353,7 @@ func (a *App) refreshProjects() error {
 	return a.projectList.SetItems(items)
 }
 
-// projectLabel is the row text: the theme glyph, the name, and the default
-// tree when the project has one.
+// projectLabel stays global; owned directories belong in the scoped detail.
 func projectLabel(p work.Project) string {
 	label := p.Name
 	if label == "" {
@@ -352,9 +361,6 @@ func projectLabel(p work.Project) string {
 	}
 	if p.Theme.Glyph != "" {
 		label = p.Theme.Glyph + " " + label
-	}
-	if p.DefaultTree != "" {
-		label += "  " + p.DefaultTree
 	}
 	return label
 }
