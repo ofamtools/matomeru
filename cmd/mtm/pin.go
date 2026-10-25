@@ -1,8 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -11,6 +13,7 @@ import (
 )
 
 func (a *App) definePin() {
+	a.choosers = NewChoosers(a.r, a.m.ModalViews)
 	a.r.Define("project").
 		Verb("pin", a.pinProject, "Pin a project; omit project to pick one").Positional("project").
 		Verb("pick", func(ochazuke.Ctx) ochazuke.Result { return a.pinProject(ochazuke.Ctx{}) }, "Choose a pin from any page").
@@ -19,19 +22,6 @@ func (a *App) definePin() {
 	a.r.Define("scope").Verb("all", a.toggleAll, "Toggle all projects without changing the pin").
 		Mode("normal").Bind("S", ochazuke.Do("scope.all"))
 	a.r.Define("app").Mode("normal").Bind("P", ochazuke.Do("project.pick")).Bind("S", ochazuke.Do("scope.all"))
-	a.r.Define("pin-choice").Verb("choose", func(ctx ochazuke.Ctx) ochazuke.Result {
-		id, _ := ctx.Instance.Data.(string)
-		if err := a.r.Pop(); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return a.setPin(id)
-	}).Mode("normal").Bind("enter", ochazuke.Do("pin-choice.choose"))
-	a.m.ModalViews["pin-picker"] = ochazuke.ModalView{Title: "Pin project", Render: func(r *ochazuke.Runtime, _ *ochazuke.Instance, w, h int) ochazuke.Block {
-		if list := r.List("pin-picker/list"); list != nil {
-			return ochazuke.Text(list.View(w, h))
-		}
-		return ochazuke.Text("")
-	}}
 	a.ownedBy("scope", "work")
 }
 
@@ -42,22 +32,74 @@ func (a *App) pinProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance != nil && ctx.Instance.Noun == "project" {
 		return a.setPin(ctx.Instance.ID)
 	}
-	if _, err := a.r.OpenModal("pin-picker", ochazuke.Payload{}); err != nil {
-		return ochazuke.Failed(err)
-	}
-	items := []ochazuke.ListItem{{ID: "pin-choice:none", Noun: "pin-choice", Label: "no pin (unpin)", Data: ""}}
-	for _, p := range a.projects {
-		items = append(items, ochazuke.ListItem{ID: "pin-choice:" + p.ID, Noun: "pin-choice", Label: projectLabel(p), Data: p.ID})
-	}
-	list, err := a.r.AddList("pin-picker/list", items, ochazuke.Parent("pin-picker"))
-	if err == nil {
-		err = list.Focus()
-	}
+	return a.openPinPicker()
+}
+
+// pinPicker is the pin chooser's modal kind.
+const pinPicker = "pin-picker"
+
+// unpinRow is the pin chooser's trailing "no pin" row.
+const unpinRow = "pin-choice:none"
+
+// openPinPicker opens the pin chooser: projects most recently pinned first,
+// then by name, each with its directory; "no pin (unpin)" last. Enter pins
+// the top match, or creates a project named from the query when none
+// matches; ctrl+n always creates.
+func (a *App) openPinPicker() ochazuke.Result {
+	pinned, err := a.work.PinnedAt()
 	if err != nil {
-		_ = a.r.Pop()
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(nil)
+	projects := slices.Clone(a.projects)
+	slices.SortStableFunc(projects, func(x, y work.Project) int {
+		return cmp.Or(cmp.Compare(pinned[y.ID], pinned[x.ID]), cmp.Compare(strings.ToLower(projectName(x)), strings.ToLower(projectName(y))))
+	})
+	home, _ := a.home()
+	rows := make([]ChooserRow, 0, len(projects)+1)
+	for _, p := range projects {
+		label := projectLabel(p)
+		if dir := projectDir(p); dir != "" {
+			label += "  " + tildePath(dir, home)
+		}
+		rows = append(rows, ChooserRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID})
+	}
+	rows = append(rows, ChooserRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Trailing: true})
+	_, err = a.choosers.Open(ChooserSpec{
+		Kind:  pinPicker,
+		Title: "Pin project",
+		Rows:  rows,
+		Filter: func(query string, row ChooserRow) bool {
+			if row.Trailing {
+				return strings.Contains(strings.ToLower(row.Label), strings.ToLower(strings.TrimSpace(query)))
+			}
+			return fuzzyMatch(query, row.Label)
+		},
+		Choose: func(row ChooserRow) ochazuke.Result {
+			id, _ := row.Data.(string)
+			return a.setPin(id)
+		},
+		Create: a.createPinnedProject,
+		CreateLabel: func(query string) string {
+			if strings.TrimSpace(query) == "" {
+				return "new untitled project"
+			}
+			return fmt.Sprintf("new project %q", strings.TrimSpace(query))
+		},
+	})
+	return resultError(err)
+}
+
+// createPinnedProject records a project named from the query (a nameless
+// one is fine) and pins it.
+func (a *App) createPinnedProject(name string) ochazuke.Result {
+	p, err := a.work.AddProject(name)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return a.setPin(p.ID)
 }
 
 func (a *App) unpinProject(ochazuke.Ctx) ochazuke.Result { return a.setPin("") }

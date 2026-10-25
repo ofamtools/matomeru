@@ -173,6 +173,7 @@ type App struct {
 	directories    directoryCache
 	directoryList  *ochazuke.List
 	directoryQuery *ochazuke.Input
+	choosers       *Choosers
 	detailTask     string
 	cli            bool
 	pin            string
