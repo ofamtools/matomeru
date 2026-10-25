@@ -432,7 +432,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 		list = a.fill("no reviews; a launch records one when it finishes", top)
 	}
 	rows := max(1, height-4-top)
-	detail, body, answer := "detail: enter captures the review's pane", a.fill("", rows), "answer: open a review with enter, then } edits it"
+	detail, body, answer := "detail: enter captures the review's pane", a.fill("", rows), "answer: s on a review types one"
 	if rv, ok := a.openedReview(); ok {
 		detail = "output: " + rv.Pane + " [" + rv.Status + "]"
 		owner, err := a.work.PaneOwner(rv.Window, "")
