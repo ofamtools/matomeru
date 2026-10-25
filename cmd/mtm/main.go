@@ -281,6 +281,7 @@ func New(opts Options) (*App, error) {
 	a.defineSaved()
 	a.defineVim()
 	a.defineRenames()
+	a.defineOutline()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
