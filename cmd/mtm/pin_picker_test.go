@@ -174,7 +174,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		a.m.Width, a.m.Height = width, 24
 		frame := ansi.Strip(a.View().Content)
-		for _, want := range []string{"Pin project", "◆ matomeru  ~/proj/clients", "no pin (unpin)", "enter chooser.pick", "ctrl+n chooser.new", "esc chooser.cancel"} {
+		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter chooser.pick", "ctrl+n chooser.new", "esc chooser.cancel"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("at %d missing %q:\n%s", width, want, frame)
 			}
@@ -289,5 +289,41 @@ func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
 	press(t, a, "enter")
 	if a.r.Page != "directories" || a.r.TopModal() != "picker" || a.directories.ProjectID != "matomeru" {
 		t.Fatalf("browse: page %s modal %q project %q", a.r.Page, a.r.TopModal(), a.directories.ProjectID)
+	}
+}
+
+// Typing toward "unpin" reaches the unpin row even when projects fuzzily
+// match the letters ("tuios-inbox" holds u, n, p); a project the query
+// spells from a word start still wins ("no" for "notes").
+func TestPinPickerUnpinBeatsFuzzyMatches(t *testing.T) {
+	a := open(t)
+	for _, name := range []string{"tuios-inbox", "unixsuperhero", "notes"} {
+		if _, err := a.work.AddProject(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
+	for _, query := range []string{"unp", "unpin", "no pin", "no p"} {
+		c := openPicker(t, a)
+		typeText(t, a, query)
+		if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
+			t.Fatalf("%q highlights %+v of %q", query, row, labels(c.Matches()))
+		}
+		press(t, a, "esc")
+	}
+	c := openPicker(t, a)
+	typeText(t, a, "no")
+	if row, _ := c.Highlighted(); row.Label != "notes" {
+		t.Fatalf("no highlights %+v", row)
+	}
+	press(t, a, "esc")
+	c = openPicker(t, a)
+	typeText(t, a, "unp")
+	press(t, a, "enter")
+	if a.pin != "" {
+		t.Fatalf("unp enter pinned %q", a.pin)
 	}
 }

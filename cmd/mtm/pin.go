@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -55,13 +56,30 @@ func (a *App) openPinPicker() ochazuke.Result {
 		return cmp.Or(cmp.Compare(pinned[y.ID], pinned[x.ID]), cmp.Compare(strings.ToLower(projectName(x)), strings.ToLower(projectName(y))))
 	})
 	home, _ := a.home()
+	tasks, err := a.work.Tasks("")
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	open := map[string]int{}
+	for _, t := range tasks {
+		if t.Status != work.StatusDone {
+			open[t.ProjectID]++
+		}
+	}
+	now := time.Now()
 	rows := make([]ChooserRow, 0, len(projects)+1)
 	for _, p := range projects {
-		label := projectLabel(p)
-		if dir := projectDir(p); dir != "" {
-			label += "  " + tildePath(dir, home)
+		dir := tildePath(projectDir(p), home)
+		label := strings.TrimSpace(projectLabel(p) + "  " + dir)
+		count := ""
+		if open[p.ID] > 0 {
+			count = fmt.Sprintf("%d open", open[p.ID])
 		}
-		rows = append(rows, ChooserRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID})
+		used := ""
+		if pinned[p.ID] != 0 {
+			used = "pinned " + sinceUse(pinned[p.ID], now)
+		}
+		rows = append(rows, ChooserRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
 	}
 	rows = append(rows, ChooserRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Trailing: true})
 	_, err = a.choosers.Open(ChooserSpec{

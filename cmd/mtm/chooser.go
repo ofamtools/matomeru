@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -28,6 +29,10 @@ type ChooserRow struct {
 	Label    string
 	Data     any
 	Trailing bool
+	// Cells, when set, draw the row as aligned columns (each column as
+	// wide as its widest cell among the rows); Label stays what the
+	// filter reads.
+	Cells []string
 }
 
 // ChooserSpec opens a chooser. Kind is the modal's kind (one open chooser
@@ -244,6 +249,20 @@ func (c *Chooser) refilter() {
 	slices.SortStableFunc(head, func(x, y ChooserRow) int {
 		return cmpBool(strings.Contains(strings.ToLower(y.Label), needle), strings.Contains(strings.ToLower(x.Label), needle))
 	})
+	// A trailing row the query spells from the start of one of its words
+	// ("unp", "no pin") is what the user asked for: it leads, unless an
+	// ordinary row is spelled as well ("no" for a project "notes").
+	spelled := false
+	for _, row := range head {
+		spelled = spelled || spellsWords(c.seen, row.Label)
+	}
+	for i, row := range tail {
+		if !spelled && spellsWords(c.seen, row.Label) {
+			head = append([]ChooserRow{row}, head...)
+			tail = append(tail[:i:i], tail[i+1:]...)
+			break
+		}
+	}
 	c.matches = append(head, tail...)
 	c.moved = false
 	c.cursor = -1
@@ -292,8 +311,13 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	if c.cursor >= rowsHeight {
 		offset = c.cursor - rowsHeight + 1
 	}
+	widths := c.cellWidths()
 	for i := offset; i < len(c.matches) && i < offset+rowsHeight; i++ {
-		row := ansi.Truncate("  "+c.matches[i].Label, width, "…")
+		text := c.matches[i].Label
+		if cells := c.matches[i].Cells; len(cells) > 0 {
+			text = alignCells(cells, widths)
+		}
+		row := ansi.Truncate("  "+text, width, "…")
 		if i == c.cursor {
 			row = lipgloss.NewStyle().Reverse(true).Render(ansi.Truncate(row+strings.Repeat(" ", max(0, width-ansi.StringWidth(row))), width, ""))
 		}
@@ -303,6 +327,59 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 		lines = append(lines, ansi.Truncate("  enter: "+c.spec.CreateLabel(c.Query()), width, "…"))
 	}
 	return line.WithText(strings.Join(lines, "\n"))
+}
+
+// cellWidths is each column's width over every row with cells, so the
+// columns do not shift as the query narrows the rows.
+func (c *Chooser) cellWidths() []int {
+	var widths []int
+	for _, row := range c.spec.Rows {
+		for i, cell := range row.Cells {
+			if i == len(widths) {
+				widths = append(widths, 0)
+			}
+			widths[i] = max(widths[i], ansi.StringWidth(cell))
+		}
+	}
+	return widths
+}
+
+// alignCells pads each cell but the last to its column's width, two
+// spaces apart; trailing empty cells are dropped.
+func alignCells(cells []string, widths []int) string {
+	for len(cells) > 0 && cells[len(cells)-1] == "" {
+		cells = cells[:len(cells)-1]
+	}
+	var b strings.Builder
+	for i, cell := range cells {
+		b.WriteString(cell)
+		if i < len(cells)-1 && i < len(widths) {
+			b.WriteString(strings.Repeat(" ", max(0, widths[i]-ansi.StringWidth(cell))+2))
+		}
+	}
+	return b.String()
+}
+
+// spellsWords reports whether query, ignoring case and punctuation, starts
+// at the beginning of one of label's words and runs on through the words
+// that follow ("unp" and "no pin" spell "no pin (unpin)").
+func spellsWords(query, label string) bool {
+	norm := func(s string) []string {
+		return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+		})
+	}
+	q := strings.Join(norm(query), " ")
+	if q == "" {
+		return false
+	}
+	words := norm(label)
+	for i := range words {
+		if strings.HasPrefix(strings.Join(words[i:], " "), q) {
+			return true
+		}
+	}
+	return false
 }
 
 // cmpBool orders false before true.
