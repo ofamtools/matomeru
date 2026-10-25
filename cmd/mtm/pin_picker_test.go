@@ -55,7 +55,7 @@ func TestPinPickerEnterPinsTopMatch(t *testing.T) {
 		t.Fatalf("top row not highlighted: %+v", row)
 	}
 	typeText(t, a, "chz")
-	if got := labels(c.Matches()); len(got) != 1 || got[0] != "◆ ochazuke" {
+	if got := labels(c.Matches()); len(got) != 2 || got[0] != "◆ ochazuke" || got[1] != "no pin (unpin)" {
 		t.Fatalf("filtered %q", got)
 	}
 	press(t, a, "enter")
@@ -133,7 +133,7 @@ func TestPinPickerEmptyQueryWithNoProjectsCreatesNameless(t *testing.T) {
 	leaveDirectoryChooser(t, a)
 }
 
-func TestPinPickerUnpinRowIsLastAndClearsPinAcrossRestart(t *testing.T) {
+func TestPinPickerUnpinRowIsFixedAndClearsPinAcrossRestart(t *testing.T) {
 	path := seeded(t)
 	a := openAt(t, path)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
@@ -145,9 +145,13 @@ func TestPinPickerUnpinRowIsLastAndClearsPinAcrossRestart(t *testing.T) {
 	if row, _ := c.Highlighted(); row.ID == unpinRow {
 		t.Fatal("unpin is the default")
 	}
-	typeText(t, a, "unpin")
-	if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
-		t.Fatalf("unpin query highlights %+v of %q", row, labels(c.Matches()))
+	typeText(t, a, "chz")
+	if got := strings.Join(labels(c.Matches()), "|"); got != "◆ ochazuke|no pin (unpin)" {
+		t.Fatalf("chz rows %q", got)
+	}
+	press(t, a, "down")
+	if row, _ := c.Highlighted(); row.ID != unpinRow {
+		t.Fatalf("down from the top match lands on %+v", row)
 	}
 	press(t, a, "enter")
 	if a.pin != "" || a.r.TopModal() != "" || a.m.Title != "Matomeru · no pin" {
@@ -157,10 +161,16 @@ func TestPinPickerUnpinRowIsLastAndClearsPinAcrossRestart(t *testing.T) {
 	if b.pin != "" {
 		t.Fatalf("reopened pin %q", b.pin)
 	}
+	// With no query, moving to the bottom reaches it too.
+	executeA(t, b, "project", "pin", "work", ochazuke.Arguments{"project": "ochazuke"})
 	c = openPicker(t, b)
-	typeText(t, b, "no pin")
-	if got := labels(c.Matches()); len(got) != 1 || got[0] != "no pin (unpin)" {
-		t.Fatalf("no pin query %q", got)
+	press(t, b, "down", "down", "down")
+	if row, _ := c.Highlighted(); row.ID != unpinRow {
+		t.Fatalf("bottom row %+v", row)
+	}
+	press(t, b, "enter")
+	if b.pin != "" {
+		t.Fatalf("pin %q", b.pin)
 	}
 }
 
@@ -185,6 +195,32 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 			}
 		}
 		t.Logf("frame at %d:\n%s", width, frame)
+	}
+	// With a query, the unpin row stays at the bottom; with no match, the
+	// create line sits above it.
+	a.m.Width, a.m.Height = 80, 24
+	for _, query := range []string{"och", "zz"} {
+		press(t, a, "ctrl+u")
+		typeText(t, a, query)
+		frame := ansi.Strip(a.View().Content)
+		want := []string{"◆ ochazuke", "no pin (unpin)"}
+		if query == "zz" {
+			want = []string{"no matches", `enter: new project "zz"`, "no pin (unpin)"}
+		}
+		at := 0
+		for _, w := range want {
+			i := strings.Index(frame[at:], w)
+			if i < 0 {
+				t.Fatalf("query %q: %q missing or out of order:\n%s", query, w, frame)
+			}
+			at += i + len(w)
+		}
+		for i, line := range strings.Split(frame, "\n") {
+			if w := ansi.StringWidth(line); w > 80 {
+				t.Fatalf("query %q line %d is %d wide", query, i, w)
+			}
+		}
+		t.Logf("frame at 80 with %q:\n%s", query, frame)
 	}
 }
 
@@ -292,12 +328,13 @@ func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
 	}
 }
 
-// Typing toward "unpin" reaches the unpin row even when projects fuzzily
-// match the letters ("tuios-inbox" holds u, n, p); a project the query
-// spells from a word start still wins ("no" for "notes").
-func TestPinPickerUnpinBeatsFuzzyMatches(t *testing.T) {
-	a := open(t)
-	for _, name := range []string{"tuios-inbox", "unixsuperhero", "notes"} {
+// Typing never reaches the unpin row: a query a project fuzzily matches
+// highlights that project, and one nothing matches creates a project named
+// from it, recorded before the directory chooser opens.
+func TestPinPickerTypingNeverSelectsUnpin(t *testing.T) {
+	path := seeded(t)
+	a := openAt(t, path)
+	for _, name := range []string{"tuios-inbox", "unixsuperhero"} {
 		if _, err := a.work.AddProject(name); err != nil {
 			t.Fatal(err)
 		}
@@ -306,24 +343,45 @@ func TestPinPickerUnpinBeatsFuzzyMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
-	for _, query := range []string{"unp", "unpin", "no pin", "no p"} {
-		c := openPicker(t, a)
+	c := openPicker(t, a)
+	typeText(t, a, "unp")
+	if row, ok := c.Highlighted(); !ok || row.Label != "unixsuperhero" {
+		t.Fatalf("unp highlights %+v of %q", row, labels(c.Matches()))
+	}
+	press(t, a, "esc")
+	for _, query := range []string{"no pin", "unpin"} {
+		c = openPicker(t, a)
 		typeText(t, a, query)
-		if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
-			t.Fatalf("%q highlights %+v of %q", query, row, labels(c.Matches()))
+		if row, ok := c.Highlighted(); ok {
+			t.Fatalf("%q highlights %+v", query, row)
+		}
+		if got := labels(c.Matches()); len(got) != 1 || got[0] != "no pin (unpin)" {
+			t.Fatalf("%q rows %q", query, got)
 		}
 		press(t, a, "esc")
 	}
+	openPicker(t, a)
+	typeText(t, a, "unpin")
+	press(t, a, "enter")
+	p, ok := a.project(a.pin)
+	if !ok || p.Name != "unpin" {
+		t.Fatalf("unpin enter: pin %q project %+v", a.pin, p)
+	}
+	if b := openAt(t, path); b.pin != p.ID {
+		t.Fatalf("created project not recorded before the directory chooser: pin %q", b.pin)
+	}
+	leaveDirectoryChooser(t, a)
+}
+
+// ctrl+u in the pin picker clears the query like any other input.
+func TestPinPickerCtrlUClearsQuery(t *testing.T) {
+	a := open(t)
+	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	c := openPicker(t, a)
-	typeText(t, a, "no")
-	if row, _ := c.Highlighted(); row.Label != "notes" {
-		t.Fatalf("no highlights %+v", row)
+	typeText(t, a, "chz")
+	press(t, a, "ctrl+u")
+	if c.Query() != "" || a.r.TopModal() != pinPicker || a.pin != "matomeru" {
+		t.Fatalf("query %q modal %q pin %q", c.Query(), a.r.TopModal(), a.pin)
 	}
 	press(t, a, "esc")
-	c = openPicker(t, a)
-	typeText(t, a, "unp")
-	press(t, a, "enter")
-	if a.pin != "" {
-		t.Fatalf("unp enter pinned %q", a.pin)
-	}
 }

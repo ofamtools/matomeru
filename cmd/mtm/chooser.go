@@ -19,16 +19,19 @@ import (
 // filter and the choose/create callbacks come from the caller, and its keys
 // are rows on its own noun, so it can move into ochazuke as a component.
 
-// ChooserRow is one choice. Trailing rows (an "unpin" or "browse…" entry)
-// follow the matches. Enter takes one without moving onto it only when the
-// query is not empty and no ordinary row matches, so their filter should be
-// strict (a substring of the label); an empty query with no ordinary rows
-// creates.
+// ChooserRow is one choice. Trailing rows (a "browse…" entry) follow the
+// matches. Enter takes one without moving onto it only when the query is
+// not empty and no ordinary row matches, so their filter should be strict
+// (a substring of the label); an empty query with no ordinary rows creates.
+// Fixed rows (a "no pin" entry) sit at the bottom whatever the query: the
+// filter never sees them and Enter takes one only once the highlight is
+// moved onto it.
 type ChooserRow struct {
 	ID       string
 	Label    string
 	Data     any
 	Trailing bool
+	Fixed    bool
 	// Cells, when set, draw the row as aligned columns (each column as
 	// wide as its widest cell among the rows); Label stays what the
 	// filter reads.
@@ -203,7 +206,8 @@ func (c *Chooser) SetRows(rows []ChooserRow) {
 // Query is the search input's text.
 func (c *Chooser) Query() string { return string(c.input.Text) }
 
-// Matches are the rows the query keeps: matches first, trailing rows last.
+// Matches are the rows the query keeps: matches first, then trailing rows,
+// then the fixed rows.
 func (c *Chooser) Matches() []ChooserRow {
 	c.sync()
 	return append([]ChooserRow(nil), c.matches...)
@@ -232,8 +236,12 @@ func (c *Chooser) sync() {
 
 func (c *Chooser) refilter() {
 	c.seen = c.Query()
-	var head, tail []ChooserRow
+	var head, tail, fixed []ChooserRow
 	for _, row := range c.spec.Rows {
+		if row.Fixed {
+			fixed = append(fixed, row)
+			continue
+		}
 		if !c.spec.Filter(c.seen, row) {
 			continue
 		}
@@ -263,7 +271,7 @@ func (c *Chooser) refilter() {
 			break
 		}
 	}
-	c.matches = append(head, tail...)
+	c.matches = append(append(head, tail...), fixed...)
 	c.moved = false
 	c.cursor = -1
 	if len(head) > 0 || c.seen != "" && len(tail) > 0 {
@@ -294,7 +302,8 @@ func (c *Chooser) state() map[string]any {
 }
 
 // View draws the search line, then the rows with the highlighted one in
-// reverse video, then what Enter would create when nothing is highlighted.
+// reverse video, with what Enter would create when nothing is highlighted
+// after the matches (before the fixed rows).
 func (c *Chooser) View(width, height int) ochazuke.Block {
 	c.sync()
 	const prefix = "› "
@@ -304,8 +313,12 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	switch {
 	case len(c.spec.Rows) == 0 && c.spec.Empty != "":
 		lines = append(lines, "  "+c.spec.Empty)
-	case len(c.matches) == 0:
+	case c.matched() == 0:
 		lines = append(lines, "  no matches")
+	}
+	hint := ""
+	if c.cursor < 0 && c.spec.Create != nil && c.spec.CreateLabel != nil {
+		hint = ansi.Truncate("  enter: "+c.spec.CreateLabel(c.Query()), width, "…")
 	}
 	offset := 0
 	if c.cursor >= rowsHeight {
@@ -313,6 +326,9 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	}
 	widths := c.cellWidths()
 	for i := offset; i < len(c.matches) && i < offset+rowsHeight; i++ {
+		if hint != "" && c.matches[i].Fixed {
+			lines, hint = append(lines, hint), ""
+		}
 		text := c.matches[i].Label
 		if cells := c.matches[i].Cells; len(cells) > 0 {
 			text = alignCells(cells, widths)
@@ -323,10 +339,21 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 		}
 		lines = append(lines, row)
 	}
-	if c.cursor < 0 && c.spec.Create != nil && c.spec.CreateLabel != nil {
-		lines = append(lines, ansi.Truncate("  enter: "+c.spec.CreateLabel(c.Query()), width, "…"))
+	if hint != "" {
+		lines = append(lines, hint)
 	}
 	return line.WithText(strings.Join(lines, "\n"))
+}
+
+// matched counts the rows the query kept, leaving out the fixed rows.
+func (c *Chooser) matched() int {
+	n := 0
+	for _, row := range c.matches {
+		if !row.Fixed {
+			n++
+		}
+	}
+	return n
 }
 
 // cellWidths is each column's width over every row with cells, so the

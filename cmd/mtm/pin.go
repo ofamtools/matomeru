@@ -39,13 +39,14 @@ func (a *App) pinProject(ctx ochazuke.Ctx) ochazuke.Result {
 // pinPicker is the pin chooser's modal kind.
 const pinPicker = "pin-picker"
 
-// unpinRow is the pin chooser's trailing "no pin" row.
+// unpinRow is the pin chooser's fixed "no pin" row.
 const unpinRow = "pin-choice:none"
 
 // openPinPicker opens the pin chooser: projects most recently pinned first,
-// then by name, each with its directory; "no pin (unpin)" last. Enter pins
-// the top match, or creates a project named from the query when none
-// matches; ctrl+n always creates.
+// then by name, each with its directory; "no pin (unpin)" fixed at the
+// bottom, which typing never reaches (move onto it). Enter pins the top
+// match, or creates a project named from the query when none matches;
+// ctrl+n always creates.
 func (a *App) openPinPicker() ochazuke.Result {
 	pinned, err := a.work.PinnedAt()
 	if err != nil {
@@ -81,17 +82,11 @@ func (a *App) openPinPicker() ochazuke.Result {
 		}
 		rows = append(rows, ChooserRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
 	}
-	rows = append(rows, ChooserRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Trailing: true})
+	rows = append(rows, ChooserRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Fixed: true})
 	_, err = a.choosers.Open(ChooserSpec{
 		Kind:  pinPicker,
 		Title: "Pin project",
 		Rows:  rows,
-		Filter: func(query string, row ChooserRow) bool {
-			if row.Trailing {
-				return strings.Contains(strings.ToLower(row.Label), strings.ToLower(strings.TrimSpace(query)))
-			}
-			return fuzzyMatch(query, row.Label)
-		},
 		Choose: func(row ChooserRow) ochazuke.Result {
 			id, _ := row.Data.(string)
 			return a.pinAndAskDirectory(id)
