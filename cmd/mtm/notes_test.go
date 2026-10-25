@@ -1,0 +1,205 @@
+package main
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/ochazuke"
+)
+
+func TestNoteCreationOwnershipAndEmptyText(t *testing.T) {
+	a := open(t)
+	if err := a.reveal("t1"); err != nil {
+		t.Fatal(err)
+	}
+	loose, err := a.work.AddTask("", "loose")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.reveal(loose.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, target, project, task string
+		args                        ochazuke.Arguments
+		cli                         bool
+	}{
+		{name: "nothing selected"},
+		{name: "selected task", target: "t1", project: "matomeru", task: "t1"},
+		{name: "unassociated task", target: loose.ID, task: loose.ID},
+		{name: "explicit project", args: ochazuke.Arguments{"project": "ochazuke"}, project: "ochazuke"},
+		{name: "CLI ignores selection", target: "t1", cli: true},
+		{name: "explicit task wins", target: loose.ID, cli: true, args: ochazuke.Arguments{"task": "t1", "project": "ochazuke"}, project: "matomeru", task: "t1"},
+		{name: "scratch", target: "t1", args: ochazuke.Arguments{"scratch": true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a.cli = tc.cli
+			if err := a.r.OpenPage("work"); err != nil {
+				t.Fatal(err)
+			}
+			args := ochazuke.Arguments{"text": ""}
+			for key, value := range tc.args {
+				args[key] = value
+			}
+			instance := a.r.Instances[tc.target]
+			if tc.target == "t1" {
+				if err := a.reveal("t1"); err != nil {
+					t.Fatal(err)
+				}
+				instance = a.r.Instances["t1"]
+			}
+			if tc.target == loose.ID {
+				if err := a.reveal(loose.ID); err != nil {
+					t.Fatal(err)
+				}
+				instance = a.r.Instances[loose.ID]
+			}
+			before, err := a.work.Notes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "new", Target: func() string {
+				if instance != nil {
+					return instance.ID
+				}
+				return "notes/list"
+			}(), Args: args}); err != nil {
+				t.Fatal(err)
+			}
+			after, err := a.work.Notes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			known := map[string]bool{}
+			for _, n := range before {
+				known[n.ID] = true
+			}
+			var added work.Note
+			for _, n := range after {
+				if !known[n.ID] {
+					added = n
+				}
+			}
+			if added.ID == "" || added.ProjectID != tc.project || added.TaskID != tc.task || added.Text != "" {
+				t.Fatalf("note: %+v", added)
+			}
+		})
+	}
+}
+
+func TestNoteDraftRestartCancelAndSave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mtm.db")
+	a := openAt(t, path)
+	original, err := a.work.AddNote("", "", "  saved\ntext\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshNotes(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "view", Target: original.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if a.editor != nil {
+		t.Fatal("view opened an editor")
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "edit", Target: original.ID}); err != nil {
+		t.Fatal(err)
+	}
+	typeText(t, a, "draft")
+	if err := a.leaveEditor(); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
+	b := openAt(t, path)
+	if _, err := b.r.Execute(ochazuke.Request{Noun: "note", Verb: "edit", Target: original.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(b.editor.Input.Text); got != "  saved\ntext\ndraft" {
+		t.Fatalf("restored text: %q", got)
+	}
+	press(t, b, "esc", "q")
+	if n, err := b.work.Note(original.ID); err != nil || n.Text != "  saved\ntext\n" {
+		t.Fatalf("cancel changed saved note: %+v %v", n, err)
+	}
+	var record editRecord
+	if err := b.drafts.Load("note", original.ID, &record); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cancel retained draft: %v", err)
+	}
+	if err := b.r.OpenPage("work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.r.OpenPage(notesPage); err != nil {
+		t.Fatal(err)
+	}
+	press(t, b, "a")
+	if b.editor == nil {
+		t.Fatal("notes page creation key did not open the editor")
+	}
+	id := b.editor.Record.ID
+	typeText(t, b, "line one")
+	press(t, b, "enter")
+	typeText(t, b, "line two  ")
+	press(t, b, "esc", "s")
+	if n, err := b.work.Note(id); err != nil || n.Text != "line one\nline two  " {
+		t.Fatalf("multiline save: %+v %v", n, err)
+	}
+	if b.r.Page != notesPage {
+		t.Fatalf("saved note page: %s", b.r.Page)
+	}
+	if err := b.drafts.Load("note", id, &record); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("save retained draft: %v", err)
+	}
+}
+
+func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
+	a := open(t)
+	note, err := a.work.AddNote("", "", "saved")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshNotes(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "edit", Target: note.ID}); err != nil {
+		t.Fatal(err)
+	}
+	typeText(t, a, " unfinished")
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "associate", Target: note.ID, Args: ochazuke.Arguments{"task": "t1"}}); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "esc", "s")
+	got, err := a.work.Note(note.ID)
+	if err != nil || got.ProjectID != "matomeru" || got.TaskID != "t1" || got.Text != "saved unfinished" {
+		t.Fatalf("associated draft save: %+v %v", got, err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "associate", Target: note.ID, Args: ochazuke.Arguments{"scratch": true}}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = a.work.Note(note.ID)
+	if err != nil || got.ProjectID != "" || got.TaskID != "" || got.Text != "saved unfinished" {
+		t.Fatalf("scratch association: %+v %v", got, err)
+	}
+}
+
+func TestNotesPageCreationOnFirstVisit(t *testing.T) {
+	a := openAt(t, filepath.Join(t.TempDir(), "mtm.db"))
+	if err := a.r.OpenPage(notesPage); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "a")
+	if a.editor == nil {
+		t.Fatal("first notes page visit does not accept creation key")
+	}
+	typeText(t, a, "first note")
+	press(t, a, "esc", "s")
+	notes, err := a.work.Notes()
+	if err != nil || len(notes) != 1 || notes[0].Text != "first note" {
+		t.Fatalf("created notes: %+v %v", notes, err)
+	}
+}

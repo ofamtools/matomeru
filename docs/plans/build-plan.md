@@ -220,6 +220,21 @@ Acceptance:
   - an unassociated task selected: that task, no project;
   - `--task`/`--project` given on the command line: those win.
 
+
+### Lane C implementation and handoff
+
+Lane C adds `internal/work/notes.go` and `cmd/mtm/notes.go`; no editor implementation is forked. `work.Tables` adds the exact legacy declaration `{Name: "notes", Owner: "notes", Key: "id", Version: 1}`. `Note` retains unknown JSON fields through read/edit/write, including provenance, and carries current and former project/task ids. `Notes`, `Note`, `PutNote`, `AddNote`, and `NoteProject` are the storage interface; `NoteProject` resolves task-only legacy rows without rewriting them.
+
+The note noun exposes `new`, `list`, `view`, `edit`, and `associate`. New records capture the shared resolver's owner once; omitted text opens a draft and explicit empty text saves immediately. All note lists and saved previews use `inScope`; `note list --all` temporarily widens the shared `all` flag and restores it. Notes page rows always identify their owner. Association preserves the body, legacy metadata, and an existing draft.
+
+Dependency on lane B: `editRecord.TaskID` and the shared `App.editorSave`, `editorRefresh`, and `editorFinish` maps. `defineNotes` registers the note writer, row refresh, and return-to-notes callback. Initialize the maps before calling it; create the Notes page after project rows load. Lane C's main wiring includes those maps and `all`; keep one declaration of each when merging B/A. The shared Work editor handles multiline notes, verbatim whitespace, autosave, restart, save, and cancel. Lane C does not change `editor.go`. Integration adds `refreshNotes()` to pin/all refresh and clears out-of-scope drafts/details alongside other lists; this is the plan's integration scoping work, not a second filter.
+
+Verification ran in a throwaway sibling `matomeru-lane-c-proof`, with B-authored editor/dependency snapshots and A's owner resolver/storage snapshot, without merging or rebasing either lane. The race suite passed, including the existing `ValidateBindings` coverage and permanent note tests for empty/explicit ownership, unknown-field preservation, draft navigation/restart/cancel/save, first-visit page creation, and association of unfinished drafts. A throwaway smoke exercised all six creation acceptance cases against A's resolver, CLI selection isolation, inherited project filtering, `--all` restoration, and a pin change while a draft was open. `go vet ./...` passed; `gofmt -l` was empty after formatting the throwaway B snapshot. An isolated `go run ./cmd/mtm ... --smoke` rendered.
+
+Actual CLI and TUI checks used only `/tmp/mtm-c-notes-1025-cc61/` and the separate TUIOS server `mtmc-cc61`. CLI checks covered empty notes, explicit conflicting task/project ownership (including an unassociated task), whitespace-preserving multiline edit/view, and scratch reassociation. The actual Notes page created and displayed a multiline note; its unfinished edit survived navigation and process restart, reopened intact, and cancelled without changing the saved body. From a selected A task, the palette's `note new` captured that task and A and showed both in the saved note's detail.
+
+A read-only SQLite backup of the real database opened and listed notes through the CLI and rendered through `--smoke`. That real database currently contains **zero** notes: the copied list was `[]`, and the original/copy note row digest and notes metadata matched. Legacy nonempty task-owned rows and provenance preservation were exercised with an explicit old-schema fixture, not falsely attributed to the owner's data.
+
 ## Integration: after A, B and C merge
 
 One agent, on main.

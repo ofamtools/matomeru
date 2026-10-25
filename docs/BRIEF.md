@@ -113,6 +113,12 @@ Project creation and project/task editing autosave drafts under the database's s
 
 Project bases are read from `$XDG_CONFIG_HOME/matomeru/dirs.json`, or `~/.config/matomeru/dirs.json`. `MTM_PROJECT_BASE_DIRS` overrides the file. `dirs bases` reports the effective sources; `dirs base.add PATH --depth N` and `dirs base.remove PATH` update the file. The default depth is one. Repository discovery follows symlinks and deduplicates real paths. Missing bases appear in the chooser footer. Recency comes from `dir_recent`, with TUIOS activity imported only for paths without recorded usage.
 
+Notes have their own Notes page, reached with the framework page navigation. `a` creates a draft, Enter views the saved body, and `i` edits. The editor is lane B's shared right-panel editor on Work: note text is multiline, Enter inserts a newline, Escape leaves insert mode, and normal-mode `s` saves or `q` cancels. Whitespace and empty bodies are retained. Moving away keeps the draft; reopening with `i` or opening a new draft row restores it after restart.
+
+CLI: `note new TEXT [--task ID] [--project ID]`, `note list [--all]`, `note view --target ID`, `note edit TEXT --target ID`, and `note associate --target ID [--task ID|--project ID|--scratch]`. Omitted text opens the shared editor; an explicit `""` saves empty. New notes capture `resolveOwner` once; task ownership wins over a conflicting project, and CLI creation never reads TUI selection. The list and saved preview use `inScope`, including task-only legacy notes whose project is inherited from their task. Association changes ownership without changing the saved body or losing an unfinished draft.
+
+`internal/work/notes.go` declares no migration: the existing notes table keeps owner `notes`, key `id`, version 1. Reads ignore unknown legacy fields; saving preserves them, including provenance. Task/project detail notes and deletion remain the separately assigned integration work.
+
 
 Known gaps:
 

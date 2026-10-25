@@ -202,6 +202,7 @@ type App struct {
 	paneList    *ochazuke.List
 	reviewList  *ochazuke.List
 	answer      *ochazuke.Input
+	noteList    *ochazuke.List
 
 	field *ochazuke.Input
 	ask   *question
@@ -242,6 +243,7 @@ func New(opts Options) (*App, error) {
 	a.defineTask()
 	a.defineProjectCreation()
 	a.defineRecordEditor()
+	a.defineNotes()
 	a.defineLaunch()
 	a.definePanes()
 	a.defineReviews()
@@ -281,6 +283,9 @@ func New(opts Options) (*App, error) {
 	}
 	if err := a.refreshProjects(); err != nil {
 		db.Close()
+		return nil, err
+	}
+	if err := a.addNotesPage(); err != nil {
 		return nil, err
 	}
 	if err := a.refreshReviews(); err != nil {
