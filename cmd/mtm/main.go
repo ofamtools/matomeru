@@ -197,6 +197,7 @@ type App struct {
 	promptDelay         time.Duration               // the wait before typing into a pane whose harness has no readiness probe
 	sleep               func(context.Context, time.Duration) error
 	panesd              paneDaemon
+	renamer             renamer                // renames sessions and windows (the daemon); tests replace it
 	home                func() (string, error) // where a launch with no project starts; tests replace it
 
 	projects  []work.Project
@@ -256,7 +257,7 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := opts.client()
-	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
 	a.editorSave = make(map[string]func(editRecord) (any, error))
@@ -278,6 +279,7 @@ func New(opts Options) (*App, error) {
 	a.defineDeletion()
 	a.defineSaved()
 	a.defineVim()
+	a.defineRenames()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err

@@ -298,3 +298,15 @@ type WaitForParams struct {
 func (c *Client) WaitFor(ctx context.Context, p WaitForParams) error {
 	return c.Call(ctx, "wait-for", p, nil)
 }
+
+// RenameSession renames a session (rename-session): the new name is what
+// ls, attach and -s take; panes already running keep reaching it.
+func (c *Client) RenameSession(ctx context.Context, session, name string) error {
+	return c.Call(ctx, "rename-session", map[string]any{"session": session, "name": name}, nil)
+}
+
+// RenameWindow sets a window's name (set-window); "" clears it, so the
+// window falls back to the title its shell sets.
+func (c *Client) RenameWindow(ctx context.Context, session, window, name string) error {
+	return c.Call(ctx, "set-window", map[string]any{"session": session, "window": window, "name": name}, nil)
+}
