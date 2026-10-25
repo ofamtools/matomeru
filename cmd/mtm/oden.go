@@ -19,8 +19,11 @@ import (
 //     same-named executable, which help lists as shadowed; then a family
 //     tool o-<word> (oden.WithPrefixes("o")), so mtm proj runs o-proj
 //     unless an mtm-proj is on PATH;
-//  3. else Default: the TUI with no words, the shell with any (which names
-//     an unknown operation).
+//  3. else Default: the TUI with no words; any other word names nothing,
+//     so Default returns oden.ErrNotFound and oden reports it: "mtm:
+//     command "tasks" not found", a "did you mean: task" line, then the
+//     command list, exit 1 (an unknown verb, mtm task frob, is reported the
+//     same way by the noun's group).
 //
 // An ambiguous prefix prints its candidates and exits 1.
 
@@ -29,11 +32,11 @@ import (
 func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer, tui func() error, opts ...oden.Option) *oden.App {
 	app := oden.New("mtm", args, append([]oden.Option{oden.WithBuiltins(), oden.WithPrefixes("o"), oden.WithStdio(stdin, stdout, stderr)}, opts...)...)
 	sh := a.shell(stdin, stdout, stderr)
-	app.Default = func(ctx context.Context, words []string) error {
+	app.Default = func(_ context.Context, words []string) error {
 		if len(words) == 0 {
 			return tui()
 		}
-		return sh.Run(ctx, words)
+		return oden.ErrNotFound
 	}
 	ocli.Mount(app, sh, "bindings", "history")
 	// Mount also mounts the framework's binding noun, which made "bind" an

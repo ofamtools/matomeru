@@ -30,7 +30,7 @@ import (
 // The action history is in memory and per process: history list shows the
 // requests this invocation ran.
 
-const cliUsage = "usage: mtm [--data PATH] [--server NAME|default] [--socket PATH] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]\n(operations list prints every NOUN VERB and its parameters)"
+var cliUsage = "usage: mtm [--data PATH] [--server NAME|default] [--socket PATH] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]\n" + ocli.UsageHint("mtm")
 
 // shell is the CLI over this app's runtime.
 func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {

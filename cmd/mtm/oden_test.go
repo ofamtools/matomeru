@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -128,5 +129,36 @@ func TestFamilyToolOProjRunsAndMtmProjWins(t *testing.T) {
 	out, _, err = mtm(app, dir, "help")
 	if err != nil || !strings.Contains(out, "shadows external "+filepath.Join(dir, "o-proj")) {
 		t.Fatalf("help: %v\n%s", err, out)
+	}
+}
+
+// An unknown first word is reported by oden, not handed to the shell:
+// tasks is not task, and suggestions never run.
+func TestUnknownWordIsNotFoundWithSuggestions(t *testing.T) {
+	app, _ := cliApp(t)
+	out, errOut, err := mtm(app, t.TempDir(), "tasks")
+	if oden.ExitCode(err) != 1 || out != "" ||
+		!strings.HasPrefix(errOut, "mtm: command \"tasks\" not found\ndid you mean: task\n\nusage: mtm COMMAND") ||
+		!strings.Contains(errOut, "\n  task ") || strings.Contains(errOut, "operations list") {
+		t.Fatalf("mtm tasks: %v %q\n%s", err, out, errOut)
+	}
+	out, errOut, err = mtm(app, t.TempDir(), "task", "frob")
+	if oden.ExitCode(err) != 1 || out != "" ||
+		!strings.HasPrefix(errOut, "mtm task: subcommand \"frob\" not found\n") ||
+		!strings.Contains(errOut, "\n  launch ") || !strings.Contains(errOut, "\n  list ") {
+		t.Fatalf("mtm task frob: %v %q\n%s", err, out, errOut)
+	}
+}
+
+func TestNoWordsRunsTheTUIAndNounVerbRuns(t *testing.T) {
+	app, _ := cliApp(t)
+	ran := false
+	tui := func() error { ran = true; return nil }
+	if err := app.commands(nil, strings.NewReader(""), io.Discard, io.Discard, tui, oden.WithPath(t.TempDir())).Run(context.Background()); err != nil || !ran {
+		t.Fatalf("mtm: %v, tui ran %v", err, ran)
+	}
+	out, errOut, err := mtm(app, t.TempDir(), "task", "list")
+	if err != nil || !strings.Contains(out, `"t1"`) {
+		t.Fatalf("mtm task list: %v\n%s%s", err, out, errOut)
 	}
 }
