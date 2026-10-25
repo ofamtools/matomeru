@@ -507,7 +507,27 @@ func knownCells(row knownDirectory, owners []string, home string, now time.Time)
 	if row.Repo != "" {
 		repo = filepath.Base(row.Repo)
 	}
-	return []string{tildePath(row.Path, home), repo, row.Branch, sinceUse(row.LastUsed, now), strings.Join(owners, ", ")}
+	return []string{pathCell(row.Path, home), repo, row.Branch, sinceUse(row.LastUsed, now), strings.Join(owners, ", ")}
+}
+
+// pathCell is a path for a table cell: ~ for home, and a long one keeps
+// its head and its last two folders ("/private/…/e2e/proj"), since a cell
+// cut at the end would hide what tells two paths apart.
+func pathCell(path, home string) string {
+	path = tildePath(path, home)
+	const long = 40
+	if len([]rune(path)) <= long {
+		return path
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) <= 3 {
+		return path
+	}
+	head := parts[0]
+	if head == "" {
+		head = "/" + parts[1]
+	}
+	return head + "/…/" + strings.Join(parts[len(parts)-2:], "/")
 }
 
 // sinceUse is a last use as a short age: "5m ago", "3d ago", a date past a
@@ -602,7 +622,7 @@ func (a *App) refreshProjectDirs() {
 	if p, ok := a.project(a.directoryTarget()); ok {
 		home, _ := a.home()
 		for _, tree := range p.Trees {
-			path := tildePath(tree.Path, home)
+			path := pathCell(tree.Path, home)
 			items = append(items, ochazuke.ListItem{ID: "project-dir:" + tree.Path, Noun: "project-dir", Label: path, Data: dirRow{p.ID, tree.Path}, Cells: []string{path, tree.Branch, strings.Join(a.treeMarks(p, tree), " · ")}})
 		}
 	}
@@ -634,7 +654,7 @@ func (a *App) refreshBases() {
 			}
 			known = fmt.Sprint(n)
 		}
-		path := tildePath(base.Path, home)
+		path := pathCell(base.Path, home)
 		items = append(items, ochazuke.ListItem{ID: "base:" + base.Path, Noun: "project-base", Label: path, Data: base, Cells: []string{path, fmt.Sprint(base.Depth), known, base.Source}})
 	}
 	if err := a.baseList.SetItems(items); err != nil {

@@ -229,3 +229,15 @@ func TestProjectDirectoryEditFromThePage(t *testing.T) {
 		t.Fatalf("edited %+v", p)
 	}
 }
+
+func TestPathCellKeepsTheTail(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"/home/u/proj/matomeru", "~/proj/matomeru"},
+		{"/private/tmp/claude-501/-Users-unixsuperhero-proj/scratchpad/lane-a/e2e/other", "/private/…/e2e/other"},
+		{"/home/u/a-very-long-folder-name-for-testing/another-long-one/x", "~/…/another-long-one/x"},
+	} {
+		if got := pathCell(c.in, "/home/u"); got != c.want {
+			t.Errorf("pathCell(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
