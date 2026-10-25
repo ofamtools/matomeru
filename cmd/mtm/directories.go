@@ -298,18 +298,6 @@ func (a *App) refreshDirectories(ochazuke.Ctx) ochazuke.Result {
 		a.filterDirectories()
 	})
 }
-func fuzzyDirectory(query, text string) bool {
-	text = strings.ToLower(text)
-	query = strings.ToLower(query)
-	for _, char := range query {
-		pos := strings.IndexRune(text, char)
-		if pos < 0 {
-			return false
-		}
-		text = text[pos+len(string(char)):]
-	}
-	return true
-}
 func (a *App) filterDirectories() {
 	if a.directoryQuery == nil || a.directoryList == nil {
 		return
@@ -334,7 +322,7 @@ func (a *App) filterDirectories() {
 			label += "  [" + strings.Join(row.Projects, ", ") + "]"
 		}
 		label += "  " + row.Path
-		if fuzzyDirectory(query, label) {
+		if fuzzyMatch(query, label) {
 			items = append(items, ochazuke.ListItem{ID: fmt.Sprintf("directory:%d", i), Noun: "known-directory", Label: label, Data: row.Path})
 		}
 	}
