@@ -21,7 +21,8 @@ func (a *App) defineNotes() {
 		Verb("view", a.viewNote, "View the saved note without editing").
 		Verb("edit", a.editNote, "Edit a note in the right panel").Positional("text").
 		Verb("associate", a.associateNote, "Associate a note with a task or project; scratch clears ownership").
-		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit"))
+		Verb("delete", a.deleteNote, "Delete a note and its draft; nothing else is touched").Confirm("Delete note {{label}}?").
+		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("D", ochazuke.Do("note.delete"))
 	a.parameters("note.list", map[string]ochazuke.Parameter{"all": {Type: "boolean"}})
 	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
 	a.parameters("note.edit", map[string]ochazuke.Parameter{"text": {Type: "string"}})
@@ -289,6 +290,32 @@ func (a *App) associateNote(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.refreshNotes(); err != nil {
 		return ochazuke.Failed(err)
 	}
+	return ochazuke.Done(note)
+}
+
+// deleteNote is note.delete (confirmed): the note row and any draft of it go;
+// an open editor on it closes. Nothing references a note, so nothing is
+// orphaned.
+func (a *App) deleteNote(ctx ochazuke.Ctx) ochazuke.Result {
+	note, err := a.selectedNote(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if a.editor != nil && a.editor.Record.Noun == "note" && a.editor.Record.ID == note.ID {
+		if err := a.leaveEditor(); err != nil {
+			return ochazuke.Failed(err)
+		}
+	}
+	if err := a.work.DeleteNote(note.ID); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.drafts.Clear("note", note.ID); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.refreshNotes(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.m.Notify("Deleted note " + noteLabel(note.Text))
 	return ochazuke.Done(note)
 }
 

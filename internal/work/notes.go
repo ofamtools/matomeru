@@ -90,3 +90,15 @@ func (s *Store) NoteProject(note Note) (string, error) {
 	}
 	return task.ProjectID, err
 }
+
+// DeleteNote removes a note. Nothing references a note, so nothing is
+// orphaned; a missing note is store.ErrNotFound.
+func (s *Store) DeleteNote(id string) error {
+	return s.db.Tx([]string{"notes"}, func(tx *store.Tx) error {
+		var note Note
+		if err := tx.Get("notes", id, &note); err != nil {
+			return err
+		}
+		return tx.Delete("notes", id)
+	})
+}

@@ -203,3 +203,55 @@ func TestNotesPageCreationOnFirstVisit(t *testing.T) {
 		t.Fatalf("created notes: %+v %v", notes, err)
 	}
 }
+
+// TestNoteDeleteConfirmsAndClearsDraft: D on a note row asks first; n keeps
+// it, y removes the note and its draft and leaves other notes alone.
+func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
+	a := open(t)
+	keep, err := a.work.AddNote("matomeru", "", "keep me")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone, err := a.work.AddNote("matomeru", "", "delete me\nsecond line")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.drafts.Save("note", gone.ID, editRecord{Noun: "note", ID: gone.ID, Text: "half typed"}); err != nil {
+		t.Fatal(err)
+	}
+	a.all = true
+	if err := a.refreshNotes(); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.OpenPage(notesPage); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.noteList.Select(gone.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.noteList.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "D")
+	if a.r.TopModal() == "" {
+		t.Fatal("note delete did not ask")
+	}
+	press(t, a, "n")
+	if _, err := a.work.Note(gone.ID); err != nil {
+		t.Fatalf("n deleted the note: %v", err)
+	}
+	press(t, a, "D", "y")
+	if _, err := a.work.Note(gone.ID); err == nil {
+		t.Fatal("note survived y")
+	}
+	if _, err := a.work.Note(keep.ID); err != nil {
+		t.Fatalf("other note lost: %v", err)
+	}
+	var d editRecord
+	if err := a.drafts.Load("note", gone.ID, &d); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("draft survived: %v", err)
+	}
+	if a.r.Instances[gone.ID] != nil {
+		t.Fatal("row survived")
+	}
+}
