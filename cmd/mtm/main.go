@@ -352,6 +352,9 @@ func New(opts Options) (*App, error) {
 	a.defineOutline()
 	a.defineSides()
 	a.defineContext()
+	if err := a.defineKeyMap(); err != nil {
+		return nil, err
+	}
 
 	// Pages are tabs in registration order: Panes first, then Work.
 	if err := a.addPanesPage(); err != nil {

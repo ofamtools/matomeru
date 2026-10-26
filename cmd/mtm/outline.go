@@ -56,7 +56,7 @@ type outlineState struct {
 }
 
 // defineOutline adds project.outline and task.outline (O), todos.open (T
-// on every page) and the open outline's own rows: x, s, T.
+// on every page) and the open outline's own rows: x, s, T and q.
 func (a *App) defineOutline() {
 	a.r.Define("project").Verb("outline", a.openOutline, "Edit the project's tasks and subtasks as an outline; every change is written as it is made").
 		Mode("normal").Bind("O", ochazuke.Do("project.outline"))
@@ -72,7 +72,8 @@ func (a *App) defineOutline() {
 		Mode("normal").
 		Bind("x", ochazuke.Do(outlineModal+".toggle")).
 		Bind("s", ochazuke.Do(outlineModal+".status")).
-		Bind("T", ochazuke.Do(outlineModal+".close"))
+		Bind("T", ochazuke.Do(outlineModal+".close")).
+		Bind("q", ochazuke.Do(outlineModal+".close"))
 	a.outlineView("Tasks")
 }
 
