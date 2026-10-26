@@ -9,11 +9,13 @@ import (
 )
 
 func (a *App) defineOwners() {
-	a.r.Define("pane").Verb("associate", a.associatePane, "Assign a pane; scratch explicitly removes ownership").Verb("list", a.listPanes, "List panes in scope; --all widens the list")
-	a.r.Define("session").Verb("associate", a.associateSession, "Assign a session; panes with their own row stay unchanged").Verb("list", a.listSessions, "List sessions in scope; --all widens the list")
-	a.r.Define("task").Verb("associate", a.associateTask, "Move a task to a project, or scratch")
+	// One move verb per noun, m on every row: associate. From a key with
+	// no owner named, a chooser of projects asks (unassociated last).
+	a.r.Define("pane").Verb("associate", a.associatePane, "Move a pane to a project (omit it to choose); scratch explicitly removes ownership").Verb("list", a.listPanes, "List panes in scope; --all widens the list")
+	a.r.Define("session").Verb("associate", a.associateSession, "Move a session to a project (omit it to choose); panes with their own row stay unchanged").Verb("list", a.listSessions, "List sessions in scope; --all widens the list")
+	a.r.Define("task").Verb("associate", a.associateTask, "Move a task to a project (omit it to choose), or scratch").Mode("normal").Bind("m", ochazuke.Do("task.associate"))
 	for _, noun := range []string{"pane", "session", "task"} {
-		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list"}, "task": {Type: "string"}, "scratch": {Type: "boolean"}})
+		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	}
 	for _, noun := range []string{"pane", "session", "review", "task"} {
 		op := a.r.Operations[noun+".list"]
@@ -35,6 +37,9 @@ func (a *App) paneOwner(p pane) work.Assignment {
 }
 
 func (a *App) associatePane(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.moving(ctx) {
+		return a.moveTo(ctx, "pane")
+	}
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -57,6 +62,9 @@ func (a *App) associatePane(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) associateSession(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.moving(ctx) {
+		return a.moveTo(ctx, "session")
+	}
 	p, ok := ctx.Instance.Data.(pane)
 	if !ok || p.SessionID == "" {
 		return ochazuke.Failed(fmt.Errorf("select a session"))
@@ -79,6 +87,9 @@ func (a *App) associateSession(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) associateTask(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.moving(ctx) {
+		return a.moveTo(ctx, "task")
+	}
 	t, err := a.task(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)

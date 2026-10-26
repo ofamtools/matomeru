@@ -333,18 +333,8 @@ func (a *App) associateSaved(ctx ochazuke.Ctx) ochazuke.Result {
 	_, hasProject := ctx.Args["project"]
 	_, hasTask := ctx.Args["task"]
 	_, hasScratch := ctx.Args["scratch"]
-	if !a.cli && !hasProject && !hasTask && !hasScratch {
-		err := a.prompt("Associate saved pane", "Project id (empty = unassociated)", row.ProjectID, func(text string) error {
-			latest, err := a.work.SavedPane(row.ID)
-			if err != nil {
-				return err
-			}
-			return a.associateSavedRecord(latest, ochazuke.Arguments{"project": strings.TrimSpace(text)})
-		})
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		return ochazuke.Done(nil)
+	if !a.cli && !hasProject && !hasTask && !hasScratch && ctx.Instance != nil && ctx.Instance.Noun == "saved" {
+		return a.moveTo(ctx, "saved") // the project chooser, as m on every row
 	}
 	if err := a.associateSavedRecord(row, ctx.Args); err != nil {
 		return ochazuke.Failed(err)

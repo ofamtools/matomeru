@@ -202,14 +202,13 @@ func (a *App) definePanes() {
 		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Quiet().
 		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
 		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
-		Verb("move", a.movePane, "Move the pane to a project (a chooser; unassociated last)").
 		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Quiet().
 		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Quiet().
 		Mode("normal").
 		Bind("enter", ochazuke.Do("pane.attach")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
 		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
-		Bind("m", ochazuke.Do("pane.move"))
+		Bind("m", ochazuke.Do("pane.associate"))
 	// d d asks to kill only a pane with no side pane open; with one, it says
 	// which to close instead of confirming and then refusing.
 	a.r.DefineGuard("pane-no-sides", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
@@ -218,11 +217,10 @@ func (a *App) definePanes() {
 	})
 	r.Define("session").
 		Verb("attach", a.attachSession, "Attach the session's first pane").
-		Verb("move", a.moveSession, "Move the session to a project (a chooser; unassociated last)").
 		Verb("kill", a.killSession, "Close the session and every pane in it").Confirm("Kill {{label}} and its panes?").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("session.attach").Guard("session-has-pane")).
-		Bind("m", ochazuke.Do("session.move")).
+		Bind("m", ochazuke.Do("session.associate")).
 		Bind("d d", ochazuke.Do("session.kill"))
 	// enter attaches a session only when it has a pane to attach.
 	a.r.DefineGuard("session-has-pane", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
@@ -235,8 +233,6 @@ func (a *App) definePanes() {
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
 		Verb("waiting", a.nextWaiting, "Select the next pane that needs input")
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
-	a.parameters("pane.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
-	a.parameters("session.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
 	a.defineLiveKeys()
 	a.ownedBy("panes", paneListID)

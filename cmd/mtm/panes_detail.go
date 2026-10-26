@@ -249,15 +249,18 @@ func (a *App) sessionPane(session string) string {
 	return ""
 }
 
-// movePane is pane.move: with project or scratch it associates the pane at
-// once; without, a chooser of projects asks (unassociated last).
-func (a *App) movePane(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.moveTo(ctx, "pane")
-}
-
-// moveSession is session.move, the same for a session.
-func (a *App) moveSession(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.moveTo(ctx, "session")
+// moving reports an associate call that names no owner from a key: it
+// asks with the project chooser (moveTo) instead of unassociating.
+func (a *App) moving(ctx ochazuke.Ctx) bool {
+	if a.cli || ctx.Instance == nil {
+		return false
+	}
+	for _, k := range []string{"project", "task", "scratch"} {
+		if _, ok := ctx.Args[k]; ok {
+			return false
+		}
+	}
+	return true
 }
 
 const moveChooser = "move-chooser"
@@ -273,10 +276,6 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(out)
-	}
-	_, hasProject := ctx.Args["project"]
-	if scratch, _ := ctx.Args["scratch"].(bool); scratch || hasProject {
-		return associate(ctx.Args)
 	}
 	current, hasOwner := a.moveOwner(ctx.Instance, noun)
 	choices := make([]ChooserRow, 0, len(a.projects)+1)
@@ -315,6 +314,17 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 // moveOwner is the project a pane or session row belongs to now ("" for
 // unassociated); ok is false when it cannot be told.
 func (a *App) moveOwner(inst *ochazuke.Instance, noun string) (string, bool) {
+	switch noun {
+	case "task":
+		t, err := a.task(ochazuke.Ctx{Instance: inst})
+		return t.ProjectID, err == nil
+	case "note":
+		n, err := a.selectedNote(ochazuke.Ctx{Instance: inst})
+		return n.ProjectID, err == nil
+	case "saved":
+		row, err := a.savedAt(ochazuke.Ctx{Instance: inst})
+		return row.ProjectID, err == nil
+	}
 	if noun == "pane" {
 		p, err := a.paneAt(inst)
 		if err != nil {

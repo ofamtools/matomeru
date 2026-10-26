@@ -70,3 +70,26 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 		t.Fatalf("L enter on a task: launches %+v", f.launches)
 	}
 }
+
+// m moves a task, like a pane: the project chooser, then the pick.
+func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
+	app := open(t)
+	press(t, app, "j", "enter")
+	if app.r.Focus != "t1" {
+		t.Fatalf("focus %s", app.r.Focus)
+	}
+	press(t, app, "m")
+	c := app.choosers.Get(moveChooser)
+	if c == nil {
+		t.Fatalf("m opened %q", app.r.TopModal())
+	}
+	for _, row := range c.Matches() {
+		if row.ID == "matomeru" {
+			t.Fatalf("the chooser offers the task's own project: %+v", c.Matches())
+		}
+	}
+	press(t, app, "o", "c", "h", "a", "enter")
+	if got := stored(t, app, "t1").ProjectID; got != "ochazuke" {
+		t.Fatalf("project after m: %q", got)
+	}
+}

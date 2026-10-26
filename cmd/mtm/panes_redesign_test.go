@@ -54,7 +54,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("W: focus %s", app.r.Focus)
 	}
 	// Every terminal verb answers on the agent row.
-	want := []string{"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.move", "n pane.new"}
+	want := []string{"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.associate", "n pane.new"}
 	listed := map[string]bool{}
 	for _, b := range app.r.ListBindings(row) {
 		listed[b.Keys+" "+b.Request.Key()] = true
@@ -85,7 +85,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	if app.r.Focus != row {
 		t.Fatalf("detach: focus %s", app.r.Focus)
 	}
-	executeA(t, app, "pane", "move", row, ochazuke.Arguments{"project": "matomeru"})
+	executeA(t, app, "pane", "associate", row, ochazuke.Arguments{"project": "matomeru"})
 	if o, _ := app.work.PaneOwner("w2", ""); o.ProjectID != "matomeru" {
 		t.Fatalf("move: owner %+v", o)
 	}

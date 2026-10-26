@@ -23,7 +23,7 @@ func (a *App) defineNotes() {
 		Verb("edit", a.editNote, "Edit a note in the right panel").Positional("text").
 		Verb("associate", a.associateNote, "Associate a note with a task or project; scratch clears ownership").
 		Verb("delete", a.deleteNote, "Delete a note and its draft; nothing else is touched").Confirm("Delete note {{label}}?").
-		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete"))
+		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.associate"))
 	a.r.Define(noteBodyNoun).Focusable().
 		Verb("scroll", a.scrollNoteBody, "Scroll the note's text: delta lines, or half a screen (half 1 down, -1 up)").Motion().
 		Mode("normal").
@@ -311,6 +311,9 @@ func (a *App) saveNoteRecord(record editRecord) (work.Note, error) {
 }
 
 func (a *App) associateNote(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.moving(ctx) {
+		return a.moveTo(ctx, "note")
+	}
 	note, err := a.selectedNote(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
