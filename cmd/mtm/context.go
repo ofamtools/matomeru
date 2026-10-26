@@ -130,6 +130,7 @@ func (a *App) defineContext() {
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
 		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred); starred items sort first").Positional("id").
 		Verb("forget", a.forgetContext, "Forget the record only; the file, page or branch it names is untouched").Positional("id").Confirm("Forget {{label}}?").
+		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
 		Verb("kind", a.cycleContextKind, "Show one kind at a time: all, then each kind in turn").
 		Verb("search", a.searchContext, "Filter the context items by words").
 		Mode("normal").
@@ -143,6 +144,7 @@ func (a *App) defineContext() {
 		a.parameters(contextNoun+"."+verb, id)
 	}
 	a.parameters(contextNoun+".star", map[string]ochazuke.Parameter{"id": id["id"], "starred": {Type: "boolean", Description: "Set instead of toggling"}})
+	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
 	a.parameters(contextNoun+".list", map[string]ochazuke.Parameter{"kind": {Type: "string", Enum: contextitems.Kinds}, "all": {Type: "boolean", Description: "Every project, whatever the pin"}})
 	a.r.Define("context-search").Pin("insert").
 		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").

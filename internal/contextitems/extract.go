@@ -221,7 +221,7 @@ func trimPath(raw string) string {
 // not exist (origin/main, owner/repo) is not one either.
 func classifyPath(raw, cwd string) (kind, path string, exists, ok bool) {
 	path = locationSuffix.ReplaceAllString(raw, "")
-	if path == "" {
+	if strings.Trim(path, "./~") == "" { // ./..., .., / name no file
 		return "", "", false, false
 	}
 	explicit := strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") ||

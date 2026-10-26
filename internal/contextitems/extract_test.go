@@ -32,7 +32,7 @@ func TestExtractFindsEachKindOnce(t *testing.T) {
 		"[lane/context 1ba025f] context: declare the table",
 		"commit c4cd8374fae0d6753888d8219dbb94728a77a76f",
 		"window 9332c352-fd31-49a0-bb93-6b18ed187d8d, id d282380401c62009ce27ec6e4ea0c6ed, origin/main",
-		"/clear is a slash command, not a path; prose.words neither",
+		"/clear is a slash command, not a path; prose.words neither; go test ./... nor ../ either",
 	}, "\n")
 	got := kinds(Extract(text, 0, Source{Kind: "scrollback", Cwd: dir}))
 	want := []string{
