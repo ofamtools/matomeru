@@ -96,7 +96,7 @@ func toLinks(t *testing.T, a *App, ld *linkedDetail) {
 func followLinkTo(t *testing.T, a *App, ld *linkedDetail, kind, id string) {
 	t.Helper()
 	toLinks(t, a, ld)
-	row := "link:" + kind + ":" + id
+	row := ld.linkRow(linkTarget{kind, id})
 	ids := itemIDs(ld.links)
 	at, want := slices.Index(ids, a.r.Focus), slices.Index(ids, row)
 	if at < 0 || want < 0 {
@@ -111,7 +111,7 @@ func followLinkTo(t *testing.T, a *App, ld *linkedDetail, kind, id string) {
 	if a.r.Focus != row {
 		t.Fatalf("focus %s, want %s", a.r.Focus, row)
 	}
-	press(t, a, "enter")
+	pressSettle(t, a, "enter")
 }
 
 // The detail of a directory names its kind, branch and repository and

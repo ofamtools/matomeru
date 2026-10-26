@@ -90,6 +90,12 @@ func (a *App) linkedDetails() map[string]*linkedDetail {
 	return map[string]*linkedDetail{directoriesPage: a.detail.dirs, savedPage: a.detail.saved, vimPage: a.detail.vim}
 }
 
+// linkRow is the row id of the link to t; each page's links have their
+// own ids, as a row id names one instance.
+func (ld *linkedDetail) linkRow(t linkTarget) string {
+	return ld.linksID + "/" + t.Kind + ":" + t.ID
+}
+
 // syncLinks pushes the current page's links when they changed; an empty
 // set is no stop, and a focus left on it goes back to the page's list.
 func (a *App) syncLinks() {
@@ -101,7 +107,7 @@ func (a *App) syncLinks() {
 	items := make([]ochazuke.ListItem, 0, len(links))
 	var sig strings.Builder
 	for _, l := range links {
-		id := "link:" + l.To.Kind + ":" + l.To.ID
+		id := ld.linkRow(l.To)
 		label := fmt.Sprintf("%-7s %s", l.To.Kind, l.Text)
 		items = append(items, ochazuke.ListItem{ID: id, Noun: linkNoun, Label: label, Data: l.To})
 		sig.WriteString(id + "\x00" + label + "\x00")

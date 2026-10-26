@@ -56,9 +56,10 @@ func (a *App) addSavedPage() error {
 	if err != nil {
 		return err
 	}
-	if _, err = a.r.AddPage(savedPage, "Saved", func(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-		return ochazuke.Text(a.view(a.savedList, width, height))
-	}, ochazuke.Focus(savedListID)); err != nil {
+	if a.detail.saved, err = a.addLinkedDetail(savedDetailID, savedPage, func() *ochazuke.List { return a.savedList }, a.savedSubject); err != nil {
+		return err
+	}
+	if _, err = a.r.AddPage(savedPage, "Saved", a.renderSaved, ochazuke.Focus(savedListID)); err != nil {
 		return err
 	}
 	return a.refreshSaved()
