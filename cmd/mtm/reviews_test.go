@@ -67,7 +67,7 @@ func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 			t.Fatalf("frame lacks %q:\n%s", want, fr)
 		}
 	}
-	if !rowWith(fr, "pending", "matomeru/write the brief", "claude", "matomeru") {
+	if !rowWith(fr, "pending", "matomeru/write the brief", "matomeru", "claude") {
 		t.Fatalf("frame lacks the review row:\n%s", fr)
 	}
 	if _, err := app.r.ValidateBindings(); err != nil {
@@ -94,7 +94,7 @@ func TestReviewsLoadAtStartup(t *testing.T) {
 	}
 	db.Close()
 	app := openAt(t, path)
-	if len(app.reviews) != 1 || app.r.Instances[rv.ID] == nil || app.r.Instances[rv.ID].Label != "[pending] matomeru · (no task) · matomeru/claude" {
+	if len(app.reviews) != 1 || app.r.Instances[rv.ID] == nil || app.r.Instances[rv.ID].Label != "[pending] matomeru/claude · matomeru" {
 		t.Fatalf("reviews at startup = %+v", app.reviews)
 	}
 }
@@ -286,5 +286,62 @@ func TestReviewsListNewestFirst(t *testing.T) {
 	items := app.reviewList.Items()
 	if len(items) != 2 || items[0].ID != recent.ID || items[1].ID != old.ID {
 		t.Fatalf("order %+v", items)
+	}
+}
+
+// One Review row per agent pane: the pane's two journaled turns are one
+// row with its unread count and last prompt; a plain terminal has no row.
+// enter opens the row on its Turns tree, l opens a turn there and marks it
+// reviewed, and the count drops; answering writes the pane's record.
+func TestOneReviewRowPerPane(t *testing.T) {
+	path := seeded(t)
+	capturedTurns(t, path, "first answer", "second answer")
+	app := openWith(t, Options{Data: path})
+	reload(t, app)
+	press(t, app, "ctrl+j", "ctrl+j") // Panes, Work, Review
+	if app.r.Page != reviewsPage {
+		t.Fatalf("page %s", app.r.Page)
+	}
+	items := app.reviewList.Items()
+	id := paneReviewID("matomeru", "w1")
+	if len(items) != 1 || items[0].ID != id {
+		t.Fatalf("rows %+v", items)
+	}
+	if label := items[0].Label; !strings.Contains(label, "matomeru/claude") || !strings.Contains(label, "2 unreviewed") || !strings.Contains(label, `"prompt 2`) {
+		t.Fatalf("label %q", label)
+	}
+	if app.r.Focus != id {
+		t.Fatalf("focus %s", app.r.Focus)
+	}
+	settle(app, key(t, app, "enter"))
+	if !strings.HasPrefix(app.r.Focus, "review-turn:") {
+		t.Fatalf("enter: focus %s", app.r.Focus)
+	}
+	fr := frame(app)
+	if !strings.Contains(fr, "turns: matomeru/claude · 2 unreviewed turns") || !strings.Contains(fr, "prompt 1 · 1 answer") {
+		t.Fatalf("detail:\n%s", fr)
+	}
+	press(t, app, "l")
+	if fr := frame(app); !strings.Contains(fr, "first answer") {
+		t.Fatalf("opened turn:\n%s", fr)
+	}
+	if label := app.r.Instances[id].Label; !strings.Contains(label, "1 unreviewed") {
+		t.Fatalf("after open: %q", label)
+	}
+	press(t, app, "esc")
+	if app.r.Focus != id {
+		t.Fatalf("esc: focus %s", app.r.Focus)
+	}
+	if _, err := app.work.Review(id); err == nil {
+		t.Fatal("the pane's record was written before a verb needed it")
+	}
+	if _, err := app.r.Execute(ochazuke.Request{Verb: "saveAnswer", Noun: "review", Target: id, Args: ochazuke.Arguments{"answer": "keep going"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := storedReview(t, app, id); got.Answer != "keep going" || got.Window != "w1" || got.Status != work.ReviewPending {
+		t.Fatalf("record %+v", got)
+	}
+	if len(app.reviewList.Items()) != 1 {
+		t.Fatalf("rows after answer %+v", app.reviewList.Items())
 	}
 }

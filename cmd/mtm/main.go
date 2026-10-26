@@ -306,9 +306,10 @@ type App struct {
 	notices        noticeTimer
 
 	reviews    []work.Review
-	opened     string // the review in the detail; review.open sets it
-	captureErr string // why the opened review's last capture failed
-	reviewErr  string // why recording a finished launch's review failed
+	reviewRows map[string]paneReview // row id → the pane row (reviews.go)
+	opened     string                // the review in the detail; review.open sets it
+	captureErr string                // why the opened review's last capture failed
+	reviewErr  string                // why recording a finished launch's review failed
 
 	owners map[string]string // nouns with no instance of their own → the instance their verbs act for (panes → the pane list); the CLI targets it
 
@@ -319,6 +320,7 @@ type App struct {
 	paneList    *ochazuke.List // the pane tree's rows (panes_tree.go)
 	pv          *paneUI        // the panes page's tree, detail tabs and timers
 	reviewList  *ochazuke.List
+	reviewTurns *ochazuke.Tree // the opened review row's turns (reviews.go)
 	answer      *ochazuke.Input
 	answerDraft string // the answer text last written as the opened review's draft
 	noteList    *ochazuke.List

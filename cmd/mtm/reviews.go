@@ -1,7 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -13,25 +16,35 @@ import (
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
+	"github.com/unixsuperhero/matomeru/internal/history"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
-// The review page: two stops, the reviews list (rows of the review noun,
-// one per launched agent, oldest first) and the answer area (an input of
-// the answer noun, insert pinned). A finished launch job records a pending
-// review of its pane. review.open captures the pane's screen off the loop
-// in the "capture" slot scoped to the list, stores it as the review's output and shows
-// it in the detail; the answer area then holds that review's answer, enter
-// saves it, esc restores it. review.accept and review.reject set the
+// The review page: one row per agent pane (matomeru-old's rail: "the
+// review section has one row per pane"), newest first with the panes
+// that have unread turns on top. A row reads the pane, how many of its
+// finished turns are unread, its last prompt and when it last finished;
+// its record is the window's first review (the launch's), or, for a pane
+// mtm did not launch, one written the first time a verb needs it. Plain
+// terminals never appear: a row needs a launch review or a turn in the
+// history journal. Three stops: the list, the opened pane's Turns tree
+// (the same accordion as the Panes page's Turns tab: l opens a turn and
+// marks it reviewed, so the row's count drops) and the answer area (an
+// input of the answer noun). review.open opens the row: the Turns tree
+// takes the focus when the pane has turns; it also captures the pane's
+// screen off the loop in the "capture" slot scoped to the list, the
+// detail of a pane with no turns. The answer area holds the pane's answer,
+// enter saves it, esc restores it. review.accept and review.reject set the
 // status; neither touches the task: closing or finishing a pane never
 // implies the work is done (znbu outline/panes.md, "Pane closure"), so
 // marking the task done stays task.done's job. review.saveAnswer asks for
-// the answer in the app's prompt, or takes it as the answer argument.
+// the answer in the answer area, or takes it as the answer argument.
 
 const (
 	reviewsPage  = "reviews"
 	reviewListID = "reviews/list"
 	answerID     = "reviews/answer"
+	reviewTreeID = "reviews/turns"
 )
 
 // defineReviews adds the review noun and the answer area's noun.
@@ -75,6 +88,11 @@ func (a *App) addReviewPage() error {
 		return err
 	}
 	a.reviewList = list
+	if a.reviewTurns, err = a.r.AddTree(reviewTreeID, nil, ochazuke.Parent(reviewsPage)); err != nil {
+		return err
+	}
+	// A stop only while it shows an opened pane's turns.
+	a.r.Instances[reviewTreeID+"/list"].Unfocusable = true
 	a.answer = ochazuke.NewInput(answerID, "", false)
 	if err := a.r.AddInput(a.answer, ochazuke.Parent(reviewsPage), ochazuke.Kind("answer")); err != nil {
 		return err
@@ -83,43 +101,151 @@ func (a *App) addReviewPage() error {
 	return err
 }
 
-// refreshReviews reloads the review rows and pushes them to the list.
+// paneReview is one row: a pane, its review record and its turns in
+// scope, oldest first.
+type paneReview struct {
+	Review work.Review
+	Stored bool // the record is in the reviews table (else it is written on first use)
+	Turns  []history.PaneTurn
+}
+
+// unread is how many finished turns are not reviewed.
+func (p paneReview) unread() int {
+	n := 0
+	for _, t := range p.Turns {
+		if t.Done() && t.ReviewedAt == 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// at is when the pane last finished a turn, else when it was recorded.
+func (p paneReview) at() int64 {
+	at := p.Review.Created
+	for _, t := range p.Turns {
+		at = max(at, t.CompletedAt)
+	}
+	return at
+}
+
+// lastPrompt is the first line of the pane's newest prompt.
+func (p paneReview) lastPrompt() string {
+	if len(p.Turns) == 0 {
+		return ""
+	}
+	return firstLine(p.Turns[len(p.Turns)-1].Prompt)
+}
+
+// paneReviewID is the record id of a pane mtm did not launch: stable for
+// the pane, and a valid draft id (letters, digits, - and _).
+func paneReviewID(session, window string) string {
+	sum := sha256.Sum256([]byte(session + "\x00" + window))
+	return "pane-review-" + hex.EncodeToString(sum[:8])
+}
+
+// refreshReviews reloads the rows, one per pane, and pushes them to the
+// list; the opened row's Turns tree follows.
 func (a *App) refreshReviews() error {
 	reviews, err := a.work.Reviews()
 	if err != nil {
 		return err
 	}
-	// Newest first, like every other list (the store reads oldest first,
-	// the order the Turns tab keeps).
-	slices.Reverse(reviews)
-	a.reviews = nil
-	now := time.Now()
-	items := make([]ochazuke.ListItem, 0, len(reviews))
+	turns, err := a.hist.Turns("")
+	if err != nil {
+		return err
+	}
+	type key struct{ session, window string }
+	rows := map[key]*paneReview{}
+	var order []key
 	for _, rv := range reviews {
-		if !a.inScope(rv.ProjectID) {
+		k := key{rv.Session, rv.Window}
+		if rows[k] != nil {
+			continue // the window's first review is its record
+		}
+		rows[k] = &paneReview{Review: rv, Stored: true}
+		order = append(order, k)
+	}
+	for _, t := range turns {
+		if !a.inScope(t.ProjectID) {
 			continue
 		}
-		a.reviews = append(a.reviews, rv)
-		items = append(items, ochazuke.ListItem{ID: rv.ID, Label: a.reviewLabel(rv), Noun: "review", Cells: a.reviewCells(rv, now)})
+		k := key{t.Session, t.Window}
+		if rows[k] == nil {
+			rows[k] = &paneReview{Review: work.Review{ID: paneReviewID(t.Session, t.Window), ProjectID: t.ProjectID, TaskID: t.TaskID,
+				Harness: t.Harness, Session: t.Session, Window: t.Window, Pane: a.turnPane(t), Status: work.ReviewPending, Created: t.StartedAt}}
+			order = append(order, k)
+		}
+		rows[k].Turns = append(rows[k].Turns, t)
 	}
-	return a.reviewList.SetItems(items)
+	var shown []*paneReview
+	for _, k := range order {
+		if r := rows[k]; len(r.Turns) > 0 || a.inScope(r.Review.ProjectID) {
+			shown = append(shown, r)
+		}
+	}
+	// Unread first, then newest first, like every other list.
+	slices.SortStableFunc(shown, func(x, y *paneReview) int {
+		return cmp.Or(cmp.Compare(min(y.unread(), 1), min(x.unread(), 1)), cmp.Compare(y.at(), x.at()), cmp.Compare(x.Review.ID, y.Review.ID))
+	})
+	a.reviews, a.reviewRows = nil, map[string]paneReview{}
+	now := time.Now()
+	items := make([]ochazuke.ListItem, 0, len(shown))
+	for _, r := range shown {
+		a.reviews = append(a.reviews, r.Review)
+		a.reviewRows[r.Review.ID] = *r
+		items = append(items, ochazuke.ListItem{ID: r.Review.ID, Label: a.reviewLabel(*r, now), Noun: "review", Cells: a.reviewCells(*r, now)})
+	}
+	if err := a.reviewList.SetItems(items); err != nil {
+		return err
+	}
+	return a.showReviewTurns(false)
+}
+
+// turnPane is how a turn's pane reads: the live pane's label, else the
+// name journaled with it, else the window id.
+func (a *App) turnPane(t history.PaneTurn) string {
+	for _, p := range a.panes {
+		if p.ID == t.Window {
+			return p.label()
+		}
+	}
+	return cmp.Or(t.Pane, shortSession(t.Session)+"/"+t.Window)
+}
+
+// showReviewTurns fills the Turns tree with the opened row's turns; fresh
+// (a newly opened row) collapses them all.
+func (a *App) showReviewTurns(fresh bool) error {
+	row, ok := a.reviewRows[a.opened]
+	tree := a.r.Instances[reviewTreeID+"/list"]
+	if !ok {
+		tree.Unfocusable = true
+		return a.reviewTurns.SetNodes(nil)
+	}
+	n, err := a.fillTurns(a.reviewTurns, "review-turn:", row.Review.Window, turnRef{Back: row.Review.ID, Review: true}, fresh)
+	tree.Unfocusable = n == 0
+	return err
 }
 
 // reviewColumns are the review noun's table: the status (with "answered"
-// when an answer is saved), the pane, its harness, the project, the task
-// and when its screen was last captured; narrow, the capture time drops
-// first, then the harness, the project and the task.
+// when an answer is saved), the pane, its unread turns, its last prompt,
+// when it last finished, the project, the task and the harness; narrow,
+// the harness drops first, then the task, the project, the time and the
+// prompt.
 var reviewColumns = []ochazuke.Column{
 	{Title: "status", Min: 8},
 	{Title: "pane", Min: 12},
-	{Title: "harness", Priority: 3},
-	{Title: "project", Priority: 2},
-	{Title: "task", Priority: 1},
-	{Title: "captured", Priority: 4},
+	{Title: "new", Align: ochazuke.AlignRight},
+	{Title: "last prompt", Min: 12, Priority: 1},
+	{Title: "when", Priority: 2},
+	{Title: "project", Priority: 3},
+	{Title: "task", Priority: 4},
+	{Title: "harness", Priority: 5},
 }
 
-// reviewCells are a review row's cells in reviewColumns order.
-func (a *App) reviewCells(rv work.Review, now time.Time) []string {
+// reviewCells are a row's cells in reviewColumns order.
+func (a *App) reviewCells(r paneReview, now time.Time) []string {
+	rv := r.Review
 	status := rv.Status
 	if rv.Answer != "" {
 		status += " · answered"
@@ -127,41 +253,37 @@ func (a *App) reviewCells(rv work.Review, now time.Time) []string {
 	if _, ok := a.answerDraftOf(rv.ID); ok {
 		status += " · draft"
 	}
-	task := ""
-	if rv.TaskID != "" {
-		task = rv.TaskID
-		if t, err := a.work.Task(rv.TaskID); err == nil {
-			task = t.Title
-		}
-	}
-	captured := ""
-	if rv.CapturedAt != 0 {
-		captured = sinceUse(rv.CapturedAt, now)
-	}
-	return []string{status, rv.Pane, rv.Harness, a.ownerLabel(rv.ProjectID), task, captured}
+	return []string{status, rv.Pane, countCell(r.unread()), r.lastPrompt(), sinceUse(r.at(), now), a.ownerLabel(rv.ProjectID), a.taskTitle(rv.TaskID), rv.Harness}
 }
 
-// reviewLabel is the row text: the status, the project, the task and the
-// pane, and a mark when an answer is saved.
-func (a *App) reviewLabel(rv work.Review) string {
-	project := rv.ProjectID
-	if p, ok := a.project(rv.ProjectID); ok {
-		project = p.Name
-	} else if project == "" {
-		project = "(no project)"
+// taskTitle is a task's title, else its id; "" for none.
+func (a *App) taskTitle(id string) string {
+	if id == "" {
+		return ""
 	}
-	task := "(no task)"
-	if rv.TaskID != "" {
-		task = rv.TaskID
-		if t, err := a.work.Task(rv.TaskID); err == nil {
-			task = t.Title
-		}
+	if t, err := a.work.Task(id); err == nil {
+		return t.Title
 	}
-	pane := rv.Pane
-	if rv.Harness != "" {
-		pane = rv.Harness + " · " + pane
+	return id
+}
+
+// reviewLabel is the row text: [status] pane · project · N unreviewed ·
+// "last prompt" · when, and a mark when an answer is saved.
+func (a *App) reviewLabel(r paneReview, now time.Time) string {
+	rv := r.Review
+	project := "(no project)"
+	if rv.ProjectID != "" {
+		project = a.ownerLabel(rv.ProjectID)
 	}
-	label := fmt.Sprintf("[%s] %s · %s · %s", rv.Status, project, task, pane)
+	parts := []string{"[" + rv.Status + "] " + rv.Pane, project}
+	if n := r.unread(); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d unreviewed", n))
+	}
+	if prompt := r.lastPrompt(); prompt != "" {
+		parts = append(parts, fmt.Sprintf("%q", ansi.Truncate(prompt, 40, "…")))
+		parts = append(parts, sinceUse(r.at(), now))
+	}
+	label := strings.Join(parts, " · ")
 	if rv.Answer != "" {
 		label += "  (answered)"
 	}
@@ -182,10 +304,23 @@ func (a *App) recordReview(projectID, taskID string, started harness.Result) {
 	}
 }
 
-// review reads the addressed row's review fresh from the store.
-func (a *App) review(ctx ochazuke.Ctx) (work.Review, error) {
+// review reads the addressed row's review fresh from the store; a pane
+// mtm did not launch gets its record written now (record first), unless
+// write is false (opening a row writes nothing).
+func (a *App) review(ctx ochazuke.Ctx, write ...bool) (work.Review, error) {
 	if ctx.Instance == nil || ctx.Instance.Noun != "review" {
 		return work.Review{}, errors.New("no review is selected")
+	}
+	row, ok := a.reviewRows[ctx.Instance.ID]
+	if ok && !row.Stored && len(write) > 0 && !write[0] {
+		return row.Review, nil // opening reads; it writes nothing
+	}
+	if ok && !row.Stored {
+		if _, err := a.work.EnsureReview(row.Review); err != nil {
+			return work.Review{}, err
+		}
+		row.Stored = true
+		a.reviewRows[ctx.Instance.ID] = row
 	}
 	rv, err := a.work.Review(ctx.Instance.ID)
 	if err != nil {
@@ -236,7 +371,7 @@ func (a *App) answerDraftOf(id string) (string, bool) {
 // fills the answer area, and its pane is captured off the loop; a newer
 // open replaces an older capture.
 func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
-	rv, err := a.review(ctx)
+	rv, err := a.review(ctx, false)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -250,6 +385,14 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	if err := a.setAnswerText(answer); err != nil {
 		return ochazuke.Failed(err)
+	}
+	if err := a.showReviewTurns(true); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if !a.r.Instances[reviewTreeID+"/list"].Unfocusable {
+		if err := a.reviewTurns.List().Focus(); err != nil {
+			return ochazuke.Failed(err)
+		}
 	}
 	d := a.panesd
 	version := a.pinVersion
@@ -509,6 +652,14 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 			detail += " · captured " + time.UnixMilli(rv.CapturedAt).Format("15:04:05")
 		}
 		body = a.fill(rv.Output, rows, width)
+		if row := a.reviewRows[rv.ID]; len(row.Turns) > 0 {
+			// The pane's turns are the detail; its screen only without them.
+			detail = fmt.Sprintf("turns: %s · %s", rv.Pane, plural(row.unread(), "unreviewed turn"))
+			if owner, err := a.work.PaneOwner(rv.Window, ""); err == nil {
+				detail += " · current owner: " + a.ownerLabel(owner.ProjectID)
+			}
+			body = a.fill(a.reviewTurns.Block(width, rows).Text, rows)
+		}
 		// The keys that edit, save and drop the answer are on the footer.
 		answer = "answer:"
 		if _, ok := a.answerDraftOf(rv.ID); ok {

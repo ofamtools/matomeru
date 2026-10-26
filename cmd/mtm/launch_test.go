@@ -351,7 +351,7 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 	if app.r.Page != reviewsPage || app.r.Focus != rv.ID {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}
-	if fr := frame(app); !rowWith(fr, "pending", "no-project/claude", "claude", "unassociated") {
+	if fr := frame(app); !rowWith(fr, "pending", "no-project/claude", "unassociated", "claude") {
 		t.Fatalf("frame:\n%s", fr)
 	}
 	settle(app, key(t, app, "enter"))

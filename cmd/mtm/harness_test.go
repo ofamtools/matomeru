@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -97,8 +98,8 @@ func TestEveryHarnessLaunchesThroughNewWindowThenSendText(t *testing.T) {
 			if err != nil || len(reviews) != 1 || reviews[0].Harness != c.harness {
 				t.Fatalf("reviews = %+v, %v", reviews, err)
 			}
-			if label := app.reviewLabel(reviews[0]); !strings.Contains(label, " · "+c.harness+" · matomeru/write the brief") {
-				t.Fatalf("review label = %q", label)
+			if cells := app.reviewCells(paneReview{Review: reviews[0]}, time.Now()); cells[1] != "matomeru/write the brief" || cells[len(cells)-1] != c.harness {
+				t.Fatalf("review cells = %q", cells)
 			}
 		})
 	}

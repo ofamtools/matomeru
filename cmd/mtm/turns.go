@@ -101,42 +101,69 @@ func textLines(text string) []string {
 	return out
 }
 
-// showTurns fills the Turns tree for a pane row; a new pane starts with
-// every turn collapsed, the same pane keeps what is open.
+// turnRef is a turn tree row's data: the turn, its pane and the row esc
+// goes back to.
+type turnRef struct {
+	Window, ID string
+	Back       string // the pane row (Panes) or review row (Review) the tree shows
+	Review     bool   // the row is in the Review page's tree
+}
+
+// fillTurns fills a turns tree with a window's turns, each row's id
+// prefixed (the Panes and Review trees hold the same turns); fresh
+// collapses every turn. It returns how many turns the tree holds.
+func (a *App) fillTurns(tree *ochazuke.Tree, prefix, window string, back turnRef, fresh bool) (int, error) {
+	turns, err := a.hist.Turns(window)
+	if err != nil {
+		return 0, err
+	}
+	var nodes []ochazuke.TreeNode
+	for _, t := range turns {
+		id := prefix + t.ID
+		ref := back
+		ref.Window, ref.ID = window, t.ID
+		nodes = append(nodes, ochazuke.TreeNode{ID: id, Label: turnLabel(t), Noun: "turn", Data: ref})
+		for j, line := range turnLines(t) {
+			nodes = append(nodes, ochazuke.TreeNode{ID: fmt.Sprintf("%s/%d", id, j), Parent: id, Label: line, Noun: "turn-line", Data: ref})
+		}
+	}
+	if err := tree.SetNodes(nodes); err != nil {
+		return 0, err
+	}
+	if fresh {
+		return len(turns), tree.CollapseAll()
+	}
+	return len(turns), nil
+}
+
+// showTurns fills the Panes page's Turns tree for a pane row; a new pane
+// starts with every turn collapsed, the same pane keeps what is open.
 func (a *App) showTurns(row string) error {
 	p, err := a.paneAt(a.r.Instances[row])
 	if err != nil {
 		return err
 	}
-	turns, err := a.hist.Turns(p.ID)
-	if err != nil {
-		return err
-	}
-	var nodes []ochazuke.TreeNode
-	for _, t := range turns {
-		id := "turn:" + t.ID
-		nodes = append(nodes, ochazuke.TreeNode{ID: id, Label: turnLabel(t), Noun: "turn", Data: t.ID})
-		for j, line := range turnLines(t) {
-			nodes = append(nodes, ochazuke.TreeNode{ID: fmt.Sprintf("%s/%d", id, j), Parent: id, Label: line, Noun: "turn-line"})
-		}
-	}
 	fresh := a.pv.turnsFor != row
-	if err := a.pv.turns.SetNodes(nodes); err != nil {
+	if _, err := a.fillTurns(a.pv.turns, "turn:", p.ID, turnRef{Back: row}, fresh); err != nil {
 		return err
 	}
 	a.pv.turnsFor = row
-	if fresh {
-		return a.pv.turns.CollapseAll()
-	}
 	return nil
 }
 
-// turnsBack is turn.back (and turn-line.back): focus the pane row the
-// Turns tab shows, else the pane list.
-func (a *App) turnsBack(ochazuke.Ctx) ochazuke.Result {
+// turnsBack is turn.back (and turn-line.back): focus the row the tree
+// shows the turns of, else its list.
+func (a *App) turnsBack(ctx ochazuke.Ctx) ochazuke.Result {
+	var ref turnRef
+	if ctx.Instance != nil {
+		ref, _ = ctx.Instance.Data.(turnRef)
+	}
 	target := paneListID
-	if a.r.Instances[a.pv.turnsFor] != nil {
-		target = a.pv.turnsFor
+	if ref.Review {
+		target = reviewListID
+	}
+	if a.r.Instances[ref.Back] != nil {
+		target = ref.Back
 	}
 	if err := a.r.SetFocus(target); err != nil {
 		return ochazuke.Failed(err)
@@ -149,21 +176,24 @@ func (a *App) openTurn(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(fmt.Errorf("select a turn"))
 	}
-	id, _ := ctx.Instance.Data.(string)
-	p, err := a.paneAt(a.r.Instances[a.pv.turnsFor])
-	if err != nil {
+	ref, _ := ctx.Instance.Data.(turnRef)
+	if err := a.markTurn(ref.Window, ref.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.markTurn(p.ID, id); err != nil {
+	tree := a.pv.turns
+	if ref.Review {
+		tree = a.reviewTurns
+	}
+	if err := tree.SetCollapsed(ctx.Instance.ID, false); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.pv.turns.SetCollapsed(ctx.Instance.ID, false); err != nil {
-		return ochazuke.Failed(err)
+	if ref.Review {
+		return resultError(a.showReviewTurns(false))
 	}
 	if err := a.showTurns(a.pv.turnsFor); err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(id)
+	return ochazuke.Done(ref.ID)
 }
 
 // markTurn marks a finished turn of the window reviewed and pushes the

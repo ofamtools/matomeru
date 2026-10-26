@@ -73,6 +73,36 @@ func (s *Store) AddReview(r Review) (Review, error) {
 	return r, err
 }
 
+// EnsureReview writes a review record under its own id when there is none
+// yet (a pane mtm did not launch gets one the first time it is answered or
+// accepted) and returns the stored row.
+func (s *Store) EnsureReview(r Review) (Review, error) {
+	if r.ID == "" || r.Session == "" || r.Window == "" {
+		return Review{}, errors.New("a review needs an id, a session and a window")
+	}
+	err := s.db.Tx([]string{"reviews"}, func(tx *store.Tx) error {
+		var existing Review
+		err := tx.Get("reviews", r.ID, &existing)
+		if err == nil {
+			r = existing
+			return nil
+		}
+		if !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		now := Now()
+		if r.Status == "" {
+			r.Status = ReviewPending
+		}
+		if r.Created == 0 {
+			r.Created = now
+		}
+		r.Updated = now
+		return tx.Put("reviews", r.ID, r)
+	})
+	return r, err
+}
+
 // SetReviewStatus accepts or rejects a review (or sets it back to pending).
 func (s *Store) SetReviewStatus(id, status string) (Review, error) {
 	switch status {

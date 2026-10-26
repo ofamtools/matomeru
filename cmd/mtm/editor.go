@@ -110,6 +110,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := a.refreshVim(); err != nil {
 				a.m.Status = err.Error()
 			}
+		case reviewsPage:
+			// Capture hooks write turns from other processes; the rows
+			// also name panes after the latest listing.
+			if err := a.refreshReviews(); err != nil {
+				a.m.Status = err.Error()
+			}
 		}
 	}
 	if expire := a.expireNotices(msg, notices); expire != nil {
