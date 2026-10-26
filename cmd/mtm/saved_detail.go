@@ -59,7 +59,7 @@ func (a *App) savedFacts(s work.SavedPane) string {
 	text := savedName(s) + "\n\n" + facts(
 		"project", a.ownerLabel(s.ProjectID),
 		"command", command,
-		"cwd", tildePath(s.Cwd, home),
+		"cwd", pathCell(s.Cwd, home),
 		"harness", s.Harness,
 		"model", s.Model,
 		"flags", strings.Join(s.Flags, " "),

@@ -55,6 +55,9 @@ func (a *App) addVimPage() error {
 	if err != nil {
 		return err
 	}
+	if a.detail.vim, err = a.addLinkedDetail(vimDetailID, vimPage, func() *ochazuke.List { return a.vimList }, a.vimSubject); err != nil {
+		return err
+	}
 	if _, err := a.r.AddPage(vimPage, "Vim", a.renderVim, ochazuke.Focus(vimListID)); err != nil {
 		return err
 	}
@@ -184,10 +187,6 @@ func (a *App) listVim(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(rows)
-}
-
-func (a *App) renderVim(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	return ochazuke.Text(a.view(a.vimList, width, height))
 }
 
 func (a *App) vimAt(ctx ochazuke.Ctx) (work.VimSession, error) {

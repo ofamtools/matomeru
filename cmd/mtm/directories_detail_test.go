@@ -62,7 +62,7 @@ func linkedFixture(t *testing.T) linked {
 	}
 	l.savedID = saved.ID
 	l.vimID = "v1"
-	if err := a.work.PutVimSession(work.VimSession{ID: l.vimID, Name: "notes", Path: "/home/test/.local/v1.vim", Cwd: l.alpha, ProjectID: "matomeru", WindowID: "w2", Created: 1}); err != nil {
+	if err := a.work.PutVimSession(work.VimSession{ID: l.vimID, Name: "notes", Path: "/home/test/.local/v1.vim", Cwd: l.alpha, ProjectID: "matomeru", WindowID: "w2", Created: work.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshSaved(); err != nil {
