@@ -6,7 +6,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/vt v0.1.0
-	github.com/unixsuperhero/ochazuke v0.5.0
+	github.com/unixsuperhero/ochazuke v0.6.0
 	modernc.org/sqlite v1.60.1
 )
 
