@@ -275,6 +275,7 @@ type App struct {
 	answer      *ochazuke.Input
 	answerDraft string // the answer text last written as the opened review's draft
 	noteList    *ochazuke.List
+	noteBody    noteBody // the Notes page's scrollable body (notes.go)
 	savedList   *ochazuke.List
 	vimList     *ochazuke.List
 	vimDir      string

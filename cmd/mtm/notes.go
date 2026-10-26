@@ -24,6 +24,18 @@ func (a *App) defineNotes() {
 		Verb("associate", a.associateNote, "Associate a note with a task or project; scratch clears ownership").
 		Verb("delete", a.deleteNote, "Delete a note and its draft; nothing else is touched").Confirm("Delete note {{label}}?").
 		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("D", ochazuke.Do("note.delete"))
+	a.r.Define(noteBodyNoun).Focusable().
+		Verb("scroll", a.scrollNoteBody, "Scroll the note's text: delta lines, or half a screen (half 1 down, -1 up)").Motion().
+		Mode("normal").
+		Bind("j", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"delta": 1})).
+		Bind("down", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"delta": 1})).
+		Bind("k", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"delta": -1})).
+		Bind("up", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"delta": -1})).
+		Bind("ctrl+d", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"half": 1})).
+		Bind("ctrl+u", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"half": -1})).
+		Bind("G", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"delta": noteBodyEnd})).
+		Bind("esc", ochazuke.Do("focus.set", ochazuke.Arguments{"id": "notes/list"}))
+	a.parameters(noteBodyNoun+".scroll", map[string]ochazuke.Parameter{"delta": {Type: "integer"}, "half": {Type: "integer"}})
 	a.parameters("note.list", map[string]ochazuke.Parameter{"all": {Type: "boolean"}})
 	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
 	a.parameters("note.edit", map[string]ochazuke.Parameter{"text": {Type: "string"}})
@@ -51,6 +63,7 @@ func (a *App) addNotesPage() error {
 	if err != nil {
 		return err
 	}
+	a.r.Instance(noteBodyID, ochazuke.Kind(noteBodyNoun), ochazuke.Parent(notesPage))
 	if _, err := a.r.AddPage(notesPage, "Notes", a.renderNotes, ochazuke.Focus("notes/list")); err != nil {
 		return err
 	}
@@ -182,6 +195,9 @@ func (a *App) refreshNotes() error {
 			items = append(items, ochazuke.ListItem{ID: d.ID, Label: noteLabel(d.Text) + " [draft]", Noun: "draft", Data: d, Cells: []string{noteLabel(d.Text) + " [draft]", a.ownerLabel(d.ProjectID)}})
 		}
 	}
+	if body := a.r.Instances[noteBodyID]; body != nil {
+		body.Unfocusable = len(items) == 0
+	}
 	return a.noteList.SetItems(items)
 }
 
@@ -198,6 +214,11 @@ func (a *App) viewNote(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if err := a.showNote(note); err != nil {
+		return ochazuke.Failed(err)
+	}
+	// enter reads the note: the focus moves into its body, where j/k and
+	// ctrl+d/ctrl+u scroll the text alone (test pass R8).
+	if err := a.r.SetFocus(noteBodyID); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(note)
@@ -362,12 +383,74 @@ func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		if note, err := a.work.Note(selected.ID); err == nil {
 			project, err := a.work.NoteProject(note)
 			if err == nil && a.inScope(project) {
-				right = ochazuke.Text(a.noteOwnerLabel(note) + "\n\n" + ansi.Wrap(note.Text, rightWidth, ""))
+				right = ochazuke.Text(a.renderNoteBody(note, rightWidth, height))
 			}
 		}
 	}
 	body := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), right.Text)
 	return right.Offset(leftWidth+2, 0).WithText(body)
+}
+
+// The note body: the selected note's text, wrapped to the panel and
+// scrolled on its own. It is a focus stop of its own noun, so enter on a
+// note (or } from the list) focuses it and j/k, ctrl+d/ctrl+u and G scroll
+// the text without moving the page; esc or { goes back to the list.
+const (
+	noteBodyNoun = "note-body"
+	noteBodyID   = "notes/body"
+	noteBodyEnd  = 1 << 30 // G: scroll to the end
+)
+
+// noteBody is the body's scroll state: the note it is for, the first
+// line shown, and the last drawn size (for half pages and clamping).
+type noteBody struct {
+	note           string
+	offset         int
+	lines, visible int
+}
+
+// renderNoteBody is the owner line, then the window of wrapped lines, then
+// "a–b / n" when the text is longer than the panel. The owner line is
+// reverse video while the body has the focus.
+func (a *App) renderNoteBody(note work.Note, width, height int) string {
+	b := &a.noteBody
+	if b.note != note.ID {
+		*b = noteBody{note: note.ID}
+	}
+	lines := strings.Split(ansi.Wrap(note.Text, width, ""), "\n")
+	visible := max(1, height-2)
+	if len(lines) > visible {
+		visible = max(1, visible-1)
+	}
+	b.lines, b.visible = len(lines), visible
+	b.offset = min(max(0, b.offset), max(0, len(lines)-visible))
+	end := min(len(lines), b.offset+visible)
+	head := ansi.Truncate(a.noteOwnerLabel(note), width, "…")
+	if a.r.BaseFocus() == noteBodyID {
+		head = lipgloss.NewStyle().Reverse(true).Render(head)
+	}
+	text := head + "\n\n" + strings.Join(lines[b.offset:end], "\n")
+	if len(lines) > visible {
+		text += "\n" + fmt.Sprintf("%d–%d / %d", b.offset+1, end, len(lines))
+	}
+	a.r.Placed(noteBodyID)
+	return a.r.PlacedAt(noteBodyID, text, 0, 1)
+}
+
+// scrollNoteBody is note-body.scroll.
+func (a *App) scrollNoteBody(ctx ochazuke.Ctx) ochazuke.Result {
+	b := &a.noteBody
+	delta := ochazuke.IntArg(ctx.Args, "delta", 0)
+	if half := ochazuke.IntArg(ctx.Args, "half", 0); half != 0 {
+		delta = half * max(1, b.visible/2)
+	}
+	if delta == noteBodyEnd {
+		b.offset = b.lines
+	} else {
+		b.offset += delta
+	}
+	b.offset = min(max(0, b.offset), max(0, b.lines-b.visible))
+	return ochazuke.Done(map[string]int{"offset": b.offset, "lines": b.lines})
 }
 
 func (a *App) detailNotes(project, task string) string {

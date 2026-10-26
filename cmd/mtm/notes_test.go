@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -279,5 +280,52 @@ func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
 	notes, _ := a.work.Notes()
 	if len(notes) != 1 || notes[0].Text != "kept here" {
 		t.Fatalf("notes %+v", notes)
+	}
+}
+
+// Test pass R8: a long note's body is a focus stop of its own: enter on the
+// note focuses it, j/k and ctrl+d/ctrl+u scroll only the text (the list
+// and its heading stay put), G goes to the end and esc returns to the list.
+func TestLongNoteBodyScrollsOnItsOwn(t *testing.T) {
+	a := open(t)
+	var lines []string
+	for i := 1; i <= 300; i++ {
+		lines = append(lines, fmt.Sprintf("line %03d", i))
+	}
+	executeA(t, a, "note", "new", "", ochazuke.Arguments{"text": strings.Join(lines, "\n"), "scratch": true})
+	if err := a.r.OpenPage(notesPage); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.noteList.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "enter")
+	if a.r.Focus != noteBodyID {
+		t.Fatalf("enter focus %s", a.r.Focus)
+	}
+	f := frame(a)
+	if !strings.Contains(f, "line 002") || !strings.Contains(f, "notes (1)") {
+		t.Fatalf("opened:\n%s", f)
+	}
+	press(t, a, "ctrl+d", "j")
+	f = frame(a)
+	if strings.Contains(f, "line 002") || !strings.Contains(f, "notes (1)") || !strings.Contains(f, "/ 300") {
+		t.Fatalf("after ctrl+d j the text should scroll, the list stay:\n%s", f)
+	}
+	press(t, a, "G")
+	if f = frame(a); !strings.Contains(f, "line 300") || !strings.Contains(f, "notes (1)") {
+		t.Fatalf("G:\n%s", f)
+	}
+	press(t, a, "ctrl+u", "k")
+	if f = frame(a); strings.Contains(f, "line 300") {
+		t.Fatalf("ctrl+u k:\n%s", f)
+	}
+	press(t, a, "esc")
+	if a.r.Focus == noteBodyID || a.r.BaseFocus() == noteBodyID {
+		t.Fatalf("esc focus %s", a.r.Focus)
+	}
+	press(t, a, "}")
+	if a.r.Focus != noteBodyID {
+		t.Fatalf("} from the list: focus %s", a.r.Focus)
 	}
 }
