@@ -348,6 +348,10 @@ type App struct {
 	// (extension_sync.go); extErrsSeen are the registry errors shown.
 	extSyncDue  bool
 	extErrsSeen map[string]bool
+	// extList is the Extensions page's table; extPage its discovery state
+	// (extension_page.go).
+	extList *ochazuke.List
+	extPage extPageState
 	// quitting is set by Close: an extension's last write runs at once.
 	quitting bool
 
@@ -434,6 +438,7 @@ func New(opts Options) (*App, error) {
 	a.defineSetup()
 	a.defineStore()
 	a.defineExtensions()
+	a.defineExtensionRows()
 	a.defineExtForms()
 	if err := a.declareSettings(); err != nil {
 		return nil, err
@@ -498,7 +503,11 @@ func New(opts Options) (*App, error) {
 	if err := a.addContextPage(); err != nil {
 		return nil, err
 	}
-	// Registered extensions' pages are tabs after mtm's own.
+	// The Extensions page is mtm's last tab; the registered extensions'
+	// pages follow it.
+	if err := a.addExtensionsPage(); err != nil {
+		return nil, err
+	}
 	a.mountExtensions()
 	if err := a.refreshReviews(); err != nil {
 		db.Close()

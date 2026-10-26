@@ -150,7 +150,7 @@ func TestExtensionRegisterMountsATabAfterMtmsPages(t *testing.T) {
 	for _, p := range a.r.PageList() {
 		pages = append(pages, p.ID)
 	}
-	if i := slices.Index(pages, "ext/fake"); i != len(pages)-1 || pages[i-1] != contextPage {
+	if i := slices.Index(pages, "ext/fake"); i != len(pages)-1 || pages[i-1] != extensionsPage {
 		t.Fatalf("pages %v: the extension's tab is not after mtm's", pages)
 	}
 	if a.r.Noun("fake-app") != nil {

@@ -129,6 +129,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := a.refreshVim(); err != nil {
 				a.r.UI().Status(err.Error())
 			}
+		case extensionsPage:
+			// The tools on PATH and their catalogs may have changed.
+			a.extPage.due = true
 		case reviewsPage:
 			// Capture hooks write turns from other processes; the rows
 			// also name panes after the latest listing.
@@ -143,6 +146,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd = tea.Batch(cmd, a.r.PendingCommands())
 			}
 		}
+	}
+	if a.extensionsUpdate() {
+		cmd = tea.Batch(cmd, a.r.PendingCommands())
 	}
 	if expire := a.expireNotices(msg, notices); expire != nil {
 		cmd = tea.Batch(cmd, expire)

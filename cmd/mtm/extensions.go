@@ -286,14 +286,14 @@ func (a *App) defineExtensions() {
 		Verb("list", a.listExtensions, "List the registered extensions").
 		Verb("available", a.availableExtensions, "List the family tools on PATH (o-NAME answering catalog) and the registered extensions, each available, registered, stale or missing").Quiet().
 		Verb("refresh", a.refreshExtension, "Read a registered extension's catalog again (every extension when NAME is omitted)").Positional("name").
-		Verb("remove", a.removeExtension, "Unregister an extension; --purge also deletes its data file").Positional("name").Confirm("Remove extension {{name}}?")
+		Verb("remove", a.removeExtension, "Unregister an extension; --purge also deletes its data file").Positional("name").Confirm("Remove extension {{label}}? Its data file stays (mtm extension remove NAME --purge deletes it).")
 	a.parameters("extension.register", map[string]ochazuke.Parameter{
-		"name": {Type: "string", Required: true, Description: "The extension's name: its tab and the prefix of its nouns (lowercase letters, digits, dashes)"},
+		"name": {Type: "string", Description: "The extension's name: its tab and the prefix of its nouns (lowercase letters, digits, dashes); on an Extensions row, the row's"},
 		"bin":  {Type: "string", Description: "The tool's executable, a path or a name on PATH (default o-NAME, else NAME)"},
 	})
 	a.parameters("extension.refresh", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "The extension; omitted, every one"}})
 	a.parameters("extension.remove", map[string]ochazuke.Parameter{
-		"name":  {Type: "string", Required: true},
+		"name":  {Type: "string", Description: "The extension; on an Extensions row, the row's"},
 		"purge": {Type: "boolean", Description: "Also delete the extension's data file (" + store.ExtensionDir + "/NAME.db under mtm's data directory)"},
 	})
 }
@@ -312,11 +312,14 @@ type extSummary struct {
 // loop, the registry file written, and in the TUI the extension's pages
 // mounted (re-mounted when it was registered before) at once.
 func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
-	name := ochazuke.StringArg(ctx.Args, "name", "")
+	name := rowExtName(ctx)
 	if !store.ValidExtensionName(name) {
 		return ochazuke.Failed(fmt.Errorf("extension name %q: use lowercase letters, digits and dashes", name))
 	}
 	bin := ochazuke.StringArg(ctx.Args, "bin", "")
+	if row, ok := extRow(ctx.Instance); ok && bin == "" && row.Name == name {
+		bin = row.Bin // an available row registers the bin discovery found
+	}
 	if bin == "" {
 		bin = "o-" + name
 		if _, err := exec.LookPath(bin); err != nil {
@@ -354,6 +357,7 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		a.extSyncDue = !a.cli
+		a.extPage.due = true
 	})
 }
 
@@ -411,7 +415,7 @@ func (a *App) listExtensions(ochazuke.Ctx) ochazuke.Result {
 // (a running mtm sees a refresh from the CLI when a page is next opened).
 func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 	reg := a.extRegistry()
-	names := []string{ochazuke.StringArg(ctx.Args, "name", "")}
+	names := []string{rowExtName(ctx)}
 	if names[0] == "" {
 		var err error
 		if names, err = reg.Names(); err != nil {
@@ -462,16 +466,21 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			}
 		}
 		a.extSyncDue = !a.cli
+		a.extPage.due = true
 	})
 }
 
 // removeExtension is extension.remove (confirmed): the registry file goes,
 // and with --purge the extension's data file; its pages close.
 func (a *App) removeExtension(ctx ochazuke.Ctx) ochazuke.Result {
-	name := ochazuke.StringArg(ctx.Args, "name", "")
+	name := rowExtName(ctx)
+	if name == "" {
+		return ochazuke.Failed(fmt.Errorf("extension remove: give NAME"))
+	}
 	if err := a.extRegistry().remove(name); err != nil {
 		return ochazuke.Failed(err)
 	}
+	a.extPage.due = true
 	result := map[string]any{"name": name, "removed": true}
 	if purge, _ := ctx.Args["purge"].(bool); purge {
 		path, err := store.ExtensionPath(a.dataDir(), name)

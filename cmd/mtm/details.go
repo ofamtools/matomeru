@@ -26,7 +26,7 @@ const (
 
 // pageDetails are the pages' details.
 type pageDetails struct {
-	panes, work, notes, reviews *pageDetail
+	panes, work, notes, reviews, ext *pageDetail
 	// The linked details (detail_links.go).
 	dirs, saved, vim *linkedDetail
 }
