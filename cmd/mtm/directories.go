@@ -427,6 +427,17 @@ func (a *App) addDirectoriesPage() error {
 // background.
 func (a *App) openedDirectories() tea.Cmd {
 	a.refreshDirectoryRows()
+	// The first visit lands on the first list drawn: the pinned project's
+	// directories when it has any (UX review 2 F22); later visits keep the
+	// page's remembered focus.
+	if !a.dirsVisited {
+		a.dirsVisited = true
+		if a.projectDirList.Len() > 0 {
+			if err := a.projectDirList.Focus(); err != nil {
+				a.m.Status = err.Error()
+			}
+		}
+	}
 	if a.directories.Ready || a.directories.Loading {
 		return nil
 	}

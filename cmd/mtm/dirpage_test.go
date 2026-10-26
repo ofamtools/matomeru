@@ -34,7 +34,7 @@ func itemIDs(l *ochazuke.List) []string {
 
 // The page loads its known directories on open without a refresh, shows
 // the pinned project's directories on top, and its rows answer: enter on a
-// known directory attaches it to the pin and stays; x on a project
+// known directory attaches it to the pin and stays; d d on a project
 // directory detaches it, the default passing to the next; enter makes one
 // the default.
 func TestDirectoriesPageLoadsAndEditsProjectDirectories(t *testing.T) {
@@ -252,5 +252,21 @@ func TestPathCellKeepsTheTail(t *testing.T) {
 		if got := pathCell(c.in, "/home/u"); got != c.want {
 			t.Errorf("pathCell(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// UX review 2 F22: the first visit lands on the first list drawn, the
+// pinned project's directories, when it has any.
+func TestDirectoriesOpensOnTheFirstListDrawn(t *testing.T) {
+	t.Setenv("MTM_O_PROJ", "none")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	a := open(t)
+	root := knownRepos(t, a, "alpha")
+	alpha := directoryKey(filepath.Join(root, "alpha"))
+	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
+	executeA(t, a, "project", "directory", "matomeru", ochazuke.Arguments{"path": alpha})
+	openDirectories(t, a)
+	if a.r.Focus != "project-dir:"+alpha {
+		t.Fatalf("focus %s, project rows %v", a.r.Focus, itemIDs(a.projectDirList))
 	}
 }
