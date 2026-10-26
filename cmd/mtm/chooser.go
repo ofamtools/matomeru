@@ -391,7 +391,9 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	rowsHeight := max(1, height-2)
 	switch {
 	case len(c.spec.Rows) == 0 && c.spec.Empty != "":
-		lines = append(lines, "  "+c.spec.Empty)
+		// Padded to the width the rows will take, so the panel does not
+		// jump wider when they land (test pass R4).
+		lines = append(lines, ansi.Truncate("  "+c.spec.Empty+strings.Repeat(" ", width), width, ""))
 	case c.matched() == 0:
 		lines = append(lines, "  no matches")
 	}
@@ -416,7 +418,7 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	case c.cursor >= scroll:
 		offset = c.cursor - scroll + 1
 	}
-	widths := c.cellWidths()
+	widths := fitWidths(c.cellWidths(), width-2)
 	draw := func(i int) {
 		text := c.matches[i].Label
 		if cells := c.matches[i].Cells; len(cells) > 0 {
@@ -467,14 +469,45 @@ func (c *Chooser) cellWidths() []int {
 	return widths
 }
 
+// fitWidths narrows the widest columns, one cell at a time and never
+// below 6, until the columns and their two-space gaps fit in avail, so no
+// one wide column (a long branch or project list) pushes the rest off.
+func fitWidths(widths []int, avail int) []int {
+	widths = slices.Clone(widths)
+	total := func() int {
+		n := 2 * max(0, len(widths)-1)
+		for _, w := range widths {
+			n += w
+		}
+		return n
+	}
+	for total() > avail {
+		widest := 0
+		for i, w := range widths {
+			if w > widths[widest] {
+				widest = i
+			}
+		}
+		if widths[widest] <= 6 {
+			break
+		}
+		widths[widest]--
+	}
+	return widths
+}
+
 // alignCells pads each cell but the last to its column's width, two
-// spaces apart; trailing empty cells are dropped.
+// spaces apart, cutting a cell longer than its column with …; trailing
+// empty cells are dropped.
 func alignCells(cells []string, widths []int) string {
 	for len(cells) > 0 && cells[len(cells)-1] == "" {
 		cells = cells[:len(cells)-1]
 	}
 	var b strings.Builder
 	for i, cell := range cells {
+		if i < len(widths) {
+			cell = ansi.Truncate(cell, widths[i], "…")
+		}
 		b.WriteString(cell)
 		if i < len(cells)-1 && i < len(widths) {
 			b.WriteString(strings.Repeat(" ", max(0, widths[i]-ansi.StringWidth(cell))+2))

@@ -519,3 +519,24 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 		t.Fatalf("inbox highlights %+v", row)
 	}
 }
+
+// Test pass R4: a chooser waiting for its rows is as wide as it will be
+// with them, and a wide column (a long project list) narrows so the path
+// column stays in view.
+func TestChooserColumnsFitAndLoadingKeepsWidth(t *testing.T) {
+	a := open(t)
+	c, err := a.choosers.Open(ChooserSpec{Kind: "fit-test", Title: "Fit", Empty: "loading…"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(ansi.Strip(c.View(74, 10).Text), "\n")[1:] {
+		if ansi.StringWidth(line) != 74 {
+			t.Fatalf("loading line %q is %d wide, want 74", line, ansi.StringWidth(line))
+		}
+	}
+	c.SetRows([]ChooserRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo", "~/proj/some/repo", "main", "never", "[" + strings.Repeat("project, ", 12) + "]"}}})
+	view := ansi.Strip(c.View(74, 10).Text)
+	if !strings.Contains(view, "~/proj/some/repo") || !strings.Contains(view, "never") {
+		t.Fatalf("path or age cut:\n%s", view)
+	}
+}

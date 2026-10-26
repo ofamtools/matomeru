@@ -662,15 +662,16 @@ func (a *App) refreshBases() {
 }
 
 // directoryCells are a known directory as chooser cells: its folder name
-// first (a long path would hide it), then branch, last use, owning
-// projects and the path.
+// first (a long path would hide it), then the path, branch, last use and
+// owning projects (the chooser narrows the widest columns to fit, so the
+// path stays in view).
 func directoryCells(row knownDirectory, owners []string, home string, now time.Time) []string {
 	cells := knownCells(row, owners, home, now)
 	projects := ""
 	if cells[4] != "" {
 		projects = "[" + cells[4] + "]"
 	}
-	return []string{filepath.Base(row.Path), cells[2], cells[3], projects, cells[0]}
+	return []string{filepath.Base(row.Path), cells[0], cells[2], cells[3], projects}
 }
 
 // dirChooser is the known-directory chooser's modal kind.
