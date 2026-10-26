@@ -69,8 +69,7 @@ func TestALaunchEndsWithThePaneOnScreen(t *testing.T) {
 
 func TestANewPaneEndsWithThePaneOnScreen(t *testing.T) {
 	app, d := shellApp(t)
-	key(t, app, "n")
-	runOnce(app, key(t, app, "y"))
+	runOnce(app, key(t, app, "n"))
 	assertLanded(t, app, d.panes, "pane:matomeru/s1", "s1")
 }
 
@@ -80,8 +79,8 @@ func TestALandingReplacesTheAttachedTerminal(t *testing.T) {
 	press(t, app, "ctrl+a", "d")
 	key(t, app, "enter")
 	first := d.panes.streams[len(d.panes.streams)-1]
-	press(t, app, "ctrl+a", "d", "n")
-	runOnce(app, key(t, app, "y"))
+	press(t, app, "ctrl+a", "d")
+	runOnce(app, key(t, app, "n"))
 	if !first.released {
 		t.Fatal("the earlier terminal's stream was not released")
 	}

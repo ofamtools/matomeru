@@ -21,8 +21,7 @@ import (
 const defaultHarness = "claude"
 
 const (
-	shellConfirm = "New pane in {{session}}?"
-	shellName    = "shell" // the window name of a pane.new shell
+	shellName = "shell" // the window name of a pane.new shell
 )
 
 // sessionFor is the session a project's agents launch into: the project's
@@ -178,7 +177,7 @@ func (a *App) defineLaunch() {
 	})
 	a.parameters("agent.start", map[string]ochazuke.Parameter{
 		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the agent runs in no project (cwd: the home directory)"},
-		"session": {Type: "string", Required: true, Description: "The session the confirm prompt names"},
+		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"harness": agent,
 		"model":   model,
 		"task":    task,
@@ -499,12 +498,12 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 func (a *App) defineShell() error {
 	a.r.Define("pane").
 		Verb("new", a.newPane, "Open a shell pane in the inferred project's session ("+mtmOnlySession+" when nothing is inferred)").
-		Verb("start", a.startShell, "Open a shell pane in a project's session, off the loop; new and into fill it").Confirm(shellConfirm).
+		Verb("start", a.startShell, "Open a shell pane in a project's session, off the loop; new and into fill it (no confirm: x kills a shell)").
 		Mode("normal").
 		Bind("n", ochazuke.Do("pane.new"))
 	a.parameters("pane.start", map[string]ochazuke.Parameter{
 		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the shell runs in no project (cwd: the home directory)"},
-		"session": {Type: "string", Required: true, Description: "The session the confirm prompt names"},
+		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"task":    {Type: "string"},
 		"notice":  {Type: "string"},
 	})
@@ -531,8 +530,8 @@ func (a *App) newPane(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // shellIn runs pane.start on the panes page with the project's session, so
-// its confirm names the destination and the job outlives the row it was
-// asked from.
+// the job outlives the row it was asked from. It does not confirm (owner,
+// 2026-10-25): a shell is cheap and x kills it.
 func (a *App) shellIn(ctx ochazuke.Ctx, to target) ochazuke.Result {
 	args := projectArgs(to.Project, mtmOnlySession)
 	args["task"], args["notice"] = to.Task, to.Notice
@@ -543,7 +542,7 @@ func (a *App) shellIn(ctx ochazuke.Ctx, to target) ochazuke.Result {
 	return ochazuke.Done(out)
 }
 
-// startShell is pane.start, the confirmed pane.new: it opens a shell window
+// startShell is pane.start, what pane.new runs: it opens a shell window
 // in the session with the project's tree (or, with no project, the home
 // directory) as its working directory, off the loop, then lands it like a
 // launch.

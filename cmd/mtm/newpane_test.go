@@ -34,30 +34,26 @@ func shellApp(t *testing.T) (*App, *fakeDaemon) {
 	return app, f
 }
 
-func TestNewPaneConfirmsTheInferredSession(t *testing.T) {
-	app, f := shellApp(t)
+// n opens a shell at once, in the inferred session: no confirm (owner,
+// 2026-10-25; x kills a shell).
+func TestNewPaneNeverConfirms(t *testing.T) {
+	app, _ := shellApp(t)
 	key(t, app, "n")
-	prompt, q := confirmPrompt(t, app)
-	if prompt != "New pane in matomeru?" || q.Key() != "pane.start" || q.Args["session"] != "matomeru" || q.Args["project"] != "matomeru" {
-		t.Fatalf("confirm = %q, request = %+v", prompt, q)
+	if app.r.TopModal() != "" {
+		t.Fatalf("n opened %q", app.r.TopModal())
 	}
-	if fr := frame(app); !strings.Contains(fr, "New pane in matomeru?") || strings.Contains(fr, "{{") {
-		t.Fatalf("frame:\n%s", fr)
-	}
-	// n declines: no job, no window, focus back on the row.
-	settle(app, key(t, app, "n"))
-	if len(f.shells) != 0 || len(jobsOf(app, "pane.start")) != 0 || app.r.Focus != "pane:matomeru/w1" || app.r.TopModal() != "" {
-		t.Fatalf("declined: shells %+v jobs %+v focus %s", f.shells, app.r.Jobs(), app.r.Focus)
+	jobs := jobsOf(app, "pane.start")
+	if len(jobs) != 1 {
+		t.Fatalf("jobs = %+v", app.r.Jobs())
 	}
 }
 
-func TestAcceptingNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
+func TestNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	app, f := shellApp(t)
-	key(t, app, "n")
-	cmd := key(t, app, "y")
+	cmd := key(t, app, "n")
 	jobs := jobsOf(app, "pane.start")
 	if len(jobs) != 1 || jobs[0].State != ochazuke.JobRunning || jobs[0].Owner != panesPage {
-		t.Fatalf("jobs after y = %+v", jobs)
+		t.Fatalf("jobs after n = %+v", jobs)
 	}
 	if fr := frame(app); !strings.Contains(fr, "pane.start running") {
 		t.Fatalf("rail lacks the running job:\n%s", fr)
@@ -98,17 +94,16 @@ func TestNewPaneAnswersOnAnEmptyList(t *testing.T) {
 	if app.r.Focus != paneListID {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
-	key(t, app, "n")
-	if prompt, _ := confirmPrompt(t, app); prompt != "New pane in matomeru?" {
-		t.Fatalf("confirm = %q", prompt)
+	runOnce(app, key(t, app, "n"))
+	if len(f.shells) != 1 || f.shells[0].Session != "matomeru" {
+		t.Fatalf("shells = %+v", f.shells)
 	}
 }
 
 func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 	app, f := shellApp(t)
 	f.err = errors.New("dial: no daemon")
-	key(t, app, "n")
-	settle(app, key(t, app, "y"))
+	settle(app, key(t, app, "n"))
 	jobs := jobsOf(app, "pane.start")
 	if len(jobs) != 1 || jobs[0].State != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "new pane in matomeru: dial: no daemon") {
 		t.Fatalf("jobs = %+v", jobs)
@@ -132,15 +127,11 @@ func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
 	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
 	app.launcher = f
 	press(t, app, "ctrl+j")
-	key(t, app, "n")
-	if app.m.Palette.IsOpen() {
-		t.Fatalf("pane.new with nothing inferred opened the palette on %q", app.m.Palette.Text())
+	cmd := key(t, app, "n")
+	if app.m.Palette.IsOpen() || app.r.TopModal() != "" {
+		t.Fatalf("pane.new with nothing inferred opened %q", app.r.TopModal())
 	}
-	prompt, q := confirmPrompt(t, app)
-	if _, named := q.Args["project"]; prompt != "New pane in mtm-only?" || q.Key() != "pane.start" || q.Args["session"] != mtmOnlySession || named {
-		t.Fatalf("confirm = %q, %+v", prompt, q)
-	}
-	runOnce(app, key(t, app, "y"))
+	runOnce(app, cmd)
 	if len(f.shells) != 1 || f.shells[0].Session != "mtm-only" || f.shells[0].Cwd != "/home/test" {
 		t.Fatalf("shells = %+v", f.shells)
 	}
@@ -153,7 +144,7 @@ func TestCLIPaneNew(t *testing.T) {
 	app, f := cliApp(t)
 	f.panes = app.panesd.(*fakePanes)
 	app.pin = "ochazuke"
-	out, errOut, err := cli(app, "", "pane", "new", "--yes")
+	out, errOut, err := cli(app, "", "pane", "new")
 	if err != nil {
 		t.Fatalf("pane new: %v\n%s", err, errOut)
 	}
@@ -173,9 +164,5 @@ func TestCLIPaneNew(t *testing.T) {
 	}
 	if app.r.Instances["pane:ochazuke/s1"] == nil {
 		t.Fatalf("the list lacks the new pane: %+v", app.panes)
-	}
-	// Declining on stdin opens nothing.
-	if _, _, err := cli(app, "n\n", "pane", "new"); err == nil || !strings.Contains(err.Error(), "declined: New pane in ochazuke?") || len(f.shells) != 1 {
-		t.Fatalf("declined: %v, shells %+v", err, f.shells)
 	}
 }
