@@ -314,7 +314,6 @@ func (a *App) openPromptTurn(pr promptRow) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	id := "turn:" + pr.turn.ID
-	a.r.Instances[turnsTreeID+"/list"].Unfocusable = false
 	if err := a.pv.turns.Select(id); err != nil {
 		return ochazuke.Failed(err)
 	}

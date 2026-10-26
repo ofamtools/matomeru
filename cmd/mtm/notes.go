@@ -203,9 +203,6 @@ func (a *App) refreshNotes() error {
 			items = append(items, ochazuke.ListItem{ID: d.ID, Label: noteLabel(d.Text) + " [draft]", Noun: "draft", Data: d, Cells: []string{noteLabel(d.Text) + " [draft]", a.ownerLabel(d.ProjectID)}})
 		}
 	}
-	if body := a.r.Instances[noteBodyID]; body != nil {
-		body.Unfocusable = len(items) == 0
-	}
 	return a.noteList.SetItems(items)
 }
 

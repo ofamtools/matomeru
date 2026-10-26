@@ -42,8 +42,8 @@ func (a *App) addTurns() error {
 		return err
 	}
 	a.pv.turns = tree
-	// A stop only while the Turns tab is drawn (detailBlock keeps it so).
-	a.r.Instances[turnsTreeID+"/list"].Unfocusable = true
+	// A stop only while the Turns tab draws it: ochazuke skips a stop the
+	// last frame did not place.
 	return nil
 }
 

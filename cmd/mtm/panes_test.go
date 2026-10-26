@@ -382,11 +382,14 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	if len(f.streams) != 2 || !f.streams[0].released || !f.streams[1].parked || f.streams[1].released {
 		t.Fatalf("streams: first released %v, second parked %v released %v", f.streams[0].released, f.streams[1].parked, f.streams[1].released)
 	}
-	// Attach again, focus the list, then } reaches the terminal stop.
+	// Attach again, focus the list, then } reaches the terminal stop. The
+	// walk follows the last frame's drawing (the hidden Turns tree is not
+	// in it), so a frame is drawn first, as the TUI always does.
 	key(t, app, "enter")
 	if err := app.paneList.Focus(); err != nil {
 		t.Fatal(err)
 	}
+	frame(app)
 	press(t, app, "}")
 	if app.r.Focus != paneTermID {
 		t.Fatalf("} from the list: focus %s", app.r.Focus)

@@ -125,7 +125,6 @@ func (a *App) loadDetail() {
 // paneTab is panes.tab: the next or previous detail tab, loaded at once.
 func (a *App) paneTab(ctx ochazuke.Ctx) ochazuke.Result {
 	a.pv.tab = (a.pv.tab + ochazuke.IntArg(ctx.Args, "delta", 1) + len(tabNames)) % len(tabNames)
-	a.r.Instances[turnsTreeID+"/list"].Unfocusable = a.pv.tab != tabTurns
 	row, _ := a.selectedRow()
 	a.pv.followed = fmt.Sprintf("%s|%d", row, a.pv.tab)
 	a.loadDetail()
@@ -646,19 +645,12 @@ func (a *App) paneListBlock(width, height int) ochazuke.Block {
 func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
 	term := a.r.Terminal(paneTermID)
 	row, inst := a.selectedRow()
-	// The Turns tree is a stop only while it is drawn.
-	if turns := a.r.Instances[turnsTreeID+"/list"]; turns != nil {
-		turns.Unfocusable = term != nil || a.pv.tab != tabTurns || inst == nil || inst.Noun != "pane"
-	}
 	cw, ch := ochazuke.PanelContentSize(width, height)
 	ch = max(1, ch-2) // the header and tab lines
 	title := "detail"
 	header := ""
 	var body ochazuke.Block
 	focused := false
-	// The copy stop is drawn (and reachable with } and tab) while the
-	// Screen tab shows a pane and nothing is live, or while it is on.
-	a.r.Instances[copyID].Unfocusable = !a.copy.active && (term != nil || a.pv.tab != tabScreen || inst == nil || inst.Noun != "pane")
 	if term != nil || a.copyShown(paneTermID) || inst == nil || inst.Noun != "pane" {
 		a.detail.panes.hide() // tabBody windows the detail when it draws
 	}

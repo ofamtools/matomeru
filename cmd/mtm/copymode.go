@@ -308,11 +308,11 @@ func (c *copyMode) snapshot() map[string]any {
 }
 
 // addCopy creates the copy instance on the panes page; it is a stop only
-// while the Screen tab shows a pane (parentDetailBlock).
+// while the Screen tab shows a pane or copy mode is on, as the frame
+// places it only then (parentDetailBlock; ochazuke skips an undrawn stop).
 func (a *App) addCopy() {
 	inst := a.r.Instance(copyID, ochazuke.Parent(panesPage), ochazuke.Kind(copyNoun))
 	inst.Component = a.copy
-	inst.Unfocusable = true
 }
 
 // enterCopy opens copy mode on p: the screen from the source terminal (the
