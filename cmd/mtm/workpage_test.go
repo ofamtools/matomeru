@@ -1,0 +1,73 @@
+package main
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/unixsuperhero/matomeru/internal/work"
+)
+
+// From sideBySide columns the tasks sit right of the projects under the
+// highlighted project's header; j spills from the projects into the
+// tasks; the selected task's detail and the editor sit under the table.
+// Narrower, the stacked layout stays.
+func TestWorkPageTasksInTheRightPane(t *testing.T) {
+	a := openAt(t, seededWith(t, map[string]string{"busy": "active", "stuck": "blocked"}))
+	press(t, a, "j")
+	for _, width := range []int{120, 160} {
+		f := frameAt(a, width)
+		lines := strings.Split(f, "\n")
+		var header string
+		for _, l := range lines {
+			if strings.Contains(l, "1 active · 2 todo · 1 blocked") {
+				header = l
+			}
+		}
+		if header == "" || !strings.Contains(header, "◆ matomeru") || !strings.Contains(header, "projects (2)") {
+			t.Fatalf("width %d: no project header beside the projects:\n%s", width, f)
+		}
+		if !strings.Contains(f, "[>] busy task") {
+			t.Fatalf("width %d: tasks not shown:\n%s", width, f)
+		}
+		t.Logf("project highlighted, %d columns:\n%s", width, f)
+	}
+	// } walks to the task table and k from its first row spills back into
+	// the projects, in drawing order; j from the last project row spills
+	// into the (unassociated) tasks.
+	press(t, a, "}")
+	if a.r.Focus != "busy" {
+		t.Fatalf("} did not reach the tasks: focus %s", a.r.Focus)
+	}
+	press(t, a, "k")
+	if a.r.Focus != unassociatedID {
+		t.Fatalf("k did not spill into the projects: focus %s", a.r.Focus)
+	}
+	if err := a.work.PutTask(work.Task{ID: "loose", Title: "loose end"}); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "k", "j", "j")
+	if a.r.Focus != "loose" {
+		t.Fatalf("j did not spill into the tasks: focus %s", a.r.Focus)
+	}
+	press(t, a, "k", "k", "}")
+	if a.r.Focus != "busy" {
+		t.Fatalf("back on matomeru's tasks: focus %s", a.r.Focus)
+	}
+	f := frameAt(a, 120)
+	if !strings.Contains(f, "status: active") || !strings.Contains(f, "[>] busy task") {
+		t.Fatalf("task detail not under the table:\n%s", f)
+	}
+	t.Logf("task selected, 120 columns:\n%s", f)
+	press(t, a, "i")
+	f = frameAt(a, 160)
+	if !strings.Contains(f, "task draft") || !strings.Contains(f, "[>] busy task") {
+		t.Fatalf("editor did not open under the table:\n%s", f)
+	}
+	t.Logf("editing, 160 columns:\n%s", f)
+	press(t, a, "esc", "q")
+	f = frameAt(a, 80)
+	if !strings.Contains(f, "tasks · matomeru") {
+		t.Fatalf("80 columns lost the stacked layout:\n%s", f)
+	}
+	t.Logf("80 columns:\n%s", f)
+}

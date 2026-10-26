@@ -202,7 +202,13 @@ func (a *App) followProject() {
 func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	leftWidth := max(1, width/2-1)
 	rightWidth := max(1, width-leftWidth-2)
-	detail := ""
+	detail, _ := a.workDetail()
+	return ochazuke.Text(lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(a.workLists(leftWidth, height)), lipgloss.NewStyle().Width(rightWidth).Render(detail)))
+}
+
+// workDetail is the detail of the highlighted task, else of the
+// highlighted (or open) project; isTask reports a task's.
+func (a *App) workDetail() (detail string, isTask bool) {
 	taskID, projectID := a.detailTask, a.current
 	selected := a.r.Instances[a.r.BaseFocus()]
 	// A focus on a list itself (a jump that has not landed on a row) shows
@@ -257,7 +263,7 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 			detail += a.detailNotes(p.ID, "")
 		}
 	}
-	return ochazuke.Text(lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(a.workLists(leftWidth, height)), lipgloss.NewStyle().Width(rightWidth).Render(detail)))
+	return detail, task != nil
 }
 
 func (a *App) defineProjectCreation() {

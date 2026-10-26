@@ -490,6 +490,9 @@ func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
+	if width >= sideBySide {
+		return a.renderWorkWide(width, height)
+	}
 	if a.editor != nil && a.editor.Page == "work" {
 		return a.renderEditor(width, height)
 	}
