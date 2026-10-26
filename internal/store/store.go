@@ -80,7 +80,74 @@ func Open(path string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+// OpenReadOnly opens an existing SQLite file for reading only (mode=ro):
+// it creates no directory, no file and no metadata table, and every write
+// fails. A reader that must not change the owner's database (an inventory)
+// opens it so.
+func OpenReadOnly(path string) (*Store, error) {
+	if path == "" || path == ":memory:" {
+		return nil, errors.New("store: a read-only store needs a database file")
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("store path: %w", err)
+	}
+	if _, err := os.Stat(absolute); err != nil {
+		return nil, fmt.Errorf("open store: %w", err)
+	}
+	dsn := (&url.URL{Scheme: "file", Path: absolute}).String() + "?mode=ro&_pragma=busy_timeout(5000)"
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open store: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("open store: %w", err)
+	}
+	return &Store{db: db}, nil
+}
+
 func (s *Store) Close() error { return s.db.Close() }
+
+// TableInfo is a declared table and how many rows it holds.
+type TableInfo struct {
+	Table
+	Rows int `json:"rows"`
+}
+
+// Tables is every declared table, by name, with its row count, read in one
+// read transaction; it writes nothing.
+func (s *Store) Tables() ([]TableInfo, error) {
+	tx, err := s.db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	rows, err := tx.Query(`SELECT name, owner, key, version, append_only FROM __deck_tables ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("store tables: %w", err)
+	}
+	var out []TableInfo
+	for rows.Next() {
+		var t TableInfo
+		if err := rows.Scan(&t.Name, &t.Owner, &t.Key, &t.Version, &t.AppendOnly); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if err := tx.QueryRow(`SELECT count(*) FROM ` + quote(out[i].Name)).Scan(&out[i].Rows); err != nil {
+			return nil, fmt.Errorf("count %s: %w", out[i].Name, err)
+		}
+	}
+	return out, nil
+}
 
 // Declare creates a table or accepts an identical existing declaration.
 // Changing its owner, key, version, or append-only policy requires an explicit

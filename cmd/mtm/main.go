@@ -408,6 +408,7 @@ func New(opts Options) (*App, error) {
 	a.defineCopy()
 	a.defineCapture()
 	a.defineSetup()
+	a.defineStore()
 	if err := a.defineKeyMap(); err != nil {
 		return nil, err
 	}
