@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/unixsuperhero/matomeru/store"
@@ -225,16 +226,16 @@ func parseExtCatalog(bin string, data []byte) (ocli.CatalogDoc, error) {
 	return doc, nil
 }
 
-// extPlan keeps a catalog's nouns with at least one application verb and
-// no modal pin, with only those verbs: the framework's own nouns
-// (interaction verbs only) run inside the tool's own screen, so a host has
-// nothing to mount for them.
+// extPlan keeps a catalog's nouns with at least one mountable verb
+// (extMountable) and no modal pin, with only those verbs: the framework's
+// own verbs run inside the tool's own screen, so a host has nothing to
+// mount for them.
 func extPlan(doc ocli.CatalogDoc) []ocli.CatalogNoun {
 	var out []ocli.CatalogNoun
 	for _, n := range doc.Nouns {
 		var verbs []ocli.CatalogVerb
 		for _, v := range n.Verbs {
-			if v.Kind == ochazuke.KindApplication {
+			if extMountable(n.Name, v) {
 				verbs = append(verbs, v)
 			}
 		}
@@ -245,6 +246,44 @@ func extPlan(doc ocli.CatalogDoc) []ocli.CatalogNoun {
 		out = append(out, n)
 	}
 	return out
+}
+
+// extMountable reports a catalog verb mtm mounts: an application verb the
+// tool declared. Kind alone is not enough: the framework's tree verbs
+// (outline.*) have application handlers, so every ochazuke tool's catalog
+// lists them as application verbs, and they are the framework's
+// (frameworkVerbs), not the tool's.
+func extMountable(noun string, v ocli.CatalogVerb) bool {
+	return v.Kind == ochazuke.KindApplication && !frameworkVerbs()[noun+"."+v.Name]
+}
+
+// frameworkVerbs is every operation key a fresh runtime and model register
+// (ochazuke's own registry), so every ochazuke tool's catalog lists them.
+// An application cannot override one with an application handler
+// (NounBuilder.Verb panics), so an application verb under such a key is
+// the framework's; a tool's own verb on a framework noun
+// (history.capture-hook) is not under one and still mounts.
+var frameworkVerbs = sync.OnceValue(func() map[string]bool {
+	r := ochazuke.NewRuntime()
+	ochazuke.NewModel(r)
+	keys := make(map[string]bool, len(r.Operations))
+	for key := range r.Operations {
+		keys[key] = true
+	}
+	return keys
+})
+
+// extHistoryKind is the history kind a mounted verb records: the catalog
+// verb's own (CatalogVerb.History), so a tool's fetches stay out of the
+// user's history in mtm as they do in the tool. None keeps the framework
+// default (change, for an application verb); a kind the framework does not
+// know is reported and the default.
+func extHistoryKind(v ocli.CatalogVerb) (string, error) {
+	switch v.History {
+	case "", ochazuke.HistoryAction, ochazuke.HistoryChange, ochazuke.HistoryFetch:
+		return v.History, nil
+	}
+	return "", fmt.Errorf("declares history %q, not action, change or fetch; recording it as a change", v.History)
 }
 
 // extension is one mounted extension.
@@ -568,6 +607,13 @@ func (a *App) mountExtension(name string, e extEntry) {
 			if len(v.Params) > 0 {
 				a.parameters(local+"."+v.Name, extParams(v.Params))
 			}
+			kind, err := extHistoryKind(v)
+			if err != nil {
+				notify("%s %s %v", n.Name, v.Name, err)
+			}
+			op := a.r.Operations[local+"."+v.Name]
+			op.HistoryKind = kind
+			a.r.Operations[op.Key()] = op
 		}
 		if len(n.Columns) > 0 {
 			b.Columns(n.Columns...)
