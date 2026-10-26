@@ -293,7 +293,7 @@ func TestLongNoteBodyScrollsOnItsOwn(t *testing.T) {
 	a := open(t)
 	var lines []string
 	for i := 1; i <= 300; i++ {
-		lines = append(lines, fmt.Sprintf("- line %03d", i)) // Markdown: one item a line
+		lines = append(lines, fmt.Sprintf("line %03d", i))
 	}
 	executeA(t, a, "note", "new", "", ochazuke.Arguments{"text": strings.Join(lines, "\n"), "scratch": true})
 	if err := a.r.OpenPage(notesPage); err != nil {

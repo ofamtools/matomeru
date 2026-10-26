@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/unixsuperhero/ochazuke"
 	"github.com/unixsuperhero/ochazuke/markdown"
 
@@ -123,18 +125,60 @@ func (a *App) defineNoteDoc() {
 		Bind("esc", ochazuke.Do("focus.previous"))
 }
 
-// renderNoteText is the note's text in the body, height lines at most:
-// the Doc's window, following the selected item, while the focus is on
-// it; else the rendered Markdown through the page detail (J/K, and j/k
-// in the note-body stop).
+// renderNoteText is the note's text in the body, height lines at most,
+// through the page detail (J/K, and j/k in the note-body stop): Markdown
+// with every newline kept (note_render.go). While the focus is on the
+// Doc's items the selected one is the reverse highlight and the window
+// keeps it in view.
 func (a *App) renderNoteText(note work.Note, width, height int) string {
-	if a.noteDocNote == note.ID && a.noteDocFocused() {
-		a.detail.notes.hide()
-		return a.noteDoc.View(width, height, *a.m.Appearance)
-	}
-	if a.noteDocNote == note.ID {
+	var tasks []markdown.Task
+	selected := -1
+	doc := a.noteDocNote == note.ID
+	if doc {
+		tasks = a.noteDoc.Tasks()
 		a.r.Placed(a.noteDoc.ListID())
+		if a.noteDocFocused() {
+			if t, ok := a.noteDoc.Selected(); ok {
+				for i, each := range tasks {
+					if each.Box == t.Box {
+						selected = i
+					}
+				}
+			}
+		}
 	}
-	text := markdown.Block(note.Text, width, *a.m.Appearance).Text
-	return a.detail.notes.fit(text, 0, width, height)
+	lines, spans := renderNote(note.Text, tasks, width, *a.m.Appearance)
+	if selected < 0 || selected >= len(spans) || spans[selected][0] < 0 {
+		return a.detail.notes.fit(strings.Join(lines, "\n"), 0, width, height)
+	}
+	top, bottom := spans[selected][0], spans[selected][1]
+	for l := top; l <= bottom; l++ {
+		lines[l] = highlightLine(lines[l])
+	}
+	a.showLines(top, bottom, len(lines), height)
+	text := a.detail.notes.fit(strings.Join(lines, "\n"), 0, width, height)
+	off := a.detail.notes.d.Offset()
+	return a.r.PlacedAt(a.noteDoc.ListID(), text, max(0, top-off), bottom-top+1)
+}
+
+// showLines scrolls the notes detail so lines top..bottom of total are in
+// a window of height, two lines of margin where there is room.
+func (a *App) showLines(top, bottom, total, height int) {
+	visible := height
+	if total > height {
+		visible = max(1, height-1) // the position marker's line
+	}
+	margin := min(2, max(0, (visible-1)/2))
+	off := a.detail.notes.d.Offset()
+	want := off
+	if bottom+margin >= off+visible {
+		want = bottom + margin - visible + 1
+	}
+	if top-margin < want {
+		want = top - margin
+	}
+	want = min(max(0, want), max(0, total-visible))
+	if want != off {
+		a.detail.notes.scroll(want - off)
+	}
 }

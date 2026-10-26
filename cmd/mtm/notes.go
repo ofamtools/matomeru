@@ -34,7 +34,9 @@ func (a *App) defineNotes() {
 		Bind("ctrl+d", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"half": 1})).
 		Bind("ctrl+u", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"half": -1})).
 		Bind("G", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"delta": noteBodyEnd})).
-		Bind("esc", ochazuke.Do("focus.set", ochazuke.Arguments{"id": "notes/list"}))
+		// esc lands on the note's row (the previous stop's remembered
+		// child), so enter right after reads it again.
+		Bind("esc", ochazuke.Do("focus.previous"))
 	a.parameters(noteBodyNoun+".scroll", map[string]ochazuke.Parameter{"delta": {Type: "integer"}, "half": {Type: "integer"}})
 	a.parameters("note.list", map[string]ochazuke.Parameter{"all": {Type: "boolean"}})
 	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
