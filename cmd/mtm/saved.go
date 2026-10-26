@@ -272,9 +272,14 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return nil, err
 		}
+		old := row.Window
 		row.Window, row.Session, row.SessionID = id, session, ""
 		if _, err := db.PutSavedPane(row); err != nil {
 			d.note(fmt.Errorf("pane %s is open but saved reference failed: %w", id, err))
+		}
+		// A star follows its record into the new window (pane.star).
+		if err := db.MovePaneStar(old, id); err != nil {
+			d.note(fmt.Errorf("pane %s: star not moved: %w", id, err))
 		}
 		panes, err = panesd.ListPanes(c)
 		if err != nil {

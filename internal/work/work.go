@@ -84,6 +84,7 @@ var Tables = []store.Table{
 	{Name: "saved_panes", Owner: "work", Key: "id", Version: 1},
 	{Name: "pane_recipes", Owner: "work", Key: "window", Version: 1},
 	{Name: "companions", Owner: "work", Key: "window", Version: 1},
+	{Name: "pane_stars", Owner: "work", Key: "window", Version: 1},
 	{Name: "vim_sessions", Owner: "vim", Key: "id", Version: 1},
 }
 

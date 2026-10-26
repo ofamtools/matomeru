@@ -323,6 +323,9 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 				if p.SideTerm != "" {
 					name += " t"
 				}
+				if p.Starred {
+					name += " ★"
+				}
 				use := p.usageCell()
 				view.usage = view.usage || use != ""
 				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}})

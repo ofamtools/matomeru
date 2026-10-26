@@ -97,6 +97,7 @@ type pane struct {
 	SideFront         string
 	Exited            bool   `json:"exited,omitempty"`  // the window's process ended; TUIOS still lists it
 	Program           string `json:"program,omitempty"` // what mtm knows runs in a shell pane ("vim"), else ""
+	Starred           bool   `json:"starred,omitempty"` // pane.star (pane_stars.go)
 	daemon.Pane
 }
 
@@ -235,6 +236,7 @@ func (a *App) definePanes() {
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
 	a.defineLiveKeys()
+	a.definePaneStars()
 	a.ownedBy("panes", paneListID)
 	a.ownedBy("daemon", paneListID)
 }
@@ -266,6 +268,8 @@ func (a *App) addPanesPage() error {
 		{"[", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": -1}).Hinted("previous tab")},
 		// W: w saves a pane as a record (the key map).
 		{"W", ochazuke.Do("panes.waiting")},
+		// `: ' is page.pick; the backtick is Vim's jump to a mark.
+		{"`", ochazuke.Do("panes.starred").Hinted("next starred")},
 	} {
 		b := row.req
 		b.Instance, b.Mode, b.Keys = panesPage, "normal", row.keys
@@ -412,6 +416,7 @@ func (a *App) setPanes(panes []pane, err error) {
 			panes[i].Model, panes[i].LaunchHarness, panes[i].LaunchFlags = r.Model, r.Harness, r.Flags
 		}
 	}
+	a.markStars(panes, err == nil)
 	a.panes = panes
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {
