@@ -12,7 +12,7 @@ func (a *App) defineDeletion() {
 		a.r.Define(noun).
 			Verb("delete", a.confirmDeletion, "Delete record; show affected owners before confirming").
 			Verb("delete.confirm", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm("Delete {{label}}?\nOrphan:\n{{affected}}\nDirectories and panes are untouched.").
-			Mode("normal").Bind("D", ochazuke.Do(noun+".delete"))
+			Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
 		a.parameters(noun+".delete.confirm", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
 	}
 }

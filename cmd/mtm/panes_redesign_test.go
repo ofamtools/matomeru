@@ -54,7 +54,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("w: focus %s", app.r.Focus)
 	}
 	// Every terminal verb answers on the agent row.
-	want := []string{"enter pane.attach", "x pane.kill", "r pane.rename", "m pane.move", "n pane.new"}
+	want := []string{"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.move", "n pane.new"}
 	listed := map[string]bool{}
 	for _, b := range app.r.ListBindings(row) {
 		listed[b.Keys+" "+b.Request.Key()] = true
@@ -89,7 +89,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	if o, _ := app.work.PaneOwner("w2", ""); o.ProjectID != "matomeru" {
 		t.Fatalf("move: owner %+v", o)
 	}
-	key(t, app, "x")
+	press(t, app, "d", "d")
 	settle(app, key(t, app, "y"))
 	if !reflect.DeepEqual(f.killed, []string{"w2"}) {
 		t.Fatalf("kill: %v", f.killed)
@@ -155,7 +155,7 @@ func TestSessionRowVerbs(t *testing.T) {
 	if err := app.paneList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	key(t, app, "x")
+	press(t, app, "d", "d")
 	if prompt, _ := confirmPrompt(t, app); prompt != "Kill session mtm (1) and its panes?" {
 		t.Fatalf("confirm %q", prompt)
 	}

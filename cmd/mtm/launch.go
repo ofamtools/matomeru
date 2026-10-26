@@ -498,7 +498,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 func (a *App) defineShell() error {
 	a.r.Define("pane").
 		Verb("new", a.newPane, "Open a shell pane in the inferred project's session ("+mtmOnlySession+" when nothing is inferred)").
-		Verb("start", a.startShell, "Open a shell pane in a project's session, off the loop; new and into fill it (no confirm: x kills a shell)").
+		Verb("start", a.startShell, "Open a shell pane in a project's session, off the loop; new and into fill it (no confirm: d d kills a shell)").
 		Mode("normal").
 		Bind("n", ochazuke.Do("pane.new"))
 	a.parameters("pane.start", map[string]ochazuke.Parameter{
@@ -531,7 +531,7 @@ func (a *App) newPane(ctx ochazuke.Ctx) ochazuke.Result {
 
 // shellIn runs pane.start on the panes page with the project's session, so
 // the job outlives the row it was asked from. It does not confirm (owner,
-// 2026-10-25): a shell is cheap and x kills it.
+// 2026-10-25): a shell is cheap and d d kills it.
 func (a *App) shellIn(ctx ochazuke.Ctx, to target) ochazuke.Result {
 	args := projectArgs(to.Project, mtmOnlySession)
 	args["task"], args["notice"] = to.Task, to.Notice

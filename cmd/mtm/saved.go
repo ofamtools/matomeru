@@ -27,10 +27,10 @@ func (a *App) defineSaved() {
 		Verb("reopen", a.reopenSaved, "Attach the live pane, otherwise relaunch its recorded argv").Positional("id").
 		Verb("rename", a.renameSaved, "Rename the saved record").Positional("id", "name").
 		Verb("associate", a.associateSaved, "Associate the saved record and its live pane").Positional("id").
-		Verb("forget", a.forgetSaved, "Forget only the record; never kill its pane").Positional("id").
+		Verb("forget", a.forgetSaved, "Forget only the record; never kill its pane").Positional("id").Confirm("Forget {{label}}? Its pane keeps running.").
 		Mode("normal").Bind("s", ochazuke.Do("saved.save")).Bind("L", ochazuke.Do("saved.list")).
 		Bind("enter", ochazuke.Do("saved.reopen")).Bind("r", ochazuke.Do("saved.rename")).
-		Bind("a", ochazuke.Do("saved.associate")).Bind("x", ochazuke.Do("saved.forget"))
+		Bind("a", ochazuke.Do("saved.associate")).Bind("d d", ochazuke.Do("saved.forget"))
 	a.r.Define("pane").Mode("normal").Bind("s", ochazuke.Do("saved.save"))
 	a.parameters("saved.save", map[string]ochazuke.Parameter{"pane": {Type: "string"}, "name": {Type: "string"}, "session": {Type: "string"}})
 	a.parameters("saved.list", map[string]ochazuke.Parameter{"all": {Type: "boolean"}})

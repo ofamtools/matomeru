@@ -165,7 +165,7 @@ func TestSessionKillRefusesLiveCompanionsWithoutDetaching(t *testing.T) {
 		if err := a.paneList.Focus(); err != nil {
 			t.Fatal(err)
 		}
-		key(t, a, "x")
+		press(t, a, "d", "d")
 		settle(a, key(t, a, "y"))
 	}
 	killSession()

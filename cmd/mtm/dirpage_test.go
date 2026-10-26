@@ -68,7 +68,7 @@ func TestDirectoriesPageLoadsAndEditsProjectDirectories(t *testing.T) {
 	if err := a.projectDirList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "x")
+	press(t, a, "d", "d", "y")
 	p, _ = a.work.Project("matomeru")
 	if len(p.Trees) != 1 || p.DefaultTree != beta || !strings.Contains(strings.Join(a.m.Notices, "|"), "default is now") {
 		t.Fatalf("remove %+v notices %q", p, a.m.Notices)
@@ -206,7 +206,9 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	if err := a.baseList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	_, cmd = a.Update(keyMsg("x"))
+	a.Update(keyMsg("d"))
+	a.Update(keyMsg("d"))
+	_, cmd = a.Update(keyMsg("y"))
 	settle(a, cmd)
 	if slices.Contains(itemIDs(a.directoryList), delta) || slices.Contains(itemIDs(a.baseList), "base:"+directoryKey(second)) {
 		t.Fatalf("removed base still scanned: %v %v", itemIDs(a.directoryList), itemIDs(a.baseList))

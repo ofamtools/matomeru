@@ -388,12 +388,12 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 
 func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	app, f := panesApp(t)
-	key(t, app, "x")
+	press(t, app, "d", "d")
 	settle(app, key(t, app, "n"))
 	if len(f.killed) != 0 || len(jobsOf(app, "pane.kill")) != 0 || app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("n: killed %v jobs %+v focus %s", f.killed, app.r.Jobs(), app.r.Focus)
 	}
-	key(t, app, "x")
+	press(t, app, "d", "d")
 	settle(app, key(t, app, "y"))
 	if !reflect.DeepEqual(f.killed, []string{"w1"}) {
 		t.Fatalf("killed = %v", f.killed)

@@ -154,7 +154,7 @@ func TestVimRealSaveRestoreRestartAndForget(t *testing.T) {
 	}
 	externalSession := filepath.Join(root, "explicit session.vim")
 	mustCLI(t, b, "vim", "save", externalSession, "--id", id)
-	if _, err := b.r.Execute(ochazuke.Request{Noun: "vim", Verb: "forget", Target: vimListID, Args: ochazuke.Arguments{"id": id}}); err != nil {
+	if _, err := b.r.Execute(ochazuke.Request{Noun: "vim", Verb: "forget", Target: vimListID, Args: ochazuke.Arguments{"id": id}, Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := b.work.VimSession(id); err != store.ErrNotFound {

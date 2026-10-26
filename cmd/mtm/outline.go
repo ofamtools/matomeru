@@ -157,7 +157,7 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 }
 
 // outlineHints is the line under the outline's title.
-const outlineHints = "o add · i edit · tab nest · x done · s status · T closes"
+const outlineHints = "o add · i edit · tab nest · x done · s status · q closes"
 
 // scopeTitle names a scope: the project, "no project" or "all projects".
 func (a *App) scopeTitle(scope outlineScope) string {

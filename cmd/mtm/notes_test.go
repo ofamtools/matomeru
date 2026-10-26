@@ -237,7 +237,7 @@ func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
 	if err := a.noteList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "D")
+	press(t, a, "d", "d")
 	if a.r.TopModal() == "" {
 		t.Fatal("note delete did not ask")
 	}
@@ -245,7 +245,7 @@ func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
 	if _, err := a.work.Note(gone.ID); err != nil {
 		t.Fatalf("n deleted the note: %v", err)
 	}
-	press(t, a, "D", "y")
+	press(t, a, "d", "d", "y")
 	if _, err := a.work.Note(gone.ID); err == nil {
 		t.Fatal("note survived y")
 	}

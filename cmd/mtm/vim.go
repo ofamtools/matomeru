@@ -33,9 +33,9 @@ func (a *App) defineVim() {
 		Verb("open", a.openVim, "Open real Neovim; optional file or directory, otherwise a scratch buffer").Positional("path").
 		Verb("save", a.saveVim, "Write :mksession through Neovim RPC; edited files are not written").Positional("path").
 		Verb("reopen", a.reopenVim, "Attach the live pane or restore its saved Neovim session").Positional("id").
-		Verb("forget", a.forgetVim, "Forget metadata and mtm-owned session file; keep edited files and live pane").Positional("id").
+		Verb("forget", a.forgetVim, "Forget metadata and mtm-owned session file; keep edited files and live pane").Positional("id").Confirm("Forget {{label}}? Edited files and the live pane stay.").
 		Mode("normal").Bind("a", ochazuke.Do("vim.open")).Bind("s", ochazuke.Do("vim.save")).
-		Bind("enter", ochazuke.Do("vim.reopen")).Bind("x", ochazuke.Do("vim.forget")).Bind("r", ochazuke.Do("vim.list"))
+		Bind("enter", ochazuke.Do("vim.reopen")).Bind("d d", ochazuke.Do("vim.forget")).Bind("r", ochazuke.Do("vim.list"))
 	a.parameters("vim.list", map[string]ochazuke.Parameter{"all": {Type: "boolean"}})
 	a.parameters("vim.open", map[string]ochazuke.Parameter{
 		"path": {Type: "string"}, "name": {Type: "string"}, "project": {Type: "string"},

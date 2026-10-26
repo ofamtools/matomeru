@@ -206,10 +206,10 @@ func (a *App) definePanes() {
 		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Quiet().
 		Mode("normal").
 		Bind("enter", ochazuke.Do("pane.attach")).
-		Bind("x", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
-		Bind("x", ochazuke.Do("pane.killBlocked").Hide()).
+		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
+		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
 		Bind("m", ochazuke.Do("pane.move"))
-	// x asks to kill only a pane with no side pane open; with one, it says
+	// d d asks to kill only a pane with no side pane open; with one, it says
 	// which to close instead of confirming and then refusing.
 	a.r.DefineGuard("pane-no-sides", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		p, err := a.paneAt(r.Instances[ev.Focus])
@@ -222,7 +222,7 @@ func (a *App) definePanes() {
 		Mode("normal").
 		Bind("enter", ochazuke.Do("session.attach").Guard("session-has-pane")).
 		Bind("m", ochazuke.Do("session.move")).
-		Bind("x", ochazuke.Do("session.kill"))
+		Bind("d d", ochazuke.Do("session.kill"))
 	// enter attaches a session only when it has a pane to attach.
 	a.r.DefineGuard("session-has-pane", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		return a.sessionPane(ev.Focus) != ""

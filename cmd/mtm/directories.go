@@ -366,12 +366,12 @@ func (a *App) defineDirectories() {
 		Mode("normal").Bind("enter", ochazuke.Do("known-directory.attach"))
 	a.r.Define("project-dir").Columns(projectDirColumns...).
 		Verb("default", a.defaultDirRow, "Make this the project's default directory").
-		Verb("remove", a.removeDirRow, "Detach from the project (disk untouched; the default passes to the next)").
+		Verb("remove", a.removeDirRow, "Detach from the project (disk untouched; the default passes to the next)").Confirm("Detach {{label}} from the project? Nothing on disk changes.").
 		Verb("edit", a.editDirRow, "Point this directory at another path").
-		Mode("normal").Bind("enter", ochazuke.Do("project-dir.default")).Bind("x", ochazuke.Do("project-dir.remove")).Bind("i", ochazuke.Do("project-dir.edit"))
+		Mode("normal").Bind("enter", ochazuke.Do("project-dir.default")).Bind("d d", ochazuke.Do("project-dir.remove")).Bind("i", ochazuke.Do("project-dir.edit"))
 	a.r.Define("project-base").Columns(baseColumns...).
-		Verb("remove", a.removeBaseRow, "Stop scanning this base (disk untouched)").
-		Mode("normal").Bind("x", ochazuke.Do("project-base.remove"))
+		Verb("remove", a.removeBaseRow, "Stop scanning this base (disk untouched)").Confirm("Stop scanning {{label}}? Nothing on disk changes.").
+		Mode("normal").Bind("d d", ochazuke.Do("project-base.remove"))
 	a.r.Define("directory-browse").Verb("open", a.browseDirectory, "Browse for a directory").Mode("normal").Bind("enter", ochazuke.Do("directory-browse.open"))
 	a.r.Define("directory-path").
 		Verb("attach", a.attachBrowsedDirectory, "Use the typed or picked directory").
@@ -989,8 +989,8 @@ func (a *App) defaultDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(p)
 }
 
-// removeDirRow is project-dir.remove: cheap and reversible (enter on the
-// known directory attaches it again), so it does not ask.
+// removeDirRow is project-dir.remove (d d): enter on the known directory
+// attaches it again, but u cannot, so the verb confirms.
 func (a *App) removeDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	row, err := a.dirRowAt(ctx)
 	if err != nil {
@@ -1121,7 +1121,7 @@ func (a *App) removeBase(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.rescan(bases, "Stopped scanning "+tildePath(path, home)+"; nothing on disk changed")
 }
 
-// removeBaseRow is project-base.remove (x): cheap and reversible, no ask.
+// removeBaseRow is project-base.remove (d d); it confirms, as u cannot undo it.
 func (a *App) removeBaseRow(ctx ochazuke.Ctx) ochazuke.Result {
 	base, ok := ctx.Instance.Data.(projectBase)
 	if !ok {

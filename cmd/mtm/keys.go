@@ -42,3 +42,28 @@ func (a *App) defineKeyMap() error {
 	quit.Noun, quit.Mode, quit.Keys = "modal", "normal", "q"
 	return a.r.Bind(quit)
 }
+
+// keyFor is the key that runs op at focus, as ? help lists it ("" when no
+// row answers), so a sentence that names a key cannot drift from its row.
+func (a *App) keyFor(focus, op string) string {
+	for _, row := range ochazuke.BindingHelp(a.r, focus) {
+		if row.Operation == op {
+			return row.Key
+		}
+	}
+	return ""
+}
+
+// keyAction is one "key does this" phrase of a hint sentence.
+type keyAction struct{ op, does string }
+
+// keySentence joins "KEY does" for each action that has a key at focus.
+func (a *App) keySentence(focus string, actions ...keyAction) string {
+	var parts []string
+	for _, act := range actions {
+		if k := a.keyFor(focus, act.op); k != "" {
+			parts = append(parts, k+" "+act.does)
+		}
+	}
+	return strings.Join(parts, " · ")
+}
