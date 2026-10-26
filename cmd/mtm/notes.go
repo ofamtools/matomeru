@@ -41,6 +41,7 @@ func (a *App) defineNotes() {
 	a.parameters("note.edit", map[string]ochazuke.Parameter{"text": {Type: "string"}})
 	a.parameters("note.associate", map[string]ochazuke.Parameter{"task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
 	a.owners["note"] = "notes/list"
+	a.defineNoteDoc()
 	a.editorSave["note"] = func(record editRecord) (any, error) { return a.saveNoteRecord(record) }
 	a.editorRefresh["note"] = a.refreshNotes
 	a.editorFinish["note"] = func(record editRecord) error {
@@ -170,6 +171,15 @@ func noteLabel(text string) string {
 }
 
 func (a *App) refreshNotes() error {
+	if err := a.setNoteRows(); err != nil {
+		return err
+	}
+	return a.syncNoteDoc()
+}
+
+// setNoteRows pushes the notes in scope and the new-note drafts to the
+// list.
+func (a *App) setNoteRows() error {
 	if a.noteList == nil {
 		return nil
 	}
@@ -207,6 +217,10 @@ func (a *App) refreshNotes() error {
 }
 
 func (a *App) selectedNote(ctx ochazuke.Ctx) (work.Note, error) {
+	if (ctx.Instance == nil || ctx.Instance.Noun != "note") && a.noteDocFocused() {
+		// i on the note's Markdown (notes_doc.go).
+		return a.work.Note(a.noteDocNote)
+	}
 	if ctx.Instance == nil || ctx.Instance.Noun != "note" {
 		return work.Note{}, errors.New("no note selected")
 	}
@@ -222,7 +236,17 @@ func (a *App) viewNote(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	// enter reads the note: the focus moves into its body, where j/k and
-	// ctrl+d/ctrl+u scroll the text alone (test pass R8).
+	// ctrl+d/ctrl+u scroll the text alone (test pass R8), or onto its
+	// first task item when it has a checklist (notes_doc.go).
+	if err := a.syncNoteDoc(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if a.noteDocTasks(note.ID) {
+		if err := a.noteDoc.Focus(); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(note)
+	}
 	if err := a.r.SetFocus(noteBodyID); err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -427,10 +451,10 @@ type noteBody struct {
 func (a *App) renderNoteBody(note work.Note, width, height int) string {
 	a.noteBody.visible = max(1, height-2)
 	head := ansi.Truncate(a.noteOwnerLabel(note), width, "…")
-	if a.r.BaseFocus() == noteBodyID {
+	if a.r.BaseFocus() == noteBodyID || a.noteDocFocused() {
 		head = lipgloss.NewStyle().Reverse(true).Render(head)
 	}
-	text := head + "\n\n" + a.detail.notes.fit(note.Text, width, width, a.noteBody.visible)
+	text := head + "\n\n" + a.renderNoteText(note, width, a.noteBody.visible)
 	a.r.Placed(noteBodyID)
 	return a.r.PlacedAt(noteBodyID, text, 0, 1)
 }

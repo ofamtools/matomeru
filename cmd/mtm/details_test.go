@@ -106,9 +106,11 @@ func TestWorkDetailScrollsWithJK(t *testing.T) {
 
 // On Notes, J scrolls the selected note's body from the list; the list
 // keeps the focus, and the body (enter) scrolls the same text with j.
+// The body is Markdown, so the note's lines are list items (plain lines
+// would join into one paragraph).
 func TestNotesDetailScrollsFromTheList(t *testing.T) {
 	a := open(t)
-	executeA(t, a, "note", "new", "", ochazuke.Arguments{"text": numbered("line", 100), "scratch": true})
+	executeA(t, a, "note", "new", "", ochazuke.Arguments{"text": numbered("- line", 100), "scratch": true})
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}

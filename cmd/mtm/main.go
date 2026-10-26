@@ -16,6 +16,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
+	"github.com/unixsuperhero/ochazuke/markdown"
 	"github.com/unixsuperhero/oden"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
@@ -325,9 +326,11 @@ type App struct {
 	answer      *ochazuke.Input
 	answerDraft string // the answer text last written as the opened review's draft
 	noteList    *ochazuke.List
-	noteBody    noteBody    // the Notes page's scrollable body (notes.go)
-	detail      pageDetails // the pages' details J and K scroll (details.go)
-	colors      pinColors   // the theme beneath the pin state's colours (colors.go)
+	noteBody    noteBody      // the Notes page's scrollable body (notes.go)
+	noteDoc     *markdown.Doc // the selected note's Markdown (notes_doc.go)
+	noteDocNote string        // the note noteDoc fronts
+	detail      pageDetails   // the pages' details J and K scroll (details.go)
+	colors      pinColors     // the theme beneath the pin state's colours (colors.go)
 	savedList   *ochazuke.List
 	vimList     *ochazuke.List
 	savedAll    []work.SavedPane  // every saved pane as last read, in scope or not (the details read it)
