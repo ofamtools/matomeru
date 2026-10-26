@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sort"
 
+	"github.com/unixsuperhero/ochazuke"
 	ocli "github.com/unixsuperhero/ochazuke/cli"
 )
 
@@ -45,6 +47,7 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 		return a.reveal(target)
 	}
 	sh.Owners = a.owners
+	sh.StateCache.Scope = a.stateScope
 	sh.Settle = a.closeTerminals
 	sh.Prepare = func(ctx context.Context) error {
 		a.cli = true
@@ -61,6 +64,22 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 		return nil
 	}
 	return sh
+}
+
+// stateScope is what projects.state's answer depends on beyond its
+// arguments, for the shell's state cache (ochazuke's state deltas): the
+// database and the TUIOS daemon socket, so two mtm instances on other data
+// or another server never answer deltas from each other's cached rows.
+func (a *App) stateScope(ochazuke.Arguments) string {
+	data := a.dataPath
+	if abs, err := filepath.Abs(data); err == nil {
+		data = abs
+	}
+	socket := ""
+	if a.daemon != nil {
+		socket = a.daemon.Socket
+	}
+	return "data=" + data + "\nsocket=" + socket
 }
 
 // closeTerminals removes every terminal instance, in id order; closing one
