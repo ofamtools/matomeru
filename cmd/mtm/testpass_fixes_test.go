@@ -135,7 +135,7 @@ func TestMoveChooserByRecencyWithoutCurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	labels := func() string {
-		c := app.choosers.Get(moveChooser)
+		c := app.r.Chooser(moveChooser)
 		if c == nil {
 			t.Fatal("m opened no chooser")
 		}

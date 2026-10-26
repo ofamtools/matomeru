@@ -467,23 +467,23 @@ func (a *App) statusReview(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	rows := make([]ChooserRow, 0, len(reviewStatuses))
+	rows := make([]ochazuke.ChooserRow, 0, len(reviewStatuses))
 	for _, s := range reviewStatuses {
 		label := s
 		if s == rv.Status {
 			label += " (current)"
 		}
-		rows = append(rows, ChooserRow{ID: "review-status:" + s, Label: label, Data: s})
+		rows = append(rows, ochazuke.ChooserRow{ID: "review-status:" + s, Label: label, Data: s})
 	}
 	target := ctx.Instance.ID
-	_, err = a.choosers.Open(ChooserSpec{
+	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  statusChooser,
 		Title: "Status · " + ctx.Instance.Label,
 		Rows:  rows,
-		Filter: func(query string, row ChooserRow) bool {
+		Filter: func(query string, row ochazuke.ChooserRow) bool {
 			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
 		},
-		Choose: func(row ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			out, err := a.r.Execute(ochazuke.Request{Verb: "status", Noun: "review", Target: target, Args: ochazuke.Arguments{"status": row.Data}})
 			if err != nil {
 				return ochazuke.Failed(err)

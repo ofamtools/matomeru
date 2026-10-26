@@ -242,6 +242,17 @@ func (a *App) contextRows(kind, query string, all bool) []ocli.Row {
 	return rows
 }
 
+// cmpBool orders false before true.
+func cmpBool(x, y bool) int {
+	switch {
+	case x == y:
+		return 0
+	case x:
+		return 1
+	}
+	return -1
+}
+
 // contextCells is a row's cells in contextColumns order.
 func (a *App) contextCells(it contextitems.Item, project string, now time.Time) []string {
 	text := a.itemCell(it)

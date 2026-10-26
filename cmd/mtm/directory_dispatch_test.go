@@ -19,7 +19,7 @@ func TestProjectDirectoryChooserDeliversAcrossPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())
-	c := a.choosers.Get(dirChooser)
+	c := a.r.Chooser(dirChooser)
 	if a.r.Page != "work" || c == nil || !a.directories.Ready {
 		t.Fatalf("chooser did not load: page=%s modal=%q cache=%+v", a.r.Page, a.r.TopModal(), a.directories)
 	}

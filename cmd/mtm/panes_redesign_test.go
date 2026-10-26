@@ -104,7 +104,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 func TestMoveUsesTheProjectChooser(t *testing.T) {
 	app, _ := panesApp(t)
 	key(t, app, "m")
-	c := app.choosers.Get(moveChooser)
+	c := app.r.Chooser(moveChooser)
 	if c == nil {
 		t.Fatal("m opened no chooser")
 	}

@@ -14,7 +14,6 @@ import (
 )
 
 func (a *App) definePin() {
-	a.choosers = NewChoosers(a.r, a.m.ModalViews)
 	a.r.Define("project").
 		Verb("pin", a.pinProject, "Pin a project; omit project to pick one").Positional("project").
 		Verb("pick", func(ochazuke.Ctx) ochazuke.Result { return a.pinProject(ochazuke.Ctx{}) }, "Choose a pin from any page").
@@ -71,7 +70,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 		}
 	}
 	now := time.Now()
-	rows := make([]ChooserRow, 0, len(projects)+1)
+	rows := make([]ochazuke.ChooserRow, 0, len(projects)+1)
 	for _, p := range projects {
 		dir := tildePath(projectDir(p), home)
 		label := strings.TrimSpace(projectLabel(p) + "  " + dir)
@@ -83,14 +82,14 @@ func (a *App) openPinPicker() ochazuke.Result {
 		if pinned[p.ID] != 0 {
 			used = "pinned " + sinceUse(pinned[p.ID], now)
 		}
-		rows = append(rows, ChooserRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
+		rows = append(rows, ochazuke.ChooserRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
 	}
-	rows = append(rows, ChooserRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Fixed: true})
-	_, err = a.choosers.Open(ChooserSpec{
+	rows = append(rows, ochazuke.ChooserRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Fixed: true})
+	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  pinPicker,
 		Title: "Pin project",
 		Rows:  rows,
-		Choose: func(row ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			id, _ := row.Data.(string)
 			return a.pinAndAskDirectory(id)
 		},

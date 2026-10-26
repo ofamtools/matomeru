@@ -56,7 +56,7 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, app, "L")
-	c := app.choosers.Get(agentChooser)
+	c := app.r.Chooser(agentChooser)
 	if c == nil || len(c.Matches()) == 0 || c.Matches()[0].ID != "codex" {
 		t.Fatalf("L on the project: chooser %+v", c)
 	}
@@ -79,7 +79,7 @@ func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
 		t.Fatalf("focus %s", app.r.Focus)
 	}
 	press(t, app, "m")
-	c := app.choosers.Get(moveChooser)
+	c := app.r.Chooser(moveChooser)
 	if c == nil {
 		t.Fatalf("m opened %q", app.r.TopModal())
 	}

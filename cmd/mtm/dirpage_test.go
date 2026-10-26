@@ -173,7 +173,7 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "n")
-	c := a.choosers.Get(baseChooser)
+	c := a.r.Chooser(baseChooser)
 	if c == nil {
 		t.Fatalf("modal %q", a.r.TopModal())
 	}
@@ -232,7 +232,7 @@ func TestProjectDirectoryEditFromThePage(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "i")
-	if a.choosers.Get(dirChooser) == nil {
+	if a.r.Chooser(dirChooser) == nil {
 		t.Fatalf("modal %q", a.r.TopModal())
 	}
 	typeText(t, a, "beta")

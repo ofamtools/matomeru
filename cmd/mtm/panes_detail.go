@@ -289,27 +289,27 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 		return ochazuke.Done(out)
 	}
 	current, hasOwner := a.moveOwner(ctx.Instance, noun)
-	choices := make([]ChooserRow, 0, len(a.projects)+1)
+	choices := make([]ochazuke.ChooserRow, 0, len(a.projects)+1)
 	for _, p := range a.projectsByRecency() {
 		if hasOwner && p.ID == current {
 			continue // moving to where it already is does nothing
 		}
-		choices = append(choices, ChooserRow{ID: p.ID, Label: projectName(p), Data: p.ID})
+		choices = append(choices, ochazuke.ChooserRow{ID: p.ID, Label: projectName(p), Data: p.ID})
 	}
 	if !hasOwner || current != "" {
-		choices = append(choices, ChooserRow{ID: "scratch", Label: "unassociated", Trailing: true})
+		choices = append(choices, ochazuke.ChooserRow{ID: "scratch", Label: "unassociated", Trailing: true})
 	}
-	_, err := a.choosers.Open(ChooserSpec{
+	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  moveChooser,
 		Title: "Move " + ctx.Instance.Label + " to",
 		Rows:  choices,
-		Filter: func(query string, row ChooserRow) bool {
+		Filter: func(query string, row ochazuke.ChooserRow) bool {
 			if row.Trailing {
 				return strings.Contains(row.Label, strings.ToLower(query))
 			}
 			return fuzzy(query, row.Label)
 		},
-		Choose: func(c ChooserRow) ochazuke.Result {
+		Choose: func(c ochazuke.ChooserRow) ochazuke.Result {
 			if c.ID == "scratch" {
 				return associate(ochazuke.Arguments{"scratch": true})
 			}

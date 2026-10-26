@@ -273,26 +273,26 @@ const statusChooser = "status-chooser"
 // openStatusChooser opens the four statuses for t; typing narrows by the
 // first letters (t, a, b, d) and enter sets the top one, then refresh runs.
 func (a *App) openStatusChooser(t work.Task, refresh func() error) error {
-	rows := make([]ChooserRow, 0, len(work.Statuses))
+	rows := make([]ochazuke.ChooserRow, 0, len(work.Statuses))
 	for _, s := range work.Statuses {
 		label := s
 		if s == t.Status {
 			label += " (current)"
 		}
-		rows = append(rows, ChooserRow{ID: "status-choice:" + s, Label: label, Data: s, Cells: []string{work.StatusGlyph(s), label}})
+		rows = append(rows, ochazuke.ChooserRow{ID: "status-choice:" + s, Label: label, Data: s, Cells: []string{work.StatusGlyph(s), label}})
 	}
 	title := t.Title
 	if title == "" {
 		title = "untitled"
 	}
-	_, err := a.choosers.Open(ChooserSpec{
+	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  statusChooser,
 		Title: "Status · " + title,
 		Rows:  rows,
-		Filter: func(query string, row ChooserRow) bool {
+		Filter: func(query string, row ochazuke.ChooserRow) bool {
 			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
 		},
-		Choose: func(row ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			status, _ := row.Data.(string)
 			got, err := a.work.SetStatus(t.ID, status)
 			if err != nil {

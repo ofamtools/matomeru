@@ -268,7 +268,6 @@ type App struct {
 	baseList       *ochazuke.List
 	directoryQuery *ochazuke.Input
 	lastPage       string // the page the last update ended on; a change runs that page's open hook
-	choosers       *Choosers
 	detailTask     string
 	cli            bool
 	pin            string

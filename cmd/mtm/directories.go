@@ -467,10 +467,10 @@ func (a *App) refreshDirectories(ochazuke.Ctx) ochazuke.Result {
 				_ = a.directoryList.Select(items[0].ID)
 			}
 		}
-		if c := a.choosers.Get(dirChooser); c != nil {
+		if c := a.r.Chooser(dirChooser); c != nil {
 			c.SetRows(a.directoryChoices())
 		}
-		if c := a.choosers.Get(baseChooser); c != nil {
+		if c := a.r.Chooser(baseChooser); c != nil {
 			c.SetRows(a.baseChoices())
 		}
 	})
@@ -691,16 +691,16 @@ func directoryCells(row knownDirectory, owners []string, home string, now time.T
 const dirChooser = "dir-chooser"
 
 // directoryChoices are the known directories as chooser rows, then browse….
-func (a *App) directoryChoices() []ChooserRow {
+func (a *App) directoryChoices() []ochazuke.ChooserRow {
 	owners := a.directoryOwners()
 	home, _ := a.home()
 	now := time.Now()
-	rows := make([]ChooserRow, 0, len(a.directories.Rows)+1)
+	rows := make([]ochazuke.ChooserRow, 0, len(a.directories.Rows)+1)
 	for _, row := range a.directories.Rows {
 		cells := directoryCells(row, owners[row.Path], home, now)
-		rows = append(rows, ChooserRow{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
+		rows = append(rows, ochazuke.ChooserRow{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
 	}
-	return append(rows, ChooserRow{ID: "directory:browse", Label: "browse…", Trailing: true})
+	return append(rows, ochazuke.ChooserRow{ID: "directory:browse", Label: "browse…", Trailing: true})
 }
 
 // existingDir is the query as a directory that exists.
@@ -715,11 +715,26 @@ func existingDir(query string) (string, bool) {
 
 // trailingFilter keeps a trailing row only when the query is a substring of
 // its label; ordinary rows match fuzzily.
-func trailingFilter(query string, row ChooserRow) bool {
+func trailingFilter(query string, row ochazuke.ChooserRow) bool {
 	if row.Trailing {
 		return strings.Contains(strings.ToLower(row.Label), strings.ToLower(strings.TrimSpace(query)))
 	}
 	return fuzzyMatch(query, row.Label)
+}
+
+// fuzzyMatch reports whether query's runes appear in text in order,
+// ignoring case (the framework chooser's default filter, which it does not
+// export).
+func fuzzyMatch(query, text string) bool {
+	text = strings.ToLower(text)
+	for _, char := range strings.ToLower(query) {
+		pos := strings.IndexRune(text, char)
+		if pos < 0 {
+			return false
+		}
+		text = text[pos+len(string(char)):]
+	}
+	return true
 }
 
 // openDirectoryChooser asks for the project's directory the palette way:
@@ -736,7 +751,7 @@ func (a *App) openDirectoryChooser(projectID string) error {
 // chosen or typed path, and browse… continues on the Directories page
 // with purpose.
 func (a *App) chooseDirectoryFor(title, projectID, purpose string, use func(string) ochazuke.Result) error {
-	var rows []ChooserRow
+	var rows []ochazuke.ChooserRow
 	if a.directories.Ready {
 		rows = a.directoryChoices()
 	}
@@ -753,14 +768,13 @@ func (a *App) chooseDirectoryFor(title, projectID, purpose string, use func(stri
 		}
 		return result
 	}
-	_, err := a.choosers.Open(ChooserSpec{
+	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:   dirChooser,
 		Title:  title,
 		Rows:   rows,
 		Empty:  "loading known directories…",
 		Filter: trailingFilter,
-		Keep:   []int{1}, // the path: the branch and projects narrow first (F22)
-		Choose: func(row ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			if path, ok := row.Data.(string); ok {
 				return use(path)
 			}
@@ -822,15 +836,15 @@ func (a *App) attachOrAsk(path string) ochazuke.Result {
 		return a.attachDirectory(target, path)
 	}
 	home, _ := a.home()
-	rows := make([]ChooserRow, 0, len(a.projects))
+	rows := make([]ochazuke.ChooserRow, 0, len(a.projects))
 	for _, p := range a.projects {
-		rows = append(rows, ChooserRow{ID: "attach:" + p.ID, Label: projectLabel(p), Data: p.ID})
+		rows = append(rows, ochazuke.ChooserRow{ID: "attach:" + p.ID, Label: projectLabel(p), Data: p.ID})
 	}
-	_, err := a.choosers.Open(ChooserSpec{
+	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  attachProjectChooser,
 		Title: "Attach " + tildePath(path, home) + " to",
 		Rows:  rows,
-		Choose: func(row ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			return a.attachDirectory(row.Data.(string), path)
 		},
 		Create: func(name string) ochazuke.Result {
@@ -1028,7 +1042,7 @@ const baseChooser = "base-chooser"
 
 // baseChoices are the folders that hold known directories and are not
 // bases yet, the fullest first, then browse….
-func (a *App) baseChoices() []ChooserRow {
+func (a *App) baseChoices() []ochazuke.ChooserRow {
 	bases, _ := projectBases(a.dirsConfigPath())
 	taken := map[string]bool{}
 	for _, base := range bases {
@@ -1047,11 +1061,11 @@ func (a *App) baseChoices() []ChooserRow {
 	}
 	slices.SortFunc(parents, func(x, y string) int { return cmp.Or(cmp.Compare(counts[y], counts[x]), cmp.Compare(x, y)) })
 	home, _ := a.home()
-	rows := make([]ChooserRow, 0, len(parents)+1)
+	rows := make([]ochazuke.ChooserRow, 0, len(parents)+1)
 	for _, parent := range parents {
-		rows = append(rows, ChooserRow{ID: "base-choice:" + parent, Label: fmt.Sprintf("%s  (%d known)", tildePath(parent, home), counts[parent]), Data: parent})
+		rows = append(rows, ochazuke.ChooserRow{ID: "base-choice:" + parent, Label: fmt.Sprintf("%s  (%d known)", tildePath(parent, home), counts[parent]), Data: parent})
 	}
-	return append(rows, ChooserRow{ID: "base-choice:browse", Label: "browse…", Trailing: true})
+	return append(rows, ochazuke.ChooserRow{ID: "base-choice:browse", Label: "browse…", Trailing: true})
 }
 
 // addBase is dirs.base.add: a path adds it at once; none (the a key)
@@ -1075,12 +1089,12 @@ func (a *App) addBase(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return result
 	}
-	_, err := a.choosers.Open(ChooserSpec{
+	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:   baseChooser,
 		Title:  "Add a project base dir",
 		Rows:   a.baseChoices(),
 		Filter: trailingFilter,
-		Choose: func(row ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			if path, ok := row.Data.(string); ok {
 				return a.addBasePath(path, 1)
 			}

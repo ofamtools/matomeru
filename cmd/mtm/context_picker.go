@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
@@ -75,21 +76,27 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.cx.picking = p
-	_, err = a.choosers.Open(ChooserSpec{
+	title := "Context · " + p.label()
+	// The framework chooser has no preview: this ModalView, which the
+	// Model reads before the chooser's own drawing, puts the highlighted
+	// row's text beside the rows.
+	a.m.ModalViews[contextPicker] = ochazuke.ModalView{Title: title, Render: func(r *ochazuke.Runtime, _ *ochazuke.Instance, w, h int) ochazuke.Block {
+		return previewView(r.Chooser(contextPicker), pickerPreview, w, h)
+	}}
+	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  contextPicker,
-		Title: "Context · " + p.label(),
+		Title: title,
 		Rows:  a.pickerRows(p),
 		// Every typed word is in the row: a long path must not match a
 		// query by scattering its letters.
-		Filter: func(query string, row ChooserRow) bool { return wordsMatch(query, row.Label) },
+		Filter: func(query string, row ochazuke.ChooserRow) bool { return wordsMatch(query, row.Label) },
 		Empty:  "no context yet: paths, URLs, PRs, branches and commits appear as panes print them",
-		Choose: func(row ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			if pr, ok := row.Data.(promptRow); ok {
 				return a.runOnPrompt(pr)
 			}
 			return a.runOnItem("copy", row.ID)
 		},
-		Preview: pickerPreview,
 	})
 	return resultError(err)
 }
@@ -97,7 +104,7 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 // pickerRows are the picker's rows for pane p: its own items newest
 // first, then the rest of its project's, then the unassociated ones.
 // Other projects' items are left out.
-func (a *App) pickerRows(p pane) []ChooserRow {
+func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
 	project := a.contextOwner(p).ProjectID
 	if project == "" {
 		project = a.paneOwner(p).ProjectID
@@ -119,10 +126,10 @@ func (a *App) pickerRows(p pane) []ChooserRow {
 		}
 	}
 	now := time.Now()
-	var rows []ChooserRow
+	var rows []ochazuke.ChooserRow
 	add := func(items []contextitems.Item, where string) {
 		for _, it := range items {
-			rows = append(rows, ChooserRow{ID: it.ID, Label: it.Kind + " " + it.Text, Data: it, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
+			rows = append(rows, ochazuke.ChooserRow{ID: it.ID, Label: it.Kind + " " + it.Text, Data: it, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
 		}
 	}
 	add(own, "this pane")
@@ -131,7 +138,7 @@ func (a *App) pickerRows(p pane) []ChooserRow {
 		if t.Window != p.ID || strings.TrimSpace(t.Prompt) == "" {
 			continue
 		}
-		rows = append(rows, ChooserRow{ID: "prompt:" + t.ID, Label: "prompt " + t.Prompt, Data: promptRow{turn: t, pane: p},
+		rows = append(rows, ochazuke.ChooserRow{ID: "prompt:" + t.ID, Label: "prompt " + t.Prompt, Data: promptRow{turn: t, pane: p},
 			Cells: []string{"prompt", firstLine(t.Prompt), "this pane", age(now.Sub(time.UnixMilli(t.StartedAt)))}})
 	}
 	add(theirs, a.ownerLabel(project))
@@ -147,7 +154,7 @@ type promptRow struct {
 
 // pickerPreview is what the picker shows beside the rows: a prompt's
 // answer, an item's whole text and where it was seen.
-func pickerPreview(row ChooserRow) string {
+func pickerPreview(row ochazuke.ChooserRow) string {
 	switch d := row.Data.(type) {
 	case promptRow:
 		if len(d.turn.Responses) == 0 {
@@ -167,7 +174,7 @@ func pickerPreview(row ChooserRow) string {
 // pickerTurnsChanged reads the picked pane's turns again while the picker
 // is open (the journal took a burst), and its rows with them.
 func (a *App) pickerTurnsChanged() error {
-	if a.choosers.Get(contextPicker) == nil {
+	if a.r.Chooser(contextPicker) == nil {
 		return nil
 	}
 	turns, err := a.hist.Turns(a.cx.picking.ID)
@@ -181,15 +188,15 @@ func (a *App) pickerTurnsChanged() error {
 
 // contextChanged refreshes the open picker's rows when items land.
 func (a *App) contextChanged() {
-	if c := a.choosers.Get(contextPicker); c != nil {
+	if c := a.r.Chooser(contextPicker); c != nil {
 		c.SetRows(a.pickerRows(a.cx.picking))
 	}
 }
 
 // pickerItem is the picker's highlighted row's data: a context item or
 // a promptRow.
-func (a *App) pickerItem() (any, *Chooser, error) {
-	c := a.choosers.Get(contextPicker)
+func (a *App) pickerItem() (any, *ochazuke.Chooser, error) {
+	c := a.r.Chooser(contextPicker)
 	if c == nil {
 		return nil, nil, errors.New("the context picker is not open")
 	}
@@ -208,7 +215,7 @@ func (a *App) pickerOpen(ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if pr, ok := data.(promptRow); ok {
-		if err := a.choosers.close(c); err != nil {
+		if err := closeChooser(a.r, c); err != nil {
 			return ochazuke.Failed(err)
 		}
 		return a.openPromptTurn(pr)
@@ -219,7 +226,7 @@ func (a *App) pickerOpen(ochazuke.Ctx) ochazuke.Result {
 	default:
 		return ochazuke.Failed(fmt.Errorf("a %s has nothing to open; enter copies it", it.Kind))
 	}
-	if err := a.choosers.close(c); err != nil {
+	if err := closeChooser(a.r, c); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return a.runOnItem("open", it.ID)
@@ -239,7 +246,7 @@ func (a *App) pickerReveal(ochazuke.Ctx) ochazuke.Result {
 	if !it.Path() {
 		return ochazuke.Failed(fmt.Errorf("ctrl+r reveals files and directories; this is a %s (ctrl+o opens it, enter copies it)", it.Kind))
 	}
-	if err := a.choosers.close(c); err != nil {
+	if err := closeChooser(a.r, c); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return a.runOnItem("reveal", it.ID)
@@ -318,4 +325,66 @@ func (a *App) openPromptTurn(pr promptRow) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(id)
+}
+
+// closeChooser pops chooser c's modal so a callback may open the next one.
+func closeChooser(r *ochazuke.Runtime, c *ochazuke.Chooser) error {
+	if c == nil || r.TopModal() != c.Kind() {
+		return errors.New("the chooser is not the top modal")
+	}
+	return r.Pop()
+}
+
+// chooserPreviewMin is the width from which previewView draws the preview
+// beside the rows.
+const chooserPreviewMin = 60
+
+// previewView draws chooser c with preview's text for the highlighted row
+// beside the rows (wrapped, cut at the bottom) once it is
+// chooserPreviewMin cells wide; narrower, the rows take the whole width.
+// ochazuke's ChooserSpec has no Preview yet; this keeps mtm's.
+func previewView(c *ochazuke.Chooser, preview func(ochazuke.ChooserRow) string, width, height int) ochazuke.Block {
+	if c == nil {
+		return ochazuke.Text("")
+	}
+	if preview == nil || width < chooserPreviewMin {
+		return c.View(width, height)
+	}
+	// The preview column keeps its width whatever it holds, so the panel
+	// does not change size as the highlight moves.
+	listWidth := width * 3 / 5
+	previewWidth := width - listWidth - 3
+	left := c.View(listWidth, height)
+	text := ""
+	if row, ok := c.Highlighted(); ok {
+		text = preview(row)
+	}
+	right := previewLines(text, previewWidth, height)
+	lines := strings.Split(left.Text, "\n")
+	for len(lines) < len(right) {
+		lines = append(lines, "")
+	}
+	for i, line := range lines {
+		side := ""
+		if i < len(right) {
+			side = right[i]
+		}
+		lines[i] = line + strings.Repeat(" ", max(0, listWidth-ansi.StringWidth(line))) + " │ " + side + strings.Repeat(" ", max(0, previewWidth-ansi.StringWidth(side)))
+	}
+	return left.WithText(strings.Join(lines, "\n"))
+}
+
+// previewLines is a preview's text wrapped to width, at most height lines,
+// the last one marking a cut with ….
+func previewLines(text string, width, height int) []string {
+	if width < 1 || height < 1 || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	text = strings.ReplaceAll(strings.TrimRight(ansi.Strip(text), "\n"), "\t", "  ")
+	wrapped := strings.Split(ansi.Wrap(text, width, " -/"), "\n")
+	if len(wrapped) > height {
+		wrapped = wrapped[:height]
+		wrapped[height-1] = "…"
+	}
+	return wrapped
 }
