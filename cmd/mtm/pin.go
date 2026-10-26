@@ -22,7 +22,9 @@ func (a *App) definePin() {
 	a.parameters("project.pin", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list"}})
 	a.r.Define("scope").Verb("all", a.toggleAll, "Toggle all projects without changing the pin").
 		Mode("normal").Bind("S", ochazuke.Do("scope.all"))
-	a.r.Define("app").Mode("normal").Bind("P", ochazuke.Do("project.pick")).Bind("S", ochazuke.Do("scope.all"))
+	// P opens the picker from a page, never stacked over a modal (the
+	// leader help, ? help, the outline): no-modal is ochazuke's guard.
+	a.r.Define("app").Mode("normal").Bind("P", ochazuke.Do("project.pick").Guard("no-modal")).Bind("S", ochazuke.Do("scope.all"))
 	a.ownedBy("scope", "work")
 }
 

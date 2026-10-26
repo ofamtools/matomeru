@@ -175,3 +175,17 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		}
 	}
 }
+
+// UX review 2 F22: P inside a modal (the help) does not stack the pin
+// picker over it; on a page it opens it.
+func TestPDoesNotStackThePickerOverAModal(t *testing.T) {
+	app := open(t)
+	press(t, app, "?", "P")
+	if app.r.TopModal() != "bindings-help" {
+		t.Fatalf("P in the help: top modal %q", app.r.TopModal())
+	}
+	press(t, app, "esc", "P")
+	if app.r.TopModal() != "pin-picker" {
+		t.Fatalf("P on the page: top modal %q", app.r.TopModal())
+	}
+}
