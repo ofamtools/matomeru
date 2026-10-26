@@ -12,7 +12,7 @@
 
 <p align="center"><img alt="mtm over invented data: moving through projects and tasks, filtering a list, pinning a project from the palette, ticking a checklist in a note, the key help and the Settings page" src="assets/demo.gif" width="720"></p>
 
-Matomeru (`mtm`) is built on [ochazuke](https://github.com/unixsuperhero/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/unixsuperhero/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
+Matomeru (`mtm`) is built on [ochazuke](https://github.com/unixsuperhero/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
 
 Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.
 
