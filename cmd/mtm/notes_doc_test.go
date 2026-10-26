@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke/markdown"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
@@ -168,53 +168,42 @@ func TestNoteLinesRenderOneLinePerSourceLine(t *testing.T) {
 	}
 }
 
-// The view's line breaks never reach the store: the display marks only
-// add runes, and a toggle in a note of plain lines writes only the box.
+// The view's line breaks never reach the store: in a note of plain lines
+// (LF or CRLF, a code fence among them) a toggle writes only the box and
+// u puts the very bytes back.
 func TestNoteHardBreaksStayOutOfTheStore(t *testing.T) {
 	for _, text := range []string{
-		"plain\nlines\n- [ ] one\n- [ ] two\n",
-		"crlf\r\nlines\r\n\r\n- [ ] one\r\n",
-		"```\ncode\nstays\n```\nafter\nfence\n",
-		"",
+		"Plan\nsecond line\n- [ ] one\n- [ ] two\n",
+		"crlf\r\nlines\r\n\r\n- [ ] one\r\n- [ ] two\r\n",
+		"```\ncode\nstays\n```\nafter\nfence\n- [ ] one\n- [ ] two",
 	} {
-		marked := markNote(text, markdown.Tasks(text))
-		back := strings.Map(func(r rune) rune {
-			if r == noteBreakMark || isTaskMark(r) {
-				return -1
-			}
-			return r
-		}, marked)
-		if back != text {
-			t.Fatalf("%q marked as %q loses text: %q", text, marked, back)
+		a := open(t)
+		note, err := a.work.AddNote("matomeru", "", text)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	a := open(t)
-	text := "Plan\nsecond line\n- [ ] one\n- [ ] two\n"
-	note, err := a.work.AddNote("matomeru", "", text)
-	if err != nil {
-		t.Fatal(err)
-	}
-	a.all = true
-	if err := a.refreshNotes(); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.r.OpenPage(notesPage); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.noteList.Select(note.ID); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.noteList.Focus(); err != nil {
-		t.Fatal(err)
-	}
-	a.Update(nil)
-	press(t, a, "enter", "j", "x")
-	if got := noteText(t, a, note.ID); got != strings.Replace(text, "- [ ] two", "- [x] two", 1) {
-		t.Fatalf("toggle wrote %q", got)
-	}
-	press(t, a, "u")
-	if got := noteText(t, a, note.ID); got != text {
-		t.Fatalf("undo wrote %q", got)
+		a.all = true
+		if err := a.refreshNotes(); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.r.OpenPage(notesPage); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.noteList.Select(note.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.noteList.Focus(); err != nil {
+			t.Fatal(err)
+		}
+		a.Update(nil)
+		press(t, a, "enter", "j", "x")
+		if got := noteText(t, a, note.ID); got != strings.Replace(text, "- [ ] two", "- [x] two", 1) {
+			t.Fatalf("%q: toggle wrote %q", text, got)
+		}
+		press(t, a, "u")
+		if got := noteText(t, a, note.ID); got != text {
+			t.Fatalf("%q: undo wrote %q", text, got)
+		}
 	}
 }
 
@@ -246,5 +235,49 @@ func TestNoteBodyEscLandsOnTheRow(t *testing.T) {
 	press(t, a, "enter")
 	if a.r.Focus != noteBodyID {
 		t.Fatalf("enter after esc: focus %s", a.r.Focus)
+	}
+}
+
+// With the focus on the items the Doc draws the body: a note of plain
+// lines keeps one line per source line, and only the selected item is
+// the reverse highlight.
+func TestNoteChecklistDrawsTheDoc(t *testing.T) {
+	a := open(t)
+	mono(t, a)
+	note, err := a.work.AddNote("matomeru", "", "Plan\nsecond line\n- [ ] one\n- [ ] two\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.all = true
+	if err := a.refreshNotes(); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.OpenPage(notesPage); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.noteList.Select(note.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.noteList.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	a.Update(nil)
+	press(t, a, "enter", "j")
+	lines := strings.Split(rawFrame(a), "\n")
+	plan, items := -1, []string{}
+	for i, line := range lines {
+		plain := ansi.Strip(line)
+		if strings.Contains(plain, "Plan") && !strings.Contains(plain, "second") {
+			plan = i
+		}
+		if strings.Contains(line, "\x1b[7m") && strings.Contains(plain, "[ ]") {
+			items = append(items, strings.TrimSpace(plain[strings.Index(plain, "[ ]"):]))
+		}
+	}
+	if plan < 0 || !strings.Contains(lines[plan+1], "second line") {
+		t.Fatalf("not one line per source line:\n%s", frame(a))
+	}
+	if len(items) != 1 || items[0] != "[ ] two" {
+		t.Fatalf("highlighted items %q:\n%s", items, frame(a))
 	}
 }

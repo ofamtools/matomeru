@@ -1,8 +1,6 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/unixsuperhero/ochazuke"
 	"github.com/unixsuperhero/ochazuke/markdown"
 
@@ -105,7 +103,7 @@ func (a *App) replaceNoteDoc(id string) error {
 	if id == "" {
 		return nil
 	}
-	doc, err := markdown.New(a.r, noteDocID, notesPage, a.noteSource(id))
+	doc, err := markdown.New(a.r, noteDocID, notesPage, a.noteSource(id), markdown.PreserveNewlines())
 	if err != nil {
 		return err
 	}
@@ -126,59 +124,19 @@ func (a *App) defineNoteDoc() {
 }
 
 // renderNoteText is the note's text in the body, height lines at most,
-// through the page detail (J/K, and j/k in the note-body stop): Markdown
-// with every newline kept (note_render.go). While the focus is on the
-// Doc's items the selected one is the reverse highlight and the window
-// keeps it in view.
+// Markdown with every newline kept (markdown.PreserveNewlines). While the
+// focus is on the Doc's items the Doc draws itself: the selected item is
+// the reverse highlight and its window keeps it in view. Otherwise the
+// text goes through the page detail, so J/K (and j/k in the note-body
+// stop) scroll it.
 func (a *App) renderNoteText(note work.Note, width, height int) string {
-	var tasks []markdown.Task
-	selected := -1
-	doc := a.noteDocNote == note.ID
-	if doc {
-		tasks = a.noteDoc.Tasks()
-		a.r.Placed(a.noteDoc.ListID())
+	if a.noteDocNote == note.ID {
 		if a.noteDocFocused() {
-			if t, ok := a.noteDoc.Selected(); ok {
-				for i, each := range tasks {
-					if each.Box == t.Box {
-						selected = i
-					}
-				}
-			}
+			a.detail.notes.hide()
+			return a.noteDoc.View(width, height, *a.m.Appearance)
 		}
+		a.r.Placed(a.noteDoc.ListID())
 	}
-	lines, spans := renderNote(note.Text, tasks, width, *a.m.Appearance)
-	if selected < 0 || selected >= len(spans) || spans[selected][0] < 0 {
-		return a.detail.notes.fit(strings.Join(lines, "\n"), 0, width, height)
-	}
-	top, bottom := spans[selected][0], spans[selected][1]
-	for l := top; l <= bottom; l++ {
-		lines[l] = highlightLine(lines[l])
-	}
-	a.showLines(top, bottom, len(lines), height)
-	text := a.detail.notes.fit(strings.Join(lines, "\n"), 0, width, height)
-	off := a.detail.notes.d.Offset()
-	return a.r.PlacedAt(a.noteDoc.ListID(), text, max(0, top-off), bottom-top+1)
-}
-
-// showLines scrolls the notes detail so lines top..bottom of total are in
-// a window of height, two lines of margin where there is room.
-func (a *App) showLines(top, bottom, total, height int) {
-	visible := height
-	if total > height {
-		visible = max(1, height-1) // the position marker's line
-	}
-	margin := min(2, max(0, (visible-1)/2))
-	off := a.detail.notes.d.Offset()
-	want := off
-	if bottom+margin >= off+visible {
-		want = bottom + margin - visible + 1
-	}
-	if top-margin < want {
-		want = top - margin
-	}
-	want = min(max(0, want), max(0, total-visible))
-	if want != off {
-		a.detail.notes.scroll(want - off)
-	}
+	text := markdown.Block(note.Text, width, *a.m.Appearance, markdown.PreserveNewlines()).Text
+	return a.detail.notes.fit(text, 0, width, height)
 }
