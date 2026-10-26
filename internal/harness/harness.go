@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -191,21 +190,6 @@ func (r *Registry) Lookup(name string) (Harness, error) {
 		return h, nil
 	}
 	return Harness{}, fmt.Errorf("unknown harness %q; known: %s", name, strings.Join(r.Names(), ", "))
-}
-
-// ConfigPath is where the harness file lives:
-// $XDG_CONFIG_HOME/matomeru/harnesses.json, else
-// ~/.config/matomeru/harnesses.json. getenv and home are os.Getenv and
-// os.UserHomeDir outside tests.
-func ConfigPath(getenv func(string) string, home func() (string, error)) string {
-	if dir := getenv("XDG_CONFIG_HOME"); dir != "" {
-		return filepath.Join(dir, "matomeru", "harnesses.json")
-	}
-	h, err := home()
-	if err != nil || h == "" {
-		return ""
-	}
-	return filepath.Join(h, ".config", "matomeru", "harnesses.json")
 }
 
 // Load is the built-ins merged with the file at path: a JSON array of

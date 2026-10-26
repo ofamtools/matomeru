@@ -119,7 +119,7 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	if len(rows) != 2 || rows[0].Path != directoryKey(two) || rows[1].Path != directoryKey(one) || !reflect.DeepEqual(rows[0].Projects, []string{"ochazuke"}) || !strings.Contains(footer, "missing bases:") {
 		t.Fatalf("known directories: %+v / %s", rows, footer)
 	}
-	bases, err := projectBases()
+	bases, err := projectBases(a.dirsConfigPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config, err := readDirectoryConfig()
+	config, err := readDirectoryConfig(a.dirsConfigPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
 	if !found {
 		t.Fatalf("file: %+v", config)
 	}
-	bases, err := projectBases()
+	bases, err := projectBases(a.dirsConfigPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config, err = readDirectoryConfig()
+	config, err = readDirectoryConfig(a.dirsConfigPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,5 +270,42 @@ func TestKnownDirectoriesIncludeOProjList(t *testing.T) {
 	}
 	if _, footer, err := a.knownDirs(context.Background()); err != nil || !strings.Contains(footer, "o-proj list:") {
 		t.Fatalf("failing o-proj: %v %q", err, footer)
+	}
+}
+
+// TestConfigDirFollowsData pins where config files go: an explicit Config,
+// then MTM_CONFIG_DIR, then beside a non-default -data, and the user's
+// config directory only for the default database. Adding a base on a copy
+// writes dirs.json beside the copy, never under XDG_CONFIG_HOME.
+func TestConfigDirFollowsData(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
+	os.Unsetenv("MTM_PROJECT_BASE_DIRS")
+	data := filepath.Join(t.TempDir(), "copy.db")
+	if got := (Options{Data: data}).ConfigDir(); got != filepath.Dir(data) {
+		t.Fatalf("beside data: %s", got)
+	}
+	if got := (Options{Data: DefaultData()}).ConfigDir(); got != filepath.Join(xdg, "matomeru") {
+		t.Fatalf("default data: %s", got)
+	}
+	if got := (Options{Data: data, Config: "/explicit"}).ConfigDir(); got != "/explicit" {
+		t.Fatalf("explicit: %s", got)
+	}
+	t.Setenv("MTM_CONFIG_DIR", "/from-env")
+	if got := (Options{Data: DefaultData()}).ConfigDir(); got != "/from-env" {
+		t.Fatalf("env: %s", got)
+	}
+	os.Unsetenv("MTM_CONFIG_DIR")
+
+	a := openAt(t, seeded(t))
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "base.add", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base", "depth": 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(a.configDir, "dirs.json")); err != nil {
+		t.Fatalf("dirs.json beside the data: %v", err)
+	}
+	if entries, _ := os.ReadDir(xdg); len(entries) != 0 {
+		t.Fatalf("wrote under XDG_CONFIG_HOME: %v", entries)
 	}
 }

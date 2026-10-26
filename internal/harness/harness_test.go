@@ -127,17 +127,6 @@ func TestLoadMergesTheFileByName(t *testing.T) {
 	}
 }
 
-func TestConfigPath(t *testing.T) {
-	env := func(v string) func(string) string { return func(string) string { return v } }
-	home := func() (string, error) { return "/home/u", nil }
-	if got := ConfigPath(env("/xdg"), home); got != "/xdg/matomeru/harnesses.json" {
-		t.Fatal(got)
-	}
-	if got := ConfigPath(env(""), home); got != "/home/u/.config/matomeru/harnesses.json" {
-		t.Fatal(got)
-	}
-}
-
 // driver records the launch flow's calls in order.
 type driver struct {
 	calls    []string

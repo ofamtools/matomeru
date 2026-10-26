@@ -13,8 +13,9 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
-// TestMain points XDG_CONFIG_HOME at an empty directory, so no test reads
-// the user's harnesses.json (run defaults -harnesses to it), and turns off
+// TestMain points XDG_CONFIG_HOME and MTM_CONFIG_DIR at an empty directory,
+// so no test reads or writes the user's config (dirs.json, harnesses.json)
+// even through the default -data, and turns off
 // the o-proj source of known directories.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "mtm-config")
@@ -22,6 +23,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Setenv("XDG_CONFIG_HOME", dir)
+	os.Setenv("MTM_CONFIG_DIR", "")
 	// no test reads the user's o proj manifest (known directories)
 	os.Setenv("MTM_O_PROJ", "none")
 	code := m.Run()

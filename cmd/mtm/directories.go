@@ -43,13 +43,9 @@ type directoryCache struct {
 	Browse    string // what the open path field is for (browseAttach, browseBase, browseEdit+path); "" when closed
 }
 
-func dirsConfigPath() string {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".config")
-	}
-	return filepath.Join(base, "matomeru", "dirs.json")
+// dirsConfigPath is dirs.json in the app's config directory.
+func (a *App) dirsConfigPath() string {
+	return filepath.Join(a.configDir, "dirs.json")
 }
 func expandPath(path string) string {
 	if path == "~" || strings.HasPrefix(path, "~/") {
@@ -62,9 +58,9 @@ func expandPath(path string) string {
 	}
 	return filepath.Clean(path)
 }
-func readDirectoryConfig() (directoryConfig, error) {
+func readDirectoryConfig(path string) (directoryConfig, error) {
 	var config directoryConfig
-	data, err := os.ReadFile(dirsConfigPath())
+	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return config, nil
 	}
@@ -74,7 +70,10 @@ func readDirectoryConfig() (directoryConfig, error) {
 	err = json.Unmarshal(data, &config)
 	return config, err
 }
-func projectBases() ([]projectBase, error) {
+
+// projectBases reads the bases from $MTM_PROJECT_BASE_DIRS, else the dirs.json
+// at path, else the default folders under the home directory.
+func projectBases(path string) ([]projectBase, error) {
 	if value, ok := os.LookupEnv("MTM_PROJECT_BASE_DIRS"); ok {
 		var out []projectBase
 		for _, path := range filepath.SplitList(value) {
@@ -84,11 +83,11 @@ func projectBases() ([]projectBase, error) {
 		}
 		return out, nil
 	}
-	config, err := readDirectoryConfig()
+	config, err := readDirectoryConfig(path)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(dirsConfigPath()); err == nil {
+	if _, err := os.Stat(path); err == nil {
 		for i := range config.Bases {
 			config.Bases[i].Path = expandPath(config.Bases[i].Path)
 			if config.Bases[i].Depth == 0 {
@@ -212,7 +211,7 @@ func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	bases, err := projectBases()
+	bases, err := projectBases(a.dirsConfigPath())
 	if err != nil {
 		return nil, "", err
 	}
@@ -349,7 +348,7 @@ type dirRow struct {
 
 func (a *App) defineDirectories() {
 	a.r.Define("dirs").Verb("list", a.refreshDirectories, "Refresh known directories").Verb("refresh", a.refreshDirectories, "Refresh directory cache").Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
-		bases, err := projectBases()
+		bases, err := projectBases(a.dirsConfigPath())
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -634,7 +633,7 @@ func (a *App) refreshProjectDirs() {
 // refreshBases pushes the project base dirs with the known directories
 // each holds.
 func (a *App) refreshBases() {
-	bases, err := projectBases()
+	bases, err := projectBases(a.dirsConfigPath())
 	if err != nil {
 		a.directories.BaseErr = err.Error()
 	} else {
@@ -1015,7 +1014,7 @@ const baseChooser = "base-chooser"
 // baseChoices are the folders that hold known directories and are not
 // bases yet, the fullest first, then browse….
 func (a *App) baseChoices() []ChooserRow {
-	bases, _ := projectBases()
+	bases, _ := projectBases(a.dirsConfigPath())
 	taken := map[string]bool{}
 	for _, base := range bases {
 		taken[directoryKey(base.Path)] = true
@@ -1249,11 +1248,11 @@ func (a *App) renderDirectories(_ *ochazuke.Runtime, width, height int) ochazuke
 // first edit writes the effective default bases too; an environment
 // override is never written.
 func (a *App) changeBase(path string, depth int, add bool) ([]projectBase, error) {
-	config, err := readDirectoryConfig()
+	config, err := readDirectoryConfig(a.dirsConfigPath())
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(dirsConfigPath()); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(a.dirsConfigPath()); errors.Is(err, os.ErrNotExist) {
 		home, _ := os.UserHomeDir()
 		for _, name := range []string{"proj", "projects", "src", "code", "dev"} {
 			path := filepath.Join(home, name)
@@ -1280,10 +1279,10 @@ func (a *App) changeBase(path string, depth int, add bool) ([]projectBase, error
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(dirsConfigPath()), 0700); err != nil {
+	if err := os.MkdirAll(a.configDir, 0700); err != nil {
 		return nil, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(dirsConfigPath()), "dirs-*.json")
+	temp, err := os.CreateTemp(a.configDir, "dirs-*.json")
 	if err != nil {
 		return nil, err
 	}
@@ -1293,7 +1292,7 @@ func (a *App) changeBase(path string, depth int, add bool) ([]projectBase, error
 	}
 	err = errors.Join(err, temp.Close())
 	if err == nil {
-		err = os.Rename(temp.Name(), dirsConfigPath())
+		err = os.Rename(temp.Name(), a.dirsConfigPath())
 	}
 	return config.Bases, err
 }

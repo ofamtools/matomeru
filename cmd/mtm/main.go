@@ -39,8 +39,50 @@ type Options struct {
 	Server string // the TUIOS server mtm runs on; "" or DefaultDaemon is the user's own daemon
 	// Harnesses is the harness file merged over the built-in harnesses
 	// (harness.Load); "" is the built-ins alone. run defaults it to
-	// harness.ConfigPath.
+	// <config>/harnesses.json.
 	Harnesses string
+	// Config is the directory holding mtm's config files (dirs.json,
+	// harnesses.json); "" is ConfigDir's rule.
+	Config string
+}
+
+// ConfigDir is the directory mtm reads and writes its config files in:
+// Config when set, else $MTM_CONFIG_DIR, else the directory of a
+// non-default Data (a copy of the database keeps its config beside it, so
+// tests and reviews never touch the owner's), else
+// $XDG_CONFIG_HOME/matomeru or ~/.config/matomeru.
+func (o Options) ConfigDir() string {
+	if o.Config != "" {
+		return o.Config
+	}
+	if dir := os.Getenv("MTM_CONFIG_DIR"); dir != "" {
+		return dir
+	}
+	if o.Data != "" && !samePath(o.Data, DefaultData()) {
+		return filepath.Dir(o.Data)
+	}
+	return userConfigDir()
+}
+
+// userConfigDir is $XDG_CONFIG_HOME/matomeru, else ~/.config/matomeru.
+func userConfigDir() string {
+	base := os.Getenv("XDG_CONFIG_HOME")
+	if base == "" {
+		home, _ := os.UserHomeDir()
+		base = filepath.Join(home, ".config")
+	}
+	return filepath.Join(base, "matomeru")
+}
+
+// samePath compares two paths after making them absolute and clean.
+func samePath(a, b string) bool {
+	abs := func(p string) string {
+		if out, err := filepath.Abs(p); err == nil {
+			return out
+		}
+		return filepath.Clean(p)
+	}
+	return abs(a) == abs(b)
 }
 
 const (
@@ -102,7 +144,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
 	flags.StringVar(&opts.Socket, "socket", "", "TUIOS daemon socket; when set it wins over -server (TUIOS_SOCKET alone does not)")
-	flags.StringVar(&opts.Harnesses, "harnesses", harness.ConfigPath(os.Getenv, os.UserHomeDir), "Harness definitions (JSON array) merged by name over the built-ins claude, omp and codex; a missing file is the built-ins")
+	flags.StringVar(&opts.Config, "config", "", "Config directory for dirs.json and harnesses.json (env MTM_CONFIG_DIR); default: beside a non-default -data, else $XDG_CONFIG_HOME/matomeru or ~/.config/matomeru")
+	flags.StringVar(&opts.Harnesses, "harnesses", "", "Harness definitions (JSON array) merged by name over the built-ins claude, omp and codex; default <config>/harnesses.json; a missing file is the built-ins")
 	flags.StringVar(&opts.Server, "server", defaultServer(), "TUIOS server mtm runs on, started when missing (env MTM_SERVER); \""+DefaultDaemon+"\" is your own daemon (TUIOS_SOCKET or the runtime dir), never started")
 	words := []string{"help"} // -h and --help list the commands after the flags
 	if err := flags.Parse(args); err == nil {
@@ -235,6 +278,7 @@ type App struct {
 	savedList   *ochazuke.List
 	vimList     *ochazuke.List
 	vimDir      string
+	configDir   string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	outline *outlineState // the task outline last opened (outline.go)
 
@@ -258,6 +302,10 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	configDir := opts.ConfigDir()
+	if opts.Harnesses == "" {
+		opts.Harnesses = filepath.Join(configDir, "harnesses.json")
+	}
 	harnesses, err := harness.Load(opts.Harnesses)
 	if err != nil {
 		db.Close()
@@ -266,6 +314,7 @@ func New(opts Options) (*App, error) {
 	r := ochazuke.NewRuntime()
 	client := opts.client()
 	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a.configDir = configDir
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
