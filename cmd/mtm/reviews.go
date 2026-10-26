@@ -426,7 +426,7 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		if _, ok := v.(paneGone); ok {
-			a.captureErr = "pane gone; showing saved output"
+			a.captureErr = paneGoneNote
 			return
 		}
 		text, _ := v.(string)
@@ -442,6 +442,9 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 
 // paneGone is a capture of a pane the daemon no longer has.
 type paneGone struct{}
+
+// paneGoneNote is the detail's note for a review whose pane was killed.
+const paneGoneNote = "pane gone; showing saved output"
 
 func (a *App) acceptReview(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.setReviewStatus(ctx, work.ReviewAccepted)
@@ -657,6 +660,9 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 			detail = fmt.Sprintf("turns: %s · %s", rv.Pane, plural(row.unread(), "unreviewed turn"))
 			if owner, err := a.work.PaneOwner(rv.Window, ""); err == nil {
 				detail += " · current owner: " + a.ownerLabel(owner.ProjectID)
+			}
+			if a.captureErr == paneGoneNote {
+				detail += " · pane gone"
 			}
 			body = a.fill(a.reviewTurns.Block(width, rows).Text, rows)
 		}

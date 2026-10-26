@@ -258,6 +258,27 @@ func TestReviewOfAKilledPaneShowsTheSavedOutputQuietly(t *testing.T) {
 	}
 }
 
+// R15 after the Reviews rebuild: a pane's journaled row whose pane was
+// killed opens on its turns with no error; the detail says the pane is gone.
+func TestJournalReviewOfAKilledPaneOpensQuietly(t *testing.T) {
+	path := seeded(t)
+	capturedTurns(t, path, "first answer", "second answer")
+	app := openWith(t, Options{Data: path})
+	f := app.panesd.(*fakePanes)
+	f.panes = f.panes[1:] // w1 was killed
+	reload(t, app)
+	press(t, app, "ctrl+j", "ctrl+j")
+	if app.r.Page != reviewsPage || len(app.reviewList.Items()) != 1 {
+		t.Fatalf("page %s rows %+v", app.r.Page, app.reviewList.Items())
+	}
+	f.err = &daemon.Error{Code: "window_not_found", Message: "no window"}
+	settle(app, key(t, app, "enter"))
+	fr := frame(app)
+	if app.m.Status != "" || strings.Contains(fr, "window_not_found") || !strings.Contains(fr, "unreviewed turns · current owner: matomeru · pane gone") {
+		t.Fatalf("status %q:\n%s", app.m.Status, fr)
+	}
+}
+
 // The answer's label names no keys; the footer has them (UX review 2 F11).
 func TestAnswerLabelNamesNoKeys(t *testing.T) {
 	app, _, _ := reviewApp(t)
