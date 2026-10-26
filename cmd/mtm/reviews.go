@@ -463,9 +463,10 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 			detail += " · captured " + time.UnixMilli(rv.CapturedAt).Format("15:04:05")
 		}
 		body = a.fill(rv.Output, rows, width)
-		answer = "answer (s edits, enter saves, U drops the draft):"
+		// The keys that edit, save and drop the answer are on the footer.
+		answer = "answer:"
 		if _, ok := a.answerDraftOf(rv.ID); ok {
-			answer = "answer · draft (enter saves, U drops it):"
+			answer = "answer · draft, not saved yet:"
 		}
 	}
 	lines := []string{s.Muted.Render(ansi.Truncate(head, width, "…")), list, s.Muted.Render(ansi.Truncate(detail, width, "…")), body, s.Muted.Render(ansi.Truncate(answer, width, "…"))}

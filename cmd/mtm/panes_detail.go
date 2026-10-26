@@ -229,16 +229,24 @@ func (a *App) attachSession(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(errors.New("select a session"))
 	}
+	id := a.sessionPane(ctx.Instance.ID)
+	if id == "" {
+		return ochazuke.Failed(errors.New("the session has no pane; n opens a shell"))
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "attach", Noun: "pane", Target: id}); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(id)
+}
+
+// sessionPane is the first pane row under a session row, "" for none.
+func (a *App) sessionPane(session string) string {
 	for _, n := range a.pv.tree.Nodes() {
-		if n.Parent == ctx.Instance.ID && strings.HasPrefix(n.ID, "pane:") {
-			_, err := a.r.Execute(ochazuke.Request{Verb: "attach", Noun: "pane", Target: n.ID})
-			if err != nil {
-				return ochazuke.Failed(err)
-			}
-			return ochazuke.Done(n.ID)
+		if n.Parent == session && strings.HasPrefix(n.ID, "pane:") {
+			return n.ID
 		}
 	}
-	return ochazuke.Failed(errors.New("the session has no pane; n opens a shell"))
+	return ""
 }
 
 // movePane is pane.move: with project or scratch it associates the pane at
@@ -370,12 +378,12 @@ func (a *App) defineLiveKeys() {
 		Mode("terminal").
 		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · c context · ? keys")).
 		Mode("leader_pending").
-		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"})).
-		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"})).
+		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
+		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
 		Bind("d", ochazuke.Do("terminal.sideDetach")).
 		Bind("z", ochazuke.Do("terminal.zoom")).
-		Bind("j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1})).
-		Bind("k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1})).
+		Bind("j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1}).Hinted("next pane")).
+		Bind("k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1}).Hinted("previous pane")).
 		Bind("c", ochazuke.Do(contextNoun+".pick")).
 		Bind("?", ochazuke.Do("terminal.keys"))
 	a.leaderView()
@@ -643,7 +651,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	default:
 		title, body = a.groupSummary(inst)
 	}
-	tabs := a.tabLine(term != nil)
+	tabs := a.tabLine(term != nil, a.r.Instances[a.r.Focus] != nil && a.r.Instances[a.r.Focus].Noun == "pane")
 	switch {
 	case header != "":
 		header = layout.Styles.Muted.Render(ansi.Truncate(header, cw, "…"))
@@ -654,8 +662,10 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	return layout.PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, focused)
 }
 
-// tabLine names the tabs, the shown one marked.
-func (a *App) tabLine(live bool) string {
+// tabLine names the tabs, the shown one marked; "enter live" only while
+// the focus is a pane row, where enter attaches it (in the Turns tree
+// enter opens a turn).
+func (a *App) tabLine(live, onPane bool) string {
 	parts := make([]string, len(tabNames))
 	for i, name := range tabNames {
 		if i == a.pv.tab {
@@ -667,7 +677,10 @@ func (a *App) tabLine(live bool) string {
 	if live {
 		return line + " · live · ctrl+a ? keys"
 	}
-	return line + " · [ ] tabs · enter live"
+	if onPane {
+		return line + " · [ ] tabs · enter live"
+	}
+	return line + " · [ ] tabs"
 }
 
 // paneHeader is the detail's first line, the pane's facts. A shell's is

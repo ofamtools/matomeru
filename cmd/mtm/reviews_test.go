@@ -251,3 +251,13 @@ func TestReviewOfAKilledPaneShowsTheSavedOutputQuietly(t *testing.T) {
 		t.Fatalf("status %q, detail %q", app.m.Status, app.captureErr)
 	}
 }
+
+// The answer's label names no keys; the footer has them (UX review 2 F11).
+func TestAnswerLabelNamesNoKeys(t *testing.T) {
+	app, _, _ := reviewApp(t)
+	settle(app, key(t, app, "enter"))
+	fr := frame(app)
+	if !strings.Contains(fr, "answer:") || strings.Contains(fr, "s edits") || strings.Contains(fr, "enter saves") {
+		t.Fatalf("answer label:\n%s", fr)
+	}
+}

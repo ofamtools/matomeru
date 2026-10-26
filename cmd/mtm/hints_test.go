@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -9,20 +10,35 @@ import (
 
 // hintKeys is the footer's hint line for the focus as "key noun.verb"
 // pairs, in the order the footer shows them. The footer carries no
-// descriptions: every hint is exactly "key noun.verb" (the leader's
-// "ctrl+a leader: …" is its row's Hint).
+// descriptions: every hint is "key noun.verb", or "key hint" for a row
+// with a Hint (the leader's "ctrl+a leader: …", "] next tab").
 func hintKeys(a *App) []string {
 	var out []string
 	for _, h := range strings.Split(ochazuke.BindingHints(a.r, a.r.Focus), " · ") {
 		if strings.HasPrefix(h, "ctrl+a leader:") {
 			h = "ctrl+a leader"
 		}
-		if len(strings.Fields(h)) != 2 {
-			panic("hint is not key noun.verb: " + h)
+		if len(strings.Fields(h)) < 2 {
+			panic("hint is not key noun.verb or key hint: " + h)
 		}
 		out = append(out, h)
 	}
 	return out
+}
+
+// footerLabels fails when two footer hints at the focus read the same
+// after their key: the same operation under two keys must say what each
+// key does (a Hint), not repeat noun.verb.
+func footerLabels(t *testing.T, a *App) {
+	t.Helper()
+	seen := map[string]string{}
+	for _, h := range hintKeys(a) {
+		k, label, _ := strings.Cut(h, " ")
+		if other, ok := seen[label]; ok {
+			t.Errorf("focus %s: %q and %q both read %q", a.r.Focus, other, k, label)
+		}
+		seen[label] = k
+	}
 }
 
 func TestTerminalFooterExposesPassthroughLeader(t *testing.T) {
@@ -90,5 +106,78 @@ func TestChooserFooterListsNoMotions(t *testing.T) {
 	f := frameAt(a, 120)
 	if strings.Contains(f, "chooser.move") || !strings.Contains(f, "enter chooser.pick") {
 		t.Fatalf("chooser hints:\n%s", f)
+	}
+}
+
+// UX review 2 F11: hints name what the key does at this focus.
+func TestStaleHintsAreGone(t *testing.T) {
+	app, f := panesApp(t)
+	has := func(want string) bool {
+		for _, h := range hintKeys(app) {
+			if h == want {
+				return true
+			}
+		}
+		return false
+	}
+	// The repeated operations read what each key does.
+	footerLabels(t, app)
+	if !has("] next tab") || !has("[ previous tab") {
+		t.Fatalf("tab hints: %v", hintKeys(app))
+	}
+	// The daemon answers: e daemon.ensure is no key, even with no panes.
+	if has("e daemon.ensure") {
+		t.Fatalf("daemon up: %v", hintKeys(app))
+	}
+	// A session with no pane: enter is not offered (it could only fail);
+	// one with a pane offers it.
+	f.panes = append(f.panes, pane{Session: "empty"})
+	reload(t, app)
+	if err := app.r.SetFocus("session:empty"); err != nil {
+		t.Fatal(err)
+	}
+	if has("enter session.attach") {
+		t.Fatalf("empty session: %v", hintKeys(app))
+	}
+	if err := app.r.SetFocus("session:matomeru"); err != nil {
+		t.Fatal(err)
+	}
+	if !has("enter session.attach") {
+		t.Fatalf("session with a pane: %v", hintKeys(app))
+	}
+	f.panes = nil
+	reload(t, app)
+	if has("e daemon.ensure") {
+		t.Fatalf("no panes, daemon up: %v", hintKeys(app))
+	}
+	// Down, e starts it.
+	f.err = errors.New("dial unix tuios.sock: connect: no such file or directory")
+	reload(t, app)
+	if !has("e daemon.ensure") {
+		t.Fatalf("daemon down: %v", hintKeys(app))
+	}
+}
+
+// The leader's footer says what each side key opens.
+func TestLeaderHintsNameEachKey(t *testing.T) {
+	app, _ := panesApp(t)
+	press(t, app, "enter", "ctrl+a")
+	if app.r.Mode.Name != "leader_pending" {
+		t.Fatalf("mode %s", app.r.Mode.Name)
+	}
+	footerLabels(t, app)
+}
+
+// The detail's tab line offers "enter live" only on a pane row.
+func TestTabLineEnterLiveOnlyOnAPaneRow(t *testing.T) {
+	app, _ := panesApp(t)
+	settle(app, follow(app))
+	if fr := frame(app); !strings.Contains(fr, "enter live") {
+		t.Fatalf("pane row:\n%s", fr)
+	}
+	settle(app, key(t, app, "["))
+	press(t, app, "}")
+	if fr := frame(app); strings.Contains(fr, "enter live") {
+		t.Fatalf("turns tree (focus %s):\n%s", app.r.Focus, fr)
 	}
 }

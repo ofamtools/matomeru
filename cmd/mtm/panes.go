@@ -220,9 +220,13 @@ func (a *App) definePanes() {
 		Verb("move", a.moveSession, "Move the session to a project (a chooser; unassociated last)").
 		Verb("kill", a.killSession, "Close the session and every pane in it").Confirm("Kill {{label}} and its panes?").
 		Mode("normal").
-		Bind("enter", ochazuke.Do("session.attach")).
+		Bind("enter", ochazuke.Do("session.attach").Guard("session-has-pane")).
 		Bind("m", ochazuke.Do("session.move")).
 		Bind("x", ochazuke.Do("session.kill"))
+	// enter attaches a session only when it has a pane to attach.
+	a.r.DefineGuard("session-has-pane", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		return a.sessionPane(ev.Focus) != ""
+	})
 	r.Define("pane-project").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
 	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
 	r.Define("panes").
@@ -262,8 +266,8 @@ func (a *App) addPanesPage() error {
 		keys string
 		req  ochazuke.Binding
 	}{
-		{"]", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": 1})},
-		{"[", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": -1})},
+		{"]", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": 1}).Hinted("next tab")},
+		{"[", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": -1}).Hinted("previous tab")},
 		{"w", ochazuke.Do("panes.waiting")},
 		{"a", ochazuke.Do("panes.agent")},
 	} {
@@ -273,10 +277,10 @@ func (a *App) addPanesPage() error {
 			return err
 		}
 	}
-	// An empty list (no panes, or the daemon is down) answers e with
-	// daemon.ensure; the rows keep their own keys.
-	a.r.DefineGuard("no-panes", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.paneList.Len() == 0 })
-	ensure := ochazuke.Do("daemon.ensure").Guard("no-panes")
+	// While the daemon does not answer (the list shows "daemon is not
+	// running") e runs daemon.ensure; with the daemon up it is no key.
+	a.r.DefineGuard("daemon-down", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.paneErr != "" })
+	ensure := ochazuke.Do("daemon.ensure").Guard("daemon-down")
 	ensure.Instance, ensure.Mode, ensure.Keys = paneListID, "normal", "e"
 	if err := a.r.Bind(ensure); err != nil {
 		return err
