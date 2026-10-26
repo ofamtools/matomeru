@@ -90,8 +90,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	a.followProject()
 	if a.r.Page != a.lastPage {
 		a.lastPage = a.r.Page
-		if a.r.Page == directoriesPage {
+		switch a.r.Page {
+		case directoriesPage:
 			cmd = tea.Batch(cmd, a.openedDirectories())
+		case savedPage:
+			// Refresh is automatic: the page reads its records on opening
+			// (another mtm or the CLI may have changed them).
+			if err := a.refreshSaved(); err != nil {
+				a.m.Status = err.Error()
+			}
+		case vimPage:
+			if err := a.refreshVim(); err != nil {
+				a.m.Status = err.Error()
+			}
 		}
 	}
 	if expire := a.expireNotices(msg, notices); expire != nil {

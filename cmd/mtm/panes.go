@@ -268,7 +268,8 @@ func (a *App) addPanesPage() error {
 	}{
 		{"]", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": 1}).Hinted("next tab")},
 		{"[", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": -1}).Hinted("previous tab")},
-		{"w", ochazuke.Do("panes.waiting")},
+		// W: w saves a pane as a record (the key map).
+		{"W", ochazuke.Do("panes.waiting")},
 	} {
 		b := row.req
 		b.Instance, b.Mode, b.Keys = panesPage, "normal", row.keys

@@ -42,16 +42,16 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	if got := cells(app, row); !strings.Contains(got, "? claude") || !strings.Contains(got, "| needs input") {
 		t.Fatalf("agent row cells %q", got)
 	}
-	// Needs input sorts first and the header counts it; w jumps to it.
-	if fr := frame(app); !strings.Contains(fr, "1 need input · w next") {
+	// Needs input sorts first and the header counts it; W jumps to it.
+	if fr := frame(app); !strings.Contains(fr, "1 need input · W next") {
 		t.Fatalf("header:\n%s", fr)
 	}
 	if items := app.paneList.Items(); items[2].ID != row {
 		t.Fatalf("needs input is not first: %+v", items)
 	}
-	press(t, app, "w")
+	press(t, app, "W")
 	if app.r.Focus != row {
-		t.Fatalf("w: focus %s", app.r.Focus)
+		t.Fatalf("W: focus %s", app.r.Focus)
 	}
 	// Every terminal verb answers on the agent row.
 	want := []string{"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.move", "n pane.new"}

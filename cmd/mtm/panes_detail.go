@@ -579,7 +579,10 @@ func (a *App) panesHead() string {
 	v := a.pv.view
 	head := fmt.Sprintf("panes (%d)", v.panes)
 	if v.waiting > 0 {
-		head += fmt.Sprintf(" · %d need input · w next", v.waiting)
+		head += fmt.Sprintf(" · %d need input", v.waiting)
+		if k := a.keyFor(a.r.Focus, "panes.waiting"); k != "" {
+			head += " · " + k + " next"
+		}
 	}
 	if v.hidden > 0 {
 		head += fmt.Sprintf(" · %d outside the pin · S shows all", v.hidden)

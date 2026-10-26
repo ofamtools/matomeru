@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+
+	tea "charm.land/bubbletea/v2"
 	"reflect"
 	"testing"
 
@@ -12,7 +14,8 @@ import (
 
 func savedCall(t *testing.T, a *App, verb string, args ochazuke.Arguments) {
 	t.Helper()
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "saved", Verb: verb, Target: savedListID, Args: args}); err != nil {
+	// Confirmed: forget asks first from a key; these calls stand for the yes.
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "saved", Verb: verb, Target: savedListID, Args: args, Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())
@@ -139,5 +142,29 @@ func TestSavedRenamePromptCommitsWithoutSaveKey(t *testing.T) {
 	got, err := a.work.SavedPane(row.ID)
 	if err != nil || got.Name != "renamed" || a.ask != nil {
 		t.Fatalf("rename: %+v %v", got, err)
+	}
+}
+
+// Refresh is automatic: a record written behind the page's back (another
+// mtm, the CLI) shows when the Saved page opens; no key reloads it.
+func TestSavedPageRefreshesWhenOpened(t *testing.T) {
+	a := open(t)
+	if _, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "elsewhere", Session: "s", Name: "from the cli", Cwd: "/home/test"}}); err != nil {
+		t.Fatal(err)
+	}
+	if a.savedList.Len() != 0 {
+		t.Fatalf("rows before opening: %d", a.savedList.Len())
+	}
+	if err := a.r.OpenPage(savedPage); err != nil {
+		t.Fatal(err)
+	}
+	a.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	if a.savedList.Len() != 1 {
+		t.Fatalf("rows after opening: %d", a.savedList.Len())
+	}
+	for _, b := range a.r.ListBindings(savedListID) {
+		if b.Request.Key() == "saved.list" {
+			t.Fatalf("a key still reloads the list: %s", b.Keys)
+		}
 	}
 }
