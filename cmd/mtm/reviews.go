@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -88,6 +89,9 @@ func (a *App) refreshReviews() error {
 	if err != nil {
 		return err
 	}
+	// Newest first, like every other list (the store reads oldest first,
+	// the order the Turns tab keeps).
+	slices.Reverse(reviews)
 	a.reviews = nil
 	now := time.Now()
 	items := make([]ochazuke.ListItem, 0, len(reviews))

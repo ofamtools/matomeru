@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 
@@ -264,5 +265,26 @@ func TestAnswerLabelNamesNoKeys(t *testing.T) {
 	fr := frame(app)
 	if !strings.Contains(fr, "answer:") || strings.Contains(fr, "s edits") || strings.Contains(fr, "enter saves") {
 		t.Fatalf("answer label:\n%s", fr)
+	}
+}
+
+// UX review 2 F22: Review lists newest first, like every other list.
+func TestReviewsListNewestFirst(t *testing.T) {
+	app := open(t)
+	old, err := app.work.AddReview(work.Review{Session: "s", Window: "w-old", Pane: "s/old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	recent, err := app.work.AddReview(work.Review{Session: "s", Window: "w-new", Pane: "s/new"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.refreshReviews(); err != nil {
+		t.Fatal(err)
+	}
+	items := app.reviewList.Items()
+	if len(items) != 2 || items[0].ID != recent.ID || items[1].ID != old.ID {
+		t.Fatalf("order %+v", items)
 	}
 }
