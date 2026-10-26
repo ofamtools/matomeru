@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -49,6 +51,9 @@ type journalFeed struct {
 	wake    chan struct{}
 	changed chan struct{}
 	started bool
+	// contextAdded says a burst added context items: the loop reloads the
+	// Context page and the picker with the journal views.
+	contextAdded atomic.Bool
 }
 
 func newJournalFeed() *journalFeed {
@@ -216,14 +221,27 @@ func (a *App) readRings(ctx context.Context) {
 	}
 }
 
-// journal appends entries and signals the loop when any were new.
+// journal appends entries and signals the loop when any were new; the
+// turns of the new ones yield context items (context_turns.go) here, off
+// the loop.
 func (a *App) journal(entries ...history.Entry) {
 	if len(entries) == 0 {
 		return
 	}
-	if ids, err := a.hist.Append(entries...); err == nil && len(ids) > 0 {
-		a.feed.signal()
+	ids, err := a.hist.Append(entries...)
+	if err != nil || len(ids) == 0 {
+		return
 	}
+	var fresh []history.Entry
+	for _, e := range entries {
+		if slices.Contains(ids, e.ID) {
+			fresh = append(fresh, e)
+		}
+	}
+	if n, _ := turnContext(a.hist, a.contexts, fresh); n > 0 {
+		a.feed.contextAdded.Store(true)
+	}
+	a.feed.signal()
 }
 
 // activityOf reads an agent-activity event's entry.
@@ -262,6 +280,10 @@ func (a *App) historyChanged() {
 		errs = append(errs, a.showTurns(a.pv.turnsFor))
 	}
 	errs = append(errs, a.refreshReviews())
+	if a.feed != nil && a.feed.contextAdded.Swap(false) {
+		errs = append(errs, a.reloadContext())
+		a.contextChanged()
+	}
 	if err := errors.Join(errs...); err != nil {
 		a.m.Status = "history: " + err.Error()
 	}

@@ -135,6 +135,13 @@ func (j *Journal) own(e *Entry) {
 	}
 }
 
+// Get is one entry by id.
+func (j *Journal) Get(id string) (Entry, error) {
+	var e Entry
+	err := j.db.Get(Table.Name, id, &e)
+	return e, err
+}
+
 // All is every entry, in matomeru-old's order: by time, then observation,
 // source, session, window, sequence and source id.
 func (j *Journal) All() ([]Entry, error) {

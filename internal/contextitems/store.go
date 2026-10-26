@@ -194,7 +194,7 @@ func (s *Store) Merge(items []Item, owner Owner, now int64) ([]Item, int, error)
 					it.Created = now
 				}
 				it.LastSeen = now
-				it.Provenance = Provenance{Session: it.Session, Window: it.Window, ProjectID: owner.ProjectID, TaskID: owner.TaskID, At: it.Created}
+				it.Provenance = Provenance{TurnID: it.Provenance.TurnID, Session: it.Session, Window: it.Window, ProjectID: owner.ProjectID, TaskID: owner.TaskID, At: it.Created}
 				added = append(added, it)
 			}
 			existing[k] = it

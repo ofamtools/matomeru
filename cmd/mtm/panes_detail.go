@@ -156,8 +156,18 @@ func (a *App) paneActivity(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // paneTranscript is pane.transcript: the agent's transcript off the loop.
+// What it reads yields context items for the pane's owner now
+// (transcriptContext), so a transcript the person reads is extracted
+// without a read of its own.
 func (a *App) paneTranscript(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.paneText(ctx, tabTranscript, func(c context.Context, p pane) (string, error) { return a.panesd.Transcript(c, p) })
+	extract := a.transcriptContext(ctx.Instance)
+	return a.paneText(ctx, tabTranscript, func(c context.Context, p pane) (string, error) {
+		text, err := a.panesd.Transcript(c, p)
+		if err == nil {
+			extract(p, text)
+		}
+		return text, err
+	})
 }
 
 func (a *App) paneText(ctx ochazuke.Ctx, tab int, read func(context.Context, pane) (string, error)) ochazuke.Result {

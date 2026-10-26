@@ -27,6 +27,9 @@ import (
 //     with the full prompt, Stop completes the conversation's open turn
 //     with last_assistant_message (else the transcript's last answer).
 //     Anything else, or a call from outside a TUIOS pane, does nothing.
+//
+// Each journaled prompt or answer then yields its context items
+// (context_turns.go) before the command returns.
 
 // hookHarnesses are the harnesses capture-hook reads payloads of.
 var hookHarnesses = []string{"claude-code", "codex"}
@@ -84,7 +87,7 @@ func (a *App) captureTurn(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(map[string]string{"id": id})
+	return a.capturedContext(id, map[string]string{"id": id})
 }
 
 // hookPayload is the part of a Claude Code or Codex hook payload capture
@@ -128,7 +131,7 @@ func (a *App) captureHook(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
-		return ochazuke.Done(map[string]string{"id": entry})
+		return a.capturedContext(entry, map[string]string{"id": entry})
 	case "Stop":
 		open, ok, err := a.hist.OpenCapture(session, window, harness, conversation)
 		if err != nil {
@@ -145,7 +148,7 @@ func (a *App) captureHook(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
-		return ochazuke.Done(map[string]string{"id": entry})
+		return a.capturedContext(entry, map[string]string{"id": entry})
 	}
 	return ochazuke.Done(map[string]string{"skipped": "event " + p.Event})
 }

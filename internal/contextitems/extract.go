@@ -194,7 +194,7 @@ func linkKind(u *url.URL) string {
 }
 
 // trimPath cuts what follows a path in prose: a fragment or escape (#,
-// a backslash), a location (:12, :1-7,565) and trailing punctuation or
+// a backslash), a Markdown link's target, a location (:12, :1-7,565) and trailing punctuation or
 // brackets. A truncated (…) or glob path ({a,b}, *) names nothing and is
 // dropped ("").
 func trimPath(raw string) string {
@@ -202,6 +202,10 @@ func trimPath(raw string) string {
 		return ""
 	}
 	if cut := strings.IndexAny(raw, "#\\"); cut >= 0 {
+		raw = raw[:cut]
+	}
+	// A Markdown link, [path](path): the label is the path.
+	if cut := strings.Index(raw, "]("); cut >= 0 {
 		raw = raw[:cut]
 	}
 	if slash := strings.LastIndex(raw, "/"); slash >= 0 {

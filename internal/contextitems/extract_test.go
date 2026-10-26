@@ -105,3 +105,16 @@ func TestPathsLoseLocationsAndTruncatedOnesAreDropped(t *testing.T) {
 		t.Fatalf("items = %v, want %v", got, want)
 	}
 }
+
+// Agents answer in Markdown: a linked path is its label alone.
+func TestAMarkdownLinkedPathIsOneItem(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "todo.md")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := kinds(Extract("saved to ["+file+"]("+file+") and committed", 0, Source{Kind: "turn"}))
+	if !slices.Equal(got, []string{"file " + file}) {
+		t.Fatalf("got %q", got)
+	}
+}

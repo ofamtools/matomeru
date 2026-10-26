@@ -28,6 +28,8 @@ type fakePanes struct {
 	exited   map[string]bool // windows whose process ended but stay listed
 	// backs are the windows' scrollback captures (copy mode reads them).
 	backs map[string]scrollback
+	// transcript replaces the agents' default transcript when set.
+	transcript string
 }
 
 // Exited is the fake's exit probe: the windows marked in exited.
@@ -94,6 +96,9 @@ func (f *fakePanes) Activity(_ context.Context, p pane) (string, error) {
 }
 
 func (f *fakePanes) Transcript(_ context.Context, p pane) (string, error) {
+	if f.transcript != "" {
+		return f.transcript, f.err
+	}
 	return "user\nfix the tests\n\nassistant\ndone", f.err
 }
 

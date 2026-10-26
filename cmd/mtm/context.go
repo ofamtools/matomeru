@@ -133,6 +133,7 @@ func (a *App) defineContext() {
 		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred); starred items sort first").Positional("id").
 		Verb("forget", a.forgetContext, "Forget the record only; the file, page or branch it names is untouched").Positional("id").Confirm("Forget {{label}}?").
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
+		Verb("turns", a.extractTurns, "Extract items from every journaled turn's prompt and answer now (new turns are extracted as they are journaled)").
 		Verb("follow", a.followPanes, "Read the panes that printed since the last read and keep what is new (runs by itself about once a second)").Quiet().
 		Verb("kind", a.cycleContextKind, "Show one kind at a time: all, then each kind in turn").
 		Verb("search", a.searchContext, "Filter the context items by words").
