@@ -111,11 +111,10 @@ func (a *App) replaceNoteDoc(id string) error {
 	return nil
 }
 
-// defineNoteDoc adds mtm's rows to the markdown noun, once at setup (a
-// Bind while a key sequence is pending would cancel it): i edits the
-// note the Doc fronts (selectedNote), esc goes back to the list's
-// selected row (the previous stop: the note-body stop stands aside while
-// the Doc has items).
+// defineNoteDoc adds mtm's rows to the markdown noun at setup, with the
+// other nouns' rows: i edits the note the Doc fronts (selectedNote), esc
+// goes back to the list's selected row (the previous stop: the note-body
+// stop stands aside while the Doc has items).
 func (a *App) defineNoteDoc() {
 	markdown.Register(a.r)
 	a.r.Define(markdown.DocNoun).Mode("normal").

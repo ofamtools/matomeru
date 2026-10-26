@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/unixsuperhero/ochazuke"
+	"github.com/unixsuperhero/ochazuke/markdown"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
@@ -279,5 +281,21 @@ func TestNoteChecklistDrawsTheDoc(t *testing.T) {
 	}
 	if len(items) != 1 || items[0] != "[ ] two" {
 		t.Fatalf("highlighted items %q:\n%s", items, frame(a))
+	}
+}
+
+// A markdown row bound while d of d d is pending keeps the sequence
+// (ochazuke's Bind leaves a prefix its rows are not on), so mtm's rows on
+// the markdown noun are safe to bind at any time, not only at setup.
+func TestMarkdownRowBoundMidSequenceKeepsDD(t *testing.T) {
+	a, _ := notesDocApp(t)
+	a.Update(keyMsg("d"))
+	if a.r.Pending != "d" {
+		t.Fatalf("pending %q", a.r.Pending)
+	}
+	a.r.Define(markdown.DocNoun).Mode("normal").Bind("I", ochazuke.Do("note.edit"))
+	a.Update(keyMsg("d"))
+	if a.r.TopModal() == "" {
+		t.Fatalf("d d after a Bind did not ask to delete: pending %q status %q", a.r.Pending, a.m.Status)
 	}
 }
