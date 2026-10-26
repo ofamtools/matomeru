@@ -77,6 +77,7 @@ func (a *App) vimRowsWith(state func(work.VimSession) string) ([]ocli.Row, error
 		return nil, err
 	}
 	rows := make([]ocli.Row, 0, len(sessions))
+	home, _ := a.home() // paths read with ~, as on every other page
 	for _, session := range sessions {
 		project, err := a.work.VimProject(session)
 		if err != nil {
@@ -91,7 +92,7 @@ func (a *App) vimRowsWith(state func(work.VimSession) string) ([]ocli.Row, error
 		}
 		session.State = state(session)
 		rows = append(rows, ocli.Row{Noun: "vim", ID: session.ID, Label: label,
-			Cells: []string{label, a.ownerLabel(project), session.State, session.Path}, Data: session})
+			Cells: []string{label, a.ownerLabel(project), session.State, tildePath(session.Path, home)}, Data: session})
 	}
 	return rows, nil
 }

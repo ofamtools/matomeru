@@ -70,6 +70,7 @@ func (a *App) savedRows() ([]ocli.Row, error) {
 		return nil, err
 	}
 	out := make([]ocli.Row, 0, len(rows))
+	home, _ := a.home() // paths read with ~, as on every other page
 	for _, row := range rows {
 		if !a.inScope(row.ProjectID) {
 			continue
@@ -82,7 +83,7 @@ func (a *App) savedRows() ([]ocli.Row, error) {
 		if name == "" {
 			name = row.ID
 		}
-		out = append(out, ocli.Row{Noun: "saved", ID: row.ID, Label: name, Cells: []string{name, a.ownerLabel(row.ProjectID), command, row.Cwd}, Data: row})
+		out = append(out, ocli.Row{Noun: "saved", ID: row.ID, Label: name, Cells: []string{name, a.ownerLabel(row.ProjectID), command, tildePath(row.Cwd, home)}, Data: row})
 	}
 	return out, nil
 }

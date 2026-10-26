@@ -168,3 +168,30 @@ func TestSavedPageRefreshesWhenOpened(t *testing.T) {
 		}
 	}
 }
+
+// UX review 2 F22: Saved and Vim show paths under the home directory with
+// ~, as the other pages do.
+func TestSavedAndVimShowHomePathsWithTilde(t *testing.T) {
+	a := open(t)
+	a.home = func() (string, error) { return "/home/test", nil }
+	if _, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w9", Session: "s", Name: "builder", Cwd: "/home/test/proj/x"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.work.PutVimSession(work.VimSession{ID: "v9", Name: "notes", Path: "/home/test/.local/v9.vim", Created: 1}); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := a.savedRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vims, err := a.vimRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved) != 1 || saved[0].Cells[3] != "~/proj/x" {
+		t.Fatalf("saved cells %+v", saved)
+	}
+	if len(vims) != 1 || vims[0].Cells[3] != "~/.local/v9.vim" {
+		t.Fatalf("vim cells %+v", vims)
+	}
+}
