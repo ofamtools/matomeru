@@ -256,18 +256,20 @@ func TestLivePickerOpensAPromptsTurn(t *testing.T) {
 	}
 }
 
-// A chooser narrower than chooserPreviewMin draws no preview.
+// A chooser narrower than ochazuke.ChooserPreviewMin draws no preview, a
+// wide one draws it beside the rows (the picker's own preview is checked
+// end to end above).
 func TestChooserPreviewNeedsTheWidth(t *testing.T) {
 	r := ochazuke.NewRuntime()
-	c, err := r.OpenChooser(ochazuke.ChooserSpec{Kind: "preview-test", Rows: []ochazuke.ChooserRow{{ID: "a", Label: "a"}}, Filter: func(string, ochazuke.ChooserRow) bool { return true }})
+	c, err := r.OpenChooser(ochazuke.ChooserSpec{Kind: "preview-test", Rows: []ochazuke.ChooserRow{{ID: "a", Label: "a"}}, Filter: func(string, ochazuke.ChooserRow) bool { return true },
+		Preview: func(ochazuke.ChooserRow) string { return "preview text" }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	preview := func(ochazuke.ChooserRow) string { return "preview text" }
-	if v := previewView(c, preview, chooserPreviewMin-1, 6).Text; strings.Contains(v, "preview text") {
+	if v := c.View(ochazuke.ChooserPreviewMin-1, 6).Text; strings.Contains(v, "preview text") {
 		t.Fatalf("narrow:\n%s", v)
 	}
-	if v := previewView(c, preview, chooserPreviewMin, 6).Text; !strings.Contains(v, "│ preview text") {
+	if v := c.View(ochazuke.ChooserPreviewMin, 6).Text; !strings.Contains(v, "│ preview text") {
 		t.Fatalf("wide:\n%s", v)
 	}
 }

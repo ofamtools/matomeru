@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
@@ -76,16 +75,9 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.cx.picking = p
-	title := "Context · " + p.label()
-	// The framework chooser has no preview: this ModalView, which the
-	// Model reads before the chooser's own drawing, puts the highlighted
-	// row's text beside the rows.
-	a.m.ModalViews[contextPicker] = ochazuke.ModalView{Title: title, Render: func(r *ochazuke.Runtime, _ *ochazuke.Instance, w, h int) ochazuke.Block {
-		return previewView(r.Chooser(contextPicker), pickerPreview, w, h)
-	}}
 	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  contextPicker,
-		Title: title,
+		Title: "Context · " + p.label(),
 		Rows:  a.pickerRows(p),
 		// Every typed word is in the row: a long path must not match a
 		// query by scattering its letters.
@@ -97,6 +89,7 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 			}
 			return a.runOnItem("copy", row.ID)
 		},
+		Preview: pickerPreview,
 	})
 	return resultError(err)
 }
@@ -332,58 +325,4 @@ func closeChooser(r *ochazuke.Runtime, c *ochazuke.Chooser) error {
 		return errors.New("the chooser is not the top modal")
 	}
 	return r.Pop()
-}
-
-// chooserPreviewMin is the width from which previewView draws the preview
-// beside the rows.
-const chooserPreviewMin = 60
-
-// previewView draws chooser c with preview's text for the highlighted row
-// beside the rows (wrapped, cut at the bottom) once it is
-// chooserPreviewMin cells wide; narrower, the rows take the whole width.
-// ochazuke's ChooserSpec has no Preview yet; this keeps mtm's.
-func previewView(c *ochazuke.Chooser, preview func(ochazuke.ChooserRow) string, width, height int) ochazuke.Block {
-	if c == nil {
-		return ochazuke.Text("")
-	}
-	if preview == nil || width < chooserPreviewMin {
-		return c.View(width, height)
-	}
-	// The preview column keeps its width whatever it holds, so the panel
-	// does not change size as the highlight moves.
-	listWidth := width * 3 / 5
-	previewWidth := width - listWidth - 3
-	left := c.View(listWidth, height)
-	text := ""
-	if row, ok := c.Highlighted(); ok {
-		text = preview(row)
-	}
-	right := previewLines(text, previewWidth, height)
-	lines := strings.Split(left.Text, "\n")
-	for len(lines) < len(right) {
-		lines = append(lines, "")
-	}
-	for i, line := range lines {
-		side := ""
-		if i < len(right) {
-			side = right[i]
-		}
-		lines[i] = line + strings.Repeat(" ", max(0, listWidth-ansi.StringWidth(line))) + " │ " + side + strings.Repeat(" ", max(0, previewWidth-ansi.StringWidth(side)))
-	}
-	return left.WithText(strings.Join(lines, "\n"))
-}
-
-// previewLines is a preview's text wrapped to width, at most height lines,
-// the last one marking a cut with ….
-func previewLines(text string, width, height int) []string {
-	if width < 1 || height < 1 || strings.TrimSpace(text) == "" {
-		return nil
-	}
-	text = strings.ReplaceAll(strings.TrimRight(ansi.Strip(text), "\n"), "\t", "  ")
-	wrapped := strings.Split(ansi.Wrap(text, width, " -/"), "\n")
-	if len(wrapped) > height {
-		wrapped = wrapped[:height]
-		wrapped[height-1] = "…"
-	}
-	return wrapped
 }
