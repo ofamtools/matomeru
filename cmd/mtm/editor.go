@@ -265,7 +265,11 @@ func (a *App) commitRecord() error {
 			}
 			p.Name = strings.TrimSpace(record.Text)
 			p.Theme = work.Theme{Color: record.Fields["color"], Glyph: record.Fields["glyph"]}
-			p.Settings = work.ProjectSettings{Harness: record.Fields["harness"], Preset: record.Fields["preset"]}
+			harness := record.Fields["harness"]
+			if a.fieldProblem("harness", harness) != "" {
+				harness = p.Settings.Harness // an unknown harness is never written
+			}
+			p.Settings = work.ProjectSettings{Harness: harness, Preset: record.Fields["preset"]}
 			err = a.work.PutProject(p)
 		case "task":
 			t := work.Task{ID: record.ID, ProjectID: record.ProjectID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Status: work.StatusTodo, Created: work.Now()}
@@ -283,7 +287,7 @@ func (a *App) commitRecord() error {
 				break
 			}
 			t.Title = strings.TrimSpace(record.Text)
-			if status, ok := record.Fields["status"]; ok {
+			if status, ok := record.Fields["status"]; ok && a.fieldProblem("status", status) == "" {
 				t.Status = status
 			}
 			t.Updated = work.Now()
@@ -405,7 +409,11 @@ func (a *App) editorPanel(rightWidth, height int) ochazuke.Block {
 	text += field.Text
 	block := field
 	for _, f := range e.Fields {
-		text += "\n" + f.Name + "\n"
+		label := f.Name
+		if problem := a.fieldProblem(f.Name, string(f.Input.Text)); problem != "" {
+			label += " · not written: " + problem
+		}
+		text += "\n" + label + "\n"
 		row := ochazuke.InputBlock(f.Input, rightWidth, 1).Offset(0, strings.Count(text, "\n"))
 		text += row.Text
 		if f.Input.ID == a.r.Focus {
@@ -414,6 +422,27 @@ func (a *App) editorPanel(rightWidth, height int) ochazuke.Block {
 	}
 	return block.WithText(text)
 }
+
+// fieldProblem says why a value cannot be written to a field the same
+// verbs check elsewhere (task status, project harness), "" when it can:
+// the editor accepts what s and task.status accept (UX review 2 F2).
+func (a *App) fieldProblem(name, value string) string {
+	switch name {
+	case "status":
+		if !work.ValidStatus(value) {
+			return "one of " + strings.Join(work.Statuses, ", ")
+		}
+	case "harness":
+		if value == "" || a.harnesses == nil {
+			return ""
+		}
+		if _, ok := a.harnesses.Get(value); !ok {
+			return "known: " + strings.Join(a.harnesses.Names(), ", ")
+		}
+	}
+	return ""
+}
+
 func (a *App) leaveEditor() error {
 	if a.editor == nil {
 		return nil

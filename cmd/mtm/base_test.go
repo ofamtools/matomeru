@@ -199,3 +199,35 @@ func TestCreationFromReviewKeepsRecordedOwner(t *testing.T) {
 		t.Fatalf("created task hidden on page %s", a.r.Page)
 	}
 }
+
+// The editor's status and harness fields write only values the s and L
+// choosers accept; until then the field says why it is not written (UX
+// review 2 F2).
+func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
+	a := openAt(t, seeded(t))
+	if err := a.reveal("t1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	was := stored(t, a, "t1").Status
+	press(t, a, "esc", "}", "i")
+	typeText(t, a, "Z")
+	a.Update(editorDebounceMsg{a.editor.seq})
+	if got := stored(t, a, "t1").Status; got != was {
+		t.Fatalf("status %q written, want %q kept", got, was)
+	}
+	if f := frame(a); !strings.Contains(f, "status · not written: one of todo, active, blocked, done") {
+		t.Fatalf("no reason shown:\n%s", f)
+	}
+	press(t, a, "ctrl+u")
+	typeText(t, a, "done")
+	a.Update(editorDebounceMsg{a.editor.seq})
+	if got := stored(t, a, "t1").Status; got != "done" {
+		t.Fatalf("valid status not written: %q", got)
+	}
+	if a.fieldProblem("harness", "bogusharness") == "" || a.fieldProblem("harness", "claude") != "" || a.fieldProblem("harness", "") != "" {
+		t.Fatal("harness check")
+	}
+}

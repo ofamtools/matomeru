@@ -286,7 +286,19 @@ func (c *Chooser) refilter() {
 	c.matches = slices.Concat(head, tail, create, fixed)
 	c.moved = false
 	c.cursor = -1
+	// A fixed row the query spells ("unp", "unpin", "no pin" for "no pin
+	// (unpin)") is what was asked for, ahead of the create row; it keeps
+	// its place at the end (UX review 2 F1).
+	spelledFixed := -1
+	for i, row := range fixed {
+		if !spelled && spellsWords(c.seen, row.Label) {
+			spelledFixed = len(head) + len(tail) + len(create) + i
+			break
+		}
+	}
 	switch {
+	case spelledFixed >= 0:
+		c.cursor = spelledFixed
 	case len(create) > 0 && !c.holds(head):
 		// Only scattered matches ("unpin" in "tuios-inbox ~/proj/…"):
 		// Enter creates what was typed rather than guess.

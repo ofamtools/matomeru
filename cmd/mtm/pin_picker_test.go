@@ -412,10 +412,10 @@ func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
 	}
 }
 
-// Typing never reaches the unpin row: a query a project fuzzily matches
-// highlights that project, and one nothing matches creates a project named
-// from it, recorded before the directory chooser opens.
-func TestPinPickerTypingNeverSelectsUnpin(t *testing.T) {
+// Typing the unpin row's words reaches it even when a project fuzzily
+// matches ("unp" in "unixsuperhero"), and never the create row (UX review 2
+// F1, replacing f55ecf6's "typing never reaches unpin").
+func TestPinPickerTypingReachesUnpin(t *testing.T) {
 	path := seeded(t)
 	a := openAt(t, path)
 	for _, name := range []string{"tuios-inbox", "unixsuperhero"} {
@@ -429,14 +429,14 @@ func TestPinPickerTypingNeverSelectsUnpin(t *testing.T) {
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	c := openPicker(t, a)
 	typeText(t, a, "unp")
-	if row, ok := c.Highlighted(); !ok || row.Label != "unixsuperhero" {
+	if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
 		t.Fatalf("unp highlights %+v of %q", row, labels(c.Matches()))
 	}
 	press(t, a, "esc")
 	for _, query := range []string{"no pin", "unpin"} {
 		c = openPicker(t, a)
 		typeText(t, a, query)
-		if row, ok := c.Highlighted(); !ok || row.ID != chooserCreateRow {
+		if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
 			t.Fatalf("%q highlights %+v", query, row)
 		}
 		if got := labels(c.Matches()); len(got) != 2 || got[1] != "no pin (unpin)" {
@@ -444,17 +444,16 @@ func TestPinPickerTypingNeverSelectsUnpin(t *testing.T) {
 		}
 		press(t, a, "esc")
 	}
+	before := projectCount(t, a)
 	openPicker(t, a)
 	typeText(t, a, "unpin")
 	press(t, a, "enter")
-	p, ok := a.project(a.pin)
-	if !ok || p.Name != "unpin" {
-		t.Fatalf("unpin enter: pin %q project %+v", a.pin, p)
+	if a.pin != "" || projectCount(t, a) != before {
+		t.Fatalf("unpin enter: pin %q projects %d want %d", a.pin, projectCount(t, a), before)
 	}
-	if b := openAt(t, path); b.pin != p.ID {
-		t.Fatalf("created project not recorded before the directory chooser: pin %q", b.pin)
+	if b := openAt(t, path); b.pin != "" {
+		t.Fatalf("unpin not recorded: pin %q", b.pin)
 	}
-	leaveDirectoryChooser(t, a)
 }
 
 // ctrl+u in the pin picker clears the query like any other input.
@@ -509,7 +508,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 	if got := labels(c.Matches()); !slices.ContainsFunc(got, func(l string) bool { return strings.Contains(l, "tuios-inbox") }) {
 		t.Fatalf("tuios-inbox should still be listed: %q", got)
 	}
-	if row, ok := c.Highlighted(); !ok || row.ID != chooserCreateRow {
+	if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
 		t.Fatalf("unpin highlights %+v", row)
 	}
 	press(t, a, "esc")
@@ -538,5 +537,25 @@ func TestChooserColumnsFitAndLoadingKeepsWidth(t *testing.T) {
 	view := ansi.Strip(c.View(74, 10).Text)
 	if !strings.Contains(view, "~/proj/some/repo") || !strings.Contains(view, "never") {
 		t.Fatalf("path or age cut:\n%s", view)
+	}
+}
+
+// Typing the unpin row's words highlights it, not the create row, so
+// Enter unpins instead of making a project named "no pin" (UX review 2 F1).
+func TestPinPickerQuerySpellingUnpinHighlightsIt(t *testing.T) {
+	for _, query := range []string{"unp", "unpin", "no pin"} {
+		t.Run(query, func(t *testing.T) {
+			a := open(t)
+			before := projectCount(t, a)
+			c := openPicker(t, a)
+			typeText(t, a, query)
+			if row, _ := c.Highlighted(); row.ID != unpinRow {
+				t.Fatalf("highlight %+v, rows %q", row, labels(c.Matches()))
+			}
+			press(t, a, "enter")
+			if a.pin != "" || projectCount(t, a) != before {
+				t.Fatalf("pin %q projects %d want %d", a.pin, projectCount(t, a), before)
+			}
+		})
 	}
 }

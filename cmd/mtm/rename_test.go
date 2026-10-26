@@ -94,3 +94,30 @@ func TestRenameASession(t *testing.T) {
 		t.Fatalf("panes %+v", app.panes)
 	}
 }
+
+// esc closes the rename prompt and keeps what was typed (esc never
+// discards); esc with nothing changed renames nothing (UX review 2 F4).
+func TestRenameEscKeepsTheTypedName(t *testing.T) {
+	app, f := panesApp(t)
+	fr := &fakeRenamer{panes: f}
+	app.renamer = fr
+	if err := app.paneList.Select("pane:matomeru/w1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.paneList.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	press(t, app, "r")
+	_, cmd := app.Update(keyMsg("esc"))
+	settle(app, cmd)
+	if len(fr.calls) != 0 || app.r.TopModal() != "" {
+		t.Fatalf("unchanged esc: calls %v modal %q", fr.calls, app.r.TopModal())
+	}
+	press(t, app, "r", "ctrl+u")
+	typeText(t, app, "shellbuild")
+	_, cmd = app.Update(keyMsg("esc"))
+	settle(app, cmd)
+	if len(fr.calls) != 1 || fr.calls[0] != "window matomeru/w1 shellbuild" || app.r.TopModal() != "" {
+		t.Fatalf("esc after typing: calls %v modal %q", fr.calls, app.r.TopModal())
+	}
+}
