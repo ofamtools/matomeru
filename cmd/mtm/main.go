@@ -252,6 +252,8 @@ type App struct {
 	hist           *history.Journal    // the history journal and review marks (journal.go)
 	feed           *journalFeed        // the journal's background reader (journal.go)
 	journalSrc     journalSource       // the daemon the reader follows; tests replace it
+	stdin          io.Reader           // the CLI's standard input (the capture verbs read it)
+	getenv         func(string) string // the environment; tests replace it
 	cx             *contextState       // the Context page and its actions (context.go)
 	drafts         *draft.Store
 	editor         *recordEditor
@@ -371,7 +373,7 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.configDir = configDir
-	a.feed, a.journalSrc = newJournalFeed(), client
+	a.feed, a.journalSrc, a.getenv = newJournalFeed(), client, os.Getenv
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
@@ -400,6 +402,7 @@ func New(opts Options) (*App, error) {
 	a.defineSides()
 	a.defineContext()
 	a.defineCopy()
+	a.defineCapture()
 	if err := a.defineKeyMap(); err != nil {
 		return nil, err
 	}

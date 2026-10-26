@@ -35,6 +35,7 @@ var cliUsage = "usage: mtm [--data PATH] [--server NAME|default] [--socket PATH]
 // shell is the CLI over this app's runtime.
 func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	sh := ocli.New(a.r, "mtm", stdin, stdout, stderr)
+	a.stdin = stdin
 	sh.Usage = cliUsage
 	sh.Reveal = a.reveal
 	sh.Owners = a.owners

@@ -125,6 +125,8 @@ func openWith(t *testing.T, opts Options) *App {
 	app.pv.after = nil                                         // no timers: tests deliver followDue and refreshDue themselves
 	app.ensure = func(context.Context) error { return nil }
 	app.sleep = func(context.Context, time.Duration) error { return nil }
+	app.getenv = func(string) string { return "" } // tests may run inside a TUIOS pane
+	app.journalSrc = nil                           // the journal reader never follows the real daemon
 	return app
 }
 
