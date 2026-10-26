@@ -325,6 +325,7 @@ type App struct {
 	noteList    *ochazuke.List
 	noteBody    noteBody    // the Notes page's scrollable body (notes.go)
 	detail      pageDetails // the pages' details J and K scroll (details.go)
+	colors      pinColors   // the theme beneath the pin state's colours (colors.go)
 	savedList   *ochazuke.List
 	vimList     *ochazuke.List
 	vimDir      string

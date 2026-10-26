@@ -69,6 +69,7 @@ func (a *App) Init() tea.Cmd {
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
+	a.applyPinColors()
 	return a.m.View()
 }
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -122,6 +123,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if expire := a.expireNotices(msg, notices); expire != nil {
 		cmd = tea.Batch(cmd, expire)
 	}
+	a.applyPinColors()
 	return a, cmd
 }
 func (a *App) defineRecordEditor() {
