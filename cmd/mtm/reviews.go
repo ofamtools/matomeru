@@ -260,6 +260,10 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		text, err := d.CapturePane(c, target)
+		if gone := (*daemon.Error)(nil); errors.As(err, &gone) && (gone.Code == "window_not_found" || gone.Code == "session_not_found") {
+			// A killed pane is not a failure: the saved output stays.
+			return paneGone{}, nil
+		}
 		if err != nil {
 			return nil, fmt.Errorf("capture %s: %w", rv.Pane, err)
 		}
@@ -272,6 +276,10 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 			a.captureErr = err.Error()
 			return
 		}
+		if _, ok := v.(paneGone); ok {
+			a.captureErr = "pane gone; showing saved output"
+			return
+		}
 		text, _ := v.(string)
 		if _, err := a.work.SaveOutput(rv.ID, text); err != nil {
 			a.captureErr = err.Error()
@@ -282,6 +290,9 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 	})
 }
+
+// paneGone is a capture of a pane the daemon no longer has.
+type paneGone struct{}
 
 func (a *App) acceptReview(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.setReviewStatus(ctx, work.ReviewAccepted)

@@ -10,6 +10,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -237,5 +238,16 @@ func TestAFailingCaptureShowsAndTheAppKeepsWorking(t *testing.T) {
 	press(t, app, "ctrl+k", "ctrl+k")
 	if app.r.Page != "work" {
 		t.Fatalf("page = %s", app.r.Page)
+	}
+}
+
+// Test pass R15: opening the review of a killed pane is not a failure: the
+// saved output stays, the detail says the pane is gone, no error shows.
+func TestReviewOfAKilledPaneShowsTheSavedOutputQuietly(t *testing.T) {
+	app, f, rv := reviewApp(t)
+	f.err = &daemon.Error{Code: "window_not_found", Message: "no window"}
+	settle(app, key(t, app, "enter"))
+	if app.m.Status != "" || app.captureErr != "pane gone; showing saved output" || app.opened != rv.ID {
+		t.Fatalf("status %q, detail %q", app.m.Status, app.captureErr)
 	}
 }
