@@ -268,12 +268,12 @@ func TestAllViewShowsProjectsAsBranches(t *testing.T) {
 func TestTInInsertModeTypesTheLetter(t *testing.T) {
 	a := open(t)
 	press(t, a, "j", "enter", "i")
-	if a.r.Focus != recordInputID || a.r.Mode.Name != "insert" {
+	if a.editor == nil || a.r.Focus != a.editor.fieldID("title") || a.r.Mode.Name != "insert" {
 		t.Fatalf("editor: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
 	}
 	press(t, a, "T")
-	if a.r.TopModal() != "" || !strings.HasSuffix(string(a.editor.Input.Text), "T") {
-		t.Fatalf("T in insert: modal %q text %q", a.r.TopModal(), string(a.editor.Input.Text))
+	if a.r.TopModal() != "" || !strings.HasSuffix(a.editor.Value("title"), "T") {
+		t.Fatalf("T in insert: modal %q text %q", a.r.TopModal(), a.editor.Value("title"))
 	}
 	press(t, a, "esc", "T")
 	if a.r.TopModal() != outlineModal {

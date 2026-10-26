@@ -125,7 +125,7 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 	if _, err := b.r.Execute(ochazuke.Request{Noun: "note", Verb: "edit", Target: original.ID}); err != nil {
 		t.Fatal(err)
 	}
-	if got := string(b.editor.Input.Text); got != "  saved\ntext\ndraft" {
+	if got := b.editor.Value("text"); got != "  saved\ntext\ndraft" {
 		t.Fatalf("restored text: %q", got)
 	}
 	press(t, b, "esc", "q")
@@ -269,7 +269,7 @@ func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "n")
-	if a.r.Page != notesPage || a.r.Focus != recordInputID || a.editor == nil || a.editor.Page != notesPage {
+	if a.r.Page != notesPage || a.editor == nil || a.r.Focus != a.editor.fieldID("text") || a.editor.Page != notesPage {
 		t.Fatalf("page %s focus %s", a.r.Page, a.r.Focus)
 	}
 	typeText(t, a, "kept here")

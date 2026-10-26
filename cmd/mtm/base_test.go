@@ -66,7 +66,7 @@ func TestEditorWritesOnPauseNavigationAndRestart(t *testing.T) {
 	if got := stored(t, a, "t1").Title; got != "write the brief" {
 		t.Fatalf("written before the pause: %q", got)
 	}
-	a.Update(editorDebounceMsg{a.editor.seq})
+	pauseRecord(t, a)
 	if got := stored(t, a, "t1").Title; got != "write the brief paused" {
 		t.Fatalf("not written after the pause: %q", got)
 	}
@@ -200,9 +200,9 @@ func TestCreationFromReviewKeepsRecordedOwner(t *testing.T) {
 	}
 }
 
-// The editor's status and harness fields write only values the s and L
-// choosers accept; until then the field says why it is not written (UX
-// review 2 F2).
+// The editor's status and harness fields are chosen from the lists the s
+// and L choosers offer, never typed; a stored value outside them is shown
+// with the reason and never written back (UX review 2 F2).
 func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
 	a := openAt(t, seeded(t))
 	if err := a.reveal("t1"); err != nil {
@@ -213,21 +213,35 @@ func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
 	}
 	was := stored(t, a, "t1").Status
 	press(t, a, "esc", "}", "i")
+	if a.r.TopModal() == "" {
+		t.Fatal("i on the status field did not open its chooser")
+	}
 	typeText(t, a, "Z")
-	a.Update(editorDebounceMsg{a.editor.seq})
 	if got := stored(t, a, "t1").Status; got != was {
 		t.Fatalf("status %q written, want %q kept", got, was)
+	}
+	press(t, a, "q")
+	// A value an older mtm stored outside the list is shown with the reason.
+	press(t, a, "esc")
+	task := stored(t, a, "t1")
+	task.Status = "todoZ"
+	if err := a.work.PutTask(task); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
+		t.Fatal(err)
 	}
 	if f := frame(a); !strings.Contains(f, "status · not written: one of todo, active, blocked, done") {
 		t.Fatalf("no reason shown:\n%s", f)
 	}
-	press(t, a, "ctrl+u")
-	typeText(t, a, "done")
-	a.Update(editorDebounceMsg{a.editor.seq})
+	press(t, a, "esc", "}", "i", "j", "j", "j", "enter")
 	if got := stored(t, a, "t1").Status; got != "done" {
-		t.Fatalf("valid status not written: %q", got)
+		t.Fatalf("chosen status not written: %q", got)
 	}
-	if a.fieldProblem("harness", "bogusharness") == "" || a.fieldProblem("harness", "claude") != "" || a.fieldProblem("harness", "") != "" {
+	if !a.knownHarness("claude") || !a.knownHarness("") || a.knownHarness("bogusharness") {
 		t.Fatal("harness check")
+	}
+	if f := recordFields("project")[3]; f.Name != "harness" || f.Source != "harness.names" || f.Free {
+		t.Fatalf("harness field %+v", f)
 	}
 }

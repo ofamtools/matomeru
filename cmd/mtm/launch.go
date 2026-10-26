@@ -159,7 +159,8 @@ func (a *App) defineLaunch() {
 		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
 	r.Define("harness").Columns(harnessColumns...).
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").
-		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
+		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)").
+		Verb("names", a.harnessNames, "List the harness names as choices (the project editor's harness field)")
 	r.Define("agent").
 		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
 		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it").
@@ -195,6 +196,12 @@ func (a *App) defineLaunch() {
 // listHarnesses is harness.list: the registry as data.
 func (a *App) listHarnesses(ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(a.harnesses.List())
+}
+
+// harnessNames is harness.names: the registry's names, the choices of a
+// project's harness.
+func (a *App) harnessNames(ochazuke.Ctx) ochazuke.Result {
+	return ochazuke.Done(a.harnesses.Names())
 }
 
 // listModels is harness.models, the model parameter's pick list: every

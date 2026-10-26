@@ -37,7 +37,7 @@ func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
 	a.View()
 	press(t, a, "}", "i")
 	typeText(t, a, "blue")
-	a.Update(editorDebounceMsg{a.editor.seq})
+	pauseRecord(t, a)
 	if p, _ := a.work.Project("matomeru"); p.Theme.Color != "blue" {
 		t.Fatalf("field not written after the pause: %+v", p.Theme)
 	}
@@ -67,9 +67,8 @@ func TestTaskViewDoesNotEditAndStatusDraft(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
 		t.Fatal(err)
 	}
-	a.editor.Fields[0].Input.Text = []rune("active")
 	typeText(t, a, " changed")
-	press(t, a, "enter")
+	press(t, a, "enter", "enter", "j", "enter", "q")
 	task := stored(t, a, "t1")
 	if task.Title != "write the brief changed" || task.Status != "active" || task.ProjectID != "matomeru" {
 		t.Fatalf("task save: %+v", task)
@@ -197,8 +196,9 @@ func TestKnownDirectoriesOrderRecordedUsageBeforeNeverUsed(t *testing.T) {
 	}
 }
 
-// The task editor's fields are reached with } and written as they change;
-// enter leaves the editor.
+// The task editor's fields are reached with } and written as they change:
+// the status from its chooser, where moving the highlight writes nothing
+// and enter writes the row; q leaves the editor.
 func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
@@ -212,25 +212,23 @@ func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 	a.m.Width, a.m.Height = 100, 30
 	a.View()
 	press(t, a, "}")
-	if a.r.Focus != recordInputID+"/status" {
+	if a.r.Focus != a.editor.fieldID("status") {
 		t.Fatalf("status field unreachable: %s", a.r.Focus)
 	}
-	press(t, a, "i", "ctrl+u")
-	typeText(t, a, "do")
+	press(t, a, "i", "j", "j")
 	if got := stored(t, a, "t1"); got.Title != "write the brief keyboard" || got.Status != work.StatusTodo {
-		t.Fatalf("a half-typed status was written: %+v", got)
+		t.Fatalf("a highlighted status was written: %+v", got)
 	}
-	typeText(t, a, "ne")
-	a.Update(editorDebounceMsg{a.editor.seq})
+	press(t, a, "j", "enter")
 	if got := stored(t, a, "t1"); got.Status != "done" {
-		t.Fatalf("written after the pause: %+v", got)
+		t.Fatalf("chosen status not written: %+v", got)
 	}
-	press(t, a, "enter")
+	press(t, a, "q")
 	task := stored(t, a, "t1")
 	if task.Title != "write the brief keyboard" || task.Status != "done" {
 		t.Fatalf("keyboard save: %+v", task)
 	}
-	for _, id := range []string{recordInputID, recordInputID + "/status"} {
+	for _, id := range []string{recordEditorID, recordEditorID + "/title", recordEditorID + "/status"} {
 		if a.r.Instances[id] != nil {
 			t.Fatalf("saved input remains: %s", id)
 		}

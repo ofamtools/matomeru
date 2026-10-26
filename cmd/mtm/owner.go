@@ -88,7 +88,7 @@ func (a *App) resolveOwner(ctx ochazuke.Ctx, args ochazuke.Arguments) (Owner, er
 			if record, ok := ctx.Instance.Data.(editRecord); ok {
 				return Owner{ProjectID: record.ProjectID}, nil
 			}
-		case "record-editor":
+		case ochazuke.FormNoun, ochazuke.FormFieldNoun, ochazuke.FormTextNoun, ochazuke.FormChoiceNoun:
 			if a.editor != nil {
 				record := a.editor.Record
 				owner := Owner{ProjectID: record.ProjectID}

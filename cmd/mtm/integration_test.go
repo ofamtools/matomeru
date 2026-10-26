@@ -34,7 +34,7 @@ func TestScopeRefreshHidesNotesDraftsAndLateCaptures(t *testing.T) {
 	executeA(t, a, "pane", "preview", f.panes[0].rowID(), nil)
 	executeA(t, a, "review", "open", rv.ID, nil)
 	pending := a.r.PendingCommands()
-	if err := a.beginEdit(editRecord{Noun: "note", ID: "na", ProjectID: "matomeru", TaskID: "t1", Text: "unfinished"}); err != nil {
+	if err := a.beginEdit(editRecord{Noun: "note", ID: a.noteList.Items()[0].ID, ProjectID: "matomeru", TaskID: "t1"}); err != nil {
 		t.Fatal(err)
 	}
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "ochazuke"})

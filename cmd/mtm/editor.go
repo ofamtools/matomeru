@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -13,8 +12,13 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
-const recordInputID = "work/editor"
+// recordEditorID is the record editor's form instance; its fields are
+// recordEditorID/<name> (work/editor/title, work/editor/status, ...).
+const recordEditorID = "work/editor"
 
+// editRecord is what is being edited: the record's noun, id and owner. It
+// is also the shape of a draft an older mtm left on disk (Text is the
+// first field, Fields the rest).
 type editRecord struct {
 	Noun            string            `json:"noun"`
 	ID              string            `json:"id"`
@@ -26,34 +30,29 @@ type editRecord struct {
 	New             bool              `json:"new"`
 	Fields          map[string]string `json:"fields,omitempty"`
 }
-type editorField struct {
-	Name  string
-	Input *ochazuke.Input
+
+// recordEditor is the right-hand panel editing one record: ochazuke's
+// record editor (Form) over the record's schema (recordFields). Every
+// change is written to the store as it is made: typing after the
+// edit-debounce setting's pause, and at once when the field is left,
+// insert mode ends or the editor closes. There is no save step and nothing
+// is ever discarded; u in normal mode undoes the last written change,
+// which is written like any change.
+type recordEditor struct {
+	Record editRecord
+	Page   string // the page whose right-hand panel holds the editor
+	Form   *ochazuke.RecordEditor
 }
 
-// recordEditor is the right-hand panel editing one record. Every change is
-// written to the store as it is made (commit on change): typing after
-// editorDebounce, and at once when the focus leaves the field, insert mode
-// ends or the editor closes. There is no save step and nothing is ever discarded; u in normal
-// mode undoes the field's text, which is written like any change.
-type recordEditor struct {
-	Record    editRecord
-	Input     *ochazuke.Input
-	Fields    []editorField
-	Page      string // the page whose right-hand panel holds the editor
-	committed string // the record as last written (JSON)
-	seen      string // the record at the last update
-	seq       uint64 // bumped on every change; an older debounce is stale
-	focus     string // the focus at the last update
-}
+// fieldID is the instance of one of the editor's fields.
+func (e *recordEditor) fieldID(name string) string { return recordEditorID + "/" + name }
+
+// Value is a field's text as shown (valid or not).
+func (e *recordEditor) Value(name string) string { return e.Form.Values()[name] }
 
 // editorDebounce is how long typing pauses before the record is written,
 // the edit-debounce setting's default (settings.go).
-const editorDebounce = 400 * time.Millisecond
-
-// editorDebounceMsg is the timer a pause in typing sets off: when Seq is
-// still the editor's latest change, the record is written.
-type editorDebounceMsg struct{ Seq uint64 }
+const editorDebounce = ochazuke.DefaultRecordDebounce
 
 // editorPage is where a record is edited: a note on the Notes page stays
 // there (its detail is the right-hand panel); everything else on Work.
@@ -81,13 +80,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if journal := a.journalUpdate(msg); journal != nil {
 		cmd = tea.Batch(cmd, journal)
 	}
-	edit, err := a.editorUpdate(msg)
-	quick, quickErr := a.quickNoteUpdate(msg)
-	if err := errors.Join(err, quickErr, a.autosaveAnswer()); err != nil {
-		a.m.Status = err.Error()
+	var editErr error
+	if a.editor != nil {
+		// A write the editor made between messages (a field left, insert
+		// ended) that failed; its label also says "not saved".
+		editErr = a.editor.Form.Failure()
 	}
-	if edit != nil {
-		cmd = tea.Batch(cmd, edit)
+	quick, quickErr := a.quickNoteUpdate(msg)
+	if err := errors.Join(editErr, quickErr, a.autosaveAnswer()); err != nil {
+		a.m.Status = err.Error()
 	}
 	if quick != nil {
 		cmd = tea.Batch(cmd, quick)
@@ -127,129 +128,120 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 func (a *App) defineRecordEditor() {
-	a.r.Define("record-editor").
-		Verb("leave", a.leaveRecord, "Leave the editor; every change is already written").
-		Mode("normal").Bind("q", ochazuke.Do("record-editor.leave")).Bind("esc", ochazuke.Do("record-editor.leave"))
 	a.r.Define("draft").Verb("open", a.openDraft, "Open a draft left by an older mtm; it is written as a record at once").Mode("normal").Bind("enter", ochazuke.Do("draft.open"))
 }
 
-// snapshot reads the inputs into the record and returns it as JSON.
-func (e *recordEditor) snapshot() string {
-	e.Record.Text = string(e.Input.Text)
-	for _, f := range e.Fields {
-		e.Record.Fields[f.Name] = string(f.Input.Text)
+// titleField is the first field of a noun's schema: the one a draft's Text
+// and the one-line label read.
+func titleField(noun string) string {
+	switch noun {
+	case "project":
+		return "name"
+	case "note":
+		return "text"
 	}
-	data, _ := json.Marshal(e.Record)
-	return string(data)
+	return "title"
 }
 
-// editorUpdate writes the open record as it changes: typing in any field
-// is written after editorDebounce (the returned tick), so a half-typed
-// status is never stored; any other change (an undo in normal mode) is
-// written at once, and so is a pending change when the focus moves or
-// insert mode ends.
-func (a *App) editorUpdate(msg tea.Msg) (tea.Cmd, error) {
-	e := a.editor
-	if e == nil {
-		return nil, nil
-	}
-	snap := e.snapshot()
-	typing := a.r.Mode.Name == "insert" && (a.r.Focus == recordInputID || strings.HasPrefix(a.r.Focus, recordInputID+"/"))
-	var cmd tea.Cmd
-	commit := false
-	if d, ok := msg.(editorDebounceMsg); ok && d.Seq == e.seq {
-		commit = true
-	}
-	if snap != e.seen {
-		e.seen = snap
-		e.seq++
-		if typing {
-			seq := e.seq
-			cmd = tea.Tick(a.editDebounce(), func(time.Time) tea.Msg { return editorDebounceMsg{seq} })
-		} else {
-			commit = true
+// recordFields is a noun's schema. The status and harness are chosen from
+// the same lists s and L offer (never free text; UX review 2 F2).
+func recordFields(noun string) []ochazuke.RecordField {
+	text := ochazuke.Parameter{Type: "string"}
+	switch noun {
+	case "task":
+		return []ochazuke.RecordField{
+			{Name: "title", Parameter: ochazuke.Parameter{Type: "string", Required: true}},
+			{Name: "status", Parameter: ochazuke.Parameter{Type: "string", Required: true, Enum: work.Statuses}},
 		}
+	case "project":
+		return []ochazuke.RecordField{
+			{Name: "name", Parameter: text},
+			{Name: "color", Parameter: text},
+			{Name: "glyph", Parameter: text},
+			{Name: "harness", Parameter: ochazuke.Parameter{Type: "string", Source: "harness.names"}},
+			{Name: "preset", Parameter: text},
+		}
+	case "note":
+		return []ochazuke.RecordField{{Name: "text", Parameter: text, Multiline: true}}
 	}
-	if a.r.Focus != e.focus || !typing {
-		commit = true
-	}
-	e.focus = a.r.Focus
-	if commit && snap != e.committed {
-		return cmd, a.commitRecord()
-	}
-	return cmd, nil
+	return nil
 }
 
+// recordValues reads a stored record into the editor's fields.
+func (a *App) recordValues(record editRecord) (ochazuke.Record, error) {
+	switch record.Noun {
+	case "project":
+		if record.New {
+			return ochazuke.Record{}, nil
+		}
+		p, err := a.work.Project(record.ID)
+		return ochazuke.Record{"name": p.Name, "color": p.Theme.Color, "glyph": p.Theme.Glyph, "harness": p.Settings.Harness, "preset": p.Settings.Preset}, err
+	case "task":
+		if record.New {
+			return ochazuke.Record{"status": work.StatusTodo}, nil
+		}
+		t, err := a.work.Task(record.ID)
+		return ochazuke.Record{"title": t.Title, "status": t.Status}, err
+	case "note":
+		if record.New {
+			return ochazuke.Record{}, nil
+		}
+		n, err := a.work.Note(record.ID)
+		return ochazuke.Record{"text": n.Text}, err
+	}
+	return nil, errors.New("unknown editor noun " + record.Noun)
+}
+
+// beginEdit opens the record editor on a record. It is record first: a
+// new record is written when the editor opens, even with an empty title,
+// and so is a draft an older mtm left for it (the draft is removed).
 func (a *App) beginEdit(record editRecord) error {
 	if err := a.leaveEditor(); err != nil {
 		return err
 	}
 	var saved editRecord
+	draft := false
 	if err := a.drafts.Load(record.Noun, record.ID, &saved); err == nil {
-		record = saved
+		record, draft = saved, true
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if record.Fields == nil {
-		record.Fields = map[string]string{}
-	}
-	if record.Noun == "task" && record.New {
-		if _, ok := record.Fields["status"]; !ok {
-			record.Fields["status"] = work.StatusTodo
-		}
-	}
 	page := a.editorPage(record)
-	input := ochazuke.NewInput(recordInputID, record.Text, record.Noun == "note")
-	if err := a.r.AddInput(input, ochazuke.Parent(page), ochazuke.Kind("record-editor")); err != nil {
+	e := &recordEditor{Record: record, Page: page}
+	spec := ochazuke.RecordSpec{
+		Fields:   recordFields(record.Noun),
+		Debounce: a.editDebounce(),
+		Insert:   true,
+		Load: func() (ochazuke.Record, error) {
+			values, err := a.recordValues(e.Record)
+			if err != nil {
+				return nil, err
+			}
+			if draft {
+				values[titleField(record.Noun)] = e.Record.Text
+				for name, v := range e.Record.Fields {
+					values[name] = v
+				}
+			}
+			if e.Record.New || draft {
+				if err := a.storeRecord(e, values); err != nil {
+					return nil, err
+				}
+				if err := a.drafts.Clear(record.Noun, record.ID); err != nil {
+					return nil, err
+				}
+			}
+			return values, nil
+		},
+		Save:    func(w ochazuke.RecordWrite) ochazuke.Result { return resultError(a.storeRecord(e, w.Values)) },
+		OnLeave: func() { a.fail(a.finishEdit(e.Record)) },
+	}
+	form, err := a.r.AddRecordEditor(recordEditorID, spec, ochazuke.Parent(page))
+	if err != nil {
 		return err
 	}
-	e := &recordEditor{Record: record, Input: input, Page: page}
+	e.Form = form
 	a.editor = e
-	names := []string{}
-	switch record.Noun {
-	case "project":
-		names = []string{"color", "glyph", "harness", "preset"}
-	case "task":
-		names = []string{"status"}
-	}
-	if record.Noun != "note" {
-		row := ochazuke.Do("record-editor.leave")
-		row.Instance, row.Mode, row.Keys = recordInputID, "insert", "enter"
-		if err := a.r.Bind(row); err != nil {
-			return err
-		}
-	}
-	for _, name := range names {
-		field := ochazuke.NewInput(recordInputID+"/"+name, record.Fields[name], false)
-		field.Cursor = len(field.Text)
-		if err := a.r.AddInput(field, ochazuke.Parent(page), ochazuke.Kind("record-editor")); err != nil {
-			return err
-		}
-		e.Fields = append(e.Fields, editorField{name, field})
-		row := ochazuke.Do("record-editor.leave")
-		row.Instance, row.Mode, row.Keys = field.ID, "insert", "enter"
-		if err := a.r.Bind(row); err != nil {
-			return err
-		}
-	}
-	input.Cursor = len(input.Text)
-	e.focus = recordInputID
-	e.seen = e.snapshot()
-	if record.New {
-		// Record first: a new record exists from the moment it is opened,
-		// even with an empty title.
-		if err := a.commitRecord(); err != nil {
-			return err
-		}
-	} else {
-		e.committed = e.seen
-	}
-	if err := a.refreshProjects(); err != nil {
-		return err
-	}
-	if err := a.refreshTasks(); err != nil {
-		return err
-	}
 	if refresh := a.editorRefresh[record.Noun]; refresh != nil {
 		if err := refresh(); err != nil {
 			return err
@@ -258,12 +250,16 @@ func (a *App) beginEdit(record editRecord) error {
 	if err := a.r.OpenPage(page); err != nil {
 		return err
 	}
-	if err := a.r.SetFocus(recordInputID); err != nil {
-		return err
-	}
-	input.SetMode("insert")
-	return nil
+	return form.Focus()
 }
+
+// fail shows a failure from a callback that cannot return one.
+func (a *App) fail(err error) {
+	if err != nil {
+		a.m.Status = err.Error()
+	}
+}
+
 func (a *App) openDraft(ctx ochazuke.Ctx) ochazuke.Result {
 	record, ok := ctx.Instance.Data.(editRecord)
 	if !ok {
@@ -272,16 +268,12 @@ func (a *App) openDraft(ctx ochazuke.Ctx) ochazuke.Result {
 	return resultError(a.beginEdit(record))
 }
 
-// commitRecord writes the open record to the store; a new one is created
-// by its first write. A draft an older mtm left for it is removed once the
-// record is written.
-func (a *App) commitRecord() error {
-	e := a.editor
-	if e == nil {
-		return nil
-	}
-	snap := e.snapshot()
+// storeRecord writes the editor's record with these field values (the
+// editor hands only valid ones; a draft's are checked here): a new record
+// is created by its first write. The lists showing it are refreshed.
+func (a *App) storeRecord(e *recordEditor, values ochazuke.Record) error {
 	record := e.Record
+	record.Text = values[titleField(record.Noun)]
 	var err error
 	if save := a.editorSave[record.Noun]; save != nil {
 		_, err = save(record)
@@ -296,12 +288,12 @@ func (a *App) commitRecord() error {
 				break
 			}
 			p.Name = strings.TrimSpace(record.Text)
-			p.Theme = work.Theme{Color: record.Fields["color"], Glyph: record.Fields["glyph"]}
-			harness := record.Fields["harness"]
-			if a.fieldProblem("harness", harness) != "" {
+			p.Theme = work.Theme{Color: values["color"], Glyph: values["glyph"]}
+			harness := values["harness"]
+			if !a.knownHarness(harness) {
 				harness = p.Settings.Harness // an unknown harness is never written
 			}
-			p.Settings = work.ProjectSettings{Harness: harness, Preset: record.Fields["preset"]}
+			p.Settings = work.ProjectSettings{Harness: harness, Preset: values["preset"]}
 			err = a.work.PutProject(p)
 		case "task":
 			t := work.Task{ID: record.ID, ProjectID: record.ProjectID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Status: work.StatusTodo, Created: work.Now()}
@@ -319,26 +311,19 @@ func (a *App) commitRecord() error {
 				break
 			}
 			t.Title = strings.TrimSpace(record.Text)
-			if status, ok := record.Fields["status"]; ok && a.fieldProblem("status", status) == "" {
+			if status := values["status"]; work.ValidStatus(status) {
 				t.Status = status
 			}
 			t.Updated = work.Now()
 			err = a.work.PutTask(t)
 		default:
-			err = errors.New("unknown editor noun")
+			err = errors.New("unknown editor noun " + record.Noun)
 		}
 	}
 	if err != nil {
 		return err
 	}
-	if record.New {
-		e.Record.New = false
-		snap = e.snapshot()
-	}
-	e.committed, e.seen = snap, snap
-	if err := a.drafts.Clear(record.Noun, record.ID); err != nil {
-		return err
-	}
+	e.Record.New = false
 	if err := a.refreshProjects(); err != nil {
 		return err
 	}
@@ -351,16 +336,14 @@ func (a *App) commitRecord() error {
 	return nil
 }
 
-// leaveRecord is q or esc in normal mode: the pending change is written
-// and the editor closes; nothing is discarded.
-func (a *App) leaveRecord(ochazuke.Ctx) ochazuke.Result {
-	if a.editor == nil {
-		return ochazuke.Done(nil)
+// knownHarness reports whether a project may name this harness: empty (the
+// default) or one of the registry's.
+func (a *App) knownHarness(name string) bool {
+	if name == "" || a.harnesses == nil {
+		return true
 	}
-	if err := a.commitRecord(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return resultError(a.finishEdit(a.editor.Record))
+	_, ok := a.harnesses.Get(name)
+	return ok
 }
 
 func resultError(err error) ochazuke.Result {
@@ -369,14 +352,14 @@ func resultError(err error) ochazuke.Result {
 	}
 	return ochazuke.Done(nil)
 }
+
+// finishEdit runs after q or esc left the editor (form.leave): every change
+// is written; the focus goes back to the record's row.
 func (a *App) finishEdit(record editRecord) error {
+	a.editor = nil
 	if err := a.drafts.Clear(record.Noun, record.ID); err != nil {
 		return err
 	}
-	if err := a.removeEditorInputs(); err != nil {
-		return err
-	}
-	a.editor = nil
 	if err := a.refreshProjects(); err != nil {
 		return err
 	}
@@ -425,75 +408,34 @@ func (a *App) renderEditor(width, height int) ochazuke.Block {
 	return block.Offset(leftWidth+2, 0).WithText(body)
 }
 
-// editorPanel is the record editor as the right-hand panel: its fields
-// and the block of the focused one (for the cursor).
+// editorPanel is the record editor as the right-hand panel: a heading and
+// the form (its fields, each label saying why a value is not written).
 func (a *App) editorPanel(rightWidth, height int) ochazuke.Block {
 	e := a.editor
-	label := "title"
-	if e.Record.Noun == "project" {
-		label = "name"
-	}
-	if e.Record.Noun == "note" {
-		label = "text"
-	}
-	text := "editing " + e.Record.Noun + " · written as you type\n" + label + "\n"
-	field := ochazuke.InputBlock(e.Input, rightWidth, max(1, height-3-len(e.Fields)*2)).Offset(0, 2)
-	text += field.Text
-	block := field
-	for _, f := range e.Fields {
-		label := f.Name
-		if problem := a.fieldProblem(f.Name, string(f.Input.Text)); problem != "" {
-			label += " · not written: " + problem
-		}
-		text += "\n" + label + "\n"
-		row := ochazuke.InputBlock(f.Input, rightWidth, 1).Offset(0, strings.Count(text, "\n"))
-		text += row.Text
-		if f.Input.ID == a.r.Focus {
-			block = row
-		}
-	}
-	return block.WithText(text)
+	e.Form.Styles = ochazuke.NewStyles(*a.m.Appearance)
+	form := e.Form.Block(rightWidth, max(1, height-1)).Offset(0, 1)
+	return form.WithText("editing " + e.Record.Noun + " · written as you type\n" + form.Text)
 }
 
-// fieldProblem says why a value cannot be written to a field the same
-// verbs check elsewhere (task status, project harness), "" when it can:
-// the editor accepts what s and task.status accept (UX review 2 F2).
-func (a *App) fieldProblem(name, value string) string {
-	switch name {
-	case "status":
-		if !work.ValidStatus(value) {
-			return "one of " + strings.Join(work.Statuses, ", ")
-		}
-	case "harness":
-		if value == "" || a.harnesses == nil {
-			return ""
-		}
-		if _, ok := a.harnesses.Get(value); !ok {
-			return "known: " + strings.Join(a.harnesses.Names(), ", ")
-		}
-	}
-	return ""
-}
-
+// leaveEditor writes the open record's last change and closes the editor
+// without moving the focus to its row (another verb is taking over).
 func (a *App) leaveEditor() error {
+	e := a.editor
+	if e == nil {
+		return nil
+	}
+	a.editor = nil
+	err := e.Form.Flush()
+	if a.r.Instances[recordEditorID] != nil {
+		err = errors.Join(err, a.r.RemoveInstance(recordEditorID))
+	}
+	return err
+}
+
+// flushEditor writes the open record's pending change (on quit).
+func (a *App) flushEditor() error {
 	if a.editor == nil {
 		return nil
 	}
-	if err := a.commitRecord(); err != nil {
-		return err
-	}
-	if err := a.removeEditorInputs(); err != nil {
-		return err
-	}
-	a.editor = nil
-	return nil
-}
-
-func (a *App) removeEditorInputs() error {
-	for _, field := range a.editor.Fields {
-		if err := a.r.RemoveInstance(field.Input.ID); err != nil {
-			return err
-		}
-	}
-	return a.r.RemoveInstance(recordInputID)
+	return a.editor.Form.Flush()
 }

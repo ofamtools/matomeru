@@ -47,6 +47,23 @@ func typeText(t *testing.T, a *App, text string) {
 	}
 }
 
+// pauseRecord delivers the record editor's latest pause timer, as the typing
+// pause would: the change typed since is written.
+func pauseRecord(t *testing.T, a *App) {
+	t.Helper()
+	if a.editor == nil {
+		t.Fatal("no record editor open")
+	}
+	for seq := uint64(0); seq < 1<<16; seq++ {
+		tick := ochazuke.RecordDebounceMsg{Editor: recordEditorID, Seq: seq}
+		if a.editor.Form.DebounceCurrent(tick) {
+			a.Update(tick)
+			return
+		}
+	}
+	t.Fatal("no pause timer is current")
+}
+
 // stored reads a task back from the database file.
 func stored(t *testing.T, a *App, id string) work.Task {
 	t.Helper()
@@ -192,7 +209,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	press(t, app, "j", "enter")
 
 	press(t, app, "i")
-	if app.r.Focus != recordInputID || string(app.editor.Input.Text) != "write the brief" {
+	if app.r.Focus != app.editor.fieldID("title") || app.editor.Value("title") != "write the brief" {
 		t.Fatalf("open: focus = %s, editor = %+v", app.r.Focus, app.editor)
 	}
 	press(t, app, "esc", "q")
@@ -201,7 +218,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	}
 	press(t, app, "i")
 	typeText(t, app, " first")
-	press(t, app, "enter")
+	press(t, app, "enter", "q") // enter moves to the status; q leaves
 	if got := stored(t, app, "t1").Title; got != "write the brief first" {
 		t.Fatalf("open commit: title = %q", got)
 	}
@@ -209,7 +226,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	// i edits the title; ctrl+u clears the line.
 	press(t, app, "j", "i", "ctrl+u")
 	typeText(t, app, "lift store and daemon")
-	press(t, app, "enter")
+	press(t, app, "enter", "q") // enter moves to the status; q leaves
 	if got := stored(t, app, "t2").Title; got != "lift store and daemon" || app.r.Focus != "t2" {
 		t.Fatalf("edit: title = %q, focus = %s", got, app.r.Focus)
 	}
@@ -224,7 +241,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	// last.
 	press(t, app, "n")
 	typeText(t, app, "launch an agent")
-	press(t, app, "enter")
+	press(t, app, "enter", "q") // enter moves to the status; q leaves
 	if len(app.tasks) != 3 || app.tasks[1].Title != "launch an agent" || app.r.Focus != app.tasks[1].ID || app.tasks[2].ID != "t2" {
 		t.Fatalf("new: tasks = %+v, focus = %s", app.tasks, app.r.Focus)
 	}

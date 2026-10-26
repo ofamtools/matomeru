@@ -510,7 +510,7 @@ func New(opts Options) (*App, error) {
 // Close writes the open record's and quick note's last change, then
 // closes the terminal and the store.
 func (a *App) Close() error {
-	return errors.Join(a.commitRecord(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
+	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.
