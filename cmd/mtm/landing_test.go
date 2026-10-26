@@ -101,7 +101,7 @@ func TestALandingUnderAModalShowsWhyAndKeepsWorking(t *testing.T) {
 	if len(app.panes) != 3 || !strings.Contains(app.landErr, "show the new pane: close the active modal") {
 		t.Fatalf("panes %d, landErr %q", len(app.panes), app.landErr)
 	}
-	press(t, app, "esc", "esc", "ctrl+j")
+	press(t, app, "esc", "esc", "ctrl+k") // Work, then Panes
 	if fr := frame(app); !strings.Contains(fr, "show the new pane") || !strings.Contains(fr, "matomeru/write the brief") {
 		t.Fatalf("frame:\n%s", fr)
 	}

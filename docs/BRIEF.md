@@ -19,7 +19,7 @@ define("prompt",   framework noun: Readline, insert pinned)
 define("terminal", framework noun: passthrough, ctrl+a leader, d detaches)
 ```
 
-Pages (instances of kind page under app): `work` (projects list → tasks list, two stops), `panes` (pane list → terminal detail, two stops), `review` (reviews list → answer prompt). `}`/`{` move between stops; `ctrl+j`/`ctrl+k` between pages.
+Pages (instances of kind page under app), in tab order: `panes` (pane list → terminal detail, two stops; mtm opens here), `work` (projects list → tasks list, two stops), `review` (reviews list → answer prompt). `}`/`{` move between stops; `ctrl+j`/`ctrl+k` between pages.
 
 ## State the app owns
 

@@ -77,6 +77,7 @@ func TestSliceEndToEnd(t *testing.T) {
 	step("ctrl+a")
 	step("d")
 
+	step("ctrl+j") // Work
 	step("ctrl+j")
 	if app.r.Page != reviewsPage || app.r.Instances[app.r.Focus].Noun != "review" {
 		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.Focus)
@@ -93,7 +94,6 @@ func TestSliceEndToEnd(t *testing.T) {
 		t.Fatalf("review = %+v", got)
 	}
 
-	step("ctrl+k")
 	step("ctrl+k")
 	if app.r.Page != "work" || app.r.Focus != "t1" {
 		t.Fatalf("back to work: page %s focus %s", app.r.Page, app.r.Focus)

@@ -31,8 +31,8 @@ func reviewApp(t *testing.T) (*App, *fakePanes, work.Review) {
 		t.Fatalf("reviews after launch = %+v", reviews)
 	}
 	// The launch landed attached on the panes page: detach, then the
-	// next page is the review page.
-	press(t, app, "ctrl+a", "d", "ctrl+j")
+	// review page is two tabs on, past Work.
+	press(t, app, "ctrl+a", "d", "ctrl+j", "ctrl+j")
 	if app.r.Page != reviewsPage {
 		t.Fatalf("page = %s", app.r.Page)
 	}
@@ -235,7 +235,7 @@ func TestAFailingCaptureShowsAndTheAppKeepsWorking(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewAccepted {
 		t.Fatalf("status = %q", got)
 	}
-	press(t, app, "ctrl+k", "ctrl+k")
+	press(t, app, "ctrl+k") // Review is the tab after Work
 	if app.r.Page != "work" {
 		t.Fatalf("page = %s", app.r.Page)
 	}

@@ -217,7 +217,7 @@ func TestCLIThroughRun(t *testing.T) {
 		t.Fatal("an unknown operation exited zero")
 	}
 	out.Reset()
-	if err := run(append(args, "--smoke"), strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), "projects (0)") {
+	if err := run(append(args, "--smoke"), strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), "› Panes  Work") || !strings.Contains(out.String(), "panes (0)") {
 		t.Fatalf("smoke: %v\n%s", err, out.String())
 	}
 }

@@ -335,7 +335,7 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 	if rv.ProjectID != "" || rv.TaskID != "" || rv.Session != "no-project" || rv.Pane != "no-project/claude" {
 		t.Fatalf("review = %+v", rv)
 	}
-	press(t, app, "ctrl+a", "d", "ctrl+j")
+	press(t, app, "ctrl+a", "d", "ctrl+j", "ctrl+j") // Panes, Work, Review
 	if app.r.Page != reviewsPage || app.r.Focus != rv.ID {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}

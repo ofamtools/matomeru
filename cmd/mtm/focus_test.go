@@ -11,12 +11,20 @@ import (
 // A list with rows hands the focus to its selected row, so the row's keys
 // answer without a j first.
 
-func TestStartupFocusesTheFirstProjectRow(t *testing.T) {
+// mtm opens on Panes, its pane list focused, so its keys answer at once.
+func TestStartupOpensPanesWithTheListFocused(t *testing.T) {
+	app := openWith(t, Options{Data: seeded(t)})
+	if app.r.Page != panesPage || app.r.Focus != paneListID {
+		t.Fatalf("startup: page %s focus %s", app.r.Page, app.r.Focus)
+	}
+}
+
+func TestTheWorkPageFocusesTheFirstProjectRow(t *testing.T) {
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
 	if app.r.Focus != "ochazuke" {
-		t.Fatalf("focus at startup = %s", app.r.Focus)
+		t.Fatalf("focus on the Work page = %s", app.r.Focus)
 	}
 	runOnce(app, key(t, app, "l"))
 	if len(f.launches) != 1 || f.launches[0].Session != "ochazuke" {
@@ -49,7 +57,7 @@ func TestTheReviewPageOpensOnAStoredReviewRow(t *testing.T) {
 	}
 	db.Close()
 	app := openAt(t, path)
-	press(t, app, "ctrl+j", "ctrl+j")
+	press(t, app, "ctrl+j") // Work, then Review
 	if app.r.Page != reviewsPage || app.r.Focus != rv.ID {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}

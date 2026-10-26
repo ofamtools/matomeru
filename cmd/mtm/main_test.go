@@ -89,10 +89,25 @@ func seeded(t *testing.T) string {
 	return path
 }
 
-// openAt builds the app on an existing database file.
+// openAt builds the app on an existing database file and goes to the Work
+// page, its first project row focused: most tests start among the seeded
+// projects. mtm itself opens on Panes; openWith keeps that landing.
 func openAt(t *testing.T, path string) *App {
 	t.Helper()
-	return openWith(t, Options{Data: path})
+	app := openWith(t, Options{Data: path})
+	toWork(t, app)
+	return app
+}
+
+// toWork opens the Work page and focuses its selected project row.
+func toWork(t *testing.T, app *App) {
+	t.Helper()
+	if err := app.r.OpenPage("work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.projectList.Focus(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // openWith builds the app with opts and the test fakes.

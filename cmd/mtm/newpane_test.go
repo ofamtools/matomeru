@@ -27,7 +27,7 @@ func shellApp(t *testing.T) (*App, *fakeDaemon) {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
-	press(t, app, "ctrl+j")
+	press(t, app, "ctrl+k") // Panes is the tab before Work
 	if app.r.Page != panesPage || app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}
@@ -126,7 +126,7 @@ func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
 	app := open(t)
 	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
 	app.launcher = f
-	press(t, app, "ctrl+j")
+	press(t, app, "ctrl+k")
 	cmd := key(t, app, "n")
 	if app.m.Palette.IsOpen() || app.r.TopModal() != "" {
 		t.Fatalf("pane.new with nothing inferred opened %q", app.r.TopModal())

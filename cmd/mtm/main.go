@@ -342,6 +342,10 @@ func New(opts Options) (*App, error) {
 	a.defineOutline()
 	a.defineSides()
 
+	// Pages are tabs in registration order: Panes first, then Work.
+	if err := a.addPanesPage(); err != nil {
+		return nil, err
+	}
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
 	}
@@ -359,9 +363,6 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	if err := a.bindTaskStop(); err != nil {
-		return nil, err
-	}
-	if err := a.addPanesPage(); err != nil {
 		return nil, err
 	}
 	if err := a.defineShell(); err != nil {
@@ -406,12 +407,20 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	// Work remembers its selected row (the first by default), so its keys
+	// answer as soon as it is opened.
 	if err := r.OpenPage("work"); err != nil {
 		return nil, err
 	}
-	// The selected row (the first by default) takes the focus, so its keys
-	// answer at once; an empty list keeps it and its own rows answer.
-	return a, a.projectList.Focus()
+	if err := a.projectList.Focus(); err != nil {
+		return nil, err
+	}
+	// mtm opens on Panes; its pane list takes the focus, so its keys answer
+	// at once (an empty list answers e with daemon.ensure).
+	if err := r.OpenPage(panesPage); err != nil {
+		return nil, err
+	}
+	return a, r.SetFocus(paneListID)
 }
 
 // Close removes an attached terminal (releasing its stream) and closes the store.

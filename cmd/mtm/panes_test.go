@@ -144,13 +144,12 @@ func runOnce(a *App, cmd tea.Cmd) {
 // panesApp opens the app, loads the fake's panes and opens the panes page.
 func panesApp(t *testing.T) (*App, *fakePanes) {
 	t.Helper()
-	app := open(t)
+	app := openWith(t, Options{Data: seeded(t)}) // mtm opens on Panes
 	f := app.panesd.(*fakePanes)
 	if err := app.reloadPanes(); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
-	press(t, app, "ctrl+j")
 	if app.r.Page != panesPage {
 		t.Fatalf("page = %s", app.r.Page)
 	}
@@ -186,13 +185,13 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 			t.Fatalf("frame lacks %q:\n%s", want, f)
 		}
 	}
-	press(t, app, "ctrl+k")
-	if app.r.Page != "work" || app.r.Focus != "ochazuke" {
-		t.Fatalf("ctrl+k: page %s focus %s", app.r.Page, app.r.Focus)
-	}
 	press(t, app, "ctrl+j")
-	if app.r.Page != panesPage || app.r.Focus != "pane:matomeru/w1" {
+	if app.r.Page != "work" || app.r.Focus != "ochazuke" {
 		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.Focus)
+	}
+	press(t, app, "ctrl+k")
+	if app.r.Page != panesPage || app.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("ctrl+k: page %s focus %s", app.r.Page, app.r.Focus)
 	}
 }
 
@@ -427,7 +426,7 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	if app.paneErr != "" || app.r.Instances["pane:matomeru/w1"] == nil {
 		t.Fatalf("after e: err %q", app.paneErr)
 	}
-	press(t, app, "ctrl+k", "j")
+	press(t, app, "ctrl+j", "j")
 	if app.r.Page != "work" || app.r.Focus != "matomeru" {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}
