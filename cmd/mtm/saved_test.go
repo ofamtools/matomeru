@@ -127,21 +127,28 @@ func TestSavedScratchRelaunchLeavesFormerProjectSession(t *testing.T) {
 	}
 }
 
-func TestSavedRenamePromptCommitsWithoutSaveKey(t *testing.T) {
+// r on a saved record is the rename form: written as you type (after the
+// pause), enter leaves; there is no save key.
+func TestSavedRenameIsWrittenAsYouType(t *testing.T) {
 	a := open(t)
 	row, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Name: ""}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	savedCall(t, a, "rename", ochazuke.Arguments{"id": row.ID})
-	if a.ask == nil {
-		t.Fatal("rename did not open a prompt")
+	if a.renaming == nil || a.r.Focus != renameFormID+"/name" {
+		t.Fatalf("rename did not open the form: focus %s", a.r.Focus)
 	}
 	typeText(t, a, "renamed")
+	pauseForm(t, a, a.renaming)
+	if got, err := a.work.SavedPane(row.ID); err != nil || got.Name != "renamed" {
+		t.Fatalf("after the pause: %+v %v", got, err)
+	}
+	typeText(t, a, "!")
 	press(t, a, "enter")
 	got, err := a.work.SavedPane(row.ID)
-	if err != nil || got.Name != "renamed" || a.ask != nil {
-		t.Fatalf("rename: %+v %v", got, err)
+	if err != nil || got.Name != "renamed!" || a.renaming != nil || a.r.TopModal() != "" {
+		t.Fatalf("rename: %+v %v modal %q", got, err, a.r.TopModal())
 	}
 }
 

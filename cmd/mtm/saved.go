@@ -306,21 +306,17 @@ func (a *App) renameSaved(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	name, ok := ctx.Args["name"].(string)
 	if !ok {
-		err := a.prompt("Rename saved pane", "Name", row.Name, func(text string) error {
+		return resultError(a.renameForm("Rename saved pane", row.Name, false, func(text string) ochazuke.Result {
 			latest, err := a.work.SavedPane(row.ID)
 			if err != nil {
-				return err
+				return ochazuke.Failed(err)
 			}
 			latest.Name = text
 			if _, err := a.work.PutSavedPane(latest); err != nil {
-				return err
+				return ochazuke.Failed(err)
 			}
-			return a.refreshSaved()
-		})
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		return ochazuke.Done(nil)
+			return resultError(a.refreshSaved())
+		}))
 	}
 	row.Name = name
 	return a.putSaved(row)

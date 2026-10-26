@@ -47,14 +47,44 @@ func (a *App) renamePane(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	name, given := ctx.Args["name"].(string)
-	if !given {
-		return a.askRename("Rename pane", p.label(), p.Name, "pane", ctx.Instance.ID)
+	if name, given := ctx.Args["name"].(string); given {
+		return a.renameWindow(p, name, nil)
 	}
+	// The form writes as you type: each write renames the window, and a
+	// saved record follows while it carries the name the last write left.
+	prev := p
+	return resultError(a.renameForm("Rename pane "+p.label(), p.Name, false, func(name string) ochazuke.Result {
+		return a.renameWindow(prev, name, func(name string) {
+			if name != "" {
+				prev.Name = name
+			}
+		})
+	}))
+}
+
+// renameWindow renames a pane's window on the daemon; its saved records
+// that still carry its old name follow, and the pane list reloads. done,
+// when given, sees the name once the daemon has it.
+func (a *App) renameWindow(p pane, name string, done func(string)) ochazuke.Result {
+	name = strings.TrimSpace(name)
 	r := a.renamer
+	renamed := func(name string) error {
+		err := a.renameSavedOf(p, name)
+		if done != nil {
+			done(name)
+		}
+		return err
+	}
+	if a.quitting {
+		// mtm is closing: no job would run, so the last write runs here.
+		if err := r.RenameWindow(context.Background(), p.Session, p.ID, name); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return resultError(renamed(name))
+	}
 	return a.afterRename(ochazuke.Pending(func(c context.Context) (any, error) {
-		return strings.TrimSpace(name), r.RenameWindow(c, p.Session, p.ID, strings.TrimSpace(name))
-	}), func(name string) error { return a.renameSavedOf(p, name) })
+		return name, r.RenameWindow(c, p.Session, p.ID, name)
+	}), renamed)
 }
 
 // renameSavedOf follows a pane rename in the pane's saved records that
@@ -89,28 +119,91 @@ func (a *App) renameSession(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	name, given := ctx.Args["name"].(string)
-	if !given {
-		return a.askRename("Rename session", "session "+p.Session, p.Session, "session", ctx.Instance.ID)
+	if name, given := ctx.Args["name"].(string); given {
+		return a.renameSessionTo(p.Session, name, nil)
 	}
+	// Each write renames the session as the last write left it.
+	session := p.Session
+	return resultError(a.renameForm("Rename session "+p.Session, p.Session, true, func(name string) ochazuke.Result {
+		return a.renameSessionTo(session, name, func(name string) { session = name })
+	}))
+}
+
+// renameSessionTo renames a session on the daemon and reloads the panes;
+// done, when given, sees the name once the daemon has it.
+func (a *App) renameSessionTo(session, name string, done func(string)) ochazuke.Result {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ochazuke.Failed(errors.New("a session needs a name"))
 	}
 	r := a.renamer
+	if a.quitting {
+		err := r.RenameSession(context.Background(), session, name)
+		if err == nil && done != nil {
+			done(name)
+		}
+		return resultError(err)
+	}
+	var renamed func(string) error
+	if done != nil {
+		renamed = func(name string) error { done(name); return nil }
+	}
 	return a.afterRename(ochazuke.Pending(func(c context.Context) (any, error) {
-		return name, r.RenameSession(c, p.Session, name)
-	}), nil)
+		return name, r.RenameSession(c, session, name)
+	}), renamed)
 }
 
-// askRename opens the app's one-line prompt with the current name; enter
-// runs the rename with the typed one.
-func (a *App) askRename(title, label, current, noun, target string) ochazuke.Result {
-	err := a.prompt(title, label, current, func(text string) error {
-		_, err := a.r.Execute(ochazuke.Request{Noun: noun, Verb: "rename", Target: target, Args: ochazuke.Arguments{"name": text}})
-		return err
+// renameFormID is the rename form's modal instance; its one field is
+// renameFormID/name.
+const renameFormID = "rename"
+
+// renameForm opens the rename form: ochazuke's record editor as a modal
+// with one name field in insert mode, written as you type (after the
+// edit-debounce pause, and at once when it is left). enter and esc leave,
+// as the prompt did, keeping what was typed; nothing changed writes
+// nothing (UX review 2 F4). A required name left empty is not written.
+func (a *App) renameForm(title, current string, required bool, write func(name string) ochazuke.Result) error {
+	if a.renaming != nil && a.r.Instances[renameFormID] != nil {
+		return errors.New("a rename is already open")
+	}
+	form, err := a.r.OpenRecordEditor(renameFormID, ochazuke.RecordSpec{
+		Title:    title + " · written as you type",
+		Fields:   []ochazuke.RecordField{{Name: "name", Parameter: ochazuke.Parameter{Type: "string", Required: required}}},
+		Debounce: a.editDebounce(),
+		Insert:   true,
+		Load:     func() (ochazuke.Record, error) { return ochazuke.Record{"name": current}, nil },
+		Save:     func(w ochazuke.RecordWrite) ochazuke.Result { return write(w.Values["name"]) },
+		OnLeave:  func() { a.renaming = nil },
 	})
-	return resultError(err)
+	if err != nil {
+		return err
+	}
+	a.renaming = form
+	for _, key := range []string{"enter", "esc"} {
+		row := ochazuke.Do(ochazuke.FormNoun + ".leave")
+		row.Instance, row.Mode, row.Keys = renameFormID+"/name", "insert", key
+		if err := a.r.Bind(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// renameFailure is a write the rename form made between messages that
+// failed (its line also says "not saved").
+func (a *App) renameFailure() error {
+	if a.renaming == nil {
+		return nil
+	}
+	return a.renaming.Failure()
+}
+
+// flushRename writes the open rename's pending change (on quit).
+func (a *App) flushRename() error {
+	if a.renaming == nil {
+		return nil
+	}
+	return a.renaming.Flush()
 }
 
 // afterRename reloads the pane list once the daemon has the new name,

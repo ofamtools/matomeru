@@ -334,6 +334,8 @@ type App struct {
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
 	// extForm is the open form over an extension's row (extension_forms.go).
 	extForm *ochazuke.RecordEditor
+	// renaming is the open rename form of a pane, session or saved pane (rename.go).
+	renaming *ochazuke.RecordEditor
 	// quitting is set by Close: an extension's last write runs at once.
 	quitting bool
 
@@ -521,7 +523,7 @@ func New(opts Options) (*App, error) {
 // closes the terminal and the store.
 func (a *App) Close() error {
 	a.quitting = true
-	return errors.Join(a.flushEditor(), a.flushExtForm(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
+	return errors.Join(a.flushEditor(), a.flushExtForm(), a.flushRename(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.
