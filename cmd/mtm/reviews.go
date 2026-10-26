@@ -51,7 +51,7 @@ const (
 func (a *App) defineReviews() {
 	r := a.r
 	r.Define("review").Columns(reviewColumns...).
-		Verb("list", a.listReviews, "List reviews in scope; --all widens the list").
+		Verb("list", a.listReviews, "List reviews in scope; --all widens the list").Fetch().
 		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
 		Verb("accept", a.acceptReview, "Mark the review accepted (the task is left as it is)").
 		Verb("reject", a.rejectReview, "Mark the review rejected").

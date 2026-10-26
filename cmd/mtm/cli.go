@@ -28,7 +28,8 @@ import (
 //     read, cancelled, returns at once instead of waiting for the pane.
 //
 // The action history is in memory and per process: history list shows the
-// requests this invocation ran.
+// actions and changes this invocation ran; --kind all adds the fetches
+// (mtm's read verbs are marked Fetch: lists, reloads, pick-list sources).
 
 var cliUsage = "usage: mtm [--data PATH] [--server NAME|default] [--socket PATH] NOUN VERB [--target ID] [--json '{...}'] [--ARG VALUE] [--yes]\n" + ocli.UsageHint("mtm")
 

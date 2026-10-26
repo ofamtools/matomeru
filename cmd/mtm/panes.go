@@ -199,11 +199,11 @@ func (a *App) definePanes() {
 	r.Define("pane").
 		Columns(paneColumns...).
 		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches, ctrl+a z zooms").
-		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Quiet().
+		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Fetch().Quiet().
 		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
 		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
-		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Quiet().
-		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Quiet().
+		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Fetch().Quiet().
+		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Fetch().Quiet().
 		Mode("normal").
 		Bind("enter", ochazuke.Do("pane.attach")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
@@ -229,7 +229,7 @@ func (a *App) definePanes() {
 	r.Define("pane-project").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
 	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
 	r.Define("panes").
-		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Quiet().
+		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
 		Verb("waiting", a.nextWaiting, "Select the next pane that needs input")
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})

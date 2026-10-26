@@ -20,8 +20,8 @@ import (
 // defineSetup adds the setup noun.
 func (a *App) defineSetup() {
 	a.r.Define("setup").
-		Verb("list", a.setupList, "List the capture hooks mtm can install and their state (missing, installed, outdated, conflict)").
-		Verb("plan", a.setupPlan, "Print what installing writes (path and whole content) without writing").
+		Verb("list", a.setupList, "List the capture hooks mtm can install and their state (missing, installed, outdated, conflict)").Fetch().
+		Verb("plan", a.setupPlan, "Print what installing writes (path and whole content) without writing").Fetch().
 		Verb("install", a.setupInstall, "Install mtm's turn-capture hooks; omit item for all of them").Confirm("Write mtm's turn-capture hooks into the harness configuration?").
 		Verb("uninstall", a.setupUninstall, "Remove mtm's turn-capture hooks and nothing else; omit item for all of them").Confirm("Remove mtm's turn-capture hooks?")
 	a.ownedBy("setup", "app")

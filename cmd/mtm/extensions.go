@@ -329,8 +329,8 @@ func (a *App) extRegistry() extRegistry {
 func (a *App) defineExtensions() {
 	a.r.Define("extension").
 		Verb("register", a.registerExtension, "Register a family tool's catalog under NAME (its bin: --bin, else o-NAME or NAME on PATH); its pages are tabs after mtm's").Positional("name").
-		Verb("list", a.listExtensions, "List the registered extensions").
-		Verb("available", a.availableExtensions, "List the family tools on PATH (o-NAME answering catalog) and the registered extensions, each available, registered, stale or missing").Quiet().
+		Verb("list", a.listExtensions, "List the registered extensions").Fetch().
+		Verb("available", a.availableExtensions, "List the family tools on PATH (o-NAME answering catalog) and the registered extensions, each available, registered, stale or missing").Fetch().Quiet().
 		Verb("refresh", a.refreshExtension, "Read a registered extension's catalog again (every extension when NAME is omitted)").Positional("name").
 		Verb("remove", a.removeExtension, "Unregister an extension; --purge also deletes its data file").Positional("name").Confirm("Remove extension {{label}}? Its data file stays (mtm extension remove NAME --purge deletes it).")
 	a.parameters("extension.register", map[string]ochazuke.Parameter{

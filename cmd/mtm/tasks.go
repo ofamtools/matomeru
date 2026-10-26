@@ -15,7 +15,7 @@ import (
 func (a *App) defineTask() {
 	r := a.r
 	r.Define("task").Columns(taskColumns...).
-		Verb("list", a.listTasks, "List tasks, including unassociated tasks").
+		Verb("list", a.listTasks, "List tasks, including unassociated tasks").Fetch().
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
 		Verb("edit", a.editTask, "Edit title and status; omit arguments for draft editor").Positional("title").

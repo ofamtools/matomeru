@@ -369,13 +369,13 @@ type dirRow struct {
 }
 
 func (a *App) defineDirectories() {
-	a.r.Define("dirs").Verb("list", a.refreshDirectories, "Refresh known directories").Verb("refresh", a.refreshDirectories, "Refresh directory cache").Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
+	a.r.Define("dirs").Verb("list", a.refreshDirectories, "Refresh known directories").Fetch().Verb("refresh", a.refreshDirectories, "Refresh directory cache").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
 		bases, err := projectBases(a.dirsConfigPath())
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(bases)
-	}).Verb("base.add", a.addBase, "Add a project base and scan it; omit path to choose").Positional("path").
+	}).Fetch().Verb("base.add", a.addBase, "Add a project base and scan it; omit path to choose").Positional("path").
 		Verb("base.remove", a.removeBase, "Stop scanning a project base (disk untouched)").Positional("path").
 		Verb("search", a.searchDirectories, "Filter the known directories")
 	a.parameters("dirs.base.add", map[string]ochazuke.Parameter{"path": {Type: "string"}, "depth": {Type: "integer"}})
