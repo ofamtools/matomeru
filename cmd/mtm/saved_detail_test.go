@@ -82,7 +82,14 @@ func TestSavedDetailScrollsWithJK(t *testing.T) {
 	for i := range 30 {
 		env[fmt.Sprintf("VAR_%02d", i)] = "x"
 	}
-	long, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w1", Name: "env heavy", Env: env, ProjectID: "matomeru"}})
+	builder, err := a.work.SavedPane(l.savedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Created after the builder, so the row sorts below it and k has a row
+	// to move to: rows created in one millisecond tie-break on their random
+	// ids, which put this row first in some runs.
+	long, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w1", Name: "env heavy", Env: env, ProjectID: "matomeru", Created: builder.Created + 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +111,7 @@ func TestSavedDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("K: offset %d\n%s", d.Offset(), fr)
 	}
 	press(t, a, "k")
-	if frame(a); d.Offset() != 0 {
-		t.Fatalf("another row kept offset %d", d.Offset())
+	if frame(a); a.r.Focus != l.savedID || d.Offset() != 0 {
+		t.Fatalf("k: focus %s (want %s), offset %d", a.r.Focus, l.savedID, d.Offset())
 	}
 }
