@@ -373,3 +373,92 @@ func TestNestedSessionRowsSaySession(t *testing.T) {
 		t.Fatalf("project cells %q", got)
 	}
 }
+
+// With the Turns tab showing, l on the pane row (the key esc from a turn
+// leaves the owner on) moves into the turns, never to the hidden screen:
+// no copy mode, no Screen tab, no attach. On the Activity tab l does
+// nothing; on the Screen tab it is still copy mode.
+func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
+	path := seeded(t)
+	capturedTurns(t, path, "first answer", "second answer")
+	app := openWith(t, Options{Data: path})
+	f := app.panesd.(*fakePanes)
+	f.panes[0].Harness, f.panes[0].AgentState = "claude-code", "idle"
+	reload(t, app)
+	settle(app, key(t, app, "[")) // Screen wraps back to Turns
+	app.m.Width, app.m.Height = 120, 40
+	frame(app)
+	press(t, app, "}", "l") // open the first turn
+	frame(app)
+	press(t, app, "esc")
+	frame(app)
+	if app.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("esc from a turn: focus %s", app.r.Focus)
+	}
+	for range 2 {
+		press(t, app, "l")
+		frame(app)
+		if !strings.HasPrefix(app.r.Focus, "turn:") || app.pv.tab != tabTurns || app.copy.active ||
+			app.r.Terminal(paneTermID) != nil || app.r.Mode.Name != "normal" {
+			t.Fatalf("l on the pane row with Turns: focus %s tab %d copy %v mode %s", app.r.Focus, app.pv.tab, app.copy.active, app.r.Mode.Name)
+		}
+		press(t, app, "esc")
+		frame(app)
+	}
+	settle(app, key(t, app, "]")) // Screen
+	settle(app, key(t, app, "]")) // Activity
+	frame(app)
+	press(t, app, "l")
+	if app.r.Focus != "pane:matomeru/w1" || app.pv.tab != tabActivity || app.copy.active {
+		t.Fatalf("l on the pane row with Activity: focus %s tab %d copy %v", app.r.Focus, app.pv.tab, app.copy.active)
+	}
+}
+
+// The owner's rule: an attached terminal the focus has left stays
+// attached, but moving into the detail goes back into it only on the
+// Screen tab. On Turns (or Activity, Transcript) the detail draws that
+// tab, and }, tab and l reach its content, never terminal mode.
+func TestAnAttachedTerminalIsReenteredOnlyFromTheScreenTab(t *testing.T) {
+	row := "pane:matomeru/w1"
+	attachedThenLeft := func(t *testing.T) *App {
+		path := seeded(t)
+		capturedTurns(t, path, "first answer", "second answer")
+		app := openWith(t, Options{Data: path})
+		f := app.panesd.(*fakePanes)
+		f.panes[0].Harness, f.panes[0].AgentState = "claude-code", "idle"
+		reload(t, app)
+		app.m.Width, app.m.Height = 120, 40
+		frame(app)
+		settle(app, key(t, app, "enter"))
+		frame(app)
+		if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
+			t.Fatalf("enter attaches: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+		}
+		// The focus leaves the terminal without detaching (a click on the row).
+		if err := app.r.SetFocus(row); err != nil {
+			t.Fatal(err)
+		}
+		frame(app)
+		return app
+	}
+	for _, keys := range [][]string{{"}"}, {"tab"}, {"l"}} {
+		app := attachedThenLeft(t)
+		settle(app, key(t, app, "[")) // Screen wraps back to Turns
+		settle(app, follow(app))
+		fr := frame(app)
+		if !strings.Contains(fr, "prompt 1 · 1 answer") || strings.Contains(fr, "· live ·") {
+			t.Fatalf("Turns with a terminal attached draws the turns:\n%s", fr)
+		}
+		press(t, app, keys...)
+		frame(app)
+		if !strings.HasPrefix(app.r.Focus, "turn:") || app.r.Mode.Name != "normal" || app.r.Terminal(paneTermID) == nil {
+			t.Fatalf("%v on Turns: focus %s mode %s attached %v", keys, app.r.Focus, app.r.Mode.Name, app.r.Terminal(paneTermID) != nil)
+		}
+	}
+	// Screen keeps today's behaviour: } goes back into the live terminal.
+	app := attachedThenLeft(t)
+	press(t, app, "}")
+	if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
+		t.Fatalf("} on Screen: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	}
+}

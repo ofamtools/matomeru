@@ -176,7 +176,7 @@ const sideSplit = 161
 
 // detailBlock keeps both live terminals inside the page's detail area.
 func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
-	if a.r.Terminal(paneTermID) == nil || a.r.Terminal(sideTermID) == nil {
+	if !a.liveShown() || a.r.Terminal(sideTermID) == nil {
 		return a.parentDetailBlock(layout, width, height)
 	}
 	if width >= sideSplit {

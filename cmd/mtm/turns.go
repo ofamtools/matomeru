@@ -30,6 +30,13 @@ func (a *App) addTurns() error {
 		Bind("l", ochazuke.Do("turn.open")).
 		Bind("right", ochazuke.Do("turn.open")).
 		Bind("enter", ochazuke.Do("turn.open"))
+	// l on a pane row while the Turns tab shows moves into the turns, as
+	// } does (on the Screen tab it is copy mode, copymode.go).
+	a.r.Define("pane").
+		Verb("turns", a.focusTurns, "Focus the Turns tab's turns").
+		Mode("normal").
+		Bind("l", ochazuke.Do("pane.turns").Guard("pane-tab-turns").Hinted("turns"))
+	a.r.DefineGuard("pane-tab-turns", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.pv.tab == tabTurns })
 	// esc in the tree goes back up to the pane row the turns belong to, as
 	// the note body's esc goes back to the notes list.
 	for _, noun := range []string{"turn", "turn-line"} {
@@ -149,6 +156,27 @@ func (a *App) showTurns(row string) error {
 	}
 	a.pv.turnsFor = row
 	return nil
+}
+
+// focusTurns is pane.turns (l on a pane row on the Turns tab): fill the
+// row's turns when they are not the ones shown, then focus the tree's
+// selected row.
+func (a *App) focusTurns(ctx ochazuke.Ctx) ochazuke.Result {
+	if ctx.Instance == nil {
+		return ochazuke.Failed(fmt.Errorf("select a pane"))
+	}
+	if a.pv.turnsFor != ctx.Instance.ID {
+		if err := a.showTurns(ctx.Instance.ID); err != nil {
+			return ochazuke.Failed(err)
+		}
+	}
+	if a.pv.turns.List().Len() == 0 {
+		return ochazuke.Failed(fmt.Errorf("no turns recorded yet"))
+	}
+	if err := a.pv.turns.Focus(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(a.r.Focus)
 }
 
 // turnsBack is turn.back (and turn-line.back): focus the row the tree

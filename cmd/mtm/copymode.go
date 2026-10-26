@@ -271,9 +271,11 @@ func (a *App) defineCopy() {
 	noun.Mode(copyFindMode).
 		Bind("esc", ochazuke.Do("mode.leave")).
 		Pattern("any", ochazuke.Do(copyNoun+".find").FromKey("char").FromPayload("kind", ochazuke.SourceOp).FromPayload("steps", ochazuke.SourceCount).Hide())
-	// l on a pane row focuses the pane in copy mode; ctrl+a [ from live.
+	// l on a pane row focuses the pane in copy mode while the Screen tab
+	// shows (on Turns it focuses the turns, turns.go); ctrl+a [ from live.
 	r.Define("pane").Verb("copy", a.paneCopy, "Focus the pane without going live: copy mode (motions, search, select, yank)").
-		Mode("normal").Bind("l", ochazuke.Do("pane.copy").Hinted("copy mode"))
+		Mode("normal").Bind("l", ochazuke.Do("pane.copy").Guard("pane-tab-screen").Hinted("copy mode"))
+	r.DefineGuard("pane-tab-screen", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.pv.tab == tabScreen })
 	r.Define("terminal").Verb("copy", a.terminalCopy, "Leave live for copy mode on this pane: the screen stays, scrollback above").
 		Mode("leader_pending").Bind("[", ochazuke.Do("terminal.copy").Hinted("copy mode"))
 }

@@ -86,7 +86,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, a.pv.after(a.refreshInterval(), refreshDue{}))
 	}
 	row, _ := a.selectedRow()
-	if key := fmt.Sprintf("%s|%d", row, a.pv.tab); row != "" && key != a.pv.followed && a.r.Terminal(paneTermID) == nil {
+	if key := fmt.Sprintf("%s|%d", row, a.pv.tab); row != "" && key != a.pv.followed && !a.liveShown() {
 		a.pv.followed = key
 		a.pv.seq++
 		if a.pv.after != nil {
@@ -528,7 +528,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	s := ochazuke.NewStyles(*a.m.Appearance)
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: s}
 	term := a.r.Terminal(paneTermID)
-	if term != nil && a.pv.zoom {
+	if a.liveShown() && a.pv.zoom {
 		p := a.attached
 		if side := a.r.Terminal(sideTermID); side != nil && side.Focused() {
 			term = side
@@ -643,9 +643,28 @@ func (a *App) paneListBlock(width, height int) ochazuke.Block {
 	return block
 }
 
+// liveShown reports whether the detail draws the attached terminal: on
+// the Screen tab, or while the focus is in it or its side. On the
+// Activity, Transcript and Turns tabs an attached terminal stays attached
+// but is not drawn, so it is no focus stop (ochazuke skips a stop the
+// last frame did not place) and moving into the detail reaches the
+// tab's content, never the hidden live pane.
+func (a *App) liveShown() bool {
+	term := a.r.Terminal(paneTermID)
+	if term == nil {
+		return false
+	}
+	if a.pv.tab == tabScreen || term.Focused() {
+		return true
+	}
+	side := a.r.Terminal(sideTermID)
+	return side != nil && side.Focused()
+}
+
 // parentDetailBlock draws the parent's tabs and live stream or selected tab.
 func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
 	term := a.r.Terminal(paneTermID)
+	live := a.liveShown()
 	row, inst := a.selectedRow()
 	cw, ch := ochazuke.PanelContentSize(width, height)
 	ch = max(1, ch-2) // the header and tab lines
@@ -653,7 +672,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	header := ""
 	var body ochazuke.Block
 	focused := false
-	if term != nil || a.copyShown(paneTermID) || inst == nil || inst.Noun != "pane" {
+	if live || a.copyShown(paneTermID) || inst == nil || inst.Noun != "pane" {
 		a.detail.panes.hide() // tabBody windows the detail when it draws
 	}
 	switch {
@@ -662,7 +681,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		header = a.paneHeader(a.copy.pane)
 		body = a.copyBlock(cw, ch)
 		focused = true
-	case term != nil:
+	case live:
 		title = a.streamTitle(paneTermID, a.attached.label())
 		header = a.paneHeader(a.attached)
 		if e := term.Err(); e != "" {
@@ -687,7 +706,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	default:
 		title, body = a.groupSummary(inst)
 	}
-	tabs := a.tabLine(term != nil, a.r.Instances[a.r.Focus] != nil && a.r.Instances[a.r.Focus].Noun == "pane")
+	tabs := a.tabLine(live, a.r.Instances[a.r.Focus] != nil && a.r.Instances[a.r.Focus].Noun == "pane")
 	if a.copyShown(paneTermID) {
 		tabs = a.copyTabLine()
 	}
@@ -695,7 +714,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	case header != "":
 		header = layout.Styles.Muted.Render(ansi.Truncate(header, cw, "…"))
 		body = body.Offset(0, 2).WithText(header + "\n" + tabs + "\n" + body.Text)
-	case term != nil || inst == nil || inst.Noun == "pane":
+	case live || inst == nil || inst.Noun == "pane":
 		body = body.Offset(0, 1).WithText(tabs + "\n" + body.Text)
 	}
 	return layout.PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, focused)
