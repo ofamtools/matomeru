@@ -273,3 +273,40 @@ func TestChooserPreviewNeedsTheWidth(t *testing.T) {
 		t.Fatalf("wide:\n%s", v)
 	}
 }
+
+// The leader is the terminal-leader setting: changing it moves mtm's
+// leader rows (the leader, its self-send) and the leader-keys modal and
+// the live tab line name the new key.
+func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
+	a, _, _, _ := liveContextApp(t)
+	if a.r.TerminalLeader() != "ctrl+a" {
+		t.Fatalf("default leader %q", a.r.TerminalLeader())
+	}
+	if err := a.r.Settings().Set(ochazuke.TerminalLeaderSetting, "ctrl+b"); err != nil {
+		t.Fatal(err)
+	}
+	if a.r.TerminalLeader() != "ctrl+b" {
+		t.Fatalf("leader %q after the setting", a.r.TerminalLeader())
+	}
+	var entry, self, old bool
+	for _, b := range a.r.Noun("terminal").Bindings["terminal"] {
+		entry = entry || b.Keys == "ctrl+b" && b.Request.Key() == "mode.enter"
+		old = old || b.Keys == "ctrl+a"
+	}
+	for _, b := range a.r.Noun("terminal").Bindings["leader_pending"] {
+		self = self || b.Keys == "ctrl+b" && b.Request.Key() == "terminal.send" && b.Request.Args["keys"] == "ctrl+b"
+	}
+	if !entry || !self || old {
+		t.Fatalf("rows: entry %v self-send %v old leader left %v", entry, self, old)
+	}
+	if f := frame(a); !strings.Contains(f, "ctrl+b ? keys") || strings.Contains(f, "ctrl+a ? keys") {
+		t.Fatalf("tab line:\n%s", f)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "keys", Noun: "terminal", Target: paneTermID}); err != nil {
+		t.Fatal(err)
+	}
+	f := frame(a)
+	if !strings.Contains(f, "ctrl+b c") || !strings.Contains(f, "send ctrl+b to the pane") || strings.Contains(f, "ctrl+a") {
+		t.Fatalf("leader keys modal:\n%s", f)
+	}
+}

@@ -394,7 +394,7 @@ func (a *App) defineLiveKeys() {
 		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list").
 		Verb("side", a.sidePane, "Open or focus this pane's side vim or terminal").
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
-		Verb("keys", a.leaderKeys, "Show the leader keys (ctrl+a then one key) in a small modal").
+		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
 		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · [ copy · c context · ? keys")).
 		Mode("leader_pending").
@@ -429,14 +429,16 @@ var leaderWords = []struct{ key, text string }{
 	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
 	{"[", "copy mode: scroll back, search, select and yank; i goes live again"},
 	{"?", "these keys"},
-	{"ctrl+a", "send ctrl+a to the pane"},
 }
 
-// leaderKeys is terminal.keys (ctrl+a ?): the leader table's rows in a
+// leaderKeys is terminal.keys (leader ?): the leader table's rows in a
 // small modal, key and what it does; esc closes it and the pane stays
 // live. The rows come from the leader_pending bindings, so a rebound key
-// shows as bound.
+// shows as bound, and every row names the leader as the terminal-leader
+// setting has it (r.TerminalLeader()).
 func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
+	leader := a.r.TerminalLeader()
+	words := append(slices.Clone(leaderWords), struct{ key, text string }{leader, "send " + leader + " to the pane"})
 	bound := map[string]ochazuke.Binding{}
 	var order []string
 	if n := a.r.Noun("terminal"); n != nil {
@@ -452,10 +454,10 @@ func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
 	}
 	var items []ochazuke.ListItem
 	add := func(key, text string) {
-		items = append(items, ochazuke.ListItem{ID: leaderModal + "/" + key, Noun: "binding", Label: fmt.Sprintf("ctrl+a %-6s  %s", key, text)})
+		items = append(items, ochazuke.ListItem{ID: leaderModal + "/" + key, Noun: "binding", Label: fmt.Sprintf("%s %-6s  %s", leader, key, text)})
 		delete(bound, key)
 	}
-	for _, w := range leaderWords {
+	for _, w := range words {
 		if _, ok := bound[w.key]; ok {
 			add(w.key, w.text)
 		}
@@ -532,7 +534,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 			term = side
 			p, _ = a.r.Instances[sideTermID].Data.(pane)
 		}
-		title := p.label() + " · zoomed · ctrl+a z restores"
+		title := p.label() + " · zoomed · " + a.r.TerminalLeader() + " z restores"
 		cw, ch := ochazuke.PanelContentSize(width, height)
 		if a.copy.active {
 			return layout.PanelBlock(a.copyTitle()+" · zoomed", a.copyBlock(cw, ch), width, height, true)
@@ -712,7 +714,7 @@ func (a *App) tabLine(live, onPane bool) string {
 	}
 	line := strings.Join(parts, " ")
 	if live {
-		return line + " · live · ctrl+a ? keys"
+		return line + " · live · " + a.r.TerminalLeader() + " ? keys"
 	}
 	if onPane {
 		return line + " · [ ] tabs · enter live"

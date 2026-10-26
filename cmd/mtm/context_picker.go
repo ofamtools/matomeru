@@ -59,7 +59,7 @@ func (a *App) pickedPane(inst *ochazuke.Instance) (pane, error) {
 	if a.attached.ID != "" {
 		return a.attached, nil
 	}
-	return pane{}, errors.New("ctrl+a c works in a live pane")
+	return pane{}, errors.New(a.r.TerminalLeader() + " c works in a live pane")
 }
 
 // pickContext is context-item.pick (ctrl+a c).

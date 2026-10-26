@@ -671,10 +671,10 @@ func (a *App) killBlocked(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	var open []string
 	if p.SideVim != "" {
-		open = append(open, "side vim (ctrl+a v)")
+		open = append(open, "side vim ("+a.r.TerminalLeader()+" v)")
 	}
 	if p.SideTerm != "" {
-		open = append(open, "side terminal (ctrl+a t)")
+		open = append(open, "side terminal ("+a.r.TerminalLeader()+" t)")
 	}
 	return ochazuke.Failed(fmt.Errorf("close the %s of %s before killing it", strings.Join(open, " and "), p.label()))
 }

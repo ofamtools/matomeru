@@ -267,9 +267,9 @@ func (a *App) checkCompanions(ctx context.Context, parent string) error {
 			continue
 		}
 		// ctrl+a v / t only shows the side pane; the program inside closes it.
-		how := fmt.Sprintf("side terminal of %s (ctrl+a t, then exit)", labels[link.Parent])
+		how := fmt.Sprintf("side terminal of %s (%s t, then exit)", labels[link.Parent], a.r.TerminalLeader())
 		if link.Kind == "vim" {
-			how = fmt.Sprintf("side vim of %s (ctrl+a v, then :qa)", labels[link.Parent])
+			how = fmt.Sprintf("side vim of %s (%s v, then :qa)", labels[link.Parent], a.r.TerminalLeader())
 		}
 		messages = append(messages, how)
 	}
