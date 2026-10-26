@@ -92,3 +92,23 @@ func TestLeaderQuestionListsLeaderKeys(t *testing.T) {
 		t.Fatalf("esc: modal %q focus %s", a.r.TopModal(), a.r.Focus)
 	}
 }
+
+// x on a pane with side panes open says which to close, before any
+// confirm; the confirm prompt names the pane without its badges.
+func TestKillRefusesBeforeConfirmWhileSidesAreOpen(t *testing.T) {
+	a, f := sideViewApp(t)
+	press(t, a, "ctrl+a", "d")
+	if a.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("focus %s", a.r.Focus)
+	}
+	a.Update(keyMsg("x"))
+	if a.r.TopModal() != "" || !strings.Contains(a.m.Status, "close the side vim (ctrl+a v) and side terminal (ctrl+a t) of matomeru/claude") {
+		t.Fatalf("modal %q status %q", a.r.TopModal(), a.m.Status)
+	}
+	f.panes = f.panes[:len(f.panes)-2] // both sides closed
+	a.setPanes(f.panes, nil)
+	a.Update(keyMsg("x"))
+	if prompt, _ := confirmPrompt(t, a); prompt != "Kill pane matomeru/claude?" {
+		t.Fatalf("confirm %q", prompt)
+	}
+}

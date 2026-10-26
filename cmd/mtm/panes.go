@@ -107,20 +107,13 @@ func (p pane) rowID() string { return "pane:" + p.Session + "/" + p.ID }
 // prompt reads. A uuid-named session shows its first 8 characters.
 func (p pane) label() string {
 	name := p.Name
-	badges := ""
-	if p.SideVim != "" {
-		badges += " v"
-	}
-	if p.SideTerm != "" {
-		badges += " t"
-	}
 	if name == "" || defaultWindowName.MatchString(name) {
 		name = p.baseName()
 	}
 	if name == "" {
 		name = p.ID
 	}
-	return shortSession(p.Session) + "/" + name + badges
+	return shortSession(p.Session) + "/" + name
 }
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -207,13 +200,21 @@ func (a *App) definePanes() {
 		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches, ctrl+a z zooms").
 		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Quiet().
 		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
+		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
 		Verb("move", a.movePane, "Move the pane to a project (a chooser; unassociated last)").
 		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Quiet().
 		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Quiet().
 		Mode("normal").
 		Bind("enter", ochazuke.Do("pane.attach")).
-		Bind("x", ochazuke.Do("pane.kill")).
+		Bind("x", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
+		Bind("x", ochazuke.Do("pane.killBlocked").Hide()).
 		Bind("m", ochazuke.Do("pane.move"))
+	// x asks to kill only a pane with no side pane open; with one, it says
+	// which to close instead of confirming and then refusing.
+	a.r.DefineGuard("pane-no-sides", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		p, err := a.paneAt(r.Instances[ev.Focus])
+		return err != nil || p.SideVim == "" && p.SideTerm == ""
+	})
 	r.Define("session").
 		Verb("attach", a.attachSession, "Attach the session's first pane").
 		Verb("move", a.moveSession, "Move the session to a project (a chooser; unassociated last)").
@@ -586,6 +587,23 @@ func (a *App) closeTerminal() error {
 		return nil
 	}
 	return a.r.RemoveInstance(paneTermID)
+}
+
+// killBlocked is pane.killBlocked, x on a pane whose side panes are open:
+// it names them and the leader keys that reach them.
+func (a *App) killBlocked(ctx ochazuke.Ctx) ochazuke.Result {
+	p, err := a.paneAt(ctx.Instance)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	var open []string
+	if p.SideVim != "" {
+		open = append(open, "side vim (ctrl+a v)")
+	}
+	if p.SideTerm != "" {
+		open = append(open, "side terminal (ctrl+a t)")
+	}
+	return ochazuke.Failed(fmt.Errorf("close the %s of %s before killing it", strings.Join(open, " and "), p.label()))
 }
 
 // killPane is pane.kill, after its confirm: close the window off the loop
