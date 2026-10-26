@@ -322,7 +322,8 @@ type App struct {
 	paneList    *ochazuke.List // the pane tree's rows (panes_tree.go)
 	pv          *paneUI        // the panes page's tree, detail tabs and timers
 	reviewList  *ochazuke.List
-	reviewTurns *ochazuke.Tree // the opened review row's turns (reviews.go)
+	reviewTurns *ochazuke.Tree       // the opened review row's turns (reviews.go)
+	turnFills   map[string]*turnFill // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
 	answer      *ochazuke.Input
 	answerDraft string // the answer text last written as the opened review's draft
 	noteList    *ochazuke.List

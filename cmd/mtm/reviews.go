@@ -675,6 +675,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 			if a.captureErr == paneGoneNote {
 				detail += " · pane gone"
 			}
+			a.wrapTurns(a.reviewTurns, width)
 			if list := a.reviewTurns.List(); list.Focused() {
 				// In the tree the selection moves and the tree keeps it
 				// in view; J and K scroll it only from the review list.

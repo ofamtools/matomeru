@@ -1,0 +1,34 @@
+  ◆ Matomeru · no pin                                                                                          NORMAL   
+   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Extensions                                           
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+  panes (2)                          ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
+  pane                      state    ┃ claude-code · idle                                                            ┃  
+  ▾ matomeru (1)                     ┃ Screen Activity Transcript [Turns] · [ ] tabs                                 ┃  
+    ▾ session matomeru (1)           ┃ ▾ prompt 1 · 1 answer · Sep 21 14:13                                          ┃  
+        ○ claude            idle     ┃     prompt:                                                                   ┃  
+  ▾ unassociated (1)                 ┃       prompt 1                                                                ┃  
+    ▾ session ochazuke (1)           ┃       with a second line                                                      ┃  
+          shell             shell    ┃                                                                               ┃  
+                                     ┃     answer:                                                                   ┃  
+                                     ┃       This answer is a long paragraph of prose that the agent wrote, which    ┃  
+                                     ┃       should wrap onto several rows at the panel width instead of being cut   ┃  
+                                     ┃       off with an ellipsis at the edge.                                       ┃  
+                                     ┃           func indented() { return someLongFunctionName(withArguments,        ┃  
+                                     ┃           andMoreArguments, andEvenMoreArguments) }                           ┃  
+                                     ┃                                                                               ┃  
+                                     ┃       See https://example.com/a/very/long/path/that/does/not/have/any/spaces/ ┃  
+                                     ┃       in/it/at/all/so/it/must/hard/break/somewhere.html                       ┃  
+                                     ┃       日本語の文章も正しく折り返されるべきです。全角文字は二つのセルを占める  ┃  
+                                     ┃       ので、幅の計算に注意が必要です。                                        ┃  
+                                     ┃ ▸ prompt 2 · 1 answer · Sep 21 14:14 · new                                    ┃  
+                                     ┃                                                                               ┃  
+                                     ┃                                                                               ┃  
+                                     ┃                                                                               ┃  
+                                     ┃                                                                               ┃  
+                                     ┃                                                                               ┃  
+                                     ┃                                                                               ┃  
+                                     ┃                                                                               ┃  
+                                     ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+  l turn.open · esc turn.back · space list.mark · ] next tab · [ previous tab · W panes.waiting · : palette.open · ? …  
+                                                                                                                        

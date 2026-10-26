@@ -99,11 +99,14 @@ func turnLines(t history.PaneTurn) []string {
 	return lines
 }
 
-// textLines splits a text into lines without escapes or trailing blanks.
+// textLines splits a text into lines without escapes or trailing blanks,
+// each indented under its heading.
 func textLines(text string) []string {
 	var out []string
 	for _, line := range strings.Split(strings.TrimRight(xansi.Strip(text), "\n"), "\n") {
-		out = append(out, "  "+strings.TrimRight(line, " \t\r"))
+		// A tab is four spaces, so a wrapped line measures what it draws.
+		line = strings.ReplaceAll(strings.TrimRight(line, " \t\r"), "\t", "    ")
+		out = append(out, "  "+line)
 	}
 	return out
 }
@@ -114,27 +117,22 @@ type turnRef struct {
 	Window, ID string
 	Back       string // the pane row (Panes) or review row (Review) the tree shows
 	Review     bool   // the row is in the Review page's tree
+	Line       int    // a turn-line row's source line in turnLines (-1 on the turn's row)
+	Offset     int    // the rune offset in that line where the row's piece starts (turn_wrap.go)
 }
 
 // fillTurns fills a turns tree with a window's turns, each row's id
-// prefixed (the Panes and Review trees hold the same turns); fresh
+// prefixed (the Panes and Review trees hold the same turns), their lines
+// wrapped at the width the tree was last drawn at (turn_wrap.go); fresh
 // collapses every turn. It returns how many turns the tree holds.
 func (a *App) fillTurns(tree *ochazuke.Tree, prefix, window string, back turnRef, fresh bool) (int, error) {
 	turns, err := a.hist.Turns(window)
 	if err != nil {
 		return 0, err
 	}
-	var nodes []ochazuke.TreeNode
-	for _, t := range turns {
-		id := prefix + t.ID
-		ref := back
-		ref.Window, ref.ID = window, t.ID
-		nodes = append(nodes, ochazuke.TreeNode{ID: id, Label: turnLabel(t), Noun: "turn", Data: ref})
-		for j, line := range turnLines(t) {
-			nodes = append(nodes, ochazuke.TreeNode{ID: fmt.Sprintf("%s/%d", id, j), Parent: id, Label: line, Noun: "turn-line", Data: ref})
-		}
-	}
-	if err := tree.SetNodes(nodes); err != nil {
+	st := a.turnFillOf(tree)
+	st.prefix, st.window, st.back, st.turns = prefix, window, back, turns
+	if err := a.setTurnNodes(tree, st); err != nil {
 		return 0, err
 	}
 	if fresh {

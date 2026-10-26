@@ -866,6 +866,7 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 			a.detail.panes.hide()
 			return ochazuke.Text("loading…")
 		}
+		a.wrapTurns(a.pv.turns, width)
 		list := a.pv.turns.List()
 		if list.Len() == 0 {
 			a.detail.panes.hide()
