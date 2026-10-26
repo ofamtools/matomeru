@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -246,6 +247,7 @@ type extension struct {
 	doc   ocli.CatalogDoc
 	nouns map[string]string // catalog noun -> mtm noun <ext>-<noun>
 	views []*ocli.PageView
+	crud  map[string]extCRUD // catalog noun -> its new, edit and delete verbs (extension_forms.go)
 }
 
 // extNoun is mtm's noun of an extension's noun; a dot would split the
@@ -593,7 +595,8 @@ func (a *App) mountExtension(name string, e extEntry) {
 			}
 		}
 	}
-	if dropped := a.loadExtBindings(x, e.Catalog.Bindings, pages); len(dropped) > 0 {
+	crudKeys := a.mountCRUD(x, plan, pages)
+	if dropped := a.loadExtBindings(x, e.Catalog.Bindings, pages, crudKeys); len(dropped) > 0 {
 		notify("key rows dropped (mtm binds the key there): %s", strings.Join(dropped, ", "))
 	}
 	a.exts = append(a.exts, x)
@@ -663,10 +666,11 @@ func pagesOf(name string, doc ocli.CatalogDoc, plan []ocli.CatalogNoun, mounted 
 
 // loadExtBindings installs the catalog's key rows of mounted nouns, renamed
 // to mtm's nouns. A row naming one of the tool's own instances, running a
-// verb mtm did not mount, or whose first key a noun on its list's path
-// (the list, the page, app) already binds is dropped and named in the
+// verb mtm did not mount, whose first key a noun on its list's path (the
+// list, the page, app) already binds, or whose first key is one of mtm's
+// CRUD keys on that noun (crud: n, i, d) is dropped and named in the
 // answer.
-func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocli.CatalogPage) []string {
+func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocli.CatalogPage, crud map[string][]string) []string {
 	home := map[string]string{} // catalog noun -> a list its rows live in
 	for _, p := range pages {
 		for _, l := range p.Lists {
@@ -694,6 +698,10 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		}
 		row.Request.Noun = req
 		row.Noun = local
+		if row.Keys != "" && slices.Contains(crud[local], strings.Fields(row.Keys)[0]) {
+			dropped = append(dropped, where)
+			continue
+		}
 		if list, ok := home[x.nounOfLocal(local)]; ok && a.keyTaken(list, row) {
 			dropped = append(dropped, where)
 			continue
@@ -751,37 +759,58 @@ func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 // status line, and the extension's rows reload.
 func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
 	return func(c ochazuke.Ctx) ochazuke.Result {
-		args := []string{noun, verb}
+		target := ""
 		if c.Instance != nil {
-			if id, ok := c.Instance.Data.(string); ok && id != "" {
-				args = append(args, "--target", id)
-			}
+			target, _ = c.Instance.Data.(string)
 		}
-		js := []byte("{}")
-		if len(c.Args) > 0 {
-			var err error
-			if js, err = json.Marshal(c.Args); err != nil {
-				return ochazuke.Failed(err)
-			}
-		}
-		args = append(args, "--json", string(js), "--yes")
-		bin, env := x.bin, a.extEnv(x.name)
-		return ochazuke.Pending(func(ctx context.Context) (any, error) {
-			out, err := execExt(ctx, bin, env, args...)
-			if err != nil {
-				return nil, err
-			}
-			return extDecoded(out), nil
-		}).Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
-			line := extResultLine(noun+" "+verb, v, err)
-			for _, view := range x.views {
-				view.SetStatus(line)
-			}
-			if !a.cli {
-				a.reloadExtension(x)
-			}
-		})
+		return a.extRun(x, noun, verb, target, c.Args, nil)
 	}
+}
+
+// extRun runs one of an extension's verbs off the loop: `<bin> NOUN VERB
+// [--target ID] --json ARGS --yes`. The answer is the page's status line
+// and the extension's rows reload; then, when given, sees the decoded
+// answer first.
+func (a *App) extRun(x *extension, noun, verb, target string, args map[string]any, then func(v any, err error)) ochazuke.Result {
+	words := []string{noun, verb}
+	if target != "" {
+		words = append(words, "--target", target)
+	}
+	js := []byte("{}")
+	if len(args) > 0 {
+		var err error
+		if js, err = json.Marshal(args); err != nil {
+			return ochazuke.Failed(err)
+		}
+	}
+	words = append(words, "--json", string(js), "--yes")
+	bin, env := x.bin, a.extEnv(x.name)
+	if a.quitting {
+		// mtm is closing: no job would run, so the last write runs here.
+		out, err := execExt(context.Background(), bin, env, words...)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(extDecoded(out))
+	}
+	return ochazuke.Pending(func(ctx context.Context) (any, error) {
+		out, err := execExt(ctx, bin, env, words...)
+		if err != nil {
+			return nil, err
+		}
+		return extDecoded(out), nil
+	}).Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
+		if then != nil {
+			then(v, err)
+		}
+		line := extResultLine(noun+" "+verb, v, err)
+		for _, view := range x.views {
+			view.SetStatus(line)
+		}
+		if !a.cli {
+			a.reloadExtension(x)
+		}
+	})
 }
 
 // reloadExtension reloads every page of an extension (off the loop).

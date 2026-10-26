@@ -332,6 +332,10 @@ type App struct {
 	configDir   string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
+	// extForm is the open form over an extension's row (extension_forms.go).
+	extForm *ochazuke.RecordEditor
+	// quitting is set by Close: an extension's last write runs at once.
+	quitting bool
 
 	outline *outlineState // the task outline last opened (outline.go)
 	copy    *copyMode     // copy mode on the panes page (copymode.go)
@@ -414,6 +418,7 @@ func New(opts Options) (*App, error) {
 	a.defineSetup()
 	a.defineStore()
 	a.defineExtensions()
+	a.defineExtForms()
 	if err := a.declareSettings(); err != nil {
 		return nil, err
 	}
@@ -515,7 +520,8 @@ func New(opts Options) (*App, error) {
 // Close writes the open record's and quick note's last change, then
 // closes the terminal and the store.
 func (a *App) Close() error {
-	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
+	a.quitting = true
+	return errors.Join(a.flushEditor(), a.flushExtForm(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.
