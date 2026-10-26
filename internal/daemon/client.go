@@ -31,6 +31,9 @@ type Client struct {
 	Start  StartFunc     // how Ensure starts Server; nil runs StartServer
 	Wait   time.Duration // how long Ensure waits for a started server; 0 is ensureWait
 	mu     sync.Mutex    // serializes Ensure, so two calls start one server
+
+	presenceMu sync.Mutex
+	presence   *Presence // the person's presence this process holds, opened on first use
 }
 
 // New is the client for socket; an empty socket is TUIOS_SOCKET, else the
@@ -349,3 +352,32 @@ func (c *Client) Presence(ctx context.Context, session string) (*Presence, error
 	return p, nil
 }
 func (p *Presence) Close() error { return p.conn.Close() }
+
+// HumanNonce is the person's presence nonce for this process, for the
+// verbs only the person may run (agent-transcript): the first call opens
+// a presence with no session (attach-presence) and keeps its connection
+// for later calls. The daemon refuses a presence to a process inside one
+// of its panes (forbidden).
+func (c *Client) HumanNonce(ctx context.Context) (string, error) {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	if c.presence == nil {
+		p, err := c.Presence(ctx, "")
+		if err != nil {
+			return "", err
+		}
+		c.presence = p
+	}
+	return c.presence.Nonce, nil
+}
+
+// DropPresence closes the held presence, so the next HumanNonce opens a
+// new one (after the daemon restarted, the old nonce is refused).
+func (c *Client) DropPresence() {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	if c.presence != nil {
+		c.presence.Close()
+		c.presence = nil
+	}
+}

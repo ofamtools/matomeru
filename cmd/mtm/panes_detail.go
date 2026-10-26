@@ -166,7 +166,11 @@ func (a *App) paneText(ctx ochazuke.Ctx, tab int, read func(context.Context, pan
 			return "a shell has no agent " + strings.ToLower(tabNames[tab]), nil
 		}
 		text, err := read(c, p)
-		if err != nil {
+		var plain explained
+		switch {
+		case errors.As(err, &plain):
+			return plain.text, nil
+		case err != nil:
 			return "unavailable: " + err.Error(), nil
 		}
 		if strings.TrimSpace(text) == "" {
@@ -648,9 +652,11 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	if !ok {
 		return ochazuke.Text("loading…")
 	}
-	lines := strings.Split(text, "\n")
+	// Long lines wrap to the panel, so an explanation or a reply reads
+	// whole; the newest stay at the bottom.
+	lines := strings.Split(ansi.Wrap(text, max(1, width), ""), "\n")
 	if len(lines) > height {
-		lines = lines[len(lines)-height:] // the newest at the bottom
+		lines = lines[len(lines)-height:]
 	}
 	return ochazuke.Text(a.fill(strings.Join(lines, "\n"), height, width))
 }

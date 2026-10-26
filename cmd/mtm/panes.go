@@ -649,13 +649,26 @@ func (t tuios) Activity(ctx context.Context, p pane) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-// Transcript is the agent's conversation, one entry per paragraph.
+// Transcript is the agent's conversation, one entry per paragraph. Only
+// the person may read it: the call carries the presence nonce mtm holds
+// (a refused nonce, after a daemon restart, is renewed once).
 func (t tuios) Transcript(ctx context.Context, p pane) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
-	got, err := t.Client.Transcript(ctx, daemon.TranscriptParams{Session: p.Session, Window: p.ID, Limit: 100})
+	read := func() (daemon.TranscriptResult, error) {
+		nonce, err := t.HumanNonce(ctx)
+		if err != nil {
+			return daemon.TranscriptResult{}, err
+		}
+		return t.Client.Transcript(ctx, daemon.TranscriptParams{Session: p.Session, Window: p.ID, HumanNonce: nonce, Limit: 100})
+	}
+	got, err := read()
+	if daemonCode(err) == "not_human" {
+		t.DropPresence()
+		got, err = read()
+	}
 	if err != nil {
-		return "", err
+		return "", transcriptError(err, t.Server)
 	}
 	var parts []string
 	for _, e := range got.Entries {
@@ -666,6 +679,38 @@ func (t tuios) Transcript(ctx context.Context, p pane) (string, error) {
 		parts = append(parts, head+"\n"+strings.TrimSpace(e.Text))
 	}
 	return strings.Join(parts, "\n\n"), nil
+}
+
+// daemonCode is a daemon error's code, "" for any other error.
+func daemonCode(err error) string {
+	var remote *daemon.Error
+	if errors.As(err, &remote) {
+		return remote.Code
+	}
+	return ""
+}
+
+// explained is an error whose message is meant for the person as it is:
+// what happened and what makes it work.
+type explained struct{ text string }
+
+func (e explained) Error() string { return e.text }
+
+// transcriptError says in plain words why a transcript cannot be read.
+func transcriptError(err error, server string) error {
+	switch daemonCode(err) {
+	case "forbidden", "not_human":
+		where := "this daemon"
+		if server != "" {
+			where = "TUIOS server " + server
+		}
+		return explained{"the transcript is only for the person: TUIOS gives mtm your presence only when mtm runs outside the panes of " + where + ". Run mtm from a terminal that is not one of its panes; the Screen tab shows the pane meanwhile."}
+	case "no_transcript":
+		return explained{"no transcript yet: this pane is not joined to an agent transcript (the agent's hooks join it once its session starts). The Screen tab shows the pane."}
+	case "unsupported_harness":
+		return explained{"this agent's harness keeps no transcript TUIOS reads. The Screen tab shows the pane."}
+	}
+	return err
 }
 
 // oneLine is text on one line, cut at 200 runes.

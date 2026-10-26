@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -121,5 +123,24 @@ func TestLiveHeaderFollowsListing(t *testing.T) {
 	}
 	if a.r.Terminal(paneTermID) == nil || len(f.streams) != 1 || f.streams[0].released {
 		t.Fatal("the refresh disturbed the live terminal")
+	}
+}
+
+// A transcript the daemon refuses reads as what happened and what makes
+// it work, not as a protocol error.
+func TestTranscriptErrorsInPlainWords(t *testing.T) {
+	for code, want := range map[string]string{
+		"forbidden":           "outside the panes of TUIOS server mtm-daemon",
+		"no_transcript":       "not joined to an agent transcript",
+		"unsupported_harness": "keeps no transcript",
+	} {
+		err := transcriptError(&daemon.Error{Code: code, Message: "x"}, "mtm-daemon")
+		var plain explained
+		if !errors.As(err, &plain) || !strings.Contains(plain.text, want) {
+			t.Fatalf("%s: %v", code, err)
+		}
+	}
+	if err := transcriptError(errors.New("boom"), ""); err.Error() != "boom" {
+		t.Fatalf("other errors pass through: %v", err)
 	}
 }
