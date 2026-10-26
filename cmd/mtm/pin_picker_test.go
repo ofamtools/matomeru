@@ -559,3 +559,25 @@ func TestPinPickerQuerySpellingUnpinHighlightsIt(t *testing.T) {
 		})
 	}
 }
+
+// UX review 2 F22: a project left without a directory (esc in the
+// directory chooser) is not asked again on the next pin.
+func TestADirectorylessProjectIsAskedOnce(t *testing.T) {
+	a := open(t)
+	knownRepos(t, a, "alpha")
+	executeA(t, a, "project", "unpin", "work", nil)
+	openPicker(t, a)
+	typeText(t, a, "matomeru")
+	pressSettle(t, a, "enter")
+	if a.choosers.Get(dirChooser) == nil {
+		t.Fatalf("first pin: modal %q", a.r.TopModal())
+	}
+	press(t, a, "esc")
+	executeA(t, a, "project", "unpin", "work", nil)
+	openPicker(t, a)
+	typeText(t, a, "matomeru")
+	pressSettle(t, a, "enter")
+	if a.pin != "matomeru" || a.r.TopModal() != "" {
+		t.Fatalf("second pin: pin %q modal %q", a.pin, a.r.TopModal())
+	}
+}

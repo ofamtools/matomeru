@@ -120,10 +120,16 @@ func (a *App) createPinnedProject(name string) ochazuke.Result {
 }
 
 // pinAndAskDirectory pins id; a project without a default directory then
-// opens the directory chooser, whose esc leaves it pinned without one.
+// opens the directory chooser, whose esc leaves it pinned without one. It
+// asks once per project while mtm runs: a project left without one is not
+// asked again on every pin (UX review 2 F22).
 func (a *App) pinAndAskDirectory(id string) ochazuke.Result {
 	result := a.setPin(id)
-	if p, ok := a.project(id); ok && p.DefaultTree == "" && a.pin == id {
+	if p, ok := a.project(id); ok && p.DefaultTree == "" && a.pin == id && !a.askedDir[id] {
+		if a.askedDir == nil {
+			a.askedDir = map[string]bool{}
+		}
+		a.askedDir[id] = true
 		if err := a.openDirectoryChooser(id); err != nil {
 			return ochazuke.Failed(err)
 		}

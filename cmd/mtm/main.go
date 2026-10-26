@@ -249,8 +249,9 @@ type App struct {
 	projects       []work.Project
 	current        string // the open project's id; its tasks fill the tasks stop
 	tasksOpen      bool
-	workFocus      string // the focus followProject last saw, to tell a spill from a move
-	dirsVisited    bool   // the Directories page has been opened once
+	workFocus      string          // the focus followProject last saw, to tell a spill from a move
+	dirsVisited    bool            // the Directories page has been opened once
+	askedDir       map[string]bool // projects the pin picker already asked for a directory
 	tasks          []work.Task
 	panes          []pane     // every pane the daemon reports; launches and kills reload it
 	paneErr        string     // why the last listing failed (the daemon is not reachable)
