@@ -64,7 +64,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
@@ -75,6 +75,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := a.m.Update(msg)
 	if panes := a.panesUpdate(msg); panes != nil {
 		cmd = tea.Batch(cmd, panes)
+	}
+	if journal := a.journalUpdate(msg); journal != nil {
+		cmd = tea.Batch(cmd, journal)
 	}
 	edit, err := a.editorUpdate(msg)
 	quick, quickErr := a.quickNoteUpdate(msg)

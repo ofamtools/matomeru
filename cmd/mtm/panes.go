@@ -416,6 +416,7 @@ func (a *App) setPanes(panes []pane, err error) {
 		}
 	}
 	a.recordTurns(panes)
+	a.feed.setPanes(panes)
 	a.pv.view = a.buildPaneTree(panes, time.Now())
 	before, hadRow := a.pv.tree.Selected()
 	a.paneList.SetColumns(a.pv.view.columns()...)
