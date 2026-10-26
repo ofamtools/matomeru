@@ -144,13 +144,13 @@ func TestProjIsTheProjectNoun(t *testing.T) {
 }
 
 // An unknown first word is reported by oden, not handed to the shell:
-// tasks is not task, and suggestions never run.
+// tasks is not task, and suggestions never run; a suggestion comes with a
+// pointer to --help, not the whole usage (test pass R11).
 func TestUnknownWordIsNotFoundWithSuggestions(t *testing.T) {
 	app, _ := cliApp(t)
 	out, errOut, err := mtm(app, t.TempDir(), "tasks")
 	if oden.ExitCode(err) != 1 || out != "" ||
-		!strings.HasPrefix(errOut, "mtm: command \"tasks\" not found\ndid you mean: task\n\nusage: mtm COMMAND") ||
-		!strings.Contains(errOut, "\n  task ") || strings.Contains(errOut, "operations list") {
+		errOut != "mtm: command \"tasks\" not found\ndid you mean: task\n(mtm --help lists every command)\n" {
 		t.Fatalf("mtm tasks: %v %q\n%s", err, out, errOut)
 	}
 	out, errOut, err = mtm(app, t.TempDir(), "task", "frob")
