@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -126,5 +129,71 @@ func TestEnsureJobFailureShowsInFooterAndPanesHint(t *testing.T) {
 	settle(app, app.r.PendingCommands())
 	if app.paneErr != "" || len(app.panes) == 0 {
 		t.Fatalf("after ensure: err %q panes %d", app.paneErr, len(app.panes))
+	}
+}
+
+// --smoke without -data renders a fresh temp database, never the default
+// one, and never dials a daemon, even one that listens where the options
+// point; an explicit -data is rendered as given.
+func TestSmokeUsesATempDatabaseAndNoDaemon(t *testing.T) {
+	dir, starts := isolate(t)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(dir, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config"))
+	t.Setenv("MTM_CONFIG_DIR", "")
+	sock := filepath.Join(dir, "d.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	dialed := make(chan struct{}, 1)
+	go func() {
+		if c, err := ln.Accept(); err == nil {
+			c.Close()
+			dialed <- struct{}{}
+		}
+	}()
+	t.Setenv("TUIOS_SOCKET", sock)
+	t.Setenv("MTM_SERVER", DefaultDaemon)
+	var out, errOut bytes.Buffer
+	if err := run([]string{"--smoke"}, strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), "› Panes  Work") {
+		t.Fatalf("smoke: %v\n%s%s", err, out.String(), errOut.String())
+	}
+	if _, err := os.Stat(DefaultData()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("smoke touched the default database %s: %v", DefaultData(), err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("smoke touched the user config dir: %v", err)
+	}
+	select {
+	case <-dialed:
+		t.Fatal("smoke dialed the daemon")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if *starts != 0 {
+		t.Fatalf("smoke started a server %d times", *starts)
+	}
+
+	data := filepath.Join(t.TempDir(), "mtm.db")
+	out.Reset()
+	if err := run([]string{"--data", data, "--smoke"}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(data); err != nil {
+		t.Fatalf("explicit -data was not the smoke's database: %v", err)
+	}
+	opts := Options{Data: data}
+	smokeFlags := flag.NewFlagSet("t", flag.ContinueOnError)
+	smokeFlags.StringVar(&opts.Data, "data", "", "")
+	if err := smokeFlags.Parse([]string{"--data", data}); err != nil {
+		t.Fatal(err)
+	}
+	cleanup, err := smokeOptions(&opts, smokeFlags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	if opts.Data != data || opts.Socket == "" || opts.Socket == sock {
+		t.Fatalf("explicit -data smoke options = %+v", opts)
 	}
 }

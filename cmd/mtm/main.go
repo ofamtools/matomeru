@@ -141,7 +141,7 @@ func DefaultData() string {
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("mtm", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit")
+	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit; uses a fresh temp database unless -data is given, and never reaches the daemon")
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
 	flags.StringVar(&opts.Socket, "socket", "", "TUIOS daemon socket; when set it wins over -server (TUIOS_SOCKET alone does not)")
@@ -153,6 +153,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		words = flags.Args()
 	} else if !errors.Is(err, flag.ErrHelp) {
 		return err
+	}
+	if *smoke {
+		cleanup, err := smokeOptions(&opts, flags)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
 	}
 	app, err := New(opts)
 	if err != nil {
@@ -174,6 +181,31 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return err
 	}
 	return app.commands(words, stdin, stdout, stderr, tui).Run(context.Background())
+}
+
+// smokeOptions makes --smoke safe to run anywhere: without an explicit
+// -data it renders a fresh database in a temp directory (with its config
+// beside it unless -config is given), never the owner's; without an explicit
+// -socket it names a socket in that directory that nothing listens on, so
+// the frame never reaches a daemon (and --smoke never ensures one). The
+// cleanup removes the directory.
+func smokeOptions(opts *Options, flags *flag.FlagSet) (func(), error) {
+	set := map[string]bool{}
+	flags.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	dir, err := os.MkdirTemp("", "mtm-smoke-")
+	if err != nil {
+		return nil, err
+	}
+	if !set["data"] {
+		opts.Data = filepath.Join(dir, "mtm.db")
+		if !set["config"] {
+			opts.Config = dir
+		}
+	}
+	if !set["socket"] {
+		opts.Socket = filepath.Join(dir, "no-daemon.sock")
+	}
+	return func() { os.RemoveAll(dir) }, nil
 }
 
 // reveal loads the rows that hold id, so a CLI --target names a row
