@@ -93,3 +93,85 @@ func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
 		t.Fatalf("project after m: %q", got)
 	}
 }
+
+// keyRow is one normal-mode row: where it is bound, its keys and operation.
+type keyRow struct{ at, keys, op string }
+
+// normalRows lists every normal-mode row of the runtime: noun tables and
+// instance rows.
+func normalRows(a *App) []keyRow {
+	var out []keyRow
+	for name, noun := range a.r.Nouns {
+		for _, b := range noun.Bindings["normal"] {
+			if !b.Unbind {
+				out = append(out, keyRow{"noun " + name, b.Keys, b.Request.Key()})
+			}
+		}
+	}
+	for id, inst := range a.r.Instances {
+		for _, b := range inst.Bindings {
+			if b.Mode == "normal" && !b.Unbind {
+				out = append(out, keyRow{"instance " + id, b.Keys, b.Request.Key()})
+			}
+		}
+	}
+	return out
+}
+
+// The key map (owner, 2026-10-26) as a check: every verb of a family is
+// bound to the family's key wherever it is bound at all, and to no other
+// key, across nouns; the retired keys answer nowhere in mtm.
+func TestBindingsFollowTheKeyMap(t *testing.T) {
+	app := open(t)
+	families := map[string][]string{
+		"d d": {"pane.kill", "session.kill", "saved.forget", "vim.forget", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete"},
+		"n":   {"pane.new", "project.new", "task.new", "note.new", "vim.open", "dirs.base.add"},
+		"L":   {"agent.choose", "project.launch", "task.launch"},
+		"i":   {"project.edit", "task.edit", "note.edit", "project-dir.edit", "review.saveAnswer", "outline.edit"},
+		"r":   {"pane.rename", "session.rename", "saved.rename"},
+		"x":   {"task.toggle", outlineModal + ".toggle", "review.accept"},
+		"s":   {"task.status", outlineModal + ".status", "review.status"},
+		"w":   {"saved.save", "vim.save"},
+		"m":   {"pane.associate", "session.associate", "task.associate", "note.associate", "saved.associate"},
+	}
+	want := map[string]string{}
+	for k, ops := range families {
+		for _, op := range ops {
+			want[op] = k
+		}
+	}
+	rows := normalRows(app)
+	bound := map[string]bool{}
+	for _, row := range rows {
+		k, ok := want[row.op]
+		if !ok {
+			continue
+		}
+		// pane.killBlocked shares d d; any other key for a family verb is a
+		// second meaning.
+		if row.keys != k {
+			t.Errorf("%s binds %q to %s; the key map says %q", row.at, row.keys, row.op, k)
+		}
+		bound[row.op] = true
+	}
+	for op, k := range want {
+		if !bound[op] {
+			t.Errorf("%s has no %q row", op, k)
+		}
+	}
+	// Retired keys: a and D answer nowhere (the editor noun's Vim rows,
+	// inside an input, keep a as append); q is a close key (the record
+	// editor, the outline, modals) and never a macro; refresh has no key.
+	closers := map[string]bool{"record-editor.leave": true, outlineModal + ".close": true, "modal.pop": true}
+	for _, row := range rows {
+		switch {
+		case row.at == "noun editor":
+		case row.keys == "a" || row.keys == "D":
+			t.Errorf("%s still binds %q (%s)", row.at, row.keys, row.op)
+		case row.keys == "q" && !closers[row.op]:
+			t.Errorf("%s binds q to %s, not a close", row.at, row.op)
+		case row.op == "saved.list" || row.op == "vim.list":
+			t.Errorf("%s binds %q to %s; refresh is automatic", row.at, row.keys, row.op)
+		}
+	}
+}
