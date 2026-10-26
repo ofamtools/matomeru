@@ -526,7 +526,7 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 				ctx.Status(err.Error())
 			}
 			if x := a.extension(name); x != nil && !a.cli {
-				a.reloadExtension(x) // the rows of an unchanged catalog
+				a.refreshExtensionRows(x) // the rows of an unchanged catalog, in full
 			}
 		}
 		a.extSyncDue = !a.cli
@@ -652,6 +652,12 @@ func (a *App) mountExtension(name string, e extEntry) {
 		},
 		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
 			return execExt(c, x.bin, a.extEnv(name), noun, verb, "--json", "{}")
+		},
+		// The state verb asks for what changed since the rows the page
+		// holds (ochazuke's state deltas), when the catalog declares
+		// stateDelta; an older tool keeps full answers through Fetch.
+		FetchFlags: func(c context.Context, noun, verb string, flags []string) ([]byte, error) {
+			return execExt(c, x.bin, a.extEnv(name), append([]string{noun, verb, "--json", "{}"}, flags...)...)
 		},
 	}
 	for _, p := range pages {
@@ -892,6 +898,20 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 func (a *App) reloadExtension(x *extension) {
 	for _, v := range x.views {
 		if err := v.Reload(); err != nil {
+			v.SetStatus(err.Error())
+		}
+	}
+	if err := a.loadSources(x); err != nil && len(x.views) > 0 {
+		x.views[0].SetStatus(err.Error())
+	}
+}
+
+// refreshExtensionRows is an explicit refresh (extension.refresh): every
+// page forgets the hashes of the rows it holds and asks for every list in
+// full (PageView.Refresh), then the parameter choices reload.
+func (a *App) refreshExtensionRows(x *extension) {
+	for _, v := range x.views {
+		if err := v.Refresh(); err != nil {
 			v.SetStatus(err.Error())
 		}
 	}
