@@ -229,13 +229,17 @@ func parseExtCatalog(bin string, data []byte) (ocli.CatalogDoc, error) {
 // extPlan keeps a catalog's nouns with at least one mountable verb
 // (extMountable) and no modal pin, with only those verbs: the framework's
 // own verbs run inside the tool's own screen, so a host has nothing to
-// mount for them.
+// mount for them. The tool's own verbs are the catalog's AppNouns (every
+// verb but the ones marked builtin); a catalog from a tool built before
+// ochazuke v0.8.0 marks none, so for it the framework's are the keys a
+// fresh runtime registers (frameworkVerbs).
 func extPlan(doc ocli.CatalogDoc) []ocli.CatalogNoun {
+	nouns, fallback := doc.AppNouns(), !catalogMarksBuiltin(doc)
 	var out []ocli.CatalogNoun
-	for _, n := range doc.Nouns {
+	for _, n := range nouns {
 		var verbs []ocli.CatalogVerb
 		for _, v := range n.Verbs {
-			if extMountable(n.Name, v) {
+			if extMountable(n.Name, v, fallback) {
 				verbs = append(verbs, v)
 			}
 		}
@@ -248,13 +252,27 @@ func extPlan(doc ocli.CatalogDoc) []ocli.CatalogNoun {
 	return out
 }
 
+// catalogMarksBuiltin reports a catalog that carries the builtin field:
+// every ochazuke tool's catalog lists the framework's verbs, so one built
+// on v0.8.0 or later has at least one verb marked builtin.
+func catalogMarksBuiltin(doc ocli.CatalogDoc) bool {
+	for _, n := range doc.Nouns {
+		for _, v := range n.Verbs {
+			if v.Builtin {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // extMountable reports a catalog verb mtm mounts: an application verb the
 // tool declared. Kind alone is not enough: the framework's tree verbs
-// (outline.*) have application handlers, so every ochazuke tool's catalog
-// lists them as application verbs, and they are the framework's
-// (frameworkVerbs), not the tool's.
-func extMountable(noun string, v ocli.CatalogVerb) bool {
-	return v.Kind == ochazuke.KindApplication && !frameworkVerbs()[noun+"."+v.Name]
+// (outline.*) have application handlers. A catalog that marks builtin
+// verbs has already dropped them (AppNouns); for an older one (fallback)
+// a verb under a framework key (frameworkVerbs) is the framework's.
+func extMountable(noun string, v ocli.CatalogVerb, fallback bool) bool {
+	return v.Kind == ochazuke.KindApplication && !(fallback && frameworkVerbs()[noun+"."+v.Name])
 }
 
 // frameworkVerbs is every operation key a fresh runtime and model register

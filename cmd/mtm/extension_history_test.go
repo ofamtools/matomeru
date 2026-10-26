@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 )
 
 // historyCatalog is fakeCatalog with a history kind on item list (fetch)
@@ -68,5 +69,39 @@ func TestExtensionVerbsKeepTheCatalogHistory(t *testing.T) {
 	}
 	if !slices.ContainsFunc(a.r.HistoryOf(0, ochazuke.HistoryFetch), func(e ochazuke.HistoryEntry) bool { return e.Request.Key() == "fake-item.list" }) {
 		t.Fatal("fake-item.list is not a fetch entry")
+	}
+}
+
+// A catalog that marks builtin verbs (ochazuke v0.8.0 and later) is
+// mounted from its AppNouns: a builtin verb never mounts, even one this
+// mtm's framework does not register (a newer tool's), and a nonbuiltin
+// application verb mounts. A catalog that marks none falls back to the
+// keys a fresh runtime registers.
+func TestExtPlanMountsTheCatalogsAppNouns(t *testing.T) {
+	app := ochazuke.KindApplication
+	marked := ocli.CatalogDoc{Nouns: []ocli.CatalogNoun{
+		{Name: "app", Verbs: []ocli.CatalogVerb{{Name: "quit", Kind: ochazuke.KindInteraction, Builtin: true}}},
+		{Name: "outline", Verbs: []ocli.CatalogVerb{{Name: "expand", Kind: app, Builtin: true}, {Name: "fold-all", Kind: app, Builtin: true}}},
+		{Name: "history", Verbs: []ocli.CatalogVerb{{Name: "list", Kind: ochazuke.KindInteraction, Builtin: true}, {Name: "capture-hook", Kind: app}}},
+		{Name: "item", Verbs: []ocli.CatalogVerb{{Name: "list", Kind: app}, {Name: "focus", Kind: ochazuke.KindInteraction}}},
+	}}
+	keys := func(plan []ocli.CatalogNoun) []string {
+		var out []string
+		for _, n := range plan {
+			for _, v := range n.Verbs {
+				out = append(out, n.Name+"."+v.Name)
+			}
+		}
+		return out
+	}
+	if got, want := keys(extPlan(marked)), []string{"history.capture-hook", "item.list"}; !slices.Equal(got, want) {
+		t.Fatalf("marked catalog mounts %v, want %v", got, want)
+	}
+	old := ocli.CatalogDoc{Nouns: []ocli.CatalogNoun{
+		{Name: "outline", Verbs: []ocli.CatalogVerb{{Name: "expand", Kind: app}}},
+		{Name: "item", Verbs: []ocli.CatalogVerb{{Name: "list", Kind: app}}},
+	}}
+	if got, want := keys(extPlan(old)), []string{"item.list"}; !slices.Equal(got, want) {
+		t.Fatalf("unmarked catalog mounts %v, want %v", got, want)
 	}
 }
