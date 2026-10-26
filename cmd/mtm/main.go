@@ -254,6 +254,7 @@ type App struct {
 	journalSrc     journalSource       // the daemon the reader follows; tests replace it
 	stdin          io.Reader           // the CLI's standard input (the capture verbs read it)
 	getenv         func(string) string // the environment; tests replace it
+	dataPath       string              // the database (mtm setup's hooks write it)
 	cx             *contextState       // the Context page and its actions (context.go)
 	drafts         *draft.Store
 	editor         *recordEditor
@@ -373,6 +374,7 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.configDir = configDir
+	a.dataPath = opts.Data
 	a.feed, a.journalSrc, a.getenv = newJournalFeed(), client, os.Getenv
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
@@ -403,6 +405,7 @@ func New(opts Options) (*App, error) {
 	a.defineContext()
 	a.defineCopy()
 	a.defineCapture()
+	a.defineSetup()
 	if err := a.defineKeyMap(); err != nil {
 		return nil, err
 	}

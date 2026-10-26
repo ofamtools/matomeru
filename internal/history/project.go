@@ -184,6 +184,9 @@ func project(entries []Entry, window string, marks map[string]int64) []PaneTurn 
 				st.awaiting = false
 			}
 			t := &turns[index]
+			if e.Turn != nil && len(e.Turn.Prompt) > len(t.Prompt) && strings.Contains(e.Turn.Prompt, t.Prompt) {
+				t.Prompt = e.Turn.Prompt // the completion carries every prompt the turn took
+			}
 			t.Responses = append(t.Responses, Response{ID: e.ID, At: e.At, Text: entryText(e)})
 			if st.agents == 0 {
 				t.CompletedAt = e.At
