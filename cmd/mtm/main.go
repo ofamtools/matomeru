@@ -235,6 +235,8 @@ type App struct {
 	vimList     *ochazuke.List
 	vimDir      string
 
+	outline *outlineState // the task outline last opened (outline.go)
+
 	field *ochazuke.Input
 	ask   *question
 }

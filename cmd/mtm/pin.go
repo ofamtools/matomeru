@@ -169,6 +169,9 @@ func (a *App) toggleAll(ochazuke.Ctx) ochazuke.Result {
 	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)
 	}
+	if err := a.rescopeOutline(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	return ochazuke.Done(a.all)
 }
 
