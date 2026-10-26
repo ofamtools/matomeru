@@ -93,6 +93,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 			cmds = append(cmds, a.pv.after(followDelay, followDue{seq: a.pv.seq}))
 		}
 	}
+	a.copyUpdate(msg)
 	if pending := a.r.PendingCommands(); pending != nil {
 		cmds = append(cmds, pending)
 	}
@@ -386,7 +387,7 @@ func (a *App) defineLiveKeys() {
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
 		Verb("keys", a.leaderKeys, "Show the leader keys (ctrl+a then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · c context · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · [ copy · c context · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
@@ -417,6 +418,7 @@ var leaderWords = []struct{ key, text string }{
 	{"j", "next pane, live"},
 	{"k", "previous pane, live"},
 	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
+	{"[", "copy mode: scroll back, search, select and yank; i goes live again"},
 	{"?", "these keys"},
 	{"ctrl+a", "send ctrl+a to the pane"},
 }
@@ -523,6 +525,9 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		}
 		title := p.label() + " · zoomed · ctrl+a z restores"
 		cw, ch := ochazuke.PanelContentSize(width, height)
+		if a.copy.active {
+			return layout.PanelBlock(a.copyTitle()+" · zoomed", a.copyBlock(cw, ch), width, height, true)
+		}
 		body := term.ViewBlock(cw, ch)
 		if !term.Focused() {
 			body.Cursor = nil
@@ -641,7 +646,15 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	header := ""
 	var body ochazuke.Block
 	focused := false
+	// The copy stop is drawn (and reachable with } and tab) while the
+	// Screen tab shows a pane and nothing is live, or while it is on.
+	a.r.Instances[copyID].Unfocusable = !a.copy.active && (term != nil || a.pv.tab != tabScreen || inst == nil || inst.Noun != "pane")
 	switch {
+	case a.copyShown(paneTermID):
+		title = a.copyTitle()
+		header = a.paneHeader(a.copy.pane)
+		body = a.copyBlock(cw, ch)
+		focused = true
 	case term != nil:
 		title = a.attached.label()
 		header = a.paneHeader(a.attached)
@@ -659,12 +672,18 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		p, _ := a.paneAt(inst)
 		title = p.label()
 		header = a.paneHeader(p)
+		if a.pv.tab == tabScreen {
+			a.r.Placed(copyID) // l, } and tab reach copy mode from the list
+		}
 		body = a.tabBody(row, cw, ch)
 		focused = a.pv.tab == tabTurns && a.pv.turns.List().Focused()
 	default:
 		title, body = a.groupSummary(inst)
 	}
 	tabs := a.tabLine(term != nil, a.r.Instances[a.r.Focus] != nil && a.r.Instances[a.r.Focus].Noun == "pane")
+	if a.copyShown(paneTermID) {
+		tabs = a.copyTabLine()
+	}
 	switch {
 	case header != "":
 		header = layout.Styles.Muted.Render(ansi.Truncate(header, cw, "…"))

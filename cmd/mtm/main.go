@@ -321,6 +321,7 @@ type App struct {
 	configDir   string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	outline *outlineState // the task outline last opened (outline.go)
+	copy    *copyMode     // copy mode on the panes page (copymode.go)
 
 	field *ochazuke.Input
 	ask   *question
@@ -386,6 +387,7 @@ func New(opts Options) (*App, error) {
 	a.defineOutline()
 	a.defineSides()
 	a.defineContext()
+	a.defineCopy()
 	if err := a.defineKeyMap(); err != nil {
 		return nil, err
 	}
@@ -394,6 +396,7 @@ func New(opts Options) (*App, error) {
 	if err := a.addPanesPage(); err != nil {
 		return nil, err
 	}
+	a.addCopy()
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
 	}

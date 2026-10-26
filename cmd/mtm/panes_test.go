@@ -26,6 +26,8 @@ type fakePanes struct {
 	killed   []string
 	streams  []*fakeStream
 	exited   map[string]bool // windows whose process ended but stay listed
+	// backs are the windows' scrollback captures (copy mode reads them).
+	backs map[string]scrollback
 }
 
 // Exited is the fake's exit probe: the windows marked in exited.
