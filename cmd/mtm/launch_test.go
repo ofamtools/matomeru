@@ -89,21 +89,77 @@ func (f *fakeDaemon) SendText(_ context.Context, session, window, text string) e
 }
 
 // settle runs the commands an update returned, as the Bubble Tea loop
-// would, feeding every message back into the model.
+// would, feeding every message back into the model. A command that has
+// not answered within 100ms is parked and the rest go on, so a timer (a
+// key-sequence timeout, the jobs ticker) or a component's long-lived read
+// (a terminal waiting for its next frame) never blocks a test. Parked
+// commands are then collected for as long as a job of an application
+// verb is still running: that job's completion is among them, however
+// long its work takes (a directory scan under -race can take well over
+// 100ms), up to settleLimit, which only a hung job reaches.
 func settle(a *App, cmd tea.Cmd) {
-	if cmd == nil {
-		return
-	}
-	switch msg := now(cmd).(type) {
-	case tea.BatchMsg:
-		for _, c := range msg {
-			settle(a, c)
+	late, done := make(chan tea.Msg), make(chan struct{})
+	defer close(done)
+	parked := 0
+	var run func(tea.Cmd)
+	handle := func(msg tea.Msg) {
+		switch msg := msg.(type) {
+		case tea.BatchMsg:
+			for _, c := range msg {
+				run(c)
+			}
+		case nil:
+		default:
+			_, next := a.m.Update(msg)
+			run(next)
 		}
-	case nil:
-	default:
-		_, next := a.m.Update(msg)
-		settle(a, next)
 	}
+	run = func(c tea.Cmd) {
+		if c == nil {
+			return
+		}
+		ch := make(chan tea.Msg, 1)
+		go func() { ch <- c() }()
+		select {
+		case msg := <-ch:
+			handle(msg)
+		case <-time.After(100 * time.Millisecond):
+			parked++
+			go func() {
+				msg := <-ch
+				select {
+				case late <- msg:
+				case <-done:
+				}
+			}()
+		}
+	}
+	run(cmd)
+	limit := time.After(settleLimit)
+	for parked > 0 && jobRunning(a) {
+		select {
+		case msg := <-late:
+			parked--
+			handle(msg)
+		case <-time.After(100 * time.Millisecond):
+		case <-limit:
+			return
+		}
+	}
+}
+
+// settleLimit bounds how long settle waits for a running job.
+const settleLimit = 10 * time.Second
+
+// jobRunning reports a running job of an application verb (what the jobs
+// ticker shows), not a component's own read.
+func jobRunning(a *App) bool {
+	for _, j := range a.r.Jobs() {
+		if j.State == ochazuke.JobRunning && a.r.Operations[j.Verb].Kind == ochazuke.KindApplication {
+			return true
+		}
+	}
+	return false
 }
 
 // key sends one key and returns the commands the update scheduled.
