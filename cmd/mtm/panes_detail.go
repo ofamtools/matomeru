@@ -66,7 +66,10 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, a.waitEvent())
 	}
 	if a.attached.ID != "" && a.r.Terminal(paneTermID) == nil {
-		// The leader's d removed the terminal: the row shows its screen again.
+		// A direct terminal.detach also releases the secondary stream.
+		if err := a.closeSideTerminal(); err != nil {
+			a.paneErr = err.Error()
+		}
 		a.attached, a.pv.zoom, a.pv.followed = pane{}, false, ""
 	}
 	if a.r.Page == panesPage && !a.pv.armed && a.pv.after != nil {
@@ -178,19 +181,30 @@ func (a *App) killSession(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if a.attached.Session == s.Session {
-		if err := a.closeTerminal(); err != nil {
-			return ochazuke.Failed(err)
-		}
-	}
 	d := a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
+		panes, err := d.ListPanes(c)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range panes {
+			if p.Session == s.Session {
+				if err := a.checkCompanions(c, p.ID); err != nil {
+					return nil, err
+				}
+			}
+		}
 		if err := d.KillSession(c, s.Session); err != nil {
 			return nil, fmt.Errorf("kill session %s: %w", s.Session, err)
 		}
 		return d.ListPanes(c)
 	}).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err == nil {
+			if a.attached.Session == s.Session {
+				if err := a.closeTerminal(); err != nil {
+					a.m.Notify(err.Error())
+				}
+			}
 			panes, _ := v.([]pane)
 			a.setPanes(panes, nil)
 		}
@@ -285,23 +299,26 @@ func fuzzy(query, label string) bool {
 	return true
 }
 
-// defineLiveKeys adds mtm's leader keys to the terminal noun: z zooms the
-// pane to the page body and back (off on every attach), j and k attach the
-// next or previous pane, ? shows the keys; d (detach) and ctrl+a (a literal
-// ctrl+a) are the framework's. The leader's hint names them.
+// defineLiveKeys adds the app's live-pane actions to the terminal leader.
 func (a *App) defineLiveKeys() {
 	leader := ochazuke.Request{Verb: "send", Noun: "terminal", Args: ochazuke.Arguments{"keys": "ctrl+a"}}
 	a.r.Define("terminal").
 		Verb("zoom", a.toggleZoom, "Zoom the attached pane to the page body, or back into the detail panel").
 		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list").
+		Verb("side", a.sidePane, "Open or focus this pane's side vim or terminal").
+		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: d detach · z zoom · j/k panes · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · ? keys")).
 		Mode("leader_pending").
+		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"})).
+		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"})).
+		Bind("d", ochazuke.Do("terminal.sideDetach")).
 		Bind("z", ochazuke.Do("terminal.zoom")).
 		Bind("j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1})).
 		Bind("k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1})).
 		Bind("?", ochazuke.Do("bindings.help"))
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
+	a.parameters("terminal.side", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true, Enum: []string{"vim", "term"}}})
 }
 
 // toggleZoom is terminal.zoom.
@@ -345,11 +362,16 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: s}
 	term := a.r.Terminal(paneTermID)
 	if term != nil && a.pv.zoom {
-		title := a.attached.label() + " · zoomed · ctrl+a z restores"
+		p := a.attached
+		if side := a.r.Terminal(sideTermID); side != nil && side.Focused() {
+			term = side
+			p, _ = a.r.Instances[sideTermID].Data.(pane)
+		}
+		title := p.label() + " · zoomed · ctrl+a z restores"
 		cw, ch := ochazuke.PanelContentSize(width, height)
-		body := ochazuke.Text(term.View(cw, ch))
-		if term.Focused() {
-			body = term.ViewBlock(cw, ch)
+		body := term.ViewBlock(cw, ch)
+		if !term.Focused() {
+			body.Cursor = nil
 		}
 		return layout.PanelBlock(title, body, width, height, term.Focused())
 	}
@@ -448,8 +470,8 @@ func (a *App) paneListBlock(width, height int) ochazuke.Block {
 	return block
 }
 
-// detailBlock is the right-hand panel: the tab line, then the tab.
-func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
+// parentDetailBlock draws the parent's tabs and live stream or selected tab.
+func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
 	term := a.r.Terminal(paneTermID)
 	row, inst := a.selectedRow()
 	// The Turns tree is a stop only while it is drawn.
@@ -467,10 +489,10 @@ func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Bl
 		if e := term.Err(); e != "" {
 			title += ": " + e
 		}
-		body = ochazuke.Text(term.View(cw, ch))
-		if term.Focused() {
-			body = term.ViewBlock(cw, ch)
-			focused = true
+		body = term.ViewBlock(cw, ch)
+		focused = term.Focused()
+		if !focused {
+			body.Cursor = nil
 		}
 	case inst == nil:
 		body = ochazuke.Text("select a pane")

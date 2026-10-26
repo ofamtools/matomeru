@@ -276,6 +276,12 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{label, waitingCell(w), tildePath(g.session.Cwd, home)}})
 			for _, p := range g.panes {
 				name := stateGlyph(p) + " " + names[p.ID]
+				if p.SideVim != "" {
+					name += " v"
+				}
+				if p.SideTerm != "" {
+					name += " t"
+				}
 				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), tildePath(p.Cwd, home)}})
 				view.order = append(view.order, p.rowID())
 			}

@@ -79,12 +79,15 @@ func tildePath(path, home string) string {
 // pane is one row: a window, the session it lives in and, when an agent
 // runs in it, the agent (list-agents: harness, state time, needs you).
 type pane struct {
-	Session      string
-	SessionID    string
-	OwnerUnsaved bool
-	Harness      string `json:"harness,omitempty"`
-	StateAt      int64  `json:"state_at,omitempty"`
-	NeedsYou     bool   `json:"needs_you,omitempty"`
+	Session           string
+	SessionID         string
+	OwnerUnsaved      bool
+	Harness           string `json:"harness,omitempty"`
+	StateAt           int64  `json:"state_at,omitempty"`
+	NeedsYou          bool   `json:"needs_you,omitempty"`
+	SideVim, SideTerm string
+	ShowVim, ShowTerm bool
+	SideFront         string
 	daemon.Pane
 }
 
@@ -96,13 +99,20 @@ func (p pane) rowID() string { return "pane:" + p.Session + "/" + p.ID }
 // prompt reads. A uuid-named session shows its first 8 characters.
 func (p pane) label() string {
 	name := p.Name
+	badges := ""
+	if p.SideVim != "" {
+		badges += " v"
+	}
+	if p.SideTerm != "" {
+		badges += " t"
+	}
 	if name == "" || defaultWindowName.MatchString(name) {
 		name = p.baseName()
 	}
 	if name == "" {
 		name = p.ID
 	}
-	return shortSession(p.Session) + "/" + name
+	return shortSession(p.Session) + "/" + name + badges
 }
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -266,7 +276,7 @@ func (a *App) addPanesPage() error {
 func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 	d := a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		return d.ListPanes(c)
+		return sideListing(c, d, a.work)
 	}).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
 		panes, _ := v.([]pane)
 		a.setPanes(panes, err)
@@ -317,6 +327,13 @@ func (a *App) setPanes(panes []pane, err error) {
 			a.m.Notify("panes: " + a.paneErr)
 		}
 	}
+	if err == nil {
+		var mergeErr error
+		panes, mergeErr = a.mergeCompanions(panes)
+		if mergeErr != nil {
+			a.paneErr = mergeErr.Error()
+		}
+	}
 	a.panes = panes
 	a.recordTurns(panes)
 	a.pv.view = a.buildPaneTree(panes, time.Now())
@@ -330,6 +347,9 @@ func (a *App) setPanes(panes []pane, err error) {
 		if err := a.pv.tree.Select(a.pv.view.order[0]); err != nil {
 			a.paneErr = err.Error()
 		}
+	}
+	if err := a.syncSideView(); err != nil {
+		a.paneErr = err.Error()
 	}
 }
 
@@ -445,12 +465,15 @@ func (a *App) attachLive(p pane, returnTo string) error {
 	if err := a.r.SetFocus(paneTermID); err != nil {
 		return err
 	}
-	return nil
+	return a.syncSideView()
 }
 
 // closeTerminal removes the attached terminal; Terminal.Close releases
 // its stream.
 func (a *App) closeTerminal() error {
+	if err := a.closeSideTerminal(); err != nil {
+		return err
+	}
 	a.attached = pane{}
 	a.pv.zoom = false
 	if a.r.Instances[paneTermID] == nil {
@@ -466,19 +489,25 @@ func (a *App) killPane(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if a.r.Terminal(paneTermID) != nil && a.attached.rowID() == p.rowID() {
-		if err := a.closeTerminal(); err != nil {
-			return ochazuke.Failed(err)
-		}
+	if a.sideStarting[p.ID+"/vim"] || a.sideStarting[p.ID+"/term"] {
+		return ochazuke.Failed(errors.New("wait for side panes to finish opening before killing the parent"))
 	}
 	d := a.panesd
 	return ochazuke.Pending(func(c context.Context) (any, error) {
+		if err := a.checkCompanions(c, p.ID); err != nil {
+			return nil, err
+		}
 		if err := d.KillPane(c, p); err != nil {
 			return nil, fmt.Errorf("kill %s: %w", p.label(), err)
 		}
 		return d.ListPanes(c)
 	}).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err == nil {
+			if a.attached.ID == p.ID {
+				if closeErr := a.closeTerminal(); closeErr != nil {
+					a.m.Notify(closeErr.Error())
+				}
+			}
 			panes, _ := v.([]pane)
 			a.setPanes(panes, nil)
 		}

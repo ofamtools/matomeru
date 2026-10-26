@@ -200,15 +200,19 @@ type App struct {
 	renamer             renamer                // renames sessions and windows (the daemon); tests replace it
 	home                func() (string, error) // where a launch with no project starts; tests replace it
 
-	projects  []work.Project
-	current   string // the open project's id; its tasks fill the tasks stop
-	tasksOpen bool
-	tasks     []work.Task
-	panes     []pane  // every pane the daemon reports; launches and kills reload it
-	paneErr   string  // why the last listing failed (the daemon is not reachable)
-	preview   preview // the last captured screen, shown while no terminal is attached
-	attached  pane    // the pane the attached terminal streams
-	landErr   string  // why the last finished launch or pane.new did not reach the screen
+	projects       []work.Project
+	current        string // the open project's id; its tasks fill the tasks stop
+	tasksOpen      bool
+	tasks          []work.Task
+	panes          []pane  // every pane the daemon reports; launches and kills reload it
+	paneErr        string  // why the last listing failed (the daemon is not reachable)
+	preview        preview // the last captured screen, shown while no terminal is attached
+	attached       pane    // the pane the attached terminal streams
+	sides          map[string]sideState
+	companionPanes map[string]pane
+	sideStarting   map[string]bool
+	sideLock       string
+	landErr        string // why the last finished launch or pane.new did not reach the screen
 
 	reviews    []work.Review
 	opened     string // the review in the detail; review.open sets it
@@ -259,6 +263,7 @@ func New(opts Options) (*App, error) {
 	r := ochazuke.NewRuntime()
 	client := opts.client()
 	a := &App{db: db, work: w, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
 	a.editorSave = make(map[string]func(editRecord) (any, error))
@@ -282,6 +287,7 @@ func New(opts Options) (*App, error) {
 	a.defineVim()
 	a.defineRenames()
 	a.defineOutline()
+	a.defineSides()
 
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err

@@ -243,6 +243,10 @@ func (a *App) vimLaunchJob(session work.VimSession, owner Owner, path string, re
 	if project, ok := a.project(owner.ProjectID); ok {
 		destination = sessionFor(project)
 	}
+	return launchVimJob(session, path, reopen, driver, panesd, workStore, dir, destination)
+}
+
+func launchVimJob(session work.VimSession, path string, reopen bool, driver *recordingDriver, panesd paneDaemon, workStore *work.Store, dir, destination string) func(context.Context) (any, error) {
 	return func(ctx context.Context) (any, error) {
 		panes, err := panesd.ListPanes(ctx)
 		if err != nil && reopen {
@@ -321,8 +325,8 @@ func (a *App) vimLaunchJob(session work.VimSession, owner Owner, path string, re
 		if _, ok := vimPane(session, rows); !ok {
 			rows = append(rows, pane{Session: session.Session, Pane: daemon.Pane{ID: id, Name: session.Name, Cwd: session.Cwd}})
 		}
-		if owner.Notice != "" {
-			driver.notes = append(driver.notes, owner.Notice)
+		if driver.owner.Notice != "" {
+			driver.notes = append(driver.notes, driver.owner.Notice)
 		}
 		return vimStarted{Session: session, Launch: launched{Pane: harness.Result{Session: session.Session, Window: id, Name: session.Name, Argv: command, Prompt: harness.PromptNone}, Panes: rows, Note: strings.Join(driver.notes, "; ")}}, nil
 	}

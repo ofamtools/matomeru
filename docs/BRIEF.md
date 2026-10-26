@@ -137,6 +137,10 @@ The Vim page lists Neovim records through the same pin filter. `vim open [PATH]`
 
 Vim rows bind `a` to open, `s` to save the session, Enter to reopen, `x` to forget, and `r` to list. The empty list supports `a` and `r`. Live Neovim receives its own keys; `ctrl+a d` detaches through the framework terminal.
 
+Live panes support `ctrl+a v` (side Neovim) and `ctrl+a t` (side shell). Each is created once per parent in its current daemon-reported directory, with its recorded launch environment, session and owner. Switching replaces the sidebar contents without restarting either process. `ctrl+a d` hides the front companion and restores the other if shown; another hides that companion; with neither shown it detaches the parent. `ctrl+a z` zooms the focused terminal. The detail splits horizontally when it has at least 80 columns and stacks otherwise.
+
+`pane side vim|term|list --target PANE` exposes the same companions through the CLI. Persisted `companions` links retain window, parent and kind across restarts; shown/front state is memory-only. Companions are omitted from the Panes rows and shown as `v`/`t` badges on their parent. Parent and session kill, and app quit, refuse while linked processes remain alive, including hidden companions. Close the shell or Neovim normally, then retry. Parent process exit releases surviving companions as ordinary rows without discarding ownership. Exit checks distinguish retained daemon windows from running processes.
+
 
 Known gaps:
 
