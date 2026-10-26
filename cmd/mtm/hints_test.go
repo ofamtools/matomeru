@@ -75,7 +75,7 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 		t.Fatalf("top modal %q", top)
 	}
 	rows := ochazuke.BindingHelp(app.r, "t1")
-	if len(rows) == 0 || rows[0].Key != "enter" || rows[0].Operation != "task.open" || rows[0].Description == "" {
+	if len(rows) == 0 || rows[0].Key != "enter" || rows[0].Operation != "task.edit" || rows[0].Description == "" {
 		t.Fatalf("help rows = %+v", rows)
 	}
 	lines := strings.Split(monoFrame(t, app), "\n")
@@ -88,7 +88,7 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 	}
 	// The help wraps a long description in its column, so compare the
 	// description's first words, not a fixed prefix.
-	want := "enter task.open " + strings.Join(strings.Fields(rows[0].Description)[:2], " ")
+	want := "enter task.edit " + strings.Join(strings.Fields(rows[0].Description)[:2], " ")
 	if !strings.HasPrefix(first, want) {
 		t.Fatalf("help modal's selected first row = %q\n%s", first, strings.Join(lines, "\n"))
 	}

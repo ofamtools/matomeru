@@ -204,6 +204,28 @@ func TestStopsMoveBetweenProjectsAndTasks(t *testing.T) {
 	}
 }
 
+// Owner decision (2026-10-26): enter on a Work task row opens the record
+// editor for that task, as i does; l still opens the task's detail.
+func TestEnterOnATaskRowOpensTheRecordEditor(t *testing.T) {
+	app := open(t)
+	press(t, app, "j", "enter")
+	if app.r.Focus != "t1" {
+		t.Fatalf("focus %s", app.r.Focus)
+	}
+	press(t, app, "enter")
+	if app.r.Focus != app.editor.fieldID("title") || app.editor.Record.ID != "t1" || app.editor.Value("title") != "write the brief" {
+		t.Fatalf("enter: focus = %s, editor = %+v", app.r.Focus, app.editor)
+	}
+	press(t, app, "esc", "q")
+	if app.r.Focus != "t1" {
+		t.Fatalf("leave: focus = %s", app.r.Focus)
+	}
+	press(t, app, "l")
+	if app.r.Focus != "t1" || app.detailTask != "t1" {
+		t.Fatalf("l: focus = %s, detail = %q", app.r.Focus, app.detailTask)
+	}
+}
+
 func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	app := open(t)
 	press(t, app, "j", "enter")

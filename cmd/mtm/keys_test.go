@@ -140,6 +140,9 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 			want[op] = k
 		}
 	}
+	// Second keys the owner chose for a family verb: enter on a Work task
+	// row opens the record editor as i does (2026-10-26).
+	extra := map[string]string{"task.edit": "enter"}
 	rows := normalRows(app)
 	bound := map[string]bool{}
 	for _, row := range rows {
@@ -149,7 +152,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		}
 		// pane.killBlocked shares d d; any other key for a family verb is a
 		// second meaning.
-		if row.keys != k {
+		if row.keys != k && extra[row.op] != row.keys {
 			t.Errorf("%s binds %q to %s; the key map says %q", row.at, row.keys, row.op, k)
 		}
 		bound[row.op] = true
