@@ -25,7 +25,7 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 				header = l
 			}
 		}
-		if header == "" || !strings.Contains(header, "◆ matomeru") || !strings.Contains(header, "projects (2)") {
+		if header == "" || !strings.Contains(header, "◆ matomeru") || !strings.Contains(header, "projects (3)") {
 			t.Fatalf("width %d: no project header beside the projects:\n%s", width, f)
 		}
 		if !strings.Contains(f, "[>] busy task") {

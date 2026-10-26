@@ -157,7 +157,7 @@ func (a *App) workLists(width, height int) string {
 	want := func(l *ochazuke.List) int { return l.Len() + 1 }
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
-	return fmt.Sprintf("projects (%d)\n", len(a.projects)) + a.view(a.projectList, width, top) + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top))
+	return a.projectsHeading() + a.view(a.projectList, width, top) + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top))
 }
 
 // tasksHeading names whose tasks the tasks list holds.
@@ -217,7 +217,7 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	want := func(l *ochazuke.List) int { return l.Len() + 1 }
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
-	left := fmt.Sprintf("projects (%d)\n", len(a.projects)) + a.view(a.projectList, leftWidth, top)
+	left := a.projectsHeading() + a.view(a.projectList, leftWidth, top)
 	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).MaxHeight(top+1).Render(detail))
 	return ochazuke.Text(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top)))
 }

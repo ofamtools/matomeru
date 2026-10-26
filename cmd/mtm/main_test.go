@@ -138,7 +138,7 @@ func TestWorkPageListsStoredProjects(t *testing.T) {
 	app := open(t)
 	app.m.Width, app.m.Height = 80, 24
 	frame := ansi.Strip(app.m.View().Content)
-	for _, want := range []string{"projects (2)", "◆ ochazuke", "◆ matomeru"} {
+	for _, want := range []string{"projects (3)", "◆ ochazuke", "◆ matomeru"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}

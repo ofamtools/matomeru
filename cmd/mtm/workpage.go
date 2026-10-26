@@ -23,7 +23,7 @@ import (
 func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 	leftW := max(24, width*3/10)
 	rightW := max(1, width-leftW-2)
-	left := fmt.Sprintf("projects (%d)\n", len(a.projects)) + a.view(a.projectList, leftW, max(1, height-1))
+	left := a.projectsHeading() + a.view(a.projectList, leftW, max(1, height-1))
 
 	var lower ochazuke.Block
 	editing := a.editor != nil && a.editor.Page == "work"
@@ -49,6 +49,13 @@ func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 		return lower.Offset(leftW+2, top).WithText(body)
 	}
 	return ochazuke.Text(body)
+}
+
+// projectsHeading counts the rows the projects list shows ("no project"
+// included), so it agrees with the list's own "6–14 / 24" (UX review 2
+// F22).
+func (a *App) projectsHeading() string {
+	return fmt.Sprintf("projects (%d)\n", a.projectList.Len())
 }
 
 // workHeader is the right pane's first line: the highlighted project's
