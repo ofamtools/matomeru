@@ -96,8 +96,8 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	}
 }
 
-// m opens the project chooser (no hex ids); picking a project moves the
-// pane, and the trailing row unassociates it.
+// m opens the project chooser (no hex ids), without the pane's current
+// owner; picking a project moves the pane.
 func TestMoveUsesTheProjectChooser(t *testing.T) {
 	app, _ := panesApp(t)
 	key(t, app, "m")
@@ -109,7 +109,8 @@ func TestMoveUsesTheProjectChooser(t *testing.T) {
 	for _, r := range c.Matches() {
 		labels = append(labels, r.Label)
 	}
-	if strings.Join(labels, ",") != "ochazuke,matomeru,unassociated" {
+	// The pane is unassociated, so "unassociated" is not offered.
+	if strings.Join(labels, ",") != "ochazuke,matomeru" {
 		t.Fatalf("choices %v", labels)
 	}
 	typeText(t, app, "mato")

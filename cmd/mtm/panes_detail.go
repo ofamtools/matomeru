@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
 
@@ -266,11 +267,17 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 	if scratch, _ := ctx.Args["scratch"].(bool); scratch || hasProject {
 		return associate(ctx.Args)
 	}
+	current, hasOwner := a.moveOwner(ctx.Instance, noun)
 	choices := make([]ChooserRow, 0, len(a.projects)+1)
-	for _, p := range a.projects {
+	for _, p := range a.projectsByRecency() {
+		if hasOwner && p.ID == current {
+			continue // moving to where it already is does nothing
+		}
 		choices = append(choices, ChooserRow{ID: p.ID, Label: projectName(p), Data: p.ID})
 	}
-	choices = append(choices, ChooserRow{ID: "scratch", Label: "unassociated", Trailing: true})
+	if !hasOwner || current != "" {
+		choices = append(choices, ChooserRow{ID: "scratch", Label: "unassociated", Trailing: true})
+	}
 	_, err := a.choosers.Open(ChooserSpec{
 		Kind:  moveChooser,
 		Title: "Move " + ctx.Instance.Label + " to",
@@ -292,6 +299,46 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(nil)
+}
+
+// moveOwner is the project a pane or session row belongs to now ("" for
+// unassociated); ok is false when it cannot be told.
+func (a *App) moveOwner(inst *ochazuke.Instance, noun string) (string, bool) {
+	if noun == "pane" {
+		p, err := a.paneAt(inst)
+		if err != nil {
+			return "", false
+		}
+		owner, ok := a.pv.view.owners[p.ID]
+		return owner, ok
+	}
+	s, err := a.sessionAt(inst)
+	if err != nil || s.SessionID == "" {
+		return "", false
+	}
+	owner, err := a.work.SessionOwner(s.SessionID)
+	return owner.ProjectID, err == nil
+}
+
+// projectsByRecency is the projects, the one whose directories were used
+// last first; projects never used keep their order after them.
+func (a *App) projectsByRecency() []work.Project {
+	last := map[string]int64{}
+	if recent, err := a.work.RecentDirs(); err == nil {
+		for _, r := range recent {
+			last[r.Path] = max(last[r.Path], r.LastUsed)
+		}
+	}
+	used := func(p work.Project) int64 {
+		var at int64
+		for _, t := range p.Trees {
+			at = max(at, last[t.Path])
+		}
+		return at
+	}
+	out := slices.Clone(a.projects)
+	slices.SortStableFunc(out, func(x, y work.Project) int { return cmp.Compare(used(y), used(x)) })
+	return out
 }
 
 // fuzzy reports whether every rune of query appears in label in order,

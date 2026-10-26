@@ -6,6 +6,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
 // a on the panes page opens a harness chooser, the default first; Enter
@@ -110,5 +112,44 @@ func TestKillRefusesBeforeConfirmWhileSidesAreOpen(t *testing.T) {
 	a.Update(keyMsg("x"))
 	if prompt, _ := confirmPrompt(t, a); prompt != "Kill pane matomeru/claude?" {
 		t.Fatalf("confirm %q", prompt)
+	}
+}
+
+// The move chooser lists projects by the recency of their directories and
+// leaves out the project the pane already belongs to.
+func TestMoveChooserByRecencyWithoutCurrent(t *testing.T) {
+	app, _ := panesApp(t)
+	var withDirs []work.Project
+	for _, p := range app.projects {
+		p.Trees = []work.Tree{{Kind: "dir", Path: "/tmp/move-" + p.ID}}
+		if err := app.work.PutProject(p); err != nil {
+			t.Fatal(err)
+		}
+		withDirs = append(withDirs, p)
+	}
+	app.projects = withDirs
+	if err := app.work.TouchDir("/tmp/move-matomeru"); err != nil {
+		t.Fatal(err)
+	}
+	labels := func() string {
+		c := app.choosers.Get(moveChooser)
+		if c == nil {
+			t.Fatal("m opened no chooser")
+		}
+		var out []string
+		for _, r := range c.Matches() {
+			out = append(out, r.Label)
+		}
+		return strings.Join(out, ",")
+	}
+	key(t, app, "m")
+	if got := labels(); got != "matomeru,ochazuke" {
+		t.Fatalf("by recency: %s", got)
+	}
+	typeText(t, app, "mato")
+	settle(app, key(t, app, "enter"))
+	key(t, app, "m")
+	if got := labels(); got != "ochazuke,unassociated" {
+		t.Fatalf("without current: %s", got)
 	}
 }
