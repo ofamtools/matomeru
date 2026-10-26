@@ -504,12 +504,14 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	task := ochazuke.StringArg(ctx.Args, "task", "")
 	owner := Owner{ProjectID: p.ID, TaskID: task, Notice: ochazuke.StringArg(ctx.Args, "notice", "")}
 	version := a.pinVersion
+	// The job is named after its harness: the ticker and the CLI's job
+	// line read "agent.launch claude running".
 	return ochazuke.Pending(a.launchJob(owner, h, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.recordReview(p.ID, task, done.Pane)
 			a.finishLaunch(done, owner, version)
 		}
-	})
+	}).Label(h.Name)
 }
 
 // defineShell adds pane.new and pane.start to the pane noun.

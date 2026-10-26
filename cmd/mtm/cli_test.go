@@ -58,7 +58,7 @@ func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
 	if got.Session != "matomeru" || got.Prompt != "lift the store" || strings.Join(got.Command, " ") != "claude --model sonnet" {
 		t.Fatalf("launch = %+v", got)
 	}
-	if !strings.Contains(errOut, "job #1 agent.start done") {
+	if !strings.Contains(errOut, "job #1 agent.start claude done") {
 		t.Fatalf("stderr lacks the finished job: %q", errOut)
 	}
 	// The shell prints the settled job's value: the pane it landed.

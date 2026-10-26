@@ -296,7 +296,7 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 			a.m.Notify(err.Error())
 		}
 		a.finishLaunch(v.(launched), owner, version)
-	})
+	}).Label(row.Harness) // "" for a shell: no label
 }
 
 func (a *App) renameSaved(ctx ochazuke.Ctx) ochazuke.Result {

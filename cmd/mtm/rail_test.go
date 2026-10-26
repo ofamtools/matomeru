@@ -24,7 +24,7 @@ func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 	app.launcher = &fakeDaemon{}
 	press(t, app, "j", "enter")
 	cmd := launchKey(t, app)
-	tickerIs(t, app, "launching", "agent.start running")
+	tickerIs(t, app, "launching", "agent.start claude running")
 	runOnce(app, cmd) // lands attached: the terminal's read job is running
 	if app.r.Terminal(paneTermID) == nil {
 		t.Fatal("the launch did not attach")
@@ -38,14 +38,14 @@ func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 	if reads == 0 {
 		t.Fatal("no read job to hide")
 	}
-	tickerIs(t, app, "attached", "agent.start done")
+	tickerIs(t, app, "attached", "agent.start claude done")
 	if strings.Contains(frame(app), " read ") || strings.Contains(frame(app), "jobs:") {
 		t.Fatalf("attached frame:\n%s", frame(app))
 	}
 	press(t, app, "ctrl+a", "d", "}")
 	// The detail's own captures are quiet; three renames are work.
 	settle(app, follow(app))
-	tickerIs(t, app, "a quiet preview", "agent.start done")
+	tickerIs(t, app, "a quiet preview", "agent.start claude done")
 	for _, name := range []string{"a", "b", "c"} {
 		executeA(t, app, "pane", "rename", app.r.Focus, map[string]any{"name": name})
 		settle(app, app.r.PendingCommands())
@@ -67,4 +67,24 @@ func TestTheTickerSkipsQuietVerbs(t *testing.T) {
 		}
 	}
 	tickerIs(t, app, "startup")
+}
+
+// A launch's job is named after its harness: the default-harness setting's
+// codex reads "agent.start codex" in the ticker.
+func TestALaunchJobIsLabelledWithItsHarness(t *testing.T) {
+	app := open(t)
+	if err := app.r.Settings().Set(settingDefaultHarness, "codex"); err != nil {
+		t.Fatal(err)
+	}
+	app.launcher = &fakeDaemon{panes: app.panesd.(*fakePanes)}
+	if err := app.r.SetFocus("matomeru"); err != nil {
+		t.Fatal(err)
+	}
+	launchKey(t, app)
+	tickerIs(t, app, "launching", "agent.start codex running")
+	for _, j := range app.r.Jobs() {
+		if j.Verb == "agent.start" && j.Label != "codex" {
+			t.Fatalf("job %+v", j)
+		}
+	}
 }
