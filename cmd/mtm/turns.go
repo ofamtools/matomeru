@@ -34,7 +34,13 @@ func (a *App) addTurns() error {
 		Bind("l", ochazuke.Do("turn.open")).
 		Bind("right", ochazuke.Do("turn.open")).
 		Bind("enter", ochazuke.Do("turn.open"))
-	a.r.Define("turn-line")
+	// esc in the tree goes back up to the pane row the turns belong to, as
+	// the note body's esc goes back to the notes list.
+	for _, noun := range []string{"turn", "turn-line"} {
+		a.r.Define(noun).
+			Verb("back", a.turnsBack, "Go back to the pane row the turns belong to").
+			Mode("normal").Bind("esc", ochazuke.Do(noun+".back"))
+	}
 	a.r.Define("pane").Verb("record", a.recordTurnScreen, "Capture the pane's screen into its latest turn's review").Quiet()
 	tree, err := a.r.AddTree(turnsTreeID, nil, ochazuke.Parent(panesPage))
 	if err != nil {
@@ -133,6 +139,19 @@ func lastLines(text string, n int) []string {
 		lines = lines[len(lines)-n:]
 	}
 	return lines
+}
+
+// turnsBack is turn.back (and turn-line.back): focus the pane row the
+// Turns tab shows, else the pane list.
+func (a *App) turnsBack(ochazuke.Ctx) ochazuke.Result {
+	target := paneListID
+	if a.r.Instances[a.pv.turnsFor] != nil {
+		target = a.pv.turnsFor
+	}
+	if err := a.r.SetFocus(target); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(target)
 }
 
 // openTurn is turn.open: expand the row and mark its reviews reviewed.

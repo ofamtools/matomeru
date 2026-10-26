@@ -242,6 +242,19 @@ func TestTurnsRecordOpenAndMarkReviewed(t *testing.T) {
 	if got, _ := app.work.Review(launch.ID); got.ReviewedAt == 0 {
 		t.Fatal("opening the turn did not mark it reviewed")
 	}
+	// esc goes back up to the pane list, from a turn and from a turn's line.
+	press(t, app, "esc")
+	if app.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("esc from a turn: focus %s", app.r.Focus)
+	}
+	press(t, app, "}", "j")
+	if !strings.HasPrefix(app.r.Focus, "turn:") || !strings.Contains(app.r.Focus, "/") {
+		t.Fatalf("j into the turn's lines: focus %s", app.r.Focus)
+	}
+	press(t, app, "esc")
+	if app.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("esc from a turn line: focus %s", app.r.Focus)
+	}
 }
 
 // Narrow, the detail stacks under the tree; both widths draw the tree,
