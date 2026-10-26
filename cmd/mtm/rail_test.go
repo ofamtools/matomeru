@@ -23,7 +23,7 @@ func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 	app := open(t)
 	app.launcher = &fakeDaemon{}
 	press(t, app, "j", "enter")
-	cmd := key(t, app, "l")
+	cmd := launchKey(t, app)
 	tickerIs(t, app, "launching", "agent.start running")
 	runOnce(app, cmd) // lands attached: the terminal's read job is running
 	if app.r.Terminal(paneTermID) == nil {

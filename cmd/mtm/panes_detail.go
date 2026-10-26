@@ -603,7 +603,7 @@ func (a *App) paneListBlock(width, height int) ochazuke.Block {
 		return ochazuke.Text(a.fill("daemon is not running\ne starts it (daemon.ensure)\n"+name, height, width))
 	case a.paneList.Len() == 0:
 		a.r.Placed(paneListID)
-		return ochazuke.Text(a.fill("no panes\n"+a.keySentence(paneListID, keyAction{"pane.new", "opens a shell"}, keyAction{"panes.agent", "launches an agent"}), height, width))
+		return ochazuke.Text(a.fill("no panes\n"+a.keySentence(paneListID, keyAction{"pane.new", "opens a shell"}, keyAction{"agent.choose", "launches an agent"}), height, width))
 	}
 	block := a.pv.tree.Block(width, height)
 	lines := strings.Split(block.Text, "\n")
@@ -819,7 +819,7 @@ func (a *App) groupSummary(inst *ochazuke.Instance) (string, ochazuke.Block) {
 		head := fmt.Sprintf("%d panes · %s", len(lines), a.ownerLabel(owner.ProjectID))
 		keys := a.keySentence(inst.ID, keyAction{"session.attach", "attaches the first pane"}, keyAction{"session.move", "moves"}, keyAction{"session.rename", "renames"}, keyAction{"session.kill", "kills"})
 		if len(lines) == 0 {
-			keys = "no panes · " + a.keySentence(inst.ID, keyAction{"pane.new", "opens a shell"}, keyAction{"panes.agent", "launches an agent"}, keyAction{"session.move", "moves"}, keyAction{"session.rename", "renames"}, keyAction{"session.kill", "kills"})
+			keys = "no panes · " + a.keySentence(inst.ID, keyAction{"pane.new", "opens a shell"}, keyAction{"agent.choose", "launches an agent"}, keyAction{"session.move", "moves"}, keyAction{"session.rename", "renames"}, keyAction{"session.kill", "kills"})
 		}
 		return "session " + s.Session, ochazuke.Text(head + "\n\n" + strings.Join(lines, "\n") + "\n\n" + keys)
 	}

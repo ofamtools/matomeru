@@ -25,7 +25,7 @@ func (a *App) defineTask() {
 		Verb("new", a.newTask, "Add a task (under --parent, else the pin or no project); omit title to open the draft editor").Positional("title").
 		Verb("launch", a.launchRecord, "Launch an agent on the task").
 		Mode("normal").
-		Bind("enter", ochazuke.Do("task.open")).Bind("l", ochazuke.Do("task.launch")).
+		Bind("enter", ochazuke.Do("task.open")).Bind("l", ochazuke.Do("task.open")).Bind("L", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.status"))
 	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string"}})
 	a.parameters("task.new", map[string]ochazuke.Parameter{

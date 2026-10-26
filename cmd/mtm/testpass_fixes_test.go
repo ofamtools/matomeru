@@ -11,13 +11,13 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
-// a on the panes page opens a harness chooser, the default first; Enter
+// L on the panes page opens a harness chooser, the default first; Enter
 // launches that agent into the pin's project and lands it live here.
-func TestPanesAOpensHarnessChooserAndLaunches(t *testing.T) {
+func TestPanesLOpensHarnessChooserAndLaunches(t *testing.T) {
 	app, f := shellApp(t)
-	key(t, app, "a")
+	key(t, app, "L")
 	if app.r.TopModal() != agentChooser {
-		t.Fatalf("a opened %q", app.r.TopModal())
+		t.Fatalf("L opened %q", app.r.TopModal())
 	}
 	if fr := frame(app); !strings.Contains(fr, "Launch an agent in matomeru") || !strings.Contains(fr, defaultHarness) {
 		t.Fatalf("chooser frame:\n%s", fr)

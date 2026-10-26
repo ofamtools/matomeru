@@ -27,8 +27,9 @@ func TestSliceEndToEnd(t *testing.T) {
 	step := func(k string) tea.Cmd {
 		t.Helper()
 		before := rawFrame(app)
+		choosing := app.r.TopModal() == agentChooser
 		_, cmd := app.m.Update(keyMsg(k))
-		if k == "l" || app.r.Page == reviewsPage && k == "enter" {
+		if choosing || app.r.Page == reviewsPage && k == "enter" {
 			runOnce(app, cmd)
 		}
 		if app.m.Status != "" {
@@ -55,7 +56,8 @@ func TestSliceEndToEnd(t *testing.T) {
 	if app.r.Focus != "t1" {
 		t.Fatalf("enter: focus %s", app.r.Focus)
 	}
-	step("l") // the launch lands attached on the panes page, unasked
+	step("L")     // the harness chooser, the project's harness first
+	step("enter") // the launch lands attached on the panes page, unasked
 	if app.r.Page != panesPage || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
 		t.Fatalf("after y: page %s focus %s mode %s", app.r.Page, app.r.Focus, app.r.Mode.Name)
 	}

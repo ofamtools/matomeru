@@ -139,8 +139,8 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 		t.Fatalf("reviews = %+v, %v", reviews, err)
 	}
 	stops := map[string][]string{
-		"matomeru":         {"enter project.open", "l project.launch"},
-		"t1":               {"enter task.open", "l task.launch", "i task.edit", "x task.toggle", "s task.status", "n task.new"},
+		"matomeru":         {"enter project.open", "l project.open", "L project.launch"},
+		"t1":               {"enter task.open", "L task.launch", "i task.edit", "x task.toggle", "s task.status", "n task.new"},
 		"pane:matomeru/w1": {"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.move", "n pane.new", "] panes.tab"},
 		paneListID:         {"n pane.new", "e daemon.ensure"},
 		reviews[0].ID:      {"enter review.open", "a review.accept", "r review.reject", "s review.saveAnswer"},

@@ -116,6 +116,18 @@ func key(t *testing.T, a *App, k string) tea.Cmd {
 	return cmd
 }
 
+// launchKey launches on the focused record or page as a user does: L opens
+// the harness chooser on the project's harness, enter takes it. It returns
+// enter's command, the launch.
+func launchKey(t *testing.T, a *App) tea.Cmd {
+	t.Helper()
+	key(t, a, "L")
+	if a.r.TopModal() != agentChooser {
+		t.Fatalf("L opened %q", a.r.TopModal())
+	}
+	return key(t, a, "enter")
+}
+
 func frame(a *App) string { return ansi.Strip(rawFrame(a)) }
 
 // rawFrame is the frame with its styles: the focused list's selected row
@@ -179,7 +191,7 @@ func TestALaunchDoesNotAsk(t *testing.T) {
 	f := &fakeDaemon{}
 	app.launcher = f
 	press(t, app, "j")
-	settle(app, key(t, app, "l"))
+	settle(app, launchKey(t, app))
 	if app.r.TopModal() != "" || len(f.launches) != 1 || f.launches[0].Session != "matomeru" {
 		t.Fatalf("modal %q launches %+v", app.r.TopModal(), f.launches)
 	}
@@ -193,7 +205,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	f := &fakeDaemon{}
 	app.launcher = f
 	press(t, app, "j", "enter")
-	cmd := key(t, app, "l")
+	cmd := launchKey(t, app)
 	jobs := app.r.Jobs()
 	if len(jobs) != 1 || jobs[0].Verb != "agent.start" || jobs[0].State != ochazuke.JobRunning || jobs[0].Owner != "work" {
 		t.Fatalf("jobs after l = %+v", jobs)
@@ -235,7 +247,7 @@ func TestAFailingLaunchShowsInTheRail(t *testing.T) {
 	app := open(t)
 	app.launcher = &fakeDaemon{err: errors.New("dial: no daemon")}
 	press(t, app, "j", "k")
-	settle(app, key(t, app, "l"))
+	settle(app, launchKey(t, app))
 	jobs := app.r.Jobs()
 	if len(jobs) != 1 || jobs[0].State != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "no daemon") {
 		t.Fatalf("jobs = %+v", jobs)

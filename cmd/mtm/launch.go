@@ -161,7 +161,11 @@ func (a *App) defineLaunch() {
 		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)")
 	r.Define("agent").
 		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
-		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it")
+		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it").
+		Verb("choose", a.chooseAgent, "Launch an agent into the pin's project: a chooser of harnesses, the project's own first")
+	// L launches an agent on every page; a project or task row's own L
+	// launches on that record.
+	a.r.Define("app").Mode("normal").Bind("L", ochazuke.Do("agent.choose"))
 	// The model is free text checked against the chosen harness's models
 	// (harness.Model): the pick list is every harness's, the check is the
 	// one harness's, and a harness that lists none takes any model.
@@ -361,9 +365,25 @@ func recordLaunchArgs(ctx ochazuke.Ctx) ochazuke.Arguments {
 	return args
 }
 
+// launchRecord is project.launch and task.launch (L on the row): with a
+// harness (or from the CLI) it launches at once; from a key it opens the
+// harness chooser with the record's project's harness first, so L enter
+// is the fast path.
 func (a *App) launchRecord(ctx ochazuke.Ctx) ochazuke.Result {
+	asked := ctx.Args
 	ctx.Args = recordLaunchArgs(ctx)
-	return a.launch(ctx)
+	if _, chosen := ctx.Args["harness"]; chosen || a.cli || ctx.Instance == nil {
+		return a.launch(ctx)
+	}
+	to, err := a.launchTarget(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	title := "Launch an agent on " + ctx.Instance.Label
+	if ctx.Instance.Noun == "project" {
+		title = "Launch an agent in " + projectName(to.Project)
+	}
+	return resultError(a.chooseHarness(title, to.Project, ochazuke.Request{Verb: "launch", Noun: ctx.Instance.Noun, Target: ctx.Instance.ID, Args: asked}))
 }
 
 // Generic launches use explicit arguments or the pin, not browsing selection.

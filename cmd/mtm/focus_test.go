@@ -26,7 +26,7 @@ func TestTheWorkPageFocusesTheFirstProjectRow(t *testing.T) {
 	if app.r.Focus != "ochazuke" {
 		t.Fatalf("focus on the Work page = %s", app.r.Focus)
 	}
-	runOnce(app, key(t, app, "l"))
+	runOnce(app, launchKey(t, app))
 	if len(f.launches) != 1 || f.launches[0].Session != "ochazuke" {
 		t.Fatalf("launches = %+v", f.launches)
 	}

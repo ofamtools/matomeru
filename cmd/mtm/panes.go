@@ -16,6 +16,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
 // The panes page: the pane tree on the left (panes_tree.go) and the
@@ -232,8 +233,7 @@ func (a *App) definePanes() {
 	r.Define("panes").
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
-		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").
-		Verb("agent", a.chooseAgent, "Launch an agent into the pin's project: a chooser of harnesses, the project's own first")
+		Verb("waiting", a.nextWaiting, "Select the next pane that needs input")
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
 	a.parameters("pane.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	a.parameters("session.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
@@ -269,7 +269,6 @@ func (a *App) addPanesPage() error {
 		{"]", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": 1}).Hinted("next tab")},
 		{"[", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": -1}).Hinted("previous tab")},
 		{"w", ochazuke.Do("panes.waiting")},
-		{"a", ochazuke.Do("panes.agent")},
 	} {
 		b := row.req
 		b.Instance, b.Mode, b.Keys = panesPage, "normal", row.keys
@@ -303,11 +302,22 @@ func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 
 const agentChooser = "agent-chooser"
 
-// chooseAgent is panes.agent (a): a chooser of the harnesses, the pin's
-// project's harness (else the default) first; Enter runs agent.launch with
-// it, which lands the new agent here live, like Work's l.
+// chooseAgent is agent.choose (L on every page): a chooser of the
+// harnesses with the pin's project's harness (else the default) first and
+// highlighted, so L enter launches it; Enter runs agent.launch, which
+// lands the new agent live on Panes.
 func (a *App) chooseAgent(ochazuke.Ctx) ochazuke.Result {
 	p, _ := a.project(a.pin)
+	where := "no project"
+	if p.ID != "" {
+		where = projectName(p)
+	}
+	return resultError(a.chooseHarness("Launch an agent in "+where, p, ochazuke.Request{Verb: "launch", Noun: "agent"}))
+}
+
+// chooseHarness opens the harness chooser, p's harness (else the default)
+// first and highlighted; Enter runs launch with the chosen harness.
+func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Request) error {
 	first := cmp.Or(p.Settings.Harness, defaultHarness)
 	names := a.harnesses.Names()
 	slices.SortStableFunc(names, func(x, y string) int { return -cmp.Compare(btoi(x == first), btoi(y == first)) })
@@ -315,26 +325,25 @@ func (a *App) chooseAgent(ochazuke.Ctx) ochazuke.Result {
 	for _, name := range names {
 		rows = append(rows, ChooserRow{ID: name, Label: name})
 	}
-	where := "no project"
-	if p.ID != "" {
-		where = projectName(p)
-	}
 	_, err := a.choosers.Open(ChooserSpec{
 		Kind:  agentChooser,
-		Title: "Launch an agent in " + where,
+		Title: title,
 		Rows:  rows,
 		Choose: func(c ChooserRow) ochazuke.Result {
-			out, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Args: ochazuke.Arguments{"harness": c.ID}})
+			req := launch
+			req.Args = ochazuke.Arguments{}
+			for k, v := range launch.Args {
+				req.Args[k] = v
+			}
+			req.Args["harness"] = c.ID
+			out, err := a.r.Execute(req)
 			if err != nil {
 				return ochazuke.Failed(err)
 			}
 			return ochazuke.Done(out)
 		},
 	})
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(nil)
+	return err
 }
 
 // ensureVerb is daemon.ensure: make the daemon answer off the loop (Ensure

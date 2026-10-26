@@ -56,7 +56,7 @@ func TestALaunchEndsWithThePaneOnScreen(t *testing.T) {
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{panes: f}
 	press(t, app, "j", "enter")
-	cmd := key(t, app, "l")
+	cmd := launchKey(t, app)
 	if app.r.Page != "work" {
 		t.Fatalf("page = %s", app.r.Page)
 	}
@@ -92,7 +92,7 @@ func TestALandingUnderAModalShowsWhyAndKeepsWorking(t *testing.T) {
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{panes: f}
 	press(t, app, "j", "enter")
-	cmd := key(t, app, "l")
+	cmd := launchKey(t, app)
 	press(t, app, ":") // the palette is open when the launch finishes
 	runOnce(app, cmd)
 	if app.r.Page != "work" || app.r.Terminal(paneTermID) != nil || !app.m.Palette.IsOpen() {

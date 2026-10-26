@@ -46,7 +46,7 @@ func TestTerminalFooterExposesPassthroughLeader(t *testing.T) {
 	app.launcher = &fakeDaemon{}
 
 	press(t, app, "j", "enter")
-	runOnce(app, key(t, app, "l"))
+	runOnce(app, launchKey(t, app))
 	// An attached terminal passes ctrl+c to the pane, so the footer leads
 	// with the leader's hint and does not offer ctrl+c app.quit.
 	if hints := hintKeys(app); len(hints) == 0 || hints[0] != "ctrl+a leader" {

@@ -23,7 +23,8 @@ func (a *App) defineProject() {
 		Verb("directory.remove", a.removeProjectDirectory, "Detach a directory (never touches disk); removing the default promotes the next").Positional("path").
 		Verb("directory.edit", a.editProjectDirectory, "Point an attached directory at another path, keeping its default mark").Positional("path").
 		Mode("normal").Bind("enter", ochazuke.Do("project.open")).
-		Bind("i", ochazuke.Do("project.edit")).Bind("l", ochazuke.Do("project.launch")).
+		Bind("l", ochazuke.Do("project.open")).
+		Bind("i", ochazuke.Do("project.edit")).Bind("L", ochazuke.Do("project.launch")).
 		Bind("c", ochazuke.Do("project.directory"))
 	a.parameters("project.edit", map[string]ochazuke.Parameter{"name": {Type: "string"}, "color": {Type: "string"}, "glyph": {Type: "string"}, "harness": {Type: "string"}, "preset": {Type: "string"}})
 	for _, verb := range []string{"project.directory", "project.default"} {

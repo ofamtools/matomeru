@@ -41,3 +41,32 @@ func TestQClosesAndCapitalQRecordsAMacro(t *testing.T) {
 		t.Fatalf("q in the help: modal %q", app.r.TopModal())
 	}
 }
+
+// L on a project or task row opens the harness chooser with the project's
+// harness first, so L enter launches it; l opens the row (UX key map).
+func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
+	app := open(t)
+	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
+	app.launcher = f
+	setHarness(t, app, "codex")
+	if err := app.r.OpenPage("work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.r.SetFocus("matomeru"); err != nil {
+		t.Fatal(err)
+	}
+	press(t, app, "L")
+	c := app.choosers.Get(agentChooser)
+	if c == nil || len(c.Matches()) == 0 || c.Matches()[0].ID != "codex" {
+		t.Fatalf("L on the project: chooser %+v", c)
+	}
+	press(t, app, "esc")
+	press(t, app, "l")
+	if app.r.Focus == "matomeru" {
+		t.Fatalf("l did not open the project (focus %s)", app.r.Focus)
+	}
+	settle(app, launchKey(t, app))
+	if len(f.launches) != 1 || f.launches[0].Session != "matomeru" {
+		t.Fatalf("L enter on a task: launches %+v", f.launches)
+	}
+}
