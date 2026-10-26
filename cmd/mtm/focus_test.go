@@ -61,7 +61,7 @@ func TestTheReviewPageOpensOnAStoredReviewRow(t *testing.T) {
 	if app.r.Page != reviewsPage || app.r.Focus != rv.ID {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
 	}
-	press(t, app, "a")
+	press(t, app, "x")
 	if got, _ := app.work.Review(rv.ID); got.Status != work.ReviewAccepted {
 		t.Fatalf("status = %s", got.Status)
 	}

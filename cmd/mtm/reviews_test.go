@@ -116,7 +116,7 @@ func TestOpenCapturesThePaneIntoTheDetail(t *testing.T) {
 
 func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	app, _, rv := reviewApp(t)
-	press(t, app, "a")
+	press(t, app, "x")
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewAccepted {
 		t.Fatalf("accept: status = %q", got)
 	}
@@ -126,7 +126,12 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	if got := stored(t, app, "t1").Status; got != work.StatusTodo {
 		t.Fatalf("accept changed the task: %q", got)
 	}
-	press(t, app, "r")
+	// Reject is in the status chooser: s, r narrows to rejected, enter.
+	press(t, app, "s")
+	if app.r.TopModal() != statusChooser {
+		t.Fatalf("s opened %q", app.r.TopModal())
+	}
+	press(t, app, "r", "enter")
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewRejected {
 		t.Fatalf("reject: status = %q", got)
 	}
@@ -138,13 +143,13 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	}
 }
 
-// s on a review row opens it and puts the answer area in insert mode;
+// i on a review row opens it and puts the answer area in insert mode;
 // enter saves and returns to the row, marked answered.
 func TestSaveAnswerThroughTheArea(t *testing.T) {
 	app, _, rv := reviewApp(t)
-	press(t, app, "s")
+	press(t, app, "i")
 	if app.r.Focus != answerID || app.r.Mode.Name != "insert" || app.opened != rv.ID {
-		t.Fatalf("s: focus %s mode %s opened %s", app.r.Focus, app.r.Mode.Name, app.opened)
+		t.Fatalf("i: focus %s mode %s opened %s", app.r.Focus, app.r.Mode.Name, app.opened)
 	}
 	typeText(t, app, "ship it")
 	press(t, app, "enter")
@@ -189,7 +194,7 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.Focus != rv.ID {
 		t.Fatalf("enter: answer %q focus %s", got, app.r.Focus)
 	}
-	press(t, app, "s")
+	press(t, app, "i")
 	typeText(t, app, " maybe")
 	press(t, app, "esc")
 	if app.r.Mode.Name != "normal" || string(app.answer.Text) != "looks right maybe" {
@@ -231,7 +236,7 @@ func TestAFailingCaptureShowsAndTheAppKeepsWorking(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Output; got != "" {
 		t.Fatalf("output = %q", got)
 	}
-	press(t, app, "a")
+	press(t, app, "x")
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewAccepted {
 		t.Fatalf("status = %q", got)
 	}

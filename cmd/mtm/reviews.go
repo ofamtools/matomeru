@@ -41,13 +41,15 @@ func (a *App) defineReviews() {
 		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
 		Verb("accept", a.acceptReview, "Mark the review accepted (the task is left as it is)").
 		Verb("reject", a.rejectReview, "Mark the review rejected").
+		Verb("status", a.statusReview, "Set the review's status (pending, accepted, rejected); omit status to choose one").Positional("status").
 		Verb("saveAnswer", a.saveAnswer, "Save the review's answer; omit answer to type it in the answer area (autosaved as a draft)").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("review.open")).
-		Bind("a", ochazuke.Do("review.accept")).
-		Bind("r", ochazuke.Do("review.reject")).
-		Bind("s", ochazuke.Do("review.saveAnswer"))
+		Bind("x", ochazuke.Do("review.accept")).
+		Bind("s", ochazuke.Do("review.status")).
+		Bind("i", ochazuke.Do("review.saveAnswer"))
 	a.parameters("review.saveAnswer", map[string]ochazuke.Parameter{"answer": {Type: "string", Description: "Omit to type it in the answer area"}})
+	a.parameters("review.status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: reviewStatuses}})
 	// The answer area is not insert-pinned: } lands on it in normal mode,
 	// so the next command key is never typed into it. Typing is autosaved
 	// as a draft; esc leaves insert and keeps the text.
@@ -302,6 +304,46 @@ func (a *App) rejectReview(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.setReviewStatus(ctx, work.ReviewRejected)
 }
 
+// reviewStatuses are the statuses s chooses from, in chooser order.
+var reviewStatuses = []string{work.ReviewPending, work.ReviewAccepted, work.ReviewRejected}
+
+// statusReview is review.status (s): the status argument sets it at once;
+// without one a chooser of the three statuses asks (reject lives here).
+func (a *App) statusReview(ctx ochazuke.Ctx) ochazuke.Result {
+	if status, ok := ctx.Args["status"].(string); ok {
+		return a.setReviewStatus(ctx, status)
+	}
+	rv, err := a.review(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	rows := make([]ChooserRow, 0, len(reviewStatuses))
+	for _, s := range reviewStatuses {
+		label := s
+		if s == rv.Status {
+			label += " (current)"
+		}
+		rows = append(rows, ChooserRow{ID: "review-status:" + s, Label: label, Data: s})
+	}
+	target := ctx.Instance.ID
+	_, err = a.choosers.Open(ChooserSpec{
+		Kind:  statusChooser,
+		Title: "Status · " + ctx.Instance.Label,
+		Rows:  rows,
+		Filter: func(query string, row ChooserRow) bool {
+			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
+		},
+		Choose: func(row ChooserRow) ochazuke.Result {
+			out, err := a.r.Execute(ochazuke.Request{Verb: "status", Noun: "review", Target: target, Args: ochazuke.Arguments{"status": row.Data}})
+			if err != nil {
+				return ochazuke.Failed(err)
+			}
+			return ochazuke.Done(out)
+		},
+	})
+	return resultError(err)
+}
+
 // setReviewStatus writes the status and pushes the rows again.
 func (a *App) setReviewStatus(ctx ochazuke.Ctx, status string) ochazuke.Result {
 	rv, err := a.review(ctx)
@@ -318,7 +360,7 @@ func (a *App) setReviewStatus(ctx ochazuke.Ctx, status string) ochazuke.Result {
 }
 
 // saveAnswer is review.saveAnswer: the answer argument saves at once;
-// without one (the s key) the review opens and the answer area takes the
+// without one (the i key) the review opens and the answer area takes the
 // typing in insert mode, its draft or saved answer in it.
 func (a *App) saveAnswer(ctx ochazuke.Ctx) ochazuke.Result {
 	rv, err := a.review(ctx)

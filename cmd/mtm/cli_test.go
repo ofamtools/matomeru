@@ -143,7 +143,7 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 		"t1":               {"enter task.open", "L task.launch", "i task.edit", "x task.toggle", "s task.status", "n task.new"},
 		"pane:matomeru/w1": {"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.move", "n pane.new", "] panes.tab"},
 		paneListID:         {"n pane.new", "e daemon.ensure"},
-		reviews[0].ID:      {"enter review.open", "a review.accept", "r review.reject", "s review.saveAnswer"},
+		reviews[0].ID:      {"enter review.open", "x review.accept", "s review.status", "i review.saveAnswer"},
 	}
 	fkey := regexp.MustCompile(`(^|[ +])f\d+$`)
 	for target, want := range stops {
