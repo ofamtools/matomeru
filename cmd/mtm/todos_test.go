@@ -259,3 +259,34 @@ func TestAllViewShowsProjectsAsBranches(t *testing.T) {
 		t.Fatalf("S did not return to the pin:\n%s", f)
 	}
 }
+
+// T is a normal-mode key: typed into an input in insert mode (the task
+// title editor) it is a letter and the outline stays shut; after esc it
+// opens the outline.
+func TestTInInsertModeTypesTheLetter(t *testing.T) {
+	a := open(t)
+	press(t, a, "j", "enter", "i")
+	if a.r.Focus != recordInputID || a.r.Mode.Name != "insert" {
+		t.Fatalf("editor: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	}
+	press(t, a, "T")
+	if a.r.TopModal() != "" || !strings.HasSuffix(string(a.editor.Input.Text), "T") {
+		t.Fatalf("T in insert: modal %q text %q", a.r.TopModal(), string(a.editor.Input.Text))
+	}
+	press(t, a, "esc", "T")
+	if a.r.TopModal() != outlineModal {
+		t.Fatalf("T after esc opened %q", a.r.TopModal())
+	}
+	// In the outline's open line T is a letter too; it does not close.
+	press(t, a, "o", "T", "esc")
+	if a.r.TopModal() != outlineModal {
+		t.Fatalf("T in the outline line closed it: %q", a.r.TopModal())
+	}
+	if f := frameAt(a, 80); !strings.Contains(f, "[ ] T") {
+		t.Fatalf("outline line lacks the typed T:\n%s", f)
+	}
+	press(t, a, "T")
+	if a.r.TopModal() != "" {
+		t.Fatalf("T in normal mode left %q open", a.r.TopModal())
+	}
+}
