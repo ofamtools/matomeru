@@ -21,11 +21,14 @@ const (
 	workDetailID    = "work/detail"
 	notesDetailID   = "notes/detail"
 	reviewsDetailID = "reviews/detail"
+	dirsDetailID    = "directories/detail"
 )
 
 // pageDetails are the pages' details.
 type pageDetails struct {
 	panes, work, notes, reviews *pageDetail
+	// The linked details (detail_links.go).
+	dirs, saved, vim *linkedDetail
 }
 
 // detailEnd scrolls a detail to its end; Scroll clamps it.

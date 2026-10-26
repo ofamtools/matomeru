@@ -69,6 +69,7 @@ func (a *App) savedRows() ([]ocli.Row, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.savedAll = rows
 	out := make([]ocli.Row, 0, len(rows))
 	home, _ := a.home() // paths read with ~, as on every other page
 	for _, row := range rows {

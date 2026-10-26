@@ -31,6 +31,9 @@ type knownDirectory struct {
 	work.Tree
 	LastUsed int64    `json:"last_used"`
 	Projects []string `json:"projects"`
+	// Common is the repository's shared git directory, the same for every
+	// worktree of one repository; "" outside a repository.
+	Common string `json:"common,omitempty"`
 }
 type directoryCache struct {
 	Rows      []knownDirectory
@@ -41,6 +44,8 @@ type directoryCache struct {
 	Query     string
 	ProjectID string
 	Browse    string // what the open path field is for (browseAttach, browseBase, browseEdit+path); "" when closed
+	Want      string // a directory a link opened before the scan listed it; the scan selects it
+	Subject   string // the directory the detail is about: the last one selected in a directory list
 }
 
 // dirsConfigPath is dirs.json in the app's config directory.
@@ -124,6 +129,19 @@ func inspectDirectory(path string) work.Tree {
 	}
 	return tree
 }
+
+// gitCommonDir is the shared git directory of the repository holding
+// path, "" outside one.
+func gitCommonDir(path string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "git", "-C", path, "rev-parse", "--path-format=absolute", "--git-common-dir").Output()
+	if err != nil {
+		return ""
+	}
+	return filepath.Clean(strings.TrimSpace(string(output)))
+}
+
 func scanBases(bases []projectBase) ([]string, []string) {
 	var paths, missing []string
 	seen := map[string]int{}
@@ -278,7 +296,11 @@ func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 			continue
 		}
 		unique[path] = true
-		rows = append(rows, knownDirectory{Tree: inspectDirectory(path), LastUsed: recency[path], Projects: owners[path]})
+		row := knownDirectory{Tree: inspectDirectory(path), LastUsed: recency[path], Projects: owners[path]}
+		if row.Kind == "repo" {
+			row.Common = gitCommonDir(path)
+		}
+		rows = append(rows, row)
 	}
 	slices.SortFunc(rows, func(a, b knownDirectory) int {
 		return cmp.Or(cmp.Compare(b.LastUsed, a.LastUsed), cmp.Compare(a.Path, b.Path))
@@ -406,6 +428,9 @@ func (a *App) addDirectoriesPage() error {
 	if a.baseList, err = a.r.AddList(baseListID, nil, ochazuke.Parent(directoriesPage), ochazuke.Columns(baseColumns...)); err != nil {
 		return err
 	}
+	if a.detail.dirs, err = a.addLinkedDetail(dirsDetailID, directoriesPage, func() *ochazuke.List { return a.directoryList }, a.directorySubject); err != nil {
+		return err
+	}
 	if _, err := a.r.AddPage(directoriesPage, "Directories", a.renderDirectories, ochazuke.Focus(directoryListID)); err != nil {
 		return err
 	}
@@ -427,6 +452,11 @@ func (a *App) addDirectoriesPage() error {
 // background.
 func (a *App) openedDirectories() tea.Cmd {
 	a.refreshDirectoryRows()
+	// The detail lists the saved panes and Vim sessions started in a
+	// directory: read them as they are now.
+	if err := errors.Join(a.refreshSaved(), a.refreshVim()); err != nil {
+		a.m.Status = err.Error()
+	}
 	// The first visit lands on the first list drawn: the pinned project's
 	// directories when it has any (UX review 2 F22); later visits keep the
 	// page's remembered focus.
@@ -465,6 +495,14 @@ func (a *App) refreshDirectories(ochazuke.Ctx) ochazuke.Result {
 		if selected, ok := a.directoryList.Selected(); ok && selected.ID == "directory:browse" {
 			if items := a.directoryList.Items(); len(items) > 1 {
 				_ = a.directoryList.Select(items[0].ID)
+			}
+		}
+		if want := a.directories.Want; want != "" {
+			a.directories.Want = ""
+			if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
+				if err := a.r.SetFocus("directory:" + want); err != nil {
+					a.m.Status = err.Error()
+				}
 			}
 		}
 		if c := a.r.Chooser(dirChooser); c != nil {
@@ -1179,7 +1217,14 @@ func (a *App) loadDirectories() error {
 	return err
 }
 
+// renderDirectories draws the lists with the selected directory's detail
+// beside them (directories_detail.go).
 func (a *App) renderDirectories(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
+	return a.withLinkedDetail(a.detail.dirs, width, height, a.renderDirectoryLists)
+}
+
+// renderDirectoryLists draws the page's three lists in width by height.
+func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 	s := ochazuke.NewStyles(*a.m.Appearance)
 	var lines []string
 	cursor := ochazuke.Block{}

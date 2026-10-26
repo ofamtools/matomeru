@@ -76,6 +76,7 @@ func (a *App) vimRowsWith(state func(work.VimSession) string) ([]ocli.Row, error
 	if err != nil {
 		return nil, err
 	}
+	a.vimAll = sessions
 	rows := make([]ocli.Row, 0, len(sessions))
 	home, _ := a.home() // paths read with ~, as on every other page
 	for _, session := range sessions {

@@ -144,6 +144,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if expire := a.expireNotices(msg, notices); expire != nil {
 		cmd = tea.Batch(cmd, expire)
 	}
+	a.syncLinks()
 	a.applyPinColors()
 	return a, cmd
 }
