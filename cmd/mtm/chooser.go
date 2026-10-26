@@ -287,11 +287,67 @@ func (c *Chooser) refilter() {
 	c.moved = false
 	c.cursor = -1
 	switch {
+	case len(create) > 0 && !c.holds(head):
+		// Only scattered matches ("unpin" in "tuios-inbox ~/proj/…"):
+		// Enter creates what was typed rather than guess.
+		c.cursor = len(head) + len(tail)
 	case len(head) > 0 || c.seen != "" && len(tail) > 0:
 		c.cursor = 0
-	case len(create) > 0: // nothing else matches: Enter creates
-		c.cursor = len(head) + len(tail)
 	}
+}
+
+// holds reports whether the first row is a strong match for the query: it
+// holds the query as a substring, ignoring case and, failing that,
+// punctuation and spaces ("tuiosinbox" in "tuios-inbox"), spells it from
+// word starts, or matches it compactly inside one word (compactMatch:
+// "chz" in "ochazuke"). A match strewn across words ("unpin" in
+// "tuios-inbox  ~/proj/tuios-inbox") is not.
+func (c *Chooser) holds(rows []ChooserRow) bool {
+	if len(rows) == 0 {
+		return false
+	}
+	label := rows[0].Label
+	if strings.Contains(strings.ToLower(label), strings.ToLower(c.seen)) || spellsWords(c.seen, label) {
+		return true
+	}
+	squash := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				return unicode.ToLower(r)
+			}
+			return -1
+		}, s)
+	}
+	q := squash(c.seen)
+	return q != "" && strings.Contains(squash(label), q) || compactMatch(c.seen, label)
+}
+
+// compactMatch reports whether query's runes appear in order inside one
+// whitespace-separated word of label, ignoring case, spanning at most
+// twice the query's length plus one.
+func compactMatch(query, label string) bool {
+	q := []rune(strings.ToLower(strings.TrimSpace(query)))
+	if len(q) == 0 {
+		return false
+	}
+	for _, word := range strings.Fields(strings.ToLower(label)) {
+		w := []rune(word)
+		for start := range w {
+			if w[start] != q[0] {
+				continue
+			}
+			i, j := 1, start+1
+			for ; i < len(q) && j < len(w); j++ {
+				if w[j] == q[i] {
+					i++
+				}
+			}
+			if i == len(q) && j-start <= 2*len(q)+1 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // createRow is the create row's label, when the chooser shows one.
@@ -343,15 +399,25 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	if c.cursor < 0 && c.spec.Create != nil && c.spec.CreateLabel != nil {
 		hint = ansi.Truncate("  enter: "+c.spec.CreateLabel(c.Query()), width, "…")
 	}
+	// The fixed rows ("no pin") always show at the bottom: the rows above
+	// them scroll in what is left, keeping the highlight in view.
+	fixedFrom := len(c.matches)
+	for fixedFrom > 0 && c.matches[fixedFrom-1].Fixed {
+		fixedFrom--
+	}
+	scroll := max(1, rowsHeight-(len(lines)-1)-(len(c.matches)-fixedFrom))
+	if hint != "" {
+		scroll = max(1, scroll-1)
+	}
 	offset := 0
-	if c.cursor >= rowsHeight {
-		offset = c.cursor - rowsHeight + 1
+	switch {
+	case c.cursor >= fixedFrom:
+		offset = max(0, fixedFrom-scroll)
+	case c.cursor >= scroll:
+		offset = c.cursor - scroll + 1
 	}
 	widths := c.cellWidths()
-	for i := offset; i < len(c.matches) && i < offset+rowsHeight; i++ {
-		if hint != "" && c.matches[i].Fixed {
-			lines, hint = append(lines, hint), ""
-		}
+	draw := func(i int) {
 		text := c.matches[i].Label
 		if cells := c.matches[i].Cells; len(cells) > 0 {
 			text = alignCells(cells, widths)
@@ -362,8 +428,14 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 		}
 		lines = append(lines, row)
 	}
+	for i := offset; i < fixedFrom && i < offset+scroll; i++ {
+		draw(i)
+	}
 	if hint != "" {
 		lines = append(lines, hint)
+	}
+	for i := fixedFrom; i < len(c.matches); i++ {
+		draw(i)
 	}
 	return line.WithText(strings.Join(lines, "\n"))
 }

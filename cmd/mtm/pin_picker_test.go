@@ -10,6 +10,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
+
+	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
 // openPicker presses P and checks the search input holds the focus in insert.
@@ -466,4 +468,54 @@ func TestPinPickerCtrlUClearsQuery(t *testing.T) {
 		t.Fatalf("query %q modal %q pin %q", c.Query(), a.r.TopModal(), a.pin)
 	}
 	press(t, a, "esc")
+}
+
+// Test pass R3 and W6: at 80x24 with many projects the "no pin (unpin)"
+// row stays on screen at the bottom (the matches shrink, and scroll as the
+// highlight moves), and "unpin" matching only across a row's name and
+// directory makes the create row Enter's target, not that project.
+func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
+	a := open(t)
+	for i := range 25 {
+		if _, err := a.work.AddProject("extra-" + string(rune('a'+i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inbox, err := a.work.AddProject("tuios-inbox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.work.AddTree(inbox.ID, work.Tree{Path: "/x/proj/tuios-inbox"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	c := openPicker(t, a)
+	if f := frameAt(a, 80); !strings.Contains(f, "no pin (unpin)") {
+		t.Fatalf("no pin row scrolled off at 80x24:\n%s", f)
+	}
+	for range 20 {
+		press(t, a, "ctrl+n")
+	}
+	f := frameAt(a, 80)
+	row, _ := c.Highlighted()
+	if !strings.Contains(f, "no pin (unpin)") || !strings.Contains(f, strings.TrimPrefix(row.Label, "◆ ")) {
+		t.Fatalf("after 20 ctrl+n (on %q) the highlight or no pin is off screen:\n%s", row.Label, f)
+	}
+	press(t, a, "esc")
+	c = openPicker(t, a)
+	typeText(t, a, "unpin")
+	if got := labels(c.Matches()); !slices.ContainsFunc(got, func(l string) bool { return strings.Contains(l, "tuios-inbox") }) {
+		t.Fatalf("tuios-inbox should still be listed: %q", got)
+	}
+	if row, ok := c.Highlighted(); !ok || row.ID != chooserCreateRow {
+		t.Fatalf("unpin highlights %+v", row)
+	}
+	press(t, a, "esc")
+	c = openPicker(t, a)
+	typeText(t, a, "inbox")
+	if row, _ := c.Highlighted(); row.Data != inbox.ID {
+		t.Fatalf("inbox highlights %+v", row)
+	}
 }
