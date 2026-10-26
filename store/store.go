@@ -150,8 +150,9 @@ func (s *Store) Tables() ([]TableInfo, error) {
 }
 
 // Declare creates a table or accepts an identical existing declaration.
-// Changing its owner, key, version, or append-only policy requires an explicit
-// migration; redeclaration never silently changes persisted metadata.
+// Changing its owner, key, or append-only policy is refused; a version bump
+// goes through Migrate first. Redeclaration never silently changes persisted
+// metadata.
 func (s *Store) Declare(table Table) error {
 	if !tableName.MatchString(table.Name) || strings.HasPrefix(table.Name, "sqlite_") {
 		return fmt.Errorf("store: invalid table name %q", table.Name)
