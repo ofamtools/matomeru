@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -8,6 +9,8 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
+	"github.com/unixsuperhero/matomeru/internal/history"
+	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -191,44 +194,71 @@ func TestDetailTabs(t *testing.T) {
 	}
 }
 
-// Turns: one row per turn, oldest first, collapsed; a listing that sees
-// the agent start working records a turn with the owner at that moment,
-// one that sees it stop captures its screen; opening a turn marks it
-// reviewed in the store.
-func TestTurnsRecordOpenAndMarkReviewed(t *testing.T) {
-	app, f := panesApp(t)
-	f.panes[0].Harness, f.panes[0].AgentState = "claude", "idle"
-	reload(t, app)
-	launch, err := app.work.AddReview(work.Review{Session: "matomeru", Window: "w1", Pane: "matomeru/claude", ProjectID: "matomeru"})
+// capturedTurns journals turns into a database as the capture hooks do
+// while mtm is closed: pane w1 of session matomeru, owned by matomeru
+// when the first prompt went in and by ochazuke for the second.
+func capturedTurns(t *testing.T, path string, answers ...string) {
+	t.Helper()
+	db, err := store.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn := func(state, screen string) {
-		f.panes[0].AgentState = state
-		f.screens["w1"] = screen
-		reload(t, app)
+	defer db.Close()
+	w, err := work.Open(db)
+	if err != nil {
+		t.Fatal(err)
 	}
-	turn("working", "first answer")
-	turn("idle", "first answer")
-	// The second prompt goes in while the pane belongs to ochazuke; a later
-	// move does not change whose turn it was.
-	executeA(t, app, "pane", "associate", "pane:matomeru/w1", ochazuke.Arguments{"project": "ochazuke"})
-	turn("working", "second answer")
-	executeA(t, app, "pane", "associate", "pane:matomeru/w1", ochazuke.Arguments{"project": "matomeru"})
-	turn("idle", "second answer")
-	turns, err := app.paneTurns("w1")
-	if err != nil || len(turns) != 2 || turns[0][0].ID != launch.ID || turns[0][0].TurnID == "" || turns[1][0].ProjectID != "ochazuke" {
+	j, err := history.Open(db, journalOwner(w))
+	if err != nil {
+		t.Fatal(err)
+	}
+	owners := []string{"matomeru", "ochazuke"}
+	at := int64(1_790_000_000_000)
+	for i, answer := range answers {
+		if err := w.SetPaneOwner(work.Assignment{Window: "w1", ProjectID: owners[i%2]}); err != nil {
+			t.Fatal(err)
+		}
+		turn := history.Turn{ID: fmt.Sprint("t", i), Session: "matomeru", Window: "w1", Harness: "claude-code", ConversationID: "c",
+			Prompt: fmt.Sprintf("prompt %d\nwith a second line", i+1), StartedAt: at + int64(i)*60_000}
+		if _, err := j.Capture(turn); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := j.Complete(turn, answer, turn.StartedAt+30_000); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.SetPaneOwner(work.Assignment{Window: "w1", ProjectID: "matomeru"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Turns: with mtm closed the agent finished two turns; opening mtm shows
+// both, oldest first, collapsed, each labelled by its prompt; opening one
+// shows the whole prompt and the whole answer (no 12-line cut) and marks
+// it reviewed; each keeps its prompt-time owner after the pane moved.
+func TestTurnsFromTheJournal(t *testing.T) {
+	path := seeded(t)
+	var long []string
+	for i := 1; i <= 30; i++ {
+		long = append(long, fmt.Sprintf("answer line %d", i))
+	}
+	capturedTurns(t, path, strings.Join(long, "\n"), "second answer")
+	app := openWith(t, Options{Data: path})
+	f := app.panesd.(*fakePanes)
+	f.panes[0].Harness, f.panes[0].AgentState = "claude-code", "idle"
+	reload(t, app)
+	turns, err := app.hist.Turns("w1")
+	if err != nil || len(turns) != 2 || turns[0].ProjectID != "matomeru" || turns[1].ProjectID != "ochazuke" {
 		t.Fatalf("turns %+v %v", turns, err)
-	}
-	if turns[0][0].Output != "first answer" || turns[1][0].Output != "second answer" {
-		t.Fatalf("outputs %q %q", turns[0][0].Output, turns[1][0].Output)
 	}
 	settle(app, key(t, app, "[")) // Screen wraps back to Turns
 	if app.pv.tab != tabTurns {
 		t.Fatalf("tab %d", app.pv.tab)
 	}
+	app.m.Width, app.m.Height = 120, 60
 	fr := frame(app)
-	if !strings.Contains(fr, "turn 1") || !strings.Contains(fr, "turn 2 ·") || strings.Contains(fr, "first answer") || strings.Index(fr, "turn 1") > strings.Index(fr, "turn 2") {
+	if !strings.Contains(fr, "prompt 1 · 1 answer ·") || !strings.Contains(fr, "prompt 2 · 1 answer ·") || !strings.Contains(fr, "· new") ||
+		strings.Contains(fr, "answer line 1") || strings.Index(fr, "prompt 1") > strings.Index(fr, "prompt 2") {
 		t.Fatalf("turns tab:\n%s", fr)
 	}
 	press(t, app, "}")
@@ -236,11 +266,31 @@ func TestTurnsRecordOpenAndMarkReviewed(t *testing.T) {
 		t.Fatalf("} from the tree: focus %s", app.r.Focus)
 	}
 	press(t, app, "l")
-	if fr := frame(app); !strings.Contains(fr, "first answer") {
-		t.Fatalf("opened turn:\n%s", fr)
+	fr = frame(app)
+	for _, want := range []string{"with a second line", "answer line 1"} {
+		if !strings.Contains(fr, want) {
+			t.Fatalf("opened turn lacks %q:\n%s", want, fr)
+		}
 	}
-	if got, _ := app.work.Review(launch.ID); got.ReviewedAt == 0 {
-		t.Fatal("opening the turn did not mark it reviewed")
+	// Every answer line is a row of the tree; the tree scrolls to the last.
+	var rows []string
+	for _, it := range app.pv.turns.List().Items() {
+		rows = append(rows, it.Label)
+	}
+	if !strings.Contains(strings.Join(rows, "\n"), "answer line 30") {
+		t.Fatalf("rows:\n%s", strings.Join(rows, "\n"))
+	}
+	for range 34 {
+		press(t, app, "j")
+	}
+	if fr := frame(app); !strings.Contains(fr, "answer line 30") {
+		t.Fatalf("j to the turn's end:\n%s", fr)
+	}
+	for range 34 {
+		press(t, app, "k")
+	}
+	if turns, _ := app.hist.Turns("w1"); turns[0].ReviewedAt == 0 || turns[1].ReviewedAt != 0 {
+		t.Fatalf("marks %+v", turns)
 	}
 	// esc goes back up to the pane list, from a turn and from a turn's line.
 	press(t, app, "esc")

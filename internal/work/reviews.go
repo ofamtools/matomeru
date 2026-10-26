@@ -29,9 +29,8 @@ type Review struct {
 	Answer          string `json:"answer,omitempty"`
 	Created         int64  `json:"created"`
 	Updated         int64  `json:"updated"`
-	// TurnID groups the reviews of one agent turn (recorded when the
-	// agent starts working on a prompt); ReviewedAt is when the turn was
-	// first opened in the pane's Turns tab.
+	// TurnID and ReviewedAt are kept for rows written before turns came
+	// from the history journal (internal/history); nothing sets them now.
 	TurnID     string `json:"turn_id,omitempty"`
 	ReviewedAt int64  `json:"reviewed_at,omitempty"`
 }
@@ -105,19 +104,4 @@ func (s *Store) patchReview(id string, change func(*Review)) (Review, error) {
 		return tx.Put("reviews", r.ID, r)
 	})
 	return r, err
-}
-
-// SetTurn ties a review to an agent turn: the reviews of one turn are one
-// row of a pane's Turns.
-func (s *Store) SetTurn(id, turn string) (Review, error) {
-	return s.patchReview(id, func(r *Review) { r.TurnID = turn })
-}
-
-// MarkReviewed records that the review was opened (its turn read).
-func (s *Store) MarkReviewed(id string) (Review, error) {
-	return s.patchReview(id, func(r *Review) {
-		if r.ReviewedAt == 0 {
-			r.ReviewedAt = Now()
-		}
-	})
 }

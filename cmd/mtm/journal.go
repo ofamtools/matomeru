@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -253,9 +254,18 @@ func (a *App) journalUpdate(msg tea.Msg) tea.Cmd {
 	return a.waitJournal()
 }
 
-// historyChanged reads the journal again into the views that show it
-// (none yet: the Turns tab and the Review page move onto it next).
-func (a *App) historyChanged() {}
+// historyChanged reads the journal again into the views that show it: the
+// Turns tab of the pane it shows and the Review page.
+func (a *App) historyChanged() {
+	var errs []error
+	if a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
+		errs = append(errs, a.showTurns(a.pv.turnsFor))
+	}
+	errs = append(errs, a.refreshReviews())
+	if err := errors.Join(errs...); err != nil {
+		a.m.Status = "history: " + err.Error()
+	}
+}
 
 // journalOwner is the owner the journal gives an entry: the pane's own
 // assignment, else its session's owner (looked up by name, since a
