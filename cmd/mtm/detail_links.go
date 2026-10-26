@@ -78,7 +78,7 @@ func (a *App) addLinkedDetail(id, page string, main func() *ochazuke.List, subje
 		return nil, err
 	}
 	ld.pageDetail = d
-	if ld.links, err = a.r.AddList(ld.linksID, nil, ochazuke.Parent(page)); err != nil {
+	if ld.links, err = a.r.AddList(ld.linksID, nil, ochazuke.Parent(page), ochazuke.NoMarks()); err != nil {
 		return nil, err
 	}
 	a.r.Instances[ld.linksID].Unfocusable = true // until it has a link

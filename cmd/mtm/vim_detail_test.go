@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/unixsuperhero/ochazuke"
 )
 
 // openVimPage opens the Vim page on the session id.
@@ -53,6 +55,11 @@ func TestVimLinksJumpToTheirRows(t *testing.T) {
 	} {
 		openVimPage(t, a, l.vimID)
 		frame(a)
+		toLinks(t, a, a.detail.vim)
+		// A link answers enter; it takes no marks.
+		if hints := ochazuke.BindingHints(a.r, a.r.Focus); !strings.Contains(hints, "enter detail-link.follow") || strings.Contains(hints, "list.mark") {
+			t.Fatalf("link hints %q", hints)
+		}
 		followLinkTo(t, a, a.detail.vim, c.kind, c.id)
 		if a.r.Page != c.page || a.r.Focus != c.focus {
 			t.Fatalf("%s link: page %s focus %s, want %s on %s", c.kind, a.r.Page, a.r.Focus, c.focus, c.page)
