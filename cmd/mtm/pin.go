@@ -251,6 +251,9 @@ func (a *App) refreshScope() error {
 	if err := a.refreshVim(); err != nil {
 		return err
 	}
+	if err := a.refreshContext(); err != nil {
+		return err
+	}
 	a.setPanes(a.panes, nil)
 	if err := a.refreshReviews(); err != nil {
 		return err

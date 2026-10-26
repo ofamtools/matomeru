@@ -82,6 +82,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, edit)
 	}
 	a.filterDirectories()
+	if c := a.contextUpdate(msg); c != nil {
+		cmd = tea.Batch(cmd, c)
+	}
 	a.followProject()
 	if a.r.Page != a.lastPage {
 		a.lastPage = a.r.Page

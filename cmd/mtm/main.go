@@ -216,6 +216,7 @@ type App struct {
 	db             *store.Store
 	work           *work.Store
 	contexts       *contextitems.Store // the context_items table (context.go)
+	cx             *contextState       // the Context page and its actions (context.go)
 	drafts         *draft.Store
 	editor         *recordEditor
 	editorSave     map[string]func(editRecord) (any, error)
@@ -349,6 +350,7 @@ func New(opts Options) (*App, error) {
 	a.defineRenames()
 	a.defineOutline()
 	a.defineSides()
+	a.defineContext()
 
 	// Pages are tabs in registration order: Panes first, then Work.
 	if err := a.addPanesPage(); err != nil {
@@ -393,6 +395,9 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	if err := a.addVimPage(); err != nil {
+		return nil, err
+	}
+	if err := a.addContextPage(); err != nil {
 		return nil, err
 	}
 	if err := a.refreshReviews(); err != nil {
