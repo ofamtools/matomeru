@@ -189,6 +189,17 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	if got := itemIDs(a.baseList); len(got) < 2 {
 		t.Fatalf("bases %v", got)
 	}
+	if sel, _ := a.baseList.Selected(); sel.ID != "base:"+directoryKey(second) {
+		t.Fatalf("the new base is not selected: %s", sel.ID)
+	}
+	// A stale cache (an attach) still counts each base's known directories.
+	a.directories.Ready = false
+	a.refreshBases()
+	for _, item := range a.baseList.Items() {
+		if item.Cells[2] == "…" {
+			t.Fatalf("known count is … with rows cached: %v", item.Cells)
+		}
+	}
 	if err := a.baseList.Select("base:" + directoryKey(second)); err != nil {
 		t.Fatal(err)
 	}

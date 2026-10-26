@@ -642,8 +642,10 @@ func (a *App) refreshBases() {
 	home, _ := a.home()
 	items := make([]ochazuke.ListItem, 0, len(bases))
 	for _, base := range bases {
+		// Counts read the cached rows; … only while a scan is running or
+		// none has landed yet (a stale cache still counts, test pass R14).
 		known := "…"
-		if a.directories.Ready {
+		if !a.directories.Loading && (a.directories.Ready || len(a.directories.Rows) > 0) {
 			n := 0
 			prefix := strings.TrimSuffix(directoryKey(base.Path), "/") + "/"
 			for _, row := range a.directories.Rows {
@@ -1100,7 +1102,12 @@ func (a *App) addBasePath(path string, depth int) ochazuke.Result {
 	if _, ok := os.LookupEnv("MTM_PROJECT_BASE_DIRS"); ok {
 		msg = "Saved; MTM_PROJECT_BASE_DIRS overrides dirs.json while it is set"
 	}
-	return a.rescan(bases, msg)
+	result := a.rescan(bases, msg)
+	// The new base is the selected row (test pass R14).
+	if a.baseList != nil && a.r.Instances["base:"+expandPath(path)] != nil {
+		_ = a.baseList.Select("base:" + expandPath(path))
+	}
+	return result
 }
 
 // removeBase is dirs.base.remove.
