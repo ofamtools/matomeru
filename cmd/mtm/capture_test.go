@@ -5,8 +5,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+
+	"github.com/unixsuperhero/matomeru/internal/history"
 )
+
+// tickingClock replaces the journal's clock with one that advances a
+// millisecond per read. The journal orders entries by millisecond, then by
+// the turn's random id, so hooks that run inside one real millisecond (a
+// Stop and the next prompt) would sort in a random order and merge turns.
+func tickingClock(t *testing.T) {
+	t.Helper()
+	real := history.Now
+	var ms atomic.Int64
+	ms.Store(real())
+	history.Now = func() int64 { return ms.Add(1) }
+	t.Cleanup(func() { history.Now = real })
+}
 
 // paneEnv is the environment of a hook running in the claude pane.
 func paneEnv(a *App) {
@@ -35,6 +51,7 @@ func TestCLICaptureTurn(t *testing.T) {
 // prompt, Stop completes it with the full answer; a hook outside a TUIOS
 // pane does nothing.
 func TestCLICaptureHook(t *testing.T) {
+	tickingClock(t)
 	app, _ := cliApp(t)
 	hook := func(payload string) string {
 		t.Helper()
