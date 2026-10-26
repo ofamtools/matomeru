@@ -22,6 +22,7 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/draft"
 	"github.com/unixsuperhero/matomeru/internal/harness"
+	"github.com/unixsuperhero/matomeru/internal/history"
 	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
@@ -248,6 +249,7 @@ type App struct {
 	db             *store.Store
 	work           *work.Store
 	contexts       *contextitems.Store // the context_items table (context.go)
+	hist           *history.Journal    // the history journal and review marks (journal.go)
 	cx             *contextState       // the Context page and its actions (context.go)
 	drafts         *draft.Store
 	editor         *recordEditor
@@ -349,6 +351,11 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	hist, err := history.Open(db, journalOwner(w))
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
 	configDir := opts.ConfigDir()
 	if opts.Harnesses == "" {
 		opts.Harnesses = filepath.Join(configDir, "harnesses.json")
@@ -360,7 +367,7 @@ func New(opts Options) (*App, error) {
 	}
 	r := ochazuke.NewRuntime()
 	client := opts.client()
-	a := &App{db: db, work: w, contexts: contexts, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.configDir = configDir
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))

@@ -42,6 +42,22 @@ func (s *Store) SessionOwner(id string) (SessionOwner, error) {
 	return o, err
 }
 
+// SessionOwnerNamed is the owner of the session with this name, for a
+// caller that knows only the name (a capture hook inside the pane); an
+// unowned name is an empty owner.
+func (s *Store) SessionOwnerNamed(name string) (SessionOwner, error) {
+	owners, err := all[SessionOwner](s.db, "session_owners")
+	if err != nil {
+		return SessionOwner{}, err
+	}
+	for _, o := range owners {
+		if o.Name == name && name != "" {
+			return o, nil
+		}
+	}
+	return SessionOwner{Name: name}, nil
+}
+
 func (s *Store) PaneOwner(window, sessionID string) (Assignment, error) {
 	var a Assignment
 	err := s.db.Get("assignments", window, &a)
