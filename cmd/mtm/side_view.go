@@ -130,6 +130,7 @@ func (a *App) syncSideView() error {
 	}
 	side := a.companionPanes[id]
 	stream := a.panesd.OpenStream(side)
+	a.trackStream(sideTermID, stream)
 	if _, err := a.r.AddTerminal(sideTermID, stream, ochazuke.Parent(panesPage), ochazuke.FocusOnClose(paneTermID)); err != nil {
 		stream.Release()
 		return err
@@ -217,7 +218,7 @@ func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Bl
 func (a *App) sideDetailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
 	term := a.r.Terminal(sideTermID)
 	p, _ := a.r.Instances[sideTermID].Data.(pane)
-	title := "side " + a.attached.SideFront + " · " + p.label()
+	title := a.streamTitle(sideTermID, "side "+a.attached.SideFront+" · "+p.label())
 	if e := term.Err(); e != "" {
 		title += ": " + e
 	}

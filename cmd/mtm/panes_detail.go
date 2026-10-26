@@ -534,7 +534,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 			term = side
 			p, _ = a.r.Instances[sideTermID].Data.(pane)
 		}
-		title := p.label() + " · zoomed · " + a.r.TerminalLeader() + " z restores"
+		title := a.streamTitle(term.ID(), p.label()) + " · zoomed · " + a.r.TerminalLeader() + " z restores"
 		cw, ch := ochazuke.PanelContentSize(width, height)
 		if a.copy.active {
 			return layout.PanelBlock(a.copyTitle()+" · zoomed", a.copyBlock(cw, ch), width, height, true)
@@ -663,7 +663,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		body = a.copyBlock(cw, ch)
 		focused = true
 	case term != nil:
-		title = a.attached.label()
+		title = a.streamTitle(paneTermID, a.attached.label())
 		header = a.paneHeader(a.attached)
 		if e := term.Err(); e != "" {
 			title += ": " + e

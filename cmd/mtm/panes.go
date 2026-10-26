@@ -584,6 +584,7 @@ func (a *App) attachLive(p pane, returnTo string) error {
 		return err
 	}
 	stream := a.panesd.OpenStream(p)
+	a.trackStream(paneTermID, stream)
 	if h, ok := stream.(holdable); ok {
 		// Detach parks the stream, so the pane keeps the size it was
 		// shown at while its preview is on screen (dropHeld gives it back).
@@ -925,7 +926,7 @@ func (t tuios) KillPane(ctx context.Context, p pane) error {
 // OpenStream is a stream that dials stream-pane on its first read.
 func (t tuios) OpenStream(p pane) paneStream {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &liveStream{client: t.Client, pane: p, ctx: ctx, cancel: cancel}
+	return &liveStream{client: t.Client, pane: p, ctx: ctx, cancel: cancel, dial: dialDaemon(t.Client), backoff: reconnectBackoff}
 }
 
 // liveStream adapts the daemon's stream-pane to the framework terminal: its
@@ -940,8 +941,13 @@ type liveStream struct {
 	ctx    context.Context // the stream's life; Release cancels it
 	cancel context.CancelFunc
 
+	// dial opens stream-pane (dialDaemon; a fake in tests) and backoff is
+	// the wait before reconnect attempt n (stream_reconnect.go).
+	dial    func(ctx context.Context, params daemon.StreamParams) (paneConn, daemon.StreamInfo, error)
+	backoff func(attempt int) time.Duration
+
 	mu         sync.Mutex
-	conn       *daemon.PaneStream
+	conn       paneConn
 	frames     chan streamFrame
 	connDone   chan struct{} // closed when resnap drops conn
 	held       *streamFrame  // an ending frame met while coalescing, read next
@@ -951,6 +957,13 @@ type liveStream struct {
 	parked     bool
 	ended      bool // the program ended normally; reads wait for the close
 	screen     liveScreen
+	// The resume point and the connection's state (stream_reconnect.go):
+	// seq is the last stream position written into the screen, boot the
+	// daemon boot it came from, state "" while connected, else
+	// reconnecting or gone.
+	seq   uint64
+	boot  string
+	state string
 }
 
 type streamFrame struct {
@@ -958,8 +971,9 @@ type streamFrame struct {
 	err   error
 }
 
-// open dials stream-pane with the current lease and starts the reader.
-func (s *liveStream) open(ctx context.Context) (chan streamFrame, error) {
+// open dials stream-pane with the current lease and starts the reader;
+// resume asks the daemon to continue from the last seq (a reconnect).
+func (s *liveStream) open(ctx context.Context, resume bool) (chan streamFrame, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.released {
@@ -974,8 +988,15 @@ func (s *liveStream) open(ctx context.Context) (chan streamFrame, error) {
 	if s.cols > 0 && s.rows > 0 {
 		params.LeaseCols, params.LeaseRows = uint16(s.cols), uint16(s.rows)
 	}
+	if resume && s.seq > 0 {
+		params.FromSeq, params.BootID = s.seq, s.boot
+	}
+	dialer := s.dial
+	if dialer == nil {
+		dialer = dialDaemon(s.client)
+	}
 	// The stream outlives this read: it ends with Release, not with ctx.
-	conn, err := s.client.StreamPane(s.ctx, params)
+	conn, info, err := dialer(s.ctx, params)
 	if err == nil && dial.Err() != nil {
 		conn.Close()
 		err = dial.Err()
@@ -983,8 +1004,13 @@ func (s *liveStream) open(ctx context.Context) (chan streamFrame, error) {
 	if err != nil {
 		return nil, fmt.Errorf("attach %s: %w", s.pane.label(), err)
 	}
+	s.boot = info.BootID
+	if resume && info.Mode == "resume" && info.Cols > 0 && info.Rows > 0 {
+		// Output continues the screen we kept, at the pane's size now.
+		s.screen.apply(daemon.Frame{Type: 'R', Cols: info.Cols, Rows: info.Rows})
+	}
 	s.conn, s.frames, s.connDone = conn, make(chan streamFrame, 8), make(chan struct{})
-	go func(conn *daemon.PaneStream, out chan streamFrame, done chan struct{}) {
+	go func(conn paneConn, out chan streamFrame, done chan struct{}) {
 		for {
 			frame, err := conn.ReadFrame()
 			select {
@@ -1020,13 +1046,22 @@ func (s *liveStream) resnap() {
 
 // Next waits for the pane to change, then returns its visible screen.
 func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
-	if s.ended {
-		// The program ended normally: the last screen stays up, quietly,
-		// until the listing closes the exited window and the terminal.
+	if s.ended || s.connState() == streamGone {
+		// The program ended normally, or its window is gone: the last
+		// screen stays up, quietly, until the listing closes the window
+		// and the terminal.
 		<-ctx.Done()
 		return ochazuke.TerminalFrame{}, ctx.Err()
 	}
-	frames, err := s.open(ctx)
+	if s.connState() == streamReconnecting {
+		if err := s.reconnect(ctx); err != nil {
+			return ochazuke.TerminalFrame{}, err
+		}
+		// The title changes either way (back, or "pane gone"): draw now,
+		// even when the resumed pane has nothing new to say.
+		return s.lastFrame(ctx)
+	}
+	frames, err := s.open(ctx, false)
 	if err != nil {
 		return ochazuke.TerminalFrame{}, err
 	}
@@ -1044,6 +1079,12 @@ func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 		s.ended = true
 		return s.Next(ctx)
 	}
+	if s.dropped(ctx, item) {
+		// The connection went, not the program: keep the screen, say
+		// reconnecting, and dial again on the next read.
+		s.lose()
+		return s.lastFrame(ctx)
+	}
 	if err := frameErr(item); err != nil {
 		return ochazuke.TerminalFrame{}, err
 	}
@@ -1051,7 +1092,7 @@ func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 	// among them is held for the next read. A resize asks for a new
 	// snapshot instead (resnap).
 	resized := item.frame.Type == 'R'
-	s.screen.apply(item.frame)
+	s.applyFrame(item.frame)
 	for drained := false; !drained && !resized; {
 		select {
 		case next := <-frames:
@@ -1059,7 +1100,7 @@ func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 				s.held, drained = &next, true
 			} else {
 				resized = next.frame.Type == 'R'
-				s.screen.apply(next.frame)
+				s.applyFrame(next.frame)
 			}
 		default:
 			drained = true

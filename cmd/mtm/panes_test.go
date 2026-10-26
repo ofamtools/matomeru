@@ -117,7 +117,10 @@ type fakeStream struct {
 	released bool
 	keep     bool // hold: Release parks, as liveStream does
 	parked   bool
+	state    string // connState: "", reconnecting or gone
 }
+
+func (s *fakeStream) connState() string { return s.state }
 
 func (s *fakeStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 	select {
