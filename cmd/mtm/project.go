@@ -199,11 +199,20 @@ func (a *App) followProject() {
 	}
 }
 
+// renderWorkDetail is the stacked Work page below sideBySide: the projects
+// with the detail beside them, then the task table across the full width
+// (test pass R5: it used to keep to the left half).
 func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	leftWidth := max(1, width/2-1)
 	rightWidth := max(1, width-leftWidth-2)
 	detail, _ := a.workDetail()
-	return ochazuke.Text(lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(a.workLists(leftWidth, height)), lipgloss.NewStyle().Width(rightWidth).Render(detail)))
+	avail := max(2, height-2)
+	want := func(l *ochazuke.List) int { return l.Len() + 1 }
+	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
+	top = max(1, min(top, avail-1))
+	left := fmt.Sprintf("projects (%d)\n", len(a.projects)) + a.view(a.projectList, leftWidth, top)
+	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).MaxHeight(top+1).Render(detail))
+	return ochazuke.Text(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top)))
 }
 
 // workDetail is the detail of the highlighted task, else of the

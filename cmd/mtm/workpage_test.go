@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/unixsuperhero/ochazuke"
+
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -70,4 +72,20 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 		t.Fatalf("80 columns lost the stacked layout:\n%s", f)
 	}
 	t.Logf("80 columns:\n%s", f)
+}
+
+// Test pass R5: stacked at 80 columns, the task table spans the full
+// width (status and updated columns included), below the projects and the
+// detail beside them.
+func TestWorkStackedTaskTableUsesFullWidth(t *testing.T) {
+	a := open(t)
+	long := "a task title long enough to need more than half of eighty columns"
+	if _, err := a.work.AddSubtask("matomeru", "", long); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
+	f := frameAt(a, 80)
+	if !strings.Contains(f, long[:50]) || !strings.Contains(f, "updated") {
+		t.Fatalf("task table not full width at 80:\n%s", f)
+	}
 }
