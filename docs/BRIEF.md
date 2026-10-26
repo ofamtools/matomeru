@@ -46,6 +46,8 @@ A harness is data, not code: `internal/harness` holds `Harness{name, command, mo
 - Attach: `AddTerminal(id, Parent(panesPage), stream)` with the daemon's `stream-pane`; the terminal noun's leader contract handles detach. Size lease released on `Close`.
 - Everything else runs on the loop and returns `Done`.
 
+Copy mode: `ctrl+a [` from live keeps the pane attached; `esc` or `q` restores that live terminal, including a side pane or zoom. Entering from the pane list returns to the list instead. `i` or `enter` always goes live. A visible copy cursor tracks motions before selection and marks the active endpoint during selection; the pane keeps running.
+
 ## A launch ends with the pane on screen (owner rule)
 
 `agent.launch` and `pane.new` normally finish on the panes page with the new pane attached. An explicit launch outside the pin attaches with `outside pin: PROJECT`, without widening the list or changing the pin. If the pin changes while a launch is running, completion records its review and only notifies; it does not navigate. Ownership is captured before the job and saved immediately after creation, before readiness waits or listing. A failed listing retains the created pane; a failed ownership write reports the failure and leaves the pane available for reassignment.

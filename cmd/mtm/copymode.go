@@ -16,7 +16,7 @@ import (
 // (copyBuf) with Vim's motions, search, the three visual shapes and a yank
 // into the registers and the clipboard. It is entered by moving the focus
 // onto the pane from the list (l on a pane row, } or tab) or with ctrl+a [
-// while live; i or enter goes live, esc or q goes back to the list. The
+// while live; i or enter goes live, esc or q returns to the entry state. The
 // pane keeps running: while it is attached the buffer's tail is the live
 // emulator's screen, and the scrollback above it reloads off the loop.
 
@@ -31,16 +31,17 @@ const (
 // copyMode is the copy instance's component and the panes page's copy
 // state: the buffer, the pane it reads and where its screen comes from.
 type copyMode struct {
-	buf     copyBuf
-	active  bool
-	pane    pane
-	source  string   // the terminal whose screen is the buffer's tail; "" reads the capture's
-	history []string // the capture's history, capped
-	screen  []string
-	base    int  // the daemon's line number of the buffer's first line
-	loaded  bool // a scrollback capture has landed since entering
-	frame   string
-	err     string // why the last scrollback load failed
+	buf        copyBuf
+	active     bool
+	pane       pane
+	source     string   // the terminal whose screen is the buffer's tail; "" reads the capture's
+	returnLive string   // terminal focused at entry; empty when entered from the list
+	history    []string // the capture's history, capped
+	screen     []string
+	base       int  // the daemon's line number of the buffer's first line
+	loaded     bool // a scrollback capture has landed since entering
+	frame      string
+	err        string // why the last scrollback load failed
 }
 
 // The delivery contract: the copy instance's only work is copy.load, whose
@@ -183,7 +184,7 @@ func (a *App) defineCopy() {
 		}), "Exchange the selection's ends").
 		Verb("yank", a.copyYank, "Yank the selection (or count lines) into the registers and the clipboard; copy mode stays").
 		Verb("live", a.copyLive, "Go live: keys go to the pane again").
-		Verb("leave", a.copyLeave, "Back to the pane list; the pane keeps running").
+		Verb("leave", a.copyLeave, "Return to the entry state: live terminal or pane list").
 		Verb("load", a.copyLoad, "Read the pane's scrollback into the copy buffer").Quiet()
 	a.parameters(copyNoun+".move", map[string]ochazuke.Parameter{"motion": {Type: "string", Required: true}, "steps": {Type: "integer"}, "line": {Type: "integer"}})
 	a.parameters(copyNoun+".find", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true, Enum: []string{"f", "F", "t", "T"}}, "char": {Type: "string", Required: true}, "steps": {Type: "integer"}})
@@ -322,6 +323,7 @@ func (a *App) enterCopy(p pane, source string) error {
 	c := a.copy
 	c.active, c.pane, c.source, c.loaded, c.err = true, p, source, false, ""
 	c.history, c.screen, c.frame, c.base = nil, nil, "", 0
+	c.returnLive = ""
 	keep := c.buf
 	c.buf = copyBuf{goal: -1, search: keep.search, back: keep.back, find: keep.find}
 	cursor := copyPos{-1, 0}
@@ -382,7 +384,11 @@ func (a *App) terminalCopy(ctx ochazuke.Ctx) ochazuke.Result {
 	if id == sideTermID {
 		p, _ = a.r.Instances[sideTermID].Data.(pane)
 	}
-	return resultError(a.enterCopy(p, id))
+	if err := a.enterCopy(p, id); err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.copy.returnLive = id
+	return ochazuke.Done(nil)
 }
 
 // copyLoad is copy.load: the pane's scrollback, off the loop; a newer load
@@ -503,10 +509,13 @@ func (a *App) copyLive(ochazuke.Ctx) ochazuke.Result {
 	return resultError(err)
 }
 
-// copyLeave is copy.leave (esc, q): back to the pane's row; an attached
-// terminal detaches as ctrl+a d does (the pane keeps running).
+// copyLeave is copy.leave (esc, q): restore the live terminal when entered
+// from live, otherwise return to the pane's row.
 func (a *App) copyLeave(ochazuke.Ctx) ochazuke.Result {
 	c := a.copy
+	if c.returnLive != "" && a.r.Terminal(c.returnLive) != nil {
+		return resultError(a.r.SetFocus(c.returnLive))
+	}
 	row := c.pane.rowID()
 	c.active = false
 	if a.r.Terminal(paneTermID) != nil {
@@ -651,7 +660,11 @@ func (a *App) copyTabLine() string {
 		}
 		parts[i] = name
 	}
-	return strings.Join(parts, " ") + " · copy mode · i live · esc list"
+	back := "list"
+	if a.copy.returnLive != "" {
+		back = "live"
+	}
+	return strings.Join(parts, " ") + " · copy mode · i live · esc " + back
 }
 
 // boolArg reads a boolean argument (true, or "true" from the CLI).

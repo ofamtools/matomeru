@@ -97,13 +97,10 @@ func TestCopyModeFromTheListIsFocusedNotLive(t *testing.T) {
 		t.Fatalf("copy mode attached: %+v", f.streams)
 	}
 	fr := frame(app)
-	for _, want := range []string{"matomeru/claude · copy mode · 3/4", "copy mode · i live · esc list", "$ echo hi"} {
-		if !strings.Contains(fr, want) {
-			t.Fatalf("frame lacks %q:\n%s", want, fr)
-		}
+	if !strings.Contains(fr, "$ echo hi") {
+		t.Fatalf("copy frame lacks pane output:\n%s", fr)
 	}
-	// i goes live; ctrl+a [ comes back to copy mode on the live screen;
-	// esc returns to the list and detaches.
+	// i goes live; ctrl+a [ enters copy mode; esc restores live without detaching.
 	press(t, app, "i")
 	if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" || app.copy.active {
 		t.Fatalf("after i: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
@@ -113,9 +110,14 @@ func TestCopyModeFromTheListIsFocusedNotLive(t *testing.T) {
 		t.Fatalf("after ctrl+a [: focus %s source %q", app.r.Focus, app.copy.source)
 	}
 	press(t, app, "esc")
-	if app.r.Focus != "pane:matomeru/w1" || app.r.Terminal(paneTermID) != nil || app.copy.active || app.r.Mode.Name != "normal" {
+	if app.r.Focus != paneTermID || app.r.Terminal(paneTermID) == nil || app.copy.active || app.r.Mode.Name != "terminal" || f.streams[0].released {
 		t.Fatalf("after esc: focus %s terminal %v", app.r.Focus, app.r.Terminal(paneTermID) != nil)
 	}
+	press(t, app, "ctrl+a", "[", "q")
+	if app.r.Focus != paneTermID || app.copy.active || f.streams[0].released {
+		t.Fatalf("after q: focus %s active %v released %v", app.r.Focus, app.copy.active, f.streams[0].released)
+	}
+	press(t, app, "ctrl+a", "d")
 	// } reaches the copy stop from the list too; q leaves like esc.
 	frame(app)
 	press(t, app, "}")
@@ -395,9 +397,9 @@ func TestCopyModeInZoom(t *testing.T) {
 	if fr := frame(app); !strings.Contains(fr, "copy mode · 3/3 · zoomed") || !strings.Contains(fr, "a b c") {
 		t.Fatalf("zoomed copy frame:\n%s", fr)
 	}
-	press(t, app, "i")
+	press(t, app, "esc")
 	if !app.pv.zoom || app.r.Focus != paneTermID {
-		t.Fatalf("i: zoom %v focus %s", app.pv.zoom, app.r.Focus)
+		t.Fatalf("esc: zoom %v focus %s", app.pv.zoom, app.r.Focus)
 	}
 }
 
@@ -431,7 +433,7 @@ func TestCopyModeWithASidePane(t *testing.T) {
 	if fr := frame(app); !strings.Contains(fr, "side · ") || !strings.Contains(fr, "copy mode") || !strings.Contains(fr, "PARENT SCREEN") {
 		t.Fatalf("side copy frame:\n%s", fr)
 	}
-	press(t, app, "i")
+	press(t, app, "esc")
 	if app.r.Focus != sideTermID || app.copy.active {
 		t.Fatalf("i: focus %s", app.r.Focus)
 	}
