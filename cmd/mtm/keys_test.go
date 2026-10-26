@@ -124,7 +124,7 @@ func normalRows(a *App) []keyRow {
 func TestBindingsFollowTheKeyMap(t *testing.T) {
 	app := open(t)
 	families := map[string][]string{
-		"d d": {"pane.kill", "session.kill", "saved.forget", "vim.forget", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete"},
+		"d d": {"pane.kill", "session.kill", "saved.forget", "vim.forget", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete", contextNoun + ".forget"},
 		"n":   {"pane.new", "project.new", "task.new", "note.new", "vim.open", "dirs.base.add"},
 		"L":   {"agent.choose", "project.launch", "task.launch"},
 		"i":   {"project.edit", "task.edit", "note.edit", "project-dir.edit", "review.saveAnswer", "outline.edit"},
