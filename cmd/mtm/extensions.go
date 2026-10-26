@@ -57,6 +57,10 @@ const extensionsDir = "extensions"
 // extExecTimeout bounds every exec of an extension bin.
 const extExecTimeout = 60 * time.Second
 
+// extWaitDelay is how long an exec waits for its output after the
+// timeout killed the bin.
+const extWaitDelay = time.Second
+
 func (g extRegistry) path(name string) string { return filepath.Join(g.Dir, name+".json") }
 
 // Names lists the registered extensions, sorted.
@@ -174,6 +178,9 @@ func execExt(ctx context.Context, bin string, env []string, args ...string) ([]b
 	ctx, cancel := context.WithTimeout(ctx, extExecTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, args...)
+	// A killed tool's children may hold its output open: stop waiting
+	// for them shortly after the kill.
+	cmd.WaitDelay = extWaitDelay
 	cmd.Env = append(os.Environ(), env...)
 	var out, errOut bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errOut

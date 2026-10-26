@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // toolCatalog is a valid catalog of a tool named name at version.
@@ -14,8 +16,9 @@ func toolCatalog(name, version string) string {
 }
 
 // fakeTool writes an executable o-NAME into dir that answers catalog with
-// the text in dir/NAME.catalog (any other words fail) and logs each call to
-// dir/NAME.log. It returns the bin.
+// the text in dir/NAME.catalog and any item verb with one row (once
+// mounted, its page loads them), and logs each call to dir/NAME.log. It
+// returns the bin.
 func fakeTool(t *testing.T, dir, name, catalog string) string {
 	t.Helper()
 	bin := filepath.Join(dir, "o-"+name)
@@ -27,6 +30,7 @@ func fakeTool(t *testing.T, dir, name, catalog string) string {
 echo "$*" >> '` + log + `'
 case "$1" in
 catalog) cat '` + answer + `' ;;
+item) echo '[{"id":"i1","label":"one","cells":["one","open"]}]' ;;
 *) echo "unknown $*" >&2; exit 2 ;;
 esac
 `
@@ -132,5 +136,30 @@ func TestExtensionDiscoveryStatuses(t *testing.T) {
 	mustCLI(t, a, "extension", "refresh", "beta")
 	if got := discovered(t, a)["beta"]; got.Status != statusRegistered || got.Changes != nil {
 		t.Errorf("after refresh: %+v", got)
+	}
+}
+
+// A tool that does not answer within the timeout is skipped, and the
+// discovery does not wait for it (or for a child it left running).
+func TestExtensionDiscoverySkipsASlowTool(t *testing.T) {
+	dir := t.TempDir()
+	fakeTool(t, dir, "alpha", toolCatalog("alpha", "1.0"))
+	slow := filepath.Join(dir, "o-slow")
+	if err := os.WriteFile(slow, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a := openAt(t, seeded(t))
+	d := a.discovery()
+	d.path, d.timeout = dir, 2*time.Second
+	start := time.Now()
+	rows, err := d.run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(start); took > 10*time.Second {
+		t.Fatalf("discovery waited %v for the slow tool", took)
+	}
+	if len(rows) != 1 || rows[0].Name != "alpha" {
+		t.Fatalf("rows %+v", rows)
 	}
 }
