@@ -110,8 +110,13 @@ func TestEnsureJobFailureShowsInFooterAndPanesHint(t *testing.T) {
 	if !strings.Contains(app.m.Status, "daemon mtm-daemon not running: boom") {
 		t.Fatalf("footer: %q", app.m.Status)
 	}
+	// The whole error is a notice until the next key (notices are
+	// transient); the page keeps saying the daemon is down.
+	if !slices.ContainsFunc(app.m.Notices, func(n string) bool { return strings.Contains(n, "boom") }) {
+		t.Fatalf("notices: %q", app.m.Notices)
+	}
 	press(t, app, "ctrl+j")
-	if f := ansi.Strip(app.m.View().Content); !strings.Contains(f, "is not running") || !strings.Contains(f, "e starts it (daemon.ensure)") || !slices.ContainsFunc(app.m.Notices, func(n string) bool { return strings.Contains(n, "boom") }) {
+	if f := ansi.Strip(app.m.View().Content); !strings.Contains(f, "is not running") || !strings.Contains(f, "e starts it (daemon.ensure)") {
 		t.Fatalf("panes page:\n%s", f)
 	}
 	app.ensure = func(context.Context) error { return nil }

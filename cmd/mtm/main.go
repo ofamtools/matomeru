@@ -213,6 +213,7 @@ type App struct {
 	sideStarting   map[string]bool
 	sideLock       string
 	landErr        string // why the last finished launch or pane.new did not reach the screen
+	notices        noticeTimer
 
 	reviews    []work.Review
 	opened     string // the review in the detail; review.open sets it

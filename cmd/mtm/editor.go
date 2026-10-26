@@ -52,6 +52,7 @@ func (a *App) View() tea.View {
 	return a.m.View()
 }
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	notices := len(a.m.Notices)
 	_, cmd := a.m.Update(msg)
 	if panes := a.panesUpdate(msg); panes != nil {
 		cmd = tea.Batch(cmd, panes)
@@ -66,6 +67,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.r.Page == directoriesPage {
 			cmd = tea.Batch(cmd, a.openedDirectories())
 		}
+	}
+	if expire := a.expireNotices(msg, notices); expire != nil {
+		cmd = tea.Batch(cmd, expire)
 	}
 	return a, cmd
 }
