@@ -82,11 +82,13 @@ type pane struct {
 	Session           string
 	SessionID         string
 	OwnerUnsaved      bool
-	Harness           string `json:"harness,omitempty"`
-	StateAt           int64  `json:"state_at,omitempty"`
-	NeedsYou          bool   `json:"needs_you,omitempty"`
-	Model             string `json:"model,omitempty"`          // from the launch recipe, when mtm started it
-	LaunchHarness     string `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
+	Harness           string            `json:"harness,omitempty"`
+	StateAt           int64             `json:"state_at,omitempty"`
+	NeedsYou          bool              `json:"needs_you,omitempty"`
+	Model             string            `json:"model,omitempty"`          // from the launch recipe, when mtm started it
+	LaunchHarness     string            `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
+	LaunchFlags       []string          `json:"launch_flags,omitempty"`   // the recipe's argv after the command
+	Meta              map[string]string `json:"meta,omitempty"`           // the agent's metadata in tuios (model, context, cost…)
 	SideVim, SideTerm string
 	ShowVim, ShowTerm bool
 	SideFront         string
@@ -341,7 +343,7 @@ func (a *App) setPanes(panes []pane, err error) {
 			continue
 		}
 		if r, err := a.work.PaneRecipe(panes[i].ID); err == nil {
-			panes[i].Model, panes[i].LaunchHarness = r.Model, r.Harness
+			panes[i].Model, panes[i].LaunchHarness, panes[i].LaunchFlags = r.Model, r.Harness, r.Flags
 		}
 	}
 	a.panes = panes
@@ -541,11 +543,12 @@ func (a *App) fill(text string, height int, width ...int) string {
 
 // agentRow is one row of list-agents: the agent a window runs, if any.
 type agentRow struct {
-	Window   string `json:"window_id"`
-	Harness  string `json:"harness_id"`
-	State    string `json:"state"`
-	StateAt  int64  `json:"agent_state_at"`
-	NeedsYou bool   `json:"needs_you"`
+	Window   string         `json:"window_id"`
+	Harness  string         `json:"harness_id"`
+	State    string         `json:"state"`
+	StateAt  int64          `json:"agent_state_at"`
+	NeedsYou bool           `json:"needs_you"`
+	Meta     map[string]any `json:"meta"`
 }
 
 // agents reads list-agents for every window of every session; a daemon
@@ -642,6 +645,14 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 			p := pane{Session: s.Name, SessionID: s.ID, Pane: w}
 			if ag, ok := agents[w.ID]; ok {
 				p.Harness, p.StateAt, p.NeedsYou = ag.Harness, ag.StateAt/int64(time.Millisecond), ag.NeedsYou
+				for k, v := range ag.Meta {
+					if s := strings.TrimSpace(fmt.Sprint(v)); v != nil && s != "" {
+						if p.Meta == nil {
+							p.Meta = map[string]string{}
+						}
+						p.Meta[k] = s
+					}
+				}
 				if ag.State != "" {
 					p.AgentState = ag.State
 				}

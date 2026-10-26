@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -538,17 +539,21 @@ func (a *App) tabLine(live bool) string {
 	return line + " · [ ] tabs · enter live"
 }
 
-// paneHeader is the detail's first line, the pane's facts: harness (or
-// shell) · model · cwd under ~ · state · age, then the owner when the pin
-// leaves it out. Every tab shows it; none repeats these facts.
+// paneHeader is the detail's first line, the pane's facts. A shell's is
+// shell · cwd. An agent's doubles as its status line: harness · model ·
+// effort · permission mode · context used · cost · cwd · state · age, each
+// from what mtm can know (the agent's tuios metadata first, then the
+// launch recipe) and left out when nothing says it. The owner follows when
+// the pin leaves the pane out. Every tab shows it; none repeats it.
 func (a *App) paneHeader(p pane) string {
 	home, _ := a.home()
-	parts := []string{p.kind()}
+	harness := p.kind()
 	if p.Harness == "" && p.LaunchHarness != "" {
-		parts[0] = p.LaunchHarness
+		harness = p.LaunchHarness
 	}
-	if p.Model != "" {
-		parts = append(parts, p.Model)
+	parts := []string{harness}
+	if p.isAgent() || p.LaunchHarness != "" {
+		parts = append(parts, p.statusFields()...)
 	}
 	if p.Cwd != "" {
 		parts = append(parts, tildePath(p.Cwd, home))
@@ -563,6 +568,59 @@ func (a *App) paneHeader(p pane) string {
 		parts = append(parts, "owner "+a.ownerLabel(owner))
 	}
 	return strings.Join(parts, " · ")
+}
+
+// statusFields are an agent's status-line facts in order: model, effort,
+// permission mode, context used and cost. tuios metadata (fed by the
+// harness's status line, a protocol pane or set-agent-meta) wins over the
+// launch recipe, which knows the model and the flags mtm started it with.
+func (p pane) statusFields() []string {
+	meta := func(keys ...string) string {
+		for _, k := range keys {
+			if v := p.Meta[k]; v != "" {
+				return v
+			}
+		}
+		return ""
+	}
+	var out []string
+	if model := cmp.Or(meta("model"), p.Model); model != "" {
+		out = append(out, model)
+	}
+	if effort := cmp.Or(meta("effort", "reasoning_effort"), launchFlag(p.LaunchFlags, "--effort")); effort != "" {
+		out = append(out, "effort "+effort)
+	}
+	perm := cmp.Or(meta("permission_mode", "permissions"), launchFlag(p.LaunchFlags, "--permission-mode"))
+	if perm == "" && slices.Contains(p.LaunchFlags, "--dangerously-skip-permissions") {
+		perm = "bypassPermissions"
+	}
+	if perm != "" {
+		out = append(out, "perms "+perm)
+	}
+	if ctx := meta("context"); ctx != "" {
+		out = append(out, "ctx "+ctx)
+	}
+	if cost := meta("cost"); cost != "" {
+		if !strings.HasPrefix(cost, "$") {
+			cost = "cost " + cost
+		}
+		out = append(out, cost)
+	}
+	return out
+}
+
+// launchFlag is the value of flag in argv, given as "--flag v" or
+// "--flag=v"; "" when absent.
+func launchFlag(argv []string, flag string) string {
+	for i, arg := range argv {
+		if v, ok := strings.CutPrefix(arg, flag+"="); ok {
+			return v
+		}
+		if arg == flag && i+1 < len(argv) {
+			return argv[i+1]
+		}
+	}
+	return ""
 }
 
 // tabBody is the selected pane's tab.

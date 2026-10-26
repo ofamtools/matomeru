@@ -515,3 +515,22 @@ func TestPaneHeaderNamesTheOwnerOutsideThePin(t *testing.T) {
 		t.Fatalf("pinned header %q", got)
 	}
 }
+
+// An agent's header doubles as its status line: tuios metadata first, the
+// launch recipe's model and flags behind it, nothing for a missing fact.
+func TestPaneHeaderIsTheAgentStatusLine(t *testing.T) {
+	app := open(t)
+	p := pane{Session: "s", Harness: "claude", Model: "sonnet", LaunchFlags: []string{"--model", "sonnet", "--effort=high", "--permission-mode", "plan"},
+		Pane: daemon.Pane{ID: "w1", AgentState: "working", Cwd: "/tmp/x"}}
+	if got := app.paneHeader(p); got != "claude · sonnet · effort high · perms plan · /tmp/x · working" {
+		t.Fatalf("recipe header %q", got)
+	}
+	p.Meta = map[string]string{"model": "opus", "context": "42%", "cost": "$0.12"}
+	if got := app.paneHeader(p); got != "claude · opus · effort high · perms plan · ctx 42% · $0.12 · /tmp/x · working" {
+		t.Fatalf("meta header %q", got)
+	}
+	shell := pane{Session: "s", Meta: map[string]string{"summary": "x"}, Pane: daemon.Pane{ID: "w2", Cwd: "/tmp/y"}}
+	if got := app.paneHeader(shell); got != "shell · /tmp/y" {
+		t.Fatalf("shell header %q", got)
+	}
+}
