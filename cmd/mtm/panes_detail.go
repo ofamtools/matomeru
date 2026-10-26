@@ -78,6 +78,9 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		}
 		a.attached, a.pv.zoom, a.pv.followed = pane{}, false, ""
 	}
+	if err := a.keepHeld(); err != nil {
+		a.paneErr = err.Error()
+	}
 	if a.r.Page == panesPage && !a.pv.armed && a.pv.after != nil {
 		a.pv.armed = true
 		cmds = append(cmds, a.pv.after(refreshEvery, refreshDue{}))

@@ -108,6 +108,8 @@ type fakeStream struct {
 	sent     [][]string
 	lease    [2]int
 	released bool
+	keep     bool // hold: Release parks, as liveStream does
+	parked   bool
 }
 
 func (s *fakeStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
@@ -121,7 +123,15 @@ func (s *fakeStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 func (s *fakeStream) Send(keys ...string) error   { s.sent = append(s.sent, keys); return nil }
 func (s *fakeStream) Paste(string) error          { return nil }
 func (s *fakeStream) Resize(cols, rows int) error { s.lease = [2]int{cols, rows}; return nil }
-func (s *fakeStream) Release() error              { s.released, s.lease = true, [2]int{}; return nil }
+func (s *fakeStream) Release() error {
+	if s.keep {
+		s.parked = true
+		return nil
+	}
+	return s.drop()
+}
+func (s *fakeStream) hold()       { s.keep = true }
+func (s *fakeStream) drop() error { s.released, s.lease = true, [2]int{}; return nil }
 
 // runOnce runs the commands an update returned and feeds their messages
 // back, without running what those deliveries schedule (a terminal's next
@@ -296,8 +306,10 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	if app.r.Instances[paneTermID] != nil {
 		t.Fatal("detach left the terminal")
 	}
-	if !s.released || s.lease != [2]int{} {
-		t.Fatalf("lease not released: released %v lease %v", s.released, s.lease)
+	// Detach parks the stream: the pane keeps its size while its preview
+	// is on screen, so the preview draws the lines the live view drew.
+	if s.released || !s.parked || s.lease == [2]int{} {
+		t.Fatalf("detach should park the stream: released %v parked %v lease %v", s.released, s.parked, s.lease)
 	}
 	// Detach lands back on the row the attach came from.
 	if app.r.Focus != "pane:matomeru/w1" || app.r.Mode.Name != "normal" {
@@ -358,8 +370,10 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	if app.r.Focus != "pane:ochazuke/w2" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
-	if len(f.streams) != 2 || !f.streams[0].released || !f.streams[1].released {
-		t.Fatalf("streams not released: %+v", f.streams)
+	// The first pane's stream was dropped when the selection left its
+	// row; the second stays parked under its own preview.
+	if len(f.streams) != 2 || !f.streams[0].released || !f.streams[1].parked || f.streams[1].released {
+		t.Fatalf("streams: first released %v, second parked %v released %v", f.streams[0].released, f.streams[1].parked, f.streams[1].released)
 	}
 	// Attach again, focus the list, then } reaches the terminal stop.
 	key(t, app, "enter")

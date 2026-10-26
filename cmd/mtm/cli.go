@@ -57,7 +57,7 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 }
 
 // closeTerminals removes every terminal instance, in id order; closing one
-// cancels its read and releases its stream.
+// cancels its read and releases its stream, a held one included.
 func (a *App) closeTerminals() error {
 	var ids []string
 	for id := range a.r.Instances {
@@ -70,5 +70,5 @@ func (a *App) closeTerminals() error {
 	for _, id := range ids {
 		errs = append(errs, a.r.RemoveInstance(id))
 	}
-	return errors.Join(errs...)
+	return errors.Join(append(errs, a.dropHeld())...)
 }

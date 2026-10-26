@@ -247,10 +247,11 @@ type App struct {
 	current        string // the open project's id; its tasks fill the tasks stop
 	tasksOpen      bool
 	tasks          []work.Task
-	panes          []pane  // every pane the daemon reports; launches and kills reload it
-	paneErr        string  // why the last listing failed (the daemon is not reachable)
-	preview        preview // the last captured screen, shown while no terminal is attached
-	attached       pane    // the pane the attached terminal streams
+	panes          []pane     // every pane the daemon reports; launches and kills reload it
+	paneErr        string     // why the last listing failed (the daemon is not reachable)
+	preview        preview    // the last captured screen, shown while no terminal is attached
+	attached       pane       // the pane the attached terminal streams
+	held           heldStream // the attached pane's stream, parked after detach
 	sides          map[string]sideState
 	companionPanes map[string]pane
 	sideStarting   map[string]bool

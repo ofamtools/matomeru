@@ -63,8 +63,8 @@ func TestSideFocusReplacementAndDetachStack(t *testing.T) {
 		t.Fatalf("second close did not hide only sidebar: focus %s parent %+v", a.r.Focus, a.attached)
 	}
 	press(t, a, "ctrl+a", "d")
-	if !parent.released || a.r.Terminal(paneTermID) != nil || a.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("final close did not detach parent: focus %s released %v", a.r.Focus, parent.released)
+	if !parent.parked || parent.released || a.r.Terminal(paneTermID) != nil || a.r.Focus != "pane:matomeru/w1" {
+		t.Fatalf("final close did not detach parent: focus %s parked %v released %v", a.r.Focus, parent.parked, parent.released)
 	}
 	if len(f.killed) != 0 {
 		t.Fatalf("hiding killed daemon panes: %v", f.killed)

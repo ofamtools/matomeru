@@ -564,6 +564,12 @@ func (a *App) attachLive(p pane, returnTo string) error {
 		return err
 	}
 	stream := a.panesd.OpenStream(p)
+	if h, ok := stream.(holdable); ok {
+		// Detach parks the stream, so the pane keeps the size it was
+		// shown at while its preview is on screen (dropHeld gives it back).
+		h.hold()
+		a.held = heldStream{pane: p, stream: h}
+	}
 	if _, err := a.r.AddTerminal(paneTermID, stream, ochazuke.Parent(panesPage), ochazuke.CloseOnDetach(), ochazuke.FocusOnClose(returnTo)); err != nil {
 		stream.Release() // never added, so no Terminal.Close releases it
 		return err
@@ -593,10 +599,47 @@ func (a *App) closeTerminal() error {
 	}
 	a.attached = pane{}
 	a.pv.zoom = false
-	if a.r.Instances[paneTermID] == nil {
+	var err error
+	if a.r.Instances[paneTermID] != nil {
+		err = a.r.RemoveInstance(paneTermID)
+	}
+	return errors.Join(err, a.dropHeld())
+}
+
+// holdable is a stream whose Release can park it (liveStream).
+type holdable interface {
+	hold()
+	drop() error
+}
+
+// heldStream is the attached pane's stream; after a detach it stays parked,
+// holding the pane's size lease, until the preview leaves that pane.
+type heldStream struct {
+	pane   pane
+	stream holdable
+}
+
+// dropHeld releases the held stream, if any.
+func (a *App) dropHeld() error {
+	h := a.held
+	a.held = heldStream{}
+	if h.stream == nil {
 		return nil
 	}
-	return a.r.RemoveInstance(paneTermID)
+	return h.stream.drop()
+}
+
+// keepHeld drops a parked stream once its pane is no longer the one the
+// Screen preview shows: another row, another page, or no detach yet.
+func (a *App) keepHeld() error {
+	if a.held.stream == nil || a.r.Terminal(paneTermID) != nil {
+		return nil
+	}
+	row, _ := a.selectedRow()
+	if a.r.Page == panesPage && row == a.held.pane.rowID() {
+		return nil
+	}
+	return a.dropHeld()
 }
 
 // killBlocked is pane.killBlocked, x on a pane whose side panes are open:
@@ -866,10 +909,11 @@ func (t tuios) OpenStream(p pane) paneStream {
 }
 
 // liveStream adapts the daemon's stream-pane to the framework terminal: its
-// frames only say the pane changed, and each change is read back as the
-// pane's visible screen through capture-pane (the old app's approach, so
-// the app holds no terminal emulator). Keys go through send-keys, pastes
-// through send-text, and Resize holds a size lease that Release drops.
+// frames replay into an emulator (liveScreen), which gives the screen and
+// the cursor; before the first snapshot a change is read back through
+// capture-pane. Keys go through send-keys, pastes through send-text, and
+// Resize holds a size lease that Release drops, unless the stream is held
+// (hold), when Release parks it and drop gives the lease back.
 type liveStream struct {
 	client *daemon.Client
 	pane   pane
@@ -879,9 +923,13 @@ type liveStream struct {
 	mu         sync.Mutex
 	conn       *daemon.PaneStream
 	frames     chan streamFrame
-	held       *streamFrame // an ending frame met while coalescing, read next
+	connDone   chan struct{} // closed when resnap drops conn
+	held       *streamFrame  // an ending frame met while coalescing, read next
 	cols, rows int
 	released   bool
+	keep       bool // hold: Release parks the stream instead of dropping it
+	parked     bool
+	screen     liveScreen
 }
 
 type streamFrame struct {
@@ -914,21 +962,39 @@ func (s *liveStream) open(ctx context.Context) (chan streamFrame, error) {
 	if err != nil {
 		return nil, fmt.Errorf("attach %s: %w", s.pane.label(), err)
 	}
-	s.conn, s.frames = conn, make(chan streamFrame, 8)
-	go func(conn *daemon.PaneStream, out chan streamFrame) {
+	s.conn, s.frames, s.connDone = conn, make(chan streamFrame, 8), make(chan struct{})
+	go func(conn *daemon.PaneStream, out chan streamFrame, done chan struct{}) {
 		for {
 			frame, err := conn.ReadFrame()
 			select {
 			case out <- streamFrame{frame, err}:
 			case <-s.ctx.Done():
 				return
+			case <-done:
+				return
 			}
 			if err != nil {
 				return
 			}
 		}
-	}(conn, s.frames)
+	}(conn, s.frames, s.connDone)
 	return s.frames, nil
+}
+
+// resnap reconnects for a fresh snapshot at the pane's new size. The
+// daemon's emulator reflows history into a grown screen; replaying an R
+// frame into ours would not, and the screens would drift. The next read
+// dials again with the current lease.
+func (s *liveStream) resnap() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.conn == nil || s.released {
+		return
+	}
+	close(s.connDone)
+	s.conn.Close()
+	s.conn, s.frames = nil, nil
+	s.screen.close()
 }
 
 // Next waits for the pane to change, then returns its visible screen.
@@ -950,17 +1016,30 @@ func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 	if err := frameErr(item); err != nil {
 		return ochazuke.TerminalFrame{}, err
 	}
-	// Coalesce the frames already waiting into one capture; an ending
-	// frame among them is held for the next read.
-	for drained := false; !drained; {
+	// Coalesce the frames already waiting into one screen; an ending frame
+	// among them is held for the next read. A resize asks for a new
+	// snapshot instead (resnap).
+	resized := item.frame.Type == 'R'
+	s.screen.apply(item.frame)
+	for drained := false; !drained && !resized; {
 		select {
 		case next := <-frames:
 			if frameErr(next) != nil {
 				s.held, drained = &next, true
+			} else {
+				resized = next.frame.Type == 'R'
+				s.screen.apply(next.frame)
 			}
 		default:
 			drained = true
 		}
+	}
+	if resized {
+		s.resnap()
+		return s.Next(ctx)
+	}
+	if frame, ok := s.screen.frame(); ok {
+		return frame, nil
 	}
 	capture, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
@@ -1030,14 +1109,61 @@ func (s *liveStream) Resize(cols, rows int) error {
 }
 
 // Release drops the size lease and closes the stream; it is idempotent.
-// Terminal.Close calls it (ochazuke.TerminalReleaser).
+// Terminal.Close calls it (ochazuke.TerminalReleaser). A held stream is
+// parked instead: the lease and the connection stay, its frames are
+// drained, and drop releases it.
 func (s *liveStream) Release() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.released || s.parked {
+		return nil
+	}
+	if s.keep {
+		s.parked = true
+		if s.frames != nil {
+			go drainFrames(s.ctx, s.frames)
+		}
+		return nil
+	}
+	return s.releaseLocked()
+}
+
+// hold makes the next Release park the stream, so a detached pane keeps
+// the size it was shown at while its preview is on screen.
+func (s *liveStream) hold() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.keep = true
+}
+
+// drop releases a held stream, parked or not.
+func (s *liveStream) drop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.released {
 		return nil
 	}
+	return s.releaseLocked()
+}
+
+// drainFrames reads a parked stream's frames until its context ends, so the
+// reader never blocks on a full channel.
+func drainFrames(ctx context.Context, frames chan streamFrame) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case f := <-frames:
+			if f.err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (s *liveStream) releaseLocked() error {
 	s.released = true
+	s.screen.close()
 	var err error
 	if s.conn != nil {
 		err = errors.Join(s.conn.Lease(0, 0), s.conn.Close())
