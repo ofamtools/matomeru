@@ -242,12 +242,13 @@ func extPlan(doc ocli.CatalogDoc) []ocli.CatalogNoun {
 
 // extension is one mounted extension.
 type extension struct {
-	name  string
-	bin   string
-	doc   ocli.CatalogDoc
-	nouns map[string]string // catalog noun -> mtm noun <ext>-<noun>
-	views []*ocli.PageView
-	crud  map[string]extCRUD // catalog noun -> its new, edit and delete verbs (extension_forms.go)
+	name    string
+	bin     string
+	doc     ocli.CatalogDoc
+	nouns   map[string]string // catalog noun -> mtm noun <ext>-<noun>
+	views   []*ocli.PageView
+	crud    map[string]extCRUD    // catalog noun -> its new, edit and delete verbs (extension_forms.go)
+	sources map[string]*extSource // a parameter source (the tool's NOUN.VERB) -> its cached choices (extension_sources.go)
 }
 
 // extNoun is mtm's noun of an extension's noun; a dot would split the
@@ -568,6 +569,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 		notify("no application nouns to mount")
 		return
 	}
+	a.mountSources(x, plan)
 	pages := pagesOf(name, e.Catalog, plan, x.nouns)
 	cfg := ocli.PageConfig{
 		Noun: func(n string) string {
@@ -603,8 +605,9 @@ func (a *App) mountExtension(name string, e extEntry) {
 }
 
 // extParams are a proxied verb's parameters: a source names the tool's own
-// verb, which mtm cannot run for a pick list on the loop, so such a
-// parameter takes any value (the tool still checks it).
+// verb, which mtm cannot run on the loop, so such a parameter takes any
+// value (the tool still checks it); in the TUI its choices are a cache
+// loaded off the loop (extension_sources.go).
 func extParams(params map[string]ochazuke.Parameter) map[string]ochazuke.Parameter {
 	out := make(map[string]ochazuke.Parameter, len(params))
 	for name, p := range params {
@@ -813,12 +816,16 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	})
 }
 
-// reloadExtension reloads every page of an extension (off the loop).
+// reloadExtension reloads every page of an extension and its parameter
+// choices (off the loop).
 func (a *App) reloadExtension(x *extension) {
 	for _, v := range x.views {
 		if err := v.Reload(); err != nil {
 			v.SetStatus(err.Error())
 		}
+	}
+	if err := a.loadSources(x); err != nil && len(x.views) > 0 {
+		x.views[0].SetStatus(err.Error())
 	}
 }
 
