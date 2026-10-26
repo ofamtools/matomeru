@@ -368,7 +368,7 @@ func (a *App) defineLiveKeys() {
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
 		Verb("keys", a.leaderKeys, "Show the leader keys (ctrl+a then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · c context · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"})).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"})).
@@ -376,6 +376,7 @@ func (a *App) defineLiveKeys() {
 		Bind("z", ochazuke.Do("terminal.zoom")).
 		Bind("j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1})).
 		Bind("k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1})).
+		Bind("c", ochazuke.Do(contextNoun+".pick")).
 		Bind("?", ochazuke.Do("terminal.keys"))
 	a.leaderView()
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
@@ -397,6 +398,7 @@ var leaderWords = []struct{ key, text string }{
 	{"z", "zoom the pane to the page, or back"},
 	{"j", "next pane, live"},
 	{"k", "previous pane, live"},
+	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
 	{"?", "these keys"},
 	{"ctrl+a", "send ctrl+a to the pane"},
 }

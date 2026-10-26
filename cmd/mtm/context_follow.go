@@ -266,7 +266,3 @@ func (a *App) followPanes(ochazuke.Ctx) ochazuke.Result {
 		}
 	})
 }
-
-// contextChanged tells views beyond the page that items landed; the live
-// picker refreshes its rows (context_picker.go).
-func (a *App) contextChanged() {}

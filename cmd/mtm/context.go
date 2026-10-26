@@ -62,8 +62,9 @@ type contextState struct {
 	sys   systemActions
 	// cmds are commands a completion asks the loop to run (an OSC 52
 	// copy); contextUpdate hands them to Bubble Tea.
-	cmds   []tea.Cmd
-	follow *contextFollower // continuous extraction (context_follow.go)
+	cmds    []tea.Cmd
+	follow  *contextFollower // continuous extraction (context_follow.go)
+	picking pane             // the pane the live picker was opened in (context_picker.go)
 }
 
 // systemActions are the clipboard and the system opener; tests replace
@@ -152,6 +153,7 @@ func (a *App) defineContext() {
 		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").
 		Mode("insert").Bind("enter", ochazuke.Do("context-search.done")).Bind("esc", ochazuke.Do("context-search.done")).Bind("down", ochazuke.Do("context-search.done"))
 	a.ownedBy(contextNoun, contextListID)
+	a.defineContextPicker()
 }
 
 // addContextPage builds the page: the search field (reached with /), then
@@ -239,10 +241,7 @@ func (a *App) contextRows(kind, query string, all bool) []ocli.Row {
 
 // contextCells is a row's cells in contextColumns order.
 func (a *App) contextCells(it contextitems.Item, project string, now time.Time) []string {
-	text := it.Text
-	if it.Kind == "command" || it.Kind == "prompt" {
-		text = oneLine(text)
-	}
+	text := a.itemCell(it)
 	if it.Exists != nil && !*it.Exists {
 		text += " (missing)"
 	}
@@ -255,6 +254,19 @@ func (a *App) contextCells(it contextitems.Item, project string, now time.Time) 
 		star = "★"
 	}
 	return []string{it.Kind, text, source, a.ownerLabel(project), age(now.Sub(time.UnixMilli(it.Seen()))), star}
+}
+
+// itemCell is an item's text for a cell: a path as pathCell shortens it
+// (its head and last two folders), a command or prompt on one line.
+func (a *App) itemCell(it contextitems.Item) string {
+	switch it.Kind {
+	case "file", "dir":
+		home, _ := a.home()
+		return pathCell(it.Text, home)
+	case "command", "prompt":
+		return oneLine(it.Text)
+	}
+	return it.Text
 }
 
 // refreshContext pushes the filtered rows; selection is kept by id.
