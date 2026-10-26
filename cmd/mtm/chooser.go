@@ -102,7 +102,7 @@ func NewChoosers(r *ochazuke.Runtime, views map[string]ochazuke.ModalView) *Choo
 		Verb("move", verb(func(c *Chooser, ctx ochazuke.Ctx) ochazuke.Result {
 			c.move(ochazuke.IntArg(ctx.Args, "delta", 0))
 			return ochazuke.Done(c.state())
-		}), "Move the highlight").
+		}), "Move the highlight").Motion().
 		Verb("cancel", verb(cs.cancel), "Close without choosing").
 		Mode("").
 		Bind("enter", ochazuke.Do("chooser.pick")).

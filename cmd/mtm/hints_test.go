@@ -78,3 +78,17 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.Focus)
 	}
 }
+
+// Test pass item 9: a chooser's footer and hint line list no motions
+// (chooser.move is a motion, as list.move is on pages).
+func TestChooserFooterListsNoMotions(t *testing.T) {
+	a := open(t)
+	press(t, a, "P")
+	if a.r.TopModal() != pinPicker {
+		t.Fatalf("modal %q", a.r.TopModal())
+	}
+	f := frameAt(a, 120)
+	if strings.Contains(f, "chooser.move") || !strings.Contains(f, "enter chooser.pick") {
+		t.Fatalf("chooser hints:\n%s", f)
+	}
+}
