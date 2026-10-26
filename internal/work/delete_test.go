@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 func TestDeleteOrphansWithoutLosingRecords(t *testing.T) {

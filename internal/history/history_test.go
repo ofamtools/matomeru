@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 func openJournal(t *testing.T, owner Owner) (*Journal, *store.Store) {

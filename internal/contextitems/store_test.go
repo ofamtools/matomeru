@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // legacyRow is a row as matomeru-old wrote it (the owner's database).

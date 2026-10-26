@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 type DeleteCounts struct {

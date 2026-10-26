@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // Companion links a side vim or terminal window to its parent pane.

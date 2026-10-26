@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // Table is the journal, declared exactly as matomeru-old declared it (an

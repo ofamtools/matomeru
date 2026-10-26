@@ -23,8 +23,8 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/draft"
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 func main() {

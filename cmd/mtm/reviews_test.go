@@ -11,8 +11,8 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // reviewApp launches an agent on task t1 of matomeru through the fakes,

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // Turn is one delivered user request through the agent's final answer, as

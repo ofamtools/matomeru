@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // press sends named keys the way Bubble Tea v2 delivers them, failing on

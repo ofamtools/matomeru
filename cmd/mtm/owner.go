@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 	"github.com/unixsuperhero/ochazuke"
 )
 

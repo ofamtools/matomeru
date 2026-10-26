@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // Project is one row of the projects table.

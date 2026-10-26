@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 // store tables lists every declared table with its owner, key, version,

@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
+	"github.com/unixsuperhero/matomeru/store"
 )
 
 func TestCompanionsPersistAndEnforceUniquenessAfterRestart(t *testing.T) {
