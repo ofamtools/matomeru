@@ -485,14 +485,13 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	// A launch is cheap and K undoes it, so it does not ask; the notice
 	// says where it went.
 	a.m.Notify("Launching " + h.Name + " into " + ochazuke.StringArg(ctx.Args, "session", sessionFor(p)))
+	// The window is named after its harness (claude, claude-2): the
+	// session already names the project (UX review 2 F22).
 	spec := harness.Spec{
 		Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)),
-		Name:    p.Name,
+		Name:    h.Name,
 		Cwd:     a.startCwd(p),
 		Model:   model,
-	}
-	if spec.Name == "" {
-		spec.Name = h.Name
 	}
 	if id := ochazuke.StringArg(ctx.Args, "task", ""); id != "" {
 		t, err := a.work.Task(id)

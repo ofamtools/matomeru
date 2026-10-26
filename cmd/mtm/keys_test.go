@@ -189,3 +189,21 @@ func TestPDoesNotStackThePickerOverAModal(t *testing.T) {
 		t.Fatalf("P on the page: top modal %q", app.r.TopModal())
 	}
 }
+
+// UX review 2 F22: an agent launched on a project is named after its
+// harness; the session already names the project.
+func TestAgentPanesAreNamedAfterTheHarness(t *testing.T) {
+	app := open(t)
+	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
+	app.launcher = f
+	if err := app.r.OpenPage("work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.r.SetFocus("matomeru"); err != nil {
+		t.Fatal(err)
+	}
+	settle(app, launchKey(t, app))
+	if len(f.launches) != 1 || f.launches[0].Name != defaultHarness || f.launches[0].Session != "matomeru" {
+		t.Fatalf("launches %+v", f.launches)
+	}
+}
