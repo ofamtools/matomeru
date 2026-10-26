@@ -173,13 +173,21 @@ func (a *App) tasksHeading() string {
 }
 
 // followProject makes the tasks list follow the highlighted project row,
-// so the tasks under the cursor's project show without enter.
+// so the tasks under the cursor's project show without enter. Arriving
+// from the tasks (k spilling off the first task, {) is not a move in the
+// projects: the tasks stay, so j back spills onto the task just left
+// instead of into a list the spill rebuilt (UX review 2 F6).
 func (a *App) followProject() {
+	prev := a.workFocus
+	a.workFocus = a.r.BaseFocus()
 	if a.editor != nil {
 		return
 	}
 	selected := a.r.Instances[a.r.BaseFocus()]
 	if selected == nil || selected.Parent != "projects" {
+		return
+	}
+	if from := a.r.Instances[prev]; prev == "tasks" || from != nil && from.Parent == "tasks" {
 		return
 	}
 	current := ""

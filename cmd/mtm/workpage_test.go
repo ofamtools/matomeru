@@ -44,6 +44,12 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 	if a.r.Focus != unassociatedID {
 		t.Fatalf("k did not spill into the projects: focus %s", a.r.Focus)
 	}
+	// The spill does not rebuild the tasks: j goes back to the task left.
+	press(t, a, "j")
+	if a.r.Focus != "busy" {
+		t.Fatalf("k then j did not come back: focus %s", a.r.Focus)
+	}
+	press(t, a, "k")
 	if err := a.work.PutTask(work.Task{ID: "loose", Title: "loose end"}); err != nil {
 		t.Fatal(err)
 	}
@@ -87,5 +93,40 @@ func TestWorkStackedTaskTableUsesFullWidth(t *testing.T) {
 	f := frameAt(a, 80)
 	if !strings.Contains(f, long[:50]) || !strings.Contains(f, "updated") {
 		t.Fatalf("task table not full width at 80:\n%s", f)
+	}
+}
+
+// UX review 2 F6: k off the first task spills into the projects' last row
+// and j spills straight back onto that task, at both layouts; the tasks
+// shown are not rebuilt by the spill. A move inside the projects still
+// follows.
+func TestWorkSpillRoundTripReturnsToTheTask(t *testing.T) {
+	for _, width := range []int{80, 140} {
+		a := openAt(t, seededWith(t, map[string]string{"busy": "active", "stuck": "blocked"}))
+		a.m.Width, a.m.Height = width, 24
+		press(t, a, "j", "}")
+		if a.r.Focus != "busy" {
+			t.Fatalf("%d: focus %s", width, a.r.Focus)
+		}
+		frameAt(a, width)
+		press(t, a, "k")
+		if a.r.Focus != unassociatedID || a.current != "matomeru" {
+			t.Fatalf("%d: k: focus %s current %q", width, a.r.Focus, a.current)
+		}
+		if f := frameAt(a, width); !strings.Contains(f, "busy task") {
+			t.Fatalf("%d: the spill rebuilt the tasks:\n%s", width, f)
+		}
+		press(t, a, "j")
+		if a.r.Focus != "busy" {
+			t.Fatalf("%d: k then j: focus %s", width, a.r.Focus)
+		}
+		press(t, a, "k", "k")
+		if a.r.Focus != "matomeru" || a.current != "matomeru" {
+			t.Fatalf("%d: k k: focus %s current %q", width, a.r.Focus, a.current)
+		}
+		press(t, a, "j")
+		if a.r.Focus != unassociatedID || a.current != "" {
+			t.Fatalf("%d: a move in the projects did not follow: focus %s current %q", width, a.r.Focus, a.current)
+		}
 	}
 }
