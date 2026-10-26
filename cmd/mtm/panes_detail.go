@@ -829,14 +829,22 @@ func (a *App) groupSummary(inst *ochazuke.Instance) (string, ochazuke.Block) {
 	case "session":
 		s, _ := inst.Data.(pane)
 		owner, _ := a.work.SessionOwner(s.SessionID)
-		head := fmt.Sprintf("%d panes · %s", len(lines), a.ownerLabel(owner.ProjectID))
+		head := plural(len(lines), "pane") + " · " + a.ownerLabel(owner.ProjectID)
 		keys := a.keySentence(inst.ID, keyAction{"session.attach", "attaches the first pane"}, keyAction{"session.move", "moves"}, keyAction{"session.rename", "renames"}, keyAction{"session.kill", "kills"})
 		if len(lines) == 0 {
 			keys = "no panes · " + a.keySentence(inst.ID, keyAction{"pane.new", "opens a shell"}, keyAction{"agent.choose", "launches an agent"}, keyAction{"session.move", "moves"}, keyAction{"session.rename", "renames"}, keyAction{"session.kill", "kills"})
 		}
 		return "session " + s.Session, ochazuke.Text(head + "\n\n" + strings.Join(lines, "\n") + "\n\n" + keys)
 	}
-	return inst.Label, ochazuke.Text(fmt.Sprintf("%d sessions\n\n%s", len(lines), strings.Join(lines, "\n")))
+	return inst.Label, ochazuke.Text(plural(len(lines), "session") + "\n\n" + strings.Join(lines, "\n"))
+}
+
+// plural is "1 pane", "2 panes".
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 // events subscribes to the daemon's window, session and agent-state

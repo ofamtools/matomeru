@@ -293,3 +293,21 @@ func cells(a *App, id string) string {
 	}
 	return ""
 }
+
+// UX review 2 F22: one pane is "1 pane", not "1 panes".
+func TestPluralCounts(t *testing.T) {
+	for n, want := range map[int]string{0: "0 panes", 1: "1 pane", 2: "2 panes"} {
+		if got := plural(n, "pane"); got != want {
+			t.Errorf("plural(%d) = %q, want %q", n, got, want)
+		}
+	}
+	app, _ := panesApp(t)
+	press(t, app, "k") // the claude pane's session row
+	if app.r.Focus != "session:matomeru" {
+		t.Fatalf("focus %s", app.r.Focus)
+	}
+	settle(app, follow(app))
+	if fr := frame(app); !strings.Contains(fr, "1 pane ·") || strings.Contains(fr, "1 panes") {
+		t.Fatalf("session summary:\n%s", fr)
+	}
+}
