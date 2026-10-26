@@ -251,6 +251,7 @@ type App struct {
 	cx             *contextState       // the Context page and its actions (context.go)
 	drafts         *draft.Store
 	editor         *recordEditor
+	quick          *quickNote // the open quick note (N), nil when closed
 	editorSave     map[string]func(editRecord) (any, error)
 	editorRefresh  map[string]func() error
 	editorFinish   map[string]func(editRecord) error
@@ -385,6 +386,7 @@ func New(opts Options) (*App, error) {
 	a.defineVim()
 	a.defineRenames()
 	a.defineOutline()
+	a.defineQuickNote()
 	a.defineSides()
 	a.defineContext()
 	a.defineCopy()
@@ -478,10 +480,10 @@ func New(opts Options) (*App, error) {
 }
 
 // Close removes an attached terminal (releasing its stream) and closes the store.
-// Close writes the open record's last change, then closes the terminal and
-// the store.
+// Close writes the open record's and quick note's last change, then
+// closes the terminal and the store.
 func (a *App) Close() error {
-	return errors.Join(a.commitRecord(), a.closeTerminal(), a.db.Close())
+	return errors.Join(a.commitRecord(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.

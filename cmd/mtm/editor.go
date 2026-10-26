@@ -77,11 +77,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, panes)
 	}
 	edit, err := a.editorUpdate(msg)
-	if err := errors.Join(err, a.autosaveAnswer()); err != nil {
+	quick, quickErr := a.quickNoteUpdate(msg)
+	if err := errors.Join(err, quickErr, a.autosaveAnswer()); err != nil {
 		a.m.Status = err.Error()
 	}
 	if edit != nil {
 		cmd = tea.Batch(cmd, edit)
+	}
+	if quick != nil {
+		cmd = tea.Batch(cmd, quick)
 	}
 	a.filterDirectories()
 	if c := a.contextUpdate(msg); c != nil {
