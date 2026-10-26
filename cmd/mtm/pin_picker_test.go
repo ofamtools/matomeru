@@ -581,3 +581,23 @@ func TestADirectorylessProjectIsAskedOnce(t *testing.T) {
 		t.Fatalf("second pin: pin %q modal %q", a.pin, a.r.TopModal())
 	}
 }
+
+// UX review 2 F22: the directory chooser cuts the branch and projects
+// columns before the path; without a kept column the widest goes first.
+func TestFitWidthsCutsKeptColumnsLast(t *testing.T) {
+	widths := []int{10, 24, 18, 8, 16} // name, path, branch, used, projects
+	got := fitWidths(widths, 70, 1)
+	if got[1] != 24 {
+		t.Fatalf("kept path cut: %v", got)
+	}
+	n := 2 * (len(got) - 1)
+	for _, w := range got {
+		n += w
+	}
+	if n > 70 {
+		t.Fatalf("does not fit: %v (%d)", got, n)
+	}
+	if plain := fitWidths(widths, 70); plain[1] >= 24 {
+		t.Fatalf("without keep the widest (path) narrows first: %v", plain)
+	}
+}

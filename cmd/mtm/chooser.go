@@ -58,6 +58,9 @@ type ChooserSpec struct {
 	CreateLabel func(query string) string
 	CreateRow   bool
 	Empty       string
+	// Keep names the columns cut last when the cells do not fit (a
+	// directory chooser's path): the others narrow to their minimum first.
+	Keep []int
 }
 
 // chooserCreateRow is the ID of the create row (see ChooserSpec.CreateRow).
@@ -430,7 +433,7 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	case c.cursor >= scroll:
 		offset = c.cursor - scroll + 1
 	}
-	widths := fitWidths(c.cellWidths(), width-2)
+	widths := fitWidths(c.cellWidths(), width-2, c.spec.Keep...)
 	draw := func(i int) {
 		text := c.matches[i].Label
 		if cells := c.matches[i].Cells; len(cells) > 0 {
@@ -483,8 +486,9 @@ func (c *Chooser) cellWidths() []int {
 
 // fitWidths narrows the widest columns, one cell at a time and never
 // below 6, until the columns and their two-space gaps fit in avail, so no
-// one wide column (a long branch or project list) pushes the rest off.
-func fitWidths(widths []int, avail int) []int {
+// one wide column (a long branch or project list) pushes the rest off. The
+// keep columns narrow only once every other column is at its minimum.
+func fitWidths(widths []int, avail int, keep ...int) []int {
 	widths = slices.Clone(widths)
 	total := func() int {
 		n := 2 * max(0, len(widths)-1)
@@ -493,17 +497,27 @@ func fitWidths(widths []int, avail int) []int {
 		}
 		return n
 	}
-	for total() > avail {
-		widest := 0
+	widest := func(skipKept bool) int {
+		at := -1
 		for i, w := range widths {
-			if w > widths[widest] {
-				widest = i
+			if skipKept && slices.Contains(keep, i) {
+				continue
+			}
+			if w > 6 && (at < 0 || w > widths[at]) {
+				at = i
 			}
 		}
-		if widths[widest] <= 6 {
+		return at
+	}
+	for total() > avail {
+		at := widest(true)
+		if at < 0 {
+			at = widest(false)
+		}
+		if at < 0 {
 			break
 		}
-		widths[widest]--
+		widths[at]--
 	}
 	return widths
 }
