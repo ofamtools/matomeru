@@ -95,7 +95,9 @@ func TestDefaultDaemonIsNeverStarted(t *testing.T) {
 	if err := run([]string{"--data", data, "bindings", "list"}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatal(err)
 	}
-	if *starts != 0 || strings.Count(errOut.String(), "not running") != 2 {
+	// Since ochazuke v0.4.0 the CLI also prints the panes notice
+	// ("notice: panes: daemon ... not running") beside the warning.
+	if *starts != 0 || strings.Count(errOut.String(), "mtm: daemon") != 2 || strings.Count(errOut.String(), "notice: panes: daemon") != 2 {
 		t.Fatalf("starts %d, stderr %s", *starts, errOut.String())
 	}
 }

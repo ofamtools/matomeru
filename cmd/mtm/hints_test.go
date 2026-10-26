@@ -81,8 +81,11 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 	lines := strings.Split(monoFrame(t, app), "\n")
 	var first string
 	for _, line := range lines {
-		if _, row, ok := strings.Cut(line, "│ > "); ok {
-			first = strings.Join(strings.Fields(strings.TrimSuffix(row, "│")), " ")
+		// The help is a table since ochazuke v0.3.0: the selected row is
+		// the reverse highlight alone, no "> " marker, under a "task"
+		// section label.
+		if _, row, ok := strings.Cut(line, "│ enter "); ok {
+			first = "enter " + strings.Join(strings.Fields(strings.TrimSuffix(row, "│")), " ")
 			break
 		}
 	}
