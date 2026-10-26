@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,6 +48,9 @@ type extEntry struct {
 	Bin          string          `json:"bin"`
 	RegisteredAt time.Time       `json:"registeredAt"`
 	Catalog      ocli.CatalogDoc `json:"catalog"`
+	// BinStamp is the bin's file (links resolved) when Catalog was read:
+	// discovery asks the bin again only once it differs (extBinStamp).
+	BinStamp *extBinStamp `json:"binStamp,omitempty"`
 }
 
 // extRegistry is the directory of registry files.
@@ -397,7 +401,9 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 	reg := a.extRegistry()
 	env := a.extEnv(name)
 	file := reg.path(name)
+	a.extFetchStart(name)
 	return ochazuke.Pending(func(c context.Context) (any, error) {
+		stamp := binStamp(path) // before the exec: a rebuild during it reads again
 		out, err := execExt(c, path, env, "catalog")
 		if err != nil {
 			return nil, err
@@ -406,13 +412,14 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return nil, err
 		}
-		return extRegistered{summaryOf(name, path, file, doc), doc}, nil
+		return extRegistered{summaryOf(name, path, file, doc), doc, stamp}, nil
 	}).Label(name).Then(func(ctx ochazuke.Ctx, v any, err error) {
+		a.extFetchDone(name, err)
 		if err != nil {
 			return
 		}
 		doc := v.(extRegistered).doc
-		e := extEntry{Bin: path, RegisteredAt: time.Now().UTC().Truncate(time.Second), Catalog: doc}
+		e := extEntry{Bin: path, RegisteredAt: time.Now().UTC().Truncate(time.Second), Catalog: doc, BinStamp: v.(extRegistered).stamp}
 		if old, rerr := reg.Read(name); rerr == nil {
 			e.RegisteredAt = old.RegisteredAt // re-registering keeps its tab's place
 		}
@@ -429,7 +436,8 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 // completion writes.
 type extRegistered struct {
 	extSummary
-	doc ocli.CatalogDoc
+	doc   ocli.CatalogDoc
+	stamp *extBinStamp
 }
 
 // summaryOf is what register and refresh answer for one extension.
@@ -498,11 +506,15 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 	for _, name := range names {
 		envs[name] = a.extEnv(name)
 	}
+	for _, name := range names {
+		a.extFetchStart(name)
+	}
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		out := []extRegistered{}
 		var errs []error
 		for _, name := range names {
 			bin := entries[name].Bin
+			stamp := binStamp(bin)
 			answer, err := execExt(c, bin, envs[name], "catalog")
 			var doc ocli.CatalogDoc
 			if err == nil {
@@ -512,16 +524,23 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 				errs = append(errs, fmt.Errorf("%s: %w", name, err))
 				continue
 			}
-			out = append(out, extRegistered{summaryOf(name, bin, reg.path(name), doc), doc})
+			out = append(out, extRegistered{summaryOf(name, bin, reg.path(name), doc), doc, stamp})
 		}
 		// The catalogs read are written even when another failed.
 		return out, errors.Join(errs...)
-	}).Then(func(ctx ochazuke.Ctx, v any, _ error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		done, _ := v.([]extRegistered)
+		for _, name := range names {
+			if slices.ContainsFunc(done, func(r extRegistered) bool { return r.Name == name }) {
+				a.extFetchDone(name, nil)
+			} else {
+				a.extFetchDone(name, cmp.Or(err, errors.New("no catalog")))
+			}
+		}
 		for _, r := range done {
 			name := r.Name
 			e := entries[name]
-			e.Catalog = r.doc
+			e.Catalog, e.BinStamp = r.doc, r.stamp
 			if err := reg.write(name, e); err != nil {
 				ctx.Status(err.Error())
 			}

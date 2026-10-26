@@ -99,6 +99,7 @@ func TestExtensionsPageKeys(t *testing.T) {
 		`{"name":"done"`, `{"name":"archive","kind":"application"},{"name":"done"`, 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	rebuilt(t, filepath.Join(dir, "o-alpha")) // a new catalog is a new bin
 	openExtPage(t, a, extensionsPage)
 	if extStatus(a, "alpha") != statusStale {
 		t.Fatalf("status %q, want stale", extStatus(a, "alpha"))
@@ -156,6 +157,7 @@ func TestExtensionsPageFrame(t *testing.T) {
 		`{"name":"done"`, `{"name":"archive","kind":"application"},{"name":"done"`, 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	rebuilt(t, filepath.Join(dir, "o-beta")) // a new catalog is a new bin
 	if err := os.Remove(gone); err != nil {
 		t.Fatal(err)
 	}

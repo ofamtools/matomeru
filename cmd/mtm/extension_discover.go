@@ -2,9 +2,12 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,7 +23,8 @@ import (
 
 // Discovery: the family tools mtm could mount. Every executable o-NAME on
 // PATH (the first on PATH for each name wins, as oden's command discovery
-// finds them) is asked `catalog`, and only that; a tool that does not
+// finds them) is asked `catalog`, and only that, and only when its file
+// changed since the catalog on hand was read (plan); a tool that does not
 // answer a valid catalog in extDiscoverTimeout is skipped. The answers are
 // merged with the registry into one row per name and a status:
 //
@@ -108,45 +112,115 @@ type extAnswer struct {
 
 // run discovers the rows, sorted by name.
 func (d extDiscovery) run(ctx context.Context) ([]extCandidate, error) {
+	p := d.plan()
+	d.probe(ctx, p)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return d.rows(p), nil
+}
+
+// extProbePlan is one discovery: the tools found, the registry, the
+// catalog answers known without an exec and the bins to ask.
+type extProbePlan struct {
+	onPath         map[string]string // name -> bin
+	names          []string          // registered, in order
+	entries        map[string]extEntry
+	missing        map[string]bool // registered name -> its bin is gone
+	registeredBins map[string]bool // a registered bin, links resolved
+	answers        map[string]extAnswer
+	ask            map[string]string // bin -> the name it is asked as
+	stamps         map[string]*extBinStamp
+	probes         extProbes
+}
+
+// plan finds the tools and decides which bins to ask. A catalog is the
+// tool's definition, not its data, so a bin is asked only when its file
+// (links resolved: size and mtime, extBinStamp) is not what it was when
+// the catalog on hand was read: the registry entry's (BinStamp), else the
+// probe cache's (extProbes, for the tools not registered). It reads files
+// and stats bins, so it runs off the loop.
+func (d extDiscovery) plan() *extProbePlan {
+	p := &extProbePlan{onPath: map[string]string{}, missing: map[string]bool{}, registeredBins: map[string]bool{},
+		answers: map[string]extAnswer{}, ask: map[string]string{}, stamps: map[string]*extBinStamp{}, probes: d.reg.probes()}
 	found, _ := oden.Discover("o", d.path, oden.OS)
-	onPath := map[string]string{} // name -> bin
 	for _, ext := range found {
 		if !store.ValidExtensionName(ext.Name) || slices.Contains(extHosts, ext.Name) || d.isSelf(ext.Path) {
 			continue
 		}
-		onPath[ext.Name] = ext.Path
+		p.onPath[ext.Name] = ext.Path
 	}
 	// A registry file that does not read is a notice of the mounting,
 	// not a row.
-	names, entries, _ := d.reg.Ordered()
+	p.names, p.entries, _ = d.reg.Ordered()
 	// The bins to ask: every tool on PATH, and every registered bin that
-	// still exists.
-	ask := map[string]string{} // bin -> name it is asked as
-	for name, bin := range onPath {
-		ask[bin] = name
+	// still exists, unless its catalog on hand is as new as the bin.
+	for name, bin := range p.onPath {
+		p.consider(bin, name, nil)
 	}
-	missing := map[string]bool{}
-	registeredBins := map[string]bool{}
-	for _, name := range names {
-		bin := entries[name].Bin
-		registeredBins[realPath(bin)] = true
-		if !oden.Executable(oden.OS, bin) {
-			missing[name] = true
+	for _, name := range p.names {
+		e := p.entries[name]
+		p.registeredBins[realPath(e.Bin)] = true
+		if !oden.Executable(oden.OS, e.Bin) {
+			p.missing[name] = true
 			continue
 		}
-		ask[bin] = name
+		p.consider(e.Bin, name, &e)
 	}
-	answers := d.askAll(ctx, ask)
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	return p
+}
+
+// consider files bin's answer as known (the registered catalog, else the
+// probe cache's) when its stamp matches, else asks it.
+func (p *extProbePlan) consider(bin, name string, e *extEntry) {
+	stamp := binStamp(bin)
+	p.stamps[bin] = stamp
+	delete(p.answers, bin)
+	delete(p.ask, bin)
+	switch probe, ok := p.probes[realPath(bin)]; {
+	case stamp == nil:
+	case e != nil && e.BinStamp != nil && *e.BinStamp == *stamp:
+		p.answers[bin] = extAnswer{doc: e.Catalog}
+		return
+	case ok && probe.Stamp == *stamp:
+		p.answers[bin] = probe.answer()
+		return
 	}
+	p.ask[bin] = name
+}
+
+// probe asks each bin of the plan its catalog and records the answers in
+// the probe cache (not when ctx ended: an answer cut short is not the
+// bin's).
+func (d extDiscovery) probe(ctx context.Context, p *extProbePlan) {
+	if len(p.ask) == 0 {
+		return
+	}
+	for bin, ans := range d.askAll(ctx, p.ask) {
+		p.answers[bin] = ans
+		if stamp := p.stamps[bin]; stamp != nil && ctx.Err() == nil {
+			p.probes[realPath(bin)] = newExtProbe(*stamp, ans)
+		}
+	}
+	if ctx.Err() == nil {
+		keep := map[string]bool{}
+		for bin := range p.stamps {
+			keep[realPath(bin)] = true
+		}
+		maps.DeleteFunc(p.probes, func(bin string, _ extProbe) bool { return !keep[bin] })
+		_ = d.reg.writeProbes(p.probes) // a cache: a failed write asks again next time
+	}
+}
+
+// rows merges the answers with the registry, sorted by name.
+func (d extDiscovery) rows(p *extProbePlan) []extCandidate {
 	rows := map[string]extCandidate{}
-	for _, name := range names {
-		e := entries[name]
+	for _, name := range p.names {
+		e := p.entries[name]
 		stored := e.Catalog
 		c := extCandidate{Name: name, Bin: e.Bin, RegisteredAt: e.RegisteredAt, catalog: stored, stored: &stored}
-		switch ans := answers[e.Bin]; {
-		case missing[name]:
+		switch ans := p.answers[e.Bin]; {
+		case p.missing[name]:
 			c.Status = statusMissing
 		case ans.err != nil:
 			c.Status, c.Changes = statusStale, []string{"catalog: " + ans.err.Error()}
@@ -157,11 +231,11 @@ func (d extDiscovery) run(ctx context.Context) ([]extCandidate, error) {
 		}
 		rows[name] = c
 	}
-	for name, bin := range onPath {
-		if _, taken := rows[name]; taken || registeredBins[realPath(bin)] {
+	for name, bin := range p.onPath {
+		if _, taken := rows[name]; taken || p.registeredBins[realPath(bin)] {
 			continue // registered: under this name, or the same bin under another
 		}
-		ans := answers[bin]
+		ans := p.answers[bin]
 		if ans.err != nil {
 			continue // not a family tool, or a broken one
 		}
@@ -173,7 +247,87 @@ func (d extDiscovery) run(ctx context.Context) ([]extCandidate, error) {
 		out = append(out, c)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out, nil
+	return out
+}
+
+// extBinStamp is a bin's file, links resolved, as discovery compares it.
+type extBinStamp struct {
+	Size  int64     `json:"size"`
+	Mtime time.Time `json:"mtime"`
+}
+
+// binStamp is bin's stamp now, nil when it does not stat.
+func binStamp(bin string) *extBinStamp {
+	fi, err := os.Stat(realPath(bin))
+	if err != nil {
+		return nil
+	}
+	return &extBinStamp{Size: fi.Size(), Mtime: fi.ModTime().UTC()}
+}
+
+// extProbe is the probe cache's record of one bin's catalog answer.
+type extProbe struct {
+	Stamp   extBinStamp      `json:"stamp"`
+	Catalog *ocli.CatalogDoc `json:"catalog,omitempty"`
+	Error   string           `json:"error,omitempty"`
+}
+
+func newExtProbe(stamp extBinStamp, ans extAnswer) extProbe {
+	if ans.err != nil {
+		return extProbe{Stamp: stamp, Error: ans.err.Error()}
+	}
+	doc := ans.doc
+	return extProbe{Stamp: stamp, Catalog: &doc}
+}
+
+func (p extProbe) answer() extAnswer {
+	if p.Catalog == nil {
+		return extAnswer{err: errors.New(cmp.Or(p.Error, "no catalog"))}
+	}
+	return extAnswer{doc: *p.Catalog}
+}
+
+// extProbes is the probe cache by bin (links resolved): the catalog
+// answers of the tools discovery asked, so it asks a bin again only once
+// its file changed. It is <registry>/.probes.json (a dot name is not an
+// extension); a cache, rebuilt when it does not read.
+type extProbes map[string]extProbe
+
+const extProbesFile = ".probes.json"
+
+func (g extRegistry) probes() extProbes {
+	out := extProbes{}
+	if data, err := os.ReadFile(filepath.Join(g.Dir, extProbesFile)); err == nil {
+		if json.Unmarshal(data, &out) != nil {
+			return extProbes{}
+		}
+	}
+	return out
+}
+
+// writeProbes writes the cache whole (temp file and rename).
+func (g extRegistry) writeProbes(p extProbes) error {
+	data, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(g.Dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(g.Dir, ".probes-*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return os.Rename(tmp.Name(), filepath.Join(g.Dir, extProbesFile))
 }
 
 // isSelf reports whether bin is mtm's own executable.

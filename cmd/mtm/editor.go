@@ -150,6 +150,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.extensionsUpdate() {
 		cmd = tea.Batch(cmd, a.r.PendingCommands())
 	}
+	a.syncExtStatus()
 	if expire := a.expireNotices(msg, notices); expire != nil {
 		cmd = tea.Batch(cmd, expire)
 	}

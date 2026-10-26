@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,6 +21,12 @@ import (
 // registered or stale one, d d removes a registered one (confirmed; the
 // data file stays, `mtm extension remove NAME --purge` deletes it), enter
 // opens a mounted one's first tab. Each re-mounts live (extension_sync.go).
+//
+// A row's status column says what is fetching for the extension while it
+// runs: "fetching catalog…" (discovery asking a changed bin, register,
+// refresh), "loading rows…" (its pages' row and pick-list loads), and
+// "error: …" after a failed one, until the next fetch starts or a load
+// succeeds; else its discovery status.
 
 const (
 	extensionsPage = "extensions"
@@ -37,6 +45,138 @@ type extPageState struct {
 	discovered bool   // a discovery has landed
 	err        string // why the last one failed
 	due        bool   // the next update rediscovers while the page is open
+	// rows are discovery's rows as they landed; the table's status cells
+	// are theirs unless something is fetching for the extension (extActivity).
+	rows []extCandidate
+	// fetching counts the catalog execs running per extension name
+	// (discovery's probes, register, refresh); failed is the last failure
+	// of a fetch for it (a catalog or its rows), until the next one starts.
+	fetching map[string]int
+	failed   map[string]string
+	// seenJob is the last finished row-load job read for failed.
+	seenJob uint64
+}
+
+// Status cells while something is fetching for an extension.
+const (
+	cellFetchingCatalog = "fetching catalog…"
+	cellLoadingRows     = "loading rows…"
+)
+
+// extFetchStart notes a catalog exec for name starting (on the loop).
+func (a *App) extFetchStart(name string) {
+	if a.extPage.fetching == nil {
+		a.extPage.fetching = map[string]int{}
+	}
+	a.extPage.fetching[name]++
+	delete(a.extPage.failed, name)
+}
+
+// extFetchDone notes it ended, failed when err is set.
+func (a *App) extFetchDone(name string, err error) {
+	if a.extPage.fetching[name]--; a.extPage.fetching[name] <= 0 {
+		delete(a.extPage.fetching, name)
+	}
+	if err != nil {
+		a.extFailed(name, extErrLine(name, err))
+	}
+}
+
+func (a *App) extFailed(name, msg string) {
+	if a.extPage.failed == nil {
+		a.extPage.failed = map[string]string{}
+	}
+	a.extPage.failed[name] = msg
+}
+
+// extErrLine is name's own line of a joined error ("NAME: why", as
+// refresh joins them), else the whole error.
+func extErrLine(name string, err error) string {
+	for _, line := range strings.Split(err.Error(), "\n") {
+		if rest, ok := strings.CutPrefix(line, name+": "); ok {
+			return rest
+		}
+	}
+	return err.Error()
+}
+
+// extOwners maps the job owners of each mounted extension's row and
+// pick-list loads (its pages, their lists) to its name.
+func (a *App) extOwners() map[string]string {
+	owners := map[string]string{}
+	for _, x := range a.exts {
+		for _, v := range x.views {
+			owners[v.Page()] = x.name
+			for _, l := range v.Spec().Lists {
+				owners[l.ID] = x.name
+			}
+		}
+	}
+	return owners
+}
+
+// extActivity is the status cell of each extension something is fetching
+// for, or whose last fetch failed: a catalog exec, else a row or pick-list
+// load (a running cli.LoadVerb job of its pages), else "error: …". Row
+// load failures are read from the jobs' outcomes as they finish.
+func (a *App) extActivity() map[string]string {
+	owners := a.extOwners()
+	loading := map[string]bool{}
+	for _, j := range a.r.Jobs() {
+		name, ok := owners[j.Owner]
+		if !ok || j.Verb != ocli.LoadVerb {
+			continue
+		}
+		switch {
+		case j.State == ochazuke.JobRunning:
+			loading[name] = true
+		case j.Job > a.extPage.seenJob:
+			a.extPage.seenJob = j.Job
+			if j.State == ochazuke.JobFailed {
+				a.extFailed(name, j.Error)
+			} else if j.State == ochazuke.JobDone {
+				delete(a.extPage.failed, name)
+			}
+		}
+	}
+	out := map[string]string{}
+	for name, msg := range a.extPage.failed {
+		out[name] = "error: " + msg
+	}
+	for name := range loading {
+		out[name] = cellLoadingRows
+	}
+	for name := range a.extPage.fetching {
+		out[name] = cellFetchingCatalog
+	}
+	return out
+}
+
+// statusCell is a row's status column: what is fetching for it, else its
+// discovery status.
+func statusCell(c extCandidate, activity map[string]string) string {
+	if s, ok := activity[c.Name]; ok {
+		return s
+	}
+	return c.Status
+}
+
+// syncExtStatus redraws the status cells when what is fetching changed
+// (after every message). Rows keep their instances.
+func (a *App) syncExtStatus() {
+	if a.cli || a.extList == nil {
+		return
+	}
+	activity := a.extActivity()
+	for _, item := range a.extList.Items() {
+		c, ok := item.Data.(extCandidate)
+		if ok && len(item.Cells) > 1 && item.Cells[1] != statusCell(c, activity) {
+			if err := a.setExtRows(a.extPage.rows); err != nil {
+				a.r.UI().Status(err.Error())
+			}
+			return
+		}
+	}
 }
 
 // defineExtensionRows adds the row keys and their guards.
@@ -134,30 +274,70 @@ func (a *App) extSubject() string {
 }
 
 // rediscover reads discovery's rows again off the loop (a newer read
-// replaces an older one); they land in the table.
+// replaces an older one); they land in the table. It is two jobs: the plan
+// (PATH, the registry, the bins' stamps), then, only when a bin changed
+// since its catalog was read, the probe of those bins, each row's status
+// reading "fetching catalog…" meanwhile.
 func (a *App) rediscover() {
 	d := a.discovery()
-	res := ochazuke.Pending(func(c context.Context) (any, error) { return d.run(c) }).Replacing("discover").
+	land := func(v any, err error) {
+		a.extPage.discovered = true
+		a.extPage.err = ""
+		if err != nil {
+			a.extPage.err = err.Error()
+			return
+		}
+		a.extPage.rows = v.([]extCandidate)
+		if err := a.setExtRows(a.extPage.rows); err != nil {
+			a.r.UI().Status(err.Error())
+		}
+	}
+	launch := func(res ochazuke.Result) {
+		ctx := ochazuke.Ctx{Runtime: a.r, Context: a.r.Context(), Instance: a.r.Instances[extListID]}
+		if _, err := a.r.Launch(extListID, "extension.available", res, ctx); err != nil {
+			a.r.UI().Status(err.Error())
+		}
+	}
+	launch(ochazuke.Pending(func(context.Context) (any, error) { return d.plan(), nil }).Replacing("discover").
 		Then(func(_ ochazuke.Ctx, v any, err error) {
-			a.extPage.discovered = true
-			a.extPage.err = ""
 			if err != nil {
-				a.extPage.err = err.Error()
+				land(nil, err)
 				return
 			}
-			if err := a.setExtRows(v.([]extCandidate)); err != nil {
-				a.r.UI().Status(err.Error())
+			p := v.(*extProbePlan)
+			if len(p.ask) == 0 {
+				land(d.rows(p), nil)
+				return
 			}
-		})
-	ctx := ochazuke.Ctx{Runtime: a.r, Context: a.r.Context(), Instance: a.r.Instances[extListID]}
-	if _, err := a.r.Launch(extListID, "extension.available", res, ctx); err != nil {
-		a.r.UI().Status(err.Error())
-	}
+			names := slices.Collect(maps.Values(p.ask))
+			for _, name := range names {
+				a.extFetchStart(name)
+			}
+			launch(ochazuke.Pending(func(c context.Context) (any, error) {
+				d.probe(c, p)
+				if err := c.Err(); err != nil {
+					return nil, err
+				}
+				return d.rows(p), nil
+			}).Replacing("discover").Then(func(_ ochazuke.Ctx, v any, err error) {
+				for _, name := range names {
+					var perr error
+					for bin, n := range p.ask {
+						if n == name && p.answers[bin].err != nil {
+							perr = p.answers[bin].err
+						}
+					}
+					a.extFetchDone(name, perr)
+				}
+				land(v, err)
+			}))
+		}))
 }
 
 // setExtRows pushes discovery's rows to the table.
 func (a *App) setExtRows(rows []extCandidate) error {
 	home, _ := a.home()
+	activity := a.extActivity()
 	items := make([]ochazuke.ListItem, 0, len(rows))
 	for _, c := range rows {
 		registered := ""
@@ -165,7 +345,7 @@ func (a *App) setExtRows(rows []extCandidate) error {
 			registered = c.RegisteredAt.Local().Format("2006-01-02 15:04")
 		}
 		items = append(items, ochazuke.ListItem{ID: extListID + "/" + c.Name, Noun: "extension", Label: c.Name, Data: c,
-			Cells: []string{c.Name, c.Status, tildePath(c.Bin, home), fmt.Sprint(c.Tabs), fmt.Sprint(c.Nouns), fmt.Sprint(c.Verbs), registered}})
+			Cells: []string{c.Name, statusCell(c, activity), tildePath(c.Bin, home), fmt.Sprint(c.Tabs), fmt.Sprint(c.Nouns), fmt.Sprint(c.Verbs), registered}})
 	}
 	return a.extList.SetItems(items)
 }

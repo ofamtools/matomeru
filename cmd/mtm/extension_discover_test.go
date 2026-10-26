@@ -40,6 +40,20 @@ esac
 	return bin
 }
 
+// rebuilt moves bin's mtime on, as a rebuild does: discovery asks a bin
+// its catalog again only when its file changed.
+func rebuilt(t *testing.T, bin string) {
+	t.Helper()
+	fi, err := os.Stat(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := fi.ModTime().Add(time.Second)
+	if err := os.Chtimes(bin, later, later); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // toolCalls is a fake tool's log, a call per line.
 func toolCalls(t *testing.T, dir, name string) []string {
 	t.Helper()
@@ -93,6 +107,7 @@ func TestExtensionDiscoveryStatuses(t *testing.T) {
 		`{"name":"done"`, `{"name":"archive","kind":"application"},{"name":"done"`, 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	rebuilt(t, filepath.Join(first, "o-beta")) // a new catalog is a new bin
 	if err := os.Remove(gamma); err != nil {
 		t.Fatal(err)
 	}

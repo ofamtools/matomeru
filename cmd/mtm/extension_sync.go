@@ -22,7 +22,9 @@ import (
 // then); it waits while a modal is open.
 
 // entryJSON is a registry entry as compared between syncs.
+// The bin's stamp is not compared: it changes no mounted thing.
 func entryJSON(e extEntry) []byte {
+	e.BinStamp = nil
 	data, _ := json.Marshal(e)
 	return data
 }
