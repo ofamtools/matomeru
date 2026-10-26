@@ -247,6 +247,7 @@ type extension struct {
 	doc     ocli.CatalogDoc
 	nouns   map[string]string // catalog noun -> mtm noun <ext>-<noun>
 	views   []*ocli.PageView
+	entry   []byte                // the registry entry it was mounted from, as JSON (extension_sync.go)
 	crud    map[string]extCRUD    // catalog noun -> its new, edit and delete verbs (extension_forms.go)
 	sources map[string]*extSource // a parameter source (the tool's NOUN.VERB) -> its cached choices (extension_sources.go)
 }
@@ -304,12 +305,11 @@ type extSummary struct {
 	File    string `json:"file"`
 	Nouns   int    `json:"nouns"`
 	Pages   int    `json:"pages"`
-	Notice  string `json:"notice,omitempty"`
 }
 
 // registerExtension is extension.register: the catalog is read off the
-// loop, the registry file written, and the extension's pages mounted at
-// once (a re-registered one keeps its mounted pages until mtm restarts).
+// loop, the registry file written, and in the TUI the extension's pages
+// mounted (re-mounted when it was registered before) at once.
 func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 	name := ochazuke.StringArg(ctx.Args, "name", "")
 	if !store.ValidExtensionName(name) {
@@ -328,7 +328,6 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	reg := a.extRegistry()
 	env := a.extEnv(name)
-	mounted := a.extension(name) != nil
 	file := reg.path(name)
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		out, err := execExt(c, path, env, "catalog")
@@ -339,7 +338,7 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return nil, err
 		}
-		return extRegistered{summaryOf(name, path, file, doc, mounted), doc}, nil
+		return extRegistered{summaryOf(name, path, file, doc), doc}, nil
 	}).Label(name).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
@@ -353,9 +352,7 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			a.m.Status = werr.Error()
 			return
 		}
-		if a.extension(name) == nil && !a.cli {
-			a.mountExtension(name, e)
-		}
+		a.extSyncDue = !a.cli
 	})
 }
 
@@ -367,12 +364,8 @@ type extRegistered struct {
 }
 
 // summaryOf is what register and refresh answer for one extension.
-func summaryOf(name, bin, file string, doc ocli.CatalogDoc, mounted bool) extSummary {
-	s := extSummary{Name: name, Bin: bin, Version: doc.Version, File: file, Nouns: len(extPlan(doc)), Pages: len(doc.Pages)}
-	if mounted {
-		s.Notice = "its pages stay as mounted until mtm restarts"
-	}
-	return s
+func summaryOf(name, bin, file string, doc ocli.CatalogDoc) extSummary {
+	return extSummary{Name: name, Bin: bin, Version: doc.Version, File: file, Nouns: len(extPlan(doc)), Pages: len(doc.Pages)}
 }
 
 // extListing is one row of extension.list.
@@ -412,8 +405,9 @@ func (a *App) listExtensions(ochazuke.Ctx) ochazuke.Result {
 }
 
 // refreshExtension is extension.refresh: each named extension's catalog is
-// read again from the bin its file names and rewritten; mounted pages
-// reload their rows (a changed catalog is remounted on the next start).
+// read again from the bin its file names and rewritten; in the TUI a
+// changed catalog is re-mounted at once and the pages reload their rows
+// (a running mtm sees a refresh from the CLI when a page is next opened).
 func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 	reg := a.extRegistry()
 	names := []string{ochazuke.StringArg(ctx.Args, "name", "")}
@@ -432,10 +426,8 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 		entries[name] = e
 	}
 	envs := map[string][]string{}
-	mounted := map[string]bool{}
 	for _, name := range names {
 		envs[name] = a.extEnv(name)
-		mounted[name] = a.extension(name) != nil
 	}
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		out := []extRegistered{}
@@ -451,7 +443,7 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 				errs = append(errs, fmt.Errorf("%s: %w", name, err))
 				continue
 			}
-			out = append(out, extRegistered{summaryOf(name, bin, reg.path(name), doc, mounted[name]), doc})
+			out = append(out, extRegistered{summaryOf(name, bin, reg.path(name), doc), doc})
 		}
 		// The catalogs read are written even when another failed.
 		return out, errors.Join(errs...)
@@ -464,10 +456,11 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			if err := reg.write(name, e); err != nil {
 				a.m.Status = err.Error()
 			}
-			if x := a.extension(name); x != nil {
-				a.reloadExtension(x)
+			if x := a.extension(name); x != nil && !a.cli {
+				a.reloadExtension(x) // the rows of an unchanged catalog
 			}
 		}
+		a.extSyncDue = !a.cli
 	})
 }
 
@@ -492,17 +485,14 @@ func (a *App) removeExtension(ctx ochazuke.Ctx) ochazuke.Result {
 		result["purged"] = path
 	}
 	if x := a.extension(name); x != nil {
-		var errs []error
-		for _, v := range x.views {
-			errs = append(errs, a.r.RemoveInstance(v.Page()))
-		}
+		err := a.unmountExtension(x)
 		for i, y := range a.exts {
 			if y == x {
 				a.exts = append(a.exts[:i], a.exts[i+1:]...)
 				break
 			}
 		}
-		if err := errors.Join(errs...); err != nil {
+		if err != nil {
 			return ochazuke.Failed(err)
 		}
 	}
@@ -523,9 +513,7 @@ func (a *App) extension(name string) *extension {
 // that cannot be read or mounted is a notice, never a failed start.
 func (a *App) mountExtensions() {
 	names, entries, errs := a.extRegistry().Ordered()
-	for _, err := range errs {
-		a.m.Notify("extension: " + err.Error())
-	}
+	a.notifyExtErrs(errs)
 	for _, name := range names {
 		a.mountExtension(name, entries[name])
 	}
@@ -534,9 +522,12 @@ func (a *App) mountExtensions() {
 // mountExtension adds one extension: a proxy verb on mtm's noun for every
 // application verb, its catalog key rows that do not shadow a row on their
 // path, and its pages (declared data pages, else one synthesized page).
+// It is listed in a.exts even when nothing could be mounted, so a sync
+// does not try again until its registry entry changes.
 func (a *App) mountExtension(name string, e extEntry) {
 	notify := func(format string, args ...any) { a.m.Notify(name + ": " + fmt.Sprintf(format, args...)) }
-	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}}
+	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
+	defer func() { a.exts = append(a.exts, x) }()
 	plan := extPlan(e.Catalog)
 	for _, n := range plan {
 		local := extNoun(name, n.Name)
@@ -601,7 +592,6 @@ func (a *App) mountExtension(name string, e extEntry) {
 	if dropped := a.loadExtBindings(x, e.Catalog.Bindings, pages, crudKeys); len(dropped) > 0 {
 		notify("key rows dropped (mtm binds the key there): %s", strings.Join(dropped, ", "))
 	}
-	a.exts = append(a.exts, x)
 }
 
 // extParams are a proxied verb's parameters: a source names the tool's own

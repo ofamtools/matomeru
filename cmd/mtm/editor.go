@@ -103,6 +103,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	a.followProject()
 	if a.r.Page != a.lastPage {
+		// A refresh or register from the CLI shows when a page is opened.
+		a.extSyncDue = true
+	}
+	if a.extSyncDue && a.r.TopModal() == "" {
+		a.extSyncDue = false
+		a.syncExtensions()
+		cmd = tea.Batch(cmd, a.r.PendingCommands())
+	}
+	if a.r.Page != a.lastPage {
 		a.lastPage = a.r.Page
 		switch a.r.Page {
 		case directoriesPage:
