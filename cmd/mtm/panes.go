@@ -85,6 +85,8 @@ type pane struct {
 	Harness           string `json:"harness,omitempty"`
 	StateAt           int64  `json:"state_at,omitempty"`
 	NeedsYou          bool   `json:"needs_you,omitempty"`
+	Model             string `json:"model,omitempty"`          // from the launch recipe, when mtm started it
+	LaunchHarness     string `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
 	SideVim, SideTerm string
 	ShowVim, ShowTerm bool
 	SideFront         string
@@ -332,6 +334,14 @@ func (a *App) setPanes(panes []pane, err error) {
 		panes, mergeErr = a.mergeCompanions(panes)
 		if mergeErr != nil {
 			a.paneErr = mergeErr.Error()
+		}
+	}
+	for i := range panes {
+		if panes[i].ID == "" {
+			continue
+		}
+		if r, err := a.work.PaneRecipe(panes[i].ID); err == nil {
+			panes[i].Model, panes[i].LaunchHarness = r.Model, r.Harness
 		}
 	}
 	a.panes = panes

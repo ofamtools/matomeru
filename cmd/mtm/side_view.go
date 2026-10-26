@@ -160,12 +160,17 @@ func (a *App) sideDetach(ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(out)
 }
 
+// sideSplit is the detail width from which a side pane sits right of its
+// parent: each then keeps 80 columns. Narrower, the side stacks under the
+// parent, both at the detail's full width.
+const sideSplit = 161
+
 // detailBlock keeps both live terminals inside the page's detail area.
 func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
 	if a.r.Terminal(paneTermID) == nil || a.r.Terminal(sideTermID) == nil {
 		return a.parentDetailBlock(layout, width, height)
 	}
-	if width >= 80 {
+	if width >= sideSplit {
 		leftWidth := (width - 1) / 2
 		left := a.parentDetailBlock(layout, leftWidth, height)
 		right := a.sideDetailBlock(layout, width-leftWidth-1, height)

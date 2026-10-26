@@ -103,8 +103,14 @@ func TestSideLayoutAndFocusedZoomCursor(t *testing.T) {
 		width, height int
 		cursor        ochazuke.Pos
 	}{
-		{name: "split", width: 200, height: 30, cursor: ochazuke.Pos{X: 149, Y: 2}},
-		{name: "stacked detail", width: 120, height: 30, cursor: ochazuke.Pos{X: 58, Y: 17}},
+		// 240 wide: the tree 72, the detail 167, so the side sits right of
+		// the parent (83 + gap) inside it; the cursor is 2 in from the
+		// panel's left edge plus the side's own X of 1.
+		{name: "split", width: 240, height: 30, cursor: ochazuke.Pos{X: 72 + 1 + 83 + 1 + 3, Y: 2}},
+		// 200 wide: the detail (139) is under sideSplit, so the side stacks
+		// under the parent at the detail's width.
+		{name: "stacked at 200", width: 200, height: 30, cursor: ochazuke.Pos{X: 60 + 1 + 3, Y: 17}},
+		{name: "stacked detail", width: 120, height: 30, cursor: ochazuke.Pos{X: 36 + 1 + 3, Y: 17}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			block := a.renderPanes(a.r, tt.width, tt.height)

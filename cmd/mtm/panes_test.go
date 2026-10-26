@@ -13,6 +13,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
 // fakePanes is the daemon of the panes page: two panes, a screen per
@@ -204,7 +205,7 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, cmd)
-	if fr := frame(app); !strings.Contains(fr, "╭─ matomeru/claude · shell") || !strings.Contains(fr, "claude is thinking") {
+	if fr := frame(app); !strings.Contains(fr, "╭─ matomeru/claude ─") || !strings.Contains(fr, "│ shell") || !strings.Contains(fr, "claude is thinking") {
 		t.Fatalf("frame after preview:\n%s", fr)
 	}
 	if !reflect.DeepEqual(f.captured, []string{"w1"}) {
@@ -262,14 +263,14 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	s.frames <- ochazuke.TerminalFrame{Lines: []string{"live screen"}, Hidden: true}
 	runOnce(app, cmd)
 	fr := frame(app)
-	if !strings.Contains(fr, "╭━ matomeru/claude · shell") || !strings.Contains(fr, "┃ live screen") || !strings.Contains(fr, "live · ctrl+a ? keys") {
+	if !strings.Contains(fr, "╭━ matomeru/claude ━") || !strings.Contains(fr, "┃ shell") || !strings.Contains(fr, "┃ live screen") || !strings.Contains(fr, "live · ctrl+a ? keys") {
 		t.Fatalf("frame while attached:\n%s", fr)
 	}
-	// The lease is the detail panel's inner cells less the tab line: the
-	// 120x24 frame's body is 116x18, the tree takes 52 columns and a gap,
-	// the panel the other 63 (no job shows, so the ticker takes no rows).
-	if cw, ch := ochazuke.PanelContentSize(63, 18); s.lease != [2]int{cw, ch - 1} {
-		t.Fatalf("size lease = %v, want %dx%d", s.lease, cw, ch-1)
+	// The lease is the detail panel's inner cells less the header and tab
+	// lines: the 120x24 frame's body is 116x18, the tree takes about 30% and
+	// a gap, the panel the rest (no job shows, so the ticker takes no rows).
+	if cw, ch := ochazuke.PanelContentSize(116-treeWidth(116)-1, 18); s.lease != [2]int{cw, ch - 2} {
+		t.Fatalf("size lease = %v, want %dx%d", s.lease, cw, ch-2)
 	}
 	// Keys go to the pane; } and ctrl+j are the pane's keys here.
 	press(t, app, "x", "}")
@@ -453,35 +454,64 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 	}
 }
 
-// The panes tree is a table: the pane (indented, its state glyph first),
-// its kind and state, the cwd under home as ~. One window is one row: an
+// The panes tree is a lean table: the pane (indented, its state glyph
+// first) and its short state; the harness, model, cwd under home as ~,
+// state and age are the detail's header line. One window is one row: an
 // agent's pane is the agent's row; a shell is a shell row.
 func TestPaneTreeIsATable(t *testing.T) {
 	app := open(t)
+	if err := app.work.PutPaneRecipe(work.PaneRecipe{Window: "w1", Harness: "claude", Model: "opus"}); err != nil {
+		t.Fatal(err)
+	}
 	app.setPanes([]pane{
 		{Session: "work", SessionID: "s1", Harness: "claude", Pane: daemon.Pane{ID: "w1", Name: "Terminal 1a2b3c4d", AgentState: "idle", Cwd: "/home/test/proj/x"}},
 		{Session: "work", SessionID: "s1", Pane: daemon.Pane{ID: "w2", Name: "Terminal 5e6f7a8b", AgentState: "none", Cwd: "/home/test"}},
 	}, nil)
-	if got := app.paneList.Columns(); len(got) != 3 || got[0].Title != "pane" || got[2].Title != "cwd" {
+	if got := app.paneList.Columns(); len(got) != 2 || got[0].Title != "pane" || got[1].Title != "state" {
 		t.Fatalf("columns %+v", got)
 	}
 	items := app.paneList.Items()
 	if len(items) != 4 || items[0].Noun != "pane-project" || items[1].Noun != "session" || items[2].Noun != "pane" || items[3].Noun != "pane" {
 		t.Fatalf("rows %+v", items)
 	}
-	if !slices.Equal(items[2].Cells, []string{"      ○ claude", "claude · idle", "~/proj/x"}) || !slices.Equal(items[3].Cells, []string{"        shell", "shell", "~"}) {
+	if !slices.Equal(items[2].Cells, []string{"      ○ claude", "idle"}) || !slices.Equal(items[3].Cells, []string{"        shell", "shell"}) {
 		t.Fatalf("pane rows %+v / %+v", items[2].Cells, items[3].Cells)
 	}
-	for _, width := range []int{80, 120} {
+	for _, width := range []int{80, 120, 160} {
 		app.m.Width, app.m.Height = width, 30
 		if _, err := app.r.Execute(ochazuke.Request{Verb: "open", Noun: "page", Args: ochazuke.Arguments{"id": panesPage}}); err != nil {
 			t.Fatal(err)
 		}
 		frame := ansi.Strip(app.m.View().Content)
-		for _, want := range []string{"pane", "state", "○ claude", "claude · idle", "unassociated (2)", "work (2)"} {
+		for _, want := range []string{"pane", "state", "○ claude", "unassociated (2)", "work (2)", "╭─ work/claude ─", "│ claude · opus · ~/proj/x · idle"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("%d columns: frame lacks %q:\n%s", width, want, frame)
 			}
 		}
+		if strings.Count(frame, "~/proj/x") != 1 {
+			t.Fatalf("%d columns: the cwd is still a tree column:\n%s", width, frame)
+		}
+		// From 100 columns the tree takes about 30% beside the detail.
+		lines := strings.Split(frame, "\n")
+		side := slices.ContainsFunc(lines, func(l string) bool {
+			return strings.Contains(l, "panes (2)") && strings.Contains(l, "╭─ work/claude")
+		})
+		if side != (width >= sideBySide) {
+			t.Fatalf("%d columns: side by side %v:\n%s", width, side, frame)
+		}
+	}
+}
+
+// The header names the owner only when the pin leaves the pane out.
+func TestPaneHeaderNamesTheOwnerOutsideThePin(t *testing.T) {
+	app := open(t)
+	p := pane{Session: "s", Harness: "claude", Pane: daemon.Pane{ID: "w1", AgentState: "working", Cwd: "/tmp/x"}}
+	app.pv.view.owners = map[string]string{"w1": "other"}
+	if got := app.paneHeader(p); got != "claude · /tmp/x · working" {
+		t.Fatalf("unpinned header %q", got)
+	}
+	app.pin = "mine"
+	if got := app.paneHeader(p); got != "claude · /tmp/x · working · owner other" {
+		t.Fatalf("pinned header %q", got)
 	}
 }

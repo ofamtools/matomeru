@@ -25,12 +25,12 @@ const (
 	outsideNode = "outside-pin"
 )
 
-// paneTreeColumns are the tree's table: the pane (indented by the tree),
-// its kind and state, and its working directory.
+// paneTreeColumns are the tree's table: the pane (indented by the tree,
+// its state glyph first) and its short state. The harness, model, cwd and
+// owner are the detail's header line (paneHeader), so the tree stays lean.
 var paneTreeColumns = []ochazuke.Column{
 	{Title: "pane", Min: 16},
 	{Title: "state", Priority: 1},
-	{Title: "cwd", Min: 12, Priority: 2},
 }
 
 // isAgent is the old app's rule: a pane with a harness, or one whose agent
@@ -86,11 +86,22 @@ func (p pane) baseName() string {
 	return p.kind()
 }
 
-// stateCell is the state column: "claude · working 2m", "shell".
+// stateCell is the tree's short state: "working 2m", "needs input",
+// "shell". The harness is the detail header's.
 func (p pane) stateCell(now time.Time) string {
 	if !p.isAgent() {
 		return "shell"
 	}
+	cell := p.stateWord()
+	if p.StateAt > 0 {
+		cell += " " + age(now.Sub(time.UnixMilli(p.StateAt)))
+	}
+	return cell
+}
+
+// stateWord is an agent's state in words: "working", "needs input",
+// "agent" for an agent with no state.
+func (p pane) stateWord() string {
 	state := p.AgentState
 	if state == "" || state == "none" {
 		state = "agent"
@@ -98,11 +109,7 @@ func (p pane) stateCell(now time.Time) string {
 	if p.needsInput() {
 		state = "needs input"
 	}
-	cell := p.kind() + " · " + strings.ReplaceAll(state, "_", " ")
-	if p.StateAt > 0 {
-		cell += " " + age(now.Sub(time.UnixMilli(p.StateAt)))
-	}
-	return cell
+	return strings.ReplaceAll(state, "_", " ")
 }
 
 // age is a duration in one short unit: 40s, 3m, 2h, 5d.
@@ -173,13 +180,13 @@ type paneView struct {
 	panes   int
 	waiting int
 	hidden  int
-	order   []string // pane row ids in display order (j/k inside live)
+	order   []string          // pane row ids in display order (j/k inside live)
+	owners  map[string]string // window → its owning project ("" unassociated)
 }
 
 // buildPaneTree groups the panes by owner and session, in scope, with the
 // attached pane outside the pin as its own labelled group.
 func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
-	home, _ := a.home()
 	names := uniqueNames(panes)
 	projects := map[string]*paneProject{}
 	var order []string
@@ -203,7 +210,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		proj.sessions = append(proj.sessions, g)
 		return g
 	}
-	var view paneView
+	view := paneView{owners: map[string]string{}}
 	for _, p := range panes {
 		sessionOwner := ""
 		if p.SessionID != "" {
@@ -221,6 +228,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			continue
 		}
 		owner := a.paneOwner(p).ProjectID
+		view.owners[p.ID] = owner
 		switch {
 		case a.inScope(owner) || p.OwnerUnsaved:
 		case a.attached.ID == p.ID:
@@ -267,13 +275,13 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			if id == outsideNode {
 				parent = outsideNode
 			}
-			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: parent, Label: fmt.Sprintf("%s (%d)", proj.label, n), Noun: "pane-project", Data: id, Cells: []string{fmt.Sprintf("%s (%d)", proj.label, n), waitingCell(waiting), ""}})
+			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: parent, Label: fmt.Sprintf("%s (%d)", proj.label, n), Noun: "pane-project", Data: id, Cells: []string{fmt.Sprintf("%s (%d)", proj.label, n), waitingCell(waiting)}})
 		}
 		for _, g := range proj.sessions {
 			slices.SortStableFunc(g.panes, func(x, y pane) int { return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput())) })
 			label := fmt.Sprintf("%s (%d)", shortSession(g.session.Session), len(g.panes))
 			_, w := (&paneProject{sessions: []*paneGroup{g}}).count()
-			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{label, waitingCell(w), tildePath(g.session.Cwd, home)}})
+			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{label, waitingCell(w)}})
 			for _, p := range g.panes {
 				name := stateGlyph(p) + " " + names[p.ID]
 				if p.SideVim != "" {
@@ -282,7 +290,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 				if p.SideTerm != "" {
 					name += " t"
 				}
-				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), tildePath(p.Cwd, home)}})
+				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now)}})
 				view.order = append(view.order, p.rowID())
 			}
 		}

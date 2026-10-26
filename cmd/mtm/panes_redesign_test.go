@@ -39,7 +39,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	if n := countRows(app, "pane"); n != 2 {
 		t.Fatalf("after: %d pane rows, want 2: %+v", n, app.paneList.Items())
 	}
-	if got := cells(app, row); !strings.Contains(got, "? claude") || !strings.Contains(got, "claude · needs input") {
+	if got := cells(app, row); !strings.Contains(got, "? claude") || !strings.Contains(got, "| needs input") {
 		t.Fatalf("agent row cells %q", got)
 	}
 	// Needs input sorts first and the header counts it; w jumps to it.

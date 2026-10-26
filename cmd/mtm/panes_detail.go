@@ -29,6 +29,10 @@ var tabNames = []string{"Screen", "Activity", "Transcript", "Turns"}
 // sideBySide is the width from which the detail sits right of the tree.
 const sideBySide = 100
 
+// treeWidth is the tree's share of a side-by-side page: about 30%, never
+// under 32 cells, so a pane's glyph, name and short state fit.
+func treeWidth(width int) int { return max(32, width*3/10) }
+
 // selectedRow is the tree's selected row and its instance.
 func (a *App) selectedRow() (string, *ochazuke.Instance) {
 	n, ok := a.pv.tree.Selected()
@@ -379,7 +383,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	listW, listH, detailW, detailH := width, max(1, (height-1)/3), width, 0
 	side := width >= sideBySide
 	if side {
-		listW = max(40, width*9/20)
+		listW = treeWidth(width)
 		detailW = width - listW - 1
 		listH = height - 1
 		detailH = height
@@ -479,13 +483,15 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		turns.Unfocusable = term != nil || a.pv.tab != tabTurns || inst == nil || inst.Noun != "pane"
 	}
 	cw, ch := ochazuke.PanelContentSize(width, height)
-	ch = max(1, ch-1) // the tab line
+	ch = max(1, ch-2) // the header and tab lines
 	title := "detail"
+	header := ""
 	var body ochazuke.Block
 	focused := false
 	switch {
 	case term != nil:
-		title = a.paneTitle(a.attached)
+		title = a.attached.label()
+		header = a.paneHeader(a.attached)
 		if e := term.Err(); e != "" {
 			title += ": " + e
 		}
@@ -498,14 +504,19 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		body = ochazuke.Text("select a pane")
 	case inst.Noun == "pane":
 		p, _ := a.paneAt(inst)
-		title = a.paneTitle(p)
+		title = p.label()
+		header = a.paneHeader(p)
 		body = a.tabBody(row, cw, ch)
 		focused = a.pv.tab == tabTurns && a.pv.turns.List().Focused()
 	default:
 		title, body = a.groupSummary(inst)
 	}
 	tabs := a.tabLine(term != nil)
-	if term != nil || inst == nil || inst.Noun == "pane" {
+	switch {
+	case header != "":
+		header = layout.Styles.Muted.Render(ansi.Truncate(header, cw, "…"))
+		body = body.Offset(0, 2).WithText(header + "\n" + tabs + "\n" + body.Text)
+	case term != nil || inst == nil || inst.Noun == "pane":
 		body = body.Offset(0, 1).WithText(tabs + "\n" + body.Text)
 	}
 	return layout.PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, focused)
@@ -527,16 +538,29 @@ func (a *App) tabLine(live bool) string {
 	return line + " · [ ] tabs · enter live"
 }
 
-// paneTitle is harness · directory · state for an agent, shell · directory
-// for a shell.
-func (a *App) paneTitle(p pane) string {
+// paneHeader is the detail's first line, the pane's facts: harness (or
+// shell) · model · cwd under ~ · state · age, then the owner when the pin
+// leaves it out. Every tab shows it; none repeats these facts.
+func (a *App) paneHeader(p pane) string {
 	home, _ := a.home()
-	parts := []string{p.label(), p.kind()}
+	parts := []string{p.kind()}
+	if p.Harness == "" && p.LaunchHarness != "" {
+		parts[0] = p.LaunchHarness
+	}
+	if p.Model != "" {
+		parts = append(parts, p.Model)
+	}
 	if p.Cwd != "" {
 		parts = append(parts, tildePath(p.Cwd, home))
 	}
-	if p.isAgent() && p.AgentState != "" && p.AgentState != "none" {
-		parts = append(parts, strings.ReplaceAll(p.AgentState, "_", " "))
+	if p.isAgent() {
+		parts = append(parts, p.stateWord())
+		if p.StateAt > 0 {
+			parts = append(parts, age(time.Since(time.UnixMilli(p.StateAt))))
+		}
+	}
+	if owner, ok := a.pv.view.owners[p.ID]; ok && !a.inScope(owner) {
+		parts = append(parts, "owner "+a.ownerLabel(owner))
 	}
 	return strings.Join(parts, " · ")
 }
