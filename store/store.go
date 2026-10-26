@@ -1,4 +1,3 @@
-// Package store persists unit-owned JSON rows in individual SQLite tables.
 package store
 
 import (
@@ -165,6 +164,9 @@ func (s *Store) Declare(table Table) error {
 		return err
 	}
 	defer tx.Rollback()
+	if err := ownerAllowed(tx, table); err != nil {
+		return err
+	}
 	existing, err := readTable(tx.QueryRow(`SELECT name, owner, key, version, append_only FROM __deck_tables WHERE name = ?`, table.Name))
 	if err == nil {
 		if existing != table {
