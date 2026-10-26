@@ -37,7 +37,12 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	sh := ocli.New(a.r, "mtm", stdin, stdout, stderr)
 	a.stdin = stdin
 	sh.Usage = cliUsage
-	sh.Reveal = a.reveal
+	sh.Reveal = func(target string) error {
+		if a.revealExtTarget(target) {
+			return nil
+		}
+		return a.reveal(target)
+	}
 	sh.Owners = a.owners
 	sh.Settle = a.closeTerminals
 	sh.Prepare = func(ctx context.Context) error {

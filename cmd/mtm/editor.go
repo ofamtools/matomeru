@@ -119,6 +119,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := a.refreshReviews(); err != nil {
 				a.m.Status = err.Error()
 			}
+		default:
+			// An extension's page reloads its rows when it is opened
+			// (off the loop; the rows on screen stay until they land).
+			if x, _ := a.extViewOf(a.r.Page); x != nil {
+				a.reloadExtension(x)
+				cmd = tea.Batch(cmd, a.r.PendingCommands())
+			}
 		}
 	}
 	if expire := a.expireNotices(msg, notices); expire != nil {

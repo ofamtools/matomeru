@@ -331,6 +331,8 @@ type App struct {
 	vimDir      string
 	configDir   string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
+	exts []*extension // the mounted extensions, in tab order (extensions.go)
+
 	outline *outlineState // the task outline last opened (outline.go)
 	copy    *copyMode     // copy mode on the panes page (copymode.go)
 
@@ -411,6 +413,7 @@ func New(opts Options) (*App, error) {
 	a.defineCapture()
 	a.defineSetup()
 	a.defineStore()
+	a.defineExtensions()
 	if err := a.declareSettings(); err != nil {
 		return nil, err
 	}
@@ -470,6 +473,8 @@ func New(opts Options) (*App, error) {
 	if err := a.addContextPage(); err != nil {
 		return nil, err
 	}
+	// Registered extensions' pages are tabs after mtm's own.
+	a.mountExtensions()
 	if err := a.refreshReviews(); err != nil {
 		db.Close()
 		return nil, err

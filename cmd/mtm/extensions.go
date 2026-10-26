@@ -1,0 +1,848 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/unixsuperhero/matomeru/store"
+	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
+)
+
+// mtm as host: other family tools (o-ai, o-qbt, ...) stay separate bins and
+// show their pages as tabs after mtm's own. The registry is data, one JSON
+// file per extension under <data>/extensions/<name>.json holding the bin
+// and the catalog it answered (`<bin> catalog`); mounting reads these
+// files and never execs, so the CLI starts as fast as before. Register and
+// refresh are the only writers. nabe keeps its own registry and code; this
+// is mtm's.
+//
+// Each extension's data pages (catalog pages with lists) are mounted with
+// ochazuke's cli.MountPage; a catalog without one gets a page synthesized
+// from its application nouns: a list per noun with a row source, a list of
+// verbs for a noun nothing lists rows of. Rows are instances of the host
+// noun <ext>-<noun>, whose verbs are proxies: `<bin> NOUN VERB [--target
+// ID] --json ARGS --yes`, run off the loop after mtm asked the verb's own
+// confirm. Rows load from the catalog's state verb (one call), else per
+// list, when the page is opened and after each verb of the extension.
+//
+// Every exec of an extension has MTM_DATA (mtm's data directory) and
+// MTM_EXTENSION (its registered name) in its environment: a tool that keeps
+// data opens store.OpenExtension(MTM_DATA, MTM_EXTENSION), its own file
+// <data>/ext/<name>.db, never mtm's; remove --purge deletes that file.
+
+// extEntry is one registry file.
+type extEntry struct {
+	Bin          string          `json:"bin"`
+	RegisteredAt time.Time       `json:"registeredAt"`
+	Catalog      ocli.CatalogDoc `json:"catalog"`
+}
+
+// extRegistry is the directory of registry files.
+type extRegistry struct{ Dir string }
+
+// extensionsDir is the registry's directory under mtm's data directory.
+const extensionsDir = "extensions"
+
+// extExecTimeout bounds every exec of an extension bin.
+const extExecTimeout = 60 * time.Second
+
+func (g extRegistry) path(name string) string { return filepath.Join(g.Dir, name+".json") }
+
+// Names lists the registered extensions, sorted.
+func (g extRegistry) Names() ([]string, error) {
+	files, err := os.ReadDir(g.Dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, f := range files {
+		if name, ok := strings.CutSuffix(f.Name(), ".json"); ok && !f.IsDir() && !strings.HasPrefix(name, ".") {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// Read loads one registry file.
+func (g extRegistry) Read(name string) (extEntry, error) {
+	var e extEntry
+	data, err := os.ReadFile(g.path(name))
+	if errors.Is(err, os.ErrNotExist) {
+		return e, fmt.Errorf("extension %s is not registered", name)
+	}
+	if err != nil {
+		return e, err
+	}
+	if err := json.Unmarshal(data, &e); err != nil {
+		return e, fmt.Errorf("%s: %w", g.path(name), err)
+	}
+	return e, nil
+}
+
+// Ordered lists the registered extensions in tab order: registration
+// time, then name.
+func (g extRegistry) Ordered() ([]string, map[string]extEntry, []error) {
+	names, err := g.Names()
+	if err != nil {
+		return nil, nil, []error{err}
+	}
+	entries := map[string]extEntry{}
+	var errs []error
+	var ok []string
+	for _, name := range names {
+		e, err := g.Read(name)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		entries[name] = e
+		ok = append(ok, name)
+	}
+	sort.SliceStable(ok, func(i, j int) bool {
+		a, b := entries[ok[i]].RegisteredAt, entries[ok[j]].RegisteredAt
+		if !a.Equal(b) {
+			return a.Before(b)
+		}
+		return ok[i] < ok[j]
+	})
+	return ok, entries, errs
+}
+
+// write stores an entry atomically (temp file and rename).
+func (g extRegistry) write(name string, e extEntry) error {
+	if err := os.MkdirAll(g.Dir, 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(e, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(g.Dir, "."+name+"-*.json")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.Write(append(data, '\n')); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return os.Rename(tmp.Name(), g.path(name))
+}
+
+// remove deletes name's registry file.
+func (g extRegistry) remove(name string) error {
+	err := os.Remove(g.path(name))
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("extension %s is not registered", name)
+	}
+	return err
+}
+
+// resolveExtBin is the absolute path of bin: a path when it has a
+// separator, else the first executable of that name on PATH.
+func resolveExtBin(bin string) (string, error) {
+	path, err := exec.LookPath(bin)
+	if err != nil {
+		return "", fmt.Errorf("bin %s: %w", bin, err)
+	}
+	return filepath.Abs(path)
+}
+
+// execExt runs an extension bin with args and env added to mtm's
+// environment, and returns its stdout; a failure carries the command and
+// its stderr.
+func execExt(ctx context.Context, bin string, env []string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, extExecTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Env = append(os.Environ(), env...)
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	if err := cmd.Run(); err != nil {
+		words := filepath.Base(bin) + " " + strings.Join(args[:min(2, len(args))], " ")
+		if msg := strings.TrimSpace(errOut.String()); msg != "" {
+			return nil, fmt.Errorf("%s failed: %w: %s", words, err, msg)
+		}
+		return nil, fmt.Errorf("%s failed: %w", words, err)
+	}
+	return out.Bytes(), nil
+}
+
+// parseExtCatalog decodes and checks a catalog answer.
+func parseExtCatalog(bin string, data []byte) (ocli.CatalogDoc, error) {
+	var doc ocli.CatalogDoc
+	var head map[string]json.RawMessage
+	if err := json.Unmarshal(data, &head); err != nil {
+		return doc, fmt.Errorf("%s catalog: not a JSON object: %w", bin, err)
+	}
+	for _, field := range []string{"schema", "name", "nouns"} {
+		if _, ok := head[field]; !ok {
+			return doc, fmt.Errorf("%s catalog: missing required field %q", bin, field)
+		}
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return doc, fmt.Errorf("%s catalog: %w", bin, err)
+	}
+	if doc.Schema != ocli.Schema {
+		return doc, fmt.Errorf("%s catalog: schema %d, mtm reads schema %d", bin, doc.Schema, ocli.Schema)
+	}
+	for i, n := range doc.Nouns {
+		if n.Name == "" {
+			return doc, fmt.Errorf("%s catalog: nouns[%d] has no name", bin, i)
+		}
+		for k, v := range n.Verbs {
+			if v.Name == "" {
+				return doc, fmt.Errorf("%s catalog: noun %s verbs[%d] has no name", bin, n.Name, k)
+			}
+		}
+	}
+	return doc, nil
+}
+
+// extPlan keeps a catalog's nouns with at least one application verb and
+// no modal pin, with only those verbs: the framework's own nouns
+// (interaction verbs only) run inside the tool's own screen, so a host has
+// nothing to mount for them.
+func extPlan(doc ocli.CatalogDoc) []ocli.CatalogNoun {
+	var out []ocli.CatalogNoun
+	for _, n := range doc.Nouns {
+		var verbs []ocli.CatalogVerb
+		for _, v := range n.Verbs {
+			if v.Kind == ochazuke.KindApplication {
+				verbs = append(verbs, v)
+			}
+		}
+		if len(verbs) == 0 || (n.Pin != "" && n.Pin != "normal") {
+			continue
+		}
+		n.Verbs = verbs
+		out = append(out, n)
+	}
+	return out
+}
+
+// extension is one mounted extension.
+type extension struct {
+	name  string
+	bin   string
+	doc   ocli.CatalogDoc
+	nouns map[string]string // catalog noun -> mtm noun <ext>-<noun>
+	views []*ocli.PageView
+}
+
+// extNoun is mtm's noun of an extension's noun; a dot would split the
+// operation key, so the separator is a dash.
+func extNoun(ext, noun string) string { return ext + "-" + noun }
+
+// extPageID is the page of an extension (a synthesized page) or of one of
+// its declared pages.
+func extPageID(ext, page string) string {
+	if page == "" {
+		return "ext/" + ext
+	}
+	return "ext/" + ext + "/" + page
+}
+
+// extEnv is what an extension's exec is told: mtm's data directory and its
+// own name, for store.OpenExtension.
+func (a *App) extEnv(name string) []string {
+	return []string{"MTM_DATA=" + a.dataDir(), "MTM_EXTENSION=" + name}
+}
+
+// dataDir is mtm's data directory: the directory of its database.
+func (a *App) dataDir() string { return filepath.Dir(a.dataPath) }
+
+// extRegistry is mtm's extension registry, under the data directory.
+func (a *App) extRegistry() extRegistry {
+	return extRegistry{Dir: filepath.Join(a.dataDir(), extensionsDir)}
+}
+
+// defineExtensions adds the extension noun.
+func (a *App) defineExtensions() {
+	a.r.Define("extension").
+		Verb("register", a.registerExtension, "Register a family tool's catalog under NAME (its bin: --bin, else o-NAME or NAME on PATH); its pages are tabs after mtm's").Positional("name").
+		Verb("list", a.listExtensions, "List the registered extensions").
+		Verb("refresh", a.refreshExtension, "Read a registered extension's catalog again (every extension when NAME is omitted)").Positional("name").
+		Verb("remove", a.removeExtension, "Unregister an extension; --purge also deletes its data file").Positional("name").Confirm("Remove extension {{name}}?")
+	a.parameters("extension.register", map[string]ochazuke.Parameter{
+		"name": {Type: "string", Required: true, Description: "The extension's name: its tab and the prefix of its nouns (lowercase letters, digits, dashes)"},
+		"bin":  {Type: "string", Description: "The tool's executable, a path or a name on PATH (default o-NAME, else NAME)"},
+	})
+	a.parameters("extension.refresh", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "The extension; omitted, every one"}})
+	a.parameters("extension.remove", map[string]ochazuke.Parameter{
+		"name":  {Type: "string", Required: true},
+		"purge": {Type: "boolean", Description: "Also delete the extension's data file (" + store.ExtensionDir + "/NAME.db under mtm's data directory)"},
+	})
+}
+
+// extSummary is what register and refresh answer.
+type extSummary struct {
+	Name    string `json:"name"`
+	Bin     string `json:"bin"`
+	Version string `json:"version,omitempty"`
+	File    string `json:"file"`
+	Nouns   int    `json:"nouns"`
+	Pages   int    `json:"pages"`
+	Notice  string `json:"notice,omitempty"`
+}
+
+// registerExtension is extension.register: the catalog is read off the
+// loop, the registry file written, and the extension's pages mounted at
+// once (a re-registered one keeps its mounted pages until mtm restarts).
+func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
+	name := ochazuke.StringArg(ctx.Args, "name", "")
+	if !store.ValidExtensionName(name) {
+		return ochazuke.Failed(fmt.Errorf("extension name %q: use lowercase letters, digits and dashes", name))
+	}
+	bin := ochazuke.StringArg(ctx.Args, "bin", "")
+	if bin == "" {
+		bin = "o-" + name
+		if _, err := exec.LookPath(bin); err != nil {
+			bin = name
+		}
+	}
+	path, err := resolveExtBin(bin)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	reg := a.extRegistry()
+	env := a.extEnv(name)
+	mounted := a.extension(name) != nil
+	file := reg.path(name)
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		out, err := execExt(c, path, env, "catalog")
+		if err != nil {
+			return nil, err
+		}
+		doc, err := parseExtCatalog(filepath.Base(path), out)
+		if err != nil {
+			return nil, err
+		}
+		return extRegistered{summaryOf(name, path, file, doc, mounted), doc}, nil
+	}).Label(name).Then(func(_ ochazuke.Ctx, v any, err error) {
+		if err != nil {
+			return
+		}
+		doc := v.(extRegistered).doc
+		e := extEntry{Bin: path, RegisteredAt: time.Now().UTC().Truncate(time.Second), Catalog: doc}
+		if old, rerr := reg.Read(name); rerr == nil {
+			e.RegisteredAt = old.RegisteredAt // re-registering keeps its tab's place
+		}
+		if werr := reg.write(name, e); werr != nil {
+			a.m.Status = werr.Error()
+			return
+		}
+		if a.extension(name) == nil && !a.cli {
+			a.mountExtension(name, e)
+		}
+	})
+}
+
+// extRegistered is register's answer: the summary, and the catalog the
+// completion writes.
+type extRegistered struct {
+	extSummary
+	doc ocli.CatalogDoc
+}
+
+// summaryOf is what register and refresh answer for one extension.
+func summaryOf(name, bin, file string, doc ocli.CatalogDoc, mounted bool) extSummary {
+	s := extSummary{Name: name, Bin: bin, Version: doc.Version, File: file, Nouns: len(extPlan(doc)), Pages: len(doc.Pages)}
+	if mounted {
+		s.Notice = "its pages stay as mounted until mtm restarts"
+	}
+	return s
+}
+
+// extListing is one row of extension.list.
+type extListing struct {
+	Name         string    `json:"name"`
+	Bin          string    `json:"bin,omitempty"`
+	Version      string    `json:"version,omitempty"`
+	RegisteredAt time.Time `json:"registeredAt,omitzero"`
+	Nouns        int       `json:"nouns"`
+	Pages        int       `json:"pages"`
+	Data         string    `json:"data,omitempty"` // the extension's data file, when it has one
+	Error        string    `json:"error,omitempty"`
+}
+
+func (a *App) listExtensions(ochazuke.Ctx) ochazuke.Result {
+	reg := a.extRegistry()
+	names, err := reg.Names()
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	out := []extListing{}
+	for _, name := range names {
+		e, err := reg.Read(name)
+		if err != nil {
+			out = append(out, extListing{Name: name, Error: err.Error()})
+			continue
+		}
+		l := extListing{Name: name, Bin: e.Bin, Version: e.Catalog.Version, RegisteredAt: e.RegisteredAt, Nouns: len(extPlan(e.Catalog)), Pages: len(e.Catalog.Pages)}
+		if path, err := store.ExtensionPath(a.dataDir(), name); err == nil {
+			if _, err := os.Stat(path); err == nil {
+				l.Data = path
+			}
+		}
+		out = append(out, l)
+	}
+	return ochazuke.Done(out)
+}
+
+// refreshExtension is extension.refresh: each named extension's catalog is
+// read again from the bin its file names and rewritten; mounted pages
+// reload their rows (a changed catalog is remounted on the next start).
+func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
+	reg := a.extRegistry()
+	names := []string{ochazuke.StringArg(ctx.Args, "name", "")}
+	if names[0] == "" {
+		var err error
+		if names, err = reg.Names(); err != nil {
+			return ochazuke.Failed(err)
+		}
+	}
+	entries := map[string]extEntry{}
+	for _, name := range names {
+		e, err := reg.Read(name)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		entries[name] = e
+	}
+	envs := map[string][]string{}
+	mounted := map[string]bool{}
+	for _, name := range names {
+		envs[name] = a.extEnv(name)
+		mounted[name] = a.extension(name) != nil
+	}
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		out := []extRegistered{}
+		var errs []error
+		for _, name := range names {
+			bin := entries[name].Bin
+			answer, err := execExt(c, bin, envs[name], "catalog")
+			var doc ocli.CatalogDoc
+			if err == nil {
+				doc, err = parseExtCatalog(filepath.Base(bin), answer)
+			}
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", name, err))
+				continue
+			}
+			out = append(out, extRegistered{summaryOf(name, bin, reg.path(name), doc, mounted[name]), doc})
+		}
+		// The catalogs read are written even when another failed.
+		return out, errors.Join(errs...)
+	}).Then(func(_ ochazuke.Ctx, v any, _ error) {
+		done, _ := v.([]extRegistered)
+		for _, r := range done {
+			name := r.Name
+			e := entries[name]
+			e.Catalog = r.doc
+			if err := reg.write(name, e); err != nil {
+				a.m.Status = err.Error()
+			}
+			if x := a.extension(name); x != nil {
+				a.reloadExtension(x)
+			}
+		}
+	})
+}
+
+// removeExtension is extension.remove (confirmed): the registry file goes,
+// and with --purge the extension's data file; its pages close.
+func (a *App) removeExtension(ctx ochazuke.Ctx) ochazuke.Result {
+	name := ochazuke.StringArg(ctx.Args, "name", "")
+	if err := a.extRegistry().remove(name); err != nil {
+		return ochazuke.Failed(err)
+	}
+	result := map[string]any{"name": name, "removed": true}
+	if purge, _ := ctx.Args["purge"].(bool); purge {
+		path, err := store.ExtensionPath(a.dataDir(), name)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		for _, p := range []string{path, path + "-wal", path + "-shm"} {
+			if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return ochazuke.Failed(err)
+			}
+		}
+		result["purged"] = path
+	}
+	if x := a.extension(name); x != nil {
+		var errs []error
+		for _, v := range x.views {
+			errs = append(errs, a.r.RemoveInstance(v.Page()))
+		}
+		for i, y := range a.exts {
+			if y == x {
+				a.exts = append(a.exts[:i], a.exts[i+1:]...)
+				break
+			}
+		}
+		if err := errors.Join(errs...); err != nil {
+			return ochazuke.Failed(err)
+		}
+	}
+	return ochazuke.Done(result)
+}
+
+// extension is the mounted extension of this name, or nil.
+func (a *App) extension(name string) *extension {
+	for _, x := range a.exts {
+		if x.name == name {
+			return x
+		}
+	}
+	return nil
+}
+
+// mountExtensions mounts every registered extension in tab order; a file
+// that cannot be read or mounted is a notice, never a failed start.
+func (a *App) mountExtensions() {
+	names, entries, errs := a.extRegistry().Ordered()
+	for _, err := range errs {
+		a.m.Notify("extension: " + err.Error())
+	}
+	for _, name := range names {
+		a.mountExtension(name, entries[name])
+	}
+}
+
+// mountExtension adds one extension: a proxy verb on mtm's noun for every
+// application verb, its catalog key rows that do not shadow a row on their
+// path, and its pages (declared data pages, else one synthesized page).
+func (a *App) mountExtension(name string, e extEntry) {
+	notify := func(format string, args ...any) { a.m.Notify(name + ": " + fmt.Sprintf(format, args...)) }
+	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}}
+	plan := extPlan(e.Catalog)
+	for _, n := range plan {
+		local := extNoun(name, n.Name)
+		if a.r.Noun(local) != nil {
+			notify("noun %s skipped: mtm already has a noun %s", n.Name, local)
+			continue
+		}
+		x.nouns[n.Name] = local
+		b := a.r.Define(local)
+		for _, v := range n.Verbs {
+			b.Verb(v.Name, a.extProxy(x, n.Name, v.Name), v.Description)
+			if v.Confirm != "" {
+				b.Confirm(v.Confirm)
+			}
+			if len(v.Positional) > 0 {
+				b.Positional(v.Positional...)
+			}
+			if v.Quiet {
+				b.Quiet()
+			}
+			if len(v.Params) > 0 {
+				a.parameters(local+"."+v.Name, extParams(v.Params))
+			}
+		}
+		if len(n.Columns) > 0 {
+			b.Columns(n.Columns...)
+		}
+	}
+	if len(x.nouns) == 0 {
+		notify("no application nouns to mount")
+		return
+	}
+	pages := pagesOf(name, e.Catalog, plan, x.nouns)
+	cfg := ocli.PageConfig{
+		Noun: func(n string) string {
+			if local, ok := x.nouns[n]; ok {
+				return local
+			}
+			return extNoun(name, n)
+		},
+		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
+			return execExt(c, x.bin, a.extEnv(name), noun, verb, "--json", "{}")
+		},
+	}
+	for _, p := range pages {
+		v, err := ocli.MountPage(a.m, e.Catalog, p, cfg)
+		if err != nil {
+			notify("page %s: %v", p.ID, err)
+			continue
+		}
+		x.views = append(x.views, v)
+		for _, l := range p.Lists {
+			if local, ok := x.nouns[l.Noun]; ok {
+				if _, taken := a.owners[local]; !taken {
+					a.owners[local] = l.ID // the CLI's verbs of the noun act for its list
+				}
+			}
+		}
+	}
+	if dropped := a.loadExtBindings(x, e.Catalog.Bindings, pages); len(dropped) > 0 {
+		notify("key rows dropped (mtm binds the key there): %s", strings.Join(dropped, ", "))
+	}
+	a.exts = append(a.exts, x)
+}
+
+// extParams are a proxied verb's parameters: a source names the tool's own
+// verb, which mtm cannot run for a pick list on the loop, so such a
+// parameter takes any value (the tool still checks it).
+func extParams(params map[string]ochazuke.Parameter) map[string]ochazuke.Parameter {
+	out := make(map[string]ochazuke.Parameter, len(params))
+	for name, p := range params {
+		if p.Source != "" {
+			p.Source, p.Free = "", true
+		}
+		out[name] = p
+	}
+	return out
+}
+
+// pagesOf is what an extension shows: its declared data pages, each id
+// prefixed with ext/<name>/ (lists too), else one page named after it with
+// a list per mounted noun that has a row source and a list of verbs for a
+// noun no other noun lists rows of; groups when there is more than one
+// list. Every page shows the selected row's record.
+func pagesOf(name string, doc ocli.CatalogDoc, plan []ocli.CatalogNoun, mounted map[string]string) []ocli.CatalogPage {
+	var out []ocli.CatalogPage
+	for _, p := range doc.Pages {
+		if !p.IsData() {
+			continue
+		}
+		p.ID = extPageID(name, p.ID)
+		lists := make([]ocli.CatalogList, len(p.Lists))
+		for i, l := range p.Lists {
+			l.ID = "ext/" + name + "/" + l.ID
+			lists[i] = l
+		}
+		p.Lists = lists
+		out = append(out, p)
+	}
+	if len(out) > 0 {
+		return out
+	}
+	listed := map[string]bool{} // nouns whose rows another noun's source lists
+	for _, n := range plan {
+		if verb, rows := doc.RowSource(n.Name); verb != "" && rows != n.Name {
+			listed[rows] = true
+		}
+	}
+	page := ocli.CatalogPage{ID: extPageID(name, ""), Title: name, Detail: &ocli.CatalogDetail{}}
+	for _, n := range plan {
+		if _, ok := mounted[n.Name]; !ok {
+			continue
+		}
+		if verb, _ := doc.RowSource(n.Name); verb == "" && listed[n.Name] {
+			continue // its rows live in another noun's list
+		}
+		page.Lists = append(page.Lists, ocli.CatalogList{ID: page.ID + "/" + n.Name, Noun: n.Name})
+	}
+	if len(page.Lists) == 0 {
+		return nil
+	}
+	if len(page.Lists) > 1 {
+		page.Layout = ocli.LayoutGroups
+	}
+	return []ocli.CatalogPage{page}
+}
+
+// loadExtBindings installs the catalog's key rows of mounted nouns, renamed
+// to mtm's nouns. A row naming one of the tool's own instances, running a
+// verb mtm did not mount, or whose first key a noun on its list's path
+// (the list, the page, app) already binds is dropped and named in the
+// answer.
+func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocli.CatalogPage) []string {
+	home := map[string]string{} // catalog noun -> a list its rows live in
+	for _, p := range pages {
+		for _, l := range p.Lists {
+			if _, ok := home[l.Noun]; !ok {
+				home[l.Noun] = l.ID
+			}
+			if _, rows := x.doc.RowSource(l.Noun); rows != "" {
+				if _, ok := home[rows]; !ok {
+					home[rows] = l.ID
+				}
+			}
+		}
+	}
+	var dropped []string
+	for _, row := range rows {
+		local, ok := x.nouns[row.Noun]
+		if !ok {
+			continue
+		}
+		where := row.Keys + row.Pattern + " on " + row.Noun
+		req, mounted := x.nouns[row.Request.Noun]
+		if row.Instance != "" || !mounted {
+			dropped = append(dropped, where)
+			continue
+		}
+		row.Request.Noun = req
+		row.Noun = local
+		if list, ok := home[x.nounOfLocal(local)]; ok && a.keyTaken(list, row) {
+			dropped = append(dropped, where)
+			continue
+		}
+		data, err := json.Marshal([]ochazuke.Binding{row})
+		if err == nil {
+			_, err = a.r.LoadBindings(data)
+		}
+		if err != nil {
+			dropped = append(dropped, where)
+		}
+	}
+	return dropped
+}
+
+func (x *extension) nounOfLocal(local string) string {
+	for n, l := range x.nouns {
+		if l == local {
+			return n
+		}
+	}
+	return ""
+}
+
+// keyTaken reports whether a noun on a list's path (the list, its page,
+// app) binds the row's first key in the row's mode or in every mode.
+// Pattern rows are not compared.
+func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
+	if row.Keys == "" {
+		return false
+	}
+	first := strings.Fields(row.Keys)[0]
+	for _, id := range a.r.Ancestry(list) {
+		n := a.r.Noun(a.r.Instances[id].Noun)
+		if n == nil {
+			continue
+		}
+		for mode, bindings := range n.Bindings {
+			if mode != row.Mode && mode != "" && row.Mode != "" {
+				continue
+			}
+			for _, b := range bindings {
+				if b.Keys != "" && strings.Fields(b.Keys)[0] == first {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// extProxy is the handler of one mounted verb: `<bin> NOUN VERB [--target
+// ID] --json ARGS --yes` off the loop (mtm asked the verb's confirm
+// already); the row's own id is the target. Its result is the page's
+// status line, and the extension's rows reload.
+func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
+	return func(c ochazuke.Ctx) ochazuke.Result {
+		args := []string{noun, verb}
+		if c.Instance != nil {
+			if id, ok := c.Instance.Data.(string); ok && id != "" {
+				args = append(args, "--target", id)
+			}
+		}
+		js := []byte("{}")
+		if len(c.Args) > 0 {
+			var err error
+			if js, err = json.Marshal(c.Args); err != nil {
+				return ochazuke.Failed(err)
+			}
+		}
+		args = append(args, "--json", string(js), "--yes")
+		bin, env := x.bin, a.extEnv(x.name)
+		return ochazuke.Pending(func(ctx context.Context) (any, error) {
+			out, err := execExt(ctx, bin, env, args...)
+			if err != nil {
+				return nil, err
+			}
+			return extDecoded(out), nil
+		}).Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
+			line := extResultLine(noun+" "+verb, v, err)
+			for _, view := range x.views {
+				view.SetStatus(line)
+			}
+			if !a.cli {
+				a.reloadExtension(x)
+			}
+		})
+	}
+}
+
+// reloadExtension reloads every page of an extension (off the loop).
+func (a *App) reloadExtension(x *extension) {
+	for _, v := range x.views {
+		if err := v.Reload(); err != nil {
+			v.SetStatus(err.Error())
+		}
+	}
+}
+
+// extViewOf is the mounted page view of a page id, or nil.
+func (a *App) extViewOf(page string) (*extension, *ocli.PageView) {
+	for _, x := range a.exts {
+		for _, v := range x.views {
+			if v.Page() == page {
+				return x, v
+			}
+		}
+	}
+	return nil, nil
+}
+
+// extDecoded is stdout as JSON, else as trimmed text.
+func extDecoded(out []byte) any {
+	var v any
+	if err := json.Unmarshal(out, &v); err != nil {
+		return strings.TrimSpace(string(out))
+	}
+	return v
+}
+
+// extResultLine is the page's status after a verb.
+func extResultLine(what string, v any, err error) string {
+	if err != nil {
+		return what + ": " + err.Error()
+	}
+	data, _ := json.Marshal(v)
+	return what + ": " + string(data)
+}
+
+// revealExtTarget makes a stand-in row for a CLI --target of a mounted
+// extension: a row id as the TUI shows it (<list>/<id>), whose Data is the
+// tool's own id. It reports whether target named one.
+func (a *App) revealExtTarget(target string) bool {
+	for _, x := range a.exts {
+		for _, v := range x.views {
+			for _, l := range v.Spec().Lists {
+				id, ok := strings.CutPrefix(target, l.ID+"/")
+				if !ok || id == "" {
+					continue
+				}
+				noun := extNoun(x.name, l.Noun)
+				if verb, rows := x.doc.RowSource(l.Noun); verb != "" {
+					noun = extNoun(x.name, rows)
+				}
+				inst := a.r.Instance(target, ochazuke.Parent(l.ID), ochazuke.Kind(noun))
+				inst.Data, inst.Label = id, id
+				return true
+			}
+		}
+	}
+	return false
+}
