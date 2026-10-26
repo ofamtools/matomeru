@@ -62,3 +62,16 @@ func TestBraceAndTabOnTheTurnsTabReachTheTurns(t *testing.T) {
 		notLive(t, app, k+" on Turns")
 	}
 }
+
+// Copy mode entered from live (ctrl+a [) returns to live on q, every time.
+func TestCopyModeFromLiveReturnsLive(t *testing.T) {
+	app, _ := liveApp(t)
+	for _, round := range []string{"first", "second"} {
+		press(t, app, "ctrl+a", "[")
+		if app.r.Focus != copyID || !app.copy.active {
+			t.Fatalf("%s ctrl+a [: focus %s copy %v", round, app.r.Focus, app.copy.active)
+		}
+		press(t, app, "q")
+		live(t, app, round+" q from copy mode entered live")
+	}
+}
