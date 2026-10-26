@@ -20,6 +20,7 @@ import (
 	ocli "github.com/unixsuperhero/ochazuke/cli"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"github.com/unixsuperhero/matomeru/internal/history"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -63,8 +64,9 @@ type contextState struct {
 	// cmds are commands a completion asks the loop to run (an OSC 52
 	// copy); contextUpdate hands them to Bubble Tea.
 	cmds    []tea.Cmd
-	follow  *contextFollower // continuous extraction (context_follow.go)
-	picking pane             // the pane the live picker was opened in (context_picker.go)
+	follow  *contextFollower   // continuous extraction (context_follow.go)
+	picking pane               // the pane the live picker was opened in (context_picker.go)
+	turns   []history.PaneTurn // the picked pane's turns, oldest first (its prompt rows)
 }
 
 // systemActions are the clipboard and the system opener; tests replace
@@ -394,21 +396,27 @@ func (a *App) copyContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	return a.copyText(it.Text)
+}
+
+// copyText puts text on the clipboard off the loop, through OSC 52 when
+// no clipboard program serves the session.
+func (a *App) copyText(text string) ochazuke.Result {
 	sys := a.cx.sys
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		osc, err := sys.Copy(c, it.Text)
+		osc, err := sys.Copy(c, text)
 		return osc, err
 	}).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
 		}
 		if osc, _ := v.(bool); osc {
-			if err := a.copyOSC52(it.Text); err != nil {
+			if err := a.copyOSC52(text); err != nil {
 				a.m.Status = err.Error()
 				return
 			}
 		}
-		a.m.Notify("copied " + oneLine(it.Text))
+		a.m.Notify("copied " + oneLine(text))
 	})
 }
 

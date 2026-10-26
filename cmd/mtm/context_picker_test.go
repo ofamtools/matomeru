@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"github.com/unixsuperhero/matomeru/internal/history"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -66,7 +68,12 @@ func pickerTexts(t *testing.T, a *App) []string {
 	}
 	var out []string
 	for _, row := range c.Matches() {
-		out = append(out, row.Data.(contextitems.Item).Text)
+		switch d := row.Data.(type) {
+		case contextitems.Item:
+			out = append(out, d.Text)
+		case promptRow:
+			out = append(out, "prompt: "+d.turn.Prompt)
+		}
 	}
 	return out
 }
@@ -159,5 +166,105 @@ func TestContextKeysAreRowsAndLeaderListsC(t *testing.T) {
 	}
 	if !strings.Contains(frame(a), "ctrl+a c") {
 		t.Fatalf("the leader keys list ctrl+a c:\n%s", frame(a))
+	}
+}
+
+// promptTurns journals finished turns in pane p, a minute apart, as the
+// capture hooks do: prompt i is answered by answer i.
+func promptTurns(t *testing.T, a *App, p pane, prompts, answers []string) []history.PaneTurn {
+	t.Helper()
+	for i, prompt := range prompts {
+		start := int64(1_790_000_000_000) + int64(i)*60_000
+		turn := history.Turn{ID: fmt.Sprintf("t%d", i), Session: p.Session, Window: p.ID, Harness: "claude-code", ConversationID: "c1", Prompt: prompt, StartedAt: start}
+		if _, err := a.hist.Capture(turn); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.hist.Complete(turn, answers[i], start+30_000); err != nil {
+			t.Fatal(err)
+		}
+	}
+	turns, err := a.hist.Turns(p.ID)
+	if err != nil || len(turns) != len(prompts) {
+		t.Fatalf("turns %+v %v", turns, err)
+	}
+	return turns
+}
+
+// The live pane's prompts follow its items, newest first, each with its
+// answer beside the rows; enter copies the whole prompt; ctrl+r says a
+// prompt is not a file; the other kinds keep their order.
+func TestLivePickerListsThisPanesPrompts(t *testing.T) {
+	a, sys, live, file := liveContextApp(t)
+	promptTurns(t, a, live, []string{"first prompt\nwith a second line", "second prompt"}, []string{"first answer", "second answer\nin two lines"})
+	a.m.Width, a.m.Height = 140, 40
+	press(t, a, "ctrl+a", "c")
+	want := []string{file, "https://example.com/older-here", "prompt: second prompt", "prompt: first prompt\nwith a second line", "lane/context", "1ba025f"}
+	if got := pickerTexts(t, a); !slices.Equal(got, want) {
+		t.Fatalf("picker rows = %q, want %q", got, want)
+	}
+	press(t, a, "ctrl+n", "ctrl+n")
+	f := frame(a)
+	for _, w := range []string{"second prompt", "│ second answer", "in two lines"} {
+		if !strings.Contains(f, w) {
+			t.Fatalf("picker frame lacks %q:\n%s", w, f)
+		}
+	}
+	a.Update(keyMsg("ctrl+r"))
+	if !strings.Contains(a.m.Status, "this is a prompt") || a.r.TopModal() != contextPicker {
+		t.Fatalf("status %q, modal %q", a.m.Status, a.r.TopModal())
+	}
+	press(t, a, "ctrl+n")
+	if f := frame(a); !strings.Contains(f, "│ first answer") {
+		t.Fatalf("the preview follows the highlight:\n%s", f)
+	}
+	settle(a, key(t, a, "enter"))
+	if !slices.Equal(sys.copied, []string{"first prompt\nwith a second line"}) {
+		t.Fatalf("enter copied %q", sys.copied)
+	}
+	if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
+		t.Fatalf("after a copy the pane is live again: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	}
+	// Typing filters prompts by their words.
+	press(t, a, "ctrl+a", "c")
+	typeText(t, a, "first")
+	if got := pickerTexts(t, a); len(got) != 1 || got[0] != "prompt: first prompt\nwith a second line" {
+		t.Fatalf("filtered %q", got)
+	}
+}
+
+// ctrl+o on a prompt leaves the live pane for its turn: the Panes page
+// with the pane selected, the Turns tab, the turn focused, open and
+// marked reviewed.
+func TestLivePickerOpensAPromptsTurn(t *testing.T) {
+	a, _, live, _ := liveContextApp(t)
+	turns := promptTurns(t, a, live, []string{"first prompt", "second prompt"}, []string{"first answer", "second answer"})
+	a.m.Width, a.m.Height = 140, 40
+	press(t, a, "ctrl+a", "c")
+	typeText(t, a, "first prompt")
+	settle(a, key(t, a, "ctrl+o"))
+	if a.r.TopModal() != "" || a.r.Terminal(paneTermID) != nil {
+		t.Fatalf("still live: modal %q", a.r.TopModal())
+	}
+	if row, _ := a.selectedRow(); a.r.Page != panesPage || row != live.rowID() || a.pv.tab != tabTurns || a.r.Focus != "turn:"+turns[0].ID {
+		t.Fatalf("page %s row %s tab %d focus %s", a.r.Page, row, a.pv.tab, a.r.Focus)
+	}
+	if f := frame(a); !strings.Contains(f, "first answer") {
+		t.Fatalf("the turn is not open:\n%s", f)
+	}
+	if got, _ := a.hist.Turns(live.ID); got[0].ReviewedAt == 0 || got[1].ReviewedAt != 0 {
+		t.Fatalf("marks %+v", got)
+	}
+}
+
+// A chooser narrower than chooserPreviewMin draws no preview.
+func TestChooserPreviewNeedsTheWidth(t *testing.T) {
+	c := &Chooser{spec: ChooserSpec{Rows: []ChooserRow{{ID: "a", Label: "a"}}, Preview: func(ChooserRow) string { return "preview text" }, Filter: func(string, ChooserRow) bool { return true }},
+		input: ochazuke.NewInput("q", "", false)}
+	c.refilter()
+	if v := c.View(chooserPreviewMin-1, 6).Text; strings.Contains(v, "preview text") {
+		t.Fatalf("narrow:\n%s", v)
+	}
+	if v := c.View(chooserPreviewMin, 6).Text; !strings.Contains(v, "│ preview text") {
+		t.Fatalf("wide:\n%s", v)
 	}
 }
