@@ -267,6 +267,12 @@ func (s *Store) SetStatus(id, status string) (Task, error) {
 	return s.patchTask(id, func(t *Task) { t.Status = status })
 }
 
+// RestoreStatus puts back a status the task had before, as it was: an
+// undo restores a legacy or unknown value unchanged (record first).
+func (s *Store) RestoreStatus(id, status string) (Task, error) {
+	return s.patchTask(id, func(t *Task) { t.Status = status })
+}
+
 // AddSubtask creates a todo task under parent (a task of the same
 // project, or "" for the top level), last among its siblings.
 func (s *Store) AddSubtask(projectID, parentID, title string) (Task, error) {

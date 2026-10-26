@@ -21,7 +21,8 @@ import (
 // at once, empty, owned by the scope), typing retitles it after a pause
 // and when the line is left, tab/shift+tab and J/K re-parent and reorder
 // (the siblings' positions are rewritten), d d deletes, u and ctrl+r undo
-// and redo as writes, x toggles done and s chooses a status. There is no
+// and redo as writes, x toggles done and s chooses a status (both on the
+// same undo stack, Tree.Record). There is no
 // save key; esc leaves the line, and esc or T closes the outline with
 // everything already stored.
 
@@ -490,13 +491,31 @@ func (a *App) outlineToggle(ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	before := t.Status
 	if t, err = a.work.ToggleDone(t.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.outlineChanged(o); err != nil {
 		return ochazuke.Failed(err)
 	}
+	if err := a.recordStatus(o, t.ID, before, t.Status); err != nil {
+		return ochazuke.Failed(err)
+	}
 	return ochazuke.Done(t)
+}
+
+// recordStatus puts a status change on the outline's undo stack, in order
+// with its tree edits: u writes the status back, ctrl+r writes it again.
+func (a *App) recordStatus(o *outlineState, id, before, after string) error {
+	set := func(status string) func() error {
+		return func() error {
+			if _, err := a.work.RestoreStatus(id, status); err != nil {
+				return err
+			}
+			return a.outlineChanged(o)
+		}
+	}
+	return o.tree.Record(ochazuke.TreeAction{ID: outlineNode(id), Label: "status " + id + " " + after, Undo: set(before), Redo: set(after)})
 }
 
 // outlineStatus is s on the outline: the status chooser on the task.
@@ -505,7 +524,17 @@ func (a *App) outlineStatus(ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	return resultError(a.openStatusChooser(t, func() error { return a.outlineChanged(o) }))
+	before := t.Status
+	return resultError(a.openStatusChooser(t, func() error {
+		if err := a.outlineChanged(o); err != nil {
+			return err
+		}
+		got, err := a.work.Task(t.ID)
+		if err != nil || got.Status == before {
+			return err
+		}
+		return a.recordStatus(o, t.ID, before, got.Status)
+	}))
 }
 
 // renumber writes the positions of a parent's children in outline order.

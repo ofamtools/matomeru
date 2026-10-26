@@ -290,3 +290,53 @@ func TestTInInsertModeTypesTheLetter(t *testing.T) {
 		t.Fatalf("T in normal mode left %q open", a.r.TopModal())
 	}
 }
+
+// Test pass W5: u after x undoes the done, not the rename before it; a
+// second u undoes the rename; ctrl+r redoes both in order; a status set
+// with s undoes the same way, back to a legacy value unchanged.
+func TestOutlineUndoesStatusInOrder(t *testing.T) {
+	a := pinned(t)
+	press(t, a, "T")
+	before := stored(t, a, "t1").Title
+	press(t, a, "i")
+	typeText(t, a, " two")
+	press(t, a, "esc", "x")
+	if got := stored(t, a, "t1"); got.Status != work.StatusDone || got.Title != before+" two" {
+		t.Fatalf("rename then x: %+v", got)
+	}
+	press(t, a, "u")
+	if got := stored(t, a, "t1"); got.Status != work.StatusTodo || got.Title != before+" two" {
+		t.Fatalf("u after x: %+v", got)
+	}
+	if f := frameAt(a, 80); !strings.Contains(f, "[ ] "+before+" two") {
+		t.Fatalf("u glyph:\n%s", f)
+	}
+	press(t, a, "u")
+	if got := stored(t, a, "t1"); got.Title != before {
+		t.Fatalf("second u: %+v", got)
+	}
+	press(t, a, "ctrl+r", "ctrl+r")
+	if got := stored(t, a, "t1"); got.Status != work.StatusDone || got.Title != before+" two" {
+		t.Fatalf("redo twice: %+v", got)
+	}
+	press(t, a, "s")
+	typeText(t, a, "b")
+	press(t, a, "enter", "u")
+	if got := stored(t, a, "t1").Status; got != work.StatusDone {
+		t.Fatalf("u after s: %s", got)
+	}
+
+	b := openAt(t, seededWith(t, map[string]string{"odd": "skipped"}))
+	executeA(t, b, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
+	press(t, b, "T")
+	if err := b.r.Tree(outlineTree).Select(outlineNode("odd")); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.r.SetFocus(outlineNode("odd")); err != nil {
+		t.Fatal(err)
+	}
+	press(t, b, "x", "u")
+	if got := stored(t, b, "odd").Status; got != "skipped" {
+		t.Fatalf("u restores the unknown status: %s", got)
+	}
+}
