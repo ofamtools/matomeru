@@ -22,7 +22,10 @@ func (a *App) defineSides() {
 	a.companionPanes = make(map[string]pane)
 	a.sideStarting = make(map[string]bool)
 	a.r.Define("pane").Verb("side", a.sidePane, "Open or list this pane's side vim and terminal").Positional("kind")
-	a.parameters("pane.side", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true, Enum: []string{"vim", "term", "list"}}})
+	a.parameters("pane.side", map[string]ochazuke.Parameter{
+		"kind": {Type: "string", Required: true, Enum: []string{"vim", "term", "list"}},
+		"pane": {Type: "string", Description: "The parent's window id (as pane list prints it), instead of --target pane:SESSION/WINDOW"},
+	})
 	a.r.Define("app").
 		Verb("close", a.quitWithSides, "Exit after closing side panes").
 		Verb("quit", func(r *ochazuke.Runtime, _ ochazuke.Context, _ ochazuke.Arguments) (any, error) {
@@ -90,8 +93,12 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 	}
+	if id := ochazuke.StringArg(ctx.Args, "pane", ""); id != "" {
+		// The job finds the parent by its window id in its own listing.
+		p = pane{Pane: daemon.Pane{ID: id}}
+	}
 	if p.ID == "" {
-		return ochazuke.Failed(errors.New("no parent pane selected"))
+		return ochazuke.Failed(errors.New("no parent pane selected: pass --pane WINDOW_ID or --target pane:SESSION/WINDOW"))
 	}
 	key := p.ID + "/" + kind
 	if a.sideStarting[key] {

@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/ochazuke"
 )
 
 // a on the panes page opens a harness chooser, the default first; Enter
@@ -151,5 +152,22 @@ func TestMoveChooserByRecencyWithoutCurrent(t *testing.T) {
 	key(t, app, "m")
 	if got := labels(); got != "ochazuke,unassociated" {
 		t.Fatalf("without current: %s", got)
+	}
+}
+
+// The CLI names a side's parent by its window id with --pane.
+func TestSideListTakesPaneWindowID(t *testing.T) {
+	a, driver := shellApp(t)
+	a.cli = true
+	p := driver.panes.panes[0]
+	_, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "side", Args: ochazuke.Arguments{"kind": "list", "pane": p.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	for _, job := range jobsOf(a, "pane.side") {
+		if job.Error != "" {
+			t.Fatal(job.Error)
+		}
 	}
 }
