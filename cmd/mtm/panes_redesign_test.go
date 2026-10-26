@@ -311,3 +311,15 @@ func TestPluralCounts(t *testing.T) {
 		t.Fatalf("session summary:\n%s", fr)
 	}
 }
+
+// UX review 2 F22: in the project tree a session row says "session", so a
+// session named after its project does not read as the project twice.
+func TestNestedSessionRowsSaySession(t *testing.T) {
+	app, _ := panesApp(t)
+	if got := cells(app, "session:matomeru"); !strings.Contains(got, "▾ session matomeru (1)") {
+		t.Fatalf("session cells %q", got)
+	}
+	if got := cells(app, "project:"); strings.Contains(got, "session") {
+		t.Fatalf("project cells %q", got)
+	}
+}

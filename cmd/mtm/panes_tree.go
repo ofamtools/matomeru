@@ -294,7 +294,13 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			slices.SortStableFunc(g.panes, func(x, y pane) int { return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput())) })
 			label := fmt.Sprintf("%s (%d)", shortSession(g.session.Session), len(g.panes))
 			_, w := (&paneProject{sessions: []*paneGroup{g}}).count()
-			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{label, waitingCell(w)}})
+			cell := label
+			if parent != "" {
+				// Under its project a session says so: a session named
+				// after its project read as the project twice (F22).
+				cell = "session " + label
+			}
+			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{cell, waitingCell(w)}})
 			for _, p := range g.panes {
 				name := stateGlyph(p) + " " + names[p.ID]
 				if p.SideVim != "" {
