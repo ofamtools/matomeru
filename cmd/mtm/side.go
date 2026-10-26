@@ -342,13 +342,9 @@ type exitProber interface {
 // probeLimit is how many exit probes run at once.
 const probeLimit = 8
 
-// sideListing lists the panes and marks the windows whose process exited.
-// An exited side pane is closed and its link dropped (vim and terminal
-// alike), so it never comes back as a plain row; any other exited window
-// stays listed, marked Exited, until someone kills it. Links whose window
-// or parent is gone are dropped too; a side pane whose parent exited
-// becomes an ordinary pane. Callers that may race a side launch hold the
-// side lock.
+// sideListing closes exited windows and reconciles companion links.
+// Surviving companions whose parent exited become ordinary panes.
+// Callers that may race a side launch hold the side lock.
 func sideListing(ctx context.Context, pd paneDaemon, ws *work.Store) ([]pane, error) {
 	panes, err := pd.ListPanes(ctx)
 	if err != nil {
@@ -359,10 +355,6 @@ func sideListing(ctx context.Context, pd paneDaemon, ws *work.Store) ([]pane, er
 		return nil, err
 	}
 	exited, gone := probeExits(ctx, pd, panes)
-	side := make(map[string]bool, len(links))
-	for _, link := range links {
-		side[link.Window] = true
-	}
 	out := panes[:0]
 	live := make(map[string]bool, len(panes))
 	for _, p := range panes {
@@ -370,18 +362,13 @@ func sideListing(ctx context.Context, pd paneDaemon, ws *work.Store) ([]pane, er
 			continue
 		}
 		if exited[p.ID] {
-			if side[p.ID] {
-				// The side pane's program ended (exit, :qa!): close the
-				// window mtm opened rather than leave a dead row behind.
-				if err := pd.KillPane(ctx, p); err != nil {
-					var remote *daemon.Error
-					if !errors.As(err, &remote) || remote.Code != "window_not_found" {
-						return nil, fmt.Errorf("close exited side pane %s: %w", p.label(), err)
-					}
+			if err := pd.KillPane(ctx, p); err != nil {
+				var remote *daemon.Error
+				if !errors.As(err, &remote) || remote.Code != "window_not_found" {
+					return nil, fmt.Errorf("close exited pane %s: %w", p.label(), err)
 				}
-				continue
 			}
-			p.Exited = true
+			continue
 		}
 		if p.ID != "" && !p.Exited {
 			live[p.ID] = true

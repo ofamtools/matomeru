@@ -141,6 +141,8 @@ Live panes support `ctrl+a v` (side Neovim) and `ctrl+a t` (side shell). Each is
 
 `pane side vim|term|list --target PANE` exposes the same companions through the CLI. Persisted `companions` links retain window, parent and kind across restarts; shown/front state is memory-only. Companions are omitted from the Panes rows and shown as `v`/`t` badges on their parent. Parent and session kill, and app quit, refuse while linked processes remain alive, including hidden companions. Close the shell or Neovim normally, then retry. Parent process exit releases surviving companions as ordinary rows without discarding ownership. Exit checks distinguish retained daemon windows from running processes.
 
+Pane refresh closes daemon windows whose processes have exited and removes their rows. If the live parent exited or disappeared, refresh detaches it, releases both terminal streams and size leases, and restores normal-mode list navigation. Surviving side processes become ordinary pane rows; a failed listing does not detach a live terminal.
+
 
 Known gaps:
 

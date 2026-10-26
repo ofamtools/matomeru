@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -54,21 +53,66 @@ func TestExitedSidePanesAreClosedNotListed(t *testing.T) {
 	}
 }
 
-// Any other exited window stays listed, marked exited, also through a
-// plain listing (after a launch or kill) that does not probe.
-func TestExitedPaneShowsExited(t *testing.T) {
-	a, f := panesApp(t)
-	f.exited = map[string]bool{"w2": true}
+func TestDeadLivePaneDetachesAndIsRemoved(t *testing.T) {
+	for _, gone := range []bool{false, true} {
+		name := "exited"
+		if gone {
+			name = "gone"
+		}
+		t.Run(name, func(t *testing.T) {
+			a, f := panesApp(t)
+			key(t, a, "enter")
+			stream := f.streams[0]
+			if gone {
+				f.panes = f.panes[1:]
+			} else {
+				f.exited = map[string]bool{"w1": true}
+			}
+			relist(t, a, f)
+			if a.r.Terminal(paneTermID) != nil || a.attached.ID != "" || !stream.released {
+				t.Fatalf("dead pane still attached: %+v, released %v", a.attached, stream.released)
+			}
+			if a.r.Mode.Name != "normal" || a.r.Focus == paneTermID || a.r.Page != panesPage {
+				t.Fatalf("focus %s mode %s page %s", a.r.Focus, a.r.Mode.Name, a.r.Page)
+			}
+			if !gone && !slices.Contains(f.killed, "w1") {
+				t.Fatalf("exited window retained: %v", f.killed)
+			}
+			if len(a.panes) != 1 || a.panes[0].ID != "w2" {
+				t.Fatalf("remaining panes: %+v", a.panes)
+			}
+			if fr := frame(a); strings.Contains(fr, "live ·") || !strings.Contains(fr, "panes (1)") {
+				t.Fatalf("dead live surface:\n%s", fr)
+			}
+		})
+	}
+}
+
+func TestParentExitReleasesStreamsAndPreservesLiveSides(t *testing.T) {
+	a, f := sideViewApp(t)
+	if err := a.showSide(a.attached, "term"); err != nil {
+		t.Fatal(err)
+	}
+	f.exited = map[string]bool{"w1": true}
 	relist(t, a, f)
-	a.setPanes(f.panes, nil) // a plain listing keeps the mark
-	var got pane
-	for _, p := range a.panes {
-		if p.ID == "w2" {
-			got = p
+	if a.r.Terminal(paneTermID) != nil || a.r.Terminal(sideTermID) != nil || a.attached.ID != "" {
+		t.Fatal("parent exit left a live terminal open")
+	}
+	for _, stream := range f.streams {
+		if !stream.released {
+			t.Fatalf("stream for %s still leased", stream.pane.ID)
 		}
 	}
-	if !got.Exited || got.stateCell(time.Now()) != "exited" || !strings.Contains(a.paneHeader(got), "exited") {
-		t.Fatalf("exited pane: %+v cell %q header %q", got, got.stateCell(time.Now()), a.paneHeader(got))
+	if links, err := a.work.Companions(); err != nil || len(links) != 0 {
+		t.Fatalf("companion links after parent exit: %+v, %v", links, err)
+	}
+	for _, id := range []string{"side-vim", "side-term"} {
+		if !slices.ContainsFunc(a.panes, func(p pane) bool { return p.ID == id }) || slices.Contains(f.killed, id) {
+			t.Fatalf("surviving side %s removed: panes %+v, killed %v", id, a.panes, f.killed)
+		}
+	}
+	if a.r.Mode.Name != "normal" || a.r.Focus == sideTermID || a.r.Focus == paneTermID {
+		t.Fatalf("focus %s mode %s", a.r.Focus, a.r.Mode.Name)
 	}
 }
 

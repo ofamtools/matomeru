@@ -395,6 +395,16 @@ func (a *App) setPanes(panes []pane, err error) {
 		}
 	}
 	a.panes = panes
+	if err == nil && a.attached.ID != "" {
+		live := slices.ContainsFunc(panes, func(p pane) bool {
+			return p.ID == a.attached.ID && !p.Exited
+		})
+		if !live {
+			if err := a.closeTerminal(); err != nil {
+				a.paneErr = err.Error()
+			}
+		}
+	}
 	a.recordTurns(panes)
 	a.pv.view = a.buildPaneTree(panes, time.Now())
 	before, hadRow := a.pv.tree.Selected()
