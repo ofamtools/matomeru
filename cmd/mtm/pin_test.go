@@ -238,7 +238,7 @@ func TestProjectNameFallsBackToFolderThenUntitled(t *testing.T) {
 	}
 	found := false
 	for _, item := range a.projectList.Items() {
-		found = found || item.ID == "nameless" && item.Label == "folder"
+		found = found || item.ID == "nameless" && item.Label == "◆ folder"
 	}
 	if !found {
 		t.Fatalf("project rows %+v", a.projectList.Items())
@@ -356,5 +356,48 @@ func TestWorkShowsAnUnpinnedProjectsTasksWithoutPinningIt(t *testing.T) {
 	f := frameAt(a, 120)
 	if a.pin != "matomeru" || !strings.Contains(f, "tag a release") || strings.Contains(f, "outside the pin") {
 		t.Fatalf("pin %q:\n%s", a.pin, f)
+	}
+}
+
+// Owner decision (2026-10-26): every project draws a glyph. One without a
+// stored glyph (a new project) draws ◆, the stored record keeps its empty
+// glyph, a stored glyph is kept, and every project row's name cell starts
+// with a glyph and a space, so the names line up.
+func TestEveryProjectDrawsAGlyph(t *testing.T) {
+	a := open(t)
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "new", Args: ochazuke.Arguments{"name": "fresh"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.work.PutProject(work.Project{ID: "starred", Name: "starred", Theme: work.Theme{Glyph: "★"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	var fresh work.Project
+	for _, p := range a.projects {
+		if p.Name == "fresh" {
+			fresh = p
+		}
+	}
+	if fresh.ID == "" || fresh.Theme.Glyph != "" {
+		t.Fatalf("fresh project %+v: the stored glyph must stay empty", fresh)
+	}
+	names := map[string]string{}
+	for _, item := range a.projectList.Items() {
+		if item.Noun != "project" {
+			continue
+		}
+		names[item.ID] = item.Cells[0]
+		glyph, _, ok := strings.Cut(item.Cells[0], " ")
+		if !ok || ansi.StringWidth(glyph) != 1 {
+			t.Errorf("row %s name cell %q does not start with a one-cell glyph", item.ID, item.Cells[0])
+		}
+	}
+	if names[fresh.ID] != "◆ fresh" || names["starred"] != "★ starred" {
+		t.Fatalf("name cells %+v", names)
+	}
+	if got := projectLabel(fresh); got != "◆ fresh" {
+		t.Fatalf("label %q", got)
 	}
 }

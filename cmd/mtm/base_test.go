@@ -124,7 +124,7 @@ func TestOmittedAndEmptyCreation(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "new", Args: ochazuke.Arguments{"name": ""}}); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.projects) != 1 || a.projects[0].Name != "" || projectLabel(a.projects[0]) != "untitled" {
+	if len(a.projects) != 1 || a.projects[0].Name != "" || a.projects[0].Theme.Glyph != "" || projectLabel(a.projects[0]) != "◆ untitled" {
 		t.Fatalf("projects: %+v", a.projects)
 	}
 	a.cli = true

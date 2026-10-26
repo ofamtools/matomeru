@@ -559,10 +559,6 @@ func (a *App) refreshProjects() error {
 			open[t.ProjectID]++
 		}
 	}
-	glyphs := false
-	for _, p := range projects {
-		glyphs = glyphs || p.Theme.Glyph != ""
-	}
 	home, _ := a.home()
 	items := make([]ochazuke.ListItem, 0, len(projects)+2)
 	for _, p := range projects {
@@ -570,13 +566,7 @@ func (a *App) refreshProjects() error {
 		if marked[p.ID] {
 			label = "[draft] " + label
 		}
-		name := projectName(p)
-		switch {
-		case p.Theme.Glyph != "":
-			name = p.Theme.Glyph + " " + name
-		case glyphs:
-			name = "  " + name // names line up beside the glyphed ones
-		}
+		name := projectGlyph(p) + " " + projectName(p)
 		if p.ID == a.pin {
 			name += " 📌"
 		}
@@ -617,13 +607,22 @@ var projectColumns = []ochazuke.Column{
 	{Title: "origin", Priority: 3},
 }
 
+// defaultProjectGlyph is drawn for a project with no stored glyph, so every
+// project row carries one and the names line up (owner, 2026-10-26). The
+// stored record is not rewritten.
+const defaultProjectGlyph = "◆"
+
+// projectGlyph is the project's stored glyph, else the default.
+func projectGlyph(p work.Project) string {
+	if p.Theme.Glyph != "" {
+		return p.Theme.Glyph
+	}
+	return defaultProjectGlyph
+}
+
 // projectLabel stays global; owned directories belong in the scoped detail.
 func projectLabel(p work.Project) string {
-	label := projectName(p)
-	if p.Theme.Glyph != "" {
-		label = p.Theme.Glyph + " " + label
-	}
-	return label
+	return projectGlyph(p) + " " + projectName(p)
 }
 
 // project finds a project by row id.
