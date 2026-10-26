@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	charm.land/bubbletea/v2 v2.1.0
 	github.com/charmbracelet/x/ansi v0.11.9
-	github.com/unixsuperhero/ochazuke v0.0.0-00010101000000-000000000000
+	github.com/unixsuperhero/ochazuke v0.1.0
 	modernc.org/sqlite v1.60.1
 )
 
@@ -36,7 +36,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
-
-replace github.com/unixsuperhero/ochazuke => /Users/unixsuperhero/proj/ochazuke
-
-replace github.com/unixsuperhero/oden => /Users/unixsuperhero/proj/oden

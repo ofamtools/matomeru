@@ -19,4 +19,4 @@ Rules:
 
 New repositories are made with `o proj new` (`~/proj/o-proj`, its own repo); `mtm proj` is mtm's own `project` noun (work context), not that tool.
 
-Run: `go run ./cmd/mtm` (or `--smoke`). ochazuke is a local replace on `../ochazuke`; drop the replace once ochazuke is tagged.
+Run: `go run ./cmd/mtm` (or `--smoke`). oden and ochazuke are required at their tags (`v0.1.0`); an untracked `go.work` (`go work init . && go work use ../oden ../ochazuke`) builds against the sibling checkouts, and `GOWORK=off` builds from the tags as a fresh clone does.
