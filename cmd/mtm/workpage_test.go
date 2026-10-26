@@ -62,7 +62,7 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 	t.Logf("task selected, 120 columns:\n%s", f)
 	press(t, a, "i")
 	f = frameAt(a, 160)
-	if !strings.Contains(f, "task draft") || !strings.Contains(f, "[>] busy task") {
+	if !strings.Contains(f, "editing task") || !strings.Contains(f, "[>] busy task") {
 		t.Fatalf("editor did not open under the table:\n%s", f)
 	}
 	t.Logf("editing, 160 columns:\n%s", f)

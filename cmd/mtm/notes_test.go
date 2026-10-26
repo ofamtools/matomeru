@@ -92,6 +92,9 @@ func TestNoteCreationOwnershipAndEmptyText(t *testing.T) {
 	}
 }
 
+// A note is written as it is edited: leaving the editor or closing the app
+// keeps the text, esc q never discards, and a new note's lines are in the
+// store when the editor is left; no draft file is written.
 func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	a := openAt(t, path)
@@ -126,12 +129,12 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 		t.Fatalf("restored text: %q", got)
 	}
 	press(t, b, "esc", "q")
-	if n, err := b.work.Note(original.ID); err != nil || n.Text != "  saved\ntext\n" {
-		t.Fatalf("cancel changed saved note: %+v %v", n, err)
+	if n, err := b.work.Note(original.ID); err != nil || n.Text != "  saved\ntext\ndraft" {
+		t.Fatalf("esc q must keep the written note: %+v %v", n, err)
 	}
 	var record editRecord
 	if err := b.drafts.Load("note", original.ID, &record); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("cancel retained draft: %v", err)
+		t.Fatalf("a draft file was written: %v", err)
 	}
 	if err := b.r.OpenPage("work"); err != nil {
 		t.Fatal(err)
@@ -147,7 +150,7 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 	typeText(t, b, "line one")
 	press(t, b, "enter")
 	typeText(t, b, "line two  ")
-	press(t, b, "esc", "s")
+	press(t, b, "esc", "q")
 	if n, err := b.work.Note(id); err != nil || n.Text != "line one\nline two  " {
 		t.Fatalf("multiline save: %+v %v", n, err)
 	}
@@ -270,12 +273,12 @@ func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
 		t.Fatalf("page %s focus %s", a.r.Page, a.r.Focus)
 	}
 	typeText(t, a, "kept here")
-	if fr := frame(a); !strings.Contains(fr, "note draft") || !strings.Contains(fr, "kept here") || !strings.Contains(fr, "notes (") {
+	if fr := frame(a); !strings.Contains(fr, "editing note") || !strings.Contains(fr, "kept here") || !strings.Contains(fr, "notes (") {
 		t.Fatalf("frame:\n%s", fr)
 	}
-	press(t, a, "ctrl+s")
+	press(t, a, "esc", "q")
 	if a.r.Page != notesPage || a.editor != nil {
-		t.Fatalf("after save: page %s", a.r.Page)
+		t.Fatalf("after leaving: page %s", a.r.Page)
 	}
 	notes, _ := a.work.Notes()
 	if len(notes) != 1 || notes[0].Text != "kept here" {

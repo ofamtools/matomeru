@@ -41,10 +41,6 @@ func TestScopeRefreshHidesNotesDraftsAndLateCaptures(t *testing.T) {
 	if a.editor != nil || a.opened != "" || string(a.answer.Text) != "" {
 		t.Fatal("old detail retained")
 	}
-	var draft editRecord
-	if err := a.drafts.Load("note", "na", &draft); err != nil || draft.Text != "unfinished" {
-		t.Fatalf("draft lost: %+v %v", draft, err)
-	}
 	// Keep all records visible before delivering: ownership checks alone would accept stale jobs.
 	executeA(t, a, "scope", "all", "work", nil)
 	settle(a, pending)

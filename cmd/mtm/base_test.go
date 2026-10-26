@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/store"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -51,7 +50,10 @@ func TestOwnerPrecedenceAndCLIIsolation(t *testing.T) {
 	}
 }
 
-func TestDraftSurvivesNavigationRestartAndCancel(t *testing.T) {
+// Commit on change: typing is written after the pause (the debounce
+// message), leaving the page writes a pending change at once, and the
+// change is in the store after a restart; esc q never discards.
+func TestEditorWritesOnPauseNavigationAndRestart(t *testing.T) {
 	path := seeded(t)
 	a := openAt(t, path)
 	if err := a.reveal("t1"); err != nil {
@@ -60,33 +62,60 @@ func TestDraftSurvivesNavigationRestartAndCancel(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
 		t.Fatal(err)
 	}
-	typeText(t, a, " unfinished")
+	typeText(t, a, " paused")
 	if got := stored(t, a, "t1").Title; got != "write the brief" {
-		t.Fatalf("draft changed saved row: %q", got)
+		t.Fatalf("written before the pause: %q", got)
 	}
+	a.Update(editorDebounceMsg{a.editor.seq})
+	if got := stored(t, a, "t1").Title; got != "write the brief paused" {
+		t.Fatalf("not written after the pause: %q", got)
+	}
+	typeText(t, a, " more")
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "open", Target: "ochazuke"}); err != nil {
 		t.Fatal(err)
 	}
+	a.Update(nil)
 	if err := a.Close(); err != nil {
 		t.Fatal(err)
 	}
 	b := openAt(t, path)
+	if got := stored(t, b, "t1").Title; got != "write the brief paused more" {
+		t.Fatalf("after restart: %q", got)
+	}
+	var d editRecord
+	if err := b.drafts.Load("task", "t1", &d); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a draft file was written: %v", err)
+	}
 	if err := b.reveal("t1"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := b.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := string(b.editor.Input.Text); got != "write the brief unfinished" {
-		t.Fatalf("draft after restart: %q", got)
-	}
+	typeText(t, b, "!")
 	press(t, b, "esc", "q")
-	var d editRecord
-	if err := b.drafts.Load("task", "t1", &d); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("cancel left draft: %v", err)
+	if got := stored(t, b, "t1").Title; got != "write the brief paused more!" {
+		t.Fatalf("esc q discarded: %q", got)
 	}
-	if got := stored(t, b, "t1").Title; got != "write the brief" {
-		t.Fatalf("cancel changed record: %q", got)
+}
+
+// u in the editor's normal mode undoes the last change in the store.
+func TestEditorUndoIsWritten(t *testing.T) {
+	a := open(t)
+	if err := a.reveal("t1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	typeText(t, a, " oops")
+	press(t, a, "esc")
+	if got := stored(t, a, "t1").Title; got != "write the brief oops" {
+		t.Fatalf("esc did not write: %q", got)
+	}
+	press(t, a, "u")
+	if got := stored(t, a, "t1").Title; got != "write the brief" {
+		t.Fatalf("u not written: %q", got)
 	}
 }
 
@@ -116,8 +145,8 @@ func TestOmittedAndEmptyCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := a.editor.Record.ID
-	if _, err := a.work.Task(id); !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("omitted title saved before submit: %v", err)
+	if got := stored(t, a, id); got.Title != "" {
+		t.Fatalf("a new task is written when the editor opens (record first): %+v", got)
 	}
 	typeText(t, a, "   ")
 	press(t, a, "enter")

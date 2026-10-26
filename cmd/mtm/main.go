@@ -415,7 +415,11 @@ func New(opts Options) (*App, error) {
 }
 
 // Close removes an attached terminal (releasing its stream) and closes the store.
-func (a *App) Close() error { return errors.Join(a.closeTerminal(), a.db.Close()) }
+// Close writes the open record's last change, then closes the terminal and
+// the store.
+func (a *App) Close() error {
+	return errors.Join(a.commitRecord(), a.closeTerminal(), a.db.Close())
+}
 
 // refreshProjects reloads the project rows and pushes them to the list.
 func (a *App) refreshProjects() error {

@@ -13,7 +13,10 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
-func TestProjectEditPreservesDirectoriesAndCancel(t *testing.T) {
+// The project editor writes as it goes (commit on change): leaving it with
+// esc q keeps every change, a field change is written at once, and the
+// directories and glyph survive the writes.
+func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
 	path := seeded(t)
 	a := openAt(t, path)
 	if _, err := a.work.AddTree("matomeru", work.Tree{Path: "/shared"}); err != nil {
@@ -26,42 +29,28 @@ func TestProjectEditPreservesDirectoriesAndCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 	typeText(t, a, " renamed")
-	a.editor.Fields[0].Input.Text = []rune("blue")
-	if err := a.autosave(); err != nil {
-		t.Fatal(err)
+	press(t, a, "esc") // leaving insert mode writes the name
+	if p, _ := a.work.Project("matomeru"); p.Name != "matomeru renamed" {
+		t.Fatalf("name not written on leaving insert: %+v", p)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "open", Target: "ochazuke"}); err != nil {
-		t.Fatal(err)
+	a.m.Width, a.m.Height = 100, 30
+	a.View()
+	press(t, a, "}", "i")
+	typeText(t, a, "blue")
+	a.Update(editorDebounceMsg{a.editor.seq})
+	if p, _ := a.work.Project("matomeru"); p.Theme.Color != "blue" {
+		t.Fatalf("field not written after the pause: %+v", p.Theme)
 	}
-	if err := a.Close(); err != nil {
-		t.Fatal(err)
+	press(t, a, "esc", "q")
+	if a.editor != nil {
+		t.Fatal("q left the editor open")
 	}
-	b := openAt(t, path)
-	if _, err := b.r.Execute(ochazuke.Request{Noun: "project", Verb: "edit", Target: "matomeru"}); err != nil {
-		t.Fatal(err)
-	}
-	if string(b.editor.Input.Text) != "matomeru renamed" || string(b.editor.Fields[0].Input.Text) != "blue" {
-		t.Fatal("project draft fields lost")
-	}
-	press(t, b, "esc", "q")
-	p, err := b.work.Project("matomeru")
+	p, err := a.work.Project("matomeru")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Name != "matomeru" || p.Theme.Color != "" || p.DefaultTree != "/shared" {
-		t.Fatalf("cancel changed project: %+v", p)
-	}
-	if _, err := b.r.Execute(ochazuke.Request{Noun: "project", Verb: "edit", Target: "matomeru"}); err != nil {
-		t.Fatal(err)
-	}
-	typeText(t, b, " saved")
-	press(t, b, "enter")
-	p, err = b.work.Project("matomeru")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Name != "matomeru saved" || p.DefaultTree != "/shared" || len(p.Trees) != 1 || p.Theme.Glyph != "◆" {
-		t.Fatalf("save lost metadata: %+v", p)
+	if p.Name != "matomeru renamed" || p.Theme.Color != "blue" || p.DefaultTree != "/shared" || len(p.Trees) != 1 || p.Theme.Glyph != "◆" {
+		t.Fatalf("leave lost changes or metadata: %+v", p)
 	}
 }
 func TestTaskViewDoesNotEditAndStatusDraft(t *testing.T) {
@@ -208,6 +197,8 @@ func TestKnownDirectoriesOrderRecordedUsageBeforeNeverUsed(t *testing.T) {
 	}
 }
 
+// The task editor's fields are reached with } and written as they change;
+// enter leaves the editor.
 func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
@@ -225,8 +216,16 @@ func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 		t.Fatalf("status field unreachable: %s", a.r.Focus)
 	}
 	press(t, a, "i", "ctrl+u")
-	typeText(t, a, "done")
-	press(t, a, "ctrl+s")
+	typeText(t, a, "do")
+	if got := stored(t, a, "t1"); got.Title != "write the brief keyboard" || got.Status != work.StatusTodo {
+		t.Fatalf("a half-typed status was written: %+v", got)
+	}
+	typeText(t, a, "ne")
+	a.Update(editorDebounceMsg{a.editor.seq})
+	if got := stored(t, a, "t1"); got.Status != "done" {
+		t.Fatalf("written after the pause: %+v", got)
+	}
+	press(t, a, "enter")
 	task := stored(t, a, "t1")
 	if task.Title != "write the brief keyboard" || task.Status != "done" {
 		t.Fatalf("keyboard save: %+v", task)

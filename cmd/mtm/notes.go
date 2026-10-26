@@ -18,7 +18,7 @@ const notesPage = "notes"
 func (a *App) defineNotes() {
 	a.r.Define("note").Columns(noteColumns...).
 		Verb("list", a.listNotes, "List notes in the current scope").Rows("note").
-		Verb("new", a.newNote, "Create a note; omit text to open an autosaved draft").Positional("text").
+		Verb("new", a.newNote, "Create a note; omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
 		Verb("edit", a.editNote, "Edit a note in the right panel").Positional("text").
 		Verb("associate", a.associateNote, "Associate a note with a task or project; scratch clears ownership").

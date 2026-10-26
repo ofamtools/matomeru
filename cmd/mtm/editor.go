@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -29,13 +30,29 @@ type editorField struct {
 	Name  string
 	Input *ochazuke.Input
 }
+
+// recordEditor is the right-hand panel editing one record. Every change is
+// written to the store as it is made (commit on change): typing after
+// editorDebounce, and at once when the focus leaves the field, insert mode
+// ends or the editor closes. There is no save step and nothing is ever discarded; u in normal
+// mode undoes the field's text, which is written like any change.
 type recordEditor struct {
 	Record    editRecord
 	Input     *ochazuke.Input
-	SavedText string
 	Fields    []editorField
 	Page      string // the page whose right-hand panel holds the editor
+	committed string // the record as last written (JSON)
+	seen      string // the record at the last update
+	seq       uint64 // bumped on every change; an older debounce is stale
+	focus     string // the focus at the last update
 }
+
+// editorDebounce is how long typing pauses before the record is written.
+const editorDebounce = 400 * time.Millisecond
+
+// editorDebounceMsg is the timer a pause in typing sets off: when Seq is
+// still the editor's latest change, the record is written.
+type editorDebounceMsg struct{ Seq uint64 }
 
 // editorPage is where a record is edited: a note on the Notes page stays
 // there (its detail is the right-hand panel); everything else on Work.
@@ -57,8 +74,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if panes := a.panesUpdate(msg); panes != nil {
 		cmd = tea.Batch(cmd, panes)
 	}
-	if err := errors.Join(a.autosave(), a.autosaveAnswer()); err != nil {
+	edit, err := a.editorUpdate(msg)
+	if err := errors.Join(err, a.autosaveAnswer()); err != nil {
 		a.m.Status = err.Error()
+	}
+	if edit != nil {
+		cmd = tea.Batch(cmd, edit)
 	}
 	a.filterDirectories()
 	a.followProject()
@@ -74,31 +95,59 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 func (a *App) defineRecordEditor() {
-	a.r.Define("record-editor").Verb("save", a.saveRecord, "Save record and clear draft").Verb("cancel", a.cancelRecord, "Discard draft").Mode("normal").Bind("enter", ochazuke.Do("record-editor.save")).Bind("s", ochazuke.Do("record-editor.save")).Bind("q", ochazuke.Do("record-editor.cancel")).Mode("insert").Bind("ctrl+s", ochazuke.Do("record-editor.save"))
-	a.r.Define("draft").Verb("open", a.openDraft, "Reopen draft").Mode("normal").Bind("enter", ochazuke.Do("draft.open"))
+	a.r.Define("record-editor").
+		Verb("leave", a.leaveRecord, "Leave the editor; every change is already written").
+		Mode("normal").Bind("q", ochazuke.Do("record-editor.leave")).Bind("esc", ochazuke.Do("record-editor.leave"))
+	a.r.Define("draft").Verb("open", a.openDraft, "Open a draft left by an older mtm; it is written as a record at once").Mode("normal").Bind("enter", ochazuke.Do("draft.open"))
 }
-func (a *App) autosave() error {
-	if a.editor == nil {
-		return nil
-	}
-	e := a.editor
+
+// snapshot reads the inputs into the record and returns it as JSON.
+func (e *recordEditor) snapshot() string {
 	e.Record.Text = string(e.Input.Text)
 	for _, f := range e.Fields {
 		e.Record.Fields[f.Name] = string(f.Input.Text)
 	}
-	data, err := json.Marshal(e.Record)
-	if err != nil {
-		return err
-	}
-	if string(data) == e.SavedText {
-		return nil
-	}
-	if err := a.drafts.Save(e.Record.Noun, e.Record.ID, e.Record); err != nil {
-		return err
-	}
-	e.SavedText = string(data)
-	return nil
+	data, _ := json.Marshal(e.Record)
+	return string(data)
 }
+
+// editorUpdate writes the open record as it changes: typing in any field
+// is written after editorDebounce (the returned tick), so a half-typed
+// status is never stored; any other change (an undo in normal mode) is
+// written at once, and so is a pending change when the focus moves or
+// insert mode ends.
+func (a *App) editorUpdate(msg tea.Msg) (tea.Cmd, error) {
+	e := a.editor
+	if e == nil {
+		return nil, nil
+	}
+	snap := e.snapshot()
+	typing := a.r.Mode.Name == "insert" && (a.r.Focus == recordInputID || strings.HasPrefix(a.r.Focus, recordInputID+"/"))
+	var cmd tea.Cmd
+	commit := false
+	if d, ok := msg.(editorDebounceMsg); ok && d.Seq == e.seq {
+		commit = true
+	}
+	if snap != e.seen {
+		e.seen = snap
+		e.seq++
+		if typing {
+			seq := e.seq
+			cmd = tea.Tick(editorDebounce, func(time.Time) tea.Msg { return editorDebounceMsg{seq} })
+		} else {
+			commit = true
+		}
+	}
+	if a.r.Focus != e.focus || !typing {
+		commit = true
+	}
+	e.focus = a.r.Focus
+	if commit && snap != e.committed {
+		return cmd, a.commitRecord()
+	}
+	return cmd, nil
+}
+
 func (a *App) beginEdit(record editRecord) error {
 	if err := a.leaveEditor(); err != nil {
 		return err
@@ -132,7 +181,7 @@ func (a *App) beginEdit(record editRecord) error {
 		names = []string{"status"}
 	}
 	if record.Noun != "note" {
-		row := ochazuke.Do("record-editor.save")
+		row := ochazuke.Do("record-editor.leave")
 		row.Instance, row.Mode, row.Keys = recordInputID, "insert", "enter"
 		if err := a.r.Bind(row); err != nil {
 			return err
@@ -145,15 +194,23 @@ func (a *App) beginEdit(record editRecord) error {
 			return err
 		}
 		e.Fields = append(e.Fields, editorField{name, field})
-		row := ochazuke.Do("record-editor.save")
+		row := ochazuke.Do("record-editor.leave")
 		row.Instance, row.Mode, row.Keys = field.ID, "insert", "enter"
 		if err := a.r.Bind(row); err != nil {
 			return err
 		}
 	}
 	input.Cursor = len(input.Text)
-	if err := a.autosave(); err != nil {
-		return err
+	e.focus = recordInputID
+	e.seen = e.snapshot()
+	if record.New {
+		// Record first: a new record exists from the moment it is opened,
+		// even with an empty title.
+		if err := a.commitRecord(); err != nil {
+			return err
+		}
+	} else {
+		e.committed = e.seen
 	}
 	if err := a.refreshProjects(); err != nil {
 		return err
@@ -182,18 +239,20 @@ func (a *App) openDraft(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	return resultError(a.beginEdit(record))
 }
-func (a *App) saveRecord(ochazuke.Ctx) ochazuke.Result {
-	if a.editor == nil {
-		return ochazuke.Failed(errors.New("no editor open"))
+
+// commitRecord writes the open record to the store; a new one is created
+// by its first write. A draft an older mtm left for it is removed once the
+// record is written.
+func (a *App) commitRecord() error {
+	e := a.editor
+	if e == nil {
+		return nil
 	}
-	if err := a.autosave(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	record := a.editor.Record
-	var value any
+	snap := e.snapshot()
+	record := e.Record
 	var err error
 	if save := a.editorSave[record.Noun]; save != nil {
-		value, err = save(record)
+		_, err = save(record)
 	} else {
 		switch record.Noun {
 		case "project":
@@ -208,7 +267,6 @@ func (a *App) saveRecord(ochazuke.Ctx) ochazuke.Result {
 			p.Theme = work.Theme{Color: record.Fields["color"], Glyph: record.Fields["glyph"]}
 			p.Settings = work.ProjectSettings{Harness: record.Fields["harness"], Preset: record.Fields["preset"]}
 			err = a.work.PutProject(p)
-			value = p
 		case "task":
 			t := work.Task{ID: record.ID, ProjectID: record.ProjectID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Status: work.StatusTodo, Created: work.Now()}
 			if record.New {
@@ -230,25 +288,45 @@ func (a *App) saveRecord(ochazuke.Ctx) ochazuke.Result {
 			}
 			t.Updated = work.Now()
 			err = a.work.PutTask(t)
-			value = t
 		default:
 			err = errors.New("unknown editor noun")
 		}
 	}
 	if err != nil {
-		return ochazuke.Failed(err)
+		return err
 	}
-	if err := a.finishEdit(record); err != nil {
-		return ochazuke.Failed(err)
+	if record.New {
+		e.Record.New = false
+		snap = e.snapshot()
 	}
-	return ochazuke.Done(value)
+	e.committed, e.seen = snap, snap
+	if err := a.drafts.Clear(record.Noun, record.ID); err != nil {
+		return err
+	}
+	if err := a.refreshProjects(); err != nil {
+		return err
+	}
+	if err := a.refreshTasks(); err != nil {
+		return err
+	}
+	if refresh := a.editorRefresh[record.Noun]; refresh != nil {
+		return refresh()
+	}
+	return nil
 }
-func (a *App) cancelRecord(ochazuke.Ctx) ochazuke.Result {
+
+// leaveRecord is q or esc in normal mode: the pending change is written
+// and the editor closes; nothing is discarded.
+func (a *App) leaveRecord(ochazuke.Ctx) ochazuke.Result {
 	if a.editor == nil {
 		return ochazuke.Done(nil)
 	}
+	if err := a.commitRecord(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	return resultError(a.finishEdit(a.editor.Record))
 }
+
 func resultError(err error) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -322,7 +400,7 @@ func (a *App) editorPanel(rightWidth, height int) ochazuke.Block {
 	if e.Record.Noun == "note" {
 		label = "text"
 	}
-	text := e.Record.Noun + " draft\n" + label + "\n"
+	text := "editing " + e.Record.Noun + " · written as you type\n" + label + "\n"
 	field := ochazuke.InputBlock(e.Input, rightWidth, max(1, height-3-len(e.Fields)*2)).Offset(0, 2)
 	text += field.Text
 	block := field
@@ -340,7 +418,7 @@ func (a *App) leaveEditor() error {
 	if a.editor == nil {
 		return nil
 	}
-	if err := a.autosave(); err != nil {
+	if err := a.commitRecord(); err != nil {
 		return err
 	}
 	if err := a.removeEditorInputs(); err != nil {
