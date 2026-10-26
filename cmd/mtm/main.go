@@ -376,6 +376,7 @@ func New(opts Options) (*App, error) {
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.configDir = configDir
 	a.dataPath = opts.Data
+	a.configure(opts, configDir)
 	a.feed, a.journalSrc, a.getenv = newJournalFeed(), client, os.Getenv
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
@@ -408,6 +409,9 @@ func New(opts Options) (*App, error) {
 	a.defineCapture()
 	a.defineSetup()
 	a.defineStore()
+	if err := a.declareSettings(); err != nil {
+		return nil, err
+	}
 	if err := a.defineKeyMap(); err != nil {
 		return nil, err
 	}

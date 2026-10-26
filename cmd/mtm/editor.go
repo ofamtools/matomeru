@@ -47,7 +47,8 @@ type recordEditor struct {
 	focus     string // the focus at the last update
 }
 
-// editorDebounce is how long typing pauses before the record is written.
+// editorDebounce is how long typing pauses before the record is written,
+// the edit-debounce setting's default (settings.go).
 const editorDebounce = 400 * time.Millisecond
 
 // editorDebounceMsg is the timer a pause in typing sets off: when Seq is
@@ -162,7 +163,7 @@ func (a *App) editorUpdate(msg tea.Msg) (tea.Cmd, error) {
 		e.seq++
 		if typing {
 			seq := e.seq
-			cmd = tea.Tick(editorDebounce, func(time.Time) tea.Msg { return editorDebounceMsg{seq} })
+			cmd = tea.Tick(a.editDebounce(), func(time.Time) tea.Msg { return editorDebounceMsg{seq} })
 		} else {
 			commit = true
 		}

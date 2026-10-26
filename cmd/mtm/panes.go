@@ -176,7 +176,7 @@ type paneUI struct {
 // Timers of the panes page.
 const (
 	followDelay  = 150 * time.Millisecond // the detail follows the selection after this pause
-	refreshEvery = 3 * time.Second        // the list reloads this often while the page is open
+	refreshEvery = 3 * time.Second        // the list reloads this often while the page is open (refresh-interval's default)
 )
 
 // followDue is the follow timer: when seq is still current, the detail
@@ -315,7 +315,7 @@ func (a *App) chooseAgent(ochazuke.Ctx) ochazuke.Result {
 // chooseHarness opens the harness chooser, p's harness (else the default)
 // first and highlighted; Enter runs launch with the chosen harness.
 func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Request) error {
-	first := cmp.Or(p.Settings.Harness, defaultHarness)
+	first := cmp.Or(p.Settings.Harness, a.launchHarness())
 	names := a.harnesses.Names()
 	slices.SortStableFunc(names, func(x, y string) int { return -cmp.Compare(btoi(x == first), btoi(y == first)) })
 	rows := make([]ochazuke.ChooserRow, 0, len(names))

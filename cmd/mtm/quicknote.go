@@ -217,7 +217,7 @@ func (a *App) quickNoteUpdate(msg tea.Msg) (tea.Cmd, error) {
 		q.seq++
 		if typing {
 			seq := q.seq
-			cmd = tea.Tick(editorDebounce, func(time.Time) tea.Msg { return quickNoteDebounceMsg{seq} })
+			cmd = tea.Tick(a.editDebounce(), func(time.Time) tea.Msg { return quickNoteDebounceMsg{seq} })
 		}
 	}
 	if commit {

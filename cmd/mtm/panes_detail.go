@@ -83,7 +83,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 	}
 	if a.r.Page == panesPage && !a.pv.armed && a.pv.after != nil {
 		a.pv.armed = true
-		cmds = append(cmds, a.pv.after(refreshEvery, refreshDue{}))
+		cmds = append(cmds, a.pv.after(a.refreshInterval(), refreshDue{}))
 	}
 	row, _ := a.selectedRow()
 	if key := fmt.Sprintf("%s|%d", row, a.pv.tab); row != "" && key != a.pv.followed && a.r.Terminal(paneTermID) == nil {

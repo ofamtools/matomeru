@@ -52,7 +52,7 @@ A harness is data, not code: `internal/harness` holds `Harness{name, command, mo
 
 ## Project pin and launch ownership
 
-`project pin ID` persists a project-only pin; `project unpin` persists an empty pin. `P` opens the pin picker from every page in normal mode. The title shows `Matomeru · PROJECT`. `S` (`scope all`) widens the current process's lists without changing the pin. `task list`, `pane list`, `session list`, and `review list` accept `--all`.
+`project pin ID` persists a project-only pin; `project unpin` persists an empty pin. `P` opens the pin picker from every page in normal mode. The title shows `Matomeru · PROJECT`. `S` (`scope all`) widens the current process's lists without changing the pin. `,` opens the settings editor (`settings edit`) from every page in normal mode; mtm declares `edit-debounce`, `refresh-interval` and `default-harness`, kept in `settings.json` in mtm's config directory beside `bindings.json`, `harnesses.json` and `dirs.json`. `task list`, `pane list`, `session list`, and `review list` accept `--all`.
 
 Generic `agent launch` and `pane new` use explicit task/project arguments, then the pin, never a merely browsed project, cwd, or last launch. `project launch`, `task launch`, and explicit CLI `--target` actions use the addressed record. Task ownership wins conflicting project arguments. Other record creation continues through `resolveOwner`: explicit arguments, selected record, pin, unassociated. Unknown associations remain unassociated with a notice.
 

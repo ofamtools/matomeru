@@ -15,7 +15,8 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
-// defaultHarness is the harness a launch starts when neither its harness
+// defaultHarness is the default-harness setting's default (settings.go):
+// the harness a launch starts when neither its harness
 // argument nor its project's settings name one. Harnesses are data
 // (internal/harness): the built-ins plus harnesses.json, in a.harnesses.
 const defaultHarness = "claude"
@@ -170,7 +171,7 @@ func (a *App) defineLaunch() {
 	// (harness.Model): the pick list is every harness's, the check is the
 	// one harness's, and a harness that lists none takes any model.
 	model := ochazuke.Parameter{Type: "string", Source: "harness.models", Free: true, Description: "Model for the harness's model flag; one of its models when it lists any (default: its first)"}
-	agent := ochazuke.Parameter{Type: "string", Enum: a.harnesses.Names(), Description: "Harness to start (default: the project's harness setting, else " + defaultHarness + ")"}
+	agent := ochazuke.Parameter{Type: "string", Enum: a.harnesses.Names(), Description: "Harness to start (default: the project's harness setting, else the default-harness setting, " + defaultHarness + " unless set)"}
 	task := ochazuke.Parameter{Type: "string", Description: "Task id; its title is the agent's first prompt"}
 	a.parameters("agent.launch", map[string]ochazuke.Parameter{
 		"harness": agent,
@@ -227,7 +228,7 @@ func (a *App) harnessFor(args ochazuke.Arguments, p work.Project) (harness.Harne
 		name = p.Settings.Harness
 	}
 	if name == "" {
-		name = defaultHarness
+		name = a.launchHarness()
 	}
 	h, err := a.harnesses.Lookup(name)
 	if err != nil {
