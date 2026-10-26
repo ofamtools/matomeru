@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -55,7 +56,7 @@ func TestPinPickerEnterPinsTopMatch(t *testing.T) {
 		t.Fatalf("top row not highlighted: %+v", row)
 	}
 	typeText(t, a, "chz")
-	if got := labels(c.Matches()); len(got) != 2 || got[0] != "◆ ochazuke" || got[1] != "no pin (unpin)" {
+	if got := labels(c.Matches()); strings.Join(got, "|") != `◆ ochazuke|+ new project "chz"|no pin (unpin)` {
 		t.Fatalf("filtered %q", got)
 	}
 	press(t, a, "enter")
@@ -93,25 +94,85 @@ func TestPinPickerMovedHighlightWins(t *testing.T) {
 	}
 }
 
-func TestPinPickerCreatesOnMissAndOnCtrlN(t *testing.T) {
+// projectCount is how many projects the store holds.
+func projectCount(t *testing.T, a *App) int {
+	t.Helper()
+	ps, err := a.work.Projects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(ps)
+}
+
+// With nothing matching, the create row is the only actionable row and is
+// highlighted: Enter records the project before the directory chooser.
+func TestPinPickerEnterOnNoMatchCreates(t *testing.T) {
 	a := open(t)
-	openPicker(t, a)
+	before := projectCount(t, a)
+	c := openPicker(t, a)
 	typeText(t, a, "zebra")
+	if row, ok := c.Highlighted(); !ok || row.ID != chooserCreateRow || row.Label != `+ new project "zebra"` {
+		t.Fatalf("highlight %+v", row)
+	}
 	press(t, a, "enter")
 	p, ok := a.project(a.pin)
-	if !ok || p.Name != "zebra" || a.r.TopModal() == pinPicker {
+	if !ok || p.Name != "zebra" || a.r.TopModal() == pinPicker || projectCount(t, a) != before+1 {
 		t.Fatalf("miss created %+v pin %q", p, a.pin)
 	}
 	leaveDirectoryChooser(t, a)
+}
+
+// ctrl+n and ctrl+p move like down and up; no key creates a project.
+func TestPinPickerCtrlNMovesAndNeverCreates(t *testing.T) {
+	a := open(t)
+	executeA(t, a, "project", "unpin", "work", nil)
+	before := projectCount(t, a)
 	c := openPicker(t, a)
-	typeText(t, a, "mato")
-	if len(c.Matches()) == 0 {
-		t.Fatal("mato should match matomeru")
+	typeText(t, a, "o")
+	if got := strings.Join(labels(c.Matches()), "|"); got != `◆ matomeru|◆ ochazuke|+ new project "o"|no pin (unpin)` {
+		t.Fatalf("rows %q", got)
 	}
 	press(t, a, "ctrl+n")
-	p, ok = a.project(a.pin)
-	if !ok || p.Name != "mato" || p.ID == "matomeru" {
-		t.Fatalf("ctrl+n created %+v pin %q", p, a.pin)
+	if row, _ := c.Highlighted(); row.Data != "ochazuke" || !c.Moved() {
+		t.Fatalf("ctrl+n highlight %+v", row)
+	}
+	press(t, a, "ctrl+n", "ctrl+n", "ctrl+n")
+	if row, _ := c.Highlighted(); row.ID != unpinRow {
+		t.Fatalf("ctrl+n clamps on the unpin row, got %+v", row)
+	}
+	press(t, a, "ctrl+p", "ctrl+p", "ctrl+p")
+	if row, _ := c.Highlighted(); row.Data != "matomeru" {
+		t.Fatalf("ctrl+p highlight %+v", row)
+	}
+	if n := projectCount(t, a); n != before || a.r.TopModal() != pinPicker || a.pin != "" {
+		t.Fatalf("projects %d want %d, modal %q pin %q", n, before, a.r.TopModal(), a.pin)
+	}
+	press(t, a, "enter")
+	if a.pin != "matomeru" || projectCount(t, a) != before {
+		t.Fatalf("pin %q projects %d", a.pin, projectCount(t, a))
+	}
+	leaveDirectoryChooser(t, a)
+}
+
+// A query that matches keeps the top match as Enter's target; moving onto
+// the create row and pressing Enter creates and pins.
+func TestPinPickerCreateRowCreatesAndPins(t *testing.T) {
+	a := open(t)
+	executeA(t, a, "project", "unpin", "work", nil)
+	before := projectCount(t, a)
+	c := openPicker(t, a)
+	typeText(t, a, "mato")
+	if row, _ := c.Highlighted(); row.Data != "matomeru" {
+		t.Fatalf("default %+v", row)
+	}
+	press(t, a, "ctrl+n")
+	if row, _ := c.Highlighted(); row.ID != chooserCreateRow {
+		t.Fatalf("ctrl+n onto %+v of %q", row, labels(c.Matches()))
+	}
+	press(t, a, "enter")
+	p, ok := a.project(a.pin)
+	if !ok || p.Name != "mato" || p.ID == "matomeru" || projectCount(t, a) != before+1 {
+		t.Fatalf("created %+v pin %q", p, a.pin)
 	}
 	leaveDirectoryChooser(t, a)
 }
@@ -146,10 +207,10 @@ func TestPinPickerUnpinRowIsFixedAndClearsPinAcrossRestart(t *testing.T) {
 		t.Fatal("unpin is the default")
 	}
 	typeText(t, a, "chz")
-	if got := strings.Join(labels(c.Matches()), "|"); got != "◆ ochazuke|no pin (unpin)" {
+	if got := strings.Join(labels(c.Matches()), "|"); got != `◆ ochazuke|+ new project "chz"|no pin (unpin)` {
 		t.Fatalf("chz rows %q", got)
 	}
-	press(t, a, "down")
+	press(t, a, "down", "down")
 	if row, _ := c.Highlighted(); row.ID != unpinRow {
 		t.Fatalf("down from the top match lands on %+v", row)
 	}
@@ -184,10 +245,13 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		a.m.Width, a.m.Height = width, 24
 		frame := ansi.Strip(a.View().Content)
-		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter chooser.pick", "ctrl+n chooser.new", "esc chooser.cancel"} {
+		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter chooser.pick", "esc chooser.cancel"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("at %d missing %q:\n%s", width, want, frame)
 			}
+		}
+		if strings.Contains(frame, "chooser.new") {
+			t.Fatalf("at %d a key still creates:\n%s", width, frame)
 		}
 		for i, line := range strings.Split(frame, "\n") {
 			if w := ansi.StringWidth(line); w > width {
@@ -196,16 +260,34 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 		}
 		t.Logf("frame at %d:\n%s", width, frame)
 	}
-	// With a query, the unpin row stays at the bottom; with no match, the
-	// create line sits above it.
+	// With a query, the create row sits above the unpin row, which stays
+	// at the bottom; with no match it is the highlighted row, and there is
+	// no separate "enter:" hint. The last frame has the highlight moved
+	// onto the create row while a project matches.
 	a.m.Width, a.m.Height = 80, 24
-	for _, query := range []string{"och", "zz"} {
+	for _, query := range []string{"och", "zz", "och+move"} {
 		press(t, a, "ctrl+u")
-		typeText(t, a, query)
+		typeText(t, a, strings.TrimSuffix(query, "+move"))
+		if query == "och+move" { // past ochazuke and matomeru
+			press(t, a, "ctrl+n", "ctrl+n")
+		}
 		frame := ansi.Strip(a.View().Content)
-		want := []string{"◆ ochazuke", "no pin (unpin)"}
+		want := []string{"◆ ochazuke", `+ new project "och"`, "no pin (unpin)"}
 		if query == "zz" {
-			want = []string{"no matches", `enter: new project "zz"`, "no pin (unpin)"}
+			want = []string{"no matches", `+ new project "zz"`, "no pin (unpin)"}
+		}
+		if strings.Contains(frame, "enter:") {
+			t.Fatalf("query %q shows a create hint beside the row:\n%s", query, frame)
+		}
+		body := strings.Split(c.View(60, 10).Text, "\n")
+		lit := "+ new project"
+		if query == "och" {
+			lit = "◆ ochazuke"
+		}
+		for _, line := range body {
+			if strings.Contains(line, "\x1b[7m") != strings.Contains(line, lit) {
+				t.Fatalf("query %q highlight on %q", query, body)
+			}
 		}
 		at := 0
 		for _, w := range want {
@@ -220,7 +302,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 				t.Fatalf("query %q line %d is %d wide", query, i, w)
 			}
 		}
-		t.Logf("frame at 80 with %q:\n%s", query, frame)
+		t.Logf("frame at 80 with %q:\n%s\nhighlight: %q", query, frame, ansi.Strip(body[slices.IndexFunc(body, func(l string) bool { return strings.Contains(l, "\x1b[7m") })]))
 	}
 }
 
@@ -352,10 +434,10 @@ func TestPinPickerTypingNeverSelectsUnpin(t *testing.T) {
 	for _, query := range []string{"no pin", "unpin"} {
 		c = openPicker(t, a)
 		typeText(t, a, query)
-		if row, ok := c.Highlighted(); ok {
+		if row, ok := c.Highlighted(); !ok || row.ID != chooserCreateRow {
 			t.Fatalf("%q highlights %+v", query, row)
 		}
-		if got := labels(c.Matches()); len(got) != 1 || got[0] != "no pin (unpin)" {
+		if got := labels(c.Matches()); len(got) != 2 || got[1] != "no pin (unpin)" {
 			t.Fatalf("%q rows %q", query, got)
 		}
 		press(t, a, "esc")

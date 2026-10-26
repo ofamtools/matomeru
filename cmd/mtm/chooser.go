@@ -14,8 +14,9 @@ import (
 
 // A chooser is a command-palette-shaped modal: a search input focused in
 // insert mode over a filtered list. Enter takes the top match unless the
-// highlight was moved, and creates from the query when nothing matches;
-// ctrl+n always creates. It knows nothing of the application: rows, the
+// highlight was moved, and creates from the query when nothing matches. No
+// key creates: with CreateRow, creating is a row the highlight moves onto.
+// It knows nothing of the application: rows, the
 // filter and the choose/create callbacks come from the caller, and its keys
 // are rows on its own noun, so it can move into ochazuke as a component.
 
@@ -41,9 +42,12 @@ type ChooserRow struct {
 // ChooserSpec opens a chooser. Kind is the modal's kind (one open chooser
 // per kind). Filter defaults to a fuzzy match on Label; matches whose label
 // holds the query whole come first, otherwise in Rows order. Create is optional;
-// without it Enter on no match fails. CreateLabel names what Enter or
-// ctrl+n would create from the query. Empty is the line shown while there
-// are no rows at all ("loading…").
+// without it Enter on no match fails. CreateLabel names what Enter would
+// create from the query. CreateRow shows that as a "+ <label>" row while
+// the query is not empty, after the matches and trailing rows and before
+// the fixed rows; typing never matches or ranks it, it is the default only
+// when nothing else matches, and Enter on it creates. Empty is the line
+// shown while there are no rows at all ("loading…").
 type ChooserSpec struct {
 	Kind        string
 	Title       string
@@ -52,8 +56,12 @@ type ChooserSpec struct {
 	Choose      func(ChooserRow) ochazuke.Result
 	Create      func(query string) ochazuke.Result
 	CreateLabel func(query string) string
+	CreateRow   bool
 	Empty       string
 }
+
+// chooserCreateRow is the ID of the create row (see ChooserSpec.CreateRow).
+const chooserCreateRow = "chooser:create"
 
 // Chooser is one open chooser.
 type Chooser struct {
@@ -91,7 +99,6 @@ func NewChoosers(r *ochazuke.Runtime, views map[string]ochazuke.ModalView) *Choo
 	}
 	r.Define(chooserNoun).Pin("insert").
 		Verb("pick", verb(cs.pick), "Take the highlighted row, else the top match, else create from the query").
-		Verb("new", verb(cs.create), "Create from the query even when rows match").
 		Verb("move", verb(func(c *Chooser, ctx ochazuke.Ctx) ochazuke.Result {
 			c.move(ochazuke.IntArg(ctx.Args, "delta", 0))
 			return ochazuke.Done(c.state())
@@ -99,11 +106,12 @@ func NewChoosers(r *ochazuke.Runtime, views map[string]ochazuke.ModalView) *Choo
 		Verb("cancel", verb(cs.cancel), "Close without choosing").
 		Mode("").
 		Bind("enter", ochazuke.Do("chooser.pick")).
-		Bind("ctrl+n", ochazuke.Do("chooser.new")).
 		Bind("esc", ochazuke.Do("chooser.cancel")).
 		Bind("down", ochazuke.Do("chooser.move", ochazuke.Arguments{"delta": 1})).
 		Bind("ctrl+j", ochazuke.Do("chooser.move", ochazuke.Arguments{"delta": 1})).
+		Bind("ctrl+n", ochazuke.Do("chooser.move", ochazuke.Arguments{"delta": 1})).
 		Bind("up", ochazuke.Do("chooser.move", ochazuke.Arguments{"delta": -1})).
+		Bind("ctrl+p", ochazuke.Do("chooser.move", ochazuke.Arguments{"delta": -1})).
 		Bind("ctrl+k", ochazuke.Do("chooser.move", ochazuke.Arguments{"delta": -1})).
 		Pattern(ochazuke.Printable, ochazuke.Do("input.insert").FromPayload("text", ochazuke.SourceText)).
 		Pattern(ochazuke.Paste, ochazuke.Do("input.insert").FromPayload("text", ochazuke.SourceText))
@@ -163,7 +171,7 @@ func (cs *Choosers) close(c *Chooser) error {
 
 func (cs *Choosers) pick(c *Chooser, _ ochazuke.Ctx) ochazuke.Result {
 	row, ok := c.Highlighted()
-	if !ok {
+	if !ok || row.ID == chooserCreateRow {
 		return cs.create(c, ochazuke.Ctx{})
 	}
 	if err := cs.close(c); err != nil {
@@ -207,7 +215,7 @@ func (c *Chooser) SetRows(rows []ChooserRow) {
 func (c *Chooser) Query() string { return string(c.input.Text) }
 
 // Matches are the rows the query keeps: matches first, then trailing rows,
-// then the fixed rows.
+// then the create row, then the fixed rows.
 func (c *Chooser) Matches() []ChooserRow {
 	c.sync()
 	return append([]ChooserRow(nil), c.matches...)
@@ -271,12 +279,27 @@ func (c *Chooser) refilter() {
 			break
 		}
 	}
-	c.matches = append(append(head, tail...), fixed...)
+	var create []ChooserRow
+	if label, ok := c.createRow(); ok {
+		create = []ChooserRow{{ID: chooserCreateRow, Label: label}}
+	}
+	c.matches = slices.Concat(head, tail, create, fixed)
 	c.moved = false
 	c.cursor = -1
-	if len(head) > 0 || c.seen != "" && len(tail) > 0 {
+	switch {
+	case len(head) > 0 || c.seen != "" && len(tail) > 0:
 		c.cursor = 0
+	case len(create) > 0: // nothing else matches: Enter creates
+		c.cursor = len(head) + len(tail)
 	}
+}
+
+// createRow is the create row's label, when the chooser shows one.
+func (c *Chooser) createRow() (string, bool) {
+	if !c.spec.CreateRow || c.spec.Create == nil || c.spec.CreateLabel == nil || strings.TrimSpace(c.seen) == "" {
+		return "", false
+	}
+	return "+ " + c.spec.CreateLabel(c.seen), true
 }
 
 // move steps the highlight, clamped; from none, down lands on the first row
@@ -345,11 +368,12 @@ func (c *Chooser) View(width, height int) ochazuke.Block {
 	return line.WithText(strings.Join(lines, "\n"))
 }
 
-// matched counts the rows the query kept, leaving out the fixed rows.
+// matched counts the rows the query kept, leaving out the create and fixed
+// rows.
 func (c *Chooser) matched() int {
 	n := 0
 	for _, row := range c.matches {
-		if !row.Fixed {
+		if !row.Fixed && row.ID != chooserCreateRow {
 			n++
 		}
 	}

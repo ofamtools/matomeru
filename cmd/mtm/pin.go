@@ -45,8 +45,9 @@ const unpinRow = "pin-choice:none"
 // openPinPicker opens the pin chooser: projects most recently pinned first,
 // then by name, each with its directory; "no pin (unpin)" fixed at the
 // bottom, which typing never reaches (move onto it). Enter pins the top
-// match, or creates a project named from the query when none matches;
-// ctrl+n always creates.
+// match. No key creates: a typed query adds a `+ new project "<query>"` row
+// above the unpin row, highlighted only when nothing matches; Enter on it
+// creates the project and pins it.
 func (a *App) openPinPicker() ochazuke.Result {
 	pinned, err := a.work.PinnedAt()
 	if err != nil {
@@ -91,7 +92,8 @@ func (a *App) openPinPicker() ochazuke.Result {
 			id, _ := row.Data.(string)
 			return a.pinAndAskDirectory(id)
 		},
-		Create: a.createPinnedProject,
+		Create:    a.createPinnedProject,
+		CreateRow: true,
 		CreateLabel: func(query string) string {
 			if strings.TrimSpace(query) == "" {
 				return "new untitled project"

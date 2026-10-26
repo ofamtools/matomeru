@@ -830,6 +830,7 @@ func (a *App) attachOrAsk(path string) ochazuke.Result {
 			return a.attachDirectory(p.ID, path)
 		},
 		CreateLabel: func(query string) string { return fmt.Sprintf("new project %q", strings.TrimSpace(query)) },
+		CreateRow:   true,
 	})
 	return resultError(err)
 }
