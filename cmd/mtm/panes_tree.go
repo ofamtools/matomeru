@@ -26,11 +26,15 @@ const (
 )
 
 // paneTreeColumns are the tree's table: the pane (indented by the tree,
-// its state glyph first) and its short state. The harness, model, cwd and
-// owner are the detail's header line (paneHeader), so the tree stays lean.
+// its state glyph first), its short state and the compact status line
+// (context used and cost), which is there only while some row has one
+// (paneView.usage) and drops first when the tree is narrow. The
+// harness, model, effort, permission mode, cwd and owner are the detail's
+// header line (paneHeader), so the tree stays lean.
 var paneTreeColumns = []ochazuke.Column{
 	{Title: "pane", Min: 16},
 	{Title: "state", Priority: 1},
+	{Title: "use", Priority: 2},
 }
 
 // isAgent is the old app's rule: a pane with a harness, or one whose agent
@@ -195,6 +199,16 @@ type paneView struct {
 	hidden  int
 	order   []string          // pane row ids in display order (j/k inside live)
 	owners  map[string]string // window → its owning project ("" unassociated)
+	usage   bool              // some pane row has a usage cell (the "use" column)
+}
+
+// columns are the tree's columns for this view: the "use" column only
+// while some row fills it, so an empty one never takes the pane's room.
+func (v paneView) columns() []ochazuke.Column {
+	if v.usage {
+		return paneTreeColumns
+	}
+	return paneTreeColumns[:2]
 }
 
 // buildPaneTree groups the panes by owner and session, in scope, with the
@@ -309,7 +323,9 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 				if p.SideTerm != "" {
 					name += " t"
 				}
-				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now)}})
+				use := p.usageCell()
+				view.usage = view.usage || use != ""
+				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}})
 				view.order = append(view.order, p.rowID())
 			}
 		}

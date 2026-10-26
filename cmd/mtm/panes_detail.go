@@ -753,42 +753,61 @@ func (a *App) paneHeader(p pane) string {
 }
 
 // statusFields are an agent's status-line facts in order: model, effort,
-// permission mode, context used and cost. tuios metadata (fed by the
-// harness's status line, a protocol pane or set-agent-meta) wins over the
-// launch recipe, which knows the model and the flags mtm started it with.
+// permission mode, context used and cost, each only when something states
+// it. The daemon reports model, context and cost (tuios metadata, fed by
+// the harness's status line or a protocol pane); no feed reports effort or
+// the permission mode, so those come only from the launch recipe, the
+// flags mtm started the agent with, as does the model when the daemon has
+// none.
 func (p pane) statusFields() []string {
-	meta := func(keys ...string) string {
-		for _, k := range keys {
-			if v := p.Meta[k]; v != "" {
-				return v
-			}
-		}
-		return ""
-	}
 	var out []string
-	if model := cmp.Or(meta("model"), p.Model); model != "" {
+	if model := cmp.Or(p.Meta["model"], p.Model); model != "" {
 		out = append(out, model)
 	}
-	if effort := cmp.Or(meta("effort", "reasoning_effort"), launchFlag(p.LaunchFlags, "--effort")); effort != "" {
+	if effort := launchFlag(p.LaunchFlags, "--effort"); effort != "" {
 		out = append(out, "effort "+effort)
 	}
-	perm := cmp.Or(meta("permission_mode", "permissions"), launchFlag(p.LaunchFlags, "--permission-mode"))
+	perm := launchFlag(p.LaunchFlags, "--permission-mode")
 	if perm == "" && slices.Contains(p.LaunchFlags, "--dangerously-skip-permissions") {
 		perm = "bypassPermissions"
 	}
 	if perm != "" {
 		out = append(out, "perms "+perm)
 	}
-	if ctx := meta("context"); ctx != "" {
+	if ctx := p.Meta["context"]; ctx != "" {
 		out = append(out, "ctx "+ctx)
 	}
-	if cost := meta("cost"); cost != "" {
-		if !strings.HasPrefix(cost, "$") {
-			cost = "cost " + cost
-		}
+	if cost := p.costText(); cost != "" {
 		out = append(out, cost)
 	}
 	return out
+}
+
+// costText is the daemon's cost as written ("$1.20"), "cost 1.2" when a
+// feed wrote a bare number; "" when none reported it.
+func (p pane) costText() string {
+	cost := p.Meta["cost"]
+	if cost != "" && !strings.HasPrefix(cost, "$") {
+		cost = "cost " + cost
+	}
+	return cost
+}
+
+// usageCell is the status line's compact form for the tree: context used
+// and cost, as the daemon reports them ("42% $1.20"); "" for a shell or
+// an agent nothing has reported on.
+func (p pane) usageCell() string {
+	if !p.isAgent() || p.Exited {
+		return ""
+	}
+	var parts []string
+	if ctx := p.Meta["context"]; ctx != "" {
+		parts = append(parts, ctx)
+	}
+	if cost := p.costText(); cost != "" {
+		parts = append(parts, cost)
+	}
+	return strings.Join(parts, " ")
 }
 
 // launchFlag is the value of flag in argv, given as "--flag v" or

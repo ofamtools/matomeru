@@ -418,6 +418,7 @@ func (a *App) setPanes(panes []pane, err error) {
 	a.recordTurns(panes)
 	a.pv.view = a.buildPaneTree(panes, time.Now())
 	before, hadRow := a.pv.tree.Selected()
+	a.paneList.SetColumns(a.pv.view.columns()...)
 	if err := a.pv.tree.SetNodes(a.pv.view.nodes); err != nil {
 		a.paneErr = err.Error()
 	}
