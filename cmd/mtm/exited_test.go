@@ -104,3 +104,22 @@ func TestVimStateFollowsWindows(t *testing.T) {
 		t.Fatalf("gone window: %s", got)
 	}
 }
+
+// While live, the detail header follows each listing: the agent's state
+// and the shell's cwd are the daemon's latest, not attach time's.
+func TestLiveHeaderFollowsListing(t *testing.T) {
+	a, f := panesApp(t)
+	runOnce(a, key(t, a, "enter"))
+	if a.attached.ID != "w1" {
+		t.Fatalf("attached %+v", a.attached)
+	}
+	f.panes[0].AgentState, f.panes[0].Harness, f.panes[0].Cwd = "needs_input", "claude", "/work/internal"
+	a.setPanes(f.panes, nil)
+	head := a.paneHeader(a.attached)
+	if !strings.Contains(head, "needs input") || !strings.Contains(head, "/work/internal") {
+		t.Fatalf("stale live header: %q", head)
+	}
+	if a.r.Terminal(paneTermID) == nil || len(f.streams) != 1 || f.streams[0].released {
+		t.Fatal("the refresh disturbed the live terminal")
+	}
+}

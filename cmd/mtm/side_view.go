@@ -93,6 +93,14 @@ func (a *App) syncSideView() error {
 	if a.attached.ID == "" || a.r.Terminal(paneTermID) == nil {
 		return a.closeSideTerminal()
 	}
+	// The attached pane's facts (state, cwd, meta) follow each listing, so
+	// the live header stays current; the stream keeps its own copy.
+	for _, q := range a.panes {
+		if q.ID == a.attached.ID {
+			a.attached = q
+			break
+		}
+	}
 	p := a.sideFields(a.attached)
 	s := sideState{p.SideVim, p.SideTerm, p.ShowVim, p.ShowTerm, p.SideFront}
 	if _, ok := a.companionPanes[s.SideVim]; !ok {
