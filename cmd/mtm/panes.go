@@ -92,6 +92,8 @@ type pane struct {
 	SideVim, SideTerm string
 	ShowVim, ShowTerm bool
 	SideFront         string
+	Exited            bool   `json:"exited,omitempty"`  // the window's process ended; TUIOS still lists it
+	Program           string `json:"program,omitempty"` // what mtm knows runs in a shell pane ("vim"), else ""
 	daemon.Pane
 }
 
@@ -171,6 +173,8 @@ type paneUI struct {
 	turnsFor   string // the pane row the Turns tree shows
 	events     chan struct{}
 	subscribed bool
+	exited     map[string]bool // windows seen exited, kept across plain listings
+	listed     bool            // a listing has succeeded (the Vim page's state follows it)
 }
 
 // Timers of the panes page.
@@ -278,10 +282,11 @@ func (a *App) addPanesPage() error {
 
 // refreshPanes is panes.refresh: list the panes off the loop, then push them.
 func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
-	d := a.panesd
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		return sideListing(c, d, a.work)
-	}).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
+	d, ws := a.panesd, a.work
+	// The lock keeps the listing's link cleanup from racing a side launch.
+	return ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
+		return sideListing(c, d, ws)
+	})).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
 		panes, _ := v.([]pane)
 		a.setPanes(panes, err)
 	})
@@ -332,6 +337,8 @@ func (a *App) setPanes(panes []pane, err error) {
 		}
 	}
 	if err == nil {
+		a.pv.listed = true
+		a.markPanes(panes)
 		var mergeErr error
 		panes, mergeErr = a.mergeCompanions(panes)
 		if mergeErr != nil {
@@ -362,6 +369,53 @@ func (a *App) setPanes(panes []pane, err error) {
 	}
 	if err := a.syncSideView(); err != nil {
 		a.paneErr = err.Error()
+	}
+	if err := a.refreshVim(); err != nil {
+		a.paneErr = err.Error()
+	}
+}
+
+// markPanes keeps what the listing alone does not say: a window seen
+// exited stays exited (a plain listing after a launch or kill does not
+// probe), and a window mtm opened Neovim in is a vim pane, not a shell.
+func (a *App) markPanes(panes []pane) {
+	if a.pv.exited == nil {
+		a.pv.exited = map[string]bool{}
+	}
+	vim := map[string]bool{}
+	if sessions, err := a.work.VimSessions(); err == nil {
+		for _, s := range sessions {
+			if s.WindowID != "" {
+				vim[s.WindowID] = true
+			}
+		}
+	}
+	if links, err := a.work.Companions(); err == nil {
+		for _, link := range links {
+			if link.Kind == "vim" {
+				vim[link.Window] = true
+			}
+		}
+	}
+	seen := make(map[string]bool, len(panes))
+	for i := range panes {
+		id := panes[i].ID
+		if id == "" {
+			continue
+		}
+		seen[id] = true
+		if panes[i].Exited {
+			a.pv.exited[id] = true
+		}
+		panes[i].Exited = a.pv.exited[id]
+		if vim[id] {
+			panes[i].Program = "vim"
+		}
+	}
+	for id := range a.pv.exited {
+		if !seen[id] {
+			delete(a.pv.exited, id)
+		}
 	}
 }
 
@@ -661,6 +715,20 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 		}
 	}
 	return out, nil
+}
+
+// Exited reports whether the window's process has ended: wait-for
+// window-exit answers at once for an exited window and times out after a
+// millisecond for a running one.
+func (t tuios) Exited(ctx context.Context, p pane) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	err := t.WaitFor(ctx, daemon.WaitForParams{Session: p.Session, Window: p.ID, Condition: "window-exit", Timeout: 1})
+	var remote *daemon.Error
+	if errors.As(err, &remote) && remote.Code == "timeout" {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // CapturePane is the pane's visible screen with its colours.

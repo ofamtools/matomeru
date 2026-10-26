@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
@@ -106,8 +107,8 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		parent := pane{}
 		live := make(map[string]bool, len(panes))
 		for _, row := range panes {
-			live[row.ID] = true
-			if row.ID == p.ID {
+			live[row.ID] = !row.Exited
+			if row.ID == p.ID && !row.Exited {
 				parent = row
 			}
 		}
@@ -245,7 +246,7 @@ func (a *App) checkCompanions(ctx context.Context, parent string) error {
 	live := make(map[string]bool, len(panes))
 	labels := make(map[string]string, len(panes))
 	for _, p := range panes {
-		live[p.ID] = true
+		live[p.ID] = !p.Exited
 		labels[p.ID] = p.label()
 	}
 	links, err = a.work.ReconcileCompanions(live)
@@ -325,38 +326,102 @@ func recordedEnvironment(recipe work.PaneRecipe) map[string]string {
 	return env
 }
 
-// Detached TUIOS windows can remain listed after their process exits.
-// Probe only linked windows and parents; a timeout means the process is alive.
+// exitProber is a daemon that can tell whether a window's process has
+// exited: TUIOS keeps a detached window listed after its program ends.
+type exitProber interface {
+	Exited(ctx context.Context, p pane) (bool, error)
+}
+
+// probeLimit is how many exit probes run at once.
+const probeLimit = 8
+
+// sideListing lists the panes and marks the windows whose process exited.
+// An exited side pane is closed and its link dropped (vim and terminal
+// alike), so it never comes back as a plain row; any other exited window
+// stays listed, marked Exited, until someone kills it. Links whose window
+// or parent is gone are dropped too; a side pane whose parent exited
+// becomes an ordinary pane. Callers that may race a side launch hold the
+// side lock.
 func sideListing(ctx context.Context, pd paneDaemon, ws *work.Store) ([]pane, error) {
 	panes, err := pd.ListPanes(ctx)
 	if err != nil {
 		return nil, err
 	}
-	real, ok := pd.(tuios)
-	if !ok {
-		return panes, nil
-	}
 	links, err := ws.Companions()
 	if err != nil {
 		return nil, err
 	}
-	linked := make(map[string]bool, len(links)*2)
+	exited, gone := probeExits(ctx, pd, panes)
+	side := make(map[string]bool, len(links))
 	for _, link := range links {
-		linked[link.Window], linked[link.Parent] = true, true
+		side[link.Window] = true
 	}
 	out := panes[:0]
+	live := make(map[string]bool, len(panes))
 	for _, p := range panes {
-		if linked[p.ID] {
-			err := real.WaitFor(ctx, daemon.WaitForParams{Session: p.Session, Window: p.ID, Condition: "window-exit", Timeout: 1})
-			if err == nil {
+		if gone[p.ID] {
+			continue
+		}
+		if exited[p.ID] {
+			if side[p.ID] {
+				// The side pane's program ended (exit, :qa!): close the
+				// window mtm opened rather than leave a dead row behind.
+				if err := pd.KillPane(ctx, p); err != nil {
+					var remote *daemon.Error
+					if !errors.As(err, &remote) || remote.Code != "window_not_found" {
+						return nil, fmt.Errorf("close exited side pane %s: %w", p.label(), err)
+					}
+				}
 				continue
 			}
-			var remote *daemon.Error
-			if !errors.As(err, &remote) || remote.Code != "timeout" {
-				return nil, err
-			}
+			p.Exited = true
+		}
+		if p.ID != "" && !p.Exited {
+			live[p.ID] = true
 		}
 		out = append(out, p)
 	}
+	if len(links) > 0 {
+		if _, err := ws.ReconcileCompanions(live); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
+}
+
+// probeExits asks the daemon, a few windows at a time, which windows'
+// processes have exited and which windows are gone. A daemon that cannot
+// tell (a test fake) reports none; a probe that fails leaves its window
+// counted as running.
+func probeExits(ctx context.Context, pd paneDaemon, panes []pane) (exited, gone map[string]bool) {
+	exited, gone = map[string]bool{}, map[string]bool{}
+	prober, ok := pd.(exitProber)
+	if !ok {
+		return exited, gone
+	}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, probeLimit)
+	for _, p := range panes {
+		if p.ID == "" {
+			continue
+		}
+		wg.Add(1)
+		slots <- struct{}{}
+		go func(p pane) {
+			defer func() { <-slots; wg.Done() }()
+			dead, err := prober.Exited(ctx, p)
+			var remote *daemon.Error
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case errors.As(err, &remote) && remote.Code == "window_not_found":
+				gone[p.ID] = true
+			case err == nil && dead:
+				exited[p.ID] = true
+			}
+		}(p)
+	}
+	wg.Wait()
+	return exited, gone
 }

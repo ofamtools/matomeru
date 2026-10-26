@@ -40,10 +40,15 @@ func (p pane) isAgent() bool {
 }
 
 // needsInput reports whether the pane waits on the person.
-func (p pane) needsInput() bool { return p.AgentState == "needs_input" || p.NeedsYou }
+func (p pane) needsInput() bool {
+	return !p.Exited && (p.AgentState == "needs_input" || p.NeedsYou)
+}
 
 // stateGlyph is the agent's state as one cell; a shell has none.
 func stateGlyph(p pane) string {
+	if p.Exited {
+		return "×"
+	}
 	if !p.isAgent() {
 		return " "
 	}
@@ -61,13 +66,15 @@ func stateGlyph(p pane) string {
 }
 
 // kind is what runs in the pane: the harness, "agent" for an agent of no
-// known harness, else "shell".
+// known harness, the program mtm started in it ("vim"), else "shell".
 func (p pane) kind() string {
 	switch {
 	case p.Harness != "":
 		return p.Harness
 	case p.isAgent():
 		return "agent"
+	case p.Program != "":
+		return p.Program
 	}
 	return "shell"
 }
@@ -89,8 +96,11 @@ func (p pane) baseName() string {
 // stateCell is the tree's short state: "working 2m", "needs input",
 // "shell". The harness is the detail header's.
 func (p pane) stateCell(now time.Time) string {
-	if !p.isAgent() {
-		return "shell"
+	switch {
+	case p.Exited:
+		return "exited"
+	case !p.isAgent():
+		return p.kind()
 	}
 	cell := p.stateWord()
 	if p.StateAt > 0 {
@@ -102,6 +112,9 @@ func (p pane) stateCell(now time.Time) string {
 // stateWord is an agent's state in words: "working", "needs input",
 // "agent" for an agent with no state.
 func (p pane) stateWord() string {
+	if p.Exited {
+		return "exited"
+	}
 	state := p.AgentState
 	if state == "" || state == "none" {
 		state = "agent"

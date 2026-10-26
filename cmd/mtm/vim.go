@@ -68,7 +68,10 @@ func (a *App) addVimPage() error {
 	return a.refreshVim()
 }
 
-func (a *App) vimRows() ([]ocli.Row, error) {
+func (a *App) vimRows() ([]ocli.Row, error) { return a.vimRowsWith(a.vimState) }
+
+// vimRowsWith is the rows in scope, each session's state from state.
+func (a *App) vimRowsWith(state func(work.VimSession) string) ([]ocli.Row, error) {
 	sessions, err := a.work.VimSessions()
 	if err != nil {
 		return nil, err
@@ -86,10 +89,35 @@ func (a *App) vimRows() ([]ocli.Row, error) {
 		if label == "" {
 			label = "untitled"
 		}
+		session.State = state(session)
 		rows = append(rows, ocli.Row{Noun: "vim", ID: session.ID, Label: label,
 			Cells: []string{label, a.ownerLabel(project), session.State, session.Path}, Data: session})
 	}
 	return rows, nil
+}
+
+// vimState is a session's state from the last pane listing: running
+// while its window is listed and its Neovim has not exited, else closed.
+// Before any listing it is the stored state.
+func (a *App) vimState(session work.VimSession) string {
+	if !a.pv.listed {
+		return session.State
+	}
+	if session.WindowID != "" {
+		p, ok := a.companionPanes[session.WindowID]
+		if !ok {
+			for _, q := range a.panes {
+				if q.ID == session.WindowID {
+					p, ok = q, true
+					break
+				}
+			}
+		}
+		if ok && !p.Exited {
+			return "running"
+		}
+	}
+	return "closed"
 }
 
 func (a *App) refreshVim() error {
@@ -108,6 +136,39 @@ func (a *App) refreshVim() error {
 }
 
 func (a *App) listVim(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.cli {
+		// The CLI has no pane listing: read the daemon off the loop, so
+		// the state column says which windows still run.
+		// A daemon that does not answer leaves the stored states.
+		d, all := a.panesd, a.all
+		if v, _ := ctx.Args["all"].(bool); v {
+			all = true
+		}
+		return ochazuke.Pending(func(c context.Context) (any, error) {
+			state := func(s work.VimSession) string { return s.State }
+			if panes, err := d.ListPanes(c); err == nil {
+				exited, _ := probeExits(c, d, panes)
+				running := map[string]bool{}
+				for _, p := range panes {
+					running[p.ID] = !exited[p.ID]
+				}
+				state = func(s work.VimSession) string {
+					if running[s.WindowID] {
+						return "running"
+					}
+					return "closed"
+				}
+			}
+			previous := a.all
+			a.all = all
+			defer func() { a.all = previous }()
+			return a.vimRowsWith(state)
+		})
+	}
+	// r also asks the daemon again; the rows follow its listing.
+	if err := a.reloadPanes(); err != nil {
+		a.m.Status = err.Error()
+	}
 	if err := a.refreshVim(); err != nil {
 		return ochazuke.Failed(err)
 	}

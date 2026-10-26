@@ -558,7 +558,10 @@ func (a *App) paneHeader(p pane) string {
 	if p.Cwd != "" {
 		parts = append(parts, tildePath(p.Cwd, home))
 	}
-	if p.isAgent() {
+	switch {
+	case p.Exited:
+		parts = append(parts, "exited · x closes it")
+	case p.isAgent():
 		parts = append(parts, p.stateWord())
 		if p.StateAt > 0 {
 			parts = append(parts, age(time.Since(time.UnixMilli(p.StateAt))))
@@ -681,7 +684,7 @@ func (a *App) subscribeEvents() tea.Cmd {
 	a.pv.subscribed = true
 	a.pv.events = make(chan struct{}, 1)
 	go func() {
-		types := []string{"window-created", "window-closed", "window-retitled", "agent-state", "session-created", "session-closed"}
+		types := []string{"window-created", "window-closed", "window-exit", "window-retitled", "agent-state", "session-created", "session-closed"}
 		for {
 			events, failures := a.daemon.Subscribe(context.Background(), types, 0, "")
 			for range events {

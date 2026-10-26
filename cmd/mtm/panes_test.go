@@ -25,6 +25,12 @@ type fakePanes struct {
 	captured []string
 	killed   []string
 	streams  []*fakeStream
+	exited   map[string]bool // windows whose process ended but stay listed
+}
+
+// Exited is the fake's exit probe: the windows marked in exited.
+func (f *fakePanes) Exited(_ context.Context, p pane) (bool, error) {
+	return f.exited[p.ID], nil
 }
 
 func newFakePanes() *fakePanes {
