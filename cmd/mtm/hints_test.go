@@ -86,7 +86,10 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 			break
 		}
 	}
-	if !strings.HasPrefix(first, "enter task.open "+rows[0].Description[:10]) {
+	// The help wraps a long description in its column, so compare the
+	// description's first words, not a fixed prefix.
+	want := "enter task.open " + strings.Join(strings.Fields(rows[0].Description)[:2], " ")
+	if !strings.HasPrefix(first, want) {
 		t.Fatalf("help modal's selected first row = %q\n%s", first, strings.Join(lines, "\n"))
 	}
 	press(t, app, "esc")
