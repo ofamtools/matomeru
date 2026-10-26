@@ -68,3 +68,27 @@ func TestNoticesClearOnNextKeyOrAfterLinger(t *testing.T) {
 		t.Fatalf("linger kept: %q", app.m.Notices)
 	}
 }
+
+// ctrl+a ? lists the leader keys, not the terminal's generic help; esc
+// closes it and the pane stays live.
+func TestLeaderQuestionListsLeaderKeys(t *testing.T) {
+	a, _ := panesApp(t)
+	runOnce(a, key(t, a, "enter"))
+	press(t, a, "ctrl+a", "?")
+	if a.r.TopModal() != leaderModal {
+		t.Fatalf("ctrl+a ? opened %q", a.r.TopModal())
+	}
+	fr := frame(a)
+	for _, want := range []string{"Leader keys", "ctrl+a v", "ctrl+a t", "ctrl+a d", "ctrl+a z", "ctrl+a j", "ctrl+a k", "ctrl+a ?", "ctrl+a ctrl+a"} {
+		if !strings.Contains(fr, want) {
+			t.Fatalf("missing %q:\n%s", want, fr)
+		}
+	}
+	if strings.Contains(fr, "pending mode") {
+		t.Fatalf("generic help shown:\n%s", fr)
+	}
+	press(t, a, "esc")
+	if a.r.TopModal() != "" || a.r.Focus != paneTermID {
+		t.Fatalf("esc: modal %q focus %s", a.r.TopModal(), a.r.Focus)
+	}
+}

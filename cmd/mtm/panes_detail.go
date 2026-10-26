@@ -316,6 +316,7 @@ func (a *App) defineLiveKeys() {
 		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list").
 		Verb("side", a.sidePane, "Open or focus this pane's side vim or terminal").
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
+		Verb("keys", a.leaderKeys, "Show the leader keys (ctrl+a then one key) in a small modal").
 		Mode("terminal").
 		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · ? keys")).
 		Mode("leader_pending").
@@ -325,9 +326,83 @@ func (a *App) defineLiveKeys() {
 		Bind("z", ochazuke.Do("terminal.zoom")).
 		Bind("j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1})).
 		Bind("k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1})).
-		Bind("?", ochazuke.Do("bindings.help"))
+		Bind("?", ochazuke.Do("terminal.keys"))
+	a.leaderView()
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
 	a.parameters("terminal.side", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true, Enum: []string{"vim", "term"}}})
+}
+
+const (
+	leaderModal = "leader-keys"
+	leaderList  = leaderModal + "/list"
+)
+
+// leaderWords say what each leader key does, in the order the modal
+// lists them; a leader row not named here shows its operation's
+// description.
+var leaderWords = []struct{ key, text string }{
+	{"v", "side vim: open it, focus it, or back to the pane"},
+	{"t", "side terminal: open it, focus it, or back to the pane"},
+	{"d", "close the front side, then detach"},
+	{"z", "zoom the pane to the page, or back"},
+	{"j", "next pane, live"},
+	{"k", "previous pane, live"},
+	{"?", "these keys"},
+	{"ctrl+a", "send ctrl+a to the pane"},
+}
+
+// leaderKeys is terminal.keys (ctrl+a ?): the leader table's rows in a
+// small modal, key and what it does; esc closes it and the pane stays
+// live. The rows come from the leader_pending bindings, so a rebound key
+// shows as bound.
+func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
+	bound := map[string]ochazuke.Binding{}
+	var order []string
+	if n := a.r.Noun("terminal"); n != nil {
+		for _, b := range n.Bindings["leader_pending"] {
+			if b.Keys == "" || b.Hidden || b.Unbind {
+				continue
+			}
+			if _, seen := bound[b.Keys]; !seen {
+				order = append(order, b.Keys)
+			}
+			bound[b.Keys] = b
+		}
+	}
+	var items []ochazuke.ListItem
+	add := func(key, text string) {
+		items = append(items, ochazuke.ListItem{ID: leaderModal + "/" + key, Noun: "binding", Label: fmt.Sprintf("ctrl+a %-6s  %s", key, text)})
+		delete(bound, key)
+	}
+	for _, w := range leaderWords {
+		if _, ok := bound[w.key]; ok {
+			add(w.key, w.text)
+		}
+	}
+	for _, key := range order {
+		if b, ok := bound[key]; ok {
+			add(key, a.r.Operations[b.Request.Key()].Description)
+		}
+	}
+	if _, err := a.r.OpenModal(leaderModal, ochazuke.Payload{}); err != nil {
+		return ochazuke.Failed(err)
+	}
+	list, err := a.r.AddList(leaderList, items, ochazuke.Parent(leaderModal))
+	if err != nil {
+		_ = a.r.Pop()
+		return ochazuke.Failed(err)
+	}
+	return resultError(list.Focus())
+}
+
+// leaderView draws the leader keys modal.
+func (a *App) leaderView() {
+	a.m.ModalViews[leaderModal] = ochazuke.ModalView{Title: "Leader keys · esc closes", Render: func(r *ochazuke.Runtime, _ *ochazuke.Instance, w, h int) ochazuke.Block {
+		if l := r.List(leaderList); l != nil {
+			return ochazuke.Text(l.View(w, h))
+		}
+		return ochazuke.Text("")
+	}}
 }
 
 // toggleZoom is terminal.zoom.
