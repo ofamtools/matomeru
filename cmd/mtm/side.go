@@ -27,7 +27,8 @@ func (a *App) defineSides() {
 		"pane": {Type: "string", Description: "The parent's window id (as pane list prints it), instead of --target pane:SESSION/WINDOW"},
 	})
 	a.r.Define("app").
-		Verb("close", a.quitWithSides, "Exit after closing side panes").
+		// Quiet: a refusal is the one footer line, not a ticker row too.
+		Verb("close", a.quitWithSides, "Exit after closing side panes").Quiet().
 		Verb("quit", func(r *ochazuke.Runtime, _ ochazuke.Context, _ ochazuke.Arguments) (any, error) {
 			return r.Execute(ochazuke.Request{Noun: "app", Verb: "close", Target: "app"})
 		})
@@ -265,14 +266,15 @@ func (a *App) checkCompanions(ctx context.Context, parent string) error {
 		if parent != "" && parent != link.Parent {
 			continue
 		}
-		kind, key := "terminal", "t"
+		// ctrl+a v / t only shows the side pane; the program inside closes it.
+		how := fmt.Sprintf("side terminal of %s (ctrl+a t, then exit)", labels[link.Parent])
 		if link.Kind == "vim" {
-			kind, key = "vim", "v"
+			how = fmt.Sprintf("side vim of %s (ctrl+a v, then :qa)", labels[link.Parent])
 		}
-		messages = append(messages, fmt.Sprintf("close side %s of %s first (ctrl+a %s)", kind, labels[link.Parent], key))
+		messages = append(messages, how)
 	}
 	if len(messages) > 0 {
-		return errors.New(strings.Join(messages, "; "))
+		return errors.New("close the side panes first: " + strings.Join(messages, "; "))
 	}
 	return nil
 }

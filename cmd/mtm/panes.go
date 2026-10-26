@@ -929,6 +929,7 @@ type liveStream struct {
 	released   bool
 	keep       bool // hold: Release parks the stream instead of dropping it
 	parked     bool
+	ended      bool // the program ended normally; reads wait for the close
 	screen     liveScreen
 }
 
@@ -999,6 +1000,12 @@ func (s *liveStream) resnap() {
 
 // Next waits for the pane to change, then returns its visible screen.
 func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
+	if s.ended {
+		// The program ended normally: the last screen stays up, quietly,
+		// until the listing closes the exited window and the terminal.
+		<-ctx.Done()
+		return ochazuke.TerminalFrame{}, ctx.Err()
+	}
 	frames, err := s.open(ctx)
 	if err != nil {
 		return ochazuke.TerminalFrame{}, err
@@ -1012,6 +1019,10 @@ func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 			return ochazuke.TerminalFrame{}, ctx.Err()
 		case item = <-frames:
 		}
+	}
+	if endedNormally(item) {
+		s.ended = true
+		return s.Next(ctx)
 	}
 	if err := frameErr(item); err != nil {
 		return ochazuke.TerminalFrame{}, err
@@ -1048,6 +1059,18 @@ func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 		return ochazuke.TerminalFrame{}, fmt.Errorf("capture %s: %w", s.pane.label(), err)
 	}
 	return ochazuke.TerminalFrame{Lines: strings.Split(strings.TrimRight(got.Content, "\n"), "\n"), Hidden: true}, nil
+}
+
+// endedNormally reports a stream that ended because its program exited
+// with status 0 or its window closed: what quitting vim or typing exit in
+// a side terminal does. That is not an error; a kill, a failure status or
+// a refusal still is.
+func endedNormally(item streamFrame) bool {
+	if item.err != nil || item.frame.Type != 'X' {
+		return false
+	}
+	reason := string(item.frame.Data)
+	return reason == "closed" || reason == "exited 0"
 }
 
 // frameErr is the error a frame ends the stream with, nil for a change.

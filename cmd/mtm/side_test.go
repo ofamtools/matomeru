@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -85,6 +87,14 @@ func TestSidesBlockRestartedQuitAndKillThenOrphan(t *testing.T) {
 		if b.r.Quit {
 			t.Fatal("quit bypassed live companion")
 		}
+		// The refusal is one footer line naming what closes the side pane,
+		// not a ticker row as well.
+		if !strings.Contains(b.m.Status, "close the side panes first: side terminal of") || !strings.Contains(b.m.Status, "then exit") {
+			t.Fatalf("refusal %q", b.m.Status)
+		}
+		if rows := b.m.JobsTicker(120); len(rows) != 0 {
+			t.Fatalf("refusal on the ticker too: %q", rows)
+		}
 	}
 	if _, err := b.r.Execute(ochazuke.Request{Noun: "pane", Verb: "kill", Target: p.rowID(), Confirmed: true}); err != nil {
 		t.Fatal(err)
@@ -111,6 +121,26 @@ func TestSidesBlockRestartedQuitAndKillThenOrphan(t *testing.T) {
 	runOnce(b, b.r.PendingCommands())
 	if !b.r.Quit {
 		t.Fatal("orphan still blocked quit")
+	}
+}
+
+// A side pane whose program exits normally ends its stream quietly: the
+// read waits for the listing to close the window instead of failing with
+// "pane stream ended"; a failing exit is still an error.
+func TestLiveStreamNormalExitIsNotAnError(t *testing.T) {
+	for reason, quiet := range map[string]bool{"exited 0": true, "closed": true, "exited 1": false, "killed 9": false} {
+		s := &liveStream{conn: &daemon.PaneStream{}, frames: make(chan streamFrame, 2)}
+		s.frames <- streamFrame{frame: daemon.Frame{Type: 'X', Data: []byte(reason)}}
+		s.frames <- streamFrame{err: errors.New("use of closed connection")}
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		_, err := s.Next(ctx)
+		cancel()
+		if quiet && !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("%s: read ended with %v, want it to wait quietly", reason, err)
+		}
+		if !quiet && (err == nil || !strings.Contains(err.Error(), "pane stream ended: "+reason)) {
+			t.Fatalf("%s: err %v", reason, err)
+		}
 	}
 }
 
