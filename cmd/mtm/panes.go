@@ -281,7 +281,15 @@ func (a *App) addPanesPage() error {
 	if err := a.r.Bind(ensure); err != nil {
 		return err
 	}
-	_, err = a.r.AddPage(panesPage, "Panes", a.renderPanes, ochazuke.Focus(paneListID))
+	if _, err = a.r.AddPage(panesPage, "Panes", a.renderPanes, ochazuke.Focus(paneListID)); err != nil {
+		return err
+	}
+	// The detail is the selected row's tab; Screen, Activity and
+	// Transcript have the newest at the bottom.
+	a.detail.panes, err = a.addDetail(panesDetailID, panesPage, func() string {
+		row, _ := a.selectedRow()
+		return fmt.Sprintf("%s|%d", row, a.pv.tab)
+	}, func() bool { return a.pv.tab != tabTurns })
 	return err
 }
 

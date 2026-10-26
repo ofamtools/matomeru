@@ -35,9 +35,10 @@ func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 	}
 	lowerH := max(1, rest-tableH-1)
 	if editing {
+		a.detail.work.hide()
 		lower = a.editorPanel(rightW, lowerH)
 	} else {
-		lower = ochazuke.Text(lipgloss.NewStyle().Width(rightW).MaxHeight(lowerH).Render(detail))
+		lower = ochazuke.Text(lipgloss.NewStyle().Width(rightW).Render(a.detail.work.fit(detail, rightW, rightW, lowerH)))
 	}
 	right := ansi.Truncate(a.workHeader(), rightW, "…") + "\n" + a.view(a.taskList, rightW, tableH)
 	top := 1 + tableH + 1

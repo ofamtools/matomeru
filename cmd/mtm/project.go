@@ -218,14 +218,19 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
 	left := a.projectsHeading() + a.view(a.projectList, leftWidth, top)
-	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).MaxHeight(top+1).Render(detail))
+	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).Render(a.detail.work.fit(detail, rightWidth, rightWidth, top+1)))
 	return ochazuke.Text(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top)))
 }
 
 // workDetail is the detail of the highlighted task, else of the
 // highlighted (or open) project; isTask reports a task's.
 func (a *App) workDetail() (detail string, isTask bool) {
-	taskID, projectID := a.detailTask, a.current
+	return a.workDetailOf(a.workSelected())
+}
+
+// workSelected is the highlighted task (else "") and project.
+func (a *App) workSelected() (taskID, projectID string) {
+	taskID, projectID = a.detailTask, a.current
 	selected := a.r.Instances[a.r.BaseFocus()]
 	// A focus on a list itself (a jump that has not landed on a row) shows
 	// that list's selected row.
@@ -246,6 +251,21 @@ func (a *App) workDetail() (detail string, isTask bool) {
 			projectID, taskID = "", ""
 		}
 	}
+	return taskID, projectID
+}
+
+// workItem names what the Work detail shows, for its scroll.
+func (a *App) workItem() string {
+	taskID, projectID := a.workSelected()
+	if taskID != "" {
+		return "task:" + taskID
+	}
+	return "project:" + projectID
+}
+
+// workDetailOf is the detail text of task taskID, else of project
+// projectID.
+func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool) {
 	var task *work.Task
 	for i := range a.tasks {
 		if a.tasks[i].ID == taskID {

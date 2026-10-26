@@ -659,6 +659,9 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	// The copy stop is drawn (and reachable with } and tab) while the
 	// Screen tab shows a pane and nothing is live, or while it is on.
 	a.r.Instances[copyID].Unfocusable = !a.copy.active && (term != nil || a.pv.tab != tabScreen || inst == nil || inst.Noun != "pane")
+	if term != nil || a.copyShown(paneTermID) || inst == nil || inst.Noun != "pane" {
+		a.detail.panes.hide() // tabBody windows the detail when it draws
+	}
 	switch {
 	case a.copyShown(paneTermID):
 		title = a.copyTitle()
@@ -839,30 +842,39 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	switch a.pv.tab {
 	case tabScreen:
 		if a.preview.Pane == row {
-			return ochazuke.Text(a.fill(a.preview.Text, height, width))
+			// The screen is not wrapped: its lines are cut to the panel,
+			// and it opens on its last line holding text.
+			return ochazuke.Text(a.detail.panes.lines(trimBlankTail(a.preview.Text), 0, width, height))
 		}
+		a.detail.panes.hide()
 		return ochazuke.Text("loading…")
 	case tabTurns:
 		if a.pv.turnsFor != row {
+			a.detail.panes.hide()
 			return ochazuke.Text("loading…")
 		}
-		if a.pv.turns.List().Len() == 0 {
+		list := a.pv.turns.List()
+		if list.Len() == 0 {
+			a.detail.panes.hide()
 			a.r.Placed(turnsTreeID + "/list")
 			return ochazuke.Text("no turns recorded yet")
 		}
-		return a.pv.turns.Block(width, height)
+		if list.Focused() {
+			// In the tree the selection moves and the tree keeps it in
+			// view; J and K scroll it only from the pane list.
+			a.detail.panes.hide()
+			return a.pv.turns.Block(width, height)
+		}
+		return ochazuke.Text(a.detail.panes.lines(a.pv.turns.Block(width, list.Len()).Text, 0, width, height))
 	}
 	text, ok := a.pv.text[fmt.Sprintf("%s|%d", row, a.pv.tab)]
 	if !ok {
+		a.detail.panes.hide()
 		return ochazuke.Text("loading…")
 	}
 	// Long lines wrap to the panel, so an explanation or a reply reads
-	// whole; the newest stay at the bottom.
-	lines := strings.Split(ansi.Wrap(text, max(1, width), ""), "\n")
-	if len(lines) > height {
-		lines = lines[len(lines)-height:]
-	}
-	return ochazuke.Text(a.fill(strings.Join(lines, "\n"), height, width))
+	// whole; the newest stay at the bottom until K scrolls back.
+	return ochazuke.Text(a.detail.panes.lines(text, max(1, width), width, height))
 }
 
 // groupSummary describes a session or project row: its panes and owner.

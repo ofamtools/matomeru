@@ -323,7 +323,8 @@ type App struct {
 	answer      *ochazuke.Input
 	answerDraft string // the answer text last written as the opened review's draft
 	noteList    *ochazuke.List
-	noteBody    noteBody // the Notes page's scrollable body (notes.go)
+	noteBody    noteBody    // the Notes page's scrollable body (notes.go)
+	detail      pageDetails // the pages' details J and K scroll (details.go)
 	savedList   *ochazuke.List
 	vimList     *ochazuke.List
 	vimDir      string
@@ -422,6 +423,9 @@ func New(opts Options) (*App, error) {
 	}
 	a.addCopy()
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
+		return nil, err
+	}
+	if a.detail.work, err = a.addDetail(workDetailID, "work", a.workItem, nil); err != nil {
 		return nil, err
 	}
 	list, err := r.AddList("projects", nil, ochazuke.Parent("work"), ochazuke.Columns(projectColumns...))
@@ -636,6 +640,7 @@ func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block 
 		return a.renderWorkWide(width, height)
 	}
 	if a.editor != nil && a.editor.Page == "work" {
+		a.detail.work.hide()
 		return a.renderEditor(width, height)
 	}
 	return a.renderWorkDetail(width, height)

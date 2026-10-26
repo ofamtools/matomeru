@@ -97,7 +97,14 @@ func (a *App) addReviewPage() error {
 	if err := a.r.AddInput(a.answer, ochazuke.Parent(reviewsPage), ochazuke.Kind("answer")); err != nil {
 		return err
 	}
-	_, err = a.r.AddPage(reviewsPage, "Review", a.renderReviews, ochazuke.Focus(reviewListID))
+	if _, err = a.r.AddPage(reviewsPage, "Review", a.renderReviews, ochazuke.Focus(reviewListID)); err != nil {
+		return err
+	}
+	// The detail is the opened review's turns, else its captured output
+	// (a screen: the newest at the bottom).
+	a.detail.reviews, err = a.addDetail(reviewsDetailID, reviewsPage, func() string { return a.opened }, func() bool {
+		return len(a.reviewRows[a.opened].Turns) == 0
+	})
 	return err
 }
 
@@ -636,7 +643,11 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	}
 	rows := max(1, height-4-top)
 	detail, body, answer := "detail: enter captures the review's pane", a.fill("", rows), "answer: s on a review types one"
-	if rv, ok := a.openedReview(); ok {
+	rv, opened := a.openedReview()
+	if !opened {
+		a.detail.reviews.hide()
+	}
+	if opened {
 		detail = "output: " + rv.Pane + " [" + rv.Status + "]"
 		owner, err := a.work.PaneOwner(rv.Window, "")
 		if err == nil {
@@ -654,7 +665,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 		case rv.CapturedAt != 0:
 			detail += " · captured " + time.UnixMilli(rv.CapturedAt).Format("15:04:05")
 		}
-		body = a.fill(rv.Output, rows, width)
+		body = a.detail.reviews.lines(trimBlankTail(rv.Output), 0, width, rows)
 		if row := a.reviewRows[rv.ID]; len(row.Turns) > 0 {
 			// The pane's turns are the detail; its screen only without them.
 			detail = fmt.Sprintf("turns: %s · %s", rv.Pane, plural(row.unread(), "unreviewed turn"))
@@ -664,7 +675,14 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 			if a.captureErr == paneGoneNote {
 				detail += " · pane gone"
 			}
-			body = a.fill(a.reviewTurns.Block(width, rows).Text, rows)
+			if list := a.reviewTurns.List(); list.Focused() {
+				// In the tree the selection moves and the tree keeps it
+				// in view; J and K scroll it only from the review list.
+				a.detail.reviews.hide()
+				body = a.fill(a.reviewTurns.Block(width, rows).Text, rows)
+			} else {
+				body = a.detail.reviews.lines(a.reviewTurns.Block(width, max(1, list.Len())).Text, 0, width, rows)
+			}
 		}
 		// The keys that edit, save and drop the answer are on the footer.
 		answer = "answer:"
