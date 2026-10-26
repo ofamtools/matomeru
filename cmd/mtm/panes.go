@@ -1,10 +1,12 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -225,7 +227,8 @@ func (a *App) definePanes() {
 	r.Define("panes").
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
-		Verb("waiting", a.nextWaiting, "Select the next pane that needs input")
+		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").
+		Verb("agent", a.chooseAgent, "Launch an agent into the pin's project: a chooser of harnesses, the project's own first")
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
 	a.parameters("pane.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	a.parameters("session.move", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
@@ -261,6 +264,7 @@ func (a *App) addPanesPage() error {
 		{"]", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": 1})},
 		{"[", ochazuke.Do("panes.tab", ochazuke.Arguments{"delta": -1})},
 		{"w", ochazuke.Do("panes.waiting")},
+		{"a", ochazuke.Do("panes.agent")},
 	} {
 		b := row.req
 		b.Instance, b.Mode, b.Keys = panesPage, "normal", row.keys
@@ -290,6 +294,42 @@ func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 		panes, _ := v.([]pane)
 		a.setPanes(panes, err)
 	})
+}
+
+const agentChooser = "agent-chooser"
+
+// chooseAgent is panes.agent (a): a chooser of the harnesses, the pin's
+// project's harness (else the default) first; Enter runs agent.launch with
+// it, which lands the new agent here live, like Work's l.
+func (a *App) chooseAgent(ochazuke.Ctx) ochazuke.Result {
+	p, _ := a.project(a.pin)
+	first := cmp.Or(p.Settings.Harness, defaultHarness)
+	names := a.harnesses.Names()
+	slices.SortStableFunc(names, func(x, y string) int { return -cmp.Compare(btoi(x == first), btoi(y == first)) })
+	rows := make([]ChooserRow, 0, len(names))
+	for _, name := range names {
+		rows = append(rows, ChooserRow{ID: name, Label: name})
+	}
+	where := "no project"
+	if p.ID != "" {
+		where = projectName(p)
+	}
+	_, err := a.choosers.Open(ChooserSpec{
+		Kind:  agentChooser,
+		Title: "Launch an agent in " + where,
+		Rows:  rows,
+		Choose: func(c ChooserRow) ochazuke.Result {
+			out, err := a.r.Execute(ochazuke.Request{Verb: "launch", Noun: "agent", Args: ochazuke.Arguments{"harness": c.ID}})
+			if err != nil {
+				return ochazuke.Failed(err)
+			}
+			return ochazuke.Done(out)
+		},
+	})
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(nil)
 }
 
 // ensureVerb is daemon.ensure: make the daemon answer off the loop (Ensure

@@ -468,7 +468,7 @@ func (a *App) paneListBlock(width, height int) ochazuke.Block {
 		return ochazuke.Text(a.fill("daemon is not running\ne starts it (daemon.ensure)\n"+name, height, width))
 	case a.paneList.Len() == 0:
 		a.r.Placed(paneListID)
-		return ochazuke.Text(a.fill("no panes\nn opens a shell · a launches an agent from Work", height, width))
+		return ochazuke.Text(a.fill("no panes\nn opens a shell · a launches an agent", height, width))
 	}
 	block := a.pv.tree.Block(width, height)
 	lines := strings.Split(block.Text, "\n")
@@ -674,7 +674,11 @@ func (a *App) groupSummary(inst *ochazuke.Instance) (string, ochazuke.Block) {
 		s, _ := inst.Data.(pane)
 		owner, _ := a.work.SessionOwner(s.SessionID)
 		head := fmt.Sprintf("%d panes · %s", len(lines), a.ownerLabel(owner.ProjectID))
-		return "session " + s.Session, ochazuke.Text(head + "\n\n" + strings.Join(lines, "\n") + "\n\nenter attaches the first pane · m moves · r renames · x kills")
+		keys := "enter attaches the first pane · m moves · r renames · x kills"
+		if len(lines) == 0 {
+			keys = "no panes · n opens a shell · a launches an agent · m moves · r renames · x kills"
+		}
+		return "session " + s.Session, ochazuke.Text(head + "\n\n" + strings.Join(lines, "\n") + "\n\n" + keys)
 	}
 	return inst.Label, ochazuke.Text(fmt.Sprintf("%d sessions\n\n%s", len(lines), strings.Join(lines, "\n")))
 }
