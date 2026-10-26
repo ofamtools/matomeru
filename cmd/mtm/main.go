@@ -372,7 +372,7 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	row := ochazuke.Do("project.new")
-	row.Instance, row.Mode, row.Keys = "projects", "normal", "a"
+	row.Instance, row.Mode, row.Keys = "projects", "normal", "n"
 	if err := r.Bind(row); err != nil {
 		return nil, err
 	}

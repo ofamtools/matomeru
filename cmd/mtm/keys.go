@@ -38,6 +38,21 @@ func (a *App) defineKeyMap() error {
 			break
 		}
 	}
+	// The outline adds with Vim's o and O only; a is left unbound in mtm.
+	// Rows that run one operation with two arguments say which is which.
+	outline := []ochazuke.Binding{
+		ochazuke.Do("outline.add", ochazuke.Arguments{"where": "below"}).Hinted("add below"),
+		ochazuke.Do("outline.add", ochazuke.Arguments{"where": "above"}).Hinted("add above"),
+		ochazuke.Do("outline.move", ochazuke.Arguments{"delta": 1}).Hinted("move down"),
+		ochazuke.Do("outline.move", ochazuke.Arguments{"delta": -1}).Hinted("move up"),
+		{Unbind: true},
+	}
+	for i, keys := range []string{"o", "O", "J", "K", "a"} {
+		outline[i].Noun, outline[i].Mode, outline[i].Keys = "outline", "normal", keys
+	}
+	if err := a.r.Bind(outline...); err != nil {
+		return err
+	}
 	quit := ochazuke.Do("modal.pop")
 	quit.Noun, quit.Mode, quit.Keys = "modal", "normal", "q"
 	return a.r.Bind(quit)

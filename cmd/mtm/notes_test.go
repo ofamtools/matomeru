@@ -142,7 +142,7 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 	if err := b.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	press(t, b, "a")
+	press(t, b, "n")
 	if b.editor == nil {
 		t.Fatal("notes page creation key did not open the editor")
 	}
@@ -197,7 +197,7 @@ func TestNotesPageCreationOnFirstVisit(t *testing.T) {
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "a")
+	press(t, a, "n")
 	if a.editor == nil {
 		t.Fatal("first notes page visit does not accept creation key")
 	}
@@ -261,14 +261,14 @@ func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
 	}
 }
 
-// a on the Notes page edits the new note in the Notes page's own
+// n on the Notes page edits the new note in the Notes page's own
 // right-hand panel; the page never jumps to Work.
 func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
 	a := open(t)
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "a")
+	press(t, a, "n")
 	if a.r.Page != notesPage || a.r.Focus != recordInputID || a.editor == nil || a.editor.Page != notesPage {
 		t.Fatalf("page %s focus %s", a.r.Page, a.r.Focus)
 	}

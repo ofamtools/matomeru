@@ -68,7 +68,7 @@ func (a *App) addNotesPage() error {
 		return err
 	}
 	row := ochazuke.Do("note.new")
-	row.Instance, row.Mode, row.Keys = "notes/list", "normal", "a"
+	row.Instance, row.Mode, row.Keys = "notes/list", "normal", "n"
 	if err := a.r.Bind(row); err != nil {
 		return err
 	}
@@ -375,7 +375,7 @@ func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	leftWidth := max(1, width/2-1)
 	rightWidth := max(1, width-leftWidth-2)
 	left := fmt.Sprintf("notes (%d)\n", a.noteList.Len()) + a.view(a.noteList, leftWidth, max(1, height-1))
-	right := ochazuke.Text("Select a note; a creates one")
+	right := ochazuke.Text("Select a note; " + a.keySentence("notes/list", keyAction{"note.new", "creates one"}))
 	if a.editor != nil && a.editor.Page == notesPage {
 		// The note is edited here, in this page's right-hand panel.
 		right = a.editorPanel(rightWidth, height)

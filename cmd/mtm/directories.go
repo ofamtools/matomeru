@@ -412,7 +412,7 @@ func (a *App) addDirectoriesPage() error {
 	search := ochazuke.Do("dirs.search")
 	search.Instance, search.Mode, search.Keys = directoriesPage, "normal", "/"
 	add := ochazuke.Do("dirs.base.add")
-	add.Instance, add.Mode, add.Keys = baseListID, "normal", "a"
+	add.Instance, add.Mode, add.Keys = baseListID, "normal", "n"
 	for _, row := range []ochazuke.Binding{search, add} {
 		if err := a.r.Bind(row); err != nil {
 			return err
@@ -1213,7 +1213,7 @@ func (a *App) renderDirectories(_ *ochazuke.Runtime, width, height int) ochazuke
 
 	head(fmt.Sprintf("project base dirs (%d)", a.baseList.Len()))
 	if a.baseList.Len() == 0 {
-		add(a.fill("none; a adds one", baseBlock))
+		add(a.fill("none; "+a.keySentence(baseListID, keyAction{"dirs.base.add", "adds one"}), baseBlock))
 	} else {
 		add(a.view(a.baseList, width, baseBlock))
 	}

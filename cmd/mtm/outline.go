@@ -74,8 +74,16 @@ func (a *App) defineOutline() {
 		Bind("s", ochazuke.Do(outlineModal+".status")).
 		Bind("T", ochazuke.Do(outlineModal+".close")).
 		Bind("q", ochazuke.Do(outlineModal+".close"))
+	// In the all view a project is a branch row: o opens its first task
+	// under it (mtm leaves the outline's a unbound), O a project above.
+	a.r.Define(outlineProjectNoun).Mode("normal").
+		Bind("enter", ochazuke.Do("outline.fold")).
+		Bind("o", ochazuke.Do("outline.add", ochazuke.Arguments{"where": "child"}).Hinted("add a task"))
 	a.outlineView("Tasks")
 }
+
+// outlineProjectNoun is a project's branch row in the all view.
+const outlineProjectNoun = "outline-project"
 
 // outlineView registers the modal's view under a title.
 func (a *App) outlineView(title string) {
@@ -218,10 +226,10 @@ func (a *App) outlineNodes(scope outlineScope) ([]ochazuke.TreeNode, error) {
 	}
 	var nodes []ochazuke.TreeNode
 	for _, p := range a.projects {
-		nodes = append(nodes, ochazuke.TreeNode{ID: projectNode(p.ID), Label: projectName(p), Cells: []string{projectName(p), ""}})
+		nodes = append(nodes, ochazuke.TreeNode{ID: projectNode(p.ID), Label: projectName(p), Noun: outlineProjectNoun, Cells: []string{projectName(p), ""}})
 		nodes = append(nodes, taskNodes(owned(p.ID), projectNode(p.ID))...)
 	}
-	nodes = append(nodes, ochazuke.TreeNode{ID: projectNode(""), Label: "no project", Cells: []string{"no project", ""}})
+	nodes = append(nodes, ochazuke.TreeNode{ID: projectNode(""), Label: "no project", Noun: outlineProjectNoun, Cells: []string{"no project", ""}})
 	return append(nodes, taskNodes(owned(""), projectNode(""))...), nil
 }
 

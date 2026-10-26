@@ -146,7 +146,7 @@ func TestKnownDirectoryWithoutPinAsksForProject(t *testing.T) {
 	}
 }
 
-// a on the bases list offers the folders holding known directories; the
+// n on the bases list offers the folders holding known directories; the
 // chosen one is written to dirs.json and scanned at once, so its repos
 // join the known directories; x on a base row stops scanning it.
 func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
@@ -172,7 +172,7 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	if err := a.baseList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "a")
+	press(t, a, "n")
 	c := a.choosers.Get(baseChooser)
 	if c == nil {
 		t.Fatalf("modal %q", a.r.TopModal())

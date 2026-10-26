@@ -236,7 +236,8 @@ func TestAllViewShowsProjectsAsBranches(t *testing.T) {
 	if err := a.r.SetFocus(projectNode("ochazuke")); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "a")
+	// o on a project's branch opens a task under it (a is unbound).
+	press(t, a, "o")
 	typeText(t, a, "tag a release")
 	press(t, a, "esc")
 	var got work.Task

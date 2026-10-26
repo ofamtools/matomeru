@@ -34,7 +34,7 @@ func (a *App) defineVim() {
 		Verb("save", a.saveVim, "Write :mksession through Neovim RPC; edited files are not written").Positional("path").
 		Verb("reopen", a.reopenVim, "Attach the live pane or restore its saved Neovim session").Positional("id").
 		Verb("forget", a.forgetVim, "Forget metadata and mtm-owned session file; keep edited files and live pane").Positional("id").Confirm("Forget {{label}}? Edited files and the live pane stay.").
-		Mode("normal").Bind("a", ochazuke.Do("vim.open")).Bind("s", ochazuke.Do("vim.save")).
+		Mode("normal").Bind("n", ochazuke.Do("vim.open")).Bind("s", ochazuke.Do("vim.save")).
 		Bind("enter", ochazuke.Do("vim.reopen")).Bind("d d", ochazuke.Do("vim.forget")).Bind("r", ochazuke.Do("vim.list"))
 	a.parameters("vim.list", map[string]ochazuke.Parameter{"all": {Type: "boolean"}})
 	a.parameters("vim.open", map[string]ochazuke.Parameter{
@@ -58,7 +58,7 @@ func (a *App) addVimPage() error {
 	if _, err := a.r.AddPage(vimPage, "Vim", a.renderVim, ochazuke.Focus(vimListID)); err != nil {
 		return err
 	}
-	for _, binding := range []struct{ key, verb string }{{"a", "open"}, {"r", "list"}} {
+	for _, binding := range []struct{ key, verb string }{{"n", "open"}, {"r", "list"}} {
 		row := ochazuke.Do("vim." + binding.verb)
 		row.Instance, row.Mode, row.Keys = vimListID, "normal", binding.key
 		if err := a.r.Bind(row); err != nil {

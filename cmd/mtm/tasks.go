@@ -37,7 +37,7 @@ func (a *App) defineTask() {
 
 func (a *App) bindTaskStop() error {
 	row := ochazuke.Do("task.new")
-	row.Instance, row.Mode, row.Keys = "tasks", "normal", "a"
+	row.Instance, row.Mode, row.Keys = "tasks", "normal", "n"
 	return a.r.Bind(row)
 }
 

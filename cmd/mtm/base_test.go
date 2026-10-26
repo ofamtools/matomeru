@@ -162,7 +162,7 @@ func TestDefaultTUIUsesSelectedProjectForNewTask(t *testing.T) {
 	a := open(t)
 	tui := func() error {
 		// The first project has no tasks: creation must still keep its owner.
-		press(t, a, "enter", "a")
+		press(t, a, "enter", "n")
 		typeText(t, a, "selected project")
 		press(t, a, "enter")
 		tasks, err := a.work.Tasks("ochazuke")
