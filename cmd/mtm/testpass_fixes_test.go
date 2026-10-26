@@ -173,3 +173,19 @@ func TestSideListTakesPaneWindowID(t *testing.T) {
 		}
 	}
 }
+
+// Test pass R18: ctrl+c quits from the palette at once: on an empty line,
+// on a typed line, and after esc cleared the typed line.
+func TestCtrlCQuitsFromThePalette(t *testing.T) {
+	for _, keys := range [][]string{{":"}, {":", "p", "a"}, {":", "p", "a", "esc"}} {
+		app := open(t)
+		press(t, app, keys...)
+		if app.r.TopModal() != "palette" {
+			t.Fatalf("%v: modal %q", keys, app.r.TopModal())
+		}
+		press(t, app, "ctrl+c")
+		if !app.r.Quit {
+			t.Fatalf("%v then ctrl+c: not quit, modal %q", keys, app.r.TopModal())
+		}
+	}
+}

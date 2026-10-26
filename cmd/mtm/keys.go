@@ -55,7 +55,12 @@ func (a *App) defineKeyMap() error {
 	}
 	quit := ochazuke.Do("modal.pop")
 	quit.Noun, quit.Mode, quit.Keys = "modal", "normal", "q"
-	return a.r.Bind(quit)
+	// ctrl+c quits from every modal; ochazuke's palette alone binds it to
+	// palette.close, so after esc cleared a typed line the palette stayed
+	// open and quitting took two ctrl+c (test pass R18).
+	paletteQuit := ochazuke.Do("app.quit").Hide()
+	paletteQuit.Noun, paletteQuit.Mode, paletteQuit.Keys = "palette", "", "ctrl+c"
+	return a.r.Bind(quit, paletteQuit)
 }
 
 // keyFor is the key that runs op at focus, as ? help lists it ("" when no
