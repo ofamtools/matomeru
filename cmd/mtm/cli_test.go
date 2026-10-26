@@ -252,3 +252,14 @@ func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
 	// With the target it runs.
 	mustCLI(t, app, "pane", "preview", "--target", "pane:ochazuke/w2")
 }
+
+// Test pass R12: a bad status names the statuses and no --target rows.
+func TestCLITaskStatusBadValueNamesTheStatuses(t *testing.T) {
+	app, _ := cliApp(t)
+	executeA(t, app, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
+	mustCLI(t, app, "project", "open", "--target", "matomeru")
+	_, _, err := cli(app, "", "task", "status", "t1", "bogus")
+	if err == nil || err.Error() != "status must be one of todo, active, blocked, done" {
+		t.Fatalf("bad status: %v", err)
+	}
+}
