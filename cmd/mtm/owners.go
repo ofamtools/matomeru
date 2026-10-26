@@ -53,7 +53,7 @@ func (a *App) associatePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if o.Notice != "" {
-		a.m.Notify(o.Notice)
+		ctx.Notify(o.Notice)
 	}
 	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)
@@ -78,7 +78,7 @@ func (a *App) associateSession(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if o.Notice != "" {
-		a.m.Notify(o.Notice)
+		ctx.Notify(o.Notice)
 	}
 	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)
@@ -103,7 +103,7 @@ func (a *App) associateTask(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if o.Notice != "" {
-		a.m.Notify(o.Notice)
+		ctx.Notify(o.Notice)
 	}
 	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)

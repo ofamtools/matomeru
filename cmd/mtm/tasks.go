@@ -322,7 +322,7 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if owner.Notice != "" {
-		a.m.Notify(owner.Notice)
+		ctx.Notify(owner.Notice)
 	}
 	a.current, a.tasksOpen = owner.ProjectID, true
 	if _, present := ctx.Args["title"]; !present {
@@ -354,7 +354,7 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 	} else {
-		a.m.Notify("Task saved outside pin: " + a.ownerLabel(t.ProjectID))
+		ctx.Notify("Task saved outside pin: " + a.ownerLabel(t.ProjectID))
 	}
 	return ochazuke.Done(struct {
 		work.Task

@@ -76,7 +76,7 @@ func (a *App) View() tea.View {
 	return a.m.View()
 }
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	notices := len(a.m.Notices)
+	notices := a.shownNotices()
 	_, cmd := a.m.Update(msg)
 	if panes := a.panesUpdate(msg); panes != nil {
 		cmd = tea.Batch(cmd, panes)
@@ -92,7 +92,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	quick, quickErr := a.quickNoteUpdate(msg)
 	if err := errors.Join(editErr, a.extFormFailure(), a.renameFailure(), quickErr, a.autosaveAnswer()); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 	if quick != nil {
 		cmd = tea.Batch(cmd, quick)
@@ -120,17 +120,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh is automatic: the page reads its records on opening
 			// (another mtm or the CLI may have changed them).
 			if err := a.refreshSaved(); err != nil {
-				a.m.Status = err.Error()
+				a.r.UI().Status(err.Error())
 			}
 		case vimPage:
 			if err := a.refreshVim(); err != nil {
-				a.m.Status = err.Error()
+				a.r.UI().Status(err.Error())
 			}
 		case reviewsPage:
 			// Capture hooks write turns from other processes; the rows
 			// also name panes after the latest listing.
 			if err := a.refreshReviews(); err != nil {
-				a.m.Status = err.Error()
+				a.r.UI().Status(err.Error())
 			}
 		default:
 			// An extension's page reloads its rows when it is opened
@@ -310,7 +310,7 @@ func draftValues(d editRecord, values ochazuke.Record) bool {
 // fail shows a failure from a callback that cannot return one.
 func (a *App) fail(err error) {
 	if err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }
 

@@ -451,7 +451,7 @@ func (a *App) startCwd(p work.Project) string {
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
 			return dir
 		}
-		a.m.Notify("default directory unavailable: " + dir + "; launching in home")
+		a.r.UI().Notify("default directory unavailable: " + dir + "; launching in home")
 	}
 	home, err := a.home()
 	if err != nil {
@@ -492,7 +492,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	// A launch is cheap and K undoes it, so it does not ask; the notice
 	// says where it went.
-	a.m.Notify("Launching " + h.Name + " into " + ochazuke.StringArg(ctx.Args, "session", sessionFor(p)))
+	ctx.Notify("Launching " + h.Name + " into " + ochazuke.StringArg(ctx.Args, "session", sessionFor(p)))
 	// The window is named after its harness (claude, claude-2): the
 	// session already names the project (UX review 2 F22).
 	spec := harness.Spec{
@@ -553,7 +553,7 @@ func (a *App) newPane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if to.Notice != "" {
-		a.m.Notify(to.Notice)
+		ctx.Notify(to.Notice)
 	}
 	return a.shellIn(ctx, to)
 }

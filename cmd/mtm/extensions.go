@@ -339,7 +339,7 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil, err
 		}
 		return extRegistered{summaryOf(name, path, file, doc), doc}, nil
-	}).Label(name).Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).Label(name).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
 		}
@@ -349,7 +349,7 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			e.RegisteredAt = old.RegisteredAt // re-registering keeps its tab's place
 		}
 		if werr := reg.write(name, e); werr != nil {
-			a.m.Status = werr.Error()
+			ctx.Status(werr.Error())
 			return
 		}
 		a.extSyncDue = !a.cli
@@ -447,14 +447,14 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		// The catalogs read are written even when another failed.
 		return out, errors.Join(errs...)
-	}).Then(func(_ ochazuke.Ctx, v any, _ error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, _ error) {
 		done, _ := v.([]extRegistered)
 		for _, r := range done {
 			name := r.Name
 			e := entries[name]
 			e.Catalog = r.doc
 			if err := reg.write(name, e); err != nil {
-				a.m.Status = err.Error()
+				ctx.Status(err.Error())
 			}
 			if x := a.extension(name); x != nil && !a.cli {
 				a.reloadExtension(x) // the rows of an unchanged catalog
@@ -525,7 +525,7 @@ func (a *App) mountExtensions() {
 // It is listed in a.exts even when nothing could be mounted, so a sync
 // does not try again until its registry entry changes.
 func (a *App) mountExtension(name string, e extEntry) {
-	notify := func(format string, args ...any) { a.m.Notify(name + ": " + fmt.Sprintf(format, args...)) }
+	notify := func(format string, args ...any) { a.r.UI().Notify(name + ": " + fmt.Sprintf(format, args...)) }
 	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
 	defer func() { a.exts = append(a.exts, x) }()
 	plan := extPlan(e.Catalog)

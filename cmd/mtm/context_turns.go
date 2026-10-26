@@ -147,7 +147,7 @@ type turnsExtracted struct {
 // extractTurns is context-item.turns: every journaled turn at once, off
 // the loop, for the turns journaled before extraction from turns existed.
 // Running it again adds nothing.
-func (a *App) extractTurns(ochazuke.Ctx) ochazuke.Result {
+func (a *App) extractTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	j, store := a.hist, a.contexts
 	return ochazuke.Pending(func(context.Context) (any, error) {
 		entries, err := j.All()
@@ -156,12 +156,12 @@ func (a *App) extractTurns(ochazuke.Ctx) ochazuke.Result {
 		}
 		n, err := turnContext(j, store, entries)
 		return turnsExtracted{Entries: len(entries), New: n}, err
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err != nil {
 			return
 		}
 		if err := a.reloadContext(); err != nil {
-			a.m.Status = err.Error()
+			ctx.Status(err.Error())
 		}
 		a.contextChanged()
 	})
@@ -179,7 +179,7 @@ func (a *App) capturedContext(id string, result any) ochazuke.Result {
 		return result, nil
 	}).Then(func(ochazuke.Ctx, any, error) {
 		if err := a.reloadContext(); err != nil {
-			a.m.Status = err.Error()
+			a.r.UI().Status(err.Error())
 		}
 		a.contextChanged()
 	})

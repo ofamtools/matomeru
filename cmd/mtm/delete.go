@@ -54,7 +54,7 @@ func (a *App) deleteRecord(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.refreshScope(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	a.m.Notify(fmt.Sprintf("Deleted %s; orphaned %s. Directories and panes untouched.", noun, counts.String()))
+	ctx.Notify(fmt.Sprintf("Deleted %s; orphaned %s. Directories and panes untouched.", noun, counts.String()))
 	return ochazuke.Done(counts)
 }
 

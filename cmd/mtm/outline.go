@@ -427,7 +427,7 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 			}
 			return true, a.refreshProjects()
 		}
-		a.m.Notify("A project with tasks is deleted from the Work page")
+		a.r.UI().Notify("A project with tasks is deleted from the Work page")
 	}
 	nodes, err := a.outlineNodes(o.scope)
 	if err != nil {

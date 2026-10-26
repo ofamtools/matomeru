@@ -35,7 +35,7 @@ func (a *App) notifyExtErrs(errs []error) {
 	for _, err := range errs {
 		if msg := "extension: " + err.Error(); !a.extErrsSeen[msg] {
 			a.extErrsSeen[msg] = true
-			a.m.Notify(msg)
+			a.r.UI().Notify(msg)
 		}
 	}
 }
@@ -105,6 +105,6 @@ func (a *App) syncExtensions() {
 		a.lastPage = a.r.Page
 	}
 	if err := errors.Join(uerrs...); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }

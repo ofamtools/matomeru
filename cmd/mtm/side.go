@@ -176,7 +176,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		panes, err = pd.ListPanes(c)
 		return sideOpened{Parent: parent, Panes: panes, Note: strings.Join(driver.notes, "; ")}, err
-	})).Then(func(_ ochazuke.Ctx, value any, err error) {
+	})).Then(func(ctx ochazuke.Ctx, value any, err error) {
 		delete(a.sideStarting, key)
 		if err != nil {
 			return
@@ -184,7 +184,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		done := value.(sideOpened)
 		a.setPanes(done.Panes, nil)
 		if done.Note != "" {
-			a.m.Notify(done.Note)
+			ctx.Notify(done.Note)
 		}
 		if kind == "list" || a.cli {
 			return
@@ -194,7 +194,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		if err := a.showSide(done.Parent, kind); err != nil {
-			a.m.Notify(err.Error())
+			ctx.Notify(err.Error())
 		}
 	})
 	if a.cli {

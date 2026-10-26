@@ -160,7 +160,7 @@ func (a *App) followUpdate(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "follow", Noun: contextNoun, Target: contextListID}); err != nil {
-			a.m.Status = err.Error()
+			a.r.UI().Status(err.Error())
 			return nil
 		}
 		return a.r.PendingCommands()
@@ -186,7 +186,7 @@ type followResult struct {
 // followPanes is context-item.follow: read the dirty panes from their
 // offsets, extract and merge what they have not yielded yet, off the loop.
 // Bookkeeping, so it is Quiet (no jobs ticker row).
-func (a *App) followPanes(ochazuke.Ctx) ochazuke.Result {
+func (a *App) followPanes(ctx ochazuke.Ctx) ochazuke.Result {
 	f := a.cx.follow
 	d, ok := a.contextd()
 	if !ok {
@@ -241,7 +241,7 @@ func (a *App) followPanes(ochazuke.Ctx) ochazuke.Result {
 			return out, errs[0]
 		}
 		return out, nil
-	}).Then(func(_ ochazuke.Ctx, v any, _ error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, _ error) {
 		f.running = false
 		results, _ := v.([]followResult)
 		changed := false
@@ -257,7 +257,7 @@ func (a *App) followPanes(ochazuke.Ctx) ochazuke.Result {
 		}
 		if changed {
 			if err := a.reloadContext(); err != nil {
-				a.m.Status = err.Error()
+				ctx.Status(err.Error())
 			}
 			a.contextChanged()
 		}

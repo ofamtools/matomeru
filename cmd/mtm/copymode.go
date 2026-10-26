@@ -480,10 +480,10 @@ func (a *App) copyYank(ctx ochazuke.Ctx) ochazuke.Result {
 	text, sys := y.Text, a.cx.sys
 	return ochazuke.Pending(func(ctx context.Context) (any, error) {
 		return sys.Copy(ctx, text)
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if osc, _ := v.(bool); err == nil && osc {
 			if err := a.copyOSC52(text); err != nil {
-				a.m.Status = err.Error()
+				ctx.Status(err.Error())
 			}
 		}
 	})
@@ -543,7 +543,7 @@ func (a *App) copyUpdate(msg tea.Msg) {
 			err = a.enterCopy(p, source)
 		}
 		if err != nil {
-			a.m.Status = err.Error()
+			a.r.UI().Status(err.Error())
 			_ = a.r.SetFocus(paneListID)
 			return
 		}
@@ -555,7 +555,7 @@ func (a *App) copyUpdate(msg tea.Msg) {
 	_, tick := msg.(refreshDue)
 	if (changed || tick && a.r.Page == panesPage) && !a.copyLoading() {
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "load", Noun: copyNoun, Target: copyID}); err != nil {
-			a.m.Status = err.Error()
+			a.r.UI().Status(err.Error())
 		}
 	}
 }

@@ -61,6 +61,10 @@ func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
 	if !strings.Contains(errOut, "job #1 agent.start claude done") {
 		t.Fatalf("stderr lacks the finished job: %q", errOut)
 	}
+	// The handler's notice prints on the CLI (ochazuke v0.4.0 UI sink).
+	if !strings.Contains(errOut, "notice: Launching claude into matomeru") {
+		t.Fatalf("stderr lacks the launch notice: %q", errOut)
+	}
 	// The shell prints the settled job's value: the pane it landed.
 	var landed struct {
 		Pane struct {
@@ -102,8 +106,12 @@ func TestCLIConfirmReadsTheAnswerFromStdin(t *testing.T) {
 	if _, err := app.work.Note(note.ID); err != nil {
 		t.Fatalf("empty stdin deleted: %v", err)
 	}
-	if _, errOut, err := cli(app, "y\n", "note", "delete", "--target", note.ID); err != nil {
+	_, errOut, err = cli(app, "y\n", "note", "delete", "--target", note.ID)
+	if err != nil {
 		t.Fatalf("accepted delete: %v\n%s", err, errOut)
+	}
+	if !strings.Contains(errOut, "notice: Deleted note scratch") {
+		t.Fatalf("stderr lacks the delete notice: %q", errOut)
 	}
 	if _, err := app.work.Note(note.ID); err == nil {
 		t.Fatal("y kept the note")

@@ -123,12 +123,12 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		written, added, err := store.Merge(items, contextitems.Owner{ProjectID: owner.ProjectID, TaskID: owner.TaskID}, work.Now())
 		return extracted{Pane: p.label(), Found: len(written), New: added, Items: written}, err
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
 		}
 		if err := a.reloadContext(); err != nil {
-			a.m.Status = err.Error()
+			ctx.Status(err.Error())
 		}
 	})
 }

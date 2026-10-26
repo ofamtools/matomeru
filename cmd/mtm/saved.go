@@ -192,10 +192,10 @@ func (a *App) savePane(ctx ochazuke.Ctx) ochazuke.Result {
 			return db.PutSavedPane(work.SavedPane{PaneRecipe: recipe})
 		}
 		return nil, fmt.Errorf("live pane %s not found", id)
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
 			if err := a.refreshSaved(); err != nil {
-				a.m.Notify(err.Error())
+				ctx.Notify(err.Error())
 			}
 		}
 	})
@@ -290,12 +290,12 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 			panes = append(panes, pane{Session: session, Pane: daemon.Pane{ID: id, Name: row.Name, Cwd: row.Cwd}})
 		}
 		return launched{Pane: harness.Result{Session: session, Window: id, Name: row.Name, Harness: row.Harness, Argv: row.Command}, Panes: panes, Note: strings.Join(d.notes, "; ")}, nil
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
 		}
 		if err := a.refreshSaved(); err != nil {
-			a.m.Notify(err.Error())
+			ctx.Notify(err.Error())
 		}
 		a.finishLaunch(v.(launched), owner, version)
 	}).Label(row.Harness) // "" for a shell: no label
@@ -358,7 +358,7 @@ func (a *App) associateSavedRecord(row work.SavedPane, args ochazuke.Arguments) 
 		return err
 	}
 	if owner.Notice != "" {
-		a.m.Notify(owner.Notice)
+		a.r.UI().Notify(owner.Notice)
 	}
 	return a.refreshScope()
 }

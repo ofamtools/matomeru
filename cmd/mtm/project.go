@@ -116,7 +116,7 @@ func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
 	case len(p.Trees) == 0:
 		msg += "; it has no directories left"
 	}
-	a.m.Notify(msg)
+	a.r.UI().Notify(msg)
 	a.directories.Ready = false
 	if err := a.refreshProjects(); err != nil {
 		return ochazuke.Failed(err)
@@ -202,7 +202,7 @@ func (a *App) followProject() {
 	}
 	a.current, a.tasksOpen, a.detailTask = current, true, ""
 	if err := a.refreshTasks(); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }
 

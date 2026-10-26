@@ -1,9 +1,11 @@
 package main
 
 import (
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/unixsuperhero/ochazuke"
 )
 
 // Notices are transient here: the framework keeps a notice in the footer
@@ -16,29 +18,80 @@ const noticeLinger = 6 * time.Second
 
 // noticeTimer is the expiry of the shown notices.
 type noticeTimer struct {
-	seen int // how many notices the last update left
+	seen int // how many notices had been posted when the last update ended
 	gen  int // bumped when a notice appears; an older expiry is stale
 }
 
 // noticeExpired is the linger timer of notices generation gen.
 type noticeExpired struct{ gen int }
 
-// expireNotices runs after every message. before is how many notices were
-// shown when msg arrived: a key or paste drops those (not the ones it
-// added itself), the current linger timer drops all, and a new notice
-// sets the timer.
-func (a *App) expireNotices(msg tea.Msg, before int) tea.Cmd {
+// noticeSink sits between the UI and the Model's sink: it forwards every
+// message and keeps the ids of the notices still shown, so expiry takes
+// them back with ClearNotice instead of editing Model.Notices.
+type noticeSink struct {
+	next   ochazuke.UISink
+	shown  []ochazuke.NoticeID
+	posted int
+}
+
+// trackNotices puts a noticeSink in front of the sink attached now (the
+// Model's).
+func (a *App) trackNotices() {
+	a.noticeSink = &noticeSink{next: a.r.UI().Sink()}
+	a.r.UI().Attach(a.noticeSink)
+}
+
+func (s *noticeSink) Notify(id ochazuke.NoticeID, text string) {
+	s.shown = append(s.shown, id)
+	s.posted++
+	if s.next != nil {
+		s.next.Notify(id, text)
+	}
+}
+
+func (s *noticeSink) ClearNotice(id ochazuke.NoticeID) {
+	s.shown = slices.DeleteFunc(s.shown, func(v ochazuke.NoticeID) bool { return v == id })
+	if s.next != nil {
+		s.next.ClearNotice(id)
+	}
+}
+
+func (s *noticeSink) Status(text string) {
+	if s.next != nil {
+		s.next.Status(text)
+	}
+}
+
+// shownNotices is a copy of the ids shown now, taken before a message.
+func (a *App) shownNotices() []ochazuke.NoticeID {
+	if a.noticeSink == nil {
+		return nil
+	}
+	return slices.Clone(a.noticeSink.shown)
+}
+
+// expireNotices runs after every message. before is the notices shown
+// when msg arrived: a key or paste takes those back (not the ones it
+// added itself), the current linger timer takes back all, and a new
+// notice sets the timer.
+func (a *App) expireNotices(msg tea.Msg, before []ochazuke.NoticeID) tea.Cmd {
+	if a.noticeSink == nil {
+		return nil
+	}
 	switch v := msg.(type) {
 	case tea.KeyPressMsg, tea.PasteMsg:
-		drop := min(before, len(a.m.Notices))
-		a.m.Notices = a.m.Notices[drop:]
+		for _, id := range before {
+			a.r.UI().ClearNotice(id)
+		}
 	case noticeExpired:
 		if v.gen == a.notices.gen {
-			a.m.Notices = nil
+			for _, id := range slices.Clone(a.noticeSink.shown) {
+				a.r.UI().ClearNotice(id)
+			}
 		}
 	}
-	grew := len(a.m.Notices) > a.notices.seen
-	a.notices.seen = len(a.m.Notices)
+	grew := a.noticeSink.posted > a.notices.seen
+	a.notices.seen = a.noticeSink.posted
 	if !grew || a.pv.after == nil {
 		return nil
 	}

@@ -118,7 +118,7 @@ func (a *App) loadDetail() {
 		return
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: verb, Noun: "pane", Target: row}); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }
 
@@ -221,11 +221,11 @@ func (a *App) killSession(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil, fmt.Errorf("kill session %s: %w", s.Session, err)
 		}
 		return d.ListPanes(c)
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err == nil {
 			if a.attached.Session == s.Session {
 				if err := a.closeTerminal(); err != nil {
-					a.m.Notify(err.Error())
+					ctx.Notify(err.Error())
 				}
 			}
 			panes, _ := v.([]pane)

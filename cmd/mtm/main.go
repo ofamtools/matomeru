@@ -304,6 +304,7 @@ type App struct {
 	sideLock       string
 	landErr        string // why the last finished launch or pane.new did not reach the screen
 	notices        noticeTimer
+	noticeSink     *noticeSink // ids of the shown notices (notices.go)
 
 	reviews    []work.Review
 	reviewRows map[string]paneReview // row id → the pane row (reviews.go)
@@ -391,6 +392,7 @@ func New(opts Options) (*App, error) {
 	r := ochazuke.NewRuntime()
 	client := opts.client()
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a.trackNotices()
 	a.configDir = configDir
 	a.dataPath = opts.Data
 	a.configure(opts, configDir)

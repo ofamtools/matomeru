@@ -172,7 +172,7 @@ func (a *App) listVim(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	// r also asks the daemon again; the rows follow its listing.
 	if err := a.reloadPanes(); err != nil {
-		a.m.Status = err.Error()
+		ctx.Status(err.Error())
 	}
 	if err := a.refreshVim(); err != nil {
 		return ochazuke.Failed(err)
@@ -286,10 +286,10 @@ func vimPane(session work.VimSession, panes []pane) (pane, bool) {
 
 func (a *App) startVim(session work.VimSession, owner Owner, path string, reopen bool) ochazuke.Result {
 	version := a.pinVersion
-	return ochazuke.Pending(a.vimLaunchJob(session, owner, path, reopen)).Then(func(_ ochazuke.Ctx, value any, err error) {
+	return ochazuke.Pending(a.vimLaunchJob(session, owner, path, reopen)).Then(func(ctx ochazuke.Ctx, value any, err error) {
 		if done, ok := value.(vimStarted); ok && err == nil {
 			if refreshErr := a.refreshVim(); refreshErr != nil {
-				a.m.Notify(refreshErr.Error())
+				ctx.Notify(refreshErr.Error())
 			}
 			if !a.cli {
 				a.finishLaunch(done.Launch, owner, version)
@@ -480,10 +480,10 @@ func (a *App) saveVim(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil, err
 		}
 		return current, nil
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
 			if err := a.refreshVim(); err != nil {
-				a.m.Notify(err.Error())
+				ctx.Notify(err.Error())
 			}
 		}
 	})

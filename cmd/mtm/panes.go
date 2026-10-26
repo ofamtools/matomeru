@@ -392,7 +392,7 @@ func (a *App) setPanes(panes []pane, err error) {
 		if was == "" {
 			// The page says the daemon is down in two lines; the whole
 			// error is a notice (notice.list), once per outage.
-			a.m.Notify("panes: " + a.paneErr)
+			a.r.UI().Notify("panes: " + a.paneErr)
 		}
 	}
 	if err == nil {
@@ -578,7 +578,7 @@ func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 
 func (a *App) attachLive(p pane, returnTo string) error {
 	if err := a.work.TouchDir(p.Cwd); err != nil {
-		a.m.Notify("directory recency: " + err.Error())
+		a.r.UI().Notify("directory recency: " + err.Error())
 	}
 	if err := a.closeTerminal(); err != nil {
 		return err
@@ -698,11 +698,11 @@ func (a *App) killPane(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil, fmt.Errorf("kill %s: %w", p.label(), err)
 		}
 		return d.ListPanes(c)
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err == nil {
 			if a.attached.ID == p.ID {
 				if closeErr := a.closeTerminal(); closeErr != nil {
-					a.m.Notify(closeErr.Error())
+					ctx.Notify(closeErr.Error())
 				}
 			}
 			panes, _ := v.([]pane)

@@ -127,12 +127,12 @@ func (a *App) launchJob(owner Owner, h harness.Harness, spec harness.Spec) func(
 
 func (a *App) finishLaunch(done launched, owner Owner, version uint64) {
 	if version != a.pinVersion {
-		a.m.Notify("Launch finished in " + done.Pane.Session + "; pin changed, view unchanged")
+		a.r.UI().Notify("Launch finished in " + done.Pane.Session + "; pin changed, view unchanged")
 		if done.Note != "" {
-			a.m.Notify(done.Note)
+			a.r.UI().Notify(done.Note)
 		}
 		if done.Pane.Prompt == harness.PromptNotSent {
-			a.m.Notify("prompt not sent: " + done.Pane.Note)
+			a.r.UI().Notify("prompt not sent: " + done.Pane.Note)
 		}
 		return
 	} else {
@@ -148,23 +148,23 @@ func (a *App) finishLaunch(done launched, owner Owner, version uint64) {
 			a.setPanes(done.Panes, nil)
 			a.landErr = "outside pin: " + a.ownerLabel(owner.ProjectID)
 			if err := a.r.OpenPage(panesPage); err != nil {
-				a.m.Notify(err.Error())
+				a.r.UI().Notify(err.Error())
 				return
 			}
 			// The explicit launch opens its terminal, not an out-of-scope list row.
 			if err := a.attachLive(p, paneListID); err != nil {
-				a.m.Notify("show the new pane: " + err.Error())
+				a.r.UI().Notify("show the new pane: " + err.Error())
 			}
 		} else {
 			a.landPane(p, done.Panes)
 		}
 	}
 	if done.Note != "" {
-		a.m.Notify(done.Note)
+		a.r.UI().Notify(done.Note)
 		a.landErr = strings.TrimPrefix(a.landErr+"; "+done.Note, "; ")
 	}
 	if done.Pane.Prompt == harness.PromptNotSent {
-		a.m.Notify("prompt not sent: " + done.Pane.Note)
+		a.r.UI().Notify("prompt not sent: " + done.Pane.Note)
 		a.landErr = strings.TrimPrefix(a.landErr+"; prompt not sent: "+done.Pane.Note, "; ")
 	}
 }

@@ -303,7 +303,7 @@ func (a *App) filterContext() {
 		return
 	}
 	if err := a.refreshContext(); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }
 
@@ -417,17 +417,17 @@ func (a *App) copyText(text string) ochazuke.Result {
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		osc, err := sys.Copy(c, text)
 		return osc, err
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
 		}
 		if osc, _ := v.(bool); osc {
 			if err := a.copyOSC52(text); err != nil {
-				a.m.Status = err.Error()
+				ctx.Status(err.Error())
 				return
 			}
 		}
-		a.m.Notify("copied " + oneLine(text))
+		ctx.Notify("copied " + oneLine(text))
 	})
 }
 
@@ -461,9 +461,9 @@ func (a *App) openContext(ctx ochazuke.Ctx) ochazuke.Result {
 	sys, target := a.cx.sys, contextitems.Target(it)
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		return target, sys.Open(c, target)
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
-			a.m.Notify("opened " + oneLine(target))
+			ctx.Notify("opened " + oneLine(target))
 		}
 	})
 }
@@ -480,9 +480,9 @@ func (a *App) revealContext(ctx ochazuke.Ctx) ochazuke.Result {
 	sys := a.cx.sys
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		return it.Text, sys.Reveal(c, it.Text)
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
+	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
-			a.m.Notify("revealed " + oneLine(it.Text))
+			ctx.Notify("revealed " + oneLine(it.Text))
 		}
 	})
 }

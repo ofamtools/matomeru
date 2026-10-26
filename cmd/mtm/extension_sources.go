@@ -61,7 +61,7 @@ func (a *App) mountSources(x *extension, plan []ocli.CatalogNoun) {
 				}
 				srcNoun, srcVerb, _ := strings.Cut(p.Source, ".")
 				if _, mounted := a.r.Operations[x.nouns[srcNoun]+"."+srcVerb]; !mounted || x.nouns[srcNoun] == "" {
-					a.m.Notify(fmt.Sprintf("%s: %s %s --%s: choices source %s is not mounted; no pick list", x.name, n.Name, v.Name, name, p.Source))
+					a.r.UI().Notify(fmt.Sprintf("%s: %s %s --%s: choices source %s is not mounted; no pick list", x.name, n.Name, v.Name, name, p.Source))
 					continue
 				}
 				src := x.sources[p.Source]

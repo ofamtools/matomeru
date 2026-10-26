@@ -209,18 +209,18 @@ func (a *App) flushRename() error {
 // afterRename reloads the pane list once the daemon has the new name,
 // after done (when given) records it.
 func (a *App) afterRename(work ochazuke.Result, done func(name string) error) ochazuke.Result {
-	return work.Then(func(_ ochazuke.Ctx, v any, err error) {
+	return work.Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
 		}
 		if done != nil {
 			name, _ := v.(string)
 			if err := done(name); err != nil {
-				a.m.Status = err.Error()
+				ctx.Status(err.Error())
 			}
 		}
 		if _, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "refresh", Target: paneListID}); err != nil {
-			a.m.Status = err.Error()
+			ctx.Status(err.Error())
 		}
 	})
 }

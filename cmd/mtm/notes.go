@@ -248,7 +248,7 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if owner.Notice != "" {
-		a.m.Notify(owner.Notice)
+		ctx.Notify(owner.Notice)
 	}
 	record := editRecord{Noun: "note", ID: work.NewID(), ProjectID: owner.ProjectID, TaskID: owner.TaskID, New: true}
 	if _, present := ctx.Args["text"]; !present {
@@ -328,7 +328,7 @@ func (a *App) associateNote(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if owner.Notice != "" {
-		a.m.Notify(owner.Notice)
+		ctx.Notify(owner.Notice)
 	}
 	note.ProjectID, note.TaskID, note.Updated = owner.ProjectID, owner.TaskID, work.Now()
 	if err := a.work.PutNote(note); err != nil {
@@ -375,7 +375,7 @@ func (a *App) deleteNote(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.refreshNotes(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	a.m.Notify("Deleted note " + noteLabel(note.Text))
+	ctx.Notify("Deleted note " + noteLabel(note.Text))
 	return ochazuke.Done(note)
 }
 

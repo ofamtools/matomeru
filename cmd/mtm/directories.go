@@ -455,7 +455,7 @@ func (a *App) openedDirectories() tea.Cmd {
 	// The detail lists the saved panes and Vim sessions started in a
 	// directory: read them as they are now.
 	if err := errors.Join(a.refreshSaved(), a.refreshVim()); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 	// The first visit lands on the first list drawn: the pinned project's
 	// directories when it has any (UX review 2 F22); later visits keep the
@@ -464,7 +464,7 @@ func (a *App) openedDirectories() tea.Cmd {
 		a.dirsVisited = true
 		if a.projectDirList.Len() > 0 {
 			if err := a.projectDirList.Focus(); err != nil {
-				a.m.Status = err.Error()
+				a.r.UI().Status(err.Error())
 			}
 		}
 	}
@@ -472,17 +472,17 @@ func (a *App) openedDirectories() tea.Cmd {
 		return nil
 	}
 	if err := a.loadDirectories(); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 	return a.r.PendingCommands()
 }
 
-func (a *App) refreshDirectories(ochazuke.Ctx) ochazuke.Result {
+func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 	a.directories.Loading = true
 	return ochazuke.Pending(func(ctx context.Context) (any, error) {
 		rows, footer, err := a.knownDirs(ctx)
 		return directoryCache{Rows: rows, Footer: footer, Ready: true}, err
-	}).ReplacingAt("app", "directories").Then(func(_ ochazuke.Ctx, value any, err error) {
+	}).ReplacingAt("app", "directories").Then(func(ctx ochazuke.Ctx, value any, err error) {
 		a.directories.Loading = false
 		if err != nil {
 			a.directories.Footer = err.Error()
@@ -501,7 +501,7 @@ func (a *App) refreshDirectories(ochazuke.Ctx) ochazuke.Result {
 			a.directories.Want = ""
 			if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
 				if err := a.r.SetFocus("directory:" + want); err != nil {
-					a.m.Status = err.Error()
+					ctx.Status(err.Error())
 				}
 			}
 		}
@@ -619,7 +619,7 @@ func (a *App) filterDirectories() {
 	}
 	items = append(items, ochazuke.ListItem{ID: "directory:browse", Noun: "directory-browse", Label: "browse…", Cells: []string{"browse…"}})
 	if err := a.directoryList.SetItems(items); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }
 
@@ -675,7 +675,7 @@ func (a *App) refreshProjectDirs() {
 		}
 	}
 	if err := a.projectDirList.SetItems(items); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }
 
@@ -708,7 +708,7 @@ func (a *App) refreshBases() {
 		items = append(items, ochazuke.ListItem{ID: "base:" + base.Path, Noun: "project-base", Label: path, Data: base, Cells: []string{path, fmt.Sprint(base.Depth), known, base.Source}})
 	}
 	if err := a.baseList.SetItems(items); err != nil {
-		a.m.Status = err.Error()
+		a.r.UI().Status(err.Error())
 	}
 }
 
@@ -921,7 +921,7 @@ func (a *App) attachDirectory(projectID, path string) ochazuke.Result {
 	if filepath.Clean(p.DefaultTree) == tree.Path {
 		msg += " (default)"
 	}
-	a.m.Notify(msg)
+	a.r.UI().Notify(msg)
 	return ochazuke.Done(p)
 }
 
@@ -1050,7 +1050,7 @@ func (a *App) defaultDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	a.refreshDirectoryRows()
 	home, _ := a.home()
-	a.m.Notify("Default for " + projectName(p) + " is " + tildePath(row.Path, home))
+	ctx.Notify("Default for " + projectName(p) + " is " + tildePath(row.Path, home))
 	return ochazuke.Done(p)
 }
 
@@ -1206,7 +1206,7 @@ func (a *App) rescan(bases []projectBase, msg string) ochazuke.Result {
 		return ochazuke.Done(bases)
 	}
 	a.refreshBases()
-	a.m.Notify(msg)
+	a.r.UI().Notify(msg)
 	return resultError(a.loadDirectories())
 }
 

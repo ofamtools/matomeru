@@ -107,7 +107,7 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 			row := ochazuke.Do(extFormNoun+".new", ochazuke.Arguments{"noun": local}).Hinted("new")
 			row.Instance, row.Mode, row.Keys = l.ID, "normal", "n"
 			if err := a.r.Bind(row); err != nil {
-				a.m.Notify(x.name + ": " + err.Error())
+				a.r.UI().Notify(x.name + ": " + err.Error())
 				continue
 			}
 			taken[local] = append(taken[local], "n")
