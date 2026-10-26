@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/unixsuperhero/ochazuke"
+
+	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
 // fakeRenamer renames the fake daemon's panes and sessions in place.
@@ -119,5 +121,31 @@ func TestRenameEscKeepsTheTypedName(t *testing.T) {
 	settle(app, cmd)
 	if len(fr.calls) != 1 || fr.calls[0] != "window matomeru/w1 shellbuild" || app.r.TopModal() != "" {
 		t.Fatalf("esc after typing: calls %v modal %q", fr.calls, app.r.TopModal())
+	}
+}
+
+// UX review 2 F22: a saved record of a pane follows the pane's rename
+// while it still carries the old name; one renamed on its own keeps it.
+func TestRenamingAPaneRenamesItsSavedRecord(t *testing.T) {
+	app, f := panesApp(t)
+	app.renamer = &fakeRenamer{panes: f}
+	follows, err := app.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w1", Session: "matomeru", Name: "claude"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keeps, err := app.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w1", Session: "matomeru", Name: "my reviewer"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "rename", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"name": "builder"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settle(app, app.r.PendingCommands())
+	if got, _ := app.work.SavedPane(follows.ID); got.Name != "builder" {
+		t.Fatalf("saved record kept the launch name %q", got.Name)
+	}
+	if got, _ := app.work.SavedPane(keeps.ID); got.Name != "my reviewer" {
+		t.Fatalf("a record named on its own changed to %q", got.Name)
 	}
 }

@@ -54,7 +54,34 @@ func (a *App) renamePane(ctx ochazuke.Ctx) ochazuke.Result {
 	r := a.renamer
 	return a.afterRename(ochazuke.Pending(func(c context.Context) (any, error) {
 		return strings.TrimSpace(name), r.RenameWindow(c, p.Session, p.ID, strings.TrimSpace(name))
-	}))
+	}), func(name string) error { return a.renameSavedOf(p, name) })
+}
+
+// renameSavedOf follows a pane rename in the pane's saved records that
+// still carry its old name (a record renamed on its own keeps its name).
+func (a *App) renameSavedOf(p pane, name string) error {
+	if name == "" {
+		return nil
+	}
+	rows, err := a.work.SavedPanes()
+	if err != nil {
+		return err
+	}
+	changed := false
+	for _, row := range rows {
+		if row.Window != p.ID || row.Name != p.Name {
+			continue
+		}
+		row.Name = name
+		if _, err := a.work.PutSavedPane(row); err != nil {
+			return err
+		}
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	return a.refreshSaved()
 }
 
 func (a *App) renameSession(ctx ochazuke.Ctx) ochazuke.Result {
@@ -73,7 +100,7 @@ func (a *App) renameSession(ctx ochazuke.Ctx) ochazuke.Result {
 	r := a.renamer
 	return a.afterRename(ochazuke.Pending(func(c context.Context) (any, error) {
 		return name, r.RenameSession(c, p.Session, name)
-	}))
+	}), nil)
 }
 
 // askRename opens the app's one-line prompt with the current name; enter
@@ -86,11 +113,18 @@ func (a *App) askRename(title, label, current, noun, target string) ochazuke.Res
 	return resultError(err)
 }
 
-// afterRename reloads the pane list once the daemon has the new name.
-func (a *App) afterRename(work ochazuke.Result) ochazuke.Result {
-	return work.Then(func(_ ochazuke.Ctx, _ any, err error) {
+// afterRename reloads the pane list once the daemon has the new name,
+// after done (when given) records it.
+func (a *App) afterRename(work ochazuke.Result, done func(name string) error) ochazuke.Result {
+	return work.Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
+		}
+		if done != nil {
+			name, _ := v.(string)
+			if err := done(name); err != nil {
+				a.m.Status = err.Error()
+			}
 		}
 		if _, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "refresh", Target: paneListID}); err != nil {
 			a.m.Status = err.Error()
