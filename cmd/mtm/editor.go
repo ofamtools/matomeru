@@ -30,6 +30,9 @@ type editRecord struct {
 	FormerTaskID    string            `json:"former_task_id,omitempty"`
 	New             bool              `json:"new"`
 	Fields          map[string]string `json:"fields,omitempty"`
+	// ReturnTo is the live terminal the editor was opened from (the
+	// leader's n); closing the editor goes back to it, live.
+	ReturnTo string `json:"-"`
 }
 
 // recordEditor is the right-hand panel editing one record: ochazuke's
@@ -441,6 +444,12 @@ func (a *App) finishEdit(record editRecord) error {
 		if err := refresh(); err != nil {
 			return err
 		}
+	}
+	if record.ReturnTo != "" && a.r.Terminal(record.ReturnTo) != nil {
+		if err := a.r.OpenPage(panesPage); err != nil {
+			return err
+		}
+		return a.r.SetFocus(record.ReturnTo)
 	}
 	if finish := a.editorFinish[record.Noun]; finish != nil {
 		return finish(record)

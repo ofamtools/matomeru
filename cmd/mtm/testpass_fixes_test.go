@@ -81,7 +81,9 @@ func TestLeaderQuestionListsLeaderKeys(t *testing.T) {
 	if a.r.TopModal() != leaderModal {
 		t.Fatalf("ctrl+a ? opened %q", a.r.TopModal())
 	}
-	fr := frame(a)
+	// 15 rows: at 24 lines the list windows them (j/k scroll); 40 shows all.
+	a.m.Width, a.m.Height = 120, 40
+	fr := plainView(a)
 	for _, want := range []string{"Leader keys", "ctrl+a v", "ctrl+a t", "ctrl+a d", "ctrl+a z", "ctrl+a j", "ctrl+a k", "ctrl+a ?", "ctrl+a ctrl+a"} {
 		if !strings.Contains(fr, want) {
 			t.Fatalf("missing %q:\n%s", want, fr)

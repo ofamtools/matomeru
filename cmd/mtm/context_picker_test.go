@@ -305,7 +305,8 @@ func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "keys", Noun: "terminal", Target: paneTermID}); err != nil {
 		t.Fatal(err)
 	}
-	f := frame(a)
+	a.m.Width, a.m.Height = 120, 40 // every leader row on screen
+	f := plainView(a)
 	if !strings.Contains(f, "ctrl+b c") || !strings.Contains(f, "send ctrl+b to the pane") || strings.Contains(f, "ctrl+a") {
 		t.Fatalf("leader keys modal:\n%s", f)
 	}

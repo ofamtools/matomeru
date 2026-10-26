@@ -396,7 +396,7 @@ func (a *App) defineLiveKeys() {
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · [ copy · c context · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · s starred · [ copy · c context · N note · n task · T todos · S all · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
@@ -405,6 +405,13 @@ func (a *App) defineLiveKeys() {
 		Bind("j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1}).Hinted("next pane")).
 		Bind("k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1}).Hinted("previous pane")).
 		Bind("c", ochazuke.Do(contextNoun+".pick")).
+		// The app's own capture keys, without leaving live: each opens over
+		// the terminal and closing it gives the terminal its keys again.
+		Bind("s", ochazuke.Do("terminal.starred").Hinted("next starred")).
+		Bind("N", ochazuke.Do(quickNoteModal+".open").Hinted("quick note")).
+		Bind("n", ochazuke.Do("task.new").Hinted("new task")).
+		Bind("T", ochazuke.Do("todos.open").Hinted("todos")).
+		Bind("S", ochazuke.Do("scope.all").Hinted("all projects")).
 		Bind("?", ochazuke.Do("terminal.keys"))
 	a.leaderView()
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
@@ -426,7 +433,12 @@ var leaderWords = []struct{ key, text string }{
 	{"z", "zoom the pane to the page, or back"},
 	{"j", "next pane, live"},
 	{"k", "previous pane, live"},
+	{"s", "next starred pane, live (* on a pane row stars it)"},
 	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
+	{"N", "quick note for the selected task, else the pin"},
+	{"n", "new task under the pin"},
+	{"T", "todos: the pin's tasks as an outline"},
+	{"S", "all projects, or back to the pin's"},
 	{"[", "copy mode: scroll back, search, select and yank; i goes live again"},
 	{"?", "these keys"},
 }

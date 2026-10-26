@@ -326,7 +326,11 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	a.current, a.tasksOpen = owner.ProjectID, true
 	if _, present := ctx.Args["title"]; !present {
-		if err := a.beginEdit(editRecord{Noun: "task", ID: work.NewID(), ProjectID: owner.ProjectID, New: true}); err != nil {
+		record := editRecord{Noun: "task", ID: work.NewID(), ProjectID: owner.ProjectID, New: true}
+		if ctx.Instance != nil && a.r.Terminal(ctx.Instance.ID) != nil {
+			record.ReturnTo = ctx.Instance.ID // the leader's n: back to live when it closes
+		}
+		if err := a.beginEdit(record); err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(owner)
