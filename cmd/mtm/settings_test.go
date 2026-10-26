@@ -69,14 +69,19 @@ func TestALaunchStartsTheDefaultHarnessSetting(t *testing.T) {
 	}
 }
 
-// , opens the settings editor from a page, and not inside a modal.
+// , opens the framework's Settings page from a page, esc goes back to the
+// page it was opened from, and , does nothing inside a modal.
 func TestCommaOpensTheSettingsEditor(t *testing.T) {
 	app := open(t)
+	from := app.r.Page
 	press(t, app, ",")
-	if app.r.TopModal() != "settings-editor" {
-		t.Fatalf("top modal %q", app.r.TopModal())
+	if app.r.Page != ochazuke.SettingsPageID || app.r.TopModal() != "" {
+		t.Fatalf("page %q, top modal %q; want the Settings page", app.r.Page, app.r.TopModal())
 	}
 	press(t, app, "esc")
+	if app.r.Page != from {
+		t.Fatalf("esc left page %q, want %q", app.r.Page, from)
+	}
 	press(t, app, "?")
 	top := app.r.TopModal()
 	press(t, app, ",")

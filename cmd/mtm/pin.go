@@ -24,8 +24,9 @@ func (a *App) definePin() {
 	// P opens the picker from a page, never stacked over a modal (the
 	// leader help, ? help, the outline): no-modal is ochazuke's guard.
 	a.r.Define("app").Mode("normal").Bind("P", ochazuke.Do("project.pick").Guard("no-modal")).
-		// , opens the settings editor from any page: free in the key map,
-		// and the usual preferences key (cmd+, on macOS).
+		// , opens the framework's Settings page from any page (settings.edit;
+		// q or esc goes back): free in the key map, and the usual
+		// preferences key (cmd+, on macOS).
 		Bind(",", ochazuke.Do("settings.edit").Guard("no-modal")).Bind("S", ochazuke.Do("scope.all"))
 	a.ownedBy("scope", "work")
 }
