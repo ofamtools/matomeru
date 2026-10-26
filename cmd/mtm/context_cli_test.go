@@ -47,11 +47,16 @@ type fakeContextPanes struct {
 	reads    int
 }
 
-func (f *fakeContextPanes) Scrollback(_ context.Context, p pane) (scrollback, error) {
+// Scrollback serves the fake buffer from line from, as capture-pane's
+// start does.
+func (f *fakeContextPanes) Scrollback(_ context.Context, p pane, from int) (scrollback, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reads++
-	return f.back[p.ID], nil
+	b := f.back[p.ID]
+	all := strings.Split(b.Text, "\n")
+	b.Text = strings.Join(all[min(from, len(all)):], "\n")
+	return b, nil
 }
 
 func (f *fakeContextPanes) Commands(_ context.Context, p pane) ([]daemon.CommandEntry, error) {
@@ -59,6 +64,10 @@ func (f *fakeContextPanes) Commands(_ context.Context, p pane) ([]daemon.Command
 	defer f.mu.Unlock()
 	return f.commands[p.ID], nil
 }
+
+// fakeScreenRows is the fake panes' screen height: the lines above the
+// last fakeScreenRows are history.
+const fakeScreenRows = 5
 
 // print appends lines to a window's fake scrollback.
 func (f *fakeContextPanes) print(window string, lines ...string) {
@@ -69,6 +78,7 @@ func (f *fakeContextPanes) print(window string, lines ...string) {
 		b.Text += "\n"
 	}
 	b.Text += strings.Join(lines, "\n")
+	b.History = max(0, strings.Count(b.Text, "\n")+1-fakeScreenRows)
 	f.back[window] = b
 }
 

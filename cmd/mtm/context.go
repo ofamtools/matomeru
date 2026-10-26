@@ -62,7 +62,8 @@ type contextState struct {
 	sys   systemActions
 	// cmds are commands a completion asks the loop to run (an OSC 52
 	// copy); contextUpdate hands them to Bubble Tea.
-	cmds []tea.Cmd
+	cmds   []tea.Cmd
+	follow *contextFollower // continuous extraction (context_follow.go)
 }
 
 // systemActions are the clipboard and the system opener; tests replace
@@ -122,7 +123,7 @@ func osc52(text string) string {
 }
 
 func (a *App) defineContext() {
-	a.cx = &contextState{sys: osSystem{}}
+	a.cx = &contextState{sys: osSystem{}, follow: newContextFollower()}
 	a.r.Define(contextNoun).Columns(contextColumns...).
 		Verb("list", a.listContext, "List context items in scope, starred first then newest; --kind narrows, --all widens past the pin").Rows(contextNoun).
 		Verb("copy", a.copyContext, "Copy the item's text to the clipboard (OSC 52 when no clipboard program serves the session)").Positional("id").
@@ -131,6 +132,7 @@ func (a *App) defineContext() {
 		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred); starred items sort first").Positional("id").
 		Verb("forget", a.forgetContext, "Forget the record only; the file, page or branch it names is untouched").Positional("id").Confirm("Forget {{label}}?").
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
+		Verb("follow", a.followPanes, "Read the panes that printed since the last read and keep what is new (runs by itself about once a second)").Quiet().
 		Verb("kind", a.cycleContextKind, "Show one kind at a time: all, then each kind in turn").
 		Verb("search", a.searchContext, "Filter the context items by words").
 		Mode("normal").
@@ -281,13 +283,15 @@ func (a *App) filterContext() {
 
 // contextUpdate runs after every message: the search filter follows the
 // typing, and commands completions queued (an OSC 52 copy) are handed to
-// Bubble Tea.
-func (a *App) contextUpdate(tea.Msg) tea.Cmd {
+// Bubble Tea, and continuous extraction follows the panes
+// (context_follow.go).
+func (a *App) contextUpdate(msg tea.Msg) tea.Cmd {
 	if a.cx == nil {
 		return nil
 	}
 	a.filterContext()
-	cmds := a.cx.cmds
+	follow := a.followUpdate(msg)
+	cmds := append(a.cx.cmds, follow)
 	a.cx.cmds = nil
 	return tea.Batch(cmds...)
 }
@@ -479,6 +483,7 @@ func (a *App) forgetContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.contexts.Forget(it.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
+	a.cx.follow.forget(it)
 	if err := a.reloadContext(); err != nil {
 		return ochazuke.Failed(err)
 	}

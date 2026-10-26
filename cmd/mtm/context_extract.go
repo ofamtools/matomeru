@@ -16,7 +16,9 @@ import (
 // scrollback as plain text and its shell's command history. The panes
 // daemon (tuios) provides it; a fake that does not has no extraction.
 type contextDaemon interface {
-	Scrollback(ctx context.Context, p pane) (scrollback, error)
+	// Scrollback reads the recent buffer from line from (0-based; 0 is
+	// all of it).
+	Scrollback(ctx context.Context, p pane, from int) (scrollback, error)
 	Commands(ctx context.Context, p pane) ([]daemon.CommandEntry, error)
 }
 
@@ -27,11 +29,16 @@ type scrollback struct {
 	History int
 }
 
-// Scrollback is the pane's recent buffer, unstyled.
-func (t tuios) Scrollback(ctx context.Context, p pane) (scrollback, error) {
+// Scrollback is the pane's recent buffer from line from, unstyled.
+func (t tuios) Scrollback(ctx context.Context, p pane, from int) (scrollback, error) {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
-	got, err := t.Capture(ctx, daemon.CaptureParams{Session: p.Session, Window: p.ID, Source: "recent"})
+	params := daemon.CaptureParams{Session: p.Session, Window: p.ID, Source: "recent"}
+	if from > 0 {
+		start := from + 1 // capture-pane counts lines from 1
+		params.Start = &start
+	}
+	got, err := t.Capture(ctx, params)
 	return scrollback{Text: got.Content, History: got.HistoryRows}, err
 }
 
@@ -98,7 +105,7 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return nil, err
 		}
-		back, err := d.Scrollback(c, p)
+		back, err := d.Scrollback(c, p, 0)
 		if err != nil {
 			return nil, fmt.Errorf("capture %s: %w", p.label(), err)
 		}

@@ -39,7 +39,7 @@ var (
 )
 
 // Join strips terminal controls and joins soft-wrapped lines: a line that
-// fills width (the pane's columns) and ends mid-token continues on the
+// fills width (the pane's columns) exactly and ends mid-token continues on the
 // next, so a wrapped URL or path is one string. Lines that are hard
 // newlines stay apart. URLs split by a program's own wrap are repaired as
 // matomeru-old did (Unwrap).
@@ -56,7 +56,9 @@ func Join(text string, width int) string {
 			cur = line
 		}
 		joining = false
-		if width > 0 && i+1 < len(lines) && ansi.StringWidth(line) >= width {
+		// Exactly the width: a wider line was written at another width
+		// (history from before a resize) and is left alone.
+		if width > 0 && i+1 < len(lines) && ansi.StringWidth(line) == width {
 			next := lines[i+1]
 			joining = next != "" && !strings.HasSuffix(line, " ") && !strings.HasPrefix(next, " ")
 		}

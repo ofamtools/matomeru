@@ -63,7 +63,9 @@ func (a *App) editorPage(record editRecord) string {
 	return "work"
 }
 
-func (a *App) Init() tea.Cmd { return tea.Batch(a.m.Init(), a.subscribeEvents()) }
+func (a *App) Init() tea.Cmd {
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext())
+}
 func (a *App) View() tea.View {
 	a.fitTitle()
 	return a.m.View()
