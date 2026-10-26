@@ -1,6 +1,7 @@
 package main
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"context"
 	"errors"
 	"github.com/charmbracelet/x/ansi"
@@ -199,8 +200,10 @@ func TestCreatingAndAssociatingTaskOutsidePin(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Title != "outside" {
 		t.Fatalf("outside task %+v %v", rows, err)
 	}
-	if a.taskList.Len() != 0 || a.pin != "matomeru" {
-		t.Fatalf("outside task leaked into pin: %+v", a.taskList.Items())
+	// The task is shown where it was made, the pin unchanged: the tasks
+	// follow the project, not the pin (2026-10-26).
+	if a.taskList.Len() != 1 || a.pin != "matomeru" {
+		t.Fatalf("outside task: rows %+v pin %q", a.taskList.Items(), a.pin)
 	}
 	mustCLI(t, a, "task", "associate", "--target", rows[0].ID, "--project", "matomeru")
 	got, err := a.work.Task(rows[0].ID)
@@ -330,5 +333,28 @@ func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
 	executeA(t, a, "project", "edit", "nameless", ochazuke.Arguments{"name": "renamed"})
 	if a.m.Title != "📌 renamed  /elsewhere/other" {
 		t.Fatalf("rename %q", a.m.Title)
+	}
+}
+
+// "No pin" (owner, 2026-10-26): on Work, selecting a project row outside
+// the pin shows its tasks without pinning it.
+func TestWorkShowsAnUnpinnedProjectsTasksWithoutPinningIt(t *testing.T) {
+	a := pinned(t)
+	if err := a.work.PutTask(work.Task{ID: "o1", ProjectID: "ochazuke", Title: "tag a release"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.OpenPage("work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.projectList.Select("ochazuke"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.SetFocus("ochazuke"); err != nil {
+		t.Fatal(err)
+	}
+	a.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	f := frameAt(a, 120)
+	if a.pin != "matomeru" || !strings.Contains(f, "tag a release") || strings.Contains(f, "outside the pin") {
+		t.Fatalf("pin %q:\n%s", a.pin, f)
 	}
 }

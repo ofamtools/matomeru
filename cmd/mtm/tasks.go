@@ -70,8 +70,11 @@ func (a *App) refreshTasks() error {
 		if err != nil {
 			return err
 		}
+		// The tasks follow the selected project row whatever the pin: the
+		// projects list shows every project, and selecting one shows its
+		// tasks without pinning it (the "no pin" rule, 2026-10-26).
 		for _, t := range rows {
-			if (a.all || t.ProjectID == a.current) && a.inScope(t.ProjectID) {
+			if a.all || t.ProjectID == a.current {
 				tasks = append(tasks, t)
 			}
 		}

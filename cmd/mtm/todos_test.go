@@ -32,7 +32,7 @@ func pinned(t *testing.T) *App {
 }
 
 // T opens the pin's task outline from every page and T closes it; with
-// no pin it is "no project".
+// no pin it is all projects.
 func TestTOpensTheTodoOutlineOnEveryPage(t *testing.T) {
 	for _, page := range []string{"work", panesPage, notesPage, directoriesPage} {
 		a := pinned(t)
@@ -63,10 +63,11 @@ func TestTOpensTheTodoOutlineOnEveryPage(t *testing.T) {
 	toPage(t, a, notesPage)
 	press(t, a, "T")
 	f := frameAt(a, 80)
-	if !strings.Contains(f, "Tasks · no project") || !strings.Contains(f, "[ ] loose end") || strings.Contains(f, "write the brief") {
-		t.Fatalf("no project outline:\n%s", f)
+	// No pin means all projects (2026-10-26): T opens the all view.
+	if !strings.Contains(f, "Tasks · all projects") || !strings.Contains(f, "[ ] loose end") || !strings.Contains(f, "write the brief") {
+		t.Fatalf("no pin outline:\n%s", f)
 	}
-	t.Logf("no project, 80 columns:\n%s", f)
+	t.Logf("no pin, 80 columns:\n%s", f)
 	press(t, a, "esc")
 	if a.r.TopModal() != "" {
 		t.Fatalf("esc left %q", a.r.TopModal())

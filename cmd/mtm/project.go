@@ -167,8 +167,6 @@ func (a *App) tasksHeading() string {
 		return "tasks · all projects"
 	case !a.tasksOpen:
 		return "tasks"
-	case !a.inScope(a.current):
-		return "tasks · " + a.ownerLabel(a.current) + " is outside the pin (S shows all)"
 	}
 	return "tasks · " + a.ownerLabel(a.current)
 }
@@ -250,7 +248,7 @@ func (a *App) workDetail() (detail string, isTask bool) {
 	}
 	var task *work.Task
 	for i := range a.tasks {
-		if a.tasks[i].ID == taskID && a.inScope(a.tasks[i].ProjectID) {
+		if a.tasks[i].ID == taskID {
 			task = &a.tasks[i]
 			break
 		}
@@ -258,9 +256,7 @@ func (a *App) workDetail() (detail string, isTask bool) {
 	if task != nil {
 		detail = fmt.Sprintf("%s\n\nstatus: %s\nproject: %s", taskLabel(*task), task.Status, a.ownerLabel(task.ProjectID))
 		detail += a.detailNotes(task.ProjectID, task.ID)
-	} else if p, ok := a.project(projectID); ok && !a.inScope(p.ID) {
-		detail = projectLabel(p) + "\n\noutside the pin; P pins it, S shows all projects"
-	} else if p, ok := a.project(projectID); ok && a.inScope(p.ID) {
+	} else if p, ok := a.project(projectID); ok {
 		detail = projectLabel(p) + "\n"
 		// Only the settings that are set; i edits them all.
 		for _, f := range [][2]string{{"color", p.Theme.Color}, {"harness", p.Settings.Harness}, {"preset", p.Settings.Preset}, {"origin", p.Origin}} {

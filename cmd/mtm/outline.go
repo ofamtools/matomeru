@@ -62,7 +62,7 @@ func (a *App) defineOutline() {
 		Mode("normal").Bind("O", ochazuke.Do("project.outline"))
 	a.r.Define("task").Verb("outline", a.openOutline, "Edit the task's project as an outline; every change is written as it is made").
 		Mode("normal").Bind("O", ochazuke.Do("task.outline"))
-	a.r.Define("todos").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin: no project; all projects in the S view); T again closes it")
+	a.r.Define("todos").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it")
 	a.r.Define("app").Mode("normal").Bind("T", ochazuke.Do("todos.open"))
 	a.ownedBy("todos", "work")
 	a.r.Define(outlineModal).
@@ -112,7 +112,18 @@ func (a *App) openTodos(ochazuke.Ctx) ochazuke.Result {
 		}
 		return ochazuke.Failed(errors.New("the outline is open under another modal"))
 	}
-	return a.showOutline(outlineScope{all: a.all, project: a.pin}, "")
+	// No pin means all projects, on every list (2026-10-26): T with no pin
+	// opens the all view, on the no project branch, so o there adds an
+	// unassociated todo as creating with no pin does everywhere.
+	res := a.showOutline(outlineScope{all: a.all || a.pin == "", project: a.pin}, "")
+	if a.r.TopModal() == outlineModal && a.pin == "" && !a.all {
+		if tree := a.r.Tree(outlineTree); tree != nil && tree.Select(projectNode("")) == nil {
+			if err := a.r.SetFocus(projectNode("")); err != nil {
+				return ochazuke.Failed(err)
+			}
+		}
+	}
+	return res
 }
 
 // openOutline is project.outline and task.outline.

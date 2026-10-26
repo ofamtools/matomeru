@@ -59,8 +59,6 @@ func (a *App) workHeader() string {
 		return "all projects" + statusCounts(a.tasks)
 	case !a.tasksOpen:
 		return "tasks"
-	case !a.inScope(a.current):
-		return a.ownerLabel(a.current) + " is outside the pin (S shows all)"
 	case a.current == "":
 		return "no project" + statusCounts(a.tasks)
 	}
