@@ -674,6 +674,9 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	}
 	lines := []string{s.Muted.Render(ansi.Truncate(head, width, "…")), list, s.Muted.Render(ansi.Truncate(detail, width, "…")), body, s.Muted.Render(ansi.Truncate(answer, width, "…"))}
 	before := strings.Count(strings.Join(lines, "\n"), "\n") + 1
+	// The area is drawn, focused or not, so it is the stop after the
+	// list: a stop the frame does not place is skipped by } and spills.
+	a.r.Placed(answerID)
 	field := ochazuke.Text(ansi.Truncate(string(a.answer.Text), width, "…"))
 	if a.r.Focus == answerID {
 		field = ochazuke.InputBlock(a.answer, max(1, width), 1).Offset(0, before)

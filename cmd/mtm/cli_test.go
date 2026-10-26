@@ -234,7 +234,9 @@ func TestCLIPanesRefreshTargetsTheOnlyPaneList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("panes refresh: %v\n%s", err, errOut)
 	}
-	if !strings.Contains(errOut, "panes.refresh done") || len(app.panes) != 3 || app.r.Instances["pane:matomeru/w3"] == nil {
+	// panes.refresh is quiet: its job prints no "job #N" line unless it
+	// fails (ochazuke v0.2.0).
+	if strings.Contains(errOut, "job #") || len(app.panes) != 3 || app.r.Instances["pane:matomeru/w3"] == nil {
 		t.Fatalf("stderr %q, panes %+v", errOut, app.panes)
 	}
 }

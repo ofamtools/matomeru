@@ -161,8 +161,9 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 	}
 	// Retired keys: a and D answer nowhere (the editor noun's Vim rows,
 	// inside an input, keep a as append); q is a close key (the record
-	// editor, the outline, modals) and never a macro; refresh has no key.
-	closers := map[string]bool{copyNoun + ".leave": true, "record-editor.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.pop": true}
+	// editor, ochazuke's form, the outline, modals) and never a macro;
+	// refresh has no key.
+	closers := map[string]bool{copyNoun + ".leave": true, "record-editor.leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.pop": true}
 	for _, row := range rows {
 		switch {
 		case row.at == "noun editor":
