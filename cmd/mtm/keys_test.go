@@ -124,9 +124,9 @@ func normalRows(a *App) []keyRow {
 func TestBindingsFollowTheKeyMap(t *testing.T) {
 	app := open(t)
 	families := map[string][]string{
-		"d d": {"pane.kill", "session.kill", "saved.forget", "vim.forget", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete", contextNoun + ".forget"},
-		"n":   {"pane.new", "project.new", "task.new", "note.new", "vim.open", "dirs.base.add"},
-		"L":   {"agent.choose", "project.launch", "task.launch"},
+		"d d": {"pane.kill", "session.kill", "saved.forget", "vim.forget", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete", contextNoun + ".forget", "extension.remove"},
+		"n":   {"pane.new", "project.new", "task.new", "note.new", "vim.open", "dirs.base.add", "extension.register"},
+		"L":   {"agent.choose", "project.launch", "task.launch", "extension.refresh"}, // L refreshes an Extensions row (owner, 2026-10-26)
 		"i":   {"project.edit", "task.edit", "note.edit", "project-dir.edit", "review.saveAnswer", "outline.edit"},
 		"r":   {"pane.rename", "session.rename", "saved.rename"},
 		"x":   {"task.toggle", outlineModal + ".toggle", "review.accept"},
