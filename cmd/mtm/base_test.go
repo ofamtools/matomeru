@@ -245,3 +245,48 @@ func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
 		t.Fatalf("harness field %+v", f)
 	}
 }
+
+// A draft an older mtm left is never written by opening its record: the
+// stored record may be newer. Opening shows the stored values, writes
+// nothing and keeps the draft (the heading says so); draft.open writes it.
+func TestOpeningARecordNeverWritesALeftoverDraft(t *testing.T) {
+	a := open(t)
+	if err := a.drafts.Save("task", "t1", editRecord{Noun: "task", ID: "t1", ProjectID: "matomeru", Text: "stale draft", Fields: map[string]string{"status": "todo"}}); err != nil {
+		t.Fatal(err)
+	}
+	newer := stored(t, a, "t1")
+	newer.Title, newer.Status = "edited after the draft", "active"
+	if err := a.work.PutTask(newer); err != nil {
+		t.Fatal(err)
+	}
+	newer = stored(t, a, "t1")
+	if err := a.reveal("t1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.editor.Value("title"); got != "edited after the draft" {
+		t.Fatalf("editor shows %q, not the stored title", got)
+	}
+	if f := frame(a); !strings.Contains(f, "a draft from an older mtm is kept") {
+		t.Fatalf("heading does not mention the draft:\n%s", f)
+	}
+	press(t, a, "esc", "q")
+	if got := stored(t, a, "t1"); got != newer {
+		t.Fatalf("opening wrote %+v over %+v", got, newer)
+	}
+	var d editRecord
+	if err := a.drafts.Load("task", "t1", &d); err != nil || d.Text != "stale draft" {
+		t.Fatalf("draft not kept: %+v %v", d, err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "draft", Verb: "open", Target: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored(t, a, "t1"); got.Title != "stale draft" || got.Status != "todo" {
+		t.Fatalf("draft.open did not write the draft: %+v", got)
+	}
+	if err := a.drafts.Load("task", "t1", &d); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("draft.open kept the draft file: %v", err)
+	}
+}

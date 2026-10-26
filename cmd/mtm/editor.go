@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -42,6 +43,9 @@ type recordEditor struct {
 	Record editRecord
 	Page   string // the page whose right-hand panel holds the editor
 	Form   *ochazuke.RecordEditor
+	// Draft says a draft an older mtm left differs from the stored record;
+	// the stored values are shown and the draft waits for draft.open.
+	Draft bool
 }
 
 // fieldID is the instance of one of the editor's fields.
@@ -200,19 +204,30 @@ func (a *App) recordValues(record editRecord) (ochazuke.Record, error) {
 }
 
 // beginEdit opens the record editor on a record. It is record first: a
-// new record is written when the editor opens, even with an empty title,
-// and so is a draft an older mtm left for it (the draft is removed).
-func (a *App) beginEdit(record editRecord) error {
+// new record is written when the editor opens, even with an empty title.
+// An existing record shows its stored values and nothing is written until
+// it is edited; a draft an older mtm left for it is kept (its row says
+// [draft], the editor's heading says so) and is written only by
+// draft.open, never by opening the record: the stored record may be newer.
+func (a *App) beginEdit(record editRecord) error { return a.openEditor(record, false) }
+
+// openEditor is beginEdit; fromDraft (draft.open) writes the record's
+// draft over its stored values at once and removes the draft file.
+func (a *App) openEditor(record editRecord, fromDraft bool) error {
 	if err := a.leaveEditor(); err != nil {
 		return err
 	}
 	var saved editRecord
-	draft := false
+	hasDraft := false
 	if err := a.drafts.Load(record.Noun, record.ID, &saved); err == nil {
-		record, draft = saved, true
+		hasDraft = true
+		if fromDraft {
+			record = saved
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	fromDraft = fromDraft && hasDraft
 	page := a.editorPage(record)
 	e := &recordEditor{Record: record, Page: page}
 	spec := ochazuke.RecordSpec{
@@ -224,13 +239,22 @@ func (a *App) beginEdit(record editRecord) error {
 			if err != nil {
 				return nil, err
 			}
-			if draft {
+			if hasDraft && !fromDraft && !e.Record.New {
+				// The stored record wins; a draft that says the same is
+				// spent, one that differs waits for draft.open.
+				if draftValues(saved, values) {
+					e.Draft = true
+				} else if err := a.drafts.Clear(record.Noun, record.ID); err != nil {
+					return nil, err
+				}
+			}
+			if fromDraft {
 				values[titleField(record.Noun)] = e.Record.Text
 				for name, v := range e.Record.Fields {
 					values[name] = v
 				}
 			}
-			if e.Record.New || draft {
+			if e.Record.New || fromDraft {
 				if err := a.storeRecord(e, values); err != nil {
 					return nil, err
 				}
@@ -260,6 +284,19 @@ func (a *App) beginEdit(record editRecord) error {
 	return form.Focus()
 }
 
+// draftValues reports whether a draft would change a record's values.
+func draftValues(d editRecord, values ochazuke.Record) bool {
+	if d.Text != values[titleField(d.Noun)] {
+		return true
+	}
+	for name, v := range d.Fields {
+		if _, ok := values[name]; ok && v != values[name] {
+			return true
+		}
+	}
+	return false
+}
+
 // fail shows a failure from a callback that cannot return one.
 func (a *App) fail(err error) {
 	if err != nil {
@@ -267,12 +304,22 @@ func (a *App) fail(err error) {
 	}
 }
 
+// openDraft is draft.open: on a new record's [draft] row, or on a record
+// row whose draft an older mtm left, the draft is written as the record at
+// once and opened in the editor.
 func (a *App) openDraft(ctx ochazuke.Ctx) ochazuke.Result {
-	record, ok := ctx.Instance.Data.(editRecord)
-	if !ok {
+	if ctx.Instance == nil {
 		return ochazuke.Failed(errors.New("no draft selected"))
 	}
-	return resultError(a.beginEdit(record))
+	record, ok := ctx.Instance.Data.(editRecord)
+	if !ok {
+		record = editRecord{Noun: ctx.Instance.Noun, ID: ctx.Instance.ID}
+		var saved editRecord
+		if err := a.drafts.Load(record.Noun, record.ID, &saved); err != nil {
+			return ochazuke.Failed(fmt.Errorf("%s %s has no draft", record.Noun, record.ID))
+		}
+	}
+	return resultError(a.openEditor(record, true))
 }
 
 // storeRecord writes the editor's record with these field values (the
@@ -364,9 +411,6 @@ func resultError(err error) ochazuke.Result {
 // is written; the focus goes back to the record's row.
 func (a *App) finishEdit(record editRecord) error {
 	a.editor = nil
-	if err := a.drafts.Clear(record.Noun, record.ID); err != nil {
-		return err
-	}
 	if err := a.refreshProjects(); err != nil {
 		return err
 	}
@@ -421,7 +465,11 @@ func (a *App) editorPanel(rightWidth, height int) ochazuke.Block {
 	e := a.editor
 	e.Form.Styles = ochazuke.NewStyles(*a.m.Appearance)
 	form := e.Form.Block(rightWidth, max(1, height-1)).Offset(0, 1)
-	return form.WithText("editing " + e.Record.Noun + " · written as you type\n" + form.Text)
+	heading := "editing " + e.Record.Noun + " · written as you type"
+	if e.Draft {
+		heading += " · a draft from an older mtm is kept; draft open writes it"
+	}
+	return form.WithText(heading + "\n" + form.Text)
 }
 
 // leaveEditor writes the open record's last change and closes the editor
