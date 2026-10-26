@@ -774,6 +774,7 @@ func (a *App) chooseDirectoryFor(title, projectID, purpose string, use func(stri
 		Rows:   rows,
 		Empty:  "loading known directories…",
 		Filter: trailingFilter,
+		Keep:   []int{1}, // the path: the branch and projects narrow first (F22)
 		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			if path, ok := row.Data.(string); ok {
 				return use(path)

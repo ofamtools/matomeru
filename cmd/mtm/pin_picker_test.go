@@ -583,17 +583,16 @@ func TestADirectorylessProjectIsAskedOnce(t *testing.T) {
 }
 
 // UX review 2 F22: the directory chooser cuts the branch and projects
-// columns before the path. A known gap since mtm draws its choosers with
-// ochazuke's: its ChooserSpec has no Keep, so the widest column (the
-// path) narrows first.
+// columns before the path (its Keep: []int{1}); without Keep the widest
+// column, the path, would narrow first.
 func TestDirectoryChooserCutsThePathLast(t *testing.T) {
-	t.Skip("gap: ochazuke ChooserSpec has no Keep (UX review 2 F22); the path narrows first")
-	r := ochazuke.NewRuntime()
-	path := "~/proj/some/deep/repo-ab" // 24 cells
-	c, err := r.OpenChooser(ochazuke.ChooserSpec{Kind: "keep-test", Rows: []ochazuke.ChooserRow{{ID: "r", Label: "repo", Cells: []string{"repo-name1", path, "feature/branch-abc", "3d ago", "[alpha, beta, ga]"}}}})
-	if err != nil {
+	a := open(t)
+	if err := a.chooseDirectoryFor("Directory", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 		t.Fatal(err)
 	}
+	c := a.r.Chooser(dirChooser)
+	path := "~/proj/some/deep/repo-ab" // 24 cells
+	c.SetRows([]ochazuke.ChooserRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo-name1", path, "feature/branch-abc", "3d ago", "[alpha, beta, ga]"}}})
 	if view := ansi.Strip(c.View(72, 6).Text); !strings.Contains(view, path) {
 		t.Fatalf("path cut:\n%s", view)
 	}
