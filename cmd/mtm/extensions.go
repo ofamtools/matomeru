@@ -780,10 +780,11 @@ func pagesOf(name string, doc ocli.CatalogDoc, plan []ocli.CatalogNoun, mounted 
 
 // loadExtBindings installs the catalog's key rows of mounted nouns, renamed
 // to mtm's nouns. A row naming one of the tool's own instances, running a
-// verb mtm did not mount, whose first key a noun on its list's path (the
-// list, the page, app) already binds, or whose first key is one of mtm's
-// CRUD keys on that noun (crud: n, i, d) is dropped and named in the
-// answer.
+// verb mtm did not mount, whose keys clash with a row of a noun on its
+// list's path (the list, the page, app: keyTaken), or whose first key is
+// one of mtm's CRUD keys on that noun (crud: n, i, d) is dropped and named
+// in the answer. A sequence's generated prefix cancel ("g esc" for "g s")
+// is skipped silently: loading the sequence brings its own back.
 func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocli.CatalogPage, crud map[string][]string) []string {
 	home := map[string]string{} // catalog noun -> a list its rows live in
 	for _, p := range pages {
@@ -801,7 +802,7 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 	var dropped []string
 	for _, row := range rows {
 		local, ok := x.nouns[row.Noun]
-		if !ok {
+		if !ok || isPrefixCancel(row) {
 			continue
 		}
 		where := row.Keys + row.Pattern + " on " + row.Noun
@@ -840,14 +841,23 @@ func (x *extension) nounOfLocal(local string) string {
 	return ""
 }
 
+// isPrefixCancel reports whether a row is the cancel ochazuke generates
+// for a key-sequence prefix: "<prefix> esc" running ochazuke.mode.leave.
+func isPrefixCancel(b ochazuke.Binding) bool {
+	return strings.HasSuffix(b.Keys, " "+ochazuke.CancelKey) && b.Request.Key() == "ochazuke.mode.leave" && len(b.From) == 0 && b.When == ""
+}
+
 // keyTaken reports whether a noun on a list's path (the list, its page,
-// app) binds the row's first key in the row's mode or in every mode.
-// Pattern rows are not compared.
+// app) binds keys that clash with the row's, in the row's mode or in every
+// mode: the same keys, or one sequence a prefix of the other (an extension
+// "g" would make mtm's "g g" wait, and its "g g x" would shadow "g g").
+// Sequences that only share a prefix ("g s" beside "g g") do not clash.
+// Pattern rows and generated prefix cancels are not compared.
 func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 	if row.Keys == "" {
 		return false
 	}
-	first := strings.Fields(row.Keys)[0]
+	keys := strings.Fields(row.Keys)
 	for _, id := range a.r.Ancestry(list) {
 		n := a.r.Noun(a.r.Instances[id].Noun)
 		if n == nil {
@@ -858,7 +868,7 @@ func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 				continue
 			}
 			for _, b := range bindings {
-				if b.Keys != "" && strings.Fields(b.Keys)[0] == first {
+				if b.Keys != "" && !isPrefixCancel(b) && keysClash(keys, strings.Fields(b.Keys)) {
 					return true
 				}
 			}
@@ -1013,4 +1023,11 @@ func (a *App) revealExtTarget(target string) bool {
 		}
 	}
 	return false
+}
+
+// keysClash reports whether one key sequence is a prefix of the other
+// (equal sequences included).
+func keysClash(a, b []string) bool {
+	n := min(len(a), len(b))
+	return slices.Equal(a[:n], b[:n])
 }

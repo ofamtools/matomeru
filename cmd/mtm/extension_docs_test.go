@@ -3,20 +3,26 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/ochazuke"
 )
 
 // docsCatalog is o-md's catalog as far as the Docs page needs it: noun doc
 // with its row source, send-notes with a pane parameter, and the Docs
-// page, a split whose detail is the markdown kind over the row's path.
+// page, a split whose detail is the markdown kind over the row's path; its
+// key rows are o-md's: g s sends the notes, and the g esc that cancels the
+// g prefix (ochazuke generates it for every sequence).
 const docsCatalog = `{"schema":1,"name":"o-md","version":"0.2.0","nouns":[
  {"name":"doc","verbs":[
   {"name":"list","kind":"application","rows":"doc"},
   {"name":"send-notes","kind":"application","params":{"pane":{"type":"string","noun":"pane","free":true}},"positional":["pane"]}]}],
- "bindings":[],
+ "bindings":[
+  {"mode":"normal","noun":"doc","request":{"verb":"leave","noun":"ochazuke.mode"},"keys":"g esc"},
+  {"mode":"normal","noun":"doc","request":{"verb":"send-notes","noun":"doc"},"keys":"g s"}],
  "pages":[{"id":"docs","title":"Docs","layout":"split","lists":[{"id":"docs/docs","noun":"doc","title":"Docs"}],"detail":{"kind":"markdown","pathField":"path"}}]}`
 
 // docsExtension is a fake o-md over one temp doc: doc list answers its
@@ -138,6 +144,46 @@ func TestDocsSendNotesAsksForAPane(t *testing.T) {
 	}
 }
 
+// g s, the catalog's key row, answers on the doc list and in the markdown
+// editor: mtm's pane chooser opens for the pane parameter, and the chosen
+// pane reaches doc send-notes --target DOC. The row is not dropped, and
+// neither is its generated g esc (a mounted prefix brings its own back).
+func TestDocsGSSendsNotesFromTheListAndTheEditor(t *testing.T) {
+	bin, log, doc := docsExtension(t)
+	a := registered(t, seeded(t), "md", bin)
+	a.panes = []pane{{Pane: daemon.Pane{ID: "w9", Name: "worker"}, Session: "s"}}
+	openExtPage(t, a, "ext/md/docs")
+	if slices.ContainsFunc(a.m.Notices, func(n string) bool { return strings.Contains(n, "key rows dropped") }) {
+		t.Fatalf("a key row was dropped: %q", a.m.Notices)
+	}
+	// The g prefix cancels with esc (the cancel loading g s brought back).
+	press(t, a, "g", "esc")
+	if a.r.Mode.Name != "normal" || a.r.TopModal() != "" {
+		t.Fatalf("g esc: mode %q modal %q", a.r.Mode.Name, a.r.TopModal())
+	}
+	for _, where := range []string{"list", "editor"} {
+		if where == "editor" {
+			press(t, a, "tab")
+		}
+		frame(a)
+		if inEditor := strings.Contains(a.r.Focus, "/markdown/line/"); inEditor != (where == "editor") {
+			t.Fatalf("%s: focus %s", where, a.r.Focus)
+		}
+		before := len(calls(t, log))
+		press(t, a, "g", "s")
+		top := a.r.Instances[a.r.TopModal()]
+		if top == nil || top.Noun != "ext-pane" {
+			t.Fatalf("%s: g s opened no pane chooser: top %+v focus %s", where, top, a.r.Focus)
+		}
+		pressJob(t, a, "enter")
+		got := calls(t, log)[before:]
+		want := "|doc send-notes --target " + doc + ` --json {"pane":"w9"} --yes`
+		if !slices.ContainsFunc(got, func(c string) bool { return strings.HasSuffix(c, want) }) {
+			t.Fatalf("%s: calls %q, want one ending %q", where, got, want)
+		}
+	}
+}
+
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -145,4 +191,17 @@ func readFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// An extension row clashes with mtm's when one key sequence is a prefix of
+// the other; sharing only a prefix is fine.
+func TestKeysClash(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{{"g s", "g g", false}, {"g", "g g", true}, {"g g x", "g g", true}, {"j", "j", true}, {"X", "j", false}} {
+		if got := keysClash(strings.Fields(c.a), strings.Fields(c.b)); got != c.want {
+			t.Errorf("keysClash(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
 }
