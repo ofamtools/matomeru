@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -293,5 +294,26 @@ func TestQuitWaitsForAnOpeningSide(t *testing.T) {
 	links, err := a.work.Companions()
 	if !a.r.Quit || err != nil || len(links) != 1 || links[0].Kind != "term" {
 		t.Fatalf("after the side opened: quit %v links %+v %v", a.r.Quit, links, err)
+	}
+}
+
+// A new side window is sized to the side's region as soon as it exists,
+// so the program in it (vim) starts at that size, not at the session's.
+func TestNewSideWindowFitsItsRegion(t *testing.T) {
+	a, driver := shellApp(t)
+	a.cli = true
+	a.renderPanes(a.r, 240, 30) // the detail is 167x30; a side would get 83 columns
+	p := driver.panes.panes[0]
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "side", Target: p.rowID(), Args: ochazuke.Arguments{"kind": "term"}}); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	links, err := a.work.Companions()
+	if err != nil || len(links) != 1 {
+		t.Fatalf("links: %+v %v", links, err)
+	}
+	cw, ch := ochazuke.PanelContentSize(83, 30)
+	if want := []string{fmt.Sprintf("%s %dx%d", links[0].Window, cw, ch)}; !slices.Equal(driver.panes.fits, want) {
+		t.Fatalf("fits %v, want %v", driver.panes.fits, want)
 	}
 }

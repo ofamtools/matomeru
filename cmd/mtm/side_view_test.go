@@ -179,3 +179,38 @@ func TestSessionKillRefusesLiveCompanionsWithoutDetaching(t *testing.T) {
 		t.Fatalf("session kill after companion exit: killed %v released %v", f.killed, f.streams[0].released)
 	}
 }
+
+// A side's stream opens with its region's size, before the frame that
+// first draws it: the lease is the side panel's body
+// (PanelContentSize), side by side and stacked, and it follows a layout
+// change. Before, the stream dialled at the window's own size (the
+// session's whole screen) and only shrank once drawn.
+func TestSideStreamOpensAtItsRegion(t *testing.T) {
+	a, f := sideViewApp(t)
+	// 240 wide: the detail is 167x30, the side its right 83 columns.
+	a.renderPanes(a.r, 240, 30)
+	if err := a.showSide(a.attached, "vim"); err != nil {
+		t.Fatal(err)
+	}
+	side := f.streams[len(f.streams)-1]
+	if cw, ch := ochazuke.PanelContentSize(83, 30); side.lease != [2]int{cw, ch} {
+		t.Fatalf("beside: side opened with lease %v, want %dx%d", side.lease, cw, ch)
+	}
+	// 120 wide: the detail is 83x30, the side its bottom 15 rows.
+	a.renderPanes(a.r, 120, 30)
+	cw, ch := ochazuke.PanelContentSize(83, 15)
+	if side.lease != [2]int{cw, ch} {
+		t.Fatalf("after the layout change: side lease %v, want %dx%d", side.lease, cw, ch)
+	}
+	if err := a.showSide(a.attached, "term"); err != nil {
+		t.Fatal(err)
+	}
+	term := f.streams[len(f.streams)-1]
+	if term.pane.ID != "side-term" || term.lease != [2]int{cw, ch} {
+		t.Fatalf("stacked: side %s opened with lease %v, want %dx%d", term.pane.ID, term.lease, cw, ch)
+	}
+	parent := f.streams[0]
+	if pw, ph := ochazuke.PanelContentSize(83, 15); parent.lease != [2]int{pw, ph - 2} {
+		t.Fatalf("parent lease %v", parent.lease)
+	}
+}

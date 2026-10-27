@@ -110,6 +110,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	a.sideStarting[key] = true
 	pd, ws, launcher, dir, server := a.panesd, a.work, a.launcher, a.vimDir, a.server()
+	fit := a.sideFit()
 	result := ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
 		panes, err := sideListing(c, pd, ws, server)
 		if err != nil {
@@ -154,7 +155,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return nil, err
 		}
-		driver := &recordingDriver{Driver: &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, kind: kind, env: recordedEnvironment(recipe)}, work: ws, owner: owner}
+		driver := &recordingDriver{Driver: &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, kind: kind, env: recordedEnvironment(recipe), fit: fit}, work: ws, owner: owner}
 		if kind == "vim" {
 			id := work.NewID()
 			path, err := filepath.Abs(filepath.Join(dir, id+".vim"))
@@ -225,6 +226,9 @@ type sideDriver struct {
 	parent pane
 	kind   string
 	env    map[string]string
+	// fit sizes the new window to the side's region (sideFit); nil when
+	// the region is not known yet.
+	fit func(ctx context.Context, session, window string) error
 }
 
 func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
@@ -240,7 +244,33 @@ func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, 
 	if err := d.work.PutCompanion(work.Companion{Window: id, Parent: d.parent.ID, Kind: d.kind, Server: d.server}); err != nil {
 		return id, fmt.Errorf("side pane %s is open but its link could not be saved: %w", id, err)
 	}
+	if d.fit != nil {
+		// Best effort: the lease mtm takes once it shows the side sizes
+		// the pane as well; the fit only spares the program its start at
+		// the session's full size.
+		_ = d.fit(ctx, w.Session, id)
+	}
 	return id, nil
+}
+
+// windowFitter is a daemon that can set a window's size (tuios's resize).
+type windowFitter interface {
+	FitWindow(ctx context.Context, p pane, cols, rows int) error
+}
+
+// sideFit sizes a new side window to the side's region in the detail
+// area the last frame drew. TUIOS creates a window at its session's size,
+// the whole screen of the client that last sized it, and a side would
+// start there until its stream's lease shrinks it.
+func (a *App) sideFit() func(ctx context.Context, session, window string) error {
+	fitter, ok := a.panesd.(windowFitter)
+	cols, rows := a.sideContentSize()
+	if !ok || cols <= 0 || rows <= 0 {
+		return nil
+	}
+	return func(ctx context.Context, session, window string) error {
+		return fitter.FitWindow(ctx, pane{Session: session, Pane: daemon.Pane{ID: window}}, cols, rows)
+	}
 }
 
 func (a *App) checkCompanions(ctx context.Context, parent string) error {

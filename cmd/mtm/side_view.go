@@ -130,6 +130,15 @@ func (a *App) syncSideView() error {
 	}
 	side := a.companionPanes[id]
 	stream := a.panesd.OpenStream(side)
+	// The stream dials on its first read, which can come before the first
+	// frame draws the side: give it the side's region now, so it opens
+	// with that lease instead of at the window's size.
+	if cols, rows := a.sideContentSize(); cols > 0 && rows > 0 {
+		if err := stream.Resize(cols, rows); err != nil {
+			stream.Release()
+			return err
+		}
+	}
 	a.trackStream(sideTermID, stream)
 	if _, err := a.r.AddTerminal(sideTermID, stream, ochazuke.Parent(panesPage), ochazuke.FocusOnClose(paneTermID)); err != nil {
 		stream.Release()
@@ -174,15 +183,44 @@ func (a *App) sideDetach(ochazuke.Ctx) ochazuke.Result {
 // parent, both at the detail's full width.
 const sideSplit = 161
 
+// sideArea is how the detail area splits between the parent and its side:
+// side by side (beside) or the side under the parent, and each panel's
+// outer size.
+type sideArea struct {
+	beside                         bool
+	parentW, parentH, sideW, sideH int
+}
+
+func (a *App) sideArea(width, height int) sideArea {
+	if width >= sideSplit {
+		leftWidth := (width - 1) / 2
+		return sideArea{beside: true, parentW: leftWidth, parentH: height, sideW: width - leftWidth - 1, sideH: height}
+	}
+	topHeight := max(1, height/2)
+	return sideArea{parentW: width, parentH: topHeight, sideW: width, sideH: height - topHeight}
+}
+
+// sideContentSize is the side panel's body in the detail area the last
+// frame drew (0, 0 before one): what the side's pane is sized to.
+func (a *App) sideContentSize() (cols, rows int) {
+	if a.pv.detailW <= 0 || a.pv.detailH <= 0 {
+		return 0, 0
+	}
+	area := a.sideArea(a.pv.detailW, a.pv.detailH)
+	return ochazuke.PanelContentSize(area.sideW, area.sideH)
+}
+
 // detailBlock keeps both live terminals inside the page's detail area.
 func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
+	a.pv.detailW, a.pv.detailH = width, height
 	if !a.liveShown() || a.r.Terminal(sideTermID) == nil {
 		return a.parentDetailBlock(layout, width, height)
 	}
-	if width >= sideSplit {
-		leftWidth := (width - 1) / 2
+	area := a.sideArea(width, height)
+	if area.beside {
+		leftWidth := area.parentW
 		left := a.parentDetailBlock(layout, leftWidth, height)
-		right := a.sideDetailBlock(layout, width-leftWidth-1, height)
+		right := a.sideDetailBlock(layout, area.sideW, height)
 		leftLines, rightLines := strings.Split(left.Text, "\n"), strings.Split(right.Text, "\n")
 		lines := make([]string, height)
 		for i := range height {
@@ -203,9 +241,9 @@ func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Bl
 		}
 		return block.Clip(width, height)
 	}
-	topHeight := max(1, height/2)
+	topHeight := area.parentH
 	top := a.parentDetailBlock(layout, width, topHeight)
-	bottom := a.sideDetailBlock(layout, width, height-topHeight)
+	bottom := a.sideDetailBlock(layout, width, area.sideH)
 	block := ochazuke.Text(top.Text + "\n" + bottom.Text)
 	if top.Cursor != nil {
 		block.Cursor = top.Cursor

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -30,6 +31,14 @@ type fakePanes struct {
 	backs map[string]scrollback
 	// transcript replaces the agents' default transcript when set.
 	transcript string
+	// fits are the window sizes FitWindow set, "window colsxrows".
+	fits []string
+}
+
+// FitWindow records the size a new side window was given.
+func (f *fakePanes) FitWindow(_ context.Context, p pane, cols, rows int) error {
+	f.fits = append(f.fits, fmt.Sprintf("%s %dx%d", p.ID, cols, rows))
+	return f.err
 }
 
 // Exited is the fake's exit probe: the windows marked in exited.

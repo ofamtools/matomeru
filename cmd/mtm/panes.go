@@ -173,6 +173,9 @@ type paneUI struct {
 	exited     map[string]bool // windows seen exited, kept across plain listings
 	listed     bool            // a listing has succeeded (the Vim page's state follows it)
 	leader     string          // the leader the page's leader rows are bound to (panes_leader.go)
+	// detailW and detailH are the detail area the last frame drew, so a
+	// side's stream and new window get its region before it is drawn.
+	detailW, detailH int
 }
 
 // Timers of the panes page.
@@ -924,6 +927,13 @@ func (t tuios) CapturePane(ctx context.Context, p pane) (string, error) {
 	defer cancel()
 	got, err := t.Capture(ctx, daemon.CaptureParams{Session: p.Session, Window: p.ID, Source: "visible", ANSI: true})
 	return got.Content, err
+}
+
+// FitWindow sets the window's size (resize), as a client asks for one.
+func (t tuios) FitWindow(ctx context.Context, p pane, cols, rows int) error {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	return t.Call(ctx, "resize", map[string]any{"session": p.Session, "window": p.ID, "width": cols, "height": rows}, nil)
 }
 
 // KillPane closes the pane's window.
