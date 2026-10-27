@@ -14,6 +14,8 @@
 
 Matomeru (`mtm`) is built on [ochazuke](https://github.com/unixsuperhero/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
 
+An agent in a TUIOS pane can drive mtm over MCP with `mtm mcp serve`; `mtm mcp config claude` prints the entry to add. See [docs/MCP.md](docs/MCP.md).
+
 Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.
 
 ```sh

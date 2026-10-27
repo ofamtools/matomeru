@@ -45,6 +45,7 @@ func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer,
 		return oden.ErrNotFound
 	}
 	ocli.Mount(app, sh, "bindings", "history")
+	a.defineMCPCommand(app, stdin, stdout, stderr) // mtm mcp (mcp.go)
 	// Mount also mounts the framework's binding noun, which made "bind" an
 	// ambiguous prefix; bind stays the short spelling of bindings.
 	app.Add(oden.Command{Name: "bind", Summary: "bindings (short spelling)", Source: "alias", Run: func(ctx context.Context, args []string) error {
