@@ -156,7 +156,8 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return nil, err
 		}
-		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, kind: kind, env: recordedEnvironment(recipe), fit: fit}
+		cwd := sideCwd(parent, recipe)
+		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, cwd: cwd, kind: kind, env: recordedEnvironment(recipe), fit: fit}
 		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
 		side.note = driver.note
 		if kind == "vim" {
@@ -165,7 +166,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			if err != nil {
 				return nil, err
 			}
-			session := work.VimSession{ID: id, Name: "side-vim", Path: path, OwnedPath: path, Session: parent.Session, Cwd: parent.Cwd, ProjectID: owner.ProjectID, TaskID: owner.TaskID, Created: work.Now()}
+			session := work.VimSession{ID: id, Name: "side-vim", Path: path, OwnedPath: path, Session: parent.Session, Cwd: cwd, ProjectID: owner.ProjectID, TaskID: owner.TaskID, Created: work.Now()}
 			value, err := launchVimJob(session, "", false, driver, pd, ws, dir, parent.Session)(c)
 			if err != nil {
 				return nil, err
@@ -177,7 +178,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if shell == "" {
 			shell = "/bin/sh"
 		}
-		_, err = driver.OpenWindow(c, harness.Window{Session: parent.Session, Name: "side-term", Cwd: parent.Cwd, Command: []string{shell}})
+		_, err = driver.OpenWindow(c, harness.Window{Session: parent.Session, Workspace: parent.Workspace, Name: "side-term", Cwd: cwd, Command: []string{shell}})
 		if err != nil {
 			return nil, err
 		}
@@ -222,11 +223,15 @@ type sideOpened struct {
 	Note   string           `json:"note,omitempty"`
 }
 
+// sideDriver opens a side pane in its parent's context: the parent's
+// session and workspace, the folder the parent is in now (sideCwd) and the
+// environment the parent was launched with.
 type sideDriver struct {
 	harness.Driver
 	work   *work.Store
 	server string
 	parent pane
+	cwd    string
 	kind   string
 	env    map[string]string
 	// fit sizes the new window to the side's region (sideFit); nil when
@@ -236,7 +241,7 @@ type sideDriver struct {
 }
 
 func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
-	w.Session, w.Cwd = d.parent.Session, d.parent.Cwd
+	w.Session, w.Workspace, w.Cwd = d.parent.Session, d.parent.Workspace, d.cwd
 	w.Command = savedCommand(work.PaneRecipe{Command: w.Command, Env: d.env})
 	id, err := d.Driver.OpenWindow(ctx, w)
 	if err != nil {
@@ -364,6 +369,16 @@ func (a *App) withSideLock(fn func(context.Context) (any, error)) func(context.C
 		}
 		return fn(ctx)
 	}
+}
+
+// sideCwd is where a side pane of parent starts: the folder TUIOS reports
+// for the parent now (its shell's OSC 7, else its process's folder, so a
+// cd in the parent moves it), else the folder mtm launched the parent in.
+func sideCwd(parent pane, recipe work.PaneRecipe) string {
+	if parent.Cwd != "" {
+		return parent.Cwd
+	}
+	return recipe.Cwd
 }
 
 func recordedEnvironment(recipe work.PaneRecipe) map[string]string {

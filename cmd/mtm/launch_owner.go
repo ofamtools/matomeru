@@ -34,7 +34,7 @@ func (d *recordingDriver) OpenWindow(ctx context.Context, w harness.Window) (str
 	if real, ok := d.Driver.(tuios); ok {
 		caller := creationRecorder{Client: real.Client, driver: d}
 		var ws int
-		ws, err = daemon.LaunchWorkspace(ctx, caller, w.Session, 0, 0)
+		ws, err = launchWorkspace(ctx, caller, w)
 		if err == nil {
 			var out daemon.NewWindowResult
 			out, err = real.NewWindow(ctx, windowParams(w, ws))

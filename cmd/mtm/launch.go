@@ -84,12 +84,24 @@ func projectCwd(p work.Project) string {
 type tuios struct{ *daemon.Client }
 
 func (t tuios) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
-	ws, err := daemon.LaunchWorkspace(ctx, t.Client, w.Session, 0, 0)
+	ws, err := launchWorkspace(ctx, t.Client, w)
 	if err != nil {
 		return "", err
 	}
 	out, err := t.NewWindow(ctx, windowParams(w, ws))
 	return out.WindowID, err
+}
+
+// launchWorkspace is the workspace w opens on: the one it names (a side
+// pane goes on its parent's), else daemon.LaunchWorkspace's choice, which
+// also creates a missing session.
+func launchWorkspace(ctx context.Context, c interface {
+	Call(context.Context, string, any, any) error
+}, w harness.Window) (int, error) {
+	if w.Workspace > 0 {
+		return w.Workspace, nil
+	}
+	return daemon.LaunchWorkspace(ctx, c, w.Session, 0, 0)
 }
 
 // windowParams is new-window's request for w on workspace ws. Focus is
