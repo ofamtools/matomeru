@@ -369,6 +369,14 @@ type App struct {
 	// (extension_page.go).
 	extList *ochazuke.List
 	extPage extPageState
+	// projectPrefixes are the projects' directories, longest first, that
+	// extension rows are matched to; extScopeObserved is set once the
+	// scope settings' observer is registered (extension_scope.go).
+	projectPrefixes  []projectPrefix
+	extScopeObserved bool
+	// extRowOwners are the recorded owners of extension rows, by
+	// work.ExtRowKey; nil until read (extension_scope.go).
+	extRowOwners map[string]work.ExtRowOwner
 	// quitting is set by Close: an extension's last write runs at once.
 	quitting bool
 
@@ -591,6 +599,8 @@ func (a *App) refreshProjects() error {
 		return err
 	}
 	a.projects = projects
+	a.refreshProjectPrefixes()
+	a.extRowOwners = nil // read again: a deleted project leaves its rows unassociated
 	drafts, err := a.draftRecords("project")
 	if err != nil {
 		return err
@@ -636,6 +646,7 @@ func (a *App) refreshProjects() error {
 		return err
 	}
 	a.refreshDirectoryRows() // owners and the target's directories follow the projects
+	a.rescopeExtensions()    // extension rows follow the projects' directories
 	return nil
 }
 

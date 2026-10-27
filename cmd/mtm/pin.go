@@ -266,6 +266,7 @@ func (a *App) refreshScope() error {
 		return err
 	}
 	a.setPanes(a.panes, nil)
+	a.rescopeExtensions()
 	if err := a.refreshReviews(); err != nil {
 		return err
 	}
