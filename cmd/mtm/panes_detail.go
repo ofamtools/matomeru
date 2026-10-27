@@ -391,7 +391,7 @@ func (a *App) defineLiveKeys() {
 	leader := ochazuke.Request{Verb: "send", Noun: "terminal", Args: ochazuke.Arguments{"keys": "ctrl+a"}}
 	a.r.Define("terminal").
 		Verb("zoom", a.toggleZoom, "Zoom the attached pane to the page body, or back into the detail panel").
-		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list").
+		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list; outside live, select it").
 		Verb("side", a.sidePane, "Open or focus this pane's side vim or terminal").
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
@@ -509,8 +509,13 @@ func (a *App) toggleZoom(ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(a.pv.zoom)
 }
 
-// cyclePane is terminal.cycle: attach the neighbouring pane row, live.
+// cyclePane is terminal.cycle: attach the neighbouring pane row, live;
+// outside live, select it (panes_leader.go).
 func (a *App) cyclePane(ctx ochazuke.Ctx) ochazuke.Result {
+	if !a.inLive() {
+		row, _ := a.selectedRow()
+		return a.selectPane(a.paneNear(row, ochazuke.IntArg(ctx.Args, "delta", 1)))
+	}
 	order := a.pv.view.order
 	i := slices.Index(order, a.attached.rowID())
 	next := i + ochazuke.IntArg(ctx.Args, "delta", 1)
