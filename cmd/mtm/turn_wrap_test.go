@@ -229,15 +229,13 @@ func TestTheReviewTurnsWrap(t *testing.T) {
 // code line, a blank line, a long URL and Japanese, at 80 and 120
 // columns. go test -run TestOpenedTurnFrames -update rewrites them.
 func TestOpenedTurnFrames(t *testing.T) {
-	local := time.Local
-	time.Local = time.UTC
-	defer func() { time.Local = local }()
 	answer := "This answer is a long paragraph of prose that the agent wrote, which should wrap onto several rows at the panel width instead of being cut off with an ellipsis at the edge.\n" +
 		"    func indented() { return someLongFunctionName(withArguments, andMoreArguments, andEvenMoreArguments) }\n" +
 		"\n" +
 		"See https://example.com/a/very/long/path/that/does/not/have/any/spaces/in/it/at/all/so/it/must/hard/break/somewhere.html\n" +
 		"日本語の文章も正しく折り返されるべきです。全角文字は二つのセルを占めるので、幅の計算に注意が必要です。"
 	app := wrapApp(t, answer)
+	app.loc = time.UTC // this app's zone, never the process-global time.Local
 	for _, width := range []int{80, 120} {
 		app.m.Width, app.m.Height = width, 34
 		got := plainView(app)

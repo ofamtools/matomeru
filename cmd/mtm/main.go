@@ -255,6 +255,7 @@ type App struct {
 	journalSrc     journalSource       // the daemon the reader follows; tests replace it
 	stdin          io.Reader           // the CLI's standard input (the capture verbs read it)
 	getenv         func(string) string // the environment; tests replace it
+	loc            *time.Location      // the zone times are shown in; nil is time.Local (location); tests set UTC
 	dataPath       string              // the database (mtm setup's hooks write it)
 	opts           Options             // the command line New was given (mtm mcp serve opens one app per tool call with it)
 	cx             *contextState       // the Context page and its actions (context.go)

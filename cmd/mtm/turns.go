@@ -54,9 +54,17 @@ func (a *App) addTurns() error {
 	return nil
 }
 
+// location is the zone the app shows times in: loc, else time.Local.
+func (a *App) location() *time.Location {
+	if a.loc != nil {
+		return a.loc
+	}
+	return time.Local
+}
+
 // turnLabel is a turn's row: the prompt's first line, its answers and
-// when it finished.
-func turnLabel(t history.PaneTurn) string {
+// when it finished, shown in loc.
+func turnLabel(t history.PaneTurn, loc *time.Location) string {
 	prompt := firstLine(t.Prompt)
 	if prompt == "" {
 		prompt = "(no prompt)"
@@ -65,9 +73,9 @@ func turnLabel(t history.PaneTurn) string {
 	case !t.Done():
 		return prompt + " · working"
 	case t.ReviewedAt == 0:
-		return fmt.Sprintf("%s · %s · %s · new", prompt, plural(len(t.Responses), "answer"), time.UnixMilli(t.CompletedAt).Format("Jan 2 15:04"))
+		return fmt.Sprintf("%s · %s · %s · new", prompt, plural(len(t.Responses), "answer"), time.UnixMilli(t.CompletedAt).In(loc).Format("Jan 2 15:04"))
 	}
-	return fmt.Sprintf("%s · %s · %s", prompt, plural(len(t.Responses), "answer"), time.UnixMilli(t.CompletedAt).Format("Jan 2 15:04"))
+	return fmt.Sprintf("%s · %s · %s", prompt, plural(len(t.Responses), "answer"), time.UnixMilli(t.CompletedAt).In(loc).Format("Jan 2 15:04"))
 }
 
 // firstLine is a text's first non-empty line, trimmed.

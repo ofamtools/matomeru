@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	xansi "github.com/charmbracelet/x/ansi"
@@ -144,14 +145,14 @@ func (a *App) turnFillOf(tree *ochazuke.Tree) *turnFill {
 }
 
 // turnNodes are the tree's nodes for a fill: a row per turn and, under
-// it, a row per piece of each of its lines.
-func turnNodes(st *turnFill) []ochazuke.TreeNode {
+// it, a row per piece of each of its lines; times are shown in loc.
+func turnNodes(st *turnFill, loc *time.Location) []ochazuke.TreeNode {
 	var nodes []ochazuke.TreeNode
 	for _, t := range st.turns {
 		id := st.prefix + t.ID
 		ref := st.back
 		ref.Window, ref.ID, ref.Line = st.window, t.ID, -1
-		nodes = append(nodes, ochazuke.TreeNode{ID: id, Label: turnLabel(t), Noun: "turn", Data: ref})
+		nodes = append(nodes, ochazuke.TreeNode{ID: id, Label: turnLabel(t, loc), Noun: "turn", Data: ref})
 		for j, line := range turnLines(t) {
 			pieces := wrapTurnLine(line, st.width)
 			for k, p := range pieces {
@@ -177,7 +178,7 @@ func (a *App) setTurnNodes(tree *ochazuke.Tree, st *turnFill) error {
 	if n, ok := tree.Selected(); ok && n.Noun == "turn-line" {
 		was, _ = n.Data.(turnRef)
 	}
-	nodes := turnNodes(st)
+	nodes := turnNodes(st, a.location())
 	if err := tree.SetNodes(nodes); err != nil {
 		return err
 	}
