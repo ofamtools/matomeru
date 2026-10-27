@@ -23,12 +23,13 @@ import (
 // Turns read from the agent's own log or the shell's command marks
 // (internal/turns), for the Panes page's Turns tab:
 //
-//   - A Claude Code pane's turns come from its session JSONL, found
+//   - A Claude Code or omp pane's turns come from its session JSONL, found
 //     through the agent_session_id tuios reports (list-agents). Every
 //     session the pane ran is kept (work.PaneSessions), so a /clear
 //     chains the new session after the old with a separator row. The
 //     logs are read off the loop, from where the last read stopped, on
-//     every listing while the tab shows the pane.
+//     every listing while the tab shows the pane. omp's log is a tree
+//     (internal/turns/omp.go): the turns follow its current branch.
 //   - A shell pane whose shell sends OSC 133 marks has a turn per
 //     command (tuios command-history): the prompt is the command line, the
 //     response its output, read only when the turn is opened or copied.
@@ -47,16 +48,16 @@ import (
 // mtm is the owner's own UI. A process inside a pane that runs mtm's CLI
 // can read the turns this way too.
 //
-// Seams for the next slices: a prompt box under the tree sends through
-// the agent's harness (paneTurns.kind says which); omp is one more kind
-// read from its extension's get_entries or its JSONL; the prompts picker
-// reads paneTurns.list.
+// An agent pane's tab ends in a prompt box (prompt_box.go) that sends to
+// the agent through tuios. The prompts picker, a later slice, reads
+// paneTurns.list.
 
 // The turn sources.
 const (
 	turnsJournal = iota // mtm's capture hooks (turns.go)
 	turnsClaude
 	turnsShell
+	turnsOmp
 )
 
 // The turns settings.
@@ -85,7 +86,7 @@ const turnCopyLimit = 100 * 1024
 // paneTurns is what mtm has read of one pane's turns.
 type paneTurns struct {
 	window   string
-	chain    *turns.ClaudeChain
+	chain    *turns.LogChain
 	list     []turns.Turn
 	loaded   bool // a read finished
 	loading  bool
@@ -160,6 +161,11 @@ func isClaude(p pane) bool {
 	return strings.HasPrefix(p.Harness, "claude") || p.Harness == "" && strings.HasPrefix(p.LaunchHarness, "claude")
 }
 
+// isOmp reports whether the pane runs omp (oh-my-pi).
+func isOmp(p pane) bool {
+	return p.Harness == "omp" || p.Harness == "" && strings.HasPrefix(p.LaunchHarness, "omp")
+}
+
 // paneTurnsOf is the pane's read turns, made on first use.
 func (a *App) paneTurnsOf(window string) *paneTurns {
 	if a.mturns == nil {
@@ -167,7 +173,7 @@ func (a *App) paneTurnsOf(window string) *paneTurns {
 	}
 	pt := a.mturns[window]
 	if pt == nil {
-		pt = &paneTurns{window: window, chain: &turns.ClaudeChain{}, outputs: map[string]*turnOutput{}}
+		pt = &paneTurns{window: window, chain: &turns.LogChain{}, outputs: map[string]*turnOutput{}}
 		a.mturns[window] = pt
 	}
 	return pt
@@ -181,6 +187,8 @@ func (a *App) turnKind(p pane) int {
 	switch {
 	case isClaude(p) && len(a.agentSessions(p)) > 0:
 		return turnsClaude
+	case isOmp(p) && len(a.agentSessions(p)) > 0:
+		return turnsOmp
 	case !p.isAgent() && p.MarksCommands:
 		return turnsShell
 	}
@@ -200,14 +208,14 @@ func (a *App) agentSessions(p pane) []string {
 	return out
 }
 
-// recordAgentSessions keeps every Claude pane's session as tuios reports
+// recordAgentSessions keeps every Claude or omp pane's session as tuios reports
 // it, so a /clear later still chains the turns before it.
 func (a *App) recordAgentSessions(panes []pane) {
 	if a.sessionSeen == nil {
 		a.sessionSeen = map[string]string{}
 	}
 	for _, p := range panes {
-		if p.ID == "" || p.AgentSession == "" || !isClaude(p) || a.sessionSeen[p.ID] == p.AgentSession {
+		if p.ID == "" || p.AgentSession == "" || !(isClaude(p) || isOmp(p)) || a.sessionSeen[p.ID] == p.AgentSession {
 			continue
 		}
 		if _, err := a.work.AddPaneSession(p.ID, p.Harness, p.AgentSession); err != nil {
@@ -218,7 +226,7 @@ func (a *App) recordAgentSessions(panes []pane) {
 	}
 }
 
-// claudeRead is a Claude read's answer (what the CLI prints).
+// claudeRead is a session log read's answer (what the CLI prints).
 type claudeRead struct {
 	Turns   []turns.Turn `json:"turns"`
 	NoLog   bool         `json:"no_log,omitempty"`  // no log of any of the pane's sessions exists
@@ -235,8 +243,8 @@ func (a *App) readPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	pt := a.paneTurnsOf(p.ID)
 	switch a.turnKind(p) {
-	case turnsClaude:
-		sessions, chain, projects := a.agentSessions(p), pt.chain, a.claudeProjects
+	case turnsClaude, turnsOmp:
+		sessions, chain, find := a.agentSessions(p), pt.chain, a.sessionLogFinder(p)
 		pt.loading = true
 		return ochazuke.Pending(func(context.Context) (any, error) {
 			have := chain.Sessions()
@@ -244,8 +252,8 @@ func (a *App) readPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 				if slices.Contains(have, s) {
 					continue
 				}
-				if path, err := turns.FindClaudeLog(projects, p.Cwd, s); err == nil {
-					chain.Add(s, path)
+				if log := find(s); log != nil {
+					chain.AddLog(log)
 				}
 			}
 			if len(chain.Sessions()) == 0 {
@@ -312,6 +320,30 @@ func (a *App) readPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(nil)
 }
 
+// sessionLogFinder finds a session's log for the pane's harness: Claude's
+// under its projects directory (the pane's cwd first), omp's under its
+// sessions directory. nil is no log found.
+func (a *App) sessionLogFinder(p pane) func(session string) turns.Log {
+	if isOmp(p) {
+		sessions := a.ompSessions
+		return func(s string) turns.Log {
+			path, err := turns.FindOmpLog(sessions, s)
+			if err != nil {
+				return nil
+			}
+			return turns.NewOmpLog(path, s)
+		}
+	}
+	projects := a.claudeProjects
+	return func(s string) turns.Log {
+		path, err := turns.FindClaudeLog(projects, p.Cwd, s)
+		if err != nil {
+			return nil
+		}
+		return turns.NewClaudeLog(path, s)
+	}
+}
+
 // turnsRead refills the Turns tab when it shows the pane read.
 func (a *App) turnsRead(window string) {
 	row := a.pv.turnsFor
@@ -350,7 +382,7 @@ func (a *App) pollTurns() {
 		if pt.loaded && pt.seq == p.CommandSeq && pt.running == running {
 			return
 		}
-	case turnsClaude:
+	case turnsClaude, turnsOmp:
 	default:
 		return
 	}
@@ -359,11 +391,11 @@ func (a *App) pollTurns() {
 	}
 }
 
-// liveTurns are the pane's turns as the tab draws them: a Claude turn
+// liveTurns are the pane's turns as the tab draws them: an agent's turn
 // still open in a log whose agent is no longer working is done.
 func liveTurns(pt *paneTurns, p pane) []turns.Turn {
 	list := pt.list
-	if n := len(list); n > 0 && list[n-1].State == turns.StateRunning && list[n-1].Source == turns.SourceClaude && p.AgentState != "working" && !p.needsInput() {
+	if n := len(list); n > 0 && list[n-1].State == turns.StateRunning && (list[n-1].Source == turns.SourceClaude || list[n-1].Source == turns.SourceOmp) && p.AgentState != "working" && !p.needsInput() {
 		list = slices.Clone(list)
 		list[n-1].State = turns.StateDone
 	}

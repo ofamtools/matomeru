@@ -374,3 +374,58 @@ func TestCopyingAHugeShellOutputOffersAFile(t *testing.T) {
 		t.Fatalf("pagers %q", f.pagers)
 	}
 }
+
+// ompRecord is one synthetic omp session entry (internal/turns/omp.go's
+// shapes); no real session's content.
+func ompRecord(t *testing.T, typ, id, parent, ts string, message map[string]any) string {
+	t.Helper()
+	r := map[string]any{"type": typ, "id": id, "parentId": parent, "timestamp": ts}
+	if parent == "" {
+		r["parentId"] = nil
+	}
+	if message != nil {
+		r["message"] = message
+	}
+	return logRecord(t, r)
+}
+
+// An omp pane's turns come from its session file, found by the session id
+// tuios reports, following the file's current branch; a steer folds in.
+func TestOmpTurnsFromTheSessionFile(t *testing.T) {
+	app, f := panesApp(t)
+	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "omp", "idle", "01a1-s1", "/w/proj"
+	dir := filepath.Join(app.ompSessions, "-w-proj")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	user := func(text string, steer bool) map[string]any {
+		m := map[string]any{"role": "user", "content": []map[string]any{{"type": "text", "text": text}}}
+		if steer {
+			m["steering"] = true
+		}
+		return m
+	}
+	answer := func(text, stop string) map[string]any {
+		return map[string]any{"role": "assistant", "content": []map[string]any{{"type": "text", "text": text}}, "stopReason": stop}
+	}
+	writeLog(t, filepath.Join(dir, "2026-10-27T10-00-00-000Z_01a1-s1.jsonl"),
+		logRecord(t, map[string]any{"type": "session", "version": 3, "id": "01a1-s1", "cwd": "/w/proj"}),
+		ompRecord(t, "message", "u1", "", "2026-10-27T10:00:01Z", user("plan the release", false)),
+		ompRecord(t, "message", "s1", "u1", "2026-10-27T10:00:02Z", user("skip the changelog", true)),
+		ompRecord(t, "message", "a1", "s1", "2026-10-27T10:00:03Z", answer("Planned.", "stop")),
+		ompRecord(t, "message", "u2", "a1", "2026-10-27T10:00:04Z", user("abandoned", false)),
+		ompRecord(t, "message", "u3", "a1", "2026-10-27T10:00:05Z", user("ship it", false)),
+	)
+	reload(t, app)
+	settle(app, key(t, app, "["))
+	if app.turnKind(app.panes[0]) != turnsOmp {
+		t.Fatalf("kind %d", app.turnKind(app.panes[0]))
+	}
+	rows := turnRows(app)
+	if len(rows) != 2 || !strings.Contains(rows[0], "plan the release · 1 steer") || !strings.Contains(rows[1], "ship it") {
+		t.Fatalf("rows %q", rows)
+	}
+	if rec, _ := app.work.PaneSessions("w1"); len(rec.Sessions) != 1 || rec.Sessions[0] != "01a1-s1" {
+		t.Fatalf("recorded %+v", rec)
+	}
+}

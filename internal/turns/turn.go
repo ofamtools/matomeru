@@ -1,6 +1,6 @@
 // Package turns is the turn model of a pane's conversation: one Turn per
 // prompt (an agent's) or per command (a shell's), read from the agent's
-// own session log (claude.go) or the shell's OSC 133 command history
+// own session log (claude.go, omp.go) or the shell's OSC 133 command history
 // (shell.go). It knows nothing of the UI; cmd/mtm draws the turns as an
 // accordion.
 //
@@ -22,7 +22,7 @@ type Source string
 // Sources.
 const (
 	SourceClaude Source = "claude"
-	SourceOmp    Source = "omp" // read in a later slice (the omp extension and its JSONL)
+	SourceOmp    Source = "omp"
 	SourceShell  Source = "shell"
 )
 
@@ -116,12 +116,12 @@ func (t Turn) Response() string {
 
 // Chain joins a pane's sessions, oldest first, into one list of turns:
 // the first turn of every session after the first non-empty one carries
-// NewSession.
+// NewSession, as does a turn its log marked (omp's /clear boundary).
 func Chain(sessions ...[]Turn) []Turn {
 	var out []Turn
 	for _, s := range sessions {
 		for i, t := range s {
-			t.NewSession = i == 0 && len(out) > 0
+			t.NewSession = len(out) > 0 && (i == 0 || t.NewSession)
 			out = append(out, t)
 		}
 	}

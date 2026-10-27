@@ -365,8 +365,7 @@ type ClaudeLog struct {
 	Path    string
 	Session string
 	mu      sync.Mutex
-	offset  int64
-	partial []byte
+	tail    tail
 	parser  ClaudeParser
 }
 
@@ -375,46 +374,15 @@ func NewClaudeLog(path, session string) *ClaudeLog {
 	return &ClaudeLog{Path: path, Session: session, parser: ClaudeParser{Session: session}}
 }
 
+// SessionID is the session the log is of.
+func (l *ClaudeLog) SessionID() string { return l.Session }
+
 // Read parses the lines appended since the last read and reports whether
 // there were any.
 func (l *ClaudeLog) Read() (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	f, err := os.Open(l.Path)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return false, err
-	}
-	if info.Size() < l.offset {
-		l.offset, l.partial, l.parser = 0, nil, ClaudeParser{Session: l.Session}
-	}
-	if info.Size() == l.offset {
-		return false, nil
-	}
-	if _, err := f.Seek(l.offset, io.SeekStart); err != nil {
-		return false, err
-	}
-	data, err := io.ReadAll(io.LimitReader(f, info.Size()-l.offset))
-	if err != nil {
-		return false, err
-	}
-	l.offset += int64(len(data))
-	buf := append(l.partial, data...)
-	changed := false
-	for {
-		i := bytes.IndexByte(buf, '\n')
-		if i < 0 {
-			break
-		}
-		l.parser.Feed(buf[:i])
-		buf, changed = buf[i+1:], true
-	}
-	l.partial = append([]byte(nil), buf...)
-	return changed, nil
+	return l.tail.read(l.Path, func() { l.parser = ClaudeParser{Session: l.Session} }, l.parser.Feed)
 }
 
 // Turns are the log's turns so far.
@@ -424,42 +392,100 @@ func (l *ClaudeLog) Turns() []Turn {
 	return l.parser.Turns()
 }
 
-// ClaudeChain is a pane's Claude sessions, oldest first, read as one list
-// of turns: a /clear starts a new session (a new log), which Add appends.
-// Safe for concurrent use.
-type ClaudeChain struct {
-	mu   sync.Mutex
-	logs []*ClaudeLog
+// tail reads a growing file a line at a time: from where the last read
+// stopped, a last line without its newline held until the rest comes, and
+// a file that shrank (rewritten) read again from the start after reset.
+type tail struct {
+	offset  int64
+	partial []byte
 }
 
-// Add follows a session's log after the ones the chain has, once.
-func (c *ClaudeChain) Add(session, path string) {
+func (t *tail) read(path string, reset func(), feed func([]byte)) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return false, err
+	}
+	if info.Size() < t.offset {
+		t.offset, t.partial = 0, nil
+		reset()
+	}
+	if info.Size() == t.offset {
+		return false, nil
+	}
+	if _, err := f.Seek(t.offset, io.SeekStart); err != nil {
+		return false, err
+	}
+	data, err := io.ReadAll(io.LimitReader(f, info.Size()-t.offset))
+	if err != nil {
+		return false, err
+	}
+	t.offset += int64(len(data))
+	buf := append(t.partial, data...)
+	changed := false
+	for {
+		i := bytes.IndexByte(buf, '\n')
+		if i < 0 {
+			break
+		}
+		feed(buf[:i])
+		buf, changed = buf[i+1:], true
+	}
+	t.partial = append([]byte(nil), buf...)
+	return changed, nil
+}
+
+// Log is one agent session's log a chain follows.
+type Log interface {
+	SessionID() string
+	Read() (bool, error)
+	Turns() []Turn
+}
+
+// LogChain is a pane's sessions, oldest first, read as one list of turns:
+// a /clear or /new starts a new session (a new log), which AddLog appends.
+// Safe for concurrent use.
+type LogChain struct {
+	mu   sync.Mutex
+	logs []Log
+}
+
+// AddLog follows a session's log after the ones the chain has, once per
+// session.
+func (c *LogChain) AddLog(l Log) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, l := range c.logs {
-		if l.Session == session {
+	for _, have := range c.logs {
+		if have.SessionID() == l.SessionID() {
 			return
 		}
 	}
-	c.logs = append(c.logs, NewClaudeLog(path, session))
+	c.logs = append(c.logs, l)
 }
 
+// Add follows a Claude session's log (ClaudeChain's spelling).
+func (c *LogChain) Add(session, path string) { c.AddLog(NewClaudeLog(path, session)) }
+
 // Sessions are the chained session ids, oldest first.
-func (c *ClaudeChain) Sessions() []string {
+func (c *LogChain) Sessions() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	out := make([]string, len(c.logs))
 	for i, l := range c.logs {
-		out[i] = l.Session
+		out[i] = l.SessionID()
 	}
 	return out
 }
 
 // Read reads every log; a log that is gone is skipped (its turns read so
 // far stay), and the error says which.
-func (c *ClaudeChain) Read() (bool, error) {
+func (c *LogChain) Read() (bool, error) {
 	c.mu.Lock()
-	logs := append([]*ClaudeLog(nil), c.logs...)
+	logs := append([]Log(nil), c.logs...)
 	c.mu.Unlock()
 	changed := false
 	var errs []error
@@ -467,16 +493,16 @@ func (c *ClaudeChain) Read() (bool, error) {
 		ch, err := l.Read()
 		changed = changed || ch
 		if err != nil {
-			errs = append(errs, fmt.Errorf("session %s: %w", l.Session, err))
+			errs = append(errs, fmt.Errorf("session %s: %w", l.SessionID(), err))
 		}
 	}
 	return changed, errors.Join(errs...)
 }
 
 // Turns are every session's turns, chained.
-func (c *ClaudeChain) Turns() []Turn {
+func (c *LogChain) Turns() []Turn {
 	c.mu.Lock()
-	logs := append([]*ClaudeLog(nil), c.logs...)
+	logs := append([]Log(nil), c.logs...)
 	c.mu.Unlock()
 	sessions := make([][]Turn, len(logs))
 	for i, l := range logs {
@@ -484,6 +510,9 @@ func (c *ClaudeChain) Turns() []Turn {
 	}
 	return Chain(sessions...)
 }
+
+// ClaudeChain is a pane's Claude sessions (a LogChain of Claude logs).
+type ClaudeChain = LogChain
 
 // ClaudeProjects is Claude Code's projects directory: $CLAUDE_CONFIG_DIR
 // /projects, else ~/.claude/projects.

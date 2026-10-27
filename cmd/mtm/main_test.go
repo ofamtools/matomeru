@@ -145,6 +145,7 @@ func openWith(t *testing.T, opts Options) *App {
 	app.getenv = func(string) string { return "" } // tests may run inside a TUIOS pane
 	app.journalSrc = nil                           // the journal reader never follows the real daemon
 	app.claudeProjects = t.TempDir()               // no test reads the owner's Claude session logs
+	app.ompSessions = t.TempDir()                  // nor omp's
 	// Turns is the detail's default tab (TestTurnsIsTheDefaultTab); the
 	// tests of the Screen tab, written when it was the default, start there.
 	app.pv.tab = tabScreen
