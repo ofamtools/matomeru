@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -185,5 +186,30 @@ func TestTabLineEnterLiveOnlyOnAPaneRow(t *testing.T) {
 	press(t, app, "}")
 	if fr := frame(app); strings.Contains(fr, "enter live") {
 		t.Fatalf("turns tree (focus %s):\n%s", app.r.Focus, fr)
+	}
+}
+
+// In a live pane the leader never expires: well past the key-sequence
+// timeout ctrl+a still waits, and ctrl+a d then detaches.
+func TestLiveLeaderWaitsPastTheBindingTimeout(t *testing.T) {
+	app, _ := panesApp(t)
+	if v, err := app.r.Settings().Get(ochazuke.TerminalLeaderTimeoutSetting); err != nil || v.Value != "0s" {
+		t.Fatalf("terminal-leader-timeout %+v %v", v, err)
+	}
+	app.r.BindingTimeout = 5 * time.Millisecond
+	press(t, app, "enter")
+	live := app.r.Focus
+	if app.r.Mode.Name != "terminal" {
+		t.Fatalf("enter: focus %s mode %s", live, app.r.Mode.Name)
+	}
+	cmd := key(t, app, "ctrl+a")
+	time.Sleep(50 * time.Millisecond)
+	settle(app, cmd)
+	if app.r.Mode.Name != "leader_pending" || app.r.Focus != live {
+		t.Fatalf("after the binding timeout: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	}
+	press(t, app, "d")
+	if app.r.Mode.Name == "leader_pending" || app.r.Mode.Name == "terminal" || app.r.Focus == live {
+		t.Fatalf("ctrl+a d: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
 	}
 }

@@ -45,6 +45,12 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: settingRefresh, Type: ochazuke.SettingDuration, Default: refreshEvery,
 			Description: "How often the Panes list reloads while the page is open"},
 		harnessSetting,
+		// The live pane's leader never expires: ctrl+a waits for the next
+		// key, as tmux's prefix does (ochazuke's default is the key-sequence
+		// timeout). Declared before EnsureTerminalLeader, so this default
+		// stands; settings.json may still set a timeout.
+		ochazuke.Setting{Name: ochazuke.TerminalLeaderTimeoutSetting, Type: ochazuke.SettingDuration, Default: time.Duration(0),
+			Description: "How long the terminal leader waits for the next key before it sends the leader alone; 0 waits until a key comes"},
 	)
 }
 
