@@ -561,3 +561,63 @@ func TestExtScopeSettingDeclaredPerExtension(t *testing.T) {
 		t.Fatal("a value outside auto and off was taken")
 	}
 }
+
+// lastListCall is the project context the last doc list was told.
+func lastListCall(t *testing.T, log string) string {
+	t.Helper()
+	got := ""
+	for _, c := range calls(t, log) {
+		if ctx, ok := strings.CutSuffix(c, "|doc list --json {}"); ok {
+			got = ctx
+		}
+	}
+	return got
+}
+
+// Page loads are told the pin's project, never the focus's: moving
+// between rows recorded to different projects never changes what a reload
+// asks for; S (all projects) and no pin tell none.
+func TestDocsReloadIgnoresTheCursor(t *testing.T) {
+	a, log, root := scopeApp(t)
+	for row, project := range map[string]string{"mine": "matomeru", "theirs": "ochazuke"} {
+		if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: row, ProjectID: project}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	openExtPage(t, a, "ext/md/docs")
+	reloadOn := func(row string) string {
+		t.Helper()
+		focusOn(t, a, docsList+"/"+row)
+		a.reloadExtension(a.extension("md"))
+		settleJobs(t, a, a.r.PendingCommands())
+		return lastListCall(t, log)
+	}
+	for _, row := range []string{"mine", "theirs", "loose"} {
+		if got := reloadOn(row); got != "||" {
+			t.Fatalf("no pin, on %s: doc list told %q", row, got)
+		}
+	}
+	mtmDir := filepath.Join(root, "matomeru")
+	pin(t, a, "matomeru")
+	for _, row := range []string{"mine", "loose", "mine"} {
+		if got := reloadOn(row); got != "matomeru|matomeru|"+mtmDir {
+			t.Fatalf("pinned, on %s: doc list told %q", row, got)
+		}
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "scope", Verb: "all"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range []string{"mine", "theirs", "loose"} {
+		if got := reloadOn(row); got != "||" {
+			t.Fatalf("all projects, on %s: doc list told %q", row, got)
+		}
+	}
+	// A verb still runs with the context project: the row's own.
+	focusOn(t, a, docsList+"/theirs")
+	if got := a.contextProject(); got != "ochazuke" {
+		t.Fatalf("verb context on theirs %q", got)
+	}
+}

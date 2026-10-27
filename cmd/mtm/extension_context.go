@@ -12,10 +12,11 @@ import (
 
 // What mtm hands its extensions besides their verbs' arguments.
 //
-// Project context: every exec has MTM_PROJECT_DIRS, the context project's
-// directories (os.PathListSeparator between; empty without one; the
-// context project is the focus stack's, else the pin, extension_scope.go)
-// with MTM_PROJECT and MTM_PROJECT_LABEL, so a
+// Project context: every exec has MTM_PROJECT_DIRS, a project's
+// directories (os.PathListSeparator between; empty without one), with
+// MTM_PROJECT and MTM_PROJECT_LABEL: a verb's the context project (the
+// focus stack's, else the pin, extension_scope.go), a page load's the pin
+// (none under S, loadProject), so a
 // tool can scope what it lists to the work at hand (o-md's doc list adds
 // each directory's top-level *.md and docs/**/*.md). The environment is
 // read on the loop: a verb's when it is run, a page's loads when the
@@ -62,10 +63,10 @@ func (a *App) projectDirsOf(id string) []string {
 	return out
 }
 
-// syncFetchEnv keeps the environment the page loads of x run with: read
-// here, on the loop.
+// syncFetchEnv keeps the environment the page loads of x run with (the
+// pin's context, loadExtEnv): read here, on the loop.
 func (a *App) syncFetchEnv(x *extension) {
-	env := a.extEnv(x.name)
+	env := a.loadExtEnv(x.name)
 	x.fetchEnv.Store(&env)
 }
 

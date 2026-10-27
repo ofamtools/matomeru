@@ -44,7 +44,8 @@ import (
 // pane its owner's, a note its owner's, an extension row its recorded
 // owner; else the pin, else none. Every exec of an extension is told it
 // (MTM_PROJECT, MTM_PROJECT_LABEL, MTM_PROJECT_DIRS), read on the loop
-// when the exec is dispatched.
+// when the verb is dispatched. Page loads are told the pin's instead
+// (loadProject; none under S): a list never changes with the cursor.
 //
 // ext.<name>.scope (auto, the default, or off) turns it all off per
 // extension: no record, no column, no filter; the rows as the tool
@@ -170,10 +171,29 @@ func (x *extension) catalogNoun(local string) string {
 	return ""
 }
 
-// contextEnv is the project context of an exec: the context project's id,
-// its name and its directories (empty without one). Call it on the loop.
-func (a *App) contextEnv() []string {
-	id := a.contextProject()
+// contextEnv is the project context of a verb's exec: the context
+// project's id, its name and its directories (empty without one). Call it
+// on the loop.
+func (a *App) contextEnv() []string { return a.projectEnvOf(a.contextProject()) }
+
+// loadProject is the project a page load is scoped to: the pin, none
+// under S (all projects). Never the focus, so a list does not change
+// because the cursor moved.
+func (a *App) loadProject() string {
+	if a.all {
+		return ""
+	}
+	return a.pin
+}
+
+// loadExtEnv is the environment of an extension's page loads and choice
+// loads: the pin's project context (loadProject). Call it on the loop.
+func (a *App) loadExtEnv(name string) []string {
+	return append(a.baseExtEnv(name), a.projectEnvOf(a.loadProject())...)
+}
+
+// projectEnvOf is a project's context for an exec (all empty for "").
+func (a *App) projectEnvOf(id string) []string {
 	label := ""
 	if p, ok := a.project(id); ok {
 		label = projectName(p)
