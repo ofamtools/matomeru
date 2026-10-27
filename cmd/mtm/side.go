@@ -155,7 +155,9 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return nil, err
 		}
-		driver := &recordingDriver{Driver: &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, kind: kind, env: recordedEnvironment(recipe), fit: fit}, work: ws, owner: owner}
+		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, kind: kind, env: recordedEnvironment(recipe), fit: fit}
+		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
+		side.note = driver.note
 		if kind == "vim" {
 			id := work.NewID()
 			path, err := filepath.Abs(filepath.Join(dir, id+".vim"))
@@ -228,7 +230,8 @@ type sideDriver struct {
 	env    map[string]string
 	// fit sizes the new window to the side's region (sideFit); nil when
 	// the region is not known yet.
-	fit func(ctx context.Context, session, window string) error
+	fit  func(ctx context.Context, session, window string) error
+	note func(error) // the launch's notes (recordingDriver.note)
 }
 
 func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
@@ -245,10 +248,12 @@ func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, 
 		return id, fmt.Errorf("side pane %s is open but its link could not be saved: %w", id, err)
 	}
 	if d.fit != nil {
-		// Best effort: the lease mtm takes once it shows the side sizes
-		// the pane as well; the fit only spares the program its start at
-		// the session's full size.
-		_ = d.fit(ctx, w.Session, id)
+		// A failed fit never fails the launch (as matomeru-old's fit): the
+		// lease mtm takes once it shows the side sizes the pane as well.
+		// It is noted on the launch instead.
+		if err := d.fit(ctx, w.Session, id); err != nil && d.note != nil {
+			d.note(fmt.Errorf("side pane resize: %w", err))
+		}
 	}
 	return id, nil
 }
