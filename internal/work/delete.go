@@ -36,7 +36,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 	if noun != "project" && noun != "task" {
 		return counts, fmt.Errorf("cannot delete %s", noun)
 	}
-	tables := []string{"projects", "tasks", "notes", "assignments", "session_owners", "reviews", "active", "saved_panes", "pane_recipes", "vim_sessions"}
+	tables := []string{"projects", "tasks", "notes", "assignments", "session_owners", "reviews", "active", "saved_panes", "pane_recipes", "vim_sessions", "ext_rows"}
 	run := s.db.View
 	if apply {
 		run = s.db.Tx
@@ -79,7 +79,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 			{"assignments", "window", &counts.Assignments}, {"session_owners", "id", &counts.Sessions},
 			{"reviews", "id", &counts.Reviews}, {"active", "id", nil},
 			{"saved_panes", "id", &counts.Saved}, {"pane_recipes", "window", nil},
-			{"vim_sessions", "id", &counts.Vim},
+			{"vim_sessions", "id", &counts.Vim}, {"ext_rows", "id", nil},
 		} {
 			rows, err := tx.All(child.name)
 			if err != nil {
