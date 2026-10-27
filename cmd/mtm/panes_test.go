@@ -566,3 +566,27 @@ func TestPaneHeaderIsTheAgentStatusLine(t *testing.T) {
 		t.Fatalf("shell header %q", got)
 	}
 }
+
+// Searching the pane tree and pressing enter chooses the highlighted pane: the
+// filter clears, every row shows again and the selection stays on the
+// chosen pane, in normal mode (the tree is added ClearFilterOnEnter).
+func TestPaneSearchEnterChoosesAndClears(t *testing.T) {
+	app, _ := panesApp(t)
+	rows := app.paneList.Len()
+	press(t, app, "/")
+	typeText(t, app, "shell") // both panes' harness is shell; the selection stays on claude
+	press(t, app, "down")
+	if app.paneList.Filter() != "shell" || app.paneList.Shown() != 2 || app.r.Focus != "pane:ochazuke/w2" {
+		t.Fatalf("search: query %q shown %d of %d focus %s", app.paneList.Filter(), app.paneList.Shown(), rows, app.r.Focus)
+	}
+	press(t, app, "enter")
+	if app.r.Mode.Name != "normal" || app.paneList.Filter() != "" || app.paneList.Shown() != rows {
+		t.Fatalf("enter: mode %s query %q shown %d of %d", app.r.Mode.Name, app.paneList.Filter(), app.paneList.Shown(), rows)
+	}
+	if sel, ok := app.paneList.Selected(); !ok || sel.ID != "pane:ochazuke/w2" || app.r.Focus != "pane:ochazuke/w2" {
+		t.Fatalf("enter: selected %v focus %s", sel.ID, app.r.Focus)
+	}
+	if f := frame(app); !strings.Contains(f, "claude") || strings.Contains(f, "2 of 5") {
+		t.Fatalf("every pane shows again and the query line is gone:\n%s", f)
+	}
+}

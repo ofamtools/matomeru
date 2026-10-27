@@ -251,7 +251,8 @@ func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
 // and jump to a pane that needs input from any stop on it.
 func (a *App) addPanesPage() error {
 	a.r.Instance(panesPage, ochazuke.Kind("page"))
-	tree, err := a.r.AddTree(paneTreeID, nil, ochazuke.Parent(panesPage), ochazuke.Columns(paneTreeColumns...))
+	// Enter in the tree's search (/) chooses the highlighted pane and clears the search.
+	tree, err := a.r.AddTree(paneTreeID, nil, ochazuke.Parent(panesPage), ochazuke.Columns(paneTreeColumns...), ochazuke.ClearFilterOnEnter())
 	if err != nil {
 		return err
 	}
