@@ -409,7 +409,7 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 // its clients asked for (tuios pane_lease.go), and the side's window was
 // asked for its panel at launch (sideFit), so the side's stream asks for
 // every area it is drawn at (FitWindow) as well as leasing it. The
-// parent is the user's pane: zooming it only leases, never asks.
+// parent's stream asks the same way (App.openStream owns every stream).
 func TestSideZoomAsksForTheZoomedSize(t *testing.T) {
 	a, f := sideViewApp(t)
 	if err := a.showSide(a.attached, "vim"); err != nil {
@@ -443,15 +443,14 @@ func TestSideZoomAsksForTheZoomedSize(t *testing.T) {
 	a.renderPanes(a.r, 240, 30)
 	want("unzoomed", sw, sh)
 
-	// The parent zooms by its lease alone.
-	fits := len(f.fits)
+	// The parent zooms the same way: it leases and asks for the body.
 	press(t, a, "ctrl+a", "o")
 	press(t, a, "ctrl+a", "z")
 	a.renderPanes(a.r, 240, 30)
 	if a.r.Focus != paneTermID || parent.lease != [2]int{zw, zh} || side.lease != [2]int{sw, sh} {
 		t.Fatalf("parent zoom: focus %s parent %v side %v", a.r.Focus, parent.lease, side.lease)
 	}
-	if len(f.fits) != fits {
-		t.Fatalf("parent zoom asked for a window size: %v", f.fits[fits:])
+	if got, want := lastFit(), fmt.Sprintf("%s %dx%d", a.attached.ID, zw, zh); got != want {
+		t.Fatalf("parent zoom: last fit %q, want %q", got, want)
 	}
 }

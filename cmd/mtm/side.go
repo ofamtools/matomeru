@@ -265,7 +265,7 @@ type windowFitter interface {
 }
 
 // windowOwner is a stream that asks the daemon for each size it is drawn
-// at (liveStream.own), for a window mtm owns.
+// at (liveStream.own); App.openStream makes every stream mtm draws one.
 type windowOwner interface {
 	own(fit func(ctx context.Context, cols, rows int) error)
 }

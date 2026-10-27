@@ -273,3 +273,40 @@ func TestOwnedStreamAsksForTheNewestSize(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+// A held stream parked by Release asks for no size afterwards: its window
+// stays at the last size the daemon took.
+func TestParkedStreamAsksForNothing(t *testing.T) {
+	s := reconnectStream(&fakeDialer{})
+	asked := make(chan [2]int, 8)
+	s.own(func(_ context.Context, cols, rows int) error {
+		asked <- [2]int{cols, rows}
+		return nil
+	})
+	s.hold()
+	if err := s.Resize(80, 24); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-asked:
+		if got != [2]int{80, 24} {
+			t.Fatalf("ask %v", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no ask")
+	}
+	if err := s.Release(); err != nil { // held: parks
+		t.Fatal(err)
+	}
+	if err := s.Resize(120, 40); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-asked:
+		t.Fatalf("a parked stream asked for %v", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := s.drop(); err != nil {
+		t.Fatal(err)
+	}
+}

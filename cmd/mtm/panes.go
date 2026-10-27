@@ -596,11 +596,12 @@ func (a *App) attachLive(p pane, returnTo string) error {
 	if err := a.closeTerminal(); err != nil {
 		return err
 	}
-	stream := a.panesd.OpenStream(p)
+	stream := a.openStream(p)
 	a.trackStream(paneTermID, stream)
 	if h, ok := stream.(holdable); ok {
 		// Detach parks the stream, so the pane keeps the size it was
-		// shown at while its preview is on screen (dropHeld gives it back).
+		// shown at while its preview is on screen (dropHeld gives the
+		// lease back; the window keeps the size the stream last asked for).
 		h.hold()
 		a.held = heldStream{pane: p, stream: h}
 	}
@@ -623,6 +624,34 @@ func (a *App) attachLive(p pane, returnTo string) error {
 		return err
 	}
 	return a.syncSideView()
+}
+
+// openStream opens p's stream for a terminal mtm draws (the attached
+// pane, a side) and makes it own its window when the daemon can size
+// windows (windowFitter): every Resize then asks tuios for the drawn size
+// as well as leasing it. tuios sizes a pane to min(lease, asked size) per
+// dimension (internal/session/pane_lease.go), so a lease alone never
+// grows a pane past what its clients asked for: a floating window, a
+// tuios split or a TUI client smaller than mtm would cap zoom and every
+// resize. Every stream mtm draws goes through here, so this is the one
+// place that decides ownership.
+//
+// The ask is a client's resize, so it has a side effect: a pane a tuios
+// TUI client also shows is resized there too, until that client tiles its
+// windows again, and a window keeps the size mtm last asked for after its
+// stream is released. The upstream fix is in tuios: let a lease grow a
+// pane that no TUI client is drawing; then the lease alone is enough and
+// this ask can go.
+func (a *App) openStream(p pane) paneStream {
+	stream := a.panesd.OpenStream(p)
+	if fitter, ok := a.panesd.(windowFitter); ok {
+		if o, ok := stream.(windowOwner); ok {
+			o.own(func(ctx context.Context, cols, rows int) error {
+				return fitter.FitWindow(ctx, p, cols, rows)
+			})
+		}
+	}
+	return stream
 }
 
 // closeTerminal removes the attached terminal; Terminal.Close releases
@@ -985,10 +1014,10 @@ type liveStream struct {
 	boot  string
 	state string
 	// fit asks the daemon for the window's own size (tuios resize), as a
-	// client does; own sets it for a window mtm owns (a side). A lease
-	// never grows a pane past the size its clients asked for, so a side
-	// asked for its panel at launch would stay that small zoomed: Resize
-	// asks for each new size as well. fitWant is the newest size, fitSent
+	// client does; own sets it (App.openStream does for every stream mtm
+	// draws). A lease never grows a pane past the size its clients asked
+	// for, so a pane asked smaller than mtm's area would stay that small
+	// zoomed: Resize asks for each new size as well. fitWant is the newest size, fitSent
 	// the last one the daemon took, fitting while fitLoop runs.
 	fit              func(ctx context.Context, cols, rows int) error
 	fitWant, fitSent [2]int
@@ -1211,9 +1240,12 @@ func (s *liveStream) Paste(text string) error {
 }
 
 // Resize holds the pane at most at the area the detail stop gives it, and
-// for a window mtm owns asks for that size too (own), so the pane can grow
-// into a larger area (zoom) and keeps the area it was last drawn at when
-// the lease ends.
+// for a stream that owns its window asks for that size too (own), so the
+// pane can grow into a larger area (zoom) and keeps the area it was last
+// drawn at when the lease ends. A parked stream asks for nothing: its
+// window stays at the last size the daemon took (fitSent), which the
+// lease it keeps holds it at, and stays there after drop gives the lease
+// back.
 func (s *liveStream) Resize(cols, rows int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1221,7 +1253,7 @@ func (s *liveStream) Resize(cols, rows int) error {
 	if s.released {
 		return nil
 	}
-	if s.fit != nil && cols > 0 && rows > 0 {
+	if s.fit != nil && !s.parked && cols > 0 && rows > 0 {
 		s.fitWant = [2]int{cols, rows}
 		if !s.fitting && s.fitWant != s.fitSent {
 			s.fitting = true
@@ -1234,8 +1266,8 @@ func (s *liveStream) Resize(cols, rows int) error {
 	return s.conn.Lease(uint16(cols), uint16(rows))
 }
 
-// own makes Resize ask the daemon for each size through fit: the stream
-// shows a window mtm made and sizes (a side), not one a client lays out.
+// own makes Resize ask the daemon for each size through fit, so the
+// window grows and shrinks with the area mtm draws it in (App.openStream).
 func (s *liveStream) own(fit func(ctx context.Context, cols, rows int) error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1245,12 +1277,13 @@ func (s *liveStream) own(fit func(ctx context.Context, cols, rows int) error) {
 // fitLoop asks for the newest wanted size, one call at a time and off the
 // update loop, until the daemon has taken it; sizes asked for meanwhile
 // collapse into the newest. A failed ask ends the loop (the lease still
-// holds the pane at most at the area); the next Resize asks again.
+// holds the pane at most at the area); the next Resize asks again. A
+// released or parked stream ends it after the ask in flight.
 func (s *liveStream) fitLoop() {
 	for {
 		s.mu.Lock()
 		want := s.fitWant
-		if s.released || want == s.fitSent {
+		if s.released || s.parked || want == s.fitSent {
 			s.fitting = false
 			s.mu.Unlock()
 			return
