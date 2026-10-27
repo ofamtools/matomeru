@@ -218,7 +218,7 @@ func (a *App) definePanes() {
 		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Fetch().Quiet().
 		Verb("read-turns", a.readPaneTurns, "Read the pane's turns from the agent's session log or the shell's commands into the Turns tab").Fetch().Quiet().
 		Mode("normal").
-		Bind("enter", ochazuke.Do("pane.attach")).
+		Bind("enter", ochazuke.Do("pane.attach").Hinted("live")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
 		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
 		Bind("m", ochazuke.Do("pane.associate"))
@@ -566,6 +566,13 @@ func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	return a.capturePreview(p, nil)
+}
+
+// capturePreview captures p's screen into the Screen tab off the loop;
+// then, when given, runs after it lands while p's row keeps the focus on
+// the Panes page's Screen tab (pane.hints and pane.copy from another tab).
+func (a *App) capturePreview(p pane, then func(ochazuke.Ctx)) ochazuke.Result {
 	d := a.panesd
 	version := a.pinVersion
 	return ochazuke.Pending(func(c context.Context) (any, error) {
@@ -574,11 +581,26 @@ func (a *App) previewPane(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil, fmt.Errorf("preview %s: %w", p.label(), err)
 		}
 		return preview{Pane: p.rowID(), Text: text}, nil
-	}).ReplacingAt(paneListID, "preview").Then(func(_ ochazuke.Ctx, v any, err error) {
-		if got, ok := v.(preview); ok && err == nil && version == a.pinVersion {
-			a.preview = got
+	}).ReplacingAt(paneListID, "preview").Then(func(ctx ochazuke.Ctx, v any, err error) {
+		got, ok := v.(preview)
+		if !ok || err != nil || version != a.pinVersion {
+			return
+		}
+		a.preview = got
+		if then != nil && a.r.Page == panesPage && a.r.Focus == p.rowID() && a.pv.tab == tabScreen {
+			then(ctx)
 		}
 	})
+}
+
+// toScreen switches the detail to the Screen tab for row, as ] does,
+// reporting whether it was on another tab.
+func (a *App) toScreen(row string) bool {
+	if a.pv.tab == tabScreen {
+		return false
+	}
+	a.pv.tab, a.pv.followed = tabScreen, fmt.Sprintf("%s|%d", row, tabScreen)
+	return true
 }
 
 // attachPane is pane.attach: replace any attached terminal with one fed by

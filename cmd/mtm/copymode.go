@@ -359,7 +359,8 @@ func (a *App) enterCopy(p pane, source string) error {
 	return err
 }
 
-// paneCopy is pane.copy (l on a pane row).
+// paneCopy is pane.copy (l on a pane row on Screen; the palette from any
+// tab, which switches to Screen and enters once the capture is in).
 func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
@@ -368,6 +369,13 @@ func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 	source := ""
 	if a.r.Terminal(paneTermID) != nil && a.attached.ID == p.ID {
 		source = paneTermID
+	}
+	if a.toScreen(ctx.Instance.ID) && source == "" {
+		return a.capturePreview(p, func(ctx ochazuke.Ctx) {
+			if err := a.enterCopy(p, ""); err != nil {
+				ctx.Status(err.Error())
+			}
+		})
 	}
 	return resultError(a.enterCopy(p, source))
 }

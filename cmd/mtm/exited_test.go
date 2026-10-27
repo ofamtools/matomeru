@@ -81,7 +81,7 @@ func TestDeadLivePaneDetachesAndIsRemoved(t *testing.T) {
 			if len(a.panes) != 1 || a.panes[0].ID != "w2" {
 				t.Fatalf("remaining panes: %+v", a.panes)
 			}
-			if fr := frame(a); strings.Contains(fr, "live ·") || !strings.Contains(fr, "panes (1)") {
+			if fr := frame(a); strings.Contains(fr, "live · ctrl+a") || !strings.Contains(fr, "panes (1)") {
 				t.Fatalf("dead live surface:\n%s", fr)
 			}
 		})

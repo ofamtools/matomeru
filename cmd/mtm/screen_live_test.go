@@ -35,7 +35,7 @@ func screenLive(t *testing.T, harness string) {
 		t.Fatalf("Screen tab line:\n%s", f)
 	}
 	footer := lastLines(f, 3)
-	for _, want := range []string{"enter pane.attach", "f hints", "l cop"} {
+	for _, want := range []string{"enter live", "f hints", "l cop"} {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("the Screen tab's footer lacks %q:\n%s", want, footer)
 		}

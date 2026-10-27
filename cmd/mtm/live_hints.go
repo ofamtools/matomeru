@@ -102,9 +102,9 @@ func (a *App) defineLiveHints() {
 		Mode("leader_pending").
 		Bind("f", ochazuke.Do("terminal.hints").Hinted("hints"))
 	a.r.Define("pane").
-		Verb("hints", a.startRowHints, "Label the items on the Screen tab (the live panes, else the captured screen) without leaving the row: a label copies, ctrl+label opens, a capital types it into its pane").
+		Verb("hints", a.startRowHints, "Label the items on the Screen tab (the live panes, else the captured screen) without leaving the row, switching to it from another tab: a label copies, ctrl+label opens, a capital types it into its pane").
 		Mode("normal").
-		Bind("f", ochazuke.Do("pane.hints").Guard("pane-tab-screen").Hinted("hints"))
+		Bind("f", ochazuke.Do("pane.hints").Hinted("hints"))
 	a.hintRows(a.r.Define("terminal").Mode(hintsMode))
 	a.hintRows(a.r.Define("pane").Mode(hintsMode))
 	a.parameters("terminal.hint", map[string]ochazuke.Parameter{
@@ -212,15 +212,33 @@ func (a *App) startHints(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.beginHints(ctx, &liveHints{home: term.ID()}, a.terminalScreens(a.hintTerminals(term)))
 }
 
-// startRowHints is pane.hints (f on a pane row, the Screen tab shown):
-// label what the Screen tab draws, keeping the focus on the row: the live
-// panes when they are drawn (main first), else the row's preview as the
-// last frame drew it. No screen yet says so and stays put.
+// startRowHints is pane.hints (f on a pane row): label what the Screen
+// tab draws, keeping the focus on the row: the live panes when they are
+// drawn (main first), else the row's preview as the last frame drew it.
+// From another tab it switches to Screen and labels once the capture is
+// in. No screen yet says so and stays put.
 func (a *App) startRowHints(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil || ctx.Instance.Noun != "pane" {
 		return ochazuke.Failed(errors.New("f works on a pane row"))
 	}
 	row := ctx.Instance.ID
+	if a.toScreen(row) && a.r.Terminal(paneTermID) == nil {
+		p, err := a.paneAt(ctx.Instance)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		return a.capturePreview(p, func(ctx ochazuke.Ctx) {
+			// A frame lays out the Screen tab, so the window labelled is
+			// the one drawn; "nothing to label" is a status.
+			a.View()
+			_ = a.rowHints(ctx, row)
+		})
+	}
+	return a.rowHints(ctx, row)
+}
+
+// rowHints labels the Screen tab of row as shown.
+func (a *App) rowHints(ctx ochazuke.Ctx, row string) ochazuke.Result {
 	h := &liveHints{home: row}
 	if main := a.r.Terminal(paneTermID); main != nil && a.liveShown() && !a.copyShown(paneTermID) {
 		return a.beginHints(ctx, h, a.terminalScreens(a.hintTerminals(main)))
