@@ -445,7 +445,7 @@ var leaderWords = []struct{ key, text string }{
 	{"p", "pick a pane: the ones attached before first, then attach it live"},
 	{"s", "next starred pane, live (* on a pane row stars it)"},
 	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
-	{"f", "hints: label the URLs, paths, PRs, branches and commits on the pane and its side when both show; a label copies, ctrl+label opens, a capital types it into its pane, esc cancels"},
+	{"f", "hints: label the URLs, paths, PRs, branches and commits drawn on the pane and its side when both show; a label copies, ctrl+label opens, a capital types it into its pane, esc or q cancels (f on a pane row labels its Screen tab)"},
 	{"N", "quick note for the selected task, else the pin"},
 	{"n", "new task under the pin"},
 	{"T", "todos: the pin's tasks as an outline"},
@@ -878,6 +878,21 @@ func launchFlag(argv []string, flag string) string {
 	return ""
 }
 
+// screenWindow is what the Screen tab just drew of row's preview text:
+// which lines (the detail's offset, and every drawn line but a position
+// marker) at what width.
+func (a *App) screenWindow(row, text, drawn string, width, height int) screenWindow {
+	d := a.detail.panes.d
+	shown := min(height, len(strings.Split(text, "\n")))
+	if text == "" {
+		shown = 0
+	}
+	if d.Overflows() {
+		shown = height - 1
+	}
+	return screenWindow{row: row, text: drawn, top: d.Offset(), shown: max(0, shown), width: width, previewText: text}
+}
+
 // tabBody is the selected pane's tab.
 func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	switch a.pv.tab {
@@ -885,7 +900,14 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 		if a.preview.Pane == row {
 			// The screen is not wrapped: its lines are cut to the panel,
 			// and it opens on its last line holding text.
-			return ochazuke.Text(a.detail.panes.lines(trimBlankTail(a.preview.Text), 0, width, height))
+			text := strings.ReplaceAll(trimBlankTail(a.preview.Text), "\t", "    ")
+			drawn := a.detail.panes.lines(text, 0, width, height)
+			if sc := a.previewHints(row); sc != nil {
+				// While hints are up the window they labelled stays put.
+				return ochazuke.Text(overlayText(sc.win.text, sc.win.width, sc.win.shown, sc.overlay, ochazuke.NewStyles(*a.m.Appearance).Backdrop))
+			}
+			a.pv.screen = a.screenWindow(row, text, drawn, width, height)
+			return ochazuke.Text(drawn)
 		}
 		a.detail.panes.hide()
 		return ochazuke.Text("loading…")

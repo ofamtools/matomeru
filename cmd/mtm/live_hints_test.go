@@ -315,8 +315,15 @@ const (
 // drawn.
 func hintsSideApp(t *testing.T, mainRows, sideRows []string) (*App, *fakeStream, *fakeStream, *fakeSystem) {
 	t.Helper()
+	return hintsSideAppIn(t, mainRows, sideRows, "")
+}
+
+// hintsSideAppIn is hintsSideApp with the side pane's folder cwd, which
+// its relative paths resolve against.
+func hintsSideAppIn(t *testing.T, mainRows, sideRows []string, cwd string) (*App, *fakeStream, *fakeStream, *fakeSystem) {
+	t.Helper()
 	app, f, main, sys := hintsPanesApp(t, mainRows)
-	vim := pane{Session: app.attached.Session, Pane: daemon.Pane{ID: "side-vim", Name: "editor"}}
+	vim := pane{Session: app.attached.Session, Pane: daemon.Pane{ID: "side-vim", Name: "editor", Cwd: cwd}}
 	f.panes = append(f.panes, vim)
 	if err := app.work.PutCompanion(work.Companion{Window: vim.ID, Parent: app.attached.ID, Kind: "vim"}); err != nil {
 		t.Fatal(err)
@@ -364,7 +371,7 @@ func marksOf(t *testing.T, app *App, id string) map[string][]string {
 // takes the shortest labels first (from either pane).
 func TestHintsLabelBothPanes(t *testing.T) {
 	mainRows, sideRows := sideScreens()
-	first := hints.Labels(3, hints.DefaultAlphabet)
+	first := hints.Labels(3, hintsAlphabet)
 	for _, from := range []string{paneTermID, sideTermID} {
 		app, main, side, _ := hintsSideApp(t, mainRows, sideRows)
 		own, other := mainURL, sideURL
@@ -437,18 +444,19 @@ func TestHintsTypeIntoItsPane(t *testing.T) {
 }
 
 // A first letter narrows the marks on both panes; backspace restores
-// both. With 60 items the main pane's last labels and the side's first
-// share their first letter.
+// both. With 48 items (two to a row, 12 rows fit the drawn part of either
+// pane) the main pane's last labels and the side's first share their
+// first letter.
 func TestHintsPrefixNarrowsBothPanes(t *testing.T) {
 	var mainLines, sideLines []string
-	for i := range 30 {
-		mainLines = append(mainLines, fmt.Sprintf("https://example.com/m%d", i))
-		sideLines = append(sideLines, fmt.Sprintf("https://example.com/s%d", i))
+	for i := range 12 {
+		mainLines = append(mainLines, fmt.Sprintf("https://example.com/m%d https://example.com/m%d-b", i, i))
+		sideLines = append(sideLines, fmt.Sprintf("https://example.com/s%d https://example.com/s%d-b", i, i))
 	}
 	app, main, _, _ := hintsSideApp(t, padRows(mainLines...), padRows(sideLines...))
 	startHints(t, app, main)
 	count := func(id string) int { return len(app.r.Terminal(id).Overlay().Marks) }
-	if count(paneTermID) != 30 || count(sideTermID) != 30 {
+	if count(paneTermID) != 24 || count(sideTermID) != 24 {
 		t.Fatalf("marks %d %d", count(paneTermID), count(sideTermID))
 	}
 	// A two-letter label on the side whose first letter starts labels on
@@ -469,7 +477,7 @@ func TestHintsPrefixNarrowsBothPanes(t *testing.T) {
 	pressAll(t, app, prefix)
 	for _, id := range []string{paneTermID, sideTermID} {
 		marks := app.r.Terminal(id).Overlay().Marks
-		if len(marks) == 0 || len(marks) >= 30 {
+		if len(marks) == 0 || len(marks) >= 24 {
 			t.Fatalf("%s after %q: %d marks", id, prefix, len(marks))
 		}
 		for _, m := range marks {
@@ -479,7 +487,7 @@ func TestHintsPrefixNarrowsBothPanes(t *testing.T) {
 		}
 	}
 	app.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	if count(paneTermID) != 30 || count(sideTermID) != 30 {
+	if count(paneTermID) != 24 || count(sideTermID) != 24 {
 		t.Fatalf("backspace: marks %d %d", count(paneTermID), count(sideTermID))
 	}
 	pressAll(t, app, "ctrl+c")

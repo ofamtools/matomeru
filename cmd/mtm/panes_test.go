@@ -33,6 +33,14 @@ type fakePanes struct {
 	transcript string
 	// fits are the window sizes FitWindow set, "window colsxrows".
 	fits []string
+	// sentText are the texts PasteText typed, "window text".
+	sentText []string
+}
+
+// PasteText records the text typed into a window that is not attached.
+func (f *fakePanes) PasteText(_ context.Context, p pane, text string) error {
+	f.sentText = append(f.sentText, p.ID+" "+text)
+	return f.err
 }
 
 // FitWindow records each window size asked for (a new side, a stream's Resize).

@@ -138,6 +138,9 @@ type paneDaemon interface {
 	Activity(ctx context.Context, p pane) (string, error)
 	Transcript(ctx context.Context, p pane) (string, error)
 	OpenStream(p pane) paneStream
+	// PasteText types text into the pane as a bracketed paste, attached or
+	// not (hints from a pane row type into its pane this way).
+	PasteText(ctx context.Context, p pane, text string) error
 }
 
 // paneStream is a terminal stream the terminal releases when it closes:
@@ -176,6 +179,9 @@ type paneUI struct {
 	// detailW and detailH are the detail area the last frame drew, so a
 	// side's stream and new window get its region before it is drawn.
 	detailW, detailH int
+	// screen is what the Screen tab drew of a row's preview last frame,
+	// which f on the row labels (live_hints.go).
+	screen screenWindow
 }
 
 // Timers of the panes page.
@@ -971,6 +977,13 @@ func (t tuios) KillPane(ctx context.Context, p pane) error {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
 	return t.Call(ctx, "close-window", map[string]any{"session": p.Session, "window": p.ID}, nil)
+}
+
+// PasteText types text into the pane's window as a bracketed paste.
+func (t tuios) PasteText(ctx context.Context, p pane, text string) error {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	return t.Client.SendText(ctx, daemon.SendTextParams{Session: p.Session, Window: p.ID, Text: text, Paste: true})
 }
 
 // OpenStream is a stream that dials stream-pane on its first read.
