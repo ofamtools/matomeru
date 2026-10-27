@@ -14,27 +14,37 @@ import (
 )
 
 // Live hints, as tuios has them: ctrl+a f in an attached pane (the main
-// pane or its side) labels every item on the pane's visible screen (URLs,
-// PRs, paths, branches, commits) with a short letter label drawn over the
-// live pane, which is dimmed. Typing a label copies the item, ctrl and
+// pane or its side) labels every item (URLs, PRs, paths, branches,
+// commits) on the visible screen of every live pane drawn now (the pane it
+// ran in, and the other of the main pane and its side when the page draws
+// both: not zoomed, not in copy mode) with one set of short letter labels
+// drawn over the live panes, which are dimmed. Typing a label copies the item, ctrl and
 // the label opens it, shift (a capital) types it into the pane; esc or
 // ctrl+c cancels, backspace takes the last letter back, and every other
 // key is swallowed, so nothing reaches the pane while the labels are up.
 // The labels are a terminal overlay (ochazuke's Terminal.SetOverlay) plus
 // the hints mode, a passthrough base mode (no capture pass, so ctrl+c and
-// every ctrl+letter reach the rows). Leaving the mode clears the overlay;
-// so does a focus change while it is up (hintsUpdate).
+// every ctrl+letter reach the rows). The focus stays on the terminal it
+// ran in, so the keys answer there and reach neither pane. Leaving the
+// mode clears every overlay; so does a focus change, or either labelled
+// terminal going, while they are up (hintsUpdate).
 
 const hintsMode = "hints"
 
-// liveHints is one hints session: the terminal it labels and what is on
-// its screen.
+// liveHints is one hints session: the terminals it labels and what is on
+// their screens.
 type liveHints struct {
-	term    string              // the terminal instance labelled
-	spans   []contextitems.Span // every occurrence, in reading order
-	labels  []string            // one per span; the same item shares a label
+	term    string               // the terminal it ran in, which keeps the focus
+	screens []*ochazuke.Terminal // every terminal labelled, term first
+	spans   []contextitems.Span  // every occurrence: term's in reading order, then the next screen's
+	in      []int                // per span, its terminal's index in screens
+	labels  []string             // one per span; the same item shares a label
 	matcher *hints.Matcher
 }
+
+// otherScreen offsets the distances of every terminal but the one hints
+// ran in, so its items take the shortest labels first.
+const otherScreen = 1 << 24
 
 // hintActions name the hint verb's action argument.
 var hintActions = map[string]hints.Action{"copy": hints.Copy, "type": hints.Type, "open": hints.Open}
@@ -52,7 +62,7 @@ func (a *App) defineLiveHints() {
 		shifted = append(shifted, "shift+"+string(c))
 	}
 	a.r.Define("terminal").
-		Verb("hints", a.startHints, "Label the items on the live pane's screen (URLs, PRs, paths, branches, commits): a label copies, ctrl+label opens, a capital types it into the pane").
+		Verb("hints", a.startHints, "Label the items on the live panes' screens (URLs, PRs, paths, branches, commits): a label copies, ctrl+label opens, a capital types it into its pane").
 		Verb("hint", a.pressHint, "Take one letter of a label; a whole label copies, opens or types its item and leaves hints").
 		Verb("hints-erase", a.eraseHint, "Take back the last letter typed").
 		Verb("hints-cancel", a.cancelHints, "Clear the labels and go back to the live pane").
@@ -106,76 +116,131 @@ func (a *App) terminalPane(id string) (pane, bool) {
 	return pane{}, false
 }
 
+// hintTerminals are the terminals a hints session from term labels: term
+// first, then the other of the main pane and its side when the page draws
+// it live beside term. Zoomed, the page draws only the focused one; a
+// terminal in copy mode draws its copy buffer, not the live screen, so it
+// is left out; on another tab the live panes are not drawn (liveShown).
+// ochazuke records what the last frame placed (Page.drawn, the focus jumps
+// read it) but does not export it, so this follows mtm's own layout.
+func (a *App) hintTerminals(term *ochazuke.Terminal) []*ochazuke.Terminal {
+	out := []*ochazuke.Terminal{term}
+	other := ""
+	switch term.ID() {
+	case paneTermID:
+		other = sideTermID
+	case sideTermID:
+		other = paneTermID
+	}
+	if other == "" || a.r.Page != panesPage || !a.liveShown() || a.pv.zoom || a.copyShown(other) {
+		return out
+	}
+	if t := a.r.Terminal(other); t != nil {
+		out = append(out, t)
+	}
+	return out
+}
+
 // startHints is terminal.hints (ctrl+a f): find the items on the visible
-// screen, label them nearest the cursor first, draw the labels and enter
-// hints mode. No screen yet, or nothing on it, says so and stays live.
+// screens, label them as one set (the same item in both panes shares a
+// label) nearest the cursor of the terminal it ran in first, draw the
+// labels and enter hints mode. No screen yet, or nothing on any, says so
+// and stays live.
 func (a *App) startHints(ctx ochazuke.Ctx) ochazuke.Result {
 	term, err := a.hintTerminal(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	frame := term.Frame()
-	if len(frame.Lines) == 0 {
+	h := &liveHints{term: term.ID()}
+	var targets []hints.Target
+	drawn := false
+	for _, t := range a.hintTerminals(term) {
+		frame := t.Frame()
+		if len(frame.Lines) == 0 {
+			continue
+		}
+		drawn = true
+		// The emulator pads every row to the pane's columns, so the widest
+		// row is the width soft-wrapped rows fill; the drawn size is the
+		// fallback.
+		width := 0
+		for _, line := range frame.Lines {
+			width = max(width, ansi.StringWidth(line))
+		}
+		if width <= 0 {
+			width, _ = t.Size()
+		}
+		var src contextitems.Source
+		if p, ok := a.terminalPane(t.ID()); ok {
+			src = contextSource(p, "screen")
+		}
+		spans := contextitems.ExtractSpans(frame.Lines, contextitems.SpanOptions{Width: width, Source: src, Stat: contextitems.CachedStat()})
+		if len(spans) == 0 {
+			continue
+		}
+		offset := otherScreen * len(h.screens)
+		for _, s := range spans {
+			at := s.Parts[0]
+			targets = append(targets, hints.Target{Text: s.Raw, Key: s.Key, Distance: offset + hints.Distance(at.Row, at.Col, frame.Cursor.Y, frame.Cursor.X, width)})
+			h.in = append(h.in, len(h.screens))
+		}
+		h.spans = append(h.spans, spans...)
+		h.screens = append(h.screens, t)
+	}
+	if !drawn {
 		ctx.Status("hints: the pane has drawn nothing yet")
 		return ochazuke.Done(nil)
 	}
-	// The emulator pads every row to the pane's columns, so the widest row
-	// is the width soft-wrapped rows fill; the drawn size is the fallback.
-	width := 0
-	for _, line := range frame.Lines {
-		width = max(width, ansi.StringWidth(line))
-	}
-	if width <= 0 {
-		width, _ = term.Size()
-	}
-	var src contextitems.Source
-	if p, ok := a.terminalPane(term.ID()); ok {
-		src = contextSource(p, "screen")
-	}
-	spans := contextitems.ExtractSpans(frame.Lines, contextitems.SpanOptions{Width: width, Source: src, Stat: contextitems.CachedStat()})
-	if len(spans) == 0 {
+	if len(h.spans) == 0 {
 		ctx.Status("hints: nothing to label on the screen")
 		return ochazuke.Done(nil)
 	}
-	targets := make([]hints.Target, len(spans))
-	for i, s := range spans {
-		at := s.Parts[0]
-		targets[i] = hints.Target{Text: s.Raw, Key: s.Key, Distance: hints.Distance(at.Row, at.Col, frame.Cursor.Y, frame.Cursor.X, width)}
-	}
-	labels := hints.Assign(targets, hints.DefaultAlphabet)
-	a.hinting = &liveHints{term: term.ID(), spans: spans, labels: labels, matcher: hints.NewMatcher(labels)}
-	a.drawHints(term)
+	h.labels = hints.Assign(targets, hints.DefaultAlphabet)
+	h.matcher = hints.NewMatcher(h.labels)
+	a.hinting = h
+	a.drawHints()
 	if err := a.r.SetMode(hintsMode); err != nil {
 		a.endHints()
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(len(spans))
+	return ochazuke.Done(len(h.spans))
 }
 
-// drawHints sets the overlay: the pane dimmed and, for every occurrence
-// whose label still starts with the letters typed, the label over the
-// occurrence's first cells.
-func (a *App) drawHints(term *ochazuke.Terminal) {
+// drawHints sets every labelled terminal's overlay: the pane dimmed and,
+// for every occurrence on it whose label still starts with the letters
+// typed, the label over the occurrence's first cells.
+func (a *App) drawHints() {
 	h := a.hinting
 	style := ochazuke.NewStyles(*a.m.Appearance).Accent.Bold(true).Reverse(true)
-	o := &ochazuke.TerminalOverlay{Dim: true}
+	overlays := make([]*ochazuke.TerminalOverlay, len(h.screens))
+	for i := range overlays {
+		overlays[i] = &ochazuke.TerminalOverlay{Dim: true}
+	}
 	typed := h.matcher.Typed()
 	for i, s := range h.spans {
 		if !strings.HasPrefix(h.labels[i], typed) {
 			continue
 		}
 		at := s.Parts[0]
+		o := overlays[h.in[i]]
 		o.Marks = append(o.Marks, ochazuke.OverlayMark{Row: at.Row, Col: at.Col, Text: h.labels[i], Style: style})
 	}
-	term.SetOverlay(o)
+	for i, t := range h.screens {
+		if a.r.Terminal(t.ID()) == t {
+			t.SetOverlay(overlays[i])
+		}
+	}
 }
 
-// endHints clears the overlay and the session and returns to terminal
-// mode when hints mode is on.
+// endHints clears every overlay the session set (on the terminals still
+// there) and the session, and returns to terminal mode when hints mode is
+// on.
 func (a *App) endHints() {
-	if a.hinting != nil {
-		if term := a.r.Terminal(a.hinting.term); term != nil {
-			term.SetOverlay(nil)
+	if h := a.hinting; h != nil {
+		for _, t := range h.screens {
+			if a.r.Terminal(t.ID()) == t {
+				t.SetOverlay(nil)
+			}
 		}
 		a.hinting = nil
 	}
@@ -185,15 +250,23 @@ func (a *App) endHints() {
 }
 
 // hintsUpdate runs after every message: labels left behind by a focus
-// change (the CLI, a closed side, a page switch) are cleared. A modal over
-// hints mode keeps them; closing it returns to hints mode with them.
+// change (the CLI, a closed side, a page switch), or by a labelled
+// terminal that went or was replaced (a side swapped by a listing), are
+// cleared, on every labelled terminal still there. A modal over hints
+// mode keeps them; closing it returns to hints mode with them.
 func (a *App) hintsUpdate() {
 	h := a.hinting
 	if h == nil {
 		return
 	}
+	for _, t := range h.screens {
+		if a.r.Terminal(t.ID()) != t {
+			a.endHints()
+			return
+		}
+	}
 	if a.r.Terminal(h.term) == nil {
-		a.hinting = nil // the instance went, and its overlay with it
+		a.endHints()
 		return
 	}
 	if a.r.TopModal() != "" {
@@ -217,9 +290,7 @@ func (a *App) eraseHint(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Done(nil)
 	}
 	a.hinting.matcher.Backspace()
-	if term := a.r.Terminal(a.hinting.term); term != nil {
-		a.drawHints(term)
-	}
+	a.drawHints()
 	return ochazuke.Done(a.hinting.matcher.Typed())
 }
 
@@ -242,12 +313,13 @@ func (a *App) pressHint(ctx ochazuke.Ctx) ochazuke.Result {
 	case hints.NoMatch:
 		return ochazuke.Done(nil)
 	case hints.Prefix:
-		if term := a.r.Terminal(h.term); term != nil {
-			a.drawHints(term)
-		}
+		a.drawHints()
 		return ochazuke.Done(h.matcher.Typed())
 	}
-	span, term := h.spans[res.Index], h.term
+	// Index is the label's first occurrence, and the spans list the
+	// terminal hints ran in first: an item on both screens types into
+	// that one, an item on one screen only into its own.
+	span, term := h.spans[res.Index], h.screens[h.in[res.Index]].ID()
 	a.endHints()
 	// Copy and type use the text as it reads on the screen (Raw: ./main.go,
 	// a wrapped URL joined); open uses the resolved item (a path made
