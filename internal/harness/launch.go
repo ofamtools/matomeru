@@ -7,12 +7,14 @@ import (
 )
 
 // Window is a pane to open: the session it goes in, its name, its working
-// directory and the argv it runs (none: a shell).
+// directory and the argv it runs (none: a shell). Workspace names the
+// multiplexer workspace it goes on; 0 lets the driver choose one.
 type Window struct {
-	Session string
-	Name    string
-	Cwd     string
-	Command []string
+	Session   string
+	Name      string
+	Cwd       string
+	Command   []string
+	Workspace int
 }
 
 // Driver is what Launch needs from a terminal multiplexer: open a pane,
