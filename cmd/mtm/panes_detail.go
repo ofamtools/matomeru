@@ -398,7 +398,7 @@ func (a *App) defineLiveKeys() {
 		Verb("layout", a.flipLayout, "Flip the side pane between beside and below its parent (the side-layout setting)").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · s starred · [ copy · c context · f hints · N note · n task · T todos · S all · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · [ copy · c context · f hints · N note · n task · T todos · S all · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
@@ -442,6 +442,7 @@ var leaderWords = []struct{ key, text string }{
 	{"w", "sides: jump to any open side vim or terminal"},
 	{"j", "next pane, live"},
 	{"k", "previous pane, live"},
+	{"p", "pick a pane: the ones attached before first, then attach it live"},
 	{"s", "next starred pane, live (* on a pane row stars it)"},
 	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
 	{"f", "hints: label the screen's URLs, paths, PRs, branches and commits; a label copies, ctrl+label opens, a capital types it into the pane, esc cancels"},

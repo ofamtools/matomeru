@@ -21,6 +21,7 @@ var pageLeaderRows = []struct {
 }{
 	{"j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1}).Hinted("next pane")},
 	{"k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1}).Hinted("previous pane")},
+	{"p", ochazuke.Do("pane.pick").Hinted("pick pane")},
 	{"s", ochazuke.Do("terminal.starred").Hinted("next starred")},
 	{"w", ochazuke.Do("panes.sides").Hinted("sides")},
 }

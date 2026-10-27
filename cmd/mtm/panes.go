@@ -590,6 +590,7 @@ func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) attachLive(p pane, returnTo string) error {
+	a.recent.visit(p.rowID())
 	if err := a.work.TouchDir(p.Cwd); err != nil {
 		a.r.UI().Notify("directory recency: " + err.Error())
 	}

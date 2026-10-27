@@ -138,7 +138,7 @@ func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 				listed[b.Keys] = b.Request.Key()
 			}
 		}
-		want := map[string]string{"ctrl+a j": "terminal.cycle", "ctrl+a k": "terminal.cycle", "ctrl+a s": "terminal.starred", "ctrl+a w": "panes.sides", "ctrl+a esc": "mode.leave"}
+		want := map[string]string{"ctrl+a j": "terminal.cycle", "ctrl+a k": "terminal.cycle", "ctrl+a p": "pane.pick", "ctrl+a s": "terminal.starred", "ctrl+a w": "panes.sides", "ctrl+a esc": "mode.leave"}
 		for k, v := range want {
 			if listed[k] != v {
 				t.Errorf("%s: %s is %q, want %q", target, k, listed[k], v)
