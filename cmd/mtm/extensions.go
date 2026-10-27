@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/unixsuperhero/matomeru/store"
@@ -321,6 +322,9 @@ type extension struct {
 	entry   []byte                // the registry entry it was mounted from, as JSON (extension_sync.go)
 	crud    map[string]extCRUD    // catalog noun -> its new, edit and delete verbs (extension_forms.go)
 	sources map[string]*extSource // a parameter source (the tool's NOUN.VERB) -> its cached choices (extension_sources.go)
+	// fetchEnv is the environment its page loads run with, read on the
+	// loop when its rows reload (extension_context.go).
+	fetchEnv atomic.Pointer[[]string]
 }
 
 // extNoun is mtm's noun of an extension's noun; a dot would split the
@@ -337,8 +341,15 @@ func extPageID(ext, page string) string {
 }
 
 // extEnv is what an extension's exec is told: mtm's data directory and its
-// own name, for store.OpenExtension.
+// own name, for store.OpenExtension, and the project context
+// (MTM_PROJECT_DIRS, extension_context.go). It reads mtm's state: call it
+// on the loop.
 func (a *App) extEnv(name string) []string {
+	return append(a.baseExtEnv(name), a.contextEnv()...)
+}
+
+// baseExtEnv is extEnv without the project context (safe off the loop).
+func (a *App) baseExtEnv(name string) []string {
 	return []string{"MTM_DATA=" + a.dataDir(), "MTM_EXTENSION=" + name}
 }
 
@@ -664,6 +675,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 		return
 	}
 	a.mountSources(x, plan)
+	a.syncFetchEnv(x)
 	pages := pagesOf(name, e.Catalog, plan, x.nouns)
 	cfg := ocli.PageConfig{
 		Noun: func(n string) string {
@@ -673,13 +685,13 @@ func (a *App) mountExtension(name string, e extEntry) {
 			return extNoun(name, n)
 		},
 		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
-			return execExt(c, x.bin, a.extEnv(name), noun, verb, "--json", "{}")
+			return execExt(c, x.bin, x.loadEnv(a.baseExtEnv(name)), noun, verb, "--json", "{}")
 		},
 		// The state verb asks for what changed since the rows the page
 		// holds (ochazuke's state deltas), when the catalog declares
 		// stateDelta; an older tool keeps full answers through Fetch.
 		FetchFlags: func(c context.Context, noun, verb string, flags []string) ([]byte, error) {
-			return execExt(c, x.bin, a.extEnv(name), append([]string{noun, verb, "--json", "{}"}, flags...)...)
+			return execExt(c, x.bin, x.loadEnv(a.baseExtEnv(name)), append([]string{noun, verb, "--json", "{}"}, flags...)...)
 		},
 	}
 	for _, p := range pages {
@@ -865,6 +877,11 @@ func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
 		if c.Instance != nil {
 			target, _ = c.Instance.Data.(string)
 		}
+		if !a.cli {
+			if name, p, ok := missingNounParam(x.doc, noun, verb, c.Args); ok {
+				return a.askNounParam(x, noun, verb, target, name, p, c.Args)
+			}
+		}
 		return a.extRun(x, noun, verb, target, c.Args, nil)
 	}
 }
@@ -918,6 +935,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 // reloadExtension reloads every page of an extension and its parameter
 // choices (off the loop).
 func (a *App) reloadExtension(x *extension) {
+	a.syncFetchEnv(x)
 	for _, v := range x.views {
 		if err := v.Reload(); err != nil {
 			v.SetStatus(err.Error())
@@ -932,6 +950,7 @@ func (a *App) reloadExtension(x *extension) {
 // page forgets the hashes of the rows it holds and asks for every list in
 // full (PageView.Refresh), then the parameter choices reload.
 func (a *App) refreshExtensionRows(x *extension) {
+	a.syncFetchEnv(x)
 	for _, v := range x.views {
 		if err := v.Refresh(); err != nil {
 			v.SetStatus(err.Error())
