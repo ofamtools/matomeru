@@ -24,7 +24,7 @@ func screenLive(t *testing.T, harness string) {
 		reload(t, app)
 	}
 	app.pv.tab = tabTurns // the default, as New sets it (openWith starts the older tests on Screen)
-		settle(app, follow(app))
+	settle(app, follow(app))
 	if !strings.Contains(frame(app), "[Turns]") {
 		t.Fatalf("not on Turns:\n%s", frame(app))
 	}
