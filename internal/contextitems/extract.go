@@ -1,11 +1,13 @@
 package contextitems
 
 import (
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -45,50 +47,117 @@ var (
 // matomeru-old did (Unwrap).
 func Join(text string, width int) string {
 	text = strings.ReplaceAll(ansi.Strip(text), "\r\n", "\n")
-	lines := strings.Split(text, "\n")
-	out := make([]string, 0, len(lines))
-	cur, joining := "", false
+	raw := strings.Split(text, "\n")
+	lines := make([]mline, len(raw))
+	for i, line := range raw {
+		lines[i] = mline{s: line}
+	}
+	joined, _ := joinLines(lines, width, nil)
+	return joined
+}
+
+// joinLines is Join over lines that may carry the screen cell of every
+// byte (mline.at), so ExtractSpans can map a match in the joined text back
+// to the screen. wrapped, when given, says which rows continue on the next
+// (a terminal's soft-wrap flags) in place of the width rule.
+func joinLines(lines []mline, width int, wrapped []bool) (string, []Cell) {
+	out := make([]mline, 0, len(lines))
+	var cur mline
+	joining := false
 	for i, line := range lines {
-		line = strings.TrimRight(line, "\r")
+		line = line.trimRight("\r")
 		if joining {
-			cur += line
+			cur = cur.concat(line)
 		} else {
 			cur = line
 		}
 		joining = false
+		switch {
+		case wrapped != nil:
+			joining = i+1 < len(lines) && i < len(wrapped) && wrapped[i]
 		// Exactly the width: a wider line was written at another width
 		// (history from before a resize) and is left alone.
-		if width > 0 && i+1 < len(lines) && ansi.StringWidth(line) == width {
-			next := lines[i+1]
-			joining = next != "" && !strings.HasSuffix(line, " ") && !strings.HasPrefix(next, " ")
+		case width > 0 && i+1 < len(lines) && ansi.StringWidth(line.s) == width:
+			next := lines[i+1].s
+			joining = next != "" && !strings.HasSuffix(line.s, " ") && !strings.HasPrefix(next, " ")
 		}
 		if !joining {
 			out = append(out, cur)
 		}
 	}
-	return unwrap(strings.Join(out, "\n"))
+	out = unwrap(out)
+	var b strings.Builder
+	var at []Cell
+	track := len(lines) > 0 && lines[0].at != nil
+	for i, line := range out {
+		if i > 0 {
+			b.WriteByte('\n')
+			if track {
+				at = append(at, Cell{Row: -1})
+			}
+		}
+		b.WriteString(line.s)
+		if track {
+			at = append(at, line.at...)
+		}
+	}
+	return b.String(), at
 }
 
 // unwrap repairs URLs split by hard terminal wraps (matomeru-old's Unwrap).
-func unwrap(text string) string {
-	lines := strings.Split(text, "\n")
+func unwrap(lines []mline) []mline {
 	for i := 0; i+1 < len(lines); i++ {
-		line := strings.TrimRight(lines[i], "\r ")
-		start := strings.LastIndex(line, "https://")
+		line := lines[i].trimRight("\r ")
+		start := strings.LastIndex(line.s, "https://")
 		if start < 0 {
-			start = strings.LastIndex(line, "http://")
+			start = strings.LastIndex(line.s, "http://")
 		}
-		if start < 0 || strings.ContainsAny(line[start:], " \t<>`\"") {
+		if start < 0 || strings.ContainsAny(line.s[start:], " \t<>`\"") {
 			continue
 		}
-		next := strings.TrimSpace(lines[i+1])
-		if next == "" || strings.ContainsAny(next, " \t<>") || (!strings.HasSuffix(line, "/") && !strings.HasSuffix(line, "-") && !strings.HasPrefix(next, "/") && !strings.HasPrefix(next, "?")) {
+		next := lines[i+1].trimSpace()
+		if next.s == "" || strings.ContainsAny(next.s, " \t<>") || (!strings.HasSuffix(line.s, "/") && !strings.HasSuffix(line.s, "-") && !strings.HasPrefix(next.s, "/") && !strings.HasPrefix(next.s, "?")) {
 			continue
 		}
-		lines[i+1] = line + next
-		lines[i] = ""
+		lines[i+1] = line.concat(next)
+		lines[i] = mline{}
 	}
-	return strings.Join(lines, "\n")
+	return lines
+}
+
+// mline is a line of text and, when tracked, the screen cell each of its
+// bytes was drawn in (every byte of a rune holds the rune's cell, End one
+// past its last column).
+type mline struct {
+	s  string
+	at []Cell
+}
+
+func (l mline) trimRight(cutset string) mline {
+	n := len(strings.TrimRight(l.s, cutset))
+	return l.cut(0, n)
+}
+
+func (l mline) trimSpace() mline {
+	end := len(strings.TrimRightFunc(l.s, unicode.IsSpace))
+	start := end - len(strings.TrimLeftFunc(l.s[:end], unicode.IsSpace))
+	return l.cut(start, end)
+}
+
+func (l mline) cut(start, end int) mline {
+	out := mline{s: l.s[start:end]}
+	if l.at != nil {
+		out.at = l.at[start:end:end]
+	}
+	return out
+}
+
+func (l mline) concat(o mline) mline {
+	out := mline{s: l.s + o.s}
+	if l.at != nil || o.at != nil {
+		out.at = append(append(make([]Cell, 0, len(out.s)), l.at...), o.at...)
+	}
+	return out
 }
 
 // span is a byte range of the joined text an item already claimed.
@@ -113,16 +182,50 @@ func Extract(text string, width int, source Source) []Item {
 	seen := map[string]bool{}
 	add := func(kind, value string, exists *bool) {
 		value = strings.TrimSpace(value)
-		k := kind + "\x00" + normalize(kind, value)
+		k := itemKey(kind, value)
 		if value == "" || seen[k] {
 			return
 		}
 		seen[k] = true
-		result = append(result, Item{Kind: kind, Text: value, Session: source.Session, Window: source.Window, Pane: source.Pane, Created: source.At, Sources: []Source{source}, Exists: exists})
+		result = append(result, newItem(kind, value, exists, source))
 	}
 	if kind := source.EntryKind; kind == "prompt" || kind == "command" {
 		add(kind, text, nil)
 	}
+	for _, m := range find(text, source.Cwd, os.Stat) {
+		add(m.kind, m.value, m.exists)
+	}
+	return result
+}
+
+func newItem(kind, value string, exists *bool, source Source) Item {
+	return Item{Kind: kind, Text: value, Session: source.Session, Window: source.Window, Pane: source.Pane, Created: source.At, Sources: []Source{source}, Exists: exists}
+}
+
+// itemKey is what makes two items the same: kind and normalized text.
+func itemKey(kind, value string) string {
+	return kind + "\x00" + normalize(kind, value)
+}
+
+// StatFunc reports on a path as os.Stat does. Extract uses os.Stat;
+// ExtractSpans takes one so a caller on the UI loop can pass a cache
+// (CachedStat).
+type StatFunc func(path string) (fs.FileInfo, error)
+
+// found is one match in the joined text: its kind, the item text (a path
+// resolved and cleaned), and the byte range [start, end) of the text it
+// was read from.
+type found struct {
+	kind, value string
+	start, end  int
+	exists      *bool
+}
+
+// find is the one matcher Extract and ExtractSpans share. Matches come in
+// pattern order (links, PR references, branches, paths, commits); a later
+// pattern never takes text an earlier one claimed.
+func find(text, cwd string, stat StatFunc) []found {
+	var out []found
 	var claimed []span
 	for _, at := range linkPattern.FindAllStringIndex(text, -1) {
 		value := strings.TrimRight(text[at[0]:at[1]], ".,;:!'")
@@ -135,14 +238,14 @@ func Extract(text string, width int, source Source) []Item {
 		if err != nil || parsed.Host == "" {
 			continue
 		}
-		add(linkKind(parsed), value, nil)
+		out = append(out, found{kind: linkKind(parsed), value: value, start: at[0], end: at[0] + len(value)})
 	}
 	for _, at := range prRef.FindAllStringIndex(text, -1) {
 		if overlaps(claimed, [2]int{at[0], at[1]}) {
 			continue
 		}
 		claimed = append(claimed, span{at[0], at[1]})
-		add("pr", text[at[0]:at[1]], nil)
+		out = append(out, found{kind: "pr", value: text[at[0]:at[1]], start: at[0], end: at[1]})
 	}
 	for _, p := range branchPatterns {
 		for _, m := range p.FindAllStringSubmatchIndex(text, -1) {
@@ -154,7 +257,7 @@ func Extract(text string, width int, source Source) []Item {
 				continue
 			}
 			claimed = append(claimed, span{m[2], m[3]})
-			add("branch", name, nil)
+			out = append(out, found{kind: "branch", value: name, start: m[2], end: m[2] + len(name)})
 		}
 	}
 	for _, at := range pathPattern.FindAllStringIndex(text, -1) {
@@ -165,19 +268,19 @@ func Extract(text string, width int, source Source) []Item {
 		if raw == "" {
 			continue
 		}
-		kind, path, exists, ok := classifyPath(raw, source.Cwd)
+		kind, path, exists, ok := classifyPath(raw, cwd, stat)
 		if !ok {
 			continue
 		}
 		claimed = append(claimed, span{at[0], at[1]})
-		add(kind, path, &exists)
+		out = append(out, found{kind: kind, value: path, start: at[0], end: at[0] + len(raw), exists: &exists})
 	}
 	for _, at := range commitPattern.FindAllStringIndex(text, -1) {
 		if commitAt(text, at) && !overlaps(claimed, [2]int{at[0], at[1]}) {
-			add("commit", text[at[0]:at[1]], nil)
+			out = append(out, found{kind: "commit", value: text[at[0]:at[1]], start: at[0], end: at[1]})
 		}
 	}
-	return result
+	return out
 }
 
 // linkKind is pr for a GitHub pull request or issue, or a GitLab merge
@@ -225,7 +328,7 @@ func trimPath(raw string) string {
 // ./, ../) that does not exist yet. A bare dotted word counts only when it
 // exists, so prose is not a path; a relative word with a slash that does
 // not exist (origin/main, owner/repo) is not one either.
-func classifyPath(raw, cwd string) (kind, path string, exists, ok bool) {
+func classifyPath(raw, cwd string, stat StatFunc) (kind, path string, exists, ok bool) {
 	path = locationSuffix.ReplaceAllString(raw, "")
 	if strings.Trim(path, "./~") == "" { // ./..., .., / name no file
 		return "", "", false, false
@@ -240,7 +343,7 @@ func classifyPath(raw, cwd string) (kind, path string, exists, ok bool) {
 	if !filepath.IsAbs(path) && cwd != "" {
 		path = filepath.Join(cwd, path)
 	}
-	info, err := os.Stat(path)
+	info, err := stat(path)
 	exists = err == nil
 	if !exists && !explicit {
 		return "", "", false, false
@@ -249,7 +352,7 @@ func classifyPath(raw, cwd string) (kind, path string, exists, ok bool) {
 	// (/eval/browser, /debug/pprof) is a URL path or prose, not a file.
 	if !exists && filepath.IsAbs(path) {
 		top := "/" + strings.SplitN(strings.TrimPrefix(path, "/"), "/", 2)[0]
-		if _, err := os.Stat(top); err != nil {
+		if _, err := stat(top); err != nil {
 			return "", "", false, false
 		}
 	}
