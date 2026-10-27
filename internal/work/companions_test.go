@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/unixsuperhero/matomeru/store"
@@ -178,7 +180,7 @@ func TestReconcileCompanionsRemovesDeadLinksAndPreservesOwners(t *testing.T) {
 	live := map[string]bool{"parent": true, "vim": true, "orphan": true, "dead-term": false}
 	want := []Companion{{Window: "vim", Parent: "parent", Kind: "vim"}}
 	for range 2 {
-		rows, err := w.ReconcileCompanions(live)
+		rows, err := w.ReconcileCompanions("", live)
 		if err != nil || !reflect.DeepEqual(rows, want) {
 			t.Fatalf("reconciled links: %+v, %v; want %+v", rows, err, want)
 		}
@@ -197,7 +199,7 @@ func TestReconcileCompanionsRemovesDeadLinksAndPreservesOwners(t *testing.T) {
 	if err := w.PutCompanion(Companion{Window: "replacement", Parent: "parent", Kind: "term"}); err != nil {
 		t.Fatalf("dead companion still occupies its slot: %v", err)
 	}
-	rows, err = w.ReconcileCompanions(nil)
+	rows, err = w.ReconcileCompanions("", nil)
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("no live windows: %+v, %v", rows, err)
 	}
@@ -225,7 +227,7 @@ func TestReconcileCompanionsRollsBackOnMalformedRow(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if rows, err := w.ReconcileCompanions(nil); err == nil || rows != nil {
+	if rows, err := w.ReconcileCompanions("", nil); err == nil || rows != nil {
 		t.Fatalf("malformed row must fail reconciliation: %+v, %v", rows, err)
 	}
 	if err := w.DeleteCompanion("bad"); err != nil {
@@ -235,5 +237,51 @@ func TestReconcileCompanionsRollsBackOnMalformedRow(t *testing.T) {
 	want := []Companion{{Window: "dead", Parent: "parent", Kind: "vim"}}
 	if err != nil || !reflect.DeepEqual(rows, want) {
 		t.Fatalf("failed reconciliation deleted an earlier link: %+v, %v", rows, err)
+	}
+}
+
+// One database serves mtm on every TUIOS server: a listing of server a
+// reconciles only a's links. b's links are kept and not returned, and a
+// link of unknown server is a's once a's listing has either window.
+func TestReconcileCompanionsKeepsOtherServersLinks(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range []Companion{
+		{Window: "a-vim", Parent: "a-parent", Kind: "vim", Server: "/a.sock"},
+		{Window: "a-gone", Parent: "a-parent", Kind: "term", Server: "/a.sock"},
+		{Window: "b-vim", Parent: "b-parent", Kind: "vim", Server: "/b.sock"},
+		{Window: "old-vim", Parent: "a-parent2", Kind: "vim"},
+		{Window: "old-gone", Parent: "a-parent2", Kind: "term"},
+		{Window: "old-b", Parent: "b-parent", Kind: "term"},
+	} {
+		if err := w.PutCompanion(row); err != nil {
+			t.Fatal(err)
+		}
+	}
+	live := map[string]bool{"a-parent": true, "a-vim": true, "a-parent2": true, "old-vim": true}
+	rows, err := w.ReconcileCompanions("/a.sock", live)
+	want := []Companion{
+		{Window: "a-vim", Parent: "a-parent", Kind: "vim", Server: "/a.sock"},
+		{Window: "old-vim", Parent: "a-parent2", Kind: "vim", Server: "/a.sock"},
+	}
+	if err != nil || !reflect.DeepEqual(rows, want) {
+		t.Fatalf("a's links: %+v %v; want %+v", rows, err, want)
+	}
+	all, err := w.Companions()
+	want = append(want,
+		Companion{Window: "b-vim", Parent: "b-parent", Kind: "vim", Server: "/b.sock"},
+		Companion{Window: "old-b", Parent: "b-parent", Kind: "term"},
+	)
+	slices.SortFunc(all, func(x, y Companion) int { return strings.Compare(x.Window, y.Window) })
+	slices.SortFunc(want, func(x, y Companion) int { return strings.Compare(x.Window, y.Window) })
+	if err != nil || !reflect.DeepEqual(all, want) {
+		t.Fatalf("stored links: %+v %v; want %+v", all, err, want)
 	}
 }

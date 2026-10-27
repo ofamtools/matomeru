@@ -304,10 +304,10 @@ func (a *App) addPanesPage() error {
 
 // refreshPanes is panes.refresh: list the panes off the loop, then push them.
 func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
-	d, ws := a.panesd, a.work
+	d, ws, server := a.panesd, a.work, a.server()
 	// The lock keeps the listing's link cleanup from racing a side launch.
 	return ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
-		return sideListing(c, d, ws)
+		return sideListing(c, d, ws, server)
 	})).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
 		panes, _ := v.([]pane)
 		a.setPanes(panes, err)

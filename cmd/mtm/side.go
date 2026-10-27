@@ -109,9 +109,9 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("side pane is still opening"))
 	}
 	a.sideStarting[key] = true
-	pd, ws, launcher, dir := a.panesd, a.work, a.launcher, a.vimDir
+	pd, ws, launcher, dir, server := a.panesd, a.work, a.launcher, a.vimDir, a.server()
 	result := ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
-		panes, err := sideListing(c, pd, ws)
+		panes, err := sideListing(c, pd, ws, server)
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +126,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if parent.ID == "" {
 			return nil, errors.New("parent pane has exited")
 		}
-		links, err := ws.ReconcileCompanions(live)
+		links, err := ws.ReconcileCompanions(server, live)
 		if err != nil {
 			return nil, err
 		}
@@ -154,7 +154,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return nil, err
 		}
-		driver := &recordingDriver{Driver: &sideDriver{Driver: launcher, work: ws, parent: parent, kind: kind, env: recordedEnvironment(recipe)}, work: ws, owner: owner}
+		driver := &recordingDriver{Driver: &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, kind: kind, env: recordedEnvironment(recipe)}, work: ws, owner: owner}
 		if kind == "vim" {
 			id := work.NewID()
 			path, err := filepath.Abs(filepath.Join(dir, id+".vim"))
@@ -221,6 +221,7 @@ type sideOpened struct {
 type sideDriver struct {
 	harness.Driver
 	work   *work.Store
+	server string
 	parent pane
 	kind   string
 	env    map[string]string
@@ -236,7 +237,7 @@ func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, 
 	if id == "" {
 		return "", errors.New("side launch returned no pane id")
 	}
-	if err := d.work.PutCompanion(work.Companion{Window: id, Parent: d.parent.ID, Kind: d.kind}); err != nil {
+	if err := d.work.PutCompanion(work.Companion{Window: id, Parent: d.parent.ID, Kind: d.kind, Server: d.server}); err != nil {
 		return id, fmt.Errorf("side pane %s is open but its link could not be saved: %w", id, err)
 	}
 	return id, nil
@@ -250,7 +251,7 @@ func (a *App) checkCompanions(ctx context.Context, parent string) error {
 	if len(links) == 0 {
 		return nil
 	}
-	panes, err := sideListing(ctx, a.panesd, a.work)
+	panes, err := sideListing(ctx, a.panesd, a.work, a.server())
 	if err != nil {
 		return fmt.Errorf("cannot verify side panes: %w", err)
 	}
@@ -260,7 +261,7 @@ func (a *App) checkCompanions(ctx context.Context, parent string) error {
 		live[p.ID] = !p.Exited
 		labels[p.ID] = p.label()
 	}
-	links, err = a.work.ReconcileCompanions(live)
+	links, err = a.work.ReconcileCompanions(a.server(), live)
 	if err != nil {
 		return err
 	}
@@ -349,10 +350,19 @@ type exitProber interface {
 // probeLimit is how many exit probes run at once.
 const probeLimit = 8
 
+// server is the TUIOS daemon socket this mtm lists, which a companion
+// link records (work.Companion).
+func (a *App) server() string {
+	if a.daemon == nil || a.daemon.Socket == "" {
+		return ""
+	}
+	return filepath.Clean(a.daemon.Socket)
+}
+
 // sideListing closes exited windows and reconciles companion links.
 // Surviving companions whose parent exited become ordinary panes.
 // Callers that may race a side launch hold the side lock.
-func sideListing(ctx context.Context, pd paneDaemon, ws *work.Store) ([]pane, error) {
+func sideListing(ctx context.Context, pd paneDaemon, ws *work.Store, server string) ([]pane, error) {
 	panes, err := pd.ListPanes(ctx)
 	if err != nil {
 		return nil, err
@@ -383,7 +393,7 @@ func sideListing(ctx context.Context, pd paneDaemon, ws *work.Store) ([]pane, er
 		out = append(out, p)
 	}
 	if len(links) > 0 {
-		if _, err := ws.ReconcileCompanions(live); err != nil {
+		if _, err := ws.ReconcileCompanions(server, live); err != nil {
 			return nil, err
 		}
 	}

@@ -14,7 +14,7 @@ import (
 // relist is a refresh: the probing listing, then the page.
 func relist(t *testing.T, a *App, f *fakePanes) {
 	t.Helper()
-	panes, err := sideListing(context.Background(), f, a.work)
+	panes, err := sideListing(context.Background(), f, a.work, a.server())
 	if err != nil {
 		t.Fatal(err)
 	}
