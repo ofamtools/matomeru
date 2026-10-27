@@ -449,6 +449,7 @@ func New(opts Options) (*App, error) {
 	a.defineExtensions()
 	a.defineExtensionRows()
 	a.defineExtForms()
+	a.defineConfigReload()
 	if err := a.declareSettings(); err != nil {
 		return nil, err
 	}
