@@ -27,8 +27,8 @@ func (a *App) defineSides() {
 		"pane": {Type: "string", Description: "The parent's window id (as pane list prints it), instead of --target pane:SESSION/WINDOW"},
 	})
 	a.r.Define("app").
-		// Quiet: a refusal is the one footer line, not a ticker row too.
-		Verb("close", a.quitWithSides, "Exit after closing side panes").Quiet().
+		// Quiet: the wait for an opening side is one footer line, not a ticker row too.
+		Verb("close", a.quitApp, "Exit; side panes keep running and come back on the next start").Quiet().
 		Verb("quit", func(r *ochazuke.Runtime, _ ochazuke.Context, _ ochazuke.Arguments) (any, error) {
 			return r.Execute(ochazuke.Request{Noun: "app", Verb: "close", Target: "app"})
 		})
@@ -102,6 +102,9 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("no parent pane selected: pass --pane WINDOW_ID or --target pane:SESSION/WINDOW"))
 	}
 	key := p.ID + "/" + kind
+	if a.quitAfterSides {
+		return ochazuke.Failed(errors.New("mtm is quitting"))
+	}
 	if a.sideStarting[key] {
 		return ochazuke.Failed(errors.New("side pane is still opening"))
 	}
@@ -177,8 +180,8 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		panes, err = pd.ListPanes(c)
 		return sideOpened{Parent: parent, Panes: panes, Note: strings.Join(driver.notes, "; ")}, err
 	})).Then(func(ctx ochazuke.Ctx, value any, err error) {
-		delete(a.sideStarting, key)
-		if err != nil {
+		a.sideSettled(key)
+		if err != nil || a.r.Quit {
 			return
 		}
 		done := value.(sideOpened)
@@ -202,7 +205,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	ticket, err := a.r.Launch(paneListID, "pane.side", result, ctx)
 	if err != nil {
-		delete(a.sideStarting, key)
+		a.sideSettled(key)
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(ticket)
@@ -263,7 +266,7 @@ func (a *App) checkCompanions(ctx context.Context, parent string) error {
 	}
 	var messages []string
 	for _, link := range links {
-		if parent != "" && parent != link.Parent {
+		if parent != link.Parent {
 			continue
 		}
 		// ctrl+a v / t only shows the side pane; the program inside closes it.
@@ -279,23 +282,25 @@ func (a *App) checkCompanions(ctx context.Context, parent string) error {
 	return nil
 }
 
-func (a *App) quitWithSides(ochazuke.Ctx) ochazuke.Result {
+// quitApp is app.close: mtm exits and the side panes keep running; their
+// saved links reattach them to their parents on the next start. A side
+// still opening may not have saved its link yet, so quit waits for it.
+func (a *App) quitApp(ctx ochazuke.Ctx) ochazuke.Result {
 	if len(a.sideStarting) > 0 {
-		return ochazuke.Failed(errors.New("wait for side panes to finish opening before quitting"))
+		a.quitAfterSides = true
+		ctx.Notify("quitting once the side pane finishes opening")
+		return ochazuke.Done(false)
 	}
-	links, err := a.work.Companions()
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if len(links) == 0 {
+	a.r.Quit = true
+	return ochazuke.Done(true)
+}
+
+// sideSettled ends a side launch, and the quit that waited for it.
+func (a *App) sideSettled(key string) {
+	delete(a.sideStarting, key)
+	if a.quitAfterSides && len(a.sideStarting) == 0 {
 		a.r.Quit = true
-		return ochazuke.Done(true)
 	}
-	return ochazuke.Pending(func(c context.Context) (any, error) { return true, a.checkCompanions(c, "") }).Then(func(_ ochazuke.Ctx, _ any, err error) {
-		if err == nil {
-			a.r.Quit = true
-		}
-	})
 }
 
 // The lock covers the daemon creation and the link write across CLI processes.
