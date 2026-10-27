@@ -4,3 +4,4 @@
 /nasaudit/
 go.work
 go.work.sum
+.worktrees/
