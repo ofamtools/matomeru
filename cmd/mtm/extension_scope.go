@@ -17,7 +17,8 @@ import (
 //
 //  1. its recorded owner (ext_rows, work.ExtRowOwner): the context project
 //     when one of the extension's verbs made the row (it answered a row
-//     whose id the lists did not hold) or first acted on it (its target).
+//     whose id the lists did not hold) or first acted on it (its target;
+//     from the row itself that is the row's derived project, not the pin).
 //     No context project records nothing; a record is never overwritten,
 //     so recorded rows never move.
 //  2. its path: the first path-like field (extPathFields), ~ expanded and
@@ -41,8 +42,8 @@ import (
 // stack names: the focused instance and its ancestry, then each open
 // modal's return focus and its ancestry, innermost modal first. A project
 // row names its project, a task row its task's, a pane row or the live
-// pane its owner's, a note its owner's, an extension row its recorded
-// owner; else the pin, else none. Every exec of an extension is told it
+// pane its owner's, a note its owner's, an extension row its own project
+// (recorded, else derived from its path); else the pin, else none. Every exec of an extension is told it
 // (MTM_PROJECT, MTM_PROJECT_LABEL, MTM_PROJECT_DIRS), read on the loop
 // when the verb is dispatched. Page loads are told the pin's instead
 // (loadProject; none under S): a list never changes with the cursor.
@@ -153,10 +154,24 @@ func (a *App) instanceProject(id string) string {
 			if row == "" || !a.extScoped(x) {
 				return ""
 			}
-			return known(a.extRowProject(x.name, noun, row))
+			return known(a.extInstanceProject(x, noun, inst.ID, row))
 		}
 	}
 	return ""
+}
+
+// extInstanceProject is the effective project of an extension's row
+// instance: its recorded owner, else the project its path is under
+// (extRowOwner); a stand-in row the page does not show has only its
+// record.
+func (a *App) extInstanceProject(x *extension, noun, instance, row string) string {
+	for _, v := range x.views {
+		if r, ok := v.Row(instance); ok {
+			project, _ := a.extRowOwner(x.name, noun, r)
+			return project
+		}
+	}
+	return a.extRowProject(x.name, noun, row)
 }
 
 // catalogNoun is the extension's noun of one of mtm's nouns <ext>-<noun>,

@@ -271,9 +271,23 @@ func TestContextProjectWalksTheFocusStack(t *testing.T) {
 	}
 	focus(docsList + "/loose")
 	want("recorded ext row", "matomeru")
-	// A path match is not a context project.
+	// A path match names its project too, over the pin.
 	focus(docsList + "/theirs")
-	want("derived ext row", "")
+	want("derived ext row", "ochazuke")
+	pin(t, a, "matomeru")
+	scopeAll := func() {
+		t.Helper()
+		if _, err := a.r.Execute(ochazuke.Request{Noun: "scope", Verb: "all"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scopeAll() // S shows theirs and stray beside the pin
+	focus(docsList + "/theirs")
+	want("derived ext row under another pin", "ochazuke")
+	focus(docsList + "/stray")
+	want("ext row whose path no project holds, pinned", "matomeru")
+	scopeAll()
+	pin(t, a, "")
 
 	// A project row.
 	focus("ochazuke")
@@ -393,6 +407,7 @@ func TestDocNewFromAPaneIsTheProjectsDoc(t *testing.T) {
 func TestDocNewWithNoProjectRecordsNothing(t *testing.T) {
 	a, log, root := scopeApp(t)
 	openExtPage(t, a, "ext/md/docs")
+	focusOn(t, a, docsList+"/loose") // a row with no project
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "md-doc", Verb: "new", Args: ochazuke.Arguments{"name": "nowhere"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -619,5 +634,36 @@ func TestDocsReloadIgnoresTheCursor(t *testing.T) {
 	focusOn(t, a, docsList+"/theirs")
 	if got := a.contextProject(); got != "ochazuke" {
 		t.Fatalf("verb context on theirs %q", got)
+	}
+}
+
+// Acting on a doc from its own row records the row's path project, not
+// the pin: pin matomeru, focus a doc under ochazuke's directory, act.
+func TestActingOnADerivedDocRecordsItsPathProject(t *testing.T) {
+	a, log, root := scopeApp(t)
+	pin(t, a, "matomeru")
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "scope", Verb: "all"}); err != nil { // theirs is shown
+		t.Fatal(err)
+	}
+	openExtPage(t, a, "ext/md/docs")
+	focusOn(t, a, docsList+"/theirs")
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "md-doc", Verb: "touch"}); err != nil {
+		t.Fatal(err)
+	}
+	settleJobs(t, a, a.r.PendingCommands())
+	if got := a.extRowProject("md", "doc", "theirs"); got != "ochazuke" {
+		t.Fatalf("theirs recorded to %q, want ochazuke", got)
+	}
+	var touch string
+	for _, c := range calls(t, log) {
+		if strings.Contains(c, "|doc touch") {
+			touch = c
+		}
+	}
+	if want := "ochazuke|ochazuke|" + filepath.Join(root, "ochazuke") + "|doc touch --target theirs"; !strings.HasPrefix(touch, want) {
+		t.Fatalf("doc touch told %q, want %q", touch, want)
+	}
+	if got := projectCell(t, a, "theirs"); got != "ochazuke" {
+		t.Fatalf("theirs now reads %q (recorded: no mark)", got)
 	}
 }
