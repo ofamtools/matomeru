@@ -260,6 +260,7 @@ type App struct {
 	opts           Options             // the command line New was given (mtm mcp serve opens one app per tool call with it)
 	cx             *contextState       // the Context page and its actions (context.go)
 	hinting        *liveHints          // the labels over a live pane, nil when none are up (live_hints.go)
+	unsendable     map[string]bool     // keys already reported as not sendable to a pane (panekeys.go)
 	drafts         *draft.Store
 	editor         *recordEditor
 	quick          *quickNote // the open quick note (N), nil when closed
