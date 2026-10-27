@@ -130,6 +130,31 @@ func TestCopyModeFromTheListIsFocusedNotLive(t *testing.T) {
 	}
 }
 
+func TestCopyModeCursorVisibleBeforeSelection(t *testing.T) {
+	app, _, _ := copyApp(t, nil, []string{"alpha", "", "omega"})
+	enterCopyMode(t, app)
+	press(t, app, "g", "g")
+	view := app.View()
+	if view.Cursor == nil {
+		t.Fatal("copy mode has no cursor before selecting")
+	}
+	x, y := view.Cursor.X, view.Cursor.Y
+	press(t, app, "l")
+	view = app.View()
+	if view.Cursor == nil || view.Cursor.X != x+1 || view.Cursor.Y != y {
+		t.Fatalf("copy cursor did not follow l: %+v", view.Cursor)
+	}
+	press(t, app, "j")
+	view = app.View()
+	if view.Cursor == nil || view.Cursor.X != x || view.Cursor.Y != y+1 {
+		t.Fatalf("copy cursor missing on empty line: %+v", view.Cursor)
+	}
+	press(t, app, "v")
+	if view = app.View(); view.Cursor == nil {
+		t.Fatal("copy selection lost its endpoint cursor")
+	}
+}
+
 // Live in a shell that printed 200 lines, ctrl+a [ keeps the screen where
 // it was; k moves into the scrollback, /word finds it, V y yanks it into
 // register 0 and the clipboard; the pane stays attached and i is live.
