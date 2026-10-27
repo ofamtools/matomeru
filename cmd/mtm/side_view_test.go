@@ -286,3 +286,119 @@ func TestLeaderOCyclesParentAndSide(t *testing.T) {
 		t.Fatalf("o reached a pane: %v %v", f.streams[0].sent, f.streams[1].sent)
 	}
 }
+
+// Leader w opens a chooser of every open side across every pane; enter
+// selects the parent, attaches it, shows that side and focuses it. A side
+// whose parent exited, or is not in this listing, is not offered.
+func TestSideChooserJumpsToAnySide(t *testing.T) {
+	a, f := sideViewApp(t)
+	other := f.panes[1] // w2, not attached
+	gone := pane{Session: other.Session, Pane: daemon.Pane{ID: "gone-parent", Name: "gone"}}
+	dead := pane{Session: other.Session, Exited: true, Pane: daemon.Pane{ID: "dead-parent", Name: "dead"}}
+	w2vim := pane{Session: other.Session, Pane: daemon.Pane{ID: "w2-vim", Name: "editor"}}
+	orphan := pane{Session: other.Session, Pane: daemon.Pane{ID: "orphan-term", Name: "orphan"}}
+	deadSide := pane{Session: other.Session, Pane: daemon.Pane{ID: "dead-term", Name: "dead-side"}}
+	f.panes = append(f.panes, dead, w2vim, orphan, deadSide)
+	for _, link := range []work.Companion{
+		{Window: w2vim.ID, Parent: other.ID, Kind: "vim"},
+		{Window: orphan.ID, Parent: gone.ID, Kind: "term"},
+		{Window: deadSide.ID, Parent: dead.ID, Kind: "term"},
+	} {
+		if err := a.work.PutCompanion(link); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.setPanes(f.panes, nil)
+	press(t, a, "ctrl+a", "w")
+	if a.r.TopModal() != sideChooser {
+		t.Fatalf("top modal %q", a.r.TopModal())
+	}
+	var labels []string
+	for _, row := range a.r.Chooser(sideChooser).Matches() {
+		labels = append(labels, row.Label)
+	}
+	want := []string{"side vim · " + f.panes[0].label(), "side term · " + f.panes[0].label(), "side vim · " + other.label()}
+	if !slices.Equal(labels, want) {
+		t.Fatalf("rows %q, want %q", labels, want)
+	}
+	typeText(t, a, "ochazuke")
+	press(t, a, "enter")
+	if a.attached.ID != other.ID || a.r.Focus != sideTermID || a.attached.SideFront != "vim" {
+		t.Fatalf("attached %s focus %s front %q", a.attached.ID, a.r.Focus, a.attached.SideFront)
+	}
+	if row, _ := a.selectedRow(); row != other.rowID() {
+		t.Fatalf("selected %s", row)
+	}
+	if s := f.streams[len(f.streams)-1]; s.pane.ID != w2vim.ID {
+		t.Fatalf("side stream %s", s.pane.ID)
+	}
+}
+
+// With no side open, leader w says so instead of opening an empty chooser.
+func TestSideChooserWithNoSides(t *testing.T) {
+	a, _ := panesApp(t)
+	press(t, a, "ctrl+a", "w") // the page leader row: normal mode on Panes
+	if a.r.TopModal() != "" || !slices.Contains(a.m.Notices, "no side panes are open") {
+		t.Fatalf("modal %q notices %q", a.r.TopModal(), a.m.Notices)
+	}
+}
+
+// Outside live, ctrl+a w is a Panes page row too, and the palette reaches
+// the verb.
+func TestSideChooserFromPageAndPalette(t *testing.T) {
+	a, _ := sideViewApp(t)
+	press(t, a, "ctrl+a", "d") // detach: the focus is back on the row
+	if a.r.Terminal(paneTermID) != nil {
+		t.Fatal("still attached")
+	}
+	press(t, a, "ctrl+a", "w")
+	if a.r.TopModal() != sideChooser {
+		t.Fatalf("page leader w: top modal %q", a.r.TopModal())
+	}
+	press(t, a, "esc")
+	press(t, a, ":")
+	typeText(t, a, "panes sides")
+	press(t, a, "enter")
+	if a.r.TopModal() != sideChooser {
+		t.Fatalf("palette: top modal %q", a.r.TopModal())
+	}
+}
+
+// The leader's hint and its ? modal name o, R and w; space after the
+// leader stays unbound, so it sends the leader and itself to the pane.
+func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
+	a, f := sideViewApp(t)
+	var hint string
+	for _, b := range a.r.Noun("terminal").Bindings["terminal"] {
+		if b.Keys == "ctrl+a" {
+			hint = b.Hint
+		}
+	}
+	for _, want := range []string{"o other", "R layout", "w sides"} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("hint %q lacks %q", hint, want)
+		}
+	}
+	for _, b := range a.r.Noun("terminal").Bindings["leader_pending"] {
+		if b.Keys == "space" || b.Keys == "ctrl+o" {
+			t.Fatalf("leader %s is bound: %+v", b.Keys, b)
+		}
+	}
+	press(t, a, "ctrl+a", "?")
+	var rows []string
+	for _, it := range a.r.List(leaderList).Items() {
+		rows = append(rows, it.Label)
+	}
+	text := strings.Join(rows, "\n")
+	for _, want := range []string{"ctrl+a o ", "ctrl+a R ", "ctrl+a w ", "the other pane", "side layout", "sides: jump"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("leader keys lack %q:\n%s", want, text)
+		}
+	}
+	press(t, a, "esc")
+	before := len(f.streams[0].sent)
+	press(t, a, "ctrl+a", "space")
+	if got := f.streams[0].sent[before:]; len(got) != 1 || !slices.Equal(got[0], []string{"ctrl+a", "space"}) {
+		t.Fatalf("leader space sent %v", got)
+	}
+}

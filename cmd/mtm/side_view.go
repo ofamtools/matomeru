@@ -338,3 +338,70 @@ func (a *App) sideDetailBlock(layout ochazuke.Layout, width, height int) ochazuk
 	}
 	return layout.PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, term.Focused())
 }
+
+const sideChooser = "side-chooser"
+
+// sideChoice is one side chooser row: the parent and which side.
+type sideChoice struct {
+	parent pane
+	kind   string
+}
+
+// chooseSide is panes.sides (leader w, live and on the Panes page): a
+// chooser of every open side across every pane, "side vim · parent" or
+// "side term · parent". The links come from the last listing
+// (mergeCompanions), so only sides whose windows and parents this server
+// lists are there; an exited parent or side is left out. Enter attaches
+// the parent, shows that side and focuses it (jumpToSide).
+func (a *App) chooseSide(ctx ochazuke.Ctx) ochazuke.Result {
+	var rows []ochazuke.ChooserRow
+	for _, p := range a.panes {
+		s, ok := a.sides[p.ID]
+		if !ok || p.Exited {
+			continue
+		}
+		for _, side := range []struct{ kind, id string }{{"vim", s.SideVim}, {"term", s.SideTerm}} {
+			if c, live := a.companionPanes[side.id]; side.id == "" || !live || c.Exited {
+				continue
+			}
+			rows = append(rows, ochazuke.ChooserRow{ID: p.ID + "/" + side.kind, Label: "side " + side.kind + " · " + p.label(), Data: sideChoice{parent: p, kind: side.kind}})
+		}
+	}
+	if len(rows) == 0 {
+		ctx.Notify("no side panes are open")
+		return ochazuke.Done(nil)
+	}
+	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
+		Kind:  sideChooser,
+		Title: "Side panes",
+		Rows:  rows,
+		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+			c := row.Data.(sideChoice)
+			if err := a.jumpToSide(c.parent, c.kind); err != nil {
+				return ochazuke.Failed(err)
+			}
+			return ochazuke.Done(row.Label)
+		},
+	})
+	return resultError(err)
+}
+
+// jumpToSide selects the parent on the Panes page, attaches it live
+// unless it already is, shows the side and focuses it.
+func (a *App) jumpToSide(parent pane, kind string) error {
+	if err := a.r.OpenPage(panesPage); err != nil {
+		return err
+	}
+	if a.attached.ID != parent.ID || a.r.Terminal(paneTermID) == nil {
+		if err := a.attachLive(parent, parent.rowID()); err != nil {
+			return err
+		}
+	}
+	if err := a.pv.tree.Select(parent.rowID()); err != nil {
+		return err
+	}
+	if a.r.Focus == sideTermID && a.attached.SideFront == kind {
+		return nil // there already; showSide would hand the focus back
+	}
+	return a.showSide(a.attached, kind)
+}

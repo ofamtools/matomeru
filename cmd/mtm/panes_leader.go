@@ -10,7 +10,8 @@ import (
 // the detail focused), the terminal leader then j, k or s run the live
 // verbs terminal.cycle and terminal.starred, which select the pane there
 // and leave the detail on its tab instead of attaching it (cyclePane,
-// cycleStarred). The rows are key sequences on the page, so the footer
+// cycleStarred); w opens the side chooser (panes.sides), whose choice
+// attaches. The rows are key sequences on the page, so the footer
 // and ? read them. SetTerminalLeader moves only the rows that enter
 // leader_pending, so these follow the terminal-leader setting here.
 
@@ -21,6 +22,7 @@ var pageLeaderRows = []struct {
 	{"j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1}).Hinted("next pane")},
 	{"k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1}).Hinted("previous pane")},
 	{"s", ochazuke.Do("terminal.starred").Hinted("next starred")},
+	{"w", ochazuke.Do("panes.sides").Hinted("sides")},
 }
 
 // bindPageLeader binds the page's leader rows to the current leader and

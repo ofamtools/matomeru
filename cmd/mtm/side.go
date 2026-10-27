@@ -22,6 +22,7 @@ func (a *App) defineSides() {
 	a.companionPanes = make(map[string]pane)
 	a.sideStarting = make(map[string]bool)
 	a.r.Define("pane").Verb("side", a.sidePane, "Open or list this pane's side vim and terminal").Positional("kind")
+	a.r.Define("panes").Verb("sides", a.chooseSide, "Choose any open side vim or terminal: attach its pane, show the side and focus it")
 	a.parameters("pane.side", map[string]ochazuke.Parameter{
 		"kind": {Type: "string", Required: true, Enum: []string{"vim", "term", "list"}},
 		"pane": {Type: "string", Description: "The parent's window id (as pane list prints it), instead of --target pane:SESSION/WINDOW"},
