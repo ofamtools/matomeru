@@ -128,7 +128,11 @@ type fakeStream struct {
 	keep     bool // hold: Release parks, as liveStream does
 	parked   bool
 	state    string // connState: "", reconnecting or gone
+	// fit is the window ask own set (a side's); Resize calls it at once.
+	fit func(ctx context.Context, cols, rows int) error
 }
+
+func (s *fakeStream) own(fit func(ctx context.Context, cols, rows int) error) { s.fit = fit }
 
 func (s *fakeStream) connState() string { return s.state }
 
@@ -140,9 +144,15 @@ func (s *fakeStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 		return ochazuke.TerminalFrame{}, ctx.Err()
 	}
 }
-func (s *fakeStream) Send(keys ...string) error   { s.sent = append(s.sent, keys); return nil }
-func (s *fakeStream) Paste(text string) error     { s.pasted = append(s.pasted, text); return nil }
-func (s *fakeStream) Resize(cols, rows int) error { s.lease = [2]int{cols, rows}; return nil }
+func (s *fakeStream) Send(keys ...string) error { s.sent = append(s.sent, keys); return nil }
+func (s *fakeStream) Paste(text string) error   { s.pasted = append(s.pasted, text); return nil }
+func (s *fakeStream) Resize(cols, rows int) error {
+	s.lease = [2]int{cols, rows}
+	if s.fit != nil {
+		return s.fit(context.Background(), cols, rows)
+	}
+	return nil
+}
 func (s *fakeStream) Release() error {
 	if s.keep {
 		s.parked = true

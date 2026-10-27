@@ -213,3 +213,63 @@ func TestAttachedPaneTitleSaysReconnectingAndGone(t *testing.T) {
 		t.Fatalf("gone:\n%s", v)
 	}
 }
+
+// An owned stream asks for its sizes off the loop, one at a time, and
+// ends at the newest even when sizes come faster than the daemon answers;
+// a released stream asks for nothing more.
+func TestOwnedStreamAsksForTheNewestSize(t *testing.T) {
+	s := reconnectStream(&fakeDialer{})
+	gate := make(chan struct{})
+	asked := make(chan [2]int, 8)
+	s.own(func(_ context.Context, cols, rows int) error {
+		asked <- [2]int{cols, rows}
+		<-gate
+		return nil
+	})
+	next := func() [2]int {
+		t.Helper()
+		select {
+		case size := <-asked:
+			return size
+		case <-time.After(2 * time.Second):
+			t.Fatal("no ask")
+			return [2]int{}
+		}
+	}
+	if err := s.Resize(80, 24); err != nil {
+		t.Fatal(err)
+	}
+	if got := next(); got != [2]int{80, 24} {
+		t.Fatalf("first ask %v", got)
+	}
+	// While that ask is out, two more sizes collapse into the newest.
+	for _, size := range [][2]int{{100, 30}, {120, 40}} {
+		if err := s.Resize(size[0], size[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	close(gate)
+	if got := next(); got != [2]int{120, 40} {
+		t.Fatalf("second ask %v, want the newest 120x40", got)
+	}
+	select {
+	case size := <-asked:
+		t.Fatalf("asked again for %v", size)
+	case <-time.After(50 * time.Millisecond):
+	}
+	// The same size again is no ask; a released stream asks for nothing.
+	if err := s.Resize(120, 40); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Resize(60, 20); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case size := <-asked:
+		t.Fatalf("asked for %v after the same size or a release", size)
+	case <-time.After(50 * time.Millisecond):
+	}
+}

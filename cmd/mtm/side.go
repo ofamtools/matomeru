@@ -264,6 +264,12 @@ type windowFitter interface {
 	FitWindow(ctx context.Context, p pane, cols, rows int) error
 }
 
+// windowOwner is a stream that asks the daemon for each size it is drawn
+// at (liveStream.own), for a window mtm owns.
+type windowOwner interface {
+	own(fit func(ctx context.Context, cols, rows int) error)
+}
+
 // sideFit sizes a new side window to the side's region in the detail
 // area the last frame drew. TUIOS creates a window at its session's size,
 // the whole screen of the client that last sized it, and a side would

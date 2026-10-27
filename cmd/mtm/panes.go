@@ -984,6 +984,15 @@ type liveStream struct {
 	seq   uint64
 	boot  string
 	state string
+	// fit asks the daemon for the window's own size (tuios resize), as a
+	// client does; own sets it for a window mtm owns (a side). A lease
+	// never grows a pane past the size its clients asked for, so a side
+	// asked for its panel at launch would stay that small zoomed: Resize
+	// asks for each new size as well. fitWant is the newest size, fitSent
+	// the last one the daemon took, fitting while fitLoop runs.
+	fit              func(ctx context.Context, cols, rows int) error
+	fitWant, fitSent [2]int
+	fitting          bool
 }
 
 type streamFrame struct {
@@ -1201,15 +1210,63 @@ func (s *liveStream) Paste(text string) error {
 	return s.client.SendText(ctx, daemon.SendTextParams{Session: s.pane.Session, Window: s.pane.ID, Text: text, Paste: true})
 }
 
-// Resize holds the pane at most at the area the detail stop gives it.
+// Resize holds the pane at most at the area the detail stop gives it, and
+// for a window mtm owns asks for that size too (own), so the pane can grow
+// into a larger area (zoom) and keeps the area it was last drawn at when
+// the lease ends.
 func (s *liveStream) Resize(cols, rows int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cols, s.rows = cols, rows
-	if s.conn == nil || s.released {
+	if s.released {
+		return nil
+	}
+	if s.fit != nil && cols > 0 && rows > 0 {
+		s.fitWant = [2]int{cols, rows}
+		if !s.fitting && s.fitWant != s.fitSent {
+			s.fitting = true
+			go s.fitLoop()
+		}
+	}
+	if s.conn == nil {
 		return nil
 	}
 	return s.conn.Lease(uint16(cols), uint16(rows))
+}
+
+// own makes Resize ask the daemon for each size through fit: the stream
+// shows a window mtm made and sizes (a side), not one a client lays out.
+func (s *liveStream) own(fit func(ctx context.Context, cols, rows int) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fit = fit
+}
+
+// fitLoop asks for the newest wanted size, one call at a time and off the
+// update loop, until the daemon has taken it; sizes asked for meanwhile
+// collapse into the newest. A failed ask ends the loop (the lease still
+// holds the pane at most at the area); the next Resize asks again.
+func (s *liveStream) fitLoop() {
+	for {
+		s.mu.Lock()
+		want := s.fitWant
+		if s.released || want == s.fitSent {
+			s.fitting = false
+			s.mu.Unlock()
+			return
+		}
+		fit, ctx := s.fit, s.ctx
+		s.mu.Unlock()
+		err := fit(ctx, want[0], want[1])
+		s.mu.Lock()
+		if err != nil {
+			s.fitting = false
+			s.mu.Unlock()
+			return
+		}
+		s.fitSent = want
+		s.mu.Unlock()
+	}
 }
 
 // Release drops the size lease and closes the stream; it is idempotent.

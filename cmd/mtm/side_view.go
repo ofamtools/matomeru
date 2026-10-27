@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -130,6 +131,16 @@ func (a *App) syncSideView() error {
 	}
 	side := a.companionPanes[id]
 	stream := a.panesd.OpenStream(side)
+	// The side is a window mtm made and sized (sideFit): its stream asks
+	// for every area it is drawn at, so zoom grows it and unzoom gives the
+	// side region back (a lease alone never grows a pane past that ask).
+	if fitter, ok := a.panesd.(windowFitter); ok {
+		if o, ok := stream.(windowOwner); ok {
+			o.own(func(ctx context.Context, cols, rows int) error {
+				return fitter.FitWindow(ctx, side, cols, rows)
+			})
+		}
+	}
 	// The stream dials on its first read, which can come before the first
 	// frame draws the side: give it the side's region now, so it opens
 	// with that lease instead of at the window's size.

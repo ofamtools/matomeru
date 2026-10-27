@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -400,5 +401,57 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 	press(t, a, "ctrl+a", "space")
 	if got := f.streams[0].sent[before:]; len(got) != 1 || !slices.Equal(got[0], []string{"ctrl+a", "space"}) {
 		t.Fatalf("leader space sent %v", got)
+	}
+}
+
+// Zooming a side grows the program in it to the page body and unzooming
+// gives the side region back. A lease never grows a pane past the size
+// its clients asked for (tuios pane_lease.go), and the side's window was
+// asked for its panel at launch (sideFit), so the side's stream asks for
+// every area it is drawn at (FitWindow) as well as leasing it. The
+// parent is the user's pane: zooming it only leases, never asks.
+func TestSideZoomAsksForTheZoomedSize(t *testing.T) {
+	a, f := sideViewApp(t)
+	if err := a.showSide(a.attached, "vim"); err != nil {
+		t.Fatal(err)
+	}
+	parent, side := f.streams[0], f.streams[1]
+	lastFit := func() string {
+		if len(f.fits) == 0 {
+			return ""
+		}
+		return f.fits[len(f.fits)-1]
+	}
+	want := func(label string, cols, rows int) {
+		t.Helper()
+		if side.lease != [2]int{cols, rows} || lastFit() != fmt.Sprintf("side-vim %dx%d", cols, rows) {
+			t.Fatalf("%s: side lease %v, last fit %q, want %dx%d", label, side.lease, lastFit(), cols, rows)
+		}
+	}
+	a.renderPanes(a.r, 240, 30) // the side is the detail's right 83 columns
+	sw, sh := ochazuke.PanelContentSize(83, 30)
+	want("beside", sw, sh)
+	parentLease := parent.lease
+	press(t, a, "ctrl+a", "z")
+	a.renderPanes(a.r, 240, 30)
+	zw, zh := ochazuke.PanelContentSize(240, 30)
+	want("zoomed", zw, zh)
+	if parent.lease != parentLease {
+		t.Fatalf("zooming the side moved the parent's lease: %v, was %v", parent.lease, parentLease)
+	}
+	press(t, a, "ctrl+a", "z")
+	a.renderPanes(a.r, 240, 30)
+	want("unzoomed", sw, sh)
+
+	// The parent zooms by its lease alone.
+	fits := len(f.fits)
+	press(t, a, "ctrl+a", "o")
+	press(t, a, "ctrl+a", "z")
+	a.renderPanes(a.r, 240, 30)
+	if a.r.Focus != paneTermID || parent.lease != [2]int{zw, zh} || side.lease != [2]int{sw, sh} {
+		t.Fatalf("parent zoom: focus %s parent %v side %v", a.r.Focus, parent.lease, side.lease)
+	}
+	if len(f.fits) != fits {
+		t.Fatalf("parent zoom asked for a window size: %v", f.fits[fits:])
 	}
 }
