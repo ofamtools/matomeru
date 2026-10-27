@@ -487,7 +487,7 @@ func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
 	}
 	for _, key := range order {
 		if b, ok := bound[key]; ok {
-			add(key, a.r.Operations[b.Request.Key()].Description)
+			add(key, a.r.Operations[a.r.CanonicalKey(b.Request.Key())].Description)
 		}
 	}
 	if _, err := a.r.OpenModal(leaderModal, ochazuke.Payload{}); err != nil {

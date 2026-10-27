@@ -288,9 +288,12 @@ func extMountable(noun string, v ocli.CatalogVerb, fallback bool) bool {
 var frameworkVerbs = sync.OnceValue(func() map[string]bool {
 	r := ochazuke.NewRuntime()
 	ochazuke.NewModel(r)
-	keys := make(map[string]bool, len(r.Operations))
+	keys := make(map[string]bool, 2*len(r.Operations))
 	for key := range r.Operations {
 		keys[key] = true
+		// An older catalog names the framework's nouns by their short
+		// names (outline.expand, before ochazuke's namespace).
+		keys[r.DisplayKey(key)] = true
 	}
 	return keys
 })
@@ -648,7 +651,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 			if err != nil {
 				notify("%s %s %v", n.Name, v.Name, err)
 			}
-			op := a.r.Operations[local+"."+v.Name]
+			op := a.r.Operations[a.r.CanonicalKey(local+"."+v.Name)]
 			op.HistoryKind = kind
 			a.r.Operations[op.Key()] = op
 		}

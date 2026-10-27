@@ -44,7 +44,7 @@ func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer,
 		}
 		return oden.ErrNotFound
 	}
-	ocli.Mount(app, sh, "bindings", "history")
+	ocli.Mount(app, sh)                            // bindings and history are framework aliases since ochazuke v0.17: Mount adds their groups
 	a.defineMCPCommand(app, stdin, stdout, stderr) // mtm mcp (mcp.go)
 	// Mount also mounts the framework's binding noun, which made "bind" an
 	// ambiguous prefix; bind stays the short spelling of bindings.

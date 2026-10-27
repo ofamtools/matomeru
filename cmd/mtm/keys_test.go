@@ -104,14 +104,14 @@ func normalRows(a *App) []keyRow {
 	for name, noun := range a.r.Nouns {
 		for _, b := range noun.Bindings["normal"] {
 			if !b.Unbind {
-				out = append(out, keyRow{"noun " + name, b.Keys, b.Request.Key()})
+				out = append(out, keyRow{"noun " + a.r.DisplayNoun(name), b.Keys, a.r.DisplayKey(b.Request.Key())})
 			}
 		}
 	}
 	for id, inst := range a.r.Instances {
 		for _, b := range inst.Bindings {
 			if b.Mode == "normal" && !b.Unbind {
-				out = append(out, keyRow{"instance " + id, b.Keys, b.Request.Key()})
+				out = append(out, keyRow{"instance " + id, b.Keys, a.r.DisplayKey(b.Request.Key())})
 			}
 		}
 	}
@@ -125,7 +125,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 	app := open(t)
 	families := map[string][]string{
 		"d d": {"pane.kill", "session.kill", "saved.forget", "vim.forget", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete", contextNoun + ".forget", "extension.remove"},
-		"n":   {"pane.new", "project.new", "task.new", "note.new", "vim.open", "dirs.base.add", "extension.register"},
+		"n":   {"pane.new", "project.new", "task.new", "note.new", "vim.open", "dirs.add-base", "extension.register"},
 		"L":   {"agent.choose", "project.launch", "task.launch", "extension.refresh"}, // L refreshes an Extensions row (owner, 2026-10-26)
 		"i":   {"project.edit", "task.edit", "note.edit", "project-dir.edit", "review.saveAnswer", "outline.edit"},
 		"r":   {"pane.rename", "session.rename", "saved.rename"},
@@ -169,7 +169,8 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 	closers := map[string]bool{copyNoun + ".leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.pop": true, "settings.close": true}
 	for _, row := range rows {
 		switch {
-		case row.at == "noun editor":
+		case row.at == "noun editor", row.at == "noun markdown":
+			// The editor's and the markdown Doc's Vim rows keep a as append.
 		case row.keys == "a" || row.keys == "D":
 			t.Errorf("%s still binds %q (%s)", row.at, row.keys, row.op)
 		case row.keys == "q" && !closers[row.op]:

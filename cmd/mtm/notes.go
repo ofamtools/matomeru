@@ -237,13 +237,12 @@ func (a *App) viewNote(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.showNote(note); err != nil {
 		return ochazuke.Failed(err)
 	}
-	// enter reads the note: the focus moves into its body, where j/k and
-	// ctrl+d/ctrl+u scroll the text alone (test pass R8), or onto its
-	// first task item when it has a checklist (notes_doc.go).
+	// enter reads the note: the focus moves onto the Doc's first line
+	// (notes_doc.go), else into the scrolling body.
 	if err := a.syncNoteDoc(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if a.noteDocTasks(note.ID) {
+	if a.noteDocShown(note.ID) {
 		if err := a.noteDoc.Focus(); err != nil {
 			return ochazuke.Failed(err)
 		}

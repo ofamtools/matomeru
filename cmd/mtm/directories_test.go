@@ -124,7 +124,7 @@ func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
 	t.Setenv("MTM_PROJECT_BASE_DIRS", "/override")
 	a := open(t)
 	ctx := ochazuke.Ctx{Args: ochazuke.Arguments{"path": "/test-base", "depth": 2}}
-	_, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "base.add", Target: "directories", Args: ctx.Args})
+	_, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base", Target: "directories", Args: ctx.Args})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
 	if len(bases) != 1 || bases[0].Path != "/override" {
 		t.Fatalf("override: %+v", bases)
 	}
-	_, err = a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "base.remove", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base"}})
+	_, err = a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "remove-base", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestConfigDirFollowsData(t *testing.T) {
 	os.Unsetenv("MTM_CONFIG_DIR")
 
 	a := openAt(t, seeded(t))
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "base.add", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base", "depth": 1}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base", "depth": 1}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(a.configDir, "dirs.json")); err != nil {

@@ -105,7 +105,9 @@ func TestWorkDetailScrollsWithJK(t *testing.T) {
 }
 
 // On Notes, J scrolls the selected note's body from the list; the list
-// keeps the focus, and the body (enter) scrolls the same text with j.
+// keeps the focus. enter opens the note's Doc on its first line (its
+// cursor is a drawn line since ochazuke v0.18, so it does not continue
+// from J's offset).
 func TestNotesDetailScrollsFromTheList(t *testing.T) {
 	a := open(t)
 	executeA(t, a, "note", "new", "", ochazuke.Arguments{"text": numbered("line", 100), "scratch": true})
@@ -122,9 +124,9 @@ func TestNotesDetailScrollsFromTheList(t *testing.T) {
 	if a.r.Focus != focus || strings.Contains(fr, "line 010") || !strings.Contains(fr, "line 011") || !strings.Contains(fr, "11–") {
 		t.Fatalf("10J from the list: focus %s\n%s", a.r.Focus, fr)
 	}
-	press(t, a, "enter", "j")
-	if fr = frame(a); strings.Contains(fr, "line 011") || !strings.Contains(fr, "line 012") {
-		t.Fatalf("j in the body did not continue from J:\n%s", fr)
+	press(t, a, "enter")
+	if fr = frame(a); !a.noteDocFocused() || !strings.Contains(fr, "line 001") {
+		t.Fatalf("enter did not open the Doc on its first line: focus %s\n%s", a.r.Focus, fr)
 	}
 }
 

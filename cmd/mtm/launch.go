@@ -259,9 +259,9 @@ func (a *App) harnessFor(args ochazuke.Arguments, p work.Project) (harness.Harne
 
 // parameters sets an operation's parameters after Define registered it.
 func (a *App) parameters(key string, params map[string]ochazuke.Parameter) {
-	op := a.r.Operations[key]
+	op := a.r.Operations[a.r.CanonicalKey(key)]
 	op.Parameters = params
-	a.r.Operations[key] = op
+	a.r.Operations[a.r.CanonicalKey(key)] = op
 }
 
 func (a *App) listProjects(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(a.projectChoices()) }

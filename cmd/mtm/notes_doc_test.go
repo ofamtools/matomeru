@@ -49,9 +49,9 @@ func noteText(t *testing.T, a *App, id string) string {
 	return note.Text
 }
 
-// enter on a note with a checklist lands on its first item; j moves to
-// the next, x toggles it by rewriting only the box in the stored note, u
-// puts it back and ctrl+r writes it again.
+// enter on a note lands on the Doc's first line; ]x moves to the first
+// item, j to the next line, x toggles it by rewriting only the box in the
+// stored note, u puts it back and ctrl+r writes it again.
 func TestNoteChecklistTogglesInTheStore(t *testing.T) {
 	a, note := notesDocApp(t)
 	frame(a)
@@ -59,6 +59,10 @@ func TestNoteChecklistTogglesInTheStore(t *testing.T) {
 	if !a.noteDocFocused() {
 		t.Fatalf("enter focus %s", a.r.Focus)
 	}
+	if _, off := a.noteDoc.Cursor(); off != 0 {
+		t.Fatalf("enter cursor line %d", off)
+	}
+	press(t, a, "]", "x")
 	if task, _ := a.noteDoc.Selected(); task.Text != "one" {
 		t.Fatalf("selected %+v", task)
 	}
@@ -89,7 +93,7 @@ func TestNoteChecklistTogglesInTheStore(t *testing.T) {
 // the key's error is in the footer and nothing is written.
 func TestNoteChecklistRefusesAChangedItem(t *testing.T) {
 	a, note := notesDocApp(t)
-	press(t, a, "enter")
+	press(t, a, "enter", "]", "x")
 	changed := strings.Replace(checklistNote, "- [ ] one", "- [ ] one, renamed", 1)
 	n, _ := a.work.Note(note.ID)
 	n.Text = changed
@@ -105,8 +109,9 @@ func TestNoteChecklistRefusesAChangedItem(t *testing.T) {
 	}
 }
 
-// i on the checklist edits the note in the record editor; esc on it goes
-// back to the list. A note without tasks keeps the scrolling body.
+// i on the Doc edits the block under the cursor in place (mtm binds no i
+// on the markdown noun; note.edit keeps its verb); esc goes back to the
+// list. A note without tasks is a Doc stop too.
 func TestNoteChecklistEditAndBack(t *testing.T) {
 	a, note := notesDocApp(t)
 	press(t, a, "enter", "esc")
@@ -114,8 +119,12 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 		t.Fatalf("esc focus %s", a.r.Focus)
 	}
 	press(t, a, "enter", "i")
-	if a.editor == nil || a.editor.Record.ID != note.ID {
-		t.Fatalf("i did not edit the note: %+v", a.editor)
+	if !a.noteDoc.Editing() || a.editor != nil {
+		t.Fatalf("i did not edit the block in place: editing %v editor %+v", a.noteDoc.Editing(), a.editor)
+	}
+	press(t, a, "esc")
+	if _, ok := a.r.Operations[a.r.CanonicalKey("note.edit")]; !ok {
+		t.Fatal("note.edit is gone")
 	}
 	plain, err := a.work.AddNote("matomeru", "", "no tasks here")
 	if err != nil {
@@ -134,7 +143,7 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "enter")
-	if a.r.Focus != noteBodyID {
+	if !a.noteDocFocused() {
 		t.Fatalf("plain note enter focus %s", a.r.Focus)
 	}
 }
@@ -198,7 +207,7 @@ func TestNoteHardBreaksStayOutOfTheStore(t *testing.T) {
 			t.Fatal(err)
 		}
 		a.Update(nil)
-		press(t, a, "enter", "j", "x")
+		press(t, a, "enter", "]", "x", "j", "x")
 		if got := noteText(t, a, note.ID); got != strings.Replace(text, "- [ ] two", "- [x] two", 1) {
 			t.Fatalf("%q: toggle wrote %q", text, got)
 		}
@@ -235,7 +244,7 @@ func TestNoteBodyEscLandsOnTheRow(t *testing.T) {
 		t.Fatalf("esc focus %s, want the row %s", a.r.Focus, note.ID)
 	}
 	press(t, a, "enter")
-	if a.r.Focus != noteBodyID {
+	if !a.noteDocFocused() {
 		t.Fatalf("enter after esc: focus %s", a.r.Focus)
 	}
 }
@@ -264,7 +273,7 @@ func TestNoteChecklistDrawsTheDoc(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.Update(nil)
-	press(t, a, "enter", "j")
+	press(t, a, "enter", "]", "x", "j")
 	lines := strings.Split(rawFrame(a), "\n")
 	plan, items := -1, []string{}
 	for i, line := range lines {

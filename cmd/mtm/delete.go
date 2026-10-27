@@ -11,9 +11,9 @@ func (a *App) defineDeletion() {
 	for _, noun := range []string{"project", "task"} {
 		a.r.Define(noun).
 			Verb("delete", a.confirmDeletion, "Delete record; show affected owners before confirming").
-			Verb("delete.confirm", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm("Delete {{label}}?\nOrphan:\n{{affected}}\nDirectories and panes are untouched.").
+			Verb("confirm-delete", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm("Delete {{label}}?\nOrphan:\n{{affected}}\nDirectories and panes are untouched.").
 			Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
-		a.parameters(noun+".delete.confirm", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
+		a.parameters(noun+".confirm-delete", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
 	}
 }
 
@@ -22,7 +22,7 @@ func (a *App) confirmDeletion(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	value, err := a.r.Execute(ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "delete.confirm", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": strings.ReplaceAll(counts.String(), ", ", "\n")}})
+	value, err := a.r.Execute(ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "confirm-delete", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": strings.ReplaceAll(counts.String(), ", ", "\n")}})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}

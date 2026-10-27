@@ -303,32 +303,29 @@ func TestLongNoteBodyScrollsOnItsOwn(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "enter")
-	if a.r.Focus != noteBodyID {
+	if !a.noteDocFocused() {
 		t.Fatalf("enter focus %s", a.r.Focus)
 	}
 	f := frame(a)
 	if !strings.Contains(f, "line 002") || !strings.Contains(f, "notes (1)") {
 		t.Fatalf("opened:\n%s", f)
 	}
-	press(t, a, "ctrl+d", "j")
-	f = frame(a)
-	if strings.Contains(f, "line 002") || !strings.Contains(f, "notes (1)") || !strings.Contains(f, "/ 300") {
-		t.Fatalf("after ctrl+d j the text should scroll, the list stay:\n%s", f)
-	}
+	// The Doc's cursor is a drawn line (ochazuke v0.18): G goes to the
+	// end and the window follows it; g g comes back. The list stays.
 	press(t, a, "G")
-	if f = frame(a); !strings.Contains(f, "line 300") || !strings.Contains(f, "notes (1)") {
+	if f = frame(a); !strings.Contains(f, "line 300") || strings.Contains(f, "line 002") || !strings.Contains(f, "notes (1)") || !strings.Contains(f, "/ 300") {
 		t.Fatalf("G:\n%s", f)
 	}
-	press(t, a, "ctrl+u", "k")
-	if f = frame(a); strings.Contains(f, "line 300") {
-		t.Fatalf("ctrl+u k:\n%s", f)
+	press(t, a, "g", "g")
+	if f = frame(a); strings.Contains(f, "line 300") || !strings.Contains(f, "line 002") {
+		t.Fatalf("g g:\n%s", f)
 	}
 	press(t, a, "esc")
-	if a.r.Focus == noteBodyID || a.r.BaseFocus() == noteBodyID {
+	if a.noteDocFocused() || a.r.BaseFocus() == noteBodyID {
 		t.Fatalf("esc focus %s", a.r.Focus)
 	}
 	press(t, a, "}")
-	if a.r.Focus != noteBodyID {
+	if !a.noteDocFocused() {
 		t.Fatalf("} from the list: focus %s", a.r.Focus)
 	}
 }

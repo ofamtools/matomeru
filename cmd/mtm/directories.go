@@ -375,11 +375,11 @@ func (a *App) defineDirectories() {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(bases)
-	}).Fetch().Verb("base.add", a.addBase, "Add a project base and scan it; omit path to choose").Positional("path").
-		Verb("base.remove", a.removeBase, "Stop scanning a project base (disk untouched)").Positional("path").
+	}).Fetch().Verb("add-base", a.addBase, "Add a project base and scan it; omit path to choose").Positional("path").
+		Verb("remove-base", a.removeBase, "Stop scanning a project base (disk untouched)").Positional("path").
 		Verb("search", a.searchDirectories, "Filter the known directories")
-	a.parameters("dirs.base.add", map[string]ochazuke.Parameter{"path": {Type: "string"}, "depth": {Type: "integer"}})
-	a.parameters("dirs.base.remove", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
+	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": {Type: "string"}, "depth": {Type: "integer"}})
+	a.parameters("dirs.remove-base", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
 	a.r.Define("dir-search").Pin("insert").
 		Verb("done", a.leaveDirectorySearch, "Keep the filter and return to the known directories").
 		Mode("insert").Bind("enter", ochazuke.Do("dir-search.done")).Bind("esc", ochazuke.Do("dir-search.done")).Bind("down", ochazuke.Do("dir-search.done"))
@@ -436,7 +436,7 @@ func (a *App) addDirectoriesPage() error {
 	}
 	search := ochazuke.Do("dirs.search")
 	search.Instance, search.Mode, search.Keys = directoriesPage, "normal", "/"
-	add := ochazuke.Do("dirs.base.add")
+	add := ochazuke.Do("dirs.add-base")
 	add.Instance, add.Mode, add.Keys = baseListID, "normal", "n"
 	for _, row := range []ochazuke.Binding{search, add} {
 		if err := a.r.Bind(row); err != nil {
@@ -1107,7 +1107,7 @@ func (a *App) baseChoices() []ochazuke.ChooserRow {
 	return append(rows, ochazuke.ChooserRow{ID: "base-choice:browse", Label: "browse…", Trailing: true})
 }
 
-// addBase is dirs.base.add: a path adds it at once; none (the a key)
+// addBase is dirs.add-base: a path adds it at once; none (the a key)
 // opens the chooser of known parent folders.
 func (a *App) addBase(ctx ochazuke.Ctx) ochazuke.Result {
 	if path := ochazuke.StringArg(ctx.Args, "path", ""); path != "" {
@@ -1175,7 +1175,7 @@ func (a *App) addBasePath(path string, depth int) ochazuke.Result {
 	return result
 }
 
-// removeBase is dirs.base.remove.
+// removeBase is dirs.remove-base.
 func (a *App) removeBase(ctx ochazuke.Ctx) ochazuke.Result {
 	path := expandPath(ochazuke.StringArg(ctx.Args, "path", ""))
 	bases, err := a.changeBase(path, 0, false)
@@ -1285,7 +1285,7 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 
 	head(fmt.Sprintf("project base dirs (%d)", a.baseList.Len()))
 	if a.baseList.Len() == 0 {
-		add(a.fill("none; "+a.keySentence(baseListID, keyAction{"dirs.base.add", "adds one"}), baseBlock))
+		add(a.fill("none; "+a.keySentence(baseListID, keyAction{"dirs.add-base", "adds one"}), baseBlock))
 	} else {
 		add(a.view(a.baseList, width, baseBlock))
 	}

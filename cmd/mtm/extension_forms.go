@@ -83,16 +83,16 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 		}
 		x.crud[n.Name] = c
 		b := a.r.Define(local).Mode("normal")
-		if c.Delete != "" && len(requiredOf(a.r.Operations[local+"."+c.Delete])) == 0 {
+		if c.Delete != "" && len(requiredOf(a.r.Operations[a.r.CanonicalKey(local+"."+c.Delete)])) == 0 {
 			key := local + "." + c.Delete
-			if op := a.r.Operations[key]; op.Confirm == "" {
+			if op := a.r.Operations[a.r.CanonicalKey(key)]; op.Confirm == "" {
 				op.Confirm = "Delete {{label}}?"
-				a.r.Operations[key] = op
+				a.r.Operations[a.r.CanonicalKey(key)] = op
 			}
 			b.Bind("d d", ochazuke.Do(key))
 			taken[local] = append(taken[local], "d")
 		}
-		if c.Edit != "" && len(a.r.Operations[local+"."+c.Edit].Parameters) > 0 {
+		if c.Edit != "" && len(a.r.Operations[a.r.CanonicalKey(local+"."+c.Edit)].Parameters) > 0 {
 			b.Bind("i", ochazuke.Do(extFormNoun+".edit").Hinted("edit"))
 			taken[local] = append(taken[local], "i")
 		}
@@ -172,7 +172,7 @@ func (a *App) extFormNew(c ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(fmt.Errorf("%s has no new verb", local))
 	}
 	verb := x.crud[noun].New
-	op := a.r.Operations[local+"."+verb]
+	op := a.r.Operations[a.r.CanonicalKey(local+"."+verb)]
 	if len(op.Parameters) == 0 {
 		return a.extRun(x, noun, verb, "", nil, nil)
 	}
@@ -248,7 +248,7 @@ func (f *extForm) save(w ochazuke.RecordWrite) ochazuke.Result {
 		return ochazuke.Failed(fmt.Errorf("created; %s new answered no id, so later changes are not written", f.noun))
 	}
 	if f.target == "" {
-		op := f.a.r.Operations[f.local+"."+c.New]
+		op := f.a.r.Operations[f.a.r.CanonicalKey(f.local+"."+c.New)]
 		var missing []string
 		for _, name := range requiredOf(op) {
 			if strings.TrimSpace(w.Values[name]) == "" {
@@ -268,7 +268,7 @@ func (f *extForm) save(w ochazuke.RecordWrite) ochazuke.Result {
 	if c.Edit == "" {
 		return ochazuke.Failed(fmt.Errorf("created; %s has no edit verb, so later changes are not written", f.noun))
 	}
-	op := f.a.r.Operations[f.local+"."+c.Edit]
+	op := f.a.r.Operations[f.a.r.CanonicalKey(f.local+"."+c.Edit)]
 	changed := slices.Clone(w.Changed)
 	for _, name := range requiredOf(op) {
 		if !slices.Contains(changed, name) {

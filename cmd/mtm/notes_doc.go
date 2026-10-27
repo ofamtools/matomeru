@@ -7,17 +7,18 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
-// The Notes page's body is Markdown: the selected note renders with
-// Glamour, and its task items ("- [ ] ...") are a markdown Doc (ochazuke's
-// markdown package) over the note record in the store. With tasks, enter
-// on a note (or } from the list) lands on the selected item: j and k move
-// between the items, x toggles one by rewriting only its box character in
-// the note, u and ctrl+r undo and redo (each written at once), i edits
-// the note in the record editor, esc goes back to the list. A toggle of an
-// item that changed or went since the Doc read the note is refused (the
-// footer shows the error) and nothing is written. Without tasks the body
-// is the scrolling note-body stop as before. From the list, J and K scroll
-// the rendered text either way.
+// The Notes page's body is Markdown: the selected note is a markdown Doc
+// (ochazuke's inline editor, v0.18) over the note record in the store.
+// enter on a note (or } from the list) lands on the Doc's first drawn
+// line: j and k move by drawn line, ]x to the next checklist item, x
+// toggles one by rewriting only its box, i a I A o O edit in place
+// (committed on change), u and ctrl+r undo and redo, esc goes back to the
+// list. note.edit (the record editor) keeps its verb, reached from the
+// note row's i and the palette; the Doc's own i edits the block under the
+// cursor. An edit of text that changed since the Doc read the note is
+// refused (the footer shows the error) and nothing is written. The Doc is
+// a focus stop with or without tasks, so the note-body stop stands aside
+// while it is shown. From the list, J and K scroll the rendered text.
 
 const noteDocID = "notes/doc"
 
@@ -56,9 +57,10 @@ func (a *App) noteDocFocused() bool {
 	return false
 }
 
-// noteDocTasks reports whether the Doc fronts note id and has task items.
-func (a *App) noteDocTasks(id string) bool {
-	return a.noteDoc != nil && a.noteDocNote == id && len(a.noteDoc.Tasks()) > 0
+// noteDocShown reports whether the Doc fronts note id (the stop of its
+// body).
+func (a *App) noteDocShown(id string) bool {
+	return a.noteDoc != nil && a.noteDocNote == id
 }
 
 // syncNoteDoc keeps the Doc on the selected note: a new selection replaces
@@ -82,7 +84,7 @@ func (a *App) syncNoteDoc() error {
 		err = a.replaceNoteDoc(want)
 	}
 	if body := a.r.Instances[noteBodyID]; body != nil {
-		body.Unfocusable = a.noteDocTasks(want)
+		body.Unfocusable = a.noteDocShown(want)
 	}
 	return err
 }
@@ -111,14 +113,14 @@ func (a *App) replaceNoteDoc(id string) error {
 	return nil
 }
 
-// defineNoteDoc adds mtm's rows to the markdown noun at setup, with the
-// other nouns' rows: i edits the note the Doc fronts (selectedNote), esc
-// goes back to the list's selected row (the previous stop: the note-body
-// stop stands aside while the Doc has items).
+// defineNoteDoc adds mtm's rows to the markdown noun at setup: esc goes
+// back to the list's selected row (the previous stop: the note-body stop
+// stands aside while the Doc is shown). mtm binds no i there: the Doc's
+// own i edits the block under the cursor (ochazuke v0.18), and note.edit
+// keeps its verb (the row's i, the palette).
 func (a *App) defineNoteDoc() {
 	markdown.Register(a.r)
 	a.r.Define(markdown.DocNoun).Mode("normal").
-		Bind("i", ochazuke.Do("note.edit")).
 		Bind("esc", ochazuke.Do("focus.previous"))
 }
 

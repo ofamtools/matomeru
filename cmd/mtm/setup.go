@@ -31,9 +31,9 @@ func (a *App) defineSetup() {
 	}
 	for _, verb := range []string{"list", "plan", "install", "uninstall"} {
 		a.parameters("setup."+verb, params)
-		op := a.r.Operations["setup."+verb]
+		op := a.r.Operations[a.r.CanonicalKey("setup."+verb)]
 		op.Positional = []string{"item"}
-		a.r.Operations["setup."+verb] = op
+		a.r.Operations[a.r.CanonicalKey("setup."+verb)] = op
 	}
 }
 

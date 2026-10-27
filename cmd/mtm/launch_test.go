@@ -234,7 +234,7 @@ func withTrees(t *testing.T, a *App) {
 func confirmPrompt(t *testing.T, a *App) (string, ochazuke.Request) {
 	t.Helper()
 	inst := a.r.Instances[a.r.TopModal()]
-	if inst == nil || inst.Noun != "confirm" || inst.Payload.Request == nil {
+	if inst == nil || inst.Noun != "ochazuke.confirm" || inst.Payload.Request == nil {
 		t.Fatalf("no confirm modal is open (top %q)", a.r.TopModal())
 	}
 	return inst.Payload.Prompt, *inst.Payload.Request

@@ -43,7 +43,7 @@ func (a *App) reloadHarnesses() []string {
 func (a *App) setHarnessChoices() {
 	names := a.harnesses.Names()
 	for _, key := range harnessOps {
-		op, ok := a.r.Operations[key]
+		op, ok := a.r.Operations[a.r.CanonicalKey(key)]
 		if !ok {
 			continue
 		}
@@ -53,7 +53,7 @@ func (a *App) setHarnessChoices() {
 		}
 		p.Enum = slices.Clone(names)
 		op.Parameters["harness"] = p
-		a.r.Operations[key] = op
+		a.r.Operations[a.r.CanonicalKey(key)] = op
 	}
 }
 

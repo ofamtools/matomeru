@@ -89,7 +89,7 @@ func (a *App) applyChoices(src *extSource) {
 			}
 		}
 		p.Free = true
-		op, ok := a.r.Operations[sp.op]
+		op, ok := a.r.Operations[a.r.CanonicalKey(sp.op)]
 		if !ok {
 			continue
 		}
@@ -99,7 +99,7 @@ func (a *App) applyChoices(src *extSource) {
 		}
 		params[sp.name] = p
 		op.Parameters = params
-		a.r.Operations[sp.op] = op
+		a.r.Operations[a.r.CanonicalKey(sp.op)] = op
 	}
 }
 

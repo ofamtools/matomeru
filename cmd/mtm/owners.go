@@ -18,12 +18,12 @@ func (a *App) defineOwners() {
 		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	}
 	for _, noun := range []string{"pane", "session", "review", "task"} {
-		op := a.r.Operations[noun+".list"]
+		op := a.r.Operations[a.r.CanonicalKey(noun+".list")]
 		if op.Parameters == nil {
 			op.Parameters = map[string]ochazuke.Parameter{}
 		}
 		op.Parameters["all"] = ochazuke.Parameter{Type: "boolean"}
-		a.r.Operations[noun+".list"] = op
+		a.r.Operations[a.r.CanonicalKey(noun+".list")] = op
 	}
 	a.ownedBy("session", paneListID)
 }

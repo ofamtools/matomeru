@@ -58,7 +58,7 @@ func TestProjectNewDirAndProjectsDirectories(t *testing.T) {
 	}
 }
 
-// project directory.remove and directory.edit from the command line: the
+// project remove-directory and edit-directory from the command line: the
 // default moves to the next directory and the result says which; edit keeps
 // the default mark; the directories stay on disk.
 func TestProjectDirectoryRemoveAndEditCLI(t *testing.T) {
@@ -79,7 +79,7 @@ func TestProjectDirectoryRemoveAndEditCLI(t *testing.T) {
 		work.Project
 		Promoted string `json:"promoted"`
 	}
-	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "directory.remove", "--target", p.ID, "--path", one)), &removed); err != nil {
+	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "remove-directory", "--target", p.ID, "--path", one)), &removed); err != nil {
 		t.Fatal(err)
 	}
 	if removed.Promoted != two || removed.DefaultTree != two || len(removed.Trees) != 1 {
@@ -88,7 +88,7 @@ func TestProjectDirectoryRemoveAndEditCLI(t *testing.T) {
 	if _, err := os.Stat(one); err != nil {
 		t.Fatalf("remove touched disk: %v", err)
 	}
-	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "directory.edit", "--target", p.ID, "--path", two, "--to", three)), &p); err != nil {
+	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "edit-directory", "--target", p.ID, "--path", two, "--to", three)), &p); err != nil {
 		t.Fatal(err)
 	}
 	if p.DefaultTree != three || len(p.Trees) != 1 || p.Trees[0].Path != three {

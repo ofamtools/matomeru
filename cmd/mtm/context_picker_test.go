@@ -290,11 +290,11 @@ func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
 	}
 	var entry, self, old bool
 	for _, b := range a.r.Noun("terminal").Bindings["terminal"] {
-		entry = entry || b.Keys == "ctrl+b" && b.Request.Key() == "mode.enter"
+		entry = entry || b.Keys == "ctrl+b" && a.r.DisplayKey(b.Request.Key()) == "mode.enter"
 		old = old || b.Keys == "ctrl+a"
 	}
 	for _, b := range a.r.Noun("terminal").Bindings["leader_pending"] {
-		self = self || b.Keys == "ctrl+b" && b.Request.Key() == "terminal.send" && b.Request.Args["keys"] == "ctrl+b"
+		self = self || b.Keys == "ctrl+b" && a.r.DisplayKey(b.Request.Key()) == "terminal.send" && b.Request.Args["keys"] == "ctrl+b"
 	}
 	if !entry || !self || old {
 		t.Fatalf("rows: entry %v self-send %v old leader left %v", entry, self, old)

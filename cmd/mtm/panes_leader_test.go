@@ -135,7 +135,7 @@ func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 		listed := map[string]string{}
 		for _, b := range rows {
 			if (b.Mode == "normal" || b.Mode == "") && strings.HasPrefix(b.Keys, "ctrl+a") {
-				listed[b.Keys] = b.Request.Key()
+				listed[b.Keys] = app.r.DisplayKey(b.Request.Key())
 			}
 		}
 		want := map[string]string{"ctrl+a j": "terminal.cycle", "ctrl+a k": "terminal.cycle", "ctrl+a p": "pane.pick", "ctrl+a s": "terminal.starred", "ctrl+a w": "panes.sides", "ctrl+a esc": "mode.leave"}

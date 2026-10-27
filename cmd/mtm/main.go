@@ -415,6 +415,10 @@ func New(opts Options) (*App, error) {
 		return nil, fmt.Errorf("harnesses: %w", err)
 	}
 	r := ochazuke.NewRuntime()
+	// mtm's pane (a tuios pane) is its own noun: since ochazuke v0.16 the
+	// short name pane is the alias of the framework's ochazuke.pane (the
+	// divider verbs), so mtm claims it before anything defines it.
+	r.DefineOwn("pane")
 	client := opts.client()
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.trackNotices()
