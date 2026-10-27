@@ -302,6 +302,7 @@ type App struct {
 	sides          map[string]sideState
 	companionPanes map[string]pane
 	sideStarting   map[string]bool
+	quitAfterSides bool // app.quit waits for sideStarting to empty
 	sideLock       string
 	landErr        string // why the last finished launch or pane.new did not reach the screen
 	notices        noticeTimer

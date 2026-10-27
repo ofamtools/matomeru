@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -61,7 +64,7 @@ func TestSideTerminalUsesCurrentContextAndReusesWindow(t *testing.T) {
 	}
 }
 
-func TestSidesBlockRestartedQuitAndKillThenOrphan(t *testing.T) {
+func TestRestartedSidesLetQuitButBlockKillThenOrphan(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	a := openAt(t, path)
 	p := pane{Session: "work", Pane: daemon.Pane{ID: "parent", Name: "agent"}}
@@ -79,23 +82,15 @@ func TestSidesBlockRestartedQuitAndKillThenOrphan(t *testing.T) {
 	if len(b.panes) != 1 || b.panes[0].SideTerm != side.ID || b.panes[0].ShowTerm {
 		t.Fatalf("restart state: %+v", b.panes)
 	}
-	for range 2 {
-		if _, err := b.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
-			t.Fatal(err)
-		}
-		settle(b, b.r.PendingCommands())
-		if b.r.Quit {
-			t.Fatal("quit bypassed live companion")
-		}
-		// The refusal is one footer line naming what closes the side pane,
-		// not a ticker row as well.
-		if !strings.Contains(b.m.Status, "close the side panes first: side terminal of") || !strings.Contains(b.m.Status, "then exit") {
-			t.Fatalf("refusal %q", b.m.Status)
-		}
-		if rows := b.m.JobsTicker(120); len(rows) != 0 {
-			t.Fatalf("refusal on the ticker too: %q", rows)
-		}
+	// Quit leaves the restarted side running: no refusal, no kill.
+	if _, err := b.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
+		t.Fatal(err)
 	}
+	settle(b, b.r.PendingCommands())
+	if !b.r.Quit || b.m.Status != "" || len(f.killed) != 0 {
+		t.Fatalf("quit with a side open: quit %v status %q killed %v", b.r.Quit, b.m.Status, f.killed)
+	}
+	b.r.Quit = false
 	if _, err := b.r.Execute(ochazuke.Request{Noun: "pane", Verb: "kill", Target: p.rowID(), Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -119,8 +114,8 @@ func TestSidesBlockRestartedQuitAndKillThenOrphan(t *testing.T) {
 		t.Fatal(err)
 	}
 	runOnce(b, b.r.PendingCommands())
-	if !b.r.Quit {
-		t.Fatal("orphan still blocked quit")
+	if !b.r.Quit || len(f.killed) != 0 {
+		t.Fatalf("quit with an orphan: quit %v killed %v", b.r.Quit, f.killed)
 	}
 }
 
@@ -149,5 +144,154 @@ func TestRecordedEnvironmentFromConfirmedCommand(t *testing.T) {
 	want := map[string]string{"BASE": "yes", "KEY": "a b", "SHELL": "/bin/sh"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("env: %v", got)
+	}
+}
+
+// sideLauncher sends Neovim to a real headless process and shells to the
+// fake daemon, counting every window it opens.
+type sideLauncher struct {
+	*fakeDaemon
+	vim   *vimProcessDriver
+	opens int
+}
+
+func (d *sideLauncher) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
+	d.opens++
+	if len(w.Command) > 0 && filepath.Base(w.Command[0]) == "nvim" {
+		return d.vim.OpenWindow(ctx, w)
+	}
+	return d.fakeDaemon.OpenWindow(ctx, w)
+}
+
+// attachFirst attaches the focused Panes row, as enter does.
+func attachFirst(t *testing.T, a *App, f *fakePanes) {
+	t.Helper()
+	cmd := key(t, a, "enter")
+	f.streams[len(f.streams)-1].frames <- ochazuke.TerminalFrame{Lines: []string{"PARENT"}, Cursor: ochazuke.Pos{X: 1, Y: 1}}
+	runOnce(a, cmd)
+	if a.attached.ID != "w1" {
+		t.Fatalf("attached %+v", a.attached)
+	}
+}
+
+// leaderSide presses ctrl+a v or t on the live parent and settles the job.
+func leaderSide(t *testing.T, a *App, kind string) {
+	t.Helper()
+	press(t, a, "ctrl+a")
+	settle(a, key(t, a, kind))
+	for _, job := range jobsOf(a, "pane.side") {
+		if job.Error != "" {
+			t.Fatal(job.Error)
+		}
+	}
+}
+
+// Quit leaves side panes running (owner, 2026-10-26); a restart on the
+// same store reattaches them, and ctrl+a v / t shows them without opening
+// new windows. A side that exited before the restart is forgotten.
+func TestQuitKeepsSidesAndRestartReattachesThem(t *testing.T) {
+	if _, err := exec.LookPath("nvim"); err != nil {
+		t.Skip("nvim not installed; the side vim launch needs it")
+	}
+	path := seeded(t)
+	a := openWith(t, Options{Data: path})
+	f := a.panesd.(*fakePanes)
+	launcher := &sideLauncher{fakeDaemon: &fakeDaemon{panes: f}, vim: &vimProcessDriver{t: t, panes: f}}
+	a.launcher = launcher
+	if err := a.reloadPanes(); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	attachFirst(t, a, f)
+	leaderSide(t, a, "v")
+	leaderSide(t, a, "t")
+	if launcher.opens != 2 || a.attached.SideVim == "" || a.attached.SideTerm == "" {
+		t.Fatalf("sides not opened: opens %d parent %+v", launcher.opens, a.attached)
+	}
+	vim, term := a.attached.SideVim, a.attached.SideTerm
+
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	if !a.r.Quit || len(f.killed) != 0 {
+		t.Fatalf("quit with sides open: quit %v status %q killed %v", a.r.Quit, a.m.Status, f.killed)
+	}
+
+	restart := func() *App {
+		t.Helper()
+		b := openWith(t, Options{Data: path})
+		b.panesd, b.launcher = f, launcher
+		if err := b.reloadPanes(); err != nil {
+			t.Fatal(err)
+		}
+		settle(b, b.r.PendingCommands())
+		return b
+	}
+	b := restart()
+	if len(b.panes) != 2 || b.panes[0].ID != "w1" || b.panes[0].SideVim != vim || b.panes[0].SideTerm != term {
+		t.Fatalf("restart lost the sides: %+v", b.panes)
+	}
+	attachFirst(t, b, f)
+	for kind, id := range map[string]string{"v": vim, "t": term} {
+		leaderSide(t, b, kind)
+		if launcher.opens != 2 || b.r.Terminal(sideTermID) == nil || f.streams[len(f.streams)-1].pane.ID != id {
+			t.Fatalf("ctrl+a %s after restart: opens %d, last stream %s, want %s", kind, launcher.opens, f.streams[len(f.streams)-1].pane.ID, id)
+		}
+	}
+
+	// The side terminal exits while mtm is down: its link is dropped and
+	// no badge comes back; ctrl+a t opens a new one.
+	var keep []pane
+	for _, p := range f.panes {
+		if p.ID != term {
+			keep = append(keep, p)
+		}
+	}
+	f.panes = keep
+	c := restart()
+	if c.panes[0].SideVim != vim || c.panes[0].SideTerm != "" {
+		t.Fatalf("stale side after restart: %+v", c.panes[0])
+	}
+	links, err := c.work.Companions()
+	if err != nil || len(links) != 1 || links[0].Window != vim {
+		t.Fatalf("links after restart: %+v %v", links, err)
+	}
+	attachFirst(t, c, f)
+	leaderSide(t, c, "t")
+	if launcher.opens != 3 {
+		t.Fatalf("ctrl+a t after the side exited: opens %d", launcher.opens)
+	}
+}
+
+// Quit while a side pane is still opening waits for it, so its link is
+// saved, then exits; a new side cannot start meanwhile.
+func TestQuitWaitsForAnOpeningSide(t *testing.T) {
+	a, f := sideViewApp(t)
+	f.panes = f.panes[:len(f.panes)-2] // no sides yet
+	if err := a.work.DeleteCompanion("side-vim"); err != nil {
+		t.Fatal(err)
+	}
+	a.setPanes(f.panes, nil)
+	a.launcher = &fakeDaemon{panes: f}
+	press(t, a, "ctrl+a")
+	side := key(t, a, "t")
+	if !a.sideStarting["w1/term"] {
+		t.Fatal("side not starting")
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
+		t.Fatal(err)
+	}
+	if a.r.Quit || !slices.Contains(a.m.Notices, "quitting once the side pane finishes opening") {
+		t.Fatalf("quit during an opening side: quit %v notices %q", a.r.Quit, a.m.Notices)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "side", Target: a.attached.rowID(), Args: ochazuke.Arguments{"kind": "vim"}}); err == nil || err.Error() != "mtm is quitting" {
+		t.Fatalf("side vim while quitting: %v", err)
+	}
+	runOnce(a, side)
+	t.Logf("jobs %+v", a.r.Jobs())
+	links, err := a.work.Companions()
+	if !a.r.Quit || err != nil || len(links) != 1 || links[0].Kind != "term" {
+		t.Fatalf("after the side opened: quit %v links %+v %v", a.r.Quit, links, err)
 	}
 }
