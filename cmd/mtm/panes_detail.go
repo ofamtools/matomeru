@@ -444,7 +444,7 @@ var leaderWords = []struct{ key, text string }{
 	{"k", "previous pane, live"},
 	{"s", "next starred pane, live (* on a pane row stars it)"},
 	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
-	{"f", "hints: label the screen's URLs, paths, PRs, branches and commits; a label copies, ctrl+label opens, a capital types it into the pane, esc cancels"},
+	{"f", "hints: label the URLs, paths, PRs, branches and commits on the pane and its side when both show; a label copies, ctrl+label opens, a capital types it into its pane, esc cancels"},
 	{"N", "quick note for the selected task, else the pin"},
 	{"n", "new task under the pin"},
 	{"T", "todos: the pin's tasks as an outline"},

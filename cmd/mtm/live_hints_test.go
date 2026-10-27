@@ -10,6 +10,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/unixsuperhero/ochazuke"
+
+	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/hints"
+	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
 // hintsWidth is the fake pane's columns: every frame row is padded to it,
@@ -29,6 +33,13 @@ func padRows(rows ...string) []string {
 // given (none: no frame yet), and the fake clipboard and opener.
 func hintsApp(t *testing.T, rows []string) (*App, *fakeStream, *fakeSystem) {
 	t.Helper()
+	app, _, s, sys := hintsPanesApp(t, rows)
+	return app, s, sys
+}
+
+// hintsPanesApp is hintsApp with the fake daemon too.
+func hintsPanesApp(t *testing.T, rows []string) (*App, *fakePanes, *fakeStream, *fakeSystem) {
+	t.Helper()
 	app, f := panesApp(t)
 	sys := &fakeSystem{}
 	app.cx.sys = sys
@@ -42,7 +53,7 @@ func hintsApp(t *testing.T, rows []string) (*App, *fakeStream, *fakeSystem) {
 	}
 	runOnce(app, cmd)
 	live(t, app, "enter")
-	return app, s, sys
+	return app, f, s, sys
 }
 
 // screenRows is a screen with a URL, a path, the same URL again and a URL
@@ -288,5 +299,243 @@ func TestHintsWithNothingToLabel(t *testing.T) {
 		if app.hinting != nil || app.r.Terminal(paneTermID).Overlay() != nil || app.r.Mode.Name != "terminal" || len(s.sent) != 0 {
 			t.Fatalf("%s: hinting %v mode %s sent %v", c.name, app.hinting != nil, app.r.Mode.Name, s.sent)
 		}
+	}
+}
+
+// Both live panes: the main pane and its side, each with its own items
+// and one URL on both.
+const (
+	mainURL   = "https://example.com/main"
+	sharedURL = "https://example.com/shared"
+	sideURL   = "https://example.com/side"
+)
+
+// hintsSideApp is hintsApp with the side vim open beside the main pane,
+// its screen sideRows, and the focus back on the main pane, live; both are
+// drawn.
+func hintsSideApp(t *testing.T, mainRows, sideRows []string) (*App, *fakeStream, *fakeStream, *fakeSystem) {
+	t.Helper()
+	app, f, main, sys := hintsPanesApp(t, mainRows)
+	vim := pane{Session: app.attached.Session, Pane: daemon.Pane{ID: "side-vim", Name: "editor"}}
+	f.panes = append(f.panes, vim)
+	if err := app.work.PutCompanion(work.Companion{Window: vim.ID, Parent: app.attached.ID, Kind: "vim"}); err != nil {
+		t.Fatal(err)
+	}
+	app.setPanes(f.panes, nil)
+	if err := app.showSide(app.attached, "vim"); err != nil {
+		t.Fatal(err)
+	}
+	side := f.streams[len(f.streams)-1]
+	if side == main {
+		t.Fatal("no side stream")
+	}
+	side.frames <- ochazuke.TerminalFrame{Lines: sideRows, Cursor: ochazuke.Pos{X: 0, Y: 0}}
+	runOnce(app, app.r.PendingCommands())
+	if err := app.r.SetFocus(paneTermID); err != nil {
+		t.Fatal(err)
+	}
+	if fr := plainView(app); !strings.Contains(fr, "side vim") || !strings.Contains(fr, mainRows[0][:20]) {
+		t.Fatalf("both panes are not drawn:\n%s", fr)
+	}
+	live(t, app, "side open")
+	return app, main, side, sys
+}
+
+func sideScreens() (mainRows, sideRows []string) {
+	return padRows("open "+mainURL, "shared "+sharedURL), padRows("side "+sideURL, "also "+sharedURL)
+}
+
+// marksOf is a terminal's overlay marks by label.
+func marksOf(t *testing.T, app *App, id string) map[string][]string {
+	t.Helper()
+	o := app.r.Terminal(id).Overlay()
+	if o == nil || !o.Dim {
+		t.Fatalf("%s: overlay %+v", id, o)
+	}
+	at := map[string][]string{}
+	for _, m := range o.Marks {
+		at[m.Text] = append(at[m.Text], fmt.Sprintf("%d:%d", m.Row, m.Col))
+	}
+	return at
+}
+
+// ctrl+a f labels both live panes as one set: each gets its own dimmed
+// overlay, the URL on both shares one label, and the terminal it ran in
+// takes the shortest labels first (from either pane).
+func TestHintsLabelBothPanes(t *testing.T) {
+	mainRows, sideRows := sideScreens()
+	first := hints.Labels(3, hints.DefaultAlphabet)
+	for _, from := range []string{paneTermID, sideTermID} {
+		app, main, side, _ := hintsSideApp(t, mainRows, sideRows)
+		own, other := mainURL, sideURL
+		if from == sideTermID {
+			if err := app.r.SetFocus(sideTermID); err != nil {
+				t.Fatal(err)
+			}
+			own, other = sideURL, mainURL
+		}
+		pressAll(t, app, "ctrl+a", "f")
+		if app.r.Mode.Name != hintsMode || app.r.Focus != from || app.hinting == nil || len(app.hinting.screens) != 2 {
+			t.Fatalf("from %s: mode %s focus %s", from, app.r.Mode.Name, app.r.Focus)
+		}
+		if got := []string{labelOf(t, app, own), labelOf(t, app, sharedURL), labelOf(t, app, other)}; !slices.Equal(got, first) {
+			t.Fatalf("from %s: labels %v, want %v", from, got, first)
+		}
+		shared := labelOf(t, app, sharedURL)
+		m, s := marksOf(t, app, paneTermID), marksOf(t, app, sideTermID)
+		if len(m) != 2 || len(s) != 2 || !slices.Equal(m[shared], []string{"1:7"}) || !slices.Equal(s[shared], []string{"1:5"}) {
+			t.Fatalf("from %s: main marks %v side marks %v", from, m, s)
+		}
+		if len(m[labelOf(t, app, mainURL)]) != 1 || len(s[labelOf(t, app, sideURL)]) != 1 {
+			t.Fatalf("from %s: main marks %v side marks %v", from, m, s)
+		}
+		if len(main.sent)+len(main.pasted)+len(side.sent)+len(side.pasted) != 0 {
+			t.Fatalf("from %s: keys reached a pane", from)
+		}
+		pressAll(t, app, "esc")
+		for _, id := range []string{paneTermID, sideTermID} {
+			if o := app.r.Terminal(id).Overlay(); o != nil {
+				t.Fatalf("from %s: esc left %s's overlay", from, id)
+			}
+		}
+		if app.hinting != nil || app.r.Mode.Name != "terminal" || app.r.Focus != from {
+			t.Fatalf("from %s: esc: mode %s focus %s", from, app.r.Mode.Name, app.r.Focus)
+		}
+	}
+}
+
+// A capital types the item into the pane it is on; an item on both goes
+// to the pane hints ran in. Copy works on either pane's items.
+func TestHintsTypeIntoItsPane(t *testing.T) {
+	mainRows, sideRows := sideScreens()
+	for _, c := range []struct {
+		raw        string
+		main, side []string
+	}{
+		{sideURL, nil, []string{sideURL}},
+		{sharedURL, []string{sharedURL}, nil},
+		{mainURL, []string{mainURL}, nil},
+	} {
+		app, main, side, sys := hintsSideApp(t, mainRows, sideRows)
+		startHints(t, app, main)
+		pressAll(t, app, strings.ToUpper(labelOf(t, app, c.raw)))
+		if !slices.Equal(main.pasted, c.main) || !slices.Equal(side.pasted, c.side) || len(sys.copied) != 0 {
+			t.Fatalf("type %s: main %q side %q copied %q", c.raw, main.pasted, side.pasted, sys.copied)
+		}
+		if len(main.sent) != 0 || len(side.sent) != 0 || app.r.Terminal(sideTermID).Overlay() != nil {
+			t.Fatalf("type %s: sent %v %v", c.raw, main.sent, side.sent)
+		}
+		cleared(t, app, "type "+c.raw)
+	}
+	app, main, side, sys := hintsSideApp(t, mainRows, sideRows)
+	startHints(t, app, main)
+	pressAll(t, app, labelOf(t, app, sideURL))
+	if !slices.Equal(sys.copied, []string{sideURL}) || len(side.pasted) != 0 {
+		t.Fatalf("copy from the side: copied %q", sys.copied)
+	}
+	cleared(t, app, "copy from the side")
+}
+
+// A first letter narrows the marks on both panes; backspace restores
+// both. With 60 items the main pane's last labels and the side's first
+// share their first letter.
+func TestHintsPrefixNarrowsBothPanes(t *testing.T) {
+	var mainLines, sideLines []string
+	for i := range 30 {
+		mainLines = append(mainLines, fmt.Sprintf("https://example.com/m%d", i))
+		sideLines = append(sideLines, fmt.Sprintf("https://example.com/s%d", i))
+	}
+	app, main, _, _ := hintsSideApp(t, padRows(mainLines...), padRows(sideLines...))
+	startHints(t, app, main)
+	count := func(id string) int { return len(app.r.Terminal(id).Overlay().Marks) }
+	if count(paneTermID) != 30 || count(sideTermID) != 30 {
+		t.Fatalf("marks %d %d", count(paneTermID), count(sideTermID))
+	}
+	// A two-letter label on the side whose first letter starts labels on
+	// the main pane too.
+	prefix := ""
+	for i, l := range app.hinting.labels {
+		if len(l) == 2 && app.hinting.in[i] == 1 {
+			for j, m := range app.hinting.labels {
+				if app.hinting.in[j] == 0 && strings.HasPrefix(m, l[:1]) {
+					prefix = l[:1]
+				}
+			}
+		}
+	}
+	if prefix == "" {
+		t.Fatalf("no prefix shared by both panes: %v", app.hinting.labels)
+	}
+	pressAll(t, app, prefix)
+	for _, id := range []string{paneTermID, sideTermID} {
+		marks := app.r.Terminal(id).Overlay().Marks
+		if len(marks) == 0 || len(marks) >= 30 {
+			t.Fatalf("%s after %q: %d marks", id, prefix, len(marks))
+		}
+		for _, m := range marks {
+			if !strings.HasPrefix(m.Text, prefix) {
+				t.Fatalf("%s: mark %q after %q", id, m.Text, prefix)
+			}
+		}
+	}
+	app.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	if count(paneTermID) != 30 || count(sideTermID) != 30 {
+		t.Fatalf("backspace: marks %d %d", count(paneTermID), count(sideTermID))
+	}
+	pressAll(t, app, "ctrl+c")
+	if app.r.Terminal(sideTermID).Overlay() != nil {
+		t.Fatal("ctrl+c left the side's overlay")
+	}
+	cleared(t, app, "ctrl+c")
+}
+
+// Zoomed, only the zoomed pane is drawn, so only it is labelled; with the
+// side closed, only the main pane.
+func TestHintsLabelOnlyTheDrawnPanes(t *testing.T) {
+	mainRows, sideRows := sideScreens()
+	app, main, _, _ := hintsSideApp(t, mainRows, sideRows)
+	pressAll(t, app, "ctrl+a", "z")
+	if !app.pv.zoom {
+		t.Fatal("ctrl+a z did not zoom")
+	}
+	live(t, app, "zoom")
+	startHints(t, app, main)
+	if len(app.hinting.screens) != 1 || app.r.Terminal(sideTermID).Overlay() != nil {
+		t.Fatalf("zoomed: screens %d side overlay %+v", len(app.hinting.screens), app.r.Terminal(sideTermID).Overlay())
+	}
+	if got := marksOf(t, app, paneTermID); len(got) != 2 {
+		t.Fatalf("zoomed: main marks %v", got)
+	}
+	pressAll(t, app, "esc")
+	cleared(t, app, "zoomed esc")
+
+	app, main, _, _ = hintsSideApp(t, mainRows, sideRows)
+	if err := app.closeSideTerminal(); err != nil {
+		t.Fatal(err)
+	}
+	plainView(app)
+	live(t, app, "side closed")
+	startHints(t, app, main)
+	if len(app.hinting.screens) != 1 || len(app.hinting.spans) != 2 {
+		t.Fatalf("side closed: screens %d spans %v", len(app.hinting.screens), app.hinting.spans)
+	}
+	pressAll(t, app, "esc")
+	cleared(t, app, "side closed esc")
+}
+
+// The side going while the labels are up ends the session: the main
+// pane's overlay is cleared and it is live again.
+func TestHintsEndWhenTheSideGoes(t *testing.T) {
+	mainRows, sideRows := sideScreens()
+	app, main, _, _ := hintsSideApp(t, mainRows, sideRows)
+	startHints(t, app, main)
+	if err := app.closeSideTerminal(); err != nil {
+		t.Fatal(err)
+	}
+	app.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	cleared(t, app, "side closed mid-hints")
+	pressAll(t, app, "x")
+	if !slices.EqualFunc(main.sent, [][]string{{"x"}}, slices.Equal) {
+		t.Fatalf("after the side went: sent %v", main.sent)
 	}
 }
