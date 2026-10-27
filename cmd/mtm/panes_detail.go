@@ -394,14 +394,16 @@ func (a *App) defineLiveKeys() {
 		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list; outside live, select it").
 		Verb("side", a.sidePane, "Open or focus this pane's side vim or terminal").
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
+		Verb("layout", a.flipLayout, "Flip the side pane between beside and below its parent (the side-layout setting)").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · j/k panes · s starred · [ copy · c context · N note · n task · T todos · S all · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · R layout · j/k panes · s starred · [ copy · c context · N note · n task · T todos · S all · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
 		Bind("d", ochazuke.Do("terminal.sideDetach")).
 		Bind("z", ochazuke.Do("terminal.zoom")).
+		Bind("R", ochazuke.Do("terminal.layout").Hinted("side layout")).
 		Bind("j", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": 1}).Hinted("next pane")).
 		Bind("k", ochazuke.Do("terminal.cycle", ochazuke.Arguments{"delta": -1}).Hinted("previous pane")).
 		Bind("c", ochazuke.Do(contextNoun+".pick")).
@@ -431,6 +433,7 @@ var leaderWords = []struct{ key, text string }{
 	{"t", "side terminal: open it, focus it, or back to the pane"},
 	{"d", "close the front side, then detach"},
 	{"z", "zoom the pane to the page, or back"},
+	{"R", "side layout: beside or below the pane (the side-layout setting)"},
 	{"j", "next pane, live"},
 	{"k", "previous pane, live"},
 	{"s", "next starred pane, live (* on a pane row stars it)"},

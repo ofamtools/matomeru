@@ -20,6 +20,7 @@ const (
 	settingEditDebounce   = "edit-debounce"
 	settingRefresh        = "refresh-interval"
 	settingDefaultHarness = "default-harness"
+	settingSideLayout     = "side-layout"
 )
 
 // configure names mtm's config before the Model starts (Model.Init loads
@@ -45,6 +46,8 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: settingRefresh, Type: ochazuke.SettingDuration, Default: refreshEvery,
 			Description: "How often the Panes list reloads while the page is open"},
 		harnessSetting,
+		ochazuke.Setting{Name: settingSideLayout, Type: ochazuke.SettingString, Default: sideAuto, Enum: []string{sideAuto, sideBeside, sideBelow},
+			Description: "Where a live pane's side vim or terminal sits: auto (beside from a 161-column detail, else below), beside or below; leader R flips it"},
 		// The live pane's leader never expires: ctrl+a waits for the next
 		// key, as tmux's prefix does (ochazuke's default is the key-sequence
 		// timeout). Declared before EnsureTerminalLeader, so this default

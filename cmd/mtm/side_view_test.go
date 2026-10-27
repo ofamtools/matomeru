@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -212,5 +213,54 @@ func TestSideStreamOpensAtItsRegion(t *testing.T) {
 	parent := f.streams[0]
 	if pw, ph := ochazuke.PanelContentSize(83, 15); parent.lease != [2]int{pw, ph - 2} {
 		t.Fatalf("parent lease %v", parent.lease)
+	}
+}
+
+// The side-layout setting flips the split: leader R toggles beside and
+// below (from auto, the orientation not shown), saves the setting, says
+// so in the footer, and the next frame sizes both terminals to their new
+// regions. beside holds down to two 40-column panels.
+func TestSideLayoutFlipResizesBoth(t *testing.T) {
+	a, f := sideViewApp(t)
+	if err := a.showSide(a.attached, "vim"); err != nil {
+		t.Fatal(err)
+	}
+	parent, side := f.streams[0], f.streams[1]
+	want := func(label string, pw, ph, sw, sh int) {
+		t.Helper()
+		pc, pr := ochazuke.PanelContentSize(pw, ph)
+		sc, sr := ochazuke.PanelContentSize(sw, sh)
+		if parent.lease != [2]int{pc, pr - 2} || side.lease != [2]int{sc, sr} {
+			t.Fatalf("%s: parent %v side %v, want %dx%d and %dx%d", label, parent.lease, side.lease, pc, pr-2, sc, sr)
+		}
+	}
+	a.renderPanes(a.r, 240, 30) // the detail is 167x30: auto shows beside
+	want("auto, wide", 83, 30, 83, 30)
+	press(t, a, "ctrl+a", "R")
+	if got := a.r.Settings().String(settingSideLayout); got != sideBelow {
+		t.Fatalf("from auto beside, R set %q", got)
+	}
+	if !slices.Contains(a.m.Notices, "side layout: below") {
+		t.Fatalf("footer %q", a.m.Notices)
+	}
+	a.renderPanes(a.r, 240, 30)
+	want("below, wide", 167, 15, 167, 15)
+	press(t, a, "ctrl+a", "R")
+	if got := a.r.Settings().String(settingSideLayout); got != sideBeside {
+		t.Fatalf("from below, R set %q", got)
+	}
+	a.renderPanes(a.r, 120, 30) // the detail is 83 wide: beside still splits it
+	want("beside, narrow", 41, 30, 41, 30)
+	if a.sideArea(2*sideBesideMin, 30).beside || !a.sideArea(2*sideBesideMin+1, 30).beside {
+		t.Fatal("beside ignores its minimum")
+	}
+	if err := a.r.Settings().Set(settingSideLayout, sideAuto); err != nil {
+		t.Fatal(err)
+	}
+	a.renderPanes(a.r, 120, 30)
+	want("auto, narrow", 83, 15, 83, 15)
+	press(t, a, "ctrl+a", "R")
+	if got := a.r.Settings().String(settingSideLayout); got != sideBeside {
+		t.Fatalf("from auto below, R set %q", got)
 	}
 }

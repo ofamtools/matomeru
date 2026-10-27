@@ -191,13 +191,64 @@ type sideArea struct {
 	parentW, parentH, sideW, sideH int
 }
 
+// The side-layout setting's values: auto splits at sideSplit, beside
+// keeps the side right of its parent down to sideBesideMin columns each,
+// and below always stacks it.
+const (
+	sideAuto   = "auto"
+	sideBeside = "beside"
+	sideBelow  = "below"
+)
+
+// sideBesideMin is the narrowest panel beside keeps side by side: two
+// panels of 40 columns (36 of content each) and the gap between them.
+// A narrower detail stacks the side under its parent even in beside.
+const sideBesideMin = 40
+
+// sideLayout is the side-layout setting, auto when unset or unknown.
+func (a *App) sideLayout() string {
+	switch v := a.r.Settings().String(settingSideLayout); v {
+	case sideBeside, sideBelow:
+		return v
+	}
+	return sideAuto
+}
+
 func (a *App) sideArea(width, height int) sideArea {
-	if width >= sideSplit {
+	beside := width >= sideSplit
+	switch a.sideLayout() {
+	case sideBeside:
+		beside = width >= 2*sideBesideMin+1
+	case sideBelow:
+		beside = false
+	}
+	if beside {
 		leftWidth := (width - 1) / 2
 		return sideArea{beside: true, parentW: leftWidth, parentH: height, sideW: width - leftWidth - 1, sideH: height}
 	}
 	topHeight := max(1, height/2)
 	return sideArea{parentW: width, parentH: topHeight, sideW: width, sideH: height - topHeight}
+}
+
+// flipLayout is terminal.layout (leader R, after tuios's rotate split):
+// beside becomes below and below beside; from auto it takes the
+// orientation opposite the one shown. It saves the side-layout setting,
+// and the next frame sizes both terminals to their new regions.
+func (a *App) flipLayout(ctx ochazuke.Ctx) ochazuke.Result {
+	next := sideBeside
+	switch a.sideLayout() {
+	case sideBeside:
+		next = sideBelow
+	case sideAuto:
+		if a.pv.detailW >= sideSplit {
+			next = sideBelow
+		}
+	}
+	if err := a.r.Settings().Set(settingSideLayout, next); err != nil {
+		return ochazuke.Failed(err)
+	}
+	ctx.Notify("side layout: " + next)
+	return ochazuke.Done(next)
 }
 
 // sideContentSize is the side panel's body in the detail area the last
