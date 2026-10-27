@@ -230,6 +230,23 @@ func (a *App) sideArea(width, height int) sideArea {
 	return sideArea{parentW: width, parentH: topHeight, sideW: width, sideH: height - topHeight}
 }
 
+// focusOther is terminal.other (leader o, tmux's prefix o): the focus
+// moves to the next live terminal shown, the parent then its side,
+// wrapping. With no side shown there is no other, and it does nothing.
+func (a *App) focusOther(ochazuke.Ctx) ochazuke.Result {
+	if a.r.Terminal(sideTermID) == nil || a.r.Terminal(paneTermID) == nil {
+		return ochazuke.Done(nil)
+	}
+	next := sideTermID
+	if a.r.Focus == sideTermID {
+		next = paneTermID
+	}
+	if err := a.r.SetFocus(next); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(next)
+}
+
 // flipLayout is terminal.layout (leader R, after tuios's rotate split):
 // beside becomes below and below beside; from auto it takes the
 // orientation opposite the one shown. It saves the side-layout setting,

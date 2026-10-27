@@ -264,3 +264,25 @@ func TestSideLayoutFlipResizesBoth(t *testing.T) {
 		t.Fatalf("from auto below, R set %q", got)
 	}
 }
+
+// Leader o moves the focus between the parent and its side, wrapping,
+// as tmux's prefix o does; with no side shown it is a quiet no-op.
+func TestLeaderOCyclesParentAndSide(t *testing.T) {
+	a, f := sideViewApp(t)
+	press(t, a, "ctrl+a", "o")
+	if a.r.Focus != paneTermID || len(f.streams[0].sent) != 0 {
+		t.Fatalf("no side: focus %s sent %v", a.r.Focus, f.streams[0].sent)
+	}
+	if err := a.showSide(a.attached, "vim"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{paneTermID, sideTermID, paneTermID} {
+		press(t, a, "ctrl+a", "o")
+		if a.r.Focus != want {
+			t.Fatalf("focus %s, want %s", a.r.Focus, want)
+		}
+	}
+	if len(f.streams[0].sent) != 0 || len(f.streams[1].sent) != 0 {
+		t.Fatalf("o reached a pane: %v %v", f.streams[0].sent, f.streams[1].sent)
+	}
+}
