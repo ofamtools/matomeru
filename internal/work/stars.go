@@ -1,7 +1,6 @@
 package work
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/unixsuperhero/matomeru/store"
@@ -12,9 +11,14 @@ import (
 // (assignments, pane_recipes, companions): a daemon restart restores a
 // session with its window ids, so the star survives it, while a name or a
 // session can change under a live pane. A saved record that relaunches
-// its pane into a new window carries the star along (MovePaneStar), and a
-// star whose window is gone keeps only while a saved record still names
-// that window (PrunePaneStars).
+// its pane into a new window carries the star along (MovePaneStar).
+//
+// Nothing drops a star but unstarring it. One database serves every mtm,
+// on any TUIOS server (plain mtm runs on mtm-daemon, mtm --server default
+// on the person's own daemon), so no one listing can say a window is gone:
+// pruning on a listing once dropped every star when an mtm on another
+// server started. Window ids are never reused, so a star whose window is
+// gone marks no row; it is a stale row, never a wrong star.
 type PaneStar struct {
 	Window  string `json:"window"`
 	Session string `json:"session,omitempty"` // what the pane was when starred, for reading the table
@@ -73,39 +77,4 @@ func (s *Store) MovePaneStar(from, to string) error {
 		star.Window = to
 		return tx.Put("pane_stars", to, star)
 	})
-}
-
-// PrunePaneStars drops the stars of windows not live and named by no
-// saved record, and returns the windows it dropped.
-func (s *Store) PrunePaneStars(live map[string]bool) ([]string, error) {
-	saved, err := s.SavedPanes()
-	if err != nil {
-		return nil, err
-	}
-	keep := map[string]bool{}
-	for _, row := range saved {
-		keep[row.Window] = true
-	}
-	var dropped []string
-	err = s.db.Tx([]string{"pane_stars"}, func(tx *store.Tx) error {
-		raws, err := tx.All("pane_stars")
-		if err != nil {
-			return err
-		}
-		for _, raw := range raws {
-			var star PaneStar
-			if err := json.Unmarshal(raw, &star); err != nil {
-				return err
-			}
-			if live[star.Window] || keep[star.Window] {
-				continue
-			}
-			if err := tx.Delete("pane_stars", star.Window); err != nil {
-				return err
-			}
-			dropped = append(dropped, star.Window)
-		}
-		return nil
-	})
-	return dropped, err
 }

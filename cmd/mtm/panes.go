@@ -421,7 +421,7 @@ func (a *App) setPanes(panes []pane, err error) {
 			panes[i].Model, panes[i].LaunchHarness, panes[i].LaunchFlags = r.Model, r.Harness, r.Flags
 		}
 	}
-	a.markStars(panes, err == nil)
+	a.markStars(panes)
 	a.panes = panes
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {

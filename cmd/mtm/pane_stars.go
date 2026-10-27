@@ -14,8 +14,8 @@ import (
 // its name, ` on the Panes page selects the next starred pane and the
 // leader's s (terminal.starred) attaches it, both wrapping. A star is kept
 // by window id in the store (work.PaneStar says why); a saved record that
-// relaunches its pane carries it to the new window, and a listing drops
-// the stars of windows that are gone and named by no saved record.
+// relaunches its pane carries it to the new window. No listing drops a
+// star: work.PaneStar says why.
 
 const noStarredPanes = "no starred panes: * on a pane row stars it"
 
@@ -53,18 +53,8 @@ func (a *App) starPane(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(map[string]any{"pane": p.ID, "starred": starred})
 }
 
-// markStars sets Starred on a listing's panes and, for a whole listing,
-// drops the stars of windows that are gone (PrunePaneStars).
-func (a *App) markStars(panes []pane, prune bool) {
-	if prune && len(panes) > 0 {
-		live := make(map[string]bool, len(panes))
-		for _, p := range panes {
-			live[p.ID] = true
-		}
-		if _, err := a.work.PrunePaneStars(live); err != nil {
-			a.r.UI().Notify("pane stars: " + err.Error())
-		}
-	}
+// markStars sets Starred on a listing's panes.
+func (a *App) markStars(panes []pane) {
 	stars, err := a.work.PaneStars()
 	if err != nil {
 		a.r.UI().Notify("pane stars: " + err.Error())

@@ -2,16 +2,14 @@ package work
 
 import (
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/unixsuperhero/matomeru/store"
 )
 
-// A star survives reopening the database, moves with a relaunched saved
-// record, and is pruned once its window is gone unless a saved record
-// still names that window.
-func TestPaneStarsPersistMoveAndPrune(t *testing.T) {
+// A star survives reopening the database and moves with a relaunched
+// saved record.
+func TestPaneStarsPersistAndMove(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	open := func() (*store.Store, *Store) {
 		db, err := store.Open(path)
@@ -56,19 +54,5 @@ func TestPaneStarsPersistMoveAndPrune(t *testing.T) {
 	stars, _ = w.PaneStars()
 	if _, ok := stars["w9"]; !ok || len(stars) != 2 {
 		t.Fatalf("after move: %+v", stars)
-	}
-	// w9 is live and stays; w2, starred again, is gone but named by the
-	// saved record and stays; w1 is neither and goes.
-	if err := w.SetPaneStar(PaneStar{Window: "w2"}, true); err != nil {
-		t.Fatal(err)
-	}
-	dropped, err := w.PrunePaneStars(map[string]bool{"w9": true})
-	slices.Sort(dropped)
-	if err != nil || !slices.Equal(dropped, []string{"w1"}) {
-		t.Fatalf("dropped %v %v", dropped, err)
-	}
-	stars, _ = w.PaneStars()
-	if _, ok := stars["w2"]; !ok || len(stars) != 2 {
-		t.Fatalf("after prune: %+v", stars)
 	}
 }

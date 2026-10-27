@@ -20,8 +20,8 @@ func starred(t *testing.T, app *App) map[string]work.PaneStar {
 }
 
 // * on a pane row stars it (★ on the row, written to the store), * again
-// unstars it, --starred sets it; a listing without the window drops its
-// star unless a saved record names the window.
+// unstars it, --starred sets it; a listing without the window keeps its
+// star (work.PaneStar says why), and the row reads ★ when it is back.
 func TestStarAPaneRow(t *testing.T) {
 	app, f := panesApp(t)
 	settle(app, follow(app))
@@ -47,26 +47,17 @@ func TestStarAPaneRow(t *testing.T) {
 	if _, ok := starred(t, app)["w2"]; !ok {
 		t.Fatalf("--starred: %+v", starred(t, app))
 	}
-	// w2 goes away with no saved record: the next listing drops its star.
-	f.panes = f.panes[:1]
-	reload(t, app)
-	if len(starred(t, app)) != 0 {
-		t.Fatalf("a gone pane kept its star: %+v", starred(t, app))
-	}
-	// A saved record keeps a gone pane's star.
-	f.panes = append(f.panes, pane{Session: "ochazuke", Pane: daemon.Pane{ID: "w2", Name: "shell"}})
-	reload(t, app)
-	press(t, app, "j")
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: "pane:ochazuke/w2"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := app.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w2", Session: "ochazuke", Name: "shell"}}); err != nil {
-		t.Fatal(err)
-	}
+	// w2 is missing from a listing (another server's, or a partial one):
+	// its star stays, and the row reads ★ when the window is listed again.
 	f.panes = f.panes[:1]
 	reload(t, app)
 	if _, ok := starred(t, app)["w2"]; !ok {
-		t.Fatalf("a saved pane lost its star: %+v", starred(t, app))
+		t.Fatalf("a listing without w2 dropped its star: %+v", starred(t, app))
+	}
+	f.panes = append(f.panes, pane{Session: "ochazuke", Pane: daemon.Pane{ID: "w2", Name: "shell"}})
+	reload(t, app)
+	if !strings.Contains(cells(app, "pane:ochazuke/w2"), "★") {
+		t.Fatalf("w2 back without its star: %q", cells(app, "pane:ochazuke/w2"))
 	}
 }
 
