@@ -35,7 +35,7 @@ type fakePanes struct {
 	fits []string
 }
 
-// FitWindow records the size a new side window was given.
+// FitWindow records each window size asked for (a new side, a stream's Resize).
 func (f *fakePanes) FitWindow(_ context.Context, p pane, cols, rows int) error {
 	f.fits = append(f.fits, fmt.Sprintf("%s %dx%d", p.ID, cols, rows))
 	return f.err
@@ -128,7 +128,7 @@ type fakeStream struct {
 	keep     bool // hold: Release parks, as liveStream does
 	parked   bool
 	state    string // connState: "", reconnecting or gone
-	// fit is the window ask own set (a side's); Resize calls it at once.
+	// fit is the window ask own set (App.openStream); Resize calls it at once.
 	fit func(ctx context.Context, cols, rows int) error
 }
 
@@ -148,7 +148,7 @@ func (s *fakeStream) Send(keys ...string) error { s.sent = append(s.sent, keys);
 func (s *fakeStream) Paste(text string) error   { s.pasted = append(s.pasted, text); return nil }
 func (s *fakeStream) Resize(cols, rows int) error {
 	s.lease = [2]int{cols, rows}
-	if s.fit != nil {
+	if s.fit != nil && !s.parked && !s.released { // as liveStream: a parked stream asks nothing
 		return s.fit(context.Background(), cols, rows)
 	}
 	return nil
@@ -608,5 +608,72 @@ func TestPaneSearchEnterChoosesAndClears(t *testing.T) {
 	}
 	if f := frame(app); !strings.Contains(f, "claude") || strings.Contains(f, "2 of 5") {
 		t.Fatalf("every pane shows again and the query line is gone:\n%s", f)
+	}
+}
+
+// lastFitOf is the last size FitWindow was asked for window id, "" if none.
+func lastFitOf(f *fakePanes, id string) string {
+	for i := len(f.fits) - 1; i >= 0; i-- {
+		if strings.HasPrefix(f.fits[i], id+" ") {
+			return f.fits[i]
+		}
+	}
+	return ""
+}
+
+// The attached pane's stream owns its window, as a side's does: every
+// size it is drawn at (a larger window, zoom, unzoom) is leased and asked
+// for (FitWindow), because a lease alone never grows a pane past the size
+// its clients asked for (tuios pane_lease.go).
+func TestAttachedPaneAsksForItsDrawnSize(t *testing.T) {
+	app, f := liveApp(t)
+	main := f.streams[0]
+	asks := func(label string) [2]int {
+		t.Helper()
+		got := lastFitOf(f, main.pane.ID)
+		if want := fmt.Sprintf("%s %dx%d", main.pane.ID, main.lease[0], main.lease[1]); main.lease[0] <= 0 || got != want {
+			t.Fatalf("%s: last fit %q, lease %v", label, got, main.lease)
+		}
+		return main.lease
+	}
+	app.renderPanes(app.r, 120, 30)
+	small := asks("drawn")
+	app.renderPanes(app.r, 200, 50) // the window grows
+	grown := asks("grown")
+	if grown[0] <= small[0] || grown[1] <= small[1] {
+		t.Fatalf("grown %v is not larger than %v", grown, small)
+	}
+	press(t, app, "ctrl+a", "z")
+	app.renderPanes(app.r, 200, 50)
+	zw, zh := ochazuke.PanelContentSize(200, 50)
+	if zoomed := asks("zoomed"); zoomed != [2]int{zw, zh} {
+		t.Fatalf("zoomed asks %v, want %dx%d", zoomed, zw, zh)
+	}
+	press(t, app, "ctrl+a", "z")
+	app.renderPanes(app.r, 200, 50)
+	if back := asks("unzoomed"); back != grown {
+		t.Fatalf("unzoomed asks %v, want the detail's %v", back, grown)
+	}
+
+	// Cycling attaches the next pane through a new stream, which asks for
+	// its own size; the parked one asks for nothing more.
+	press(t, app, "ctrl+a", "j")
+	if app.attached.ID != "w2" || len(f.streams) < 2 {
+		t.Fatalf("ctrl+a j: attached %s, %d streams", app.attached.ID, len(f.streams))
+	}
+	next := f.streams[len(f.streams)-1]
+	if !main.parked && !main.released {
+		t.Fatalf("the old stream is still live")
+	}
+	before := len(f.fits)
+	app.renderPanes(app.r, 160, 40)
+	if got, want := lastFitOf(f, "w2"), fmt.Sprintf("w2 %dx%d", next.lease[0], next.lease[1]); next.lease[0] <= 0 || got != want {
+		t.Fatalf("cycled: last fit %q, lease %v", got, next.lease)
+	}
+	_ = main.Resize(90, 20) // a stray resize of the parked stream
+	for _, fit := range f.fits[before:] {
+		if strings.HasPrefix(fit, main.pane.ID+" ") {
+			t.Fatalf("the parked stream asked for %q", fit)
+		}
 	}
 }
