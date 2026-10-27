@@ -256,6 +256,7 @@ type App struct {
 	stdin          io.Reader           // the CLI's standard input (the capture verbs read it)
 	getenv         func(string) string // the environment; tests replace it
 	dataPath       string              // the database (mtm setup's hooks write it)
+	opts           Options             // the command line New was given (mtm mcp serve opens one app per tool call with it)
 	cx             *contextState       // the Context page and its actions (context.go)
 	drafts         *draft.Store
 	editor         *recordEditor
@@ -405,6 +406,7 @@ func New(opts Options) (*App, error) {
 	a.trackNotices()
 	a.configDir = configDir
 	a.dataPath = opts.Data
+	a.opts = opts
 	a.configure(opts, configDir)
 	a.feed, a.journalSrc, a.getenv = newJournalFeed(), client, os.Getenv
 	a.sideLock = opts.Data + ".companions.lock"
@@ -437,6 +439,7 @@ func New(opts Options) (*App, error) {
 	a.defineContext()
 	a.defineCopy()
 	a.defineCapture()
+	a.defineMCPOperations()
 	a.defineSetup()
 	a.defineStore()
 	a.defineExtensions()
