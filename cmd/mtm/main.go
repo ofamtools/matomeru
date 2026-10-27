@@ -258,6 +258,7 @@ type App struct {
 	dataPath       string              // the database (mtm setup's hooks write it)
 	opts           Options             // the command line New was given (mtm mcp serve opens one app per tool call with it)
 	cx             *contextState       // the Context page and its actions (context.go)
+	hinting        *liveHints          // the labels over a live pane, nil when none are up (live_hints.go)
 	drafts         *draft.Store
 	editor         *recordEditor
 	quick          *quickNote // the open quick note (N), nil when closed

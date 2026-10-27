@@ -398,7 +398,7 @@ func (a *App) defineLiveKeys() {
 		Verb("layout", a.flipLayout, "Flip the side pane between beside and below its parent (the side-layout setting)").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · s starred · [ copy · c context · N note · n task · T todos · S all · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · s starred · [ copy · c context · f hints · N note · n task · T todos · S all · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
@@ -418,6 +418,7 @@ func (a *App) defineLiveKeys() {
 		Bind("T", ochazuke.Do("todos.open").Hinted("todos")).
 		Bind("S", ochazuke.Do("scope.all").Hinted("all projects")).
 		Bind("?", ochazuke.Do("terminal.keys"))
+	a.defineLiveHints()
 	a.leaderView()
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
 	a.parameters("terminal.side", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true, Enum: []string{"vim", "term"}}})
@@ -443,6 +444,7 @@ var leaderWords = []struct{ key, text string }{
 	{"k", "previous pane, live"},
 	{"s", "next starred pane, live (* on a pane row stars it)"},
 	{"c", "context: copy, open or reveal a path, URL, PR, branch or commit"},
+	{"f", "hints: label the screen's URLs, paths, PRs, branches and commits; a label copies, ctrl+label opens, a capital types it into the pane, esc cancels"},
 	{"N", "quick note for the selected task, else the pin"},
 	{"n", "new task under the pin"},
 	{"T", "todos: the pin's tasks as an outline"},

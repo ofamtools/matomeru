@@ -122,6 +122,7 @@ type fakeStream struct {
 	pane     pane
 	frames   chan ochazuke.TerminalFrame
 	sent     [][]string
+	pasted   []string
 	lease    [2]int
 	released bool
 	keep     bool // hold: Release parks, as liveStream does
@@ -140,7 +141,7 @@ func (s *fakeStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 	}
 }
 func (s *fakeStream) Send(keys ...string) error   { s.sent = append(s.sent, keys); return nil }
-func (s *fakeStream) Paste(string) error          { return nil }
+func (s *fakeStream) Paste(text string) error     { s.pasted = append(s.pasted, text); return nil }
 func (s *fakeStream) Resize(cols, rows int) error { s.lease = [2]int{cols, rows}; return nil }
 func (s *fakeStream) Release() error {
 	if s.keep {
