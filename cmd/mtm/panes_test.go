@@ -127,15 +127,17 @@ func (f *fakePanes) OpenStream(p pane) paneStream {
 
 // fakeStream records keys, the lease (the last Resize) and its release.
 type fakeStream struct {
-	pane     pane
-	frames   chan ochazuke.TerminalFrame
-	sent     [][]string
-	pasted   []string
-	lease    [2]int
-	released bool
-	keep     bool // hold: Release parks, as liveStream does
-	parked   bool
-	state    string // connState: "", reconnecting or gone
+	pane       pane
+	frames     chan ochazuke.TerminalFrame
+	sent       [][]string
+	tokens     []string         // the send-keys argument of each call Send made
+	unsendable func(key string) // App.openStream's reporter
+	pasted     []string
+	lease      [2]int
+	released   bool
+	keep       bool // hold: Release parks, as liveStream does
+	parked     bool
+	state      string // connState: "", reconnecting or gone
 	// fit is the window ask own set (App.openStream); Resize calls it at once.
 	fit func(ctx context.Context, cols, rows int) error
 }
@@ -152,8 +154,19 @@ func (s *fakeStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 		return ochazuke.TerminalFrame{}, ctx.Err()
 	}
 }
-func (s *fakeStream) Send(keys ...string) error { s.sent = append(s.sent, keys); return nil }
-func (s *fakeStream) Paste(text string) error   { s.pasted = append(s.pasted, text); return nil }
+
+// Send records the key names it is given (sent) and, through the same
+// translation liveStream sends, the send-keys tokens the daemon would get
+// (tokens: one entry per call made).
+func (s *fakeStream) Send(keys ...string) error {
+	s.sent = append(s.sent, keys)
+	return sendPaneKeys(keys, s.unsendable, func(_ context.Context, tokens string) error {
+		s.tokens = append(s.tokens, tokens)
+		return nil
+	})
+}
+func (s *fakeStream) reportUnsendable(fn func(key string)) { s.unsendable = fn }
+func (s *fakeStream) Paste(text string) error              { s.pasted = append(s.pasted, text); return nil }
 func (s *fakeStream) Resize(cols, rows int) error {
 	s.lease = [2]int{cols, rows}
 	if s.fit != nil && !s.parked && !s.released { // as liveStream: a parked stream asks nothing
@@ -484,14 +497,6 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	press(t, app, "ctrl+j", "j")
 	if app.r.Page != "work" || app.r.Focus != "matomeru" {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
-	}
-}
-
-func TestDaemonKeyNames(t *testing.T) {
-	for in, want := range map[string]string{"esc": "Escape", " ": "Space", "space": "Space", ",": "Comma", "ctrl+c": "ctrl+c", "x": "x", "enter": "enter"} {
-		if got := daemonKey(in); got != want {
-			t.Errorf("daemonKey(%q) = %q, want %q", in, got, want)
-		}
 	}
 }
 

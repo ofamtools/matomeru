@@ -651,6 +651,9 @@ func (a *App) attachLive(p pane, returnTo string) error {
 // this ask can go.
 func (a *App) openStream(p pane) paneStream {
 	stream := a.panesd.OpenStream(p)
+	if k, ok := stream.(keyReporter); ok {
+		k.reportUnsendable(a.unsendableKey)
+	}
 	if fitter, ok := a.panesd.(windowFitter); ok {
 		if o, ok := stream.(windowOwner); ok {
 			o.own(func(ctx context.Context, cols, rows int) error {
@@ -1016,7 +1019,8 @@ type liveStream struct {
 	held       *streamFrame  // an ending frame met while coalescing, read next
 	cols, rows int
 	released   bool
-	keep       bool // hold: Release parks the stream instead of dropping it
+	unsendable func(key string) // told of a key Send leaves out (App.unsendableKey)
+	keep       bool             // hold: Release parks the stream instead of dropping it
 	parked     bool
 	ended      bool // the program ended normally; reads wait for the close
 	screen     liveScreen
@@ -1221,29 +1225,24 @@ func frameErr(item streamFrame) error {
 	return nil
 }
 
-// Send forwards key names through send-keys, in order, in one call.
+// Send forwards key names through send-keys, in order, in one call,
+// spelled the way send-keys parses them (paneKey). A key send-keys cannot
+// express is left out and handed to the reporter, so it never fails the
+// press; a failed call (daemon down, window gone) is still an error.
 func (s *liveStream) Send(keys ...string) error {
-	names := make([]string, 0, len(keys))
-	for _, k := range keys {
-		names = append(names, daemonKey(k))
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), daemonTimeout)
-	defer cancel()
-	return s.client.Call(ctx, "send-keys", map[string]any{"session": s.pane.Session, "window": s.pane.ID, "keys": strings.Join(names, " ")}, nil)
+	s.mu.Lock()
+	report := s.unsendable
+	s.mu.Unlock()
+	return sendPaneKeys(keys, report, func(ctx context.Context, tokens string) error {
+		return s.client.Call(ctx, "send-keys", map[string]any{"session": s.pane.Session, "window": s.pane.ID, "keys": tokens}, nil)
+	})
 }
 
-// daemonKey spells a binding key name the way send-keys parses it: the
-// two separators it splits on and escape get their names.
-func daemonKey(k string) string {
-	switch k {
-	case " ", "space":
-		return "Space"
-	case ",":
-		return "Comma"
-	case "esc":
-		return "Escape"
-	}
-	return k
+// reportUnsendable sets what Send tells about a key it leaves out.
+func (s *liveStream) reportUnsendable(fn func(key string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.unsendable = fn
 }
 
 // Paste types text into the pane as a bracketed paste.
