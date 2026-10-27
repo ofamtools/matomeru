@@ -63,7 +63,7 @@ func TestShellTurnsAreCommandsOldestFirst(t *testing.T) {
 		{Seq: 1, Cmdline: "ls", Exit: &zero, Row: 3, At: 1000},
 	}, "make")
 	if len(got) != 3 || got[0].Prompt != "ls" || got[0].Command.End != 10 || got[1].Command.End != -1 ||
-		got[1].State != StateError || got[0].State != StateDone || got[2].State != StateRunning || got[2].Prompt != "make" || got[2].ID != "shell:3" {
+		got[1].State != StateError || got[0].State != StateDone || got[2].State != StateRunning || got[2].Prompt != "make" || got[2].ID != "shell:w1:3" {
 		t.Fatalf("turns %+v", got)
 	}
 }
@@ -86,9 +86,11 @@ func TestShellOutputJoinsWrappedRows(t *testing.T) {
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("output\n%q\nwant\n%q", got, want)
 	}
-	// The last command reads to the end of the buffer.
+	// The last command reads to the end of the buffer, without the prompt
+	// the shell waits at.
+	b.lines = append(b.lines, "out of next", "$ ")
 	c = Command{Cmdline: "next", Row: b.rowOf(7), End: -1}
-	if got, err := ShellOutput(context.Background(), b, c, 3); err != nil || len(got) != 0 {
+	if got, err := ShellOutput(context.Background(), b, c, 3); err != nil || strings.Join(got, "|") != "out of next" {
 		t.Fatalf("last command %q %v", got, err)
 	}
 }
@@ -100,6 +102,11 @@ func TestShellOutputSkipsATwoLinePrompt(t *testing.T) {
 	got, err := ShellOutput(context.Background(), b, Command{Cmdline: "make lint", Row: 0, End: 3}, 0)
 	if err != nil || strings.Join(got, "|") != "ok" {
 		t.Fatalf("output %q %v", got, err)
+	}
+	// The last command: the prompt waiting below the output is not output.
+	got, err = ShellOutput(context.Background(), b, Command{Cmdline: "make lint", Row: 0, End: -1}, 0)
+	if err != nil || strings.Join(got, "|") != "ok" {
+		t.Fatalf("last output %q %v", got, err)
 	}
 }
 

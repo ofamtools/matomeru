@@ -24,6 +24,7 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/draft"
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/history"
+	"github.com/unixsuperhero/matomeru/internal/turns"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/matomeru/store"
 )
@@ -328,23 +329,28 @@ type App struct {
 	paneList    *ochazuke.List // the pane tree's rows (panes_tree.go)
 	pv          *paneUI        // the panes page's tree, detail tabs and timers
 	reviewList  *ochazuke.List
-	reviewTurns *ochazuke.Tree       // the opened review row's turns (reviews.go)
-	turnFills   map[string]*turnFill // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
-	answer      *ochazuke.Input
-	answerDraft string // the answer text last written as the opened review's draft
-	noteList    *ochazuke.List
-	noteBody    noteBody              // the Notes page's scrollable body (notes.go)
-	termStreams map[string]paneStream // the stream behind each terminal (stream_reconnect.go)
-	noteDoc     *markdown.Doc         // the selected note's Markdown (notes_doc.go)
-	noteDocNote string                // the note noteDoc fronts
-	detail      pageDetails           // the pages' details J and K scroll (details.go)
-	colors      pinColors             // the theme beneath the pin state's colours (colors.go)
-	savedList   *ochazuke.List
-	vimList     *ochazuke.List
-	savedAll    []work.SavedPane  // every saved pane as last read, in scope or not (the details read it)
-	vimAll      []work.VimSession // every Vim session as last read
-	vimDir      string
-	configDir   string // dirs.json and harnesses.json live here (Options.ConfigDir)
+	reviewTurns *ochazuke.Tree        // the opened review row's turns (reviews.go)
+	turnFills   map[string]*turnFill  // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
+	mturns      map[string]*paneTurns // window → its turns read from the agent's log or the shell (turns_model.go)
+	sessionSeen map[string]string     // window → the agent session last recorded for it (turns_model.go)
+	// claudeProjects is Claude Code's projects directory, where session
+	// logs are (turns.ClaudeProjects); tests replace it.
+	claudeProjects string
+	answer         *ochazuke.Input
+	answerDraft    string // the answer text last written as the opened review's draft
+	noteList       *ochazuke.List
+	noteBody       noteBody              // the Notes page's scrollable body (notes.go)
+	termStreams    map[string]paneStream // the stream behind each terminal (stream_reconnect.go)
+	noteDoc        *markdown.Doc         // the selected note's Markdown (notes_doc.go)
+	noteDocNote    string                // the note noteDoc fronts
+	detail         pageDetails           // the pages' details J and K scroll (details.go)
+	colors         pinColors             // the theme beneath the pin state's colours (colors.go)
+	savedList      *ochazuke.List
+	vimList        *ochazuke.List
+	savedAll       []work.SavedPane  // every saved pane as last read, in scope or not (the details read it)
+	vimAll         []work.VimSession // every Vim session as last read
+	vimDir         string
+	configDir      string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
 	// extForm is the open form over an extension's row (extension_forms.go).
@@ -408,6 +414,7 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
 	a.trackNotices()
+	a.claudeProjects = turns.ClaudeProjects()
 	a.configDir = configDir
 	a.dataPath = opts.Data
 	a.opts = opts

@@ -43,7 +43,7 @@ func ShellTurns(session string, cmds []Command, running string) []Turn {
 			state = StateError
 		}
 		out = append(out, Turn{
-			ID: fmt.Sprintf("shell:%d", c.Seq), Source: SourceShell, Session: session, Prompt: c.Cmdline,
+			ID: fmt.Sprintf("shell:%s:%d", session, c.Seq), Source: SourceShell, Session: session, Prompt: c.Cmdline,
 			StartedAt: time.UnixMilli(c.At), Duration: time.Duration(c.DurationMS) * time.Millisecond,
 			State: state, Exit: c.Exit, Command: &cmd,
 		})
@@ -53,7 +53,7 @@ func ShellTurns(session string, cmds []Command, running string) []Turn {
 		if len(sorted) > 0 {
 			next = sorted[len(sorted)-1].Seq + 1
 		}
-		out = append(out, Turn{ID: fmt.Sprintf("shell:%d", next), Source: SourceShell, Session: session, Prompt: running, State: StateRunning})
+		out = append(out, Turn{ID: fmt.Sprintf("shell:%s:%d", session, next), Source: SourceShell, Session: session, Prompt: running, State: StateRunning})
 	}
 	return out
 }
@@ -125,7 +125,10 @@ func ShellOutput(ctx context.Context, cap Capturer, c Command, chunk int) ([]str
 	if !inside {
 		return nil, ErrLeftHistory
 	}
-	out = skipPrompt(out, promptLine, c.Cmdline)
+	out, extra := skipPrompt(out, promptLine, c.Cmdline)
+	if c.End < 0 {
+		out = dropPrompt(out, promptLine, c.Cmdline, extra)
+	}
 	for len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
 		out = out[:len(out)-1]
 	}
@@ -134,18 +137,53 @@ func ShellOutput(ctx context.Context, cap Capturer, c Command, chunk int) ([]str
 
 // skipPrompt drops the rest of a prompt that spans lines: when the
 // prompt's own line does not hold the command line, the first of the next
-// few lines that does is the prompt's last.
-func skipPrompt(out []string, promptLine, cmdline string) []string {
-	want := strings.TrimSpace(strings.SplitN(cmdline, "\n", 2)[0])
+// few lines that does is the prompt's last. It says how many it dropped.
+func skipPrompt(out []string, promptLine, cmdline string) ([]string, int) {
+	want := firstCmdLine(cmdline)
 	if want == "" || strings.Contains(promptLine, want) {
-		return out
+		return out, 0
 	}
 	for i := 0; i < min(4, len(out)); i++ {
 		if strings.Contains(out[i], want) {
-			return out[i+1:]
+			return out[i+1:], i + 1
+		}
+	}
+	return out, 0
+}
+
+// dropPrompt drops the prompt the shell waits at after the last command
+// (read to the end of the buffer): the line that starts as the command's
+// own prompt line did, and the extra lines a prompt over several lines
+// put above it.
+func dropPrompt(out []string, promptLine, cmdline string, extra int) []string {
+	prefix := promptPrefix(promptLine, firstCmdLine(cmdline))
+	for i := len(out) - 1; i >= max(0, len(out)-3); i-- {
+		l := strings.TrimRight(out[i], " ")
+		switch {
+		case extra > 0 && strings.TrimSpace(l) != "" && strings.TrimSpace(l) == strings.TrimSpace(promptLine):
+			return out[:i] // a prompt over lines: its first line repeats
+		case extra == 0 && prefix != "" && strings.HasPrefix(l, prefix):
+			return out[:i]
 		}
 	}
 	return out
+}
+
+// promptPrefix is what a prompt line draws before the command line, the
+// spaces after it trimmed: "$" in "$ make".
+func promptPrefix(promptLine, cmd string) string {
+	if cmd == "" {
+		return ""
+	}
+	i := strings.Index(promptLine, cmd)
+	if i <= 0 {
+		return ""
+	}
+	return strings.TrimRight(promptLine[:i], " ")
+}
+
+func firstCmdLine(cmdline string) string {
+	return strings.TrimSpace(strings.SplitN(cmdline, "\n", 2)[0])
 }
 
 // rowsOf consumes the rows the joined line is made of and says how many.

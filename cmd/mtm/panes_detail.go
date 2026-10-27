@@ -918,18 +918,27 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 		}
 		a.wrapTurns(a.pv.turns, width)
 		list := a.pv.turns.List()
+		st := a.turnFillOf(a.pv.turns)
 		if list.Len() == 0 {
 			a.detail.panes.hide()
 			a.r.Placed(turnsTreeID + "/list")
-			return ochazuke.Text("no turns recorded yet")
+			return ochazuke.Text(a.noTurnsText(st))
 		}
 		if list.Focused() {
 			// In the tree the selection moves and the tree keeps it in
 			// view; J and K scroll it only from the pane list.
 			a.detail.panes.hide()
-			return a.pv.turns.Block(width, height)
+			block := a.pv.turns.Block(width, height)
+			if st.model {
+				block = block.WithText(a.styleTurnRows(block.Text))
+			}
+			return block
 		}
-		return ochazuke.Text(a.detail.panes.lines(a.pv.turns.Block(width, list.Len()).Text, 0, width, height))
+		text := a.pv.turns.Block(width, list.Len()).Text
+		if st.model {
+			text = a.styleTurnRows(text)
+		}
+		return ochazuke.Text(a.detail.panes.lines(text, 0, width, height))
 	}
 	text, ok := a.pv.text[fmt.Sprintf("%s|%d", row, a.pv.tab)]
 	if !ok {
@@ -982,7 +991,7 @@ func (a *App) subscribeEvents() tea.Cmd {
 	a.pv.subscribed = true
 	a.pv.events = make(chan struct{}, 1)
 	go func() {
-		types := []string{"window-created", "window-closed", "window-exit", "window-retitled", "agent-state", "session-created", "session-closed"}
+		types := []string{"window-created", "window-closed", "window-exit", "window-retitled", "agent-state", "session-created", "session-closed", "command-started", "command-finished"}
 		for {
 			events, failures := a.daemon.Subscribe(context.Background(), types, 0, "")
 			for range events {

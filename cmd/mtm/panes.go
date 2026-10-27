@@ -88,6 +88,7 @@ type pane struct {
 	Harness           string            `json:"harness,omitempty"`
 	StateAt           int64             `json:"state_at,omitempty"`
 	NeedsYou          bool              `json:"needs_you,omitempty"`
+	AgentSession      string            `json:"agent_session,omitempty"`  // the agent's session id (list-agents), the Turns tab's log
 	Model             string            `json:"model,omitempty"`          // from the launch recipe, when mtm started it
 	LaunchHarness     string            `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
 	LaunchFlags       []string          `json:"launch_flags,omitempty"`   // the recipe's argv after the command
@@ -204,7 +205,7 @@ type daemonChanged struct{}
 // noun (refresh).
 func (a *App) definePanes() {
 	r := a.r
-	a.pv = &paneUI{text: map[string]string{}, lastState: map[string]string{}, after: func(d time.Duration, msg tea.Msg) tea.Cmd {
+	a.pv = &paneUI{tab: tabTurns, text: map[string]string{}, lastState: map[string]string{}, after: func(d time.Duration, msg tea.Msg) tea.Cmd {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 	}}
 	r.Define("pane").
@@ -215,6 +216,7 @@ func (a *App) definePanes() {
 		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
 		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Fetch().Quiet().
 		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Fetch().Quiet().
+		Verb("read-turns", a.readPaneTurns, "Read the pane's turns from the agent's session log or the shell's commands into the Turns tab").Fetch().Quiet().
 		Mode("normal").
 		Bind("enter", ochazuke.Do("pane.attach")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
@@ -443,6 +445,7 @@ func (a *App) setPanes(panes []pane, err error) {
 		}
 	}
 	a.recordTurns(panes)
+	a.recordAgentSessions(panes)
 	a.feed.setPanes(panes)
 	a.pv.view = a.buildPaneTree(panes, time.Now())
 	before, hadRow := a.pv.tree.Selected()
@@ -463,6 +466,7 @@ func (a *App) setPanes(panes []pane, err error) {
 	if err := a.refreshVim(); err != nil {
 		a.paneErr = err.Error()
 	}
+	a.pollTurns()
 }
 
 // markPanes keeps what the listing alone does not say: a window seen
@@ -787,6 +791,9 @@ type agentRow struct {
 	StateAt  int64          `json:"agent_state_at"`
 	NeedsYou bool           `json:"needs_you"`
 	Meta     map[string]any `json:"meta"`
+	// Session is the agent's own session id (a Claude Code or omp
+	// session), which names its log (turns_model.go).
+	Session string `json:"agent_session_id"`
 }
 
 // agents reads list-agents for every window of every session; a daemon
@@ -927,7 +934,7 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 		for _, w := range windows {
 			p := pane{Session: s.Name, SessionID: s.ID, Pane: w}
 			if ag, ok := agents[w.ID]; ok {
-				p.Harness, p.StateAt, p.NeedsYou = ag.Harness, ag.StateAt/int64(time.Millisecond), ag.NeedsYou
+				p.Harness, p.StateAt, p.NeedsYou, p.AgentSession = ag.Harness, ag.StateAt/int64(time.Millisecond), ag.NeedsYou, ag.Session
 				for k, v := range ag.Meta {
 					if s := strings.TrimSpace(fmt.Sprint(v)); v != nil && s != "" {
 						if p.Meta == nil {

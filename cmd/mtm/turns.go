@@ -39,10 +39,27 @@ func (a *App) addTurns() error {
 	a.r.DefineGuard("pane-tab-turns", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.pv.tab == tabTurns })
 	// esc in the tree goes back up to the pane row the turns belong to, as
 	// the note body's esc goes back to the notes list.
-	for _, noun := range []string{"turn", "turn-line"} {
+	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {
 		a.r.Define(noun).
 			Verb("back", a.turnsBack, "Go back to the pane row the turns belong to").
 			Mode("normal").Bind("esc", ochazuke.Do(noun+".back"))
+	}
+	// y copies a turn's response, Y its prompt and response, from its row
+	// or any line of it; too large for the clipboard, or with no clipboard
+	// program, it is offered as a file or a pager (turns_model.go).
+	for _, noun := range []string{"turn", "turn-line", "turn-step"} {
+		a.r.Define(noun).
+			Verb("copy", a.copyTurn(false), "Copy the turn's response (a shell turn's whole output)").
+			Verb("copy-all", a.copyTurn(true), "Copy the turn's prompt and response").
+			Mode("normal").
+			Bind("y", ochazuke.Do(noun+".copy")).
+			Bind("Y", ochazuke.Do(noun+".copy-all"))
+	}
+	// A thinking or tool step opens and closes as the tree's rows do (l, h);
+	// enter flips it.
+	a.r.Define("turn-step").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
+	for _, name := range []string{settingTurnsThinking, settingTurnsThinkingOpen, settingTurnsTools, settingTurnsToolsOpen} {
+		a.r.Settings().Observe(name, func(string, any) { a.turnSettingsChanged() })
 	}
 	tree, err := a.r.AddTree(turnsTreeID, nil, ochazuke.Parent(panesPage))
 	if err != nil {
@@ -127,6 +144,8 @@ type turnRef struct {
 	Review     bool   // the row is in the Review page's tree
 	Line       int    // a turn-line row's source line in turnLines (-1 on the turn's row)
 	Offset     int    // the rune offset in that line where the row's piece starts (turn_wrap.go)
+	Model      bool   // a turn read from the agent's log or the shell (turns_model.go), not the journal
+	Step       string // a turn-step row's kind (thinking, tool)
 }
 
 // fillTurns fills a turns tree with a window's turns, each row's id
@@ -157,6 +176,11 @@ func (a *App) showTurns(row string) error {
 		return err
 	}
 	fresh := a.pv.turnsFor != row
+	if a.turnKind(p) != turnsJournal {
+		a.pv.turnsFor = row
+		return a.showModelTurns(row, p, fresh)
+	}
+	a.turnFillOf(a.pv.turns).model = false
 	if _, err := a.fillTurns(a.pv.turns, "turn:", p.ID, turnRef{Back: row}, fresh); err != nil {
 		return err
 	}
@@ -211,6 +235,9 @@ func (a *App) openTurn(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(fmt.Errorf("select a turn"))
 	}
 	ref, _ := ctx.Instance.Data.(turnRef)
+	if ref.Model {
+		return a.openModelTurn(ctx, ref)
+	}
 	if err := a.markTurn(ref.Window, ref.ID); err != nil {
 		return ochazuke.Failed(err)
 	}

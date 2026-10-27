@@ -32,6 +32,14 @@ type Pane struct {
 	Focused    bool   `json:"focused"`
 	Minimized  bool   `json:"minimized"`
 	Revision   uint64 `json:"revision"`
+	// What a shell that sends OSC 133 marks reports (only then present):
+	// MarksCommands once it marked a command's start, CommandSeq counting
+	// its finished commands, AtPrompt while it waits at a prompt, and
+	// RunningCmdline the command it runs now.
+	MarksCommands  bool   `json:"marks_commands,omitempty"`
+	CommandSeq     uint64 `json:"command_seq,omitempty"`
+	AtPrompt       bool   `json:"at_prompt,omitempty"`
+	RunningCmdline string `json:"running_cmdline,omitempty"`
 }
 
 func (c *Client) Sessions(ctx context.Context) ([]Session, error) {
@@ -146,6 +154,10 @@ type CaptureParams struct {
 	Lines      int      `json:"lines,omitempty"`
 	Start      *int     `json:"start,omitempty"`
 	End        *int     `json:"end,omitempty"`
+	// Unwrap joins the rows the terminal soft-wrapped; Start and End then
+	// count the joined lines. Trim drops the blank lines at the end.
+	Unwrap bool `json:"unwrap,omitempty"`
+	Trim   bool `json:"trim,omitempty"`
 }
 type CaptureResult struct {
 	Content     string `json:"content"`

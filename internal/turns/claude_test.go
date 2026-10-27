@@ -33,8 +33,10 @@ func assistant(uuid, ts, stop string, blocks ...map[string]any) string {
 		"message": map[string]any{"role": "assistant", "content": blocks, "stop_reason": stop}})
 }
 
-func text(s string) map[string]any     { return map[string]any{"type": "text", "text": s} }
-func thinking(s string) map[string]any { return map[string]any{"type": "thinking", "thinking": s, "signature": "x"} }
+func text(s string) map[string]any { return map[string]any{"type": "text", "text": s} }
+func thinking(s string) map[string]any {
+	return map[string]any{"type": "thinking", "thinking": s, "signature": "x"}
+}
 func toolUse(id, name string, input map[string]any) map[string]any {
 	return map[string]any{"type": "tool_use", "id": id, "name": name, "input": input}
 }

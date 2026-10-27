@@ -10,6 +10,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/history"
+	"github.com/unixsuperhero/matomeru/internal/turns"
 )
 
 // An opened turn's lines wrap to the width the tree draws them at, the way
@@ -40,6 +41,17 @@ type turnFill struct {
 	back           turnRef
 	turns          []history.PaneTurn
 	width          int // the text width the lines were wrapped at; 0 (not drawn yet) does not wrap
+	// A fill of turns read from the agent's log or the shell's marks
+	// (turns_model.go) instead of the journal: model is set, mturns are the
+	// turns, source what was read of the pane. known are the nodes whose
+	// open or closed state was settled (a new one closes), built the open
+	// turns whose lines the fill holds, nodes what the fill pushed.
+	model  bool
+	mturns []turns.Turn
+	source *paneTurns
+	known  map[string]bool
+	built  map[string]bool
+	nodes  []ochazuke.TreeNode
 }
 
 // turnPiece is one row of a wrapped line: its text and the rune offset in
@@ -178,7 +190,13 @@ func (a *App) setTurnNodes(tree *ochazuke.Tree, st *turnFill) error {
 	if n, ok := tree.Selected(); ok && n.Noun == "turn-line" {
 		was, _ = n.Data.(turnRef)
 	}
-	nodes := turnNodes(st, a.location())
+	var nodes []ochazuke.TreeNode
+	if st.model {
+		nodes = a.modelTurnNodes(tree, st)
+	} else {
+		nodes = turnNodes(st, a.location())
+	}
+	st.nodes = nodes
 	if err := tree.SetNodes(nodes); err != nil {
 		return err
 	}
@@ -206,11 +224,17 @@ func (a *App) wrapTurns(tree *ochazuke.Tree, width int) {
 	if len(tree.List().Marked()) > 0 {
 		w -= 2 // the marks' gutter
 	}
-	if w < 1 || w == st.width {
+	if w < 1 || w == st.width && !(st.model && turnsNeedBuild(tree, st)) {
 		return
 	}
 	st.width = w
-	if err := a.setTurnNodes(tree, st); err != nil {
+	var err error
+	if st.model {
+		err = a.refillModelTurns(tree, st)
+	} else {
+		err = a.setTurnNodes(tree, st)
+	}
+	if err != nil {
 		a.r.UI().Status(err.Error())
 	}
 }

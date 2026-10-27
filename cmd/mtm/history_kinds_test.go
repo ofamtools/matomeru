@@ -18,7 +18,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		"context-item.list", "dirs.bases", "dirs.list", "dirs.refresh",
 		"extension.available", "extension.list",
 		"harness.list", "harness.models", "harness.names",
-		"note.list", "pane.activity", "pane.list", "pane.preview", "pane.transcript",
+		"note.list", "pane.activity", "pane.list", "pane.preview", "pane.read-turns", "pane.transcript",
 		"panes.refresh", "projects.directories", "projects.list", "projects.state",
 		"review.list", "saved.list", "session.list", "setup.list", "setup.plan",
 		"store.tables", "task.list", "vim.list",
