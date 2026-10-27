@@ -172,6 +172,7 @@ type paneUI struct {
 	subscribed bool
 	exited     map[string]bool // windows seen exited, kept across plain listings
 	listed     bool            // a listing has succeeded (the Vim page's state follows it)
+	leader     string          // the leader the page's leader rows are bound to (panes_leader.go)
 }
 
 // Timers of the panes page.
@@ -277,6 +278,9 @@ func (a *App) addPanesPage() error {
 		if err := a.r.Bind(b); err != nil {
 			return err
 		}
+	}
+	if err := a.bindPageLeader(); err != nil {
+		return err
 	}
 	// While the daemon does not answer (the list shows "daemon is not
 	// running") e runs daemon.ensure; with the daemon up it is no key.

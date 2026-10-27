@@ -25,7 +25,7 @@ func (a *App) definePaneStars() {
 		Mode("normal").Bind("*", ochazuke.Do("pane.star"))
 	a.parameters("pane.star", map[string]ochazuke.Parameter{"starred": {Type: "boolean"}})
 	a.r.Define("panes").Verb("starred", a.nextStarred, "Select the next starred pane (wrapping)")
-	a.r.Define("terminal").Verb("starred", a.cycleStarred, "Attach the next starred pane (wrapping), live")
+	a.r.Define("terminal").Verb("starred", a.cycleStarred, "Attach the next starred pane (wrapping), live; outside live, select it")
 }
 
 // starPane is pane.star.
@@ -104,8 +104,12 @@ func (a *App) nextStarred(ochazuke.Ctx) ochazuke.Result {
 }
 
 // cycleStarred is terminal.starred (leader s): attach the next starred
-// pane after the attached one, as terminal.cycle attaches the next pane.
-func (a *App) cycleStarred(ochazuke.Ctx) ochazuke.Result {
+// pane after the attached one, as terminal.cycle attaches the next pane;
+// outside live it selects the next starred pane, as ` does.
+func (a *App) cycleStarred(ctx ochazuke.Ctx) ochazuke.Result {
+	if !a.inLive() {
+		return a.nextStarred(ctx)
+	}
 	id := a.starredAfter(a.attached.rowID())
 	if id == "" {
 		a.r.UI().Status(noStarredPanes)
