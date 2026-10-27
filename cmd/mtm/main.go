@@ -300,6 +300,7 @@ type App struct {
 	paneErr        string     // why the last listing failed (the daemon is not reachable)
 	preview        preview    // the last captured screen, shown while no terminal is attached
 	attached       pane       // the pane the attached terminal streams
+	recent         paneVisits // when each pane was last attached (pane_picker.go)
 	held           heldStream // the attached pane's stream, parked after detach
 	sides          map[string]sideState
 	companionPanes map[string]pane
@@ -426,6 +427,7 @@ func New(opts Options) (*App, error) {
 	a.defineNotes()
 	a.defineLaunch()
 	a.definePanes()
+	a.definePanePicker()
 	a.defineReviews()
 	a.definePin()
 	a.defineOwners()
