@@ -34,27 +34,104 @@ func mono(t *testing.T, a *App) {
 	}
 }
 
-// highlighted is the stripped text of a frame's reverse-video rows.
-func highlighted(raw string) []string {
-	var out []string
-	for _, line := range strings.Split(raw, "\n") {
-		if strings.Contains(line, "\x1b[7m") {
-			out = append(out, strings.TrimSpace(ansi.Strip(line)))
+// highlight is one run of reverse video in a frame: its stripped text and
+// whether faint was on when it started (a dimmed highlight: an unfocused
+// list's selected row, a page row beneath a modal).
+type highlight struct {
+	text   string
+	dimmed bool
+}
+
+// highlights follows the SGR state along a raw frame, as ochazuke's
+// story runner does: faint on via 2, off via 22, 0 or a bare reset;
+// reverse on via 7, off via 27, 0 or a bare reset (and at a line's end).
+func highlights(raw string) []highlight {
+	var out []highlight
+	var text strings.Builder
+	faint, reverse, dimmed := false, false, false
+	end := func() {
+		if reverse {
+			out = append(out, highlight{strings.TrimSpace(text.String()), dimmed})
 		}
+		reverse = false
+		text.Reset()
 	}
+	for i := 0; i < len(raw); i++ {
+		if raw[i] == '\n' {
+			end()
+			faint = false
+			continue
+		}
+		if raw[i] != 0x1b || i+1 >= len(raw) || raw[i+1] != '[' {
+			if reverse {
+				text.WriteByte(raw[i])
+			}
+			continue
+		}
+		j := i + 2
+		for j < len(raw) && (raw[j] >= '0' && raw[j] <= '9' || raw[j] == ';' || raw[j] == ':') {
+			j++
+		}
+		if j >= len(raw) || raw[j] != 'm' {
+			continue
+		}
+		for _, p := range strings.Split(raw[i+2:j], ";") {
+			switch p {
+			case "", "0":
+				end()
+				faint = false
+			case "2":
+				faint = true
+			case "22":
+				faint = false
+			case "7":
+				if !reverse {
+					reverse, dimmed = true, faint
+				}
+			case "27":
+				end()
+			}
+		}
+		i = j
+	}
+	end()
 	return out
 }
 
+// highlighted is the text of a frame's full-strength and dimmed
+// highlights.
+func highlighted(raw string) (full, dimmed []string) {
+	for _, h := range highlights(raw) {
+		if h.dimmed {
+			dimmed = append(dimmed, h.text)
+		} else {
+			full = append(full, h.text)
+		}
+	}
+	return full, dimmed
+}
+
 // The work page draws projects and tasks; only the focused list's selected
-// row stands out (reverse video), and no row carries a cursor marker.
+// row stands out at full strength (reverse video), the unfocused list's
+// selected row keeps a dimmed highlight (reverse under faint, ochazuke's
+// dim-unfocused), and no row carries a cursor marker.
 func TestWorkPageShowsOneSelectedRow(t *testing.T) {
 	app := open(t)
 	mono(t, app)
-	check := func(want string) {
+	check := func(want string, faded ...string) {
 		t.Helper()
 		raw := rawFrame(app)
-		if got := highlighted(raw); len(got) != 1 || !strings.Contains(got[0], want) {
-			t.Fatalf("highlighted rows %q, want one with %q:\n%s", got, want, ansi.Strip(raw))
+		full, dimmed := highlighted(raw)
+		if len(full) != 1 || !strings.Contains(full[0], want) {
+			t.Fatalf("full-strength highlights %q, want one with %q:\n%s", full, want, ansi.Strip(raw))
+		}
+		if len(dimmed) != len(faded) {
+			t.Fatalf("dimmed highlights %q, want %q:\n%s", dimmed, faded, ansi.Strip(raw))
+		}
+		for i, text := range faded {
+			if !strings.Contains(dimmed[i], text) {
+				t.Fatalf("dimmed highlights %q, want %q:\n%s", dimmed, faded, ansi.Strip(raw))
+			}
 		}
 		for _, line := range strings.Split(ansi.Strip(raw), "\n") {
 			if strings.HasPrefix(strings.TrimSpace(line), "> ") {
@@ -62,11 +139,11 @@ func TestWorkPageShowsOneSelectedRow(t *testing.T) {
 			}
 		}
 	}
-	check("ochazuke")
+	check("ochazuke") // ochazuke has no tasks: no other row to dim
 	app.m.Update(keyMsg("j"))
 	app.m.Update(keyMsg("enter")) // matomeru's tasks: the focus moves to them
 	if !strings.Contains(frame(app), "write the brief") {
 		t.Fatalf("tasks not shown:\n%s", frame(app))
 	}
-	check("write the brief")
+	check("write the brief", "◆ matomeru") // the projects list keeps its row, dimmed
 }

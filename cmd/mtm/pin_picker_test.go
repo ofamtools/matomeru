@@ -599,9 +599,10 @@ func TestDirectoryChooserCutsThePathLast(t *testing.T) {
 }
 
 // R2, owner decision (2026-10-26): "dim only". Under a modal the page's
-// selected row keeps its highlight, dimmed: the backdrop line opens faint
-// and the reverse video sits inside it, while the modal's own row is the
-// one full-strength highlight. Two highlighted rows, one of them dimmed.
+// highlights stay, dimmed: reverse video under faint, the selected project
+// row and (ochazuke dims an unfocused list instead of hiding its row) the
+// tasks list's selected row, while the modal's own row is the one
+// full-strength highlight.
 func TestModalBackdropDimsThePageHighlight(t *testing.T) {
 	app := open(t)
 	press(t, app, "j")
@@ -609,29 +610,15 @@ func TestModalBackdropDimsThePageHighlight(t *testing.T) {
 	if top := app.r.TopModal(); top != pinPicker {
 		t.Fatalf("top modal %q", top)
 	}
-	var backdrop, panel []string
-	for _, line := range strings.Split(rawFrame(app), "\n") {
-		at := strings.Index(line, "\x1b[7m")
-		if at < 0 {
-			continue
-		}
-		if strings.Contains(line[:at], "│") {
-			panel = append(panel, line)
-			continue
-		}
-		backdrop = append(backdrop, line)
+	raw := rawFrame(app)
+	full, dimmed := highlighted(raw)
+	if len(full) != 1 || !strings.Contains(full[0], "◆ matomeru  2 open") {
+		t.Fatalf("full-strength highlights %q, want the modal's row alone", full)
 	}
-	if len(backdrop) != 1 || len(panel) != 1 {
-		t.Fatalf("highlighted lines: backdrop %q, panel %q", backdrop, panel)
+	if !strings.Contains(raw, "│ \x1b[7m") {
+		t.Fatal("the full-strength highlight is not inside the modal's panel")
 	}
-	before, _, _ := strings.Cut(backdrop[0], "\x1b[7m")
-	if !strings.HasPrefix(before, "\x1b[2m") || strings.Contains(before, "\x1b[m") || strings.Contains(before, "\x1b[0m") || strings.Contains(before, "\x1b[22m") {
-		t.Fatalf("the page's highlight beneath the modal is not dimmed: %q", backdrop[0])
-	}
-	if !strings.Contains(ansi.Strip(backdrop[0]), "◆ matomeru") {
-		t.Fatalf("the dimmed highlight is not the selected project row: %q", ansi.Strip(backdrop[0]))
-	}
-	if !strings.Contains(panel[0], "│ \x1b[7m") {
-		t.Fatalf("the modal's row is not a full-strength highlight: %q", panel[0])
+	if len(dimmed) != 2 || !strings.Contains(dimmed[0], "write the brief") || !strings.Contains(dimmed[1], "◆ matomeru") {
+		t.Fatalf("dimmed highlights %q, want the tasks list's row and the selected project row beneath the modal", dimmed)
 	}
 }
