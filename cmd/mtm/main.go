@@ -339,6 +339,7 @@ type App struct {
 	// ompSessions is omp's sessions directory (turns.OmpSessions); tests
 	// point it at a temporary directory.
 	ompSessions string
+	pb          *promptBox // the Turns tab's prompt box (prompt_box.go)
 	answer      *ochazuke.Input
 	answerDraft string // the answer text last written as the opened review's draft
 	noteList    *ochazuke.List

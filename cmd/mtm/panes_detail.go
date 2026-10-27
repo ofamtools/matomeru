@@ -916,29 +916,14 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 			a.detail.panes.hide()
 			return ochazuke.Text("loading…")
 		}
-		a.wrapTurns(a.pv.turns, width)
-		list := a.pv.turns.List()
-		st := a.turnFillOf(a.pv.turns)
-		if list.Len() == 0 {
-			a.detail.panes.hide()
-			a.r.Placed(turnsTreeID + "/list")
-			return ochazuke.Text(a.noTurnsText(st))
+		// An agent's turns end in the prompt box (prompt_box.go), pinned
+		// to the bottom, drawn after the tree so } and tab reach it next.
+		if p := a.promptPane(); p != nil && height > 3 {
+			boxH := a.promptBoxHeight()
+			turns := a.turnsBody(width, height-boxH)
+			return stackBlocks(turns, height-boxH, a.promptBoxBlock(*p, width))
 		}
-		if list.Focused() {
-			// In the tree the selection moves and the tree keeps it in
-			// view; J and K scroll it only from the pane list.
-			a.detail.panes.hide()
-			block := a.pv.turns.Block(width, height)
-			if st.model {
-				block = block.WithText(a.styleTurnRows(block.Text))
-			}
-			return block
-		}
-		text := a.pv.turns.Block(width, list.Len()).Text
-		if st.model {
-			text = a.styleTurnRows(text)
-		}
-		return ochazuke.Text(a.detail.panes.lines(text, 0, width, height))
+		return a.turnsBody(width, height)
 	}
 	text, ok := a.pv.text[fmt.Sprintf("%s|%d", row, a.pv.tab)]
 	if !ok {
@@ -948,6 +933,51 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	// Long lines wrap to the panel, so an explanation or a reply reads
 	// whole; the newest stay at the bottom until K scrolls back.
 	return ochazuke.Text(a.detail.panes.lines(text, max(1, width), width, height))
+}
+
+// turnsBody is the Turns tab's tree at width x height.
+func (a *App) turnsBody(width, height int) ochazuke.Block {
+	a.wrapTurns(a.pv.turns, width)
+	list := a.pv.turns.List()
+	st := a.turnFillOf(a.pv.turns)
+	if list.Len() == 0 {
+		a.detail.panes.hide()
+		a.r.Placed(turnsTreeID + "/list")
+		return ochazuke.Text(a.noTurnsText(st))
+	}
+	if list.Focused() {
+		// In the tree the selection moves and the tree keeps it in
+		// view; J and K scroll it only from the pane list.
+		a.detail.panes.hide()
+		block := a.pv.turns.Block(width, height)
+		if st.model {
+			block = block.WithText(a.styleTurnRows(block.Text))
+		}
+		return block
+	}
+	text := a.pv.turns.Block(width, list.Len()).Text
+	if st.model {
+		text = a.styleTurnRows(text)
+	}
+	return ochazuke.Text(a.detail.panes.lines(text, 0, width, height))
+}
+
+// stackBlocks puts bottom under top, top cut or padded to height lines;
+// the cursor is whichever block holds one, moved to where it lands.
+func stackBlocks(top ochazuke.Block, height int, bottom ochazuke.Block) ochazuke.Block {
+	lines := strings.Split(strings.TrimRight(top.Text, "\n"), "\n")
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	lines = lines[:height]
+	out := ochazuke.Block{Text: strings.Join(lines, "\n") + "\n" + bottom.Text}
+	switch {
+	case top.Cursor != nil && top.Cursor.Y < height:
+		out.Cursor = top.Cursor
+	case bottom.Cursor != nil:
+		out.Cursor = bottom.Offset(0, height).Cursor
+	}
+	return out
 }
 
 // groupSummary describes a session or project row: its panes and owner.

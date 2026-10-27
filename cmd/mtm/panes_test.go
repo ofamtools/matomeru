@@ -35,6 +35,27 @@ type fakePanes struct {
 	fits []string
 	// sentText are the texts PasteText typed, "window text".
 	sentText []string
+	// prompts are the prompt box's calls, "submit|interrupt|queue window
+	// text"; queued answers a queue, queueErr and promptErr fail them.
+	prompts   []string
+	queued    daemon.QueuePromptResult
+	queueErr  error
+	promptErr error
+}
+
+func (f *fakePanes) PromptSubmit(_ context.Context, p pane, text string) error {
+	f.prompts = append(f.prompts, "submit "+p.ID+" "+text)
+	return f.promptErr
+}
+
+func (f *fakePanes) PromptInterrupt(_ context.Context, p pane) error {
+	f.prompts = append(f.prompts, "interrupt "+p.ID)
+	return f.promptErr
+}
+
+func (f *fakePanes) PromptQueue(_ context.Context, p pane, text string) (daemon.QueuePromptResult, error) {
+	f.prompts = append(f.prompts, "queue "+p.ID+" "+text)
+	return f.queued, f.queueErr
 }
 
 // PasteText records the text typed into a window that is not attached.

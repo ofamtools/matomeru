@@ -66,6 +66,9 @@ func (a *App) addTurns() error {
 		return err
 	}
 	a.pv.turns = tree
+	if err := a.addPromptBox(); err != nil {
+		return err
+	}
 	// A stop only while the Turns tab draws it: ochazuke skips a stop the
 	// last frame did not place.
 	return nil

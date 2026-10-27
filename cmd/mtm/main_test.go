@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
+	"github.com/unixsuperhero/matomeru/internal/compose"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/matomeru/store"
 )
@@ -146,6 +147,9 @@ func openWith(t *testing.T, opts Options) *App {
 	app.journalSrc = nil                           // the journal reader never follows the real daemon
 	app.claudeProjects = t.TempDir()               // no test reads the owner's Claude session logs
 	app.ompSessions = t.TempDir()                  // nor omp's
+	// The prompt box's completions read a home of the test's, never o-ai.
+	home := t.TempDir()
+	app.pb.sources = compose.NewSources(compose.Env{Home: home, ClaudeDir: filepath.Join(home, ".claude"), OmpDir: filepath.Join(home, ".omp", "agent")})
 	// Turns is the detail's default tab (TestTurnsIsTheDefaultTab); the
 	// tests of the Screen tab, written when it was the default, start there.
 	app.pv.tab = tabScreen

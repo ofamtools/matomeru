@@ -194,6 +194,58 @@ func (c *Client) SendText(ctx context.Context, p SendTextParams) error {
 	return c.Call(ctx, "send-text", p, nil)
 }
 
+// SendKeysParams are send-keys' params: keys in tuios's key grammar
+// (Enter, Escape, ctrl+c, …), split on spaces and commas.
+type SendKeysParams struct {
+	Session string `json:"session,omitempty"`
+	Window  string `json:"window"`
+	Keys    string `json:"keys"`
+}
+
+func (c *Client) SendKeys(ctx context.Context, p SendKeysParams) error {
+	if p.Window == "" {
+		return errors.New("send-keys requires an explicit window")
+	}
+	return c.Call(ctx, "send-keys", p, nil)
+}
+
+// QueuePromptParams are queue-prompt's params (the verb behind tuios
+// queue): the message is typed as a prompt once the agent in the pane
+// comes to rest, one per rest, never over a pane waiting on input.
+type QueuePromptParams struct {
+	Session string `json:"session,omitempty"`
+	Window  string `json:"window"`
+	Text    string `json:"text"`
+	From    string `json:"from,omitempty"`
+}
+
+// QueuePromptResult is queue-prompt's answer.
+type QueuePromptResult struct {
+	ID         string `json:"id"`
+	Position   int    `json:"position"`
+	Queued     int    `json:"queued"`
+	Delivering bool   `json:"delivering"`
+}
+
+// The delivery queue's bounds (tuios's [agents.queue] defaults): a pane
+// holds QueueMax messages of at most QueueMaxText bytes of text each.
+// queue-prompt refuses more with the code CodeQueueFull.
+const (
+	QueueMax     = 8
+	QueueMaxText = 16 << 10
+	// CodeQueueFull is the error code of a full queue.
+	CodeQueueFull = "queue_full"
+)
+
+func (c *Client) QueuePrompt(ctx context.Context, p QueuePromptParams) (QueuePromptResult, error) {
+	var out QueuePromptResult
+	if p.Window == "" {
+		return out, errors.New("queue-prompt requires an explicit window")
+	}
+	err := c.Call(ctx, "queue-prompt", p, &out)
+	return out, err
+}
+
 type ActivityParams struct {
 	Session  string `json:"session,omitempty"`
 	Window   string `json:"window"`

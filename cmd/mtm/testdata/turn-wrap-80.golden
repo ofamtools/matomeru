@@ -25,10 +25,10 @@
   ┃           andMoreArguments, andEvenMoreArguments) }                      ┃  
   ┃                                                                          ┃  
   ┃       See https://example.com/a/very/long/path/that/does/not/have/any/sp ┃  
-  ┃       aces/in/it/at/all/so/it/must/hard/break/somewhere.html             ┃  
-  ┃       日本語の文章も正しく折り返されるべきです。全角文字は二つのセルを占 ┃  
-  ┃ 1–15 / 17                                                                ┃  
+  ┃ 1–13 / 17                                                                ┃  
+  ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ────────────────────── ┃  
+  ┃ › write to the agent                                                     ┃  
   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
   ────────────────────────────────────────────────────────────────────────────  
-  l turn.open · esc turn.back · y turn.copy · Y turn.copy-all · space list.ma…  
+  l turn.open · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · sp…  
                                                                                 

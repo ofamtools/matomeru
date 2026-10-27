@@ -26,9 +26,9 @@
                                      ┃                                                                               ┃  
                                      ┃                                                                               ┃  
                                      ┃                                                                               ┃  
-                                     ┃                                                                               ┃  
-                                     ┃                                                                               ┃  
+                                     ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ─────────────────────────── ┃  
+                                     ┃ › write to the agent                                                          ┃  
                                      ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
-  l turn.open · esc turn.back · y turn.copy · Y turn.copy-all · space list.mark · ] next tab · [ previous tab · W pan…  
+  l turn.open · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · space list.mark · ] next tab · [ previous …  
                                                                                                                         

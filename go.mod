@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/unixsuperhero/ochazuke v0.15.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 )
 
