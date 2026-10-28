@@ -197,14 +197,17 @@ func (a *App) addPromptBox() error {
 		Verb("detach", a.detachPrompt, "Remove an attachment from the prompt: image n, the only one, else choose among them").
 		Mode("insert").
 		Bind("ctrl+v", ochazuke.Do(promptNoun+".paste").Hinted("paste/attach")).
-		Bind("enter", ochazuke.Do(promptNoun+".send")).
+		Bind("enter", ochazuke.Do(promptNoun+".send").Hinted("send")).
 		Bind("ctrl+j", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hinted("newline")).
 		Bind("alt+enter", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hide()).
-		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
+		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode").Hinted("mode")).
 		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
+		// up on the box's first line goes back up to the turns, as k
+		// does in normal mode; elsewhere it moves the cursor up a line.
+		Bind("up", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide()).
 		Mode("normal").
-		Bind("enter", ochazuke.Do(promptNoun+".send")).
-		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
+		Bind("enter", ochazuke.Do(promptNoun+".send").Hinted("send")).
+		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode").Hinted("mode")).
 		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
 		Bind("esc", ochazuke.Do(promptNoun+".back")).
 		// k (and up) on the box's first line goes back up to the turns, as

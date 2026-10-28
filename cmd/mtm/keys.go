@@ -65,9 +65,17 @@ func (a *App) defineKeyMap() error {
 
 // keyFor is the key that runs op at focus, as ? help lists it ("" when no
 // row answers), so a sentence that names a key cannot drift from its row.
+// A row with a Hint lists the hint in place of its operation, so the key
+// is also matched by the request the focus's row for it runs.
 func (a *App) keyFor(focus, op string) string {
+	runs := map[string]string{}
+	for _, b := range a.r.ListBindings(focus) {
+		if b.Keys != "" {
+			runs[b.Keys] = b.Request.Key()
+		}
+	}
 	for _, row := range ochazuke.BindingHelp(a.r, focus) {
-		if row.Operation == op {
+		if row.Operation == op || runs[row.Key] == op {
 			return row.Key
 		}
 	}
