@@ -106,7 +106,7 @@ func TestPasteCompletionKeepsTheFocusWhereItWent(t *testing.T) {
 			tc.set(clip)
 			typeText(t, app, "draft ")
 			paste := key(t, app, "ctrl+v") // the clipboard read is still running
-			press(t, app, "esc", "esc")     // insert, normal, then out to the turns
+			press(t, app, "esc", "esc")    // insert, normal, then out to the turns
 			left := app.r.Focus
 			if left == promptID {
 				t.Fatalf("esc esc stayed in the box: %s", where(app))
