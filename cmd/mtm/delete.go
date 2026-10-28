@@ -7,11 +7,15 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
+// projectDeleteConfirm is the delete confirm of a project or task (and of
+// a project's outline row): the record and what it orphans.
+const projectDeleteConfirm = "Delete {{label}}?\nOrphan:\n{{affected}}\nDirectories and panes are untouched."
+
 func (a *App) defineDeletion() {
 	for _, noun := range []string{"project", "task"} {
 		a.r.Define(noun).
 			Verb("delete", a.confirmDeletion, "Delete record; show affected owners before confirming").
-			Verb("confirm-delete", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm("Delete {{label}}?\nOrphan:\n{{affected}}\nDirectories and panes are untouched.").
+			Verb("confirm-delete", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm(projectDeleteConfirm).
 			Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
 		a.parameters(noun+".confirm-delete", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
 	}
@@ -52,6 +56,9 @@ func (a *App) deleteRecord(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if err := a.refreshScope(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.reloadOutline(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	ctx.Notify(fmt.Sprintf("Deleted %s; orphaned %s. Directories and panes untouched.", noun, counts.String()))
