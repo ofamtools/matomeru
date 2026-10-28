@@ -30,6 +30,8 @@ func reload(t *testing.T, a *App) {
 // leader keys) still answers on it.
 func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	app.renamer = &fakeRenamer{panes: f}
 	f.panes[1].Name = "Terminal 0e90e60d"
 	reload(t, app)
@@ -130,6 +132,8 @@ func TestMoveUsesTheProjectChooser(t *testing.T) {
 // renames, x kills the session after a confirm.
 func TestSessionRowVerbs(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	app.renamer = &fakeRenamer{panes: f}
 	press(t, app, "k")
 	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "session" {
@@ -353,6 +357,8 @@ func TestPluralCounts(t *testing.T) {
 		}
 	}
 	app, _ := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	press(t, app, "k") // the claude pane's session row
 	if app.r.Focus != "session:matomeru" {
 		t.Fatalf("focus %s", app.r.Focus)
@@ -367,6 +373,8 @@ func TestPluralCounts(t *testing.T) {
 // session named after its project does not read as the project twice.
 func TestNestedSessionRowsSaySession(t *testing.T) {
 	app, _ := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	if got := cells(app, "session:matomeru"); !strings.Contains(got, "▾ session matomeru (1)") {
 		t.Fatalf("session cells %q", got)
 	}

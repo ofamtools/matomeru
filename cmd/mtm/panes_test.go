@@ -263,6 +263,8 @@ func follow(a *App) tea.Cmd {
 
 func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	app, _ := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	if app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
@@ -314,6 +316,8 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 
 func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	first := follow(app)
 	press(t, app, "j", "j")
 	if app.r.Focus != "pane:ochazuke/w2" {
@@ -436,6 +440,8 @@ func TestLeaderZoomAndNextPane(t *testing.T) {
 
 func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
 	if app.r.Focus != "pane:matomeru/w1" {
@@ -551,6 +557,8 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 // agent's pane is the agent's row; a shell is a shell row.
 func TestPaneTreeIsATable(t *testing.T) {
 	app := open(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	if err := app.work.PutPaneRecipe(work.PaneRecipe{Window: "w1", Harness: "claude", Model: "opus"}); err != nil {
 		t.Fatal(err)
 	}
@@ -724,6 +732,8 @@ func TestAttachedPaneAsksForItsDrawnSize(t *testing.T) {
 func TestSessionRowHLExpandsAndStepsIn(t *testing.T) {
 	for _, right := range []string{"l", "right"} {
 		app, _ := panesApp(t)
+		// This test reads the session rows (project → session → pane).
+		groupBy(t, app, groupProjectSessionPane)
 		press(t, app, "k")
 		if app.r.Focus != "session:matomeru" {
 			t.Fatalf("k: focus %s", app.r.Focus)

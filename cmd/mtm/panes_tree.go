@@ -12,14 +12,15 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
-// The panes page's left side is an ochazuke tree: project → session →
-// pane in the all view (unassociated last), session → pane while pinned.
-// One row per window: a window running an agent is the agent's row (the
-// old app's rule: a harness, or an agent state other than none), with the
-// agent's state glyph, harness and age; a plain shell is a shell row. Every
-// pane verb answers on either. Rows that need input sort first in their
-// session, sessions and projects with one sort first, and the header
-// counts them.
+// The panes page's left side is an ochazuke tree grouped by the
+// panes.group setting (panes_group.go): project → pane by default, project
+// → session → pane, session → pane or flat; unassociated last, and while
+// pinned the project level is the pin. One row per window: a window
+// running an agent is the agent's row (the old app's rule: a harness, or
+// an agent state other than none), with the agent's state glyph, harness
+// and age; a plain shell is a shell row. Every pane verb answers on
+// either. Rows that need input sort first in their group, groups with one
+// first, and the header counts them.
 
 const (
 	paneTreeID  = "panes/tree"
@@ -292,8 +293,20 @@ func (v paneView) columns() []ochazuke.Column {
 }
 
 // buildPaneTree groups the panes by owner and session, in scope, with the
-// attached pane outside the pin as its own labelled group.
+// attached pane outside the pin as its own labelled group, and draws the
+// levels panes.group shows.
 func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
+	grouping := a.paneGrouping()
+	byProject := grouping == groupProjectPane || grouping == groupProjectSessionPane
+	showSessions := grouping == groupProjectSessionPane || grouping == groupSessionPane
+	// bucket is the group a pane's owner falls in: the owner when projects
+	// show, else one group for all (the outside pin keeps its own).
+	bucket := func(owner string) string {
+		if byProject || owner == outsideNode {
+			return owner
+		}
+		return ""
+	}
 	names := uniqueNames(panes)
 	projects := map[string]*paneProject{}
 	var order []string
@@ -330,7 +343,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		sessionKey := "session:" + cmp.Or(p.SessionID, p.Session)
 		if p.ID == "" {
 			if a.inScope(sessionOwner) {
-				group(sessionOwner, sessionKey, p)
+				group(bucket(sessionOwner), sessionKey, p)
 			}
 			continue
 		}
@@ -344,11 +357,13 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			view.hidden++
 			continue
 		}
+		// A session split between owners shows under each when projects
+		// show; the outside pin's copy of a session is its own row.
 		key := sessionKey
-		if owner != sessionOwner {
+		if byProject && owner != sessionOwner || !byProject && owner == outsideNode {
 			key += "@" + owner
 		}
-		g := group(owner, key, p)
+		g := group(bucket(owner), key, p)
 		g.panes = append(g.panes, p)
 	}
 	// Needs input first; then name order, unassociated and outside last.
@@ -367,13 +382,27 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		_, wy := py.count()
 		return cmp.Or(cmp.Compare(rank(x), rank(y)), -cmp.Compare(min(wx, 1), min(wy, 1)), cmp.Compare(px.label, py.label))
 	})
-	tree := a.pin == "" || a.all
+	needsInputFirst := func(x, y pane) int { return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput())) }
+	addPane := func(p pane, parent string) {
+		name := markerGutter(p) + " " + names[p.ID]
+		if p.Queued > 0 {
+			name += " " + queuedMarker
+		}
+		use := p.usageCell()
+		view.usage = view.usage || use != ""
+		view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: parent, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}, Tones: paneTones(p, name)})
+		view.order = append(view.order, p.rowID())
+	}
+	tree := byProject && (a.pin == "" || a.all)
 	for _, id := range order {
 		proj := projects[id]
 		slices.SortStableFunc(proj.sessions, func(x, y *paneGroup) int {
 			return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput()))
 		})
 		n, waiting := proj.count()
+		if n == 0 && !showSessions {
+			continue // only empty sessions, and sessions do not show
+		}
 		view.panes += n
 		view.waiting += waiting
 		parent := ""
@@ -384,8 +413,19 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			}
 			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: parent, Label: fmt.Sprintf("%s (%d)", proj.label, n), Noun: "pane-project", Data: id, Cells: []string{fmt.Sprintf("%s (%d)", proj.label, n), waitingCell(waiting)}})
 		}
+		if !showSessions {
+			var all []pane
+			for _, g := range proj.sessions {
+				all = append(all, g.panes...)
+			}
+			slices.SortStableFunc(all, needsInputFirst)
+			for _, p := range all {
+				addPane(p, parent)
+			}
+			continue
+		}
 		for _, g := range proj.sessions {
-			slices.SortStableFunc(g.panes, func(x, y pane) int { return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput())) })
+			slices.SortStableFunc(g.panes, needsInputFirst)
 			label := fmt.Sprintf("%s (%d)", shortSession(g.session.Session), len(g.panes))
 			_, w := (&paneProject{sessions: []*paneGroup{g}}).count()
 			cell := label
@@ -396,14 +436,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			}
 			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{cell, waitingCell(w)}})
 			for _, p := range g.panes {
-				name := markerGutter(p) + " " + names[p.ID]
-				if p.Queued > 0 {
-					name += " " + queuedMarker
-				}
-				use := p.usageCell()
-				view.usage = view.usage || use != ""
-				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}, Tones: paneTones(p, name)})
-				view.order = append(view.order, p.rowID())
+				addPane(p, g.id)
 			}
 		}
 	}

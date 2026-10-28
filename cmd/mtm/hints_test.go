@@ -119,6 +119,8 @@ func TestChooserFooterListsNoMotions(t *testing.T) {
 // UX review 2 F11: hints name what the key does at this focus.
 func TestStaleHintsAreGone(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	has := func(want string) bool {
 		for _, h := range hintKeys(app) {
 			if h == want {

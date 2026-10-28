@@ -69,6 +69,8 @@ func TestRenameAPaneFromItsRow(t *testing.T) {
 // and reloads the list under the new name.
 func TestRenameASession(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	for i := range f.panes {
 		f.panes[i].SessionID = "id-" + f.panes[i].Session
 	}
@@ -169,6 +171,8 @@ func pauseForm(t *testing.T, a *App, form *ochazuke.RecordEditor) {
 // session as the last one left it; an empty name is not written.
 func TestRenameASessionAsYouType(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	for i := range f.panes {
 		f.panes[i].SessionID = "id-" + f.panes[i].Session
 	}
