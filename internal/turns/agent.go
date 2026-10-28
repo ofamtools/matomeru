@@ -355,7 +355,6 @@ func (a *Agent) applyNotification(n notification, at time.Time, turn string) {
 	a.EndedAt, a.Notice = at, turn
 }
 
-
 // AgentMeta is a subagent's meta file (agent-<id>.meta.json).
 type AgentMeta struct {
 	ID          string `json:"-"`

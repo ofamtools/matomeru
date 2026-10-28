@@ -86,15 +86,15 @@ type ClaudeParser struct {
 	// Sidechain reads a subagent's own log, whose every record is
 	// isSidechain; else such records are the agents' (Agent.Inline).
 	Sidechain bool
-	turns   []Turn
-	cur     int  // the running turn's index, -1 (or no turns) for none
-	ended   bool // the running turn's agent said end_turn: a prompt now starts a new turn
-	tools   map[string][2]int
-	seen    map[string]bool
-	last    time.Time // the newest record's time in the running turn
-	started bool
-	cwd     string // the newest main-chain record's cwd
-	live    Live   // the session's settings as the log states them (settings.go)
+	turns     []Turn
+	cur       int  // the running turn's index, -1 (or no turns) for none
+	ended     bool // the running turn's agent said end_turn: a prompt now starts a new turn
+	tools     map[string][2]int
+	seen      map[string]bool
+	last      time.Time // the newest record's time in the running turn
+	started   bool
+	cwd       string // the newest main-chain record's cwd
+	live      Live   // the session's settings as the log states them (settings.go)
 	// Subagents: the spawn calls by agent id, an older log's inline
 	// subagent records by call, and where each notification's card is
 	// (its key: the call's id, else the task's), so a repeat folds in.
