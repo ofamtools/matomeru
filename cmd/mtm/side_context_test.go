@@ -14,6 +14,7 @@ import (
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
+	"github.com/unixsuperhero/matomeru/internal/turns"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -162,6 +163,54 @@ func TestSideFallsBackToTheProjectsFolder(t *testing.T) {
 				t.Fatalf("side %s windows %+v, want cwd %s (the project's)", kind, rec.windows, project)
 			}
 		})
+	}
+}
+
+// A Claude Code pane that cd'd inside the agent (its process, and so the
+// folder TUIOS reports, stays where it started): the side starts in the
+// folder the agent's newest transcript record names (owner, 2026-10-28:
+// hub/shell's agent was in ~/hub/o-plans, its side vim opened in ~/hub).
+func TestSideStartsInTheAgentsTranscriptFolder(t *testing.T) {
+	for _, kind := range []string{"term", "vim"} {
+		t.Run(kind, func(t *testing.T) {
+			if _, err := exec.LookPath("nvim"); kind == "vim" && err != nil {
+				t.Skip("nvim not installed; the side vim launch needs it")
+			}
+			started, agent := t.TempDir(), t.TempDir()
+			a, parent, rec := sideContextApp(t, 4, started)
+			ownSideParent(t, a, parent, t.TempDir())
+			a.panesd.(*fakePanes).panes[0].Harness = "claude-code"
+			a.panesd.(*fakePanes).panes[0].AgentSession = "s1"
+			a.claudeProjects = t.TempDir()
+			dir := filepath.Join(a.claudeProjects, turns.ClaudeProjectDir(started))
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			lines := `{"type":"user","uuid":"u1","sessionId":"s1","cwd":"` + started + `","message":{"role":"user","content":"hi"}}
+{"type":"user","uuid":"u2","sessionId":"s1","cwd":"` + agent + `","message":{"role":"user","content":"cd and go on"}}
+`
+			if err := os.WriteFile(filepath.Join(dir, "s1.jsonl"), []byte(lines), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			openSide(t, a, parent, kind)
+			if len(rec.windows) != 1 || rec.windows[0].Cwd != agent {
+				t.Fatalf("side %s windows %+v, want cwd %s (the agent's, from its transcript)", kind, rec.windows, agent)
+			}
+		})
+	}
+}
+
+// A Claude Code pane whose transcript cannot be found: the side starts in
+// the folder TUIOS reports, as before.
+func TestSideWithoutATranscriptUsesThePanesFolder(t *testing.T) {
+	now := t.TempDir()
+	a, parent, rec := sideContextApp(t, 4, now)
+	a.panesd.(*fakePanes).panes[0].Harness = "claude-code"
+	a.panesd.(*fakePanes).panes[0].AgentSession = "missing"
+	a.claudeProjects = t.TempDir()
+	openSide(t, a, parent, "term")
+	if len(rec.windows) != 1 || rec.windows[0].Cwd != now {
+		t.Fatalf("windows %+v, want cwd %s", rec.windows, now)
 	}
 }
 

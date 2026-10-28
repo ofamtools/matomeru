@@ -45,6 +45,7 @@ type claudeRecord struct {
 	UUID         string `json:"uuid"`
 	Timestamp    string `json:"timestamp"`
 	SessionID    string `json:"sessionId"`
+	Cwd          string `json:"cwd"`
 	IsSidechain  bool   `json:"isSidechain"`
 	IsMeta       bool   `json:"isMeta"`
 	IsAPIError   bool   `json:"isApiErrorMessage"`
@@ -85,6 +86,7 @@ type ClaudeParser struct {
 	seen    map[string]bool
 	last    time.Time // the newest record's time in the running turn
 	started bool
+	cwd     string // the newest main-chain record's cwd
 }
 
 func (p *ClaudeParser) init() {
@@ -112,6 +114,9 @@ func (p *ClaudeParser) Feed(line []byte) {
 		}
 		p.seen[r.UUID] = true
 	}
+	if r.Cwd != "" {
+		p.cwd = r.Cwd
+	}
 	at, _ := time.Parse(time.RFC3339Nano, r.Timestamp)
 	switch r.Type {
 	case "user":
@@ -136,6 +141,11 @@ func (p *ClaudeParser) Feed(line []byte) {
 		}
 	}
 }
+
+// Cwd is the folder the agent is in as its newest record says: Claude Code
+// writes the folder it works in on every record, and a Bash cd moves it
+// while the process's own folder stays where it started. "" before any.
+func (p *ClaudeParser) Cwd() string { return p.cwd }
 
 // running reports whether a turn is open.
 func (p *ClaudeParser) running() bool { return p.cur >= 0 && p.cur < len(p.turns) }
@@ -392,6 +402,49 @@ func (l *ClaudeLog) Turns() []Turn {
 	return l.parser.Turns()
 }
 
+// Cwd is the agent's folder as the log read so far says (ClaudeParser.Cwd).
+func (l *ClaudeLog) Cwd() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.parser.Cwd()
+}
+
+// cwdTail is how much of a log's end ClaudeLogCwd reads.
+const cwdTail = 256 << 10
+
+// ClaudeLogCwd is the agent's folder from the end of the log at path alone
+// (its last cwdTail bytes), for a caller that has not followed the log; ""
+// when it cannot be read or no record there names one.
+func ClaudeLogCwd(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return ""
+	}
+	start := max(0, info.Size()-cwdTail)
+	data, err := io.ReadAll(io.NewSectionReader(f, start, info.Size()-start))
+	if err != nil {
+		return ""
+	}
+	if start > 0 {
+		// The first line is cut; it starts after the first newline.
+		if i := bytes.IndexByte(data, '\n'); i >= 0 {
+			data = data[i+1:]
+		} else {
+			return ""
+		}
+	}
+	var p ClaudeParser
+	for _, line := range bytes.Split(data, []byte{'\n'}) {
+		p.Feed(line)
+	}
+	return p.Cwd()
+}
+
 // tail reads a growing file a line at a time: from where the last read
 // stopped, a last line without its newline held until the rest comes, and
 // a file that shrank (rewritten) read again from the start after reset.
@@ -497,6 +550,22 @@ func (c *LogChain) Read() (bool, error) {
 		}
 	}
 	return changed, errors.Join(errs...)
+}
+
+// Cwd is the agent's folder as the newest log that records one says, ""
+// when none does (a harness whose log has no folder, or nothing read yet).
+func (c *LogChain) Cwd() string {
+	c.mu.Lock()
+	logs := append([]Log(nil), c.logs...)
+	c.mu.Unlock()
+	for i := len(logs) - 1; i >= 0; i-- {
+		if l, ok := logs[i].(interface{ Cwd() string }); ok {
+			if cwd := l.Cwd(); cwd != "" {
+				return cwd
+			}
+		}
+	}
+	return ""
 }
 
 // Turns are every session's turns, chained.

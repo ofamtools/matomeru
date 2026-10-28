@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
+	"github.com/unixsuperhero/matomeru/internal/turns"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/matomeru/store"
 	"github.com/unixsuperhero/ochazuke"
@@ -110,7 +112,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("side pane is still opening"))
 	}
 	a.sideStarting[key] = true
-	pd, ws, launcher, dir, server := a.panesd, a.work, a.launcher, a.vimDir, a.server()
+	pd, ws, launcher, dir, server, projects := a.panesd, a.work, a.launcher, a.vimDir, a.server(), a.claudeProjects
 	fit := a.sideFit()
 	result := ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
 		panes, err := sideListing(c, pd, ws, server)
@@ -156,7 +158,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return nil, err
 		}
-		cwd := sideCwd(parent, sideProjectDir(ws, owner.ProjectID), recipe)
+		cwd := sideCwd(agentCwd(c, ws, projects, parent), parent, sideProjectDir(ws, owner.ProjectID), recipe)
 		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, cwd: cwd, kind: kind, env: recordedEnvironment(recipe), fit: fit}
 		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
 		side.note = driver.note
@@ -371,22 +373,61 @@ func (a *App) withSideLock(fn func(context.Context) (any, error)) func(context.C
 	}
 }
 
-// sideCwd is where a side pane of parent starts: the folder TUIOS reports
-// for the parent now (its shell's OSC 7, else its process's folder, so a
-// cd in the parent moves it), else its project's folder (projectDir), else
-// the folder mtm launched the parent in.
+// sideCwd is where a side pane of parent starts: the folder the agent in
+// it works in (agent, agentCwd), else the folder TUIOS reports for the
+// parent now (its shell's OSC 7, else its process's folder, so a cd in a
+// shell moves it), else its project's folder (projectDir), else the folder
+// mtm launched the parent in.
 //
 // An agent that changes folder inside its own process (Claude Code's Bash
 // cd) does not move what TUIOS reports: the pane's process stays where it
-// started. TUIOS hears the agent's folder in its hook reports (agent_cwd)
-// but does not publish it yet; once it does, it comes first here.
-func sideCwd(parent pane, projectDir string, recipe work.PaneRecipe) string {
-	for _, dir := range []string{parent.Cwd, projectDir, recipe.Cwd} {
+// started. Its transcript says where it is; TUIOS hears the same folder in
+// its hook reports (agent_cwd) but does not publish it.
+func sideCwd(agent string, parent pane, projectDir string, recipe work.PaneRecipe) string {
+	for _, dir := range []string{agent, parent.Cwd, projectDir, recipe.Cwd} {
 		if dir != "" {
 			return dir
 		}
 	}
 	return ""
+}
+
+// agentCwdWait bounds agentCwd: a side never waits on a transcript.
+const agentCwdWait = 300 * time.Millisecond
+
+// agentCwd is the folder a Claude Code parent's agent works in, from the
+// end of its newest session's transcript (the log the Turns tab reads,
+// turns.ClaudeLogCwd); "" for another harness, a transcript not found or
+// not read within agentCwdWait. omp's log names only the folder it started
+// in, so it is not read for this.
+func agentCwd(ctx context.Context, ws *work.Store, projects string, parent pane) string {
+	if !isClaude(parent) || projects == "" {
+		return ""
+	}
+	sessions := []string{parent.AgentSession}
+	if rec, err := ws.PaneSessions(parent.ID); err == nil {
+		for i := len(rec.Sessions) - 1; i >= 0; i-- {
+			sessions = append(sessions, rec.Sessions[i])
+		}
+	}
+	got := make(chan string, 1)
+	go func() {
+		for _, s := range sessions {
+			if path, err := turns.FindClaudeLog(projects, parent.Cwd, s); err == nil {
+				got <- turns.ClaudeLogCwd(path)
+				return
+			}
+		}
+		got <- ""
+	}()
+	ctx, cancel := context.WithTimeout(ctx, agentCwdWait)
+	defer cancel()
+	select {
+	case cwd := <-got:
+		return cwd
+	case <-ctx.Done():
+		return ""
+	}
 }
 
 // sideProjectDir is the folder of the project id names, or "" when the pane

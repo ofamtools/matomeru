@@ -238,3 +238,44 @@ func TestClaudeProjectDir(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// cwdRecord is a record carrying the folder Claude Code was in when it
+// wrote it: a Bash cd moves it, the process's own folder does not.
+func cwdRecord(uuid, cwd string, sidechain bool) string {
+	return rec(map[string]any{"type": "user", "uuid": uuid, "timestamp": "2026-10-28T10:00:00Z", "sessionId": "s1", "cwd": cwd, "isSidechain": sidechain,
+		"message": map[string]any{"role": "user", "content": "hi"}})
+}
+
+// The agent's folder is its newest main-chain record's cwd, from the
+// parser a log follows and from the tail of the file alone.
+func TestClaudeCwdIsTheNewestRecords(t *testing.T) {
+	lines := []string{
+		cwdRecord("u1", "/src", false),
+		cwdRecord("u2", "/src/plans", false),
+		cwdRecord("u3", "/elsewhere", true), // a subagent's
+		`{"type":"system","subtype":"turn_duration"}`,
+		`{"partial`,
+	}
+	path := filepath.Join(t.TempDir(), "s1.jsonl")
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	log := NewClaudeLog(path, "s1")
+	if _, err := log.Read(); err != nil {
+		t.Fatal(err)
+	}
+	if got := log.Cwd(); got != "/src/plans" {
+		t.Fatalf("log cwd %q", got)
+	}
+	var chain LogChain
+	chain.AddLog(log)
+	if got := chain.Cwd(); got != "/src/plans" {
+		t.Fatalf("chain cwd %q", got)
+	}
+	if got := ClaudeLogCwd(path); got != "/src/plans" {
+		t.Fatalf("tail cwd %q", got)
+	}
+	if got := ClaudeLogCwd(filepath.Join(t.TempDir(), "none.jsonl")); got != "" {
+		t.Fatalf("missing log cwd %q", got)
+	}
+}
