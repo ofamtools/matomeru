@@ -1,10 +1,8 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/unixsuperhero/ochazuke"
@@ -14,8 +12,11 @@ import (
 
 // What mtm hands its extensions besides their verbs' arguments.
 //
-// Project context: every exec has MTM_PROJECT_DIRS, the pinned project's
-// directories (os.PathListSeparator between; empty without a pin), so a
+// Project context: every exec has MTM_PROJECT_DIRS, a project's
+// directories (os.PathListSeparator between; empty without one), with
+// MTM_PROJECT and MTM_PROJECT_LABEL: a verb's the context project (the
+// focus stack's, else the pin, extension_scope.go), a page load's the pin
+// (none under S, loadProject), so a
 // tool can scope what it lists to the work at hand (o-md's doc list adds
 // each directory's top-level *.md and docs/**/*.md). The environment is
 // read on the loop: a verb's when it is run, a page's loads when the
@@ -37,12 +38,16 @@ const projectDirsEnv = "MTM_PROJECT_DIRS"
 // registerDetailKinds registers the detail kinds mtm draws.
 func registerDetailKinds() error { return cliview.Register() }
 
-// projectDirs are the pinned project's directories, its default first.
-func (a *App) projectDirs() []string {
-	if a.pin == "" {
+// projectDirs are the context project's directories (contextProject,
+// extension_scope.go), its default first.
+func (a *App) projectDirs() []string { return a.projectDirsOf(a.contextProject()) }
+
+// projectDirsOf are a project's directories, its default first.
+func (a *App) projectDirsOf(id string) []string {
+	if id == "" {
 		return nil
 	}
-	p, ok := a.project(a.pin)
+	p, ok := a.project(id)
 	if !ok {
 		return nil
 	}
@@ -58,15 +63,10 @@ func (a *App) projectDirs() []string {
 	return out
 }
 
-// contextEnv is the project context of an exec.
-func (a *App) contextEnv() []string {
-	return []string{projectDirsEnv + "=" + strings.Join(a.projectDirs(), string(os.PathListSeparator))}
-}
-
-// syncFetchEnv keeps the environment the page loads of x run with: read
-// here, on the loop.
+// syncFetchEnv keeps the environment the page loads of x run with (the
+// pin's context, loadExtEnv): read here, on the loop.
 func (a *App) syncFetchEnv(x *extension) {
-	env := a.extEnv(x.name)
+	env := a.loadExtEnv(x.name)
 	x.fetchEnv.Store(&env)
 }
 

@@ -87,6 +87,7 @@ var Tables = []store.Table{
 	{Name: "pane_stars", Owner: "work", Key: "window", Version: 1},
 	{Name: "pane_sessions", Owner: "work", Key: "window", Version: 1},
 	{Name: "vim_sessions", Owner: "vim", Key: "id", Version: 1},
+	{Name: "ext_rows", Owner: "work", Key: "id", Version: 1},
 }
 
 // Store is the work unit's view of the database.

@@ -115,7 +115,7 @@ func (a *App) loadSources(x *extension) error {
 	}
 	slices.Sort(keys)
 	owner := x.views[0].Page()
-	bin, env := x.bin, a.extEnv(x.name)
+	bin, env := x.bin, a.loadExtEnv(x.name)
 	var errs []error
 	for _, key := range keys {
 		src := x.sources[key]

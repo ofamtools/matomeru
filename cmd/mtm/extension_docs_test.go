@@ -111,7 +111,7 @@ func TestDocsPageEditsTheSelectedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.pin = "matomeru"
-	want := strings.Join(a.projectDirs(), string(os.PathListSeparator))
+	want := strings.Join(a.projectDirsOf(a.pin), string(os.PathListSeparator))
 	if !strings.Contains(want, projDir) {
 		t.Fatalf("project dirs %q lack %s", want, projDir)
 	}

@@ -325,6 +325,9 @@ type extension struct {
 	// fetchEnv is the environment its page loads run with, read on the
 	// loop when its rows reload (extension_context.go).
 	fetchEnv atomic.Pointer[[]string]
+	// lists are its mounted lists' rows as filed, scoped by project
+	// (extension_scope.go).
+	lists map[string]*extListState
 }
 
 // extNoun is mtm's noun of an extension's noun; a dot would split the
@@ -676,6 +679,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 	}
 	a.mountSources(x, plan)
 	a.syncFetchEnv(x)
+	a.declareExtScope(name)
 	pages := pagesOf(name, e.Catalog, plan, x.nouns)
 	cfg := ocli.PageConfig{
 		Noun: func(n string) string {
@@ -693,6 +697,8 @@ func (a *App) mountExtension(name string, e extEntry) {
 		FetchFlags: func(c context.Context, noun, verb string, flags []string) ([]byte, error) {
 			return execExt(c, x.bin, x.loadEnv(a.baseExtEnv(name)), append([]string{noun, verb, "--json", "{}"}, flags...)...)
 		},
+		// Rows that land are scoped by project (extension_scope.go).
+		OnRows: func(list string, rows []ocli.Row) { a.extRowsLanded(x, list, rows) },
 	}
 	for _, p := range pages {
 		v, err := ocli.MountPage(a.m, e.Catalog, p, cfg)
@@ -701,6 +707,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 			continue
 		}
 		x.views = append(x.views, v)
+		x.trackExtLists(v)
 		for _, l := range p.Lists {
 			if local, ok := x.nouns[l.Noun]; ok {
 				if _, taken := a.owners[local]; !taken {
@@ -914,6 +921,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	}
 	words = append(words, "--json", string(js), "--yes")
 	bin, env := x.bin, a.extEnv(x.name)
+	project := a.contextProject() // the owner a row it makes or acts on gets (extension_scope.go)
 	if a.quitting {
 		// mtm is closing: no job would run, so the last write runs here.
 		out, err := execExt(context.Background(), bin, env, words...)
@@ -929,6 +937,9 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		}
 		return extDecoded(out), nil
 	}).Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
+		if err == nil {
+			a.recordExtOwners(x, noun, verb, target, project, v)
+		}
 		if then != nil {
 			then(v, err)
 		}
