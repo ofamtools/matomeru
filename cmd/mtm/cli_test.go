@@ -162,7 +162,10 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 		seen := map[string]bool{}
 		listed := map[string]bool{}
 		for _, b := range rows {
-			id := b.Mode + "\x00" + b.Keys + "\x00" + b.Pattern
+			// A guarded row may share its key with the row it falls
+			// through to (ochazuke v0.25's table h/l rows on a tree
+			// beside the outline's), so the guard is part of the row.
+			id := b.Mode + "\x00" + b.Keys + "\x00" + b.Pattern + "\x00" + b.When
 			if seen[id] {
 				t.Errorf("%s: %q listed twice", target, b.Keys)
 			}
