@@ -164,9 +164,21 @@ func TestContextKeysAreRowsAndLeaderListsC(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "keys", Noun: "terminal", Target: paneTermID}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(frame(a), "ctrl+a c") {
-		t.Fatalf("the leader keys list ctrl+a c:\n%s", frame(a))
+	if !slices.Contains(leaderModalKeys(a), "ctrl+a c") {
+		t.Fatalf("the leader keys list ctrl+a c: %q", leaderModalKeys(a))
 	}
+}
+
+// leaderModalKeys is the leader keys modal's rows as "leader key", from
+// its table's cells (the frame draws the leader on the first row only).
+func leaderModalKeys(a *App) []string {
+	var out []string
+	if l := a.r.List(leaderList); l != nil {
+		for _, it := range l.Items() {
+			out = append(out, strings.Join(it.Cells[:2], " "))
+		}
+	}
+	return out
 }
 
 // promptTurns journals finished turns in pane p, a minute apart, as the
@@ -307,7 +319,7 @@ func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
 	}
 	a.m.Width, a.m.Height = 120, 40 // every leader row on screen
 	f := plainView(a)
-	if !strings.Contains(f, "ctrl+b c") || !strings.Contains(f, "send ctrl+b to the pane") || strings.Contains(f, "ctrl+a") {
-		t.Fatalf("leader keys modal:\n%s", f)
+	if !slices.Contains(leaderModalKeys(a), "ctrl+b c") || !strings.Contains(f, "ctrl+b  v") || !strings.Contains(f, "send ctrl+b to the pane") || strings.Contains(f, "ctrl+a") {
+		t.Fatalf("leader keys modal (%q):\n%s", leaderModalKeys(a), f)
 	}
 }

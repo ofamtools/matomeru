@@ -490,9 +490,19 @@ var leaderWords = []struct{ key, text string }{
 	{"?", "these keys"},
 }
 
+// leaderColumns are the leader modal's table, as ? help draws a key
+// sequence: the leader (a Group column, so it reads once, on the first
+// row), the key after it, and what it does, wrapped inside its column.
+// No titles, so no header line.
+var leaderColumns = []ochazuke.Column{
+	{Group: true, Pinned: true},
+	{Pinned: true},
+	{Wrap: true},
+}
+
 // leaderKeys is terminal.keys (leader ?): the leader table's rows in a
-// small modal, key and what it does; esc closes it and the pane stays
-// live. The rows come from the leader_pending bindings, so a rebound key
+// small modal, leader, key and what it does; esc closes it and the pane
+// stays live. The rows come from the leader_pending bindings, so a rebound key
 // shows as bound, and every row names the leader as the terminal-leader
 // setting has it (r.TerminalLeader()).
 func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
@@ -513,7 +523,7 @@ func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
 	}
 	var items []ochazuke.ListItem
 	add := func(key, text string) {
-		items = append(items, ochazuke.ListItem{ID: leaderModal + "/" + key, Noun: "binding", Label: fmt.Sprintf("%s %-6s  %s", leader, key, text)})
+		items = append(items, ochazuke.ListItem{ID: leaderModal + "/" + key, Noun: "binding", Label: leader + " " + key + "  " + text, Cells: []string{leader, key, text}})
 		delete(bound, key)
 	}
 	for _, w := range words {
@@ -529,7 +539,7 @@ func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
 	if _, err := a.r.OpenModal(leaderModal, ochazuke.Payload{}); err != nil {
 		return ochazuke.Failed(err)
 	}
-	list, err := a.r.AddList(leaderList, items, ochazuke.Parent(leaderModal))
+	list, err := a.r.AddList(leaderList, items, ochazuke.Parent(leaderModal), ochazuke.Columns(leaderColumns...))
 	if err != nil {
 		_ = a.r.Pop()
 		return ochazuke.Failed(err)

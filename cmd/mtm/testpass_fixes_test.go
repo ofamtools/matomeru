@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -84,10 +85,14 @@ func TestLeaderQuestionListsLeaderKeys(t *testing.T) {
 	// 15 rows: at 24 lines the list windows them (j/k scroll); 40 shows all.
 	a.m.Width, a.m.Height = 120, 40
 	fr := plainView(a)
-	for _, want := range []string{"Leader keys", "ctrl+a v", "ctrl+a t", "ctrl+a d", "ctrl+a z", "ctrl+a j", "ctrl+a k", "ctrl+a ?", "ctrl+a ctrl+a"} {
-		if !strings.Contains(fr, want) {
-			t.Fatalf("missing %q:\n%s", want, fr)
+	for _, want := range []string{"ctrl+a v", "ctrl+a t", "ctrl+a d", "ctrl+a z", "ctrl+a j", "ctrl+a k", "ctrl+a ?", "ctrl+a ctrl+a"} {
+		if !slices.Contains(leaderModalKeys(a), want) {
+			t.Fatalf("missing %q: %q", want, leaderModalKeys(a))
 		}
+	}
+	// prefix | key | does: the leader is drawn once, on the first row.
+	if !strings.Contains(fr, "Leader keys") || !strings.Contains(fr, "│ ctrl+a  v       side vim") || strings.Count(fr, "│ ctrl+a ") != 1 || !strings.Contains(fr, "│         t       side terminal") {
+		t.Fatalf("leader modal columns:\n%s", fr)
 	}
 	if strings.Contains(fr, "pending mode") {
 		t.Fatalf("generic help shown:\n%s", fr)

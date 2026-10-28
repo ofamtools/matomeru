@@ -84,10 +84,13 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 	for _, line := range lines {
 		// The help is a table since ochazuke v0.3.0: the selected row is
 		// the reverse highlight alone, no "> " marker, under a "task"
-		// section label.
-		if _, row, ok := strings.Cut(line, "│ enter "); ok {
-			first = "enter " + strings.Join(strings.Fields(strings.TrimSuffix(row, "│")), " ")
-			break
+		// section label. Since the prefix column (ochazuke's R6.9) a
+		// single key sits after a blank prefix cell.
+		if _, row, ok := strings.Cut(line, "│"); ok {
+			if f := strings.Fields(strings.TrimSuffix(strings.TrimSpace(row), "│")); len(f) > 0 && f[0] == "enter" {
+				first = strings.Join(f, " ")
+				break
+			}
 		}
 	}
 	// The help wraps a long description in its column, so compare the

@@ -67,22 +67,15 @@ func (a *App) defineKeyMap() error {
 // row answers), so a sentence that names a key cannot drift from its row.
 func (a *App) keyFor(focus, op string) string { return a.keyForRequest(focus, op, nil) }
 
-// keyForRequest is keyFor for a request with these arguments (nil: any).
-// A row with a Hint lists the hint in place of its operation, so the key
-// is also matched by the request the focus's row for it runs.
+// keyForRequest is keyFor for a request with these arguments (nil: any):
+// a help row's Request is the operation it runs, also when the row shows
+// its Hint, and its Args the arguments it would run with.
 func (a *App) keyForRequest(focus, op string, args ochazuke.Arguments) string {
-	runs := map[string]ochazuke.Request{}
-	for _, b := range a.r.ListBindings(focus) {
-		if b.Keys != "" {
-			runs[b.Keys] = b.Request
-		}
-	}
 	for _, row := range ochazuke.BindingHelp(a.r, focus) {
-		req, ok := runs[row.Key]
-		if row.Operation != op && (!ok || a.r.CanonicalKey(req.Key()) != a.r.CanonicalKey(op)) {
+		if row.Request == "" || a.r.CanonicalKey(row.Request) != a.r.CanonicalKey(op) {
 			continue
 		}
-		if args != nil && (!ok || !sameArgs(req.Args, args)) {
+		if args != nil && !sameArgs(row.Args, args) {
 			continue
 		}
 		return row.Key
