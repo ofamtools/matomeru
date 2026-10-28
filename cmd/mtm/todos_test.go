@@ -237,8 +237,8 @@ func TestAllViewShowsProjectsAsBranches(t *testing.T) {
 	if err := a.r.SetFocus(projectNode("ochazuke")); err != nil {
 		t.Fatal(err)
 	}
-	// o on a project's branch opens a task under it (a is unbound).
-	press(t, a, "o")
+	// n on a project's branch opens a task under it (o adds a project).
+	press(t, a, "n")
 	typeText(t, a, "tag a release")
 	press(t, a, "esc")
 	var got work.Task
@@ -251,10 +251,14 @@ func TestAllViewShowsProjectsAsBranches(t *testing.T) {
 	if got.ID == "" || got.ParentID != "" {
 		t.Fatalf("todo under ochazuke: %+v", tasks)
 	}
-	// d d on a project with tasks keeps it.
+	// d d on a project asks first; n keeps it.
 	press(t, a, "k", "d", "d")
+	if a.r.TopModal() != "confirm" {
+		t.Fatalf("d d on a project opened %q", a.r.TopModal())
+	}
+	press(t, a, "n")
 	if _, ok := a.project("ochazuke"); !ok {
-		t.Fatal("d d deleted a project with tasks")
+		t.Fatal("n deleted the project")
 	}
 	press(t, a, "S")
 	if f := frameAt(a, 80); !strings.Contains(f, "Tasks · matomeru") || strings.Contains(f, "tag a release") {
