@@ -112,7 +112,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("side pane is still opening"))
 	}
 	a.sideStarting[key] = true
-	pd, ws, launcher, dir, server, projects := a.panesd, a.work, a.launcher, a.vimDir, a.server(), a.claudeProjects
+	pd, ws, launcher, dir, server, projects, started := a.panesd, a.work, a.launcher, a.vimDir, a.server(), a.claudeProjects, a.agentStarted
 	fit := a.sideFit()
 	result := ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
 		panes, err := sideListing(c, pd, ws, server)
@@ -158,7 +158,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return nil, err
 		}
-		cwd := sideCwd(agentCwd(c, ws, projects, parent), parent, sideProjectDir(ws, owner.ProjectID), recipe)
+		cwd := sideCwd(agentCwd(c, ws, projects, parent, panes, started), parent, sideProjectDir(ws, owner.ProjectID), recipe)
 		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, cwd: cwd, kind: kind, env: recordedEnvironment(recipe), fit: fit}
 		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
 		side.note = driver.note
@@ -397,14 +397,15 @@ const agentCwdWait = 300 * time.Millisecond
 
 // agentCwd is the folder a Claude Code parent's agent works in, from the
 // end of its newest session's transcript (the log the Turns tab reads,
-// turns.ClaudeLogCwd); "" for another harness, a transcript not found or
-// not read within agentCwdWait. omp's log names only the folder it started
-// in, so it is not read for this.
-func agentCwd(ctx context.Context, ws *work.Store, projects string, parent pane) string {
+// turns.ClaudeLogCwd; the current one found as the tab finds it,
+// claudeLookup, against the listing panes); "" for another harness, a
+// transcript not found or not read within agentCwdWait. omp's log names
+// only the folder it started in, so it is not read for this.
+func agentCwd(ctx context.Context, ws *work.Store, projects string, parent pane, panes []pane, started func(pane) time.Time) string {
 	if !isClaude(parent) || projects == "" {
 		return ""
 	}
-	sessions := []string{parent.AgentSession}
+	var sessions []string
 	if rec, err := ws.PaneSessions(parent.ID); err == nil {
 		for i := len(rec.Sessions) - 1; i >= 0; i-- {
 			sessions = append(sessions, rec.Sessions[i])
@@ -412,6 +413,10 @@ func agentCwd(ctx context.Context, ws *work.Store, projects string, parent pane)
 	}
 	got := make(chan string, 1)
 	go func() {
+		if path, _, err := turns.ResolveClaudeLog(claudeLookup(projects, ws, parent, panes, started)); err == nil {
+			got <- turns.ClaudeLogCwd(path)
+			return
+		}
 		for _, s := range sessions {
 			if path, err := turns.FindClaudeLog(projects, parent.Cwd, s); err == nil {
 				got <- turns.ClaudeLogCwd(path)

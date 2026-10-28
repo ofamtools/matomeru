@@ -51,3 +51,8 @@ func (s *Store) AddPaneSession(window, harness, session string) (bool, error) {
 	})
 	return changed, err
 }
+
+// AllPaneSessions is every pane's sessions record, closed panes' too.
+func (s *Store) AllPaneSessions() ([]PaneSessions, error) {
+	return all[PaneSessions](s.db, "pane_sessions")
+}

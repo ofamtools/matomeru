@@ -343,6 +343,10 @@ type App struct {
 	// claudeProjects is Claude Code's projects directory, where session
 	// logs are (turns.ClaudeProjects); tests replace it.
 	claudeProjects string
+	// agentStarted is when a pane's Claude Code process started
+	// (processAgentStart), for the stale session id fallback
+	// (claude_session.go); tests replace it.
+	agentStarted func(pane) time.Time
 	// ompSessions is omp's sessions directory (turns.OmpSessions); tests
 	// point it at a temporary directory.
 	ompSessions string
@@ -447,6 +451,7 @@ func New(opts Options) (*App, error) {
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
 	a.trackNotices()
 	a.claudeProjects = turns.ClaudeProjects()
+	a.agentStarted = processAgentStart
 	a.ompSessions = turns.OmpSessions()
 	a.configDir = configDir
 	a.dataPath = opts.Data

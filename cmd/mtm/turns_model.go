@@ -29,7 +29,10 @@ import (
 //     chains the new session after the old with a separator row. The
 //     logs are read off the loop, from where the last read stopped, on
 //     every listing while the tab shows the pane. omp's log is a tree
-//     (internal/turns/omp.go): the turns follow its current branch.
+//     (internal/turns/omp.go): the turns follow its current branch. When
+//     the Claude id tuios reports has no transcript (a resume or restart),
+//     the current session's transcript is found as claude_session.go says
+//     (turns.ResolveClaudeLog), or not at all.
 //   - A shell pane whose shell sends OSC 133 marks has a turn per
 //     command (tuios command-history): the prompt is the command line, the
 //     response its output, read only when the turn is opened or copied.
@@ -321,8 +324,9 @@ func (a *App) readPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // sessionLogFinder finds a session's log for the pane's harness: Claude's
-// under its projects directory (the pane's cwd first), omp's under its
-// sessions directory. nil is no log found.
+// under its projects directory (the pane's cwd first; the current session
+// through turns.ResolveClaudeLog, which falls back when tuios's id is
+// stale), omp's under its sessions directory. nil is no log found.
 func (a *App) sessionLogFinder(p pane) func(session string) turns.Log {
 	if isOmp(p) {
 		sessions := a.ompSessions
@@ -334,8 +338,17 @@ func (a *App) sessionLogFinder(p pane) func(session string) turns.Log {
 			return turns.NewOmpLog(path, s)
 		}
 	}
-	projects := a.claudeProjects
+	projects, ws, listing, started := a.claudeProjects, a.work, slices.Clone(a.panes), a.agentStarted
 	return func(s string) turns.Log {
+		if s == p.AgentSession {
+			// The current session: tuios's id, else the resume fallback
+			// (claude_session.go).
+			path, session, err := turns.ResolveClaudeLog(claudeLookup(projects, ws, p, listing, started))
+			if err != nil {
+				return nil
+			}
+			return turns.NewClaudeLog(path, session)
+		}
 		path, err := turns.FindClaudeLog(projects, p.Cwd, s)
 		if err != nil {
 			return nil
