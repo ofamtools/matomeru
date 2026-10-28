@@ -162,20 +162,17 @@ func TestAllViewDeletesAProjectThroughItsConfirm(t *testing.T) {
 	}
 }
 
-// A project stays at the top level and keeps its creation order: tab, J
-// and K on a project row are refused; a top-level task cannot become a
-// project (shift+tab); no project is not a project (i, d d refused).
+// Projects keep their creation order: J and K on a project row are
+// refused, as is tab on the first project (no project above it); no
+// project is not a project (i, d d, tab refused).
 func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 	a := allOutline(t, projectNode("matomeru"))
 	before := rootRows(a)
-	refused(t, a, "tab", "top level")
 	refused(t, a, "J", "creation order")
 	refused(t, a, "K", "creation order")
+	focusRow(t, a, projectNode("ochazuke"))
+	refused(t, a, "tab", "no project above it")
 	focusRow(t, a, outlineNode("t1"))
-	refused(t, a, "shift+tab", "under a project")
-	if got := stored(t, a, "t1"); got.ProjectID != "matomeru" || got.ParentID != "" {
-		t.Fatalf("t1 moved: %+v", got)
-	}
 	// In the open line shift+tab reaches the outline itself: the move is
 	// not stored and the row goes back under its project.
 	press(t, a, "i", "shift+tab")
@@ -185,6 +182,7 @@ func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 		t.Fatalf("shift+tab in the line moved t1: %+v roots %v", got, rootRows(a))
 	}
 	focusRow(t, a, projectNode(""))
+	refused(t, a, "tab", "top level")
 	refused(t, a, "i", "not a project")
 	refused(t, a, "d", "")
 	refused(t, a, "d", "not a project")
@@ -274,7 +272,6 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 	if got := taskTitled(tasksOf(t, a, "matomeru"), "ship it"); got.ID == "" || got.ParentID != "" {
 		t.Fatalf("o on the root: %+v", tasksOf(t, a, "matomeru"))
 	}
-	refused(t, a, "shift+tab", "under a project")
 	press(t, a, "T")
 
 	// O on a project row opens the same outline.

@@ -26,11 +26,14 @@ import (
 // add a project in the all view (record first: written at once, empty,
 // owned by nothing), a (and o on the one root) adds a task in it, typing
 // renames it through project.edit, d d is project.delete with its
-// confirm; tab, J/K, x and s are refused (projects have no order field
-// and stay at the top level), as is shift+tab on a top-level task. "no
-// project" is not a project: it takes tasks and nothing else. u and
-// ctrl+r undo and redo every change as writes, status included
-// (Tree.Record); a project deleted through its confirm is not undone, as
+// confirm, tab makes it a task of the project above it
+// (outline-project.demote; refused on the first project); J/K, x and s
+// are refused (projects keep their creation order). shift+tab on a task
+// directly under its project makes it a project listed after it
+// (outline-task.promote). "no project" is not a project: it takes tasks
+// and nothing else. u and ctrl+r undo and redo every change as writes,
+// status and conversions included (Tree.Record); a project deleted
+// through its confirm is not undone, as
 // project.delete has no restore. There is no save key; esc leaves the
 // line, and esc or T closes the outline with everything already stored.
 
@@ -76,7 +79,7 @@ func (a *App) defineOutline() {
 	a.r.Define(outlineModal).
 		Verb("refuse", func(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(errors.New(ochazuke.StringArg(ctx.Args, "reason", "not on this row")))
-		}, "Refuse a key that does not apply to the row and say why (a project stays at the top level, keeps its creation order; no project is not a project)").
+		}, "Refuse a key that does not apply to the row and say why (projects keep their creation order; no project is not a project)").
 		Verb("toggle", a.outlineToggle, "Mark the task done, or a done task todo").
 		Verb("status", a.outlineStatus, "Choose the task's status: todo, active, blocked or done").
 		Verb("close", func(ochazuke.Ctx) ochazuke.Result { return resultError(a.r.Pop()) }, "Close the outline; every change is already written").
@@ -103,7 +106,7 @@ func (a *App) defineOutline() {
 			Bind("enter", ochazuke.Do("outline.fold")).
 			Bind("n", addTask).
 			Bind("d d", ochazuke.Do(noun+".delete").Hinted("delete project")).
-			Bind("tab", refuse("A project stays at the top level")).
+			Bind("tab", ochazuke.Do(noun+".demote").Hinted("make task")).
 			Bind("J", refuse("Projects keep their creation order")).
 			Bind("K", refuse("Projects keep their creation order"))
 	}
@@ -123,16 +126,16 @@ func (a *App) defineOutline() {
 		Bind("tab", refuse("no project stays at the top level")).
 		Bind("J", refuse("no project stays last")).
 		Bind("K", refuse("no project stays last"))
-	// A task directly under its project stays under one: shift+tab there is
-	// refused (deeper tasks outdent as usual, the guard is off).
+	// shift+tab on a task directly under its project makes it a project
+	// (outline-task.promote); deeper tasks outdent as usual, the guard is
+	// off.
+	a.defineConversions()
 	a.r.DefineGuard("outline-top-task", a.outlineTopTask)
 	a.r.Define(outlineTaskNoun).
-		Verb("outdent", func(ochazuke.Ctx) ochazuke.Result {
-			return ochazuke.Failed(errors.New("A task stays under a project"))
-		}, "Refused on a task directly under its project: a task stays under a project (deeper tasks outdent as usual)").When("outline-top-task").
+		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("outline.fold")).
-		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent"))
+		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project"))
 	a.outlineView("Tasks")
 }
 
@@ -313,10 +316,11 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 // outlineHints is the line under a project's outline title; outlineAllHints
 // the all view's.
 const (
-	outlineHints    = "top: the project · i renames it · o or n adds a task\n" + outlineTaskHints
-	outlineAllHints = "top level: projects · o adds one · n a task · i renames\n" + outlineTaskHints
-	// outlineTaskHints are a task row's keys.
-	outlineTaskHints = "tasks: o add · tab nest · x done · s status · q closes"
+	outlineHints    = "top: the project · i renames · o/n add a task · tab into the one above\n" + outlineTaskHints
+	outlineAllHints = "top level: projects · o adds · n task · i renames · tab into the one above\n" + outlineTaskHints
+	// outlineTaskHints are a task row's keys: shift+tab on a top task
+	// makes it a project.
+	outlineTaskHints = "tasks: o add · tab nest · shift+tab out (top: a project) · x done · s status"
 )
 
 // scopeTitle names a scope: the project, "no project" or "all projects".

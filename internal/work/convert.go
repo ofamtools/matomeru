@@ -47,7 +47,13 @@ type Conversion struct {
 	// Directories are the directories the receiving project has after the
 	// change that it did not have before.
 	Directories []string    `json:"directories,omitempty"`
-	Rows        []RowChange `json:"rows"`
+	Rows        []RowChange `json:"rows,omitempty"`
+}
+
+// Summary is the conversion without its rows, for a caller to print.
+func (c Conversion) Summary() Conversion {
+	c.Rows = nil
+	return c
 }
 
 // ErrNoProjectAbove refuses demoting the first project: there is no
