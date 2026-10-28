@@ -28,6 +28,8 @@ type noticeExpired struct{ gen int }
 // noticeSink sits between the UI and the Model's sink: it forwards every
 // message and keeps the ids of the notices still shown, so expiry takes
 // them back with ClearNotice instead of editing Model.Notices.
+var _ ochazuke.InfoSink = (*noticeSink)(nil)
+
 type noticeSink struct {
 	next   ochazuke.UISink
 	shown  []ochazuke.NoticeID
@@ -59,6 +61,19 @@ func (s *noticeSink) ClearNotice(id ochazuke.NoticeID) {
 func (s *noticeSink) Status(text string) {
 	if s.next != nil {
 		s.next.Status(text)
+	}
+}
+
+// Info forwards the status line's plain tone (ochazuke.InfoSink): without
+// it the UI would hand a plain message to Status, drawn "Error: ...". A
+// next sink without Info gets it through Status, as the UI would.
+func (s *noticeSink) Info(text string) {
+	switch next := s.next.(type) {
+	case nil:
+	case ochazuke.InfoSink:
+		next.Info(text)
+	default:
+		next.Status(text)
 	}
 }
 
