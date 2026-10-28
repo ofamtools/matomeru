@@ -212,12 +212,21 @@ func (c *Client) SendKeys(ctx context.Context, p SendKeysParams) error {
 // QueuePromptParams are queue-prompt's params (the verb behind tuios
 // queue): the message is typed as a prompt once the agent in the pane
 // comes to rest, one per rest, never over a pane waiting on input.
+//
+// From is the window the message is from; a client outside every pane
+// names the person with FromHuman and proves it with HumanNonce (the
+// presence nonce). With neither, tuios records the caller itself: the
+// pane's window id from a pane, shell otherwise.
 type QueuePromptParams struct {
-	Session string `json:"session,omitempty"`
-	Window  string `json:"window"`
-	Text    string `json:"text"`
-	From    string `json:"from,omitempty"`
+	Session    string `json:"session,omitempty"`
+	Window     string `json:"window"`
+	Text       string `json:"text"`
+	From       string `json:"from,omitempty"`
+	HumanNonce string `json:"human_nonce,omitempty"`
 }
+
+// FromHuman is the sender name of the person, for From.
+const FromHuman = "human"
 
 // QueuePromptResult is queue-prompt's answer.
 type QueuePromptResult struct {
