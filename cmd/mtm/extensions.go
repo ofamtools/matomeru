@@ -441,7 +441,7 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			e.RegisteredAt = old.RegisteredAt // re-registering keeps its tab's place
 		}
 		if werr := reg.write(name, e); werr != nil {
-			ctx.Status(werr.Error())
+			ctx.Error(werr.Error())
 			return
 		}
 		a.extSyncDue = !a.cli
@@ -559,7 +559,7 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			e := entries[name]
 			e.Catalog, e.BinStamp = r.doc, r.stamp
 			if err := reg.write(name, e); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 			}
 			if x := a.extension(name); x != nil && !a.cli {
 				a.refreshExtensionRows(x) // the rows of an unchanged catalog, in full

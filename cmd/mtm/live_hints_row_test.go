@@ -158,8 +158,8 @@ func TestRowHintsWithNoScreen(t *testing.T) {
 	}
 	plainView(app)
 	app.Update(keyMsg("f"))
-	if !strings.Contains(app.m.Status, "no screen for this pane yet") || app.r.Mode.Name != "normal" || app.hinting != nil {
-		t.Fatalf("no screen: status %q mode %s", app.m.Status, app.r.Mode.Name)
+	if !strings.Contains(app.m.Info, "no screen for this pane yet") || app.r.Mode.Name != "normal" || app.hinting != nil {
+		t.Fatalf("no screen: status %q mode %s", app.m.Info, app.r.Mode.Name)
 	}
 
 	app, _, _, _ = rowHintsApp(t)

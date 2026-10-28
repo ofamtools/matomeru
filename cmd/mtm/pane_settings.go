@@ -474,7 +474,7 @@ func (a *App) setSettingRows(row string, fields []settingField) {
 	}
 	sel, _ := a.pv.settings.Selected()
 	if err := a.pv.settings.SetItems(items); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 		return
 	}
 	if slices.ContainsFunc(items, func(it ochazuke.ListItem) bool { return it.ID == sel.ID }) {
@@ -785,7 +785,7 @@ func (a *App) stepSetting(p pane, row string, st harness.Setting, name, value, b
 func (a *App) rereadSettings(ctx ochazuke.Ctx, p pane, row string) {
 	if isCodex(p) {
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "read-settings", Noun: "pane", Target: row}); err != nil {
-			ctx.Status(err.Error())
+			ctx.Error(err.Error())
 		}
 		return
 	}
@@ -793,7 +793,7 @@ func (a *App) rereadSettings(ctx ochazuke.Ctx, p pane, row string) {
 		return
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: row}); err != nil {
-		ctx.Status(err.Error())
+		ctx.Error(err.Error())
 	}
 }
 

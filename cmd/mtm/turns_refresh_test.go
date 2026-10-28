@@ -73,8 +73,8 @@ func TestRefreshTurnsSwitchesFromTheJournalToTheTranscript(t *testing.T) {
 	if fr := frame(app); !strings.Contains(fr, "prompt of "+resumedID) {
 		t.Fatalf("the transcript is not shown after R:\n%s", fr)
 	}
-	if want := "turns: transcript 7f96ea51… (resumed session)"; app.m.Status != want {
-		t.Fatalf("status %q, want %q", app.m.Status, want)
+	if want := "turns: transcript 7f96ea51… (resumed session)"; app.m.Info != want {
+		t.Fatalf("status %q, want %q", app.m.Info, want)
 	}
 	if pt := app.mturns["w1"]; pt.fallback || pt.cur.session != resumedID {
 		t.Fatalf("after refresh: fallback %v, resolved %q", pt.fallback, pt.cur.session)
@@ -85,8 +85,8 @@ func TestRefreshTurnsSwitchesFromTheJournalToTheTranscript(t *testing.T) {
 func TestRefreshTurnsWithNoTranscriptSaysTheJournal(t *testing.T) {
 	app := onTheJournal(t, nil)
 	refreshTurns(t, app, "pane", app.pv.turnsFor)
-	if want := "turns: no transcript, showing mtm's journal"; app.m.Status != want {
-		t.Fatalf("status %q, want %q", app.m.Status, want)
+	if want := "turns: no transcript, showing mtm's journal"; app.m.Info != want {
+		t.Fatalf("status %q, want %q", app.m.Info, want)
 	}
 	if !app.mturns["w1"].fallback {
 		t.Fatal("w1 left the journal with no transcript")
@@ -160,8 +160,8 @@ func TestRefreshTurnsNeverTakesAnotherPanesTranscript(t *testing.T) {
 			if fr := frame(app); strings.Contains(fr, "prompt of "+resumedID) {
 				t.Fatalf("took w2's transcript:\n%s", fr)
 			}
-			if want := "turns: no transcript, showing mtm's journal"; app.m.Status != want {
-				t.Fatalf("status %q, want %q", app.m.Status, want)
+			if want := "turns: no transcript, showing mtm's journal"; app.m.Info != want {
+				t.Fatalf("status %q, want %q", app.m.Info, want)
 			}
 		})
 	}
@@ -187,8 +187,8 @@ func TestRefreshTurnsFromATurnRow(t *testing.T) {
 		t.Fatal("no turn row")
 	}
 	refreshTurns(t, app, "turn", turn)
-	if want := "turns: transcript 7f96ea51…"; app.m.Status != want {
-		t.Fatalf("status %q, want %q", app.m.Status, want)
+	if want := "turns: transcript 7f96ea51…"; app.m.Info != want {
+		t.Fatalf("status %q, want %q", app.m.Info, want)
 	}
 	if fr := frame(app); !strings.Contains(fr, "prompt of "+resumedID) {
 		t.Fatalf("not shown after the refresh:\n%s", fr)
@@ -309,5 +309,31 @@ func TestSideFollowsTheTurnsTabsResolution(t *testing.T) {
 	parent.AgentSession = "newer"
 	if got := r.of(parent); got != "" {
 		t.Fatalf("a resolution for another reported session was used: %q", got)
+	}
+}
+
+// What a refresh found is a plain message, never the error line: the
+// shell's commands and the journal fallback read before the hints, with
+// no "Error:" (they were drawn as errors while posted through Status).
+func TestRefreshTurnsNoticesAreInfoNotErrors(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		open func(t *testing.T) *App
+		want string
+	}{
+		{"shell", func(t *testing.T) *App { app, _ := shellTurnsApp(t, 1); return app }, "turns: the shell's commands"},
+		{"journal", func(t *testing.T) *App { return onTheJournal(t, nil) }, "turns: " + journalNotice},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			app := c.open(t)
+			app.m.Width, app.m.Height = 160, 40
+			refreshTurns(t, app, "pane", app.pv.turnsFor)
+			if app.m.Info != c.want || app.m.Status != "" {
+				t.Fatalf("info %q status %q, want info %q", app.m.Info, app.m.Status, c.want)
+			}
+			if fr := frame(app); strings.Contains(fr, "Error:") || !strings.Contains(fr, c.want) {
+				t.Fatalf("frame:\n%s", fr)
+			}
+		})
 	}
 }

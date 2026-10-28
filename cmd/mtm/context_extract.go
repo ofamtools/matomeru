@@ -128,7 +128,7 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		if err := a.reloadContext(); err != nil {
-			ctx.Status(err.Error())
+			ctx.Error(err.Error())
 		}
 	})
 }

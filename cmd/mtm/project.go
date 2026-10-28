@@ -204,7 +204,7 @@ func (a *App) followProject() {
 	}
 	a.current, a.tasksOpen, a.detailTask = current, true, ""
 	if err := a.refreshTasks(); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 

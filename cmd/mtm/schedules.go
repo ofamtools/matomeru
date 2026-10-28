@@ -542,12 +542,12 @@ func (a *App) runScheduleNow(ctx ochazuke.Ctx) ochazuke.Result {
 		return runner.RunNow(runCtx, d)
 	}).Then(func(c ochazuke.Ctx, v any, err error) {
 		if err := a.refreshSchedules(); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 		if rec, ok := v.(schedules.Record); ok && err == nil {
 			c.Notify(runNotice(rec))
 			if err := a.refreshInbox(); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 		}
 	})
@@ -693,7 +693,7 @@ func (a *App) schedulesUpdate(msg tea.Msg) tea.Cmd {
 	case scheduleTicked:
 		a.sched.ticking = false
 		if err := a.refreshSchedules(); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 		if a.sched.after == nil {
 			return nil
@@ -701,10 +701,10 @@ func (a *App) schedulesUpdate(msg tea.Msg) tea.Cmd {
 		return a.sched.after(scheduleEvery, scheduleDue{})
 	case scheduleRan:
 		if err := a.refreshSchedules(); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 		if err := a.refreshInbox(); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 		if msg.rec.Failed() && msg.rec.Outcome != schedules.OutcomeMissing && a.scheduleFailures(msg.rec.ScheduleID) == 1 {
 			a.r.UI().Notify(runNotice(msg.rec))

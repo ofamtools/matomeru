@@ -492,7 +492,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		// attachments go with the text, and stay as the pane's context.
 		if in := a.pb.input; string(in.Text) == sent {
 			if rerr := in.Replace(0, len(in.Text), ""); rerr != nil {
-				ctx.Status(rerr.Error())
+				ctx.Error(rerr.Error())
 			}
 			a.pb.attachments = nil
 		}
@@ -500,8 +500,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		if mode == promptInterrupt {
 			a.pb.mode = promptSend
 		}
-		// A queued prompt is a success: a notice (ctx.Status is the TUI's
-		// error line, drawn "Error: ...").
+		// A queued prompt is a success: a notice, never the error line.
 		switch got, _ := v.(daemon.QueuePromptResult); {
 		case mode == promptQueue && got.Delivering:
 			ctx.Notify("queued: tuios types it now, the agent is at rest")
@@ -514,7 +513,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		a.followNewest()
 		if a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
 			if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 			}
 		}
 	})
@@ -529,7 +528,7 @@ func (a *App) followNewest() {
 			return
 		}
 		if _, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.timeline", Verb: "goto", Args: ochazuke.Arguments{"id": a.pv.cards.ID(), "position": "last"}}); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 		return
 	}
@@ -543,7 +542,7 @@ func (a *App) selectNewestTurnRow() {
 	for i := len(items) - 1; i >= 0; i-- {
 		if items[i].Noun == "turn" {
 			if err := a.pv.turns.Select(items[i].ID); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 			return
 		}
@@ -719,7 +718,7 @@ func (a *App) promptAfter(before promptState) {
 			replace += " "
 		}
 		if err := in.Replace(before.start, end, replace); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 		return
 	}

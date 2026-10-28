@@ -457,7 +457,7 @@ func (a *App) openedDirectories() tea.Cmd {
 	// The detail lists the saved panes and Vim sessions started in a
 	// directory: read them as they are now.
 	if err := errors.Join(a.refreshSaved(), a.refreshVim()); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 	// The first visit lands on the first list drawn: the pinned project's
 	// directories when it has any (UX review 2 F22); later visits keep the
@@ -466,7 +466,7 @@ func (a *App) openedDirectories() tea.Cmd {
 		a.dirsVisited = true
 		if a.projectDirList.Len() > 0 {
 			if err := a.projectDirList.Focus(); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 		}
 	}
@@ -474,7 +474,7 @@ func (a *App) openedDirectories() tea.Cmd {
 		return nil
 	}
 	if err := a.loadDirectories(); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 	return a.r.PendingCommands()
 }
@@ -503,7 +503,7 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 			a.directories.Want = ""
 			if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
 				if err := a.r.SetFocus("directory:" + want); err != nil {
-					ctx.Status(err.Error())
+					ctx.Error(err.Error())
 				}
 			}
 		}
@@ -621,7 +621,7 @@ func (a *App) filterDirectories() {
 	}
 	items = append(items, ochazuke.ListItem{ID: "directory:browse", Noun: "directory-browse", Label: "browse…", Cells: []string{"browse…"}})
 	if err := a.directoryList.SetItems(items); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 
@@ -677,7 +677,7 @@ func (a *App) refreshProjectDirs() {
 		}
 	}
 	if err := a.projectDirList.SetItems(items); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 
@@ -710,7 +710,7 @@ func (a *App) refreshBases() {
 		items = append(items, ochazuke.ListItem{ID: "base:" + base.Path, Noun: "project-base", Label: path, Data: base, Cells: []string{path, fmt.Sprint(base.Depth), known, base.Source}})
 	}
 	if err := a.baseList.SetItems(items); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 

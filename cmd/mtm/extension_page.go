@@ -172,7 +172,7 @@ func (a *App) syncExtStatus() {
 		c, ok := item.Data.(extCandidate)
 		if ok && len(item.Cells) > 1 && item.Cells[1] != statusCell(c, activity) {
 			if err := a.setExtRows(a.extPage.rows); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 			return
 		}
@@ -289,13 +289,13 @@ func (a *App) rediscover() {
 		}
 		a.extPage.rows = v.([]extCandidate)
 		if err := a.setExtRows(a.extPage.rows); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 	launch := func(res ochazuke.Result) {
 		ctx := ochazuke.Ctx{Runtime: a.r, Context: a.r.Context(), Instance: a.r.Instances[extListID]}
 		if _, err := a.r.Launch(extListID, "extension.available", res, ctx); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 	launch(ochazuke.Pending(func(context.Context) (any, error) { return d.plan(), nil }).Replacing("discover").

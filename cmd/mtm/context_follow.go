@@ -160,7 +160,7 @@ func (a *App) followUpdate(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "follow", Noun: contextNoun, Target: contextListID}); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 			return nil
 		}
 		return a.r.PendingCommands()
@@ -257,7 +257,7 @@ func (a *App) followPanes(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		if changed {
 			if err := a.reloadContext(); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 			}
 			a.contextChanged()
 		}

@@ -268,6 +268,6 @@ func (a *App) wrapTurns(tree *ochazuke.Tree, width int) {
 		err = a.setTurnNodes(tree, st)
 	}
 	if err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }

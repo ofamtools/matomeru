@@ -101,7 +101,7 @@ func (a *App) nextStarred(ochazuke.Ctx) ochazuke.Result {
 	row, _ := a.selectedRow()
 	id := a.starredAfter(row)
 	if id == "" {
-		a.r.UI().Status(noStarredPanes)
+		a.r.UI().Info(noStarredPanes)
 		return ochazuke.Done(nil)
 	}
 	if err := a.pv.tree.Select(id); err != nil {
@@ -119,7 +119,7 @@ func (a *App) cycleStarred(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	id := a.starredAfter(a.attached.rowID())
 	if id == "" {
-		a.r.UI().Status(noStarredPanes)
+		a.r.UI().Info(noStarredPanes)
 		return ochazuke.Done(nil)
 	}
 	if id == a.attached.rowID() {

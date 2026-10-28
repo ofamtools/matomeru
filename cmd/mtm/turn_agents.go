@@ -514,7 +514,7 @@ func (a *App) redrawAgents() {
 		}
 		if st := a.pv.cardFills[tl.ID()]; st != nil && st.model {
 			if err := a.pushCards(tl, st); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 		}
 		return
@@ -522,7 +522,7 @@ func (a *App) redrawAgents() {
 	st := a.turnFillOf(a.pv.turns)
 	if st.model {
 		if err := a.refillModelTurns(a.pv.turns, st); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 }

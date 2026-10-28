@@ -295,8 +295,8 @@ func TestHintsWithNothingToLabel(t *testing.T) {
 		app, s, _ := hintsApp(t, c.rows)
 		app.Update(keyMsg("ctrl+a"))
 		app.Update(keyMsg("f"))
-		if !strings.Contains(app.m.Status, c.status) {
-			t.Fatalf("%s: status %q", c.name, app.m.Status)
+		if !strings.Contains(app.m.Info, c.status) {
+			t.Fatalf("%s: status %q", c.name, app.m.Info)
 		}
 		if app.hinting != nil || app.r.Terminal(paneTermID).Overlay() != nil || app.r.Mode.Name != "terminal" || len(s.sent) != 0 {
 			t.Fatalf("%s: hinting %v mode %s sent %v", c.name, app.hinting != nil, app.r.Mode.Name, s.sent)

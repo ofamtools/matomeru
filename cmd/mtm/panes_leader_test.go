@@ -81,11 +81,11 @@ func TestLeaderSelectsStarredOutsideLive(t *testing.T) {
 	settle(app, follow(app))
 	app.Update(keyMsg("ctrl+a"))
 	app.Update(keyMsg("s"))
-	if !strings.Contains(app.m.Status, noStarredPanes) {
-		t.Fatalf("none starred: status %q", app.m.Status)
+	if !strings.Contains(app.m.Info, noStarredPanes) {
+		t.Fatalf("none starred: status %q", app.m.Info)
 	}
 	selectedNotLive(t, app, "none starred", "pane:matomeru/w1")
-	app.m.Status = ""
+	app.m.Info = ""
 	for _, row := range []string{"pane:matomeru/w1", "pane:ochazuke/w2"} {
 		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row}); err != nil {
 			t.Fatal(err)

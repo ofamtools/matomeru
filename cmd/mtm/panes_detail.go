@@ -128,7 +128,7 @@ func (a *App) loadDetail() {
 		return
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: verb, Noun: "pane", Target: row}); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 

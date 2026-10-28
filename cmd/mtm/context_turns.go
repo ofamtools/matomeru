@@ -161,7 +161,7 @@ func (a *App) extractTurns(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		if err := a.reloadContext(); err != nil {
-			ctx.Status(err.Error())
+			ctx.Error(err.Error())
 		}
 		a.contextChanged()
 	})
@@ -179,7 +179,7 @@ func (a *App) capturedContext(id string, result any) ochazuke.Result {
 		return result, nil
 	}).Then(func(ochazuke.Ctx, any, error) {
 		if err := a.reloadContext(); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 		a.contextChanged()
 	})

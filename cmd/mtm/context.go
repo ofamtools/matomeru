@@ -303,7 +303,7 @@ func (a *App) filterContext() {
 		return
 	}
 	if err := a.refreshContext(); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 
@@ -423,7 +423,7 @@ func (a *App) copyText(text string) ochazuke.Result {
 		}
 		if osc, _ := v.(bool); osc {
 			if err := a.copyOSC52(text); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 				return
 			}
 		}

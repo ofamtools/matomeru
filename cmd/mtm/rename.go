@@ -216,11 +216,11 @@ func (a *App) afterRename(work ochazuke.Result, done func(name string) error) oc
 		if done != nil {
 			name, _ := v.(string)
 			if err := done(name); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 			}
 		}
 		if _, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "refresh", Target: paneListID}); err != nil {
-			ctx.Status(err.Error())
+			ctx.Error(err.Error())
 		}
 	})
 }

@@ -20,8 +20,8 @@ func pressRefresh(t *testing.T, a *App) bool {
 	_, cmd := a.Update(keyMsg("R"))
 	settle(a, cmd)
 	settle(a, a.r.PendingCommands())
-	ran := a.m.Status == "turns: transcript s1"
-	a.m.Status = ""
+	ran := a.m.Info == "turns: transcript s1"
+	a.m.Info = ""
 	return ran
 }
 

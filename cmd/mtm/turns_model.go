@@ -217,7 +217,7 @@ func (a *App) recordAgentSessions(panes []pane) {
 			continue
 		}
 		if _, err := a.work.AddPaneSession(p.ID, p.Harness, p.AgentSession); err != nil {
-			a.r.UI().Status("turns: " + err.Error())
+			a.r.UI().Error("turns: " + err.Error())
 			continue
 		}
 		a.sessionSeen[p.ID] = p.AgentSession
@@ -364,7 +364,7 @@ func (a *App) readLogTurns(p pane, pt *paneTurns, notify bool) ochazuke.Result {
 			pt.list, pt.loaded, pt.err = got.Turns, true, got.Problem
 		}
 		if notify && got.Notice != "" {
-			a.r.UI().Status(got.Notice)
+			a.r.UI().Info(got.Notice)
 		}
 		a.turnsRead(p.ID)
 	})
@@ -414,7 +414,7 @@ func (a *App) turnsRead(window string) {
 		return
 	}
 	if err := a.showTurns(row); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 	if a.pv.sent && !a.turnCards() {
 		a.pv.sent = false
@@ -438,7 +438,7 @@ func (a *App) pollTurns() {
 		// Codex's turns are the journal's; its settings line reads the
 		// rollout's end on each listing.
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "read-settings", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 	pt := a.paneTurnsOf(p.ID)
@@ -463,7 +463,7 @@ func (a *App) pollTurns() {
 		}
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 
@@ -576,7 +576,7 @@ func (a *App) turnSettingsChanged() {
 			}
 		}
 		if err := a.refillModelTurns(tree, st); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 }
@@ -1135,7 +1135,7 @@ func (a *App) copyLoaded(ref turnRef, load func(context.Context) (string, error)
 			}
 			if out.big || out.osc {
 				if err := a.offerTurnSave(ref, out); err != nil {
-					ctx.Status(err.Error())
+					ctx.Error(err.Error())
 				}
 				return
 			}

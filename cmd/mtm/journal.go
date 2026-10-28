@@ -286,7 +286,7 @@ func (a *App) historyChanged() {
 		a.contextChanged()
 	}
 	if err := errors.Join(errs...); err != nil {
-		a.r.UI().Status("history: " + err.Error())
+		a.r.UI().Error("history: " + err.Error())
 	}
 }
 

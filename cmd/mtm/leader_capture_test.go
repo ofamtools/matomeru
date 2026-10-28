@@ -38,8 +38,8 @@ func TestLeaderSCyclesTheStarredPanes(t *testing.T) {
 	app, _ := liveApp(t)
 	app.Update(keyMsg("ctrl+a"))
 	app.Update(keyMsg("s"))
-	if !strings.Contains(app.m.Status, "no starred panes") || app.attached.ID != "w1" {
-		t.Fatalf("none starred: status %q attached %s", app.m.Status, app.attached.ID)
+	if !strings.Contains(app.m.Info, "no starred panes") || app.attached.ID != "w1" {
+		t.Fatalf("none starred: status %q attached %s", app.m.Info, app.attached.ID)
 	}
 	live(t, app, "ctrl+a s, none starred")
 	for _, w := range []string{"w1", "w2"} {

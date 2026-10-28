@@ -204,7 +204,7 @@ func (a *App) inboxUpdate(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	if err := a.reloadInbox(); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 	return a.inboxTick()
 }

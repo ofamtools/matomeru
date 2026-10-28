@@ -111,8 +111,9 @@ func TestPromptPasteFiles(t *testing.T) {
 	}
 }
 
-// Text on the clipboard is a plain paste; an empty or unreadable one is
-// a status line, never a modal, and the box keeps its text.
+// Text on the clipboard is a plain paste; an empty one is a plain status
+// line and an unreadable one the error line, never a modal, and the box
+// keeps its text.
 func TestPromptPasteTextEmptyAndUnreadable(t *testing.T) {
 	app, _, clip := clipApp(t)
 	clip.text = "hello there"
@@ -122,8 +123,11 @@ func TestPromptPasteTextEmptyAndUnreadable(t *testing.T) {
 	}
 	clip.text = ""
 	pressSettle(t, app, "ctrl+v")
-	if !strings.Contains(app.m.Status, "the clipboard is empty") || string(app.pb.input.Text) != "hello there" {
-		t.Fatalf("empty: %q %q", app.m.Status, string(app.pb.input.Text))
+	if !strings.Contains(app.m.Info, "the clipboard is empty") || string(app.pb.input.Text) != "hello there" {
+		t.Fatalf("empty: %q %q", app.m.Info, string(app.pb.input.Text))
+	}
+	if fr := frame(app); app.m.Status != "" || strings.Contains(fr, "Error:") || !strings.Contains(fr, "the clipboard is empty") {
+		t.Fatalf("an empty clipboard is plain, not the error line: status %q\n%s", app.m.Status, fr)
 	}
 	clip.err = errors.New("osascript: execution error")
 	pressSettle(t, app, "ctrl+v")

@@ -57,7 +57,7 @@ func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 }
 
 // ctx.Info reaches the Model through noticeSink as the plain tone: no
-// "Error:" on the status line. ctx.Status (the error tone) still reads
+// "Error:" on the status line. ctx.Error (the error tone) still reads
 // "Error:".
 func TestInfoShowsPlainThroughTheNoticeSink(t *testing.T) {
 	app := open(t)
@@ -68,7 +68,7 @@ func TestInfoShowsPlainThroughTheNoticeSink(t *testing.T) {
 	if app.m.Status != "" {
 		t.Fatalf("info reached the error tone: %q", app.m.Status)
 	}
-	app.r.UI().Status("broke")
+	app.r.UI().Error("broke")
 	if fr := frame(app); !strings.Contains(fr, "Error: broke") {
 		t.Fatalf("error frame:\n%s", fr)
 	}

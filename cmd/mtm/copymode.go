@@ -377,7 +377,7 @@ func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 	if switched && source == "" {
 		return a.capturePreview(p, func(ctx ochazuke.Ctx) {
 			if err := a.enterCopy(p, ""); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 			}
 		})
 	}
@@ -503,7 +503,7 @@ func (a *App) copyYank(ctx ochazuke.Ctx) ochazuke.Result {
 	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if osc, _ := v.(bool); err == nil && osc {
 			if err := a.copyOSC52(text); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 			}
 		}
 	})
@@ -566,7 +566,7 @@ func (a *App) copyUpdate(msg tea.Msg) {
 			err = a.enterCopy(p, source)
 		}
 		if err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 			_ = a.r.SetFocus(paneListID)
 			return
 		}
@@ -578,7 +578,7 @@ func (a *App) copyUpdate(msg tea.Msg) {
 	_, tick := msg.(refreshDue)
 	if (changed || tick && a.r.Page == panesPage) && !a.copyLoading() {
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "load", Noun: copyNoun, Target: copyID}); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 }

@@ -116,8 +116,8 @@ func TestHintsLabelAVimSide(t *testing.T) {
 	app, _, _, _ = hintsSideAppIn(t, mainRows, vimScreen(15, status), t.TempDir())
 	app.Update(keyMsg("ctrl+a"))
 	app.Update(keyMsg("f"))
-	if app.r.Mode.Name != hintsMode || len(app.hinting.screens) != 1 || !strings.Contains(app.m.Status, "nothing to label on the side") {
-		t.Fatalf("vim side with nothing: mode %s status %q", app.r.Mode.Name, app.m.Status)
+	if app.r.Mode.Name != hintsMode || len(app.hinting.screens) != 1 || !strings.Contains(app.m.Info, "nothing to label on the side") {
+		t.Fatalf("vim side with nothing: mode %s status %q", app.r.Mode.Name, app.m.Info)
 	}
 }
 

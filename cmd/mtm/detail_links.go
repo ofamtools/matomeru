@@ -125,13 +125,13 @@ func (a *App) syncLinks() {
 	ld.sig = sig.String()
 	held := ld.links.Focused()
 	if err := ld.links.SetItems(items); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 		return
 	}
 	a.r.Instances[ld.linksID].Unfocusable = len(items) == 0
 	if held && len(items) == 0 {
 		if err := ld.main().Focus(); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 }

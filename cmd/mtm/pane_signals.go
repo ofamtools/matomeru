@@ -93,7 +93,7 @@ func (a *App) raisePaneSignals(panes []pane) {
 		return
 	}
 	if err := a.applyPaneSignals(list, kinds); err != nil {
-		a.r.UI().Status("pane signals: " + err.Error())
+		a.r.UI().Error("pane signals: " + err.Error())
 		return
 	}
 	a.signals.sig = sig

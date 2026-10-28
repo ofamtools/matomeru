@@ -137,9 +137,9 @@ func (a *App) refreshPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	case turnsClaude, turnsOmp:
 		return a.readLogTurns(p, pt, true)
 	case turnsShell:
-		a.r.UI().Status("turns: the shell's commands")
+		a.r.UI().Info("turns: the shell's commands")
 	default:
-		a.r.UI().Status("turns: " + journalNotice)
+		a.r.UI().Info("turns: " + journalNotice)
 	}
 	sub := ctx
 	sub.Instance = row

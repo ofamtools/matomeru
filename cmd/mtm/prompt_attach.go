@@ -200,12 +200,12 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			err = read.err
 		}
 		if err != nil {
-			ctx.Status("could not read the clipboard: " + oneLine(err.Error()))
+			ctx.Error("could not read the clipboard: " + oneLine(err.Error()))
 			return
 		}
 		text, notice := a.pastedText(read.got)
 		if text == "" {
-			ctx.Status(notice)
+			ctx.Info(notice)
 			return
 		}
 		if in := a.pb.input; a.r.Focus != promptID && string(in.Text) == was {
@@ -215,11 +215,10 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			text = a.spacedAtCursor(text)
 		}
 		if err := a.pasteIntoPrompt(text); err != nil {
-			ctx.Status(err.Error())
+			ctx.Error(err.Error())
 			return
 		}
-		// An attach is a success: a notice (ctx.Status is the TUI's error
-		// line, drawn "Error: ...").
+		// An attach is a success: a notice, never the error line.
 		if notice != "" {
 			ctx.Notify(notice)
 		}
@@ -359,7 +358,7 @@ func (a *App) recordAttachments(ctx ochazuke.Ctx, p pane, sent []promptAttachmen
 	for _, at := range sent {
 		args := ochazuke.Arguments{"text": at.path, "kind": "file", "session": p.Session, "window": p.ID}
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "add", Noun: contextNoun, Args: args}); err != nil {
-			ctx.Status(err.Error())
+			ctx.Error(err.Error())
 		}
 	}
 }

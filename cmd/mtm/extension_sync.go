@@ -107,6 +107,6 @@ func (a *App) syncExtensions() {
 		a.lastPage = a.r.Page
 	}
 	if err := errors.Join(uerrs...); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }

@@ -751,7 +751,7 @@ func (a *App) syncOpenedCards() {
 			continue
 		}
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "turn", Target: id}); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 }
@@ -765,7 +765,7 @@ func (a *App) refoldCards() {
 			continue
 		}
 		if err := a.pushCards(tl, st); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 			continue
 		}
 		for _, c := range tl.Cards() {
@@ -797,7 +797,7 @@ func (a *App) turnStyleChanged() {
 	}
 	a.pv.turnsFor = "" // a fresh fill: the tree starts closed
 	if err := a.showTurns(row); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 		return
 	}
 	if focused {
@@ -813,7 +813,7 @@ func (a *App) turnStyleChanged() {
 		// The tree is not drawn: its rows go, and its fill starts over.
 		delete(a.turnFills, a.pv.turns.ID())
 		if err := a.pv.turns.SetNodes(nil); err != nil {
-			a.r.UI().Status(err.Error())
+			a.r.UI().Error(err.Error())
 		}
 	}
 }
@@ -852,7 +852,7 @@ func (a *App) copyStep(ctx ochazuke.Ctx) ochazuke.Result {
 		case err != nil:
 		case osc:
 			if err := a.copyOSC52(text); err != nil {
-				ctx.Status(err.Error())
+				ctx.Error(err.Error())
 			}
 		default:
 			ctx.Notify("copied the step")

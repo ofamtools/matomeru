@@ -172,7 +172,7 @@ func (a *App) listVim(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	// r also asks the daemon again; the rows follow its listing.
 	if err := a.reloadPanes(); err != nil {
-		ctx.Status(err.Error())
+		ctx.Error(err.Error())
 	}
 	if err := a.refreshVim(); err != nil {
 		return ochazuke.Failed(err)

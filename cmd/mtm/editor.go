@@ -98,14 +98,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	quick, quickErr := a.quickNoteUpdate(msg)
 	if err := errors.Join(editErr, a.extFormFailure(), a.renameFailure(), quickErr, a.autosaveAnswer()); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 	if quick != nil {
 		cmd = tea.Batch(cmd, quick)
 	}
 	a.filterDirectories()
 	if err := a.syncNoteDoc(); err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 	if c := a.contextUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
@@ -135,16 +135,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh is automatic: the page reads its records on opening
 			// (another mtm or the CLI may have changed them).
 			if err := a.refreshSaved(); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 		case inboxPage:
 			// Outside tools add items from other processes.
 			if err := a.reloadInbox(); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 		case vimPage:
 			if err := a.refreshVim(); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 		case extensionsPage:
 			// The tools on PATH and their catalogs may have changed.
@@ -153,7 +153,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Capture hooks write turns from other processes; the rows
 			// also name panes after the latest listing.
 			if err := a.refreshReviews(); err != nil {
-				a.r.UI().Status(err.Error())
+				a.r.UI().Error(err.Error())
 			}
 		default:
 			// An extension's page reloads its rows when it is opened
@@ -337,7 +337,7 @@ func draftValues(d editRecord, values ochazuke.Record) bool {
 // fail shows a failure from a callback that cannot return one.
 func (a *App) fail(err error) {
 	if err != nil {
-		a.r.UI().Status(err.Error())
+		a.r.UI().Error(err.Error())
 	}
 }
 

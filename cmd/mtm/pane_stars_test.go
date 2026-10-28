@@ -67,8 +67,8 @@ func TestBacktickSelectsTheNextStarredPane(t *testing.T) {
 	app, _ := panesApp(t)
 	settle(app, follow(app))
 	app.Update(keyMsg("`"))
-	if app.r.Focus != "pane:matomeru/w1" || !strings.Contains(app.m.Status, "no starred panes") {
-		t.Fatalf("none starred: focus %s status %q", app.r.Focus, app.m.Status)
+	if app.r.Focus != "pane:matomeru/w1" || !strings.Contains(app.m.Info, "no starred panes") {
+		t.Fatalf("none starred: focus %s status %q", app.r.Focus, app.m.Info)
 	}
 	for _, row := range []string{"pane:matomeru/w1", "pane:ochazuke/w2"} {
 		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row}); err != nil {

@@ -252,7 +252,7 @@ func (a *App) rowHints(ctx ochazuke.Ctx, row string) ochazuke.Result {
 	}
 	win := a.pv.screen
 	if a.pv.tab != tabScreen || a.preview.Pane != row || win.row != row || win.shown == 0 {
-		ctx.Status("hints: no screen for this pane yet")
+		ctx.Info("hints: no screen for this pane yet")
 		return ochazuke.Done(nil)
 	}
 	p, err := a.paneAt(ctx.Instance)
@@ -363,11 +363,11 @@ func (a *App) beginHints(ctx ochazuke.Ctx, h *liveHints, screens []*hintScreen) 
 		h.screens = append(h.screens, sc)
 	}
 	if !drawn {
-		ctx.Status("hints: the pane has drawn nothing yet")
+		ctx.Info("hints: the pane has drawn nothing yet")
 		return ochazuke.Done(nil)
 	}
 	if len(h.spans) == 0 {
-		ctx.Status("hints: nothing to label on the screen")
+		ctx.Info("hints: nothing to label on the screen")
 		return ochazuke.Done(nil)
 	}
 	h.labels = hints.Assign(targets, hintsAlphabet)
@@ -379,7 +379,7 @@ func (a *App) beginHints(ctx ochazuke.Ctx, h *liveHints, screens []*hintScreen) 
 		return ochazuke.Failed(err)
 	}
 	if len(empty) > 0 {
-		ctx.Status("hints: nothing to label on the " + strings.Join(empty, " or the "))
+		ctx.Info("hints: nothing to label on the " + strings.Join(empty, " or the "))
 	}
 	return ochazuke.Done(len(h.spans))
 }
@@ -611,7 +611,7 @@ func (a *App) openHint(ctx ochazuke.Ctx, it contextitems.Item) ochazuke.Result {
 	switch it.Kind {
 	case "file", "dir", "link", "pr":
 	default:
-		ctx.Status(fmt.Sprintf("a %s has nothing to open; its label copies it", it.Kind))
+		ctx.Info(fmt.Sprintf("a %s has nothing to open; its label copies it", it.Kind))
 		return ochazuke.Done(nil)
 	}
 	sys, target := a.cx.sys, contextitems.Target(it)

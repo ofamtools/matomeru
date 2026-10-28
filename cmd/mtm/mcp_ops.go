@@ -89,7 +89,7 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if err := a.reloadContext(); err != nil {
-		ctx.Status(err.Error())
+		ctx.Error(err.Error())
 	}
 	if written == nil {
 		written = []contextitems.Item{}

@@ -260,5 +260,5 @@ func (a *App) unsendableKey(key string) {
 		a.unsendable = map[string]bool{}
 	}
 	a.unsendable[key] = true
-	a.r.UI().Status(fmt.Sprintf("key %s can't be sent to the pane", key))
+	a.r.UI().Error(fmt.Sprintf("key %s can't be sent to the pane", key))
 }
