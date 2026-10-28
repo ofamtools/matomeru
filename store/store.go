@@ -268,6 +268,51 @@ func (t *Tx) All(table string) ([]json.RawMessage, error) {
 	return readRows(t.tx.Query(`SELECT row FROM ` + quote(table) + ` ORDER BY rowid`))
 }
 
+// Entry is one stored row with the id it is stored under (a row's own
+// key field can be absent, as in a singleton row).
+type Entry struct {
+	ID  string
+	Row json.RawMessage
+}
+
+// Entries returns a table's rows with their ids, in insertion order.
+func (t *Tx) Entries(table string) ([]Entry, error) {
+	if _, err := t.allowed(table); err != nil {
+		return nil, err
+	}
+	rows, err := t.tx.Query(`SELECT id, row FROM ` + quote(table) + ` ORDER BY rowid`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]Entry, 0)
+	for rows.Next() {
+		var id string
+		var data []byte
+		if err := rows.Scan(&id, &data); err != nil {
+			return nil, err
+		}
+		out = append(out, Entry{ID: id, Row: json.RawMessage(data)})
+	}
+	return out, rows.Err()
+}
+
+// Raw is a row's stored JSON, nil when the table holds no row under id.
+func (t *Tx) Raw(table, id string) (json.RawMessage, error) {
+	if _, err := t.allowed(table); err != nil {
+		return nil, err
+	}
+	var data []byte
+	err := t.tx.QueryRow(`SELECT row FROM `+quote(table)+` WHERE id = ?`, id).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return json.RawMessage(data), err
+}
+
+// Declared reports whether a table has been declared.
+func (s *Store) Declared(table string) bool { return s.declared(table) == nil }
+
 func (t *Tx) Put(table, id string, row any) error {
 	if t.readOnly {
 		return errors.New("store: put inside a read-only view")

@@ -19,9 +19,12 @@ type Assignment struct {
 }
 
 type SessionOwner struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	ProjectID       string `json:"project_id"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	ProjectID string `json:"project_id"`
+	// TaskID is set when a project the session belonged to became a task
+	// (DemoteProject); its panes inherit it.
+	TaskID          string `json:"task_id,omitempty"`
 	FormerProjectID string `json:"former_project_id,omitempty"`
 }
 
@@ -72,7 +75,7 @@ func (s *Store) PaneOwner(window, sessionID string) (Assignment, error) {
 		return a, err
 	}
 	o, err := s.SessionOwner(sessionID)
-	return Assignment{Window: window, Session: sessionID, ProjectID: o.ProjectID, FormerProjectID: o.FormerProjectID}, err
+	return Assignment{Window: window, Session: sessionID, ProjectID: o.ProjectID, TaskID: o.TaskID, FormerProjectID: o.FormerProjectID}, err
 }
 
 func (s *Store) taskProject(id string) (string, error) {
