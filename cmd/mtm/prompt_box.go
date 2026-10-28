@@ -194,19 +194,28 @@ func (a *App) addPromptBox() error {
 		Verb("back", a.promptBack, "Go back to the turns, else the pane row").
 		Verb("context", a.promptContext, "Choose a context item or prompt of the box's pane, its project or no project, and write it at the cursor (a file as @path)").
 		Verb("paste", a.pastePrompt, "Paste from the clipboard into the prompt: an image (or a copied image file) is attached as [image N], another copied file goes in as @path, text as text").
+		// pane.attach's handler on the box's pane (no key: enter sends);
+		// ctrl+a d comes back to the box.
+		Verb("live", a.attachPane, "Attach the box's pane live, to answer what the agent asks; ctrl+a d comes back to the box").
 		Verb("detach", a.detachPrompt, "Remove an attachment from the prompt: image n, the only one, else choose among them").
 		Mode("insert").
 		Bind("ctrl+v", ochazuke.Do(promptNoun+".paste").Hinted("paste/attach")).
-		Bind("enter", ochazuke.Do(promptNoun+".send")).
+		Bind("enter", ochazuke.Do(promptNoun+".send").Hinted("send")).
 		Bind("ctrl+j", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hinted("newline")).
 		Bind("alt+enter", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hide()).
-		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
+		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode").Hinted("mode")).
 		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
+		// up on the box's first line goes back up to the turns, as k
+		// does in normal mode; elsewhere it moves the cursor up a line.
+		Bind("up", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide()).
 		Mode("normal").
-		Bind("enter", ochazuke.Do(promptNoun+".send")).
-		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
+		Bind("enter", ochazuke.Do(promptNoun+".send").Hinted("send")).
+		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode").Hinted("mode")).
 		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
 		Bind("esc", ochazuke.Do(promptNoun+".back")).
+		// The editor's own i (input.begin at the cursor), with a hint, so
+		// the footer says how to write from the box's normal mode.
+		Bind("i", ochazuke.Do("input.begin", ochazuke.Arguments{"position": "insert"}).Hinted("write")).
 		// k (and up) on the box's first line goes back up to the turns, as
 		// a motion past a list's edge spills to the stop drawn above;
 		// elsewhere they move the cursor up a line. j on the last line
@@ -275,7 +284,8 @@ func (a *App) promptPaneAt(focus string) *pane {
 func promptServes(p pane) bool { return !p.Exited && (isClaude(p) || isOmp(p)) }
 
 // focusPrompt is pane.prompt and turn*.prompt (i): show the row's turns
-// when they are not shown, then focus the box in insert mode.
+// when they are not shown, then focus the box in insert mode, the cursor
+// after the draft.
 func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance != nil && ctx.Instance.Noun == "pane" && a.pv.turnsFor != ctx.Instance.ID {
 		if err := a.showTurns(ctx.Instance.ID); err != nil {
@@ -287,8 +297,14 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("the prompt box is for a Claude Code or omp pane, on the Turns tab"))
 	}
 	a.promptTargetFor(*p)
+	from := a.r.Focus
 	if err := a.r.SetFocus(promptID); err != nil {
 		return ochazuke.Failed(err)
+	}
+	if from != promptID {
+		// Coming in from the row or a turn, i writes after the draft
+		// (like A), never inside it where normal mode's cursor was left.
+		a.pb.input.Cursor = len(a.pb.input.Text)
 	}
 	a.pb.input.SetMode("insert")
 	return ochazuke.Done(promptID)
@@ -424,7 +440,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		text = promptOutgoing(text, attached, true)
 	}
 	if mode != promptQueue && p.needsInput() {
-		return ochazuke.Failed(errors.New("the agent waits on you: answer it live (enter on its row), or queue the prompt (ctrl+t)"))
+		return ochazuke.Failed(errors.New("the agent waits on you: answer it live (turn-prompt.live from here, enter on its row), or queue the prompt (ctrl+t)"))
 	}
 	if mode == promptQueue && len(text) > daemon.QueueMaxText {
 		return ochazuke.Failed(fmt.Errorf("a queued prompt is at most %d KiB; this one is %d KiB (send it instead)", daemon.QueueMaxText>>10, (len(text)+1023)>>10))
@@ -488,13 +504,46 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		case mode == promptQueue:
 			ctx.Status(fmt.Sprintf("queued (%d waiting): tuios types it when the agent rests", max(1, got.Queued)))
 		}
-		// The new turn (or the steer) shows once the log has it.
+		// The new turn (or the steer) shows once the log has it, and the
+		// turns follow it (only a send moves them; focusing the box does
+		// not).
+		a.followNewest()
 		if a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
 			if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
 				ctx.Status(err.Error())
 			}
 		}
 	})
+}
+
+// followNewest selects the newest turn and keeps it selected as the read
+// after a send lands: on cards ochazuke.timeline.goto last, which resumes
+// following the end; in the tree the last turn row, now and after the read.
+func (a *App) followNewest() {
+	if a.turnCards() {
+		if a.pv.cards == nil {
+			return
+		}
+		if _, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.timeline", Verb: "goto", Args: ochazuke.Arguments{"id": a.pv.cards.ID(), "position": "last"}}); err != nil {
+			a.r.UI().Status(err.Error())
+		}
+		return
+	}
+	a.pv.sent = true
+	a.selectNewestTurnRow()
+}
+
+// selectNewestTurnRow selects the tree's last turn row.
+func (a *App) selectNewestTurnRow() {
+	items := a.pv.turns.List().Items()
+	for i := len(items) - 1; i >= 0; i-- {
+		if items[i].Noun == "turn" {
+			if err := a.pv.turns.Select(items[i].ID); err != nil {
+				a.r.UI().Status(err.Error())
+			}
+			return
+		}
+	}
 }
 
 // promptTargetFor points the completions at the pane and loads the
@@ -706,6 +755,18 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	var field ochazuke.Block
 	if a.r.Focus == promptID {
 		field = ochazuke.InputBlock(in, fieldW, rows).Offset(2, 1)
+		if len(in.Text) == 0 && a.r.BaseMode() == "normal" {
+			// The empty box in normal mode says how to write and leave,
+			// from its rows, under the cursor.
+			var cue []string
+			if k := a.keyForRequest(promptID, "input.begin", ochazuke.Arguments{"position": "insert"}); k != "" {
+				cue = append(cue, k+" to write")
+			}
+			if back := a.keySentence(promptID, keyAction{promptNoun + ".back", "back"}); back != "" {
+				cue = append(cue, back)
+			}
+			field = field.WithText(s.Muted.Render(strings.Join(cue, " · ")))
+		}
 	} else if len(in.Text) == 0 {
 		a.r.Placed(promptID) // a stop after the turns even while empty
 		field = ochazuke.Text(s.Muted.Render("write to the agent"))

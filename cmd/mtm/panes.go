@@ -173,6 +173,13 @@ type paneUI struct {
 	lastState map[string]string // window → the agent state at the last listing
 	turns     *ochazuke.Tree
 	turnsFor  string // the pane row the Turns tree shows
+	// liveFrom is the tab an attach left (liveSaved), which the detach
+	// that ends it goes back to.
+	liveFrom  int
+	liveSaved bool
+	// sent: a send asked the tree style to select the newest turn once
+	// the read after it lands (the cards follow their end instead).
+	sent bool
 	// The cards style (turn_cards.go): a timeline per pane window, the one
 	// the tab draws, and what each was filled with.
 	timelines  map[string]*ochazuke.Timeline
@@ -216,7 +223,7 @@ func (a *App) definePanes() {
 	}}
 	r.Define("pane").
 		Columns(paneColumns...).
-		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches, ctrl+a z zooms").
+		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches back to the tab it left, ctrl+a z zooms").
 		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Fetch().Quiet().
 		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
 		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
@@ -609,12 +616,23 @@ func (a *App) toScreen(row string) bool {
 	return true
 }
 
-// attachPane is pane.attach: replace any attached terminal with one fed by
-// the pane's stream and focus it. CloseOnDetach makes the leader's d remove
-// the terminal, which releases the stream, and FocusOnClose lands focus back
-// on the row the attach came from, so enter re-attaches at once.
+// attachPane is pane.attach, and turn.live and turn-prompt.live (the
+// pane whose turns the tab shows): replace any attached terminal with one
+// fed by the pane's stream and focus it. CloseOnDetach makes the leader's d
+// remove the terminal, which releases the stream, and FocusOnClose lands
+// focus back where the attach came from (the row, so enter re-attaches at
+// once; the turn; the box), on the tab it left.
 func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.paneAt(ctx.Instance)
+	if ctx.Instance == nil {
+		return ochazuke.Failed(errors.New("select a pane"))
+	}
+	row := ctx.Instance
+	if row.Noun != "pane" {
+		if row = a.r.Instances[a.pv.turnsFor]; row == nil {
+			return ochazuke.Failed(errors.New("no pane's turns are shown"))
+		}
+	}
+	p, err := a.paneAt(row)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -632,9 +650,14 @@ func (a *App) attachLive(p pane, returnTo string) error {
 	if err := a.work.TouchDir(p.Cwd); err != nil {
 		a.r.UI().Notify("directory recency: " + err.Error())
 	}
+	liveFrom, saved := a.pv.liveFrom, a.pv.liveSaved
+	if a.attached.ID == "" {
+		liveFrom, saved = a.pv.tab, true
+	}
 	if err := a.closeTerminal(); err != nil {
 		return err
 	}
+	a.pv.liveFrom, a.pv.liveSaved = liveFrom, saved
 	stream := a.openStream(p)
 	a.trackStream(paneTermID, stream)
 	if h, ok := stream.(holdable); ok {
@@ -703,7 +726,7 @@ func (a *App) closeTerminal() error {
 		return err
 	}
 	a.attached = pane{}
-	a.pv.zoom = false
+	a.pv.zoom, a.pv.liveSaved = false, false
 	var err error
 	if a.r.Instances[paneTermID] != nil {
 		err = a.r.RemoveInstance(paneTermID)

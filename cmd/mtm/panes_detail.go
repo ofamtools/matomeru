@@ -78,6 +78,15 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 			a.paneErr = err.Error()
 		}
 		a.attached, a.pv.zoom, a.pv.followed = pane{}, false, ""
+		if a.pv.liveSaved {
+			// Back to the tab the attach left (the Turns tab, where the
+			// row, a turn or the box asked for live).
+			a.pv.tab, a.pv.liveSaved = a.pv.liveFrom, false
+			if err := a.leaveHiddenTurns(); err != nil {
+				a.paneErr = err.Error()
+			}
+			a.loadDetail()
+		}
 	}
 	if err := a.keepHeld(); err != nil {
 		a.paneErr = err.Error()
@@ -129,8 +138,30 @@ func (a *App) paneTab(ctx ochazuke.Ctx) ochazuke.Result {
 	a.pv.tab = (a.pv.tab + ochazuke.IntArg(ctx.Args, "delta", 1) + len(tabNames)) % len(tabNames)
 	row, _ := a.selectedRow()
 	a.pv.followed = fmt.Sprintf("%s|%d", row, a.pv.tab)
+	if err := a.leaveHiddenTurns(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	a.loadDetail()
 	return ochazuke.Done(tabNames[a.pv.tab])
+}
+
+// leaveHiddenTurns moves the focus off the turns and the prompt box to
+// the pane row they belong to when the tab no longer draws them, so the
+// footer and the next key are the row's, never a stop the frame left out.
+func (a *App) leaveHiddenTurns() error {
+	if a.pv.tab == tabTurns || a.r.Instances[a.pv.turnsFor] == nil {
+		return nil
+	}
+	views := []string{promptID, turnsTreeID}
+	for _, tl := range a.pv.timelines {
+		views = append(views, tl.ID(), tl.ID()+"/list")
+	}
+	for _, id := range a.r.Ancestry(a.r.Focus) {
+		if slices.Contains(views, id) {
+			return a.r.SetFocus(a.pv.turnsFor)
+		}
+	}
+	return nil
 }
 
 // nextWaiting is panes.waiting: select the next pane that needs input,
@@ -732,7 +763,8 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 			a.r.Placed(copyID) // l, } and tab reach copy mode from the list
 		}
 		body = a.tabBody(row, cw, ch)
-		focused = a.pv.tab == tabTurns && a.turnsList().Focused()
+		// The turns or the prompt box below them: both are the panel's.
+		focused = a.pv.tab == tabTurns && (a.turnsList().Focused() || a.r.Focus == promptID)
 	default:
 		title, body = a.groupSummary(inst)
 	}
