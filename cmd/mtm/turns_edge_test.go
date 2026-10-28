@@ -93,6 +93,11 @@ func turnsRegion(t *testing.T, a *App) string {
 	return markerTotal.ReplaceAllString(strings.Join(out, "\n"), "/ N")
 }
 
+// unfocusedCorners is a turns region as it draws once the timeline loses
+// the focus: the selected card keeps its heavy border and only its heavy
+// corners turn rounded (ochazuke's ┏━┓ focused, ╭━╮ unfocused).
+var unfocusedCorners = strings.NewReplacer("┏", "╭", "┓", "╮", "┗", "╰", "┛", "╯").Replace
+
 // Focusing the prompt box (}, tab, i) leaves the turns above it exactly
 // as they were: the same window, the same selection; a turn arriving
 // meanwhile does not move them; back from the box (esc, {) is the same
@@ -128,7 +133,7 @@ func boxKeepsTheTurns(t *testing.T, style string) {
 		if app.r.Focus != promptID {
 			t.Fatalf("%v focused %s", into, where(app))
 		}
-		if got := turnsRegion(t, app); got != before {
+		if got := turnsRegion(t, app); got != unfocusedCorners(before) {
 			t.Fatalf("%v into the box moved the turns:\n%s\nwas:\n%s", into, got, before)
 		}
 		press(t, app, "esc")
@@ -144,7 +149,7 @@ func boxKeepsTheTurns(t *testing.T, style string) {
 	moreClaudeTurns(t, log, 8, 9)
 	f.panes[0].AgentState = "idle"
 	reload(t, app)
-	if got := turnsRegion(t, app); got != before || app.r.Focus != promptID {
+	if got := turnsRegion(t, app); got != unfocusedCorners(before) || app.r.Focus != promptID {
 		t.Fatalf("a new turn moved the held turns (%s):\n%s\nwas:\n%s", where(app), got, before)
 	}
 	press(t, app, "{")
