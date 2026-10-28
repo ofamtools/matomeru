@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
 
+	"github.com/unixsuperhero/matomeru/internal/actionitems"
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
@@ -36,6 +37,7 @@ import (
 
 const (
 	panesPage     = "panes"
+	panesTitle    = "Inbox"
 	paneListID    = paneTreeID + "/list"
 	paneTermID    = "panes/terminal"
 	killConfirm   = "Kill pane {{label}}?"
@@ -198,6 +200,19 @@ type paneUI struct {
 	// screen is what the Screen tab drew of a row's preview last frame,
 	// which f on the row labels (live_hints.go).
 	screen screenWindow
+	// The three lists (panes_sections.go): queue, panes, working; the
+	// active one is the one the detail follows; hold is the row under the
+	// cursor kept in its list until the cursor moves (held: it is out of
+	// the section it now belongs to); places are where each
+	// row entered its section.
+	sections []*paneSection
+	active   int
+	hold     string
+	held     bool
+	places   map[string]sectionPlace
+	// landed is set once the first listing with rows put the focus where
+	// the page opens (focusOpenList).
+	landed bool
 }
 
 // Timers of the panes page.
@@ -280,12 +295,9 @@ func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
 func (a *App) addPanesPage() error {
 	a.r.Instance(panesPage, ochazuke.Kind("page"))
 	// Enter in the tree's search (/) chooses the highlighted pane and clears the search.
-	tree, err := a.r.AddTree(paneTreeID, nil, ochazuke.Parent(panesPage), ochazuke.Columns(paneTreeColumns...), ochazuke.ClearFilterOnEnter())
-	if err != nil {
+	if err := a.addPaneSections(); err != nil {
 		return err
 	}
-	a.pv.tree = tree
-	a.paneList = tree.List()
 	if err := a.addTurns(); err != nil {
 		return err
 	}
@@ -317,8 +329,19 @@ func (a *App) addPanesPage() error {
 	if err := a.r.Bind(ensure); err != nil {
 		return err
 	}
-	if _, err = a.r.AddPage(panesPage, "Panes", a.renderPanes, ochazuke.Focus(paneListID)); err != nil {
+	// The page's title is Inbox (owner, 2026-10-28): its top list is the
+	// inbox queue; its id stays panes, so page.open panes and every
+	// binding and CLI target naming it keep working.
+	page, err := a.r.AddPage(panesPage, panesTitle, a.renderPanes, ochazuke.Focus(paneListID))
+	if err != nil {
 		return err
+	}
+	// Opened from another page (I, the page keys), it lands on the queue
+	// when the queue has rows.
+	page.OnOpen = func(*ochazuke.Runtime, string) {
+		if err := a.focusOpenList(); err != nil {
+			a.r.UI().Error(err.Error())
+		}
 	}
 	// The detail is the selected row's tab; Screen, Activity and
 	// Transcript have the newest at the bottom.
@@ -466,16 +489,30 @@ func (a *App) setPanes(panes []pane, err error) {
 		a.raisePaneSignals(panes)
 	}
 	a.feed.setPanes(panes)
-	a.pv.view = a.buildPaneTree(panes, time.Now())
 	before, hadRow := a.pv.tree.Selected()
-	a.paneList.SetColumns(a.pv.view.columns()...)
-	if err := a.pv.tree.SetNodes(a.pv.view.nodes); err != nil {
+	if err := a.rebuildPanes(); err != nil {
 		a.paneErr = err.Error()
 	}
-	// The page starts on its first pane (the one that most needs you), not
-	// on the group rows above it.
-	if after, ok := a.pv.tree.Selected(); ok && (!hadRow || before.ID != after.ID) && !strings.HasPrefix(after.ID, "pane:") && len(a.pv.view.order) > 0 {
-		if err := a.pv.tree.Select(a.pv.view.order[0]); err != nil {
+	// The middle list starts on its first pane, not on the group rows
+	// above it.
+	if after, ok := a.pv.tree.Selected(); ok && (!hadRow || before.ID != after.ID) && !strings.HasPrefix(after.ID, "pane:") {
+		if first := a.firstPaneRow(); first != "" {
+			if err := a.pv.tree.Select(first); err != nil {
+				a.paneErr = err.Error()
+			}
+		}
+	}
+	// The first listing with rows lands where the page opens: the top
+	// list's first row when it has rows; later ones leave the focus to
+	// the user.
+	if !a.pv.landed && len(a.pv.view.nodes) > 0 {
+		a.pv.landed = true
+		if q := a.pv.sections[0]; len(q.nodes) > 0 {
+			if err := q.tree.Select(q.nodes[0].ID); err != nil {
+				a.paneErr = err.Error()
+			}
+		}
+		if err := a.focusOpenList(); err != nil {
 			a.paneErr = err.Error()
 		}
 	}
@@ -555,21 +592,26 @@ func (a *App) land(row string) error {
 	if a.r.Instances[row] == nil {
 		return fmt.Errorf("the pane list has no %s", row)
 	}
-	if err := a.pv.tree.Select(row); err != nil {
+	if err := a.selectPaneRow(row); err != nil {
 		return err
 	}
-	if err := a.paneList.Focus(); err != nil {
+	if err := a.r.SetFocus(row); err != nil {
 		return err
 	}
 	_, err := a.r.Execute(ochazuke.Request{Verb: "attach", Noun: "pane", Target: row})
 	return err
 }
 
-// paneAt is the pane a row instance fronts.
+// paneAt is the pane a row instance fronts: a pane row's, or the pane an
+// action item's window names (the top list's pane signals).
 func (a *App) paneAt(inst *ochazuke.Instance) (pane, error) {
 	if inst != nil {
+		window := ""
+		if it, ok := inst.Data.(actionitems.Item); ok {
+			window = it.Window
+		}
 		for _, p := range a.panes {
-			if p.rowID() == inst.ID {
+			if p.rowID() == inst.ID || window != "" && p.ID == window {
 				return p, nil
 			}
 		}
@@ -637,7 +679,7 @@ func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("select a pane"))
 	}
 	row := ctx.Instance
-	if row.Noun != "pane" {
+	if !a.frontsPane(row) {
 		if row = a.r.Instances[a.pv.turnsFor]; row == nil {
 			return ochazuke.Failed(errors.New("no pane's turns are shown"))
 		}
@@ -687,8 +729,7 @@ func (a *App) attachLive(p pane, returnTo string) error {
 	if a.r.Instances[p.rowID()] == nil && len(a.panes) > 0 {
 		// A pane outside the pin stays reachable as a labelled row while
 		// it is attached.
-		a.pv.view = a.buildPaneTree(a.panes, time.Now())
-		if err := a.pv.tree.SetNodes(a.pv.view.nodes); err != nil {
+		if err := a.rebuildPanes(); err != nil {
 			return err
 		}
 	}

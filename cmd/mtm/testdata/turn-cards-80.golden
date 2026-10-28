@@ -1,7 +1,8 @@
   ◆ Matomeru · no pin                                                  NORMAL   
-   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  2›    
+   › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  2›    
   ────────────────────────────────────────────────────────────────────────────  
   panes (2)                                                                     
+  ─ Panes (2) ─                                                                 
   pane                state                                                     
   ▾ matomeru (1)                                                                
         ○ claude      idle                                                      
@@ -24,7 +25,6 @@
   ┃ ┃                                                                      ┃ ┃  
   ┃ ┃   See                                                                ┃ ┃  
   ┃ ┃   https://example.com/a/very/long/path/that/does/not/have/any/spaces ┃ ┃  
-  ┃ ┃   /in/it/at/all/so/it/must/hard/break/somewhere.html                 ┃ ┃  
   ┃ 1–1 / 2                                                                  ┃  
   ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ────────────────────── ┃  
   ┃ › write to the agent                                                     ┃  

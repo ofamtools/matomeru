@@ -268,7 +268,7 @@ func (a *App) jumpPane(row string) error {
 	if a.r.Instances[row] == nil {
 		return fmt.Errorf("the pane list has no %s", row)
 	}
-	if err := a.pv.tree.Select(row); err != nil {
+	if err := a.selectPaneRow(row); err != nil {
 		return err
 	}
 	return a.r.SetFocus(row)

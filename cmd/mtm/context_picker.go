@@ -324,7 +324,7 @@ func (a *App) openPromptTurn(pr promptRow) ochazuke.Result {
 	if a.r.Instances[row] == nil {
 		return ochazuke.Failed(fmt.Errorf("the pane list has no %s", row))
 	}
-	if err := a.pv.tree.Select(row); err != nil {
+	if err := a.selectPaneRow(row); err != nil {
 		return ochazuke.Failed(err)
 	}
 	a.pv.tab = tabTurns

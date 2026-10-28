@@ -184,7 +184,7 @@ func (a *App) attachPicked(p pane) error {
 	}
 	if a.attached.ID == p.ID && a.r.Terminal(paneTermID) != nil {
 		if a.r.Instances[row] != nil {
-			if err := a.pv.tree.Select(row); err != nil {
+			if err := a.selectPaneRow(row); err != nil {
 				return err
 			}
 		}
@@ -192,7 +192,7 @@ func (a *App) attachPicked(p pane) error {
 	}
 	zoom := a.pv.zoom && a.r.Terminal(paneTermID) != nil
 	if a.r.Instances[row] != nil {
-		if err := a.pv.tree.Select(row); err != nil {
+		if err := a.selectPaneRow(row); err != nil {
 			return err
 		}
 	}
@@ -201,7 +201,7 @@ func (a *App) attachPicked(p pane) error {
 	}
 	if a.r.Instances[row] != nil {
 		// A pane outside the pin has a row only once attached.
-		if err := a.pv.tree.Select(row); err != nil {
+		if err := a.selectPaneRow(row); err != nil {
 			return err
 		}
 	}

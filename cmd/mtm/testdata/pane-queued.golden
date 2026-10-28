@@ -1,17 +1,17 @@
   ◆ Matomeru · no pin                                                                      NORMAL   
-   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  Schedules  Extensions     
+   › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Extensions     
   ────────────────────────────────────────────────────────────────────────────────────────────────  
-  panes (2)                                                                                         
+  panes (2) · 1 working                                                                             
+  ─ Panes (1) ─                                                                                     
   pane                state                                                                         
-  ▾ unassociated (2)                                                                                
-        ● fixer W     working                                                                       
+  ▾ unassociated (1)                                                                                
           sh          shell                                                                         
-  ╭─ work/fixer ─────────────────────────────────────────────────────────────────────────────────╮  
-  │ claude · /tmp/w · working · unassociated                                                     │  
+  ─ Working (1) ─                                                                                   
+      ● fixer W  working                                                                            
+  ╭─ work/sh ────────────────────────────────────────────────────────────────────────────────────╮  
+  │ shell · /tmp/w                                                                               │  
   │ Turns [Screen] Activity Transcript · [ ] tabs · enter live                                   │  
   │ loading…                                                                                     │  
-  │                                                                                              │  
-  │                                                                                              │  
   │                                                                                              │  
   │                                                                                              │  
   │                                                                                              │  

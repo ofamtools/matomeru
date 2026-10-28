@@ -15,7 +15,7 @@ import (
 // cell0 is a tree row's first cell as drawn: the tree's indent and fold
 // marker, then the row's own text.
 func cell0(a *App, id string) string {
-	for _, it := range a.paneList.Items() {
+	for _, it := range sectionItems(a) {
 		if it.ID == id && len(it.Cells) > 0 {
 			return it.Cells[0]
 		}
@@ -40,9 +40,9 @@ func nameAt(a *App, id, name string) int {
 func TestPaneRowMarkerGutter(t *testing.T) {
 	app, f := panesApp(t)
 	agent, shell := "pane:matomeru/w1", "pane:ochazuke/w2"
-	f.panes[0].Harness, f.panes[0].AgentState = "claude", "working"
+	f.panes[0].Harness, f.panes[0].AgentState = "claude", "idle"
 	reload(t, app)
-	if got := cell0(app, agent); !strings.HasSuffix(got, "  ● claude") {
+	if got := cell0(app, agent); !strings.HasSuffix(got, "  ○ claude") {
 		t.Fatalf("agent, no markers: %q", got)
 	}
 	if got := cell0(app, shell); !strings.HasSuffix(got, "    shell") {
@@ -64,7 +64,7 @@ func TestPaneRowMarkerGutter(t *testing.T) {
 		}
 	}
 	reload(t, app)
-	if got := cell0(app, agent); !strings.HasSuffix(got, "★◧● claude W") {
+	if got := cell0(app, agent); !strings.HasSuffix(got, "★◧○ claude W") {
 		t.Fatalf("starred, side, queued: %q", got)
 	}
 	if got := cell0(app, shell); !strings.HasSuffix(got, " ◧  shell") {
@@ -86,7 +86,7 @@ func TestPaneRowMarkerGutter(t *testing.T) {
 	if got := cell0(app, shell); !strings.HasSuffix(got, "  × shell") {
 		t.Fatalf("exited: %q", got)
 	}
-	if got := cell0(app, agent); !strings.HasSuffix(got, "★◧● claude") {
+	if got := cell0(app, agent); !strings.HasSuffix(got, "★◧○ claude") {
 		t.Fatalf("queue emptied: %q", got)
 	}
 	// Group rows keep their text: the gutter is the pane rows'.
@@ -140,13 +140,14 @@ func TestPaneRowTones(t *testing.T) {
 
 	// An exited window stays exited for the app; a fresh one for the rest.
 	app, f = panesApp(t)
-	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].Queued = "claude", "working", 3
+	// Idle, so the row stays in the middle list beside the shell.
+	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].Queued = "claude", "idle", 3
 	reload(t, app)
 	settle(app, follow(app))
 	press(t, app, "*")
 	got := tonesOf(app, agent)
 	text := []rune(cell0(app, agent))
-	prefix := len(text) - len([]rune("★ ● claude W"))
+	prefix := len(text) - len([]rune("★ ○ claude W"))
 	at := func(s ochazuke.ToneSpan) string { return string(text[prefix+s.From : prefix+s.To]) }
 	marks := map[string]string{}
 	for _, s := range got {
@@ -154,7 +155,7 @@ func TestPaneRowTones(t *testing.T) {
 			marks[s.Tone] = at(s)
 		}
 	}
-	if marks[ochazuke.ToneStar] != "★" || marks[ochazuke.ToneWorking] != "●" || marks[ochazuke.ToneQueued] != "W" {
+	if marks[ochazuke.ToneStar] != "★" || marks[ochazuke.ToneIdle] != "○" || marks[ochazuke.ToneQueued] != "W" {
 		t.Fatalf("cell 0 tones %+v over %q: %v", got, string(text), marks)
 	}
 	// Off the selected row the theme draws the tones. Tests render without
@@ -163,7 +164,7 @@ func TestPaneRowTones(t *testing.T) {
 	if err := app.pv.tree.Select(shell); err != nil {
 		t.Fatal(err)
 	}
-	if raw := rawFrame(app); !strings.Contains(raw, "\x1b[1m★\x1b[m ● claude W") {
+	if raw := rawFrame(app); !strings.Contains(raw, "\x1b[1m★\x1b[m ○ claude W") {
 		t.Fatalf("star tone not drawn:\n%q", raw)
 	}
 	// The text never carries the colour.

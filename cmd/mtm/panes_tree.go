@@ -281,6 +281,8 @@ type paneView struct {
 	order   []string          // pane row ids in display order (j/k inside live)
 	owners  map[string]string // window → its owning project ("" unassociated)
 	usage   bool              // some pane row has a usage cell (the "use" column)
+	queued  int               // rows of the top list (waiting, review, outside items)
+	working int               // rows of the bottom list
 }
 
 // columns are the tree's columns for this view: the "use" column only

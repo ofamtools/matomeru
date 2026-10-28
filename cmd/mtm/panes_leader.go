@@ -102,7 +102,7 @@ func (a *App) selectPane(row string) ochazuke.Result {
 	if row == "" {
 		return ochazuke.Done(nil)
 	}
-	if err := a.pv.tree.Select(row); err != nil {
+	if err := a.selectPaneRow(row); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(row)

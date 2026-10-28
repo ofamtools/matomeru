@@ -193,7 +193,8 @@ func TestTUIPromptSchedules(t *testing.T) {
 		t.Fatalf("%d launches: the disabled row fired, or standup ran twice", len(f.launches))
 	}
 	a.cli = false // the CLI calls above set it
-	press(t, a, "I", "S")
+	toPage(t, a, inboxPage)
+	press(t, a, "S")
 	press(t, a, "n")
 	if a.r.Instances[scheduleFormID] == nil {
 		t.Fatalf("add opened no form; modal %q", a.r.TopModal())

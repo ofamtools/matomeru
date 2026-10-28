@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/unixsuperhero/matomeru/internal/actionitems"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -36,13 +37,27 @@ const sideBySide = 100
 // under 32 cells, so a pane's glyph, name and short state fit.
 func treeWidth(width int) int { return max(32, width*3/10) }
 
-// selectedRow is the tree's selected row and its instance.
+// selectedRow is the active list's selected row and its instance: the
+// list holding the focus, else the one that held it last
+// (panes_sections.go).
 func (a *App) selectedRow() (string, *ochazuke.Instance) {
-	n, ok := a.pv.tree.Selected()
+	s := a.activeSection()
+	if s == nil {
+		return "", nil
+	}
+	n, ok := s.tree.Selected()
 	if !ok {
 		return "", nil
 	}
 	return n.ID, a.r.Instances[n.ID]
+}
+
+// frontsPane reports whether a row stands for a listed pane: a pane row,
+// or the queue row of a pane's signal (its item's row, holding the pane's
+// row id).
+func (a *App) frontsPane(inst *ochazuke.Instance) bool {
+	_, err := a.paneAt(inst)
+	return err == nil
 }
 
 // panesUpdate runs after every message: it notices a detached terminal,
@@ -88,6 +103,9 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 	if err := a.keepHeld(); err != nil {
 		a.paneErr = err.Error()
 	}
+	if err := a.releaseHold(); err != nil {
+		a.paneErr = err.Error()
+	}
 	if a.r.Page == panesPage && !a.pv.armed && a.pv.after != nil {
 		a.pv.armed = true
 		cmds = append(cmds, a.pv.after(a.refreshInterval(), refreshDue{}))
@@ -117,7 +135,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 // transcript or the turns.
 func (a *App) loadDetail() {
 	row, inst := a.selectedRow()
-	if inst == nil || inst.Noun != "pane" {
+	if !a.frontsPane(inst) {
 		return
 	}
 	verb := map[int]string{tabScreen: "preview", tabActivity: "activity", tabTranscript: "transcript"}[a.pv.tab]
@@ -149,7 +167,7 @@ func (a *App) nextWaiting(ochazuke.Ctx) ochazuke.Result {
 	if id == "" {
 		return ochazuke.Done(nil)
 	}
-	if err := a.pv.tree.Select(id); err != nil {
+	if err := a.selectPaneRow(id); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(id)
@@ -186,7 +204,7 @@ func (a *App) cycleWaiting(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	zoom := a.pv.zoom
-	if err := a.pv.tree.Select(id); err != nil {
+	if err := a.selectPaneRow(id); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.attachLive(p, id); err != nil {
@@ -658,7 +676,7 @@ func (a *App) cyclePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	zoom := a.pv.zoom
-	if err := a.pv.tree.Select(row); err != nil {
+	if err := a.selectPaneRow(row); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.attachLive(p, row); err != nil {
@@ -692,7 +710,6 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		}
 		return layout.PanelBlock(title, body, width, height, term.Focused())
 	}
-	head := a.panesHead()
 	listW, listH, detailW, detailH := width, max(1, (height-1)/3), width, 0
 	side := width >= sideBySide
 	if side {
@@ -701,13 +718,16 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		listH = height - 1
 		detailH = height
 	} else {
-		need := max(3, len(a.pv.tree.Nodes())+1)
-		listH = min(need, max(3, (height-1)/2))
+		need := 0
+		for _, sec := range a.pv.sections {
+			need += a.sectionNeed(sec)
+		}
+		listH = min(max(3, need), max(3, (height-1)/2))
 		detailH = height - 1 - listH
 	}
 	left := a.paneListBlock(listW, listH)
 	detail := a.detailBlock(layout, detailW, max(3, detailH))
-	headLine := s.Muted.Render(ansi.Truncate(head, listW, "…"))
+	headLine := s.Muted.Render(a.panesHead(listW))
 	if side {
 		leftText := headLine + "\n" + left.Text
 		lines := strings.Split(leftText, "\n")
@@ -746,24 +766,70 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	return block
 }
 
-// panesHead is the line over the tree: the counts, a launch or listing
-// problem, and what the pin hides.
-func (a *App) panesHead() string {
+// panesHead is the line over the tree, fitted to width: the counts, a
+// launch or listing problem, and what the pin hides. Parts that do not
+// fit shorten or go, hints first, then the shorter counts (fitHead).
+func (a *App) panesHead(width int) string {
 	v := a.pv.view
-	head := fmt.Sprintf("panes (%d)", v.panes)
+	parts := []headPart{{{fmt.Sprintf("panes (%d)", v.panes), 0}}}
+	if v.queued > 0 {
+		parts = append(parts, headPart{{fmt.Sprintf("%d need you", v.queued), 0}, {fmt.Sprintf("%d need", v.queued), 3}, {"", 1}})
+	}
+	if v.working > 0 {
+		parts = append(parts, headPart{{fmt.Sprintf("%d working", v.working), 0}, {fmt.Sprintf("%d work", v.working), 3}, {"", 2}})
+	}
 	if v.waiting > 0 {
-		head += fmt.Sprintf(" · %d need input", v.waiting)
 		if k := a.keyFor(a.r.Focus, "panes.waiting"); k != "" {
-			head += " · " + k + " next"
+			parts = append(parts, headPart{{k + " next", 0}, {"", 5}})
 		}
 	}
 	if v.hidden > 0 {
-		head += fmt.Sprintf(" · %d outside the pin · S shows all", v.hidden)
+		parts = append(parts, headPart{{fmt.Sprintf("%d outside the pin · S shows all", v.hidden), 0}, {fmt.Sprintf("%d outside the pin", v.hidden), 4}, {fmt.Sprintf("+%d hidden", v.hidden), 3}, {"", 1}})
 	}
 	if a.landErr != "" {
-		head += " · " + a.landErr
+		parts = append(parts, headPart{{a.landErr, 0}})
 	}
-	return head
+	return fitHead(parts, width)
+}
+
+// headForm is one way to write a header part; rank is how early the line
+// steps a part down to this form when it does not fit (higher first).
+// Empty text drops the part.
+type headForm struct {
+	text string
+	rank int
+}
+
+// headPart is a header part's forms, longest first.
+type headPart []headForm
+
+// fitHead joins parts with " · ", stepping a part down to its next form,
+// the highest-ranked step first, until the line fits width. A line that
+// still does not fit is cut with "…".
+func fitHead(parts []headPart, width int) string {
+	form := make([]int, len(parts))
+	line := func() string {
+		var out []string
+		for i, p := range parts {
+			if t := p[form[i]].text; t != "" {
+				out = append(out, t)
+			}
+		}
+		return strings.Join(out, " · ")
+	}
+	for ansi.StringWidth(line()) > width {
+		next := -1
+		for i, p := range parts {
+			if form[i]+1 < len(p) && (next < 0 || p[form[i]+1].rank > parts[next][form[next]+1].rank) {
+				next = i
+			}
+		}
+		if next < 0 {
+			break
+		}
+		form[next]++
+	}
+	return ansi.Truncate(line(), width, "…")
 }
 
 // paneListBlock is the tree, or the empty and daemon-down states, each an
@@ -777,17 +843,11 @@ func (a *App) paneListBlock(width, height int) ochazuke.Block {
 			name = a.daemon.Label()
 		}
 		return ochazuke.Text(a.fill("daemon is not running\ne starts it (daemon.ensure)\n"+name, height, width))
-	case a.paneList.Len() == 0:
+	case len(a.pv.view.nodes) == 0:
 		a.r.Placed(paneListID)
 		return ochazuke.Text(a.fill("no panes\n"+a.keySentence(paneListID, keyAction{"pane.new", "opens a shell"}, keyAction{"agent.choose", "launches an agent"}), height, width))
 	}
-	block := a.pv.tree.Block(width, height)
-	lines := strings.Split(block.Text, "\n")
-	for len(lines) < height {
-		lines = append(lines, "")
-	}
-	block.Text = strings.Join(lines[:height], "\n")
-	return block
+	return a.sectionsBlock(width, height)
 }
 
 // liveShown reports whether the detail draws the attached terminal: on
@@ -819,7 +879,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	header := ""
 	var body ochazuke.Block
 	focused := false
-	if live || a.copyShown(paneTermID) || inst == nil || inst.Noun != "pane" {
+	if live || a.copyShown(paneTermID) || !a.frontsPane(inst) {
 		a.detail.panes.hide() // tabBody windows the detail when it draws
 	}
 	switch {
@@ -841,7 +901,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		}
 	case inst == nil:
 		body = ochazuke.Text("select a pane")
-	case inst.Noun == "pane":
+	case a.frontsPane(inst):
 		p, _ := a.paneAt(inst)
 		title = p.label()
 		header = a.paneHeader(p)
@@ -854,7 +914,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	default:
 		title, body = a.groupSummary(inst)
 	}
-	tabs := a.tabLine(live, a.r.Instances[a.r.Focus] != nil && a.r.Instances[a.r.Focus].Noun == "pane")
+	tabs := a.tabLine(live, a.frontsPane(a.r.Instances[a.r.Focus]))
 	if a.copyShown(paneTermID) {
 		tabs = a.copyTabLine()
 	}
@@ -862,7 +922,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	case header != "":
 		header = layout.Styles.Muted.Render(ansi.Truncate(header, cw, "…"))
 		body = body.Offset(0, 2).WithText(header + "\n" + tabs + "\n" + body.Text)
-	case live || inst == nil || inst.Noun == "pane":
+	case live || inst == nil || a.frontsPane(inst):
 		body = body.Offset(0, 1).WithText(tabs + "\n" + body.Text)
 	}
 	return layout.PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, focused)
@@ -1123,6 +1183,10 @@ func stackBlocks(top ochazuke.Block, height int, bottom ochazuke.Block) ochazuke
 
 // groupSummary describes a session or project row: its panes and owner.
 func (a *App) groupSummary(inst *ochazuke.Instance) (string, ochazuke.Block) {
+	if it, ok := inst.Data.(actionitems.Item); ok {
+		// An outside item of the top list: what the Inbox page's detail says.
+		return it.Label(), ochazuke.Text(a.inboxFacts(it))
+	}
 	var lines []string
 	for _, n := range a.pv.tree.Nodes() {
 		if n.Parent == inst.ID {

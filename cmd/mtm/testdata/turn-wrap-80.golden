@@ -1,7 +1,8 @@
   ◆ Matomeru · no pin                                                  NORMAL   
-   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  2›    
+   › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  2›    
   ────────────────────────────────────────────────────────────────────────────  
   panes (2)                                                                     
+  ─ Panes (2) ─                                                                 
   pane                state                                                     
   ▾ matomeru (1)                                                                
         ○ claude      idle                                                      
@@ -24,8 +25,7 @@
   ┃                                                                          ┃  
   ┃       See https://example.com/a/very/long/path/that/does/not/have/any/sp ┃  
   ┃       aces/in/it/at/all/so/it/must/hard/break/somewhere.html             ┃  
-  ┃       日本語の文章も正しく折り返されるべきです。全角文字は二つのセルを占 ┃  
-  ┃ 1–15 / 17                                                                ┃  
+  ┃ 1–14 / 17                                                                ┃  
   ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ────────────────────── ┃  
   ┃ › write to the agent                                                     ┃  
   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  

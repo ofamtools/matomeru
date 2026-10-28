@@ -540,7 +540,7 @@ func (a *App) copyLeave(ochazuke.Ctx) ochazuke.Result {
 	if a.r.Instances[row] == nil {
 		return resultError(a.r.SetFocus(paneListID))
 	}
-	if err := a.pv.tree.Select(row); err != nil {
+	if err := a.selectPaneRow(row); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return resultError(a.r.SetFocus(row))

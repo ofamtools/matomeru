@@ -1,13 +1,13 @@
   ◆ Matomeru · no pin                                                                                          NORMAL   
-   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  Schedules  Extensions                         
+   › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Extensions                         
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   panes (2)                          ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
-  pane                state          ┃ claude-code · idle                                                            ┃  
-  ▾ matomeru (1)                     ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
-        ○ claude      idle           ┃ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ┃  
-  ▾ unassociated (1)                 ┃ ┃ ▾ prompt 1                                                                ┃ ┃  
-          shell       shell          ┃ ┃   with a second line                                                      ┃ ┃  
-                                     ┃ ┃   Sep 21 14:13 · 1 answer                                                 ┃ ┃  
+  ─ Panes (2) ─                      ┃ claude-code · idle                                                            ┃  
+  pane                state          ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
+  ▾ matomeru (1)                     ┃ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ┃  
+        ○ claude      idle           ┃ ┃ ▾ prompt 1                                                                ┃ ┃  
+  ▾ unassociated (1)                 ┃ ┃   with a second line                                                      ┃ ┃  
+          shell       shell          ┃ ┃   Sep 21 14:13 · 1 answer                                                 ┃ ┃  
                                      ┃ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ ┃  
                                      ┃ ┃ ▾ 1 answer                                                                ┃ ┃  
                                      ┃ ┃   This answer is a long paragraph of prose that the agent wrote, which    ┃ ┃  

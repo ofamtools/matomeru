@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"slices"
-	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 
@@ -63,8 +62,7 @@ func (a *App) starPane(ctx ochazuke.Ctx) ochazuke.Result {
 			a.panes[i].Starred = starred
 		}
 	}
-	a.pv.view = a.buildPaneTree(a.panes, time.Now())
-	if err := a.pv.tree.SetNodes(a.pv.view.nodes); err != nil {
+	if err := a.rebuildPanes(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(map[string]any{"pane": p.ID, "starred": starred})
@@ -104,7 +102,7 @@ func (a *App) nextStarred(ochazuke.Ctx) ochazuke.Result {
 		a.r.UI().Info(noStarredPanes)
 		return ochazuke.Done(nil)
 	}
-	if err := a.pv.tree.Select(id); err != nil {
+	if err := a.selectPaneRow(id); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(id)
@@ -130,7 +128,7 @@ func (a *App) cycleStarred(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	zoom := a.pv.zoom
-	if err := a.pv.tree.Select(id); err != nil {
+	if err := a.selectPaneRow(id); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.attachLive(p, id); err != nil {

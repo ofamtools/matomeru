@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -88,16 +87,15 @@ func (a *App) regroupPanes() error {
 	if a.pv.tree == nil {
 		return nil
 	}
-	a.pv.view = a.buildPaneTree(a.panes, time.Now())
 	before, had := a.pv.tree.Selected()
-	if err := a.pv.tree.SetNodes(a.pv.view.nodes); err != nil {
+	if err := a.rebuildPanes(); err != nil {
 		return err
 	}
 	if after, ok := a.pv.tree.Selected(); ok && had && after.ID == before.ID {
 		return nil
 	}
-	if len(a.pv.view.order) > 0 {
-		return a.pv.tree.Select(a.pv.view.order[0])
+	if first := a.firstPaneRow(); first != "" {
+		return a.pv.tree.Select(first)
 	}
 	return nil
 }

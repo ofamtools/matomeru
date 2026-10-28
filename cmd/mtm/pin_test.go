@@ -29,7 +29,7 @@ func TestPinFiltersAndAllPreservesPin(t *testing.T) {
 	groupBy(t, a, groupProjectSessionPane)
 	panes := []pane{
 		{Session: "not-project-name", SessionID: "sa", Pane: daemon.Pane{ID: "wa", Name: "A-shell"}},
-		{Session: "not-project-name", SessionID: "sa", Pane: daemon.Pane{ID: "wb", Name: "B-agent", AgentState: "working"}},
+		{Session: "not-project-name", SessionID: "sa", Pane: daemon.Pane{ID: "wb", Name: "B-agent", AgentState: "idle"}},
 		{Session: "outside", SessionID: "su", Pane: daemon.Pane{ID: "wu", Name: "scratch"}},
 	}
 	if err := a.work.SetSessionOwner(work.SessionOwner{ID: "sa", Name: "not-project-name", ProjectID: "matomeru"}); err != nil {

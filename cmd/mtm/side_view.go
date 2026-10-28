@@ -397,7 +397,7 @@ func (a *App) jumpToSide(parent pane, kind string) error {
 			return err
 		}
 	}
-	if err := a.pv.tree.Select(parent.rowID()); err != nil {
+	if err := a.selectPaneRow(parent.rowID()); err != nil {
 		return err
 	}
 	if a.r.Focus == sideTermID && a.attached.SideFront == kind {

@@ -1,12 +1,12 @@
   ◆ Matomeru · no pin                                                                                          NORMAL   
-   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  Schedules  Extensions                         
+   › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Extensions                         
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   panes (2)                          ╭─ matomeru/claude ─────────────────────────────────────────────────────────────╮  
-  pane                state          │ claude-code · /w/proj · idle · unassociated                                   │  
-  ▾ unassociated (2)                 │ [Turns] Screen Activity Transcript · [ ] tabs · enter live                    │  
-        ○ claude      idle           │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
-          shell       shell          │ │ ▸ start the agents                                                        │ │  
-                                     │ │   Oct 28 10:00 · done · 4 tool calls · 4.0s                               │ │  
+  ─ Panes (2) ─                      │ claude-code · /w/proj · idle · unassociated                                   │  
+  pane                state          │ [Turns] Screen Activity Transcript · [ ] tabs · enter live                    │  
+  ▾ unassociated (2)                 │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
+        ○ claude      idle           │ │ ▸ start the agents                                                        │ │  
+          shell       shell          │ │   Oct 28 10:00 · done · 4 tool calls · 4.0s                               │ │  
                                      │ ╰───────────────────────────────────────────────────────────────────────────╯ │  
                                      │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
                                      │ │ ▸ something else meanwhile                                                │ │  

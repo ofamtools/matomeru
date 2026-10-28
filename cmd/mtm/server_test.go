@@ -158,7 +158,7 @@ func TestSmokeUsesATempDatabaseAndNoDaemon(t *testing.T) {
 	t.Setenv("TUIOS_SOCKET", sock)
 	t.Setenv("MTM_SERVER", DefaultDaemon)
 	var out, errOut bytes.Buffer
-	if err := run([]string{"--smoke"}, strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), "› Panes  Work") {
+	if err := run([]string{"--smoke"}, strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), "› Inbox  Work") {
 		t.Fatalf("smoke: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	if _, err := os.Stat(DefaultData()); !errors.Is(err, os.ErrNotExist) {

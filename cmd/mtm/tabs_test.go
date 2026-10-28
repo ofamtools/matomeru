@@ -11,7 +11,7 @@ import (
 func TestTheHeaderListsEveryPageTabAndMarksTheActiveOne(t *testing.T) {
 	app := openWith(t, Options{Data: seeded(t)}) // mtm opens on Panes, the first tab
 	mono(t, app)
-	pages := []struct{ id, title string }{{panesPage, "Panes"}, {"work", "Work"}, {reviewsPage, "Review"}}
+	pages := []struct{ id, title string }{{panesPage, panesTitle}, {"work", "Work"}, {reviewsPage, "Review"}}
 	for i, want := range pages {
 		if i > 0 {
 			press(t, app, "ctrl+j")

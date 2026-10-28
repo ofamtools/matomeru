@@ -94,8 +94,8 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 	if n := len(f.streams); n != 2 || f.streams[1].pane.ID != "w3" || !f.streams[0].released {
 		t.Fatalf("streams after the pick: %d", n)
 	}
-	if sel, _ := app.pv.tree.Selected(); sel.ID != "pane:nabe/w3" {
-		t.Fatalf("tree selects %s", sel.ID)
+	if sel, _ := app.selectedRow(); sel != "pane:nabe/w3" {
+		t.Fatalf("tree selects %s", sel)
 	}
 	press(t, app, "ctrl+a", "p")
 	want := []string{"pane:matomeru/w1", "pane:ochazuke/w2", "pane:nabe/w3"}

@@ -553,9 +553,20 @@ func (a *App) defineShell() error {
 		"task":    {Type: "string"},
 		"scratch": {Type: "boolean", Description: "Launch unassociated in mtm-only"},
 	})
-	row := ochazuke.Do("pane.new")
-	row.Instance, row.Mode, row.Keys = paneListID, "normal", "n"
-	return a.r.Bind(row)
+	// Every list of the Panes page (panes_sections.go), so n answers on
+	// an item row of the top list too.
+	lists := a.sectionListIDs()
+	if len(lists) == 0 {
+		lists = []string{paneListID}
+	}
+	for _, id := range lists {
+		row := ochazuke.Do("pane.new")
+		row.Instance, row.Mode, row.Keys = id, "normal", "n"
+		if err := a.r.Bind(row); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // newPane uses explicit ownership or the pin, never a browsed project.

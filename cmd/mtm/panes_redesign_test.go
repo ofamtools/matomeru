@@ -48,7 +48,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("agent row cells %q", got)
 	}
 	// Needs input sorts first and the header counts it; W jumps to it.
-	if fr := frame(app); !strings.Contains(fr, "1 need input · W next") {
+	if fr := frame(app); !strings.Contains(fr, "1 need you · W next") {
 		t.Fatalf("header:\n%s", fr)
 	}
 	if items := app.paneList.Items(); items[2].ID != row {
@@ -332,7 +332,7 @@ func plainView(a *App) string { return xansi.Strip(a.m.View().Content) }
 
 func countRows(a *App, noun string) int {
 	n := 0
-	for _, it := range a.paneList.Items() {
+	for _, it := range sectionItems(a) {
 		if it.Noun == noun {
 			n++
 		}
@@ -341,7 +341,7 @@ func countRows(a *App, noun string) int {
 }
 
 func cells(a *App, id string) string {
-	for _, it := range a.paneList.Items() {
+	for _, it := range sectionItems(a) {
 		if it.ID == id {
 			return strings.Join(it.Cells, " | ")
 		}

@@ -218,7 +218,8 @@ func TestTUIRunsDueSchedules(t *testing.T) {
 	if a.r.TopModal() != "" || len(a.noticeSink.shown) != 0 {
 		t.Fatalf("missing command spoke: modal %q notices %d", a.r.TopModal(), len(a.noticeSink.shown))
 	}
-	press(t, a, "I", "S")
+	toPage(t, a, inboxPage)
+	press(t, a, "S")
 	if a.r.Page != schedulesPage {
 		t.Fatalf("S opened %s", a.r.Page)
 	}
@@ -253,7 +254,8 @@ func TestTUIRunsDueSchedules(t *testing.T) {
 // i asks for an interval.
 func TestSchedulePageKeys(t *testing.T) {
 	a, f, _ := scheduleApp(t)
-	press(t, a, "I", "S")
+	toPage(t, a, inboxPage)
+	press(t, a, "S")
 	if sel, _ := a.sched.list.Selected(); sel.ID != "schedule:gh-signals" {
 		t.Fatalf("first row %s", sel.ID)
 	}

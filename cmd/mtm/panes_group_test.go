@@ -38,7 +38,7 @@ func groupedApp(t *testing.T) (*App, []pane) {
 	a := open(t)
 	panes := []pane{
 		{Session: "work", SessionID: "sa", Pane: daemon.Pane{ID: "wa", Name: "A-shell"}},
-		{Session: "work", SessionID: "sa", Pane: daemon.Pane{ID: "wb", Name: "B-agent", AgentState: "working"}},
+		{Session: "work", SessionID: "sa", Pane: daemon.Pane{ID: "wb", Name: "B-agent", AgentState: "idle"}},
 		{Session: "outside", SessionID: "su", Pane: daemon.Pane{ID: "wu", Name: "scratch"}},
 	}
 	if err := a.work.SetSessionOwner(work.SessionOwner{ID: "sa", Name: "work", ProjectID: "matomeru"}); err != nil {

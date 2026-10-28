@@ -38,6 +38,7 @@ import (
 const (
 	actionItemNoun = "action-item"
 	inboxPage      = "inbox"
+	inboxTitle     = "Items"
 	inboxListID    = "inbox/list"
 	inboxDetailID  = "inbox/detail"
 	inboxEvery     = 5 * time.Second
@@ -59,7 +60,8 @@ type inboxState struct {
 	detail *linkedDetail
 	sys    systemActions
 	counts actionitems.Counts
-	sig    string // what the rows were last built from; a reload that finds it unchanged sets nothing
+	sig    string             // what the rows were last built from; a reload that finds it unchanged sets nothing
+	all    []actionitems.Item // the items the rows were built from; the Panes page's top list reads them
 	// after schedules the reload timer (tea.Tick); tests set it nil and
 	// deliver inboxDue themselves.
 	after func(time.Duration, tea.Msg) tea.Cmd
@@ -112,8 +114,10 @@ func (a *App) defineInbox() {
 		Bind("c", ochazuke.Do(n+".promote-task").Hinted("to task")).
 		Bind("m", ochazuke.Do(n+".associate")).
 		Bind("d d", ochazuke.Do(n+".delete"))
-	// I opens the inbox from anywhere: a row to the framework's page.open.
-	a.r.Define("app").Mode("normal").Bind("I", ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": inboxPage}).Hinted("inbox"))
+	// I opens the inbox from anywhere: the Panes page, titled Inbox, whose
+	// top list is the open queue (panes_sections.go). A row to the
+	// framework's page.open; page.open inbox still opens every item.
+	a.r.Define("app").Mode("normal").Bind("I", ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": panesPage}).Hinted("inbox"))
 
 	add := map[string]ochazuke.Parameter{
 		"source": {Type: "string", Description: "The tool or service: gh, slack, ci, agent, … (default manual)"},
@@ -170,7 +174,10 @@ func (a *App) addInboxPage() error {
 	if a.inbox.detail, err = a.addLinkedDetail(inboxDetailID, inboxPage, func() *ochazuke.List { return a.inbox.list }, a.inboxSubject); err != nil {
 		return err
 	}
-	if _, err = a.r.AddPage(inboxPage, "Inbox", a.renderInbox, ochazuke.Focus(inboxListID)); err != nil {
+	// Items: every action item in every state. The Panes page, titled
+	// Inbox, holds the open queue; this page stays for the archived and
+	// snoozed items and the whole list.
+	if _, err = a.r.AddPage(inboxPage, inboxTitle, a.renderInbox, ochazuke.Focus(inboxListID)); err != nil {
 		return err
 	}
 	return a.refreshInbox()
@@ -244,8 +251,13 @@ func (a *App) setInboxRows(items []actionitems.Item) error {
 		rows = append(rows, ochazuke.ListItem{ID: row.ID, Noun: actionItemNoun, Label: row.Label, Cells: row.Cells, Data: it})
 	}
 	a.inbox.counts = c
+	a.inbox.all = items
 	a.refreshTitle()
-	return a.inbox.list.SetItems(rows)
+	if err := a.inbox.list.SetItems(rows); err != nil {
+		return err
+	}
+	// The Panes page's top list is these items (panes_sections.go).
+	return a.rebuildPanes()
 }
 
 // inboxGlyph marks a row's state: ● unread, · read, z snoozed, ✓ archived.
@@ -405,7 +417,12 @@ func (a *App) inboxFacts(it actionitems.Item) string {
 func (a *App) actionItemAt(ctx ochazuke.Ctx) (actionitems.Item, error) {
 	id := ochazuke.StringArg(ctx.Args, "id", "")
 	if id == "" && ctx.Instance != nil && ctx.Instance.Noun == actionItemNoun {
+		// The row's item: the Inbox page's rows are its id; a row of the
+		// Panes page's top list may hold its pane's row id instead.
 		id = ctx.Instance.ID
+		if it, ok := ctx.Instance.Data.(actionitems.Item); ok {
+			id = it.ID
+		}
 	}
 	if id == "" {
 		return actionitems.Item{}, errors.New("specify an action item id or select an inbox row")
@@ -576,6 +593,10 @@ func (a *App) openActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	if err != nil {
 		return ochazuke.Failed(err)
+	}
+	if p, ok := a.listedPane(it.Window); ok && it.URL == "" {
+		// A pane's signal opens its pane: attached live on Panes.
+		return a.openItemPane(ctx, p)
 	}
 	if it.URL == "" {
 		return ochazuke.Failed(fmt.Errorf("%s has no URL to open; it is marked read", it.Label()))
