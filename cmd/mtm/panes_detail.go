@@ -854,8 +854,10 @@ func (a *App) paneHeader(p pane) string {
 		harness = p.LaunchHarness
 	}
 	parts := []string{harness}
-	if p.isAgent() || p.LaunchHarness != "" {
-		parts = append(parts, p.statusFields()...)
+	if (p.isAgent() || p.LaunchHarness != "") && !(a.pv.tab == tabTurns && a.showsSettings(p)) {
+		// On the Turns tab the settings line under the prompt box says
+		// them, one field at a time.
+		parts = append(parts, a.headerStatus(p)...)
 	}
 	if p.Cwd != "" {
 		parts = append(parts, tildePath(p.Cwd, home))
@@ -989,13 +991,25 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 			return ochazuke.Text("loading…")
 		}
 		// An agent's turns end in the prompt box (prompt_box.go), pinned
-		// to the bottom, drawn after the tree so } and tab reach it next.
-		if p := a.promptPane(); p != nil && height > 3 {
-			boxH := a.promptBoxHeight()
-			turns := a.turnsBody(width, height-boxH)
-			return stackBlocks(turns, height-boxH, a.promptBoxBlock(*p, width))
+		// to the bottom, drawn after the tree so } and tab reach it next;
+		// under it the agent's settings line (pane_settings.go), as a
+		// harness draws its status line under its prompt, the last stop.
+		p, perr := a.paneAt(a.r.Instances[row])
+		lineH := 0
+		if perr == nil && height > 4 && a.showsSettings(p) {
+			lineH = 1
 		}
-		return a.turnsBody(width, height)
+		var turns ochazuke.Block
+		if pp := a.promptPane(); pp != nil && height-lineH > 3 {
+			boxH := a.promptBoxHeight()
+			turns = stackBlocks(a.turnsBody(width, height-lineH-boxH), height-lineH-boxH, a.promptBoxBlock(*pp, width))
+		} else {
+			turns = a.turnsBody(width, height-lineH)
+		}
+		if lineH == 0 {
+			return turns
+		}
+		return stackBlocks(turns, height-1, ochazuke.Text(a.settingsLine(p, row, width)))
 	}
 	text, ok := a.pv.text[fmt.Sprintf("%s|%d", row, a.pv.tab)]
 	if !ok {

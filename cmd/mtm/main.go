@@ -355,22 +355,27 @@ type App struct {
 	// ompSessions is omp's sessions directory (turns.OmpSessions); tests
 	// point it at a temporary directory.
 	ompSessions string
-	pb          *promptBox // the Turns tab's prompt box (prompt_box.go)
-	answer      *ochazuke.Input
-	answerDraft string // the answer text last written as the opened review's draft
-	noteList    *ochazuke.List
-	noteBody    noteBody              // the Notes page's scrollable body (notes.go)
-	termStreams map[string]paneStream // the stream behind each terminal (stream_reconnect.go)
-	noteDoc     *markdown.Doc         // the selected note's Markdown (notes_doc.go)
-	noteDocNote string                // the note noteDoc fronts
-	detail      pageDetails           // the pages' details J and K scroll (details.go)
-	colors      pinColors             // the theme beneath the pin state's colours (colors.go)
-	savedList   *ochazuke.List
-	vimList     *ochazuke.List
-	savedAll    []work.SavedPane  // every saved pane as last read, in scope or not (the details read it)
-	vimAll      []work.VimSession // every Vim session as last read
-	vimDir      string
-	configDir   string // dirs.json and harnesses.json live here (Options.ConfigDir)
+	// codexSessions is Codex's sessions directory (turns.CodexSessions),
+	// codexLive each Codex pane's settings read from its rollout
+	// (pane_settings.go); tests point the directory at a temp dir.
+	codexSessions string
+	codexLive     map[string]turns.Live
+	pb            *promptBox // the Turns tab's prompt box (prompt_box.go)
+	answer        *ochazuke.Input
+	answerDraft   string // the answer text last written as the opened review's draft
+	noteList      *ochazuke.List
+	noteBody      noteBody              // the Notes page's scrollable body (notes.go)
+	termStreams   map[string]paneStream // the stream behind each terminal (stream_reconnect.go)
+	noteDoc       *markdown.Doc         // the selected note's Markdown (notes_doc.go)
+	noteDocNote   string                // the note noteDoc fronts
+	detail        pageDetails           // the pages' details J and K scroll (details.go)
+	colors        pinColors             // the theme beneath the pin state's colours (colors.go)
+	savedList     *ochazuke.List
+	vimList       *ochazuke.List
+	savedAll      []work.SavedPane  // every saved pane as last read, in scope or not (the details read it)
+	vimAll        []work.VimSession // every Vim session as last read
+	vimDir        string
+	configDir     string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
 	// extForm is the open form over an extension's row (extension_forms.go).
@@ -459,6 +464,7 @@ func New(opts Options) (*App, error) {
 	a.agentStarted = processAgentStart
 	a.starts = &agentStarts{now: a.now}
 	a.ompSessions = turns.OmpSessions()
+	a.codexSessions = turns.CodexSessions()
 	a.configDir = configDir
 	a.dataPath = opts.Data
 	a.opts = opts

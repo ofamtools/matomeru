@@ -107,6 +107,11 @@ func (a *App) addTurns() error {
 	if err := a.addPromptBox(); err != nil {
 		return err
 	}
+	// The settings line is drawn under the box: added after it, so the
+	// stops keep that order before the first frame too.
+	if err := a.addPaneSettings(); err != nil {
+		return err
+	}
 	// A stop only while the Turns tab draws it: ochazuke skips a stop the
 	// last frame did not place.
 	return nil

@@ -41,6 +41,8 @@ type fakePanes struct {
 	queued    daemon.QueuePromptResult
 	queueErr  error
 	promptErr error
+	// onKey runs after SendKey (a harness redrawing its screen).
+	onKey func(window, key string)
 }
 
 func (f *fakePanes) PromptSubmit(_ context.Context, p pane, text string) error {

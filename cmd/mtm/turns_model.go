@@ -420,6 +420,7 @@ func (a *App) turnsRead(window string) {
 		a.pv.sent = false
 		a.selectNewestTurnRow()
 	}
+	a.settingsRead(window)
 }
 
 // pollTurns reads the shown pane's turns again after a listing: a Claude
@@ -432,6 +433,13 @@ func (a *App) pollTurns() {
 	p, err := a.paneAt(a.r.Instances[a.pv.turnsFor])
 	if err != nil {
 		return
+	}
+	if isCodex(p) && p.AgentSession != "" {
+		// Codex's turns are the journal's; its settings line reads the
+		// rollout's end on each listing.
+		if _, err := a.r.Execute(ochazuke.Request{Verb: "read-settings", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
+			a.r.UI().Status(err.Error())
+		}
 	}
 	pt := a.paneTurnsOf(p.ID)
 	if pt.loading {
