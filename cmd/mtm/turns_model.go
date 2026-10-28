@@ -356,6 +356,10 @@ func (a *App) turnsRead(window string) {
 	if err := a.showTurns(row); err != nil {
 		a.r.UI().Status(err.Error())
 	}
+	if a.pv.sent && !a.turnCards() {
+		a.pv.sent = false
+		a.selectNewestTurnRow()
+	}
 }
 
 // pollTurns reads the shown pane's turns again after a listing: a Claude

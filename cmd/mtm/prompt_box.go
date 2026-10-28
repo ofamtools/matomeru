@@ -504,13 +504,46 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		case mode == promptQueue:
 			ctx.Status(fmt.Sprintf("queued (%d waiting): tuios types it when the agent rests", max(1, got.Queued)))
 		}
-		// The new turn (or the steer) shows once the log has it.
+		// The new turn (or the steer) shows once the log has it, and the
+		// turns follow it (only a send moves them; focusing the box does
+		// not).
+		a.followNewest()
 		if a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
 			if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
 				ctx.Status(err.Error())
 			}
 		}
 	})
+}
+
+// followNewest selects the newest turn and keeps it selected as the read
+// after a send lands: on cards ochazuke.timeline.goto last, which resumes
+// following the end; in the tree the last turn row, now and after the read.
+func (a *App) followNewest() {
+	if a.turnCards() {
+		if a.pv.cards == nil {
+			return
+		}
+		if _, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.timeline", Verb: "goto", Args: ochazuke.Arguments{"id": a.pv.cards.ID(), "position": "last"}}); err != nil {
+			a.r.UI().Status(err.Error())
+		}
+		return
+	}
+	a.pv.sent = true
+	a.selectNewestTurnRow()
+}
+
+// selectNewestTurnRow selects the tree's last turn row.
+func (a *App) selectNewestTurnRow() {
+	items := a.pv.turns.List().Items()
+	for i := len(items) - 1; i >= 0; i-- {
+		if items[i].Noun == "turn" {
+			if err := a.pv.turns.Select(items[i].ID); err != nil {
+				a.r.UI().Status(err.Error())
+			}
+			return
+		}
+	}
 }
 
 // promptTargetFor points the completions at the pane and loads the

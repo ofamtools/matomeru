@@ -177,6 +177,9 @@ type paneUI struct {
 	// that ends it goes back to.
 	liveFrom  int
 	liveSaved bool
+	// sent: a send asked the tree style to select the newest turn once
+	// the read after it lands (the cards follow their end instead).
+	sent bool
 	// The cards style (turn_cards.go): a timeline per pane window, the one
 	// the tab draws, and what each was filled with.
 	timelines  map[string]*ochazuke.Timeline
