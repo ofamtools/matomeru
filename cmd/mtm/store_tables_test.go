@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	ocli "github.com/unixsuperhero/ochazuke/cli"
+
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
 	"github.com/unixsuperhero/matomeru/store"
 )
@@ -46,5 +48,54 @@ func TestStoreTablesListsTheDeclarations(t *testing.T) {
 	}
 	if got := app.r.Noun(storeTableNoun).Columns; len(got) != len(storeTableColumns) {
 		t.Fatalf("columns %v", got)
+	}
+}
+
+// store-table is a catalog noun, so the rows store tables declares are
+// rows a host can act on: list and show are on it, and show answers one
+// table by name.
+func TestStoreTableIsACatalogNoun(t *testing.T) {
+	app := openWith(t, Options{Data: seeded(t)})
+	var catalog struct {
+		Nouns []struct {
+			Name  string `json:"name"`
+			Verbs []struct {
+				Name string `json:"name"`
+			} `json:"verbs"`
+		} `json:"nouns"`
+	}
+	doc, err := ocli.Catalog(app.r, "mtm", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(doc, &catalog); err != nil {
+		t.Fatal(err)
+	}
+	verbs := map[string]bool{}
+	for _, n := range catalog.Nouns {
+		if n.Name == storeTableNoun {
+			for _, v := range n.Verbs {
+				verbs[v.Name] = true
+			}
+		}
+	}
+	if !verbs["list"] || !verbs["show"] {
+		t.Fatalf("store-table verbs in the catalog: %v", verbs)
+	}
+	var got store.TableInfo
+	if err := json.Unmarshal([]byte(mustCLI(t, app, "store-table", "show", "history")), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "history" || !got.AppendOnly {
+		t.Fatalf("show history: %+v", got)
+	}
+	if _, _, err := cli(app, "", "store-table", "show", "no_such_table"); err == nil {
+		t.Fatal("show of an unknown table succeeded")
+	}
+	var rows []struct {
+		Noun string `json:"noun"`
+	}
+	if err := json.Unmarshal([]byte(mustCLI(t, app, "store-table", "list")), &rows); err != nil || len(rows) == 0 || rows[0].Noun != storeTableNoun {
+		t.Fatalf("list: %v %v", rows, err)
 	}
 }

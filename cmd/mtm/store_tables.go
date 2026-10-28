@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/unixsuperhero/ochazuke"
@@ -30,12 +32,19 @@ var storeTableColumns = []ochazuke.Column{
 }
 
 func (a *App) defineStore() {
-	a.r.Define(storeTableNoun).Columns(storeTableColumns...)
+	// store-table is the noun of store.tables' rows, so a host (the
+	// palette, o-inventory) can act on one: list is store.tables again on
+	// the noun its rows are, show is one table. Nothing writes.
+	a.r.Define(storeTableNoun).Columns(storeTableColumns...).
+		Verb("list", a.storeTables, "List every declared table with its owner, key, version, append-only flag and row count (read-only)").Rows(storeTableNoun).Fetch().
+		Verb("show", a.showStoreTable, "Show one declared table: its owner, key, version, append-only flag and row count (read-only)").Positional("name").Fetch()
+	a.parameters(storeTableNoun+".show", map[string]ochazuke.Parameter{
+		"name": {Type: "string", Noun: storeTableNoun, Description: "The table name; omitted, the selected row"}})
 	a.r.Define("store").
 		Verb("tables", a.storeTables, "List every declared table with its owner, key, version, append-only flag and row count (read-only)").Rows(storeTableNoun)
 }
 
-// storeTables is store.tables, read off the loop.
+// storeTables is store.tables and store-table.list, read off the loop.
 func (a *App) storeTables(ochazuke.Ctx) ochazuke.Result {
 	path, db := a.dataPath, a.db
 	return ochazuke.Pending(func(context.Context) (any, error) {
@@ -45,14 +54,44 @@ func (a *App) storeTables(ochazuke.Ctx) ochazuke.Result {
 		}
 		rows := make([]ocli.Row, 0, len(tables))
 		for _, t := range tables {
-			only := ""
-			if t.AppendOnly {
-				only = "yes"
-			}
-			rows = append(rows, ocli.Row{Noun: storeTableNoun, ID: t.Name, Label: t.Name, Data: t,
-				Cells: []string{t.Name, t.Owner, t.Key, strconv.Itoa(t.Version), only, strconv.Itoa(t.Rows)}})
+			rows = append(rows, storeTableRow(t))
 		}
 		return rows, nil
+	})
+}
+
+// storeTableRow is one table as a store-table row.
+func storeTableRow(t store.TableInfo) ocli.Row {
+	only := ""
+	if t.AppendOnly {
+		only = "yes"
+	}
+	return ocli.Row{Noun: storeTableNoun, ID: t.Name, Label: t.Name, Data: t,
+		Cells: []string{t.Name, t.Owner, t.Key, strconv.Itoa(t.Version), only, strconv.Itoa(t.Rows)}}
+}
+
+// showStoreTable is store-table.show: the named table (else the selected
+// row's), read off the loop.
+func (a *App) showStoreTable(ctx ochazuke.Ctx) ochazuke.Result {
+	name := ochazuke.StringArg(ctx.Args, "name", "")
+	if name == "" && ctx.Instance != nil && ctx.Instance.Noun == storeTableNoun {
+		name = ctx.Instance.ID
+	}
+	if name == "" {
+		return ochazuke.Failed(errors.New("name a table (store-table show NAME) or select a store-table row"))
+	}
+	path, db := a.dataPath, a.db
+	return ochazuke.Pending(func(context.Context) (any, error) {
+		tables, err := readTables(path, db)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range tables {
+			if t.Name == name {
+				return t, nil
+			}
+		}
+		return nil, fmt.Errorf("no table %s (store-table list names them)", name)
 	})
 }
 
