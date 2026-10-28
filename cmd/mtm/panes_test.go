@@ -48,6 +48,11 @@ func (f *fakePanes) PromptSubmit(_ context.Context, p pane, text string) error {
 	return f.promptErr
 }
 
+func (f *fakePanes) PromptPaste(_ context.Context, p pane, text string) error {
+	f.prompts = append(f.prompts, "paste "+p.ID+" "+text)
+	return f.promptErr
+}
+
 func (f *fakePanes) PromptInterrupt(_ context.Context, p pane) error {
 	f.prompts = append(f.prompts, "interrupt "+p.ID)
 	return f.promptErr

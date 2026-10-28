@@ -77,10 +77,30 @@ func TestArgModeEnvAndValidation(t *testing.T) {
 		{Harness{Name: "x", Command: []string{"x"}, Prompt: "stdin"}, `harness x: prompt "stdin" is not a prompt mode; use "send-text" or "arg"`},
 		{Harness{Name: "x", Command: []string{"x"}, Models: []string{"a"}}, "models are listed but modelFlag is empty"},
 		{Harness{Command: []string{"x"}}, "harness has no name"},
+		{Harness{Name: "x", Command: []string{"x"}, Attach: "clipboard"}, `harness x: attach "clipboard" is not an attach mode; use "mention" or "paste"`},
 	} {
 		if err := c.h.Validate(); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%+v: %v, want %q", c.h, err, c.want)
 		}
+	}
+}
+
+// How each built-in takes a prompt's files is data: Claude Code and omp
+// read @ mentions of a path at submit, Codex attaches a pasted path. A
+// harness that gives none takes mentions, and a file entry changes it.
+func TestAttachModes(t *testing.T) {
+	want := map[string]string{"claude": AttachMention, "omp": AttachMention, "codex": AttachPaste}
+	for _, h := range Builtins() {
+		if h.AttachMode() != want[h.Name] {
+			t.Errorf("%s attaches by %q, want %q", h.Name, h.AttachMode(), want[h.Name])
+		}
+	}
+	if (Harness{Name: "x"}).AttachMode() != AttachMention {
+		t.Fatal("a harness with no attach mode does not take mentions")
+	}
+	merged, err := Merge(Builtins(), []byte(`[{"name": "codex", "attach": "mention"}]`))
+	if err != nil || merged[2].AttachMode() != AttachMention || merged[2].ModelFlag != "--model" {
+		t.Fatalf("merge: %+v %v", merged[2], err)
 	}
 }
 
@@ -117,6 +137,7 @@ func TestLoadMergesTheFileByName(t *testing.T) {
 		{`[{"name": "x", "comand": ["x"]}]`, `unknown field "comand"`},
 		{`[{"name": "x", "command": []}]`, "harness x: command is empty"},
 		{`[{"name": "x", "command": ["x"], "prompt": "pipe"}]`, `prompt "pipe" is not a prompt mode`},
+		{`[{"name": "x", "command": ["x"], "attach": "ctrl+v"}]`, `attach "ctrl+v" is not an attach mode`},
 	} {
 		if err := os.WriteFile(path, []byte(c.file), 0o600); err != nil {
 			t.Fatal(err)

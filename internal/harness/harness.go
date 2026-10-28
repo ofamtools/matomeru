@@ -27,10 +27,35 @@ const (
 	PromptArg = "arg"
 )
 
+// How a harness takes a file attached to a prompt (an image pasted into
+// mtm's prompt box), when the prompt arrives through its terminal.
+const (
+	// AttachMention writes the file's absolute path into the prompt text
+	// as an @ mention (@/abs/path, @"/abs/a b" with a space), which the
+	// harness reads when the prompt is submitted. The default: it needs
+	// no clipboard and no timing, so a queued prompt typed later by tuios
+	// attaches the same way.
+	//   - Claude Code (2.1.312): @-mentions become at_mentioned_files
+	//     attachments read through its Read pipeline, which turns an
+	//     image into an image block; @"..." quotes a path with spaces.
+	//   - omp (18.13.0): extractFileMentions and
+	//     generateFileMentionMessages (src/utils/file-mentions.ts) run in
+	//     AgentSession.prompt and attach an image file as an image.
+	AttachMention = "mention"
+	// AttachPaste types each file's absolute path as a bracketed paste of
+	// its own (no submit) before the text: the harness's paste handler
+	// attaches a pasted image path, while an @ mention in submitted text
+	// is only text. Codex (codex-cli 0.162.1, ChatComposer::handle_paste
+	// → handle_paste_image_path in codex-rs/tui) is one. A queued prompt
+	// still carries @ mentions: tuios types it as one paste.
+	AttachPaste = "paste"
+)
+
 // Harness is one agent CLI as data.
 //
 //	{name: "omp", command: ["omp"], modelFlag: "--model", models: [],
-//	 prompt: "send-text", ready: {state: "idle,done", timeoutMs: 15000}, env: {}}
+//	 prompt: "send-text", ready: {state: "idle,done", timeoutMs: 15000}, env: {},
+//	 attach: "mention"}
 type Harness struct {
 	Name      string            `json:"name"`
 	Command   []string          `json:"command"`             // argv; command[0] is looked up on PATH
@@ -39,6 +64,7 @@ type Harness struct {
 	Prompt    string            `json:"prompt,omitempty"`    // PromptSendText (default) or PromptArg
 	Ready     Ready             `json:"ready,omitzero"`      // when the pane takes a prompt; zero: a fixed delay
 	Env       map[string]string `json:"env,omitempty"`       // set for the harness's process (through env(1))
+	Attach    string            `json:"attach,omitempty"`    // AttachMention (default) or AttachPaste: how a prompt's files reach it
 }
 
 // Ready says when a new pane takes its first prompt: the agent state the
@@ -65,9 +91,9 @@ const DefaultReadyTimeoutMS = 15000
 func Builtins() []Harness {
 	ready := Ready{State: "idle,done", TimeoutMS: DefaultReadyTimeoutMS}
 	return []Harness{
-		{Name: "claude", Command: []string{"claude"}, ModelFlag: "--model", Models: []string{"opus", "sonnet", "haiku"}, Prompt: PromptSendText, Ready: ready},
-		{Name: "omp", Command: []string{"omp"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready},
-		{Name: "codex", Command: []string{"codex"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready},
+		{Name: "claude", Command: []string{"claude"}, ModelFlag: "--model", Models: []string{"opus", "sonnet", "haiku"}, Prompt: PromptSendText, Ready: ready, Attach: AttachMention},
+		{Name: "omp", Command: []string{"omp"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachMention},
+		{Name: "codex", Command: []string{"codex"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachPaste},
 	}
 }
 
@@ -84,6 +110,11 @@ func (h Harness) Validate() error {
 	default:
 		return fmt.Errorf("harness %s: prompt %q is not a prompt mode; use %q or %q", h.Name, h.Prompt, PromptSendText, PromptArg)
 	}
+	switch h.Attach {
+	case "", AttachMention, AttachPaste:
+	default:
+		return fmt.Errorf("harness %s: attach %q is not an attach mode; use %q or %q", h.Name, h.Attach, AttachMention, AttachPaste)
+	}
 	if len(h.Models) > 0 && h.ModelFlag == "" {
 		return fmt.Errorf("harness %s: models are listed but modelFlag is empty", h.Name)
 	}
@@ -91,6 +122,15 @@ func (h Harness) Validate() error {
 		return fmt.Errorf("harness %s: ready.timeoutMs is negative", h.Name)
 	}
 	return nil
+}
+
+// AttachMode is how the harness takes a prompt's files: Attach, else
+// AttachMention.
+func (h Harness) AttachMode() string {
+	if h.Attach == "" {
+		return AttachMention
+	}
+	return h.Attach
 }
 
 // Model checks model against the harness and returns the one to pass: the
