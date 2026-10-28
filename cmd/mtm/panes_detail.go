@@ -78,6 +78,15 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 			a.paneErr = err.Error()
 		}
 		a.attached, a.pv.zoom, a.pv.followed = pane{}, false, ""
+		if a.pv.liveSaved {
+			// Back to the tab the attach left (the Turns tab, where the
+			// row, a turn or the box asked for live).
+			a.pv.tab, a.pv.liveSaved = a.pv.liveFrom, false
+			if err := a.leaveHiddenTurns(); err != nil {
+				a.paneErr = err.Error()
+			}
+			a.loadDetail()
+		}
 	}
 	if err := a.keepHeld(); err != nil {
 		a.paneErr = err.Error()

@@ -26,6 +26,9 @@ const turnsTreeID = "panes/turns"
 func (a *App) addTurns() error {
 	a.r.Define("turn").
 		Verb("open", a.openTurn, "Expand the turn and mark it reviewed").
+		// pane.attach's handler on the pane the turns are of (no key:
+		// enter opens the turn); ctrl+a d comes back to the turn.
+		Verb("live", a.attachPane, "Attach the pane the turns are of live; ctrl+a d comes back to this turn").
 		Mode("normal").
 		Bind("l", ochazuke.Do("turn.open")).
 		Bind("right", ochazuke.Do("turn.open")).

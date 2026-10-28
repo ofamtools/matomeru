@@ -194,6 +194,9 @@ func (a *App) addPromptBox() error {
 		Verb("back", a.promptBack, "Go back to the turns, else the pane row").
 		Verb("context", a.promptContext, "Choose a context item or prompt of the box's pane, its project or no project, and write it at the cursor (a file as @path)").
 		Verb("paste", a.pastePrompt, "Paste from the clipboard into the prompt: an image (or a copied image file) is attached as [image N], another copied file goes in as @path, text as text").
+		// pane.attach's handler on the box's pane (no key: enter sends);
+		// ctrl+a d comes back to the box.
+		Verb("live", a.attachPane, "Attach the box's pane live, to answer what the agent asks; ctrl+a d comes back to the box").
 		Verb("detach", a.detachPrompt, "Remove an attachment from the prompt: image n, the only one, else choose among them").
 		Mode("insert").
 		Bind("ctrl+v", ochazuke.Do(promptNoun+".paste").Hinted("paste/attach")).
@@ -437,7 +440,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		text = promptOutgoing(text, attached, true)
 	}
 	if mode != promptQueue && p.needsInput() {
-		return ochazuke.Failed(errors.New("the agent waits on you: answer it live (enter on its row), or queue the prompt (ctrl+t)"))
+		return ochazuke.Failed(errors.New("the agent waits on you: answer it live (turn-prompt.live from here, enter on its row), or queue the prompt (ctrl+t)"))
 	}
 	if mode == promptQueue && len(text) > daemon.QueueMaxText {
 		return ochazuke.Failed(fmt.Errorf("a queued prompt is at most %d KiB; this one is %d KiB (send it instead)", daemon.QueueMaxText>>10, (len(text)+1023)>>10))
