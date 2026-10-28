@@ -71,7 +71,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick(), a.startSchedules())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick(), a.startSchedules(), a.refreshStaleExtensions())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
@@ -158,7 +158,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			// An extension's page reloads its rows when it is opened
 			// (off the loop; the rows on screen stay until they land).
+			// A rebuilt bin's catalog is read again first; the
+			// refresh reloads the rows once it lands.
 			if x, _ := a.extViewOf(a.r.Page); x != nil {
+				cmd = tea.Batch(cmd, a.refreshStaleExtensions(x.name))
 				a.reloadExtension(x)
 				cmd = tea.Batch(cmd, a.r.PendingCommands())
 			}
