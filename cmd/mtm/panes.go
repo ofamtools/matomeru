@@ -88,6 +88,7 @@ type pane struct {
 	Harness           string            `json:"harness,omitempty"`
 	StateAt           int64             `json:"state_at,omitempty"`
 	NeedsYou          bool              `json:"needs_you,omitempty"`
+	Queued            int               `json:"queued,omitempty"`         // prompts waiting in the pane's delivery queue (list-agents); the row's W
 	AgentSession      string            `json:"agent_session,omitempty"`  // the agent's session id (list-agents), the Turns tab's log
 	Model             string            `json:"model,omitempty"`          // from the launch recipe, when mtm started it
 	LaunchHarness     string            `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
@@ -817,6 +818,7 @@ type agentRow struct {
 	State    string         `json:"state"`
 	StateAt  int64          `json:"agent_state_at"`
 	NeedsYou bool           `json:"needs_you"`
+	Queued   int            `json:"queued"` // messages waiting in the pane's delivery queue
 	Meta     map[string]any `json:"meta"`
 	// Session is the agent's own session id (a Claude Code or omp
 	// session), which names its log (turns_model.go).
@@ -961,7 +963,7 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 		for _, w := range windows {
 			p := pane{Session: s.Name, SessionID: s.ID, Pane: w}
 			if ag, ok := agents[w.ID]; ok {
-				p.Harness, p.StateAt, p.NeedsYou, p.AgentSession = ag.Harness, ag.StateAt/int64(time.Millisecond), ag.NeedsYou, ag.Session
+				p.Harness, p.StateAt, p.NeedsYou, p.Queued, p.AgentSession = ag.Harness, ag.StateAt/int64(time.Millisecond), ag.NeedsYou, ag.Queued, ag.Session
 				for k, v := range ag.Meta {
 					if s := strings.TrimSpace(fmt.Sprint(v)); v != nil && s != "" {
 						if p.Meta == nil {

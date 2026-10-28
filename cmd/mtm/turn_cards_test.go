@@ -209,13 +209,14 @@ func TestTurnCardsKeepTheirPlacePerPane(t *testing.T) {
 	frame(app)
 	press(t, app, "k")
 	settle(app, follow(app))
-	if got := turnsRegion(t, app); got != held || selectedCard(app) != sel {
+	// The focus is on the pane row: the card is drawn unfocused.
+	if got := turnsRegion(t, app); got != unfocusedCorners(held) || selectedCard(app) != sel {
 		t.Fatalf("back on the pane: %s\n%s\nwas:\n%s", selectedCard(app), got, held)
 	}
 	settle(app, key(t, app, "]"))
 	frame(app)
 	settle(app, key(t, app, "["))
-	if got := turnsRegion(t, app); got != held || selectedCard(app) != sel {
+	if got := turnsRegion(t, app); got != unfocusedCorners(held) || selectedCard(app) != sel {
 		t.Fatalf("back on the tab: %s\n%s\nwas:\n%s", selectedCard(app), got, held)
 	}
 }

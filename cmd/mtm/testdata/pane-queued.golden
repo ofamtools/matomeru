@@ -1,0 +1,24 @@
+  ◆ Matomeru · no pin                                                                      NORMAL   
+   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Extensions                       
+  ────────────────────────────────────────────────────────────────────────────────────────────────  
+  panes (2)                                                                                         
+  pane                  state                                                                       
+  ▾ unassociated (2)                                                                                
+    ▾ session work (2)                                                                              
+        ● fixer W       working                                                                     
+          sh            shell                                                                       
+  ╭─ work/fixer ─────────────────────────────────────────────────────────────────────────────────╮  
+  │ claude · /tmp/w · working                                                                    │  
+  │ Turns [Screen] Activity Transcript · [ ] tabs · enter live                                   │  
+  │ loading…                                                                                     │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯  
+  ────────────────────────────────────────────────────────────────────────────────────────────────  
+  enter live · d d pane.kill · m pane.associate · f hints · * pane.star · w saved.save · r pane.r…  
+                                                                                                    

@@ -48,6 +48,12 @@ func (p pane) needsInput() bool {
 	return !p.Exited && (p.AgentState == "needs_input" || p.NeedsYou)
 }
 
+// queuedMarker follows a pane's name while prompts wait in its delivery
+// queue (list-agents' queued), with no count; it is gone once the queue
+// empties. It marks waiting prompts, not needs input (that is the ? glyph,
+// which the header's W next jumps to).
+const queuedMarker = "W"
+
 // stateGlyph is the agent's state as one cell; a shell has none.
 func stateGlyph(p pane) string {
 	if p.Exited {
@@ -317,6 +323,9 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{cell, waitingCell(w)}})
 			for _, p := range g.panes {
 				name := stateGlyph(p) + " " + names[p.ID]
+				if p.Queued > 0 {
+					name += " " + queuedMarker
+				}
 				if p.SideVim != "" {
 					name += " v"
 				}
