@@ -339,6 +339,7 @@ type App struct {
 	reviewTurns *ochazuke.Tree        // the opened review row's turns (reviews.go)
 	turnFills   map[string]*turnFill  // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
 	mturns      map[string]*paneTurns // window → its turns read from the agent's log or the shell (turns_model.go)
+	subs        subagents             // the Turns tab's subagents, read when their steps open (turn_agents.go)
 	sessionSeen map[string]string     // window → the agent session last recorded for it (turns_model.go)
 	// claudeProjects is Claude Code's projects directory, where session
 	// logs are (turns.ClaudeProjects); tests replace it.

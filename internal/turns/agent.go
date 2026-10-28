@@ -390,9 +390,6 @@ func (a *Agent) apply(m AgentMeta) {
 	if m.Parent != "" {
 		a.Parent = m.Parent
 	}
-	if m.Shape == "background" {
-		a.Background = true
-	}
 	a.Transcript = m.Transcript
 	if a.State == AgentRunning {
 		switch {

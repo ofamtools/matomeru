@@ -95,6 +95,7 @@ func (a *App) addTurns() error {
 	// A thinking or tool step opens and closes as the tree's rows do (l, h);
 	// enter flips it.
 	a.r.Define("turn-step").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
+	a.addAgentVerbs()
 	for _, name := range []string{settingTurnsThinking, settingTurnsThinkingOpen, settingTurnsTools, settingTurnsToolsOpen} {
 		a.r.Settings().Observe(name, func(string, any) { a.turnSettingsChanged() })
 	}
@@ -209,6 +210,7 @@ type turnRef struct {
 	Model      bool   // a turn read from the agent's log or the shell (turns_model.go), not the journal
 	Step       string // a turn-step row's kind (thinking, tool)
 	Card       bool   // a card of the Turns tab's timeline (turn_cards.go), not a tree row
+	Event      string // a notification's card: the call id of the task it is of (turn_agents.go)
 }
 
 // fillTurns fills a turns tree with a window's turns, each row's id

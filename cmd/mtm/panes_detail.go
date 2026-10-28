@@ -102,6 +102,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 	}
 	a.copyUpdate(msg)
 	a.syncOpenedCards()
+	a.wantAgents()
 	a.noteTurnsEntered()
 	if pending := a.r.PendingCommands(); pending != nil {
 		cmds = append(cmds, pending)

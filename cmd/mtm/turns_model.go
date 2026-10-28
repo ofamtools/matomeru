@@ -442,6 +442,7 @@ func (a *App) pollTurns() {
 		}
 	}
 	pt := a.paneTurnsOf(p.ID)
+	a.subs.gen++ // a running subagent's log is read again (wantAgents)
 	if pt.loading {
 		return
 	}
@@ -742,6 +743,8 @@ func (b *turnBody) capped(text string, n int) {
 // steps and answer (closed, one placeholder row keeps it expandable).
 func (a *App) modelTurnNodes(tree *ochazuke.Tree, st *turnFill) []ochazuke.TreeNode {
 	loc := a.location()
+	a.subs.reset()
+	calls := agentCalls(st.mturns)
 	active := activeTurn(st.mturns)
 	var nodes []ochazuke.TreeNode
 	for i, t := range st.mturns {
@@ -755,7 +758,20 @@ func (a *App) modelTurnNodes(tree *ochazuke.Tree, st *turnFill) []ochazuke.TreeN
 			}
 			nodes = append(nodes, ochazuke.TreeNode{ID: id + "#session", Label: label + " ──", Noun: "turn-separator", Data: ref})
 		}
-		nodes = append(nodes, ochazuke.TreeNode{ID: id, Label: modelTurnLabel(t, i == active, loc), Noun: "turn", Data: ref})
+		label := modelTurnLabel(t, i == active, loc)
+		if n := t.Notice; n != nil {
+			if n.RepeatOf != "" {
+				continue // its task's first row shows the latest state
+			}
+			ref.Event = n.ToolUseID
+			label = noticeHeader(n, calls[n.ToolUseID]) + " · " + noticeMeta(n, "", loc)
+		}
+		nodes = append(nodes, ochazuke.TreeNode{ID: id, Label: label, Noun: "turn", Data: ref})
+		for k, n := range t.Events {
+			eref := ref
+			eref.Event = n.ToolUseID
+			nodes = append(nodes, ochazuke.TreeNode{ID: fmt.Sprintf("%s#event/%d", id, k), Label: "  " + noticeHeader(&n, calls[n.ToolUseID]) + " · " + noticeMeta(&n, "", loc), Noun: "turn-separator", Data: eref})
+		}
 		if !st.known[id] || tree.Collapsed(id) {
 			nodes = append(nodes, ochazuke.TreeNode{ID: id + "/…", Parent: id, Label: "…", Noun: "turn-line", Data: ref})
 			delete(st.built, id)
@@ -763,6 +779,22 @@ func (a *App) modelTurnNodes(tree *ochazuke.Tree, st *turnFill) []ochazuke.TreeN
 		}
 		st.built[id] = true
 		b := &turnBody{nodes: &nodes, parent: id, ref: ref, width: st.width}
+		if n := t.Notice; n != nil {
+			b.line("result:")
+			if ag := calls[n.ToolUseID]; ag != nil && ag.Result != "" {
+				b.markdown(ag.Result)
+			} else {
+				b.markdown(orNone(n.Result))
+			}
+			b.line("")
+			b.line("response:")
+			for _, s := range t.Steps {
+				if s.Kind == turns.StepText {
+					b.markdown(s.Text)
+				}
+			}
+			continue
+		}
 		head := "prompt:"
 		if t.Source == turns.SourceShell {
 			head = "command:"
@@ -796,6 +828,10 @@ func (a *App) modelTurnNodes(tree *ochazuke.Tree, st *turnFill) []ochazuke.TreeN
 			case turns.StepText:
 				b.markdown(s.Text)
 			case turns.StepThinking, turns.StepTool:
+				if s.Agent != nil {
+					nodes = append(nodes, a.agentNodes(id, j, s, ref, st.width, 1, func(n string) bool { return st.known[n] && !tree.Collapsed(n) })...)
+					continue
+				}
 				nodes = append(nodes, a.stepNode(id, j, s, ref, st.width)...)
 			}
 		}
@@ -1070,6 +1106,14 @@ func (a *App) copyTurn(all bool) ochazuke.AppHandler {
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
+		return a.copyLoaded(ref, load, what)
+	}
+}
+
+// copyLoaded copies what load reads to the clipboard off the loop, or
+// offers it as a file or a pager when the clipboard does not take it.
+func (a *App) copyLoaded(ref turnRef, load func(context.Context) (string, error), what string) ochazuke.Result {
+	{
 		sys := a.cx.sys
 		return ochazuke.Pending(func(c context.Context) (any, error) {
 			text, err := load(c)

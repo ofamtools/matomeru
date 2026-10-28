@@ -160,7 +160,30 @@ func (a *App) modelCards(st *cardFill) []ochazuke.Card {
 	active, last := activeTurn(st.mturns), len(st.mturns)-1
 	group := ""
 	cards := make([]ochazuke.Card, 0, len(st.mturns))
+	a.subs.reset()
+	tl := a.pv.timelines[st.window]
+	known := knownSteps(tl)
+	calls := agentCalls(st.mturns)
+	repeats := map[string][]turns.Turn{}
+	for _, t := range st.mturns {
+		if t.Notice != nil && t.Notice.RepeatOf != "" {
+			repeats[t.Notice.RepeatOf] = append(repeats[t.Notice.RepeatOf], t)
+		}
+	}
 	for i, t := range st.mturns {
+		if t.NewSession {
+			group = "new session"
+			if !t.StartedAt.IsZero() {
+				group += " · " + t.StartedAt.In(loc).Format("Jan 2 15:04")
+			}
+		}
+		if t.Notice != nil {
+			if t.Notice.RepeatOf != "" {
+				continue // folded into its task's first card
+			}
+			cards = append(cards, a.noticeCard(st, t, repeats[t.ID], calls, i == active, group, tl, known, loc))
+			continue
+		}
 		if t.NewSession {
 			group = "new session"
 			if !t.StartedAt.IsZero() {
@@ -170,22 +193,100 @@ func (a *App) modelCards(st *cardFill) []ochazuke.Card {
 		ref := st.back
 		ref.Window, ref.ID, ref.Line, ref.Model, ref.Card = st.window, t.ID, -1, true, true
 		prompt := promptText(t.Prompt)
+		cid := turnCardID(st.window, t.ID)
 		cards = append(cards, ochazuke.Card{
-			ID:       turnCardID(st.window, t.ID),
+			ID:       cid,
 			Noun:     "turn",
 			Label:    orNoPrompt(firstLine(prompt)),
 			Data:     ref,
 			Header:   orNoPrompt(cardText(prompt)),
 			Meta:     modelTurnMeta(t, loc),
-			Steps:    a.modelSteps(t, st.source, loc),
+			Steps:    a.modelStepsIn(cid, t, st.source, loc, tl, known[cid]),
 			Open:     i == active,
 			Active:   i == active,
 			Muted:    i != last,
 			Group:    group,
 			Revision: a.modelRevision(t, st.source),
 		})
+		for _, n := range t.Events {
+			cards = append(cards, a.eventCard(st, t, n, calls, group, loc))
+		}
 	}
 	return cards
+}
+
+// noticeCard is a turn a task notification opened, as an event: compact,
+// muted and closed, its body the task's result and then what the agent
+// did about it (each repeat's too).
+func (a *App) noticeCard(st *cardFill, t turns.Turn, again []turns.Turn, calls map[string]*turns.Agent, running bool, group string, tl *ochazuke.Timeline, known map[string]map[string]bool, loc *time.Location) ochazuke.Card {
+	n := t.Notice
+	ag := calls[n.ToolUseID]
+	ref := st.back
+	ref.Window, ref.ID, ref.Line, ref.Model, ref.Card, ref.Event = st.window, t.ID, -1, true, true, n.ToolUseID
+	id := turnCardID(st.window, t.ID)
+	steps := []ochazuke.CardStep{{Header: true}, noticeResultStep(n, ag)}
+	sig := []any{"notice", n.State, len(n.Result), n.Repeats, a.modelRevision(t, st.source)}
+	for k, rt := range append([]turns.Turn{t}, again...) {
+		inner := a.modelStepsIn(id, rt, st.source, loc, tl, known[id])
+		for _, s := range inner[1:] { // past the header
+			if k > 0 {
+				s.ID = fmt.Sprintf("again-%d/%s", k, s.ID)
+			}
+			if s.ID == "answer" || strings.HasSuffix(s.ID, "/answer") {
+				s.Title = "response"
+			}
+			steps = append(steps, s)
+		}
+		if k > 0 {
+			sig = append(sig, a.modelRevision(rt, st.source))
+		}
+	}
+	if ag != nil {
+		sig = append(sig, ag.Description, ag.State, len(ag.Result))
+	}
+	header := noticeHeader(n, ag)
+	return ochazuke.Card{
+		ID:       id,
+		Noun:     "turn",
+		Label:    header,
+		Data:     ref,
+		Header:   header,
+		Meta:     noticeMeta(n, spawnPrompt(st.mturns, n.Turn), loc),
+		Steps:    steps,
+		Active:   running,
+		Muted:    true,
+		Group:    group,
+		Revision: revision(sig...),
+	}
+}
+
+// eventCard is a notification that landed in a running turn: a compact
+// card of its own after the turn's, its body the task's result.
+func (a *App) eventCard(st *cardFill, t turns.Turn, n turns.Notice, calls map[string]*turns.Agent, group string, loc *time.Location) ochazuke.Card {
+	ag := calls[n.ToolUseID]
+	key := n.ToolUseID
+	if key == "" {
+		key = "task-" + n.TaskID
+	}
+	ref := st.back
+	ref.Window, ref.ID, ref.Line, ref.Model, ref.Card, ref.Event = st.window, t.ID, -1, true, true, n.ToolUseID
+	header := noticeHeader(&n, ag)
+	sig := []any{"event", n.State, len(n.Result), n.Repeats}
+	if ag != nil {
+		sig = append(sig, ag.Description, ag.State, len(ag.Result))
+	}
+	return ochazuke.Card{
+		ID:       turnCardID(st.window, t.ID+"/event/"+key),
+		Noun:     "turn",
+		Label:    header,
+		Data:     ref,
+		Header:   header,
+		Meta:     noticeMeta(&n, spawnPrompt(st.mturns, n.Turn), loc),
+		Steps:    []ochazuke.CardStep{{Header: true}, noticeResultStep(&n, ag)},
+		Muted:    true,
+		Group:    group,
+		Revision: revision(sig...),
+	}
 }
 
 // journalCards are a journal fill's cards.
@@ -312,6 +413,17 @@ func finalStep(t turns.Turn) int {
 // step per paragraph), and the answer paragraph by paragraph; a shell
 // turn's output is one step.
 func (a *App) modelSteps(t turns.Turn, pt *paneTurns, loc *time.Location) []ochazuke.CardStep {
+	return a.modelStepsIn("", t, pt, loc, nil, nil)
+}
+
+// modelStepsIn are modelSteps of the card with id in the timeline tl
+// (whose steps known are): a subagent's step nests its own turns when
+// the timeline has it open (turn_agents.go).
+func (a *App) modelStepsIn(card string, t turns.Turn, pt *paneTurns, loc *time.Location, tl *ochazuke.Timeline, known map[string]bool) []ochazuke.CardStep {
+	if a.subs.cards == nil {
+		a.subs.reset()
+	}
+	folded := a.foldedIn(tl, card, known)
 	out := []ochazuke.CardStep{{Header: true}}
 	if n := len(t.Steers); n > 0 {
 		var b strings.Builder
@@ -339,6 +451,10 @@ func (a *App) modelSteps(t turns.Turn, pt *paneTurns, loc *time.Location) []ocha
 			out = append(out, ochazuke.CardStep{ID: fmt.Sprintf("thinking-%d", j), Title: "thinking", Summary: plural(len(strings.Split(s.Text, "\n")), "line"),
 				Role: ochazuke.CardRoleMuted, Folded: !a.stepOpen(string(turns.StepThinking)), Body: ochazuke.TextBody(cardText(s.Text))})
 		case turns.StepTool:
+			if s.Agent != nil {
+				out = append(out, a.agentSteps(card, fmt.Sprintf("tool-%d", j), "", 1, s, folded)...)
+				continue
+			}
 			out = append(out, a.toolStep(j, s))
 		}
 	}
@@ -501,7 +617,8 @@ func shellOutputText(pt *paneTurns, t turns.Turn) (string, string) {
 // modelRevision changes whenever what a model card draws changes: the
 // logs only grow, so the lengths of what they hold say when.
 func (a *App) modelRevision(t turns.Turn, pt *paneTurns) uint64 {
-	sig := []any{t.State, len(t.Prompt), len(t.Steers), len(t.Final), t.Duration, a.stepShown(turns.StepThinking), a.stepShown(turns.StepTool)}
+	sig := []any{t.State, len(t.Prompt), len(t.Steers), len(t.Final), t.Duration, a.stepShown(turns.StepThinking), a.stepShown(turns.StepTool), len(a.subs.expanded)}
+	sig = append(sig, a.agentRevision(t)...)
 	for _, s := range t.Steps {
 		sig = append(sig, s.Kind, len(s.Text), len(s.Result), s.HasResult, s.IsError)
 	}
@@ -654,7 +771,7 @@ func (a *App) refoldCards() {
 				switch {
 				case strings.HasPrefix(s.ID, "thinking-"):
 					_ = tl.SetFolded(c.ID, s.ID, !a.stepOpen(string(turns.StepThinking)))
-				case strings.HasPrefix(s.ID, "tool-"):
+				case strings.HasPrefix(s.ID, "tool-") && !strings.Contains(s.ID, "/"):
 					_ = tl.SetFolded(c.ID, s.ID, !a.stepOpen(string(turns.StepTool)))
 				}
 			}
