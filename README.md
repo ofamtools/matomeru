@@ -14,6 +14,14 @@
 
 Matomeru (`mtm`) is built on [ochazuke](https://github.com/unixsuperhero/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
 
+The Inbox page (`I` from anywhere) is what needs you: action items from any source, unread first, with the count of unread and open items in the title row (`inbox 2/5`). `enter` opens an item's URL, `u` marks it read or unread, `s` snoozes it, `x` archives and `X` restores it, `t` and `c` promote it to a todo or a task, `m` moves it to a project and `d d` deletes it. Tools push items in through one command, idempotent on the source and `--key` (else the source and `--url`), so a poll that runs again refreshes its row:
+
+```sh
+mtm action-item add --source gh --url https://github.com/o/r/pull/7 --why "review requested" --title "Fix the store" --dir ~/proj/r
+```
+
+It prints the item as JSON (`id`, `new`, `state`, …). An item needs nothing: one with no project, task or pane is unassociated. `mtm action-item list`, `count`, `show`, `read`, `snooze --for 4h`, `archive`, `restore`, `promote-task`, `associate --task ID` and `delete` are the rest.
+
 An agent in a TUIOS pane can drive mtm over MCP with `mtm mcp serve`; `mtm mcp config claude` prints the entry to add. See [docs/MCP.md](docs/MCP.md).
 
 Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.

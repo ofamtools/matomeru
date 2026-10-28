@@ -19,6 +19,7 @@ import (
 	"github.com/unixsuperhero/ochazuke/markdown"
 	"github.com/unixsuperhero/oden"
 
+	"github.com/unixsuperhero/matomeru/internal/actionitems"
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/draft"
@@ -231,6 +232,9 @@ func (a *App) reveal(id string) error {
 	if err := a.refreshVim(); err != nil {
 		return err
 	}
+	if err := a.refreshInbox(); err != nil {
+		return err
+	}
 	if a.r.Instances[id] != nil {
 		return nil
 	}
@@ -251,6 +255,7 @@ type App struct {
 	db             *store.Store
 	work           *work.Store
 	contexts       *contextitems.Store // the context_items table (context.go)
+	inbox          *inboxState         // the action_items table and the Inbox page (inbox.go)
 	hist           *history.Journal    // the history journal and review marks (journal.go)
 	feed           *journalFeed        // the journal's background reader (journal.go)
 	journalSrc     journalSource       // the daemon the reader follows; tests replace it
@@ -408,6 +413,11 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	items, err := actionitems.Open(db)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
 	hist, err := history.Open(db, journalOwner(w))
 	if err != nil {
 		db.Close()
@@ -432,7 +442,7 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	client := opts.client()
-	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r)}
+	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
 	a.trackNotices()
 	a.claudeProjects = turns.ClaudeProjects()
 	a.ompSessions = turns.OmpSessions()
@@ -461,6 +471,7 @@ func New(opts Options) (*App, error) {
 	a.defineReviews()
 	a.definePin()
 	a.defineOwners()
+	a.defineInbox()
 	a.defineDeletion()
 	a.defineSaved()
 	a.defineVim()
@@ -540,6 +551,9 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	if err := a.addContextPage(); err != nil {
+		return nil, err
+	}
+	if err := a.addInboxPage(); err != nil {
 		return nil, err
 	}
 	// The Extensions page is mtm's last tab; the registered extensions'
