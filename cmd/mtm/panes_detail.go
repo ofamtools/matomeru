@@ -144,18 +144,55 @@ func (a *App) paneTab(ctx ochazuke.Ctx) ochazuke.Result {
 // after the selected one, wrapping once.
 func (a *App) nextWaiting(ochazuke.Ctx) ochazuke.Result {
 	row, _ := a.selectedRow()
+	id := a.waitingAfter(row)
+	if id == "" {
+		return ochazuke.Done(nil)
+	}
+	if err := a.pv.tree.Select(id); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(id)
+}
+
+// waitingAfter is the next row after row, in the tree's order and
+// wrapping once, whose pane needs input, or "".
+func (a *App) waitingAfter(row string) string {
 	order := a.pv.view.order
 	start := slices.Index(order, row)
 	for i := 1; i <= len(order); i++ {
 		id := order[(start+i+len(order))%len(order)]
 		if p, err := a.paneAt(a.r.Instances[id]); err == nil && p.needsInput() {
-			if err := a.pv.tree.Select(id); err != nil {
-				return ochazuke.Failed(err)
-			}
-			return ochazuke.Done(id)
+			return id
 		}
 	}
-	return ochazuke.Done(nil)
+	return ""
+}
+
+// cycleWaiting is terminal.waiting (leader W): attach the next pane that
+// needs input after the attached one, as terminal.starred attaches the
+// next starred pane, keeping the zoom; outside live it selects it, as W
+// does. None waiting, or only the attached one, is a quiet no-op.
+func (a *App) cycleWaiting(ctx ochazuke.Ctx) ochazuke.Result {
+	if !a.inLive() {
+		return a.nextWaiting(ctx)
+	}
+	id := a.waitingAfter(a.attached.rowID())
+	if id == "" || id == a.attached.rowID() {
+		return ochazuke.Done(nil)
+	}
+	p, err := a.paneAt(a.r.Instances[id])
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	zoom := a.pv.zoom
+	if err := a.pv.tree.Select(id); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.attachLive(p, id); err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.pv.zoom = zoom
+	return ochazuke.Done(p.label())
 }
 
 // paneActivity is pane.activity: the agent's activity off the loop.
@@ -410,7 +447,7 @@ func (a *App) defineLiveKeys() {
 		Verb("layout", a.flipLayout, "Flip the side pane between beside and below its parent (the side-layout setting)").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · [ copy · c context · f hints · N note · n task · T todos · S all · ? keys")).
+		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T todos · S all · : palette · , settings · ' pages · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
@@ -429,7 +466,29 @@ func (a *App) defineLiveKeys() {
 		Bind("n", ochazuke.Do("task.new").Hinted("new task")).
 		Bind("T", ochazuke.Do("todos.open").Hinted("todos")).
 		Bind("S", ochazuke.Do("scope.all").Hinted("all projects")).
-		Bind("?", ochazuke.Do("terminal.keys"))
+		// The app's own normal-mode keys, after the leader: the same verb
+		// and guard as the row each copies (the app noun's normal rows, the
+		// Panes page's ` and W), so the leader then the key does what the
+		// key does outside live. ? is the help tree, which lists these
+		// under the leader (R6.10); terminal.keys stays in the palette.
+		Bind("`", ochazuke.Do("terminal.starred").Hinted("next starred")).
+		Bind("W", ochazuke.Do("terminal.waiting").Hinted("next waiting")).
+		Bind("*", ochazuke.Do("terminal.star").Hinted("star")).
+		Bind("\\", ochazuke.Do("pane.pick").Hinted("pick pane")).
+		Bind("P", ochazuke.Do("project.pick").Guard("no-modal")).
+		Bind("L", ochazuke.Do("agent.choose")).
+		Bind("I", ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": "inbox"})).
+		Bind(":", ochazuke.Do("ochazuke.palette.open")).
+		Bind("ctrl+space", ochazuke.Do("ochazuke.palette.open")).
+		Bind(",", ochazuke.Do("ochazuke.settings.edit").Guard("no-modal")).
+		Bind("'", ochazuke.Do("ochazuke.page.pick").Guard("no-modal")).
+		Bind("ctrl+j", ochazuke.Do("ochazuke.page.next")).
+		Bind("ctrl+k", ochazuke.Do("ochazuke.page.previous")).
+		Bind("<", ochazuke.Do("ochazuke.pane.shrink").Guard("pane-split")).
+		Bind(">", ochazuke.Do("ochazuke.pane.grow").Guard("pane-split")).
+		Bind("=", ochazuke.Do("ochazuke.pane.reset").Guard("pane-split")).
+		Bind(".", ochazuke.Do("ochazuke.history.repeat")).
+		Bind("?", ochazuke.Do("ochazuke.bindings.help"))
 	a.defineLiveHints()
 	a.leaderView()
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
@@ -463,7 +522,24 @@ var leaderWords = []struct{ key, text string }{
 	{"T", "todos: the pin's tasks as an outline"},
 	{"S", "all projects, or back to the pin's"},
 	{"[", "copy mode: scroll back, search, select and yank; i goes live again"},
-	{"?", "these keys"},
+	{"`", "next starred pane, live (` on the Panes page)"},
+	{"W", "next pane that needs input, live (W on the Panes page)"},
+	{"*", "star or unstar the live pane (* on a pane row)"},
+	{"\\", "pick a pane, as p (\\ outside live)"},
+	{"P", "pick a project to pin (P outside live)"},
+	{"L", "launch an agent: choose its harness (L outside live)"},
+	{"I", "the Inbox page (I outside live)"},
+	{":", "command palette (: outside live)"},
+	{"ctrl+space", "command palette (ctrl+space outside live)"},
+	{",", "settings (, outside live)"},
+	{"'", "pick a page (' outside live)"},
+	{"ctrl+j", "next page (ctrl+j outside live)"},
+	{"ctrl+k", "previous page (ctrl+k outside live)"},
+	{"<", "shrink the list beside the pane (< outside live)"},
+	{">", "grow the list beside the pane (> outside live)"},
+	{"=", "put the split back at its default (= outside live)"},
+	{".", "repeat the last command (. outside live)"},
+	{"?", "keyboard help: every key here, the leader's under it"},
 }
 
 // leaderHelp gives each leader_pending row on the terminal noun its words
@@ -500,7 +576,8 @@ var leaderColumns = []ochazuke.Column{
 	{Wrap: true},
 }
 
-// leaderKeys is terminal.keys (leader ?): the leader table's rows in a
+// leaderKeys is terminal.keys (from the palette; the leader's ? is the
+// help tree): the leader table's rows in a
 // small modal, leader, key and what it does; esc closes it and the pane
 // stays live. The rows come from the leader_pending bindings, so a rebound key
 // shows as bound, and every row names the leader as the terminal-leader

@@ -367,7 +367,7 @@ func TestSideChooserFromPageAndPalette(t *testing.T) {
 	}
 }
 
-// The leader's hint and its ? modal name o, R and w; space after the
+// The leader's hint and its keys modal (terminal.keys) name o, R and w; space after the
 // leader stays unbound, so it sends the leader and itself to the pane.
 func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 	a, f := sideViewApp(t)
@@ -387,7 +387,11 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 			t.Fatalf("leader %s is bound: %+v", b.Keys, b)
 		}
 	}
-	press(t, a, "ctrl+a", "?")
+	// The leader's ? is the help tree now; terminal.keys (the palette's
+	// terminal keys) still opens the leader modal.
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "keys", Noun: "terminal", Target: paneTermID}); err != nil {
+		t.Fatal(err)
+	}
 	var rows []string
 	for _, it := range a.r.List(leaderList).Items() {
 		rows = append(rows, it.Label)

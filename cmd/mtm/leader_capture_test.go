@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/unixsuperhero/ochazuke"
+
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -110,7 +112,7 @@ func TestLeaderCaptureKeysReturnToTheLivePane(t *testing.T) {
 	live(t, app, "ctrl+a S")
 }
 
-// The leader's hint and its ? modal name the new keys.
+// The leader's hint and its keys modal (terminal.keys) name the new keys.
 func TestLeaderHintAndKeysListTheNewKeys(t *testing.T) {
 	app, _ := liveApp(t)
 	var hint string
@@ -124,7 +126,11 @@ func TestLeaderHintAndKeysListTheNewKeys(t *testing.T) {
 			t.Fatalf("hint %q lacks %q", hint, want)
 		}
 	}
-	press(t, app, "ctrl+a", "?")
+	// The leader's ? is the help tree now; terminal.keys (the palette's
+	// terminal keys) still opens the leader modal.
+	if _, err := app.r.Execute(ochazuke.Request{Verb: "keys", Noun: "terminal", Target: paneTermID}); err != nil {
+		t.Fatal(err)
+	}
 	var rows []string
 	for _, it := range app.r.List(leaderList).Items() {
 		rows = append(rows, it.Label)

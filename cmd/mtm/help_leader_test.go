@@ -30,7 +30,9 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 		}
 		bound := map[string]bool{}
 		for _, b := range app.r.Noun("terminal").Bindings["leader_pending"] {
-			if b.Keys != "" && !b.Hidden {
+			// The resize rows' pane-split guard is off on the Panes
+			// page, which draws its own split, so live help leaves them out.
+			if b.Keys != "" && !b.Hidden && b.When != "pane-split" {
 				bound[b.Keys] = true
 			}
 		}
@@ -50,7 +52,7 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 	check("ctrl+a")
 
 	mono(t, app)
-	app.m.Width, app.m.Height = 120, 120
+	app.m.Width, app.m.Height = 160, 200
 	if _, err := app.r.Execute(ochazuke.Do("ochazuke.bindings.help").Request); err != nil {
 		t.Fatal(err)
 	}

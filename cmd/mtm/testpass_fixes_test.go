@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -73,16 +74,19 @@ func TestNoticesClearOnNextKeyOrAfterLinger(t *testing.T) {
 	}
 }
 
-// ctrl+a ? lists the leader keys, not the terminal's generic help; esc
-// closes it and the pane stays live.
-func TestLeaderQuestionListsLeaderKeys(t *testing.T) {
+// terminal.keys (from the palette; the leader's ? is the help tree,
+// TestLeaderQuestionOpensTheHelpTree) lists the leader keys, not the
+// generic help; esc closes it and the pane stays live.
+func TestTerminalKeysListsLeaderKeys(t *testing.T) {
 	a, _ := panesApp(t)
 	runOnce(a, key(t, a, "enter"))
-	press(t, a, "ctrl+a", "?")
-	if a.r.TopModal() != leaderModal {
-		t.Fatalf("ctrl+a ? opened %q", a.r.TopModal())
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "keys", Noun: "terminal", Target: paneTermID}); err != nil {
+		t.Fatal(err)
 	}
-	// 15 rows: at 24 lines the list windows them (j/k scroll); 40 shows all.
+	if a.r.TopModal() != leaderModal {
+		t.Fatalf("terminal.keys opened %q", a.r.TopModal())
+	}
+	// At 40 lines the list windows its rows (j/k scroll); the first show.
 	a.m.Width, a.m.Height = 120, 40
 	fr := plainView(a)
 	for _, want := range []string{"ctrl+a v", "ctrl+a t", "ctrl+a d", "ctrl+a z", "ctrl+a j", "ctrl+a k", "ctrl+a ?", "ctrl+a ctrl+a"} {
@@ -91,7 +95,8 @@ func TestLeaderQuestionListsLeaderKeys(t *testing.T) {
 		}
 	}
 	// prefix | key | does: the leader is drawn once, on the first row.
-	if !strings.Contains(fr, "Leader keys") || !strings.Contains(fr, "│ ctrl+a  v       side vim") || strings.Count(fr, "│ ctrl+a ") != 1 || !strings.Contains(fr, "│         t       side terminal") {
+	// The key column is as wide as the longest key (ctrl+space).
+	if !strings.Contains(fr, "Leader keys") || !regexp.MustCompile(`│ ctrl\+a  v {3,}side vim`).MatchString(fr) || strings.Count(fr, "│ ctrl+a ") != 1 || !regexp.MustCompile(`│ {9}t {3,}side terminal`).MatchString(fr) {
 		t.Fatalf("leader modal columns:\n%s", fr)
 	}
 	if strings.Contains(fr, "pending mode") {

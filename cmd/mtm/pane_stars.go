@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"slices"
 	"time"
 
@@ -25,7 +26,23 @@ func (a *App) definePaneStars() {
 		Mode("normal").Bind("*", ochazuke.Do("pane.star"))
 	a.parameters("pane.star", map[string]ochazuke.Parameter{"starred": {Type: "boolean"}})
 	a.r.Define("panes").Verb("starred", a.nextStarred, "Select the next starred pane (wrapping)")
-	a.r.Define("terminal").Verb("starred", a.cycleStarred, "Attach the next starred pane (wrapping), live; outside live, select it")
+	a.r.Define("terminal").
+		Verb("starred", a.cycleStarred, "Attach the next starred pane (wrapping), live; outside live, select it").
+		Verb("star", a.starLive, "Star or unstar the attached pane (toggles without --starred), as pane.star on its row").
+		Verb("waiting", a.cycleWaiting, "Attach the next pane that needs input (wrapping), live; outside live, select it")
+	a.parameters("terminal.star", map[string]ochazuke.Parameter{"starred": {Type: "boolean"}})
+}
+
+// starLive is terminal.star (leader *): pane.star on the attached pane's
+// row, sharing its handler; the leader's rows run on the terminal, which
+// is not a pane row, so they cannot run pane.star itself.
+func (a *App) starLive(ctx ochazuke.Ctx) ochazuke.Result {
+	row := a.r.Instances[a.attached.rowID()]
+	if a.attached.ID == "" || row == nil {
+		return ochazuke.Failed(errors.New("no pane attached"))
+	}
+	ctx.Instance = row
+	return a.starPane(ctx)
 }
 
 // starPane is pane.star.

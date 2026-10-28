@@ -33,3 +33,28 @@ Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.
 ```sh
 go install github.com/unixsuperhero/matomeru/cmd/mtm@latest
 ```
+
+## Live shell keys
+
+In a live pane every key goes to the program in it, except the `terminal-leader` setting (default `ctrl+a`). After the leader, the app's own normal-mode keys do what they do outside live: the same verb, and the same guard. The palette, settings and pickers open over the pane; closing them (`esc`) gives the pane its keys again.
+
+| Key after the leader | Does | Verb |
+|---|---|---|
+| `:`, `ctrl+space` | command palette | `ochazuke.palette.open` |
+| `,` | Settings (guard `no-modal`) | `ochazuke.settings.edit` |
+| `'` | pick a page (guard `no-modal`) | `ochazuke.page.pick` |
+| `ctrl+j` / `ctrl+k` | next / previous page | `ochazuke.page.next` / `ochazuke.page.previous` |
+| `I` | the Inbox page | `ochazuke.page.open {id: inbox}` |
+| `?` | keyboard help: the help tree, with the leader as one row and its keys under it | `ochazuke.bindings.help` |
+| `` ` `` | next starred pane, attached live (`s` does the same) | `terminal.starred` |
+| `W` | next pane that needs input, attached live | `terminal.waiting` |
+| `*` | star or unstar the live pane | `terminal.star` (shares `pane.star`'s handler) |
+| `\`, `p` | pick a pane | `pane.pick` |
+| `P` | pick a project to pin (guard `no-modal`) | `project.pick` |
+| `L` | launch an agent | `agent.choose` |
+| `<` / `>` / `=` | resize the split (guard `pane-split`: off on the Panes page, which draws its own split) | `ochazuke.pane.shrink` / `grow` / `reset` |
+| `.` | dot-repeat | `ochazuke.history.repeat` |
+
+The live-only leader keys stay as they were: `v`/`t` side vim and terminal, `d` close a side or detach, `z` zoom, `o` the other pane, `R` side layout, `w` sides, `j`/`k` next and previous pane, `s` starred, `[` copy mode, `c` context, `f` hints, `N` quick note, `n` new task, `T` todos and `S` all projects. The leader twice sends one leader to the pane. The leader's `?` used to open the leader-only keys modal; that is `terminal.keys` now, from the palette (`terminal keys`). Changing `terminal-leader` moves every row.
+
+Not after the leader: `[`/`]` tabs (`[` is copy mode, and live is the Screen tab), `(`/`)` focus regions, `"` and `@` registers and macros, `/` filter, and in-component motions (`$ % ^ 0 | ; { }`).
