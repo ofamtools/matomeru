@@ -42,6 +42,12 @@ type Setting struct {
 	Cycle   []string          `json:"cycle,omitempty"`   // the order Key steps through, wrapping
 	Screen  map[string]string `json:"screen,omitempty"`  // text the pane's screen shows while a cycled value is on; a value without one shows none of the others
 	Note    string            `json:"note,omitempty"`    // a side effect worth saying (a command that also saves a default)
+	// Flags are the argv words that set the setting when the harness
+	// starts, {value} the chosen value ("--permission-mode", "{value}").
+	// A launch that sets the setting uses them; without them it types the
+	// Command once the pane is ready (Launch). They are not an in-session
+	// change, so a row with only Flags is read-only in a running session.
+	Flags []string `json:"flags,omitempty"`
 }
 
 // Zero reports whether the row sets nothing.
@@ -50,8 +56,10 @@ func (s Setting) Zero() bool { return s.Command == "" && s.Key == "" }
 // validate reports what makes the row unusable.
 func (s Setting) validate(harness, name string) error {
 	switch {
-	case s.Zero():
+	case s.Zero() && len(s.Flags) == 0:
 		return nil
+	case len(s.Flags) > 0 && !slices.ContainsFunc(s.Flags, func(f string) bool { return strings.Contains(f, ValuePlaceholder) }) && name != SettingFast:
+		return fmt.Errorf("harness %s: setting %s flags %q have no %s", harness, name, s.Flags, ValuePlaceholder)
 	case s.Command != "" && s.Key != "":
 		return fmt.Errorf("harness %s: setting %s gives both command and key; use one", harness, name)
 	case s.Key != "" && len(s.Cycle) < 2:
@@ -184,7 +192,7 @@ func builtinSettings(name string) (map[string]Setting, map[string]int64) {
 			SettingFast:   {Values: []string{"on", "off"}, Command: "/fast {value}"},
 			SettingPermission: {Key: "BTab", Cycle: []string{"default", "acceptEdits", "plan", "bypassPermissions", "auto"}, Screen: map[string]string{
 				"acceptEdits": "accept edits on", "plan": "plan mode on", "bypassPermissions": "bypass permissions on", "auto": "auto mode on",
-			}},
+			}, Flags: []string{"--permission-mode", "{value}"}},
 		}, map[string]int64{
 			// Claude Code's own window per model is not in its log; these
 			// are what the owner's sessions show (an Opus 5.5 session read
@@ -202,4 +210,34 @@ func builtinSettings(name string) (map[string]Setting, map[string]int64) {
 		}, nil
 	}
 	return nil, nil
+}
+
+// LaunchSettings is how a launch applies settings (by name: effort, fast,
+// permission-mode; the model has its own flag): the argv words of the
+// rows with Flags, the commands to type once the pane is ready for the
+// rows with only a Command, and a note for each setting the harness has
+// no way to set at launch. A value outside the setting's choices is an
+// error. Settings are taken in SettingNames order.
+func (h Harness) LaunchSettings(values map[string]string) (flags, typed, notes []string, err error) {
+	for _, name := range SettingNames {
+		v := strings.TrimSpace(values[name])
+		if v == "" || name == SettingModel {
+			continue
+		}
+		if choices := h.Choices(name); len(choices) > 0 && !slices.Contains(choices, v) {
+			return nil, nil, nil, fmt.Errorf("%s takes %s: %s", h.Name, name, strings.Join(choices, ", "))
+		}
+		s := h.Settings[name]
+		switch {
+		case len(s.Flags) > 0:
+			for _, f := range s.Flags {
+				flags = append(flags, strings.ReplaceAll(f, ValuePlaceholder, v))
+			}
+		case s.Command != "":
+			typed = append(typed, s.Text(v))
+		default:
+			notes = append(notes, fmt.Sprintf("%s has no launch flag or command for %s; %s=%s not applied (add a settings row in harnesses.json)", h.Name, name, name, v))
+		}
+	}
+	return flags, typed, notes, nil
 }

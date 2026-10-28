@@ -3,6 +3,7 @@ package harness
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -33,6 +34,10 @@ type Spec struct {
 	Cwd     string
 	Model   string // checked with Harness.Model first
 	Prompt  string
+	// Settings are the session's settings at launch by name (effort,
+	// fast, permission-mode): flags in the argv, or commands typed before
+	// the prompt (Harness.LaunchSettings).
+	Settings map[string]string
 }
 
 // Prompt statuses of a Result.
@@ -53,6 +58,8 @@ type Result struct {
 	Argv    []string `json:"argv,omitempty"`
 	Prompt  string   `json:"prompt"`
 	Note    string   `json:"note,omitempty"`
+	// Typed are the setting commands typed before the prompt.
+	Typed []string `json:"typed,omitempty"`
 }
 
 // Launcher runs launches through a Driver. Delay is the wait before typing
@@ -62,6 +69,9 @@ type Launcher struct {
 	Driver Driver
 	Delay  time.Duration
 	Sleep  func(context.Context, time.Duration) error
+	// Settle is a pause before typing the text after a setting command
+	// (0: none beyond the readiness wait).
+	Settle time.Duration
 }
 
 // DefaultDelay is the fixed wait for a harness without a readiness probe.
@@ -92,39 +102,75 @@ func Sleep(ctx context.Context, d time.Duration) error {
 // prompt unsent (typing it could answer a question the program is
 // asking); the Result says so and the pane stays open.
 func (l *Launcher) Launch(ctx context.Context, h Harness, s Spec) (Result, error) {
-	argv := h.Argv(s.Model, s.Prompt)
+	flags, typed, notes, err := h.LaunchSettings(s.Settings)
+	if err != nil {
+		return Result{}, err
+	}
+	argv := h.ArgvWith(s.Model, s.Prompt, flags)
 	id, err := l.Driver.OpenWindow(ctx, Window{Session: s.Session, Name: s.Name, Cwd: s.Cwd, Command: argv})
 	if err != nil {
 		return Result{}, err
 	}
-	out := Result{Session: s.Session, Window: id, Name: s.Name, Harness: h.Name, Argv: argv, Prompt: PromptNone}
-	switch {
-	case s.Prompt == "":
-		return out, nil
-	case h.Prompt == PromptArg:
-		out.Prompt = PromptInArgv
+	out := Result{Session: s.Session, Window: id, Name: s.Name, Harness: h.Name, Argv: argv, Prompt: PromptNone, Note: strings.Join(notes, "; ")}
+	prompt := s.Prompt
+	if h.Prompt == PromptArg {
+		prompt = ""
+		if s.Prompt != "" {
+			out.Prompt = PromptInArgv
+		}
+	}
+	if prompt == "" && len(typed) == 0 {
 		return out, nil
 	}
-	if h.Ready.Zero() {
-		if err := l.Sleep(ctx, l.Delay); err != nil {
-			return out, err
+	ready := func() (bool, error) {
+		if h.Ready.Zero() {
+			return true, l.Sleep(ctx, l.Delay)
 		}
-	} else {
 		r := h.Ready
 		if r.TimeoutMS == 0 {
 			r.TimeoutMS = DefaultReadyTimeoutMS
 		}
 		if err := l.Driver.WaitReady(ctx, s.Session, id, r); err != nil {
 			if ctx.Err() != nil {
-				return out, ctx.Err()
+				return false, ctx.Err()
 			}
-			out.Prompt, out.Note = PromptNotSent, fmt.Sprintf("%s was not ready: %v", h.Name, err)
+			note := fmt.Sprintf("%s was not ready: %v", h.Name, err)
+			out.Note = strings.TrimPrefix(out.Note+"; "+note, "; ")
+			return false, nil
+		}
+		return true, nil
+	}
+	// Each setting command is typed once the pane is ready, and the next
+	// text waits for it to be ready again: a command the harness is still
+	// handling never takes the prompt as its argument.
+	for i, text := range append(typed, prompt) {
+		if text == "" {
+			continue
+		}
+		ok, err := ready()
+		if err != nil {
+			return out, err
+		}
+		if !ok {
+			if prompt != "" {
+				out.Prompt = PromptNotSent
+			}
 			return out, nil
 		}
+		if i > 0 && l.Settle > 0 {
+			if err := l.Sleep(ctx, l.Settle); err != nil {
+				return out, err
+			}
+		}
+		if err := l.Driver.SendText(ctx, s.Session, id, text); err != nil {
+			return out, fmt.Errorf("pane %s is open but %q was not typed: %w", id, text, err)
+		}
+		if i < len(typed) {
+			out.Typed = append(out.Typed, text)
+		}
 	}
-	if err := l.Driver.SendText(ctx, s.Session, id, s.Prompt); err != nil {
-		return out, fmt.Errorf("pane %s is open but its prompt was not typed: %w", id, err)
+	if prompt != "" {
+		out.Prompt = PromptSent
 	}
-	out.Prompt = PromptSent
 	return out, nil
 }

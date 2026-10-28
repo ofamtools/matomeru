@@ -142,3 +142,31 @@ func TestContextWindowMostSpecificWins(t *testing.T) {
 		t.Fatalf("no match: %v", err)
 	}
 }
+
+// A launch sets each setting the way its row says: flags in the argv, a
+// command typed before the prompt, a note for a setting with neither; a
+// value outside the choices is refused.
+func TestLaunchSettings(t *testing.T) {
+	var claude, codex Harness
+	for _, h := range Builtins() {
+		switch h.Name {
+		case "claude":
+			claude = h
+		case "codex":
+			codex = h
+		}
+	}
+	flags, typed, notes, err := claude.LaunchSettings(map[string]string{SettingEffort: "high", SettingFast: "on", SettingPermission: "plan"})
+	if err != nil || strings.Join(flags, " ") != "--permission-mode plan" || strings.Join(typed, "|") != "/effort high|/fast on" || len(notes) != 0 {
+		t.Fatalf("claude: %q %q %q %v", flags, typed, notes, err)
+	}
+	if _, _, _, err := claude.LaunchSettings(map[string]string{SettingEffort: "huge"}); err == nil {
+		t.Fatal("an effort claude does not take was taken")
+	}
+	if _, _, notes, err := codex.LaunchSettings(map[string]string{SettingEffort: "high"}); err != nil || len(notes) != 1 {
+		t.Fatalf("codex: %q %v", notes, err)
+	}
+	if got := strings.Join(claude.ArgvWith("sonnet", "", []string{"--permission-mode", "plan"}), " "); got != "claude --model sonnet --permission-mode plan" {
+		t.Fatalf("argv %q", got)
+	}
+}

@@ -182,7 +182,11 @@ func (h Harness) Model(model string) (string, error) {
 // prompt: the harness's command, its env through env(1), the model flag
 // when a model is given, and the prompt last when the harness takes it as
 // an argument. The zero Harness (a plain shell) has no argv.
-func (h Harness) Argv(model, prompt string) []string {
+func (h Harness) Argv(model, prompt string) []string { return h.ArgvWith(model, prompt, nil) }
+
+// ArgvWith is Argv with flags (LaunchSettings' launch flags) after the
+// model flag and before a prompt given as an argument.
+func (h Harness) ArgvWith(model, prompt string, flags []string) []string {
 	if len(h.Command) == 0 {
 		return nil
 	}
@@ -202,6 +206,7 @@ func (h Harness) Argv(model, prompt string) []string {
 	if model != "" && h.ModelFlag != "" {
 		argv = append(argv, h.ModelFlag, model)
 	}
+	argv = append(argv, flags...)
 	if prompt != "" && h.Prompt == PromptArg {
 		argv = append(argv, prompt)
 	}
