@@ -19,18 +19,6 @@ import (
 // shell window.
 func statuslineDaemon(t *testing.T) string {
 	t.Helper()
-	// Short: unix socket paths are capped near 104 bytes.
-	dir, err := os.MkdirTemp("/tmp", "mtms")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
-	sock := filepath.Join(dir, "d.sock")
-	l, err := net.Listen("unix", sock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { l.Close() })
 	results := map[string]any{
 		"list-sessions": map[string]any{"sessions": []any{map[string]any{"id": "s1", "name": "work", "dir": "/tmp/w"}}},
 		"list-windows": map[string]any{"windows": []any{
@@ -43,6 +31,30 @@ func statuslineDaemon(t *testing.T) string {
 			map[string]any{"window_id": "w2", "state": "none", "meta": map[string]any{}},
 		}},
 	}
+	return serveDaemon(t, func(verb string) (any, bool) {
+		res, ok := results[verb]
+		return res, ok
+	})
+}
+
+// serveDaemon is a fake tuios daemon on a unix socket: each request's
+// verb is answered with answer(verb), or unknown_verb when it reports
+// false. answer runs on every request, so a test can change what the
+// daemon reports between listings.
+func serveDaemon(t *testing.T, answer func(verb string) (any, bool)) string {
+	t.Helper()
+	// Short: unix socket paths are capped near 104 bytes.
+	dir, err := os.MkdirTemp("/tmp", "mtms")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "d.sock")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
 	go func() {
 		for {
 			c, err := l.Accept()
@@ -65,7 +77,7 @@ func statuslineDaemon(t *testing.T) string {
 						return
 					}
 					reply := map[string]any{"id": req.ID}
-					if res, ok := results[req.Verb]; ok {
+					if res, ok := answer(req.Verb); ok {
 						reply["result"] = res
 					} else {
 						reply["error"] = map[string]any{"code": "unknown_verb", "message": req.Verb}
