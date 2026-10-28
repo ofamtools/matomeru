@@ -623,11 +623,11 @@ func TestPaneHeaderIsTheAgentStatusLine(t *testing.T) {
 	app := open(t)
 	p := pane{Session: "s", Harness: "claude", Model: "sonnet", LaunchFlags: []string{"--model", "sonnet", "--effort=high", "--permission-mode", "plan"},
 		Pane: daemon.Pane{ID: "w1", AgentState: "working", Cwd: "/tmp/x"}}
-	if got := app.paneHeader(p); got != "claude · sonnet · effort high · perms plan · /tmp/x · working" {
+	if got := app.paneHeader(p); got != "claude · sonnet · effort high · perms plan · /tmp/x · working · unassociated" {
 		t.Fatalf("recipe header %q", got)
 	}
 	p.Meta = map[string]string{"model": "opus", "context": "42%", "cost": "$0.12"}
-	if got := app.paneHeader(p); got != "claude · opus · effort high · perms plan · ctx 42% · $0.12 · /tmp/x · working" {
+	if got := app.paneHeader(p); got != "claude · opus · effort high · perms plan · ctx 42% · $0.12 · /tmp/x · working · unassociated" {
 		t.Fatalf("meta header %q", got)
 	}
 	shell := pane{Session: "s", Meta: map[string]string{"summary": "x"}, Pane: daemon.Pane{ID: "w2", Cwd: "/tmp/y"}}

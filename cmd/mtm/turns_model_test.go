@@ -70,6 +70,11 @@ func claudeTurnsApp(t *testing.T) (*App, *fakePanes, string) {
 		logAssistant(t, "a3", "2026-10-27T10:00:05Z", "end_turn", map[string]any{"type": "text", "text": "Fixed: the test now **fakes** the clock."}),
 		logDone(t, "d1", "2026-10-27T10:00:06Z"),
 	)
+	// These turns tests are about the turns and the send; the task picker
+	// a send opens (prompt.after-submit) has its own (pane_task_test.go).
+	if err := app.r.Settings().Set(settingAfterSubmit, afterSubmitNone); err != nil {
+		t.Fatal(err)
+	}
 	reload(t, app)
 	settle(app, key(t, app, "[")) // Screen wraps back to Turns
 	if app.pv.tab != tabTurns {

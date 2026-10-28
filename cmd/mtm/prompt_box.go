@@ -454,6 +454,9 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		label = "steer"
 	}
 	sent := string(a.pb.input.Text)
+	// The send is a job; prompt.after-submit (the task picker) opens over
+	// the page now, while it runs, and never holds it up.
+	a.afterSubmit(ctx, p)
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		switch mode {
 		case promptQueue:

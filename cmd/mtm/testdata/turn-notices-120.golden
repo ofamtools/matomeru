@@ -2,7 +2,7 @@
    › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  Schedules  Extensions                         
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   panes (2)                          ╭─ matomeru/claude ─────────────────────────────────────────────────────────────╮  
-  pane                state          │ claude-code · /w/proj · idle                                                  │  
+  pane                state          │ claude-code · /w/proj · idle · unassociated                                   │  
   ▾ unassociated (2)                 │ [Turns] Screen Activity Transcript · [ ] tabs · enter live                    │  
         ○ claude      idle           │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
           shell       shell          │ │ ▸ start the agents                                                        │ │  

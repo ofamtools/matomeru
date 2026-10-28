@@ -922,10 +922,12 @@ func (a *App) paneHeader(p pane) string {
 			parts = append(parts, age(time.Since(time.UnixMilli(p.StateAt))))
 		}
 	}
+	outside := false
 	if owner, ok := a.pv.view.owners[p.ID]; ok && !a.inScope(owner) {
 		parts = append(parts, "owner "+a.ownerLabel(owner))
+		outside = true
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(append(parts, a.paneTaskFacts(p, outside)...), " · ")
 }
 
 // statusFields are an agent's status-line facts in order: model, effort,

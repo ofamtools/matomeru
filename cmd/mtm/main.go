@@ -500,6 +500,7 @@ func New(opts Options) (*App, error) {
 	a.definePin()
 	a.defineOwners()
 	a.defineInbox()
+	a.definePaneTask()
 	a.defineSchedules()
 	a.defineDeletion()
 	a.defineSaved()

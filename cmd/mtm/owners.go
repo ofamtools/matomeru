@@ -11,7 +11,7 @@ import (
 func (a *App) defineOwners() {
 	// One move verb per noun, m on every row: associate. From a key with
 	// no owner named, a chooser of projects asks (unassociated last).
-	a.r.Define("pane").Verb("associate", a.associatePane, "Move a pane to a project (omit it to choose); scratch explicitly removes ownership").Verb("list", a.listPanes, "List panes in scope; --all widens the list").Fetch()
+	a.r.Define("pane").Verb("associate", a.associatePane, "Move a pane to a task (--task) or a project (omit them to choose a project); scratch explicitly removes ownership").Verb("list", a.listPanes, "List panes in scope; --all widens the list").Fetch()
 	a.r.Define("session").Verb("associate", a.associateSession, "Move a session to a project (omit it to choose); panes with their own row stay unchanged").Verb("list", a.listSessions, "List sessions in scope; --all widens the list").Fetch()
 	a.r.Define("task").Verb("associate", a.associateTask, "Move a task to a project (omit it to choose), or scratch").Mode("normal").Bind("m", ochazuke.Do("task.associate"))
 	for _, noun := range []string{"pane", "session", "task"} {
@@ -51,17 +51,10 @@ func (a *App) associatePane(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	row := work.Assignment{Window: p.ID, Session: p.Session, ProjectID: o.ProjectID, TaskID: o.TaskID, AssignedAt: work.Now()}
-	if err := a.work.SetPaneOwner(row); err != nil {
-		return ochazuke.Failed(err)
-	}
 	if o.Notice != "" {
-		ctx.Notify(o.Notice)
+		ctx.Info(o.Notice)
 	}
-	if err := a.refreshScope(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(row)
+	return a.relatePane(p, o)
 }
 
 func (a *App) associateSession(ctx ochazuke.Ctx) ochazuke.Result {

@@ -38,6 +38,7 @@ func (a *App) relations() []relation {
 	return []relation{
 		{noun: actionItemNoun, on: []string{"task", "pane", "project"}, param: inboxRelateParam, relate: a.relateActionItemTo},
 		{noun: contextNoun, on: []string{"task", "project"}, param: contextRelateParam, relate: a.relateContextItemTo},
+		{noun: "pane", on: []string{"task", "project"}, param: paneRelateParam, relate: a.relatePaneTo},
 	}
 }
 
