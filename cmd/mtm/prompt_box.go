@@ -14,6 +14,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/compose"
+	"github.com/unixsuperhero/matomeru/internal/contextitems"
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 )
 
@@ -54,6 +55,13 @@ import (
 // skill writes the harness's own syntax (compose.SkillInvocation): the
 // completion keeps its trigger, so a suggestion whose text is a /form
 // has its $ dropped right after the accept (promptAfter).
+//
+// alt+o (turn-prompt.context) opens the context picker scoped to the
+// box's pane (ctrl+a c's rows); enter writes the chosen item at the box's
+// cursor (promptMention: a file or dir as @path, the rest as its text)
+// and the box keeps the focus, in insert mode. alt+o because readline
+// leaves it unbound (ctrl+o, ctrl+g and ctrl+] are taken there) and
+// neither ochazuke nor mtm binds it.
 
 const (
 	promptID   = "panes/prompt"
@@ -147,14 +155,17 @@ func (a *App) addPromptBox() error {
 		Verb("send", a.sendPrompt, "Send the prompt to the agent in the box's mode: send (a steer while it works), queue (typed when it rests) or interrupt (Escape, then send)").
 		Verb("mode", a.cyclePromptMode, "Switch the prompt box's mode: send, queue, interrupt (or the one named)").
 		Verb("back", a.promptBack, "Go back to the turns, else the pane row").
+		Verb("context", a.promptContext, "Choose a context item or prompt of the box's pane, its project or no project, and write it at the cursor (a file as @path)").
 		Mode("insert").
 		Bind("enter", ochazuke.Do(promptNoun+".send")).
 		Bind("ctrl+j", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hinted("newline")).
 		Bind("alt+enter", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hide()).
 		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
+		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
 		Mode("normal").
 		Bind("enter", ochazuke.Do(promptNoun+".send")).
 		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
+		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
 		Bind("esc", ochazuke.Do(promptNoun+".back"))
 	a.parameters(promptNoun+".mode", map[string]ochazuke.Parameter{"mode": {Type: "string", Enum: promptModes, Description: "The mode to switch to; none takes the next"}})
 	// i writes a prompt: from the pane row while the Turns tab shows, and
@@ -260,6 +271,60 @@ func (a *App) cyclePromptMode(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	a.pb.mode = (a.pb.mode + 1) % len(promptModes)
 	return ochazuke.Done(promptModes[a.pb.mode])
+}
+
+// promptContext is turn-prompt.context (alt+o): the context picker with
+// into=prompt.
+func (a *App) promptContext(ochazuke.Ctx) ochazuke.Result {
+	return a.pickIntoPrompt()
+}
+
+// pickIntoPrompt opens the context picker over the box's pane; enter
+// writes the choice at the box's cursor.
+func (a *App) pickIntoPrompt() ochazuke.Result {
+	p := a.promptPane()
+	if p == nil {
+		return ochazuke.Failed(errors.New("the prompt box is for a Claude Code or omp pane, on the Turns tab"))
+	}
+	return a.openContextPicker(*p, func(row ochazuke.ChooserRow) ochazuke.Result {
+		var text string
+		switch d := row.Data.(type) {
+		case promptRow:
+			text = d.turn.Prompt
+		case contextitems.Item:
+			text = promptMention(d.Kind, d.Text)
+		}
+		if err := a.insertIntoPrompt(text); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(text)
+	})
+}
+
+// promptMention is how an item reads in a prompt, as the @ completion
+// writes it: a file or dir is @path (Claude Code and omp both attach
+// it), anything else is its text.
+func promptMention(kind, text string) string {
+	if kind == "file" || kind == "dir" {
+		return "@" + text
+	}
+	return text
+}
+
+// insertIntoPrompt writes text at the box's cursor and leaves the box
+// focused in insert mode, the cursor after the text.
+func (a *App) insertIntoPrompt(text string) error {
+	if a.r.Focus != promptID {
+		if err := a.r.SetFocus(promptID); err != nil {
+			return err
+		}
+	}
+	in := a.pb.input
+	in.SetMode("insert")
+	if text == "" {
+		return nil
+	}
+	return in.Replace(in.Cursor, in.Cursor, text)
 }
 
 // promptModeLabel is the box's mode as it reads: [send], [steer] (a send
