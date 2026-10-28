@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -96,6 +97,56 @@ func markerGutter(p pane) string {
 		side = sideMarker
 	}
 	return star + side + stateGlyph(p)
+}
+
+// stateTone is the theme tone of an agent's state (R5.14): the glyph and
+// the short state column carry it, and themes.json "tones" colours it; a
+// shell has none. The text still says the state, so mono reads the same.
+func stateTone(p pane) string {
+	switch {
+	case p.Exited:
+		return ochazuke.ToneExited
+	case !p.isAgent():
+		return ""
+	case p.needsInput():
+		return ochazuke.ToneNeedsInput
+	case p.AgentState == "working":
+		return ochazuke.ToneWorking
+	case p.AgentState == "done":
+		return ochazuke.ToneDone
+	case p.AgentState == "errored":
+		return ochazuke.ToneErrored
+	}
+	return ochazuke.ToneIdle
+}
+
+// toneSide is the side marker's tone. ochazuke's themes do not draw it, so
+// it is plain until themes.json gives it a style.
+const toneSide = "marker.side"
+
+// paneTones are a pane row's tones over its cells: the gutter's star,
+// side and state glyph (runes 0, 1, 2 of cell 0), W after the name, and
+// the state column.
+func paneTones(p pane, name string) []ochazuke.ToneSpan {
+	var tones []ochazuke.ToneSpan
+	if p.Starred {
+		tones = append(tones, ochazuke.SpanTone(0, 0, 1, ochazuke.ToneStar))
+	}
+	if p.SideVim != "" || p.SideTerm != "" {
+		tones = append(tones, ochazuke.SpanTone(0, 1, 2, toneSide))
+	}
+	state := stateTone(p)
+	if state != "" {
+		tones = append(tones, ochazuke.SpanTone(0, 2, 3, state))
+	}
+	if p.Queued > 0 {
+		at := utf8.RuneCountInString(name) - utf8.RuneCountInString(queuedMarker)
+		tones = append(tones, ochazuke.SpanTone(0, at, at+utf8.RuneCountInString(queuedMarker), ochazuke.ToneQueued))
+	}
+	if state != "" {
+		tones = append(tones, ochazuke.CellTone(1, state))
+	}
+	return tones
 }
 
 // kind is what runs in the pane: the harness, "agent" for an agent of no
@@ -351,7 +402,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 				}
 				use := p.usageCell()
 				view.usage = view.usage || use != ""
-				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}})
+				view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: g.id, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}, Tones: paneTones(p, name)})
 				view.order = append(view.order, p.rowID())
 			}
 		}
