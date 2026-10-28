@@ -5,10 +5,10 @@
   pane                      state    ┃ claude-code · idle                                                            ┃  
   ▾ matomeru (1)                     ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
     ▾ session matomeru (1)           ┃ ▾ prompt 1 · 1 answer · Sep 21 14:13                                          ┃  
-        ○ claude            idle     ┃     prompt:                                                                   ┃  
+          ○ claude          idle     ┃     prompt:                                                                   ┃  
   ▾ unassociated (1)                 ┃       prompt 1                                                                ┃  
     ▾ session ochazuke (1)           ┃       with a second line                                                      ┃  
-          shell             shell    ┃                                                                               ┃  
+            shell           shell    ┃                                                                               ┃  
                                      ┃     answer:                                                                   ┃  
                                      ┃       This answer is a long paragraph of prose that the agent wrote, which    ┃  
                                      ┃       should wrap onto several rows at the panel width instead of being cut   ┃  

@@ -565,7 +565,7 @@ func TestPaneTreeIsATable(t *testing.T) {
 	if len(items) != 4 || items[0].Noun != "pane-project" || items[1].Noun != "session" || items[2].Noun != "pane" || items[3].Noun != "pane" {
 		t.Fatalf("rows %+v", items)
 	}
-	if !slices.Equal(items[2].Cells, []string{"      ○ claude", "idle", ""}) || !slices.Equal(items[3].Cells, []string{"        shell", "shell", ""}) {
+	if !slices.Equal(items[2].Cells, []string{"        ○ claude", "idle", ""}) || !slices.Equal(items[3].Cells, []string{"          shell", "shell", ""}) {
 		t.Fatalf("pane rows %+v / %+v", items[2].Cells, items[3].Cells)
 	}
 	for _, width := range []int{80, 120, 160} {

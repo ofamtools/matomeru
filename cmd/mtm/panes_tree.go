@@ -26,7 +26,7 @@ const (
 )
 
 // paneTreeColumns are the tree's table: the pane (indented by the tree,
-// its state glyph first), its short state and the compact status line
+// its marker gutter first), its short state and the compact status line
 // (context used and cost), which is there only while some row has one
 // (paneView.usage) and drops first when the tree is narrow. The
 // harness, model, effort, permission mode, cwd and owner are the detail's
@@ -73,6 +73,29 @@ func stateGlyph(p pane) string {
 		return "✗"
 	}
 	return "○"
+}
+
+// The marker gutter leads every pane row, one cell per slot and a blank
+// slot when its marker is off, so the slots line up down the list: the
+// star (pane.star), side panes (a side vim or terminal is open: leader v,
+// t, panes.sides) and the state glyph. ★ is the star the context list and
+// the old badge used; ◧, a square with one side filled, is a window with
+// a pane beside it. Queued prompts stay W after the name.
+const (
+	starMarker = "★"
+	sideMarker = "◧"
+)
+
+// markerGutter is a pane row's gutter: star, side, state glyph.
+func markerGutter(p pane) string {
+	star, side := " ", " "
+	if p.Starred {
+		star = starMarker
+	}
+	if p.SideVim != "" || p.SideTerm != "" {
+		side = sideMarker
+	}
+	return star + side + stateGlyph(p)
 }
 
 // kind is what runs in the pane: the harness, "agent" for an agent of no
@@ -322,18 +345,9 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			}
 			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{cell, waitingCell(w)}})
 			for _, p := range g.panes {
-				name := stateGlyph(p) + " " + names[p.ID]
+				name := markerGutter(p) + " " + names[p.ID]
 				if p.Queued > 0 {
 					name += " " + queuedMarker
-				}
-				if p.SideVim != "" {
-					name += " v"
-				}
-				if p.SideTerm != "" {
-					name += " t"
-				}
-				if p.Starred {
-					name += " ★"
 				}
 				use := p.usageCell()
 				view.usage = view.usage || use != ""

@@ -5,10 +5,10 @@
   pane                      state                                               
   ▾ matomeru (1)                                                                
     ▾ session matomeru (1)                                                      
-        ○ claude            idle                                                
+          ○ claude          idle                                                
   ▾ unassociated (1)                                                            
     ▾ session ochazuke (1)                                                      
-          shell             shell                                               
+            shell           shell                                               
   ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
   ┃ claude-code · idle                                                       ┃  
   ┃ [Turns] Screen Activity Transcript · [ ] tabs                            ┃  

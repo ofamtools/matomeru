@@ -5,10 +5,10 @@
   pane                      state    ┃ claude-code · idle                                                            ┃  
   ▾ matomeru (1)                     ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
     ▾ session matomeru (1)           ┃ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ┃  
-        ○ claude            idle     ┃ ┃ ▾ prompt 1                                                                ┃ ┃  
+          ○ claude          idle     ┃ ┃ ▾ prompt 1                                                                ┃ ┃  
   ▾ unassociated (1)                 ┃ ┃   with a second line                                                      ┃ ┃  
     ▾ session ochazuke (1)           ┃ ┃   Sep 21 14:13 · 1 answer                                                 ┃ ┃  
-          shell             shell    ┃ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ ┃  
+            shell           shell    ┃ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ ┃  
                                      ┃ ┃ ▾ 1 answer                                                                ┃ ┃  
                                      ┃ ┃   This answer is a long paragraph of prose that the agent wrote, which    ┃ ┃  
                                      ┃ ┃   should wrap onto several rows at the panel width instead of being cut   ┃ ┃  
