@@ -27,7 +27,7 @@ func turnsLive(t *testing.T, harness string) {
 	app.pv.tab = tabTurns
 	settle(app, follow(app))
 	f := frame(app)
-	if !strings.Contains(f, "Activity Transcript [Turns] · [ ] tabs · enter live") {
+	if !strings.Contains(f, "[Turns] Screen Activity Transcript · [ ] tabs · enter live") {
 		t.Fatalf("Turns tab line:\n%s", f)
 	}
 	footer := lastLines(f, 3)
@@ -38,7 +38,7 @@ func turnsLive(t *testing.T, harness string) {
 	}
 	press(t, app, "enter")
 	f = frame(app)
-	if app.r.Terminal(paneTermID) == nil || app.r.BaseMode() != "terminal" || !strings.Contains(f, "[Screen] Activity Transcript Turns · live · ctrl+a ? keys") {
+	if app.r.Terminal(paneTermID) == nil || app.r.BaseMode() != "terminal" || !strings.Contains(f, "Turns [Screen] Activity Transcript · live · ctrl+a ? keys") {
 		t.Fatalf("enter did not go live (%s):\n%s", app.r.BaseMode(), f)
 	}
 	press(t, app, "ctrl+a")
@@ -81,5 +81,46 @@ func TestPaneCopyFromTurnsSwitchesToScreen(t *testing.T) {
 	}
 	if !strings.Contains(frame(app), "$ echo copy") {
 		t.Fatalf("copy mode lacks the screen:\n%s", frame(app))
+	}
+}
+
+// The tab row puts Turns first; from every tab enter goes live on Screen,
+// f labels the Screen's screen, and pane.copy enters copy mode there.
+func TestLiveKeysFromEveryTab(t *testing.T) {
+	for tab, name := range tabNames {
+		t.Run(name, func(t *testing.T) {
+			for _, check := range []string{"enter", "f", "copy"} {
+				app, fp := panesApp(t)
+				fp.panes[0].Harness, fp.panes[0].AgentState, fp.panes[0].AgentSession = "claude-code", "idle", "s1"
+				reload(t, app)
+				fp.screens["w1"] = "$ open https://example.com/every\n$ "
+				app.pv.tab = tab
+				settle(app, follow(app))
+				if f := frame(app); !strings.Contains(f, "["+name+"]") || !strings.Contains(f, "Turns") || strings.Index(f, "Turns") > strings.Index(f, "Screen") {
+					t.Fatalf("%s tab line:\n%s", name, f)
+				}
+				switch check {
+				case "enter":
+					press(t, app, "enter")
+					if app.r.Terminal(paneTermID) == nil || app.r.BaseMode() != "terminal" || app.pv.tab != tabScreen {
+						t.Fatalf("enter on %s did not go live (%s, tab %d):\n%s", name, app.r.BaseMode(), app.pv.tab, frame(app))
+					}
+				case "f":
+					pressAll(t, app, "f")
+					settle(app, app.r.PendingCommands())
+					if app.pv.tab != tabScreen || app.r.Mode.Name != hintsMode || app.hinting == nil {
+						t.Fatalf("f on %s: tab %d mode %s\n%s", name, app.pv.tab, app.r.Mode.Name, frame(app))
+					}
+				case "copy":
+					if _, err := app.r.Execute(ochazuke.Request{Verb: "copy", Noun: "pane", Target: rowW1}); err != nil {
+						t.Fatal(err)
+					}
+					settle(app, app.r.PendingCommands())
+					if app.pv.tab != tabScreen || app.r.Focus != copyID || !app.copy.active {
+						t.Fatalf("pane.copy on %s: tab %d focus %s", name, app.pv.tab, app.r.Focus)
+					}
+				}
+			}
+		})
 	}
 }

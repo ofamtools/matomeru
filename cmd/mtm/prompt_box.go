@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -183,7 +184,21 @@ func (a *App) addPromptBox() error {
 		Bind("enter", ochazuke.Do(promptNoun+".send")).
 		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
 		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
-		Bind("esc", ochazuke.Do(promptNoun+".back"))
+		Bind("esc", ochazuke.Do(promptNoun+".back")).
+		// k (and up) on the box's first line goes back up to the turns, as
+		// a motion past a list's edge spills to the stop drawn above;
+		// elsewhere they move the cursor up a line. j on the last line
+		// stays: the box is the bottom of the page.
+		Bind("k", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide()).
+		Bind("up", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide())
+	a.r.DefineGuard("prompt-top-line", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		in := a.pb.input
+		if in == nil || ev.Focus != promptID {
+			return false
+		}
+		at := min(max(0, in.Cursor), len(in.Text))
+		return !slices.Contains(in.Text[:at], '\n')
+	})
 	a.parameters(promptNoun+".mode", map[string]ochazuke.Parameter{"mode": {Type: "string", Enum: promptModes, Description: "The mode to switch to; none takes the next"}})
 	// i writes a prompt: from the pane row while the Turns tab shows, and
 	// from any row of the turns.
@@ -259,8 +274,8 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 // promptBack is turn-prompt.back (esc in normal mode): the turns, else
 // the pane row.
 func (a *App) promptBack(ochazuke.Ctx) ochazuke.Result {
-	if a.pv.turns.List().Len() > 0 {
-		if err := a.pv.turns.Focus(); err == nil {
+	if a.turnsList().Len() > 0 {
+		if err := a.focusTurnsView(); err == nil {
 			return ochazuke.Done(a.r.Focus)
 		}
 	}
@@ -614,7 +629,13 @@ func (a *App) promptAfter(before promptState) {
 func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	in := a.pb.input
 	s := ochazuke.NewStyles(*a.m.Appearance)
-	style := a.promptModeStyle(s)
+	// The rule shows whether the box has the focus: the mode's colour
+	// (bold in mono) while it does, muted (dim in mono) while it does not.
+	// Only the style changes, never the text, so nothing moves.
+	style := s.Muted
+	if a.r.Focus == promptID {
+		style = a.promptModeStyle(s)
+	}
 	label := promptModeLabel(a.pb.mode, p) + " " + p.kind()
 	if p.needsInput() {
 		label += " · waits on you"
@@ -661,7 +682,7 @@ func (a *App) promptModeStyle(s ochazuke.Styles) lipgloss.Style {
 	switch a.pb.mode {
 	case promptQueue:
 		if a.m.Appearance.Theme == "mono" {
-			return lipgloss.NewStyle()
+			return lipgloss.NewStyle().Bold(true)
 		}
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("#D7A72F"))
 	case promptInterrupt:

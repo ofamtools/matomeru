@@ -167,11 +167,16 @@ type paneUI struct {
 	seq      uint64 // the follow timer's generation
 	armed    bool   // the refresh timer is set
 	// after schedules msg after d; nil (tests) schedules nothing.
-	after      func(d time.Duration, msg tea.Msg) tea.Cmd
-	text       map[string]string // row + tab → the Activity or Transcript text
-	lastState  map[string]string // window → the agent state at the last listing
-	turns      *ochazuke.Tree
-	turnsFor   string // the pane row the Turns tree shows
+	after     func(d time.Duration, msg tea.Msg) tea.Cmd
+	text      map[string]string // row + tab → the Activity or Transcript text
+	lastState map[string]string // window → the agent state at the last listing
+	turns     *ochazuke.Tree
+	turnsFor  string // the pane row the Turns tree shows
+	// The cards style (turn_cards.go): a timeline per pane window, the one
+	// the tab draws, and what each was filled with.
+	timelines  map[string]*ochazuke.Timeline
+	cards      *ochazuke.Timeline
+	cardFills  map[string]*cardFill
 	events     chan struct{}
 	subscribed bool
 	exited     map[string]bool // windows seen exited, kept across plain listings

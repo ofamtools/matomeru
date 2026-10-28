@@ -18,15 +18,16 @@ import (
 // The panes page's detail: tabs, the follow and refresh timers, the live
 // leader keys, and the rename, move and session verbs.
 
-// Detail tabs.
+// Detail tabs, in the order the tab row draws them and [ and ] cycle:
+// Turns first, the default tab.
 const (
-	tabScreen = iota
+	tabTurns = iota
+	tabScreen
 	tabActivity
 	tabTranscript
-	tabTurns
 )
 
-var tabNames = []string{"Screen", "Activity", "Transcript", "Turns"}
+var tabNames = []string{"Turns", "Screen", "Activity", "Transcript"}
 
 // sideBySide is the width from which the detail sits right of the tree.
 const sideBySide = 100
@@ -94,6 +95,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		}
 	}
 	a.copyUpdate(msg)
+	a.syncOpenedCards()
 	if pending := a.r.PendingCommands(); pending != nil {
 		cmds = append(cmds, pending)
 	}
@@ -730,7 +732,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 			a.r.Placed(copyID) // l, } and tab reach copy mode from the list
 		}
 		body = a.tabBody(row, cw, ch)
-		focused = a.pv.tab == tabTurns && a.pv.turns.List().Focused()
+		focused = a.pv.tab == tabTurns && a.turnsList().Focused()
 	default:
 		title, body = a.groupSummary(inst)
 	}
@@ -937,6 +939,9 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 
 // turnsBody is the Turns tab's tree at width x height.
 func (a *App) turnsBody(width, height int) ochazuke.Block {
+	if a.turnCards() {
+		return a.cardsBody(width, height)
+	}
 	a.wrapTurns(a.pv.turns, width)
 	list := a.pv.turns.List()
 	st := a.turnFillOf(a.pv.turns)
@@ -945,9 +950,11 @@ func (a *App) turnsBody(width, height int) ochazuke.Block {
 		a.r.Placed(turnsTreeID + "/list")
 		return ochazuke.Text(a.noTurnsText(st))
 	}
-	if list.Focused() {
+	if list.Focused() || a.r.Focus == promptID {
 		// In the tree the selection moves and the tree keeps it in
-		// view; J and K scroll it only from the pane list.
+		// view; J and K scroll it only from the pane list. The prompt
+		// box below keeps the tree's window too: j from the last turn
+		// into the box must not jump the turns back to their top.
 		a.detail.panes.hide()
 		block := a.pv.turns.Block(width, height)
 		if st.model {

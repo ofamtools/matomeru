@@ -90,6 +90,14 @@ func writeLog(t *testing.T, path string, lines ...string) {
 	}
 }
 
+// useTurnStyle sets turns.style (cards or tree) as the settings verb does.
+func useTurnStyle(t *testing.T, a *App, style string) {
+	t.Helper()
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "settings", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": style}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // turnRows are the Turns tree's rows' labels.
 func turnRows(a *App) []string {
 	var out []string
@@ -115,6 +123,7 @@ func TestTurnsIsTheDefaultTab(t *testing.T) {
 // and the tool call folded (the settings' defaults) and the answer.
 func TestClaudeTurnsFromTheSessionLog(t *testing.T) {
 	app, _, _ := claudeTurnsApp(t)
+	useTurnStyle(t, app, turnsStyleTree)
 	rows := turnRows(app)
 	if len(rows) != 1 || !strings.Contains(rows[0], "fix the flaky test · 1 steer · 1 tool call · 4.0s") || strings.Contains(rows[0], activeTurnMarker) {
 		t.Fatalf("rows %q", rows)
@@ -159,6 +168,7 @@ func TestClaudeTurnsFromTheSessionLog(t *testing.T) {
 // its row marked; the older rows are muted and the running one bold.
 func TestTheRunningTurnIsClosedAndBrighter(t *testing.T) {
 	app, f, log := claudeTurnsApp(t)
+	useTurnStyle(t, app, turnsStyleTree)
 	writeLog(t, log,
 		logPrompt(t, "u2", "2026-10-27T10:01:00Z", "now the docs"),
 		logAssistant(t, "a4", "2026-10-27T10:01:01Z", "tool_use", map[string]any{"type": "text", "text": "Reading."}),
@@ -191,6 +201,7 @@ func TestTheRunningTurnIsClosedAndBrighter(t *testing.T) {
 // row above the new session's first turn.
 func TestClaudeSessionsChainAcrossClear(t *testing.T) {
 	app, f, _ := claudeTurnsApp(t)
+	useTurnStyle(t, app, turnsStyleTree)
 	elsewhere := filepath.Join(app.claudeProjects, "-somewhere-else")
 	os.MkdirAll(elsewhere, 0o755)
 	writeLog(t, filepath.Join(elsewhere, "s2.jsonl"), logPrompt(t, "v1", "2026-10-27T11:00:00Z", "fresh start"))
@@ -212,6 +223,7 @@ func TestAClaudePaneWithNoLogFallsBackToTheJournal(t *testing.T) {
 	app := openWith(t, Options{Data: path})
 	f := app.panesd.(*fakePanes)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession = "claude-code", "idle", "missing"
+	useTurnStyle(t, app, turnsStyleTree)
 	reload(t, app)
 	settle(app, key(t, app, "["))
 	if rows := strings.Join(turnRows(app), "\n"); !strings.Contains(rows, "prompt 1 · 1 answer") {
@@ -295,6 +307,7 @@ func shellTurnsApp(t *testing.T, big int) (*App, *fakeTurnPanes) {
 // then, and a command whose prompt left the history says so.
 func TestShellTurnsFromCommandHistory(t *testing.T) {
 	app, f := shellTurnsApp(t, 3)
+	useTurnStyle(t, app, turnsStyleTree)
 	rows := turnRows(app)
 	if len(rows) != 3 || !strings.Contains(rows[0], "make old · exit 1") || !strings.Contains(rows[1], "ls · exit 0 · 0.0s") {
 		t.Fatalf("rows %q", rows)
@@ -330,6 +343,7 @@ func TestShellTurnsFromCommandHistory(t *testing.T) {
 // shell output over 100 KB is offered as a file or a pager instead.
 func TestCopyATurn(t *testing.T) {
 	app, _, _ := claudeTurnsApp(t)
+	useTurnStyle(t, app, turnsStyleTree)
 	sys := &fakeSystem{}
 	app.cx.sys = sys
 	press(t, app, "}")
@@ -343,6 +357,7 @@ func TestCopyATurn(t *testing.T) {
 
 func TestCopyingAHugeShellOutputOffersAFile(t *testing.T) {
 	app, f := shellTurnsApp(t, 3000) // about 160 KB
+	useTurnStyle(t, app, turnsStyleTree)
 	sys := app.cx.sys.(*fakeSystem)
 	press(t, app, "}", "j", "j") // cat big.log
 	settle(app, key(t, app, "y"))
@@ -416,6 +431,7 @@ func TestOmpTurnsFromTheSessionFile(t *testing.T) {
 		ompRecord(t, "message", "u2", "a1", "2026-10-27T10:00:04Z", user("abandoned", false)),
 		ompRecord(t, "message", "u3", "a1", "2026-10-27T10:00:05Z", user("ship it", false)),
 	)
+	useTurnStyle(t, app, turnsStyleTree)
 	reload(t, app)
 	settle(app, key(t, app, "["))
 	if app.turnKind(app.panes[0]) != turnsOmp {
@@ -428,4 +444,11 @@ func TestOmpTurnsFromTheSessionFile(t *testing.T) {
 	if rec, _ := app.work.PaneSessions("w1"); len(rec.Sessions) != 1 || rec.Sessions[0] != "01a1-s1" {
 		t.Fatalf("recorded %+v", rec)
 	}
+}
+
+// onTurn reports whether the focus is a turn of the Turns tab, a card or a
+// tree row.
+func onTurn(a *App) bool {
+	inst := a.r.Instances[a.r.Focus]
+	return inst != nil && strings.HasPrefix(inst.Noun, "turn") && inst.Noun != promptNoun
 }

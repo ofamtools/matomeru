@@ -31,7 +31,7 @@ func screenLive(t *testing.T, harness string) {
 	press(t, app, "]")
 	settle(app, follow(app))
 	f := frame(app)
-	if app.pv.tab != tabScreen || !strings.Contains(f, "[Screen] Activity Transcript Turns · [ ] tabs · enter live") {
+	if app.pv.tab != tabScreen || !strings.Contains(f, "Turns [Screen] Activity Transcript · [ ] tabs · enter live") {
 		t.Fatalf("Screen tab line:\n%s", f)
 	}
 	footer := lastLines(f, 3)
@@ -42,7 +42,7 @@ func screenLive(t *testing.T, harness string) {
 	}
 	press(t, app, "enter")
 	f = frame(app)
-	if app.r.Terminal(paneTermID) == nil || app.r.BaseMode() != "terminal" || !strings.Contains(f, "[Screen] Activity Transcript Turns · live · ctrl+a ? keys") {
+	if app.r.Terminal(paneTermID) == nil || app.r.BaseMode() != "terminal" || !strings.Contains(f, "Turns [Screen] Activity Transcript · live · ctrl+a ? keys") {
 		t.Fatalf("enter did not go live (%s):\n%s", app.r.BaseMode(), f)
 	}
 	if !strings.Contains(lastLines(f, 3), "ctrl+a leader: v vim · t term · d close/detach") {

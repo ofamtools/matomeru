@@ -262,7 +262,7 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
 	f := frame(app)
-	for _, want := range []string{"panes (2)", "unassociated (2)", "matomeru (1)", "claude", "ochazuke (1)", "shell", "[Screen] Activity Transcript Turns"} {
+	for _, want := range []string{"panes (2)", "unassociated (2)", "matomeru (1)", "claude", "ochazuke (1)", "shell", "Turns [Screen] Activity Transcript"} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("frame lacks %q:\n%s", want, f)
 		}
