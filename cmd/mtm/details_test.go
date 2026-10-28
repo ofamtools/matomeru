@@ -21,6 +21,8 @@ func numbered(prefix string, n int) string {
 // another pane starts at its own end.
 func TestPanesScreenDetailScrollsWithJK(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	f.screens["w1"] = numbered("row", 100)
 	settle(app, follow(app))
 	focus := app.r.Focus

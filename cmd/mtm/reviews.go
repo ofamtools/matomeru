@@ -238,10 +238,11 @@ func (a *App) showReviewTurns(fresh bool) error {
 // when an answer is saved), the pane, its unread turns, its last prompt,
 // when it last finished, the project, the task and the harness; narrow,
 // the harness drops first, then the task, the project, the time and the
-// prompt.
+// prompt. The status and the pane are pinned, so the row stays named
+// while h/l scroll the rest.
 var reviewColumns = []ochazuke.Column{
-	{Title: "status", Min: 8},
-	{Title: "pane", Min: 12},
+	{Title: "status", Min: 8, Pinned: true},
+	{Title: "pane", Min: 12, Pinned: true},
 	{Title: "new", Align: ochazuke.AlignRight},
 	{Title: "last prompt", Min: 12, Priority: 1},
 	{Title: "when", Priority: 2},

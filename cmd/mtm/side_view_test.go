@@ -156,7 +156,9 @@ func TestMainDetachReleasesSideStream(t *testing.T) {
 
 func TestSessionKillRefusesLiveCompanionsWithoutDetaching(t *testing.T) {
 	a, f := sideViewApp(t)
-	if text := ansi.Strip(a.renderPanes(a.r, 120, 30).Text); !strings.Contains(text, "claude v t") || strings.Contains(text, "scratch-shell") {
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, a, groupProjectSessionPane)
+	if text := ansi.Strip(a.renderPanes(a.r, 120, 30).Text); !strings.Contains(text, "◧  claude") || strings.Contains(text, "scratch-shell") {
 		t.Fatalf("parent badges or companion row filtering missing:\n%s", text)
 	}
 	killSession := func() {

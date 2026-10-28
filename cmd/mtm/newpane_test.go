@@ -102,6 +102,8 @@ func TestNewPaneAnswersOnAnEmptyList(t *testing.T) {
 
 func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 	app, f := shellApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	f.err = errors.New("dial: no daemon")
 	settle(app, key(t, app, "n"))
 	jobs := jobsOf(app, "pane.start")

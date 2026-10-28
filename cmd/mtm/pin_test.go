@@ -25,6 +25,8 @@ func executeA(t *testing.T, a *App, noun, verb, target string, args ochazuke.Arg
 
 func TestPinFiltersAndAllPreservesPin(t *testing.T) {
 	a := open(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, a, groupProjectSessionPane)
 	panes := []pane{
 		{Session: "not-project-name", SessionID: "sa", Pane: daemon.Pane{ID: "wa", Name: "A-shell"}},
 		{Session: "not-project-name", SessionID: "sa", Pane: daemon.Pane{ID: "wb", Name: "B-agent", AgentState: "working"}},

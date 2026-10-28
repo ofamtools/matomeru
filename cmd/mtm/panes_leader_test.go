@@ -23,6 +23,8 @@ func selectedNotLive(t *testing.T, app *App, step, focus string) {
 // and k the last above it.
 func TestLeaderCyclesPanesOutsideLive(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	settle(app, follow(app))
 	selectedNotLive(t, app, "start", "pane:matomeru/w1")
 	press(t, app, "ctrl+a", "k") // the first pane: a quiet edge

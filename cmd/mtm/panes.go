@@ -262,6 +262,7 @@ func (a *App) definePanes() {
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
 	a.defineLiveKeys()
 	a.definePaneStars()
+	a.definePaneGroups()
 	a.ownedBy("panes", paneListID)
 	a.ownedBy("daemon", paneListID)
 }

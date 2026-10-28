@@ -263,6 +263,8 @@ func follow(a *App) tea.Cmd {
 
 func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	app, _ := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	if app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
@@ -314,6 +316,8 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 
 func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	first := follow(app)
 	press(t, app, "j", "j")
 	if app.r.Focus != "pane:ochazuke/w2" {
@@ -436,6 +440,8 @@ func TestLeaderZoomAndNextPane(t *testing.T) {
 
 func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	app, f := panesApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
 	if app.r.Focus != "pane:matomeru/w1" {
@@ -551,6 +557,8 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 // agent's pane is the agent's row; a shell is a shell row.
 func TestPaneTreeIsATable(t *testing.T) {
 	app := open(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	if err := app.work.PutPaneRecipe(work.PaneRecipe{Window: "w1", Harness: "claude", Model: "opus"}); err != nil {
 		t.Fatal(err)
 	}
@@ -565,7 +573,7 @@ func TestPaneTreeIsATable(t *testing.T) {
 	if len(items) != 4 || items[0].Noun != "pane-project" || items[1].Noun != "session" || items[2].Noun != "pane" || items[3].Noun != "pane" {
 		t.Fatalf("rows %+v", items)
 	}
-	if !slices.Equal(items[2].Cells, []string{"      ○ claude", "idle", ""}) || !slices.Equal(items[3].Cells, []string{"        shell", "shell", ""}) {
+	if !slices.Equal(items[2].Cells, []string{"        ○ claude", "idle", ""}) || !slices.Equal(items[3].Cells, []string{"          shell", "shell", ""}) {
 		t.Fatalf("pane rows %+v / %+v", items[2].Cells, items[3].Cells)
 	}
 	for _, width := range []int{80, 120, 160} {
@@ -713,6 +721,34 @@ func TestAttachedPaneAsksForItsDrawnSize(t *testing.T) {
 	for _, fit := range f.fits[before:] {
 		if strings.HasPrefix(fit, main.pane.ID+" ") {
 			t.Fatalf("the parked stream asked for %q", fit)
+		}
+	}
+}
+
+// On the Panes tree (a tree with columns) h and l on a session row
+// collapse, expand and then step onto its first pane, and right does what
+// l does: ochazuke v0.25.0's table scroll-then-focus rows answered for the
+// tree's list and l left the tree instead (fixed in v0.26.0, R11.1).
+func TestSessionRowHLExpandsAndStepsIn(t *testing.T) {
+	for _, right := range []string{"l", "right"} {
+		app, _ := panesApp(t)
+		// This test reads the session rows (project → session → pane).
+		groupBy(t, app, groupProjectSessionPane)
+		press(t, app, "k")
+		if app.r.Focus != "session:matomeru" {
+			t.Fatalf("k: focus %s", app.r.Focus)
+		}
+		press(t, app, "h")
+		if app.r.Focus != "session:matomeru" || cells(app, "pane:matomeru/w1") != "" {
+			t.Fatalf("h: focus %s, pane row %q", app.r.Focus, cells(app, "pane:matomeru/w1"))
+		}
+		press(t, app, right)
+		if app.r.Focus != "session:matomeru" || cells(app, "pane:matomeru/w1") == "" {
+			t.Fatalf("%s on a closed session: focus %s, pane row %q", right, app.r.Focus, cells(app, "pane:matomeru/w1"))
+		}
+		press(t, app, right)
+		if app.r.Focus != "pane:matomeru/w1" {
+			t.Fatalf("%s on an open session: focus %s, want its first pane", right, app.r.Focus)
 		}
 	}
 }

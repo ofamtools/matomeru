@@ -150,6 +150,8 @@ func TestRowHintsSwallowAndCancel(t *testing.T) {
 // Screen tab f does not answer.
 func TestRowHintsWithNoScreen(t *testing.T) {
 	app, _, _, _ := rowHintsApp(t)
+	// This test reads the session rows (project → session → pane).
+	groupBy(t, app, groupProjectSessionPane)
 	pressAll(t, app, "j", "j") // the ochazuke session's shell; no follow yet
 	if app.r.Focus != "pane:ochazuke/w2" {
 		t.Fatalf("focus %s", app.r.Focus)

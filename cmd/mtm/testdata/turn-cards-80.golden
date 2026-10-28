@@ -2,13 +2,11 @@
    › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  1›    
   ────────────────────────────────────────────────────────────────────────────  
   panes (2)                                                                     
-  pane                      state                                               
+  pane                state                                                     
   ▾ matomeru (1)                                                                
-    ▾ session matomeru (1)                                                      
-        ○ claude            idle                                                
+        ○ claude      idle                                                      
   ▾ unassociated (1)                                                            
-    ▾ session ochazuke (1)                                                      
-          shell             shell                                               
+          shell       shell                                                     
   ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
   ┃ claude-code · idle                                                       ┃  
   ┃ [Turns] Screen Activity Transcript · [ ] tabs                            ┃  
@@ -25,6 +23,8 @@
   ┃ ┃   andMoreArguments, andEvenMoreArguments) }                          ┃ ┃  
   ┃ ┃                                                                      ┃ ┃  
   ┃ ┃   See                                                                ┃ ┃  
+  ┃ ┃   https://example.com/a/very/long/path/that/does/not/have/any/spaces ┃ ┃  
+  ┃ ┃   /in/it/at/all/so/it/must/hard/break/somewhere.html                 ┃ ┃  
   ┃ 1–1 / 2                                                                  ┃  
   ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ────────────────────── ┃  
   ┃ › write to the agent                                                     ┃  

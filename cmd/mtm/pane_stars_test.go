@@ -19,7 +19,7 @@ func starred(t *testing.T, app *App) map[string]work.PaneStar {
 	return stars
 }
 
-// * on a pane row stars it (★ on the row, written to the store), * again
+// * on a pane row stars it (★ in the row's gutter, written to the store), * again
 // unstars it, --starred sets it; a listing without the window keeps its
 // star (work.PaneStar says why), and the row reads ★ when it is back.
 func TestStarAPaneRow(t *testing.T) {
@@ -29,10 +29,10 @@ func TestStarAPaneRow(t *testing.T) {
 		t.Fatalf("focus %s", app.r.Focus)
 	}
 	press(t, app, "*")
-	if _, ok := starred(t, app)["w1"]; !ok || !strings.Contains(cells(app, "pane:matomeru/w1"), "claude ★") {
+	if _, ok := starred(t, app)["w1"]; !ok || !strings.Contains(cells(app, "pane:matomeru/w1"), "★   claude") {
 		t.Fatalf("after *: stars %+v row %q", starred(t, app), cells(app, "pane:matomeru/w1"))
 	}
-	if fr := frame(app); !strings.Contains(fr, "claude ★") {
+	if fr := frame(app); !strings.Contains(fr, "★   claude") {
 		t.Fatalf("frame lacks the star:\n%s", fr)
 	}
 	press(t, app, "*")

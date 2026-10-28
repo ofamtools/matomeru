@@ -2,15 +2,15 @@
    › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  Extensions                
   ────────────────────────────────────────────────────────────────────────────────────────────────  
   panes (2)                                                                                         
-  pane                  state                                                                       
+  pane                state                                                                         
   ▾ unassociated (2)                                                                                
-    ▾ session work (2)                                                                              
-        ● fixer W       working                                                                     
-          sh            shell                                                                       
+        ● fixer W     working                                                                       
+          sh          shell                                                                         
   ╭─ work/fixer ─────────────────────────────────────────────────────────────────────────────────╮  
   │ claude · /tmp/w · working                                                                    │  
   │ Turns [Screen] Activity Transcript · [ ] tabs · enter live                                   │  
   │ loading…                                                                                     │  
+  │                                                                                              │  
   │                                                                                              │  
   │                                                                                              │  
   │                                                                                              │  
