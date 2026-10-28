@@ -946,9 +946,11 @@ func (a *App) turnsBody(width, height int) ochazuke.Block {
 		a.r.Placed(turnsTreeID + "/list")
 		return ochazuke.Text(a.noTurnsText(st))
 	}
-	if list.Focused() {
+	if list.Focused() || a.r.Focus == promptID {
 		// In the tree the selection moves and the tree keeps it in
-		// view; J and K scroll it only from the pane list.
+		// view; J and K scroll it only from the pane list. The prompt
+		// box below keeps the tree's window too: j from the last turn
+		// into the box must not jump the turns back to their top.
 		a.detail.panes.hide()
 		block := a.pv.turns.Block(width, height)
 		if st.model {
