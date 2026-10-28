@@ -133,6 +133,7 @@ func (a *App) defineContext() {
 		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
 		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred); starred items sort first").Positional("id").
+		Verb("associate", a.associateContext, "Associate the item with a task or project (omit them to choose a project); --scratch unassociates it").Positional("id").
 		Verb("forget", a.forgetContext, "Forget the record only; the file, page or branch it names is untouched").Positional("id").Confirm("Forget {{label}}?").
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
 		Verb("turns", a.extractTurns, "Extract items from every journaled turn's prompt and answer now (new turns are extracted as they are journaled)").
@@ -149,6 +150,10 @@ func (a *App) defineContext() {
 	for _, verb := range []string{"copy", "open", "reveal", "forget"} {
 		a.parameters(contextNoun+"."+verb, id)
 	}
+	a.parameters(contextNoun+".associate", map[string]ochazuke.Parameter{"id": id["id"],
+		"task":    {Type: "string", Noun: "task", Description: "The task id (its project follows)"},
+		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id; one not found is left out with a notice"},
+		"scratch": {Type: "boolean", Description: "Unassociate it"}})
 	a.parameters(contextNoun+".star", map[string]ochazuke.Parameter{"id": id["id"], "starred": {Type: "boolean", Description: "Set instead of toggling"}})
 	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
 	a.parameters(contextNoun+".list", map[string]ochazuke.Parameter{"kind": {Type: "string", Enum: contextitems.Kinds}, "all": {Type: "boolean", Description: "Every project, whatever the pin"}})
@@ -498,6 +503,43 @@ func (a *App) starContext(ctx ochazuke.Ctx) ochazuke.Result {
 		starred = v
 	}
 	if it, err = a.contexts.SetStarred(it.ID, starred); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.reloadContext(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(it)
+}
+
+// contextRelateParam is the context item task.associate and
+// project.associate relate (relations.go).
+var contextRelateParam = ochazuke.Parameter{Type: "string", Noun: contextNoun, Source: contextNoun + ".list", Free: true, Description: "A context item to associate with this one"}
+
+// associateContext is context-item.associate. From a key with no owner
+// named, the project chooser asks, as m does on every row.
+func (a *App) associateContext(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.moving(ctx) && ctx.Instance.Noun == contextNoun {
+		return a.moveTo(ctx, contextNoun)
+	}
+	it, err := a.contextAt(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	o, err := a.resolveOwner(ochazuke.Ctx{}, ctx.Args)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if o.Notice != "" {
+		ctx.Notify(o.Notice)
+	}
+	return a.relateContextItemTo(it.ID, relOwner{ProjectID: o.ProjectID, TaskID: o.TaskID})
+}
+
+// relateContextItemTo is the one handler behind context-item.associate and
+// its reverses, task.associate and project.associate --context-item ID.
+func (a *App) relateContextItemTo(id string, o relOwner) ochazuke.Result {
+	it, err := a.contexts.Associate(id, contextitems.Owner{ProjectID: o.ProjectID, TaskID: o.TaskID})
+	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.reloadContext(); err != nil {

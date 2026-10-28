@@ -156,20 +156,6 @@ func (a *App) defineInbox() {
 	}
 	a.parameters(n+".associate", associate)
 	a.ownedBy(n, inboxListID)
-
-	// The reverse of action-item.associate on the nouns it relates to,
-	// sharing its handler: task.associate, pane.associate and
-	// project.associate take --action-item.
-	a.r.Define("project").Verb("associate", a.associateProject, "Associate an action item (--action-item) with this project")
-	a.parameters("project.associate", map[string]ochazuke.Parameter{"action-item": inboxRelateParam})
-	for _, key := range []string{"task.associate", "pane.associate"} {
-		op := a.r.Operations[a.r.CanonicalKey(key)]
-		if op.Parameters == nil {
-			op.Parameters = map[string]ochazuke.Parameter{}
-		}
-		op.Parameters["action-item"] = inboxRelateParam
-		a.r.Operations[a.r.CanonicalKey(key)] = op
-	}
 }
 
 // inboxRelateParam is the action item a task, pane or project verb relates.
@@ -827,50 +813,15 @@ func (a *App) associateActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // relateActionItem is the one handler behind action-item.associate and its
-// reverses on task, pane and project.
+// reverses on task, pane and project (relations.go).
 func (a *App) relateActionItem(id string, o actionitems.Owner) ochazuke.Result {
 	return a.inboxChanged(a.inbox.items.Associate(id, o))
 }
 
-// relatedItem reads the --action-item argument of a reverse verb; ok is
-// false when the call names none.
-func relatedItem(ctx ochazuke.Ctx) (string, bool) {
-	id := ochazuke.StringArg(ctx.Args, "action-item", "")
-	return id, id != ""
-}
-
-// associateProject is project.associate --action-item ID.
-func (a *App) associateProject(ctx ochazuke.Ctx) ochazuke.Result {
-	id, ok := relatedItem(ctx)
-	if !ok {
-		return ochazuke.Failed(errors.New("name the action item to associate (--action-item)"))
-	}
-	if ctx.Instance == nil || ctx.Instance.Noun != "project" {
-		return ochazuke.Failed(errors.New("target a project row"))
-	}
-	return a.relateActionItem(id, actionitems.Owner{ProjectID: ctx.Instance.ID})
-}
-
-// associateTaskItem is task.associate --action-item ID.
-func (a *App) associateTaskItem(ctx ochazuke.Ctx, id string) ochazuke.Result {
-	t, err := a.task(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.relateActionItem(id, actionitems.Owner{ProjectID: t.ProjectID, TaskID: t.ID})
-}
-
-// associatePaneItem is pane.associate --action-item ID.
-func (a *App) associatePaneItem(ctx ochazuke.Ctx, id string) ochazuke.Result {
-	p, err := a.paneAt(ctx.Instance)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	o := actionitems.Owner{Window: p.ID, Session: p.Session}
-	if owner, err := a.work.PaneOwner(p.ID, p.SessionID); err == nil {
-		o.ProjectID, o.TaskID = owner.ProjectID, owner.TaskID
-	}
-	return a.relateActionItem(id, o)
+// relateActionItemTo is action-item's relation: task, pane and project
+// associate --action-item ID.
+func (a *App) relateActionItemTo(id string, o relOwner) ochazuke.Result {
+	return a.relateActionItem(id, actionitems.Owner{ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session})
 }
 
 func isNotFound(err error) bool { return errors.Is(err, store.ErrNotFound) }

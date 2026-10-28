@@ -234,3 +234,21 @@ func (s *Store) Forget(id string) error {
 		return tx.Delete(Table.Name, id)
 	})
 }
+
+// Associate gives an item a new owner: a task (the project left empty, as
+// Merge stores it; the project follows from the task), a project, or none
+// (the zero Owner, unassociated). Its sightings and provenance are kept.
+func (s *Store) Associate(id string, owner Owner) (Item, error) {
+	var it Item
+	err := s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error {
+		if err := tx.Get(Table.Name, id, &it); err != nil {
+			return fmt.Errorf("context item %s: %w", id, err)
+		}
+		it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
+		if it.TaskID != "" {
+			it.ProjectID = ""
+		}
+		return tx.Put(Table.Name, id, it)
+	})
+	return it, err
+}

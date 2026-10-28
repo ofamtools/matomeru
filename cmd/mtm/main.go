@@ -506,6 +506,7 @@ func New(opts Options) (*App, error) {
 	a.defineQuickNote()
 	a.defineSides()
 	a.defineContext()
+	a.defineRelations()
 	a.defineCopy()
 	a.defineCapture()
 	a.defineMCPOperations()

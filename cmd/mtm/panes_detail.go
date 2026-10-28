@@ -384,6 +384,9 @@ func (a *App) moveOwner(inst *ochazuke.Instance, noun string) (string, bool) {
 	case actionItemNoun:
 		it, err := a.actionItemAt(ochazuke.Ctx{Instance: inst})
 		return cmp.Or(it.ProjectID, a.taskProject(it.TaskID)), err == nil
+	case contextNoun:
+		it, err := a.contextAt(ochazuke.Ctx{Instance: inst})
+		return cmp.Or(it.ProjectID, a.taskProject(it.TaskID)), err == nil
 	}
 	if noun == "pane" {
 		p, err := a.paneAt(inst)

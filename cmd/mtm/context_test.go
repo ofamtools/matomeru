@@ -223,3 +223,74 @@ func TestContextCopyFallsBackToOSC52(t *testing.T) {
 		t.Fatal("no OSC 52 command was scheduled")
 	}
 }
+
+// context-item.associate and its reverses, task.associate and
+// project.associate --context-item, share one handler: the item's owner
+// is what the last call named.
+func TestContextItemAssociateBothWays(t *testing.T) {
+	a := openWith(t, Options{Data: seeded(t)})
+	items, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/a"}}, contextitems.Owner{}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := items[0].ID
+	var got contextitems.Item
+	cliJSON(t, a, &got, "context-item", "associate", id, "--task", "t2")
+	if got.TaskID != "t2" || got.ProjectID != "" {
+		t.Fatalf("associate --task: %+v", got)
+	}
+	got = contextitems.Item{}
+	cliJSON(t, a, &got, "context-item", "associate", id, "--project", "ochazuke")
+	if got.ProjectID != "ochazuke" || got.TaskID != "" {
+		t.Fatalf("associate --project: %+v", got)
+	}
+	got = contextitems.Item{}
+	cliJSON(t, a, &got, "context-item", "associate", id, "--scratch")
+	if got.ProjectID != "" || got.TaskID != "" {
+		t.Fatalf("associate --scratch: %+v", got)
+	}
+	got = contextitems.Item{}
+	cliJSON(t, a, &got, "task", "associate", "--target", "t1", "--context-item", id)
+	if got.TaskID != "t1" || got.ProjectID != "" {
+		t.Fatalf("task.associate --context-item: %+v", got)
+	}
+	got = contextitems.Item{}
+	cliJSON(t, a, &got, "project", "associate", "--target", "matomeru", "--context-item", id)
+	if got.ProjectID != "matomeru" || got.TaskID != "" {
+		t.Fatalf("project.associate --context-item: %+v", got)
+	}
+	if stored, _ := a.contexts.Get(id); stored.ProjectID != "matomeru" {
+		t.Fatalf("stored %+v", stored)
+	}
+	// Both reverse verbs declare the noun-typed parameter; pane does not
+	// (a context item belongs to a task or a project).
+	for key, want := range map[string]bool{"task.associate": true, "project.associate": true, "pane.associate": false} {
+		p, ok := a.r.Operations[a.r.CanonicalKey(key)].Parameters[contextNoun]
+		if ok != want || ok && p.Noun != contextNoun {
+			t.Fatalf("%s --context-item: %+v %v", key, p, ok)
+		}
+	}
+	if _, _, err := cli(a, "", "project", "associate", "--target", "matomeru"); err == nil || !strings.Contains(err.Error(), "--context-item") {
+		t.Fatalf("project.associate with nothing named: %v", err)
+	}
+}
+
+// From a row with no owner named (the palette), context-item.associate asks
+// with the project chooser, as m does on the other rows. It has no key of
+// its own.
+func TestContextItemAssociateFromARowAsks(t *testing.T) {
+	a, _ := contextAppAt(t, seeded(t))
+	selectContext(t, a, "1ba025f")
+	row := a.r.Focus
+	if _, err := a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "associate", Target: row}); err != nil {
+		t.Fatal(err)
+	}
+	if a.r.TopModal() == "" {
+		t.Fatal("associate from a row did not ask")
+	}
+	typeText(t, a, "ochazuke")
+	press(t, a, "enter")
+	if it, _ := a.contexts.Get(row); it.ProjectID != "ochazuke" {
+		t.Fatalf("chosen: %+v", it)
+	}
+}

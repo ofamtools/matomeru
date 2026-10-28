@@ -109,3 +109,29 @@ func TestMergeDeduplicatesByKindTextAndOwner(t *testing.T) {
 		t.Fatalf("after forget rows = %d", len(all))
 	}
 }
+
+// Associate moves an item to a task (the project left empty, as Merge
+// stores task owners), to a project, or to none, keeping its sightings.
+func TestAssociateSetsTheOwner(t *testing.T) {
+	s, err := Open(legacyDB(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := "d282380401c62009ce27ec6e4ea0c6ed"
+	it, err := s.Associate(id, Owner{ProjectID: "p", TaskID: "t1"})
+	if err != nil || it.TaskID != "t1" || it.ProjectID != "" || len(it.Sources) != 1 {
+		t.Fatalf("to a task: %+v %v", it, err)
+	}
+	if it, err = s.Associate(id, Owner{ProjectID: "p"}); err != nil || it.ProjectID != "p" || it.TaskID != "" {
+		t.Fatalf("to a project: %+v %v", it, err)
+	}
+	if it, err = s.Associate(id, Owner{}); err != nil || it.ProjectID != "" || it.TaskID != "" {
+		t.Fatalf("to none: %+v %v", it, err)
+	}
+	if got, _ := s.Get(id); got.ProjectID != "" || got.TaskID != "" {
+		t.Fatalf("stored %+v", got)
+	}
+	if _, err := s.Associate("missing", Owner{}); err == nil {
+		t.Fatal("associating a missing item succeeded")
+	}
+}
