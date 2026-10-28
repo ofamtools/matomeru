@@ -65,21 +65,39 @@ func (a *App) defineKeyMap() error {
 
 // keyFor is the key that runs op at focus, as ? help lists it ("" when no
 // row answers), so a sentence that names a key cannot drift from its row.
+func (a *App) keyFor(focus, op string) string { return a.keyForRequest(focus, op, nil) }
+
+// keyForRequest is keyFor for a request with these arguments (nil: any).
 // A row with a Hint lists the hint in place of its operation, so the key
 // is also matched by the request the focus's row for it runs.
-func (a *App) keyFor(focus, op string) string {
-	runs := map[string]string{}
+func (a *App) keyForRequest(focus, op string, args ochazuke.Arguments) string {
+	runs := map[string]ochazuke.Request{}
 	for _, b := range a.r.ListBindings(focus) {
 		if b.Keys != "" {
-			runs[b.Keys] = b.Request.Key()
+			runs[b.Keys] = b.Request
 		}
 	}
 	for _, row := range ochazuke.BindingHelp(a.r, focus) {
-		if row.Operation == op || runs[row.Key] == op {
-			return row.Key
+		req, ok := runs[row.Key]
+		if row.Operation != op && (!ok || a.r.CanonicalKey(req.Key()) != a.r.CanonicalKey(op)) {
+			continue
 		}
+		if args != nil && (!ok || !sameArgs(req.Args, args)) {
+			continue
+		}
+		return row.Key
 	}
 	return ""
+}
+
+// sameArgs reports whether got holds every argument of want, equal.
+func sameArgs(got, want ochazuke.Arguments) bool {
+	for k, v := range want {
+		if got[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // keyAction is one "key does this" phrase of a hint sentence.

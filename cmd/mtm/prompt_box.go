@@ -210,6 +210,9 @@ func (a *App) addPromptBox() error {
 		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode").Hinted("mode")).
 		Bind("alt+o", ochazuke.Do(promptNoun+".context").Hinted("context")).
 		Bind("esc", ochazuke.Do(promptNoun+".back")).
+		// The editor's own i (input.begin at the cursor), with a hint, so
+		// the footer says how to write from the box's normal mode.
+		Bind("i", ochazuke.Do("input.begin", ochazuke.Arguments{"position": "insert"}).Hinted("write")).
 		// k (and up) on the box's first line goes back up to the turns, as
 		// a motion past a list's edge spills to the stop drawn above;
 		// elsewhere they move the cursor up a line. j on the last line
@@ -709,6 +712,18 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	var field ochazuke.Block
 	if a.r.Focus == promptID {
 		field = ochazuke.InputBlock(in, fieldW, rows).Offset(2, 1)
+		if len(in.Text) == 0 && a.r.BaseMode() == "normal" {
+			// The empty box in normal mode says how to write and leave,
+			// from its rows, under the cursor.
+			var cue []string
+			if k := a.keyForRequest(promptID, "input.begin", ochazuke.Arguments{"position": "insert"}); k != "" {
+				cue = append(cue, k+" to write")
+			}
+			if back := a.keySentence(promptID, keyAction{promptNoun + ".back", "back"}); back != "" {
+				cue = append(cue, back)
+			}
+			field = field.WithText(s.Muted.Render(strings.Join(cue, " · ")))
+		}
 	} else if len(in.Text) == 0 {
 		a.r.Placed(promptID) // a stop after the turns even while empty
 		field = ochazuke.Text(s.Muted.Render("write to the agent"))
