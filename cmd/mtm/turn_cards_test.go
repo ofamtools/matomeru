@@ -146,14 +146,16 @@ func TestTurnCardsFollowHoldAndG(t *testing.T) {
 	if got := turnsRegion(t, app); got != held {
 		t.Fatalf("an append moved the cards K held:\n%s\nwas:\n%s", got, held)
 	}
-	// j down to the newest card (reaching the bottom) follows again.
-	// (J scrolling back to the end leaves the selection where it was, so
-	// the timeline does not follow: ochazuke follows only with the last
-	// card selected.)
+	// j down to the newest card and its end (reaching the bottom) follows
+	// again. (J scrolling back to the end leaves the selection where it
+	// was, so the timeline does not follow: ochazuke follows only with the
+	// last card selected.) A press scrolls half the window at most
+	// (ochazuke R3.14), so the end can take one j more than the card.
 	press(t, app, "}")
-	for range 5 {
+	for range 8 {
 		press(t, app, "j")
-		if app.r.Focus == turnCardID("w1", "p11") {
+		frame(app)
+		if app.pv.cards.Following() {
 			break
 		}
 	}

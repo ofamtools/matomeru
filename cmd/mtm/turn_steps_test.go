@@ -132,6 +132,9 @@ func TestTurnCardStepsLeave(t *testing.T) {
 				t.Fatalf("Y copied %q", sys.copied)
 			}
 			press(t, app, k)
+			if k == "h" && app.pv.cards.InBody() {
+				press(t, app, k) // the first h folded the step's open section
+			}
 			if app.r.Focus != card || !app.pv.cards.IsOpen(card) {
 				t.Fatalf("%s inside: %s open %v", k, where(app), app.pv.cards.IsOpen(card))
 			}

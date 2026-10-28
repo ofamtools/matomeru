@@ -16,8 +16,9 @@ func where(a *App) string {
 	return a.r.Focus + " (" + noun + ", " + a.r.Mode.Name + ")"
 }
 
-// j from the bottom of an opened turn into the box keeps the turns'
-// window where it was (it jumped back to their top).
+// j at the bottom of an opened turn stays on it with the answer in view
+// (the turns do not spill into the box), and } into the box keeps the
+// turns' window where it was (it jumped back to their top).
 func TestJIntoTheBoxKeepsTheTurnsWindow(t *testing.T) {
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) { jIntoTheBox(t, style) })
@@ -35,10 +36,16 @@ func jIntoTheBox(t *testing.T, style string) {
 	if !strings.Contains(before, "Fixed: the test now fakes the clock.") {
 		t.Skipf("the answer fits no window here:\n%s", before)
 	}
+	last := app.r.Focus
 	press(t, app, "j")
 	after := frame(app)
+	if app.r.Focus != last || !strings.Contains(after, "Fixed: the test now fakes the clock.") {
+		t.Fatalf("j at the bottom (%s) left the turn or moved the window:\n%s", where(app), after)
+	}
+	press(t, app, "}")
+	after = frame(app)
 	if app.r.Focus != promptID || !strings.Contains(after, "Fixed: the test now fakes the clock.") {
-		t.Fatalf("j into the box (%s) moved the turns' window:\n%s", where(app), after)
+		t.Fatalf("} into the box (%s) moved the turns' window:\n%s", where(app), after)
 	}
 }
 

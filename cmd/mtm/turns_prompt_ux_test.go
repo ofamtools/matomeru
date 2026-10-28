@@ -34,10 +34,10 @@ func boxNormal(t *testing.T, a *App) {
 	frame(a)
 	press(t, a, "}", "G")
 	frame(a)
-	press(t, a, "j")
+	press(t, a, "}")
 	frame(a)
 	if a.r.Focus != promptID || a.r.BaseMode() != "normal" {
-		t.Fatalf("G j focused %s", where(a))
+		t.Fatalf("G } focused %s", where(a))
 	}
 }
 

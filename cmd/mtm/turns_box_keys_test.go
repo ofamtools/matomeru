@@ -5,9 +5,10 @@ import (
 	"testing"
 )
 
-// j at the bottom of the Turns tab: on the last turn it moves into the
-// prompt box below; in the box's normal mode it stays on the box. The
-// focus is always on something the frame draws, and the next key answers.
+// j at the bottom of the Turns tab: on the last turn it stays there (the
+// turns do not spill into the prompt box below; } reaches the box); in
+// the box's normal mode j stays on the box. The focus is always on
+// something the frame draws, and the next key answers.
 func TestJAtTheBottomOfTheTurnsTab(t *testing.T) {
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) { jAtTheBottom(t, style) })
@@ -24,15 +25,21 @@ func jAtTheBottom(t *testing.T, style string) {
 	}
 	press(t, app, "G")
 	frame(app)
+	last := app.r.Focus
 	t.Logf("last turn: %s", where(app))
-	press(t, app, "j")
+	press(t, app, "j", "j")
 	fr := frame(app)
 	t.Logf("j on the last turn: %s", where(app))
+	if app.r.Focus != last {
+		t.Fatalf("j on the last turn focused %s, want %s\n%s", where(app), last, fr)
+	}
+	press(t, app, "}")
+	fr = frame(app)
 	if app.r.Focus != promptID {
-		t.Fatalf("j on the last turn focused %s\n%s", where(app), fr)
+		t.Fatalf("} from the last turn focused %s\n%s", where(app), fr)
 	}
 	if app.r.BaseMode() != "normal" {
-		t.Fatalf("j into the box left mode %s", app.r.BaseMode())
+		t.Fatalf("} into the box left mode %s", app.r.BaseMode())
 	}
 	press(t, app, "j")
 	fr = frame(app)

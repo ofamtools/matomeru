@@ -113,7 +113,9 @@ func (a *App) addTurns() error {
 		"lines": {Type: "integer", Description: "Lines to move, down when positive (default 1)"},
 		"count": {Type: "integer", Description: "Repeat count (default 1)"},
 	})
-	tree, err := a.r.AddTree(turnsTreeID, nil, ochazuke.Parent(panesPage))
+	// NoSpill, as the cards: j on the last turn stays; the prompt box
+	// below is reached by i, } or tab.
+	tree, err := a.r.AddTree(turnsTreeID, nil, ochazuke.Parent(panesPage), ochazuke.NoSpill())
 	if err != nil {
 		return err
 	}

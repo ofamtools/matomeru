@@ -28,7 +28,11 @@ import (
 //     agent's text, and the answer, paragraph by paragraph (a shell
 //     turn's output). l on an open card steps inside, onto the prompt;
 //     j/k walk the steps, l opens a folded one, y copies the step, h
-//     goes back to the card. The running card is the bright one ("●" in its border),
+//     folds the open section the step is in (an answer, a tool call)
+//     and otherwise goes back to the card. The timeline is NoSpill: j
+//     on the newest turn scrolls to its end and stays (half the window
+//     at most per press, ochazuke R3.14); }, tab and i reach the prompt
+//     box below. The running card is the bright one ("●" in its border),
 //     older cards are muted, and a chained session starts under a labelled
 //     rule. The timeline follows its end like a live terminal: the newest
 //     card is selected and a growing answer keeps its bottom in view, until
@@ -98,7 +102,9 @@ func (a *App) turnsTimeline(window string) (*ochazuke.Timeline, error) {
 			delete(a.pv.timelines, w)
 		}
 	}
-	tl, err := a.r.AddTimeline(turnCardsID+"/"+window, nil, ochazuke.Parent(panesPage), ochazuke.FollowTail())
+	// NoSpill: j at the newest turn scrolls to its end and stays there
+	// (ochazuke R13.2); the prompt box below is reached by i, } or tab.
+	tl, err := a.r.AddTimeline(turnCardsID+"/"+window, nil, ochazuke.Parent(panesPage), ochazuke.FollowTail(), ochazuke.NoSpill())
 	if err != nil {
 		return nil, err
 	}
