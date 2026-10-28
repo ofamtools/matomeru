@@ -141,11 +141,28 @@ func (t tuios) PromptInterrupt(ctx context.Context, p pane) error {
 	return t.Client.SendKeys(ctx, daemon.SendKeysParams{Session: p.Session, Window: p.ID, Keys: "Escape"})
 }
 
-// PromptQueue leaves text in the pane's delivery queue.
+// PromptQueue leaves text in the pane's delivery queue, from the person:
+// mtm is their UI, so the entry carries from human and the presence nonce
+// mtm holds (a refused nonce, after a daemon restart, is renewed once).
+// When tuios gives mtm no presence (mtm runs in one of its panes), the
+// prompt is queued all the same, without from: tuios then records the
+// caller, mtm's pane, as who queued it.
 func (t tuios) PromptQueue(ctx context.Context, p pane, text string) (daemon.QueuePromptResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
-	return t.Client.QueuePrompt(ctx, daemon.QueuePromptParams{Session: p.Session, Window: p.ID, Text: text, From: "mtm"})
+	queue := func() (daemon.QueuePromptResult, error) {
+		params := daemon.QueuePromptParams{Session: p.Session, Window: p.ID, Text: text}
+		if nonce, err := t.HumanNonce(ctx); err == nil && nonce != "" {
+			params.From, params.HumanNonce = daemon.FromHuman, nonce
+		}
+		return t.Client.QueuePrompt(ctx, params)
+	}
+	got, err := queue()
+	if daemonCode(err) == "not_human" {
+		t.DropPresence()
+		got, err = queue()
+	}
+	return got, err
 }
 
 // addPromptBox adds the box's input and its noun.
