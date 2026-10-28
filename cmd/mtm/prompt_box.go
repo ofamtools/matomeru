@@ -281,7 +281,8 @@ func (a *App) promptPaneAt(focus string) *pane {
 func promptServes(p pane) bool { return !p.Exited && (isClaude(p) || isOmp(p)) }
 
 // focusPrompt is pane.prompt and turn*.prompt (i): show the row's turns
-// when they are not shown, then focus the box in insert mode.
+// when they are not shown, then focus the box in insert mode, the cursor
+// after the draft.
 func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance != nil && ctx.Instance.Noun == "pane" && a.pv.turnsFor != ctx.Instance.ID {
 		if err := a.showTurns(ctx.Instance.ID); err != nil {
@@ -293,8 +294,14 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("the prompt box is for a Claude Code or omp pane, on the Turns tab"))
 	}
 	a.promptTargetFor(*p)
+	from := a.r.Focus
 	if err := a.r.SetFocus(promptID); err != nil {
 		return ochazuke.Failed(err)
+	}
+	if from != promptID {
+		// Coming in from the row or a turn, i writes after the draft
+		// (like A), never inside it where normal mode's cursor was left.
+		a.pb.input.Cursor = len(a.pb.input.Text)
 	}
 	a.pb.input.SetMode("insert")
 	return ochazuke.Done(promptID)
