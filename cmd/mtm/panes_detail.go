@@ -18,15 +18,16 @@ import (
 // The panes page's detail: tabs, the follow and refresh timers, the live
 // leader keys, and the rename, move and session verbs.
 
-// Detail tabs.
+// Detail tabs, in the order the tab row draws them and [ and ] cycle:
+// Turns first, the default tab.
 const (
-	tabScreen = iota
+	tabTurns = iota
+	tabScreen
 	tabActivity
 	tabTranscript
-	tabTurns
 )
 
-var tabNames = []string{"Screen", "Activity", "Transcript", "Turns"}
+var tabNames = []string{"Turns", "Screen", "Activity", "Transcript"}
 
 // sideBySide is the width from which the detail sits right of the tree.
 const sideBySide = 100

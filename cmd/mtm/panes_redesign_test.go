@@ -168,7 +168,7 @@ func TestSessionRowVerbs(t *testing.T) {
 	}
 }
 
-// The tabs: ] walks Screen, Activity, Transcript, Turns; Activity and
+// The tabs: ] walks Turns, Screen, Activity, Transcript; Activity and
 // Transcript load off the loop; a shell has none.
 func TestDetailTabs(t *testing.T) {
 	app, f := panesApp(t)

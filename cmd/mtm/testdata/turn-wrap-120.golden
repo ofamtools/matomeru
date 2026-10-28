@@ -3,7 +3,7 @@
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   panes (2)                          ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
   pane                      state    ┃ claude-code · idle                                                            ┃  
-  ▾ matomeru (1)                     ┃ Screen Activity Transcript [Turns] · [ ] tabs                                 ┃  
+  ▾ matomeru (1)                     ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
     ▾ session matomeru (1)           ┃ ▾ prompt 1 · 1 answer · Sep 21 14:13                                          ┃  
         ○ claude            idle     ┃     prompt:                                                                   ┃  
   ▾ unassociated (1)                 ┃       prompt 1                                                                ┃  
