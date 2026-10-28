@@ -61,6 +61,21 @@ func (a *App) addTurns() error {
 	for _, name := range []string{settingTurnsThinking, settingTurnsThinkingOpen, settingTurnsTools, settingTurnsToolsOpen} {
 		a.r.Settings().Observe(name, func(string, any) { a.turnSettingsChanged() })
 	}
+	a.r.Settings().Observe(settingTurnsStyle, func(string, any) { a.turnStyleChanged() })
+	// J and K on a pane row scroll the cards, as they scroll the other
+	// tabs' text (the timeline windows itself, so the page detail does not).
+	a.r.DefineGuard("pane-turn-cards", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		return a.pv.tab == tabTurns && a.turnCards() && a.pv.cards != nil && a.pv.turnsFor == ev.Focus && a.pv.cards.List().Len() > 0
+	})
+	a.r.Define("pane").
+		Verb("scroll-turns", a.scrollTurns, "Scroll the Turns tab's cards by lines times count; the pane row keeps the focus; up stops following the newest").Motion().When("pane-turn-cards").
+		Mode("normal").
+		Bind("J", ochazuke.Do("pane.scroll-turns", ochazuke.Arguments{"lines": 1}).FromPayload("count", ochazuke.SourceCount).Guard("pane-turn-cards").Hide()).
+		Bind("K", ochazuke.Do("pane.scroll-turns", ochazuke.Arguments{"lines": -1}).FromPayload("count", ochazuke.SourceCount).Guard("pane-turn-cards").Hide())
+	a.parameters("pane.scroll-turns", map[string]ochazuke.Parameter{
+		"lines": {Type: "integer", Description: "Lines to move, down when positive (default 1)"},
+		"count": {Type: "integer", Description: "Repeat count (default 1)"},
+	})
 	tree, err := a.r.AddTree(turnsTreeID, nil, ochazuke.Parent(panesPage))
 	if err != nil {
 		return err
@@ -149,6 +164,7 @@ type turnRef struct {
 	Offset     int    // the rune offset in that line where the row's piece starts (turn_wrap.go)
 	Model      bool   // a turn read from the agent's log or the shell (turns_model.go), not the journal
 	Step       string // a turn-step row's kind (thinking, tool)
+	Card       bool   // a card of the Turns tab's timeline (turn_cards.go), not a tree row
 }
 
 // fillTurns fills a turns tree with a window's turns, each row's id
@@ -174,6 +190,9 @@ func (a *App) fillTurns(tree *ochazuke.Tree, prefix, window string, back turnRef
 // showTurns fills the Panes page's Turns tree for a pane row; a new pane
 // starts with every turn collapsed, the same pane keeps what is open.
 func (a *App) showTurns(row string) error {
+	if a.turnCards() {
+		return a.showTurnCards(row)
+	}
 	p, err := a.paneAt(a.r.Instances[row])
 	if err != nil {
 		return err
@@ -203,10 +222,10 @@ func (a *App) focusTurns(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 	}
-	if a.pv.turns.List().Len() == 0 {
+	if a.turnsList().Len() == 0 {
 		return ochazuke.Failed(fmt.Errorf("no turns recorded yet"))
 	}
-	if err := a.pv.turns.Focus(); err != nil {
+	if err := a.focusTurnsView(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(a.r.Focus)
@@ -238,6 +257,9 @@ func (a *App) openTurn(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(fmt.Errorf("select a turn"))
 	}
 	ref, _ := ctx.Instance.Data.(turnRef)
+	if ref.Card {
+		return a.openTurnCard(ctx, ref)
+	}
 	if ref.Model {
 		return a.openModelTurn(ctx, ref)
 	}

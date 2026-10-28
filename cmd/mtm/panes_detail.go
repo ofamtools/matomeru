@@ -95,6 +95,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		}
 	}
 	a.copyUpdate(msg)
+	a.syncOpenedCards()
 	if pending := a.r.PendingCommands(); pending != nil {
 		cmds = append(cmds, pending)
 	}
@@ -731,7 +732,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 			a.r.Placed(copyID) // l, } and tab reach copy mode from the list
 		}
 		body = a.tabBody(row, cw, ch)
-		focused = a.pv.tab == tabTurns && a.pv.turns.List().Focused()
+		focused = a.pv.tab == tabTurns && a.turnsList().Focused()
 	default:
 		title, body = a.groupSummary(inst)
 	}
@@ -938,6 +939,9 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 
 // turnsBody is the Turns tab's tree at width x height.
 func (a *App) turnsBody(width, height int) ochazuke.Block {
+	if a.turnCards() {
+		return a.cardsBody(width, height)
+	}
 	a.wrapTurns(a.pv.turns, width)
 	list := a.pv.turns.List()
 	st := a.turnFillOf(a.pv.turns)

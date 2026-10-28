@@ -251,6 +251,7 @@ func TestTurnsFromTheJournal(t *testing.T) {
 	if err != nil || len(turns) != 2 || turns[0].ProjectID != "matomeru" || turns[1].ProjectID != "ochazuke" {
 		t.Fatalf("turns %+v %v", turns, err)
 	}
+	useTurnStyle(t, app, turnsStyleTree)
 	settle(app, key(t, app, "[")) // Screen wraps back to Turns
 	if app.pv.tab != tabTurns {
 		t.Fatalf("tab %d", app.pv.tab)
@@ -398,7 +399,7 @@ func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
 	for range 2 {
 		press(t, app, "l")
 		frame(app)
-		if !strings.HasPrefix(app.r.Focus, "turn:") || app.pv.tab != tabTurns || app.copy.active ||
+		if !onTurn(app) || app.pv.tab != tabTurns || app.copy.active ||
 			app.r.Terminal(paneTermID) != nil || app.r.Mode.Name != "normal" {
 			t.Fatalf("l on the pane row with Turns: focus %s tab %d copy %v mode %s", app.r.Focus, app.pv.tab, app.copy.active, app.r.Mode.Name)
 		}
@@ -446,12 +447,12 @@ func TestAnAttachedTerminalIsReenteredOnlyFromTheScreenTab(t *testing.T) {
 		settle(app, key(t, app, "[")) // Screen wraps back to Turns
 		settle(app, follow(app))
 		fr := frame(app)
-		if !strings.Contains(fr, "prompt 1 · 1 answer") || strings.Contains(fr, "· live ·") {
+		if !strings.Contains(fr, "prompt 1") || strings.Contains(fr, "· live ·") {
 			t.Fatalf("Turns with a terminal attached draws the turns:\n%s", fr)
 		}
 		press(t, app, keys...)
 		frame(app)
-		if !strings.HasPrefix(app.r.Focus, "turn:") || app.r.Mode.Name != "normal" || app.r.Terminal(paneTermID) == nil {
+		if !onTurn(app) || app.r.Mode.Name != "normal" || app.r.Terminal(paneTermID) == nil {
 			t.Fatalf("%v on Turns: focus %s mode %s attached %v", keys, app.r.Focus, app.r.Mode.Name, app.r.Terminal(paneTermID) != nil)
 		}
 	}

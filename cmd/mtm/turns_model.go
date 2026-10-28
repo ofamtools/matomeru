@@ -488,6 +488,7 @@ func (a *App) stepOpen(kind string) bool {
 // turnSettingsChanged redraws the open turns: steps are shown or hidden,
 // and every step takes its open or folded state from the settings again.
 func (a *App) turnSettingsChanged() {
+	a.refoldCards()
 	for _, tree := range []*ochazuke.Tree{a.pv.turns} {
 		st := a.turnFillOf(tree)
 		if !st.model {
@@ -856,6 +857,11 @@ func (a *App) openModelTurn(ctx ochazuke.Ctx, ref turnRef) ochazuke.Result {
 	if err := a.refillModelTurns(tree, st); err != nil {
 		return ochazuke.Failed(err)
 	}
+	return a.loadTurnOutput(ref)
+}
+
+// loadTurnOutput reads an opened shell turn's output when it was not read.
+func (a *App) loadTurnOutput(ref turnRef) ochazuke.Result {
 	pt := a.mturns[ref.Window]
 	if pt == nil {
 		return ochazuke.Done(ref.ID)

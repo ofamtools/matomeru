@@ -246,8 +246,8 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 // promptBack is turn-prompt.back (esc in normal mode): the turns, else
 // the pane row.
 func (a *App) promptBack(ochazuke.Ctx) ochazuke.Result {
-	if a.pv.turns.List().Len() > 0 {
-		if err := a.pv.turns.Focus(); err == nil {
+	if a.turnsList().Len() > 0 {
+		if err := a.focusTurnsView(); err == nil {
 			return ochazuke.Done(a.r.Focus)
 		}
 	}

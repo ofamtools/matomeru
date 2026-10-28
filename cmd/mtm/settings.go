@@ -52,6 +52,8 @@ func (a *App) declareSettings() error {
 		// key, as tmux's prefix does (ochazuke's default is the key-sequence
 		// timeout). Declared before EnsureTerminalLeader, so this default
 		// stands; settings.json may still set a timeout.
+		ochazuke.Setting{Name: settingTurnsStyle, Type: ochazuke.SettingString, Default: turnsStyleCards, Enum: []string{turnsStyleCards, turnsStyleTree},
+			Description: "How the Turns tab draws a pane's turns: cards (a box per turn that follows the newest, like a live terminal) or tree (the accordion)"},
 		ochazuke.Setting{Name: settingTurnsThinking, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Show the agent's thinking inside an opened turn of the Turns tab"},
 		ochazuke.Setting{Name: settingTurnsThinkingOpen, Type: ochazuke.SettingBoolean, Default: false,

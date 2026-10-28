@@ -9,7 +9,14 @@ import (
 // prompt box below; in the box's normal mode it stays on the box. The
 // focus is always on something the frame draws, and the next key answers.
 func TestJAtTheBottomOfTheTurnsTab(t *testing.T) {
+	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
+		t.Run(style, func(t *testing.T) { jAtTheBottom(t, style) })
+	}
+}
+
+func jAtTheBottom(t *testing.T, style string) {
 	app, _, _ := claudeTurnsApp(t)
+	useTurnStyle(t, app, style)
 	frame(app)
 	press(t, app, "}")
 	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "turn" {

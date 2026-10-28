@@ -98,7 +98,10 @@ func TestWrapTurnLineMeasuresCellWidth(t *testing.T) {
 
 // wrapApp is the Panes page on the Turns tab with the first turn's long
 // answer opened in the tree.
-func wrapApp(t *testing.T, answer string) *App {
+func wrapApp(t *testing.T, answer string) *App { return wrapAppStyle(t, answer, turnsStyleTree) }
+
+// wrapAppStyle is wrapApp in a turns.style.
+func wrapAppStyle(t *testing.T, answer, style string) *App {
 	t.Helper()
 	path := seeded(t)
 	capturedTurns(t, path, answer, "second answer")
@@ -106,6 +109,7 @@ func wrapApp(t *testing.T, answer string) *App {
 	f := app.panesd.(*fakePanes)
 	f.panes[0].Harness, f.panes[0].AgentState = "claude-code", "idle"
 	reload(t, app)
+	useTurnStyle(t, app, style)
 	settle(app, key(t, app, "[")) // Screen wraps back to Turns
 	app.m.Width, app.m.Height = 120, 40
 	plainView(app)

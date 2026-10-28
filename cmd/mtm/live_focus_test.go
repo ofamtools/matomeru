@@ -56,7 +56,7 @@ func TestBraceAndTabOnTheTurnsTabReachTheTurns(t *testing.T) {
 		settle(app, key(t, app, "[")) // Screen wraps back to Turns
 		frame(app)
 		press(t, app, k)
-		if !strings.HasPrefix(app.r.Focus, "turn:") || app.copy.active || app.pv.tab != tabTurns {
+		if !onTurn(app) || app.copy.active || app.pv.tab != tabTurns {
 			t.Fatalf("%s on Turns: focus %s copy %v tab %d", k, app.r.Focus, app.copy.active, app.pv.tab)
 		}
 		notLive(t, app, k+" on Turns")

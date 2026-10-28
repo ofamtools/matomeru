@@ -306,8 +306,8 @@ func (a *App) openPromptTurn(pr promptRow) ochazuke.Result {
 	if err := a.showTurns(row); err != nil {
 		return ochazuke.Failed(err)
 	}
-	id := "turn:" + pr.turn.ID
-	if err := a.pv.turns.Select(id); err != nil {
+	id := a.turnRowID(pr.pane.ID, pr.turn.ID)
+	if err := a.selectTurnRow(id); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.r.SetFocus(id); err != nil {

@@ -19,7 +19,14 @@ func where(a *App) string {
 // j from the bottom of an opened turn into the box keeps the turns'
 // window where it was (it jumped back to their top).
 func TestJIntoTheBoxKeepsTheTurnsWindow(t *testing.T) {
+	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
+		t.Run(style, func(t *testing.T) { jIntoTheBox(t, style) })
+	}
+}
+
+func jIntoTheBox(t *testing.T, style string) {
 	app, _, _ := claudeTurnsApp(t)
+	useTurnStyle(t, app, style)
 	frame(app)
 	press(t, app, "}", "l")
 	frame(app)
@@ -80,7 +87,7 @@ func turnsRegion(t *testing.T, a *App) string {
 		if i >= 0 && j > i {
 			l = l[i+len("│") : j]
 		}
-		out = append(out, l)
+		out = append(out, strings.TrimRight(l, " "))
 	}
 	// The position marker's total counts rows that arrived below.
 	return markerTotal.ReplaceAllString(strings.Join(out, "\n"), "/ N")
@@ -91,12 +98,25 @@ func turnsRegion(t *testing.T, a *App) string {
 // meanwhile does not move them; back from the box (esc, {) is the same
 // turn in the same window.
 func TestTheBoxKeepsTheTurnsWindow(t *testing.T) {
+	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
+		t.Run(style, func(t *testing.T) { boxKeepsTheTurns(t, style) })
+	}
+}
+
+func boxKeepsTheTurns(t *testing.T, style string) {
 	app, f, log := claudeTurnsApp(t)
+	useTurnStyle(t, app, style)
 	moreClaudeTurns(t, log, 2, 8)
 	reload(t, app)
 	app.m.Width, app.m.Height = 120, 30
 	frame(app)
-	press(t, app, "}", "G", "k", "l", "j", "j", "j", "j", "j", "j") // into a middle turn's answer
+	// Into a middle turn's answer: the tree's rows are its lines, a
+	// card's are scrolled with J.
+	into := []string{"}", "G", "k", "l", "j", "j", "j", "j", "j", "j"}
+	if style == turnsStyleCards {
+		into = []string{"}", "G", "k", "l", "J", "J", "J"}
+	}
+	press(t, app, into...)
 	frame(app)
 	sel := app.r.Focus
 	before := turnsRegion(t, app)
@@ -130,5 +150,22 @@ func TestTheBoxKeepsTheTurnsWindow(t *testing.T) {
 	press(t, app, "{")
 	if app.r.Focus != sel || turnsRegion(t, app) != before {
 		t.Fatalf("{ from the box: %s\n%s", where(app), turnsRegion(t, app))
+	}
+	if style != turnsStyleCards {
+		return // the tree does not follow its end
+	}
+	// Following the newest card, the box focused: a new turn shows.
+	press(t, app, "G", "}")
+	if app.r.Focus != promptID || !app.pv.cards.Following() {
+		t.Fatalf("G then }: %s following %v", where(app), app.pv.cards.Following())
+	}
+	moreClaudeTurns(t, log, 9, 10)
+	reload(t, app)
+	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 9") || app.r.Focus != promptID {
+		t.Fatalf("following with the box focused (%s):\n%s", where(app), got)
+	}
+	press(t, app, "esc")
+	if app.r.Focus != turnCardID("w1", "p9") {
+		t.Fatalf("esc after following focused %s", where(app))
 	}
 }

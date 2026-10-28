@@ -1,0 +1,34 @@
+  ◆ Matomeru · no pin                                                  NORMAL   
+   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Extensions   
+  ────────────────────────────────────────────────────────────────────────────  
+  panes (2)                                                                     
+  pane                      state                                               
+  ▾ matomeru (1)                                                                
+    ▾ session matomeru (1)                                                      
+        ○ claude            idle                                                
+  ▾ unassociated (1)                                                            
+    ▾ session ochazuke (1)                                                      
+          shell             shell                                               
+  ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
+  ┃ claude-code · idle                                                       ┃  
+  ┃ [Turns] Screen Activity Transcript · [ ] tabs                            ┃  
+  ┃ ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮ ┃  
+  ┃ ┃ ▾ prompt 1                                                           ┃ ┃  
+  ┃ ┃   with a second line                                                 ┃ ┃  
+  ┃ ┃   Sep 21 14:13 · 1 answer                                            ┃ ┃  
+  ┃ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ ┃  
+  ┃ ┃ ▾ 1 answer                                                           ┃ ┃  
+  ┃ ┃   This answer is a long paragraph of prose that the agent wrote,     ┃ ┃  
+  ┃ ┃   which should wrap onto several rows at the panel width instead of  ┃ ┃  
+  ┃ ┃   being cut off with an ellipsis at the edge.                        ┃ ┃  
+  ┃ ┃       func indented() { return someLongFunctionName(withArguments,   ┃ ┃  
+  ┃ ┃   andMoreArguments, andEvenMoreArguments) }                          ┃ ┃  
+  ┃ ┃                                                                      ┃ ┃  
+  ┃ ┃   See                                                                ┃ ┃  
+  ┃ 1–1 / 2                                                                  ┃  
+  ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ────────────────────── ┃  
+  ┃ › write to the agent                                                     ┃  
+  ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
+  ────────────────────────────────────────────────────────────────────────────  
+  l turn.open · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · h …  
+                                                                                

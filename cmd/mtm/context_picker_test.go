@@ -245,7 +245,7 @@ func TestLivePickerOpensAPromptsTurn(t *testing.T) {
 	if a.r.TopModal() != "" || a.r.Terminal(paneTermID) != nil {
 		t.Fatalf("still live: modal %q", a.r.TopModal())
 	}
-	if row, _ := a.selectedRow(); a.r.Page != panesPage || row != live.rowID() || a.pv.tab != tabTurns || a.r.Focus != "turn:"+turns[0].ID {
+	if row, _ := a.selectedRow(); a.r.Page != panesPage || row != live.rowID() || a.pv.tab != tabTurns || a.r.Focus != a.turnRowID(live.ID, turns[0].ID) {
 		t.Fatalf("page %s row %s tab %d focus %s", a.r.Page, row, a.pv.tab, a.r.Focus)
 	}
 	if f := frame(a); !strings.Contains(f, "first answer") {
