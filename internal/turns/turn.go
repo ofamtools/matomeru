@@ -66,6 +66,7 @@ type Step struct {
 	Result    string
 	HasResult bool
 	IsError   bool
+	Agent     *Agent // a spawn call's subagent (agent.go)
 }
 
 // Command is one shell command of a pane (tuios command-history).
@@ -97,6 +98,11 @@ type Turn struct {
 	State      State
 	Exit       *int     // a shell command's exit status; nil when the shell sent none
 	Command    *Command // a shell turn's command, for reading its output
+	// Notice: the turn was opened by a task notification (an event, not
+	// the person's prompt); Events are notifications that landed while it
+	// ran (agent.go).
+	Notice *Notice
+	Events []Notice
 }
 
 // Response is what answered the turn: the final answer, else every text
@@ -133,6 +139,14 @@ func Chain(sessions ...[]Turn) []Turn {
 func (t Turn) clone() Turn {
 	t.Steers = append([]Message(nil), t.Steers...)
 	t.Steps = append([]Step(nil), t.Steps...)
+	for i := range t.Steps {
+		t.Steps[i].Agent = t.Steps[i].Agent.clone()
+	}
+	t.Events = append([]Notice(nil), t.Events...)
+	if t.Notice != nil {
+		n := *t.Notice
+		t.Notice = &n
+	}
 	if t.Command != nil {
 		c := *t.Command
 		t.Command = &c

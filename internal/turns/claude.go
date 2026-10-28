@@ -34,8 +34,10 @@ import (
 //     person sent while the turn ran, delivered into it: a steer.
 //   - system, subtype turn_duration {durationMs}: the turn ended.
 //
-// Records of a subagent (isSidechain) are not the pane's turns. Every
-// other record type (api-request, file-history-snapshot, queue-operation,
+// Records of a subagent (isSidechain, an older Claude Code's) are not the
+// pane's turns: they are the agent's (agent.go), unless the parser reads a
+// subagent's own log (Sidechain). A <task-notification> prompt is not the
+// person's: it is an event (Notice, agent.go). Every other record type (api-request, file-history-snapshot, queue-operation,
 // ai-title, mode, …) is skipped.
 
 // claudeRecord is the part of a record the parser reads.
@@ -47,6 +49,7 @@ type claudeRecord struct {
 	SessionID    string `json:"sessionId"`
 	Cwd          string `json:"cwd"`
 	IsSidechain  bool   `json:"isSidechain"`
+	AgentID      string `json:"agentId"`
 	IsMeta       bool   `json:"isMeta"`
 	IsAPIError   bool   `json:"isApiErrorMessage"`
 	PromptSource string `json:"promptSource"`
@@ -59,6 +62,7 @@ type claudeRecord struct {
 		Type   string          `json:"type"`
 		Prompt json.RawMessage `json:"prompt"`
 	} `json:"attachment"`
+	ToolUseResult json.RawMessage `json:"toolUseResult"`
 }
 
 // claudeBlock is one content block of a message.
@@ -79,6 +83,9 @@ type claudeBlock struct {
 // (ClaudeLog locks around it).
 type ClaudeParser struct {
 	Session string // the session id the turns carry; else each record's sessionId
+	// Sidechain reads a subagent's own log, whose every record is
+	// isSidechain; else such records are the agents' (Agent.Inline).
+	Sidechain bool
 	turns   []Turn
 	cur     int  // the running turn's index, -1 (or no turns) for none
 	ended   bool // the running turn's agent said end_turn: a prompt now starts a new turn
@@ -88,12 +95,23 @@ type ClaudeParser struct {
 	started bool
 	cwd     string // the newest main-chain record's cwd
 	live    Live   // the session's settings as the log states them (settings.go)
+	// Subagents: the spawn calls by agent id, an older log's inline
+	// subagent records by call, and where each notification's card is
+	// (its key: the call's id, else the task's), so a repeat folds in.
+	agentIDs map[string]string
+	inline   map[string]*ClaudeParser
+	notices  map[string]noticeRef
 }
+
+// noticeRef is where a notification landed: the turn it opened (event
+// -1) or one of a turn's events.
+type noticeRef struct{ turn, event int }
 
 func (p *ClaudeParser) init() {
 	if !p.started {
 		p.started, p.cur = true, -1
 		p.tools, p.seen = map[string][2]int{}, map[string]bool{}
+		p.agentIDs, p.inline, p.notices = map[string]string{}, map[string]*ClaudeParser{}, map[string]noticeRef{}
 	}
 }
 
@@ -107,7 +125,11 @@ func (p *ClaudeParser) Feed(line []byte) {
 	}
 	p.live.feedClaude(line)
 	var r claudeRecord
-	if json.Unmarshal(line, &r) != nil || r.IsSidechain {
+	if json.Unmarshal(line, &r) != nil {
+		return
+	}
+	if r.IsSidechain && !p.Sidechain {
+		p.sidechain(r, line)
 		return
 	}
 	if r.UUID != "" {
@@ -126,8 +148,15 @@ func (p *ClaudeParser) Feed(line []byte) {
 	case "assistant":
 		p.assistant(r, at)
 	case "attachment":
-		if r.Attachment != nil && r.Attachment.Type == "queued_command" && p.running() && !p.ended {
-			if text := strings.TrimSpace(contentText(r.Attachment.Prompt)); text != "" {
+		if r.Attachment != nil && r.Attachment.Type == "queued_command" {
+			text := strings.TrimSpace(contentText(r.Attachment.Prompt))
+			if notes, rest := splitNotifications(text); len(notes) > 0 {
+				for _, n := range notes {
+					p.event(n, at)
+				}
+				text = rest
+			}
+			if text != "" && p.running() && !p.ended {
 				t := &p.turns[p.cur]
 				t.Steers = append(t.Steers, Message{Text: text, At: at})
 				p.touch(at)
@@ -186,7 +215,7 @@ func (p *ClaudeParser) user(r claudeRecord, at time.Time) {
 			case "text":
 				parts = append(parts, b.Text)
 			case "tool_result":
-				p.result(b, at)
+				p.result(b, at, r.ToolUseResult)
 			}
 		}
 		text = strings.Join(parts, "\n")
@@ -206,6 +235,44 @@ func (p *ClaudeParser) user(r claudeRecord, at time.Time) {
 	if notPrompt(text) {
 		return
 	}
+	// A notification is an event, never the person's prompt: it opens a
+	// turn of its own (the agent answers it) or lands in the running one,
+	// and a message the person wrote with it is the real prompt.
+	notes, rest := splitNotifications(text)
+	if len(notes) > 0 && rest == "" {
+		for _, n := range notes {
+			if p.running() {
+				p.event(n, at)
+				continue
+			}
+			// A repeat's turn (the agent answers it again) folds into the
+			// first card: it keeps RepeatOf, the first card the latest state.
+			first, again := p.notices[n.key()]
+			p.open(r, n.Summary, at)
+			no := p.notice(n, at, p.turns[p.cur].ID)
+			if again {
+				p.update(first, no)
+				repeat := *no
+				repeat.RepeatOf = p.turns[first.turn].ID
+				p.turns[p.cur].Notice = &repeat
+				continue
+			}
+			p.turns[p.cur].Notice = no
+			p.notices[n.key()] = noticeRef{turn: p.cur, event: -1}
+		}
+		return
+	}
+	text = rest
+	// The person's message while a notification's turn runs starts the
+	// person's own turn.
+	if p.running() && p.turns[p.cur].Notice != nil {
+		p.finish(StateDone)
+	}
+	defer func() {
+		for _, n := range notes {
+			p.event(n, at)
+		}
+	}()
 	// A message that arrives while the turn runs, before its agent's last
 	// word, is folded into it; a prompt after the turn ended, a queued
 	// follow-up included, starts a new one.
@@ -273,7 +340,14 @@ func (p *ClaudeParser) assistant(r claudeRecord, at time.Time) {
 			}
 		case "tool_use":
 			input := strings.TrimSpace(string(b.Input))
-			t.Steps = append(t.Steps, Step{Kind: StepTool, ToolID: b.ID, Tool: b.Name, Summary: toolSummary(b.Name, b.Input), Input: input, At: at})
+			step := Step{Kind: StepTool, ToolID: b.ID, Tool: b.Name, Summary: toolSummary(b.Name, b.Input), Input: input, At: at}
+			if IsSpawnTool(b.Name) {
+				step.Agent = newAgent(b.Input)
+				if step.Agent.Description != "" {
+					step.Summary = oneLine(step.Agent.Description, 120)
+				}
+			}
+			t.Steps = append(t.Steps, step)
 			if b.ID != "" {
 				p.tools[b.ID] = [2]int{p.cur, len(t.Steps) - 1}
 			}
@@ -294,15 +368,124 @@ func (p *ClaudeParser) assistant(r claudeRecord, at time.Time) {
 	}
 }
 
-// result pairs a tool result with its call.
-func (p *ClaudeParser) result(b claudeBlock, at time.Time) {
+// result pairs a tool result with its call; a spawn call's result says
+// how its agent started or ended (toolUseResult, agent.go).
+func (p *ClaudeParser) result(b claudeBlock, at time.Time, raw json.RawMessage) {
 	ref, ok := p.tools[b.ToolUseID]
 	if !ok {
 		return
 	}
 	s := &p.turns[ref[0]].Steps[ref[1]]
 	s.Result, s.HasResult, s.IsError = contentText(b.Content), true, b.IsError
-	p.touch(at)
+	if s.Agent != nil {
+		s.Agent.applyResult(s.Result, b.IsError, raw)
+		if !s.Agent.Background {
+			s.Agent.EndedAt = at
+		}
+		if s.Agent.ID != "" {
+			p.agentIDs[s.Agent.ID] = b.ToolUseID
+		}
+	}
+	if p.cur == ref[0] {
+		p.touch(at)
+	}
+}
+
+// agentStep is the spawn step a notification names: by its call's id,
+// else by the agent's id (a resumed agent's notification names no call).
+func (p *ClaudeParser) agentStep(n notification) (*Step, string) {
+	id := n.ToolUseID
+	if _, ok := p.tools[id]; !ok {
+		id = p.agentIDs[n.TaskID]
+	}
+	ref, ok := p.tools[id]
+	if !ok {
+		return nil, ""
+	}
+	s := &p.turns[ref[0]].Steps[ref[1]]
+	if s.Agent == nil {
+		return nil, ""
+	}
+	return s, p.turns[ref[0]].ID
+}
+
+// notice is a notification as a turn's or an event's Notice (landing in
+// the turn with id where), and the spawn step it names updated to the
+// state it reports.
+func (p *ClaudeParser) notice(n notification, at time.Time, where string) *Notice {
+	no := n.asNotice(at)
+	if s, turn := p.agentStep(n); s != nil {
+		no.Turn, no.ToolUseID = turn, s.ToolID
+		s.Agent.applyNotification(n, at, where)
+		if no.Title == "" {
+			no.Title = s.Agent.Description
+		}
+	}
+	return no
+}
+
+// update gives the card a notification already landed in the latest
+// state.
+func (p *ClaudeParser) update(ref noticeRef, no *Notice) {
+	t := &p.turns[ref.turn]
+	if ref.event < 0 {
+		no.Repeats = t.Notice.Repeats + 1
+		t.Notice = no
+		return
+	}
+	no.Repeats = t.Events[ref.event].Repeats + 1
+	t.Events[ref.event] = *no
+}
+
+// event lands a notification: a repeat updates the card it already has
+// (the latest state wins), else it is an event of the running turn, or of
+// the last turn when none runs.
+func (p *ClaudeParser) event(n notification, at time.Time) {
+	i := p.cur
+	if !p.running() {
+		i = len(p.turns) - 1
+	}
+	where := ""
+	if i >= 0 {
+		where = p.turns[i].ID
+	}
+	no := p.notice(n, at, where)
+	if ref, ok := p.notices[n.key()]; ok {
+		p.update(ref, no)
+		return
+	}
+	if i < 0 {
+		return
+	}
+	t := &p.turns[i]
+	t.Events = append(t.Events, *no)
+	p.notices[n.key()] = noticeRef{turn: i, event: len(t.Events) - 1}
+}
+
+// sidechain reads an older log's subagent record into its agent's own
+// turns: the agent its agentId names, else the newest spawn call still
+// waiting for its result. It never touches the pane's turns.
+func (p *ClaudeParser) sidechain(r claudeRecord, line []byte) {
+	id := p.agentIDs[r.AgentID]
+	if id == "" {
+		for i := len(p.turns) - 1; i >= 0 && id == ""; i-- {
+			for j := len(p.turns[i].Steps) - 1; j >= 0; j-- {
+				if s := p.turns[i].Steps[j]; s.Agent != nil && !s.HasResult {
+					id = s.ToolID
+					break
+				}
+			}
+		}
+	}
+	if id == "" {
+		return
+	}
+	sub := p.inline[id]
+	if sub == nil {
+		sub = &ClaudeParser{Session: p.Session, Sidechain: true}
+		p.inline[id] = sub
+	}
+	sub.Feed(line)
 }
 
 // Turns is a copy of the turns so far, oldest first; the last may be
@@ -313,6 +496,13 @@ func (p *ClaudeParser) Turns() []Turn {
 		out[i] = t.clone()
 		if i == p.cur && t.Duration == 0 && !p.last.IsZero() {
 			out[i].Duration = p.last.Sub(t.StartedAt)
+		}
+	}
+	for id, sub := range p.inline {
+		if ref, ok := p.tools[id]; ok {
+			if a := out[ref[0]].Steps[ref[1]].Agent; a != nil {
+				a.Inline = sub.Turns()
+			}
 		}
 	}
 	return out
@@ -379,6 +569,8 @@ type ClaudeLog struct {
 	mu      sync.Mutex
 	tail    tail
 	parser  ClaudeParser
+	metaDir metaDir
+	metas   AgentMetas // the session's subagents' metas (agent.go), read with the log
 }
 
 // NewClaudeLog follows the log at path of session.
@@ -394,14 +586,44 @@ func (l *ClaudeLog) SessionID() string { return l.Session }
 func (l *ClaudeLog) Read() (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.tail.read(l.Path, func() { l.parser = ClaudeParser{Session: l.Session} }, l.parser.Feed)
+	changed, err := l.tail.read(l.Path, func() { l.parser = ClaudeParser{Session: l.Session} }, l.parser.Feed)
+	if err == nil {
+		// The metas are small; each is read again only when it changed.
+		metas := l.metaDir.read(SubagentDir(l.Path))
+		changed = changed || !sameMetas(metas, l.metas)
+		l.metas = metas
+	}
+	return changed, err
 }
 
-// Turns are the log's turns so far.
+// Turns are the log's turns so far, their subagents as the session's
+// metas say.
 func (l *ClaudeLog) Turns() []Turn {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.parser.Turns()
+	list := l.parser.Turns()
+	l.metas.Enrich(list)
+	return list
+}
+
+// AgentMetas are the session's subagents' metas as last read.
+func (l *ClaudeLog) AgentMetas() AgentMetas {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.metas
+}
+
+// sameMetas reports two reads of a directory's metas alike.
+func sameMetas(a, b AgentMetas) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, m := range a {
+		if b[k] != m {
+			return false
+		}
+	}
+	return true
 }
 
 // Cwd is the agent's folder as the log read so far says (ClaudeParser.Cwd).
@@ -453,6 +675,7 @@ func ClaudeLogCwd(path string) string {
 type tail struct {
 	offset  int64
 	partial []byte
+	cut     bool // the read starts mid-file: its first line is cut, dropped
 }
 
 func (t *tail) read(path string, reset func(), feed func([]byte)) (bool, error) {
@@ -466,7 +689,7 @@ func (t *tail) read(path string, reset func(), feed func([]byte)) (bool, error) 
 		return false, err
 	}
 	if info.Size() < t.offset {
-		t.offset, t.partial = 0, nil
+		t.offset, t.partial, t.cut = 0, nil, false
 		reset()
 	}
 	if info.Size() == t.offset {
@@ -481,6 +704,14 @@ func (t *tail) read(path string, reset func(), feed func([]byte)) (bool, error) 
 	}
 	t.offset += int64(len(data))
 	buf := append(t.partial, data...)
+	if t.cut {
+		i := bytes.IndexByte(buf, '\n')
+		if i < 0 {
+			t.partial = append([]byte(nil), buf...)
+			return false, nil
+		}
+		buf, t.cut = buf[i+1:], false
+	}
 	changed := false
 	for {
 		i := bytes.IndexByte(buf, '\n')
