@@ -17,6 +17,7 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/compose"
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/harness"
 )
 
 // The prompt box: an input pinned below an agent pane's turns (the Turns
@@ -63,6 +64,12 @@ import (
 // and the box keeps the focus, in insert mode. alt+o because readline
 // leaves it unbound (ctrl+o, ctrl+g and ctrl+] are taken there) and
 // neither ochazuke nor mtm binds it.
+//
+// ctrl+v in insert mode (turn-prompt.paste) pastes from the OS clipboard:
+// an image or an image file becomes an attachment, a chip [image N] at
+// the cursor, sent as the harness takes files (prompt_attach.go). ctrl+v
+// is free in ochazuke's insert-mode editor rows; normal mode's ctrl+v is
+// visual block and stays.
 
 const (
 	promptID   = "panes/prompt"
@@ -89,6 +96,10 @@ type promptBox struct {
 	sources *compose.Sources
 	target  promptTarget
 	focused bool // the box held the focus after the last message
+	// attachments are the images pasted since the last send; the live
+	// ones are those whose chip is still in the text (live).
+	attachments []promptAttachment
+	clip        clipboardReader
 }
 
 // promptTarget is what the completions search against, set on the loop
@@ -121,9 +132,11 @@ func (t *promptTarget) get() (string, string, []contextSuggestion) {
 }
 
 // promptDaemon is how the box reaches a pane: tuios's send-text (with
-// submit), send-keys and queue-prompt. tuios provides it; tests replace it.
+// submit, or a paste alone), send-keys and queue-prompt. tuios provides
+// it; tests replace it.
 type promptDaemon interface {
 	PromptSubmit(ctx context.Context, p pane, text string) error
+	PromptPaste(ctx context.Context, p pane, text string) error
 	PromptInterrupt(ctx context.Context, p pane) error
 	PromptQueue(ctx context.Context, p pane, text string) (daemon.QueuePromptResult, error)
 }
@@ -133,6 +146,12 @@ func (t tuios) PromptSubmit(ctx context.Context, p pane, text string) error {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
 	return t.Client.SendText(ctx, daemon.SendTextParams{Session: p.Session, Window: p.ID, Text: text, Submit: true})
+}
+
+// PromptPaste types text into the pane as a bracketed paste, unsubmitted
+// (an attachment's path, for a harness that attaches a pasted path).
+func (t tuios) PromptPaste(ctx context.Context, p pane, text string) error {
+	return t.PasteText(ctx, p, text)
 }
 
 // PromptInterrupt sends Escape to the pane.
@@ -168,13 +187,16 @@ func (t tuios) PromptQueue(ctx context.Context, p pane, text string) (daemon.Que
 
 // addPromptBox adds the box's input and its noun.
 func (a *App) addPromptBox() error {
-	a.pb = &promptBox{sources: compose.NewSources(compose.DefaultEnv())}
+	a.pb = &promptBox{sources: compose.NewSources(compose.DefaultEnv()), clip: macClipboard{}}
 	a.r.Define(promptNoun).
 		Verb("send", a.sendPrompt, "Send the prompt to the agent in the box's mode: send (a steer while it works), queue (typed when it rests) or interrupt (Escape, then send)").
 		Verb("mode", a.cyclePromptMode, "Switch the prompt box's mode: send, queue, interrupt (or the one named)").
 		Verb("back", a.promptBack, "Go back to the turns, else the pane row").
 		Verb("context", a.promptContext, "Choose a context item or prompt of the box's pane, its project or no project, and write it at the cursor (a file as @path)").
+		Verb("paste", a.pastePrompt, "Paste from the clipboard into the prompt: an image (or a copied image file) is attached as [image N], another copied file goes in as @path, text as text").
+		Verb("detach", a.detachPrompt, "Remove an attachment from the prompt: image n, the only one, else choose among them").
 		Mode("insert").
+		Bind("ctrl+v", ochazuke.Do(promptNoun+".paste").Hinted("paste/attach")).
 		Bind("enter", ochazuke.Do(promptNoun+".send")).
 		Bind("ctrl+j", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hinted("newline")).
 		Bind("alt+enter", ochazuke.Do("input.insert", ochazuke.Arguments{"text": "\n"}).Hide()).
@@ -200,6 +222,7 @@ func (a *App) addPromptBox() error {
 		return !slices.Contains(in.Text[:at], '\n')
 	})
 	a.parameters(promptNoun+".mode", map[string]ochazuke.Parameter{"mode": {Type: "string", Enum: promptModes, Description: "The mode to switch to; none takes the next"}})
+	a.parameters(promptNoun+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "The image's number, as its chip [image n] shows; none: the only one, else a chooser"}})
 	// i writes a prompt: from the pane row while the Turns tab shows, and
 	// from any row of the turns.
 	a.r.DefineGuard("pane-prompt", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
@@ -387,6 +410,19 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("sending needs the TUIOS daemon"))
 	}
 	mode := a.pb.mode
+	// The attachments go as the harness takes files: @ mentions in the
+	// text, or (a harness that attaches a pasted path, outside queue
+	// mode) a paste of each path before it.
+	attached := a.pb.live()
+	var pastes []string
+	if mode != promptQueue && a.attachMode(p) == harness.AttachPaste {
+		for _, at := range attached {
+			pastes = append(pastes, at.path)
+		}
+		text = strings.TrimSpace(promptOutgoing(text, attached, false))
+	} else {
+		text = promptOutgoing(text, attached, true)
+	}
 	if mode != promptQueue && p.needsInput() {
 		return ochazuke.Failed(errors.New("the agent waits on you: answer it live (enter on its row), or queue the prompt (ctrl+t)"))
 	}
@@ -419,17 +455,30 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 				}
 			}
 		}
+		for _, path := range pastes {
+			if err := d.PromptPaste(c, p, path); err != nil {
+				return nil, err
+			}
+		}
+		if len(pastes) > 0 {
+			if err := sleep(c, promptAttachPause); err != nil {
+				return nil, err
+			}
+		}
 		return nil, d.PromptSubmit(c, p, text)
 	}).Label(label).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err != nil {
 			return
 		}
-		// The box clears unless it was edited while the send ran.
+		// The box clears unless it was edited while the send ran; its
+		// attachments go with the text, and stay as the pane's context.
 		if in := a.pb.input; string(in.Text) == sent {
 			if rerr := in.Replace(0, len(in.Text), ""); rerr != nil {
 				ctx.Status(rerr.Error())
 			}
+			a.pb.attachments = nil
 		}
+		a.recordAttachments(ctx, p, attached)
 		if mode == promptInterrupt {
 			a.pb.mode = promptSend
 		}
@@ -639,6 +688,9 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	label := promptModeLabel(a.pb.mode, p) + " " + p.kind()
 	if p.needsInput() {
 		label += " · waits on you"
+	}
+	if n := attachmentsLabel(len(a.pb.live())); n != "" {
+		label += " · " + n
 	}
 	hint := a.keySentence(promptID, keyAction{promptNoun + ".send", "sends"}, keyAction{promptNoun + ".mode", "mode"})
 	rule := "── " + label + " "
