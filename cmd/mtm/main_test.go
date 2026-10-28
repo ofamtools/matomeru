@@ -30,7 +30,7 @@ func press(t *testing.T, a *App, keys ...string) {
 
 // keyMsg is one named key as Bubble Tea v2 delivers it.
 func keyMsg(key string) tea.KeyPressMsg {
-	codes := map[string]rune{"enter": tea.KeyEnter, "esc": tea.KeyEscape, "up": tea.KeyUp, "down": tea.KeyDown, "tab": tea.KeyTab}
+	codes := map[string]rune{"enter": tea.KeyEnter, "esc": tea.KeyEscape, "up": tea.KeyUp, "down": tea.KeyDown, "tab": tea.KeyTab, "right": tea.KeyRight, "left": tea.KeyLeft}
 	switch {
 	case codes[key] != 0:
 		return tea.KeyPressMsg{Code: codes[key]}

@@ -716,3 +716,29 @@ func TestAttachedPaneAsksForItsDrawnSize(t *testing.T) {
 		}
 	}
 }
+
+// On the Panes tree (a tree with columns) h and l on a session row
+// collapse, expand and then step onto its first pane, and right does what
+// l does: ochazuke v0.25.0's table scroll-then-focus rows answered for the
+// tree's list and l left the tree instead (fixed in v0.26.0, R11.1).
+func TestSessionRowHLExpandsAndStepsIn(t *testing.T) {
+	for _, right := range []string{"l", "right"} {
+		app, _ := panesApp(t)
+		press(t, app, "k")
+		if app.r.Focus != "session:matomeru" {
+			t.Fatalf("k: focus %s", app.r.Focus)
+		}
+		press(t, app, "h")
+		if app.r.Focus != "session:matomeru" || cells(app, "pane:matomeru/w1") != "" {
+			t.Fatalf("h: focus %s, pane row %q", app.r.Focus, cells(app, "pane:matomeru/w1"))
+		}
+		press(t, app, right)
+		if app.r.Focus != "session:matomeru" || cells(app, "pane:matomeru/w1") == "" {
+			t.Fatalf("%s on a closed session: focus %s, pane row %q", right, app.r.Focus, cells(app, "pane:matomeru/w1"))
+		}
+		press(t, app, right)
+		if app.r.Focus != "pane:matomeru/w1" {
+			t.Fatalf("%s on an open session: focus %s, want its first pane", right, app.r.Focus)
+		}
+	}
+}
