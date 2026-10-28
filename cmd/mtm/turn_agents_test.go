@@ -431,3 +431,32 @@ func TestSeventySubagentsStayFast(t *testing.T) {
 		t.Fatalf("too slow: %v per pass, %v to open", per, open)
 	}
 }
+
+// Golden frames of the notification cards (indented, dashed border,
+// muted) under the spawning turn at 80 and 120 columns; -update rewrites
+// them.
+func TestNotificationCardFrames(t *testing.T) {
+	app, _ := agentsApp(t)
+	app.loc = time.UTC // the cards' times are the same in any zone
+	if err := app.showTurns(app.pv.turnsFor); err != nil {
+		t.Fatal(err)
+	}
+	for _, width := range []int{80, 120} {
+		app.m.Width, app.m.Height = width, 40
+		got := plainView(app)
+		file := filepath.Join("testdata", fmt.Sprintf("turn-notices-%d.golden", width))
+		if *updateGolden {
+			if err := os.WriteFile(file, []byte(got), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		want, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != string(want) {
+			t.Fatalf("%d columns differ from %s:\n%s", width, file, got)
+		}
+	}
+}

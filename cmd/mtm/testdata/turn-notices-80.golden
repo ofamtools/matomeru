@@ -1,0 +1,40 @@
+  ◆ Matomeru · no pin                                                  NORMAL   
+   › Panes  Work  Review  Directories  Notes  Saved  Vim  Context  Inbox  2›    
+  ────────────────────────────────────────────────────────────────────────────  
+  panes (2)                                                                     
+  pane                state                                                     
+  ▾ unassociated (2)                                                            
+        ○ claude      idle                                                      
+          shell       shell                                                     
+  ╭─ matomeru/claude ────────────────────────────────────────────────────────╮  
+  │ claude-code · /w/proj · idle                                             │  
+  │ [Turns] Screen Activity Transcript · [ ] tabs · enter live               │  
+  │ ╭──────────────────────────────────────────────────────────────────────╮ │  
+  │ │ ▸ start the agents                                                   │ │  
+  │ │   Oct 28 10:00 · done · 4 tool calls · 4.0s                          │ │  
+  │ ╰──────────────────────────────────────────────────────────────────────╯ │  
+  │ ╭──────────────────────────────────────────────────────────────────────╮ │  
+  │ │ ▸ something else meanwhile                                           │ │  
+  │ │   Oct 28 10:02 · done · 4.0s                                         │ │  
+  │ ╰──────────────────────────────────────────────────────────────────────╯ │  
+  │   ╭┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ │  
+  │   ┆ ▸ ⤷ One-line bindings export format · finished                     ┆ │  
+  │   ┆   Oct 28 10:22 · 20m43s · 205k tokens · 94 tool uses · from “start ┆ │  
+  │   ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ │  
+  │   ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮ │  
+  │   ┃ ▸ ⤷ L4 on fake server · failed: Agent terminated early due to an   ┃ │  
+  │   ┃   API error                                                        ┃ │  
+  │   ┃   Oct 28 10:23 · 20m43s · 205k tokens · 94 tool uses · from “start ┃ │  
+  │   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯ │  
+  │                                                                          │  
+  │                                                                          │  
+  │                                                                          │  
+  │                                                                          │  
+  │                                                                          │  
+  │                                                                          │  
+  │ ── [send] claude-code ─ enter sends · ctrl+t mode ────────────────────── │  
+  │ › write to the agent                                                     │  
+  ╰──────────────────────────────────────────────────────────────────────────╯  
+  ────────────────────────────────────────────────────────────────────────────  
+  enter live · d d pane.kill · m pane.associate · f hints · * pane.star · w s…  
+                                                                                

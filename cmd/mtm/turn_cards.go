@@ -216,7 +216,7 @@ func (a *App) modelCards(st *cardFill) []ochazuke.Card {
 }
 
 // noticeCard is a turn a task notification opened, as an event: compact,
-// muted and closed, its body the task's result and then what the agent
+// muted, closed and drawn as an event card (indented, dashed border), its body the task's result and then what the agent
 // did about it (each repeat's too).
 func (a *App) noticeCard(st *cardFill, t turns.Turn, again []turns.Turn, calls map[string]*turns.Agent, running bool, group string, tl *ochazuke.Timeline, known map[string]map[string]bool, loc *time.Location) ochazuke.Card {
 	n := t.Notice
@@ -255,6 +255,7 @@ func (a *App) noticeCard(st *cardFill, t turns.Turn, again []turns.Turn, calls m
 		Steps:    steps,
 		Active:   running,
 		Muted:    true,
+		Event:    true,
 		Group:    group,
 		Revision: revision(sig...),
 	}
@@ -284,6 +285,7 @@ func (a *App) eventCard(st *cardFill, t turns.Turn, n turns.Notice, calls map[st
 		Meta:     noticeMeta(&n, spawnPrompt(st.mturns, n.Turn), loc),
 		Steps:    []ochazuke.CardStep{{Header: true}, noticeResultStep(&n, ag)},
 		Muted:    true,
+		Event:    true,
 		Group:    group,
 		Revision: revision(sig...),
 	}
