@@ -13,7 +13,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"path"
 	"slices"
 	"strings"
 )
@@ -65,6 +67,13 @@ type Harness struct {
 	Ready     Ready             `json:"ready,omitzero"`      // when the pane takes a prompt; zero: a fixed delay
 	Env       map[string]string `json:"env,omitempty"`       // set for the harness's process (through env(1))
 	Attach    string            `json:"attach,omitempty"`    // AttachMention (default) or AttachPaste: how a prompt's files reach it
+	// Settings are how a running session's settings change (settings.go),
+	// by name: model, effort, fast, permission-mode. A file's rows replace
+	// the built-in's by name; null removes one.
+	Settings map[string]Setting `json:"settings,omitempty"`
+	// ContextWindows are context windows in tokens by model pattern (a
+	// path.Match glob), for a harness whose log gives none.
+	ContextWindows map[string]int64 `json:"contextWindows,omitempty"`
 }
 
 // Ready says when a new pane takes its first prompt: the agent state the
@@ -90,11 +99,15 @@ const DefaultReadyTimeoutMS = 15000
 // screen, so each is ready at idle or done).
 func Builtins() []Harness {
 	ready := Ready{State: "idle,done", TimeoutMS: DefaultReadyTimeoutMS}
-	return []Harness{
+	list := []Harness{
 		{Name: "claude", Command: []string{"claude"}, ModelFlag: "--model", Models: []string{"opus", "sonnet", "haiku"}, Prompt: PromptSendText, Ready: ready, Attach: AttachMention},
 		{Name: "omp", Command: []string{"omp"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachMention},
 		{Name: "codex", Command: []string{"codex"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachPaste},
 	}
+	for i := range list {
+		list[i].Settings, list[i].ContextWindows = builtinSettings(list[i].Name)
+	}
+	return list
 }
 
 // Validate reports what makes a definition unusable.
@@ -120,6 +133,19 @@ func (h Harness) Validate() error {
 	}
 	if h.Ready.TimeoutMS < 0 {
 		return fmt.Errorf("harness %s: ready.timeoutMs is negative", h.Name)
+	}
+	for name, s := range h.Settings {
+		if !slices.Contains(SettingNames, name) {
+			return fmt.Errorf("harness %s: unknown setting %q; known: %s", h.Name, name, strings.Join(SettingNames, ", "))
+		}
+		if err := s.validate(h.Name, name); err != nil {
+			return err
+		}
+	}
+	for p, n := range h.ContextWindows {
+		if _, err := path.Match(p, ""); err != nil || n < 0 {
+			return fmt.Errorf("harness %s: contextWindows %q: a glob and a token count ≥ 0", h.Name, p)
+		}
 	}
 	return nil
 }
@@ -282,13 +308,10 @@ func Merge(base []Harness, data []byte) ([]Harness, error) {
 		if at >= 0 {
 			h = out[at]
 			// A field the entry gives replaces the built-in's whole value.
-			h.Command, h.Models, h.Env = slices.Clone(h.Command), slices.Clone(h.Models), nil
-			if base := out[at].Env; base != nil {
-				h.Env = make(map[string]string, len(base))
-				for k, v := range base {
-					h.Env[k] = v
-				}
-			}
+			// A settings or contextWindows object merges by key into the
+			// built-in's, so the maps are copied first.
+			h.Command, h.Models = slices.Clone(h.Command), slices.Clone(h.Models)
+			h.Env, h.Settings, h.ContextWindows = maps.Clone(h.Env), maps.Clone(h.Settings), maps.Clone(h.ContextWindows)
 		}
 		dec := json.NewDecoder(strings.NewReader(string(raw)))
 		dec.DisallowUnknownFields()
