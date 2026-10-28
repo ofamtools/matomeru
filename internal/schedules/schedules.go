@@ -25,6 +25,11 @@
 // once. A claim lapses after the run's timeout and a grace, so a process
 // that died mid-run frees its schedule.
 //
+// Stored rows (defs.go) are the schedules a person adds from mtm: the
+// schedule_defs table, merged over the configured rows by name. A row's
+// kind picks its Executor in Runner.Kinds (command here; mtm adds prompt),
+// and its timing is an interval, days and times, or cron (when.go).
+//
 // The run logic is lifted from matomeru-old's internal/schedules (launch,
 // execute, record): advance before running so a failure never repeats the
 // same occurrence, skip (not queue) an overlapping run, a timeout per run,
@@ -113,23 +118,191 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Kinds of schedule: what a run does. A kind is a name in Runner.Kinds,
+// so the caller adds kinds (mtm adds prompt) without a branch here.
+const (
+	KindCommand = "command" // run Command (matomeru-old's command kind)
+	KindPrompt  = "prompt"  // start an agent with Prompt, or send it to a pane (matomeru-old's prompt kind)
+)
+
+// Sources of a schedule row.
+const (
+	SourceBuiltin = "built-in"
+	SourceFile    = "file" // schedules.json
+	SourceStored  = "mtm"  // the schedule_defs table: added with mtm schedule add
+)
+
+// Targets of a prompt schedule's agent.
+const (
+	TargetNew  = "new"  // a new pane each run
+	TargetPane = "pane" // the pane named Agent.Pane, sent the prompt when it is ready (a new one when none is open)
+)
+
+// TargetValues are the values of Agent.Target.
+var TargetValues = []string{TargetNew, TargetPane}
+
+// Agent is how a prompt schedule starts its agent: the harness profile
+// (harnesses.json) and the session settings it launches with, where it
+// works, and which pane gets the prompt. Empty fields take mtm's
+// defaults (the project's harness, else default-harness; the harness's
+// first model; the project's directory, else home).
+type Agent struct {
+	Harness    string `json:"harness,omitempty"`
+	Model      string `json:"model,omitempty"`
+	Effort     string `json:"effort,omitempty"`
+	Fast       string `json:"fast,omitempty"`
+	Permission string `json:"permission_mode,omitempty"`
+	Project    string `json:"project,omitempty"`
+	Task       string `json:"task,omitempty"`
+	Dir        string `json:"dir,omitempty"`
+	Target     string `json:"target,omitempty"` // new (default) or pane
+	// Pane names the pane: the window a target pane run looks for and
+	// the name of a pane a run opens (default: the schedule's name).
+	Pane string `json:"pane,omitempty"`
+}
+
 // Def is one schedule as configured.
 type Def struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Command     []string `json:"command"`
-	Interval    Duration `json:"interval"`
-	Timeout     Duration `json:"timeout,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// Kind is what a run does: command (the default when Command is
+	// given) or prompt (the default when Prompt is).
+	Kind    string   `json:"kind,omitempty"`
+	Command []string `json:"command,omitempty"`
+	// Prompt is a prompt schedule's text; Agent says how it is sent.
+	Prompt string `json:"prompt,omitempty"`
+	Agent  Agent  `json:"agent,omitzero"`
+	// The timing (when.go): an interval, or days and times, or cron;
+	// start and end bound it.
+	Interval Duration `json:"interval,omitempty"`
+	Days     []string `json:"days,omitempty"`
+	At       []string `json:"at,omitempty"`
+	Cron     string   `json:"cron,omitempty"`
+	Start    string   `json:"start,omitempty"`
+	End      string   `json:"end,omitempty"`
+	// CatchUp is none or once (CatchUpValues); empty takes the caller's
+	// default (mtm's schedules.catch-up setting).
+	CatchUp string   `json:"catch_up,omitempty"`
+	Timeout Duration `json:"timeout,omitempty"`
 	// Enabled is on, off or auto; a file row without it is on.
 	Enabled string `json:"enabled,omitempty"`
 	// Requires are checks (argv) that must exit 0 for auto to run it.
 	Requires [][]string `json:"requires,omitempty"`
 	// Env is added to the command's environment.
 	Env map[string]string `json:"env,omitempty"`
+	// Created is when a stored row was added (Unix ms): calendar and
+	// interval timing count from it until the first run.
+	Created int64 `json:"created,omitempty"`
+	Updated int64 `json:"updated,omitempty"`
+	// Source is where the row came from (SourceBuiltin, SourceFile,
+	// SourceStored); not stored.
+	Source string `json:"-"`
 }
 
 // Every is the interval as a time.Duration.
 func (d Def) Every() time.Duration { return time.Duration(d.Interval) }
+
+// When is the row's timing.
+func (d Def) When() When { return When{Interval: d.Interval, Days: d.Days, At: d.At, Cron: d.Cron} }
+
+// SetWhen replaces the row's timing.
+func (d *Def) SetWhen(w When) { d.Interval, d.Days, d.At, d.Cron = w.Interval, w.Days, w.At, w.Cron }
+
+// KindOf is the row's kind: Kind, else prompt for a row with a prompt and
+// no command, else command.
+func (d Def) KindOf() string {
+	switch {
+	case d.Kind != "":
+		return d.Kind
+	case d.Prompt != "" && len(d.Command) == 0:
+		return KindPrompt
+	}
+	return KindCommand
+}
+
+// CatchUpOf is the row's catch-up, def when it gives none.
+func (d Def) CatchUpOf(def string) string { return cmp.Or(d.CatchUp, def, CatchUpNone) }
+
+// bounds are the row's start and end in loc (zero when unset or unreadable).
+func (d Def) bounds(loc *time.Location) (time.Time, time.Time) {
+	start, _ := ParseBound(d.Start, false, loc)
+	end, _ := ParseBound(d.End, true, loc)
+	return start, end
+}
+
+// after is the first occurrence strictly after t (Unix ms) within the
+// row's bounds: t plus the interval (backed off by failures) or the next
+// calendar time; false when there is none (no timing, or past the end).
+func (d Def) after(t int64, failures int, loc *time.Location) (int64, bool) {
+	start, end := d.bounds(loc)
+	w := d.When()
+	var at time.Time
+	switch {
+	case w.Calendar():
+		from := time.UnixMilli(t)
+		if !start.IsZero() && from.Before(start) {
+			from = start.Add(-time.Nanosecond)
+		}
+		var ok bool
+		if at, ok = w.nextAfter(from, loc); !ok {
+			return 0, false
+		}
+	case w.Interval > 0:
+		at = time.UnixMilli(t + Delay(d.Every(), failures).Milliseconds())
+		if !start.IsZero() && at.Before(start) {
+			at = start
+		}
+	default:
+		return 0, false
+	}
+	if !end.IsZero() && at.After(end) {
+		return 0, false
+	}
+	return at.UnixMilli(), true
+}
+
+// Occurrence is when the row is due next given its state: ok false when
+// it never is (no timing, ended); first for an interval row that never
+// ran and has no anchor (due at once, or at its start, and never counted
+// as missed); anchor for a calendar row with nothing to count from yet
+// (the runner anchors it at its first check).
+func (d Def) Occurrence(s State, now int64, loc *time.Location) (at int64, ok, first, anchor bool) {
+	start, end := d.bounds(loc)
+	if !end.IsZero() && now > end.UnixMilli() {
+		return 0, false, false, false
+	}
+	base := max(s.Last, s.Since, d.Created)
+	if base == 0 {
+		if d.When().Calendar() {
+			return 0, false, false, true
+		}
+		if d.Interval <= 0 {
+			return 0, false, false, false
+		}
+		if !start.IsZero() {
+			return start.UnixMilli(), true, true, false
+		}
+		return 0, true, true, false
+	}
+	at, ok = d.after(base, s.Failures, loc)
+	return at, ok, false, false
+}
+
+// Upcoming is when the row runs next as a person reads it at now: the
+// occurrence, or (an occurrence that is missed and will be skipped, or a
+// calendar row not yet anchored) the next one after now; false for never.
+func (d Def) Upcoming(s State, now int64, catchUp string, loc *time.Location) (int64, bool) {
+	at, ok, first, anchor := d.Occurrence(s, now, loc)
+	switch {
+	case anchor:
+		return d.after(now, 0, loc)
+	case !ok:
+		return 0, false
+	case !first && now-at > MissGrace.Milliseconds() && d.CatchUpOf(catchUp) == CatchUpNone:
+		return d.after(now, 0, loc)
+	}
+	return at, true
+}
 
 // Limit is the timeout, DefaultTimeout when unset.
 func (d Def) Limit() time.Duration {
@@ -147,11 +320,11 @@ func (d Def) Limit() time.Duration {
 func Defaults() []Def {
 	return []Def{
 		{Name: "gh-signals", Description: "GitHub review requests, CI and PR signals into the inbox (o-gh signals)",
-			Command: []string{"o-gh", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Auto,
+			Command: []string{"o-gh", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Auto, CatchUp: CatchUpOnce, Source: SourceBuiltin,
 			Requires: [][]string{{"gh", "auth", "status", "--active"}},
 			Env:      map[string]string{"O_GH_MTM": "{mtm}", "O_GH_MTM_ARGS": "{mtm-args}"}},
 		{Name: "slack-signals", Description: "Slack mentions, DMs and threads into the inbox (o-slack signals; the work machine)",
-			Command: []string{"o-slack", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Off,
+			Command: []string{"o-slack", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Off, CatchUp: CatchUpOnce, Source: SourceBuiltin,
 			Env: map[string]string{"O_SLACK_MTM": "{mtm}", "O_SLACK_MTM_ARGS": "{mtm-args}"}},
 	}
 }
@@ -213,9 +386,10 @@ func Merge(base []Def, data []byte) ([]Def, error) {
 		if err := dec.Decode(&d); err != nil {
 			return nil, fmt.Errorf("schedule %s: %w", named.Name, err)
 		}
-		if err := d.check(); err != nil {
+		if err := d.Check(); err != nil {
 			return nil, fmt.Errorf("schedule %s: %w", named.Name, err)
 		}
+		d.Source = SourceFile
 		if at >= 0 {
 			out[at] = d
 		} else {
@@ -225,14 +399,33 @@ func Merge(base []Def, data []byte) ([]Def, error) {
 	return out, nil
 }
 
-func (d Def) check() error {
+// Check reports what makes the row unusable: a command row without its
+// command, timing that does not read, values outside their choices. A
+// prompt row may be incomplete (no prompt, no timing): it is recorded
+// and simply never due, or fails its run, so a form never blocks on it.
+func (d Def) Check() error {
 	switch {
-	case len(d.Command) == 0 || d.Command[0] == "":
+	case d.KindOf() == KindCommand && (len(d.Command) == 0 || d.Command[0] == ""):
 		return errors.New("command is required (an argv array)")
-	case d.Interval < Duration(time.Minute):
-		return errors.New("interval is at least 1m")
+	case d.KindOf() == KindCommand && d.When().Zero():
+		return errors.New("a command schedule needs an interval, days/at or cron")
 	case !slices.Contains(EnabledValues, d.Enabled):
 		return fmt.Errorf("enabled is one of %s", strings.Join(EnabledValues, ", "))
+	case d.CatchUp != "" && !slices.Contains(CatchUpValues, d.CatchUp):
+		return fmt.Errorf("catch_up is one of %s", strings.Join(CatchUpValues, ", "))
+	case d.Agent.Target != "" && !slices.Contains(TargetValues, d.Agent.Target):
+		return fmt.Errorf("agent target is one of %s", strings.Join(TargetValues, ", "))
+	}
+	if err := d.When().Check(); err != nil {
+		return err
+	}
+	for _, b := range []struct {
+		v   string
+		end bool
+	}{{d.Start, false}, {d.End, true}} {
+		if _, err := ParseBound(b.v, b.end, time.Local); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -253,9 +446,14 @@ func ValidName(name string) bool {
 // State is a schedule's row in the schedules table, keyed by its name.
 // The field names that matomeru-old's Schedule had keep their JSON names.
 type State struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Last        int64  `json:"last"` // the last run's start, Unix ms
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Last  int64  `json:"last"` // the last run's start, Unix ms
+	// Since is when the schedule started counting without a run: its first
+	// check (a calendar row), or a skipped catch-up.
+	Since int64 `json:"since,omitempty"`
+	// Missed counts the occurrences skipped because mtm was not running.
+	Missed      int    `json:"missed,omitempty"`
 	Next        int64  `json:"next"` // when it is due next (shown; Due recomputes)
 	Updated     int64  `json:"updated"`
 	LastRunID   string `json:"last_run_id,omitempty"`
@@ -286,7 +484,7 @@ func Delay(interval time.Duration, failures int) time.Duration {
 	return d
 }
 
-// DueAt is when the schedule is due next, Unix ms; 0 for never run (due now).
+// DueAt is when an interval schedule is due next, Unix ms; 0 for never run (due now).
 func (s State) DueAt(interval time.Duration) int64 {
 	if s.Last == 0 {
 		return 0
@@ -299,17 +497,43 @@ type Record struct {
 	ID         string   `json:"id"`
 	ScheduleID string   `json:"schedule_id"`
 	Title      string   `json:"title"`
-	Kind       string   `json:"kind"` // command
+	Kind       string   `json:"kind"` // command, prompt
 	Command    []string `json:"command,omitempty"`
-	Started    int64    `json:"started"`
-	Finished   int64    `json:"finished"`
-	Duration   int64    `json:"duration_ms"`
-	Outcome    string   `json:"outcome"`
-	Summary    string   `json:"summary"`
-	Error      string   `json:"error,omitempty"`
-	Manual     bool     `json:"manual,omitempty"`
-	ExitCode   int      `json:"exit_code,omitempty"`
-	Output     string   `json:"output,omitempty"`
+	// Window is the pane a prompt run reached (matomeru-old's name).
+	Window string `json:"window,omitempty"`
+	// Launched is what a prompt run started or sent to.
+	Launched *Launched `json:"launched,omitempty"`
+	Started  int64     `json:"started"`
+	Finished int64     `json:"finished"`
+	Duration int64     `json:"duration_ms"`
+	Outcome  string    `json:"outcome"`
+	Summary  string    `json:"summary"`
+	Error    string    `json:"error,omitempty"`
+	Manual   bool      `json:"manual,omitempty"`
+	ExitCode int       `json:"exit_code,omitempty"`
+	Output   string    `json:"output,omitempty"`
+}
+
+// Launched is what a prompt run did: the pane it opened (target new) or
+// queued the prompt in (target pane), with the agent configuration it
+// used, so a run's history links to its pane.
+type Launched struct {
+	Target   string            `json:"target"` // new, or queued (sent to an open pane when it is ready)
+	Session  string            `json:"session,omitempty"`
+	Window   string            `json:"window,omitempty"`
+	Name     string            `json:"name,omitempty"`
+	Pane     string            `json:"pane,omitempty"` // the pane row: pane:SESSION/WINDOW
+	Harness  string            `json:"harness,omitempty"`
+	Model    string            `json:"model,omitempty"`
+	Settings map[string]string `json:"settings,omitempty"`
+	Argv     []string          `json:"argv,omitempty"`
+	Typed    []string          `json:"typed,omitempty"` // setting commands typed (or queued) before the prompt
+	Cwd      string            `json:"cwd,omitempty"`
+	Project  string            `json:"project,omitempty"`
+	Task     string            `json:"task,omitempty"`
+	Prompt   string            `json:"prompt,omitempty"` // sent, argv, queued, not sent, none
+	QueueID  string            `json:"queue_id,omitempty"`
+	Note     string            `json:"note,omitempty"`
 }
 
 // Failed reports a run that did not succeed.
@@ -318,6 +542,12 @@ func (r Record) Failed() bool { return r.Outcome != OutcomeOK }
 // ExecFunc runs argv with env added and returns its combined output and
 // exit; tests replace it.
 type ExecFunc func(ctx context.Context, argv []string, env []string) ([]byte, error)
+
+// Executor runs one occurrence of a kind of schedule, filling the record
+// (its command, output, what it launched); its error is the run's
+// failure (ErrMissing for something not installed, the context's
+// deadline for a timeout).
+type Executor func(ctx context.Context, def Def, rec *Record) error
 
 // ErrRunning is a run asked for while the schedule already runs.
 var ErrRunning = errors.New("the schedule is already running")
@@ -345,6 +575,10 @@ type Runner struct {
 	// Done receives every finished run Tick started (never blocks: a full
 	// channel drops the message; the rows are in the store anyway).
 	Done chan Record
+	// Kinds run each kind of schedule; New sets command.
+	Kinds map[string]Executor
+	// Location is the time zone days and times are read in.
+	Location *time.Location
 
 	mu      sync.Mutex
 	running map[string]bool
@@ -361,18 +595,40 @@ type probe struct {
 
 // New declares the tables and returns a runner with the real clock and exec.
 func New(db *store.Store) (*Runner, error) {
-	for _, t := range []store.Table{Table, RunsTable} {
+	fresh := !db.Declared(DefsTable.Name)
+	for _, t := range []store.Table{Table, RunsTable, DefsTable} {
 		if err := db.Declare(t); err != nil {
 			return nil, err
 		}
 	}
 	host, _ := os.Hostname()
-	return &Runner{db: db, Now: time.Now, Exec: RealExec, LookPath: exec.LookPath, Keep: DefaultKeep,
-		Owner: fmt.Sprintf("%d@%s", os.Getpid(), host), Done: make(chan Record, 16),
-		running: map[string]bool{}, probes: map[string]probe{}}, nil
+	r := &Runner{db: db, Now: time.Now, Exec: RealExec, LookPath: exec.LookPath, Keep: DefaultKeep,
+		Owner: fmt.Sprintf("%d@%s", os.Getpid(), host), Done: make(chan Record, 16), Location: time.Local,
+		running: map[string]bool{}, probes: map[string]probe{}}
+	r.Kinds = map[string]Executor{KindCommand: r.runCommand}
+	if fresh {
+		// The table is new to this database: bring over matomeru-old's
+		// prompt schedules, once.
+		if _, err := r.ImportLegacy(); err != nil {
+			return nil, fmt.Errorf("schedules: importing matomeru-old's prompt schedules: %w", err)
+		}
+	}
+	return r, nil
+}
+
+func (r *Runner) loc() *time.Location {
+	if r.Location == nil {
+		return time.Local
+	}
+	return r.Location
 }
 
 func (r *Runner) now() int64 { return r.Now().UnixMilli() }
+
+func (r *Runner) installed(name string) bool {
+	_, err := r.LookPath(r.expand(name))
+	return err == nil
+}
 
 func (r *Runner) expand(s string) string {
 	if r.Expand == nil {
@@ -400,7 +656,7 @@ func (r *Runner) Active(ctx context.Context, def Def) (bool, string) {
 		return p.ok, p.reason
 	}
 	p = probe{at: r.Now(), ok: true, reason: "auto: checks pass"}
-	if _, err := r.LookPath(r.expand(def.Command[0])); err != nil {
+	if len(def.Command) > 0 && !r.installed(def.Command[0]) {
 		p.ok, p.reason = false, "auto: "+def.Command[0]+" not on PATH"
 	}
 	for _, check := range def.Requires {
@@ -495,12 +751,30 @@ func (r *Runner) claim(def Def, manual bool) (State, bool, error) {
 		if err := tx.Get(Table.Name, def.Name, &s); err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
-		if s.Running(now) || !manual && s.DueAt(def.Every()) > now {
+		if s.Running(now) {
 			return nil
 		}
 		s.ID, s.Title = def.Name, cmp.Or(def.Description, def.Name)
+		if !manual {
+			at, ok, first, anchor := def.Occurrence(s, now, r.loc())
+			switch {
+			case anchor:
+				// A calendar row counts from its first check.
+				s.Since, s.Updated = now, now
+				s.Next, _ = def.after(now, 0, r.loc())
+				return tx.Put(Table.Name, s.ID, s)
+			case !ok || at > now:
+				return nil
+			case !first && now-at > MissGrace.Milliseconds() && def.CatchUpOf("") == CatchUpNone:
+				// Missed while no mtm ran: skip to the next one on time.
+				s.Since, s.Updated = now, now
+				s.Missed++
+				s.Next, _ = def.after(now, 0, r.loc())
+				return tx.Put(Table.Name, s.ID, s)
+			}
+		}
 		s.Last, s.Updated = now, now
-		s.Next = now + Delay(def.Every(), s.Failures).Milliseconds()
+		s.Next, _ = def.after(now, s.Failures, r.loc())
 		s.RunningBy, s.RunningUntil = r.Owner, now+(def.Limit()+claimGrace).Milliseconds()
 		claimed, ok = s, true
 		return tx.Put(Table.Name, s.ID, s)
@@ -546,19 +820,33 @@ func (r *Runner) newID(at int64) string {
 	return fmt.Sprintf("%d-%d-%s", at, n, r.Owner)
 }
 
+// runCommand is the command kind: Command under nice with Env, its output
+// kept; a command not on PATH is ErrMissing.
+func (r *Runner) runCommand(ctx context.Context, def Def, rec *Record) error {
+	if len(def.Command) == 0 {
+		return errors.New("the schedule has no command")
+	}
+	argv := r.argv(def.Command)
+	rec.Command = argv
+	if _, err := r.LookPath(argv[0]); err != nil {
+		return fmt.Errorf("%s %w", argv[0], ErrMissing)
+	}
+	out, err := r.Exec(ctx, argv, r.env(def))
+	rec.Output = tail(string(out), outputLimit)
+	return err
+}
+
 func (r *Runner) execute(ctx context.Context, def Def, state State, manual bool) Record {
 	defer r.release(def.Name)
-	argv := r.argv(def.Command)
-	rec := Record{ScheduleID: def.Name, Title: cmp.Or(def.Description, def.Name), Kind: "command", Command: argv,
+	rec := Record{ScheduleID: def.Name, Title: cmp.Or(def.Description, def.Name), Kind: def.KindOf(),
 		Started: state.Last, Manual: manual}
 	rec.ID = r.newID(rec.Started)
-	var out []byte
 	var err error
-	if _, lookErr := r.LookPath(argv[0]); lookErr != nil {
-		err = fmt.Errorf("%s %w", argv[0], ErrMissing)
+	if run := r.Kinds[rec.Kind]; run == nil {
+		err = fmt.Errorf("mtm runs no %q schedules", rec.Kind)
 	} else {
 		runCtx, cancel := context.WithTimeout(ctx, def.Limit())
-		out, err = r.Exec(runCtx, argv, r.env(def))
+		err = run(runCtx, def, &rec)
 		if err != nil && runCtx.Err() == context.DeadlineExceeded {
 			err = fmt.Errorf("timed out after %s: %w", def.Limit(), context.DeadlineExceeded)
 		}
@@ -566,7 +854,6 @@ func (r *Runner) execute(ctx context.Context, def Def, state State, manual bool)
 	}
 	rec.Finished = r.now()
 	rec.Duration = rec.Finished - rec.Started
-	rec.Output = tail(string(out), outputLimit)
 	switch {
 	case err == nil:
 		rec.Outcome = OutcomeOK
@@ -627,7 +914,7 @@ func (r *Runner) record(def Def, rec Record) error {
 		} else {
 			s.Failures = 0
 		}
-		s.Next = s.Last + Delay(def.Every(), s.Failures).Milliseconds()
+		s.Next, _ = def.after(s.Last, s.Failures, r.loc())
 		s.Updated = rec.Finished
 		return tx.Put(Table.Name, s.ID, s)
 	})

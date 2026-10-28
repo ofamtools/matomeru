@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,9 +19,15 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/schedules"
 )
 
-// Schedules: commands mtm runs on an interval, so the signal producers
-// (o-gh signals, o-slack signals) feed the inbox without anyone pressing
-// a key (internal/schedules).
+// Schedules: what mtm runs on its own, on an interval or by the clock:
+// commands (the signal producers, o-gh signals and o-slack signals, so
+// they feed the inbox without anyone pressing a key) and prompts (an agent
+// started, or a pane sent a prompt, schedule_prompts.go). Each is a row of
+// a kind (internal/schedules); nothing here knows one row from another.
+//
+// Rows a person adds (schedule add, edit, duplicate, delete, the form)
+// are stored in the database (schedule_defs) and merge over the
+// configured rows by name (schedule_edit.go).
 //
 // Where they live: the rows are configuration. The built-ins merge by
 // name with <config>/schedules.json (a JSON array, like harnesses.json),
@@ -55,11 +63,15 @@ const (
 var scheduleColumns = []ochazuke.Column{
 	{Title: "schedule", Min: 12},
 	{Title: "on", Priority: 1},
-	{Title: "every", Priority: 2},
+	{Title: "when", Priority: 2},
 	{Title: "last", Priority: 1},
 	{Title: "next", Align: ochazuke.AlignRight, Priority: 3},
-	{Title: "command", Priority: 4},
+	{Title: "runs", Priority: 4},
 }
+
+// settingCatchUp is what every schedule without its own catch_up does
+// about the runs it missed while mtm was closed.
+const settingCatchUp = "schedules.catch-up"
 
 // intervalChoices are the set-interval chooser's rows.
 var intervalChoices = []string{"1m", "5m", "10m", "15m", "30m", "1h", "4h", "24h"}
@@ -68,6 +80,8 @@ var intervalChoices = []string{"1m", "5m", "10m", "15m", "30m", "1h", "4h", "24h
 // runner, the page's list and detail, and the TUI's timers.
 type scheduleState struct {
 	defs    []schedules.Def
+	stored  []schedules.Def // the rows schedule add stored, over defs by name
+	env     atomic.Pointer[promptEnv]
 	loadErr string // why schedules.json did not load (the built-ins run)
 	runner  *schedules.Runner
 	list    *ochazuke.List
@@ -99,10 +113,15 @@ func (a *App) openSchedules(configDir string) error {
 		return err
 	}
 	runner.Expand = a.expandSchedule
+	runner.Kinds[schedules.KindPrompt] = a.runPromptSchedule
+	runner.Location = a.location()
 	defs, err := schedules.Load(filepath.Join(configDir, scheduleFile))
 	st := &scheduleState{defs: defs, runner: runner}
 	if err != nil {
 		st.defs, st.loadErr = schedules.Defaults(), err.Error()
+	}
+	if st.stored, err = runner.Stored(); err != nil {
+		return err
 	}
 	st.after = func(d time.Duration, msg tea.Msg) tea.Cmd {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
@@ -136,9 +155,11 @@ func (a *App) expandSchedule(s string) string {
 func scheduleEnabledSetting(name string) string  { return "schedule." + name + ".enabled" }
 func scheduleIntervalSetting(name string) string { return "schedule." + name + ".interval" }
 
-// scheduleSettings are the two settings of every row.
+// scheduleSettings are schedules.catch-up and the two settings of every
+// configured row (a stored row holds its own values).
 func (a *App) scheduleSettings() []ochazuke.Setting {
-	var out []ochazuke.Setting
+	out := []ochazuke.Setting{{Name: settingCatchUp, Type: ochazuke.SettingString, Default: schedules.CatchUpNone, Enum: schedules.CatchUpValues,
+		Description: "Runs a schedule missed while mtm was closed: none skips them, once runs it once on start; a schedule's own catch-up wins"}}
 	for _, d := range a.sched.defs {
 		out = append(out,
 			ochazuke.Setting{Name: scheduleEnabledSetting(d.Name), Type: ochazuke.SettingString, Default: d.Enabled, Enum: schedules.EnabledValues,
@@ -155,18 +176,25 @@ func (a *App) scheduleSettings() []ochazuke.Setting {
 	return out
 }
 
-// scheduleDefs are the rows with the settings applied, as they are now.
+// scheduleDefs are the rows as they are now: the configured rows, the
+// stored rows over them by name, a row's settings applied when they are
+// set, and schedules.catch-up for the rows that give no catch-up.
 func (a *App) scheduleDefs() []schedules.Def {
-	out := make([]schedules.Def, 0, len(a.sched.defs))
 	s := a.r.Settings()
-	for _, d := range a.sched.defs {
-		if v := s.String(scheduleEnabledSetting(d.Name)); v != "" {
-			d.Enabled = v
+	set := func(name string) bool { v, err := s.Get(name); return err == nil && v.Set }
+	catchUp := s.String(settingCatchUp)
+	out := schedules.Layer(a.sched.defs, a.sched.stored)
+	for i := range out {
+		d := &out[i]
+		if name := scheduleEnabledSetting(d.Name); set(name) {
+			d.Enabled = s.String(name)
 		}
-		if v := s.Duration(scheduleIntervalSetting(d.Name)); v >= time.Minute {
-			d.Interval = schedules.Duration(v)
+		if name := scheduleIntervalSetting(d.Name); set(name) && !d.When().Calendar() {
+			if v := s.Duration(name); v >= time.Minute {
+				d.Interval = schedules.Duration(v)
+			}
 		}
-		out = append(out, d)
+		d.CatchUp = d.CatchUpOf(catchUp)
 	}
 	return out
 }
@@ -186,7 +214,11 @@ var scheduleNameParam = ochazuke.Parameter{Type: "string", Noun: scheduleNoun, S
 func (a *App) defineSchedules() {
 	n := scheduleNoun
 	a.r.Define(n).Columns(scheduleColumns...).
-		Verb("list", a.listSchedules, "List the schedules: whether each runs, its interval, its last run and when it is due").Rows(n).Fetch().
+		Verb("list", a.listSchedules, "List the schedules: whether each runs, when, its last run and when it is due next").Rows(n).Fetch().
+		Verb("add", a.addSchedule, "Add a schedule: a prompt (--prompt, --when, the agent's --harness, --model, --effort, --fast, --permission-mode, --project, --task, --dir, --target, --pane) or a command; in the TUI with no fields, a form").
+		Verb("edit", a.editSchedule, "Change a schedule's fields (stored by mtm; a built-in or schedules.json row gets a stored copy); in the TUI with none, its form").Positional("name").
+		Verb("duplicate", a.duplicateSchedule, "Copy a schedule to a new stored row, off (--as NAME, else NAME-copy)").Positional("name").
+		Verb("delete", a.deleteSchedule, "Delete a stored schedule (one that overrode a built-in or file row brings it back)").Positional("name").Confirm("Delete schedule {{label}}?").
 		Verb("show", a.showSchedule, "Show one schedule with its recent runs").Positional("name").Fetch().
 		Verb("history", a.scheduleHistory, "List a schedule's recent runs, newest first, with their output").Positional("name").Fetch().
 		Verb("run-now", a.runScheduleNow, "Run the schedule now, on or off, and wait for it; refused while it already runs").Positional("name").
@@ -198,14 +230,24 @@ func (a *App) defineSchedules() {
 		Mode("normal").
 		Bind("r", ochazuke.Do(n+".run-now").Hinted("run now")).
 		Bind("e", ochazuke.Do(n+".toggle").Hinted("on/off")).
-		Bind("i", ochazuke.Do(n+".set-interval").Hinted("interval"))
-	for _, verb := range []string{"show", "run-now", "enable", "disable", "toggle", "reset"} {
+		Bind("i", ochazuke.Do(n+".set-interval").Hinted("interval")).
+		Bind("n", ochazuke.Do(n+".add").Hinted("add")).
+		Bind("E", ochazuke.Do(n+".edit").Hinted("edit")).
+		Bind("d d", ochazuke.Do(n+".delete").Hinted("delete"))
+	for _, verb := range []string{"show", "run-now", "enable", "disable", "toggle", "reset", "delete"} {
 		a.parameters(n+"."+verb, map[string]ochazuke.Parameter{"name": scheduleNameParam})
 	}
 	a.parameters(n+".history", map[string]ochazuke.Parameter{"name": scheduleNameParam,
 		"limit": {Type: "integer", Description: "At most this many runs (default all kept)"}})
 	a.parameters(n+".set-interval", map[string]ochazuke.Parameter{"name": scheduleNameParam,
 		"interval": {Type: "string", Description: "How often: 1m, 5m, 1h, …"}})
+	add, edit := a.scheduleParams(), a.scheduleParams()
+	add["name"] = ochazuke.Parameter{Type: "string", Description: "The schedule's name (letters, digits, dashes); omitted, made from the prompt"}
+	edit["name"] = scheduleNameParam
+	a.parameters(n+".add", add)
+	a.parameters(n+".edit", edit)
+	a.parameters(n+".duplicate", map[string]ochazuke.Parameter{"name": scheduleNameParam,
+		"as": {Type: "string", Description: "The copy's name (default NAME-copy)"}})
 	a.ownedBy(n, scheduleListID)
 }
 
@@ -234,20 +276,29 @@ func (a *App) addSchedulesPage() error {
 
 // scheduleView is a schedule as list, show and the rows answer it.
 type scheduleView struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Command     []string `json:"command"`
-	Interval    string   `json:"interval"`
-	Timeout     string   `json:"timeout"`
-	Enabled     string   `json:"enabled"`
-	Active      bool     `json:"active"`
-	Why         string   `json:"why,omitempty"`
-	Running     bool     `json:"running,omitempty"`
-	LastRun     int64    `json:"last_run,omitempty"`
-	LastOutcome string   `json:"last_outcome,omitempty"`
-	LastError   string   `json:"last_error,omitempty"`
-	Failures    int      `json:"failures,omitempty"`
-	NextRun     int64    `json:"next_run,omitempty"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Kind        string          `json:"kind"`
+	Source      string          `json:"source"`
+	Command     []string        `json:"command,omitempty"`
+	Prompt      string          `json:"prompt,omitempty"`
+	Agent       schedules.Agent `json:"agent,omitzero"`
+	When        string          `json:"when"`
+	Start       string          `json:"start,omitempty"`
+	End         string          `json:"end,omitempty"`
+	CatchUp     string          `json:"catch_up"`
+	Missed      int             `json:"missed,omitempty"`
+	Interval    string          `json:"interval,omitempty"`
+	Timeout     string          `json:"timeout"`
+	Enabled     string          `json:"enabled"`
+	Active      bool            `json:"active"`
+	Why         string          `json:"why,omitempty"`
+	Running     bool            `json:"running,omitempty"`
+	LastRun     int64           `json:"last_run,omitempty"`
+	LastOutcome string          `json:"last_outcome,omitempty"`
+	LastError   string          `json:"last_error,omitempty"`
+	Failures    int             `json:"failures,omitempty"`
+	NextRun     int64           `json:"next_run,omitempty"`
 	// Runs are the recent runs (show only).
 	Runs []schedules.Record `json:"runs,omitempty"`
 }
@@ -256,8 +307,12 @@ type scheduleView struct {
 // by its last check (the runner checks off the loop; before one it reads
 // "not checked yet"); the CLI checks it.
 func (a *App) viewSchedule(d schedules.Def, s schedules.State, now int64) scheduleView {
-	v := scheduleView{Name: d.Name, Description: d.Description, Command: d.Command, Interval: scheduleSpan(d.Every()), Timeout: scheduleSpan(d.Limit()),
+	v := scheduleView{Name: d.Name, Description: d.Description, Kind: d.KindOf(), Source: d.Source, Command: d.Command, Prompt: d.Prompt, Agent: d.Agent,
+		When: d.When().Text(), Start: d.Start, End: d.End, CatchUp: d.CatchUp, Missed: s.Missed, Timeout: scheduleSpan(d.Limit()),
 		Enabled: d.Enabled, Running: s.Running(now), LastRun: s.Last, LastOutcome: s.LastOutcome, LastError: s.LastError, Failures: s.Failures}
+	if d.Interval > 0 {
+		v.Interval = scheduleSpan(d.Every())
+	}
 	switch d.Enabled {
 	case schedules.On:
 		v.Active = true
@@ -273,9 +328,27 @@ func (a *App) viewSchedule(d schedules.Def, s schedules.State, now int64) schedu
 		}
 	}
 	if v.Active {
-		v.NextRun = max(s.DueAt(d.Every()), now)
+		if at, ok := d.Upcoming(s, now, d.CatchUp, a.sched.runner.Location); ok {
+			v.NextRun = max(at, now)
+		}
 	}
 	return v
+}
+
+// runsCell says what a run does: the command, or the agent and its prompt.
+func (v scheduleView) runsCell() string {
+	if v.Kind != schedules.KindPrompt {
+		return strings.Join(v.Command, " ")
+	}
+	who := cmp.Or(v.Agent.Harness, "agent")
+	if v.Agent.Target == schedules.TargetPane {
+		who += " → " + cmp.Or(v.Agent.Pane, v.Name)
+	}
+	prompt := strings.Join(strings.Fields(v.Prompt), " ")
+	if prompt == "" {
+		prompt = "(no prompt)"
+	}
+	return who + ": " + prompt
 }
 
 // onCell is the row's enabled cell: on, off, auto (on) or auto (off).
@@ -311,7 +384,7 @@ func (v scheduleView) lastCell(now int64) string {
 
 func (v scheduleView) nextCell(now int64) string {
 	switch {
-	case !v.Active:
+	case !v.Active || v.NextRun == 0 && v.When == "never":
 		return ""
 	case v.NextRun <= now:
 		return "due"
@@ -339,7 +412,7 @@ func scheduleRowID(name string) string { return "schedule:" + name }
 
 func (a *App) scheduleRow(v scheduleView, now int64) ocli.Row {
 	return ocli.Row{Noun: scheduleNoun, ID: scheduleRowID(v.Name), Label: v.Name, Data: v, Cells: []string{
-		v.Name, v.onCell(), v.Interval, v.lastCell(now), v.nextCell(now), strings.Join(v.Command, " ")}}
+		v.Name, v.onCell(), v.When, v.lastCell(now), v.nextCell(now), v.runsCell()}}
 }
 
 // refreshSchedules rebuilds the page's rows.
@@ -363,7 +436,7 @@ func (a *App) refreshSchedules() error {
 func (a *App) renderSchedules(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	return a.withLinkedDetail(a.sched.detail, width, height, func(w, h int) ochazuke.Block {
 		s := ochazuke.NewStyles(*a.m.Appearance)
-		head := "schedules · r run now · e on/off · i interval · settings schedule.NAME.enabled|interval"
+		head := "schedules · n add · E edit · r run now · e on/off · i interval · settings schedules.catch-up, schedule.NAME.enabled|interval"
 		if !a.sched.live {
 			head = "schedules · they run while the TUI is open"
 		}
@@ -397,20 +470,43 @@ func (a *App) scheduleFacts(v scheduleView) string {
 	}
 	failures := ""
 	if v.Failures > 0 {
-		failures = fmt.Sprintf("%d in a row; backing off to %s", v.Failures, scheduleSpan(schedules.Delay(mustDuration(v.Interval), v.Failures)))
+		failures = fmt.Sprintf("%d in a row", v.Failures)
+		if v.Interval != "" {
+			failures += "; backing off to " + scheduleSpan(schedules.Delay(mustDuration(v.Interval), v.Failures))
+		}
 	}
+	missed := ""
+	if v.Missed > 0 {
+		missed = fmt.Sprintf("%d skipped while mtm was closed (catch-up %s)", v.Missed, v.CatchUp)
+	}
+	settings := v.Source + " · " + scheduleEnabledSetting(v.Name) + ", " + scheduleIntervalSetting(v.Name)
+	if v.Source == schedules.SourceStored {
+		settings = "stored by mtm · E edits it"
+	}
+	ag := v.Agent
 	text := v.Name + "\n\n" + facts(
 		"what", v.Description,
+		"kind", v.Kind,
 		"command", strings.Join(v.Command, " "),
+		"prompt", v.Prompt,
+		"harness", strings.TrimSpace(ag.Harness+" "+ag.Model),
+		"settings", strings.Join(settingPairs(ag), " "),
+		"project", strings.TrimSpace(ag.Project+" "+ag.Task),
+		"folder", ag.Dir,
+		"target", strings.TrimSpace(ag.Target+" "+ag.Pane),
 		"enabled", v.onCell(),
 		"why", v.Why,
-		"every", v.Interval,
+		"when", v.When,
+		"from", v.Start,
+		"until", v.End,
+		"catch-up", v.CatchUp,
+		"missed", missed,
 		"timeout", v.Timeout,
 		"last", strings.TrimSpace(stamp(v.LastRun)+" "+v.LastOutcome),
 		"error", v.LastError,
 		"failing", failures,
 		"next", next,
-		"settings", scheduleEnabledSetting(v.Name)+", "+scheduleIntervalSetting(v.Name),
+		"source", settings,
 	)
 	runs, err := a.sched.runner.History(v.Name, historyShown)
 	if err != nil {
@@ -424,6 +520,9 @@ func (a *App) scheduleFacts(v scheduleView) string {
 		line := fmt.Sprintf("%s  %-7s %5s", time.UnixMilli(r.Started).In(a.location()).Format("Jan 2 15:04"), r.Outcome, (time.Duration(r.Duration) * time.Millisecond).Round(time.Millisecond*100))
 		if r.Manual {
 			line += "  run now"
+		}
+		if l := r.Launched; l != nil {
+			line += "  " + cmp.Or(l.Pane, l.Target) + " " + l.Prompt
 		}
 		if r.Error != "" {
 			line += "  " + r.Error
@@ -439,15 +538,17 @@ func (a *App) scheduleFacts(v scheduleView) string {
 func mustDuration(s string) time.Duration { d, _ := time.ParseDuration(s); return d }
 
 // scheduleSpan is a duration without its zero tail: 5m, 1h, 1h30m.
-func scheduleSpan(d time.Duration) string {
-	s := d.String()
-	if strings.HasSuffix(s, "m0s") {
-		s = strings.TrimSuffix(s, "0s")
+func scheduleSpan(d time.Duration) string { return schedules.Span(d) }
+
+// settingPairs are a prompt row's launch settings, effort=high fast=on.
+func settingPairs(ag schedules.Agent) []string {
+	var out []string
+	for _, kv := range [][2]string{{"effort", ag.Effort}, {"fast", ag.Fast}, {"permission-mode", ag.Permission}} {
+		if kv[1] != "" {
+			out = append(out, kv[0]+"="+kv[1])
+		}
 	}
-	if strings.HasSuffix(s, "h0m") {
-		s = strings.TrimSuffix(s, "0m")
-	}
-	return s
+	return out
 }
 
 // scheduleAt is the schedule a verb acts on: --name, else the targeted row.
@@ -462,7 +563,7 @@ func (a *App) scheduleAt(ctx ochazuke.Ctx) (schedules.Def, error) {
 	d, ok := a.scheduleDef(name)
 	if !ok {
 		var names []string
-		for _, d := range a.sched.defs {
+		for _, d := range a.scheduleDefs() {
 			names = append(names, d.Name)
 		}
 		return schedules.Def{}, fmt.Errorf("unknown schedule %q; known: %s", name, strings.Join(names, ", "))
@@ -538,6 +639,7 @@ func (a *App) runScheduleNow(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	runner, runCtx := a.sched.runner, a.sched.ctx
+	a.scheduleEnv()
 	return ochazuke.Pending(func(context.Context) (any, error) {
 		return runner.RunNow(runCtx, d)
 	}).Then(func(c ochazuke.Ctx, v any, err error) {
@@ -546,9 +648,7 @@ func (a *App) runScheduleNow(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		if rec, ok := v.(schedules.Record); ok && err == nil {
 			c.Notify(runNotice(rec))
-			if err := a.refreshInbox(); err != nil {
-				a.r.UI().Error(err.Error())
-			}
+			a.afterScheduleRun(rec)
 		}
 	})
 }
@@ -562,10 +662,23 @@ func runNotice(rec schedules.Record) string {
 	return text
 }
 
+// setScheduleEnabled turns a row on or off where its value lives: a
+// stored row's own field (a setting set for it is reset), a configured
+// row's setting.
 func (a *App) setScheduleEnabled(ctx ochazuke.Ctx, value string) ochazuke.Result {
 	d, err := a.scheduleAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
+	}
+	if d.Source == schedules.SourceStored {
+		d.Enabled = value
+		if _, declared := a.r.Settings().Get(scheduleEnabledSetting(d.Name)); declared == nil {
+			_ = a.r.Settings().Reset(scheduleEnabledSetting(d.Name))
+		}
+		if err := a.saveSchedule(d); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return a.scheduleAnswer(d)
 	}
 	if err := a.r.Settings().Set(scheduleEnabledSetting(d.Name), value); err != nil {
 		return ochazuke.Failed(err)
@@ -602,6 +715,18 @@ func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
 		v, err := time.ParseDuration(every)
 		if err != nil {
 			return ochazuke.Failed(fmt.Errorf("interval %q: %w", every, err))
+		}
+		if d.Source == schedules.SourceStored || d.When().Calendar() {
+			// A stored row, or one timed by the clock, holds its timing
+			// itself: the interval replaces it.
+			if v < time.Minute {
+				return ochazuke.Failed(errors.New("an interval is at least 1m"))
+			}
+			d.SetWhen(schedules.When{Interval: schedules.Duration(v)})
+			if err := a.saveSchedule(d); err != nil {
+				return ochazuke.Failed(err)
+			}
+			return a.scheduleAnswer(d)
 		}
 		if err := a.r.Settings().Set(scheduleIntervalSetting(d.Name), v.String()); err != nil {
 			return ochazuke.Failed(err)
@@ -688,6 +813,11 @@ func (a *App) schedulesUpdate(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		a.sched.ticking = true
+		// Rows another mtm or the CLI stored since are read each check.
+		if stored, err := a.sched.runner.Stored(); err == nil {
+			a.sched.stored = stored
+		}
+		a.scheduleEnv()
 		defs, runner, ctx := a.scheduleDefs(), a.sched.runner, a.sched.ctx
 		return func() tea.Msg { return scheduleTicked{runner.Tick(ctx, defs)} }
 	case scheduleTicked:
@@ -703,15 +833,26 @@ func (a *App) schedulesUpdate(msg tea.Msg) tea.Cmd {
 		if err := a.refreshSchedules(); err != nil {
 			a.r.UI().Error(err.Error())
 		}
-		if err := a.refreshInbox(); err != nil {
-			a.r.UI().Error(err.Error())
-		}
+		a.afterScheduleRun(msg.rec)
 		if msg.rec.Failed() && msg.rec.Outcome != schedules.OutcomeMissing && a.scheduleFailures(msg.rec.ScheduleID) == 1 {
 			a.r.UI().Notify(runNotice(msg.rec))
 		}
 		return a.waitScheduleRun()
 	}
 	return nil
+}
+
+// afterScheduleRun brings the run's results in: the inbox (signals), and
+// the pane list when it started or reached a pane.
+func (a *App) afterScheduleRun(rec schedules.Record) {
+	if err := a.refreshInbox(); err != nil {
+		a.r.UI().Error(err.Error())
+	}
+	if rec.Launched != nil && a.r.Instances[paneListID] != nil {
+		if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "refresh", Target: paneListID}); err != nil {
+			a.r.UI().Error(err.Error())
+		}
+	}
 }
 
 func (a *App) scheduleFailures(name string) int {

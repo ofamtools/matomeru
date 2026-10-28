@@ -51,6 +51,7 @@ func scheduleApp(t *testing.T) (*App, *fakeRuns, *time.Time) {
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 	f := &fakeRuns{out: "0 signals"}
 	r := a.sched.runner
+	r.Location = time.UTC
 	r.Now = func() time.Time { return now }
 	r.Exec = f.exec
 	r.LookPath = func(name string) (string, error) {
