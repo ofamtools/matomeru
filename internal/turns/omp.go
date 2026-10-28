@@ -94,6 +94,7 @@ type OmpParser struct {
 	leaf    string // "" with no leaf: an empty or cleared session
 	dirty   bool
 	turns   []Turn
+	live    Live // the session's settings as the log states them (settings.go)
 }
 
 // Feed reads one line of the log. A line that does not parse (a partial
@@ -107,6 +108,7 @@ func (p *OmpParser) Feed(line []byte) {
 	if json.Unmarshal(line, &e) != nil {
 		return
 	}
+	p.live.feedOmp(line)
 	if e.Type == "session" {
 		if p.Session == "" {
 			p.Session = e.ID

@@ -87,6 +87,7 @@ type ClaudeParser struct {
 	last    time.Time // the newest record's time in the running turn
 	started bool
 	cwd     string // the newest main-chain record's cwd
+	live    Live   // the session's settings as the log states them (settings.go)
 }
 
 func (p *ClaudeParser) init() {
@@ -104,6 +105,7 @@ func (p *ClaudeParser) Feed(line []byte) {
 	if len(line) == 0 || line[0] != '{' {
 		return
 	}
+	p.live.feedClaude(line)
 	var r claudeRecord
 	if json.Unmarshal(line, &r) != nil || r.IsSidechain {
 		return
