@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -155,7 +156,21 @@ func (a *App) addPromptBox() error {
 		Mode("normal").
 		Bind("enter", ochazuke.Do(promptNoun+".send")).
 		Bind("ctrl+t", ochazuke.Do(promptNoun+".mode")).
-		Bind("esc", ochazuke.Do(promptNoun+".back"))
+		Bind("esc", ochazuke.Do(promptNoun+".back")).
+		// k (and up) on the box's first line goes back up to the turns, as
+		// a motion past a list's edge spills to the stop drawn above;
+		// elsewhere they move the cursor up a line. j on the last line
+		// stays: the box is the bottom of the page.
+		Bind("k", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide()).
+		Bind("up", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide())
+	a.r.DefineGuard("prompt-top-line", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		in := a.pb.input
+		if in == nil || ev.Focus != promptID {
+			return false
+		}
+		at := min(max(0, in.Cursor), len(in.Text))
+		return !slices.Contains(in.Text[:at], '\n')
+	})
 	a.parameters(promptNoun+".mode", map[string]ochazuke.Parameter{"mode": {Type: "string", Enum: promptModes, Description: "The mode to switch to; none takes the next"}})
 	// i writes a prompt: from the pane row while the Turns tab shows, and
 	// from any row of the turns.
