@@ -14,7 +14,7 @@ import (
 // toPage moves to a page with ctrl+j, the way a user gets there.
 func toPage(t *testing.T, a *App, page string) {
 	t.Helper()
-	for range 10 {
+	for range 20 {
 		if a.r.Page == page {
 			return
 		}
