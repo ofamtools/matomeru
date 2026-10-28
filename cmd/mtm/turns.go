@@ -47,6 +47,13 @@ func (a *App) addTurns() error {
 			Verb("back", a.turnsBack, "Go back to the pane row the turns belong to").
 			Mode("normal").Bind("esc", ochazuke.Do(noun+".back"))
 	}
+	// h on a closed turn goes back up to the pane row too: the tree's h
+	// steps onto a row's parent and a turn's row has none in the tree, and
+	// the timeline's h only closes. On an open turn h still closes it.
+	a.r.DefineGuard("turn-closed", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool { return a.turnClosed(ev.Focus) })
+	a.r.Define("turn").Mode("normal").
+		Bind("h", ochazuke.Do("turn.back").Guard("turn-closed").Hide()).
+		Bind("left", ochazuke.Do("turn.back").Guard("turn-closed").Hide())
 	// y copies a turn's response, Y its prompt and response, from its row
 	// or any line of it; too large for the clipboard, or with no clipboard
 	// program, it is offered as a file or a pager (turns_model.go).
@@ -252,6 +259,39 @@ func (a *App) turnsBack(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(target)
+}
+
+// turnClosed reports whether id is a turn's row or card that shows no
+// body: a closed card, or a tree row that is collapsed or has no lines.
+func (a *App) turnClosed(id string) bool {
+	inst := a.r.Instances[id]
+	if inst == nil || inst.Noun != "turn" {
+		return false
+	}
+	ref, ok := inst.Data.(turnRef)
+	if !ok {
+		return false
+	}
+	if ref.Card {
+		tl := a.cardTimeline(id)
+		return tl != nil && !tl.IsOpen(id)
+	}
+	tree := a.pv.turns
+	if ref.Review {
+		tree = a.reviewTurns
+	}
+	if tree == nil {
+		return false
+	}
+	if tree.Collapsed(id) {
+		return true
+	}
+	for _, n := range tree.Nodes() {
+		if n.Parent == id {
+			return false
+		}
+	}
+	return true
 }
 
 // openTurn is turn.open: expand the row and mark a finished turn reviewed.
