@@ -21,7 +21,9 @@ func (a *App) defineProject() {
 		Verb("directory", a.addProjectDirectory, "Attach directory; omit path to choose").Positional("path").
 		Verb("default", a.defaultProjectDirectory, "Set default directory").Positional("path").
 		Verb("remove-directory", a.removeProjectDirectory, "Detach a directory (never touches disk); removing the default promotes the next").Positional("path").
+		Renamed("directory.remove", oldNamesSince, oldNamesRemoveAfter).
 		Verb("edit-directory", a.editProjectDirectory, "Point an attached directory at another path, keeping its default mark").Positional("path").
+		Renamed("directory.edit", oldNamesSince, oldNamesRemoveAfter).
 		Mode("normal").Bind("enter", ochazuke.Do("project.open")).
 		Bind("l", ochazuke.Do("project.open")).
 		Bind("i", ochazuke.Do("project.edit")).Bind("L", ochazuke.Do("project.launch")).

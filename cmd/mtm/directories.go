@@ -376,7 +376,9 @@ func (a *App) defineDirectories() {
 		}
 		return ochazuke.Done(bases)
 	}).Fetch().Verb("add-base", a.addBase, "Add a project base and scan it; omit path to choose").Positional("path").
+		Renamed("base.add", oldNamesSince, oldNamesRemoveAfter).
 		Verb("remove-base", a.removeBase, "Stop scanning a project base (disk untouched)").Positional("path").
+		Renamed("base.remove", oldNamesSince, oldNamesRemoveAfter).
 		Verb("search", a.searchDirectories, "Filter the known directories")
 	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": {Type: "string"}, "depth": {Type: "integer"}})
 	a.parameters("dirs.remove-base", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})

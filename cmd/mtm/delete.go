@@ -7,6 +7,16 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
+// The verbs renamed when ochazuke refused dotted verbs (mtm 5ed9521,
+// ochazuke v0.18.0) keep their old names as deprecated aliases for one
+// release (Keep actions): dirs base.add/base.remove, project and task
+// delete.confirm, project directory.edit/directory.remove. A host holding
+// an old catalog (nabe's registry) still reaches them.
+const (
+	oldNamesSince       = "mtm 5ed9521 (2026-10-27)"
+	oldNamesRemoveAfter = "the next mtm release"
+)
+
 // projectDeleteConfirm is the delete confirm of a project or task (and of
 // a project's outline row): the record and what it orphans.
 const projectDeleteConfirm = "Delete {{label}}?\nOrphan:\n{{affected}}\nDirectories and panes are untouched."
@@ -16,6 +26,7 @@ func (a *App) defineDeletion() {
 		a.r.Define(noun).
 			Verb("delete", a.confirmDeletion, "Delete record; show affected owners before confirming").
 			Verb("confirm-delete", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm(projectDeleteConfirm).
+			Renamed("delete.confirm", oldNamesSince, oldNamesRemoveAfter).
 			Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
 		a.parameters(noun+".confirm-delete", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
 	}
