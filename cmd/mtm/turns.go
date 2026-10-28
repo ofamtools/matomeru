@@ -40,6 +40,19 @@ func (a *App) addTurns() error {
 		Mode("normal").
 		Bind("l", ochazuke.Do("pane.turns").Guard("pane-tab-turns").Hinted("turns"))
 	a.r.DefineGuard("pane-tab-turns", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.pv.tab == tabTurns })
+	// R finds the pane's logs again from nothing (turns_refresh.go): on the
+	// pane row while the Turns tab shows, and on any row of the turns, for
+	// the pane they are of (one handler). The pane row's footer hints it;
+	// the turn rows' footer is full, so there it is only in ? and the palette.
+	a.r.Define("pane").
+		Verb("refresh-turns", a.refreshPaneTurns, "Find the pane's session log again (a transcript written after the first read) and reread its turns into the Turns tab").Fetch().
+		Mode("normal").
+		Bind("R", ochazuke.Do("pane.refresh-turns").Guard("pane-tab-turns").Hinted("refresh turns"))
+	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {
+		a.r.Define(noun).
+			Verb("refresh-turns", a.refreshPaneTurns, "Find the log of the pane the turns are of again and reread its turns").Fetch().
+			Mode("normal").Bind("R", ochazuke.Do(noun+".refresh-turns").Hide())
+	}
 	// esc in the tree goes back up to the pane row the turns belong to, as
 	// the note body's esc goes back to the notes list.
 	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {

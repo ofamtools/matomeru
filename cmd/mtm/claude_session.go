@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/turns"
@@ -61,6 +62,76 @@ func claudeLookup(projects string, ws *work.Store, p pane, listing []pane, start
 		}
 	}
 	return q
+}
+
+// agentStartUnknownFor is how long "no claude process found" stands
+// before ps is asked again: the agent may not have started yet.
+const agentStartUnknownFor = 30 * time.Second
+
+// agentStarts caches each pane's agent start (processAgentStart), so the
+// Turns tab's polls do not run ps every time. An entry stands while the
+// pane's process (pid) and reported session are the same; a found start
+// stands until then, "none found" for agentStartUnknownFor. forget drops a
+// pane's entry (pane.refresh-turns). Safe for concurrent use: lookups run
+// off the loop.
+type agentStarts struct {
+	mu   sync.Mutex
+	now  func() time.Time
+	byID map[string]agentStart
+}
+
+// agentStart is one pane's cached start: the process and session it was
+// looked up for, the start (zero: none found) and when it was looked up.
+type agentStart struct {
+	pid     int
+	session string
+	start   time.Time
+	at      time.Time
+}
+
+// started is p's agent start through lookup, cached.
+func (c *agentStarts) started(p pane, lookup func(pane) time.Time) time.Time {
+	if lookup == nil {
+		return time.Time{}
+	}
+	now := time.Now
+	if c.now != nil {
+		now = c.now
+	}
+	c.mu.Lock()
+	e, ok := c.byID[p.ID]
+	c.mu.Unlock()
+	if ok && e.pid == p.PID && e.session == p.AgentSession && (!e.start.IsZero() || now().Sub(e.at) < agentStartUnknownFor) {
+		return e.start
+	}
+	start := lookup(p)
+	c.mu.Lock()
+	if c.byID == nil {
+		c.byID = map[string]agentStart{}
+	}
+	c.byID[p.ID] = agentStart{pid: p.PID, session: p.AgentSession, start: start, at: now()}
+	c.mu.Unlock()
+	return start
+}
+
+// forget drops window's cached start.
+func (c *agentStarts) forget(window string) {
+	c.mu.Lock()
+	delete(c.byID, window)
+	c.mu.Unlock()
+}
+
+// agentStartedFunc is the cached agent start lookup for claudeLookup, made
+// on the loop (it reads a.agentStarted) for use off it.
+func (a *App) agentStartedFunc() func(pane) time.Time {
+	lookup, cache := a.agentStarted, a.starts
+	if lookup == nil {
+		return nil
+	}
+	if cache == nil {
+		return lookup
+	}
+	return func(p pane) time.Time { return cache.started(p, lookup) }
 }
 
 // processAgentStart is when p's Claude Code process started, from the

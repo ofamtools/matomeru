@@ -38,7 +38,9 @@ import (
 //     response its output, read only when the turn is opened or copied.
 //     A new command (the window's command_seq) reads the history again.
 //   - Any other pane, or a Claude pane whose log is not found, keeps the
-//     turns mtm's capture hooks journaled (turns.go): the fallback.
+//     turns mtm's capture hooks journaled (turns.go): the fallback,
+//     which tries the log again on a backoff and on pane.refresh-turns
+//     (turns_refresh.go).
 //
 // Every turn is closed when it appears, the running one too; the running
 // turn's row carries activeTurnMarker and is drawn bold while older rows
@@ -93,10 +95,11 @@ type paneTurns struct {
 	list     []turns.Turn
 	loaded   bool // a read finished
 	loading  bool
-	fallback bool   // no session log of the pane was found: the journal's turns
-	err      string // why the last read failed
-	seq      uint64 // the command_seq the shell turns were read at
-	running  string // the command the shell ran then
+	fallback bool            // no session log of the pane was found: the journal's turns, until a retry or refresh finds one
+	cur      turnsResolution // the current session's log, as found (turns_refresh.go)
+	err      string          // why the last read failed
+	seq      uint64          // the command_seq the shell turns were read at
+	running  string          // the command the shell ran then
 	outputs  map[string]*turnOutput
 }
 
@@ -187,15 +190,7 @@ func (a *App) turnKind(p pane) int {
 	if pt := a.mturns[p.ID]; pt != nil && pt.fallback {
 		return turnsJournal
 	}
-	switch {
-	case isClaude(p) && len(a.agentSessions(p)) > 0:
-		return turnsClaude
-	case isOmp(p) && len(a.agentSessions(p)) > 0:
-		return turnsOmp
-	case !p.isAgent() && p.MarksCommands:
-		return turnsShell
-	}
-	return turnsJournal
+	return a.logKind(p)
 }
 
 // agentSessions are the sessions the pane ran, oldest first, the one it
@@ -234,53 +229,29 @@ type claudeRead struct {
 	Turns   []turns.Turn `json:"turns"`
 	NoLog   bool         `json:"no_log,omitempty"`  // no log of any of the pane's sessions exists
 	Problem string       `json:"problem,omitempty"` // a log that could not be read; the others' turns stand
+	// Session is the session of the log of the pane's current session ("" not
+	// found): tuios's id, or the one ResolveClaudeLog fell back to.
+	Session string `json:"session,omitempty"`
+	Notice  string `json:"notice,omitempty"` // what pane.refresh-turns found (turnsNotice)
 }
 
 // readPaneTurns is pane.read-turns: the pane's turns read again off the
 // loop (a Claude log from where the last read stopped, a shell's command
-// history), then the Turns tab refilled.
+// history), then the Turns tab refilled. A pane on the journal fallback
+// tries its log again when its retry is due (turns_refresh.go).
 func (a *App) readPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	pt := a.paneTurnsOf(p.ID)
-	switch a.turnKind(p) {
+	kind := a.turnKind(p)
+	if a.retryDue(pt, p) {
+		kind = a.logKind(p)
+	}
+	switch kind {
 	case turnsClaude, turnsOmp:
-		sessions, chain, find := a.agentSessions(p), pt.chain, a.sessionLogFinder(p)
-		pt.loading = true
-		return ochazuke.Pending(func(context.Context) (any, error) {
-			have := chain.Sessions()
-			for _, s := range sessions {
-				if slices.Contains(have, s) {
-					continue
-				}
-				if log := find(s); log != nil {
-					chain.AddLog(log)
-				}
-			}
-			if len(chain.Sessions()) == 0 {
-				return claudeRead{NoLog: true}, nil
-			}
-			out := claudeRead{}
-			if _, err := chain.Read(); err != nil {
-				out.Problem = err.Error()
-			}
-			out.Turns = chain.Turns()
-			return out, nil
-		}).Replacing("turns-read").Then(func(_ ochazuke.Ctx, v any, err error) {
-			pt.loading = false
-			got, _ := v.(claudeRead)
-			switch {
-			case err != nil:
-				pt.err = err.Error()
-			case got.NoLog:
-				pt.fallback = true
-			default:
-				pt.list, pt.loaded, pt.err = got.Turns, true, got.Problem
-			}
-			a.turnsRead(p.ID)
-		})
+		return a.readLogTurns(p, pt, false)
 	case turnsShell:
 		d, ok := a.panesd.(turnDaemon)
 		if !ok {
@@ -323,6 +294,82 @@ func (a *App) readPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(nil)
 }
 
+// readLogTurns reads the pane's session logs into its chain off the loop:
+// the sessions not chained yet, the current one only while the tab holds
+// no log for it. Its answer refills the tab, or puts the pane on the
+// journal fallback with its next retry; notify puts what was found in the
+// status line (pane.refresh-turns).
+func (a *App) readLogTurns(p pane, pt *paneTurns, notify bool) ochazuke.Result {
+	sessions, chain, find := a.agentSessions(p), pt.chain, a.sessionLogFinder(p)
+	current := p.AgentSession
+	known := a.resolvedSession(p.ID, current)
+	pt.loading = true
+	return ochazuke.Pending(func(context.Context) (any, error) {
+		have := chain.Sessions()
+		out := claudeRead{}
+		if known != "" && slices.Contains(have, known) {
+			out.Session = known
+		}
+		for _, s := range sessions {
+			if slices.Contains(have, s) || s == current && out.Session != "" {
+				continue
+			}
+			if log := find(s); log != nil {
+				chain.AddLog(log)
+				if s == current {
+					out.Session = log.SessionID()
+				}
+			}
+		}
+		if current != "" && out.Session == "" && slices.Contains(chain.Sessions(), current) {
+			out.Session = current
+		}
+		if len(chain.Sessions()) == 0 {
+			out.NoLog = true
+		} else {
+			if _, err := chain.Read(); err != nil {
+				out.Problem = err.Error()
+			}
+			out.Turns = chain.Turns()
+		}
+		if notify {
+			out.Notice = turnsNotice(current, out)
+		}
+		return out, nil
+	}).Replacing("turns-read").Then(func(_ ochazuke.Ctx, v any, err error) {
+		if pt.chain != chain {
+			return // a refresh started again from nothing
+		}
+		pt.loading = false
+		got, _ := v.(claudeRead)
+		if err == nil {
+			found := got.Session != ""
+			if pt.cur.reported != current {
+				pt.cur = turnsResolution{reported: current}
+			}
+			pt.cur.session = got.Session
+			if found {
+				pt.cur.tries, pt.cur.retryAt = 0, time.Time{}
+			}
+		}
+		switch {
+		case err != nil:
+			pt.err = err.Error()
+		case got.NoLog:
+			pt.fallback = true
+			pt.cur.tries++
+			pt.cur.retryAt = a.now().Add(turnsRetryAfter(pt.cur.tries))
+		default:
+			pt.fallback = false
+			pt.list, pt.loaded, pt.err = got.Turns, true, got.Problem
+		}
+		if notify && got.Notice != "" {
+			a.r.UI().Status(got.Notice)
+		}
+		a.turnsRead(p.ID)
+	})
+}
+
 // sessionLogFinder finds a session's log for the pane's harness: Claude's
 // under its projects directory (the pane's cwd first; the current session
 // through turns.ResolveClaudeLog, which falls back when tuios's id is
@@ -338,7 +385,7 @@ func (a *App) sessionLogFinder(p pane) func(session string) turns.Log {
 			return turns.NewOmpLog(path, s)
 		}
 	}
-	projects, ws, listing, started := a.claudeProjects, a.work, slices.Clone(a.panes), a.agentStarted
+	projects, ws, listing, started := a.claudeProjects, a.work, slices.Clone(a.panes), a.agentStartedFunc()
 	return func(s string) turns.Log {
 		if s == p.AgentSession {
 			// The current session: tuios's id, else the resume fallback
@@ -401,7 +448,10 @@ func (a *App) pollTurns() {
 		}
 	case turnsClaude, turnsOmp:
 	default:
-		return
+		// The journal fallback tries the pane's log again when due.
+		if !a.retryDue(pt, p) {
+			return
+		}
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
 		a.r.UI().Status(err.Error())

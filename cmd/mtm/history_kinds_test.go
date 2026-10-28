@@ -19,10 +19,10 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		"context-item.list", "dirs.bases", "dirs.list", "dirs.refresh",
 		"extension.available", "extension.list",
 		"harness.list", "harness.models", "harness.names",
-		"note.list", "pane.activity", "pane.list", "pane.preview", "pane.read-turns", "pane.transcript",
+		"note.list", "pane.activity", "pane.list", "pane.preview", "pane.read-turns", "pane.refresh-turns", "pane.transcript",
 		"panes.refresh", "projects.directories", "projects.list", "projects.state",
 		"review.list", "saved.list", "schedule.history", "schedule.list", "schedule.show", "session.list", "setup.list", "setup.plan",
-		"store.tables", "task.list", "vim.list",
+		"store.tables", "task.list", "turn-line.refresh-turns", "turn-separator.refresh-turns", "turn-step.refresh-turns", "turn.refresh-turns", "vim.list",
 	}
 	var got []string
 	for key, op := range app.r.Operations {

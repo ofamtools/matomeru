@@ -347,6 +347,11 @@ type App struct {
 	// (processAgentStart), for the stale session id fallback
 	// (claude_session.go); tests replace it.
 	agentStarted func(pane) time.Time
+	// starts caches agentStarted per pane process (agentStarts).
+	starts *agentStarts
+	// clock is the time the Turns tab's retries are timed by (now); tests
+	// replace it.
+	clock func() time.Time
 	// ompSessions is omp's sessions directory (turns.OmpSessions); tests
 	// point it at a temporary directory.
 	ompSessions string
@@ -452,6 +457,7 @@ func New(opts Options) (*App, error) {
 	a.trackNotices()
 	a.claudeProjects = turns.ClaudeProjects()
 	a.agentStarted = processAgentStart
+	a.starts = &agentStarts{now: a.now}
 	a.ompSessions = turns.OmpSessions()
 	a.configDir = configDir
 	a.dataPath = opts.Data
