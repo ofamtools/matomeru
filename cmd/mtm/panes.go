@@ -614,8 +614,8 @@ func (a *App) capturePreview(p pane, then func(ochazuke.Ctx)) ochazuke.Result {
 
 // toScreen switches the detail to the Screen tab for row, as ] does,
 // reporting whether it was on another tab. As after ], a focus in the
-// turns or the box, which Screen does not draw, moves to their pane row
-// (leaveHiddenTurns). Nothing brings the Turns tab back afterwards: copy
+// turns or the box, which Screen does not draw, moves off them at the next
+// frame (ochazuke R3.13). Nothing brings the Turns tab back afterwards: copy
 // mode and hints return to the row, which every tab draws; only live,
 // whose detach returns into the turns, restores the tab it left (liveFrom).
 func (a *App) toScreen(row string) (bool, error) {
@@ -623,7 +623,7 @@ func (a *App) toScreen(row string) (bool, error) {
 		return false, nil
 	}
 	a.pv.tab, a.pv.followed = tabScreen, fmt.Sprintf("%s|%d", row, tabScreen)
-	return true, a.leaveHiddenTurns()
+	return true, nil
 }
 
 // attachPane is pane.attach, and turn.live and turn-prompt.live (the

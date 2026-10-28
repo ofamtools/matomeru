@@ -156,6 +156,7 @@ func TestCopyAndHintsFromTheTurnsLeaveTheHiddenTurns(t *testing.T) {
 			if app.pv.tab != tabScreen {
 				t.Fatalf("pane.%s: tab %d", verb, app.pv.tab)
 			}
+			frame(app) // the frame that drops the turns moves the focus (ochazuke R3.13)
 			if app.r.Focus != row {
 				t.Fatalf("pane.%s left the focus on what Screen hides: %s", verb, where(app))
 			}
