@@ -43,24 +43,33 @@ var (
 // Join strips terminal controls and joins soft-wrapped lines: a line that
 // fills width (the pane's columns) exactly and ends mid-token continues on the
 // next, so a wrapped URL or path is one string. Lines that are hard
-// newlines stay apart. URLs split by a program's own wrap are repaired as
-// matomeru-old did (Unwrap).
+// newlines stay apart, except where a program wrapped a link itself
+// (hardJoin, wrap.go): its pieces are joined with the padding between
+// them left out.
 func Join(text string, width int) string {
+	return joinText(text, width, "", os.Stat)
+}
+
+// joinText is Join with paths resolved against cwd through stat, as
+// hardJoin checks a joined path.
+func joinText(text string, width int, cwd string, stat StatFunc) string {
 	text = strings.ReplaceAll(ansi.Strip(text), "\r\n", "\n")
 	raw := strings.Split(text, "\n")
 	lines := make([]mline, len(raw))
 	for i, line := range raw {
-		lines[i] = mline{s: line}
+		lines[i] = screenLine(i, line)
 	}
-	joined, _ := joinLines(lines, width, nil)
+	joined, _ := joinLines(lines, width, nil, cwd, stat)
 	return joined
 }
 
-// joinLines is Join over lines that may carry the screen cell of every
-// byte (mline.at), so ExtractSpans can map a match in the joined text back
-// to the screen. wrapped, when given, says which rows continue on the next
-// (a terminal's soft-wrap flags) in place of the width rule.
-func joinLines(lines []mline, width int, wrapped []bool) (string, []Cell) {
+// joinLines is Join over lines carrying the screen cell of every byte
+// (mline.at, one line per row), so ExtractSpans can map a match in the
+// joined text back to the screen. wrapped, when given, says which rows
+// continue on the next (a terminal's soft-wrap flags) in place of the
+// width rule.
+func joinLines(lines []mline, width int, wrapped []bool, cwd string, stat StatFunc) (string, []Cell) {
+	shape := learnLayout(lines)
 	out := make([]mline, 0, len(lines))
 	var cur mline
 	joining := false
@@ -85,44 +94,18 @@ func joinLines(lines []mline, width int, wrapped []bool) (string, []Cell) {
 			out = append(out, cur)
 		}
 	}
-	out = unwrap(out)
+	out = hardJoin(out, shape, cwd, stat)
 	var b strings.Builder
 	var at []Cell
-	track := len(lines) > 0 && lines[0].at != nil
 	for i, line := range out {
 		if i > 0 {
 			b.WriteByte('\n')
-			if track {
-				at = append(at, Cell{Row: -1})
-			}
+			at = append(at, Cell{Row: -1})
 		}
 		b.WriteString(line.s)
-		if track {
-			at = append(at, line.at...)
-		}
+		at = append(at, line.at...)
 	}
 	return b.String(), at
-}
-
-// unwrap repairs URLs split by hard terminal wraps (matomeru-old's Unwrap).
-func unwrap(lines []mline) []mline {
-	for i := 0; i+1 < len(lines); i++ {
-		line := lines[i].trimRight("\r ")
-		start := strings.LastIndex(line.s, "https://")
-		if start < 0 {
-			start = strings.LastIndex(line.s, "http://")
-		}
-		if start < 0 || strings.ContainsAny(line.s[start:], " \t<>`\"") {
-			continue
-		}
-		next := lines[i+1].trimSpace()
-		if next.s == "" || strings.ContainsAny(next.s, " \t<>") || (!strings.HasSuffix(line.s, "/") && !strings.HasSuffix(line.s, "-") && !strings.HasPrefix(next.s, "/") && !strings.HasPrefix(next.s, "?")) {
-			continue
-		}
-		lines[i+1] = line.concat(next)
-		lines[i] = mline{}
-	}
-	return lines
 }
 
 // mline is a line of text and, when tracked, the screen cell each of its
@@ -177,7 +160,7 @@ func overlaps(spans []span, at [2]int) bool {
 // source.Cwd and are checked on disk (Exists); each kind and text appears
 // once. Owner fields are left for Merge.
 func Extract(text string, width int, source Source) []Item {
-	text = Join(text, width)
+	text = joinText(text, width, source.Cwd, os.Stat)
 	var result []Item
 	seen := map[string]bool{}
 	add := func(kind, value string, exists *bool) {

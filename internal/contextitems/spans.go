@@ -24,7 +24,8 @@ type Span struct {
 	// against the source's folder and cleaned).
 	Item Item
 	// Raw is the text as it reads on the screen (./main.go, a URL with
-	// its wrap removed).
+	// its wrap and the padding between its pieces removed), or a
+	// hyperlink's target.
 	Raw string
 	// Key is the same for every occurrence of the same item (kind and
 	// normalized text, the rule Extract dedupes by): group by it, or hand
@@ -65,16 +66,38 @@ func ExtractSpans(rows []string, opts SpanOptions) []Span {
 		stat = os.Stat
 	}
 	lines := make([]mline, len(rows))
+	linkAt := map[[2]int]string{}
 	for r, row := range rows {
-		lines[r] = screenLine(r, ansi.Strip(row))
+		plain, links := stripLinks(row)
+		lines[r] = screenLine(r, plain)
+		for i, l := range links {
+			if l != "" {
+				c := lines[r].at[i]
+				linkAt[[2]int{c.Row, c.Col}] = l
+			}
+		}
 	}
-	text, at := joinLines(lines, opts.Width, opts.Wrapped)
-	matches := find(text, opts.Source.Cwd, stat)
-	slices.SortStableFunc(matches, func(a, b found) int { return a.start - b.start })
-	out := make([]Span, 0, len(matches))
-	for _, m := range matches {
+	text, at := joinLines(lines, opts.Width, opts.Wrapped, opts.Source.Cwd, stat)
+	// A hyperlink names its own target: its cells are its, and a pattern
+	// matching the text drawn in it (a bare URL as its label) is dropped.
+	links := hyperlinks(text, at, linkAt)
+	var claimed []span
+	out := make([]Span, 0, len(links))
+	starts := make([]int, 0, len(links))
+	for _, l := range links {
+		m, raw := hyperlinkFound(l.target, stat)
+		claimed = append(claimed, span{l.start, l.end})
+		out = append(out, Span{
+			Item:  newItem(m.kind, m.value, m.exists, opts.Source),
+			Raw:   raw,
+			Key:   itemKey(m.kind, m.value),
+			Parts: parts(l.at),
+		})
+		starts = append(starts, l.start)
+	}
+	for _, m := range find(text, opts.Source.Cwd, stat) {
 		value := strings.TrimSpace(m.value)
-		if value == "" {
+		if value == "" || overlaps(claimed, [2]int{m.start, m.end}) {
 			continue
 		}
 		out = append(out, Span{
@@ -83,8 +106,18 @@ func ExtractSpans(rows []string, opts SpanOptions) []Span {
 			Key:   itemKey(m.kind, value),
 			Parts: parts(at[m.start:m.end]),
 		})
+		starts = append(starts, m.start)
 	}
-	return out
+	order := make([]int, len(out))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(a, b int) int { return starts[a] - starts[b] })
+	sorted := make([]Span, len(out))
+	for i, j := range order {
+		sorted[i] = out[j]
+	}
+	return sorted
 }
 
 // screenLine is row r with the cell of every byte.

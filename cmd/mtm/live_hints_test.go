@@ -128,7 +128,9 @@ func TestHintsLabelTheScreen(t *testing.T) {
 	long := labelOf(t, app, wrapped)
 	at := map[string][]string{}
 	for _, m := range o.Marks {
-		at[m.Text] = append(at[m.Text], fmt.Sprintf("%d:%d", m.Row, m.Col))
+		if slices.Contains(app.hinting.labels, m.Text) { // the wrapped URL's highlights aside
+			at[m.Text] = append(at[m.Text], fmt.Sprintf("%d:%d", m.Row, m.Col))
+		}
 	}
 	if got := at[one]; !slices.Equal(got, []string{"0:5", "2:6"}) {
 		t.Fatalf("the URL twice: marks %v (all %v)", got, at)

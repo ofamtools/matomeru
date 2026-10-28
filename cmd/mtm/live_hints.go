@@ -64,6 +64,9 @@ type liveHints struct {
 	spans   []contextitems.Span
 	in      []int    // per span, its screen's index in screens
 	labels  []string // one per span; the same item shares a label
+	// pieces, per span, is the text drawn in each of its parts: a link
+	// wrapped over rows is highlighted on every piece (drawHints).
+	pieces  [][]string
 	matcher *hints.Matcher
 }
 
@@ -341,6 +344,7 @@ func (a *App) beginHints(ctx ochazuke.Ctx, h *liveHints, screens []*hintScreen) 
 			// An item whose first cell is not drawn gets no label: there
 			// would be nowhere to show it.
 			if at := s.Parts[0]; st.shows(at.Row, at.Col) {
+				h.pieces = append(h.pieces, spanPieceTexts(st.lines, s.Parts))
 				s.Parts = shiftParts(s.Parts, st.top)
 				spans = append(spans, s)
 			}
@@ -391,6 +395,17 @@ func screenName(sc *hintScreen) string {
 	return "pane"
 }
 
+// spanPieceTexts is the plain text lines draw in each of parts.
+func spanPieceTexts(lines []string, parts []contextitems.Cell) []string {
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		if p.Row >= 0 && p.Row < len(lines) {
+			out[i] = ansi.Strip(ansi.Cut(lines[p.Row], p.Col, p.End))
+		}
+	}
+	return out
+}
+
 // shiftParts moves a span's cells up by top rows: a preview's rows are
 // counted from the window's first line, as it is drawn.
 func shiftParts(parts []contextitems.Cell, top int) []contextitems.Cell {
@@ -407,22 +422,40 @@ func shiftParts(parts []contextitems.Cell, top int) []contextitems.Cell {
 
 // drawHints sets every labelled screen's overlay: the screen dimmed and,
 // for every occurrence on it whose label still starts with the letters
-// typed, the label over the occurrence's first cells.
+// typed, the label over the occurrence's first cells. An occurrence
+// joined from pieces on several rows (a wrapped link) has every piece
+// highlighted, its one label over the first.
 func (a *App) drawHints() {
 	h := a.hinting
-	style := ochazuke.NewStyles(*a.m.Appearance).Accent.Bold(true).Reverse(true)
+	styles := ochazuke.NewStyles(*a.m.Appearance)
+	style := styles.Accent.Bold(true).Reverse(true)
+	piece := styles.Accent.Underline(true)
 	overlays := make([]*ochazuke.TerminalOverlay, len(h.screens))
 	for i := range overlays {
 		overlays[i] = &ochazuke.TerminalOverlay{Dim: true}
 	}
 	typed := h.matcher.Typed()
+	var labels []*ochazuke.TerminalOverlay
+	var marks []ochazuke.OverlayMark
 	for i, s := range h.spans {
 		if !strings.HasPrefix(h.labels[i], typed) {
 			continue
 		}
-		at := s.Parts[0]
 		o := overlays[h.in[i]]
-		o.Marks = append(o.Marks, ochazuke.OverlayMark{Row: at.Row, Col: at.Col, Text: h.labels[i], Style: style})
+		if len(s.Parts) > 1 && i < len(h.pieces) {
+			for j, p := range s.Parts {
+				if text := h.pieces[i][j]; text != "" {
+					o.Marks = append(o.Marks, ochazuke.OverlayMark{Row: p.Row, Col: p.Col, Text: text, Style: piece})
+				}
+			}
+		}
+		at := s.Parts[0]
+		labels = append(labels, o)
+		marks = append(marks, ochazuke.OverlayMark{Row: at.Row, Col: at.Col, Text: h.labels[i], Style: style})
+	}
+	// Labels go over every highlight.
+	for i, o := range labels {
+		o.Marks = append(o.Marks, marks[i])
 	}
 	for i, sc := range h.screens {
 		switch {
