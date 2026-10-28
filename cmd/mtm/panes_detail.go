@@ -491,6 +491,30 @@ var leaderWords = []struct{ key, text string }{
 	{"?", "these keys"},
 }
 
+// leaderHelp gives each leader_pending row on the terminal noun its words
+// (leaderWords) as its Help, rebinding it with them, so ? help over a live
+// pane, which lists the leader's keys under the leader (ochazuke R6.10),
+// says what each does as the leader modal does. A row with a Help of its
+// own keeps it. Run once every leader row is bound.
+func (a *App) leaderHelp() error {
+	n := a.r.Noun("terminal")
+	if n == nil {
+		return nil
+	}
+	words := map[string]string{}
+	for _, w := range leaderWords {
+		words[w.key] = w.text
+	}
+	var rows []ochazuke.Binding
+	for _, b := range n.Bindings["leader_pending"] {
+		if text, ok := words[b.Keys]; ok && b.Help == "" && !b.Unbind {
+			b.Help = text
+			rows = append(rows, b)
+		}
+	}
+	return a.r.Bind(rows...)
+}
+
 // leaderColumns are the leader modal's table, as ? help draws a key
 // sequence: the leader (a Group column, so it reads once, on the first
 // row), the key after it, and what it does, wrapped inside its column.

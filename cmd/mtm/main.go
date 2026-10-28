@@ -518,6 +518,9 @@ func New(opts Options) (*App, error) {
 	if err := a.defineKeyMap(); err != nil {
 		return nil, err
 	}
+	if err := a.leaderHelp(); err != nil {
+		return nil, err
+	}
 
 	// Pages are tabs in registration order: Panes first, then Work.
 	if err := a.addPanesPage(); err != nil {
