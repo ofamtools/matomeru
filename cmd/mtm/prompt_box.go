@@ -498,11 +498,13 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		if mode == promptInterrupt {
 			a.pb.mode = promptSend
 		}
+		// A queued prompt is a success: a notice (ctx.Status is the TUI's
+		// error line, drawn "Error: ...").
 		switch got, _ := v.(daemon.QueuePromptResult); {
 		case mode == promptQueue && got.Delivering:
-			ctx.Status("queued: tuios types it now, the agent is at rest")
+			ctx.Notify("queued: tuios types it now, the agent is at rest")
 		case mode == promptQueue:
-			ctx.Status(fmt.Sprintf("queued (%d waiting): tuios types it when the agent rests", max(1, got.Queued)))
+			ctx.Notify(fmt.Sprintf("queued (%d waiting): tuios types it when the agent rests", max(1, got.Queued)))
 		}
 		// The new turn (or the steer) shows once the log has it, and the
 		// turns follow it (only a send moves them; focusing the box does

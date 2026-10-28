@@ -73,8 +73,14 @@ func TestPromptPasteImageInsertsAChip(t *testing.T) {
 	if _, err := os.Stat(live[0].path); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(app.m.Status, "attached [image 1]") {
-		t.Fatalf("status %q", app.m.Status)
+	// An attach is a success: a notice naming the chip and the file, not
+	// the error line (owner, 2026-10-28: it read "Error: attached ...").
+	wantNotice := "attached [image 1] (" + filepath.Base(live[0].path) + ")"
+	if app.m.Status != "" || !slices.Contains(app.m.Notices, wantNotice) {
+		t.Fatalf("status %q notices %q, want notice %q", app.m.Status, app.m.Notices, wantNotice)
+	}
+	if f := frame(app); strings.Contains(f, "Error:") || !strings.Contains(f, "Notice: attached [image 1]") {
+		t.Fatalf("an attach reads as an error or not at all:\n%s", f)
 	}
 	if r := boxRule(t, app); !strings.Contains(r, "1 image") {
 		t.Fatalf("rule %q", r)
@@ -99,6 +105,9 @@ func TestPromptPasteFiles(t *testing.T) {
 	}
 	if live := app.pb.live(); len(live) != 1 || live[0].path != "/shots/a.PNG" {
 		t.Fatalf("attachments %+v", live)
+	}
+	if app.m.Status != "" || !slices.Contains(app.m.Notices, "attached [image 1]") {
+		t.Fatalf("status %q notices %q", app.m.Status, app.m.Notices)
 	}
 }
 

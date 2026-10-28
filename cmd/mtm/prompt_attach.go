@@ -199,9 +199,9 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			ctx.Status("could not read the clipboard: " + oneLine(err.Error()))
 			return
 		}
-		text, status := a.pastedText(read.got)
+		text, notice := a.pastedText(read.got)
 		if text == "" {
-			ctx.Status(status)
+			ctx.Status(notice)
 			return
 		}
 		if read.got.Text == "" {
@@ -211,14 +211,18 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			ctx.Status(err.Error())
 			return
 		}
-		if status != "" {
-			ctx.Status(status)
+		// An attach is a success: a notice (ctx.Status is the TUI's error
+		// line, drawn "Error: ...").
+		if notice != "" {
+			ctx.Notify(notice)
 		}
 	})
 }
 
 // pastedText is what a clipboard read writes into the box, attaching its
-// images, and the status that says so.
+// images, and the notice that says so; with no text, the notice says why
+// nothing was pasted. A saved image is named by its file only: the
+// attachments folder is long and always the same.
 func (a *App) pastedText(got clipboardContent) (string, string) {
 	switch {
 	case len(got.Files) > 0:
@@ -238,7 +242,7 @@ func (a *App) pastedText(got clipboardContent) (string, string) {
 		return strings.Join(parts, " "), status
 	case got.Image != "":
 		at := a.pb.attach(got.Image)
-		return at.chip(), fmt.Sprintf("attached %s: %s", at.chip(), got.Image)
+		return at.chip(), fmt.Sprintf("attached %s (%s)", at.chip(), filepath.Base(got.Image))
 	case got.Text != "":
 		return got.Text, ""
 	}

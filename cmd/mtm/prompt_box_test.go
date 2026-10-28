@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -120,8 +121,9 @@ func TestPromptBoxInterruptAndQueue(t *testing.T) {
 	f.queued = daemon.QueuePromptResult{ID: "q1", Position: 2, Queued: 2}
 	typeText(t, app, "then commit")
 	pressSettle(t, app, "enter")
-	if strings.Join(f.prompts, "|") != "queue w1 then commit" || !strings.Contains(app.m.Status, "queued (2 waiting)") || len(app.pb.input.Text) != 0 {
-		t.Fatalf("queue: %q %q %q", f.prompts, app.m.Status, string(app.pb.input.Text))
+	// A queued prompt is a success: a notice, not the error line.
+	if strings.Join(f.prompts, "|") != "queue w1 then commit" || app.m.Status != "" || !slices.ContainsFunc(app.m.Notices, func(n string) bool { return strings.Contains(n, "queued (2 waiting)") }) || len(app.pb.input.Text) != 0 {
+		t.Fatalf("queue: %q status %q notices %q %q", f.prompts, app.m.Status, app.m.Notices, string(app.pb.input.Text))
 	}
 	// A full queue says why and keeps the text.
 	f.prompts, f.queueErr = nil, &daemon.Error{Code: daemon.CodeQueueFull, Message: "full"}
