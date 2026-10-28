@@ -184,6 +184,10 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 	}
 	dir := a.attachmentDir(*p)
 	path := filepath.Join(dir, time.Now().UTC().Format("20060102T150405.000000")+".png")
+	// Where ctrl+v was pressed: a read that finishes after the person left
+	// the box (esc steps the cursor back) still lands there, while the
+	// draft is unchanged.
+	at, was := a.pb.input.Cursor, string(a.pb.input.Text)
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return clipboardRead{err: err}, nil
@@ -204,10 +208,13 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			ctx.Status(notice)
 			return
 		}
+		if in := a.pb.input; a.r.Focus != promptID && string(in.Text) == was {
+			in.Cursor = at
+		}
 		if read.got.Text == "" {
 			text = a.spacedAtCursor(text)
 		}
-		if err := a.insertIntoPrompt(text); err != nil {
+		if err := a.pasteIntoPrompt(text); err != nil {
 			ctx.Status(err.Error())
 			return
 		}
@@ -217,6 +224,20 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			ctx.Notify(notice)
 		}
 	})
+}
+
+// pasteIntoPrompt writes a finished clipboard read into the box's draft.
+// In the box, it is insertIntoPrompt. When the person moved the focus
+// elsewhere while the read ran, the text goes in at the draft's cursor and
+// the focus and mode stay where they put them (F10): a late result never
+// pulls the focus back.
+func (a *App) pasteIntoPrompt(text string) error {
+	if a.r.Focus == promptID {
+		return a.insertIntoPrompt(text)
+	}
+	in := a.pb.input
+	at := min(max(0, in.Cursor), len(in.Text))
+	return in.Replace(at, at, text)
 }
 
 // pastedText is what a clipboard read writes into the box, attaching its

@@ -67,7 +67,9 @@ import (
 //
 // ctrl+v in insert mode (turn-prompt.paste) pastes from the OS clipboard:
 // an image or an image file becomes an attachment, a chip [image N] at
-// the cursor, sent as the harness takes files (prompt_attach.go). ctrl+v
+// the cursor, sent as the harness takes files (prompt_attach.go). A read
+// that finishes after the focus left the box still goes into the draft,
+// where ctrl+v was pressed, and leaves the focus where it went. ctrl+v
 // is free in ochazuke's insert-mode editor rows; normal mode's ctrl+v is
 // visual block and stays.
 

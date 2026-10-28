@@ -88,3 +88,44 @@ func TestFirstEntryLandsOnTheNewestTurn(t *testing.T) {
 		}
 	}
 }
+
+// F10: a paste that completes after the person left the box goes into the
+// draft and leaves the focus where they put it; one that completes in the
+// box still focuses it in insert mode.
+func TestPasteCompletionKeepsTheFocusWhereItWent(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  func(*fakeClipboard)
+		want string
+	}{
+		{"text", func(c *fakeClipboard) { c.text = "hello there" }, "draft hello there"},
+		{"image", func(c *fakeClipboard) { c.image = true }, "draft [image 1] "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, _, clip := clipApp(t)
+			tc.set(clip)
+			typeText(t, app, "draft ")
+			paste := key(t, app, "ctrl+v") // the clipboard read is still running
+			press(t, app, "esc", "esc")     // insert, normal, then out to the turns
+			left := app.r.Focus
+			if left == promptID {
+				t.Fatalf("esc esc stayed in the box: %s", where(app))
+			}
+			settle(app, paste)
+			if app.r.Focus != left {
+				t.Fatalf("the paste pulled the focus: %s, want %s", where(app), left)
+			}
+			if got := string(app.pb.input.Text); got != tc.want {
+				t.Fatalf("draft %q, want %q", got, tc.want)
+			}
+			if app.m.Status != "" {
+				t.Fatalf("status %q", app.m.Status)
+			}
+			// Back in the box, i writes after the pasted text.
+			press(t, app, "i")
+			if app.r.Focus != promptID || app.pb.input.Cursor != len(app.pb.input.Text) {
+				t.Fatalf("i: %s cursor %d of %d", where(app), app.pb.input.Cursor, len(app.pb.input.Text))
+			}
+		})
+	}
+}
