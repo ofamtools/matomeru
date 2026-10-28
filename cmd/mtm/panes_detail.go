@@ -763,7 +763,8 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 			a.r.Placed(copyID) // l, } and tab reach copy mode from the list
 		}
 		body = a.tabBody(row, cw, ch)
-		focused = a.pv.tab == tabTurns && a.turnsList().Focused()
+		// The turns or the prompt box below them: both are the panel's.
+		focused = a.pv.tab == tabTurns && (a.turnsList().Focused() || a.r.Focus == promptID)
 	default:
 		title, body = a.groupSummary(inst)
 	}
