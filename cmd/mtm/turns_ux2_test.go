@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/unixsuperhero/ochazuke"
 )
 
 // The Turns tab and its prompt box, round 2 of the UX punch list
@@ -125,6 +127,49 @@ func TestPasteCompletionKeepsTheFocusWhereItWent(t *testing.T) {
 			press(t, app, "i")
 			if app.r.Focus != promptID || app.pb.input.Cursor != len(app.pb.input.Text) {
 				t.Fatalf("i: %s cursor %d of %d", where(app), app.pb.input.Cursor, len(app.pb.input.Text))
+			}
+		})
+	}
+}
+
+// toScreen: pane.copy and pane.hints run on a pane row from another tab
+// switch the detail to Screen. Run while the focus is in the turns (the
+// CLI, an action, the palette with a target), the switch takes the focus
+// off the turns, which the Screen tab no longer draws (F1's rule), to the
+// pane row. Leaving copy mode or hints stays on Screen, as after ]: they
+// return to the row, which every tab draws; only live, which returns into
+// the turns, brings the Turns tab back (F5).
+func TestCopyAndHintsFromTheTurnsLeaveTheHiddenTurns(t *testing.T) {
+	for _, verb := range []string{"copy", "hints"} {
+		t.Run(verb, func(t *testing.T) {
+			app, _, _ := claudeTurnsApp(t)
+			row := app.pv.turnsFor
+			frame(app)
+			press(t, app, "l")
+			if focusNoun(app) != "turn" && focusNoun(app) != "turn-card" {
+				t.Fatalf("l: %s", where(app))
+			}
+			_, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: verb, Target: row})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if app.pv.tab != tabScreen {
+				t.Fatalf("pane.%s: tab %d", verb, app.pv.tab)
+			}
+			if app.r.Focus != row {
+				t.Fatalf("pane.%s left the focus on what Screen hides: %s", verb, where(app))
+			}
+			settle(app, app.r.PendingCommands())
+			frame(app)
+			if verb == "copy" {
+				if app.r.Focus != copyID {
+					t.Fatalf("copy mode: %s", where(app))
+				}
+			}
+			press(t, app, "esc")
+			frame(app)
+			if app.r.Focus != row || app.pv.tab != tabScreen {
+				t.Fatalf("after %s: %s tab %d, want the row on Screen", verb, where(app), app.pv.tab)
 			}
 		})
 	}

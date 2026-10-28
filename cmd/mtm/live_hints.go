@@ -222,7 +222,11 @@ func (a *App) startRowHints(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("f works on a pane row"))
 	}
 	row := ctx.Instance.ID
-	if a.toScreen(row) && a.r.Terminal(paneTermID) == nil {
+	switched, err := a.toScreen(row)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if switched && a.r.Terminal(paneTermID) == nil {
 		p, err := a.paneAt(ctx.Instance)
 		if err != nil {
 			return ochazuke.Failed(err)

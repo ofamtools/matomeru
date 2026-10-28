@@ -370,7 +370,11 @@ func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.r.Terminal(paneTermID) != nil && a.attached.ID == p.ID {
 		source = paneTermID
 	}
-	if a.toScreen(ctx.Instance.ID) && source == "" {
+	switched, err := a.toScreen(ctx.Instance.ID)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	if switched && source == "" {
 		return a.capturePreview(p, func(ctx ochazuke.Ctx) {
 			if err := a.enterCopy(p, ""); err != nil {
 				ctx.Status(err.Error())
