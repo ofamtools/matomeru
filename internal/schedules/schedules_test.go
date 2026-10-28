@@ -337,11 +337,11 @@ func TestAuto(t *testing.T) {
 	db, _ := openDB(t)
 	c, f := start(), &fake{}
 	r := newRunner(t, db, c, f, "a")
-	d := Def{Name: "gh", Command: []string{"tool"}, Interval: Duration(5 * time.Minute), Enabled: Auto, Requires: [][]string{{"gh", "auth", "status"}}}
+	d := Def{Name: "gh", Command: []string{"tool"}, Interval: Duration(5 * time.Minute), Enabled: Auto, Requires: [][]string{{"gh", "auth", "status", "--active"}}}
 	if on, why := r.Active(context.Background(), d); !on || why != "auto: checks pass" {
 		t.Fatalf("auto with passing checks: %v %q", on, why)
 	}
-	if f.count() != 1 || strings.Join(f.argv[0], " ") != "gh auth status" {
+	if f.count() != 1 || strings.Join(f.argv[0], " ") != "gh auth status --active" {
 		t.Fatalf("checks %v", f.argv)
 	}
 	r.Active(context.Background(), d)
@@ -352,7 +352,7 @@ func TestAuto(t *testing.T) {
 	f.mu.Lock()
 	f.err = errors.New("exit status 1")
 	f.mu.Unlock()
-	if on, why := r.Active(context.Background(), d); on || why != "auto: gh auth status failed" {
+	if on, why := r.Active(context.Background(), d); on || why != "auto: gh auth status --active failed" {
 		t.Fatalf("auto with a failing check: %v %q", on, why)
 	}
 	d.Command = []string{"absent"}
@@ -460,4 +460,20 @@ func waitFor(t *testing.T, ok func() bool) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+}
+
+// The built-in gh-signals checks only the active gh account: plain
+// `gh auth status` fails when any configured account is broken, even an
+// inactive one.
+func TestDefaultGhCheckIsActiveAccount(t *testing.T) {
+	for _, d := range Defaults() {
+		if d.Name != "gh-signals" {
+			continue
+		}
+		if len(d.Requires) != 1 || strings.Join(d.Requires[0], " ") != "gh auth status --active" {
+			t.Fatalf("gh-signals requires %v", d.Requires)
+		}
+		return
+	}
+	t.Fatal("no gh-signals default")
 }

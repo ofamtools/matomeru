@@ -25,7 +25,7 @@ type fakeRuns struct {
 	env  [][]string
 	err  error
 	out  string
-	// checks counts the auto checks (gh auth status), which always pass.
+	// checks counts the auto checks (gh auth status --active), which always pass.
 	checks int
 }
 

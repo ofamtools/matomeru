@@ -148,7 +148,7 @@ func Defaults() []Def {
 	return []Def{
 		{Name: "gh-signals", Description: "GitHub review requests, CI and PR signals into the inbox (o-gh signals)",
 			Command: []string{"o-gh", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Auto,
-			Requires: [][]string{{"gh", "auth", "status"}},
+			Requires: [][]string{{"gh", "auth", "status", "--active"}},
 			Env:      map[string]string{"O_GH_MTM": "{mtm}", "O_GH_MTM_ARGS": "{mtm-args}"}},
 		{Name: "slack-signals", Description: "Slack mentions, DMs and threads into the inbox (o-slack signals; the work machine)",
 			Command: []string{"o-slack", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Off,
@@ -382,7 +382,7 @@ func (r *Runner) expand(s string) string {
 }
 
 // Active reports whether def runs now and, when it does not or is auto,
-// why: "off", "auto: o-gh not on PATH", "auto: gh auth status failed".
+// why: "off", "auto: o-gh not on PATH", "auto: gh auth status --active failed".
 // An auto schedule's checks run at most every probeEvery and may take a
 // few seconds; call it off the UI loop (Tick does).
 func (r *Runner) Active(ctx context.Context, def Def) (bool, string) {
