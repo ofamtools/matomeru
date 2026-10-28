@@ -30,5 +30,5 @@
                                      ┃ › write to the agent                                                          ┃  
                                      ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
-  l turn.open · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · h timeline.close · z R timeline.open-all ·…  
+  l timeline.enter · enter turn.open · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · h timeline.close · …  
                                                                                                                         

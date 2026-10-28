@@ -67,6 +67,20 @@ func (a *App) addTurns() error {
 	a.r.Define("turn").Mode("normal").
 		Bind("h", ochazuke.Do("turn.back").Guard("turn-closed").Hide()).
 		Bind("left", ochazuke.Do("turn.back").Guard("turn-closed").Hide())
+	// l on an open card steps inside it, onto the prompt (ochazuke's
+	// timeline.enter): the turn's own l only opens. Inside, the timeline's
+	// body rows walk the steps (j/k, l opens a folded one, h and esc go
+	// back to the card); y copies the step and Y the whole turn, to the
+	// registers and the clipboard (turn_cards.go).
+	a.r.Define("turn").Mode("normal").
+		Bind("l", ochazuke.Do("ochazuke.timeline.enter").Guard("timeline-card-open")).
+		Bind("right", ochazuke.Do("ochazuke.timeline.enter").Guard("timeline-card-open").Hide())
+	a.r.Define(ochazuke.TimelineBodyNoun).
+		Verb("copy", a.copyStep, "Copy the current step of the turn to the registers and the clipboard").
+		Verb("copy-turn", a.copyStepTurn, "Copy the prompt and response of the turn the focus is inside").
+		Mode("normal").
+		Bind("y", ochazuke.Do(ochazuke.TimelineBodyNoun+".copy")).
+		Bind("Y", ochazuke.Do(ochazuke.TimelineBodyNoun+".copy-turn"))
 	// y copies a turn's response, Y its prompt and response, from its row
 	// or any line of it; too large for the clipboard, or with no clipboard
 	// program, it is offered as a file or a pager (turns_model.go).

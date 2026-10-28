@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strings"
@@ -20,9 +22,13 @@ import (
 //     (AddTimeline with FollowTail). The header is the whole prompt,
 //     wrapped and never cut; the meta line under it says when, how it
 //     ended, its steers and tool calls and how long it took. Opening a
-//     card shows its body as foldable sections: the steers, each thinking,
-//     tool call and text step in order, and the answer (a shell turn's
-//     output). The running card is the bright one ("●" in its border),
+//     card shows its body as steps (ochazuke's Card.Steps): the prompt
+//     (the header), the steers, each thinking and tool call folded as the
+//     settings say (an edit's call as a diff), each paragraph of the
+//     agent's text, and the answer, paragraph by paragraph (a shell
+//     turn's output). l on an open card steps inside, onto the prompt;
+//     j/k walk the steps, l opens a folded one, y copies the step, h
+//     goes back to the card. The running card is the bright one ("●" in its border),
 //     older cards are muted, and a chained session starts under a labelled
 //     rule. The timeline follows its end like a live terminal: the newest
 //     card is selected and a growing answer keeps its bottom in view, until
@@ -165,7 +171,7 @@ func (a *App) modelCards(st *cardFill) []ochazuke.Card {
 			Data:     ref,
 			Header:   orNoPrompt(cardText(prompt)),
 			Meta:     modelTurnMeta(t, loc),
-			Sections: a.modelSections(t, st.source, loc),
+			Steps:    a.modelSteps(t, st.source, loc),
 			Open:     i == active,
 			Active:   i == active,
 			Muted:    i != last,
@@ -184,16 +190,16 @@ func (a *App) journalCards(st *cardFill) []ochazuke.Card {
 	for i, t := range st.jturns {
 		ref := st.back
 		ref.Window, ref.ID, ref.Line, ref.Card = st.window, t.ID, -1, true
-		var sections []ochazuke.CardSection
+		steps := []ochazuke.CardStep{{Header: true}}
 		for k, r := range t.Responses {
 			title := "answer"
 			if len(t.Responses) > 1 {
 				title = fmt.Sprintf("answer %d", k+1)
 			}
-			sections = append(sections, ochazuke.CardSection{Name: fmt.Sprintf("answer-%d", k+1), Title: title, Body: ochazuke.TextBody(cardText(r.Text))})
+			steps = append(steps, ochazuke.CardStep{ID: fmt.Sprintf("answer-%d", k+1), Title: title, Paragraphs: true, Body: ochazuke.TextBody(cardText(r.Text))})
 		}
 		if len(t.Responses) == 0 {
-			sections = append(sections, ochazuke.CardSection{Name: "answer-1", Title: "answer", Summary: "none yet", Role: ochazuke.CardRoleMuted})
+			steps = append(steps, ochazuke.CardStep{ID: "answer-1", Title: "answer", Summary: "none yet", Role: ochazuke.CardRoleMuted})
 		}
 		meta := []string{time.UnixMilli(t.StartedAt).In(loc).Format("Jan 2 15:04")}
 		switch {
@@ -214,7 +220,7 @@ func (a *App) journalCards(st *cardFill) []ochazuke.Card {
 			Data:     ref,
 			Header:   orNoPrompt(cardText(t.Prompt)),
 			Meta:     strings.Join(meta, " · "),
-			Sections: sections,
+			Steps:    steps,
 			Active:   !t.Done() && i == last,
 			Muted:    i != last,
 			Revision: revision(t.Prompt, len(t.Responses), len(t.Response()), t.CompletedAt, t.ReviewedAt),
@@ -294,9 +300,13 @@ func finalStep(t turns.Turn) int {
 	return -1
 }
 
-// modelSections are an open card's sections, in the turn's order.
-func (a *App) modelSections(t turns.Turn, pt *paneTurns, loc *time.Location) []ochazuke.CardSection {
-	var out []ochazuke.CardSection
+// modelSteps are an open card's steps, in the turn's order: the prompt
+// (the card's header), the steers, then each step of the turn as the tree
+// style's rows show them (a thinking or a tool call folds, a text is a
+// step per paragraph), and the answer paragraph by paragraph; a shell
+// turn's output is one step.
+func (a *App) modelSteps(t turns.Turn, pt *paneTurns, loc *time.Location) []ochazuke.CardStep {
+	out := []ochazuke.CardStep{{Header: true}}
 	if n := len(t.Steers); n > 0 {
 		var b strings.Builder
 		for k, s := range t.Steers {
@@ -305,11 +315,11 @@ func (a *App) modelSections(t turns.Turn, pt *paneTurns, loc *time.Location) []o
 			}
 			b.WriteString(s.At.In(loc).Format("15:04:05") + "\n" + cardText(s.Text))
 		}
-		out = append(out, ochazuke.CardSection{Name: "steers", Title: "steers", Summary: plural(n, "steer"), Role: ochazuke.CardRoleAccent, Body: ochazuke.TextBody(b.String())})
+		out = append(out, ochazuke.CardStep{ID: "steers", Title: "steers", Summary: plural(n, "steer"), Role: ochazuke.CardRoleAccent, Body: ochazuke.TextBody(b.String())})
 	}
 	if t.Source == turns.SourceShell {
 		body, summary := shellOutputText(pt, t)
-		return append(out, ochazuke.CardSection{Name: "output", Title: "output", Summary: summary, Body: ochazuke.TextBody(body)})
+		return append(out, ochazuke.CardStep{ID: "output", Title: "output", Summary: summary, Body: ochazuke.TextBody(body)})
 	}
 	final := finalStep(t)
 	for j, s := range t.Steps {
@@ -318,40 +328,106 @@ func (a *App) modelSections(t turns.Turn, pt *paneTurns, loc *time.Location) []o
 		}
 		switch s.Kind {
 		case turns.StepText:
-			out = append(out, ochazuke.CardSection{Name: fmt.Sprintf("text-%d", j), Title: "text", Body: markdownBody(s.Text)})
+			out = append(out, ochazuke.CardStep{ID: fmt.Sprintf("text-%d", j), Paragraphs: true, Body: markdownBody(s.Text)})
 		case turns.StepThinking:
-			out = append(out, ochazuke.CardSection{Name: fmt.Sprintf("thinking-%d", j), Title: "thinking", Summary: plural(len(strings.Split(s.Text, "\n")), "line"),
+			out = append(out, ochazuke.CardStep{ID: fmt.Sprintf("thinking-%d", j), Title: "thinking", Summary: plural(len(strings.Split(s.Text, "\n")), "line"),
 				Role: ochazuke.CardRoleMuted, Folded: !a.stepOpen(string(turns.StepThinking)), Body: ochazuke.TextBody(cardText(s.Text))})
 		case turns.StepTool:
-			summary := s.Summary
-			switch {
-			case !s.HasResult:
-				summary = joinNonEmpty(summary, "running")
-			case s.IsError:
-				summary = joinNonEmpty(summary, "error")
-			}
-			body := "input:\n" + cappedText(prettyJSON(s.Input), turnInputShown)
-			if s.HasResult {
-				body += "\nresult:\n" + cappedText(cardText(s.Result), turnResultShown)
-			}
-			role := ochazuke.CardRoleText
-			if s.IsError {
-				role = ochazuke.CardRoleError
-			}
-			out = append(out, ochazuke.CardSection{Name: fmt.Sprintf("tool-%d", j), Title: "tool " + s.Tool, Summary: summary,
-				Role: role, Folded: !a.stepOpen(string(turns.StepTool)), Body: ochazuke.TextBody(body)})
+			out = append(out, a.toolStep(j, s))
 		}
 	}
-	answer := ochazuke.CardSection{Name: "answer", Title: "answer"}
+	answer := ochazuke.CardStep{ID: "answer", Title: "answer"}
 	switch {
 	case t.Final != "":
-		answer.Body = markdownBody(t.Final)
+		answer.Paragraphs, answer.Body = true, markdownBody(t.Final)
 	case t.State == turns.StateRunning:
 		answer.Summary, answer.Role = "working", ochazuke.CardRoleMuted
 	default:
 		answer.Summary, answer.Role = "none", ochazuke.CardRoleMuted
 	}
 	return append(out, answer)
+}
+
+// toolStep is a tool call as one step: its name and summary as the title,
+// its input (an edit's as a diff) and its result as the body.
+func (a *App) toolStep(j int, s turns.Step) ochazuke.CardStep {
+	summary := s.Summary
+	switch {
+	case !s.HasResult:
+		summary = joinNonEmpty(summary, "running")
+	case s.IsError:
+		summary = joinNonEmpty(summary, "error")
+	}
+	var body string
+	if diff, ok := editDiff(s.Input); ok {
+		body = "diff:\n" + cappedText(diff, turnInputShown)
+	} else {
+		body = "input:\n" + cappedText(prettyJSON(s.Input), turnInputShown)
+	}
+	if s.HasResult {
+		body += "\nresult:\n" + cappedText(cardText(s.Result), turnResultShown)
+	}
+	role := ochazuke.CardRoleText
+	if s.IsError {
+		role = ochazuke.CardRoleError
+	}
+	return ochazuke.CardStep{ID: fmt.Sprintf("tool-%d", j), Title: "tool " + s.Tool, Summary: summary,
+		Role: role, Folded: !a.stepOpen(string(turns.StepTool)), Body: ochazuke.TextBody(body)}
+}
+
+// editDiff is an edit tool call's input as a diff: a file_path with an
+// old_string and new_string (Edit), a list of them (edits, MultiEdit), or
+// a content (Write, every line added). false for any other input.
+func editDiff(input string) (string, bool) {
+	var in struct {
+		Path    string  `json:"file_path"`
+		Old     string  `json:"old_string"`
+		New     string  `json:"new_string"`
+		Content *string `json:"content"`
+		Edits   []struct {
+			Old string `json:"old_string"`
+			New string `json:"new_string"`
+		} `json:"edits"`
+	}
+	if err := json.Unmarshal([]byte(input), &in); err != nil || in.Path == "" {
+		return "", false
+	}
+	type hunk struct{ old, new string }
+	var hunks []hunk
+	switch {
+	case len(in.Edits) > 0:
+		for _, e := range in.Edits {
+			hunks = append(hunks, hunk{e.Old, e.New})
+		}
+	case in.Old != "" || in.New != "":
+		hunks = append(hunks, hunk{in.Old, in.New})
+	case in.Content != nil:
+		hunks = append(hunks, hunk{"", *in.Content})
+	default:
+		return "", false
+	}
+	lines := []string{"--- " + in.Path, "+++ " + in.Path}
+	for k, h := range hunks {
+		if k > 0 {
+			lines = append(lines, "@@")
+		}
+		for _, l := range diffLines(h.old) {
+			lines = append(lines, "-"+l)
+		}
+		for _, l := range diffLines(h.new) {
+			lines = append(lines, "+"+l)
+		}
+	}
+	return strings.Join(lines, "\n"), true
+}
+
+// diffLines are a text's lines for a diff, none for an empty text.
+func diffLines(text string) []string {
+	text = strings.TrimRight(xansi.Strip(text), "\n")
+	if text == "" {
+		return nil
+	}
+	return strings.Split(strings.ReplaceAll(text, "\t", "    "), "\n")
 }
 
 // joinNonEmpty joins the non-empty parts with " · ".
@@ -568,12 +644,12 @@ func (a *App) refoldCards() {
 			continue
 		}
 		for _, c := range tl.Cards() {
-			for _, s := range c.Sections {
+			for _, s := range c.Steps {
 				switch {
-				case strings.HasPrefix(s.Name, "thinking-"):
-					_ = tl.SetFolded(c.ID, s.Name, !a.stepOpen(string(turns.StepThinking)))
-				case strings.HasPrefix(s.Name, "tool-"):
-					_ = tl.SetFolded(c.ID, s.Name, !a.stepOpen(string(turns.StepTool)))
+				case strings.HasPrefix(s.ID, "thinking-"):
+					_ = tl.SetFolded(c.ID, s.ID, !a.stepOpen(string(turns.StepThinking)))
+				case strings.HasPrefix(s.ID, "tool-"):
+					_ = tl.SetFolded(c.ID, s.ID, !a.stepOpen(string(turns.StepTool)))
 				}
 			}
 		}
@@ -628,6 +704,44 @@ func (a *App) scrollTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	// it runs as from the selected card, the pane row keeping the focus.
 	req := ochazuke.Request{Noun: "ochazuke.timeline", Verb: "scroll", Args: args, Target: a.pv.cards.SelectedID()}
 	if _, err := a.r.Execute(req); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(nil)
+}
+
+// copyStep is y inside a card: the timeline yanks the current step into
+// the registers (timeline.yank-step), then it goes to the clipboard as
+// copy mode's yank does (OSC 52 when no clipboard program answers).
+func (a *App) copyStep(ctx ochazuke.Ctx) ochazuke.Result {
+	res, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.timeline", Verb: "yank-step", Target: a.r.Focus})
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	state, _ := res.(map[string]any)
+	text, _ := state["text"].(string)
+	sys := a.cx.sys
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		return sys.Copy(c, text)
+	}).Then(func(ctx ochazuke.Ctx, v any, err error) {
+		switch osc, _ := v.(bool); {
+		case err != nil:
+		case osc:
+			if err := a.copyOSC52(text); err != nil {
+				ctx.Status(err.Error())
+			}
+		default:
+			ctx.Notify("copied the step")
+		}
+	})
+}
+
+// copyStepTurn is Y inside a card: turn.copy-all on the card.
+func (a *App) copyStepTurn(ctx ochazuke.Ctx) ochazuke.Result {
+	tl := a.r.Timeline(strings.TrimSuffix(strings.TrimSuffix(a.r.Focus, "/body"), "/list"))
+	if tl == nil || tl.SelectedID() == "" {
+		return ochazuke.Failed(fmt.Errorf("not inside a turn"))
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "turn", Verb: "copy-all", Target: tl.SelectedID()}); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(nil)
