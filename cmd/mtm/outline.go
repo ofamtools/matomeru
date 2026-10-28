@@ -100,7 +100,7 @@ func (a *App) defineOutline() {
 	// project.delete does; it stays at the top level in creation order.
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
 		a.r.Define(noun).
-			Verb("delete", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").
+			Verb("delete", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
 			Verb("confirm-delete", a.outlineConfirmDeleteProject, "Confirm deleting the project: project.confirm-delete orphans its tasks and records").Confirm(projectDeleteConfirm).
 			Mode("normal").
 			Bind("enter", ochazuke.Do("outline.fold")).
@@ -131,11 +131,20 @@ func (a *App) defineOutline() {
 	// off.
 	a.defineConversions()
 	a.r.DefineGuard("outline-top-task", a.outlineTopTask)
+	// x and s on a task row are the row's own verbs, so over a visual
+	// selection (V) they act on every selected task, as one undo step;
+	// the outline's toggle and status (on the modal) stay for the
+	// palette and for the rows that are not tasks, which they refuse.
 	a.r.Define(outlineTaskNoun).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
+		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
+		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
 		Mode("normal").
+		Bind("x", ochazuke.Do(outlineTaskNoun+".toggle")).
+		Bind("s", ochazuke.Do(outlineTaskNoun+".status")).
 		Bind("enter", ochazuke.Do("outline.fold")).
 		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project"))
+	a.parameters(outlineTaskNoun+".status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: work.Statuses}})
 	a.outlineView("Tasks")
 }
 
@@ -171,19 +180,15 @@ func (a *App) outlineTopTask(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 // confirm for the Work page's project row would open beneath it), naming
 // what the delete orphans.
 func (a *App) outlineDeleteProject(ctx ochazuke.Ctx) ochazuke.Result {
-	id, err := a.outlineProject(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	counts, err := a.work.DeletionImpact("project", id)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	value, err := a.r.Execute(ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "confirm-delete", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": strings.ReplaceAll(counts.String(), ", ", "\n")}})
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(value)
+	return a.confirmDeleting(ctx, func(inst *ochazuke.Instance) (work.DeleteCounts, error) {
+		one := ctx
+		one.Instance = inst
+		id, err := a.outlineProject(one)
+		if err != nil {
+			return work.DeleteCounts{}, err
+		}
+		return a.work.DeletionImpact("project", id)
+	})
 }
 
 // outlineConfirmDeleteProject is outline-project.confirm-delete (y on its
@@ -715,13 +720,75 @@ func (a *App) outlineTask() (*outlineState, work.Task, error) {
 	return o, t, err
 }
 
+// outlineTaskOf is the outline and the task of a task row.
+func (a *App) outlineTaskOf(row *ochazuke.Instance) (*outlineState, work.Task, error) {
+	o := a.outline
+	if o == nil || a.r.Tree(outlineTree) != o.tree {
+		return nil, work.Task{}, errors.New("the outline is not open")
+	}
+	if row == nil || row.Noun != outlineTaskNoun {
+		return nil, work.Task{}, errors.New("select a task: x and s set a task's status")
+	}
+	t, err := a.work.Task(taskOf(row.ID))
+	return o, t, err
+}
+
+// outlineTaskToggle is outline-task.toggle (x on a task row).
+func (a *App) outlineTaskToggle(ctx ochazuke.Ctx) ochazuke.Result {
+	o, t, err := a.outlineTaskOf(ctx.Instance)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return a.toggleOutlineTask(o, t)
+}
+
+// outlineTaskStatus is outline-task.status (s on a task row): the status
+// given sets it on every subject, each change on the undo stack (one
+// step over a selection); without one, one chooser for every subject.
+func (a *App) outlineTaskStatus(ctx ochazuke.Ctx) ochazuke.Result {
+	if status, ok := ctx.Args["status"].(string); ok {
+		return ctx.Each(func(one ochazuke.Ctx) ochazuke.Result {
+			o, t, err := a.outlineTaskOf(one.Instance)
+			if err != nil {
+				return ochazuke.Failed(err)
+			}
+			before := t.Status
+			if t, err = a.work.SetStatus(t.ID, status); err != nil {
+				return ochazuke.Failed(err)
+			}
+			if err := a.outlineChanged(o); err != nil {
+				return ochazuke.Failed(err)
+			}
+			return resultError(a.recordStatus(o, t.ID, before, t.Status))
+		})
+	}
+	_, t, err := a.outlineTaskOf(ctx.Instance)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	q := ochazuke.Request{Noun: outlineTaskNoun, Verb: "status", Target: ctx.Instance.ID}
+	if len(ctx.Subjects) > 1 {
+		q.Subjects = ctx.SubjectIDs()
+	}
+	return resultError(a.openStatusChooserFor(t, len(ctx.Subjects), func(status string) ochazuke.Result {
+		q.Args = ochazuke.Arguments{"status": status}
+		return resultOf(a.r.Execute(q))
+	}))
+}
+
 // outlineToggle is x on the outline: done, or todo again.
 func (a *App) outlineToggle(ochazuke.Ctx) ochazuke.Result {
 	o, t, err := a.outlineTask()
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	return a.toggleOutlineTask(o, t)
+}
+
+// toggleOutlineTask toggles t done and puts the change on the undo stack.
+func (a *App) toggleOutlineTask(o *outlineState, t work.Task) ochazuke.Result {
 	before := t.Status
+	var err error
 	if t, err = a.work.ToggleDone(t.ID); err != nil {
 		return ochazuke.Failed(err)
 	}

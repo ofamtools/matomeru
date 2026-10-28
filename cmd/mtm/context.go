@@ -133,7 +133,7 @@ func (a *App) defineContext() {
 		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
 		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred); starred items sort first").Positional("id").
-		Verb("associate", a.associateContext, "Associate the item with a task or project (omit them to choose a project); --scratch unassociates it").Positional("id").
+		Verb("associate", a.associateContext, "Associate the item with a task or project (omit them to choose a project); --scratch unassociates it").Positional("id").Many().
 		Verb("forget", a.forgetContext, "Forget the record only; the file, page or branch it names is untouched").Positional("id").Confirm("Forget {{label}}?").
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
 		Verb("turns", a.extractTurns, "Extract items from every journaled turn's prompt and answer now (new turns are extracted as they are journaled)").
@@ -521,6 +521,12 @@ func (a *App) associateContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) && ctx.Instance.Noun == contextNoun {
 		return a.moveTo(ctx, contextNoun)
 	}
+	return ctx.Each(a.associateContextOne)
+}
+
+// associateContextOne is context-item.associate on one item, its owner
+// given: the relation's relate, as the reverse verbs run it.
+func (a *App) associateContextOne(ctx ochazuke.Ctx) ochazuke.Result {
 	it, err := a.contextAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)

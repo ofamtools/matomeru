@@ -97,13 +97,13 @@ func (a *App) defineInbox() {
 		Verb("read", a.readActionItem, "Mark the item read").Positional("id").
 		Verb("unread", a.unreadActionItem, "Mark the item unread").Positional("id").
 		Verb("toggle-read", a.toggleReadActionItem, "Mark the item read, or a read item unread").Positional("id").
-		Verb("snooze", a.snoozeActionItem, "Hide the item until --until (a time) or for --for (90m, 4h, 2d, 1w); omitted, a chooser asks").Positional("id").
+		Verb("snooze", a.snoozeActionItem, "Hide the item until --until (a time) or for --for (90m, 4h, 2d, 1w); omitted, a chooser asks").Positional("id").Many().
 		Verb("archive", a.archiveActionItem, "Archive the item: it leaves the open items and keeps its row").Positional("id").
 		Verb("restore", a.restoreActionItem, "Make an archived or snoozed item open again").Positional("id").
 		Verb("delete", a.deleteActionItem, "Delete the item's row (archive keeps it)").Positional("id").Confirm("Delete {{label}}? x archives it instead.").
 		Verb("promote-todo", a.promoteTodo, "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated); the item is archived and points at it").Positional("id").
 		Verb("promote-task", a.promoteTask, "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo").Positional("id").
-		Verb("associate", a.associateActionItem, "Associate the item with a project, task or pane (omit them to choose a project); --scratch unassociates it").Positional("id").
+		Verb("associate", a.associateActionItem, "Associate the item with a project, task or pane (omit them to choose a project); --scratch unassociates it").Positional("id").Many().
 		Mode("normal").
 		Bind("enter", ochazuke.Do(n+".open")).
 		Bind("u", ochazuke.Do(n+".toggle-read").Hinted("read/unread")).
@@ -669,6 +669,43 @@ func snoozeChoices(now time.Time) []ochazuke.ChooserRow {
 }
 
 func (a *App) snoozeActionItem(ctx ochazuke.Ctx) ochazuke.Result {
+	until, _ := ctx.Args["until"].(string)
+	span, _ := ctx.Args["for"].(string)
+	if until != "" || span != "" || a.cli {
+		return ctx.Each(a.snoozeOne)
+	}
+	it, err := a.actionItemAt(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	now := time.UnixMilli(a.inbox.items.Now()).In(a.location())
+	title := "Snooze " + it.Label() + " until"
+	_, byID := ctx.Args["id"]
+	many := !byID && len(ctx.Subjects) > 1
+	if many {
+		title = fmt.Sprintf("Snooze %d items until", len(ctx.Subjects))
+	}
+	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
+		Kind:  "snooze-chooser",
+		Title: title,
+		Rows:  snoozeChoices(now),
+		Choose: func(c ochazuke.ChooserRow) ochazuke.Result {
+			q := ochazuke.Request{Noun: actionItemNoun, Verb: "snooze", Args: ochazuke.Arguments{"id": it.ID, "until": c.Data.(string)}}
+			if many {
+				// One chooser over a visual selection: its time for every item.
+				q.Target, q.Subjects, q.Args = ctx.Instance.ID, ctx.SubjectIDs(), ochazuke.Arguments{"until": c.Data.(string)}
+			}
+			return resultOf(a.r.Execute(q))
+		},
+	})
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(nil)
+}
+
+// snoozeOne is action-item.snooze on one item, --for or --until given.
+func (a *App) snoozeOne(ctx ochazuke.Ctx) ochazuke.Result {
 	it, err := a.actionItemAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -689,25 +726,8 @@ func (a *App) snoozeActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 		return a.inboxChanged(a.inbox.items.Snooze(it.ID, at.UnixMilli()))
-	case a.cli:
-		return ochazuke.Failed(errors.New("snooze needs --for (90m, 4h, 2d, 1w) or --until (a time)"))
 	}
-	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
-		Kind:  "snooze-chooser",
-		Title: "Snooze " + it.Label() + " until",
-		Rows:  snoozeChoices(now),
-		Choose: func(c ochazuke.ChooserRow) ochazuke.Result {
-			out, err := a.r.Execute(ochazuke.Request{Noun: actionItemNoun, Verb: "snooze", Args: ochazuke.Arguments{"id": it.ID, "until": c.Data.(string)}})
-			if err != nil {
-				return ochazuke.Failed(err)
-			}
-			return ochazuke.Done(out)
-		},
-	})
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(nil)
+	return ochazuke.Failed(errors.New("snooze needs --for (90m, 4h, 2d, 1w) or --until (a time)"))
 }
 
 // parseSpan reads a snooze length: a Go duration, or a count of days (d)
@@ -816,6 +836,12 @@ func (a *App) associateActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	if !a.cli && !named && ctx.Instance != nil && ctx.Instance.Noun == actionItemNoun {
 		return a.moveTo(ctx, actionItemNoun)
 	}
+	return ctx.Each(a.associateActionItemOne)
+}
+
+// associateActionItemOne is action-item.associate on one item, its owner
+// given.
+func (a *App) associateActionItemOne(ctx ochazuke.Ctx) ochazuke.Result {
 	it, err := a.actionItemAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)

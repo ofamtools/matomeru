@@ -11,9 +11,9 @@ import (
 func (a *App) defineOwners() {
 	// One move verb per noun, m on every row: associate. From a key with
 	// no owner named, a chooser of projects asks (unassociated last).
-	a.r.Define("pane").Verb("associate", a.associatePane, "Move a pane to a task (--task) or a project (omit them to choose a project); scratch explicitly removes ownership").Verb("list", a.listPanes, "List panes in scope; --all widens the list").Fetch()
-	a.r.Define("session").Verb("associate", a.associateSession, "Move a session to a project (omit it to choose); panes with their own row stay unchanged").Verb("list", a.listSessions, "List sessions in scope; --all widens the list").Fetch()
-	a.r.Define("task").Verb("associate", a.associateTask, "Move a task to a project (omit it to choose), or scratch").Mode("normal").Bind("m", ochazuke.Do("task.associate"))
+	a.r.Define("pane").Verb("associate", a.associatePane, "Move a pane to a task (--task) or a project (omit them to choose a project); scratch explicitly removes ownership").Many().Verb("list", a.listPanes, "List panes in scope; --all widens the list").Fetch()
+	a.r.Define("session").Verb("associate", a.associateSession, "Move a session to a project (omit it to choose); panes with their own row stay unchanged").Many().Verb("list", a.listSessions, "List sessions in scope; --all widens the list").Fetch()
+	a.r.Define("task").Verb("associate", a.associateTask, "Move a task to a project (omit it to choose), or scratch").Many().Mode("normal").Bind("m", ochazuke.Do("task.associate"))
 	for _, noun := range []string{"pane", "session", "task"} {
 		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	}
@@ -43,6 +43,11 @@ func (a *App) associatePane(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "pane")
 	}
+	return ctx.Each(a.associatePaneOne)
+}
+
+// associatePaneOne is pane.associate on one pane, its owner given.
+func (a *App) associatePaneOne(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -61,6 +66,11 @@ func (a *App) associateSession(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "session")
 	}
+	return ctx.Each(a.associateSessionOne)
+}
+
+// associateSessionOne is session.associate on one session, its owner given.
+func (a *App) associateSessionOne(ctx ochazuke.Ctx) ochazuke.Result {
 	p, ok := ctx.Instance.Data.(pane)
 	if !ok || p.SessionID == "" {
 		return ochazuke.Failed(fmt.Errorf("select a session"))
@@ -89,6 +99,11 @@ func (a *App) associateTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "task")
 	}
+	return ctx.Each(a.associateTaskOne)
+}
+
+// associateTaskOne is task.associate on one task, its owner given.
+func (a *App) associateTaskOne(ctx ochazuke.Ctx) ochazuke.Result {
 	t, err := a.task(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)

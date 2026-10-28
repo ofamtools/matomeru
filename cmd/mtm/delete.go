@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
 
@@ -24,7 +25,7 @@ const projectDeleteConfirm = "Delete {{label}}?\nOrphan:\n{{affected}}\nDirector
 func (a *App) defineDeletion() {
 	for _, noun := range []string{"project", "task"} {
 		a.r.Define(noun).
-			Verb("delete", a.confirmDeletion, "Delete record; show affected owners before confirming").
+			Verb("delete", a.confirmDeletion, "Delete record; show affected owners before confirming").Many().
 			Verb("confirm-delete", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm(projectDeleteConfirm).
 			Renamed("delete.confirm", oldNamesSince, oldNamesRemoveAfter).
 			Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
@@ -33,11 +34,29 @@ func (a *App) defineDeletion() {
 }
 
 func (a *App) confirmDeletion(ctx ochazuke.Ctx) ochazuke.Result {
-	counts, err := a.work.DeletionImpact(ctx.Instance.Noun, ctx.Instance.ID)
-	if err != nil {
-		return ochazuke.Failed(err)
+	return a.confirmDeleting(ctx, func(inst *ochazuke.Instance) (work.DeleteCounts, error) {
+		return a.work.DeletionImpact(inst.Noun, inst.ID)
+	})
+}
+
+// confirmDeleting opens the one confirm-delete of ctx's subjects (every
+// row of a visual selection: delete takes many), naming what they orphan
+// together; y deletes each (confirm-delete runs once per subject).
+func (a *App) confirmDeleting(ctx ochazuke.Ctx, impact func(*ochazuke.Instance) (work.DeleteCounts, error)) ochazuke.Result {
+	var total work.DeleteCounts
+	for _, s := range ctx.Subjects {
+		c, err := impact(s)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		total.Tasks, total.Notes, total.Assignments = total.Tasks+c.Tasks, total.Notes+c.Notes, total.Assignments+c.Assignments
+		total.Sessions, total.Reviews, total.Saved, total.Vim = total.Sessions+c.Sessions, total.Reviews+c.Reviews, total.Saved+c.Saved, total.Vim+c.Vim
 	}
-	value, err := a.r.Execute(ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "confirm-delete", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": strings.ReplaceAll(counts.String(), ", ", "\n")}})
+	q := ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "confirm-delete", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": strings.ReplaceAll(total.String(), ", ", "\n")}}
+	if len(ctx.Subjects) > 1 {
+		q.Subjects = ctx.SubjectIDs()
+	}
+	value, err := a.r.Execute(q)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}

@@ -344,15 +344,25 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(fmt.Errorf("select a %s", noun))
 	}
-	row := ctx.Instance.ID
+	// Over a visual selection the chooser asks once and its choice moves
+	// every selected row (associate takes many subjects: Many).
+	row, subjects := ctx.Instance.ID, ctx.SubjectIDs()
+	if len(subjects) < 2 {
+		subjects = nil
+	}
 	associate := func(args ochazuke.Arguments) ochazuke.Result {
-		out, err := a.r.Execute(ochazuke.Request{Verb: "associate", Noun: noun, Target: row, Args: args})
+		out, err := a.r.Execute(ochazuke.Request{Verb: "associate", Noun: noun, Target: row, Subjects: subjects, Args: args})
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(out)
 	}
 	current, hasOwner := a.moveOwner(ctx.Instance, noun)
+	title := "Move " + ctx.Instance.Label + " to"
+	if len(subjects) > 1 {
+		hasOwner = false // the rows may have different owners: every project is offered
+		title = fmt.Sprintf("Move %d rows to", len(subjects))
+	}
 	choices := make([]ochazuke.ChooserRow, 0, len(a.projects)+1)
 	for _, p := range a.projectsByRecency() {
 		if hasOwner && p.ID == current {
@@ -365,7 +375,7 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 	}
 	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  moveChooser,
-		Title: "Move " + ctx.Instance.Label + " to",
+		Title: title,
 		Rows:  choices,
 		Filter: func(query string, row ochazuke.ChooserRow) bool {
 			if row.Trailing {

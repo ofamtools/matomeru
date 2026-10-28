@@ -26,7 +26,7 @@ func (a *App) defineSaved() {
 		Verb("list", a.listSaved, "List saved shells and agents in scope").Rows("saved").
 		Verb("reopen", a.reopenSaved, "Attach the live pane, otherwise relaunch its recorded argv").Positional("id").
 		Verb("rename", a.renameSaved, "Rename the saved record").Positional("id", "name").
-		Verb("associate", a.associateSaved, "Associate the saved record and its live pane").Positional("id").
+		Verb("associate", a.associateSaved, "Associate the saved record and its live pane").Positional("id").Many().
 		Verb("forget", a.forgetSaved, "Forget only the record; never kill its pane").Positional("id").Confirm("Forget {{label}}? Its pane keeps running.").
 		Mode("normal").Bind("w", ochazuke.Do("saved.save")).
 		Bind("enter", ochazuke.Do("saved.reopen")).Bind("r", ochazuke.Do("saved.rename")).
@@ -330,15 +330,20 @@ func (a *App) renameSaved(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) associateSaved(ctx ochazuke.Ctx) ochazuke.Result {
-	row, err := a.savedAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
 	_, hasProject := ctx.Args["project"]
 	_, hasTask := ctx.Args["task"]
 	_, hasScratch := ctx.Args["scratch"]
 	if !a.cli && !hasProject && !hasTask && !hasScratch && ctx.Instance != nil && ctx.Instance.Noun == "saved" {
 		return a.moveTo(ctx, "saved") // the project chooser, as m on every row
+	}
+	return ctx.Each(a.associateSavedOne)
+}
+
+// associateSavedOne is saved.associate on one record, its owner given.
+func (a *App) associateSavedOne(ctx ochazuke.Ctx) ochazuke.Result {
+	row, err := a.savedAt(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
 	}
 	if err := a.associateSavedRecord(row, ctx.Args); err != nil {
 		return ochazuke.Failed(err)

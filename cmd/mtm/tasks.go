@@ -21,7 +21,7 @@ func (a *App) defineTask() {
 		Verb("edit", a.editTask, "Edit title and status; omit arguments for draft editor").Positional("title").
 		Verb("done", a.doneTask, "Mark the task done").Positional("id").
 		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo").
-		Verb("status", a.statusTask, "Set the task's status (todo, active, blocked, done); omit status to choose one").Positional("id", "status").
+		Verb("status", a.statusTask, "Set the task's status (todo, active, blocked, done); omit status to choose one").Positional("id", "status").Many().
 		Verb("new", a.newTask, "Add a task (under --parent, else the pin or no project); omit title to open the draft editor").Positional("title").
 		Verb("launch", a.launchRecord, "Launch an agent on the task").
 		Mode("normal").
@@ -230,11 +230,19 @@ func (a *App) toggleTask(ctx ochazuke.Ctx) ochazuke.Result {
 // chooser of the four statuses opens on the task.
 func (a *App) statusTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if status, ok := ctx.Args["status"].(string); ok {
-		return a.changeTask(ctx, func(id string) (work.Task, error) { return a.work.SetStatus(id, status) })
+		return ctx.Each(func(one ochazuke.Ctx) ochazuke.Result {
+			return a.changeTask(one, func(id string) (work.Task, error) { return a.work.SetStatus(id, status) })
+		})
 	}
 	t, err := a.taskArg(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
+	}
+	if _, byID := ctx.Args["id"]; !byID && len(ctx.Subjects) > 1 {
+		// Over a visual selection: one chooser, its status for every task.
+		return resultError(a.openStatusChooserFor(t, len(ctx.Subjects), func(status string) ochazuke.Result {
+			return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "status", Target: ctx.Instance.ID, Subjects: ctx.SubjectIDs(), Args: ochazuke.Arguments{"status": status}}))
+		}))
 	}
 	return resultError(a.openStatusChooser(t, a.refreshTasks))
 }
@@ -273,10 +281,34 @@ const statusChooser = "status-chooser"
 // openStatusChooser opens the four statuses for t; typing narrows by the
 // first letters (t, a, b, d) and enter sets the top one, then refresh runs.
 func (a *App) openStatusChooser(t work.Task, refresh func() error) error {
+	return a.openStatusChooserFor(t, 1, func(status string) ochazuke.Result {
+		got, err := a.work.SetStatus(t.ID, status)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		if err := refresh(); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(got)
+	})
+}
+
+// resultOf is an Execute's answer as a Result.
+func resultOf(v any, err error) ochazuke.Result {
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(v)
+}
+
+// openStatusChooserFor opens the four statuses for t (n tasks with it:
+// the title counts them, no status is current) and hands the chosen one
+// to set.
+func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) ochazuke.Result) error {
 	rows := make([]ochazuke.ChooserRow, 0, len(work.Statuses))
 	for _, s := range work.Statuses {
 		label := s
-		if s == t.Status {
+		if s == t.Status && n == 1 {
 			label += " (current)"
 		}
 		rows = append(rows, ochazuke.ChooserRow{ID: "status-choice:" + s, Label: label, Data: s, Cells: []string{work.StatusGlyph(s), label}})
@@ -284,6 +316,9 @@ func (a *App) openStatusChooser(t work.Task, refresh func() error) error {
 	title := t.Title
 	if title == "" {
 		title = "untitled"
+	}
+	if n > 1 {
+		title = fmt.Sprintf("%d tasks", n)
 	}
 	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  statusChooser,
@@ -294,14 +329,7 @@ func (a *App) openStatusChooser(t work.Task, refresh func() error) error {
 		},
 		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			status, _ := row.Data.(string)
-			got, err := a.work.SetStatus(t.ID, status)
-			if err != nil {
-				return ochazuke.Failed(err)
-			}
-			if err := refresh(); err != nil {
-				return ochazuke.Failed(err)
-			}
-			return ochazuke.Done(got)
+			return set(status)
 		},
 	})
 	return err

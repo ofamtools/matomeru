@@ -21,7 +21,7 @@ func (a *App) defineNotes() {
 		Verb("new", a.newNote, "Create a note; omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
 		Verb("edit", a.editNote, "Edit a note in the right panel").Positional("text").
-		Verb("associate", a.associateNote, "Associate a note with a task or project; scratch clears ownership").
+		Verb("associate", a.associateNote, "Associate a note with a task or project; scratch clears ownership").Many().
 		Verb("delete", a.deleteNote, "Delete a note and its draft; nothing else is touched").Confirm("Delete note {{label}}?").
 		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.associate"))
 	a.r.Define(noteBodyNoun).Focusable().
@@ -344,6 +344,11 @@ func (a *App) associateNote(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "note")
 	}
+	return ctx.Each(a.associateNoteOne)
+}
+
+// associateNoteOne is note.associate on one note, its owner given.
+func (a *App) associateNoteOne(ctx ochazuke.Ctx) ochazuke.Result {
 	note, err := a.selectedNote(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
