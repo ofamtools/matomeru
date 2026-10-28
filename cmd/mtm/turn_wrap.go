@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -52,6 +53,35 @@ type turnFill struct {
 	known  map[string]bool
 	built  map[string]bool
 	nodes  []ochazuke.TreeNode
+	// entered is set once the focus was on a row of the Panes page's tree
+	// since its fill went fresh; until then each fill selects the newest
+	// turn, so the first l or } lands there as the cards' does.
+	entered bool
+}
+
+// selectNewestTurn selects a fresh fill's newest turn, once it holds one.
+func (a *App) selectNewestTurn(tree *ochazuke.Tree, st *turnFill) error {
+	newest := ""
+	for _, n := range st.nodes {
+		if n.Noun == "turn" {
+			newest = n.ID
+		}
+	}
+	if newest == "" {
+		return nil
+	}
+	return tree.Select(newest)
+}
+
+// noteTurnsEntered marks the Panes page's tree entered when the focus is
+// on one of its rows: from then on a fill keeps the person's place.
+func (a *App) noteTurnsEntered() {
+	if a.pv.turns == nil || a.turnCards() {
+		return
+	}
+	if slices.Contains(a.r.Ancestry(a.r.Focus), turnsTreeID) {
+		a.turnFillOf(a.pv.turns).entered = true
+	}
 }
 
 // turnPiece is one row of a wrapped line: its text and the rune offset in
@@ -199,6 +229,9 @@ func (a *App) setTurnNodes(tree *ochazuke.Tree, st *turnFill) error {
 	st.nodes = nodes
 	if err := tree.SetNodes(nodes); err != nil {
 		return err
+	}
+	if tree == a.pv.turns && !st.entered {
+		return a.selectNewestTurn(tree, st)
 	}
 	if was.ID == "" {
 		return nil

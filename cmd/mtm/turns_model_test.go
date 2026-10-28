@@ -315,7 +315,7 @@ func TestShellTurnsFromCommandHistory(t *testing.T) {
 	if f.captures != 0 {
 		t.Fatalf("output read before a turn opened: %d captures", f.captures)
 	}
-	press(t, app, "}", "j")
+	press(t, app, "}", "k") // } lands on the newest, cat big.log (F9)
 	settle(app, key(t, app, "l"))
 	got := strings.Join(turnRows(app), "\n")
 	start, end := strings.Index(got, "output:"), strings.Index(got, "cat big.log")
@@ -359,7 +359,7 @@ func TestCopyingAHugeShellOutputOffersAFile(t *testing.T) {
 	app, f := shellTurnsApp(t, 3000) // about 160 KB
 	useTurnStyle(t, app, turnsStyleTree)
 	sys := app.cx.sys.(*fakeSystem)
-	press(t, app, "}", "j", "j") // cat big.log
+	press(t, app, "}") // } lands on the newest, cat big.log (F9)
 	settle(app, key(t, app, "y"))
 	if len(sys.copied) != 0 {
 		t.Fatalf("a huge output reached the clipboard: %d bytes", len(sys.copied[0]))

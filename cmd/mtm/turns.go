@@ -188,6 +188,9 @@ func (a *App) fillTurns(tree *ochazuke.Tree, prefix, window string, back turnRef
 	}
 	st := a.turnFillOf(tree)
 	st.prefix, st.window, st.back, st.turns = prefix, window, back, turns
+	if fresh {
+		st.entered = false
+	}
 	if err := a.setTurnNodes(tree, st); err != nil {
 		return 0, err
 	}

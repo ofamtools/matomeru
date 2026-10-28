@@ -270,7 +270,7 @@ func TestTurnsFromTheJournal(t *testing.T) {
 	if !strings.HasPrefix(app.r.Focus, "turn:") {
 		t.Fatalf("} from the tree: focus %s", app.r.Focus)
 	}
-	press(t, app, "l")
+	press(t, app, "g", "g", "l") // } lands on the newest turn (F9); open the first
 	fr = frame(app)
 	for _, want := range []string{"with a second line", "answer line 1"} {
 		if !strings.Contains(fr, want) {

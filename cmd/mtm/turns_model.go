@@ -419,7 +419,7 @@ func (a *App) showModelTurns(row string, p pane, fresh bool) error {
 	tree := a.pv.turns
 	st := a.turnFillOf(tree)
 	if fresh || !st.model || st.window != p.ID {
-		st.known, st.built = map[string]bool{}, map[string]bool{}
+		st.known, st.built, st.entered = map[string]bool{}, map[string]bool{}, false
 	}
 	st.prefix, st.window, st.back, st.model = "turn:", p.ID, turnRef{Back: row}, true
 	st.mturns, st.source = liveTurns(pt, p), pt

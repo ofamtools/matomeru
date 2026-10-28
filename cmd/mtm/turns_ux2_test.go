@@ -49,3 +49,42 @@ func TestHOnAClosedTurnGoesToThePaneRow(t *testing.T) {
 		})
 	}
 }
+
+// F9: the first l (or }) from the pane row lands on the newest turn in
+// both styles; the cards follow the newest and the tree now starts there.
+func TestFirstEntryLandsOnTheNewestTurn(t *testing.T) {
+	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
+		for _, k := range []string{"l", "}"} {
+			t.Run(style+"/"+k, func(t *testing.T) {
+				app, _, log := claudeTurnsApp(t)
+				useTurnStyle(t, app, style)
+				moreClaudeTurns(t, log, 2, 6)
+				reload(t, app)
+				frame(app)
+				press(t, app, k)
+				frame(app)
+				items := app.turnsList().Items()
+				var newest string
+				for _, it := range items {
+					if it.Noun == "turn" {
+						newest = it.ID
+					}
+				}
+				if app.r.Focus != newest {
+					t.Fatalf("first %s: %s, want the newest turn %s", k, where(app), newest)
+				}
+				// Moving up and leaving keeps the place: the next l comes back to it.
+				press(t, app, "k")
+				frame(app)
+				was := app.r.Focus
+				press(t, app, "esc")
+				frame(app)
+				press(t, app, "l")
+				frame(app)
+				if app.r.Focus != was {
+					t.Fatalf("second l: %s, want %s", where(app), was)
+				}
+			})
+		}
+	}
+}

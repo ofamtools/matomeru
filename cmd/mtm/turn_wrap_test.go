@@ -113,7 +113,12 @@ func wrapAppStyle(t *testing.T, answer, style string) *App {
 	settle(app, key(t, app, "[")) // Screen wraps back to Turns
 	app.m.Width, app.m.Height = 120, 40
 	plainView(app)
-	press(t, app, "}", "l")
+	press(t, app, "}")
+	if style == turnsStyleTree {
+		// The tree starts on the newest turn (F9); these tests open the first.
+		press(t, app, "g", "g")
+	}
+	press(t, app, "l")
 	plainView(app)
 	return app
 }
