@@ -156,7 +156,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return nil, err
 		}
-		cwd := sideCwd(parent, recipe)
+		cwd := sideCwd(parent, sideProjectDir(ws, owner.ProjectID), recipe)
 		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, cwd: cwd, kind: kind, env: recordedEnvironment(recipe), fit: fit}
 		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
 		side.note = driver.note
@@ -373,12 +373,33 @@ func (a *App) withSideLock(fn func(context.Context) (any, error)) func(context.C
 
 // sideCwd is where a side pane of parent starts: the folder TUIOS reports
 // for the parent now (its shell's OSC 7, else its process's folder, so a
-// cd in the parent moves it), else the folder mtm launched the parent in.
-func sideCwd(parent pane, recipe work.PaneRecipe) string {
-	if parent.Cwd != "" {
-		return parent.Cwd
+// cd in the parent moves it), else its project's folder (projectDir), else
+// the folder mtm launched the parent in.
+//
+// An agent that changes folder inside its own process (Claude Code's Bash
+// cd) does not move what TUIOS reports: the pane's process stays where it
+// started. TUIOS hears the agent's folder in its hook reports (agent_cwd)
+// but does not publish it yet; once it does, it comes first here.
+func sideCwd(parent pane, projectDir string, recipe work.PaneRecipe) string {
+	for _, dir := range []string{parent.Cwd, projectDir, recipe.Cwd} {
+		if dir != "" {
+			return dir
+		}
 	}
-	return recipe.Cwd
+	return ""
+}
+
+// sideProjectDir is the folder of the project id names, or "" when the pane
+// has no project or it cannot be read: a side never waits on its owner.
+func sideProjectDir(ws *work.Store, id string) string {
+	if id == "" {
+		return ""
+	}
+	p, err := ws.Project(id)
+	if err != nil {
+		return ""
+	}
+	return projectDir(p)
 }
 
 func recordedEnvironment(recipe work.PaneRecipe) map[string]string {

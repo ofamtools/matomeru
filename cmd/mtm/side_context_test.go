@@ -90,11 +90,14 @@ func TestSideOpensOnTheParentsWorkspaceInItsCurrentFolder(t *testing.T) {
 	}
 }
 
-// A parent whose workspace and folder TUIOS does not report: the driver
-// picks the workspace (as for any new pane) and the side starts where mtm
-// launched the parent.
+// A parent whose workspace and folder TUIOS does not report, in no
+// project: the driver picks the workspace (as for any new pane) and the
+// side starts where mtm launched the parent.
 func TestSideFallsBackWhenTheParentsContextIsUnknown(t *testing.T) {
 	a, parent, rec := sideContextApp(t, 0, "")
+	if err := a.work.SetPaneOwner(work.Assignment{Window: parent.ID, Session: parent.SessionID}); err != nil {
+		t.Fatal(err)
+	}
 	recipe, err := a.work.PaneRecipe(parent.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -102,6 +105,63 @@ func TestSideFallsBackWhenTheParentsContextIsUnknown(t *testing.T) {
 	openSide(t, a, parent, "term")
 	if len(rec.windows) != 1 || rec.windows[0].Workspace != 0 || rec.windows[0].Cwd != recipe.Cwd {
 		t.Fatalf("windows %+v, want workspace 0 cwd %s", rec.windows, recipe.Cwd)
+	}
+}
+
+// ownSideParent assigns parent to a new project whose default directory
+// is dir, so a side has a project folder to fall back on.
+func ownSideParent(t *testing.T, a *App, parent pane, dir string) {
+	t.Helper()
+	p, err := a.work.AddProject("side-cwd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Trees, p.DefaultTree = []work.Tree{{Kind: "dir", Path: dir}}, dir
+	if err := a.work.PutProject(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.work.SetPaneOwner(work.Assignment{Window: parent.ID, Session: parent.SessionID, ProjectID: p.ID}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A side opened from a pane that moved away from its project's folder
+// starts where the pane is now, not in the project's folder (owner,
+// 2026-10-28: hub/side-vim opened in ~/hub while hub/shell was in
+// ~/hub/o-plans).
+func TestSideStartsInThePanesFolderBeforeItsProjects(t *testing.T) {
+	for _, kind := range []string{"term", "vim"} {
+		t.Run(kind, func(t *testing.T) {
+			if _, err := exec.LookPath("nvim"); kind == "vim" && err != nil {
+				t.Skip("nvim not installed; the side vim launch needs it")
+			}
+			now := t.TempDir()
+			a, parent, rec := sideContextApp(t, 4, now)
+			ownSideParent(t, a, parent, t.TempDir())
+			openSide(t, a, parent, kind)
+			if len(rec.windows) != 1 || rec.windows[0].Cwd != now {
+				t.Fatalf("side %s windows %+v, want cwd %s (the pane's)", kind, rec.windows, now)
+			}
+		})
+	}
+}
+
+// A pane whose folder TUIOS does not report: its side starts in the
+// project's folder, ahead of the folder mtm launched the pane in.
+func TestSideFallsBackToTheProjectsFolder(t *testing.T) {
+	for _, kind := range []string{"term", "vim"} {
+		t.Run(kind, func(t *testing.T) {
+			if _, err := exec.LookPath("nvim"); kind == "vim" && err != nil {
+				t.Skip("nvim not installed; the side vim launch needs it")
+			}
+			project := t.TempDir()
+			a, parent, rec := sideContextApp(t, 4, "")
+			ownSideParent(t, a, parent, project)
+			openSide(t, a, parent, kind)
+			if len(rec.windows) != 1 || rec.windows[0].Cwd != project {
+				t.Fatalf("side %s windows %+v, want cwd %s (the project's)", kind, rec.windows, project)
+			}
+		})
 	}
 }
 
