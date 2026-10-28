@@ -26,13 +26,21 @@ import (
 // ctrl+r are rows on the picker's modal noun, so the footer and ? list
 // them with the chooser's keys. Items and turns that land while it is
 // open join its rows.
+//
+// The same picker opens from the prompt box (alt+o, turn-prompt.context,
+// or pick with into=prompt): scoped to the box's pane, enter there writes
+// the item into the box at its cursor (promptMention) instead of copying
+// it; ctrl+o, ctrl+r and esc are the picker's as above.
 
 const contextPicker = "context-picker"
 
 func (a *App) defineContextPicker() {
 	a.r.Define(contextNoun).
-		Verb("pick", a.pickContext, "Choose a context item or prompt of this pane, its project or no project: enter copies, ctrl+o opens, ctrl+r reveals").
+		Verb("pick", a.pickContext, "Choose a context item or prompt of this pane, its project or no project: enter copies (into=prompt: writes it into the prompt box), ctrl+o opens, ctrl+r reveals").
 		Verb("copy-prompt", a.copyPrompt, "Copy a journaled turn's whole prompt to the clipboard")
+	a.parameters(contextNoun+".pick", map[string]ochazuke.Parameter{
+		"into": {Type: "string", Enum: pickInto, Description: "Where enter delivers the choice: clipboard (the live pane's picker) or prompt (the prompt box's pane, written at its cursor)"},
+	})
 	a.parameters(contextNoun+".copy-prompt", map[string]ochazuke.Parameter{
 		"window": {Type: "string", Required: true, Description: "The pane's window id"},
 		"turn":   {Type: "string", Required: true, Description: "The turn's id (its prompt entry, as history lists it)"},
@@ -62,15 +70,38 @@ func (a *App) pickedPane(inst *ochazuke.Instance) (pane, error) {
 	return pane{}, errors.New(a.r.TerminalLeader() + " c works in a live pane")
 }
 
-// pickContext is context-item.pick (ctrl+a c).
+// pickInto are where the picker's enter delivers the choice.
+var pickInto = []string{"clipboard", "prompt"}
+
+// pickContext is context-item.pick (ctrl+a c): the live pane's picker,
+// or with into=prompt the prompt box's (turn-prompt.context).
 func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
+	switch into := ochazuke.StringArg(ctx.Args, "into", "clipboard"); into {
+	case "clipboard":
+	case "prompt":
+		return a.pickIntoPrompt()
+	default:
+		return ochazuke.Failed(fmt.Errorf("no picker delivery %q (%s)", into, strings.Join(pickInto, ", ")))
+	}
 	p, err := a.pickedPane(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	return a.openContextPicker(p, func(row ochazuke.ChooserRow) ochazuke.Result {
+		if pr, ok := row.Data.(promptRow); ok {
+			return a.runOnPrompt(pr)
+		}
+		return a.runOnItem("copy", row.ID)
+	})
+}
+
+// openContextPicker opens the picker over pane p's rows; choose is what
+// enter does with the chosen row.
+func (a *App) openContextPicker(p pane, choose func(ochazuke.ChooserRow) ochazuke.Result) ochazuke.Result {
 	if err := a.reloadContextItems(); err != nil {
 		return ochazuke.Failed(err)
 	}
+	var err error
 	if a.cx.turns, err = a.hist.Turns(p.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -81,14 +112,9 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 		Rows:  a.pickerRows(p),
 		// Every typed word is in the row: a long path must not match a
 		// query by scattering its letters.
-		Filter: func(query string, row ochazuke.ChooserRow) bool { return wordsMatch(query, row.Label) },
-		Empty:  "no context yet: paths, URLs, PRs, branches and commits appear as panes print them",
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
-			if pr, ok := row.Data.(promptRow); ok {
-				return a.runOnPrompt(pr)
-			}
-			return a.runOnItem("copy", row.ID)
-		},
+		Filter:  func(query string, row ochazuke.ChooserRow) bool { return wordsMatch(query, row.Label) },
+		Empty:   "no context yet: paths, URLs, PRs, branches and commits appear as panes print them",
+		Choose:  choose,
 		Preview: pickerPreview,
 	})
 	return resultError(err)
