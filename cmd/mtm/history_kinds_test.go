@@ -15,6 +15,7 @@ import (
 func TestReadVerbsAreFetches(t *testing.T) {
 	app := open(t)
 	want := []string{
+		"action-item.count", "action-item.list", "action-item.show",
 		"context-item.list", "dirs.bases", "dirs.list", "dirs.refresh",
 		"extension.available", "extension.list",
 		"harness.list", "harness.models", "harness.names",

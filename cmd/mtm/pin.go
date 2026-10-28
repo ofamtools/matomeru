@@ -292,6 +292,9 @@ func (a *App) refreshTitle() {
 	if a.all {
 		a.titleHead += " · all"
 	}
+	if count := a.inboxCountLabel(); count != "" {
+		a.titleHead += " · " + count
+	}
 	a.fitTitle()
 }
 

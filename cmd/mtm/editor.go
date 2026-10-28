@@ -71,7 +71,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
@@ -110,6 +110,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if c := a.contextUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
+	if c := a.inboxUpdate(msg); c != nil {
+		cmd = tea.Batch(cmd, c)
+	}
 	a.followProject()
 	if a.r.Page != a.lastPage {
 		// A refresh or register from the CLI shows when a page is opened.
@@ -129,6 +132,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh is automatic: the page reads its records on opening
 			// (another mtm or the CLI may have changed them).
 			if err := a.refreshSaved(); err != nil {
+				a.r.UI().Status(err.Error())
+			}
+		case inboxPage:
+			// Outside tools add items from other processes.
+			if err := a.reloadInbox(); err != nil {
 				a.r.UI().Status(err.Error())
 			}
 		case vimPage:

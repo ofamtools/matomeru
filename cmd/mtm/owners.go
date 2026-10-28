@@ -37,6 +37,9 @@ func (a *App) paneOwner(p pane) work.Assignment {
 }
 
 func (a *App) associatePane(ctx ochazuke.Ctx) ochazuke.Result {
+	if id, ok := relatedItem(ctx); ok {
+		return a.associatePaneItem(ctx, id)
+	}
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "pane")
 	}
@@ -87,6 +90,9 @@ func (a *App) associateSession(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) associateTask(ctx ochazuke.Ctx) ochazuke.Result {
+	if id, ok := relatedItem(ctx); ok {
+		return a.associateTaskItem(ctx, id)
+	}
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "task")
 	}

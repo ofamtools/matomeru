@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -25,8 +26,10 @@ func TestTheHeaderListsEveryPageTabAndMarksTheActiveOne(t *testing.T) {
 				t.Fatalf("on %s the tab row is %q: %s listed %v, marked %v", want.id, tabs, p.title, strings.Contains(tabs, p.title), marked)
 			}
 		}
-		if strings.Count(tabs, "›") != 1 {
-			t.Fatalf("on %s the tab row marks %d tabs: %q", want.id, strings.Count(tabs, "›"), tabs)
+		// "N›" at the row's end is the overflow mark (tabs past the
+		// width), not a marked tab.
+		if n := len(regexp.MustCompile(`(^|\s)› `).FindAllString(tabs, -1)); n != 1 {
+			t.Fatalf("on %s the tab row marks %d tabs: %q", want.id, n, tabs)
 		}
 	}
 }

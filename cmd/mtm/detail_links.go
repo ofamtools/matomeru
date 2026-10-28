@@ -87,7 +87,11 @@ func (a *App) addLinkedDetail(id, page string, main func() *ochazuke.List, subje
 
 // linkedDetails are the pages' linked details, nil before their pages exist.
 func (a *App) linkedDetails() map[string]*linkedDetail {
-	return map[string]*linkedDetail{directoriesPage: a.detail.dirs, savedPage: a.detail.saved, vimPage: a.detail.vim}
+	m := map[string]*linkedDetail{directoriesPage: a.detail.dirs, savedPage: a.detail.saved, vimPage: a.detail.vim}
+	if a.inbox != nil {
+		m[inboxPage] = a.inbox.detail
+	}
+	return m
 }
 
 // linkRow is the row id of the link to t; each page's links have their
