@@ -484,10 +484,6 @@ func (a *App) defineLiveKeys() {
 		Bind("'", ochazuke.Do("ochazuke.page.pick").Guard("no-modal")).
 		Bind("ctrl+j", ochazuke.Do("ochazuke.page.next")).
 		Bind("ctrl+k", ochazuke.Do("ochazuke.page.previous")).
-		Bind("<", ochazuke.Do("ochazuke.pane.shrink").Guard("pane-split")).
-		Bind(">", ochazuke.Do("ochazuke.pane.grow").Guard("pane-split")).
-		Bind("=", ochazuke.Do("ochazuke.pane.reset").Guard("pane-split")).
-		Bind(".", ochazuke.Do("ochazuke.history.repeat")).
 		Bind("?", ochazuke.Do("ochazuke.bindings.help"))
 	a.defineLiveHints()
 	a.leaderView()
@@ -535,10 +531,6 @@ var leaderWords = []struct{ key, text string }{
 	{"'", "pick a page (' outside live)"},
 	{"ctrl+j", "next page (ctrl+j outside live)"},
 	{"ctrl+k", "previous page (ctrl+k outside live)"},
-	{"<", "shrink the list beside the pane (< outside live)"},
-	{">", "grow the list beside the pane (> outside live)"},
-	{"=", "put the split back at its default (= outside live)"},
-	{".", "repeat the last command (. outside live)"},
 	{"?", "keyboard help: every key here, the leader's under it"},
 }
 

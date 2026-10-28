@@ -75,7 +75,7 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 // Without the leader the same keys go to the program in the pane.
 func TestAppKeysWithoutTheLeaderReachThePane(t *testing.T) {
 	a, s, _ := hintsApp(t, padRows("$ "))
-	keys := []string{":", ",", "?", "'", "`", "W", "*", "\\", "P", "L", "I", "<", ">", "=", ".", "ctrl+j", "ctrl+k"}
+	keys := []string{":", ",", "?", "'", "`", "W", "*", "\\", "P", "L", "I", "ctrl+j", "ctrl+k"}
 	press(t, a, keys...)
 	live(t, a, "unprefixed keys")
 	if len(s.sent) != len(keys) {
@@ -172,52 +172,21 @@ func TestLeaderPaneKeysStayLive(t *testing.T) {
 	live(t, app, "ctrl+a W")
 }
 
-// The leader's . runs dot-repeat (ochazuke.history.repeat) as . does.
-// Only the framework's editor changes repeat, and nothing typed into a
-// pane is history, so from live there is nothing to repeat: it says so,
-// sends nothing to the pane, and the pane stays live.
-func TestLeaderDotRunsRepeat(t *testing.T) {
-	a, s, _ := hintsApp(t, padRows("$ "))
-	settle(a, key(t, a, "ctrl+a"))
-	_, cmd := a.Update(keyMsg("."))
-	settle(a, cmd)
-	if !strings.Contains(a.m.Status, "nothing to repeat") {
-		t.Fatalf("ctrl+a .: status %q", a.m.Status)
-	}
-	live(t, a, "ctrl+a .")
-	if len(s.sent) != 0 || len(s.pasted) != 0 {
-		t.Fatalf("ctrl+a . reached the pane: sent %v pasted %v", s.sent, s.pasted)
-	}
-}
-
-// The leader's <, > and = carry the resize rows' guard (pane-split): the
-// Panes page draws its own split, not the framework's, so outside live
-// the keys are off there and after the leader they are too; neither the
-// key nor the leader reaches the pane, and it stays live.
-func TestLeaderResizeKeysFollowTheSplitGuard(t *testing.T) {
-	a, s, _ := hintsApp(t, padRows("$ "))
-	for _, k := range []string{"<", ">", "="} {
-		var row ochazuke.Binding
-		for _, b := range a.r.Noun("terminal").Bindings["leader_pending"] {
-			if b.Keys == k {
-				row = b
-			}
+// <, >, = and . are not leader keys: they do nothing on the Panes page
+// in either mode (its split is its own, and nothing typed into a pane is
+// a repeatable change), so after the leader they go to the pane as the
+// leader and the key, as any unbound key does. Their verbs stay.
+func TestResizeAndRepeatAreNotLeaderKeys(t *testing.T) {
+	a, _, _ := hintsApp(t, padRows("$ "))
+	for _, b := range a.r.Noun("terminal").Bindings["leader_pending"] {
+		switch b.Keys {
+		case "<", ">", "=", ".":
+			t.Fatalf("leader %s is bound: %+v", b.Keys, b)
 		}
-		if row.When != "pane-split" {
-			t.Fatalf("leader %s: row %+v", k, row)
-		}
-		leaderKey(t, a, "ctrl+a", k)
-		live(t, a, "ctrl+a "+k)
 	}
-	if got := a.r.PaneShift(panesPage); got != 0 {
-		t.Fatalf("shift %d", got)
-	}
-	if len(s.pasted) != 0 {
-		t.Fatalf("pasted %v", s.pasted)
-	}
-	for _, sent := range s.sent {
-		if len(sent) == 1 && strings.ContainsAny(sent[0], "<>=") {
-			t.Fatalf("a resize key reached the pane: %v", s.sent)
+	for _, op := range []string{"ochazuke.pane.shrink", "ochazuke.pane.grow", "ochazuke.pane.reset", "ochazuke.history.repeat"} {
+		if _, ok := a.r.Operations[op]; !ok {
+			t.Fatalf("%s is gone", op)
 		}
 	}
 }

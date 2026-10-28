@@ -30,9 +30,7 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 		}
 		bound := map[string]bool{}
 		for _, b := range app.r.Noun("terminal").Bindings["leader_pending"] {
-			// The resize rows' pane-split guard is off on the Panes
-			// page, which draws its own split, so live help leaves them out.
-			if b.Keys != "" && !b.Hidden && b.When != "pane-split" {
+			if b.Keys != "" && !b.Hidden {
 				bound[b.Keys] = true
 			}
 		}
