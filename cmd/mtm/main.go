@@ -256,6 +256,8 @@ type App struct {
 	work           *work.Store
 	contexts       *contextitems.Store // the context_items table (context.go)
 	inbox          *inboxState         // the action_items table and the Inbox page (inbox.go)
+	sched          *scheduleState      // schedules, their runner and the Schedules page (schedules.go)
+	signals        paneSignalState     // pane state raised into the inbox (pane_signals.go)
 	hist           *history.Journal    // the history journal and review marks (journal.go)
 	feed           *journalFeed        // the journal's background reader (journal.go)
 	journalSrc     journalSource       // the daemon the reader follows; tests replace it
@@ -450,6 +452,10 @@ func New(opts Options) (*App, error) {
 	a.dataPath = opts.Data
 	a.opts = opts
 	a.configure(opts, configDir)
+	if err := a.openSchedules(configDir); err != nil {
+		db.Close()
+		return nil, err
+	}
 	a.feed, a.journalSrc, a.getenv = newJournalFeed(), client, os.Getenv
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
@@ -472,6 +478,7 @@ func New(opts Options) (*App, error) {
 	a.definePin()
 	a.defineOwners()
 	a.defineInbox()
+	a.defineSchedules()
 	a.defineDeletion()
 	a.defineSaved()
 	a.defineVim()
@@ -556,6 +563,9 @@ func New(opts Options) (*App, error) {
 	if err := a.addInboxPage(); err != nil {
 		return nil, err
 	}
+	if err := a.addSchedulesPage(); err != nil {
+		return nil, err
+	}
 	// The Extensions page is mtm's last tab; the registered extensions'
 	// pages follow it.
 	if err := a.addExtensionsPage(); err != nil {
@@ -603,6 +613,7 @@ func New(opts Options) (*App, error) {
 // closes the terminal and the store.
 func (a *App) Close() error {
 	a.quitting = true
+	a.stopSchedules()
 	return errors.Join(a.flushEditor(), a.flushExtForm(), a.flushRename(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
 }
 

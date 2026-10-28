@@ -91,6 +91,9 @@ func (a *App) linkedDetails() map[string]*linkedDetail {
 	if a.inbox != nil {
 		m[inboxPage] = a.inbox.detail
 	}
+	if a.sched != nil && a.sched.detail != nil {
+		m[schedulesPage] = a.sched.detail
+	}
 	return m
 }
 

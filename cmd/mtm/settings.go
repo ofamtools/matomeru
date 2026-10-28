@@ -40,7 +40,7 @@ func (a *App) declareSettings() error {
 	if names := a.harnesses.Names(); slices.Contains(names, defaultHarness) {
 		harnessSetting.Enum = names
 	}
-	return a.r.DeclareSetting(
+	settings := []ochazuke.Setting{
 		ochazuke.Setting{Name: settingEditDebounce, Type: ochazuke.SettingDuration, Default: editorDebounce,
 			Description: "Pause in typing before the record editor and quick note write"},
 		ochazuke.Setting{Name: settingRefresh, Type: ochazuke.SettingDuration, Default: refreshEvery,
@@ -65,7 +65,10 @@ func (a *App) declareSettings() error {
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
 		ochazuke.Setting{Name: ochazuke.TerminalLeaderTimeoutSetting, Type: ochazuke.SettingDuration, Default: time.Duration(0),
 			Description: "How long the terminal leader waits for the next key before it sends the leader alone; 0 waits until a key comes"},
-	)
+	}
+	settings = append(settings, a.signalSettings()...)
+	settings = append(settings, a.scheduleSettings()...)
+	return a.r.DeclareSetting(settings...)
 }
 
 // editDebounce is the edit-debounce setting, editorDebounce when unset

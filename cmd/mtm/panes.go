@@ -460,6 +460,9 @@ func (a *App) setPanes(panes []pane, err error) {
 	}
 	a.recordTurns(panes)
 	a.recordAgentSessions(panes)
+	if err == nil {
+		a.raisePaneSignals(panes)
+	}
 	a.feed.setPanes(panes)
 	a.pv.view = a.buildPaneTree(panes, time.Now())
 	before, hadRow := a.pv.tree.Selected()
