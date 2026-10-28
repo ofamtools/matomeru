@@ -547,7 +547,13 @@ func (a *App) promptAfter(before promptState) {
 func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	in := a.pb.input
 	s := ochazuke.NewStyles(*a.m.Appearance)
-	style := a.promptModeStyle(s)
+	// The rule shows whether the box has the focus: the mode's colour
+	// (bold in mono) while it does, muted (dim in mono) while it does not.
+	// Only the style changes, never the text, so nothing moves.
+	style := s.Muted
+	if a.r.Focus == promptID {
+		style = a.promptModeStyle(s)
+	}
 	label := promptModeLabel(a.pb.mode, p) + " " + p.kind()
 	if p.needsInput() {
 		label += " · waits on you"
@@ -594,7 +600,7 @@ func (a *App) promptModeStyle(s ochazuke.Styles) lipgloss.Style {
 	switch a.pb.mode {
 	case promptQueue:
 		if a.m.Appearance.Theme == "mono" {
-			return lipgloss.NewStyle()
+			return lipgloss.NewStyle().Bold(true)
 		}
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("#D7A72F"))
 	case promptInterrupt:
