@@ -304,7 +304,7 @@ func TestOutlineUndoesStatusInOrder(t *testing.T) {
 	a := pinned(t)
 	press(t, a, "T")
 	before := stored(t, a, "t1").Title
-	press(t, a, "i")
+	press(t, a, "i", "end")
 	typeText(t, a, " two")
 	press(t, a, "esc", "x")
 	if got := stored(t, a, "t1"); got.Status != work.StatusDone || got.Title != before+" two" {

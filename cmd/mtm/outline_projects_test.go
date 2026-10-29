@@ -112,7 +112,7 @@ func TestAllViewOAddsAProjectThatTypingNames(t *testing.T) {
 // is typed; u undoes the rename.
 func TestAllViewTypingRenamesAProject(t *testing.T) {
 	a := allOutline(t, projectNode("ochazuke"))
-	press(t, a, "i")
+	press(t, a, "i", "end")
 	typePaused(t, a, " two")
 	if p, _ := a.work.Project("ochazuke"); p.Name != "ochazuke two" || sessionFor(p) != "ochazuke-two" {
 		t.Fatalf("rename while typing: %+v", p)
@@ -256,7 +256,7 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 	if row := a.r.Instances[a.r.Focus]; a.r.Focus != projectNode("matomeru") || row.Noun != outlineRootNoun {
 		t.Fatalf("k: focus %s", a.r.Focus)
 	}
-	press(t, a, "i")
+	press(t, a, "i", "end")
 	typeText(t, a, " app")
 	press(t, a, "esc")
 	if p, _ := a.work.Project("matomeru"); p.Name != "matomeru app" {
