@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/unixsuperhero/ochazuke"
 )
 
 // copyBuf is copy mode's read-only buffer: plain lines (the pane's
@@ -510,15 +512,16 @@ func (b *copyBuf) scanFrom(p copyPos, back bool, match func(copyPos) bool) (copy
 	return p, false
 }
 
-// selection is the selected text for a visual shape ("visual",
-// "visual-line" or "visual-block") and the yank's shape and width.
-func (b *copyBuf) selection(mode string) (text, shape string, width int) {
+// selection is the selected text for a selection shape (ochazuke's
+// SelectionChar, SelectionLine or SelectionBlock) and the yank's shape and
+// width.
+func (b *copyBuf) selection(sel string) (text, shape string, width int) {
 	a, c := b.anchor, copyPos{b.row, b.col}
-	switch mode {
-	case "visual-line":
+	switch sel {
+	case ochazuke.SelectionLine:
 		top, bottom := min(a.row, c.row), max(a.row, c.row)
 		return strings.Join(b.lines[top:bottom+1], "\n") + "\n", "line", 0
-	case "visual-block":
+	case ochazuke.SelectionBlock:
 		top, bottom, left, right := b.blockBounds()
 		rows := make([]string, 0, bottom-top+1)
 		for r := top; r <= bottom; r++ {
@@ -568,16 +571,16 @@ func (b *copyBuf) blockBounds() (top, bottom, left, right int) {
 
 // selected reports the selected columns of a row, [lo, hi), for drawing;
 // hi past the line's end marks its line end selected too.
-func (b *copyBuf) selected(mode string, row int) (lo, hi int, ok bool) {
+func (b *copyBuf) selected(shape string, row int) (lo, hi int, ok bool) {
 	a, c := b.anchor, copyPos{b.row, b.col}
 	n := len(b.line(row))
-	switch mode {
-	case "visual-line":
+	switch shape {
+	case ochazuke.SelectionLine:
 		if row < min(a.row, c.row) || row > max(a.row, c.row) {
 			return 0, 0, false
 		}
 		return 0, n + 1, true
-	case "visual-block":
+	case ochazuke.SelectionBlock:
 		top, bottom, left, right := b.blockBounds()
 		if row < top || row > bottom {
 			return 0, 0, false
@@ -586,7 +589,7 @@ func (b *copyBuf) selected(mode string, row int) (lo, hi int, ok bool) {
 			return left, max(left+1, n), true
 		}
 		return left, right + 1, true
-	case "visual":
+	case ochazuke.SelectionChar:
 		if c.row < a.row || c.row == a.row && c.col < a.col {
 			a, c = c, a
 		}

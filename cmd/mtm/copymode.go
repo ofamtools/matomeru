@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -41,7 +42,8 @@ type copyMode struct {
 	base       int  // the daemon's line number of the buffer's first line
 	loaded     bool // a scrollback capture has landed since entering
 	frame      string
-	err        string // why the last scrollback load failed
+	err        string            // why the last scrollback load failed
+	r          *ochazuke.Runtime // asked for a mode's selection shape
 }
 
 // The delivery contract: the copy instance's only work is copy.load, whose
@@ -50,17 +52,14 @@ func (c *copyMode) HandleMessage(tea.Msg) bool { return false }
 func (c *copyMode) PendingCommand() tea.Cmd    { return nil }
 func (c *copyMode) Close()                     {}
 
-func isVisualMode(mode string) bool {
-	return mode == "visual" || mode == "visual-line" || mode == "visual-block"
-}
-
-// ModeChanged anchors a selection where the cursor is when a visual shape
-// starts from outside one; switching shapes keeps the anchor.
+// ModeChanged anchors a selection where the cursor is when a selection
+// mode starts from outside one; switching shapes keeps the anchor. Modes
+// are judged by their selection shape, never their names (SC-05).
 func (c *copyMode) ModeChanged(from, to string) {
-	if isVisualMode(to) && !isVisualMode(from) {
+	if c.r.SelectionShape(to) != "" && c.r.SelectionShape(from) == "" {
 		c.buf.anchor = copyPos{c.buf.row, c.buf.col}
 	}
-	if to != "visual-block" {
+	if c.r.SelectionShape(to) != ochazuke.SelectionBlock {
 		c.buf.blockEnd = false
 	}
 }
@@ -137,10 +136,10 @@ func (a *App) defineCopy() {
 		}
 	}
 	_ = r.DefineMode(copyFindMode, true)
-	a.copy = &copyMode{buf: copyBuf{goal: -1}}
+	a.copy = &copyMode{buf: copyBuf{goal: -1}, r: r}
 	r.Define(copyNoun).Focusable().
 		Verb("move", a.copyOp(func(c *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
-			return c.buf.move(ochazuke.StringArg(args, "motion", ""), ochazuke.IntArg(args, "steps", 1), ochazuke.IntArg(args, "line", 0), r.BaseMode() == "visual-block")
+			return c.buf.move(ochazuke.StringArg(args, "motion", ""), ochazuke.IntArg(args, "steps", 1), ochazuke.IntArg(args, "line", 0), r.SelectionShape(r.BaseMode()) == ochazuke.SelectionBlock)
 		}), "Move the copy cursor (Vim motions: left, word-forward, line-end, first-line, screen-top, paragraph-forward, match, ...)").Motion().
 		Verb("find", a.copyOp(func(c *copyMode, _ *ochazuke.Runtime, args ochazuke.Arguments) error {
 			char, err := keyChar(ochazuke.StringArg(args, "char", ""))
@@ -166,8 +165,9 @@ func (a *App) defineCopy() {
 		}), "Move to the next match of the last search (reverse: the previous)").Motion().
 		Verb("search", a.copySearch, "Search the copy buffer: down, or up with back; a lowercase pattern ignores case").
 		Verb("select", a.copyOp(func(_ *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
-			mode := map[string]string{"char": "visual", "line": "visual-line", "block": "visual-block"}[ochazuke.StringArg(args, "shape", "char")]
-			if mode == "" {
+			shape := ochazuke.StringArg(args, "shape", ochazuke.SelectionChar)
+			mode := r.SelectionMode(shape)
+			if !slices.Contains([]string{ochazuke.SelectionChar, ochazuke.SelectionLine, ochazuke.SelectionBlock}, shape) || mode == "" {
 				return errors.New("shape must be char, line or block")
 			}
 			if r.BaseMode() == mode {
@@ -466,16 +466,16 @@ func (a *App) copyYank(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("copy mode is not on"))
 	}
 	b := &c.buf
-	mode := a.r.BaseMode()
+	shape := a.r.SelectionShape(a.r.BaseMode())
 	var y ochazuke.Yank
 	start := copyPos{b.row, b.col}
-	if isVisualMode(mode) {
-		y.Text, y.Shape, y.Width = b.selection(mode)
+	if shape != "" {
+		y.Text, y.Shape, y.Width = b.selection(shape)
 		top, _, left, _ := b.blockBounds()
-		switch mode {
-		case "visual-block":
+		switch shape {
+		case ochazuke.SelectionBlock:
 			start = copyPos{top, left}
-		case "visual-line":
+		case ochazuke.SelectionLine:
 			start = copyPos{top, b.col}
 		default:
 			if b.anchor.row < start.row || b.anchor.row == start.row && b.anchor.col < start.col {
@@ -490,7 +490,7 @@ func (a *App) copyYank(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.r.StoreYank(y, "", false); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if isVisualMode(mode) {
+	if shape != "" {
 		if err := a.r.SetMode("normal"); err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -627,7 +627,7 @@ func (a *App) copyBlock(width, height int) ochazuke.Block {
 	width, height = max(1, width), max(1, height)
 	b.height = height
 	b.show()
-	mode := a.r.BaseMode()
+	shape := a.r.SelectionShape(a.r.BaseMode())
 	cur := b.line(b.row)
 	cursorX := ansi.StringWidth(string(cur[:min(b.col, len(cur))]))
 	left := max(0, cursorX-width+1)
@@ -639,7 +639,7 @@ func (a *App) copyBlock(width, height int) ochazuke.Block {
 			continue
 		}
 		l := b.line(r)
-		lo, hi, sel := b.selected(mode, r)
+		lo, hi, sel := b.selected(shape, r)
 		var out strings.Builder
 		cells := 0
 		for col := left; cells < width; col++ {

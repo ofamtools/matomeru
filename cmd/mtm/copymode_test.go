@@ -390,6 +390,43 @@ func TestCopyModeVisualShapesYank(t *testing.T) {
 	}
 }
 
+// Copy mode reads a mode's selection shape, never its name (SC-05): a mode
+// of another name declared line-shaped selects and yanks whole lines, and
+// visual-line marked as a block selects a rectangle.
+func TestCopyModeSelectionFollowsTheShape(t *testing.T) {
+	lines := []string{"0123456789", "abcdefghij", "ABCDEFGHIJ"}
+	app, _, _ := copyApp(t, nil, lines)
+	enterCopyMode(t, app)
+	if err := app.r.DefineMode("pick-lines", false, ochazuke.ModeExtends("normal")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.r.DefineSelection("pick-lines", ochazuke.SelectionLine); err != nil {
+		t.Fatal(err)
+	}
+	pressAll(t, app, "g", "g", "0", "2", "l")
+	if err := app.r.SetMode("pick-lines"); err != nil {
+		t.Fatal(err)
+	}
+	pressAll(t, app, "j")
+	if _, err := app.r.Execute(ochazuke.Request{Noun: copyNoun, Verb: "yank", Target: copyID}); err != nil {
+		t.Fatal(err)
+	}
+	if y, _ := app.r.ReadYank("0"); y.Text != "0123456789\nabcdefghij\n" || y.Shape != "line" {
+		t.Fatalf("pick-lines yank: %+v", y)
+	}
+	if err := app.r.DefineSelection("visual-line", ochazuke.SelectionBlock); err != nil {
+		t.Fatal(err)
+	}
+	pressAll(t, app, "g", "g", "0", "2", "l")
+	if err := app.r.SetMode("visual-line"); err != nil {
+		t.Fatal(err)
+	}
+	pressAll(t, app, "j", "l", "y")
+	if y, _ := app.r.ReadYank("0"); y.Text != "23\ncd" || y.Shape != "block" {
+		t.Fatalf("visual-line as a block: %+v", y)
+	}
+}
+
 // The footer names copy mode's actions, innermost first, with no motions.
 func TestCopyModeFooterHasNoMotions(t *testing.T) {
 	app, _, _ := copyApp(t, nil, []string{"one", "two"})

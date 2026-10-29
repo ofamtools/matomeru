@@ -6,6 +6,7 @@ import (
 
 	"github.com/unixsuperhero/matomeru/internal/actionitems"
 	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/ochazuke"
 )
 
 // visualInbox is the Inbox page over four open items, the first selected.
@@ -160,5 +161,36 @@ func TestVisualOutlineActsOnEverySelectedTaskAsOneUndo(t *testing.T) {
 	press(t, a, "u")
 	if stored(t, a, "t1").Status != work.StatusTodo || stored(t, a, "t2").Status != work.StatusTodo {
 		t.Fatalf("u after s: %s %s", stored(t, a, "t1").Status, stored(t, a, "t2").Status)
+	}
+}
+
+// On the Panes list V enters ochazuke's visual-line mode (v0.43.0); j
+// extends the selection and m, the pane rows' own normal key, asks once
+// for both panes; visual ends with the chooser.
+func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
+	app, _ := panesApp(t)
+	press(t, app, "V")
+	if app.r.Mode.Name != "visual-line" || app.r.SelectionShape(app.r.Mode.Name) != ochazuke.SelectionLine {
+		t.Fatalf("V: mode %s", app.r.Mode.Name)
+	}
+	if f := frameAt(app, 160); !strings.Contains(f, "VISUAL-LINE") {
+		t.Fatalf("V: no VISUAL-LINE badge:\n%s", f)
+	}
+	for i := 0; i < 4 && app.r.Focus != "pane:ochazuke/w2"; i++ {
+		press(t, app, "j")
+	}
+	if app.r.Focus != "pane:ochazuke/w2" {
+		t.Fatalf("V j: focus %s", app.r.Focus)
+	}
+	press(t, app, "m")
+	if app.r.Chooser(moveChooser) == nil {
+		t.Fatalf("V j m: modal %q", app.r.TopModal())
+	}
+	if f := frameAt(app, 160); !strings.Contains(f, "Move 2 rows to") {
+		t.Fatalf("V j m: the chooser does not count both panes:\n%s", f)
+	}
+	press(t, app, "esc")
+	if app.r.Mode.Name != "normal" {
+		t.Fatalf("after the chooser: mode %s", app.r.Mode.Name)
 	}
 }
