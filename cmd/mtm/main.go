@@ -147,6 +147,7 @@ func DefaultData() string {
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("mtm", flag.ContinueOnError)
 	flags.SetOutput(stderr)
+	showVersion := flags.Bool("version", false, "Print the version, the commit and the ochazuke version, and exit")
 	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit; uses a fresh temp database unless -data is given, and never reaches the daemon")
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
@@ -159,6 +160,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		words = flags.Args()
 	} else if !errors.Is(err, flag.ErrHelp) {
 		return err
+	}
+	if *showVersion {
+		return writeVersion(stdout, buildStamp())
 	}
 	if *smoke {
 		cleanup, err := smokeOptions(&opts, flags)

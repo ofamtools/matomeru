@@ -42,6 +42,8 @@ Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.
 go install github.com/unixsuperhero/matomeru/cmd/mtm@latest
 ```
 
+From a checkout, `make install` (or `make build`, which writes `bin/mtm`) passes the version stamp: `-X main.version=… -X main.commit=…` with the tag from `git describe` (`make install VERSION=v0.1.0` overrides it). `mtm --version` prints the version, the commit and the ochazuke version; without the linker stamps it reads the build info the go command embeds.
+
 ## Live shell keys
 
 In a live pane every key goes to the program in it, except the `terminal-leader` setting (default `ctrl+a`). After the leader, the app's own normal-mode keys do what they do outside live: the same verb, and the same guard. The palette, settings and pickers open over the pane; closing them (`esc`) gives the pane its keys again.
