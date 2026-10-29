@@ -74,6 +74,10 @@ type Harness struct {
 	// ContextWindows are context windows in tokens by model pattern (a
 	// path.Match glob), for a harness whose log gives none.
 	ContextWindows map[string]int64 `json:"contextWindows,omitempty"`
+	// Session is where the harness records the session a running agent
+	// writes now (session.go); nil: only the id tuios reports. A file's
+	// session object merges by field into the built-in's; null removes it.
+	Session *SessionSource `json:"session,omitempty"`
 }
 
 // Ready says when a new pane takes its first prompt: the agent state the
@@ -106,6 +110,7 @@ func Builtins() []Harness {
 	}
 	for i := range list {
 		list[i].Settings, list[i].ContextWindows = builtinSettings(list[i].Name)
+		list[i].Session = builtinSession(list[i].Name)
 	}
 	return list
 }
@@ -139,6 +144,11 @@ func (h Harness) Validate() error {
 			return fmt.Errorf("harness %s: unknown setting %q; known: %s", h.Name, name, strings.Join(SettingNames, ", "))
 		}
 		if err := s.validate(h.Name, name); err != nil {
+			return err
+		}
+	}
+	if h.Session != nil {
+		if err := h.Session.validate(h.Name); err != nil {
 			return err
 		}
 	}
@@ -317,6 +327,11 @@ func Merge(base []Harness, data []byte) ([]Harness, error) {
 			// built-in's, so the maps are copied first.
 			h.Command, h.Models = slices.Clone(h.Command), slices.Clone(h.Models)
 			h.Env, h.Settings, h.ContextWindows = maps.Clone(h.Env), maps.Clone(h.Settings), maps.Clone(h.ContextWindows)
+			if h.Session != nil {
+				src := *h.Session
+				src.Agents, src.Env = slices.Clone(src.Agents), slices.Clone(src.Env)
+				h.Session = &src
+			}
 		}
 		dec := json.NewDecoder(strings.NewReader(string(raw)))
 		dec.DisallowUnknownFields()

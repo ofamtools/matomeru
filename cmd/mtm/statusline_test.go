@@ -98,7 +98,7 @@ func serveDaemon(t *testing.T, answer func(verb string) (any, bool)) string {
 // no feed writes (effort) is not shown; effort and the permission mode come
 // only from the flags mtm launched the agent with.
 func TestStatusLineShowsOnlyWhatTheDaemonReports(t *testing.T) {
-	panes, err := tuios{daemon.New(statuslineDaemon(t))}.ListPanes(context.Background())
+	panes, err := tuios{Client: daemon.New(statuslineDaemon(t))}.ListPanes(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -102,6 +102,11 @@ type pane struct {
 	Exited            bool   `json:"exited,omitempty"`  // the window's process ended; TUIOS still lists it
 	Program           string `json:"program,omitempty"` // what mtm knows runs in a shell pane ("vim"), else ""
 	Starred           bool   `json:"starred,omitempty"` // pane.star (pane_stars.go)
+	// ReportedSession is the session id tuios reported when the
+	// harness's records name another (AgentSession), and SessionNote why
+	// none of several could be taken (pane_locate.go).
+	ReportedSession string `json:"reported_session,omitempty"`
+	SessionNote     string `json:"session_note,omitempty"`
 	daemon.Pane
 }
 
@@ -1053,7 +1058,7 @@ func (t tuios) ListPanes(ctx context.Context) ([]pane, error) {
 			out = append(out, p)
 		}
 	}
-	return out, nil
+	return locatePanes(out, t.locate), nil
 }
 
 // Exited reports whether the window's process has ended: wait-for

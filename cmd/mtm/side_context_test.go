@@ -304,7 +304,7 @@ func TestTheDriverOpensOnTheNamedWorkspace(t *testing.T) {
 		{0, []string{"session-info", "list-windows", "list-workspaces", "new-window"}, 2},
 	} {
 		sock, verbs, last := verbDaemon(t)
-		id, err := tuios{daemon.New(sock)}.OpenWindow(context.Background(), harness.Window{Session: "work", Workspace: c.workspace, Cwd: "/tmp", Command: []string{"/bin/sh"}})
+		id, err := tuios{Client: daemon.New(sock)}.OpenWindow(context.Background(), harness.Window{Session: "work", Workspace: c.workspace, Cwd: "/tmp", Command: []string{"/bin/sh"}})
 		if err != nil || id != "side" {
 			t.Fatalf("workspace %d: %q %v", c.workspace, id, err)
 		}

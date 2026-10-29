@@ -14,6 +14,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/locate"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -43,6 +44,8 @@ type fakePanes struct {
 	promptErr error
 	// onKey runs after SendKey (a harness redrawing its screen).
 	onKey func(window, key string)
+	// locate corrects the listing's sessions as tuios.ListPanes does.
+	locate *locate.Locator
 }
 
 func (f *fakePanes) PromptSubmit(_ context.Context, p pane, text string) error {
@@ -96,7 +99,7 @@ func (f *fakePanes) ListPanes(context.Context) ([]pane, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return append([]pane(nil), f.panes...), nil
+	return locatePanes(append([]pane(nil), f.panes...), f.locate), nil
 }
 
 func (f *fakePanes) CapturePane(_ context.Context, p pane) (string, error) {

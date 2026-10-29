@@ -25,6 +25,7 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/draft"
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/history"
+	"github.com/unixsuperhero/matomeru/internal/locate"
 	"github.com/unixsuperhero/matomeru/internal/turns"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/matomeru/store"
@@ -292,6 +293,7 @@ type App struct {
 	ensure              func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
 	launcher            harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
 	harnesses           *harness.Registry           // the built-ins merged with the harness file
+	locator             *locate.Locator             // the harnesses' session records (pane_locate.go); nil none
 	promptDelay         time.Duration               // the wait before typing into a pane whose harness has no readiness probe
 	sleep               func(context.Context, time.Duration) error
 	panesd              paneDaemon
@@ -463,7 +465,8 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	client := opts.client()
-	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{client}, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
+	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
+	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
 	a.trackNotices()
 	a.claudeProjects = turns.ClaudeProjects()
 	a.agentStarted = processAgentStart

@@ -12,6 +12,7 @@ import (
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/harness"
+	"github.com/unixsuperhero/matomeru/internal/locate"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -81,7 +82,13 @@ func projectCwd(p work.Project) string {
 // submit, which pastes the text and presses the pane's Enter, so a plain
 // shell runs it as a command. start-agent is not used: it would be a
 // second path for the harnesses tuios knows, while this one runs any argv.
-type tuios struct{ *daemon.Client }
+// tuios is the TUIOS daemon as mtm's pane operations. locate, when set,
+// corrects each listed pane's agent session from the harnesses' own
+// records (pane_locate.go).
+type tuios struct {
+	*daemon.Client
+	locate *locate.Locator
+}
 
 func (t tuios) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
 	ws, err := launchWorkspace(ctx, t.Client, w)

@@ -117,7 +117,7 @@ func (q *queueDaemon) sent() []string {
 // one presence for every queue, renewed once when tuios refuses it.
 func TestPromptQueueIsFromTheHuman(t *testing.T) {
 	q := &queueDaemon{nonces: []string{"n1", "n2"}, stale: map[string]bool{}}
-	d := tuios{daemon.New(q.serve(t))}
+	d := tuios{Client: daemon.New(q.serve(t))}
 	defer d.DropPresence()
 	p := pane{Session: "work", Pane: daemon.Pane{ID: "w1"}}
 	ctx := context.Background()
@@ -148,7 +148,7 @@ func TestPromptQueueIsFromTheHuman(t *testing.T) {
 // without from, so tuios records mtm's pane as who queued it.
 func TestPromptQueueWithoutAPresenceQueuesAsTheCaller(t *testing.T) {
 	q := &queueDaemon{stale: map[string]bool{}}
-	d := tuios{daemon.New(q.serve(t))}
+	d := tuios{Client: daemon.New(q.serve(t))}
 	if _, err := d.PromptQueue(context.Background(), pane{Session: "work", Pane: daemon.Pane{ID: "w1"}}, "then commit"); err != nil {
 		t.Fatal(err)
 	}

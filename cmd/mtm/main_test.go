@@ -157,6 +157,7 @@ func openWith(t *testing.T, opts Options) *App {
 	app.claudeProjects = t.TempDir()               // no test reads the owner's Claude session logs
 	app.ompSessions = t.TempDir()                  // nor omp's
 	app.codexSessions = t.TempDir()                // nor Codex's
+	app.locator = nil                              // nor the harnesses' session records
 	// The prompt box's completions read a home of the test's, never o-ai.
 	home := t.TempDir()
 	app.pb.sources = compose.NewSources(compose.Env{Home: home, ClaudeDir: filepath.Join(home, ".claude"), OmpDir: filepath.Join(home, ".omp", "agent")})

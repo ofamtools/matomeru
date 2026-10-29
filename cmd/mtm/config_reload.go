@@ -35,6 +35,9 @@ func (a *App) reloadHarnesses() []string {
 		return []string{strings.TrimPrefix(err.Error(), a.opts.Harnesses+": ")}
 	}
 	a.harnesses = reg
+	if a.locator != nil {
+		a.locator.Set(reg.List())
+	}
 	a.setHarnessChoices()
 	return nil
 }

@@ -132,6 +132,9 @@ func (a *App) refreshPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.starts != nil {
 		a.starts.forget(p.ID)
 	}
+	if a.locator != nil {
+		a.locator.Forget()
+	}
 	pt.chain, pt.cur, pt.fallback, pt.err, pt.loading = &turns.LogChain{}, turnsResolution{}, false, "", false
 	switch a.logKind(p) {
 	case turnsClaude, turnsOmp:

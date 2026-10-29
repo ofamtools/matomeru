@@ -29,6 +29,7 @@ type Pane struct {
 	Height     int    `json:"height"`
 	Workspace  int    `json:"workspace"`
 	PID        int    `json:"pid"`
+	TTY        string `json:"tty,omitempty"` // the pane's terminal, /dev/ttys041
 	Focused    bool   `json:"focused"`
 	Minimized  bool   `json:"minimized"`
 	Revision   uint64 `json:"revision"`

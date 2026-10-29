@@ -24,7 +24,8 @@ import (
 // (internal/turns), for the Panes page's Turns tab:
 //
 //   - A Claude Code or omp pane's turns come from its session JSONL, found
-//     through the agent_session_id tuios reports (list-agents). Every
+//     through the agent_session_id tuios reports (list-agents), or the
+//     live session the harness's own records name (pane_locate.go). Every
 //     session the pane ran is kept (work.PaneSessions), so a /clear
 //     chains the new session after the old with a separator row. The
 //     logs are read off the loop, from where the last read stopped, on
@@ -101,6 +102,7 @@ type paneTurns struct {
 	seq      uint64          // the command_seq the shell turns were read at
 	running  string          // the command the shell ran then
 	outputs  map[string]*turnOutput
+	note     string // the pane's SessionNote last put up
 }
 
 // turnOutput is a shell turn's output, read when the turn opened.
@@ -366,6 +368,10 @@ func (a *App) readLogTurns(p pane, pt *paneTurns, notify bool) ochazuke.Result {
 		if notify && got.Notice != "" {
 			a.r.UI().Info(got.Notice)
 		}
+		if p.SessionNote != "" && (notify || pt.note != p.SessionNote) {
+			a.r.UI().Info("turns: " + p.SessionNote) // once, and on each refresh
+		}
+		pt.note = p.SessionNote
 		a.turnsRead(p.ID)
 	})
 }
