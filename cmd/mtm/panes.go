@@ -264,6 +264,13 @@ func (a *App) definePanes() {
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
 		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
 		Bind("m", ochazuke.Do("pane.associate"))
+	// In visual-line (V) d kills the selected panes, as the list's d deletes
+	// rows: the pane's visual-line table reads its normal rows after its
+	// own, and the normal d d no longer waits over it (ochazuke's
+	// sequence-inherit).
+	r.Define("pane").Mode("visual-line").Extends("normal").
+		Bind("d", ochazuke.Do("pane.kill").Guard("pane-no-sides").Hinted("kill")).
+		Bind("d", ochazuke.Do("pane.killBlocked").Hide())
 	// d d asks to kill only a pane with no side pane open; with one, it says
 	// which to close instead of confirming and then refusing.
 	a.r.DefineGuard("pane-no-sides", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {

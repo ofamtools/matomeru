@@ -90,8 +90,9 @@ func TestVisualInboxActsOnEverySelectedRow(t *testing.T) {
 }
 
 // On the Work page's tasks: V j s sets both tasks' status through one
-// chooser, V j m moves both, and V j d d deletes both after one confirm
-// that names the first and counts the rest.
+// chooser, V j m moves both, and V j d deletes both after one confirm
+// that names the first and counts the rest: the task's normal d d does
+// not make the visual-line d wait (ochazuke's sequence-inherit drop).
 func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 	app := open(t)
 	press(t, app, "j", "enter", "V", "j", "s")
@@ -115,15 +116,43 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 	}
 
 	app = open(t)
-	press(t, app, "j", "enter", "V", "j", "d", "d")
+	press(t, app, "j", "enter", "V", "j", "d")
 	if f := frameAt(app, 120); !strings.Contains(f, "and 1 more?") {
-		t.Fatalf("V j d d: the confirm does not count the rows (modal %q):\n%s", app.r.TopModal(), f)
+		t.Fatalf("V j d: the confirm does not count the rows (modal %q, mode %q):\n%s", app.r.TopModal(), app.r.Mode.Name, f)
 	}
 	press(t, app, "y")
 	for _, id := range []string{"t1", "t2"} {
 		if _, err := app.work.Task(id); err == nil {
-			t.Fatalf("V j d d y: %s is still there", id)
+			t.Fatalf("V j d y: %s is still there", id)
 		}
+	}
+}
+
+// On the Panes list V j d kills both selected panes after one confirm:
+// the pane's visual-line d (pane.kill) answers at once, its normal d d
+// does not make it wait, and the footer leaves the d d out.
+func TestVisualPanesDKillsTheSelectionAtOnce(t *testing.T) {
+	app, f := panesApp(t)
+	press(t, app, "V")
+	for i := 0; i < 4 && app.r.Focus != "pane:ochazuke/w2"; i++ {
+		press(t, app, "j")
+	}
+	if app.r.Focus != "pane:ochazuke/w2" {
+		t.Fatalf("V j: focus %s", app.r.Focus)
+	}
+	if hints := ochazuke.BindingHints(app.r, app.r.Focus); strings.Contains(hints, "d d") || !strings.Contains(hints, "d kill") {
+		t.Fatalf("visual-line footer: %s", hints)
+	}
+	press(t, app, "d")
+	if app.r.TopModal() != "confirm" || app.r.Mode.Payload.Prefix != "" {
+		t.Fatalf("V j d: modal %q mode %q", app.r.TopModal(), app.r.Mode.Name)
+	}
+	if fr := frameAt(app, 160); !strings.Contains(fr, "2 rows") {
+		t.Fatalf("V j d: the confirm does not count both panes:\n%s", fr)
+	}
+	settle(app, key(t, app, "y"))
+	if len(f.killed) != 2 {
+		t.Fatalf("V j d y: killed %v", f.killed)
 	}
 }
 

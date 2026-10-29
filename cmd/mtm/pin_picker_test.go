@@ -602,6 +602,25 @@ func TestDirectoryChooserCutsThePathLast(t *testing.T) {
 	}
 }
 
+// The path chooser's known source keeps the same rule (its
+// ChooserSource.Keep): the branch and projects narrow before the path.
+func TestPathChooserKnownSourceCutsThePathLast(t *testing.T) {
+	a := open(t)
+	if err := a.chooseDirectoryFor("Directory", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	c := a.r.Chooser(dirChooser)
+	if c == nil || c.Source() != pathSourceKnown {
+		t.Fatalf("not the path chooser on known: %v", c)
+	}
+	path := "~/proj/some/deep/repo-ab" // 24 cells
+	c.SetRows([]ochazuke.ChooserRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo-name1", path, "feature/branch-abc", "3d ago", "[alpha, beta, ga]"}}})
+	if view := ansi.Strip(c.View(72, 6).Text); !strings.Contains(view, path) {
+		t.Fatalf("path cut:\n%s", view)
+	}
+}
+
 // R2, owner decision (2026-10-26): "dim only". Under a modal the page's
 // highlights stay, dimmed: reverse video under faint, the selected project
 // row and (ochazuke dims an unfocused list instead of hiding its row) the

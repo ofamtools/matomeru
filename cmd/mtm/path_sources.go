@@ -56,6 +56,7 @@ func (a *App) definePathSources() {
 		}
 		return ochazuke.ChooserSource{
 			Empty: empty,
+			Keep:  []int{1}, // the path: the branch and projects narrow first (F22)
 			Load: func(string) ochazuke.Result {
 				if !a.directories.Ready {
 					// The scan runs as dirs.refresh; its completion fills
@@ -152,28 +153,21 @@ func (a *App) refreshPathChoosers() {
 
 // openPathDirectoryChooser is chooseDirectoryFor through the path chooser:
 // use takes the picked folder. Unless the setting asks for the remembered
-// source, it opens on known, as the known-directory chooser did.
+// source, it opens on known (PathChooserSpec.Source), as the
+// known-directory chooser did.
 func (a *App) openPathDirectoryChooser(title, projectID string, use func(string) ochazuke.Result) error {
+	source := pathSourceKnown
+	if a.r.Settings().String(settingDirectoryChooser) == dirChooserRemembered {
+		source = ""
+	}
 	a.pathChooserProject = projectID
-	c, err := a.r.OpenPathChooser(ochazuke.PathChooserSpec{
+	_, err := a.r.OpenPathChooser(ochazuke.PathChooserSpec{
 		Kind:   dirChooser,
 		Title:  title,
 		Pick:   ochazuke.PathPick{Name: "directory", Parameter: dirParam("", true)},
+		Source: source,
 		Choose: use,
 	})
 	a.pathChooserProject = ""
-	if err != nil {
-		return err
-	}
-	if a.r.Settings().String(settingDirectoryChooser) != dirChooserRemembered {
-		for range c.Sources() {
-			if c.Source() == pathSourceKnown {
-				break
-			}
-			if _, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.chooser", Verb: "next-source", Target: dirChooser}); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return err
 }
