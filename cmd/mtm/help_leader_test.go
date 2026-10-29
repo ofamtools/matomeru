@@ -39,7 +39,9 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 				continue
 			}
 			row, ok := byKey[leader+" "+w.key]
-			if !ok || row.Under != leader || row.Description != w.text {
+			// The framework appends the operation's aliases ("· also: opt,
+			// options" on settings.edit since ochazuke v0.50.0).
+			if desc, _, _ := strings.Cut(row.Description, " · also: "); !ok || row.Under != leader || desc != w.text {
 				t.Fatalf("%s %s: row %+v", leader, w.key, row)
 			}
 			if len(row.Steps) != 2 || row.Steps[0].Key != leader || row.Steps[0].Mode != "leader_pending" || row.Steps[1].Key != w.key {

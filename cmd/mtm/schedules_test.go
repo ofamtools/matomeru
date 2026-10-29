@@ -105,7 +105,7 @@ func TestScheduleSettingsAndVerbs(t *testing.T) {
 		t.Fatal("an interval under a minute was taken")
 	}
 	// One setting flips a schedule, from the settings verbs too.
-	mustCLI(t, a, "settings", "set", "schedule.gh-signals.enabled", "off")
+	mustCLI(t, a, "settings", "set", "schedule.gh-signals.enabled", "off", "-y")
 	if d, _ := a.scheduleDef("gh-signals"); d.Enabled != schedules.Off {
 		t.Fatalf("settings set: %+v", d)
 	}
@@ -353,13 +353,13 @@ func TestPaneSignalsReachTheInbox(t *testing.T) {
 	}
 	a.attached = pane{}
 	// Turned off, a new needs-input raises nothing.
-	mustCLI(t, a, "settings", "set", "inbox.signal.needs-input", "false")
+	mustCLI(t, a, "settings", "set", "inbox.signal.needs-input", "false", "-y")
 	panes[0] = agentPane("w1", "needs_input", 600)
 	a.setPanes(panes, nil)
 	if got := mtmItems(t, a); len(got) != 3 {
 		t.Fatalf("off kind raised: %d items", len(got))
 	}
-	mustCLI(t, a, "settings", "set", "inbox.signal.needs-input", "true")
+	mustCLI(t, a, "settings", "set", "inbox.signal.needs-input", "true", "-y")
 	a.setPanes(panes, nil)
 	if got := mtmItems(t, a); len(got) != 4 {
 		t.Fatalf("on again: %d items", len(got))

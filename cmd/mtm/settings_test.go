@@ -30,19 +30,19 @@ func TestSettingsDefaultToTheOldConstantsAndReadTheFile(t *testing.T) {
 	if a.editDebounce() != editorDebounce || a.refreshInterval() != refreshEvery || a.launchHarness() != defaultHarness {
 		t.Fatalf("defaults %v %v %q", a.editDebounce(), a.refreshInterval(), a.launchHarness())
 	}
-	mustCLI(t, a, "settings", "set", settingEditDebounce, "1s")
-	mustCLI(t, a, "settings", "set", settingRefresh, "10s")
-	mustCLI(t, a, "settings", "set", settingDefaultHarness, "codex")
+	mustCLI(t, a, "settings", "set", settingEditDebounce, "1s", "-y")
+	mustCLI(t, a, "settings", "set", settingRefresh, "10s", "-y")
+	mustCLI(t, a, "settings", "set", settingDefaultHarness, "codex", "-y")
 	if a.editDebounce() != time.Second || a.refreshInterval() != 10*time.Second || a.launchHarness() != "codex" {
 		t.Fatalf("set %v %v %q", a.editDebounce(), a.refreshInterval(), a.launchHarness())
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(a.dataPath), ochazuke.SettingsFile)); err != nil {
 		t.Fatalf("settings.json not written: %v", err)
 	}
-	if _, _, err := cli(a, "", "settings", "set", settingDefaultHarness, "nope"); err == nil {
+	if _, _, err := cli(a, "", "settings", "set", settingDefaultHarness, "nope", "-y"); err == nil {
 		t.Fatal("an unknown harness was accepted")
 	}
-	mustCLI(t, a, "settings", "set", settingRefresh, "0s")
+	mustCLI(t, a, "settings", "set", settingRefresh, "0s", "-y")
 	if a.refreshInterval() != refreshEvery {
 		t.Fatalf("0s refresh %v", a.refreshInterval())
 	}
