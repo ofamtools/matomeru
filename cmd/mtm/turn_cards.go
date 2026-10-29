@@ -46,10 +46,10 @@ import (
 // the prompt box, the turns.* settings, omp branch following and the
 // session separators; switching the setting rebuilds the tab at once.
 //
-// The timeline's own keys open and fold (enter and l open through
-// turn.open, h closes, space toggles, z R and z M open and close all, z 1
+// The timeline's own keys open and fold (l opens through turn.open, enter
+// opens through turn.open and closes through turn.close, h closes, space toggles, z R and z M open and close all, z 1
 // to z 9 fold a section, J and K scroll, G follows). Opening a card by any
-// of them runs turn.open once (syncOpenedCards), so a journal turn is
+// of them runs turn.review once (syncOpenedCards), so a journal turn is
 // marked reviewed and a shell turn reads its output however it opened.
 
 // The turns.style setting and its choices.
@@ -75,7 +75,7 @@ type cardFill struct {
 	mturns []turns.Turn       // those turns
 	jturns []history.PaneTurn // else the journal's
 	source *paneTurns
-	opened map[string]bool // open cards whose opening ran turn.open
+	opened map[string]bool // open cards whose opening ran turn.review
 }
 
 // turnCardID is a card's id: the window keeps two panes' turns apart, the
@@ -707,8 +707,16 @@ func (a *App) openTurnCard(ctx ochazuke.Ctx, ref turnRef) ochazuke.Result {
 	if err := tl.SetOpen(ctx.Instance.ID, true); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if st := a.pv.cardFills[tl.ID()]; st != nil {
-		st.opened[ctx.Instance.ID] = true
+	return a.reviewTurnCard(ctx.Instance.ID, ref)
+}
+
+// reviewTurnCard is turn.review on a card: mark a journal turn reviewed,
+// read a shell turn's output, and remember the card's opening was seen.
+func (a *App) reviewTurnCard(id string, ref turnRef) ochazuke.Result {
+	if tl := a.cardTimeline(id); tl != nil {
+		if st := a.pv.cardFills[tl.ID()]; st != nil {
+			st.opened[id] = true
+		}
 	}
 	if !ref.Model {
 		if err := a.markTurn(ref.Window, ref.ID); err != nil {
@@ -724,7 +732,7 @@ func (a *App) openTurnCard(ctx ochazuke.Ctx, ref turnRef) ochazuke.Result {
 	return a.loadTurnOutput(ref)
 }
 
-// syncOpenedCards runs turn.open once on every card of the shown timeline
+// syncOpenedCards runs turn.review once on every card of the shown timeline
 // that opened by the timeline's own keys (space, z o, z R), so however a
 // card opens it is marked reviewed or reads its output.
 func (a *App) syncOpenedCards() {
@@ -750,7 +758,7 @@ func (a *App) syncOpenedCards() {
 		if a.r.Instances[id] == nil {
 			continue
 		}
-		if _, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "turn", Target: id}); err != nil {
+		if _, err := a.r.Execute(ochazuke.Request{Verb: "review", Noun: "turn", Target: id}); err != nil {
 			a.r.UI().Error(err.Error())
 		}
 	}

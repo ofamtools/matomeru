@@ -30,5 +30,5 @@
                                      ┃ › write to the agent                                                          ┃  
                                      ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
-  l turn.open · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · space list.mark · ] next tab · [ previous …  
+  enter turn.close · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · space list.mark · ] next tab · [ prev…  
                                                                                                                         

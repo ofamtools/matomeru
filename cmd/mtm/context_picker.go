@@ -339,7 +339,11 @@ func (a *App) openPromptTurn(pr promptRow) ochazuke.Result {
 	if err := a.r.SetFocus(id); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "turn", Target: id}); err != nil {
+	verb := "open"
+	if !a.turnClosed(id) {
+		verb = "review" // already open: mark it as opening it would
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Verb: verb, Noun: "turn", Target: id}); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(id)

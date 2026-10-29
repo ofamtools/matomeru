@@ -24,15 +24,22 @@ const turnsTreeID = "panes/turns"
 
 // addTurns adds the Turns tab's tree and the turn noun.
 func (a *App) addTurns() error {
+	// A turn's state is its verbs' availability: open on a closed turn (a
+	// closed card, a collapsed row), close on an open one. The turn is the
+	// nearest on the focus path, so inside a card (the timeline's body sits
+	// under the card) the card's turn answers.
+	a.r.DefineGuard("turn-closed", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool { return a.turnClosed(a.turnAt(ev.Focus)) })
+	a.r.DefineGuard("turn-open", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		id := a.turnAt(ev.Focus)
+		return id != "" && !a.turnClosed(id)
+	})
 	a.r.Define("turn").
-		Verb("open", a.openTurn, "Expand the turn and mark it reviewed").
+		Verb("open", a.openTurn, "Expand the turn and mark it reviewed").When("turn-closed").
+		Verb("close", a.closeTurn, "Collapse the turn to its row (a card to its header)").When("turn-open").
+		Verb("review", a.reviewTurn, "Mark the turn reviewed (a shell turn reads its output)").
 		// pane.attach's handler on the pane the turns are of (no key:
 		// enter opens the turn); ctrl+a d comes back to the turn.
-		Verb("live", a.attachPane, "Attach the pane the turns are of live; ctrl+a d comes back to this turn").
-		Mode("normal").
-		Bind("l", ochazuke.Do("turn.open")).
-		Bind("right", ochazuke.Do("turn.open")).
-		Bind("enter", ochazuke.Do("turn.open"))
+		Verb("live", a.attachPane, "Attach the pane the turns are of live; ctrl+a d comes back to this turn")
 	// l on a pane row while the Turns tab shows moves into the turns, as
 	// } does (on the Screen tab it is copy mode, copymode.go).
 	a.r.Define("pane").
@@ -55,32 +62,50 @@ func (a *App) addTurns() error {
 	}
 	// esc in the tree goes back up to the pane row the turns belong to, as
 	// the note body's esc goes back to the notes list.
-	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {
-		a.r.Define(noun).
-			Verb("back", a.turnsBack, "Go back to the pane row the turns belong to").
-			Mode("normal").Bind("esc", ochazuke.Do(noun+".back"))
+	backNouns := []string{"turn", "turn-line", "turn-step", "turn-separator"}
+	for _, noun := range backNouns {
+		a.r.Define(noun).Verb("back", a.turnsBack, "Go back to the pane row the turns belong to")
 	}
-	// h on a closed turn goes back up to the pane row too: the tree's h
-	// steps onto a row's parent and a turn's row has none in the tree, and
-	// the timeline's h only closes. On an open turn h still closes it.
-	a.r.DefineGuard("turn-closed", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool { return a.turnClosed(ev.Focus) })
-	a.r.Define("turn").Mode("normal").
-		Bind("h", ochazuke.Do("turn.back").Guard("turn-closed").Hide()).
-		Bind("left", ochazuke.Do("turn.back").Guard("turn-closed").Hide())
-	// l on an open card steps inside it, onto the prompt (ochazuke's
-	// timeline.enter): the turn's own l only opens. Inside, the timeline's
-	// body rows walk the steps (j/k, l opens a folded one, h and esc go
-	// back to the card); y copies the step and Y the whole turn, to the
-	// registers and the clipboard (turn_cards.go).
-	a.r.Define("turn").Mode("normal").
-		Bind("l", ochazuke.Do("ochazuke.timeline.enter").Guard("timeline-card-open")).
-		Bind("right", ochazuke.Do("ochazuke.timeline.enter").Guard("timeline-card-open").Hide())
+	// l opens a closed turn and on an open card steps inside it, onto the
+	// prompt (ochazuke's timeline.enter); enter opens a closed turn and
+	// closes an open one; h closes an open turn and on a closed one goes
+	// back up to the pane row (the tree's h steps onto a row's parent and
+	// a turn's row has none in the tree). The first available row answers.
+	// Inside a card the timeline's body rows answer first (j/k walk the
+	// steps, l opens a folded one, h and esc go back to the card); y copies
+	// the step and Y the whole turn, to the registers and the clipboard
+	// (turn_cards.go).
+	turnRow := func(keys, action string, hidden bool) ochazuke.Binding {
+		row := ochazuke.Do(action)
+		row.Noun, row.Mode, row.Keys = "turn", "normal", keys
+		if hidden {
+			row = row.Hide()
+		}
+		return row
+	}
+	if err := a.r.Bind(
+		turnRow("l", "turn.open", false),
+		turnRow("l", "ochazuke.timeline.enter", false),
+		turnRow("right", "turn.open", true),
+		turnRow("right", "ochazuke.timeline.enter", true),
+		turnRow("enter", "turn.open", false),
+		turnRow("enter", "turn.close", false),
+		turnRow("h", "turn.close", true),
+		turnRow("h", "turn.back", true),
+		turnRow("left", "turn.close", true),
+		turnRow("left", "turn.back", true),
+	); err != nil {
+		return err
+	}
+	for _, noun := range backNouns {
+		a.r.Define(noun).Mode("normal").Bind("esc", ochazuke.Do(noun+".back"))
+	}
 	a.r.Define(ochazuke.TimelineBodyNoun).
 		Verb("copy", a.copyStep, "Copy the current step of the turn to the registers and the clipboard").
 		Verb("copy-turn", a.copyStepTurn, "Copy the prompt and response of the turn the focus is inside").
 		Mode("normal").
-		Bind("y", ochazuke.Do(ochazuke.TimelineBodyNoun+".copy")).
-		Bind("Y", ochazuke.Do(ochazuke.TimelineBodyNoun+".copy-turn"))
+		Bind("y", ochazuke.Do(ochazuke.TimelineBodyNoun+".copy").Hinted("copy step")).
+		Bind("Y", ochazuke.Do(ochazuke.TimelineBodyNoun+".copy-turn").Hinted("copy turn"))
 	// y copies a turn's response, Y its prompt and response, from its row
 	// or any line of it; too large for the clipboard, or with no clipboard
 	// program, it is offered as a file or a pager (turns_model.go).
@@ -331,6 +356,56 @@ func (a *App) turnClosed(id string) bool {
 		}
 	}
 	return true
+}
+
+// turnAt is the turn nearest on focus's path (the focus itself, or the
+// card a timeline's body is inside), or "".
+func (a *App) turnAt(focus string) string {
+	for _, id := range a.r.Ancestry(focus) {
+		if inst := a.r.Instances[id]; inst != nil && inst.Noun == "turn" {
+			return id
+		}
+	}
+	return ""
+}
+
+// closeTurn is turn.close: collapse the row, or close the card.
+func (a *App) closeTurn(ctx ochazuke.Ctx) ochazuke.Result {
+	if ctx.Instance == nil {
+		return ochazuke.Failed(fmt.Errorf("select a turn"))
+	}
+	ref, _ := ctx.Instance.Data.(turnRef)
+	if ref.Card {
+		tl := a.cardTimeline(ctx.Instance.ID)
+		if tl == nil {
+			return ochazuke.Failed(fmt.Errorf("no timeline holds %s", ctx.Instance.ID))
+		}
+		return resultError(tl.SetOpen(ctx.Instance.ID, false))
+	}
+	tree := a.pv.turns
+	if ref.Review {
+		tree = a.reviewTurns
+	}
+	if tree == nil {
+		return ochazuke.Failed(fmt.Errorf("no tree holds %s", ctx.Instance.ID))
+	}
+	return resultError(tree.SetCollapsed(ctx.Instance.ID, true))
+}
+
+// reviewTurn is turn.review: mark a finished turn reviewed, read a shell
+// turn's output (what opening it does, without opening it).
+func (a *App) reviewTurn(ctx ochazuke.Ctx) ochazuke.Result {
+	if ctx.Instance == nil {
+		return ochazuke.Failed(fmt.Errorf("select a turn"))
+	}
+	ref, _ := ctx.Instance.Data.(turnRef)
+	if ref.Card {
+		return a.reviewTurnCard(ctx.Instance.ID, ref)
+	}
+	if ref.Model {
+		return ochazuke.Done(ref.ID)
+	}
+	return resultError(a.markTurn(ref.Window, ref.ID))
 }
 
 // openTurn is turn.open: expand the row and mark a finished turn reviewed.
