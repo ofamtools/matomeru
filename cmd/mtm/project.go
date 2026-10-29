@@ -29,11 +29,10 @@ func (a *App) defineProject() {
 		Bind("i", ochazuke.Do("project.edit")).Bind("L", ochazuke.Do("project.launch")).
 		Bind("c", ochazuke.Do("project.directory"))
 	a.parameters("project.edit", map[string]ochazuke.Parameter{"name": {Type: "string"}, "color": {Type: "string"}, "glyph": {Type: "string"}, "harness": {Type: "string"}, "preset": {Type: "string"}})
-	for _, verb := range []string{"project.directory", "project.default"} {
-		a.parameters(verb, map[string]ochazuke.Parameter{"path": {Type: "string"}})
-	}
+	a.parameters("project.directory", map[string]ochazuke.Parameter{"path": dirParam("The directory to attach (a missing one is attached and flagged); omitted, a chooser asks", true)})
+	a.parameters("project.default", map[string]ochazuke.Parameter{"path": {Type: "string"}})
 	a.parameters("project.remove-directory", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
-	a.parameters("project.edit-directory", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}, "to": {Type: "string", Required: true, Description: "The new path (a missing one is attached and flagged)"}})
+	a.parameters("project.edit-directory", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}, "to": dirParam("The new path (a missing one is attached and flagged)", true)})
 }
 
 func (a *App) editProject(ctx ochazuke.Ctx) ochazuke.Result {
@@ -304,7 +303,7 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 
 func (a *App) defineProjectCreation() {
 	a.r.Define("project").Verb("new", a.newProject, "Register a project; omit name to open a draft editor").Positional("name")
-	a.parameters("project.new", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "An empty name saves an untitled project"}, "dir": {Type: "string", Description: "Attach this directory and make it the default (a missing path is attached and flagged)"}})
+	a.parameters("project.new", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "An empty name saves an untitled project"}, "dir": dirParam("Attach this directory and make it the default (a missing path is attached and flagged)", true)})
 	a.r.Define("unassociated").Verb("open", a.openUnassociated, "Show tasks with no project").
 		Mode("normal").Bind("enter", ochazuke.Do("unassociated.open"))
 }

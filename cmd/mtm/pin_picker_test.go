@@ -334,8 +334,10 @@ func knownRepos(t *testing.T, a *App, names ...string) string {
 	return root
 }
 
+// directory-chooser known: the classic chooser ends with browse….
 func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
 	a := open(t)
+	knownDirectoryChooser(t, a)
 	root := knownRepos(t, a, "alpha", "beta")
 	page := a.r.Page
 	openPicker(t, a)
@@ -388,6 +390,7 @@ func TestPinningDirectorylessProjectAsksAndMovedRowWins(t *testing.T) {
 
 func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
 	a := open(t)
+	knownDirectoryChooser(t, a)
 	knownRepos(t, a)
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "plain"), 0700); err != nil {
@@ -587,6 +590,7 @@ func TestADirectorylessProjectIsAskedOnce(t *testing.T) {
 // column, the path, would narrow first.
 func TestDirectoryChooserCutsThePathLast(t *testing.T) {
 	a := open(t)
+	knownDirectoryChooser(t, a)
 	if err := a.chooseDirectoryFor("Directory", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 		t.Fatal(err)
 	}

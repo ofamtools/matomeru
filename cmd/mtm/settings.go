@@ -46,6 +46,7 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: settingRefresh, Type: ochazuke.SettingDuration, Default: refreshEvery,
 			Description: "How often the Panes list reloads while the page is open"},
 		harnessSetting,
+		directoryChooserSetting,
 		paneGroupSetting,
 		afterSubmitSetting,
 		promptTerminalsSetting,

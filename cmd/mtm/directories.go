@@ -380,7 +380,7 @@ func (a *App) defineDirectories() {
 		Verb("remove-base", a.removeBase, "Stop scanning a project base (disk untouched)").Positional("path").
 		Renamed("base.remove", oldNamesSince, oldNamesRemoveAfter).
 		Verb("search", a.searchDirectories, "Filter the known directories")
-	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": {Type: "string"}, "depth": {Type: "integer"}})
+	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": dirParam("The folder whose children are known directories", false), "depth": {Type: "integer"}})
 	a.parameters("dirs.remove-base", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
 	a.r.Define("dir-search").Pin("insert").
 		Verb("done", a.leaveDirectorySearch, "Keep the filter and return to the known directories").
@@ -507,9 +507,7 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 				}
 			}
 		}
-		if c := a.r.Chooser(dirChooser); c != nil {
-			c.SetRows(a.directoryChoices())
-		}
+		a.refreshPathChoosers()
 		if c := a.r.Chooser(baseChooser); c != nil {
 			c.SetRows(a.baseChoices())
 		}
@@ -787,10 +785,20 @@ func (a *App) openDirectoryChooser(projectID string) error {
 	})
 }
 
-// chooseDirectoryFor opens the known-directory chooser; use takes the
-// chosen or typed path, and browse… continues on the Directories page
-// with purpose.
+// chooseDirectoryFor asks for a directory as the directory-chooser
+// setting says: the path chooser (path_sources.go: browse, recent, typed,
+// known, the project's), or the known-directory chooser, where browse…
+// continues on the Directories page with purpose. use takes the chosen or
+// typed path.
 func (a *App) chooseDirectoryFor(title, projectID, purpose string, use func(string) ochazuke.Result) error {
+	if a.r.Settings().String(settingDirectoryChooser) != dirChooserKnown {
+		return a.openPathDirectoryChooser(title, projectID, use)
+	}
+	return a.chooseKnownDirectoryFor(title, projectID, purpose, use)
+}
+
+// chooseKnownDirectoryFor is chooseDirectoryFor's known-directory chooser.
+func (a *App) chooseKnownDirectoryFor(title, projectID, purpose string, use func(string) ochazuke.Result) error {
 	var rows []ochazuke.ChooserRow
 	if a.directories.Ready {
 		rows = a.directoryChoices()

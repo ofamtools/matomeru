@@ -8,12 +8,14 @@ import (
 )
 
 // project.directory with no path (d) opens the directory chooser over the
-// current page and loads the known directories behind it; browse… goes to
+// current page and loads the known directories behind it (directory-chooser
+// known: the classic chooser; path_sources_test.go has the path chooser); browse… goes to
 // the Directories page with the framework picker, and a typed path that
 // does not exist is still attached (record first).
 func TestProjectDirectoryChooserDeliversAcrossPages(t *testing.T) {
 	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
 	a := open(t)
+	knownDirectoryChooser(t, a)
 	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "absent.sock")}.client()
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "directory", Target: "matomeru"}); err != nil {
 		t.Fatal(err)

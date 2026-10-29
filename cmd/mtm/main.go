@@ -254,41 +254,42 @@ func (a *App) reveal(id string) error {
 // App owns domain state (the store, the daemon client, the rows); the
 // runtime owns interaction state.
 type App struct {
-	db             *store.Store
-	work           *work.Store
-	contexts       *contextitems.Store // the context_items table (context.go)
-	inbox          *inboxState         // the action_items table and the Inbox page (inbox.go)
-	sched          *scheduleState      // schedules, their runner and the Schedules page (schedules.go)
-	runs           *runState           // command runs by drive and the Runs page (runs.go)
-	signals        paneSignalState     // pane state raised into the inbox (pane_signals.go)
-	hist           *history.Journal    // the history journal and review marks (journal.go)
-	feed           *journalFeed        // the journal's background reader (journal.go)
-	journalSrc     journalSource       // the daemon the reader follows; tests replace it
-	stdin          io.Reader           // the CLI's standard input (the capture verbs read it)
-	getenv         func(string) string // the environment; tests replace it
-	loc            *time.Location      // the zone times are shown in; nil is time.Local (location); tests set UTC
-	dataPath       string              // the database (mtm setup's hooks write it)
-	opts           Options             // the command line New was given (mtm mcp serve opens one app per tool call with it)
-	cx             *contextState       // the Context page and its actions (context.go)
-	hinting        *liveHints          // the labels over a live pane, nil when none are up (live_hints.go)
-	unsendable     map[string]bool     // keys already reported as not sendable to a pane (panekeys.go)
-	drafts         *draft.Store
-	editor         *recordEditor
-	quick          *quickNote // the open quick note (N), nil when closed
-	editorSave     map[string]func(editRecord) (any, error)
-	editorRefresh  map[string]func() error
-	editorFinish   map[string]func(editRecord) error
-	directories    directoryCache
-	directoryList  *ochazuke.List
-	projectDirList *ochazuke.List
-	baseList       *ochazuke.List
-	directoryQuery *ochazuke.Input
-	lastPage       string // the page the last update ended on; a change runs that page's open hook
-	detailTask     string
-	cli            bool
-	pin            string
-	all            bool
-	pinVersion     uint64
+	db                 *store.Store
+	work               *work.Store
+	contexts           *contextitems.Store // the context_items table (context.go)
+	inbox              *inboxState         // the action_items table and the Inbox page (inbox.go)
+	sched              *scheduleState      // schedules, their runner and the Schedules page (schedules.go)
+	runs               *runState           // command runs by drive and the Runs page (runs.go)
+	signals            paneSignalState     // pane state raised into the inbox (pane_signals.go)
+	hist               *history.Journal    // the history journal and review marks (journal.go)
+	feed               *journalFeed        // the journal's background reader (journal.go)
+	journalSrc         journalSource       // the daemon the reader follows; tests replace it
+	stdin              io.Reader           // the CLI's standard input (the capture verbs read it)
+	getenv             func(string) string // the environment; tests replace it
+	loc                *time.Location      // the zone times are shown in; nil is time.Local (location); tests set UTC
+	dataPath           string              // the database (mtm setup's hooks write it)
+	opts               Options             // the command line New was given (mtm mcp serve opens one app per tool call with it)
+	cx                 *contextState       // the Context page and its actions (context.go)
+	hinting            *liveHints          // the labels over a live pane, nil when none are up (live_hints.go)
+	unsendable         map[string]bool     // keys already reported as not sendable to a pane (panekeys.go)
+	drafts             *draft.Store
+	editor             *recordEditor
+	quick              *quickNote // the open quick note (N), nil when closed
+	editorSave         map[string]func(editRecord) (any, error)
+	editorRefresh      map[string]func() error
+	editorFinish       map[string]func(editRecord) error
+	directories        directoryCache
+	pathChooserProject string // the project a directory path chooser is opened for (path_sources.go)
+	directoryList      *ochazuke.List
+	projectDirList     *ochazuke.List
+	baseList           *ochazuke.List
+	directoryQuery     *ochazuke.Input
+	lastPage           string // the page the last update ended on; a change runs that page's open hook
+	detailTask         string
+	cli                bool
+	pin                string
+	all                bool
+	pinVersion         uint64
 	// titleHead and titleDir are the title row before fitting; see fitTitle.
 	titleHead, titleDir string
 	daemon              *daemon.Client
@@ -519,6 +520,7 @@ func New(opts Options) (*App, error) {
 	a.defineContext()
 	a.defineRelations()
 	a.defineCopy()
+	a.definePathSources()
 	a.defineCapture()
 	a.defineMCPOperations()
 	a.defineSetup()

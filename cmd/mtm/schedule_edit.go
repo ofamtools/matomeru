@@ -56,7 +56,7 @@ func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 		"permission-mode": {Type: "string", Enum: settingChoices(harness.SettingPermission), Free: true, Description: "Permission mode at launch (the harness's permission-mode setting)"},
 		"project":         {Type: "string", Source: "projects.list", Free: true, Description: "The project the agent works in (its session and directory); empty: no project"},
 		"task":            {Type: "string", Free: true, Description: "A task id the pane is linked to (its title is the prompt when there is none)"},
-		"dir":             {Type: "string", Free: true, Description: "The working folder; empty: the project's directory, else home"},
+		"dir":             dirParam("The working folder; empty: the project's directory, else home", false),
 		"into":            {Type: "string", Enum: schedules.TargetValues, Description: "Where each run goes: new, a new pane; pane, send to the pane named by pane when it is ready (a new one when none is open)"},
 		"pane":            {Type: "string", Free: true, Description: "The pane's name: the pane a target pane run sends to, and the name of a pane a run opens (default: the schedule's name)"},
 		"start":           {Type: "string", Free: true, Description: "First day it may run: 2026-11-01 (or an RFC 3339 time); empty: now"},
