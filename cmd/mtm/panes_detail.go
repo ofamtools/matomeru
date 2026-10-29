@@ -491,7 +491,7 @@ func fuzzy(query, label string) bool {
 
 // defineLiveKeys adds the app's live-pane actions to the terminal leader.
 func (a *App) defineLiveKeys() {
-	leader := ochazuke.Request{Verb: "send", Noun: "terminal", Args: ochazuke.Arguments{"keys": "ctrl+a"}}
+	leader := ochazuke.Request{Verb: "send", Noun: "terminal", Args: ochazuke.Arguments{"keys": "{terminal-leader}"}}
 	a.r.Define("terminal").
 		Verb("zoom", a.toggleZoom, "Zoom the attached pane to the page body, or back into the detail panel").
 		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list; outside live, select it").
@@ -501,7 +501,7 @@ func (a *App) defineLiveKeys() {
 		Verb("layout", a.flipLayout, "Flip the side pane between beside and below its parent (the side-layout setting)").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
-		Bind("ctrl+a", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "ctrl+a", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T todos · S all · : palette · , settings · ' pages · ? keys")).
+		Bind("{terminal-leader}", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "{terminal-leader}", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T todos · S all · : palette · , settings · ' pages · ? keys")).
 		Mode("leader_pending").
 		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
 		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).

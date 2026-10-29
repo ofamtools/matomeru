@@ -66,8 +66,6 @@ func (a *App) declareSettings() error {
 			Description: "Show the agent's tool calls and their results inside an opened turn of the Turns tab"},
 		ochazuke.Setting{Name: settingTurnsToolsOpen, Type: ochazuke.SettingBoolean, Default: false,
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
-		ochazuke.Setting{Name: ochazuke.TerminalLeaderTimeoutSetting, Type: ochazuke.SettingDuration, Default: time.Duration(0),
-			Description: "How long the terminal leader waits for the next key before it sends the leader alone; 0 waits until a key comes"},
 	}
 	settings = append(settings, agentViewSettings()...)
 	settings = append(settings, paneSectionSettings()...)

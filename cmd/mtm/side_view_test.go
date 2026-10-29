@@ -405,7 +405,8 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 	press(t, a, "esc")
 	before := len(f.streams[0].sent)
 	press(t, a, "ctrl+a", "space")
-	if got := f.streams[0].sent[before:]; len(got) != 1 || !slices.Equal(got[0], []string{"ctrl+a", "space"}) {
+	// sequence-unknown pass: the leader, then the key alone.
+	if got := f.streams[0].sent[before:]; len(got) != 2 || !slices.Equal(got[0], []string{"ctrl+a"}) || !slices.Equal(got[1], []string{"space"}) {
 		t.Fatalf("leader space sent %v", got)
 	}
 }

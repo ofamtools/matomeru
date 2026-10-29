@@ -194,20 +194,24 @@ func TestTabLineEnterLiveOnlyOnAPaneRow(t *testing.T) {
 	}
 }
 
-// In a live pane the leader never expires: well past the key-sequence
-// timeout ctrl+a still waits, and ctrl+a d then detaches.
+// In a live pane the leader never expires by default (sequence-timeout
+// 0, ochazuke's default for every sequence): ctrl+a schedules no timer and
+// still waits, and ctrl+a d then detaches.
 func TestLiveLeaderWaitsPastTheBindingTimeout(t *testing.T) {
 	app, _ := panesApp(t)
-	if v, err := app.r.Settings().Get(ochazuke.TerminalLeaderTimeoutSetting); err != nil || v.Value != "0s" {
-		t.Fatalf("terminal-leader-timeout %+v %v", v, err)
+	app.r.EnsureConfigSettings()
+	if v, err := app.r.Settings().Get(ochazuke.SequenceTimeoutSetting); err != nil || v.Value != "0s" {
+		t.Fatalf("sequence-timeout %+v %v", v, err)
 	}
-	app.r.BindingTimeout = 5 * time.Millisecond
 	press(t, app, "enter")
 	live := app.r.Focus
 	if app.r.Mode.Name != "terminal" {
 		t.Fatalf("enter: focus %s mode %s", live, app.r.Mode.Name)
 	}
 	cmd := key(t, app, "ctrl+a")
+	if app.r.BindingTimeoutCommand() != nil {
+		t.Fatal("the leader scheduled a timer")
+	}
 	time.Sleep(50 * time.Millisecond)
 	settle(app, cmd)
 	if app.r.Mode.Name != "leader_pending" || app.r.Focus != live {
@@ -216,5 +220,30 @@ func TestLiveLeaderWaitsPastTheBindingTimeout(t *testing.T) {
 	press(t, app, "d")
 	if app.r.Mode.Name == "leader_pending" || app.r.Mode.Name == "terminal" || app.r.Focus == live {
 		t.Fatalf("ctrl+a d: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	}
+}
+
+// In a live pane an unbound key after the leader is ochazuke's
+// sequence-unknown: swallow sends nothing to the pane and stays live;
+// pass (the default) sends the leader, then the key.
+func TestLiveLeaderUnknownKeyFollowsSequenceUnknown(t *testing.T) {
+	app, f := panesApp(t)
+	app.r.EnsureConfigSettings()
+	press(t, app, "enter")
+	live := app.r.Focus
+	before := len(f.streams[0].sent)
+	if err := app.r.Settings().Set(ochazuke.SequenceUnknownSetting, ochazuke.SequenceSwallow); err != nil {
+		t.Fatal(err)
+	}
+	press(t, app, "ctrl+a", "space")
+	if got := f.streams[0].sent[before:]; len(got) != 0 || app.r.Mode.Name != "terminal" || app.r.Focus != live {
+		t.Fatalf("swallow: sent %v mode %s focus %s", got, app.r.Mode.Name, app.r.Focus)
+	}
+	if err := app.r.Settings().Set(ochazuke.SequenceUnknownSetting, ochazuke.SequencePass); err != nil {
+		t.Fatal(err)
+	}
+	press(t, app, "ctrl+a", "space")
+	if got := f.streams[0].sent[before:]; len(got) != 2 || got[0][0] != "ctrl+a" || got[1][0] != "space" {
+		t.Fatalf("pass: sent %v", got)
 	}
 }
