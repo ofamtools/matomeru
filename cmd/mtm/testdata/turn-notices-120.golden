@@ -6,21 +6,21 @@
   pane                state          │ [Turns] Screen Activity Transcript · [ ] tabs · enter live                    │  
   ▾ unassociated (2)                 │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
         ○ claude      idle           │ │ ▸ start the agents                                                        │ │  
-          shell       shell          │ │   Oct 28 10:00 · done · 4 tool calls · 4.0s                               │ │  
+          shell       shell          │ │   Oct 28 10:00 · ✓ done · 4 tool calls · 4.0s                             │ │  
                                      │ ╰───────────────────────────────────────────────────────────────────────────╯ │  
                                      │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
                                      │ │ ▸ something else meanwhile                                                │ │  
-                                     │ │   Oct 28 10:02 · done · 4.0s                                              │ │  
+                                     │ │   Oct 28 10:02 · ✓ done · 4.0s                                            │ │  
                                      │ ╰───────────────────────────────────────────────────────────────────────────╯ │  
                                      │   ╭┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ │  
-                                     │   ┆ ▸ ⤷ One-line bindings export format · finished                          ┆ │  
-                                     │   ┆   Oct 28 10:22 · 20m43s · 205k tokens · 94 tool uses · from “start the  ┆ │  
+                                     │   ┆ ▸ ⤷ One-line bindings export format                                     ┆ │  
+                                     │   ┆   Oct 28 10:22 · ✓ finished · 20m43s · 205k tokens · 94 tool uses · fro ┆ │  
                                      │   ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ │  
                                      │   ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮ │  
-                                     │   ┃ ▸ ⤷ L4 on fake server · failed: Agent terminated early due to an API    ┃ │  
-                                     │   ┃   error                                                                 ┃ │  
-                                     │   ┃   Oct 28 10:23 · 20m43s · 205k tokens · 94 tool uses · from “start the  ┃ │  
+                                     │   ┃ ▸ ⤷ L4 on fake server · Agent terminated early due to an API error      ┃ │  
+                                     │   ┃   Oct 28 10:23 · ✗ failed · 20m43s · 205k tokens · 94 tool uses · from  ┃ │  
                                      │   ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯ │  
+                                     │                                                                               │  
                                      │                                                                               │  
                                      │                                                                               │  
                                      │                                                                               │  

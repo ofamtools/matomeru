@@ -180,15 +180,16 @@ func stepTitles(a *App, card string) string {
 }
 
 // A background agent's notification is a compact, muted event card,
-// closed, titled by the agent's description and how it stands, with the
-// usage; never the notification's XML (which used to fill the screen).
+// closed, titled by the agent's description (and a failure's reason),
+// its meta how it stands and the usage; never the notification's XML
+// (which used to fill the screen).
 func TestNotificationIsACompactEventCard(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			app, _ := agentsApp(t)
 			fr := frameWH(app, width, 40)
 			saveFrame(t, fmt.Sprintf("notification-cards-%d", width), fr)
-			for _, want := range []string{"⤷ One-line bindings export format · finished", "20m43s · 205k tokens · 94 tool uses", "⤷ L4 on fake server · failed"} {
+			for _, want := range []string{"⤷ One-line bindings export format", "✓ finished · 20m43s · 205k tokens · 94 tool uses", "⤷ L4 on fake server · Agent terminated early", "✗ failed"} {
 				if !strings.Contains(fr, want) {
 					t.Fatalf("width %d lacks %q:\n%s", width, want, fr)
 				}

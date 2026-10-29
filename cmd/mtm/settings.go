@@ -68,6 +68,7 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: settingTurnsToolsOpen, Type: ochazuke.SettingBoolean, Default: false,
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
 	}
+	settings = append(settings, turnStatusSettings()...)
 	settings = append(settings, agentViewSettings()...)
 	settings = append(settings, paneSectionSettings()...)
 	settings = append(settings, a.signalSettings()...)

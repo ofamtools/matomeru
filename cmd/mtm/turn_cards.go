@@ -194,19 +194,22 @@ func (a *App) modelCards(st *cardFill) []ochazuke.Card {
 		ref.Window, ref.ID, ref.Line, ref.Model, ref.Card = st.window, t.ID, -1, true, true
 		prompt := promptText(t.Prompt)
 		cid := turnCardID(st.window, t.ID)
+		meta, metaTones, tone := a.meta(modelTurnMeta(t, loc))
 		cards = append(cards, ochazuke.Card{
-			ID:       cid,
-			Noun:     "turn",
-			Label:    orNoPrompt(firstLine(prompt)),
-			Data:     ref,
-			Header:   orNoPrompt(cardText(prompt)),
-			Meta:     modelTurnMeta(t, loc),
-			Steps:    a.modelStepsIn(cid, t, st.source, loc, tl, known[cid]),
-			Open:     i == active,
-			Active:   i == active,
-			Muted:    i != last,
-			Group:    group,
-			Revision: a.modelRevision(t, st.source),
+			ID:        cid,
+			Noun:      "turn",
+			Label:     orNoPrompt(firstLine(prompt)),
+			Data:      ref,
+			Header:    orNoPrompt(cardText(prompt)),
+			Meta:      meta,
+			MetaTones: metaTones,
+			Tone:      tone,
+			Steps:     a.modelStepsIn(cid, t, st.source, loc, tl, known[cid]),
+			Open:      i == active,
+			Active:    i == active,
+			Muted:     i != last,
+			Group:     group,
+			Revision:  a.modelRevision(t, st.source),
 		})
 		for _, n := range t.Events {
 			cards = append(cards, a.eventCard(st, t, n, calls, group, loc))
@@ -244,20 +247,23 @@ func (a *App) noticeCard(st *cardFill, t turns.Turn, again []turns.Turn, calls m
 	if ag != nil {
 		sig = append(sig, ag.Description, ag.State, len(ag.Result))
 	}
-	header := noticeHeader(n, ag)
+	header := noticeTitle(n, ag)
+	meta, metaTones, tone := a.meta(noticeCardMeta(n, spawnPrompt(st.mturns, n.Turn), loc))
 	return ochazuke.Card{
-		ID:       id,
-		Noun:     "turn",
-		Label:    header,
-		Data:     ref,
-		Header:   header,
-		Meta:     noticeMeta(n, spawnPrompt(st.mturns, n.Turn), loc),
-		Steps:    steps,
-		Active:   running,
-		Muted:    true,
-		Event:    true,
-		Group:    group,
-		Revision: revision(sig...),
+		ID:        id,
+		Noun:      "turn",
+		Label:     header,
+		Data:      ref,
+		Header:    header,
+		Meta:      meta,
+		MetaTones: metaTones,
+		Tone:      tone,
+		Steps:     steps,
+		Active:    running,
+		Muted:     true,
+		Event:     true,
+		Group:     group,
+		Revision:  revision(sig...),
 	}
 }
 
@@ -271,23 +277,26 @@ func (a *App) eventCard(st *cardFill, t turns.Turn, n turns.Notice, calls map[st
 	}
 	ref := st.back
 	ref.Window, ref.ID, ref.Line, ref.Model, ref.Card, ref.Event = st.window, t.ID, -1, true, true, n.ToolUseID
-	header := noticeHeader(&n, ag)
+	header := noticeTitle(&n, ag)
+	meta, metaTones, tone := a.meta(noticeCardMeta(&n, spawnPrompt(st.mturns, n.Turn), loc))
 	sig := []any{"event", n.State, len(n.Result), n.Repeats}
 	if ag != nil {
 		sig = append(sig, ag.Description, ag.State, len(ag.Result))
 	}
 	return ochazuke.Card{
-		ID:       turnCardID(st.window, t.ID+"/event/"+key),
-		Noun:     "turn",
-		Label:    header,
-		Data:     ref,
-		Header:   header,
-		Meta:     noticeMeta(&n, spawnPrompt(st.mturns, n.Turn), loc),
-		Steps:    []ochazuke.CardStep{{Header: true}, noticeResultStep(&n, ag)},
-		Muted:    true,
-		Event:    true,
-		Group:    group,
-		Revision: revision(sig...),
+		ID:        turnCardID(st.window, t.ID+"/event/"+key),
+		Noun:      "turn",
+		Label:     header,
+		Data:      ref,
+		Header:    header,
+		Meta:      meta,
+		MetaTones: metaTones,
+		Tone:      tone,
+		Steps:     []ochazuke.CardStep{{Header: true}, noticeResultStep(&n, ag)},
+		Muted:     true,
+		Event:     true,
+		Group:     group,
+		Revision:  revision(sig...),
 	}
 }
 
@@ -311,8 +320,10 @@ func (a *App) journalCards(st *cardFill) []ochazuke.Card {
 			steps = append(steps, ochazuke.CardStep{ID: "answer-1", Title: "answer", Summary: "none yet", Role: ochazuke.CardRoleMuted})
 		}
 		meta := []string{time.UnixMilli(t.StartedAt).In(loc).Format("Jan 2 15:04")}
+		line := statusLine{at: -1}
 		switch {
 		case !t.Done():
+			line = statusLine{at: len(meta), kind: statusRunning}
 			meta = append(meta, "working")
 		case t.ReviewedAt == 0:
 			meta = append(meta, plural(len(t.Responses), "answer"), "new")
@@ -321,18 +332,23 @@ func (a *App) journalCards(st *cardFill) []ochazuke.Card {
 		}
 		if t.StartedAt == 0 {
 			meta = meta[1:]
+			line.at--
 		}
+		line.parts = meta
+		metaText, metaTones, tone := a.meta(line)
 		cards = append(cards, ochazuke.Card{
-			ID:       turnCardID(st.window, t.ID),
-			Noun:     "turn",
-			Label:    orNoPrompt(firstLine(t.Prompt)),
-			Data:     ref,
-			Header:   orNoPrompt(cardText(t.Prompt)),
-			Meta:     strings.Join(meta, " · "),
-			Steps:    steps,
-			Active:   !t.Done() && i == last,
-			Muted:    i != last,
-			Revision: revision(t.Prompt, len(t.Responses), len(t.Response()), t.CompletedAt, t.ReviewedAt),
+			ID:        turnCardID(st.window, t.ID),
+			Noun:      "turn",
+			Label:     orNoPrompt(firstLine(t.Prompt)),
+			Data:      ref,
+			Header:    orNoPrompt(cardText(t.Prompt)),
+			Meta:      metaText,
+			MetaTones: metaTones,
+			Tone:      tone,
+			Steps:     steps,
+			Active:    !t.Done() && i == last,
+			Muted:     i != last,
+			Revision:  revision(t.Prompt, len(t.Responses), len(t.Response()), t.CompletedAt, t.ReviewedAt),
 		})
 	}
 	return cards
@@ -356,24 +372,16 @@ func cardText(text string) string {
 }
 
 // modelTurnMeta is a card's meta line: when it started, how it ended (or
-// that it runs), its steers and tool calls and how long it took.
-func modelTurnMeta(t turns.Turn, loc *time.Location) string {
+// that it runs: its status, turn_status.go), its steers and tool calls
+// and how long it took.
+func modelTurnMeta(t turns.Turn, loc *time.Location) statusLine {
 	var parts []string
 	if !t.StartedAt.IsZero() {
 		parts = append(parts, t.StartedAt.In(loc).Format("Jan 2 15:04"))
 	}
-	switch {
-	case t.State == turns.StateRunning && t.Source == turns.SourceShell:
-		parts = append(parts, "running")
-	case t.State == turns.StateRunning:
-		parts = append(parts, "working")
-	case t.Source == turns.SourceShell && t.Exit != nil:
-		parts = append(parts, fmt.Sprintf("exit %d", *t.Exit))
-	case t.State == turns.StateError:
-		parts = append(parts, "interrupted")
-	default:
-		parts = append(parts, "done")
-	}
+	word, kind := modelTurnStatus(t)
+	line := statusLine{at: len(parts), kind: kind}
+	parts = append(parts, word)
 	if n := len(t.Steers); n > 0 {
 		parts = append(parts, plural(n, "steer"))
 	}
@@ -383,7 +391,8 @@ func modelTurnMeta(t turns.Turn, loc *time.Location) string {
 	if t.Duration > 0 && t.State != turns.StateRunning {
 		parts = append(parts, shortDuration(t.Duration))
 	}
-	return strings.Join(parts, " · ")
+	line.parts = parts
+	return line
 }
 
 func turnToolCalls(t turns.Turn) int {

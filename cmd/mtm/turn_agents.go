@@ -335,6 +335,50 @@ func noticeHeader(n *turns.Notice, ag *turns.Agent) string {
 	return "⤷ " + joinNonEmpty(oneLine(title), n.State)
 }
 
+// noticeTitle is a notification card's header: what the task is, and
+// the detail of its state when the state has one ("failed: the API
+// errored" → the API errored). The state's word goes on the meta line
+// (noticeCardMeta), where it is toned.
+func noticeTitle(n *turns.Notice, ag *turns.Agent) string {
+	title := n.Title
+	if ag != nil && ag.Description != "" {
+		title = ag.Description
+	}
+	_, detail := noticeWord(n.State)
+	return "⤷ " + joinNonEmpty(oneLine(title), oneLine(detail))
+}
+
+// noticeWord splits a notice's state into its word and its detail at the
+// first colon ("failed: the API errored"); a state without one is all
+// word.
+func noticeWord(state string) (string, string) {
+	word, detail, _ := strings.Cut(state, ":")
+	return strings.TrimSpace(word), strings.TrimSpace(detail)
+}
+
+// noticeCardMeta is a notification card's meta line with its status:
+// when, how the task stands (Notice.State, its kind from noticeStatus),
+// then noticeMeta's how long, tokens, tool uses and the turn that
+// started it.
+func noticeCardMeta(n *turns.Notice, from string, loc *time.Location) statusLine {
+	var parts []string
+	if !n.At.IsZero() {
+		parts = append(parts, n.At.In(loc).Format("Jan 2 15:04"))
+	}
+	line := statusLine{at: -1}
+	if word, _ := noticeWord(n.State); word != "" {
+		line = statusLine{at: len(parts), kind: noticeStatus(word)}
+		parts = append(parts, word)
+	}
+	rest := *n
+	rest.At = time.Time{}
+	if tail := noticeMeta(&rest, from, loc); tail != "" {
+		parts = append(parts, tail)
+	}
+	line.parts = parts
+	return line
+}
+
 // noticeMeta is a notification card's meta line: when, how long the task
 // took, its tokens and tool uses, the turn that started it.
 func noticeMeta(n *turns.Notice, from string, loc *time.Location) string {
