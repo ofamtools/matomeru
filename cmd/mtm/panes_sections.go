@@ -665,12 +665,13 @@ func (a *App) sectionShares() [3]int {
 }
 
 // sectionNeed is the lines a list would fill: its title, a table's
-// header and its rows; 0 when it is empty.
+// header and its rows (Tree.Height: the breadcrumb line while zoomed and
+// the filter line while filtering count too); 0 when it is empty.
 func (a *App) sectionNeed(s *paneSection) int {
 	if len(s.nodes) == 0 {
 		return 0
 	}
-	n := 1 + len(s.tree.List().Items())
+	n := 1 + s.tree.Height()
 	if s.name == sectionPanes {
 		n++ // the column header
 	}
