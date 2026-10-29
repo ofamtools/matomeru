@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 
 	"github.com/unixsuperhero/matomeru/internal/actionitems"
 	"github.com/unixsuperhero/matomeru/internal/daemon"
@@ -764,6 +765,9 @@ func (a *App) openStream(p pane) paneStream {
 	stream := a.panesd.OpenStream(p)
 	if k, ok := stream.(keyReporter); ok {
 		k.reportUnsendable(a.unsendableKey)
+	}
+	if e, ok := stream.(engineUser); ok {
+		e.useEngine(ocli.TerminalEngineOf(a.r))
 	}
 	if fitter, ok := a.panesd.(windowFitter); ok {
 		if o, ok := stream.(windowOwner); ok {

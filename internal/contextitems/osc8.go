@@ -11,7 +11,7 @@ import (
 // OSC 8 hyperlinks (ESC ] 8 ; params ; URL ST, text, ESC ] 8 ; ; ST): the
 // program names the target itself, so the target is the item and no
 // pattern or wrap rule is needed. The emulator mtm replays a pane into
-// (charmbracelet/x/vt) keeps each cell's link and its Render writes it
+// (an ochazuke terminal engine: tuios.dev/vt or charmbracelet/x/vt) keeps each cell's link and its Render writes it
 // back as OSC 8, so a live pane's frame rows carry them. As in tuios
 // (internal/app/link_hover.go, markedLinkAt), one link is the run of
 // cells with the same target and params, followed across rows; a bare URL

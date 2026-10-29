@@ -8,13 +8,23 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 )
 
 // The emulator replays a stream: the snapshot paints, output continues it,
 // and the frame carries the cursor's cell, shape and visibility, which a
 // capture cannot.
+// Every terminal.engine replays it alike.
 func TestLiveScreenReplaysTheStreamWithItsCursor(t *testing.T) {
-	var l liveScreen
+	for _, e := range ocli.TerminalEngines() {
+		if e.Unavailable == "" {
+			t.Run(e.Name, func(t *testing.T) { testLiveScreenReplays(t, e.Name) })
+		}
+	}
+}
+
+func testLiveScreenReplays(t *testing.T, engine string) {
+	l := liveScreen{engine: engine}
 	if _, ok := l.frame(); ok {
 		t.Fatal("a frame before the snapshot")
 	}
@@ -95,5 +105,14 @@ func TestHeldStreamDropsWhenThePreviewLeaves(t *testing.T) {
 	key(t, app, "enter")
 	if second := f.streams[1]; !second.released || f.streams[2].released {
 		t.Fatalf("a new attach should drop the parked stream: second released %v", second.released)
+	}
+}
+
+// An engine this build lacks leaves the screen to captures, not mtm down.
+func TestLiveScreenWithAnEngineItLacks(t *testing.T) {
+	l := liveScreen{engine: "nope"}
+	l.apply(daemon.Frame{Type: 'S', Cols: 20, Rows: 4, Data: []byte("$ ")})
+	if _, ok := l.frame(); ok || l.err == nil {
+		t.Fatalf("a frame from an unknown engine (err %v)", l.err)
 	}
 }

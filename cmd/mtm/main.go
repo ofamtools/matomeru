@@ -16,6 +16,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 	"github.com/unixsuperhero/ochazuke/markdown"
 	"github.com/unixsuperhero/oden"
 
@@ -534,6 +535,9 @@ func New(opts Options) (*App, error) {
 	// its rows move when it changes, and every text naming the leader
 	// reads r.TerminalLeader().
 	a.r.EnsureTerminalLeader()
+	// Live panes replay into the terminal.engine emulator (tuios-vt by
+	// default), chosen when a stream opens.
+	ocli.EnsureTerminalEngine(a.r)
 	if err := a.defineKeyMap(); err != nil {
 		return nil, err
 	}
