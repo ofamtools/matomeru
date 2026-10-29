@@ -187,6 +187,14 @@ func TestBindingRowsAreAtomic(t *testing.T) {
 	}
 }
 
+// TestNoActionAliasClashes: every alias mtm and ochazuke register lands
+// (ochazuke's bare help and h, the docs noun, mtm's own aliases).
+func TestNoActionAliasClashes(t *testing.T) {
+	if problems := open(t).r.ActionAliasProblems(); len(problems) > 0 {
+		t.Fatalf("aliases dropped: %v", problems)
+	}
+}
+
 func TestWorkPageListsStoredProjects(t *testing.T) {
 	app := open(t)
 	app.m.Width, app.m.Height = 80, 24
