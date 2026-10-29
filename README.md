@@ -32,6 +32,8 @@ How a program runs is data, its `drive`: `terminal` (a tuios pane with an emulat
 
 Where the Panes detail opens a pane is its view: `turns` (the Turns tab), `terminal` (the live Screen) or `both` (the Turns tab with the pane's screen beside it). It comes from the pane's own view (`pane.view turns|terminal|both [--split N]`, from the palette or the CLI; `pane.view default` drops it), else the harness profile (`"view": {"open": "both", "split": 60}` in `harnesses.json`, merged by field over a built-in's, `null` removes it), else the settings `agent.view` (default `turns`, today's layout) and `agent.view-split` (default 50, the percent of the width the turns take, 10..90). The split draws only when some row chooses `both`. The tab you pick stays while the selection moves between panes of one view; a pane whose view differs opens on its own. No key is bound by default (`v` is free on pane rows; bind it in `bindings.json`, e.g. `pane.view` with `{"view": "both"}`).
 
+The prompt box below a pane's Turns tab (and its Screen tab) writes to the pane; `enter` sends. After a send the box leaves insert mode for normal (`i` writes again); `prompt.after-submit-mode insert` keeps typing. Whether mtm asks for the pane's task or project after a send is `prompt.after-submit` (`pick-task`, the default, `pick-task-if-unassociated` or `none`); the picker gives the box back in the after-submit mode. `prompt.on-screen false` takes the box off the Screen tab, and the screen gets its rows; `prompt.on-terminals false` takes it from shells.
+
 An agent in a TUIOS pane can drive mtm over MCP with `mtm mcp serve`; `mtm mcp config claude` prints the entry to add. See [docs/MCP.md](docs/MCP.md).
 
 Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.

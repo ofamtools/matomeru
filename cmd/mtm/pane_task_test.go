@@ -134,6 +134,7 @@ func TestPaneTaskPickerPreselectsTheCurrentTask(t *testing.T) {
 	if o := ownerOf(t, a, p); o.TaskID != "t2" || a.r.TopModal() != "" || a.r.Focus != promptID {
 		t.Fatalf("enter kept: %+v top %q focus %s", o, a.r.TopModal(), a.r.Focus)
 	}
+	press(t, a, "i") // the send left the box in normal mode (prompt.after-submit-mode)
 	typeText(t, a, "next")
 	pressSettle(t, a, "enter")
 	typeText(t, a, "write the")
@@ -181,12 +182,14 @@ func TestPaneTaskAfterSubmitSetting(t *testing.T) {
 		t.Fatalf("none opened %q", a.r.TopModal())
 	}
 	setAfterSubmit(t, a, afterSubmitPickTaskUnassociated)
+	press(t, a, "i") // each send leaves the box in normal mode
 	send("two")
 	if a.r.TopModal() != taskPicker {
 		t.Fatalf("unassociated pane: no picker")
 	}
 	press(t, a, "esc")
 	executeA(t, a, "pane", "associate", p.rowID(), ochazuke.Arguments{"project": "matomeru"})
+	press(t, a, "i")
 	send("three")
 	if a.r.TopModal() != "" {
 		t.Fatalf("associated pane opened %q", a.r.TopModal())
@@ -240,5 +243,54 @@ func TestPaneTaskHeader(t *testing.T) {
 	}
 	if got := a.paneHeader(p); got != "claude · /tmp/x · working · task lift the store" {
 		t.Fatalf("task header %q", got)
+	}
+}
+
+// prompt.after-submit-mode: a send leaves the box in normal mode (the
+// default) or keeps it in insert, with no picker and after the picker
+// closes, by esc or by a choice.
+func TestPromptAfterSubmitMode(t *testing.T) {
+	for _, tc := range []struct {
+		mode, after, close string
+	}{
+		{"", afterSubmitNone, ""},
+		{"", afterSubmitPickTask, "esc"},
+		{"", afterSubmitPickTask, "enter"},
+		{"", afterSubmitPickTaskUnassociated, "esc"},
+		{afterSubmitModeInsert, afterSubmitNone, ""},
+		{afterSubmitModeInsert, afterSubmitPickTask, "esc"},
+		{afterSubmitModeInsert, afterSubmitPickTask, "enter"},
+	} {
+		a, f := promptApp(t)
+		setAfterSubmit(t, a, tc.after)
+		want := afterSubmitModeNormal
+		if tc.mode != "" {
+			want = tc.mode
+			if err := a.r.Settings().Set(settingAfterSubmitMode, tc.mode); err != nil {
+				t.Fatal(err)
+			}
+		}
+		name := tc.mode + "/" + tc.after + "/" + tc.close
+		typeText(t, a, "fix it")
+		pressSettle(t, a, "enter")
+		if len(f.prompts) != 1 {
+			t.Fatalf("%s: sends %q", name, f.prompts)
+		}
+		if tc.close != "" {
+			if a.r.TopModal() != taskPicker {
+				t.Fatalf("%s: no picker", name)
+			}
+			press(t, a, tc.close)
+		}
+		if a.r.TopModal() != "" || a.r.Focus != promptID || a.pb.input.Mode != want || a.r.Mode.Name != want {
+			t.Fatalf("%s: top %q focus %s box %s mode %s, want %s", name, a.r.TopModal(), a.r.Focus, a.pb.input.Mode, a.r.Mode.Name, want)
+		}
+	}
+	a, _ := promptApp(t)
+	if got := a.r.Settings().String(settingAfterSubmitMode); got != afterSubmitModeNormal {
+		t.Fatalf("default %q", got)
+	}
+	if err := a.r.Settings().Set(settingAfterSubmitMode, "visual"); err == nil {
+		t.Fatal("an unknown mode was taken")
 	}
 }

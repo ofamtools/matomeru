@@ -49,6 +49,7 @@ func (a *App) declareSettings() error {
 		directoryChooserSetting,
 		paneGroupSetting,
 		afterSubmitSetting,
+		afterSubmitModeSetting,
 		promptTerminalsSetting,
 		promptScreenSetting,
 		ochazuke.Setting{Name: settingSideLayout, Type: ochazuke.SettingString, Default: sideAuto, Enum: []string{sideAuto, sideBeside, sideBelow},

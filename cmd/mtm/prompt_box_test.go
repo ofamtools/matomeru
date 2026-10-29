@@ -93,7 +93,8 @@ func TestPromptBoxSendsAndClears(t *testing.T) {
 	if len(f.prompts) != 1 || f.prompts[0] != "submit w1 fix it\nthen test" {
 		t.Fatalf("calls %q", f.prompts)
 	}
-	if len(app.pb.input.Text) != 0 || app.r.Focus != promptID || app.r.BaseMode() != "insert" {
+	// The box leaves insert mode (prompt.after-submit-mode normal).
+	if len(app.pb.input.Text) != 0 || app.r.Focus != promptID || app.r.BaseMode() != "normal" {
 		t.Fatalf("after send: %q focus %s %s", string(app.pb.input.Text), app.r.Focus, app.r.BaseMode())
 	}
 	// Nothing to send is refused, and nothing reaches the pane.
@@ -117,6 +118,7 @@ func TestPromptBoxInterruptAndQueue(t *testing.T) {
 		t.Fatalf("an interrupt goes back to send, mode %d", app.pb.mode)
 	}
 	f.prompts = nil
+	press(t, app, "i")      // the send left the box in normal mode
 	press(t, app, "ctrl+t") // queue
 	f.queued = daemon.QueuePromptResult{ID: "q1", Position: 2, Queued: 2}
 	typeText(t, app, "then commit")
@@ -128,6 +130,7 @@ func TestPromptBoxInterruptAndQueue(t *testing.T) {
 	// A full queue says why and keeps the text.
 	f.prompts, f.queueErr = nil, &daemon.Error{Code: daemon.CodeQueueFull, Message: "full"}
 	app.m.Status = ""
+	press(t, app, "i")
 	typeText(t, app, "more")
 	_, cmd := app.Update(keyMsg("enter"))
 	settle(app, cmd)

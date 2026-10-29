@@ -227,6 +227,7 @@ func TestPromptQueueAndInterruptCarryMentions(t *testing.T) {
 		t.Fatalf("queue %q, want %q", f.prompts, want)
 	}
 	f.prompts = nil
+	press(t, app, "i")      // the send left the box in normal mode
 	press(t, app, "ctrl+t") // interrupt
 	pressSettle(t, app, "ctrl+v")
 	path = app.pb.live()[0].path
@@ -257,6 +258,7 @@ func TestPromptPasteHarnessPastesPathsFirst(t *testing.T) {
 		t.Fatalf("calls %q, want %q", f.prompts, want)
 	}
 	f.prompts = nil
+	press(t, app, "i")      // the send left the box in normal mode
 	press(t, app, "ctrl+t") // queue
 	pressSettle(t, app, "ctrl+v")
 	path := app.pb.live()[0].path

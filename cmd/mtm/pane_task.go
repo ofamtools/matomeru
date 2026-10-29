@@ -44,7 +44,22 @@ const (
 
 var afterSubmitSetting = ochazuke.Setting{Name: settingAfterSubmit, Type: ochazuke.SettingString, Default: afterSubmitPickTask,
 	Enum:        []string{afterSubmitPickTask, afterSubmitNone, afterSubmitPickTaskUnassociated},
-	Description: "After the prompt box sends: pick-task opens the pane's task picker (esc leaves it as it is), pick-task-if-unassociated only for a pane with no task or project, none does nothing"}
+	Description: "Whether to ask for the pane's task or project after you send from the prompt box: pick-task always opens the task picker (esc keeps the pane as it is), pick-task-if-unassociated only for a pane with no task or project, none never asks"}
+
+// settingAfterSubmitMode is the mode the prompt box is left in once it
+// has sent; the task picker, when prompt.after-submit opens one, gives the
+// focus back to the box in that mode.
+const settingAfterSubmitMode = "prompt.after-submit-mode"
+
+// The prompt.after-submit-mode values: ochazuke mode names.
+const (
+	afterSubmitModeNormal = "normal"
+	afterSubmitModeInsert = "insert"
+)
+
+var afterSubmitModeSetting = ochazuke.Setting{Name: settingAfterSubmitMode, Type: ochazuke.SettingString, Default: afterSubmitModeNormal,
+	Enum:        []string{afterSubmitModeNormal, afterSubmitModeInsert},
+	Description: "The prompt box's mode after you send: normal leaves insert mode (i writes again), insert keeps typing"}
 
 // taskPicker is the picker's modal kind.
 const taskPicker = "task-picker"
@@ -128,12 +143,21 @@ func (a *App) pickPaneTask(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(nil)
 }
 
-// afterSubmit runs prompt.after-submit for a send to p: it opens the task
-// picker over the page, or nothing. A picker that cannot open is a notice;
+// afterSubmit runs prompt.after-submit-mode and prompt.after-submit for a
+// send to p: the box goes into the setting's mode, then the task picker
+// opens over the page, or nothing. A picker that cannot open is a notice;
 // the send goes either way.
 func (a *App) afterSubmit(ctx ochazuke.Ctx, p pane) {
 	if a.cli {
 		return
+	}
+	// The box takes prompt.after-submit-mode first, while it still has the
+	// focus (mode.set's path: the focused input's own transition), so a
+	// picker opened next hands the focus back to it in that mode.
+	if a.r.Focus == promptID {
+		if err := a.r.SetMode(a.r.Settings().String(settingAfterSubmitMode)); err != nil {
+			ctx.Error("prompt mode: " + err.Error())
+		}
 	}
 	switch a.r.Settings().String(settingAfterSubmit) {
 	case afterSubmitNone:

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -154,5 +155,36 @@ func TestPromptBoxSettingsOptOut(t *testing.T) {
 	}
 	if fr := frame(app); strings.Contains(fr, "write to the agent") || app.promptPane() != nil {
 		t.Fatalf("prompt.on-screen off: the Screen tab has a box:\n%s", fr)
+	}
+}
+
+// prompt.on-screen off: the Screen tab draws no box, and its rows go to
+// the screen, which shows more of its lines; on, the box is back.
+func TestPromptOnScreenOffGivesTheScreenTheSpace(t *testing.T) {
+	app, f := screenBoxApp(t)
+	var lines []string
+	for i := range 60 {
+		lines = append(lines, fmt.Sprintf("screen-line-%02d", i))
+	}
+	f.screens["w1"] = strings.Join(lines, "\n")
+	reload(t, app)
+	settle(app, follow(app))
+	shown := func() int { return strings.Count(frame(app), "screen-line-") }
+	with := shown()
+	if app.promptPane() == nil || with == 0 {
+		t.Fatalf("prompt.on-screen on: box %v, %d screen lines:\n%s", app.promptPane() != nil, with, frame(app))
+	}
+	if err := app.r.Settings().Set(settingPromptScreen, false); err != nil {
+		t.Fatal(err)
+	}
+	without := shown()
+	if app.promptPane() != nil || without <= with {
+		t.Fatalf("prompt.on-screen off: box %v, %d screen lines (with the box %d):\n%s", app.promptPane() != nil, without, with, frame(app))
+	}
+	if err := app.r.Settings().Set(settingPromptScreen, true); err != nil {
+		t.Fatal(err)
+	}
+	if app.promptPane() == nil || shown() != with {
+		t.Fatalf("prompt.on-screen back on: box %v, %d lines", app.promptPane() != nil, shown())
 	}
 }
