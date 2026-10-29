@@ -881,8 +881,14 @@ func (a *App) stepNode(turnID string, j int, s turns.Step, ref turnRef, width in
 		b.text(s.Text)
 		return nodes
 	}
-	b.line("input:")
-	b.capped(prettyJSON(s.Input), turnInputShown)
+	// An edit's input reads as a diff, as on a card (turn_cards.go).
+	if diff, ok := editDiff(s.Input); ok {
+		b.line("diff:")
+		b.capped(diff, turnInputShown)
+	} else {
+		b.line("input:")
+		b.capped(prettyJSON(s.Input), turnInputShown)
+	}
 	if s.HasResult {
 		b.line("result:")
 		b.capped(s.Result, turnResultShown)

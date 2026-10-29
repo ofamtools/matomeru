@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/unixsuperhero/matomeru/internal/turns"
 )
 
 // stepText is the current step's text inside the shown timeline's card.
@@ -154,5 +156,19 @@ func TestEditDiff(t *testing.T) {
 	}
 	if _, ok := editDiff(`{"command":"ls"}`); ok {
 		t.Fatal("a Bash call is not a diff")
+	}
+}
+
+// The tree style reads an edit's tool call as a diff too.
+func TestTreeEditStepReadsAsADiff(t *testing.T) {
+	app, _, _ := claudeTurnsApp(t)
+	s := turns.Step{Kind: turns.StepTool, Tool: "Edit", Input: `{"file_path":"a.go","old_string":"x := 1","new_string":"x := 3"}`}
+	var labels []string
+	for _, n := range app.stepNode("t1", 0, s, turnRef{}, 80) {
+		labels = append(labels, strings.TrimSpace(n.Label))
+	}
+	got := strings.Join(labels, "\n")
+	if !strings.Contains(got, "diff:") || !strings.Contains(got, "-x := 1") || !strings.Contains(got, "+x := 3") || strings.Contains(got, "input:") {
+		t.Fatalf("tree edit step:\n%s", got)
 	}
 }
