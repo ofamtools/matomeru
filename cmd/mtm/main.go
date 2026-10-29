@@ -524,6 +524,9 @@ func New(opts Options) (*App, error) {
 	if err := a.declareSettings(); err != nil {
 		return nil, err
 	}
+	if err := a.addSegments(); err != nil {
+		return nil, err
+	}
 	// The terminal leader is the terminal-leader setting (default ctrl+a):
 	// its rows move when it changes, and every text naming the leader
 	// reads r.TerminalLeader().

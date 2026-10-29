@@ -700,6 +700,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 		// Rows that land are scoped by project (extension_scope.go).
 		OnRows: func(list string, rows []ocli.Row) { a.extRowsLanded(x, list, rows) },
 	}
+	a.mountExtensionSegments(x, cfg.Noun)
 	for _, p := range pages {
 		v, err := ocli.MountPage(a.m, e.Catalog, p, cfg)
 		if err != nil {

@@ -21,6 +21,7 @@ require (
 	github.com/charmbracelet/x/xpty v0.1.4 // indirect
 	github.com/creack/pty v1.1.24 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
+	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f // indirect

@@ -143,6 +143,14 @@ func openWith(t *testing.T, opts Options) *App {
 	app.renamer = &fakeRenamer{panes: app.panesd.(*fakePanes)} // never the real daemon
 	app.pv.after = nil                                         // no timers: tests deliver followDue and refreshDue themselves
 	app.ensure = func(context.Context) error { return nil }
+	// No test reads the real machine: the status segments (cpu, ram,
+	// disk) start off, so frames do not depend on live readings or on
+	// when a refresh lands; segments_test.go covers them.
+	for _, s := range app.r.Segments() {
+		if err := app.r.AddSegment(ochazuke.Segment{ID: s.ID, Enabled: ochazuke.On(false)}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	app.sleep = func(context.Context, time.Duration) error { return nil }
 	app.getenv = func(string) string { return "" } // tests may run inside a TUIOS pane
 	app.journalSrc = nil                           // the journal reader never follows the real daemon
