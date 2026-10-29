@@ -103,6 +103,9 @@ type pane struct {
 	Exited            bool   `json:"exited,omitempty"`  // the window's process ended; TUIOS still lists it
 	Program           string `json:"program,omitempty"` // what mtm knows runs in a shell pane ("vim"), else ""
 	Starred           bool   `json:"starred,omitempty"` // pane.star (pane_stars.go)
+	// View and ViewSplit are the pane's own view (pane.view, pane_view.go).
+	View      string `json:"view,omitempty"`
+	ViewSplit int    `json:"view_split,omitempty"`
 	// ReportedSession is the session id tuios reported when the
 	// harness's records name another (AgentSession), and SessionNote why
 	// none of several could be taken (pane_locate.go).
@@ -168,13 +171,16 @@ type preview struct {
 
 // paneUI is the panes page's own state (the App holds one).
 type paneUI struct {
-	tree     *ochazuke.Tree
-	view     paneView
-	tab      int    // the detail tab: tabScreen, tabActivity, tabTranscript, tabTurns
-	zoom     bool   // the attached pane fills the page body; off on every attach
-	followed string // the row the detail last followed
-	seq      uint64 // the follow timer's generation
-	armed    bool   // the refresh timer is set
+	tree *ochazuke.Tree
+	view paneView
+	tab  int // the detail tab: tabScreen, tabActivity, tabTranscript, tabTurns
+	// viewRow is the row the view was last checked for, viewApplied the
+	// view that opened the tab (pane_view.go).
+	viewRow, viewApplied string
+	zoom                 bool   // the attached pane fills the page body; off on every attach
+	followed             string // the row the detail last followed
+	seq                  uint64 // the follow timer's generation
+	armed                bool   // the refresh timer is set
 	// after schedules msg after d; nil (tests) schedules nothing.
 	after     func(d time.Duration, msg tea.Msg) tea.Cmd
 	text      map[string]string // row + tab → the Activity or Transcript text
@@ -285,6 +291,7 @@ func (a *App) definePanes() {
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
 	a.defineLiveKeys()
 	a.definePaneStars()
+	a.definePaneView()
 	a.definePaneGroups()
 	a.ownedBy("panes", paneListID)
 	a.ownedBy("daemon", paneListID)
@@ -478,6 +485,7 @@ func (a *App) setPanes(panes []pane, err error) {
 		}
 	}
 	a.markStars(panes)
+	a.markViews(panes)
 	a.panes = panes
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {

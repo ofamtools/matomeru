@@ -79,6 +79,8 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 			}
 			if a.pv.tab == tabScreen && a.r.Terminal(paneTermID) == nil {
 				a.loadDetail()
+			} else if row, _ := a.selectedRow(); a.r.Terminal(paneTermID) == nil && a.splitOn(row) {
+				a.loadSplitScreen(row)
 			}
 		}
 	case daemonChanged:
@@ -111,6 +113,10 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, a.pv.after(a.refreshInterval(), refreshDue{}))
 	}
 	row, _ := a.selectedRow()
+	if row != "" && row != a.pv.viewRow && !a.liveShown() {
+		a.pv.viewRow = row
+		a.applyView(row)
+	}
 	if key := fmt.Sprintf("%s|%d", row, a.pv.tab); row != "" && key != a.pv.followed && !a.liveShown() {
 		a.pv.followed = key
 		a.pv.seq++
@@ -143,9 +149,25 @@ func (a *App) loadDetail() {
 		if err := a.showTurns(row); err != nil {
 			a.paneErr = err.Error()
 		}
+		if a.splitOn(row) {
+			a.loadSplitScreen(row)
+		}
 		return
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Verb: verb, Noun: "pane", Target: row}); err != nil {
+		a.r.UI().Error(err.Error())
+	}
+}
+
+// splitOn reports whether row's detail is the both split now.
+func (a *App) splitOn(row string) bool {
+	_, ok := a.splitShown(row)
+	return ok
+}
+
+// loadSplitScreen captures row's screen for the split's right column.
+func (a *App) loadSplitScreen(row string) {
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "preview", Noun: "pane", Target: row}); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 }
@@ -1087,8 +1109,11 @@ func (a *App) screenWindow(row, text, drawn string, width, height int) screenWin
 	return screenWindow{row: row, text: drawn, top: d.Offset(), shown: max(0, shown), width: width, previewText: text}
 }
 
-// tabBody is the selected pane's tab.
+// tabBody is the selected pane's tab, or the both view's split.
 func (a *App) tabBody(row string, width, height int) ochazuke.Block {
+	if split, ok := a.splitShown(row); ok && width >= 2*minSplitColumn {
+		return a.splitBody(row, split, width, height)
+	}
 	switch a.pv.tab {
 	case tabScreen:
 		if a.preview.Pane == row {
@@ -1103,30 +1128,7 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 		a.detail.panes.hide()
 		return ochazuke.Text("loading…")
 	case tabTurns:
-		if a.pv.turnsFor != row {
-			a.detail.panes.hide()
-			return ochazuke.Text("loading…")
-		}
-		// An agent's turns end in the prompt box (prompt_box.go), pinned
-		// to the bottom, drawn after the tree so } and tab reach it next;
-		// under it the agent's settings line (pane_settings.go), as a
-		// harness draws its status line under its prompt, the last stop.
-		p, perr := a.paneAt(a.r.Instances[row])
-		lineH := 0
-		if perr == nil && height > 4 && a.showsSettings(p) {
-			lineH = 1
-		}
-		var turns ochazuke.Block
-		if pp := a.promptPane(); pp != nil && height-lineH > 3 {
-			boxH := a.promptBoxHeight()
-			turns = stackBlocks(a.turnsBody(width, height-lineH-boxH), height-lineH-boxH, a.promptBoxBlock(*pp, width))
-		} else {
-			turns = a.turnsBody(width, height-lineH)
-		}
-		if lineH == 0 {
-			return turns
-		}
-		return stackBlocks(turns, height-1, ochazuke.Text(a.settingsLine(p, row, width)))
+		return a.turnsTabBody(row, width, height)
 	}
 	text, ok := a.pv.text[fmt.Sprintf("%s|%d", row, a.pv.tab)]
 	if !ok {
@@ -1136,6 +1138,34 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	// Long lines wrap to the panel, so an explanation or a reply reads
 	// whole; the newest stay at the bottom until K scrolls back.
 	return ochazuke.Text(a.detail.panes.lines(text, max(1, width), width, height))
+}
+
+// turnsTabBody is the Turns tab of row's pane at width x height.
+func (a *App) turnsTabBody(row string, width, height int) ochazuke.Block {
+	if a.pv.turnsFor != row {
+		a.detail.panes.hide()
+		return ochazuke.Text("loading…")
+	}
+	// An agent's turns end in the prompt box (prompt_box.go), pinned
+	// to the bottom, drawn after the tree so } and tab reach it next;
+	// under it the agent's settings line (pane_settings.go), as a
+	// harness draws its status line under its prompt, the last stop.
+	p, perr := a.paneAt(a.r.Instances[row])
+	lineH := 0
+	if perr == nil && height > 4 && a.showsSettings(p) {
+		lineH = 1
+	}
+	var turns ochazuke.Block
+	if pp := a.promptPane(); pp != nil && height-lineH > 3 {
+		boxH := a.promptBoxHeight()
+		turns = stackBlocks(a.turnsBody(width, height-lineH-boxH), height-lineH-boxH, a.promptBoxBlock(*pp, width))
+	} else {
+		turns = a.turnsBody(width, height-lineH)
+	}
+	if lineH == 0 {
+		return turns
+	}
+	return stackBlocks(turns, height-1, ochazuke.Text(a.settingsLine(p, row, width)))
 }
 
 // screenBody is the Screen tab's screen of the pane at row (its preview

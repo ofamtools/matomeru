@@ -164,6 +164,13 @@ func openWith(t *testing.T, opts Options) *App {
 	// Turns is the detail's default tab (TestTurnsIsTheDefaultTab); the
 	// tests of the Screen tab, written when it was the default, start there.
 	app.pv.tab = tabScreen
+	// So they open every pane on the Screen tab (agent.view terminal),
+	// and a tab a test switches to stays while the selection moves;
+	// pane_view_test.go covers the views.
+	if err := app.r.Settings().Set(settingAgentView, "terminal"); err != nil {
+		t.Fatal(err)
+	}
+	app.pv.viewApplied = "terminal"
 	app.runs.after = nil // no redraw timers
 	// No test runs a real schedule: no timers, and a command a test did
 	// not fake fails at once.

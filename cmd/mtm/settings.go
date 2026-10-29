@@ -69,6 +69,7 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: ochazuke.TerminalLeaderTimeoutSetting, Type: ochazuke.SettingDuration, Default: time.Duration(0),
 			Description: "How long the terminal leader waits for the next key before it sends the leader alone; 0 waits until a key comes"},
 	}
+	settings = append(settings, agentViewSettings()...)
 	settings = append(settings, paneSectionSettings()...)
 	settings = append(settings, a.signalSettings()...)
 	settings = append(settings, a.scheduleSettings()...)
