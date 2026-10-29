@@ -18,6 +18,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/unixsuperhero/matomeru/internal/drive"
 )
 
 // How a harness takes its first prompt.
@@ -57,7 +59,8 @@ const (
 //
 //	{name: "omp", command: ["omp"], modelFlag: "--model", models: [],
 //	 prompt: "send-text", ready: {state: "idle,done", timeoutMs: 15000}, env: {},
-//	 attach: "mention", promptBox: {deliver: "queue", submit: "enter"}}
+//	 attach: "mention", promptBox: {deliver: "queue", submit: "enter"},
+//	 drive: "terminal", view: {open: "turns", split: 50}}
 type Harness struct {
 	Name      string            `json:"name"`
 	Command   []string          `json:"command"`             // argv; command[0] is looked up on PATH
@@ -82,7 +85,19 @@ type Harness struct {
 	// (promptbox.go); nil: AgentPromptBox. A file's promptBox object
 	// merges by field into the built-in's; null removes it.
 	PromptBox *PromptBox `json:"promptBox,omitempty"`
+	// Drive is how a launch runs the harness (internal/drive): terminal
+	// (a tuios pane, the default), exec (a plain process whose output
+	// streams into a job; a send-text prompt goes to its stdin) or api
+	// (reserved: refused as not available yet). A launch may override it.
+	Drive string `json:"drive,omitempty"`
+	// View is how mtm's pane detail opens the harness's panes (view.go);
+	// nil: the agent.view settings. A file's view object merges by field
+	// into the built-in's; null removes it.
+	View *View `json:"view,omitempty"`
 }
+
+// DriveOf is the harness's drive, drive.Terminal when it gives none.
+func (h Harness) DriveOf() string { return drive.Of(h.Drive, drive.Terminal) }
 
 // Ready says when a new pane takes its first prompt: the agent state the
 // pane reports (the daemon reads it from hooks, the screen or the title),
@@ -160,6 +175,14 @@ func (h Harness) Validate() error {
 	}
 	if h.PromptBox != nil {
 		if err := h.PromptBox.validate(h.Name); err != nil {
+			return err
+		}
+	}
+	if err := drive.Check(h.Drive); err != nil {
+		return fmt.Errorf("harness %s: %w", h.Name, err)
+	}
+	if h.View != nil {
+		if err := h.View.validate(h.Name); err != nil {
 			return err
 		}
 	}
@@ -346,6 +369,10 @@ func Merge(base []Harness, data []byte) ([]Harness, error) {
 			if h.PromptBox != nil {
 				box := *h.PromptBox
 				h.PromptBox = &box
+			}
+			if h.View != nil {
+				view := *h.View
+				h.View = &view
 			}
 		}
 		dec := json.NewDecoder(strings.NewReader(string(raw)))

@@ -53,6 +53,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/unixsuperhero/matomeru/internal/drive"
 	"github.com/unixsuperhero/matomeru/store"
 )
 
@@ -169,6 +170,11 @@ type Def struct {
 	// given) or prompt (the default when Prompt is).
 	Kind    string   `json:"kind,omitempty"`
 	Command []string `json:"command,omitempty"`
+	// Drive is how a command row runs (internal/drive): exec (the
+	// default: a plain process, its output kept with the run), terminal
+	// (a tuios pane opened running it, Runner.Drives) or api (reserved:
+	// the run fails as not available yet).
+	Drive string `json:"drive,omitempty"`
 	// Prompt is a prompt schedule's text; Agent says how it is sent.
 	Prompt string `json:"prompt,omitempty"`
 	Agent  Agent  `json:"agent,omitzero"`
@@ -219,6 +225,9 @@ func (d Def) KindOf() string {
 	}
 	return KindCommand
 }
+
+// DriveOf is a command row's drive, drive.Exec when it gives none.
+func (d Def) DriveOf() string { return drive.Of(d.Drive, drive.Exec) }
 
 // CatchUpOf is the row's catch-up, def when it gives none.
 func (d Def) CatchUpOf(def string) string { return cmp.Or(d.CatchUp, def, CatchUpNone) }
@@ -416,6 +425,9 @@ func (d Def) Check() error {
 	case d.Agent.Target != "" && !slices.Contains(TargetValues, d.Agent.Target):
 		return fmt.Errorf("agent target is one of %s", strings.Join(TargetValues, ", "))
 	}
+	if err := drive.Check(d.Drive); err != nil {
+		return err
+	}
 	if err := d.When().Check(); err != nil {
 		return err
 	}
@@ -499,6 +511,8 @@ type Record struct {
 	Title      string   `json:"title"`
 	Kind       string   `json:"kind"` // command, prompt
 	Command    []string `json:"command,omitempty"`
+	// Drive is a command run's drive when it was not exec.
+	Drive string `json:"drive,omitempty"`
 	// Window is the pane a prompt run reached (matomeru-old's name).
 	Window string `json:"window,omitempty"`
 	// Launched is what a prompt run started or sent to.
@@ -577,6 +591,10 @@ type Runner struct {
 	Done chan Record
 	// Kinds run each kind of schedule; New sets command.
 	Kinds map[string]Executor
+	// Drives run a command row by its drive other than exec (which the
+	// command kind runs itself); mtm adds terminal. A drive with no
+	// executor fails the run: api as not available yet.
+	Drives map[string]Executor
 	// Location is the time zone days and times are read in.
 	Location *time.Location
 
@@ -606,6 +624,7 @@ func New(db *store.Store) (*Runner, error) {
 		Owner: fmt.Sprintf("%d@%s", os.Getpid(), host), Done: make(chan Record, 16), Location: time.Local,
 		running: map[string]bool{}, probes: map[string]probe{}}
 	r.Kinds = map[string]Executor{KindCommand: r.runCommand}
+	r.Drives = map[string]Executor{}
 	if fresh {
 		// The table is new to this database: bring over matomeru-old's
 		// prompt schedules, once.
@@ -828,6 +847,18 @@ func (r *Runner) runCommand(ctx context.Context, def Def, rec *Record) error {
 	}
 	argv := r.argv(def.Command)
 	rec.Command = argv
+	if d := def.DriveOf(); d != drive.Exec {
+		rec.Drive = d
+		if err := drive.Available(d); err != nil {
+			return err
+		}
+		run := r.Drives[d]
+		if run == nil {
+			return fmt.Errorf("drive %s: mtm runs no %s command rows here", d, d)
+		}
+		def.Command = argv
+		return run(ctx, def, rec)
+	}
 	if _, err := r.LookPath(argv[0]); err != nil {
 		return fmt.Errorf("%s %w", argv[0], ErrMissing)
 	}
