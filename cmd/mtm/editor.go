@@ -116,6 +116,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if c := a.schedulesUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
+	if c := a.runsUpdate(msg); c != nil {
+		cmd = tea.Batch(cmd, c)
+	}
 	a.followProject()
 	if a.r.Page != a.lastPage {
 		// A refresh or register from the CLI shows when a page is opened.

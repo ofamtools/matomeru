@@ -16,6 +16,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 	ocli "github.com/unixsuperhero/ochazuke/cli"
 
+	"github.com/unixsuperhero/matomeru/internal/drive"
 	"github.com/unixsuperhero/matomeru/internal/schedules"
 )
 
@@ -114,6 +115,7 @@ func (a *App) openSchedules(configDir string) error {
 	}
 	runner.Expand = a.expandSchedule
 	runner.Kinds[schedules.KindPrompt] = a.runPromptSchedule
+	runner.Drives[drive.Terminal] = a.runTerminalCommand
 	runner.Location = a.location()
 	defs, err := schedules.Load(filepath.Join(configDir, scheduleFile))
 	st := &scheduleState{defs: defs, runner: runner}
@@ -237,6 +239,8 @@ func (a *App) defineSchedules() {
 	for _, verb := range []string{"show", "run-now", "enable", "disable", "toggle", "reset", "delete"} {
 		a.parameters(n+"."+verb, map[string]ochazuke.Parameter{"name": scheduleNameParam})
 	}
+	a.parameters(n+".run-now", map[string]ochazuke.Parameter{"name": scheduleNameParam,
+		"drive": {Type: "string", Enum: drive.Values, Description: "A command row's drive for this run only: exec, terminal or api (not available yet); empty: the row's"}})
 	a.parameters(n+".history", map[string]ochazuke.Parameter{"name": scheduleNameParam,
 		"limit": {Type: "integer", Description: "At most this many runs (default all kept)"}})
 	a.parameters(n+".set-interval", map[string]ochazuke.Parameter{"name": scheduleNameParam,
@@ -281,6 +285,7 @@ type scheduleView struct {
 	Kind        string          `json:"kind"`
 	Source      string          `json:"source"`
 	Command     []string        `json:"command,omitempty"`
+	Drive       string          `json:"drive,omitempty"` // a command row's: exec (default), terminal or api
 	Prompt      string          `json:"prompt,omitempty"`
 	Agent       schedules.Agent `json:"agent,omitzero"`
 	When        string          `json:"when"`
@@ -308,7 +313,8 @@ type scheduleView struct {
 // "not checked yet"); the CLI checks it.
 func (a *App) viewSchedule(d schedules.Def, s schedules.State, now int64) scheduleView {
 	v := scheduleView{Name: d.Name, Description: d.Description, Kind: d.KindOf(), Source: d.Source, Command: d.Command, Prompt: d.Prompt, Agent: d.Agent,
-		When: d.When().Text(), Start: d.Start, End: d.End, CatchUp: d.CatchUp, Missed: s.Missed, Timeout: scheduleSpan(d.Limit()),
+		Drive: commandDrive(d),
+		When:  d.When().Text(), Start: d.Start, End: d.End, CatchUp: d.CatchUp, Missed: s.Missed, Timeout: scheduleSpan(d.Limit()),
 		Enabled: d.Enabled, Running: s.Running(now), LastRun: s.Last, LastOutcome: s.LastOutcome, LastError: s.LastError, Failures: s.Failures}
 	if d.Interval > 0 {
 		v.Interval = scheduleSpan(d.Every())
@@ -408,6 +414,14 @@ func (a *App) scheduleViews() ([]scheduleView, error) {
 	return out, nil
 }
 
+// commandDrive is a command row's drive for its view; "" for a prompt row.
+func commandDrive(d schedules.Def) string {
+	if d.KindOf() != schedules.KindCommand {
+		return ""
+	}
+	return d.DriveOf()
+}
+
 func scheduleRowID(name string) string { return "schedule:" + name }
 
 func (a *App) scheduleRow(v scheduleView, now int64) ocli.Row {
@@ -488,6 +502,7 @@ func (a *App) scheduleFacts(v scheduleView) string {
 		"what", v.Description,
 		"kind", v.Kind,
 		"command", strings.Join(v.Command, " "),
+		"drive", v.Drive,
 		"prompt", v.Prompt,
 		"harness", strings.TrimSpace(ag.Harness+" "+ag.Model),
 		"settings", strings.Join(settingPairs(ag), " "),
@@ -637,6 +652,12 @@ func (a *App) runScheduleNow(ctx ochazuke.Ctx) ochazuke.Result {
 	d, err := a.scheduleAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
+	}
+	if v := ochazuke.StringArg(ctx.Args, "drive", ""); v != "" {
+		if err := drive.Check(v); err != nil {
+			return ochazuke.Failed(err)
+		}
+		d.Drive = v // this run only
 	}
 	runner, runCtx := a.sched.runner, a.sched.ctx
 	a.scheduleEnv()

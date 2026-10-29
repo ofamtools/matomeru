@@ -259,6 +259,7 @@ type App struct {
 	contexts       *contextitems.Store // the context_items table (context.go)
 	inbox          *inboxState         // the action_items table and the Inbox page (inbox.go)
 	sched          *scheduleState      // schedules, their runner and the Schedules page (schedules.go)
+	runs           *runState           // command runs by drive and the Runs page (runs.go)
 	signals        paneSignalState     // pane state raised into the inbox (pane_signals.go)
 	hist           *history.Journal    // the history journal and review marks (journal.go)
 	feed           *journalFeed        // the journal's background reader (journal.go)
@@ -506,6 +507,7 @@ func New(opts Options) (*App, error) {
 	a.defineInbox()
 	a.definePaneTask()
 	a.defineSchedules()
+	a.defineRuns()
 	a.defineDeletion()
 	a.defineSaved()
 	a.defineVim()
@@ -601,6 +603,9 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	if err := a.addSchedulesPage(); err != nil {
+		return nil, err
+	}
+	if err := a.addRunsPage(); err != nil {
 		return nil, err
 	}
 	// The Extensions page is mtm's last tab; the registered extensions'

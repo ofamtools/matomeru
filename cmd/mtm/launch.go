@@ -11,6 +11,7 @@ import (
 	ocli "github.com/unixsuperhero/ochazuke/cli"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/drive"
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/locate"
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -207,9 +208,10 @@ func (a *App) defineLaunch() {
 		"model":   model,
 		"task":    task,
 		"notice":  {Type: "string"},
+		"drive":   driveParam,
 	})
-	a.parameters("project.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model})
-	a.parameters("task.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model})
+	a.parameters("project.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model, "drive": driveParam})
+	a.parameters("task.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model, "drive": driveParam})
 }
 
 // listHarnesses is harness.list: the registry as data.
@@ -242,6 +244,32 @@ func (a *App) listModels(ochazuke.Ctx) ochazuke.Result {
 		out[i].Label += ")"
 	}
 	return ochazuke.Done(out)
+}
+
+// driveParam is a launch's --drive: the harness profile's drive, else
+// terminal, overridden for this run.
+var driveParam = ochazuke.Parameter{Type: "string", Enum: drive.Values,
+	Description: "How the harness runs this time: terminal (a pane), exec (a plain process on the Runs page, the prompt on stdin) or api (not available yet); empty: the profile's drive"}
+
+// execHarness is a launch with drive exec: the harness's argv run as a
+// command run (runs.go), its prompt (the task's title) on stdin, or as
+// the last argument for a harness that takes it so, in the project's
+// directory.
+func (a *App) execHarness(ctx ochazuke.Ctx, h harness.Harness, model string, p work.Project) ochazuke.Result {
+	prompt := ""
+	if id := ochazuke.StringArg(ctx.Args, "task", ""); id != "" {
+		t, err := a.work.Task(id)
+		if err != nil {
+			return ochazuke.Failed(fmt.Errorf("task %s: %w", id, err))
+		}
+		prompt = t.Title
+	}
+	run := &commandRun{Title: h.Name + " (exec)", Argv: h.Argv(model, prompt), Dir: a.startCwd(p), Drive: drive.Exec}
+	if h.Prompt != harness.PromptArg {
+		run.stdin = prompt
+	}
+	ctx.Info("Running " + h.Name + " with drive exec: its output is on the Runs page")
+	return a.startRun(run)
 }
 
 // harnessFor is the harness and model a launch in project p runs: the
@@ -492,6 +520,9 @@ func (a *App) start(ctx ochazuke.Ctx, to target, harnessName, model string) ocha
 	if model != "" {
 		args["model"] = model
 	}
+	if d := ochazuke.StringArg(ctx.Args, "drive", ""); d != "" {
+		args["drive"] = d
+	}
 	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "start", Noun: "agent", Target: "work", Args: args})
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -508,6 +539,13 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	h, model, err := a.harnessFor(ctx.Args, p)
 	if err != nil {
 		return ochazuke.Failed(fmt.Errorf("launch: %w", err))
+	}
+	how := drive.Of(ochazuke.StringArg(ctx.Args, "drive", ""), h.DriveOf())
+	if err := drive.Available(how); err != nil {
+		return ochazuke.Failed(fmt.Errorf("launch %s: %w", h.Name, err))
+	}
+	if how == drive.Exec {
+		return a.execHarness(ctx, h, model, p)
 	}
 	// A launch is cheap and K undoes it, so it does not ask; the notice
 	// says where it went.

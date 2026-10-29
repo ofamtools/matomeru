@@ -13,10 +13,10 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
-// drive runs cmd as the Bubble Tea loop would, timers included, feeding
+// driveLoop runs cmd as the Bubble Tea loop would, timers included, feeding
 // every message back through the app, and stops waiting on a command
 // after wait (a wake-up that never comes).
-func drive(a *App, cmd tea.Cmd, wait time.Duration) {
+func driveLoop(a *App, cmd tea.Cmd, wait time.Duration) {
 	if cmd == nil {
 		return
 	}
@@ -32,11 +32,11 @@ func drive(a *App, cmd tea.Cmd, wait time.Duration) {
 	case nil:
 	case tea.BatchMsg:
 		for _, c := range m {
-			drive(a, c, wait)
+			driveLoop(a, c, wait)
 		}
 	default:
 		_, next := a.Update(m)
-		drive(a, next, wait)
+		driveLoop(a, next, wait)
 	}
 }
 
@@ -60,7 +60,7 @@ func printed(a *App, f *fakeContextPanes, window string, lines ...string) {
 	f.print(window, lines...)
 	a.cx.follow.mark(window)
 	_, cmd := a.Update(contextOutput{})
-	drive(a, cmd, 1500*time.Millisecond)
+	driveLoop(a, cmd, 1500*time.Millisecond)
 }
 
 func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
@@ -139,7 +139,7 @@ func TestFollowReadsOnlyTheNewPart(t *testing.T) {
 	f.reads = 0
 	f.mu.Unlock()
 	_, cmd := a.Update(contextOutput{})
-	drive(a, cmd, 1500*time.Millisecond)
+	driveLoop(a, cmd, 1500*time.Millisecond)
 	items, _ := a.contexts.All()
 	if len(items) != 2 || f.reads != 1 {
 		t.Fatalf("items %d, reads %d", len(items), f.reads)
@@ -152,7 +152,7 @@ func TestFollowNeverRunsOnAKey(t *testing.T) {
 	f.print("w1", "https://example.com/quiet")
 	press(t, a, "j")
 	if _, cmd := a.Update(contextScanDue{}); cmd != nil {
-		drive(a, cmd, 200*time.Millisecond)
+		driveLoop(a, cmd, 200*time.Millisecond)
 	}
 	if f.reads != 0 {
 		t.Fatalf("reads = %d without output", f.reads)

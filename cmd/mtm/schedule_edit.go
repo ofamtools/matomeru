@@ -10,6 +10,7 @@ import (
 
 	"github.com/unixsuperhero/ochazuke"
 
+	"github.com/unixsuperhero/matomeru/internal/drive"
 	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/schedules"
 )
@@ -28,7 +29,7 @@ const scheduleFormID = "schedule-form"
 var scheduleFields = []string{
 	"prompt", "when", "enabled", "harness", "model", "effort", "fast", "permission-mode",
 	"project", "task", "dir", "into", "pane", "start", "end", "catch-up", "description",
-	"kind", "command", "timeout",
+	"kind", "command", "drive", "timeout",
 }
 
 // scheduleParams are add's and edit's parameters (edit's name is the row's).
@@ -64,6 +65,7 @@ func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 		"description":     {Type: "string", Free: true, Description: "What it is for, shown on its row"},
 		"kind":            {Type: "string", Enum: []string{schedules.KindPrompt, schedules.KindCommand}, Description: "prompt (start an agent) or command (run a command); default: from what is given"},
 		"command":         {Type: "string", Free: true, Description: "A command schedule's command line (words split on spaces)"},
+		"drive":           {Type: "string", Enum: drive.Values, Description: "How a command row runs: exec (default: a plain process, output kept with the run), terminal (a pane opened running it) or api (reserved: not available yet)"},
 		"timeout":         {Type: "string", Free: true, Description: "How long a run may take: 2m (default), 10m, …"},
 	}
 }
@@ -136,6 +138,11 @@ func (a *App) applyScheduleField(d *schedules.Def, name, v string) error {
 		d.Kind = v
 	case "command":
 		d.Command = strings.Fields(v)
+	case "drive":
+		if err := drive.Check(v); err != nil {
+			return err
+		}
+		d.Drive = v
 	case "timeout":
 		if v == "" {
 			d.Timeout = 0
@@ -197,6 +204,8 @@ func scheduleField(d schedules.Def, name string) string {
 		return d.Kind
 	case "command":
 		return strings.Join(d.Command, " ")
+	case "drive":
+		return d.Drive
 	case "timeout":
 		if d.Timeout == 0 {
 			return ""

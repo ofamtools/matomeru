@@ -36,7 +36,7 @@ func extStatus(a *App, name string) string {
 	return ""
 }
 
-// The Extensions tab sits after mtm's own pages (Schedules, after Inbox, is the last) and before the
+// The Extensions tab sits after mtm's own pages (Runs, after Schedules, is the last) and before the
 // extensions' tabs.
 func TestExtensionsPageIsTheTabBeforeTheExtensions(t *testing.T) {
 	path := seeded(t)
@@ -44,7 +44,7 @@ func TestExtensionsPageIsTheTabBeforeTheExtensions(t *testing.T) {
 	a := registered(t, path, "fake", bin)
 	pages := pageIDs(a)
 	i := slices.Index(pages, extensionsPage)
-	if i < 0 || pages[i-1] != schedulesPage || pages[i-2] != inboxPage || pages[i+1] != "ext/fake" {
+	if i < 0 || pages[i-1] != runsPage || pages[i-2] != schedulesPage || pages[i+1] != "ext/fake" {
 		t.Fatalf("tabs %v", pages)
 	}
 }

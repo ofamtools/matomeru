@@ -164,6 +164,7 @@ func openWith(t *testing.T, opts Options) *App {
 	// Turns is the detail's default tab (TestTurnsIsTheDefaultTab); the
 	// tests of the Screen tab, written when it was the default, start there.
 	app.pv.tab = tabScreen
+	app.runs.after = nil // no redraw timers
 	// No test runs a real schedule: no timers, and a command a test did
 	// not fake fails at once.
 	app.sched.after = nil
