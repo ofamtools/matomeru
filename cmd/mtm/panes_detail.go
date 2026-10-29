@@ -1092,16 +1092,13 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	switch a.pv.tab {
 	case tabScreen:
 		if a.preview.Pane == row {
-			// The screen is not wrapped: its lines are cut to the panel,
-			// and it opens on its last line holding text.
-			text := strings.ReplaceAll(trimBlankTail(a.preview.Text), "\t", "    ")
-			drawn := a.detail.panes.lines(text, 0, width, height)
-			if sc := a.previewHints(row); sc != nil {
-				// While hints are up the window they labelled stays put.
-				return ochazuke.Text(overlayText(sc.win.text, sc.win.width, sc.win.shown, sc.overlay, ochazuke.NewStyles(*a.m.Appearance).Backdrop))
+			// A live pane's screen ends in the prompt box (prompt_box.go),
+			// pinned to the bottom, as its turns do on the Turns tab.
+			if pp := a.promptPane(); pp != nil && height > 3 {
+				boxH := a.promptBoxHeight()
+				return stackBlocks(a.screenBody(row, width, height-boxH), height-boxH, a.promptBoxBlock(*pp, width))
 			}
-			a.pv.screen = a.screenWindow(row, text, drawn, width, height)
-			return ochazuke.Text(drawn)
+			return a.screenBody(row, width, height)
 		}
 		a.detail.panes.hide()
 		return ochazuke.Text("loading…")
@@ -1139,6 +1136,21 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	// Long lines wrap to the panel, so an explanation or a reply reads
 	// whole; the newest stay at the bottom until K scrolls back.
 	return ochazuke.Text(a.detail.panes.lines(text, max(1, width), width, height))
+}
+
+// screenBody is the Screen tab's screen of the pane at row (its preview
+// loaded) at width x height.
+func (a *App) screenBody(row string, width, height int) ochazuke.Block {
+	// The screen is not wrapped: its lines are cut to the panel, and it
+	// opens on its last line holding text.
+	text := strings.ReplaceAll(trimBlankTail(a.preview.Text), "\t", "    ")
+	drawn := a.detail.panes.lines(text, 0, width, height)
+	if sc := a.previewHints(row); sc != nil {
+		// While hints are up the window they labelled stays put.
+		return ochazuke.Text(overlayText(sc.win.text, sc.win.width, sc.win.shown, sc.overlay, ochazuke.NewStyles(*a.m.Appearance).Backdrop))
+	}
+	a.pv.screen = a.screenWindow(row, text, drawn, width, height)
+	return ochazuke.Text(drawn)
 }
 
 // turnsBody is the Turns tab's tree at width x height.

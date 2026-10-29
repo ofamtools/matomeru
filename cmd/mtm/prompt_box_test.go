@@ -168,7 +168,7 @@ func TestPromptBoxNeverTypesOverAWaitingPrompt(t *testing.T) {
 }
 
 // esc leaves insert, then goes back to the turns; } from the turns comes
-// back to the box; a shell pane has no box.
+// back to the box. (A shell's box: prompt_any_pane_test.go.)
 func TestPromptBoxIsAStopAfterTheTurns(t *testing.T) {
 	app, _ := promptApp(t)
 	press(t, app, "esc", "esc")
@@ -181,12 +181,6 @@ func TestPromptBoxIsAStopAfterTheTurns(t *testing.T) {
 	}
 	if _, err := app.r.ValidateBindings(); err != nil {
 		t.Fatal(err)
-	}
-	shell, _ := panesApp(t)
-	shell.pv.tab = tabTurns
-	frameText := frame(shell)
-	if strings.Contains(frameText, "write to the agent") {
-		t.Fatalf("a shell pane drew the box:\n%s", frameText)
 	}
 }
 

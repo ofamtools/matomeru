@@ -176,7 +176,7 @@ type clipboardRead struct {
 func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 	p := a.promptPane()
 	if p == nil {
-		return ochazuke.Failed(errors.New("the prompt box is for a Claude Code or omp pane, on the Turns tab"))
+		return ochazuke.Failed(errNoPromptBox)
 	}
 	clip := a.pb.clip
 	if clip == nil {

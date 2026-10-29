@@ -20,11 +20,23 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/harness"
 )
 
-// The prompt box: an input pinned below an agent pane's turns (the Turns
-// tab of a Claude Code or omp pane), a focus stop of its own after the
-// tree (} and tab from the tree, i from the tree or the pane row), that
-// sends what is typed to the agent through tuios, never through the
-// harness itself (no patch to omp, no hook of Claude's):
+// The prompt box: an input pinned below a live pane's turns (the Turns
+// tab) and below its screen (the Screen tab, while no live terminal is
+// drawn there), a focus stop of its own after the tree (} and tab from the
+// tree, i from the tree or the pane row), that sends what is typed to the
+// pane through tuios, never through the harness itself (no patch to omp,
+// no hook of Claude's). Every live pane gets one: an agent of any harness
+// and a plain shell or terminal (prompt.on-terminals, prompt.on-screen opt
+// out). How it delivers is data, the pane's harness profile's promptBox
+// (harness.PromptBox; promptBoxOf): deliver "queue" is an agent's, with
+// the three modes below; deliver "send" is a terminal's, the text typed as
+// one paste (bracketed when the program turned bracketed paste on, so a
+// shell holds a multi-line text whole and runs none of it before the
+// Enter) and then the program's Enter, or nothing with submit "none". A
+// pane with no profile is an agent's box when tuios reports an agent in
+// it, else a terminal's.
+//
+// An agent's box (deliver queue) has three modes:
 //
 //   - send: send-text with submit, typed as one bracketed paste and then
 //     the harness's Enter (tuios's ask-agent typing). Sent while the agent
@@ -191,8 +203,8 @@ func (t tuios) PromptQueue(ctx context.Context, p pane, text string) (daemon.Que
 func (a *App) addPromptBox() error {
 	a.pb = &promptBox{sources: compose.NewSources(compose.DefaultEnv()), clip: macClipboard{}}
 	a.r.Define(promptNoun).
-		Verb("send", a.sendPrompt, "Send the prompt to the agent in the box's mode: send (a steer while it works), queue (typed when it rests) or interrupt (Escape, then send)").
-		Verb("mode", a.cyclePromptMode, "Switch the prompt box's mode: send, queue, interrupt (or the one named)").
+		Verb("send", a.sendPrompt, "Send the prompt to the pane: to an agent in the box's mode, send (a steer while it works), queue (typed when it rests) or interrupt (Escape, then send); to a terminal typed, then Enter unless its profile's promptBox.submit is none").
+		Verb("mode", a.cyclePromptMode, "Switch the prompt box's mode: send, queue, interrupt (or the one named); an agent's box only").When("prompt-modes").
 		Verb("back", a.promptBack, "Go back to the turns, else the pane row").
 		Verb("context", a.promptContext, "Choose a context item or prompt of the box's pane, its project or no project, and write it at the cursor (a file as @path)").
 		Verb("paste", a.pastePrompt, "Paste from the clipboard into the prompt: an image (or a copied image file) is attached as [image N], another copied file goes in as @path, text as text").
@@ -234,16 +246,22 @@ func (a *App) addPromptBox() error {
 	})
 	a.parameters(promptNoun+".mode", map[string]ochazuke.Parameter{"mode": {Type: "string", Enum: promptModes, Description: "The mode to switch to; none takes the next"}})
 	a.parameters(promptNoun+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "The image's number, as its chip [image n] shows; none: the only one, else a chooser"}})
-	// i writes a prompt: from the pane row while the Turns tab shows, and
-	// from any row of the turns.
+	// i writes a prompt: from the pane row while the Turns or Screen tab
+	// shows, and from any row of the turns. Only a live pane has a box, so
+	// on an exited one i stands aside (availability, not a guard row).
 	a.r.DefineGuard("pane-prompt", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		return a.promptPaneAt(ev.Focus) != nil
 	})
+	// The modes are an agent's box's: on a terminal's ctrl+t stands aside.
+	a.r.DefineGuard("prompt-modes", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool {
+		p := a.promptPane()
+		return p == nil || a.promptBoxOf(*p).Deliver == harness.DeliverQueue
+	})
 	for _, noun := range []string{"pane", "turn", "turn-line", "turn-step", "turn-separator"} {
 		a.r.Define(noun).
-			Verb("prompt", a.focusPrompt, "Write to the agent: focus the prompt box below its turns, in insert mode").
+			Verb("prompt", a.focusPrompt, "Write to the pane: focus the prompt box below its turns or its screen, in insert mode").When("pane-prompt").
 			Mode("normal").
-			Bind("i", ochazuke.Do(noun+".prompt").Guard("pane-prompt").Hinted("prompt"))
+			Bind("i", ochazuke.Do(noun+".prompt").Hinted("prompt"))
 	}
 	a.pb.input = ochazuke.NewInput(promptID, "", true)
 	at := ochazuke.CompletionTrigger{Trigger: "@", Search: a.searchMentions}
@@ -252,28 +270,63 @@ func (a *App) addPromptBox() error {
 	return a.r.AddInput(a.pb.input, ochazuke.Parent(panesPage), ochazuke.Kind(promptNoun), ochazuke.Completions(at, slash, skill))
 }
 
-// promptPane is the pane the box writes to: the pane whose turns the tab
-// shows, when it is an agent's that the box serves. nil is none.
+// Settings that opt out of the box where it is new.
+const (
+	// settingPromptTerminals gives a terminal (a pane with no agent and no
+	// harness profile: a shell, a REPL) the box.
+	settingPromptTerminals = "prompt.on-terminals"
+	// settingPromptScreen draws the box below the Screen tab's screen.
+	settingPromptScreen = "prompt.on-screen"
+)
+
+var (
+	promptTerminalsSetting = ochazuke.Setting{Name: settingPromptTerminals, Type: ochazuke.SettingBoolean, Default: true,
+		Description: "Give a terminal (a shell or another program with no agent in it) the prompt box: what is typed goes in as one paste, then Enter"}
+	promptScreenSetting = ochazuke.Setting{Name: settingPromptScreen, Type: ochazuke.SettingBoolean, Default: true,
+		Description: "Draw the prompt box below the Screen tab's screen too, not only below the Turns tab's turns"}
+)
+
+// promptRow is the row of the pane the box writes to: on the Turns tab
+// the pane whose turns it shows, on the Screen tab the selected pane while
+// its screen (not a live terminal or copy mode) is drawn. "" is none.
+func (a *App) promptRow() string {
+	switch a.pv.tab {
+	case tabTurns:
+		return a.pv.turnsFor
+	case tabScreen:
+		if !a.r.Settings().Bool(settingPromptScreen) || a.liveShown() || a.copyShown(paneTermID) {
+			return ""
+		}
+		row, _ := a.selectedRow()
+		return row
+	}
+	return ""
+}
+
+// promptPane is the pane the box writes to (promptRow), when the box
+// serves it. nil is none.
 func (a *App) promptPane() *pane {
-	if a.pv.tab != tabTurns || a.pv.turnsFor == "" {
+	row := a.promptRow()
+	if row == "" {
 		return nil
 	}
-	p, err := a.paneAt(a.r.Instances[a.pv.turnsFor])
-	if err != nil || !promptServes(p) {
+	p, err := a.paneAt(a.r.Instances[row])
+	if err != nil || !a.promptServes(p) {
 		return nil
 	}
 	return &p
 }
 
 // promptPaneAt is the pane i at focus would write to: a pane row's own
-// (on the Turns tab), else the shown pane's for a row of the turns.
+// (on the Turns or Screen tab), else the shown pane's for a row of the
+// turns.
 func (a *App) promptPaneAt(focus string) *pane {
-	if a.pv.tab != tabTurns {
+	if a.pv.tab != tabTurns && a.promptRow() == "" {
 		return nil
 	}
 	if inst := a.r.Instances[focus]; inst != nil && inst.Noun == "pane" {
 		p, err := a.paneAt(inst)
-		if err != nil || !promptServes(p) {
+		if err != nil || !a.promptServes(p) {
 			return nil
 		}
 		return &p
@@ -281,22 +334,47 @@ func (a *App) promptPaneAt(focus string) *pane {
 	return a.promptPane()
 }
 
-// promptServes reports whether the pane's agent gets a prompt box: Claude
-// Code and omp, whose turns the tab reads.
-func promptServes(p pane) bool { return !p.Exited && (isClaude(p) || isOmp(p)) }
+// promptServes reports whether the pane gets a prompt box: any live pane,
+// a terminal unless prompt.on-terminals is off.
+func (a *App) promptServes(p pane) bool {
+	if p.Exited {
+		return false
+	}
+	_, terminal := a.promptBoxFor(p)
+	return !terminal || a.r.Settings().Bool(settingPromptTerminals)
+}
+
+// promptBoxOf is how the box writes to the pane (promptBoxFor).
+func (a *App) promptBoxOf(p pane) harness.PromptBox {
+	b, _ := a.promptBoxFor(p)
+	return b
+}
+
+// promptBoxFor is the pane's harness profile's promptBox; a pane with no
+// profile has harness.AgentPromptBox when tuios reports an agent in it,
+// else harness.TerminalPromptBox, and is then a terminal.
+func (a *App) promptBoxFor(p pane) (box harness.PromptBox, terminal bool) {
+	if h, ok := a.harnessOf(p); ok {
+		return h.Box(), false
+	}
+	if p.isAgent() {
+		return harness.AgentPromptBox, false
+	}
+	return harness.TerminalPromptBox, true
+}
 
 // focusPrompt is pane.prompt and turn*.prompt (i): show the row's turns
 // when they are not shown, then focus the box in insert mode, the cursor
 // after the draft.
 func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
-	if ctx.Instance != nil && ctx.Instance.Noun == "pane" && a.pv.turnsFor != ctx.Instance.ID {
+	if ctx.Instance != nil && ctx.Instance.Noun == "pane" && a.pv.tab == tabTurns && a.pv.turnsFor != ctx.Instance.ID {
 		if err := a.showTurns(ctx.Instance.ID); err != nil {
 			return ochazuke.Failed(err)
 		}
 	}
 	p := a.promptPane()
 	if p == nil {
-		return ochazuke.Failed(errors.New("the prompt box is for a Claude Code or omp pane, on the Turns tab"))
+		return ochazuke.Failed(errNoPromptBox)
 	}
 	a.promptTargetFor(*p)
 	from := a.r.Focus
@@ -312,17 +390,20 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(promptID)
 }
 
+// errNoPromptBox is a box verb's answer where no box is drawn.
+var errNoPromptBox = errors.New("no prompt box here: it writes to a live pane, below the Turns or Screen tab")
+
 // promptBack is turn-prompt.back (esc in normal mode): the turns, else
 // the pane row.
 func (a *App) promptBack(ochazuke.Ctx) ochazuke.Result {
-	if a.turnsList().Len() > 0 {
+	if a.pv.tab == tabTurns && a.turnsList().Len() > 0 {
 		if err := a.focusTurnsView(); err == nil {
 			return ochazuke.Done(a.r.Focus)
 		}
 	}
 	target := paneListID
-	if a.r.Instances[a.pv.turnsFor] != nil {
-		target = a.pv.turnsFor
+	if row := a.promptRow(); a.r.Instances[row] != nil {
+		target = row
 	}
 	if err := a.r.SetFocus(target); err != nil {
 		return ochazuke.Failed(err)
@@ -357,7 +438,7 @@ func (a *App) promptContext(ochazuke.Ctx) ochazuke.Result {
 func (a *App) pickIntoPrompt() ochazuke.Result {
 	p := a.promptPane()
 	if p == nil {
-		return ochazuke.Failed(errors.New("the prompt box is for a Claude Code or omp pane, on the Turns tab"))
+		return ochazuke.Failed(errNoPromptBox)
 	}
 	return a.openContextPicker(*p, func(row ochazuke.ChooserRow) ochazuke.Result {
 		var text string
@@ -401,8 +482,15 @@ func (a *App) insertIntoPrompt(text string) error {
 }
 
 // promptModeLabel is the box's mode as it reads: [send], [steer] (a send
-// while the agent works), [queue], [interrupt].
-func promptModeLabel(mode int, p pane) string {
+// while the agent works), [queue], [interrupt]; a terminal's box is
+// [send], or [type] when it leaves the text unsubmitted.
+func promptModeLabel(mode int, p pane, box harness.PromptBox) string {
+	if box.Deliver == harness.DeliverSend {
+		if box.Submit == harness.SubmitNone {
+			return "[type]"
+		}
+		return "[send]"
+	}
 	name := promptModes[mode]
 	if mode == promptSend && p.AgentState == "working" {
 		name = "steer"
@@ -410,14 +498,24 @@ func promptModeLabel(mode int, p pane) string {
 	return "[" + name + "]"
 }
 
+// promptMode is the mode the box sends to p in: its mode for an agent's
+// box, send for a terminal's (it has no other).
+func (a *App) promptMode(p pane) int {
+	if a.promptBoxOf(p).Deliver == harness.DeliverSend {
+		return promptSend
+	}
+	return a.pb.mode
+}
+
 // sendPrompt is turn-prompt.send (enter): the box's text to the agent in
 // the box's mode, off the loop; the box clears once tuios took it.
 func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	pp := a.promptPane()
 	if pp == nil {
-		return ochazuke.Failed(errors.New("the prompt box writes to a Claude Code or omp pane, on the Turns tab"))
+		return ochazuke.Failed(errNoPromptBox)
 	}
 	p := *pp
+	box := a.promptBoxOf(p)
 	text := strings.TrimRight(string(a.pb.input.Text), " \t\r\n")
 	text = strings.TrimLeft(text, "\r\n")
 	if strings.TrimSpace(text) == "" {
@@ -427,7 +525,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	if !ok {
 		return ochazuke.Failed(errors.New("sending needs the TUIOS daemon"))
 	}
-	mode := a.pb.mode
+	mode := a.promptMode(p)
 	// The attachments go as the harness takes files: @ mentions in the
 	// text, or (a harness that attaches a pasted path, outside queue
 	// mode) a paste of each path before it.
@@ -486,6 +584,11 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 				return nil, err
 			}
 		}
+		// One send-text: the text as one paste and, with submit, the
+		// Enter after it, so a failure never leaves half of it run.
+		if box.Submit == harness.SubmitNone {
+			return nil, d.PromptPaste(c, p, text)
+		}
 		return nil, d.PromptSubmit(c, p, text)
 	}).Label(label).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		if err != nil {
@@ -513,6 +616,9 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		// The new turn (or the steer) shows once the log has it, and the
 		// turns follow it (only a send moves them; focusing the box does
 		// not).
+		if a.pv.tab != tabTurns {
+			return // the Screen tab shows the send with its next refresh
+		}
 		a.followNewest()
 		if a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
 			if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
@@ -740,7 +846,8 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	if a.r.Focus == promptID {
 		style = a.promptModeStyle(s)
 	}
-	label := promptModeLabel(a.pb.mode, p) + " " + p.kind()
+	box := a.promptBoxOf(p)
+	label := promptModeLabel(a.promptMode(p), p, box) + " " + p.kind()
 	if p.needsInput() {
 		label += " · waits on you"
 	}
@@ -775,7 +882,7 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 		}
 	} else if len(in.Text) == 0 {
 		a.r.Placed(promptID) // a stop after the turns even while empty
-		field = ochazuke.Text(s.Muted.Render("write to the agent"))
+		field = ochazuke.Text(s.Muted.Render(promptPlaceholder(box)))
 	} else {
 		field = ochazuke.Text(ochazuke.InputView(in, fieldW, rows))
 	}
@@ -794,11 +901,23 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	return field.WithText(style.Render(rule) + "\n" + strings.Join(lines, "\n"))
 }
 
+// promptPlaceholder is the empty, unfocused box's text.
+func promptPlaceholder(box harness.PromptBox) string {
+	if box.Deliver == harness.DeliverSend {
+		return "type into the pane"
+	}
+	return "write to the agent"
+}
+
 // promptModeStyle is the mode's colour: the accent for a send (a steer
 // too: its label says it), amber for queue, the error colour for interrupt; in mono only
 // the label tells them apart.
 func (a *App) promptModeStyle(s ochazuke.Styles) lipgloss.Style {
-	switch a.pb.mode {
+	mode := a.pb.mode
+	if p := a.promptPane(); p != nil {
+		mode = a.promptMode(*p)
+	}
+	switch mode {
 	case promptQueue:
 		if a.m.Appearance.Theme == "mono" {
 			return lipgloss.NewStyle().Bold(true)

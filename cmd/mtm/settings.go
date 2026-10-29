@@ -48,6 +48,8 @@ func (a *App) declareSettings() error {
 		harnessSetting,
 		paneGroupSetting,
 		afterSubmitSetting,
+		promptTerminalsSetting,
+		promptScreenSetting,
 		ochazuke.Setting{Name: settingSideLayout, Type: ochazuke.SettingString, Default: sideAuto, Enum: []string{sideAuto, sideBeside, sideBelow},
 			Description: "Where a live pane's side vim or terminal sits: auto (beside from a 161-column detail, else below), beside or below; leader R flips it"},
 		// The live pane's leader never expires: ctrl+a waits for the next
