@@ -57,7 +57,7 @@ const (
 //
 //	{name: "omp", command: ["omp"], modelFlag: "--model", models: [],
 //	 prompt: "send-text", ready: {state: "idle,done", timeoutMs: 15000}, env: {},
-//	 attach: "mention"}
+//	 attach: "mention", promptBox: {deliver: "queue", submit: "enter"}}
 type Harness struct {
 	Name      string            `json:"name"`
 	Command   []string          `json:"command"`             // argv; command[0] is looked up on PATH
@@ -78,6 +78,10 @@ type Harness struct {
 	// writes now (session.go); nil: only the id tuios reports. A file's
 	// session object merges by field into the built-in's; null removes it.
 	Session *SessionSource `json:"session,omitempty"`
+	// PromptBox is how mtm's prompt box writes to the harness's panes
+	// (promptbox.go); nil: AgentPromptBox. A file's promptBox object
+	// merges by field into the built-in's; null removes it.
+	PromptBox *PromptBox `json:"promptBox,omitempty"`
 }
 
 // Ready says when a new pane takes its first prompt: the agent state the
@@ -111,6 +115,8 @@ func Builtins() []Harness {
 	for i := range list {
 		list[i].Settings, list[i].ContextWindows = builtinSettings(list[i].Name)
 		list[i].Session = builtinSession(list[i].Name)
+		box := AgentPromptBox
+		list[i].PromptBox = &box
 	}
 	return list
 }
@@ -149,6 +155,11 @@ func (h Harness) Validate() error {
 	}
 	if h.Session != nil {
 		if err := h.Session.validate(h.Name); err != nil {
+			return err
+		}
+	}
+	if h.PromptBox != nil {
+		if err := h.PromptBox.validate(h.Name); err != nil {
 			return err
 		}
 	}
@@ -331,6 +342,10 @@ func Merge(base []Harness, data []byte) ([]Harness, error) {
 				src := *h.Session
 				src.Agents, src.Env = slices.Clone(src.Agents), slices.Clone(src.Env)
 				h.Session = &src
+			}
+			if h.PromptBox != nil {
+				box := *h.PromptBox
+				h.PromptBox = &box
 			}
 		}
 		dec := json.NewDecoder(strings.NewReader(string(raw)))

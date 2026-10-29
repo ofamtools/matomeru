@@ -104,6 +104,47 @@ func TestAttachModes(t *testing.T) {
 	}
 }
 
+// Each built-in agent's box queues; a file's promptBox changes only the
+// fields it gives, a harness without one takes the agent default, and an
+// unknown delivery or submit is refused.
+func TestPromptBoxIsData(t *testing.T) {
+	for _, h := range Builtins() {
+		if h.Box() != AgentPromptBox {
+			t.Errorf("%s's box = %+v", h.Name, h.PromptBox)
+		}
+	}
+	if (PromptBox{}).Resolved() != AgentPromptBox || (PromptBox{Deliver: DeliverSend}).Resolved() != TerminalPromptBox {
+		t.Fatal("left-out fields are not the defaults")
+	}
+	merged, err := Merge(Builtins(), []byte(`[{"name": "codex", "promptBox": {"submit": "none"}}, {"name": "repl", "command": ["python3"], "promptBox": {"deliver": "send"}}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := merged[2].Box(); got != (PromptBox{Deliver: DeliverQueue, Submit: SubmitNone}) {
+		t.Fatalf("codex = %+v", got)
+	}
+	if got := merged[3].Box(); got != TerminalPromptBox {
+		t.Fatalf("repl = %+v", got)
+	}
+	if (Harness{Name: "x"}).Box() != AgentPromptBox {
+		t.Fatal("a harness with no promptBox is not an agent's")
+	}
+	// null removes a built-in's promptBox: the agent default.
+	if merged, err := Merge(Builtins(), []byte(`[{"name": "omp", "promptBox": null}]`)); err != nil || merged[1].PromptBox != nil || merged[1].Box() != AgentPromptBox {
+		t.Fatalf("null: %+v %v", merged[1].PromptBox, err)
+	}
+	// Merging never writes through to the built-ins' box.
+	base := Builtins()
+	if _, err := Merge(base, []byte(`[{"name": "claude", "promptBox": {"deliver": "send"}}]`)); err != nil || base[0].Box() != AgentPromptBox {
+		t.Fatalf("merge wrote through: %+v %v", base[0].Box(), err)
+	}
+	for _, bad := range []PromptBox{{Deliver: "type"}, {Submit: "tab"}} {
+		if err := (Harness{Name: "x", Command: []string{"x"}, PromptBox: &bad}).Validate(); err == nil {
+			t.Errorf("%+v was accepted", bad)
+		}
+	}
+}
+
 func TestLoadMergesTheFileByName(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "harnesses.json")
