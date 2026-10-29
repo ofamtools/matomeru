@@ -162,6 +162,9 @@ const renameFormID = "rename"
 // edit-debounce pause, and at once when it is left). enter and esc leave,
 // as the prompt did, keeping what was typed; nothing changed writes
 // nothing (UX review 2 F4). A required name left empty is not written.
+// It is a rename (RecordSpec.Rename): with ochazuke's rename.select on (the
+// default) the name opens selected, so typing replaces it and a motion
+// keeps it (UX-RULES R11.6).
 func (a *App) renameForm(title, current string, required bool, write func(name string) ochazuke.Result) error {
 	if a.renaming != nil && a.r.Instances[renameFormID] != nil {
 		return errors.New("a rename is already open")
@@ -171,6 +174,7 @@ func (a *App) renameForm(title, current string, required bool, write func(name s
 		Fields:   []ochazuke.RecordField{{Name: "name", Parameter: ochazuke.Parameter{Type: "string", Required: required}}},
 		Debounce: a.editDebounce(),
 		Insert:   true,
+		Rename:   true,
 		Load:     func() (ochazuke.Record, error) { return ochazuke.Record{"name": current}, nil },
 		Save:     func(w ochazuke.RecordWrite) ochazuke.Result { return write(w.Values["name"]) },
 		OnLeave:  func() { a.renaming = nil },

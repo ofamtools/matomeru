@@ -65,6 +65,37 @@ func TestRenameAPaneFromItsRow(t *testing.T) {
 	}
 }
 
+// r on a pane row opens the name selected (rename.select, on by default):
+// typing replaces the whole name, with no ctrl+u first.
+func TestRenameAPaneOpensTheNameSelected(t *testing.T) {
+	app, f := panesApp(t)
+	fr := &fakeRenamer{panes: f}
+	app.renamer = fr
+	if err := app.paneList.Select("pane:matomeru/w1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.paneList.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	press(t, app, "r")
+	in := app.r.Input(app.r.Focus)
+	if in == nil {
+		t.Fatalf("no input at %s", app.r.Focus)
+	}
+	if lo, hi, ok := in.SelectedText(); !ok || lo != 0 || hi != len([]rune("claude")) || app.r.Mode.Name != "insert" {
+		t.Fatalf("r: selected %d..%d %v mode %s", lo, hi, ok, app.r.Mode.Name)
+	}
+	typeText(t, app, "reviewer")
+	if got := app.renaming.Values()["name"]; got != "reviewer" {
+		t.Fatalf("typing over the selection: %q", got)
+	}
+	_, cmd := app.Update(keyMsg("enter"))
+	settle(app, cmd)
+	if len(fr.calls) != 1 || fr.calls[0] != "window matomeru/w1 reviewer" {
+		t.Fatalf("calls %v", fr.calls)
+	}
+}
+
 // session rename takes the name as an argument (the command line's way)
 // and reloads the list under the new name.
 func TestRenameASession(t *testing.T) {
@@ -185,7 +216,7 @@ func TestRenameASessionAsYouType(t *testing.T) {
 	if err := app.r.SetFocus("session:id-matomeru"); err != nil {
 		t.Fatal(err)
 	}
-	press(t, app, "r")
+	press(t, app, "r", "end")
 	typeText(t, app, "2")
 	pauseForm(t, app, app.renaming)
 	press(t, app, "ctrl+u")
