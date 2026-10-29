@@ -771,9 +771,11 @@ func (a *App) attachLive(p pane, returnTo string) error {
 // place that decides ownership.
 //
 // The ask is a client's resize, so it has a side effect: a pane a tuios
-// TUI client also shows is resized there too, until that client tiles its
-// windows again, and a window keeps the size mtm last asked for after its
-// stream is released. The upstream fix is in tuios: let a lease grow a
+// TUI client also shows is resized there too, and a window keeps the size
+// mtm last asked for after its stream is released. When that client tiles
+// its windows again, the pane takes its tile; a live stream sees the resize
+// and asks for its area back (liveStream.reclaim), so the pane mtm draws
+// live keeps the area it is drawn in. The upstream fix is in tuios: let a lease grow a
 // pane that no TUI client is drawing; then the lease alone is enough and
 // this ask can go.
 func (a *App) openStream(p pane) paneStream {
@@ -1174,6 +1176,7 @@ type liveStream struct {
 	fit              func(ctx context.Context, cols, rows int) error
 	fitWant, fitSent [2]int
 	fitting          bool
+	reclaimAt        time.Time // the last reclaim (a resize someone else made)
 }
 
 type streamFrame struct {
@@ -1301,22 +1304,23 @@ func (s *liveStream) Next(ctx context.Context) (ochazuke.TerminalFrame, error) {
 	// Coalesce the frames already waiting into one screen; an ending frame
 	// among them is held for the next read. A resize asks for a new
 	// snapshot instead (resnap).
-	resized := item.frame.Type == 'R'
+	resized := item.frame
 	s.applyFrame(item.frame)
-	for drained := false; !drained && !resized; {
+	for drained := false; !drained && resized.Type != 'R'; {
 		select {
 		case next := <-frames:
 			if frameErr(next) != nil {
 				s.held, drained = &next, true
 			} else {
-				resized = next.frame.Type == 'R'
+				resized = next.frame
 				s.applyFrame(next.frame)
 			}
 		default:
 			drained = true
 		}
 	}
-	if resized {
+	if resized.Type == 'R' {
+		s.reclaim(int(resized.Cols), int(resized.Rows))
 		s.resnap()
 		return s.Next(ctx)
 	}
@@ -1411,6 +1415,38 @@ func (s *liveStream) Resize(cols, rows int) error {
 		return nil
 	}
 	return s.conn.Lease(uint16(cols), uint16(rows))
+}
+
+// reclaimInterval is the least time between two reclaims of one stream.
+const reclaimInterval = time.Second
+
+// reclaim asks again for the area mtm draws the pane in when the pane was
+// resized to another size by someone else. A tuios TUI client that tiles
+// its windows asks for its own tile, and the lease only holds the pane at
+// most at mtm's area, so a live pane would stay at the tile while mtm
+// draws it larger. The ask is the same one Resize makes, for the area mtm
+// last drew (cols, rows); a parked or released stream, or one that owns
+// no window, asks for nothing. At most once per reclaimInterval, so a
+// client that answered every resize with its own could not make the two
+// trade sizes faster than that.
+func (s *liveStream) reclaim(cols, rows int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.fit == nil || s.parked || s.released || s.cols <= 0 || s.rows <= 0 {
+		return
+	}
+	if cols == s.cols && rows == s.rows {
+		return
+	}
+	if !s.reclaimAt.IsZero() && time.Since(s.reclaimAt) < reclaimInterval {
+		return
+	}
+	s.reclaimAt = time.Now()
+	s.fitWant, s.fitSent = [2]int{s.cols, s.rows}, [2]int{}
+	if !s.fitting {
+		s.fitting = true
+		go s.fitLoop()
+	}
 }
 
 // own makes Resize ask the daemon for each size through fit, so the

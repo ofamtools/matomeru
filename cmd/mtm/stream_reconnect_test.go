@@ -310,3 +310,66 @@ func TestParkedStreamAsksForNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A live owned stream whose pane is resized by someone else (a tuios TUI
+// client tiling its windows) asks for the area it is drawn in again, once;
+// a resize to that area, or one on a parked stream, asks for nothing.
+func TestLiveStreamReclaimsItsAreaAfterAForeignResize(t *testing.T) {
+	d := &fakeDialer{results: []dialResult{
+		{conn: newFakeConn(nil, snapshot(1, "hi"), daemon.Frame{Type: 'R', Cols: 46, Rows: 40}), info: daemon.StreamInfo{Mode: "snapshot", BootID: "b1"}},
+		{conn: newFakeConn(nil, snapshot(2, "hi")), info: daemon.StreamInfo{Mode: "snapshot", BootID: "b1"}},
+	}}
+	s := reconnectStream(d)
+	defer s.Release()
+	asked := make(chan [2]int, 8)
+	s.own(func(_ context.Context, cols, rows int) error {
+		asked <- [2]int{cols, rows}
+		return nil
+	})
+	ask := func(what string) [2]int {
+		t.Helper()
+		select {
+		case size := <-asked:
+			return size
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%s: no ask", what)
+			return [2]int{}
+		}
+	}
+	none := func(what string) {
+		t.Helper()
+		select {
+		case size := <-asked:
+			t.Fatalf("%s: asked for %v", what, size)
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	if err := s.Resize(133, 40); err != nil {
+		t.Fatal(err)
+	}
+	if got := ask("first draw"); got != [2]int{133, 40} {
+		t.Fatalf("first ask %v", got)
+	}
+	// The first read gets the snapshot, then the client's 46x40 resize:
+	// the stream asks for 133x40 again and dials a fresh snapshot.
+	next(t, s)
+	if got := ask("foreign resize"); got != [2]int{133, 40} {
+		t.Fatalf("reclaim asked %v, want the drawn 133x40", got)
+	}
+	none("after the reclaim")
+
+	// A resize to the drawn area is mtm's own and asks for nothing.
+	s.reclaim(133, 40)
+	none("own size")
+	// Parked, a foreign resize is left alone.
+	s.reclaimAt = time.Time{}
+	s.hold()
+	if err := s.Release(); err != nil {
+		t.Fatal(err)
+	}
+	s.reclaim(46, 40)
+	none("parked")
+	if err := s.drop(); err != nil {
+		t.Fatal(err)
+	}
+}
