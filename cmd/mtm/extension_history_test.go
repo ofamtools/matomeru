@@ -39,10 +39,10 @@ func TestExtensionVerbsKeepTheCatalogHistory(t *testing.T) {
 	mustCLI(t, cliApp, "extension", "register", "fake", "--bin", bin)
 	a := openAt(t, path)
 	for key, want := range map[string]string{
-		"fake-item.list":       ochazuke.HistoryFetch,
-		"fake-item.done":       ochazuke.HistoryChange,
-		"fake-item.rename":     ochazuke.HistoryChange,
-		"fake-history.capture": ochazuke.HistoryChange,
+		"fake.item.list":       ochazuke.HistoryFetch,
+		"fake.item.done":       ochazuke.HistoryChange,
+		"fake.item.rename":     ochazuke.HistoryChange,
+		"fake.history.capture": ochazuke.HistoryChange,
 	} {
 		op, ok := a.r.Operations[key]
 		if !ok {
@@ -53,22 +53,22 @@ func TestExtensionVerbsKeepTheCatalogHistory(t *testing.T) {
 			t.Errorf("%s records %q, want %q", key, got, want)
 		}
 	}
-	if a.r.Noun("fake-outline") != nil {
+	if a.r.Noun("fake.outline") != nil {
 		t.Fatal("the framework's outline verbs mounted as fake-outline")
 	}
 	if !slices.ContainsFunc(a.m.Notices, func(n string) bool { return strings.Contains(n, `item rename declares history "poll"`) }) {
 		t.Fatalf("no notice for the unknown kind: %q", a.m.Notices)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "fake-item", Verb: "list"}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "fake.item", Verb: "list"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, e := range a.r.HistoryOf(0, ochazuke.HistoryAction, ochazuke.HistoryChange) {
-		if e.Request.Key() == "fake-item.list" {
+		if e.Request.Key() == "fake.item.list" {
 			t.Fatalf("the fetch fake-item.list is with the user's entries: %+v", e)
 		}
 	}
-	if !slices.ContainsFunc(a.r.HistoryOf(0, ochazuke.HistoryFetch), func(e ochazuke.HistoryEntry) bool { return e.Request.Key() == "fake-item.list" }) {
-		t.Fatal("fake-item.list is not a fetch entry")
+	if !slices.ContainsFunc(a.r.HistoryOf(0, ochazuke.HistoryFetch), func(e ochazuke.HistoryEntry) bool { return e.Request.Key() == "fake.item.list" }) {
+		t.Fatal("fake.item.list is not a fetch entry")
 	}
 }
 

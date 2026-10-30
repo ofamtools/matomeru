@@ -34,7 +34,7 @@ func TestExtensionSourcedParameterGetsSuggestions(t *testing.T) {
 	}) {
 		t.Fatalf("notices %q", a.m.Notices)
 	}
-	p := a.r.Operations["fake-item.move"].Parameters["to"]
+	p := a.r.Operations["fake.item.move"].Parameters["to"]
 	if !p.Free || p.Source != "" || len(p.Enum) != 1 {
 		t.Fatalf("before a load: %+v", p)
 	}
@@ -43,7 +43,7 @@ func TestExtensionSourcedParameterGetsSuggestions(t *testing.T) {
 	if got := calls(t, log)[n:]; !slices.ContainsFunc(got, func(c string) bool { return strings.HasSuffix(c, "|place list --json {}") }) {
 		t.Fatalf("no source load: %q", got)
 	}
-	p = a.r.Operations["fake-item.move"].Parameters["to"]
+	p = a.r.Operations["fake.item.move"].Parameters["to"]
 	if !p.Free || !slices.Equal(p.Enum, []string{"nowhere", "p1", "p2"}) {
 		t.Fatalf("after the load: %+v", p)
 	}
@@ -55,7 +55,7 @@ func TestExtensionSourcedParameterGetsSuggestions(t *testing.T) {
 	if err := a.r.SetFocus("ext/fake/item/i1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "fake-item", Verb: "move", Args: ochazuke.Arguments{"to": "attic"}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "fake.item", Verb: "move", Args: ochazuke.Arguments{"to": "attic"}}); err != nil {
 		t.Fatal(err)
 	}
 	settleJobs(t, a, a.r.PendingCommands())

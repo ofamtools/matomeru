@@ -167,14 +167,14 @@ func TestExtensionDeleteKeyConfirmsAndRunsTheTool(t *testing.T) {
 func TestExtensionWithoutCRUDVerbsBindsNoCRUDKeys(t *testing.T) {
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, seeded(t), "fake", bin)
-	for _, rows := range a.r.Noun("fake-item").Bindings {
+	for _, rows := range a.r.Noun("fake.item").Bindings {
 		for _, b := range rows {
 			if b.Keys == "i" || b.Keys == "d d" {
 				t.Fatalf("row %+v", b)
 			}
 		}
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: extFormNoun, Verb: "new", Args: ochazuke.Arguments{"noun": "fake-item"}}); err == nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: extFormNoun, Verb: "new", Args: ochazuke.Arguments{"noun": "fake.item"}}); err == nil {
 		t.Fatal("ext-form new ran on a noun without new")
 	}
 }

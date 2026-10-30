@@ -54,6 +54,7 @@ func (a *App) declareSettings() error {
 		afterSubmitModeSetting,
 		promptTerminalsSetting,
 		promptScreenSetting,
+		extNounNamesSetting,
 		ochazuke.Setting{Name: settingSideLayout, Type: ochazuke.SettingString, Default: sideAuto, Enum: []string{sideAuto, sideBeside, sideBelow},
 			Description: "Where a live pane's side vim or terminal sits: auto (beside from a 161-column detail, else below), beside or below; leader R flips it"},
 		// The live pane's leader never expires: ctrl+a waits for the next
@@ -112,6 +113,7 @@ func (a *App) declareSettingLayout() error {
 		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),
 		app("schedules", "Schedules", "Missed runs, and each configured schedule's switch and interval"),
 		app("status", "Status bar", "mtm's status segments in the header rule: cpu, ram and disk"),
+		ochazuke.SettingSection{Owner: extensionsOwner, ID: ochazuke.SettingsGeneralSection, Title: "General", Description: "How every extension mounts: the names of its nouns"},
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: "status", Title: "Status bar", Description: "The status segments the extensions add"},
 	)
 }

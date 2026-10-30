@@ -63,6 +63,7 @@ func (a *App) unmountExtension(x *extension) error {
 		}
 	}
 	x.views = nil
+	a.unmountNounNames(x)
 	for _, local := range x.nouns {
 		delete(a.r.Nouns, local)
 		for key := range a.r.Operations {
@@ -72,15 +73,25 @@ func (a *App) unmountExtension(x *extension) error {
 		}
 		delete(a.owners, local)
 	}
+	x.nouns = map[string]string{}
+	a.syncBareNounNames()
 	return errors.Join(errs...)
 }
 
 // syncExtensions mounts the registry as it is now (see above).
-func (a *App) syncExtensions() {
+func (a *App) syncExtensions() { a.mountRegistry(false) }
+
+// remountExtensions mounts every extension again (extensions.noun-names
+// changed how their nouns are named).
+func (a *App) remountExtensions() { a.mountRegistry(true) }
+
+// mountRegistry mounts the registry as it is now, keeping the extensions
+// whose entries did not change unless all is set.
+func (a *App) mountRegistry(all bool) {
 	names, entries, errs := a.extRegistry().Ordered()
 	a.notifyExtErrs(errs)
 	i := 0
-	for i < len(a.exts) && i < len(names) && a.exts[i].name == names[i] && bytes.Equal(a.exts[i].entry, entryJSON(entries[names[i]])) {
+	for !all && i < len(a.exts) && i < len(names) && a.exts[i].name == names[i] && bytes.Equal(a.exts[i].entry, entryJSON(entries[names[i]])) {
 		i++
 	}
 	if i == len(a.exts) && i == len(names) {
@@ -95,6 +106,7 @@ func (a *App) syncExtensions() {
 	for _, name := range names[i:] {
 		a.mountExtension(name, entries[name])
 	}
+	a.syncBareNounNames()
 	if a.r.Page != page && a.r.PageOf(page) != nil {
 		if err := a.r.OpenPage(page); err != nil {
 			uerrs = append(uerrs, err)

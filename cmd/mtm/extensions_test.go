@@ -153,7 +153,7 @@ func TestExtensionRegisterMountsATabAfterMtmsPages(t *testing.T) {
 	if i := slices.Index(pages, "ext/fake"); i != len(pages)-1 || pages[i-1] != extensionsPage {
 		t.Fatalf("pages %v: the extension's tab is not after mtm's", pages)
 	}
-	if a.r.Noun("fake-app") != nil {
+	if a.r.Noun("fake.app") != nil {
 		t.Fatal("a framework noun of the tool was mounted")
 	}
 	if len(calls(t, log)) != 1 {
@@ -226,7 +226,7 @@ func TestExtensionCLIProxiesTheTarget(t *testing.T) {
 	path := seeded(t)
 	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, path, "fake", bin)
-	out := mustCLI(t, a, "fake-item", "rename", "--target", "ext/fake/item/i2", "--to", "deux")
+	out := mustCLI(t, a, "fake.item", "rename", "--target", "ext/fake/item/i2", "--to", "deux")
 	if !strings.Contains(out, `"ok": true`) {
 		t.Fatalf("answer:\n%s", out)
 	}
@@ -235,13 +235,13 @@ func TestExtensionCLIProxiesTheTarget(t *testing.T) {
 		t.Fatalf("call %q", last)
 	}
 	// A confirmed verb asks on the CLI too; --yes answers it.
-	if _, _, err := cli(a, "n\n", "fake-item", "done", "--target", "ext/fake/item/i1"); err == nil {
+	if _, _, err := cli(a, "n\n", "fake.item", "done", "--target", "ext/fake/item/i1"); err == nil {
 		t.Fatal("declined confirm ran")
 	}
 	if last := calls(t, log); strings.Contains(last[len(last)-1], "item done") {
 		t.Fatal("the tool ran without the confirm")
 	}
-	mustCLI(t, a, "fake-item", "done", "--target", "ext/fake/item/i1", "--yes")
+	mustCLI(t, a, "fake.item", "done", "--target", "ext/fake/item/i1", "--yes")
 	if last := calls(t, log); !strings.HasSuffix(last[len(last)-1], "|item done --target i1 --json {} --yes") {
 		t.Fatalf("call %q", last[len(last)-1])
 	}

@@ -382,7 +382,7 @@ func (c *extCandidate) count() {
 	mounted := map[string]string{}
 	c.Verbs = 0
 	for _, n := range plan {
-		mounted[n.Name] = extNoun(c.Name, n.Name)
+		mounted[n.Name] = n.Name // pagesOf reads only which nouns mount
 		c.Verbs += len(n.Verbs)
 	}
 	c.Nouns = len(plan)

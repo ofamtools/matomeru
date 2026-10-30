@@ -117,9 +117,9 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 
 	app = open(t)
 	press(t, app, "j", "enter", "V", "j", "d")
-	// task.delete is the standard delete: list.apply asks its one confirm
-	// for the rows (TestVisualTaskDeleteNamesWhatItOrphans is the gap).
-	if f := frameAt(app, 120); !strings.Contains(f, "on 2 rows?") {
+	// task.delete is the standard delete: list.apply asks the store's one
+	// confirm for the rows (ochazuke v0.57.0), naming what they orphan.
+	if f := frameAt(app, 120); !strings.Contains(f, "Orphan:") {
 		t.Fatalf("V j d: the confirm does not count the rows (modal %q, mode %q):\n%s", app.r.TopModal(), app.r.Mode.Name, f)
 	}
 	press(t, app, "y")
@@ -232,10 +232,21 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 // for one row. Before the standard delete, mtm's own delete counted the
 // orphans of every row in its confirm.
 func TestVisualTaskDeleteNamesWhatItOrphans(t *testing.T) {
-	t.Skip("ochazuke v0.55.0: list.apply's confirm for many rows drops Store.ConfirmFor's prompt")
 	app := open(t)
 	press(t, app, "j", "enter", "V", "j", "d")
 	if f := frameAt(app, 120); !strings.Contains(f, "Orphan:") {
 		t.Fatalf("V j d: the confirm does not say what the delete orphans:\n%s", f)
+	}
+}
+
+// Gap (ochazuke v0.57.0): the store's prompt for several rows expands
+// {{label}} as "true" ("Delete task true?"), not the first row's label as
+// the standard delete documents. A library bug; fix it in ochazuke.
+func TestVisualTaskDeleteNamesTheFirstRow(t *testing.T) {
+	t.Skip("ochazuke v0.57.0: list.apply's store prompt for several rows expands {{label}} as true")
+	app := open(t)
+	press(t, app, "j", "enter", "V", "j", "d")
+	if f := frameAt(app, 120); strings.Contains(f, "Delete task true?") {
+		t.Fatalf("V j d: the confirm's label is true:\n%s", f)
 	}
 }

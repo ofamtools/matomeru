@@ -34,7 +34,8 @@ import (
 // ochazuke's cli.MountPage; a catalog without one gets a page synthesized
 // from its application nouns: a list per noun with a row source, a list of
 // verbs for a noun nothing lists rows of. Rows are instances of the host
-// noun <ext>-<noun>, whose verbs are proxies: `<bin> NOUN VERB [--target
+// noun <ext>.<noun> (extensions.noun-names, extension_names.go), whose
+// verbs are proxies: `<bin> NOUN VERB [--target
 // ID] --json ARGS --yes`, run off the loop after mtm asked the verb's own
 // confirm. Rows load from the catalog's state verb (one call), else per
 // list, when the page is opened and after each verb of the extension.
@@ -314,10 +315,14 @@ func extHistoryKind(v ocli.CatalogVerb) (string, error) {
 
 // extension is one mounted extension.
 type extension struct {
-	name    string
-	bin     string
-	doc     ocli.CatalogDoc
-	nouns   map[string]string // catalog noun -> mtm noun <ext>-<noun>
+	name  string
+	bin   string
+	doc   ocli.CatalogDoc
+	nouns map[string]string // catalog noun -> mtm noun (<ext>.<noun>, extension_names.go)
+	// naming is how its nouns were named when it mounted, and aliases
+	// the old spellings mtm gave them (extension_names.go).
+	naming  extNounNaming
+	aliases []string
 	views   []*ocli.PageView
 	entry   []byte                // the registry entry it was mounted from, as JSON (extension_sync.go)
 	crud    map[string]extCRUD    // catalog noun -> its new, edit and delete verbs (extension_forms.go)
@@ -329,10 +334,6 @@ type extension struct {
 	// (extension_scope.go).
 	lists map[string]*extListState
 }
-
-// extNoun is mtm's noun of an extension's noun; a dot would split the
-// operation key, so the separator is a dash.
-func extNoun(ext, noun string) string { return ext + "-" + noun }
 
 // extPageID is the page of an extension (a synthesized page) or of one of
 // its declared pages.
@@ -627,6 +628,7 @@ func (a *App) mountExtensions() {
 	for _, name := range names {
 		a.mountExtension(name, entries[name])
 	}
+	a.syncBareNounNames()
 }
 
 // mountExtension adds one extension: a proxy verb on mtm's noun for every
@@ -638,9 +640,14 @@ func (a *App) mountExtension(name string, e extEntry) {
 	notify := func(format string, args ...any) { a.r.UI().Notify(name + ": " + fmt.Sprintf(format, args...)) }
 	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
 	defer func() { a.exts = append(a.exts, x) }()
+	naming, err := a.extNamingFor(name)
+	if err != nil {
+		notify("%v", err)
+	}
+	x.naming = naming
 	plan := extPlan(e.Catalog)
 	for _, n := range plan {
-		local := extNoun(name, n.Name)
+		local := naming.local(name, n.Name)
 		if a.r.Noun(local) != nil {
 			notify("noun %s skipped: mtm already has a noun %s", n.Name, local)
 			continue
@@ -677,6 +684,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 		notify("no application nouns to mount")
 		return
 	}
+	a.mountOldNounNames(x, notify)
 	a.mountSources(x, plan)
 	a.syncFetchEnv(x)
 	a.declareExtScope(name)
@@ -686,7 +694,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 			if local, ok := x.nouns[n]; ok {
 				return local
 			}
-			return extNoun(name, n)
+			return naming.local(name, n)
 		},
 		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
 			return execExt(c, x.bin, x.loadEnv(a.baseExtEnv(name)), noun, verb, "--json", "{}")
@@ -1024,9 +1032,9 @@ func (a *App) revealExtTarget(target string) bool {
 				if !ok || id == "" {
 					continue
 				}
-				noun := extNoun(x.name, l.Noun)
+				noun := x.naming.local(x.name, l.Noun)
 				if verb, rows := x.doc.RowSource(l.Noun); verb != "" {
-					noun = extNoun(x.name, rows)
+					noun = x.naming.local(x.name, rows)
 				}
 				inst := a.r.Instance(target, ochazuke.Parent(l.ID), ochazuke.Kind(noun))
 				inst.Data, inst.Label = id, id
