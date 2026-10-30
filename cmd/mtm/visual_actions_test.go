@@ -117,7 +117,9 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 
 	app = open(t)
 	press(t, app, "j", "enter", "V", "j", "d")
-	if f := frameAt(app, 120); !strings.Contains(f, "and 1 more?") {
+	// task.delete is the standard delete: list.apply asks its one confirm
+	// for the rows (TestVisualTaskDeleteNamesWhatItOrphans is the gap).
+	if f := frameAt(app, 120); !strings.Contains(f, "on 2 rows?") {
 		t.Fatalf("V j d: the confirm does not count the rows (modal %q, mode %q):\n%s", app.r.TopModal(), app.r.Mode.Name, f)
 	}
 	press(t, app, "y")
@@ -221,5 +223,19 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 	press(t, app, "esc")
 	if app.r.Mode.Name != "normal" {
 		t.Fatalf("after the chooser: mode %s", app.r.Mode.Name)
+	}
+}
+
+// Known gap (ochazuke v0.55.0): over a visual selection of more than one
+// row, list.apply asks "Run task.delete on 2 rows?" and drops the prompt
+// the store's ConfirmFor built (what the delete orphans), which it shows
+// for one row. Before the standard delete, mtm's own delete counted the
+// orphans of every row in its confirm.
+func TestVisualTaskDeleteNamesWhatItOrphans(t *testing.T) {
+	t.Skip("ochazuke v0.55.0: list.apply's confirm for many rows drops Store.ConfirmFor's prompt")
+	app := open(t)
+	press(t, app, "j", "enter", "V", "j", "d")
+	if f := frameAt(app, 120); !strings.Contains(f, "Orphan:") {
+		t.Fatalf("V j d: the confirm does not say what the delete orphans:\n%s", f)
 	}
 }
