@@ -107,6 +107,11 @@ func Open(db *store.Store) (*Store, error) {
 	if err := s.importOwners(); err != nil {
 		return nil, err
 	}
+	// Subtasks a move left in the old project rejoin their parent's
+	// (idempotent; no write when none did).
+	if _, err := s.RepairSubtreeProjects(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 

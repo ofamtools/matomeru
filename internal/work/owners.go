@@ -97,8 +97,11 @@ func (s *Store) taskProject(id string) (string, error) {
 	return "", nil
 }
 
+// AssociateTask files the task at project's top level ("" is
+// unassociated), its subtasks with it (MoveSubtree), in one write.
 func (s *Store) AssociateTask(id, project string) (Task, error) {
-	return s.patchTask(id, func(t *Task) { t.ProjectID = project; t.ParentID = "" })
+	t, _, err := s.moveSubtree(id, project, true)
+	return t, err
 }
 
 func (s *Store) Pin() (string, error) {

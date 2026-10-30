@@ -597,8 +597,8 @@ func (a *App) writeOutline(o *outlineState, c ochazuke.TreeChange) error {
 			return err
 		}
 		t.ParentID, t.Updated = parent, work.Now()
-		t.ProjectID = projectID // a move across a project's row refiles it
-		if err := a.work.PutTask(t); err != nil {
+		t.ProjectID = projectID // a move across a project's row refiles it, its subtasks with it
+		if _, err := a.work.PutTaskSubtree(t); err != nil {
 			return err
 		}
 	case ochazuke.TreeDelete:
