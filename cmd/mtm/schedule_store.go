@@ -86,7 +86,6 @@ func (a *App) scheduleStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
 		Undo: true, AcceptsKey: true,
-		Confirm: map[string]string{"delete": "Delete schedule {{label}}?"},
 		Get: func(_ ochazuke.Ctx, name string) (ochazuke.Thing, error) {
 			d, err := a.scheduleNamed(name)
 			if err != nil {

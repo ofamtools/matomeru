@@ -58,10 +58,6 @@ func (a *App) noteStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
 		Undo: true, AcceptsKey: true,
-		// The store names its delete prompt (the old note.delete's): the
-		// default's {{noun}} reads the focused list's noun when the CLI
-		// names the note by key (an ochazuke confirm bug, reported).
-		Confirm:    map[string]string{"delete": "Delete note {{label}}?"},
 		ListParams: map[string]ochazuke.Parameter{"all": {Type: "boolean", Description: "Every note, not only those in the current scope"}},
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
 			note, err := a.work.Note(id)
