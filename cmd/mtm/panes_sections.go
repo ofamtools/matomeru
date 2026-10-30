@@ -365,10 +365,13 @@ func (a *App) rebuildPanes() error {
 		return nil
 	}
 	a.stampStates(a.panes)
-	row, _ := a.selectedRow()
+	row, inst := a.selectedRow()
 	a.pv.view = a.buildPaneSections(a.panes, time.Now())
 	if err := a.applyPaneSections(); err != nil {
 		return err
+	}
+	if r, err := activityAt(inst); err == nil && a.sectionOf(row) < 0 {
+		row = r.Row // a child row that dropped off leaves the cursor on its pane
 	}
 	return a.followRow(row)
 }
@@ -388,8 +391,11 @@ func (a *App) applyPaneSections() error {
 	for i, s := range ss {
 		old := s.tree.Nodes()
 		kept := make([]ochazuke.TreeNode, 0, len(old))
+		gone := map[string]bool{}
 		for _, n := range old {
-			if to, ok := goingTo[n.ID]; ok && to != i {
+			// A row leaving takes its child rows (a pane's subagents) with it.
+			if to, ok := goingTo[n.ID]; ok && to != i || gone[n.Parent] {
+				gone[n.ID] = true
 				continue
 			}
 			kept = append(kept, n)
@@ -581,8 +587,19 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	ss[0].nodes, ss[0].rows = nil, len(queue)
 	ss[2].nodes, ss[2].rows = nil, len(bottom)
 	var order []string
+	// children are a pane row's child rows (its subagents: pane_activity.go).
+	children := func(r row) []ochazuke.TreeNode {
+		if p, ok := r.node.Data.(pane); r.pane && ok {
+			return a.activityNodes(p, r.node.ID, now)
+		}
+		if it, ok := r.node.Data.(actionitems.Item); r.pane && ok {
+			return a.activityNodes(byWindow[it.Window], r.node.ID, now)
+		}
+		return nil
+	}
 	for _, r := range queue {
 		ss[0].nodes = append(ss[0].nodes, r.node)
+		ss[0].nodes = append(ss[0].nodes, children(r)...)
 		if r.pane {
 			order = append(order, r.node.ID)
 		}
@@ -590,6 +607,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	order = append(order, view.order...)
 	for _, r := range bottom {
 		ss[2].nodes = append(ss[2].nodes, r.node)
+		ss[2].nodes = append(ss[2].nodes, children(r)...)
 		order = append(order, r.node.ID)
 		view.usage = view.usage || r.node.Cells[2] != ""
 	}

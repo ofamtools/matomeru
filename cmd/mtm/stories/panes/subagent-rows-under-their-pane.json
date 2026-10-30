@@ -1,0 +1,19 @@
+{
+  "name": "mtm: an agent pane's running subagents are rows under its row in the pane list (description, type, status word toned by its class, age); a finished one drops off, a failed or killed one lingers; j passes through them and enter opens the pane's Turns tab at the card of the call",
+  "area": "panes",
+  "skip": "gap: a story cannot seed a Claude transcript or an agent session for a pane, so no pane has subagents; TestPaneListShowsActiveSubagentsUnderTheirPane and TestSubagentRowsAreSelectableAndOpenTheirCard (pane_activity_test.go) render the list over such a transcript",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 40,
+  "script": [
+    "j"
+  ],
+  "expect": [
+    {
+      "mode": "normal",
+      "contains": [
+        "running"
+      ]
+    }
+  ]
+}

@@ -197,6 +197,7 @@ type paneUI struct {
 	settings  *ochazuke.List // the Turns tab's settings line (pane_settings.go)
 	watch     *settingWatch  // a setting change sent, its notice due after the next read
 	turnsFor  string         // the pane row the Turns tree shows
+	wantCall  string         // window + "\x00" + call: the card pane-child.open selects once drawn (pane_activity.go)
 	// liveFrom is the tab an attach left (liveSaved), which the detach
 	// that ends it goes back to.
 	liveFrom  int
@@ -302,6 +303,7 @@ func (a *App) definePanes() {
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
 		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").
+		Verb("read-activities", a.readActivities, "Read every agent pane's running subagents for the rows under its pane (panes.subagents)").Fetch().Quiet().
 		Verb("focus-section", a.focusSection, "Move the focus to one of the page's lists: queue (Needs you), panes or working")
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
 	a.parameters("panes.focus-section", map[string]ochazuke.Parameter{"section": {Type: "string", Required: true, Enum: sectionNames,
@@ -311,6 +313,7 @@ func (a *App) definePanes() {
 	a.definePaneStars()
 	a.definePaneView()
 	a.definePaneGroups()
+	a.definePaneActivities()
 	a.ownedBy("panes", paneListID)
 	a.ownedBy("daemon", paneListID)
 }
@@ -532,6 +535,7 @@ func (a *App) setPanes(panes []pane, err error) {
 	}
 	a.recordTurns(panes)
 	a.recordAgentSessions(panes)
+	a.pollActivities(panes)
 	if err == nil {
 		a.raisePaneSignals(panes)
 	}
@@ -654,8 +658,11 @@ func (a *App) land(row string) error {
 func (a *App) paneAt(inst *ochazuke.Instance) (pane, error) {
 	if inst != nil {
 		window := ""
-		if it, ok := inst.Data.(actionitems.Item); ok {
-			window = it.Window
+		switch d := inst.Data.(type) {
+		case actionitems.Item:
+			window = d.Window
+		case activityRow: // a pane's child row stands for its pane
+			window = d.Window
 		}
 		for _, p := range a.panes {
 			if p.rowID() == inst.ID || window != "" && p.ID == window {

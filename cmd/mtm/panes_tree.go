@@ -393,6 +393,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		use := p.usageCell()
 		view.usage = view.usage || use != ""
 		view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: parent, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}, Tones: paneTones(p, name)})
+		view.nodes = append(view.nodes, a.activityNodes(p, p.rowID(), now)...)
 		view.order = append(view.order, p.rowID())
 	}
 	tree := byProject && (a.pin == "" || a.all)

@@ -1,0 +1,19 @@
+{
+  "name": "mtm: every status word on a Turns card is toned by its class (needs you, working, done, bad), a background command's \"completed (exit code 0)\" green, \"failed with exit code 144\" and a killed agent red, also on a muted card",
+  "area": "panes",
+  "skip": "gap: a story cannot seed a Claude transcript for a pane, so the Turns tab draws no notification cards; TestTurnsCardStatusWordsAreToned (turn_status_cards_test.go) renders the cards over such a transcript and checks each word's tone span",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 40,
+  "script": [
+    "["
+  ],
+  "expect": [
+    {
+      "mode": "normal",
+      "contains": [
+        "completed (exit code 0)"
+      ]
+    }
+  ]
+}

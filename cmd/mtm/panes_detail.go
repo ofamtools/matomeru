@@ -141,6 +141,9 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 // transcript or the turns.
 func (a *App) loadDetail() {
 	row, inst := a.selectedRow()
+	if r, err := activityAt(inst); err == nil {
+		row, inst = r.Row, a.r.Instances[r.Row] // a child row shows its pane's detail
+	}
 	if !a.frontsPane(inst) {
 		return
 	}

@@ -422,6 +422,7 @@ func (a *App) turnsRead(window string) {
 	if err := a.showTurns(row); err != nil {
 		a.r.UI().Error(err.Error())
 	}
+	a.selectWantedCall()
 	if a.pv.sent && !a.turnCards() {
 		a.pv.sent = false
 		a.selectNewestTurnRow()
