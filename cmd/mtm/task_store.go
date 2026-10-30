@@ -18,9 +18,8 @@ import (
 // standard verbs over the work store. task new and task edit wrap create
 // and set (tasks.go); task.done and task.status are aliases of set with
 // the status preset; toggle, choose-status, choose-move, open, view,
-// launch, outline and make-project stay named. task.delete stays named:
-// its confirm counts what the delete orphans, which a store's confirm
-// prompt cannot (the store's Delete is the undo of a create).
+// launch, outline and make-project stay named. delete is the standard
+// delete: the store's ConfirmFor counts what it orphans (delete.go).
 
 // taskAssociateSince and taskAssociateRemoveAfter date the deprecated move
 // form of task.associate (Keep actions: one release).
@@ -66,6 +65,8 @@ func (a *App) taskStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
 		Undo: true, AcceptsKey: true,
+		// The standard delete's prompt names what the delete orphans.
+		ConfirmFor: a.deletionConfirm("task"),
 		ListParams: map[string]ochazuke.Parameter{"all": {Type: "boolean", Description: "Every task, not only those in the current scope"}},
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
 			t, err := a.taskByID(id)
@@ -299,9 +300,8 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	return taskThing(t), nil
 }
 
-// removeTask is the store's Delete, which history.undo runs to undo a
-// create (task.delete is named, its confirm counting what it orphans):
-// the task goes and what it held is orphaned, as task.confirm-delete does.
+// removeTask is the store's Delete (task.delete, and history.undo of a
+// create): the task goes and what it held is orphaned.
 func (a *App) removeTask(c ochazuke.Ctx, id string) error {
 	if _, err := a.taskByID(id); err != nil {
 		return err

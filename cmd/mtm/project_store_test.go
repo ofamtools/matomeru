@@ -28,7 +28,7 @@ func TestProjectVerbsAreStandard(t *testing.T) {
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
 		"rename": "rename", "duplicate": "duplicate",
-		"delete": "", "confirm-delete": "", "new": "", "edit": "", "open": "", "view": "", "launch": "",
+		"delete": "delete", "confirm-delete": "delete", "new": "", "edit": "", "open": "", "view": "", "launch": "",
 		"directory": "", "default": "", "remove-directory": "", "edit-directory": "",
 		"pin": "", "unpin": "", "pick": "", "make-task": "", "outline": "", "associate": "",
 	} {

@@ -29,18 +29,24 @@ func tasksOn(t *testing.T, a *App, id string) {
 
 // The task's verbs: the standard ones its props and store give, the named
 // ones beside them, and done and status as aliases of set with presets.
-// delete stays named (its confirm counts what it orphans).
+// delete is the standard delete (its store's ConfirmFor counts what it
+// orphans); confirm-delete is a lasting alias of it.
 func TestTaskVerbsAreStandard(t *testing.T) {
 	a := open(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
 		"rename": "rename", "move": "move", "duplicate": "duplicate",
-		"delete": "", "confirm-delete": "", "new": "", "edit": "", "open": "", "view": "", "toggle": "",
+		"delete": "delete", "confirm-delete": "delete", "new": "", "edit": "", "open": "", "view": "", "toggle": "",
 		"choose-status": "", "choose-move": "", "launch": "", "outline": "", "make-project": "", "associate": "",
 	} {
 		op, ok := a.r.Operation("task." + verb)
 		if !ok || op.Standard != standard {
 			t.Errorf("task.%s: ok %v standard %q, want %q", verb, ok, op.Standard, standard)
+		}
+	}
+	for _, noun := range []string{"task", "project"} {
+		if got := aliasOf(a, noun+".delete", noun+".confirm-delete"); got == nil || got.Deprecated() {
+			t.Errorf("%s.confirm-delete: %+v, want a lasting alias of %s.delete", noun, got, noun)
 		}
 	}
 	presets := map[string]string{}

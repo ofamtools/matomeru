@@ -18,58 +18,63 @@ const (
 	oldNamesRemoveAfter = "the next mtm release"
 )
 
-// projectDeleteConfirm is the delete confirm of a project or task (and of
-// a project's outline row): the record and what it orphans.
+// projectDeleteConfirm is the delete confirm of a project's outline row:
+// the record and what it orphans (outline.go; project.delete and
+// task.delete ask the standard prompt with the same lines, deleteOrphans).
 const projectDeleteConfirm = "Delete {{label}}?\nOrphan:\n{{affected}}\nDirectories and panes are untouched."
 
+// project.delete and task.delete are the standard delete over their stores
+// (Delete is removeProject and removeTask, which orphan what the record
+// held); the store's ConfirmFor adds the orphan counts to the standard
+// prompt. confirm-delete, the confirmed half of the delete mtm had before
+// ochazuke v0.55 (Store.ConfirmFor), is a lasting alias of delete (Keep
+// actions), and its old name delete.confirm a deprecated one.
 func (a *App) defineDeletion() {
 	for _, noun := range []string{"project", "task"} {
-		a.r.Define(noun).
-			Verb("delete", a.confirmDeletion, "Delete record; show affected owners before confirming").Many().
-			Verb("confirm-delete", a.deleteRecord, "Confirm deletion and orphan affected records").Confirm(projectDeleteConfirm).
-			Renamed("delete.confirm", oldNamesSince, oldNamesRemoveAfter).
-			Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
-		a.parameters(noun+".confirm-delete", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
+		a.r.Define(noun).Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
+		for _, alias := range []ochazuke.ActionAlias{
+			{Alias: noun + ".confirm-delete", Action: noun + ".delete", Note: "the standard delete: it asks, naming what it orphans"},
+			{Alias: noun + ".delete.confirm", Action: noun + ".delete", Since: oldNamesSince, RemoveAfter: oldNamesRemoveAfter},
+		} {
+			if err := a.r.AddActionAlias(alias); err != nil {
+				panic(err)
+			}
+		}
 	}
 }
 
-func (a *App) confirmDeletion(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.confirmDeleting(ctx, func(inst *ochazuke.Instance) (work.DeleteCounts, error) {
-		return a.work.DeletionImpact(inst.Noun, inst.ID)
-	})
+// deletionConfirm is the project and task stores' ConfirmFor: the standard
+// delete's prompt and what deleting every thing it names orphans; other
+// verbs ask as they are.
+func (a *App) deletionConfirm(noun string) func(ochazuke.Ctx, string, []string, string) string {
+	return func(_ ochazuke.Ctx, verb string, keys []string, prompt string) string {
+		if verb != "delete" || prompt == "" || len(keys) == 0 {
+			return prompt
+		}
+		total, err := a.deletionImpact(noun, keys)
+		if err != nil {
+			return prompt
+		}
+		return prompt + "\nOrphan:\n" + orphanLines(total) + "\nDirectories and panes are untouched."
+	}
 }
 
-// confirmDeleting opens the one confirm-delete of ctx's subjects (every
-// row of a visual selection: delete takes many), naming what they orphan
-// together; y deletes each (confirm-delete runs once per subject).
-func (a *App) confirmDeleting(ctx ochazuke.Ctx, impact func(*ochazuke.Instance) (work.DeleteCounts, error)) ochazuke.Result {
+// deletionImpact is what deleting each of those things orphans, together.
+func (a *App) deletionImpact(noun string, ids []string) (work.DeleteCounts, error) {
 	var total work.DeleteCounts
-	for _, s := range ctx.Subjects {
-		c, err := impact(s)
+	for _, id := range ids {
+		c, err := a.work.DeletionImpact(noun, id)
 		if err != nil {
-			return ochazuke.Failed(err)
+			return total, err
 		}
 		total.Tasks, total.Notes, total.Assignments = total.Tasks+c.Tasks, total.Notes+c.Notes, total.Assignments+c.Assignments
 		total.Sessions, total.Reviews, total.Saved, total.Vim = total.Sessions+c.Sessions, total.Reviews+c.Reviews, total.Saved+c.Saved, total.Vim+c.Vim
 	}
-	q := ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "confirm-delete", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": strings.ReplaceAll(total.String(), ", ", "\n")}}
-	if len(ctx.Subjects) > 1 {
-		q.Subjects = ctx.SubjectIDs()
-	}
-	value, err := a.r.Execute(q)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(value)
+	return total, nil
 }
 
-func (a *App) deleteRecord(ctx ochazuke.Ctx) ochazuke.Result {
-	counts, err := a.deleteThing(ctx, ctx.Instance.Noun, ctx.Instance.ID)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(counts)
-}
+// orphanLines are the counts one per line, as the confirm shows them.
+func orphanLines(c work.DeleteCounts) string { return strings.ReplaceAll(c.String(), ", ", "\n") }
 
 // deleteThing deletes a project or task and orphans what it held (the
 // confirmed delete, and the task store's Delete), then reloads every view

@@ -77,9 +77,14 @@ func TestDeletionConfirmsCountsAndKeepsNote(t *testing.T) {
 		t.Fatal(err)
 	}
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
-	executeA(t, a, "task", "delete", "t1", nil)
+	// Unconfirmed: the standard delete asks first, its store's ConfirmFor
+	// naming what it orphans.
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "delete", Args: ochazuke.Arguments{"id": "t1"}}); err != nil {
+		t.Fatal(err)
+	}
 	modal := a.r.Instances[a.r.TopModal()]
-	if modal == nil || !strings.Contains(modal.Payload.Prompt, "1 notes") || !strings.Contains(modal.Payload.Prompt, "0 pane owners") {
+	if modal == nil || !strings.Contains(modal.Payload.Prompt, "1 notes") || !strings.Contains(modal.Payload.Prompt, "0 pane owners") ||
+		!strings.Contains(modal.Payload.Prompt, "Directories and panes are untouched.") {
 		t.Fatalf("confirmation=%+v", modal)
 	}
 	if _, err := a.work.Task("t1"); err != nil {
@@ -103,7 +108,6 @@ func TestDeletionConfirmsCountsAndKeepsNote(t *testing.T) {
 		t.Fatal(err)
 	}
 	executeA(t, a, "project", "delete", "matomeru", nil)
-	executeA(t, a, "confirm", "accept", a.r.TopModal(), nil)
 	if a.pin != "" {
 		t.Fatalf("deleted project remains pinned: %s", a.pin)
 	}
@@ -112,5 +116,29 @@ func TestDeletionConfirmsCountsAndKeepsNote(t *testing.T) {
 	}
 	if draft.ProjectID != "" || draft.FormerProjectID != "matomeru" {
 		t.Fatalf("draft owner=%+v", draft)
+	}
+}
+
+// task.delete is the standard delete: undo puts the task back under its
+// key with its props (the record only: what the delete orphaned stays
+// orphaned), and the old confirm-delete name still deletes.
+func TestTaskDeleteIsStandardAndUndoes(t *testing.T) {
+	a := open(t)
+	before, err := a.work.Task("t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "task", "delete", "", ochazuke.Arguments{"id": "t1"})
+	if _, err := a.work.Task("t1"); err == nil {
+		t.Fatal("delete kept the task")
+	}
+	executeA(t, a, "history", "undo", "", nil)
+	after, err := a.work.Task("t1")
+	if err != nil || after.Title != before.Title || after.ProjectID != before.ProjectID || after.Status != before.Status {
+		t.Fatalf("undo: %+v %v, want %+v", after, err, before)
+	}
+	executeA(t, a, "task", "confirm-delete", "", ochazuke.Arguments{"id": "t1"})
+	if _, err := a.work.Task("t1"); err == nil {
+		t.Fatal("confirm-delete kept the task")
 	}
 }

@@ -101,7 +101,7 @@ func (a *App) defineOutline() {
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
 		a.r.Define(noun).
 			Verb("delete", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
-			Verb("confirm-delete", a.outlineConfirmDeleteProject, "Confirm deleting the project: project.confirm-delete orphans its tasks and records").Confirm(projectDeleteConfirm).
+			Verb("confirm-delete", a.outlineConfirmDeleteProject, "Confirm deleting the project: project.delete orphans its tasks and records").Confirm(projectDeleteConfirm).
 			Mode("normal").
 			Bind("enter", ochazuke.Do("outline.fold")).
 			Bind("n", addTask).
@@ -176,32 +176,52 @@ func (a *App) outlineTopTask(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 }
 
 // outlineDeleteProject is outline-project.delete (d d on a project row):
-// project.delete's confirm, opened on the row (inside the outline: a
-// confirm for the Work page's project row would open beneath it), naming
-// what the delete orphans.
+// the delete's confirm, opened on the row (inside the outline: a confirm
+// for the Work page's project row would open beneath it), naming what
+// deleting every selected project orphans (deletionImpact, as
+// project.delete's prompt does). Its rows are not the project noun's, so
+// it keeps its own confirm-delete for the visual selection.
 func (a *App) outlineDeleteProject(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.confirmDeleting(ctx, func(inst *ochazuke.Instance) (work.DeleteCounts, error) {
+	subjects := ctx.Subjects
+	if len(subjects) == 0 {
+		subjects = []*ochazuke.Instance{ctx.Instance}
+	}
+	var ids []string
+	for _, inst := range subjects {
 		one := ctx
 		one.Instance = inst
 		id, err := a.outlineProject(one)
 		if err != nil {
-			return work.DeleteCounts{}, err
+			return ochazuke.Failed(err)
 		}
-		return a.work.DeletionImpact("project", id)
-	})
+		ids = append(ids, id)
+	}
+	total, err := a.deletionImpact("project", ids)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	q := ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "confirm-delete", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": orphanLines(total)}}
+	if len(ctx.Subjects) > 1 {
+		q.Subjects = ctx.SubjectIDs()
+	}
+	value, err := a.r.Execute(q)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(value)
 }
 
 // outlineConfirmDeleteProject is outline-project.confirm-delete (y on its
-// confirm): project.confirm-delete on the project, confirmed, so the
-// delete, its orphan cascade and its reloads are mtm's one delete; it
-// reloads the outline (reloadOutline). It has no undo: the store keeps no
-// deleted project to restore.
+// confirm): project.delete on the project, confirmed, so the delete, its
+// orphan cascade and its reloads are mtm's one delete (removeProject); it
+// reloads the outline (reloadOutline). Undo puts the project record back,
+// not what the delete orphaned.
 func (a *App) outlineConfirmDeleteProject(ctx ochazuke.Ctx) ochazuke.Result {
 	id, err := a.outlineProject(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	value, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "confirm-delete", Target: id, Args: ctx.Args, Confirmed: true})
+	value, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "delete", Args: ochazuke.Arguments{"id": id}, Confirmed: true})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}

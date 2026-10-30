@@ -14,8 +14,8 @@ func TestRenamedVerbsKeepTheirOldNames(t *testing.T) {
 	for old, canonical := range map[string]string{
 		"dirs.base.add":            "dirs.add-base",
 		"dirs.base.remove":         "dirs.remove-base",
-		"project.delete.confirm":   "project.confirm-delete",
-		"task.delete.confirm":      "task.confirm-delete",
+		"project.delete.confirm":   "project.delete",
+		"task.delete.confirm":      "task.delete",
 		"project.directory.edit":   "project.edit-directory",
 		"project.directory.remove": "project.remove-directory",
 	} {

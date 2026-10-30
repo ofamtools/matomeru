@@ -14,10 +14,9 @@ import (
 // props and its store, so project get, list, create, set (alias patch),
 // watch, rename (the name) and duplicate are ochazuke's standard verbs
 // over the work store. project new and project edit wrap create and set
-// (project.go). A project has no owner, so it has no move. project.delete
-// stays named, as task.delete does: its confirm counts what the delete
-// orphans, which a store's confirm prompt cannot (the store's Delete is
-// the undo of a create). pin, unpin and pick are the app's scope, not a
+// (project.go). A project has no owner, so it has no move. delete is the
+// standard delete: the store's ConfirmFor counts what it orphans
+// (delete.go). pin, unpin and pick are the app's scope, not a
 // prop; the directory verbs wait for list props (phase 2); associate is
 // the reverse of the relations (relations.go).
 
@@ -55,6 +54,8 @@ func (a *App) projectStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
 		Undo: true, AcceptsKey: true,
+		// The standard delete's prompt names what the delete orphans.
+		ConfirmFor: a.deletionConfirm("project"),
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
 			p, err := a.projectByID(id)
 			if err != nil {
@@ -183,10 +184,8 @@ func (a *App) patchProject(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 	return projectThing(p), nil
 }
 
-// removeProject is the store's Delete, which history.undo runs to undo a
-// create (project.delete is named, its confirm counting what it orphans):
-// the project goes and what it held is orphaned, as
-// project.confirm-delete does.
+// removeProject is the store's Delete (project.delete, and history.undo
+// of a create): the project goes and what it held is orphaned.
 func (a *App) removeProject(c ochazuke.Ctx, id string) error {
 	if _, err := a.projectByID(id); err != nil {
 		return err
