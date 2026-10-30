@@ -1,7 +1,6 @@
 {
   "name": "mtm: h on a top-level task row with nothing to fold spills left onto the projects, as the flat table did",
   "area": "tasks",
-  "skip": "gap: ochazuke.outline.collapse answers h on every tree row, so a top-level leaf (and every row with work.tasks-layout = flat) swallows h instead of the table's spill to the projects list; fix in ochazuke (collapse unavailable when it would do nothing)",
   "fixture": "nested",
   "width": 120,
   "height": 30,

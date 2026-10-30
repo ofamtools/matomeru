@@ -1,0 +1,25 @@
+{
+  "name": "mtm: with work.tasks-layout = flat, h on any task row (a subtask too) spills left onto the projects, as the table did",
+  "area": "tasks",
+  "fixture": "nested",
+  "width": 120,
+  "height": 30,
+  "values": {
+    "work.tasks-layout": "flat"
+  },
+  "script": [
+    "ctrl+j",
+    "tab",
+    "j",
+    "h"
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "focus": "t15"
+    },
+    {
+      "focus": "acme-web"
+    }
+  ]
+}
