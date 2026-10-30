@@ -279,7 +279,10 @@ type App struct {
 	drafts             *draft.Store
 	editor             *recordEditor
 	quick              *quickNote // the open quick note (N), nil when closed
-	editorSave         map[string]func(editRecord) (any, error)
+	editorSave         map[string]func(editRecord, ochazuke.Record) (any, error)
+	editorFields       map[string]func() []ochazuke.RecordField // a noun's editor schema from its props (note)
+	editorText         map[string]string                        // the field an older mtm's draft text holds
+	editorStart        map[string]string                        // the field the editor starts on
 	editorRefresh      map[string]func() error
 	editorFinish       map[string]func(editRecord) error
 	directories        directoryCache
@@ -492,7 +495,10 @@ func New(opts Options) (*App, error) {
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
-	a.editorSave = make(map[string]func(editRecord) (any, error))
+	a.editorSave = make(map[string]func(editRecord, ochazuke.Record) (any, error))
+	a.editorFields = make(map[string]func() []ochazuke.RecordField)
+	a.editorText = make(map[string]string)
+	a.editorStart = make(map[string]string)
 	a.editorRefresh = make(map[string]func() error)
 	a.editorFinish = make(map[string]func(editRecord) error)
 	a.m.Title = "Matomeru"

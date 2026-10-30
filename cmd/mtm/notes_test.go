@@ -162,6 +162,9 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 	}
 }
 
+// A note's owner is its project and task props: set task=ID brings the
+// task's project, move "" unassociates; an editor open on the note writes
+// its last change before the patch, so the body is never lost.
 func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
 	a := open(t)
 	note, err := a.work.AddNote("", "", "saved")
@@ -175,20 +178,29 @@ func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	typeText(t, a, " unfinished")
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "associate", Target: note.ID, Args: ochazuke.Arguments{"task": "t1"}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Target: note.ID, Args: ochazuke.Arguments{"prop": "task", "value": "t1"}}); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "esc", "s")
 	got, err := a.work.Note(note.ID)
 	if err != nil || got.ProjectID != "matomeru" || got.TaskID != "t1" || got.Text != "saved unfinished" {
 		t.Fatalf("associated draft save: %+v %v", got, err)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "associate", Target: note.ID, Args: ochazuke.Arguments{"scratch": true}}); err != nil {
+	if a.editor != nil {
+		t.Fatal("the editor stayed open over a patch of its note")
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "move", Target: note.ID, Args: ochazuke.Arguments{"to": ""}}); err != nil {
 		t.Fatal(err)
 	}
 	got, err = a.work.Note(note.ID)
 	if err != nil || got.ProjectID != "" || got.TaskID != "" || got.Text != "saved unfinished" {
 		t.Fatalf("scratch association: %+v %v", got, err)
+	}
+	// The deprecated name still runs move for one release.
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "associate", Target: note.ID, Args: ochazuke.Arguments{"to": "ochazuke"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = a.work.Note(note.ID); err != nil || got.ProjectID != "ochazuke" {
+		t.Fatalf("note.associate: %+v %v", got, err)
 	}
 }
 

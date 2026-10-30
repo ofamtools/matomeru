@@ -94,7 +94,7 @@ func TestDeletionConfirmsCountsAndKeepsNote(t *testing.T) {
 	if err := a.drafts.Load("note", "draft-note", &draft); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := a.saveNoteRecord(draft)
+	saved, err := a.saveNoteRecord(draft, ochazuke.Record{"text": draft.Text})
 	if err != nil || saved.TaskID != "" || saved.FormerTaskID != "t1" || saved.Text != "unfinished note" {
 		t.Fatalf("saved draft=%+v err=%v", saved, err)
 	}

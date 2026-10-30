@@ -372,8 +372,18 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 	if len(subjects) < 2 {
 		subjects = nil
 	}
+	// A noun with the standard move (its owner a prop) runs it with to,
+	// "" for unassociated; the others run their associate.
+	verb, standard := "associate", false
+	if op, ok := a.r.Operation(noun + ".move"); ok && op.Standard == "move" {
+		verb, standard = "move", true
+	}
 	associate := func(args ochazuke.Arguments) ochazuke.Result {
-		out, err := a.r.Execute(ochazuke.Request{Verb: "associate", Noun: noun, Target: row, Subjects: subjects, Args: args})
+		if standard {
+			to, _ := args["project"].(string)
+			args = ochazuke.Arguments{"to": to}
+		}
+		out, err := a.r.Execute(ochazuke.Request{Verb: verb, Noun: noun, Target: row, Subjects: subjects, Args: args})
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -427,7 +437,11 @@ func (a *App) moveOwner(inst *ochazuke.Instance, noun string) (string, bool) {
 		return t.ProjectID, err == nil
 	case "note":
 		n, err := a.selectedNote(ochazuke.Ctx{Instance: inst})
-		return n.ProjectID, err == nil
+		if err != nil {
+			return "", false
+		}
+		project, err := a.work.NoteProject(n)
+		return project, err == nil
 	case "saved":
 		row, err := a.savedAt(ochazuke.Ctx{Instance: inst})
 		return row.ProjectID, err == nil

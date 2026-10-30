@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -16,14 +15,22 @@ import (
 const notesPage = "notes"
 
 func (a *App) defineNotes() {
-	a.r.Define("note").Columns(noteColumns...).
-		Verb("list", a.listNotes, "List notes in the current scope").Rows("note").
-		Verb("new", a.newNote, "Create a note; omit text to open the editor, which writes as you type").Positional("text").
+	// Props and the store first: the standard verbs (get, list, create,
+	// set, delete, watch, rename, move, duplicate) come from them
+	// (note_store.go); new and edit wrap create and set, view and
+	// choose-move are mtm's own.
+	a.r.Define("note").Props(noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
+		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
-		Verb("edit", a.editNote, "Edit a note in the right panel").Positional("text").
-		Verb("associate", a.associateNote, "Associate a note with a task or project; scratch clears ownership").Many().
-		Verb("delete", a.deleteNote, "Delete a note and its draft; nothing else is touched").Confirm("Delete note {{label}}?").
-		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.associate"))
+		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").
+		Verb("choose-move", a.chooseMove, "Choose the project to move the note to (most recent first, unassociated last); the choice runs note.move").Many().
+		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.choose-move"))
+	// note.associate moved to the standard move (Keep actions: the old
+	// name stays one release, its notice naming move).
+	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "note.associate", Action: "note.move", Since: noteAssociateSince, RemoveAfter: noteAssociateRemoveAfter,
+		Note: "move takes the project as to (\"\" for unassociated); a task is note set task=ID"}); err != nil {
+		panic(err)
+	}
 	a.r.Define(noteBodyNoun).Focusable().
 		Verb("scroll", a.scrollNoteBody, "Scroll the note's text: delta lines, or half a screen (half 1 down, -1 up)").Motion().
 		Mode("normal").
@@ -38,13 +45,17 @@ func (a *App) defineNotes() {
 		// child), so enter right after reads it again.
 		Bind("esc", ochazuke.Do("focus.previous"))
 	a.parameters(noteBodyNoun+".scroll", map[string]ochazuke.Parameter{"delta": {Type: "integer"}, "half": {Type: "integer"}})
-	a.parameters("note.list", map[string]ochazuke.Parameter{"all": {Type: "boolean"}})
-	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
+	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "title": {Type: "string", Description: "The note's title (optional)"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
 	a.parameters("note.edit", map[string]ochazuke.Parameter{"text": {Type: "string"}})
-	a.parameters("note.associate", map[string]ochazuke.Parameter{"task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
 	a.owners["note"] = "notes/list"
 	a.defineNoteDoc()
-	a.editorSave["note"] = func(record editRecord) (any, error) { return a.saveNoteRecord(record) }
+	a.editorFields["note"] = a.noteFields
+	// An older mtm's note draft holds the body in its text; the editor
+	// starts on the body, the title (optional) above it.
+	a.editorText["note"], a.editorStart["note"] = "text", "text"
+	a.editorSave["note"] = func(record editRecord, values ochazuke.Record) (any, error) {
+		return a.saveNoteRecord(record, values)
+	}
 	a.editorRefresh["note"] = a.refreshNotes
 	a.editorFinish["note"] = func(record editRecord) error {
 		if err := a.r.OpenPage(notesPage); err != nil {
@@ -102,19 +113,6 @@ func (a *App) scopedNotes() ([]work.Note, error) {
 		}
 	}
 	return out, nil
-}
-
-func (a *App) listNotes(ctx ochazuke.Ctx) ochazuke.Result {
-	previous := a.all
-	if all, _ := ctx.Args["all"].(bool); all {
-		a.all = true
-	}
-	defer func() { a.all = previous }()
-	notes, err := a.scopedNotes()
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(notes)
 }
 
 func (a *App) noteOwnerLabel(note work.Note) string {
@@ -200,9 +198,9 @@ func (a *App) setNoteRows() error {
 	now := time.Now()
 	items := make([]ochazuke.ListItem, 0, len(notes)+len(drafts))
 	for _, note := range notes {
-		// The label is the first line alone (a confirm reads it); the
-		// owner is in its own cells.
-		first := noteLabel(note.Text)
+		// The label is the title, else the first line (a confirm reads
+		// it); the owner is in its own cells.
+		first := noteTitle(note)
 		if marked[note.ID] {
 			first += " [draft]"
 		}
@@ -267,6 +265,12 @@ func (a *App) showNote(note work.Note) error {
 	return a.noteList.Focus()
 }
 
+// newNote is note.new, a wrap of the standard create: the owner is
+// inferred as it always was (resolveOwner: the selected task, project,
+// pane or saved row, --task or --project, scratch for none) and passed
+// to create, so create's focus fill never second-guesses it. Without
+// text it opens the editor on a new note, which is written at once
+// (record first) and as it is typed.
 func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 	owner, err := a.resolveOwner(ctx, ctx.Args)
 	if err != nil {
@@ -275,19 +279,25 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 	if owner.Notice != "" {
 		ctx.Notify(owner.Notice)
 	}
-	record := editRecord{Noun: "note", ID: work.NewID(), ProjectID: owner.ProjectID, TaskID: owner.TaskID, New: true}
 	if _, present := ctx.Args["text"]; !present {
+		record := editRecord{Noun: "note", ID: work.NewID(), ProjectID: owner.ProjectID, TaskID: owner.TaskID, New: true}
 		if err := a.beginEdit(record); err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(owner)
 	}
-	record.Text = ochazuke.StringArg(ctx.Args, "text", "")
-	note, err := a.saveNoteRecord(record)
+	args := ochazuke.Arguments{"text": ochazuke.StringArg(ctx.Args, "text", ""), "project": owner.ProjectID, "task": owner.TaskID}
+	if title := ochazuke.StringArg(ctx.Args, "title", ""); title != "" {
+		args["title"] = title
+	}
+	out, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "create", Args: args})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	thing, _ := out.(map[string]any)
+	id, _ := thing["id"].(string)
+	note, err := a.work.Note(id)
+	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	if a.inScope(note.ProjectID) {
@@ -295,8 +305,10 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 	}
-	// A new note has no legacy extras; avoid inheriting Note.MarshalJSON,
-	// which would hide the dispatch notice on an embedded result.
+	// note new answers the stored note as it always has (MCP's
+	// task_note_add and scripts read id, text, project_id, task_id); a
+	// new note has no legacy extras, so Note.MarshalJSON is not needed
+	// and would hide the notice on an embedded result.
 	type noteValue work.Note
 	return ochazuke.Done(struct {
 		noteValue
@@ -304,30 +316,30 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 	}{noteValue(note), owner.Notice})
 }
 
+// editNote is note.edit: without text it opens the editor on the note;
+// with text it is the standard set of the note's text.
 func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 	note, err := a.selectedNote(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	record := editRecord{Noun: "note", ID: note.ID, Text: note.Text, ProjectID: note.ProjectID, TaskID: note.TaskID}
 	if _, present := ctx.Args["text"]; !present {
+		record := editRecord{Noun: "note", ID: note.ID, Text: note.Text, ProjectID: note.ProjectID, TaskID: note.TaskID}
 		if err := a.beginEdit(record); err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(note)
 	}
-	record.Text = ochazuke.StringArg(ctx.Args, "text", "")
-	note, err = a.saveNoteRecord(record)
+	out, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Args: ochazuke.Arguments{"id": note.ID, "prop": "text", "value": ochazuke.StringArg(ctx.Args, "text", "")}})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.refreshNotes(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(note)
+	return ochazuke.Done(out)
 }
 
-func (a *App) saveNoteRecord(record editRecord) (work.Note, error) {
+// saveNoteRecord is the editor's write of a note: a new note is created
+// by its first write; the title is written only when the editor shows it.
+func (a *App) saveNoteRecord(record editRecord, values ochazuke.Record) (work.Note, error) {
 	note := work.Note{ID: record.ID, ProjectID: record.ProjectID, TaskID: record.TaskID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Created: work.Now()}
 	if !record.New {
 		var err error
@@ -336,77 +348,20 @@ func (a *App) saveNoteRecord(record editRecord) (work.Note, error) {
 			return work.Note{}, err
 		}
 	}
-	note.Text, note.Updated = record.Text, work.Now()
+	note.Text, note.Updated = values["text"], work.Now()
+	if title, ok := values["title"]; ok {
+		note.Title = title
+	}
 	return note, a.work.PutNote(note)
 }
 
-func (a *App) associateNote(ctx ochazuke.Ctx) ochazuke.Result {
-	if a.moving(ctx) {
-		return a.moveTo(ctx, "note")
+// chooseMove is NOUN.choose-move (m on a note's row): the project chooser
+// (moveTo), whose choice runs the noun's move.
+func (a *App) chooseMove(ctx ochazuke.Ctx) ochazuke.Result {
+	if ctx.Instance == nil {
+		return ochazuke.Failed(errors.New("select a row to move"))
 	}
-	return ctx.Each(a.associateNoteOne)
-}
-
-// associateNoteOne is note.associate on one note, its owner given.
-func (a *App) associateNoteOne(ctx ochazuke.Ctx) ochazuke.Result {
-	note, err := a.selectedNote(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	owner, err := a.resolveOwner(ctx, ctx.Args)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if owner.Notice != "" {
-		ctx.Notify(owner.Notice)
-	}
-	note.ProjectID, note.TaskID, note.Updated = owner.ProjectID, owner.TaskID, work.Now()
-	if err := a.work.PutNote(note); err != nil {
-		return ochazuke.Failed(err)
-	}
-	// Ownership changes also move an unfinished body draft, never its text.
-	var d editRecord
-	if err := a.drafts.Load("note", note.ID, &d); err == nil {
-		d.ProjectID, d.TaskID = owner.ProjectID, owner.TaskID
-		if err := a.drafts.Save("note", note.ID, d); err != nil {
-			return ochazuke.Failed(err)
-		}
-		if a.editor != nil && a.editor.Record.Noun == "note" && a.editor.Record.ID == note.ID {
-			a.editor.Record = d
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return ochazuke.Failed(err)
-	}
-	if err := a.refreshNotes(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(note)
-}
-
-// deleteNote is note.delete (confirmed): the note row and any draft of it go;
-// an open editor on it closes. Nothing references a note, so nothing is
-// orphaned.
-func (a *App) deleteNote(ctx ochazuke.Ctx) ochazuke.Result {
-	note, err := a.selectedNote(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if a.editor != nil && a.editor.Record.Noun == "note" && a.editor.Record.ID == note.ID {
-		if err := a.leaveEditor(); err != nil {
-			return ochazuke.Failed(err)
-		}
-	}
-	if err := a.work.DeleteNote(note.ID); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.drafts.Clear("note", note.ID); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.refreshNotes(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	ctx.Notify("Deleted note " + noteLabel(note.Text))
-	return ochazuke.Done(note)
+	return a.moveTo(ctx, ctx.Instance.Noun)
 }
 
 func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block {

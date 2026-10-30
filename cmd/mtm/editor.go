@@ -185,20 +185,31 @@ func (a *App) defineRecordEditor() {
 	a.r.Define("draft").Verb("open", a.openDraft, "Open a draft left by an older mtm; it is written as a record at once").Mode("normal").Bind("enter", ochazuke.Do("draft.open"))
 }
 
-// titleField is the first field of a noun's schema: the one a draft's Text
-// and the one-line label read.
-func titleField(noun string) string {
-	switch noun {
-	case "project":
+// titleField is the field a draft's Text holds (an older mtm's drafts):
+// the noun's editorText when it names one (a note's body), else the first
+// field of its schema.
+func (a *App) titleField(noun string) string {
+	if f := a.editorText[noun]; f != "" {
+		return f
+	}
+	if noun == "project" {
 		return "name"
-	case "note":
-		return "text"
 	}
 	return "title"
 }
 
-// recordFields is a noun's schema. The status and harness are chosen from
-// the same lists s and L offer (never free text; UX review 2 F2).
+// recordFields is a noun's editor schema: its props' fields when it has
+// them (editorFields), else the hand-written schema. The status and
+// harness are chosen from the same lists s and L offer (never free text;
+// UX review 2 F2).
+func (a *App) recordFields(noun string) []ochazuke.RecordField {
+	if fields := a.editorFields[noun]; fields != nil {
+		return fields()
+	}
+	return recordFields(noun)
+}
+
+// recordFields is the schema of a noun without props (task, project).
 func recordFields(noun string) []ochazuke.RecordField {
 	text := ochazuke.Parameter{Type: "string"}
 	switch noun {
@@ -215,8 +226,6 @@ func recordFields(noun string) []ochazuke.RecordField {
 			{Name: "harness", Parameter: ochazuke.Parameter{Type: "string", Source: "harness.names"}},
 			{Name: "preset", Parameter: text},
 		}
-	case "note":
-		return []ochazuke.RecordField{{Name: "text", Parameter: text, Multiline: true}}
 	}
 	return nil
 }
@@ -241,7 +250,7 @@ func (a *App) recordValues(record editRecord) (ochazuke.Record, error) {
 			return ochazuke.Record{}, nil
 		}
 		n, err := a.work.Note(record.ID)
-		return ochazuke.Record{"text": n.Text}, err
+		return ochazuke.Record{"title": n.Title, "text": n.Text}, err
 	}
 	return nil, errors.New("unknown editor noun " + record.Noun)
 }
@@ -274,7 +283,8 @@ func (a *App) openEditor(record editRecord, fromDraft bool) error {
 	page := a.editorPage(record)
 	e := &recordEditor{Record: record, Page: page}
 	spec := ochazuke.RecordSpec{
-		Fields:   recordFields(record.Noun),
+		Fields:   a.recordFields(record.Noun),
+		Start:    a.editorStart[record.Noun],
 		Debounce: a.editDebounce(),
 		Insert:   true,
 		Load: func() (ochazuke.Record, error) {
@@ -285,14 +295,14 @@ func (a *App) openEditor(record editRecord, fromDraft bool) error {
 			if hasDraft && !fromDraft && !e.Record.New {
 				// The stored record wins; a draft that says the same is
 				// spent, one that differs waits for draft.open.
-				if draftValues(saved, values) {
+				if draftValues(saved, values, a.titleField(saved.Noun)) {
 					e.Draft = true
 				} else if err := a.drafts.Clear(record.Noun, record.ID); err != nil {
 					return nil, err
 				}
 			}
 			if fromDraft {
-				values[titleField(record.Noun)] = e.Record.Text
+				values[a.titleField(record.Noun)] = e.Record.Text
 				for name, v := range e.Record.Fields {
 					values[name] = v
 				}
@@ -327,9 +337,10 @@ func (a *App) openEditor(record editRecord, fromDraft bool) error {
 	return form.Focus()
 }
 
-// draftValues reports whether a draft would change a record's values.
-func draftValues(d editRecord, values ochazuke.Record) bool {
-	if d.Text != values[titleField(d.Noun)] {
+// draftValues reports whether a draft would change a record's values;
+// field is the one its Text holds.
+func draftValues(d editRecord, values ochazuke.Record, field string) bool {
+	if d.Text != values[field] {
 		return true
 	}
 	for name, v := range d.Fields {
@@ -370,10 +381,10 @@ func (a *App) openDraft(ctx ochazuke.Ctx) ochazuke.Result {
 // is created by its first write. The lists showing it are refreshed.
 func (a *App) storeRecord(e *recordEditor, values ochazuke.Record) error {
 	record := e.Record
-	record.Text = values[titleField(record.Noun)]
+	record.Text = values[a.titleField(record.Noun)]
 	var err error
 	if save := a.editorSave[record.Noun]; save != nil {
-		_, err = save(record)
+		_, err = save(record, values)
 	} else {
 		switch record.Noun {
 		case "project":

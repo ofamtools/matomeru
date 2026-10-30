@@ -9,8 +9,12 @@ import (
 )
 
 // Note retains unknown legacy fields, including provenance, across edits.
+// Title is optional: an empty one (every note written before it existed)
+// shows the first line of Text in its place (the label's fallback); the
+// body is never the title.
 type Note struct {
 	ID              string `json:"id"`
+	Title           string `json:"title,omitempty"`
 	Text            string `json:"text"`
 	ProjectID       string `json:"project_id"`
 	TaskID          string `json:"task_id"`
@@ -32,7 +36,7 @@ func (n *Note) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &n.extra); err != nil {
 		return err
 	}
-	for _, key := range []string{"id", "text", "project_id", "task_id", "former_project_id", "former_task_id", "created", "updated"} {
+	for _, key := range []string{"id", "title", "text", "project_id", "task_id", "former_project_id", "former_task_id", "created", "updated"} {
 		delete(n.extra, key)
 	}
 	return nil

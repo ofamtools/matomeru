@@ -186,7 +186,8 @@ func (a *App) writeQuickNote() error {
 	if text == q.committed || !q.created && strings.TrimSpace(text) == "" {
 		return nil
 	}
-	if _, err := a.saveNoteRecord(editRecord{Noun: "note", ID: q.id, Text: text, ProjectID: q.owner.ProjectID, TaskID: q.owner.TaskID, New: !q.created}); err != nil {
+	// The quick note is body-only: its title is left as it is.
+	if _, err := a.saveNoteRecord(editRecord{Noun: "note", ID: q.id, ProjectID: q.owner.ProjectID, TaskID: q.owner.TaskID, New: !q.created}, ochazuke.Record{"text": text}); err != nil {
 		return err
 	}
 	q.created, q.committed = true, text

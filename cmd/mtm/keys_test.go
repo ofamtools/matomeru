@@ -132,7 +132,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		"x":   {"task.toggle", outlineModal + ".toggle", "review.accept"},
 		"s":   {"task.status", outlineModal + ".status", "review.status"},
 		"w":   {"saved.save", "vim.save"},
-		"m":   {"pane.associate", "session.associate", "task.associate", "note.associate", "saved.associate"},
+		"m":   {"pane.associate", "session.associate", "task.associate", "note.choose-move", "saved.associate"},
 	}
 	want := map[string]string{}
 	for k, ops := range families {
