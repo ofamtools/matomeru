@@ -107,7 +107,7 @@ func (a *App) declareSettingLayout() error {
 	}
 	return a.r.DeclareSettingSection(
 		app(ochazuke.SettingsGeneralSection, "General", "Editing, refresh, the default harness, the directory chooser and the side pane"),
-		app("panes", "Panes", "The Panes page: grouping, its sections and panels, and which states count as working, waiting or errored"),
+		app("panes", "Panes", "The Panes page: grouping, its sections and panels, which states count as working, waiting or errored, and which pane borders take their state colour"),
 		app("prompt", "Prompt", "The prompt box: where it shows and what follows a submit"),
 		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls"),
 		app("agent", "Agent", "The agent view of a pane"),
@@ -115,6 +115,7 @@ func (a *App) declareSettingLayout() error {
 		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),
 		app("schedules", "Schedules", "Missed runs, and each configured schedule's switch and interval"),
 		app("status", "Status bar", "mtm's status segments in the header rule: cpu, ram and disk"),
+		app("pin", "Pin", "How the pin state (pinned, show all, no pin) colours the theme"),
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: ochazuke.SettingsGeneralSection, Title: "General", Description: "How every extension mounts: the names of its nouns"},
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: "status", Title: "Status bar", Description: "The status segments the extensions add"},
 	)
