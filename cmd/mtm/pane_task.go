@@ -223,8 +223,20 @@ func (a *App) openTaskPicker(p pane) error {
 // by recency, and "unassociated" last while the pane has an owner.
 func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.ChooserRow {
 	var rows []ochazuke.ChooserRow
+	tasks, err := a.work.Tasks("")
+	if err != nil {
+		a.r.UI().Error("tasks: " + err.Error())
+	}
+	byID := make(map[string]work.Task, len(tasks))
+	for _, t := range tasks {
+		byID[t.ID] = t
+	}
+	withPath := a.r.Settings().Bool(settingTaskPickerPath)
 	taskRow := func(t work.Task, current bool) ochazuke.ChooserRow {
 		label := taskLabel(t)
+		if withPath {
+			label = taskPathLabel(t, byID)
+		}
 		if t.ProjectID != "" {
 			label += " · " + a.ownerLabel(t.ProjectID)
 		}
@@ -246,10 +258,6 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.ChooserRow {
 		}
 	} else if p, ok := a.project(owner.ProjectID); ok {
 		rows = append(rows, projectRow(p, true))
-	}
-	tasks, err := a.work.Tasks("")
-	if err != nil {
-		a.r.UI().Error("tasks: " + err.Error())
 	}
 	tasks = slices.DeleteFunc(tasks, func(t work.Task) bool { return t.Status == work.StatusDone || t.ID == owner.TaskID })
 	home := cmp.Or(owner.ProjectID, a.pin)
@@ -294,4 +302,43 @@ func (a *App) paneTaskFacts(p pane, outside bool) []string {
 		return []string{"unassociated"}
 	}
 	return nil
+}
+
+// tasks.picker-path: the task picker names a subtask by its ancestors,
+// so nesting shows in the flat chooser (the filter reads them too).
+const settingTaskPickerPath = "tasks.picker-path"
+
+var taskPickerPathSetting = ochazuke.Setting{Name: settingTaskPickerPath, Type: ochazuke.SettingBoolean, Default: true, Section: "work",
+	Description: "The task picker names a subtask after its ancestors (parent › child), so its nesting shows and typing a parent's words finds its subtasks"}
+
+// taskPathSep separates the titles of a task path.
+const taskPathSep = " › "
+
+// taskPath is t's ancestors' titles, the top one first, found in byID; a
+// parent not there ends the path, and a loop is cut where it repeats.
+func taskPath(t work.Task, byID map[string]work.Task) []string {
+	var path []string
+	seen := map[string]bool{t.ID: true}
+	for id := t.ParentID; id != "" && !seen[id]; {
+		p, ok := byID[id]
+		if !ok {
+			break
+		}
+		seen[id] = true
+		path = append(path, cmp.Or(p.Title, "untitled"))
+		id = p.ParentID
+	}
+	slices.Reverse(path)
+	return path
+}
+
+// taskPathLabel is taskLabel with t's ancestors before its title:
+// "[ ] parent › child".
+func taskPathLabel(t work.Task, byID map[string]work.Task) string {
+	path := taskPath(t, byID)
+	if len(path) == 0 {
+		return taskLabel(t)
+	}
+	t.Title = strings.Join(append(path, cmp.Or(t.Title, "untitled")), taskPathSep)
+	return taskLabel(t)
 }

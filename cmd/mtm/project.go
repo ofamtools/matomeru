@@ -178,7 +178,7 @@ func (a *App) workLists(width, height int) string {
 	want := func(l *ochazuke.List) int { return l.Len() + 1 }
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
-	return a.projectsHeading() + a.view(a.projectList, width, top) + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top))
+	return a.projectsHeading() + a.view(a.projectList, width, top) + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskTree, width, max(1, avail-top))
 }
 
 // tasksHeading names whose tasks the tasks list holds.
@@ -207,7 +207,7 @@ func (a *App) followProject() {
 	if selected == nil || selected.Parent != "projects" {
 		return
 	}
-	if from := a.r.Instances[prev]; prev == "tasks" || from != nil && from.Parent == "tasks" {
+	if from := a.r.Instances[prev]; a.isTaskList(prev) || from != nil && a.isTaskList(from.Parent) {
 		return
 	}
 	current := ""
@@ -240,7 +240,7 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	top = max(1, min(top, avail-1))
 	left := a.projectsHeading() + a.view(a.projectList, leftWidth, top)
 	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).Render(a.detail.work.fit(detail, rightWidth, rightWidth, top+1)))
-	return ochazuke.Text(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskList, width, max(1, avail-top)))
+	return ochazuke.Text(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskTree, width, max(1, avail-top)))
 }
 
 // workDetail is the detail of the highlighted task, else of the
@@ -255,7 +255,7 @@ func (a *App) workSelected() (taskID, projectID string) {
 	selected := a.r.Instances[a.r.BaseFocus()]
 	// A focus on a list itself (a jump that has not landed on a row) shows
 	// that list's selected row.
-	for id, l := range map[string]*ochazuke.List{"projects": a.projectList, "tasks": a.taskList} {
+	for id, l := range map[string]*ochazuke.List{"projects": a.projectList, taskTreeID: a.taskList, taskListID: a.taskList} {
 		if selected != nil && selected.ID == id {
 			if item, ok := l.Selected(); ok {
 				selected = a.r.Instances[item.ID]

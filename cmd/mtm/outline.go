@@ -482,19 +482,37 @@ func rootNoun(scope outlineScope, id string) string {
 
 // taskNodes are one project's tasks as rows under root.
 func taskNodes(tasks []work.Task, root string) []ochazuke.TreeNode {
-	ids := map[string]bool{}
+	return taskTreeNodes(tasks, root, outlineNode, func(t work.Task) ochazuke.TreeNode {
+		return ochazuke.TreeNode{Label: t.Title, Noun: outlineTaskNoun, Cells: outlineCells(t.Title, t.Status)}
+	})
+}
+
+// taskTreeNodes are tasks as tree rows, parents first, siblings in the
+// order given (taskOrder): the one row builder the outline and the Work
+// page's task tree share. rowID names a task's row; row makes its label,
+// noun and cells. A task whose parent is not among tasks sits under root.
+func taskTreeNodes(tasks []work.Task, root string, rowID func(string) string, row func(work.Task) ochazuke.TreeNode) []ochazuke.TreeNode {
+	ids := taskIDs(tasks)
+	nodes := make([]ochazuke.TreeNode, 0, len(tasks))
+	for _, t := range taskOrder(tasks, ids) {
+		parent := root
+		if ids[t.ParentID] {
+			parent = rowID(t.ParentID)
+		}
+		n := row(t)
+		n.ID, n.Parent = rowID(t.ID), parent
+		nodes = append(nodes, n)
+	}
+	return nodes
+}
+
+// taskIDs is the set of tasks' ids.
+func taskIDs(tasks []work.Task) map[string]bool {
+	ids := make(map[string]bool, len(tasks))
 	for _, t := range tasks {
 		ids[t.ID] = true
 	}
-	nodes := make([]ochazuke.TreeNode, 0, len(tasks))
-	for _, t := range outlineOrder(tasks, ids) {
-		parent := root
-		if ids[t.ParentID] {
-			parent = outlineNode(t.ParentID)
-		}
-		nodes = append(nodes, ochazuke.TreeNode{ID: outlineNode(t.ID), Parent: parent, Label: t.Title, Noun: outlineTaskNoun, Cells: outlineCells(t.Title, t.Status)})
-	}
-	return nodes
+	return ids
 }
 
 // outlineCells are a task row's cells: glyph and title, then status.
@@ -502,8 +520,10 @@ func outlineCells(title, status string) []string {
 	return []string{work.StatusGlyph(status) + " " + title, work.NormalStatus(status)}
 }
 
-// outlineOrder lists tasks parents first, siblings by position.
-func outlineOrder(tasks []work.Task, ids map[string]bool) []work.Task {
+// taskOrder lists tasks parents first, siblings in the order given (the
+// outline gives position order; the Work page status, then position). A
+// task whose parent is not in ids is top level.
+func taskOrder(tasks []work.Task, ids map[string]bool) []work.Task {
 	children := map[string][]work.Task{}
 	for _, t := range tasks {
 		parent := t.ParentID

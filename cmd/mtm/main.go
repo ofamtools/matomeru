@@ -350,7 +350,8 @@ type App struct {
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
 	projectList *ochazuke.List
-	taskList    *ochazuke.List
+	taskList    *ochazuke.List // the task tree's rows (tasks.go)
+	taskTree    *ochazuke.Tree // the Work page's tasks, a tree or flat by work.tasks-layout
 	paneList    *ochazuke.List // the pane tree's rows (panes_tree.go)
 	pv          *paneUI        // the panes page's tree, detail tabs and timers
 	reviewList  *ochazuke.List
@@ -599,9 +600,11 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	a.projectList = list
-	if a.taskList, err = r.AddList("tasks", nil, ochazuke.Parent("work"), ochazuke.Columns(taskColumns...)); err != nil {
+	if a.taskTree, err = r.AddTree(taskTreeID, nil, ochazuke.Parent("work"), ochazuke.Columns(taskColumns...)); err != nil {
 		return nil, err
 	}
+	a.taskList = a.taskTree.List()
+	a.observeTasksLayout()
 	row := ochazuke.Do("project.new")
 	row.Instance, row.Mode, row.Keys = "projects", "normal", "n"
 	if err := r.Bind(row); err != nil {
@@ -834,9 +837,14 @@ func (a *App) renderWork(_ *ochazuke.Runtime, width, height int) ochazuke.Block 
 	return a.renderWorkDetail(width, height)
 }
 
-// view renders a list into exactly height lines, so the stop below it
-// starts at a fixed row.
-func (a *App) view(l *ochazuke.List, width, height int) string {
+// viewer is a list or a tree: anything that renders into a box.
+type viewer interface {
+	View(width, height int) string
+}
+
+// view renders a list (or a tree: its rows under a zoom's breadcrumb)
+// into exactly height lines, so the stop below it starts at a fixed row.
+func (a *App) view(l viewer, width, height int) string {
 	lines := strings.Split(strings.TrimRight(l.View(width, height), "\n"), "\n")
 	for len(lines) < height {
 		lines = append(lines, "")

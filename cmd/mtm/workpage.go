@@ -31,7 +31,7 @@ func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 	rest := max(2, height-1)
 	tableH := rest
 	if editing || detail != "" {
-		tableH = max(2, min(a.taskList.Len()+1, rest*3/5))
+		tableH = max(2, min(a.taskTree.Height()+1, rest*3/5))
 	}
 	lowerH := max(1, rest-tableH-1)
 	if editing {
@@ -40,7 +40,7 @@ func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 	} else {
 		lower = ochazuke.Text(lipgloss.NewStyle().Width(rightW).Render(a.detail.work.fit(detail, rightW, rightW, lowerH)))
 	}
-	right := ansi.Truncate(a.workHeader(), rightW, "…") + "\n" + a.view(a.taskList, rightW, tableH)
+	right := ansi.Truncate(a.workHeader(), rightW, "…") + "\n" + a.view(a.taskTree, rightW, tableH)
 	top := 1 + tableH + 1
 	if editing || detail != "" {
 		right += "\n\n" + lower.Text
