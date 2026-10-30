@@ -46,7 +46,7 @@ func taskProps() []ochazuke.PropSpec {
 		{Name: "status", Default: work.StatusTodo, Parameter: ochazuke.Parameter{Type: "string", Enum: work.Statuses,
 			Description: "The task's status: todo, active, blocked or done (a value from an older mtm reads as it is)"}},
 		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
-			Description: "The project the task belongs to (empty: unassociated); one not found is saved unassociated with a notice; a move to another project takes the task to its top level"}},
+			Description: "The project the task belongs to (empty: unassociated); one not found is saved unassociated with a notice; a move to another project takes the task to its top level, its subtasks with it"}},
 		{Name: "parent", Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Free: true,
 			Description: "The task this one is under (empty: the top level); its project wins over project; one not found is left empty with a notice"}},
 		{Name: "easy", Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the task is marked easy"}},
@@ -242,7 +242,8 @@ func (a *App) createTask(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 
 // patchTask is the store's Patch: it writes the changed props. A parent
 // brings its project; a move to another project takes the task to its top
-// level (the parent belonged to the old project); a parent that would be
+// level (the parent belonged to the old project) and its subtasks with it
+// (work.PutTaskSubtree, one write); a parent that would be
 // the task itself or under it is refused (a loop, not a missing owner). A
 // status is written as given (an undo puts back a legacy value as it was;
 // set has checked a new one). An editor open on the task writes its last
@@ -286,7 +287,13 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		t.ProjectID, t.ParentID = a.taskOwner(c, project, hasProject, parent, t.ProjectID)
 	}
 	t.Updated = work.Now()
-	if err := a.work.PutTask(t); err != nil {
+	put := a.work.PutTask
+	if owned {
+		// Its subtasks follow it to the project, in the same write, so the
+		// undo (a patch back) takes them back too.
+		put = func(t work.Task) error { _, err := a.work.PutTaskSubtree(t); return err }
+	}
+	if err := put(t); err != nil {
 		return nil, err
 	}
 	if owned {
