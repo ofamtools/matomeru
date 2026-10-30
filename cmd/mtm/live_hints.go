@@ -427,7 +427,7 @@ func shiftParts(parts []contextitems.Cell, top int) []contextitems.Cell {
 // highlighted, its one label over the first.
 func (a *App) drawHints() {
 	h := a.hinting
-	styles := ochazuke.NewStyles(*a.m.Appearance)
+	styles := a.m.Styles()
 	style := styles.Accent.Bold(true).Reverse(true)
 	piece := styles.Accent.Underline(true)
 	overlays := make([]*ochazuke.TerminalOverlay, len(h.screens))

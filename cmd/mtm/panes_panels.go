@@ -316,7 +316,7 @@ func (a *App) sectionsNeed() int {
 // panelsBlock draws the panels layout in width x height: the top panel,
 // the Panes tree filling the middle, the bottom panel on the last lines.
 func (a *App) panelsBlock(width, height int) ochazuke.Block {
-	st := ochazuke.NewStyles(*a.m.Appearance)
+	st := a.m.Styles()
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: st}
 	sizes := a.panelSizes(height)
 	var lines []string

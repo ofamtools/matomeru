@@ -333,7 +333,7 @@ func (a *App) refreshRuns() error {
 
 func (a *App) renderRuns(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	return a.withLinkedDetail(a.runs.detail, width, height, func(w, h int) ochazuke.Block {
-		s := ochazuke.NewStyles(*a.m.Appearance)
+		s := a.m.Styles()
 		head := "runs · command.run from the palette (--drive exec|terminal) · r rerun · d d forget"
 		lines := []string{s.Muted.Render(ansi.Truncate(head, w, "…"))}
 		lines = append(lines, a.view(a.runs.list, w, max(1, h-len(lines))))

@@ -639,7 +639,7 @@ func (a *App) cancelAnswerArea(ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	s := ochazuke.NewStyles(*a.m.Appearance)
+	s := a.m.Styles()
 	top := max(1, (height-5)/3)
 	head := fmt.Sprintf("reviews (%d)", len(a.reviews))
 	list := a.view(a.reviewList, width, top)

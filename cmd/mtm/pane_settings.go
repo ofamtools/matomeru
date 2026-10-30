@@ -446,7 +446,7 @@ func (a *App) settingsLine(p pane, row string, width int) string {
 	list := a.pv.settings
 	focused := list.Focused()
 	sel, _ := list.Selected()
-	s := ochazuke.NewStyles(*a.m.Appearance)
+	s := a.m.Styles()
 	parts := make([]string, len(fields))
 	for i, f := range fields {
 		st := s.Tone(f.Tone)

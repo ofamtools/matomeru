@@ -708,7 +708,7 @@ func (a *App) sectionsBlock(width, height int) ochazuke.Block {
 	if a.panelsLayout() {
 		return a.panelsBlock(width, height)
 	}
-	s := ochazuke.NewStyles(*a.m.Appearance)
+	s := a.m.Styles()
 	var need [3]int
 	for i, sec := range a.pv.sections {
 		need[i] = a.sectionNeed(sec)

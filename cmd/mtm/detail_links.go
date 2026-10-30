@@ -167,7 +167,7 @@ func (a *App) linkedPanel(ld *linkedDetail, width, height int) string {
 
 // linksBlock is the links heading and rows rows of the list.
 func (a *App) linksBlock(ld *linkedDetail, width, rows int) string {
-	s := ochazuke.NewStyles(*a.m.Appearance)
+	s := a.m.Styles()
 	return s.Muted.Render(ansi.Truncate(fmt.Sprintf("links (%d)", ld.links.Len()), width, "…")) + "\n" + a.view(ld.links, width, rows)
 }
 

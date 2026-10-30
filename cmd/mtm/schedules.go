@@ -464,7 +464,7 @@ func (a *App) refreshSchedules() error {
 
 func (a *App) renderSchedules(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	return a.withLinkedDetail(a.sched.detail, width, height, func(w, h int) ochazuke.Block {
-		s := ochazuke.NewStyles(*a.m.Appearance)
+		s := a.m.Styles()
 		head := "schedules · n add · E edit · r run now · e on/off · i interval · settings schedules.catch-up, schedule.NAME.enabled|interval"
 		if !a.sched.live {
 			head = "schedules · they run while the TUI is open"

@@ -37,7 +37,7 @@ func toSource(t *testing.T, a *App, c *ochazuke.Chooser, name string) {
 		if c.Source() == name {
 			return
 		}
-		press(t, a, "tab")
+		press(t, a, "ctrl+o") // chooser.next-source; tab cycles the match mode since ochazuke v0.59.0
 	}
 	t.Fatalf("no source %s in %q (at %s)", name, c.Sources(), c.Source())
 }

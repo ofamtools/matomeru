@@ -36,7 +36,7 @@ const (
 
 var directoryChooserSetting = ochazuke.Setting{Name: settingDirectoryChooser, Type: ochazuke.SettingString, Default: dirChooserPath,
 	Enum:        []string{dirChooserPath, dirChooserRemembered, dirChooserKnown},
-	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its known source; tab cycles browse, recent, typed, project), path-remembered (the path chooser on the source last used) or known (the known directories with browse…)"}
+	Description: "What asks for a project's directory (c, attach, move): path ((the path chooser on its known source; ctrl+o cycles browse, recent, typed, project)), path-remembered (the path chooser on the source last used) or known (the known directories with browse…)"}
 
 // dirParam is a directory parameter: a folder through the path chooser;
 // isNew lets it name a folder not there yet (attached and flagged missing).

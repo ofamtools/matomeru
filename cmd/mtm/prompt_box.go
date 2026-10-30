@@ -838,7 +838,7 @@ func (a *App) promptAfter(before promptState) {
 // when the box has the focus.
 func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	in := a.pb.input
-	s := ochazuke.NewStyles(*a.m.Appearance)
+	s := a.m.Styles()
 	// The rule shows whether the box has the focus: the mode's colour
 	// (bold in mono) while it does, muted (dim in mono) while it does not.
 	// Only the style changes, never the text, so nothing moves.
