@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"strings"
@@ -42,49 +43,22 @@ func (a *App) sessionAt(inst *ochazuke.Instance) (pane, error) {
 	return pane{}, errors.New("no session selected")
 }
 
+// renamePane is pane.rename (r): the standard set of the window's name,
+// the name given or typed in the form, each write as you type a set (the
+// daemon renames the window as a job, pane_store.go).
 func (a *App) renamePane(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	key := p.rowID()
+	set := func(name string) ochazuke.Result {
+		return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "prop": "name", "value": name}}))
+	}
 	if name, given := ctx.Args["name"].(string); given {
-		return a.renameWindow(p, name, nil)
+		return set(name)
 	}
-	// The form writes as you type: each write renames the window, and a
-	// saved record follows while it carries the name the last write left.
-	prev := p
-	return resultError(a.renameForm("Rename pane "+p.label(), p.Name, false, func(name string) ochazuke.Result {
-		return a.renameWindow(prev, name, func(name string) {
-			if name != "" {
-				prev.Name = name
-			}
-		})
-	}))
-}
-
-// renameWindow renames a pane's window on the daemon; its saved records
-// that still carry its old name follow, and the pane list reloads. done,
-// when given, sees the name once the daemon has it.
-func (a *App) renameWindow(p pane, name string, done func(string)) ochazuke.Result {
-	name = strings.TrimSpace(name)
-	r := a.renamer
-	renamed := func(name string) error {
-		err := a.renameSavedOf(p, name)
-		if done != nil {
-			done(name)
-		}
-		return err
-	}
-	if a.quitting {
-		// mtm is closing: no job would run, so the last write runs here.
-		if err := r.RenameWindow(context.Background(), p.Session, p.ID, name); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return resultError(renamed(name))
-	}
-	return a.afterRename(ochazuke.Pending(func(c context.Context) (any, error) {
-		return name, r.RenameWindow(c, p.Session, p.ID, name)
-	}), renamed)
+	return resultError(a.renameForm("Rename pane "+p.label(), p.Name, false, set))
 }
 
 // renameSavedOf follows a pane rename in the pane's saved records that
@@ -114,43 +88,21 @@ func (a *App) renameSavedOf(p pane, name string) error {
 	return a.refreshSaved()
 }
 
+// renameSession is session.rename (r): the standard set of the session's
+// name, the name given or typed in the form, each write as you type a set.
 func (a *App) renameSession(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.sessionAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	key := cmp.Or(p.SessionID, p.Session)
+	set := func(name string) ochazuke.Result {
+		return resultOf(a.r.Execute(ochazuke.Request{Noun: "session", Verb: "set", Args: ochazuke.Arguments{"id": key, "prop": "name", "value": name}}))
+	}
 	if name, given := ctx.Args["name"].(string); given {
-		return a.renameSessionTo(p.Session, name, nil)
+		return set(name)
 	}
-	// Each write renames the session as the last write left it.
-	session := p.Session
-	return resultError(a.renameForm("Rename session "+p.Session, p.Session, true, func(name string) ochazuke.Result {
-		return a.renameSessionTo(session, name, func(name string) { session = name })
-	}))
-}
-
-// renameSessionTo renames a session on the daemon and reloads the panes;
-// done, when given, sees the name once the daemon has it.
-func (a *App) renameSessionTo(session, name string, done func(string)) ochazuke.Result {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return ochazuke.Failed(errors.New("a session needs a name"))
-	}
-	r := a.renamer
-	if a.quitting {
-		err := r.RenameSession(context.Background(), session, name)
-		if err == nil && done != nil {
-			done(name)
-		}
-		return resultError(err)
-	}
-	var renamed func(string) error
-	if done != nil {
-		renamed = func(name string) error { done(name); return nil }
-	}
-	return a.afterRename(ochazuke.Pending(func(c context.Context) (any, error) {
-		return name, r.RenameSession(c, session, name)
-	}), renamed)
+	return resultError(a.renameForm("Rename session "+p.Session, p.Session, true, set))
 }
 
 // renameFormID is the rename form's modal instance; its one field is

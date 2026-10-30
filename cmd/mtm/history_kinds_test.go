@@ -19,9 +19,9 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		"context-item.get", "context-item.list", "context-item.watch", "dirs.bases", "dirs.list", "dirs.refresh",
 		"extension.available", "extension.list",
 		"harness.list", "harness.models", "harness.names",
-		"note.get", "note.list", "note.watch", "pane.activity", "pane.list", "pane.preview", "pane.read-settings", "pane.read-turns", "pane.refresh-turns", "pane.settings", "pane.transcript",
+		"note.get", "note.list", "note.watch", "pane.activity", "pane.get", "pane.list", "pane.preview", "pane.read-settings", "pane.read-turns", "pane.refresh-turns", "pane.settings", "pane.transcript", "pane.watch",
 		"panes.refresh", "project.get", "project.list", "project.watch", "projects.directories", "projects.list", "projects.state",
-		"review.list", "run.list", "run.show", "saved.list", "schedule.history", "schedule.list", "schedule.show", "session.list", "setup.list", "setup.plan",
+		"review.list", "run.list", "run.show", "saved.get", "saved.list", "saved.watch", "schedule.history", "schedule.list", "schedule.show", "session.get", "session.list", "session.watch", "setup.list", "setup.plan",
 		"store-table.list", "store-table.show", "store.tables", "task.get", "task.list", "task.watch", "turn-line.refresh-turns", "turn-separator.refresh-turns", "turn-step.refresh-turns", "turn.refresh-turns", "vim.list",
 	}
 	var got []string

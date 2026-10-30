@@ -131,24 +131,32 @@ func contextThing(it contextitems.Item, tasks map[string]string) ochazuke.Thing 
 	return t
 }
 
-// contextOwnerOf resolves a write's owner as note's does (noteOwner): a
-// task wins (its project is the item's), one not found is saved
-// unassociated with a notice; a new project keeps a task of that project;
-// a task cleared alone keeps the item's project.
+// contextOwnerOf resolves a write's owner of an item (ownerWrite).
 func (a *App) contextOwnerOf(c ochazuke.Ctx, it contextitems.Item, values ochazuke.Thing) (contextitems.Owner, bool) {
+	project, task, ok := a.ownerWrite(c, itemProject(it, a.contextProjects()), it.TaskID, values)
+	return contextitems.Owner{ProjectID: project, TaskID: task}, ok
+}
+
+// ownerWrite resolves a write's project and task props over a thing whose
+// owner is now project and task, as note's does (noteOwner): a task wins
+// (its project is the thing's), one not found is saved unassociated with
+// a notice; a new project keeps a task of that project; a task cleared
+// alone keeps the project. ok is false when the write names neither. The
+// context item, pane and saved stores share it.
+func (a *App) ownerWrite(c ochazuke.Ctx, curProject, curTask string, values ochazuke.Thing) (string, string, bool) {
 	project, hasProject := thingString(values, "project")
 	task, hasTask := thingString(values, "task")
 	if !hasProject && !hasTask {
-		return contextitems.Owner{}, false
+		return "", "", false
 	}
 	switch {
-	case hasProject && !hasTask && it.TaskID != "" && a.taskProject(it.TaskID) == project:
-		task, hasTask = it.TaskID, true
+	case hasProject && !hasTask && curTask != "" && a.taskProject(curTask) == project:
+		task, hasTask = curTask, true
 	case hasTask && task == "" && !hasProject:
-		project, hasProject = itemProject(it, a.contextProjects()), true
+		project, hasProject = curProject, true
 	}
 	p, t := a.noteOwner(c, project, hasProject, task, hasTask)
-	return contextitems.Owner{ProjectID: p, TaskID: t}, true
+	return p, t, true
 }
 
 // createContextItem is the store's Create: one new item from the props

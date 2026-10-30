@@ -5,8 +5,6 @@ import (
 	"slices"
 
 	"github.com/unixsuperhero/ochazuke"
-
-	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
 // Starred panes: * on a pane row stars it (pane.star, as context-item.star
@@ -21,7 +19,7 @@ const noStarredPanes = "no starred panes: * on a pane row stars it"
 
 func (a *App) definePaneStars() {
 	a.r.Define("pane").
-		Verb("star", a.starPane, "Star or unstar the pane (toggles without --starred); ` and the leader's s go to the next starred pane").
+		Verb("star", a.starPane, "Star or unstar the pane (toggles without --starred; standard set of starred); ` and the leader's s go to the next starred pane").
 		Mode("normal").Bind("*", ochazuke.Do("pane.star"))
 	a.parameters("pane.star", map[string]ochazuke.Parameter{"starred": {Type: "boolean"}})
 	a.r.Define("panes").Verb("starred", a.nextStarred, "Select the next starred pane (wrapping)")
@@ -42,30 +40,6 @@ func (a *App) starLive(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	ctx.Instance = row
 	return a.starPane(ctx)
-}
-
-// starPane is pane.star.
-func (a *App) starPane(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.paneAt(ctx.Instance)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	starred := !p.Starred
-	if v, ok := ctx.Args["starred"].(bool); ok {
-		starred = v
-	}
-	if err := a.work.SetPaneStar(work.PaneStar{Window: p.ID, Session: p.Session, Name: p.label()}, starred); err != nil {
-		return ochazuke.Failed(err)
-	}
-	for i := range a.panes {
-		if a.panes[i].ID == p.ID {
-			a.panes[i].Starred = starred
-		}
-	}
-	if err := a.rebuildPanes(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(map[string]any{"pane": p.ID, "starred": starred})
 }
 
 // markStars sets Starred on a listing's panes.

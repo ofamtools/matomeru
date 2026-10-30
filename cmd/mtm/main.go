@@ -385,10 +385,13 @@ type App struct {
 	colors        pinColors             // the theme beneath the pin state's colours (colors.go)
 	savedList     *ochazuke.List
 	vimList       *ochazuke.List
-	savedAll      []work.SavedPane  // every saved pane as last read, in scope or not (the details read it)
-	vimAll        []work.VimSession // every Vim session as last read
-	vimDir        string
-	configDir     string // dirs.json and harnesses.json live here (Options.ConfigDir)
+	savedAll      []work.SavedPane // every saved pane as last read, in scope or not (the details read it)
+	// savedForgotten are the records this session deleted, by id, so
+	// history.undo puts one back as it was (saved_store.go).
+	savedForgotten map[string]work.SavedPane
+	vimAll         []work.VimSession // every Vim session as last read
+	vimDir         string
+	configDir      string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
 	// extForm is the open form over an extension's row (extension_forms.go).

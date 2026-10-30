@@ -68,8 +68,13 @@ const taskPicker = "task-picker"
 var paneRelateParam = ochazuke.Parameter{Type: "string", Noun: "pane", Source: "pane.list", Free: true, Description: "A pane (its row id or window id) to associate with this one"}
 
 func (a *App) definePaneTask() {
+	// unassociate is a lasting alias of the standard move to no project
+	// (the task goes with it).
+	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "pane.unassociate", Action: "pane.move", Args: ochazuke.Arguments{"to": ""},
+		Note: "the standard move to no project: the pane is left with no task or project"}); err != nil {
+		panic(err)
+	}
 	a.r.Define("pane").
-		Verb("unassociate", a.unassociatePane, "Leave the pane with no task or project (pane.associate --scratch)").
 		Verb("pick-task", a.pickPaneTask, "Choose the pane's task or project: its current one first (enter keeps it), open tasks, new task in its project; esc changes nothing").
 		// t (task) was free on pane rows; m stays the project chooser. Off
 		// the footer, which is full; ? help and bindings list show it.
@@ -98,37 +103,10 @@ func (a *App) paneRef(ref string) pane {
 	return p
 }
 
-// relatePane is the one handler behind pane.associate, its reverses
-// (task.associate and project.associate --pane, the pane row of
-// relations()) and pane.unassociate: the pane's owner is what the last
-// call named.
-func (a *App) relatePane(p pane, o Owner) ochazuke.Result {
-	if p.ID == "" {
-		return ochazuke.Failed(errors.New("name the pane (its row id or window id)"))
-	}
-	row := work.Assignment{Window: p.ID, Session: p.Session, ProjectID: o.ProjectID, TaskID: o.TaskID, AssignedAt: work.Now()}
-	if err := a.work.SetPaneOwner(row); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.refreshScope(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(row)
-}
-
 // relatePaneTo is the pane's relation: task and project associate
 // --pane ID.
 func (a *App) relatePaneTo(ref string, o relOwner) ochazuke.Result {
 	return a.relatePane(a.paneRef(ref), Owner{ProjectID: o.ProjectID, TaskID: o.TaskID})
-}
-
-// unassociatePane is pane.unassociate.
-func (a *App) unassociatePane(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.paneAt(ctx.Instance)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.relatePane(p, Owner{})
 }
 
 // pickPaneTask is pane.pick-task: the task picker over the pane row.
