@@ -1,25 +1,35 @@
 #!/usr/bin/env bash
-# seed.sh DIR: build mtm into DIR/bin and fill a throwaway database in DIR
-# with invented projects, tasks and notes. Everything lives under DIR: HOME,
-# the XDG directories, the database, the config and a socket nothing listens
-# on, so neither this script nor the demo touches your own mtm data or
-# daemon. It writes DIR/env, which defines an mtm function bound to DIR.
+# seed.sh DIR: build mtm into DIR/bin, fill a throwaway database in DIR with
+# invented projects, tasks and notes, start a throwaway TUIOS server and
+# launch three scripted demo agents (fake-agent.sh) in the first project.
+# Everything lives under DIR: HOME, the XDG directories, the database, the
+# config, the TUIOS server (named demo, its socket under DIR/run) and the
+# agents' session logs, so neither this script nor the demo touches your own
+# mtm data, your TUIOS sessions or your daemon. It writes DIR/env, which
+# defines an mtm function bound to DIR and demo_stop, which kills the
+# throwaway server.
 #
-#	D=$(mktemp -d /tmp/mtm.XXXX) && docs/vhs/seed.sh "$D" && . "$D/env" && mtm
+#	D=$(mktemp -d /tmp/mtm.XXXX) && docs/vhs/seed.sh "$D" && . "$D/env" && mtm; demo_stop
 set -euo pipefail
 
 D=${1:?usage: seed.sh DIR}
 D=$(cd "$D" && pwd -P)
+VHS=$(cd "$(dirname "$0")" && pwd -P)
+TUIOS_BIN=$(command -v tuios) || { echo "seed.sh: tuios is not on PATH (go install github.com/Gaurav-Gosain/tuios/cmd/tuios@latest)" >&2; exit 1; }
 mkdir -p "$D"/{bin,home/code,data,config,cache,state,run}
 GOWORK=off go build -o "$D/bin/mtm" ./cmd/mtm
+ln -sf "$TUIOS_BIN" "$D/bin/tuios"
 
-# The socket path is short on purpose (unix sockets cap near 104 bytes).
+# The socket path is short on purpose (unix sockets cap near 104 bytes):
+# the server named demo listens on $D/run/tuios/servers/demo/tuios.sock
+# because XDG_RUNTIME_DIR is $D/run.
 cat > "$D/env" <<ENV
-unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_SOCKET MTM_CONFIG_DIR MTM_SERVER
+unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_SOCKET TUIOS_SERVER MTM_CONFIG_DIR MTM_SERVER CLAUDE_CONFIG_DIR
 export HOME=$D/home XDG_DATA_HOME=$D/data XDG_CONFIG_HOME=$D/config
 export XDG_CACHE_HOME=$D/cache XDG_STATE_HOME=$D/state XDG_RUNTIME_DIR=$D/run
 export PATH=$D/bin:/usr/bin:/bin EDITOR=true VISUAL=true
-mtm() { "$D/bin/mtm" --data "$D/data/mtm.db" --config "$D/config" --socket "$D/run/none.sock" "\$@"; }
+mtm() { "$D/bin/mtm" --data "$D/data/mtm.db" --config "$D/config" --socket "$D/run/tuios/servers/demo/tuios.sock" "\$@"; }
+demo_stop() { "$D/bin/tuios" --server demo kill-server >/dev/null 2>&1 || true; }
 cd "$D/home"
 ENV
 # The recording's look: a Catppuccin Mocha scheme with coloured panel
@@ -55,7 +65,12 @@ cat > "$D/config/settings.json" <<'JSON'
   "chrome.color": "rich",
   "keys.echo": "footer",
   "keys.echo-linger": "4s",
-  "turns.status-border": "all"
+  "turns.status-border": "all",
+  "panes.status-border": "all",
+  "panes.sections": ["waiting=queue", "errored=queue", "working=working"],
+  "panes.queue-order": ["waiting", "errored", "outside"],
+  "prompt.after-submit": "pick-task-if-unassociated",
+  "turns.tools-open": true
 }
 JSON
 # shellcheck disable=SC1091
@@ -72,30 +87,31 @@ project() { # NAME COLOR
 	q project edit --target "$p" --color "$2" >/dev/null
 	echo "$p"
 }
-task() { # PROJECT STATUS TITLE
+task() { # PROJECT STATUS TITLE: prints the task id
 	local t
 	t=$(q task new --project "$1" --title "$3" | id)
 	[ "$2" = todo ] || q task status --id "$t" --value "$2" >/dev/null
+	echo "$t"
 }
 
 web=$(project acme-web "#7FB685")
 api=$(project billing-api "#E5A55D")
 docs=$(project docs-site "#7AA2F7")
 
-task "$web" active  "Checkout page: show the shipping estimate"
-task "$web" todo    "Move the cart drawer to the new design tokens"
-task "$web" blocked "Upgrade the image CDN (waiting on billing-api)"
-task "$web" todo    "Flaky test: login redirect on Safari"
-task "$web" done    "Dark mode for the order history"
+checkout=$(task "$web" active  "Checkout page: show the shipping estimate")
+task "$web" todo    "Move the cart drawer to the new design tokens" >/dev/null
+cdn=$(task "$web" blocked "Upgrade the image CDN (waiting on billing-api)")
+flaky=$(task "$web" todo    "Flaky test: login redirect on Safari")
+task "$web" done    "Dark mode for the order history" >/dev/null
 
-task "$api" active  "Retry failed webhooks with backoff"
-task "$api" todo    "Invoice PDF: add the tax id line"
-task "$api" todo    "Rate limit the refunds endpoint"
-task "$api" done    "Drop the legacy v1 coupons table"
+task "$api" active  "Retry failed webhooks with backoff" >/dev/null
+task "$api" todo    "Invoice PDF: add the tax id line" >/dev/null
+task "$api" todo    "Rate limit the refunds endpoint" >/dev/null
+task "$api" done    "Drop the legacy v1 coupons table" >/dev/null
 
-task "$docs" todo   "Write the quickstart for the CLI"
-task "$docs" active "Search: index the API reference"
-task "$docs" done   "Fix broken links on the changelog page"
+task "$docs" todo   "Write the quickstart for the CLI" >/dev/null
+task "$docs" active "Search: index the API reference" >/dev/null
+task "$docs" done   "Fix broken links on the changelog page" >/dev/null
 
 q note new --project "$web" --text "# Checkout release
 
@@ -119,3 +135,25 @@ q note new --project "$docs" --text "# Docs ideas
 
 - A page per command, generated from the catalog
 - Copy buttons on every snippet" >/dev/null
+
+# The demo agent: one harnesses.json row running fake-agent.sh, a scripted
+# agent (it calls no model). Its prompt box types an answer into the pane
+# (deliver send), since a scripted question is a plain read.
+cat > "$D/config/harnesses.json" <<JSON
+[{"name": "demo-agent", "command": ["$VHS/fake-agent.sh"], "prompt": "send-text",
+  "ready": {"state": "idle", "timeoutMs": 10000},
+  "promptBox": {"deliver": "send", "submit": "enter"}}]
+JSON
+
+# The throwaway TUIOS server and three agents in acme-web, each on a task:
+# one waits for an approval, one keeps working, one finishes.
+tuios --server demo start-server >/dev/null
+for t in "$cdn" "$flaky" "$checkout"; do
+	q agent launch --project "$web" --harness demo-agent --task "$t" >/dev/null
+done
+# Wait (up to 30s) until every agent has played its opening.
+for _ in $(seq 60); do
+	s=$(tuios --server demo list-agents 2>/dev/null || true)
+	case $s in *needs_input*) case $s in *done*) case $s in *working*) break ;; esac ;; esac ;; esac
+	sleep 0.5
+done
