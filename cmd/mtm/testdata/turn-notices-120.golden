@@ -2,16 +2,16 @@
    › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Runs  Extensions                   
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   panes (2)                          ╭─ matomeru/claude ─────────────────────────────────────────────────────────────╮  
-  ─ Panes (2) ─                      │ claude-code · /w/proj · idle · unassociated                                   │  
-  pane                state          │ [Turns] Screen Activity Transcript · [ ] tabs · enter live                    │  
-  ▾ unassociated (2)                 │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
-        ○ claude      idle           │ │ ▸ start the agents                                                        │ │  
-          shell       shell          │ │   Oct 28 10:00 · ✓ done · 4 tool calls · 4.0s                             │ │  
-                                     │ ╰───────────────────────────────────────────────────────────────────────────╯ │  
-                                     │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
-                                     │ │ ▸ something else meanwhile                                                │ │  
-                                     │ │   Oct 28 10:02 · ✓ done · 4.0s                                            │ │  
-                                     │ ╰───────────────────────────────────────────────────────────────────────────╯ │  
+  ╭─ Needs you (0) ────────────────╮ │ claude-code · /w/proj · idle · unassociated                                   │  
+  │ Nothing needs you              │ │ [Turns] Screen Activity Transcript · [ ] tabs · enter live                    │  
+  │                                │ │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
+  │                                │ │ │ ▸ start the agents                                                        │ │  
+  │                                │ │ │   Oct 28 10:00 · ✓ done · 4 tool calls · 4.0s                             │ │  
+  ╰────────────────────────────────╯ │ ╰───────────────────────────────────────────────────────────────────────────╯ │  
+  pane                state          │ ╭───────────────────────────────────────────────────────────────────────────╮ │  
+  ▾ unassociated (2)                 │ │ ▸ something else meanwhile                                                │ │  
+        ○ claude      idle           │ │   Oct 28 10:02 · ✓ done · 4.0s                                            │ │  
+          shell       shell          │ ╰───────────────────────────────────────────────────────────────────────────╯ │  
                                      │   ╭┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ │  
                                      │   ┆ ▸ ⤷ One-line bindings export format                                     ┆ │  
                                      │   ┆   Oct 28 10:22 · ✓ finished · 20m43s · 205k tokens · 94 tool uses · fro ┆ │  
@@ -29,12 +29,12 @@
                                      │                                                                               │  
                                      │                                                                               │  
                                      │                                                                               │  
-                                     │                                                                               │  
-                                     │                                                                               │  
-                                     │                                                                               │  
-                                     │ ── [send] claude-code ─ enter sends · ctrl+t mode ─────────────────────────── │  
-                                     │ › write to the agent                                                          │  
-                                     ╰───────────────────────────────────────────────────────────────────────────────╯  
+  ╭─ Working (0) ──────────────────╮ │                                                                               │  
+  │ No agent is working            │ │                                                                               │  
+  │                                │ │                                                                               │  
+  │                                │ │ ── [send] claude-code ─ enter sends · ctrl+t mode ─────────────────────────── │  
+  │                                │ │ › write to the agent                                                          │  
+  ╰────────────────────────────────╯ ╰───────────────────────────────────────────────────────────────────────────────╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   enter live · d d pane.kill · m pane.choose-move · f hints · * pane.star · w saved.save · r pane.rename · l turns · …  
                                                                                                                         

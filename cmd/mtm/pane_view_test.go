@@ -16,6 +16,10 @@ func viewApp(t *testing.T, file string) *App {
 	app, _ := harnessApp(t, file)
 	f := app.panesd.(*fakePanes)
 	f.panes[0].Harness, f.panes[0].AgentState = "claude-code", "idle"
+	// The split is found by the borders on whole frame lines: the stacked
+	// lists draw none in the left column (panes_panels_test.go has the
+	// panels).
+	setting(t, app, settingPanesLayout, layoutStacked)
 	if err := app.r.Settings().Set(settingAgentView, "turns"); err != nil {
 		t.Fatal(err)
 	}

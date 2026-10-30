@@ -41,6 +41,10 @@ func settingsLog(t *testing.T) []string {
 func settingsApp(t *testing.T) (*App, *fakePanes, string) {
 	t.Helper()
 	app, f, log := claudeTurnsApp(t)
+	// The settings line is read off whole frame lines: the stacked lists
+	// draw no borders in the left column (panes_panels_test.go has the
+	// panels).
+	setting(t, app, settingPanesLayout, layoutStacked)
 	writeLog(t, log, settingsLog(t)...)
 	readTurnsNow(t, app)
 	return app, f, log
