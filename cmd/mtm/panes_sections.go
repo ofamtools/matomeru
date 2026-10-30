@@ -34,7 +34,8 @@ import (
 // takes the pane's row id, so every pane verb, the detail and the jumps
 // (W, `, ctrl+a j) find it as they find any pane row; a pane sent to the
 // queue with no item there stays in Panes (record first: a pane never
-// vanishes). Terminals raise no signal, so they never leave Panes.
+// vanishes). A terminal raises a signal only from its command items (a
+// failed command is errored, a long one unread: pane_signals.go).
 //
 // Order is stable: a row keeps the rank and time it entered its section
 // with until it leaves (tuios's order-stable-within-group rule), and the
@@ -196,28 +197,41 @@ func itemCategory(it actionitems.Item) string {
 		if !it.Read() {
 			return signalUnread
 		}
+	case panesignals.Command:
+		// A terminal command: a failed one is errored while open, one
+		// that finished well (a long one) is unread until it is read.
+		if panesignals.CommandFailed(it) {
+			return signalErrored
+		}
+		if !it.Read() {
+			return signalUnread
+		}
 	}
 	return ""
 }
 
+// signalRank orders the signals an item gives its pane: the first wins.
+var signalRank = []string{signalWaiting, signalErrored, signalUnread}
+
 // paneSignal is the signal a pane raises now, "" for none: a waiting,
-// errored or working agent by its state, else unread while an unread done
-// item names its window. A terminal or an exited pane raises none.
-func paneSignal(p pane, unread map[string]bool) string {
-	if p.Exited || !p.isAgent() {
+// errored or working agent by its state, else the signal its open items
+// give it (fromItems: an unread done turn, a terminal's failed or unread
+// command). An exited pane raises none.
+func paneSignal(p pane, fromItems map[string]string) string {
+	if p.Exited {
 		return ""
 	}
-	switch {
-	case p.needsInput():
-		return signalWaiting
-	case p.AgentState == "errored":
-		return signalErrored
-	case p.AgentState == "working":
-		return signalWorking
-	case unread[p.ID]:
-		return signalUnread
+	if p.isAgent() {
+		switch {
+		case p.needsInput():
+			return signalWaiting
+		case p.AgentState == "errored":
+			return signalErrored
+		case p.AgentState == "working":
+			return signalWorking
+		}
 	}
-	return ""
+	return fromItems[p.ID]
 }
 
 // paneSection is one of the three lists and the rows it shows.
@@ -426,16 +440,18 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		category string
 	}
 	var items []queued
-	unread := map[string]bool{}
-	hasItem := map[string]bool{} // window → an item of the queue names it
+	fromItems := map[string]string{} // window → the first-ranked signal its open items give it
+	hasItem := map[string]bool{}     // window → an item of the queue names it
 	if a.inbox != nil {
 		for _, it := range a.inbox.all {
 			if it.State(nowMs) != actionitems.StateOpen {
 				continue
 			}
 			c := itemCategory(it)
-			if c == signalUnread && it.Window != "" {
-				unread[it.Window] = true
+			if r := slices.Index(signalRank, c); r >= 0 && it.Window != "" {
+				if was, ok := fromItems[it.Window]; !ok || r < slices.Index(signalRank, was) {
+					fromItems[it.Window] = c
+				}
 			}
 			if _, ok := ranks[c]; !ok || c == "" {
 				continue
@@ -479,7 +495,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 			middle = append(middle, p)
 			continue
 		}
-		s := cmp.Or(sectionOf[paneSignal(p, unread)], sectionPanes)
+		s := cmp.Or(sectionOf[paneSignal(p, fromItems)], sectionPanes)
 		if s == sectionQueue && !hasItem[p.ID] {
 			s = sectionPanes
 		}

@@ -111,6 +111,10 @@ type pane struct {
 	// none of several could be taken (pane_locate.go).
 	ReportedSession string `json:"reported_session,omitempty"`
 	SessionNote     string `json:"session_note,omitempty"`
+	// Commands are the shell's finished commands command-history listed
+	// for the listing, read only for a pane whose command_seq moved past
+	// what the inbox's command signals have seen (pane_signals.go).
+	Commands []daemon.CommandEntry `json:"-"`
 	daemon.Pane
 }
 
@@ -375,10 +379,18 @@ func (a *App) addPanesPage() error {
 // refreshPanes is panes.refresh: list the panes off the loop, then push them.
 func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 	d, ws, server := a.panesd, a.work, a.server()
+	read := a.commandReads()
 	// The lock keeps the listing's link cleanup from racing a side launch.
-	return ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
+	list := a.withSideLock(func(c context.Context) (any, error) {
 		return sideListing(c, d, ws, server)
-	})).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
+	})
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		v, err := list(c)
+		if panes, ok := v.([]pane); ok && err == nil {
+			read(c, panes)
+		}
+		return v, err
+	}).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
 		panes, _ := v.([]pane)
 		a.setPanes(panes, err)
 	})

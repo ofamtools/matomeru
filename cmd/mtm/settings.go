@@ -75,6 +75,7 @@ func (a *App) declareSettings() error {
 	settings = append(settings, agentViewSettings()...)
 	settings = append(settings, paneSectionSettings()...)
 	settings = append(settings, a.signalSettings()...)
+	settings = append(settings, commandSettings()...)
 	settings = append(settings, a.scheduleSettings()...)
 	return a.r.DeclareSetting(settings...)
 }

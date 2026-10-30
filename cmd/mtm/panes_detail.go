@@ -1302,13 +1302,21 @@ func (a *App) subscribeEvents() tea.Cmd {
 		types := []string{"window-created", "window-closed", "window-exit", "window-retitled", "agent-state", "session-created", "session-closed", "command-started", "command-finished"}
 		for {
 			events, failures := a.daemon.Subscribe(context.Background(), types, 0, "")
-			for range events {
+			for ev := range events {
+				// The subscribe answer and every event carry the daemon
+				// start, which the command signals' keys hold.
+				if ev.BootID != "" && ev.BootID != a.signals.bootID() {
+					a.signals.setBoot(ev.BootID)
+				}
 				select {
 				case a.pv.events <- struct{}{}:
 				default:
 				}
 			}
 			<-failures
+			// Down: which daemon start comes back is not known until the
+			// next subscribe answers.
+			a.signals.setBoot("")
 			time.Sleep(5 * time.Second)
 		}
 	}()
