@@ -74,6 +74,7 @@ func (a *App) declareSettings() error {
 	}
 	settings = append(settings, turnStatusSettings()...)
 	settings = append(settings, pinColorsSettings()...)
+	settings = append(settings, paneBorderSettings()...)
 	settings = append(settings, agentViewSettings()...)
 	settings = append(settings, paneSectionSettings()...)
 	settings = append(settings, panesPanelSettings()...)

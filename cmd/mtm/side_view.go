@@ -330,13 +330,13 @@ func (a *App) sideDetailBlock(layout ochazuke.Layout, width, height int) ochazuk
 	}
 	cw, ch := ochazuke.PanelContentSize(width, height)
 	if a.copyShown(sideTermID) {
-		return layout.PanelBlock(ansi.Truncate("side · "+a.copyTitle(), max(1, width-6), "…"), a.copyBlock(cw, ch), width, height, true)
+		return a.panePanel(layout, a.copy.pane).PanelBlock(ansi.Truncate("side · "+a.copyTitle(), max(1, width-6), "…"), a.copyBlock(cw, ch), width, height, true)
 	}
 	body := term.ViewBlock(cw, ch)
 	if !term.Focused() {
 		body.Cursor = nil
 	}
-	return layout.PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, term.Focused())
+	return a.panePanel(layout, p).PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, term.Focused())
 }
 
 const sideChooser = "side-chooser"

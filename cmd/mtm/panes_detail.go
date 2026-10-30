@@ -743,7 +743,7 @@ func (a *App) cyclePane(ctx ochazuke.Ctx) ochazuke.Result {
 // panel: its tabs and the selected row's tab, the attached terminal in the
 // Screen tab, or, zoomed, the terminal over the whole body.
 func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	s := ochazuke.NewStyles(*a.m.Appearance)
+	s := a.m.Styles()
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: s}
 	term := a.r.Terminal(paneTermID)
 	if a.liveShown() && a.pv.zoom {
@@ -755,13 +755,13 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		title := a.streamTitle(term.ID(), p.label()) + " · zoomed · " + a.r.TerminalLeader() + " z restores"
 		cw, ch := ochazuke.PanelContentSize(width, height)
 		if a.copy.active {
-			return layout.PanelBlock(a.copyTitle()+" · zoomed", a.copyBlock(cw, ch), width, height, true)
+			return a.panePanel(layout, a.copy.pane).PanelBlock(a.copyTitle()+" · zoomed", a.copyBlock(cw, ch), width, height, true)
 		}
 		body := term.ViewBlock(cw, ch)
 		if !term.Focused() {
 			body.Cursor = nil
 		}
-		return layout.PanelBlock(title, body, width, height, term.Focused())
+		return a.panePanel(layout, p).PanelBlock(title, body, width, height, term.Focused())
 	}
 	listW, listH, detailW, detailH := width, max(1, (height-1)/3), width, 0
 	side := width >= sideBySide
@@ -929,6 +929,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	header := ""
 	var body ochazuke.Block
 	focused := false
+	tone := "" // the shown pane's border tone (panes.status-border)
 	if live || a.copyShown(paneTermID) || !a.frontsPane(inst) {
 		a.detail.panes.hide() // tabBody windows the detail when it draws
 	}
@@ -938,9 +939,11 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		header = a.paneHeader(a.copy.pane)
 		body = a.copyBlock(cw, ch)
 		focused = true
+		tone = a.paneBorderTone(a.copy.pane)
 	case live:
 		title = a.streamTitle(paneTermID, a.attached.label())
 		header = a.paneHeader(a.attached)
+		tone = a.paneBorderTone(a.attached)
 		if e := term.Err(); e != "" {
 			title += ": " + e
 		}
@@ -955,6 +958,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		p, _ := a.paneAt(inst)
 		title = p.label()
 		header = a.paneHeader(p)
+		tone = a.paneBorderTone(p)
 		if a.pv.tab == tabScreen {
 			a.r.Placed(copyID) // l, } and tab reach copy mode from the list
 		}
@@ -975,7 +979,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	case live || inst == nil || a.frontsPane(inst):
 		body = body.Offset(0, 1).WithText(tabs + "\n" + body.Text)
 	}
-	return layout.PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, focused)
+	return layout.WithPanelTone(tone).PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, focused)
 }
 
 // tabLine names the tabs, the shown one marked; "enter live" only while
@@ -1195,7 +1199,7 @@ func (a *App) screenBody(row string, width, height int) ochazuke.Block {
 	drawn := a.detail.panes.lines(text, 0, width, height)
 	if sc := a.previewHints(row); sc != nil {
 		// While hints are up the window they labelled stays put.
-		return ochazuke.Text(overlayText(sc.win.text, sc.win.width, sc.win.shown, sc.overlay, ochazuke.NewStyles(*a.m.Appearance).Backdrop))
+		return ochazuke.Text(overlayText(sc.win.text, sc.win.width, sc.win.shown, sc.overlay, a.m.Styles().Backdrop))
 	}
 	a.pv.screen = a.screenWindow(row, text, drawn, width, height)
 	return ochazuke.Text(drawn)
