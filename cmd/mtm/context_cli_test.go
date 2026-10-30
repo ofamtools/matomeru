@@ -31,6 +31,17 @@ func TestContextCLIListsByKind(t *testing.T) {
 	if it, _ := a.contexts.Get(id); !it.Starred {
 		t.Fatal("star ID stars")
 	}
+	// The deprecated --starred (now --value) still sets it.
+	_, errOut, err := cli(a, "", contextNoun, "star", id, "--starred=false")
+	if err != nil {
+		t.Fatalf("star ID --starred=false: %v\n%s", err, errOut)
+	}
+	if it, _ := a.contexts.Get(id); it.Starred {
+		t.Fatal("star ID --starred=false unstars")
+	}
+	if !strings.Contains(errOut, "notice: context-item.star: starred is an old name of value") {
+		t.Fatalf("star --starred: no deprecation notice on stderr:\n%s", errOut)
+	}
 	mustCLI(t, a, contextNoun, "forget", id, "--yes")
 	if _, err := a.contexts.Get(id); err == nil {
 		t.Fatal("forget ID removes the record")

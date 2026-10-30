@@ -26,10 +26,12 @@ const (
 
 // starAlias is NOUN.star: the standard set of starred, toggled; a caller's
 // --value sets it instead (ochazuke v0.55: the toggle preset yields to a
-// value, Parameter.Excludes).
+// value, Parameter.Excludes). The old --starred still sets it, with a
+// one-time notice (ochazuke.ParamAlias), until starredRemoveAfter.
 func starAlias(noun string) ochazuke.ActionAlias {
 	return ochazuke.ActionAlias{Alias: noun + ".star", Action: noun + ".set", Args: ochazuke.Arguments{"prop": "starred", "toggle": true},
-		Note: "the standard set of starred, toggled; --value true or false sets it (--starred before " + starredSince + ")"}
+		Note:         "the standard set of starred, toggled; --value true or false sets it (--starred before " + starredSince + ")",
+		ParamAliases: []ochazuke.ParamAlias{{Alias: "starred", Param: "value", Since: starredSince, RemoveAfter: starredRemoveAfter}}}
 }
 
 func (a *App) definePaneStars() {
