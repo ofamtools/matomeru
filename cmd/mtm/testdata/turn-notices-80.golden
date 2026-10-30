@@ -36,5 +36,5 @@
   │ › write to the agent                                                     │  
   ╰──────────────────────────────────────────────────────────────────────────╯  
   ────────────────────────────────────────────────────────────────────────────  
-  enter live · d d pane.kill · m pane.associate · f hints · * pane.star · w s…  
+  enter live · d d pane.kill · m pane.choose-move · f hints · * pane.star · w…  
                                                                                 

@@ -154,7 +154,7 @@ func (a *App) patchSession(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 		if to == "" {
 			return nil, errors.New("a session needs a name")
 		}
-		if err := a.launchSessionRename(c, p.Session, to); err != nil {
+		if err := a.launchSessionRename(c, "session:"+cmp.Or(p.SessionID, p.Session), p.Session, to); err != nil {
 			return nil, err
 		}
 		t["name"] = to
@@ -178,7 +178,7 @@ func (a *App) patchSession(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 // launchSessionRename renames a session in the daemon as a job of the
 // write; the list reloads after it. While mtm closes no job runs, so the
 // write runs here.
-func (a *App) launchSessionRename(c ochazuke.Ctx, session, name string) error {
+func (a *App) launchSessionRename(c ochazuke.Ctx, row, session, name string) error {
 	r := a.renamer
 	if a.quitting {
 		return r.RenameSession(context.Background(), session, name)
@@ -186,7 +186,7 @@ func (a *App) launchSessionRename(c ochazuke.Ctx, session, name string) error {
 	res := a.afterRename(ochazuke.Pending(func(ctx context.Context) (any, error) {
 		return name, r.RenameSession(ctx, session, name)
 	}), nil)
-	_, err := c.Runtime.Launch(a.jobOwner(c), "session.set", res, c)
+	_, err := c.Runtime.Launch(a.jobOwner(row), a.jobVerb(c, "session.set"), res, c)
 	return err
 }
 

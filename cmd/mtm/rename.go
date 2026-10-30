@@ -53,7 +53,9 @@ func (a *App) renamePane(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	key := p.rowID()
 	set := func(name string) ochazuke.Result {
-		return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "prop": "name", "value": name}}))
+		return a.asVerb("pane.rename", func() ochazuke.Result {
+			return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "prop": "name", "value": name}}))
+		})
 	}
 	if name, given := ctx.Args["name"].(string); given {
 		return set(name)
@@ -97,7 +99,9 @@ func (a *App) renameSession(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	key := cmp.Or(p.SessionID, p.Session)
 	set := func(name string) ochazuke.Result {
-		return resultOf(a.r.Execute(ochazuke.Request{Noun: "session", Verb: "set", Args: ochazuke.Arguments{"id": key, "prop": "name", "value": name}}))
+		return a.asVerb("session.rename", func() ochazuke.Result {
+			return resultOf(a.r.Execute(ochazuke.Request{Noun: "session", Verb: "set", Args: ochazuke.Arguments{"id": key, "prop": "name", "value": name}}))
+		})
 	}
 	if name, given := ctx.Args["name"].(string); given {
 		return set(name)

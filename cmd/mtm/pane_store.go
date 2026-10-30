@@ -253,17 +253,40 @@ func (a *App) launchWindowRename(c ochazuke.Ctx, p pane, name string) error {
 	res := a.afterRename(ochazuke.Pending(func(ctx context.Context) (any, error) {
 		return name, r.RenameWindow(ctx, p.Session, p.ID, name)
 	}), follow)
-	_, err := c.Runtime.Launch(a.jobOwner(c), "pane.set", res, c)
+	_, err := c.Runtime.Launch(a.jobOwner(p.rowID()), a.jobVerb(c, "pane.set"), res, c)
 	return err
 }
 
-// jobOwner is the instance a store's job belongs to: the one the request
-// acts for while it is still there, else app.
-func (a *App) jobOwner(c ochazuke.Ctx) string {
-	if c.Instance != nil && a.r.Instances[c.Instance.ID] != nil {
-		return c.Instance.ID
+// jobOwner is the instance a store's job belongs to: the row of the thing
+// written while it is there (a rename form's field is gone once the form
+// closes, and a job whose owner is gone never lands), else app.
+func (a *App) jobOwner(row string) string {
+	if a.r.Instances[row] != nil {
+		return row
 	}
 	return "app"
+}
+
+// jobVerb is the verb a store's job runs under, as the ticker shows it:
+// the named verb that ran the standard write (writeVerb, pane.rename),
+// else the verb the request was invoked by, else fallback.
+func (a *App) jobVerb(c ochazuke.Ctx, fallback string) string {
+	switch {
+	case a.writeVerb != "":
+		return a.writeVerb
+	case c.Invoked.Name != "":
+		return c.Invoked.Name
+	}
+	return fallback
+}
+
+// asVerb runs a named verb's standard write with verb as the name its
+// jobs run under (jobVerb).
+func (a *App) asVerb(verb string, run func() ochazuke.Result) ochazuke.Result {
+	prev := a.writeVerb
+	a.writeVerb = verb
+	defer func() { a.writeVerb = prev }()
+	return run()
 }
 
 // paneKey is the key a pane's standard verbs take for the pane at inst:

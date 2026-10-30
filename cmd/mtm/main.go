@@ -389,9 +389,12 @@ type App struct {
 	// savedForgotten are the records this session deleted, by id, so
 	// history.undo puts one back as it was (saved_store.go).
 	savedForgotten map[string]work.SavedPane
-	vimAll         []work.VimSession // every Vim session as last read
-	vimDir         string
-	configDir      string // dirs.json and harnesses.json live here (Options.ConfigDir)
+	// writeVerb is the named verb running a standard write, the verb its
+	// jobs run under (pane_store.go jobVerb).
+	writeVerb string
+	vimAll    []work.VimSession // every Vim session as last read
+	vimDir    string
+	configDir string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
 	// extForm is the open form over an extension's row (extension_forms.go).
