@@ -298,7 +298,9 @@ func TestTitleLeadsWithPin(t *testing.T) {
 	}
 	t.Logf("80: %s", row)
 	executeA(t, a, "scope", "all", "work", nil)
-	if row := titleRow(a, 80); !strings.HasPrefix(row, "◆ 📌 matomeru  ~/proj") || strings.Contains(row, "…") {
+	// 90: the badge is padded to the widest base mode's name (ochazuke
+	// v0.55 mode-badge.width widest), so the whole path needs more than 80.
+	if row := titleRow(a, 90); !strings.HasPrefix(row, "◆ 📌 matomeru  ~/proj") || strings.Contains(row, "…") {
 		t.Fatalf("a path that fits stays: %q", row)
 	}
 }

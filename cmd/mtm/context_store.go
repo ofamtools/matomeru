@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/unixsuperhero/ochazuke"
 
@@ -45,7 +46,13 @@ func contextProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The item's key")},
-		{Name: "type", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "string", Required: true, Enum: contextitems.Kinds,
+		// Workaround (ochazuke v0.55.0): standard create's positional order
+		// is the label, the focus fills, then the pairs rest parameter, and
+		// Register refuses a required parameter after the rest one; so type
+		// is not Required here and createContextItem refuses a create
+		// without it. Drop this once ochazuke puts required create props
+		// before pairs.
+		{Name: "type", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: contextitems.Kinds,
 			Description: "The item's kind: file, dir, link, pr, branch, commit, command or prompt"}},
 		{Name: "text", CreateOnly: true, Role: ochazuke.RoleLabel, Parameter: ochazuke.Parameter{Type: "string", Required: true,
 			Description: "What the item is: the path, URL, branch, commit, command or prompt"}},
@@ -180,6 +187,9 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 		it = contextitems.Item{ID: id, Created: now, LastSeen: now,
 			Sources:    []contextitems.Source{{Kind: contextCreateSource, At: now}},
 			Provenance: contextitems.Provenance{At: now}}
+	}
+	if v, _ := thingString(values, "type"); v == "" && !restored {
+		return nil, &ochazuke.ArgumentError{Err: fmt.Errorf("type is required: one of %s", strings.Join(contextitems.Kinds, ", "))}
 	}
 	delete(a.cx.forgotten, id)
 	if v, ok := thingString(values, "type"); ok {

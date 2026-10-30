@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -278,6 +279,7 @@ func (a *App) patchSchedule(_ ochazuke.Ctx, name string, changes ochazuke.Thing)
 	if err != nil {
 		return nil, err
 	}
+	changes = sameTiming(changes)
 	if len(scheduleFieldsOf(changes)) > 0 {
 		if err := a.applyScheduleValues(&d, changes); err != nil {
 			return nil, err
@@ -313,6 +315,27 @@ func (a *App) patchSchedule(_ ochazuke.Ctx, name string, changes ochazuke.Thing)
 		return nil, err
 	}
 	return a.scheduleThing(d)
+}
+
+// sameTiming drops when from changes that also give the interval when
+// both say the same timing: they are two views of one value, and the
+// interval writes it where the row keeps it (a configured row's setting),
+// where when would make a stored copy. Undo of a set sends both, since it
+// restores every prop the write changed.
+func sameTiming(changes ochazuke.Thing) ochazuke.Thing {
+	text, hasWhen := changes["when"]
+	every, hasInterval := changes[scheduleIntervalProp]
+	if !hasWhen || !hasInterval {
+		return changes
+	}
+	w, err := schedules.ParseWhen(argText(text))
+	d, err2 := scheduleInterval(every)
+	if err != nil || err2 != nil || w.Calendar() || time.Duration(w.Interval) != d {
+		return changes
+	}
+	out := maps.Clone(changes)
+	delete(out, "when")
+	return out
 }
 
 // scheduleEnable turns a row on, off or auto where its value lives: a
