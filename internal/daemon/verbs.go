@@ -36,11 +36,17 @@ type Pane struct {
 	// What a shell that sends OSC 133 marks reports (only then present):
 	// MarksCommands once it marked a command's start, CommandSeq counting
 	// its finished commands, AtPrompt while it waits at a prompt, and
-	// RunningCmdline the command it runs now.
+	// RunningCmdline the command it runs now. Once a command has finished,
+	// LastCmdline is its command line (cut and with likely secrets masked
+	// by tuios), LastExitCode its status (nil when the shell sent none) and
+	// LastDurationMS how long it ran.
 	MarksCommands  bool   `json:"marks_commands,omitempty"`
 	CommandSeq     uint64 `json:"command_seq,omitempty"`
 	AtPrompt       bool   `json:"at_prompt,omitempty"`
 	RunningCmdline string `json:"running_cmdline,omitempty"`
+	LastCmdline    string `json:"last_cmdline,omitempty"`
+	LastExitCode   *int   `json:"last_exit_code,omitempty"`
+	LastDurationMS int64  `json:"last_duration_ms,omitempty"`
 }
 
 func (c *Client) Sessions(ctx context.Context) ([]Session, error) {

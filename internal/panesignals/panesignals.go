@@ -22,6 +22,9 @@
 //     item read.
 //
 // A kind that is turned off raises nothing; its open items still clear.
+//
+// A terminal's finished commands are the command kind, with rules of their
+// own (commands.go, ReconcileCommands).
 package panesignals
 
 import (
@@ -100,8 +103,13 @@ type Signal struct {
 	Title   string
 	Why     string
 	StateAt int64
-	// Read raises it already read (the person watches the pane).
-	Read bool
+	// Read raises it already read (the person watches the pane), Archive
+	// raises it and archives it at once (a failed command the person
+	// watched fail).
+	Read    bool
+	Archive bool
+	// Extra is the item's extra fields (state_at when nil).
+	Extra map[string]any
 }
 
 // Plan is what Reconcile asks the caller to write.
@@ -109,6 +117,11 @@ type Plan struct {
 	Add     []Signal
 	Archive []string // item ids
 	Read    []string // item ids
+}
+
+// Merge is p followed by q.
+func (p Plan) Merge(q Plan) Plan {
+	return Plan{Add: append(p.Add, q.Add...), Archive: append(p.Archive, q.Archive...), Read: append(p.Read, q.Read...)}
 }
 
 // Empty reports a plan with nothing to write.
@@ -136,7 +149,7 @@ func Reconcile(panes []Pane, items []actionitems.Item, enabled map[string]bool, 
 		}
 		have[it.Key] = true
 		window, kind := windowOf(it)
-		if window == "" || it.ArchivedAt > 0 {
+		if window == "" || kind == Command || it.ArchivedAt > 0 { // commands clear in ReconcileCommands
 			continue
 		}
 		left := current[window+"|"+kind] != it.Key
@@ -166,9 +179,13 @@ func Reconcile(panes []Pane, items []actionitems.Item, enabled map[string]bool, 
 	return plan
 }
 
-// windowOf reads an mtm item's window and kind back from its key (the
-// item's own window and kind when the key is not one of ours).
+// windowOf reads an mtm item's window and kind back from its key: an
+// agent signal's kind:window:state_at, or a command's
+// command:window:boot_id:command_seq ("" for a key that is neither).
 func windowOf(it actionitems.Item) (string, string) {
+	if window, _, _, ok := commandKeyParts(it.Key); ok {
+		return window, Command
+	}
 	parts := strings.Split(it.Key, ":")
 	if len(parts) == 3 {
 		for _, k := range Kinds {
