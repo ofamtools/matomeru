@@ -97,32 +97,44 @@ func TestCLIActionItemAddRecordsWhateverItIsGiven(t *testing.T) {
 	if byName.ProjectID != "ochazuke" {
 		t.Fatalf("project by name: %+v", byName)
 	}
-	var rows []struct {
-		ID   string         `json:"id"`
-		Data actionItemJSON `json:"data"`
-	}
+	var rows []actionThing
 	cliJSON(t, a, &rows, "action-item", "list", "--project", "matomeru")
 	if len(rows) != 1 || rows[0].ID != onTask.ID {
 		t.Fatalf("list --project: %+v", rows)
 	}
 }
 
+// actionThing is an action item as its props (the standard verbs' answer).
+type actionThing struct {
+	ID           string `json:"id"`
+	State        string `json:"state"`
+	Read         bool   `json:"read"`
+	Archived     bool   `json:"archived"`
+	SnoozedUntil int64  `json:"snoozed-until"`
+	Project      string `json:"project"`
+	Task         string `json:"task"`
+	Pane         string `json:"pane"`
+	Title        string `json:"title"`
+}
+
+// The item's verbs over the CLI: read, unread and toggle-read are set of
+// read, snooze sets snoozed-until, archive and restore are standard,
+// associate's old forms run set, the reverse relations too.
 func TestCLIActionItemVerbs(t *testing.T) {
 	a, _, clock := inboxApp(t)
 	var it addAnswer
 	cliJSON(t, a, &it, "action-item", "add", "--source", "gh", "--url", "https://x/1", "--why", "review requested", "--title", "PR 1")
-	var got actionItemJSON
-	got = actionItemJSON{}
+	var got actionThing
 	cliJSON(t, a, &got, "action-item", "read", it.ID)
 	if !got.Read {
 		t.Fatalf("read: %+v", got)
 	}
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "unread", it.ID)
 	if got.Read {
 		t.Fatalf("unread: %+v", got)
 	}
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "snooze", it.ID, "--for", "2h")
 	if got.State != "snoozed" || got.SnoozedUntil != *clock+2*3600*1000 {
 		t.Fatalf("snooze: %+v", got)
@@ -132,37 +144,37 @@ func TestCLIActionItemVerbs(t *testing.T) {
 	if len(open) != 0 {
 		t.Fatalf("snoozed item listed as open: %v", open)
 	}
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "restore", it.ID)
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "archive", it.ID)
 	if got.State != "archived" || !got.Read {
 		t.Fatalf("archive: %+v", got)
 	}
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "restore", it.ID)
 	if got.State != "open" {
 		t.Fatalf("restore: %+v", got)
 	}
 	// Associate with a task, then the reverse from the task's side.
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "associate", it.ID, "--task", "t2")
-	if got.TaskID != "t2" || got.ProjectID != "matomeru" {
+	if got.Task != "t2" || got.Project != "matomeru" {
 		t.Fatalf("associate: %+v", got)
 	}
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "associate", it.ID, "--scratch")
-	if got.TaskID != "" || got.ProjectID != "" {
+	if got.Task != "" || got.Project != "" {
 		t.Fatalf("scratch: %+v", got)
 	}
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "task", "associate", "--target", "t1", "--action-item", it.ID)
-	if got.TaskID != "t1" || got.ProjectID != "matomeru" {
+	if got.Task != "t1" || got.Project != "matomeru" {
 		t.Fatalf("task.associate --action-item: %+v", got)
 	}
-	got = actionItemJSON{}
+	got = actionThing{}
 	cliJSON(t, a, &got, "project", "associate", "--target", "ochazuke", "--action-item", it.ID)
-	if got.ProjectID != "ochazuke" || got.TaskID != "" {
+	if got.Project != "ochazuke" || got.Task != "" {
 		t.Fatalf("project.associate --action-item: %+v", got)
 	}
 	// Promote to a task under t1: a subtask; the item is archived and

@@ -193,3 +193,29 @@ func TestAssociatePromoteDelete(t *testing.T) {
 		t.Fatal("deleting a missing item succeeded")
 	}
 }
+
+// Put writes a row of its own (never merged with a duplicate), keeps an
+// id and times it is given, and stamps a new one.
+func TestPutWritesARowOfItsOwn(t *testing.T) {
+	s, _, clock := openStore(t)
+	first, _, err := s.Add(Spec{Source: "gh", URL: "https://x/1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	*clock = 2_000
+	made, err := s.Put(Item{URL: "https://x/1", Source: "GH", Title: "again"})
+	if err != nil || made.ID == "" || made.ID == first.ID || made.Source != "gh" || made.Created != 2_000 {
+		t.Fatalf("put: %+v %v", made, err)
+	}
+	back, err := s.Put(Item{ID: "kept", Created: 5, ReadAt: 7, Title: "old"})
+	if err != nil || back.ID != "kept" || back.Created != 5 || back.Source != ManualSource {
+		t.Fatalf("put kept: %+v %v", back, err)
+	}
+	if got, err := s.Get("kept"); err != nil || got.ReadAt != 7 || got.Title != "old" {
+		t.Fatalf("get: %+v %v", got, err)
+	}
+	all, _ := s.All()
+	if len(all) != 3 {
+		t.Fatalf("rows: %d", len(all))
+	}
+}

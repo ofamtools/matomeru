@@ -389,6 +389,9 @@ type App struct {
 	// savedForgotten are the records this session deleted, by id, so
 	// history.undo puts one back as it was (saved_store.go).
 	savedForgotten map[string]work.SavedPane
+	// actionForgotten are the action items this session deleted, by id, so
+	// history.undo puts one back as it was (action_item_store.go).
+	actionForgotten map[string]actionitems.Item
 	// writeVerb is the named verb running a standard write, the verb its
 	// jobs run under (pane_store.go jobVerb).
 	writeVerb string

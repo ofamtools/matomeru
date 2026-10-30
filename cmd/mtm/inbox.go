@@ -88,22 +88,19 @@ func (a *App) defineInbox() {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 	}
 	n := actionItemNoun
-	a.r.Define(n).Columns(inboxColumns...).
+	// Props and the store first: the standard verbs (get, list, create,
+	// set, delete, watch, move, duplicate, archive, restore) come from them
+	// (action_item_store.go); show, read, unread and toggle-read are
+	// aliases; snooze and associate run set; the rest are mtm's own.
+	a.r.Define(n).Props(actionItemProps()...).Store(a.actionItemStore()).Columns(inboxColumns...).
 		Verb("add", a.addActionItem, "Record an action item; the same source and --key (else --url) refreshes its row instead of adding one. Prints the item; new is true when a row was added").
-		Verb("list", a.listActionItems, "List action items: open ones by default; --state snoozed, archived or all").Rows(n).Fetch().
-		Verb("show", a.showActionItem, "Show one action item").Positional("id").Fetch().
 		Verb("count", a.countActionItems, "Count the open action items and the unread ones among them").Fetch().
 		Verb("open", a.openActionItem, "Open the item's URL in the browser and mark it read").Positional("id").
-		Verb("read", a.readActionItem, "Mark the item read").Positional("id").
-		Verb("unread", a.unreadActionItem, "Mark the item unread").Positional("id").
-		Verb("toggle-read", a.toggleReadActionItem, "Mark the item read, or a read item unread").Positional("id").
-		Verb("snooze", a.snoozeActionItem, "Hide the item until --until (a time) or for --for (90m, 4h, 2d, 1w); omitted, a chooser asks").Positional("id").Many().
-		Verb("archive", a.archiveActionItem, "Archive the item: it leaves the open items and keeps its row").Positional("id").
-		Verb("restore", a.restoreActionItem, "Make an archived or snoozed item open again").Positional("id").
-		Verb("delete", a.deleteActionItem, "Delete the item's row (archive keeps it)").Positional("id").Confirm("Delete {{label}}? x archives it instead.").
+		Verb("snooze", a.snoozeActionItem, "Hide the item until --until (a time) or for --for (90m, 4h, 2d, 1w), the standard set of snoozed-until; omitted, a chooser asks").Positional("id").Many().
 		Verb("promote-todo", a.promoteTodo, "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated); the item is archived and points at it").Positional("id").
 		Verb("promote-task", a.promoteTask, "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo").Positional("id").
-		Verb("associate", a.associateActionItem, "Associate the item with a project, task or pane (omit them to choose a project); --scratch unassociates it").Positional("id").Many().
+		Verb("associate", a.associateActionItem, "Choose the project to move the item to (omit the owner); --project, --task, --dir, --pane and --scratch are the deprecated forms of set").Positional("id").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice runs action-item.move").Many().
 		Mode("normal").
 		Bind("enter", ochazuke.Do(n+".open")).
 		Bind("u", ochazuke.Do(n+".toggle-read").Hinted("read/unread")).
@@ -112,8 +109,20 @@ func (a *App) defineInbox() {
 		Bind("s", ochazuke.Do(n+".snooze")).
 		Bind("t", ochazuke.Do(n+".promote-todo").Hinted("to todo")).
 		Bind("c", ochazuke.Do(n+".promote-task").Hinted("to task")).
-		Bind("m", ochazuke.Do(n+".associate")).
+		Bind("m", ochazuke.Do(n+".choose-move")).
 		Bind("d d", ochazuke.Do(n+".delete"))
+	// show is get under its old name; read, unread and toggle-read are the
+	// standard set of read (read shares the prop's name as its set).
+	for _, alias := range []ochazuke.ActionAlias{
+		{Alias: n + ".show", Action: n + ".get", Note: "the standard get: every prop of the item"},
+		{Alias: n + ".read", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "value": true}, Note: "the standard set of read"},
+		{Alias: n + ".unread", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "value": false}, Note: "the standard set of read, off"},
+		{Alias: n + ".toggle-read", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "toggle": true}, Note: "the standard set of read, flipped"},
+	} {
+		if err := a.r.AddActionAlias(alias); err != nil {
+			panic(err)
+		}
+	}
 	// I opens the inbox from anywhere: the Panes page, titled Inbox, whose
 	// top list is the open queue (panes_sections.go). A row to the
 	// framework's page.open; page.open inbox still opens every item.
@@ -134,14 +143,7 @@ func (a *App) defineInbox() {
 		add[k] = v
 	}
 	a.parameters(n+".add", add)
-	a.parameters(n+".list", map[string]ochazuke.Parameter{
-		"state":   {Type: "string", Enum: append([]string{"all"}, actionitems.States...), Description: "Which items (default open)"},
-		"source":  {Type: "string", Description: "Only this source's items"},
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "Only this project's items (id or name)"},
-	})
-	for _, verb := range []string{"show", "open", "read", "unread", "toggle-read", "archive", "restore", "delete"} {
-		a.parameters(n+"."+verb, map[string]ochazuke.Parameter{"id": inboxIDParam})
-	}
+	a.parameters(n+".open", map[string]ochazuke.Parameter{"id": inboxIDParam})
 	a.parameters(n+".snooze", map[string]ochazuke.Parameter{"id": inboxIDParam,
 		"until": {Type: "string", Description: "When it comes back: RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"},
 		"for":   {Type: "string", Description: "How long: 90m, 4h, 2d, 1w"}})
@@ -154,8 +156,9 @@ func (a *App) defineInbox() {
 		promoteTask[k] = v
 	}
 	a.parameters(n+".promote-task", promoteTask)
-	associate := map[string]ochazuke.Parameter{"id": inboxIDParam, "scratch": {Type: "boolean", Description: "Unassociate it"}}
+	associate := map[string]ochazuke.Parameter{"id": inboxIDParam, "scratch": {Type: "boolean", Description: "Deprecated: action-item move ID --to \"\" (unassociate it)"}}
 	for k, v := range inboxOwnerParams {
+		v.Description = "Deprecated (action-item set): " + v.Description
 		associate[k] = v
 	}
 	a.parameters(n+".associate", associate)
@@ -441,15 +444,6 @@ func (a *App) inboxChanged(it actionitems.Item, err error) ochazuke.Result {
 	return ochazuke.Done(itemView(it, a.inbox.items.Now()))
 }
 
-// inboxEdit runs change on the targeted item.
-func (a *App) inboxEdit(ctx ochazuke.Ctx, change func(id string) (actionitems.Item, error)) ochazuke.Result {
-	it, err := a.actionItemAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.inboxChanged(change(it.ID))
-}
-
 // actionOwner resolves the association arguments. Record first: an owner
 // that cannot be found is left out with a notice, never an error.
 func (a *App) actionOwner(args ochazuke.Arguments) (actionitems.Owner, string, error) {
@@ -540,41 +534,6 @@ func (a *App) addActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(addedItem{actionItemJSON: itemView(it, a.inbox.items.Now()), New: created, Notice: notice})
 }
 
-func (a *App) listActionItems(ctx ochazuke.Ctx) ochazuke.Result {
-	items, err := a.inbox.items.All()
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	state := ochazuke.StringArg(ctx.Args, "state", actionitems.StateOpen)
-	source := strings.ToLower(ochazuke.StringArg(ctx.Args, "source", ""))
-	project := ochazuke.StringArg(ctx.Args, "project", "")
-	if project != "" {
-		if id, ok := a.projectNamed(project); ok {
-			project = id
-		}
-	}
-	now := a.inbox.items.Now()
-	rows := []ocli.Row{}
-	for _, it := range items {
-		if state != "all" && it.State(now) != state || source != "" && it.Source != source {
-			continue
-		}
-		if project != "" && cmp.Or(it.ProjectID, a.taskProject(it.TaskID)) != project {
-			continue
-		}
-		rows = append(rows, a.inboxRow(it, now))
-	}
-	return ochazuke.Done(rows)
-}
-
-func (a *App) showActionItem(ctx ochazuke.Ctx) ochazuke.Result {
-	it, err := a.actionItemAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(itemView(it, a.inbox.items.Now()))
-}
-
 func (a *App) countActionItems(ochazuke.Ctx) ochazuke.Result {
 	c, err := a.inbox.items.Counts()
 	if err != nil {
@@ -605,44 +564,6 @@ func (a *App) openActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		return url, sys.Open(c, url)
 	})
-}
-
-func (a *App) readActionItem(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.inboxEdit(ctx, func(id string) (actionitems.Item, error) { return a.inbox.items.SetRead(id, true) })
-}
-
-func (a *App) unreadActionItem(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.inboxEdit(ctx, func(id string) (actionitems.Item, error) { return a.inbox.items.SetRead(id, false) })
-}
-
-func (a *App) toggleReadActionItem(ctx ochazuke.Ctx) ochazuke.Result {
-	it, err := a.actionItemAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.inboxChanged(a.inbox.items.SetRead(it.ID, !it.Read()))
-}
-
-func (a *App) archiveActionItem(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.inboxEdit(ctx, a.inbox.items.Archive)
-}
-
-func (a *App) restoreActionItem(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.inboxEdit(ctx, a.inbox.items.Restore)
-}
-
-func (a *App) deleteActionItem(ctx ochazuke.Ctx) ochazuke.Result {
-	it, err := a.actionItemAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.inbox.items.Delete(it.ID); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.refreshInbox(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(it.ID)
 }
 
 // snoozeChoices are the snooze chooser's rows: a label and its end.
@@ -719,15 +640,20 @@ func (a *App) snoozeOne(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
-		return a.inboxChanged(a.inbox.items.Snooze(it.ID, now.Add(d).UnixMilli()))
+		return a.snoozeTo(it.ID, now.Add(d).UnixMilli())
 	case hasUntil && until != "":
 		at, err := parseUntil(until, now)
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
-		return a.inboxChanged(a.inbox.items.Snooze(it.ID, at.UnixMilli()))
+		return a.snoozeTo(it.ID, at.UnixMilli())
 	}
 	return ochazuke.Failed(errors.New("snooze needs --for (90m, 4h, 2d, 1w) or --until (a time)"))
+}
+
+// snoozeTo is a snooze's write: the standard set of snoozed-until.
+func (a *App) snoozeTo(id string, until int64) ochazuke.Result {
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: actionItemNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "prop": "snoozed-until", "value": until}}))
 }
 
 // parseSpan reads a snooze length: a Go duration, or a count of days (d)
@@ -825,7 +751,9 @@ func (a *App) promoteActionItem(ctx ochazuke.Ctx, to string) ochazuke.Result {
 }
 
 // associateActionItem is action-item.associate. From a key with no owner
-// named, the project chooser asks, as m does on every row.
+// named, the project chooser asks, as m (choose-move) does on every row;
+// its choice runs the standard move. --project, --task, --dir, --pane and
+// --scratch are the deprecated form of set.
 func (a *App) associateActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	named := false
 	for _, k := range []string{"project", "dir", "task", "pane", "scratch"} {
@@ -836,11 +764,13 @@ func (a *App) associateActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	if !a.cli && !named && ctx.Instance != nil && ctx.Instance.Noun == actionItemNoun {
 		return a.moveTo(ctx, actionItemNoun)
 	}
+	associateNotice(ctx)
 	return ctx.Each(a.associateActionItemOne)
 }
 
-// associateActionItemOne is action-item.associate on one item, its owner
-// given.
+// associateActionItemOne is associate's old form on one item, its owner
+// given: the owner resolved as add resolves it (a name, a directory, a
+// pane's owner), written by the standard set.
 func (a *App) associateActionItemOne(ctx ochazuke.Ctx) ochazuke.Result {
 	it, err := a.actionItemAt(ctx)
 	if err != nil {
@@ -856,19 +786,14 @@ func (a *App) associateActionItemOne(ctx ochazuke.Ctx) ochazuke.Result {
 			ctx.Notify(notice)
 		}
 	}
-	return a.relateActionItem(it.ID, o)
+	return a.actionItemSet(it.ID, actionOwnerChanges(o))
 }
 
-// relateActionItem is the one handler behind action-item.associate and its
-// reverses on task, pane and project (relations.go).
-func (a *App) relateActionItem(id string, o actionitems.Owner) ochazuke.Result {
-	return a.inboxChanged(a.inbox.items.Associate(id, o))
-}
-
-// relateActionItemTo is action-item's relation: task, pane and project
-// associate --action-item ID.
+// relateActionItemTo is action-item's relation, the one handler behind
+// task, pane and project associate --action-item ID: the standard set of
+// the item's owner.
 func (a *App) relateActionItemTo(id string, o relOwner) ochazuke.Result {
-	return a.relateActionItem(id, actionitems.Owner{ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session})
+	return a.actionItemSet(id, actionOwnerChanges(actionitems.Owner{ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session}))
 }
 
 func isNotFound(err error) bool { return errors.Is(err, store.ErrNotFound) }

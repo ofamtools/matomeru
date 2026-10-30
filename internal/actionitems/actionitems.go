@@ -394,6 +394,24 @@ func (s *Store) Promoted(id, to string, t work.Task) (Item, error) {
 	})
 }
 
+// Put writes an item as it is, under its id (a new id when it has none):
+// one row of its own, never merged with a duplicate as Add merges (the
+// standard create, and an undone delete putting a row back). Its source is
+// manual when it names none; a new row is stamped.
+func (s *Store) Put(it Item) (Item, error) {
+	it.Source = cmp.Or(strings.ToLower(line(it.Source)), ManualSource)
+	if it.ID == "" {
+		it.ID = work.NewID()
+	}
+	now := s.now()
+	if it.Created == 0 {
+		it.Created = now
+	}
+	it.Updated = now
+	err := s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error { return tx.Put(Table.Name, it.ID, it) })
+	return it, err
+}
+
 // Delete removes an item.
 func (s *Store) Delete(id string) error {
 	return s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error {
