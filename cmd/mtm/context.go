@@ -29,7 +29,7 @@ import (
 // project · last seen · ★, starred first, then the newest sighting. It
 // follows the pin like every list (S shows all; no pin is every project).
 // f cycles the kind shown, / searches, and a row answers y (copy), o
-// (open), R (reveal), * (star) and d d (forget the record).
+// (open), R (reveal), * (star), m (move) and d d (forget the record).
 //
 // The noun is context-item, not context: ochazuke already registers a
 // context noun (context.select), and an app noun of the same name would
@@ -67,6 +67,9 @@ type contextState struct {
 	follow  *contextFollower   // continuous extraction (context_follow.go)
 	picking pane               // the pane the live picker was opened in (context_picker.go)
 	turns   []history.PaneTurn // the picked pane's turns, oldest first (its prompt rows)
+	// forgotten are the rows this session deleted, by id, so
+	// history.undo puts one back as it was (context_store.go).
+	forgotten map[string]contextitems.Item
 }
 
 // systemActions are the clipboard and the system opener; tests replace
@@ -127,14 +130,17 @@ func osc52(text string) string {
 
 func (a *App) defineContext() {
 	a.cx = &contextState{sys: osSystem{}, follow: newContextFollower()}
-	a.r.Define(contextNoun).Columns(contextColumns...).
-		Verb("list", a.listContext, "List context items in scope, starred first then newest; --kind narrows, --all widens past the pin").Rows(contextNoun).
+	// Props and the store first: the standard verbs (get, list, create,
+	// set, delete, watch, move, duplicate) come from them
+	// (context_store.go); forget is delete's lasting alias, star and
+	// associate run set and move; the rest are mtm's own.
+	a.r.Define(contextNoun).Props(contextProps()...).Store(a.contextStore()).Columns(contextColumns...).
 		Verb("copy", a.copyContext, "Copy the item's text to the clipboard (OSC 52 when no clipboard program serves the session)").Positional("id").
 		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
-		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred); starred items sort first").Positional("id").
-		Verb("associate", a.associateContext, "Associate the item with a task or project (omit them to choose a project); --scratch unassociates it").Positional("id").Many().
-		Verb("forget", a.forgetContext, "Forget the record only; the file, page or branch it names is untouched").Positional("id").Confirm("Forget {{label}}?").
+		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred; standard set of starred); starred items sort first").Positional("id").
+		Verb("associate", a.associateContext, "Choose the project to move the item to (omit the owner); --task, --project and --scratch are the deprecated forms of set task and move").Positional("id").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice runs context-item.move").Many().
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
 		Verb("turns", a.extractTurns, "Extract items from every journaled turn's prompt and answer now (new turns are extracted as they are journaled)").
 		Verb("follow", a.followPanes, "Read the panes that printed since the last read and keep what is new (runs by itself about once a second)").Quiet().
@@ -145,18 +151,24 @@ func (a *App) defineContext() {
 		Bind("o", ochazuke.Do(contextNoun+".open")).
 		Bind("R", ochazuke.Do(contextNoun+".reveal")).
 		Bind("*", ochazuke.Do(contextNoun+".star")).
-		Bind("d d", ochazuke.Do(contextNoun+".forget"))
+		Bind("m", ochazuke.Do(contextNoun+".choose-move")).
+		Bind("d d", ochazuke.Do(contextNoun+".delete"))
+	// forget is the noun's own word for delete (the record only), kept as
+	// a lasting alias: context-item forget ID works as before.
+	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: contextNoun + ".forget", Action: contextNoun + ".delete",
+		Note: "the record only; the file, page or branch it names is untouched"}); err != nil {
+		panic(err)
+	}
 	id := map[string]ochazuke.Parameter{"id": {Type: "string", Source: contextNoun + ".list", Description: "The item id; omitted, the selected row"}}
-	for _, verb := range []string{"copy", "open", "reveal", "forget"} {
+	for _, verb := range []string{"copy", "open", "reveal"} {
 		a.parameters(contextNoun+"."+verb, id)
 	}
 	a.parameters(contextNoun+".associate", map[string]ochazuke.Parameter{"id": id["id"],
-		"task":    {Type: "string", Noun: "task", Description: "The task id (its project follows)"},
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id; one not found is left out with a notice"},
-		"scratch": {Type: "boolean", Description: "Unassociate it"}})
+		"task":    {Type: "string", Noun: "task", Description: "Deprecated: context-item set ID task=TASK (its project follows)"},
+		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "Deprecated: context-item move ID --to PROJECT; one not found is left out with a notice"},
+		"scratch": {Type: "boolean", Description: "Deprecated: context-item move ID --to \"\" (unassociate it)"}})
 	a.parameters(contextNoun+".star", map[string]ochazuke.Parameter{"id": id["id"], "starred": {Type: "boolean", Description: "Set instead of toggling"}})
 	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
-	a.parameters(contextNoun+".list", map[string]ochazuke.Parameter{"kind": {Type: "string", Enum: contextitems.Kinds}, "all": {Type: "boolean", Description: "Every project, whatever the pin"}})
 	a.r.Define("context-search").Pin("insert").
 		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").
 		Mode("insert").Bind("enter", ochazuke.Do("context-search.done")).Bind("esc", ochazuke.Do("context-search.done")).Bind("down", ochazuke.Do("context-search.done"))
@@ -230,20 +242,13 @@ func (a *App) contextRows(kind, query string, all bool) []ocli.Row {
 	tasks := a.contextProjects()
 	now := time.Now()
 	var rows []ocli.Row
-	for _, it := range a.cx.items {
-		project := itemProject(it, tasks)
-		if !all && !a.inScope(project) || kind != "" && it.Kind != kind {
-			continue
-		}
-		cells := a.contextCells(it, project, now)
+	for _, it := range a.contextItemsIn(kind, all, tasks) {
+		cells := a.contextCells(it, itemProject(it, tasks), now)
 		if query != "" && !wordsMatch(query, strings.Join(cells, " ")) {
 			continue
 		}
 		rows = append(rows, ocli.Row{Noun: contextNoun, ID: it.ID, Label: it.Text, Cells: cells, Data: it})
 	}
-	slices.SortStableFunc(rows, func(x, y ocli.Row) int {
-		return cmpBool(y.Data.(contextitems.Item).Starred, x.Data.(contextitems.Item).Starred)
-	})
 	return rows
 }
 
@@ -388,15 +393,6 @@ func (a *App) contextAt(ctx ochazuke.Ctx) (contextitems.Item, error) {
 	return a.contexts.Get(id)
 }
 
-func (a *App) listContext(ctx ochazuke.Ctx) ochazuke.Result {
-	all, _ := ctx.Args["all"].(bool)
-	kind := ochazuke.StringArg(ctx.Args, "kind", "")
-	if err := a.reloadContextItems(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(a.contextRows(kind, "", all))
-}
-
 // reloadContextItems reads the items without pushing rows (the CLI).
 func (a *App) reloadContextItems() error {
 	items, err := a.contexts.All()
@@ -492,83 +488,9 @@ func (a *App) revealContext(ctx ochazuke.Ctx) ochazuke.Result {
 	})
 }
 
-// starContext is context-item.star (*): toggled, or set by --starred.
-func (a *App) starContext(ctx ochazuke.Ctx) ochazuke.Result {
-	it, err := a.contextAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	starred := !it.Starred
-	if v, ok := ctx.Args["starred"].(bool); ok {
-		starred = v
-	}
-	if it, err = a.contexts.SetStarred(it.ID, starred); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.reloadContext(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(it)
-}
-
 // contextRelateParam is the context item task.associate and
 // project.associate relate (relations.go).
 var contextRelateParam = ochazuke.Parameter{Type: "string", Noun: contextNoun, Source: contextNoun + ".list", Free: true, Description: "A context item to associate with this one"}
-
-// associateContext is context-item.associate. From a key with no owner
-// named, the project chooser asks, as m does on every row.
-func (a *App) associateContext(ctx ochazuke.Ctx) ochazuke.Result {
-	if a.moving(ctx) && ctx.Instance.Noun == contextNoun {
-		return a.moveTo(ctx, contextNoun)
-	}
-	return ctx.Each(a.associateContextOne)
-}
-
-// associateContextOne is context-item.associate on one item, its owner
-// given: the relation's relate, as the reverse verbs run it.
-func (a *App) associateContextOne(ctx ochazuke.Ctx) ochazuke.Result {
-	it, err := a.contextAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	o, err := a.resolveOwner(ochazuke.Ctx{}, ctx.Args)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if o.Notice != "" {
-		ctx.Notify(o.Notice)
-	}
-	return a.relateContextItemTo(it.ID, relOwner{ProjectID: o.ProjectID, TaskID: o.TaskID})
-}
-
-// relateContextItemTo is the one handler behind context-item.associate and
-// its reverses, task.associate and project.associate --context-item ID.
-func (a *App) relateContextItemTo(id string, o relOwner) ochazuke.Result {
-	it, err := a.contexts.Associate(id, contextitems.Owner{ProjectID: o.ProjectID, TaskID: o.TaskID})
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.reloadContext(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(it)
-}
-
-// forgetContext is context-item.forget (d d, confirmed): the record only.
-func (a *App) forgetContext(ctx ochazuke.Ctx) ochazuke.Result {
-	it, err := a.contextAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.contexts.Forget(it.ID); err != nil {
-		return ochazuke.Failed(err)
-	}
-	a.cx.follow.forget(it)
-	if err := a.reloadContext(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(map[string]any{"id": it.ID, "forgotten": true})
-}
 
 // cycleContextKind is context-item.kind (f): all, then each kind.
 func (a *App) cycleContextKind(ochazuke.Ctx) ochazuke.Result {

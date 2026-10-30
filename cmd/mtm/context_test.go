@@ -224,9 +224,10 @@ func TestContextCopyFallsBackToOSC52(t *testing.T) {
 	}
 }
 
-// context-item.associate and its reverses, task.associate and
-// project.associate --context-item, share one handler: the item's owner
-// is what the last call named.
+// context-item.associate's old forms and its reverses, task.associate and
+// project.associate --context-item, run the standard set and move: the
+// item's owner is what the last call named, and each answers the item's
+// props (project, task).
 func TestContextItemAssociateBothWays(t *testing.T) {
 	a := openWith(t, Options{Data: seeded(t)})
 	items, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/a"}}, contextitems.Owner{}, 1)
@@ -234,32 +235,33 @@ func TestContextItemAssociateBothWays(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := items[0].ID
-	var got contextitems.Item
-	cliJSON(t, a, &got, "context-item", "associate", id, "--task", "t2")
-	if got.TaskID != "t2" || got.ProjectID != "" {
-		t.Fatalf("associate --task: %+v", got)
+	owner := func(args ...string) (string, string) {
+		t.Helper()
+		var got map[string]any
+		cliJSON(t, a, &got, args...)
+		p, _ := got["project"].(string)
+		k, _ := got["task"].(string)
+		return p, k
 	}
-	got = contextitems.Item{}
-	cliJSON(t, a, &got, "context-item", "associate", id, "--project", "ochazuke")
-	if got.ProjectID != "ochazuke" || got.TaskID != "" {
-		t.Fatalf("associate --project: %+v", got)
+	if p, k := owner("context-item", "associate", id, "--task", "t2"); k != "t2" || p != "matomeru" {
+		t.Fatalf("associate --task: %q %q", p, k)
 	}
-	got = contextitems.Item{}
-	cliJSON(t, a, &got, "context-item", "associate", id, "--scratch")
-	if got.ProjectID != "" || got.TaskID != "" {
-		t.Fatalf("associate --scratch: %+v", got)
+	if stored, _ := a.contexts.Get(id); stored.TaskID != "t2" || stored.ProjectID != "" {
+		t.Fatalf("a task owner keeps the project empty: %+v", stored)
 	}
-	got = contextitems.Item{}
-	cliJSON(t, a, &got, "task", "associate", "--target", "t1", "--context-item", id)
-	if got.TaskID != "t1" || got.ProjectID != "" {
-		t.Fatalf("task.associate --context-item: %+v", got)
+	if p, k := owner("context-item", "associate", id, "--project", "ochazuke"); p != "ochazuke" || k != "" {
+		t.Fatalf("associate --project: %q %q", p, k)
 	}
-	got = contextitems.Item{}
-	cliJSON(t, a, &got, "project", "associate", "--target", "matomeru", "--context-item", id)
-	if got.ProjectID != "matomeru" || got.TaskID != "" {
-		t.Fatalf("project.associate --context-item: %+v", got)
+	if p, k := owner("context-item", "associate", id, "--scratch"); p != "" || k != "" {
+		t.Fatalf("associate --scratch: %q %q", p, k)
 	}
-	if stored, _ := a.contexts.Get(id); stored.ProjectID != "matomeru" {
+	if p, k := owner("task", "associate", "--target", "t1", "--context-item", id); k != "t1" || p != "matomeru" {
+		t.Fatalf("task.associate --context-item: %q %q", p, k)
+	}
+	if p, k := owner("project", "associate", "--target", "matomeru", "--context-item", id); p != "matomeru" || k != "" {
+		t.Fatalf("project.associate --context-item: %q %q", p, k)
+	}
+	if stored, _ := a.contexts.Get(id); stored.ProjectID != "matomeru" || stored.TaskID != "" {
 		t.Fatalf("stored %+v", stored)
 	}
 	// Both reverse verbs declare the noun-typed parameter; pane does not

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/matomeru/store"
 	"github.com/unixsuperhero/ochazuke"
 )
 
@@ -303,19 +304,29 @@ func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) o
 
 // newTask is task.new, a wrap of the standard create: the owner is
 // inferred as it always was (resolveOwner: --parent, the selected row,
-// --task or --project, scratch for none; a --parent not found is refused)
+// --task or --project, scratch for none; a --parent not found is a
+// notice and the task is saved at the top level)
 // and passed to create. Without a title it opens the editor on a new
 // task, written at once (record first). It answers the stored task as it
 // always has (scripts read project_id and parent_id).
 func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 	args := ctx.Args
-	if parent := ochazuke.StringArg(args, "parent", ""); parent != "" {
-		// A subtask belongs to its parent's project, whatever the pin.
-		if _, err := a.work.Task(parent); err != nil {
+	parent := ochazuke.StringArg(args, "parent", "")
+	if parent != "" {
+		// A subtask belongs to its parent's project, whatever the pin. A
+		// parent not found is never a refusal (record first): the task
+		// is saved at the top level, its owner inferred as without one.
+		_, err := a.work.Task(parent)
+		switch {
+		case err == nil:
+			args = maps.Clone(args)
+			args["task"] = parent
+		case errors.Is(err, store.ErrNotFound):
+			ctx.Notify(fmt.Sprintf("unknown task %s; saved at the top level", parent))
+			parent = ""
+		default:
 			return ochazuke.Failed(fmt.Errorf("parent task %s: %w", parent, err))
 		}
-		args = maps.Clone(args)
-		args["task"] = parent
 	}
 	owner, err := a.resolveOwner(ctx, args)
 	if err != nil {
@@ -337,7 +348,7 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	// The standard create with the owner resolved here, so create's focus
 	// fill never second-guesses it.
-	args = ochazuke.Arguments{"title": ochazuke.StringArg(ctx.Args, "title", ""), "project": owner.ProjectID, "parent": ochazuke.StringArg(ctx.Args, "parent", "")}
+	args = ochazuke.Arguments{"title": ochazuke.StringArg(ctx.Args, "title", ""), "project": owner.ProjectID, "parent": parent}
 	out, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "create", Args: args})
 	if err != nil {
 		return ochazuke.Failed(err)

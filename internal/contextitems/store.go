@@ -252,3 +252,35 @@ func (s *Store) Associate(id string, owner Owner) (Item, error) {
 	})
 	return it, err
 }
+
+// Update changes one item in a transaction: change edits the stored row,
+// which is written back as it leaves it (every field it does not touch,
+// its sightings and provenance among them, is kept). A task owner keeps
+// the project empty, as Merge stores it.
+func (s *Store) Update(id string, change func(*Item)) (Item, error) {
+	var it Item
+	err := s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error {
+		if err := tx.Get(Table.Name, id, &it); err != nil {
+			return fmt.Errorf("context item %s: %w", id, err)
+		}
+		change(&it)
+		it.ID = id
+		if it.TaskID != "" {
+			it.ProjectID = ""
+		}
+		return tx.Put(Table.Name, id, it)
+	})
+	return it, err
+}
+
+// Put writes one item as it is, under its id (a new row, or one put back
+// after Forget). A task owner keeps the project empty, as Merge stores it.
+func (s *Store) Put(it Item) error {
+	if it.ID == "" {
+		return errors.New("context item: no id")
+	}
+	if it.TaskID != "" {
+		it.ProjectID = ""
+	}
+	return s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error { return tx.Put(Table.Name, it.ID, it) })
+}

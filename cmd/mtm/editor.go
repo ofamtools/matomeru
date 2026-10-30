@@ -186,41 +186,21 @@ func (a *App) defineRecordEditor() {
 }
 
 // titleField is the field a draft's Text holds (an older mtm's drafts):
-// the noun's editorText when it names one (a note's body), else the first
-// field of its schema.
+// the noun's editorText when it names one (a note's body, a project's
+// name), else the title.
 func (a *App) titleField(noun string) string {
 	if f := a.editorText[noun]; f != "" {
 		return f
 	}
-	if noun == "project" {
-		return "name"
-	}
 	return "title"
 }
 
-// recordFields is a noun's editor schema: its props' fields when it has
-// them (editorFields), else the hand-written schema. The status and
-// harness are chosen from the same lists s and L offer (never free text;
-// UX review 2 F2).
+// recordFields is a noun's editor schema, read from its props
+// (editorFields). The status and harness are chosen from the same lists s
+// and L offer (never free text; UX review 2 F2).
 func (a *App) recordFields(noun string) []ochazuke.RecordField {
 	if fields := a.editorFields[noun]; fields != nil {
 		return fields()
-	}
-	return recordFields(noun)
-}
-
-// recordFields is the schema of a noun without props (project).
-func recordFields(noun string) []ochazuke.RecordField {
-	text := ochazuke.Parameter{Type: "string"}
-	switch noun {
-	case "project":
-		return []ochazuke.RecordField{
-			{Name: "name", Parameter: text},
-			{Name: "color", Parameter: text},
-			{Name: "glyph", Parameter: text},
-			{Name: "harness", Parameter: ochazuke.Parameter{Type: "string", Source: "harness.names"}},
-			{Name: "preset", Parameter: text},
-		}
 	}
 	return nil
 }
@@ -382,22 +362,6 @@ func (a *App) storeRecord(e *recordEditor, values ochazuke.Record) error {
 		_, err = save(record, values)
 	} else {
 		switch record.Noun {
-		case "project":
-			p := work.Project{ID: record.ID, Status: "open", Created: work.Now()}
-			if !record.New {
-				p, err = a.work.Project(record.ID)
-			}
-			if err != nil {
-				break
-			}
-			p.Name = strings.TrimSpace(record.Text)
-			p.Theme = work.Theme{Color: values["color"], Glyph: values["glyph"]}
-			harness := values["harness"]
-			if !a.knownHarness(harness) {
-				harness = p.Settings.Harness // an unknown harness is never written
-			}
-			p.Settings = work.ProjectSettings{Harness: harness, Preset: values["preset"]}
-			err = a.work.PutProject(p)
 		case "task":
 			t := work.Task{ID: record.ID, ProjectID: record.ProjectID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Status: work.StatusTodo, Created: work.Now()}
 			if record.New {
@@ -480,16 +444,12 @@ func (a *App) finishEdit(record editRecord) error {
 	if finish := a.editorFinish[record.Noun]; finish != nil {
 		return finish(record)
 	}
-	list := a.taskList
-	if record.Noun == "project" {
-		list = a.projectList
-	}
 	if a.r.Instances[record.ID] != nil {
-		if err := list.Select(record.ID); err != nil {
+		if err := a.taskList.Select(record.ID); err != nil {
 			return err
 		}
 	}
-	return list.Focus()
+	return a.taskList.Focus()
 }
 func (a *App) draftRecords(noun string) ([]editRecord, error) {
 	entries, err := a.drafts.List(noun)

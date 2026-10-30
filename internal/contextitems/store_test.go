@@ -135,3 +135,40 @@ func TestAssociateSetsTheOwner(t *testing.T) {
 		t.Fatal("associating a missing item succeeded")
 	}
 }
+
+// Update keeps every field it does not touch (a legacy row's sightings and
+// provenance), and a task owner keeps the project empty; Put writes a row
+// back under its id after Forget.
+func TestUpdateKeepsTheRowAndPutRestoresIt(t *testing.T) {
+	s, err := Open(legacyDB(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const id = "d282380401c62009ce27ec6e4ea0c6ed"
+	before, err := s.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Update(id, func(it *Item) { it.Starred, it.TaskID = true, "t1" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Starred || got.TaskID != "t1" || got.ProjectID != "" || !reflect.DeepEqual(got.Sources, before.Sources) || got.Provenance != before.Provenance {
+		t.Fatalf("update: %+v", got)
+	}
+	if _, err := s.Update("nope", func(*Item) {}); err == nil {
+		t.Fatal("update of a missing item succeeded")
+	}
+	if err := s.Forget(id); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Put(before); err != nil {
+		t.Fatal(err)
+	}
+	if back, err := s.Get(id); err != nil || !reflect.DeepEqual(back, before) {
+		t.Fatalf("put back: %+v %v", back, err)
+	}
+	if err := s.Put(Item{}); err == nil {
+		t.Fatal("put without an id succeeded")
+	}
+}

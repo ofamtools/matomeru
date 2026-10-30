@@ -108,7 +108,8 @@ func TestTaskRowToggleAndStatusChooser(t *testing.T) {
 }
 
 // mtm task status ID VALUE sets a status; an unknown value fails; task
-// done ID marks done; task new --parent nests under the parent's project.
+// done ID marks done; task new --parent nests under the parent's project,
+// and a parent not found saves the task at the top level.
 func TestCLITaskStatusDoneAndParent(t *testing.T) {
 	app, _ := cliApp(t)
 	mustCLI(t, app, "task", "status", "t1", "blocked")
@@ -131,8 +132,18 @@ func TestCLITaskStatusDoneAndParent(t *testing.T) {
 	if got.ParentID != "t1" || got.ProjectID != "matomeru" || got.Title != "a subtask" {
 		t.Fatalf("subtask %+v", got)
 	}
-	if _, _, err := cli(app, "", "task", "new", "orphan", "--parent", "nope"); err == nil {
-		t.Fatal("unknown parent succeeded")
+	// A parent not found is never a refusal (record first): the task is
+	// saved at the top level, with a notice.
+	out, errOut, err := cli(app, "", "task", "new", "orphan", "--parent", "nope")
+	if err != nil || !strings.Contains(errOut, "unknown task nope; saved at the top level") {
+		t.Fatalf("unknown parent: %v %q", err, errOut)
+	}
+	var orphan work.Task
+	if err := json.Unmarshal([]byte(out), &orphan); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if got := stored(t, app, orphan.ID); got.ParentID != "" || got.ProjectID != "" || got.Title != "orphan" {
+		t.Fatalf("orphan %+v", got)
 	}
 	// No pin, no project: unassociated, never a guess.
 	out = mustCLI(t, app, "task", "new", "loose")

@@ -13,10 +13,13 @@ import (
 const unassociatedID = "no-project"
 
 func (a *App) defineProject() {
-	a.r.Define("project").Columns(projectColumns...).
+	// Props and the store first: the standard verbs (get, list, create,
+	// set, watch, rename, duplicate) come from them (project_store.go);
+	// new and edit wrap create and set; the rest are mtm's own.
+	a.r.Define("project").Props(projectProps()...).Store(a.projectStore()).Columns(projectColumns...).
 		Verb("open", a.openProject, "View project and tasks").
 		Verb("view", a.openProject, "View project and tasks").
-		Verb("edit", a.editProject, "Edit name, theme and launch settings").Positional("name").
+		Verb("edit", a.editProject, "Edit name, theme and launch settings (standard set of those given); omit arguments for the editor").Positional("name").
 		Verb("launch", a.launchRecord, "Launch an agent into this project's session").
 		Verb("directory", a.addProjectDirectory, "Attach directory; omit path to choose").Positional("path").
 		Verb("default", a.defaultProjectDirectory, "Set default directory").Positional("path").
@@ -28,36 +31,53 @@ func (a *App) defineProject() {
 		Bind("l", ochazuke.Do("project.open")).
 		Bind("i", ochazuke.Do("project.edit")).Bind("L", ochazuke.Do("project.launch")).
 		Bind("c", ochazuke.Do("project.directory"))
-	a.parameters("project.edit", map[string]ochazuke.Parameter{"name": {Type: "string"}, "color": {Type: "string"}, "glyph": {Type: "string"}, "harness": {Type: "string"}, "preset": {Type: "string"}})
+	a.parameters("project.edit", map[string]ochazuke.Parameter{"name": {Type: "string"}, "color": {Type: "string"}, "glyph": {Type: "string"}, "harness": {Type: "string", Source: "harness.names", Free: true}, "preset": {Type: "string"}})
+	a.editorFields["project"] = a.projectFields
+	a.editorText["project"] = "name"
+	a.editorSave["project"] = a.saveProjectRecord
+	a.editorFinish["project"] = func(record editRecord) error {
+		if a.r.Instances[record.ID] != nil {
+			if err := a.projectList.Select(record.ID); err != nil {
+				return err
+			}
+		}
+		return a.projectList.Focus()
+	}
 	a.parameters("project.directory", map[string]ochazuke.Parameter{"path": dirParam("The directory to attach (a missing one is attached and flagged); omitted, a chooser asks", true)})
 	a.parameters("project.default", map[string]ochazuke.Parameter{"path": {Type: "string"}})
 	a.parameters("project.remove-directory", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
 	a.parameters("project.edit-directory", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}, "to": dirParam("The new path (a missing one is attached and flagged)", true)})
 }
 
+// editProject is project.edit: without arguments it opens the editor on
+// the project; with name, color, glyph, harness or preset it is the
+// standard set of those given.
 func (a *App) editProject(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.work.Project(ctx.Instance.ID)
+	p, err := a.projectByID(ctx.Instance.ID)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	fields := map[string]string{"color": p.Theme.Color, "glyph": p.Theme.Glyph, "harness": p.Settings.Harness, "preset": p.Settings.Preset}
 	if len(ctx.Args) == 0 {
+		fields := map[string]string{"color": p.Theme.Color, "glyph": p.Theme.Glyph, "harness": p.Settings.Harness, "preset": p.Settings.Preset}
 		return resultError(a.beginEdit(editRecord{Noun: "project", ID: p.ID, Text: p.Name, Fields: fields}))
 	}
-	if name, ok := ctx.Args["name"]; ok {
-		p.Name = strings.TrimSpace(name.(string))
-	}
-	for key := range fields {
-		if value, ok := ctx.Args[key]; ok {
-			fields[key] = value.(string)
+	changes := map[string]any{}
+	for _, name := range projectEditorProps {
+		if _, present := ctx.Args[name]; present {
+			changes[name] = ochazuke.StringArg(ctx.Args, name, "")
 		}
 	}
-	p.Theme = work.Theme{Color: fields["color"], Glyph: fields["glyph"]}
-	p.Settings = work.ProjectSettings{Harness: fields["harness"], Preset: fields["preset"]}
-	if err := a.work.PutProject(p); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "set", Args: ochazuke.Arguments{"id": p.ID, "changes": changes}}); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.refreshProjects(); err != nil {
+	return a.storedProject(p.ID)
+}
+
+// storedProject answers the stored project, as project new and edit
+// always have (scripts read its trees and settings).
+func (a *App) storedProject(id string) ochazuke.Result {
+	p, err := a.projectByID(id)
+	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(p)
@@ -302,34 +322,30 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 }
 
 func (a *App) defineProjectCreation() {
-	a.r.Define("project").Verb("new", a.newProject, "Register a project; omit name to open a draft editor").Positional("name")
+	a.r.Define("project").Verb("new", a.newProject, "Register a project (standard create of name and dir); omit name to open the editor").Positional("name")
 	a.parameters("project.new", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "An empty name saves an untitled project"}, "dir": dirParam("Attach this directory and make it the default (a missing path is attached and flagged)", true)})
 	a.r.Define("unassociated").Verb("open", a.openUnassociated, "Show tasks with no project").
 		Mode("normal").Bind("enter", ochazuke.Do("unassociated.open"))
 }
 
+// newProject is project.new, a wrap of the standard create (name and
+// dir); without a name it opens the editor on a new project, written at
+// once (record first). It answers the stored project as it always has.
 func (a *App) newProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if _, present := ctx.Args["name"]; !present {
 		return resultError(a.beginEdit(editRecord{Noun: "project", ID: work.NewID(), New: true}))
 	}
-	p, err := a.work.AddProject(ochazuke.StringArg(ctx.Args, "name", ""))
+	args := ochazuke.Arguments{"name": ochazuke.StringArg(ctx.Args, "name", "")}
+	if dir := ochazuke.StringArg(ctx.Args, "dir", ""); dir != "" {
+		args["dir"] = dir
+	}
+	out, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "create", Args: args})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if dir := ochazuke.StringArg(ctx.Args, "dir", ""); dir != "" {
-		tree := inspectDirectory(expandPath(dir))
-		if _, err := a.work.AddTree(p.ID, tree); err != nil {
-			return ochazuke.Failed(err)
-		}
-		if p, err = a.work.SetDefaultTree(p.ID, tree.Path); err != nil {
-			return ochazuke.Failed(err)
-		}
-		a.directories.Ready = false
-	}
-	if err := a.refreshProjects(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(p)
+	thing, _ := out.(map[string]any)
+	id, _ := thing["id"].(string)
+	return a.storedProject(id)
 }
 
 func (a *App) openUnassociated(ochazuke.Ctx) ochazuke.Result {

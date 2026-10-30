@@ -241,7 +241,7 @@ func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
 	if !a.knownHarness("claude") || !a.knownHarness("") || a.knownHarness("bogusharness") {
 		t.Fatal("harness check")
 	}
-	if f := recordFields("project")[3]; f.Name != "harness" || f.Source != "harness.names" || f.Free {
+	if f := a.recordFields("project")[3]; f.Name != "harness" || f.Source != "harness.names" || f.Free {
 		t.Fatalf("harness field %+v", f)
 	}
 }
