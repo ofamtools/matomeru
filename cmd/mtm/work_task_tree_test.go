@@ -1,9 +1,13 @@
 package main
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
@@ -117,22 +121,33 @@ func TestTaskKeysWorkOnASubtaskRow(t *testing.T) {
 func TestTaskPickerShowsTheAncestorPath(t *testing.T) {
 	a := pinned(t)
 	nestedTasks(t, a)
-	label := func() string {
+	row := func() ochazuke.ChooserRow {
 		for _, r := range a.taskPickerRows(work.Assignment{}) {
 			if r.ID == "task:t5" {
-				return r.Label
+				return r
 			}
 		}
 		t.Fatal("no t5 row")
-		return ""
+		return ochazuke.ChooserRow{}
 	}
-	if got := label(); !strings.HasPrefix(got, "[ ] write the brief › outline the store › list the queries") {
-		t.Fatalf("label %q", got)
+	got := row()
+	if !strings.HasPrefix(got.Label, "[ ] write the brief › outline the store › list the queries") {
+		t.Fatalf("label %q", got.Label)
+	}
+	// The ancestors and their separators draw in the muted task.path tone;
+	// the task's own title does not.
+	prefix := "write the brief › outline the store › "
+	want := []ochazuke.ToneSpan{ochazuke.SpanTone(0, 4, 4+utf8.RuneCountInString(prefix), toneTaskPath)}
+	if !reflect.DeepEqual(got.Tones, want) {
+		t.Fatalf("tones %+v, want %+v", got.Tones, want)
+	}
+	if style, ok := a.m.Appearance.AppTones.Rows()[toneTaskPath]; !ok || style.Fg.Dark != "muted" {
+		t.Fatalf("task.path tone row %+v (declared %v)", style, ok)
 	}
 	if err := a.r.Settings().Set(settingTaskPickerPath, false); err != nil {
 		t.Fatal(err)
 	}
-	if got := label(); !strings.HasPrefix(got, "[ ] list the queries") {
-		t.Fatalf("path off: label %q", got)
+	if got := row(); !strings.HasPrefix(got.Label, "[ ] list the queries") || got.Tones != nil {
+		t.Fatalf("path off: label %q tones %+v", got.Label, got.Tones)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/unixsuperhero/ochazuke"
 
@@ -233,9 +234,9 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.ChooserRow {
 	}
 	withPath := a.r.Settings().Bool(settingTaskPickerPath)
 	taskRow := func(t work.Task, current bool) ochazuke.ChooserRow {
-		label := taskLabel(t)
+		label, tones := taskLabel(t), []ochazuke.ToneSpan(nil)
 		if withPath {
-			label = taskPathLabel(t, byID)
+			label, tones = taskPathLabel(t, byID)
 		}
 		if t.ProjectID != "" {
 			label += " · " + a.ownerLabel(t.ProjectID)
@@ -243,7 +244,7 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.ChooserRow {
 		if current {
 			label += " (current)"
 		}
-		return ochazuke.ChooserRow{ID: "task:" + t.ID, Label: label, Data: pickedOwner{project: t.ProjectID, task: t.ID}}
+		return ochazuke.ChooserRow{ID: "task:" + t.ID, Label: label, Tones: tones, Data: pickedOwner{project: t.ProjectID, task: t.ID}}
 	}
 	projectRow := func(p work.Project, current bool) ochazuke.ChooserRow {
 		label := projectName(p) + " · no task"
@@ -332,13 +333,26 @@ func taskPath(t work.Task, byID map[string]work.Task) []string {
 	return path
 }
 
-// taskPathLabel is taskLabel with t's ancestors before its title:
-// "[ ] parent › child".
-func taskPathLabel(t work.Task, byID map[string]work.Task) string {
+// toneTaskPath is the tone of a task path's ancestors in the task picker
+// ("parent › " before "child"): muted, so the task's own title stands
+// out. A themes.json tones row of this name restyles it.
+const toneTaskPath = "task.path"
+
+// declareTaskTones declares mtm's task tone rows over the theme's.
+func (a *App) declareTaskTones() {
+	a.m.Appearance.SetTone(toneTaskPath, ochazuke.ToneStyle{Fg: ochazuke.SchemeColor{Light: "muted", Dark: "muted"}})
+}
+
+// taskPathLabel is taskLabel with t's ancestors before its title,
+// "[ ] parent › child", and the tone that draws the ancestors and their
+// separators ("parent › ") in toneTaskPath; no tone without ancestors.
+func taskPathLabel(t work.Task, byID map[string]work.Task) (string, []ochazuke.ToneSpan) {
 	path := taskPath(t, byID)
 	if len(path) == 0 {
-		return taskLabel(t)
+		return taskLabel(t), nil
 	}
-	t.Title = strings.Join(append(path, cmp.Or(t.Title, "untitled")), taskPathSep)
-	return taskLabel(t)
+	prefix := strings.Join(path, taskPathSep) + taskPathSep
+	from := utf8.RuneCountInString(work.StatusGlyph(t.Status) + " ")
+	t.Title = prefix + cmp.Or(t.Title, "untitled")
+	return taskLabel(t), []ochazuke.ToneSpan{ochazuke.SpanTone(0, from, from+utf8.RuneCountInString(prefix), toneTaskPath)}
 }
