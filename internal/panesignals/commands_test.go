@@ -35,6 +35,8 @@ func TestCommandRuleTable(t *testing.T) {
 		{"ignored in a pipe", ran(1, "git log | less", exit(0), time.Hour), map[string]bool{CommandsLong: false, CommandsAll: false}},
 		{"ignored by path after env", ran(1, "TERM=xterm /usr/bin/ssh host", exit(255), time.Hour), map[string]bool{CommandsFailed: false, CommandsAll: false}},
 		{"ignored after &&", ran(1, "cd x && nvim .", exit(0), time.Hour), map[string]bool{CommandsAll: false}},
+		{"ignored agent session", ran(1, "claude --resume", exit(0), 2*time.Hour), map[string]bool{CommandsLong: false, CommandsAll: false}},
+		{"ignored mtm by path", ran(1, "~/bin/mtm", exit(1), time.Hour), map[string]bool{CommandsFailed: false, CommandsAll: false}},
 		{"word not program", ran(1, "grep vim notes.txt", exit(1), time.Second), map[string]bool{CommandsFailed: true}},
 	}
 	for _, c := range cases {

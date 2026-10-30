@@ -78,7 +78,7 @@ func commandSettings() []ochazuke.Setting {
 				return nil
 			}},
 		{Name: settingTerminalIgnore, Type: ochazuke.SettingList, Default: panesignals.DefaultIgnore,
-			Description: "Programs whose terminal commands never raise an inbox item (full-screen and interactive ones): a command any of whose pipeline steps runs one, or a pane whose recorded program is one"},
+			Description: "Programs whose terminal commands never raise an inbox item (full-screen and interactive ones, and agent CLIs): a command any of whose pipeline steps runs one, or a pane whose recorded program is one"},
 	}
 }
 

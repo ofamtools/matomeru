@@ -57,8 +57,10 @@ const (
 var CommandModes = []string{CommandsOff, CommandsFailed, CommandsLong, CommandsAll}
 
 // DefaultIgnore are the programs whose commands never raise: full-screen
-// and interactive programs, which end when the person leaves them.
-var DefaultIgnore = []string{"vim", "nvim", "vi", "less", "more", "man", "ssh", "mosh", "tmux", "top", "htop", "btop", "watch", "tail"}
+// and interactive programs, which end when the person leaves them, and the
+// agent CLIs (and mtm itself), whose long sessions are not commands to review.
+var DefaultIgnore = []string{"vim", "nvim", "vi", "less", "more", "man", "ssh", "mosh", "tmux", "top", "htop", "btop", "watch", "tail",
+	"claude", "codex", "omp", "opencode", "aider", "gemini", "mtm"}
 
 // Finished is one finished command.
 type Finished struct {
