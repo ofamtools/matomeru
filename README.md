@@ -68,6 +68,26 @@ go install github.com/unixsuperhero/matomeru/cmd/mtm@latest
 
 From a checkout, `make install` (or `make build`, which writes `bin/mtm`) passes the version stamp: `-X main.version=… -X main.commit=…` with the tag from `git describe` (`make install VERSION=v0.1.0` overrides it). `mtm --version` prints the version, the commit and the ochazuke version; without the linker stamps it reads the build info the go command embeds.
 
+## Stories
+
+mtm's interactions are [monogatari](https://github.com/unixsuperhero/monogatari) stories: JSON keystroke scripts under `cmd/mtm/stories/<area>/` (areas `panes`, `inbox`, `tasks`), played headless against the real App with expectations on what the screen shows. They run in a separate tester build (build tag `monogatari`), `mtm-story`, never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
+
+Each session is the real App on a temp database, a temp config directory and a socket nothing listens on, with a faked daemon, launcher, clipboard and opener (`cmd/mtm/storyfakes.go`), so a story never reaches your data, daemon or tuios session. Fixtures: `seeded` (docs/vhs/seed.sh's projects, tasks and notes, two inbox items and two fake panes; a story's `"seed": {"panes": [...]}` replaces the panes) and `empty`. `story` runs before any database opens and ignores `--data`, `--socket` and `--server`. The host keeps its own state under `mtm-story` (user stories in `$XDG_CONFIG_HOME/mtm-story/stories`, recordings in `$XDG_DATA_HOME/mtm-story`), so point those at a temp dir too:
+
+```sh
+make story-bin                                   # bin/mtm-story (make story-bin STORY_BIN=/tmp/x/mtm-story elsewhere)
+D=$(mktemp -d) && export HOME=$D XDG_CONFIG_HOME=$D/config XDG_DATA_HOME=$D/data XDG_STATE_HOME=$D/state
+unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_SOCKET
+bin/mtm-story story list                         # the stories by area
+bin/mtm-story story run panes                    # headless; non-zero exit on failure
+bin/mtm-story story open panes/rename-a-pane     # live, in the real chrome (a name prefix works too)
+bin/mtm-story story explore panes --steps 50     # the state explorer, headless
+bin/mtm-story story explore panes --watch --delay 500ms   # the explorer's watch page; q stops watching (the runs then finish headless)
+bin/mtm-story story help                         # every command: history, keep, replay, trim, verbs, catalog
+```
+
+The tests run every story through `host.Test` in the tagged build (`cmd/mtm/stories_test.go`; `-update` rewrites goldens): `make story-test` (`go vet` and `go test -race` with `-tags monogatari`). A UI bug becomes a story before it is fixed; a known gap is a story with `"skip": "gap: ..."`. Editors need `-tags monogatari` in gopls's build flags to see the tagged files.
+
 ## Live shell keys
 
 In a live pane every key goes to the program in it, except the `terminal-leader` setting (default `ctrl+a`). After the leader, the app's own normal-mode keys do what they do outside live: the same verb, and the same guard. The palette, settings and pickers open over the pane; closing them (`esc`) gives the pane its keys again.

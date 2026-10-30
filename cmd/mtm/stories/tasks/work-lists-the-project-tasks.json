@@ -1,0 +1,23 @@
+{
+  "name": "mtm: Work lists the projects and the selected project's tasks with their status",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j"
+  ],
+  "expect": [
+    {
+      "page": "work",
+      "contains": [
+        "projects (4)",
+        "acme-web · 1 active · 2 todo · 1 blocked · 1 done",
+        "[>] Checkout page: show the shipping estimate",
+        "[!] Upgrade the image CDN",
+        "[x] Dark mode for the order history",
+        "# Checkout release"
+      ]
+    }
+  ]
+}

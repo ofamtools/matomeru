@@ -1,0 +1,22 @@
+{
+  "name": "mtm: j on the project list shows the next project's tasks",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    "j"
+  ],
+  "expect": [
+    {
+      "contains": [
+        "billing-api · 1 active · 2 todo · 1 done",
+        "Retry failed webhooks with backoff"
+      ],
+      "lacks": [
+        "Checkout page: show the shipping estimate"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "mtm: with no panes, Panes says so and names the keys that start one",
+  "area": "panes",
+  "fixture": "empty",
+  "width": 100,
+  "height": 20,
+  "script": [],
+  "expect": [
+    {
+      "page": "panes",
+      "contains": [
+        "panes (0)",
+        "no panes",
+        "n opens a shell",
+        "L launches an agent"
+      ]
+    }
+  ]
+}

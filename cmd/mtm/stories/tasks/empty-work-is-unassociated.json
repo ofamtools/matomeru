@@ -1,0 +1,21 @@
+{
+  "name": "mtm: on a fresh database Work has only no project, with no tasks",
+  "area": "tasks",
+  "fixture": "empty",
+  "width": 100,
+  "height": 20,
+  "script": [
+    "ctrl+j"
+  ],
+  "expect": [
+    {
+      "page": "work",
+      "contains": [
+        "projects (1)",
+        "no project",
+        "tasks · unassociated",
+        "(empty list)"
+      ]
+    }
+  ]
+}

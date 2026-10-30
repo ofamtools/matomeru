@@ -1,0 +1,32 @@
+{
+  "name": "mtm: the Items page lists every action item, unread first, with its source and owner, and counts them in its title",
+  "area": "inbox",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+k",
+    "ctrl+k",
+    "ctrl+k",
+    "ctrl+k"
+  ],
+  "expect": [
+    {
+      "page": "inbox",
+      "contains": [
+        "inbox 1/2",
+        "inbox · 1 unread · 2 open · 2 in all",
+        "● Checkout: shipping",
+        "· standup notes",
+        "gh",
+        "slack",
+        "acme-web",
+        "unassociated"
+      ],
+      "order": [
+        "Checkout: shipping",
+        "standup notes"
+      ]
+    }
+  ]
+}

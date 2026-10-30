@@ -11,9 +11,29 @@ LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) \
 
 export GOWORK := off
 
-.PHONY: build install
+.PHONY: build install story-bin story-test split-check
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/mtm ./cmd/mtm
 
 install:
 	go install -trimpath -ldflags "$(LDFLAGS)" ./cmd/mtm
+
+# The story tester (-tags monogatari): mtm story run|open|list|explore|...
+# as bin/mtm-story, never installed over mtm. See README "Stories".
+STORY_BIN ?= bin/mtm-story
+story-bin:
+	go build -trimpath -tags monogatari -o $(STORY_BIN) ./cmd/mtm
+
+# The tagged build's vet and race suite: every test, the stories through
+# host.Test (cmd/mtm/stories_test.go).
+story-test:
+	go vet -tags monogatari ./...
+	go test -trimpath -race -tags monogatari ./...
+
+# A normal build links no monogatari; the tester does.
+split-check:
+	@mkdir -p bin
+	go build -trimpath -o bin/mtm ./cmd/mtm
+	@n=$$(go tool nm bin/mtm | grep -c monogatari); echo "mtm: $$n monogatari symbols"; test "$$n" -eq 0
+	$(MAKE) story-bin STORY_BIN=bin/mtm-story
+	@n=$$(go tool nm bin/mtm-story | grep -c monogatari); echo "mtm-story: $$n monogatari symbols"; test "$$n" -gt 0
