@@ -21,7 +21,7 @@ func TestPaneStarsSurviveARestartOnAnotherServer(t *testing.T) {
 	executeA(t, app, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
 	executeA(t, app, "scope", "all", "", nil)
 	for _, row := range []string{"pane:matomeru/w1", "pane:ochazuke/w2"} { // inside and outside the pin
-		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row, Args: ochazuke.Arguments{"starred": true}}); err != nil {
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row, Args: ochazuke.Arguments{"value": true}}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -40,12 +40,12 @@ func TestStarAPaneRow(t *testing.T) {
 		t.Fatalf("after * *: %+v", starred(t, app))
 	}
 	for range 2 {
-		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: "pane:ochazuke/w2", Args: ochazuke.Arguments{"starred": true}}); err != nil {
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: "pane:ochazuke/w2", Args: ochazuke.Arguments{"value": true}}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if _, ok := starred(t, app)["w2"]; !ok {
-		t.Fatalf("--starred: %+v", starred(t, app))
+		t.Fatalf("--value: %+v", starred(t, app))
 	}
 	// w2 is missing from a listing (another server's, or a partial one):
 	// its star stays, and the row reads ★ when the window is listed again.

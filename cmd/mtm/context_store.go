@@ -268,20 +268,6 @@ func (a *App) removeContextItem(c ochazuke.Ctx, id string) error {
 	return nil
 }
 
-// starContext is context-item.star (*): the standard set of starred,
-// toggled, or set by --starred.
-func (a *App) starContext(ctx ochazuke.Ctx) ochazuke.Result {
-	it, err := a.contextAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	args := ochazuke.Arguments{"id": it.ID, "prop": "starred", "toggle": true}
-	if v, ok := ctx.Args["starred"].(bool); ok {
-		args = ochazuke.Arguments{"id": it.ID, "prop": "starred", "value": v}
-	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "set", Args: args}))
-}
-
 // associateContext is context-item.associate. From a key or the palette
 // with no owner named, the project chooser asks (as m does), its choice
 // the standard move. --project and --scratch are the deprecated form of

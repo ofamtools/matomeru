@@ -353,17 +353,3 @@ func (a *App) relatePane(p pane, o Owner) ochazuke.Result {
 	}
 	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "changes": changes}}))
 }
-
-// starPane is pane.star (*): the standard set of starred, toggled, or set
-// by --starred.
-func (a *App) starPane(ctx ochazuke.Ctx) ochazuke.Result {
-	key, err := a.paneKey(ctx.Instance)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	args := ochazuke.Arguments{"id": key, "prop": "starred", "toggle": true}
-	if v, ok := ctx.Args["starred"].(bool); ok {
-		args = ochazuke.Arguments{"id": key, "prop": "starred", "value": v}
-	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: args}))
-}

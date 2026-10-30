@@ -138,7 +138,6 @@ func (a *App) defineContext() {
 		Verb("copy", a.copyContext, "Copy the item's text to the clipboard (OSC 52 when no clipboard program serves the session)").Positional("id").
 		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
-		Verb("star", a.starContext, "Star or unstar the item (toggles without --starred; standard set of starred); starred items sort first").Positional("id").
 		Verb("associate", a.associateContext, "Choose the project to move the item to (omit the owner); --task, --project and --scratch are the deprecated forms of set task and move").Positional("id").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice runs context-item.move").Many().
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
@@ -154,10 +153,15 @@ func (a *App) defineContext() {
 		Bind("m", ochazuke.Do(contextNoun+".choose-move")).
 		Bind("d d", ochazuke.Do(contextNoun+".delete"))
 	// forget is the noun's own word for delete (the record only), kept as
-	// a lasting alias: context-item forget ID works as before.
-	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: contextNoun + ".forget", Action: contextNoun + ".delete",
-		Note: "the record only; the file, page or branch it names is untouched"}); err != nil {
-		panic(err)
+	// a lasting alias: context-item forget ID works as before. star is the
+	// standard set of starred, toggled (starAlias).
+	for _, alias := range []ochazuke.ActionAlias{
+		{Alias: contextNoun + ".forget", Action: contextNoun + ".delete", Note: "the record only; the file, page or branch it names is untouched"},
+		starAlias(contextNoun),
+	} {
+		if err := a.r.AddActionAlias(alias); err != nil {
+			panic(err)
+		}
 	}
 	id := map[string]ochazuke.Parameter{"id": {Type: "string", Source: contextNoun + ".list", Description: "The item id; omitted, the selected row"}}
 	for _, verb := range []string{"copy", "open", "reveal"} {
@@ -167,7 +171,6 @@ func (a *App) defineContext() {
 		"task":    {Type: "string", Noun: "task", Description: "Deprecated: context-item set ID task=TASK (its project follows)"},
 		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "Deprecated: context-item move ID --to PROJECT; one not found is left out with a notice"},
 		"scratch": {Type: "boolean", Description: "Deprecated: context-item move ID --to \"\" (unassociate it)"}})
-	a.parameters(contextNoun+".star", map[string]ochazuke.Parameter{"id": id["id"], "starred": {Type: "boolean", Description: "Set instead of toggling"}})
 	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
 	a.r.Define("context-search").Pin("insert").
 		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").

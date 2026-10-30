@@ -15,6 +15,9 @@ func (a *App) defineOwners() {
 	a.r.Define("pane").Props(paneProps()...).Store(a.paneStore()).
 		Verb("associate", a.associatePane, "Choose the project to move the pane to (omit the owner); --action-item and --context-item relate those to it; --project, --task and --scratch are the deprecated forms of move and set").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice runs pane.move").Many()
+	if err := a.r.AddActionAlias(starAlias("pane")); err != nil { // * on a pane row (pane_stars.go)
+		panic(err)
+	}
 	a.r.Define("session").Props(sessionProps()...).Store(a.sessionStore()).
 		Verb("associate", a.associateSession, "Choose the project to move the session to (omit it); --project and --scratch are the deprecated form of move; panes with their own owner keep it").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice runs session.move").Many()
