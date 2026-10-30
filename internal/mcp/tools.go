@@ -22,7 +22,8 @@ func str(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
 
-// taskStatuses are the statuses task.status accepts.
+// taskStatuses are the statuses task.status (the standard set of status)
+// accepts.
 var taskStatuses = []string{"todo", "active", "blocked", "done"}
 
 // defaultTools is the tool table: matomeru-old's names and argument
@@ -86,12 +87,12 @@ func toolWhoami(_ context.Context, _ *Server, id Identity, _ map[string]any) (an
 	return result, nil
 }
 
-// taskRow is the part of a task.list row the tools read; the rows are
-// returned as the operation printed them.
+// taskRow is the part of a task.list row (a task's props) the tools read;
+// the rows are returned as the operation printed them.
 type taskRow struct {
 	ID        string `json:"id"`
-	ParentID  string `json:"parent_id"`
-	ProjectID string `json:"project_id"`
+	ParentID  string `json:"parent"`
+	ProjectID string `json:"project"`
 	Status    string `json:"status"`
 	Updated   int64  `json:"updated"`
 }
@@ -210,7 +211,7 @@ func toolTaskStatus(ctx context.Context, s *Server, id Identity, args map[string
 	if expected := integer(args["expected_version"]); expected != 0 && expected != current.Updated {
 		return nil, &Error{Code: "version_conflict", Message: fmt.Sprintf("task %s is at version %d, not %d; re-read it", taskID, current.Updated, expected)}
 	}
-	task, err := s.run(ctx, "task", "status", map[string]any{"id": taskID, "status": status}, nil)
+	task, err := s.run(ctx, "task", "status", map[string]any{"id": taskID, "value": status}, nil)
 	if err != nil {
 		return nil, err
 	}

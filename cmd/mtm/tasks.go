@@ -14,49 +14,47 @@ import (
 
 func (a *App) defineTask() {
 	r := a.r
-	r.Define("task").Columns(taskColumns...).
-		Verb("list", a.listTasks, "List tasks, including unassociated tasks").Fetch().
+	// Props and the store first: the standard verbs (get, list, create,
+	// set, watch, rename, move, duplicate) come from them (task_store.go);
+	// new and edit wrap create and set; done and status are aliases of
+	// set; the rest are mtm's own.
+	r.Define("task").Props(taskProps()...).Store(a.taskStore()).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
-		Verb("edit", a.editTask, "Edit title and status; omit arguments for draft editor").Positional("title").
-		Verb("done", a.doneTask, "Mark the task done").Positional("id").
-		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo").
-		Verb("status", a.statusTask, "Set the task's status (todo, active, blocked, done); omit status to choose one").Positional("id", "status").Many().
-		Verb("new", a.newTask, "Add a task (under --parent, else the pin or no project); omit title to open the draft editor").Positional("title").
+		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").
+		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo (standard set of status)").
+		Verb("choose-status", a.chooseStatus, "Choose the task's status: todo, active, blocked or done; over a visual selection one choice sets every task (standard set of status)").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the task to (most recent first, unassociated last); the choice runs task.move").Many().
+		Verb("new", a.newTask, "Add a task (standard create: under --parent, else the pin or no project); omit title to open the draft editor").Positional("title").
 		Verb("launch", a.launchRecord, "Launch an agent on the task").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.edit")).Bind("l", ochazuke.Do("task.open")).Bind("L", ochazuke.Do("task.launch")).
-		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.status"))
-	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string"}})
+		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.choose-status")).
+		Bind("m", ochazuke.Do("task.choose-move"))
+	// done and status are the standard set with the status preset (2.5:
+	// task.status shares the prop's name as its set); the old arguments
+	// are set's: task done ID, task status ID STATUS.
+	for _, alias := range []ochazuke.ActionAlias{
+		{Alias: "task.done", Action: "task.set", Args: ochazuke.Arguments{"prop": "status", "value": work.StatusDone},
+			Note: "the standard set of status with done"},
+		{Alias: "task.status", Action: "task.set", Args: ochazuke.Arguments{"prop": "status"},
+			Note: "the standard set of status: task status ID STATUS; s (task.choose-status) chooses one"},
+	} {
+		if err := r.AddActionAlias(alias); err != nil {
+			panic(err)
+		}
+	}
+	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string", Enum: work.Statuses}})
 	a.parameters("task.new", map[string]ochazuke.Parameter{
 		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"}, "parent": {Type: "string"},
 	})
-	a.parameters("task.done", map[string]ochazuke.Parameter{"id": {Type: "string"}})
-	a.parameters("task.status", map[string]ochazuke.Parameter{"id": {Type: "string"}, "status": {Type: "string", Enum: work.Statuses}})
+	a.editorFields["task"] = a.taskFields
 }
 
 func (a *App) bindTaskStop() error {
 	row := ochazuke.Do("task.new")
 	row.Instance, row.Mode, row.Keys = "tasks", "normal", "n"
 	return a.r.Bind(row)
-}
-
-func (a *App) listTasks(ctx ochazuke.Ctx) ochazuke.Result {
-	scope := *a
-	if all, _ := ctx.Args["all"].(bool); all {
-		scope.all = true
-	}
-	tasks, err := a.work.Tasks("")
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	out := make([]work.Task, 0, len(tasks))
-	for _, task := range tasks {
-		if scope.inScope(task.ProjectID) {
-			out = append(out, task)
-		}
-	}
-	return ochazuke.Done(out)
 }
 
 func (a *App) refreshTasks() error {
@@ -189,90 +187,58 @@ func (a *App) openTask(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(t)
 }
 
+// editTask is task.edit: without arguments it opens the editor on the
+// task; with title or status it is the standard set of those given.
 func (a *App) editTask(ctx ochazuke.Ctx) ochazuke.Result {
-	if len(ctx.Args) == 0 {
-		t, err := a.task(ctx)
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		return resultError(a.beginEdit(editRecord{Noun: "task", ID: t.ID, Text: t.Title, ProjectID: t.ProjectID, Fields: map[string]string{"status": t.Status}}))
-	}
 	t, err := a.task(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if _, present := ctx.Args["title"]; present {
-		t.Title = ochazuke.StringArg(ctx.Args, "title", "")
+	if len(ctx.Args) == 0 {
+		return resultError(a.beginEdit(editRecord{Noun: "task", ID: t.ID, Text: t.Title, ProjectID: t.ProjectID, Fields: map[string]string{"status": t.Status}}))
 	}
-	if _, present := ctx.Args["status"]; present {
-		t.Status = ochazuke.StringArg(ctx.Args, "status", "")
-	}
-	t.Updated = work.Now()
-	err = a.work.PutTask(t)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.refreshTasks(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(t)
-}
-
-func (a *App) doneTask(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.changeTask(ctx, func(id string) (work.Task, error) { return a.work.Done(id) })
-}
-
-func (a *App) toggleTask(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.changeTask(ctx, a.work.ToggleDone)
-}
-
-// statusTask is task.status: the status argument sets it; without one a
-// chooser of the four statuses opens on the task.
-func (a *App) statusTask(ctx ochazuke.Ctx) ochazuke.Result {
-	if status, ok := ctx.Args["status"].(string); ok {
-		return ctx.Each(func(one ochazuke.Ctx) ochazuke.Result {
-			return a.changeTask(one, func(id string) (work.Task, error) { return a.work.SetStatus(id, status) })
-		})
-	}
-	t, err := a.taskArg(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if _, byID := ctx.Args["id"]; !byID && len(ctx.Subjects) > 1 {
-		// Over a visual selection: one chooser, its status for every task.
-		return resultError(a.openStatusChooserFor(t, len(ctx.Subjects), func(status string) ochazuke.Result {
-			return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "status", Target: ctx.Instance.ID, Subjects: ctx.SubjectIDs(), Args: ochazuke.Arguments{"status": status}}))
-		}))
-	}
-	return resultError(a.openStatusChooser(t, a.refreshTasks))
-}
-
-// taskArg is the task an id argument names, else the selected task.
-func (a *App) taskArg(ctx ochazuke.Ctx) (work.Task, error) {
-	if id, ok := ctx.Args["id"].(string); ok && id != "" {
-		t, err := a.work.Task(id)
-		if err != nil {
-			return work.Task{}, fmt.Errorf("task %s: %w", id, err)
+	changes := map[string]any{}
+	for _, name := range []string{"title", "status"} {
+		if _, present := ctx.Args[name]; present {
+			changes[name] = ochazuke.StringArg(ctx.Args, name, "")
 		}
-		return t, nil
 	}
-	return a.task(ctx)
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "changes": changes}}))
 }
 
-// changeTask applies change to the task taskArg names and reloads the
-// task rows (and the open todo outline).
-func (a *App) changeTask(ctx ochazuke.Ctx, change func(id string) (work.Task, error)) ochazuke.Result {
-	t, err := a.taskArg(ctx)
+// toggleTask is task.toggle (x): the standard set of status, done for a
+// task that is not, todo for a done one.
+func (a *App) toggleTask(ctx ochazuke.Ctx) ochazuke.Result {
+	t, err := a.task(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if t, err = change(t.ID); err != nil {
+	status := work.StatusDone
+	if t.Status == work.StatusDone {
+		status = work.StatusTodo
+	}
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "prop": "status", "value": status}}))
+}
+
+// chooseStatus is task.choose-status (s): a chooser of the four statuses
+// on the task, or one for every task of a visual selection; the choice is
+// the standard set of status over them (one undo group).
+func (a *App) chooseStatus(ctx ochazuke.Ctx) ochazuke.Result {
+	t, err := a.task(ctx)
+	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.refreshTasks(); err != nil {
-		return ochazuke.Failed(err)
+	var subjects []string
+	if len(ctx.Subjects) > 1 {
+		subjects = ctx.SubjectIDs()
 	}
-	return ochazuke.Done(t)
+	return resultError(a.openStatusChooserFor(t, max(len(subjects), 1), func(status string) ochazuke.Result {
+		q := ochazuke.Request{Noun: "task", Verb: "set", Target: ctx.Instance.ID, Subjects: subjects, Args: ochazuke.Arguments{"prop": "status", "value": status}}
+		if subjects == nil {
+			q.Args["id"] = t.ID
+		}
+		return resultOf(a.r.Execute(q))
+	}))
 }
 
 // statusChooser is the status chooser's modal kind.
@@ -335,6 +301,12 @@ func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) o
 	return err
 }
 
+// newTask is task.new, a wrap of the standard create: the owner is
+// inferred as it always was (resolveOwner: --parent, the selected row,
+// --task or --project, scratch for none; a --parent not found is refused)
+// and passed to create. Without a title it opens the editor on a new
+// task, written at once (record first). It answers the stored task as it
+// always has (scripts read project_id and parent_id).
 func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 	args := ctx.Args
 	if parent := ochazuke.StringArg(args, "parent", ""); parent != "" {
@@ -363,16 +335,17 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return ochazuke.Done(owner)
 	}
-	var t work.Task
-	if parent := ochazuke.StringArg(ctx.Args, "parent", ""); parent != "" {
-		t, err = a.work.AddSubtask(owner.ProjectID, parent, ochazuke.StringArg(ctx.Args, "title", ""))
-	} else {
-		t, err = a.work.AddTask(owner.ProjectID, ochazuke.StringArg(ctx.Args, "title", ""))
-	}
+	// The standard create with the owner resolved here, so create's focus
+	// fill never second-guesses it.
+	args = ochazuke.Arguments{"title": ochazuke.StringArg(ctx.Args, "title", ""), "project": owner.ProjectID, "parent": ochazuke.StringArg(ctx.Args, "parent", "")}
+	out, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "create", Args: args})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.refreshTasks(); err != nil {
+	thing, _ := out.(map[string]any)
+	id, _ := thing["id"].(string)
+	t, err := a.taskByID(id)
+	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	if a.inScope(t.ProjectID) {

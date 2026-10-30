@@ -64,35 +64,45 @@ func (a *App) confirmDeleting(ctx ochazuke.Ctx, impact func(*ochazuke.Instance) 
 }
 
 func (a *App) deleteRecord(ctx ochazuke.Ctx) ochazuke.Result {
-	noun, id := ctx.Instance.Noun, ctx.Instance.ID
-	counts, err := a.work.Delete(noun, id)
+	counts, err := a.deleteThing(ctx, ctx.Instance.Noun, ctx.Instance.ID)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	return ochazuke.Done(counts)
+}
+
+// deleteThing deletes a project or task and orphans what it held (the
+// confirmed delete, and the task store's Delete), then reloads every view
+// that may show it.
+func (a *App) deleteThing(ctx ochazuke.Ctx, noun, id string) (work.DeleteCounts, error) {
+	counts, err := a.work.Delete(noun, id)
+	if err != nil {
+		return counts, err
+	}
 	if err := a.leaveEditor(); err != nil {
-		return ochazuke.Failed(err)
+		return counts, err
 	}
 	if err := a.orphanDrafts(noun, id); err != nil {
-		return ochazuke.Failed(err)
+		return counts, err
 	}
 	if a.pin, err = a.work.Pin(); err != nil {
-		return ochazuke.Failed(err)
+		return counts, err
 	}
 	a.pinVersion++
 	if noun == "project" && a.current == id {
 		a.current, a.tasksOpen = "", true
 	}
 	if err := a.refreshProjects(); err != nil {
-		return ochazuke.Failed(err)
+		return counts, err
 	}
 	if err := a.refreshScope(); err != nil {
-		return ochazuke.Failed(err)
+		return counts, err
 	}
 	if err := a.reloadOutline(); err != nil {
-		return ochazuke.Failed(err)
+		return counts, err
 	}
 	ctx.Notify(fmt.Sprintf("Deleted %s; orphaned %s. Directories and panes untouched.", noun, counts.String()))
-	return ochazuke.Done(counts)
+	return counts, nil
 }
 
 func (a *App) orphanDrafts(noun, id string) error {

@@ -209,15 +209,10 @@ func (a *App) recordFields(noun string) []ochazuke.RecordField {
 	return recordFields(noun)
 }
 
-// recordFields is the schema of a noun without props (task, project).
+// recordFields is the schema of a noun without props (project).
 func recordFields(noun string) []ochazuke.RecordField {
 	text := ochazuke.Parameter{Type: "string"}
 	switch noun {
-	case "task":
-		return []ochazuke.RecordField{
-			{Name: "title", Parameter: ochazuke.Parameter{Type: "string", Required: true}},
-			{Name: "status", Parameter: ochazuke.Parameter{Type: "string", Required: true, Enum: work.Statuses}},
-		}
 	case "project":
 		return []ochazuke.RecordField{
 			{Name: "name", Parameter: text},

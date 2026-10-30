@@ -178,10 +178,10 @@ func TestTaskToolsDefaultToThePaneAndCallTheOperations(t *testing.T) {
 	f := &fakeBackend{
 		id: Identity{TaskID: "t1", ProjectID: "p1"},
 		tasks: []map[string]any{
-			{"id": "t1", "project_id": "p1", "status": "active", "updated": 5},
-			{"id": "t2", "parent_id": "t1", "status": "todo", "updated": 1},
-			{"id": "t3", "project_id": "p1", "status": "todo", "updated": 1},
-			{"id": "t4", "project_id": "p2", "status": "todo", "updated": 1},
+			{"id": "t1", "project": "p1", "status": "active", "updated": 5},
+			{"id": "t2", "parent": "t1", "status": "todo", "updated": 1},
+			{"id": "t3", "project": "p1", "status": "todo", "updated": 1},
+			{"id": "t4", "project": "p2", "status": "todo", "updated": 1},
 		},
 	}
 	s := newServer(t, f)
@@ -228,7 +228,7 @@ func TestTaskToolsDefaultToThePaneAndCallTheOperations(t *testing.T) {
 	if _, err := s.Call(ctx, pane, "task_status", map[string]any{"status": "blocked", "expected_version": 5, "blocker": "waiting on review"}); err != nil {
 		t.Fatal(err)
 	}
-	want = []string{`task.list {"all":true}`, `task.status {"id":"t1","status":"blocked"}`, `note.new {"task":"t1","text":"status: active → blocked\nblocker: waiting on review"}`}
+	want = []string{`task.list {"all":true}`, `task.status {"id":"t1","value":"blocked"}`, `note.new {"task":"t1","text":"status: active → blocked\nblocker: waiting on review"}`}
 	if !reflect.DeepEqual(f.runs, want) {
 		t.Fatalf("task_status runs %v, want %v", f.runs, want)
 	}

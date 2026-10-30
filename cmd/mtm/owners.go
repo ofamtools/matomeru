@@ -13,11 +13,15 @@ func (a *App) defineOwners() {
 	// no owner named, a chooser of projects asks (unassociated last).
 	a.r.Define("pane").Verb("associate", a.associatePane, "Move a pane to a task (--task) or a project (omit them to choose a project); scratch explicitly removes ownership").Many().Verb("list", a.listPanes, "List panes in scope; --all widens the list").Fetch()
 	a.r.Define("session").Verb("associate", a.associateSession, "Move a session to a project (omit it to choose); panes with their own row stay unchanged").Many().Verb("list", a.listSessions, "List sessions in scope; --all widens the list").Fetch()
-	a.r.Define("task").Verb("associate", a.associateTask, "Move a task to a project (omit it to choose), or scratch").Many().Mode("normal").Bind("m", ochazuke.Do("task.associate"))
+	// task.associate is the reverse of the relations (--pane,
+	// --action-item, --context-item: relations.go); its move form
+	// (--project, --task, --scratch) runs the standard task.move and is
+	// deprecated (m is task.choose-move).
+	a.r.Define("task").Verb("associate", a.associateTask, "Associate a thing with this task (--pane, --action-item or --context-item ID); --project, --task or --scratch is the deprecated form of task.move").Many()
 	for _, noun := range []string{"pane", "session", "task"} {
 		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	}
-	for _, noun := range []string{"pane", "session", "review", "task"} {
+	for _, noun := range []string{"pane", "session", "review"} {
 		op := a.r.Operations[a.r.CanonicalKey(noun+".list")]
 		if op.Parameters == nil {
 			op.Parameters = map[string]ochazuke.Parameter{}
@@ -99,10 +103,14 @@ func (a *App) associateTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "task")
 	}
+	ctx.Notify(fmt.Sprintf("task.associate --project is an old form of task.move --to (since %s; removed after %s)", taskAssociateSince, taskAssociateRemoveAfter))
 	return ctx.Each(a.associateTaskOne)
 }
 
-// associateTaskOne is task.associate on one task, its owner given.
+// associateTaskOne is task.associate's move form on one task, its owner
+// given: the standard task.move to the owner's project (a task names its
+// project; a task or project not found is unassociated with a notice).
+// The form is deprecated: associateTask's notice names task.move.
 func (a *App) associateTaskOne(ctx ochazuke.Ctx) ochazuke.Result {
 	t, err := a.task(ctx)
 	if err != nil {
@@ -112,17 +120,10 @@ func (a *App) associateTaskOne(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	t, err = a.work.AssociateTask(t.ID, o.ProjectID)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
 	if o.Notice != "" {
 		ctx.Notify(o.Notice)
 	}
-	if err := a.refreshScope(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(t)
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "move", Args: ochazuke.Arguments{"id": t.ID, "to": o.ProjectID}}))
 }
 
 type ownedPane struct {
