@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 
@@ -84,7 +85,9 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 		t.Fatalf("x: %+v", it)
 	}
 	executeA(t, a, "history", "undo", "", nil)
-	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateOpen {
+	// The archive's side change (it reads the item) is undone too
+	// (ochazuke v0.55: undo restores every prop the write changed).
+	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateOpen || it.Read() {
 		t.Fatalf("undo of x: %+v", it)
 	}
 	before, _ := a.inbox.items.Get(pr.ID)
@@ -129,5 +132,26 @@ func TestActionItemMoveAndAssociate(t *testing.T) {
 	executeA(t, a, actionItemNoun, "set", "", ochazuke.Arguments{"id": pr.ID, "changes": map[string]any{"title": "Lift it", "read": true}})
 	if it, _ := a.inbox.items.Get(pr.ID); it.Title != "Lift it" || !it.Read() {
 		t.Fatalf("set: %+v", it)
+	}
+}
+
+// An archive ends a snooze; its undo puts the snooze back and clears the
+// archive and the read mark (every prop the write changed, though the
+// request named one).
+func TestActionItemUndoOfArchiveKeepsTheSnooze(t *testing.T) {
+	a, _, clock := inboxApp(t)
+	pr, _ := seedInbox(t, a, clock)
+	until := *clock + int64(time.Hour/time.Millisecond)
+	executeA(t, a, "action-item", "set", "", ochazuke.Arguments{"id": pr.ID, "changes": map[string]any{"read": false, "snoozed-until": until}})
+	if it, _ := a.inbox.items.Get(pr.ID); it.SnoozedUntil != until || it.Read() {
+		t.Fatalf("snooze: %+v", it)
+	}
+	executeA(t, a, "action-item", "archive", "", ochazuke.Arguments{"id": pr.ID})
+	if it, _ := a.inbox.items.Get(pr.ID); it.ArchivedAt == 0 || it.SnoozedUntil != 0 || !it.Read() {
+		t.Fatalf("archive: %+v", it)
+	}
+	executeA(t, a, "history", "undo", "", nil)
+	if it, _ := a.inbox.items.Get(pr.ID); it.ArchivedAt != 0 || it.SnoozedUntil != until || it.Read() {
+		t.Fatalf("undo of archive: %+v", it)
 	}
 }

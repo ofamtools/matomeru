@@ -267,3 +267,22 @@ func TestTaskStandardVerbsFromTheCLI(t *testing.T) {
 		t.Fatalf("associate --project: %q", got)
 	}
 }
+
+// A move to another project clears the parent; its undo puts both the
+// project and the parent back (ochazuke v0.55: undo restores every prop
+// the write changed, not only those the request named).
+func TestTaskMoveUndoRestoresTheParent(t *testing.T) {
+	a := open(t)
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "prop": "parent", "value": "t1"})
+	if got := stored(t, a, "t2"); got.ParentID != "t1" || got.ProjectID != "matomeru" {
+		t.Fatalf("parent: %+v", got)
+	}
+	executeA(t, a, "task", "move", "", ochazuke.Arguments{"id": "t2", "to": "ochazuke"})
+	if got := stored(t, a, "t2"); got.ParentID != "" || got.ProjectID != "ochazuke" {
+		t.Fatalf("move: %+v", got)
+	}
+	executeA(t, a, "history", "undo", "", nil)
+	if got := stored(t, a, "t2"); got.ParentID != "t1" || got.ProjectID != "matomeru" {
+		t.Fatalf("undo of move: %+v", got)
+	}
+}

@@ -58,9 +58,9 @@ func taskProps() []ochazuke.PropSpec {
 }
 
 // taskStore is the task noun's store over the work store. history.undo may
-// revert its writes (Undo; a move's undo puts the task back in its project
-// at the top level: the parent the move cleared is not a written prop),
-// and a create may keep a key it is given (AcceptsKey).
+// revert its writes (Undo; a move's undo puts back the project and the
+// parent the move cleared), and a create may keep a key it is given
+// (AcceptsKey).
 func (a *App) taskStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
