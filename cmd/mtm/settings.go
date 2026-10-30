@@ -73,6 +73,7 @@ func (a *App) declareSettings() error {
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
 	}
 	settings = append(settings, turnStatusSettings()...)
+	settings = append(settings, pinColorsSettings()...)
 	settings = append(settings, agentViewSettings()...)
 	settings = append(settings, paneSectionSettings()...)
 	settings = append(settings, panesPanelSettings()...)

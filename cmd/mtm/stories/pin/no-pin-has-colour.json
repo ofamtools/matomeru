@@ -1,0 +1,13 @@
+{
+  "name": "mtm: with no project pinned the frame draws the theme in colour (pin.colors accent); pin.colors mono draws it in mono",
+  "area": "pin",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "theme": "dark",
+  "script": [":", {"type": "set pin.colors=mono"}, "enter"],
+  "expect": [
+    {"after": 1, "contains": ["Matomeru · no pin"], "attrs": {"INSERT": "bold,bg", "Needs you (2)": "bold,fg"}},
+    {"contains": ["Matomeru · no pin"], "attrs": {"NORMAL": "bold,-bg", "Needs you (2)": "bold,-fg"}}
+  ]
+}
