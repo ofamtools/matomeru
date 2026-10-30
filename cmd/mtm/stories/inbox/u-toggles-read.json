@@ -1,0 +1,32 @@
+{
+  "name": "mtm: u on an Items row marks it read and the counts follow; u again marks it unread",
+  "area": "inbox",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+k",
+    "ctrl+k",
+    "ctrl+k",
+    "ctrl+k",
+    "u",
+    "u"
+  ],
+  "expect": [
+    {
+      "after": 5,
+      "contains": [
+        "inbox 0/2",
+        "0 unread",
+        "· Checkout: shipping"
+      ]
+    },
+    {
+      "contains": [
+        "inbox 1/2",
+        "1 unread",
+        "● Checkout: shipping"
+      ]
+    }
+  ]
+}

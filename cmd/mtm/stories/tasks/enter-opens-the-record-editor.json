@@ -1,0 +1,28 @@
+{
+  "name": "mtm: enter on a task row opens its record editor in insert mode, written as you type",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    "tab",
+    "j",
+    "enter"
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "focus": "t2",
+      "mode": "normal"
+    },
+    {
+      "mode": "insert",
+      "contains": [
+        "editing task · written as you type",
+        "Move the cart drawer to the new design tokens",
+        "todo"
+      ]
+    }
+  ]
+}

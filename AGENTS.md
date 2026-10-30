@@ -15,6 +15,7 @@ Rules:
 - No key-name switches; keys are rows in `Define` or a bindings file.
 - Every commit: `gofmt -l . && GOWORK=off go vet ./... && GOWORK=off go test -race ./...` green, `GOWORK=off go run ./cmd/mtm --smoke` renders, `ochazuke.ValidateBindings` in a test. `--smoke` renders a fresh temp database unless `--data` is given explicitly and never reaches the daemon (`smokeOptions`); with real data, point `--data` at a copy in a temp dir (`--data <tmp>/mtm.db --smoke`). Never run the TUI or a CLI command without `--data` at a temp dir: the default is the owner's real database.
 - Never bind function keys.
+- The story tester is the `monogatari` build tag (`cmd/mtm/story.go`, `storyfakes.go`, `stories_test.go`; `story_off.go` is the normal build). A change to those files or to `cmd/mtm/stories/` also runs `make story-test` and `make split-check` (the normal `mtm` links 0 monogatari symbols). Stories never touch the owner's data: every session is a temp database and a dead socket (README "Stories").
 - Commit after every step in the brief; do not amend.
 
 New repositories are made with `o proj new` (`~/proj/o-proj`, its own repo); `mtm proj` is mtm's own `project` noun (work context), not that tool.

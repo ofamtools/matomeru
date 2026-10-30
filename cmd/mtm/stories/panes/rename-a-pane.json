@@ -1,0 +1,38 @@
+{
+  "name": "mtm: r on a pane row asks for the name in insert mode; enter renames the window and the list reloads with it",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "r",
+    "ctrl+u",
+    {
+      "type": "reviewer"
+    },
+    "enter",
+    {
+      "job": "pane.rename"
+    },
+    {
+      "job": "panes.refresh"
+    }
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "mode": "insert"
+    },
+    {
+      "after": 4,
+      "mode": "normal"
+    },
+    {
+      "mode": "normal",
+      "contains": [
+        "reviewer",
+        "acme-web/reviewer"
+      ]
+    }
+  ]
+}

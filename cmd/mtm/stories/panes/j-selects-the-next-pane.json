@@ -1,0 +1,27 @@
+{
+  "name": "mtm: j on the pane list selects the next pane and the detail follows it",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "j",
+    "k"
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "contains": [
+        "billing-api/shell"
+      ],
+      "lacks": [
+        "acme-web/claude"
+      ]
+    },
+    {
+      "contains": [
+        "acme-web/claude"
+      ]
+    }
+  ]
+}

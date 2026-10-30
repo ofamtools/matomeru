@@ -1,0 +1,27 @@
+{
+  "name": "mtm: x on a task row marks it done; x again makes it todo",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    "tab",
+    "j",
+    "x",
+    "x"
+  ],
+  "expect": [
+    {
+      "after": 4,
+      "contains": [
+        "[x] Move the cart drawer to the new design tokens"
+      ]
+    },
+    {
+      "contains": [
+        "[ ] Move the cart drawer to the new design tokens"
+      ]
+    }
+  ]
+}

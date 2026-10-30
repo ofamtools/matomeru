@@ -165,6 +165,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if *showVersion {
 		return writeVersion(stdout, buildStamp())
 	}
+	// The tester's story command (-tags monogatari, story.go) runs before
+	// any database opens; a normal build handles nothing here.
+	if handled, err := storyShell(words, stdin, stdout, stderr); handled {
+		return err
+	}
 	if *smoke {
 		cleanup, err := smokeOptions(&opts, flags)
 		if err != nil {

@@ -1,0 +1,25 @@
+{
+  "name": "mtm: I from Work opens Panes (titled Inbox) with the focus on the Needs you queue",
+  "area": "inbox",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    "I"
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "page": "work"
+    },
+    {
+      "page": "panes",
+      "contains": [
+        "› Inbox",
+        "Needs you (2)"
+      ],
+      "highlightedText": "Checkout: sh"
+    }
+  ]
+}

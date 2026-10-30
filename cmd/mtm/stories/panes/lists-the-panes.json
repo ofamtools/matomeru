@@ -1,0 +1,20 @@
+{
+  "name": "mtm: Panes lists the daemon's panes under their group, the first one's detail beside them",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [],
+  "expect": [
+    {
+      "page": "panes",
+      "contains": [
+        "panes (2)",
+        "unassociated (2)",
+        "claude",
+        "shell",
+        "acme-web/claude"
+      ]
+    }
+  ]
+}
