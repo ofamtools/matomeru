@@ -337,8 +337,9 @@ func (a *App) addSchedule(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.scheduleAnswer(d)
 }
 
-// editSchedule is schedule.edit: the fields given, written to the row's
-// stored copy (a built-in or file row gets one). With none, the TUI opens
+// editSchedule is schedule.edit: the fields given, the standard set (a
+// field is written to the row's stored copy, a built-in or file row
+// getting one; enabled where the row keeps it). With none, the TUI opens
 // the form.
 func (a *App) editSchedule(ctx ochazuke.Ctx) ochazuke.Result {
 	d, err := a.scheduleAt(ctx)
@@ -351,13 +352,11 @@ func (a *App) editSchedule(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return resultError(a.openScheduleForm(d.Name, "Edit schedule "+d.Name))
 	}
-	if err := a.applyScheduleArgs(&d, ctx.Args); err != nil {
-		return ochazuke.Failed(err)
+	changes := map[string]any{}
+	for _, name := range givenFields(ctx.Args) {
+		changes[name] = argText(ctx.Args[name])
 	}
-	if err := a.saveSchedule(d); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.scheduleAnswer(d)
+	return a.scheduleSet(d.Name, changes)
 }
 
 // duplicateSchedule is schedule.duplicate: a stored copy named --as (else
@@ -378,27 +377,6 @@ func (a *App) duplicateSchedule(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return a.scheduleAnswer(d)
-}
-
-// deleteSchedule is schedule.delete: the stored row goes (a built-in or
-// file row it overrode comes back). Built-in and file rows are turned off
-// instead: their source is configuration.
-func (a *App) deleteSchedule(ctx ochazuke.Ctx) ochazuke.Result {
-	d, err := a.scheduleAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if d.Source != schedules.SourceStored {
-		return ochazuke.Failed(fmt.Errorf("%s is %s (%s): schedule disable %s turns it off", d.Name, d.Source, sourceWhere(d.Source), d.Name))
-	}
-	if err := a.sched.runner.Delete(d.Name); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.reloadStoredSchedules(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	ctx.Info("deleted schedule " + d.Name)
-	return ochazuke.Done(map[string]string{"deleted": d.Name})
 }
 
 func sourceWhere(source string) string {

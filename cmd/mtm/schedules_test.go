@@ -63,13 +63,15 @@ func scheduleApp(t *testing.T) (*App, *fakeRuns, *time.Time) {
 	return a, f, &now
 }
 
+// scheduleAnswerJSON is a schedule as its props (the schedule verbs'
+// answer).
 type scheduleAnswerJSON struct {
 	Name        string             `json:"name"`
 	Enabled     string             `json:"enabled"`
 	Active      bool               `json:"active"`
 	Interval    string             `json:"interval"`
-	LastOutcome string             `json:"last_outcome"`
-	LastError   string             `json:"last_error"`
+	LastOutcome string             `json:"last-outcome"`
+	LastError   string             `json:"last-error"`
 	Failures    int                `json:"failures"`
 	Runs        []schedules.Record `json:"runs"`
 }
@@ -98,7 +100,7 @@ func TestScheduleSettingsAndVerbs(t *testing.T) {
 		t.Fatalf("disable: %+v", v)
 	}
 	cliJSON(t, a, &v, "schedule", "set-interval", "gh-signals", "--interval", "10m")
-	if v.Interval != "10m" || s.Duration("schedule.gh-signals.interval") != 10*time.Minute {
+	if v.Interval != "10m0s" || s.Duration("schedule.gh-signals.interval") != 10*time.Minute {
 		t.Fatalf("set-interval: %+v", v)
 	}
 	if _, _, err := cli(a, "", "schedule", "set-interval", "gh-signals", "--interval", "10s"); err == nil {
@@ -110,7 +112,7 @@ func TestScheduleSettingsAndVerbs(t *testing.T) {
 		t.Fatalf("settings set: %+v", d)
 	}
 	cliJSON(t, a, &v, "schedule", "reset", "gh-signals")
-	if v.Enabled != schedules.Auto || v.Interval != "5m" {
+	if v.Enabled != schedules.Auto || v.Interval != "5m0s" {
 		t.Fatalf("reset: %+v", v)
 	}
 	if _, _, err := cli(a, "", "schedule", "show", "nope"); err == nil || !strings.Contains(err.Error(), "known: gh-signals, slack-signals") {
@@ -157,11 +159,11 @@ func TestScheduleRunNowAndHistory(t *testing.T) {
 		t.Fatalf("show %+v", v)
 	}
 	var rows []struct {
-		ID    string   `json:"id"`
-		Cells []string `json:"cells"`
+		ID   string `json:"id"`
+		Name string `json:"name"`
 	}
 	cliJSON(t, a, &rows, "schedule", "list")
-	if len(rows) != 2 || rows[0].ID != "schedule:gh-signals" {
+	if len(rows) != 2 || rows[0].ID != "gh-signals" || rows[0].Name != "gh-signals" {
 		t.Fatalf("list %+v", rows)
 	}
 }

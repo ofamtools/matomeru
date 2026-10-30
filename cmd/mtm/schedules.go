@@ -215,19 +215,18 @@ var scheduleNameParam = ochazuke.Parameter{Type: "string", Noun: scheduleNoun, S
 
 func (a *App) defineSchedules() {
 	n := scheduleNoun
-	a.r.Define(n).Columns(scheduleColumns...).
-		Verb("list", a.listSchedules, "List the schedules: whether each runs, when, its last run and when it is due next").Rows(n).Fetch().
+	// Props and the store first: the standard verbs (get, list, create,
+	// set, delete, watch) come from them (schedule_store.go); show, enable
+	// and disable are aliases; edit, toggle and set-interval run set; the
+	// rest are mtm's own.
+	a.r.Define(n).Props(a.scheduleProps()...).Store(a.scheduleStore()).Columns(scheduleColumns...).
 		Verb("add", a.addSchedule, "Add a schedule: a prompt (--prompt, --when, the agent's --harness, --model, --effort, --fast, --permission-mode, --project, --task, --dir, --target, --pane) or a command; in the TUI with no fields, a form").
-		Verb("edit", a.editSchedule, "Change a schedule's fields (stored by mtm; a built-in or schedules.json row gets a stored copy); in the TUI with none, its form").Positional("name").
+		Verb("edit", a.editSchedule, "Change a schedule's fields (the standard set: stored by mtm; a built-in or schedules.json row gets a stored copy); in the TUI with none, its form").Positional("name").
 		Verb("duplicate", a.duplicateSchedule, "Copy a schedule to a new stored row, off (--as NAME, else NAME-copy)").Positional("name").
-		Verb("delete", a.deleteSchedule, "Delete a stored schedule (one that overrode a built-in or file row brings it back)").Positional("name").Confirm("Delete schedule {{label}}?").
-		Verb("show", a.showSchedule, "Show one schedule with its recent runs").Positional("name").Fetch().
 		Verb("history", a.scheduleHistory, "List a schedule's recent runs, newest first, with their output").Positional("name").Fetch().
 		Verb("run-now", a.runScheduleNow, "Run the schedule now, on or off, and wait for it; refused while it already runs").Positional("name").
-		Verb("enable", a.enableSchedule, "Turn the schedule on (schedule.NAME.enabled = on)").Positional("name").
-		Verb("disable", a.disableSchedule, "Turn the schedule off (schedule.NAME.enabled = off)").Positional("name").
-		Verb("toggle", a.toggleSchedule, "Turn a running schedule off, else on").Positional("name").
-		Verb("set-interval", a.setScheduleInterval, "Set how often the schedule runs (--interval 5m); omitted, a chooser asks").Positional("name").
+		Verb("toggle", a.toggleSchedule, "Turn a running schedule off, else on (the standard set of enabled)").Positional("name").
+		Verb("set-interval", a.setScheduleInterval, "Set how often the schedule runs (--interval 5m; the standard set of interval); omitted, a chooser asks").Positional("name").
 		Verb("reset", a.resetSchedule, "Put the schedule's enabled and interval back to their defaults").Positional("name").
 		Mode("normal").
 		Bind("r", ochazuke.Do(n+".run-now").Hinted("run now")).
@@ -236,7 +235,18 @@ func (a *App) defineSchedules() {
 		Bind("n", ochazuke.Do(n+".add").Hinted("add")).
 		Bind("E", ochazuke.Do(n+".edit").Hinted("edit")).
 		Bind("d d", ochazuke.Do(n+".delete").Hinted("delete"))
-	for _, verb := range []string{"show", "run-now", "enable", "disable", "toggle", "reset", "delete"} {
+	// show is get under its old name (its runs are the runs prop); enable
+	// and disable are the standard set of enabled.
+	for _, alias := range []ochazuke.ActionAlias{
+		{Alias: n + ".show", Action: n + ".get", Note: "the standard get: the schedule's props and its recent runs"},
+		{Alias: n + ".enable", Action: n + ".set", Args: ochazuke.Arguments{"prop": "enabled", "value": schedules.On}, Note: "the standard set of enabled: on (schedule.NAME.enabled for a configured row)"},
+		{Alias: n + ".disable", Action: n + ".set", Args: ochazuke.Arguments{"prop": "enabled", "value": schedules.Off}, Note: "the standard set of enabled: off"},
+	} {
+		if err := a.r.AddActionAlias(alias); err != nil {
+			panic(err)
+		}
+	}
+	for _, verb := range []string{"run-now", "toggle", "reset"} {
 		a.parameters(n+"."+verb, map[string]ochazuke.Parameter{"name": scheduleNameParam})
 	}
 	a.parameters(n+".run-now", map[string]ochazuke.Parameter{"name": scheduleNameParam,
@@ -586,48 +596,16 @@ func (a *App) scheduleAt(ctx ochazuke.Ctx) (schedules.Def, error) {
 	return d, nil
 }
 
-// scheduleAnswer is the schedule's view after a change, the rows rebuilt.
+// scheduleAnswer is the schedule after a change, as its props (the
+// standard verbs' answer), the rows rebuilt.
 func (a *App) scheduleAnswer(d schedules.Def) ochazuke.Result {
 	if err := a.refreshSchedules(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if d, ok := a.scheduleDef(d.Name); ok {
-		states, err := a.sched.runner.States()
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		return ochazuke.Done(a.viewSchedule(d, states[d.Name], a.scheduleNow()))
+		return resultOf(a.scheduleThing(d))
 	}
 	return ochazuke.Done(nil)
-}
-
-func (a *App) listSchedules(ochazuke.Ctx) ochazuke.Result {
-	views, err := a.scheduleViews()
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	now := a.scheduleNow()
-	rows := []ocli.Row{}
-	for _, v := range views {
-		rows = append(rows, a.scheduleRow(v, now))
-	}
-	return ochazuke.Done(rows)
-}
-
-func (a *App) showSchedule(ctx ochazuke.Ctx) ochazuke.Result {
-	d, err := a.scheduleAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	states, err := a.sched.runner.States()
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	v := a.viewSchedule(d, states[d.Name], a.scheduleNow())
-	if v.Runs, err = a.sched.runner.History(d.Name, historyShown); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(v)
 }
 
 func (a *App) scheduleHistory(ctx ochazuke.Ctx) ochazuke.Result {
@@ -683,48 +661,18 @@ func runNotice(rec schedules.Record) string {
 	return text
 }
 
-// setScheduleEnabled turns a row on or off where its value lives: a
-// stored row's own field (a setting set for it is reset), a configured
-// row's setting.
-func (a *App) setScheduleEnabled(ctx ochazuke.Ctx, value string) ochazuke.Result {
-	d, err := a.scheduleAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	if d.Source == schedules.SourceStored {
-		d.Enabled = value
-		if _, declared := a.r.Settings().Get(scheduleEnabledSetting(d.Name)); declared == nil {
-			_ = a.r.Settings().Reset(scheduleEnabledSetting(d.Name))
-		}
-		if err := a.saveSchedule(d); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return a.scheduleAnswer(d)
-	}
-	if err := a.r.Settings().Set(scheduleEnabledSetting(d.Name), value); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.scheduleAnswer(d)
-}
-
-func (a *App) enableSchedule(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.setScheduleEnabled(ctx, schedules.On)
-}
-func (a *App) disableSchedule(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.setScheduleEnabled(ctx, schedules.Off)
-}
-
 // toggleSchedule turns a schedule that runs (on, or auto whose checks
-// pass) off, and any other on.
+// pass) off, and any other on: the standard set of enabled.
 func (a *App) toggleSchedule(ctx ochazuke.Ctx) ochazuke.Result {
 	d, err := a.scheduleAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	value := schedules.On
 	if a.viewSchedule(d, schedules.State{}, a.scheduleNow()).Active {
-		return a.setScheduleEnabled(ctx, schedules.Off)
+		value = schedules.Off
 	}
-	return a.setScheduleEnabled(ctx, schedules.On)
+	return a.scheduleSet(d.Name, map[string]any{"enabled": value})
 }
 
 func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
@@ -733,26 +681,10 @@ func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if every := ochazuke.StringArg(ctx.Args, "interval", ""); every != "" {
-		v, err := time.ParseDuration(every)
-		if err != nil {
+		if _, err := time.ParseDuration(every); err != nil {
 			return ochazuke.Failed(fmt.Errorf("interval %q: %w", every, err))
 		}
-		if d.Source == schedules.SourceStored || d.When().Calendar() {
-			// A stored row, or one timed by the clock, holds its timing
-			// itself: the interval replaces it.
-			if v < time.Minute {
-				return ochazuke.Failed(errors.New("an interval is at least 1m"))
-			}
-			d.SetWhen(schedules.When{Interval: schedules.Duration(v)})
-			if err := a.saveSchedule(d); err != nil {
-				return ochazuke.Failed(err)
-			}
-			return a.scheduleAnswer(d)
-		}
-		if err := a.r.Settings().Set(scheduleIntervalSetting(d.Name), v.String()); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return a.scheduleAnswer(d)
+		return a.scheduleSet(d.Name, map[string]any{scheduleIntervalProp: every})
 	}
 	if a.cli {
 		return ochazuke.Failed(errors.New("set-interval needs --interval (1m, 5m, 1h, …)"))
@@ -770,11 +702,7 @@ func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
 		Title: "Run " + d.Name,
 		Rows:  rows,
 		Choose: func(c ochazuke.ChooserRow) ochazuke.Result {
-			out, err := a.r.Execute(ochazuke.Request{Noun: scheduleNoun, Verb: "set-interval", Args: ochazuke.Arguments{"name": d.Name, "interval": c.Data.(string)}})
-			if err != nil {
-				return ochazuke.Failed(err)
-			}
-			return ochazuke.Done(out)
+			return a.scheduleSet(d.Name, map[string]any{scheduleIntervalProp: c.Data.(string)})
 		},
 	})
 	if err != nil {

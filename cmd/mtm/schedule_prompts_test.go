@@ -20,14 +20,17 @@ func schedPromptApp(t *testing.T) (*App, *fakeDaemon, *fakePanes, *time.Time) {
 	return a, f, panes, now
 }
 
+// promptViewJSON is a schedule as its props (the schedule verbs' answer).
 type promptViewJSON struct {
-	Name    string          `json:"name"`
-	Kind    string          `json:"kind"`
-	Source  string          `json:"source"`
-	Enabled string          `json:"enabled"`
-	When    string          `json:"when"`
-	Prompt  string          `json:"prompt"`
-	Agent   schedules.Agent `json:"agent"`
+	Name       string `json:"name"`
+	Kind       string `json:"kind"`
+	Source     string `json:"source"`
+	Enabled    string `json:"enabled"`
+	When       string `json:"when"`
+	Prompt     string `json:"prompt"`
+	Harness    string `json:"harness"`
+	Model      string `json:"model"`
+	Permission string `json:"permission-mode"`
 }
 
 // A prompt schedule's agent configuration reaches the launch: the
@@ -41,7 +44,7 @@ func TestPromptScheduleLaunchesWithItsAgentConfig(t *testing.T) {
 		"--harness", "claude", "--model", "sonnet", "--effort", "high", "--fast", "on", "--permission-mode", "plan",
 		"--project", "matomeru", "--task", "t1")
 	if v.Kind != schedules.KindPrompt || v.Source != schedules.SourceStored || v.Enabled != schedules.On || v.When != "mon,fri 09:00" ||
-		v.Agent.Model != "sonnet" || v.Agent.Permission != "plan" {
+		v.Model != "sonnet" || v.Permission != "plan" {
 		t.Fatalf("added %+v", v)
 	}
 	var rec schedules.Record
@@ -113,7 +116,7 @@ func TestScheduleRowVerbs(t *testing.T) {
 		t.Fatalf("add without a time %+v", v)
 	}
 	cliJSON(t, a, &v, "schedule", "edit", v.Name, "--when", "cron 0 9 * * 1-5", "--harness", "codex")
-	if v.When != "cron 0 9 * * 1-5" || v.Agent.Harness != "codex" || v.Prompt != "Tidy the notes, please" {
+	if v.When != "cron 0 9 * * 1-5" || v.Harness != "codex" || v.Prompt != "Tidy the notes, please" {
 		t.Fatalf("edit %+v", v)
 	}
 	if _, _, err := cli(a, "", "schedule", "edit", v.Name, "--when", "fooday"); err == nil {
@@ -148,7 +151,7 @@ func TestScheduleRowVerbs(t *testing.T) {
 		t.Fatalf("deleted a built-in: %v", err)
 	}
 	out := mustCLI(t, a, "schedule", "list")
-	if !strings.Contains(out, "tidy-the-notes-please") || !strings.Contains(out, "codex: Tidy the notes, please") {
+	if !strings.Contains(out, `"name":"tidy-the-notes-please"`) || !strings.Contains(out, `"harness":"codex"`) || !strings.Contains(out, `"prompt":"Tidy the notes, please"`) {
 		t.Fatalf("list:\n%s", out)
 	}
 }
