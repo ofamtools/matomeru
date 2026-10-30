@@ -8,7 +8,7 @@ Regenerate from the repository root (needs [VHS](https://github.com/charmbracele
 vhs docs/vhs/demo.tape
 ```
 
-It takes about a minute and writes a GIF of about 18 seconds and under 2 MB.
+It takes about a minute and writes a GIF of about 18 seconds and about 2 MB.
 
 ## Your data stays out of it
 

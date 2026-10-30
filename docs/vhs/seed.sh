@@ -23,8 +23,12 @@ mtm() { "$D/bin/mtm" --data "$D/data/mtm.db" --config "$D/config" --socket "$D/r
 cd "$D/home"
 ENV
 # The recording's look: a Catppuccin Mocha scheme with coloured panel
-# borders (border blue, focused border and accent mauve), the key echo in the
-# footer, and every turn card tinted by its state.
+# borders (border blue, focused border and accent mauve; the
+# chrome.rich.border row keeps the theme's blue over rich's built-in
+# teal), chrome.color rich
+# pinned (the mode badge filled, hint keys in the accent; pinned so a later
+# change of the default cannot change the tape), the key echo in the footer,
+# and every turn card tinted by its state.
 cat > "$D/config/themes.json" <<'JSON'
 {
   "mocha": {
@@ -39,7 +43,8 @@ cat > "$D/config/themes.json" <<'JSON'
       "state.working": "#89B4FA",
       "state.needs-input": {"fg": "#F9E2AF", "bold": true},
       "state.done": "#A6E3A1",
-      "marker.star": {"fg": "#F9E2AF", "bold": true}
+      "marker.star": {"fg": "#F9E2AF", "bold": true},
+      "chrome.rich.border": {"fg": "border"}
     }
   }
 }
@@ -47,6 +52,7 @@ JSON
 cat > "$D/config/settings.json" <<'JSON'
 {
   "theme": "mocha",
+  "chrome.color": "rich",
   "keys.echo": "footer",
   "keys.echo-linger": "4s",
   "turns.status-border": "all"

@@ -1,7 +1,8 @@
 # The README demo: mtm over a throwaway database of invented projects,
 # tasks and notes. Regenerate from the repository root:  vhs docs/vhs/demo.tape
 #
-# seed.sh builds mtm and seeds everything under a fresh /tmp/mtm.XXXX: HOME,
+# COLORTERM=truecolor is exported off camera so the theme draws in 24-bit
+# colour. seed.sh builds mtm and seeds everything under a fresh /tmp/mtm.XXXX: HOME,
 # XDG dirs, database, config and a socket nothing listens on. The recording
 # never reads your own mtm data, config or TUIOS daemon.
 
@@ -23,7 +24,7 @@ Set CursorBlink false
 # Off camera: build, seed (projects, tasks, notes, and the recording's
 # themes.json and settings.json), start on the Work page.
 Hide
-Type "export D=$(mktemp -d /tmp/mtm.XXXX) && docs/vhs/seed.sh $D && . $D/env && clear && mtm"
+Type "export COLORTERM=truecolor D=$(mktemp -d /tmp/mtm.XXXX) && docs/vhs/seed.sh $D && . $D/env && clear && mtm"
 Enter
 Wait+Screen@90s /Matomeru/
 Sleep 1s
@@ -39,7 +40,9 @@ Sleep 900ms
 # Step: Pin a project
 # The first thing in mtm: the palette's project pin pins the focused
 # project, acme-web, at the top of the list. The title and the row take the
-# pin; without a pin mtm draws in mono, pinned it draws the theme's colours.
+# pin. mtm draws the theme's colours before the pin as well (pin.colors
+# accent): the mode badge, the panel borders and the hint keys are coloured
+# from the first frame (chrome.color rich).
 Ctrl+Space
 Sleep 400ms
 Type "project pin"
