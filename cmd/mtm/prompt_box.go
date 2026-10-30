@@ -114,6 +114,10 @@ type promptBox struct {
 	// ones are those whose chip is still in the text (live).
 	attachments []promptAttachment
 	clip        clipboardReader
+	// owner is the pane (its window id) whose draft the input holds;
+	// drafts are the other panes' (prompt_drafts.go).
+	owner  string
+	drafts map[string]*promptDraft
 }
 
 // promptTarget is what the completions search against, set on the loop
@@ -372,6 +376,7 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 	}
+	a.syncPromptDraft()
 	p := a.promptPane()
 	if p == nil {
 		return ochazuke.Failed(errNoPromptBox)
@@ -510,6 +515,7 @@ func (a *App) promptMode(p pane) int {
 // sendPrompt is turn-prompt.send (enter): the box's text to the agent in
 // the box's mode, off the loop; the box clears once tuios took it.
 func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
+	a.syncPromptDraft()
 	pp := a.promptPane()
 	if pp == nil {
 		return ochazuke.Failed(errNoPromptBox)
@@ -594,13 +600,11 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return
 		}
-		// The box clears unless it was edited while the send ran; its
-		// attachments go with the text, and stay as the pane's context.
-		if in := a.pb.input; string(in.Text) == sent {
-			if rerr := in.Replace(0, len(in.Text), ""); rerr != nil {
-				ctx.Error(rerr.Error())
-			}
-			a.pb.attachments = nil
+		// The pane's draft clears unless it was edited while the send ran
+		// (the box may show another pane's by now); its attachments go
+		// with the text, and stay as the pane's context.
+		if _, rerr := a.clearPromptDraft(p.ID, sent); rerr != nil {
+			ctx.Error(rerr.Error())
 		}
 		a.recordAttachments(ctx, p, attached)
 		if mode == promptInterrupt {

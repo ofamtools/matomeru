@@ -818,16 +818,6 @@ func (a *App) settingsRead(window string) {
 	a.r.UI().Notify(fmt.Sprintf("sent %s; the session's log does not state the new %s yet (it shows with the next reply)", w.sent, w.name))
 }
 
-// promptDraftFor reports whether the prompt box holds an unsent draft
-// written for the pane.
-func (a *App) promptDraftFor(p pane) bool {
-	if a.pb == nil || a.pb.input == nil || strings.TrimSpace(string(a.pb.input.Text)) == "" {
-		return false
-	}
-	box := a.promptPane()
-	return box != nil && box.ID == p.ID
-}
-
 // confirmSetting asks before typing into a pane whose prompt box holds a
 // draft; y sends with confirmed, and the draft stays in the box.
 func (a *App) confirmSetting(row, name, value string) ochazuke.Result {

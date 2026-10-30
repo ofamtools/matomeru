@@ -87,6 +87,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if panes := a.panesUpdate(msg); panes != nil {
 		cmd = tea.Batch(cmd, panes)
 	}
+	// The box's pane may have changed (the detail followed a move): it
+	// shows that pane's draft before the frame is drawn.
+	a.syncPromptDraft()
 	if journal := a.journalUpdate(msg); journal != nil {
 		cmd = tea.Batch(cmd, journal)
 	}

@@ -54,6 +54,7 @@ func (a *App) declareSettings() error {
 		afterSubmitModeSetting,
 		promptTerminalsSetting,
 		promptScreenSetting,
+		draftPerTargetSetting,
 		extNounNamesSetting,
 		ochazuke.Setting{Name: settingSideLayout, Type: ochazuke.SettingString, Default: sideAuto, Enum: []string{sideAuto, sideBeside, sideBelow},
 			Description: "Where a live pane's side vim or terminal sits: auto (beside from a 161-column detail, else below), beside or below; leader R flips it"},
