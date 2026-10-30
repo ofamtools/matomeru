@@ -25,11 +25,12 @@ func TestTurnStatusGlyphToneAndBorder(t *testing.T) {
 		kind, glyph, tone string
 		alert             bool
 	}{
+		{statusNeedsInput, "?", ochazuke.ToneNeedsInput, true},
 		{statusRunning, "●", ochazuke.ToneWorking, true},
 		{statusWaiting, "◐", ochazuke.ToneWorking, true},
 		{statusDone, "✓", ochazuke.ToneDone, false},
 		{statusError, "✗", ochazuke.ToneErrored, true},
-		{statusCancelled, "⊘", ochazuke.ToneExited, false},
+		{statusCancelled, "⊘", ochazuke.ToneErrored, true},
 	}
 	for _, c := range cases {
 		meta, spans, border := app.meta(line(c.kind))
@@ -68,18 +69,52 @@ func TestTurnStatusGlyphToneAndBorder(t *testing.T) {
 }
 
 // A notification's state splits into the meta's word and the header's
-// detail; its kind comes from the word.
+// detail; its kind comes from the word, else from the status field.
 func TestNoticeStatusKinds(t *testing.T) {
-	for state, want := range map[string][3]string{
-		"finished":                           {"finished", "", statusDone},
-		"failed: the API errored":            {"failed", "the API errored", statusError},
-		"stopped":                            {"stopped", "", statusCancelled},
-		"waiting on its own background work": {"waiting on its own background work", "", statusWaiting},
-		"completed with notes":               {"completed with notes", "", ""},
+	for _, c := range []struct{ state, status, word, detail, kind string }{
+		{"finished", "completed", "finished", "", statusDone},
+		{"failed: the API errored", "failed", "failed", "the API errored", statusError},
+		{"stopped", "killed", "stopped", "", statusCancelled},
+		{"waiting on its own background work", "completed", "waiting on its own background work", "", statusWaiting},
+		{"completed (exit code 0)", "completed", "completed (exit code 0)", "", statusDone},
+		{"stream ended", "completed", "stream ended", "", statusDone},
+		{"failed with exit code 144", "failed", "failed with exit code 144", "", statusError},
+		{"was resumed by the user", "", "was resumed by the user", "", statusRunning},
+		{"said something new", "completed", "said something new", "", statusDone},
+		{"said something new", "", "said something new", "", ""},
 	} {
-		word, detail := noticeWord(state)
-		if got := [3]string{word, detail, noticeStatus(word)}; got != want {
-			t.Fatalf("%q: %v, want %v", state, got, want)
+		word, detail := noticeWord(c.state)
+		if got := [3]string{word, detail, noticeStatus(word, c.status)}; got != [3]string{c.word, c.detail, c.kind} {
+			t.Fatalf("%q/%q: %v", c.state, c.status, got)
+		}
+	}
+}
+
+// Every status word is in one of four classes by its tone: needs you,
+// working, done, bad; a word in none is unknown (muted, as the meta line
+// is). Matching is by the longest leading phrase in whole words.
+func TestStatusWordClasses(t *testing.T) {
+	class := map[string]string{
+		ochazuke.ToneNeedsInput: "needs-you", ochazuke.ToneWorking: "working",
+		ochazuke.ToneDone: "done", ochazuke.ToneErrored: "bad",
+	}
+	for word, want := range map[string]string{
+		"needs_input": "needs-you", "waiting": "needs-you", "Waiting for input": "needs-you", "approval": "needs-you",
+		"question": "needs-you", "blocked": "needs-you",
+		"running": "working", "working": "working", "pending": "working", "in progress": "working",
+		"waiting on its own background work": "working", "async_launched": "working",
+		"done": "done", "completed": "done", "Completed (exit code 0)": "done", "finished": "done",
+		"success": "done", "ok": "done", "exit 0": "done", "stream ended": "done",
+		"failed": "bad", "error": "bad", "errored": "bad", "interrupted": "bad", "killed": "bad",
+		"stopped": "bad", "cancelled": "bad", "exit 1": "bad", "exit 144": "bad",
+		"doneness": "", "okay-ish": "", "mystery": "", "": "",
+	} {
+		got := ""
+		if k := statusKind(word); k != "" {
+			got = class[turnStatuses[k].Tone]
+		}
+		if got != want {
+			t.Fatalf("%q: class %q, want %q", word, got, want)
 		}
 	}
 }

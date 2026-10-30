@@ -323,7 +323,7 @@ func (a *App) journalCards(st *cardFill) []ochazuke.Card {
 		line := statusLine{at: -1}
 		switch {
 		case !t.Done():
-			line = statusLine{at: len(meta), kind: statusRunning}
+			line = statusLine{at: len(meta), kind: statusKind("working")}
 			meta = append(meta, "working")
 		case t.ReviewedAt == 0:
 			meta = append(meta, plural(len(t.Responses), "answer"), "new")

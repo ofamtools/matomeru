@@ -138,8 +138,13 @@ func (n notification) asNotice(at time.Time) *Notice {
 		no.State = "waiting on its own background work"
 	case n.Status == "failed":
 		no.State = "failed"
-		if r := strings.TrimSpace(strings.TrimPrefix(rest, "failed")); r != "" {
+		switch r := strings.TrimSpace(strings.TrimPrefix(rest, "failed")); {
+		case strings.HasPrefix(r, ":"): // failed: the API errored
 			no.State = "failed" + r
+		case r != "" && strings.HasPrefix(rest, "failed"): // failed with exit code 1
+			no.State = "failed " + r
+		case r != "": // "didn't finish before the previous session ended"
+			no.State = "failed: " + r
 		}
 	case n.Status == "killed" || n.Status == "stopped":
 		no.State = "stopped"

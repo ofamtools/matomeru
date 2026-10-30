@@ -367,7 +367,7 @@ func noticeCardMeta(n *turns.Notice, from string, loc *time.Location) statusLine
 	}
 	line := statusLine{at: -1}
 	if word, _ := noticeWord(n.State); word != "" {
-		line = statusLine{at: len(parts), kind: noticeStatus(word)}
+		line = statusLine{at: len(parts), kind: noticeStatus(word, n.Status)}
 		parts = append(parts, word)
 	}
 	rest := *n
