@@ -451,6 +451,13 @@ func (a *App) moveOwner(inst *ochazuke.Instance, noun string) (string, bool) {
 	case contextNoun:
 		it, err := a.contextAt(ochazuke.Ctx{Instance: inst})
 		return cmp.Or(it.ProjectID, a.taskProject(it.TaskID)), err == nil
+	case "vim":
+		row, err := a.vimAt(ochazuke.Ctx{Instance: inst})
+		if err != nil {
+			return "", false
+		}
+		project, err := a.work.VimProject(row)
+		return project, err == nil
 	}
 	if noun == "pane" {
 		p, err := a.paneAt(inst)

@@ -233,7 +233,7 @@ func TestVimScopeColumnsAndExplicitID(t *testing.T) {
 		t.Fatalf("explicit ID requires selection: %+v, %v", row, err)
 	}
 	for _, verb := range []string{"list", "open", "save", "reopen", "forget"} {
-		if _, ok := a.r.Operations["vim."+verb]; !ok {
+		if _, ok := a.r.Operation("vim." + verb); !ok {
 			t.Fatalf("missing vim.%s", verb)
 		}
 	}
