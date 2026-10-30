@@ -465,7 +465,7 @@ func (a *App) extFacts(c extCandidate) string {
 func extPageLines(name string, doc ocli.CatalogDoc, plan []ocli.CatalogNoun) []string {
 	mounted := map[string]string{}
 	for _, n := range plan {
-		mounted[n.Name] = extNoun(name, n.Name)
+		mounted[n.Name] = n.Name // pagesOf reads only which nouns mount
 	}
 	pages := pagesOf(name, doc, plan, mounted)
 	if len(pages) == 0 {

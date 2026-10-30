@@ -44,7 +44,9 @@ func TestSettingsSectionsAndOwners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ext) == 0 || ext[0].ID != "md" || !slices.Contains(ext[0].Settings, extScopeSetting("md")) {
+	// General (extensions.noun-names), then a section per extension.
+	if len(ext) != 2 || ext[0].ID != ochazuke.SettingsGeneralSection || !slices.Contains(ext[0].Settings, settingExtNounNames) ||
+		ext[1].ID != "md" || !slices.Contains(ext[1].Settings, extScopeSetting("md")) {
 		t.Fatalf("extensions sections %+v", ext)
 	}
 	var owners []string

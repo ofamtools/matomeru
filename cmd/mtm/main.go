@@ -404,6 +404,9 @@ type App struct {
 	configDir string // dirs.json and harnesses.json live here (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
+	// extBare is the bare noun names mtm gave mounted extension nouns,
+	// alias -> noun (extension_names.go).
+	extBare map[string]string
 	// extForm is the open form over an extension's row (extension_forms.go).
 	extForm *ochazuke.RecordEditor
 	// renaming is the open rename form of a pane, session or saved pane (rename.go).
@@ -639,6 +642,9 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	a.mountExtensions()
+	// After the first mount: its read of the naming loads settings.json,
+	// which would tell an observer of the change from the default.
+	a.observeExtNounNames()
 	if err := a.refreshReviews(); err != nil {
 		db.Close()
 		return nil, err

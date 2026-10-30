@@ -61,7 +61,7 @@ func (a *App) defineExtForms() {
 		Verb("new", a.extFormNew, "Create a row of a mounted extension through a form of its new verb's parameters; written as you type").
 		Verb("edit", a.extFormEdit, "Edit the focused row of a mounted extension through a form of its edit verb's parameters, prefilled from the row; written as you type")
 	a.parameters(extFormNoun+".new", map[string]ochazuke.Parameter{
-		"noun": {Type: "string", Required: true, Description: "mtm's noun of the extension's rows (EXT-NOUN)"},
+		"noun": {Type: "string", Required: true, Description: "mtm's noun of the extension's rows (EXT.NOUN, or an alias of it)"},
 	})
 }
 
@@ -155,6 +155,7 @@ func requiredOf(op ochazuke.Operation) []string {
 
 // extOfLocal is the mounted extension and catalog noun of an mtm noun.
 func (a *App) extOfLocal(local string) (*extension, string) {
+	local = a.r.CanonicalNoun(local) // an alias (doc, md-doc) names its noun
 	for _, x := range a.exts {
 		if n := x.nounOfLocal(local); n != "" {
 			return x, n

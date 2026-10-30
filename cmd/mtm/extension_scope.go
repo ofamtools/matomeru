@@ -174,16 +174,13 @@ func (a *App) extInstanceProject(x *extension, noun, instance, row string) strin
 	return a.extRowProject(x.name, noun, row)
 }
 
-// catalogNoun is the extension's noun of one of mtm's nouns <ext>-<noun>,
-// "" when local is not the extension's.
+// catalogNoun is the extension's noun of one of mtm's nouns (<ext>.<noun>
+// under its naming), "" when local is not the extension's.
 func (x *extension) catalogNoun(local string) string {
 	if n := x.nounOfLocal(local); n != "" {
 		return n
 	}
-	if n, ok := strings.CutPrefix(local, x.name+"-"); ok && n != "" {
-		return n
-	}
-	return ""
+	return x.catalogNounOf(local)
 }
 
 // contextEnv is the project context of a verb's exec: the context

@@ -111,8 +111,8 @@ func TestExtensionsPageKeys(t *testing.T) {
 		t.Fatalf("stale detail:\n%s", f)
 	}
 	pressJob(t, a, "L")
-	if extStatus(a, "alpha") != statusRegistered || !hasOp(a, "alpha-item.archive") {
-		t.Fatalf("L: status %q, archive mounted %v", extStatus(a, "alpha"), hasOp(a, "alpha-item.archive"))
+	if extStatus(a, "alpha") != statusRegistered || !hasOp(a, "alpha.item.archive") {
+		t.Fatalf("L: status %q, archive mounted %v", extStatus(a, "alpha"), hasOp(a, "alpha.item.archive"))
 	}
 	// d d asks, then removes; the data file is not touched.
 	press(t, a, "d", "d") // no settling between: the sequence's timer would run out

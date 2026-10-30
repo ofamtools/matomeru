@@ -56,7 +56,7 @@ func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
 	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, path, "fake", bin)
 	hasVerb := func(a *App, verb string) bool {
-		_, ok := a.r.Operations[a.r.CanonicalKey("fake-item."+verb)]
+		_, ok := a.r.Operations[a.r.CanonicalKey("fake.item."+verb)]
 		return ok
 	}
 	stored := func() extEntry {

@@ -42,7 +42,7 @@ func TestExtensionRefreshRemountsInTheRunningTUI(t *testing.T) {
 	a := openAt(t, path)
 	before := pageIDs(a)
 	openExtPage(t, a, "ext/fake")
-	if hasOp(a, "fake-item.archive") {
+	if hasOp(a, "fake.item.archive") {
 		t.Fatal("archive before the refresh")
 	}
 	rewriteCatalog(t, bin, `{"name":"done"`, `{"name":"archive","kind":"application"},{"name":"done"`)
@@ -54,7 +54,7 @@ func TestExtensionRefreshRemountsInTheRunningTUI(t *testing.T) {
 	if a.m.Status != "" {
 		t.Fatal(a.m.Status)
 	}
-	if !hasOp(a, "fake-item.archive") {
+	if !hasOp(a, "fake.item.archive") {
 		t.Fatal("refresh did not mount the new verb")
 	}
 	if got := pageIDs(a); strings.Join(got, ",") != strings.Join(before, ",") {
@@ -98,7 +98,7 @@ func TestExtensionCLIChangesShowWhenAPageOpens(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.Update(nil)
-	if a.r.PageOf("ext/fake") != nil || a.r.Noun("fake-item") != nil || hasOp(a, "fake-item.done") {
+	if a.r.PageOf("ext/fake") != nil || a.r.Noun("fake.item") != nil || hasOp(a, "fake.item.done") {
 		t.Fatal("removed extension still mounted")
 	}
 }
