@@ -20,7 +20,7 @@ func starred(t *testing.T, app *App) map[string]work.PaneStar {
 }
 
 // * on a pane row stars it (★ in the row's gutter, written to the store), * again
-// unstars it, --starred sets it; a listing without the window keeps its
+// unstars it, --value (and the deprecated --starred) sets it; a listing without the window keeps its
 // star (work.PaneStar says why), and the row reads ★ when it is back.
 func TestStarAPaneRow(t *testing.T) {
 	app, f := panesApp(t)
@@ -46,6 +46,15 @@ func TestStarAPaneRow(t *testing.T) {
 	}
 	if _, ok := starred(t, app)["w2"]; !ok {
 		t.Fatalf("--value: %+v", starred(t, app))
+	}
+	// The deprecated --starred (now --value) still sets it.
+	for _, v := range []bool{false, true} {
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: "pane:ochazuke/w2", Args: ochazuke.Arguments{"starred": v}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := starred(t, app)["w2"]; ok != v {
+			t.Fatalf("--starred=%v: %+v", v, starred(t, app))
+		}
 	}
 	// w2 is missing from a listing (another server's, or a partial one):
 	// its star stays, and the row reads ★ when the window is listed again.
