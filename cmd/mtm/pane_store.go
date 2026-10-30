@@ -61,7 +61,9 @@ var paneSettingProps = []string{harness.SettingModel, harness.SettingEffort, har
 // move writes it) and task; its star; and read-only state.
 func paneProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
-	ro := func(name, desc string) ochazuke.PropSpec { return ochazuke.PropSpec{Name: name, ReadOnly: true, Parameter: text(desc)} }
+	ro := func(name, desc string) ochazuke.PropSpec {
+		return ochazuke.PropSpec{Name: name, ReadOnly: true, Parameter: text(desc)}
+	}
 	props := []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The pane's window id (or its row id, pane:SESSION/WINDOW)")},
 		{Name: "name", Role: ochazuke.RoleLabel, Fallback: "display", Parameter: text("The window's name in the daemon; empty falls back to the shell's title")},
