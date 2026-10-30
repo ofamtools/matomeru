@@ -247,7 +247,7 @@ func (p *ClaudeParser) user(r claudeRecord, at time.Time) {
 			}
 			// A repeat's turn (the agent answers it again) folds into the
 			// first card: it keeps RepeatOf, the first card the latest state.
-			first, again := p.notices[n.key()]
+			first, again := p.landed(n)
 			p.open(r, n.Summary, at)
 			no := p.notice(n, at, p.turns[p.cur].ID)
 			if again {
@@ -258,7 +258,7 @@ func (p *ClaudeParser) user(r claudeRecord, at time.Time) {
 				continue
 			}
 			p.turns[p.cur].Notice = no
-			p.notices[n.key()] = noticeRef{turn: p.cur, event: -1}
+			p.land(n, noticeRef{turn: p.cur, event: -1})
 		}
 		return
 	}
@@ -449,9 +449,11 @@ func (p *ClaudeParser) event(n notification, at time.Time) {
 	if i >= 0 {
 		where = p.turns[i].ID
 	}
+	first, again := p.landed(n)
 	no := p.notice(n, at, where)
-	if ref, ok := p.notices[n.key()]; ok {
-		p.update(ref, no)
+	if again {
+		p.update(first, no)
+		p.land(n, first)
 		return
 	}
 	if i < 0 {
@@ -459,7 +461,41 @@ func (p *ClaudeParser) event(n notification, at time.Time) {
 	}
 	t := &p.turns[i]
 	t.Events = append(t.Events, *no)
-	p.notices[n.key()] = noticeRef{turn: i, event: len(t.Events) - 1}
+	p.land(n, noticeRef{turn: i, event: len(t.Events) - 1})
+}
+
+// noticeKeys are the keys a task's notifications fold by: the call that
+// started it and its task id, as the notification names them or as its
+// spawn step does. One notification of a task can name the call and a
+// later one only the task (a resumed agent's): both are one card.
+func (p *ClaudeParser) noticeKeys(n notification) []string {
+	keys := []string{n.key()}
+	if n.TaskID != "" {
+		keys = append(keys, "task:"+n.TaskID)
+		if id := p.agentIDs[n.TaskID]; id != "" {
+			keys = append(keys, id)
+		}
+	}
+	return keys
+}
+
+// landed is the card a notification of the same task already landed in.
+func (p *ClaudeParser) landed(n notification) (noticeRef, bool) {
+	for _, k := range p.noticeKeys(n) {
+		if ref, ok := p.notices[k]; ok {
+			return ref, true
+		}
+	}
+	return noticeRef{}, false
+}
+
+// land records the card n landed in under every key it folds by.
+func (p *ClaudeParser) land(n notification, ref noticeRef) {
+	for _, k := range p.noticeKeys(n) {
+		if _, ok := p.notices[k]; !ok {
+			p.notices[k] = ref
+		}
+	}
 }
 
 // sidechain reads an older log's subagent record into its agent's own

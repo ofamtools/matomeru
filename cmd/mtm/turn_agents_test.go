@@ -461,3 +461,42 @@ func TestNotificationCardFrames(t *testing.T) {
 		}
 	}
 }
+
+// A resumed agent's later notifications name its task and not its call
+// (Claude Code 2.1.314). Folded into the card of the one that named the
+// call, the turn has one card of the task: two with one id emptied the
+// whole Turns tab ("no turns yet" and a list item ID error).
+func TestATasksNotificationsWithAndWithoutTheCallAreOneCard(t *testing.T) {
+	app, f := panesApp(t)
+	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "claude-code", "idle", "s1", "/w/proj"
+	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	noCall := strings.Replace(realNotification("am1", "", "completed", `Agent "Draft fix" finished`, "second report"), "<tool-use-id></tool-use-id>\n", "", 1)
+	writeLog(t, filepath.Join(dir, "s1.jsonl"),
+		logPrompt(t, "u1", "2026-10-28T10:00:00Z", "fix the draft"),
+		logAgentCall(t, "a1", "2026-10-28T10:00:01Z", "toolu_m", "Draft fix", true),
+		logLaunched(t, "r1", "2026-10-28T10:00:02Z", "toolu_m", "am1"),
+		logAssistant(t, "a2", "2026-10-28T10:00:03Z", "tool_use", map[string]any{"type": "text", "text": "Waiting on it."}),
+		logSteer(t, "q1", "2026-10-28T10:01:00Z", realNotification("am1", "toolu_m", "completed", `Agent "Draft fix" finished`, "first report")),
+		logSteer(t, "q2", "2026-10-28T10:02:00Z", noCall),
+		logAssistant(t, "a3", "2026-10-28T10:02:01Z", "end_turn", map[string]any{"type": "text", "text": "The draft is fixed."}),
+		logDone(t, "d1", "2026-10-28T10:02:02Z"),
+	)
+	reload(t, app)
+	settle(app, key(t, app, "[")) // Screen wraps back to Turns
+	fr := frameWH(app, 120, 40)
+	if strings.Contains(fr, "no turns yet") || strings.Contains(fr, "list item ID") || !strings.Contains(fr, "fix the draft") {
+		t.Fatalf("the turns are not shown:\n%s", fr)
+	}
+	events := 0
+	for _, c := range app.pv.cards.Cards() {
+		if strings.HasPrefix(c.Header, "⤷ Draft fix") {
+			events++
+		}
+	}
+	if events != 1 {
+		t.Fatalf("%d cards of the task, want 1:\n%s", events, fr)
+	}
+}

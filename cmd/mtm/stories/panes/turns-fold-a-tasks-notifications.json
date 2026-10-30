@@ -1,0 +1,23 @@
+{
+  "name": "mtm: a Claude pane's Turns tab shows its turns when one background task notifies with and without its call id; the task is one event card, never two cards with one id that empty the tab",
+  "area": "panes",
+  "skip": "gap: a story cannot seed a Claude transcript or an agent session for a pane (story panes have a session, window, name and screen only; the projects directory is empty), so the Turns tab never reads a log; TestATasksNotificationsWithAndWithoutTheCallAreOneCard (turn_agents_test.go) renders the Turns tab over such a transcript and checks the frame and the cards",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 40,
+  "script": [
+    "["
+  ],
+  "expect": [
+    {
+      "mode": "normal",
+      "contains": [
+        "acme-web/claude"
+      ],
+      "lacks": [
+        "no turns yet",
+        "list item ID"
+      ]
+    }
+  ]
+}

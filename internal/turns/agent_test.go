@@ -181,6 +181,48 @@ func TestRepeatedNotificationsFoldIntoOneCard(t *testing.T) {
 	}
 }
 
+// A task's notifications fold into one card whether they name its call
+// or only its task: a resumed agent's later notifications name no call
+// (Claude Code 2.1.314), and two cards of one task in a turn had the same
+// id, which emptied the Turns tab.
+func TestNotificationsWithAndWithoutTheCallFoldIntoOneCard(t *testing.T) {
+	noCall := func(task, summary, result string) string {
+		return strings.Replace(RealNotification(task, "", "completed", summary, result), "<tool-use-id></tool-use-id>\n", "", 1)
+	}
+	got := parse(
+		userPrompt("u1", "2026-10-28T10:00:00Z", "start it", "typed"),
+		agentCall("a1", "2026-10-28T10:00:01Z", "toolu_m", "Draft", true),
+		launched("r1", "2026-10-28T10:00:02Z", "toolu_m", "am1"),
+		assistant("a2", "2026-10-28T10:00:03Z", "tool_use", text("Working.")),
+		queued("q1", "2026-10-28T10:01:00Z", RealNotification("am1", "toolu_m", "completed", `Agent "Draft" finished`, "first")),
+		queued("q2", "2026-10-28T10:02:00Z", noCall("am1", `Agent "Draft" finished`, "second")),
+		queued("q3", "2026-10-28T10:03:00Z", RealNotification("am1", "toolu_m", "completed", `Agent "Draft" finished`, "third")),
+		assistant("a3", "2026-10-28T10:03:01Z", "end_turn", text("Done.")),
+	)
+	if len(got) != 1 {
+		t.Fatalf("%d turns", len(got))
+	}
+	if ev := got[0].Events; len(ev) != 1 || ev[0].ToolUseID != "toolu_m" || ev[0].Result != "third" || ev[0].Repeats != 2 {
+		t.Fatalf("events %+v, want one card of toolu_m, the latest state, two repeats", ev)
+	}
+	// A task's turn of its own folds the same way.
+	got = parse(
+		userPrompt("u1", "2026-10-28T10:00:00Z", "start it", "typed"),
+		agentCall("a1", "2026-10-28T10:00:01Z", "toolu_m", "Draft", true),
+		launched("r1", "2026-10-28T10:00:02Z", "toolu_m", "am1"),
+		assistant("a2", "2026-10-28T10:00:03Z", "end_turn", text("Started.")),
+		duration("d1", "2026-10-28T10:00:04Z", 4000),
+		notify("n1", "2026-10-28T10:05:00Z", RealNotification("am1", "toolu_m", "completed", `Agent "Draft" finished`, "first")),
+		assistant("a3", "2026-10-28T10:05:01Z", "end_turn", text("Ok.")),
+		duration("d2", "2026-10-28T10:05:02Z", 2000),
+		notify("n2", "2026-10-28T10:09:00Z", noCall("am1", `Agent "Draft" finished`, "second")),
+		assistant("a4", "2026-10-28T10:09:01Z", "end_turn", text("Ok again.")),
+	)
+	if len(got) != 3 || got[1].Notice == nil || got[1].Notice.Result != "second" || got[1].Notice.Repeats != 1 || got[2].Notice == nil || got[2].Notice.RepeatOf != "n1" {
+		t.Fatalf("turns %+v", got)
+	}
+}
+
 // A notification delivered while a turn runs is an event of it, not a
 // steer; one in the same record as the person's message leaves the
 // message the real prompt.
