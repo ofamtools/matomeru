@@ -1,0 +1,45 @@
+{
+  "name": "mtm: text typed in one pane's prompt box stays that pane's; j to the next pane shows its own (empty) box, and k back shows the text again",
+  "area": "panes",
+  "skip": "gap: a story cannot deliver mtm's follow timer (story sessions have no pv.after), so after j the detail never loads the next pane's turns and its box is not drawn; TestPromptDraftIsThePanes (prompt_per_pane_test.go) drives the follow and checks the frame and the send",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "i",
+    {
+      "type": "for claude"
+    },
+    "esc",
+    "esc",
+    "esc",
+    "j",
+    "k"
+  ],
+  "expect": [
+    {
+      "after": 2,
+      "mode": "insert",
+      "contains": [
+        "\u203a for claude"
+      ]
+    },
+    {
+      "after": 6,
+      "mode": "normal",
+      "contains": [
+        "billing-api/shell"
+      ],
+      "lacks": [
+        "for claude"
+      ]
+    },
+    {
+      "mode": "normal",
+      "contains": [
+        "acme-web/claude",
+        "\u203a for claude"
+      ]
+    }
+  ]
+}
