@@ -130,7 +130,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		"i":   {"project.edit", "task.edit", "note.edit", "project-dir.edit", "review.saveAnswer", "outline.edit"},
 		"r":   {"pane.rename", "session.rename", "saved.rename"},
 		"x":   {"task.toggle", outlineModal + ".toggle", "review.accept"},
-		"s":   {"task.choose-status", outlineModal + ".status", "review.status"},
+		"s":   {"task.choose-status", outlineModal + ".status", "review.choose-status"},
 		"w":   {"saved.save", "vim.save"},
 		"m":   {"pane.choose-move", "session.choose-move", "task.choose-move", "note.choose-move", contextNoun + ".choose-move", "saved.choose-move", "vim.choose-move", actionItemNoun + ".choose-move"},
 	}

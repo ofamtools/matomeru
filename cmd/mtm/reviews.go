@@ -50,20 +50,28 @@ const (
 // defineReviews adds the review noun and the answer area's noun.
 func (a *App) defineReviews() {
 	r := a.r
-	r.Define("review").Columns(reviewColumns...).
-		Verb("list", a.listReviews, "List reviews in scope; --all widens the list").Fetch().
+	// Props and the store first: the standard verbs (get, list, set,
+	// watch) come from them (review_store.go); status is set's alias of
+	// status; accept, reject and saveAnswer run set; open and the status
+	// chooser are mtm's own.
+	r.Define("review").Props(reviewProps()...).Store(a.reviewStore()).Columns(reviewColumns...).
 		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
-		Verb("accept", a.acceptReview, "Mark the review accepted (the task is left as it is)").
-		Verb("reject", a.rejectReview, "Mark the review rejected").
-		Verb("status", a.statusReview, "Set the review's status (pending, accepted, rejected); omit status to choose one").Positional("status").
-		Verb("saveAnswer", a.saveAnswer, "Save the review's answer; omit answer to type it in the answer area (autosaved as a draft)").
+		Verb("accept", a.acceptReview, "Mark the review accepted (the standard set of status; the task is left as it is)").
+		Verb("reject", a.rejectReview, "Mark the review rejected (the standard set of status)").
+		Verb("choose-status", a.chooseReviewStatus, "Choose the review's status: pending, accepted or rejected (the standard set of status)").
+		Verb("saveAnswer", a.saveAnswer, "Save the review's answer (the standard set of answer); omit answer to type it in the answer area (autosaved as a draft)").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("review.open")).
 		Bind("x", ochazuke.Do("review.accept")).
-		Bind("s", ochazuke.Do("review.status")).
+		Bind("s", ochazuke.Do("review.choose-status")).
 		Bind("i", ochazuke.Do("review.saveAnswer"))
+	// status is the standard set with the status preset (it shares the
+	// prop's name as its set): review status STATUS; s chooses one.
+	if err := r.AddActionAlias(ochazuke.ActionAlias{Alias: "review.status", Action: "review.set", Args: ochazuke.Arguments{"prop": "status"},
+		Note: "the standard set of status: review status STATUS; s (review.choose-status) chooses one"}); err != nil {
+		panic(err)
+	}
 	a.parameters("review.saveAnswer", map[string]ochazuke.Parameter{"answer": {Type: "string", Description: "Omit to type it in the answer area"}})
-	a.parameters("review.status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: reviewStatuses}})
 	// The answer area is not insert-pinned: } lands on it in normal mode,
 	// so the next command key is never typed into it. Typing is autosaved
 	// as a draft; esc leaves insert and keeps the text.
@@ -151,16 +159,17 @@ func paneReviewID(session, window string) string {
 	return "pane-review-" + hex.EncodeToString(sum[:8])
 }
 
-// refreshReviews reloads the rows, one per pane, and pushes them to the
-// list; the opened row's Turns tree follows.
-func (a *App) refreshReviews() error {
+// paneReviews are the rows, one per pane in scope, unread first and then
+// newest first: the window's first review record, else one made from its
+// journaled turns (written the first time a verb needs it).
+func (a *App) paneReviews() ([]paneReview, error) {
 	reviews, err := a.work.Reviews()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	turns, err := a.hist.Turns("")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	type key struct{ session, window string }
 	rows := map[key]*paneReview{}
@@ -185,23 +194,36 @@ func (a *App) refreshReviews() error {
 		}
 		rows[k].Turns = append(rows[k].Turns, t)
 	}
-	var shown []*paneReview
+	var shown []paneReview
 	for _, k := range order {
 		if r := rows[k]; len(r.Turns) > 0 || a.inScope(r.Review.ProjectID) {
-			shown = append(shown, r)
+			shown = append(shown, *r)
 		}
 	}
 	// Unread first, then newest first, like every other list.
-	slices.SortStableFunc(shown, func(x, y *paneReview) int {
+	slices.SortStableFunc(shown, func(x, y paneReview) int {
 		return cmp.Or(cmp.Compare(min(y.unread(), 1), min(x.unread(), 1)), cmp.Compare(y.at(), x.at()), cmp.Compare(x.Review.ID, y.Review.ID))
 	})
+	return shown, nil
+}
+
+// refreshReviews reloads the rows, one per pane, and pushes them to the
+// list; the opened row's Turns tree follows.
+func (a *App) refreshReviews() error {
+	shown, err := a.paneReviews()
+	if err != nil {
+		return err
+	}
 	a.reviews, a.reviewRows = nil, map[string]paneReview{}
 	now := time.Now()
 	items := make([]ochazuke.ListItem, 0, len(shown))
 	for _, r := range shown {
 		a.reviews = append(a.reviews, r.Review)
-		a.reviewRows[r.Review.ID] = *r
-		items = append(items, ochazuke.ListItem{ID: r.Review.ID, Label: a.reviewLabel(*r, now), Noun: "review", Cells: a.reviewCells(*r, now)})
+		a.reviewRows[r.Review.ID] = r
+		items = append(items, ochazuke.ListItem{ID: r.Review.ID, Label: a.reviewLabel(r, now), Noun: "review", Cells: a.reviewCells(r, now)})
+	}
+	if a.reviewList == nil {
+		return nil
 	}
 	if err := a.reviewList.SetItems(items); err != nil {
 		return err
@@ -465,13 +487,10 @@ func (a *App) rejectReview(ctx ochazuke.Ctx) ochazuke.Result {
 // reviewStatuses are the statuses s chooses from, in chooser order.
 var reviewStatuses = []string{work.ReviewPending, work.ReviewAccepted, work.ReviewRejected}
 
-// statusReview is review.status (s): the status argument sets it at once;
-// without one a chooser of the three statuses asks (reject lives here).
-func (a *App) statusReview(ctx ochazuke.Ctx) ochazuke.Result {
-	if status, ok := ctx.Args["status"].(string); ok {
-		return a.setReviewStatus(ctx, status)
-	}
-	rv, err := a.review(ctx)
+// chooseReviewStatus is review.choose-status (s): a chooser of the three
+// statuses (reject lives here), its choice the standard set of status.
+func (a *App) chooseReviewStatus(ctx ochazuke.Ctx) ochazuke.Result {
+	rv, err := a.review(ctx, false)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -483,7 +502,7 @@ func (a *App) statusReview(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		rows = append(rows, ochazuke.ChooserRow{ID: "review-status:" + s, Label: label, Data: s})
 	}
-	target := ctx.Instance.ID
+	id := rv.ID
 	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  statusChooser,
 		Title: "Status · " + ctx.Instance.Label,
@@ -492,36 +511,32 @@ func (a *App) statusReview(ctx ochazuke.Ctx) ochazuke.Result {
 			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
 		},
 		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
-			out, err := a.r.Execute(ochazuke.Request{Verb: "status", Noun: "review", Target: target, Args: ochazuke.Arguments{"status": row.Data}})
-			if err != nil {
-				return ochazuke.Failed(err)
-			}
-			return ochazuke.Done(out)
+			return a.reviewSet(id, "status", row.Data)
 		},
 	})
 	return resultError(err)
 }
 
-// setReviewStatus writes the status and pushes the rows again.
+// reviewSet runs the standard set of one prop of a review.
+func (a *App) reviewSet(id, prop string, value any) ochazuke.Result {
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "review", Verb: "set", Args: ochazuke.Arguments{"id": id, "prop": prop, "value": value}}))
+}
+
+// setReviewStatus is accept and reject: the standard set of status on the
+// addressed row.
 func (a *App) setReviewStatus(ctx ochazuke.Ctx, status string) ochazuke.Result {
-	rv, err := a.review(ctx)
+	rv, err := a.review(ctx, false)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if rv, err = a.work.SetReviewStatus(rv.ID, status); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.refreshReviews(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(rv)
+	return a.reviewSet(rv.ID, "status", status)
 }
 
 // saveAnswer is review.saveAnswer: the answer argument saves at once;
 // without one (the i key) the review opens and the answer area takes the
 // typing in insert mode, its draft or saved answer in it.
 func (a *App) saveAnswer(ctx ochazuke.Ctx) ochazuke.Result {
-	rv, err := a.review(ctx)
+	rv, err := a.review(ctx, false)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -544,25 +559,15 @@ func (a *App) saveAnswer(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // answerCommit saves an answer for a review (an unchanged one writes
-// nothing), keeps the answer area in step when it is the opened review,
-// and pushes the rows again.
+// nothing and drops the draft) through the standard set of answer, so
+// history.undo reverts it.
 func (a *App) answerCommit(rv work.Review) func(string) error {
 	return func(text string) error {
 		if text == rv.Answer {
 			return a.drafts.Clear("review", rv.ID)
 		}
-		if _, err := a.work.SaveAnswer(rv.ID, text); err != nil {
-			return err
-		}
-		if err := a.drafts.Clear("review", rv.ID); err != nil {
-			return err
-		}
-		if a.opened == rv.ID {
-			if err := a.setAnswerText(text); err != nil {
-				return err
-			}
-		}
-		return a.refreshReviews()
+		_, err := a.r.Execute(ochazuke.Request{Noun: "review", Verb: "set", Args: ochazuke.Arguments{"id": rv.ID, "prop": "answer", "value": text}})
+		return err
 	}
 }
 
@@ -703,22 +708,4 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	}
 	text := strings.Join(append(lines, field.Text), "\n")
 	return field.WithText(text)
-}
-
-func (a *App) listReviews(ctx ochazuke.Ctx) ochazuke.Result {
-	rows, err := a.work.Reviews()
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	scope := *a
-	if all, _ := ctx.Args["all"].(bool); all {
-		scope.all = true
-	}
-	out := []work.Review{}
-	for _, rv := range rows {
-		if scope.inScope(rv.ProjectID) {
-			out = append(out, rv)
-		}
-	}
-	return ochazuke.Done(out)
 }
