@@ -24,6 +24,15 @@ const (
 	starredRemoveAfter = "the next mtm release"
 )
 
+// taskStatusSince and reviewStatusSince date the deprecated --status of
+// task.status and review.status (now set's --value, since they became
+// aliases of the standard set; Keep actions: one release).
+const (
+	taskStatusSince       = "mtm 9c32b20 (2026-10-29)"
+	reviewStatusSince     = "mtm 68231f6 (2026-10-29)"
+	statusFlagRemoveAfter = "the next mtm release"
+)
+
 // starAlias is NOUN.star: the standard set of starred, toggled; a caller's
 // --value sets it instead (ochazuke v0.55: the toggle preset yields to a
 // value, Parameter.Excludes). The old --starred still sets it, with a

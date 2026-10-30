@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/unixsuperhero/ochazuke"
@@ -45,6 +46,17 @@ func TestReviewWritesAreStandardAndUndo(t *testing.T) {
 	executeA(t, app, "history", "undo", "", nil)
 	if got := storedReview(t, app, rv.ID).Answer; got != "" {
 		t.Fatalf("undo of the answer: %q", got)
+	}
+	// The deprecated --status (now --value) still sets it, with a notice.
+	_, errOut, err := cli(app, "", "review", "status", rv.ID, "--status", "rejected")
+	if err != nil {
+		t.Fatalf("review status --status rejected: %v\n%s", err, errOut)
+	}
+	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewRejected {
+		t.Fatalf("review status --status: %q", got)
+	}
+	if !strings.Contains(errOut, "notice: review.status: status is an old name of value") {
+		t.Fatalf("review status --status: no deprecation notice on stderr:\n%s", errOut)
 	}
 	mustCLI(t, app, "review", "status", rv.ID, "accepted")
 	var got map[string]any

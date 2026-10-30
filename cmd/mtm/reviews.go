@@ -66,9 +66,11 @@ func (a *App) defineReviews() {
 		Bind("s", ochazuke.Do("review.choose-status")).
 		Bind("i", ochazuke.Do("review.saveAnswer"))
 	// status is the standard set with the status preset (it shares the
-	// prop's name as its set): review status STATUS; s chooses one.
+	// prop's name as its set): review status STATUS; s chooses one. The
+	// old --status still sets it, with a one-time notice (ParamAlias).
 	if err := r.AddActionAlias(ochazuke.ActionAlias{Alias: "review.status", Action: "review.set", Args: ochazuke.Arguments{"prop": "status"},
-		Note: "the standard set of status: review status STATUS; s (review.choose-status) chooses one"}); err != nil {
+		Note:         "the standard set of status: review status STATUS; s (review.choose-status) chooses one (--status before " + reviewStatusSince + ")",
+		ParamAliases: []ochazuke.ParamAlias{{Alias: "status", Param: "value", Since: reviewStatusSince, RemoveAfter: statusFlagRemoveAfter}}}); err != nil {
 		panic(err)
 	}
 	a.parameters("review.saveAnswer", map[string]ochazuke.Parameter{"answer": {Type: "string", Description: "Omit to type it in the answer area"}})

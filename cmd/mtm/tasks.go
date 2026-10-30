@@ -34,12 +34,15 @@ func (a *App) defineTask() {
 		Bind("m", ochazuke.Do("task.choose-move"))
 	// done and status are the standard set with the status preset (2.5:
 	// task.status shares the prop's name as its set); the old arguments
-	// are set's: task done ID, task status ID STATUS.
+	// are set's: task done ID, task status ID STATUS. The old --status
+	// still sets it, with a one-time notice (ochazuke.ParamAlias; Keep
+	// actions: seed scripts run task status --id T --status X).
 	for _, alias := range []ochazuke.ActionAlias{
 		{Alias: "task.done", Action: "task.set", Args: ochazuke.Arguments{"prop": "status", "value": work.StatusDone},
 			Note: "the standard set of status with done"},
 		{Alias: "task.status", Action: "task.set", Args: ochazuke.Arguments{"prop": "status"},
-			Note: "the standard set of status: task status ID STATUS; s (task.choose-status) chooses one"},
+			Note:         "the standard set of status: task status ID STATUS; s (task.choose-status) chooses one (--status before " + taskStatusSince + ")",
+			ParamAliases: []ochazuke.ParamAlias{{Alias: "status", Param: "value", Since: taskStatusSince, RemoveAfter: statusFlagRemoveAfter}}},
 	} {
 		if err := r.AddActionAlias(alias); err != nil {
 			panic(err)

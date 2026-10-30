@@ -97,6 +97,18 @@ func TestTaskAliasesWithPresets(t *testing.T) {
 	if s1, s2 := stored(t, a, "t1").Status, stored(t, a, "t2").Status; s1 != work.StatusDone || s2 != work.StatusTodo {
 		t.Fatalf("undo: t1 %s t2 %s", s1, s2)
 	}
+	// The deprecated --status (now --value) still sets it, with a notice:
+	// seed scripts run task status --id T --status X.
+	_, errOut, err := cli(a, "", "task", "status", "--id", "t2", "--status", "active")
+	if err != nil {
+		t.Fatalf("task status --id t2 --status active: %v\n%s", err, errOut)
+	}
+	if got := stored(t, a, "t2").Status; got != work.StatusActive {
+		t.Fatalf("task status --status: %s", got)
+	}
+	if !strings.Contains(errOut, "notice: task.status: status is an old name of value") {
+		t.Fatalf("task status --status: no deprecation notice on stderr:\n%s", errOut)
+	}
 }
 
 // A visual selection's status write (s over rows) is one set per row and
