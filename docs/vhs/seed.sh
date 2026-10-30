@@ -22,6 +22,36 @@ export PATH=$D/bin:/usr/bin:/bin EDITOR=true VISUAL=true
 mtm() { "$D/bin/mtm" --data "$D/data/mtm.db" --config "$D/config" --socket "$D/run/none.sock" "\$@"; }
 cd "$D/home"
 ENV
+# The recording's look: a Catppuccin Mocha scheme with coloured panel
+# borders (border blue, focused border and accent mauve), the key echo in the
+# footer, and every turn card tinted by its state.
+cat > "$D/config/themes.json" <<'JSON'
+{
+  "mocha": {
+    "background": "dark",
+    "text": "#CDD6F4",
+    "muted": "#9399B2",
+    "accent": "#CBA6F7",
+    "border": "#89B4FA",
+    "surface": "#313244",
+    "error": "#F38BA8",
+    "tones": {
+      "state.working": "#89B4FA",
+      "state.needs-input": {"fg": "#F9E2AF", "bold": true},
+      "state.done": "#A6E3A1",
+      "marker.star": {"fg": "#F9E2AF", "bold": true}
+    }
+  }
+}
+JSON
+cat > "$D/config/settings.json" <<'JSON'
+{
+  "theme": "mocha",
+  "keys.echo": "footer",
+  "keys.echo-linger": "4s",
+  "turns.status-border": "all"
+}
+JSON
 # shellcheck disable=SC1091
 . "$D/env"
 cd "$OLDPWD"
@@ -39,7 +69,7 @@ project() { # NAME COLOR
 task() { # PROJECT STATUS TITLE
 	local t
 	t=$(q task new --project "$1" --title "$3" | id)
-	[ "$2" = todo ] || q task status --id "$t" --status "$2" >/dev/null
+	[ "$2" = todo ] || q task status --id "$t" --value "$2" >/dev/null
 }
 
 web=$(project acme-web "#7FB685")

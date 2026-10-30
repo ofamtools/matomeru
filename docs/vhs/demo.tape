@@ -12,15 +12,16 @@ Require go
 Set Shell "bash"
 Set Theme "Catppuccin Mocha"
 Set FontSize 16
-Set Width 1080
-Set Height 600
+Set Width 1600
+Set Height 900
 Set Padding 16
 Set WindowBar Colorful
 Set Framerate 15
 Set TypingSpeed 55ms
 Set CursorBlink false
 
-# Off camera: build, seed, start on the Work page.
+# Off camera: build, seed (projects, tasks, notes, and the recording's
+# themes.json and settings.json), start on the Work page.
 Hide
 Type "export D=$(mktemp -d /tmp/mtm.XXXX) && docs/vhs/seed.sh $D && . $D/env && clear && mtm"
 Enter
@@ -35,7 +36,20 @@ Sleep 800ms
 Show
 Sleep 900ms
 
-# Move through the projects, open one, move through its tasks.
+# Step: Pin a project
+# The first thing in mtm: the palette's project pin pins the focused
+# project, acme-web, at the top of the list. The title and the row take the
+# pin; without a pin mtm draws in mono, pinned it draws the theme's colours.
+Ctrl+Space
+Sleep 400ms
+Type "project pin"
+Sleep 300ms
+Enter
+Sleep 2s
+
+# Step: Move through the projects and tasks
+# j and k move down the project list, enter opens one, j moves through its
+# tasks.
 Type "j"
 Sleep 450ms
 Type "j"
@@ -49,7 +63,8 @@ Sleep 350ms
 Type "j"
 Sleep 500ms
 
-# Filter the task list.
+# Step: Filter the task list
+# / filters the focused list as you type; enter keeps the filter.
 Type "/"
 Sleep 300ms
 Type "refund"
@@ -59,20 +74,9 @@ Sleep 500ms
 Escape
 Sleep 300ms
 
-# The palette pins a project: the title and accent follow it.
-Ctrl+Space
-Sleep 400ms
-Type "project pin"
-Sleep 300ms
-Enter
-Sleep 700ms
-Down
-Sleep 400ms
-Enter
-Sleep 900ms
-
-# Three pages over, the Notes page. A note is Markdown with a checklist:
-# j moves between the boxes, x ticks one.
+# Step: Tick a box in a note
+# Three pages over (ctrl+j), the Notes page. A note is Markdown with a
+# checklist: j moves between the boxes, x ticks one.
 Ctrl+J
 Sleep 200ms
 Ctrl+J
@@ -86,7 +90,8 @@ Sleep 400ms
 Type "x"
 Sleep 900ms
 
-# Every key on screen, then the Settings page.
+# Step: Every key, then the Settings page
+# ? lists every key on screen; , opens the Settings page.
 Escape
 Sleep 300ms
 Type "?"
