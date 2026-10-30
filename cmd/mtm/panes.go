@@ -103,6 +103,10 @@ type pane struct {
 	Exited            bool   `json:"exited,omitempty"`  // the window's process ended; TUIOS still lists it
 	Program           string `json:"program,omitempty"` // what mtm knows runs in a shell pane ("vim"), else ""
 	Starred           bool   `json:"starred,omitempty"` // pane.star (pane_stars.go)
+	// states are the state words panes.working-states and its siblings
+	// read the agent's state with (panes_panels.go); nil reads tuios's
+	// defaults.
+	states *stateWords
 	// View and ViewSplit are the pane's own view (pane.view, pane_view.go).
 	View      string `json:"view,omitempty"`
 	ViewSplit int    `json:"view_split,omitempty"`
@@ -297,8 +301,11 @@ func (a *App) definePanes() {
 	r.Define("panes").
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
-		Verb("waiting", a.nextWaiting, "Select the next pane that needs input")
+		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").
+		Verb("focus-section", a.focusSection, "Move the focus to one of the page's lists: queue (Needs you), panes or working")
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
+	a.parameters("panes.focus-section", map[string]ochazuke.Parameter{"section": {Type: "string", Required: true, Enum: sectionNames,
+		Description: "queue (the Needs you list at the top), panes (the middle) or working (the bottom)"}})
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
 	a.defineLiveKeys()
 	a.definePaneStars()
@@ -322,6 +329,7 @@ func (a *App) addPanesPage() error {
 	if err := a.addPaneSections(); err != nil {
 		return err
 	}
+	a.observePanelSettings()
 	if err := a.addTurns(); err != nil {
 		return err
 	}
@@ -335,6 +343,11 @@ func (a *App) addPanesPage() error {
 		{"W", ochazuke.Do("panes.waiting")},
 		// `: ' is page.pick; the backtick is Vim's jump to a mark.
 		{"`", ochazuke.Do("panes.starred").Hinted("next starred")},
+		// g n, g w, g p: go to the Needs you, Working or Panes list (the
+		// lists' g g and g c stay theirs).
+		{"g n", ochazuke.Do("panes.focus-section", ochazuke.Arguments{"section": sectionQueue}).Hinted("needs you")},
+		{"g w", ochazuke.Do("panes.focus-section", ochazuke.Arguments{"section": sectionWorking}).Hinted("working")},
+		{"g p", ochazuke.Do("panes.focus-section", ochazuke.Arguments{"section": sectionPanes}).Hinted("panes list")},
 	} {
 		b := row.req
 		b.Instance, b.Mode, b.Keys = panesPage, "normal", row.keys
@@ -505,6 +518,7 @@ func (a *App) setPanes(panes []pane, err error) {
 	}
 	a.markStars(panes)
 	a.markViews(panes)
+	a.stampStates(panes)
 	a.panes = panes
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {

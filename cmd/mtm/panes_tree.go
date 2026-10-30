@@ -47,7 +47,7 @@ func (p pane) isAgent() bool {
 
 // needsInput reports whether the pane waits on the person.
 func (p pane) needsInput() bool {
-	return !p.Exited && (p.AgentState == "needs_input" || p.NeedsYou)
+	return !p.Exited && (p.words().waiting(p.AgentState) || p.NeedsYou)
 }
 
 // queuedMarker follows a pane's name while prompts wait in its delivery
@@ -67,11 +67,11 @@ func stateGlyph(p pane) string {
 	switch {
 	case p.needsInput():
 		return "?"
-	case p.AgentState == "working":
+	case p.working():
 		return "●"
 	case p.AgentState == "done":
 		return "✓"
-	case p.AgentState == "errored":
+	case p.errored():
 		return "✗"
 	}
 	return "○"
@@ -111,11 +111,11 @@ func stateTone(p pane) string {
 		return ""
 	case p.needsInput():
 		return ochazuke.ToneNeedsInput
-	case p.AgentState == "working":
+	case p.working():
 		return ochazuke.ToneWorking
 	case p.AgentState == "done":
 		return ochazuke.ToneDone
-	case p.AgentState == "errored":
+	case p.errored():
 		return ochazuke.ToneErrored
 	}
 	return ochazuke.ToneIdle

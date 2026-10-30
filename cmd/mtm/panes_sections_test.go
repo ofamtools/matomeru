@@ -83,6 +83,7 @@ func itemByKey(t *testing.T, a *App, key string) actionitems.Item {
 // everything else, the terminal always, is the middle.
 func TestPaneSectionsDefaultAssignment(t *testing.T) {
 	a, _ := sectionsApp(t)
+	setting(t, a, settingPanesLayout, layoutStacked)
 	queue := sectionIDs(a, 0)
 	want := []string{"pane:s/wwait", "pane:s/werr", "pane:s/wdone", "queue:" + itemByKey(t, a, "pr-1").ID}
 	if !slices.Equal(queue, want) {
@@ -209,6 +210,7 @@ func TestPaneSectionHeights(t *testing.T) {
 // The frames of both layouts (the report pastes them).
 func TestPaneSectionLayoutsRender(t *testing.T) {
 	a, _ := sectionsApp(t)
+	setting(t, a, settingPanesLayout, layoutStacked)
 	budget := frameWH(a, 120, 24)
 	for _, want := range []string{"─ Waiting · Review (4) ─", "─ Panes (2) ─", "─ Working (2) ─", "? waiter", "● oldest"} {
 		if !strings.Contains(budget, want) {
@@ -226,11 +228,12 @@ func TestPaneSectionLayoutsRender(t *testing.T) {
 	t.Logf("thirds:\n%s", thirds)
 }
 
-// The row under the cursor keeps its section while it changes state; it
-// moves once the cursor leaves it, and order within a section holds
-// across refreshes.
+// With panes.sticky-rows the row under the cursor keeps its section while
+// it changes state; it moves once the cursor leaves it, and order within
+// a section holds across refreshes.
 func TestPaneSectionsHoldTheRowUnderTheCursor(t *testing.T) {
 	a, panes := sectionsApp(t)
+	setting(t, a, settingStickyRows, true)
 	row := "pane:s/wold"
 	if err := a.selectPaneRow(row); err != nil {
 		t.Fatal(err)

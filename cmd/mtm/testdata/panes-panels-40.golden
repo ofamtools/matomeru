@@ -1,0 +1,40 @@
+  ◆ Matomeru · no pin · inbox 4/4                                                                              NORMAL   
+   › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Runs  Extensions                   
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+  panes (7) · 4 need you · 2 working ╭─ s/idler ─────────────────────────────────────────────────────────────────────╮  
+  ╭─ Needs you (4) ────────────────╮ │ claude · idle · unassociated                                                  │  
+  │     ? waiter    needs inp…     │ │ Turns [Screen] Activity Transcript · [ ] tabs · enter live                    │  
+  │     ✗ errs      errored 2…     │ │ loading…                                                                      │  
+  │     ○ finisher  idle 2075…     │ │                                                                               │  
+  │   ● PR 1        review re…  gh │ │                                                                               │  
+  ╰────────────────────────────────╯ │                                                                               │  
+  pane                state          │                                                                               │  
+  ▾ unassociated (2)                 │                                                                               │  
+        ○ idler       idle           │                                                                               │  
+          term        shell          │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+                                     │                                                                               │  
+  ╭─ Working (2) ──────────────────╮ │                                                                               │  
+  │     ● oldest  working 2075…    │ │                                                                               │  
+  │     ● newest  working 2075…    │ │                                                                               │  
+  │                                │ │                                                                               │  
+  │                                │ │                                                                               │  
+  ╰────────────────────────────────╯ ╰───────────────────────────────────────────────────────────────────────────────╯  
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+  enter live · d d pane.kill · m pane.choose-move · f hints · * pane.star · w saved.save · r pane.rename · l copy mod…  
+                                                                                                                        

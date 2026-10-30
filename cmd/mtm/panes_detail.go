@@ -771,10 +771,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		listH = height - 1
 		detailH = height
 	} else {
-		need := 0
-		for _, sec := range a.pv.sections {
-			need += a.sectionNeed(sec)
-		}
+		need := a.sectionsNeed()
 		listH = min(max(3, need), max(3, (height-1)/2))
 		detailH = height - 1 - listH
 	}

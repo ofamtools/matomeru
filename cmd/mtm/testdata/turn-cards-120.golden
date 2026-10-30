@@ -2,17 +2,17 @@
    › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Runs  Extensions                   
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   panes (2)                          ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
-  ─ Panes (2) ─                      ┃ claude-code · idle                                                            ┃  
-  pane                state          ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
-  ▾ matomeru (1)                     ┃ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ┃  
-        ○ claude      idle           ┃ ┃ ▾ prompt 1                                                                ┃ ┃  
-  ▾ unassociated (1)                 ┃ ┃   with a second line                                                      ┃ ┃  
-          shell       shell          ┃ ┃   Sep 21 14:13 · 1 answer                                                 ┃ ┃  
-                                     ┃ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ ┃  
-                                     ┃ ┃ ▾ 1 answer                                                                ┃ ┃  
-                                     ┃ ┃   This answer is a long paragraph of prose that the agent wrote, which    ┃ ┃  
-                                     ┃ ┃   should wrap onto several rows at the panel width instead of being cut   ┃ ┃  
-                                     ┃ ┃   off with an ellipsis at the edge.                                       ┃ ┃  
+  ╭─ Needs you (0) ────────────────╮ ┃ claude-code · idle                                                            ┃  
+  │ Nothing needs you              │ ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
+  │                                │ ┃ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ┃  
+  │                                │ ┃ ┃ ▾ prompt 1                                                                ┃ ┃  
+  │                                │ ┃ ┃   with a second line                                                      ┃ ┃  
+  ╰────────────────────────────────╯ ┃ ┃   Sep 21 14:13 · 1 answer                                                 ┃ ┃  
+  pane                state          ┃ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ ┃  
+  ▾ matomeru (1)                     ┃ ┃ ▾ 1 answer                                                                ┃ ┃  
+        ○ claude      idle           ┃ ┃   This answer is a long paragraph of prose that the agent wrote, which    ┃ ┃  
+  ▾ unassociated (1)                 ┃ ┃   should wrap onto several rows at the panel width instead of being cut   ┃ ┃  
+          shell       shell          ┃ ┃   off with an ellipsis at the edge.                                       ┃ ┃  
                                      ┃ ┃       func indented() { return someLongFunctionName(withArguments,        ┃ ┃  
                                      ┃ ┃   andMoreArguments, andEvenMoreArguments) }                               ┃ ┃  
                                      ┃ ┃                                                                           ┃ ┃  
@@ -23,12 +23,12 @@
                                      ┃ ┃   ので、幅の計算に注意が必要です。                                        ┃ ┃  
                                      ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃  
                                      ┃ ╭───────────────────────────────────────────────────────────────────────────╮ ┃  
-                                     ┃ │ ▾ prompt 2                                                                │ ┃  
-                                     ┃ │   with a second line                                                      │ ┃  
-                                     ┃ 1–2 / 2                                                                       ┃  
-                                     ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ─────────────────────────── ┃  
-                                     ┃ › write to the agent                                                          ┃  
-                                     ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
+  ╭─ Working (0) ──────────────────╮ ┃ │ ▾ prompt 2                                                                │ ┃  
+  │ No agent is working            │ ┃ │   with a second line                                                      │ ┃  
+  │                                │ ┃ 1–2 / 2                                                                       ┃  
+  │                                │ ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ─────────────────────────── ┃  
+  │                                │ ┃ › write to the agent                                                          ┃  
+  ╰────────────────────────────────╯ ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   l timeline.enter · enter turn.close · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · z R timeline.open-…  
                                                                                                                         

@@ -86,9 +86,25 @@ func turnsRegion(t *testing.T, a *App) string {
 	if start < 0 || end < start {
 		t.Fatalf("no turns region:\n%s", frame(a))
 	}
-	// The detail panel's inside only: its border shows the focus.
+	// The detail panel's inside only: its border shows the focus. Its
+	// left border is the last one before the tabs on the tabs line.
+	left := 0
+	if at := strings.Index(lines[start-1], "[Turns]"); at >= 0 {
+		before := []rune(lines[start-1][:at])
+		for i := len(before) - 1; i >= 0; i-- {
+			if before[i] == '│' || before[i] == '┃' {
+				left = i
+				break
+			}
+		}
+	}
 	var out []string
 	for _, l := range lines[start:end] {
+		// From the detail's left border on: the left column's panels
+		// draw borders too.
+		if r := []rune(l); len(r) > left {
+			l = string(r[left:])
+		}
 		i := strings.IndexAny(l, "│┃")
 		j := strings.LastIndexAny(l, "│┃")
 		if i >= 0 && j > i {

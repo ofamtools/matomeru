@@ -468,7 +468,7 @@ func (a *App) recordTurns(panes []pane) {
 		}
 		prev, seen := a.pv.lastState[p.ID]
 		a.pv.lastState[p.ID] = p.AgentState
-		if seen && (prev == "working") != (p.AgentState == "working") {
+		if seen && p.words().working(prev) != p.working() {
 			changed = true
 		}
 	}

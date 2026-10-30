@@ -268,8 +268,11 @@ func follow(a *App) tea.Cmd {
 
 func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	app, _ := panesApp(t)
-	// This test reads the session rows (project → session → pane).
+	// This test reads the session rows (project → session → pane), all
+	// of them in 24 lines: the stacked lists (panes_panels_test.go has the
+	// panels).
 	groupBy(t, app, groupProjectSessionPane)
+	setting(t, app, settingPanesLayout, layoutStacked)
 	if app.r.Focus != "pane:matomeru/w1" {
 		t.Fatalf("focus = %s", app.r.Focus)
 	}
@@ -562,8 +565,10 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 // agent's pane is the agent's row; a shell is a shell row.
 func TestPaneTreeIsATable(t *testing.T) {
 	app := open(t)
-	// This test reads the session rows (project → session → pane).
+	// This test reads the session rows (project → session → pane), all
+	// of them at 80 columns: the stacked lists.
 	groupBy(t, app, groupProjectSessionPane)
+	setting(t, app, settingPanesLayout, layoutStacked)
 	if err := app.work.PutPaneRecipe(work.PaneRecipe{Window: "w1", Harness: "claude", Model: "opus"}); err != nil {
 		t.Fatal(err)
 	}

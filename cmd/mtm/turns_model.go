@@ -477,7 +477,7 @@ func (a *App) pollTurns() {
 // still open in a log whose agent is no longer working is done.
 func liveTurns(pt *paneTurns, p pane) []turns.Turn {
 	list := pt.list
-	if n := len(list); n > 0 && list[n-1].State == turns.StateRunning && (list[n-1].Source == turns.SourceClaude || list[n-1].Source == turns.SourceOmp) && p.AgentState != "working" && !p.needsInput() {
+	if n := len(list); n > 0 && list[n-1].State == turns.StateRunning && (list[n-1].Source == turns.SourceClaude || list[n-1].Source == turns.SourceOmp) && !p.working() && !p.needsInput() {
 		list = slices.Clone(list)
 		list[n-1].State = turns.StateDone
 	}

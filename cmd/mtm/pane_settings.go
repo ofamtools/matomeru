@@ -691,7 +691,7 @@ func (a *App) applySetting(p pane, row, name, value string, confirmed bool) ocha
 		return ochazuke.Failed(fmt.Errorf("%s has exited", p.label()))
 	case p.needsInput():
 		return ochazuke.Failed(errors.New("the agent waits on you: answer it first (enter on its row attaches it), then change the setting"))
-	case st.Key != "" && p.AgentState == "working":
+	case st.Key != "" && p.working():
 		return ochazuke.Failed(fmt.Errorf("the agent is working: %s steps with %s, which would act on the running turn; change it once the agent rests", name, st.Key))
 	}
 	if !confirmed && a.promptDraftFor(p) {
@@ -708,7 +708,7 @@ func (a *App) applySetting(p pane, row, name, value string, confirmed bool) ocha
 	}
 	text := st.Text(value)
 	watch.sent = text
-	working := p.AgentState == "working"
+	working := p.working()
 	sleep := a.sleep
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		if working {

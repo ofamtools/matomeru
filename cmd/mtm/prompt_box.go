@@ -492,7 +492,7 @@ func promptModeLabel(mode int, p pane, box harness.PromptBox) string {
 		return "[send]"
 	}
 	name := promptModes[mode]
-	if mode == promptSend && p.AgentState == "working" {
+	if mode == promptSend && p.working() {
 		name = "steer"
 	}
 	return "[" + name + "]"
@@ -545,7 +545,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	if mode == promptQueue && len(text) > daemon.QueueMaxText {
 		return ochazuke.Failed(fmt.Errorf("a queued prompt is at most %d KiB; this one is %d KiB (send it instead)", daemon.QueueMaxText>>10, (len(text)+1023)>>10))
 	}
-	working := p.AgentState == "working"
+	working := p.working()
 	sleep := a.sleep
 	label := promptModes[mode]
 	if mode == promptSend && working {

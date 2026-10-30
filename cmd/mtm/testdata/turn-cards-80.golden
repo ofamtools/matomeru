@@ -2,12 +2,19 @@
    › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  3›    
   ────────────────────────────────────────────────────────────────────────────  
   panes (2)                                                                     
-  ─ Panes (2) ─                                                                 
+  ╭─ Needs you (0) ──────────────────────────────────────────────────────────╮  
+  │ Nothing needs you                                                        │  
+  │                                                                          │  
+  ╰──────────────────────────────────────────────────────────────────────────╯  
   pane                state                                                     
   ▾ matomeru (1)                                                                
         ○ claude      idle                                                      
-  ▾ unassociated (1)                                                            
-          shell       shell                                                     
+  1–2 / 4                                                                       
+  ╭─ Working (0) ────────────────────────────────────────────────────────────╮  
+  │ No agent is working                                                      │  
+  │                                                                          │  
+  │                                                                          │  
+  ╰──────────────────────────────────────────────────────────────────────────╯  
   ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
   ┃ claude-code · idle                                                       ┃  
   ┃ [Turns] Screen Activity Transcript · [ ] tabs                            ┃  
@@ -18,13 +25,6 @@
   ┃ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ ┃  
   ┃ ┃ ▾ 1 answer                                                           ┃ ┃  
   ┃ ┃   This answer is a long paragraph of prose that the agent wrote,     ┃ ┃  
-  ┃ ┃   which should wrap onto several rows at the panel width instead of  ┃ ┃  
-  ┃ ┃   being cut off with an ellipsis at the edge.                        ┃ ┃  
-  ┃ ┃       func indented() { return someLongFunctionName(withArguments,   ┃ ┃  
-  ┃ ┃   andMoreArguments, andEvenMoreArguments) }                          ┃ ┃  
-  ┃ ┃                                                                      ┃ ┃  
-  ┃ ┃   See                                                                ┃ ┃  
-  ┃ ┃   https://example.com/a/very/long/path/that/does/not/have/any/spaces ┃ ┃  
   ┃ 1–1 / 2                                                                  ┃  
   ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ────────────────────── ┃  
   ┃ › write to the agent                                                     ┃  

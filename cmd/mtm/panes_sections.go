@@ -37,10 +37,12 @@ import (
 // vanishes). A terminal raises a signal only from its command items (a
 // failed command is errored, a long one unread: pane_signals.go).
 //
-// Order is stable: a row keeps the rank and time it entered its section
-// with until it leaves (tuios's order-stable-within-group rule), and the
-// row under the cursor (the selection the detail shows) stays in its
-// section until the cursor moves off it (matomeru-old reviewSticky).
+// Order is stable (panes.stable-order, on by default): a row keeps the
+// rank and time it entered its section with until it leaves (tuios's
+// order-stable-within-group rule). With panes.sticky-rows (off by
+// default) the row under the cursor, while the cursor is on one of the
+// lists, stays in its section until the cursor moves off it
+// (matomeru-old reviewSticky).
 //
 // The unread source is the pane-signal inbox items (internal/panesignals):
 // a done item is raised when a turn ends and marked read once the pane is
@@ -225,9 +227,9 @@ func paneSignal(p pane, fromItems map[string]string) string {
 		switch {
 		case p.needsInput():
 			return signalWaiting
-		case p.AgentState == "errored":
+		case p.errored():
 			return signalErrored
-		case p.AgentState == "working":
+		case p.working():
 			return signalWorking
 		}
 	}
@@ -362,8 +364,13 @@ func (a *App) rebuildPanes() error {
 	if len(a.pv.sections) == 0 {
 		return nil
 	}
+	a.stampStates(a.panes)
+	row, _ := a.selectedRow()
 	a.pv.view = a.buildPaneSections(a.panes, time.Now())
-	return a.applyPaneSections()
+	if err := a.applyPaneSections(); err != nil {
+		return err
+	}
+	return a.followRow(row)
 }
 
 // applyPaneSections pushes the built nodes to the trees. A row moving
@@ -463,7 +470,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		}
 	}
 	cur := ""
-	if s := a.activeSection(); s != nil {
+	if s := a.activeSection(); s != nil && a.holdsRows() {
 		if n, ok := s.tree.Selected(); ok {
 			cur = n.ID
 		}
@@ -473,10 +480,11 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		a.pv.places = map[string]sectionPlace{}
 	}
 	places := map[string]sectionPlace{}
+	stable := a.r.Settings().Bool(settingStableOrder)
 	// place is a row's rank and time in section: what it entered with
 	// while it stays, else rank and at now.
 	place := func(id, section string, rank int, at int64) sectionPlace {
-		if old, ok := a.pv.places[id]; ok && old.section == section {
+		if old, ok := a.pv.places[id]; ok && old.section == section && stable {
 			places[id] = old
 			return old
 		}
@@ -697,6 +705,9 @@ func (a *App) sectionNeed(s *paneSection) int {
 // sectionsBlock draws the non-empty lists top to bottom in height lines,
 // each under its title: the count, and how many rows its window hides.
 func (a *App) sectionsBlock(width, height int) ochazuke.Block {
+	if a.panelsLayout() {
+		return a.panelsBlock(width, height)
+	}
 	s := ochazuke.NewStyles(*a.m.Appearance)
 	var need [3]int
 	for i, sec := range a.pv.sections {
