@@ -137,6 +137,23 @@ func (p pane) working() bool { return p.words().working(p.AgentState) }
 // errored reports whether the agent's state is an errored one.
 func (p pane) errored() bool { return p.words().errored(p.AgentState) }
 
+// signalState is the agent's state in tuios's own words for the pane
+// signals (internal/panesignals reads those): a state the settings list
+// as waiting, errored or working reads as needs_input, errored or
+// working; any other is itself.
+func (p pane) signalState() string {
+	w := p.words()
+	switch {
+	case w.waiting(p.AgentState):
+		return defaultWaitingStates[0]
+	case w.errored(p.AgentState):
+		return defaultErroredStates[0]
+	case w.working(p.AgentState):
+		return defaultWorkingStates[0]
+	}
+	return p.AgentState
+}
+
 // paneStates are the state words of the settings.
 func (a *App) paneStates() *stateWords {
 	s := a.r.Settings()

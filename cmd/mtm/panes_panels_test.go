@@ -385,6 +385,10 @@ func TestPanesWorkingStatesSetting(t *testing.T) {
 	if !a.panes[5].needsInput() || stateGlyph(a.panes[5]) != "?" {
 		t.Fatal("blocked does not read as needs input")
 	}
+	// The signals read it in tuios's word, so a needs-input item is raised.
+	if got := a.panes[5].signalState(); got != "needs_input" {
+		t.Fatalf("signal state %q", got)
+	}
 	// The default words are tuios's.
 	d := pane{Harness: "claude", Pane: daemon.Pane{AgentState: "working"}}
 	if !d.working() || (pane{Pane: daemon.Pane{AgentState: "active"}}).working() {

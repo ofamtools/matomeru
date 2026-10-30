@@ -179,7 +179,7 @@ func signalPanes(panes []pane) []panesignals.Pane {
 			continue
 		}
 		out = append(out, panesignals.Pane{Window: p.ID, Session: p.Session, Label: p.label(), Agent: p.isAgent(),
-			State: p.AgentState, StateAt: p.StateAt, NeedsYou: p.NeedsYou, Exited: p.Exited})
+			State: p.signalState(), StateAt: p.StateAt, NeedsYou: p.NeedsYou, Exited: p.Exited})
 	}
 	return out
 }
