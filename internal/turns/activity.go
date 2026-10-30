@@ -237,6 +237,7 @@ func (p *activityParser) notifications(text string, at time.Time) {
 		case strings.Contains(n.Summary, "waiting on its own background work"), n.Status == "" && strings.Contains(n.Summary, "was resumed"):
 			// Not an end: it waits on its own agents, or it runs again.
 			c.agent.State, c.agent.EndedAt, c.status = AgentRunning, time.Time{}, "waiting on its own work"
+			c.agent.RunsAgain = true
 			if n.Status == "" {
 				c.status = "resumed"
 			}
@@ -245,6 +246,7 @@ func (p *activityParser) notifications(text string, at time.Time) {
 			continue // a notice that says no end (a monitor's event)
 		}
 		c.agent.applyNotification(n, at, "")
+		c.agent.RunsAgain = false
 		c.status = n.Status
 		p.pending = slicesDeleteBytes(p.pending, id)
 	}
@@ -266,11 +268,24 @@ type ActivitySource interface {
 	Activities() []Activity
 }
 
-// ActivitySourceOf is the activity source of a session's log: a Claude
-// log's subagents; nil for a log whose harness names none (omp's today).
+// ActivityReader is a session log whose format names activities: it
+// gives the source that follows them (a Claude log's subagents). Each
+// log format supplies its own; one that names none does not implement it.
+type ActivityReader interface {
+	ActivitySource() ActivitySource
+}
+
+// ActivitySourceOf is the activity source of a session's log, nil for a
+// log whose format names no activities (omp's today).
 func ActivitySourceOf(l Log) ActivitySource {
-	if c, ok := l.(*ClaudeLog); ok {
-		return NewActivityLog(c.Path, c.Session)
+	if r, ok := l.(ActivityReader); ok {
+		return r.ActivitySource()
 	}
 	return nil
+}
+
+// ActivitySource follows the subagents the Claude log's spawn calls
+// started.
+func (l *ClaudeLog) ActivitySource() ActivitySource {
+	return NewActivityLog(l.Path, l.Session)
 }

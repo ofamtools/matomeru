@@ -9,6 +9,7 @@ import (
 
 	"github.com/unixsuperhero/ochazuke"
 
+	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/turns"
 )
 
@@ -179,5 +180,80 @@ func TestSubagentRowsAreSelectableAndOpenTheirCard(t *testing.T) {
 	reload(t, app)
 	if row, _ := app.selectedRow(); row != parent {
 		t.Fatalf("after its row dropped: %s", row)
+	}
+}
+
+// The owner's coordinator pane (2026-10-30): tuios reports no harness and
+// a session id with no transcript, the pane is idle (a client attached to
+// a Claude Code background session), and its one background subagent
+// stopped "waiting on its own background work", its meta written
+// finished with that notice. The pane's harness and live session come
+// from the harness's own record (the locator, as the Turns tab reads
+// them), and the subagent shows under the idle pane until a later
+// notification of its task ends it.
+func TestSubagentRowsOfAnIdleAttachedPaneWithAStaleSession(t *testing.T) {
+	app, f := staleClaudeApp(t, time.Time{}) // no start time: only the record can tie the transcript
+	f.panes[0].Harness = ""
+	records, sys := claudeRecords(t, app, f)
+	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))
+	ago := func(d time.Duration) string { return time.Now().Add(-d).UTC().Format(time.RFC3339) }
+	path := filepath.Join(dir, "live.jsonl")
+	writeLog(t, path,
+		logPrompt(t, "u1", ago(time.Hour), "keep going"),
+		logAgentCall(t, "a1", ago(time.Hour), "toolu_w", "o-jj: rough edges", true),
+		logLaunched(t, "r1", ago(time.Hour), "toolu_w", "aw1"),
+		logAssistant(t, "a2", ago(time.Hour), "end_turn", map[string]any{"type": "text", "text": "Started."}),
+		logDone(t, "d1", ago(time.Hour)),
+		logNotification(t, "n1", ago(5*time.Minute), realNotification("aw1", "toolu_w", "completed", `Agent "o-jj: rough edges" is waiting on its own background work`, "")),
+	)
+	subs := turns.SubagentDir(path)
+	if err := os.MkdirAll(subs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"agentType":"ofam-lane","description":"o-jj: rough edges","toolUseId":"toolu_w","spawnDepth":1,"requestShape":"background","finished":true}`
+	if err := os.WriteFile(filepath.Join(subs, "agent-aw1.meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeRecord(t, records, sys, 10, "live", "/w/proj", "w1")
+	reload(t, app)
+	if p := app.panes[0]; p.AgentSession != "live" || p.Harness == "" || p.AgentState != "idle" {
+		t.Fatalf("pane: session %q harness %q state %q", p.AgentSession, p.Harness, p.AgentState)
+	}
+	rows := activityRows(app)
+	if w := rows["child:w1/toolu_w"]; !strings.HasPrefix(w, "◐ o-jj: rough edges · general-purpose | waiting on its own work") || len(rows) != 1 {
+		t.Fatalf("rows %v\n%s", rows, frameWH(app, 140, 40))
+	}
+	// Its report: a later notification of the task ends it, and it drops.
+	f2, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f2.WriteString(logNotification(t, "n2", ago(time.Second), realNotification("aw1", "toolu_w", "completed", `Agent "o-jj: rough edges" finished`, "done")) + "\n")
+	f2.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reload(t, app)
+	if rows := activityRows(app); len(rows) != 0 {
+		t.Fatalf("after its report: %v", rows)
+	}
+}
+
+// A pane whose harness names no log format mtm reads (harnesses.json
+// "log" empty) gets no reads and no rows; the same pane with the claude
+// format does. The format is data, not the harness's name.
+func TestSubagentRowsFollowTheHarnessLogFormat(t *testing.T) {
+	app := subagentsApp(t)
+	if len(activityRows(app)) == 0 {
+		t.Fatal("no rows with the claude format")
+	}
+	h, _ := app.harnesses.Get("claude")
+	if h.Log != harness.LogClaude {
+		t.Fatalf("claude's built-in log format: %q", h.Log)
+	}
+	withHarnesses(t, app, `[{"name": "claude", "log": ""}]`) // harnesses.json
+	reload(t, app)
+	if rows := activityRows(app); len(rows) != 0 || len(app.acts) != 0 {
+		t.Fatalf("no format: rows %v, reads %d", rows, len(app.acts))
 	}
 }

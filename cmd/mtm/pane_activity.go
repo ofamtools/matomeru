@@ -24,8 +24,11 @@ import (
 // the subagent runs; one that ends done drops off at once, one that ends
 // bad (failed, killed, stopped) stays panes.subagents-linger and then
 // drops, so the end is seen. The list code draws whatever the pane's
-// harness's source gives (turns.ActivitySourceOf): a harness whose log
-// names no subagents has no rows.
+// harness's log gives (its format, harnesses.json "log", read as the Turns
+// tab reads it; turns.ActivitySourceOf): a harness with no log format, or
+// one whose log names no subagents, has no rows. A background subagent
+// shows whatever its pane's state; a foreground one only while its pane's
+// agent works.
 //
 // The sources follow each agent pane's current session log off the loop
 // on every listing (panes.read-activities), reading only the spawn calls,
@@ -115,7 +118,11 @@ func (a *App) pollActivities(panes []pane) {
 	var jobs []activityJob
 	now := a.now()
 	for _, p := range panes {
-		if p.ID == "" || p.Exited || p.AgentSession == "" || !(isClaude(p) || isOmp(p)) {
+		if p.ID == "" || p.Exited || p.AgentSession == "" {
+			continue
+		}
+		find := a.sessionLogFinder(p) // the harness's log format (harnesses.json "log"), as the Turns tab reads it
+		if find == nil {
 			continue
 		}
 		listed[p.ID] = true
@@ -128,7 +135,7 @@ func (a *App) pollActivities(panes []pane) {
 		case pa.src != nil:
 			jobs = append(jobs, activityJob{window: p.ID, src: pa.src})
 		case now.After(pa.retryAt):
-			jobs = append(jobs, activityJob{window: p.ID, find: a.sessionLogFinder(p), session: p.AgentSession})
+			jobs = append(jobs, activityJob{window: p.ID, find: find, session: p.AgentSession})
 		}
 	}
 	for w := range a.acts {

@@ -81,6 +81,11 @@ type Harness struct {
 	// writes now (session.go); nil: only the id tuios reports. A file's
 	// session object merges by field into the built-in's; null removes it.
 	Session *SessionSource `json:"session,omitempty"`
+	// Log is the format of the harness's session log (its transcript),
+	// which mtm reads for a pane's turns and its subagents: LogClaude or
+	// LogOmp. Empty, or a format mtm has no reader for: the pane's log is
+	// not read (its turns are mtm's journal, it shows no subagents).
+	Log string `json:"log,omitempty"`
 	// PromptBox is how mtm's prompt box writes to the harness's panes
 	// (promptbox.go); nil: AgentPromptBox. A file's promptBox object
 	// merges by field into the built-in's; null removes it.
@@ -130,11 +135,22 @@ func Builtins() []Harness {
 	for i := range list {
 		list[i].Settings, list[i].ContextWindows = builtinSettings(list[i].Name)
 		list[i].Session = builtinSession(list[i].Name)
+		list[i].Log = builtinLog[list[i].Name]
 		box := AgentPromptBox
 		list[i].PromptBox = &box
 	}
 	return list
 }
+
+// Session log formats (Harness.Log).
+const (
+	LogClaude = "claude"
+	LogOmp    = "omp"
+)
+
+// builtinLog is each built-in harness's session log format; codex's
+// rollout is read by its own path (the settings line) and has none here.
+var builtinLog = map[string]string{"claude": LogClaude, "omp": LogOmp}
 
 // Validate reports what makes a definition unusable.
 func (h Harness) Validate() error {
