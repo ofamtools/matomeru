@@ -34,8 +34,7 @@ func TestContextItemVerbsAreStandard(t *testing.T) {
 	a, _ := contextApp(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"move": "move", "duplicate": "duplicate",
-		"star": "set", // the alias of set {prop: starred, toggle: true}
+		"move": "move", "duplicate": "duplicate", "star": "set", // star: the alias of set {prop: starred, toggle: true}
 		"add": "", "copy": "", "open": "", "reveal": "", "associate": "", "choose-move": "",
 		"extract": "", "turns": "", "follow": "", "kind": "", "search": "", "pick": "", "copy-prompt": "",
 	} {
