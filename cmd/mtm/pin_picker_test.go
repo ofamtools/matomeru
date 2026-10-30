@@ -628,6 +628,11 @@ func TestPathChooserKnownSourceCutsThePathLast(t *testing.T) {
 // full-strength highlight.
 func TestModalBackdropDimsThePageHighlight(t *testing.T) {
 	app := open(t)
+	// The highlights are read from mono's SGR (reverse, faint): no pin
+	// draws mono under pin.colors mono.
+	if err := app.r.Settings().Set(settingPinColors, pinColorsMono); err != nil {
+		t.Fatal(err)
+	}
 	press(t, app, "j")
 	press(t, app, "P")
 	if top := app.r.TopModal(); top != pinPicker {

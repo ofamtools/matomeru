@@ -158,12 +158,16 @@ func TestPaneRowTones(t *testing.T) {
 	if marks[ochazuke.ToneStar] != "★" || marks[ochazuke.ToneIdle] != "○" || marks[ochazuke.ToneQueued] != "W" {
 		t.Fatalf("cell 0 tones %+v over %q: %v", got, string(text), marks)
 	}
-	// Off the selected row the theme draws the tones. Tests render without
-	// colour, as mono does, so a tone shows its attributes alone: the
+	// Off the selected row the theme draws the tones. Under mono
+	// (pin.colors mono, no pin) a tone shows its attributes alone: the
 	// star's bold.
 	if err := app.pv.tree.Select(shell); err != nil {
 		t.Fatal(err)
 	}
+	if err := app.r.Settings().Set(settingPinColors, pinColorsMono); err != nil {
+		t.Fatal(err)
+	}
+	app.View()
 	if raw := rawFrame(app); !strings.Contains(raw, "\x1b[1m★\x1b[m ○ claude W") {
 		t.Fatalf("star tone not drawn:\n%q", raw)
 	}
