@@ -320,31 +320,36 @@ func TestNoteStandardVerbsFromTheCLI(t *testing.T) {
 	}
 }
 
-// Targeted palette: :rename on a titled note row opens the args form on
-// the old title; typing replaces it and enter writes the title only.
-// (":note rename" there reads as the Markdown doc's verb note, from the
-// focus: a palette precedence gap outside this lane.)
+// Targeted palette: :rename and :note rename on a titled note row open
+// the args form on the old title; typing replaces it and enter writes the
+// title only. ":note rename" reads note as the noun (ochazuke v0.55: a
+// first word that is a noun and a verb is the noun when the next word is
+// its verb), not as the focused Markdown doc's own verb note.
 func TestNoteRenameFromThePalette(t *testing.T) {
-	a := open(t)
-	n, err := a.work.AddNote("matomeru", "", "body stays")
-	if err != nil {
-		t.Fatal(err)
-	}
-	executeA(t, a, "note", "rename", "", ochazuke.Arguments{"id": n.ID, "name": "Old"})
-	notesOn(t, a, n.ID)
-	press(t, a, ":")
-	typeText(t, a, "rename")
-	press(t, a, "enter")
-	if a.r.TopModal() != ochazuke.ArgsFormID {
-		t.Fatalf("modal %q\n%s", a.r.TopModal(), frame(a))
-	}
-	if fr := frame(a); !strings.Contains(fr, "Old") {
-		t.Fatalf("the form does not hold the old title:\n%s", fr)
-	}
-	typeText(t, a, "New")
-	press(t, a, "enter", "enter")
-	got, err := a.work.Note(n.ID)
-	if err != nil || got.Title != "New" || got.Text != "body stays" {
-		t.Fatalf("renamed: %+v %v\n%s", got, err, frame(a))
+	for _, line := range []string{"rename", "note rename"} {
+		t.Run(line, func(t *testing.T) {
+			a := open(t)
+			n, err := a.work.AddNote("matomeru", "", "body stays")
+			if err != nil {
+				t.Fatal(err)
+			}
+			executeA(t, a, "note", "rename", "", ochazuke.Arguments{"id": n.ID, "name": "Old"})
+			notesOn(t, a, n.ID)
+			press(t, a, ":")
+			typeText(t, a, line)
+			press(t, a, "enter")
+			if a.r.TopModal() != ochazuke.ArgsFormID {
+				t.Fatalf("modal %q\n%s", a.r.TopModal(), frame(a))
+			}
+			if fr := frame(a); !strings.Contains(fr, "Old") {
+				t.Fatalf("the form does not hold the old title:\n%s", fr)
+			}
+			typeText(t, a, "New")
+			press(t, a, "enter", "enter")
+			got, err := a.work.Note(n.ID)
+			if err != nil || got.Title != "New" || got.Text != "body stays" {
+				t.Fatalf("renamed: %+v %v\n%s", got, err, frame(a))
+			}
+		})
 	}
 }
