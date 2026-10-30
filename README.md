@@ -10,7 +10,7 @@
 
 <p align="center">A terminal workspace for coding agents: projects, tasks, notes, live agent panes, their turns and your reviews, gathered in one TUI.</p>
 
-<p align="center"><img alt="mtm over invented data: moving through projects and tasks, filtering a list, pinning a project from the palette, ticking a checklist in a note, the key help and the Settings page" src="assets/demo.gif" width="720"></p>
+<p align="center"><img alt="mtm over invented data with three scripted demo agents (not real ones): pinning a project, then the Inbox: one agent in Needs you, one finished, one in Working, each border in its state colour; a finished agent's turns with its edits as diffs; answering the waiting agent live, which moves it to Working" src="assets/demo.gif" width="720"></p>
 
 Matomeru (`mtm`) is built on [ochazuke](https://github.com/unixsuperhero/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
 
