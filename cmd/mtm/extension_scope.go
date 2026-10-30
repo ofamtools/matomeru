@@ -64,8 +64,8 @@ const (
 	projectLabelEnv = "MTM_PROJECT_LABEL"
 )
 
-// extScopeSetting names an extension's scope setting, in its own section
-// of the Settings page (ext.<name>).
+// extScopeSetting names an extension's scope setting, in the extension's
+// section of the Settings page's Extensions tab.
 func extScopeSetting(name string) string { return "ext." + name + ".scope" }
 
 // extCreateVerbs are the verb names whose answered row counts as new even
@@ -342,7 +342,13 @@ func (a *App) extScoped(x *extension) bool {
 // extension's rows when its setting changes.
 func (a *App) declareExtScope(name string) {
 	if _, err := a.r.Settings().Get(extScopeSetting(name)); err != nil {
-		if err := a.r.DeclareSetting(ochazuke.Setting{Name: extScopeSetting(name), Type: ochazuke.SettingString, Default: extScopeAuto,
+		// The Extensions tab, a section per extension (settings-layout
+		// decision 9).
+		if err := a.r.DeclareSettingSection(ochazuke.SettingSection{Owner: extensionsOwner, ID: name, Title: name,
+			Description: "The " + name + " extension"}); err != nil {
+			a.r.UI().Notify(name + ": " + err.Error())
+		}
+		if err := a.r.DeclareSetting(ochazuke.Setting{Name: extScopeSetting(name), Owner: extensionsOwner, Section: name, Type: ochazuke.SettingString, Default: extScopeAuto,
 			Enum:        []string{extScopeAuto, extScopeOff},
 			Description: "auto: a row the extension makes belongs to the project in context (a project column; the pin shows its own); off: no association, rows as the tool answers them"}); err != nil {
 			a.r.UI().Notify(name + ": " + err.Error())

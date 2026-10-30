@@ -78,7 +78,42 @@ func (a *App) declareSettings() error {
 	settings = append(settings, a.signalSettings()...)
 	settings = append(settings, commandSettings()...)
 	settings = append(settings, a.scheduleSettings()...)
+	if err := a.declareSettingLayout(); err != nil {
+		return err
+	}
 	return a.r.DeclareSetting(settings...)
+}
+
+// extensionsOwner is the Settings page's Extensions tab (settings-layout
+// decision 9): one section per mounted extension (its scope setting) and
+// the status bar segments the extensions add.
+const extensionsOwner = "extensions"
+
+// declareSettingLayout declares the Settings page's tabs and sections
+// beside ochazuke's: the Extensions owner (after the app's tab, before
+// ochazuke's) and mtm's own sections, titled and in page order. A
+// setting's section is its row's Section, else the name before its first
+// dot (panes.layout is in panes); the schedule rows name theirs.
+func (a *App) declareSettingLayout() error {
+	if err := a.r.DeclareSettingOwner(ochazuke.SettingOwner{ID: extensionsOwner, Title: "Extensions", Order: 50,
+		Description: "The mounted extensions: a section each, and the status segments they add"}); err != nil {
+		return err
+	}
+	app := func(id, title, desc string) ochazuke.SettingSection {
+		return ochazuke.SettingSection{Owner: ochazuke.OwnerApp, ID: id, Title: title, Description: desc}
+	}
+	return a.r.DeclareSettingSection(
+		app(ochazuke.SettingsGeneralSection, "General", "Editing, refresh, the default harness, the directory chooser and the side pane"),
+		app("panes", "Panes", "The Panes page: grouping, its sections and panels, and which states count as working, waiting or errored"),
+		app("prompt", "Prompt", "The prompt box: where it shows and what follows a submit"),
+		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls"),
+		app("agent", "Agent", "The agent view of a pane"),
+		app("notes", "Notes", "The note editor"),
+		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),
+		app("schedules", "Schedules", "Missed runs, and each configured schedule's switch and interval"),
+		app("status", "Status bar", "mtm's status segments in the header rule: cpu, ram and disk"),
+		ochazuke.SettingSection{Owner: extensionsOwner, ID: "status", Title: "Status bar", Description: "The status segments the extensions add"},
+	)
 }
 
 // editDebounce is the edit-debounce setting, editorDebounce when unset

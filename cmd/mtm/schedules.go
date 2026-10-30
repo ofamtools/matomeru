@@ -157,16 +157,21 @@ func (a *App) expandSchedule(s string) string {
 func scheduleEnabledSetting(name string) string  { return "schedule." + name + ".enabled" }
 func scheduleIntervalSetting(name string) string { return "schedule." + name + ".interval" }
 
+// scheduleSection is the Settings page section of every schedule setting:
+// schedules.catch-up, and each configured row's two under its name.
+const scheduleSection = "schedules"
+
 // scheduleSettings are schedules.catch-up and the two settings of every
-// configured row (a stored row holds its own values).
+// configured row (a stored row holds its own values), each row's under a
+// heading of its name in the Schedules section.
 func (a *App) scheduleSettings() []ochazuke.Setting {
 	out := []ochazuke.Setting{{Name: settingCatchUp, Type: ochazuke.SettingString, Default: schedules.CatchUpNone, Enum: schedules.CatchUpValues,
 		Description: "Runs a schedule missed while mtm was closed: none skips them, once runs it once on start; a schedule's own catch-up wins"}}
 	for _, d := range a.sched.defs {
 		out = append(out,
-			ochazuke.Setting{Name: scheduleEnabledSetting(d.Name), Type: ochazuke.SettingString, Default: d.Enabled, Enum: schedules.EnabledValues,
+			ochazuke.Setting{Name: scheduleEnabledSetting(d.Name), Section: scheduleSection, Group: d.Name, Type: ochazuke.SettingString, Default: d.Enabled, Enum: schedules.EnabledValues,
 				Description: "Run " + strings.Join(d.Command, " ") + " on its interval: on, off, or auto (when it is installed and its checks pass)"},
-			ochazuke.Setting{Name: scheduleIntervalSetting(d.Name), Type: ochazuke.SettingDuration, Default: d.Every(),
+			ochazuke.Setting{Name: scheduleIntervalSetting(d.Name), Section: scheduleSection, Group: d.Name, Type: ochazuke.SettingDuration, Default: d.Every(),
 				Description: "How often " + d.Name + " runs (at least 1m); failures back off from it",
 				Validate: func(v any) error {
 					if d, ok := v.(time.Duration); ok && d < time.Minute {
