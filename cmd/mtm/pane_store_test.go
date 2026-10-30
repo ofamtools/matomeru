@@ -25,14 +25,14 @@ func standardIs(t *testing.T, a *App, noun string, want map[string]string, absen
 }
 
 // The pane's verbs: get, list, set, watch and move are standard; no
-// create or delete (kill is a real action); rename, star, associate and
-// the agent's set-* verbs are named; unassociate is a lasting alias of
-// move.
+// create or delete (kill is a real action); rename, associate and the
+// agent's set-* verbs are named; star is an alias of set (starred,
+// toggled) and unassociate a lasting alias of move.
 func TestPaneVerbsAreStandard(t *testing.T) {
 	a, _ := panesApp(t)
 	standardIs(t, a, "pane", map[string]string{
-		"get": "get", "list": "list", "set": "set", "watch": "watch", "move": "move",
-		"rename": "", "star": "", "associate": "", "choose-move": "", "kill": "",
+		"get": "get", "list": "list", "set": "set", "watch": "watch", "move": "move", "star": "set",
+		"rename": "", "associate": "", "choose-move": "", "kill": "",
 		"set-model": "", "set-effort": "", "set-fast": "", "set-permission-mode": "", "toggle-fast": "",
 	}, "create", "delete", "duplicate")
 	var found bool
