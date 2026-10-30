@@ -84,6 +84,7 @@ func mtmApp() monogatari.App {
 		Summary: "mtm on a temp database and a faked daemon (seed panes: the fake panes)",
 		Fixtures: []monogatari.Fixture{
 			{Name: "seeded", Summary: "docs/vhs/seed.sh's projects, tasks and notes (acme-web, billing-api, docs-site), two inbox items and two fake panes; opens on Panes", Build: buildSeeded},
+			{Name: "nested", Summary: "seeded, plus subtasks under acme-web's Checkout page task (two children, one with a child of its own)", Build: buildNested},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
 		},
 		Expected: storyExpected,
@@ -146,6 +147,10 @@ var seededPanes = []storyPane{
 
 func buildSeeded(env monogatari.Env) (monogatari.Built, error) {
 	return buildStory(env, writeSeeded, seededPanes)
+}
+
+func buildNested(env monogatari.Env) (monogatari.Built, error) {
+	return buildStory(env, writeNested, seededPanes)
 }
 
 func buildEmpty(env monogatari.Env) (monogatari.Built, error) {
@@ -342,4 +347,31 @@ func writeSeeded(path string, now int64) error {
 	}
 	_, err = items.SetRead(ping.ID, true)
 	return err
+}
+
+// writeNested writes the seeded data and subtasks under acme-web's t1
+// (Checkout page): t13 (todo) with t15 (active) under it, and t14 (done).
+func writeNested(path string, now int64) error {
+	if err := writeSeeded(path, now); err != nil {
+		return err
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	w, err := work.Open(db)
+	if err != nil {
+		return err
+	}
+	for _, t := range []work.Task{
+		{ID: "t13", ProjectID: "acme-web", ParentID: "t1", Title: "Shipping estimate: API client", Status: work.StatusTodo, Position: 13, Created: 13},
+		{ID: "t14", ProjectID: "acme-web", ParentID: "t1", Title: "Shipping estimate: copy", Status: work.StatusDone, Position: 14, Created: 14},
+		{ID: "t15", ProjectID: "acme-web", ParentID: "t13", Title: "Mock the carrier API", Status: work.StatusActive, Position: 15, Created: 15},
+	} {
+		if err := w.PutTask(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }

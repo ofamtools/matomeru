@@ -50,6 +50,8 @@ func (a *App) declareSettings() error {
 			Description: "Show the title field above the body in the note editor (a note's title is optional; empty, its first line stands in); the quick note is body-only either way"},
 		directoryChooserSetting,
 		paneGroupSetting,
+		workTasksLayoutSetting,
+		taskPickerPathSetting,
 		afterSubmitSetting,
 		afterSubmitModeSetting,
 		promptTerminalsSetting,
@@ -109,6 +111,7 @@ func (a *App) declareSettingLayout() error {
 	}
 	return a.r.DeclareSettingSection(
 		app(ochazuke.SettingsGeneralSection, "General", "Editing, refresh, the default harness, the directory chooser and the side pane"),
+		app("work", "Work", "The Work page's task list (a tree or flat) and how the task picker names a subtask"),
 		app("panes", "Panes", "The Panes page: grouping, its sections and panels, which states count as working, waiting or errored, and which pane borders take their state colour"),
 		app("prompt", "Prompt", "The prompt box: where it shows and what follows a submit"),
 		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls"),

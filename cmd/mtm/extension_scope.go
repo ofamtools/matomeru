@@ -145,7 +145,7 @@ func (a *App) instanceProject(id string) string {
 		}
 		return known(a.paneOwner(a.attached).ProjectID)
 	}
-	if id == "tasks" {
+	if a.isTaskList(id) {
 		return known(a.current)
 	}
 	for _, x := range a.exts {

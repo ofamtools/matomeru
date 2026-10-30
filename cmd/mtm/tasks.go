@@ -57,7 +57,7 @@ func (a *App) defineTask() {
 
 func (a *App) bindTaskStop() error {
 	row := ochazuke.Do("task.new")
-	row.Instance, row.Mode, row.Keys = "tasks", "normal", "n"
+	row.Instance, row.Mode, row.Keys = taskTreeID, "normal", "n"
 	return a.r.Bind(row)
 }
 
@@ -82,7 +82,8 @@ func (a *App) refreshTasks() error {
 		}
 	}
 	// Active first, then todo, blocked, other values and done; board
-	// order within a status.
+	// order within a status. The tree keeps this order among the
+	// children of each parent.
 	slices.SortStableFunc(tasks, func(x, y work.Task) int { return work.StatusRank(x.Status) - work.StatusRank(y.Status) })
 	a.tasks = tasks
 	drafts, err := a.draftRecords("task")
@@ -101,8 +102,7 @@ func (a *App) refreshTasks() error {
 	}
 	a.taskList.SetColumns(cols...)
 	now := time.Now()
-	items := make([]ochazuke.ListItem, 0, len(tasks))
-	for _, t := range tasks {
+	row := func(t work.Task) ochazuke.TreeNode {
 		label := taskLabel(t)
 		if a.all || a.pin == "" {
 			label += " · " + a.ownerLabel(t.ProjectID)
@@ -110,14 +110,70 @@ func (a *App) refreshTasks() error {
 		if marked[t.ID] {
 			label += " [draft]"
 		}
-		items = append(items, ochazuke.ListItem{ID: t.ID, Label: label, Noun: "task", Cells: a.taskCells(t, marked[t.ID], now)})
+		return ochazuke.TreeNode{Label: label, Noun: "task", Cells: a.taskCells(t, marked[t.ID], now)}
 	}
+	nodes := a.taskNodes(tasks, row)
 	for _, d := range drafts {
 		if d.New && a.tasksOpen && (a.all || d.ProjectID == a.current) && a.inScope(d.ProjectID) {
-			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d, Cells: []string{"[ ] untitled [draft]"}})
+			nodes = append(nodes, ochazuke.TreeNode{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d, Cells: []string{"[ ] untitled [draft]"}})
 		}
 	}
-	return a.taskList.SetItems(items)
+	return a.taskTree.SetNodes(nodes)
+}
+
+// taskTreeID is the Work page's task tree; taskListID is the list that
+// holds its rows (a task row's parent).
+const (
+	taskTreeID = "tasks"
+	taskListID = taskTreeID + "/list"
+)
+
+// isTaskList reports whether id is the Work page's task tree or its list.
+func (a *App) isTaskList(id string) bool { return id == taskTreeID || id == taskListID }
+
+// The Work page's task layout (work.tasks-layout): tree nests subtasks
+// under their parents, as the outline does; flat is the list before the
+// tree, every task a sibling.
+const (
+	settingWorkTasksLayout = "work.tasks-layout"
+	tasksLayoutTree        = "tree"
+	tasksLayoutFlat        = "flat"
+)
+
+var workTasksLayoutSetting = ochazuke.Setting{Name: settingWorkTasksLayout, Type: ochazuke.SettingString, Default: tasksLayoutTree,
+	Enum:        []string{tasksLayoutTree, tasksLayoutFlat},
+	Description: "How the Work page lists a project's tasks: tree (subtasks indented under their parent, h folds, z + zooms) or flat (every task a sibling); status order either way, among each parent's children in a tree"}
+
+// tasksFlat reports whether the Work page lists its tasks flat.
+func (a *App) tasksFlat() bool {
+	return a.r.Settings().String(settingWorkTasksLayout) == tasksLayoutFlat
+}
+
+// taskNodes are the Work page's task rows in the order given: under their
+// parents (the outline's builder, taskTreeNodes), or all top level when
+// the layout is flat. A row's id is its task's.
+func (a *App) taskNodes(tasks []work.Task, row func(work.Task) ochazuke.TreeNode) []ochazuke.TreeNode {
+	same := func(id string) string { return id }
+	if !a.tasksFlat() {
+		return taskTreeNodes(tasks, "", same, row)
+	}
+	nodes := make([]ochazuke.TreeNode, 0, len(tasks))
+	for _, t := range tasks {
+		n := row(t)
+		n.ID = t.ID
+		nodes = append(nodes, n)
+	}
+	return nodes
+}
+
+// observeTasksLayout redraws the task list when work.tasks-layout changes
+// (the Settings page, :set, settings.json).
+func (a *App) observeTasksLayout() {
+	a.r.Settings().Observe(settingWorkTasksLayout, func(string, any) {
+		if err := a.refreshTasks(); err != nil {
+			a.r.UI().Notify(settingWorkTasksLayout + ": " + err.Error())
+		}
+	})
 }
 
 // taskColumns are the task noun's table: the checkbox and title (with a

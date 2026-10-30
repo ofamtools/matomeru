@@ -1,0 +1,35 @@
+{
+  "name": "mtm: Work draws a project's tasks as a tree (subtasks indented under their parent, status order per level); h folds a parent",
+  "area": "tasks",
+  "fixture": "nested",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    "tab",
+    "h"
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "page": "work",
+      "contains": [
+        "▾ [>] Checkout page: show the shipping estimate",
+        "    ▾ [ ] Shipping estimate: API client",
+        "        [>] Mock the carrier API",
+        "    [x] Shipping estimate: copy",
+        "  [ ] Move the cart drawer to the new design tokens"
+      ]
+    },
+    {
+      "contains": [
+        "▸ [>] Checkout page: show the shipping estimate",
+        "  [ ] Move the cart drawer to the new design tokens"
+      ],
+      "lacks": [
+        "Mock the carrier API",
+        "Shipping estimate: copy"
+      ]
+    }
+  ]
+}

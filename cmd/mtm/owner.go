@@ -100,7 +100,7 @@ func (a *App) resolveOwner(ctx ochazuke.Ctx, args ochazuke.Arguments) (Owner, er
 		case "unassociated":
 			return Owner{}, nil
 		}
-		if ctx.Instance.ID == "tasks" {
+		if a.isTaskList(ctx.Instance.ID) {
 			return Owner{ProjectID: a.current}, nil
 		}
 	}

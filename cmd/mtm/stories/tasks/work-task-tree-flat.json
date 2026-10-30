@@ -1,0 +1,27 @@
+{
+  "name": "mtm: work.tasks-layout = flat lists every task as a sibling in status order, as before the tree",
+  "area": "tasks",
+  "fixture": "nested",
+  "width": 120,
+  "height": 30,
+  "values": {
+    "work.tasks-layout": "flat"
+  },
+  "script": [
+    "ctrl+j"
+  ],
+  "expect": [
+    {
+      "page": "work",
+      "contains": [
+        "  [>] Checkout page: show the shipping estimate",
+        "  [>] Mock the carrier API",
+        "  [ ] Shipping estimate: API client"
+      ],
+      "lacks": [
+        "▾",
+        "▸"
+      ]
+    }
+  ]
+}
