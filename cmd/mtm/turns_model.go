@@ -17,6 +17,7 @@ import (
 	"github.com/unixsuperhero/ochazuke/markdown"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/harness"
 	"github.com/unixsuperhero/matomeru/internal/turns"
 )
 
@@ -303,6 +304,9 @@ func (a *App) readPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 // status line (pane.refresh-turns).
 func (a *App) readLogTurns(p pane, pt *paneTurns, notify bool) ochazuke.Result {
 	sessions, chain, find := a.agentSessions(p), pt.chain, a.sessionLogFinder(p)
+	if find == nil {
+		find = func(string) turns.Log { return nil } // no format to read: the journal fallback
+	}
 	current := p.AgentSession
 	known := a.resolvedSession(p.ID, current)
 	pt.loading = true
@@ -376,21 +380,34 @@ func (a *App) readLogTurns(p pane, pt *paneTurns, notify bool) ochazuke.Result {
 	})
 }
 
-// sessionLogFinder finds a session's log for the pane's harness: Claude's
-// under its projects directory (the pane's cwd first; the current session
-// through turns.ResolveClaudeLog, which falls back when tuios's id is
-// stale), omp's under its sessions directory. nil is no log found.
+// sessionLogFinder finds a session's log for the pane, by its harness's
+// log format (harness.Harness.Log, data in harnesses.json) through
+// logFinders; nil when the harness names no format mtm reads. The finder
+// returns nil for a session whose log it does not find.
 func (a *App) sessionLogFinder(p pane) func(session string) turns.Log {
-	if isOmp(p) {
-		sessions := a.ompSessions
-		return func(s string) turns.Log {
-			path, err := turns.FindOmpLog(sessions, s)
-			if err != nil {
-				return nil
-			}
-			return turns.NewOmpLog(path, s)
-		}
+	h, ok := a.harnessOf(p)
+	if !ok {
+		return nil
 	}
+	finder := logFinders[h.Log]
+	if finder == nil {
+		return nil
+	}
+	return finder(a, p)
+}
+
+// logFinders are the session log readers by format: how to find a
+// session's log and follow it. A format's log gives its activities when
+// it implements turns.ActivityReader.
+var logFinders = map[string]func(a *App, p pane) func(session string) turns.Log{
+	harness.LogClaude: claudeLogFinder,
+	harness.LogOmp:    ompLogFinder,
+}
+
+// claudeLogFinder finds Claude Code's logs under its projects directory
+// (the pane's cwd first; the current session through
+// turns.ResolveClaudeLog, which falls back when tuios's id is stale).
+func claudeLogFinder(a *App, p pane) func(session string) turns.Log {
 	projects, ws, listing, started := a.claudeProjects, a.work, slices.Clone(a.panes), a.agentStartedFunc()
 	return func(s string) turns.Log {
 		if s == p.AgentSession {
@@ -407,6 +424,18 @@ func (a *App) sessionLogFinder(p pane) func(session string) turns.Log {
 			return nil
 		}
 		return turns.NewClaudeLog(path, s)
+	}
+}
+
+// ompLogFinder finds omp's logs under its sessions directory.
+func ompLogFinder(a *App, _ pane) func(session string) turns.Log {
+	sessions := a.ompSessions
+	return func(s string) turns.Log {
+		path, err := turns.FindOmpLog(sessions, s)
+		if err != nil {
+			return nil
+		}
+		return turns.NewOmpLog(path, s)
 	}
 }
 

@@ -96,3 +96,53 @@ func sameMap(a, b map[string]string) bool {
 	}
 	return true
 }
+
+// A background agent that stopped while its own background work runs
+// gets Claude Code's "waiting on its own background work" notification,
+// and its meta is written finished with it (the owner's coordinator,
+// 2026-10-30): the notification's word stands, so it still runs, until a
+// later notification of the same task ends it.
+func TestActivityWaitingOnItsOwnWorkOutlivesAFinishedMeta(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "s1.jsonl")
+	lines := []string{
+		userPrompt("u1", "2026-10-30T20:56:00Z", "keep going", ""),
+		agentCall("a1", "2026-10-30T20:56:01Z", "toolu_w", "o-jj: rough edges", true),
+		launched("r1", "2026-10-30T20:56:02Z", "toolu_w", "aw1"),
+		notify("n1", "2026-10-30T21:49:47Z", RealNotification("aw1", "toolu_w", "completed", `Agent "o-jj: rough edges" is waiting on its own background work`, "")),
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	subs := SubagentDir(path)
+	if err := os.MkdirAll(subs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"agentType":"ofam-lane","description":"o-jj: rough edges","toolUseId":"toolu_w","spawnDepth":1,"requestShape":"background","finished":true}`
+	if err := os.WriteFile(filepath.Join(subs, "agent-aw1.meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log := NewActivityLog(path, "s1")
+	if _, err := log.Read(); err != nil {
+		t.Fatal(err)
+	}
+	acts := log.Activities()
+	if len(acts) != 1 || !acts[0].Running() || acts[0].Status != "waiting on its own work" {
+		t.Fatalf("waiting agent: %+v", acts)
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.WriteString(notify("n2", "2026-10-30T22:10:00Z", RealNotification("aw1", "toolu_w", "completed", `Agent "o-jj: rough edges" finished`, "done")) + "\n")
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := log.Read(); err != nil {
+		t.Fatal(err)
+	}
+	if acts := log.Activities(); acts[0].Running() || acts[0].Status != "completed" {
+		t.Fatalf("after its report: %+v", acts[0])
+	}
+}

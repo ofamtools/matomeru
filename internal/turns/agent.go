@@ -90,6 +90,11 @@ type Agent struct {
 	Missing     bool   // its transcript is neither on disk nor in the parent's log
 	Notice      string // the id of the turn whose notification ended it
 	Inline      []Turn // an older log's isSidechain records of it
+	// RunsAgain is the log's last word on a background agent saying it
+	// runs on after an end (it waits on its own background work, or it
+	// was resumed): the meta's finished, written with that end, does not
+	// end it.
+	RunsAgain bool
 }
 
 // Notice is a task notification: a turn it opened (Turn.Notice) or one
@@ -400,7 +405,7 @@ func (a *Agent) apply(m AgentMeta) {
 		switch {
 		case m.Stopped:
 			a.State = AgentStopped
-		case m.Finished:
+		case m.Finished && !a.RunsAgain:
 			a.State = AgentDone
 		}
 	}
