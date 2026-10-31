@@ -16,6 +16,8 @@ import (
 // SendKey records a key sent to a pane, "key window name", and runs the
 // test's onKey (a harness redrawing its screen).
 func (f *fakePanes) SendKey(_ context.Context, p pane, key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.prompts = append(f.prompts, "key "+p.ID+" "+key)
 	if f.onKey != nil {
 		f.onKey(p.ID, key)

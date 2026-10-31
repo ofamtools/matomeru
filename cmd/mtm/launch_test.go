@@ -59,7 +59,9 @@ func (f *fakeDaemon) OpenWindow(_ context.Context, w harness.Window) (string, er
 		}
 	}
 	if f.panes != nil {
+		f.panes.mu.Lock()
 		f.panes.panes = append(f.panes.panes, pane{Session: w.Session, Pane: daemon.Pane{ID: rec.ID, Name: w.Name, Cwd: w.Cwd}})
+		f.panes.mu.Unlock()
 	}
 	return rec.ID, nil
 }
