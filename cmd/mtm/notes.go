@@ -19,7 +19,7 @@ func (a *App) defineNotes() {
 	// set, delete, watch, rename, move, duplicate) come from them
 	// (note_store.go); new and edit wrap create and set, view and
 	// choose-move are mtm's own.
-	a.r.Define("note").Props(noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
+	a.r.Define("note").Props(noteProps()...).Filters(taskFilters()...).Store(a.noteStore()).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
 		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").
@@ -206,14 +206,17 @@ func (a *App) setNoteRows() error {
 		}
 		label := first
 		project, task := a.noteOwnerCells(note)
-		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note", Cells: []string{first, project, task, sinceUse(note.Updated, now)}})
+		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note", Data: a.noteThing(note), Props: a.noteThing(note), Cells: []string{first, project, task, sinceUse(note.Updated, now)}})
 	}
 	for _, d := range drafts {
 		if d.New && a.inScope(d.ProjectID) {
 			items = append(items, ochazuke.ListItem{ID: d.ID, Label: noteLabel(d.Text) + " [draft]", Noun: "draft", Data: d, Cells: []string{noteLabel(d.Text) + " [draft]", a.ownerLabel(d.ProjectID)}})
 		}
 	}
-	return a.noteList.SetItems(items)
+	if err := a.noteList.SetItems(items); err != nil {
+		return err
+	}
+	return a.syncOutlineNotes(true)
 }
 
 func (a *App) selectedNote(ctx ochazuke.Ctx) (work.Note, error) {
@@ -224,7 +227,13 @@ func (a *App) selectedNote(ctx ochazuke.Ctx) (work.Note, error) {
 	if ctx.Instance == nil || ctx.Instance.Noun != "note" {
 		return work.Note{}, errors.New("no note selected")
 	}
-	return a.work.Note(ctx.Instance.ID)
+	id := ctx.Instance.ID
+	if thing, ok := ctx.Instance.Data.(ochazuke.Thing); ok {
+		if key, ok := thing["id"].(string); ok {
+			id = key
+		}
+	}
+	return a.work.Note(id)
 }
 
 func (a *App) viewNote(ctx ochazuke.Ctx) ochazuke.Result {
@@ -253,6 +262,11 @@ func (a *App) viewNote(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) showNote(note work.Note) error {
+	if a.r.TopModal() != "" {
+		if err := a.r.Pop(); err != nil {
+			return err
+		}
+	}
 	if err := a.leaveEditor(); err != nil {
 		return err
 	}
@@ -280,6 +294,11 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 		ctx.Notify(owner.Notice)
 	}
 	if _, present := ctx.Args["text"]; !present {
+		if a.r.TopModal() != "" {
+			if err := a.r.Pop(); err != nil {
+				return ochazuke.Failed(err)
+			}
+		}
 		record := editRecord{Noun: "note", ID: work.NewID(), ProjectID: owner.ProjectID, TaskID: owner.TaskID, New: true}
 		if err := a.beginEdit(record); err != nil {
 			return ochazuke.Failed(err)
@@ -324,6 +343,11 @@ func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if _, present := ctx.Args["text"]; !present {
+		if a.r.TopModal() != "" {
+			if err := a.r.Pop(); err != nil {
+				return ochazuke.Failed(err)
+			}
+		}
 		record := editRecord{Noun: "note", ID: note.ID, Text: note.Text, ProjectID: note.ProjectID, TaskID: note.TaskID}
 		if err := a.beginEdit(record); err != nil {
 			return ochazuke.Failed(err)
@@ -340,7 +364,7 @@ func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 // saveNoteRecord is the editor's write of a note: a new note is created
 // by its first write; the title is written only when the editor shows it.
 func (a *App) saveNoteRecord(record editRecord, values ochazuke.Record) (work.Note, error) {
-	note := work.Note{ID: record.ID, ProjectID: record.ProjectID, TaskID: record.TaskID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Created: work.Now()}
+	note := work.Note{ID: record.ID, ProjectID: record.ProjectID, TaskID: record.TaskID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Created: work.Now(), CreatedBy: a.work.Actor()}
 	if !record.New {
 		var err error
 		note, err = a.work.Note(record.ID)

@@ -1,0 +1,21 @@
+{
+  "name": "mtm: vertical motion spills from modal notes to the task tree",
+  "area": "tasks",
+  "fixture": "makers",
+  "skip": "gap: ochazuke v0.65.0 List.neighbour rejects modal roots (PageOf(root) is nil). Modal pane spill needs a general framework change; app scope does not permit a library fix or a name-specific motion workaround.",
+  "width": 140,
+  "height": 35,
+  "script": [
+    "ctrl+j",
+    "tab",
+    "O",
+    "ctrl+w",
+    "w",
+    "k"
+  ],
+  "expect": [
+    {
+      "focus": "outline:t5"
+    }
+  ]
+}

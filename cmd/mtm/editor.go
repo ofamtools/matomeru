@@ -107,6 +107,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, quick)
 	}
 	a.filterDirectories()
+	if err := a.syncOutlineNotes(false); err != nil {
+		a.r.UI().Error(err.Error())
+	}
 	if err := a.syncNoteDoc(); err != nil {
 		a.r.UI().Error(err.Error())
 	}

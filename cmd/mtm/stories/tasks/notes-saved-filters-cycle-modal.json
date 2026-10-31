@@ -1,0 +1,66 @@
+{
+  "name": "mtm: saved note filters cycle mine agents all and backward in the modal",
+  "area": "tasks",
+  "fixture": "makers",
+  "width": 140,
+  "height": 35,
+  "script": [
+    "ctrl+j",
+    "tab",
+    "O",
+    "ctrl+w",
+    "w",
+    "z",
+    "]",
+    "z",
+    "]",
+    "z",
+    "]",
+    "z",
+    "["
+  ],
+  "expect": [
+    {
+      "after": 7,
+      "contains": [
+        "[mine]",
+        "owner note example"
+      ],
+      "lacks": [
+        "agent note example",
+        "unknown note example"
+      ]
+    },
+    {
+      "after": 9,
+      "contains": [
+        "[agents]",
+        "agent note example"
+      ],
+      "lacks": [
+        "owner note example",
+        "unknown note example"
+      ]
+    },
+    {
+      "after": 11,
+      "contains": [
+        "[all]",
+        "owner note example",
+        "agent note example",
+        "unknown note example"
+      ]
+    },
+    {
+      "after": 13,
+      "contains": [
+        "[agents]",
+        "agent note example"
+      ],
+      "lacks": [
+        "owner note example",
+        "unknown note example"
+      ]
+    }
+  ]
+}

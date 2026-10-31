@@ -383,7 +383,15 @@ func writeMakers(path string, now int64) error {
 		return err
 	}
 	t4.Private = true
-	return w.PutTask(t4)
+	if err := w.PutTask(t4); err != nil {
+		return err
+	}
+	for _, kind := range []string{work.ActorOwner, work.ActorAgent, work.ActorUnknown} {
+		if err := w.PutNote(work.Note{ID: "maker-note-" + kind, TaskID: "t1", ProjectID: "acme-web", Text: kind + " note example", CreatedBy: work.Actor{Kind: kind}, Created: now, Updated: now}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeNested writes the seeded data and subtasks under acme-web's t1

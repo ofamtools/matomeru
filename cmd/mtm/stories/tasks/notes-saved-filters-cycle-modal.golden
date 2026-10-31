@@ -1,0 +1,35 @@
+ |  ◆ Matomeru · no pin · inbox 1/2                                                                                            NORMAL
+ |   Inbox  › Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Runs  Extensions
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  projects (4)                              ◆ acme-web · 1 active · 2 todo · 1 blocked · 1 done
+ |  project     ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+r|  ◆ acme-web  │ Tasks · acme-web                                                                                             │
+ |  ◆ billing-ap│ top: the project · i renames · o/n add a task · tab into the one above                                       │
+ |  ◆ docs-site │ tasks: o add · tab nest · shift+tab out (top: a project) · x done · s status                                 │
+ |  no project  │                                                                                                              │
+ |              │ task                                                     status   by                                         │
+ |              │ ▾ acme-web                                                                                                   │
+ |              │     [>] Checkout page: show the shipping estimate        active   me                                         │
+ |              │     [ ] ✦ Move the cart drawer to the new design tokens  todo     claude                                     │
+ |              │     [!] Upgrade the image CDN (waiting on billing-api)   blocked  me                                         │
+ |              │     [ ] 🔒 Flaky test: login redirect on Safari          todo     me                                         │
+ |              │     [x] Dark mode for the order history                  done     me                                         │
+ |              │                                                                                                              │
+ |              │                                                                                                              │
+ |              │                                                                                                              │
+ |              │                                                                                                              │
+ |              │                                                                                                              │
+ |              │                                                                                                              │
+ |              │ notes                                                                                                        │
+ |              │ [agents] [made-by = agent]                                                                            1 of 3 │
+R|              │ agent note example                                                                                           │
+ |              │                                                                                                              │
+ |              │                                                                                                              │
+ |              │                                                                                                              │
+ |              │ enter note.view · i note.edit · d d note.delete · m note.choose-move · space list.mark · z / prop filter · … │
+ |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ |
+ |
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  enter note.view · i note.edit · d d note.delete · m note.choose-move · space list.mark · z / prop filter · z C clear props · z ] next f…
+ |

@@ -65,6 +65,9 @@ type outlineScope struct {
 type outlineState struct {
 	scope, base outlineScope
 	tree        *ochazuke.Tree
+	notes       *ochazuke.List
+	notesTask   string
+	notesReady  bool
 }
 
 // defineOutline adds project.outline and task.outline (O), todos.open (T
@@ -258,8 +261,17 @@ func (a *App) outlineView(title string) {
 			return ochazuke.Text(head + "\n\nno tasks yet: o adds one")
 		}
 		lines := strings.Count(head, "\n") + 2
-		block := t.Block(w, max(1, h-lines))
-		return block.Offset(0, lines).WithText(head + "\n\n" + block.Text)
+		available := max(1, h-lines)
+		notesHeight := 0
+		if a.outline != nil && a.outline.notes != nil {
+			notesHeight = min(8, max(3, available/3))
+		}
+		block := t.Block(w, max(1, available-notesHeight))
+		text := head + "\n\n" + block.Text
+		if notesHeight > 0 {
+			text += "\nnotes\n" + a.view(a.outline.notes, w, max(1, notesHeight-1))
+		}
+		return block.Offset(0, lines).WithText(text)
 	}}
 }
 
@@ -334,6 +346,9 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 		_ = tree.Select(nodes[1].ID) // the project's first task, k reaches the project
 	}
 	if err := tree.Focus(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.syncOutlineNotes(true); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(scope.project)

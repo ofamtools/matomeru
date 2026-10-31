@@ -1,0 +1,71 @@
+{
+  "name": "mtm: saved note filters cycle mine agents all and backward in the page",
+  "area": "tasks",
+  "fixture": "makers",
+  "width": 140,
+  "height": 35,
+  "script": [
+    ":",
+    {
+      "type": "project pin acme-web"
+    },
+    "enter",
+    ":",
+    {
+      "type": "page open notes"
+    },
+    "enter",
+    "z",
+    "]",
+    "z",
+    "]",
+    "z",
+    "]",
+    "z",
+    "["
+  ],
+  "expect": [
+    {
+      "after": 8,
+      "contains": [
+        "[mine]",
+        "owner note example"
+      ],
+      "lacks": [
+        "agent note example",
+        "unknown note example"
+      ]
+    },
+    {
+      "after": 10,
+      "contains": [
+        "[agents]",
+        "agent note example"
+      ],
+      "lacks": [
+        "owner note example",
+        "unknown note example"
+      ]
+    },
+    {
+      "after": 12,
+      "contains": [
+        "[all]",
+        "owner note example",
+        "agent note example",
+        "unknown note example"
+      ]
+    },
+    {
+      "after": 14,
+      "contains": [
+        "[agents]",
+        "agent note example"
+      ],
+      "lacks": [
+        "owner note example",
+        "unknown note example"
+      ]
+    }
+  ]
+}

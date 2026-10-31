@@ -86,6 +86,8 @@ func (a *App) declareSettings() error {
 		harnessSetting,
 		ochazuke.Setting{Name: settingNotesTitleField, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Show the title field above the body in the note editor (a note's title is optional; empty, its first line stands in); the quick note is body-only either way"},
+		ochazuke.Setting{Name: settingTaskNotesPane, Type: ochazuke.SettingBoolean, Default: true,
+			Description: "Show the selected task's notes as a filterable pane in the task outline"},
 		directoryChooserSetting,
 		paneGroupSetting,
 		workTasksLayoutSetting,
