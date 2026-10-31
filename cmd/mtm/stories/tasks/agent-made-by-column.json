@@ -1,0 +1,20 @@
+{
+  "name": "mtm: Work marks a task an agent made with ✦ and names its harness in the by column; the owner's read me",
+  "area": "tasks",
+  "fixture": "makers",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j"
+  ],
+  "expect": [
+    {
+      "page": "work",
+      "contains": [
+        "✦ Move the cart drawer to the new design tokens",
+        "claude",
+        "me"
+      ]
+    }
+  ]
+}

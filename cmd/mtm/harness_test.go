@@ -27,6 +27,9 @@ func TestMain(m *testing.M) {
 	os.Setenv("MTM_CONFIG_DIR", "")
 	// no test reads the user's o proj manifest (known directories)
 	os.Setenv("MTM_O_PROJ", "none")
+	// tests run as the owner, though they may run in an agent's pane
+	// (actor.go); the actor tests set their own environment
+	os.Setenv("MTM_ACTOR", "owner")
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)

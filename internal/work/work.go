@@ -50,6 +50,8 @@ type Tree struct {
 type ProjectSettings struct {
 	Harness string `json:"harness,omitempty"`
 	Preset  string `json:"preset,omitempty"`
+	// Privacy is private or family (privacy.go); empty reads private.
+	Privacy string `json:"privacy,omitempty"`
 }
 
 // Task is one row of the tasks table.
@@ -67,6 +69,14 @@ type Task struct {
 	SnoozedUntil    int64  `json:"snoozed_until,omitempty"`
 	Created         int64  `json:"created"`
 	Updated         int64  `json:"updated"`
+	// Private keeps the task and every task under it out of exports,
+	// inside a family project too (privacy.go).
+	Private bool `json:"private,omitempty"`
+	// CreatedBy is who made the task, stamped once; zero on a row written
+	// before mtm recorded it (it reads unknown). ChangedBy is who wrote it
+	// last (actor.go).
+	CreatedBy Actor `json:"created_by,omitzero"`
+	ChangedBy Actor `json:"changed_by,omitzero"`
 }
 
 // Tables are the declarations this package owns; they match the persisted
@@ -93,7 +103,9 @@ var Tables = []store.Table{
 
 // Store is the work unit's view of the database.
 type Store struct {
-	db *store.Store
+	db     *store.Store
+	actor  Actor              // who writes run as (actor.go); zero is the owner
+	policy func() AgentPolicy // what an agent may change; nil is the default
 }
 
 // Open declares the tables and returns the unit.
@@ -147,9 +159,14 @@ func (s *Store) Tasks(projectID string) ([]Task, error) {
 	return out, nil
 }
 
-// PutProject writes a project row.
+// PutProject writes a project row; an agent never makes one family.
 func (s *Store) PutProject(p Project) error {
-	return s.db.Tx([]string{"projects"}, func(tx *store.Tx) error { return tx.Put("projects", p.ID, p) })
+	return s.db.Tx([]string{"projects"}, func(tx *store.Tx) error {
+		if err := s.mayShareProject(tx, p); err != nil {
+			return err
+		}
+		return tx.Put("projects", p.ID, p)
+	})
 }
 
 // AddProject creates an open project with a name and nothing else.
@@ -159,9 +176,17 @@ func (s *Store) AddProject(name string) (Project, error) {
 	return p, s.PutProject(p)
 }
 
-// PutTask writes a task row.
+// PutTask writes a task row, as the store's actor (putTask: the rights
+// check and the stamps).
 func (s *Store) PutTask(t Task) error {
-	return s.db.Tx([]string{"tasks"}, func(tx *store.Tx) error { return tx.Put("tasks", t.ID, t) })
+	_, err := s.writeTask(t)
+	return err
+}
+
+// writeTask is PutTask answering the row as written, stamps included.
+func (s *Store) writeTask(t Task) (Task, error) {
+	err := s.db.Tx([]string{"tasks"}, func(tx *store.Tx) error { return s.putTask(tx, &t) })
+	return t, err
 }
 
 // Task statuses this unit writes, in the order the task tables sort them.
@@ -243,7 +268,7 @@ func (s *Store) AddTask(projectID, title string) (Task, error) {
 	}
 	now := Now()
 	t := Task{ID: NewID(), ProjectID: projectID, Title: title, Position: position + 1, Status: StatusTodo, Created: now, Updated: now}
-	return t, s.PutTask(t)
+	return s.writeTask(t)
 }
 
 // Retitle sets a task's title.
@@ -298,7 +323,7 @@ func (s *Store) AddSubtask(projectID, parentID, title string) (Task, error) {
 	}
 	now := Now()
 	t := Task{ID: NewID(), ProjectID: projectID, ParentID: parentID, Title: title, Position: position + 1, Status: StatusTodo, Created: now, Updated: now}
-	return t, s.PutTask(t)
+	return s.writeTask(t)
 }
 
 func (s *Store) patchTask(id string, change func(*Task)) (Task, error) {
@@ -310,7 +335,7 @@ func (s *Store) patchTask(id string, change func(*Task)) (Task, error) {
 		t.Status = NormalStatus(t.Status)
 		change(&t)
 		t.Updated = Now()
-		return tx.Put("tasks", t.ID, t)
+		return s.putTask(tx, &t)
 	})
 	return t, err
 }

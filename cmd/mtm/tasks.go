@@ -76,7 +76,7 @@ func (a *App) refreshTasks() error {
 		// projects list shows every project, and selecting one shows its
 		// tasks without pinning it (the "no pin" rule, 2026-10-26).
 		for _, t := range rows {
-			if a.all || t.ProjectID == a.current {
+			if (a.all || t.ProjectID == a.current) && a.madeByShown(t) {
 				tasks = append(tasks, t)
 			}
 		}
@@ -96,12 +96,14 @@ func (a *App) refreshTasks() error {
 	}
 	// The project column shows only when the rows can belong to more than
 	// one project (all projects).
-	cols := taskColumns
-	if !a.all {
-		cols = slices.DeleteFunc(slices.Clone(taskColumns), func(c ochazuke.Column) bool { return c.Title == "project" })
-	}
+	// The by column shows unless tasks.columns leaves it out.
+	by := a.showByColumn()
+	cols := slices.DeleteFunc(slices.Clone(taskColumns), func(c ochazuke.Column) bool {
+		return c.Title == "project" && !a.all || c.Title == columnBy && !by
+	})
 	a.taskList.SetColumns(cols...)
 	now := time.Now()
+	a.taskPrivate = privateTasks(tasks)
 	row := func(t work.Task) ochazuke.TreeNode {
 		label := taskLabel(t)
 		if a.all || a.pin == "" {
@@ -177,19 +179,37 @@ func (a *App) observeTasksLayout() {
 }
 
 // taskColumns are the task noun's table: the checkbox and title (with a
-// draft mark), the status, the project (all projects only) and the last
-// change; narrow, the change drops first, then the project.
+// draft mark and the private and agent marks), the status, who made it
+// (tasks.columns), the project (all projects only) and the last change;
+// narrow, by drops first, then the change, then the project.
 var taskColumns = []ochazuke.Column{
 	{Title: "task", Min: 24},
 	{Title: "status", Priority: 1},
+	{Title: columnBy, Priority: 4},
 	{Title: "project", Priority: 2},
 	{Title: "updated", Priority: 3},
+}
+
+// privateTasks is which of tasks are private, by their own flag or a
+// parent's among them (a parent is always in its subtask's project).
+func privateTasks(tasks []work.Task) map[string]bool {
+	byID := make(map[string]work.Task, len(tasks))
+	for _, t := range tasks {
+		byID[t.ID] = t
+	}
+	out := map[string]bool{}
+	for _, t := range tasks {
+		if work.TaskPrivate(byID, t.ID) {
+			out[t.ID] = true
+		}
+	}
+	return out
 }
 
 // taskCells are a task row's cells in taskColumns order, the project
 // column left out unless the list shows all projects.
 func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
-	box := work.StatusGlyph(t.Status) + " "
+	box := work.StatusGlyph(t.Status) + " " + a.taskGlyphs(t, a.taskPrivate[t.ID])
 	title := t.Title
 	if title == "" {
 		title = "untitled"
@@ -202,10 +222,14 @@ func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
 	if t.Updated != 0 {
 		updated = sinceUse(t.Updated, now)
 	}
-	if !a.all {
-		return []string{box + title, status, updated}
+	cells := []string{box + title, status}
+	if a.showByColumn() {
+		cells = append(cells, byCell(t))
 	}
-	return []string{box + title, status, a.ownerLabel(t.ProjectID), updated}
+	if a.all {
+		cells = append(cells, a.ownerLabel(t.ProjectID))
+	}
+	return append(cells, updated)
 }
 
 func taskLabel(t work.Task) string {

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/unixsuperhero/ochazuke"
@@ -317,7 +318,7 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 	if _, err := a.r.OpenModal(outlineModal, ochazuke.Payload{}); err != nil {
 		return ochazuke.Failed(err)
 	}
-	tree, err := a.r.AddTree(outlineTree, nodes, ochazuke.Parent(outlineModal), ochazuke.NoSpill(), ochazuke.Columns(outlineColumns...))
+	tree, err := a.r.AddTree(outlineTree, nodes, ochazuke.Parent(outlineModal), ochazuke.NoSpill(), ochazuke.Columns(a.outlineCols()...))
 	if err != nil {
 		_ = a.r.Pop()
 		return ochazuke.Failed(err)
@@ -433,8 +434,12 @@ func (a *App) outlineNodes(scope outlineScope) ([]ochazuke.TreeNode, error) {
 		}
 		return out
 	}
+	private := privateTasks(tasks)
+	taskNodes := func(tasks []work.Task, root string) []ochazuke.TreeNode {
+		return a.outlineTaskNodes(tasks, root, private)
+	}
 	root := func(id, label string) ochazuke.TreeNode {
-		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Cells: []string{a.rootCell(projectNode(id), label), ""}}
+		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Cells: a.rootCells(projectNode(id), label)}
 	}
 	var nodes []ochazuke.TreeNode
 	if !scope.all {
@@ -480,11 +485,32 @@ func rootNoun(scope outlineScope, id string) string {
 	return outlineProjectNoun
 }
 
-// taskNodes are one project's tasks as rows under root.
-func taskNodes(tasks []work.Task, root string) []ochazuke.TreeNode {
+// outlineTaskNodes are one project's tasks as rows under root; private
+// is which tasks are private (privateTasks), for their glyph.
+func (a *App) outlineTaskNodes(tasks []work.Task, root string, private map[string]bool) []ochazuke.TreeNode {
 	return taskTreeNodes(tasks, root, outlineNode, func(t work.Task) ochazuke.TreeNode {
-		return ochazuke.TreeNode{Label: t.Title, Noun: outlineTaskNoun, Cells: outlineCells(t.Title, t.Status)}
+		return ochazuke.TreeNode{Label: t.Title, Noun: outlineTaskNoun, Cells: a.outlineCells(t.Title, t, private[t.ID])}
 	})
+}
+
+// outlineCols are the outline's columns: outlineColumns, then by unless
+// tasks.columns leaves it out.
+func (a *App) outlineCols() []ochazuke.Column {
+	cols := slices.Clone(outlineColumns)
+	if a.showByColumn() {
+		cols = append(cols, ochazuke.Column{Title: columnBy, Priority: 2})
+	}
+	return cols
+}
+
+// rootCells are a top-level row's cells: its text (rootCell), the rest
+// empty.
+func (a *App) rootCells(id, label string) []string {
+	cells := []string{a.rootCell(id, label), ""}
+	if a.showByColumn() {
+		cells = append(cells, "")
+	}
+	return cells
 }
 
 // taskTreeNodes are tasks as tree rows, parents first, siblings in the
@@ -515,9 +541,20 @@ func taskIDs(tasks []work.Task) map[string]bool {
 	return ids
 }
 
-// outlineCells are a task row's cells: glyph and title, then status.
-func outlineCells(title, status string) []string {
-	return []string{work.StatusGlyph(status) + " " + title, work.NormalStatus(status)}
+// outlineCells are a task row's cells: the status glyph, the private and
+// agent marks (their settings) and title, then the status, then by
+// (tasks.columns). title is the row's text, t the task as stored (zero
+// for a row not written yet).
+func (a *App) outlineCells(title string, t work.Task, private bool) []string {
+	cells := []string{work.StatusGlyph(t.Status) + " " + a.taskGlyphs(t, private) + title, work.NormalStatus(t.Status)}
+	if a.showByColumn() {
+		by := ""
+		if t.ID != "" {
+			by = byCell(t)
+		}
+		cells = append(cells, by)
+	}
+	return cells
 }
 
 // taskOrder lists tasks parents first, siblings in the order given (the
@@ -729,13 +766,15 @@ func (a *App) outlineChanged(o *outlineState) error {
 	for _, t := range tasks {
 		byID[t.ID] = t
 	}
+	private := privateTasks(tasks)
 	nodes := o.tree.Nodes()
 	for i, n := range nodes {
 		if n.Parent == "" {
-			nodes[i].Cells, nodes[i].Noun = []string{a.rootCell(n.ID, n.Label), ""}, rootNoun(o.scope, n.ID)
+			nodes[i].Cells, nodes[i].Noun = a.rootCells(n.ID, n.Label), rootNoun(o.scope, n.ID)
 			continue
 		}
-		nodes[i].Cells, nodes[i].Noun = outlineCells(n.Label, byID[taskOf(n.ID)].Status), outlineTaskNoun
+		t := byID[taskOf(n.ID)]
+		nodes[i].Cells, nodes[i].Noun = a.outlineCells(n.Label, t, private[t.ID]), outlineTaskNoun
 	}
 	if err := o.tree.SetNodes(nodes); err != nil {
 		return err

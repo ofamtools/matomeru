@@ -300,6 +300,8 @@ type App struct {
 	lastPage           string // the page the last update ended on; a change runs that page's open hook
 	detailTask         string
 	cli                bool
+	actorSet           bool            // the actor was set before the CLI's Prepare (the MCP server's; actor.go)
+	taskPrivate        map[string]bool // the Work page's private tasks, for their glyph (tasks.go)
 	pin                string
 	all                bool
 	pinVersion         uint64
@@ -503,6 +505,7 @@ func New(opts Options) (*App, error) {
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
 	a.trackNotices()
+	w.SetAgentPolicy(a.agentPolicy) // what an agent may change: the agents.* settings (actor.go)
 	a.claudeProjects = turns.ClaudeProjects()
 	a.agentStarted = processAgentStart
 	a.starts = &agentStarts{now: a.now}
@@ -531,6 +534,7 @@ func New(opts Options) (*App, error) {
 
 	a.defineProject()
 	a.defineTask()
+	a.definePrivacyVerbs()
 	a.defineProjectCreation()
 	a.defineRecordEditor()
 	a.defineNotes()
@@ -605,6 +609,7 @@ func New(opts Options) (*App, error) {
 	}
 	a.taskList = a.taskTree.List()
 	a.observeTasksLayout()
+	a.observeTaskView()
 	a.declareTaskTones()
 	row := ochazuke.Do("project.new")
 	row.Instance, row.Mode, row.Keys = "projects", "normal", "n"

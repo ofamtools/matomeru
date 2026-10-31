@@ -28,7 +28,12 @@ type SessionOwner struct {
 	FormerProjectID string `json:"former_project_id,omitempty"`
 }
 
+// SetPaneOwner associates a pane; an agent reaches only the panes its
+// associate scope allows (mayChangePane).
 func (s *Store) SetPaneOwner(a Assignment) error {
+	if err := s.mayChangePane(a.Window); err != nil {
+		return err
+	}
 	return s.db.Tx([]string{"assignments"}, func(tx *store.Tx) error { return tx.Put("assignments", a.Window, a) })
 }
 

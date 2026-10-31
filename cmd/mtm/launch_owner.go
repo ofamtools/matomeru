@@ -46,16 +46,18 @@ func (d *recordingDriver) OpenWindow(ctx context.Context, w harness.Window) (str
 	if err != nil {
 		return id, err
 	}
-	if err := d.work.SetPaneOwner(work.Assignment{Window: id, Session: w.Session, ProjectID: d.owner.ProjectID, TaskID: d.owner.TaskID, AssignedAt: work.Now()}); err != nil {
-		d.unrecorded = true
-		d.note(fmt.Errorf("pane %s is open but owner was not saved; associate it: %w", id, err))
-	}
 	recipe := work.PaneRecipe{Window: id, Session: w.Session, Name: w.Name, Cwd: w.Cwd, Command: w.Command, Harness: d.harness, Model: d.model, ProjectID: d.owner.ProjectID, TaskID: d.owner.TaskID}
 	recipe.Env = recordedEnvironment(recipe)
 	if len(w.Command) > 1 {
 		recipe.Flags = w.Command[1:]
 	}
+	// The recipe first: it records the agent that launched the pane
+	// (LaunchedBy), which lets that agent associate its child pane.
 	d.note(d.work.PutPaneRecipe(recipe))
+	if err := d.work.SetPaneOwner(work.Assignment{Window: id, Session: w.Session, ProjectID: d.owner.ProjectID, TaskID: d.owner.TaskID, AssignedAt: work.Now()}); err != nil {
+		d.unrecorded = true
+		d.note(fmt.Errorf("pane %s is open but owner was not saved; associate it: %w", id, err))
+	}
 	if err := d.work.TouchDir(w.Cwd); err != nil {
 		d.note(fmt.Errorf("directory recency: %w", err))
 	}

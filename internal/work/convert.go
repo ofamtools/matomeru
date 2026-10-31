@@ -84,6 +84,9 @@ type rowEntry struct {
 type convertTx struct {
 	tx      *store.Tx
 	changes []RowChange
+	// check is the rights check of a write over an existing row
+	// (mayChangeTask for a task row).
+	check func(table string, before []byte) error
 }
 
 func (c *convertTx) entries(table string) ([]rowEntry, error) {
@@ -110,6 +113,9 @@ func (c *convertTx) put(table string, e rowEntry) error {
 	if e.before != nil && sameJSON(e.before, after) {
 		return nil
 	}
+	if err := c.checked(table, e.before); err != nil {
+		return err
+	}
 	if convertFault != nil {
 		if err := convertFault(table, e.id); err != nil {
 			return err
@@ -122,7 +128,18 @@ func (c *convertTx) put(table string, e rowEntry) error {
 	return nil
 }
 
+// checked runs the rights check on a write over an existing row.
+func (c *convertTx) checked(table string, before []byte) error {
+	if c.check == nil || before == nil {
+		return nil
+	}
+	return c.check(table, before)
+}
+
 func (c *convertTx) delete(table string, e rowEntry) error {
+	if err := c.checked(table, e.before); err != nil {
+		return err
+	}
 	if convertFault != nil {
 		if err := convertFault(table, e.id); err != nil {
 			return err
@@ -177,7 +194,16 @@ func (s *Store) convert(fn func(c *convertTx, declared map[string]bool) error) (
 	}
 	var changes []RowChange
 	err := s.db.Tx(tables, func(tx *store.Tx) error {
-		c := &convertTx{tx: tx}
+		c := &convertTx{tx: tx, check: func(table string, before []byte) error {
+			if table != "tasks" {
+				return nil
+			}
+			var t Task
+			if err := json.Unmarshal(before, &t); err != nil {
+				return err
+			}
+			return s.mayChangeTask(tx, t)
+		}}
 		if err := fn(c, declared); err != nil {
 			return err
 		}

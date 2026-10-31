@@ -176,6 +176,11 @@ func (b *mcpBackend) Run(ctx context.Context, noun, verb string, args map[string
 	if b.prepare != nil {
 		b.prepare(app)
 	}
+	// Every tool call runs as the agent of the pane the server serves
+	// (the call's Identity), whatever the environment says.
+	id, _ := mcp.IdentityFrom(ctx)
+	app.setActor(mcpActor(id))
+	app.actorSet = true
 	var out, errOut bytes.Buffer
 	if err := app.shell(strings.NewReader(""), &out, &errOut).Run(ctx, []string{noun, verb, "--json", string(payload)}); err != nil {
 		return nil, err

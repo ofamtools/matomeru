@@ -24,7 +24,7 @@ func TestSettingsSectionsAndOwners(t *testing.T) {
 	for _, sec := range sections {
 		titles = append(titles, sec.Title)
 	}
-	want := []string{"General", "Work", "Panes", "Prompt", "Turns", "Agent", "Notes", "Inbox", "Schedules", "Status bar", "Pin"}
+	want := []string{"General", "Work", "Tasks", "Projects", "Agents", "Panes", "Prompt", "Turns", "Agent", "Notes", "Inbox", "Schedules", "Status bar", "Pin"}
 	if !slices.Equal(titles, want) {
 		t.Fatalf("app sections %q, want %q", titles, want)
 	}

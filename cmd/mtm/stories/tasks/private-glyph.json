@@ -1,0 +1,29 @@
+{
+  "name": "mtm: Work marks a private task with 🔒; tasks.private-glyph false drops the mark",
+  "area": "tasks",
+  "fixture": "makers",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    ":",
+    {"type": "set tasks.private-glyph=false"},
+    "enter"
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "contains": [
+        "🔒 Flaky test: login redirect on Safari"
+      ]
+    },
+    {
+      "contains": [
+        "[ ] Flaky test: login redirect on Safari"
+      ],
+      "lacks": [
+        "🔒"
+      ]
+    }
+  ]
+}

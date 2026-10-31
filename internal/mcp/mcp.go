@@ -155,7 +155,22 @@ func (s *Server) Call(ctx context.Context, base Identity, name string, args map[
 	if tool.NeedsPane && !id.Bound {
 		return nil, &Error{Code: "no_pane", Message: "this tool needs a TUIOS pane: start the agent in one, or set MTM_SESSION and MTM_WINDOW"}
 	}
-	return tool.call(ctx, s, id, args)
+	return tool.call(WithIdentity(ctx, id), s, id, args)
+}
+
+type identityKey struct{}
+
+// WithIdentity is ctx carrying the caller's identity, which Call gives
+// every Backend.Run of a tool: mtm runs the operation as that pane's agent
+// (cmd/mtm/actor.go).
+func WithIdentity(ctx context.Context, id Identity) context.Context {
+	return context.WithValue(ctx, identityKey{}, id)
+}
+
+// IdentityFrom is the identity WithIdentity put in ctx.
+func IdentityFrom(ctx context.Context) (Identity, bool) {
+	id, ok := ctx.Value(identityKey{}).(Identity)
+	return id, ok
 }
 
 // Error is a tool failure with a stable code.

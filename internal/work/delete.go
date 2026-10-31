@@ -47,6 +47,15 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 		if err := tx.Get(table, id, &target); err != nil {
 			return err
 		}
+		if apply && noun == "task" {
+			var t Task
+			if err := json.Unmarshal(target, &t); err != nil {
+				return err
+			}
+			if err := s.mayChangeTask(tx, t); err != nil {
+				return err
+			}
+		}
 		raws, err := tx.All("tasks")
 		if err != nil {
 			return err

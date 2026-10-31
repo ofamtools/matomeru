@@ -85,6 +85,7 @@ func mtmApp() monogatari.App {
 		Fixtures: []monogatari.Fixture{
 			{Name: "seeded", Summary: "docs/vhs/seed.sh's projects, tasks and notes (acme-web, billing-api, docs-site), two inbox items and two fake panes; opens on Panes", Build: buildSeeded},
 			{Name: "nested", Summary: "seeded, plus subtasks under acme-web's Checkout page task (two children, one with a child of its own)", Build: buildNested},
+			{Name: "makers", Summary: "seeded, with acme-web's cart drawer task made by an agent (claude) and its flaky-test task private", Build: buildMakers},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
 		},
 		Expected: storyExpected,
@@ -151,6 +152,10 @@ func buildSeeded(env monogatari.Env) (monogatari.Built, error) {
 
 func buildNested(env monogatari.Env) (monogatari.Built, error) {
 	return buildStory(env, writeNested, seededPanes)
+}
+
+func buildMakers(env monogatari.Env) (monogatari.Built, error) {
+	return buildStory(env, writeMakers, seededPanes)
 }
 
 func buildEmpty(env monogatari.Env) (monogatari.Built, error) {
@@ -347,6 +352,38 @@ func writeSeeded(path string, now int64) error {
 	}
 	_, err = items.SetRead(ping.ID, true)
 	return err
+}
+
+// writeMakers writes the seeded data with t2 (Move the cart drawer) made
+// by an agent in pane w1 and t4 (Flaky test) private: the rows the by
+// column, the agent mark and the private mark show.
+func writeMakers(path string, now int64) error {
+	if err := writeSeeded(path, now); err != nil {
+		return err
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	w, err := work.Open(db)
+	if err != nil {
+		return err
+	}
+	t2, err := w.Task("t2")
+	if err != nil {
+		return err
+	}
+	t2.CreatedBy = work.Actor{Kind: work.ActorAgent, Harness: "claude", Pane: "w1"}
+	if err := w.PutTask(t2); err != nil {
+		return err
+	}
+	t4, err := w.Task("t4")
+	if err != nil {
+		return err
+	}
+	t4.Private = true
+	return w.PutTask(t4)
 }
 
 // writeNested writes the seeded data and subtasks under acme-web's t1

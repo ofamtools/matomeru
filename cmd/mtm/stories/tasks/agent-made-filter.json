@@ -1,0 +1,35 @@
+{
+  "name": "mtm: tasks.made-by agents lists only the tasks an agent made; mine lists the rest",
+  "area": "tasks",
+  "fixture": "makers",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    ":",
+    {"type": "set tasks.made-by=agents"},
+    "enter",
+    ":",
+    {"type": "set tasks.made-by=mine"},
+    "enter"
+  ],
+  "expect": [
+    {
+      "after": 4,
+      "contains": [
+        "✦ Move the cart drawer to the new design tokens"
+      ],
+      "lacks": [
+        "Flaky test: login redirect on Safari"
+      ]
+    },
+    {
+      "contains": [
+        "Flaky test: login redirect on Safari"
+      ],
+      "lacks": [
+        "Move the cart drawer"
+      ]
+    }
+  ]
+}

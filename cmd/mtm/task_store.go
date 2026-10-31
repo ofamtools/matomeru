@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -54,6 +55,16 @@ func taskProps() []ochazuke.PropSpec {
 		{Name: "position", ReadOnly: true, Parameter: integer("The task's place on its board, among its siblings")},
 		{Name: "created", ReadOnly: true, Parameter: integer("When the task was created (Unix ms)")},
 		{Name: "updated", ReadOnly: true, Parameter: integer("When the task last changed (Unix ms)")},
+		{Name: "private", Parameter: ochazuke.Parameter{Type: "boolean",
+			Description: "Keep the task and every task under it in mtm, inside a family project too (make-private, make-family); an agent may set it, only the owner clears it"}},
+		{Name: "exported", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean",
+			Description: "Whether the task may leave mtm: its project is family and neither it nor a task above it is private"}},
+		{Name: "created-by", Parameter: ochazuke.Parameter{Type: "string",
+			Description: "Who made the task, stamped once: owner, agent (with its harness, pane, session, lane task and model) or unknown (made before mtm recorded it); the owner may set it (owner, agent, unknown or an actor as JSON) to claim tasks"}},
+		{Name: "changed-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string",
+			Description: "Who wrote the task last: owner or agent (as created-by); empty before mtm recorded it"}},
+		{Name: "made-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{work.ActorOwner, work.ActorAgent, work.ActorUnknown},
+			Description: "created-by's kind, flat for --where made-by=agent: owner, agent or unknown"}},
 	}
 }
 
@@ -73,7 +84,7 @@ func (a *App) taskStore() ochazuke.Store {
 			if err != nil {
 				return nil, err
 			}
-			return taskThing(t), nil
+			return a.taskThingOf(t), nil
 		},
 		List: func(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
 			scope := *a
@@ -84,10 +95,14 @@ func (a *App) taskStore() ochazuke.Store {
 			if err != nil {
 				return nil, err
 			}
+			exported, err := a.work.Exports()
+			if err != nil {
+				return nil, err
+			}
 			out := make([]ochazuke.Thing, 0, len(tasks))
 			for _, t := range tasks {
 				if scope.inScope(t.ProjectID) {
-					out = append(out, taskThing(t))
+					out = append(out, taskThing(t, exported[t.ID]))
 				}
 			}
 			return out, nil
@@ -107,12 +122,47 @@ func (a *App) taskByID(id string) (work.Task, error) {
 	return t, err
 }
 
-// taskThing is a task as its props.
-func taskThing(t work.Task) ochazuke.Thing {
-	return ochazuke.Thing{
+// taskThing is a task as its props; exported is whether it may leave mtm
+// (work.Exports).
+func taskThing(t work.Task, exported bool) ochazuke.Thing {
+	thing := ochazuke.Thing{
 		"id": t.ID, "title": t.Title, "status": t.Status, "project": t.ProjectID, "parent": t.ParentID,
 		"easy": t.Easy, "snoozed-until": t.SnoozedUntil, "position": t.Position, "created": t.Created, "updated": t.Updated,
+		"private": t.Private, "exported": exported, "created-by": t.Maker(), "made-by": t.MadeBy(), "changed-by": "",
 	}
+	if t.ChangedBy.Kind != "" {
+		thing["changed-by"] = t.ChangedBy
+	}
+	return thing
+}
+
+// taskThingOf is taskThing for one task, its export read from the store.
+func (a *App) taskThingOf(t work.Task) ochazuke.Thing {
+	exported, _ := a.work.TaskExported(t.ID)
+	return taskThing(t, exported)
+}
+
+// thingActor reads an actor a write gives: text (owner, agent, unknown,
+// JSON) from the CLI, or the actor an undo's record holds.
+func thingActor(v any) (work.Actor, error) {
+	var text string
+	switch x := v.(type) {
+	case work.Actor:
+		return x, nil
+	case string:
+		text = x
+	default:
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return work.Actor{}, err
+		}
+		text = string(raw)
+	}
+	act, err := work.ParseActor(text)
+	if err != nil {
+		return work.Actor{}, &ochazuke.ArgumentError{Err: err}
+	}
+	return act, nil
 }
 
 // thingString reads a prop value of a write as text; ok is whether the
@@ -221,6 +271,18 @@ func (a *App) createTask(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 		t.Easy = easy
 	}
 	t.SnoozedUntil = thingInt(values["snoozed-until"])
+	if v, ok := values["private"].(bool); ok {
+		t.Private = v
+	}
+	if v, ok := values["created-by"]; ok && v != nil {
+		// The store keeps the maker it stamps unless the owner names one
+		// (an undo of a delete puts the task back as it was).
+		by, err := thingActor(v)
+		if err != nil {
+			return nil, err
+		}
+		t.CreatedBy = by
+	}
 	siblings, err := a.work.Tasks(t.ProjectID)
 	if err != nil {
 		return nil, err
@@ -237,7 +299,10 @@ func (a *App) createTask(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	if err := a.refreshTasks(); err != nil {
 		return nil, err
 	}
-	return taskThing(t), nil
+	if t, err = a.taskByID(t.ID); err != nil {
+		return nil, err
+	}
+	return a.taskThingOf(t), nil
 }
 
 // patchTask is the store's Patch: it writes the changed props. A parent
@@ -274,6 +339,17 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	if v, ok := changes["snoozed-until"]; ok {
 		t.SnoozedUntil = thingInt(v)
 	}
+	if v, ok := changes["private"]; ok {
+		t.Private, _ = v.(bool)
+	}
+	t.CreatedBy = work.Actor{} // the store keeps the stored maker
+	if v, ok := changes["created-by"]; ok && v != nil {
+		by, err := thingActor(v)
+		if err != nil {
+			return nil, err
+		}
+		t.CreatedBy = by // the owner's claim; an agent's is ignored (work.putTask)
+	}
 	project, hasProject := thingString(changes, "project")
 	parent, hasParent := thingString(changes, "parent")
 	owned := hasProject || hasParent
@@ -304,7 +380,10 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	if err != nil {
 		return nil, err
 	}
-	return taskThing(t), nil
+	if t, err = a.taskByID(id); err != nil {
+		return nil, err
+	}
+	return a.taskThingOf(t), nil
 }
 
 // removeTask is the store's Delete (task.delete, and history.undo of a

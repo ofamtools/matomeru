@@ -354,7 +354,7 @@ func (a *App) extEnv(name string) []string {
 
 // baseExtEnv is extEnv without the project context (safe off the loop).
 func (a *App) baseExtEnv(name string) []string {
-	return []string{"MTM_DATA=" + a.dataDir(), "MTM_EXTENSION=" + name}
+	return []string{"MTM_DATA=" + a.dataDir(), "MTM_EXTENSION=" + name, actorEnv + "=" + a.actorEnvValue()}
 }
 
 // dataDir is mtm's data directory: the directory of its database.

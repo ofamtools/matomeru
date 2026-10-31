@@ -63,6 +63,18 @@ func mcpApp(t *testing.T, env map[string]string) (*App, *stateRecorder, string) 
 	if err := w.PutPaneRecipe(work.PaneRecipe{Window: "w1", Session: "matomeru", Cwd: cwd, Harness: "claude", Model: "opus", TaskID: "t1", ProjectID: "matomeru"}); err != nil {
 		t.Fatal(err)
 	}
+	// The seeded tasks are the pane's own (the agent in w1 made them), so
+	// the tools may change them; mcp_actor_test.go covers the refusals.
+	for _, id := range []string{"t1", "t2"} {
+		task, err := w.Task(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		task.CreatedBy = work.Actor{Kind: work.ActorAgent, Harness: "claude", Pane: "w1", Session: "matomeru"}
+		if err := w.PutTask(task); err != nil {
+			t.Fatal(err)
+		}
+	}
 	db.Close()
 	app := openWith(t, Options{Data: path, Socket: filepath.Join(t.TempDir(), "none.sock")})
 	getenv := func(k string) string { return env[k] }

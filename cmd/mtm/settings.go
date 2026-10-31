@@ -75,6 +75,8 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: settingTurnsToolsOpen, Type: ochazuke.SettingBoolean, Default: false,
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
 	}
+	settings = append(settings, agentSettings()...)
+	settings = append(settings, taskViewSettings()...)
 	settings = append(settings, turnStatusSettings()...)
 	settings = append(settings, pinColorsSettings()...)
 	settings = append(settings, paneBorderSettings()...)
@@ -112,6 +114,9 @@ func (a *App) declareSettingLayout() error {
 	return a.r.DeclareSettingSection(
 		app(ochazuke.SettingsGeneralSection, "General", "Editing, refresh, the default harness, the directory chooser and the side pane"),
 		app("work", "Work", "The Work page's task list (a tree or flat) and how the task picker names a subtask"),
+		app("tasks", "Tasks", "Who made each task: the by column, the agent and private marks, and which tasks the Work page lists (mine, agents' or all)"),
+		app("projects", "Projects", "Project privacy: the Inbox item for a new project that is private until marked family"),
+		app("agents", "Agents", "What an agent may change: tasks by where they are and who made them, and panes to associate; the owner is never limited"),
 		app("panes", "Panes", "The Panes page: grouping, its sections and panels, which states count as working, waiting or errored, and which pane borders take their state colour"),
 		app("prompt", "Prompt", "The prompt box: where it shows and what follows a submit"),
 		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls"),

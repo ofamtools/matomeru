@@ -44,6 +44,10 @@ func projectProps() []ochazuke.PropSpec {
 		{Name: "repo", ReadOnly: true, Parameter: text("The repository of the project's first checkout")},
 		{Name: "origin", ReadOnly: true, Parameter: text("The tool that created or adopted the project (empty: mtm)")},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the project was created (Unix ms)"}},
+		// No Default: a create that names none leaves it unset (private, with
+		// the Inbox item), not marked private by the owner.
+		{Name: "privacy", Parameter: ochazuke.Parameter{Type: "string", Enum: work.Privacies,
+			Description: "Whether the project's tasks may leave mtm: family (exported) or private (kept in mtm; a project with none set reads private); make-family and make-private set it; only the owner makes one family"}},
 	}
 }
 
@@ -95,7 +99,7 @@ func projectThing(p work.Project) ochazuke.Thing {
 	return ochazuke.Thing{
 		"id": p.ID, "name": p.Name, "color": p.Theme.Color, "glyph": p.Theme.Glyph,
 		"harness": p.Settings.Harness, "preset": p.Settings.Preset, "dir": projectDir(p),
-		"repo": p.Repo, "origin": p.Origin, "created": p.Created,
+		"repo": p.Repo, "origin": p.Origin, "created": p.Created, "privacy": work.PrivacyOf(p),
 	}
 }
 
@@ -120,6 +124,9 @@ func (a *App) writeProjectProps(c ochazuke.Ctx, p *work.Project, values ochazuke
 	}
 	if v, ok := thingString(values, "preset"); ok {
 		p.Settings.Preset = v
+	}
+	if v, ok := thingString(values, "privacy"); ok && v != "" {
+		p.Settings.Privacy = v
 	}
 }
 
@@ -155,6 +162,7 @@ func (a *App) createProject(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thi
 	if err := a.refreshProjects(); err != nil {
 		return nil, err
 	}
+	a.notePrivacy(func(m string) { c.Notify(m) }, p)
 	return projectThing(p), nil
 }
 
@@ -180,6 +188,9 @@ func (a *App) patchProject(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 	}
 	if err := a.refreshProjects(); err != nil {
 		return nil, err
+	}
+	if _, ok := changes["privacy"]; ok {
+		a.notePrivacy(func(m string) { c.Notify(m) }, p)
 	}
 	return projectThing(p), nil
 }
@@ -228,6 +239,6 @@ func (a *App) saveProjectRecord(record editRecord, values ochazuke.Record) (any,
 	if !a.knownHarness(harness) {
 		harness = p.Settings.Harness
 	}
-	p.Settings = work.ProjectSettings{Harness: harness, Preset: values["preset"]}
+	p.Settings.Harness, p.Settings.Preset = harness, values["preset"] // the privacy stays
 	return p, a.work.PutProject(p)
 }

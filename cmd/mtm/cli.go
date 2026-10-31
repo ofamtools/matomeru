@@ -51,6 +51,7 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	sh.Settle = a.closeTerminals
 	sh.Prepare = func(ctx context.Context) error {
 		a.cli = true
+		a.prepareActor(func(msg string) { fmt.Fprintln(stderr, "mtm:", msg) })
 		if err := a.r.OpenPage("work"); err != nil {
 			return err
 		}

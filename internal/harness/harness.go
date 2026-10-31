@@ -99,6 +99,12 @@ type Harness struct {
 	// nil: the agent.view settings. A file's view object merges by field
 	// into the built-in's; null removes it.
 	View *View `json:"view,omitempty"`
+	// AgentEnv names environment variables the harness sets in the
+	// processes its agent runs (Claude Code sets CLAUDECODE): a CLI call
+	// that finds one of them set, inside a pane mtm did not launch, runs as
+	// that harness's agent (cmd/mtm/actor.go). Empty: only a pane mtm
+	// launched with the harness is known as its agent.
+	AgentEnv []string `json:"agentEnv,omitempty"`
 }
 
 // DriveOf is the harness's drive, drive.Terminal when it gives none.
@@ -128,7 +134,7 @@ const DefaultReadyTimeoutMS = 15000
 func Builtins() []Harness {
 	ready := Ready{State: "idle,done", TimeoutMS: DefaultReadyTimeoutMS}
 	list := []Harness{
-		{Name: "claude", Command: []string{"claude"}, ModelFlag: "--model", Models: []string{"opus", "sonnet", "haiku"}, Prompt: PromptSendText, Ready: ready, Attach: AttachMention},
+		{Name: "claude", Command: []string{"claude"}, ModelFlag: "--model", Models: []string{"opus", "sonnet", "haiku"}, Prompt: PromptSendText, Ready: ready, Attach: AttachMention, AgentEnv: []string{"CLAUDECODE"}},
 		{Name: "omp", Command: []string{"omp"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachMention},
 		{Name: "codex", Command: []string{"codex"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachPaste},
 	}
@@ -305,6 +311,19 @@ func (r *Registry) Names() []string {
 	return out
 }
 
+// AgentFromEnv is the first harness (in registry order) one of whose
+// AgentEnv variables getenv finds set; "" when none is.
+func (r *Registry) AgentFromEnv(getenv func(string) string) string {
+	for _, h := range r.list {
+		for _, name := range h.AgentEnv {
+			if getenv(name) != "" {
+				return h.Name
+			}
+		}
+	}
+	return ""
+}
+
 // Get finds a harness by name.
 func (r *Registry) Get(name string) (Harness, bool) {
 	for _, h := range r.list {
@@ -375,7 +394,7 @@ func Merge(base []Harness, data []byte) ([]Harness, error) {
 			// A field the entry gives replaces the built-in's whole value.
 			// A settings or contextWindows object merges by key into the
 			// built-in's, so the maps are copied first.
-			h.Command, h.Models = slices.Clone(h.Command), slices.Clone(h.Models)
+			h.Command, h.Models, h.AgentEnv = slices.Clone(h.Command), slices.Clone(h.Models), slices.Clone(h.AgentEnv)
 			h.Env, h.Settings, h.ContextWindows = maps.Clone(h.Env), maps.Clone(h.Settings), maps.Clone(h.ContextWindows)
 			if h.Session != nil {
 				src := *h.Session

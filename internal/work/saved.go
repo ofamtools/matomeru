@@ -28,6 +28,9 @@ type PaneRecipe struct {
 	FormerTaskID    string            `json:"former_task_id,omitempty"`
 	Created         int64             `json:"created"`
 	Updated         int64             `json:"updated"`
+	// LaunchedBy is the pane of the agent that launched this one (empty
+	// for the owner): a child pane its agent may associate (actor.go).
+	LaunchedBy string `json:"launched_by,omitempty"`
 }
 
 type SavedPane struct {
@@ -49,6 +52,9 @@ func (s *Store) PutPaneRecipe(recipe PaneRecipe) error {
 		recipe.Created = Now()
 	}
 	recipe.Updated = Now()
+	if me := s.Actor(); recipe.LaunchedBy == "" && me.IsAgent() && me.Pane != recipe.Window {
+		recipe.LaunchedBy = me.Pane
+	}
 	return s.db.Tx([]string{"pane_recipes"}, func(tx *store.Tx) error { return tx.Put("pane_recipes", recipe.Window, recipe) })
 }
 

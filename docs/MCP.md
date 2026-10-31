@@ -40,6 +40,21 @@ there.
 
 `task_status` takes the new statuses only: todo, active, blocked, done.
 
+## Who the writes are
+
+Every tool call writes as the agent of the server's pane: its harness,
+pane, session, the pane's task (its lane) and model. A task it creates is
+stamped `created-by` that agent (`made-by` agent), and every write it makes
+is `changed-by` it. What it may change is data, the `agents.*` settings:
+by default the tasks its pane or lane made, plus the agent-made tasks of its
+lane task's subtree (`agents.write-scope` subtree, `agents.write-makers`
+agent), and its own pane and the panes it launched or opened beside it
+(`agents.associate-scope` own-pane). A tool on a task the owner made is
+refused with a message naming who to ask (the owner or the coordinator)
+and the setting that refused it. The CLI follows the same rule inside an
+agent's pane (`MTM_ACTOR=owner` overrides it); the TUI is always the owner,
+and the owner is never refused.
+
 ## Which pane am I
 
 The pane comes from the server's environment, never from tool arguments:

@@ -77,8 +77,8 @@ func txTasks(tx *store.Tx) (taskForest, error) {
 
 // putTree writes t and gives every task under it t's project; it answers
 // how many tasks under t it changed.
-func putTree(tx *store.Tx, t Task) (int, error) {
-	if err := tx.Put("tasks", t.ID, t); err != nil {
+func (s *Store) putTree(tx *store.Tx, t Task) (int, error) {
+	if err := s.putTask(tx, &t); err != nil {
 		return 0, err
 	}
 	f, err := txTasks(tx)
@@ -92,7 +92,7 @@ func putTree(tx *store.Tx, t Task) (int, error) {
 			continue
 		}
 		d.ProjectID, d.Updated = t.ProjectID, t.Updated
-		if err := tx.Put("tasks", d.ID, d); err != nil {
+		if err := s.putTask(tx, &d); err != nil {
 			return moved, err
 		}
 		moved++
@@ -129,7 +129,7 @@ func (s *Store) PutTaskSubtree(t Task) (int, error) {
 	var moved int
 	err := s.db.Tx([]string{"tasks"}, func(tx *store.Tx) error {
 		var err error
-		moved, err = putTree(tx, t)
+		moved, err = s.putTree(tx, t)
 		return err
 	})
 	return moved, err
@@ -160,7 +160,7 @@ func (s *Store) moveSubtree(id, project string, detach bool) (Task, int, error) 
 		}
 		t.ProjectID, t.Updated = project, Now()
 		var err error
-		moved, err = putTree(tx, t)
+		moved, err = s.putTree(tx, t)
 		return err
 	})
 	t.Status = NormalStatus(t.Status)
