@@ -102,6 +102,14 @@ func settle(a *App, cmd tea.Cmd) {
 // With recurse false only completions are delivered and their next commands
 // are returned, for tests inspecting an intermediate fetch state.
 func driveCommands(a *App, cmd tea.Cmd, recurse, appUpdate bool) []tea.Cmd {
+	idle := time.NewTicker(100 * time.Millisecond)
+	defer idle.Stop()
+	return driveCommandsUntilIdle(a, cmd, recurse, appUpdate, idle.C)
+}
+
+// driveCommandsUntilIdle accepts idle ticks so its early-return behavior can
+// be tested while a job is blocked, without depending on wall time.
+func driveCommandsUntilIdle(a *App, cmd tea.Cmd, recurse, appUpdate bool, idle <-chan time.Time) []tea.Cmd {
 	messages := make(chan tea.Msg)
 	done := make(chan struct{})
 	defer close(done)
@@ -126,11 +134,14 @@ func driveCommands(a *App, cmd tea.Cmd, recurse, appUpdate bool) []tea.Cmd {
 		}
 	}
 	waiting := func() bool {
-		if recurse {
+		if recurse && !appUpdate {
 			return jobRunning(a)
 		}
 		for _, j := range a.r.Jobs() {
-			if initial[j.Job] && j.State == ochazuke.JobRunning {
+			// App updates can remount a page and start catalog-load jobs,
+			// which have no registered operation. Wait for their completions
+			// too, rather than treating a slow row fetch as a parked timer.
+			if (recurse || initial[j.Job]) && j.State == ochazuke.JobRunning {
 				return true
 			}
 		}
@@ -139,8 +150,6 @@ func driveCommands(a *App, cmd tea.Cmd, recurse, appUpdate bool) []tea.Cmd {
 	start(cmd)
 	limit := time.NewTimer(settleLimit)
 	defer limit.Stop()
-	idle := time.NewTimer(100 * time.Millisecond)
-	defer idle.Stop()
 	var nexts []tea.Cmd
 	for pending > 0 {
 		select {
@@ -167,16 +176,48 @@ func driveCommands(a *App, cmd tea.Cmd, recurse, appUpdate bool) []tea.Cmd {
 					}
 				}
 			}
-		case <-idle.C:
+		case <-idle:
 			if !waiting() {
 				return nexts
 			}
-			idle.Reset(100 * time.Millisecond)
 		case <-limit.C:
 			panic("test command did not settle within " + settleLimit.String())
 		}
 	}
 	return nexts
+}
+
+// A page's catalog-load job has no registered operation. An idle tick while
+// its rows are fetching must not discard the completion, even when the
+// application verb that caused the fetch has already finished.
+func TestExtensionDriverWaitsForCatalogRows(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	idle := make(chan time.Time)
+	loaded := false
+	res := ochazuke.Pending(func(ctx context.Context) (any, error) {
+		// Simulate the idle deadline arriving before this fetch completes.
+		select {
+		case idle <- time.Time{}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return "catalog rows", nil
+	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+		if err != nil || v != "catalog rows" {
+			t.Errorf("row fetch: %v, %v", v, err)
+		}
+		loaded = true
+		close(idle) // another idle tick after the rows landed
+	})
+	ticket, err := a.r.Launch("app", ocli.LoadVerb, res, ochazuke.Ctx{Runtime: a.r})
+	if err != nil {
+		t.Fatal(err)
+	}
+	driveCommandsUntilIdle(a, a.r.PendingCommands(), true, true, idle)
+	if !loaded || a.r.Accepts(ticket) {
+		t.Fatal("driver returned before the catalog rows landed")
+	}
 }
 
 // lingerTick fires the timer in flight at its deadline, without wall time.
