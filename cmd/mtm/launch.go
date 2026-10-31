@@ -179,7 +179,7 @@ func (a *App) defineLaunch() {
 		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
 	r.Define("harness").Columns(harnessColumns...).
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").Fetch().
-		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)").Fetch().
+		Verb("models", a.listModels, "List a harness's models as choices; without a harness, combine every harness's models").Fetch().
 		Verb("names", a.harnessNames, "List the harness names as choices (the project editor's harness field)").Fetch()
 	// Launches belong to mtm; ochazuke.agent owns framework rights inspection.
 	r.DefineOwn("agent").
@@ -190,10 +190,11 @@ func (a *App) defineLaunch() {
 	// launches on that record.
 	a.r.Define("app").Mode("normal").Bind("L", ochazuke.Do("agent.choose"))
 	// The model is free text checked against the chosen harness's models
-	// (harness.Model): the pick list is every harness's, the check is the
-	// one harness's, and a harness that lists none takes any model.
-	model := ochazuke.Parameter{Type: "string", Source: "harness.models", Free: true, Description: "Model for the harness's model flag; one of its models when it lists any (default: its first)"}
+	// (harness.Model). The pick list follows the selected harness; a
+	// harness that lists none takes any model.
+	model := ochazuke.Parameter{Type: "string", Source: "harness.models", SourceArgs: map[string]string{"harness": "harness"}, Free: true, Description: "Model for the harness's model flag; one of its models when it lists any (default: its first)"}
 	agent := ochazuke.Parameter{Type: "string", Enum: a.harnesses.Names(), Description: "Harness to start (default: the project's harness setting, else the default-harness setting, " + defaultHarness + " unless set)"}
+	a.parameters("harness.models", map[string]ochazuke.Parameter{"harness": {Type: "string", Description: "Only this harness's models; empty: every harness"}})
 	task := ochazuke.Parameter{Type: "string", Description: "Task id; its title is the agent's first prompt"}
 	a.parameters("agent.launch", map[string]ochazuke.Parameter{
 		"harness": agent,
@@ -226,12 +227,21 @@ func (a *App) harnessNames(ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(a.harnesses.Names())
 }
 
-// listModels is harness.models, the model parameter's pick list: every
-// harness's models, each once, labelled with the harnesses that list it.
-func (a *App) listModels(ochazuke.Ctx) ochazuke.Result {
+// listModels is harness.models, the model parameter's pick list: the
+// selected harness's models, or every harness's when none is selected.
+// Each model appears once, labelled with the harnesses that list it.
+func (a *App) listModels(c ochazuke.Ctx) ochazuke.Result {
+	harnesses := a.harnesses.List()
+	if name := ochazuke.StringArg(c.Args, "harness", ""); name != "" {
+		h, err := a.harnesses.Lookup(name)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		harnesses = []harness.Harness{h}
+	}
 	var out []ochazuke.Choice
 	at := map[string]int{}
-	for _, h := range a.harnesses.List() {
+	for _, h := range harnesses {
 		for _, m := range h.Models {
 			if i, ok := at[m]; ok {
 				out[i].Label += ", " + h.Name
