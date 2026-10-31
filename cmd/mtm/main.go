@@ -707,6 +707,9 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	// Apply the startup preference once, beside the restored pin. Later
+	// settings changes take effect next launch; scope.all owns this session.
+	a.all = a.r.Settings().String(settingPinStartScope) == "all"
 	if err := a.refreshProjects(); err != nil { // the pin's 📌
 		db.Close()
 		return nil, err

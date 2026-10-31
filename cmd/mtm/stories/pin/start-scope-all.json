@@ -1,0 +1,15 @@
+{
+  "name": "mtm: all startup scope survives pinning and S toggles back and forth",
+  "area": "pin",
+  "fixture": "seeded",
+  "width": 140,
+  "height": 35,
+  "config": {"settings.json": {"pin.start-scope": "all"}},
+  "script": [":", {"type": "pane move w1 --to acme-web"}, "enter", ":", {"type": "project pin acme-web"}, "enter", "S", "S"],
+  "expect": [
+    {"after": 1, "contains": ["Matomeru · no pin · all"]},
+    {"after": 6, "contains": ["acme-web · all", "panes (2)"]},
+    {"after": 7, "contains": ["acme-web", "claude", "panes (1)", "1 outside the pin"], "lacks": [" · all"]},
+    {"contains": ["acme-web · all", "panes (2)"]}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "mtm: Settings exposes the pin startup scope and its default",
+  "area": "settings",
+  "fixture": "seeded",
+  "width": 140,
+  "height": 35,
+  "script": ["ctrl+x", "ctrl+z"],
+  "expect": [{"contains": ["pin.start-scope", "‹ pin ›", "Scope when mtm starts"]}],
+  "config": {
+    "bindings.json": [
+      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.settings", "verb": "edit"}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+z", "request": {"noun": "ochazuke.settings", "verb": "section", "args": {"name": "pin"}}}
+    ]
+  }
+}

@@ -12,6 +12,13 @@ import (
 	"ofam.dev/ochazuke"
 )
 
+const settingPinStartScope = "pin.start-scope"
+
+var pinStartScopeSetting = ochazuke.Setting{
+	Name: settingPinStartScope, Type: ochazuke.SettingString, Default: "pin", Enum: []string{"pin", "all"},
+	Description: "Scope when mtm starts: pin (the restored pin, or every project when unpinned) or all (every project); applies next launch, S still toggles the current scope",
+}
+
 func (a *App) definePin() {
 	a.r.Define("project").
 		Verb("pin", a.pinProject, "Pin a project; omit project to pick one").Positional("project").

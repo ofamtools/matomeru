@@ -80,6 +80,7 @@ func (a *App) declareSettings() error {
 	}
 	settings := []ochazuke.Setting{
 		contextExtractSetting,
+		pinStartScopeSetting,
 		{Name: "mcp.include-extensions", Type: ochazuke.SettingBoolean, Default: true, Description: "Expose mounted family tools through mtm's single MCP gateway; off hides them from discovery and instructions"},
 		ochazuke.Setting{Name: settingEditDebounce, Type: ochazuke.SettingDuration, Default: editorDebounce,
 			Description: "Pause in typing before the record editor and quick note write"},
@@ -174,7 +175,7 @@ func (a *App) declareSettingLayout() error {
 		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),
 		app("schedules", "Schedules", "Missed runs, and each configured schedule's switch and interval"),
 		app("status", "Status bar", "mtm's status segments in the header rule: cpu, ram and disk"),
-		app("pin", "Pin", "How the pin state (pinned, show all, no pin) colours the theme"),
+		app("pin", "Pin", "The startup scope and how the pin state (pinned, show all, no pin) colours the theme"),
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: ochazuke.SettingsGeneralSection, Title: "General", Description: "How every extension mounts: catalog refresh and the names of its nouns"},
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: "status", Title: "Status bar", Description: "The status segments the extensions add"},
 	)

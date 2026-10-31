@@ -100,6 +100,14 @@ A schedule's verbs are ochazuke's standard ones over its props (`name`, the key;
 
 The Settings page (`,`) has three tabs: matomeru, Extensions and ochazuke (`]`/`[` step them; `tab`/`shift+tab` walk every section across them). matomeru's sections are General, Panes, Prompt, Turns, Agent, Notes, Inbox, Schedules (each configured schedule's `enabled` and `interval` under a heading of its name) and Status bar. Extensions holds a section per mounted extension (its `ext.NAME.scope`) and a Status bar section for the segments extensions add. `settings owners` and `settings sections --owner app` list the same from the CLI; ochazuke's `settings.layout` (`tabs+sections`, the default; `tabs`; `sections`) changes how the page lays them out.
 
+Settings → matomeru → Pin controls the startup project scope:
+
+| Setting | Values | Default | Description |
+|---|---|---|---|
+| `pin.start-scope` | `pin`, `all` | `pin` | Start scoped to the restored pinned project, or show every project's rows with `all`. With no pin, both show every project. Applied once at startup; changing it takes effect next launch. `S` (`scope.all`) still toggles the current scope without changing the pin. |
+
+Compared with Vim: startup project scope has no Vim counterpart; it selects which projects' records mtm shows.
+
 Registered extension catalogs are checked in background jobs when mtm starts, when the Extensions page opens, and when an extension tab opens. The complete current catalog JSON is compared with the registered catalog, so changes to page layouts and detail Sections are detected even when the tool's version, executable size and modification time stay the same. Changed catalogs refresh and remount automatically, with an `extension NAME: catalog refreshed` notice.
 
 Checks never hold up startup; a failed check keeps the cached catalog and shows a notice, and the next open checks again. `extensions.auto-refresh` defaults **on** (Settings → Extensions → General); turn it off to keep the cached catalog and show `stale` on the Extensions page, where the existing refresh verb remains available. `extension available` reports the same catalog-based status without refreshing it. Unregistered tools on PATH retain their executable-stamp discovery cache.
