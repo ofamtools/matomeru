@@ -427,10 +427,7 @@ type App struct {
 	// (extension_sync.go); extErrsSeen are the registry errors shown.
 	extSyncDue  bool
 	extErrsSeen map[string]bool
-	// extAutoTried is each extension's bin stamp this mtm last refreshed
-	// it at by itself (extension_autorefresh.go), so a bin whose refresh
-	// failed is not asked again until it changes.
-	extAutoTried map[string]extBinStamp
+
 	// extList is the Extensions page's table; extPage its discovery state
 	// (extension_page.go).
 	extList *ochazuke.List

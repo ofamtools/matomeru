@@ -275,8 +275,8 @@ func (a *App) extSubject() string {
 
 // rediscover reads discovery's rows again off the loop (a newer read
 // replaces an older one); they land in the table. It is two jobs: the plan
-// (PATH, the registry, the bins' stamps), then, only when a bin changed
-// since its catalog was read, the probe of those bins, each row's status
+// (PATH, the registry, the bins' stamps), then the probe of registered
+// tools and changed unregistered bins, each row's status
 // reading "fetching catalog…" meanwhile.
 func (a *App) rediscover() {
 	d := a.discovery()
@@ -288,6 +288,7 @@ func (a *App) rediscover() {
 			return
 		}
 		a.extPage.rows = v.([]extCandidate)
+		a.autoRefreshCatalogs(a.extPage.rows)
 		if err := a.setExtRows(a.extPage.rows); err != nil {
 			a.r.UI().Error(err.Error())
 		}

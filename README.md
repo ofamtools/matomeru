@@ -77,6 +77,12 @@ A schedule's verbs are ochazuke's standard ones over its props (`name`, the key;
 
 The Settings page (`,`) has three tabs: matomeru, Extensions and ochazuke (`]`/`[` step them; `tab`/`shift+tab` walk every section across them). matomeru's sections are General, Panes, Prompt, Turns, Agent, Notes, Inbox, Schedules (each configured schedule's `enabled` and `interval` under a heading of its name) and Status bar. Extensions holds a section per mounted extension (its `ext.NAME.scope`) and a Status bar section for the segments extensions add. `settings owners` and `settings sections --owner app` list the same from the CLI; ochazuke's `settings.layout` (`tabs+sections`, the default; `tabs`; `sections`) changes how the page lays them out.
 
+Registered extension catalogs are checked in background jobs when mtm starts, when the Extensions page opens, and when an extension tab opens. The complete current catalog JSON is compared with the registered catalog, so changes to page layouts and detail Sections are detected even when the tool's version, executable size and modification time stay the same. Changed catalogs refresh and remount automatically, with an `extension NAME: catalog refreshed` notice.
+
+Checks never hold up startup; a failed check keeps the cached catalog and shows a notice, and the next open checks again. `extensions.auto-refresh` defaults **on** (Settings → Extensions → General); turn it off to keep the cached catalog and show `stale` on the Extensions page, where the existing refresh verb remains available. `extension available` reports the same catalog-based status without refreshing it. Unregistered tools on PATH retain their executable-stamp discovery cache.
+
+Compared with Vim: extension registry catalog freshness has no Vim motion, option, buffer or window counterpart; these checks reconcile mtm's cached domain state with each tool's catalog.
+
 An agent in a TUIOS pane can drive mtm over MCP with `mtm mcp serve`; `mtm mcp config claude` prints the entry to add. See [docs/MCP.md](docs/MCP.md).
 
 Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.

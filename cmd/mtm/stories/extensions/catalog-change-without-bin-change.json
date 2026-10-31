@@ -1,0 +1,8 @@
+{
+  "name": "mtm: a changed extension catalog is refreshed when its tab opens, even when its executable stamp stays the same",
+  "area": "extensions",
+  "skip": "gap: story fixtures cannot seed an executable extension and change its catalog; TestExtensionCatalogChangeWithoutBinChange renders and checks the real remounted app with a temp fake bin",
+  "fixture": "empty",
+  "script": [],
+  "expect": [{"contains": ["extension fake: catalog refreshed"]}]
+}
