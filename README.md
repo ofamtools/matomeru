@@ -102,6 +102,8 @@ go install github.com/unixsuperhero/matomeru/cmd/mtm@latest
 
 From a checkout, `make install` (or `make build`, which writes `bin/mtm`) passes the version stamp: `-X main.version=… -X main.commit=…` with the tag from `git describe` (`make install VERSION=v0.1.0` overrides it). `mtm --version` prints the version, the commit and the ochazuke version; without the linker stamps it reads the build info the go command embeds.
 
+The About page (ochazuke's `ochazuke.about.open`, from the palette; `mtm ochazuke about show` or `about copy` from the CLI) shows the same build, the family dependencies (a `go.work` or local-replace build is said), the process, and mtm's own sections: the data directory and database in use (`--data`), the config directory, `settings.json`, the harness file and the extension registry (each a path row: `y` copies it, `enter` opens it), the daemon's server, socket and version (its `hello` answer, or `not connected`), and each registered extension's bin and catalog version. The rows are read when the page opens or refreshes (`r`), never at startup. With ochazuke's `about.tab` on it is also the Settings page's last tab.
+
 ## Stories
 
 mtm's interactions are [monogatari](https://github.com/unixsuperhero/monogatari) stories: JSON keystroke scripts under `cmd/mtm/stories/<area>/` (areas `panes`, `inbox`, `tasks`, `pin`), played headless against the real App with expectations on what the screen shows. They run in a separate tester build (build tag `monogatari`), `mtm-story`, never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
