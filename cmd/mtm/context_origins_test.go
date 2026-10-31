@@ -18,6 +18,7 @@ func contextOriginsSetting(t *testing.T, a *App, origins ...string) {
 }
 
 func TestContextExtractionDefaultAndSourceOptIn(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	f := withContextPanes(a)
 	f.print("w1", "https://example.com/tool-output")
@@ -50,6 +51,7 @@ func TestContextExtractionDefaultAndSourceOptIn(t *testing.T) {
 }
 
 func TestContextExtractionSettingGatesJournalAndCaptures(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	contextOriginsSetting(t, a, "response")
 	a.journal(activity(1, 1790000000000, "prompt", "https://example.com/excluded-prompt"), activity(2, 1790000001000, "turn_end", "https://example.com/answer"))
@@ -75,6 +77,7 @@ func TestContextExtractionSettingGatesJournalAndCaptures(t *testing.T) {
 }
 
 func TestContextTranscriptSeparatesProseFromTools(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	p := a.panes[0]
 	transcript := paneTranscript{Entries: []daemon.TranscriptEntry{
@@ -108,6 +111,7 @@ func TestContextTranscriptSeparatesProseFromTools(t *testing.T) {
 }
 
 func TestContextPickerOriginFiltersAndGenericProperty(t *testing.T) {
+	t.Parallel()
 	a, _, live, _ := liveContextApp(t)
 	for _, src := range []contextitems.Source{{Kind: "turn", EntryKind: "response-completed"}, {Kind: "scrollback"}} {
 		if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/both", Window: live.ID, Sources: []contextitems.Source{src}}}, contextitems.Owner{}, 1); err != nil {
@@ -147,6 +151,7 @@ func TestContextPickerOriginFiltersAndGenericProperty(t *testing.T) {
 
 // A source update must refresh an open picker even if it adds no item.
 func TestContextPickerUpdatesWhenExistingItemBecomesConversational(t *testing.T) {
+	t.Parallel()
 	a, _, live, _ := liveContextApp(t)
 	text := "https://example.com/reclassified"
 	if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: text, Window: live.ID, Sources: []contextitems.Source{{Kind: "scrollback"}}}}, contextitems.Owner{}, 1); err != nil {
@@ -168,6 +173,7 @@ func TestContextPickerUpdatesWhenExistingItemBecomesConversational(t *testing.T)
 }
 
 func TestContextExtractionSettingChangesWhileJournalReads(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	done := make(chan struct{})
 	go func() {
@@ -184,6 +190,7 @@ func TestContextExtractionSettingChangesWhileJournalReads(t *testing.T) {
 }
 
 func TestContextExtractionSettingPersistsAndReloads(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	mustCLI(t, a, "settings", "set", settingContextExtractFrom, `["scrollback","command"]`, "-y")
 	b := openWith(t, Options{Data: a.dataPath})
