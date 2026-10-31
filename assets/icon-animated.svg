@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="matomeru">
+<title>matomeru</title>
+<style>.eL{transform-box:fill-box;transform-origin:88% 92%}.eR{transform-box:fill-box;transform-origin:12% 92%}.kn{transform-box:fill-box;transform-origin:50% 100%}@media (prefers-reduced-motion: no-preference){.eL{animation:earL 3.2s cubic-bezier(.45,0,.25,1) infinite}.eR{animation:earR 3.2s cubic-bezier(.45,0,.25,1) infinite;animation-delay:0.08s}.kn{animation:knot 3.2s cubic-bezier(.45,0,.25,1) infinite}@keyframes earL{0%{transform:none}5%{transform:rotate(-5deg) scale(1.06,0.8)}13%{transform:rotate(7deg) scale(0.93,1.18)}21%{transform:rotate(-3deg) scale(1.03,0.93)}29%{transform:rotate(1.5deg) scale(0.99,1.04)}36%,100%{transform:none}}@keyframes earR{0%{transform:none}5%{transform:rotate(5deg) scale(1.06,0.8)}13%{transform:rotate(-7deg) scale(0.93,1.18)}21%{transform:rotate(3deg) scale(1.03,0.93)}29%{transform:rotate(-1.5deg) scale(0.99,1.04)}36%,100%{transform:none}}@keyframes knot{0%{transform:none}5%{transform:translate(0px,1px) scale(1.05,0.92)}13%{transform:translate(0px,-1.2px) scale(0.97,1.05)}21%{transform:none}100%{transform:none}}}</style>
+<rect width="128" height="128" rx="28" fill="#161b26"/>
+<g transform="translate(20 14)"><g>
+<path class="eL" d="M41 37C36 27 27 17 15 13c-3 11 4 24 20 29z" fill="#6253df"/>
+<path class="eR" d="M47 37C52 27 61 17 73 13c3 11-4 24-20 29z" fill="#6253df"/>
+<path d="M44 38C30 38 14 41 11 55L9 73c0 8 5 12 13 12h44c8 0 13-4 13-12L77 55C74 41 58 38 44 38z" fill="#8a7cf5"/>
+<path d="M37 45c-6 3-10 8-12 13M51 45c6 3 10 8 12 13" fill="none" stroke="#a99ef8" stroke-width="3.5" stroke-linecap="round"/>
+<path d="M17 74a7 7 0 0 1 14 0M37 74a7 7 0 0 1 14 0M57 74a7 7 0 0 1 14 0M27 64a7 7 0 0 1 14 0M47 64a7 7 0 0 1 14 0" fill="none" stroke="#ffe1ec" stroke-width="3" stroke-linecap="round"/>
+<g class="kn"><path d="M33 40c4 4 18 4 22 0-3-6-19-6-22 0z" fill="#ff7aa0"/><circle cx="44" cy="39" r="7" fill="#ff7aa0"/></g>
+
+</g></g>
+</svg>
