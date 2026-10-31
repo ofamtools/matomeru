@@ -1,0 +1,14 @@
+{
+  "name": "mtm: the live footer keeps compact side hints so the leader keys fit",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": ["]", "enter"],
+  "expect": [
+    {
+      "mode": "terminal",
+      "contains": ["ctrl+a leader: v vim · t term · d close/detach"]
+    }
+  ]
+}

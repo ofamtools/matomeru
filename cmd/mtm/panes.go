@@ -85,18 +85,21 @@ func tildePath(path, home string) string {
 // pane is one row: a window, the session it lives in and, when an agent
 // runs in it, the agent (list-agents: harness, state time, needs you).
 type pane struct {
-	Session           string
-	SessionID         string
-	OwnerUnsaved      bool
-	Harness           string            `json:"harness,omitempty"`
-	StateAt           int64             `json:"state_at,omitempty"`
-	NeedsYou          bool              `json:"needs_you,omitempty"`
-	Queued            int               `json:"queued,omitempty"`         // prompts waiting in the pane's delivery queue (list-agents); the row's W
-	AgentSession      string            `json:"agent_session,omitempty"`  // the agent's session id (list-agents), the Turns tab's log
-	Model             string            `json:"model,omitempty"`          // from the launch recipe, when mtm started it
-	LaunchHarness     string            `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
-	LaunchFlags       []string          `json:"launch_flags,omitempty"`   // the recipe's argv after the command
-	Meta              map[string]string `json:"meta,omitempty"`           // the agent's metadata in tuios (model, context, cost…)
+	Session       string
+	SessionID     string
+	OwnerUnsaved  bool
+	Harness       string            `json:"harness,omitempty"`
+	StateAt       int64             `json:"state_at,omitempty"`
+	NeedsYou      bool              `json:"needs_you,omitempty"`
+	Queued        int               `json:"queued,omitempty"`         // prompts waiting in the pane's delivery queue (list-agents); the row's W
+	AgentSession  string            `json:"agent_session,omitempty"`  // the agent's session id (list-agents), the Turns tab's log
+	Model         string            `json:"model,omitempty"`          // from the launch recipe, when mtm started it
+	LaunchHarness string            `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
+	LaunchFlags   []string          `json:"launch_flags,omitempty"`   // the recipe's argv after the command
+	Meta          map[string]string `json:"meta,omitempty"`           // the agent's metadata in tuios (model, context, cost…)
+	SideWindows   map[string]string `json:"sides,omitempty"`
+	// Legacy read-only projections for existing pane consumers. New side
+	// behaviour uses SideWindows and App.sides; no kind enum is stored here.
 	SideVim, SideTerm string
 	ShowVim, ShowTerm bool
 	SideFront         string
@@ -284,7 +287,7 @@ func (a *App) definePanes() {
 	// which to close instead of confirming and then refusing.
 	a.r.DefineGuard("pane-no-sides", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		p, err := a.paneAt(r.Instances[ev.Focus])
-		return err != nil || p.SideVim == "" && p.SideTerm == ""
+		return err != nil || len(p.SideWindows) == 0
 	})
 	r.Define("session").
 		Verb("attach", a.attachSession, "Attach the session's first pane").
@@ -888,11 +891,15 @@ func (a *App) killBlocked(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	var open []string
-	if p.SideVim != "" {
-		open = append(open, "side vim ("+a.r.TerminalLeader()+" v)")
-	}
-	if p.SideTerm != "" {
-		open = append(open, "side terminal ("+a.r.TerminalLeader()+" t)")
+	for _, name := range a.sideNames(a.sides[p.ID]) {
+		if a.sides[p.ID].Windows[name] == "" {
+			continue
+		}
+		title := a.sideTitle(name)
+		if key := a.sideKey(name); key != "" {
+			title += " (" + a.r.TerminalLeader() + " " + key + ")"
+		}
+		open = append(open, title)
 	}
 	return ochazuke.Failed(fmt.Errorf("close the %s of %s before killing it", strings.Join(open, " and "), p.label()))
 }
@@ -904,12 +911,13 @@ func (a *App) killPane(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if a.sideStarting[p.ID+"/vim"] || a.sideStarting[p.ID+"/term"] {
+	if a.sideOpening(p.ID) {
 		return ochazuke.Failed(errors.New("wait for side panes to finish opening before killing the parent"))
 	}
 	d := a.panesd
+	check := a.companionCheck()
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		if err := a.checkCompanions(c, p.ID); err != nil {
+		if err := check(c, p.ID); err != nil {
 			return nil, err
 		}
 		if err := d.KillPane(c, p); err != nil {

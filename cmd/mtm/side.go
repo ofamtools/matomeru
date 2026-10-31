@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/matomeru/store"
 	"github.com/unixsuperhero/ochazuke"
+	ocli "github.com/unixsuperhero/ochazuke/cli"
 	"golang.org/x/sys/unix"
 )
 
@@ -23,12 +25,27 @@ func (a *App) defineSides() {
 	a.sides = make(map[string]sideState)
 	a.companionPanes = make(map[string]pane)
 	a.sideStarting = make(map[string]bool)
-	a.r.Define("pane").Verb("side", a.sidePane, "Open or list this pane's side vim and terminal").Positional("kind")
-	a.r.Define("panes").Verb("sides", a.chooseSide, "Choose any open side vim or terminal: attach its pane, show the side and focus it")
+	a.r.Define("pane").Verb("side", a.sidePane, "Open or list this pane's sides").Positional("kind")
+	a.r.Define("panes").Verb("sides", a.chooseSide, "Choose any open side: attach its pane, show the side and focus it")
 	a.parameters("pane.side", map[string]ochazuke.Parameter{
-		"kind": {Type: "string", Required: true, Enum: []string{"vim", "term", "list"}},
+		"kind": {Type: "string", Required: true},
 		"pane": {Type: "string", Description: "The parent's window id (as pane list prints it), instead of --target pane:SESSION/WINDOW"},
 	})
+	a.r.Define("side").Verb("list", a.listSideRows, "List the loaded side definitions and their sources").Rows("side").Fetch().
+		Verb("show", a.showSideRow, "Open or focus a named side beside its parent").Positional("name").
+		Verb("restart", a.restartSideRow, "Reopen a side in its parent's current folder (default: front side)").Positional("name")
+	for _, verb := range []string{"show", "restart"} {
+		a.parameters("side."+verb, map[string]ochazuke.Parameter{
+			"name": {Type: "string", Required: verb == "show"},
+			"pane": {Type: "string", Description: "Parent window id"},
+		})
+	}
+	a.sideRows = builtinSides()
+	a.setSideChoices()
+	if err := a.bindSideKeys(); err != nil {
+		a.r.UI().Notify(err.Error())
+	}
+	a.refreshSides()
 	a.r.Define("app").
 		// Quiet: the wait for an opening side is one footer line, not a ticker row too.
 		Verb("close", a.quitApp, "Exit; side panes keep running and come back on the next start").Quiet().
@@ -47,7 +64,7 @@ func (a *App) mergeCompanions(panes []pane) ([]pane, error) {
 		return panes, err
 	}
 	for id, state := range a.sides {
-		state.SideVim, state.SideTerm = "", ""
+		state.Windows = map[string]string{}
 		a.sides[id] = state
 	}
 	children := make(map[string]bool, len(links))
@@ -55,11 +72,10 @@ func (a *App) mergeCompanions(panes []pane) ([]pane, error) {
 		if !live[link.Window] || !live[link.Parent] {
 			continue
 		}
-		state := a.sides[link.Parent]
-		if link.Kind == "vim" {
-			state.SideVim = link.Window
-		} else {
-			state.SideTerm = link.Window
+		state := a.sides[link.Parent].initialized()
+		state.Windows[link.Kind] = link.Window
+		if !slices.Contains(state.Order, link.Kind) {
+			state.Order = append(state.Order, link.Kind)
 		}
 		a.sides[link.Parent] = state
 		children[link.Window] = true
@@ -71,13 +87,8 @@ func (a *App) mergeCompanions(panes []pane) ([]pane, error) {
 			a.companionPanes[p.ID] = p
 			continue
 		}
-		state := a.sides[p.ID]
-		if state.SideVim == "" {
-			state.ShowVim = false
-		}
-		if state.SideTerm == "" {
-			state.ShowTerm = false
-		}
+		state := a.sides[p.ID].initialized()
+		state.front()
 		a.sides[p.ID] = state
 		out = append(out, a.sideFields(p))
 	}
@@ -86,8 +97,18 @@ func (a *App) mergeCompanions(panes []pane) ([]pane, error) {
 
 func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 	kind := ochazuke.StringArg(ctx.Args, "kind", "")
-	if kind != "vim" && kind != "term" && kind != "list" {
-		return ochazuke.Failed(errors.New("side kind must be vim, term or list"))
+	row, known := a.sideDefinition(kind)
+	if kind != "list" && !known {
+		return ochazuke.Failed(fmt.Errorf("unknown side %q", kind))
+	}
+	if kind != "list" && row.Launch != "command" && row.Launch != "vim-session" {
+		ctx.Notify(fmt.Sprintf("side %s: unknown launch %q", kind, row.Launch))
+		return ochazuke.Done(nil)
+	}
+	restart, _ := ctx.Args["restart"].(bool)
+	shell := a.getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
 	}
 	p := a.attached
 	if ctx.Instance != nil && ctx.Instance.Noun == "pane" {
@@ -135,11 +156,20 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil, err
 		}
 		var selected []work.Companion
+		var previous pane
 		for _, link := range links {
 			if link.Parent == parent.ID {
 				selected = append(selected, link)
-				if link.Kind == kind {
-					return sideOpened{Parent: parent, Panes: panes, Links: selected}, nil
+				if link.Kind == kind && kind != "list" {
+					if !restart {
+						return sideOpened{Parent: parent, Panes: panes, Links: selected}, nil
+					}
+					for _, child := range panes {
+						if child.ID == link.Window {
+							previous = child
+							break
+						}
+					}
 				}
 			}
 			if link.Window == parent.ID {
@@ -162,13 +192,31 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, cwd: cwd, kind: kind, env: recordedEnvironment(recipe), fit: fit}
 		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
 		side.note = driver.note
-		if kind == "vim" {
+		var command []string
+		if row.Launch == "command" {
+			command, err = ocli.ExpandSideCommand(row.Command, map[string]string{"dir": cwd, "pane": parent.ID, "session": parent.Session, "project": owner.ProjectID, "shell": shell, "bin": row.Bin})
+			if err != nil {
+				return nil, err
+			}
+			if len(command) == 0 || strings.TrimSpace(command[0]) == "" {
+				return nil, fmt.Errorf("side %s: expanded executable is empty", kind)
+			}
+		}
+		if previous.ID != "" {
+			if err := pd.KillPane(c, previous); err != nil {
+				return nil, err
+			}
+			if err := ws.DeleteCompanion(previous.ID); err != nil {
+				return nil, err
+			}
+		}
+		if row.Launch == "vim-session" {
 			id := work.NewID()
 			path, err := filepath.Abs(filepath.Join(dir, id+".vim"))
 			if err != nil {
 				return nil, err
 			}
-			session := work.VimSession{ID: id, Name: "side-vim", Path: path, OwnedPath: path, Session: parent.Session, Cwd: cwd, ProjectID: owner.ProjectID, TaskID: owner.TaskID, Created: work.Now()}
+			session := work.VimSession{ID: id, Name: "side-" + kind, Path: path, OwnedPath: path, Session: parent.Session, Cwd: cwd, ProjectID: owner.ProjectID, TaskID: owner.TaskID, Created: work.Now()}
 			value, err := launchVimJob(session, "", false, driver, pd, ws, dir, parent.Session)(c)
 			if err != nil {
 				return nil, err
@@ -176,11 +224,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			done := value.(vimStarted)
 			return sideOpened{Parent: parent, Panes: done.Launch.Panes, Note: done.Launch.Note}, nil
 		}
-		shell := a.getenv("SHELL")
-		if shell == "" {
-			shell = "/bin/sh"
-		}
-		_, err = driver.OpenWindow(c, harness.Window{Session: parent.Session, Workspace: parent.Workspace, Name: "side-term", Cwd: cwd, Command: []string{shell}})
+		_, err = driver.OpenWindow(c, harness.Window{Session: parent.Session, Workspace: parent.Workspace, Name: "side-" + kind, Cwd: cwd, Command: command})
 		if err != nil {
 			return nil, err
 		}
@@ -203,8 +247,14 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if a.attached.ID != done.Parent.ID {
 			return
 		}
-		if err := a.showSide(done.Parent, kind); err != nil {
-			ctx.Notify(err.Error())
+		var showErr error
+		if restart {
+			showErr = a.jumpToSide(done.Parent, kind)
+		} else {
+			showErr = a.showSide(done.Parent, kind)
+		}
+		if showErr != nil {
+			ctx.Notify(showErr.Error())
 		}
 	})
 	if a.cli {
@@ -293,43 +343,59 @@ func (a *App) sideFit() func(ctx context.Context, session, window string) error 
 }
 
 func (a *App) checkCompanions(ctx context.Context, parent string) error {
-	links, err := a.work.Companions()
-	if err != nil {
-		return err
+	return a.companionCheck()(ctx, parent)
+}
+
+// companionCheck snapshots presentation on the loop: a config reload may
+// replace side definitions and binding tables while the daemon job runs.
+func (a *App) companionCheck() func(context.Context, string) error {
+	pd, ws, server := a.panesd, a.work, a.server()
+	hints := map[string]string{}
+	for _, row := range a.sideRows {
+		hint := row.Title
+		if key := a.sideKey(row.Name); key != "" {
+			hint += " (" + a.r.TerminalLeader() + " " + key + ", then exit the program)"
+		}
+		hints[row.Name] = hint
 	}
-	if len(links) == 0 {
+	return func(ctx context.Context, parent string) error {
+		links, err := ws.Companions()
+		if err != nil {
+			return err
+		}
+		if len(links) == 0 {
+			return nil
+		}
+		panes, err := sideListing(ctx, pd, ws, server)
+		if err != nil {
+			return fmt.Errorf("cannot verify side panes: %w", err)
+		}
+		live := make(map[string]bool, len(panes))
+		labels := make(map[string]string, len(panes))
+		for _, p := range panes {
+			live[p.ID] = !p.Exited
+			labels[p.ID] = p.label()
+		}
+		links, err = ws.ReconcileCompanions(server, live)
+		if err != nil {
+			return err
+		}
+		var messages []string
+		for _, link := range links {
+			if parent != link.Parent {
+				continue
+			}
+			how := hints[link.Kind]
+			if how == "" {
+				how = "side " + link.Kind
+			}
+			messages = append(messages, how+" of "+labels[link.Parent])
+		}
+		if len(messages) > 0 {
+			return errors.New("close the side panes first: " + strings.Join(messages, "; "))
+		}
 		return nil
 	}
-	panes, err := sideListing(ctx, a.panesd, a.work, a.server())
-	if err != nil {
-		return fmt.Errorf("cannot verify side panes: %w", err)
-	}
-	live := make(map[string]bool, len(panes))
-	labels := make(map[string]string, len(panes))
-	for _, p := range panes {
-		live[p.ID] = !p.Exited
-		labels[p.ID] = p.label()
-	}
-	links, err = a.work.ReconcileCompanions(a.server(), live)
-	if err != nil {
-		return err
-	}
-	var messages []string
-	for _, link := range links {
-		if parent != link.Parent {
-			continue
-		}
-		// ctrl+a v / t only shows the side pane; the program inside closes it.
-		how := fmt.Sprintf("side terminal of %s (%s t, then exit)", labels[link.Parent], a.r.TerminalLeader())
-		if link.Kind == "vim" {
-			how = fmt.Sprintf("side vim of %s (%s v, then :qa)", labels[link.Parent], a.r.TerminalLeader())
-		}
-		messages = append(messages, how)
-	}
-	if len(messages) > 0 {
-		return errors.New("close the side panes first: " + strings.Join(messages, "; "))
-	}
-	return nil
 }
 
 // quitApp is app.close: mtm exits and the side panes keep running; their

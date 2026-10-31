@@ -38,7 +38,7 @@ func TestVimDetailShowsTheSessionAndItsLinks(t *testing.T) {
 			t.Fatalf("frame lacks %q:\n%s", want, fr)
 		}
 	}
-	a.panes[0].SideVim = "side-vim"
+	a.panes[0].SideWindows = map[string]string{"vim": "side-vim"}
 	if got, ok := a.paneLink("side-vim"); !ok || got.To.ID != l.paneRow || !strings.Contains(got.Text, "side pane") {
 		t.Fatalf("side Vim link %+v %v", got, ok)
 	}

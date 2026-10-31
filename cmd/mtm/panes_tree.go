@@ -94,7 +94,7 @@ func markerGutter(p pane) string {
 	if p.Starred {
 		star = starMarker
 	}
-	if p.SideVim != "" || p.SideTerm != "" {
+	if len(p.SideWindows) > 0 {
 		side = sideMarker
 	}
 	return star + side + stateGlyph(p)
@@ -133,7 +133,7 @@ func paneTones(p pane, name string) []ochazuke.ToneSpan {
 	if p.Starred {
 		tones = append(tones, ochazuke.SpanTone(0, 0, 1, ochazuke.ToneStar))
 	}
-	if p.SideVim != "" || p.SideTerm != "" {
+	if len(p.SideWindows) > 0 {
 		tones = append(tones, ochazuke.SpanTone(0, 1, 2, toneSide))
 	}
 	state := stateTone(p)

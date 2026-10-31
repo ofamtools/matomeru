@@ -295,6 +295,7 @@ func (a *App) killSession(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	d := a.panesd
+	check := a.companionCheck()
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		panes, err := d.ListPanes(c)
 		if err != nil {
@@ -302,7 +303,7 @@ func (a *App) killSession(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		for _, p := range panes {
 			if p.Session == s.Session {
-				if err := a.checkCompanions(c, p.ID); err != nil {
+				if err := check(c, p.ID); err != nil {
 					return nil, err
 				}
 			}
@@ -519,16 +520,14 @@ func (a *App) defineLiveKeys() {
 	a.r.Define("terminal").
 		Verb("zoom", a.toggleZoom, "Zoom the attached pane to the page body, or back into the detail panel").
 		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list; outside live, select it").
-		Verb("side", a.sidePane, "Open or focus this pane's side vim or terminal").
+		Verb("side", a.sidePane, "Open or focus a named side beside this pane").
 		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
 		Verb("other", a.focusOther, "Move the focus to the other live terminal: the pane, then its side, wrapping").
 		Verb("layout", a.flipLayout, "Flip the side pane between beside and below its parent (the side-layout setting)").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
 		Mode("terminal").
-		Bind("{terminal-leader}", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "{terminal-leader}", Request: &leader}).Hinted("leader: v vim · t term · d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T todos · S all · : palette · , settings · ' pages · ? keys")).
+		Bind("{terminal-leader}", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "{terminal-leader}", Request: &leader}).Hinted("leader: d close/detach · z zoom · o other · R layout · w sides · ? keys")).
 		Mode("leader_pending").
-		Bind("v", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "vim"}).Hinted("side vim")).
-		Bind("t", ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": "term"}).Hinted("side terminal")).
 		Bind("d", ochazuke.Do("terminal.sideDetach")).
 		Bind("z", ochazuke.Do("terminal.zoom")).
 		Bind("o", ochazuke.Do("terminal.other").Hinted("other pane")).
@@ -566,7 +565,7 @@ func (a *App) defineLiveKeys() {
 	a.defineLiveHints()
 	a.leaderView()
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
-	a.parameters("terminal.side", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true, Enum: []string{"vim", "term"}}})
+	a.parameters("terminal.side", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true}})
 }
 
 const (
@@ -578,13 +577,11 @@ const (
 // lists them; a leader row not named here shows its operation's
 // description.
 var leaderWords = []struct{ key, text string }{
-	{"v", "side vim: open it, focus it, or back to the pane"},
-	{"t", "side terminal: open it, focus it, or back to the pane"},
 	{"d", "close the front side, then detach"},
 	{"z", "zoom the pane to the page, or back"},
 	{"o", "the other pane: the parent, then its side (tmux's prefix o)"},
 	{"R", "side layout: beside or below the pane (the side-layout setting)"},
-	{"w", "sides: jump to any open side vim or terminal"},
+	{"w", "sides: jump to any open side"},
 	{"j", "next pane, live"},
 	{"k", "previous pane, live"},
 	{"p", "pick a pane: the ones attached before first, then attach it live"},
@@ -623,7 +620,7 @@ func (a *App) leaderHelp() error {
 		return nil
 	}
 	words := map[string]string{}
-	for _, w := range leaderWords {
+	for _, w := range a.sideLeaderWords() {
 		words[w.key] = w.text
 	}
 	var rows []ochazuke.Binding
@@ -654,7 +651,7 @@ var leaderColumns = []ochazuke.Column{
 // setting has it (r.TerminalLeader()).
 func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
 	leader := a.r.TerminalLeader()
-	words := append(slices.Clone(leaderWords), struct{ key, text string }{leader, "send " + leader + " to the pane"})
+	words := append(a.sideLeaderWords(), struct{ key, text string }{leader, "send " + leader + " to the pane"})
 	bound := map[string]ochazuke.Binding{}
 	var order []string
 	if n := a.r.Noun("terminal"); n != nil {
@@ -674,13 +671,27 @@ func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
 		delete(bound, key)
 	}
 	for _, w := range words {
-		if _, ok := bound[w.key]; ok {
-			add(w.key, w.text)
+		if b, ok := bound[w.key]; ok {
+			if b.Request.Key() == a.r.CanonicalKey("terminal.side") {
+				add(w.key, a.sideTitle(ochazuke.StringArg(b.Request.Args, "kind", ""))+": open it, focus it, or back to the pane")
+			} else {
+				add(w.key, w.text)
+			}
 		}
 	}
 	for _, key := range order {
 		if b, ok := bound[key]; ok {
-			add(key, a.r.Operations[a.r.CanonicalKey(b.Request.Key())].Description)
+			text := b.Help
+			if b.Request.Key() == a.r.CanonicalKey("terminal.side") {
+				text = a.sideTitle(ochazuke.StringArg(b.Request.Args, "kind", "")) + ": open it, focus it, or back to the pane"
+			}
+			if text == "" {
+				text = b.Hint
+			}
+			if text == "" {
+				text = a.r.Operations[a.r.CanonicalKey(b.Request.Key())].Description
+			}
+			add(key, text)
 		}
 	}
 	if _, err := a.r.OpenModal(leaderModal, ochazuke.Payload{}); err != nil {

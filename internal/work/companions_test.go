@@ -98,8 +98,6 @@ func TestPutCompanionRejectsInvalidLinks(t *testing.T) {
 		{Window: "term", Kind: "term"},
 		{Window: "parent", Parent: "parent", Kind: "term"},
 		{Window: "term", Parent: "parent"},
-		{Window: "term", Parent: "parent", Kind: "shell"},
-		{Window: "vim", Parent: "parent", Kind: "VIM"},
 	} {
 		if err := w.PutCompanion(row); err == nil {
 			t.Errorf("invalid companion accepted: %+v", row)
@@ -283,5 +281,54 @@ func TestReconcileCompanionsKeepsOtherServersLinks(t *testing.T) {
 	slices.SortFunc(want, func(x, y Companion) int { return strings.Compare(x.Window, y.Window) })
 	if err != nil || !reflect.DeepEqual(all, want) {
 		t.Fatalf("stored links: %+v %v; want %+v", all, err, want)
+	}
+}
+
+func TestCompanionsMigrateExistingAndAcceptNamedSides(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "mtm.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Write the old JSON record shape, then reopen exactly as an upgrade does.
+	if err := db.Tx([]string{"companions"}, func(tx *store.Tx) error {
+		for _, name := range []string{"vim", "term"} {
+			raw := json.RawMessage(`{"window":"` + name + `","parent":"parent","kind":"` + name + `"}`)
+			if err := tx.Put("companions", name, raw); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err = Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.PutCompanion(Companion{Window: "custom", Parent: "parent", Kind: "custom-tool"}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := w.Companions()
+	if err != nil || len(rows) != 3 {
+		t.Fatalf("%+v %v", rows, err)
+	}
+	for _, name := range []string{"vim", "term", "custom-tool"} {
+		if !slices.ContainsFunc(rows, func(row Companion) bool { return row.Kind == name && row.Parent == "parent" }) {
+			t.Fatalf("lost %s: %+v", name, rows)
+		}
 	}
 }
