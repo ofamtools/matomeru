@@ -218,7 +218,6 @@ type paneUI struct {
 	eventBoot       string
 	inbox           *paneEventInbox
 	eventPending    bool
-	refreshing      bool
 	refreshQueued   bool
 	reconcileQueued bool
 	titleSeq        uint64
@@ -415,12 +414,11 @@ func (a *App) addPanesPage() error {
 // refreshPanes is panes.refresh: list the panes off the loop, then push them.
 func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 	reconcile := boolArg(ctx.Args, "reconcile", true)
-	if a.pv.refreshing {
+	if a.paneRefreshRunning() {
 		a.pv.refreshQueued = true
 		a.pv.reconcileQueued = a.pv.reconcileQueued || reconcile
 		return ochazuke.Done(nil)
 	}
-	a.pv.refreshing = true
 	d, ws, server := a.panesd, a.work, a.server()
 	titleSeq := a.pv.titleSeq
 	read := a.commandReads()
@@ -435,7 +433,6 @@ func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return v, err
 	}).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
-		a.pv.refreshing = false
 		panes, _ := v.([]pane)
 		for i := range panes {
 			if t, ok := a.pv.titles[panes[i].ID]; ok && t.seq > titleSeq {

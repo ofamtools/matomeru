@@ -101,7 +101,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 			a.paneErr = err.Error()
 		}
 	}
-	if a.pv.refreshQueued && !a.pv.refreshing {
+	if a.pv.refreshQueued && !a.paneRefreshRunning() {
 		reconcile := a.pv.reconcileQueued
 		a.pv.refreshQueued, a.pv.reconcileQueued = false, false
 		if reconcile {

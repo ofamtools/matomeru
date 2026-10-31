@@ -114,7 +114,7 @@ func (a *App) applyPaneEvents(events []daemon.Event) bool {
 			}
 			if changed != nil {
 				retitled = true
-				if a.pv.refreshing {
+				if a.paneRefreshRunning() {
 					if a.pv.titles == nil {
 						a.pv.titles = map[string]paneTitle{}
 					}
@@ -183,13 +183,24 @@ func (a *App) reloadPaneListing(reconcile bool) error {
 	return err
 }
 
+// paneRefreshRunning derives ownership from the runtime: cancelled/stale
+// jobs never call Then, so a private completion-cleared flag would stick.
+func (a *App) paneRefreshRunning() bool {
+	for _, job := range a.r.Jobs() {
+		if job.Scope == paneListID && job.Slot == "refresh" && job.State == ochazuke.JobRunning {
+			return true
+		}
+	}
+	return false
+}
+
 // One fixed window absorbs a sustained burst without starving the final
 // listing. An in-flight job gets one trailing listing after it completes.
 func (a *App) schedulePaneEvents() tea.Cmd {
 	if a.pv.eventPending {
 		return nil
 	}
-	if a.pv.refreshing {
+	if a.paneRefreshRunning() {
 		a.pv.refreshQueued = true
 		return nil
 	}

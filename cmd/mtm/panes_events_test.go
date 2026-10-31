@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/ochazuke"
 	"golang.org/x/sys/unix"
@@ -136,7 +138,7 @@ func TestEventLoadSingleFlightAndLateTitle(t *testing.T) {
 	a.applyPaneEvents([]daemon.Event{retitleEvent("w1", "newest")})
 	close(d.release)
 	<-done
-	if d.listings.Load() != 1 || a.pv.refreshing {
+	if d.listings.Load() != 1 || a.paneRefreshRunning() {
 		t.Fatalf("overlapping listings: %d", d.listings.Load())
 	}
 	if a.panes[0].Title != "newest" {
@@ -336,5 +338,56 @@ func TestEventLoadListingOptOuts(t *testing.T) {
 	settle(a, a.r.PendingCommands())
 	if d.listings.Load() != 1 || d.probes.Load() != 2 || a.panes[0].Title != "from listing" {
 		t.Fatal("listing opt-outs ignored")
+	}
+}
+
+func TestEventLoadCancelledRefreshRecovers(t *testing.T) {
+	t.Parallel()
+	a, f := panesApp(t)
+	d := &eventLoadDaemon{fakePanes: f, entered: make(chan struct{}, 1), release: make(chan struct{})}
+	a.panesd = d
+	if err := a.reloadPaneListing(false); err != nil {
+		t.Fatal(err)
+	}
+	cmd := a.r.PendingCommands()
+	completed := make(chan tea.Msg, 1)
+	go func() { completed <- cmd() }()
+	select {
+	case <-d.entered:
+	case <-time.After(time.Second):
+		t.Fatal("refresh did not start")
+	}
+	// Queue a follow-up while the first listing is blocked.
+	a.schedulePaneEvents()
+	if !a.pv.refreshQueued {
+		t.Fatal("follow-up was not queued")
+	}
+	// v0.72.1 has no public job.cancel verb: replacing a ticket cancels it
+	// through the same runtime path. Settle the replacement to empty the slot.
+	replacement, _, err := a.r.IssueAt(paneListID, paneListID, "review.cancel", "refresh", ochazuke.Ctx{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !a.r.Settle(replacement, nil) {
+		t.Fatal("replacement did not settle")
+	}
+	select {
+	case msg := <-completed:
+		if handled, err := a.r.Deliver(msg); !handled || err != nil {
+			t.Fatalf("cancelled completion: handled=%v err=%v", handled, err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cancelled listing did not return")
+	}
+	close(d.release)
+	// The next message must drain the queued work even though Then never ran.
+	a.panesUpdate(daemonChanged{events: []daemon.Event{retitleEvent("w1", "after-cancel")}})
+	if a.pv.refreshQueued || !a.pv.eventPending {
+		t.Fatal("cancelled job prevented the queued refresh from draining")
+	}
+	a.panesUpdate(daemonChanged{events: []daemon.Event{{Type: "agent-state", Window: "w1"}}})
+	runOnce(a, a.panesUpdate(paneEventsDue{}))
+	if d.listings.Load() != 2 || a.pv.refreshQueued || a.pv.reconcileQueued || a.pv.eventPending {
+		t.Fatalf("refresh did not recover: listings=%d queued=%v reconcile=%v pending=%v", d.listings.Load(), a.pv.refreshQueued, a.pv.reconcileQueued, a.pv.eventPending)
 	}
 }
