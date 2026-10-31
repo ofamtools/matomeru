@@ -31,7 +31,9 @@ import (
 // (outline-project.demote; refused on the first project); J/K, x and s
 // are refused (projects keep their creation order). shift+tab on a task
 // directly under its project makes it a project listed after it
-// (outline-task.promote). "no project" is not a project: it takes tasks
+// (outline-task.promote). tab and shift+tab mean the same on an open line
+// (ochazuke.outline.row-key runs the row's own key and the line stays
+// open). "no project" is not a project: it takes tasks
 // and nothing else. u and ctrl+r undo and redo every change as writes,
 // status and conversions included (Tree.Record); a project deleted
 // through its confirm is not undone, as
@@ -691,7 +693,7 @@ func (a *App) writeOutline(o *outlineState, c ochazuke.TreeChange) error {
 // record first), renaming renames it through project.edit, deleting one
 // (u after adding it) removes it while it is empty; anything else (a task
 // moved to the top, a project nested or deleted with tasks: the keys
-// refuse these, an open line's shift+tab can still try) is not stored and
+// refuse these; the API can still try) is not stored and
 // the rows are reloaded. done reports that the change was a top-level one.
 func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool, err error) {
 	top := a.isProjectRow(c.ID)

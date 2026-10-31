@@ -1,0 +1,16 @@
+{
+  "name": "mtm: in the task outline, o on a project starts a project below it; tab on its line makes it a task of the project drawn above instead, adds no other row and stays in insert, so the typed name lands on the task",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 40,
+  "script": ["T", "g", "g", "j", "j", "j", "j", "j", "j", "o", "tab", {"type": "new step"}, "esc"],
+  "expect": [
+    {"after": 11, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["Now a task of billing-api"]},
+    {
+      "mode": "normal",
+      "order": ["▾ billing-api", "[x] Drop the legacy v1 coupons table", "[ ] new step", "▾ docs-site"],
+      "lacks": ["untitled"]
+    }
+  ]
+}

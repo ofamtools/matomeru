@@ -1,0 +1,20 @@
+{
+  "name": "mtm: in the task outline, tab while typing the first project's name is refused with a plain message; the line stays open in insert and no row is added",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 40,
+  "values": {"rename.select": false},
+  "script": ["T", "g", "g", "i", "tab", {"type": "!"}],
+  "expect": [
+    {
+      "after": 5,
+      "mode": "insert",
+      "focus": "task-outline/tree/line",
+      "contains": ["Error: the first project has no project above it to become a task of"],
+      "order": ["▾ acme-web", "[>] Checkout page", "▾ billing-api", "▾ docs-site", "no project"],
+      "lacks": ["untitled", "(empty)"]
+    },
+    {"mode": "insert", "focus": "task-outline/tree/line", "contains": ["▾ acme-web!"]}
+  ]
+}
