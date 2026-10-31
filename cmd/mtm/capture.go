@@ -140,10 +140,9 @@ func (a *App) captureHook(ctx ochazuke.Ctx) ochazuke.Result {
 		if !ok {
 			return ochazuke.Done(map[string]string{"skipped": "no open turn"})
 		}
-		open.TranscriptPath = cmpPath(p.TranscriptPath, open.TranscriptPath)
 		response := p.LastMessage
 		if response == "" {
-			response = lastAnswer(open.TranscriptPath)
+			response = lastAnswer(cmpPath(p.TranscriptPath, open.TranscriptPath))
 		}
 		entry, err := a.hist.Complete(open, response, a.now().UnixMilli())
 		if err != nil {

@@ -243,17 +243,16 @@ name with `list: "context-picker"`.
 
 Context extraction defaults to `context.extract-from: ["prompt", "response"]`.
 The setting is a list of source origins: it gates journal/capture/backfill
-extraction from prompts, responses, thinking and tool calls/results,
-on-demand/continuous scrollback extraction, shell command history, and
-extraction when a transcript is read. Add `"thinking"` or `"tool"` to collect
-context from thinking or tool responses independently; use `["prompt",
-"response", "thinking", "tool", "scrollback", "transcript", "command"]` to
-include every automatic source, or `[]` to disable automatic extraction.
-Changing it does not remove stored items; use the conversation filter to hide
-older tool context. Explicit `context-item add` (MCP) and `create` (manual)
-remain available with any setting. Live screen hints are an explicit
-copy/open/type operation and do not save context items; their screen scan
-remains available.
+extraction from prompts and responses, on-demand/continuous scrollback
+extraction, shell command history, and extraction when a transcript is read.
+Add `"thinking"` or `"tool"` to collect context from thinking or tool
+responses independently; use `["prompt", "response", "thinking", "tool",
+"scrollback", "transcript", "command"]` to include every automatic source, or
+`[]` to disable automatic extraction. Changing it does not remove stored items;
+use the conversation filter to hide older tool context. Explicit `context-item
+add` (MCP) and `create` (manual) remain available with any setting. Live screen
+hints are an explicit copy/open/type operation and do not save context items;
+their screen scan remains available.
 
 Transcript display includes tools. Extraction uses the daemon's structured
 entry kind/role and tool metadata before formatting: user text is `prompt`,

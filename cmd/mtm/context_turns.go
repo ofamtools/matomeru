@@ -1,13 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
-	"maps"
-	"os"
 	"slices"
 	"strings"
 	"unicode"
@@ -47,14 +43,7 @@ const turnContextSource = "turn"
 func turnContext(j *history.Journal, store *contextitems.Store, entries []history.Entry, origins []string) (int, error) {
 	byWindow := map[string][]history.Entry{}
 	for _, e := range entries {
-		if e.Window == "" {
-			continue
-		}
-		if e.Kind == "prompt-submitted" || e.Kind == "response-completed" {
-			byWindow[e.Window] = append(byWindow[e.Window], e)
-			continue
-		}
-		if kind := entryActivityKind(e); kind != "" && extractsFrom(origins, contextitems.Source{Kind: turnContextSource, EntryKind: kind}) {
+		if e.Window != "" && (e.Kind == "prompt-submitted" || e.Kind == "response-completed") {
 			byWindow[e.Window] = append(byWindow[e.Window], e)
 		}
 	}
@@ -66,21 +55,6 @@ func turnContext(j *history.Journal, store *contextitems.Store, entries []histor
 	added := 0
 	var errs []error
 	now := work.Now()
-	mergeText := func(text string, src contextitems.Source, turnID string, owner contextitems.Owner) {
-		if strings.TrimSpace(text) == "" || !extractsFrom(origins, src) {
-			return
-		}
-		items := contextitems.Extract(text, 0, src)
-		for i := range items {
-			items[i].Provenance.TurnID = turnID
-		}
-		_, n, err := store.Merge(items, owner, now)
-		if err != nil {
-			errs = append(errs, err)
-			return
-		}
-		added += n
-	}
 	for _, w := range windows {
 		turns, err := j.Turns(w)
 		if err != nil {
@@ -88,19 +62,6 @@ func turnContext(j *history.Journal, store *contextitems.Store, entries []histor
 			continue
 		}
 		for _, e := range byWindow[w] {
-			if kind := entryActivityKind(e); kind != "" {
-				t := activityTurn(turns, e)
-				src := contextitems.Source{Kind: turnContextSource, EntryKind: kind, Session: t.Session, Window: t.Window, Pane: t.Pane, At: e.At, Cwd: e.Cwd}
-				parts := []string{untruncated(cmp.Or(e.Detail, e.Summary))}
-				if kind != "thinking" {
-					if e.Target != "" {
-						parts = append(parts, e.Target)
-					}
-					parts = append(parts, e.Files...)
-				}
-				mergeText(strings.Join(parts, "\n"), src, t.ID, contextitems.Owner{ProjectID: t.ProjectID, TaskID: t.TaskID})
-				continue
-			}
 			t, text, ok := turnText(turns, e)
 			if !ok {
 				continue
@@ -108,210 +69,23 @@ func turnContext(j *history.Journal, store *contextitems.Store, entries []histor
 			if e.Turn == nil {
 				text = untruncated(text)
 			}
-			owner := contextitems.Owner{ProjectID: t.ProjectID, TaskID: t.TaskID}
 			src := contextitems.Source{Kind: turnContextSource, EntryKind: e.Kind, Session: t.Session, Window: t.Window, Pane: t.Pane, At: e.At, Cwd: e.Cwd}
-			mergeText(text, src, t.ID, owner)
-			if e.Kind == "response-completed" && e.Turn != nil {
-				thinkingSrc, toolSrc := src, src
-				thinkingSrc.EntryKind, toolSrc.EntryKind = "thinking", "tool"
-				if extractsFrom(origins, thinkingSrc) || extractsFrom(origins, toolSrc) {
-					thoughts, tools := turnNonProse(*e.Turn)
-					mergeText(strings.Join(thoughts, "\n\n"), thinkingSrc, t.ID, owner)
-					mergeText(strings.Join(tools, "\n\n"), toolSrc, t.ID, owner)
-				}
+			if !extractsFrom(origins, src) {
+				continue
 			}
+			items := contextitems.Extract(text, 0, src)
+			for i := range items {
+				items[i].Provenance.TurnID = t.ID
+			}
+			_, n, err := store.Merge(items, contextitems.Owner{ProjectID: t.ProjectID, TaskID: t.TaskID}, now)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			added += n
 		}
 	}
 	return added, errors.Join(errs...)
-}
-
-func entryActivityKind(e history.Entry) string {
-	switch e.Kind {
-	case "thinking", "reasoning":
-		return "thinking"
-	case "tool", "tool_call", "tool_use", "tool_result", "toolCall", "toolResult":
-		return e.Kind
-	case "prompt-submitted", "response-completed", "session-start", "subagent-start", "subagent-stop":
-		return ""
-	}
-	if e.Tool != "" {
-		return "tool"
-	}
-	return ""
-}
-
-func activityTurn(turns []history.PaneTurn, e history.Entry) history.PaneTurn {
-	out := history.PaneTurn{ID: e.Provenance.TurnID, Session: e.Session, Window: e.Window, Pane: e.Pane, ProjectID: e.ProjectID, TaskID: e.TaskID}
-	for _, t := range turns {
-		if t.StartedAt <= e.At {
-			out = t
-		}
-	}
-	return out
-}
-
-func turnNonProse(turn history.Turn) (thinking, tools []string) {
-	if len(turn.ResponseMessage) > 0 {
-		th, tl := messageNonProse(turn.ResponseMessage)
-		thinking = append(thinking, th...)
-		tools = append(tools, tl...)
-	}
-	if turn.TranscriptPath != "" {
-		th, tl := transcriptFileNonProse(turn.TranscriptPath)
-		thinking = append(thinking, th...)
-		tools = append(tools, tl...)
-	}
-	return thinking, tools
-}
-
-type nonProseBlock struct {
-	Type       string          `json:"type"`
-	Kind       string          `json:"kind"`
-	Text       string          `json:"text"`
-	Thinking   string          `json:"thinking"`
-	Reasoning  string          `json:"reasoning"`
-	Tool       string          `json:"tool"`
-	ToolID     string          `json:"tool_id"`
-	ToolCallID string          `json:"toolCallId"`
-	ToolUseID  string          `json:"tool_use_id"`
-	Input      json.RawMessage `json:"input"`
-	Arguments  json.RawMessage `json:"arguments"`
-	Content    json.RawMessage `json:"content"`
-	Output     string          `json:"output"`
-}
-
-func messageNonProse(raw json.RawMessage) (thinking, tools []string) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	var msg struct {
-		Role       string          `json:"role"`
-		Thinking   string          `json:"thinking"`
-		Reasoning  string          `json:"reasoning"`
-		Content    json.RawMessage `json:"content"`
-		ToolCallID string          `json:"toolCallId"`
-		Output     string          `json:"output"`
-	}
-	content := raw
-	if json.Unmarshal(raw, &msg) == nil && (msg.Role != "" || msg.Thinking != "" || msg.Reasoning != "" || len(msg.Content) > 0 || msg.ToolCallID != "" || msg.Output != "") {
-		for _, s := range []string{msg.Thinking, msg.Reasoning} {
-			if strings.TrimSpace(s) != "" {
-				thinking = append(thinking, s)
-			}
-		}
-		if msg.Role == "tool" || msg.Role == "toolResult" || msg.ToolCallID != "" {
-			for _, s := range []string{jsonText(msg.Content), msg.Output} {
-				if strings.TrimSpace(s) != "" {
-					tools = append(tools, s)
-				}
-			}
-			return thinking, tools
-		}
-		content = msg.Content
-	}
-	var blocks []nonProseBlock
-	if json.Unmarshal(content, &blocks) != nil {
-		var single nonProseBlock
-		if json.Unmarshal(content, &single) == nil && (single.Type != "" || single.Kind != "") {
-			blocks = []nonProseBlock{single}
-		}
-	}
-	for _, b := range blocks {
-		kind := cmp.Or(b.Type, b.Kind)
-		switch {
-		case kind == "thinking" || kind == "reasoning":
-			for _, s := range []string{b.Thinking, b.Reasoning, b.Text} {
-				if strings.TrimSpace(s) != "" {
-					thinking = append(thinking, s)
-				}
-			}
-		case kind == "tool" || kind == "tool_call" || kind == "tool_use" || kind == "tool_result" || kind == "toolCall" || kind == "toolResult" ||
-			b.Tool != "" || b.ToolID != "" || b.ToolCallID != "" || b.ToolUseID != "":
-			for _, s := range []string{b.Text, b.Output, jsonText(b.Input), jsonText(b.Arguments), jsonText(b.Content)} {
-				if strings.TrimSpace(s) != "" {
-					tools = append(tools, s)
-				}
-			}
-		}
-	}
-	return thinking, tools
-}
-
-func transcriptFileNonProse(path string) (thinking, tools []string) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, nil
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1<<20), 64<<20)
-	for scanner.Scan() {
-		var line struct {
-			Type          string          `json:"type"`
-			ToolUseResult json.RawMessage `json:"toolUseResult"`
-			Message       json.RawMessage `json:"message"`
-		}
-		if json.Unmarshal(scanner.Bytes(), &line) != nil {
-			continue
-		}
-		var msg struct {
-			Role    string          `json:"role"`
-			Content json.RawMessage `json:"content"`
-		}
-		_ = json.Unmarshal(line.Message, &msg)
-		role := cmp.Or(msg.Role, line.Type)
-		if role == "user" {
-			var text string
-			var blocks []nonProseBlock
-			if json.Unmarshal(msg.Content, &text) == nil && text != "" {
-				thinking, tools = nil, nil
-				continue
-			}
-			if json.Unmarshal(msg.Content, &blocks) == nil && len(blocks) > 0 && cmp.Or(blocks[0].Type, blocks[0].Kind) == "text" {
-				thinking, tools = nil, nil
-				continue
-			}
-		}
-		th, tl := messageNonProse(line.Message)
-		thinking = append(thinking, th...)
-		tools = append(tools, tl...)
-		if s := jsonText(line.ToolUseResult); strings.TrimSpace(s) != "" {
-			tools = append(tools, s)
-		}
-	}
-	return thinking, tools
-}
-
-func jsonText(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var v any
-	if json.Unmarshal(raw, &v) != nil {
-		return string(raw)
-	}
-	var parts []string
-	var walk func(any)
-	walk = func(x any) {
-		switch val := x.(type) {
-		case string:
-			if strings.TrimSpace(val) != "" {
-				parts = append(parts, val)
-			}
-		case []any:
-			for _, elem := range val {
-				walk(elem)
-			}
-		case map[string]any:
-			for _, k := range slices.Sorted(maps.Keys(val)) {
-				if k != "type" && k != "id" && k != "tool_use_id" && k != "toolCallId" && k != "role" {
-					walk(val[k])
-				}
-			}
-		}
-	}
-	walk(v)
-	return strings.Join(parts, "\n")
 }
 
 // turnText is the turn an entry belongs to and the text of it to read.
@@ -444,9 +218,6 @@ func (a *App) transcriptContext(inst *ochazuke.Instance) func(p pane, text paneT
 			src.EntryKind, src.At = transcriptEntryKind(entry), entry.At
 			if extractsFrom(origins, src) {
 				items = append(items, contextitems.Extract(entry.Text, 0, src)...)
-				if entry.Target != "" {
-					items = append(items, contextitems.Extract(entry.Target, 0, src)...)
-				}
 			}
 		}
 		if written, _, err := store.Merge(items, owner, work.Now()); err == nil && len(written) > 0 && feed != nil {
