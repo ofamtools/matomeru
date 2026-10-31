@@ -12,6 +12,7 @@ import (
 // Rows/State), so a list, a reload or a pick-list source never fills the
 // user's history or dot-repeat; every other application verb of mtm's own
 // stays a change. A new read verb goes in this list with .Fetch().
+// Framework verbs (Operation.Builtin) are checked by ochazuke.
 func TestReadVerbsAreFetches(t *testing.T) {
 	t.Parallel()
 	app := open(t)
@@ -28,7 +29,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 	}
 	var got []string
 	for key, op := range app.r.Operations {
-		if op.Kind != ochazuke.KindApplication || frameworkVerbs()[key] {
+		if op.Kind != ochazuke.KindApplication || op.Builtin {
 			continue
 		}
 		if op.HistoryKindOf() == ochazuke.HistoryFetch {
