@@ -49,6 +49,23 @@ type Pane struct {
 	LastDurationMS int64  `json:"last_duration_ms,omitempty"`
 }
 
+// Hello is the daemon's handshake answer: its version, the protocol it
+// speaks, its pid and how many sessions it holds.
+type Hello struct {
+	DaemonVersion string `json:"daemon_version"`
+	Protocol      int    `json:"protocol"`
+	PID           int    `json:"pid"`
+	Sessions      int    `json:"sessions"`
+}
+
+// Hello asks the daemon who it is (the hello verb). Each call dials its
+// own connection, so the handshake changes nothing for later calls.
+func (c *Client) Hello(ctx context.Context) (Hello, error) {
+	var out Hello
+	err := c.Call(ctx, "hello", map[string]any{"client": "mtm"}, &out)
+	return out, err
+}
+
 func (c *Client) Sessions(ctx context.Context) ([]Session, error) {
 	var out struct {
 		Sessions []Session `json:"sessions"`
