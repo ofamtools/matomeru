@@ -654,7 +654,14 @@ func (a *App) mountExtensions() {
 func (a *App) mountExtension(name string, e extEntry) {
 	notify := func(format string, args ...any) { a.r.UI().Notify(name + ": " + fmt.Sprintf(format, args...)) }
 	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
-	defer func() { a.exts = append(a.exts, x); a.refreshSides() }()
+	defer func() {
+		a.exts = append(a.exts, x)
+		a.refreshSides()
+		// Mounting replaces the noun's verbs and key rows. Reapply user
+		// actions before bindings, so their rows can name those actions.
+		a.r.ReloadUserActions()
+		a.r.ReloadUserBindings()
+	}()
 	naming, err := a.extNamingFor(name)
 	if err != nil {
 		notify("%v", err)

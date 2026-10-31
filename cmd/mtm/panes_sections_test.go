@@ -4,6 +4,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"ofam.dev/ochazuke"
 
@@ -12,6 +15,72 @@ import (
 	"ofam.dev/matomeru/internal/panesignals"
 	"ofam.dev/matomeru/internal/work"
 )
+
+func TestPaneJobsAcrossSections(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ row, list string }{
+		{"pane:s/wwait", queueTreeID + "/list"},
+		{"pane:s/widle", paneListID},
+		{"pane:s/wold", workingTreeID + "/list"},
+	} {
+		t.Run(tc.list, func(t *testing.T) {
+			t.Parallel()
+			a, _ := sectionsApp(t)
+			a.panesd = newFakePanes()
+			if got := a.r.Instances[tc.row].Parent; got != tc.list {
+				t.Fatalf("parent %s, want %s", got, tc.list)
+			}
+			for _, verb := range []string{"preview", "activity", "transcript"} {
+				if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: verb, Target: tc.row}); err != nil {
+					t.Fatalf("%s: %v", verb, err)
+				}
+				jobs := jobsOf(a, "pane."+verb)
+				if len(jobs) != 1 || jobs[0].Scope != panesPage || jobs[0].Owner != tc.row {
+					t.Fatalf("%s jobs: %+v", verb, jobs)
+				}
+				settleJobs(t, a, a.r.PendingCommands())
+			}
+		})
+	}
+}
+
+func TestPaneDetailFollowOnlyOnPanes(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	a.Update(nil)
+	seq, followed := a.pv.seq, a.pv.followed
+	if err := a.r.OpenPage("work"); err != nil {
+		t.Fatal(err)
+	}
+	var scheduled int
+	a.pv.after = func(_ time.Duration, msg tea.Msg) tea.Cmd {
+		if _, ok := msg.(followDue); ok {
+			scheduled++
+		}
+		return nil
+	}
+	a.Update(followDue{seq: seq}) // a timer armed before leaving Panes
+	a.pv.followed = ""            // a selection change must not arm another timer here
+	a.Update(nil)
+	a.loadDetail() // all callers share the page guard
+	if jobs := jobsOf(a, "pane.preview"); len(jobs) != 0 {
+		t.Fatalf("detail loaded off Panes: %+v", jobs)
+	}
+	if scheduled != 0 || a.pv.seq != seq || a.pv.followed != "" {
+		t.Fatalf("follow armed off Panes: scheduled=%d seq=%d followed=%q", scheduled, a.pv.seq, a.pv.followed)
+	}
+	if err := a.r.OpenPage(panesPage); err != nil {
+		t.Fatal(err)
+	}
+	a.Update(nil)
+	if scheduled != 1 || a.pv.followed != followed {
+		t.Fatalf("follow not resumed on Panes: scheduled=%d followed=%q", scheduled, a.pv.followed)
+	}
+	settleJobs(t, a, follow(a))
+	if len(jobsOf(a, "pane.preview")) != 1 {
+		t.Fatal("returning to Panes did not load the detail")
+	}
+}
 
 // sectionIDs are a section's row ids, top to bottom.
 func sectionIDs(a *App, section int) []string {

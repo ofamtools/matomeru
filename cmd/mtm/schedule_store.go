@@ -53,7 +53,7 @@ func (a *App) scheduleProps() []ochazuke.PropSpec {
 		Description: "The schedule's name (letters, digits, dashes): its key"}}}
 	for _, f := range scheduleFields {
 		p := params[f]
-		param := ochazuke.Parameter{Type: "string", Source: p.Source, Description: p.Description}
+		param := ochazuke.Parameter{Type: "string", Source: p.Source, SourceArgs: p.SourceArgs, Free: p.Free, Description: p.Description}
 		if f == "enabled" {
 			param.Enum = schedules.EnabledValues
 		}

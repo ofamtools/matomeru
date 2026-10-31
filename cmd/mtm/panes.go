@@ -737,7 +737,7 @@ func (a *App) capturePreview(p pane, then func(ochazuke.Ctx)) ochazuke.Result {
 			return nil, fmt.Errorf("preview %s: %w", p.label(), err)
 		}
 		return preview{Pane: p.rowID(), Text: text}, nil
-	}).ReplacingAt(paneListID, "preview").Then(func(ctx ochazuke.Ctx, v any, err error) {
+	}).ReplacingAt(panesPage, "preview").Then(func(ctx ochazuke.Ctx, v any, err error) {
 		got, ok := v.(preview)
 		if !ok || err != nil || version != a.pinVersion {
 			return

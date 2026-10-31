@@ -1,0 +1,40 @@
+ |  ◆ Matomeru · no pin                                                                                                        INSERT
+ |   Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  › Schedules  Runs  Extensions
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  schedules · they run while the TUI is open                                         gh-signals
+ |  schedule       on          when      last   next  runs
+r|  gh-signals     auto (off)  every 5m  never   ╭───────────────────────────────────────────╮   GitHub review requests, CI and PR signals
+ |  slack-signals  off         every 5m  never   │ New schedule prompt · written as you type │e inbox (o-gh signals)
+ |  prompt         off         never     never   │ prompt                                    │   command
+ |                                               │                                           │   o-gh signals
+ |                                               │ when                                      │   exec
+ |                                               │                                           │   auto (off)
+ |                                               │ enabled                                   │   auto: not checked yet
+ |                                               │   off ▾                                   │   every 5m
+ |                                               │ harness                                   │p  once
+ |                                               │   claude ▾                                │   2m
+ |                                               │ model                                     │   built-in · schedule.gh-signals.enabled,
+ |              ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ |              │ Suggest model                                                                                                │
+ |              │ ›                                                                                                      fuzzy │
+R|              │   opus  opus (claude)                                                                                        │
+ |              │   sonnet  sonnet (claude)                                                                                    │
+ |              │   haiku  haiku (claude)                                                                                      │
+ |              │ enter chooser.pick · esc chooser.cancel · tab search.cycle-match                                             │
+ |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ |                                               │                                           │
+ |                                               │ task                                      │
+ |                                               │                                           │
+ |                                               │ dir                                       │
+ |                                               │   (none) ▾                                │
+ |                                               │ into                                      │
+ |                                               │   (none) ▾                                │
+ |                                               │ pane                                      │
+ |                                               │                                           │
+ |                                               │ ctrl+space form.suggest                   │
+ |                                               ╰───────────────────────────────────────────╯
+ |
+ |
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  enter chooser.pick · esc chooser.cancel · tab search.cycle-match
+ |
