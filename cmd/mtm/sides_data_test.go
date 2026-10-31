@@ -148,7 +148,7 @@ func TestSidesLeaderWalkFrames(t *testing.T) {
 	t.Parallel()
 	a, driver := shellApp(t)
 	mono(t, a)
-	sideConfig(t, a, `[{"name":"tool","title":"Side tool","key":"g","command":["fake-side","{dir}"]}]`)
+	sideConfig(t, a, `[{"name":"tool","title":"Side tool","hint":"tool","key":"g","command":["fake-side","{dir}"]}]`)
 	parent := driver.panes.panes[0]
 	cmd := key(t, a, "enter")
 	driver.panes.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"PARENT"}}
@@ -365,4 +365,47 @@ func TestSidesLeaderWordsFollowUserRequests(t *testing.T) {
 	if !zoom || !side {
 		t.Fatalf("modal did not follow user requests: zoom=%v side=%v", zoom, side)
 	}
+}
+
+func TestSidesHintsKeepTitlesAndFollowReload(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	if err := a.extRegistry().write("git", extEntry{Bin: "/fake-git", Catalog: ocli.CatalogDoc{Sides: []ocli.CatalogSide{{Name: "diff", Title: "Git working tree diff", Key: "g", Command: []string{"{bin}"}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	a.syncExtensions()
+	check := func(want string) {
+		t.Helper()
+		var hint, summary string
+		for _, b := range a.r.Noun("terminal").Bindings["leader_pending"] {
+			if b.Request.Key() == a.r.CanonicalKey("terminal.side") && ochazuke.StringArg(b.Request.Args, "kind", "") == "diff" {
+				hint = b.Hint
+				if !strings.Contains(b.Help, "Git working tree diff") {
+					t.Fatalf("help lost title: %q", b.Help)
+				}
+			}
+		}
+		for _, b := range a.r.Noun("terminal").Bindings["terminal"] {
+			if b.Keys == a.r.TerminalLeader() {
+				summary = b.Hint
+			}
+		}
+		if hint != want || !strings.Contains(summary, "g "+want+" · ") || strings.Contains(summary, "Git working tree diff") {
+			t.Fatalf("hint=%q summary=%q; want %q", hint, summary, want)
+		}
+		rows := runSideVerb(t, a, "side", "list", nil).([]sideRow)
+		if row := rows[len(rows)-1]; row.Title != "Git working tree diff" {
+			t.Fatalf("list lost title: %+v", row)
+		}
+		runSideVerb(t, a, "terminal", "keys", nil)
+		if !strings.Contains(plainView(a), "Git working tree diff") {
+			t.Fatal("keys modal lost title")
+		}
+		press(t, a, "esc")
+	}
+	check("diff")
+	sideConfig(t, a, `[{"name":"diff","hint":"changes"}]`)
+	check("changes")
+	sideConfig(t, a, `[{"name":"diff","hint":""}]`)
+	check("diff")
 }

@@ -31,7 +31,7 @@ func (a *App) defineSides() {
 		"kind": {Type: "string", Required: true},
 		"pane": {Type: "string", Description: "The parent's window id (as pane list prints it), instead of --target pane:SESSION/WINDOW"},
 	})
-	a.r.Define("side").Verb("list", a.listSideRows, "List the loaded side definitions and their sources").Rows("side").
+	a.r.Define("side").Verb("list", a.listSideRows, "List the loaded side definitions and their sources").Rows("side").Fetch().
 		Verb("show", a.showSideRow, "Open or focus a named side beside its parent").Positional("name").
 		Verb("restart", a.restartSideRow, "Reopen a side in its parent's current folder (default: front side)").Positional("name")
 	for _, verb := range []string{"show", "restart"} {

@@ -20,14 +20,15 @@ const sidesFile = "sides.json"
 
 type sideRow struct {
 	ocli.CatalogSide
+	Hint   string `json:"hint,omitempty"`
 	Source string `json:"source"`
 	Bin    string `json:"bin,omitempty"`
 }
 
 func builtinSides() []sideRow {
 	return []sideRow{
-		{CatalogSide: ocli.CatalogSide{Name: "vim", Title: "side vim", Key: "v", Launch: "vim-session"}, Source: "built-in"},
-		{CatalogSide: ocli.CatalogSide{Name: "term", Title: "side terminal", Key: "t", Command: []string{"{shell}"}, Launch: "command"}, Source: "built-in"},
+		{CatalogSide: ocli.CatalogSide{Name: "vim", Title: "side vim", Key: "v", Launch: "vim-session"}, Hint: "vim", Source: "built-in"},
+		{CatalogSide: ocli.CatalogSide{Name: "term", Title: "side terminal", Key: "t", Command: []string{"{shell}"}, Launch: "command"}, Hint: "term", Source: "built-in"},
 	}
 }
 
@@ -36,6 +37,7 @@ func builtinSides() []sideRow {
 type sidePatch struct {
 	Name     string    `json:"name"`
 	Title    *string   `json:"title"`
+	Hint     *string   `json:"hint"`
 	Key      *string   `json:"key"`
 	Command  *[]string `json:"command"`
 	Launch   *string   `json:"launch"`
@@ -114,6 +116,9 @@ func mergeSideRows(exts []*extension, patches []sidePatch) ([]sideRow, []string,
 		if patch.Title != nil {
 			row.Title = *patch.Title
 		}
+		if patch.Hint != nil {
+			row.Hint = *patch.Hint
+		}
 		if patch.Key != nil {
 			row.Key = *patch.Key
 		}
@@ -153,6 +158,13 @@ func (a *App) sideTitle(name string) string {
 		return row.Title
 	}
 	return "side " + name // removed extension: its companion is still reachable
+}
+
+func (a *App) sideHint(name string) string {
+	if row, ok := a.sideDefinition(name); ok && row.Hint != "" {
+		return row.Hint
+	}
+	return name
 }
 
 func (a *App) reloadSides() []string {
@@ -272,7 +284,7 @@ func (a *App) bindSideKeys() error {
 			continue
 		}
 		occupied[row.Key] = true
-		binding := ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": row.Name}).Hinted(row.Title)
+		binding := ochazuke.Do("terminal.side", ochazuke.Arguments{"kind": row.Name}).Hinted(a.sideHint(row.Name))
 		binding.Noun, binding.Mode, binding.Keys = "terminal", "leader_pending", row.Key
 		binding.Help = row.Title + ": open it, focus it, or back to the pane"
 		rows = append(rows, binding)
@@ -296,7 +308,7 @@ func (a *App) updateSideLeaderHint() error {
 			continue
 		}
 		name := ochazuke.StringArg(b.Request.Args, "kind", "")
-		parts = append(parts, b.Keys+" "+a.sideTitle(name))
+		parts = append(parts, b.Keys+" "+a.sideHint(name))
 	}
 	parts = append(parts, "d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T todos · S all · : palette · , settings · ' pages · ? keys")
 	for _, b := range a.r.DefaultBindings() {

@@ -15,11 +15,18 @@ For example:
 
 ```json
 [
-  {"name":"scratch","title":"Side scratch","key":"g",
+  {"name":"scratch","title":"Side scratch","hint":"scratch","key":"g",
    "command":["scratch-tool","--directory","{dir}"]},
   {"name":"term","key":"u"}
 ]
 ```
+
+`hint` in `sides.json` supplies the short label for footer and leader hints;
+omitting it keeps the previous value, and an empty value falls back to `name`.
+The built-ins use `vim` and `term`. Catalog sides fall back to their names
+(for example, o-git's `diff`); a `sides.json` override can supply another hint.
+`title` stays the longer label in menus, `side.list`, the `panes.sides` chooser
+and keyboard help (`?`). Set `hint` to the title to use that wording in hints.
 
 The Settings page's side-layout description names the file. `config.reload`
 reads it again; invalid configuration keeps the last working definitions.

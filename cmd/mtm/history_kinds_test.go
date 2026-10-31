@@ -23,6 +23,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		"note.get", "note.list", "note.watch", "pane.activity", "pane.get", "pane.list", "pane.preview", "pane.read-settings", "pane.read-turns", "pane.refresh-turns", "pane.settings", "pane.transcript", "pane.watch",
 		"panes.read-activities", "panes.refresh", "project.get", "project.list", "project.watch", "projects.directories", "projects.list", "projects.state",
 		"review.get", "review.list", "review.watch", "run.list", "run.show", "saved.get", "saved.list", "saved.watch", "schedule.get", "schedule.history", "schedule.list", "schedule.watch", "session.get", "session.list", "session.watch", "setup.list", "setup.plan",
+		"side.list",
 		"store-table.list", "store-table.show", "store.tables", "task.get", "task.list", "task.watch", "turn-line.refresh-turns", "turn-separator.refresh-turns", "turn-step.refresh-turns", "turn.refresh-turns", "vim.get", "vim.list", "vim.watch",
 	}
 	var got []string
@@ -37,5 +38,11 @@ func TestReadVerbsAreFetches(t *testing.T) {
 	sort.Strings(got)
 	if !slices.Equal(got, want) {
 		t.Fatalf("fetch verbs\n got %v\nwant %v", got, want)
+	}
+	for _, key := range []string{"agent.launch", "agent.start", "agent.choose", "side.show", "side.restart"} {
+		op, ok := app.r.Operations[key]
+		if !ok || op.HistoryKindOf() != ochazuke.HistoryChange {
+			t.Errorf("%s must remain an app change, got %+v", key, op)
+		}
 	}
 }
