@@ -393,7 +393,7 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 }
 
 // The Screen tab follows the selection: after the pause, pane.preview runs
-// in the list's replacing slot with no key pressed.
+// in the page's replacing slot with no key pressed.
 func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
@@ -404,7 +404,7 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 			jobs = append(jobs, j)
 		}
 	}
-	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Scope != paneListID || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].State != ochazuke.JobRunning {
+	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Scope != panesPage || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].State != ochazuke.JobRunning {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, cmd)
@@ -440,9 +440,9 @@ func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 			running = append(running, j)
 		}
 	}
-	// Two rows asked; the list's slot keeps only the newest running.
+	// Two rows asked; the page's slot keeps only the newest running.
 	if jobs := jobsOf(app, "pane.preview"); len(running) != 1 || len(jobs) != 2 || jobs[0].State != ochazuke.JobCancelled ||
-		jobs[0].Owner != "pane:matomeru/w1" || running[0].Owner != "pane:ochazuke/w2" || running[0].Scope != paneListID {
+		jobs[0].Owner != "pane:matomeru/w1" || running[0].Owner != "pane:ochazuke/w2" || running[0].Scope != panesPage {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, second)

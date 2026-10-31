@@ -1,0 +1,10 @@
+{
+  "name": "mtm: preview and text detail follow panes in Waiting, Panes and Working without slot scope errors",
+  "area": "panes",
+  "skip": "gap: story seeds cannot set agent states for the three sections or deliver followDue; TestPaneJobsAcrossSections and TestPaneDetailFollowOnlyOnPanes cover the jobs and page lifecycle with the real runtime",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": ["p"],
+  "expect": [{"lacks": ["slot scope"]}]
+}

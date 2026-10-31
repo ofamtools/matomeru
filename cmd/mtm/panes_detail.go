@@ -69,7 +69,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 	switch v := msg.(type) {
 	case followDue:
-		if v.seq == a.pv.seq {
+		if a.r.Page == panesPage && v.seq == a.pv.seq {
 			a.loadDetail()
 		}
 	case refreshDue:
@@ -135,17 +135,22 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		a.pv.armed = true
 		cmds = append(cmds, a.pv.after(a.refreshInterval(), refreshDue{}))
 	}
-	row, _ := a.selectedRow()
-	if row != "" && row != a.pv.viewRow && !a.liveShown() {
-		a.pv.viewRow = row
-		a.applyView(row)
-	}
-	if key := fmt.Sprintf("%s|%d", row, a.pv.tab); row != "" && key != a.pv.followed && !a.liveShown() {
-		a.pv.followed = key
-		a.pv.seq++
-		if a.pv.after != nil {
-			cmds = append(cmds, a.pv.after(followDelay, followDue{seq: a.pv.seq}))
+	if a.r.Page == panesPage {
+		row, _ := a.selectedRow()
+		if row != "" && row != a.pv.viewRow && !a.liveShown() {
+			a.pv.viewRow = row
+			a.applyView(row)
 		}
+		if key := fmt.Sprintf("%s|%d", row, a.pv.tab); row != "" && key != a.pv.followed && !a.liveShown() {
+			a.pv.followed = key
+			a.pv.seq++
+			if a.pv.after != nil {
+				cmds = append(cmds, a.pv.after(followDelay, followDue{seq: a.pv.seq}))
+			}
+		}
+	} else {
+		// A follow due while away is ignored; returning must arm it again.
+		a.pv.followed = ""
 	}
 	a.copyUpdate(msg)
 	a.syncOpenedCards()
@@ -163,6 +168,9 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 // loadDetail fills the selected row's tab: a capture, the activity, the
 // transcript or the turns.
 func (a *App) loadDetail() {
+	if a.r.Page != panesPage {
+		return
+	}
 	row, inst := a.selectedRow()
 	if r, err := activityAt(inst); err == nil {
 		row, inst = r.Row, a.r.Instances[r.Row] // a child row shows its pane's detail
@@ -304,7 +312,7 @@ func (a *App) paneText(ctx ochazuke.Ctx, tab int, read func(context.Context, pan
 			text = "nothing yet"
 		}
 		return text, nil
-	}).ReplacingAt(paneListID, "detail").Then(func(_ ochazuke.Ctx, v any, err error) {
+	}).ReplacingAt(panesPage, "detail").Then(func(_ ochazuke.Ctx, v any, err error) {
 		if text, ok := v.(string); ok && err == nil {
 			a.pv.text[key] = text
 		}
