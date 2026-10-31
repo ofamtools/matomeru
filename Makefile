@@ -11,12 +11,16 @@ LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) \
 
 export GOWORK := off
 
-.PHONY: build install story-bin story-test split-check
+.PHONY: build install gate story-bin story-test split-check
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/mtm ./cmd/mtm
 
 install:
 	go install -trimpath -ldflags "$(LDFLAGS)" ./cmd/mtm
+
+# One release gate, with elapsed seconds per step.
+gate:
+	+@sh scripts/gate.sh "$(MAKE)"
 
 # The story tester (-tags monogatari): mtm story run|open|list|explore|...
 # as bin/mtm-story, never installed over mtm. See README "Stories".
@@ -24,9 +28,8 @@ STORY_BIN ?= bin/mtm-story
 story-bin:
 	go build -trimpath -tags monogatari -o $(STORY_BIN) ./cmd/mtm
 
-# The tagged build's vet and race suite: every test, the stories through
-# host.Test (cmd/mtm/stories_test.go).
-# Lanes may narrow the package and test selection; the default gate stays full.
+# The standalone tagged vet/race suite includes all tests and stories.
+# make gate narrows the tagged run to TestStories after the untagged race pass.
 STORY_PACKAGES ?= ./...
 STORY_TEST_FLAGS ?= -race
 story-test:
