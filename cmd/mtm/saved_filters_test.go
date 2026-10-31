@@ -141,6 +141,15 @@ func TestSavedTaskFiltersKeepAncestorContext(t *testing.T) {
 	if err := a.r.Settings().Set(settingWorkTasksLayout, tasksLayoutFlat); err != nil {
 		t.Fatal(err)
 	}
+	// Flattening removes the ancestor's matching context. It lingers
+	// under the active filter until its deadline or an explicit flush.
+	if f := frameAt(a, 140); !a.taskList.Lingering("agent") || !strings.Contains(f, "agent example") || !strings.Contains(f, "~") {
+		t.Fatalf("former ancestor must linger after flattening:\n%s", f)
+	}
+	executeA(t, a, "ochazuke.list", "flush-lingering", "", ochazuke.Arguments{"id": "agent"})
+	if a.taskList.Lingering("agent") {
+		t.Fatal("flushed ancestor still lingering")
+	}
 	assertMakerFrame(t, a, "mine")
 }
 
