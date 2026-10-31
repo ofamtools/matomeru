@@ -46,6 +46,8 @@ func contextProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The item's key")},
+		{Name: "category", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{"context", "prompt"}, Description: "A kept context item or a journaled prompt in the context picker"}},
+		{Name: "scope", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{"pane", "project", "none"}, Description: "Context picker scope: this pane, the rest of its project, or no project; absent outside the picker"}},
 		// Workaround (ochazuke v0.55.0): standard create's positional order
 		// is the label, the focus fills, then the pairs rest parameter, and
 		// Register refuses a required parameter after the rest one; so type
@@ -67,6 +69,19 @@ func contextProps() []ochazuke.PropSpec {
 		{Name: "exists", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether a file or dir item's path existed when it was last seen (absent for other kinds)"}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the item was first kept (Unix ms)"}},
 		{Name: "seen", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the item was last seen (Unix ms)"}},
+	}
+}
+
+// contextFilters are catalog declarations on context-item, scoped to its
+// picker. Scope is relative to the pane the picker opened for.
+func contextFilters() []ochazuke.SavedFilter {
+	return []ochazuke.SavedFilter{
+		{List: contextPicker, Name: "context", Where: map[string]any{"category": "context"}},
+		{List: contextPicker, Name: "prompts", Where: map[string]any{"category": "prompt"}},
+		{List: contextPicker, Name: "this-pane", Where: map[string]any{"scope": "pane"}},
+		{List: contextPicker, Name: "project", Where: map[string]any{"scope": "project"}},
+		{List: contextPicker, Name: "none", Where: map[string]any{"scope": "none"}},
+		{List: contextPicker, Name: "all"},
 	}
 }
 
@@ -128,7 +143,7 @@ func (a *App) contextItemsIn(kind string, all bool, tasks map[string]string) []c
 // task's.
 func contextThing(it contextitems.Item, tasks map[string]string) ochazuke.Thing {
 	t := ochazuke.Thing{
-		"id": it.ID, "type": it.Kind, "text": it.Text, "project": itemProject(it, tasks), "task": it.TaskID,
+		"id": it.ID, "category": "context", "type": it.Kind, "text": it.Text, "project": itemProject(it, tasks), "task": it.TaskID,
 		"starred": it.Starred, "session": it.Session, "window": it.Window, "pane": it.Pane,
 		"created": it.Created, "seen": it.Seen(),
 	}

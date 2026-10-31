@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/unixsuperhero/ochazuke"
+	"github.com/unixsuperhero/ochazuke/keytest"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
 	"github.com/unixsuperhero/matomeru/internal/history"
@@ -85,8 +86,8 @@ func TestLivePickerListsThisPaneFirst(t *testing.T) {
 	if got := pickerTexts(t, a); !slices.Equal(got, want) {
 		t.Fatalf("picker rows = %v, want this pane's newest first, the project's, then no project's %v", got, want)
 	}
-	f := frame(a)
-	for _, w := range []string{"this pane", "no project", "ctrl+o", "ctrl+r"} {
+	f := frameAt(a, 160)
+	for _, w := range []string{"this pane", "no project", "ctrl+f", "alt+]", "ctrl+o", "ctrl+r"} {
 		if !strings.Contains(f, w) {
 			t.Fatalf("picker frame lacks %q:\n%s", w, f)
 		}
@@ -321,5 +322,68 @@ func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
 	f := plainView(a)
 	if !slices.Contains(leaderModalKeys(a), "ctrl+b c") || !strings.Contains(f, "ctrl+b  v") || !strings.Contains(f, "send ctrl+b to the pane") || strings.Contains(f, "ctrl+a") {
 		t.Fatalf("leader keys modal (%q):\n%s", leaderModalKeys(a), f)
+	}
+}
+
+// The context picker uses the framework's list filters with typed metadata;
+// its opaque promptRow and contextitems.Item remain available to app actions.
+func TestLivePickerSavedFiltersAndPropPicker(t *testing.T) {
+	a, _, live, _ := liveContextApp(t)
+	promptTurns(t, a, live, []string{"review picker prompt"}, []string{"answer"})
+	press(t, a, "ctrl+a", "c")
+	c := a.r.Chooser(contextPicker)
+	for _, tc := range []struct {
+		name  string
+		count int
+	}{
+		{"context", 4}, {"prompts", 1}, {"this-pane", 3}, {"project", 1}, {"none", 1}, {"all", 5},
+	} {
+		if err := c.ApplyFilter(tc.name); err != nil {
+			t.Fatal(err)
+		}
+		if got := len(c.Matches()); got != tc.count {
+			t.Fatalf("%s: %d rows, want %d", tc.name, got, tc.count)
+		}
+	}
+	a.Update(keytest.Msg("alt+[", false, false))
+	if f := frame(a); !strings.Contains(f, "[none]") {
+		t.Fatalf("backward cycle:\n%s", f)
+	}
+	a.Update(keytest.Msg("alt+backspace", false, false))
+	press(t, a, "ctrl+f")
+	typeText(t, a, "scope")
+	press(t, a, "enter")
+	typeText(t, a, "pane")
+	press(t, a, "enter")
+	if a.r.TopModal() != contextPicker || len(c.Matches()) != 3 {
+		t.Fatalf("nested picker: %s %d", a.r.TopModal(), len(c.Matches()))
+	}
+	typeText(t, a, "review")
+	a.Update(keytest.Msg("alt+backspace", false, false))
+	if c.Query() != "review" || len(c.Matches()) != 1 {
+		t.Fatalf("text query lost: %q %d", c.Query(), len(c.Matches()))
+	}
+	// Refreshes preserve the filter, projected metadata and opaque row data.
+	if err := c.ApplyFilter("prompts"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.pickerTurnsChanged(); err != nil {
+		t.Fatal(err)
+	}
+	if row, ok := c.Highlighted(); !ok {
+		t.Fatal("prompt lost")
+	} else if _, ok := row.Data.(promptRow); !ok {
+		t.Fatalf("prompt data changed: %T", row.Data)
+	}
+	if err := a.r.Settings().Set(ochazuke.ChooserPropFiltersSetting, "false"); err != nil {
+		t.Fatal(err)
+	}
+	c.SetQuery("")
+	if len(c.Matches()) != 5 {
+		t.Fatal("chooser opt-out ignored")
+	}
+	typeText(t, a, "z]")
+	if c.Query() != "z]" {
+		t.Fatalf("opt-out query %q", c.Query())
 	}
 }

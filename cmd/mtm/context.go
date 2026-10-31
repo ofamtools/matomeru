@@ -134,7 +134,7 @@ func (a *App) defineContext() {
 	// set, delete, watch, move, duplicate) come from them
 	// (context_store.go); forget is delete's lasting alias, star and
 	// associate run set and move; the rest are mtm's own.
-	a.r.Define(contextNoun).Props(contextProps()...).Store(a.contextStore()).Columns(contextColumns...).
+	a.r.Define(contextNoun).Props(contextProps()...).Filters(contextFilters()...).Store(a.contextStore()).Columns(contextColumns...).
 		Verb("copy", a.copyContext, "Copy the item's text to the clipboard (OSC 52 when no clipboard program serves the session)").Positional("id").
 		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").

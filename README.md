@@ -139,3 +139,30 @@ focus, mode and modal stack, with all bindings including hidden keys.
 per state and an index without replaying or building the app. The reusable
 hub keymap-outline builder refreshes it in `mode: states`; mtm ships no replay
 tutorials.
+
+The context picker supports the framework prop filters alongside its text
+search. The saved cycle is `context`, `prompts`, `this-pane`, `project`,
+`none`, `all`.
+
+| Context picker key | Action |
+|---|---|
+| `ctrl+f` | Pick a property and observed value; with active filters, cycle the next saved filter (or offer clear in the picker when cycling is unavailable). |
+| `alt+]` / `alt+[` | Cycle saved filters forward / backward. |
+| `alt+backspace` | Clear prop filters, keeping the search text. |
+
+Letters type into the search; lists keep their `z` chords and `ctrl+f`
+page-down. `ctrl+[` is Escape, not a cycle key. These defaults are catalog declarations on
+`context-item`, scoped to the `context-picker` chooser. `category` distinguishes
+kept context from journaled prompts; `scope` is projected relative to the
+pane the picker opened for (this pane, the rest of its project, or no project).
+The existing `type` prop distinguishes file, dir, link, branch, command, etc.
+Rows retain their data for copy/open/reveal, and updates preserve the filters.
+Set `chooser.prop-filters=false` to disable chooser prop filtering (default
+true); `list.filter-cycle=false` and `list.filter-strip=false` turn off cycling
+and the strip separately. No creator is recorded on context items, so there
+is no maker filter. User `list.filters` rows can override these defaults by
+name with `list: "context-picker"`.
+
+Compared with Vim: Vim's `:filter` uses a regexp over command output;
+these filters use typed row properties. Modifier keys leave insert-mode
+letters available for the chooser's search.

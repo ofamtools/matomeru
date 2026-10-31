@@ -108,6 +108,7 @@ func (a *App) openContextPicker(p pane, choose func(ochazuke.ChooserRow) ochazuk
 	a.cx.picking = p
 	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  contextPicker,
+		Noun:  contextNoun,
 		Title: "Context · " + p.label(),
 		Rows:  a.pickerRows(p),
 		// Every typed word is in the row: a long path must not match a
@@ -146,22 +147,25 @@ func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
 	}
 	now := time.Now()
 	var rows []ochazuke.ChooserRow
-	add := func(items []contextitems.Item, where string) {
+	add := func(items []contextitems.Item, where, scope string) {
 		for _, it := range items {
-			rows = append(rows, ochazuke.ChooserRow{ID: it.ID, Label: it.Kind + " " + it.Text, Data: it, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
+			props := contextThing(it, tasks)
+			props["scope"] = scope
+			rows = append(rows, ochazuke.ChooserRow{Props: props, ID: it.ID, Label: it.Kind + " " + it.Text, Data: it, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
 		}
 	}
-	add(own, "this pane")
+	add(own, "this pane", "pane")
 	for i := len(a.cx.turns) - 1; i >= 0; i-- { // newest first
 		t := a.cx.turns[i]
 		if t.Window != p.ID || strings.TrimSpace(t.Prompt) == "" {
 			continue
 		}
 		rows = append(rows, ochazuke.ChooserRow{ID: "prompt:" + t.ID, Label: "prompt " + t.Prompt, Data: promptRow{turn: t, pane: p},
+			Props: ochazuke.Thing{"id": "prompt:" + t.ID, "category": "prompt", "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session},
 			Cells: []string{"prompt", firstLine(t.Prompt), "this pane", age(now.Sub(time.UnixMilli(t.StartedAt)))}})
 	}
-	add(theirs, a.ownerLabel(project))
-	add(loose, "no project")
+	add(theirs, a.ownerLabel(project), "project")
+	add(loose, "no project", "none")
 	return rows
 }
 
