@@ -5,10 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/unixsuperhero/ochazuke"
 )
 
 // catalogCalls counts the catalog execs in a fake tool's log.
@@ -69,29 +67,7 @@ func TestDiscoveryChecksRegisteredCatalogs(t *testing.T) {
 // and the commands that started are returned unrun.
 func step(t *testing.T, a *App, cmd tea.Cmd) []tea.Cmd {
 	t.Helper()
-	if cmd == nil {
-		return nil
-	}
-	ch := make(chan tea.Msg, 1)
-	go func() { ch <- cmd() }()
-	var msg tea.Msg
-	select {
-	case msg = <-ch:
-	case <-time.After(5 * time.Second):
-		return nil // a timer
-	}
-	switch msg := msg.(type) {
-	case tea.BatchMsg:
-		var out []tea.Cmd
-		for _, c := range msg {
-			out = append(out, step(t, a, c)...)
-		}
-		return out
-	case ochazuke.Completion:
-		_, next := a.Update(msg)
-		return []tea.Cmd{next}
-	}
-	return nil
+	return driveCommands(a, cmd, false)
 }
 
 // While anything fetches for an extension its row on the Extensions page

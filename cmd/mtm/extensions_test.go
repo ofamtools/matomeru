@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/unixsuperhero/matomeru/store"
@@ -73,30 +72,7 @@ func calls(t *testing.T, log string) []string {
 // exec of the fake bin takes a few milliseconds); timers are dropped.
 func settleJobs(t *testing.T, a *App, cmd tea.Cmd) {
 	t.Helper()
-	var run func(tea.Cmd)
-	run = func(cmd tea.Cmd) {
-		if cmd == nil {
-			return
-		}
-		ch := make(chan tea.Msg, 1)
-		go func() { ch <- cmd() }()
-		var msg tea.Msg
-		select {
-		case msg = <-ch:
-		case <-time.After(5 * time.Second):
-			return // a timer
-		}
-		switch msg := msg.(type) {
-		case tea.BatchMsg:
-			for _, c := range msg {
-				run(c)
-			}
-		case ochazuke.Completion:
-			_, next := a.Update(msg)
-			run(next)
-		}
-	}
-	run(cmd)
+	settle(a, cmd)
 }
 
 // pressJob presses one key and settles the jobs it started.

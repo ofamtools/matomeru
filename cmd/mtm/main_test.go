@@ -137,6 +137,8 @@ func openWith(t *testing.T, opts Options) *App {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { app.Close() })
+	clock := &fakeClock{t: time.Unix(1_790_000_000, 0)}
+	app.m.Now = clock.now
 	app.home = func() (string, error) { return "/home/test", nil }
 	// No test reaches the real daemon.
 	app.panesd = newFakePanes()

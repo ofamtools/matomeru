@@ -51,6 +51,8 @@ func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 		settle(app, app.r.PendingCommands())
 	}
 	tickerIs(t, app, "three renames", "pane.rename done", "pane.rename done")
+	lingerTick(t, app)
+	tickerIs(t, app, "after the linger deadline")
 }
 
 // List reloads (panes.refresh runs at startup and after every launch and
