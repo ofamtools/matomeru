@@ -10,10 +10,10 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/mcp"
-	"github.com/unixsuperhero/ochazuke"
-	catalogmcp "github.com/unixsuperhero/ochazuke/cli/mcp"
-	"github.com/unixsuperhero/oden"
+	"ofam.dev/matomeru/internal/mcp"
+	"ofam.dev/ochazuke"
+	catalogmcp "ofam.dev/ochazuke/cli/mcp"
+	"ofam.dev/oden"
 )
 
 // catalogMCP binds the pane at startup and keeps one headless runtime so history

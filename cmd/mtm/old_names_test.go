@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // The verbs renamed when ochazuke refused dotted verbs keep their old

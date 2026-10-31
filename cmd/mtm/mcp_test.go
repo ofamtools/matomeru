@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 )
 
 // stateRecorder is the fake daemon's set-agent-state: the pane daemon of
@@ -179,7 +179,7 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 		toolCall(4, "task_list", nil),
 		toolCall(5, "task_note_add", map[string]any{"text": "first finding"}),
 		toolCall(6, "task_status", map[string]any{"status": "active", "verification": "go test"}),
-		toolCall(7, "context_add", map[string]any{"text": "see https://github.com/unixsuperhero/matomeru/pull/7"}),
+		toolCall(7, "context_add", map[string]any{"text": "see https://github.com/ofamtools/matomeru/pull/7"}),
 		toolCall(8, "document_report", map[string]any{"path": "report.md", "title": "Report", "summary": "all green"}),
 		toolCall(9, "report_progress", map[string]any{"message": "running the gate"}),
 		toolCall(10, "task_done", map[string]any{"task_id": "t2", "note": "lifted"}),
@@ -300,7 +300,7 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 		kinds = append(kinds, it.Kind+" "+it.TaskID+" "+it.Text)
 	}
 	slices.Sort(kinds)
-	if want := []string{"file t1 " + resolved, "pr t1 https://github.com/unixsuperhero/matomeru/pull/7"}; !reflect.DeepEqual(kinds, want) {
+	if want := []string{"file t1 " + resolved, "pr t1 https://github.com/ofamtools/matomeru/pull/7"}; !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("context items %q, want %q", kinds, want)
 	}
 }

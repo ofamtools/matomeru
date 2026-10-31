@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/ochazuke"
 )
 
 func contextOriginsSetting(t *testing.T, a *App, origins ...string) {

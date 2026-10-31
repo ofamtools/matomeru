@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/hints"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/hints"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // hintsWidth is the fake pane's columns: every frame row is padded to it,

@@ -13,11 +13,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 
-	"github.com/unixsuperhero/matomeru/internal/drive"
-	"github.com/unixsuperhero/matomeru/internal/schedules"
+	"ofam.dev/matomeru/internal/drive"
+	"ofam.dev/matomeru/internal/schedules"
 )
 
 // Schedules: what mtm runs on its own, on an interval or by the clock:

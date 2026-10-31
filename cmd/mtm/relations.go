@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // Two-noun associate verbs. A thing that can belong to a task, a pane or

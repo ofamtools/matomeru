@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // Handlers tell the user through the runtime's UI, not the Model: with a

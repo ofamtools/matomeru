@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 func actorStore(t *testing.T) (*Store, *store.Store) {

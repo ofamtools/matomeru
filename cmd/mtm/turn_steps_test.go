@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // stepText is the current step's text inside the shown timeline's card.

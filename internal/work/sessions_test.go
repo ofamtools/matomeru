@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 func TestPaneSessionsChainInOrder(t *testing.T) {

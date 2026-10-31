@@ -4,9 +4,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // Refreshing a pane's turns (pane.refresh-turns, R on the Turns tab):

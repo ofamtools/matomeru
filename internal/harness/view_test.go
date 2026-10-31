@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/drive"
+	"ofam.dev/matomeru/internal/drive"
 )
 
 // drive and view are data on a profile: a file entry sets them field by

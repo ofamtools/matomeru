@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // fakeClipboard stands in for the OS clipboard: an image is written to

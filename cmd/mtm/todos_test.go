@@ -6,9 +6,9 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // toPage moves to a page with ctrl+j, the way a user gets there.

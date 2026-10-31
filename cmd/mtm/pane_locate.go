@@ -1,6 +1,6 @@
 package main
 
-import "github.com/unixsuperhero/matomeru/internal/locate"
+import "ofam.dev/matomeru/internal/locate"
 
 // A pane's agent session comes from tuios (list-agents' agent_session_id),
 // which keeps the id it first heard. Each listing, off the loop, the

@@ -27,18 +27,18 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/unixsuperhero/monogatari"
-	"github.com/unixsuperhero/monogatari/host"
-	"github.com/unixsuperhero/ochazuke"
-	"github.com/unixsuperhero/oden"
+	"ofam.dev/monogatari"
+	"ofam.dev/monogatari/host"
+	"ofam.dev/ochazuke"
+	"ofam.dev/oden"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/compose"
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/compose"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 )
 
 //go:embed stories

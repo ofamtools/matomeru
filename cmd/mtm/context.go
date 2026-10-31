@@ -17,12 +17,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The Context page: things extracted from panes (paths, URLs, PRs,

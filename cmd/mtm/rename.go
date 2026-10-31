@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // renamer renames sessions and windows on the daemon; tests replace it.

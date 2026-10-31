@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // seedConvert gives the seeded matomeru project a note, a pane, a

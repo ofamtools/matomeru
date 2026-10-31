@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // savedRecord stores a record and opens the Saved page on it.

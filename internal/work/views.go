@@ -3,7 +3,7 @@ package work
 import (
 	"errors"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // PaneView is a pane's own view in mtm's pane detail (pane.view): which

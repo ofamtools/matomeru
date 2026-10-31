@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/ochazuke"
 )
 
 func TestPanePanelCacheMatchesComposition(t *testing.T) {

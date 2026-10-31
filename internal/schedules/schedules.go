@@ -53,8 +53,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/drive"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/drive"
+	"ofam.dev/matomeru/store"
 )
 
 // Tables are matomeru-old's declarations, unchanged.

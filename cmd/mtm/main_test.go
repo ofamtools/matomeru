@@ -10,11 +10,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/compose"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/compose"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 )
 
 // press sends named keys the way Bubble Tea v2 delivers them, failing on

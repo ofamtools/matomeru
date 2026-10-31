@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
-	"github.com/unixsuperhero/ochazuke/keytest"
+	"ofam.dev/ochazuke"
+	"ofam.dev/ochazuke/keytest"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // liveContextApp attaches the first pane of the Panes page live, owned by

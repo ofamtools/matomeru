@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // The Panes tree's levels are the panes.group setting: project → pane

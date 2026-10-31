@@ -5,10 +5,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The context-item noun's record side (standard verbs phase 1, lane M3a):

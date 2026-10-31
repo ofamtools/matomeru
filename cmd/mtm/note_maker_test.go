@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 func TestNoteMakerCLIAndFilters(t *testing.T) {

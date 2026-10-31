@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/unixsuperhero/matomeru/store"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
 )
 
 // fakeCatalog is a family tool's catalog: an item noun with a row source

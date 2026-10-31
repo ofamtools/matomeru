@@ -6,10 +6,10 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // cell0 is a tree row's first cell as drawn: the tree's indent and fold

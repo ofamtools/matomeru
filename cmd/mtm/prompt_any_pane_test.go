@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // screenBoxApp is panesApp on the Screen tab, its first pane (w1, a shell:

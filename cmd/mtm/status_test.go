@@ -7,8 +7,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 )
 
 // seededWith is the seeded database plus tasks of matomeru with the given

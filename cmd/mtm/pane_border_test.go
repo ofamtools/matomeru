@@ -3,9 +3,9 @@ package main
 import (
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // A terminal pane's border takes its state tone: every state under the

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/actionitems"
 )
 
 // The action-item noun's record side (standard verbs phase 1, lane M3c):

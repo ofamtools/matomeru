@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke/refdoc"
+	"ofam.dev/ochazuke/refdoc"
 )
 
 func TestWriteVersionNamesVersionCommitAndOchazuke(t *testing.T) {

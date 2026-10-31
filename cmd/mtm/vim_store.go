@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The vim noun's record side (standard verbs phase 1, lane M3c): its props

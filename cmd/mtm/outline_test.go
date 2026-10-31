@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // tasksOf is the project's tasks as "title<parent title" in position order

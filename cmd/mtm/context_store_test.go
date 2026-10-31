@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/contextitems"
 )
 
 // contextIDOf is the id of the stored item with that text.

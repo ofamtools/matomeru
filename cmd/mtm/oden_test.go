@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/oden"
+	"ofam.dev/oden"
 )
 
 // bins writes executable scripts named name into a fresh PATH directory.

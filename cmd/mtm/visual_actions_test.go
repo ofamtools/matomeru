@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // visualInbox is the Inbox page over four open items, the first selected.

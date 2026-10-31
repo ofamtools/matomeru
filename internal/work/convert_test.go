@@ -8,11 +8,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 )
 
 type fixture struct {

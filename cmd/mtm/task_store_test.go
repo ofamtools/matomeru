@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // tasksOn focuses the Work page's task row id (every project's tasks).

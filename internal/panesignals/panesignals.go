@@ -31,7 +31,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/actionitems"
 )
 
 // Source is the inbox source of every pane signal.

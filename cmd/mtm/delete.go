@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // The verbs renamed when ochazuke refused dotted verbs (mtm 5ed9521,

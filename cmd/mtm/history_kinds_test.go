@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // mtm's application verbs that only read are fetches (NounBuilder.Fetch, or

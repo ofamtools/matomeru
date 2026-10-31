@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // Fixture session directories in the shapes Claude Code writes

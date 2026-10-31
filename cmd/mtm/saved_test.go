@@ -7,9 +7,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 func savedCall(t *testing.T, a *App, verb string, args ochazuke.Arguments) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/oden"
+	"ofam.dev/oden"
 )
 
 // An extension registered as mcp (o-mcp) mounts its nouns under the

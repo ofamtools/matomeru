@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/setup"
+	"ofam.dev/matomeru/internal/setup"
 )
 
 // mtm setup: install, inspect and remove mtm's own turn-capture hooks per

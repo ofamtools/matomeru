@@ -7,9 +7,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // nestedTasks adds subtasks to the seeded matomeru tasks (t1 "write the

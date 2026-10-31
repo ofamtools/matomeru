@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/contextitems"
 )
 
 // altO is alt+o as the terminal reports it.

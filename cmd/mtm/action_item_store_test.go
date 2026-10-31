@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/actionitems"
 )
 
 // aliasOf is the alias named name among action's aliases, nil for none.

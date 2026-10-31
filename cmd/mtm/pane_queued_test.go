@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // daemonListed lists panes from a (fake) tuios daemon through mtm's own

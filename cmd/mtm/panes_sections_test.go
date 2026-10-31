@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/panesignals"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/panesignals"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // sectionIDs are a section's row ids, top to bottom.

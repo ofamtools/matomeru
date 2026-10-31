@@ -15,10 +15,10 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // errStoryDaemon is every call the story daemon cannot answer.

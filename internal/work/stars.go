@@ -3,7 +3,7 @@ package work
 import (
 	"errors"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // PaneStar marks a pane the person starred. It is keyed by the TUIOS

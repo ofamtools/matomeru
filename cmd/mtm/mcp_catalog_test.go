@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
-	catalogmcp "github.com/unixsuperhero/ochazuke/cli/mcp"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
+	catalogmcp "ofam.dev/ochazuke/cli/mcp"
 )
 
 func mcpServerFor(t *testing.T, a *App) *catalogmcp.Server {

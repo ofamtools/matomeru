@@ -4,7 +4,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // Starred panes: * on a pane row stars it (pane.star, as context-item.star

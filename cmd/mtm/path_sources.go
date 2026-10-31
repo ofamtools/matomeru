@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // mtm's folders in ochazuke's path chooser (v0.44.0). Every directory

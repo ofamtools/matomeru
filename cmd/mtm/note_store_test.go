@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // notesOn opens the Notes page on every note, the row id focused.

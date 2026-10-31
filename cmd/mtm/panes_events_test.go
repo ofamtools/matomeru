@@ -13,10 +13,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
 	"golang.org/x/sys/unix"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 type eventLoadDaemon struct {

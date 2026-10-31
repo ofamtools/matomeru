@@ -3,7 +3,7 @@ package work
 import (
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // ExtRowOwner is the project an extension's row was created in: mtm records

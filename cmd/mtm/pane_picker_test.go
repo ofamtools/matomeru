@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/ochazuke"
 )
 
 // pickerApp is panesApp with a third pane, in a session of its own.

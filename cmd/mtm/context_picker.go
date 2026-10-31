@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/history"
 )
 
 // The live picker: ctrl+a c in an attached pane (terminal, agent or vim,

@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/hints"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/hints"
 )
 
 // Live hints, as tuios has them: ctrl+a f in an attached pane (the main

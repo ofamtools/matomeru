@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The pane noun's record side (standard verbs phase 1, lane M3b): its

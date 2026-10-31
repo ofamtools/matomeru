@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // mtm's key map (owner, 2026-10-26): one meaning per key on every page.

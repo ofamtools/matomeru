@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // sessionsApp is panesApp with session ids, grouped so session rows show.

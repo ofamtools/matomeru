@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // The Turns tab and its prompt box, round 2 of the UX punch list

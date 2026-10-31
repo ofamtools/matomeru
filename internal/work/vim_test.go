@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 func TestVimLegacyOwnerAndUnknownFieldsSurviveRestart(t *testing.T) {

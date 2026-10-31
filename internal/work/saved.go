@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // PaneRecipe records the request confirmed by the daemon, not a foreground

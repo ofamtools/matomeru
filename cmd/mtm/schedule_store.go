@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/schedules"
+	"ofam.dev/matomeru/internal/schedules"
 )
 
 // The schedule noun's record side (standard verbs phase 1, lane M3c): its

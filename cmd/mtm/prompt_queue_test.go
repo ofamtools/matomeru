@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // queueDaemon is a fake tuios for queue-prompt. attach-presence answers

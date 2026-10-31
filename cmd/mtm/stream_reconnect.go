@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/ochazuke"
 )
 
 // Reconnecting a live pane. When the daemon connection under an attached

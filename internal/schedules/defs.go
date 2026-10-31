@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // Stored rows: the schedules a person adds with mtm schedule add (and

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/drive"
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/schedules"
+	"ofam.dev/matomeru/internal/drive"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/schedules"
 )
 
 // Adding and editing schedules: schedule add, edit, duplicate and delete

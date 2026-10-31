@@ -1,6 +1,6 @@
 package main
 
-import "github.com/unixsuperhero/ochazuke"
+import "ofam.dev/ochazuke"
 
 // A terminal pane's panel takes its state tone (stateTone) on its border
 // through ochazuke's Layout.WithPanelTone, so a pane that works, waits on

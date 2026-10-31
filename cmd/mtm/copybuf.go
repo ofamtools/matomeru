@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // copyBuf is copy mode's read-only buffer: plain lines (the pane's

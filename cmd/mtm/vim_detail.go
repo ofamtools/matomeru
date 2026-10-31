@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The Vim detail is about the selected Neovim session: its session file,

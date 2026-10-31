@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The review page: one row per agent pane (matomeru-old's rail: "the

@@ -12,8 +12,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 )
 
 // Table is matomeru-old's declaration, unchanged: the owner's database

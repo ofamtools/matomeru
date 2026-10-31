@@ -3,7 +3,7 @@ package hints
 import (
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/contextitems"
 )
 
 // The same item twice on a screen is one label; the item nearest the cursor

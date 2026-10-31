@@ -7,9 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
-	"github.com/unixsuperhero/ochazuke/sysstat"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
+	"ofam.dev/ochazuke/sysstat"
 )
 
 // mtm turns on the cpu, proc (its own CPU), ram and disk segments, the

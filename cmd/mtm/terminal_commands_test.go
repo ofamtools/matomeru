@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/panesignals"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/panesignals"
 )
 
 func exitCode(n int) *int { return &n }

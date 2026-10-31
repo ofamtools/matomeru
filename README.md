@@ -4,15 +4,15 @@
     <img alt="matomeru" src="assets/logo-animated-light.svg" width="360">
   </picture>
   <br>
-  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/unixsuperhero/matomeru"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/unixsuperhero/matomeru"></a>
+  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/ofamtools/matomeru"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/ofamtools/matomeru"></a>
 </p>
 
 <p align="center">A terminal workspace for coding agents: projects, tasks, notes, live agent panes, their turns and your reviews, gathered in one TUI.</p>
 
 <p align="center"><img alt="mtm over invented data with three scripted demo agents (not real ones): pinning a project, then the Inbox: one agent in Needs you, one finished, one in Working, each border in its state colour; a finished agent's turns with its edits as diffs; answering the waiting agent live, which moves it to Working" src="assets/demo.gif" width="720"></p>
 
-Matomeru (`mtm`) is built on [ochazuke](https://github.com/unixsuperhero/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
+Matomeru (`mtm`) is built on [ochazuke](https://github.com/ofamtools/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
 
 Unreleased: the Panes page reuses panel layout and column composition when
 their content, cursor, size and styles match. An unchanged listing retains
@@ -108,10 +108,10 @@ Compared with Vim: extension registry catalog freshness has no Vim motion, optio
 
 The guidance tells agents that mtm is the only MCP server they need: o-lane, o-questions, o-cmds, o-md and o-git are reached through `run` (`lane.lane.define|state|associate`, `questions.question.ask|answer|follow-up`, `cmds.cmd.add`, `md.doc.new`). Agents track their work as lanes, each in an mtm project (an agent may create one with `project.new`), keep the lane's state current and associate it with their pane. mtm tasks are the owner's: an agent changes a task's status only when asked, never its title, project or parent. Findings, reviews and reports go in a Markdown document (`md.doc.new`, then `document_report` / `context-item.report` to link it); notes are for short jots and closing lines. See [docs/MCP.md](docs/MCP.md).
 
-Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.
+Module `ofam.dev/matomeru`; requires Go 1.26 or newer.
 
 ```sh
-go install github.com/unixsuperhero/matomeru/cmd/mtm@latest
+go install ofam.dev/matomeru/cmd/mtm@latest
 ```
 
 From a checkout, `make install` (or `make build`, which writes `bin/mtm`) passes the version stamp: `-X main.version=… -X main.commit=…` with the tag from `git describe` (`make install VERSION=v0.1.0` overrides it). `mtm --version` prints the version, the commit and the ochazuke version; without the linker stamps it reads the build info the go command embeds.
@@ -120,7 +120,7 @@ The About page (ochazuke's `ochazuke.about.open`, from the palette; `mtm ochazuk
 
 ## Stories
 
-mtm's interactions are [monogatari](https://github.com/unixsuperhero/monogatari) stories: JSON keystroke scripts under `cmd/mtm/stories/<area>/` (areas `panes`, `inbox`, `tasks`, `pin`, `directories`), played headless against the real App with expectations on what the screen shows. They run in a separate tester build (build tag `monogatari`), `mtm-story`, never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
+mtm's interactions are [monogatari](https://github.com/ofamtools/monogatari) stories: JSON keystroke scripts under `cmd/mtm/stories/<area>/` (areas `panes`, `inbox`, `tasks`, `pin`, `directories`), played headless against the real App with expectations on what the screen shows. They run in a separate tester build (build tag `monogatari`), `mtm-story`, never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
 
 Each session is the real App on a temp database, a temp config directory and a socket nothing listens on, with a faked daemon, launcher, clipboard and opener (`cmd/mtm/storyfakes.go`), so a story never reaches your data, daemon or tuios session. Fixtures: `seeded` (docs/vhs/seed.sh's projects, tasks and notes, two inbox items and two fake panes; a story's `"seed": {"panes": [...]}` replaces the panes) and `empty`. `story` runs before any database opens and ignores `--data`, `--socket` and `--server`. The host keeps its own state under `mtm-story` (user stories in `$XDG_CONFIG_HOME/mtm-story/stories`, recordings in `$XDG_DATA_HOME/mtm-story`), so point those at a temp dir too:
 

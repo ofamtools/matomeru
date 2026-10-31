@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // TestMain points XDG_CONFIG_HOME and MTM_CONFIG_DIR at an empty directory,

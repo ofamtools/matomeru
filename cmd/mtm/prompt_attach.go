@@ -13,10 +13,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/compose"
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/compose"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // Attachments in the prompt box: ctrl+v in insert mode (turn-prompt.paste)

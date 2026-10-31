@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // SendKey records a key sent to a pane, "key window name", and runs the

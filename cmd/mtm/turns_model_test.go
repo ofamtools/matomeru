@@ -10,10 +10,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // Synthetic Claude Code log records, in the shapes internal/turns reads;

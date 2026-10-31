@@ -6,9 +6,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/work"
 )
 
 func TestContextCLIListsByKind(t *testing.T) {
@@ -111,7 +111,7 @@ func TestCLIExtractReadsAPaneOnDemand(t *testing.T) {
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "matomeru", ProjectID: "matomeru"}); err != nil {
 		t.Fatal(err)
 	}
-	f.print("w1", "see https://github.com/unixsuperhero/matomeru/pull/9", "On branch lane/context")
+	f.print("w1", "see https://github.com/ofamtools/matomeru/pull/9", "On branch lane/context")
 	f.commands["w1"] = []daemon.CommandEntry{{Cmdline: "go test ./...", At: 5}}
 	out := mustCLI(t, a, contextNoun, "extract", "--target", "pane:matomeru/w1")
 	if !strings.Contains(out, `"new": 3`) && !strings.Contains(out, `"new":3`) {

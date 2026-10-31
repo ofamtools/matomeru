@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // A pane's view: which tab or layout the Panes page's detail opens a pane

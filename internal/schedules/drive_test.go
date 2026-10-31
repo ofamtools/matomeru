@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/drive"
+	"ofam.dev/matomeru/internal/drive"
 )
 
 // A command row's drive picks how it runs: exec (the default) through

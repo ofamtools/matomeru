@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // The status word of every Turns card goes through statusWords: a

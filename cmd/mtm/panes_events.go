@@ -7,8 +7,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/ochazuke"
 )
 
 const (

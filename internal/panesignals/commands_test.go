@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/actionitems"
 )
 
 func exit(n int) *int { return &n }

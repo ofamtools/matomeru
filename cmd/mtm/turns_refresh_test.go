@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // resumedID is a transcript's session, long enough for the notice to cut.

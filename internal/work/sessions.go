@@ -4,7 +4,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // PaneSessions are the agent sessions a pane has run, oldest first, keyed

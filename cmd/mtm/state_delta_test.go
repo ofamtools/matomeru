@@ -3,9 +3,9 @@ package main
 import (
 	"testing"
 
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	ocli "ofam.dev/ochazuke/cli"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // projects state speaks ochazuke's delta protocol through the shell: the

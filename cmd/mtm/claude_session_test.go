@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // staleClaudeApp is the panes app with w1 a Claude Code pane in /w/proj

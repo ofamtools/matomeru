@@ -10,9 +10,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The history journal (internal/history): what the agents in the panes

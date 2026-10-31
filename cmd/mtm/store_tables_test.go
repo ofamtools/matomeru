@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	ocli "ofam.dev/ochazuke/cli"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/store"
 )
 
 // store tables lists every declared table with its owner, key, version,

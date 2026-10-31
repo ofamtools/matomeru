@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // mtm's own configuration files join ochazuke's config.reload (`mtm config

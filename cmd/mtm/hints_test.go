@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // hintKeys is the footer's hint line for the focus as "key noun.verb"

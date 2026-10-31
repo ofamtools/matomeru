@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/panesignals"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/panesignals"
 )
 
 // The panes page's left side is three ochazuke trees stacked top to

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/mcp"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/mcp"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // Who a write runs as (the tasks plan, section 6, lane A). The actor is

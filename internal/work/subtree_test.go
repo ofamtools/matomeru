@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // subtreeStore is a store with a task tree in project A: root over kid1

@@ -9,7 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 func TestPaneKeyTranslation(t *testing.T) {

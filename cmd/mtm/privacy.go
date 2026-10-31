@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // Privacy verbs on both nouns (the tasks plan, Owner decision 6): a

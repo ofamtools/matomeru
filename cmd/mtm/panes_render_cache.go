@@ -3,7 +3,7 @@ package main
 import (
 	"reflect"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // Each visible panel keeps one exact content/geometry/style snapshot. Its

@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
 )
 
 // Real Neovim, with a deterministic configuration; only the daemon transport

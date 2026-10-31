@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/locate"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/locate"
 )
 
 // procTable is a fake process table for the locator.

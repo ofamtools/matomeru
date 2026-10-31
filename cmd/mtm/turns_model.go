@@ -13,12 +13,12 @@ import (
 	"time"
 
 	xansi "github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
-	"github.com/unixsuperhero/ochazuke/markdown"
+	"ofam.dev/ochazuke"
+	"ofam.dev/ochazuke/markdown"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // Turns read from the agent's own log or the shell's command marks

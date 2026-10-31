@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // Companion links a named side window to its parent pane.

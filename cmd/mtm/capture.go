@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/history"
 )
 
 // Turn capture through the CLI, for the hooks mtm setup installs (see

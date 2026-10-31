@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 func aboutSection(t *testing.T, secs []ochazuke.AboutSection, title string) map[string]ochazuke.AboutRow {

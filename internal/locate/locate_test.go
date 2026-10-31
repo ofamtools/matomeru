@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // fakeSys is a process table.

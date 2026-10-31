@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/schedules"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/schedules"
 )
 
 // schedPromptApp is scheduleApp with the fake launcher over the fake panes.

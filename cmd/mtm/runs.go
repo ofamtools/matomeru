@@ -10,12 +10,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 
-	"github.com/unixsuperhero/matomeru/internal/drive"
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/schedules"
+	"ofam.dev/matomeru/internal/drive"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/schedules"
 )
 
 // Runs: a command run by its drive (internal/drive). command.run runs a

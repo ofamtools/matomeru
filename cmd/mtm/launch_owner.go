@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // recordingDriver persists a pane before the harness starts waiting for readiness.

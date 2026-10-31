@@ -5,9 +5,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 )
 
 // liveScreen replays a pane's stream-pane frames into a terminal emulator,

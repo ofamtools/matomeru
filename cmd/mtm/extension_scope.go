@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 )
 
 // Extension rows belong to projects. A mounted row's project is the first

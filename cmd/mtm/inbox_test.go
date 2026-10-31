@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // inboxApp is the seeded app with a fixed inbox clock and a fake opener.

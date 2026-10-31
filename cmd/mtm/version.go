@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/unixsuperhero/ochazuke/refdoc"
+	"ofam.dev/ochazuke/refdoc"
 )
 
 // Build stamps set with the linker (make install, docs/release-notes):

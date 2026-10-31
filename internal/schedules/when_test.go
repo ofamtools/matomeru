@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // The one-line timing reads and writes back in one canonical form.

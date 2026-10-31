@@ -5,7 +5,7 @@ package main
 import (
 	"testing"
 
-	"github.com/unixsuperhero/monogatari/host"
+	"ofam.dev/monogatari/host"
 )
 
 // mtm's stories (cmd/mtm/stories) through monogatari's host: each story's

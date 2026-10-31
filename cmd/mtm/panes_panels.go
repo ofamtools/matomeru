@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // The Panes page's left side in the panels layout (panes.layout panels,

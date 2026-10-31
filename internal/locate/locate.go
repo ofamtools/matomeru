@@ -35,7 +35,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // Pane is what the locator needs of a listed pane.

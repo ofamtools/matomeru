@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // migrateSettingAliases rewrites deprecated names once through Settings.Set,

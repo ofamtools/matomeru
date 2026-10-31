@@ -1,6 +1,6 @@
 package mcp
 
-import catalogmcp "github.com/unixsuperhero/ochazuke/cli/mcp"
+import catalogmcp "ofam.dev/ochazuke/cli/mcp"
 
 func schema(properties map[string]any, required ...string) map[string]any {
 	s := map[string]any{"type": "object", "properties": properties, "additionalProperties": false}

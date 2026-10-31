@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // Review is one row of the reviews table: the result of one launched agent,

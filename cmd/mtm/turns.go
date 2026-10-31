@@ -6,9 +6,9 @@ import (
 	"time"
 
 	xansi "github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/history"
 )
 
 // Turns: one row per agent turn of a pane, projected from the history

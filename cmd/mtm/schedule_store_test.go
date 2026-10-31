@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/schedules"
+	"ofam.dev/matomeru/internal/schedules"
 )
 
 // The schedule verbs: get, list, create, set, delete and watch standard;

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/unixsuperhero/ochazuke"
-	"github.com/unixsuperhero/ochazuke/markdown"
+	"ofam.dev/ochazuke"
+	"ofam.dev/ochazuke/markdown"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // The Notes page's body is Markdown: the selected note is a markdown Doc

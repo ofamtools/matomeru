@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 )
 
 // How mtm names an extension's nouns (setting extensions.noun-names). The

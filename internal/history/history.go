@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // Table is the journal, declared exactly as matomeru-old declared it (an

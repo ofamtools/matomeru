@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // mtmAbout and mtmAgentRules are quoted into the MCP instructions. ochazuke

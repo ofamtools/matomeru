@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
-	"github.com/unixsuperhero/ochazuke/markdown"
+	"ofam.dev/ochazuke"
+	"ofam.dev/ochazuke/markdown"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/work"
 )
 
 const checklistNote = "# Plan\n\nSome text.\n\n- [ ] one\n- [x] two\n- [ ] three\n"

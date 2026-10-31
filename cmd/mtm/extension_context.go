@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
-	"github.com/unixsuperhero/ochazuke/markdown/cliview"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
+	"ofam.dev/ochazuke/markdown/cliview"
 )
 
 // What mtm hands its extensions besides their verbs' arguments.

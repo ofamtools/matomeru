@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/history"
 )
 
 func TestEventLoadHistoryVisibilityAndDebounce(t *testing.T) {

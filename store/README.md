@@ -4,7 +4,7 @@ JSON rows in SQLite tables, each declared with an owner, a key field, a
 row-format version and an append-only flag (`__deck_tables`). A declaration
 that differs from the persisted one is an error, so a binary never starts on a
 file it does not understand. Importable as
-`github.com/unixsuperhero/matomeru/store`; mtm's own units use it too.
+`ofam.dev/matomeru/store`; mtm's own units use it too.
 
 ## For extension authors
 

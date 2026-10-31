@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"slices"
 
-	ocli "github.com/unixsuperhero/ochazuke/cli"
-	"github.com/unixsuperhero/oden"
+	ocli "ofam.dev/ochazuke/cli"
+	"ofam.dev/oden"
 )
 
-// The outer shell is an oden App named mtm (github.com/unixsuperhero/oden):
+// The outer shell is an oden App named mtm (ofam.dev/oden):
 // the first word resolves, by exact name, alias or unique prefix, to
 //
 //  1. an inline command: oden's builtins (help, -h/--help, commands, which),

@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // settingDraftPerTarget keeps a draft per pane; off, the box holds one

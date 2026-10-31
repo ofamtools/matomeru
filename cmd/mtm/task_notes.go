@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 const settingTaskNotesPane = "notes.task-pane"

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	xansi "github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // ruleCaptureDir, when set, receives text captures of the box's rule.

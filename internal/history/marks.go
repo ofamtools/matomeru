@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // MarksTable holds which turns were read, declared exactly as

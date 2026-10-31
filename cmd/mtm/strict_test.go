@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke/strictcheck"
+	"ofam.dev/ochazuke/strictcheck"
 )
 
 // No code in the module, tests included, uses a deprecated ochazuke name:

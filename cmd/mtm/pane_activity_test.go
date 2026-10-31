@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/harness"
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // subagentsApp is the panes app on a working Claude pane whose session

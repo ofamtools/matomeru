@@ -9,11 +9,11 @@ import (
 	"time"
 
 	xansi "github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
-	"github.com/unixsuperhero/ochazuke/markdown"
+	"ofam.dev/ochazuke"
+	"ofam.dev/ochazuke/markdown"
 
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // The Turns tab's styles (turns.style):

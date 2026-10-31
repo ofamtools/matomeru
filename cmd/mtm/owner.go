@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unixsuperhero/matomeru/store"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
 )
 
 // Owner is captured at dispatch, never recomputed when an editor or job finishes.

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 )
 
 // Per-tool CRUD on mounted extension rows. A catalog noun with a new (or

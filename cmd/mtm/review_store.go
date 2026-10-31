@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // The review noun's record side (standard verbs phase 1, lane M3c): its

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // promptApp is claudeTurnsApp with the prompt box focused through i on

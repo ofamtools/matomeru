@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"ofam.dev/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // A Claude Code pane's current transcript, for the Turns tab

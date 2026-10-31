@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // knownDirectoryChooser sets directory-chooser to known: the classic

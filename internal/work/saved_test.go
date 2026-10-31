@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 func TestSavedRecipeSurvivesRestartAndForgetPreservesRecipeAndOwner(t *testing.T) {

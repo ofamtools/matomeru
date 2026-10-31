@@ -6,7 +6,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // Note retains unknown legacy fields, including provenance, across edits.

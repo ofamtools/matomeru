@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // Subagents and task notifications on the Turns tab (internal/turns

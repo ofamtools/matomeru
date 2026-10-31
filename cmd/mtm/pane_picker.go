@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // The pane picker (pane.pick) is the page picker's twin for panes: a

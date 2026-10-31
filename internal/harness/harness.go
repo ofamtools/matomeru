@@ -19,7 +19,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/drive"
+	"ofam.dev/matomeru/internal/drive"
 )
 
 // How a harness takes its first prompt.

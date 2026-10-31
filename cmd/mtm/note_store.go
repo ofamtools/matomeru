@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
 )
 
 // The note noun's record side (standard verbs phase 1, lane M1): its props

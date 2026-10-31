@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/store"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
-	"github.com/unixsuperhero/oden"
+	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
+	"ofam.dev/oden"
 )
 
 // Discovery: the family tools mtm could mount. Every executable o-NAME on

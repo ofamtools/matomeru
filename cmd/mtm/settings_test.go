@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // mtm's ochazuke config lives in mtm's config directory (here beside the

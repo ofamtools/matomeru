@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/actionitems"
 )
 
 // Command signals: a terminal (shell) pane's finished commands, from the

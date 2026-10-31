@@ -3,7 +3,7 @@ package work
 import (
 	"errors"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // The work store's side of actor.go: who its writes run as, the policy it

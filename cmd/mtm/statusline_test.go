@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // statuslineDaemon answers list-sessions, list-windows and list-agents the

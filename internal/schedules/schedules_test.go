@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // clock is a fake clock the tests move by hand.

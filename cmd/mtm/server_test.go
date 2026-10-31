@@ -15,7 +15,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // isolate points the runtime dir at a temp dir, clears the daemon env and

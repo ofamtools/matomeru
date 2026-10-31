@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/matomeru/internal/work"
-	"github.com/unixsuperhero/matomeru/store"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
 )
 
 // addSubtree puts kid (with grand under it) under t1 in matomeru.

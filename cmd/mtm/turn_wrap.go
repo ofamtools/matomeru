@@ -8,10 +8,10 @@ import (
 	"unicode/utf8"
 
 	xansi "github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/history"
-	"github.com/unixsuperhero/matomeru/internal/turns"
+	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/turns"
 )
 
 // An opened turn's lines wrap to the width the tree draws them at, the way

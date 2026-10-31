@@ -1,12 +1,12 @@
-module github.com/unixsuperhero/matomeru
+module ofam.dev/matomeru
 
 go 1.26.0
 
 require (
 	charm.land/bubbletea/v2 v2.1.0
 	github.com/charmbracelet/x/ansi v0.11.9
-	github.com/unixsuperhero/monogatari v0.3.1
-	github.com/unixsuperhero/ochazuke v0.75.1
+	ofam.dev/monogatari v0.3.1
+	ofam.dev/ochazuke v0.75.1
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 )
@@ -54,7 +54,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/unixsuperhero/oden v0.1.1
+	ofam.dev/oden v0.1.1
 	github.com/xo/terminfo v1.0.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0

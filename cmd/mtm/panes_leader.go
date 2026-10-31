@@ -3,7 +3,7 @@ package main
 import (
 	"slices"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 )
 
 // The leader outside live: on the Panes page in normal mode (the tree or

@@ -79,7 +79,7 @@ func TestHintsLabelOnlyWhatIsDrawn(t *testing.T) {
 // vimScreen is a side vim's screen: code, tildes past the end of the
 // buffer, and a statusline naming the file relative to vim's folder.
 func vimScreen(rows int, status string) []string {
-	lines := []string{"package main", "", "import (", `	"github.com/unixsuperhero/ochazuke"`, ")", "", "func main() {}"}
+	lines := []string{"package main", "", "import (", `	"ofam.dev/ochazuke"`, ")", "", "func main() {}"}
 	for len(lines) < rows-2 {
 		lines = append(lines, "~")
 	}

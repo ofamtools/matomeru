@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/unixsuperhero/matomeru/store"
+	"ofam.dev/matomeru/store"
 )
 
 // The work store's side of privacy.go.

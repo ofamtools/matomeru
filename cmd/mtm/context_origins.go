@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/ochazuke"
 )
 
 const settingContextExtractFrom = "context.extract-from"

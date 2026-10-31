@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/contextitems"
 )
 
 // fakeSystem records clipboard and opener calls instead of running pbcopy

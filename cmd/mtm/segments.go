@@ -1,8 +1,8 @@
 package main
 
 import (
-	ocli "github.com/unixsuperhero/ochazuke/cli"
-	"github.com/unixsuperhero/ochazuke/sysstat"
+	ocli "ofam.dev/ochazuke/cli"
+	"ofam.dev/ochazuke/sysstat"
 )
 
 // mtm's status segments ride ochazuke's header rule: cpu, mtm's own CPU
