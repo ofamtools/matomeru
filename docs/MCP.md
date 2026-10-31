@@ -11,6 +11,13 @@ selected database, daemon and config paths. `mtm mcp tools` lists its tools,
 the startup pane, and `mtm mcp config [HARNESS]` prints configuration without
 writing a harness file.
 
+The word `mcp` is always this gateway, even with an extension registered as
+`mcp` (the family's `o-mcp`): an extension's namespace yields its word to
+mtm's own command (ochazuke v0.75.0's `cli.Mount`), so `mtm mcp serve` keeps
+working and help lists `shadows alias mcp of mcp. namespace` under it. The
+extension's nouns stay reachable by their full names (`mtm mcp.mcp-call list`,
+read as `mtm mcp. mcp-call list`) and by their bare names when unique.
+
 ## How a tool runs
 
 One headless runtime serves the connection, so history and exact undo entry
