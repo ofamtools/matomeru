@@ -55,6 +55,32 @@ note. Unrecognised context text is kept as a prompt rather than lost, following
 mtm's record-first rule. None of these behaviors depends on which MCP tool
 name was used.
 
+## What agents are told
+
+`mtm mcp instructions` prints ochazuke's generated guidance followed by mtm's
+own About and agent rules (`mtmAbout` and `mtmAgentRules` in
+`cmd/mtm/agent_declarations.go`, pinned by
+`cmd/mtm/testdata/mcp-instructions.golden`; ochazuke caps each at 60 tokens).
+They say:
+
+- mtm is the only MCP server an agent needs. The mounted family tools are
+  reached through this gateway's `run`, not their own servers: o-lane
+  (`lane.lane.define`, `lane.lane.state`, `lane.lane.associate`), o-questions
+  (`questions.question.ask`, `answer`, `follow-up`), o-cmds (`cmds.cmd.add`),
+  o-md (`md.doc.new`) and o-git.
+- Track work as lanes. Every lane belongs to an mtm project; when none fits,
+  the agent creates one with `project.new` (declared `allow`). Set the lane's
+  state as the work moves and associate the lane with the agent's pane.
+- mtm tasks are the owner's. An agent changes a task's status only when
+  asked, and never its title, project or parent.
+- Findings, reviews and reports go in a Markdown document: `md.doc.new` under
+  the project's `docs/` or a docs root, the body written, then
+  `document_report` (`context-item.report`) to link it. Notes are for short
+  jots and closing lines.
+
+The text is data quoted into the guidance; it grants no rights. The record
+policy below still decides every write.
+
 ## Who the writes are
 
 Every tool call writes as the agent of the server's pane: its harness,
