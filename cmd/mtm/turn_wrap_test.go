@@ -24,6 +24,7 @@ func pieceTexts(ps []turnPiece) []string {
 // Prose breaks at spaces, dropping them; every piece fits; the offsets
 // count runes into the source line.
 func TestWrapTurnLineBreaksProseAtSpaces(t *testing.T) {
+	t.Parallel()
 	line := "  the quick brown fox jumps over the lazy dog"
 	got := wrapTurnLine(line, 16)
 	want := []string{"  the quick", "  brown fox", "  jumps over the", "  lazy dog"}
@@ -45,6 +46,7 @@ func TestWrapTurnLineBreaksProseAtSpaces(t *testing.T) {
 
 // A continuation keeps its line's indentation, so code stays under code.
 func TestWrapTurnLineKeepsTheIndentation(t *testing.T) {
+	t.Parallel()
 	got := pieceTexts(wrapTurnLine("      call(alpha, beta, gamma)", 20))
 	want := []string{"      call(alpha,", "      beta, gamma)"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
@@ -54,6 +56,7 @@ func TestWrapTurnLineKeepsTheIndentation(t *testing.T) {
 
 // A URL longer than a row starts where it is and breaks at the row's end.
 func TestWrapTurnLineHardBreaksALongURL(t *testing.T) {
+	t.Parallel()
 	url := "https://example.com/a/very/long/path/without/any/spaces/at/all.html"
 	got := wrapTurnLine("  See "+url, 30)
 	if len(got) < 3 || !strings.HasPrefix(got[0].text, "  See https://") {
@@ -77,6 +80,7 @@ func TestWrapTurnLineHardBreaksALongURL(t *testing.T) {
 // Wide characters take two cells: no piece is wider than the row, and a
 // row ends early rather than splitting one.
 func TestWrapTurnLineMeasuresCellWidth(t *testing.T) {
+	t.Parallel()
 	line := "  日本語の文章も正しく折り返されるべきです。🙂👍🏽 done"
 	for _, width := range []int{9, 10, 11, 20} {
 		got := wrapTurnLine(line, width)
@@ -139,6 +143,7 @@ func answerRows(app *App, word string) []string {
 // same line and the turn still reviewed; j and k move over the pieces;
 // the filter finds a phrase split across pieces.
 func TestALongAnswerWrapsAndRewrapsAtTheDetailWidth(t *testing.T) {
+	t.Parallel()
 	words := strings.Repeat("lorem ipsum dolor sit amet ", 12) + "ENDWORD"
 	app := wrapApp(t, words)
 	at120 := answerRows(app, "lorem")
@@ -220,6 +225,7 @@ func TestALongAnswerWrapsAndRewrapsAtTheDetailWidth(t *testing.T) {
 
 // The Review page's turns tree wraps at its width too.
 func TestTheReviewTurnsWrap(t *testing.T) {
+	t.Parallel()
 	app := wrapApp(t, strings.Repeat("lorem ipsum dolor sit amet ", 12)+"ENDWORD")
 	st := app.turnFillOf(app.pv.turns)
 	if st.width <= 0 {
@@ -238,6 +244,7 @@ func TestTheReviewTurnsWrap(t *testing.T) {
 // code line, a blank line, a long URL and Japanese, at 80 and 120
 // columns. go test -run TestOpenedTurnFrames -update rewrites them.
 func TestOpenedTurnFrames(t *testing.T) {
+	t.Parallel()
 	answer := "This answer is a long paragraph of prose that the agent wrote, which should wrap onto several rows at the panel width instead of being cut off with an ellipsis at the edge.\n" +
 		"    func indented() { return someLongFunctionName(withArguments, andMoreArguments, andEvenMoreArguments) }\n" +
 		"\n" +

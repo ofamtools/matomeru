@@ -79,6 +79,7 @@ func keysAt(t *testing.T, app *App, keys string, row, col int) {
 }
 
 func TestCopyModeFromTheListIsFocusedNotLive(t *testing.T) {
+	t.Parallel()
 	app, f, _ := copyApp(t, []string{"old line"}, []string{"$ echo hi", "hi", "$ "})
 	enterCopyMode(t, app)
 	b := app.copy.buf
@@ -131,6 +132,7 @@ func TestCopyModeFromTheListIsFocusedNotLive(t *testing.T) {
 }
 
 func TestCopyModeCursorVisibleBeforeSelection(t *testing.T) {
+	t.Parallel()
 	app, _, _ := copyApp(t, nil, []string{"alpha", "", "omega"})
 	enterCopyMode(t, app)
 	press(t, app, "g", "g")
@@ -159,6 +161,7 @@ func TestCopyModeCursorVisibleBeforeSelection(t *testing.T) {
 // it was; k moves into the scrollback, /word finds it, V y yanks it into
 // register 0 and the clipboard; the pane stays attached and i is live.
 func TestCopyModeFromLiveKeepsTheScreenAndYanksLines(t *testing.T) {
+	t.Parallel()
 	var all []string
 	for i := 1; i <= 200; i++ {
 		all = append(all, fmt.Sprintf("line %03d", i))
@@ -254,6 +257,7 @@ func bodyLines(fr string) []string {
 }
 
 func TestCopyModeMotionsTakeCounts(t *testing.T) {
+	t.Parallel()
 	lines := []string{
 		"  alpha beta.gamma delta", // 0
 		"(one [two] three)",        // 1
@@ -319,6 +323,7 @@ func TestCopyModeMotionsTakeCounts(t *testing.T) {
 }
 
 func TestCopyModeScrollsByPages(t *testing.T) {
+	t.Parallel()
 	var lines []string
 	for i := range 100 {
 		lines = append(lines, fmt.Sprintf("row %d", i))
@@ -359,6 +364,7 @@ func TestCopyModeScrollsByPages(t *testing.T) {
 // three lines is three lines of six characters; o swaps the ends; $ runs a
 // block to the lines' ends; a count works inside a selection.
 func TestCopyModeVisualShapesYank(t *testing.T) {
+	t.Parallel()
 	lines := []string{"0123456789abcdef", "ABCDEFGHIJKLMNOP", "qrstuvwxyzQRSTUV", "short"}
 	app, _, sys := copyApp(t, nil, lines)
 	enterCopyMode(t, app)
@@ -394,6 +400,7 @@ func TestCopyModeVisualShapesYank(t *testing.T) {
 // of another name declared line-shaped selects and yanks whole lines, and
 // visual-line marked as a block selects a rectangle.
 func TestCopyModeSelectionFollowsTheShape(t *testing.T) {
+	t.Parallel()
 	lines := []string{"0123456789", "abcdefghij", "ABCDEFGHIJ"}
 	app, _, _ := copyApp(t, nil, lines)
 	enterCopyMode(t, app)
@@ -429,6 +436,7 @@ func TestCopyModeSelectionFollowsTheShape(t *testing.T) {
 
 // The footer names copy mode's actions, innermost first, with no motions.
 func TestCopyModeFooterHasNoMotions(t *testing.T) {
+	t.Parallel()
 	app, _, _ := copyApp(t, nil, []string{"one", "two"})
 	enterCopyMode(t, app)
 	hints := ochazuke.BindingHints(app.r, app.r.Focus)
@@ -451,6 +459,7 @@ func TestCopyModeFooterHasNoMotions(t *testing.T) {
 // Copy mode works zoomed: ctrl+a z then ctrl+a [ draws the buffer over the
 // page body, and i is live in the zoom again.
 func TestCopyModeInZoom(t *testing.T) {
+	t.Parallel()
 	app, f, _ := copyApp(t, []string{"history"}, []string{"$ ls", "a b c"})
 	cmd := key(t, app, "enter")
 	f.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"$ ls", "a b c"}, Cursor: ochazuke.Pos{X: 0, Y: 1}}
@@ -467,6 +476,7 @@ func TestCopyModeInZoom(t *testing.T) {
 
 // The buffer holds at most copyCap lines: the oldest history goes.
 func TestCopyModeCapsTheScrollback(t *testing.T) {
+	t.Parallel()
 	var history []string
 	for i := range copyCap + 50 {
 		history = append(history, fmt.Sprint(i))
@@ -483,6 +493,7 @@ func TestCopyModeCapsTheScrollback(t *testing.T) {
 // parent keeps its live view; i goes back to the side; ctrl+a [ in the
 // parent copies the parent beside the side.
 func TestCopyModeWithASidePane(t *testing.T) {
+	t.Parallel()
 	app, f := sideViewApp(t)
 	app.cx.sys = &fakeSystem{}
 	if err := app.showSide(app.attached, "vim"); err != nil {

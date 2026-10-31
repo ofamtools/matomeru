@@ -22,6 +22,7 @@ func turnOpen(a *App) bool {
 // F8: h on an open turn closes it and stays; h on a closed turn goes back
 // to the pane row the turns belong to, in both styles.
 func TestHOnAClosedTurnGoesToThePaneRow(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) {
 			app, _, _ := claudeTurnsApp(t)
@@ -55,6 +56,7 @@ func TestHOnAClosedTurnGoesToThePaneRow(t *testing.T) {
 // F9: the first l (or }) from the pane row lands on the newest turn in
 // both styles; the cards follow the newest and the tree now starts there.
 func TestFirstEntryLandsOnTheNewestTurn(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		for _, k := range []string{"l", "}"} {
 			t.Run(style+"/"+k, func(t *testing.T) {
@@ -95,6 +97,7 @@ func TestFirstEntryLandsOnTheNewestTurn(t *testing.T) {
 // draft and leaves the focus where they put it; one that completes in the
 // box still focuses it in insert mode.
 func TestPasteCompletionKeepsTheFocusWhereItWent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		set  func(*fakeClipboard)
@@ -140,6 +143,7 @@ func TestPasteCompletionKeepsTheFocusWhereItWent(t *testing.T) {
 // return to the row, which every tab draws; only live, which returns into
 // the turns, brings the Turns tab back (F5).
 func TestCopyAndHintsFromTheTurnsLeaveTheHiddenTurns(t *testing.T) {
+	t.Parallel()
 	for _, verb := range []string{"copy", "hints"} {
 		t.Run(verb, func(t *testing.T) {
 			app, _, _ := claudeTurnsApp(t)

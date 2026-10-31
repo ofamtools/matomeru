@@ -11,6 +11,7 @@ import (
 // every level. The modal draws the tree with Tree.Block, which takes the
 // breadcrumb line out of the height it is given, so no row is cut.
 func TestOutlineZoomsWithABreadcrumb(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
 	if a.r.Focus != outlineNode("t1") {
@@ -50,6 +51,7 @@ func TestOutlineZoomsWithABreadcrumb(t *testing.T) {
 // A panes section sizes itself with Tree.Height: zoomed, its need counts
 // the breadcrumb line, so the rows under it keep their lines.
 func TestPaneSectionNeedCountsTheBreadcrumb(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	groupBy(t, app, groupProjectSessionPane)
 	for _, sec := range app.pv.sections {

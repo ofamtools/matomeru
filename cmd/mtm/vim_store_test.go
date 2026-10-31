@@ -39,6 +39,7 @@ func vimSession(t *testing.T, a *App) work.VimSession {
 // no create (a session is opened, a launch); forget a lasting alias of
 // delete; open, save, reopen and choose-move named.
 func TestVimVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	standardIs(t, a, "vim", map[string]string{
 		"get": "get", "list": "list", "set": "set", "delete": "delete", "watch": "watch", "rename": "rename", "move": "move",
@@ -53,6 +54,7 @@ func TestVimVerbsAreStandard(t *testing.T) {
 // session file; rename and move are the standard writes, and undo reverts
 // them; m opens the project chooser.
 func TestVimKeysAndWrites(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	row := vimSession(t, a)
 	executeA(t, a, "vim", "rename", "", ochazuke.Arguments{"id": row.ID, "name": "plans"})
@@ -90,6 +92,7 @@ func TestVimKeysAndWrites(t *testing.T) {
 // vim list answers the sessions in scope as things; --all widens it
 // without changing the page.
 func TestVimListIsStandard(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	vimSession(t, a)
 	if err := a.work.PutVimSession(work.VimSession{ID: "vim-b", Name: "other", ProjectID: "ochazuke", State: "closed"}); err != nil {

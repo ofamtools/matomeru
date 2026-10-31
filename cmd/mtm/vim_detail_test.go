@@ -27,6 +27,7 @@ func openVimPage(t *testing.T, a *App, id string) {
 // and links the project, the live pane and the directory; a side Vim
 // links the pane it sits beside.
 func TestVimDetailShowsTheSessionAndItsLinks(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	openVimPage(t, a, l.vimID)
@@ -46,6 +47,7 @@ func TestVimDetailShowsTheSessionAndItsLinks(t *testing.T) {
 // enter on a Vim link lands on the project's Work row, the pane's Panes
 // row and the directory's Directories row.
 func TestVimLinksJumpToTheirRows(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	for _, c := range []struct{ kind, id, page, focus string }{
@@ -70,6 +72,7 @@ func TestVimLinksJumpToTheirRows(t *testing.T) {
 // J and K scroll the Vim detail from the list on a short screen; the row
 // keeps the focus.
 func TestVimDetailScrollsWithJK(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	openVimPage(t, a, l.vimID)

@@ -13,6 +13,7 @@ import (
 // or move (a review follows its pane); status a lasting alias of set of
 // status; open, accept, reject, choose-status and saveAnswer named.
 func TestReviewVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	standardIs(t, a, "review", map[string]string{
 		"get": "get", "list": "list", "set": "set", "watch": "watch",
@@ -26,6 +27,7 @@ func TestReviewVerbsAreStandard(t *testing.T) {
 // x, the s chooser and an answer are standard sets: undo reverts each;
 // review status ID STATUS and review get read and write over the CLI.
 func TestReviewWritesAreStandardAndUndo(t *testing.T) {
+	t.Parallel()
 	app, _, rv := reviewApp(t)
 	press(t, app, "x")
 	press(t, app, "s", "r", "enter")
@@ -74,6 +76,7 @@ func TestReviewWritesAreStandardAndUndo(t *testing.T) {
 // A pane mtm did not launch has a row from its journaled turns; a set on
 // it writes its record first (record first).
 func TestReviewSetWritesAJournalRowsRecord(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	capturedTurns(t, path, "first answer")
 	app := openWith(t, Options{Data: path})

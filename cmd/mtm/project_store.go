@@ -149,7 +149,7 @@ func (a *App) createProject(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thi
 		return nil, err
 	}
 	if dir, _ := thingString(values, "dir"); strings.TrimSpace(dir) != "" {
-		tree := inspectDirectory(expandPath(dir))
+		tree := inspectDirectory(a.expandPath(dir))
 		if _, err := a.work.AddTree(p.ID, tree); err != nil {
 			return nil, err
 		}

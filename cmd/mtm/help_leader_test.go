@@ -13,6 +13,7 @@ import (
 // (ctrl+a ?) shows; each sequence is listed once, under the leader, and
 // the rows follow the terminal-leader setting (ochazuke R6.10).
 func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
+	t.Parallel()
 	app, _ := liveApp(t)
 	check := func(leader string) {
 		t.Helper()

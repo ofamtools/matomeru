@@ -9,6 +9,7 @@ import (
 // the selection moves to pane B, B's box shows B's draft (empty), and
 // enter in B's box never sends A's text to B.
 func TestPromptDraftIsThePanes(t *testing.T) {
+	t.Parallel()
 	app, f, _ := claudeTurnsApp(t)
 	frame(app)
 	press(t, app, "i")
@@ -66,6 +67,7 @@ func TestPromptDraftIsThePanes(t *testing.T) {
 // A send that lands after the box moved to another pane clears the sent
 // pane's kept draft, never the text now in the box.
 func TestPromptSendClearsItsOwnPanesDraft(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	app.pb.owner = "w2"
 	app.pb.input.SetText("for the shell")
@@ -86,6 +88,7 @@ func TestPromptSendClearsItsOwnPanesDraft(t *testing.T) {
 
 // prompt.draft-per-target off: the box keeps one text across panes.
 func TestPromptDraftPerTargetOff(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	if err := app.r.Settings().Set(settingDraftPerTarget, false); err != nil {
 		t.Fatal(err)

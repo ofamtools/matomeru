@@ -43,6 +43,7 @@ func footerLabels(t *testing.T, a *App) {
 }
 
 func TestTerminalFooterExposesPassthroughLeader(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	app.launcher = &fakeDaemon{}
 
@@ -65,6 +66,7 @@ func TestTerminalFooterExposesPassthroughLeader(t *testing.T) {
 // row's own verbs first, each as key, noun.verb and description, and esc
 // closes it back onto the row.
 func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	mono(t, app)
 	press(t, app, "j", "enter")
@@ -108,6 +110,7 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 // Test pass item 9: a chooser's footer and hint line list no motions
 // (chooser.move is a motion, as list.move is on pages).
 func TestChooserFooterListsNoMotions(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	press(t, a, "P")
 	if a.r.TopModal() != pinPicker {
@@ -121,6 +124,7 @@ func TestChooserFooterListsNoMotions(t *testing.T) {
 
 // UX review 2 F11: hints name what the key does at this focus.
 func TestStaleHintsAreGone(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -172,6 +176,7 @@ func TestStaleHintsAreGone(t *testing.T) {
 
 // The leader's footer says what each side key opens.
 func TestLeaderHintsNameEachKey(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	press(t, app, "enter", "ctrl+a")
 	if app.r.Mode.Name != "leader_pending" {
@@ -182,6 +187,7 @@ func TestLeaderHintsNameEachKey(t *testing.T) {
 
 // The detail's tab line offers "enter live" only on a pane row.
 func TestTabLineEnterLiveOnlyOnAPaneRow(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	settle(app, follow(app))
 	if fr := frame(app); !strings.Contains(fr, "enter live") {
@@ -198,6 +204,7 @@ func TestTabLineEnterLiveOnlyOnAPaneRow(t *testing.T) {
 // 0, ochazuke's default for every sequence): ctrl+a schedules no timer and
 // still waits, and ctrl+a d then detaches.
 func TestLiveLeaderWaitsPastTheBindingTimeout(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	app.r.EnsureConfigSettings()
 	if v, err := app.r.Settings().Get(ochazuke.SequenceTimeoutSetting); err != nil || v.Value != "0s" {
@@ -227,6 +234,7 @@ func TestLiveLeaderWaitsPastTheBindingTimeout(t *testing.T) {
 // sequence-unknown: swallow sends nothing to the pane and stays live;
 // pass (the default) sends the leader, then the key.
 func TestLiveLeaderUnknownKeyFollowsSequenceUnknown(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	app.r.EnsureConfigSettings()
 	press(t, app, "enter")

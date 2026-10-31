@@ -51,6 +51,7 @@ func countItems(t *testing.T, a *App, ids []string, clock int64, state, project 
 // s (a verb that asks) opens one chooser whose time snoozes all three, m
 // moves all three through one project chooser; visual mode ends each time.
 func TestVisualInboxActsOnEverySelectedRow(t *testing.T) {
+	t.Parallel()
 	a, ids, clock := visualInbox(t)
 	press(t, a, "V", "j", "j", "x")
 	if n, _ := countItems(t, a, ids, *clock, actionitems.StateArchived, ""); n != 3 || a.inbox.list.Visual() {
@@ -94,6 +95,7 @@ func TestVisualInboxActsOnEverySelectedRow(t *testing.T) {
 // that names the first and counts the rest: the task's normal d d does
 // not make the visual-line d wait (ochazuke's sequence-inherit drop).
 func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter", "V", "j", "s")
 	if app.r.TopModal() != statusChooser || app.taskList.Visual() {
@@ -141,6 +143,7 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 // the pane's visual-line d (pane.kill) answers at once, its normal d d
 // does not make it wait, and the footer leaves the d d out.
 func TestVisualPanesDKillsTheSelectionAtOnce(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	press(t, app, "V")
 	for i := 0; i < 4 && app.r.Focus != "pane:ochazuke/w2"; i++ {
@@ -168,6 +171,7 @@ func TestVisualPanesDKillsTheSelectionAtOnce(t *testing.T) {
 // In the outline, V j selects both tasks: x marks both done and one u
 // undoes both; s asks once and sets both, one u restores both.
 func TestVisualOutlineActsOnEverySelectedTaskAsOneUndo(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
 	if a.r.Focus != outlineNode("t1") {
@@ -206,6 +210,7 @@ func TestVisualOutlineActsOnEverySelectedTaskAsOneUndo(t *testing.T) {
 // extends the selection and m, the pane rows' own normal key, asks once
 // for both panes; visual ends with the chooser.
 func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	press(t, app, "V")
 	if app.r.Mode.Name != "visual-line" || app.r.SelectionShape(app.r.Mode.Name) != ochazuke.SelectionLine {
@@ -238,6 +243,7 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 // does for one row (fixed in ochazuke v0.57.0; v0.55.0 asked "Run
 // task.delete on 2 rows?").
 func TestVisualTaskDeleteNamesWhatItOrphans(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter", "V", "j", "d")
 	if f := frameAt(app, 120); !strings.Contains(f, "Orphan:") {
@@ -249,6 +255,7 @@ func TestVisualTaskDeleteNamesWhatItOrphans(t *testing.T) {
 // counts the rest, as the standard delete documents. ochazuke v0.57.0
 // expanded {{label}} as "true" ("Delete task true?"); v0.58.0 fixes it.
 func TestVisualTaskDeleteNamesTheFirstRow(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter", "V", "j", "d")
 	f := frameAt(app, 120)

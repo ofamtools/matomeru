@@ -12,6 +12,7 @@ import (
 // default panes.status-border all, only needs input and errored under
 // alert, none under off; a shell has none.
 func TestPaneBorderToneByState(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	agent := func(state string) pane { return pane{Harness: "claude", Pane: daemon.Pane{AgentState: state}} }
 	cases := []struct {
@@ -58,6 +59,7 @@ func TestPaneBorderToneByState(t *testing.T) {
 // working agent's frame differs from the same frame under off, and alert
 // (working is no alert) draws it as off does.
 func TestPaneBorderToneIsDrawn(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	for i := range f.panes {
 		f.panes[i].Harness, f.panes[i].AgentState = "claude", "working"

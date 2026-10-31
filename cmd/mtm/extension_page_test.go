@@ -43,6 +43,7 @@ func extStatus(a *App, name string) string {
 // The Extensions tab sits after mtm's own pages (Runs, after Schedules, is the last) and before the
 // extensions' tabs.
 func TestExtensionsPageIsTheTabBeforeTheExtensions(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, _ := fakeExtension(t, toolCatalog("fake", "1.0"), "")
 	a := registered(t, path, "fake", bin)
@@ -60,6 +61,7 @@ func TestExtensionsPageIsTheTabBeforeTheExtensions(t *testing.T) {
 // again), and a missing bin's row is removed the same way. Keys that do
 // not apply to a row's status do not answer there.
 func TestExtensionsPageKeys(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	fakeTool(t, dir, "alpha", toolCatalog("alpha", "1.0"))
 	gone := fakeTool(t, dir, "gone", toolCatalog("gone", "1.0"))
@@ -147,6 +149,7 @@ func TestExtensionsPageKeys(t *testing.T) {
 // One row of each status, the stale one selected: the table's columns and
 // the detail with what changed at its top.
 func TestExtensionsPageFrame(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	fakeTool(t, dir, "alpha", toolCatalog("alpha", "1.0"))
 	beta := fakeTool(t, dir, "beta", toolCatalog("beta", "1.0"))
@@ -193,6 +196,7 @@ func TestExtensionsPageFrame(t *testing.T) {
 // is looking, and with nothing on PATH the table says what would be
 // listed.
 func TestExtensionsPageEmpty(t *testing.T) {
+	t.Parallel()
 	if !opQuiet(t, "extension.available") {
 		t.Fatal("extension.available is not quiet")
 	}

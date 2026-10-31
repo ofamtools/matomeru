@@ -17,9 +17,9 @@ import (
 // is expanded on both sides, and a directory attached through a symlink
 // also holds the paths it resolves to.
 func TestPathProjectPinThenLongest(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
-	t.Setenv("HOME", home)
 	real := filepath.Join(root, "real")
 	link := filepath.Join(root, "link")
 	for _, d := range []string{filepath.Join(home, "proj", "h"), real} {
@@ -37,6 +37,7 @@ func TestPathProjectPinThenLongest(t *testing.T) {
 		{ID: "tilde", DefaultTree: "~/proj/h"},
 		{ID: "linked", Trees: []work.Tree{{Kind: "dir", Path: link}}},
 	}}
+	a.home = func() (string, error) { return home, nil }
 	a.refreshProjectPrefixes()
 	resolved, err := filepath.EvalSymlinks(real)
 	if err != nil {
@@ -242,6 +243,7 @@ func pin(t *testing.T, a *App, project string) {
 // extension row's recorded owner, an open modal's return focus; else the
 // pin, else none.
 func TestContextProjectWalksTheFocusStack(t *testing.T) {
+	t.Parallel()
 	a, _, root := scopeApp(t)
 	focus := func(id string) {
 		t.Helper()
@@ -339,6 +341,7 @@ func TestContextProjectWalksTheFocusStack(t *testing.T) {
 // Acting on a row with no owner records the context project too; a
 // recorded row keeps its owner.
 func TestDocNewFromAPaneIsTheProjectsDoc(t *testing.T) {
+	t.Parallel()
 	a, log, root := scopeApp(t)
 	openExtPage(t, a, "ext/md/docs")
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "work", ProjectID: "ochazuke"}); err != nil {
@@ -405,6 +408,7 @@ func TestDocNewFromAPaneIsTheProjectsDoc(t *testing.T) {
 // No context project: the doc is made, unassociated by record (its path
 // may still tell its project), and nothing is refused.
 func TestDocNewWithNoProjectRecordsNothing(t *testing.T) {
+	t.Parallel()
 	a, log, root := scopeApp(t)
 	openExtPage(t, a, "ext/md/docs")
 	focusOn(t, a, docsList+"/loose") // a row with no project
@@ -433,6 +437,7 @@ func TestDocNewWithNoProjectRecordsNothing(t *testing.T) {
 // directory moves a derived row, never a recorded one; ext.md.scope off
 // draws the rows as the tool answered them.
 func TestDocsRowsFollowThePinnedProject(t *testing.T) {
+	t.Parallel()
 	a, _, root := scopeApp(t)
 	// theirs sits in ochazuke's directory but was recorded as matomeru's.
 	if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: "theirs", ProjectID: "matomeru"}); err != nil {
@@ -543,6 +548,7 @@ func TestDocsRowsFollowThePinnedProject(t *testing.T) {
 
 // A deleted project leaves the rows recorded as its own unassociated.
 func TestExtRowOwnerClearedWithItsProject(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scopeApp(t)
 	if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: "loose", ProjectID: "ochazuke"}); err != nil {
 		t.Fatal(err)
@@ -564,6 +570,7 @@ func TestExtRowOwnerClearedWithItsProject(t *testing.T) {
 // The scope setting is declared per extension, auto by default, in the
 // extension's own section of the Settings page.
 func TestExtScopeSettingDeclaredPerExtension(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scopeApp(t)
 	s, err := a.r.Settings().Get("ext.md.scope")
 	if err != nil {
@@ -593,6 +600,7 @@ func lastListCall(t *testing.T, log string) string {
 // between rows recorded to different projects never changes what a reload
 // asks for; S (all projects) and no pin tell none.
 func TestDocsReloadIgnoresTheCursor(t *testing.T) {
+	t.Parallel()
 	a, log, root := scopeApp(t)
 	for row, project := range map[string]string{"mine": "matomeru", "theirs": "ochazuke"} {
 		if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: row, ProjectID: project}); err != nil {
@@ -640,6 +648,7 @@ func TestDocsReloadIgnoresTheCursor(t *testing.T) {
 // Acting on a doc from its own row records the row's path project, not
 // the pin: pin matomeru, focus a doc under ochazuke's directory, act.
 func TestActingOnADerivedDocRecordsItsPathProject(t *testing.T) {
+	t.Parallel()
 	a, log, root := scopeApp(t)
 	pin(t, a, "matomeru")
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "scope", Verb: "all"}); err != nil { // theirs is shown

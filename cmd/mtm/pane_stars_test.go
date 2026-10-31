@@ -23,6 +23,7 @@ func starred(t *testing.T, app *App) map[string]work.PaneStar {
 // unstars it, --value (and the deprecated --starred) sets it; a listing without the window keeps its
 // star (work.PaneStar says why), and the row reads ★ when it is back.
 func TestStarAPaneRow(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	settle(app, follow(app))
 	if app.r.Focus != "pane:matomeru/w1" {
@@ -73,6 +74,7 @@ func TestStarAPaneRow(t *testing.T) {
 // ` on the Panes page selects the next starred pane, wrapping; with none
 // starred it says how to star one.
 func TestBacktickSelectsTheNextStarredPane(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	settle(app, follow(app))
 	app.Update(keyMsg("`"))

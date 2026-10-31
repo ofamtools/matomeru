@@ -184,6 +184,7 @@ func stepTitles(a *App, card string) string {
 // its meta how it stands and the usage; never the notification's XML
 // (which used to fill the screen).
 func TestNotificationIsACompactEventCard(t *testing.T) {
+	t.Parallel()
 	for _, width := range []int{80, 120} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			app, _ := agentsApp(t)
@@ -216,6 +217,7 @@ func TestNotificationIsACompactEventCard(t *testing.T) {
 // Opened, a notification card shows the agent's report as steps and then
 // what the agent did about it.
 func TestNotificationCardOpensToTheResult(t *testing.T) {
+	t.Parallel()
 	app, _ := agentsApp(t)
 	app.m.Width, app.m.Height = 120, 60
 	frame(app)
@@ -249,6 +251,7 @@ func TestNotificationCardOpensToTheResult(t *testing.T) {
 // The spawning turn's agent steps say each agent's state; nothing reads a
 // subagent's log until its step is opened.
 func TestAgentStepsShowStateAndReadLazily(t *testing.T) {
+	t.Parallel()
 	for _, width := range []int{80, 120} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			app, _ := agentsApp(t)
@@ -285,6 +288,7 @@ func TestAgentStepsShowStateAndReadLazily(t *testing.T) {
 // the brief, its tool calls, its depth-2 agent (whose own turns are past
 // the nesting cap) and its answer. o, copy-brief and copy-result act on it.
 func TestAgentStepNestsItsTranscript(t *testing.T) {
+	t.Parallel()
 	app, _ := agentsApp(t)
 	app.m.Width, app.m.Height = 120, 80
 	frame(app)
@@ -339,6 +343,7 @@ func TestAgentStepNestsItsTranscript(t *testing.T) {
 // The tree style shows the same: the notification as one compact row,
 // agent steps as rows, an opened one's transcript as child rows.
 func TestAgentsInTheTree(t *testing.T) {
+	t.Parallel()
 	for _, width := range []int{80, 120} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			app, _ := agentsApp(t)
@@ -376,6 +381,7 @@ func TestAgentsInTheTree(t *testing.T) {
 // A session with 70 subagents (and their notifications) builds and draws
 // fast and reads no subagent log until one is opened.
 func TestSeventySubagentsStayFast(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "claude-code", "idle", "s1", "/w/proj"
 	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))
@@ -437,6 +443,7 @@ func TestSeventySubagentsStayFast(t *testing.T) {
 // muted) under the spawning turn at 80 and 120 columns; -update rewrites
 // them.
 func TestNotificationCardFrames(t *testing.T) {
+	t.Parallel()
 	app, _ := agentsApp(t)
 	app.loc = time.UTC // the cards' times are the same in any zone
 	if err := app.showTurns(app.pv.turnsFor); err != nil {
@@ -467,6 +474,7 @@ func TestNotificationCardFrames(t *testing.T) {
 // call, the turn has one card of the task: two with one id emptied the
 // whole Turns tab ("no turns yet" and a list item ID error).
 func TestATasksNotificationsWithAndWithoutTheCallAreOneCard(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "claude-code", "idle", "s1", "/w/proj"
 	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))

@@ -10,6 +10,7 @@ import (
 // RecordingSink attached in its place a delete's notice lands there and
 // the footer stays empty.
 func TestHandlerNoticesGoThroughTheUISink(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	note, err := app.work.AddNote("matomeru", "", "scratch")
 	if err != nil {
@@ -36,6 +37,7 @@ func TestHandlerNoticesGoThroughTheUISink(t *testing.T) {
 // Expiry takes notices back by id: a key clears the ones shown before it,
 // and a notice cleared elsewhere is not cleared twice.
 func TestNoticeExpiryClearsByID(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	first := app.r.UI().Notify("first")
 	app.Update(nil)

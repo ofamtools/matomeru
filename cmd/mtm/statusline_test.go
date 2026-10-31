@@ -98,6 +98,7 @@ func serveDaemon(t *testing.T, answer func(verb string) (any, bool)) string {
 // no feed writes (effort) is not shown; effort and the permission mode come
 // only from the flags mtm launched the agent with.
 func TestStatusLineShowsOnlyWhatTheDaemonReports(t *testing.T) {
+	t.Parallel()
 	panes, err := tuios{Client: daemon.New(statuslineDaemon(t))}.ListPanes(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -131,6 +132,7 @@ func TestStatusLineShowsOnlyWhatTheDaemonReports(t *testing.T) {
 // The detail header carries the full status line and the tree row its
 // compact form, both from the daemon's metadata.
 func TestStatusLineInTheHeaderAndTheTreeRow(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState = "claude", "working"
 	f.panes[0].Meta = map[string]string{"model": "opus", "context": "42%", "cost": "$1.20"}

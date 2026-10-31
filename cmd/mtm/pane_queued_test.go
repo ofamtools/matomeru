@@ -48,6 +48,7 @@ func queuedDaemon(t *testing.T, queued *atomic.Int64) string {
 // reads it, and it is gone once the queue empties. A pane with none never
 // shows it.
 func TestQueuedPromptsMarkThePaneRow(t *testing.T) {
+	t.Parallel()
 	var queued atomic.Int64
 	queued.Store(2)
 	app, f := panesApp(t)

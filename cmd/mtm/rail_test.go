@@ -20,6 +20,7 @@ func tickerIs(t *testing.T, a *App, where string, want ...string) {
 // framework's), a running job on top, at most two rows: a newer job pushes
 // the oldest finished one off.
 func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	app.launcher = &fakeDaemon{}
 	press(t, app, "j", "enter")
@@ -59,6 +60,7 @@ func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 // kill) are bookkeeping, not work the user asked for: Quiet keeps them off
 // the ticker, which then takes no rows.
 func TestTheTickerSkipsQuietVerbs(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	if len(jobsOf(app, "panes.refresh")) == 0 {
 		t.Fatal("no panes.refresh job to hide")
@@ -74,6 +76,7 @@ func TestTheTickerSkipsQuietVerbs(t *testing.T) {
 // A launch's job is named after its harness: the default-harness setting's
 // codex reads "agent.start codex" in the ticker.
 func TestALaunchJobIsLabelledWithItsHarness(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	if err := app.r.Settings().Set(settingDefaultHarness, "codex"); err != nil {
 		t.Fatal(err)

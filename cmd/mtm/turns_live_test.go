@@ -12,6 +12,7 @@ import (
 // Screen (live · ctrl+a ? keys), ctrl+a shows the leader's keys and ctrl+a
 // d comes back to the row; f switches to Screen and labels its screen.
 func TestTurnsTabReachesTheLiveKeys(t *testing.T) {
+	t.Parallel()
 	for _, harness := range []string{"", "claude-code", "omp"} {
 		t.Run("harness="+harness, func(t *testing.T) { turnsLive(t, harness) })
 	}
@@ -68,6 +69,7 @@ func turnsLive(t *testing.T, harness string) {
 // pane.copy from the palette on a tab other than Screen switches to the
 // Screen tab and enters copy mode there (l on Turns stays pane.turns).
 func TestPaneCopyFromTurnsSwitchesToScreen(t *testing.T) {
+	t.Parallel()
 	app, fp := panesApp(t)
 	fp.screens["w1"] = "$ echo copy\n$ "
 	app.pv.tab = tabTurns
@@ -87,6 +89,7 @@ func TestPaneCopyFromTurnsSwitchesToScreen(t *testing.T) {
 // The tab row puts Turns first; from every tab enter goes live on Screen,
 // f labels the Screen's screen, and pane.copy enters copy mode there.
 func TestLiveKeysFromEveryTab(t *testing.T) {
+	t.Parallel()
 	for tab, name := range tabNames {
 		t.Run(name, func(t *testing.T) {
 			for _, check := range []string{"enter", "f", "copy"} {

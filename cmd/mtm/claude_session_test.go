@@ -39,6 +39,7 @@ func turnsText(t *testing.T, app *App) string {
 // A stale session id: the Turns tab reads the one transcript written in
 // the pane's folder since its agent started.
 func TestTurnsFollowAStaleSessionToItsNewTranscript(t *testing.T) {
+	t.Parallel()
 	app, _ := staleClaudeApp(t, time.Now().Add(-time.Hour), "resumed")
 	if fr := turnsText(t, app); !strings.Contains(fr, "prompt of resumed") {
 		t.Fatalf("the resumed transcript is not shown:\n%s", fr)
@@ -48,6 +49,7 @@ func TestTurnsFollowAStaleSessionToItsNewTranscript(t *testing.T) {
 // Unsure is nothing: no start time, a transcript older than the agent,
 // another pane's transcript, or two candidates.
 func TestTurnsNeverGuessAStaleSession(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		started time.Time
@@ -78,6 +80,7 @@ func TestTurnsNeverGuessAStaleSession(t *testing.T) {
 // The side's folder follows the same rule: a stale id's new transcript
 // names where the agent is.
 func TestSideFollowsAStaleSessionsTranscript(t *testing.T) {
+	t.Parallel()
 	started, agent := t.TempDir(), t.TempDir()
 	a, parent, rec := sideContextApp(t, 4, started)
 	ownSideParent(t, a, parent, t.TempDir())
@@ -102,6 +105,7 @@ func TestSideFollowsAStaleSessionsTranscript(t *testing.T) {
 // The agent's start is its claude process's, from ps: the pane's own
 // process, else its one outermost claude descendant.
 func TestAgentStartFromThePsTable(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 	table := `
   100     1 1-02:03:04 /bin/zsh

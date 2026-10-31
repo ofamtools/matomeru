@@ -11,6 +11,7 @@ import (
 )
 
 func TestNoteMakerCLIAndFilters(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	actorPane(t, a, "w7", "t1", "codex")
 	a.getenv = envOf(map[string]string{"TUIOS_PANE_ID": "w7", "TUIOS_SESSION": "matomeru"})
@@ -43,6 +44,7 @@ func TestNoteMakerCLIAndFilters(t *testing.T) {
 }
 
 func TestNoteMakerTUIQuickNote(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	a.getenv = envOf(map[string]string{actorEnv: "agent", "TUIOS_PANE_ID": "w7"})
 	press(t, a, "N")
@@ -91,6 +93,7 @@ func assertNoteFilterFrame(t *testing.T, a *App, filter string) {
 }
 
 func TestNoteMakerFiltersPageAndModal(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	noteFilterRows(t, a)
 	notesOn(t, a, "maker-owner")
@@ -160,6 +163,7 @@ func TestNoteMakerFiltersPageAndModal(t *testing.T) {
 }
 
 func TestNoteMakerModalView(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	noteFilterRows(t, a)
 	if _, err := a.work.AddNote("matomeru", "t2", "last task note"); err != nil {
@@ -187,6 +191,7 @@ func TestNoteMakerModalView(t *testing.T) {
 }
 
 func TestNoteMakerUndoRetainsProvenance(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{work.ActorUnknown, work.ActorAgent} {
 		t.Run(kind, func(t *testing.T) {
 			a := open(t)

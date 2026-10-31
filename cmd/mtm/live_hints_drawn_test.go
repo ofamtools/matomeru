@@ -32,6 +32,7 @@ func tallRows(rows int, first, last string) []string {
 // Now every label is on a drawn cell, of both panes, in both layouts and
 // from either pane, as the rendered page shows.
 func TestHintsLabelOnlyWhatIsDrawn(t *testing.T) {
+	t.Parallel()
 	const (
 		mainHidden = "https://example.com/main-hidden"
 		sideHidden = "https://example.com/side-hidden"
@@ -90,6 +91,7 @@ func vimScreen(rows int, status string) []string {
 // the main pane's labels; a vim screen with nothing to label (no path on
 // it) says so beside the main pane's labels.
 func TestHintsLabelAVimSide(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "cmd", "mtm"), 0o755); err != nil {
 		t.Fatal(err)
@@ -127,6 +129,7 @@ func TestHintsLabelAVimSide(t *testing.T) {
 // cancels, from either pane, and no label holds a q (ctrl+q and Q do not
 // open or type either).
 func TestHintsQCancels(t *testing.T) {
+	t.Parallel()
 	var mainLines, sideLines []string
 	for i := range 12 {
 		mainLines = append(mainLines, "https://example.com/m"+string(rune('a'+i))+" https://example.com/n"+string(rune('a'+i)))

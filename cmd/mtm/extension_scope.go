@@ -537,8 +537,8 @@ func (a *App) refreshProjectPrefixes() {
 			if strings.TrimSpace(d) == "" {
 				continue
 			}
-			add(expandPath(d), p.ID)
-			add(directoryKey(d), p.ID)
+			add(a.expandPath(d), p.ID)
+			add(directoryKey(a.expandPath(d)), p.ID)
 		}
 	}
 	slices.SortStableFunc(out, func(x, y projectPrefix) int { return cmp.Compare(len(y.dir), len(x.dir)) })
@@ -550,7 +550,7 @@ func (a *App) refreshProjectPrefixes() {
 // the longest directory; "" for none. It touches no file (~ expanded and
 // the path cleaned only).
 func (a *App) pathProject(path string) string {
-	path = expandPath(path)
+	path = a.expandPath(path)
 	best := ""
 	for _, p := range a.projectPrefixes {
 		if !underDir(path, p.dir) {

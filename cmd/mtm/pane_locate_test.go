@@ -70,6 +70,7 @@ func writeRecord(t *testing.T, dir string, sys *procTable, pid int, session, cwd
 // session it writes. The Turns tab reads that one, and when the process
 // moves to a new session (a /clear) the next listing follows it, no R.
 func TestTurnsFollowThePanesLiveSessionRecord(t *testing.T) {
+	t.Parallel()
 	app, f := staleClaudeApp(t, time.Time{}) // no start time: the old fallback cannot help
 	dir, sys := claudeRecords(t, app, f)
 	writeTranscript(t, app, "first")
@@ -93,6 +94,7 @@ func TestTurnsFollowThePanesLiveSessionRecord(t *testing.T) {
 // runs: its own record has no transcript, and the folder's one running
 // session no pane holds is taken. Two of them are a notice, not a guess.
 func TestTurnsOfAnAttachingClaudePane(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		bgs  []string
@@ -127,6 +129,7 @@ func TestTurnsOfAnAttachingClaudePane(t *testing.T) {
 // A pane tuios reports no harness for takes the harness of the record it
 // holds; with no locator the listing stands.
 func TestLocatePanesTakesTheRecordsHarness(t *testing.T) {
+	t.Parallel()
 	app, f := staleClaudeApp(t, time.Time{})
 	dir, sys := claudeRecords(t, app, f)
 	writeTranscript(t, app, "live")

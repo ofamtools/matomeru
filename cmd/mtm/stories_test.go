@@ -14,6 +14,7 @@ import (
 // cannot fail. Stories run in parallel: a session shares nothing with
 // another (the race detector checks it under -race).
 func TestStories(t *testing.T) {
+	t.Parallel()
 	cfg := storyConfig()
 	cfg.Dir, cfg.Update = "stories", *updateGolden // -update (turn_wrap_test.go) rewrites these goldens too
 	host.Test(t, cfg)

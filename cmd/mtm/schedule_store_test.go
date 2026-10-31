@@ -15,6 +15,7 @@ import (
 // lasting aliases; add, edit, duplicate, history, run-now, toggle,
 // set-interval and reset named.
 func TestScheduleVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	standardIs(t, a, scheduleNoun, map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
@@ -31,6 +32,7 @@ func TestScheduleVerbsAreStandard(t *testing.T) {
 // undo reverts them; set writes a field to a stored copy and enabled to
 // the row's setting.
 func TestScheduleKeysAreSetsAndUndo(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	s := a.r.Settings()
 	toPage(t, a, inboxPage)
@@ -61,6 +63,7 @@ func TestScheduleKeysAreSetsAndUndo(t *testing.T) {
 // d d asks and deletes a stored row, undo puts it back as it was; a
 // built-in is refused.
 func TestScheduleShowCreateDeleteAndUndo(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	mustCLI(t, a, "schedule", "run-now", "gh-signals")
 	var shown scheduleAnswerJSON

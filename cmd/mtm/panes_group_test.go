@@ -55,6 +55,7 @@ func groupedApp(t *testing.T) (*App, []pane) {
 // session rows), project → session → pane, session → pane, or flat. Each
 // value only regroups; every pane is still a row.
 func TestPanesGroupLevels(t *testing.T) {
+	t.Parallel()
 	a, _ := groupedApp(t)
 	for _, c := range []struct{ group, want string }{
 		{"", "project:matomeru\n  pane:work/wa\nproject:ochazuke\n  pane:work/wb\nproject:\n  pane:outside/wu"},
@@ -78,6 +79,7 @@ func TestPanesGroupLevels(t *testing.T) {
 // Needs input still sorts first: in a project across its sessions when
 // sessions are not shown, and over the whole list when flat.
 func TestPanesGroupKeepsNeedsInputFirst(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[1].Harness, f.panes[1].AgentState = "claude", "needs_input"
 	reload(t, app)
@@ -100,6 +102,7 @@ func TestPanesGroupKeepsNeedsInputFirst(t *testing.T) {
 // pane outside the pin keeps its labelled group, its panes (and, where
 // sessions show, its session) beneath it.
 func TestPanesGroupWhilePinned(t *testing.T) {
+	t.Parallel()
 	a, panes := groupedApp(t)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	a.attached = panes[2] // attached from the all view, then pinned
@@ -123,6 +126,7 @@ func TestPanesGroupWhilePinned(t *testing.T) {
 // panes.cycle-group steps through the values, wrapping; both answer from
 // the palette and the CLI, with no key.
 func TestPanesGroupVerbs(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	executeA(t, app, "panes", "group", "", ochazuke.Arguments{"group": groupFlat})
 	if got := app.r.Settings().String(settingPanesGroup); got != groupFlat || countRows(app, "pane-project") != 0 {

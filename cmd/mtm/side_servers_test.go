@@ -11,6 +11,7 @@ import (
 // of this server's windows, and the side links made here survive it, so a
 // restart here still reattaches them.
 func TestAnotherServersListingKeepsSideLinks(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	parent := pane{Session: "matomeru", Pane: daemon.Pane{ID: "w1", Name: "claude"}}
 	side := pane{Session: "matomeru", Pane: daemon.Pane{ID: "s1", Name: "side-term"}}

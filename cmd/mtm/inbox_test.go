@@ -50,6 +50,7 @@ type addAnswer struct {
 // set when a row was added; the same source and URL (or --key) refreshes
 // that row instead, so a poll that runs again never duplicates.
 func TestCLIActionItemAddIsIdempotent(t *testing.T) {
+	t.Parallel()
 	a, _, _ := inboxApp(t)
 	var first, again, keyed, rekeyed addAnswer
 	cliJSON(t, a, &first, "action-item", "add", "--source", "gh", "--url", "https://github.com/o/r/pull/7", "--why", "review requested", "--title", "Fix the store", "--json")
@@ -79,6 +80,7 @@ func TestCLIActionItemAddIsIdempotent(t *testing.T) {
 // Record first: an owner that cannot be found is left out with a notice,
 // and an item naming none is unassociated; a task brings its project.
 func TestCLIActionItemAddRecordsWhateverItIsGiven(t *testing.T) {
+	t.Parallel()
 	a, _, _ := inboxApp(t)
 	var lost, bare, onTask, byName addAnswer
 	cliJSON(t, a, &lost, "action-item", "add", "--why", "look", "--project", "nope")
@@ -121,6 +123,7 @@ type actionThing struct {
 // read, snooze sets snoozed-until, archive and restore are standard,
 // associate's old forms run set, the reverse relations too.
 func TestCLIActionItemVerbs(t *testing.T) {
+	t.Parallel()
 	a, _, clock := inboxApp(t)
 	var it addAnswer
 	cliJSON(t, a, &it, "action-item", "add", "--source", "gh", "--url", "https://x/1", "--why", "review requested", "--title", "PR 1")
@@ -224,6 +227,7 @@ func seedInbox(t *testing.T, a *App, clock *int64) (actionitems.Item, actionitem
 // page's title row counts unread/open; the rows go unread first; u, x, X,
 // enter, s, t, m and d d act on the row.
 func TestInboxPageKeys(t *testing.T) {
+	t.Parallel()
 	a, sys, clock := inboxApp(t)
 	pr, ping := seedInbox(t, a, clock)
 	press(t, a, "I")
@@ -341,6 +345,7 @@ func TestInboxPageKeys(t *testing.T) {
 // An item another process adds shows on the timer's reload, with the
 // title row's count; nothing open shows no count.
 func TestInboxReloadsWhatOthersAdd(t *testing.T) {
+	t.Parallel()
 	a, _, _ := inboxApp(t)
 	if strings.Contains(frameAt(a, 120), "inbox ") {
 		t.Fatal("count with nothing open")
@@ -361,6 +366,7 @@ func TestInboxReloadsWhatOthersAdd(t *testing.T) {
 }
 
 func TestSnoozeParsing(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 	for in, want := range map[string]time.Duration{"90m": 90 * time.Minute, "4h": 4 * time.Hour, "2d": 48 * time.Hour, "1w": 7 * 24 * time.Hour} {
 		if d, err := parseSpan(in); err != nil || d != want {

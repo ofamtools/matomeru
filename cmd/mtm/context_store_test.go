@@ -31,6 +31,7 @@ func contextIDOf(t *testing.T, a *App, text string) string {
 // (no rename: the text is the item, written by create only), forget a
 // lasting alias of delete, and the named ones beside them.
 func TestContextItemVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a, _ := contextApp(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
@@ -62,6 +63,7 @@ func TestContextItemVerbsAreStandard(t *testing.T) {
 // "Forget ...?" and deletes the record; undo puts the row back as it was,
 // sightings and all.
 func TestContextItemKeysStarMoveForget(t *testing.T) {
+	t.Parallel()
 	a, _ := contextApp(t)
 	link := contextIDOf(t, a, "https://example.com/ochazuke")
 	selectContext(t, a, "https://example.com/ochazuke")
@@ -104,6 +106,7 @@ func TestContextItemKeysStarMoveForget(t *testing.T) {
 // extraction stores it); a new project drops a task of another project; an
 // unknown owner is saved unassociated with a notice, never refused.
 func TestContextItemOwnerProps(t *testing.T) {
+	t.Parallel()
 	a, _ := contextApp(t)
 	id := contextIDOf(t, a, "1ba025f")
 	thing, _ := executeA(t, a, contextNoun, "set", "", ochazuke.Arguments{"id": id, "prop": "task", "value": "t1"}).(map[string]any)
@@ -135,6 +138,7 @@ func TestContextItemOwnerProps(t *testing.T) {
 // merged into one already kept), star and forget work as before, and
 // associate's old forms say what replaces them.
 func TestContextItemStandardVerbsFromTheCLI(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "branch", Text: "lane/context"}, {Kind: "file", Text: "/tmp/x.go"}}, contextitems.Owner{}, 1); err != nil {
 		t.Fatal(err)
@@ -191,6 +195,7 @@ func TestContextItemStandardVerbsFromTheCLI(t *testing.T) {
 // yield to --value: "set takes a value or toggle, not both". The runtime
 // and the palette merge after the arguments (WithPresets) and yield.
 func TestContextItemStarValueFromTheCLI(t *testing.T) {
+	t.Parallel()
 	t.Skip("ochazuke v0.55.0: the CLI applies alias presets before the flags; star --value is refused")
 	a, _ := cliApp(t)
 	if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "branch", Text: "lane/x"}}, contextitems.Owner{}, 1); err != nil {

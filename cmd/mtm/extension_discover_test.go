@@ -81,6 +81,7 @@ func discovered(t *testing.T, a *App) map[string]extCandidate {
 // and a later o-NAME of a name already found are not listed, and nothing
 // but catalog ever runs.
 func TestExtensionDiscoveryStatuses(t *testing.T) {
+	t.Parallel()
 	first, second := t.TempDir(), t.TempDir()
 	fakeTool(t, first, "alpha", toolCatalog("alpha", "1.0"))
 	fakeTool(t, second, "alpha", toolCatalog("alpha", "9.9")) // shadowed
@@ -157,6 +158,7 @@ func TestExtensionDiscoveryStatuses(t *testing.T) {
 // A tool that does not answer within the timeout is skipped, and the
 // discovery does not wait for it (or for a child it left running).
 func TestExtensionDiscoverySkipsASlowTool(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	fakeTool(t, dir, "alpha", toolCatalog("alpha", "1.0"))
 	slow := filepath.Join(dir, "o-slow")

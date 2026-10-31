@@ -45,6 +45,7 @@ func boxNormal(t *testing.T, a *App) {
 // as k does in normal mode; F11: the footer names the send and the mode
 // switch in short words.
 func TestBoxDefaultsUpAndShortHints(t *testing.T) {
+	t.Parallel()
 	app, _ := promptApp(t)
 	foot := footerLine(app)
 	if !strings.Contains(foot, "enter send") || !strings.Contains(foot, "ctrl+t mode") || strings.Contains(foot, "turn-prompt.send") {

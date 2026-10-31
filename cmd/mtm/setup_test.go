@@ -10,6 +10,7 @@ import (
 // mtm setup against a temp home: list, plan (writes nothing), install
 // with --yes, uninstall. Never the owner's ~/.claude, ~/.codex or ~/.omp.
 func TestCLISetupInATempHome(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	home := t.TempDir()
 	if out := mustCLI(t, app, "setup", "list", "--home", home); strings.Count(out, `"missing"`) != 3 {

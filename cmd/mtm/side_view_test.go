@@ -35,6 +35,7 @@ func sideViewApp(t *testing.T) (*App, *fakePanes) {
 }
 
 func TestSideFocusReplacementAndDetachStack(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	parent := f.streams[0]
 	if err := a.showSide(a.attached, "vim"); err != nil {
@@ -74,6 +75,7 @@ func TestSideFocusReplacementAndDetachStack(t *testing.T) {
 }
 
 func TestSideRefreshFallsBackAfterExit(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
@@ -94,6 +96,7 @@ func TestSideRefreshFallsBackAfterExit(t *testing.T) {
 }
 
 func TestSideLayoutAndFocusedZoomCursor(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
@@ -142,6 +145,7 @@ func TestSideLayoutAndFocusedZoomCursor(t *testing.T) {
 }
 
 func TestMainDetachReleasesSideStream(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
@@ -155,6 +159,7 @@ func TestMainDetachReleasesSideStream(t *testing.T) {
 }
 
 func TestSessionKillRefusesLiveCompanionsWithoutDetaching(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, a, groupProjectSessionPane)
@@ -190,6 +195,7 @@ func TestSessionKillRefusesLiveCompanionsWithoutDetaching(t *testing.T) {
 // change. Before, the stream dialled at the window's own size (the
 // session's whole screen) and only shrank once drawn.
 func TestSideStreamOpensAtItsRegion(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	// 240 wide: the detail is 167x30, the side its right 83 columns.
 	a.renderPanes(a.r, 240, 30)
@@ -224,6 +230,7 @@ func TestSideStreamOpensAtItsRegion(t *testing.T) {
 // so in the footer, and the next frame sizes both terminals to their new
 // regions. beside holds down to two 40-column panels.
 func TestSideLayoutFlipResizesBoth(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
@@ -271,6 +278,7 @@ func TestSideLayoutFlipResizesBoth(t *testing.T) {
 // Leader o moves the focus between the parent and its side, wrapping,
 // as tmux's prefix o does; with no side shown it is a quiet no-op.
 func TestLeaderOCyclesParentAndSide(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	press(t, a, "ctrl+a", "o")
 	if a.r.Focus != paneTermID || len(f.streams[0].sent) != 0 {
@@ -294,6 +302,7 @@ func TestLeaderOCyclesParentAndSide(t *testing.T) {
 // selects the parent, attaches it, shows that side and focuses it. A side
 // whose parent exited, or is not in this listing, is not offered.
 func TestSideChooserJumpsToAnySide(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	other := f.panes[1] // w2, not attached
 	gone := pane{Session: other.Session, Pane: daemon.Pane{ID: "gone-parent", Name: "gone"}}
@@ -339,6 +348,7 @@ func TestSideChooserJumpsToAnySide(t *testing.T) {
 
 // With no side open, leader w says so instead of opening an empty chooser.
 func TestSideChooserWithNoSides(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	press(t, a, "ctrl+a", "w") // the page leader row: normal mode on Panes
 	if a.r.TopModal() != "" || !slices.Contains(a.m.Notices, "no side panes are open") {
@@ -349,6 +359,7 @@ func TestSideChooserWithNoSides(t *testing.T) {
 // Outside live, ctrl+a w is a Panes page row too, and the palette reaches
 // the verb.
 func TestSideChooserFromPageAndPalette(t *testing.T) {
+	t.Parallel()
 	a, _ := sideViewApp(t)
 	press(t, a, "ctrl+a", "d") // detach: the focus is back on the row
 	if a.r.Terminal(paneTermID) != nil {
@@ -370,6 +381,7 @@ func TestSideChooserFromPageAndPalette(t *testing.T) {
 // The leader's hint and its keys modal (terminal.keys) name o, R and w; space after the
 // leader stays unbound, so it sends the leader and itself to the pane.
 func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	var hint string
 	for _, b := range a.r.Noun("terminal").Bindings["terminal"] {
@@ -418,6 +430,7 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 // every area it is drawn at (FitWindow) as well as leasing it. The
 // parent's stream asks the same way (App.openStream owns every stream).
 func TestSideZoomAsksForTheZoomedSize(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)

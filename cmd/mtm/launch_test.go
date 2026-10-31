@@ -92,14 +92,14 @@ func (f *fakeDaemon) SendText(_ context.Context, session, window, text string) e
 // Finished-job timers are parked once the application work has completed;
 // tests advance the model clock with lingerTick when they want one to fire.
 func settle(a *App, cmd tea.Cmd) {
-	driveCommands(a, cmd, true)
+	driveCommands(a, cmd, true, false)
 }
 
 // driveCommands delivers messages on the test goroutine. Batch leaves run
 // concurrently, so a linger timer cannot hold up a sibling job completion.
 // With recurse false only completions are delivered and their next commands
 // are returned, for tests inspecting an intermediate fetch state.
-func driveCommands(a *App, cmd tea.Cmd, recurse bool) []tea.Cmd {
+func driveCommands(a *App, cmd tea.Cmd, recurse, appUpdate bool) []tea.Cmd {
 	messages := make(chan tea.Msg)
 	done := make(chan struct{})
 	defer close(done)
@@ -152,8 +152,12 @@ func driveCommands(a *App, cmd tea.Cmd, recurse bool) []tea.Cmd {
 			case nil, ochazuke.JobLingerMsg:
 				// A real linger timer never drives the frozen test clock.
 			default:
-				if _, completion := msg.(ochazuke.Completion); recurse || completion {
-					_, next := a.Update(msg)
+				if _, completion := msg.(ochazuke.Completion); !appUpdate || completion {
+					update := a.m.Update
+					if appUpdate {
+						update = a.Update
+					}
+					_, next := update(msg)
 					if recurse {
 						start(next)
 					} else {
@@ -232,6 +236,7 @@ func rawFrame(a *App) string {
 }
 
 func TestSessionForSlugsTheProjectName(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		p    work.Project
 		want string
@@ -281,6 +286,7 @@ func confirmPrompt(t *testing.T, a *App) (string, ochazuke.Request) {
 // A launch is cheap and K undoes it: l starts at once, and the notice
 // names where it went.
 func TestALaunchDoesNotAsk(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
@@ -295,6 +301,7 @@ func TestALaunchDoesNotAsk(t *testing.T) {
 }
 
 func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
@@ -338,6 +345,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 }
 
 func TestAFailingLaunchShowsInTheRail(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	app.launcher = &fakeDaemon{err: errors.New("dial: no daemon")}
 	press(t, app, "j", "k")
@@ -358,6 +366,7 @@ func TestAFailingLaunchShowsInTheRail(t *testing.T) {
 }
 
 func TestAgentLaunchParameters(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
@@ -409,6 +418,7 @@ func noProjectLaunch(t *testing.T, a *App) tea.Cmd {
 }
 
 func TestNothingInferredLaunchesIntoNoProject(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
@@ -429,6 +439,7 @@ func TestNothingInferredLaunchesIntoNoProject(t *testing.T) {
 }
 
 func TestANoProjectReviewListsAndOpens(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{}
@@ -475,6 +486,7 @@ func now(cmd tea.Cmd) tea.Msg {
 // rows bring their cells in the pane noun's column order, which the
 // catalog declares.
 func TestProjectsStateAnswersEveryList(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	app.panesd.(*fakePanes).panes[0].Cwd = "/home/test/proj/matomeru"
 	app.panesd.(*fakePanes).panes[0].AgentState = "idle"
@@ -518,6 +530,7 @@ func TestProjectsStateAnswersEveryList(t *testing.T) {
 // A daemon that does not answer leaves the live rows out of the state,
 // not the other lists.
 func TestProjectsStateWithoutTheDaemon(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	app.panesd.(*fakePanes).err = errors.New("no daemon")
 	out, errOut, err := cli(app, "", "projects", "state")

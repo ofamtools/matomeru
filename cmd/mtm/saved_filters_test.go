@@ -37,6 +37,7 @@ func assertMakerFrame(t *testing.T, a *App, name string) {
 }
 
 func TestSavedTaskFiltersCycleWorkAndModal(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	makerTasks(t, a)
 	if err := a.taskList.Focus(); err != nil {
@@ -64,6 +65,7 @@ func TestSavedTaskFiltersCycleWorkAndModal(t *testing.T) {
 }
 
 func TestSavedTaskFiltersCLI(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	makerTasks(t, a)
 	for _, name := range []string{"mine", "agents", "all"} {
@@ -78,6 +80,7 @@ func TestSavedTaskFiltersCLI(t *testing.T) {
 }
 
 func TestSavedTaskFiltersMigration(t *testing.T) {
+	t.Parallel()
 	for _, name := range []string{"mine", "agents", "all"} {
 		t.Run(name, func(t *testing.T) {
 			path := seeded(t)
@@ -114,6 +117,7 @@ func TestSavedTaskFiltersMigration(t *testing.T) {
 }
 
 func TestSavedTaskFiltersKeepAncestorContext(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	makerTasks(t, a)
 	child, err := a.work.Task("owner")
@@ -141,6 +145,7 @@ func TestSavedTaskFiltersKeepAncestorContext(t *testing.T) {
 }
 
 func TestSavedTaskFiltersOutlineEdits(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	makerTasks(t, a)
 	executeA(t, a, "project", "outline", "matomeru", nil)
@@ -157,6 +162,7 @@ func TestSavedTaskFiltersOutlineEdits(t *testing.T) {
 }
 
 func TestSavedTaskFiltersCanonicalMigrationWins(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	settings := filepath.Join(filepath.Dir(path), ochazuke.SettingsFile)
 	if err := os.WriteFile(settings, []byte(`{"tasks.made-by":"agents","work.tasks-filter":"mine"}`), 0600); err != nil {

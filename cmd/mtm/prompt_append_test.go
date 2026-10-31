@@ -6,6 +6,7 @@ import (
 
 // F4: i from outside the box writes after the draft, not into it.
 func TestPromptFromTheRowAppendsToTheDraft(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) {
 			app, _, _ := claudeTurnsApp(t)

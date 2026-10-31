@@ -66,6 +66,7 @@ func activityRows(app *App) map[string]string {
 // rows follow the pane's row: in the Working list while it works, in the
 // tree under its session once idle.
 func TestPaneListShowsActiveSubagentsUnderTheirPane(t *testing.T) {
+	t.Parallel()
 	app := subagentsApp(t)
 	rows := activityRows(app)
 	parent := "pane:matomeru/w1"
@@ -140,6 +141,7 @@ func TestPaneListShowsActiveSubagentsUnderTheirPane(t *testing.T) {
 // selected, the focus kept on the list; a child row that drops off leaves
 // the cursor on its pane.
 func TestSubagentRowsAreSelectableAndOpenTheirCard(t *testing.T) {
+	t.Parallel()
 	app := subagentsApp(t)
 	parent := "pane:matomeru/w1"
 	if err := app.selectPaneRow(parent); err != nil {
@@ -192,6 +194,7 @@ func TestSubagentRowsAreSelectableAndOpenTheirCard(t *testing.T) {
 // them), and the subagent shows under the idle pane until a later
 // notification of its task ends it.
 func TestSubagentRowsOfAnIdleAttachedPaneWithAStaleSession(t *testing.T) {
+	t.Parallel()
 	app, f := staleClaudeApp(t, time.Time{}) // no start time: only the record can tie the transcript
 	f.panes[0].Harness = ""
 	records, sys := claudeRecords(t, app, f)
@@ -243,6 +246,7 @@ func TestSubagentRowsOfAnIdleAttachedPaneWithAStaleSession(t *testing.T) {
 // "log" empty) gets no reads and no rows; the same pane with the claude
 // format does. The format is data, not the harness's name.
 func TestSubagentRowsFollowTheHarnessLogFormat(t *testing.T) {
+	t.Parallel()
 	app := subagentsApp(t)
 	if len(activityRows(app)) == 0 {
 		t.Fatal("no rows with the claude format")

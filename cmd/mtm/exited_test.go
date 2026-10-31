@@ -25,6 +25,7 @@ func relist(t *testing.T, a *App, f *fakePanes) {
 // dead window: the listing closes it and drops its link, for both kinds,
 // so it never comes back as a plain shell row.
 func TestExitedSidePanesAreClosedNotListed(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	f.exited = map[string]bool{"side-term": true}
 	relist(t, a, f)
@@ -54,6 +55,7 @@ func TestExitedSidePanesAreClosedNotListed(t *testing.T) {
 }
 
 func TestDeadLivePaneDetachesAndIsRemoved(t *testing.T) {
+	t.Parallel()
 	for _, gone := range []bool{false, true} {
 		name := "exited"
 		if gone {
@@ -89,6 +91,7 @@ func TestDeadLivePaneDetachesAndIsRemoved(t *testing.T) {
 }
 
 func TestParentExitReleasesStreamsAndPreservesLiveSides(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	if err := a.showSide(a.attached, "term"); err != nil {
 		t.Fatal(err)
@@ -119,6 +122,7 @@ func TestParentExitReleasesStreamsAndPreservesLiveSides(t *testing.T) {
 // The Vim page's state follows the windows: running while Neovim runs,
 // closed once its window exited or went away.
 func TestVimStateFollowsWindows(t *testing.T) {
+	t.Parallel()
 	a, f := panesApp(t)
 	if err := a.work.PutVimSession(work.VimSession{ID: "v1", Name: "vim", WindowID: "w2", State: "running", Path: "/tmp/v1.vim"}); err != nil {
 		t.Fatal(err)
@@ -154,6 +158,7 @@ func TestVimStateFollowsWindows(t *testing.T) {
 // While live, the detail header follows each listing: the agent's state
 // and the shell's cwd are the daemon's latest, not attach time's.
 func TestLiveHeaderFollowsListing(t *testing.T) {
+	t.Parallel()
 	a, f := panesApp(t)
 	runOnce(a, key(t, a, "enter"))
 	if a.attached.ID != "w1" {
@@ -173,6 +178,7 @@ func TestLiveHeaderFollowsListing(t *testing.T) {
 // A transcript the daemon refuses reads as what happened and what makes
 // it work, not as a protocol error.
 func TestTranscriptErrorsInPlainWords(t *testing.T) {
+	t.Parallel()
 	for code, want := range map[string]string{
 		"forbidden":           "outside the panes of TUIOS server mtm-daemon",
 		"no_transcript":       "not joined to an agent transcript",

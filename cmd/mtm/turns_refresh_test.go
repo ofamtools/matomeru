@@ -66,6 +66,7 @@ func refreshTurns(t *testing.T, app *App, noun, target string) {
 // R on the pane row while the Turns tab shows: a transcript written after
 // the first read replaces the journal, and the status says which.
 func TestRefreshTurnsSwitchesFromTheJournalToTheTranscript(t *testing.T) {
+	t.Parallel()
 	app := onTheJournal(t, nil)
 	writeTranscript(t, app, resumedID)
 	settle(app, key(t, app, "R"))
@@ -83,6 +84,7 @@ func TestRefreshTurnsSwitchesFromTheJournalToTheTranscript(t *testing.T) {
 
 // A refresh that still finds nothing says the journal stands.
 func TestRefreshTurnsWithNoTranscriptSaysTheJournal(t *testing.T) {
+	t.Parallel()
 	app := onTheJournal(t, nil)
 	refreshTurns(t, app, "pane", app.pv.turnsFor)
 	if want := "turns: no transcript, showing mtm's journal"; app.m.Info != want {
@@ -96,6 +98,7 @@ func TestRefreshTurnsWithNoTranscriptSaysTheJournal(t *testing.T) {
 // The journal fallback tries again after 10 s, 30 s, 1 min, then every
 // 5 min, and switches to the transcript on the first try that finds it.
 func TestTurnsRetryTheTranscriptOnABackoff(t *testing.T) {
+	t.Parallel()
 	clock := &fakeClock{t: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)}
 	app := onTheJournal(t, clock)
 	pt := app.mturns["w1"]
@@ -132,6 +135,7 @@ func TestTurnsRetryTheTranscriptOnABackoff(t *testing.T) {
 }
 
 func TestTurnsRetryWaits(t *testing.T) {
+	t.Parallel()
 	for tries, want := range map[int]time.Duration{0: 10 * time.Second, 1: 10 * time.Second, 2: 30 * time.Second, 3: time.Minute, 4: 5 * time.Minute, 9: 5 * time.Minute} {
 		if got := turnsRetryAfter(tries); got != want {
 			t.Fatalf("after %d misses %v, want %v", tries, got, want)
@@ -142,6 +146,7 @@ func TestTurnsRetryWaits(t *testing.T) {
 // A refresh never takes the transcript of another pane: one the other
 // pane's reported id names, or one recorded for it.
 func TestRefreshTurnsNeverTakesAnotherPanesTranscript(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		reported bool // w2 reports the session; else it is only recorded for w2
@@ -170,6 +175,7 @@ func TestRefreshTurnsNeverTakesAnotherPanesTranscript(t *testing.T) {
 // The turn rows' R refreshes the pane the turns are of; an id tuios
 // reports whose transcript exists is not marked resumed.
 func TestRefreshTurnsFromATurnRow(t *testing.T) {
+	t.Parallel()
 	app, f := staleClaudeApp(t, time.Now().Add(-time.Hour))
 	useTurnStyle(t, app, turnsStyleTree)
 	f.panes[0].AgentSession = resumedID
@@ -196,6 +202,7 @@ func TestRefreshTurnsFromATurnRow(t *testing.T) {
 }
 
 func TestTurnsNotice(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		got  claudeRead
 		want string
@@ -215,6 +222,7 @@ func TestTurnsNotice(t *testing.T) {
 // new process, a new session or a refresh asks again, and "none found" is
 // asked again after agentStartUnknownFor.
 func TestAgentStartIsCachedPerPaneProcess(t *testing.T) {
+	t.Parallel()
 	clock := &fakeClock{t: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)}
 	calls := 0
 	result := clock.now().Add(-time.Hour)
@@ -259,6 +267,7 @@ func TestAgentStartIsCachedPerPaneProcess(t *testing.T) {
 
 // The Turns tab's polls ask ps once for a pane, and a refresh asks again.
 func TestTurnsPollsDoNotRunPsEachTime(t *testing.T) {
+	t.Parallel()
 	clock := &fakeClock{t: time.Now()}
 	app, _ := staleClaudeApp(t, time.Now().Add(-time.Hour))
 	app.clock = clock.now
@@ -287,6 +296,7 @@ func TestTurnsPollsDoNotRunPsEachTime(t *testing.T) {
 // A side opened after a refresh follows the tab's resolution, even where
 // the fallback could not tell on its own (no start time).
 func TestSideFollowsTheTurnsTabsResolution(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	projects, agent := t.TempDir(), t.TempDir()
 	dir := filepath.Join(projects, turns.ClaudeProjectDir("/w/proj"))
@@ -316,6 +326,7 @@ func TestSideFollowsTheTurnsTabsResolution(t *testing.T) {
 // shell's commands and the journal fallback read before the hints, with
 // no "Error:" (they were drawn as errors while posted through Status).
 func TestRefreshTurnsNoticesAreInfoNotErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name string
 		open func(t *testing.T) *App

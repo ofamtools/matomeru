@@ -51,6 +51,7 @@ func clipApp(t *testing.T) (*App, *fakePanes, *fakeClipboard) {
 // ctrl+v with an image on the clipboard saves it under the data
 // directory, writes a chip at the cursor and counts it on the rule.
 func TestPromptPasteImageInsertsAChip(t *testing.T) {
+	t.Parallel()
 	app, _, clip := clipApp(t)
 	clip.image = true
 	typeText(t, app, "look at  please")
@@ -97,6 +98,7 @@ func TestPromptPasteImageInsertsAChip(t *testing.T) {
 // Files copied in Finder: an image file is attached by its own path,
 // any other file goes in as @path (quoted with a space).
 func TestPromptPasteFiles(t *testing.T) {
+	t.Parallel()
 	app, _, clip := clipApp(t)
 	clip.files = []string{"/shots/a.PNG", "/src/main.go", "/My Docs/notes.txt"}
 	pressSettle(t, app, "ctrl+v")
@@ -115,6 +117,7 @@ func TestPromptPasteFiles(t *testing.T) {
 // line and an unreadable one the error line, never a modal, and the box
 // keeps its text.
 func TestPromptPasteTextEmptyAndUnreadable(t *testing.T) {
+	t.Parallel()
 	app, _, clip := clipApp(t)
 	clip.text = "hello there"
 	pressSettle(t, app, "ctrl+v")
@@ -142,6 +145,7 @@ func TestPromptPasteTextEmptyAndUnreadable(t *testing.T) {
 // Deleting a chip detaches its image; undo brings it back; detach
 // removes one by number.
 func TestPromptAttachmentRemoval(t *testing.T) {
+	t.Parallel()
 	app, _, clip := clipApp(t)
 	clip.image = true
 	pressSettle(t, app, "ctrl+v")
@@ -178,6 +182,7 @@ func TestPromptAttachmentRemoval(t *testing.T) {
 // each chip goes out as @/abs/path in the one paste; the attachment is
 // kept as a file context item of the pane, and the box's list empties.
 func TestPromptSendWritesMentionsAndRecordsContext(t *testing.T) {
+	t.Parallel()
 	app, f, clip := clipApp(t)
 	clip.image = true
 	typeText(t, app, "what is")
@@ -214,6 +219,7 @@ func TestPromptSendWritesMentionsAndRecordsContext(t *testing.T) {
 // the prompt later as one paste. Interrupt mode does the same for a
 // harness that takes mentions.
 func TestPromptQueueAndInterruptCarryMentions(t *testing.T) {
+	t.Parallel()
 	app, f, clip := clipApp(t)
 	clip.image = true
 	f.panes[0].AgentState = "working"
@@ -241,6 +247,7 @@ func TestPromptQueueAndInterruptCarryMentions(t *testing.T) {
 // path as a paste of its own before the text, chips out of the text; its
 // queued prompt still carries @ mentions.
 func TestPromptPasteHarnessPastesPathsFirst(t *testing.T) {
+	t.Parallel()
 	app, f, clip := clipApp(t)
 	reg, err := harness.NewRegistry([]harness.Harness{{Name: "claude", Command: []string{"claude"}, Attach: harness.AttachPaste}})
 	if err != nil {
@@ -269,6 +276,7 @@ func TestPromptPasteHarnessPastesPathsFirst(t *testing.T) {
 }
 
 func TestPromptOutgoingSpacesMentions(t *testing.T) {
+	t.Parallel()
 	live := []promptAttachment{{n: 1, path: "/a.png"}, {n: 2, path: "/b c.png"}}
 	for _, c := range []struct{ in, mention, strip string }{
 		{"see[image 1]now", "see @/a.png now", "seenow"},
@@ -287,6 +295,7 @@ func TestPromptOutgoingSpacesMentions(t *testing.T) {
 // ctrl+v is hinted in insert mode and its verbs are registered (the
 // palette and ? help list them); normal mode's ctrl+v stays the editor's.
 func TestPromptPasteKeysAndVerbs(t *testing.T) {
+	t.Parallel()
 	app, _, _ := clipApp(t)
 	if hints := hintKeys(app); !slices.Contains(hints, "ctrl+v paste/attach") {
 		t.Fatalf("footer %q", hints)

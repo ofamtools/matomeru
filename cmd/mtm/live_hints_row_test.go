@@ -63,6 +63,7 @@ func rowCleared(t *testing.T, app *App, after string) {
 // in the Screen tab, drawn over the preview, the focus staying on the row;
 // the URL twice shares one label.
 func TestRowHintsLabelThePreview(t *testing.T) {
+	t.Parallel()
 	app, f, _, path := rowHintsApp(t)
 	view := startRowHints(t, app)
 	if len(app.hinting.spans) != 4 || labelOf(t, app, rowShared) == "" {
@@ -87,6 +88,7 @@ func TestRowHintsLabelThePreview(t *testing.T) {
 // A label copies, ctrl+label opens and a capital types the item into the
 // row's pane through the daemon, without attaching it.
 func TestRowHintsActions(t *testing.T) {
+	t.Parallel()
 	app, f, sys, path := rowHintsApp(t)
 	startRowHints(t, app)
 	pressAll(t, app, labelOf(t, app, rowURL))
@@ -113,6 +115,7 @@ func TestRowHintsActions(t *testing.T) {
 // While the labels are up every other key is swallowed: the selection
 // does not move, nothing attaches, q cancels.
 func TestRowHintsSwallowAndCancel(t *testing.T) {
+	t.Parallel()
 	app, f, sys, _ := rowHintsApp(t)
 	startRowHints(t, app)
 	for _, k := range []string{"j", "enter", "tab", "1", "]"} {
@@ -149,6 +152,7 @@ func TestRowHintsSwallowAndCancel(t *testing.T) {
 // A row whose screen is not captured yet says so and stays put; off the
 // Screen tab f does not answer.
 func TestRowHintsWithNoScreen(t *testing.T) {
+	t.Parallel()
 	app, _, _, _ := rowHintsApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -175,6 +179,7 @@ func TestRowHintsWithNoScreen(t *testing.T) {
 // tab shows them), f labels both, the focus staying on the row; a capital
 // on an item on both types into the main pane.
 func TestRowHintsLabelTheLivePanes(t *testing.T) {
+	t.Parallel()
 	mainRows, sideRows := sideScreens()
 	app, main, side, _ := hintsSideApp(t, mainRows, sideRows)
 	row := app.attached.rowID()
@@ -207,6 +212,7 @@ func TestRowHintsLabelTheLivePanes(t *testing.T) {
 // A captured screen longer than the panel shows its end (and a position
 // marker): only the lines drawn are labelled, each label on its own row.
 func TestRowHintsLabelTheDrawnWindow(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	app.cx.sys = &fakeSystem{}
 	app.m.Width, app.m.Height = 140, 40

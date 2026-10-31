@@ -39,6 +39,7 @@ func seededWith(t *testing.T, tasks map[string]string) string {
 // blocked, other values, done; legacy open reads as todo and an unknown
 // status is shown as-is.
 func TestTaskTableStatusesAndOrder(t *testing.T) {
+	t.Parallel()
 	app := openAt(t, seededWith(t, map[string]string{"legacy": "open", "busy": "active", "stuck": "blocked", "old": "skipped", "over": "done"}))
 	press(t, app, "j", "enter")
 	var order []string
@@ -67,6 +68,7 @@ func frameAt(a *App, width int) string {
 // x toggles done on a task row; s opens the status chooser, whose first
 // letters pick a status that persists.
 func TestTaskRowToggleAndStatusChooser(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
 	if app.r.Focus != "t1" {
@@ -111,6 +113,7 @@ func TestTaskRowToggleAndStatusChooser(t *testing.T) {
 // done ID marks done; task new --parent nests under the parent's project,
 // and a parent not found saves the task at the top level.
 func TestCLITaskStatusDoneAndParent(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	mustCLI(t, app, "task", "status", "t1", "blocked")
 	if got := stored(t, app, "t1").Status; got != work.StatusBlocked {

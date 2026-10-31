@@ -20,6 +20,7 @@ func where(a *App) string {
 // (the turns do not spill into the box), and } into the box keeps the
 // turns' window where it was (it jumped back to their top).
 func TestJIntoTheBoxKeepsTheTurnsWindow(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) { jIntoTheBox(t, style) })
 	}
@@ -126,6 +127,7 @@ var unfocusedCorners = strings.NewReplacer("┏", "╭", "┓", "╮", "┗", "�
 // meanwhile does not move them; back from the box (esc, {) is the same
 // turn in the same window.
 func TestTheBoxKeepsTheTurnsWindow(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) { boxKeepsTheTurns(t, style) })
 	}

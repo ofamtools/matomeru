@@ -94,7 +94,7 @@ func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 		// behind it.
 		return resultError(a.openDirectoryChooser(p.ID))
 	}
-	tree := inspectDirectory(expandPath(path.(string)))
+	tree := inspectDirectory(a.expandPath(path.(string)))
 	p, err = a.work.AddTree(p.ID, tree)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -107,7 +107,7 @@ func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) defaultProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.work.SetDefaultTree(ctx.Instance.ID, expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
+	p, err := a.work.SetDefaultTree(ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -121,7 +121,7 @@ func (a *App) defaultProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 // this project only (other projects sharing it keep it, the disk is never
 // touched); removing the default promotes the next and says so.
 func (a *App) removeProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.detachDirectory(ctx.Instance.ID, expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
+	return a.detachDirectory(ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
 }
 
 func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
@@ -151,14 +151,14 @@ func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
 
 // editProjectDirectory is project.edit-directory: path is re-pointed at to.
 func (a *App) editProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.replaceDirectory(ctx.Instance.ID, expandPath(ochazuke.StringArg(ctx.Args, "path", "")), ochazuke.StringArg(ctx.Args, "to", ""))
+	return a.replaceDirectory(ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")), ochazuke.StringArg(ctx.Args, "to", ""))
 }
 
 func (a *App) replaceDirectory(projectID, path, to string) ochazuke.Result {
 	if strings.TrimSpace(to) == "" {
 		return ochazuke.Failed(errors.New("to is required"))
 	}
-	p, err := a.work.ReplaceTree(projectID, path, inspectDirectory(expandPath(to)))
+	p, err := a.work.ReplaceTree(projectID, path, inspectDirectory(a.expandPath(to)))
 	if err != nil {
 		return ochazuke.Failed(err)
 	}

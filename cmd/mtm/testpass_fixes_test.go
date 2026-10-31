@@ -16,6 +16,7 @@ import (
 // L on the panes page opens a harness chooser, the default first; Enter
 // launches that agent into the pin's project and lands it live here.
 func TestPanesLOpensHarnessChooserAndLaunches(t *testing.T) {
+	t.Parallel()
 	app, f := shellApp(t)
 	key(t, app, "L")
 	if app.r.TopModal() != agentChooser {
@@ -36,6 +37,7 @@ func TestPanesLOpensHarnessChooserAndLaunches(t *testing.T) {
 // Notices are transient: a launch's notice goes with the next key or
 // after noticeLinger, so it never piles up over the footer's hints.
 func TestNoticesClearOnNextKeyOrAfterLinger(t *testing.T) {
+	t.Parallel()
 	app, _ := shellApp(t)
 	var scheduled []tea.Msg
 	app.pv.after = func(_ time.Duration, msg tea.Msg) tea.Cmd {
@@ -78,6 +80,7 @@ func TestNoticesClearOnNextKeyOrAfterLinger(t *testing.T) {
 // TestLeaderQuestionOpensTheHelpTree) lists the leader keys, not the
 // generic help; esc closes it and the pane stays live.
 func TestTerminalKeysListsLeaderKeys(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	runOnce(a, key(t, a, "enter"))
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "keys", Noun: "terminal", Target: paneTermID}); err != nil {
@@ -111,6 +114,7 @@ func TestTerminalKeysListsLeaderKeys(t *testing.T) {
 // d d on a pane with side panes open says which to close, before any
 // confirm; the confirm prompt names the pane without its badges.
 func TestKillRefusesBeforeConfirmWhileSidesAreOpen(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	press(t, a, "ctrl+a", "d")
 	if a.r.Focus != "pane:matomeru/w1" {
@@ -133,6 +137,7 @@ func TestKillRefusesBeforeConfirmWhileSidesAreOpen(t *testing.T) {
 // The move chooser lists projects by the recency of their directories and
 // leaves out the project the pane already belongs to.
 func TestMoveChooserByRecencyWithoutCurrent(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	var withDirs []work.Project
 	for _, p := range app.projects {
@@ -171,6 +176,7 @@ func TestMoveChooserByRecencyWithoutCurrent(t *testing.T) {
 
 // The CLI names a side's parent by its window id with --pane.
 func TestSideListTakesPaneWindowID(t *testing.T) {
+	t.Parallel()
 	a, driver := shellApp(t)
 	a.cli = true
 	p := driver.panes.panes[0]
@@ -189,6 +195,7 @@ func TestSideListTakesPaneWindowID(t *testing.T) {
 // Test pass R18: ctrl+c quits from the palette at once: on an empty line,
 // on a typed line, and after esc cleared the typed line.
 func TestCtrlCQuitsFromThePalette(t *testing.T) {
+	t.Parallel()
 	for _, keys := range [][]string{{":"}, {":", "p", "a"}, {":", "p", "a", "esc"}} {
 		app := open(t)
 		press(t, app, keys...)

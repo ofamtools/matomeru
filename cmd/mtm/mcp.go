@@ -33,7 +33,7 @@ import (
 
 // defineMCPCommand mounts mtm mcp on the oden app.
 func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io.Writer) {
-	backend := &mcpBackend{opts: a.opts, work: a.work, prepare: mcpPrepare}
+	backend := &mcpBackend{opts: a.opts, work: a.work, prepare: a.mcpPrepare}
 	server := func() (*mcp.Server, error) { return mcp.New(backend, mtmVersion()) }
 	printJSON := func(v any) error {
 		raw, err := json.MarshalIndent(v, "", "  ")
@@ -144,10 +144,6 @@ func mtmVersion() string {
 	}
 	return "devel"
 }
-
-// mcpPrepare adjusts each app a tool call opens; tests replace it with
-// their doubles (the daemon, the environment).
-var mcpPrepare func(*App)
 
 // mcpBackend is mtm for the MCP tools.
 type mcpBackend struct {

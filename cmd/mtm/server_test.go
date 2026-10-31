@@ -40,6 +40,7 @@ func isolate(t *testing.T) (dir string, starts *int) {
 	return dir, starts
 }
 
+// serial: exercises daemon process environment and the package serverStart hook.
 func TestServerPrecedence(t *testing.T) {
 	dir, _ := isolate(t)
 	if got := defaultServer(); got != MtmServer {
@@ -68,6 +69,7 @@ func TestServerPrecedence(t *testing.T) {
 
 // --smoke never ensures; a CLI command ensures before dispatch and keeps
 // working when the server cannot start.
+// serial: exercises daemon process environment and the package serverStart hook.
 func TestRunEnsuresOnlyOutsideSmoke(t *testing.T) {
 	_, starts := isolate(t)
 	data := filepath.Join(t.TempDir(), "mtm.db")
@@ -83,6 +85,7 @@ func TestRunEnsuresOnlyOutsideSmoke(t *testing.T) {
 	}
 }
 
+// serial: exercises daemon process environment and the package serverStart hook.
 func TestDefaultDaemonIsNeverStarted(t *testing.T) {
 	dir, starts := isolate(t)
 	data := filepath.Join(t.TempDir(), "mtm.db")
@@ -105,6 +108,7 @@ func TestDefaultDaemonIsNeverStarted(t *testing.T) {
 // The TUI ensures off the loop: a failure is the footer error and the
 // panes page hint; success loads the pane list.
 func TestEnsureJobFailureShowsInFooterAndPanesHint(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	app.m.Width, app.m.Height = 80, 24
 	app.ensure = func(context.Context) error { return errors.New("daemon mtm-daemon not running: boom") }
@@ -137,6 +141,7 @@ func TestEnsureJobFailureShowsInFooterAndPanesHint(t *testing.T) {
 // --smoke without -data renders a fresh temp database, never the default
 // one, and never dials a daemon, even one that listens where the options
 // point; an explicit -data is rendered as given.
+// serial: exercises daemon process environment and the package serverStart hook.
 func TestSmokeUsesATempDatabaseAndNoDaemon(t *testing.T) {
 	dir, starts := isolate(t)
 	t.Setenv("XDG_DATA_HOME", filepath.Join(dir, "data"))

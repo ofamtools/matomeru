@@ -52,6 +52,7 @@ func assertLanded(t *testing.T, a *App, f *fakePanes, row, window string) {
 }
 
 func TestALaunchEndsWithThePaneOnScreen(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{panes: f}
@@ -68,12 +69,14 @@ func TestALaunchEndsWithThePaneOnScreen(t *testing.T) {
 }
 
 func TestANewPaneEndsWithThePaneOnScreen(t *testing.T) {
+	t.Parallel()
 	app, d := shellApp(t)
 	runOnce(app, key(t, app, "n"))
 	assertLanded(t, app, d.panes, "pane:matomeru/s1", "s1")
 }
 
 func TestALandingReplacesTheAttachedTerminal(t *testing.T) {
+	t.Parallel()
 	app, d := shellApp(t)
 	key(t, app, "enter") // attach w1
 	press(t, app, "ctrl+a", "d")
@@ -88,6 +91,7 @@ func TestALandingReplacesTheAttachedTerminal(t *testing.T) {
 }
 
 func TestALandingUnderAModalShowsWhyAndKeepsWorking(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{panes: f}
@@ -110,6 +114,7 @@ func TestALandingUnderAModalShowsWhyAndKeepsWorking(t *testing.T) {
 // The CLI settles a launch that lands attached: the terminal it added is
 // removed, its stream released, and the command exits cleanly.
 func TestCLILaunchAndNewPaneCloseTheLandedTerminal(t *testing.T) {
+	t.Parallel()
 	for _, args := range [][]string{
 		{"task", "launch", "--target", "t1", "--yes"},
 		{"pane", "new", "--yes"},

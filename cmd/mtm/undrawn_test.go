@@ -6,6 +6,7 @@ import "testing"
 // Turns tree and copy stop need no Unfocusable flag: on the Activity tab
 // neither is drawn, and } from the pane list reaches neither.
 func TestHiddenPaneStopsAreSkippedByTheirFrame(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	press(t, app, "]") // Activity: no copy stop, no tree drawn
 	frame(app)
@@ -17,6 +18,7 @@ func TestHiddenPaneStopsAreSkippedByTheirFrame(t *testing.T) {
 
 // An empty Notes list draws no body, so } does not land on it.
 func TestAnEmptyNotesPageHasNoBodyStop(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)

@@ -12,6 +12,7 @@ import (
 // card (turn.open) and closes an open one (turn.close), l opens and then
 // steps inside (timeline.enter), h closes and then goes up to the pane row.
 func TestTurnCardEnterOpensThenCloses(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	app.m.Width, app.m.Height = 120, 50
 	frame(app)
@@ -56,6 +57,7 @@ func TestTurnCardEnterOpensThenCloses(t *testing.T) {
 // rereads the pane's turns; the footer reads the body's copy hints, not
 // raw verb names.
 func TestTurnCardRowsAnswerInsideTheBody(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	app.m.Width, app.m.Height = 160, 50
 	frame(app)

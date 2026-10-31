@@ -14,6 +14,7 @@ import (
 )
 
 func TestOwnerPrecedenceAndCLIIsolation(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
 		t.Fatal(err)
@@ -54,6 +55,7 @@ func TestOwnerPrecedenceAndCLIIsolation(t *testing.T) {
 // message), leaving the page writes a pending change at once, and the
 // change is in the store after a restart; esc q never discards.
 func TestEditorWritesOnPauseNavigationAndRestart(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
 	if err := a.reveal("t1"); err != nil {
@@ -101,6 +103,7 @@ func TestEditorWritesOnPauseNavigationAndRestart(t *testing.T) {
 
 // u in the editor's normal mode undoes the last change in the store.
 func TestEditorUndoIsWritten(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
 		t.Fatal(err)
@@ -120,6 +123,7 @@ func TestEditorUndoIsWritten(t *testing.T) {
 }
 
 func TestOmittedAndEmptyCreation(t *testing.T) {
+	t.Parallel()
 	a := openAt(t, filepath.Join(t.TempDir(), "mtm.db"))
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "new", Args: ochazuke.Arguments{"name": ""}}); err != nil {
 		t.Fatal(err)
@@ -159,6 +163,7 @@ func TestOmittedAndEmptyCreation(t *testing.T) {
 }
 
 func TestDefaultTUIUsesSelectedProjectForNewTask(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	tui := func() error {
 		// The first project has no tasks: creation must still keep its owner.
@@ -177,6 +182,7 @@ func TestDefaultTUIUsesSelectedProjectForNewTask(t *testing.T) {
 }
 
 func TestCreationFromReviewKeepsRecordedOwner(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	review, err := a.work.AddReview(work.Review{ProjectID: "ochazuke", TaskID: "t1", Session: "review-session", Window: "w"})
 	if err != nil {
@@ -204,6 +210,7 @@ func TestCreationFromReviewKeepsRecordedOwner(t *testing.T) {
 // and L choosers offer, never typed; a stored value outside them is shown
 // with the reason and never written back (UX review 2 F2).
 func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
+	t.Parallel()
 	a := openAt(t, seeded(t))
 	if err := a.reveal("t1"); err != nil {
 		t.Fatal(err)
@@ -250,6 +257,7 @@ func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
 // stored record may be newer. Opening shows the stored values, writes
 // nothing and keeps the draft (the heading says so); draft.open writes it.
 func TestOpeningARecordNeverWritesALeftoverDraft(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.drafts.Save("task", "t1", editRecord{Noun: "task", ID: "t1", ProjectID: "matomeru", Text: "stale draft", Fields: map[string]string{"status": "todo"}}); err != nil {
 		t.Fatal(err)

@@ -65,6 +65,7 @@ func openSide(t *testing.T, a *App, p pane, kind string) {
 // 2026-10-27): the parent's session, its workspace (not the one TUIOS
 // shows or an empty one) and the folder the parent is in now.
 func TestSideOpensOnTheParentsWorkspaceInItsCurrentFolder(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"term", "vim"} {
 		t.Run(kind, func(t *testing.T) {
 			if _, err := exec.LookPath("nvim"); kind == "vim" && err != nil {
@@ -95,6 +96,7 @@ func TestSideOpensOnTheParentsWorkspaceInItsCurrentFolder(t *testing.T) {
 // project: the driver picks the workspace (as for any new pane) and the
 // side starts where mtm launched the parent.
 func TestSideFallsBackWhenTheParentsContextIsUnknown(t *testing.T) {
+	t.Parallel()
 	a, parent, rec := sideContextApp(t, 0, "")
 	if err := a.work.SetPaneOwner(work.Assignment{Window: parent.ID, Session: parent.SessionID}); err != nil {
 		t.Fatal(err)
@@ -131,6 +133,7 @@ func ownSideParent(t *testing.T, a *App, parent pane, dir string) {
 // 2026-10-28: hub/side-vim opened in ~/hub while hub/shell was in
 // ~/hub/o-plans).
 func TestSideStartsInThePanesFolderBeforeItsProjects(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"term", "vim"} {
 		t.Run(kind, func(t *testing.T) {
 			if _, err := exec.LookPath("nvim"); kind == "vim" && err != nil {
@@ -150,6 +153,7 @@ func TestSideStartsInThePanesFolderBeforeItsProjects(t *testing.T) {
 // A pane whose folder TUIOS does not report: its side starts in the
 // project's folder, ahead of the folder mtm launched the pane in.
 func TestSideFallsBackToTheProjectsFolder(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"term", "vim"} {
 		t.Run(kind, func(t *testing.T) {
 			if _, err := exec.LookPath("nvim"); kind == "vim" && err != nil {
@@ -171,6 +175,7 @@ func TestSideFallsBackToTheProjectsFolder(t *testing.T) {
 // folder the agent's newest transcript record names (owner, 2026-10-28:
 // hub/shell's agent was in ~/hub/o-plans, its side vim opened in ~/hub).
 func TestSideStartsInTheAgentsTranscriptFolder(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"term", "vim"} {
 		t.Run(kind, func(t *testing.T) {
 			if _, err := exec.LookPath("nvim"); kind == "vim" && err != nil {
@@ -203,6 +208,7 @@ func TestSideStartsInTheAgentsTranscriptFolder(t *testing.T) {
 // A Claude Code pane whose transcript cannot be found: the side starts in
 // the folder TUIOS reports, as before.
 func TestSideWithoutATranscriptUsesThePanesFolder(t *testing.T) {
+	t.Parallel()
 	now := t.TempDir()
 	a, parent, rec := sideContextApp(t, 4, now)
 	a.panesd.(*fakePanes).panes[0].Harness = "claude-code"
@@ -295,6 +301,7 @@ func verbDaemon(t *testing.T) (string, func() []string, func() map[string]any) {
 // The TUIOS driver opens a window on the workspace it is given without
 // choosing one; given none, it chooses as before (here an empty one).
 func TestTheDriverOpensOnTheNamedWorkspace(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		workspace int
 		verbs     []string

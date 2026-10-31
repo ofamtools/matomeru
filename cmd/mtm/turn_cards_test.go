@@ -42,6 +42,7 @@ func selectedCard(a *App) string { return a.pv.cards.SelectedID() }
 // line, and, opened, the steers, the thinking and the tool call folded
 // (the settings' defaults) and the answer as sections.
 func TestTurnCardsFromTheSessionLog(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	app.m.Width, app.m.Height = 120, 50
 	cards := app.pv.cards.Cards()
@@ -96,6 +97,7 @@ func TestTurnCardsFromTheSessionLog(t *testing.T) {
 // it. Hold: after k, or J/K scrolling up, an appended turn moves neither
 // the window nor the selection. G follows again.
 func TestTurnCardsFollowHoldAndG(t *testing.T) {
+	t.Parallel()
 	app, _, log := cardsApp(t)
 	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 7") || selectedCard(app) != turnCardID("w1", "p7") || !app.pv.cards.Following() {
 		t.Fatalf("opened on %s following %v:\n%s", selectedCard(app), app.pv.cards.Following(), got)
@@ -170,6 +172,7 @@ func TestTurnCardsFollowHoldAndG(t *testing.T) {
 // A growing answer of the running turn keeps its bottom in view while
 // following: the running card starts open, its newest line on screen.
 func TestTurnCardsAGrowingAnswerKeepsItsBottomInView(t *testing.T) {
+	t.Parallel()
 	app, f, log := cardsApp(t)
 	stream := func(n int) string {
 		var lines []string
@@ -203,6 +206,7 @@ func TestTurnCardsAGrowingAnswerKeepsItsBottomInView(t *testing.T) {
 // Each pane keeps its own cards: a held place, an open card and the
 // selection survive going to another pane and back, and another tab.
 func TestTurnCardsKeepTheirPlacePerPane(t *testing.T) {
+	t.Parallel()
 	app, _, _ := cardsApp(t)
 	press(t, app, "}", "k", "k", "l", "J")
 	held, sel := turnsRegion(t, app), app.r.Focus
@@ -225,6 +229,7 @@ func TestTurnCardsKeepTheirPlacePerPane(t *testing.T) {
 
 // An omp pane's turns are cards too, following its current branch.
 func TestTurnCardsFromAnOmpSession(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "omp", "idle", "01a1-s1", "/w/proj"
 	dir := filepath.Join(app.ompSessions, "-w-proj")
@@ -260,6 +265,7 @@ func TestTurnCardsFromAnOmpSession(t *testing.T) {
 // A shell's commands are cards; opening one reads its output, by l and by
 // the timeline's own keys alike.
 func TestTurnCardsOfAShell(t *testing.T) {
+	t.Parallel()
 	app, f := shellTurnsApp(t, 3)
 	app.m.Width, app.m.Height = 120, 40
 	cards := app.pv.cards.Cards()
@@ -281,6 +287,7 @@ func TestTurnCardsOfAShell(t *testing.T) {
 
 // turns.style switches the tab live, the focus staying on the same turn.
 func TestTurnsStyleSwitchesLive(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	frame(app)
 	press(t, app, "}")
@@ -303,6 +310,7 @@ func TestTurnsStyleSwitchesLive(t *testing.T) {
 // A journal turn's card: opening it marks it reviewed (its meta loses
 // "new"), and the answer wraps without cutting.
 func TestJournalTurnCards(t *testing.T) {
+	t.Parallel()
 	app := wrapAppStyle(t, strings.Repeat("lorem ipsum dolor sit amet ", 12)+"ENDWORD", turnsStyleCards)
 	turns, _ := app.hist.Turns("w1")
 	if turns[0].ReviewedAt != 0 {
@@ -326,6 +334,7 @@ func TestJournalTurnCards(t *testing.T) {
 // a blank line, a long URL, Japanese) at 80 and 120 columns; -update
 // rewrites them.
 func TestOpenedTurnCardFrames(t *testing.T) {
+	t.Parallel()
 	answer := "This answer is a long paragraph of prose that the agent wrote, which should wrap onto several rows at the panel width instead of being cut off with an ellipsis at the edge.\n" +
 		"    func indented() { return someLongFunctionName(withArguments, andMoreArguments, andEvenMoreArguments) }\n" +
 		"\n" +

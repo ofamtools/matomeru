@@ -38,6 +38,7 @@ func nameAt(a *App, id, name string) int {
 // state glyph; the name follows after one space and W (queued prompts)
 // still follows the name. Rows at one depth line up whatever is on.
 func TestPaneRowMarkerGutter(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	agent, shell := "pane:matomeru/w1", "pane:ochazuke/w2"
 	f.panes[0].Harness, f.panes[0].AgentState = "claude", "idle"
@@ -112,6 +113,7 @@ func tonesOf(a *App, id string) []ochazuke.ToneSpan {
 // "tones") colours them; the text is unchanged. A shell's glyph slot and
 // state carry none.
 func TestPaneRowTones(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	agent, shell := "pane:matomeru/w1", "pane:ochazuke/w2"
 	for _, c := range []struct {

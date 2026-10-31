@@ -104,6 +104,7 @@ func screenText(f ochazuke.TerminalFrame) string { return strings.Join(f.Lines, 
 // read dials again from the last seq and boot, and output resumes into
 // the same screen.
 func TestLiveStreamReconnectsFromTheLastSeq(t *testing.T) {
+	t.Parallel()
 	d := &fakeDialer{results: []dialResult{
 		{conn: newFakeConn(io.ErrUnexpectedEOF, snapshot(10, "hello"), output(15, " there")), info: daemon.StreamInfo{Mode: "snapshot", BootID: "b1", Seq: 10}},
 		{err: errors.New("connect: connection refused")}, // the daemon is restarting
@@ -135,6 +136,7 @@ func TestLiveStreamReconnectsFromTheLastSeq(t *testing.T) {
 // A window that is gone when the stream dials again stops the retries:
 // the screen stays, the state is pane gone and reads wait quietly.
 func TestLiveStreamSaysPaneGone(t *testing.T) {
+	t.Parallel()
 	d := &fakeDialer{results: []dialResult{
 		{conn: newFakeConn(nil, snapshot(5, "last words"), daemon.Frame{Type: 'X', Data: []byte("the daemon stopped")}), info: daemon.StreamInfo{BootID: "b1"}},
 		{err: &daemon.Error{Code: "window_not_found", Message: "no window w1"}},
@@ -163,6 +165,7 @@ func TestLiveStreamSaysPaneGone(t *testing.T) {
 // A program that fails or a refusal is still an error, not a reconnect;
 // a stream released while it waits does not dial again.
 func TestLiveStreamEndingsThatAreNotDrops(t *testing.T) {
+	t.Parallel()
 	for _, reason := range []string{"exited 1", "killed 9", "refused: no read grant"} {
 		d := &fakeDialer{results: []dialResult{{conn: newFakeConn(nil, snapshot(1, "x"), daemon.Frame{Type: 'X', Data: []byte(reason)})}}}
 		s := reconnectStream(d)
@@ -195,6 +198,7 @@ func TestLiveStreamEndingsThatAreNotDrops(t *testing.T) {
 // The attached pane's title says when its connection is not live; the
 // last screen stays under it.
 func TestAttachedPaneTitleSaysReconnectingAndGone(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	cmd := key(t, app, "enter")
 	f.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"$ last screen"}}
@@ -218,6 +222,7 @@ func TestAttachedPaneTitleSaysReconnectingAndGone(t *testing.T) {
 // ends at the newest even when sizes come faster than the daemon answers;
 // a released stream asks for nothing more.
 func TestOwnedStreamAsksForTheNewestSize(t *testing.T) {
+	t.Parallel()
 	s := reconnectStream(&fakeDialer{})
 	gate := make(chan struct{})
 	asked := make(chan [2]int, 8)
@@ -277,6 +282,7 @@ func TestOwnedStreamAsksForTheNewestSize(t *testing.T) {
 // A held stream parked by Release asks for no size afterwards: its window
 // stays at the last size the daemon took.
 func TestParkedStreamAsksForNothing(t *testing.T) {
+	t.Parallel()
 	s := reconnectStream(&fakeDialer{})
 	asked := make(chan [2]int, 8)
 	s.own(func(_ context.Context, cols, rows int) error {
@@ -315,6 +321,7 @@ func TestParkedStreamAsksForNothing(t *testing.T) {
 // client tiling its windows) asks for the area it is drawn in again, once;
 // a resize to that area, or one on a parked stream, asks for nothing.
 func TestLiveStreamReclaimsItsAreaAfterAForeignResize(t *testing.T) {
+	t.Parallel()
 	d := &fakeDialer{results: []dialResult{
 		{conn: newFakeConn(nil, snapshot(1, "hi"), daemon.Frame{Type: 'R', Cols: 46, Rows: 40}), info: daemon.StreamInfo{Mode: "snapshot", BootID: "b1"}},
 		{conn: newFakeConn(nil, snapshot(2, "hi")), info: daemon.StreamInfo{Mode: "snapshot", BootID: "b1"}},

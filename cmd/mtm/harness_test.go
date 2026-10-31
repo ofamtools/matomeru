@@ -74,6 +74,7 @@ func launchCLI(t *testing.T, a *App, f *fakeDaemon, args ...string) *fakeWindow 
 }
 
 func TestEveryHarnessLaunchesThroughNewWindowThenSendText(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		args    []string
@@ -109,6 +110,7 @@ func TestEveryHarnessLaunchesThroughNewWindowThenSendText(t *testing.T) {
 }
 
 func TestTheProjectHarnessSettingIsTheDefault(t *testing.T) {
+	t.Parallel()
 	app, f := harnessApp(t, "")
 	setHarness(t, app, "omp")
 	if got := launchCLI(t, app, f, "task", "launch", "--target", "t1", "--yes"); strings.Join(got.Command, " ") != "omp" {
@@ -122,6 +124,7 @@ func TestTheProjectHarnessSettingIsTheDefault(t *testing.T) {
 }
 
 func TestUnknownHarnessesAndBadModelsFailClearly(t *testing.T) {
+	t.Parallel()
 	app, f := harnessApp(t, "")
 	for _, c := range []struct {
 		args []string
@@ -144,6 +147,7 @@ func TestUnknownHarnessesAndBadModelsFailClearly(t *testing.T) {
 }
 
 func TestAHarnessFileAddsAHarnessAndChangesACommand(t *testing.T) {
+	t.Parallel()
 	app, f := harnessApp(t, `[
 	  {"name": "omp", "command": ["omp-dev", "--no-extensions"]},
 	  {"name": "aider", "command": ["aider"], "prompt": "arg"}
@@ -175,6 +179,7 @@ func writeFile(t *testing.T, data string) string {
 }
 
 func TestAPaneThatIsNotReadyKeepsItsPrompt(t *testing.T) {
+	t.Parallel()
 	app, f := harnessApp(t, "")
 	f.notReady = errors.New("wait-for: timeout")
 	got := launchCLI(t, app, f, "agent", "launch", "--target", "t1", "--yes")
@@ -187,6 +192,7 @@ func TestAPaneThatIsNotReadyKeepsItsPrompt(t *testing.T) {
 }
 
 func TestCLIHarnessListPrintsTheRegistry(t *testing.T) {
+	t.Parallel()
 	app, _ := harnessApp(t, "")
 	var list []harness.Harness
 	if err := json.Unmarshal([]byte(mustCLI(t, app, "harness", "list")), &list); err != nil {
@@ -198,6 +204,7 @@ func TestCLIHarnessListPrintsTheRegistry(t *testing.T) {
 }
 
 func TestTheDriverRequests(t *testing.T) {
+	t.Parallel()
 	wire := func(v any) string { b, _ := json.Marshal(v); return string(b) }
 	if got := wire(windowParams(harness.Window{Session: "s", Name: "n", Cwd: "/c", Command: []string{"omp"}}, 2)); got != `{"session":"s","name":"n","workspace":2,"cwd":"/c","focus":false,"command":["omp"]}` {
 		t.Fatalf("new-window = %s", got)

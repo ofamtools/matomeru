@@ -30,6 +30,7 @@ var historyCatalog = strings.NewReplacer(
 // and the default. The framework's own outline verbs never mount; the
 // tool's own verb on a framework noun (history capture) does.
 func TestExtensionVerbsKeepTheCatalogHistory(t *testing.T) {
+	t.Parallel()
 	if !strings.Contains(historyCatalog, `"history":"fetch"`) || !strings.Contains(historyCatalog, `"outline"`) || !strings.Contains(historyCatalog, `"poll"`) {
 		t.Fatalf("catalog not rewritten:\n%s", historyCatalog)
 	}
@@ -78,6 +79,7 @@ func TestExtensionVerbsKeepTheCatalogHistory(t *testing.T) {
 // application verb mounts. A catalog that marks none falls back to the
 // keys a fresh runtime registers.
 func TestExtPlanMountsTheCatalogsAppNouns(t *testing.T) {
+	t.Parallel()
 	app := ochazuke.KindApplication
 	marked := ocli.CatalogDoc{Nouns: []ocli.CatalogNoun{
 		{Name: "app", Verbs: []ocli.CatalogVerb{{Name: "quit", Kind: ochazuke.KindInteraction, Builtin: true}}},

@@ -31,6 +31,7 @@ func taskTitled(tasks []work.Task, title string) work.Task {
 // as it is made (typing on leaving the line), tab nests a subtask, u
 // undoes in the store, and esc closes with nothing to save.
 func TestTaskOutlineWritesEveryChange(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j")
 	if app.r.Focus != "matomeru" {

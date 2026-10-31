@@ -9,6 +9,7 @@ import (
 )
 
 func TestScopeRefreshHidesNotesDraftsAndLateCaptures(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for _, n := range []work.Note{{ID: "na", ProjectID: "matomeru", TaskID: "t1", Text: "A note"}, {ID: "nb", ProjectID: "ochazuke", Text: "B secret"}, {ID: "nu", Text: "scratch secret"}} {
 		if err := a.work.PutNote(n); err != nil {
@@ -68,6 +69,7 @@ func TestScopeRefreshHidesNotesDraftsAndLateCaptures(t *testing.T) {
 }
 
 func TestDeletionConfirmsCountsAndKeepsNote(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	note, err := a.work.AddNote("matomeru", "t1", "survives")
 	if err != nil {
@@ -123,6 +125,7 @@ func TestDeletionConfirmsCountsAndKeepsNote(t *testing.T) {
 // key with its props (the record only: what the delete orphaned stays
 // orphaned), and the old confirm-delete name still deletes.
 func TestTaskDeleteIsStandardAndUndoes(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	before, err := a.work.Task("t1")
 	if err != nil {

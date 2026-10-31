@@ -24,6 +24,7 @@ func catalogCalls(t *testing.T, dir, name string) int {
 // Discovery always checks registered catalogs. Unregistered tools keep
 // their stamp cache, while an explicit refresh always asks.
 func TestDiscoveryChecksRegisteredCatalogs(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	alpha := fakeTool(t, dir, "alpha", toolCatalog("alpha", "1.0"))
 	fakeTool(t, dir, "beta", toolCatalog("beta", "1.0"))
@@ -67,7 +68,7 @@ func TestDiscoveryChecksRegisteredCatalogs(t *testing.T) {
 // and the commands that started are returned unrun.
 func step(t *testing.T, a *App, cmd tea.Cmd) []tea.Cmd {
 	t.Helper()
-	return driveCommands(a, cmd, false)
+	return driveCommands(a, cmd, false, true)
 }
 
 // While anything fetches for an extension its row on the Extensions page
@@ -75,6 +76,7 @@ func step(t *testing.T, a *App, cmd tea.Cmd) []tea.Cmd {
 // changed bin, L), its rows or pick lists (its page's loads), then the
 // status again, or the failure.
 func TestExtensionRowShowsItsFetches(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	alpha := fakeTool(t, dir, "alpha", toolCatalog("alpha", "1.0"))
 	path := seeded(t)

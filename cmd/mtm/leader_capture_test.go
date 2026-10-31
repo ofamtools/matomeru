@@ -35,6 +35,7 @@ func live(t *testing.T, app *App, after string) {
 // The leader's s attaches the next starred pane, wrapping, and stays live;
 // with none starred it says so and the pane stays live.
 func TestLeaderSCyclesTheStarredPanes(t *testing.T) {
+	t.Parallel()
 	app, _ := liveApp(t)
 	app.Update(keyMsg("ctrl+a"))
 	app.Update(keyMsg("s"))
@@ -66,6 +67,7 @@ func TestLeaderSCyclesTheStarredPanes(t *testing.T) {
 // task's editor over the live pane; closing each gives the terminal its
 // keys again. S toggles all projects and stays live.
 func TestLeaderCaptureKeysReturnToTheLivePane(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		key, opened string
 		close       []string
@@ -114,6 +116,7 @@ func TestLeaderCaptureKeysReturnToTheLivePane(t *testing.T) {
 
 // The leader's hint and its keys modal (terminal.keys) name the new keys.
 func TestLeaderHintAndKeysListTheNewKeys(t *testing.T) {
+	t.Parallel()
 	app, _ := liveApp(t)
 	var hint string
 	for _, b := range app.r.Noun("terminal").Bindings["terminal"] {

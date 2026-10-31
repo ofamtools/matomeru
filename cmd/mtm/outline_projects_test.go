@@ -75,6 +75,7 @@ func newProjects(t *testing.T, a *App) []work.Project {
 // session name follows; u undoes the name, then the project, and ctrl+r
 // brings both back.
 func TestAllViewOAddsAProjectThatTypingNames(t *testing.T) {
+	t.Parallel()
 	a := allOutline(t, projectNode("ochazuke"))
 	press(t, a, "o")
 	made := newProjects(t, a)
@@ -111,6 +112,7 @@ func TestAllViewOAddsAProjectThatTypingNames(t *testing.T) {
 // Typing on a project row renames the project through project.edit, as it
 // is typed; u undoes the rename.
 func TestAllViewTypingRenamesAProject(t *testing.T) {
+	t.Parallel()
 	a := allOutline(t, projectNode("ochazuke"))
 	press(t, a, "i", "end")
 	typePaused(t, a, " two")
@@ -130,6 +132,7 @@ func TestAllViewTypingRenamesAProject(t *testing.T) {
 // d d on a project row is project.delete: its confirm names what is
 // orphaned, n keeps it, y deletes it and its tasks move to no project.
 func TestAllViewDeletesAProjectThroughItsConfirm(t *testing.T) {
+	t.Parallel()
 	a := allOutline(t, projectNode("matomeru"))
 	press(t, a, "d", "d")
 	if a.r.TopModal() != "confirm" {
@@ -166,6 +169,7 @@ func TestAllViewDeletesAProjectThroughItsConfirm(t *testing.T) {
 // refused, as is tab on the first project (no project above it); no
 // project is not a project (i, d d, tab refused).
 func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
+	t.Parallel()
 	a := allOutline(t, projectNode("matomeru"))
 	before := rootRows(a)
 	refused(t, a, "J", "creation order")
@@ -207,6 +211,7 @@ func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 // n (the key map's new; a is retired) on a project row adds a task in
 // that project.
 func TestAllViewNAddsATaskInTheProject(t *testing.T) {
+	t.Parallel()
 	a := allOutline(t, projectNode("ochazuke"))
 	press(t, a, "n")
 	typeText(t, a, "tag a release")
@@ -229,6 +234,7 @@ func TestAllViewNAddsATaskInTheProject(t *testing.T) {
 // above or follow the parent) never leave the parent's children, so no
 // key crosses a project boundary yet: a gap in the library.
 func TestOutlineMovesATaskAcrossAProjectBoundary(t *testing.T) {
+	t.Parallel()
 	t.Skip("gap: ochazuke's outline has no move across parents (J past the last sibling); see the report")
 	a := allOutline(t, outlineNode("t2"))
 	press(t, a, "J")
@@ -241,6 +247,7 @@ func TestOutlineMovesATaskAcrossAProjectBoundary(t *testing.T) {
 // row with its tasks under it, and no other project; typing on it renames
 // the project, u undoes it, and o on it adds a task.
 func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
 	if a.r.Focus != outlineNode("t1") {

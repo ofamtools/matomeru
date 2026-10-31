@@ -10,6 +10,7 @@ import (
 )
 
 func TestWriteVersionNamesVersionCommitAndOchazuke(t *testing.T) {
+	t.Parallel()
 	var out bytes.Buffer
 	s := refdoc.Stamp{Tool: "mtm", Version: "v0.1.0", Commit: "0123456789abcdef", Date: "2026-10-29", Ochazuke: "v0.51.0"}
 	if err := writeVersion(&out, s); err != nil {
@@ -21,6 +22,7 @@ func TestWriteVersionNamesVersionCommitAndOchazuke(t *testing.T) {
 }
 
 func TestVersionFlagPrintsWithoutOpeningTheDatabase(t *testing.T) {
+	t.Parallel()
 	var out, errOut bytes.Buffer
 	data := t.TempDir() + "/never.db"
 	if err := run([]string{"--data", data, "--version"}, strings.NewReader(""), &out, &errOut); err != nil {

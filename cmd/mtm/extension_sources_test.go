@@ -25,6 +25,7 @@ const sourceArms = `"place list") echo '[{"id":"p1","label":"Kitchen"},{"id":"p2
 // the loop with the page's rows; it only suggests: a value outside it
 // runs the tool, which checks it.
 func TestExtensionSourcedParameterGetsSuggestions(t *testing.T) {
+	t.Parallel()
 	bin, log := fakeExtension(t, sourceCatalog, sourceArms)
 	path := seeded(t)
 	mustCLI(t, openAt(t, path), "extension", "register", "fake", "--bin", bin)

@@ -14,6 +14,7 @@ import (
 // every project's directories resolved, so a link and its target compare
 // equal.
 func TestProjectNewDirAndProjectsDirectories(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	base := t.TempDir()
 	real := filepath.Join(base, "repo")
@@ -62,6 +63,7 @@ func TestProjectNewDirAndProjectsDirectories(t *testing.T) {
 // default moves to the next directory and the result says which; edit keeps
 // the default mark; the directories stay on disk.
 func TestProjectDirectoryRemoveAndEditCLI(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	base := t.TempDir()
 	one, two, three := filepath.Join(base, "one"), filepath.Join(base, "two"), filepath.Join(base, "three")

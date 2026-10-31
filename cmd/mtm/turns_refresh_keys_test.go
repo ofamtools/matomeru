@@ -30,6 +30,7 @@ func pressRefresh(t *testing.T, a *App) bool {
 // without refreshing, and R refreshes from a card, a tree row and the pane
 // row, in both styles.
 func TestTurnsRefreshKeyAndOpenAll(t *testing.T) {
+	t.Parallel()
 	app, _, _ := cardsApp(t)
 	press(t, app, "}")
 	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "turn" {

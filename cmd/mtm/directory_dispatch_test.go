@@ -13,8 +13,9 @@ import (
 // the Directories page with the framework picker, and a typed path that
 // does not exist is still attached (record first).
 func TestProjectDirectoryChooserDeliversAcrossPages(t *testing.T) {
-	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
+	t.Parallel()
 	a := open(t)
+	testEnv(a, "MTM_PROJECT_BASE_DIRS", "")
 	knownDirectoryChooser(t, a)
 	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "absent.sock")}.client()
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "directory", Target: "matomeru"}); err != nil {

@@ -15,6 +15,7 @@ import (
 // same database: its startup listing, complete and successful for its own
 // server, named none of the starred windows, and the listing pruned them.
 func TestPaneStarsSurviveARestartOnAnotherServer(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	app := openWith(t, Options{Data: path})
 	reload(t, app)

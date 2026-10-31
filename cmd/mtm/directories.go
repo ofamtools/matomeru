@@ -53,8 +53,16 @@ func (a *App) dirsConfigPath() string {
 	return filepath.Join(a.configDir, "dirs.json")
 }
 func expandPath(path string) string {
+	return expandPathWithHome(path, os.UserHomeDir)
+}
+
+func (a *App) expandPath(path string) string {
+	return expandPathWithHome(path, a.home)
+}
+
+func expandPathWithHome(path string, homeDir func() (string, error)) string {
 	if path == "~" || strings.HasPrefix(path, "~/") {
-		home, _ := os.UserHomeDir()
+		home, _ := homeDir()
 		path = filepath.Join(home, strings.TrimPrefix(path, "~/"))
 	}
 	absolute, err := filepath.Abs(path)
@@ -78,12 +86,13 @@ func readDirectoryConfig(path string) (directoryConfig, error) {
 
 // projectBases reads the bases from $MTM_PROJECT_BASE_DIRS, else the dirs.json
 // at path, else the default folders under the home directory.
-func projectBases(path string) ([]projectBase, error) {
-	if value, ok := os.LookupEnv("MTM_PROJECT_BASE_DIRS"); ok {
+func (a *App) projectBases() ([]projectBase, error) {
+	path := a.dirsConfigPath()
+	if value, ok := a.opts.lookup("MTM_PROJECT_BASE_DIRS"); ok {
 		var out []projectBase
 		for _, path := range filepath.SplitList(value) {
 			if path != "" {
-				out = append(out, projectBase{expandPath(path), 1, "variable"})
+				out = append(out, projectBase{a.expandPath(path), 1, "variable"})
 			}
 		}
 		return out, nil
@@ -94,7 +103,7 @@ func projectBases(path string) ([]projectBase, error) {
 	}
 	if _, err := os.Stat(path); err == nil {
 		for i := range config.Bases {
-			config.Bases[i].Path = expandPath(config.Bases[i].Path)
+			config.Bases[i].Path = a.expandPath(config.Bases[i].Path)
 			if config.Bases[i].Depth == 0 {
 				config.Bases[i].Depth = 1
 			}
@@ -107,7 +116,7 @@ func projectBases(path string) ([]projectBase, error) {
 	}
 	var out []projectBase
 	for _, name := range []string{"proj", "projects", "src", "code", "dev"} {
-		path := expandPath("~/" + name)
+		path := a.expandPath("~/" + name)
 		if info, err := os.Stat(path); err == nil && info.IsDir() {
 			out = append(out, projectBase{path, 1, "default"})
 		}
@@ -190,8 +199,8 @@ func scanBases(bases []projectBase) ([]string, []string) {
 // command line (o-proj list, JSON rows with dir): $MTM_O_PROJ names the
 // binary ("none" skips; else o-proj on PATH). No o-proj is no source, not
 // an error; a failing one is a footer note.
-func manifestDirs(ctx context.Context) ([]string, error) {
-	bin := os.Getenv("MTM_O_PROJ")
+func (a *App) manifestDirs(ctx context.Context) ([]string, error) {
+	bin := a.getenv("MTM_O_PROJ")
 	if bin == "none" {
 		return nil, nil
 	}
@@ -229,12 +238,12 @@ func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	bases, err := projectBases(a.dirsConfigPath())
+	bases, err := a.projectBases()
 	if err != nil {
 		return nil, "", err
 	}
 	paths, missing := scanBases(bases)
-	manifest, manifestErr := manifestDirs(ctx)
+	manifest, manifestErr := a.manifestDirs(ctx)
 	paths = append(paths, manifest...)
 	sessions, daemonErr := a.daemon.Sessions(ctx)
 	seeds := map[string]int64{}
@@ -370,7 +379,7 @@ type dirRow struct {
 
 func (a *App) defineDirectories() {
 	a.r.Define("dirs").Verb("list", a.refreshDirectories, "Refresh known directories").Fetch().Verb("refresh", a.refreshDirectories, "Refresh directory cache").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
-		bases, err := projectBases(a.dirsConfigPath())
+		bases, err := a.projectBases()
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -682,7 +691,7 @@ func (a *App) refreshProjectDirs() {
 // refreshBases pushes the project base dirs with the known directories
 // each holds.
 func (a *App) refreshBases() {
-	bases, err := projectBases(a.dirsConfigPath())
+	bases, err := a.projectBases()
 	if err != nil {
 		a.directories.BaseErr = err.Error()
 	} else {
@@ -851,7 +860,7 @@ func (a *App) chooseKnownDirectoryFor(title, projectID, purpose string, use func
 // attachDefaultDirectory attaches path to the project and makes it the
 // default when the project has none, without leaving the current page.
 func (a *App) attachDefaultDirectory(projectID, path string) ochazuke.Result {
-	tree := inspectDirectory(expandPath(path))
+	tree := inspectDirectory(a.expandPath(path))
 	p, err := a.work.AddTree(projectID, tree)
 	if err == nil && p.DefaultTree == "" {
 		p, err = a.work.SetDefaultTree(projectID, tree.Path)
@@ -915,7 +924,7 @@ func (a *App) attachOrAsk(path string) ochazuke.Result {
 // attachDirectory attaches path to the project and stays on the page; the
 // project becomes the page's target so its directories show on top.
 func (a *App) attachDirectory(projectID, path string) ochazuke.Result {
-	tree := inspectDirectory(expandPath(path))
+	tree := inspectDirectory(a.expandPath(path))
 	p, err := a.work.AddTree(projectID, tree)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -1092,7 +1101,7 @@ const baseChooser = "base-chooser"
 // baseChoices are the folders that hold known directories and are not
 // bases yet, the fullest first, then browse….
 func (a *App) baseChoices() []ochazuke.ChooserRow {
-	bases, _ := projectBases(a.dirsConfigPath())
+	bases, _ := a.projectBases()
 	taken := map[string]bool{}
 	for _, base := range bases {
 		taken[directoryKey(base.Path)] = true
@@ -1168,26 +1177,26 @@ func (a *App) addBase(ctx ochazuke.Ctx) ochazuke.Result {
 // addBasePath writes the base and, in the TUI, scans at once in the
 // background so its repos join the known directories.
 func (a *App) addBasePath(path string, depth int) ochazuke.Result {
-	bases, err := a.changeBase(expandPath(path), depth, true)
+	bases, err := a.changeBase(a.expandPath(path), depth, true)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	home, _ := a.home()
-	msg := "Scanning " + tildePath(expandPath(path), home) + " for repos"
-	if _, ok := os.LookupEnv("MTM_PROJECT_BASE_DIRS"); ok {
+	msg := "Scanning " + tildePath(a.expandPath(path), home) + " for repos"
+	if _, ok := a.opts.lookup("MTM_PROJECT_BASE_DIRS"); ok {
 		msg = "Saved; MTM_PROJECT_BASE_DIRS overrides dirs.json while it is set"
 	}
 	result := a.rescan(bases, msg)
 	// The new base is the selected row (test pass R14).
-	if a.baseList != nil && a.r.Instances["base:"+expandPath(path)] != nil {
-		_ = a.baseList.Select("base:" + expandPath(path))
+	if a.baseList != nil && a.r.Instances["base:"+a.expandPath(path)] != nil {
+		_ = a.baseList.Select("base:" + a.expandPath(path))
 	}
 	return result
 }
 
 // removeBase is dirs.remove-base.
 func (a *App) removeBase(ctx ochazuke.Ctx) ochazuke.Result {
-	path := expandPath(ochazuke.StringArg(ctx.Args, "path", ""))
+	path := a.expandPath(ochazuke.StringArg(ctx.Args, "path", ""))
 	bases, err := a.changeBase(path, 0, false)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -1343,7 +1352,7 @@ func (a *App) changeBase(path string, depth int, add bool) ([]projectBase, error
 		return nil, err
 	}
 	if _, err := os.Stat(a.dirsConfigPath()); errors.Is(err, os.ErrNotExist) {
-		home, _ := os.UserHomeDir()
+		home, _ := a.home()
 		for _, name := range []string{"proj", "projects", "src", "code", "dev"} {
 			path := filepath.Join(home, name)
 			if info, err := os.Stat(path); err == nil && info.IsDir() {
@@ -1353,7 +1362,7 @@ func (a *App) changeBase(path string, depth int, add bool) ([]projectBase, error
 	}
 	out := config.Bases[:0]
 	for _, base := range config.Bases {
-		if expandPath(base.Path) != path {
+		if a.expandPath(base.Path) != path {
 			base.Source = ""
 			out = append(out, base)
 		}

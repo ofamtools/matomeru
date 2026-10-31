@@ -72,7 +72,7 @@ func calls(t *testing.T, log string) []string {
 // exec of the fake bin takes a few milliseconds); timers are dropped.
 func settleJobs(t *testing.T, a *App, cmd tea.Cmd) {
 	t.Helper()
-	settle(a, cmd)
+	driveCommands(a, cmd, true, true)
 }
 
 // pressJob presses one key and settles the jobs it started.
@@ -112,6 +112,7 @@ func registered(t *testing.T, path, name, bin string) *App {
 // (under the data directory, never nabe's), and the next mtm shows its
 // page as a tab after mtm's pages, its rows from the tool as a table.
 func TestExtensionRegisterMountsATabAfterMtmsPages(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, path, "fake", bin)
@@ -140,7 +141,7 @@ func TestExtensionRegisterMountsATabAfterMtmsPages(t *testing.T) {
 	if list == nil || list.Len() != 2 {
 		t.Fatalf("rows not loaded: %+v", list)
 	}
-	if got := calls(t, log); got[len(got)-1] != "fake|"+filepath.Dir(path)+"|item list --json {}" {
+	if got := workCalls(t, log); got[len(got)-1] != "fake|"+filepath.Dir(path)+"|item list --json {}" {
 		t.Fatalf("load call %q", got[len(got)-1])
 	}
 	f := frame(a)
@@ -160,6 +161,7 @@ func TestExtensionRegisterMountsATabAfterMtmsPages(t *testing.T) {
 // the rows reload. The tool's key row X answers on the row; its j would
 // shadow the list's motion and is dropped with a notice.
 func TestExtensionVerbOnARowRunsTheToolAfterItsConfirm(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, path, "fake", bin)
@@ -199,6 +201,7 @@ func TestExtensionVerbOnARowRunsTheToolAfterItsConfirm(t *testing.T) {
 // From the CLI a row's id as the TUI shows it is a --target: mtm proxies
 // the tool's own id, with the arguments as JSON.
 func TestExtensionCLIProxiesTheTarget(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, path, "fake", bin)
@@ -227,6 +230,7 @@ func TestExtensionCLIProxiesTheTarget(t *testing.T) {
 // deletes the extension's own data file (store.OpenExtension's), never
 // mtm's database.
 func TestExtensionRefreshAndRemovePurge(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, path, "fake", bin)
@@ -274,6 +278,7 @@ func TestExtensionRefreshAndRemovePurge(t *testing.T) {
 // A tool that declares a data page and a state verb gets that page (its
 // ids under ext/<name>/) with every list's rows from one state call.
 func TestExtensionDeclaredPageLoadsFromState(t *testing.T) {
+	t.Parallel()
 	catalog := strings.Replace(strings.Replace(fakeCatalog, "VERSION", "1.0", 1), `"pages":[]`,
 		`"state":"item.state","pages":[{"id":"main","title":"Fake Two","layout":"split","lists":[{"id":"items","noun":"item"}],"detail":{"fields":["size"]}}]`, 1)
 	catalog = strings.Replace(catalog, `{"name":"list","kind":"application","description":"List the items"},`,
@@ -298,6 +303,7 @@ func TestExtensionDeclaredPageLoadsFromState(t *testing.T) {
 
 // A registry file that does not parse is a notice, never a failed start.
 func TestExtensionBadRegistryFileIsANotice(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	dir := filepath.Join(filepath.Dir(path), "extensions")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -315,6 +321,7 @@ func TestExtensionBadRegistryFileIsANotice(t *testing.T) {
 // Registered from the TUI (the palette), the extension's tab is there at
 // once, without a restart.
 func TestExtensionRegisteredInTheTUIMountsAtOnce(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := openAt(t, seeded(t))
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "extension", Verb: "register", Args: ochazuke.Arguments{"name": "fake", "bin": bin}}); err != nil {
@@ -328,4 +335,10 @@ func TestExtensionRegisteredInTheTUIMountsAtOnce(t *testing.T) {
 	if a.r.List("ext/fake/item").Len() != 2 {
 		t.Fatal("rows not loaded")
 	}
+}
+
+// workCalls leaves out independent catalog probes when checking a row request.
+func workCalls(t *testing.T, log string) []string {
+	t.Helper()
+	return slices.DeleteFunc(calls(t, log), func(call string) bool { return strings.HasSuffix(call, "|catalog") })
 }

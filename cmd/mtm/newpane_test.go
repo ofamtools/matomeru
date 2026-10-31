@@ -37,6 +37,7 @@ func shellApp(t *testing.T) (*App, *fakeDaemon) {
 // n opens a shell at once, in the inferred session: no confirm (owner,
 // 2026-10-25; x kills a shell).
 func TestNewPaneNeverConfirms(t *testing.T) {
+	t.Parallel()
 	app, _ := shellApp(t)
 	key(t, app, "n")
 	if app.r.TopModal() != "" {
@@ -49,6 +50,7 @@ func TestNewPaneNeverConfirms(t *testing.T) {
 }
 
 func TestNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
+	t.Parallel()
 	app, f := shellApp(t)
 	cmd := key(t, app, "n")
 	jobs := jobsOf(app, "pane.start")
@@ -85,6 +87,7 @@ func TestNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 }
 
 func TestNewPaneAnswersOnAnEmptyList(t *testing.T) {
+	t.Parallel()
 	app, f := shellApp(t)
 	f.panes.panes = nil
 	if err := app.reloadPanes(); err != nil {
@@ -101,6 +104,7 @@ func TestNewPaneAnswersOnAnEmptyList(t *testing.T) {
 }
 
 func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
+	t.Parallel()
 	app, f := shellApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -125,6 +129,7 @@ func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 }
 
 func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
 	app.launcher = f
@@ -143,6 +148,7 @@ func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
 }
 
 func TestCLIPaneNew(t *testing.T) {
+	t.Parallel()
 	app, f := cliApp(t)
 	f.panes = app.panesd.(*fakePanes)
 	app.pin = "ochazuke"

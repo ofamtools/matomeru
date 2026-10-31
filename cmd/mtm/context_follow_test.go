@@ -64,6 +64,7 @@ func printed(a *App, f *fakeContextPanes, window string, lines ...string) {
 }
 
 func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
+	t.Parallel()
 	a, f := followApp(t)
 	file := filepath.Join(t.TempDir(), "notes.md")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
@@ -125,6 +126,7 @@ func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
 // Each read starts at the last history offset (less the overlap), not at
 // the top of the buffer.
 func TestFollowReadsOnlyTheNewPart(t *testing.T) {
+	t.Parallel()
 	a, f := followApp(t)
 	for i := range 20 {
 		f.print("w1", "line "+string(rune('a'+i)))
@@ -148,6 +150,7 @@ func TestFollowReadsOnlyTheNewPart(t *testing.T) {
 
 // Nothing is read on a keypress, and nothing without output.
 func TestFollowNeverRunsOnAKey(t *testing.T) {
+	t.Parallel()
 	a, f := followApp(t)
 	f.print("w1", "https://example.com/quiet")
 	press(t, a, "j")

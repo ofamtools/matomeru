@@ -26,6 +26,7 @@ func notesOf(t *testing.T, a *App) map[string]work.Note {
 // pause, leaving insert mode and an undo at once; esc closes with
 // everything written.
 func TestQuickNoteWritesAsYouType(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	before := len(notesOf(t, a))
 	press(t, a, "N")
@@ -78,6 +79,7 @@ func TestQuickNoteWritesAsYouType(t *testing.T) {
 
 // The owner is the selected task, else the pin, else no project.
 func TestQuickNoteOwnerIsTheTaskElseThePin(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
 		t.Fatal(err)
@@ -122,6 +124,7 @@ func TestQuickNoteOwnerIsTheTaskElseThePin(t *testing.T) {
 // N answers on every page in normal mode (Panes here), types N in insert
 // mode, and ctrl+o closes the note and opens the Notes page on it.
 func TestQuickNoteFromPanesOpensTheNoteList(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	press(t, a, "N")
 	typeText(t, a, "Note from Panes")
@@ -143,6 +146,7 @@ func TestQuickNoteFromPanesOpensTheNoteList(t *testing.T) {
 
 // Quitting with typing still inside the pause writes it.
 func TestQuickNoteIsWrittenOnClose(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
 	press(t, a, "N")

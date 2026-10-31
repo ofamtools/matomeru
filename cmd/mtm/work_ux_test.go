@@ -13,6 +13,7 @@ import (
 // With a pin, the work page starts on the pinned project's row, which
 // carries the 📌, so l and enter act on the pin.
 func TestWorkStartsOnThePinnedRow(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
@@ -31,6 +32,7 @@ func TestWorkStartsOnThePinnedRow(t *testing.T) {
 // heading says whose tasks they are; the project's columns are the
 // noun's, which the catalog carries.
 func TestTasksFollowTheHighlightedProject(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "unpin", "work", nil)
 	if _, err := a.work.AddTask("ochazuke", "grid"); err != nil {
@@ -83,6 +85,7 @@ func rowWith(frame string, cells ...string) bool {
 // Harness state rows carry cells in the harness noun's columns, which the
 // catalog declares, so a host draws harnesses as a table.
 func TestHarnessRowsAreATable(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	out, errOut, err := cli(app, "", "projects", "state")
 	if err != nil {

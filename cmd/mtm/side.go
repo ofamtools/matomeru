@@ -176,7 +176,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			done := value.(vimStarted)
 			return sideOpened{Parent: parent, Panes: done.Launch.Panes, Note: done.Launch.Note}, nil
 		}
-		shell := os.Getenv("SHELL")
+		shell := a.getenv("SHELL")
 		if shell == "" {
 			shell = "/bin/sh"
 		}

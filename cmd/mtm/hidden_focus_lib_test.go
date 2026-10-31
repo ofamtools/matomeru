@@ -13,6 +13,7 @@ import (
 // next frame, which takes it to the pane row in normal mode; the Turns
 // tab drawn again takes } back into the turns.
 func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
+	t.Parallel()
 	for _, start := range []string{"turns", "box"} {
 		t.Run(start, func(t *testing.T) {
 			app, _, _ := claudeTurnsApp(t)
@@ -60,6 +61,7 @@ func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 // "Error:" on the status line. ctx.Error (the error tone) still reads
 // "Error:".
 func TestInfoShowsPlainThroughTheNoticeSink(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	app.r.UI().Info("queued: plain words")
 	if fr := frame(app); !strings.Contains(fr, "queued: plain words") || strings.Contains(fr, "Error: queued") {

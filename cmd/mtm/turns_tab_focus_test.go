@@ -9,6 +9,7 @@ import (
 // next keys answer there. The Screen tab draws the box too, so there i
 // writes to it; on a tab without one i leaves the box alone.
 func TestTabSwitchLeavesNoHiddenFocus(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) {
 			for _, walk := range [][]string{{"}", "]"}, {"}", "["}, {"i", "esc", "]"}, {"i", "esc", "{", "]"}} {

@@ -53,6 +53,7 @@ func fakeWithVerb(version, verb string) string {
 // An unchanged catalog is checked but not rewritten; a failed refresh
 // keeps the old catalog and can recover on the next open.
 func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, path, "fake", bin)

@@ -42,6 +42,7 @@ func boxRule(t *testing.T, a *App) string {
 }
 
 func TestPromptBoxModesCycleAndShow(t *testing.T) {
+	t.Parallel()
 	app, f := promptApp(t)
 	if r := boxRule(t, app); !strings.Contains(r, "[send] claude-code") || !strings.Contains(r, "enter sends") || !strings.Contains(r, "ctrl+t mode") {
 		t.Fatalf("rule %q", r)
@@ -79,6 +80,7 @@ func TestPromptBoxModesCycleAndShow(t *testing.T) {
 // enter sends (a paste then the harness's Enter, through tuios's
 // send-text); ctrl+j breaks the line; the box clears once it went.
 func TestPromptBoxSendsAndClears(t *testing.T) {
+	t.Parallel()
 	app, f := promptApp(t)
 	typeText(t, app, "fix it")
 	press(t, app, "ctrl+j")
@@ -105,6 +107,7 @@ func TestPromptBoxSendsAndClears(t *testing.T) {
 }
 
 func TestPromptBoxInterruptAndQueue(t *testing.T) {
+	t.Parallel()
 	app, f := promptApp(t)
 	f.panes[0].AgentState = "working"
 	reload(t, app)
@@ -151,6 +154,7 @@ func TestPromptBoxInterruptAndQueue(t *testing.T) {
 // While the agent waits on the person, send and interrupt refuse: tuios
 // would type into the prompt it shows. A queue waits for its rest.
 func TestPromptBoxNeverTypesOverAWaitingPrompt(t *testing.T) {
+	t.Parallel()
 	app, f := promptApp(t)
 	f.panes[0].AgentState = "needs_input"
 	reload(t, app)
@@ -173,6 +177,7 @@ func TestPromptBoxNeverTypesOverAWaitingPrompt(t *testing.T) {
 // esc leaves insert, then goes back to the turns; } from the turns comes
 // back to the box. (A shell's box: prompt_any_pane_test.go.)
 func TestPromptBoxIsAStopAfterTheTurns(t *testing.T) {
+	t.Parallel()
 	app, _ := promptApp(t)
 	press(t, app, "esc", "esc")
 	if app.r.Instances[app.r.Focus].Noun != "turn" {
@@ -209,6 +214,7 @@ func suggestionTexts(s []ochazuke.Suggestion) []string {
 }
 
 func TestPromptCompletionsFilesContextCommandsSkills(t *testing.T) {
+	t.Parallel()
 	app, f, _ := claudeTurnsApp(t)
 	cwd := t.TempDir()
 	writeTextFile(t, filepath.Join(cwd, "internal", "turns", "omp.go"), "package turns\n")
@@ -244,6 +250,7 @@ func TestPromptCompletionsFilesContextCommandsSkills(t *testing.T) {
 // Accepting a skill from the $ list writes the harness's syntax: Claude
 // Code's /name, omp's /skill:name, mid-text too.
 func TestPromptAcceptingASkillWritesTheHarnessSyntax(t *testing.T) {
+	t.Parallel()
 	app, _ := promptApp(t)
 	writeTextFile(t, filepath.Join(promptHome(app), ".claude", "skills", "deploy", "SKILL.md"), "---\nname: deploy\n---\n")
 	acceptSkill(t, app, "$dep")

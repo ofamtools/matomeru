@@ -267,6 +267,7 @@ func follow(a *App) tea.Cmd {
 }
 
 func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	// This test reads the session rows (project → session → pane), all
 	// of them in 24 lines: the stacked lists (panes_panels_test.go has the
@@ -295,6 +296,7 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 // The Screen tab follows the selection: after the pause, pane.preview runs
 // in the list's replacing slot with no key pressed.
 func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	cmd := follow(app)
 	var jobs []ochazuke.JobInfo
@@ -323,6 +325,7 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 }
 
 func TestANewerPreviewCancelsTheOlder(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -354,6 +357,7 @@ func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 }
 
 func TestAttachAndDetachThroughTheLeader(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	cmd := key(t, app, "enter")
 	term := app.r.Terminal(paneTermID)
@@ -412,6 +416,7 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 // ctrl+a z zooms the attached pane to the page body and back; every attach
 // starts unzoomed. ctrl+a j and k attach the next and previous pane.
 func TestLeaderZoomAndNextPane(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	key(t, app, "enter")
 	if app.pv.zoom {
@@ -447,6 +452,7 @@ func TestLeaderZoomAndNextPane(t *testing.T) {
 }
 
 func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -481,6 +487,7 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 }
 
 func TestKillConfirmsWithThePaneLabel(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	press(t, app, "d", "d")
 	settle(app, key(t, app, "n"))
@@ -505,6 +512,7 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 }
 
 func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.err = errors.New("dial unix tuios.sock: connect: no such file or directory")
 	settle(app, follow(app))
@@ -541,6 +549,7 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 }
 
 func TestPaneLabelShortensUUIDSessions(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		p    pane
 		want string
@@ -564,6 +573,7 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 // state and age are the detail's header line. One window is one row: an
 // agent's pane is the agent's row; a shell is a shell row.
 func TestPaneTreeIsATable(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	// This test reads the session rows (project → session → pane), all
 	// of them at 80 columns: the stacked lists.
@@ -613,6 +623,7 @@ func TestPaneTreeIsATable(t *testing.T) {
 
 // The header names the owner only when the pin leaves the pane out.
 func TestPaneHeaderNamesTheOwnerOutsideThePin(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	p := pane{Session: "s", Harness: "claude", Pane: daemon.Pane{ID: "w1", AgentState: "working", Cwd: "/tmp/x"}}
 	app.pv.view.owners = map[string]string{"w1": "other"}
@@ -628,6 +639,7 @@ func TestPaneHeaderNamesTheOwnerOutsideThePin(t *testing.T) {
 // An agent's header doubles as its status line: tuios metadata first, the
 // launch recipe's model and flags behind it, nothing for a missing fact.
 func TestPaneHeaderIsTheAgentStatusLine(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	p := pane{Session: "s", Harness: "claude", Model: "sonnet", LaunchFlags: []string{"--model", "sonnet", "--effort=high", "--permission-mode", "plan"},
 		Pane: daemon.Pane{ID: "w1", AgentState: "working", Cwd: "/tmp/x"}}
@@ -648,6 +660,7 @@ func TestPaneHeaderIsTheAgentStatusLine(t *testing.T) {
 // filter clears, every row shows again and the selection stays on the
 // chosen pane, in normal mode (the tree is added ClearFilterOnEnter).
 func TestPaneSearchEnterChoosesAndClears(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	rows := app.paneList.Len()
 	press(t, app, "/")
@@ -683,6 +696,7 @@ func lastFitOf(f *fakePanes, id string) string {
 // for (FitWindow), because a lease alone never grows a pane past the size
 // its clients asked for (tuios pane_lease.go).
 func TestAttachedPaneAsksForItsDrawnSize(t *testing.T) {
+	t.Parallel()
 	app, f := liveApp(t)
 	main := f.streams[0]
 	asks := func(label string) [2]int {
@@ -740,6 +754,7 @@ func TestAttachedPaneAsksForItsDrawnSize(t *testing.T) {
 // l does: ochazuke v0.25.0's table scroll-then-focus rows answered for the
 // tree's list and l left the tree instead (fixed in v0.26.0, R11.1).
 func TestSessionRowHLExpandsAndStepsIn(t *testing.T) {
+	t.Parallel()
 	for _, right := range []string{"l", "right"} {
 		app, _ := panesApp(t)
 		// This test reads the session rows (project → session → pane).

@@ -10,6 +10,7 @@ import (
 // names as deprecated aliases (Keep actions), so a host holding an old
 // catalog (nabe's registry: dirs base.add) still reaches them.
 func TestRenamedVerbsKeepTheirOldNames(t *testing.T) {
+	t.Parallel()
 	a := openWith(t, Options{Data: seeded(t)})
 	for old, canonical := range map[string]string{
 		"dirs.base.add":            "dirs.add-base",

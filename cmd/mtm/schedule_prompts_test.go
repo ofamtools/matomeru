@@ -38,6 +38,7 @@ type promptViewJSON struct {
 // the others typed before the prompt; the project's session, the task
 // linked; the run's record links the pane.
 func TestPromptScheduleLaunchesWithItsAgentConfig(t *testing.T) {
+	t.Parallel()
 	a, f, _, _ := schedPromptApp(t)
 	var v promptViewJSON
 	cliJSON(t, a, &v, "schedule", "add", "--name", "ask", "--prompt", "summarise the inbox", "--when", "mon,fri 9:00",
@@ -83,6 +84,7 @@ func TestPromptScheduleLaunchesWithItsAgentConfig(t *testing.T) {
 // question: nothing is submitted, even while the pane waits on its
 // person. With no such pane, a run starts one by that name.
 func TestPromptScheduleQueuesInANamedPane(t *testing.T) {
+	t.Parallel()
 	a, f, panes, _ := schedPromptApp(t)
 	panes.panes = append(panes.panes, pane{Session: "no-project", Pane: daemon.Pane{ID: "w7", Name: "reviewer", AgentState: "needs_input"}})
 	mustCLI(t, a, "schedule", "add", "--name", "review", "--prompt", "check the PRs", "--into", "pane", "--pane", "reviewer", "--effort", "high")
@@ -109,6 +111,7 @@ func TestPromptScheduleQueuesInANamedPane(t *testing.T) {
 // add, edit, duplicate, enable, disable and delete write stored rows;
 // a built-in edits into a stored copy and never deletes.
 func TestScheduleRowVerbs(t *testing.T) {
+	t.Parallel()
 	a, _, _, _ := schedPromptApp(t)
 	var v promptViewJSON
 	cliJSON(t, a, &v, "schedule", "add", "--prompt", "Tidy the notes, please")
@@ -161,6 +164,7 @@ func TestScheduleRowVerbs(t *testing.T) {
 // disabled one never fires; add (n) with no fields records an off row and
 // opens its form.
 func TestTUIPromptSchedules(t *testing.T) {
+	t.Parallel()
 	a, f, _, now := schedPromptApp(t)
 	*now = time.Date(2026, 10, 28, 8, 0, 0, 0, time.UTC) // a Wednesday
 	mustCLI(t, a, "schedule", "disable", "gh-signals")

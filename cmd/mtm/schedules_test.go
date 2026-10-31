@@ -79,6 +79,7 @@ type scheduleAnswerJSON struct {
 // The defaults ship off but gh-signals, which is auto; each is two
 // settings; the verbs write them and the rows follow.
 func TestScheduleSettingsAndVerbs(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	s := a.r.Settings()
 	if got := s.String("schedule.gh-signals.enabled"); got != schedules.Auto {
@@ -130,6 +131,7 @@ func TestScheduleSettingsAndVerbs(t *testing.T) {
 // it, and history and show answer the runs; a command that is not
 // installed is recorded as missing, not as an error.
 func TestScheduleRunNowAndHistory(t *testing.T) {
+	t.Parallel()
 	a, f, now := scheduleApp(t)
 	var rec schedules.Record
 	cliJSON(t, a, &rec, "schedule", "run-now", "gh-signals")
@@ -170,6 +172,7 @@ func TestScheduleRunNowAndHistory(t *testing.T) {
 
 // A schedules.json beside the config adds a schedule (and its settings).
 func TestSchedulesFileAddsRows(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	file := `[{"name": "todo-sync", "command": ["o-todo", "sync"], "interval": "1h"}, {"name": "gh-signals", "interval": "15m"}]`
 	if err := os.WriteFile(filepath.Join(filepath.Dir(path), scheduleFile), []byte(file), 0o600); err != nil {
@@ -196,6 +199,7 @@ func TestSchedulesFileAddsRows(t *testing.T) {
 // finished run rebuilds the row; a schedule that starts failing says so
 // once as a notice (never a modal), and a missing command says nothing.
 func TestTUIRunsDueSchedules(t *testing.T) {
+	t.Parallel()
 	a, f, now := scheduleApp(t)
 	mustCLI(t, a, "schedule", "enable", "slack-signals")
 	a.startSchedules()
@@ -255,6 +259,7 @@ func TestTUIRunsDueSchedules(t *testing.T) {
 // On the page: r runs the selected schedule now, e turns it off and on,
 // i asks for an interval.
 func TestSchedulePageKeys(t *testing.T) {
+	t.Parallel()
 	a, f, _ := scheduleApp(t)
 	toPage(t, a, inboxPage)
 	press(t, a, "S")
@@ -311,6 +316,7 @@ func mtmItems(t *testing.T, a *App) []actionitems.Item {
 // the pane stops waiting, a done item is read once the pane is attached;
 // a kind turned off raises nothing. A CLI listing raises nothing.
 func TestPaneSignalsReachTheInbox(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "work", ProjectID: "matomeru", TaskID: "t1"}); err != nil {
 		t.Fatal(err)
@@ -371,6 +377,7 @@ func TestPaneSignalsReachTheInbox(t *testing.T) {
 // Two TUIs open on one database run each occurrence once: the claim is
 // in the store, not in either process.
 func TestTwoTUIsRunEachScheduleOnce(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 	f := &fakeRuns{}
