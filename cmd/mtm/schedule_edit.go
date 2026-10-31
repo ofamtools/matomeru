@@ -50,7 +50,7 @@ func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 		"when":            {Type: "string", Description: "When it runs: every 30m, daily 09:00, mon,wed,fri 09:00,17:30, weekdays 8:30, cron 0 9 * * 1-5, or never"},
 		"enabled":         {Type: "string", Enum: schedules.EnabledValues, Description: "on, off, or auto (when its command is installed and its checks pass)"},
 		"harness":         {Type: "string", Enum: a.harnesses.Names(), Description: "The harness profile (harnesses.json); empty: the project's, else default-harness"},
-		"model":           {Type: "string", Source: "harness.models", Free: true, Description: "The model; empty: the harness's first"},
+		"model":           {Type: "string", Source: "harness.models", SourceArgs: map[string]string{"harness": "harness"}, Free: true, Description: "The model; empty: the harness's first"},
 		"effort":          {Type: "string", Enum: settingChoices(harness.SettingEffort), Free: true, Description: "Thinking effort at launch (the harness's effort setting)"},
 		"fast":            {Type: "string", Enum: []string{"on", "off"}, Free: true, Description: "Fast mode at launch: on or off"},
 		"permission-mode": {Type: "string", Enum: settingChoices(harness.SettingPermission), Free: true, Description: "Permission mode at launch (the harness's permission-mode setting)"},

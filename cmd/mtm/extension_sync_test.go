@@ -106,3 +106,39 @@ func TestExtensionCLIChangesShowWhenAPageOpens(t *testing.T) {
 }
 
 func hasOp(a *App, key string) bool { _, ok := a.r.Operations[key]; return ok }
+
+func TestExtensionUserActionsSurviveRemount(t *testing.T) {
+	t.Parallel()
+	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
+	a := open(t)
+	for name, data := range map[string]string{
+		ochazuke.ActionsFile:  `[{"noun":"fake.item","verb":"inspect-user","command":["printf","user action"]}]`,
+		ochazuke.BindingsFile: `[{"noun":"fake.item","mode":"normal","keys":"U","request":{"noun":"fake.item","verb":"inspect-user"}}]`,
+	} {
+		if err := os.WriteFile(a.r.Config().Path(name), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustCLI(t, a, "extension", "register", "fake", "--bin", bin)
+	a.syncExtensions()
+	assertUserAction := func() {
+		t.Helper()
+		if !hasOp(a, "fake.item.inspect-user") {
+			t.Fatal("user action missing after mount")
+		}
+		openExtPage(t, a, "ext/fake")
+		if err := a.r.SetFocus("ext/fake/item/i1"); err != nil {
+			t.Fatal(err)
+		}
+		before := len(jobsOf(a, "fake.item.inspect-user"))
+		pressJob(t, a, "U")
+		if jobs := jobsOf(a, "fake.item.inspect-user"); len(jobs) != before+1 || jobs[len(jobs)-1].State != ochazuke.JobDone {
+			t.Fatalf("user binding did not run action: %+v", jobs)
+		}
+	}
+	assertUserAction()
+	for range 2 {
+		a.remountExtensions()
+		assertUserAction()
+	}
+}
