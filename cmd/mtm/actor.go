@@ -151,12 +151,13 @@ func (a *App) actorEnvValue() string {
 }
 
 // The Work page and the tasks modal show who made each task (opt-outs
-// below), and the Work page may show only the owner's or the agents'.
+// below). The framework filters task rows by their props on every list.
 const (
 	settingTasksColumns      = "tasks.columns"
 	settingTasksAgentGlyph   = "tasks.agent-glyph"
 	settingTasksPrivateGlyph = "tasks.private-glyph"
 	settingTasksMadeBy       = "tasks.made-by"
+	settingWorkTasksFilter   = "work.tasks-filter"
 	settingPrivacyInbox      = "projects.privacy-inbox"
 
 	columnBy = "by"
@@ -178,8 +179,8 @@ func taskViewSettings() []ochazuke.Setting {
 			Description: "Mark tasks an agent made with " + agentGlyph + " before their title (Work page and tasks outline)"},
 		{Name: settingTasksPrivateGlyph, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Mark private tasks (their own flag or a parent's) with " + privateGlyph + " before their title (Work page and tasks outline)"},
-		{Name: settingTasksMadeBy, Type: ochazuke.SettingString, Default: madeByAll, Enum: []string{madeByAll, madeByMine, madeByAgents},
-			Description: "Which tasks the Work page lists: all, mine (made by the owner or unknown) or agents (made by an agent); / still filters the rows shown"},
+		{Name: settingWorkTasksFilter, Deprecated: []string{settingTasksMadeBy}, Type: ochazuke.SettingString, Default: madeByAll,
+			Description: "The saved task filter applied when the Work page first lists tasks: all (default), mine (owner), agents, or a user-defined saved filter; z ] and z [ cycle for this session"},
 		{Name: settingPrivacyInbox, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Add one quiet Inbox item for a new project with no privacy (private until marked family, so not exported), offering project make-family"},
 	}
@@ -188,7 +189,13 @@ func taskViewSettings() []ochazuke.Setting {
 // observeTaskView redraws the task rows when one of those settings
 // changes.
 func (a *App) observeTaskView() {
-	for _, name := range []string{settingTasksColumns, settingTasksAgentGlyph, settingTasksPrivateGlyph, settingTasksMadeBy} {
+	a.r.Settings().Observe(settingWorkTasksFilter, func(string, any) {
+		a.taskFilterApplied = false
+		if err := a.refreshTasks(); err != nil {
+			a.r.UI().Notify(settingWorkTasksFilter + ": " + err.Error())
+		}
+	})
+	for _, name := range []string{settingTasksColumns, settingTasksAgentGlyph, settingTasksPrivateGlyph} {
 		a.r.Settings().Observe(name, func(string, any) {
 			if err := a.refreshTasks(); err != nil {
 				a.r.UI().Notify(name + ": " + err.Error())
@@ -235,17 +242,13 @@ func (a *App) taskGlyphs(t work.Task, private bool) string {
 	return out
 }
 
-// madeByShown reports whether the Work page lists t under tasks.made-by.
-// The framework's filter-by-prop (an ochazuke lane) replaces this
-// setting later: a saved filter row made_by=agent over any list.
-func (a *App) madeByShown(t work.Task) bool {
-	switch a.r.Settings().String(settingTasksMadeBy) {
-	case madeByMine:
-		return t.MadeBy() != work.ActorAgent
-	case madeByAgents:
-		return t.MadeBy() == work.ActorAgent
+// taskFilters are catalog data shared by task rows and the editable outline.
+func taskFilters() []ochazuke.SavedFilter {
+	return []ochazuke.SavedFilter{
+		{Name: madeByMine, Where: map[string]any{"made-by": work.ActorOwner}},
+		{Name: madeByAgents, Where: map[string]any{"made-by": work.ActorAgent}},
+		{Name: madeByAll},
 	}
-	return true
 }
 
 // privacyKey is the Inbox key of a project's "mark as family" item.

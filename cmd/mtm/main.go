@@ -302,6 +302,7 @@ type App struct {
 	cli                bool
 	actorSet           bool            // the actor was set before the CLI's Prepare (the MCP server's; actor.go)
 	taskPrivate        map[string]bool // the Work page's private tasks, for their glyph (tasks.go)
+	taskFilterApplied  bool            // Work's startup default has been applied; cycling stays session state
 	pin                string
 	all                bool
 	pinVersion         uint64
@@ -569,6 +570,9 @@ func New(opts Options) (*App, error) {
 	a.defineExtForms()
 	a.defineConfigReload()
 	if err := a.declareSettings(); err != nil {
+		return nil, err
+	}
+	if err := a.migrateSettingAliases(settingWorkTasksFilter); err != nil {
 		return nil, err
 	}
 	if err := a.addSegments(); err != nil {

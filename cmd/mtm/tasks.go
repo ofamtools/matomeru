@@ -19,7 +19,7 @@ func (a *App) defineTask() {
 	// set, watch, rename, move, duplicate) come from them (task_store.go);
 	// new and edit wrap create and set; done and status are aliases of
 	// set; the rest are mtm's own.
-	r.Define("task").Props(taskProps()...).Store(a.taskStore()).Columns(taskColumns...).
+	r.Define("task").Props(taskProps()...).Filters(taskFilters()...).Store(a.taskStore()).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
 		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").
@@ -76,7 +76,7 @@ func (a *App) refreshTasks() error {
 		// projects list shows every project, and selecting one shows its
 		// tasks without pinning it (the "no pin" rule, 2026-10-26).
 		for _, t := range rows {
-			if (a.all || t.ProjectID == a.current) && a.madeByShown(t) {
+			if a.all || t.ProjectID == a.current {
 				tasks = append(tasks, t)
 			}
 		}
@@ -104,6 +104,10 @@ func (a *App) refreshTasks() error {
 	a.taskList.SetColumns(cols...)
 	now := time.Now()
 	a.taskPrivate = privateTasks(tasks)
+	exported, err := a.work.Exports()
+	if err != nil {
+		return err
+	}
 	row := func(t work.Task) ochazuke.TreeNode {
 		label := taskLabel(t)
 		if a.all || a.pin == "" {
@@ -112,7 +116,7 @@ func (a *App) refreshTasks() error {
 		if marked[t.ID] {
 			label += " [draft]"
 		}
-		return ochazuke.TreeNode{Label: label, Noun: "task", Cells: a.taskCells(t, marked[t.ID], now)}
+		return ochazuke.TreeNode{Label: label, Noun: "task", Props: taskThing(t, exported[t.ID]), Cells: a.taskCells(t, marked[t.ID], now)}
 	}
 	nodes := a.taskNodes(tasks, row)
 	for _, d := range drafts {
@@ -120,7 +124,24 @@ func (a *App) refreshTasks() error {
 			nodes = append(nodes, ochazuke.TreeNode{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d, Cells: []string{"[ ] untitled [draft]"}})
 		}
 	}
-	return a.taskTree.SetNodes(nodes)
+	if err := a.taskTree.SetNodes(nodes); err != nil {
+		return err
+	}
+	if !a.taskFilterApplied && len(tasks) > 0 {
+		filter, err := a.r.Settings().Get(settingWorkTasksFilter)
+		if err != nil {
+			return err
+		}
+		// An unset startup default is the list's unfiltered state. Only
+		// an explicit setting applies a name; cycling owns session state.
+		if filter.Set || filter.Session {
+			if err := a.taskList.ApplyFilter(filter.Value.(string)); err != nil {
+				return err
+			}
+		}
+		a.taskFilterApplied = true
+	}
+	return nil
 }
 
 // taskTreeID is the Work page's task tree; taskListID is the list that

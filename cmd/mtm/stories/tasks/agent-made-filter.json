@@ -1,5 +1,5 @@
 {
-  "name": "mtm: tasks.made-by agents lists only the tasks an agent made; mine lists the rest",
+  "name": "mtm: deprecated tasks.made-by sets the Work startup saved-filter alias for one release",
   "area": "tasks",
   "fixture": "makers",
   "width": 120,
@@ -7,10 +7,14 @@
   "script": [
     "ctrl+j",
     ":",
-    {"type": "set tasks.made-by=agents"},
+    {
+      "type": "set tasks.made-by=agents"
+    },
     "enter",
     ":",
-    {"type": "set tasks.made-by=mine"},
+    {
+      "type": "set tasks.made-by=mine"
+    },
     "enter"
   ],
   "expect": [

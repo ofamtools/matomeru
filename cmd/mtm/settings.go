@@ -1,12 +1,50 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 )
+
+// migrateSettingAliases rewrites deprecated names once through Settings.Set,
+// which preserves unrelated settings, prefers a canonical value and removes
+// its aliases. The aliases remain readable/writable for one release.
+func (a *App) migrateSettingAliases(names ...string) error {
+	raw, err := os.ReadFile(a.r.Config().Path(ochazuke.SettingsFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var values map[string]json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return nil // the framework reports malformed settings normally
+	}
+	for _, name := range names {
+		value, err := a.r.Settings().Get(name)
+		if err != nil {
+			return err
+		}
+		if !value.Set {
+			continue // invalid old values are reported, never rewritten
+		}
+		for _, old := range value.Deprecated {
+			if _, exists := values[old]; exists {
+				if err := a.r.Settings().Set(name, value.Value); err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+	return nil
+}
 
 // mtm's user configuration rides ochazuke's: bindings.json, settings.json
 // and themes.json sit in mtm's config directory beside harnesses.json and
@@ -114,7 +152,7 @@ func (a *App) declareSettingLayout() error {
 	return a.r.DeclareSettingSection(
 		app(ochazuke.SettingsGeneralSection, "General", "Editing, refresh, the default harness, the directory chooser and the side pane"),
 		app("work", "Work", "The Work page's task list (a tree or flat) and how the task picker names a subtask"),
-		app("tasks", "Tasks", "Who made each task: the by column, the agent and private marks, and which tasks the Work page lists (mine, agents' or all)"),
+		app("tasks", "Tasks", "Who made each task: the by column and the agent and private marks"),
 		app("projects", "Projects", "Project privacy: the Inbox item for a new project that is private until marked family"),
 		app("agents", "Agents", "What an agent may change: tasks by where they are and who made them, and panes to associate; the owner is never limited"),
 		app("panes", "Panes", "The Panes page: grouping, its sections and panels, which states count as working, waiting or errored, and which pane borders take their state colour"),

@@ -331,12 +331,12 @@ func TestWorkPageShowsWhoMadeEachTask(t *testing.T) {
 		}
 	}
 	set(settingTasksMadeBy, madeByAgents)
-	if len(a.tasks) != 1 || a.tasks[0].Title != "agent wrote this" {
-		t.Fatalf("agents' tasks: %+v", a.tasks)
+	if f := frameAt(a, 120); !strings.Contains(f, "agent wrote this") || strings.Contains(f, "lift the store") {
+		t.Fatalf("agents' tasks:\n%s", f)
 	}
 	set(settingTasksMadeBy, madeByMine)
-	if len(a.tasks) != 2 {
-		t.Fatalf("my tasks: %+v", a.tasks)
+	if f := frameAt(a, 120); strings.Contains(f, "agent wrote this") || !strings.Contains(f, "lift the store") {
+		t.Fatalf("mine lists owner tasks:\n%s", f)
 	}
 	set(settingTasksMadeBy, madeByAll)
 	set(settingTasksColumns, []string{})

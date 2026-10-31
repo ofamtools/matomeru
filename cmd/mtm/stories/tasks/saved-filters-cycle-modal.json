@@ -1,0 +1,58 @@
+{
+  "name": "mtm: saved task filters cycle mine agents all and backward in the modal",
+  "area": "tasks",
+  "fixture": "makers",
+  "width": 140,
+  "height": 35,
+  "script": [
+    "ctrl+j",
+    "T",
+    "z",
+    "]",
+    "z",
+    "]",
+    "z",
+    "]",
+    "z",
+    "["
+  ],
+  "expect": [
+    {
+      "after": 4,
+      "contains": [
+        "[mine]",
+        "Flaky test: login redirect on Safari"
+      ],
+      "lacks": [
+        "Move the cart drawer to the new design tokens"
+      ]
+    },
+    {
+      "after": 6,
+      "contains": [
+        "[agents]",
+        "Move the cart drawer to the new design tokens"
+      ],
+      "lacks": [
+        "Flaky test: login redirect on Safari"
+      ]
+    },
+    {
+      "after": 8,
+      "contains": [
+        "[all]",
+        "Flaky test: login redirect on Safari",
+        "Move the cart drawer to the new design tokens"
+      ]
+    },
+    {
+      "contains": [
+        "[agents]",
+        "Move the cart drawer to the new design tokens"
+      ],
+      "lacks": [
+        "Flaky test: login redirect on Safari"
+      ]
+    }
+  ]
+}

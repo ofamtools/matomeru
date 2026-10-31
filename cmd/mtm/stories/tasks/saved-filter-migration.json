@@ -1,0 +1,27 @@
+{
+  "name": "mtm: saved filter migration applies legacy agents default on Work at startup",
+  "area": "tasks",
+  "fixture": "makers",
+  "width": 140,
+  "height": 35,
+  "script": [
+    "ctrl+j",
+    "tab"
+  ],
+  "expect": [
+    {
+      "contains": [
+        "[agents]",
+        "Move the cart drawer to the new design tokens"
+      ],
+      "lacks": [
+        "Flaky test: login redirect on Safari"
+      ]
+    }
+  ],
+  "config": {
+    "settings.json": {
+      "tasks.made-by": "agents"
+    }
+  }
+}

@@ -63,9 +63,14 @@ func taskProps() []ochazuke.PropSpec {
 			Description: "Who made the task, stamped once: owner, agent (with its harness, pane, session, lane task and model) or unknown (made before mtm recorded it); the owner may set it (owner, agent, unknown or an actor as JSON) to claim tasks"}},
 		{Name: "changed-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string",
 			Description: "Who wrote the task last: owner or agent (as created-by); empty before mtm recorded it"}},
-		{Name: "made-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{work.ActorOwner, work.ActorAgent, work.ActorUnknown},
-			Description: "created-by's kind, flat for --where made-by=agent: owner, agent or unknown"}},
+		taskMakerProp(),
 	}
+}
+
+// taskMakerProp is shared by the task noun and its editable outline rows.
+func taskMakerProp() ochazuke.PropSpec {
+	return ochazuke.PropSpec{Name: "made-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{work.ActorOwner, work.ActorAgent, work.ActorUnknown},
+		Description: "created-by's kind, flat for --where made-by=agent: owner, agent or unknown"}}
 }
 
 // taskStore is the task noun's store over the work store. history.undo may

@@ -1,0 +1,19 @@
+{
+  "name": "mtm: task notes can filter mine agents all by their own maker",
+  "area": "tasks",
+  "fixture": "makers",
+  "skip": "gap: notes store no maker and expose no made-by prop; the tasks outline has no notes list. Note provenance and an embedded notes list need a separate app change.",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    "T"
+  ],
+  "expect": [
+    {
+      "contains": [
+        "notes \u00b7 [mine]"
+      ]
+    }
+  ]
+}

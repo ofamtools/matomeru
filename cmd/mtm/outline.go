@@ -136,7 +136,7 @@ func (a *App) defineOutline() {
 	// selection (V) they act on every selected task, as one undo step;
 	// the outline's toggle and status (on the modal) stay for the
 	// palette and for the rows that are not tasks, which they refuse.
-	a.r.Define(outlineTaskNoun).
+	a.r.Define(outlineTaskNoun).Props(taskMakerProp()).Filters(taskFilters()...).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
 		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
@@ -489,7 +489,7 @@ func rootNoun(scope outlineScope, id string) string {
 // is which tasks are private (privateTasks), for their glyph.
 func (a *App) outlineTaskNodes(tasks []work.Task, root string, private map[string]bool) []ochazuke.TreeNode {
 	return taskTreeNodes(tasks, root, outlineNode, func(t work.Task) ochazuke.TreeNode {
-		return ochazuke.TreeNode{Label: t.Title, Noun: outlineTaskNoun, Cells: a.outlineCells(t.Title, t, private[t.ID])}
+		return ochazuke.TreeNode{Label: t.Title, Noun: outlineTaskNoun, Props: ochazuke.Thing{"made-by": t.MadeBy()}, Cells: a.outlineCells(t.Title, t, private[t.ID])}
 	})
 }
 
@@ -775,6 +775,7 @@ func (a *App) outlineChanged(o *outlineState) error {
 		}
 		t := byID[taskOf(n.ID)]
 		nodes[i].Cells, nodes[i].Noun = a.outlineCells(n.Label, t, private[t.ID]), outlineTaskNoun
+		nodes[i].Props = ochazuke.Thing{"made-by": t.MadeBy()}
 	}
 	if err := o.tree.SetNodes(nodes); err != nil {
 		return err
