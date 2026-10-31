@@ -816,6 +816,16 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	detail := a.detailBlock(layout, detailW, max(3, detailH))
 	headLine := s.Muted.Render(a.panesHead(listW))
 	if side {
+		cache := &a.pv.columnsFrame
+		if a.r.Settings().Int(ochazuke.RenderMaxFPSSetting) > 0 && cache.head == headLine && cache.left == left.Text && cache.right == detail.Text && cache.width == width && cache.height == height {
+			block := ochazuke.Text(cache.text)
+			if left.Cursor != nil {
+				block.Cursor = &ochazuke.Pos{X: left.Cursor.X, Y: left.Cursor.Y + 1}
+			} else if detail.Cursor != nil {
+				block.Cursor = &ochazuke.Pos{X: detail.Cursor.X + listW + 1, Y: detail.Cursor.Y}
+			}
+			return block
+		}
 		leftText := headLine + "\n" + left.Text
 		lines := strings.Split(leftText, "\n")
 		for len(lines) < height {
@@ -833,6 +843,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 			out[i] = ansi.Truncate(l, listW, "") + " " + r
 		}
 		block := ochazuke.Text(strings.Join(out, "\n"))
+		*cache = paneColumnsCache{head: headLine, left: left.Text, right: detail.Text, width: width, height: height, text: block.Text}
 		switch {
 		case left.Cursor != nil:
 			block.Cursor = &ochazuke.Pos{X: left.Cursor.X, Y: left.Cursor.Y + 1}
@@ -1016,7 +1027,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	case live || inst == nil || a.frontsPane(inst):
 		body = body.Offset(0, 1).WithText(tabs + "\n" + body.Text)
 	}
-	return layout.WithPanelTone(tone).PanelBlock(ansi.Truncate(title, max(1, width-6), "…"), body, width, height, focused)
+	return a.cachedPanePanel(&a.pv.detailPanel, layout, ansi.Truncate(title, max(1, width-6), "…"), tone, body, width, height, focused)
 }
 
 // tabLine names the tabs, the shown one marked; "enter live" only while

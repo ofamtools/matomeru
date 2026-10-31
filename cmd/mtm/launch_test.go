@@ -275,6 +275,7 @@ func frame(a *App) string { return ansi.Strip(rawFrame(a)) }
 // is reverse video, with no marker in the text.
 func rawFrame(a *App) string {
 	a.m.Width, a.m.Height = 120, 24
+	a.m.InvalidateRender() // explicit fake-clock snapshot; no frame timer is driven
 	return a.m.View().Content
 }
 

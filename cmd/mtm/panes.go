@@ -182,9 +182,11 @@ type preview struct {
 
 // paneUI is the panes page's own state (the App holds one).
 type paneUI struct {
-	tree *ochazuke.Tree
-	view paneView
-	tab  int // the detail tab: tabScreen, tabActivity, tabTranscript, tabTurns
+	detailPanel  panePanelCache
+	columnsFrame paneColumnsCache
+	tree         *ochazuke.Tree
+	view         paneView
+	tab          int // the detail tab: tabScreen, tabActivity, tabTranscript, tabTurns
 	// viewRow is the row the view was last checked for, viewApplied the
 	// view that opened the tab (pane_view.go).
 	viewRow, viewApplied string

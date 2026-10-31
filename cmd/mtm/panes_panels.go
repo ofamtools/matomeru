@@ -366,7 +366,7 @@ func (a *App) panelBlock(layout ochazuke.Layout, st ochazuke.Styles, sec *paneSe
 			title += fmt.Sprintf(" · +%d more", need-ch)
 		}
 	}
-	return layout.PanelBlock(title, body, width, height, sec.tree.List().Focused())
+	return a.cachedPanePanel(&sec.panel, layout, title, "", body, width, height, sec.tree.List().Focused())
 }
 
 // focusSection is panes.focus-section: the focus on one of the page's
