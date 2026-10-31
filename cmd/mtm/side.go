@@ -428,8 +428,24 @@ func (a *App) withSideLock(fn func(context.Context) (any, error)) func(context.C
 			return nil, err
 		}
 		defer f.Close()
-		if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
-			return nil, err
+		for {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+			if err == nil {
+				break
+			}
+			if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
+				return nil, err
+			}
+			timer := time.NewTimer(20 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
 		}
 		defer unix.Flock(int(f.Fd()), unix.LOCK_UN)
 		if err := ctx.Err(); err != nil {

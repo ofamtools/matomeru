@@ -210,14 +210,22 @@ type paneUI struct {
 	sent bool
 	// The cards style (turn_cards.go): a timeline per pane window, the one
 	// the tab draws, and what each was filled with.
-	timelines  map[string]*ochazuke.Timeline
-	cards      *ochazuke.Timeline
-	cardFills  map[string]*cardFill
-	events     chan struct{}
-	subscribed bool
-	exited     map[string]bool // windows seen exited, kept across plain listings
-	listed     bool            // a listing has succeeded (the Vim page's state follows it)
-	leader     string          // the leader the page's leader rows are bound to (panes_leader.go)
+	timelines       map[string]*ochazuke.Timeline
+	cards           *ochazuke.Timeline
+	cardFills       map[string]*cardFill
+	events          chan struct{}
+	titleAt         time.Time
+	eventBoot       string
+	inbox           *paneEventInbox
+	eventPending    bool
+	refreshQueued   bool
+	reconcileQueued bool
+	titleSeq        uint64
+	titles          map[string]paneTitle
+	subscribed      bool
+	exited          map[string]bool // windows seen exited, kept across plain listings
+	listed          bool            // a listing has succeeded (the Vim page's state follows it)
+	leader          string          // the leader the page's leader rows are bound to (panes_leader.go)
 	// detailW and detailH are the detail area the last frame drew, so a
 	// side's stream and new window get its region before it is drawn.
 	detailW, detailH int
@@ -253,7 +261,8 @@ type followDue struct{ seq uint64 }
 type refreshDue struct{}
 
 // daemonChanged is a daemon event about windows, sessions or agent state.
-type daemonChanged struct{}
+type daemonChanged struct{ events []daemon.Event }
+type paneEventsDue struct{}
 
 // definePanes adds the pane noun, the session rows' verbs and the panes
 // noun (refresh).
@@ -308,6 +317,7 @@ func (a *App) definePanes() {
 		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").
 		Verb("read-activities", a.readActivities, "Read every agent pane's running subagents for the rows under its pane (panes.subagents)").Fetch().Quiet().
 		Verb("focus-section", a.focusSection, "Move the focus to one of the page's lists: queue (Needs you), panes or working")
+	a.parameters("panes.refresh", map[string]ochazuke.Parameter{"reconcile": {Type: "boolean", Description: "Reconcile side links and probe exited processes (default true)"}})
 	a.parameters("panes.tab", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})
 	a.parameters("panes.focus-section", map[string]ochazuke.Parameter{"section": {Type: "string", Required: true, Enum: sectionNames,
 		Description: "queue (the Needs you list at the top), panes (the middle) or working (the bottom)"}})
@@ -330,6 +340,9 @@ func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
 // then the Turns tree of the detail. The page's own rows switch the tabs
 // and jump to a pane that needs input from any stop on it.
 func (a *App) addPanesPage() error {
+	if err := a.r.DeclareSetting(eventLoadSettings()...); err != nil {
+		return err
+	}
 	a.r.Instance(panesPage, ochazuke.Kind("page"))
 	// Enter in the tree's search (/) chooses the highlighted pane and clears the search.
 	if err := a.addPaneSections(); err != nil {
@@ -385,6 +398,9 @@ func (a *App) addPanesPage() error {
 		if err := a.focusOpenList(); err != nil {
 			a.r.UI().Error(err.Error())
 		}
+		if a.pv.tab == tabTurns {
+			a.loadDetail()
+		}
 	}
 	// The detail is the selected row's tab; Screen, Activity and
 	// Transcript have the newest at the bottom.
@@ -397,12 +413,19 @@ func (a *App) addPanesPage() error {
 
 // refreshPanes is panes.refresh: list the panes off the loop, then push them.
 func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
+	reconcile := boolArg(ctx.Args, "reconcile", true)
+	if a.paneRefreshRunning() {
+		a.pv.refreshQueued = true
+		a.pv.reconcileQueued = a.pv.reconcileQueued || reconcile
+		return ochazuke.Done(nil)
+	}
 	d, ws, server := a.panesd, a.work, a.server()
+	titleSeq := a.pv.titleSeq
 	read := a.commandReads()
-	// The lock keeps the listing's link cleanup from racing a side launch.
-	list := a.withSideLock(func(c context.Context) (any, error) {
-		return sideListing(c, d, ws, server)
-	})
+	list := func(c context.Context) (any, error) { return d.ListPanes(c) }
+	if reconcile || !a.r.Settings().Bool(settingLightListing) {
+		list = a.withSideLock(func(c context.Context) (any, error) { return sideListing(c, d, ws, server) })
+	}
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		v, err := list(c)
 		if panes, ok := v.([]pane); ok && err == nil {
@@ -411,6 +434,12 @@ func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 		return v, err
 	}).ReplacingAt(paneListID, "refresh").Then(func(_ ochazuke.Ctx, v any, err error) {
 		panes, _ := v.([]pane)
+		for i := range panes {
+			if t, ok := a.pv.titles[panes[i].ID]; ok && t.seq > titleSeq {
+				panes[i].Name, panes[i].Title = t.name, t.title
+			}
+		}
+		clear(a.pv.titles)
 		a.setPanes(panes, err)
 	})
 }

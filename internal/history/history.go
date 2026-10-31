@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/unixsuperhero/matomeru/store"
@@ -76,8 +77,11 @@ type Owner func(session, window string) (taskID, projectID string, err error)
 
 // Journal is the history table.
 type Journal struct {
-	db    *store.Store
-	owner Owner
+	db       *store.Store
+	owner    Owner
+	mu       sync.Mutex
+	sequence int64
+	entries  []Entry
 }
 
 // Open declares the journal and the review marks (marks.go) and returns
@@ -145,40 +149,76 @@ func (j *Journal) Get(id string) (Entry, error) {
 // All is every entry, in matomeru-old's order: by time, then observation,
 // source, session, window, sequence and source id.
 func (j *Journal) All() ([]Entry, error) {
-	rows, err := j.db.All(Table.Name)
+	entries, err := j.snapshot()
+	out := slices.Clone(entries)
+	for i := range out {
+		out[i].Files = slices.Clone(out[i].Files)
+		if out[i].OK != nil {
+			value := *out[i].OK
+			out[i].OK = &value
+		}
+		if out[i].Turn != nil {
+			value := *out[i].Turn
+			value.ResponseMessage = slices.Clone(value.ResponseMessage)
+			out[i].Turn = &value
+		}
+	}
+	return out, err
+}
+
+// snapshot shares immutable decoded rows with the journal's projections.
+func (j *Journal) snapshot() ([]Entry, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	rows, err := j.db.After(Table.Name, j.sequence)
 	if err != nil {
 		return nil, err
 	}
-	entries := make([]Entry, 0, len(rows))
+	fresh := make([]Entry, 0, len(rows))
 	for _, row := range rows {
 		var e Entry
-		if err := json.Unmarshal(row, &e); err != nil {
+		if err := json.Unmarshal(row.Row, &e); err != nil {
 			return nil, fmt.Errorf("decode history: %w", err)
 		}
-		entries = append(entries, e)
+		fresh = append(fresh, e)
 	}
-	slices.SortStableFunc(entries, func(a, b Entry) int {
-		return cmp.Or(cmp.Compare(a.At, b.At), cmp.Compare(a.Observed, b.Observed), cmp.Compare(a.Source, b.Source),
-			cmp.Compare(a.Session, b.Session), cmp.Compare(a.Window, b.Window), cmp.Compare(a.Sequence, b.Sequence), cmp.Compare(a.SourceID, b.SourceID))
-	})
-	return entries, nil
+	if len(rows) == 0 {
+		return j.entries, nil
+	}
+	j.sequence = rows[len(rows)-1].Sequence
+	slices.SortStableFunc(fresh, compareEntries)
+	if len(j.entries) == 0 || compareEntries(j.entries[len(j.entries)-1], fresh[0]) <= 0 {
+		j.entries = append(j.entries, fresh...)
+	} else {
+		// Late ring/capture rows can precede cached rows. Merge sorted runs;
+		// never sort or decode the old journal again.
+		merged := make([]Entry, 0, len(j.entries)+len(fresh))
+		old, next := j.entries, fresh
+		for len(old) > 0 && len(next) > 0 {
+			if compareEntries(old[0], next[0]) <= 0 {
+				merged = append(merged, old[0])
+				old = old[1:]
+			} else {
+				merged = append(merged, next[0])
+				next = next[1:]
+			}
+		}
+		j.entries = append(append(merged, old...), next...)
+	}
+	return j.entries, nil
+}
+
+func compareEntries(a, b Entry) int {
+	return cmp.Or(cmp.Compare(a.At, b.At), cmp.Compare(a.Observed, b.Observed), cmp.Compare(a.Source, b.Source),
+		cmp.Compare(a.Session, b.Session), cmp.Compare(a.Window, b.Window), cmp.Compare(a.Sequence, b.Sequence), cmp.Compare(a.SourceID, b.SourceID))
 }
 
 // LastSequence is the highest activity sequence journaled for a pane under
 // a daemon boot: a ring read resumes after it.
 func (j *Journal) LastSequence(boot, window string) (uint64, error) {
-	entries, err := j.All()
-	if err != nil {
-		return 0, err
-	}
-	prefix := boot + "/" + window + "/activity:"
-	var last uint64
-	for _, e := range entries {
-		if e.Window == window && strings.HasPrefix(e.SourceID, prefix) {
-			last = max(last, e.Sequence)
-		}
-	}
-	return last, nil
+	return j.db.MaxNumber(Table.Name, "sequence",
+		store.JSONMatch{Field: "window", Value: window},
+		store.JSONMatch{Field: "source_id", Value: boot + "/" + window + "/activity:", Prefix: true})
 }
 
 // Activity is one entry of a pane's activity ring (the daemon's

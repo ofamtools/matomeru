@@ -38,6 +38,7 @@ type journalSource interface {
 
 // historyChanged is a burst of journal rows the reader wrote.
 type historyChanged struct{}
+type historyDue struct{}
 
 // journalFeed is the reader's state: the panes it knows (the loop hands
 // them over after each listing) and the panes whose ring it still has to
@@ -51,6 +52,7 @@ type journalFeed struct {
 	wake    chan struct{}
 	changed chan struct{}
 	started bool
+	pending bool // owned by the UI loop, not the background reader
 	// contextAdded says a burst may have added items or source provenance: the loop reloads the
 	// Context page and the picker with the journal views.
 	contextAdded atomic.Bool
@@ -265,21 +267,42 @@ func activityOf(m map[string]any) history.Activity {
 // journalUpdate runs after every message: a burst of journal rows reloads
 // the views that read the journal, and the wait starts again.
 func (a *App) journalUpdate(msg tea.Msg) tea.Cmd {
-	if _, ok := msg.(historyChanged); !ok {
-		return nil
+	switch msg.(type) {
+	case historyChanged:
+		wait := a.waitJournal()
+		if a.feed.pending {
+			return wait
+		}
+		delay := a.r.Settings().Duration(settingHistoryCoalesce)
+		if delay <= 0 {
+			a.historyChanged()
+			return wait
+		}
+		a.feed.pending = true
+		if a.pv.after != nil {
+			return tea.Batch(wait, a.pv.after(delay, historyDue{}))
+		}
+		return wait
+	case historyDue:
+		if a.feed.pending {
+			a.feed.pending = false
+			a.historyChanged()
+		}
 	}
-	a.historyChanged()
-	return a.waitJournal()
+	return nil
 }
 
 // historyChanged reads the journal again into the views that show it: the
 // Turns tab of the pane it shows and the Review page.
 func (a *App) historyChanged() {
 	var errs []error
-	if a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
+	visibleOnly := a.r.Settings().Bool(settingHistoryVisible)
+	if (!visibleOnly || a.r.Page == panesPage && a.pv.tab == tabTurns) && a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
 		errs = append(errs, a.showTurns(a.pv.turnsFor))
 	}
-	errs = append(errs, a.refreshReviews())
+	if !visibleOnly || a.r.Page == reviewsPage {
+		errs = append(errs, a.refreshReviews())
+	}
 	errs = append(errs, a.pickerTurnsChanged())
 	if a.feed != nil && a.feed.contextAdded.Swap(false) {
 		errs = append(errs, a.reloadContext())

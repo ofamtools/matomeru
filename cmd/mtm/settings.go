@@ -166,7 +166,7 @@ func (a *App) declareSettingLayout() error {
 		app("panes", "Panes", "The Panes page: grouping, its sections and panels, which states count as working, waiting or errored, and which pane borders take their state colour"),
 		app("prompt", "Prompt", "The prompt box: where it shows and what follows a submit"),
 		app("context", "Context", "Which sources extract context items"),
-		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls"),
+		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls, and when history views refresh"),
 		app("agent", "Agent", "The agent view of a pane"),
 		app("notes", "Notes", "The note editor"),
 		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),

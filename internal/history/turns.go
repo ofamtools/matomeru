@@ -103,7 +103,7 @@ func (j *Journal) Capture(t Turn) (string, error) {
 // OpenCapture is the newest captured start of a conversation in a pane
 // that has no completion yet: what a Stop hook completes.
 func (j *Journal) OpenCapture(session, window, harness, conversation string) (Turn, bool, error) {
-	entries, err := j.All()
+	entries, err := j.snapshot()
 	if err != nil {
 		return Turn{}, false, err
 	}

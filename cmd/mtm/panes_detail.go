@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/matomeru/internal/actionitems"
+	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 )
@@ -74,7 +75,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 	case refreshDue:
 		a.pv.armed = false
 		if a.r.Page == panesPage {
-			if err := a.reloadPanes(); err != nil {
+			if err := a.reloadPaneListing(false); err != nil {
 				a.paneErr = err.Error()
 			}
 			if a.pv.tab == tabScreen && a.r.Terminal(paneTermID) == nil {
@@ -84,10 +85,32 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 			}
 		}
 	case daemonChanged:
-		if err := a.reloadPanes(); err != nil {
-			a.paneErr = err.Error()
+		for _, ev := range v.events {
+			if ev.Type == "window-retitled" {
+				a.pv.titleAt = time.Now()
+				break
+			}
+		}
+		if a.applyPaneEvents(v.events) {
+			cmds = append(cmds, a.schedulePaneEvents())
 		}
 		cmds = append(cmds, a.waitEvent())
+	case paneEventsDue:
+		a.pv.eventPending = false
+		if err := a.reloadPaneListing(false); err != nil {
+			a.paneErr = err.Error()
+		}
+	}
+	if a.pv.refreshQueued && !a.paneRefreshRunning() {
+		reconcile := a.pv.reconcileQueued
+		a.pv.refreshQueued, a.pv.reconcileQueued = false, false
+		if reconcile {
+			if err := a.reloadPanes(); err != nil {
+				a.paneErr = err.Error()
+			}
+		} else {
+			cmds = append(cmds, a.schedulePaneEvents())
+		}
 	}
 	if a.attached.ID != "" && a.r.Terminal(paneTermID) == nil {
 		// A direct terminal.detach also releases the secondary stream.
@@ -1313,16 +1336,28 @@ func (a *App) subscribeEvents() tea.Cmd {
 	}
 	a.pv.subscribed = true
 	a.pv.events = make(chan struct{}, 1)
+	a.pv.inbox = &paneEventInbox{events: map[string]daemon.Event{}}
 	go func() {
-		types := []string{"window-created", "window-closed", "window-exit", "window-retitled", "agent-state", "session-created", "session-closed", "command-started", "command-finished"}
+		var afterSeq uint64
+		var bootID string
+		types := []string{"window-created", "window-closed", "window-exit", "window-retitled", "window-moved", "window-minimized", "window-restored", "agent-state", "session-created", "session-closed", "command-started", "command-finished"}
 		for {
-			events, failures := a.daemon.Subscribe(context.Background(), types, 0, "")
+			events, failures := a.daemon.Subscribe(context.Background(), types, afterSeq, bootID)
 			for ev := range events {
+				if ev.BootID != "" && ev.BootID != bootID {
+					bootID, afterSeq = ev.BootID, 0
+				}
+				// Filtered streams have sparse sequence numbers; only an explicit gap
+				// means missed events. The subscribed ack always requests a snapshot.
+				if ev.Type != "subscribed" {
+					afterSeq = max(afterSeq, ev.Seq)
+				}
 				// The subscribe answer and every event carry the daemon
 				// start, which the command signals' keys hold.
 				if ev.BootID != "" && ev.BootID != a.signals.bootID() {
 					a.signals.setBoot(ev.BootID)
 				}
+				a.pv.inbox.add(ev)
 				select {
 				case a.pv.events <- struct{}{}:
 				default:
@@ -1343,9 +1378,35 @@ func (a *App) waitEvent() tea.Cmd {
 	if a.pv.events == nil {
 		return nil
 	}
-	ch := a.pv.events
+	ch, inbox := a.pv.events, a.pv.inbox
+	throttle, last := a.r.Settings().Duration(settingTitleThrottle), a.pv.titleAt
 	return func() tea.Msg {
 		<-ch
-		return daemonChanged{}
+		events := inbox.take()
+		structural := func(events []daemon.Event) bool {
+			for _, ev := range events {
+				if ev.Type != "window-retitled" {
+					return true
+				}
+			}
+			return false
+		}
+		delay := time.Until(last.Add(throttle))
+		if throttle <= 0 || delay <= 0 || structural(events) {
+			return daemonChanged{events: events}
+		}
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ch:
+				events = append(events, inbox.take()...)
+				if structural(events) {
+					return daemonChanged{events: events}
+				}
+			case <-timer.C:
+				return daemonChanged{events: events}
+			}
+		}
 	}
 }

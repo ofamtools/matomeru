@@ -103,7 +103,7 @@ func abs(n int64) int64 {
 // that echoes a captured start (echoesOf), and its answers while a
 // captured turn is the open one, are left out. Marks give each turn its ReviewedAt.
 func (j *Journal) Turns(window string) ([]PaneTurn, error) {
-	entries, err := j.All()
+	entries, err := j.snapshot()
 	if err != nil {
 		return nil, err
 	}
