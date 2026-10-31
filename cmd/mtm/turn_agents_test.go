@@ -161,7 +161,7 @@ func stepTo(t *testing.T, a *App, prefix string) {
 // frameWH is the frame width by height cells, unstyled.
 func frameWH(a *App, width, height int) string {
 	a.m.Width, a.m.Height = width, height
-	return ansi.Strip(a.m.View().Content)
+	return ansi.Strip(frameView(a).Content)
 }
 
 // stepTitles are the card's steps' title lines, "title · summary".

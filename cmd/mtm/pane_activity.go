@@ -102,6 +102,9 @@ func (a *App) subagentsOn() bool {
 // pollActivities reads every agent pane's activities again after a
 // listing, off the loop; the rows follow when a read changed them.
 func (a *App) pollActivities(panes []pane) {
+	if a.r.Settings().Bool(settingHistoryVisible) && a.r.Page != panesPage {
+		return
+	}
 	if !a.subagentsOn() {
 		if len(a.acts) > 0 {
 			a.acts = nil

@@ -5,8 +5,8 @@ go 1.26.0
 require (
 	charm.land/bubbletea/v2 v2.1.0
 	github.com/charmbracelet/x/ansi v0.11.9
-	github.com/unixsuperhero/monogatari v0.3.0
-	github.com/unixsuperhero/ochazuke v0.73.0
+	github.com/unixsuperhero/monogatari v0.3.1
+	github.com/unixsuperhero/ochazuke v0.74.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 )

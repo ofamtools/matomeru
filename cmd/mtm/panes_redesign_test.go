@@ -334,7 +334,9 @@ func TestPanesRenderAt80And120(t *testing.T) {
 	}
 }
 
-func plainView(a *App) string { return xansi.Strip(a.m.View().Content) }
+func plainView(a *App) string {
+	return xansi.Strip(frameView(a).Content)
+}
 
 func countRows(a *App, noun string) int {
 	n := 0

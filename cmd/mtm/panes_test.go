@@ -700,7 +700,7 @@ func TestPaneTreeIsATable(t *testing.T) {
 		if _, err := app.r.Execute(ochazuke.Request{Verb: "open", Noun: "page", Args: ochazuke.Arguments{"id": panesPage}}); err != nil {
 			t.Fatal(err)
 		}
-		frame := ansi.Strip(app.m.View().Content)
+		frame := ansi.Strip(frameView(app).Content)
 		for _, want := range []string{"pane", "state", "○ claude", "unassociated (2)", "work (2)", "╭─ work/claude ─", "│ claude · opus · ~/proj/x · idle"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("%d columns: frame lacks %q:\n%s", width, want, frame)

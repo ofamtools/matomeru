@@ -125,7 +125,7 @@ func TestEnsureJobFailureShowsInFooterAndPanesHint(t *testing.T) {
 		t.Fatalf("notices: %q", app.m.Notices)
 	}
 	press(t, app, "ctrl+k")
-	if f := ansi.Strip(app.m.View().Content); !strings.Contains(f, "is not running") || !strings.Contains(f, "e starts it (daemon.ensure)") {
+	if f := ansi.Strip(frameView(app).Content); !strings.Contains(f, "is not running") || !strings.Contains(f, "e starts it (daemon.ensure)") {
 		t.Fatalf("panes page:\n%s", f)
 	}
 	app.ensure = func(context.Context) error { return nil }

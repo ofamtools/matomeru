@@ -463,6 +463,9 @@ func (a *App) turnsRead(window string) {
 // log every time (the read starts where the last stopped), a shell's
 // history when it finished or started a command.
 func (a *App) pollTurns() {
+	if !a.turnsHistoryActive() {
+		return
+	}
 	if a.pv.tab != tabTurns || a.pv.turnsFor == "" || a.r.Instances[a.pv.turnsFor] == nil {
 		return
 	}

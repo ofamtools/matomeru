@@ -254,7 +254,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 	}
 	for _, width := range []int{80, 120} {
 		a.m.Width, a.m.Height = width, 24
-		frame := ansi.Strip(a.View().Content)
+		frame := ansi.Strip(frameView(a).Content)
 		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter chooser.pick", "esc chooser.cancel"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("at %d missing %q:\n%s", width, want, frame)
@@ -281,7 +281,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 		if query == "och+move" { // past ochazuke and matomeru
 			press(t, a, "ctrl+n", "ctrl+n")
 		}
-		frame := ansi.Strip(a.View().Content)
+		frame := ansi.Strip(frameView(a).Content)
 		want := []string{"◆ ochazuke", `+ new project "och"`, "no pin (unpin)"}
 		if query == "zz" {
 			want = []string{"no matches", `+ new project "zz"`, "no pin (unpin)"}

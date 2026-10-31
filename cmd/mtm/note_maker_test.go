@@ -80,7 +80,7 @@ func noteFilterRows(t *testing.T, a *App) {
 func assertNoteFilterFrame(t *testing.T, a *App, filter string) {
 	t.Helper()
 	a.m.Width, a.m.Height = 140, 35
-	f := ansi.Strip(a.m.View().Content)
+	f := ansi.Strip(frameView(a).Content)
 	for _, maker := range []string{"owner", "agent", "unknown"} {
 		visible := filter == "all" || filter == "mine" && maker == "owner" || filter == "agents" && maker == "agent"
 		if strings.Contains(f, maker+" note example") != visible {
@@ -121,7 +121,7 @@ func TestNoteMakerFiltersPageAndModal(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.m.Width, a.m.Height = 140, 35
-	a.m.View()
+	frameView(a)
 	press(t, a, "ctrl+w", "w")
 	if a.r.Focus != outlineNotesList+":maker-owner" && a.r.Focus != outlineNotesList+":maker-agent" {
 		t.Fatalf("pane focus: %s", a.r.Focus)
@@ -183,7 +183,7 @@ func TestNoteMakerModalView(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.m.Width, a.m.Height = 140, 35
-	a.m.View()
+	frameView(a)
 	press(t, a, "ctrl+w", "w", "enter")
 	if a.r.TopModal() != "" || a.r.Page != notesPage || a.noteDocNote == "" {
 		t.Fatalf("view left modal or no note: modal=%s page=%s note=%s", a.r.TopModal(), a.r.Page, a.noteDocNote)

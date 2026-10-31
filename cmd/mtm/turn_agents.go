@@ -449,6 +449,9 @@ func agentCalls(list []turns.Turn) map[string]*turns.Agent {
 // steps opened or closed since they were built. Called after every
 // update; it reads no file itself.
 func (a *App) wantAgents() {
+	if !a.turnsHistoryActive() {
+		return
+	}
 	if a.pv.tab != tabTurns || a.pv.turnsFor == "" {
 		return
 	}

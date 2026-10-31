@@ -14,6 +14,15 @@
 
 Matomeru (`mtm`) is built on [ochazuke](https://github.com/unixsuperhero/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
 
+Unreleased: the Panes page reuses panel layout and column composition when
+their content, cursor, size and styles match. An unchanged listing retains
+its tree indexes and filtered rows; history and domain refreshes
+still run. These caches follow ochazuke's `render.max-fps` setting, default
+30; 0 disables them. Visuals, navigation and refresh intervals are unchanged.
+`history.visible-only`, default true, also defers listing-driven Turns and
+subagent/card work while their detail is covered or their page is hidden;
+false restores background refreshes.
+
 The Inbox page (`I` from anywhere) is what needs you: action items from any source, unread first, with the count of unread and open items in the title row (`inbox 2/5`). `enter` opens an item's URL, `u` marks it read or unread, `s` snoozes it, `x` archives and `X` restores it, `t` and `c` promote it to a todo or a task, `m` moves it to a project and `d d` deletes it. Tools push items in through one command, idempotent on the source and `--key` (else the source and `--url`), so a poll that runs again refreshes its row:
 
 ```sh

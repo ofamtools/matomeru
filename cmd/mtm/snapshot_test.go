@@ -15,7 +15,7 @@ import (
 func monoFrame(t *testing.T, a *App) string {
 	t.Helper()
 	a.m.Width, a.m.Height = 80, 24
-	raw := a.m.View().Content
+	raw := frameView(a).Content
 	if c := regexp.MustCompile(`\x1b\[[0-9;]*(3[0-9]|4[0-9]|9[0-7]|10[0-7])[;m]`).FindString(raw); c != "" {
 		t.Fatalf("colour escape %q in the mono frame", c)
 	}

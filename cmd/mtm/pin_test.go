@@ -271,7 +271,7 @@ func titled(t *testing.T) *App {
 // titleRow renders the app at width and returns its first row, trimmed.
 func titleRow(a *App, width int) string {
 	a.m.Width, a.m.Height = width, 24
-	return strings.TrimSpace(strings.SplitN(ansi.Strip(a.View().Content), "\n", 2)[0])
+	return strings.TrimSpace(strings.SplitN(ansi.Strip(frameView(a).Content), "\n", 2)[0])
 }
 
 func TestTitleLeadsWithPin(t *testing.T) {

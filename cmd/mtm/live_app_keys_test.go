@@ -225,7 +225,7 @@ func TestLeaderQuestionOpensTheHelpTree(t *testing.T) {
 	if app.r.TopModal() != "bindings-help" {
 		t.Fatalf("ctrl+a ?: modal %q", app.r.TopModal())
 	}
-	frame := ansi.Strip(app.m.View().Content)
+	frame := ansi.Strip(frameView(app).Content)
 	if strings.Count(frame, "▾ ctrl+a") != 1 {
 		t.Fatalf("the leader is not one open row:\n%s", frame)
 	}

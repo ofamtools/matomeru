@@ -62,7 +62,7 @@ func TestTaskTableStatusesAndOrder(t *testing.T) {
 // frameAt renders the app width columns wide, 24 rows high.
 func frameAt(a *App, width int) string {
 	a.m.Width, a.m.Height = width, 24
-	return ansi.Strip(a.m.View().Content)
+	return ansi.Strip(frameView(a).Content)
 }
 
 // x toggles done on a task row; s opens the status chooser, whose first

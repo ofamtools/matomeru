@@ -57,7 +57,7 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 	if _, err := app.r.Execute(ochazuke.Do("ochazuke.bindings.help").Request); err != nil {
 		t.Fatal(err)
 	}
-	frame := ansi.Strip(app.m.View().Content)
+	frame := ansi.Strip(frameView(app).Content)
 	if strings.Count(frame, "▾ ctrl+a") != 1 || strings.Contains(frame, "▾ ctrl+a v") {
 		t.Fatalf("the leader is not one open row:\n%s", frame)
 	}

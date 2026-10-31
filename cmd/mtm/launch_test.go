@@ -275,7 +275,16 @@ func frame(a *App) string { return ansi.Strip(rawFrame(a)) }
 // is reverse video, with no marker in the text.
 func rawFrame(a *App) string {
 	a.m.Width, a.m.Height = 120, 24
-	return a.m.View().Content
+	return frameView(a).Content
+}
+
+// frameView is the frame a test reads: it composes now, as a key or a
+// resize would, even when the state changed outside a message (a store
+// write, a direct list call) and the fake clock never drives the render
+// frame timer. Every helper that reads a frame goes through it.
+func frameView(a *App) tea.View {
+	a.m.InvalidateRender()
+	return a.View()
 }
 
 func TestSessionForSlugsTheProjectName(t *testing.T) {

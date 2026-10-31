@@ -745,6 +745,9 @@ func (a *App) reviewTurnCard(id string, ref turnRef) ochazuke.Result {
 // that opened by the timeline's own keys (space, z o, z R), so however a
 // card opens it is marked reviewed or reads its output.
 func (a *App) syncOpenedCards() {
+	if !a.turnsHistoryActive() {
+		return
+	}
 	tl := a.pv.cards
 	if tl == nil || !a.turnCards() || a.pv.tab != tabTurns {
 		return

@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -238,6 +239,7 @@ func paneSignal(p pane, fromItems map[string]string) string {
 
 // paneSection is one of the three lists and the rows it shows.
 type paneSection struct {
+	panel panePanelCache
 	name  string
 	title string
 	tree  *ochazuke.Tree
@@ -406,10 +408,13 @@ func (a *App) applyPaneSections() error {
 			}
 		}
 	}
-	a.paneList.SetColumns(a.pv.view.columns()...)
+	cols := a.pv.view.columns()
+	if !reflect.DeepEqual(a.paneList.Columns(), cols) {
+		a.paneList.SetColumns(cols...)
+	}
 	empty := len(a.pv.view.nodes) == 0
 	for _, s := range ss {
-		if err := s.tree.SetNodes(s.nodes); err != nil {
+		if err := a.setSectionNodes(s, s.nodes); err != nil {
 			return err
 		}
 		// A list is a stop while it has rows, so } and j never land in an

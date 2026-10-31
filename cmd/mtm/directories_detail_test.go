@@ -75,7 +75,7 @@ func linkedFixture(t *testing.T) linked {
 // sizedFrame is the frame at width by height, styles stripped.
 func sizedFrame(a *App, width, height int) string {
 	a.m.Width, a.m.Height = width, height
-	return ansi.Strip(a.m.View().Content)
+	return ansi.Strip(frameView(a).Content)
 }
 
 // toLinks presses } until the focus is on the links of ld.

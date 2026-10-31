@@ -35,7 +35,7 @@ func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
 		t.Fatalf("name not written on leaving insert: %+v", p)
 	}
 	a.m.Width, a.m.Height = 100, 30
-	a.View()
+	frameView(a)
 	press(t, a, "}", "i")
 	typeText(t, a, "blue")
 	pauseRecord(t, a)
@@ -213,7 +213,7 @@ func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 	typeText(t, a, " keyboard")
 	press(t, a, "esc")
 	a.m.Width, a.m.Height = 100, 30
-	a.View()
+	frameView(a)
 	press(t, a, "}")
 	if a.r.Focus != a.editor.fieldID("status") {
 		t.Fatalf("status field unreachable: %s", a.r.Focus)
