@@ -1,0 +1,165 @@
+{
+  "name": "mtm context picker saved filters",
+  "area": "context-picker",
+  "fixture": "context-picker",
+  "width": 140,
+  "height": 35,
+  "script": [
+    "enter",
+    "ctrl+a",
+    "c",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+[",
+    "alt+backspace",
+    "ctrl+f",
+    "s",
+    "c",
+    "o",
+    "p",
+    "e",
+    "enter",
+    {
+      "type": "pane"
+    },
+    "enter",
+    {
+      "type": "review"
+    },
+    "alt+backspace"
+  ],
+  "expect": [
+    {
+      "after": 4,
+      "contains": [
+        "[context]",
+        "project-branch",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "review picker prompt"
+      ]
+    },
+    {
+      "after": 5,
+      "contains": [
+        "[prompts]",
+        "review picker prompt"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command",
+        "https://example.com/pane"
+      ]
+    },
+    {
+      "after": 6,
+      "contains": [
+        "[this-pane]",
+        "review picker prompt",
+        "https://example.com/pane"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 7,
+      "contains": [
+        "[project]",
+        "project-branch"
+      ],
+      "lacks": [
+        "review picker prompt",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 8,
+      "contains": [
+        "[none]",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "review picker prompt",
+        "project-branch"
+      ]
+    },
+    {
+      "after": 9,
+      "contains": [
+        "[all]",
+        "review picker prompt",
+        "project-branch",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "https://example.com/other-project"
+      ]
+    },
+    {
+      "after": 10,
+      "contains": [
+        "[none]",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 11,
+      "contains": [
+        "review picker prompt",
+        "project-branch"
+      ],
+      "lacks": [
+        "[none]"
+      ]
+    },
+    {
+      "after": 12,
+      "modal": "list-filter-prop",
+      "contains": [
+        "scope",
+        "category",
+        "type"
+      ]
+    },
+    {
+      "after": 18,
+      "modal": "list-filter-value",
+      "contains": [
+        "pane",
+        "project",
+        "none"
+      ]
+    },
+    {
+      "after": 20,
+      "modal": "context-picker",
+      "contains": [
+        "[scope = pane]",
+        "review picker prompt",
+        "https://example.com/pane"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command"
+      ]
+    },
+    {
+      "contains": [
+        "\u203a review",
+        "review picker prompt"
+      ],
+      "lacks": [
+        "[scope = pane]",
+        "project-branch",
+        "unassociated-command"
+      ]
+    }
+  ]
+}

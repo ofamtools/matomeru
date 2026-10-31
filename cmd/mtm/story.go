@@ -34,7 +34,9 @@ import (
 
 	"github.com/unixsuperhero/matomeru/internal/actionitems"
 	"github.com/unixsuperhero/matomeru/internal/compose"
+	"github.com/unixsuperhero/matomeru/internal/contextitems"
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/history"
 	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/matomeru/store"
 )
@@ -87,6 +89,7 @@ func mtmApp() monogatari.App {
 			{Name: "reference", Summary: "seeded, with checkout, webhook and quickstart notes associated with their tasks", Build: buildReference},
 			{Name: "nested", Summary: "seeded, plus subtasks under acme-web's Checkout page task (two children, one with a child of its own)", Build: buildNested},
 			{Name: "makers", Summary: "seeded, with acme-web's cart drawer task made by an agent (claude) and its flaky-test task private", Build: buildMakers},
+			{Name: "context-picker", Summary: "seeded, with context from this pane, its project and no project, plus a journaled prompt", Build: buildContextPicker},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
 		},
 		Expected: storyExpected,
@@ -149,6 +152,38 @@ var seededPanes = []storyPane{
 
 func buildSeeded(env monogatari.Env) (monogatari.Built, error) {
 	return buildStory(env, writeSeeded, seededPanes)
+}
+
+func buildContextPicker(env monogatari.Env) (monogatari.Built, error) {
+	built, err := buildSeeded(env)
+	if err != nil {
+		return built, err
+	}
+	a := built.Program.(*App)
+	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "acme-web", ProjectID: "acme-web"}); err != nil {
+		built.Close()
+		return monogatari.Built{}, err
+	}
+	for i, it := range []contextitems.Item{
+		{Kind: "link", Text: "https://example.com/pane", Window: "w1", ProjectID: "acme-web"},
+		{Kind: "branch", Text: "project-branch", Window: "other", ProjectID: "acme-web"},
+		{Kind: "command", Text: "unassociated-command", Window: "elsewhere"},
+		{Kind: "link", Text: "https://example.com/other-project", Window: "other", ProjectID: "billing-api"},
+	} {
+		if _, _, err = a.contexts.Merge([]contextitems.Item{it}, contextitems.Owner{ProjectID: it.ProjectID}, int64(i+1)); err != nil {
+			built.Close()
+			return monogatari.Built{}, err
+		}
+	}
+	turn := history.Turn{ID: "picker-turn", Session: "acme-web", Window: "w1", Harness: "claude-code", ConversationID: "picker", Prompt: "review picker prompt", StartedAt: 1}
+	if _, err = a.hist.Capture(turn); err == nil {
+		_, err = a.hist.Complete(turn, "picker answer", 2)
+	}
+	if err != nil {
+		built.Close()
+		return monogatari.Built{}, err
+	}
+	return built, nil
 }
 
 func buildReference(env monogatari.Env) (monogatari.Built, error) {
