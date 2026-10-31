@@ -87,6 +87,7 @@ func TestContextTranscriptSeparatesProseFromTools(t *testing.T) {
 		{Role: "tool", Kind: "tool_result", Text: "https://example.com/result"},
 		{Role: "assistant", Kind: "thinking", Text: "https://example.com/thought"},
 		{Role: "assistant", Kind: "text", ToolID: "call", Text: "https://example.com/tagged-tool"},
+		{Role: "system", Kind: "note", Text: "https://example.com/system-note"},
 	}}
 	a.transcriptContext(nil)(p, transcript)
 	got := itemsByText(t, a)
@@ -96,17 +97,81 @@ func TestContextTranscriptSeparatesProseFromTools(t *testing.T) {
 	if got["https://example.com/response"].Sources[0].Kind != "transcript" {
 		t.Fatal("lost transcript provenance")
 	}
+	contextOriginsSetting(t, a, "thinking")
+	a.transcriptContext(nil)(p, transcript)
+	got = itemsByText(t, a)
+	if len(got) != 3 || got["https://example.com/thought"].Origin() != "thinking" {
+		t.Fatal(got)
+	}
+	contextOriginsSetting(t, a, "tool")
+	a.transcriptContext(nil)(p, transcript)
+	got = itemsByText(t, a)
+	if len(got) != 6 || got["https://example.com/call"].Origin() != "tool" || got["https://example.com/result"].Origin() != "tool" || got["https://example.com/tagged-tool"].Origin() != "tool" {
+		t.Fatal(got)
+	}
 	contextOriginsSetting(t, a, "transcript")
 	a.transcriptContext(nil)(p, transcript)
 	got = itemsByText(t, a)
-	if len(got) != 6 || got["https://example.com/result"].Origin() != "transcript" {
+	if len(got) != 7 || got["https://example.com/system-note"].Origin() != "transcript" {
 		t.Fatal(got)
 	}
-	// Unstructured text is not inferred as conversation from its headings.
-	contextOriginsSetting(t, a, "response")
+	// Unstructured text is not inferred as conversation, thinking or tool from its headings.
+	contextOriginsSetting(t, a, "response", "thinking", "tool")
 	a.transcriptContext(nil)(p, paneTranscript{Text: "assistant\nhttps://example.com/ambiguous"})
-	if len(itemsByText(t, a)) != 6 {
-		t.Fatal("unstructured transcript treated as prose")
+	if len(itemsByText(t, a)) != 7 {
+		t.Fatal("unstructured transcript treated as structured")
+	}
+}
+
+func TestContextIndependentToolAndThinkingExtractionInTurnsAndCaptures(t *testing.T) {
+	t.Parallel()
+	a, _ := cliApp(t)
+	if _, err := a.r.Settings().SetSession(settingTurnsThinking, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Settings().SetSession(settingTurnsTools, true); err != nil {
+		t.Fatal(err)
+	}
+	// Default ["prompt","response"] excludes both thinking and tool responses,
+	// even when Turns tab rendering settings show both.
+	mustCLI(t, a, "history", "capture-turn", "--json", `{"id":"t1","session":"matomeru","window":"w1","harness":"omp","conversation_id":"c1","prompt":"https://example.com/t1-prompt","started_at":1790000000000}`)
+	mustCLI(t, a, "history", "capture-turn", "--json", `{"id":"t1","session":"matomeru","window":"w1","harness":"omp","conversation_id":"c1","prompt":"https://example.com/t1-prompt","response":"https://example.com/t1-response","started_at":1790000000000,"completed_at":1790000001000,"response_message":{"role":"assistant","content":[{"type":"thinking","thinking":"https://example.com/t1-thinking"},{"type":"toolCall","id":"c1","name":"Read","arguments":{"url":"https://example.com/t1-tool"}},{"type":"text","text":"https://example.com/t1-response"}]}}`)
+	a.journal(
+		activity(1, 1790000002000, "thinking", "https://example.com/act-thinking"),
+		activity(2, 1790000003000, "tool_result", "https://example.com/act-tool"),
+	)
+	got := itemsByText(t, a)
+	if len(got) != 2 || got["https://example.com/t1-prompt"].Origin() != "prompt" || got["https://example.com/t1-response"].Origin() != "response" {
+		t.Fatalf("default extracted thinking/tool: %v", got)
+	}
+
+	// Enable thinking only (tool remains excluded).
+	contextOriginsSetting(t, a, "prompt", "response", "thinking")
+	mustCLI(t, a, contextNoun, "turns")
+	got = itemsByText(t, a)
+	if len(got) != 4 || got["https://example.com/t1-thinking"].Origin() != "thinking" || got["https://example.com/act-thinking"].Origin() != "thinking" {
+		t.Fatalf("thinking opt-in: %v", got)
+	}
+	if _, hasTool := got["https://example.com/t1-tool"]; hasTool {
+		t.Fatalf("tool extracted when only thinking enabled: %v", got)
+	}
+
+	// Enable tool only (thinking excluded; existing thinking items are not destructively removed).
+	contextOriginsSetting(t, a, "tool")
+	a.journal(
+		activity(3, 1790000004000, "thinking", "https://example.com/excluded-thinking-2"),
+		activity(4, 1790000005000, "tool_result", "https://example.com/act-tool-2"),
+	)
+	mustCLI(t, a, contextNoun, "turns")
+	got = itemsByText(t, a)
+	if _, hasExcludedThinking := got["https://example.com/excluded-thinking-2"]; hasExcludedThinking {
+		t.Fatalf("thinking extracted when only tool enabled: %v", got)
+	}
+	if got["https://example.com/t1-tool"].Origin() != "tool" || got["https://example.com/act-tool"].Origin() != "tool" || got["https://example.com/act-tool-2"].Origin() != "tool" {
+		t.Fatalf("tool opt-in: %v", got)
+	}
+	if got["https://example.com/t1-thinking"].Origin() != "thinking" {
+		t.Fatalf("existing thinking item removed: %v", got)
 	}
 }
 
@@ -118,7 +183,7 @@ func TestContextPickerOriginFiltersAndGenericProperty(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/tool-only", Window: live.ID, Sources: []contextitems.Source{{Kind: "scrollback"}}}}, contextitems.Owner{}, 2); err != nil {
+	if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/tool-only", Window: live.ID, Sources: []contextitems.Source{{Kind: "transcript", EntryKind: "tool_result"}}}}, contextitems.Owner{}, 2); err != nil {
 		t.Fatal(err)
 	}
 	promptTurns(t, a, live, []string{"my prompt"}, []string{"answer"})

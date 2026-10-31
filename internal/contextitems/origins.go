@@ -4,27 +4,34 @@ import "slices"
 
 // Origins is also the preference order for the primary origin: a
 // conversational sighting wins, while Origins() keeps every known source.
-var Origins = []string{"prompt", "response", "manual", "mcp", "scrollback", "transcript", "command", "unknown"}
+var Origins = []string{"prompt", "response", "manual", "mcp", "thinking", "tool", "scrollback", "transcript", "command", "unknown"}
 
 // Source origins are data, including the spellings written by older mtm.
 var sourceOrigins = map[string]string{
-	"prompt": "prompt", "response": "response", "scrollback": "scrollback", "screen": "scrollback",
+	"prompt": "prompt", "response": "response",
+	"thinking": "thinking", "reasoning": "thinking",
+	"tool": "tool", "tool_call": "tool", "tool_use": "tool", "tool_result": "tool", "toolCall": "tool", "toolResult": "tool",
+	"scrollback": "scrollback", "screen": "scrollback",
 	"transcript": "transcript", "history": "command", "command": "command", "mcp": "mcp",
 	"create": "manual", "mtm": "manual", "manual": "manual",
 }
-var entryOrigins = map[[2]string]string{
-	{"turn", "prompt-submitted"}: "prompt", {"turn", "response-completed"}: "response",
-	{"transcript", "prompt-submitted"}: "prompt", {"transcript", "response-completed"}: "response",
-	{"history", "prompt"}: "prompt", {"history", "command"}: "command",
-	{"transcript", "prompt"}: "prompt", {"transcript", "command"}: "command",
-	{"activity", "prompt"}: "prompt", {"activity", "command"}: "command",
-	{"", "prompt"}: "prompt", {"", "command"}: "command",
+var entryOriginKinds = map[string]bool{
+	"": true, "turn": true, "transcript": true, "history": true, "activity": true,
+}
+var entryKindOrigins = map[string]string{
+	"prompt": "prompt", "prompt-submitted": "prompt",
+	"response": "response", "response-completed": "response",
+	"thinking": "thinking", "reasoning": "thinking",
+	"tool": "tool", "tool_call": "tool", "tool_use": "tool", "tool_result": "tool", "toolCall": "tool", "toolResult": "tool",
+	"command": "command",
 }
 
 // Origin classifies stored provenance, never the item's text or kind.
 func (s Source) Origin() string {
-	if origin := entryOrigins[[2]string{s.Kind, s.EntryKind}]; origin != "" {
-		return origin
+	if entryOriginKinds[s.Kind] {
+		if origin := entryKindOrigins[s.EntryKind]; origin != "" {
+			return origin
+		}
 	}
 	if origin := sourceOrigins[s.Kind]; origin != "" {
 		return origin

@@ -84,7 +84,7 @@ func contextFilters() []ochazuke.SavedFilter {
 		{List: contextPicker, Name: "project", Where: map[string]any{"scope": "project"}},
 		{List: contextPicker, Name: "none", Where: map[string]any{"scope": "none"}},
 		{List: contextPicker, Name: "conversation", Conditions: []ochazuke.PropFilter{{Prop: "origin", Op: "in", Value: []string{"prompt", "response"}}}},
-		{List: contextPicker, Name: "tools", Conditions: []ochazuke.PropFilter{{Prop: "origin", Op: "in", Value: []string{"scrollback", "transcript", "command"}}}},
+		{List: contextPicker, Name: "tools", Conditions: []ochazuke.PropFilter{{Prop: "origin", Op: "in", Value: []string{"tool", "scrollback", "transcript", "command"}}}},
 		{List: contextPicker, Name: "all"},
 	}
 }

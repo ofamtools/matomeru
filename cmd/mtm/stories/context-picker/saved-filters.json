@@ -27,6 +27,7 @@
     "j",
     "j",
     "j",
+    "j",
     "space",
     "esc",
     {
@@ -156,18 +157,18 @@
       ]
     },
     {
-      "after": 22,
+      "after": 23,
       "focus": "list-filter-form/scope"
     },
     {
-      "after": 23,
+      "after": 24,
       "modal": "list-filter-form",
       "contains": [
         "● pane"
       ]
     },
     {
-      "after": 24,
+      "after": 25,
       "modal": "context-picker",
       "contains": [
         "[scope = pane]",

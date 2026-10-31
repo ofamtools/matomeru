@@ -12,7 +12,7 @@ const settingContextExtractFrom = "context.extract-from"
 
 var contextExtractSetting = ochazuke.Setting{
 	Name: settingContextExtractFrom, Type: ochazuke.SettingList, Default: []string{"prompt", "response"},
-	Description: "Sources that extract context: prompt, response, scrollback, transcript, command. Explicit manual/MCP adds always run; [] disables automatic extraction",
+	Description: "Sources that extract context: prompt, response, thinking, tool, scrollback, transcript, command. Explicit manual/MCP adds always run; [] disables automatic extraction",
 	Validate: func(value any) error {
 		for _, origin := range value.([]string) {
 			if !slices.Contains(contextitems.Origins, origin) || origin == "unknown" {

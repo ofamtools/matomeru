@@ -224,15 +224,16 @@ kept context from journaled prompts; `scope` is projected relative to the
 pane the picker opened for (this pane, the rest of its project, or no project).
 The existing `type` prop distinguishes file, dir, link, branch, command, etc.
 The read-only `origin` enum identifies the most conversational recorded source:
-`prompt`, then `response`, then `manual`, `mcp`, `scrollback`, `transcript`,
-`command`, or `unknown`. The `origins` list retains every source kind seen;
-prompt and response sightings in the same pane remain distinct. Both props
-are derived from stored source provenance, including legacy rows. Missing or
-ambiguous provenance reads `unknown`; an old sighting already collapsed by
-an earlier mtm cannot be reconstructed. `conversation` matches primary origin
-prompt/response; `tools` matches primary origin scrollback/transcript/command.
-An item seen in both stays in conversation, with its other origins in `origins`.
-The generic property picker (`ctrl+f`) can filter `origin` directly.
+`prompt`, then `response`, then `manual`, `mcp`, `thinking`, `tool`,
+`scrollback`, `transcript`, `command`, or `unknown`. The `origins` list retains
+every source kind seen; prompt and response sightings in the same pane remain
+distinct. Both props are derived from stored source provenance, including legacy
+rows. Missing or ambiguous provenance reads `unknown`; an old sighting already
+collapsed by an earlier mtm cannot be reconstructed. `conversation` matches
+primary origin prompt/response; `tools` matches primary origin
+tool/scrollback/transcript/command. An item seen in both stays in conversation,
+with its other origins in `origins`. The generic property picker (`ctrl+f`) can
+filter `origin` directly.
 Rows retain their data for copy/open/reveal, and updates preserve the filters.
 Set `chooser.prop-filters=false` to disable chooser prop filtering (default
 true); `list.filter-cycle=false` and `list.filter-strip=false` turn off cycling
@@ -242,23 +243,27 @@ name with `list: "context-picker"`.
 
 Context extraction defaults to `context.extract-from: ["prompt", "response"]`.
 The setting is a list of source origins: it gates journal/capture/backfill
-extraction from prompts and responses, on-demand/continuous scrollback
-extraction, shell command history, and extraction when a transcript is read.
-Use `["prompt", "response", "scrollback", "transcript", "command"]` to restore
-all previous sources; `[]` disables those extraction paths. Changing it does
-not remove stored items; use the conversation filter to hide older tool context.
-Explicit `context-item add` (MCP) and `create` (manual) remain available with
-any setting. Live screen hints are an explicit copy/open/type operation and
-do not save context items; their screen scan remains available.
+extraction from prompts, responses, thinking and tool calls/results,
+on-demand/continuous scrollback extraction, shell command history, and
+extraction when a transcript is read. Add `"thinking"` or `"tool"` to collect
+context from thinking or tool responses independently; use `["prompt",
+"response", "thinking", "tool", "scrollback", "transcript", "command"]` to
+include every automatic source, or `[]` to disable automatic extraction.
+Changing it does not remove stored items; use the conversation filter to hide
+older tool context. Explicit `context-item add` (MCP) and `create` (manual)
+remain available with any setting. Live screen hints are an explicit
+copy/open/type operation and do not save context items; their screen scan
+remains available.
 
 Transcript display includes tools. Extraction uses the daemon's structured
 entry kind/role and tool metadata before formatting: user text is `prompt`,
-assistant text without tool metadata is `response`, and tool calls/results,
-thinking and other entries are `transcript` (off by default). The protocol
-has no final/commentary channel field, so response includes assistant prose,
-not just the last message. Unstructured transcript text stays `transcript`;
-headings are never guessed to be conversational roles. Reading a transcript
-still displays all its entries regardless of the extraction setting.
+assistant text without tool metadata is `response`, thinking/reasoning is
+`thinking`, tool calls/results and tool-tagged entries are `tool`, and other
+entries are `transcript` (off by default). The protocol has no final/commentary
+channel field, so response includes assistant prose, not just the last message.
+Unstructured transcript text stays `transcript`; headings are never guessed to
+be conversational roles. Reading a transcript still displays all its entries
+regardless of the extraction setting.
 
 Compared with Vim: Vim's `:filter` uses a regexp over command output;
 these filters use typed row properties. Modifier keys leave insert-mode
