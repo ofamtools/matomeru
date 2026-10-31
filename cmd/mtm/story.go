@@ -308,7 +308,14 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	a.panesd, a.renamer, a.launcher = sp, sp, storyLauncher{}
 	a.ensure = func(context.Context) error { return nil }
 	a.home = func() (string, error) { return home, nil }
-	a.getenv = func(string) string { return "" } // a story may run inside a TUIOS pane
+	// Keep every app environment read sandboxed, including the optional
+	// manifest source: no story executes the owner's o-proj discovery.
+	storyEnv := map[string]string{"HOME": home, "MTM_O_PROJ": "none"}
+	a.opts.lookupEnv = func(key string) (string, bool) {
+		value, ok := storyEnv[key]
+		return value, ok
+	}
+	a.getenv = a.opts.getenv
 	a.journalSrc = nil
 	a.locator = nil
 	a.agentStarted = func(pane) time.Time { return time.Time{} }

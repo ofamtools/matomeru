@@ -293,7 +293,7 @@ func TestExtensionDeclaredPageLoadsFromState(t *testing.T) {
 	if list == nil || list.Len() != 1 || list.Items()[0].ID != "ext/two/items/s1" {
 		t.Fatalf("state rows: %+v", list)
 	}
-	if got := calls(t, log); !strings.HasSuffix(got[len(got)-1], "|item state --json {}") {
+	if got := workCalls(t, log); !strings.HasSuffix(got[len(got)-1], "|item state --json {}") {
 		t.Fatalf("load call %q", got[len(got)-1])
 	}
 	if f := frame(a); !strings.Contains(f, "Fake Two") || !strings.Contains(f, "from state") || !strings.Contains(f, "size") {

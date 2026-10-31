@@ -76,7 +76,7 @@ func TestDocsPageEditsTheSelectedFile(t *testing.T) {
 	if f := frame(a); !strings.Contains(f, "Docs (1)") || !strings.Contains(f, "first task") {
 		t.Fatalf("Docs page:\n%s", f)
 	}
-	if got := calls(t, log); !strings.HasSuffix(got[len(got)-1], "|doc list --json {}") {
+	if got := workCalls(t, log); !strings.HasSuffix(got[len(got)-1], "|doc list --json {}") {
 		t.Fatalf("load call %q", got[len(got)-1])
 	}
 	press(t, a, "tab")
@@ -118,7 +118,7 @@ func TestDocsPageEditsTheSelectedFile(t *testing.T) {
 	}
 	a.reloadExtension(a.extension("md"))
 	settleJobs(t, a, a.r.PendingCommands())
-	if got := calls(t, log); !strings.HasPrefix(got[len(got)-1], want+"|doc list") {
+	if got := workCalls(t, log); !strings.HasPrefix(got[len(got)-1], want+"|doc list") {
 		t.Fatalf("pinned load %q, want MTM_PROJECT_DIRS %q", got[len(got)-1], want)
 	}
 }

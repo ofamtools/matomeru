@@ -17,6 +17,7 @@ import (
 func TestCommandRunExecStreamsOutputAndRecordsTheExitCode(t *testing.T) {
 	t.Parallel()
 	app := open(t)
+	testEnv(app, "HOME", t.TempDir())
 	res, err := app.r.Execute(ochazuke.Request{Noun: commandNoun, Verb: "run", Target: runsListID,
 		Args: ochazuke.Arguments{"command": "echo first; echo to-stderr >&2; sleep 0.4; echo second; exit 4", "dir": t.TempDir()}})
 	if err != nil {
