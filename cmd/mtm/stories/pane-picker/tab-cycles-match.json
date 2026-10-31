@@ -1,0 +1,22 @@
+{
+  "name": "mtm: tab in the pane picker cycles the match mode (fuzzy, regex, substring; shift+tab back) and the search line's tag names it",
+  "area": "pane-picker",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "\\",
+    {"type": "acme"},
+    "tab",
+    "tab",
+    "shift+tab",
+    "esc"
+  ],
+  "expect": [
+    {"after": 2, "modal": "pane-picker", "contains": ["› acme", "fuzzy", "acme-web"], "lacks": ["billing-api"]},
+    {"after": 3, "contains": ["› acme", "regex", "acme-web"]},
+    {"after": 4, "contains": ["› acme", "substr", "acme-web"]},
+    {"after": 5, "contains": ["regex"]},
+    {"modal": ""}
+  ]
+}

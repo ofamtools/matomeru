@@ -16,9 +16,12 @@ import (
 // before most recent first, then the rest in the tree's order (the panes
 // the pin hides after them, in listing order), then the attached pane last
 // and marked current, so enter on the first row goes back to the pane
-// last left. Typing filters (label, project and kind); enter opens the
-// Panes page and attaches the pane live through attachLive, the path
-// enter on a row and the leader's j and k take; esc closes.
+// last left. Typing filters (label, project and kind) through the
+// framework chooser's matcher, so tab and shift+tab cycle the match mode
+// (ochazuke.search.cycle-match; it starts in the chooser.match setting's
+// mode) as in every chooser; enter opens the Panes page and attaches the
+// pane live through attachLive, the path enter on a row and the leader's
+// j and k take; esc closes.
 //
 // Keys: the leader's p while live (ctrl+a p) and on the Panes page, and \
 // on every page in normal mode (no other row in mtm, ochazuke or the
@@ -140,18 +143,6 @@ func (a *App) panePreview(row ochazuke.ChooserRow) string {
 	return strings.Join(lines, "\n")
 }
 
-// panePickerFilter keeps a row whose label, project or kind holds every
-// word of the query, ignoring case, as the list filter (/) matches.
-func panePickerFilter(query string, row ochazuke.ChooserRow) bool {
-	label := strings.ToLower(row.Label)
-	for _, word := range strings.Fields(strings.ToLower(query)) {
-		if !strings.Contains(label, word) {
-			return false
-		}
-	}
-	return true
-}
-
 // pickPane is pane.pick: open the pane chooser over the focus.
 func (a *App) pickPane(ctx ochazuke.Ctx) ochazuke.Result {
 	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
@@ -160,7 +151,6 @@ func (a *App) pickPane(ctx ochazuke.Ctx) ochazuke.Result {
 		Rows:    a.panePickerRows(time.Now()),
 		Empty:   "no panes",
 		Keep:    []int{0},
-		Filter:  panePickerFilter,
 		Preview: a.panePreview,
 		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			p, _ := row.Data.(pane)

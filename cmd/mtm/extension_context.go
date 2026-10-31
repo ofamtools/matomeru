@@ -116,12 +116,11 @@ func missingNounParam(doc ocli.CatalogDoc, noun, verb string, args ochazuke.Argu
 func (a *App) askNounParam(x *extension, noun, verb, target, name string, p ochazuke.Parameter, args ochazuke.Arguments) ochazuke.Result {
 	title := noun + " " + verb + ": choose a " + p.Noun
 	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
-		Kind:   "ext-" + p.Noun,
-		Title:  title,
-		Rows:   a.panePickerRows(time.Now()),
-		Empty:  "no panes",
-		Keep:   []int{0},
-		Filter: panePickerFilter,
+		Kind:  "ext-" + p.Noun,
+		Title: title,
+		Rows:  a.panePickerRows(time.Now()),
+		Empty: "no panes",
+		Keep:  []int{0},
 		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			chosen, _ := row.Data.(pane)
 			next := ochazuke.Arguments{}
