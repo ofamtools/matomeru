@@ -30,6 +30,7 @@ import (
 const (
 	settingAgentsWriteScope     = "agents.write-scope"
 	settingAgentsWriteMakers    = "agents.write-makers"
+	settingAgentsOwnerTaskProps = "agents.owner-task-props"
 	settingAgentsAssociateScope = "agents.associate-scope"
 )
 
@@ -40,7 +41,9 @@ func agentSettings() []ochazuke.Setting {
 		{Name: settingAgentsWriteScope, Type: ochazuke.SettingString, Default: def.WriteScope, Enum: work.WriteScopes,
 			Description: "Which tasks an agent may change besides those its pane or lane made: subtree (its lane task and the tasks under it), own (none), project (its pane's project) or any; the owner is never limited"},
 		{Name: settingAgentsWriteMakers, Type: ochazuke.SettingList, Default: def.WriteMakers,
-			Description: "Whose tasks agents.write-scope reaches, by made_by: agent, unknown (made before mtm recorded makers), owner; a refused agent is told to ask the owner or the coordinator"},
+			Description: "Whose tasks inside agents.write-scope an agent may change wholly, by made-by: agent, unknown (made before mtm recorded makers), owner; any other maker's tasks change only in agents.owner-task-props"},
+		{Name: settingAgentsOwnerTaskProps, Type: ochazuke.SettingList, Default: def.OwnerTaskProps,
+			Description: "The props an agent may change on a task inside agents.write-scope that the owner made (or that is unknown): status by default (done, active, blocked); title, project, parent, position, easy, snoozed-until, private and theme can be added; a refused agent is told to ask the owner or the coordinator"},
 		{Name: settingAgentsAssociateScope, Type: ochazuke.SettingString, Default: def.AssociateScope, Enum: work.AssociateScopes,
 			Description: "Which panes an agent may associate with a task or project: own-pane (its own and the panes it launched or opened beside it), any-pane or none"},
 	}
@@ -52,6 +55,7 @@ func (a *App) agentPolicy() work.AgentPolicy {
 	return work.AgentPolicy{
 		WriteScope:     s.String(settingAgentsWriteScope),
 		WriteMakers:    s.Strings(settingAgentsWriteMakers),
+		OwnerTaskProps: s.Strings(settingAgentsOwnerTaskProps),
 		AssociateScope: s.String(settingAgentsAssociateScope),
 	}
 }

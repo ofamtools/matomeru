@@ -279,3 +279,38 @@ func TestAgentPaneRights(t *testing.T) {
 		t.Fatalf("owner refused: %v", err)
 	}
 }
+
+// Owner decision (2026-10-30): an agent may change the status of the
+// owner's tasks in its lane, not their wording; the setting widens the
+// props. Every store write path applies it.
+func TestAgentChangesOnlyTheStatusOfTheOwnersLaneTasks(t *testing.T) {
+	s, _ := actorStore(t)
+	lane, _ := s.AddTask("p", "the owner's lane")
+	step, _ := s.AddSubtask("p", lane.ID, "the owner's step")
+	s.SetActor(agent("w1", lane.ID))
+	if _, err := s.Done(lane.ID); err != nil {
+		t.Fatalf("done on the owner's lane task: %v", err)
+	}
+	if _, err := s.ToggleDone(step.ID); err != nil {
+		t.Fatalf("toggle on the owner's subtask: %v", err)
+	}
+	if _, err := s.Retitle(lane.ID, "the agent's words"); !IsRefused(err) || !strings.Contains(err.Error(), "not title") {
+		t.Fatalf("rename: %v", err)
+	}
+	moved := step
+	moved.ParentID = ""
+	if err := s.PutTask(moved); !IsRefused(err) {
+		t.Fatalf("move: %v", err)
+	}
+	if _, err := s.Delete("task", step.ID); !IsRefused(err) {
+		t.Fatalf("delete: %v", err)
+	}
+	s.SetAgentPolicy(func() AgentPolicy { return AgentPolicy{OwnerTaskProps: []string{"status", "title"}} })
+	if _, err := s.Retitle(lane.ID, "the agent's words"); err != nil {
+		t.Fatalf("title in agents.owner-task-props: %v", err)
+	}
+	got, _ := s.Task(lane.ID)
+	if got.Status != StatusDone || got.Title != "the agent's words" || got.MadeBy() != ActorOwner || got.ChangedBy.Kind != ActorAgent {
+		t.Fatalf("lane task: %+v", got)
+	}
+}

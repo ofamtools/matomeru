@@ -63,9 +63,11 @@ func mcpApp(t *testing.T, env map[string]string) (*App, *stateRecorder, string) 
 	if err := w.PutPaneRecipe(work.PaneRecipe{Window: "w1", Session: "matomeru", Cwd: cwd, Harness: "claude", Model: "opus", TaskID: "t1", ProjectID: "matomeru"}); err != nil {
 		t.Fatal(err)
 	}
-	// The seeded tasks are the pane's own (the agent in w1 made them), so
-	// the tools may change them; mcp_actor_test.go covers the refusals.
-	for _, id := range []string{"t1", "t2"} {
+	// t1, the pane's lane task, stays the owner's: task_status may change
+	// its status (agents.owner-task-props). t2, outside the lane, is the
+	// pane's own (the agent in w1 made it), so task_done may change it;
+	// actor_test.go covers the refusals.
+	for _, id := range []string{"t2"} {
 		task, err := w.Task(id)
 		if err != nil {
 			t.Fatal(err)

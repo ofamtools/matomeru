@@ -52,7 +52,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 			if err := json.Unmarshal(target, &t); err != nil {
 				return err
 			}
-			if err := s.mayChangeTask(tx, t); err != nil {
+			if err := s.mayChangeTask(tx, t, nil); err != nil {
 				return err
 			}
 		}

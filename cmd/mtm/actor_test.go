@@ -128,34 +128,44 @@ func TestCLIActorFromThePane(t *testing.T) {
 	}
 }
 
-// An agent's CLI write to a task the owner made is refused with who to
-// ask, and nothing is written; the owner's write after it goes through.
-func TestCLIAgentIsRefusedTheOwnersTask(t *testing.T) {
+// An agent's CLI write to the owner's lane task may change its status
+// (agents.owner-task-props, status by default) but not its wording, and a
+// refused write leaves nothing; a prop added to the setting may change;
+// the owner is never refused.
+func TestCLIAgentChangesOnlyTheStatusOfTheOwnersTask(t *testing.T) {
 	app, _ := cliApp(t)
 	actorPane(t, app, "w7", "t1", "claude")
 	app.getenv = envOf(map[string]string{"TUIOS_PANE_ID": "w7", "TUIOS_SESSION": "matomeru"})
-	_, _, err := cli(app, "", "task", "set", "t1", "status", "done")
-	if err == nil || !strings.Contains(err.Error(), "made by owner") || !strings.Contains(err.Error(), "the owner or the coordinator") {
-		t.Fatalf("agent on the owner's lane task: %v", err)
+	mustCLI(t, app, "task", "done", "t1")
+	if got := stored(t, app, "t1"); got.Status != work.StatusDone || got.MadeBy() != work.ActorOwner || got.ChangedBy.Pane != "w7" {
+		t.Fatalf("agent's done on the owner's lane task: %+v", got)
 	}
-	if got := stored(t, app, "t1"); got.Status != work.StatusTodo {
+	_, _, err := cli(app, "", "task", "set", "t1", "title", "the agent's words")
+	if err == nil || !strings.Contains(err.Error(), "made by owner") || !strings.Contains(err.Error(), "the owner or the coordinator") || !strings.Contains(err.Error(), "not title") {
+		t.Fatalf("agent's rename of the owner's task: %v", err)
+	}
+	if got := stored(t, app, "t1"); got.Title != "write the brief" {
 		t.Fatalf("a refused write landed: %+v", got)
 	}
-	// Its own subtask under the lane is its to change.
+	// t2 is the owner's and outside the lane: not even its status.
+	if _, _, err := cli(app, "", "task", "set", "t2", "status", "done"); err == nil || !strings.Contains(err.Error(), "agents.write-scope") {
+		t.Fatalf("outside the lane: %v", err)
+	}
+	// Its own subtask under the lane is its to change wholly.
 	got := createdThing(t, app, "my step")
 	id := got["id"].(string)
-	mustCLI(t, app, "task", "set", id, "status", "done")
-	// The setting widens it, as data: owner in agents.write-makers.
-	if err := app.r.Settings().Set(settingAgentsWriteMakers, []string{work.ActorAgent, work.ActorOwner}); err != nil {
+	mustCLI(t, app, "task", "set", id, "title", "my step, renamed")
+	// A prop added to agents.owner-task-props may change.
+	if err := app.r.Settings().Set(settingAgentsOwnerTaskProps, []string{"status", "easy"}); err != nil {
 		t.Fatal(err)
 	}
-	mustCLI(t, app, "task", "set", "t1", "status", "active")
-	if err := app.r.Settings().Set(settingAgentsWriteMakers, []string{work.ActorAgent}); err != nil {
-		t.Fatal(err)
+	mustCLI(t, app, "task", "set", "t1", "easy", "true")
+	if !stored(t, app, "t1").Easy {
+		t.Fatal("easy in agents.owner-task-props was not written")
 	}
 	// The owner is never refused.
 	app.getenv = envOf(nil)
-	mustCLI(t, app, "task", "set", "t1", "status", "done")
+	mustCLI(t, app, "task", "set", "t1", "title", "the owner's words")
 	mustCLI(t, app, "task", "set", id, "title", "renamed by me")
 	if got := stored(t, app, id); got.Title != "renamed by me" || got.MadeBy() != work.ActorAgent || got.ChangedBy.Kind != work.ActorOwner {
 		t.Fatalf("owner's write: %+v", got)
@@ -184,18 +194,29 @@ func TestMCPWritesAreThePanesAgent(t *testing.T) {
 	if by := made.Maker(); by.Kind != work.ActorAgent || by.Harness != "claude" || by.Pane != "w1" || by.Task != "t1" || by.Model != "opus" || by.Session != "matomeru" {
 		t.Fatalf("MCP create: %+v", by)
 	}
-	// A task the owner made: task_done is refused, the message is the
-	// tool's error text.
+	// A task the owner made in the pane's lane: task_done and task_status
+	// change its status; a rename through the same path is refused, with
+	// who to ask.
 	if err := app.work.PutTask(work.Task{ID: "mine", ProjectID: "matomeru", ParentID: "t1", Title: "the owner's step", Status: work.StatusTodo}); err != nil {
 		t.Fatal(err)
 	}
-	out := rpc(t, app, toolCall(1, "task_done", map[string]any{"task_id": "mine"}))
-	result, _ := out[0]["result"].(map[string]any)
-	text, _ := json.Marshal(result)
-	if result["isError"] != true || !strings.Contains(string(text), "the owner or the coordinator") {
-		t.Fatalf("task_done on the owner's task: %v", out[0])
+	out := rpc(t, app, toolCall(1, "task_done", map[string]any{"task_id": "mine"}), toolCall(2, "task_status", map[string]any{"status": "blocked"}))
+	for _, resp := range out {
+		if result, _ := resp["result"].(map[string]any); result["isError"] == true {
+			t.Fatalf("status tool on the owner's lane task: %v", resp)
+		}
 	}
-	if got, _ := app.work.Task("mine"); got.Status != work.StatusTodo {
+	if got, _ := app.work.Task("mine"); got.Status != work.StatusDone || got.MadeBy() != work.ActorOwner || got.ChangedBy.Pane != "w1" {
+		t.Fatalf("task_done: %+v", got)
+	}
+	if got, _ := app.work.Task("t1"); got.Status != work.StatusBlocked {
+		t.Fatalf("task_status on the lane task: %+v", got)
+	}
+	_, err = backend.Run(mcp.WithIdentity(context.Background(), id), "task", "set", map[string]any{"id": "mine", "prop": "title", "value": "the agent's words"})
+	if err == nil || !strings.Contains(err.Error(), "the owner or the coordinator") {
+		t.Fatalf("MCP rename of the owner's task: %v", err)
+	}
+	if got, _ := app.work.Task("mine"); got.Title != "the owner's step" {
 		t.Fatalf("refused write landed: %+v", got)
 	}
 }

@@ -47,9 +47,10 @@ func txLookup(tx *store.Tx) TaskLookup {
 	}
 }
 
-// mayChangeTask is MayChangeTask in a transaction over the tasks table.
-func (s *Store) mayChangeTask(tx *store.Tx, t Task) error {
-	return MayChangeTask(s.Actor(), s.agentPolicy(), t, txLookup(tx))
+// mayChangeTask is MayChangeTask in a transaction over the tasks table;
+// new is nil for a delete or a whole-row write.
+func (s *Store) mayChangeTask(tx *store.Tx, old Task, new *Task) error {
+	return MayChangeTask(s.Actor(), s.agentPolicy(), old, new, txLookup(tx))
 }
 
 // putTask is every task write the store makes for a caller: the rights
@@ -60,7 +61,7 @@ func (s *Store) putTask(tx *store.Tx, t *Task) error {
 	err := tx.Get("tasks", t.ID, &old)
 	switch {
 	case err == nil:
-		if err := s.mayChangeTask(tx, old); err != nil {
+		if err := s.mayChangeTask(tx, old, t); err != nil {
 			return err
 		}
 		if err := StampTask(me, t, &old); err != nil {

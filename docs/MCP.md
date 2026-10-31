@@ -45,11 +45,14 @@ there.
 Every tool call writes as the agent of the server's pane: its harness,
 pane, session, the pane's task (its lane) and model. A task it creates is
 stamped `created-by` that agent (`made-by` agent), and every write it makes
-is `changed-by` it. What it may change is data, the `agents.*` settings:
-by default the tasks its pane or lane made, plus the agent-made tasks of its
-lane task's subtree (`agents.write-scope` subtree, `agents.write-makers`
-agent), and its own pane and the panes it launched or opened beside it
-(`agents.associate-scope` own-pane). A tool on a task the owner made is
+is `changed-by` it. What it may change is data, the `agents.*` settings: by default the tasks
+its pane or lane made, the agent-made tasks of its lane task's subtree
+(`agents.write-scope` subtree, `agents.write-makers` agent) wholly, and the
+status only of the owner's (or unknown) tasks in that subtree
+(`agents.owner-task-props` status), so `task_done` and `task_status` work
+on the lane task the owner made; and its own pane and the panes it launched
+or opened beside it (`agents.associate-scope` own-pane). Any other write
+(the owner's wording, a move, a delete, a task outside the lane) is
 refused with a message naming who to ask (the owner or the coordinator)
 and the setting that refused it. The CLI follows the same rule inside an
 agent's pane (`MTM_ACTOR=owner` overrides it); the TUI is always the owner,

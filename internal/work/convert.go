@@ -202,7 +202,7 @@ func (s *Store) convert(fn func(c *convertTx, declared map[string]bool) error) (
 			if err := json.Unmarshal(before, &t); err != nil {
 				return err
 			}
-			return s.mayChangeTask(tx, t)
+			return s.mayChangeTask(tx, t, nil)
 		}}
 		if err := fn(c, declared); err != nil {
 			return err

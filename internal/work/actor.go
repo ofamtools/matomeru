@@ -105,15 +105,19 @@ func (t Task) Maker() Actor {
 // What an agent may change is data (the agents.* settings; Owner
 // decisions 12 and 14). WriteScope says where: own (the tasks its pane or
 // its lane made), subtree (also its lane task and the tasks under it; the
-// default), project (its pane's project) or any. WriteMakers says whose
-// tasks the wider scopes reach, by MadeBy (agent by default; add unknown
-// for the backfilled tasks, or owner to let agents change the owner's).
-// The tasks its own pane or lane made are always its own. AssociateScope
-// says which panes it may associate: own-pane (its pane and the panes it
-// launched or opened beside it; the default), any-pane, or none.
+// default), project (its pane's project) or any. Inside that scope,
+// WriteMakers says whose tasks an agent may change wholly, by MadeBy
+// (agent by default); a task by any other maker (the owner's, or unknown)
+// may change only in the props OwnerTaskProps lists (status by default:
+// "agents may change my tasks, but mostly just the status, not the
+// wording", owner, 2026-10-30). The tasks its own pane or lane made are
+// always its own. AssociateScope says which panes it may associate:
+// own-pane (its pane and the panes it launched or opened beside it; the
+// default), any-pane, or none.
 type AgentPolicy struct {
 	WriteScope     string
 	WriteMakers    []string
+	OwnerTaskProps []string
 	AssociateScope string
 }
 
@@ -138,7 +142,7 @@ var (
 
 // DefaultAgentPolicy is the policy with no settings (Owner decision 14).
 func DefaultAgentPolicy() AgentPolicy {
-	return AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent}, AssociateScope: ScopeOwnPane}
+	return AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent}, OwnerTaskProps: []string{"status"}, AssociateScope: ScopeOwnPane}
 }
 
 // RefusedError is a write an agent may not make. It names who made the
@@ -219,19 +223,42 @@ func TaskUnder(id, root string, get TaskLookup) bool {
 	return false
 }
 
-// MayChangeTask is the one decision on a task write by me, against the
-// task as stored: nil for the owner, for a task the agent's pane or lane
-// made, and for one inside the agent's write scope whose maker is one of
-// the write makers; else a RefusedError naming who to ask and the setting.
-func MayChangeTask(me Actor, p AgentPolicy, t Task, get TaskLookup) error {
-	if !me.IsAgent() || ownedBy(me, t) {
+// TaskChanges names the props a write of new over old changes, by the
+// task noun's prop names (title, status, project, parent, position, easy,
+// snoozed-until, private, theme). The maker and the stamps are not props
+// a caller changes (StampTask keeps an agent's maker as stored).
+func TaskChanges(old, new Task) []string {
+	var out []string
+	add := func(changed bool, name string) {
+		if changed {
+			out = append(out, name)
+		}
+	}
+	add(old.Title != new.Title, "title")
+	add(NormalStatus(old.Status) != NormalStatus(new.Status), "status")
+	add(old.ProjectID != new.ProjectID || old.FormerProjectID != new.FormerProjectID, "project")
+	add(old.ParentID != new.ParentID || old.FormerTaskID != new.FormerTaskID, "parent")
+	add(old.Position != new.Position, "position")
+	add(old.Easy != new.Easy, "easy")
+	add(old.SnoozedUntil != new.SnoozedUntil, "snoozed-until")
+	add(old.Private != new.Private, "private")
+	add(old.Theme != new.Theme, "theme")
+	return out
+}
+
+// MayChangeTask is the one decision on a task write by me: old is the
+// task as stored, new the row written (nil for a delete, or a write of the
+// whole row). It is nil for the owner and for a task the agent's pane or
+// lane made. Otherwise the task must be inside the agent's write scope,
+// and then a task by one of the write makers may change wholly, any other
+// (the owner's, unknown) only in the owner-task props. A refusal is a
+// RefusedError naming who to ask and the setting.
+func MayChangeTask(me Actor, p AgentPolicy, old Task, new *Task, get TaskLookup) error {
+	if !me.IsAgent() || ownedBy(me, old) {
 		return nil
 	}
 	refuse := func(setting string) error {
-		return &RefusedError{What: fmt.Sprintf("task %s %q", t.ID, t.Title), MadeBy: t.Maker(), Setting: setting, Ask: askFor(t.Maker())}
-	}
-	if !slices.Contains(p.WriteMakers, t.MadeBy()) {
-		return refuse(fmt.Sprintf("agents.write-makers is %s", strings.Join(p.WriteMakers, ", ")))
+		return &RefusedError{What: fmt.Sprintf("task %s %q", old.ID, old.Title), MadeBy: old.Maker(), Setting: setting, Ask: askFor(old.Maker())}
 	}
 	in := false
 	switch p.WriteScope {
@@ -240,14 +267,26 @@ func MayChangeTask(me Actor, p AgentPolicy, t Task, get TaskLookup) error {
 	case ScopeProject:
 		if lane, ok := get(me.Task); ok && me.Task != "" {
 			if project := TaskProject(lane, get); project != "" {
-				in = TaskProject(t, get) == project
+				in = TaskProject(old, get) == project
 			}
 		}
 	case ScopeSubtree:
-		in = me.Task != "" && TaskUnder(t.ID, me.Task, get)
+		in = me.Task != "" && TaskUnder(old.ID, me.Task, get)
 	}
 	if !in {
 		return refuse("agents.write-scope is " + p.WriteScope)
+	}
+	if slices.Contains(p.WriteMakers, old.MadeBy()) {
+		return nil
+	}
+	allowed := "agents.owner-task-props is " + strings.Join(p.OwnerTaskProps, ", ")
+	if new == nil {
+		return refuse(allowed + "; an agent may not delete or rewrite it")
+	}
+	for _, prop := range TaskChanges(old, *new) {
+		if !slices.Contains(p.OwnerTaskProps, prop) {
+			return refuse(allowed + ", not " + prop)
+		}
 	}
 	return nil
 }
@@ -321,6 +360,9 @@ func MergePolicy(p AgentPolicy) AgentPolicy {
 	}
 	if p.WriteMakers != nil {
 		out.WriteMakers = p.WriteMakers
+	}
+	if p.OwnerTaskProps != nil {
+		out.OwnerTaskProps = p.OwnerTaskProps
 	}
 	if p.AssociateScope != "" {
 		out.AssociateScope = p.AssociateScope

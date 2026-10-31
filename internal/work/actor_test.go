@@ -30,39 +30,47 @@ func lookupOf(tasks ...Task) TaskLookup {
 
 func TestMayChangeTaskDecisions(t *testing.T) {
 	me := Actor{Kind: ActorAgent, Pane: "w1", Task: "lane"}
-	lane := Task{ID: "lane", ProjectID: "p", CreatedBy: Actor{Kind: ActorAgent, Pane: "coord"}}
-	ownerLane := Task{ID: "olane", ProjectID: "p", CreatedBy: Owner()}
+	lane := Task{ID: "lane", ProjectID: "p", Title: "lane", CreatedBy: Owner()}
 	under := Task{ID: "u", ParentID: "lane", CreatedBy: Actor{Kind: ActorAgent, Pane: "w9"}}
-	unknown := Task{ID: "old", ParentID: "lane"}
+	unknown := Task{ID: "old", ParentID: "lane", Title: "old"}
 	elsewhere := Task{ID: "e", ProjectID: "p", CreatedBy: Actor{Kind: ActorAgent, Pane: "w9"}}
+	ownerElsewhere := Task{ID: "oe", ProjectID: "p", CreatedBy: Owner()}
 	mine := Task{ID: "m", ProjectID: "q", CreatedBy: Actor{Kind: ActorAgent, Pane: "w1"}}
-	get := lookupOf(lane, ownerLane, under, unknown, elsewhere, mine)
+	get := lookupOf(lane, under, unknown, elsewhere, ownerElsewhere, mine)
+	status := func(t Task) *Task { t.Status = StatusDone; return &t }
+	rename := func(t Task) *Task { t.Title = "new words"; return &t }
 	def := DefaultAgentPolicy()
 	for _, c := range []struct {
 		name string
 		p    AgentPolicy
-		t    Task
+		old  Task
+		new  *Task
 		ok   bool
 	}{
-		{"own pane anywhere", def, mine, true},
-		{"lane task", def, lane, true},
-		{"under the lane", def, under, true},
-		{"unknown maker", def, unknown, false},
-		{"owner's", def, ownerLane, false},
-		{"other lane", def, elsewhere, false},
-		{"project scope", AgentPolicy{WriteScope: ScopeProject, WriteMakers: []string{ActorAgent}}, elsewhere, true},
-		{"unknown allowed", AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent, ActorUnknown}}, unknown, true},
-		{"own scope", AgentPolicy{WriteScope: ScopeOwn, WriteMakers: []string{ActorAgent}}, lane, false},
+		{"own pane anywhere", def, mine, rename(mine), true},
+		{"agent-made under the lane, wholly", def, under, rename(under), true},
+		{"owner's lane task: status", def, lane, status(lane), true},
+		{"owner's lane task: wording", def, lane, rename(lane), false},
+		{"owner's lane task: delete", def, lane, nil, false},
+		{"unknown under the lane: status", def, unknown, status(unknown), true},
+		{"unknown under the lane: wording", def, unknown, rename(unknown), false},
+		{"owner's outside the lane: status", def, ownerElsewhere, status(ownerElsewhere), false},
+		{"other lane", def, elsewhere, status(elsewhere), false},
+		{"title added to the props", AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent}, OwnerTaskProps: []string{"status", "title"}}, lane, rename(lane), true},
+		{"owner among the makers", AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent, ActorOwner}}, lane, nil, true},
+		{"project scope", AgentPolicy{WriteScope: ScopeProject, WriteMakers: []string{ActorAgent}}, elsewhere, rename(elsewhere), true},
+		{"own scope", AgentPolicy{WriteScope: ScopeOwn, WriteMakers: []string{ActorAgent}}, under, status(under), false},
 	} {
-		err := MayChangeTask(me, c.p, c.t, get)
+		err := MayChangeTask(me, MergePolicy(c.p), c.old, c.new, get)
 		if (err == nil) != c.ok || err != nil && !IsRefused(err) {
 			t.Errorf("%s: %v", c.name, err)
 		}
 	}
-	if err := MayChangeTask(me, def, ownerLane, get); !strings.Contains(err.Error(), "the owner or the coordinator") {
-		t.Errorf("refusal does not name who to ask: %v", err)
+	err := MayChangeTask(me, def, lane, rename(lane), get)
+	if err == nil || !strings.Contains(err.Error(), "the owner or the coordinator") || !strings.Contains(err.Error(), "agents.owner-task-props is status, not title") {
+		t.Errorf("refusal does not name who to ask and the setting: %v", err)
 	}
-	if err := MayChangeTask(Owner(), AgentPolicy{WriteScope: ScopeOwn}, ownerLane, get); err != nil {
+	if err := MayChangeTask(Owner(), AgentPolicy{WriteScope: ScopeOwn}, lane, nil, get); err != nil {
 		t.Errorf("owner refused: %v", err)
 	}
 }
