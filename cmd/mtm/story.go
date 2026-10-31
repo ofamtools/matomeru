@@ -288,6 +288,7 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	// The clock is the session's (storyClock), so times shown read the
 	// same every run.
 	a.clock, a.loc = now, time.UTC
+	a.sched.runner.Now, a.sched.runner.Location = now, time.UTC
 	a.starts.now = now
 	a.inbox.items.SetClock(func() int64 { return now().UnixMilli() })
 	// No timers: a story's ticks are the driver's, not mtm's refreshes.
@@ -376,11 +377,11 @@ func writeSeeded(path string, now int64) error {
 	}
 	clock := now
 	items.SetClock(func() int64 { return clock })
-	if _, _, err := items.Add(actionitems.Spec{Source: "gh", URL: "https://github.com/acme/web/pull/9", Title: "Checkout: shipping estimate", Why: "review requested", ProjectID: "acme-web"}); err != nil {
+	if _, err := items.Put(actionitems.Item{ID: "inbox-checkout", Source: "gh", URL: "https://github.com/acme/web/pull/9", Title: "Checkout: shipping estimate", Why: "review requested", ProjectID: "acme-web"}); err != nil {
 		return err
 	}
 	clock++
-	ping, _, err := items.Add(actionitems.Spec{Source: "slack", Why: "mentioned", Title: "standup notes"})
+	ping, err := items.Put(actionitems.Item{ID: "inbox-standup", Source: "slack", Why: "mentioned", Title: "standup notes"})
 	if err != nil {
 		return err
 	}

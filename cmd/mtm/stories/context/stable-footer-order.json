@@ -1,0 +1,12 @@
+{
+  "name": "mtm: context footer has stable binding order",
+  "area": "context",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "script": ["N", "ctrl+o", "ctrl+j", "ctrl+j", "ctrl+j"],
+  "expect": {
+    "page": "context",
+    "order": ["list.mark", "context-item.search", "context-item.kind"]
+  }
+}

@@ -195,8 +195,15 @@ func (a *App) addContextPage() error {
 	if _, err := a.r.AddPage(contextPage, "Context", a.renderContext, ochazuke.Focus(contextListID)); err != nil {
 		return err
 	}
-	for keys, req := range map[string]ochazuke.Binding{"/": ochazuke.Do(contextNoun + ".search"), "f": ochazuke.Do(contextNoun + ".kind")} {
-		req.Instance, req.Mode, req.Keys = contextPage, "normal", keys
+	for _, row := range []struct {
+		keys    string
+		binding ochazuke.Binding
+	}{
+		{"/", ochazuke.Do(contextNoun + ".search")},
+		{"f", ochazuke.Do(contextNoun + ".kind")},
+	} {
+		req := row.binding
+		req.Instance, req.Mode, req.Keys = contextPage, "normal", row.keys
 		if err := a.r.Bind(req); err != nil {
 			return err
 		}
