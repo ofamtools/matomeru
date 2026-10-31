@@ -107,8 +107,8 @@ func TestLeaderSelectsStarredOutsideLive(t *testing.T) {
 }
 
 // The rows are the page's normal-mode rows, listed for the tree's stops,
-// and nothing else binds the leader there; they follow the terminal-leader
-// setting.
+// and nothing else binds the leader there but ochazuke's ctrl+a o; they
+// follow the terminal-leader setting.
 func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 	app, _ := panesApp(t)
 	if hints := ochazuke.BindingHints(app.r, app.r.Focus); !strings.Contains(hints, "next pane") {
@@ -140,7 +140,12 @@ func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 				listed[b.Keys] = app.r.DisplayKey(b.Request.Key())
 			}
 		}
-		want := map[string]string{"ctrl+a j": "terminal.cycle", "ctrl+a k": "terminal.cycle", "ctrl+a p": "pane.pick", "ctrl+a s": "terminal.starred", "ctrl+a w": "panes.sides", "ctrl+a esc": "mode.leave"}
+		// ctrl+a o is ochazuke's own row (bindings/panes.json, v0.61,
+		// UX-RULES R3.15): ochazuke.focus.next, the next focus stop, like
+		// ctrl+w l. mtm binds no normal-mode leader o, so the library row
+		// answers here; inside a live terminal mtm's leader o
+		// (terminal.other) answers first.
+		want := map[string]string{"ctrl+a j": "terminal.cycle", "ctrl+a k": "terminal.cycle", "ctrl+a o": "focus.next", "ctrl+a p": "pane.pick", "ctrl+a s": "terminal.starred", "ctrl+a w": "panes.sides", "ctrl+a esc": "mode.leave"}
 		for k, v := range want {
 			if listed[k] != v {
 				t.Errorf("%s: %s is %q, want %q", target, k, listed[k], v)
