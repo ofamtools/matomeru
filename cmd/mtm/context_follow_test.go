@@ -85,7 +85,7 @@ func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
 	screen := []string{
 		"$ agent says:",
 		"edited " + file,
-		"opened https://github.com/ofamtools/matomeru/pull/77",
+		"opened https://github.com/unixsuperhero/matomeru/pull/77",
 		"Switched to a new branch 'lane/context'",
 		"[lane/context 1ba025f] context: follow panes",
 		"docs: " + long[:34], // 6 + 34 = 40 columns: the pane wraps here
@@ -110,7 +110,7 @@ func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
 	}
 	want := map[string][]string{
 		"file":   {file},
-		"pr":     {"https://github.com/ofamtools/matomeru/pull/77"},
+		"pr":     {"https://github.com/unixsuperhero/matomeru/pull/77"},
 		"branch": {"lane/context"},
 		"commit": {"1ba025f"},
 		"link":   {long},

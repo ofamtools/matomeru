@@ -35,7 +35,7 @@ func itoa(n int) string {
 
 func TestExtractSpans(t *testing.T) {
 	dir := t.TempDir()
-	url := "https://github.com/ofamtools/matomeru/pull/1234/files"
+	url := "https://github.com/unixsuperhero/matomeru/pull/1234/files"
 	cases := []struct {
 		name string
 		rows []string
@@ -126,7 +126,7 @@ func TestSpansFindWhatExtractFinds(t *testing.T) {
 	}
 	rows := []string{
 		"see https://example.com/docs?page=2 and https://example.com/docs?page=2.",
-		"opened https://github.com/ofamtools/matomeru/pull/42",
+		"opened https://github.com/unixsuperhero/matomeru/pull/42",
 		"and unixsuperhero/ochazuke#7 for the fix, main.go too",
 		"edited " + file + ":12:3 and ./main.go",
 		"Switched to a new branch 'lane/context'",

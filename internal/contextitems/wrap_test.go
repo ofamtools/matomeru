@@ -80,7 +80,7 @@ func TestWrappedLinksJoin(t *testing.T) {
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	pr := "https://github.com/ofamtools/matomeru/pull/1234/files"
+	pr := "https://github.com/unixsuperhero/matomeru/pull/1234/files"
 	long := "https://example.com/" + strings.Repeat("a", 30) + "/" + strings.Repeat("b", 30) + "/tail?x=1"
 	cases := []struct {
 		name string
@@ -195,7 +195,7 @@ func TestWrappedLinksJoin(t *testing.T) {
 
 // The joined text is what Extract finds too.
 func TestExtractJoinsHardWraps(t *testing.T) {
-	pr := "https://github.com/ofamtools/matomeru/pull/1234/files"
+	pr := "https://github.com/unixsuperhero/matomeru/pull/1234/files"
 	text := strings.Join(hardWrap("Claude: the change is at "+pr+" for review", 50, "    "), "\n")
 	if got := kinds(Extract(text, 0, Source{})); !slices.Equal(got, []string{"pr " + pr}) {
 		t.Fatalf("items = %q", got)

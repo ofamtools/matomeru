@@ -25,7 +25,7 @@ func TestExtractFindsEachKindOnce(t *testing.T) {
 	}
 	text := strings.Join([]string{
 		"see https://example.com/docs?page=2 and https://example.com/docs?page=2.",
-		"opened https://github.com/ofamtools/matomeru/pull/42",
+		"opened https://github.com/unixsuperhero/matomeru/pull/42",
 		"and unixsuperhero/ochazuke#7 for the fix",
 		"edited " + file + ":12:3 and ./main.go",
 		"Switched to a new branch 'lane/context'",
@@ -37,7 +37,7 @@ func TestExtractFindsEachKindOnce(t *testing.T) {
 	got := kinds(Extract(text, 0, Source{Kind: "scrollback", Cwd: dir}))
 	want := []string{
 		"link https://example.com/docs?page=2",
-		"pr https://github.com/ofamtools/matomeru/pull/42",
+		"pr https://github.com/unixsuperhero/matomeru/pull/42",
 		"pr unixsuperhero/ochazuke#7",
 		"branch lane/context",
 		"file " + file,
@@ -66,7 +66,7 @@ func TestExtractMarksWhetherAPathExists(t *testing.T) {
 // A URL longer than the pane wraps onto the next screen line; joined, it is
 // one item.
 func TestAURLWrappedAcrossTwoScreenLinesIsOneItem(t *testing.T) {
-	url := "https://github.com/ofamtools/matomeru/pull/1234/files"
+	url := "https://github.com/unixsuperhero/matomeru/pull/1234/files"
 	width := 40
 	screen := "PR: " + url[:width-4] + "\n" + url[width-4:] + "\nnext line"
 	items := Extract(screen, width, Source{})
@@ -92,7 +92,7 @@ func TestPromptAndCommandEntriesAreItems(t *testing.T) {
 }
 
 func TestTargetOpensAPRReferenceOnGitHub(t *testing.T) {
-	if got := Target(Item{Kind: "pr", Text: "unixsuperhero/ochazuke#7"}); got != "https://github.com/ofamtools/ochazuke/issues/7" {
+	if got := Target(Item{Kind: "pr", Text: "unixsuperhero/ochazuke#7"}); got != "https://github.com/unixsuperhero/ochazuke/issues/7" {
 		t.Fatal(got)
 	}
 }

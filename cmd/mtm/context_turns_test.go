@@ -50,7 +50,7 @@ func TestJournaledTurnsYieldContextItems(t *testing.T) {
 	if err := app.work.SetPaneOwner(work.Assignment{Window: "w1", ProjectID: "matomeru"}); err != nil {
 		t.Fatal(err)
 	}
-	prompt := activity(1, at, "prompt", "review https://github.com/ofamtools/matomeru/pull/42 please")
+	prompt := activity(1, at, "prompt", "review https://github.com/unixsuperhero/matomeru/pull/42 please")
 	app.journal(prompt)
 	if !app.feed.contextAdded.Load() {
 		t.Fatal("a turn with items did not tell the loop")
@@ -63,10 +63,10 @@ func TestJournaledTurnsYieldContextItems(t *testing.T) {
 	app.journal(prompt, answer) // a ring read of the same entries
 	got := itemsByText(t, app)
 	want := map[string]string{
-		"https://github.com/ofamtools/matomeru/pull/42": "pr",
-		"https://example.com/notes":                     "link",
-		"1ba025f":                                       "commit",
-		"feat/turn-context":                             "branch",
+		"https://github.com/unixsuperhero/matomeru/pull/42": "pr",
+		"https://example.com/notes":                         "link",
+		"1ba025f":                                           "commit",
+		"feat/turn-context":                                 "branch",
 	}
 	for text, kind := range want {
 		it, ok := got[text]
@@ -183,14 +183,14 @@ func TestTranscriptReadYieldsContextItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.panes[0].Harness = "claude"
-	f.transcript = "assistant\nopened https://github.com/ofamtools/ochazuke/pull/7"
+	f.transcript = "assistant\nopened https://github.com/unixsuperhero/ochazuke/pull/7"
 	if err := app.work.SetPaneOwner(work.Assignment{Window: f.panes[0].ID, ProjectID: "matomeru"}); err != nil {
 		t.Fatal(err)
 	}
 	reload(t, app)
 	settle(app, key(t, app, "]"))
 	settle(app, key(t, app, "]"))
-	it, ok := itemsByText(t, app)["https://github.com/ofamtools/ochazuke/pull/7"]
+	it, ok := itemsByText(t, app)["https://github.com/unixsuperhero/ochazuke/pull/7"]
 	if !ok || it.Kind != "pr" || it.ProjectID != "matomeru" || it.Sources[0].Kind != "transcript" {
 		t.Fatalf("item %+v", it)
 	}

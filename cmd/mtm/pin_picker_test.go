@@ -416,6 +416,13 @@ func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
 	if p, _ := a.project("ochazuke"); p.DefaultTree != filepath.Join(dir, "plain") {
 		t.Fatalf("typed path default %q", p.DefaultTree)
 	}
+	// browse runs on a fresh App: the typed path above lives under TMPDIR,
+	// which may itself contain "matomeru" and would let the query match
+	// ochazuke's new directory too.
+	a = open(t)
+	knownDirectoryChooser(t, a)
+	knownRepos(t, a)
+	executeA(t, a, "project", "unpin", "work", nil)
 	openPicker(t, a)
 	typeText(t, a, "matomeru")
 	press(t, a, "enter")
