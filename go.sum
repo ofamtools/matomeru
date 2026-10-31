@@ -84,8 +84,8 @@ github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f h1:9hiVElpCmKzsBK
 github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f/go.mod h1:8/zr1Tv0+cKpVtGCEB/7YfRXr2TszsMxMXLaT8YuBgU=
 github.com/unixsuperhero/monogatari v0.1.0 h1:0nktDZUkd1hYVZBFLbhxHDWcvdubq1g0GPCvQVMVGFY=
 github.com/unixsuperhero/monogatari v0.1.0/go.mod h1:iT0l6/cZQasclnAs2+mor54eeWJ7v0NT26uCiDnmzfs=
-github.com/unixsuperhero/ochazuke v0.63.0 h1:SswHtNBEJLiLUqERxkhVQQoIIK1hnRB1feYt8KfQef0=
-github.com/unixsuperhero/ochazuke v0.63.0/go.mod h1:ifWlL56rLETAAPAJTyl0eUwNPuhNXYjV/U4ju8sk7vI=
+github.com/unixsuperhero/ochazuke v0.65.0 h1:YvjxIp5q5jKbUDGpaCFr1PNMmIoF4A0d8D0WnQ4t57g=
+github.com/unixsuperhero/ochazuke v0.65.0/go.mod h1:ifWlL56rLETAAPAJTyl0eUwNPuhNXYjV/U4ju8sk7vI=
 github.com/unixsuperhero/oden v0.1.1 h1:g7wpBYIw+7oCNAhRj6oDuBxWrbGj1amvn8x49o7YbaI=
 github.com/unixsuperhero/oden v0.1.1/go.mod h1:rKy5pz2e3eEKm4QBG/LfdzrHDMu7jHbs/GXwt9G1+YQ=
 github.com/xo/terminfo v1.0.0 h1:2ZpYzqWzyyytjk3TP6aJVDhkMAkc99/1xKQdA3TDTBY=
