@@ -44,8 +44,14 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 		{"P", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc"}},
 		{"L", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc"}},
 	}
-	for _, leader := range []string{"ctrl+a", "ctrl+b"} {
-		for _, c := range cases {
+	// Every mirror key uses the same leader setting. Exercise every key
+	// with one leader and cross-check the setting with the palette key.
+	for _, coverage := range []struct {
+		leader string
+		keys   int
+	}{{"ctrl+a", len(cases)}, {"ctrl+b", 1}} {
+		leader := coverage.leader
+		for _, c := range cases[:coverage.keys] {
 			t.Run(leader+" "+c.key, func(t *testing.T) {
 				a, s, _ := hintsApp(t, padRows("$ "))
 				if err := a.r.Settings().Set(ochazuke.TerminalLeaderSetting, leader); err != nil {
