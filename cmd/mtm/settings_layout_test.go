@@ -64,8 +64,9 @@ func TestSettingsPageShowsTheTabsAndSections(t *testing.T) {
 	t.Parallel()
 	a, _, _ := scopeApp(t)
 	executeA(t, a, "ochazuke.settings", "edit", "", nil)
-	fr := frame(a)
-	for _, want := range []string{"matomeru", "Extensions", "ochazuke", "General", "Panes", "Schedules", "Status bar"} {
+	a.m.Width, a.m.Height = 120, 40 // every section row on screen: All comes first
+	fr := plainView(a)
+	for _, want := range []string{"matomeru", "Extensions", "ochazuke", "All", "General", "Panes", "Schedules", "Status bar"} {
 		if !strings.Contains(fr, want) {
 			t.Fatalf("the Settings page lacks %q:\n%s", want, fr)
 		}

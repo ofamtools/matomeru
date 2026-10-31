@@ -136,11 +136,18 @@ func TestContextPickerOriginFiltersAndGenericProperty(t *testing.T) {
 		}
 	}
 	a.Update(keyMsg("alt+backspace"))
+	// ctrl+f opens the prop filter form (list.filter-form, default on);
+	// origin's chips start prompt, response.
 	press(t, a, "ctrl+f")
-	typeText(t, a, "origin")
-	press(t, a, "enter")
-	typeText(t, a, "response")
-	press(t, a, "enter")
+	// j walks the form in drawing order (a field's chips may wrap onto
+	// several lines): category created exists id origin.
+	for i := 0; i < 20 && !strings.HasSuffix(a.r.Focus, "/origin"); i++ {
+		press(t, a, "j")
+	}
+	if !strings.HasSuffix(a.r.Focus, "/origin") {
+		t.Fatalf("filter form focus %s:\n%s", a.r.Focus, frame(a))
+	}
+	press(t, a, "l", "space", "esc")
 	if got := pickerTexts(t, a); len(got) != 1 || !strings.Contains(got[0], "/both") {
 		t.Fatal(got)
 	}

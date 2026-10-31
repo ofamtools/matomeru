@@ -19,16 +19,16 @@
     "alt+[",
     "alt+backspace",
     "ctrl+f",
-    "s",
-    "c",
-    "o",
-    "p",
-    "e",
-    "enter",
-    {
-      "type": "pane"
-    },
-    "enter",
+    "j",
+    "j",
+    "j",
+    "j",
+    "j",
+    "j",
+    "j",
+    "j",
+    "space",
+    "esc",
     {
       "type": "review"
     },
@@ -148,24 +148,26 @@
     },
     {
       "after": 14,
-      "modal": "list-filter-prop",
+      "modal": "list-filter-form",
       "contains": [
-        "scope",
-        "category",
-        "type"
-      ]
-    },
-    {
-      "after": 20,
-      "modal": "list-filter-value",
-      "contains": [
-        "pane",
-        "project",
-        "none"
+        "category · is",
+        "scope · is",
+        "○ pane"
       ]
     },
     {
       "after": 22,
+      "focus": "list-filter-form/scope"
+    },
+    {
+      "after": 23,
+      "modal": "list-filter-form",
+      "contains": [
+        "● pane"
+      ]
+    },
+    {
+      "after": 24,
       "modal": "context-picker",
       "contains": [
         "[scope = pane]",
