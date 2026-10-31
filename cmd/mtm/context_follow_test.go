@@ -45,6 +45,14 @@ func driveLoop(a *App, cmd tea.Cmd, wait time.Duration) {
 func followApp(t *testing.T) (*App, *fakeContextPanes) {
 	t.Helper()
 	a := openWith(t, Options{Data: seeded(t)})
+	// Deliver the scheduled batch immediately, while checking that the
+	// production scheduler leaves a second for extraction within its SLA.
+	a.cx.follow.after = func(delay time.Duration, msg tea.Msg) tea.Cmd {
+		if delay > time.Second {
+			t.Fatalf("follow batch delay %v leaves less than a second to extract", delay)
+		}
+		return func() tea.Msg { return msg }
+	}
 	f := withContextPanes(a)
 	f.panes[0].Width = 40
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "matomeru", ProjectID: "matomeru"}); err != nil {
@@ -60,7 +68,7 @@ func printed(a *App, f *fakeContextPanes, window string, lines ...string) {
 	f.print(window, lines...)
 	a.cx.follow.mark(window)
 	_, cmd := a.Update(contextOutput{})
-	driveLoop(a, cmd, 1500*time.Millisecond)
+	driveLoop(a, cmd, 100*time.Millisecond)
 }
 
 func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
@@ -141,7 +149,7 @@ func TestFollowReadsOnlyTheNewPart(t *testing.T) {
 	f.reads = 0
 	f.mu.Unlock()
 	_, cmd := a.Update(contextOutput{})
-	driveLoop(a, cmd, 1500*time.Millisecond)
+	driveLoop(a, cmd, 100*time.Millisecond)
 	items, _ := a.contexts.All()
 	if len(items) != 2 || f.reads != 1 {
 		t.Fatalf("items %d, reads %d", len(items), f.reads)

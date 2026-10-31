@@ -167,7 +167,7 @@ func TestExtensionDiscoverySkipsASlowTool(t *testing.T) {
 	}
 	a := openAt(t, seeded(t))
 	d := a.discovery()
-	d.path, d.timeout = dir, 2*time.Second
+	d.path, d.timeout = dir, 500*time.Millisecond
 	start := time.Now()
 	rows, err := d.run(context.Background())
 	if err != nil {
