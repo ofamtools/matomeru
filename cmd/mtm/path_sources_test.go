@@ -196,3 +196,119 @@ func TestDirectoryFieldsArePathParameters(t *testing.T) {
 		}
 	}
 }
+
+// walkProject gives the matomeru project one directory holding nested
+// folders (cmd/mtm, internal/work, a .git and a .worktrees checkout) and
+// returns it.
+func walkProject(t *testing.T, a *App) string {
+	t.Helper()
+	knownRepos(t, a)
+	tree, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"cmd/mtm", "internal/work", ".git/objects", ".worktrees/lane/cmd"} {
+		if err := os.MkdirAll(filepath.Join(tree, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := a.work.AddTree("matomeru", inspectDirectory(tree)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.work.SetDefaultTree("matomeru", tree); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	return tree
+}
+
+// A project's directory pick opens on the walk source, which lists every
+// folder below the project's directories (not only the roots, as known and
+// project do): typing a fragment of a nested path finds the deep folder,
+// and .git is skipped while the .worktrees checkout is walked.
+func TestDirectoryPathChooserWalksBelowTheProjectRoot(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	tree := walkProject(t, a)
+	picked := ""
+	if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(path string) ochazuke.Result {
+		picked = path
+		return ochazuke.Done(path)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	c := a.r.Chooser(dirChooser)
+	if c == nil || c.Source() != ochazuke.PathSourceWalk || c.Sources()[0] != ochazuke.PathSourceWalk {
+		t.Fatalf("chooser %v", c)
+	}
+	got := chooserData(c)
+	for _, want := range []string{tree, tree + "/cmd/mtm", tree + "/internal/work", tree + "/.worktrees/lane/cmd"} {
+		if !slices.Contains(got, want) {
+			t.Fatalf("walk lacks %s: %q", want, got)
+		}
+	}
+	if slices.ContainsFunc(got, func(p string) bool { return filepath.Base(p) == ".git" }) {
+		t.Fatalf("walk lists .git: %q", got)
+	}
+	typeText(t, a, "cmd mtm")
+	press(t, a, "enter")
+	if picked != tree+"/cmd/mtm" {
+		t.Fatalf("picked %q", picked)
+	}
+}
+
+// Browse in a project's directory pick starts in the project's default
+// directory (SetPathBase), not in mtm's working directory.
+func TestDirectoryPathChooserBrowseStartsInTheProject(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	tree := walkProject(t, a)
+	if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	c := a.r.Chooser(dirChooser)
+	toSource(t, a, c, ochazuke.PathSourceBrowse)
+	settle(a, a.r.PendingCommands())
+	if got := chooserData(c); !slices.Contains(got, tree+"/cmd") || !slices.Contains(got, tree) {
+		t.Fatalf("browse rows %q", got)
+	}
+}
+
+// path.walk off restores the chooser as it was: no walk source, opened on
+// known; path-remembered with nothing remembered opens on walk, the first
+// source path.first names.
+func TestDirectoryPathChooserWalkOffAndRemembered(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	walkProject(t, a)
+	reopen := func() *ochazuke.Chooser {
+		t.Helper()
+		if c := a.r.Chooser(dirChooser); c != nil {
+			press(t, a, "esc")
+		}
+		if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+			t.Fatal(err)
+		}
+		settle(a, a.r.PendingCommands())
+		return a.r.Chooser(dirChooser)
+	}
+	if err := a.r.Settings().Set(settingDirectoryChooser, dirChooserRemembered); err != nil {
+		t.Fatal(err)
+	}
+	if c := reopen(); c.Source() != ochazuke.PathSourceWalk {
+		t.Fatalf("path-remembered, nothing remembered: %s", c.Source())
+	}
+	if err := a.r.Settings().Set(settingDirectoryChooser, dirChooserPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.Settings().Set(ochazuke.PathWalkSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	if c := reopen(); c.Source() != pathSourceKnown || slices.Contains(c.Sources(), ochazuke.PathSourceWalk) {
+		t.Fatalf("walk off: on %s of %q", c.Source(), c.Sources())
+	}
+}

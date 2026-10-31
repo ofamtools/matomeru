@@ -1,0 +1,19 @@
+{
+  "name": "mtm: with path.walk off, c on a project opens its directory pick on known as before, with no walk source to cycle to",
+  "area": "directories",
+  "fixture": "project-tree",
+  "width": 120,
+  "height": 30,
+  "files": ["cmd/mtm/"],
+  "settings": [{"name": "path.walk", "type": "boolean", "default": false}],
+  "script": [
+    "ctrl+j",
+    "c"
+  ],
+  "expect": [
+    {
+      "contains": ["browse recent typed [known"],
+      "lacks": ["walk", "cmd/mtm/"]
+    }
+  ]
+}

@@ -23,6 +23,18 @@ still run. These caches follow ochazuke's `render.max-fps` setting, default
 subagent/card work while their detail is covered or their page is hidden;
 false restores background refreshes.
 
+Unreleased: a project's directory pick (`c` on a project, attach, move;
+`directory-chooser` `path`, the default) opens on ochazuke's `walk` source:
+every folder below the project's directories, then below every known
+directory, streamed in as found, so typing a fragment of a nested path
+(`cmd mtm`) finds a deep folder. `ctrl+o` still cycles browse, recent,
+typed, known and project, and browse now starts in the project's default
+directory rather than mtm's working directory. ochazuke's `path.walk`
+(default on) turns the walk off, which opens the pick on known as before;
+`path.walk-depth`, `path.walk-ignore`, `path.walk-hidden`,
+`path.walk-include` and `path.walk-limit` bound it. `path-remembered` opens
+on the source last used, else on walk (`path.first`).
+
 The Inbox page (`I` from anywhere) is what needs you: action items from any source, unread first, with the count of unread and open items in the title row (`inbox 2/5`). `enter` opens an item's URL, `u` marks it read or unread, `s` snoozes it, `x` archives and `X` restores it, `t` and `c` promote it to a todo or a task, `m` moves it to a project and `d d` deletes it. Tools push items in through one command, idempotent on the source and `--key` (else the source and `--url`), so a poll that runs again refreshes its row:
 
 ```sh
@@ -104,7 +116,7 @@ From a checkout, `make install` (or `make build`, which writes `bin/mtm`) passes
 
 ## Stories
 
-mtm's interactions are [monogatari](https://github.com/unixsuperhero/monogatari) stories: JSON keystroke scripts under `cmd/mtm/stories/<area>/` (areas `panes`, `inbox`, `tasks`, `pin`), played headless against the real App with expectations on what the screen shows. They run in a separate tester build (build tag `monogatari`), `mtm-story`, never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
+mtm's interactions are [monogatari](https://github.com/unixsuperhero/monogatari) stories: JSON keystroke scripts under `cmd/mtm/stories/<area>/` (areas `panes`, `inbox`, `tasks`, `pin`, `directories`), played headless against the real App with expectations on what the screen shows. They run in a separate tester build (build tag `monogatari`), `mtm-story`, never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
 
 Each session is the real App on a temp database, a temp config directory and a socket nothing listens on, with a faked daemon, launcher, clipboard and opener (`cmd/mtm/storyfakes.go`), so a story never reaches your data, daemon or tuios session. Fixtures: `seeded` (docs/vhs/seed.sh's projects, tasks and notes, two inbox items and two fake panes; a story's `"seed": {"panes": [...]}` replaces the panes) and `empty`. `story` runs before any database opens and ignores `--data`, `--socket` and `--server`. The host keeps its own state under `mtm-story` (user stories in `$XDG_CONFIG_HOME/mtm-story/stories`, recordings in `$XDG_DATA_HOME/mtm-story`), so point those at a temp dir too:
 

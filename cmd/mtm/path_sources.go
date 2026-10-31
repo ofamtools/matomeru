@@ -17,9 +17,16 @@ import (
 //     rows without browse…), each row's Data its path;
 //   - project: the directories of the project in view (the one a chooser
 //     is opened for, else the Directories page's target or the pinned
-//     project), the default first.
+//     project), the default first;
+//   - walk (ochazuke's walk source, AddWalkPathSource): every folder under
+//     that project's directories, then under every known directory, so a
+//     pick reaches any folder below a root by typing a fragment of its
+//     path. ochazuke's path.walk turns it off and path.first lists it
+//     first.
 //
-// recent is mtm's dir_recent table (TouchDir), newest first.
+// recent is mtm's dir_recent table (TouchDir), newest first. Browse starts
+// in the project's default directory (SetPathBase, path.start=base), not
+// in mtm's working directory.
 
 const (
 	pathSourceKnown   = "known"
@@ -29,14 +36,14 @@ const (
 // The directory-chooser setting: what chooseDirectoryFor opens.
 const (
 	settingDirectoryChooser = "directory-chooser"
-	dirChooserPath          = "path"            // the path chooser, on its known source
+	dirChooserPath          = "path"            // the path chooser, on its walk source (known when there is no walk)
 	dirChooserRemembered    = "path-remembered" // the path chooser, on the source chooser.remember-source gives
 	dirChooserKnown         = "known"           // the known-directory chooser; browse… continues on the Directories page
 )
 
 var directoryChooserSetting = ochazuke.Setting{Name: settingDirectoryChooser, Type: ochazuke.SettingString, Default: dirChooserPath,
 	Enum:        []string{dirChooserPath, dirChooserRemembered, dirChooserKnown},
-	Description: "What asks for a project's directory (c, attach, move): path ((the path chooser on its known source; ctrl+o cycles browse, recent, typed, project)), path-remembered (the path chooser on the source last used) or known (the known directories with browse…)"}
+	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its walk source, every folder under the project's and the known directories; on known when path.walk is off; ctrl+o cycles browse, recent, typed, known, project), path-remembered (the path chooser on the source last used, else the first path.first names) or known (the known directories with browse…)"}
 
 // dirParam is a directory parameter: a folder through the path chooser;
 // isNew lets it name a folder not there yet (attached and flagged missing).
@@ -76,11 +83,7 @@ func (a *App) definePathSources() {
 		if !pick.Dir() {
 			return ochazuke.ChooserSource{}, false
 		}
-		id := a.pathChooserProject
-		if id == "" {
-			id = a.directoryTarget()
-		}
-		p, ok := a.project(id)
+		p, ok := a.pathPickProject()
 		if !ok || len(p.Trees) == 0 {
 			return ochazuke.ChooserSource{}, false
 		}
@@ -101,12 +104,93 @@ func (a *App) definePathSources() {
 			Load:  func(string) ochazuke.Result { return ochazuke.Done(rows) },
 		}, true
 	})
+	a.r.AddWalkPathSource(a.walkRoots)
+	a.r.SetPathBase(func(pick ochazuke.PathPick) string {
+		if !pick.Dir() {
+			return ""
+		}
+		return a.pathPickBase()
+	})
 	a.r.SetRecentPaths(func(pick ochazuke.PathPick) []string {
 		if !pick.Dir() {
 			return nil
 		}
 		return a.recentDirectories()
 	})
+}
+
+// pathPickProject is the project a directory pick is for: the one a
+// chooser is opened for, else the Directories page's target or the pinned
+// project.
+func (a *App) pathPickProject() (work.Project, bool) {
+	id := a.pathChooserProject
+	if id == "" {
+		id = a.directoryTarget()
+	}
+	if id == "" {
+		return work.Project{}, false
+	}
+	return a.project(id)
+}
+
+// projectTrees are a project's directories, the default first.
+func projectTrees(p work.Project) []string {
+	var out []string
+	for _, tree := range p.Trees {
+		if filepath.Clean(tree.Path) == filepath.Clean(p.DefaultTree) {
+			out = append([]string{tree.Path}, out...)
+			continue
+		}
+		out = append(out, tree.Path)
+	}
+	return out
+}
+
+// pathPickBase is where browse starts for a directory pick: the pick's
+// project's default directory (else its first), "" for none (ochazuke
+// then starts in the working directory).
+func (a *App) pathPickBase() string {
+	p, ok := a.pathPickProject()
+	if !ok {
+		return ""
+	}
+	if trees := projectTrees(p); len(trees) > 0 {
+		return trees[0]
+	}
+	return ""
+}
+
+// walkRoots are the walk source's roots for a directory pick: the pick's
+// project's directories (the default first), then every known directory
+// once the scan has landed. ochazuke lists a root inside an earlier one
+// once and never walks an earlier root again inside a later one.
+func (a *App) walkRoots(pick ochazuke.PathPick) ochazuke.PathWalk {
+	if !pick.Dir() {
+		return ochazuke.PathWalk{}
+	}
+	var walk ochazuke.PathWalk
+	seen := map[string]bool{}
+	add := func(path string) {
+		path = filepath.Clean(path)
+		if path == "." || seen[path] {
+			return
+		}
+		seen[path] = true
+		walk.Roots = append(walk.Roots, ochazuke.PathRoot{Path: path, Label: filepath.Base(path)})
+	}
+	if p, ok := a.pathPickProject(); ok {
+		for _, tree := range projectTrees(p) {
+			add(tree)
+		}
+	}
+	if a.directories.Ready {
+		for _, row := range a.knownDirectoryRows() {
+			if path, ok := row.Data.(string); ok {
+				add(path)
+			}
+		}
+	}
+	return walk
 }
 
 // recentDirectories are the folders mtm recorded using (dir_recent),
@@ -153,18 +237,23 @@ func (a *App) refreshPathChoosers() {
 
 // openPathDirectoryChooser is chooseDirectoryFor through the path chooser:
 // use takes the picked folder. Unless the setting asks for the remembered
-// source, it opens on known (PathChooserSpec.Source), as the
-// known-directory chooser did.
+// source, it opens on walk (PathChooserSpec.Source), or on known, as the
+// known-directory chooser did, when there is no walk (path.walk off, or no
+// roots yet).
 func (a *App) openPathDirectoryChooser(title, projectID string, use func(string) ochazuke.Result) error {
+	a.pathChooserProject = projectID
+	pick := ochazuke.PathPick{Name: "directory", Parameter: dirParam("", true)}
 	source := pathSourceKnown
+	if a.r.PathWalkOn() && len(a.walkRoots(pick).Roots) > 0 {
+		source = ochazuke.PathSourceWalk
+	}
 	if a.r.Settings().String(settingDirectoryChooser) == dirChooserRemembered {
 		source = ""
 	}
-	a.pathChooserProject = projectID
 	_, err := a.r.OpenPathChooser(ochazuke.PathChooserSpec{
 		Kind:   dirChooser,
 		Title:  title,
-		Pick:   ochazuke.PathPick{Name: "directory", Parameter: dirParam("", true)},
+		Pick:   pick,
 		Source: source,
 		Choose: use,
 	})

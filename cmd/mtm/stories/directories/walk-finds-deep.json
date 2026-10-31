@@ -1,0 +1,25 @@
+{
+  "name": "mtm: c on a project opens its directory pick on walk, every folder below the project's directories (not only the roots); typing a fragment of a nested path finds the deep folder, .git and node_modules skipped",
+  "area": "directories",
+  "fixture": "project-tree",
+  "width": 120,
+  "height": 30,
+  "files": ["cmd/mtm/main.go", "internal/work/", ".git/objects/", "node_modules/left-pad/", "docs/"],
+  "script": [
+    "ctrl+j",
+    "c",
+    {"job": "chooser.load"},
+    {"type": "cmd mtm"}
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "contains": ["[walk ", "cmd/mtm/", "internal/work/", "docs/"],
+      "lacks": [".git", "node_modules", "main.go"]
+    },
+    {
+      "contains": ["cmd/mtm/"],
+      "lacks": ["internal/work/", "docs/"]
+    }
+  ]
+}

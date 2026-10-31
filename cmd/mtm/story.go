@@ -91,6 +91,7 @@ func mtmApp() monogatari.App {
 			{Name: "makers", Summary: "seeded, with acme-web's cart drawer task made by an agent (claude) and its flaky-test task private", Build: buildMakers},
 			{Name: "context-picker", Summary: "seeded, with context from this pane, its project and no project, plus a journaled prompt", Build: buildContextPicker},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
+			{Name: "project-tree", Summary: "seeded, with the story's file tree (files) attached to acme-web as its default directory", Build: buildProjectTree},
 		},
 		Expected: storyExpected,
 	}
@@ -178,6 +179,27 @@ func buildContextPicker(env monogatari.Env) (monogatari.Built, error) {
 	turn := history.Turn{ID: "picker-turn", Session: "acme-web", Window: "w1", Harness: "claude-code", ConversationID: "picker", Prompt: "review picker prompt", StartedAt: 1}
 	if _, err = a.hist.Capture(turn); err == nil {
 		_, err = a.hist.Complete(turn, "picker answer", 2)
+	}
+	if err != nil {
+		built.Close()
+		return monogatari.Built{}, err
+	}
+	return built, nil
+}
+
+// buildProjectTree is seeded with the story's file tree as acme-web's
+// default directory: a directory pick for acme-web walks it.
+func buildProjectTree(env monogatari.Env) (monogatari.Built, error) {
+	built, err := buildSeeded(env)
+	if err != nil || env.FilesDir == "" {
+		return built, err
+	}
+	a := built.Program.(*App)
+	if _, err = a.work.AddTree("acme-web", inspectDirectory(env.FilesDir)); err == nil {
+		_, err = a.work.SetDefaultTree("acme-web", env.FilesDir)
+	}
+	if err == nil {
+		err = a.refreshProjects()
 	}
 	if err != nil {
 		built.Close()
