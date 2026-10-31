@@ -161,6 +161,7 @@ func stepTo(t *testing.T, a *App, prefix string) {
 // frameWH is the frame width by height cells, unstyled.
 func frameWH(a *App, width, height int) string {
 	a.m.Width, a.m.Height = width, height
+	a.m.InvalidateRender()
 	return ansi.Strip(a.m.View().Content)
 }
 

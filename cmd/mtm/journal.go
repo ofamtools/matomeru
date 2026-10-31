@@ -297,7 +297,7 @@ func (a *App) journalUpdate(msg tea.Msg) tea.Cmd {
 func (a *App) historyChanged() {
 	var errs []error
 	visibleOnly := a.r.Settings().Bool(settingHistoryVisible)
-	if (!visibleOnly || a.r.Page == panesPage && a.pv.tab == tabTurns) && a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
+	if a.turnsHistoryActive() && a.pv.turnsFor != "" && a.r.Instances[a.pv.turnsFor] != nil {
 		errs = append(errs, a.showTurns(a.pv.turnsFor))
 	}
 	if !visibleOnly || a.r.Page == reviewsPage {
@@ -311,6 +311,13 @@ func (a *App) historyChanged() {
 	if err := errors.Join(errs...); err != nil {
 		a.r.UI().Error("history: " + err.Error())
 	}
+}
+
+// turnsHistoryActive shares the history.visible-only policy between the
+// journal, listing polls and the detail's lazy card/subagent work. An
+// attached live screen or copy view can cover Turns without changing its tab.
+func (a *App) turnsHistoryActive() bool {
+	return !a.r.Settings().Bool(settingHistoryVisible) || a.r.Page == panesPage && a.pv.tab == tabTurns && !a.liveShown() && !a.copyShown(paneTermID)
 }
 
 // journalOwner is the owner the journal gives an entry: the pane's own

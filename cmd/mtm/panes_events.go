@@ -146,7 +146,8 @@ func (a *App) pushPaneTitles() {
 	for _, p := range a.panes {
 		byID[p.ID] = p
 	}
-	update := func(nodes []ochazuke.TreeNode) {
+	update := func(nodes []ochazuke.TreeNode) bool {
+		changed := false
 		for i := range nodes {
 			old, ok := nodes[i].Data.(pane)
 			if !ok || nodes[i].Noun != "pane" {
@@ -156,6 +157,10 @@ func (a *App) pushPaneTitles() {
 			if !ok {
 				continue
 			}
+			if old.Name == p.Name && old.Title == p.Title {
+				continue
+			}
+			changed = true
 			n := &nodes[i]
 			n.Data, n.Label = p, p.label()
 			if len(n.Cells) > 0 {
@@ -166,12 +171,15 @@ func (a *App) pushPaneTitles() {
 				n.Cells[0], n.Tones = name, paneTones(p, name)
 			}
 		}
+		return changed
 	}
 	update(a.pv.view.nodes)
 	for _, s := range a.pv.sections {
 		update(s.nodes)
 		nodes := s.tree.Nodes()
-		update(nodes)
+		if !update(nodes) {
+			continue
+		}
 		if err := s.tree.SetNodes(nodes); err != nil {
 			a.paneErr = err.Error()
 		}
@@ -186,12 +194,7 @@ func (a *App) reloadPaneListing(reconcile bool) error {
 // paneRefreshRunning derives ownership from the runtime: cancelled/stale
 // jobs never call Then, so a private completion-cleared flag would stick.
 func (a *App) paneRefreshRunning() bool {
-	for _, job := range a.r.Jobs() {
-		if job.Scope == paneListID && job.Slot == "refresh" && job.State == ochazuke.JobRunning {
-			return true
-		}
-	}
-	return false
+	return a.r.HasRunningJob(paneListID, "refresh")
 }
 
 // One fixed window absorbs a sustained burst without starving the final

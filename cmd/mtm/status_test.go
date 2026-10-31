@@ -62,6 +62,7 @@ func TestTaskTableStatusesAndOrder(t *testing.T) {
 // frameAt renders the app width columns wide, 24 rows high.
 func frameAt(a *App, width int) string {
 	a.m.Width, a.m.Height = width, 24
+	a.m.InvalidateRender()
 	return ansi.Strip(a.m.View().Content)
 }
 
