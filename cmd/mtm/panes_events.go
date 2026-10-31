@@ -26,8 +26,8 @@ func eventLoadSettings() []ochazuke.Setting {
 		{Name: settingEventCoalesce, Type: ochazuke.SettingDuration, Default: 300 * time.Millisecond, Description: "Collect pane structure events for this interval before listing; 0 lists immediately"},
 		{Name: settingRetitleInPlace, Type: ochazuke.SettingBoolean, Default: true, Description: "Update daemon window titles in memory without listing panes; false uses a listing"},
 		{Name: settingLightListing, Type: ochazuke.SettingBoolean, Default: true, Description: "Event and timer listings skip side locks and exit probes; false reconciles every listing. Startup, explicit refresh and side operations always reconcile"},
-		{Name: settingHistoryCoalesce, Type: ochazuke.SettingDuration, Default: 300 * time.Millisecond, Description: "Collect history notifications for this interval before refreshing views; 0 refreshes immediately"},
-		{Name: settingHistoryVisible, Type: ochazuke.SettingBoolean, Default: true, Description: "Refresh history views only while shown; refresh Review when opened. False also refreshes hidden views"},
+		{Name: settingHistoryCoalesce, Section: "turns", Type: ochazuke.SettingDuration, Default: 300 * time.Millisecond, Description: "Collect history notifications for this interval before refreshing views; 0 refreshes immediately"},
+		{Name: settingHistoryVisible, Section: "turns", Type: ochazuke.SettingBoolean, Default: true, Description: "Refresh history views only while shown; refresh Review when opened. False also refreshes hidden views"},
 	}
 }
 
