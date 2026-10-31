@@ -167,7 +167,9 @@ func TestExtensionDiscoverySkipsASlowTool(t *testing.T) {
 	}
 	a := openAt(t, seeded(t))
 	d := a.discovery()
-	d.path, d.timeout = dir, 500*time.Millisecond
+	// Keep the production deadline: a short test-only budget can also time
+	// out alpha's shell startup under a loaded parallel race run.
+	d.path, d.timeout = dir, extDiscoverTimeout
 	start := time.Now()
 	rows, err := d.run(context.Background())
 	if err != nil {
