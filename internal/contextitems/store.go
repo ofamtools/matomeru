@@ -175,7 +175,7 @@ func (s *Store) Merge(items []Item, owner Owner, now int64) ([]Item, int, error)
 			if prev, ok := existing[k]; ok {
 				for _, src := range it.Sources {
 					if !slices.ContainsFunc(prev.Sources, func(old Source) bool {
-						return old.Kind == src.Kind && old.Session == src.Session && old.Window == src.Window && old.Pane == src.Pane
+						return old.Kind == src.Kind && old.EntryKind == src.EntryKind && old.Session == src.Session && old.Window == src.Window && old.Pane == src.Pane
 					}) {
 						prev.Sources = append(prev.Sources, src)
 					}

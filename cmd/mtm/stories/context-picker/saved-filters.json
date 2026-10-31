@@ -14,6 +14,8 @@
     "alt+]",
     "alt+]",
     "alt+]",
+    "alt+]",
+    "alt+]",
     "alt+[",
     "alt+backspace",
     "ctrl+f",
@@ -93,6 +95,30 @@
     {
       "after": 9,
       "contains": [
+        "[conversation]",
+        "review picker prompt",
+        "https://example.com/pane"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 10,
+      "contains": [
+        "[tools]",
+        "project-branch",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "review picker prompt",
+        "https://example.com/pane"
+      ]
+    },
+    {
+      "after": 11,
+      "contains": [
         "[all]",
         "review picker prompt",
         "project-branch",
@@ -103,14 +129,15 @@
       ]
     },
     {
-      "after": 10,
+      "after": 12,
       "contains": [
-        "[none]",
+        "[tools]",
+        "project-branch",
         "unassociated-command"
       ]
     },
     {
-      "after": 11,
+      "after": 13,
       "contains": [
         "review picker prompt",
         "project-branch"
@@ -120,7 +147,7 @@
       ]
     },
     {
-      "after": 12,
+      "after": 14,
       "modal": "list-filter-prop",
       "contains": [
         "scope",
@@ -129,7 +156,7 @@
       ]
     },
     {
-      "after": 18,
+      "after": 20,
       "modal": "list-filter-value",
       "contains": [
         "pane",
@@ -138,7 +165,7 @@
       ]
     },
     {
-      "after": 20,
+      "after": 22,
       "modal": "context-picker",
       "contains": [
         "[scope = pane]",

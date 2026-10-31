@@ -45,6 +45,9 @@ func driveLoop(a *App, cmd tea.Cmd, wait time.Duration) {
 func followApp(t *testing.T) (*App, *fakeContextPanes) {
 	t.Helper()
 	a := openWith(t, Options{Data: seeded(t)})
+	if _, err := a.r.Settings().SetSession(settingContextExtractFrom, []string{"prompt", "response", "scrollback"}); err != nil {
+		t.Fatal(err)
+	}
 	f := withContextPanes(a)
 	f.panes[0].Width = 40
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "matomeru", ProjectID: "matomeru"}); err != nil {

@@ -51,7 +51,7 @@ type journalFeed struct {
 	wake    chan struct{}
 	changed chan struct{}
 	started bool
-	// contextAdded says a burst added context items: the loop reloads the
+	// contextAdded says a burst may have added items or source provenance: the loop reloads the
 	// Context page and the picker with the journal views.
 	contextAdded atomic.Bool
 }
@@ -238,7 +238,7 @@ func (a *App) journal(entries ...history.Entry) {
 			fresh = append(fresh, e)
 		}
 	}
-	if n, _ := turnContext(a.hist, a.contexts, fresh); n > 0 {
+	if _, err := turnContext(a.hist, a.contexts, fresh, a.contextExtraction()); err == nil {
 		a.feed.contextAdded.Store(true)
 	}
 	a.feed.signal()

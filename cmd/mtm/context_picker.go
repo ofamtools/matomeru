@@ -161,7 +161,7 @@ func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
 			continue
 		}
 		rows = append(rows, ochazuke.ChooserRow{ID: "prompt:" + t.ID, Label: "prompt " + t.Prompt, Data: promptRow{turn: t, pane: p},
-			Props: ochazuke.Thing{"id": "prompt:" + t.ID, "category": "prompt", "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session},
+			Props: ochazuke.Thing{"id": "prompt:" + t.ID, "category": "prompt", "origin": "prompt", "origins": []string{"prompt"}, "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session},
 			Cells: []string{"prompt", firstLine(t.Prompt), "this pane", age(now.Sub(time.UnixMilli(t.StartedAt)))}})
 	}
 	add(theirs, a.ownerLabel(project), "project")

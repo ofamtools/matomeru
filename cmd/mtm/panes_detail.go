@@ -255,7 +255,7 @@ func (a *App) paneTranscript(ctx ochazuke.Ctx) ochazuke.Result {
 		if err == nil {
 			extract(p, text)
 		}
-		return text, err
+		return text.Text, err
 	})
 }
 

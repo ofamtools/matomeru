@@ -157,7 +157,7 @@ type paneDaemon interface {
 	KillPane(ctx context.Context, p pane) error
 	KillSession(ctx context.Context, session string) error
 	Activity(ctx context.Context, p pane) (string, error)
-	Transcript(ctx context.Context, p pane) (string, error)
+	Transcript(ctx context.Context, p pane) (paneTranscript, error)
 	OpenStream(p pane) paneStream
 	// PasteText types text into the pane as a bracketed paste, attached or
 	// not (hints from a pane row type into its pane this way).
@@ -1005,7 +1005,7 @@ func (t tuios) Activity(ctx context.Context, p pane) (string, error) {
 // Transcript is the agent's conversation, one entry per paragraph. Only
 // the person may read it: the call carries the presence nonce mtm holds
 // (a refused nonce, after a daemon restart, is renewed once).
-func (t tuios) Transcript(ctx context.Context, p pane) (string, error) {
+func (t tuios) Transcript(ctx context.Context, p pane) (paneTranscript, error) {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
 	read := func() (daemon.TranscriptResult, error) {
@@ -1021,7 +1021,7 @@ func (t tuios) Transcript(ctx context.Context, p pane) (string, error) {
 		got, err = read()
 	}
 	if err != nil {
-		return "", transcriptError(err, t.Server)
+		return paneTranscript{}, transcriptError(err, t.Server)
 	}
 	var parts []string
 	for _, e := range got.Entries {
@@ -1031,7 +1031,7 @@ func (t tuios) Transcript(ctx context.Context, p pane) (string, error) {
 		}
 		parts = append(parts, head+"\n"+strings.TrimSpace(e.Text))
 	}
-	return strings.Join(parts, "\n\n"), nil
+	return paneTranscript{Text: strings.Join(parts, "\n\n"), Entries: got.Entries}, nil
 }
 
 // daemonCode is a daemon error's code, "" for any other error.

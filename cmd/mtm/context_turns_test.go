@@ -174,6 +174,9 @@ func TestContextTurnsBackfill(t *testing.T) {
 // for the pane's owner, and tells the loop to reload.
 func TestTranscriptReadYieldsContextItems(t *testing.T) {
 	app, f := panesApp(t)
+	if _, err := app.r.Settings().SetSession(settingContextExtractFrom, []string{"transcript"}); err != nil {
+		t.Fatal(err)
+	}
 	f.panes[0].Harness = "claude"
 	f.transcript = "assistant\nopened https://github.com/unixsuperhero/ochazuke/pull/7"
 	if err := app.work.SetPaneOwner(work.Assignment{Window: f.panes[0].ID, ProjectID: "matomeru"}); err != nil {

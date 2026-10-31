@@ -189,7 +189,7 @@ type followResult struct {
 func (a *App) followPanes(ctx ochazuke.Ctx) ochazuke.Result {
 	f := a.cx.follow
 	d, ok := a.contextd()
-	if !ok {
+	if !ok || !extractsFrom(a.contextExtraction(), contextitems.Source{Kind: "scrollback"}) {
 		f.take()
 		return ochazuke.Done(nil)
 	}

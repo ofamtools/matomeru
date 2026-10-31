@@ -47,6 +47,8 @@ func contextProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The item's key")},
 		{Name: "category", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{"context", "prompt"}, Description: "A kept context item or a journaled prompt in the context picker"}},
+		{Name: "origin", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: contextitems.Origins, Description: "Most conversational recorded origin (prompt, then response); origins keeps every sighting kind"}},
+		{Name: "origins", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "All recorded origins, derived from source provenance; unknown when none is available"}},
 		{Name: "scope", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{"pane", "project", "none"}, Description: "Context picker scope: this pane, the rest of its project, or no project; absent outside the picker"}},
 		// Workaround (ochazuke v0.55.0): standard create's positional order
 		// is the label, the focus fills, then the pairs rest parameter, and
@@ -81,6 +83,8 @@ func contextFilters() []ochazuke.SavedFilter {
 		{List: contextPicker, Name: "this-pane", Where: map[string]any{"scope": "pane"}},
 		{List: contextPicker, Name: "project", Where: map[string]any{"scope": "project"}},
 		{List: contextPicker, Name: "none", Where: map[string]any{"scope": "none"}},
+		{List: contextPicker, Name: "conversation", Conditions: []ochazuke.PropFilter{{Prop: "origin", Op: "in", Value: []string{"prompt", "response"}}}},
+		{List: contextPicker, Name: "tools", Conditions: []ochazuke.PropFilter{{Prop: "origin", Op: "in", Value: []string{"scrollback", "transcript", "command"}}}},
 		{List: contextPicker, Name: "all"},
 	}
 }
@@ -144,7 +148,7 @@ func (a *App) contextItemsIn(kind string, all bool, tasks map[string]string) []c
 func contextThing(it contextitems.Item, tasks map[string]string) ochazuke.Thing {
 	t := ochazuke.Thing{
 		"id": it.ID, "category": "context", "type": it.Kind, "text": it.Text, "project": itemProject(it, tasks), "task": it.TaskID,
-		"starred": it.Starred, "session": it.Session, "window": it.Window, "pane": it.Pane,
+		"origin": it.Origin(), "origins": it.Origins(), "starred": it.Starred, "session": it.Session, "window": it.Window, "pane": it.Pane,
 		"created": it.Created, "seen": it.Seen(),
 	}
 	if it.Exists != nil {

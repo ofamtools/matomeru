@@ -11,6 +11,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/matomeru/internal/history"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
@@ -39,7 +40,7 @@ const turnContextSource = "turn"
 // turnContext extracts context items from the turns of journaled entries
 // and returns how many were new. It reads the journal and writes the
 // context table only, so it runs anywhere off the loop.
-func turnContext(j *history.Journal, store *contextitems.Store, entries []history.Entry) (int, error) {
+func turnContext(j *history.Journal, store *contextitems.Store, entries []history.Entry, origins []string) (int, error) {
 	byWindow := map[string][]history.Entry{}
 	for _, e := range entries {
 		if e.Window != "" && (e.Kind == "prompt-submitted" || e.Kind == "response-completed") {
@@ -69,6 +70,9 @@ func turnContext(j *history.Journal, store *contextitems.Store, entries []histor
 				text = untruncated(text)
 			}
 			src := contextitems.Source{Kind: turnContextSource, EntryKind: e.Kind, Session: t.Session, Window: t.Window, Pane: t.Pane, At: e.At, Cwd: e.Cwd}
+			if !extractsFrom(origins, src) {
+				continue
+			}
 			items := contextitems.Extract(text, 0, src)
 			for i := range items {
 				items[i].Provenance.TurnID = t.ID
@@ -148,13 +152,13 @@ type turnsExtracted struct {
 // the loop, for the turns journaled before extraction from turns existed.
 // Running it again adds nothing.
 func (a *App) extractTurns(ctx ochazuke.Ctx) ochazuke.Result {
-	j, store := a.hist, a.contexts
+	j, store, origins := a.hist, a.contexts, a.contextExtraction()
 	return ochazuke.Pending(func(context.Context) (any, error) {
 		entries, err := j.All()
 		if err != nil {
 			return nil, err
 		}
-		n, err := turnContext(j, store, entries)
+		n, err := turnContext(j, store, entries, origins)
 		return turnsExtracted{Entries: len(entries), New: n}, err
 	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err != nil {
@@ -171,10 +175,10 @@ func (a *App) extractTurns(ctx ochazuke.Ctx) ochazuke.Result {
 // through turnContext off the loop, and the capture's own result is the
 // command's. A failed extraction never fails the capture.
 func (a *App) capturedContext(id string, result any) ochazuke.Result {
-	j, store := a.hist, a.contexts
+	j, store, origins := a.hist, a.contexts, a.contextExtraction()
 	return ochazuke.Pending(func(context.Context) (any, error) {
 		if e, err := j.Get(id); err == nil {
-			_, _ = turnContext(j, store, []history.Entry{e})
+			_, _ = turnContext(j, store, []history.Entry{e}, origins)
 		}
 		return result, nil
 	}).Then(func(ochazuke.Ctx, any, error) {
@@ -185,18 +189,44 @@ func (a *App) capturedContext(id string, result any) ochazuke.Result {
 	})
 }
 
+var transcriptConversationKinds = map[string]string{"user": "prompt-submitted", "assistant": "response-completed"}
+
+type paneTranscript struct {
+	Text    string
+	Entries []daemon.TranscriptEntry
+}
+
 // transcriptContext returns the extraction for a transcript read of the
 // pane at inst, safe off the loop: the owner is read now, on the loop.
 // New items reach the views with the journal's next burst.
-func (a *App) transcriptContext(inst *ochazuke.Instance) func(p pane, text string) {
+func (a *App) transcriptContext(inst *ochazuke.Instance) func(p pane, text paneTranscript) {
 	var owner contextitems.Owner
 	if p, err := a.paneAt(inst); err == nil {
 		owner = a.contextOwner(p)
 	}
-	store, feed := a.contexts, a.feed
-	return func(p pane, text string) {
-		items := contextitems.Extract(text, 0, contextSource(p, "transcript"))
-		if _, n, err := store.Merge(items, owner, work.Now()); err == nil && n > 0 && feed != nil {
+	store, feed, origins := a.contexts, a.feed, a.contextExtraction()
+	return func(p pane, text paneTranscript) {
+		var items []contextitems.Item
+		if len(text.Entries) == 0 {
+			src := contextSource(p, "transcript")
+			if extractsFrom(origins, src) {
+				items = contextitems.Extract(text.Text, 0, src)
+			}
+		}
+		for _, entry := range text.Entries {
+			src := contextSource(p, "transcript")
+			src.EntryKind, src.At = entry.Kind, entry.At
+			// Only structured text with no tool metadata is conversational.
+			if entry.Kind == "text" && entry.Tool == "" && entry.ToolID == "" {
+				if kind := transcriptConversationKinds[entry.Role]; kind != "" {
+					src.EntryKind = kind
+				}
+			}
+			if extractsFrom(origins, src) {
+				items = append(items, contextitems.Extract(entry.Text, 0, src)...)
+			}
+		}
+		if written, _, err := store.Merge(items, owner, work.Now()); err == nil && len(written) > 0 && feed != nil {
 			feed.contextAdded.Store(true)
 			feed.signal()
 		}

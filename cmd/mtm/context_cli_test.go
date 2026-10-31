@@ -102,6 +102,9 @@ func withContextPanes(a *App) *fakeContextPanes {
 
 func TestCLIExtractReadsAPaneOnDemand(t *testing.T) {
 	a, _ := cliApp(t)
+	if _, err := a.r.Settings().SetSession(settingContextExtractFrom, []string{"scrollback", "command"}); err != nil {
+		t.Fatal(err)
+	}
 	f := withContextPanes(a)
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "matomeru", ProjectID: "matomeru"}); err != nil {
 		t.Fatal(err)
