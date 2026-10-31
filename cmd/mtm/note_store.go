@@ -46,6 +46,8 @@ func noteProps() []ochazuke.PropSpec {
 			Description: "The project the note belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 			Description: "The task the note belongs to; its project wins over project"}},
+		taskMakerProp(),
+		{Name: "created-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "object", Description: "The note's recorded maker and agent identity"}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note was created (Unix ms)"}},
 		{Name: "updated", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note last changed (Unix ms)"}},
 	}
@@ -100,6 +102,7 @@ func (a *App) noteThing(n work.Note) ochazuke.Thing {
 	return ochazuke.Thing{
 		"id": n.ID, "title": n.Title, "summary": noteLabel(n.Text), "text": n.Text,
 		"project": project, "task": n.TaskID, "created": n.Created, "updated": n.Updated,
+		"made-by": n.MadeBy(), "created-by": n.Maker(),
 	}
 }
 
@@ -161,6 +164,15 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	task, hasTask := str("task")
 	now := work.Now()
 	note := work.Note{ID: id, Created: now, Updated: now}
+	// Undo restores the recorded maker. Normal create omits the read-only
+	// prop; the work store stamps the caller and ignores agent overrides.
+	if v, ok := values["created-by"]; ok && v != nil {
+		by, err := thingActor(v)
+		if err != nil {
+			return nil, err
+		}
+		note.CreatedBy = by
+	}
 	note.ProjectID, note.TaskID = a.noteOwner(c, project, hasProject, task, hasTask)
 	note.Title, _ = str("title")
 	note.Text, _ = str("text")
@@ -170,7 +182,11 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	if err := a.refreshNotes(); err != nil {
 		return nil, err
 	}
-	return a.noteThing(note), nil
+	stored, err := a.work.Note(note.ID)
+	if err != nil {
+		return nil, err
+	}
+	return a.noteThing(stored), nil
 }
 
 // patchNote is the store's Patch: it writes the changed props. A task

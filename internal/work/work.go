@@ -90,7 +90,7 @@ var Tables = []store.Table{
 	{Name: "assignments", Owner: "work", Key: "window", Version: 1},
 	{Name: "active", Owner: "work", Key: "id", Version: 1},
 	{Name: "session_owners", Owner: "work", Key: "id", Version: 1},
-	{Name: "notes", Owner: "notes", Key: "id", Version: 1},
+	{Name: "notes", Owner: "notes", Key: "id", Version: 2},
 	{Name: "saved_panes", Owner: "work", Key: "id", Version: 1},
 	{Name: "pane_recipes", Owner: "work", Key: "window", Version: 1},
 	{Name: "companions", Owner: "work", Key: "window", Version: 1},
@@ -110,6 +110,10 @@ type Store struct {
 
 // Open declares the tables and returns the unit.
 func Open(db *store.Store) (*Store, error) {
+	// Optional maker data needs no content rewrite: old rows read unknown.
+	if err := db.Migrate("notes", 1, 2, nil); err != nil {
+		return nil, err
+	}
 	for _, t := range Tables {
 		if err := db.Declare(t); err != nil {
 			return nil, err

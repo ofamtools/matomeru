@@ -3,6 +3,7 @@ package work
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"slices"
 
 	"github.com/unixsuperhero/matomeru/store"
@@ -22,6 +23,7 @@ type Note struct {
 	FormerTaskID    string `json:"former_task_id,omitempty"`
 	Created         int64  `json:"created"`
 	Updated         int64  `json:"updated"`
+	CreatedBy       Actor  `json:"created_by,omitempty"`
 	extra           map[string]json.RawMessage
 }
 
@@ -36,7 +38,7 @@ func (n *Note) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &n.extra); err != nil {
 		return err
 	}
-	for _, key := range []string{"id", "title", "text", "project_id", "task_id", "former_project_id", "former_task_id", "created", "updated"} {
+	for _, key := range []string{"id", "title", "text", "project_id", "task_id", "former_project_id", "former_task_id", "created", "updated", "created_by"} {
 		delete(n.extra, key)
 	}
 	return nil
@@ -74,13 +76,33 @@ func (s *Store) Note(id string) (Note, error) {
 }
 
 func (s *Store) PutNote(note Note) error {
-	return s.db.Tx([]string{"notes"}, func(tx *store.Tx) error { return tx.Put("notes", note.ID, note) })
+	return s.db.Tx([]string{"notes"}, func(tx *store.Tx) error {
+		var old Note
+		err := tx.Get("notes", note.ID, &old)
+		switch {
+		case err == nil:
+			// Keep legacy unknown makers unknown too. Editing is not authorship.
+			if s.Actor().IsAgent() || note.CreatedBy.Kind == "" {
+				note.CreatedBy = old.CreatedBy
+			}
+		case errors.Is(err, store.ErrNotFound):
+			if s.Actor().IsAgent() || note.CreatedBy.Kind == "" {
+				note.CreatedBy = s.Actor()
+			}
+		default:
+			return err
+		}
+		return tx.Put("notes", note.ID, note)
+	})
 }
 
 func (s *Store) AddNote(projectID, taskID, text string) (Note, error) {
 	now := Now()
 	note := Note{ID: NewID(), Text: text, ProjectID: projectID, TaskID: taskID, Created: now, Updated: now}
-	return note, s.PutNote(note)
+	if err := s.PutNote(note); err != nil {
+		return Note{}, err
+	}
+	return s.Note(note.ID)
 }
 
 // NoteProject resolves task-only legacy rows without rewriting them on read.
@@ -105,4 +127,15 @@ func (s *Store) DeleteNote(id string) error {
 		}
 		return tx.Delete("notes", id)
 	})
+}
+
+// MadeBy is the recorded maker's kind; legacy notes remain unknown.
+func (n Note) MadeBy() string { return n.CreatedBy.kind() }
+
+// Maker retains the agent identity recorded on creation.
+func (n Note) Maker() Actor {
+	if n.CreatedBy.Kind == "" {
+		return Actor{Kind: ActorUnknown}
+	}
+	return n.CreatedBy
 }

@@ -204,6 +204,16 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 	if note := structured(t, out[4]).(map[string]any); note["task_id"] != "t1" || note["text"] != "first finding" {
 		t.Fatalf("task_note_add: %v", note)
 	}
+	note := structured(t, out[4]).(map[string]any)
+	recorded, err := app.work.Note(note["id"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantMaker := work.Actor{Kind: work.ActorAgent, Harness: "claude", Pane: "w1", Session: "matomeru", Task: "t1", Model: "opus"}
+	if recorded.Maker() != wantMaker {
+		t.Fatalf("task_note_add maker: %+v", recorded.Maker())
+	}
+
 	if task := structured(t, out[5]).(map[string]any); task["id"] != "t1" || task["status"] != "active" {
 		t.Fatalf("task_status: %v", task)
 	}
