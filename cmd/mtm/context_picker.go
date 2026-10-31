@@ -145,7 +145,7 @@ func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
 			loose = append(loose, it)
 		}
 	}
-	now := time.Now()
+	now := a.now()
 	var rows []ochazuke.ChooserRow
 	add := func(items []contextitems.Item, where, scope string) {
 		for _, it := range items {

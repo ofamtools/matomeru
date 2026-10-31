@@ -252,7 +252,7 @@ func itemProject(it contextitems.Item, tasks map[string]string) string {
 // any) matching the query's words: starred first, then the newest.
 func (a *App) contextRows(kind, query string, all bool) []ocli.Row {
 	tasks := a.contextProjects()
-	now := time.Now()
+	now := a.now()
 	var rows []ocli.Row
 	for _, it := range a.contextItemsIn(kind, all, tasks) {
 		cells := a.contextCells(it, itemProject(it, tasks), now)

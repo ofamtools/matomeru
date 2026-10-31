@@ -1070,7 +1070,7 @@ func (a *App) paneHeader(p pane) string {
 	case p.isAgent():
 		parts = append(parts, p.stateWord())
 		if p.StateAt > 0 {
-			parts = append(parts, age(time.Since(time.UnixMilli(p.StateAt))))
+			parts = append(parts, age(a.now().Sub(time.UnixMilli(p.StateAt))))
 		}
 	}
 	outside := false

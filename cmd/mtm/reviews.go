@@ -223,7 +223,7 @@ func (a *App) refreshReviews() error {
 		return err
 	}
 	a.reviews, a.reviewRows = nil, map[string]paneReview{}
-	now := time.Now()
+	now := a.now()
 	items := make([]ochazuke.ListItem, 0, len(shown))
 	for _, r := range shown {
 		a.reviews = append(a.reviews, r.Review)

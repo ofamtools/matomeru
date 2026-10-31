@@ -3,7 +3,6 @@ package main
 import (
 	"path/filepath"
 	"slices"
-	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 	ocli "github.com/unixsuperhero/ochazuke/cli"
@@ -118,7 +117,7 @@ func (a *App) askNounParam(x *extension, noun, verb, target, name string, p ocha
 	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:  "ext-" + p.Noun,
 		Title: title,
-		Rows:  a.panePickerRows(time.Now()),
+		Rows:  a.panePickerRows(a.now()),
 		Empty: "no panes",
 		Keep:  []int{0},
 		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {

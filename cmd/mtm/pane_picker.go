@@ -136,7 +136,7 @@ func (a *App) panePreview(row ochazuke.ChooserRow) string {
 	if !ok {
 		return ""
 	}
-	lines := []string{p.label(), strings.TrimSuffix(p.kind()+" · "+pickerState(p, time.Now()), " · ")}
+	lines := []string{p.label(), strings.TrimSuffix(p.kind()+" · "+pickerState(p, a.now()), " · ")}
 	if p.Cwd != "" {
 		lines = append(lines, p.Cwd)
 	}
@@ -148,7 +148,7 @@ func (a *App) pickPane(ctx ochazuke.Ctx) ochazuke.Result {
 	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
 		Kind:    panePickerKind,
 		Title:   "Panes",
-		Rows:    a.panePickerRows(time.Now()),
+		Rows:    a.panePickerRows(a.now()),
 		Empty:   "no panes",
 		Keep:    []int{0},
 		Preview: a.panePreview,

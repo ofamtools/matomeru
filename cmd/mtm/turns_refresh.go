@@ -43,7 +43,9 @@ type turnsResolution struct {
 	retryAt  time.Time // the fallback's next automatic try
 }
 
-// now is the clock the Turns tab's retries go by.
+// now is the app clock: the Turns tab's retries and every time a view
+// shows (ages such as "3d ago", pickers, headers) go by it, so a story
+// (sandboxStory sets clock) renders the same text on any date.
 func (a *App) now() time.Time {
 	if a.clock != nil {
 		return a.clock()

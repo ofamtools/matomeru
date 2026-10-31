@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/unixsuperhero/ochazuke"
 
@@ -94,7 +93,7 @@ func (a *App) directoryFacts(key string) string {
 	}
 	used := ""
 	if a.knownRow(key) != nil {
-		used = sinceUse(last, time.Now())
+		used = sinceUse(last, a.now())
 	}
 	return tildePath(key, home) + "\n\n" + facts(
 		"kind", kind,

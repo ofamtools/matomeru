@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/matomeru/internal/work"
@@ -73,7 +72,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 			open[t.ProjectID]++
 		}
 	}
-	now := time.Now()
+	now := a.now()
 	rows := make([]ochazuke.ChooserRow, 0, len(projects)+1)
 	for _, p := range projects {
 		dir := tildePath(projectDir(p), home)

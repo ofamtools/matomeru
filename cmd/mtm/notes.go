@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"strings"
-	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -196,7 +195,7 @@ func (a *App) setNoteRows() error {
 	for _, d := range drafts {
 		marked[d.ID] = true
 	}
-	now := time.Now()
+	now := a.now()
 	items := make([]ochazuke.ListItem, 0, len(notes)+len(drafts))
 	for _, note := range notes {
 		// The label is the title, else the first line (a confirm reads

@@ -618,7 +618,7 @@ func (a *App) filterDirectories() {
 	a.directories.Query = query
 	owners := a.directoryOwners()
 	home, _ := a.home()
-	now := time.Now()
+	now := a.now()
 	var items []ochazuke.ListItem
 	for _, row := range a.directories.Rows {
 		cells := knownCells(row, owners[row.Path], home, now)
@@ -741,7 +741,7 @@ const dirChooser = "dir-chooser"
 func (a *App) directoryChoices() []ochazuke.ChooserRow {
 	owners := a.directoryOwners()
 	home, _ := a.home()
-	now := time.Now()
+	now := a.now()
 	rows := make([]ochazuke.ChooserRow, 0, len(a.directories.Rows)+1)
 	for _, row := range a.directories.Rows {
 		cells := directoryCells(row, owners[row.Path], home, now)

@@ -107,7 +107,7 @@ func (a *App) refreshTasks() error {
 		return c.Title == "project" && !a.all || c.Title == columnBy && !by
 	})
 	a.taskList.SetColumns(cols...)
-	now := time.Now()
+	now := a.now()
 	a.taskPrivate = privateTasks(tasks)
 	exported, err := a.work.Exports()
 	if err != nil {
