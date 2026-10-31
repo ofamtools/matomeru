@@ -1,0 +1,275 @@
+{
+  "name": "mtm: Panes: copy history · copy history (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "g",
+    "y"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.count.append",
+      "label": "Append a digit to the pending count",
+      "caption": "Append a digit to the pending count.",
+      "keys": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "id": "ochazuke.count.append {\"digit\":0}",
+      "label": "Append a digit to the pending count (0)",
+      "caption": "Append a digit to the pending count. The seeded view stays the same.",
+      "keys": [
+        "2",
+        "0"
+      ],
+      "expect": {
+        "mode": "count_pending"
+      }
+    },
+    {
+      "id": "pane.pick",
+      "label": "Choose a pane to attach live",
+      "caption": "Choose a pane to attach live. The seeded view stays the same.",
+      "keys": [
+        "\\"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "project.pick",
+      "label": "Choose a pin from any page",
+      "caption": "Choose a pin from any page. The seeded view stays the same.",
+      "keys": [
+        "P"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "agent.choose",
+      "label": "Launch an agent into the pin's project",
+      "caption": "Launch an agent into the pin's project.",
+      "keys": [
+        "L"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.yank-history.move {\"steps\":-1}",
+      "label": "Move the yank-history selection ( 1)",
+      "caption": "Move the yank-history selection. The seeded view stays the same.",
+      "keys": [
+        "k"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.yank-history.move {\"steps\":1}",
+      "label": "Move the yank-history selection (1)",
+      "caption": "Move the yank-history selection. The seeded view stays the same.",
+      "keys": [
+        "j"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings.edit",
+      "label": "Open the Settings page",
+      "caption": "Open the Settings page. The seeded view stays the same.",
+      "keys": [
+        ","
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.palette.open",
+      "label": "Open the command line",
+      "caption": "Open the command line.",
+      "keys": [
+        ":"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.palette.open {\"recall\":1}",
+      "label": "Open the command line (1)",
+      "caption": "Open the command line.",
+      "keys": [
+        "Q",
+        ":"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.bindings.help",
+      "label": "Open the keys the focus answers to, with the operation each runs and its description",
+      "caption": "Open the keys the focus answers to, with the operation each runs and its description.",
+      "keys": [
+        "?"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "todos.open",
+      "label": "Open the pinned project's tasks as an outline",
+      "caption": "Open the pinned project's tasks as an outline.",
+      "keys": [
+        "T"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.macro.start",
+      "label": "Record application keys into a named register",
+      "caption": "Record application keys into a named register.",
+      "keys": [
+        "Q",
+        "a"
+      ]
+    },
+    {
+      "id": "ochazuke.macro.replay",
+      "label": "Replay a register through application dispatch",
+      "caption": "Replay a register through application dispatch.",
+      "keys": [
+        "@",
+        "a"
+      ]
+    },
+    {
+      "id": "ochazuke.yank-history.select",
+      "label": "Reuse a copied entry",
+      "caption": "Copy a note line, open copy history, then reuse its entry.",
+      "keys": [
+        "esc",
+        "N",
+        "ctrl+o",
+        "tab",
+        "y",
+        "y",
+        "g",
+        "y",
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.surface.scroll {\"lines\":-8}",
+      "label": "Scroll the active page or modal without changing focus ( 8)",
+      "caption": "Scroll the active page or modal without changing focus. The seeded view stays the same.",
+      "keys": [
+        "pgup"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.surface.scroll {\"lines\":8}",
+      "label": "Scroll the active page or modal without changing focus (8)",
+      "caption": "Scroll the active page or modal without changing focus. The seeded view stays the same.",
+      "keys": [
+        "pgdown"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.detail.scroll {\"lines\":1}",
+      "label": "Scroll the page's detail by lines times count without moving the focus (down)",
+      "caption": "Scroll the page's detail by lines times count without moving the focus. The seeded view stays the same.",
+      "keys": [
+        "J"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.detail.scroll {\"lines\":-1}",
+      "label": "Scroll the page's detail by lines times count without moving the focus (up)",
+      "caption": "Scroll the page's detail by lines times count without moving the focus. The seeded view stays the same.",
+      "keys": [
+        "K"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.register.select",
+      "label": "Select the register used by the next yank, delete, or paste",
+      "caption": "Select the register used by the next yank, delete, or paste.",
+      "keys": [
+        "\"",
+        "a"
+      ]
+    },
+    {
+      "id": "scope.all",
+      "label": "Toggle all projects without changing the pin",
+      "caption": "Toggle all projects without changing the pin.",
+      "keys": [
+        "S"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.state.toggle",
+      "label": "Toggle the live state inspector strip",
+      "caption": "Toggle the live state inspector strip.",
+      "keys": [
+        "alt+?"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "quick-note.open",
+      "label": "Write a note for the selected task, else the pin, else no project",
+      "caption": "Write a note for the selected task, else the pin, else no project.",
+      "keys": [
+        "N"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    }
+  ],
+  "where": "Panes page · copy history · normal mode",
+  "what": "Inspect copied text and choose an entry to reuse."
+}

@@ -1,0 +1,244 @@
+{
+  "name": "mtm: Panes: task outline · task outline (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "T",
+    "ctrl+b"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.outline.add {\"where\":\"above\"}",
+      "label": "Add an outline item (above)",
+      "caption": "Add an outline item.",
+      "keys": [
+        "O"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.outline.add {\"where\":\"below\"}",
+      "label": "Add an outline item (below)",
+      "caption": "Add an outline item.",
+      "keys": [
+        "o"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.outline.paste",
+      "label": "Add pasted lines below the node, nested by their indent",
+      "caption": "Add pasted lines below the node, nested by their indent.",
+      "keys": [
+        {
+          "paste": "Tutorial note"
+        }
+      ]
+    },
+    {
+      "id": "ochazuke.outline.collapse",
+      "label": "Collapse the node, or step onto its parent when it is closed",
+      "caption": "Collapse the node, or step onto its parent when it is closed.",
+      "keys": [
+        "h"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.delete",
+      "label": "Delete the node and its children",
+      "caption": "Delete the node and its children.",
+      "keys": [
+        "d",
+        "d"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.edit",
+      "label": "Edit",
+      "caption": "Edit.",
+      "keys": [
+        "i"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.outline.fold",
+      "label": "Expand or collapse the node",
+      "caption": "Expand or collapse the node. The seeded view stays the same.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.expand",
+      "label": "Expand the node, or step onto its first child when it is open",
+      "caption": "Expand the node, or step onto its first child when it is open. The seeded view stays the same.",
+      "keys": [
+        "l"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.zoom-in",
+      "label": "Focus the outline on this subtree",
+      "caption": "Focus the outline on this subtree. The seeded view stays the same.",
+      "keys": [
+        "z",
+        "+"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "outline-task.toggle",
+      "label": "Mark the task done, or a done task todo",
+      "caption": "Mark the task done, or a done task todo.",
+      "keys": [
+        "x"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.outdent",
+      "label": "Move the node out to follow its parent",
+      "caption": "Move the node out to follow its parent.",
+      "keys": [
+        "<",
+        "<"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.indent",
+      "label": "Nest the node under the node above it",
+      "caption": "Nest the node under the node above it.",
+      "keys": [
+        "tab"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "outline-task.outdent",
+      "label": "On a task directly under its project",
+      "caption": "On a task directly under its project.",
+      "keys": [
+        "shift+tab"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.redo",
+      "label": "Redo the last undone change",
+      "caption": "Redo the last undone change. The seeded view stays the same.",
+      "keys": [
+        "ctrl+r"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "outline-task.status",
+      "label": "Set the task's status",
+      "caption": "Set the task's status.",
+      "keys": [
+        "s"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.outline.zoom-reset",
+      "label": "Show every level again",
+      "caption": "Show every level again. The seeded view stays the same.",
+      "keys": [
+        "z",
+        "0"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.zoom-out",
+      "label": "Step the zoom out one level, onto the zoomed node's parent",
+      "caption": "Step the zoom out one level, onto the zoomed node's parent. The seeded view stays the same.",
+      "keys": [
+        "z",
+        "-"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.move {\"delta\":1}",
+      "label": "Swap the node with its next (next)",
+      "caption": "Swap the node with its next. The seeded view stays the same.",
+      "keys": [
+        "J"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.move {\"delta\":-1}",
+      "label": "Swap the node with its next (previous)",
+      "caption": "Swap the node with its next.",
+      "keys": [
+        "K"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.undo",
+      "label": "Undo the last change",
+      "caption": "Undo the last change. The seeded view stays the same.",
+      "keys": [
+        "u"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Panes page · task outline · normal mode",
+  "what": "Navigate and change the task outline in the temporary workspace."
+}

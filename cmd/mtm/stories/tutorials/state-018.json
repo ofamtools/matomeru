@@ -1,0 +1,97 @@
+{
+  "name": "mtm: Choose a project",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "ctrl+j"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "project.directory",
+      "label": "Attach directory",
+      "caption": "Attach directory.",
+      "keys": [
+        "c"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "project.delete",
+      "label": "Delete a thing",
+      "caption": "Delete a thing.",
+      "keys": [
+        "d",
+        "d"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "project.edit",
+      "label": "Edit name, theme and launch settings",
+      "caption": "Edit name, theme and launch settings.",
+      "keys": [
+        "i"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "project.outline",
+      "label": "Edit the project's tasks and subtasks as an outline",
+      "caption": "Edit the project's tasks and subtasks as an outline.",
+      "keys": [
+        "O"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "project.launch",
+      "label": "Launch an agent into this project's session",
+      "caption": "Launch an agent into this project's session.",
+      "keys": [
+        "L"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "project.new",
+      "label": "Register a project",
+      "caption": "Register a project.",
+      "keys": [
+        "n"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "project.open",
+      "label": "View project and tasks",
+      "caption": "View project and tasks.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Work page · project list · normal mode",
+  "what": "Select a project and work with its tasks."
+}

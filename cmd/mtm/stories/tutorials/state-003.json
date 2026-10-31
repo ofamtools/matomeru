@@ -1,0 +1,74 @@
+{
+  "name": "mtm: Browse settings",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    ","
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.setting.add",
+      "label": "Add an item at the end of a list setting",
+      "caption": "Add an item at the end of a list setting. The seeded view stays the same.",
+      "keys": [
+        "n"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.setting.edit {\"scope\":\"file\"}",
+      "label": "Edit the setting (file)",
+      "caption": "Edit the setting.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.setting.reset {\"scope\":\"file\"}",
+      "label": "Reset the setting to its default (file)",
+      "caption": "Reset the setting to its default. The seeded view stays the same.",
+      "keys": [
+        "backspace"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.setting.cycle {\"scope\":\"file\",\"step\":1}",
+      "label": "Step a boolean, an enum or a number to its next or previous value (file, next)",
+      "caption": "Step a boolean, an enum or a number to its next or previous value. The seeded view stays the same.",
+      "keys": [
+        "l"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.setting.cycle {\"scope\":\"file\",\"step\":-1}",
+      "label": "Step a boolean, an enum or a number to its next or previous value (file, previous)",
+      "caption": "Step a boolean, an enum or a number to its next or previous value.",
+      "keys": [
+        "h"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Settings page · setting rows · normal mode",
+  "what": "Find settings, inspect values, and change temporary preferences."
+}

@@ -1,0 +1,85 @@
+{
+  "name": "mtm: Choose a page",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "'"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.chooser.cancel",
+      "label": "Close without choosing",
+      "caption": "Close without choosing.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.chooser.move {\"delta\":1}",
+      "label": "Move the highlight (next)",
+      "caption": "Move the highlight. The seeded view stays the same.",
+      "keys": [
+        "ctrl+j"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.chooser.move {\"delta\":-1}",
+      "label": "Move the highlight (previous)",
+      "caption": "Move the highlight. The seeded view stays the same.",
+      "keys": [
+        "ctrl+k"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.search.cycle-match",
+      "label": "Step the open search",
+      "caption": "Step the open search.",
+      "keys": [
+        "tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.search.cycle-match {\"step\":-1}",
+      "label": "Step the open search (previous)",
+      "caption": "Step the open search.",
+      "keys": [
+        "shift+tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.chooser.pick",
+      "label": "Take the highlighted row, else the top match, else create from the query",
+      "caption": "Take the highlighted row, else the top match, else create from the query.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Page picker · insert mode",
+  "what": "Find a workspace page and open it."
+}

@@ -1,0 +1,107 @@
+{
+  "name": "mtm: Panes: list (filter)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "/",
+    "j"
+  ],
+  "expect": {
+    "mode": "list_filter"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.list.filter-clear",
+      "label": "Clear the filter and restore the selection",
+      "caption": "Clear the filter and restore the selection.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.list.filter-keep",
+      "label": "Close the filter line keeping the filter",
+      "caption": "Close the filter line keeping the filter.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.list.filter-erase",
+      "label": "Erase the filter query's last character",
+      "caption": "Erase the filter query's last character.",
+      "keys": [
+        "backspace"
+      ],
+      "expect": {
+        "mode": "list_filter"
+      }
+    },
+    {
+      "id": "ochazuke.list.filter {\"query\":\"\"}",
+      "label": "Filter the rows to those whose label or cells match query in the list's match mode ()",
+      "caption": "Filter the rows to those whose label or cells match query in the list's match mode.",
+      "keys": [
+        "ctrl+u"
+      ],
+      "expect": {
+        "mode": "list_filter"
+      }
+    },
+    {
+      "id": "ochazuke.list.move {\"clamp\":true,\"delta\":1}",
+      "label": "Move the selection (True, next)",
+      "caption": "Move the selection. The seeded view stays the same.",
+      "keys": [
+        "ctrl+n"
+      ],
+      "expect": {
+        "mode": "list_filter"
+      }
+    },
+    {
+      "id": "ochazuke.list.move {\"clamp\":true,\"delta\":-1}",
+      "label": "Move the selection (True, previous)",
+      "caption": "Move the selection. The seeded view stays the same.",
+      "keys": [
+        "ctrl+p"
+      ],
+      "expect": {
+        "mode": "list_filter"
+      }
+    },
+    {
+      "id": "ochazuke.list.filter-type",
+      "label": "Type text at the end of the filter query",
+      "caption": "Type text at the end of the filter query.",
+      "keys": [
+        {
+          "paste": "Tutorial note"
+        }
+      ]
+    },
+    {
+      "id": "ochazuke.list.filter-type {\"text\":\" \"}",
+      "label": "Type text at the end of the filter query ( )",
+      "caption": "Type text at the end of the filter query. The seeded view stays the same.",
+      "keys": [
+        "space"
+      ],
+      "expect": {
+        "mode": "list_filter"
+      }
+    }
+  ],
+  "where": "Panes page · list · filter mode",
+  "what": "Explore the actions available in list."
+}

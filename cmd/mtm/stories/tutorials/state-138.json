@@ -1,0 +1,55 @@
+{
+  "name": "mtm: Review: answer (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "ctrl+j",
+    "ctrl+j",
+    "ctrl+a",
+    "o"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "answer.cancel",
+      "label": "Drop the draft",
+      "caption": "Drop the draft. Here: invalid draft noun or id: \"review\"/\"\"",
+      "keys": [
+        "U"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "answer.leave",
+      "label": "Return to the review list",
+      "caption": "Return to the review list.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "answer.save",
+      "label": "Save the answer area as the opened review's answer",
+      "caption": "Save the answer area as the opened review's answer. Here: open a review first (enter on a review row)",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Review page · answer · normal mode",
+  "what": "Explore the actions available in answer."
+}

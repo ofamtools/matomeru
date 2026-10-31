@@ -1,0 +1,33 @@
+{
+  "name": "mtm: Directories: dir search (insert)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "N",
+    "ctrl+o",
+    "ctrl+k",
+    "/"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "dir-search.done",
+      "label": "Keep the filter and return to the known directories",
+      "caption": "Keep the filter and return to the known directories.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Directories page · dir search · insert mode",
+  "what": "Explore the actions available in dir search."
+}

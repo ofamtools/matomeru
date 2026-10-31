@@ -1,0 +1,31 @@
+{
+  "name": "mtm: Panes: quick note · note text (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "N",
+    "esc"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "quick-note.close",
+      "label": "Close the quick note",
+      "caption": "Close the quick note.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Panes page · quick note · normal mode",
+  "what": "Explore the actions available in quick note."
+}

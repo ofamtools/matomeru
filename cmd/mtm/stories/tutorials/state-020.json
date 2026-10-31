@@ -1,0 +1,50 @@
+{
+  "name": "mtm: Panes: confirmation · confirmation (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "d",
+    "d"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.modal.pop",
+      "label": "Close the active modal and restore its parent",
+      "caption": "Close the active modal and restore its parent.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.confirm.accept",
+      "label": "Run the request the open confirm modal holds and close it",
+      "caption": "Run the request the open confirm modal holds and close it.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.key.ignore",
+      "label": "The noop",
+      "caption": "The noop.",
+      "keys": [
+        "a"
+      ]
+    }
+  ],
+  "where": "Panes page · confirmation · normal mode",
+  "what": "Confirm or cancel an action on temporary fixture data."
+}

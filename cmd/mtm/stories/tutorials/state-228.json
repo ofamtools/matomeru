@@ -1,0 +1,35 @@
+{
+  "name": "mtm: Context: context search (insert)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "N",
+    "ctrl+o",
+    "ctrl+j",
+    "ctrl+j",
+    "ctrl+j",
+    "/"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "context-search.done",
+      "label": "Keep the filter and return to the items",
+      "caption": "Keep the filter and return to the items.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Context page · context search · insert mode",
+  "what": "Explore the actions available in context search."
+}

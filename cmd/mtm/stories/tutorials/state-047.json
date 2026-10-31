@@ -1,0 +1,42 @@
+{
+  "name": "mtm: Panes: task outline · outline text (insert)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "T",
+    "O"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.outline.leave",
+      "label": "Leave the line",
+      "caption": "Leave the line.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.outline.next",
+      "label": "Write the line and start a new one below it",
+      "caption": "Write the line and start a new one below it.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    }
+  ],
+  "where": "Panes page · task outline · insert mode",
+  "what": "Explore the actions available in task outline."
+}

@@ -1,0 +1,65 @@
+{
+  "name": "mtm: Settings: settings section (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    ",",
+    "ctrl+a",
+    "o"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.settings.section {\"step\":1}",
+      "label": "Choose a settings section (next)",
+      "caption": "Choose a settings section.",
+      "keys": [
+        "l"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings.section {\"step\":-1}",
+      "label": "Choose a settings section (previous)",
+      "caption": "Choose a settings section. The seeded view stays the same.",
+      "keys": [
+        "h"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings-section.pick",
+      "label": "Pick a section of the shown tab from a chooser and show it",
+      "caption": "Pick a section of the shown tab from a chooser and show it.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings-section.open",
+      "label": "Show the section and focus its settings",
+      "caption": "Show the section and focus its settings.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Settings page · settings section · normal mode",
+  "what": "Explore the actions available in settings section."
+}

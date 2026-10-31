@@ -1,0 +1,41 @@
+{
+  "name": "mtm: Panes: rename form · record field (insert)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "r"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.form.next {\"insert\":true}",
+      "label": "Focus the next field (True)",
+      "caption": "Focus the next field. The seeded view stays the same.",
+      "keys": [
+        "tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.form.previous {\"insert\":true}",
+      "label": "Focus the previous field (True)",
+      "caption": "Focus the previous field. The seeded view stays the same.",
+      "keys": [
+        "shift+tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    }
+  ],
+  "where": "Panes page · rename form · insert mode",
+  "what": "Move through record fields and edit their values; changes stay in the temporary database."
+}

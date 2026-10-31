@@ -1,0 +1,42 @@
+{
+  "name": "mtm: Settings: setting editor · setting value (insert)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    ",",
+    "enter"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.setting-value.cancel",
+      "label": "Close the prompt and keep the value",
+      "caption": "Close the prompt and keep the value.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.setting-value.commit",
+      "label": "Set the setting to the typed value and close the prompt",
+      "caption": "Set the setting to the typed value and close the prompt.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Settings page · setting editor · insert mode",
+  "what": "Explore the actions available in setting editor."
+}

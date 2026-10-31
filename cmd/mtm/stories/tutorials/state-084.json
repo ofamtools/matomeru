@@ -1,0 +1,42 @@
+{
+  "name": "mtm: Panes: context picker · choices (insert)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "i",
+    "alt+o"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "context-picker.open",
+      "label": "Open the highlighted item with the default app",
+      "caption": "Open the highlighted item with the default app. Here: no item is highlighted",
+      "keys": [
+        "ctrl+o"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "context-picker.reveal",
+      "label": "Reveal the highlighted file or dir in Finder",
+      "caption": "Reveal the highlighted file or dir in Finder. Here: no item is highlighted",
+      "keys": [
+        "ctrl+r"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    }
+  ],
+  "where": "Panes page · context picker · insert mode",
+  "what": "Explore the actions available in context picker."
+}

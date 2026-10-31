@@ -1,0 +1,100 @@
+{
+  "name": "mtm: Settings: list (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    ",",
+    "/",
+    "j",
+    "enter"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.settings.section {\"across\":true,\"step\":1}",
+      "label": "Choose a settings section (all tabs, next)",
+      "caption": "Choose a settings section.",
+      "keys": [
+        "tab"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings.section {\"across\":true,\"step\":-1}",
+      "label": "Choose a settings section (all tabs, previous)",
+      "caption": "Choose a settings section.",
+      "keys": [
+        "shift+tab"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.list.fit-columns",
+      "label": "Fit the table columns to the view",
+      "caption": "Fit the table columns to the view. The seeded view stays the same.",
+      "keys": [
+        "z",
+        "F"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings.close",
+      "label": "Leave the Settings page for the page it was opened from",
+      "caption": "Leave the Settings page for the page it was opened from.",
+      "keys": [
+        "q"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings.tab {\"step\":1}",
+      "label": "Show the next or previous tab of the Settings page (next)",
+      "caption": "Show the next or previous tab of the Settings page.",
+      "keys": [
+        "]"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings.tab {\"step\":-1}",
+      "label": "Show the next or previous tab of the Settings page (previous)",
+      "caption": "Show the next or previous tab of the Settings page.",
+      "keys": [
+        "["
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.settings.undo",
+      "label": "Take back the last change made on the Settings page",
+      "caption": "Take back the last change made on the Settings page. The seeded view stays the same.",
+      "keys": [
+        "ctrl+z"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Settings page · list · normal mode",
+  "what": "Explore the actions available in list."
+}

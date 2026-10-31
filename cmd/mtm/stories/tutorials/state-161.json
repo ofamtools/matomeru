@@ -1,0 +1,144 @@
+{
+  "name": "mtm: Notes: markdown edit (insert)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "N",
+    "ctrl+o",
+    "ctrl+a",
+    "o",
+    "A"
+  ],
+  "expect": {
+    "mode": "insert"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.markdown.after-heading",
+      "label": "Enter on a heading",
+      "caption": "Enter on a heading.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.continue-item",
+      "label": "Enter on a list item",
+      "caption": "Enter on a list item.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.next-row",
+      "label": "Enter on a table row",
+      "caption": "Enter on a table row.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.end-list",
+      "label": "Enter on an empty list item",
+      "caption": "Enter on an empty list item.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.leave",
+      "label": "Leave the block editor",
+      "caption": "Leave the block editor.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.cell {\"delta\":1}",
+      "label": "Move to the next (next)",
+      "caption": "Move to the next. The seeded view stays the same.",
+      "keys": [
+        "tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.cell {\"delta\":-1}",
+      "label": "Move to the next (previous)",
+      "caption": "Move to the next. The seeded view stays the same.",
+      "keys": [
+        "shift+tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.indent",
+      "label": "Nest the list item being edited under the item above it",
+      "caption": "Nest the list item being edited under the item above it. The seeded view stays the same.",
+      "keys": [
+        "tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.insert-block",
+      "label": "On an empty line",
+      "caption": "On an empty line.",
+      "keys": [
+        "/"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.outdent",
+      "label": "Take the list item being edited out one level",
+      "caption": "Take the list item being edited out one level. The seeded view stays the same.",
+      "keys": [
+        "shift+tab"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "ochazuke.markdown.unmark",
+      "label": "Take the marker off an empty list item, leaving an indented line under the item above",
+      "caption": "Take the marker off an empty list item, leaving an indented line under the item above.",
+      "keys": [
+        "backspace"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    }
+  ],
+  "where": "Notes page · markdown edit · insert mode",
+  "what": "Explore the actions available in markdown edit."
+}

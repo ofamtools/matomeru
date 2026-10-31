@@ -1,0 +1,76 @@
+{
+  "name": "mtm: Work: record field (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "ctrl+j",
+    "i",
+    "esc"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.form.next",
+      "label": "Focus the next field",
+      "caption": "Focus the next field. The seeded view stays the same.",
+      "keys": [
+        "j"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.form.previous",
+      "label": "Focus the previous field",
+      "caption": "Focus the previous field. The seeded view stays the same.",
+      "keys": [
+        "k"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.form.leave",
+      "label": "Leave the editor",
+      "caption": "Leave the editor.",
+      "keys": [
+        "esc"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.form.redo",
+      "label": "Redo the record's last undone change",
+      "caption": "Redo the record's last undone change. The seeded view stays the same.",
+      "keys": [
+        "ctrl+r"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.form.undo",
+      "label": "Undo the record's last change",
+      "caption": "Undo the record's last change. The seeded view stays the same.",
+      "keys": [
+        "u"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Work page · record field · normal mode",
+  "what": "Move through record fields and edit their values; changes stay in the temporary database."
+}

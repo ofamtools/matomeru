@@ -1,0 +1,164 @@
+{
+  "name": "mtm: Panes: inbox items (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "ctrl+a",
+    "o"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "action-item.archive",
+      "label": "Archive a thing",
+      "caption": "Archive a thing.",
+      "keys": [
+        "x"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "action-item.choose-move",
+      "label": "Choose the project to move the item to",
+      "caption": "Choose the project to move the item to.",
+      "keys": [
+        "m"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "action-item.delete",
+      "label": "Delete a thing",
+      "caption": "Delete a thing.",
+      "keys": [
+        "d",
+        "d"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "action-item.snooze",
+      "label": "Hide the item until --until",
+      "caption": "Hide the item until --until.",
+      "keys": [
+        "s"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "action-item.open",
+      "label": "Open the item's URL in the browser and mark it read",
+      "caption": "Open the item's URL in the browser and mark it read.",
+      "keys": [
+        "enter"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "action-item.promote-task",
+      "label": "Promote the item to a task",
+      "caption": "Promote the item to a task.",
+      "keys": [
+        "c"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "action-item.promote-todo",
+      "label": "Promote the item to a todo",
+      "caption": "Promote the item to a todo.",
+      "keys": [
+        "t"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "action-item.restore",
+      "label": "Restore an archived thing",
+      "caption": "Restore an archived thing.",
+      "keys": [
+        "X"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.list.scroll-columns {\"to\":\"first\"}",
+      "label": "Scroll a table's columns (first)",
+      "caption": "Scroll a table's columns. The seeded view stays the same.",
+      "keys": [
+        "0"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.list.scroll-columns {\"to\":\"last\"}",
+      "label": "Scroll a table's columns (last)",
+      "caption": "Scroll a table's columns.",
+      "keys": [
+        "$"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.list.scroll-columns {\"delta\":1}",
+      "label": "Scroll a table's columns (next)",
+      "caption": "Scroll a table's columns. The seeded view stays the same.",
+      "keys": [
+        "l"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "ochazuke.list.scroll-columns {\"delta\":-1}",
+      "label": "Scroll a table's columns (previous)",
+      "caption": "Scroll a table's columns. The seeded view stays the same.",
+      "keys": [
+        "h"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "action-item.toggle-read",
+      "label": "Toggle read",
+      "caption": "Toggle read.",
+      "keys": [
+        "u"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Panes page · inbox items · normal mode",
+  "what": "Explore the actions available in inbox items."
+}

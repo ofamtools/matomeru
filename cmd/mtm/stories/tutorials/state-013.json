@@ -1,0 +1,75 @@
+{
+  "name": "mtm: Panes: task outline · unassociated tasks (normal)",
+  "area": "tutorials",
+  "app": "mtm",
+  "fixture": "tutorials",
+  "width": 110,
+  "height": 32,
+  "values": {},
+  "setup": [
+    "T"
+  ],
+  "expect": {
+    "mode": "normal"
+  },
+  "actions": [
+    {
+      "id": "ochazuke.outline.add {\"where\":\"child\"}",
+      "label": "Add an outline item (child)",
+      "caption": "Add an outline item.",
+      "keys": [
+        "n"
+      ],
+      "expect": {
+        "mode": "insert"
+      }
+    },
+    {
+      "id": "task-outline.refuse {\"reason\":\"no project is not a project: it cannot be deleted\"}",
+      "label": "Keep the unassociated group",
+      "caption": "The unassociated group cannot be deleted.",
+      "keys": [
+        "d",
+        "d"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "task-outline.refuse {\"reason\":\"no project stays last\"}",
+      "label": "Keep the unassociated group last",
+      "caption": "The unassociated group stays after the projects.",
+      "keys": [
+        "J"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "task-outline.refuse {\"reason\":\"no project is not a project: it cannot be renamed\"}",
+      "label": "Keep the unassociated group’s name",
+      "caption": "The unassociated group cannot be renamed.",
+      "keys": [
+        "i"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    },
+    {
+      "id": "task-outline.refuse {\"reason\":\"no project stays at the top level\"}",
+      "label": "Keep unassociated tasks at the top level",
+      "caption": "The unassociated group stays at the top level.",
+      "keys": [
+        "tab"
+      ],
+      "expect": {
+        "mode": "normal"
+      }
+    }
+  ],
+  "where": "Panes page · task outline · normal mode",
+  "what": "Explore the actions available in task outline."
+}
