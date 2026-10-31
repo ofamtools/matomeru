@@ -18,7 +18,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 	want := []string{
 		"action-item.count", "action-item.get", "action-item.list", "action-item.watch",
 		"context-item.get", "context-item.list", "context-item.watch", "dirs.bases", "dirs.list", "dirs.refresh",
-		"extension.available", "extension.list",
+		"extension.available", "extension.list", "extension.setup-plan", "extension.setup-status",
 		"harness.list", "harness.models", "harness.names",
 		"note.get", "note.list", "note.watch", "pane.activity", "pane.get", "pane.list", "pane.preview", "pane.read-settings", "pane.read-turns", "pane.refresh-turns", "pane.settings", "pane.transcript", "pane.watch", "pane.whoami",
 		"panes.read-activities", "panes.refresh", "project.get", "project.list", "project.watch", "projects.directories", "projects.list", "projects.state",
