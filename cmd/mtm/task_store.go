@@ -83,7 +83,11 @@ func (a *App) taskStore() ochazuke.Store {
 		Undo: true, AcceptsKey: true,
 		// The standard delete's prompt names what the delete orphans.
 		ConfirmFor: a.deletionConfirm("task"),
-		ListParams: map[string]ochazuke.Parameter{"all": {Type: "boolean", Description: "Every task, not only those in the current scope"}},
+		ListParams: map[string]ochazuke.Parameter{
+			"all":    {Type: "boolean", Description: "Every task, not only those in the current scope"},
+			"scope":  {Type: "string", Enum: []string{"pin", "all"}, Description: "The agent pane's lane or all tasks"},
+			"status": {Type: "string", Description: "Only tasks with this status"},
+		},
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
 			t, err := a.taskByID(id)
 			if err != nil {
@@ -93,7 +97,7 @@ func (a *App) taskStore() ochazuke.Store {
 		},
 		List: func(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
 			scope := *a
-			if all, _ := q.Args["all"].(bool); all {
+			if all, _ := q.Args["all"].(bool); all || a.work.Actor().IsAgent() || ochazuke.StringArg(q.Args, "scope", "") == "all" {
 				scope.all = true
 			}
 			tasks, err := a.work.Tasks("")
@@ -104,9 +108,19 @@ func (a *App) taskStore() ochazuke.Store {
 			if err != nil {
 				return nil, err
 			}
+			inLane := func(work.Task) bool { return true }
+			if a.work.Actor().IsAgent() && q.Args["all"] != true && ochazuke.StringArg(q.Args, "scope", "pin") != "all" {
+				inLane, err = a.paneLane(tasks)
+				if err != nil {
+					return nil, err
+				}
+			}
 			out := make([]ochazuke.Thing, 0, len(tasks))
 			for _, t := range tasks {
-				if scope.inScope(t.ProjectID) {
+				if scope.inScope(t.ProjectID) && (ochazuke.StringArg(q.Args, "status", "") == "" || t.Status == ochazuke.StringArg(q.Args, "status", "")) {
+					if !inLane(t) {
+						continue
+					}
 					out = append(out, taskThing(t, exported[t.ID]))
 				}
 			}
@@ -332,6 +346,7 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 			return nil, err
 		}
 	}
+	before := t
 	if v, ok := thingString(changes, "title"); ok {
 		t.Title = strings.TrimSpace(v)
 	}
@@ -375,6 +390,9 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		put = func(t work.Task) error { _, err := a.work.PutTaskSubtree(t); return err }
 	}
 	if err := put(t); err != nil {
+		return nil, err
+	}
+	if err := a.saveTaskEvidence(before, t, c.Args); err != nil {
 		return nil, err
 	}
 	if owned {

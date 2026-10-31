@@ -1,0 +1,78 @@
+{
+  "name": "mtm: the MCP gateway includes extensions by default and the owner can turn them off",
+  "area": "settings",
+  "fixture": "seeded",
+  "width": 140,
+  "height": 35,
+  "script": [
+    "ctrl+x",
+    "ctrl+y",
+    "ctrl+z",
+    "ctrl+v"
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "contains": [
+        "mcp.include-extensions",
+        "\u2039 true \u203a"
+      ]
+    },
+    {
+      "contains": [
+        "mcp.include-extensions",
+        "\u2039 false \u203a"
+      ]
+    }
+  ],
+  "config": {
+    "bindings.json": [
+      {
+        "mode": "normal",
+        "keys": "ctrl+x",
+        "request": {
+          "noun": "ochazuke.settings",
+          "verb": "edit"
+        },
+        "noun": "app"
+      },
+      {
+        "mode": "normal",
+        "keys": "ctrl+y",
+        "request": {
+          "noun": "ochazuke.settings",
+          "verb": "tab",
+          "args": {
+            "name": "ochazuke"
+          }
+        },
+        "noun": "app"
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+z",
+        "request": {
+          "noun": "ochazuke.settings",
+          "verb": "section",
+          "args": {
+            "name": "agents"
+          }
+        }
+      },
+      {
+        "mode": "normal",
+        "keys": "ctrl+v",
+        "request": {
+          "noun": "ochazuke.setting",
+          "verb": "edit",
+          "args": {
+            "name": "mcp.include-extensions",
+            "scope": "file"
+          }
+        },
+        "noun": "app"
+      }
+    ]
+  }
+}

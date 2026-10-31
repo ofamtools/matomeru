@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/unixsuperhero/matomeru/internal/mcp"
 	"github.com/unixsuperhero/ochazuke"
 	ocli "github.com/unixsuperhero/ochazuke/cli"
 )
@@ -37,7 +38,16 @@ var cliUsage = "usage: mtm [--data PATH] [--server NAME|default] [--socket PATH]
 
 // shell is the CLI over this app's runtime.
 func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
-	sh := ocli.New(a.r, "mtm", stdin, stdout, stderr)
+	sh := ocli.New(a.r, "mtm", stdin, stdout, stderr, ocli.About(mtmAbout), ocli.AgentRules(mtmAgentRules))
+	sh.MCPAliases = mcp.Aliases()
+	cmd := a.mcpServerCommand(io.Discard)
+	sh.MCPCommand = append([]string{cmd.Executable}, cmd.Args[:len(cmd.Args)-2]...)
+	act, actorErr := a.cliActor()
+	if a.actorSet {
+		act = a.work.Actor()
+		actorErr = nil
+	}
+	sh.Actor = &ochazuke.Actor{Kind: act.Kind, Harness: act.Harness, Pane: act.Pane, Session: act.Session, Model: act.Model}
 	a.stdin = stdin
 	sh.Usage = cliUsage
 	sh.Reveal = func(target string) error {
@@ -51,7 +61,10 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	sh.Settle = a.closeTerminals
 	sh.Prepare = func(ctx context.Context) error {
 		a.cli = true
-		a.prepareActor(func(msg string) { fmt.Fprintln(stderr, "mtm:", msg) })
+		if actorErr != nil {
+			fmt.Fprintln(stderr, "mtm:", actorErr)
+		}
+		a.setActor(act)
 		if err := a.r.OpenPage("work"); err != nil {
 			return err
 		}

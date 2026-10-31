@@ -305,11 +305,11 @@ type App struct {
 	feed               *journalFeed        // the journal's background reader (journal.go)
 	journalSrc         journalSource       // the daemon the reader follows; tests replace it
 	stdin              io.Reader           // the CLI's standard input (the capture verbs read it)
-	mcpPrepare         func(*App)          // adjusts the fresh app opened for each MCP tool call
+	mcpPrepare         func(*App)          // adjusts the headless app before the MCP server starts
 	getenv             func(string) string // the environment; tests replace it
 	loc                *time.Location      // the zone times are shown in; nil is time.Local (location); tests set UTC
 	dataPath           string              // the database (mtm setup's hooks write it)
-	opts               Options             // the command line New was given (mtm mcp serve opens one app per tool call with it)
+	opts               Options             // the command line New was given (mtm mcp serve uses these options for its headless runtime)
 	cx                 *contextState       // the Context page and its actions (context.go)
 	hinting            *liveHints          // the labels over a live pane, nil when none are up (live_hints.go)
 	unsendable         map[string]bool     // keys already reported as not sendable to a pane (panekeys.go)
@@ -692,6 +692,7 @@ func New(opts Options) (*App, error) {
 	if err := a.addExtensionsPage(); err != nil {
 		return nil, err
 	}
+	a.defineAgentDeclarations()
 	a.mountExtensions()
 	// After the first mount: its read of the naming loads settings.json,
 	// which would tell an observer of the change from the default.

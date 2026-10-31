@@ -17,8 +17,8 @@ import (
 // change (internal/work/actor.go):
 //
 //   - the TUI is the owner (the store's default);
-//   - the MCP server is the agent of its pane (mcpBackend.Run, from the
-//     tool call's Identity: pane, session, task, harness, model);
+//   - the MCP server binds its pane identity at startup (catalogMCP); its
+//     catalog requests map that actor onto the current lane before each write;
 //   - the CLI (shell Prepare) is MTM_ACTOR when it is set (owner, agent,
 //     or an actor as JSON), else the agent of the pane it runs in when
 //     that pane runs one (the pane's recipe names a harness, or a
@@ -279,17 +279,4 @@ func (a *App) notePrivacy(notify func(string), p work.Project) {
 			_, _ = a.inbox.items.Archive(it.ID)
 		}
 	}
-}
-
-// prepareActor is the CLI's entry point (shell Prepare): the actor of the
-// call, unless one was set before (the MCP server's).
-func (a *App) prepareActor(report func(string)) {
-	if a.actorSet {
-		return
-	}
-	act, err := a.cliActor()
-	if err != nil {
-		report(err.Error())
-	}
-	a.setActor(act)
 }

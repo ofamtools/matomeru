@@ -661,39 +661,26 @@ func (a *App) mountExtension(name string, e extEntry) {
 	}
 	x.naming = naming
 	plan := extPlan(e.Catalog)
-	for _, n := range plan {
-		local := naming.local(name, n.Name)
-		if a.r.Noun(local) != nil {
-			notify("noun %s skipped: mtm already has a noun %s", n.Name, local)
-			continue
-		}
-		x.nouns[n.Name] = local
-		b := a.r.Define(local)
-		for _, v := range n.Verbs {
-			b.Verb(v.Name, a.extProxy(x, n.Name, v.Name), v.Description)
-			if v.Confirm != "" {
-				b.Confirm(v.Confirm)
-			}
-			if len(v.Positional) > 0 {
-				b.Positional(v.Positional...)
-			}
-			if v.Quiet {
-				b.Quiet()
-			}
-			if len(v.Params) > 0 {
-				a.parameters(local+"."+v.Name, extParams(v.Params))
-			}
-			kind, err := extHistoryKind(v)
+	doc := e.Catalog
+	doc.Nouns = plan
+	for i := range doc.Nouns {
+		for j := range doc.Nouns[i].Verbs {
+			v := &doc.Nouns[i].Verbs[j]
+			kind, err := extHistoryKind(*v)
 			if err != nil {
-				notify("%s %s %v", n.Name, v.Name, err)
+				notify("%s %s %v", doc.Nouns[i].Name, v.Name, err)
 			}
-			op := a.r.Operations[a.r.CanonicalKey(local+"."+v.Name)]
-			op.HistoryKind = kind
-			a.r.Operations[op.Key()] = op
+			v.History = kind
 		}
-		if len(n.Columns) > 0 {
-			b.Columns(n.Columns...)
-		}
+	}
+	mounted := ocli.MountCatalog(a.r, doc, ocli.HostMount{
+		Local: func(noun string) string { return naming.local(name, noun) },
+		Param: extParameter,
+		Proxy: func(noun string, v ocli.CatalogVerb) any { return a.extProxy(x, noun, v.Name) },
+	})
+	x.nouns = mounted.Nouns
+	for _, warning := range mounted.Warnings {
+		notify("%s", warning)
 	}
 	if len(x.nouns) == 0 {
 		if len(e.Catalog.Sides) == 0 {
@@ -748,19 +735,15 @@ func (a *App) mountExtension(name string, e extEntry) {
 	}
 }
 
-// extParams are a proxied verb's parameters: a source names the tool's own
+// extParameter adapts a proxied parameter: a source names the tool's own
 // verb, which mtm cannot run on the loop, so such a parameter takes any
 // value (the tool still checks it); in the TUI its choices are a cache
 // loaded off the loop (extension_sources.go).
-func extParams(params map[string]ochazuke.Parameter) map[string]ochazuke.Parameter {
-	out := make(map[string]ochazuke.Parameter, len(params))
-	for name, p := range params {
-		if p.Source != "" {
-			p.Source, p.Free = "", true
-		}
-		out[name] = p
+func extParameter(p ochazuke.Parameter) ochazuke.Parameter {
+	if p.Source != "" {
+		p.Source, p.Free = "", true
 	}
-	return out
+	return p
 }
 
 // pagesOf is what an extension shows: its declared data pages, each id
