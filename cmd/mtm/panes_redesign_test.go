@@ -335,8 +335,7 @@ func TestPanesRenderAt80And120(t *testing.T) {
 }
 
 func plainView(a *App) string {
-	a.m.InvalidateRender() // explicit snapshot, independent of the fake clock's frame timer
-	return xansi.Strip(a.m.View().Content)
+	return xansi.Strip(frameView(a).Content)
 }
 
 func countRows(a *App, noun string) int {

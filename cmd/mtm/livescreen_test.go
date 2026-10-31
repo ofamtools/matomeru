@@ -67,7 +67,7 @@ func TestLivePaneCursorReachesTheView(t *testing.T) {
 	f.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"$ PROMPT"}, Cursor: ochazuke.Pos{X: 2, Y: 0}}
 	runOnce(app, cmd)
 	app.m.Width, app.m.Height = 120, 30
-	v := app.m.View()
+	v := frameView(app)
 	if v.Cursor == nil {
 		t.Fatal("no cursor on a focused live pane")
 	}

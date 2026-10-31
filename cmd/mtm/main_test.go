@@ -206,7 +206,7 @@ func TestWorkPageListsStoredProjects(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	app.m.Width, app.m.Height = 80, 24
-	frame := ansi.Strip(app.m.View().Content)
+	frame := ansi.Strip(frameView(app).Content)
 	for _, want := range []string{"projects (3)", "◆ ochazuke", "◆ matomeru"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
@@ -248,7 +248,7 @@ func TestStopsMoveBetweenProjectsAndTasks(t *testing.T) {
 		t.Fatalf("}: focus = %s", app.r.Focus)
 	}
 	app.m.Width, app.m.Height = 80, 24
-	frame := ansi.Strip(app.m.View().Content)
+	frame := ansi.Strip(frameView(app).Content)
 	for _, want := range []string{"[ ] write the brief", "[ ] lift the store"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
@@ -323,7 +323,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	}
 
 	app.m.Width, app.m.Height = 80, 24
-	frame := ansi.Strip(app.m.View().Content)
+	frame := ansi.Strip(frameView(app).Content)
 	for _, want := range []string{"[ ] write the brief first", "[x] lift store and daemon", "[ ] launch an agent"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)

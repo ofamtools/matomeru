@@ -204,7 +204,7 @@ func TestAttachedPaneTitleSaysReconnectingAndGone(t *testing.T) {
 	f.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"$ last screen"}}
 	runOnce(app, cmd)
 	app.m.Width, app.m.Height = 120, 30
-	view := func() string { return ansi.Strip(app.m.View().Content) }
+	view := func() string { return ansi.Strip(frameView(app).Content) }
 	if v := view(); strings.Contains(v, streamReconnecting) || !strings.Contains(v, "$ last screen") {
 		t.Fatalf("live:\n%s", v)
 	}
