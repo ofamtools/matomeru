@@ -92,7 +92,7 @@ Checks never hold up startup; a failed check keeps the cached catalog and shows 
 
 Compared with Vim: extension registry catalog freshness has no Vim motion, option, buffer or window counterpart; these checks reconcile mtm's cached domain state with each tool's catalog.
 
-`mtm mcp serve` is the family MCP gateway: `catalog`, `describe`, `run` and `state` reach mtm and its mounted extensions (`mcp.include-extensions` defaults on). The eight existing tool names remain aliases over `run`. Calls use the startup pane's agent identity, record history and undo, and report refusals as MCP errors. `mtm mcp instructions` prints the generated guidance; `mtm mcp config claude` prints the harness entry. See [docs/MCP.md](docs/MCP.md).
+`mtm mcp serve` is the family MCP gateway: `catalog`, `describe`, `run` and `state` reach mtm and its mounted extensions (`mcp.include-extensions` defaults on). The eight existing tool names remain aliases over `run`. Calls use the startup pane's agent identity, record history and undo, and report refusals as MCP errors. `mtm mcp instructions` prints the generated guidance; `mtm mcp config claude` prints the harness entry. An extension registered as `mcp` (o-mcp) never takes the word: its nouns are `mtm mcp.NOUN …`. See [docs/MCP.md](docs/MCP.md).
 
 Module `github.com/unixsuperhero/matomeru`; requires Go 1.26 or newer.
 
