@@ -86,8 +86,16 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 	app, f := pickerApp(t)
 	key(t, app, "enter") // w1, live
 	press(t, app, "ctrl+a", "p", "n", "o", "t", "e", "s")
-	if got := pickerIDs(t, app); !reflect.DeepEqual(got, []string{"pane:nabe/w3"}) {
-		t.Fatalf("filtered rows %v", got)
+	// The chooser starts in chooser.match (fuzzy): the row that holds the
+	// query whole leads; shift+tab steps back to substring, which keeps
+	// only it (ochazuke.search.cycle-match, as in every chooser).
+	c := app.r.Chooser(panePickerKind)
+	if got := pickerIDs(t, app); c.MatchMode() != ochazuke.MatchFuzzy || len(got) == 0 || got[0] != "pane:nabe/w3" {
+		t.Fatalf("fuzzy rows %v (mode %s)", got, c.MatchMode())
+	}
+	press(t, app, "shift+tab")
+	if got := pickerIDs(t, app); c.MatchMode() != ochazuke.MatchSubstring || !reflect.DeepEqual(got, []string{"pane:nabe/w3"}) {
+		t.Fatalf("substring rows %v (mode %s)", got, c.MatchMode())
 	}
 	press(t, app, "enter")
 	if app.attached.ID != "w3" || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" || app.r.Page != panesPage {
