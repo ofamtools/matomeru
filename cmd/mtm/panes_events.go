@@ -157,17 +157,23 @@ func (a *App) pushPaneTitles() {
 			if !ok {
 				continue
 			}
-			if old.Name == p.Name && old.Title == p.Title {
-				continue
-			}
-			changed = true
 			n := &nodes[i]
-			n.Data, n.Label = p, p.label()
+			name := ""
 			if len(n.Cells) > 0 {
-				name := markerGutter(p) + " " + names[p.ID]
+				name = markerGutter(p) + " " + names[p.ID]
 				if p.Queued > 0 {
 					name += " " + queuedMarker
 				}
+			}
+			// Another pane's rename can change this pane's numeric suffix.
+			if old.Name == p.Name && old.Title == p.Title && (len(n.Cells) == 0 || n.Cells[0] == name) {
+				continue
+			}
+			changed = true
+			n.Data, n.Label = p, p.label()
+			if len(n.Cells) > 0 {
+				// View, section and tree node snapshots may share these cells.
+				n.Cells = slices.Clone(n.Cells)
 				n.Cells[0], n.Tones = name, paneTones(p, name)
 			}
 		}

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/unixsuperhero/matomeru/internal/daemon"
 	"github.com/unixsuperhero/ochazuke"
 )
 
@@ -38,6 +41,41 @@ func TestPanePanelCacheMatchesComposition(t *testing.T) {
 	got = a.cachedPanePanel(c, l, "new title", "", body, 60, 12, false)
 	if want := l.PanelBlock("new title", body, 60, 12, false); !reflect.DeepEqual(got, want) {
 		t.Fatal("style mutation missed")
+	}
+}
+
+func TestPaneTitleCacheKeepsDuplicateNamesInSync(t *testing.T) {
+	t.Parallel()
+	for _, working := range []bool{false, true} {
+		t.Run(fmt.Sprint("peer-working=", working), func(t *testing.T) {
+			a, f := panesApp(t)
+			for i := range f.panes {
+				f.panes[i].Session = "fixture"
+				f.panes[i].Title = f.panes[i].Name
+			}
+			if working {
+				f.panes[1].Harness = "claude-code"
+				f.panes[1].AgentState = "working"
+			}
+			a.setPanes(f.panes, nil)
+			for _, test := range []struct{ title, want string }{{"shell", "shell-2"}, {"claude", "shell"}} {
+				a.applyPaneEvents([]daemon.Event{retitleEvent("w1", test.title)})
+				found := false
+				for _, s := range a.pv.sections {
+					for _, n := range s.tree.List().Items() {
+						if p, ok := n.Data.(pane); ok && p.ID == "w2" {
+							found = true
+							if len(n.Cells) == 0 || !strings.HasSuffix(n.Cells[0], " "+test.want) {
+								t.Fatalf("retitle %q left the other pane's cell %v; want %q", test.title, n.Cells, test.want)
+							}
+						}
+					}
+				}
+				if !found {
+					t.Fatal("other pane vanished")
+				}
+			}
+		})
 	}
 }
 
