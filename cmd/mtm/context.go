@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -55,12 +56,13 @@ var contextColumns = []ochazuke.Column{
 
 // contextState is the Context page's own state.
 type contextState struct {
-	items []contextitems.Item // every stored item, newest sighting first
-	kind  string              // the kind shown, "" for every kind
-	query *ochazuke.Input     // the page's search field
-	seen  string              // the query the list was last filtered by
-	list  *ochazuke.List
-	sys   systemActions
+	extractFrom atomic.Value        // immutable []string snapshot, also read by the journal goroutine
+	items       []contextitems.Item // every stored item, newest sighting first
+	kind        string              // the kind shown, "" for every kind
+	query       *ochazuke.Input     // the page's search field
+	seen        string              // the query the list was last filtered by
+	list        *ochazuke.List
+	sys         systemActions
 	// cmds are commands a completion asks the loop to run (an OSC 52
 	// copy); contextUpdate hands them to Bubble Tea.
 	cmds    []tea.Cmd

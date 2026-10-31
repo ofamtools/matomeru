@@ -79,6 +79,7 @@ func (a *App) declareSettings() error {
 		harnessSetting.Enum = names
 	}
 	settings := []ochazuke.Setting{
+		contextExtractSetting,
 		ochazuke.Setting{Name: settingEditDebounce, Type: ochazuke.SettingDuration, Default: editorDebounce,
 			Description: "Pause in typing before the record editor and quick note write"},
 		ochazuke.Setting{Name: settingRefresh, Type: ochazuke.SettingDuration, Default: refreshEvery,
@@ -130,7 +131,11 @@ func (a *App) declareSettings() error {
 	if err := a.declareSettingLayout(); err != nil {
 		return err
 	}
-	return a.r.DeclareSetting(settings...)
+	if err := a.r.DeclareSetting(settings...); err != nil {
+		return err
+	}
+	a.observeContextExtraction()
+	return nil
 }
 
 // extensionsOwner is the Settings page's Extensions tab (settings-layout
@@ -159,6 +164,7 @@ func (a *App) declareSettingLayout() error {
 		app("agents", "Agents", "What an agent may change: tasks by where they are and who made them, and panes to associate; the owner is never limited"),
 		app("panes", "Panes", "The Panes page: grouping, its sections and panels, which states count as working, waiting or errored, and which pane borders take their state colour"),
 		app("prompt", "Prompt", "The prompt box: where it shows and what follows a submit"),
+		app("context", "Context", "Which sources extract context items"),
 		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls"),
 		app("agent", "Agent", "The agent view of a pane"),
 		app("notes", "Notes", "The note editor"),

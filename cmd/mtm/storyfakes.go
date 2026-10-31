@@ -80,8 +80,8 @@ func (f *storyPanes) Activity(context.Context, pane) (string, error) {
 	return "12:00:00  tool  Read  main.go", nil
 }
 
-func (f *storyPanes) Transcript(context.Context, pane) (string, error) {
-	return "user\nfix the tests\n\nassistant\ndone", nil
+func (f *storyPanes) Transcript(context.Context, pane) (paneTranscript, error) {
+	return paneTranscript{Text: "user\nfix the tests\n\nassistant\ndone"}, nil
 }
 
 func (f *storyPanes) OpenStream(p pane) paneStream {

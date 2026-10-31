@@ -336,7 +336,7 @@ func TestLivePickerSavedFiltersAndPropPicker(t *testing.T) {
 		name  string
 		count int
 	}{
-		{"context", 4}, {"prompts", 1}, {"this-pane", 3}, {"project", 1}, {"none", 1}, {"all", 5},
+		{"context", 4}, {"prompts", 1}, {"this-pane", 3}, {"project", 1}, {"none", 1}, {"conversation", 1}, {"tools", 0}, {"all", 5},
 	} {
 		if err := c.ApplyFilter(tc.name); err != nil {
 			t.Fatal(err)
@@ -346,7 +346,7 @@ func TestLivePickerSavedFiltersAndPropPicker(t *testing.T) {
 		}
 	}
 	a.Update(keytest.Msg("alt+[", false, false))
-	if f := frame(a); !strings.Contains(f, "[none]") {
+	if f := frame(a); !strings.Contains(f, "[tools]") {
 		t.Fatalf("backward cycle:\n%s", f)
 	}
 	a.Update(keytest.Msg("alt+backspace", false, false))

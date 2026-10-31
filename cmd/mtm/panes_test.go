@@ -143,11 +143,11 @@ func (f *fakePanes) Activity(_ context.Context, p pane) (string, error) {
 	return "12:00:00  tool  Read  main.go", f.err
 }
 
-func (f *fakePanes) Transcript(_ context.Context, p pane) (string, error) {
+func (f *fakePanes) Transcript(_ context.Context, p pane) (paneTranscript, error) {
 	if f.transcript != "" {
-		return f.transcript, f.err
+		return paneTranscript{Text: f.transcript}, f.err
 	}
-	return "user\nfix the tests\n\nassistant\ndone", f.err
+	return paneTranscript{Text: "user\nfix the tests\n\nassistant\ndone"}, f.err
 }
 
 func (f *fakePanes) OpenStream(p pane) paneStream {

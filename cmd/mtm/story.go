@@ -165,9 +165,9 @@ func buildContextPicker(env monogatari.Env) (monogatari.Built, error) {
 		return monogatari.Built{}, err
 	}
 	for i, it := range []contextitems.Item{
-		{Kind: "link", Text: "https://example.com/pane", Window: "w1", ProjectID: "acme-web"},
-		{Kind: "branch", Text: "project-branch", Window: "other", ProjectID: "acme-web"},
-		{Kind: "command", Text: "unassociated-command", Window: "elsewhere"},
+		{Kind: "link", Text: "https://example.com/pane", Window: "w1", ProjectID: "acme-web", Sources: []contextitems.Source{{Kind: "turn", EntryKind: "response-completed"}}},
+		{Kind: "branch", Text: "project-branch", Window: "other", ProjectID: "acme-web", Sources: []contextitems.Source{{Kind: "scrollback"}}},
+		{Kind: "command", Text: "unassociated-command", Window: "elsewhere", Sources: []contextitems.Source{{Kind: "history", EntryKind: "command"}}},
 		{Kind: "link", Text: "https://example.com/other-project", Window: "other", ProjectID: "billing-api"},
 	} {
 		if _, _, err = a.contexts.Merge([]contextitems.Item{it}, contextitems.Owner{ProjectID: it.ProjectID}, int64(i+1)); err != nil {

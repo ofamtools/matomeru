@@ -83,6 +83,7 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if want.ID == "" && name == "" {
 		return ochazuke.Failed(errors.New("name the pane: --target pane:SESSION/WINDOW or --pane WINDOW"))
 	}
+	origins := a.contextExtraction()
 	panesd, ws, store := a.panesd, a.work, a.contexts
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		p := want
@@ -105,20 +106,25 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return nil, err
 		}
-		back, err := d.Scrollback(c, p, 0)
-		if err != nil {
-			return nil, fmt.Errorf("capture %s: %w", p.label(), err)
+		var items []contextitems.Item
+		if extractsFrom(origins, contextSource(p, "scrollback")) {
+			back, err := d.Scrollback(c, p, 0)
+			if err != nil {
+				return nil, fmt.Errorf("capture %s: %w", p.label(), err)
+			}
+			items = contextitems.Extract(back.Text, p.Width, contextSource(p, "scrollback"))
 		}
-		items := contextitems.Extract(back.Text, p.Width, contextSource(p, "scrollback"))
 		// History is best effort: a pane without shell integration has none.
-		if commands, err := d.Commands(c, p); err == nil {
-			for _, cmd := range commands {
-				src := contextSource(p, "history")
-				src.EntryKind, src.At = "command", cmd.At
-				if cmd.Cwd != "" {
-					src.Cwd = cmd.Cwd
+		if extractsFrom(origins, contextSource(p, "history")) {
+			if commands, err := d.Commands(c, p); err == nil {
+				for _, cmd := range commands {
+					src := contextSource(p, "history")
+					src.EntryKind, src.At = "command", cmd.At
+					if cmd.Cwd != "" {
+						src.Cwd = cmd.Cwd
+					}
+					items = append(items, contextitems.Extract(cmd.Cmdline, 0, src)...)
 				}
-				items = append(items, contextitems.Extract(cmd.Cmdline, 0, src)...)
 			}
 		}
 		written, added, err := store.Merge(items, contextitems.Owner{ProjectID: owner.ProjectID, TaskID: owner.TaskID}, work.Now())

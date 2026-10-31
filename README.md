@@ -63,7 +63,7 @@ A task's verbs are ochazuke's standard ones over its props (`id`, `title`, `stat
 
 A project's verbs are ochazuke's standard ones over its props (`id`, `name`, `color`, `glyph`, `harness`, `preset`, `dir`, and the read-only `repo`, `origin`, `created`): `mtm project get|list|create|set|watch|rename|duplicate`, for example `project rename --id hub --name Hub`, `project set --id hub color=blue preset=fast` and `project create --name scratch --dir ~/tmp/scratch` (`dir` is attached as the default; the directory verbs change it after). A harness that is not registered is saved with a notice. `project new` and `project edit` keep their meaning and run `create` and `set` underneath, so `history.undo` reverts them; the editor's fields are the props'. A project has no owner, so no `move`. `project delete` is the standard delete (`d d` asks with what the delete orphans; `project confirm-delete` is the same verb); `pin`, `unpin`, `pick`, the directory verbs and `associate` (which relates a thing to the project).
 
-A context item's verbs are ochazuke's standard ones over its props (`id`; `type` and `text`, written by `create` only; `project`, `task`, `starred`; and the read-only `session`, `window`, `pane`, `exists`, `created`, `seen`): `mtm context-item get|list|create|set|delete|watch|move|duplicate`, for example `context-item list --kind link` (or `--where type=link`), `context-item move ID --to hub`, `context-item set ID task=t1` (the task's project comes with it) and `context-item create --type link --text https://example.com`. `context-item forget ID` is the same as `delete` (the record only; what it names is untouched); `history.undo` puts a forgotten item back as it was. On a context row `*` stars (`context-item.star`, an alias of the standard set of `starred` with `toggle`; `--value true|false` sets instead; the old `--starred` still works until the next mtm release, with a one-time notice), `m` is `context-item.choose-move` (the project chooser) and `d d` asks "Forget ...?". `context-item add` still keeps every item found in a text and merges the ones already kept. `context-item.associate --task`, `--project` and `--scratch` are old forms of `set task` and `move`, kept for one release.
+A context item's verbs are ochazuke's standard ones over its props (`id`; `type` and `text`, written by `create` only; `project`, `task`, `starred`; and the read-only `origin`, `origins`, `session`, `window`, `pane`, `exists`, `created`, `seen`): `mtm context-item get|list|create|set|delete|watch|move|duplicate`, for example `context-item list --kind link` (or `--where type=link`), `context-item move ID --to hub`, `context-item set ID task=t1` (the task's project comes with it) and `context-item create --type link --text https://example.com`. `context-item forget ID` is the same as `delete` (the record only; what it names is untouched); `history.undo` puts a forgotten item back as it was. On a context row `*` stars (`context-item.star`, an alias of the standard set of `starred` with `toggle`; `--value true|false` sets instead; the old `--starred` still works until the next mtm release, with a one-time notice), `m` is `context-item.choose-move` (the project chooser) and `d d` asks "Forget ...?". `context-item add` still keeps every item found in a text and merges the ones already kept. `context-item.associate --task`, `--project` and `--scratch` are old forms of `set task` and `move`, kept for one release.
 
 A pane's verbs are ochazuke's standard ones over its props (`id`, the window id or the row id `pane:SESSION/WINDOW`; `name`, the window's name in the daemon; `project`, `task`, `starred`, mtm's own records; and the read-only `display`, `session`, `title`, `cwd`, `state`, `harness`, `exited` and the agent's `model`, `effort`, `fast`, `permission-mode` as the settings line reads them): `mtm pane get|list|set|watch|move`, for example `pane get w1 --prop model`, `pane set pane:hub/w1 name=fixer`, `pane move w1 --to hub`. `history.undo` reverts a rename, a star and a move. The agent's settings are read-only props: `pane set-model`, `set-effort`, `set-fast`, `toggle-fast` and `set-permission-mode` stay the verbs that change them, typed into the agent's session. A pane has no `create` or `delete`: `pane kill` closes it (an `actions.json` row `{"alias": "pane.delete", "action": "pane.kill"}` gives the word). `pane rename` and `pane unassociate` run `set` and `move`, and `pane star` (`*`) is an alias of `set` of `starred` with `toggle` (`--value` sets; the old `--starred` still works until the next mtm release, with a one-time notice); `m` on a pane row is `pane.choose-move`. A session's verbs are the same over `id`, `name`, `project` and the read-only `panes` count (`mtm session get|list|set|watch|move`; `m` is `session.choose-move`; `kill` stays). A saved record's verbs are the standard ones over `id`, `name`, `project`, `task`, the recipe (`command`, `env`, `cwd`, `harness`, `model`, `flags`, written by `create` only) and the read-only `window`, `session`, `created`, `updated`: `mtm saved get|list|create|set|delete|watch|move|duplicate`, for example `saved create --name scratch --cwd ~/tmp` (no command reopens a daemon shell). `saved forget ID` is the same as `delete` (the record only; its pane keeps running), and `history.undo` puts a forgotten record back as it was; moving a record moves its live pane with it. `pane.associate`, `session.associate` and `saved.associate --project`, `--task` and `--scratch` are old forms of `move` and `set`, kept for one release.
 
@@ -142,7 +142,7 @@ tutorials.
 
 The context picker supports the framework prop filters alongside its text
 search. The saved cycle is `context`, `prompts`, `this-pane`, `project`,
-`none`, `all`.
+`none`, `conversation`, `tools`, `all`.
 
 | Context picker key | Action |
 |---|---|
@@ -156,12 +156,42 @@ page-down. `ctrl+[` is Escape, not a cycle key. These defaults are catalog decla
 kept context from journaled prompts; `scope` is projected relative to the
 pane the picker opened for (this pane, the rest of its project, or no project).
 The existing `type` prop distinguishes file, dir, link, branch, command, etc.
+The read-only `origin` enum identifies the most conversational recorded source:
+`prompt`, then `response`, then `manual`, `mcp`, `scrollback`, `transcript`,
+`command`, or `unknown`. The `origins` list retains every source kind seen;
+prompt and response sightings in the same pane remain distinct. Both props
+are derived from stored source provenance, including legacy rows. Missing or
+ambiguous provenance reads `unknown`; an old sighting already collapsed by
+an earlier mtm cannot be reconstructed. `conversation` matches primary origin
+prompt/response; `tools` matches primary origin scrollback/transcript/command.
+An item seen in both stays in conversation, with its other origins in `origins`.
+The generic property picker (`ctrl+f`) can filter `origin` directly.
 Rows retain their data for copy/open/reveal, and updates preserve the filters.
 Set `chooser.prop-filters=false` to disable chooser prop filtering (default
 true); `list.filter-cycle=false` and `list.filter-strip=false` turn off cycling
 and the strip separately. No creator is recorded on context items, so there
 is no maker filter. User `list.filters` rows can override these defaults by
 name with `list: "context-picker"`.
+
+Context extraction defaults to `context.extract-from: ["prompt", "response"]`.
+The setting is a list of source origins: it gates journal/capture/backfill
+extraction from prompts and responses, on-demand/continuous scrollback
+extraction, shell command history, and extraction when a transcript is read.
+Use `["prompt", "response", "scrollback", "transcript", "command"]` to restore
+all previous sources; `[]` disables those extraction paths. Changing it does
+not remove stored items; use the conversation filter to hide older tool context.
+Explicit `context-item add` (MCP) and `create` (manual) remain available with
+any setting. Live screen hints are an explicit copy/open/type operation and
+do not save context items; their screen scan remains available.
+
+Transcript display includes tools. Extraction uses the daemon's structured
+entry kind/role and tool metadata before formatting: user text is `prompt`,
+assistant text without tool metadata is `response`, and tool calls/results,
+thinking and other entries are `transcript` (off by default). The protocol
+has no final/commentary channel field, so response includes assistant prose,
+not just the last message. Unstructured transcript text stays `transcript`;
+headings are never guessed to be conversational roles. Reading a transcript
+still displays all its entries regardless of the extraction setting.
 
 Compared with Vim: Vim's `:filter` uses a regexp over command output;
 these filters use typed row properties. Modifier keys leave insert-mode
