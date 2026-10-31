@@ -107,8 +107,14 @@ func (a *App) addReviewPage() error {
 	if err := a.r.AddInput(a.answer, ochazuke.Parent(reviewsPage), ochazuke.Kind("answer")); err != nil {
 		return err
 	}
-	if _, err = a.r.AddPage(reviewsPage, "Review", a.renderReviews, ochazuke.Focus(reviewListID)); err != nil {
+	page, err := a.r.AddPage(reviewsPage, "Review", a.renderReviews, ochazuke.Focus(reviewListID))
+	if err != nil {
 		return err
+	}
+	page.OnOpen = func(*ochazuke.Runtime, string) {
+		if err := a.refreshReviews(); err != nil {
+			a.r.UI().Error("history: " + err.Error())
+		}
 	}
 	// The detail is the opened review's turns, else its captured output
 	// (a screen: the newest at the bottom).
