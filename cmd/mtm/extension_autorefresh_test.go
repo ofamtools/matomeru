@@ -48,9 +48,10 @@ func fakeWithVerb(version, verb string) string {
 }
 
 // A rebuilt extension bin's catalog is read again by itself: when the TUI
-// starts and when the extension's page opens, through extension.refresh.
-// An unchanged bin is not asked; a refresh that fails keeps the old
-// catalog, says why, and is not tried again until the bin changes.
+// starts and when the extension's page opens, through discovery and the
+// same catalog adoption as extension.refresh.
+// An unchanged catalog is checked but not rewritten; a failed refresh
+// keeps the old catalog and can recover on the next open.
 func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
 	path := seeded(t)
 	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
@@ -67,11 +68,11 @@ func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
 		}
 		return e
 	}
-	// Unchanged: starting asks nothing.
+	// Unchanged: starting checks the catalog without remounting.
 	before := fakeCatalogCalls(t, log)
 	settleJobs(t, a, a.refreshStaleExtensions())
-	if fakeCatalogCalls(t, log) != before {
-		t.Fatal("an unchanged bin was asked its catalog")
+	if fakeCatalogCalls(t, log) != before+1 {
+		t.Fatal("an unchanged bin was not asked its catalog")
 	}
 
 	// Rebuilt before mtm starts: the start refreshes it and the sync
@@ -101,7 +102,7 @@ func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
 	}
 
 	// A rebuild that answers no catalog: the old one stays, the status
-	// line says why, and the next open does not ask again.
+	// line says why, and the next open checks for recovery.
 	rebuildFake(t, bin, "not json", 3)
 	if err := b.r.OpenPage("work"); err != nil {
 		t.Fatal(err)
@@ -111,8 +112,8 @@ func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
 	if stored().Catalog.Version != "3.0" || !hasVerb(b, "star") {
 		t.Fatal("a failed refresh replaced the catalog")
 	}
-	if !strings.Contains(b.m.Status, "fake: o-fake catalog") {
-		t.Fatalf("failure not reported: %q", b.m.Status)
+	if !strings.Contains(strings.Join(b.m.Notices, " "), "extension fake: catalog refresh failed:") {
+		t.Fatalf("failure not reported: %q", b.m.Notices)
 	}
 	asked := fakeCatalogCalls(t, log)
 	if err := b.r.OpenPage("work"); err != nil {
@@ -120,7 +121,7 @@ func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
 	}
 	b.Update(nil)
 	openExtPage(t, b, "ext/fake")
-	if fakeCatalogCalls(t, log) != asked {
-		t.Fatal("a bin whose refresh failed was asked again at the same stamp")
+	if fakeCatalogCalls(t, log) != asked+1 {
+		t.Fatal("a failed catalog was not checked for recovery")
 	}
 }

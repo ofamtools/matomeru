@@ -23,11 +23,9 @@ func catalogCalls(t *testing.T, dir, name string) int {
 	return n
 }
 
-// A catalog is a tool's definition: discovery asks a bin again only when
-// its file changed since the catalog on hand was read (the registry's
-// binStamp, the probe cache for a tool not registered). An explicit
-// refresh always asks.
-func TestDiscoveryAsksOnlyChangedBins(t *testing.T) {
+// Discovery always checks registered catalogs. Unregistered tools keep
+// their stamp cache, while an explicit refresh always asks.
+func TestDiscoveryChecksRegisteredCatalogs(t *testing.T) {
 	dir := t.TempDir()
 	alpha := fakeTool(t, dir, "alpha", toolCatalog("alpha", "1.0"))
 	fakeTool(t, dir, "beta", toolCatalog("beta", "1.0"))
@@ -41,15 +39,15 @@ func TestDiscoveryAsksOnlyChangedBins(t *testing.T) {
 	if extStatus(a, "alpha") != statusRegistered || extStatus(a, "beta") != statusAvailable {
 		t.Fatalf("rows %+v", a.extList.Items())
 	}
-	if n, m := catalogCalls(t, dir, "alpha"), catalogCalls(t, dir, "beta"); n != 1 || m != 1 {
-		t.Fatalf("first discovery: alpha asked %d times (register only), beta %d (once)", n, m)
+	if n, m := catalogCalls(t, dir, "alpha"), catalogCalls(t, dir, "beta"); n != 2 || m != 1 {
+		t.Fatalf("first discovery: alpha asked %d times (register and check), beta %d (once)", n, m)
 	}
 	for range 2 {
 		openExtPage(t, a, "work")
 		openExtPage(t, a, extensionsPage)
 	}
-	if n, m := catalogCalls(t, dir, "alpha"), catalogCalls(t, dir, "beta"); n != 1 || m != 1 {
-		t.Fatalf("reopening the page asked again: alpha %d, beta %d", n, m)
+	if n, m := catalogCalls(t, dir, "alpha"), catalogCalls(t, dir, "beta"); n != 4 || m != 1 {
+		t.Fatalf("reopening: alpha %d, want 4; beta %d, want 1", n, m)
 	}
 	if extStatus(a, "alpha") != statusRegistered || extStatus(a, "beta") != statusAvailable {
 		t.Fatalf("rows from the cache %+v", a.extList.Items())
@@ -58,12 +56,12 @@ func TestDiscoveryAsksOnlyChangedBins(t *testing.T) {
 	rebuilt(t, filepath.Join(dir, "o-beta"))
 	openExtPage(t, a, "work")
 	openExtPage(t, a, extensionsPage)
-	if n, m := catalogCalls(t, dir, "alpha"), catalogCalls(t, dir, "beta"); n != 2 || m != 2 {
-		t.Fatalf("after a rebuild: alpha asked %d times, beta %d, want 2 each", n, m)
+	if n, m := catalogCalls(t, dir, "alpha"), catalogCalls(t, dir, "beta"); n != 5 || m != 2 {
+		t.Fatalf("after a rebuild: alpha asked %d times (want 5), beta %d (want 2)", n, m)
 	}
 	mustCLI(t, openAt(t, path), "extension", "refresh", "alpha")
-	if n := catalogCalls(t, dir, "alpha"); n != 3 {
-		t.Fatalf("refresh asked alpha %d times in all, want 3", n)
+	if n := catalogCalls(t, dir, "alpha"); n != 6 {
+		t.Fatalf("refresh asked alpha %d times in all, want 6", n)
 	}
 }
 

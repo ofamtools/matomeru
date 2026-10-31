@@ -51,7 +51,8 @@ type extEntry struct {
 	RegisteredAt time.Time       `json:"registeredAt"`
 	Catalog      ocli.CatalogDoc `json:"catalog"`
 	// BinStamp is the bin's file (links resolved) when Catalog was read:
-	// discovery asks the bin again only once it differs (extBinStamp).
+	// retained for file diagnostics and legacy registry compatibility.
+	// Freshness comes from comparing the catalog itself, not this stamp.
 	BinStamp *extBinStamp `json:"binStamp,omitempty"`
 }
 
@@ -558,17 +559,29 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 		for _, r := range done {
 			name := r.Name
 			e := entries[name]
-			e.Catalog, e.BinStamp = r.doc, r.stamp
-			if err := reg.write(name, e); err != nil {
+			if err := a.storeExtensionCatalog(reg, name, e, r.doc, r.stamp); err != nil {
 				ctx.Error(err.Error())
-			}
-			if x := a.extension(name); x != nil && !a.cli {
-				a.refreshExtensionRows(x) // the rows of an unchanged catalog, in full
 			}
 		}
 		a.extSyncDue = !a.cli
 		a.extPage.due = true
 	})
+}
+
+// storeExtensionCatalog is the shared completion of explicit and automatic
+// refresh. Only a valid catalog reaches here; a failed write keeps the cache.
+func (a *App) storeExtensionCatalog(reg extRegistry, name string, e extEntry, doc ocli.CatalogDoc, stamp *extBinStamp) error {
+	e.Catalog, e.BinStamp = doc, stamp
+	if err := reg.write(name, e); err != nil {
+		return err
+	}
+	delete(a.extPage.failed, name)
+	if x := a.extension(name); x != nil && !a.cli {
+		a.refreshExtensionRows(x)
+	}
+	a.extSyncDue = !a.cli
+	a.extPage.due = true
+	return nil
 }
 
 // removeExtension is extension.remove (confirmed): the registry file goes,

@@ -9,10 +9,14 @@ import (
 )
 
 // extPageApp is an app whose PATH holds only dir, opened on the
-// Extensions page with its first discovery landed.
+// Extensions page with its first discovery landed. Auto refresh is off so
+// these tests can exercise stale-row inspection and the manual refresh key.
 func extPageApp(t *testing.T, path, dir string) *App {
 	t.Helper()
 	a := openAt(t, path)
+	if _, err := a.r.Settings().SetSession(settingExtAutoRefresh, false); err != nil {
+		t.Fatal(err)
+	}
 	a.getenv = func(k string) string {
 		if k == "PATH" {
 			return dir

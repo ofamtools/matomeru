@@ -24,7 +24,9 @@ import (
 // Discovery: the family tools mtm could mount. Every executable o-NAME on
 // PATH (the first on PATH for each name wins, as oden's command discovery
 // finds them) is asked `catalog`, and only that, and only when its file
-// changed since the catalog on hand was read (plan); a tool that does not
+// changed since the catalog on hand was read (plan), except registered
+// tools, which are always asked: their catalogs can change independently
+// of their executable files. A tool that does not
 // answer a valid catalog in extDiscoverTimeout is skipped. The answers are
 // merged with the registry into one row per name and a status:
 //
@@ -73,17 +75,21 @@ type extCandidate struct {
 	// when the bin did not answer).
 	catalog ocli.CatalogDoc
 	// stored is the registered catalog, nil when not registered.
-	stored *ocli.CatalogDoc
+	stored     *ocli.CatalogDoc
+	stamp      *extBinStamp
+	catalogErr error
 }
 
 // extDiscovery is what one discovery reads; the App fills it on the loop
 // and run reads nothing else.
 type extDiscovery struct {
-	path    string // the PATH to search
-	self    string // mtm's own executable, never listed
-	reg     extRegistry
-	env     func(name string) []string
-	timeout time.Duration
+	path           string // the PATH to search
+	self           string // mtm's own executable, never listed
+	reg            extRegistry
+	env            func(name string) []string
+	timeout        time.Duration
+	registeredOnly bool
+	names          []string // registered names to check; nil checks all
 }
 
 // discovery is the App's discovery: its PATH, its registry, its env.
@@ -134,16 +140,17 @@ type extProbePlan struct {
 	probes         extProbes
 }
 
-// plan finds the tools and decides which bins to ask. A catalog is the
-// tool's definition, not its data, so a bin is asked only when its file
-// (links resolved: size and mtime, extBinStamp) is not what it was when
-// the catalog on hand was read: the registry entry's (BinStamp), else the
-// probe cache's (extProbes, for the tools not registered). It reads files
-// and stats bins, so it runs off the loop.
+// plan finds the tools and decides which bins to ask. Registered tools
+// are always asked; only unregistered PATH tools reuse the stamp cache.
+// Catalog files and wrappers can change independently of a bin stamp.
+// It reads files and stats bins, so it runs off the loop.
 func (d extDiscovery) plan() *extProbePlan {
 	p := &extProbePlan{onPath: map[string]string{}, missing: map[string]bool{}, registeredBins: map[string]bool{},
 		answers: map[string]extAnswer{}, ask: map[string]string{}, stamps: map[string]*extBinStamp{}, probes: d.reg.probes()}
-	found, _ := oden.Discover("o", d.path, oden.OS)
+	var found []oden.External
+	if !d.registeredOnly {
+		found, _ = oden.Discover("o", d.path, oden.OS)
+	}
 	for _, ext := range found {
 		if !store.ValidExtensionName(ext.Name) || slices.Contains(extHosts, ext.Name) || d.isSelf(ext.Path) {
 			continue
@@ -153,8 +160,11 @@ func (d extDiscovery) plan() *extProbePlan {
 	// A registry file that does not read is a notice of the mounting,
 	// not a row.
 	p.names, p.entries, _ = d.reg.Ordered()
+	if len(d.names) > 0 {
+		p.names = slices.DeleteFunc(p.names, func(name string) bool { return !slices.Contains(d.names, name) })
+	}
 	// The bins to ask: every tool on PATH, and every registered bin that
-	// still exists, unless its catalog on hand is as new as the bin.
+	// still exists. Only unregistered tools reuse the stamp cache.
 	for name, bin := range p.onPath {
 		p.consider(bin, name, nil)
 	}
@@ -170,8 +180,8 @@ func (d extDiscovery) plan() *extProbePlan {
 	return p
 }
 
-// consider files bin's answer as known (the registered catalog, else the
-// probe cache's) when its stamp matches, else asks it.
+// consider always asks a registered bin, otherwise reusing a probe whose
+// stamp matches. A registered catalog is a baseline, never a live answer.
 func (p *extProbePlan) consider(bin, name string, e *extEntry) {
 	stamp := binStamp(bin)
 	p.stamps[bin] = stamp
@@ -179,8 +189,10 @@ func (p *extProbePlan) consider(bin, name string, e *extEntry) {
 	delete(p.ask, bin)
 	switch probe, ok := p.probes[realPath(bin)]; {
 	case stamp == nil:
-	case e != nil && e.BinStamp != nil && *e.BinStamp == *stamp:
-		p.answers[bin] = extAnswer{doc: e.Catalog}
+	case e != nil:
+		// A catalog may come from a wrapper, plugin or external file.
+		// A matching executable stamp cannot prove it is current.
+		p.ask[bin] = name
 		return
 	case ok && probe.Stamp == *stamp:
 		p.answers[bin] = probe.answer()
@@ -207,7 +219,9 @@ func (d extDiscovery) probe(ctx context.Context, p *extProbePlan) {
 		for bin := range p.stamps {
 			keep[realPath(bin)] = true
 		}
-		maps.DeleteFunc(p.probes, func(bin string, _ extProbe) bool { return !keep[bin] })
+		if !d.registeredOnly {
+			maps.DeleteFunc(p.probes, func(bin string, _ extProbe) bool { return !keep[bin] })
+		}
 		_ = d.reg.writeProbes(p.probes) // a cache: a failed write asks again next time
 	}
 }
@@ -218,12 +232,12 @@ func (d extDiscovery) rows(p *extProbePlan) []extCandidate {
 	for _, name := range p.names {
 		e := p.entries[name]
 		stored := e.Catalog
-		c := extCandidate{Name: name, Bin: e.Bin, RegisteredAt: e.RegisteredAt, catalog: stored, stored: &stored}
+		c := extCandidate{Name: name, Bin: e.Bin, RegisteredAt: e.RegisteredAt, catalog: stored, stored: &stored, stamp: p.stamps[e.Bin]}
 		switch ans := p.answers[e.Bin]; {
 		case p.missing[name]:
 			c.Status = statusMissing
 		case ans.err != nil:
-			c.Status, c.Changes = statusStale, []string{"catalog: " + ans.err.Error()}
+			c.Status, c.Changes, c.catalogErr = statusStale, []string{"catalog: " + ans.err.Error()}, ans.err
 		case catalogEqual(stored, ans.doc):
 			c.Status, c.catalog = statusRegistered, ans.doc
 		default:
@@ -390,7 +404,8 @@ func (c *extCandidate) count() {
 	c.Version = c.catalog.Version
 }
 
-// catalogEqual compares two catalogs as JSON.
+// catalogEqual compares the complete canonical catalog JSON,
+// including page/detail metadata even when the version stays the same.
 func catalogEqual(a, b ocli.CatalogDoc) bool {
 	x, errA := json.Marshal(a)
 	y, errB := json.Marshal(b)
