@@ -13,6 +13,8 @@ import (
 // Scrollback is the fake's capture: the window's backs entry, else its
 // screen with no history.
 func (f *fakePanes) Scrollback(_ context.Context, p pane, _ int) (scrollback, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return scrollback{}, f.err
 	}

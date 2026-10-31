@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -21,6 +22,7 @@ import (
 // fakePanes is the daemon of the panes page: two panes, a screen per
 // window, and the streams it opened. err fails every call.
 type fakePanes struct {
+	mu       sync.Mutex // daemon calls can run concurrently; configure/assert fixtures outside jobs
 	err      error
 	panes    []pane
 	screens  map[string]string
@@ -42,46 +44,61 @@ type fakePanes struct {
 	queued    daemon.QueuePromptResult
 	queueErr  error
 	promptErr error
-	// onKey runs after SendKey (a harness redrawing its screen).
+	// onKey runs under mu after SendKey is recorded. It may update the
+	// fixture directly (a harness redrawing its screen), without daemon calls.
 	onKey func(window, key string)
 	// locate corrects the listing's sessions as tuios.ListPanes does.
 	locate *locate.Locator
 }
 
 func (f *fakePanes) PromptSubmit(_ context.Context, p pane, text string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.prompts = append(f.prompts, "submit "+p.ID+" "+text)
 	return f.promptErr
 }
 
 func (f *fakePanes) PromptPaste(_ context.Context, p pane, text string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.prompts = append(f.prompts, "paste "+p.ID+" "+text)
 	return f.promptErr
 }
 
 func (f *fakePanes) PromptInterrupt(_ context.Context, p pane) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.prompts = append(f.prompts, "interrupt "+p.ID)
 	return f.promptErr
 }
 
 func (f *fakePanes) PromptQueue(_ context.Context, p pane, text string) (daemon.QueuePromptResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.prompts = append(f.prompts, "queue "+p.ID+" "+text)
 	return f.queued, f.queueErr
 }
 
 // PasteText records the text typed into a window that is not attached.
 func (f *fakePanes) PasteText(_ context.Context, p pane, text string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.sentText = append(f.sentText, p.ID+" "+text)
 	return f.err
 }
 
 // FitWindow records each window size asked for (a new side, a stream's Resize).
 func (f *fakePanes) FitWindow(_ context.Context, p pane, cols, rows int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.fits = append(f.fits, fmt.Sprintf("%s %dx%d", p.ID, cols, rows))
 	return f.err
 }
 
 // Exited is the fake's exit probe: the windows marked in exited.
 func (f *fakePanes) Exited(_ context.Context, p pane) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.exited[p.ID], nil
 }
 
@@ -96,6 +113,8 @@ func newFakePanes() *fakePanes {
 }
 
 func (f *fakePanes) ListPanes(context.Context) ([]pane, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -103,6 +122,8 @@ func (f *fakePanes) ListPanes(context.Context) ([]pane, error) {
 }
 
 func (f *fakePanes) CapturePane(_ context.Context, p pane) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return "", f.err
 	}
@@ -110,7 +131,77 @@ func (f *fakePanes) CapturePane(_ context.Context, p pane) (string, error) {
 	return f.screens[p.ID], nil
 }
 
+// Preview and review captures can run in the same Bubble Tea batch. Every
+// call must return its own screen and remain in the fake's capture log.
+func TestFakePanesCapturesConcurrently(t *testing.T) {
+	t.Parallel()
+	f := newFakePanes()
+	const captures = 64
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range captures {
+		p := f.panes[i%len(f.panes)]
+		want := f.screens[p.ID]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			got, err := f.CapturePane(context.Background(), p)
+			if err != nil || got != want {
+				t.Errorf("capture %s = %q, %v; want %q", p.ID, got, err, want)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	counts := make(map[string]int)
+	for _, id := range f.captured {
+		counts[id]++
+	}
+	if len(f.captured) != captures || counts["w1"] != captures/2 || counts["w2"] != captures/2 {
+		t.Fatalf("capture log lost calls: %d entries, counts %v", len(f.captured), counts)
+	}
+}
+
+// Multi-selection starts one kill per pane, while refreshes can list the
+// survivors. Both the pane state and the kill log belong to the fake.
+func TestFakePanesKillsConcurrently(t *testing.T) {
+	t.Parallel()
+	f := newFakePanes()
+	const kills = 64
+	f.panes = make([]pane, kills)
+	for i := range f.panes {
+		f.panes[i].ID = fmt.Sprintf("w%d", i)
+	}
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, p := range slices.Clone(f.panes) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if err := f.KillPane(context.Background(), p); err != nil {
+				t.Error(err)
+			}
+			if _, err := f.ListPanes(context.Background()); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	counts := make(map[string]int)
+	for _, id := range f.killed {
+		counts[id]++
+	}
+	if len(f.panes) != 0 || len(f.killed) != kills || len(counts) != kills {
+		t.Fatalf("concurrent kills left %d panes and %d records (%d distinct)", len(f.panes), len(f.killed), len(counts))
+	}
+}
+
 func (f *fakePanes) KillPane(_ context.Context, p pane) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return f.err
 	}
@@ -125,6 +216,8 @@ func (f *fakePanes) KillPane(_ context.Context, p pane) error {
 }
 
 func (f *fakePanes) KillSession(_ context.Context, session string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return f.err
 	}
@@ -140,10 +233,14 @@ func (f *fakePanes) KillSession(_ context.Context, session string) error {
 }
 
 func (f *fakePanes) Activity(_ context.Context, p pane) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return "12:00:00  tool  Read  main.go", f.err
 }
 
 func (f *fakePanes) Transcript(_ context.Context, p pane) (paneTranscript, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.transcript != "" {
 		return paneTranscript{Text: f.transcript}, f.err
 	}
@@ -151,6 +248,8 @@ func (f *fakePanes) Transcript(_ context.Context, p pane) (paneTranscript, error
 }
 
 func (f *fakePanes) OpenStream(p pane) paneStream {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	s := &fakeStream{pane: p, frames: make(chan ochazuke.TerminalFrame, 4)}
 	f.streams = append(f.streams, s)
 	return s
