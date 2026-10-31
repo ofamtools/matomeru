@@ -329,7 +329,7 @@ func TestSideChooserJumpsToAnySide(t *testing.T) {
 	for _, row := range a.r.Chooser(sideChooser).Matches() {
 		labels = append(labels, row.Label)
 	}
-	want := []string{"side vim · " + f.panes[0].label(), "side term · " + f.panes[0].label(), "side vim · " + other.label()}
+	want := []string{"side vim · " + f.panes[0].label(), "side terminal · " + f.panes[0].label(), "side vim · " + other.label()}
 	if !slices.Equal(labels, want) {
 		t.Fatalf("rows %q, want %q", labels, want)
 	}

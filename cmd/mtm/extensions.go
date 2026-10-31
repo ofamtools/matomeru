@@ -616,6 +616,7 @@ func (a *App) removeExtension(ctx ochazuke.Ctx) ochazuke.Result {
 				break
 			}
 		}
+		a.refreshSides()
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -641,6 +642,7 @@ func (a *App) mountExtensions() {
 	for _, name := range names {
 		a.mountExtension(name, entries[name])
 	}
+	a.refreshSides()
 	a.syncBareNounNames()
 }
 
@@ -652,7 +654,7 @@ func (a *App) mountExtensions() {
 func (a *App) mountExtension(name string, e extEntry) {
 	notify := func(format string, args ...any) { a.r.UI().Notify(name + ": " + fmt.Sprintf(format, args...)) }
 	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
-	defer func() { a.exts = append(a.exts, x) }()
+	defer func() { a.exts = append(a.exts, x); a.refreshSides() }()
 	naming, err := a.extNamingFor(name)
 	if err != nil {
 		notify("%v", err)
@@ -694,7 +696,9 @@ func (a *App) mountExtension(name string, e extEntry) {
 		}
 	}
 	if len(x.nouns) == 0 {
-		notify("no application nouns to mount")
+		if len(e.Catalog.Sides) == 0 {
+			notify("no application nouns to mount")
+		}
 		return
 	}
 	a.mountOldNounNames(x, notify)

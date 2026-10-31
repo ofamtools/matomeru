@@ -364,6 +364,7 @@ type App struct {
 	attached       pane       // the pane the attached terminal streams
 	recent         paneVisits // when each pane was last attached (pane_picker.go)
 	held           heldStream // the attached pane's stream, parked after detach
+	sideRows       []sideRow
 	sides          map[string]sideState
 	companionPanes map[string]pane
 	sideStarting   map[string]bool
@@ -610,6 +611,7 @@ func New(opts Options) (*App, error) {
 	// its rows move when it changes, and every text naming the leader
 	// reads r.TerminalLeader().
 	a.r.EnsureTerminalLeader()
+	a.r.Settings().Observe(ochazuke.TerminalLeaderSetting, func(string, any) { a.refreshSides() })
 	// Live panes replay into the terminal.engine emulator (tuios-vt by
 	// default), chosen when a stream opens.
 	ocli.EnsureTerminalEngine(a.r)

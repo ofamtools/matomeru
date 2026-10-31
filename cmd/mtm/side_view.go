@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -12,37 +13,49 @@ import (
 const sideTermID = "pane-side-terminal"
 
 type sideState struct {
-	SideVim, SideTerm string
-	ShowVim, ShowTerm bool
-	SideFront         string
+	Windows map[string]string
+	Shown   map[string]bool
+	Front   string
+	Order   []string
+}
+
+func (s sideState) initialized() sideState {
+	if s.Windows == nil {
+		s.Windows = map[string]string{}
+	}
+	if s.Shown == nil {
+		s.Shown = map[string]bool{}
+	}
+	return s
 }
 
 func (a *App) sideFields(p pane) pane {
-	if s, ok := a.sides[p.ID]; ok {
-		p.SideVim, p.SideTerm = s.SideVim, s.SideTerm
-		p.ShowVim, p.ShowTerm, p.SideFront = s.ShowVim, s.ShowTerm, s.SideFront
-	}
+	s := a.sides[p.ID].initialized()
+	p.SideWindows = s.Windows
+	p.SideFront = s.Front
+	// Compatibility projections for existing pane readers; state and all
+	// side operations use the map. Existing vim/term records need no rewrite.
+	p.SideVim, p.SideTerm = s.Windows["vim"], s.Windows["term"]
+	p.ShowVim, p.ShowTerm = s.Shown["vim"], s.Shown["term"]
 	return p
 }
 
 func (s *sideState) front() string {
-	s.ShowVim = s.ShowVim && s.SideVim != ""
-	s.ShowTerm = s.ShowTerm && s.SideTerm != ""
-	switch {
-	case s.SideFront == "vim" && s.ShowVim:
-		return s.SideVim
-	case s.SideFront == "term" && s.ShowTerm:
-		return s.SideTerm
-	case s.ShowVim:
-		s.SideFront = "vim"
-		return s.SideVim
-	case s.ShowTerm:
-		s.SideFront = "term"
-		return s.SideTerm
-	default:
-		s.SideFront = ""
-		return ""
+	for name := range s.Shown {
+		s.Shown[name] = s.Shown[name] && s.Windows[name] != ""
 	}
+	if s.Shown[s.Front] {
+		return s.Windows[s.Front]
+	}
+	for i := len(s.Order) - 1; i >= 0; i-- {
+		name := s.Order[i]
+		if s.Shown[name] {
+			s.Front = name
+			return s.Windows[name]
+		}
+	}
+	s.Front = ""
+	return ""
 }
 
 // showSide changes only the secondary stream; the parent's lease stays live.
@@ -50,27 +63,17 @@ func (a *App) showSide(parent pane, kind string) error {
 	if a.attached.ID != parent.ID || a.r.Terminal(paneTermID) == nil {
 		return errors.New("attach the parent pane before opening its side")
 	}
-	parent = a.sideFields(parent)
-	s := sideState{parent.SideVim, parent.SideTerm, parent.ShowVim, parent.ShowTerm, parent.SideFront}
-	if kind != "vim" && kind != "term" {
-		return fmt.Errorf("unknown side kind %q", kind)
-	}
-	if a.r.Focus == sideTermID && s.SideFront == kind {
+	s := a.sides[parent.ID].initialized()
+	if a.r.Focus == sideTermID && s.Front == kind {
 		return a.r.SetFocus(paneTermID)
 	}
-	id := s.SideVim
-	if kind == "term" {
-		id = s.SideTerm
-	}
+	id := s.Windows[kind]
 	if _, ok := a.companionPanes[id]; !ok || id == "" {
 		return fmt.Errorf("side %s is no longer running", kind)
 	}
-	if kind == "vim" {
-		s.ShowVim = true
-	} else {
-		s.ShowTerm = true
-	}
-	s.SideFront = kind
+	s.Shown[kind] = true
+	s.Order = append(slices.DeleteFunc(slices.Clone(s.Order), func(name string) bool { return name == kind }), kind)
+	s.Front = kind
 	if a.sides == nil {
 		a.sides = map[string]sideState{}
 	}
@@ -102,12 +105,11 @@ func (a *App) syncSideView() error {
 		}
 	}
 	p := a.sideFields(a.attached)
-	s := sideState{p.SideVim, p.SideTerm, p.ShowVim, p.ShowTerm, p.SideFront}
-	if _, ok := a.companionPanes[s.SideVim]; !ok {
-		s.SideVim = ""
-	}
-	if _, ok := a.companionPanes[s.SideTerm]; !ok {
-		s.SideTerm = ""
+	s := a.sides[p.ID].initialized()
+	for name, id := range s.Windows {
+		if _, ok := a.companionPanes[id]; !ok {
+			delete(s.Windows, name)
+		}
 	}
 	id := s.front()
 	if a.sides == nil {
@@ -154,19 +156,15 @@ func (a *App) syncSideView() error {
 // sideDetach hides the front side, returns to its predecessor, then detaches.
 func (a *App) sideDetach(ochazuke.Ctx) ochazuke.Result {
 	p := a.sideFields(a.attached)
-	s := sideState{p.SideVim, p.SideTerm, p.ShowVim, p.ShowTerm, p.SideFront}
+	s := a.sides[p.ID].initialized()
 	if s.front() != "" {
-		if s.SideFront == "vim" {
-			s.ShowVim = false
-		} else {
-			s.ShowTerm = false
-		}
+		s.Shown[s.Front] = false
 		s.front()
 		a.sides[p.ID] = s
 		if err := a.syncSideView(); err != nil {
 			return ochazuke.Failed(err)
 		}
-		return ochazuke.Done(s.SideFront)
+		return ochazuke.Done(s.Front)
 	}
 	if err := a.closeSideTerminal(); err != nil {
 		return ochazuke.Failed(err)
@@ -324,7 +322,7 @@ func (a *App) detailBlock(layout ochazuke.Layout, width, height int) ochazuke.Bl
 func (a *App) sideDetailBlock(layout ochazuke.Layout, width, height int) ochazuke.Block {
 	term := a.r.Terminal(sideTermID)
 	p, _ := a.r.Instances[sideTermID].Data.(pane)
-	title := a.streamTitle(sideTermID, "side "+a.attached.SideFront+" · "+p.label())
+	title := a.streamTitle(sideTermID, a.sideTitle(a.attached.SideFront)+" · "+p.label())
 	if e := term.Err(); e != "" {
 		title += ": " + e
 	}
@@ -348,8 +346,7 @@ type sideChoice struct {
 }
 
 // chooseSide is panes.sides (leader w, live and on the Panes page): a
-// chooser of every open side across every pane, "side vim · parent" or
-// "side term · parent". The links come from the last listing
+// chooser of every open side across every pane, "TITLE · parent". The links come from the last listing
 // (mergeCompanions), so only sides whose windows and parents this server
 // lists are there; an exited parent or side is left out. Enter attaches
 // the parent, shows that side and focuses it (jumpToSide).
@@ -360,11 +357,12 @@ func (a *App) chooseSide(ctx ochazuke.Ctx) ochazuke.Result {
 		if !ok || p.Exited {
 			continue
 		}
-		for _, side := range []struct{ kind, id string }{{"vim", s.SideVim}, {"term", s.SideTerm}} {
-			if c, live := a.companionPanes[side.id]; side.id == "" || !live || c.Exited {
+		for _, name := range a.sideNames(s) {
+			id := s.Windows[name]
+			if c, live := a.companionPanes[id]; id == "" || !live || c.Exited {
 				continue
 			}
-			rows = append(rows, ochazuke.ChooserRow{ID: p.ID + "/" + side.kind, Label: "side " + side.kind + " · " + p.label(), Data: sideChoice{parent: p, kind: side.kind}})
+			rows = append(rows, ochazuke.ChooserRow{ID: p.ID + "/" + name, Label: a.sideTitle(name) + " · " + p.label(), Data: sideChoice{parent: p, kind: name}})
 		}
 	}
 	if len(rows) == 0 {

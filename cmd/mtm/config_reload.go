@@ -10,7 +10,7 @@ import (
 
 // mtm's own configuration files join ochazuke's config.reload (`mtm config
 // reload`, the palette's config.reload): after themes.json, settings.json,
-// actions.json and bindings.json, it reads harnesses.json and dirs.json
+// actions.json and bindings.json, it reads harnesses.json, dirs.json and sides.json
 // again. A file that does not read is a problem naming it; the old
 // configuration stays. Not hooked: the extension registry (extensions/ in
 // the data directory) is state the extension verbs write, synced already
@@ -23,6 +23,7 @@ var harnessOps = []string{"agent.launch", "agent.start", "project.launch", "task
 func (a *App) defineConfigReload() {
 	a.r.OnConfigReload(filepath.Base(a.opts.Harnesses), a.reloadHarnesses)
 	a.r.OnConfigReload("dirs.json", a.reloadDirsConfig)
+	a.r.OnConfigReload(sidesFile, a.reloadSides)
 }
 
 // reloadHarnesses reads the harness file again over the built-ins; the

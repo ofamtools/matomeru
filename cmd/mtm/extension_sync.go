@@ -103,6 +103,7 @@ func (a *App) mountRegistry(all bool) {
 		uerrs = append(uerrs, a.unmountExtension(x))
 	}
 	a.exts = a.exts[:i]
+	a.refreshSides()
 	for _, name := range names[i:] {
 		a.mountExtension(name, entries[name])
 	}

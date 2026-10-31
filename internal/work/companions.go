@@ -8,7 +8,7 @@ import (
 	"github.com/unixsuperhero/matomeru/store"
 )
 
-// Companion links a side vim or terminal window to its parent pane.
+// Companion links a named side window to its parent pane.
 // Server is the TUIOS daemon socket the windows are on: one database
 // serves every mtm, on any server, so a listing reconciles only its own
 // server's links (ReconcileCompanions). "" is a link written before the
@@ -29,8 +29,8 @@ func (s *Store) PutCompanion(row Companion) error {
 	if row.Window == "" || row.Parent == "" || row.Window == row.Parent {
 		return errors.New("companion requires distinct nonempty window and parent ids")
 	}
-	if row.Kind != "vim" && row.Kind != "term" {
-		return errors.New("companion kind must be vim or term")
+	if row.Kind == "" {
+		return errors.New("companion kind must be nonempty")
 	}
 	return s.db.Tx([]string{"companions"}, func(tx *store.Tx) error {
 		raws, err := tx.All("companions")

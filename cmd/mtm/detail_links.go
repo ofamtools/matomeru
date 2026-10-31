@@ -370,8 +370,10 @@ func (a *App) paneLink(window string) (link, bool) {
 		}
 	}
 	for _, p := range a.panes {
-		if (p.SideVim == window || p.SideTerm == window) && a.r.Instances[p.rowID()] != nil {
-			return link{Text: p.label() + " (side pane)", To: linkTarget{linkPane, p.rowID()}}, true
+		for _, side := range p.SideWindows {
+			if side == window && a.r.Instances[p.rowID()] != nil {
+				return link{Text: p.label() + " (side pane)", To: linkTarget{linkPane, p.rowID()}}, true
+			}
 		}
 	}
 	return link{}, false
