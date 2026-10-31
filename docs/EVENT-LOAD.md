@@ -19,8 +19,13 @@ Structure events collect in a fixed window. A listing in flight allows only one
 pending follow-up, including an explicit reconciliation request. Event and timer
 listings do not take the cross-process side lock or ask `Exited` per pane.
 Startup, explicit `panes.refresh`, and side operations retain reconciliation and
-exit cleanup. Exit events mark their pane exited immediately for the next
-listing. Lock acquisition for reconciliation observes job cancellation.
+exit cleanup. Exit events mark their pane exited immediately and make their
+window's listing (or the trailing listing of one in flight) reconcile, so the
+exited window and its side close within one coalescing window; other events in
+that window ride along, and the next window is light again. If an exit event is
+missed (a resync, a dropped subscription), a light listing that shows a window
+exited queues one reconciling listing, once per window. Lock acquisition for
+reconciliation observes job cancellation.
 
 History caches immutable decoded rows by SQLite insertion sequence, independent
 of a pane's ring sequence. Every projection queries only rows after its cursor;

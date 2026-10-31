@@ -97,7 +97,7 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, a.waitEvent())
 	case paneEventsDue:
 		a.pv.eventPending = false
-		if err := a.reloadPaneListing(false); err != nil {
+		if err := a.reloadPaneListing(a.takeReconcilePending()); err != nil {
 			a.paneErr = err.Error()
 		}
 	}

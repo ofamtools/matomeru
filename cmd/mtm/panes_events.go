@@ -85,6 +85,11 @@ func retitlePane(p *pane, title string, rename bool) bool {
 	return true
 }
 
+// reconcileEvents are the event types whose listing must reconcile: close
+// exited windows (and with them their sides) and drop stale side links.
+// Every other event, retitles above all, keeps the light listing.
+var reconcileEvents = map[string]bool{"window-exit": true}
+
 // applyPaneEvents updates payloads already in memory and says whether a
 // structure listing is needed. Unknown retitles wait for a structure event.
 func (a *App) applyPaneEvents(events []daemon.Event) bool {
@@ -129,6 +134,9 @@ func (a *App) applyPaneEvents(events []daemon.Event) bool {
 				a.pv.exited = map[string]bool{}
 			}
 			a.pv.exited[e.Window] = true
+		}
+		if reconcileEvents[e.Type] {
+			a.pv.reconcilePending = true
 		}
 		reload = true
 	}
@@ -202,11 +210,12 @@ func (a *App) schedulePaneEvents() tea.Cmd {
 	}
 	if a.paneRefreshRunning() {
 		a.pv.refreshQueued = true
+		a.pv.reconcileQueued = a.pv.reconcileQueued || a.takeReconcilePending()
 		return nil
 	}
 	delay := a.r.Settings().Duration(settingEventCoalesce)
 	if delay <= 0 {
-		if err := a.reloadPaneListing(false); err != nil {
+		if err := a.reloadPaneListing(a.takeReconcilePending()); err != nil {
 			a.paneErr = err.Error()
 		}
 		return nil
@@ -216,4 +225,40 @@ func (a *App) schedulePaneEvents() tea.Cmd {
 		return a.pv.after(delay, paneEventsDue{})
 	}
 	return nil
+}
+
+// takeReconcilePending says whether an event since the last scheduled
+// listing needs reconciliation, and clears it for the next window.
+func (a *App) takeReconcilePending() bool {
+	r := a.pv.reconcilePending
+	a.pv.reconcilePending = false
+	return r
+}
+
+// queueExitReconcile is the fallback for a missed window-exit (a resync, a
+// dropped subscription): a listing that shows a window exited which no
+// reconciling listing has been asked to close yet queues one. Each window
+// asks once, so a daemon that keeps listing it exited costs one probe round,
+// not one per timer listing.
+func (a *App) queueExitReconcile(panes []pane) {
+	seen := make(map[string]bool, len(panes))
+	for _, p := range panes {
+		if p.ID == "" || !p.Exited {
+			continue
+		}
+		seen[p.ID] = true
+		if a.pv.exitAsked[p.ID] {
+			continue
+		}
+		if a.pv.exitAsked == nil {
+			a.pv.exitAsked = map[string]bool{}
+		}
+		a.pv.exitAsked[p.ID] = true
+		a.pv.refreshQueued, a.pv.reconcileQueued = true, true
+	}
+	for id := range a.pv.exitAsked {
+		if !seen[id] {
+			delete(a.pv.exitAsked, id)
+		}
+	}
 }
