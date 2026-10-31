@@ -81,11 +81,10 @@ func storyConfig() host.Config {
 func mtmApp() monogatari.App {
 	return monogatari.App{
 		Name:    "mtm",
-		Fields:  []string{"where", "what"},
 		Summary: "mtm on a temp database and a faked daemon (seed panes: the fake panes)",
 		Fixtures: []monogatari.Fixture{
 			{Name: "seeded", Summary: "docs/vhs/seed.sh's projects, tasks and notes (acme-web, billing-api, docs-site), two inbox items and two fake panes; opens on Panes", Build: buildSeeded},
-			{Name: "tutorials", Summary: "seeded, with checkout, webhook and quickstart notes associated with their tasks", Build: buildTutorials},
+			{Name: "reference", Summary: "seeded, with checkout, webhook and quickstart notes associated with their tasks", Build: buildReference},
 			{Name: "nested", Summary: "seeded, plus subtasks under acme-web's Checkout page task (two children, one with a child of its own)", Build: buildNested},
 			{Name: "makers", Summary: "seeded, with acme-web's cart drawer task made by an agent (claude) and its flaky-test task private", Build: buildMakers},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
@@ -152,13 +151,13 @@ func buildSeeded(env monogatari.Env) (monogatari.Built, error) {
 	return buildStory(env, writeSeeded, seededPanes)
 }
 
-func buildTutorials(env monogatari.Env) (monogatari.Built, error) {
-	return buildStory(env, writeTutorials, seededPanes)
+func buildReference(env monogatari.Env) (monogatari.Built, error) {
+	return buildStory(env, writeReference, seededPanes)
 }
 
-// Tutorials keep the original seeded stories unchanged while exposing notes
+// The reference fixture keeps seeded stories unchanged while exposing notes
 // under actual tasks, as well as the project-wide notes in the base fixture.
-func writeTutorials(path string, now int64) error {
+func writeReference(path string, now int64) error {
 	if err := writeSeeded(path, now); err != nil {
 		return err
 	}

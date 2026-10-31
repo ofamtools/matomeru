@@ -41,9 +41,11 @@ split-check:
 	$(MAKE) story-bin STORY_BIN=bin/mtm-story
 	@n=$$(go tool nm bin/mtm-story | grep -c monogatari); echo "mtm-story: $$n monogatari symbols"; test "$$n" -gt 0
 
-# Portable, checked tutorial chapters. The exporter isolates HOME/XDG and
-# fixture directories and restores where/what metadata omitted by v0.3.0.
-.PHONY: tutorials-export
-tutorials-export: story-bin
+# Portable state/key reference; reads committed data and never runs the app.
+.PHONY: states-test states-export
+states-test:
+	python3 -I scripts/states_export_test.py
+
+states-export:
 	@test -n "$(OUT)" || { echo 'give OUT=/path/to/export' >&2; exit 2; }
-	python3 -I scripts/tutorials_export.py --bin $(STORY_BIN) --out "$(OUT)"
+	python3 -I scripts/states_export.py docs/keys/states.json "$(OUT)"

@@ -129,3 +129,13 @@ In a live pane every key goes to the program in it, except the `terminal-leader`
 The live-only leader keys stay as they were: `v`/`t` side vim and terminal, `d` close a side or detach, `z` zoom, `o` the other pane, `R` side layout, `w` sides, `j`/`k` next and previous pane, `s` starred, `[` copy mode, `c` context, `f` hints, `N` quick note, `n` new task, `T` todos and `S` all projects. The leader twice sends one leader to the pane. The leader's `?` used to open the leader-only keys modal; that is `terminal.keys` now, from the palette (`terminal keys`). Changing `terminal-leader` moves every row.
 
 Not after the leader: `[`/`]` tabs (`[` is copy mode, and live is the Screen tab), `(`/`)` focus regions, `"` and `@` registers and macros, `/` filter, `<` `>` `=` resize and `.` dot-repeat (they do nothing on the Panes page, which draws its own split and records no repeatable change), and in-component motions (`$ % ^ 0 | ; { }`).
+
+## States reference
+
+The [state/key reference](docs/keys/README.md) describes each measured page,
+focus, mode and modal stack, with all bindings including hidden keys.
+`docs/keys/states.json` is app-owned reference data outside the story library.
+`make states-export OUT=/tmp/mtm-tutorials/export` produces one portable JSON
+per state and an index without replaying or building the app. The reusable
+hub keymap-outline builder refreshes it in `mode: states`; mtm ships no replay
+tutorials.

@@ -1,7 +1,7 @@
 {
   "name": "mtm: context footer has stable binding order",
   "area": "context",
-  "fixture": "tutorials",
+  "fixture": "reference",
   "width": 110,
   "height": 32,
   "script": ["N", "ctrl+o", "ctrl+j", "ctrl+j", "ctrl+j"],
