@@ -5,8 +5,11 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 )
 
-const mtmAbout = "Matomeru keeps projects, nested tasks, notes and context beside TUIOS agent panes. It is the family's MCP gateway, including mounted tools."
-const mtmAgentRules = "Work headless as your startup pane. Change your own tasks and lane tasks; owner-made lane tasks allow status changes only. Ask the owner or coordinator when refused. Append findings as notes and context."
+// mtmAbout and mtmAgentRules are quoted into the MCP instructions. ochazuke
+// caps each at AgentTextLimit tokens (chars/4), so the gateway's routing
+// (mounted tools reached through run) lives in About and the rules here.
+const mtmAbout = "Matomeru keeps projects, tasks, notes and context beside TUIOS panes. As the family MCP gateway it runs o-lane, o-md, o-git, questions.question.ask|answer|follow-up and cmds.cmd.add; use no other MCP server."
+const mtmAgentRules = "Track work as lanes in mtm projects (project.new if needed): lane.lane.define|state|associate (to your pane). Tasks are the owner's: set status only if asked. Findings: md.doc.new, then document_report; notes are jots."
 
 // Declarations cover app policy, not transport policy. The task and pane stores
 // retain their per-record AgentPolicy checks on every request path.
@@ -17,7 +20,7 @@ var mtmAgentDeclarations = []struct {
 	{"task.create", ochazuke.AgentAllow, false}, {"task.set", ochazuke.AgentAllow, false}, {"task.move", ochazuke.AgentAllow, false},
 	{"task.done", ochazuke.AgentAllow, false}, {"task.status", ochazuke.AgentAllow, false},
 	{"task.delete", "", true}, {"task.make-project", ochazuke.AgentNever, true},
-	{"project.create", ochazuke.AgentNever, false}, {"project.new", ochazuke.AgentNever, false},
+	{"project.create", ochazuke.AgentAllow, false}, {"project.new", ochazuke.AgentAllow, false},
 	{"project.set", ochazuke.AgentNever, false}, {"project.edit", ochazuke.AgentNever, false}, {"project.rename", ochazuke.AgentNever, false},
 	{"project.duplicate", ochazuke.AgentNever, false},
 	{"project.delete", ochazuke.AgentNever, true}, {"project.make-task", ochazuke.AgentNever, true},
@@ -43,7 +46,7 @@ func (a *App) defineAgentDeclarations() {
 		"project":   "A work context with a repository, directories, launch settings and privacy.",
 		"task":      "A nested unit of work, with status, maker and last writer. Agent writes follow its lane and record policy.",
 		"pane":      "A TUIOS terminal window and its task assignment, launch recipe and agent progress.",
-		"note":      "Saved findings and evidence, associated with a task or project, or unassociated.",
+		"note":      "Short jots, closing lines and evidence, associated with a task or project, or unassociated. Longer findings belong in a document.",
 		contextNoun: "Links, files, directories, commits, prompts and commands kept from a pane or supplied text.",
 	} {
 		a.r.Define(noun).About(about)

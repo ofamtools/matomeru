@@ -146,7 +146,7 @@ func TestMCPVerbRightsTable(t *testing.T) {
 		destructive bool
 	}{
 		{"task.create", "allow", false}, {"task.set", "allow", false}, {"task.move", "allow", false}, {"task.done", "allow", false}, {"task.status", "allow", false},
-		{"task.delete", "confirm", true}, {"project.delete", "never", true}, {"project.set", "never", false}, {"pane.kill", "confirm", true},
+		{"task.delete", "confirm", true}, {"project.new", "allow", false}, {"project.create", "allow", false}, {"project.delete", "never", true}, {"project.set", "never", false}, {"pane.kill", "confirm", true},
 		{"session.kill", "never", true}, {"note.delete", "never", true}, {"context-item.delete", "never", true},
 		{"setup.install", "never", false}, {"setup.uninstall", "never", true}, {"extension.remove", "never", true},
 		{"ochazuke.settings.set", "never", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
