@@ -81,9 +81,11 @@ func storyConfig() host.Config {
 func mtmApp() monogatari.App {
 	return monogatari.App{
 		Name:    "mtm",
+		Fields:  []string{"where", "what"},
 		Summary: "mtm on a temp database and a faked daemon (seed panes: the fake panes)",
 		Fixtures: []monogatari.Fixture{
 			{Name: "seeded", Summary: "docs/vhs/seed.sh's projects, tasks and notes (acme-web, billing-api, docs-site), two inbox items and two fake panes; opens on Panes", Build: buildSeeded},
+			{Name: "tutorials", Summary: "seeded, with checkout, webhook and quickstart notes associated with their tasks", Build: buildTutorials},
 			{Name: "nested", Summary: "seeded, plus subtasks under acme-web's Checkout page task (two children, one with a child of its own)", Build: buildNested},
 			{Name: "makers", Summary: "seeded, with acme-web's cart drawer task made by an agent (claude) and its flaky-test task private", Build: buildMakers},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
@@ -150,6 +152,38 @@ func buildSeeded(env monogatari.Env) (monogatari.Built, error) {
 	return buildStory(env, writeSeeded, seededPanes)
 }
 
+func buildTutorials(env monogatari.Env) (monogatari.Built, error) {
+	return buildStory(env, writeTutorials, seededPanes)
+}
+
+// Tutorials keep the original seeded stories unchanged while exposing notes
+// under actual tasks, as well as the project-wide notes in the base fixture.
+func writeTutorials(path string, now int64) error {
+	if err := writeSeeded(path, now); err != nil {
+		return err
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	w, err := work.Open(db)
+	if err != nil {
+		return err
+	}
+	for i, note := range []work.Note{
+		{ID: "tutorial-checkout", ProjectID: "acme-web", TaskID: "t1", Text: "Check the shipping estimate on mobile before enabling checkout_v2."},
+		{ID: "tutorial-webhooks", ProjectID: "billing-api", TaskID: "t6", Text: "Retry with backoff; retain the failed payload for inspection."},
+		{ID: "tutorial-quickstart", ProjectID: "docs-site", TaskID: "t10", Text: "Show installation, one command, and the expected output."},
+	} {
+		note.Created, note.Updated = int64(i+10), int64(i+10)
+		if err := w.PutNote(note); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func buildNested(env monogatari.Env) (monogatari.Built, error) {
 	return buildStory(env, writeNested, seededPanes)
 }
@@ -173,7 +207,7 @@ func buildStory(env monogatari.Env, fill func(path string, now int64) error, pan
 	if seed.Panes != nil {
 		panes = *seed.Panes
 	}
-	dir, err := os.MkdirTemp("", "mtm-story-")
+	dir, err := env.TempDir("mtm")
 	if err != nil {
 		return built, err
 	}

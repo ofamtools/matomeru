@@ -26,9 +26,12 @@ story-bin:
 
 # The tagged build's vet and race suite: every test, the stories through
 # host.Test (cmd/mtm/stories_test.go).
+# Lanes may narrow the package and test selection; the default gate stays full.
+STORY_PACKAGES ?= ./...
+STORY_TEST_FLAGS ?= -race
 story-test:
-	go vet -tags monogatari ./...
-	go test -trimpath -race -tags monogatari ./...
+	go vet -tags monogatari $(STORY_PACKAGES)
+	go test -trimpath $(STORY_TEST_FLAGS) -tags monogatari $(STORY_PACKAGES)
 
 # A normal build links no monogatari; the tester does.
 split-check:
@@ -37,3 +40,10 @@ split-check:
 	@n=$$(go tool nm bin/mtm | grep -c monogatari); echo "mtm: $$n monogatari symbols"; test "$$n" -eq 0
 	$(MAKE) story-bin STORY_BIN=bin/mtm-story
 	@n=$$(go tool nm bin/mtm-story | grep -c monogatari); echo "mtm-story: $$n monogatari symbols"; test "$$n" -gt 0
+
+# Portable, checked tutorial chapters. The exporter isolates HOME/XDG and
+# fixture directories and restores where/what metadata omitted by v0.3.0.
+.PHONY: tutorials-export
+tutorials-export: story-bin
+	@test -n "$(OUT)" || { echo 'give OUT=/path/to/export' >&2; exit 2; }
+	python3 -I scripts/tutorials_export.py --bin $(STORY_BIN) --out "$(OUT)"
