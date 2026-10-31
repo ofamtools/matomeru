@@ -48,14 +48,47 @@ func (a *App) makeProject(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.converted(ctx, conv, err)
 }
 
-// outlineDemote is tab on an outline project row.
+// outlineDemote is tab on an outline project row: it becomes a task of
+// the project row drawn above it (a project just added with o sits under
+// the row it was added below, not last as the store lists it), else of
+// the project the store lists above it.
 func (a *App) outlineDemote(ctx ochazuke.Ctx) ochazuke.Result {
 	id, err := a.outlineProject(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	conv, err := a.projectToTask(id, "")
+	conv, err := a.projectToTask(id, a.projectRowAbove(ctx.Instance.ID))
 	return a.converted(ctx, conv, err)
+}
+
+// projectRowAbove is the project of the top-level outline row drawn just
+// above row, or "" when there is none (the first row, a project's own
+// outline) or it is not a project.
+func (a *App) projectRowAbove(row string) string {
+	o := a.outline
+	if o == nil || a.r.Tree(outlineTree) != o.tree {
+		return ""
+	}
+	above, found := "", false
+	for _, n := range o.tree.Nodes() {
+		if n.Parent != "" {
+			continue
+		}
+		if n.ID == row {
+			found = true
+			break
+		}
+		above = n.ID
+	}
+	if !found {
+		return ""
+	}
+	if id := projectOfRoot(above); id != "" {
+		if _, ok := a.project(id); ok {
+			return id
+		}
+	}
+	return ""
 }
 
 // outlinePromote is shift+tab on a task directly under its project

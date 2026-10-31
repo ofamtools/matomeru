@@ -1,0 +1,24 @@
+{
+  "name": "mtm: in the task outline, shift+tab while typing a task directly under its project makes it a project listed after it, and typing goes on in insert; u undoes the typing, then the conversion",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 40,
+  "values": {"rename.select": false},
+  "script": ["T", "g", "g", "j", "i", "shift+tab", {"type": "!"}, "esc", "u", "u"],
+  "expect": [
+    {
+      "after": 6,
+      "mode": "insert",
+      "focus": "task-outline/tree/line",
+      "contains": ["Now the project Checkout page"],
+      "order": ["▾ acme-web", "[ ] Move the cart drawer", "  Checkout page: show the shipping estimate", "▾ billing-api"]
+    },
+    {"after": 7, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["  Checkout page: show the shipping estimate!"]},
+    {
+      "mode": "normal",
+      "order": ["▾ acme-web", "[>] Checkout page: show the shipping estimate", "[ ] Move the cart drawer", "▾ billing-api"],
+      "lacks": ["estimate!"]
+    }
+  ]
+}

@@ -177,13 +177,19 @@ func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 	focusRow(t, a, projectNode("ochazuke"))
 	refused(t, a, "tab", "no project above it")
 	focusRow(t, a, outlineNode("t1"))
-	// In the open line shift+tab reaches the outline itself: the move is
-	// not stored and the row goes back under its project.
+	// In the open line shift+tab is the row's own shift+tab: the task
+	// becomes a project, the line stays open, and u puts it back.
 	press(t, a, "i", "shift+tab")
+	if a.r.Mode.Name != "insert" {
+		t.Fatalf("shift+tab in the line left insert: mode %s", a.r.Mode.Name)
+	}
+	if _, err := a.work.Task("t1"); err == nil {
+		t.Fatal("shift+tab in the line did not make t1 a project")
+	}
 	a.m.Status = ""
-	press(t, a, "esc")
+	press(t, a, "esc", "u")
 	if got := stored(t, a, "t1"); got.ProjectID != "matomeru" || rootOf(a.r.Tree(outlineTree), outlineNode("t1")) != projectNode("matomeru") {
-		t.Fatalf("shift+tab in the line moved t1: %+v roots %v", got, rootRows(a))
+		t.Fatalf("u after shift+tab in the line: %+v roots %v", got, rootRows(a))
 	}
 	focusRow(t, a, projectNode(""))
 	refused(t, a, "tab", "top level")

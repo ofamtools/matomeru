@@ -1,0 +1,24 @@
+{
+  "name": "mtm: in the task outline, tab while typing a project's name makes it a task of the project above, its tasks with it, and typing goes on in insert; u undoes the typing, then the conversion",
+  "area": "tasks",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 40,
+  "values": {"rename.select": false},
+  "script": ["T", "g", "g", "j", "j", "j", "j", "j", "j", "i", "tab", {"type": "!"}, "esc", "u", "u"],
+  "expect": [
+    {
+      "after": 11,
+      "mode": "insert",
+      "focus": "task-outline/tree/line",
+      "contains": ["Now a task of acme-web"],
+      "order": ["▾ acme-web", "[x] Dark mode for the order history", "  ▾ billing-api", "[>] Retry failed webhooks", "▾ docs-site"]
+    },
+    {"after": 12, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["  ▾ billing-api!"]},
+    {
+      "mode": "normal",
+      "order": ["▾ acme-web", "[x] Dark mode for the order history", "▾ billing-api", "[>] Retry failed webhooks", "▾ docs-site"],
+      "lacks": ["billing-api!"]
+    }
+  ]
+}
