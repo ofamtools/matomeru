@@ -23,6 +23,7 @@ func stepText(t *testing.T, a *App) string {
 // step spills to the next card, whose answer walks by paragraph; k comes
 // back out to the card, h closes it and h again goes to the pane row (F8).
 func TestTurnCardStepsWalk(t *testing.T) {
+	t.Parallel()
 	app, _, log := claudeTurnsApp(t)
 	moreClaudeTurns(t, log, 4, 5) // ids that do not collide with the first turn's
 	reload(t, app)
@@ -114,6 +115,7 @@ func TestTurnCardStepsWalk(t *testing.T) {
 // h and esc inside a card go back to the card, which stays open; Y inside
 // copies the whole turn.
 func TestTurnCardStepsLeave(t *testing.T) {
+	t.Parallel()
 	for _, k := range []string{"h", "esc"} {
 		t.Run(k, func(t *testing.T) {
 			app, _, _ := claudeTurnsApp(t)
@@ -146,6 +148,7 @@ func TestTurnCardStepsLeave(t *testing.T) {
 
 // An edit's tool call reads as a diff.
 func TestEditDiff(t *testing.T) {
+	t.Parallel()
 	got, ok := editDiff(`{"file_path":"a.go","old_string":"x := 1\ny := 2","new_string":"x := 3"}`)
 	want := "--- a.go\n+++ a.go\n-x := 1\n-y := 2\n+x := 3"
 	if !ok || got != want {
@@ -161,6 +164,7 @@ func TestEditDiff(t *testing.T) {
 
 // The tree style reads an edit's tool call as a diff too.
 func TestTreeEditStepReadsAsADiff(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	s := turns.Step{Kind: turns.StepTool, Tool: "Edit", Input: `{"file_path":"a.go","old_string":"x := 1","new_string":"x := 3"}`}
 	var labels []string

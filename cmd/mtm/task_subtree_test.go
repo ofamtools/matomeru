@@ -36,6 +36,7 @@ func projectsOf(t *testing.T, a *App, ids ...string) string {
 // task.move (m's verb) takes the subtree to the project in one write; one
 // undo takes every task back; set parent= into another project does too.
 func TestTaskMoveTakesTheSubtreeAndOneUndoRestoresIt(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	addSubtree(t, a.work)
 	executeA(t, a, "task", "move", "", ochazuke.Arguments{"id": "t1", "to": "ochazuke"})
@@ -68,6 +69,7 @@ func TestTaskMoveTakesTheSubtreeAndOneUndoRestoresIt(t *testing.T) {
 
 // From the CLI on a temp database: task move takes the subtree.
 func TestCLITaskMoveTakesTheSubtree(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	db, err := store.Open(path)
 	if err != nil {

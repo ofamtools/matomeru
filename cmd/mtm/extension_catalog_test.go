@@ -14,6 +14,7 @@ import (
 // The catalog can change without a new bin stamp: wrappers load external
 // files, and an install can preserve a binary's size and modification time.
 func TestExtensionCatalogChangeWithoutBinChange(t *testing.T) {
+	t.Parallel()
 	for _, trigger := range []string{"start", "extensions", "tab"} {
 		t.Run(trigger, func(t *testing.T) {
 			path := seeded(t)
@@ -55,6 +56,7 @@ func TestExtensionCatalogChangeWithoutBinChange(t *testing.T) {
 }
 
 func TestExtensionCatalogAutoRefreshOptOut(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, _ := fakeExtension(t, toolCatalog("fake", "1.0"), "")
 	a := registered(t, path, "fake", bin)
@@ -85,6 +87,7 @@ func TestExtensionCatalogAutoRefreshOptOut(t *testing.T) {
 }
 
 func TestExtensionCatalogCheckDoesNotOverwriteNewerRegistration(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, _ := fakeExtension(t, toolCatalog("fake", "1.0"), "")
 	a := registered(t, path, "fake", bin)
@@ -109,6 +112,7 @@ func TestExtensionCatalogCheckDoesNotOverwriteNewerRegistration(t *testing.T) {
 }
 
 func TestExtensionCatalogFailureRecoversWithoutBinChange(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	bin, _ := fakeExtension(t, toolCatalog("fake", "1.0"), "")
 	a := registered(t, path, "fake", bin)
@@ -132,6 +136,7 @@ func TestExtensionCatalogFailureRecoversWithoutBinChange(t *testing.T) {
 // The reported bug changed only detail Sections, not the version or verbs.
 // Render the actual remounted page so catalog equality covers that case.
 func TestExtensionCatalogDetailSectionsChange(t *testing.T) {
+	t.Parallel()
 	page := `"pages":[{"id":"items","title":"Catalog fixture","lists":[{"id":"items/list","noun":"item","source":"item.list"}],"detail":{"fields":["body"]}}]`
 	old := strings.Replace(toolCatalog("fake", "1.0"), `"pages":[]`, page, 1)
 	bin, _ := fakeExtension(t, old, "")

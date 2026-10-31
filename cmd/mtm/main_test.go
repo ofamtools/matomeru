@@ -132,11 +132,17 @@ func toWork(t *testing.T, app *App) {
 // openWith builds the app with opts and the test fakes.
 func openWith(t *testing.T, opts Options) *App {
 	t.Helper()
+	if opts.lookupEnv == nil {
+		env := map[string]string{"HOME": "/home/test", "MTM_O_PROJ": "none"}
+		opts.lookupEnv = func(k string) (string, bool) { v, ok := env[k]; return v, ok }
+	}
 	app, err := New(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { app.Close() })
+	clock := &fakeClock{t: time.Unix(1_790_000_000, 0)}
+	app.m.Now = clock.now
 	app.home = func() (string, error) { return "/home/test", nil }
 	// No test reaches the real daemon.
 	app.panesd = newFakePanes()
@@ -152,12 +158,11 @@ func openWith(t *testing.T, opts Options) *App {
 		}
 	}
 	app.sleep = func(context.Context, time.Duration) error { return nil }
-	app.getenv = func(string) string { return "" } // tests may run inside a TUIOS pane
-	app.journalSrc = nil                           // the journal reader never follows the real daemon
-	app.claudeProjects = t.TempDir()               // no test reads the owner's Claude session logs
-	app.ompSessions = t.TempDir()                  // nor omp's
-	app.codexSessions = t.TempDir()                // nor Codex's
-	app.locator = nil                              // nor the harnesses' session records
+	app.journalSrc = nil             // the journal reader never follows the real daemon
+	app.claudeProjects = t.TempDir() // no test reads the owner's Claude session logs
+	app.ompSessions = t.TempDir()    // nor omp's
+	app.codexSessions = t.TempDir()  // nor Codex's
+	app.locator = nil                // nor the harnesses' session records
 	// The prompt box's completions read a home of the test's, never o-ai.
 	home := t.TempDir()
 	app.pb.sources = compose.NewSources(compose.Env{Home: home, ClaudeDir: filepath.Join(home, ".claude"), OmpDir: filepath.Join(home, ".omp", "agent")})
@@ -182,6 +187,7 @@ func openWith(t *testing.T, opts Options) *App {
 }
 
 func TestBindingRowsAreAtomic(t *testing.T) {
+	t.Parallel()
 	if _, err := open(t).r.ValidateBindings(); err != nil {
 		t.Fatal(err)
 	}
@@ -190,12 +196,14 @@ func TestBindingRowsAreAtomic(t *testing.T) {
 // TestNoActionAliasClashes: every alias mtm and ochazuke register lands
 // (ochazuke's bare help and h, the docs noun, mtm's own aliases).
 func TestNoActionAliasClashes(t *testing.T) {
+	t.Parallel()
 	if problems := open(t).r.ActionAliasProblems(); len(problems) > 0 {
 		t.Fatalf("aliases dropped: %v", problems)
 	}
 }
 
 func TestWorkPageListsStoredProjects(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	app.m.Width, app.m.Height = 80, 24
 	frame := ansi.Strip(app.m.View().Content)
@@ -210,6 +218,7 @@ func TestWorkPageListsStoredProjects(t *testing.T) {
 }
 
 func TestOpenProjectReturnsTheRow(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	out, err := app.r.Execute(ochazuke.Request{Verb: "open", Noun: "project", Target: "matomeru"})
 	if err != nil {
@@ -224,6 +233,7 @@ func TestOpenProjectReturnsTheRow(t *testing.T) {
 }
 
 func TestStopsMoveBetweenProjectsAndTasks(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
 	if app.r.Focus != "t1" {
@@ -249,6 +259,7 @@ func TestStopsMoveBetweenProjectsAndTasks(t *testing.T) {
 // Owner decision (2026-10-26): enter on a Work task row opens the record
 // editor for that task, as i does; l still opens the task's detail.
 func TestEnterOnATaskRowOpensTheRecordEditor(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
 	if app.r.Focus != "t1" {
@@ -269,6 +280,7 @@ func TestEnterOnATaskRowOpensTheRecordEditor(t *testing.T) {
 }
 
 func TestTaskVerbsPersistThroughPanel(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
 
@@ -323,6 +335,7 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 }
 
 func TestTaskVerbsTakeArgumentsWithoutPrompts(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	if _, err := app.r.Execute(ochazuke.Request{Verb: "open", Noun: "project", Target: "matomeru"}); err != nil {
 		t.Fatal(err)
@@ -336,4 +349,31 @@ func TestTaskVerbsTakeArgumentsWithoutPrompts(t *testing.T) {
 	if got := stored(t, app, "t2"); got.Title != "renamed" || got.Status != work.StatusDone {
 		t.Fatalf("task = %+v", got)
 	}
+}
+
+// testEnv overrides only this app, including directory scans and home expansion.
+func testEnv(a *App, key, value string) {
+	previous := a.opts.lookupEnv
+	a.opts.lookupEnv = func(k string) (string, bool) {
+		if k == key {
+			return value, true
+		}
+		return previous(k)
+	}
+	a.getenv = a.opts.getenv
+	if key == "HOME" {
+		a.home = a.opts.home
+	}
+}
+
+// testUnsetEnv preserves LookupEnv's distinction between unset and empty.
+func testUnsetEnv(a *App, key string) {
+	previous := a.opts.lookupEnv
+	a.opts.lookupEnv = func(k string) (string, bool) {
+		if k == key {
+			return "", false
+		}
+		return previous(k)
+	}
+	a.getenv = a.opts.getenv
 }

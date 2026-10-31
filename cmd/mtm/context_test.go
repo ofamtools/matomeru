@@ -108,6 +108,7 @@ func selectContext(t *testing.T, a *App, text string) {
 }
 
 func TestContextPageListsNewestFirstAndFollowsThePin(t *testing.T) {
+	t.Parallel()
 	a, _ := contextApp(t)
 	all := []string{"1ba025f", "/tmp/matomeru/main.go", "https://example.com/ochazuke"}
 	if got := contextTexts(a); !slices.Equal(got, all) {
@@ -135,6 +136,7 @@ func TestContextPageListsNewestFirstAndFollowsThePin(t *testing.T) {
 }
 
 func TestContextStarAndForgetPersist(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a, _ := contextAppAt(t, path)
 	selectContext(t, a, "https://example.com/ochazuke")
@@ -170,6 +172,7 @@ func TestContextStarAndForgetPersist(t *testing.T) {
 }
 
 func TestContextKindFilterAndSearch(t *testing.T) {
+	t.Parallel()
 	a, _ := contextApp(t)
 	press(t, a, "f") // file
 	if got := contextTexts(a); !slices.Equal(got, []string{"/tmp/matomeru/main.go"}) {
@@ -196,6 +199,7 @@ func TestContextKindFilterAndSearch(t *testing.T) {
 }
 
 func TestContextRowActionsUseTheSystem(t *testing.T) {
+	t.Parallel()
 	a, sys := contextApp(t)
 	selectContext(t, a, "/tmp/matomeru/main.go")
 	settle(a, key(t, a, "y"))
@@ -212,6 +216,7 @@ func TestContextRowActionsUseTheSystem(t *testing.T) {
 }
 
 func TestContextCopyFallsBackToOSC52(t *testing.T) {
+	t.Parallel()
 	a, sys := contextApp(t)
 	sys.osc = true
 	selectContext(t, a, "1ba025f")
@@ -229,6 +234,7 @@ func TestContextCopyFallsBackToOSC52(t *testing.T) {
 // item's owner is what the last call named, and each answers the item's
 // props (project, task).
 func TestContextItemAssociateBothWays(t *testing.T) {
+	t.Parallel()
 	a := openWith(t, Options{Data: seeded(t)})
 	items, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/a"}}, contextitems.Owner{}, 1)
 	if err != nil {
@@ -281,6 +287,7 @@ func TestContextItemAssociateBothWays(t *testing.T) {
 // with the project chooser, as m does on the other rows. It has no key of
 // its own.
 func TestContextItemAssociateFromARowAsks(t *testing.T) {
+	t.Parallel()
 	a, _ := contextAppAt(t, seeded(t))
 	selectContext(t, a, "1ba025f")
 	row := a.r.Focus

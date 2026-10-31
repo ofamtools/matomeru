@@ -59,6 +59,7 @@ func noteOwnerOf(t *testing.T, a *App, id string) [2]string {
 // its directories join; u puts it all back with the same ids, ctrl+r
 // does it again.
 func TestOutlineTabMakesAProjectATaskOfTheOneAbove(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	seedConvert(t, a)
 	press(t, a, "T")
@@ -144,6 +145,7 @@ func TestOutlineTabMakesAProjectATaskOfTheOneAbove(t *testing.T) {
 // On the pin's outline tab makes the pinned project a task of the one
 // above: the pin and the outline follow it there.
 func TestPinnedOutlineTabMovesThePin(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T", "k")
 	if a.r.Focus != projectNode("matomeru") {
@@ -169,6 +171,7 @@ func TestPinnedOutlineTabMovesThePin(t *testing.T) {
 // listed right after it; its subtask becomes the project's task, a pane
 // it owns follows with the pane's directory; u undoes it.
 func TestOutlineShiftTabMakesATopTaskAProject(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	seedConvert(t, a)
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w2", ProjectID: "matomeru", TaskID: "t1"}); err != nil {
@@ -238,6 +241,7 @@ func TestOutlineShiftTabMakesATopTaskAProject(t *testing.T) {
 
 // J and K stay refused on a project row, and ? help still lists them.
 func TestOutlineProjectRefusalsStayInHelp(t *testing.T) {
+	t.Parallel()
 	a := allOutline(t, projectNode("matomeru"))
 	refused(t, a, "J", "creation order")
 	refused(t, a, "K", "creation order")
@@ -250,6 +254,7 @@ func TestOutlineProjectRefusalsStayInHelp(t *testing.T) {
 
 // project make-task and task make-project from the CLI.
 func TestConversionsFromTheCLI(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if _, errOut, err := cli(a, "", "project", "make-task", "--target", "ochazuke"); err == nil || !strings.Contains(errOut+err.Error(), "no project above") {
 		t.Fatalf("first project: err %v %s", err, errOut)

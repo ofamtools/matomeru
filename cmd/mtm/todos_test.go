@@ -34,6 +34,7 @@ func pinned(t *testing.T) *App {
 // T opens the pin's task outline from every page and T closes it; with
 // no pin it is all projects.
 func TestTOpensTheTodoOutlineOnEveryPage(t *testing.T) {
+	t.Parallel()
 	for _, page := range []string{"work", panesPage, notesPage, directoriesPage} {
 		a := pinned(t)
 		toPage(t, a, page)
@@ -110,6 +111,7 @@ func typePaused(t *testing.T, a *App, text string) {
 // pin; each is stored after the pause, before the line is left, and shows
 // on reopening and on the Work page.
 func TestTodoTypedThenPausedIsStoredWithItsOwner(t *testing.T) {
+	t.Parallel()
 	for _, pin := range []string{"", "matomeru"} {
 		a := open(t)
 		if pin != "" {
@@ -153,6 +155,7 @@ func TestTodoTypedThenPausedIsStoredWithItsOwner(t *testing.T) {
 // Nest, unnest, move and done each persist before the next key; u undoes
 // the last structural change in the store; s sets each status.
 func TestTodoEditsPersistAsMade(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
 	if a.r.Focus != outlineNode("t1") {
@@ -206,6 +209,7 @@ func TestTodoEditsPersistAsMade(t *testing.T) {
 // Legacy statuses show in the outline: open as todo, an unknown value
 // kept with its own word.
 func TestOutlineShowsLegacyStatuses(t *testing.T) {
+	t.Parallel()
 	a := openAt(t, seededWith(t, map[string]string{"legacy": "open", "odd": "skipped", "busy": "active"}))
 	executeA(t, a, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
 	press(t, a, "T")
@@ -223,6 +227,7 @@ func TestOutlineShowsLegacyStatuses(t *testing.T) {
 // The S all view shows every project as a branch; a todo added under a
 // project's branch belongs to it, and S again returns to the pin.
 func TestAllViewShowsProjectsAsBranches(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	press(t, a, "S", "T")
 	f := frameAt(a, 80)
@@ -270,6 +275,7 @@ func TestAllViewShowsProjectsAsBranches(t *testing.T) {
 // title editor) it is a letter and the outline stays shut; after esc it
 // opens the outline.
 func TestTInInsertModeTypesTheLetter(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	press(t, a, "j", "enter", "i")
 	if a.editor == nil || a.r.Focus != a.editor.fieldID("title") || a.r.Mode.Name != "insert" {
@@ -301,6 +307,7 @@ func TestTInInsertModeTypesTheLetter(t *testing.T) {
 // second u undoes the rename; ctrl+r redoes both in order; a status set
 // with s undoes the same way, back to a legacy value unchanged.
 func TestOutlineUndoesStatusInOrder(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
 	before := stored(t, a, "t1").Title

@@ -20,6 +20,7 @@ import (
 // line, on the owner's cards most often (1444 of them in a survey of
 // real logs).
 func TestTurnsCardStatusWordsAreToned(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "claude-code", "working", "s1", "/w/proj"
 	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))

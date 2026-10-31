@@ -48,6 +48,7 @@ func makerOf(t *testing.T, a *App, id string) work.Actor {
 
 // The TUI is the owner, even when it runs inside a pane an agent runs in.
 func TestTUICreateStampsTheOwner(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	app.getenv = envOf(map[string]string{"TUIOS_PANE_ID": "w1", "TUIOS_SESSION": "matomeru", "CLAUDECODE": "1", actorEnv: "agent"})
 	press(t, app, "j", "enter", "q")
@@ -84,6 +85,7 @@ func TestTUICreateStampsTheOwner(t *testing.T) {
 // agentEnv variable does; the lane task is the pane's. A pane with no
 // agent, or no pane, is the owner. MTM_ACTOR overrides both ways.
 func TestCLIActorFromThePane(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	actorPane(t, app, "w7", "t1", "codex")
 	actorPane(t, app, "w8", "t2", "")
@@ -133,6 +135,7 @@ func TestCLIActorFromThePane(t *testing.T) {
 // refused write leaves nothing; a prop added to the setting may change;
 // the owner is never refused.
 func TestCLIAgentChangesOnlyTheStatusOfTheOwnersTask(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	actorPane(t, app, "w7", "t1", "claude")
 	app.getenv = envOf(map[string]string{"TUIOS_PANE_ID": "w7", "TUIOS_SESSION": "matomeru"})
@@ -176,8 +179,9 @@ func TestCLIAgentChangesOnlyTheStatusOfTheOwnersTask(t *testing.T) {
 // identity (harness, pane, session, task, model), and a tool on a task the
 // owner made is refused with who to ask.
 func TestMCPWritesAreThePanesAgent(t *testing.T) {
+	t.Parallel()
 	app, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
-	backend := &mcpBackend{opts: app.opts, work: app.work, prepare: mcpPrepare}
+	backend := &mcpBackend{opts: app.opts, work: app.work, prepare: app.mcpPrepare}
 	id := mcp.Identity{Session: "matomeru", Window: "w1", TaskID: "t1", Harness: "claude", Model: "opus", Bound: true}
 	raw, err := backend.Run(mcp.WithIdentity(context.Background(), id), "task", "create", map[string]any{"title": "a step", "parent": "t1"})
 	if err != nil {
@@ -225,6 +229,7 @@ func TestMCPWritesAreThePanesAgent(t *testing.T) {
 // gets one quiet Inbox item; make-family exports its tasks and archives
 // the item; a private task keeps its subtasks private too.
 func TestPrivacyVerbsAndTheQuietInboxItem(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	var p map[string]any
 	if err := json.Unmarshal([]byte(mustCLI(t, app, "project", "create", "--json", `{"name":"newbie"}`)), &p); err != nil {
@@ -306,6 +311,7 @@ func TestPrivacyVerbsAndTheQuietInboxItem(t *testing.T) {
 // The Work page's by column, the agent and private marks, and the made-by
 // filter; each has its off setting. The outline shows the same.
 func TestWorkPageShowsWhoMadeEachTask(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	a.work.SetActor(work.Actor{Kind: work.ActorAgent, Harness: "claude", Pane: "w1"})
 	if _, err := a.work.AddTask("matomeru", "agent wrote this"); err != nil {

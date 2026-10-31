@@ -13,6 +13,7 @@ import (
 
 // mtm opens on Panes, its pane list focused, so its keys answer at once.
 func TestStartupOpensPanesWithTheListFocused(t *testing.T) {
+	t.Parallel()
 	app := openWith(t, Options{Data: seeded(t)})
 	if app.r.Page != panesPage || app.r.Focus != paneListID {
 		t.Fatalf("startup: page %s focus %s", app.r.Page, app.r.Focus)
@@ -20,6 +21,7 @@ func TestStartupOpensPanesWithTheListFocused(t *testing.T) {
 }
 
 func TestTheWorkPageFocusesTheFirstProjectRow(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
@@ -34,6 +36,7 @@ func TestTheWorkPageFocusesTheFirstProjectRow(t *testing.T) {
 
 // The Screen tab follows the selection after its pause, with no key.
 func TestThePanesPageAnswersPreviewAtOnce(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	settle(app, follow(app))
 	if len(f.captured) != 1 || app.preview.Pane != "pane:matomeru/w1" {
@@ -42,6 +45,7 @@ func TestThePanesPageAnswersPreviewAtOnce(t *testing.T) {
 }
 
 func TestTheReviewPageOpensOnAStoredReviewRow(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	db, err := store.Open(path)
 	if err != nil {

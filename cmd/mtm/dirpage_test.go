@@ -38,8 +38,7 @@ func itemIDs(l *ochazuke.List) []string {
 // directory detaches it, the default passing to the next; enter makes one
 // the default.
 func TestDirectoriesPageLoadsAndEditsProjectDirectories(t *testing.T) {
-	t.Setenv("MTM_O_PROJ", "none")
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Parallel()
 	a := open(t)
 	root := knownRepos(t, a, "alpha", "beta")
 	alpha, beta := directoryKey(filepath.Join(root, "alpha")), directoryKey(filepath.Join(root, "beta"))
@@ -99,7 +98,7 @@ func TestDirectoriesPageLoadsAndEditsProjectDirectories(t *testing.T) {
 // / focuses the search in insert mode; typing filters, enter returns to
 // the first match with the filter kept; } never lands in the search.
 func TestDirectoriesSearchIsReachable(t *testing.T) {
-	t.Setenv("MTM_O_PROJ", "none")
+	t.Parallel()
 	a := open(t)
 	root := knownRepos(t, a, "alpha", "beta")
 	openDirectories(t, a)
@@ -124,7 +123,7 @@ func TestDirectoriesSearchIsReachable(t *testing.T) {
 // With no pin, enter on a known directory asks which project; a new name
 // creates one.
 func TestKnownDirectoryWithoutPinAsksForProject(t *testing.T) {
-	t.Setenv("MTM_O_PROJ", "none")
+	t.Parallel()
 	a := open(t)
 	root := knownRepos(t, a, "alpha")
 	executeA(t, a, "project", "unpin", "work", nil)
@@ -150,14 +149,12 @@ func TestKnownDirectoryWithoutPinAsksForProject(t *testing.T) {
 // chosen one is written to dirs.json and scanned at once, so its repos
 // join the known directories; x on a base row stops scanning it.
 func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
-	t.Setenv("MTM_O_PROJ", "none")
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("HOME", t.TempDir()) // no default bases from the real home
+	t.Parallel()
 	a := open(t)
+	testEnv(a, "HOME", t.TempDir()) // no default bases from the real home
 	first := knownRepos(t, a, "alpha")
 	second := knownRepos(t, a, "gamma", "delta")
-	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
-	os.Unsetenv("MTM_PROJECT_BASE_DIRS")
+	testUnsetEnv(a, "MTM_PROJECT_BASE_DIRS")
 	if _, err := a.changeBase(directoryKey(first), 1, true); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +218,7 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 // i on a project directory opens the directory chooser; the chosen path
 // takes its place and keeps the default mark.
 func TestProjectDirectoryEditFromThePage(t *testing.T) {
-	t.Setenv("MTM_O_PROJ", "none")
+	t.Parallel()
 	a := open(t)
 	root := knownRepos(t, a, "alpha", "beta")
 	alpha, beta := directoryKey(filepath.Join(root, "alpha")), directoryKey(filepath.Join(root, "beta"))
@@ -244,6 +241,7 @@ func TestProjectDirectoryEditFromThePage(t *testing.T) {
 }
 
 func TestPathCellKeepsTheTail(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ in, want string }{
 		{"/home/u/proj/matomeru", "~/proj/matomeru"},
 		{"/private/tmp/claude-501/-Users-unixsuperhero-proj/scratchpad/lane-a/e2e/other", "/private/…/e2e/other"},
@@ -258,8 +256,7 @@ func TestPathCellKeepsTheTail(t *testing.T) {
 // UX review 2 F22: the first visit lands on the first list drawn, the
 // pinned project's directories, when it has any.
 func TestDirectoriesOpensOnTheFirstListDrawn(t *testing.T) {
-	t.Setenv("MTM_O_PROJ", "none")
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Parallel()
 	a := open(t)
 	root := knownRepos(t, a, "alpha")
 	alpha := directoryKey(filepath.Join(root, "alpha"))

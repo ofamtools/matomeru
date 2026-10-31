@@ -116,6 +116,7 @@ func highlighted(raw string) (full, dimmed []string) {
 // selected row keeps a dimmed highlight (reverse under faint, ochazuke's
 // dim-unfocused), and no row carries a cursor marker.
 func TestWorkPageShowsOneSelectedRow(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	mono(t, app)
 	check := func(want string, faded ...string) {

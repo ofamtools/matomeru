@@ -29,6 +29,7 @@ func standardIs(t *testing.T, a *App, noun string, want map[string]string, absen
 // agent's set-* verbs are named; star is an alias of set (starred,
 // toggled) and unassociate a lasting alias of move.
 func TestPaneVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	standardIs(t, a, "pane", map[string]string{
 		"get": "get", "list": "list", "set": "set", "watch": "watch", "move": "move", "star": "set",
@@ -49,6 +50,7 @@ func TestPaneVerbsAreStandard(t *testing.T) {
 // pane get answers its props from the listing; the agent's settings are
 // read-only (set refuses them; set-model changes them in the session).
 func TestPaneGetAndReadOnlySettings(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	thing, _ := executeA(t, a, "pane", "get", "", ochazuke.Arguments{"id": "w1"}).(map[string]any)
 	if thing["name"] != "claude" || thing["session"] != "matomeru" || thing["display"] != "matomeru/claude" {
@@ -67,6 +69,7 @@ func TestPaneGetAndReadOnlySettings(t *testing.T) {
 // * on a pane row stars it through the standard set, and undo takes the
 // star back.
 func TestPaneStarKeyAndUndo(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	row := "pane:matomeru/w1"
 	if err := a.selectPaneRow(row); err != nil {
@@ -85,6 +88,7 @@ func TestPaneStarKeyAndUndo(t *testing.T) {
 // pane rename NAME is the standard set of name: the daemon renames the
 // window in a job named pane.rename; undo renames it back.
 func TestPaneRenameIsSetAndUndoes(t *testing.T) {
+	t.Parallel()
 	a, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	a.renamer = fr
@@ -104,6 +108,7 @@ func TestPaneRenameIsSetAndUndoes(t *testing.T) {
 // m on a pane row opens the project chooser, whose choice is the standard
 // move; unassociate moves it to no project.
 func TestPaneMoveKeyAndUnassociate(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	row := "pane:matomeru/w1"
 	if err := a.selectPaneRow(row); err != nil {

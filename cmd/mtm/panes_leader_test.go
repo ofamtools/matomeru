@@ -22,6 +22,7 @@ func selectedNotLive(t *testing.T, app *App, step, focus string) {
 // end they do nothing. From a session row, j is the first pane below it
 // and k the last above it.
 func TestLeaderCyclesPanesOutsideLive(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -77,6 +78,7 @@ func TestLeaderCyclesPanesOutsideLive(t *testing.T) {
 // Outside live, ctrl+a s selects the next starred pane (wrapping); with
 // none starred it says how to star one.
 func TestLeaderSelectsStarredOutsideLive(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	settle(app, follow(app))
 	app.Update(keyMsg("ctrl+a"))
@@ -110,6 +112,7 @@ func TestLeaderSelectsStarredOutsideLive(t *testing.T) {
 // and nothing else binds the leader there but ochazuke's ctrl+a o; they
 // follow the terminal-leader setting.
 func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	if hints := ochazuke.BindingHints(app.r, app.r.Focus); !strings.Contains(hints, "next pane") {
 		t.Errorf("hints %q", hints)

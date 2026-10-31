@@ -11,6 +11,7 @@ import (
 // default turns.status-border, every status under all, none under off;
 // turns.status-glyph off leaves the word alone, still toned.
 func TestTurnStatusGlyphToneAndBorder(t *testing.T) {
+	t.Parallel()
 	app, _ := agentsApp(t)
 	set := func(name, value string) {
 		t.Helper()
@@ -71,6 +72,7 @@ func TestTurnStatusGlyphToneAndBorder(t *testing.T) {
 // A notification's state splits into the meta's word and the header's
 // detail; its kind comes from the word, else from the status field.
 func TestNoticeStatusKinds(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ state, status, word, detail, kind string }{
 		{"finished", "completed", "finished", "", statusDone},
 		{"failed: the API errored", "failed", "failed", "the API errored", statusError},
@@ -94,6 +96,7 @@ func TestNoticeStatusKinds(t *testing.T) {
 // working, done, bad; a word in none is unknown (muted, as the meta line
 // is). Matching is by the longest leading phrase in whole words.
 func TestStatusWordClasses(t *testing.T) {
+	t.Parallel()
 	class := map[string]string{
 		ochazuke.ToneNeedsInput: "needs-you", ochazuke.ToneWorking: "working",
 		ochazuke.ToneDone: "done", ochazuke.ToneErrored: "bad",

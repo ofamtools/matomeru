@@ -17,6 +17,7 @@ import (
 // esc q keeps every change, a field change is written at once, and the
 // directories and glyph survive the writes.
 func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
 	if _, err := a.work.AddTree("matomeru", work.Tree{Path: "/shared"}); err != nil {
@@ -54,6 +55,7 @@ func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
 	}
 }
 func TestTaskViewDoesNotEditAndStatusDraft(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
 		t.Fatal(err)
@@ -75,9 +77,8 @@ func TestTaskViewDoesNotEditAndStatusDraft(t *testing.T) {
 	}
 }
 func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
-	config := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", config)
 	one, two, deep := filepath.Join(root, "one"), filepath.Join(root, "two"), filepath.Join(root, "nested", "deep")
 	for _, dir := range []string{one, two, deep} {
 		if err := os.MkdirAll(dir, 0700); err != nil {
@@ -90,8 +91,8 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	if err := os.Symlink(one, filepath.Join(root, "linked")); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("MTM_PROJECT_BASE_DIRS", root+string(os.PathListSeparator)+filepath.Join(root, "missing"))
 	a := open(t)
+	testEnv(a, "MTM_PROJECT_BASE_DIRS", root+string(os.PathListSeparator)+filepath.Join(root, "missing"))
 	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "missing.sock")}.client()
 	if _, err := a.work.AddTree("ochazuke", work.Tree{Path: two}); err != nil {
 		t.Fatal(err)
@@ -107,7 +108,7 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	if len(rows) != 2 || rows[0].Path != directoryKey(two) || rows[1].Path != directoryKey(one) || !reflect.DeepEqual(rows[0].Projects, []string{"ochazuke"}) || !strings.Contains(footer, "missing bases:") {
 		t.Fatalf("known directories: %+v / %s", rows, footer)
 	}
-	bases, err := projectBases(a.dirsConfigPath())
+	bases, err := a.projectBases()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,9 +121,9 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	}
 }
 func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("MTM_PROJECT_BASE_DIRS", "/override")
+	t.Parallel()
 	a := open(t)
+	testEnv(a, "MTM_PROJECT_BASE_DIRS", "/override")
 	ctx := ochazuke.Ctx{Args: ochazuke.Arguments{"path": "/test-base", "depth": 2}}
 	_, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base", Target: "directories", Args: ctx.Args})
 	if err != nil {
@@ -141,7 +142,7 @@ func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
 	if !found {
 		t.Fatalf("file: %+v", config)
 	}
-	bases, err := projectBases(a.dirsConfigPath())
+	bases, err := a.projectBases()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,6 +165,7 @@ func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
 }
 
 func TestKnownDirectoriesOrderRecordedUsageBeforeNeverUsed(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	for _, name := range []string{"yesterday", "last-week", "never"} {
 		path := filepath.Join(root, name)
@@ -174,8 +176,8 @@ func TestKnownDirectoriesOrderRecordedUsageBeforeNeverUsed(t *testing.T) {
 			t.Fatalf("git: %s %v", out, err)
 		}
 	}
-	t.Setenv("MTM_PROJECT_BASE_DIRS", root)
 	a := open(t)
+	testEnv(a, "MTM_PROJECT_BASE_DIRS", root)
 	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "missing.sock")}.client()
 	if err := a.work.SeedDirs([]work.DirRecent{
 		{Path: filepath.Join(root, "yesterday"), LastUsed: 172800000},
@@ -200,6 +202,7 @@ func TestKnownDirectoriesOrderRecordedUsageBeforeNeverUsed(t *testing.T) {
 // the status from its chooser, where moving the highlight writes nothing
 // and enter writes the row; q leaves the editor.
 func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
 		t.Fatal(err)
@@ -238,6 +241,7 @@ func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 // o proj's manifest is a known-directory source through o-proj list; a
 // failing o-proj is a footer note, and its absence is no source at all.
 func TestKnownDirectoriesIncludeOProjList(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 	repo := filepath.Join(base, "from-manifest")
 	if err := os.Mkdir(repo, 0o755); err != nil {
@@ -247,9 +251,9 @@ func TestKnownDirectoriesIncludeOProjList(t *testing.T) {
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\n[ \"$1\" = list ] && echo '[{\"name\":\"m\",\"path\":\"~/x\",\"dir\":\""+repo+"\"}]'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("MTM_PROJECT_BASE_DIRS", filepath.Join(base, "none"))
-	t.Setenv("MTM_O_PROJ", bin)
 	a := open(t)
+	testEnv(a, "MTM_PROJECT_BASE_DIRS", filepath.Join(base, "none"))
+	testEnv(a, "MTM_O_PROJ", bin)
 	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "missing.sock")}.client()
 	rows, _, err := a.knownDirs(context.Background())
 	if err != nil {
@@ -275,25 +279,25 @@ func TestKnownDirectoriesIncludeOProjList(t *testing.T) {
 // config directory only for the default database. Adding a base on a copy
 // writes dirs.json beside the copy, never under XDG_CONFIG_HOME.
 func TestConfigDirFollowsData(t *testing.T) {
+	t.Parallel()
 	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
-	os.Unsetenv("MTM_PROJECT_BASE_DIRS")
+	env := map[string]string{"XDG_CONFIG_HOME": xdg}
+	lookup := func(k string) (string, bool) { v, ok := env[k]; return v, ok }
 	data := filepath.Join(t.TempDir(), "copy.db")
-	if got := (Options{Data: data}).ConfigDir(); got != filepath.Dir(data) {
+	if got := (Options{lookupEnv: lookup, Data: data}).ConfigDir(); got != filepath.Dir(data) {
 		t.Fatalf("beside data: %s", got)
 	}
-	if got := (Options{Data: DefaultData()}).ConfigDir(); got != filepath.Join(xdg, "matomeru") {
+	if got := (Options{lookupEnv: lookup, Data: (Options{lookupEnv: lookup}).defaultData()}).ConfigDir(); got != filepath.Join(xdg, "matomeru") {
 		t.Fatalf("default data: %s", got)
 	}
-	if got := (Options{Data: data, Config: "/explicit"}).ConfigDir(); got != "/explicit" {
+	if got := (Options{lookupEnv: lookup, Data: data, Config: "/explicit"}).ConfigDir(); got != "/explicit" {
 		t.Fatalf("explicit: %s", got)
 	}
-	t.Setenv("MTM_CONFIG_DIR", "/from-env")
-	if got := (Options{Data: DefaultData()}).ConfigDir(); got != "/from-env" {
+	env["MTM_CONFIG_DIR"] = "/from-env"
+	if got := (Options{lookupEnv: lookup, Data: (Options{lookupEnv: lookup}).defaultData()}).ConfigDir(); got != "/from-env" {
 		t.Fatalf("env: %s", got)
 	}
-	os.Unsetenv("MTM_CONFIG_DIR")
+	delete(env, "MTM_CONFIG_DIR")
 
 	a := openAt(t, seeded(t))
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base", "depth": 1}}); err != nil {

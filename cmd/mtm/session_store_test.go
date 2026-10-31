@@ -24,6 +24,7 @@ func sessionsApp(t *testing.T) (*App, *fakePanes) {
 // The session's verbs: get, list, set, watch and move are standard;
 // rename, associate and kill named; no create or delete.
 func TestSessionVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a, _ := sessionsApp(t)
 	standardIs(t, a, "session", map[string]string{
 		"get": "get", "list": "list", "set": "set", "watch": "watch", "move": "move",
@@ -38,6 +39,7 @@ func TestSessionVerbsAreStandard(t *testing.T) {
 // session move writes the session owner; undo puts it back; an empty
 // name is refused (the daemon needs one); rename runs as session.rename.
 func TestSessionMoveRenameAndUndo(t *testing.T) {
+	t.Parallel()
 	a, f := sessionsApp(t)
 	fr := &fakeRenamer{panes: f}
 	a.renamer = fr

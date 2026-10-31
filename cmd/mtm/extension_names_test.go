@@ -19,6 +19,7 @@ func aliasesOf(a *App, noun string) []string {
 // An extension's nouns mount as <ext>.<noun>, with the bare noun as an
 // alias and the old <ext>-<noun> as a deprecated one that still runs.
 func TestExtensionNounsAreNamespaced(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	path := seeded(t)
 	mustCLI(t, openAt(t, path), "extension", "register", "fake", "--bin", bin)
@@ -57,6 +58,7 @@ func TestExtensionNounsAreNamespaced(t *testing.T) {
 // both full names, palette.noun-tails); it gets one again when the other
 // extension goes.
 func TestExtensionBareNounNeedsAUniqueName(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	path := seeded(t)
 	mustCLI(t, openAt(t, path), "extension", "register", "fake", "--bin", bin)
@@ -83,6 +85,7 @@ func TestExtensionBareNounNeedsAUniqueName(t *testing.T) {
 // extensions.noun-names legacy mounts the nouns as before (<ext>-<noun>,
 // no aliases), and a change remounts the running extensions.
 func TestExtensionNounNamesLegacy(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	path := seeded(t)
 	mustCLI(t, openAt(t, path), "extension", "register", "fake", "--bin", bin)
@@ -119,6 +122,7 @@ func TestExtensionNounNamesLegacy(t *testing.T) {
 // An extension whose name ochazuke reserves as a namespace (a framework
 // noun's short name) keeps the dashed spelling, with a notice.
 func TestExtensionReservedNamespaceKeepsDashes(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	path := seeded(t)
 	mustCLI(t, openAt(t, path), "extension", "register", "list", "--bin", bin)
@@ -141,6 +145,7 @@ func nounsLike(a *App, s string) []string {
 // The palette reads every spelling of a mounted noun: the bare name, the
 // namespace words, the full name and the old dashed one.
 func TestExtensionNounSpellingsInThePalette(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	path := seeded(t)
 	mustCLI(t, openAt(t, path), "extension", "register", "fake", "--bin", bin)

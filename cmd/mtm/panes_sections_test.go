@@ -82,6 +82,7 @@ func itemByKey(t *testing.T, a *App, key string) actionitems.Item {
 // items); working agents are the bottom list, oldest submission first;
 // everything else, the terminal always, is the middle.
 func TestPaneSectionsDefaultAssignment(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	setting(t, a, settingPanesLayout, layoutStacked)
 	queue := sectionIDs(a, 0)
@@ -116,6 +117,7 @@ func TestPaneSectionsDefaultAssignment(t *testing.T) {
 // panes stays in the middle while its item still shows in the queue (by
 // its own id), and a category left out of the order leaves the queue.
 func TestPaneSectionsFromSettings(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	// The cursor off the queue, so no row is held in it.
 	if err := a.r.SetFocus("pane:s/widle"); err != nil {
@@ -148,6 +150,7 @@ func TestPaneSectionsFromSettings(t *testing.T) {
 // Terminals never reach the Working list, whatever the settings say:
 // a terminal raises no signal.
 func TestPaneSectionsTerminalsStayInTheMiddle(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	panes[6].AgentState = "" // the terminal: no harness, no agent state
 	panes[6].Program = "make"
@@ -163,6 +166,7 @@ func TestPaneSectionsTerminalsStayInTheMiddle(t *testing.T) {
 // Only the middle follows the pin; the top and bottom lists show every
 // project's rows.
 func TestPaneSectionsOuterListsIgnoreThePin(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	for _, w := range []string{"wwait", "wold", "widle"} {
 		if err := a.work.SetPaneOwner(work.Assignment{Window: w, Session: "s", ProjectID: "ochazuke"}); err != nil {
@@ -188,6 +192,7 @@ func TestPaneSectionsOuterListsIgnoreThePin(t *testing.T) {
 // Heights: budget gives the outer lists their percents and the middle
 // the rest, an empty list giving its room away; thirds splits evenly.
 func TestPaneSectionHeights(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name         string
 		height       int
@@ -209,6 +214,7 @@ func TestPaneSectionHeights(t *testing.T) {
 
 // The frames of both layouts (the report pastes them).
 func TestPaneSectionLayoutsRender(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	setting(t, a, settingPanesLayout, layoutStacked)
 	budget := frameWH(a, 120, 24)
@@ -232,6 +238,7 @@ func TestPaneSectionLayoutsRender(t *testing.T) {
 // it changes state; it moves once the cursor leaves it, and order within
 // a section holds across refreshes.
 func TestPaneSectionsHoldTheRowUnderTheCursor(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	setting(t, a, settingStickyRows, true)
 	row := "pane:s/wold"
@@ -267,6 +274,7 @@ func TestPaneSectionsHoldTheRowUnderTheCursor(t *testing.T) {
 
 // j and k spill across the three lists at their edges, in drawing order.
 func TestPaneSectionsSpillJK(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	frame(a) // a drawn frame gives the page its drawing order
 	queue, middle, working := sectionIDs(a, 0), sectionIDs(a, 1), sectionIDs(a, 2)
@@ -295,6 +303,7 @@ func TestPaneSectionsSpillJK(t *testing.T) {
 // to open"); the detail follows a queue row's pane; the inbox verbs answer
 // on the row.
 func TestPaneSectionsQueueRowIsThePane(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	frame(a)
 	row := "pane:s/werr"
@@ -326,6 +335,7 @@ func TestPaneSectionsQueueRowIsThePane(t *testing.T) {
 // panes (middle) as its turn runs, ends and is looked at; terminals and
 // idle agents stay in the middle throughout.
 func TestPaneSectionsLifecycle(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	clock := int64(1_000)
 	a.inbox.items.SetClock(func() int64 { clock++; return clock })
@@ -398,6 +408,7 @@ func sectionItems(a *App) []ochazuke.ListItem {
 // The page opens on the queue when it has rows (the first listing, and
 // I from another page), else on the middle list.
 func TestPaneSectionsOpenOnTheQueue(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	if a.r.Focus != "pane:s/wwait" {
 		t.Fatalf("first listing: focus %s, want the queue's first row", a.r.Focus)
@@ -427,6 +438,7 @@ func TestPaneSectionsOpenOnTheQueue(t *testing.T) {
 // The header fits the list's width: hints go first, then the counts
 // shorten, then they go; "panes (N)" stays.
 func TestPanesHeadFitsTheWidth(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	f := frameWH(a, 120, 24)
 	head := strings.Split(f, "\n")[3]

@@ -34,6 +34,7 @@ func pageIDs(a *App) []string {
 // new verb and its key are there, the page stays open with its rows, and
 // the tabs keep their order.
 func TestExtensionRefreshRemountsInTheRunningTUI(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), `"item archive") echo '{"ok":true}' ;;`)
 	path := seeded(t)
 	mustCLI(t, openAt(t, path), "extension", "register", "fake", "--bin", bin)
@@ -78,6 +79,7 @@ func TestExtensionRefreshRemountsInTheRunningTUI(t *testing.T) {
 // A register or remove from the CLI (another process) shows in a running
 // mtm when a page is next opened.
 func TestExtensionCLIChangesShowWhenAPageOpens(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	path := seeded(t)
 	a := openAt(t, path)

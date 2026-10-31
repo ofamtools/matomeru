@@ -43,6 +43,7 @@ func setAfterSubmit(t *testing.T, a *App, value string) {
 // --pane, share one handler: the pane's owner is what the last call named;
 // pane.unassociate leaves it with none.
 func TestPaneTaskAssociateBothWays(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	p := shownPane(t, a, "w1")
 	executeA(t, a, "pane", "associate", p.rowID(), ochazuke.Arguments{"task": "t1"})
@@ -78,6 +79,7 @@ func TestPaneTaskAssociateBothWays(t *testing.T) {
 // at once: the send does not wait for it, and esc leaves the pane as it
 // was (unassociated), the focus back in the box.
 func TestPaneTaskPickerOpensAfterSubmitWithoutDelayingTheSend(t *testing.T) {
+	t.Parallel()
 	a, f := promptApp(t)
 	setAfterSubmit(t, a, afterSubmitPickTask)
 	p := shownPane(t, a, "w1")
@@ -108,6 +110,7 @@ func TestPaneTaskPickerOpensAfterSubmitWithoutDelayingTheSend(t *testing.T) {
 // The picker preselects the pane's task, so enter keeps it; typing filters
 // to another task, and the choice ties the pane to it.
 func TestPaneTaskPickerPreselectsTheCurrentTask(t *testing.T) {
+	t.Parallel()
 	a, _ := promptApp(t)
 	setAfterSubmit(t, a, afterSubmitPickTask)
 	p := shownPane(t, a, "w1")
@@ -147,6 +150,7 @@ func TestPaneTaskPickerPreselectsTheCurrentTask(t *testing.T) {
 // A query that matches nothing offers a new task in the pane's project;
 // enter creates it and ties the pane to it.
 func TestPaneTaskPickerCreatesATaskInline(t *testing.T) {
+	t.Parallel()
 	a, _ := promptApp(t)
 	setAfterSubmit(t, a, afterSubmitPickTask)
 	p := shownPane(t, a, "w1")
@@ -169,6 +173,7 @@ func TestPaneTaskPickerCreatesATaskInline(t *testing.T) {
 // prompt.after-submit: none never opens the picker;
 // pick-task-if-unassociated opens it only for a pane with no owner.
 func TestPaneTaskAfterSubmitSetting(t *testing.T) {
+	t.Parallel()
 	a, f := promptApp(t)
 	p := shownPane(t, a, "w1")
 	send := func(text string) {
@@ -205,6 +210,7 @@ func TestPaneTaskAfterSubmitSetting(t *testing.T) {
 // pane.pick-task opens the same picker from the pane row (t, the palette,
 // the CLI).
 func TestPaneTaskPickFromThePaneRow(t *testing.T) {
+	t.Parallel()
 	a, _ := panesApp(t)
 	p := shownPane(t, a, "w1")
 	executeA(t, a, "pane", "pick-task", p.rowID(), nil)
@@ -233,6 +239,7 @@ func TestPaneTaskPickFromThePaneRow(t *testing.T) {
 // The detail header names the pane's task, or says an agent with no task
 // or project is unassociated.
 func TestPaneTaskHeader(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	p := pane{Session: "s", Harness: "claude", Pane: daemon.Pane{ID: "w1", AgentState: "working", Cwd: "/tmp/x"}}
 	if got := a.paneHeader(p); got != "claude · /tmp/x · working · unassociated" {
@@ -250,6 +257,7 @@ func TestPaneTaskHeader(t *testing.T) {
 // default) or keeps it in insert, with no picker and after the picker
 // closes, by esc or by a choice.
 func TestPromptAfterSubmitMode(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		mode, after, close string
 	}{

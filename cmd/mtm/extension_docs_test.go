@@ -64,6 +64,7 @@ esac
 // toggles and n adds a note, each written to the file at once. The page's
 // loads carry the pinned project's directories.
 func TestDocsPageEditsTheSelectedFile(t *testing.T) {
+	t.Parallel()
 	bin, log, doc := docsExtension(t)
 	a := registered(t, seeded(t), "md", bin)
 	mono(t, a)
@@ -75,7 +76,7 @@ func TestDocsPageEditsTheSelectedFile(t *testing.T) {
 	if f := frame(a); !strings.Contains(f, "Docs (1)") || !strings.Contains(f, "first task") {
 		t.Fatalf("Docs page:\n%s", f)
 	}
-	if got := calls(t, log); !strings.HasSuffix(got[len(got)-1], "|doc list --json {}") {
+	if got := workCalls(t, log); !strings.HasSuffix(got[len(got)-1], "|doc list --json {}") {
 		t.Fatalf("load call %q", got[len(got)-1])
 	}
 	press(t, a, "tab")
@@ -117,7 +118,7 @@ func TestDocsPageEditsTheSelectedFile(t *testing.T) {
 	}
 	a.reloadExtension(a.extension("md"))
 	settleJobs(t, a, a.r.PendingCommands())
-	if got := calls(t, log); !strings.HasPrefix(got[len(got)-1], want+"|doc list") {
+	if got := workCalls(t, log); !strings.HasPrefix(got[len(got)-1], want+"|doc list") {
 		t.Fatalf("pinned load %q, want MTM_PROJECT_DIRS %q", got[len(got)-1], want)
 	}
 }
@@ -125,6 +126,7 @@ func TestDocsPageEditsTheSelectedFile(t *testing.T) {
 // doc send-notes without a pane, from the editor (the row stand-in acts
 // for the selected doc), opens mtm's pane chooser instead of failing.
 func TestDocsSendNotesAsksForAPane(t *testing.T) {
+	t.Parallel()
 	bin, log, _ := docsExtension(t)
 	a := registered(t, seeded(t), "md", bin)
 	openExtPage(t, a, "ext/md/docs")
@@ -149,6 +151,7 @@ func TestDocsSendNotesAsksForAPane(t *testing.T) {
 // pane reaches doc send-notes --target DOC. The row is not dropped, and
 // neither is its generated g esc (a mounted prefix brings its own back).
 func TestDocsGSSendsNotesFromTheListAndTheEditor(t *testing.T) {
+	t.Parallel()
 	bin, log, doc := docsExtension(t)
 	a := registered(t, seeded(t), "md", bin)
 	a.panes = []pane{{Pane: daemon.Pane{ID: "w9", Name: "worker"}, Session: "s"}}
@@ -196,6 +199,7 @@ func readFile(t *testing.T, path string) string {
 // An extension row clashes with mtm's when one key sequence is a prefix of
 // the other; sharing only a prefix is fine.
 func TestKeysClash(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		a, b string
 		want bool

@@ -24,8 +24,6 @@ type linked struct {
 
 func linkedFixture(t *testing.T) linked {
 	t.Helper()
-	t.Setenv("MTM_O_PROJ", "none")
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	a := open(t)
 	root := knownRepos(t, a, "alpha")
 	git := func(args ...string) {
@@ -119,6 +117,7 @@ func followLinkTo(t *testing.T, a *App, ld *linkedDetail, kind, id string) {
 // pane and Vim session started there; it follows the selection, and the
 // worktree's says what it is a worktree of.
 func TestDirectoriesDetailShowsWhatUsesTheDirectory(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	openDirectories(t, a)
@@ -151,6 +150,7 @@ func TestDirectoriesDetailShowsWhatUsesTheDirectory(t *testing.T) {
 // focused: the project on Work, the pane on Panes, the worktree back on
 // Directories, the saved pane on Saved, the session on Vim.
 func TestDirectoriesLinksJumpToTheirRows(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	back := func() {
@@ -191,6 +191,7 @@ func TestDirectoriesLinksJumpToTheirRows(t *testing.T) {
 // J and K scroll the detail's text from the list while it overflows; the
 // focus stays on the directory row.
 func TestDirectoriesDetailScrollsWithJK(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	openDirectories(t, a)

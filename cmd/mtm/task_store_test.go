@@ -32,6 +32,7 @@ func tasksOn(t *testing.T, a *App, id string) {
 // delete is the standard delete (its store's ConfirmFor counts what it
 // orphans); confirm-delete is a lasting alias of it.
 func TestTaskVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
@@ -76,6 +77,7 @@ func compactJSON(v any) string {
 // task.done and task.status run the standard set with their presets; a
 // typed value wins over none, and get reads the props.
 func TestTaskAliasesWithPresets(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "task", "done", "", ochazuke.Arguments{"id": "t1"})
 	if got := stored(t, a, "t1").Status; got != work.StatusDone {
@@ -114,6 +116,7 @@ func TestTaskAliasesWithPresets(t *testing.T) {
 // A visual selection's status write (s over rows) is one set per row and
 // one undo group: one history.undo reverts every row.
 func TestTaskStatusWritesMany(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	third, err := a.work.AddTask("matomeru", "third")
 	if err != nil {
@@ -142,6 +145,7 @@ func TestTaskStatusWritesMany(t *testing.T) {
 // visual selection asks once and sets every row, and m moves through the
 // chooser's standard move.
 func TestTaskKeysDoneStatusMove(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	tasksOn(t, a, "t1")
 	press(t, a, "x")
@@ -188,6 +192,7 @@ func TestTaskKeysDoneStatusMove(t *testing.T) {
 // rename writes the title only, from the API, the CLI and the palette
 // (the args form opens on the old title).
 func TestTaskRename(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "task", "rename", "", ochazuke.Arguments{"id": "t1", "name": "Rewrite the brief"})
 	got := stored(t, a, "t1")
@@ -217,6 +222,7 @@ func TestTaskRename(t *testing.T) {
 // project not found, is a notice and never a refusal; a parent loop is
 // refused; a move to another project takes the task to the top level.
 func TestTaskOwnerProps(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	other, err := a.work.AddTask("ochazuke", "elsewhere")
 	if err != nil {
@@ -259,6 +265,7 @@ func TestTaskOwnerProps(t *testing.T) {
 // set writes several props, and the deprecated task.associate --project
 // runs the standard move.
 func TestTaskStandardVerbsFromTheCLI(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	var rows []map[string]any
 	if err := json.Unmarshal([]byte(mustCLI(t, a, "task", "list", "--all")), &rows); err != nil {
@@ -284,6 +291,7 @@ func TestTaskStandardVerbsFromTheCLI(t *testing.T) {
 // project and the parent back (ochazuke v0.55: undo restores every prop
 // the write changed, not only those the request named).
 func TestTaskMoveUndoRestoresTheParent(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "prop": "parent", "value": "t1"})
 	if got := stored(t, a, "t2"); got.ParentID != "t1" || got.ProjectID != "matomeru" {

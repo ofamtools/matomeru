@@ -14,6 +14,7 @@ import (
 // tasks; the selected task's detail and the editor sit under the table.
 // Narrower, the stacked layout stays.
 func TestWorkPageTasksInTheRightPane(t *testing.T) {
+	t.Parallel()
 	a := openAt(t, seededWith(t, map[string]string{"busy": "active", "stuck": "blocked"}))
 	press(t, a, "j")
 	for _, width := range []int{120, 160} {
@@ -84,6 +85,7 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 // width (status, by and updated columns included), below the projects and
 // the detail beside them.
 func TestWorkStackedTaskTableUsesFullWidth(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	long := "a task title long enough to need more than half of eighty columns"
 	if _, err := a.work.AddSubtask("matomeru", "", long); err != nil {
@@ -101,6 +103,7 @@ func TestWorkStackedTaskTableUsesFullWidth(t *testing.T) {
 // shown are not rebuilt by the spill. A move inside the projects still
 // follows.
 func TestWorkSpillRoundTripReturnsToTheTask(t *testing.T) {
+	t.Parallel()
 	for _, width := range []int{80, 140} {
 		a := openAt(t, seededWith(t, map[string]string{"busy": "active", "stuck": "blocked"}))
 		a.m.Width, a.m.Height = width, 24

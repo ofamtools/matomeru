@@ -13,6 +13,7 @@ import (
 // user's history or dot-repeat; every other application verb of mtm's own
 // stays a change. A new read verb goes in this list with .Fetch().
 func TestReadVerbsAreFetches(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	want := []string{
 		"action-item.count", "action-item.get", "action-item.list", "action-item.watch",

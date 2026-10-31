@@ -9,6 +9,7 @@ import (
 // The framework's header lists every page tab (Header.Tabs from the page
 // list) and marks the active one with its ActiveTab style, "› Title".
 func TestTheHeaderListsEveryPageTabAndMarksTheActiveOne(t *testing.T) {
+	t.Parallel()
 	app := openWith(t, Options{Data: seeded(t)}) // mtm opens on Panes, the first tab
 	mono(t, app)
 	pages := []struct{ id, title string }{{panesPage, panesTitle}, {"work", "Work"}, {reviewsPage, "Review"}}

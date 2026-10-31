@@ -51,6 +51,7 @@ func storedReview(t *testing.T, a *App, id string) work.Review {
 }
 
 func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
+	t.Parallel()
 	app, _, rv := reviewApp(t)
 	want := work.Review{ProjectID: "matomeru", TaskID: "t1", Harness: "claude", Session: "matomeru", Window: "w1", Pane: "matomeru/write the brief", Status: work.ReviewPending}
 	got := rv
@@ -76,6 +77,7 @@ func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 }
 
 func TestReviewsLoadAtStartup(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -100,6 +102,7 @@ func TestReviewsLoadAtStartup(t *testing.T) {
 }
 
 func TestOpenCapturesThePaneIntoTheDetail(t *testing.T) {
+	t.Parallel()
 	app, f, rv := reviewApp(t)
 	cmd := key(t, app, "enter")
 	jobs := jobsOf(app, "review.open")
@@ -116,6 +119,7 @@ func TestOpenCapturesThePaneIntoTheDetail(t *testing.T) {
 }
 
 func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
+	t.Parallel()
 	app, _, rv := reviewApp(t)
 	press(t, app, "x")
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewAccepted {
@@ -147,6 +151,7 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 // i on a review row opens it and puts the answer area in insert mode;
 // enter saves and returns to the row, marked answered.
 func TestSaveAnswerThroughTheArea(t *testing.T) {
+	t.Parallel()
 	app, _, rv := reviewApp(t)
 	press(t, app, "i")
 	if app.r.Focus != answerID || app.r.Mode.Name != "insert" || app.opened != rv.ID {
@@ -163,6 +168,7 @@ func TestSaveAnswerThroughTheArea(t *testing.T) {
 }
 
 func TestSaveAnswerTakesAnArgumentWithoutAPrompt(t *testing.T) {
+	t.Parallel()
 	app, _, rv := reviewApp(t)
 	if _, err := app.r.Execute(ochazuke.Request{Verb: "saveAnswer", Noun: "review", Target: rv.ID, Args: ochazuke.Arguments{"answer": "from the cli"}}); err != nil {
 		t.Fatal(err)
@@ -180,6 +186,7 @@ func TestSaveAnswerTakesAnArgumentWithoutAPrompt(t *testing.T) {
 // (a file under the data directory) that comes back when the review
 // opens again; U drops it.
 func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
+	t.Parallel()
 	app, _, rv := reviewApp(t)
 	settle(app, key(t, app, "enter"))
 	press(t, app, "}")
@@ -227,6 +234,7 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 }
 
 func TestAFailingCaptureShowsAndTheAppKeepsWorking(t *testing.T) {
+	t.Parallel()
 	app, f, rv := reviewApp(t)
 	f.err = errors.New("dial unix tuios.sock: connect: no such file or directory")
 	settle(app, key(t, app, "enter"))
@@ -250,6 +258,7 @@ func TestAFailingCaptureShowsAndTheAppKeepsWorking(t *testing.T) {
 // Test pass R15: opening the review of a killed pane is not a failure: the
 // saved output stays, the detail says the pane is gone, no error shows.
 func TestReviewOfAKilledPaneShowsTheSavedOutputQuietly(t *testing.T) {
+	t.Parallel()
 	app, f, rv := reviewApp(t)
 	f.err = &daemon.Error{Code: "window_not_found", Message: "no window"}
 	settle(app, key(t, app, "enter"))
@@ -261,6 +270,7 @@ func TestReviewOfAKilledPaneShowsTheSavedOutputQuietly(t *testing.T) {
 // R15 after the Reviews rebuild: a pane's journaled row whose pane was
 // killed opens on its turns with no error; the detail says the pane is gone.
 func TestJournalReviewOfAKilledPaneOpensQuietly(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	capturedTurns(t, path, "first answer", "second answer")
 	app := openWith(t, Options{Data: path})
@@ -281,6 +291,7 @@ func TestJournalReviewOfAKilledPaneOpensQuietly(t *testing.T) {
 
 // The answer's label names no keys; the footer has them (UX review 2 F11).
 func TestAnswerLabelNamesNoKeys(t *testing.T) {
+	t.Parallel()
 	app, _, _ := reviewApp(t)
 	settle(app, key(t, app, "enter"))
 	fr := frame(app)
@@ -291,6 +302,7 @@ func TestAnswerLabelNamesNoKeys(t *testing.T) {
 
 // UX review 2 F22: Review lists newest first, like every other list.
 func TestReviewsListNewestFirst(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	old, err := app.work.AddReview(work.Review{Session: "s", Window: "w-old", Pane: "s/old"})
 	if err != nil {
@@ -315,6 +327,7 @@ func TestReviewsListNewestFirst(t *testing.T) {
 // enter opens the row on its Turns tree, l opens a turn there and marks it
 // reviewed, and the count drops; answering writes the pane's record.
 func TestOneReviewRowPerPane(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	capturedTurns(t, path, "first answer", "second answer")
 	app := openWith(t, Options{Data: path})

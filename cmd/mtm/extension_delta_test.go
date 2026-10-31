@@ -55,6 +55,7 @@ func deltaAnswers(t *testing.T) (full, unchanged []byte, hash string) {
 // the hashes it holds and an unchanged answer touches no row; an explicit
 // extension refresh asks for every list in full again.
 func TestExtensionStateReloadsAsDeltas(t *testing.T) {
+	t.Parallel()
 	full, unchanged, hash := deltaAnswers(t)
 	dir := t.TempDir()
 	fullFile, unchangedFile := filepath.Join(dir, "full.jsonl"), filepath.Join(dir, "unchanged.jsonl")
@@ -75,7 +76,7 @@ func TestExtensionStateReloadsAsDeltas(t *testing.T) {
 	if list == nil || list.Len() != 2 {
 		t.Fatalf("rows: %+v", list)
 	}
-	got := calls(t, log)
+	got := workCalls(t, log)
 	if last := got[len(got)-1]; !strings.HasSuffix(last, "|item state --json {} --since=item=") {
 		t.Fatalf("first load %q", last)
 	}

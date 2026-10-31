@@ -8,6 +8,7 @@ import (
 // F3: the empty box in normal mode says how to write, in the box and in
 // the footer.
 func TestBoxInNormalModeSaysHowToWrite(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	boxNormal(t, app)
 	fr := frame(app)

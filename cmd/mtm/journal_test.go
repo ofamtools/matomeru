@@ -54,6 +54,7 @@ const ns = int64(time.Millisecond)
 // journals it; then a live event journals the next prompt, and reading
 // the ring again (a new listing) writes nothing twice.
 func TestJournalReadsTheRingThenFollowsEvents(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness = "claude-code"
 	src := newFakeJournal()

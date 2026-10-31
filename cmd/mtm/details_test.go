@@ -20,6 +20,7 @@ func numbered(prefix string, n int) string {
 // 20K twenty more, J forward, all while the pane row keeps the focus;
 // another pane starts at its own end.
 func TestPanesScreenDetailScrollsWithJK(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -61,6 +62,7 @@ func TestPanesScreenDetailScrollsWithJK(t *testing.T) {
 // The Activity text (newest at the bottom) follows its end while it is
 // there.
 func TestPanesTailDetailFollowsItsEnd(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	row, _ := app.selectedRow()
 	app.pv.tab = tabActivity
@@ -77,6 +79,7 @@ func TestPanesTailDetailFollowsItsEnd(t *testing.T) {
 // On Work, J and K scroll a long project detail while the projects list
 // keeps the focus and its selection; another row starts at the top.
 func TestWorkDetailScrollsWithJK(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	for i := 1; i <= 40; i++ {
 		executeA(t, app, "note", "new", "", ochazuke.Arguments{"text": fmt.Sprintf("note %03d", i), "project": "matomeru"})
@@ -111,6 +114,7 @@ func TestWorkDetailScrollsWithJK(t *testing.T) {
 // cursor is a drawn line since ochazuke v0.18, so it does not continue
 // from J's offset).
 func TestNotesDetailScrollsFromTheList(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "note", "new", "", ochazuke.Arguments{"text": numbered("line", 100), "scratch": true})
 	if err := a.r.OpenPage(notesPage); err != nil {
@@ -135,6 +139,7 @@ func TestNotesDetailScrollsFromTheList(t *testing.T) {
 // Without an overflowing detail J and K do not answer (detail-scrolls),
 // and the footer has no J/K detail hint; with one it has.
 func TestJKAnswerOnlyWhileTheDetailOverflows(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	settle(app, follow(app))
 	frame(app)
@@ -153,6 +158,7 @@ func TestJKAnswerOnlyWhileTheDetailOverflows(t *testing.T) {
 // On Review, the opened review's captured output opens at its end and K
 // scrolls it back while the review row keeps the focus.
 func TestReviewOutputScrollsWithJK(t *testing.T) {
+	t.Parallel()
 	app, f, rv := reviewApp(t)
 	f.screens[rv.Window] = numbered("out", 100)
 	settle(app, key(t, app, "enter"))

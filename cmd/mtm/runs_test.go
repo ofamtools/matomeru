@@ -15,7 +15,9 @@ import (
 // process in a job: its lines stream into the run while it runs, the exit
 // code is the outcome, and the Runs page draws the run with its output.
 func TestCommandRunExecStreamsOutputAndRecordsTheExitCode(t *testing.T) {
+	t.Parallel()
 	app := open(t)
+	testEnv(app, "HOME", t.TempDir())
 	res, err := app.r.Execute(ochazuke.Request{Noun: commandNoun, Verb: "run", Target: runsListID,
 		Args: ochazuke.Arguments{"command": "echo first; echo to-stderr >&2; sleep 0.4; echo second; exit 4", "dir": t.TempDir()}})
 	if err != nil {
@@ -82,6 +84,7 @@ func TestCommandRunExecStreamsOutputAndRecordsTheExitCode(t *testing.T) {
 // drive is chosen: command.run, a harness profile (and agent.start's
 // override), and a schedule's command row.
 func TestDriveAPIIsRefusedAsNotAvailableYet(t *testing.T) {
+	t.Parallel()
 	app, f := harnessApp(t, `[{"name": "omp", "drive": "api"}]`)
 	if _, err := app.r.Execute(ochazuke.Request{Noun: commandNoun, Verb: "run", Target: runsListID,
 		Args: ochazuke.Arguments{"command": "echo x", "drive": "api"}}); err == nil || !strings.Contains(err.Error(), "drive api is not available yet") {
@@ -109,6 +112,7 @@ func TestDriveAPIIsRefusedAsNotAvailableYet(t *testing.T) {
 // window gets the argv), for command.run and for a schedule's command row
 // run now with the drive overridden for that run only.
 func TestDriveTerminalOpensAPane(t *testing.T) {
+	t.Parallel()
 	app, f := harnessApp(t, "")
 	mustCLI(t, app, "command", "run", "htop", "--drive", "terminal", "--dir", "/tmp")
 	if len(f.launches) != 1 || strings.Join(f.launches[0].Command, " ") != "sh -c htop" || f.launches[0].Cwd != "/tmp" || f.launches[0].Session != mtmOnlySession {
@@ -135,6 +139,7 @@ func TestDriveTerminalOpensAPane(t *testing.T) {
 // runs its argv as an exec run: no pane, the prompt (the task's title) on
 // its stdin, the output on the Runs page.
 func TestHarnessDriveExecRunsWithoutAPane(t *testing.T) {
+	t.Parallel()
 	app, f := harnessApp(t, `[{"name": "echoer", "command": ["cat"], "drive": "exec"}]`)
 	home := t.TempDir()
 	app.home = func() (string, error) { return home, nil }

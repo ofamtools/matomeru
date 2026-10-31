@@ -113,6 +113,7 @@ func turnRows(a *App) []string {
 }
 
 func TestTurnsIsTheDefaultTab(t *testing.T) {
+	t.Parallel()
 	app, err := New(Options{Data: seeded(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -127,6 +128,7 @@ func TestTurnsIsTheDefaultTab(t *testing.T) {
 // prompt; opened, the prompt, the steer folded in under it, the thinking
 // and the tool call folded (the settings' defaults) and the answer.
 func TestClaudeTurnsFromTheSessionLog(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	useTurnStyle(t, app, turnsStyleTree)
 	rows := turnRows(app)
@@ -172,6 +174,7 @@ func TestClaudeTurnsFromTheSessionLog(t *testing.T) {
 // A prompt the agent is working on is a new turn, closed like the rest,
 // its row marked; the older rows are muted and the running one bold.
 func TestTheRunningTurnIsClosedAndBrighter(t *testing.T) {
+	t.Parallel()
 	app, f, log := claudeTurnsApp(t)
 	useTurnStyle(t, app, turnsStyleTree)
 	writeLog(t, log,
@@ -205,6 +208,7 @@ func TestTheRunningTurnIsClosedAndBrighter(t *testing.T) {
 // /clear starts a new session: the pane's turns chain both, a separator
 // row above the new session's first turn.
 func TestClaudeSessionsChainAcrossClear(t *testing.T) {
+	t.Parallel()
 	app, f, _ := claudeTurnsApp(t)
 	useTurnStyle(t, app, turnsStyleTree)
 	elsewhere := filepath.Join(app.claudeProjects, "-somewhere-else")
@@ -223,6 +227,7 @@ func TestClaudeSessionsChainAcrossClear(t *testing.T) {
 
 // A Claude pane whose log is not found keeps the journal's turns.
 func TestAClaudePaneWithNoLogFallsBackToTheJournal(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	capturedTurns(t, path, "first answer", "second answer")
 	app := openWith(t, Options{Data: path})
@@ -311,6 +316,7 @@ func shellTurnsApp(t *testing.T, big int) (*App, *fakeTurnPanes) {
 // A marked shell's turns are its commands; opening one reads its output
 // then, and a command whose prompt left the history says so.
 func TestShellTurnsFromCommandHistory(t *testing.T) {
+	t.Parallel()
 	app, f := shellTurnsApp(t, 3)
 	useTurnStyle(t, app, turnsStyleTree)
 	rows := turnRows(app)
@@ -347,6 +353,7 @@ func TestShellTurnsFromCommandHistory(t *testing.T) {
 // y copies a turn's response: a Claude turn's answer onto the clipboard; a
 // shell output over 100 KB is offered as a file or a pager instead.
 func TestCopyATurn(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	useTurnStyle(t, app, turnsStyleTree)
 	sys := &fakeSystem{}
@@ -361,6 +368,7 @@ func TestCopyATurn(t *testing.T) {
 }
 
 func TestCopyingAHugeShellOutputOffersAFile(t *testing.T) {
+	t.Parallel()
 	app, f := shellTurnsApp(t, 3000) // about 160 KB
 	useTurnStyle(t, app, turnsStyleTree)
 	sys := app.cx.sys.(*fakeSystem)
@@ -412,6 +420,7 @@ func ompRecord(t *testing.T, typ, id, parent, ts string, message map[string]any)
 // An omp pane's turns come from its session file, found by the session id
 // tuios reports, following the file's current branch; a steer folds in.
 func TestOmpTurnsFromTheSessionFile(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "omp", "idle", "01a1-s1", "/w/proj"
 	dir := filepath.Join(app.ompSessions, "-w-proj")

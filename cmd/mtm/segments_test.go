@@ -15,6 +15,7 @@ import (
 // directory's volume; each has its own opt-out setting and the area one
 // more; an extension's catalog segments mount against its proxy verbs.
 func TestSegmentsOnByDefaultWithOptOuts(t *testing.T) {
+	t.Parallel()
 	app, err := New(Options{Data: seeded(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +82,7 @@ func TestSegmentsOnByDefaultWithOptOuts(t *testing.T) {
 // With the segments on, mtm's header rule carries the live readings,
 // right-aligned, and the body keeps its rows.
 func TestSegmentsDrawInTheHeaderRule(t *testing.T) {
+	t.Parallel()
 	app := openWith(t, Options{Data: seeded(t)})
 	app.m.Width, app.m.Height = 100, 24
 	before := strings.Split(plainView(app), "\n")

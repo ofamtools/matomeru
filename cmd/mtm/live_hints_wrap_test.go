@@ -11,6 +11,7 @@ import (
 // is one item: one label, on its first piece, every piece highlighted,
 // and the label copies the joined text without the indent.
 func TestHintsJoinAHardWrappedLink(t *testing.T) {
+	t.Parallel()
 	url := "https://example.com/" + strings.Repeat("w", 100) + "/tail/end"
 	lead := "see "
 	cut := hintsWidth - len(lead)

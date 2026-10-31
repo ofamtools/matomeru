@@ -47,6 +47,7 @@ func toSource(t *testing.T, a *App, c *ochazuke.Chooser, name string) {
 // directories, no browse… row (the chooser's browse source replaces it),
 // and the pick attaches as the default.
 func TestDirectoryPathChooserOpensOnKnown(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	root := knownRepos(t, a, "alpha", "beta")
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "directory", Target: "matomeru"}); err != nil {
@@ -80,6 +81,7 @@ func TestDirectoryPathChooserOpensOnKnown(t *testing.T) {
 // first, each row's Data its path; the typed source attaches a typed
 // folder.
 func TestDirectoryPathChooserProjectAndTypedSources(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	knownRepos(t, a)
 	one, two := t.TempDir(), t.TempDir()
@@ -122,6 +124,7 @@ func TestDirectoryPathChooserProjectAndTypedSources(t *testing.T) {
 
 // The recent source is mtm's dir_recent, newest first.
 func TestDirectoryPathChooserRecentIsDirRecent(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	knownRepos(t, a)
 	if err := a.work.SeedDirs([]work.DirRecent{{Path: "/old/one", LastUsed: 1}, {Path: "/new/two", LastUsed: 2}}); err != nil {
@@ -143,6 +146,7 @@ func TestDirectoryPathChooserRecentIsDirRecent(t *testing.T) {
 // directory-chooser path-remembered opens on the source last used; path
 // opens on known whatever was used last.
 func TestDirectoryChooserSettingStartSource(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	knownRepos(t, a)
 	reopen := func() *ochazuke.Chooser {
@@ -176,6 +180,7 @@ func TestDirectoryChooserSettingStartSource(t *testing.T) {
 
 // mtm's directory fields are folder path parameters.
 func TestDirectoryFieldsArePathParameters(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for key, name := range map[string]string{
 		"project.directory":      "path",

@@ -53,6 +53,7 @@ func noteText(t *testing.T, a *App, id string) string {
 // item, j to the next line, x toggles it by rewriting only the box in the
 // stored note, u puts it back and ctrl+r writes it again.
 func TestNoteChecklistTogglesInTheStore(t *testing.T) {
+	t.Parallel()
 	a, note := notesDocApp(t)
 	frame(a)
 	press(t, a, "enter")
@@ -92,6 +93,7 @@ func TestNoteChecklistTogglesInTheStore(t *testing.T) {
 // An item changed in the store since the Doc read the note is refused:
 // the key's error is in the footer and nothing is written.
 func TestNoteChecklistRefusesAChangedItem(t *testing.T) {
+	t.Parallel()
 	a, note := notesDocApp(t)
 	press(t, a, "enter", "]", "x")
 	changed := strings.Replace(checklistNote, "- [ ] one", "- [ ] one, renamed", 1)
@@ -113,6 +115,7 @@ func TestNoteChecklistRefusesAChangedItem(t *testing.T) {
 // on the markdown noun; note.edit keeps its verb); esc goes back to the
 // list. A note without tasks is a Doc stop too.
 func TestNoteChecklistEditAndBack(t *testing.T) {
+	t.Parallel()
 	a, note := notesDocApp(t)
 	press(t, a, "enter", "esc")
 	if a.r.Focus != note.ID {
@@ -151,6 +154,7 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 // Notes are plain lines: every newline is a line break in the view, not a
 // paragraph join.
 func TestNoteLinesRenderOneLinePerSourceLine(t *testing.T) {
+	t.Parallel()
 	a, _ := notesDocApp(t)
 	if _, err := a.work.AddNote("matomeru", "", "first line\nsecond line\nthird line"); err != nil {
 		t.Fatal(err)
@@ -183,6 +187,7 @@ func TestNoteLinesRenderOneLinePerSourceLine(t *testing.T) {
 // (LF or CRLF, a code fence among them) a toggle writes only the box and
 // u puts the very bytes back.
 func TestNoteHardBreaksStayOutOfTheStore(t *testing.T) {
+	t.Parallel()
 	for _, text := range []string{
 		"Plan\nsecond line\n- [ ] one\n- [ ] two\n",
 		"crlf\r\nlines\r\n\r\n- [ ] one\r\n- [ ] two\r\n",
@@ -221,6 +226,7 @@ func TestNoteHardBreaksStayOutOfTheStore(t *testing.T) {
 // esc from a plain note's body lands on the note's row, so enter reads
 // it again.
 func TestNoteBodyEscLandsOnTheRow(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	note, err := a.work.AddNote("matomeru", "", "no tasks\nhere")
 	if err != nil {
@@ -253,6 +259,7 @@ func TestNoteBodyEscLandsOnTheRow(t *testing.T) {
 // lines keeps one line per source line, and only the selected item is
 // the reverse highlight.
 func TestNoteChecklistDrawsTheDoc(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	mono(t, a)
 	note, err := a.work.AddNote("matomeru", "", "Plan\nsecond line\n- [ ] one\n- [ ] two\n")
@@ -297,6 +304,7 @@ func TestNoteChecklistDrawsTheDoc(t *testing.T) {
 // (ochazuke's Bind leaves a prefix its rows are not on), so mtm's rows on
 // the markdown noun are safe to bind at any time, not only at setup.
 func TestMarkdownRowBoundMidSequenceKeepsDD(t *testing.T) {
+	t.Parallel()
 	a, _ := notesDocApp(t)
 	a.Update(keyMsg("d"))
 	if a.r.Pending != "d" {

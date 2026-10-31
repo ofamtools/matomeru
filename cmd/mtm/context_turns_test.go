@@ -44,6 +44,7 @@ func activity(seq uint64, at int64, kind, text string) history.Entry {
 // prompt went in, even when the pane moved before the answer; a reread of
 // the ring writes nothing again, and the loop is told to reload.
 func TestJournaledTurnsYieldContextItems(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	at := int64(1_790_000_000_000)
 	if err := app.work.SetPaneOwner(work.Assignment{Window: "w1", ProjectID: "matomeru"}); err != nil {
@@ -91,6 +92,7 @@ func TestJournaledTurnsYieldContextItems(t *testing.T) {
 // prompt is not read (the capture has the whole prompt), and an answer
 // the capture replaces is not either.
 func TestTurnTextFollowsTheProjection(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	at := int64(1_790_000_000_000)
 	if err := app.work.SetPaneOwner(work.Assignment{Window: "w1", ProjectID: "matomeru"}); err != nil {
@@ -126,6 +128,7 @@ func TestTurnTextFollowsTheProjection(t *testing.T) {
 // the turn's owner; the command still prints the entry id, and capturing
 // the same completion again adds nothing.
 func TestCapturedTurnsYieldContextItems(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	if err := app.work.SetPaneOwner(work.Assignment{Window: "w1", ProjectID: "matomeru"}); err != nil {
 		t.Fatal(err)
@@ -153,6 +156,7 @@ func TestCapturedTurnsYieldContextItems(t *testing.T) {
 // context-item turns reads every journaled turn once (turns journaled
 // before extraction from turns existed); a second run adds nothing.
 func TestContextTurnsBackfill(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	at := int64(1_790_000_000_000)
 	if _, err := app.hist.Append(activity(1, at, "prompt", "read https://example.com/old"), activity(2, at+1000, "turn_end", "ok 1ba025f")); err != nil {
@@ -173,6 +177,7 @@ func TestContextTurnsBackfill(t *testing.T) {
 // Reading an agent's transcript (the Transcript tab) extracts its items
 // for the pane's owner, and tells the loop to reload.
 func TestTranscriptReadYieldsContextItems(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	if _, err := app.r.Settings().SetSession(settingContextExtractFrom, []string{"transcript"}); err != nil {
 		t.Fatal(err)
@@ -196,6 +201,7 @@ func TestTranscriptReadYieldsContextItems(t *testing.T) {
 
 // The daemon cuts a long text with "..."; the cut word names nothing.
 func TestUntruncated(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{
 		"saved at /tmp/proj/notes/todo.md and /Users/me/pr...": "saved at /tmp/proj/notes/todo.md and",
 		"whole text":       "whole text",

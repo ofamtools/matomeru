@@ -27,6 +27,7 @@ func savedCall(t *testing.T, a *App, verb string, args ochazuke.Arguments) {
 }
 
 func TestSavedNoProjectLiveReopenAndForgetNeverLaunchOrKill(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	f := &fakeDaemon{panes: a.panesd.(*fakePanes)}
 	a.launcher = f
@@ -51,6 +52,7 @@ func TestSavedNoProjectLiveReopenAndForgetNeverLaunchOrKill(t *testing.T) {
 }
 
 func TestSavedRelaunchUsesRecordedArgvNotChangedHarnessDefaults(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	f := &fakeDaemon{panes: a.panesd.(*fakePanes)}
 	a.launcher = f
@@ -82,6 +84,7 @@ func TestSavedRelaunchUsesRecordedArgvNotChangedHarnessDefaults(t *testing.T) {
 }
 
 func TestSavedEnvironmentKeepsArgumentBoundaries(t *testing.T) {
+	t.Parallel()
 	got := savedCommand(work.PaneRecipe{Command: []string{"/bin/sh", "-c", "echo a b"}, Env: map[string]string{"Z": "a b", "A": "=quoted"}})
 	want := []string{"env", "A==quoted", "Z=a b", "/bin/sh", "-c", "echo a b"}
 	if !reflect.DeepEqual(got, want) {
@@ -90,6 +93,7 @@ func TestSavedEnvironmentKeepsArgumentBoundaries(t *testing.T) {
 }
 
 func TestSavedRowsRespectPinAndAll(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for _, owner := range []string{"matomeru", "ochazuke", ""} {
 		if _, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Name: owner, ProjectID: owner}}); err != nil {
@@ -109,6 +113,7 @@ func TestSavedRowsRespectPinAndAll(t *testing.T) {
 }
 
 func TestSavedScratchRelaunchLeavesFormerProjectSession(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	f := &fakeDaemon{panes: a.panesd.(*fakePanes)}
 	a.launcher = f
@@ -130,6 +135,7 @@ func TestSavedScratchRelaunchLeavesFormerProjectSession(t *testing.T) {
 // r on a saved record is the rename form: written as you type (after the
 // pause), enter leaves; there is no save key.
 func TestSavedRenameIsWrittenAsYouType(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	row, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Name: ""}})
 	if err != nil {
@@ -155,6 +161,7 @@ func TestSavedRenameIsWrittenAsYouType(t *testing.T) {
 // Refresh is automatic: a record written behind the page's back (another
 // mtm, the CLI) shows when the Saved page opens; no key reloads it.
 func TestSavedPageRefreshesWhenOpened(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if _, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "elsewhere", Session: "s", Name: "from the cli", Cwd: "/home/test"}}); err != nil {
 		t.Fatal(err)
@@ -179,6 +186,7 @@ func TestSavedPageRefreshesWhenOpened(t *testing.T) {
 // UX review 2 F22: Saved and Vim show paths under the home directory with
 // ~, as the other pages do.
 func TestSavedAndVimShowHomePathsWithTilde(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	a.home = func() (string, error) { return "/home/test", nil }
 	if _, err := a.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w9", Session: "s", Name: "builder", Cwd: "/home/test/proj/x"}}); err != nil {

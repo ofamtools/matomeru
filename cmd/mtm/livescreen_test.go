@@ -16,6 +16,7 @@ import (
 // capture cannot.
 // Every terminal.engine replays it alike.
 func TestLiveScreenReplaysTheStreamWithItsCursor(t *testing.T) {
+	t.Parallel()
 	for _, e := range ocli.TerminalEngines() {
 		if e.Unavailable == "" {
 			t.Run(e.Name, func(t *testing.T) { testLiveScreenReplays(t, e.Name) })
@@ -60,6 +61,7 @@ func plain(line string) string { return strings.TrimRight(ansi.Strip(line), " ")
 // A live pane's cursor reaches the terminal: the frame's cell, offset by
 // the panel the terminal is drawn in.
 func TestLivePaneCursorReachesTheView(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	cmd := key(t, app, "enter")
 	f.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"$ PROMPT"}, Cursor: ochazuke.Pos{X: 2, Y: 0}}
@@ -83,6 +85,7 @@ func TestLivePaneCursorReachesTheView(t *testing.T) {
 // A parked stream is given back once the preview leaves its pane: another
 // page, or another pane attached.
 func TestHeldStreamDropsWhenThePreviewLeaves(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
@@ -110,6 +113,7 @@ func TestHeldStreamDropsWhenThePreviewLeaves(t *testing.T) {
 
 // An engine this build lacks leaves the screen to captures, not mtm down.
 func TestLiveScreenWithAnEngineItLacks(t *testing.T) {
+	t.Parallel()
 	l := liveScreen{engine: "nope"}
 	l.apply(daemon.Frame{Type: 'S', Cols: 20, Rows: 4, Data: []byte("$ ")})
 	if _, ok := l.frame(); ok || l.err == nil {

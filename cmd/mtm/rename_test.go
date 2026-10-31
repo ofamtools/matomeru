@@ -39,6 +39,7 @@ func (f *fakeRenamer) RenameWindow(_ context.Context, session, window, name stri
 // r on a pane row opens the rename form with the current name filled in;
 // enter renames the window on the daemon and the list reloads with it.
 func TestRenameAPaneFromItsRow(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	app.renamer = fr
@@ -68,6 +69,7 @@ func TestRenameAPaneFromItsRow(t *testing.T) {
 // r on a pane row opens the name selected (rename.select, on by default):
 // typing replaces the whole name, with no ctrl+u first.
 func TestRenameAPaneOpensTheNameSelected(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	app.renamer = fr
@@ -99,6 +101,7 @@ func TestRenameAPaneOpensTheNameSelected(t *testing.T) {
 // session rename takes the name as an argument (the command line's way)
 // and reloads the list under the new name.
 func TestRenameASession(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -133,6 +136,7 @@ func TestRenameASession(t *testing.T) {
 // esc closes the rename prompt and keeps what was typed (esc never
 // discards); esc with nothing changed renames nothing (UX review 2 F4).
 func TestRenameEscKeepsTheTypedName(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	app.renamer = fr
@@ -160,6 +164,7 @@ func TestRenameEscKeepsTheTypedName(t *testing.T) {
 // UX review 2 F22: a saved record of a pane follows the pane's rename
 // while it still carries the old name; one renamed on its own keeps it.
 func TestRenamingAPaneRenamesItsSavedRecord(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	app.renamer = &fakeRenamer{panes: f}
 	follows, err := app.work.PutSavedPane(work.SavedPane{PaneRecipe: work.PaneRecipe{Window: "w1", Session: "matomeru", Name: "claude"}})
@@ -201,6 +206,7 @@ func pauseForm(t *testing.T, a *App, form *ochazuke.RecordEditor) {
 // The session rename form renames as you type: each write renames the
 // session as the last one left it; an empty name is not written.
 func TestRenameASessionAsYouType(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)

@@ -25,6 +25,7 @@ func aliasOf(a *App, action, name string) *ochazuke.ActionAlias {
 // duplicate, archive and restore; show, read, unread and toggle-read lasting aliases; add,
 // count, open, snooze, the promotions, associate and choose-move named.
 func TestActionItemVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a, _, _ := inboxApp(t)
 	standardIs(t, a, actionItemNoun, map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
@@ -43,6 +44,7 @@ func TestActionItemVerbsAreStandard(t *testing.T) {
 // and --source; create always adds a row of its own (add refreshes a
 // duplicate); the label falls back to the summary.
 func TestActionItemShowListCreate(t *testing.T) {
+	t.Parallel()
 	a, _, clock := inboxApp(t)
 	pr, ping := seedInbox(t, a, clock)
 	var shown map[string]any
@@ -74,6 +76,7 @@ func TestActionItemShowListCreate(t *testing.T) {
 // history.undo puts it back as it was. x and X are the standard archive
 // and restore, and undo reverts an archive.
 func TestActionItemDeleteKeyAndUndo(t *testing.T) {
+	t.Parallel()
 	a, _, clock := inboxApp(t)
 	pr, _ := seedInbox(t, a, clock)
 	toPage(t, a, inboxPage)
@@ -113,6 +116,7 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 // A move takes the project and keeps the pane; associate's old forms say
 // they are old and run set; set writes several props at once.
 func TestActionItemMoveAndAssociate(t *testing.T) {
+	t.Parallel()
 	a, _, clock := inboxApp(t)
 	pr, _ := seedInbox(t, a, clock)
 	if _, err := a.inbox.items.Associate(pr.ID, actionitems.Owner{ProjectID: "matomeru", Window: "w1", Session: "matomeru"}); err != nil {
@@ -139,6 +143,7 @@ func TestActionItemMoveAndAssociate(t *testing.T) {
 // archive and the read mark (every prop the write changed, though the
 // request named one).
 func TestActionItemUndoOfArchiveKeepsTheSnooze(t *testing.T) {
+	t.Parallel()
 	a, _, clock := inboxApp(t)
 	pr, _ := seedInbox(t, a, clock)
 	until := *clock + int64(time.Hour/time.Millisecond)

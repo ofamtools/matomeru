@@ -10,6 +10,7 @@ import (
 // the box's normal mode j stays on the box. The focus is always on
 // something the frame draws, and the next key answers.
 func TestJAtTheBottomOfTheTurnsTab(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) { jAtTheBottom(t, style) })
 	}

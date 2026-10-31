@@ -48,6 +48,14 @@ func followApp(t *testing.T) (*App, *fakeContextPanes) {
 	if _, err := a.r.Settings().SetSession(settingContextExtractFrom, []string{"prompt", "response", "scrollback"}); err != nil {
 		t.Fatal(err)
 	}
+	// Deliver the scheduled batch immediately, while checking that the
+	// production scheduler leaves a second for extraction within its SLA.
+	a.cx.follow.after = func(delay time.Duration, msg tea.Msg) tea.Cmd {
+		if delay > time.Second {
+			t.Fatalf("follow batch delay %v leaves less than a second to extract", delay)
+		}
+		return func() tea.Msg { return msg }
+	}
 	f := withContextPanes(a)
 	f.panes[0].Width = 40
 	if err := a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "matomeru", ProjectID: "matomeru"}); err != nil {
@@ -63,10 +71,11 @@ func printed(a *App, f *fakeContextPanes, window string, lines ...string) {
 	f.print(window, lines...)
 	a.cx.follow.mark(window)
 	_, cmd := a.Update(contextOutput{})
-	driveLoop(a, cmd, 1500*time.Millisecond)
+	driveLoop(a, cmd, 100*time.Millisecond)
 }
 
 func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
+	t.Parallel()
 	a, f := followApp(t)
 	file := filepath.Join(t.TempDir(), "notes.md")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
@@ -128,6 +137,7 @@ func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
 // Each read starts at the last history offset (less the overlap), not at
 // the top of the buffer.
 func TestFollowReadsOnlyTheNewPart(t *testing.T) {
+	t.Parallel()
 	a, f := followApp(t)
 	for i := range 20 {
 		f.print("w1", "line "+string(rune('a'+i)))
@@ -142,7 +152,7 @@ func TestFollowReadsOnlyTheNewPart(t *testing.T) {
 	f.reads = 0
 	f.mu.Unlock()
 	_, cmd := a.Update(contextOutput{})
-	driveLoop(a, cmd, 1500*time.Millisecond)
+	driveLoop(a, cmd, 100*time.Millisecond)
 	items, _ := a.contexts.All()
 	if len(items) != 2 || f.reads != 1 {
 		t.Fatalf("items %d, reads %d", len(items), f.reads)
@@ -151,6 +161,7 @@ func TestFollowReadsOnlyTheNewPart(t *testing.T) {
 
 // Nothing is read on a keypress, and nothing without output.
 func TestFollowNeverRunsOnAKey(t *testing.T) {
+	t.Parallel()
 	a, f := followApp(t)
 	f.print("w1", "https://example.com/quiet")
 	press(t, a, "j")

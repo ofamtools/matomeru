@@ -12,6 +12,7 @@ import (
 // keys, and ctrl+a d comes back to the pane row on Screen. The frames are
 // the ones the Screen tab drew before Turns became the default (3f6a2eb).
 func TestScreenTabKeepsTheLiveHintsAndKeys(t *testing.T) {
+	t.Parallel()
 	for _, harness := range []string{"", "claude-code", "omp"} {
 		t.Run("harness="+harness, func(t *testing.T) { screenLive(t, harness) })
 	}

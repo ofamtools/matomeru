@@ -10,6 +10,7 @@ import (
 // F5: live and back: ctrl+a d returns to the tab the attach left, and
 // the box and a turn reach live too.
 func TestDetachReturnsToTurns(t *testing.T) {
+	t.Parallel()
 	app, f, _ := claudeTurnsApp(t)
 	row := app.pv.turnsFor
 	frame(app)

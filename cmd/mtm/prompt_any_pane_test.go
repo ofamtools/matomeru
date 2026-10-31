@@ -44,6 +44,7 @@ func withHarnesses(t *testing.T, a *App, file string) {
 // types the text as one paste and then Enter (send-text with submit), a
 // multi-line text whole. Its box has one mode, so ctrl+t stands aside.
 func TestPromptBoxTypesIntoAShell(t *testing.T) {
+	t.Parallel()
 	app, f := screenBoxApp(t)
 	if fr := frame(app); !strings.Contains(fr, "type into the pane") {
 		t.Fatalf("no box below the shell's screen:\n%s", fr)
@@ -83,6 +84,7 @@ func TestPromptBoxTypesIntoAShell(t *testing.T) {
 // REPL profile with deliver send and submit none leaves the text typed
 // ([type]): one paste, no Enter.
 func TestPromptBoxSubmitNoneLeavesTheTextTyped(t *testing.T) {
+	t.Parallel()
 	app, f := screenBoxApp(t)
 	withHarnesses(t, app, `[{"name": "repl", "command": ["python3"], "promptBox": {"deliver": "send", "submit": "none"}}]`)
 	f.panes[0].LaunchHarness = "repl"
@@ -101,6 +103,7 @@ func TestPromptBoxSubmitNoneLeavesTheTextTyped(t *testing.T) {
 // An agent's box (deliver queue) keeps its modes and queues through tuios;
 // Codex, which had no box, gets one, on the Screen tab too.
 func TestPromptBoxQueuesToACodexPane(t *testing.T) {
+	t.Parallel()
 	app, f := screenBoxApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState = "codex", "working"
 	reload(t, app)
@@ -120,6 +123,7 @@ func TestPromptBoxQueuesToACodexPane(t *testing.T) {
 
 // An exited pane has no box: none is drawn and i stands aside.
 func TestAnExitedPaneHasNoPromptBox(t *testing.T) {
+	t.Parallel()
 	app, f := screenBoxApp(t)
 	f.panes[0].Exited = true
 	reload(t, app)
@@ -138,6 +142,7 @@ func TestAnExitedPaneHasNoPromptBox(t *testing.T) {
 // prompt.on-terminals off takes the box from a shell (an agent keeps it);
 // prompt.on-screen off takes it from the Screen tab.
 func TestPromptBoxSettingsOptOut(t *testing.T) {
+	t.Parallel()
 	app, f := screenBoxApp(t)
 	if err := app.r.Settings().Set(settingPromptTerminals, false); err != nil {
 		t.Fatal(err)
@@ -161,6 +166,7 @@ func TestPromptBoxSettingsOptOut(t *testing.T) {
 // prompt.on-screen off: the Screen tab draws no box, and its rows go to
 // the screen, which shows more of its lines; on, the box is back.
 func TestPromptOnScreenOffGivesTheScreenTheSpace(t *testing.T) {
+	t.Parallel()
 	app, f := screenBoxApp(t)
 	var lines []string
 	for i := range 60 {

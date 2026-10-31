@@ -8,6 +8,7 @@ import (
 // F7: the detail panel is drawn focused while the box, inside it, has
 // the focus.
 func TestDetailPanelFocusedWithTheBox(t *testing.T) {
+	t.Parallel()
 	app, _ := promptApp(t)
 	fr := frame(app)
 	for _, l := range strings.Split(fr, "\n") {

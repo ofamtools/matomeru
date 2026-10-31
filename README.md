@@ -111,6 +111,19 @@ bin/mtm-story story explore panes --watch --delay 500ms   # the explorer's watch
 bin/mtm-story story help                         # every command: history, keep, replay, trim, verbs, catalog
 ```
 
+The release check is `make gate`: an untagged gofmt check, `go vet ./...`, and
+`go test -race ./...`, followed by the tagged stories only
+(`STORY_PACKAGES=./cmd/mtm STORY_TEST_FLAGS='-race -run ^TestStories'`),
+`make split-check`, and `make states-test`. Each step prints its elapsed seconds,
+and a failed step stops the gate. This runs the app suite once and keeps the
+race pass on the untagged build that ships. `GOWORK=off` is set by the Makefile.
+
+Tests in `cmd/mtm` start with `t.Parallel()`. Tests that require process-wide
+state instead carry a `// serial: <reason>` doc comment. `TestParallelTests`
+checks every test file, including tagged files; `scripts/parallel_tests.py`
+can re-apply the parallel default after branches merge without duplicating calls.
+Use per-app environment/clock seams and temporary fixtures in new tests.
+
 The tests run every story through `host.Test` in the tagged build (`cmd/mtm/stories_test.go`; `-update` rewrites goldens): `make story-test` (`go vet` and `go test -race` with `-tags monogatari`). A UI bug becomes a story before it is fixed; a known gap is a story with `"skip": "gap: ..."`. Editors need `-tags monogatari` in gopls's build flags to see the tagged files.
 
 ## Live shell keys

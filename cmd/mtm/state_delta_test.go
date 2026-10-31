@@ -15,7 +15,7 @@ import (
 // Its cache is scoped by the database and the daemon socket: another
 // database or another socket is another cache id.
 func TestProjectsStateAnswersDeltasScopedByDataAndSocket(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Parallel()
 	app, _ := cliApp(t)
 	state := func(a *App, flags ...string) ocli.StateAnswer {
 		t.Helper()

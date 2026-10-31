@@ -8,6 +8,7 @@ import (
 // F6: a send selects the newest turn and follows it; focusing the box
 // does not move the turns.
 func TestSendFollowsTheNewTurn(t *testing.T) {
+	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) {
 			app, _, log := claudeTurnsApp(t)

@@ -82,15 +82,13 @@ func mcpApp(t *testing.T, env map[string]string) (*App, *stateRecorder, string) 
 	getenv := func(k string) string { return env[k] }
 	app.getenv = getenv
 	rec := &stateRecorder{fakePanes: newFakePanes()}
-	previous := mcpPrepare
-	mcpPrepare = func(a *App) {
+	app.mcpPrepare = func(a *App) {
 		a.panesd, a.renamer = rec, &fakeRenamer{panes: rec.fakePanes}
 		a.ensure = func(context.Context) error { return nil }
 		a.sleep = func(context.Context, time.Duration) error { return nil }
 		a.getenv, a.journalSrc, a.pv.after = getenv, nil, nil
 		a.home = func() (string, error) { return "/home/test", nil }
 	}
-	t.Cleanup(func() { mcpPrepare = previous })
 	return app, rec, cwd
 }
 
@@ -148,6 +146,7 @@ func structured(t *testing.T, resp map[string]any) any {
 }
 
 func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
+	t.Parallel()
 	app, rec, cwd := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
 	doc := filepath.Join(cwd, "report.md")
 	if err := os.WriteFile(doc, []byte("# done\n"), 0o600); err != nil {
@@ -287,6 +286,7 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 }
 
 func TestMCPWhoamiReadsTheTUIOSEnvironment(t *testing.T) {
+	t.Parallel()
 	// The session owns the project; the pane has no assignment of its own.
 	app, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "work", "TUIOS_PANE_ID": "w7"})
 	if err := app.work.SetSessionOwner(work.SessionOwner{ID: "sid-1", Name: "work", ProjectID: "ochazuke"}); err != nil {
@@ -316,6 +316,7 @@ func TestMCPWhoamiReadsTheTUIOSEnvironment(t *testing.T) {
 }
 
 func TestMCPConfigPointsAtThisBinary(t *testing.T) {
+	t.Parallel()
 	app, _, _ := mcpApp(t, nil)
 	var out, errOut bytes.Buffer
 	if err := app.commands([]string{"mcp", "config", "claude"}, strings.NewReader(""), &out, &errOut, nil).Run(context.Background()); err != nil {
@@ -357,6 +358,7 @@ func TestMCPConfigPointsAtThisBinary(t *testing.T) {
 }
 
 func TestMCPConfigNamesTheServerWithoutASocket(t *testing.T) {
+	t.Parallel()
 	app := openWith(t, Options{Data: seeded(t), Server: "mtm-daemon"})
 	cmd := app.mcpServerCommand(io.Discard)
 	if !slices.Equal(cmd.Args[2:], []string{"--server", "mtm-daemon", "mcp", "serve"}) {
@@ -365,6 +367,7 @@ func TestMCPConfigNamesTheServerWithoutASocket(t *testing.T) {
 }
 
 func TestContextItemAddKeepsAKindOrTheWholeText(t *testing.T) {
+	t.Parallel()
 	app, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
 	out := mustCLI(t, app, "context-item", "add", "--text", "make gate", "--kind", "command")
 	var got extracted

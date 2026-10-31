@@ -60,6 +60,7 @@ func vimRPCForTest(t *testing.T, binary, socket, expr string) string {
 }
 
 func TestVimRealSaveRestoreRestartAndForget(t *testing.T) {
+	t.Parallel()
 	binary, err := exec.LookPath("nvim")
 	if err != nil {
 		t.Skip("nvim not installed; real Neovim acceptance unverified")
@@ -175,6 +176,7 @@ func TestVimRealSaveRestoreRestartAndForget(t *testing.T) {
 }
 
 func TestVimForgetLeavesExternalLegacyAndSymlinkTargets(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	external := filepath.Join(root, "important.txt")
 	if err := os.WriteFile(external, []byte("keep"), 0600); err != nil {
@@ -204,6 +206,7 @@ func TestVimForgetLeavesExternalLegacyAndSymlinkTargets(t *testing.T) {
 }
 
 func TestVimScopeColumnsAndExplicitID(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for _, row := range []work.VimSession{
 		{ID: "vim-a", Name: "A", ProjectID: "matomeru", State: "closed"},
@@ -248,6 +251,7 @@ func TestVimScopeColumnsAndExplicitID(t *testing.T) {
 }
 
 func TestVimOpenScratchWithoutProject(t *testing.T) {
+	t.Parallel()
 	binary, err := exec.LookPath("nvim")
 	if err != nil {
 		t.Skip("nvim not installed; real Neovim acceptance unverified")
@@ -277,6 +281,7 @@ func TestVimOpenScratchWithoutProject(t *testing.T) {
 }
 
 func TestVimLiveIdentitySurvivesSessionRename(t *testing.T) {
+	t.Parallel()
 	row := work.VimSession{WindowID: "stable-pane", Session: "old-name"}
 	live := pane{Session: "renamed", Pane: daemon.Pane{ID: "stable-pane"}}
 	if got, ok := vimPane(row, []pane{live}); !ok || got.Session != "renamed" {

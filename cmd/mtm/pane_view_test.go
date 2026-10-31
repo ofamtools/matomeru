@@ -66,6 +66,7 @@ func splitDrawn(fr string) bool {
 // Each agent.view value opens a pane on its layout: turns the Turns tab,
 // terminal the Screen tab, both the Turns tab with the screen beside it.
 func TestAgentViewOpensEachLayout(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		view, tab string
 		split     bool
@@ -91,6 +92,7 @@ func TestAgentViewOpensEachLayout(t *testing.T) {
 // beats the profile; pane.view default drops it again. Moving between
 // panes of one view keeps the tab a person chose.
 func TestPaneViewOverrideBeatsTheHarnessDefault(t *testing.T) {
+	t.Parallel()
 	app := viewApp(t, `[{"name": "claude", "view": {"open": "terminal"}}]`)
 	if fr := selectRow(t, app, "pane:matomeru/w1"); !strings.Contains(fr, "[Screen]") {
 		t.Fatalf("profile view terminal: \n%s", fr)
@@ -128,6 +130,7 @@ func TestPaneViewOverrideBeatsTheHarnessDefault(t *testing.T) {
 // Within panes of one view the tab a person chose stays as the selection
 // moves (today's behaviour with every pane on the default view).
 func TestTheChosenTabStaysAcrossPanesOfOneView(t *testing.T) {
+	t.Parallel()
 	app := viewApp(t, "")
 	selectRow(t, app, "pane:matomeru/w1")
 	settle(app, key(t, app, "]")) // Screen
@@ -140,6 +143,7 @@ func TestTheChosenTabStaysAcrossPanesOfOneView(t *testing.T) {
 // detail's width, from agent.view-split, a profile's view.split, or
 // pane.view --split, the most specific first.
 func TestTheSplitRatioApplies(t *testing.T) {
+	t.Parallel()
 	ruleAt := func(fr string) (int, int) {
 		for _, l := range detailLines(fr) {
 			if i := strings.Index(l, " │ claude is thinking"); i >= 0 {

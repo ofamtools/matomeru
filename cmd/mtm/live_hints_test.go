@@ -120,6 +120,7 @@ func cleared(t *testing.T, app *App, after string) {
 // shares one), drawn at each occurrence's first cell, the wrapped URL as
 // one item on its first row.
 func TestHintsLabelTheScreen(t *testing.T) {
+	t.Parallel()
 	rows, path, wrapped := screenRows(t)
 	app, s, _ := hintsApp(t, rows)
 	o := startHints(t, app, s)
@@ -154,6 +155,7 @@ func TestHintsLabelTheScreen(t *testing.T) {
 // opens the resolved item; a capital or shift and the letter types it
 // into the pane, exactly.
 func TestHintActions(t *testing.T) {
+	t.Parallel()
 	rows, path, wrapped := screenRows(t)
 	for _, c := range []struct {
 		name string
@@ -187,6 +189,7 @@ func TestHintActions(t *testing.T) {
 // narrows the marks to the labels it starts, backspace takes it back, and
 // the second acts with the strongest modifier on either letter.
 func TestHintsTwoLetterLabels(t *testing.T) {
+	t.Parallel()
 	var lines []string
 	for i := range 30 {
 		lines = append(lines, fmt.Sprintf("https://example.com/item%d", i))
@@ -230,6 +233,7 @@ func TestHintsTwoLetterLabels(t *testing.T) {
 // esc and ctrl+c cancel; every other key, a paste and a letter that
 // starts no label are swallowed while the labels are up.
 func TestHintsCancelAndSwallow(t *testing.T) {
+	t.Parallel()
 	rows, _, _ := screenRows(t)
 	for _, cancel := range []string{"esc", "ctrl+c"} {
 		app, s, sys := hintsApp(t, rows)
@@ -261,6 +265,7 @@ func TestHintsCancelAndSwallow(t *testing.T) {
 // A focus change while the labels are up (here from outside the keys)
 // clears them; a detach removes the terminal and the session with it.
 func TestHintsClearOnFocusChangeAndDetach(t *testing.T) {
+	t.Parallel()
 	rows, _, _ := screenRows(t)
 	app, s, _ := hintsApp(t, rows)
 	startHints(t, app, s)
@@ -285,6 +290,7 @@ func TestHintsClearOnFocusChangeAndDetach(t *testing.T) {
 
 // No frame yet, or a screen with nothing on it, says so and stays live.
 func TestHintsWithNothingToLabel(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, status string
 		rows         []string
@@ -372,6 +378,7 @@ func marksOf(t *testing.T, app *App, id string) map[string][]string {
 // overlay, the URL on both shares one label, and the terminal it ran in
 // takes the shortest labels first (from either pane).
 func TestHintsLabelBothPanes(t *testing.T) {
+	t.Parallel()
 	mainRows, sideRows := sideScreens()
 	first := hints.Labels(3, hintsAlphabet)
 	for _, from := range []string{paneTermID, sideTermID} {
@@ -416,6 +423,7 @@ func TestHintsLabelBothPanes(t *testing.T) {
 // A capital types the item into the pane it is on; an item on both goes
 // to the pane hints ran in. Copy works on either pane's items.
 func TestHintsTypeIntoItsPane(t *testing.T) {
+	t.Parallel()
 	mainRows, sideRows := sideScreens()
 	for _, c := range []struct {
 		raw        string
@@ -450,6 +458,7 @@ func TestHintsTypeIntoItsPane(t *testing.T) {
 // pane) the main pane's last labels and the side's first share their
 // first letter.
 func TestHintsPrefixNarrowsBothPanes(t *testing.T) {
+	t.Parallel()
 	var mainLines, sideLines []string
 	for i := range 12 {
 		mainLines = append(mainLines, fmt.Sprintf("https://example.com/m%d https://example.com/m%d-b", i, i))
@@ -502,6 +511,7 @@ func TestHintsPrefixNarrowsBothPanes(t *testing.T) {
 // Zoomed, only the zoomed pane is drawn, so only it is labelled; with the
 // side closed, only the main pane.
 func TestHintsLabelOnlyTheDrawnPanes(t *testing.T) {
+	t.Parallel()
 	mainRows, sideRows := sideScreens()
 	app, main, _, _ := hintsSideApp(t, mainRows, sideRows)
 	pressAll(t, app, "ctrl+a", "z")
@@ -536,6 +546,7 @@ func TestHintsLabelOnlyTheDrawnPanes(t *testing.T) {
 // The side going while the labels are up ends the session: the main
 // pane's overlay is cleared and it is live again.
 func TestHintsEndWhenTheSideGoes(t *testing.T) {
+	t.Parallel()
 	mainRows, sideRows := sideScreens()
 	app, main, _, _ := hintsSideApp(t, mainRows, sideRows)
 	startHints(t, app, main)

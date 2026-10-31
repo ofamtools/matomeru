@@ -33,6 +33,7 @@ func rewrite(t *testing.T, path, data string) {
 // and is a choice of the harness parameters; a bad file is a problem naming
 // it and keeps the registry it had.
 func TestConfigReloadReadsTheHarnessFileAgain(t *testing.T) {
+	t.Parallel()
 	app, _ := harnessApp(t, `[{"name": "aider", "command": ["aider"], "prompt": "arg"}]`)
 	rewrite(t, app.opts.Harnesses, `[{"name": "aider", "command": ["aider"], "prompt": "arg"}, {"name": "goose", "command": ["goose"], "prompt": "arg"}]`)
 	if p := reloadConfig(t, app); len(p) != 0 {
@@ -62,8 +63,7 @@ func TestConfigReloadReadsTheHarnessFileAgain(t *testing.T) {
 // config.reload reads dirs.json again: the bases list shows the file's
 // bases; a bad file is a problem naming it and the list keeps its rows.
 func TestConfigReloadReadsDirsJSONAgain(t *testing.T) {
-	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
-	os.Unsetenv("MTM_PROJECT_BASE_DIRS")
+	t.Parallel()
 	a := open(t)
 	base := filepath.Join(t.TempDir(), "base")
 	data, _ := json.Marshal(directoryConfig{Bases: []projectBase{{Path: base, Depth: 2}}})
@@ -95,8 +95,7 @@ func TestConfigReloadReadsDirsJSONAgain(t *testing.T) {
 // mtm config reload prints the problems as a JSON array: empty when every
 // file reads, else one per bad file, each naming it.
 func TestCLIConfigReloadReturnsTheProblems(t *testing.T) {
-	t.Setenv("MTM_PROJECT_BASE_DIRS", "")
-	os.Unsetenv("MTM_PROJECT_BASE_DIRS")
+	t.Parallel()
 	app, _ := harnessApp(t, `[]`)
 	var problems []string
 	if err := json.Unmarshal([]byte(mustCLI(t, app, "config", "reload")), &problems); err != nil || len(problems) != 0 {

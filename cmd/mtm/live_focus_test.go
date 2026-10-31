@@ -17,6 +17,7 @@ func notLive(t *testing.T, app *App, after string) {
 // Copy mode returns to where it was entered from: l on a pane row starts
 // it without going live, and q goes back to the row.
 func TestCopyModeFromLReturnsToTheRow(t *testing.T) {
+	t.Parallel()
 	app, _, _ := copyApp(t, []string{"h1"}, []string{"s1", "s2"})
 	enterCopyMode(t, app)
 	notLive(t, app, "l")
@@ -30,6 +31,7 @@ func TestCopyModeFromLReturnsToTheRow(t *testing.T) {
 // } from the list onto the Screen tab's stop is copy mode, not live; esc
 // goes back to the list.
 func TestBraceOntoTheScreenTabIsCopyMode(t *testing.T) {
+	t.Parallel()
 	app, _, _ := copyApp(t, []string{"h1"}, []string{"s1", "s2"})
 	press(t, app, "}")
 	if app.r.Focus != copyID || !app.copy.active {
@@ -46,6 +48,7 @@ func TestBraceOntoTheScreenTabIsCopyMode(t *testing.T) {
 // With the Turns tab showing, } and tab into the detail land on the turns
 // tree, never copy mode or live.
 func TestBraceAndTabOnTheTurnsTabReachTheTurns(t *testing.T) {
+	t.Parallel()
 	for _, k := range []string{"}", "tab"} {
 		path := seeded(t)
 		capturedTurns(t, path, "first answer", "second answer")
@@ -65,6 +68,7 @@ func TestBraceAndTabOnTheTurnsTabReachTheTurns(t *testing.T) {
 
 // Copy mode entered from live (ctrl+a [) returns to live on q, every time.
 func TestCopyModeFromLiveReturnsLive(t *testing.T) {
+	t.Parallel()
 	app, _ := liveApp(t)
 	for _, round := range []string{"first", "second"} {
 		press(t, app, "ctrl+a", "[")

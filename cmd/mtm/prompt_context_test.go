@@ -46,6 +46,7 @@ func openBoxPicker(t *testing.T, app *App) {
 // normal mode; enter writes a file as @path at the cursor, mid-line too,
 // and the box keeps the focus in insert mode.
 func TestPromptBoxAltOInsertsAFileAtTheCursor(t *testing.T) {
+	t.Parallel()
 	app, file := promptContextApp(t)
 	typeText(t, app, "read  now")
 	app.pb.input.Cursor = len("read ")
@@ -77,6 +78,7 @@ func TestPromptBoxAltOInsertsAFileAtTheCursor(t *testing.T) {
 
 // A link is written as its text, with no @.
 func TestPromptBoxAltOInsertsALinksText(t *testing.T) {
+	t.Parallel()
 	app, _ := promptContextApp(t)
 	typeText(t, app, "see ")
 	openBoxPicker(t, app)
@@ -89,6 +91,7 @@ func TestPromptBoxAltOInsertsALinksText(t *testing.T) {
 
 // esc closes the picker and leaves the box as it was.
 func TestPromptBoxAltOEscLeavesTheText(t *testing.T) {
+	t.Parallel()
 	app, _ := promptContextApp(t)
 	typeText(t, app, "keep me")
 	openBoxPicker(t, app)
@@ -105,6 +108,7 @@ func TestPromptBoxAltOEscLeavesTheText(t *testing.T) {
 // The footer names the key, and the verb is the palette's (and pick's
 // into=prompt reaches the same picker).
 func TestPromptBoxContextHintAndVerb(t *testing.T) {
+	t.Parallel()
 	app, _ := promptContextApp(t)
 	if hints := hintKeys(app); !slices.Contains(hints, "alt+o context") {
 		t.Fatalf("footer %q", hints)
@@ -120,6 +124,7 @@ func TestPromptBoxContextHintAndVerb(t *testing.T) {
 // The picker's own keys work from the box: ctrl+o opens the item and the
 // box's text is left alone.
 func TestPromptBoxAltOPickerKeepsItsKeys(t *testing.T) {
+	t.Parallel()
 	app, _ := promptContextApp(t)
 	sys := &fakeSystem{}
 	app.cx.sys = sys

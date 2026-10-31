@@ -11,6 +11,7 @@ import (
 // pin and pinned draw the owner's theme with its own accent, show all (S)
 // that theme with the orange accent.
 func TestColoursFollowThePin(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	executeA(t, app, "project", "unpin", "", nil)
 	executeA(t, app, "appearance", "set", "", ochazuke.Arguments{"theme": "dark"})
@@ -43,6 +44,7 @@ func TestColoursFollowThePin(t *testing.T) {
 // With no pin the frame has colour: a truecolor foreground, where mono
 // draws only attributes.
 func TestNoPinFrameHasColour(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	executeA(t, app, "project", "unpin", "", nil)
 	if raw := rawFrame(app); !strings.Contains(raw, "38;2;") {
@@ -54,6 +56,7 @@ func TestNoPinFrameHasColour(t *testing.T) {
 // while unpinned once pinned); off draws the theme in every state, with
 // no show-all accent.
 func TestPinColorsSetting(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	set := func(v string) {
 		t.Helper()

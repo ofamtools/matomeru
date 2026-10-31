@@ -12,6 +12,7 @@ import (
 // mtm's ochazuke config lives in mtm's config directory (here beside the
 // test database), never the owner's, and its history beside the database.
 func TestTheConfigIsMatomerusBesideTheData(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	c := a.r.Config()
 	dir := filepath.Dir(a.dataPath)
@@ -26,6 +27,7 @@ func TestTheConfigIsMatomerusBesideTheData(t *testing.T) {
 // The declared settings default to the constants they replace and read
 // settings.json; a value that is not positive falls back.
 func TestSettingsDefaultToTheOldConstantsAndReadTheFile(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if a.editDebounce() != editorDebounce || a.refreshInterval() != refreshEvery || a.launchHarness() != defaultHarness {
 		t.Fatalf("defaults %v %v %q", a.editDebounce(), a.refreshInterval(), a.launchHarness())
@@ -51,6 +53,7 @@ func TestSettingsDefaultToTheOldConstantsAndReadTheFile(t *testing.T) {
 // A launch on a project with no harness of its own starts the
 // default-harness setting's.
 func TestALaunchStartsTheDefaultHarnessSetting(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	if err := app.r.Settings().Set(settingDefaultHarness, "omp"); err != nil {
 		t.Fatal(err)
@@ -72,6 +75,7 @@ func TestALaunchStartsTheDefaultHarnessSetting(t *testing.T) {
 // , opens the framework's Settings page from a page, esc goes back to the
 // page it was opened from, and , does nothing inside a modal.
 func TestCommaOpensTheSettingsEditor(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	from := app.r.Page
 	press(t, app, ",")

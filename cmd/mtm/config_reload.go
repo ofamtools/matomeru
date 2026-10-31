@@ -64,7 +64,7 @@ func (a *App) setHarnessChoices() {
 // in the TUI, shows the bases again and rescans when a scan had run. A bad
 // file leaves the lists and the last scan as they were.
 func (a *App) reloadDirsConfig() []string {
-	if _, err := projectBases(a.dirsConfigPath()); err != nil {
+	if _, err := a.projectBases(); err != nil {
 		return []string{err.Error()}
 	}
 	if a.cli || a.baseList == nil {

@@ -48,6 +48,7 @@ func labels(rows []ochazuke.ChooserRow) []string {
 }
 
 func TestPinPickerEnterPinsTopMatch(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "unpin", "work", nil)
 	c := openPicker(t, a)
@@ -69,6 +70,7 @@ func TestPinPickerEnterPinsTopMatch(t *testing.T) {
 }
 
 func TestPinPickerMovedHighlightWins(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "unpin", "work", nil)
 	c := openPicker(t, a)
@@ -109,6 +111,7 @@ func projectCount(t *testing.T, a *App) int {
 // With nothing matching, the create row is the only actionable row and is
 // highlighted: Enter records the project before the directory chooser.
 func TestPinPickerEnterOnNoMatchCreates(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	before := projectCount(t, a)
 	c := openPicker(t, a)
@@ -126,6 +129,7 @@ func TestPinPickerEnterOnNoMatchCreates(t *testing.T) {
 
 // ctrl+n and ctrl+p move like down and up; no key creates a project.
 func TestPinPickerCtrlNMovesAndNeverCreates(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "unpin", "work", nil)
 	before := projectCount(t, a)
@@ -159,6 +163,7 @@ func TestPinPickerCtrlNMovesAndNeverCreates(t *testing.T) {
 // A query that matches keeps the top match as Enter's target; moving onto
 // the create row and pressing Enter creates and pins.
 func TestPinPickerCreateRowCreatesAndPins(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "unpin", "work", nil)
 	before := projectCount(t, a)
@@ -180,6 +185,7 @@ func TestPinPickerCreateRowCreatesAndPins(t *testing.T) {
 }
 
 func TestPinPickerEmptyQueryWithNoProjectsCreatesNameless(t *testing.T) {
+	t.Parallel()
 	a := openAt(t, filepath.Join(t.TempDir(), "mtm.db"))
 	if len(a.projects) != 0 {
 		t.Fatalf("fresh database has projects %+v", a.projects)
@@ -197,6 +203,7 @@ func TestPinPickerEmptyQueryWithNoProjectsCreatesNameless(t *testing.T) {
 }
 
 func TestPinPickerUnpinRowIsFixedAndClearsPinAcrossRestart(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
@@ -238,6 +245,7 @@ func TestPinPickerUnpinRowIsFixedAndClearsPinAcrossRestart(t *testing.T) {
 }
 
 func TestPinPickerRendersAndHints(t *testing.T) {
+	t.Parallel()
 	a := titled(t)
 	c := openPicker(t, a)
 	body := strings.Split(c.View(60, 10).Text, "\n")
@@ -329,13 +337,14 @@ func knownRepos(t *testing.T, a *App, names ...string) string {
 			t.Fatalf("git: %s %v", out, err)
 		}
 	}
-	t.Setenv("MTM_PROJECT_BASE_DIRS", root)
+	testEnv(a, "MTM_PROJECT_BASE_DIRS", root)
 	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "missing.sock")}.client()
 	return root
 }
 
 // directory-chooser known: the classic chooser ends with browse….
 func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	knownDirectoryChooser(t, a)
 	root := knownRepos(t, a, "alpha", "beta")
@@ -363,6 +372,7 @@ func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
 }
 
 func TestPinningDirectorylessProjectAsksAndMovedRowWins(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	root := knownRepos(t, a, "alpha", "beta")
 	executeA(t, a, "project", "unpin", "work", nil)
@@ -389,6 +399,7 @@ func TestPinningDirectorylessProjectAsksAndMovedRowWins(t *testing.T) {
 }
 
 func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	knownDirectoryChooser(t, a)
 	knownRepos(t, a)
@@ -419,6 +430,7 @@ func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
 // matches ("unp" in "unixsuperhero"), and never the create row (UX review 2
 // F1, replacing f55ecf6's "typing never reaches unpin").
 func TestPinPickerTypingReachesUnpin(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
 	for _, name := range []string{"tuios-inbox", "unixsuperhero"} {
@@ -461,6 +473,7 @@ func TestPinPickerTypingReachesUnpin(t *testing.T) {
 
 // ctrl+u in the pin picker clears the query like any other input.
 func TestPinPickerCtrlUClearsQuery(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	c := openPicker(t, a)
@@ -477,6 +490,7 @@ func TestPinPickerCtrlUClearsQuery(t *testing.T) {
 // highlight moves), and "unpin" matching only across a row's name and
 // directory makes the create row Enter's target, not that project.
 func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for i := range 25 {
 		if _, err := a.work.AddProject("extra-" + string(rune('a'+i))); err != nil {
@@ -526,6 +540,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 // with them, and a wide column (a long project list) narrows so the path
 // column stays in view.
 func TestChooserColumnsFitAndLoadingKeepsWidth(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	c, err := a.r.OpenChooser(ochazuke.ChooserSpec{Kind: "fit-test", Title: "Fit", Empty: "loading…"})
 	if err != nil {
@@ -546,6 +561,7 @@ func TestChooserColumnsFitAndLoadingKeepsWidth(t *testing.T) {
 // Typing the unpin row's words highlights it, not the create row, so
 // Enter unpins instead of making a project named "no pin" (UX review 2 F1).
 func TestPinPickerQuerySpellingUnpinHighlightsIt(t *testing.T) {
+	t.Parallel()
 	for _, query := range []string{"unp", "unpin", "no pin"} {
 		t.Run(query, func(t *testing.T) {
 			a := open(t)
@@ -566,6 +582,7 @@ func TestPinPickerQuerySpellingUnpinHighlightsIt(t *testing.T) {
 // UX review 2 F22: a project left without a directory (esc in the
 // directory chooser) is not asked again on the next pin.
 func TestADirectorylessProjectIsAskedOnce(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	knownRepos(t, a, "alpha")
 	executeA(t, a, "project", "unpin", "work", nil)
@@ -589,6 +606,7 @@ func TestADirectorylessProjectIsAskedOnce(t *testing.T) {
 // columns before the path (its Keep: []int{1}); without Keep the widest
 // column, the path, would narrow first.
 func TestDirectoryChooserCutsThePathLast(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	knownDirectoryChooser(t, a)
 	if err := a.chooseDirectoryFor("Directory", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
@@ -605,6 +623,7 @@ func TestDirectoryChooserCutsThePathLast(t *testing.T) {
 // The path chooser's known source keeps the same rule (its
 // ChooserSource.Keep): the branch and projects narrow before the path.
 func TestPathChooserKnownSourceCutsThePathLast(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.chooseDirectoryFor("Directory", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 		t.Fatal(err)
@@ -627,6 +646,7 @@ func TestPathChooserKnownSourceCutsThePathLast(t *testing.T) {
 // tasks list's selected row, while the modal's own row is the one
 // full-strength highlight.
 func TestModalBackdropDimsThePageHighlight(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	// The highlights are read from mono's SGR (reverse, faint): no pin
 	// draws mono under pin.colors mono.

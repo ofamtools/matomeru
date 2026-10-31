@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -167,7 +166,7 @@ func (a *App) runDir() string {
 			}
 		}
 	}
-	home, _ := os.UserHomeDir()
+	home, _ := a.home()
 	return home
 }
 
@@ -487,7 +486,7 @@ func (a *App) runsUpdate(msg tea.Msg) tea.Cmd {
 // runTerminalCommand is a schedule command row's terminal drive: a pane
 // opened running its command (off the loop), recorded on the run.
 func (a *App) runTerminalCommand(ctx context.Context, def schedules.Def, rec *schedules.Record) error {
-	home, _ := os.UserHomeDir()
+	home, _ := a.home()
 	h := harness.Harness{Name: def.Name, Command: def.Command}
 	spec := harness.Spec{Session: noProjectSession, Name: def.Name, Cwd: home}
 	v, err := a.launchJob(Owner{}, h, spec)(ctx)

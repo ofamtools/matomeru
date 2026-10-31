@@ -10,6 +10,7 @@ import (
 // the window at most per press) until the turn's end shows and then stays. The box is
 // reached by }, tab and i.
 func TestTurnsJAtTheBottomNeverFocusesTheBox(t *testing.T) {
+	t.Parallel()
 	app, _, log := claudeTurnsApp(t)
 	moreClaudeTurns(t, log, 4, 5)
 	reload(t, app)
@@ -68,6 +69,7 @@ func TestTurnsJAtTheBottomNeverFocusesTheBox(t *testing.T) {
 // h inside a turn on its open answer folds the answer and keeps the cursor
 // on it; h again goes back to the card.
 func TestTurnCardHFoldsTheAnswer(t *testing.T) {
+	t.Parallel()
 	app, _, _ := claudeTurnsApp(t)
 	app.m.Width, app.m.Height = 120, 50
 	frame(app)

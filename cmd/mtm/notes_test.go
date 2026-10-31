@@ -13,6 +13,7 @@ import (
 )
 
 func TestNoteCreationOwnershipAndEmptyText(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.reveal("t1"); err != nil {
 		t.Fatal(err)
@@ -96,6 +97,7 @@ func TestNoteCreationOwnershipAndEmptyText(t *testing.T) {
 // keeps the text, esc q never discards, and a new note's lines are in the
 // store when the editor is left; no draft file is written.
 func TestNoteDraftRestartCancelAndSave(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	a := openAt(t, path)
 	original, err := a.work.AddNote("", "", "  saved\ntext\n")
@@ -166,6 +168,7 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 // task's project, move "" unassociates; an editor open on the note writes
 // its last change before the patch, so the body is never lost.
 func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	note, err := a.work.AddNote("", "", "saved")
 	if err != nil {
@@ -205,6 +208,7 @@ func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
 }
 
 func TestNotesPageCreationOnFirstVisit(t *testing.T) {
+	t.Parallel()
 	a := openAt(t, filepath.Join(t.TempDir(), "mtm.db"))
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
@@ -224,6 +228,7 @@ func TestNotesPageCreationOnFirstVisit(t *testing.T) {
 // TestNoteDeleteConfirmsAndClearsDraft: D on a note row asks first; n keeps
 // it, y removes the note and its draft and leaves other notes alone.
 func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	keep, err := a.work.AddNote("matomeru", "", "keep me")
 	if err != nil {
@@ -276,6 +281,7 @@ func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
 // n on the Notes page edits the new note in the Notes page's own
 // right-hand panel; the page never jumps to Work.
 func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
@@ -302,6 +308,7 @@ func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
 // note focuses it, j/k and ctrl+d/ctrl+u scroll only the text (the list
 // and its heading stay put), G goes to the end and esc returns to the list.
 func TestLongNoteBodyScrollsOnItsOwn(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	var lines []string
 	for i := 1; i <= 300; i++ {

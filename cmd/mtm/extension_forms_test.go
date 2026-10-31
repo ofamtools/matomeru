@@ -59,6 +59,7 @@ func since(t *testing.T, log string, n int) []string {
 // row's data; a change is written by running edit on the row, and the
 // form leaves with esc.
 func TestExtensionEditFormWritesThroughTheToolsEditVerb(t *testing.T) {
+	t.Parallel()
 	a, log := crudApp(t, crudCatalogNamed("new", "edit", "delete"))
 	if err := a.r.SetFocus("ext/fake/thing/t1"); err != nil {
 		t.Fatal(err)
@@ -90,6 +91,7 @@ func TestExtensionEditFormWritesThroughTheToolsEditVerb(t *testing.T) {
 // required field is filled; the first write creates the row, and later
 // changes edit the id the tool answered.
 func TestExtensionNewFormCreatesThenEdits(t *testing.T) {
+	t.Parallel()
 	a, log := crudApp(t, crudCatalogNamed("create", "update", "remove"))
 	if err := a.r.SetFocus("ext/fake/thing/t2"); err != nil {
 		t.Fatal(err)
@@ -139,6 +141,7 @@ func TestExtensionNewFormCreatesThenEdits(t *testing.T) {
 // tool declares none); the tool's n row is dropped with a notice, since n
 // is mtm's new.
 func TestExtensionDeleteKeyConfirmsAndRunsTheTool(t *testing.T) {
+	t.Parallel()
 	a, log := crudApp(t, crudCatalogNamed("new", "edit", "delete"))
 	if !slices.ContainsFunc(a.m.Notices, func(s string) bool {
 		return strings.Contains(s, "key rows dropped") && strings.Contains(s, "n on thing")
@@ -165,6 +168,7 @@ func TestExtensionDeleteKeyConfirmsAndRunsTheTool(t *testing.T) {
 
 // A tool without CRUD verbs gets none of the keys.
 func TestExtensionWithoutCRUDVerbsBindsNoCRUDKeys(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	a := registered(t, seeded(t), "fake", bin)
 	for _, rows := range a.r.Noun("fake.item").Bindings {
@@ -182,6 +186,7 @@ func TestExtensionWithoutCRUDVerbsBindsNoCRUDKeys(t *testing.T) {
 // Quitting while a change waits for its pause writes it before mtm exits:
 // no job would run after the program ends, so the tool runs at once.
 func TestExtensionFormWritesItsLastChangeOnQuit(t *testing.T) {
+	t.Parallel()
 	a, log := crudApp(t, crudCatalogNamed("new", "edit", "delete"))
 	if err := a.r.SetFocus("ext/fake/thing/t2"); err != nil {
 		t.Fatal(err)

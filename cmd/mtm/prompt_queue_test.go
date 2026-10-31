@@ -116,6 +116,7 @@ func (q *queueDaemon) sent() []string {
 // The box queues as the person: from human with mtm's presence nonce,
 // one presence for every queue, renewed once when tuios refuses it.
 func TestPromptQueueIsFromTheHuman(t *testing.T) {
+	t.Parallel()
 	q := &queueDaemon{nonces: []string{"n1", "n2"}, stale: map[string]bool{}}
 	d := tuios{Client: daemon.New(q.serve(t))}
 	defer d.DropPresence()
@@ -147,6 +148,7 @@ func TestPromptQueueIsFromTheHuman(t *testing.T) {
 // With no presence (mtm runs in a tuios pane) the prompt is still queued,
 // without from, so tuios records mtm's pane as who queued it.
 func TestPromptQueueWithoutAPresenceQueuesAsTheCaller(t *testing.T) {
+	t.Parallel()
 	q := &queueDaemon{stale: map[string]bool{}}
 	d := tuios{Client: daemon.New(q.serve(t))}
 	if _, err := d.PromptQueue(context.Background(), pane{Session: "work", Pane: daemon.Pane{ID: "w1"}}, "then commit"); err != nil {
@@ -159,6 +161,7 @@ func TestPromptQueueWithoutAPresenceQueuesAsTheCaller(t *testing.T) {
 
 // A queue tuios refuses keeps the text in the box and says why.
 func TestPromptBoxQueueRefusedKeepsTheText(t *testing.T) {
+	t.Parallel()
 	app, f := promptApp(t)
 	press(t, app, "ctrl+t") // queue
 	f.queueErr = &daemon.Error{Code: "not_found", Message: "no window w1"}

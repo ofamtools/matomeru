@@ -19,7 +19,9 @@ import (
 // stderr and the error the process would exit with.
 func cli(a *App, stdin string, args ...string) (string, string, error) {
 	var out, errOut bytes.Buffer
-	err := a.shell(strings.NewReader(stdin), &out, &errOut).Run(context.Background(), args)
+	sh := a.shell(strings.NewReader(stdin), &out, &errOut)
+	sh.StateCache.Dir = filepath.Join(filepath.Dir(a.dataPath), "state-cache")
+	err := sh.Run(context.Background(), args)
 	return out.String(), errOut.String(), err
 }
 
@@ -43,6 +45,7 @@ func cliApp(t *testing.T) (*App, *fakeDaemon) {
 }
 
 func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
+	t.Parallel()
 	app, f := cliApp(t)
 	if app.r.Instances["t2"] != nil {
 		t.Fatal("t2 is a row before the command; the test would not prove the reveal")
@@ -84,6 +87,7 @@ func TestCLITaskLaunchByTargetStartsTheJobAndRecordsAReview(t *testing.T) {
 }
 
 func TestCLIConfirmReadsTheAnswerFromStdin(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	note, err := app.work.AddNote("matomeru", "", "scratch")
 	if err != nil {
@@ -119,6 +123,7 @@ func TestCLIConfirmReadsTheAnswerFromStdin(t *testing.T) {
 }
 
 func TestCLIHistoryListShowsTheOperationsThisProcessRan(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	mustCLI(t, app, "task", "edit", "--target", "t1", "--title", "rewrite the brief")
 	if got := stored(t, app, "t1").Title; got != "rewrite the brief" {
@@ -140,6 +145,7 @@ func TestCLIHistoryListShowsTheOperationsThisProcessRan(t *testing.T) {
 }
 
 func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	mustCLI(t, app, "task", "launch", "--target", "t1", "--yes")
 	reviews, err := app.work.Reviews()
@@ -189,6 +195,7 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 }
 
 func TestCLIErrorsExitNonZero(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	for _, c := range []struct {
 		args []string
@@ -211,6 +218,7 @@ func TestCLIErrorsExitNonZero(t *testing.T) {
 // TestCLIThroughRun is the --smoke of the CLI: the process entry with
 // global flags, a database file and an unreachable daemon.
 func TestCLIThroughRun(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	var out, errOut bytes.Buffer
 	args := []string{"--data", path, "--socket", filepath.Join(t.TempDir(), "none.sock")}
@@ -234,6 +242,7 @@ func TestCLIThroughRun(t *testing.T) {
 }
 
 func TestCLIPanesRefreshTargetsTheOnlyPaneList(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	f := app.panesd.(*fakePanes)
 	if err := app.reloadPanes(); err != nil {
@@ -253,6 +262,7 @@ func TestCLIPanesRefreshTargetsTheOnlyPaneList(t *testing.T) {
 }
 
 func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	if err := app.reloadPanes(); err != nil {
 		t.Fatal(err)
@@ -268,6 +278,7 @@ func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
 
 // Test pass R12: a bad status names the statuses and no --target rows.
 func TestCLITaskStatusBadValueNamesTheStatuses(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	executeA(t, app, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
 	mustCLI(t, app, "project", "open", "--target", "matomeru")

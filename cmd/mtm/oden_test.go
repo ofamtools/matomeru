@@ -33,23 +33,23 @@ func mtm(app *App, dir string, args ...string) (string, string, error) {
 }
 
 func TestExternalMtmBinRunsWithItsExitCode(t *testing.T) {
+	t.Parallel()
 	dir := bins(t, map[string]string{"mtm-web": `echo "web $* parent=$ODEN_PARENT"; exit 7`})
-	t.Setenv("PATH", dir)
 	var out, errOut bytes.Buffer
 	args := []string{"--data", filepath.Join(t.TempDir(), "mtm.db"), "--socket", filepath.Join(t.TempDir(), "none.sock"), "web", "serve", "--port", "1"}
-	err := run(args, strings.NewReader(""), &out, &errOut)
+	err := runWith(args, strings.NewReader(""), &out, &errOut, oden.WithPath(dir))
 	if oden.ExitCode(err) != 7 || out.String() != "web serve --port 1 parent=mtm\n" {
 		t.Fatalf("mtm web: exit %d (%v), out %q, err %q", oden.ExitCode(err), err, out.String(), errOut.String())
 	}
 }
 
 func TestHelpListsNounsAndExternalBins(t *testing.T) {
+	t.Parallel()
 	dir := bins(t, map[string]string{"mtm-web": "true"})
-	t.Setenv("PATH", dir)
 	data := filepath.Join(t.TempDir(), "mtm.db")
 	for _, flag := range []string{"help", "--help"} {
 		var out, errOut bytes.Buffer
-		if err := run([]string{"--data", data, flag}, strings.NewReader(""), &out, &errOut); err != nil {
+		if err := runWith([]string{"--data", data, flag}, strings.NewReader(""), &out, &errOut, oden.WithPath(dir)); err != nil {
 			t.Fatalf("%s: %v\n%s", flag, err, errOut.String())
 		}
 		for _, want := range []string{"\n  task ", "\n  project ", "\n  which ", "(external)", filepath.Join(dir, "mtm-web")} {
@@ -61,6 +61,7 @@ func TestHelpListsNounsAndExternalBins(t *testing.T) {
 }
 
 func TestNounPrefixResolves(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	if _, errOut, err := mtm(app, t.TempDir(), "ta", "launch", "--target", "t1", "--yes"); err != nil {
 		t.Fatalf("mtm ta launch: %v\n%s", err, errOut)
@@ -75,6 +76,7 @@ func TestNounPrefixResolves(t *testing.T) {
 }
 
 func TestVerbPrefixResolves(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	out, errOut, err := mtm(app, t.TempDir(), "bind", "li")
 	if err != nil || !strings.Contains(out, `"keys":"ctrl+j"`) {
@@ -83,6 +85,7 @@ func TestVerbPrefixResolves(t *testing.T) {
 }
 
 func TestAmbiguousPrefixListsCandidates(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	_, errOut, err := mtm(app, t.TempDir(), "pa", "list")
 	if oden.ExitCode(err) != 1 || !strings.Contains(errOut, `"pa" is ambiguous`) || !strings.Contains(errOut, "panes") || !strings.Contains(errOut, "pane ") {
@@ -91,6 +94,7 @@ func TestAmbiguousPrefixListsCandidates(t *testing.T) {
 }
 
 func TestNounWinsOverSameNamedBin(t *testing.T) {
+	t.Parallel()
 	marker := filepath.Join(t.TempDir(), "ran")
 	dir := bins(t, map[string]string{"mtm-task": "touch " + marker})
 	app, _ := cliApp(t)
@@ -115,6 +119,7 @@ func TestNounWinsOverSameNamedBin(t *testing.T) {
 // mtm proj is mtm's own project noun, never the family tool o-proj or an
 // mtm-proj on PATH; other family tools (o-ai) still resolve.
 func TestProjIsTheProjectNoun(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	dir := bins(t, map[string]string{
 		"o-proj":   `echo "o-proj $*"`,
@@ -147,6 +152,7 @@ func TestProjIsTheProjectNoun(t *testing.T) {
 // tasks is not task, and suggestions never run; a suggestion comes with a
 // pointer to --help, not the whole usage (test pass R11).
 func TestUnknownWordIsNotFoundWithSuggestions(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	out, errOut, err := mtm(app, t.TempDir(), "tasks")
 	if oden.ExitCode(err) != 1 || out != "" ||
@@ -162,6 +168,7 @@ func TestUnknownWordIsNotFoundWithSuggestions(t *testing.T) {
 }
 
 func TestNoWordsRunsTheTUIAndNounVerbRuns(t *testing.T) {
+	t.Parallel()
 	app, _ := cliApp(t)
 	ran := false
 	tui := func() error { ran = true; return nil }

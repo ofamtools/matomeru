@@ -17,6 +17,7 @@ var ruleCaptureDir = os.Getenv("MTM_RULE_CAPTURES")
 // turns have it, the mode's colour once the box has it, faint against
 // bold in mono; the text is the same either way, so nothing moves.
 func TestThePromptRuleShowsTheBoxFocus(t *testing.T) {
+	t.Parallel()
 	for _, theme := range []string{"dark", "light", "mono"} {
 		t.Run(theme, func(t *testing.T) {
 			app, _ := promptApp(t)

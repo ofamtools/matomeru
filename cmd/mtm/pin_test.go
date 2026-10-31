@@ -24,6 +24,7 @@ func executeA(t *testing.T, a *App, noun, verb, target string, args ochazuke.Arg
 }
 
 func TestPinFiltersAndAllPreservesPin(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, a, groupProjectSessionPane)
@@ -75,6 +76,7 @@ func TestPinFiltersAndAllPreservesPin(t *testing.T) {
 }
 
 func TestLaunchUsesPinWhileBrowsingAndScratchOverrides(t *testing.T) {
+	t.Parallel()
 	a, d := cliApp(t)
 	d.panes = a.panesd.(*fakePanes)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
@@ -125,6 +127,7 @@ func (d waitingDriver) WaitReady(context.Context, string, string, harness.Ready)
 }
 
 func TestOwnerWrittenBeforeReadinessAndLateLaunchDoesNotNavigate(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	d := waitingDriver{fakeDaemon: &fakeDaemon{panes: a.panesd.(*fakePanes)}, entered: make(chan struct{}), release: make(chan struct{})}
@@ -153,6 +156,7 @@ func TestOwnerWrittenBeforeReadinessAndLateLaunchDoesNotNavigate(t *testing.T) {
 }
 
 func TestListingFailureKeepsCreatedPaneAndOwner(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	a.panesd.(*fakePanes).err = errors.New("listing unavailable")
 	a.launcher = &fakeDaemon{}
@@ -167,6 +171,7 @@ func TestListingFailureKeepsCreatedPaneAndOwner(t *testing.T) {
 }
 
 func TestUnpinSurvivesAppRestartAndPickerWorksEveryPage(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
@@ -195,6 +200,7 @@ func TestUnpinSurvivesAppRestartAndPickerWorksEveryPage(t *testing.T) {
 }
 
 func TestCreatingAndAssociatingTaskOutsidePin(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	executeA(t, a, "task", "new", "work", ochazuke.Arguments{"title": "outside", "project": "ochazuke"})
@@ -215,6 +221,7 @@ func TestCreatingAndAssociatingTaskOutsidePin(t *testing.T) {
 }
 
 func TestProjectNameFallsBackToFolderThenUntitled(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		p    work.Project
 		want string
@@ -268,6 +275,7 @@ func titleRow(a *App, width int) string {
 }
 
 func TestTitleLeadsWithPin(t *testing.T) {
+	t.Parallel()
 	a := titled(t)
 	const dir = "~/proj/clients/acme/very-long-checkout-name/matomeru"
 	for _, c := range []struct {
@@ -306,6 +314,7 @@ func TestTitleLeadsWithPin(t *testing.T) {
 }
 
 func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	a.home = func() (string, error) { return "/home/u", nil }
 	if err := a.work.PutProject(work.Project{ID: "nameless", Created: 9}); err != nil {
@@ -343,6 +352,7 @@ func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
 // "No pin" (owner, 2026-10-26): on Work, selecting a project row outside
 // the pin shows its tasks without pinning it.
 func TestWorkShowsAnUnpinnedProjectsTasksWithoutPinningIt(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	if err := a.work.PutTask(work.Task{ID: "o1", ProjectID: "ochazuke", Title: "tag a release"}); err != nil {
 		t.Fatal(err)
@@ -368,6 +378,7 @@ func TestWorkShowsAnUnpinnedProjectsTasksWithoutPinningIt(t *testing.T) {
 // glyph, a stored glyph is kept, and every project row's name cell starts
 // with a glyph and a space, so the names line up.
 func TestEveryProjectDrawsAGlyph(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "new", Args: ochazuke.Arguments{"name": "fresh"}}); err != nil {
 		t.Fatal(err)

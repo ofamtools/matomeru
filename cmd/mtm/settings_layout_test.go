@@ -14,6 +14,7 @@ import (
 // a mounted extension's scope setting is its own section of the
 // Extensions tab, which draws between mtm's tab and ochazuke's.
 func TestSettingsSectionsAndOwners(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scopeApp(t)
 	s := a.r.Settings()
 	sections, err := s.Sections(ochazuke.OwnerApp)
@@ -60,6 +61,7 @@ func TestSettingsSectionsAndOwners(t *testing.T) {
 
 // The page draws the three tabs and mtm's sections.
 func TestSettingsPageShowsTheTabsAndSections(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scopeApp(t)
 	executeA(t, a, "ochazuke.settings", "edit", "", nil)
 	fr := frame(a)

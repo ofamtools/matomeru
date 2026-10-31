@@ -80,6 +80,7 @@ func pickerTexts(t *testing.T, a *App) []string {
 }
 
 func TestLivePickerListsThisPaneFirst(t *testing.T) {
+	t.Parallel()
 	a, _, _, file := liveContextApp(t)
 	press(t, a, "ctrl+a", "c")
 	want := []string{file, "https://example.com/older-here", "lane/context", "1ba025f"}
@@ -103,6 +104,7 @@ func TestLivePickerListsThisPaneFirst(t *testing.T) {
 }
 
 func TestLivePickerCopiesOpensAndReveals(t *testing.T) {
+	t.Parallel()
 	a, sys, _, file := liveContextApp(t)
 	press(t, a, "ctrl+a", "c")
 	settle(a, key(t, a, "enter"))
@@ -134,6 +136,7 @@ func TestLivePickerCopiesOpensAndReveals(t *testing.T) {
 
 // Items that land while the picker is open join it.
 func TestLivePickerTakesItemsThatLand(t *testing.T) {
+	t.Parallel()
 	a, _, live, _ := liveContextApp(t)
 	press(t, a, "ctrl+a", "c")
 	before := len(pickerTexts(t, a))
@@ -151,6 +154,7 @@ func TestLivePickerTakesItemsThatLand(t *testing.T) {
 }
 
 func TestContextKeysAreRowsAndLeaderListsC(t *testing.T) {
+	t.Parallel()
 	a, _, _, _ := liveContextApp(t)
 	if _, err := a.r.ValidateBindings(); err != nil {
 		t.Fatal(err)
@@ -207,6 +211,7 @@ func promptTurns(t *testing.T, a *App, p pane, prompts, answers []string) []hist
 // answer beside the rows; enter copies the whole prompt; ctrl+r says a
 // prompt is not a file; the other kinds keep their order.
 func TestLivePickerListsThisPanesPrompts(t *testing.T) {
+	t.Parallel()
 	a, sys, live, file := liveContextApp(t)
 	promptTurns(t, a, live, []string{"first prompt\nwith a second line", "second prompt"}, []string{"first answer", "second answer\nin two lines"})
 	a.m.Width, a.m.Height = 140, 40
@@ -249,6 +254,7 @@ func TestLivePickerListsThisPanesPrompts(t *testing.T) {
 // with the pane selected, the Turns tab, the turn focused, open and
 // marked reviewed.
 func TestLivePickerOpensAPromptsTurn(t *testing.T) {
+	t.Parallel()
 	a, _, live, _ := liveContextApp(t)
 	turns := promptTurns(t, a, live, []string{"first prompt", "second prompt"}, []string{"first answer", "second answer"})
 	a.m.Width, a.m.Height = 140, 40
@@ -273,6 +279,7 @@ func TestLivePickerOpensAPromptsTurn(t *testing.T) {
 // wide one draws it beside the rows (the picker's own preview is checked
 // end to end above).
 func TestChooserPreviewNeedsTheWidth(t *testing.T) {
+	t.Parallel()
 	r := ochazuke.NewRuntime()
 	c, err := r.OpenChooser(ochazuke.ChooserSpec{Kind: "preview-test", Rows: []ochazuke.ChooserRow{{ID: "a", Label: "a"}}, Filter: func(string, ochazuke.ChooserRow) bool { return true },
 		Preview: func(ochazuke.ChooserRow) string { return "preview text" }})
@@ -291,6 +298,7 @@ func TestChooserPreviewNeedsTheWidth(t *testing.T) {
 // leader rows (the leader, its self-send) and the leader-keys modal and
 // the live tab line name the new key.
 func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
+	t.Parallel()
 	a, _, _, _ := liveContextApp(t)
 	if a.r.TerminalLeader() != "ctrl+a" {
 		t.Fatalf("default leader %q", a.r.TerminalLeader())
@@ -328,6 +336,7 @@ func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
 // The context picker uses the framework's list filters with typed metadata;
 // its opaque promptRow and contextitems.Item remain available to app actions.
 func TestLivePickerSavedFiltersAndPropPicker(t *testing.T) {
+	t.Parallel()
 	a, _, live, _ := liveContextApp(t)
 	promptTurns(t, a, live, []string{"review picker prompt"}, []string{"answer"})
 	press(t, a, "ctrl+a", "c")

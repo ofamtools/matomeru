@@ -29,6 +29,7 @@ func openSaved(t *testing.T, a *App, id string) {
 // The Saved detail shows the record's command, directory and window, and
 // links its project, its live pane and its directory.
 func TestSavedDetailShowsTheRecordAndItsLinks(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	openSaved(t, a, l.savedID)
@@ -57,6 +58,7 @@ func TestSavedDetailShowsTheRecordAndItsLinks(t *testing.T) {
 // Panes row and the directory's Directories row (the scan, first run by
 // the jump, selects it when it lands).
 func TestSavedLinksJumpToTheirRows(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	for _, c := range []struct{ kind, id, page, focus string }{
@@ -76,6 +78,7 @@ func TestSavedLinksJumpToTheirRows(t *testing.T) {
 // J and K scroll a long Saved detail (a record with a large environment)
 // while the row keeps the focus.
 func TestSavedDetailScrollsWithJK(t *testing.T) {
+	t.Parallel()
 	l := linkedFixture(t)
 	a := l.a
 	env := map[string]string{}

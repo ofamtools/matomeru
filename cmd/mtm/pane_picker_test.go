@@ -41,6 +41,7 @@ func pickerIDs(t *testing.T, app *App) []string {
 // the attached one last and marked current; esc gives the pane its keys
 // back.
 func TestLeaderPOpensThePanePicker(t *testing.T) {
+	t.Parallel()
 	app, f := pickerApp(t)
 	key(t, app, "enter")
 	if app.r.Focus != paneTermID {
@@ -81,6 +82,7 @@ func TestLeaderPOpensThePanePicker(t *testing.T) {
 // Typing filters the rows; enter attaches the chosen pane live in place
 // of the attached one, and the next picker lists the pane left first.
 func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
+	t.Parallel()
 	app, f := pickerApp(t)
 	key(t, app, "enter") // w1, live
 	press(t, app, "ctrl+a", "p", "n", "o", "t", "e", "s")
@@ -119,6 +121,7 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 // \ opens the picker from any page in normal mode; enter lands on the
 // Panes page with the pane attached live.
 func TestPanePickerKeyFromAnotherPage(t *testing.T) {
+	t.Parallel()
 	app, f := pickerApp(t)
 	press(t, app, "ctrl+j")
 	if app.r.Page == panesPage {
@@ -145,6 +148,7 @@ func TestPanePickerKeyFromAnotherPage(t *testing.T) {
 // The preview is the pane's text already in memory: its captured screen
 // when the preview holds it, else what the row says.
 func TestPanePickerPreview(t *testing.T) {
+	t.Parallel()
 	app, _ := pickerApp(t)
 	app.preview = preview{Pane: "pane:matomeru/w1", Text: "claude is thinking\n\n"}
 	press(t, app, `\`)

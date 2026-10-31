@@ -49,6 +49,7 @@ const minute = int64(60_000)
 // success raises an unread item that attaching the pane marks read; a
 // short success raises nothing under the default (long).
 func TestTerminalCommandsReachTheInbox(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	liveSignals(t, a, "b1")
 	other := shellPane("w2", 1, "ls", exitCode(0), 10)
@@ -115,6 +116,7 @@ func TestTerminalCommandsReachTheInbox(t *testing.T) {
 // The item shows on the Inbox page with its why, beside the pane's row
 // signal (the failed glyph in the queue).
 func TestTerminalCommandShowsInTheInbox(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	liveSignals(t, a, "b1")
 	a.setPanes([]pane{shellPane("w1", 1, "true", exitCode(0), 5)}, nil)
@@ -131,6 +133,7 @@ func TestTerminalCommandShowsInTheInbox(t *testing.T) {
 // Off raises nothing; failed raises only failures; all raises short
 // successes too, still honouring the ignore list.
 func TestTerminalCommandModes(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	liveSignals(t, a, "b1")
 	a.setPanes([]pane{shellPane("w1", 1, "true", exitCode(0), 5)}, nil)
@@ -161,6 +164,7 @@ func TestTerminalCommandModes(t *testing.T) {
 
 // Agent panes and exited panes raise no command items.
 func TestTerminalCommandsSkipAgentsAndExited(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	liveSignals(t, a, "b1")
 	ag, ex := shellPane("a1", 1, "x", exitCode(0), 5), shellPane("x1", 1, "x", exitCode(0), 5)
@@ -177,6 +181,7 @@ func TestTerminalCommandsSkipAgentsAndExited(t *testing.T) {
 // Two TUIs on one database raise each command once; a restarted mtm seeds
 // again and raises only what finishes after it starts.
 func TestTerminalCommandsTwoTUIsAndRestart(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	var apps []*App
 	for range 2 {
@@ -231,6 +236,7 @@ func (h *historyPanes) Commands(_ context.Context, p pane) ([]daemon.CommandEntr
 // the listing and raises each skipped one, with its folder; panes whose
 // seq did not move are not read.
 func TestTerminalCommandsCatchUpFromHistory(t *testing.T) {
+	t.Parallel()
 	a, f := panesApp(t)
 	h := &historyPanes{fakePanes: f, history: map[string][]daemon.CommandEntry{}}
 	a.panesd = h
@@ -267,6 +273,7 @@ func TestTerminalCommandsCatchUpFromHistory(t *testing.T) {
 // Without the event stream's boot_id nothing is raised; once it reports
 // one, the held commands raise.
 func TestTerminalCommandsWaitForTheBoot(t *testing.T) {
+	t.Parallel()
 	a, _, _ := scheduleApp(t)
 	liveSignals(t, a, "")
 	a.setPanes([]pane{shellPane("w1", 1, "true", exitCode(0), 5)}, nil)

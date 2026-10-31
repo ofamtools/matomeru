@@ -24,6 +24,7 @@ func projectsOn(t *testing.T, a *App, id string) {
 // move: a project has no owner), and the named ones beside them. delete
 // stays named (its confirm counts what it orphans).
 func TestProjectVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
@@ -57,6 +58,7 @@ func TestProjectVerbsAreStandard(t *testing.T) {
 // set, rename and the edit wrap write the props; an unknown harness is
 // written with a notice (record first); one undo reverts the last write.
 func TestProjectSetRenameAndUndo(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	executeA(t, a, "project", "rename", "", ochazuke.Arguments{"id": "matomeru", "name": "Matomeru"})
 	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "changes": map[string]any{"color": "blue", "preset": "fast"}})
@@ -95,6 +97,7 @@ func TestProjectSetRenameAndUndo(t *testing.T) {
 // answers the stored project; create, duplicate, get and list are the
 // standard verbs; undoing a create deletes the project.
 func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	dir := t.TempDir()
 	var made struct {
@@ -141,6 +144,7 @@ func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
 // and q goes back to the row; the palette's rename opens on the old name;
 // d d still asks with what the delete orphans.
 func TestProjectKeysEditRenameDelete(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	a.m.Width, a.m.Height = 100, 30
 	projectsOn(t, a, "matomeru")

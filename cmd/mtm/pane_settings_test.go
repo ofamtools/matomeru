@@ -72,6 +72,7 @@ func fieldsOf(a *App, window string) map[string]settingField {
 // metadata and the launch flags fill only what it does not, the launch
 // flags marked "(at launch)".
 func TestSettingsFieldSources(t *testing.T) {
+	t.Parallel()
 	app, f, _ := claudeTurnsApp(t)
 	// Nothing read yet: tuios's metadata, then the recipe.
 	f.panes[0].Meta = map[string]string{"model": "opus", "context": "12%", "cost": "$0.40"}
@@ -120,6 +121,7 @@ func TestSettingsFieldSources(t *testing.T) {
 }
 
 func TestModelAndContextLabels(t *testing.T) {
+	t.Parallel()
 	for id, want := range map[string]string{
 		"claude-opus-5-5":           "Opus 5.5",
 		"claude-haiku-4-5-20251001": "Haiku 4.5",
@@ -151,6 +153,7 @@ func TestModelAndContextLabels(t *testing.T) {
 // The line sits under the prompt box, one line; a narrow panel drops
 // the lowest-priority fields first (cost, fast, effort), never the model.
 func TestSettingsLineAt80And120Columns(t *testing.T) {
+	t.Parallel()
 	app, _, _ := settingsApp(t)
 	line := func(width int) string {
 		fr := frameAt(app, width)
@@ -194,6 +197,7 @@ func TestSettingsLineAt80And120Columns(t *testing.T) {
 // its fields, k goes back up to the box, esc to the pane row; enter opens
 // the field's chooser.
 func TestSettingsLineIsAStopAndItsFieldsAreRows(t *testing.T) {
+	t.Parallel()
 	app, _, _ := settingsApp(t)
 	frame(app)
 	press(t, app, "}", "}") // the turns, then the box
@@ -232,6 +236,7 @@ func TestSettingsLineIsAStopAndItsFieldsAreRows(t *testing.T) {
 // A chooser lists the values the harness profile gives, the current one
 // marked; a harnesses.json row replaces them.
 func TestSettingChoosersListTheConfiguredValues(t *testing.T) {
+	t.Parallel()
 	app, _, _ := settingsApp(t)
 	open := func(verb string) []ochazuke.ChooserRow {
 		t.Helper()
@@ -282,6 +287,7 @@ func TestSettingChoosersListTheConfiguredValues(t *testing.T) {
 // At rest a change is the harness's command typed into the pane, and the
 // log read after it gives the notice.
 func TestSettingChangeTypesTheCommandWhenIdle(t *testing.T) {
+	t.Parallel()
 	app, f, log := settingsApp(t)
 	rec := &ochazuke.RecordingSink{}
 	prev := app.r.UI().Attach(rec)
@@ -326,6 +332,7 @@ func TestSettingChangeTypesTheCommandWhenIdle(t *testing.T) {
 // While the agent works a typed command waits in tuios's delivery queue;
 // a stepped one is refused; while it waits on the person nothing goes.
 func TestSettingChangeQueuesOrRefusesWhenBusy(t *testing.T) {
+	t.Parallel()
 	app, f, _ := settingsApp(t)
 	rec := &ochazuke.RecordingSink{}
 	prev := app.r.UI().Attach(rec)
@@ -359,6 +366,7 @@ func TestSettingChangeQueuesOrRefusesWhenBusy(t *testing.T) {
 // A draft in the prompt box for the pane asks first; y sends and the
 // draft stays.
 func TestSettingChangeAsksOverADraft(t *testing.T) {
+	t.Parallel()
 	app, f, _ := settingsApp(t)
 	press(t, app, "i")
 	typeText(t, app, "half a thought")
@@ -380,6 +388,7 @@ func TestSettingChangeAsksOverADraft(t *testing.T) {
 // reads the screen after each press until the footer shows the mode,
 // skipping a mode the session does not offer.
 func TestPermissionModeStepsUntilTheScreenShowsIt(t *testing.T) {
+	t.Parallel()
 	app, f, _ := settingsApp(t)
 	rec := &ochazuke.RecordingSink{}
 	prev := app.r.UI().Attach(rec)
@@ -418,6 +427,7 @@ func TestPermissionModeStepsUntilTheScreenShowsIt(t *testing.T) {
 // omp has no permission modes and Codex takes no in-session argument:
 // their verbs say so rather than type anything.
 func TestSettingWithoutARowIsRefused(t *testing.T) {
+	t.Parallel()
 	app, f, _ := settingsApp(t)
 	f.panes[0].Harness = "codex"
 	reload(t, app)
@@ -432,6 +442,7 @@ func TestSettingWithoutARowIsRefused(t *testing.T) {
 
 // A Codex pane's line reads its rollout's end.
 func TestCodexSettingsFromItsRollout(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession = "codex", "idle", "c1"
 	day := filepath.Join(app.codexSessions, "2026", "10", "28")

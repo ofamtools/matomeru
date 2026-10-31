@@ -29,6 +29,7 @@ func reload(t *testing.T, a *App) {
 // agent row, and every pane verb (attach, preview, rename, move, kill, the
 // leader keys) still answers on it.
 func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -104,6 +105,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 // m opens the project chooser (no hex ids), without the pane's current
 // owner; picking a project moves the pane.
 func TestMoveUsesTheProjectChooser(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	key(t, app, "m")
 	c := app.r.Chooser(moveChooser)
@@ -131,6 +133,7 @@ func TestMoveUsesTheProjectChooser(t *testing.T) {
 // Session rows have their own verbs: enter attaches the first pane, r
 // renames, x kills the session after a confirm.
 func TestSessionRowVerbs(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -175,6 +178,7 @@ func TestSessionRowVerbs(t *testing.T) {
 // The tabs: ] walks Turns, Screen, Activity, Transcript; Activity and
 // Transcript load off the loop; a shell has none.
 func TestDetailTabs(t *testing.T) {
+	t.Parallel()
 	app, f := panesApp(t)
 	f.panes[0].Harness = "claude"
 	reload(t, app)
@@ -241,6 +245,7 @@ func capturedTurns(t *testing.T, path string, answers ...string) {
 // shows the whole prompt and the whole answer (no 12-line cut) and marks
 // it reviewed; each keeps its prompt-time owner after the pane moved.
 func TestTurnsFromTheJournal(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	var long []string
 	for i := 1; i <= 30; i++ {
@@ -315,6 +320,7 @@ func TestTurnsFromTheJournal(t *testing.T) {
 // Narrow, the detail stacks under the tree; both widths draw the tree,
 // the tabs and the counts.
 func TestPanesRenderAt80And120(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	settle(app, follow(app))
 	for _, width := range []int{80, 120} {
@@ -351,6 +357,7 @@ func cells(a *App, id string) string {
 
 // UX review 2 F22: one pane is "1 pane", not "1 panes".
 func TestPluralCounts(t *testing.T) {
+	t.Parallel()
 	for n, want := range map[int]string{0: "0 panes", 1: "1 pane", 2: "2 panes"} {
 		if got := plural(n, "pane"); got != want {
 			t.Errorf("plural(%d) = %q, want %q", n, got, want)
@@ -372,6 +379,7 @@ func TestPluralCounts(t *testing.T) {
 // UX review 2 F22: in the project tree a session row says "session", so a
 // session named after its project does not read as the project twice.
 func TestNestedSessionRowsSaySession(t *testing.T) {
+	t.Parallel()
 	app, _ := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
@@ -388,6 +396,7 @@ func TestNestedSessionRowsSaySession(t *testing.T) {
 // no copy mode, no Screen tab, no attach. On the Activity tab l does
 // nothing; on the Screen tab it is still copy mode.
 func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	capturedTurns(t, path, "first answer", "second answer")
 	app := openWith(t, Options{Data: path})
@@ -428,6 +437,7 @@ func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
 // Screen tab. On Turns (or Activity, Transcript) the detail draws that
 // tab, and }, tab and l reach its content, never terminal mode.
 func TestAnAttachedTerminalIsReenteredOnlyFromTheScreenTab(t *testing.T) {
+	t.Parallel()
 	row := "pane:matomeru/w1"
 	attachedThenLeft := func(t *testing.T) *App {
 		path := seeded(t)

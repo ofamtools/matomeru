@@ -48,6 +48,7 @@ func taskTreeShape(a *App) []string {
 // before their children, and among each parent's children status order
 // (active first), then position. Every row is a task row.
 func TestWorkTasksAreATreeInStatusOrderPerLevel(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	nestedTasks(t, a)
 	want := []string{"t2<", "t1<", "t4<t1", "t3<t1", "t5<t3", "t6<"}
@@ -78,6 +79,7 @@ func TestWorkTasksAreATreeInStatusOrderPerLevel(t *testing.T) {
 // Task keys reach a subtask row: l opens it, x toggles it, and h folds
 // its parent (the tree's collapse: l and enter stay task keys).
 func TestTaskKeysWorkOnASubtaskRow(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	nestedTasks(t, a)
 	if err := a.taskTree.Select("t5"); err != nil {
@@ -119,6 +121,7 @@ func TestTaskKeysWorkOnASubtaskRow(t *testing.T) {
 // The task picker names a subtask after its ancestors (tasks.picker-path,
 // on by default); off, the label is the task's alone.
 func TestTaskPickerShowsTheAncestorPath(t *testing.T) {
+	t.Parallel()
 	a := pinned(t)
 	nestedTasks(t, a)
 	row := func() ochazuke.ChooserRow {

@@ -74,6 +74,7 @@ func panelSpan(t *testing.T, col []string, title string) (int, int) {
 }
 
 func TestPanelHeights(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		height  int
@@ -100,6 +101,7 @@ func TestPanelHeights(t *testing.T) {
 // top and Working a panel on the column's last lines, each at least 6
 // lines, the panes list filling the lines between (goldens in testdata).
 func TestPanesPanelsLayout(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	if err := a.r.SetFocus("pane:s/widle"); err != nil {
 		t.Fatal(err)
@@ -151,6 +153,7 @@ func golden(t *testing.T, name, fr string) {
 // saying how many rows it hides; a count changing under the min does not
 // move the rest of the column.
 func TestPanesPanelsGrowToTheCap(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	if err := a.r.SetFocus("pane:s/widle"); err != nil {
 		t.Fatal(err)
@@ -184,6 +187,7 @@ func TestPanesPanelsGrowToTheCap(t *testing.T) {
 // panes.empty-panels: show draws an empty panel with its empty-state
 // line; hide gives its lines to the panes list.
 func TestPanesPanelsEmpty(t *testing.T) {
+	t.Parallel()
 	a, f := panesApp(t)
 	_ = f
 	col := leftColumn(t, frameWH(a, 120, 30))
@@ -209,6 +213,7 @@ func TestPanesPanelsEmpty(t *testing.T) {
 // The focused list's panel draws the heavy accent border; the others the
 // plain one.
 func TestPanesPanelsBorderFollowsTheFocus(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	if err := a.r.SetFocus("pane:s/wold"); err != nil {
 		t.Fatal(err)
@@ -224,6 +229,7 @@ func TestPanesPanelsBorderFollowsTheFocus(t *testing.T) {
 // j and k spill across the panels and the list between them in drawing
 // order; } walks the stops top to bottom.
 func TestPanesPanelsFocusWalk(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	frameWH(a, 120, 40)
 	queue, middle, working := sectionIDs(a, 0), sectionIDs(a, 1), sectionIDs(a, 2)
@@ -255,6 +261,7 @@ func TestPanesPanelsFocusWalk(t *testing.T) {
 // lists (panes.focus-section); again on the same list it stays; an empty
 // list says so and the focus stays; from another page it opens Panes.
 func TestPanesFocusSectionKeys(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	frameWH(a, 120, 40)
 	press(t, a, "g", "w")
@@ -306,6 +313,7 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 // With panes.sticky-rows off (the default) a row changing section moves
 // at once, and the cursor goes with it, so the detail stays on its pane.
 func TestPanesRowsMoveWithoutSticky(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	row := "pane:s/wold"
 	if err := a.r.SetFocus(row); err != nil {
@@ -336,6 +344,7 @@ func TestPanesRowsMoveWithoutSticky(t *testing.T) {
 // and the cursor never "moved off" it. A row is held only while the
 // cursor is on one of the lists.
 func TestPanesStickyRowsHoldOnlyUnderTheCursor(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	setting(t, a, settingStickyRows, true)
 	row := "pane:s/wold"
@@ -361,6 +370,7 @@ func TestPanesStickyRowsHoldOnlyUnderTheCursor(t *testing.T) {
 // default ("active") puts a pane in Working once the setting lists it,
 // and its glyph and tone follow.
 func TestPanesWorkingStatesSetting(t *testing.T) {
+	t.Parallel()
 	a, panes := sectionsApp(t)
 	if err := a.r.SetFocus("pane:s/wterm"); err != nil {
 		t.Fatal(err)
@@ -401,6 +411,7 @@ func TestPanesWorkingStatesSetting(t *testing.T) {
 // state time), then it works again. It leaves Working at once, comes
 // back placed by its new state time, and never keeps the old place.
 func TestPanesClearedSessionLeavesWorking(t *testing.T) {
+	t.Parallel()
 	a, f := panesApp(t)
 	f.panes = []pane{
 		{Session: "s", SessionID: "s", Harness: "claude", AgentSession: "old", StateAt: 100, Pane: daemon.Pane{ID: "wa", Name: "alpha", AgentState: "working"}},
@@ -445,6 +456,7 @@ func TestPanesClearedSessionLeavesWorking(t *testing.T) {
 // The narrow layout (the list above the detail) keeps the panels and a
 // third of its lines for the panes list.
 func TestPanesPanelsNarrow(t *testing.T) {
+	t.Parallel()
 	a, _ := sectionsApp(t)
 	for _, width := range []int{60, 80} {
 		fr := frameWH(a, width, 40)

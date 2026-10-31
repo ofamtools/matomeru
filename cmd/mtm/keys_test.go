@@ -7,6 +7,7 @@ import (
 // mtm's key map: q never starts a macro; Q records and stops one; q closes
 // the outline and the help modal as esc does.
 func TestQClosesAndCapitalQRecordsAMacro(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "q")
 	if app.r.Mode.Name != "normal" {
@@ -45,6 +46,7 @@ func TestQClosesAndCapitalQRecordsAMacro(t *testing.T) {
 // L on a project or task row opens the harness chooser with the project's
 // harness first, so L enter launches it; l opens the row (UX key map).
 func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
 	app.launcher = f
@@ -73,6 +75,7 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 
 // m moves a task, like a pane: the project chooser, then the pick.
 func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
 	if app.r.Focus != "t1" {
@@ -122,6 +125,7 @@ func normalRows(a *App) []keyRow {
 // bound to the family's key wherever it is bound at all, and to no other
 // key, across nouns; the retired keys answer nowhere in mtm.
 func TestBindingsFollowTheKeyMap(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	families := map[string][]string{
 		"d d": {"pane.kill", "session.kill", "saved.delete", "vim.delete", actionItemNoun + ".delete", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete", contextNoun + ".delete", "extension.remove", "schedule.delete"},
@@ -184,6 +188,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 // UX review 2 F22: P inside a modal (the help) does not stack the pin
 // picker over it; on a page it opens it.
 func TestPDoesNotStackThePickerOverAModal(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	press(t, app, "?", "P")
 	if app.r.TopModal() != "bindings-help" {
@@ -198,6 +203,7 @@ func TestPDoesNotStackThePickerOverAModal(t *testing.T) {
 // UX review 2 F22: an agent launched on a project is named after its
 // harness; the session already names the project.
 func TestAgentPanesAreNamedAfterTheHarness(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := &fakeDaemon{panes: app.panesd.(*fakePanes)}
 	app.launcher = f

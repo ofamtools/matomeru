@@ -29,6 +29,7 @@ func leaderKey(t *testing.T, a *App, leader, k string) {
 // reaches the program in it, and closing that UI gives the pane its keys
 // again.
 func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		key    string
 		opened func(a *App) bool
@@ -43,8 +44,14 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 		{"P", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc"}},
 		{"L", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc"}},
 	}
-	for _, leader := range []string{"ctrl+a", "ctrl+b"} {
-		for _, c := range cases {
+	// Every mirror key uses the same leader setting. Exercise every key
+	// with one leader and cross-check the setting with the palette key.
+	for _, coverage := range []struct {
+		leader string
+		keys   int
+	}{{"ctrl+a", len(cases)}, {"ctrl+b", 1}} {
+		leader := coverage.leader
+		for _, c := range cases[:coverage.keys] {
 			t.Run(leader+" "+c.key, func(t *testing.T) {
 				a, s, _ := hintsApp(t, padRows("$ "))
 				if err := a.r.Settings().Set(ochazuke.TerminalLeaderSetting, leader); err != nil {
@@ -74,6 +81,7 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 
 // Without the leader the same keys go to the program in the pane.
 func TestAppKeysWithoutTheLeaderReachThePane(t *testing.T) {
+	t.Parallel()
 	a, s, _ := hintsApp(t, padRows("$ "))
 	keys := []string{":", ",", "?", "'", "`", "W", "*", "\\", "P", "L", "I", "ctrl+j", "ctrl+k"}
 	press(t, a, keys...)
@@ -91,6 +99,7 @@ func TestAppKeysWithoutTheLeaderReachThePane(t *testing.T) {
 // The leader's ctrl+j, ctrl+k and I leave the Panes page as the keys do
 // outside live; coming back to the page goes live again.
 func TestLeaderPageKeysLeaveAndComeBackLive(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ key, page, back string }{
 		{"ctrl+j", "", "ctrl+k"},
 		{"ctrl+k", "", "ctrl+j"},
@@ -123,6 +132,7 @@ func TestLeaderPageKeysLeaveAndComeBackLive(t *testing.T) {
 // The leader's ` attaches the next starred pane as s does, W the next
 // pane that needs input, and * stars the live pane; each stays live.
 func TestLeaderPaneKeysStayLive(t *testing.T) {
+	t.Parallel()
 	app, f := liveApp(t)
 	settle(app, key(t, app, "ctrl+a"))
 	settle(app, key(t, app, "*"))
@@ -177,6 +187,7 @@ func TestLeaderPaneKeysStayLive(t *testing.T) {
 // a repeatable change), so after the leader they go to the pane as the
 // leader and the key, as any unbound key does. Their verbs stay.
 func TestResizeAndRepeatAreNotLeaderKeys(t *testing.T) {
+	t.Parallel()
 	a, _, _ := hintsApp(t, padRows("$ "))
 	for _, b := range a.r.Noun("terminal").Bindings["leader_pending"] {
 		switch b.Keys {
@@ -194,6 +205,7 @@ func TestResizeAndRepeatAreNotLeaderKeys(t *testing.T) {
 // The leader's hint names the new keys, and ? after the leader opens the
 // help tree with the leader as one open row and its keys under it.
 func TestLeaderQuestionOpensTheHelpTree(t *testing.T) {
+	t.Parallel()
 	app, _ := liveApp(t)
 	var hint string
 	for _, b := range app.r.Noun("terminal").Bindings["terminal"] {
@@ -231,6 +243,7 @@ func TestLeaderQuestionOpensTheHelpTree(t *testing.T) {
 // the leader's v moves it to the side, and after the palette closes over
 // either leave the focus and the terminal mode where they were.
 func TestLiveFocusSurvivesFrames(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	a.m.Width, a.m.Height = 180, 40
 	for range 3 {

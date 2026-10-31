@@ -42,6 +42,8 @@ func main() {
 // Options are the command line: where the database is and which daemon to
 // talk to. Empty values resolve to the defaults below.
 type Options struct {
+	lookupEnv func(string) (string, bool) // nil reads the process environment
+
 	Data   string
 	Socket string // an explicit daemon socket; it wins over Server
 	Server string // the TUIOS server mtm runs on; "" or DefaultDaemon is the user's own daemon
@@ -63,23 +65,44 @@ func (o Options) ConfigDir() string {
 	if o.Config != "" {
 		return o.Config
 	}
-	if dir := os.Getenv("MTM_CONFIG_DIR"); dir != "" {
+	if dir := o.getenv("MTM_CONFIG_DIR"); dir != "" {
 		return dir
 	}
-	if o.Data != "" && !samePath(o.Data, DefaultData()) {
+	if o.Data != "" && !samePath(o.Data, o.defaultData()) {
 		return filepath.Dir(o.Data)
 	}
-	return userConfigDir()
+	return o.userConfigDir()
 }
 
 // userConfigDir is $XDG_CONFIG_HOME/matomeru, else ~/.config/matomeru.
-func userConfigDir() string {
-	base := os.Getenv("XDG_CONFIG_HOME")
+func (o Options) userConfigDir() string {
+	base := o.getenv("XDG_CONFIG_HOME")
 	if base == "" {
-		home, _ := os.UserHomeDir()
+		home, _ := o.home()
 		base = filepath.Join(home, ".config")
 	}
 	return filepath.Join(base, "matomeru")
+}
+
+// getenv and home keep startup configuration and app reads on one environment.
+func (o Options) getenv(key string) string {
+	value, _ := o.lookup(key)
+	return value
+}
+func (o Options) lookup(key string) (string, bool) {
+	if o.lookupEnv != nil {
+		return o.lookupEnv(key)
+	}
+	return os.LookupEnv(key)
+}
+func (o Options) home() (string, error) {
+	if o.lookupEnv == nil {
+		return os.UserHomeDir()
+	}
+	if home := o.getenv("HOME"); home != "" {
+		return home, nil
+	}
+	return "", errors.New("HOME is not set")
 }
 
 // samePath compares two paths after making them absolute and clean.
@@ -130,10 +153,12 @@ func defaultServer() string {
 
 // DefaultData is the database matomeru-old wrote, so existing projects and
 // tasks show up unchanged: $XDG_DATA_HOME/matomeru/mtm.db.
-func DefaultData() string {
-	base := os.Getenv("XDG_DATA_HOME")
+func DefaultData() string { return (Options{}).defaultData() }
+
+func (o Options) defaultData() string {
+	base := o.getenv("XDG_DATA_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
+		home, err := o.home()
 		if err != nil {
 			return "mtm.db"
 		}
@@ -146,6 +171,11 @@ func DefaultData() string {
 // shell (oden.go): a builtin, a noun (NOUN VERB ..., see cli.go) or an
 // mtm-<word> executable on PATH.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	return runWith(args, stdin, stdout, stderr)
+}
+
+// runWith lets callers select the shell environment without changing the process.
+func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOptions ...oden.Option) error {
 	flags := flag.NewFlagSet("mtm", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	showVersion := flags.Bool("version", false, "Print the version, the commit and the ochazuke version, and exit")
@@ -196,7 +226,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		_, err := tea.NewProgram(app).Run()
 		return err
 	}
-	return app.commands(words, stdin, stdout, stderr, tui).Run(context.Background())
+	return app.commands(words, stdin, stdout, stderr, tui, shellOptions...).Run(context.Background())
 }
 
 // smokeOptions makes --smoke safe to run anywhere: without an explicit
@@ -275,6 +305,7 @@ type App struct {
 	feed               *journalFeed        // the journal's background reader (journal.go)
 	journalSrc         journalSource       // the daemon the reader follows; tests replace it
 	stdin              io.Reader           // the CLI's standard input (the capture verbs read it)
+	mcpPrepare         func(*App)          // adjusts the fresh app opened for each MCP tool call
 	getenv             func(string) string // the environment; tests replace it
 	loc                *time.Location      // the zone times are shown in; nil is time.Local (location); tests set UTC
 	dataPath           string              // the database (mtm setup's hooks write it)
@@ -501,7 +532,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: os.UserHomeDir, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
+	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
 	a.trackNotices()
 	w.SetAgentPolicy(a.agentPolicy) // what an agent may change: the agents.* settings (actor.go)
 	a.claudeProjects = turns.ClaudeProjects()
@@ -517,7 +548,7 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
-	a.feed, a.journalSrc, a.getenv = newJournalFeed(), client, os.Getenv
+	a.feed, a.journalSrc = newJournalFeed(), client
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")

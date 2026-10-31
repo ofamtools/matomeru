@@ -13,6 +13,7 @@ import (
 )
 
 func TestPaneKeyTranslation(t *testing.T) {
+	t.Parallel()
 	sent := map[string]string{
 		// Shifted symbols with ctrl, US layout: the character shift types,
 		// then the control byte a legacy terminal sends for it.
@@ -119,6 +120,7 @@ func TestPaneKeyTranslation(t *testing.T) {
 }
 
 func TestSendPaneKeysLeavesOutWhatItCannotSend(t *testing.T) {
+	t.Parallel()
 	var calls []string
 	var told []string
 	send := func(keys ...string) error {
@@ -140,6 +142,7 @@ func TestSendPaneKeysLeavesOutWhatItCannotSend(t *testing.T) {
 
 // A live pane's ctrl+shift+/ reaches send-keys as ctrl+?, with no error.
 func TestLivePaneSendsShiftedCtrlSymbol(t *testing.T) {
+	t.Parallel()
 	app, s, _ := hintsApp(t, padRows("$ "))
 	app.Update(tea.KeyPressMsg{Code: '/', Mod: tea.ModCtrl | tea.ModShift})
 	if app.m.Status != "" {
@@ -153,6 +156,7 @@ func TestLivePaneSendsShiftedCtrlSymbol(t *testing.T) {
 // A key a pane cannot be sent is not sent, and says so once, as a status
 // line rather than an error.
 func TestLivePaneUnsendableKeySaysSoOnce(t *testing.T) {
+	t.Parallel()
 	app, s, _ := hintsApp(t, padRows("$ "))
 	press := func() { app.Update(tea.KeyPressMsg{Code: '.', Mod: tea.ModCtrl}) }
 	press()
@@ -177,6 +181,7 @@ func TestLivePaneUnsendableKeySaysSoOnce(t *testing.T) {
 // A send that fails (no daemon) is still an error; a press that sends
 // nothing makes no call.
 func TestLiveStreamSendFailureStillReports(t *testing.T) {
+	t.Parallel()
 	s := &liveStream{client: daemon.New(filepath.Join(t.TempDir(), "none.sock")), pane: pane{Session: "work", Pane: daemon.Pane{ID: "w1"}}}
 	if err := s.Send("x"); err == nil {
 		t.Fatal("send to a missing daemon did not fail")

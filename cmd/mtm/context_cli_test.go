@@ -12,6 +12,7 @@ import (
 )
 
 func TestContextCLIListsByKind(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "branch", Text: "lane/context"}, {Kind: "file", Text: "/tmp/x.go"}}, contextitems.Owner{}, 1); err != nil {
 		t.Fatal(err)
@@ -101,6 +102,7 @@ func withContextPanes(a *App) *fakeContextPanes {
 }
 
 func TestCLIExtractReadsAPaneOnDemand(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	if _, err := a.r.Settings().SetSession(settingContextExtractFrom, []string{"scrollback", "command"}); err != nil {
 		t.Fatal(err)

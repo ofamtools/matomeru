@@ -14,6 +14,7 @@ import (
 // append-only flag and row count, as store-table rows, read through a
 // read-only connection to the database file.
 func TestStoreTablesListsTheDeclarations(t *testing.T) {
+	t.Parallel()
 	path := seeded(t)
 	app := openWith(t, Options{Data: path})
 	if _, _, err := app.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/a"}, {Kind: "commit", Text: "1ba025f"}}, contextitems.Owner{}, 1); err != nil {
@@ -55,6 +56,7 @@ func TestStoreTablesListsTheDeclarations(t *testing.T) {
 // rows a host can act on: list and show are on it, and show answers one
 // table by name.
 func TestStoreTableIsACatalogNoun(t *testing.T) {
+	t.Parallel()
 	app := openWith(t, Options{Data: seeded(t)})
 	var catalog struct {
 		Nouns []struct {

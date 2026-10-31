@@ -27,6 +27,7 @@ func savedRecord(t *testing.T, a *App) work.SavedPane {
 // The saved verbs: the six standard ones with move and duplicate; forget a
 // lasting alias of delete; rename, save, reopen and associate named.
 func TestSavedVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	standardIs(t, a, "saved", map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
@@ -47,6 +48,7 @@ func TestSavedVerbsAreStandard(t *testing.T) {
 // d d on a saved row asks "Forget ...? Its pane keeps running." and
 // deletes the record; undo puts it back exactly as it was.
 func TestSavedForgetKeyAndUndo(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	row := savedRecord(t, a)
 	if err := a.r.OpenPage(savedPage); err != nil {
@@ -78,6 +80,7 @@ func TestSavedForgetKeyAndUndo(t *testing.T) {
 // standard set; create makes a recipe by hand (no command: a daemon
 // shell), never refused.
 func TestSavedMoveRenameCreate(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	row := savedRecord(t, a)
 	executeA(t, a, "saved", "move", "", ochazuke.Arguments{"id": row.ID, "to": "matomeru"})

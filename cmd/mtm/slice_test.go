@@ -15,6 +15,7 @@ import (
 // open a project, launch on its first task, land attached, detach,
 // re-attach, detach, review (capture, answer, accept), back to work, done.
 func TestSliceEndToEnd(t *testing.T) {
+	t.Parallel()
 	app := open(t)
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{panes: f}

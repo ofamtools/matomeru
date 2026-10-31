@@ -66,7 +66,7 @@ const (
 func (a *App) configure(opts Options, configDir string) {
 	c := a.r.Config()
 	c.App, c.Dir = "matomeru", configDir
-	if opts.Data != "" && !samePath(opts.Data, DefaultData()) {
+	if opts.Data != "" && !samePath(opts.Data, opts.defaultData()) {
 		c.StateDir = filepath.Dir(opts.Data)
 	}
 }

@@ -19,6 +19,7 @@ import (
 )
 
 func TestSideTerminalUsesCurrentContextAndReusesWindow(t *testing.T) {
+	t.Parallel()
 	a, driver := shellApp(t)
 	a.cli = true
 	p := driver.panes.panes[0]
@@ -66,6 +67,7 @@ func TestSideTerminalUsesCurrentContextAndReusesWindow(t *testing.T) {
 }
 
 func TestRestartedSidesLetQuitButBlockKillThenOrphan(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	a := openAt(t, path)
 	p := pane{Session: "work", Pane: daemon.Pane{ID: "parent", Name: "agent"}}
@@ -124,6 +126,7 @@ func TestRestartedSidesLetQuitButBlockKillThenOrphan(t *testing.T) {
 // read waits for the listing to close the window instead of failing with
 // "pane stream ended"; a failing exit is still an error.
 func TestLiveStreamNormalExitIsNotAnError(t *testing.T) {
+	t.Parallel()
 	for reason, quiet := range map[string]bool{"exited 0": true, "closed": true, "exited 1": false, "killed 9": false} {
 		s := &liveStream{conn: &daemon.PaneStream{}, frames: make(chan streamFrame, 2)}
 		s.frames <- streamFrame{frame: daemon.Frame{Type: 'X', Data: []byte(reason)}}
@@ -141,6 +144,7 @@ func TestLiveStreamNormalExitIsNotAnError(t *testing.T) {
 }
 
 func TestRecordedEnvironmentFromConfirmedCommand(t *testing.T) {
+	t.Parallel()
 	got := recordedEnvironment(work.PaneRecipe{Env: map[string]string{"BASE": "yes"}, Command: []string{"env", "KEY=a b", "SHELL=/bin/sh", "agent", "not=env"}})
 	want := map[string]string{"BASE": "yes", "KEY": "a b", "SHELL": "/bin/sh"}
 	if !reflect.DeepEqual(got, want) {
@@ -191,6 +195,7 @@ func leaderSide(t *testing.T, a *App, kind string) {
 // same store reattaches them, and ctrl+a v / t shows them without opening
 // new windows. A side that exited before the restart is forgotten.
 func TestQuitKeepsSidesAndRestartReattachesThem(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("nvim"); err != nil {
 		t.Skip("nvim not installed; the side vim launch needs it")
 	}
@@ -268,6 +273,7 @@ func TestQuitKeepsSidesAndRestartReattachesThem(t *testing.T) {
 // Quit while a side pane is still opening waits for it, so its link is
 // saved, then exits; a new side cannot start meanwhile.
 func TestQuitWaitsForAnOpeningSide(t *testing.T) {
+	t.Parallel()
 	a, f := sideViewApp(t)
 	f.panes = f.panes[:len(f.panes)-2] // no sides yet
 	if err := a.work.DeleteCompanion("side-vim"); err != nil {
@@ -300,6 +306,7 @@ func TestQuitWaitsForAnOpeningSide(t *testing.T) {
 // A new side window is sized to the side's region as soon as it exists,
 // so the program in it (vim) starts at that size, not at the session's.
 func TestNewSideWindowFitsItsRegion(t *testing.T) {
+	t.Parallel()
 	a, driver := shellApp(t)
 	a.cli = true
 	a.renderPanes(a.r, 240, 30) // the detail is 167x30; a side would get 83 columns

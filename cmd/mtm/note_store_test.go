@@ -44,6 +44,7 @@ func rowLabel(t *testing.T, a *App, id string) string {
 // the named new, edit, view and choose-move; associate is a deprecated
 // alias of move.
 func TestNoteVerbsAreStandard(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete",
@@ -73,6 +74,7 @@ func TestNoteVerbsAreStandard(t *testing.T) {
 // a title replaces it in the row and the confirm; get reads both, and the
 // summary is the body's first line, read-only.
 func TestNoteLabelFallsBackToTheSummary(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	old, err := a.work.AddNote("matomeru", "", "first line\nbody")
 	if err != nil {
@@ -106,6 +108,7 @@ func TestNoteLabelFallsBackToTheSummary(t *testing.T) {
 // rename writes the title only: the body, the owner and the creation time
 // stay.
 func TestNoteRenameWritesOnlyTheTitle(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	n, err := a.work.AddNote("matomeru", "t1", "keep this body")
 	if err != nil {
@@ -122,6 +125,7 @@ func TestNoteRenameWritesOnlyTheTitle(t *testing.T) {
 // Standard note create from a focused project fills the project and says
 // so; with create.from-focus off the note is unassociated, never refused.
 func TestNoteCreateFillsTheFocusedProject(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	if err := a.projectList.Select("matomeru"); err != nil {
 		t.Fatal(err)
@@ -155,6 +159,7 @@ func TestNoteCreateFillsTheFocusedProject(t *testing.T) {
 // A task given to create or set brings its project; move to another
 // project drops a task of the old one (its project would win on read).
 func TestNoteOwnerPropsFollowTheTask(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	n, err := a.work.AddNote("", "", "body")
 	if err != nil {
@@ -182,6 +187,7 @@ func TestNoteOwnerPropsFollowTheTask(t *testing.T) {
 // history.undo reverts the note's standard writes: a rename, a delete
 // (under its old key) and a create.
 func TestNoteUndo(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	n, err := a.work.AddNote("matomeru", "", "undo me")
 	if err != nil {
@@ -205,6 +211,7 @@ func TestNoteUndo(t *testing.T) {
 // The note editor shows the title above the body and starts on the body;
 // the title it writes is stored. notes.title-field off leaves it out.
 func TestNoteEditorTitleField(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	n, err := a.work.AddNote("matomeru", "", "body")
 	if err != nil {
@@ -247,6 +254,7 @@ func TestNoteEditorTitleField(t *testing.T) {
 // choice runs the standard move; d d asks with the note's label and y
 // deletes it.
 func TestNoteKeysMoveAndDelete(t *testing.T) {
+	t.Parallel()
 	a := open(t)
 	n, err := a.work.AddNote("matomeru", "", "move me")
 	if err != nil {
@@ -284,6 +292,7 @@ func TestNoteKeysMoveAndDelete(t *testing.T) {
 // From the CLI: note list answers the notes as things, rename and move
 // write by key, and delete asks with the label.
 func TestNoteStandardVerbsFromTheCLI(t *testing.T) {
+	t.Parallel()
 	a, _ := cliApp(t)
 	n, err := a.work.AddNote("matomeru", "", "cli body")
 	if err != nil {
@@ -326,6 +335,7 @@ func TestNoteStandardVerbsFromTheCLI(t *testing.T) {
 // first word that is a noun and a verb is the noun when the next word is
 // its verb), not as the focused Markdown doc's own verb note.
 func TestNoteRenameFromThePalette(t *testing.T) {
+	t.Parallel()
 	for _, line := range []string{"rename", "note rename"} {
 		t.Run(line, func(t *testing.T) {
 			a := open(t)
