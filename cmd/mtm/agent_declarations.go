@@ -35,6 +35,8 @@ var mtmAgentDeclarations = []struct {
 	{"session.set", ochazuke.AgentNever, false}, {"session.move", ochazuke.AgentNever, false}, {"session.rename", ochazuke.AgentNever, false}, {"session.associate", ochazuke.AgentNever, false}, {"session.choose-move", ochazuke.AgentNever, false},
 	{"saved.forget", "", true}, {"vim.forget", "", true}, {"run.forget", "", true},
 	{"extension.register", ochazuke.AgentNever, false}, {"extension.refresh", ochazuke.AgentNever, false}, {"extension.remove", ochazuke.AgentNever, true},
+	{"extension.setup", ochazuke.AgentNever, false}, {"extension.setup-undo", ochazuke.AgentNever, true},
+	{"extension.setup-plan", ochazuke.AgentAllow, false}, {"extension.setup-status", ochazuke.AgentAllow, false},
 	{"setup.install", ochazuke.AgentNever, false}, {"setup.uninstall", ochazuke.AgentNever, true},
 	{"project-dir.remove", ochazuke.AgentNever, true}, {"project-base.remove", ochazuke.AgentNever, true}, {"dirs.remove-base", ochazuke.AgentNever, true},
 	{"dirs.add-base", ochazuke.AgentNever, false}, {"project-dir.default", ochazuke.AgentNever, false}, {"project-dir.edit", ochazuke.AgentNever, false},

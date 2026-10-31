@@ -1,0 +1,8 @@
+{
+  "name": "mtm: the Extensions page shows each registered extension's setup (column, detail items, summary line) and s sets up one that needs it after a confirm showing the plan",
+  "area": "extensions",
+  "skip": "gap: story fixtures cannot seed an executable extension with setup items; TestExtensionsPageSetup renders and drives the real page with temp fake bins (complete, needs setup, no setup) and checks the confirm and the setting",
+  "fixture": "empty",
+  "script": [],
+  "expect": [{"contains": ["1 extension needs setup"]}]
+}

@@ -596,6 +596,7 @@ func New(opts Options) (*App, error) {
 	a.defineStore()
 	a.defineExtensions()
 	a.defineExtensionRows()
+	a.defineExtensionSetup()
 	a.defineAbout()
 	a.defineExtForms()
 	a.defineConfigReload()

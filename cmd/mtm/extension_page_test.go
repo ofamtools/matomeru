@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -178,12 +179,18 @@ func TestExtensionsPageFrame(t *testing.T) {
 	}
 	f := frame(a)
 	for _, want := range []string{"name", "status", "bin", "tabs", "nouns", "verbs", "registered",
-		"alpha  available", "beta   stale", "delta  registered", "gone   missing",
 		"changed since registered (L refreshes)", "version 1.0 → 1.1", "+ verb item.archive",
 		"nouns and verbs", "item  list, archive, done, rename", "pages", "beta (from its nouns: item)",
 		"L extension.refresh", "d d extension.remove", "enter extension.open"} {
 		if !strings.Contains(f, want) {
 			t.Errorf("frame lacks %q", want)
+		}
+	}
+	// The setup column (extensions.setup-status) sits between status
+	// and the rest, so the gaps vary with the width.
+	for _, row := range []string{`alpha +available`, `beta +stale +no setup`, `delta +registered +no setup`, `gone +missing`} {
+		if !regexp.MustCompile(row).MatchString(f) {
+			t.Errorf("frame lacks row %q", row)
 		}
 	}
 	if strings.Contains(f, "junk") {

@@ -71,7 +71,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick(), a.startSchedules(), a.refreshStaleExtensions())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick(), a.startSchedules(), a.refreshStaleExtensions(), a.setupCheckAtStart())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()

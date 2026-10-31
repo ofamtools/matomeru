@@ -20,7 +20,9 @@ import (
 // changed. On a row: n registers an available tool, L refreshes a
 // registered or stale one, d d removes a registered one (confirmed; the
 // data file stays, `mtm extension remove NAME --purge` deletes it), enter
-// opens a mounted one's first tab. Each re-mounts live (extension_sync.go).
+// opens a mounted one's first tab, s sets up one that needs setup
+// (extension_setup.go: the setup column, the detail's items and the
+// summary line). Each re-mounts live (extension_sync.go).
 //
 // A row's status column says what is fetching for the extension while it
 // runs: "fetching catalog…" (discovery asking a changed bin, register,
@@ -40,6 +42,19 @@ var extColumns = []ochazuke.Column{
 	{Title: "registered", Priority: 1},
 }
 
+// extSetupColumn is the setup column, after status, while the
+// extensions.setup-status setting is on.
+var extSetupColumn = ochazuke.Column{Title: "setup", Min: 13, Priority: 1}
+
+// extListColumns are the table's columns: extColumns, with the setup
+// column after status when on.
+func extListColumns(on bool) []ochazuke.Column {
+	if !on {
+		return extColumns
+	}
+	return slices.Insert(slices.Clone(extColumns), 2, extSetupColumn)
+}
+
 // extPageState is the page's discovery state.
 type extPageState struct {
 	discovered bool   // a discovery has landed
@@ -55,6 +70,9 @@ type extPageState struct {
 	failed   map[string]string
 	// seenJob is the last finished row-load job read for failed.
 	seenJob uint64
+	// setup is each registered extension's last setup check
+	// (extension_setup.go), by name.
+	setup map[string]extSetupInfo
 }
 
 // Status cells while something is fetching for an extension.
@@ -259,6 +277,7 @@ func (a *App) addExtensionsPage() error {
 	if a.detail.ext, err = a.addDetail(extDetailID, extensionsPage, a.extSubject, nil); err != nil {
 		return err
 	}
+	a.extList.SetColumns(extListColumns(a.extSetupOn())...)
 	_, err = a.r.AddPage(extensionsPage, "Extensions", a.renderExtensions, ochazuke.Focus(extListID))
 	return err
 }
@@ -267,7 +286,7 @@ func (a *App) addExtensionsPage() error {
 func (a *App) extSubject() string {
 	if item, ok := a.extList.Selected(); ok {
 		if c, ok := item.Data.(extCandidate); ok {
-			return c.Name + "\x00" + c.Status
+			return c.Name + "\x00" + c.Status + "\x00" + setupCell(a.extPage.setup[c.Name], true)
 		}
 	}
 	return ""
@@ -289,6 +308,7 @@ func (a *App) rediscover() {
 		}
 		a.extPage.rows = v.([]extCandidate)
 		a.autoRefreshCatalogs(a.extPage.rows)
+		a.checkExtSetup()
 		if err := a.setExtRows(a.extPage.rows); err != nil {
 			a.r.UI().Error(err.Error())
 		}
@@ -339,15 +359,24 @@ func (a *App) rediscover() {
 func (a *App) setExtRows(rows []extCandidate) error {
 	home, _ := a.home()
 	activity := a.extActivity()
+	on := a.extSetupOn()
 	items := make([]ochazuke.ListItem, 0, len(rows))
 	for _, c := range rows {
 		registered := ""
 		if !c.RegisteredAt.IsZero() {
 			registered = c.RegisteredAt.Local().Format("2006-01-02 15:04")
 		}
-		items = append(items, ochazuke.ListItem{ID: extListID + "/" + c.Name, Noun: "extension", Label: c.Name, Data: c,
-			Cells: []string{c.Name, statusCell(c, activity), tildePath(c.Bin, home), fmt.Sprint(c.Tabs), fmt.Sprint(c.Nouns), fmt.Sprint(c.Verbs), registered}})
+		cells := []string{c.Name, statusCell(c, activity), tildePath(c.Bin, home), fmt.Sprint(c.Tabs), fmt.Sprint(c.Nouns), fmt.Sprint(c.Verbs), registered}
+		if on {
+			info, ok := a.extPage.setup[c.Name]
+			if !ok && (c.Status == statusRegistered || c.Status == statusStale) && !extHasSetup(c.catalog) {
+				info, ok = extSetupInfo{State: setupNone}, true
+			}
+			cells = slices.Insert(cells, 2, setupCell(info, ok && c.Status != statusAvailable && c.Status != statusMissing))
+		}
+		items = append(items, ochazuke.ListItem{ID: extListID + "/" + c.Name, Noun: "extension", Label: c.Name, Data: c, Cells: cells})
 	}
+	a.extList.SetColumns(extListColumns(on)...)
 	return a.extList.SetItems(items)
 }
 
@@ -369,6 +398,11 @@ func (a *App) renderExtensions(_ *ochazuke.Runtime, width, height int) ochazuke.
 	left := func(w, h int) string {
 		if a.extList.Len() == 0 {
 			return fillLines(a.extEmpty(), h, w)
+		}
+		// The summary line, when some extension needs setup, is the
+		// table's last line.
+		if line := a.extSetupSummary(); line != "" && h > 2 {
+			return a.view(a.extList, w, h-1) + "\n" + fillLines(line, 1, w)
 		}
 		return a.view(a.extList, w, h)
 	}
@@ -437,6 +471,9 @@ func (a *App) extFacts(c extCandidate) string {
 		for _, ch := range c.Changes {
 			b.WriteString("\n  " + ch)
 		}
+	}
+	if setup := a.extSetupFacts(c); setup != "" {
+		b.WriteString("\n\n" + setup)
 	}
 	plan := extPlan(c.catalog)
 	b.WriteString("\n\nnouns and verbs\n")
