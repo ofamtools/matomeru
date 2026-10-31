@@ -80,6 +80,7 @@ func (a *App) declareSettings() error {
 	}
 	settings := []ochazuke.Setting{
 		contextExtractSetting,
+		{Name: "mcp.include-extensions", Type: ochazuke.SettingBoolean, Default: true, Description: "Expose mounted family tools through mtm's single MCP gateway; off hides them from discovery and instructions"},
 		ochazuke.Setting{Name: settingEditDebounce, Type: ochazuke.SettingDuration, Default: editorDebounce,
 			Description: "Pause in typing before the record editor and quick note write"},
 		ochazuke.Setting{Name: settingRefresh, Type: ochazuke.SettingDuration, Default: refreshEvery,

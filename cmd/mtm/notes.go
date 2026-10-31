@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -45,7 +46,7 @@ func (a *App) defineNotes() {
 		// child), so enter right after reads it again.
 		Bind("esc", ochazuke.Do("focus.previous"))
 	a.parameters(noteBodyNoun+".scroll", map[string]ochazuke.Parameter{"delta": {Type: "integer"}, "half": {Type: "integer"}})
-	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "title": {Type: "string", Description: "The note's title (optional)"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}})
+	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "title": {Type: "string", Description: "The note's title (optional)"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}, "owner": {Type: "object", Description: "Compatibility owner: kind task or project, and id"}})
 	a.parameters("note.edit", map[string]ochazuke.Parameter{"text": {Type: "string"}})
 	a.owners["note"] = "notes/list"
 	a.defineNoteDoc()
@@ -286,6 +287,34 @@ func (a *App) showNote(note work.Note) error {
 // text it opens the editor on a new note, which is written at once
 // (record first) and as it is typed.
 func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
+	ctx.Args = maps.Clone(ctx.Args)
+	if ctx.Args == nil {
+		ctx.Args = ochazuke.Arguments{}
+	}
+	if owner, ok := ctx.Args["owner"].(map[string]any); ok {
+		kind, id := ochazuke.StringArg(owner, "kind", "task"), ochazuke.StringArg(owner, "id", "")
+		if kind != "task" && kind != "project" {
+			return ochazuke.Failed(errors.New("owner.kind must be task or project"))
+		}
+		if id != "" {
+			ctx.Args[kind] = id
+		} else if kind == "project" {
+			ctx.Args["scratch"] = true
+		}
+	}
+	if actor := a.work.Actor(); actor.IsAgent() && ctx.Args["task"] == nil && ctx.Args["project"] == nil && ctx.Args["scratch"] != true {
+		id, err := a.currentPaneIdentity()
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		if id.TaskID != "" {
+			ctx.Args["task"] = id.TaskID
+		} else if id.ProjectID != "" {
+			ctx.Args["project"] = id.ProjectID
+		} else {
+			ctx.Args["scratch"] = true
+		}
+	}
 	owner, err := a.resolveOwner(ctx, ctx.Args)
 	if err != nil {
 		return ochazuke.Failed(err)

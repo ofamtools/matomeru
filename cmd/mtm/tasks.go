@@ -32,6 +32,7 @@ func (a *App) defineTask() {
 		Bind("enter", ochazuke.Do("task.edit")).Bind("l", ochazuke.Do("task.open")).Bind("L", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.choose-status")).
 		Bind("m", ochazuke.Do("task.choose-move"))
+	a.defineTaskEvidence()
 	// done and status are the standard set with the status preset (2.5:
 	// task.status shares the prop's name as its set); the old arguments
 	// are set's: task done ID, task status ID STATUS. The old --status
@@ -40,7 +41,7 @@ func (a *App) defineTask() {
 	for _, alias := range []ochazuke.ActionAlias{
 		{Alias: "task.done", Action: "task.set", Args: ochazuke.Arguments{"prop": "status", "value": work.StatusDone},
 			Note: "the standard set of status with done"},
-		{Alias: "task.status", Action: "task.set", Args: ochazuke.Arguments{"prop": "status"},
+		{Alias: "task.status", Action: "task.set", Args: ochazuke.Arguments{"prop": "status", "require-summary": true},
 			Note:         "the standard set of status: task status ID STATUS; s (task.choose-status) chooses one (--status before " + taskStatusSince + ")",
 			ParamAliases: []ochazuke.ParamAlias{{Alias: "status", Param: "value", Since: taskStatusSince, RemoveAfter: statusFlagRemoveAfter}}},
 	} {
@@ -52,6 +53,10 @@ func (a *App) defineTask() {
 	a.parameters("task.new", map[string]ochazuke.Parameter{
 		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"}, "parent": {Type: "string"},
 	})
+	// With no explicit CLI target, resolve the task from the pane's current
+	// assignment, rather than the one task a pinned UI happens to have loaded.
+	// Explicit ids and targets still name their record; TUI focus is unchanged.
+	a.owners["task"] = "work"
 	a.editorFields["task"] = a.taskFields
 }
 

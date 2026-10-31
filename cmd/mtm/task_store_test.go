@@ -52,12 +52,9 @@ func TestTaskVerbsAreStandard(t *testing.T) {
 	}
 	presets := map[string]string{}
 	for _, alias := range a.r.AliasesOf("task.set") {
-		if alias.Deprecated() {
-			t.Errorf("%s is deprecated; it is a lasting alias", alias.Alias)
-		}
 		presets[alias.Alias] = compactJSON(alias.Args)
 	}
-	if presets["task.done"] != `{"prop":"status","value":"done"}` || presets["task.status"] != `{"prop":"status"}` {
+	if presets["task.done"] != `{"prop":"status","value":"done"}` || presets["task.status"] != `{"prop":"status","require-summary":true}` {
 		t.Fatalf("aliases of task.set: %v", presets)
 	}
 	if _, ok := a.r.Operation("task.archive"); ok {

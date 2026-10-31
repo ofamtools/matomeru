@@ -44,7 +44,7 @@ func (s *stateRecorder) Call(_ context.Context, verb string, params, out any) er
 
 // mcpApp is the serve app on a seeded database, the pane w1 of session
 // matomeru assigned to task t1 and launched from a recipe; env is the
-// pane's environment, and every per-call app shares the fake daemon.
+// pane's environment, and the headless runtime uses the fake daemon.
 func mcpApp(t *testing.T, env map[string]string) (*App, *stateRecorder, string) {
 	t.Helper()
 	path := seeded(t)
@@ -96,6 +96,10 @@ func mcpApp(t *testing.T, env map[string]string) (*App, *stateRecorder, string) 
 // in, one response per request with an id out.
 func rpc(t *testing.T, app *App, requests ...any) []map[string]any {
 	t.Helper()
+	autoInit := len(requests) > 0 && requests[0].(map[string]any)["method"] != "initialize"
+	if autoInit {
+		requests = append([]any{map[string]any{"jsonrpc": "2.0", "id": -1, "method": "initialize", "params": map[string]any{"protocolVersion": "2025-06-18"}}, map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}}, requests...)
+	}
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 	var errOut bytes.Buffer
@@ -124,10 +128,16 @@ func rpc(t *testing.T, app *App, requests ...any) []map[string]any {
 	if err := <-done; err != nil {
 		t.Fatalf("serve: %v\n%s", err, errOut.String())
 	}
+	if autoInit {
+		out = out[1:]
+	}
 	return out
 }
 
 func toolCall(id int, name string, args map[string]any) map[string]any {
+	if args == nil {
+		args = map[string]any{}
+	}
 	return map[string]any{"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": map[string]any{"name": name, "arguments": args}}
 }
 
@@ -138,7 +148,16 @@ func structured(t *testing.T, resp map[string]any) any {
 	if !ok || res["isError"] != false {
 		t.Fatalf("tool call failed: %v", resp)
 	}
-	sc := res["structuredContent"].(map[string]any)
+	sc, ok := res["structuredContent"].(map[string]any)
+	if !ok {
+		content := res["content"].([]any)
+		if err := json.Unmarshal([]byte(content[len(content)-1].(map[string]any)["text"].(string)), &sc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sc["status"] == "done" {
+		return sc["result"]
+	}
 	if v, ok := sc["result"]; ok && len(sc) == 1 {
 		return v
 	}
@@ -184,7 +203,8 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 			}
 		}
 	}
-	if want := []string{"context_add", "document_report", "report_progress", "task_done", "task_list", "task_note_add", "task_status", "whoami"}; !reflect.DeepEqual(names, want) {
+	slices.Sort(names)
+	if want := []string{"catalog", "context_add", "describe", "document_report", "report_progress", "run", "state", "task_done", "task_list", "task_note_add", "task_status", "whoami"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("tools %v, want %v", names, want)
 	}
 	who := structured(t, out[2]).(map[string]any)
@@ -216,7 +236,7 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 	if task := structured(t, out[5]).(map[string]any); task["id"] != "t1" || task["status"] != "active" {
 		t.Fatalf("task_status: %v", task)
 	}
-	items := structured(t, out[6]).([]any)
+	items := structured(t, out[6]).(map[string]any)["items"].([]any)
 	if len(items) != 1 || items[0].(map[string]any)["kind"] != "pr" || items[0].(map[string]any)["task_id"] != "t1" {
 		t.Fatalf("context_add: %v", items)
 	}
@@ -377,8 +397,9 @@ func TestContextItemAddKeepsAKindOrTheWholeText(t *testing.T) {
 	if got.New != 1 || got.Items[0].Kind != "command" || got.Items[0].Text != "make gate" || got.Items[0].TaskID != "t1" {
 		t.Fatalf("command item: %+v", got)
 	}
+	app.getenv = envOf(map[string]string{actorEnv: "owner", "TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
 	out = mustCLI(t, app, "context-item", "add", "--text", "nothing to see", "--window", "w9")
-	if err := json.Unmarshal([]byte(out), &got); err != nil || got.Found != 0 || got.Items == nil {
-		t.Fatalf("no items: %s %v", out, err)
+	if err := json.Unmarshal([]byte(out), &got); err != nil || got.Found != 1 || len(got.Items) != 1 || got.Items[0].Kind != "prompt" || got.Items[0].TaskID != "" {
+		t.Fatalf("plain text was not kept unassociated: %s %v", out, err)
 	}
 }

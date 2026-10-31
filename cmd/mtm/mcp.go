@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,30 +10,40 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/unixsuperhero/oden"
-
 	"github.com/unixsuperhero/matomeru/internal/mcp"
-	"github.com/unixsuperhero/matomeru/internal/work"
+	"github.com/unixsuperhero/ochazuke"
+	catalogmcp "github.com/unixsuperhero/ochazuke/cli/mcp"
+	"github.com/unixsuperhero/oden"
 )
 
-// mtm mcp is the MCP shell (internal/mcp), ported from matomeru-old:
-//
-//   - mcp serve speaks MCP over stdio as the pane it runs in. Each tool
-//     call runs mtm operations the way mtm NOUN VERB --json '{...}' does:
-//     a fresh App from the same command line (--data, --server, --socket,
-//     --config), its CLI shell (cli.go) in process, the result read from
-//     the shell's JSON output. So a tool does what the command does, and
-//     like the command it never sees a running TUI's memory, only the
-//     database and the daemon.
-//   - mcp tools lists the tools; mcp whoami prints what whoami answers.
-//   - mcp config [HARNESS] prints the entry a harness needs to start the
-//     server: this binary (os.Executable) with this invocation's --data
-//     and --server or --socket. It writes nothing.
+// catalogMCP binds the pane at startup and keeps one headless runtime so history
+// and exact undo survive tool calls. Assignments are re-read for domain writes.
+func (a *App) catalogMCP(stdin io.Reader, stdout, stderr io.Writer) (*catalogmcp.Server, error) {
+	id, err := a.identifyPane(mcp.IdentityFromEnv(a.getenv))
+	if err != nil {
+		return nil, err
+	}
+	if id.Harness == "" {
+		id.Harness = a.harnesses.AgentFromEnv(a.getenv)
+	}
+	if a.mcpPrepare != nil {
+		a.mcpPrepare(a)
+	}
+	a.setActor(mcpActor(id))
+	a.actorSet = true
+	actor := ochazuke.Actor{Kind: ochazuke.ActorAgent, Harness: id.Harness, Pane: id.Window, Session: id.Session, Model: id.Model}
+	if actor.Pane == "" {
+		actor.Name = "mtm-mcp"
+	}
+	sh := a.shell(stdin, stdout, stderr)
+	sh.Actor = &actor
+	sh.Version = mtmVersion()
+	return sh.NewMCPServer()
+}
 
 // defineMCPCommand mounts mtm mcp on the oden app.
 func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io.Writer) {
-	backend := &mcpBackend{opts: a.opts, work: a.work, prepare: a.mcpPrepare}
-	server := func() (*mcp.Server, error) { return mcp.New(backend, mtmVersion()) }
+	server := func() (*catalogmcp.Server, error) { return a.catalogMCP(stdin, stdout, stderr) }
 	printJSON := func(v any) error {
 		raw, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {
@@ -49,7 +58,7 @@ func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io
 		}
 		return nil
 	}
-	app.Add(oden.Command{Name: "mcp", Summary: "MCP server for agents in TUIOS panes: serve, tools, whoami, config", Source: "inline", Children: []oden.Command{
+	app.Add(oden.Command{Name: "mcp", Summary: "Family catalog MCP gateway: serve, tools, instructions, whoami, config", Source: "inline", Children: []oden.Command{
 		{Name: "serve", Summary: "Speak MCP (JSON-RPC 2.0) on stdin and stdout as the pane this runs in", Run: func(ctx context.Context, args []string) error {
 			if err := noArgs("serve", args); err != nil {
 				return err
@@ -58,9 +67,11 @@ func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io
 			if err != nil {
 				return err
 			}
-			return s.Serve(ctx, mcp.IdentityFromEnv(a.getenv), stdin, stdout)
+			a.r.EnsureHistory()
+			defer a.r.Config().Flush()
+			return s.Serve(ctx, stdin, stdout)
 		}},
-		{Name: "tools", Summary: "List the tools serve offers, with the operations each runs", Run: func(_ context.Context, args []string) error {
+		{Name: "tools", Summary: "List the catalog tools and compatibility aliases", Run: func(_ context.Context, args []string) error {
 			if err := noArgs("tools", args); err != nil {
 				return err
 			}
@@ -78,11 +89,28 @@ func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io
 			if err != nil {
 				return err
 			}
-			result, err := s.Call(ctx, mcp.IdentityFromEnv(a.getenv), "whoami", nil)
+			result, err := s.Call(ctx, "whoami", nil)
 			if err != nil {
 				return err
 			}
+			if result, ok := result.(map[string]any); ok {
+				if result["status"] != "done" {
+					return fmt.Errorf("%v", result["reason"])
+				}
+				return printJSON(result["result"])
+			}
 			return printJSON(result)
+		}},
+		{Name: "instructions", Summary: "Print the generated catalog guidance", Run: func(_ context.Context, args []string) error {
+			if err := noArgs("instructions", args); err != nil {
+				return err
+			}
+			s, err := server()
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(stdout, s.Instructions())
+			return err
 		}},
 		{Name: "config", Usage: "[HARNESS]", Summary: "Print the MCP server entry for a harness (" + strings.Join(mcp.Harnesses(), ", ") + "); writes nothing", Run: func(_ context.Context, args []string) error {
 			if len(args) > 1 {
@@ -145,69 +173,30 @@ func mtmVersion() string {
 	return "devel"
 }
 
-// mcpBackend is mtm for the MCP tools.
-type mcpBackend struct {
-	opts Options
-	work *work.Store // the serve process's own store, read by Identify
-	// prepare, when set, adjusts each per-call app before it runs (the
-	// serve app's test doubles: the daemon, the environment).
-	prepare func(*App)
-}
-
-// Run is one mtm NOUN VERB --json ARGS in this process: a fresh App, so no
-// state carries from one call to the next, as between two CLI commands.
-func (b *mcpBackend) Run(ctx context.Context, noun, verb string, args map[string]any) (json.RawMessage, error) {
-	if args == nil {
-		args = map[string]any{}
-	}
-	payload, err := json.Marshal(args)
-	if err != nil {
-		return nil, err
-	}
-	app, err := New(b.opts)
-	if err != nil {
-		return nil, err
-	}
-	defer app.Close()
-	if b.prepare != nil {
-		b.prepare(app)
-	}
-	// Every tool call runs as the agent of the pane the server serves
-	// (the call's Identity), whatever the environment says.
-	id, _ := mcp.IdentityFrom(ctx)
-	app.setActor(mcpActor(id))
-	app.actorSet = true
-	var out, errOut bytes.Buffer
-	if err := app.shell(strings.NewReader(""), &out, &errOut).Run(ctx, []string{noun, verb, "--json", string(payload)}); err != nil {
-		return nil, err
-	}
-	return json.RawMessage(bytes.TrimSpace(out.Bytes())), nil
-}
-
 // Identify is whoami's lookup, the journal's rule (journalOwner): the
 // pane's assignment, else its session's owner by name; then the recipe
 // the pane was launched with for its cwd, harness and model. A pane mtm
 // did not launch has no recipe: its cwd is the server's, which the
 // harness started in its own directory.
-func (b *mcpBackend) Identify(_ context.Context, id mcp.Identity) (mcp.Identity, error) {
-	task, project, err := journalOwner(b.work)(id.Session, id.Window)
+func (a *App) identifyPane(id mcp.Identity) (mcp.Identity, error) {
+	task, project, err := journalOwner(a.work)(id.Session, id.Window)
 	if err != nil {
 		return id, err
 	}
 	id.TaskID, id.ProjectID = task, project
-	if r, err := b.work.PaneRecipe(id.Window); err == nil {
+	if r, err := a.work.PaneRecipe(id.Window); err == nil {
 		id.Cwd, id.Harness, id.Model = r.Cwd, r.Harness, r.Model
 	}
 	if id.Cwd == "" {
 		id.Cwd, _ = os.Getwd()
 	}
 	if task != "" {
-		if t, err := b.work.Task(task); err == nil {
+		if t, err := a.work.Task(task); err == nil {
 			id.TaskTitle, id.TaskStatus, id.TaskVersion = t.Title, t.Status, t.Updated
 		}
 	}
 	if project != "" {
-		if p, err := b.work.Project(project); err == nil {
+		if p, err := a.work.Project(project); err == nil {
 			id.ProjectName, id.ProjectRepo = p.Name, p.Repo
 		}
 	}

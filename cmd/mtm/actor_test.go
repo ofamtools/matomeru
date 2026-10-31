@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/unixsuperhero/ochazuke"
 
-	"github.com/unixsuperhero/matomeru/internal/mcp"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -181,16 +181,15 @@ func TestCLIAgentChangesOnlyTheStatusOfTheOwnersTask(t *testing.T) {
 func TestMCPWritesAreThePanesAgent(t *testing.T) {
 	t.Parallel()
 	app, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
-	backend := &mcpBackend{opts: app.opts, work: app.work, prepare: app.mcpPrepare}
-	id := mcp.Identity{Session: "matomeru", Window: "w1", TaskID: "t1", Harness: "claude", Model: "opus", Bound: true}
-	raw, err := backend.Run(mcp.WithIdentity(context.Background(), id), "task", "create", map[string]any{"title": "a step", "parent": "t1"})
+	server, err := app.catalogMCP(strings.NewReader(""), io.Discard, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got map[string]any
-	if err := json.Unmarshal(raw, &got); err != nil {
+	result, err := server.Call(context.Background(), "run", map[string]any{"verb": "task.create", "args": map[string]any{"title": "a step", "parent": "t1"}})
+	if err != nil {
 		t.Fatal(err)
 	}
+	got := result.(map[string]any)["result"].(map[string]any)
 	made, err := app.work.Task(got["id"].(string))
 	if err != nil {
 		t.Fatal(err)
@@ -201,6 +200,7 @@ func TestMCPWritesAreThePanesAgent(t *testing.T) {
 	// A task the owner made in the pane's lane: task_done and task_status
 	// change its status; a rename through the same path is refused, with
 	// who to ask.
+	app.work.SetActor(work.Owner())
 	if err := app.work.PutTask(work.Task{ID: "mine", ProjectID: "matomeru", ParentID: "t1", Title: "the owner's step", Status: work.StatusTodo}); err != nil {
 		t.Fatal(err)
 	}
@@ -216,9 +216,12 @@ func TestMCPWritesAreThePanesAgent(t *testing.T) {
 	if got, _ := app.work.Task("t1"); got.Status != work.StatusBlocked {
 		t.Fatalf("task_status on the lane task: %+v", got)
 	}
-	_, err = backend.Run(mcp.WithIdentity(context.Background(), id), "task", "set", map[string]any{"id": "mine", "prop": "title", "value": "the agent's words"})
-	if err == nil || !strings.Contains(err.Error(), "the owner or the coordinator") {
-		t.Fatalf("MCP rename of the owner's task: %v", err)
+	result, err = server.Call(context.Background(), "run", map[string]any{"verb": "task.set", "args": map[string]any{"id": "mine", "prop": "title", "value": "the agent's words"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply := result.(map[string]any); reply["status"] != "failed" || !strings.Contains(reply["reason"].(string), "the owner or the coordinator") {
+		t.Fatalf("MCP rename refusal: %v", result)
 	}
 	if got, _ := app.work.Task("mine"); got.Title != "the owner's step" {
 		t.Fatalf("refused write landed: %+v", got)

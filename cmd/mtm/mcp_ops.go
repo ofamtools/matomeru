@@ -10,6 +10,7 @@ import (
 	"github.com/unixsuperhero/ochazuke"
 
 	"github.com/unixsuperhero/matomeru/internal/contextitems"
+	"github.com/unixsuperhero/matomeru/internal/mcp"
 	"github.com/unixsuperhero/matomeru/internal/work"
 )
 
@@ -33,16 +34,22 @@ var progressStates = []string{"working", "idle", "done", "errored"}
 
 func (a *App) defineMCPOperations() {
 	a.r.Define(contextNoun).
+		Verb("report", a.documentReport, "Keep a markdown or HTML document and a note describing it").Agent(ochazuke.AgentAllow).
 		Verb("add", a.addContextText, "Keep the items found in a text (a URL, path, PR, branch, commit, or the whole text as a prompt or command) for a pane's task")
 	a.parameters(contextNoun+".add", map[string]ochazuke.Parameter{
 		"text":    {Type: "string", Required: true, Description: "The text the items are taken from"},
 		"kind":    {Type: "string", Enum: contextitems.Kinds, Description: "Keep only items of this kind; prompt or command keeps the whole text as one; a kind the text yields none of keeps the whole text as that kind"},
 		"session": {Type: "string", Description: "The pane's session name (default TUIOS_SESSION)"},
 		"window":  {Type: "string", Description: "The pane's window id (default TUIOS_PANE_ID); it owns the items"},
+		"task_id": {Type: "string", Description: "Compatibility argument; ownership comes from the pane"},
 		"cwd":     {Type: "string", Description: "The directory relative paths resolve against"},
 	})
 	a.r.Define("pane").
+		Verb("whoami", a.paneWhoami, "Show this pane's current task, project and launch recipe").Fetch().Agent(ochazuke.AgentAllow).
 		Verb("progress", a.paneProgress, "Report what the pane's agent is doing: its agent state (working unless --state) with a short message")
+	a.parameters(contextNoun+".report", map[string]ochazuke.Parameter{
+		"path": {Type: "string", Required: true}, "title": {Type: "string"}, "kind": {Type: "string", Enum: []string{"report", "plan", "review"}}, "summary": {Type: "string"},
+	})
 	a.parameters("pane.progress", map[string]ochazuke.Parameter{
 		"message": {Type: "string", Required: true, Description: "What the agent is doing right now"},
 		"state":   {Type: "string", Enum: progressStates, Description: "The agent state (default working)"},
@@ -52,8 +59,17 @@ func (a *App) defineMCPOperations() {
 }
 
 // paneArgs are --session and --window, else the pane this runs in.
-func (a *App) paneArgs(args ochazuke.Arguments) (session, window string) {
-	return ochazuke.StringArg(args, "session", a.getenv("TUIOS_SESSION")), ochazuke.StringArg(args, "window", a.getenv("TUIOS_PANE_ID"))
+func (a *App) paneArgs(args ochazuke.Arguments) (session, window string, err error) {
+	if actor := a.work.Actor(); actor.IsAgent() {
+		for _, field := range []struct{ name, bound string }{{"session", actor.Session}, {"window", actor.Pane}} {
+			if given := ochazuke.StringArg(args, field.name, ""); given != "" && given != field.bound {
+				return "", "", fmt.Errorf("%s is bound to this agent's startup pane; ask the owner or coordinator to act for another pane", field.name)
+			}
+		}
+		return actor.Session, actor.Pane, nil
+	}
+	id := mcp.IdentityFromEnv(a.getenv)
+	return ochazuke.StringArg(args, "session", id.Session), ochazuke.StringArg(args, "window", id.Window), nil
 }
 
 // addContextText is context-item.add.
@@ -63,7 +79,10 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("text is required"))
 	}
 	kind := ochazuke.StringArg(ctx.Args, "kind", "")
-	session, window := a.paneArgs(ctx.Args)
+	session, window, err := a.paneArgs(ctx.Args)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
 	now := work.Now()
 	src := contextitems.Source{Kind: mcpContextSource, Session: session, Window: window, At: now, Cwd: ochazuke.StringArg(ctx.Args, "cwd", "")}
 	if kind == "prompt" || kind == "command" {
@@ -75,6 +94,10 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 		if len(items) == 0 {
 			items = []contextitems.Item{{Kind: kind, Text: body, Session: session, Window: window, Created: now, Sources: []contextitems.Source{src}}}
 		}
+	}
+	if len(items) == 0 {
+		src.EntryKind = "prompt"
+		items = []contextitems.Item{{Kind: "prompt", Text: body, Session: session, Window: window, Created: now, Sources: []contextitems.Source{src}}}
 	}
 	var owner contextitems.Owner
 	if window != "" {
@@ -109,7 +132,10 @@ func (a *App) paneProgress(ctx ochazuke.Ctx) ochazuke.Result {
 	if message == "" {
 		return ochazuke.Failed(errors.New("message is required"))
 	}
-	session, window := a.paneArgs(ctx.Args)
+	session, window, err := a.paneArgs(ctx.Args)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
 	if window == "" {
 		return ochazuke.Failed(errors.New("name the pane: --window WINDOW, or run in a TUIOS pane"))
 	}
