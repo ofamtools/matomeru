@@ -9,10 +9,11 @@ import (
 
 	"github.com/unixsuperhero/ochazuke"
 	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"github.com/unixsuperhero/ochazuke/sysstat"
 )
 
-// mtm turns on the cpu, ram and disk segments, the disk one on the data
-// directory's volume; each has its own opt-out setting and the area one
+// mtm turns on the cpu, proc (its own CPU), ram and disk segments, the
+// disk one on the data directory's volume; each has its own opt-out setting and the area one
 // more; an extension's catalog segments mount against its proxy verbs.
 func TestSegmentsOnByDefaultWithOptOuts(t *testing.T) {
 	t.Parallel()
@@ -33,7 +34,7 @@ func TestSegmentsOnByDefaultWithOptOuts(t *testing.T) {
 		return out
 	}
 	got := r.Segments()
-	if len(got) != 3 || got[0].ID != "cpu" || got[1].ID != "ram" || got[2].ID != "disk" {
+	if len(got) != 4 || got[0].ID != "cpu" || got[1].ID != "proc" || got[2].ID != "ram" || got[3].ID != "disk" {
 		t.Fatalf("segments = %+v", got)
 	}
 	for _, s := range got {
@@ -41,10 +42,10 @@ func TestSegmentsOnByDefaultWithOptOuts(t *testing.T) {
 			t.Fatalf("%s: shown %t error %q", s.ID, s.Shown, s.Error)
 		}
 	}
-	if got[2].Path != app.dataDir() {
-		t.Fatalf("disk reads %q, want the data directory %q", got[2].Path, app.dataDir())
+	if got[3].Path != app.dataDir() {
+		t.Fatalf("disk reads %q, want the data directory %q", got[3].Path, app.dataDir())
 	}
-	for _, name := range []string{ochazuke.SegmentsSetting, ochazuke.SegmentSetting("cpu"), ochazuke.SegmentSetting("ram"), ochazuke.SegmentSetting("disk"), ochazuke.SegmentOrderSetting} {
+	for _, name := range []string{ochazuke.SegmentsSetting, ochazuke.SegmentSetting("cpu"), ochazuke.SegmentSetting("proc"), ochazuke.SegmentSetting("ram"), ochazuke.SegmentSetting("disk"), ochazuke.SegmentOrderSetting, sysstat.ProcScaleSetting} {
 		if _, err := r.Settings().Get(name); err != nil {
 			t.Fatalf("setting %s: %v", name, err)
 		}
@@ -52,13 +53,13 @@ func TestSegmentsOnByDefaultWithOptOuts(t *testing.T) {
 	if err := r.Settings().Set(ochazuke.SegmentSetting("cpu"), false); err != nil {
 		t.Fatal(err)
 	}
-	if s := shown(); s["cpu"] || !s["ram"] || !s["disk"] {
+	if s := shown(); s["cpu"] || !s["proc"] || !s["ram"] || !s["disk"] {
 		t.Fatalf("after turning cpu off: %v", s)
 	}
 	if err := r.Settings().Set(ochazuke.SegmentsSetting, false); err != nil {
 		t.Fatal(err)
 	}
-	if s := shown(); s["ram"] || s["disk"] || len(r.SegmentCells()) != 0 {
+	if s := shown(); s["proc"] || s["ram"] || s["disk"] || len(r.SegmentCells()) != 0 {
 		t.Fatalf("the area is off: %v", s)
 	}
 

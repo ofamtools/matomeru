@@ -5,8 +5,9 @@ import (
 	"github.com/unixsuperhero/ochazuke/sysstat"
 )
 
-// mtm's status segments ride ochazuke's header rule: cpu, ram and the
-// free space of the data directory's volume are on by default, each
+// mtm's status segments ride ochazuke's header rule: cpu, mtm's own CPU
+// (proc, scaled by status.proc-scale), ram and the free space of the data
+// directory's volume are on by default, each
 // behind its own status.segments.<id> setting, and status.segments hides
 // them all. A user adds or changes rows in segments.json beside
 // settings.json; a mounted extension adds the segments its catalog
