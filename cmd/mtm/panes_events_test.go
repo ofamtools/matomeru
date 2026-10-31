@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/unixsuperhero/matomeru/internal/daemon"
+	"github.com/unixsuperhero/matomeru/internal/work"
 	"github.com/unixsuperhero/ochazuke"
 	"golang.org/x/sys/unix"
 )
@@ -389,5 +391,153 @@ func TestEventLoadCancelledRefreshRecovers(t *testing.T) {
 	runOnce(a, a.panesUpdate(paneEventsDue{}))
 	if d.listings.Load() != 2 || a.pv.refreshQueued || a.pv.reconcileQueued || a.pv.eventPending {
 		t.Fatalf("refresh did not recover: listings=%d queued=%v reconcile=%v pending=%v", d.listings.Load(), a.pv.refreshQueued, a.pv.reconcileQueued, a.pv.eventPending)
+	}
+}
+
+// sideExitApp is a panes app whose w1 has a term side "side" (listed by
+// the daemon, linked in the store) and an event-counting daemon.
+func sideExitApp(t *testing.T) (*App, *eventLoadDaemon) {
+	t.Helper()
+	a, f := panesApp(t)
+	d := &eventLoadDaemon{fakePanes: f}
+	a.panesd = d
+	f.mu.Lock()
+	f.panes = append(f.panes, pane{Session: "matomeru", Pane: daemon.Pane{ID: "side", Name: "side-term"}})
+	f.exited = map[string]bool{}
+	f.mu.Unlock()
+	if err := a.work.PutCompanion(work.Companion{Window: "side", Parent: "w1", Kind: "term"}); err != nil {
+		t.Fatal(err)
+	}
+	a.setPanes(f.panes, nil)
+	if a.sides["w1"].Windows["term"] != "side" {
+		t.Fatalf("side not linked: %+v", a.sides["w1"])
+	}
+	return a, d
+}
+
+func assertSideClosed(t *testing.T, a *App, d *eventLoadDaemon) {
+	t.Helper()
+	d.mu.Lock()
+	killed := slices.Clone(d.killed)
+	d.mu.Unlock()
+	if !slices.Contains(killed, "side") {
+		t.Fatalf("exited side was not closed: killed=%v", killed)
+	}
+	links, err := a.work.Companions()
+	if err != nil || len(links) != 0 {
+		t.Fatalf("side link survived: %+v %v", links, err)
+	}
+	if w := a.sides["w1"].Windows["term"]; w != "" {
+		t.Fatalf("parent still shows side %q", w)
+	}
+}
+
+// Regression: a light event listing never closed an exited side.
+func TestEventLoadSideExitReconciles(t *testing.T) {
+	t.Parallel()
+	a, d := sideExitApp(t)
+	d.mu.Lock()
+	d.exited["side"] = true
+	d.mu.Unlock()
+	// A retitle storm next to the exit still costs no listing and no probe.
+	for i := 0; i < 200; i++ {
+		if a.applyPaneEvents([]daemon.Event{retitleEvent("w1", fmt.Sprint(i))}) {
+			t.Fatal("retitle requested listing")
+		}
+	}
+	if d.listings.Load() != 0 || d.probes.Load() != 0 || a.pv.reconcilePending {
+		t.Fatalf("retitles listed=%d probed=%d reconcile=%v", d.listings.Load(), d.probes.Load(), a.pv.reconcilePending)
+	}
+	if !a.applyPaneEvents([]daemon.Event{{Type: "window-exit", Window: "side"}}) {
+		t.Fatal("exit did not request a listing")
+	}
+	a.schedulePaneEvents()
+	if d.listings.Load() != 0 || !a.pv.eventPending {
+		t.Fatal("exit listed before its coalescing window")
+	}
+	settle(a, a.panesUpdate(paneEventsDue{}))
+	if d.listings.Load() != 1 || d.probes.Load() == 0 {
+		t.Fatalf("exit listing did not reconcile: listings=%d probes=%d", d.listings.Load(), d.probes.Load())
+	}
+	assertSideClosed(t, a, d)
+	if a.pv.reconcilePending {
+		t.Fatal("reconcile request outlived its listing")
+	}
+	// The next event window is light again.
+	probes := d.probes.Load()
+	a.applyPaneEvents([]daemon.Event{{Type: "agent-state", Window: "w1"}})
+	a.schedulePaneEvents()
+	settle(a, a.panesUpdate(paneEventsDue{}))
+	if d.probes.Load() != probes {
+		t.Fatal("light event window probed")
+	}
+}
+
+// An exit seen while a listing runs makes its trailing listing reconcile.
+func TestEventLoadSideExitDuringListing(t *testing.T) {
+	t.Parallel()
+	a, d := sideExitApp(t)
+	d.entered, d.release = make(chan struct{}, 1), make(chan struct{})
+	if err := a.reloadPaneListing(false); err != nil {
+		t.Fatal(err)
+	}
+	cmd := a.r.PendingCommands()
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	<-d.entered
+	d.mu.Lock()
+	d.exited["side"] = true
+	d.mu.Unlock()
+	a.applyPaneEvents([]daemon.Event{{Type: "window-exit", Window: "side"}})
+	a.schedulePaneEvents()
+	if !a.pv.refreshQueued || !a.pv.reconcileQueued {
+		t.Fatalf("queued=%v reconcile=%v", a.pv.refreshQueued, a.pv.reconcileQueued)
+	}
+	d.entered = nil
+	close(d.release)
+	if _, err := a.r.Deliver(<-done); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.panesUpdate(nil))
+	assertSideClosed(t, a, d)
+}
+
+// A missed exit event: a light timer listing that shows the window exited
+// queues one reconciling listing, once per window.
+func TestEventLoadExitedListingFallback(t *testing.T) {
+	t.Parallel()
+	a, d := sideExitApp(t)
+	d.mu.Lock()
+	d.exited["side"] = true
+	for i := range d.panes {
+		if d.panes[i].ID == "side" {
+			d.panes[i].Exited = true
+		}
+	}
+	d.mu.Unlock()
+	if err := a.reloadPaneListing(false); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	if d.probes.Load() != 0 || !a.pv.reconcileQueued {
+		t.Fatalf("light listing probed=%d queued reconcile=%v", d.probes.Load(), a.pv.reconcileQueued)
+	}
+	settle(a, a.panesUpdate(nil))
+	assertSideClosed(t, a, d)
+
+	// A window the daemon keeps listing exited asks only once.
+	d.mu.Lock()
+	d.panes[0].Exited = true
+	d.exited = map[string]bool{} // the probe disagrees: nothing to close
+	d.mu.Unlock()
+	for i := 0; i < 3; i++ {
+		if err := a.reloadPaneListing(false); err != nil {
+			t.Fatal(err)
+		}
+		settle(a, a.r.PendingCommands())
+		settle(a, a.panesUpdate(nil))
+	}
+	if got := d.listings.Load(); got != 2+3+1 {
+		t.Fatalf("listings=%d, want one reconcile for the stuck window", got)
 	}
 }

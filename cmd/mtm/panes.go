@@ -226,6 +226,12 @@ type paneUI struct {
 	exited          map[string]bool // windows seen exited, kept across plain listings
 	listed          bool            // a listing has succeeded (the Vim page's state follows it)
 	leader          string          // the leader the page's leader rows are bound to (panes_leader.go)
+
+	// reconcilePending: an event in the pending window needs a reconciling
+	// listing (reconcileEvents); exitAsked: exited windows a reconciling
+	// listing was already queued for (queueExitReconcile).
+	reconcilePending bool
+	exitAsked        map[string]bool
 	// detailW and detailH are the detail area the last frame drew, so a
 	// side's stream and new window get its region before it is drawn.
 	detailW, detailH int
@@ -537,6 +543,7 @@ func (a *App) setPanes(panes []pane, err error) {
 	if err == nil {
 		a.pv.listed = true
 		a.markPanes(panes)
+		a.queueExitReconcile(panes)
 		var mergeErr error
 		panes, mergeErr = a.mergeCompanions(panes)
 		if mergeErr != nil {

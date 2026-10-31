@@ -68,4 +68,4 @@ Checked against Vim's local `terminal.txt` and `windows.txt` help.
 | `:terminal` | `:terminal` | Similar: runs a program in a split; mtm chooses argv from the side definition and uses a daemon window. |
 | Terminal window commands | `terminal-typing` | Similar: leader then an application key; mtm's configurable leader defaults to `ctrl+a`. |
 | `CTRL-W w` | `CTRL-W_w` | Similar: leader `o` cycles parent and front side, rather than all windows. |
-| Terminal job exit | `terminal-close` | Similar to `:terminal ++close`: an exited side's daemon window is closed during reconciliation. |
+| Terminal job exit | `terminal-close` | Similar to `:terminal ++close`: an exited side's daemon window is closed during reconciliation, which the daemon's `window-exit` event triggers (docs/EVENT-LOAD.md). |
