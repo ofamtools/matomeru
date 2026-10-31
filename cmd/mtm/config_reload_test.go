@@ -29,6 +29,34 @@ func rewrite(t *testing.T, path, data string) {
 	}
 }
 
+func TestAgentLaunchKeepsAppNamespace(t *testing.T) {
+	t.Parallel()
+	app, _ := harnessApp(t, `[]`)
+	check := func() {
+		t.Helper()
+		for _, verb := range []string{"launch", "start", "choose"} {
+			key := "agent." + verb
+			canonical := app.r.CanonicalKey(key)
+			op, ok := app.r.Operations[canonical]
+			if !ok || canonical != key || op.Noun != "agent" || op.Builtin {
+				t.Fatalf("%s canonical=%q noun=%q builtin=%v harness=%v", key, canonical, op.Noun, op.Builtin, op.Parameters["harness"].Enum)
+			}
+		}
+		var rights []ochazuke.AgentRight
+		if err := json.Unmarshal([]byte(mustCLI(t, app, "ochazuke", "agent", "rights", "--verb", "agent.launch")), &rights); err != nil {
+			t.Fatal(err)
+		}
+		if len(rights) != 1 || rights[0].Verb != "agent.launch" {
+			t.Fatalf("framework agent rights lost the app launch: %+v", rights)
+		}
+	}
+	check()
+	if p := reloadConfig(t, app); len(p) != 0 {
+		t.Fatalf("problems %q", p)
+	}
+	check()
+}
+
 // config.reload reads harnesses.json again: a harness added there launches
 // and is a choice of the harness parameters; a bad file is a problem naming
 // it and keeps the registry it had.

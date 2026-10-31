@@ -181,7 +181,8 @@ func (a *App) defineLaunch() {
 		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").Fetch().
 		Verb("models", a.listModels, "List every harness's models as choices (the model parameter's pick list)").Fetch().
 		Verb("names", a.harnessNames, "List the harness names as choices (the project editor's harness field)").Fetch()
-	r.Define("agent").
+	// Launches belong to mtm; ochazuke.agent owns framework rights inspection.
+	r.DefineOwn("agent").
 		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
 		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it").
 		Verb("choose", a.chooseAgent, "Launch an agent into the pin's project: a chooser of harnesses, the project's own first")
