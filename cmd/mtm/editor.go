@@ -81,7 +81,11 @@ func (a *App) View() tea.View {
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	notices := a.shownNotices()
 	prompt := a.promptBefore()
+	segExt, segID, segBefore := a.extSegmentBefore(msg)
 	_, cmd := a.m.Update(msg)
+	if c := a.extSegmentAfter(segExt, segID, segBefore); c != nil {
+		cmd = tea.Batch(cmd, c)
+	}
 	a.promptAfter(prompt)
 	a.hintsUpdate()
 	if panes := a.panesUpdate(msg); panes != nil {

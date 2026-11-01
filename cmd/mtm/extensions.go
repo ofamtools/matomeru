@@ -902,14 +902,12 @@ func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 
 // extProxy is the handler of one mounted verb: `<bin> NOUN VERB [--target
 // ID] --json ARGS --yes` off the loop (mtm asked the verb's confirm
-// already); the row's own id is the target. Its result is the page's
-// status line, and the extension's rows reload.
+// already); the target is the nearest row of the verb's noun at the
+// focus (extTarget). Its result is the page's status line, and the
+// extension's rows reload.
 func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
 	return func(c ochazuke.Ctx) ochazuke.Result {
-		target := ""
-		if c.Instance != nil {
-			target, _ = c.Instance.Data.(string)
-		}
+		target := a.extTarget(x, noun, c.Instance)
 		if !a.cli {
 			if name, p, ok := missingNounParam(x.doc, noun, verb, c.Args); ok {
 				return a.askNounParam(x, noun, verb, target, name, p, c.Args)
@@ -917,6 +915,31 @@ func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
 		}
 		return a.extRun(x, noun, verb, target, c.Args, nil)
 	}
+}
+
+// extTarget is the tool's id of the nearest thing of noun (a catalog
+// noun) from inst up its parents: the row a key ran on when it is of the
+// verb's noun, else an ancestor that is, else none. A row of another noun
+// is never the target: a key row on a clip running session.toggle runs
+// with no target, as ochazuke's "the nearest thing of its noun" says.
+func (a *App) extTarget(x *extension, noun string, inst *ochazuke.Instance) string {
+	if inst == nil {
+		return ""
+	}
+	want := a.r.CanonicalNoun(x.naming.local(x.name, noun))
+	if local, ok := x.nouns[noun]; ok {
+		want = a.r.CanonicalNoun(local)
+	}
+	for _, id := range a.r.Ancestry(inst.ID) {
+		in := a.r.Instances[id]
+		if in == nil || a.r.CanonicalNoun(in.Noun) != want {
+			continue
+		}
+		if target, ok := in.Data.(string); ok {
+			return target
+		}
+	}
+	return ""
 }
 
 // extRun runs one of an extension's verbs off the loop: `<bin> NOUN VERB
