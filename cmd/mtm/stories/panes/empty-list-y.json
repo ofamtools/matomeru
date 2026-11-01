@@ -12,6 +12,10 @@
     "mode": "normal",
     "contains": [
       "panes (0)"
+    ],
+    "lacks": [
+      "list has no selected row",
+      "no row to copy"
     ]
   }
 }
