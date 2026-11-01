@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"ofam.dev/ochazuke"
 )
 
@@ -87,10 +89,12 @@ func TestExtensionEditFormWritesThroughTheToolsEditVerb(t *testing.T) {
 	}
 }
 
-// n on the list opens a form of the new verb: nothing runs until every
-// required field is filled; the first write creates the row, and later
-// changes edit the id the tool answered.
-func TestExtensionNewFormCreatesThenEdits(t *testing.T) {
+// n on the list opens a form of the new verb that runs once: typing and
+// leaving fields write nothing, form.run (enter) refuses until every
+// required field is filled, then runs the new verb once with the values;
+// the id the tool answered opens an edit form whose changes run the edit
+// verb as they are made.
+func TestExtensionNewFormCreatesOnRunThenEdits(t *testing.T) {
 	t.Parallel()
 	a, log := crudApp(t, crudCatalogNamed("create", "update", "remove"))
 	if err := a.r.SetFocus("ext/fake/thing/t2"); err != nil {
@@ -101,32 +105,40 @@ func TestExtensionNewFormCreatesThenEdits(t *testing.T) {
 	if form == nil || a.r.Focus != extFormID+"/title" {
 		t.Fatalf("no form at its title: focus %s", a.r.Focus)
 	}
+	if v := ansi.Strip(a.View().Content); !strings.Contains(v, "New thing · created when run") || strings.Contains(v, "written as you type") {
+		t.Fatalf("title not in view:\n%s", v)
+	}
 	n := len(calls(t, log))
-	// size first: title is required, so nothing is created yet.
+	// size first: title is required, so the form cannot run yet.
 	pressJob(t, a, "tab")
 	typeText(t, a, "7")
-	_, cmd := a.Update(keyMsg("esc"))
-	settleJobs(t, a, cmd)
-	if got := since(t, log, n); len(got) != 0 {
-		t.Fatalf("created without its title: %q", got)
+	pressJob(t, a, "esc")
+	pressJob(t, a, "k")
+	if form.Runnable() {
+		t.Fatal("runnable without its title")
 	}
-	if !strings.Contains(form.WriteError(), "created once title is filled") {
-		t.Fatalf("write error %q", form.WriteError())
-	}
-	// Leaving the field tries again and says so.
-	_, cmd = a.Update(keyMsg("k"))
-	settleJobs(t, a, cmd)
-	if !strings.Contains(a.m.Status, "created once title is filled") {
-		t.Fatalf("status %q", a.m.Status)
-	}
-	a.m.Status = ""
 	pressJob(t, a, "a")
 	typeText(t, a, "three")
 	pressJob(t, a, "esc")
+	if got := since(t, log, n); len(got) != 0 {
+		t.Fatalf("ran before form.run: %q", got)
+	}
+	if form.WriteError() != "" {
+		t.Fatalf("write error %q", form.WriteError())
+	}
+	pressJob(t, a, "enter")
 	got := since(t, log, n)
 	if len(got) != 1 || got[0] != `thing create --json {"size":7,"title":"three"} --yes` {
 		t.Fatalf("create calls %q", got)
 	}
+	edit := a.r.RecordEditor(extFormID)
+	if edit == nil || edit == form || a.extForm != edit {
+		t.Fatal("no edit form after create")
+	}
+	if v := edit.Values(); v["title"] != "three" || v["size"] != "7" {
+		t.Fatalf("edit form values %v", v)
+	}
+	pressJob(t, a, "esc")
 	pressJob(t, a, "j")
 	pressJob(t, a, "a")
 	typeText(t, a, "0")
@@ -134,6 +146,70 @@ func TestExtensionNewFormCreatesThenEdits(t *testing.T) {
 	got = since(t, log, n)
 	if len(got) != 2 || got[1] != `thing update --target t3 --json {"size":70} --yes` {
 		t.Fatalf("update calls %q", got)
+	}
+}
+
+// optionalNewCatalog is crudCatalog whose new verb requires nothing (as
+// md doc new: every parameter optional) and, with noEdit, has no edit
+// verb.
+func optionalNewCatalog(noEdit bool) string {
+	editV := "edit"
+	if noEdit {
+		editV = "touch"
+	}
+	return strings.Replace(crudCatalogNamed("new", editV, "delete"), `"required":true`, `"required":false`, 1)
+}
+
+// A new verb with no required parameters is runnable at once, yet typing
+// a name runs nothing: no half-typed row (a file, a directory) is made.
+// Leaving the form creates nothing.
+func TestExtensionNewFormWithNoRequiredParamsRunsNothingAsYouType(t *testing.T) {
+	t.Parallel()
+	a, log := crudApp(t, optionalNewCatalog(false))
+	if err := a.r.SetFocus("ext/fake/thing/t2"); err != nil {
+		t.Fatal(err)
+	}
+	pressJob(t, a, "n")
+	form := a.r.RecordEditor(extFormID)
+	if form == nil {
+		t.Fatal("no form")
+	}
+	n := len(calls(t, log))
+	for _, s := range []string{"m", "a", "y"} {
+		typeText(t, a, s)
+		settleJobs(t, a, nil)
+	}
+	pressJob(t, a, "esc") // insert ends
+	pressJob(t, a, "j")
+	if got := since(t, log, n); len(got) != 0 {
+		t.Fatalf("ran as you type: %q", got)
+	}
+	pressJob(t, a, "esc") // leaves
+	if a.r.Instances[extFormID] != nil || a.extForm != nil {
+		t.Fatal("form still open")
+	}
+	if got := since(t, log, n); len(got) != 0 {
+		t.Fatalf("leaving created: %q", got)
+	}
+}
+
+// With no edit verb, run creates the row once and the form stays closed:
+// no later keystroke errors that it cannot be written.
+func TestExtensionNewFormWithoutEditVerbClosesAfterCreating(t *testing.T) {
+	t.Parallel()
+	a, log := crudApp(t, optionalNewCatalog(true))
+	if err := a.r.SetFocus("ext/fake/thing/t2"); err != nil {
+		t.Fatal(err)
+	}
+	pressJob(t, a, "n")
+	n := len(calls(t, log))
+	typeText(t, a, "ma")
+	pressJob(t, a, "enter")
+	if got := since(t, log, n); len(got) != 1 || got[0] != `thing new --json {"title":"ma"} --yes` {
+		t.Fatalf("calls %q", got)
+	}
+	if a.r.Instances[extFormID] != nil || a.extForm != nil {
+		t.Fatal("form still open after create without an edit verb")
 	}
 }
 

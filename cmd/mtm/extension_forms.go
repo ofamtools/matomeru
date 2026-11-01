@@ -16,11 +16,15 @@ import (
 // create), edit (or update) or delete (or remove) application verb gets
 // mtm's key map on its rows: n new, i edit, d d delete. New and edit open
 // ochazuke's record editor as a modal, its fields the verb's parameters
-// (RecordFields), edit's prefilled from the row's data; every change is
-// written as it is made by running the tool's verb off the loop. A new
-// record is created by its first write once every required field is
-// filled (the tool's answer names its id), and later changes run the
-// edit verb on it. d d runs the delete verb after its confirm: the tool's
+// (RecordFields), edit's prefilled from the row's data. An edit form
+// writes every change as it is made by running the tool's edit verb off
+// the loop. A new form writes nothing as you type: it is a form that runs
+// once (RecordSpec.Submit), so the new verb runs only on form.run (the
+// form's run key, once every required field is filled) with the values
+// shown, and leaving it creates nothing. When the tool answers the new
+// row's id and has an edit verb, an edit form on that row opens in its
+// place, written as you type; otherwise the form stays closed and the
+// status line says what was created. d d runs the delete verb after its confirm: the tool's
 // own, else "Delete {{label}}?" (mtm cannot undo it).
 
 // extCRUD names a catalog noun's verbs for the key map ("" when it has
@@ -58,7 +62,7 @@ func crudOf(n ocli.CatalogNoun) extCRUD {
 // defineExtForms adds the form noun: new on a list, edit on a row.
 func (a *App) defineExtForms() {
 	a.r.Define(extFormNoun).
-		Verb("new", a.extFormNew, "Create a row of a mounted extension through a form of its new verb's parameters; written as you type").
+		Verb("new", a.extFormNew, "Create a row of a mounted extension through a form of its new verb's parameters; created when the form runs, nothing as you type").
 		Verb("edit", a.extFormEdit, "Edit the focused row of a mounted extension through a form of its edit verb's parameters, prefilled from the row; written as you type")
 	a.parameters(extFormNoun+".new", map[string]ochazuke.Parameter{
 		"noun": {Type: "string", Required: true, Description: "mtm's noun of the extension's rows (EXT.NOUN, or an alias of it)"},
@@ -181,7 +185,7 @@ func (a *App) extFormNew(c ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(fmt.Errorf("the form is the TUI's; run %s %s with its arguments", local, verb))
 	}
 	f := &extForm{a: a, x: x, noun: noun, local: local}
-	return resultError(a.openExtForm(f, "New "+noun, ochazuke.RecordFields(op), ochazuke.Record{}))
+	return resultError(a.openExtForm(f, "New "+noun+" · created when run", ochazuke.RecordFields(op), ochazuke.Record{}, f.create))
 }
 
 // extFormEdit is ext-form.edit on a row: a form of its noun's edit verb,
@@ -207,33 +211,39 @@ func (a *App) extFormEdit(c ochazuke.Ctx) ochazuke.Result {
 	}
 	fields := ochazuke.RecordFields(a.r.Operations[inst.Noun+"."+x.crud[noun].Edit])
 	f := &extForm{a: a, x: x, noun: noun, local: inst.Noun, target: id}
-	return resultError(a.openExtForm(f, "Edit "+noun+" "+row.Label, fields, prefill(fields, row)))
+	return resultError(a.openExtForm(f, "Edit "+noun+" "+row.Label, fields, prefill(fields, row), nil))
 }
 
-// extForm is one open form: the row it edits (target), "" until a new
-// one is created.
+// extForm is one open form: the row it edits (target); "" on a new form.
 type extForm struct {
 	a           *App
 	x           *extension
 	noun, local string
 	target      string
-	created     bool // the new verb ran (target is "" when its answer named no id)
 }
 
-// openExtForm opens the record editor modal over the focus.
-func (a *App) openExtForm(f *extForm, title string, fields []ochazuke.RecordField, values ochazuke.Record) error {
+// openExtForm opens the record editor modal over the focus. With submit
+// it is a form that runs once (a new row: nothing is written as you
+// type); without, every change is written through save.
+func (a *App) openExtForm(f *extForm, title string, fields []ochazuke.RecordField, values ochazuke.Record, submit func(ochazuke.Record) ochazuke.Result) error {
 	if a.extForm != nil && a.r.Instances[extFormID] != nil {
 		return errors.New("a form is already open")
 	}
-	form, err := a.r.OpenRecordEditor(extFormID, ochazuke.RecordSpec{
-		Title:    title + " · written as you type",
+	spec := ochazuke.RecordSpec{
+		Title:    title,
 		Fields:   fields,
 		Debounce: a.editDebounce(),
 		Insert:   true,
 		Load:     func() (ochazuke.Record, error) { return values, nil },
-		Save:     f.save,
 		OnLeave:  func() { a.extForm = nil },
-	})
+	}
+	if submit != nil {
+		spec.Submit = submit
+	} else {
+		spec.Title += " · written as you type"
+		spec.Save = f.save
+	}
+	form, err := a.r.OpenRecordEditor(extFormID, spec)
 	if err != nil {
 		return err
 	}
@@ -241,34 +251,28 @@ func (a *App) openExtForm(f *extForm, title string, fields []ochazuke.RecordFiel
 	return nil
 }
 
-// save writes one change: the new verb until the record exists (once every
-// required field is filled), then the edit verb on it.
+// create runs the new verb once with the form's values (form.run). When
+// the tool answers the new row's id and the noun has an edit verb, an
+// edit form on the row opens with the values, written as you type.
+func (f *extForm) create(values ochazuke.Record) ochazuke.Result {
+	c := f.x.crud[f.noun]
+	op := f.a.r.Operations[f.a.r.CanonicalKey(f.local+"."+c.New)]
+	return f.a.extRun(f.x, f.noun, c.New, "", extArgs(op, values, nil), func(v any, err error) {
+		id := createdID(v)
+		if err != nil || id == "" || c.Edit == "" || f.a.cli || f.a.quitting {
+			return
+		}
+		edit := &extForm{a: f.a, x: f.x, noun: f.noun, local: f.local, target: id}
+		fields := ochazuke.RecordFields(f.a.r.Operations[f.a.r.CanonicalKey(f.local+"."+c.Edit)])
+		if err := f.a.openExtForm(edit, "Edit "+f.noun+" "+id, fields, values, nil); err != nil {
+			f.a.r.UI().Notify(err.Error())
+		}
+	})
+}
+
+// save writes one change of an edit form: the edit verb on its row.
 func (f *extForm) save(w ochazuke.RecordWrite) ochazuke.Result {
 	c := f.x.crud[f.noun]
-	if f.created && f.target == "" {
-		return ochazuke.Failed(fmt.Errorf("created; %s new answered no id, so later changes are not written", f.noun))
-	}
-	if f.target == "" {
-		op := f.a.r.Operations[f.a.r.CanonicalKey(f.local+"."+c.New)]
-		var missing []string
-		for _, name := range requiredOf(op) {
-			if strings.TrimSpace(w.Values[name]) == "" {
-				missing = append(missing, name)
-			}
-		}
-		if len(missing) > 0 {
-			return ochazuke.Failed(fmt.Errorf("created once %s is filled", strings.Join(missing, ", ")))
-		}
-		args := extArgs(op, w.Values, nil)
-		return f.a.extRun(f.x, f.noun, c.New, "", args, func(v any, err error) {
-			if err == nil {
-				f.created, f.target = true, createdID(v)
-			}
-		})
-	}
-	if c.Edit == "" {
-		return ochazuke.Failed(fmt.Errorf("created; %s has no edit verb, so later changes are not written", f.noun))
-	}
 	op := f.a.r.Operations[f.a.r.CanonicalKey(f.local+"."+c.Edit)]
 	changed := slices.Clone(w.Changed)
 	for _, name := range requiredOf(op) {
