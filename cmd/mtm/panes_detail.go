@@ -559,7 +559,7 @@ func (a *App) defineLiveKeys() {
 		Mode("terminal").
 		Bind("{terminal-leader}", ochazuke.Enter("leader_pending", ochazuke.Payload{Prefix: "{terminal-leader}", Request: &leader}).Hinted("leader: d close/detach · z zoom · o other · R layout · w sides · ? keys")).
 		Mode("leader_pending").
-		Bind("d", ochazuke.Do("terminal.sideDetach")).
+		Bind("d", ochazuke.Do("terminal.sideDetach").Hinted("close/detach")).
 		Bind("z", ochazuke.Do("terminal.zoom")).
 		Bind("o", ochazuke.Do("terminal.other").Hinted("other pane")).
 		Bind("R", ochazuke.Do("terminal.layout").Hinted("side layout")).
