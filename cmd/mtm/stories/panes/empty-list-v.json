@@ -1,0 +1,17 @@
+{
+  "name": "mtm: V on an empty list is quiet",
+  "area": "panes",
+  "fixture": "empty",
+  "skip": "gap: ochazuke v0.81.1 list.visual and list.yank error on an empty list; fix the shared handlers upstream",
+  "width": 100,
+  "height": 20,
+  "script": [
+    "V"
+  ],
+  "expect": {
+    "mode": "normal",
+    "contains": [
+      "panes (0)"
+    ]
+  }
+}
