@@ -456,12 +456,16 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 		}
 		return out
 	}
+	exported, err := a.work.Exports()
+	if err != nil {
+		return nil, err
+	}
 	private := privateTasks(tasks)
 	taskNodes := func(tasks []work.Task, root string) []ochazuke.TreeNode {
-		return a.outlineTaskNodes(tasks, root, private, o)
+		return a.outlineTaskNodes(tasks, root, private, exported, o)
 	}
 	root := func(id, label string) ochazuke.TreeNode {
-		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Cells: a.rootCells(projectNode(id), label)}
+		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label)}
 	}
 	var nodes []ochazuke.TreeNode
 	if !scope.all {
@@ -508,12 +512,27 @@ func rootNoun(scope outlineScope, id string) string {
 }
 
 // outlineTaskNodes are one project's tasks as rows under root; private
-// is which tasks are private (privateTasks), for their glyph.
-func (a *App) outlineTaskNodes(tasks []work.Task, root string, private map[string]bool, o *outlineState) []ochazuke.TreeNode {
+// is which tasks are private (privateTasks), for their glyph; exported is
+// which may leave mtm (work.Exports). A row's props are the task's
+// (taskThing), so the outline's prop filters offer every task field.
+func (a *App) outlineTaskNodes(tasks []work.Task, root string, private, exported map[string]bool, o *outlineState) []ochazuke.TreeNode {
 	return taskTreeNodes(tasks, root, outlineNode, func(t work.Task) ochazuke.TreeNode {
 		label := o.imageLabel(t.ID, t.Title)
-		return ochazuke.TreeNode{Label: label, Noun: outlineTaskNoun, Props: ochazuke.Thing{"made-by": t.MadeBy()}, Cells: a.outlineCells(label, t, private[t.ID])}
+		return ochazuke.TreeNode{Label: label, Noun: outlineTaskNoun, Props: taskThing(t, exported[t.ID]), Cells: a.outlineCells(label, t, private[t.ID])}
 	})
+}
+
+// rootProps are a top-level row's props: its project's (projectThing),
+// none for the no-project row or a project not loaded.
+func (a *App) rootProps(id string) ochazuke.Thing {
+	project := projectOfRoot(id)
+	if project == "" {
+		return nil
+	}
+	if p, ok := a.project(project); ok {
+		return projectThing(p)
+	}
+	return nil
 }
 
 // outlineCols are the outline's columns: outlineColumns, then by unless
@@ -792,16 +811,21 @@ func (a *App) outlineChanged(o *outlineState) error {
 	for _, t := range tasks {
 		byID[t.ID] = t
 	}
+	exported, err := a.work.Exports()
+	if err != nil {
+		return err
+	}
 	private := privateTasks(tasks)
 	nodes := o.tree.Nodes()
 	for i, n := range nodes {
 		if n.Parent == "" {
 			nodes[i].Cells, nodes[i].Noun = a.rootCells(n.ID, n.Label), rootNoun(o.scope, n.ID)
+			nodes[i].Props = a.rootProps(n.ID)
 			continue
 		}
 		t := byID[taskOf(n.ID)]
 		nodes[i].Cells, nodes[i].Noun = a.outlineCells(n.Label, t, private[t.ID]), outlineTaskNoun
-		nodes[i].Props = ochazuke.Thing{"made-by": t.MadeBy()}
+		nodes[i].Props = taskThing(t, exported[t.ID])
 	}
 	if err := o.tree.SetNodes(nodes); err != nil {
 		return err
