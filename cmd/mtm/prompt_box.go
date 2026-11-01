@@ -112,7 +112,7 @@ type promptBox struct {
 	focused bool // the box held the focus after the last message
 	// attachments are the images pasted since the last send; the live
 	// ones are those whose chip is still in the text (live).
-	attachments []promptAttachment
+	attachments imageAttachments
 	clip        clipboardReader
 	// owner is the pane (its window id) whose draft the input holds;
 	// drafts are the other panes' (prompt_drafts.go).

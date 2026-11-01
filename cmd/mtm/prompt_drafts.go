@@ -22,7 +22,7 @@ type promptDraft struct {
 	cursor      int
 	history     []ochazuke.EditNode
 	head        int
-	attachments []promptAttachment
+	attachments imageAttachments
 }
 
 // syncPromptDraft gives the box the draft of the pane it now writes to.

@@ -91,6 +91,8 @@ func (a *App) declareSettings() error {
 			Description: "Show the title field above the body in the note editor (a note's title is optional; empty, its first line stands in); the quick note is body-only either way"},
 		ochazuke.Setting{Name: settingTaskNotesPane, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Show the selected task's notes as a filterable pane in the task outline"},
+		{Name: settingTaskImages, Type: ochazuke.SettingBoolean, Default: true,
+			Description: "Show image mentions as prompt-style chips and allow clipboard attachments in Tasks; off shows raw mentions. Applies when the outline opens"},
 		directoryChooserSetting,
 		paneGroupSetting,
 		workTasksLayoutSetting,

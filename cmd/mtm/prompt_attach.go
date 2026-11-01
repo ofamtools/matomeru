@@ -52,7 +52,7 @@ import (
 // harness has attached them before the text arrives.
 const promptAttachPause = 300 * time.Millisecond
 
-// promptAttachment is one image attached to the box's prompt.
+// promptAttachment is one image represented by a chip in an input.
 type promptAttachment struct {
 	n    int    // its number, in the chip
 	path string // absolute
@@ -61,12 +61,16 @@ type promptAttachment struct {
 // chip is the attachment's text in the box.
 func (at promptAttachment) chip() string { return "[image " + strconv.Itoa(at.n) + "]" }
 
-// live is the attachments whose chip is in the box's text, in the order
-// they were attached.
+type imageAttachments []promptAttachment
+
 func (b *promptBox) live() []promptAttachment {
-	text := string(b.input.Text)
+	return b.attachments.live(string(b.input.Text))
+}
+
+// live preserves attachment order and keeps deleted chips available to undo.
+func (images imageAttachments) live(text string) []promptAttachment {
 	var out []promptAttachment
-	for _, at := range b.attachments {
+	for _, at := range images {
 		if strings.Contains(text, at.chip()) {
 			out = append(out, at)
 		}
@@ -75,13 +79,16 @@ func (b *promptBox) live() []promptAttachment {
 }
 
 // attach adds an image and returns its chip.
-func (b *promptBox) attach(path string) promptAttachment {
+func (images *imageAttachments) attach(path, text string) promptAttachment {
 	n := 1
-	for _, at := range b.attachments {
+	for _, at := range *images {
 		n = max(n, at.n+1)
 	}
+	for strings.Contains(text, (promptAttachment{n: n}).chip()) {
+		n++
+	}
 	at := promptAttachment{n: n, path: path}
-	b.attachments = append(b.attachments, at)
+	*images = append(*images, at)
 	return at
 }
 
@@ -93,11 +100,11 @@ func isImagePath(path string) bool {
 	return slices.Contains(imageExts, strings.ToLower(filepath.Ext(path)))
 }
 
-// fileMention is a path as an @ mention: @path, or @"path" when it holds
-// a space (Claude Code and omp both read the quoted form).
+// fileMention quotes paths whose whitespace, quotes or backslashes need
+// escaping, so a saved task can recover the exact attached file.
 func fileMention(path string) string {
-	if strings.ContainsFunc(path, unicode.IsSpace) {
-		return `@"` + path + `"`
+	if strings.ContainsFunc(path, unicode.IsSpace) || strings.ContainsAny(path, "\"\\") {
+		return "@" + strconv.Quote(path)
 	}
 	return "@" + path
 }
@@ -150,8 +157,8 @@ func (a *App) attachMode(p pane) string {
 	return harness.AttachMention
 }
 
-// attachmentDir is where the box saves the pane's pasted images.
-func (a *App) attachmentDir(p pane) string {
+// attachmentDir keeps pasted images beside the data, grouped by their owner.
+func (a *App) attachmentDir(owner string) string {
 	base := filepath.Dir(a.dataPath)
 	if a.dataPath == "" {
 		base = filepath.Join(os.TempDir(), "matomeru")
@@ -161,7 +168,7 @@ func (a *App) attachmentDir(p pane) string {
 			return '_'
 		}
 		return r
-	}, cmp.Or(p.ID, "pane"))
+	}, cmp.Or(owner, "pane"))
 	return filepath.Join(base, "attachments", id)
 }
 
@@ -169,6 +176,16 @@ func (a *App) attachmentDir(p pane) string {
 type clipboardRead struct {
 	got clipboardContent
 	err error
+}
+
+func readClipboard(clip clipboardReader, path string) ochazuke.Result {
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return clipboardRead{err: err}, nil
+		}
+		got, err := clip.Read(c, path)
+		return clipboardRead{got: got, err: err}, nil
+	}).Label("clipboard")
 }
 
 // pastePrompt is turn-prompt.paste (ctrl+v in insert mode): read the
@@ -182,19 +199,13 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 	if clip == nil {
 		return ochazuke.Failed(errors.New("no clipboard reader"))
 	}
-	dir := a.attachmentDir(*p)
+	dir := a.attachmentDir(p.ID)
 	path := filepath.Join(dir, time.Now().UTC().Format("20060102T150405.000000")+".png")
 	// Where ctrl+v was pressed: a read that finishes after the person left
 	// the box (esc steps the cursor back) still lands there, while the
 	// draft is unchanged.
 	at, was := a.pb.input.Cursor, string(a.pb.input.Text)
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return clipboardRead{err: err}, nil
-		}
-		got, err := clip.Read(c, path)
-		return clipboardRead{got: got, err: err}, nil
-	}).Label("clipboard").Then(func(ctx ochazuke.Ctx, v any, err error) {
+	return readClipboard(clip, path).Then(func(ctx ochazuke.Ctx, v any, err error) {
 		read, _ := v.(clipboardRead)
 		if err == nil {
 			err = read.err
@@ -203,7 +214,7 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			ctx.Error("could not read the clipboard: " + oneLine(err.Error()))
 			return
 		}
-		text, notice := a.pastedText(read.got)
+		text, notice := a.pb.attachments.pastedText(read.got, string(a.pb.input.Text))
 		if text == "" {
 			ctx.Info(notice)
 			return
@@ -243,25 +254,25 @@ func (a *App) pasteIntoPrompt(text string) error {
 // images, and the notice that says so; with no text, the notice says why
 // nothing was pasted. A saved image is named by its file only: the
 // attachments folder is long and always the same.
-func (a *App) pastedText(got clipboardContent) (string, string) {
+func (images *imageAttachments) pastedText(got clipboardContent, text string) (string, string) {
 	switch {
 	case len(got.Files) > 0:
-		var parts, images []string
+		var parts, chips []string
 		for _, f := range got.Files {
 			if isImagePath(f) {
-				at := a.pb.attach(f)
-				parts, images = append(parts, at.chip()), append(images, at.chip())
+				at := images.attach(f, text)
+				parts, chips = append(parts, at.chip()), append(chips, at.chip())
 			} else {
 				parts = append(parts, fileMention(f))
 			}
 		}
 		status := ""
-		if len(images) > 0 {
-			status = "attached " + strings.Join(images, " ")
+		if len(chips) > 0 {
+			status = "attached " + strings.Join(chips, " ")
 		}
 		return strings.Join(parts, " "), status
 	case got.Image != "":
-		at := a.pb.attach(got.Image)
+		at := images.attach(got.Image, text)
 		return at.chip(), fmt.Sprintf("attached %s (%s)", at.chip(), filepath.Base(got.Image))
 	case got.Text != "":
 		return got.Text, ""
@@ -274,11 +285,16 @@ func (a *App) pastedText(got clipboardContent) (string, string) {
 // follows, so the cursor ends past the space and typing goes on.
 func (a *App) spacedAtCursor(text string) string {
 	in := a.pb.input
-	at := min(max(0, in.Cursor), len(in.Text))
-	if at > 0 && !unicode.IsSpace(in.Text[at-1]) {
+	return spacedAtRange(in, text, in.Cursor, in.Cursor)
+}
+
+func spacedAtRange(in *ochazuke.Input, text string, start, end int) string {
+	start = min(max(0, start), len(in.Text))
+	end = min(max(start, end), len(in.Text))
+	if start > 0 && !unicode.IsSpace(in.Text[start-1]) {
 		text = " " + text
 	}
-	if at >= len(in.Text) || !unicode.IsSpace(in.Text[at]) {
+	if end >= len(in.Text) || !unicode.IsSpace(in.Text[end]) {
 		text += " "
 	}
 	return text
@@ -323,6 +339,16 @@ func (a *App) detachPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 // keeps the focus in insert mode.
 func (a *App) detach(at promptAttachment) ochazuke.Result {
 	in := a.pb.input
+	if err := removeImageChip(in, at); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.insertIntoPrompt(""); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done("detached " + at.chip())
+}
+
+func removeImageChip(in *ochazuke.Input, at promptAttachment) error {
 	chip := []rune(at.chip())
 	for {
 		i := runeIndex(in.Text, chip)
@@ -334,13 +360,10 @@ func (a *App) detach(at promptAttachment) ochazuke.Result {
 			end++
 		}
 		if err := in.Replace(i, end, ""); err != nil {
-			return ochazuke.Failed(err)
+			return err
 		}
 	}
-	if err := a.insertIntoPrompt(""); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done("detached " + at.chip())
+	return nil
 }
 
 func runeIndex(text, sub []rune) int {

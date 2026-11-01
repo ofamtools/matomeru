@@ -70,6 +70,8 @@ type outlineState struct {
 	notes       *ochazuke.List
 	notesTask   string
 	notesReady  bool
+	images      bool
+	attachments map[string]*imageAttachments
 }
 
 // defineOutline adds project.outline and task.outline (O), todos.open (T
@@ -151,6 +153,7 @@ func (a *App) defineOutline() {
 		Bind("enter", ochazuke.Do("outline.fold")).
 		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project"))
 	a.parameters(outlineTaskNoun+".status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: work.Statuses}})
+	a.defineOutlineAttachments()
 	a.outlineView("Tasks")
 }
 
@@ -324,7 +327,9 @@ func (a *App) openOutline(ctx ochazuke.Ctx) ochazuke.Result {
 // showOutline opens the outline modal on scope, the focus on a task when
 // given.
 func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
-	nodes, err := a.outlineNodes(scope)
+	state := &outlineState{scope: scope, base: outlineScope{project: scope.project},
+		images: a.r.Settings().Bool(settingTaskImages), attachments: make(map[string]*imageAttachments)}
+	nodes, err := a.outlineNodes(scope, state)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -337,7 +342,7 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 		_ = a.r.Pop()
 		return ochazuke.Failed(err)
 	}
-	state := &outlineState{scope: scope, base: outlineScope{project: scope.project}, tree: tree}
+	state.tree = tree
 	a.outline = state
 	tree.NewID = func() string { return outlineNode(work.NewID()) }
 	tree.RowNoun = outlineTaskNoun
@@ -394,7 +399,7 @@ func (a *App) rescopeOutline() error {
 	if scope == o.scope {
 		return nil
 	}
-	nodes, err := a.outlineNodes(scope)
+	nodes, err := a.outlineNodes(scope, o)
 	if err != nil {
 		return err
 	}
@@ -417,7 +422,7 @@ func (a *App) reloadOutline() error {
 	if _, ok := a.project(o.base.project); o.base.project != "" && !ok {
 		o.base = outlineScope{}
 	}
-	nodes, err := a.outlineNodes(o.scope)
+	nodes, err := a.outlineNodes(o.scope, o)
 	if err != nil {
 		return err
 	}
@@ -437,7 +442,7 @@ func (a *App) reloadOutline() error {
 // outlineNodes are a scope's rows: its tasks parents first, siblings by
 // position, each with its glyph and status; in the all view each project
 // (then no project) is a branch over its tasks.
-func (a *App) outlineNodes(scope outlineScope) ([]ochazuke.TreeNode, error) {
+func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.TreeNode, error) {
 	tasks, err := a.work.Tasks("")
 	if err != nil {
 		return nil, err
@@ -453,7 +458,7 @@ func (a *App) outlineNodes(scope outlineScope) ([]ochazuke.TreeNode, error) {
 	}
 	private := privateTasks(tasks)
 	taskNodes := func(tasks []work.Task, root string) []ochazuke.TreeNode {
-		return a.outlineTaskNodes(tasks, root, private)
+		return a.outlineTaskNodes(tasks, root, private, o)
 	}
 	root := func(id, label string) ochazuke.TreeNode {
 		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Cells: a.rootCells(projectNode(id), label)}
@@ -504,9 +509,10 @@ func rootNoun(scope outlineScope, id string) string {
 
 // outlineTaskNodes are one project's tasks as rows under root; private
 // is which tasks are private (privateTasks), for their glyph.
-func (a *App) outlineTaskNodes(tasks []work.Task, root string, private map[string]bool) []ochazuke.TreeNode {
+func (a *App) outlineTaskNodes(tasks []work.Task, root string, private map[string]bool, o *outlineState) []ochazuke.TreeNode {
 	return taskTreeNodes(tasks, root, outlineNode, func(t work.Task) ochazuke.TreeNode {
-		return ochazuke.TreeNode{Label: t.Title, Noun: outlineTaskNoun, Props: ochazuke.Thing{"made-by": t.MadeBy()}, Cells: a.outlineCells(t.Title, t, private[t.ID])}
+		label := o.imageLabel(t.ID, t.Title)
+		return ochazuke.TreeNode{Label: label, Noun: outlineTaskNoun, Props: ochazuke.Thing{"made-by": t.MadeBy()}, Cells: a.outlineCells(label, t, private[t.ID])}
 	})
 }
 
@@ -650,6 +656,9 @@ func (a *App) writeOutline(o *outlineState, c ochazuke.TreeChange) error {
 		parent = "" // directly under its project's row
 	}
 	c.ID = taskOf(c.ID)
+	if images := o.attachments[c.ID]; images != nil {
+		c.Text = promptOutgoing(c.Text, images.live(c.Text), true)
+	}
 	switch c.Op {
 	case ochazuke.TreeAdd:
 		now := work.Now()
@@ -738,7 +747,7 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 	case c.Op == ochazuke.TreeMove && !a.isProjectRow(c.ID):
 		a.r.UI().Notify("A task stays under a project")
 	}
-	nodes, err := a.outlineNodes(o.scope)
+	nodes, err := a.outlineNodes(o.scope, o)
 	if err != nil {
 		return true, err
 	}
