@@ -1,0 +1,32 @@
+{
+  "name": "mtm: quick note returns to its page and focus",
+  "area": "notes",
+  "fixture": "seeded",
+  "width": 110,
+  "height": 30,
+  "script": [
+    "N",
+    {
+      "type": "keep this"
+    },
+    "esc",
+    "esc"
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "modal": "quick-note",
+      "mode": "insert"
+    },
+    {
+      "after": 3,
+      "modal": "quick-note",
+      "mode": "normal"
+    },
+    {
+      "modal": "",
+      "page": "panes",
+      "mode": "normal"
+    }
+  ]
+}

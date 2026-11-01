@@ -1,0 +1,36 @@
+{
+  "name": "mtm: quick note returns to the live terminal",
+  "area": "notes",
+  "fixture": "seeded",
+  "width": 110,
+  "height": 30,
+  "script": [
+    "]",
+    "enter",
+    "ctrl+a",
+    "N",
+    {
+      "type": "keep this"
+    },
+    "esc",
+    "esc"
+  ],
+  "expect": [
+    {
+      "after": 4,
+      "modal": "quick-note",
+      "mode": "insert"
+    },
+    {
+      "after": 6,
+      "modal": "quick-note",
+      "mode": "normal"
+    },
+    {
+      "modal": "",
+      "page": "panes",
+      "mode": "terminal",
+      "focus": "panes/terminal"
+    }
+  ]
+}
