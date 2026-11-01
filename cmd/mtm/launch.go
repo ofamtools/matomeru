@@ -175,6 +175,7 @@ func harnessCells(h harness.Harness) []string {
 func (a *App) defineLaunch() {
 	r := a.r
 	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)").Fetch().
+		Verb("names", a.projectNames, "List project names as choices; ids remain accepted by project verbs").Fetch().
 		Verb("directories", a.projectDirectories, "Every project's directories as rows {id, label, data: {directories, default}}, paths resolved (absolute, symlinks followed); for tools asking whether a project already has a directory").Fetch().
 		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
 	r.Define("harness").Columns(harnessColumns...).
@@ -311,6 +312,14 @@ func (a *App) parameters(key string, params map[string]ochazuke.Parameter) {
 }
 
 func (a *App) listProjects(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(a.projectChoices()) }
+
+func (a *App) projectNames(ochazuke.Ctx) ochazuke.Result {
+	choices := make([]ochazuke.Choice, 0, len(a.projects))
+	for _, p := range a.projects {
+		choices = append(choices, ochazuke.Choice{ID: projectName(p), Label: projectLabel(p)})
+	}
+	return ochazuke.Done(choices)
+}
 
 // projectDirectories is projects.directories: one row per project with its
 // directories as directoryKey resolves them, so a caller compares real
