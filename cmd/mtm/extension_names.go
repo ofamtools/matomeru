@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"ofam.dev/ochazuke"
 	ocli "ofam.dev/ochazuke/cli"
+	"ofam.dev/oden"
 )
 
 // How mtm names an extension's nouns (setting extensions.noun-names). The
@@ -138,7 +141,8 @@ func (a *App) unmountNounNames(x *extension) {
 // extension has a noun of that name (ochazuke's palette offers the full
 // names of an ambiguous tail, palette.noun-tails), it is no extension's
 // namespace, and mtm or the framework does not own it. A bare name that
-// stopped being free is removed. Call it after every mount and unmount.
+// stopped being free is removed. Shared names are kept for the CLI's
+// exact ambiguity commands. Call it after every mount and unmount.
 func (a *App) syncBareNounNames() {
 	owners := map[string][]string{} // a catalog noun -> the mtm nouns of that name
 	namespaces := map[string]bool{}
@@ -174,6 +178,31 @@ func (a *App) syncBareNounNames() {
 		if err := a.r.Alias(alias, noun); err == nil {
 			a.extBare[alias] = noun
 		}
+	}
+	a.extAmbiguous = map[string][]string{}
+	for n, locals := range owners {
+		if len(locals) > 1 && !namespaces[n] && a.r.Noun(n) == nil && a.r.CanonicalNoun(n) == n {
+			slices.Sort(locals)
+			a.extAmbiguous[n] = locals
+		}
+	}
+}
+
+// mountAmbiguousNounNames reserves shared bare words in the outer shell:
+// an exact command beats a prefix of an unrelated noun or alias (doc
+// would otherwise resolve to docs). Owners are sorted by canonical name.
+// Real host commands are registered first and keep their exact names.
+func (a *App) mountAmbiguousNounNames(app *oden.App) {
+	for _, name := range slices.Sorted(maps.Keys(a.extAmbiguous)) {
+		owners := a.extAmbiguous[name]
+		uses := make([]string, len(owners))
+		for i, noun := range owners {
+			uses[i] = "mtm " + strings.ReplaceAll(noun, ".", " ") + " ..."
+		}
+		err := fmt.Errorf("%s is ambiguous: %s (use %s)", name, strings.Join(owners, " or "), strings.Join(uses, " or "))
+		app.Add(oden.Command{Name: name, Summary: err.Error(), Source: "extensions",
+			Run: func(context.Context, []string) error { return err },
+		})
 	}
 }
 

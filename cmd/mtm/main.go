@@ -451,6 +451,9 @@ type App struct {
 	// extBare is the bare noun names mtm gave mounted extension nouns,
 	// alias -> noun (extension_names.go).
 	extBare map[string]string
+	// extAmbiguous keeps the owners of shared, otherwise unclaimed noun
+	// names, so the CLI can reserve each exact word (extension_names.go).
+	extAmbiguous map[string][]string
 	// extForm is the open form over an extension's row (extension_forms.go).
 	extForm *ochazuke.RecordEditor
 	// renaming is the open rename form of a pane, session or saved pane (rename.go).

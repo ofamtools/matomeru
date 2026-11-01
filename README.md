@@ -108,6 +108,8 @@ Settings → matomeru → Pin controls the startup project scope:
 
 Compared with Vim: startup project scope has no Vim counterpart; it selects which projects' records mtm shows.
 
+With `extensions.noun-names=namespaced` (the default), a unique extension noun also accepts its bare name. A shared bare name reports its owners and qualified commands: with `json.doc` and `md.doc` registered, `mtm doc list` reports `doc is ambiguous: json.doc or md.doc (use mtm json doc ... or mtm md doc ...)`. Entering the same line in the palette reports both full names through ochazuke's `palette.noun-tails` setting (default on). Host nouns, aliases and extension namespaces keep their exact names.
+
 Registered extension catalogs are checked in background jobs when mtm starts, when the Extensions page opens, and when an extension tab opens. The complete current catalog JSON is compared with the registered catalog, so changes to page layouts and detail Sections are detected even when the tool's version, executable size and modification time stay the same. Changed catalogs refresh and remount automatically, with an `extension NAME: catalog refreshed` notice.
 
 Checks never hold up startup; a failed check keeps the cached catalog and shows a notice, and the next open checks again. `extensions.auto-refresh` defaults **on** (Settings → Extensions → General); turn it off to keep the cached catalog and show `stale` on the Extensions page, where the existing refresh verb remains available. `extension available` reports the same catalog-based status without refreshing it. Unregistered tools on PATH retain their executable-stamp discovery cache.

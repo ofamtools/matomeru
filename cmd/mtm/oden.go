@@ -57,6 +57,7 @@ func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer,
 	app.Add(oden.Command{Name: "proj", Summary: "project (short spelling)", Source: "alias", Run: func(ctx context.Context, args []string) error {
 		return a.commands(append([]string{"project"}, args...), stdin, stdout, stderr, tui, opts...).Run(ctx)
 	}})
+	a.mountAmbiguousNounNames(app)
 	return app
 }
 
