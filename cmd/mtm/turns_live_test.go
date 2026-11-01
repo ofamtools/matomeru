@@ -43,7 +43,7 @@ func turnsLive(t *testing.T, harness string) {
 		t.Fatalf("enter did not go live (%s):\n%s", app.r.BaseMode(), f)
 	}
 	press(t, app, "ctrl+a")
-	if !strings.Contains(lastLines(frame(app), 3), "d terminal.sideDetach") {
+	if !strings.Contains(lastLines(frame(app), 3), "d close/detach") {
 		t.Fatalf("leader keys:\n%s", lastLines(frame(app), 3))
 	}
 	press(t, app, "d")

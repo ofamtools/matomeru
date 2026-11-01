@@ -50,7 +50,7 @@ func screenLive(t *testing.T, harness string) {
 		t.Fatalf("live footer:\n%s", lastLines(f, 3))
 	}
 	press(t, app, "ctrl+a")
-	if !strings.Contains(lastLines(frame(app), 3), "d terminal.sideDetach") {
+	if !strings.Contains(lastLines(frame(app), 3), "d close/detach") {
 		t.Fatalf("leader keys:\n%s", lastLines(frame(app), 3))
 	}
 	press(t, app, "d")
