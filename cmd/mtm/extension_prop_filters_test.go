@@ -60,3 +60,49 @@ func TestExtensionPropFiltersSurviveScoping(t *testing.T) {
 		})
 	}
 }
+
+func TestExtensionPropFiltersUnderProjectPin(t *testing.T) {
+	t.Parallel()
+	for _, projectField := range []string{"project", "effective_project"} {
+		t.Run(projectField, func(t *testing.T) {
+			t.Parallel()
+			catalog := `{"schema":1,"name":"o-fake","version":"1","nouns":[{"name":"item","verbs":[{"name":"rows","kind":"application","rows":"item"}]}],"pages":[{"id":"filter-fixture","title":"Pinned filter fixture","lists":[{"id":"filter-fixture/list","noun":"item","source":"item.rows"}]}]}`
+			bin, _ := fakeExtension(t, catalog, `"item rows") echo '[{"id":"q1","label":"Open","data":{"`+projectField+`":"matomeru","status":"open"}},{"id":"q2","label":"Answered","data":{"`+projectField+`":"matomeru","status":"answered"}},{"id":"q3","label":"Other project","data":{"`+projectField+`":"ochazuke","status":"answered"}}]' ;;`)
+			a := registered(t, seeded(t), "fake", bin)
+			pin := func(project string) {
+				t.Helper()
+				executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": project})
+			}
+			pin("matomeru")
+			openExtPage(t, a, "ext/fake/filter-fixture")
+			list := a.r.List("ext/fake/filter-fixture/list")
+			if list == nil || list.Shown() != 2 {
+				t.Fatalf("pin must show two project rows: %v", list)
+			}
+			filters := []ochazuke.PropFilter{{Prop: projectField, Value: "matomeru"}, {Prop: "status", Value: "answered"}}
+			if err := list.SetPropFilters(filters); err != nil {
+				t.Fatal(err)
+			}
+			check := func(want int) {
+				t.Helper()
+				if list.Shown() != want {
+					t.Fatalf("pin %s: shown %d, want %d", a.pin, list.Shown(), want)
+				}
+				if want == 1 {
+					row, ok := list.Selected()
+					if !ok || row.Data != "q2" || row.Props[projectField] != "matomeru" {
+						t.Fatalf("matching catalog row lost: %+v", row)
+					}
+				}
+			}
+			check(1)
+			pin("ochazuke")
+			check(0)
+			pin("matomeru")
+			check(1)
+			a.reloadExtension(a.extension("fake"))
+			settleJobs(t, a, a.r.PendingCommands())
+			check(1)
+		})
+	}
+}
