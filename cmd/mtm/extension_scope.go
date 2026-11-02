@@ -378,10 +378,11 @@ func (a *App) declareExtScope(name string) {
 // extListState is what the host keeps of one mounted list to scope it:
 // the rows as last filed, every one, and the list's own columns.
 type extListState struct {
-	view *ocli.PageView
-	rows []ocli.Row
-	cols []ochazuke.Column
-	noun string // the host noun of its rows; "" until rows land
+	view  *ocli.PageView
+	rows  []ocli.Row
+	items map[string]ochazuke.ListItem // canonical catalog items, before scope decoration
+	cols  []ochazuke.Column
+	noun  string // the host noun of its rows; "" until rows land
 }
 
 // trackExtLists remembers a mounted page's lists and their own columns.
@@ -404,11 +405,21 @@ func (a *App) extRowsLanded(x *extension, list string, rows []ocli.Row) {
 		return
 	}
 	st.rows = slices.Clone(rows)
+	st.items = map[string]ochazuke.ListItem{}
 	if l := st.view.List(list); l != nil {
 		for _, item := range l.Items() {
+			st.items[item.ID] = item
 			if item.Noun != "" {
 				st.noun = item.Noun
-				break
+			}
+		}
+	}
+	// A collapsed tree's list omits descendants. Keep their canonical props
+	// and dispatch handles too, without decoding the foreign records again.
+	if tree := a.r.Tree(list); tree != nil {
+		for _, node := range tree.Nodes() {
+			if _, ok := st.items[node.ID]; !ok {
+				st.items[node.ID] = ochazuke.ListItem{ID: node.ID, Label: node.Label, Noun: node.Noun, Data: node.Data, Props: node.Props, Cells: node.Cells, Tones: node.Tones, Section: node.Section, Search: node.Search}
 			}
 		}
 	}
@@ -458,7 +469,8 @@ func (a *App) scopeExtList(x *extension, id string, st *extListState) {
 	}
 	items := make([]ochazuke.ListItem, 0, len(st.rows))
 	for _, row := range st.rows {
-		item := ochazuke.ListItem{ID: id + "/" + row.ID, Label: row.Label, Noun: st.noun, Data: row.ID, Cells: row.Cells}
+		item := st.items[id+"/"+row.ID]
+		item.Label = row.Label
 		if scoped {
 			project, how := a.extRowOwner(x.name, noun, row)
 			if how != ownerNone && !a.inScope(project) {
