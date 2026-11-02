@@ -10,7 +10,107 @@ import (
 	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 )
+
+func TestExtRowOwnerProjectFields(t *testing.T) {
+	t.Parallel()
+	a := &App{projects: []work.Project{
+		{ID: "other", Name: "mine"}, // a name must not shadow an id
+		{ID: "mine", Name: "My Project"},
+	}, extRowOwners: map[string]work.ExtRowOwner{}, projectPrefixes: []projectPrefix{{dir: "/repo", project: "other"}}}
+	a.extRowOwners[work.ExtRowKey("fake", "item", "recorded")] = work.ExtRowOwner{ProjectID: "other"}
+	for _, tc := range []struct {
+		name, id string
+		data     any
+		want     string
+		owned    bool
+	}{
+		{"id before name", "", map[string]any{"project": "mine"}, "mine", true},
+		{"name ignores case", "", map[string]any{"project": "MY PROJECT"}, "mine", true},
+		{"effective before direct", "", map[string]any{"effective_project": "mine", "project": "other"}, "mine", true},
+		{"project before path", "", map[string]any{"project": "mine", "path": "/repo/file"}, "mine", true},
+		{"recorded before project", "recorded", map[string]any{"project": "mine"}, "other", true},
+		{"unknown is unassociated", "", map[string]any{"effective_project": "missing", "project": "mine", "path": "/repo/file"}, "", true},
+		{"empty effective falls through", "", map[string]any{"effective_project": "", "project": "mine"}, "mine", true},
+		{"blank effective falls through", "", map[string]any{"effective_project": "  ", "project": "mine"}, "mine", true},
+		{"empty fields keep path", "", map[string]any{"project": "", "path": "/repo/file"}, "other", true},
+		{"empty fields are unassociated", "", map[string]any{"effective_project": "", "project": ""}, "", true},
+		{"missing fields have no owner", "", map[string]any{"title": "global"}, "", false},
+		{"blank project is unassociated", "", map[string]any{"project": "  "}, "", true},
+		{"non-string has no owner", "", map[string]any{"project": 42}, "", false},
+		{"scalar has no owner", "", "scalar", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, how := a.extRowOwner("fake", "item", ocli.Row{ID: tc.id, Data: tc.data})
+			if got != tc.want || (how != ownerNone) != tc.owned {
+				t.Errorf("owner = %q (how %d), want %q (owned %v)", got, how, tc.want, tc.owned)
+			}
+		})
+	}
+}
+
+func TestLanesRowsFollowThePinnedProject(t *testing.T) {
+	t.Parallel()
+	catalog := `{"schema":1,"name":"o-lane","nouns":[{"name":"lane","verbs":[{"name":"list","kind":"application","rows":"lane"}]}],"pages":[{"id":"lanes","title":"Lanes","lists":[{"id":"lanes/list","noun":"lane","source":"lane.list"}]}]}`
+	bin, _ := fakeExtension(t, catalog, `"lane list") cat <<'ROWS'
+{"id":"parent","label":"parent","effective_project":"matomeru","project":"matomeru"}
+{"id":"child","label":"child","parent":"parent","effective_project":"matomeru","project":""}
+{"id":"other","label":"other","effective_project":"ochazuke"}
+{"id":"unknown","label":"unknown","effective_project":"missing"}
+{"id":"unassociated","label":"unassociated","effective_project":""}
+ROWS
+;;`)
+	a := registered(t, seeded(t), "lane", bin)
+	mono(t, a)
+	openExtPage(t, a, "ext/lane/lanes")
+	list := a.r.List("ext/lane/lanes/list")
+	shown := func() []string {
+		var ids []string
+		for _, item := range list.Items() {
+			ids = append(ids, strings.TrimPrefix(item.ID, "ext/lane/lanes/list/"))
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	all := []string{"child", "other", "parent", "unassociated", "unknown"}
+	if got := shown(); !slices.Equal(got, all) {
+		t.Fatalf("no pin: %v", got)
+	}
+	pin(t, a, "matomeru")
+	if got := shown(); !slices.Equal(got, []string{"child", "parent"}) {
+		t.Fatalf("pin: %v", got)
+	}
+	focusOn(t, a, "ext/lane/lanes/list/child")
+	if got := a.contextProject(); got != "matomeru" {
+		t.Fatalf("inherited child context: %q", got)
+	}
+	pressJob(t, a, "S")
+	if got := shown(); !slices.Equal(got, all) {
+		t.Fatalf("S: %v", got)
+	}
+	pressJob(t, a, "S")
+	if got := shown(); !slices.Equal(got, []string{"child", "parent"}) {
+		t.Fatalf("S back to pin: %v", got)
+	}
+	if err := a.r.Settings().Set(extScopeSetting("lane"), extScopeOff); err != nil {
+		t.Fatal(err)
+	}
+	if got := shown(); !slices.Equal(got, all) {
+		t.Fatalf("scope off: %v", got)
+	}
+	if len(list.Columns()) != 0 {
+		t.Fatalf("scope off columns: %v", list.Columns())
+	}
+	if err := a.r.Settings().Set(extScopeSetting("lane"), extScopeAuto); err != nil {
+		t.Fatal(err)
+	}
+	pin(t, a, "ochazuke")
+	if got := shown(); !slices.Equal(got, []string{"other"}) {
+		t.Fatalf("other pin: %v", got)
+	}
+}
 
 // A path's project is held on a path-component boundary; among several
 // projects holding it the pinned one wins, else the longest directory; ~

@@ -21,16 +21,21 @@ import (
 //     from the row itself that is the row's derived project, not the pin).
 //     No context project records nothing; a record is never overwritten,
 //     so recorded rows never move.
-//  2. its path: the first path-like field (extPathFields), ~ expanded and
+//  2. its project: the first nonempty project field (extProjectFields),
+//     matched by id then by name (ignoring case). An unknown value is
+//     unassociated; empty fields fall through to the next field or path.
+//     With no nonempty project or path, a present project string field
+//     still identifies an unassociated row (rather than a global row).
+//  3. its path: the first path-like field (extPathFields), ~ expanded and
 //     cleaned, under the projects' attached directories on a component
 //     boundary; among several, the pinned project when it is one, else
 //     the longest directory (pathProject). Derived on the loop from the
 //     prefix list refreshProjects rebuilds, never stored: attaching or
 //     detaching a directory moves these rows. The project column marks
 //     them (derivedMark).
-//  3. unassociated: a path no project holds.
+//  4. unassociated: a project value no project matches or a path no project holds.
 //
-// A row with neither a record nor a path has no project to tell: blank,
+// A row with no record, project string field or path has no project to tell: blank,
 // never filtered. The others go through mtm's one scope filter (inScope):
 // a pin shows its project's rows and hides the unassociated ones, as mtm's
 // own lists do; S (scope.all) or no pin shows every row. The host scopes a
@@ -43,7 +48,8 @@ import (
 // modal's return focus and its ancestry, innermost modal first. A project
 // row names its project, a task row its task's, a pane row or the live
 // pane its owner's, a note its owner's, an extension row its own project
-// (recorded, else derived from its path); else the pin, else none. Every exec of an extension is told it
+// (recorded, else its project field, else derived from its path); else the
+// pin, else none. Every exec of an extension is told it
 // (MTM_PROJECT, MTM_PROJECT_LABEL, MTM_PROJECT_DIRS), read on the loop
 // when the verb is dispatched. Page loads are told the pin's instead
 // (loadProject; none under S): a list never changes with the cursor.
@@ -161,7 +167,7 @@ func (a *App) instanceProject(id string) string {
 }
 
 // extInstanceProject is the effective project of an extension's row
-// instance: its recorded owner, else the project its path is under
+// instance: its recorded owner, else its project field or path
 // (extRowOwner); a stand-in row the page does not show has only its
 // record.
 func (a *App) extInstanceProject(x *extension, noun, instance, row string) string {
@@ -481,9 +487,10 @@ func (a *App) scopeExtList(x *extension, id string, st *extListState) {
 
 // How a row's owner was told (extRowOwner).
 const (
-	ownerNone     = iota // no record and no path: never filtered
-	ownerRecorded        // ext_rows holds it
-	ownerByPath          // derived from its path (unassociated when no project holds it)
+	ownerNone      = iota // no record, project string field or path: never filtered
+	ownerRecorded         // ext_rows holds it
+	ownerByProject        // a project field (unassociated when unknown)
+	ownerByPath           // derived from its path (unassociated when no project holds it)
 )
 
 // derivedMark follows a project derived from a row's path, so a recorded
@@ -491,17 +498,38 @@ const (
 const derivedMark = " ·path"
 
 // extRowOwner is a mounted row's project and how it was told: its
-// recorded owner, else the project holding its path (pathProject), else
-// unassociated; a row with neither a record nor a path is ownerNone.
+// recorded owner, else its first nonempty project field, else the project
+// holding its path (pathProject). An unknown project field is unassociated;
+// empty project fields without a path are also unassociated. A row with
+// no record, project string field or path is ownerNone.
 func (a *App) extRowOwner(ext, noun string, row ocli.Row) (string, int) {
 	if project := a.extRowProject(ext, noun, row.ID); project != "" {
 		return project, ownerRecorded
 	}
+	projectField := false
+	if obj, ok := row.Data.(map[string]any); ok {
+		for _, field := range extProjectFields {
+			if value, ok := obj[field].(string); ok {
+				projectField = true
+				if strings.TrimSpace(value) != "" {
+					project, _ := a.projectNamed(value)
+					return project, ownerByProject
+				}
+			}
+		}
+	}
 	if path, ok := rowPath(row.Data); ok {
 		return a.pathProject(path), ownerByPath
 	}
+	if projectField {
+		return "", ownerByProject
+	}
 	return "", ownerNone
 }
+
+// extProjectFields are the record fields a row's project is read from,
+// first nonempty string wins; effective ownership includes inherited owners.
+var extProjectFields = []string{"effective_project", "project"}
 
 // extPathFields are the record fields a row's path is read from, first
 // present wins.

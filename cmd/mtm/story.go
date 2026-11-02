@@ -92,6 +92,7 @@ func mtmApp() monogatari.App {
 			{Name: "context-picker", Summary: "seeded, with context from this pane, its project and no project, plus a journaled prompt", Build: buildContextPicker},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
 			{Name: "project-tree", Summary: "seeded, with the story's file tree (files) attached to acme-web as its default directory", Build: buildProjectTree},
+			{Name: "scoped-lanes", Summary: "seeded, with a fake Lanes extension exposing direct, inherited and unassociated project rows", Build: buildScopedLanes},
 		},
 		Expected: storyExpected,
 	}

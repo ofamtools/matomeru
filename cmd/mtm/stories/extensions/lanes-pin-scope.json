@@ -1,0 +1,84 @@
+{
+  "name": "mtm: Lanes follows the pin using direct and inherited projects, S and scope off show all lanes",
+  "area": "extensions",
+  "fixture": "scoped-lanes",
+  "width": 150,
+  "height": 35,
+  "script": [
+    ":",
+    {
+      "type": "page open ext/lane/lanes"
+    },
+    "enter",
+    {
+      "job": "catalog-load"
+    },
+    ":",
+    {
+      "type": "project pin acme-web"
+    },
+    "enter",
+    "S",
+    "S",
+    ":",
+    {
+      "type": "settings set ext.lane.scope off"
+    },
+    "enter"
+  ],
+  "expect": [
+    {
+      "after": 4,
+      "contains": [
+        "Pinned lane",
+        "Inherited lane",
+        "Other lane",
+        "Unknown lane",
+        "Unassociated lane"
+      ]
+    },
+    {
+      "after": 7,
+      "contains": [
+        "Pinned lane",
+        "Inherited lane"
+      ],
+      "lacks": [
+        "Other lane",
+        "Unknown lane",
+        "Unassociated lane"
+      ]
+    },
+    {
+      "after": 8,
+      "contains": [
+        "Pinned lane",
+        "Inherited lane",
+        "Other lane",
+        "Unknown lane",
+        "Unassociated lane"
+      ]
+    },
+    {
+      "after": 9,
+      "contains": [
+        "Pinned lane",
+        "Inherited lane"
+      ],
+      "lacks": [
+        "Other lane",
+        "Unknown lane",
+        "Unassociated lane"
+      ]
+    },
+    {
+      "contains": [
+        "Pinned lane",
+        "Inherited lane",
+        "Other lane",
+        "Unknown lane",
+        "Unassociated lane"
+      ]
+    }
+  ]
+}
