@@ -63,11 +63,11 @@ func TestExtensionPropFiltersSurviveScoping(t *testing.T) {
 
 func TestExtensionPropFiltersUnderProjectPin(t *testing.T) {
 	t.Parallel()
-	for _, projectField := range []string{"project", "effective_project"} {
+	for _, projectField := range []string{"project", "effective_project", "project_id"} {
 		t.Run(projectField, func(t *testing.T) {
 			t.Parallel()
 			catalog := `{"schema":1,"name":"o-fake","version":"1","nouns":[{"name":"item","verbs":[{"name":"rows","kind":"application","rows":"item"}]}],"pages":[{"id":"filter-fixture","title":"Pinned filter fixture","lists":[{"id":"filter-fixture/list","noun":"item","source":"item.rows"}]}]}`
-			bin, _ := fakeExtension(t, catalog, `"item rows") echo '[{"id":"q1","label":"Open","data":{"`+projectField+`":"matomeru","status":"open"}},{"id":"q2","label":"Answered","data":{"`+projectField+`":"matomeru","status":"answered"}},{"id":"q3","label":"Other project","data":{"`+projectField+`":"ochazuke","status":"answered"}}]' ;;`)
+			bin, _ := fakeExtension(t, catalog, `"item rows") echo '[{"id":"q1","label":"Open","data":{"`+projectField+`":"matomeru","status":"open"}},{"id":"q2","label":"Answered","data":{"`+projectField+`":"matomeru","status":"answered"}},{"id":"q3","label":"Other project","data":{"`+projectField+`":"ochazuke","status":"answered"}},{"id":"q4","label":"Unassociated","data":{"`+projectField+`":"","status":"answered"}}]' ;;`)
 			a := registered(t, seeded(t), "fake", bin)
 			pin := func(project string) {
 				t.Helper()

@@ -540,8 +540,10 @@ func (a *App) extRowOwner(ext, noun string, row ocli.Row) (string, int) {
 }
 
 // extProjectFields are the record fields a row's project is read from,
-// first nonempty string wins; effective ownership includes inherited owners.
-var extProjectFields = []string{"effective_project", "project"}
+// first nonempty string wins: effective ownership (including inherited owners),
+// then the direct project or project_id. Present empty fields without a path
+// are unassociated.
+var extProjectFields = []string{"effective_project", "project", "project_id"}
 
 // extPathFields are the record fields a row's path is read from, first
 // present wins.
