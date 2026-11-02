@@ -1,0 +1,70 @@
+{
+  "name": "mtm: leader bracket enters COPY and escape restores the live terminal",
+  "script": [
+    "]",
+    "enter",
+    "ctrl+a",
+    "[",
+    "k",
+    "v",
+    "esc",
+    "i",
+    "ctrl+a",
+    "[",
+    "esc"
+  ],
+  "expect": [
+    {
+      "after": 4,
+      "focus": "panes/copy",
+      "mode": "copy",
+      "badge": "COPY"
+    },
+    {
+      "after": 5,
+      "mode": "copy",
+      "badge": "COPY"
+    },
+    {
+      "after": 6,
+      "mode": "visual",
+      "badge": "VISUAL"
+    },
+    {
+      "after": 7,
+      "mode": "copy",
+      "badge": "COPY"
+    },
+    {
+      "after": 8,
+      "focus": "panes/terminal",
+      "mode": "terminal",
+      "badge": "TERMINAL"
+    },
+    {
+      "after": 10,
+      "focus": "panes/copy",
+      "mode": "copy",
+      "badge": "COPY"
+    },
+    {
+      "focus": "panes/terminal",
+      "mode": "terminal",
+      "badge": "TERMINAL"
+    }
+  ],
+  "area": "panes",
+  "fixture": "empty",
+  "width": 120,
+  "height": 30,
+  "seed": {
+    "panes": [
+      {
+        "session": "acme-web",
+        "window": "w1",
+        "name": "shell",
+        "screen": "alpha beta\nsecond line\nlast line"
+      }
+    ]
+  }
+}

@@ -46,7 +46,7 @@ func enterCopyMode(t *testing.T, app *App) {
 		t.Fatalf("l: %s", app.m.Status)
 	}
 	settle(app, cmd)
-	if app.r.Focus != copyID || !app.copy.active || app.r.Mode.Name != "normal" {
+	if app.r.Focus != copyID || !app.copy.active || app.r.Mode.Name != "copy" {
 		t.Fatalf("after l: focus %s active %v mode %s", app.r.Focus, app.copy.active, app.r.Mode.Name)
 	}
 }
@@ -201,7 +201,7 @@ func TestCopyModeFromLiveKeepsTheScreenAndYanksLines(t *testing.T) {
 	if !reflect.DeepEqual(sys.copied, []string{want}) {
 		t.Fatalf("clipboard = %q", sys.copied)
 	}
-	if app.r.Mode.Name != "normal" || app.r.Focus != copyID {
+	if app.r.Mode.Name != "copy" || app.r.Focus != copyID {
 		t.Fatalf("after y: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
 	}
 	// New output while copy mode is on lands in the buffer's tail.
@@ -380,7 +380,7 @@ func TestCopyModeVisualShapesYank(t *testing.T) {
 		if got := sys.copied[len(sys.copied)-1]; got != want {
 			t.Fatalf("%s: clipboard %q", keys, got)
 		}
-		if app.r.Mode.Name != "normal" {
+		if app.r.Mode.Name != "copy" {
 			t.Fatalf("%s: mode %s after the yank", keys, app.r.Mode.Name)
 		}
 	}
@@ -393,7 +393,7 @@ func TestCopyModeVisualShapesYank(t *testing.T) {
 	yank("g g 2 Y", "0123456789abcdef\nABCDEFGHIJKLMNOP\n", "line")
 	// esc ends a selection; esc again leaves copy mode.
 	press(t, app, "v", "esc")
-	if app.r.Mode.Name != "normal" || app.r.Focus != copyID {
+	if app.r.Mode.Name != "copy" || app.r.Focus != copyID {
 		t.Fatalf("v esc: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
 	}
 }
@@ -406,7 +406,7 @@ func TestCopyModeSelectionFollowsTheShape(t *testing.T) {
 	lines := []string{"0123456789", "abcdefghij", "ABCDEFGHIJ"}
 	app, _, _ := copyApp(t, nil, lines)
 	enterCopyMode(t, app)
-	if err := app.r.DefineMode("pick-lines", false, ochazuke.ModeExtends("normal")); err != nil {
+	if err := app.r.DefineMode("pick-lines", false, ochazuke.ModeExtends("copy")); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.r.DefineSelection("pick-lines", ochazuke.SelectionLine); err != nil {
@@ -524,5 +524,65 @@ func TestCopyModeWithASidePane(t *testing.T) {
 	}
 	if len(f.killed) != 0 {
 		t.Fatalf("copy mode killed panes: %v", f.killed)
+	}
+}
+
+// Each way of ending a selection stays in copy mode, with the cursor
+// ready for another motion; a second Escape leaves for the pane list.
+func TestCopyModeSelectionReturnsToCopy(t *testing.T) {
+	t.Parallel()
+	for _, shape := range []struct{ key, mode string }{
+		{"v", "visual"}, {"V", "visual-line"}, {"ctrl+v", "visual-block"},
+	} {
+		for _, end := range []string{shape.key, "esc", "q", "y"} {
+			t.Run(shape.mode+"/"+end, func(t *testing.T) {
+				t.Parallel()
+				app, _, _ := copyApp(t, nil, []string{"alpha beta", "second line", "last line"})
+				enterCopyMode(t, app)
+				pressAll(t, app, "g", "g", shape.key)
+				if app.r.Mode.Name != shape.mode {
+					t.Fatalf("%s: mode %s", shape.key, app.r.Mode.Name)
+				}
+				pressAll(t, app, "2", "j", end)
+				if app.r.Mode.Name != "copy" || !app.copy.active || app.r.Focus != copyID {
+					t.Fatalf("%s: mode %s active %v focus %s", end, app.r.Mode.Name, app.copy.active, app.r.Focus)
+				}
+				pressAll(t, app, "esc")
+				if app.r.Mode.Name != "normal" || app.copy.active || app.r.Focus != "pane:matomeru/w1" {
+					t.Fatalf("esc out: mode %s active %v focus %s", app.r.Mode.Name, app.copy.active, app.r.Focus)
+				}
+			})
+		}
+	}
+}
+
+func TestCopyModeInheritsNormalAndRestoresFocusModes(t *testing.T) {
+	t.Parallel()
+	app, _, _ := copyApp(t, nil, []string{"alpha beta", "second line"})
+	enterCopyMode(t, app)
+	// The palette is an app normal row, inherited by the declared mode.
+	pressAll(t, app, ":")
+	if len(app.r.Modals()) == 0 {
+		t.Fatal("normal palette binding did not answer in copy")
+	}
+	pressAll(t, app, "esc")
+	if app.r.Focus != copyID || app.r.Mode.Name != "copy" || !app.copy.active {
+		t.Fatalf("palette return: focus %s mode %s active %v", app.r.Focus, app.r.Mode.Name, app.copy.active)
+	}
+	// Pending find and count modes consume their key back into copy.
+	pressAll(t, app, "g", "g", "0", "f", "b")
+	at(t, app, "fb", 0, 6)
+	if app.r.Mode.Name != "copy" {
+		t.Fatalf("find return: mode %s", app.r.Mode.Name)
+	}
+	pressAll(t, app, "2", "h")
+	at(t, app, "2h", 0, 4)
+	if app.r.Mode.Name != "copy" {
+		t.Fatalf("count return: mode %s", app.r.Mode.Name)
+	}
+	// A normal page binding still answers and leaving the stop ends copy.
+	pressAll(t, app, "ctrl+j")
+	if app.r.Page == panesPage || app.r.Mode.Name != "normal" || app.copy.active {
+		t.Fatalf("page away: page %s mode %s active %v", app.r.Page, app.r.Mode.Name, app.copy.active)
 	}
 }

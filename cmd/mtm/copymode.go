@@ -130,6 +130,7 @@ func (c *copyMode) followSource(r *ochazuke.Runtime) bool {
 
 func (a *App) defineCopy() {
 	r := a.r
+	_ = r.DefineMode("copy", false, ochazuke.ModeExtends("normal"))
 	for _, mode := range []string{"visual", "visual-line", "visual-block", "visual_count_pending"} {
 		if !r.Modes[mode] {
 			_ = r.DefineMode(mode, mode == "visual_count_pending")
@@ -171,7 +172,7 @@ func (a *App) defineCopy() {
 				return errors.New("shape must be char, line or block")
 			}
 			if r.BaseMode() == mode {
-				mode = "normal"
+				mode = "copy"
 			}
 			return r.SetMode(mode)
 		}), "Start, switch or end a selection: char (v), line (V) or block (ctrl+v)").
@@ -237,24 +238,24 @@ func (a *App) defineCopy() {
 			Bind("ctrl+v", ochazuke.Do(copyNoun+".select", ochazuke.Arguments{"shape": "block"}).Hide())
 	}
 	noun := r.Define(copyNoun)
-	normal := noun.Mode("normal")
+	base := noun.Mode("copy").Extends("normal")
 	visual := noun.Mode("visual")
 	// The footer reads v select · / search · i live · q back (y yank in a
 	// selection): those rows come first, the motions after them.
-	selects(normal)
+	selects(base)
 	selects(visual).
 		Bind("y", ochazuke.Do(copyNoun+".yank").Hinted("yank")).
 		Bind("o", ochazuke.Do(copyNoun+".swap").Hinted("other end")).
-		Bind("esc", ochazuke.Do("mode.set", ochazuke.Arguments{"mode": "normal"}).Hinted("end selection")).
-		Bind("q", ochazuke.Do("mode.set", ochazuke.Arguments{"mode": "normal"}).Hide()).
+		Bind("esc", ochazuke.Do("mode.set", ochazuke.Arguments{"mode": "copy"}).Hinted("end selection")).
+		Bind("q", ochazuke.Do("mode.set", ochazuke.Arguments{"mode": "copy"}).Hide()).
 		// A count in a selection (3j): the app's count rows answer in normal only.
 		Pattern("digit-0", ochazuke.Do("mode.enter", ochazuke.Arguments{"mode": "visual_count_pending"}).FromPayload("count", ochazuke.SourceDigit).Hide())
 	for _, m := range motions {
-		normal.Bind(m.keys, m.row)
+		base.Bind(m.keys, m.row)
 		visual.Bind(m.keys, m.row)
 	}
 	// y y and Y yank count lines.
-	normal.Bind("i", ochazuke.Do(copyNoun+".live").Hinted("live")).
+	base.Bind("i", ochazuke.Do(copyNoun+".live").Hinted("live")).
 		Bind("enter", ochazuke.Do(copyNoun+".live").Hide()).
 		Bind("q", ochazuke.Do(copyNoun+".leave").Hinted("back")).
 		Bind("esc", ochazuke.Do(copyNoun+".leave").Hide()).
@@ -262,7 +263,7 @@ func (a *App) defineCopy() {
 		Bind("Y", ochazuke.Do(copyNoun+".yank").FromPayload("lines", ochazuke.SourceCount).Hide())
 	noun.Mode("visual-line").Extends("visual")
 	noun.Mode("visual-block").Extends("visual")
-	noun.Mode("count_pending").Extends("normal")
+	noun.Mode("count_pending").Extends("copy")
 	noun.Mode("visual_count_pending").Extends("visual").
 		Bind("0", ochazuke.Do("count.append", ochazuke.Arguments{"digit": 0})).
 		Pattern("digit", ochazuke.Do("count.append").FromPayload("digit", ochazuke.SourceDigit)).
@@ -354,6 +355,10 @@ func (a *App) enterCopy(p pane, source string) error {
 			c.active = false
 			return err
 		}
+	}
+	if err := a.r.SetMode("copy"); err != nil {
+		c.active = false
+		return err
 	}
 	_, err := a.r.Execute(ochazuke.Request{Verb: "load", Noun: copyNoun, Target: copyID})
 	return err
@@ -491,7 +496,7 @@ func (a *App) copyYank(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if shape != "" {
-		if err := a.r.SetMode("normal"); err != nil {
+		if err := a.r.SetMode("copy"); err != nil {
 			return ochazuke.Failed(err)
 		}
 	}

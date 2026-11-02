@@ -61,7 +61,16 @@ Opening an agent step (or stepping onto it) reads its own log off the loop (`tur
 - A subagent step that opens → `turn.read-subagent`, `Pending(turns.AgentLogs.Read)`; its completion rebuilds the shown turns.
 - Everything else runs on the loop and returns `Done`.
 
-Copy mode: `ctrl+a [` from live keeps the pane attached; `esc` or `q` restores that live terminal, including a side pane or zoom. Entering from the pane list returns to the list instead. `i` or `enter` always goes live. A visible copy cursor tracks motions before selection and marks the active endpoint during selection; the pane keeps running.
+Copy mode: `ctrl+a [` from live keeps the pane attached; `esc` or `q` restores that live terminal, including a side pane or zoom. Entering from the pane list returns to the list instead. `i` or `enter` always goes live. A visible copy cursor tracks motions before selection and marks the active endpoint during selection; the pane keeps running. The runtime and header badge read `COPY` while browsing, and `VISUAL`, `VISUAL-LINE` or `VISUAL-BLOCK` while selecting. Ending a selection returns to `COPY`; leaving the copy stop restores the destination’s normal or terminal mode. The declared `copy` mode extends `normal`, keeping the page’s normal bindings available.
+
+Compared with Vim: copy mode is a read-only pane buffer; its base mode is called `copy` rather than Vim’s `normal`.
+
+| Vim form | `:help` tag | mtm |
+|---|---|---|
+| `v`, `V`, `ctrl+v` | `visual-start` | Similar: the same selection shapes; repeating the key ends selection in `copy`. |
+| Escape during selection | `visual-start` | Similar: ends selection without changing text and returns to `copy`. |
+| `y` during selection | `v_y` | Similar: yanks and ends selection, returning to `copy`. |
+| `i` from the base mode | `i` | Similar: enters live terminal input instead of editing the buffer. |
 
 ## Live shell keys
 
