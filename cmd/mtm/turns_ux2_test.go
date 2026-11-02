@@ -6,8 +6,7 @@ import (
 	"ofam.dev/ochazuke"
 )
 
-// The Turns tab and its prompt box, round 2 of the UX punch list
-// (~/hub/o-plans/matomeru-features.md, "Turns and prompt box UX round 2").
+// The Turns tab and its prompt box must preserve turn expansion and navigation.
 
 // turnOpen reports whether the focused turn shows its body: an open card,
 // or an expanded tree row.

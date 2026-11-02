@@ -129,9 +129,7 @@ func ownSideParent(t *testing.T, a *App, parent pane, dir string) {
 }
 
 // A side opened from a pane that moved away from its project's folder
-// starts where the pane is now, not in the project's folder (owner,
-// 2026-10-28: hub/side-vim opened in ~/hub while hub/shell was in
-// ~/hub/o-plans).
+// starts where the pane is now, so side tools follow its current work.
 func TestSideStartsInThePanesFolderBeforeItsProjects(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"term", "vim"} {
@@ -172,8 +170,8 @@ func TestSideFallsBackToTheProjectsFolder(t *testing.T) {
 
 // A Claude Code pane that cd'd inside the agent (its process, and so the
 // folder TUIOS reports, stays where it started): the side starts in the
-// folder the agent's newest transcript record names (owner, 2026-10-28:
-// hub/shell's agent was in ~/hub/o-plans, its side vim opened in ~/hub).
+// folder the agent's newest transcript record names, rather than the
+// process's original working directory.
 func TestSideStartsInTheAgentsTranscriptFolder(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"term", "vim"} {

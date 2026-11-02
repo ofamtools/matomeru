@@ -2,11 +2,11 @@
 
 The work-and-knowledge workspace over the TUIOS daemon, rebuilt on the ochazuke framework. Binary: `mtm`.
 
-Plans and todos: family plans, todos and the roadmap live in `~/hub/o-plans/` (`README.md` is the index). Read it before planning work; add or update items there. Do not add a TODO.md or docs/plans/ to this repo.
+Keep planning work in the family planning workspace, separate from this repository. Do not add a TODO.md or docs/plans/ to this repo.
 
 Read in this order:
 1. `../ochazuke/AGENTS.md`, section "Building an application on ochazuke", then its invariants. The framework owns focus, modes, modals, keys, the palette and the CLI shell; this app owns domain state, persistence and the daemon client.
-2. `docs/BRIEF.md`: the first slice. Nothing outside the slice until it is done end to end. Open work and its order are in `~/hub/o-plans/`.
+2. `docs/BRIEF.md`: the first slice. Nothing outside the slice until it is done end to end. Follow the agreed work order for subsequent features.
 3. `../ochazuke/examples/csv`: the reference consumer. Copy its shape (App struct, Define blocks, AddPage/AddList, handlers that return Results, SetItems after every change, `--smoke`).
 4. Spec: `~/proj/znbu/docs/outline.md` and its concept outlines. Old implementation to lift from, never to port wholesale: `~/proj/matomeru-old` (store, daemon client) and `~/proj/gmtm` (daemon client, protocol notes).
 

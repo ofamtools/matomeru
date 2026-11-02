@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// The Turns tab and its prompt box, round 1 of the UX punch list
-// (~/hub/test-archive/2026-10-28/ux-turns-prompt).
+// The Turns tab and its prompt box must keep focus and footer hints in sync.
 
 // footerLine is the frame's last non-empty line: the footer's hints.
 func footerLine(a *App) string {
