@@ -826,12 +826,13 @@ func (a *App) chooseKnownDirectoryFor(title, projectID, purpose string, use func
 		return result
 	}
 	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
-		Kind:   dirChooser,
-		Title:  title,
-		Rows:   rows,
-		Empty:  "loading known directories…",
-		Filter: trailingFilter,
-		Keep:   []int{1}, // the path: the branch and projects narrow first (F22)
+		Kind:       dirChooser,
+		Title:      title,
+		Rows:       rows,
+		Plural:     "known directories",
+		LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
+		Filter:     trailingFilter,
+		Keep:       []int{1}, // the path: the branch and projects narrow first (F22)
 		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
 			if path, ok := row.Data.(string); ok {
 				return use(path)

@@ -428,7 +428,7 @@ func shiftParts(parts []contextitems.Cell, top int) []contextitems.Cell {
 func (a *App) drawHints() {
 	h := a.hinting
 	styles := a.m.Styles()
-	style := styles.Accent.Bold(true).Reverse(true)
+	style := styles.Selection(true).Bold(true)
 	piece := styles.Accent.Underline(true)
 	overlays := make([]*ochazuke.TerminalOverlay, len(h.screens))
 	for i := range overlays {

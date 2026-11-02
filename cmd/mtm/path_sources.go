@@ -57,13 +57,11 @@ func (a *App) definePathSources() {
 		if !pick.Dir() {
 			return ochazuke.ChooserSource{}, false
 		}
-		empty := "no known directories"
-		if !a.directories.Ready {
-			empty = "loading known directories…"
-		}
 		return ochazuke.ChooserSource{
-			Empty: empty,
-			Keep:  []int{1}, // the path: the branch and projects narrow first (F22)
+			Empty:      ochazuke.EmptyText("known directories"),
+			Loading:    ochazuke.LoadingText("known directories"),
+			LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
+			Keep:       []int{1}, // the path: the branch and projects narrow first (F22)
 			Load: func(string) ochazuke.Result {
 				if !a.directories.Ready {
 					// The scan runs as dirs.refresh; its completion fills

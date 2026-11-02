@@ -30,7 +30,7 @@ func (a *App) registerPrompt() {
 		Verb("leave", a.leavePrompt, "Close the prompt, keeping what was typed: a changed text is committed").
 		Mode("insert").
 		Bind("enter", ochazuke.Do("field.commit")).
-		Bind("esc", ochazuke.Do("field.leave"))
+		Bind("esc", ochazuke.Do("modal.close"))
 	a.field = ochazuke.NewInput(fieldID, "", false)
 	a.m.ModalViews[promptFrame] = ochazuke.ModalView{Title: "Prompt", Render: func(_ *ochazuke.Runtime, body *ochazuke.Instance, w, _ int) ochazuke.Block {
 		field := ochazuke.InputBlock(a.field, max(1, w), 1)
@@ -82,7 +82,7 @@ func (a *App) prompt(title, label, text string, commit func(string) error) error
 	view.Title = title
 	a.m.ModalViews[promptFrame] = view
 	a.ask = &question{commit: commit, initial: text}
-	if _, err := a.r.OpenModal(promptFrame, ochazuke.Payload{Prompt: label}, ochazuke.WithInput(a.field, ochazuke.Kind("field"))); err != nil {
+	if _, err := a.r.OpenModal(promptFrame, ochazuke.Payload{Prompt: label}, ochazuke.WithInput(a.field, ochazuke.Kind("field")), ochazuke.CloseWith(ochazuke.Request{Noun: "field", Verb: "leave"})); err != nil {
 		a.ask = nil
 		return err
 	}

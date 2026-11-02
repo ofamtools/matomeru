@@ -82,7 +82,7 @@ func markCells(line string, width int, mark ochazuke.OverlayMark) string {
 	}
 	style := mark.Style
 	if style.Render("x") == "x" {
-		style = lipgloss.NewStyle().Reverse(true).Bold(true)
+		style = ochazuke.SelectionStyle(true).Bold(true)
 	}
 	left := ansi.Truncate(line, mark.Col, "")
 	left += strings.Repeat(" ", mark.Col-ansi.StringWidth(left))

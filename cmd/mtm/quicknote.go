@@ -49,8 +49,6 @@ func (a *App) defineQuickNote() {
 		Verb("close", a.closeQuickNote, "Close the quick note; every change is already written").
 		Verb("list", a.listQuickNote, "Close the quick note and open the Notes page on it").
 		Mode("normal").
-		Bind("esc", ochazuke.Do(quickNoteModal+".close")).
-		Bind("q", ochazuke.Do(quickNoteModal+".close")).
 		Bind("N", ochazuke.Do(quickNoteModal+".close")).
 		Mode("").
 		Bind("ctrl+o", ochazuke.Do(quickNoteModal+".list"))
@@ -97,7 +95,7 @@ func (a *App) openQuickNote(ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	q := &quickNote{id: work.NewID(), owner: owner, input: ochazuke.NewInput(quickNoteInput, "", true)}
-	if _, err := a.r.OpenModal(quickNoteModal, ochazuke.Payload{Prompt: a.quickNoteScope(owner)}, ochazuke.WithInput(q.input, ochazuke.Kind(quickNoteText))); err != nil {
+	if _, err := a.r.OpenModal(quickNoteModal, ochazuke.Payload{Prompt: a.quickNoteScope(owner)}, ochazuke.WithInput(q.input, ochazuke.Kind(quickNoteText)), ochazuke.CloseWith(ochazuke.Request{Noun: quickNoteModal, Verb: "close"})); err != nil {
 		return ochazuke.Failed(err)
 	}
 	a.quick = q

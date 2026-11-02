@@ -20,7 +20,7 @@ r|  gh-signals     auto (off)  every 5m  never   ╭─────────�
 R|              │   opus  opus (claude)                                                                                        │
  |              │   sonnet  sonnet (claude)                                                                                    │
  |              │   haiku  haiku (claude)                                                                                      │
- |              │ enter chooser.pick · esc chooser.cancel · tab search.cycle-match                                             │
+ |              │ enter chooser.pick · esc modal.close · tab search.cycle-match                                                │
  |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
  |                                               │                                           │
  |                                               │ task                                      │
@@ -36,5 +36,5 @@ R|              │   opus  opus (claude)                                       
  |
  |
  |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- |  enter chooser.pick · esc chooser.cancel · tab search.cycle-match
+ |  enter chooser.pick · esc modal.close · tab search.cycle-match
  |

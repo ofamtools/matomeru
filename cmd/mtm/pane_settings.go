@@ -450,8 +450,8 @@ func (a *App) settingsLine(p pane, row string, width int) string {
 	parts := make([]string, len(fields))
 	for i, f := range fields {
 		st := s.Tone(f.Tone)
-		if focused && sel.ID == settingRowID(row, f.Name) {
-			st = st.Reverse(true)
+		if sel.ID == settingRowID(row, f.Name) {
+			st = s.Selection(focused)
 		}
 		parts[i] = st.Render(f.Text)
 	}

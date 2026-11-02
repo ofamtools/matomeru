@@ -94,8 +94,7 @@ func (a *App) defineOutline() {
 		Mode("normal").
 		Bind("x", ochazuke.Do(outlineModal+".toggle")).
 		Bind("s", ochazuke.Do(outlineModal+".status")).
-		Bind("T", ochazuke.Do(outlineModal+".close")).
-		Bind("q", ochazuke.Do(outlineModal+".close"))
+		Bind("T", ochazuke.Do(outlineModal+".close"))
 	a.parameters(outlineModal+".refuse", map[string]ochazuke.Parameter{"reason": {Type: "string", Required: true, Description: "What the row does not do, and why"}})
 	refuse := func(reason string) ochazuke.Binding {
 		return ochazuke.Do(outlineModal+".refuse", ochazuke.Arguments{"reason": reason}).Hide()
@@ -334,7 +333,7 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.outlineView(a.scopeTitle(scope))
-	if _, err := a.r.OpenModal(outlineModal, ochazuke.Payload{}); err != nil {
+	if _, err := a.r.OpenModal(outlineModal, ochazuke.Payload{}, ochazuke.CloseWith(ochazuke.Request{Noun: outlineModal, Verb: "close"})); err != nil {
 		return ochazuke.Failed(err)
 	}
 	tree, err := a.r.AddTree(outlineTree, nodes, ochazuke.Parent(outlineModal), ochazuke.NoSpill(), ochazuke.Columns(a.outlineCols()...))

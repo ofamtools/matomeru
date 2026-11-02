@@ -255,7 +255,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		a.m.Width, a.m.Height = width, 24
 		frame := ansi.Strip(frameView(a).Content)
-		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter chooser.pick", "esc chooser.cancel"} {
+		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter chooser.pick", "esc modal.close"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("at %d missing %q:\n%s", width, want, frame)
 			}
@@ -284,7 +284,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 		frame := ansi.Strip(frameView(a).Content)
 		want := []string{"◆ ochazuke", `+ new project "och"`, "no pin (unpin)"}
 		if query == "zz" {
-			want = []string{"no matches", `+ new project "zz"`, "no pin (unpin)"}
+			want = []string{"no rows match 'zz'", `+ new project "zz"`, "no pin (unpin)"}
 		}
 		if strings.Contains(frame, "enter:") {
 			t.Fatalf("query %q shows a create hint beside the row:\n%s", query, frame)

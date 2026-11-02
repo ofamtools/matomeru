@@ -43,6 +43,33 @@ func TestQClosesAndCapitalQRecordsAMacro(t *testing.T) {
 	}
 }
 
+func TestModalCloseKeepsApplicationDrafts(t *testing.T) {
+	t.Parallel()
+	app := open(t)
+	committed := ""
+	if err := app.prompt("Name", "Name", "", func(text string) error {
+		committed = text
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	typeText(t, app, "saved prompt")
+	executeA(t, app, "modal", "close", "", nil)
+	if committed != "saved prompt" || app.ask != nil || app.r.TopModal() != "" {
+		t.Fatalf("closed prompt: committed %q, ask %v, modal %q", committed, app.ask, app.r.TopModal())
+	}
+	press(t, app, "N")
+	typeText(t, app, "saved note")
+	id := app.quick.id
+	executeA(t, app, "modal", "close", "", nil)
+	if app.quick != nil || app.r.TopModal() != "" {
+		t.Fatalf("closed note: quick %v, modal %q", app.quick, app.r.TopModal())
+	}
+	if note := notesOf(t, app)[id]; note.Text != "saved note" {
+		t.Fatalf("closed note text %q", note.Text)
+	}
+}
+
 // L on a project or task row opens the harness chooser with the project's
 // harness first, so L enter launches it; l opens the row (UX key map).
 func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
@@ -171,7 +198,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 	// editor, ochazuke's form, the outline, modals, the Settings and About
 	// pages) and
 	// never a macro; refresh has no key.
-	closers := map[string]bool{copyNoun + ".leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.pop": true, "settings.close": true, "about.close": true}
+	closers := map[string]bool{copyNoun + ".leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.close": true, "settings.close": true, "about.close": true}
 	for _, row := range rows {
 		switch {
 		case row.at == "noun editor", row.at == "noun markdown":
