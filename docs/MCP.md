@@ -18,6 +18,49 @@ working and help lists `shadows alias mcp of mcp. namespace` under it. The
 extension's nouns stay reachable by their full names (`mtm mcp.mcp-call list`,
 read as `mtm mcp. mcp-call list`) and by their bare names when unique.
 
+## Per-server ownership records
+
+Each client keeps its own stdio server. Only `mcp serve` registers a launch,
+before serving the connection, at
+`<absolute-selected-database-file>.mcp/servers/<launch-id>.json`. The existing
+database path is resolved through symlinks first, so relative paths and symlink
+aliases of the same file share the registry. The selected config directory is
+recorded as an absolute path (resolved through symlinks when it exists).
+Separate databases keep separate registries.
+
+Records are immutable JSON, version 1, with a random 128-bit hex `launch_id`,
+`data_path`, `config_dir`, and `server` and `launcher` process identities.
+Each identity has `pid`, `start_id` and `start_source`. Darwin uses the kernel's
+process start time to microsecond precision; Linux uses the kernel boot ID and
+the process's raw start ticks from `/proc/PID/stat`. These are OS birth
+identities, not registration timestamps, so PID reuse can be distinguished.
+The server refuses to start if its own birth identity cannot be obtained;
+platforms other than Darwin and Linux currently report unsupported identity.
+An unavailable launcher identity keeps its observed PID and a `start_error`,
+without inventing a birth time.
+
+`launcher_source` explicitly says `os.Getppid at registration`.
+`client_ownership` is **unverified**: the observed parent is normally the client
+with the generated direct-exec configuration, but it can instead be a shell
+wrapper, supervisor or reparented process. Inherited pipes do not establish the
+original client's identity. Pane/actor identity from the environment is a
+separate domain identity and does not verify process ownership.
+
+Registry directories must belong to the serving uid with mode `0700`; files
+are exclusively created with mode `0600`. Existing unsafe directories are
+refused without changing their permissions. Registry directory symlinks are
+refused, and an existing launch filename is never followed, truncated or
+overwritten: an actual collision generates another random ID. A reader should
+ignore incomplete or invalid JSON left by an interrupted write.
+
+EOF, a serve error and context cancellation remove only this launch's entry.
+SIGINT and SIGTERM clean up and then re-raise the original signal. Cleanup
+uses the pinned registry directory and checks the created file's identity; a
+removed entry or one replaced by another file or symlink is left alone.
+SIGKILL and crashes can leave a record, which is deliberately retained.
+There is no singleton lock, idle timeout, automatic process termination or
+orphan sweep. Other clients' servers and records remain independent.
+
 ## How a tool runs
 
 One headless runtime serves the connection, so history and exact undo entry

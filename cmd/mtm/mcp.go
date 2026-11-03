@@ -69,7 +69,7 @@ func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io
 			}
 			a.r.EnsureHistory()
 			defer a.r.Config().Flush()
-			return s.Serve(ctx, stdin, stdout)
+			return a.serveMCP(ctx, s, stdin, stdout, stderr)
 		}},
 		{Name: "tools", Summary: "List the catalog tools and compatibility aliases", Run: func(_ context.Context, args []string) error {
 			if err := noArgs("tools", args); err != nil {
