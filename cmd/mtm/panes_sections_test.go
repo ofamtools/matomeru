@@ -100,6 +100,8 @@ func sectionIDs(a *App, section int) []string {
 func sectionsApp(t *testing.T) (*App, []pane) {
 	t.Helper()
 	a := open(t)
+	// Keep pane ages at the panel goldens' capture date, not the wall clock.
+	a.clock = func() time.Time { return time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC) }
 	clock := int64(1_000)
 	a.inbox.items.SetClock(func() int64 { clock++; return clock })
 	panes := []pane{
