@@ -785,7 +785,8 @@
       "default": true,
       "description": "Show the reminders list on Schedules",
       "owner": "app",
-      "section": "reminders",
+      "section": "schedules",
+      "group": "Reminders",
       "value": true,
       "set": false
     },
@@ -800,7 +801,8 @@
         "both"
       ],
       "owner": "app",
-      "section": "reminders",
+      "section": "schedules",
+      "group": "Reminders",
       "value": "terminal",
       "set": false
     },
@@ -810,7 +812,8 @@
       "default": "[]",
       "description": "JSON text: extra argv arrays, e.g. [[\"notify-tool\",\"{{title}}\",\"{{body}}\"]]. No shell; default no extra senders",
       "owner": "app",
-      "section": "reminders",
+      "section": "schedules",
+      "group": "Reminders",
       "value": "[]",
       "set": false
     },
@@ -820,7 +823,8 @@
       "default": true,
       "description": "Keep due reminder notices in the chrome until checked off or dismissed, without moving focus",
       "owner": "app",
-      "section": "reminders",
+      "section": "schedules",
+      "group": "Reminders",
       "value": true,
       "set": false
     }

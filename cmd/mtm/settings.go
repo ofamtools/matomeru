@@ -135,7 +135,7 @@ func (a *App) declareSettings() error {
 	settings = append(settings, a.signalSettings()...)
 	settings = append(settings, commandSettings()...)
 	settings = append(settings, a.scheduleSettings()...)
-	settings = append(settings, ochazuke.Setting{Name: settingRemindersShow, Type: ochazuke.SettingBoolean, Default: true, Description: "Show the reminders list on Schedules"})
+	settings = append(settings, ochazuke.Setting{Name: settingRemindersShow, Section: scheduleSection, Group: "Reminders", Type: ochazuke.SettingBoolean, Default: true, Description: "Show the reminders list on Schedules"})
 	settings = append(settings, reminderNotifySettings()...)
 	if err := a.declareSettingLayout(); err != nil {
 		return err
@@ -178,7 +178,7 @@ func (a *App) declareSettingLayout() error {
 		app("agent", "Agent", "The agent view of a pane"),
 		app("notes", "Notes", "The note editor"),
 		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),
-		app("schedules", "Schedules", "Missed runs, and each configured schedule's switch and interval"),
+		app("schedules", "Schedules", "Missed runs, configured schedules, and daily reminders and their notifications"),
 		app("status", "Status bar", "mtm's status segments in the header rule: cpu, ram and disk"),
 		app("pin", "Pin", "The startup scope and how the pin state (pinned, show all, no pin) colours the theme"),
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: ochazuke.SettingsGeneralSection, Title: "General", Description: "How every extension mounts: catalog refresh and the names of its nouns"},

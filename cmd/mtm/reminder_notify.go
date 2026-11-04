@@ -51,9 +51,9 @@ type reminderTerminal struct {
 
 func reminderNotifySettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
-		{Name: settingReminderNotify, Type: ochazuke.SettingString, Default: "terminal", Enum: []string{"terminal", "os", "both"}, Description: "Notify this terminal with OSC 9 (Ghostty), the local OS via osascript, or both; only while mtm runs"},
-		{Name: settingReminderCommands, Type: ochazuke.SettingString, Default: "[]", Description: "JSON text: extra argv arrays, e.g. [[\"notify-tool\",\"{{title}}\",\"{{body}}\"]]. No shell; default no extra senders"},
-		{Name: settingReminderInApp, Type: ochazuke.SettingBoolean, Default: true, Description: "Keep due reminder notices in the chrome until checked off or dismissed, without moving focus"},
+		{Name: settingReminderNotify, Section: scheduleSection, Group: "Reminders", Type: ochazuke.SettingString, Default: "terminal", Enum: []string{"terminal", "os", "both"}, Description: "Notify this terminal with OSC 9 (Ghostty), the local OS via osascript, or both; only while mtm runs"},
+		{Name: settingReminderCommands, Section: scheduleSection, Group: "Reminders", Type: ochazuke.SettingString, Default: "[]", Description: "JSON text: extra argv arrays, e.g. [[\"notify-tool\",\"{{title}}\",\"{{body}}\"]]. No shell; default no extra senders"},
+		{Name: settingReminderInApp, Section: scheduleSection, Group: "Reminders", Type: ochazuke.SettingBoolean, Default: true, Description: "Keep due reminder notices in the chrome until checked off or dismissed, without moving focus"},
 	}
 }
 
