@@ -135,6 +135,8 @@ func (a *App) declareSettings() error {
 	settings = append(settings, a.signalSettings()...)
 	settings = append(settings, commandSettings()...)
 	settings = append(settings, a.scheduleSettings()...)
+	settings = append(settings, ochazuke.Setting{Name: settingRemindersShow, Type: ochazuke.SettingBoolean, Default: true, Description: "Show the reminders list on Schedules"})
+	settings = append(settings, reminderNotifySettings()...)
 	if err := a.declareSettingLayout(); err != nil {
 		return err
 	}

@@ -41,6 +41,8 @@ var mtmAgentDeclarations = []struct {
 	{"project-dir.remove", ochazuke.AgentNever, true}, {"project-base.remove", ochazuke.AgentNever, true}, {"dirs.remove-base", ochazuke.AgentNever, true},
 	{"dirs.add-base", ochazuke.AgentNever, false}, {"project-dir.default", ochazuke.AgentNever, false}, {"project-dir.edit", ochazuke.AgentNever, false},
 	{"schedule.add", ochazuke.AgentNever, false}, {"schedule.create", ochazuke.AgentNever, false}, {"schedule.set", ochazuke.AgentNever, false}, {"schedule.edit", ochazuke.AgentNever, false}, {"schedule.duplicate", ochazuke.AgentNever, false}, {"schedule.delete", ochazuke.AgentNever, true}, {"schedule.toggle", ochazuke.AgentNever, false}, {"schedule.set-interval", ochazuke.AgentNever, false}, {"schedule.reset", ochazuke.AgentNever, true},
+	{"reminder.check", ochazuke.AgentConfirm, false}, {"reminder.uncheck", ochazuke.AgentConfirm, false}, {"reminder.toggle", ochazuke.AgentConfirm, false},
+	{"reminder.delete", "", true},
 }
 
 func (a *App) defineAgentDeclarations() {

@@ -277,6 +277,9 @@ func (a *App) addSchedulesPage() error {
 	if st.list, err = a.r.AddList(scheduleListID, nil, ochazuke.Parent(schedulesPage), ochazuke.Columns(scheduleColumns...)); err != nil {
 		return err
 	}
+	if err := a.addRemindersList(); err != nil {
+		return err
+	}
 	if st.detail, err = a.addLinkedDetail(scheduleDetailID, schedulesPage, func() *ochazuke.List { return st.list }, a.scheduleSubject); err != nil {
 		return err
 	}
@@ -459,7 +462,10 @@ func (a *App) refreshSchedules() error {
 		row := a.scheduleRow(v, now)
 		rows = append(rows, ochazuke.ListItem{ID: row.ID, Noun: scheduleNoun, Label: row.Label, Cells: row.Cells, Data: v})
 	}
-	return a.sched.list.SetItems(rows)
+	if err := a.sched.list.SetItems(rows); err != nil {
+		return err
+	}
+	return a.refreshReminders()
 }
 
 func (a *App) renderSchedules(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
@@ -473,7 +479,13 @@ func (a *App) renderSchedules(_ *ochazuke.Runtime, width, height int) ochazuke.B
 		if a.sched.loadErr != "" {
 			lines = append(lines, s.Muted.Render(ansi.Truncate(scheduleFile+": "+a.sched.loadErr+" (the built-ins run)", w, "…")))
 		}
-		lines = append(lines, a.view(a.sched.list, w, max(1, h-len(lines))))
+		if a.r.Settings().Bool(settingRemindersShow) {
+			listHeight := max(3, (h-len(lines)-1)/2)
+			lines = append(lines, a.view(a.sched.list, w, listHeight))
+			lines = append(lines, a.renderReminders(w, max(3, h-listHeight-1)))
+		} else {
+			lines = append(lines, a.view(a.sched.list, w, max(1, h-len(lines))))
+		}
 		return ochazuke.Text(strings.Join(lines, "\n"))
 	})
 }

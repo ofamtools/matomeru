@@ -15,6 +15,6 @@
   "script": ["ctrl+x", "n", "esc", "ctrl+y", "enter", "j", "j", "enter", "ctrl+u", "enter", "esc", "ctrl+y", "enter", "k", "enter", "ctrl+u", "enter"],
   "expect": [
     {"after": 10, "modal": "form-suggestions", "contains": ["openai/sol", "openai/terra"], "lacks": ["sonnet", "haiku"]},
-    {"after": 17, "modal": "form-suggestions", "contains": ["opus", "sonnet", "haiku"], "lacks": ["openai/sol", "openai/terra"]}
+    {"modal": "form-suggestions", "contains": ["opus", "sonnet", "haiku"], "lacks": ["openai/sol", "openai/terra"]}
   ]
 }

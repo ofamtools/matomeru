@@ -49,6 +49,7 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	}
 	sh.Actor = &ochazuke.Actor{Kind: act.Kind, Harness: act.Harness, Pane: act.Pane, Session: act.Session, Model: act.Model}
 	a.stdin = stdin
+	a.reminders.notify.output = stdout
 	sh.Usage = cliUsage
 	sh.Reveal = func(target string) error {
 		if a.revealExtTarget(target) {

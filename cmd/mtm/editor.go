@@ -71,7 +71,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick(), a.startSchedules(), a.refreshStaleExtensions(), a.setupCheckAtStart())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick(), a.startSchedules(), a.startReminderNotifications(), a.refreshStaleExtensions(), a.setupCheckAtStart())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
@@ -126,6 +126,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if c := a.schedulesUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
+	if c := a.reminderNotificationsUpdate(msg); c != nil {
+		cmd = tea.Batch(cmd, c)
+	}
+	if a.reminders != nil && a.reminders.date != a.reminderNow().Format("2006-01-02") {
+		if err := a.refreshReminders(); err != nil {
+			a.r.UI().Error(err.Error())
+		}
+	}
 	if c := a.runsUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
@@ -166,6 +174,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Capture hooks write turns from other processes; the rows
 			// also name panes after the latest listing.
 			if err := a.refreshReviews(); err != nil {
+				a.r.UI().Error(err.Error())
+			}
+		case schedulesPage:
+			if err := a.refreshSchedules(); err != nil {
 				a.r.UI().Error(err.Error())
 			}
 		default:

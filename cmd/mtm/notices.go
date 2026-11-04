@@ -34,6 +34,7 @@ type noticeSink struct {
 	next   ochazuke.UISink
 	shown  []ochazuke.NoticeID
 	posted int
+	held   map[ochazuke.NoticeID]bool
 }
 
 // trackNotices puts a noticeSink in front of the sink attached now (the
@@ -53,9 +54,18 @@ func (s *noticeSink) Notify(id ochazuke.NoticeID, text string) {
 
 func (s *noticeSink) ClearNotice(id ochazuke.NoticeID) {
 	s.shown = slices.DeleteFunc(s.shown, func(v ochazuke.NoticeID) bool { return v == id })
+	delete(s.held, id)
 	if s.next != nil {
 		s.next.ClearNotice(id)
 	}
+}
+
+// keep exempts a notice from automatic expiry, not explicit notice.clear.
+func (s *noticeSink) keep(id ochazuke.NoticeID) {
+	if s.held == nil {
+		s.held = make(map[ochazuke.NoticeID]bool)
+	}
+	s.held[id] = true
 }
 
 func (s *noticeSink) Status(text string) {
@@ -91,12 +101,16 @@ func (a *App) expireNotices(msg tea.Msg, before []ochazuke.NoticeID) tea.Cmd {
 	switch v := msg.(type) {
 	case tea.KeyPressMsg, tea.PasteMsg:
 		for _, id := range before {
-			a.r.UI().ClearNotice(id)
+			if !a.noticeSink.held[id] {
+				a.r.UI().ClearNotice(id)
+			}
 		}
 	case noticeExpired:
 		if v.gen == a.notices.gen {
 			for _, id := range slices.Clone(a.noticeSink.shown) {
-				a.r.UI().ClearNotice(id)
+				if !a.noticeSink.held[id] {
+					a.r.UI().ClearNotice(id)
+				}
 			}
 		}
 	}

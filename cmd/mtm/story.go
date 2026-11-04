@@ -93,6 +93,7 @@ func mtmApp() monogatari.App {
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
 			{Name: "project-tree", Summary: "seeded, with the story's file tree (files) attached to acme-web as its default directory", Build: buildProjectTree},
 			{Name: "scoped-lanes", Summary: "seeded, with a fake Lanes extension exposing direct, inherited and unassociated project rows", Build: buildScopedLanes},
+			{Name: "reminders-rollover", Summary: "A checked reminder, missed prior days and an injected next-local-day clock (ctrl+u)", Build: buildReminderRollover},
 		},
 		Expected: storyExpected,
 	}
@@ -357,6 +358,10 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	a.inbox.items.SetClock(func() int64 { return now().UnixMilli() })
 	// No timers: a story's ticks are the driver's, not mtm's refreshes.
 	a.pv.after, a.runs.after, a.sched.after, a.inbox.after = nil, nil, nil, nil
+	a.reminders.notify.after = nil
+	a.reminders.notify.exec = func(context.Context, []string) (string, error) {
+		return "", errors.New("stories run no notification commands")
+	}
 	a.sched.runner.Exec = func(context.Context, []string, []string) ([]byte, error) {
 		return nil, errors.New("stories run no real commands")
 	}

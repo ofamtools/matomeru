@@ -52,3 +52,8 @@ states-test:
 states-export:
 	@test -n "$(OUT)" || { echo 'give OUT=/path/to/export' >&2; exit 2; }
 	python3 -I scripts/states_export.py docs/keys/states.json "$(OUT)"
+
+# Focused catalog/key/settings reference, from a fresh temp database and HOME.
+.PHONY: reference
+reference:
+	python3 -I scripts/reminder_reference.py

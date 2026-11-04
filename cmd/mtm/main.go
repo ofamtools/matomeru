@@ -299,6 +299,7 @@ type App struct {
 	contexts           *contextitems.Store // the context_items table (context.go)
 	inbox              *inboxState         // the action_items table and the Inbox page (inbox.go)
 	sched              *scheduleState      // schedules, their runner and the Schedules page (schedules.go)
+	reminders          *reminderState      // daily reminders and their local-date history
 	runs               *runState           // command runs by drive and the Runs page (runs.go)
 	signals            paneSignalState     // pane state raised into the inbox (pane_signals.go)
 	hist               *history.Journal    // the history journal and review marks (journal.go)
@@ -552,6 +553,10 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := a.openReminders(); err != nil {
+		db.Close()
+		return nil, err
+	}
 	a.feed, a.journalSrc = newJournalFeed(), client
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
@@ -580,6 +585,8 @@ func New(opts Options) (*App, error) {
 	a.defineInbox()
 	a.definePaneTask()
 	a.defineSchedules()
+	a.defineReminders()
+	a.defineReminderNotifications()
 	a.defineRuns()
 	a.defineDeletion()
 	a.defineSaved()
