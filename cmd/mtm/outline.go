@@ -72,6 +72,10 @@ type outlineState struct {
 	notesReady  bool
 	images      bool
 	attachments map[string]*imageAttachments
+	// deleted holds each deleted task as it was (record and detached
+	// rows), by id, so an undone delete (or a put of the rows) brings it
+	// back exactly (work.RestoreTask).
+	deleted map[string]work.DeletedTask
 }
 
 // defineOutline adds project.outline and task.outline (O), todos.open (T
@@ -690,11 +694,15 @@ func (a *App) writeOutline(o *outlineState, c ochazuke.TreeChange) error {
 	switch c.Op {
 	case ochazuke.TreeAdd:
 		now := work.Now()
-		t := work.Task{ID: c.ID, ProjectID: projectID, ParentID: parent, Title: c.Text, Status: work.StatusTodo, Created: now, Updated: now}
-		if old, err := a.work.Task(c.ID); err == nil {
-			t = old // an undone delete comes back as it was
-			t.ParentID, t.Title = parent, c.Text
+		if snap, ok := o.deleted[c.ID]; ok {
+			// An undone delete comes back as it was, with what it held.
+			if _, err := a.work.RestoreTask(snap, parent, projectID, c.Text); err != nil {
+				return err
+			}
+			delete(o.deleted, c.ID)
+			break
 		}
+		t := work.Task{ID: c.ID, ProjectID: projectID, ParentID: parent, Title: c.Text, Status: work.StatusTodo, Created: now, Updated: now}
 		if err := a.work.PutTask(t); err != nil {
 			return err
 		}
@@ -713,6 +721,12 @@ func (a *App) writeOutline(o *outlineState, c ochazuke.TreeChange) error {
 			return err
 		}
 	case ochazuke.TreeDelete:
+		if snap, err := a.work.SnapshotTask(c.ID); err == nil {
+			if o.deleted == nil {
+				o.deleted = map[string]work.DeletedTask{}
+			}
+			o.deleted[c.ID] = snap
+		}
 		if _, err := a.work.Delete("task", c.ID); err != nil {
 			return err
 		}
