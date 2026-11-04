@@ -33,6 +33,7 @@ func (a *App) defineTask() {
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.choose-status")).
 		Bind("m", ochazuke.Do("task.choose-move"))
 	a.defineTaskEvidence()
+	a.defineTaskSubjects()
 	// done and status are the standard set with the status preset (2.5:
 	// task.status shares the prop's name as its set); the old arguments
 	// are set's: task done ID, task status ID STATUS. The old --status

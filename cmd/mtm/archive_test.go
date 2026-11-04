@@ -232,6 +232,79 @@ func TestArchivePageSavedFilters(t *testing.T) {
 	}
 }
 
+func TestOutlineTaskArchiveRestoreAndNotes(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	for i, id := range []string{"outline-a", "outline-b"} {
+		if err := a.work.PutTask(work.Task{ID: id, Title: id, ParentID: "t1", ProjectID: "matomeru", Status: work.StatusTodo, Position: int64(i + 1)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.work.PutNote(work.Note{ID: "outline-note", Text: "retained outline note", TaskID: "outline-a"}); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "outline", "matomeru", nil)
+	o := a.outline
+	focus := func(id string) {
+		t.Helper()
+		if err := o.tree.Select(outlineNode(id)); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.r.SetFocus(outlineNode(id)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	focus("outline-a")
+	executeA(t, a, "task", "archive", "", nil)
+	if task, err := a.work.Task("outline-a"); err != nil || !task.Archived {
+		t.Fatalf("selected outline task not archived: %+v %v", task, err)
+	}
+	if row, ok := o.tree.Selected(); !ok || row.ID != outlineNode("outline-b") || a.r.Focus != row.ID {
+		t.Fatalf("archive did not focus the next outline task: %+v focus=%q", row, a.r.Focus)
+	}
+	if err := o.tree.List().ApplyFilter("archived"); err != nil {
+		t.Fatal(err)
+	}
+	focus("outline-a")
+	executeA(t, a, "task", "restore", "", nil)
+	if task, err := a.work.Task("outline-a"); err != nil || task.Archived {
+		t.Fatalf("selected outline task not restored: %+v %v", task, err)
+	}
+	if err := o.tree.List().SetPropFilters(nil); err != nil {
+		t.Fatal(err)
+	}
+	focus("outline-a")
+	if err := a.syncOutlineNotes(true); err != nil {
+		t.Fatal(err)
+	}
+	noteRow := outlineNotesList + ":outline-note"
+	executeA(t, a, "note", "archive", noteRow, nil)
+	if rows := o.notes.Items(); len(rows) != 0 {
+		t.Fatalf("archived outline note is still visible: %+v", rows)
+	}
+	if err := o.notes.ApplyFilter("archived"); err != nil {
+		t.Fatal(err)
+	}
+	if rows := o.notes.Items(); len(rows) != 1 || rows[0].ID != noteRow {
+		t.Fatalf("outline's archived note filter: %+v", rows)
+	}
+	executeA(t, a, "note", "restore", noteRow, nil)
+	if note, err := a.work.Note("outline-note"); err != nil || note.Archived {
+		t.Fatalf("outline note not restored: %+v %v", note, err)
+	}
+	// A changed row may linger until the user moves or flushes departures.
+	o.notes.FlushLingering()
+	if row, ok := o.notes.Selected(); ok {
+		t.Fatalf("restored note remains in the archived filter: %+v", row)
+	}
+	if err := o.notes.SetPropFilters(nil); err != nil {
+		t.Fatal(err)
+	}
+	if rows := o.notes.Items(); len(rows) != 1 || rows[0].ID != noteRow {
+		t.Fatalf("restored note missing from the outline: %+v", rows)
+	}
+}
+
 func TestArchiveRefreshesOpenContextPicker(t *testing.T) {
 	t.Parallel()
 	a, _, _, _ := liveContextApp(t)

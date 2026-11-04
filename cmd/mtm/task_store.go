@@ -78,6 +78,31 @@ func taskArchiveProp() ochazuke.PropSpec {
 	return ochazuke.PropSpec{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the task and hide its subtree from default views; restoring keeps each child's own archive flag"}}
 }
 
+// Outline rows address the same stored task as Work rows. Keep the standard
+// handlers (including archive/restore, validation and undo), adapting only
+// their record subject; the interaction context stays on the outline row.
+func (a *App) defineTaskSubjects() {
+	for key, op := range a.r.Operations {
+		if op.Noun != "task" || op.Standard == "" || !op.Parameters["id"].Focus {
+			continue
+		}
+		run := op.App
+		op.App = func(c ochazuke.Ctx) ochazuke.Result {
+			if c.Instance == nil || c.Instance.Noun != outlineTaskNoun {
+				return run(c)
+			}
+			return c.Each(func(one ochazuke.Ctx) ochazuke.Result {
+				row := *one.Instance
+				row.Noun, row.ID = "task", taskOf(row.ID)
+				row.Data = row.ID
+				one.Instance = &row
+				return run(one)
+			})
+		}
+		a.r.Operations[key] = op
+	}
+}
+
 // taskStore is the task noun's store over the work store. history.undo may
 // revert its writes (Undo; a move's undo puts back the project and the
 // parent the move cleared), and a create may keep a key it is given
