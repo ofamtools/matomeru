@@ -1,0 +1,40 @@
+ |  ◆ Matomeru · no pin                                                                                                        INSERT
+ |   Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  › Schedules  Runs  Extensions
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  schedules · they run while the TUI is open                                         gh-signals
+ |  schedule       on          when      last   next  runs
+r|  gh-signals     auto (off)  every 5m  never╭──────────────────────────────────────────────────╮itHub review requests, CI and PR signals
+ |  slack-signals  off         every 5m  never│ New schedule prompt · written as you type        │box (o-gh signals)
+ |  prompt         off         never     never│ prompt                                           │ommand
+ |                                            │                                                  │-gh signals
+ |                                            │ when                                             │xec
+ |                                            │                                                  │uto (off)
+ |                                            │ enabled                                          │uto: not checked yet
+ |                                            │   off ▾                                          │very 5m
+ |                                            │ harness                                          │nce
+ |                                            │   claude ▾                                       │m
+ |                                            │ model                                            │uilt-in · schedule.gh-signals.enabled,
+ |              ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ |              │ Suggest model                                                                                                │
+ |              │ ›                                                                                                      fuzzy │
+R|              │   opus  opus (claude)                                                                                        │
+ |  Reminders · │   sonnet  sonnet (claude)                                                                                    │
+ |  reminder  ti│   haiku  haiku (claude)                                                                                      │
+ |  no rows     │ enter chooser.pick · esc modal.close · tab search.cycle-match                                                │
+ |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ |                                            │                                                  │
+ |                                            │ task                                             │
+ |                                            │                                                  │
+ |                                            │ dir                                              │
+ |                                            │   (none) ▾                                       │
+ |                                            │ into                                             │
+ |                                            │   (none) ▾                                       │
+ |                                            │ pane                                             │
+ |                                            │                                                  │
+ |                                            │ ctrl+space form.suggest                          │
+ |                                            ╰──────────────────────────────────────────────────╯
+ |
+ |
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  enter chooser.pick · esc modal.close · tab search.cycle-match
+ |
