@@ -609,7 +609,15 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	})
 	var bottom []row
 	for _, p := range working {
-		at := place(p.rowID(), sectionWorking, 0, cmp.Or(p.StateAt, nowMs))
+		// An agent working by its own state enters with its submission
+		// time; one that works through its subagent rows (its own state
+		// is idle or done) enters at now, at the bottom. place keeps the
+		// time while the row stays, so it does not re-enter each tick.
+		since := nowMs
+		if p.working() {
+			since = cmp.Or(p.StateAt, nowMs)
+		}
+		at := place(p.rowID(), sectionWorking, 0, since)
 		bottom = append(bottom, row{node: a.flatPaneNode(p, names[p.ID], now), at: at, pane: true})
 	}
 	slices.SortStableFunc(bottom, func(x, y row) int { return cmp.Compare(x.at.at, y.at.at) })

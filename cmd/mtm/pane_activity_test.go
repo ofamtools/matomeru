@@ -346,3 +346,27 @@ func TestPaneSectionsErrorNamesWorkingStates(t *testing.T) {
 		t.Fatalf("unrelated error %v", err)
 	}
 }
+
+// A pane that enters Working through its subagent rows (its own state is
+// idle) enters at the bottom, below rows already there, and stays where
+// it entered across rebuilds while the subagent runs; a pane that works
+// by its own state keeps its submission time.
+func TestPaneWorkingThroughSubagentEntersAtTheBottom(t *testing.T) {
+	t.Parallel()
+	app := subagentsPaneApp(t)
+	f := app.panesd.(*fakePanes)
+	f.panes[0].StateAt = 1 // an old state change: it must not sort first
+	f.panes[1].Harness, f.panes[1].AgentState, f.panes[1].StateAt = "claude-code", "working", 5_000
+	setting(t, app, settingSubagentsWorking, false) // leave Working, then enter again
+	reload(t, app)
+	setting(t, app, settingSubagentsWorking, true)
+	reload(t, app)
+	want := []string{"pane:ochazuke/w2", "pane:matomeru/w1"}
+	for i := range 3 {
+		if got := sectionIDs(app, 2); !slices.Equal(got, want) {
+			t.Fatalf("rebuild %d: working order %v, want %v", i, got, want)
+		}
+		app.clock = func() time.Time { return time.Now().Add(time.Duration(i+1) * time.Minute) }
+		reload(t, app)
+	}
+}

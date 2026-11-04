@@ -59,7 +59,7 @@ func paneActivitySettings() []ochazuke.Setting {
 		{Name: settingPanesSubagentsLinger, Type: ochazuke.SettingDuration, Default: "30s",
 			Description: "How long a subagent that ended badly (failed, killed, stopped) stays under its pane; a finished one drops at once"},
 		{Name: settingSubagentsWorking, Type: ochazuke.SettingBoolean, Default: true,
-			Description: "An agent pane whose subagent rows are running or waiting on their own work counts as working (the Working list), whatever its own state; off leaves it where its own state puts it"},
+			Description: "An agent pane whose subagent rows are running or waiting on their own work counts as working (the Working list) unless its own state or items put it elsewhere (waiting, errored, unread win); off leaves it where its own state puts it"},
 	}
 }
 
