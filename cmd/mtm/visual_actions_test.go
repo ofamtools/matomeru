@@ -263,3 +263,36 @@ func TestVisualTaskDeleteNamesTheFirstRow(t *testing.T) {
 		t.Fatalf("V j d: the confirm does not name the first row:\n%s", f)
 	}
 }
+
+// A turn poll (pane.read-turns, as turns_model.go runs it on a listing)
+// while V is on leaves the mode and the marks alone and says nothing: x
+// afterwards still marks both selected tasks done. mtm's story steps have
+// no step that fires a turn poll, so this is a Go test.
+func TestVisualSurvivesATurnPoll(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	executeA(t, a, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
+	press(t, a, "T")
+	press(t, a, "V", "j")
+	mode := a.r.Mode.Name
+	if mode != "visual-line" {
+		t.Fatalf("V j: mode %q", mode)
+	}
+	before := len(a.m.Notices)
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: "pane:matomeru/w1"}); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	if a.r.Mode.Name != mode || a.r.TopModal() != outlineModal {
+		t.Fatalf("after poll: mode %q modal %q", a.r.Mode.Name, a.r.TopModal())
+	}
+	for _, n := range a.m.Notices[before:] {
+		if strings.Contains(n, "done on") {
+			t.Fatalf("poll raised a notice: %q", n)
+		}
+	}
+	press(t, a, "x")
+	if stored(t, a, "t1").Status != work.StatusDone || stored(t, a, "t2").Status != work.StatusDone {
+		t.Fatalf("x after poll: %s %s", stored(t, a, "t1").Status, stored(t, a, "t2").Status)
+	}
+}
