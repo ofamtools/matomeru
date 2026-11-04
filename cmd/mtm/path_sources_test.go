@@ -99,7 +99,7 @@ func TestDirectoryPathChooserProjectAndTypedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	moved := ""
-	if err := a.chooseDirectoryFor("Move to", "matomeru", browseAttach, func(path string) ochazuke.Result {
+	if err := a.chooseDirectoryFor("Move to", "matomeru", func(path string) ochazuke.Result {
 		moved = path
 		return ochazuke.Done(path)
 	}); err != nil {
@@ -135,7 +135,7 @@ func TestDirectoryPathChooserRecentIsDirRecent(t *testing.T) {
 	if got := a.recentDirectories(); len(got) < 2 || got[0] != "/new/two" || got[1] != "/old/one" {
 		t.Fatalf("recent %q", got)
 	}
-	if err := a.chooseDirectoryFor("Dir", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+	if err := a.chooseDirectoryFor("Dir", "", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 		t.Fatal(err)
 	}
 	c := a.r.Chooser(dirChooser)
@@ -283,7 +283,7 @@ func TestDirectoryChooserSettingStartSource(t *testing.T) {
 		if c := a.r.Chooser(dirChooser); c != nil {
 			press(t, a, "esc")
 		}
-		if err := a.chooseDirectoryFor("Dir", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+		if err := a.chooseDirectoryFor("Dir", "", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 			t.Fatal(err)
 		}
 		settle(a, a.r.PendingCommands())
@@ -362,7 +362,7 @@ func TestDirectoryPathChooserWalksBelowTheProjectRoot(t *testing.T) {
 	a := open(t)
 	tree := walkProject(t, a)
 	picked := ""
-	if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(path string) ochazuke.Result {
+	if err := a.chooseDirectoryFor("Dir", "matomeru", func(path string) ochazuke.Result {
 		picked = path
 		return ochazuke.Done(path)
 	}); err != nil {
@@ -395,7 +395,7 @@ func TestDirectoryPathChooserBrowseStartsInTheProject(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	tree := walkProject(t, a)
-	if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+	if err := a.chooseDirectoryFor("Dir", "matomeru", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())
@@ -419,7 +419,7 @@ func TestDirectoryPathChooserWalkOffAndRemembered(t *testing.T) {
 		if c := a.r.Chooser(dirChooser); c != nil {
 			press(t, a, "esc")
 		}
-		if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+		if err := a.chooseDirectoryFor("Dir", "matomeru", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 			t.Fatal(err)
 		}
 		settle(a, a.r.PendingCommands())
@@ -474,7 +474,7 @@ func TestKnownDirectoryChooserIsThePathChooserOnKnown(t *testing.T) {
 			press(t, a, "esc")
 		}
 		used = ""
-		if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(p string) ochazuke.Result { used = p; return ochazuke.Done(p) }); err != nil {
+		if err := a.chooseDirectoryFor("Dir", "matomeru", func(p string) ochazuke.Result { used = p; return ochazuke.Done(p) }); err != nil {
 			t.Fatal(err)
 		}
 		settle(a, a.r.PendingCommands())

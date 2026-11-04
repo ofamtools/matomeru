@@ -210,6 +210,17 @@ func (a *App) holdsRows() bool {
 // stay on the pane that moved. Only in normal mode: otherwise the focus
 // and the mode are left alone.
 func (a *App) followRow(row string) error {
+	if row == "" && a.focusOnEmptyList() {
+		// The active list emptied under the focus: go to the row the
+		// view last showed, else the first pane row drawn.
+		row = a.pv.viewRow
+		if a.sectionOf(row) < 0 {
+			row = ""
+			if order := a.pv.view.order; len(order) > 0 {
+				row = order[0]
+			}
+		}
+	}
 	if row == "" || a.pv.held {
 		return nil
 	}
@@ -217,13 +228,29 @@ func (a *App) followRow(row string) error {
 	if i < 0 {
 		return nil
 	}
-	if cur, _ := a.selectedRow(); cur == row && i == a.pv.active {
+	if cur, _ := a.selectedRow(); cur == row && i == a.pv.active && !a.focusOnEmptyList() {
 		return nil
 	}
 	// A rebuild is background work: while the mode is not normal (a list
 	// filter or an input being typed in, a visual selection) the row moves
 	// but the focus and the mode stay where the person is working.
 	return a.selectPaneRowMoving(row, a.r.Mode.Name == "normal")
+}
+
+// focusOnEmptyList reports whether the focus is on a list with no rows,
+// where j and k go nowhere: left there by a row that moved out while a
+// filter or a modal held the mode, it is found again in normal mode and
+// followRow moves it to the row, whatever route led there.
+func (a *App) focusOnEmptyList() bool {
+	if a.r.Mode.Name != "normal" {
+		return false
+	}
+	for _, s := range a.pv.sections {
+		if l := s.tree.List(); l.Focused() && l.Len() == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // panelsLayout reports whether the left side draws panels.

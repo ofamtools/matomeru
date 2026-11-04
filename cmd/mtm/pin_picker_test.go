@@ -602,7 +602,7 @@ func TestDirectoryChooserCutsThePathLast(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	knownDirectoryChooser(t, a)
-	if err := a.chooseDirectoryFor("Directory", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+	if err := a.chooseDirectoryFor("Directory", "", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 		t.Fatal(err)
 	}
 	c := a.r.Chooser(dirChooser)
@@ -618,7 +618,7 @@ func TestDirectoryChooserCutsThePathLast(t *testing.T) {
 func TestPathChooserKnownSourceCutsThePathLast(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	if err := a.chooseDirectoryFor("Directory", "", browseAttach, func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+	if err := a.chooseDirectoryFor("Directory", "", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())

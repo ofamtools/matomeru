@@ -399,3 +399,66 @@ func TestRowMovingListsKeepsAnActiveFilterFocused(t *testing.T) {
 		t.Fatalf("focus %s mode %s, want the Panes list and %s", app.r.Focus, app.r.Mode.Name, mode)
 	}
 }
+
+// workingRowApp is a pane that is the only Working row (through its
+// subagent), with the focus on it.
+func workingRowApp(t *testing.T) *App {
+	t.Helper()
+	app := subagentsPaneApp(t)
+	if !inWorking(app) {
+		t.Fatal("w1 should be in Working")
+	}
+	if err := app.selectPaneRow("pane:matomeru/w1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.r.SetFocus("pane:matomeru/w1"); err != nil {
+		t.Fatal(err)
+	}
+	return app
+}
+
+// focusLeavesEmptyList checks that the row left Working, the focus is not
+// on an empty list and j and k move off it.
+func focusLeavesEmptyList(t *testing.T, app *App) {
+	t.Helper()
+	settle(app, follow(app))
+	for _, s := range app.pv.sections {
+		if l := s.tree.List(); l.Focused() && l.Len() == 0 {
+			t.Fatalf("focus %s is on an empty list, mode %s", app.r.Focus, app.r.Mode.Name)
+		}
+	}
+	if app.r.Mode.Name != "normal" {
+		t.Fatalf("mode %s", app.r.Mode.Name)
+	}
+}
+
+// After the focused row leaves its list while a list filter or a confirm
+// held the mode, closing it in normal mode must not leave the focus on the
+// empty list it came from.
+func TestFocusLeavesAnEmptyListAfterTheFilterOrConfirmCloses(t *testing.T) {
+	t.Parallel()
+	t.Run("filter", func(t *testing.T) {
+		t.Parallel()
+		app := workingRowApp(t)
+		press(t, app, "/")
+		typeText(t, app, "zz")
+		setting(t, app, settingSubagentsWorking, false) // the row leaves Working
+		reload(t, app)
+		press(t, app, "esc")
+		focusLeavesEmptyList(t, app)
+	})
+	t.Run("confirm", func(t *testing.T) {
+		t.Parallel()
+		app := workingRowApp(t)
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "kill", Target: "pane:matomeru/w1"}); err != nil {
+			t.Fatal(err)
+		}
+		if app.r.TopModal() == "" {
+			t.Skip("kill opened no confirm")
+		}
+		setting(t, app, settingSubagentsWorking, false)
+		reload(t, app)
+		press(t, app, "esc")
+		focusLeavesEmptyList(t, app)
+	})
+}

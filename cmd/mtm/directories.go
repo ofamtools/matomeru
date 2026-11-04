@@ -789,17 +789,16 @@ func fuzzyMatch(query, text string) bool {
 // default, browse… opens the path picker, esc leaves the project without
 // one. The known directories load in the background when not cached.
 func (a *App) openDirectoryChooser(projectID string) error {
-	return a.chooseDirectoryFor("Directory for "+a.ownerLabel(projectID), projectID, browseAttach, func(path string) ochazuke.Result {
+	return a.chooseDirectoryFor("Directory for "+a.ownerLabel(projectID), projectID, func(path string) ochazuke.Result {
 		return a.attachDefaultDirectory(projectID, path)
 	})
 }
 
 // chooseDirectoryFor asks for a directory through the path chooser
 // (path_sources.go: browse, recent, typed, known, the project's); the
-// directory-chooser setting says which source it opens on. purpose is kept
-// for callers (it was the classic chooser's browse… continuation). use
-// takes the chosen or typed path.
-func (a *App) chooseDirectoryFor(title, projectID, purpose string, use func(string) ochazuke.Result) error {
+// directory-chooser setting says which source it opens on. use takes the
+// chosen or typed path.
+func (a *App) chooseDirectoryFor(title, projectID string, use func(string) ochazuke.Result) error {
 	return a.openPathDirectoryChooser(title, projectID, use)
 }
 
@@ -1036,7 +1035,7 @@ func (a *App) editDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	home, _ := a.home()
-	return resultError(a.chooseDirectoryFor("Move "+tildePath(row.Path, home)+" to", row.ProjectID, browseEdit+row.Path, func(path string) ochazuke.Result {
+	return resultError(a.chooseDirectoryFor("Move "+tildePath(row.Path, home)+" to", row.ProjectID, func(path string) ochazuke.Result {
 		return a.replaceDirectory(row.ProjectID, row.Path, path)
 	}))
 }

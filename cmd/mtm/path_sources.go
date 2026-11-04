@@ -215,8 +215,7 @@ func (a *App) knownDirectoryRows() []ochazuke.ChooserRow {
 }
 
 // refreshPathChoosers fills the open directory choosers after the known
-// directories load: the known-directory chooser's rows, and a path
-// chooser's when it shows the known source.
+// directories load: a path chooser's rows when it shows the known source.
 func (a *App) refreshPathChoosers() {
 	for _, kind := range []string{dirChooser, ochazuke.PathChooserKind} {
 		c := a.r.Chooser(kind)
