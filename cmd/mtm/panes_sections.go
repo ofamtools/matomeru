@@ -86,19 +86,20 @@ const (
 )
 
 const (
-	settingPaneSections    = "panes.sections"
-	settingQueueOrder      = "panes.queue-order"
-	settingSectionLayout   = "panes.section-layout"
-	settingQueuePercent    = "panes.queue-percent"
-	settingPanesPercent    = "panes.panes-percent"
-	settingWorkingPercent  = "panes.working-percent"
-	defaultQueuePercent    = 25
-	defaultPanesPercent    = 60
-	defaultWorkingPercent  = 15
-	sectionTitleQueue      = "Waiting · Review"
-	sectionTitlePanes      = "Panes"
-	sectionTitleWorking    = "Working"
-	sectionAssignSeparator = "="
+	settingPaneSections         = "panes.sections"
+	settingQueueOrder           = "panes.queue-order"
+	settingSectionLayout        = "panes.section-layout"
+	settingQueuePercent         = "panes.queue-percent"
+	settingPanesPercent         = "panes.panes-percent"
+	settingWorkingPercent       = "panes.working-percent"
+	defaultQueuePercent         = 25
+	settingRememberedHighlights = "panes.remembered-highlights"
+	defaultPanesPercent         = 60
+	defaultWorkingPercent       = 15
+	sectionTitleQueue           = "Waiting · Review"
+	sectionTitlePanes           = "Panes"
+	sectionTitleWorking         = "Working"
+	sectionAssignSeparator      = "="
 )
 
 var defaultPaneSections = []string{"waiting=queue", "errored=queue", "unread=queue", "working=working"}
@@ -116,6 +117,8 @@ func paneSectionSettings() []ochazuke.Setting {
 			}}
 	}
 	return []ochazuke.Setting{
+		{Name: settingRememberedHighlights, Type: ochazuke.SettingBoolean, Default: false,
+			Description: "Keep every unfocused pane section's remembered selection bar; off keeps only the displayed row marked. The input-focused list always marks its cursor"},
 		{Name: settingPaneSections, Type: ochazuke.SettingList, Default: defaultPaneSections,
 			Description: "Which list a pane's row goes to, as signal=section: signals waiting, errored, unread, working; sections queue (top), panes (middle), working (bottom). A signal not listed stays in panes",
 			Validate:    validatePaneSections},
@@ -278,6 +281,15 @@ func (a *App) addPaneSections() error {
 		{name: sectionWorking, title: sectionTitleWorking, tree: working},
 	}
 	a.pv.active = 1
+	for _, section := range a.pv.sections {
+		section.tree.List().UnfocusedSelection = func() bool {
+			if a.r.Settings().Bool(settingRememberedHighlights) {
+				return true
+			}
+			node, ok := section.tree.Selected()
+			return ok && node.ID == a.displayedRow()
+		}
+	}
 	for _, s := range []*ochazuke.Tree{queue, working} {
 		a.r.Instances[s.ID()+"/list"].Unfocusable = true // empty until a listing fills it
 	}
@@ -326,13 +338,11 @@ func (a *App) activeSection() *paneSection {
 
 // sectionOf is the index of the section whose list holds row, else -1.
 func (a *App) sectionOf(row string) int {
-	inst := a.r.Instances[row]
-	if inst == nil {
-		return -1
-	}
 	for i, s := range a.pv.sections {
-		if inst.Parent == s.listID() {
-			return i
+		for _, node := range s.nodes {
+			if node.ID == row {
+				return i
+			}
 		}
 	}
 	return -1
@@ -367,7 +377,8 @@ func (a *App) rebuildPanes() error {
 		return nil
 	}
 	a.stampStates(a.panes)
-	row, inst := a.selectedRow()
+	row := a.displayedRow()
+	inst := a.r.Instances[row]
 	a.pv.view = a.buildPaneSections(a.panes, a.now())
 	if err := a.applyPaneSections(); err != nil {
 		return err
@@ -619,12 +630,16 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	view.order = order
 	view.queued, view.working = len(queue), len(bottom)
 	view.nodes = slices.Concat(ss[0].nodes, ss[1].nodes, ss[2].nodes)
+	displayed := ""
+	if a.r.Page == panesPage {
+		displayed = a.displayedRow()
+	}
 	view.panes, view.waiting = 0, 0
 	for _, p := range panes {
 		if p.ID == "" {
 			continue
 		}
-		if section[p.ID] != sectionPanes || a.inScope(view.owners[p.ID]) || p.OwnerUnsaved || a.attached.ID == p.ID {
+		if section[p.ID] != sectionPanes || a.inScope(view.owners[p.ID]) || p.OwnerUnsaved || a.attached.ID == p.ID || p.rowID() == displayed {
 			view.panes++
 		}
 		if p.needsInput() {

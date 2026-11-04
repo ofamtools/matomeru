@@ -53,6 +53,19 @@ func (a *App) selectedRow() (string, *ochazuke.Instance) {
 	return n.ID, a.r.Instances[n.ID]
 }
 
+// displayedRow is the sidebar identity of the detail, including a live
+// terminal or copy view whose input focus is outside the sidebar.
+func (a *App) displayedRow() string {
+	if a.copyShown(paneTermID) {
+		return a.copy.pane.rowID()
+	}
+	if a.liveShown() {
+		return a.attached.rowID()
+	}
+	row, _ := a.selectedRow()
+	return row
+}
+
 // frontsPane reports whether a row stands for a listed pane: a pane row,
 // or the queue row of a pane's signal (its item's row, holding the pane's
 // row id).
@@ -136,6 +149,9 @@ func (a *App) panesUpdate(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, a.pv.after(a.refreshInterval(), refreshDue{}))
 	}
 	if a.r.Page == panesPage {
+		if err := a.followRow(a.displayedRow()); err != nil {
+			a.paneErr = err.Error()
+		}
 		row, _ := a.selectedRow()
 		if row != "" && row != a.pv.viewRow && !a.liveShown() {
 			a.pv.viewRow = row
@@ -967,7 +983,8 @@ func (a *App) liveShown() bool {
 	if term == nil {
 		return false
 	}
-	if a.pv.tab == tabScreen || term.Focused() {
+	row, _ := a.selectedRow()
+	if term.Focused() || a.pv.tab == tabScreen && row == a.attached.rowID() {
 		return true
 	}
 	side := a.r.Terminal(sideTermID)

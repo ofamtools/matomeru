@@ -294,10 +294,14 @@ func (v paneView) columns() []ochazuke.Column {
 	return paneTreeColumns[:2]
 }
 
-// buildPaneTree groups the panes by owner and session, in scope, with the
-// attached pane outside the pin as its own labelled group, and draws the
-// levels panes.group shows.
+// buildPaneTree groups the panes by owner and session, in scope, keeping
+// the attached or displayed pane outside the pin in its own labelled group,
+// and draws the levels panes.group shows.
 func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
+	displayed := ""
+	if a.r.Page == panesPage {
+		displayed = a.displayedRow()
+	}
 	grouping := a.paneGrouping()
 	byProject := grouping == groupProjectPane || grouping == groupProjectSessionPane
 	showSessions := grouping == groupProjectSessionPane || grouping == groupSessionPane
@@ -353,7 +357,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		view.owners[p.ID] = owner
 		switch {
 		case a.inScope(owner) || p.OwnerUnsaved:
-		case a.attached.ID == p.ID:
+		case a.attached.ID == p.ID || p.rowID() == displayed:
 			owner = outsideNode
 		default:
 			view.hidden++

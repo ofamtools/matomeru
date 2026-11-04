@@ -828,6 +828,11 @@ func (a *App) attachLive(p pane, returnTo string) error {
 			return err
 		}
 	}
+	if a.sectionOf(p.rowID()) >= 0 {
+		if err := a.selectPaneRow(p.rowID()); err != nil {
+			return err
+		}
+	}
 	if err := a.r.SetFocus(paneTermID); err != nil {
 		return err
 	}
