@@ -836,6 +836,9 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		}
 		row.Request.Noun = req
 		row.Noun = local
+		// Catalog guards run only in the producing runtime. Host and user
+		// binding files still validate their own guards normally.
+		row.When = ""
 		if row.Keys != "" && slices.Contains(crud[local], strings.Fields(row.Keys)[0]) {
 			dropped = append(dropped, where+": mtm CRUD key takes precedence")
 			continue
@@ -962,7 +965,10 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	bin, env := x.bin, a.extEnv(x.name)
 	project := a.contextProject() // the owner a row it makes or acts on gets (extension_scope.go)
 	op, _ := a.r.Operation(x.nouns[noun] + "." + verb)
-	spec := ocli.CatalogVerb{Foreground: op.Foreground, Result: op.Result}
+	spec := ocli.CatalogVerb{Name: noun + " " + verb, Foreground: op.Foreground, Result: op.Result}
+	if op.Timeout > 0 {
+		spec.Timeout = op.Timeout.String()
+	}
 	if a.quitting && !spec.Foreground {
 		// mtm is closing: no job would run, so the last write runs here.
 		out, err := execExt(context.Background(), bin, env, words...)
@@ -981,15 +987,16 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		if then != nil {
 			then(v, err)
 		}
-		line := ""
-		if err != nil || !ochazuke.IsTextResult(spec.Result) || !a.r.Settings().Bool(ochazuke.KeyTextResultsSetting) || a.r.Settings().String(ochazuke.PaletteTextResultsSetting) == "plain" {
-			line = extResultLine(noun+" "+verb, v, err)
-		}
+		line := extResultLine(noun+" "+verb, v, err)
 		for _, view := range x.views {
 			view.SetStatus(line)
 		}
 		if !a.cli {
 			a.reloadExtension(x)
+		}
+	}).OnPresented(func(ochazuke.Ctx) {
+		for _, view := range x.views {
+			view.SetStatus("")
 		}
 	})
 }

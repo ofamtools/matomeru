@@ -223,7 +223,18 @@ Declared text results from keys open the host's text viewer instead of being
 flattened into a page status line (`keys.text-results`, default `true`;
 `palette.text-results` retains its text policy). Non-text answers retain the
 page status behavior. Foreground verbs hand over the real terminal, including
-stdin, and resume mtm after exit; the 60-second timeout applies only to
-captured runs. The extension remains responsible for its guards. Dropped
-bindings now name their actual conflict or validation error.
+stdin. The host keeps their final stderr reason and waits after a failed exit
+unless `foreground.hold=off`; successful exits resume at once.
+
+Captured runs use the verb's catalog timeout, with 60 seconds as the fallback.
+A catalog slot prevents repeated work on the same row while it runs.
+`jobs.cancel` stops a running job. The library stops Unix process groups and
+allows record finalization before killing descendants.
+
+Only catalog-published rows defer their guards to the extension. User and host
+rows keep their guards and validation. A catalog `disabled` snapshot hides
+setting-disabled verbs; refresh the catalog after changing the remote setting.
+Late key and palette answers do not cover a changed interaction. They leave a
+status message and their full text in `messages.show`, available on `g <`.
+The extension's fallback panel status clears only when a viewer really opens.
 

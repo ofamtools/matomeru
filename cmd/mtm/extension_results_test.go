@@ -77,3 +77,25 @@ func TestExtensionResultPresentation(t *testing.T) {
 		})
 	}
 }
+
+func TestExtensionUserRowKeepsGuard(t *testing.T) {
+	t.Parallel()
+	const catalog = `{"schema":1,"name":"o-fake","version":"1","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application"},{"name":"read","kind":"application","result":"text"}]}],"bindings":[{"noun":"item","mode":"normal","keys":"v","when":"remote-only","request":{"noun":"item","verb":"read"}}]}`
+	bin, _ := fakeExtension(t, catalog, `"item read") printf '%s\n' '"full answer"' ;;`)
+	a := registered(t, seeded(t), "fake", bin)
+	openExtPage(t, a, "ext/fake")
+	if _, err := a.r.LoadBindings([]byte(`[{"noun":"fake.item","mode":"normal","keys":"Z","when":"input","request":{"noun":"fake.item","verb":"read"}}]`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.LoadBindings([]byte(`[{"noun":"fake.item","mode":"normal","keys":"Q","when":"no-such-guard","request":{"noun":"fake.item","verb":"read"}}]`)); err == nil {
+		t.Fatal("unknown user guard was erased")
+	}
+	pressJob(t, a, "Z")
+	if a.r.TopModal() != "" {
+		t.Fatal("host guard did not prevent the key")
+	}
+	pressJob(t, a, "v")
+	if a.r.TopModal() != ochazuke.TextViewID {
+		t.Fatal("catalog guard was evaluated in the host")
+	}
+}
