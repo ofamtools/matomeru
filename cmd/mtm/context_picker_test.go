@@ -359,20 +359,15 @@ func TestLivePickerSavedFiltersAndPropPicker(t *testing.T) {
 		t.Fatalf("backward cycle:\n%s", f)
 	}
 	a.Update(keytest.Msg("alt+backspace", false, false))
-	// ctrl+f opens the prop filter form (list.filter-form, default on): a
-	// field per prop in name order; scope's chips are pane, project, none.
+	// ctrl+f opens the prop filter form (list.filter-form, default on) in
+	// its compact layout: type the prop, Enter lists its values (scope's are
+	// pane, project, none), Escape then Space picks the first, Enter returns
+	// to fields and two Escapes close the form.
 	press(t, a, "ctrl+f")
-	// j walks the form in drawing order (a field's chips may wrap onto
-	// several lines): category created exists id origin origins pane project scope.
-	for i := 0; i < 20 && !strings.HasSuffix(a.r.Focus, "/scope"); i++ {
-		press(t, a, "j")
-	}
-	if !strings.HasSuffix(a.r.Focus, "/scope") {
-		t.Fatalf("filter form focus %s:\n%s", a.r.Focus, frame(a))
-	}
-	press(t, a, "space", "esc")
+	typeText(t, a, "scope")
+	press(t, a, "enter", "esc", "space", "enter", "esc", "esc")
 	if a.r.TopModal() != contextPicker || len(c.Matches()) != 3 {
-		t.Fatalf("nested picker: %s %d", a.r.TopModal(), len(c.Matches()))
+		t.Fatalf("nested picker: %s %d\n%s", a.r.TopModal(), len(c.Matches()), frame(a))
 	}
 	typeText(t, a, "review")
 	a.Update(keytest.Msg("alt+backspace", false, false))

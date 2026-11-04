@@ -19,16 +19,16 @@
     "alt+[",
     "alt+backspace",
     "ctrl+f",
-    "j",
-    "j",
-    "j",
-    "j",
-    "j",
-    "j",
-    "j",
-    "j",
-    "j",
+    "s",
+    "c",
+    "o",
+    "p",
+    "e",
+    "enter",
+    "esc",
     "space",
+    "enter",
+    "esc",
     "esc",
     {
       "type": "review"
@@ -151,20 +151,16 @@
       "after": 14,
       "modal": "list-filter-form",
       "contains": [
-        "category · is",
-        "scope · is",
-        "○ pane"
+        "Sort by",
+        "Field",
+        "Active conditions"
       ]
     },
     {
       "after": 23,
-      "focus": "list-filter-form/scope"
-    },
-    {
-      "after": 24,
       "modal": "list-filter-form",
       "contains": [
-        "● pane"
+        "scope = pane"
       ]
     },
     {
@@ -182,7 +178,7 @@
     },
     {
       "contains": [
-        "\u203a review",
+        "› review",
         "review picker prompt"
       ],
       "lacks": [

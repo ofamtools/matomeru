@@ -203,6 +203,9 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		switch {
 		case row.at == "noun editor", row.at == "noun markdown":
 			// The editor's and the markdown Doc's Vim rows keep a as append.
+		case row.at == "noun filter-form":
+			// ochazuke's list filter form binds D to filter-form.delete-saved
+			// (its saved-filter deletion picker); the key is the library's.
 		case row.keys == "a" || row.keys == "D":
 			t.Errorf("%s still binds %q (%s)", row.at, row.keys, row.op)
 		case row.keys == "q" && !closers[row.op]:
