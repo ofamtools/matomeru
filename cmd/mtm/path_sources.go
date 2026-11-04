@@ -222,7 +222,7 @@ func (a *App) refreshPathChoosers() {
 		c := a.r.Chooser(kind)
 		switch {
 		case c == nil:
-		case c.Source() == "":
+		case c.Source() == knownChooserSource:
 			c.SetRows(a.directoryChoices())
 		case c.Source() == pathSourceKnown:
 			c.SetRows(a.knownDirectoryRows())
