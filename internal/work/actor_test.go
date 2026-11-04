@@ -39,6 +39,7 @@ func TestMayChangeTaskDecisions(t *testing.T) {
 	get := lookupOf(lane, under, unknown, elsewhere, ownerElsewhere, mine)
 	status := func(t Task) *Task { t.Status = StatusDone; return &t }
 	rename := func(t Task) *Task { t.Title = "new words"; return &t }
+	archive := func(t Task, value bool) *Task { t.Archived = value; return &t }
 	def := DefaultAgentPolicy()
 	for _, c := range []struct {
 		name string
@@ -50,13 +51,19 @@ func TestMayChangeTaskDecisions(t *testing.T) {
 		{"own pane anywhere", def, mine, rename(mine), true},
 		{"agent-made under the lane, wholly", def, under, rename(under), true},
 		{"owner's lane task: status", def, lane, status(lane), true},
+		{"owner's lane task: archive", def, lane, archive(lane, true), true},
+		{"owner's lane task: restore", def, *archive(lane, true), archive(lane, false), true},
 		{"owner's lane task: wording", def, lane, rename(lane), false},
 		{"owner's lane task: delete", def, lane, nil, false},
 		{"unknown under the lane: status", def, unknown, status(unknown), true},
+		{"unknown under the lane: archive", def, unknown, archive(unknown, true), true},
+		{"unknown under the lane: restore", def, *archive(unknown, true), archive(unknown, false), true},
 		{"unknown under the lane: wording", def, unknown, rename(unknown), false},
 		{"owner's outside the lane: status", def, ownerElsewhere, status(ownerElsewhere), false},
+		{"owner's outside the lane: archive", def, ownerElsewhere, archive(ownerElsewhere, true), false},
 		{"other lane", def, elsewhere, status(elsewhere), false},
 		{"title added to the props", AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent}, OwnerTaskProps: []string{"status", "title"}}, lane, rename(lane), true},
+		{"archive removed from the props", AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent}, OwnerTaskProps: []string{"status"}}, lane, archive(lane, true), false},
 		{"owner among the makers", AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent, ActorOwner}}, lane, nil, true},
 		{"project scope", AgentPolicy{WriteScope: ScopeProject, WriteMakers: []string{ActorAgent}}, elsewhere, rename(elsewhere), true},
 		{"own scope", AgentPolicy{WriteScope: ScopeOwn, WriteMakers: []string{ActorAgent}}, under, status(under), false},
@@ -67,7 +74,8 @@ func TestMayChangeTaskDecisions(t *testing.T) {
 		}
 	}
 	err := MayChangeTask(me, def, lane, rename(lane), get)
-	if err == nil || !strings.Contains(err.Error(), "the owner or the coordinator") || !strings.Contains(err.Error(), "agents.owner-task-props is status, not title") {
+	if err == nil || !strings.Contains(err.Error(), "the owner or the coordinator") ||
+		!strings.Contains(err.Error(), "agents.owner-task-props") || !strings.Contains(err.Error(), "title") {
 		t.Errorf("refusal does not name who to ask and the setting: %v", err)
 	}
 	if err := MayChangeTask(Owner(), AgentPolicy{WriteScope: ScopeOwn}, lane, nil, get); err != nil {

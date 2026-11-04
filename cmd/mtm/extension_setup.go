@@ -30,12 +30,12 @@ import (
 //	no setup     the catalog declares no setup items
 //	unknown      the tool's plan failed (the error is in the detail)
 //
-// The verbs: extension.setup (install, confirmed with the plan's
-// summary; agents never), extension.setup-plan (the whole plan as text),
-// extension.setup-status (data for the CLI and MCP; every registered
-// extension when NAME is omitted) and extension.setup-undo (uninstall,
-// confirmed; agents never). Nothing here names an extension: any tool
-// whose catalog has the setup noun works.
+// The verbs: extension.setup (install, confirmed with the plan's summary
+// for the owner; allowed agents pass the prompt), extension.setup-plan
+// (the whole plan as text), extension.setup-status (data for the CLI and
+// MCP; every registered extension when NAME is omitted) and extension.setup-undo
+// (uninstall, with the same confirmation policy). Nothing here names an
+// extension: any tool whose catalog has the setup noun works.
 
 // extSetupNoun is ochazuke's shared setup noun in a catalog.
 const extSetupNoun = "ochazuke.setup"

@@ -150,23 +150,23 @@ func TestSummarizeSetupCounts(t *testing.T) {
 	}
 }
 
-// Agents never run setup or its undo (the verbs are declared never: the
-// owner confirms installs); the plan and status stay theirs to read.
-func TestExtensionSetupRefusedForAgents(t *testing.T) {
+// Agents may install and undo recoverable setup, without an owner prompt;
+// the plan stays theirs to read.
+func TestExtensionSetupAllowedForAgents(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	setupTool(t, dir, "todo", "missing", true)
 	a := setupApp(t, dir, "todo")
 	a.getenv = envOf(map[string]string{actorEnv: `{"kind":"agent","harness":"claude","pane":"w1"}`})
-	for _, verb := range []string{"setup", "setup-undo"} {
-		_, errOut, err := cli(a, "", "extension", verb, "todo", "--yes")
-		if err == nil || !strings.Contains(errOut+err.Error(), "agents may never run") && !strings.Contains(errOut+err.Error(), "agents never delete") {
-			t.Fatalf("%s as an agent: %v %q", verb, err, errOut)
+	for _, step := range []struct {
+		verb, state string
+	}{{"setup", "installed"}, {"setup-undo", "missing"}} {
+		if _, errOut, err := cli(a, "", "extension", step.verb, "todo"); err != nil {
+			t.Fatalf("%s as an agent: %v %q", step.verb, err, errOut)
 		}
-	}
-	for _, call := range toolCalls(t, dir, "todo") {
-		if strings.Contains(call, "install") {
-			t.Fatalf("the tool was asked %q", call)
+		state, err := os.ReadFile(filepath.Join(dir, "todo.setup"))
+		if err != nil || strings.TrimSpace(string(state)) != step.state {
+			t.Fatalf("%s did not write %s: %q %v", step.verb, step.state, state, err)
 		}
 	}
 	if out, errOut, err := cli(a, "", "extension", "setup-plan", "todo"); err != nil || !strings.Contains(out, "Harness hook") {
