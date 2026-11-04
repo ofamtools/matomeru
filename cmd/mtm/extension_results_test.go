@@ -12,13 +12,26 @@ import (
 func TestExtensionResultPresentation(t *testing.T) {
 	t.Parallel()
 	const catalog = `{"schema":1,"name":"o-fake","version":"1","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application"},{"name":"read","kind":"application","result":"text"}]}],"bindings":[{"noun":"item","mode":"normal","keys":"g v","when":"remote-only","request":{"noun":"item","verb":"read"}}],"pages":[]}`
-	for _, change := range []string{"none", "focus", "page", "off", "palette"} {
+	for _, change := range []string{"none", "focus", "page", "off", "palette", "all-structured", "all-string"} {
 		t.Run(change, func(t *testing.T) {
-			bin, _ := fakeExtension(t, catalog, `"item read") printf '%s\n' '"Decision\nUse staged rollout."' ;;`)
+			spec, answer := catalog, `"item read") printf '%s\n' '"Decision\nUse staged rollout."' ;;`
+			if strings.HasPrefix(change, "all-") {
+				spec = strings.Replace(catalog, `"result":"text"`, `"result":"JSON value"`, 1)
+				answer = `"item read") printf '%s\n' '{"decision":"approved"}' ;;`
+				if change == "all-string" {
+					answer = `"item read") printf '%s\n' '"ordinary answer"' ;;`
+				}
+			}
+			bin, _ := fakeExtension(t, spec, answer)
 			a := registered(t, seeded(t), "fake", bin)
 			openExtPage(t, a, "ext/fake")
 			if err := a.r.SetFocus("ext/fake/item/i1"); err != nil {
 				t.Fatal(err)
+			}
+			if strings.HasPrefix(change, "all-") {
+				if err := a.r.Settings().Set(ochazuke.PaletteTextResultsSetting, "all"); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if change == "palette" {
 				pressJob(t, a, ":")
@@ -51,6 +64,15 @@ func TestExtensionResultPresentation(t *testing.T) {
 				}
 			} else if a.r.TopModal() != "" {
 				t.Fatal("late result covered new interaction")
+			}
+			if strings.HasPrefix(change, "all-") {
+				want := `item read: {"decision":"approved"}`
+				if change == "all-string" {
+					want = `item read: "ordinary answer"`
+				}
+				if !strings.Contains(frame(a), want) {
+					t.Fatalf("unpresented answer lost its status %q:\n%s", want, frame(a))
+				}
 			}
 		})
 	}
