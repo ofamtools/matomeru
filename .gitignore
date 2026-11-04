@@ -6,3 +6,4 @@ go.work
 go.work.sum
 .worktrees/
 /bin/
+*.bak-20*
