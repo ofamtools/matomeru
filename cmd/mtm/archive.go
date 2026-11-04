@@ -1,0 +1,115 @@
+package main
+
+import (
+	"slices"
+
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
+)
+
+const settingHideArchived = "list.hide-archived"
+
+func (a *App) archiveVisible(archived bool, lists ...*ochazuke.List) bool {
+	if !archived || !a.r.Settings().Bool(settingHideArchived) {
+		return true
+	}
+	for _, list := range lists {
+		if list != nil && slices.ContainsFunc(list.PropFilters(), func(f ochazuke.PropFilter) bool { return f.Prop == "archived" }) {
+			return true
+		}
+	}
+	return false
+}
+
+// liveTasks hides entire archived branches without changing any child's row.
+// Missing parents and legacy cycles retain their ordinary live rows.
+func (a *App) liveTasks(tasks []work.Task, lists ...*ochazuke.List) []work.Task {
+	if a.archiveVisible(true, lists...) {
+		return tasks
+	}
+	byID := make(map[string]work.Task, len(tasks))
+	for _, t := range tasks {
+		byID[t.ID] = t
+	}
+	hidden := make(map[string]bool, len(tasks))
+	visiting := make(map[string]bool)
+	var archived func(string) bool
+	archived = func(id string) bool {
+		if value, ok := hidden[id]; ok {
+			return value
+		}
+		t, ok := byID[id]
+		if !ok || visiting[id] {
+			return false
+		}
+		visiting[id] = true
+		hidden[id] = t.Archived || archived(t.ParentID)
+		delete(visiting, id)
+		return hidden[id]
+	}
+	return slices.DeleteFunc(tasks, func(t work.Task) bool { return archived(t.ID) })
+}
+
+// Standard lists must retain archived rows for explicit archive conditions.
+// The library applies the condition itself; mtm also hides task descendants.
+func (a *App) queryShowsArchived(c ochazuke.Ctx, q ochazuke.ListQuery, noun string) bool {
+	if !a.r.Settings().Bool(settingHideArchived) {
+		return true
+	}
+	if _, explicit := q.Where["archived"]; explicit {
+		return true
+	}
+	filters, err := a.r.SavedFilters("", noun)
+	if err != nil {
+		return false // runList has already validated the named filter.
+	}
+	for _, filter := range filters {
+		if filter.Name != ochazuke.StringArg(c.Args, "filter", "") {
+			continue
+		}
+		if _, explicit := filter.Where["archived"]; explicit {
+			return true
+		}
+		return slices.ContainsFunc(filter.Conditions, func(f ochazuke.PropFilter) bool { return f.Prop == "archived" })
+	}
+	return false
+}
+
+func (a *App) refreshArchiveViews() error {
+	for _, refresh := range []func() error{a.refreshTasks, a.refreshProjects, a.reloadOutline, a.refreshNotes, a.refreshContext} {
+		if err := refresh(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *App) observeArchiveViews() {
+	for _, row := range []struct {
+		list    *ochazuke.List
+		refresh func() error
+	}{{a.taskList, a.refreshTasks}, {a.noteList, a.refreshNotes}, {a.cx.list, a.refreshContext}} {
+		a.observeArchiveList(row.list, row.refresh)
+	}
+	a.r.Settings().Observe(settingHideArchived, func(string, any) {
+		if err := a.refreshArchiveViews(); err != nil {
+			a.r.UI().Notify(settingHideArchived + ": " + err.Error())
+		}
+	})
+}
+
+// Refill an app-owned source when a prop filter explicitly requests archives.
+// SetItems can hear the callback again; record the new state before refilling.
+func (a *App) observeArchiveList(list *ochazuke.List, refresh func() error) {
+	shown := a.archiveVisible(true, list)
+	list.OnFilter(func(*ochazuke.List) {
+		next := a.archiveVisible(true, list)
+		if next == shown {
+			return
+		}
+		shown = next
+		if err := refresh(); err != nil {
+			a.r.UI().Notify(err.Error())
+		}
+	})
+}

@@ -57,9 +57,6 @@ func TestTaskVerbsAreStandard(t *testing.T) {
 	if presets["task.done"] != `{"prop":"status","value":"done"}` || presets["task.status"] != `{"prop":"status","require-summary":true}` {
 		t.Fatalf("aliases of task.set: %v", presets)
 	}
-	if _, ok := a.r.Operation("task.archive"); ok {
-		t.Fatal("a task has no archive prop, so no archive verb")
-	}
 	if ps, ok := a.r.PropOf("task", "position"); !ok || !ps.ReadOnly {
 		t.Fatalf("position: %+v %v", ps, ok)
 	}

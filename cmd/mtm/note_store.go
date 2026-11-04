@@ -46,6 +46,7 @@ func noteProps() []ochazuke.PropSpec {
 			Description: "The project the note belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 			Description: "The task the note belongs to; its project wins over project"}},
+		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the note and hide it from default views"}},
 		taskMakerProp(),
 		{Name: "created-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "object", Description: "The note's recorded maker and agent identity"}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note was created (Unix ms)"}},
@@ -103,6 +104,7 @@ func (a *App) noteThing(n work.Note) ochazuke.Thing {
 		"id": n.ID, "title": n.Title, "summary": noteLabel(n.Text), "text": n.Text,
 		"project": project, "task": n.TaskID, "created": n.Created, "updated": n.Updated,
 		"made-by": n.MadeBy(), "created-by": n.Maker(),
+		"archived": n.Archived,
 	}
 }
 
@@ -176,6 +178,7 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	note.ProjectID, note.TaskID = a.noteOwner(c, project, hasProject, task, hasTask)
 	note.Title, _ = str("title")
 	note.Text, _ = str("text")
+	note.Archived, _ = values["archived"].(bool)
 	if err := a.work.PutNote(note); err != nil {
 		return nil, err
 	}
@@ -223,6 +226,9 @@ func (a *App) patchNote(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	}
 	if v, ok := str("text"); ok {
 		note.Text = v
+	}
+	if v, ok := changes["archived"].(bool); ok {
+		note.Archived = v
 	}
 	project, hasProject := str("project")
 	task, hasTask := str("task")

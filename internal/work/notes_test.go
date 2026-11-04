@@ -29,13 +29,14 @@ func TestLegacyNoteEditPreservesUnknownFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	notes, err := w.Notes()
-	if err != nil || len(notes) != 1 || notes[0].Text != "legacy" {
+	if err != nil || len(notes) != 1 || notes[0].Text != "legacy" || notes[0].Archived {
 		t.Fatalf("notes: %+v, %v", notes, err)
 	}
 	if project, err := w.NoteProject(notes[0]); err != nil || project != "p" {
 		t.Fatalf("inherited owner: %q, %v", project, err)
 	}
 	notes[0].Text = "  revised\nbody\n"
+	notes[0].Archived = true
 	if err := w.PutNote(notes[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -47,8 +48,22 @@ func TestLegacyNoteEditPreservesUnknownFields(t *testing.T) {
 		t.Fatalf("lost legacy data: %s", saved)
 	}
 	got, err := w.Note("old")
-	if err != nil || got.Text != "  revised\nbody\n" || got.Created != 12 || got.TaskID != "t" {
+	if err != nil || got.Text != "  revised\nbody\n" || got.Created != 12 || got.TaskID != "t" || !got.Archived {
 		t.Fatalf("edited: %+v, %v", got, err)
+	}
+	got.Archived = false
+	if err := w.PutNote(got); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Get("notes", "old", &saved); err != nil {
+		t.Fatal(err)
+	}
+	if string(saved["future"]) != `[1,true,"x"]` {
+		t.Fatalf("restore lost unknown data: %s", saved)
+	}
+	got, err = w.Note("old")
+	if err != nil || got.Archived {
+		t.Fatalf("archive restore: %+v %v", got, err)
 	}
 	empty, err := w.AddNote("", "", "")
 	if err != nil {

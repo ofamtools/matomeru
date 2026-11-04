@@ -172,3 +172,29 @@ func TestUpdateKeepsTheRowAndPutRestoresIt(t *testing.T) {
 		t.Fatal("put without an id succeeded")
 	}
 }
+
+func TestArchiveSurvivesRepeatedSightings(t *testing.T) {
+	t.Parallel()
+	s, err := Open(legacyDB(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const id = "d282380401c62009ce27ec6e4ea0c6ed"
+	before, err := s.Get(id)
+	if err != nil || before.Archived {
+		t.Fatalf("legacy row: %+v %v", before, err)
+	}
+	if _, err := s.Update(id, func(it *Item) { it.Archived = true }); err != nil {
+		t.Fatal(err)
+	}
+	seen := before
+	seen.Sources = []Source{{Kind: "history", Window: "new-pane", At: 123}}
+	rows, added, err := s.Merge([]Item{seen}, Owner{ProjectID: before.ProjectID}, before.Seen()+1)
+	if err != nil || added != 0 || len(rows) != 1 || !rows[0].Archived || rows[0].ID != id || rows[0].Provenance != before.Provenance {
+		t.Fatalf("sighting resurrected or replaced archived item: %+v added=%d %v", rows, added, err)
+	}
+	restored, err := s.Update(id, func(it *Item) { it.Archived = false })
+	if err != nil || restored.Archived || len(restored.Sources) != 2 || restored.Text != before.Text {
+		t.Fatalf("restore lost sightings or text: %+v %v", restored, err)
+	}
+}

@@ -228,6 +228,7 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.ChooserRow {
 	if err != nil {
 		a.r.UI().Error("tasks: " + err.Error())
 	}
+	tasks = a.liveTasks(tasks)
 	byID := make(map[string]work.Task, len(tasks))
 	for _, t := range tasks {
 		byID[t.ID] = t
@@ -254,7 +255,7 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.ChooserRow {
 		return ochazuke.ChooserRow{ID: "project:" + p.ID, Label: label, Data: pickedOwner{project: p.ID}}
 	}
 	if owner.TaskID != "" {
-		if t, err := a.work.Task(owner.TaskID); err == nil {
+		if t, ok := byID[owner.TaskID]; ok {
 			rows = append(rows, taskRow(t, true))
 		}
 	} else if p, ok := a.project(owner.ProjectID); ok {

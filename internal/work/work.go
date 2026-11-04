@@ -66,6 +66,7 @@ type Task struct {
 	Theme           Theme  `json:"theme"`
 	Status          string `json:"status"`
 	Easy            bool   `json:"easy"`
+	Archived        bool   `json:"archived,omitempty"`
 	SnoozedUntil    int64  `json:"snoozed_until,omitempty"`
 	Created         int64  `json:"created"`
 	Updated         int64  `json:"updated"`

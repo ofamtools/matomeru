@@ -135,6 +135,9 @@ func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
 	}
 	var own, theirs, loose []contextitems.Item
 	for _, it := range a.cx.items { // newest sighting first
+		if !a.archiveVisible(it.Archived) {
+			continue
+		}
 		owner := itemProject(it, tasks)
 		switch {
 		case fromPane(it):

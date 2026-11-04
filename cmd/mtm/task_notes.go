@@ -32,6 +32,7 @@ func (a *App) syncOutlineNotes(force bool) error {
 			return err
 		}
 		o.notes = list
+		a.observeArchiveList(list, func() error { return a.syncOutlineNotes(true) })
 	}
 	task := ""
 	if node, ok := o.tree.Selected(); ok && node.Noun == outlineTaskNoun {
@@ -45,8 +46,9 @@ func (a *App) syncOutlineNotes(force bool) error {
 		return err
 	}
 	rows := []ochazuke.ListItem{}
+	showArchived := a.archiveVisible(true, o.notes)
 	for _, n := range notes {
-		if task == "" || n.TaskID != task {
+		if task == "" || n.TaskID != task || n.Archived && !showArchived {
 			continue
 		}
 		rows = append(rows, a.modalNoteRow(n))

@@ -1,0 +1,17 @@
+{
+  "name": "mtm: archived saved task filter refills the app-owned tree source",
+  "area": "tasks",
+  "fixture": "nested",
+  "skip": "gap: ochazuke v0.85.0 tree prop/saved-filter changes do not notify List.OnFilter, so the app-owned source cannot refill archived rows. The coordinator owns the general library fix; no verb-specific app workaround.",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    ":", {"type": "task archive t13"}, "enter",
+    "tab",
+    ":", {"type": "list filter-saved archived"}, "enter"
+  ],
+  "expect": [
+    {"contains": ["[archived]", "Shipping estimate: API client"]}
+  ]
+}

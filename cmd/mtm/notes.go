@@ -19,7 +19,7 @@ func (a *App) defineNotes() {
 	// set, delete, watch, rename, move, duplicate) come from them
 	// (note_store.go); new and edit wrap create and set, view and
 	// choose-move are mtm's own.
-	a.r.Define("note").Props(noteProps()...).Filters(taskFilters()...).Store(a.noteStore()).Columns(noteColumns...).
+	a.r.Define("note").Filters(taskFilters()...).Props(noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
 		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").
@@ -196,8 +196,12 @@ func (a *App) setNoteRows() error {
 		marked[d.ID] = true
 	}
 	now := a.now()
+	showArchived := a.archiveVisible(true, a.noteList)
 	items := make([]ochazuke.ListItem, 0, len(notes)+len(drafts))
 	for _, note := range notes {
+		if note.Archived && !showArchived {
+			continue
+		}
 		// The label is the title, else the first line (a confirm reads
 		// it); the owner is in its own cells.
 		first := noteTitle(note)
@@ -489,6 +493,9 @@ func (a *App) detailNotes(project, task string) string {
 	}
 	var lines []string
 	for _, note := range notes {
+		if !a.archiveVisible(note.Archived) {
+			continue
+		}
 		owner, err := a.work.NoteProject(note)
 		if err != nil {
 			return "\n\nnotes: " + err.Error()

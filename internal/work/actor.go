@@ -142,7 +142,7 @@ var (
 
 // DefaultAgentPolicy is the policy with no settings (Owner decision 14).
 func DefaultAgentPolicy() AgentPolicy {
-	return AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent}, OwnerTaskProps: []string{"status"}, AssociateScope: ScopeOwnPane}
+	return AgentPolicy{WriteScope: ScopeSubtree, WriteMakers: []string{ActorAgent}, OwnerTaskProps: []string{"status", "archived"}, AssociateScope: ScopeOwnPane}
 }
 
 // RefusedError is a write an agent may not make. It names who made the
@@ -225,7 +225,7 @@ func TaskUnder(id, root string, get TaskLookup) bool {
 
 // TaskChanges names the props a write of new over old changes, by the
 // task noun's prop names (title, status, project, parent, position, easy,
-// snoozed-until, private, theme). The maker and the stamps are not props
+// snoozed-until, private, archived, theme). The maker and the stamps are not props
 // a caller changes (StampTask keeps an agent's maker as stored).
 func TaskChanges(old, new Task) []string {
 	var out []string
@@ -242,6 +242,7 @@ func TaskChanges(old, new Task) []string {
 	add(old.Easy != new.Easy, "easy")
 	add(old.SnoozedUntil != new.SnoozedUntil, "snoozed-until")
 	add(old.Private != new.Private, "private")
+	add(old.Archived != new.Archived, "archived")
 	add(old.Theme != new.Theme, "theme")
 	return out
 }

@@ -1,0 +1,30 @@
+ |  ◆ Matomeru · no pin · inbox 1/2                                                                        NORMAL
+ |   Inbox  › Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Runs  Extensions
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  projects (4)                        ◆ acme-web · 2 active · 3 todo · 1 blocked · 2 done
+ |  project   ╭──────────────────────────────────────────────────────────────────────────────────────────────╮ated
+r|  ◆ acme-web│ Tasks · acme-web                                                                             │
+ |  ◆ billing-│ top: the project · i renames · o/n add a task · tab into the one above                       │t now
+ |  ◆ docs-sit│ tasks: o add · tab nest · shift+tab out (top: a project) · x done · s status                 │
+ |  no project│                                                                                              │
+ |            │ task                                                    status   by                          │
+ |            │ ▾ acme-web                                                                                   │
+R|            │   ▾ [>] Checkout page: show the shipping estimate       active   me                          │
+ |            │     ▾ [ ] Shipping estimate: API client                 todo     me                          │
+ |            │         [>] Mock the carrier API                        active   me                          │
+ |            │       [x] Shipping estimate: copy                       done     me                          │
+ |            │     [ ] Move the cart drawer to the new design tokens   todo     me                          │
+ |            │     [!] Upgrade the image CDN (waiting on billing-api)  blocked  me                          │
+ |            │     [ ] Flaky test: login redirect on Safari            todo     me                          │
+ |            │     [x] Dark mode for the order history                 done     me                          │
+ |            │ notes                                                                                        │
+ |            │ no rows                                                                                      │
+ |            │                                                                                              │
+ |            │                                                                                              │
+ |            │                                                                                              │
+ |            │ x outline-task.toggle · s outline-task.status · enter outline.fold · shift+tab make project… │
+ |            ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+ |                                      1–12 / 16
+ |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ |  x outline-task.toggle · s outline-task.status · enter outline.fold · shift+tab make project · space list.mark · z ]…
+ |

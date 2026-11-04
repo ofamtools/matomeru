@@ -19,7 +19,7 @@ func (a *App) defineTask() {
 	// set, watch, rename, move, duplicate) come from them (task_store.go);
 	// new and edit wrap create and set; done and status are aliases of
 	// set; the rest are mtm's own.
-	r.Define("task").Props(taskProps()...).Filters(taskFilters()...).Store(a.taskStore()).Columns(taskColumns...).
+	r.Define("task").Filters(taskFilters()...).Props(taskProps()...).Store(a.taskStore()).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
 		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").
@@ -77,6 +77,7 @@ func (a *App) refreshTasks() error {
 		if err != nil {
 			return err
 		}
+		rows = a.liveTasks(rows, a.taskList)
 		// The tasks follow the selected project row whatever the pin: the
 		// projects list shows every project, and selecting one shows its
 		// tasks without pinning it (the "no pin" rule, 2026-10-26).

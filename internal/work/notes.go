@@ -19,6 +19,7 @@ type Note struct {
 	Text            string `json:"text"`
 	ProjectID       string `json:"project_id"`
 	TaskID          string `json:"task_id"`
+	Archived        bool   `json:"archived,omitempty"`
 	FormerProjectID string `json:"former_project_id,omitempty"`
 	FormerTaskID    string `json:"former_task_id,omitempty"`
 	Created         int64  `json:"created"`
@@ -38,7 +39,7 @@ func (n *Note) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &n.extra); err != nil {
 		return err
 	}
-	for _, key := range []string{"id", "title", "text", "project_id", "task_id", "former_project_id", "former_task_id", "created", "updated", "created_by"} {
+	for _, key := range []string{"id", "title", "text", "project_id", "task_id", "archived", "former_project_id", "former_task_id", "created", "updated", "created_by"} {
 		delete(n.extra, key)
 	}
 	return nil

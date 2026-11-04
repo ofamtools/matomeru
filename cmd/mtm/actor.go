@@ -43,7 +43,7 @@ func agentSettings() []ochazuke.Setting {
 		{Name: settingAgentsWriteMakers, Type: ochazuke.SettingList, Default: def.WriteMakers,
 			Description: "Whose tasks inside agents.write-scope an agent may change wholly, by made-by: agent, unknown (made before mtm recorded makers), owner; any other maker's tasks change only in agents.owner-task-props"},
 		{Name: settingAgentsOwnerTaskProps, Type: ochazuke.SettingList, Default: def.OwnerTaskProps,
-			Description: "The props an agent may change on a task inside agents.write-scope that the owner made (or that is unknown): status by default (done, active, blocked); title, project, parent, position, easy, snoozed-until, private and theme can be added; a refused agent is told to ask the owner or the coordinator"},
+			Description: "The props an agent may change on a task inside agents.write-scope that the owner made (or that is unknown): status and archived by default; title, project, parent, position, easy, snoozed-until, private and theme can be added; a refused agent is told to ask the owner or the coordinator"},
 		{Name: settingAgentsAssociateScope, Type: ochazuke.SettingString, Default: def.AssociateScope, Enum: work.AssociateScopes,
 			Description: "Which panes an agent may associate with a task or project: own-pane (its own and the panes it launched or opened beside it), any-pane or none"},
 	}
@@ -248,6 +248,8 @@ func taskFilters() []ochazuke.SavedFilter {
 		{Name: madeByMine, Where: map[string]any{"made-by": work.ActorOwner}},
 		{Name: madeByAgents, Where: map[string]any{"made-by": work.ActorAgent}},
 		{Name: madeByAll},
+		// Keep existing cycle positions; the archive-role default otherwise prepends.
+		{Name: "archived", Where: map[string]any{"archived": true}},
 	}
 }
 

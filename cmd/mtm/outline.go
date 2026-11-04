@@ -142,7 +142,7 @@ func (a *App) defineOutline() {
 	// selection (V) they act on every selected task, as one undo step;
 	// the outline's toggle and status (on the modal) stay for the
 	// palette and for the rows that are not tasks, which they refuse.
-	a.r.Define(outlineTaskNoun).Props(taskMakerProp()).Filters(taskFilters()...).
+	a.r.Define(outlineTaskNoun).Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
 		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
@@ -346,6 +346,7 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 	tree.NewID = func() string { return outlineNode(work.NewID()) }
 	tree.RowNoun = outlineTaskNoun
 	tree.OnChange = func(c ochazuke.TreeChange) error { return a.writeOutline(state, c) }
+	a.observeArchiveList(tree.List(), a.reloadOutline)
 	if focus != "" {
 		_ = tree.Select(outlineNode(focus))
 	} else if !scope.all && len(nodes) > 1 {
@@ -446,6 +447,11 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 	if err != nil {
 		return nil, err
 	}
+	var list *ochazuke.List
+	if o.tree != nil {
+		list = o.tree.List()
+	}
+	tasks = a.liveTasks(tasks, list)
 	owned := func(project string) []work.Task {
 		var out []work.Task
 		for _, t := range tasks {

@@ -1,0 +1,16 @@
+{
+  "name": "mtm: palette restores an exact archived id despite other live ids sharing its prefix",
+  "area": "tasks",
+  "fixture": "nested",
+  "skip": "gap: ochazuke v0.85.0 restore id completion reads the default live task.list. Archived t1 is absent, so t10/t11/t12 make the exact free literal t1 ambiguous. Needs a general archive-aware source or literal-resolution fix, not an app verb-name branch.",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    ":", {"type": "task archive t1"}, "enter",
+    ":", {"type": "task restore t1"}, "enter"
+  ],
+  "expect": [
+    {"contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"], "lacks": ["ambiguous"]}
+  ]
+}

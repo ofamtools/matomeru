@@ -65,9 +65,6 @@ func TestNoteVerbsAreStandard(t *testing.T) {
 	if !found {
 		t.Fatal("note.associate is not a deprecated alias of note.move")
 	}
-	if _, ok := a.r.Operation("note.archive"); ok {
-		t.Fatal("a note has no archive prop, so no archive verb")
-	}
 }
 
 // A note written before titles existed shows as before (its first line);

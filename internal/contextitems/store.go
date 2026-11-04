@@ -41,6 +41,7 @@ type Item struct {
 	TaskID     string     `json:"task_id"`
 	Starred    bool       `json:"starred"`
 	Pinned     bool       `json:"pinned"`
+	Archived   bool       `json:"archived,omitempty"`
 	Created    int64      `json:"created"`
 	Sources    []Source   `json:"sources"`
 	Group      string     `json:"group,omitempty"`

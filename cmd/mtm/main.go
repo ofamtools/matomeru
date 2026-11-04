@@ -711,6 +711,7 @@ func New(opts Options) (*App, error) {
 	// After the first mount: its read of the naming loads settings.json,
 	// which would tell an observer of the change from the default.
 	a.observeExtNounNames()
+	a.observeArchiveViews()
 	if err := a.refreshReviews(); err != nil {
 		db.Close()
 		return nil, err
@@ -780,6 +781,7 @@ func (a *App) refreshProjects() error {
 	if err != nil {
 		return err
 	}
+	tasks = a.liveTasks(tasks)
 	open := map[string]int{}
 	for _, t := range tasks {
 		if t.Status != work.StatusDone {

@@ -107,15 +107,35 @@ stamped `created-by` that agent (`made-by` agent), and every write it makes
 is `changed-by` it. What it may change is data, the `agents.*` settings: by default the tasks
 its pane or lane made, the agent-made tasks of its lane task's subtree
 (`agents.write-scope` subtree, `agents.write-makers` agent) wholly, and the
-status only of the owner's (or unknown) tasks in that subtree
-(`agents.owner-task-props` status), so `task_done` and `task_status` work
-on the lane task the owner made; and its own pane and the panes it launched
-or opened beside it (`agents.associate-scope` own-pane). Any other write
-(the owner's wording, a move, a delete, a task outside the lane) is
+status and archive flag of the owner's (or unknown) tasks in that subtree
+(`agents.owner-task-props` defaults to `status`, `archived`), so an agent can
+archive and restore its owner-made lane task without changing its wording.
+Pane association remains limited to its own pane and the panes it launched
+or opened beside it (`agents.associate-scope` own-pane). Other task writes
+(the owner's wording, a move, a task outside the lane) are
 refused with a message naming who to ask (the owner or the coordinator)
 and the setting that refused it. The CLI follows the same rule inside an
 agent's pane (`MTM_ACTOR=owner` overrides it); the TUI is always the owner,
 and the owner is never refused.
+
+## Archive instead of delete
+
+`task.archive`, `note.archive` and `context-item.archive` retain their records;
+their `restore` verbs clear the archive flag. Both operations support many
+subjects and history undo, with the caller recorded on every change. Notes
+retain their bodies and unknown legacy fields; context items retain sightings
+and provenance. Old records without `archived` read as live; no archive
+migration rewrites them.
+
+Default lists, Work tasks, task outlines, Notes, note details and context
+sources hide archived rows. A task's descendants hide with its parent, but
+their own flags and parent links do not change. Restoring the parent reveals
+live descendants without restoring independently archived children.
+`list.hide-archived` defaults to `true`; `false` includes archived records
+in these views. Standard list calls also accept `--filter archived` or an
+explicit `--where archived=true`; `get` and `set` still address archived ids.
+Compared with Vim: not applicable; these are retained workspace records,
+not editor-buffer deletes.
 
 ## Which pane am I
 

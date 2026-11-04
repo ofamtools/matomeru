@@ -1,0 +1,26 @@
+{
+  "name": "mtm: archive hides a task subtree without deleting it, opt-out shows it and restore brings it back",
+  "area": "tasks",
+  "fixture": "nested",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j",
+    ":", {"type": "task archive t13"}, "enter",
+    ":", {"type": "settings set list.hide-archived false"}, "enter",
+    ":", {"type": "settings set list.hide-archived true"}, "enter",
+    ":", {"type": "task restore t13"}, "enter",
+    "O",
+    ":", {"type": "task archive t13"}, "enter",
+    ":", {"type": "task restore t13"}, "enter"
+  ],
+  "expect": [
+    {"after": 1, "page": "work", "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},
+    {"after": 4, "contains": ["Checkout page: show the shipping estimate", "Move the cart drawer"], "lacks": ["Shipping estimate: API client", "Mock the carrier API"]},
+    {"after": 7, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},
+    {"after": 10, "contains": ["Checkout page: show the shipping estimate"], "lacks": ["Shipping estimate: API client", "Mock the carrier API"]},
+    {"after": 13, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},
+    {"after": 17, "contains": ["Checkout page: show the shipping estimate", "Move the cart drawer"], "lacks": ["Shipping estimate: API client", "Mock the carrier API"]},
+    {"after": 20, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]}
+  ]
+}

@@ -51,6 +51,7 @@ func taskProps() []ochazuke.PropSpec {
 		{Name: "parent", Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Free: true,
 			Description: "The task this one is under (empty: the top level); its project wins over project; one not found is left empty with a notice"}},
 		{Name: "easy", Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the task is marked easy"}},
+		taskArchiveProp(),
 		{Name: "snoozed-until", Parameter: integer("When the task's snooze ends (Unix ms; 0 for none)")},
 		{Name: "position", ReadOnly: true, Parameter: integer("The task's place on its board, among its siblings")},
 		{Name: "created", ReadOnly: true, Parameter: integer("When the task was created (Unix ms)")},
@@ -71,6 +72,10 @@ func taskProps() []ochazuke.PropSpec {
 func taskMakerProp() ochazuke.PropSpec {
 	return ochazuke.PropSpec{Name: "made-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{work.ActorOwner, work.ActorAgent, work.ActorUnknown},
 		Description: "created-by's kind, flat for --where made-by=agent: owner, agent or unknown"}}
+}
+
+func taskArchiveProp() ochazuke.PropSpec {
+	return ochazuke.PropSpec{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the task and hide its subtree from default views; restoring keeps each child's own archive flag"}}
 }
 
 // taskStore is the task noun's store over the work store. history.undo may
@@ -95,7 +100,7 @@ func (a *App) taskStore() ochazuke.Store {
 			}
 			return a.taskThingOf(t), nil
 		},
-		List: func(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
+		List: func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
 			scope := *a
 			if all, _ := q.Args["all"].(bool); all || a.work.Actor().IsAgent() || ochazuke.StringArg(q.Args, "scope", "") == "all" {
 				scope.all = true
@@ -103,6 +108,9 @@ func (a *App) taskStore() ochazuke.Store {
 			tasks, err := a.work.Tasks("")
 			if err != nil {
 				return nil, err
+			}
+			if !a.queryShowsArchived(c, q, "task") {
+				tasks = a.liveTasks(tasks)
 			}
 			exported, err := a.work.Exports()
 			if err != nil {
@@ -147,7 +155,8 @@ func taskThing(t work.Task, exported bool) ochazuke.Thing {
 	thing := ochazuke.Thing{
 		"id": t.ID, "title": t.Title, "status": t.Status, "project": t.ProjectID, "parent": t.ParentID,
 		"easy": t.Easy, "snoozed-until": t.SnoozedUntil, "position": t.Position, "created": t.Created, "updated": t.Updated,
-		"private": t.Private, "exported": exported, "created-by": t.Maker(), "made-by": t.MadeBy(), "changed-by": "",
+		"archived": t.Archived,
+		"private":  t.Private, "exported": exported, "created-by": t.Maker(), "made-by": t.MadeBy(), "changed-by": "",
 	}
 	if t.ChangedBy.Kind != "" {
 		thing["changed-by"] = t.ChangedBy
@@ -289,6 +298,9 @@ func (a *App) createTask(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	if easy, ok := values["easy"].(bool); ok {
 		t.Easy = easy
 	}
+	if v, ok := values["archived"].(bool); ok {
+		t.Archived = v
+	}
 	t.SnoozedUntil = thingInt(values["snoozed-until"])
 	if v, ok := values["private"].(bool); ok {
 		t.Private = v
@@ -362,6 +374,9 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	if v, ok := changes["private"]; ok {
 		t.Private, _ = v.(bool)
 	}
+	if v, ok := changes["archived"].(bool); ok {
+		t.Archived = v
+	}
 	t.CreatedBy = work.Actor{} // the store keeps the stored maker
 	if v, ok := changes["created-by"]; ok && v != nil {
 		by, err := thingActor(v)
@@ -395,7 +410,9 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	if err := a.saveTaskEvidence(before, t, c.Args); err != nil {
 		return nil, err
 	}
-	if owned {
+	if _, archived := changes["archived"]; archived {
+		err = a.refreshArchiveViews()
+	} else if owned {
 		err = a.refreshScope()
 	} else {
 		err = a.refreshTasks()

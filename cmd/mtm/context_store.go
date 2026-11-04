@@ -65,6 +65,7 @@ func contextProps() []ochazuke.PropSpec {
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 			Description: "The task the item belongs to; its project wins over project"}},
 		{Name: "starred", Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the item is starred (starred items sort first)"}},
+		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the item's sightings and provenance and hide it from default views"}},
 		{Name: "session", ReadOnly: true, Parameter: text("The session the item was first seen in")},
 		{Name: "window", ReadOnly: true, Parameter: text("The pane (window id) the item was first seen in")},
 		{Name: "pane", ReadOnly: true, Parameter: text("The name of the pane the item was first seen in")},
@@ -86,6 +87,7 @@ func contextFilters() []ochazuke.SavedFilter {
 		{List: contextPicker, Name: "conversation", Conditions: []ochazuke.PropFilter{{Prop: "origin", Op: "in", Value: []string{"prompt", "response"}}}},
 		{List: contextPicker, Name: "tools", Conditions: []ochazuke.PropFilter{{Prop: "origin", Op: "in", Value: []string{"tool", "scrollback", "transcript", "command"}}}},
 		{List: contextPicker, Name: "all"},
+		{Name: "archived", Where: map[string]any{"archived": true}},
 	}
 }
 
@@ -150,6 +152,7 @@ func contextThing(it contextitems.Item, tasks map[string]string) ochazuke.Thing 
 		"id": it.ID, "category": "context", "type": it.Kind, "text": it.Text, "project": itemProject(it, tasks), "task": it.TaskID,
 		"origin": it.Origin(), "origins": it.Origins(), "starred": it.Starred, "session": it.Session, "window": it.Window, "pane": it.Pane,
 		"created": it.Created, "seen": it.Seen(),
+		"archived": it.Archived,
 	}
 	if it.Exists != nil {
 		t["exists"] = *it.Exists
@@ -223,6 +226,9 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 	if v, ok := values["starred"].(bool); ok {
 		it.Starred = v
 	}
+	if v, ok := values["archived"].(bool); ok {
+		it.Archived = v
+	}
 	if err := a.contexts.Put(it); err != nil {
 		return nil, err
 	}
@@ -246,12 +252,16 @@ func (a *App) patchContextItem(c ochazuke.Ctx, id string, changes ochazuke.Thing
 	}
 	owner, owned := a.contextOwnerOf(c, it, changes)
 	starred, hasStar := changes["starred"].(bool)
+	archived, hasArchive := changes["archived"].(bool)
 	it, err = a.contexts.Update(id, func(it *contextitems.Item) {
 		if owned {
 			it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
 		}
 		if hasStar {
 			it.Starred = starred
+		}
+		if hasArchive {
+			it.Archived = archived
 		}
 	})
 	if err != nil {

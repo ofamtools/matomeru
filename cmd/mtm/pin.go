@@ -78,6 +78,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	tasks = a.liveTasks(tasks)
 	open := map[string]int{}
 	for _, t := range tasks {
 		if t.Status != work.StatusDone {

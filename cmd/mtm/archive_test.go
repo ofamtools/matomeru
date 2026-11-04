@@ -1,0 +1,255 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
+)
+
+func TestMCPAgentArchiveRoundTrip(t *testing.T) {
+	t.Parallel()
+	a, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
+	task, err := a.work.Task("t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task.CreatedBy = work.Actor{Kind: work.ActorOwner}
+	if err := a.work.PutTask(task); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.work.PutTask(work.Task{ID: "archive-child", Title: "retained child", ParentID: "t1", ProjectID: task.ProjectID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.work.PutNote(work.Note{ID: "archive-note", Text: "retained note", TaskID: "t1", CreatedBy: work.Actor{Kind: work.ActorOwner}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.contexts.Put(contextitems.Item{ID: "archive-context", Kind: "link", Text: "https://example.com/retained", TaskID: "t1", Sources: []contextitems.Source{{Kind: "scrollback", Window: "w1", At: 42}}}); err != nil {
+		t.Fatal(err)
+	}
+	s := mcpServerFor(t, a)
+	for _, row := range []struct{ noun, id string }{{"task", "t1"}, {"note", "archive-note"}, {contextNoun, "archive-context"}} {
+		t.Run(row.noun, func(t *testing.T) {
+			for _, verb := range []string{"archive", "restore"} {
+				mcpRun(t, s, row.noun+"."+verb, map[string]any{"id": row.id})
+				got := mcpRun(t, s, row.noun+".get", map[string]any{"id": row.id})["result"].(map[string]any)
+				if got["archived"] != (verb == "archive") {
+					t.Fatalf("%s: %v", verb, got)
+				}
+				listed := mcpRun(t, s, row.noun+".list", map[string]any{"all": true})["result"].([]any)
+				found := false
+				for _, item := range listed {
+					if item.(map[string]any)["id"] == row.id {
+						found = true
+					}
+				}
+				if found != (verb == "restore") {
+					t.Fatalf("%s default list after %s: %v", row.noun, verb, listed)
+				}
+				if row.noun == "task" {
+					childListed := false
+					for _, item := range listed {
+						if item.(map[string]any)["id"] == "archive-child" {
+							childListed = true
+						}
+					}
+					if childListed != (verb == "restore") {
+						t.Fatalf("child list after %s: %v", verb, listed)
+					}
+				}
+				if verb == "archive" {
+					archived := mcpRun(t, s, row.noun+".list", map[string]any{"all": true, "filter": "archived"})["result"].([]any)
+					if len(archived) != 1 || archived[0].(map[string]any)["id"] != row.id {
+						t.Fatalf("archive filter: %v", archived)
+					}
+				}
+				found = false
+				for _, entry := range a.r.HistoryOf(0, ochazuke.HistoryChange) {
+					if entry.Request.Key() == row.noun+"."+verb && entry.Context.Actor.Pane == "w1" && entry.Context.Actor.Harness == "claude" && entry.Context.Source == "mcp" {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatalf("missing attributed %s history", verb)
+				}
+			}
+			reply, err := s.Call(context.Background(), "run", map[string]any{"verb": row.noun + ".delete", "args": map[string]any{"id": row.id}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := reply.(map[string]any); got["status"] != "refused" || !strings.Contains(fmt.Sprint(got["reason"]), "run "+row.noun+".archive") {
+				t.Fatalf("delete refusal: %v", got)
+			}
+		})
+	}
+	stored, err := a.work.Task("t1")
+	if err != nil || stored.MadeBy() != work.ActorOwner || stored.ChangedBy.Pane != "w1" {
+		t.Fatalf("owner task attribution: %+v %v", stored, err)
+	}
+	note, err := a.work.Note("archive-note")
+	if err != nil || note.Text != "retained note" || note.MadeBy() != work.ActorOwner {
+		t.Fatalf("note retained: %+v %v", note, err)
+	}
+	item, err := a.contexts.Get("archive-context")
+	if err != nil || len(item.Sources) != 1 || item.Sources[0].At != 42 {
+		t.Fatalf("context provenance retained: %+v %v", item, err)
+	}
+}
+
+func TestArchiveViewsHideBranchesAndHonorOptOut(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	for _, task := range []work.Task{
+		{ID: "archive-child", Title: "retained child", ParentID: "t1", ProjectID: "matomeru", Status: work.StatusTodo},
+		{ID: "archive-grandchild", Title: "retained grandchild", ParentID: "archive-child", ProjectID: "matomeru", Status: work.StatusTodo},
+	} {
+		if err := a.work.PutTask(task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.work.PutNote(work.Note{ID: "archive-note", Text: "retained note", TaskID: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.contexts.Put(contextitems.Item{ID: "archive-context", Kind: "link", Text: "https://example.com/retained", ProjectID: "matomeru"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.reveal("t1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.reloadContext(); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "outline", "matomeru", nil)
+	for _, row := range []struct{ noun, id string }{{"task", "t1"}, {"note", "archive-note"}, {contextNoun, "archive-context"}} {
+		executeA(t, a, row.noun, "archive", "", ochazuke.Arguments{"id": row.id})
+	}
+	assertViews := func(hidden bool) {
+		t.Helper()
+		for _, id := range []string{"t1", "archive-child", "archive-grandchild"} {
+			for name, list := range map[string]*ochazuke.List{"work": a.taskList, "outline": a.outline.tree.List()} {
+				found := false
+				for _, item := range list.Items() {
+					if item.ID == id || item.ID == outlineNode(id) {
+						found = true
+					}
+				}
+				if found == hidden {
+					t.Fatalf("%s task %s hidden=%v: %v", name, id, hidden, list.Items())
+				}
+			}
+		}
+		for name, list := range map[string]*ochazuke.List{"notes": a.noteList, "context": a.cx.list} {
+			id := "archive-note"
+			if name == "context" {
+				id = "archive-context"
+			}
+			found := false
+			for _, item := range list.Items() {
+				if item.ID == id {
+					found = true
+				}
+			}
+			if found == hidden {
+				t.Fatalf("%s hidden=%v: %v", name, hidden, list.Items())
+			}
+		}
+		for _, row := range a.taskPickerRows(work.Assignment{}) {
+			if hidden && (row.ID == "task:t1" || row.ID == "task:archive-child" || row.ID == "task:archive-grandchild") {
+				t.Fatalf("hidden task in picker: %+v", row)
+			}
+		}
+		if hidden && strings.Contains(a.detailNotes("matomeru", "t1"), "retained note") {
+			t.Fatal("archived note in detail")
+		}
+	}
+	assertViews(true)
+	for _, id := range []string{"archive-child", "archive-grandchild"} {
+		task, err := a.work.Task(id)
+		if err != nil || task.Archived || task.ParentID == "" {
+			t.Fatalf("archive cascaded: %+v %v", task, err)
+		}
+	}
+	if err := a.r.Settings().Set(settingHideArchived, false); err != nil {
+		t.Fatal(err)
+	}
+	assertViews(false)
+	if err := a.r.Settings().Set(settingHideArchived, true); err != nil {
+		t.Fatal(err)
+	}
+	assertViews(true)
+	for _, row := range []struct{ noun, id string }{{"task", "t1"}, {"note", "archive-note"}, {contextNoun, "archive-context"}} {
+		executeA(t, a, row.noun, "restore", "", ochazuke.Arguments{"id": row.id})
+	}
+	assertViews(false)
+}
+
+func TestArchivePageSavedFilters(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	for _, note := range []work.Note{{ID: "archive-note", Text: "retained note"}, {ID: "live-note", Text: "live note"}} {
+		if err := a.work.PutNote(note); err != nil {
+			t.Fatal(err)
+		}
+	}
+	executeA(t, a, "note", "archive", "", ochazuke.Arguments{"id": "archive-note"})
+	if err := a.noteList.ApplyFilter("archived"); err != nil {
+		t.Fatal(err)
+	}
+	if selected, ok := a.noteList.Selected(); !ok || selected.ID != "archive-note" {
+		t.Fatalf("archived note filter: %+v, selected=%v", selected, ok)
+	}
+	if err := a.noteList.SetPropFilters(nil); err != nil {
+		t.Fatal(err)
+	}
+	if selected, ok := a.noteList.Selected(); !ok || selected.ID != "live-note" {
+		t.Fatalf("live notes after clearing archive filter: %+v, selected=%v", selected, ok)
+	}
+}
+
+func TestArchiveRefreshesOpenContextPicker(t *testing.T) {
+	t.Parallel()
+	a, _, _, _ := liveContextApp(t)
+	press(t, a, "ctrl+a", "c")
+	picker := a.r.Chooser(contextPicker)
+	if picker == nil {
+		t.Fatal("context picker did not open")
+	}
+	var id string
+	for _, row := range picker.Matches() {
+		if _, ok := row.Data.(contextitems.Item); ok {
+			id = row.ID
+			break
+		}
+	}
+	if id == "" {
+		t.Fatal("fixture has no context item")
+	}
+	visible := func(want bool) {
+		t.Helper()
+		found := false
+		for _, row := range picker.Matches() {
+			if row.ID == id {
+				found = true
+			}
+		}
+		if found != want {
+			t.Fatalf("context picker visibility=%v, want %v: %+v", found, want, picker.Matches())
+		}
+	}
+	executeA(t, a, contextNoun, "archive", "", ochazuke.Arguments{"id": id})
+	visible(false)
+	if err := a.r.Settings().Set(settingHideArchived, false); err != nil {
+		t.Fatal(err)
+	}
+	visible(true)
+	if err := a.r.Settings().Set(settingHideArchived, true); err != nil {
+		t.Fatal(err)
+	}
+	visible(false)
+	executeA(t, a, contextNoun, "restore", "", ochazuke.Arguments{"id": id})
+	visible(true)
+}
