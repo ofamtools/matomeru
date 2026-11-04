@@ -44,13 +44,12 @@ func toSource(t *testing.T, a *App, c *ochazuke.Chooser, name string) {
 	t.Fatalf("no source %s in %q (at %s)", name, c.Sources(), c.Source())
 }
 
-// project.directory with no path opens the path chooser (directory-chooser
-// path, the default) on mtm's known source once the scan lands: the known
-// directories, no browse… row (the chooser's browse source replaces it),
-// and the pick attaches as the default.
+// With directory-chooser known, project.directory opens on the known
+// directories once the scan lands; the pick attaches as the default.
 func TestDirectoryPathChooserOpensOnKnown(t *testing.T) {
 	t.Parallel()
 	a := open(t)
+	knownDirectoryChooser(t, a)
 	root := knownRepos(t, a, "alpha", "beta")
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "directory", Target: "matomeru"}); err != nil {
 		t.Fatal(err)
@@ -272,7 +271,7 @@ func TestMountedExtensionPathPickerRecentDirs(t *testing.T) {
 	press(t, a, "esc")
 }
 
-// directory-chooser path-remembered opens on the source last used; path
+// directory-chooser path-remembered opens on the source last used; known
 // opens on known whatever was used last.
 func TestDirectoryChooserSettingStartSource(t *testing.T) {
 	t.Parallel()
@@ -289,14 +288,10 @@ func TestDirectoryChooserSettingStartSource(t *testing.T) {
 		settle(a, a.r.PendingCommands())
 		return a.r.Chooser(dirChooser)
 	}
-	c := reopen()
-	toSource(t, a, c, ochazuke.PathSourceBrowse)
-	if c = reopen(); c.Source() != pathSourceKnown {
-		t.Fatalf("path: opened on %s", c.Source())
-	}
 	if err := a.r.Settings().Set(settingDirectoryChooser, dirChooserRemembered); err != nil {
 		t.Fatal(err)
 	}
+	c := reopen()
 	toSource(t, a, c, ochazuke.PathSourceBrowse)
 	if c = reopen(); c.Source() != ochazuke.PathSourceBrowse {
 		t.Fatalf("path-remembered: opened on %s", c.Source())
@@ -507,5 +502,69 @@ func TestKnownDirectoryChooserIsThePathChooserOnKnown(t *testing.T) {
 	settle(a, cmd)
 	if used != "" || a.r.Chooser(dirChooser) == nil || c.Query() != file {
 		t.Fatalf("file: used %q, chooser %v, query %q", used, a.r.Chooser(dirChooser) != nil, c.Query())
+	}
+}
+
+// A pin's first directory pick must reach ordinary folders under configured
+// bases, whether or not the known-directory scan has run or is the first source.
+func TestPinDirectoryChooserWalksBasesWithoutProjectDirectory(t *testing.T) {
+	t.Parallel()
+	for _, setting := range []string{dirChooserPath, dirChooserRemembered, dirChooserKnown} {
+		for _, ready := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/ready=%t", setting, ready), func(t *testing.T) {
+				t.Parallel()
+				a := open(t)
+				root := knownRepos(t, a, "alpha")
+				for _, dir := range []string{"alpha/cmd", "plain/deep"} {
+					if err := os.MkdirAll(filepath.Join(root, dir), 0o700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if ready {
+					if err := a.loadDirectories(); err != nil {
+						t.Fatal(err)
+					}
+					driveCommands(a, a.r.PendingCommands(), true, true)
+				}
+				if err := a.r.Settings().Set(settingDirectoryChooser, setting); err != nil {
+					t.Fatal(err)
+				}
+				openPicker(t, a)
+				typeText(t, a, "matomeru")
+				_, cmd := a.Update(keyMsg("enter"))
+				driveCommands(a, cmd, true, true)
+				c := a.r.Chooser(dirChooser)
+				if c == nil {
+					t.Fatalf("no directory chooser: pin %q modal %q", a.pin, a.r.TopModal())
+				}
+				if setting == dirChooserKnown && c.Source() != pathSourceKnown {
+					t.Fatalf("known setting opened on %s", c.Source())
+				}
+				if setting != dirChooserKnown && c.Source() != ochazuke.PathSourceWalk {
+					t.Fatalf("%s setting opened on %s", setting, c.Source())
+				}
+				for range c.Sources() {
+					if c.Source() == ochazuke.PathSourceWalk {
+						break
+					}
+					_, cmd := a.Update(keyMsg("ctrl+o"))
+					driveCommands(a, cmd, true, true)
+				}
+				if c.Source() != ochazuke.PathSourceWalk {
+					t.Fatalf("no walk source in %q", c.Sources())
+				}
+				for _, dir := range []string{root, filepath.Join(root, "alpha/cmd"), filepath.Join(root, "plain"), filepath.Join(root, "plain/deep")} {
+					if !slices.Contains(chooserData(c), dir) {
+						t.Fatalf("walk lacks %s: %q", dir, chooserData(c))
+					}
+				}
+				typeText(t, a, "plain deep")
+				_, cmd = a.Update(keyMsg("enter"))
+				driveCommands(a, cmd, true, true)
+				if p, _ := a.project("matomeru"); p.DefaultTree != filepath.Join(root, "plain/deep") || a.r.TopModal() != "" {
+					t.Fatalf("default %q modal %q", p.DefaultTree, a.r.TopModal())
+				}
+			})
+		}
 	}
 }

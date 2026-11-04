@@ -19,10 +19,10 @@ import (
 //     is opened for, else the Directories page's target or the pinned
 //     project), the default first;
 //   - walk (ochazuke's walk source, AddWalkPathSource): every folder under
-//     that project's directories, then under every known directory, so a
-//     pick reaches any folder below a root by typing a fragment of its
-//     path. ochazuke's path.walk turns it off and path.first lists it
-//     first.
+//     that project's directories, the configured project bases, then every
+//     known directory, so a pick reaches ordinary folders before the known
+//     repository scan lands. ochazuke's path.walk turns it off and
+//     path.first lists it first.
 //
 // recent is mtm's dir_recent table (TouchDir), newest first. Browse starts
 // in the project's default directory (SetPathBase, path.start=base), not
@@ -43,7 +43,7 @@ const (
 
 var directoryChooserSetting = ochazuke.Setting{Name: settingDirectoryChooser, Type: ochazuke.SettingString, Default: dirChooserPath,
 	Enum:        []string{dirChooserPath, dirChooserRemembered, dirChooserKnown},
-	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its walk source, every folder under the project's and the known directories; on known when path.walk is off; ctrl+o cycles browse, recent, typed, known, project), path-remembered (the path chooser on the source last used, else the first path.first names) or known (the path chooser opened on the known directories, walk or not; its browse source replaces browse…)"}
+	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its walk source, every folder under the project's directories, configured project bases and known directories; on known when path.walk is off; ctrl+o cycles browse, recent, typed, known, project), path-remembered (the path chooser on the source last used, else the first path.first names) or known (the path chooser opened on the known directories, walk or not; its browse source replaces browse…)"}
 
 // dirParam is a directory parameter: a folder through the path chooser;
 // isNew lets it name a folder not there yet (attached and flagged missing).
@@ -156,9 +156,9 @@ func (a *App) pathPickBase() string {
 }
 
 // walkRoots are the walk source's roots for a directory pick: the pick's
-// project's directories (the default first), then every known directory
-// once the scan has landed. ochazuke lists a root inside an earlier one
-// once and never walks an earlier root again inside a later one.
+// project's directories (the default first), then the configured project bases
+// (available before the repository scan), then every known directory once the
+// scan has landed. ochazuke lists overlapping roots once.
 func (a *App) walkRoots(pick ochazuke.PathPick) ochazuke.PathWalk {
 	if !pick.Dir() {
 		return ochazuke.PathWalk{}
@@ -176,6 +176,11 @@ func (a *App) walkRoots(pick ochazuke.PathPick) ochazuke.PathWalk {
 	if p, ok := a.pathPickProject(); ok {
 		for _, tree := range projectTrees(p) {
 			add(tree)
+		}
+	}
+	if bases, err := a.projectBases(); err == nil {
+		for _, base := range bases {
+			add(base.Path)
 		}
 	}
 	if a.directories.Ready {

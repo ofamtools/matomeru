@@ -374,6 +374,7 @@ func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
 func TestPinningDirectorylessProjectAsksAndMovedRowWins(t *testing.T) {
 	t.Parallel()
 	a := open(t)
+	knownDirectoryChooser(t, a)
 	root := knownRepos(t, a, "alpha", "beta")
 	executeA(t, a, "project", "unpin", "work", nil)
 	openPicker(t, a)

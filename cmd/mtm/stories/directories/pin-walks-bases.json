@@ -1,0 +1,23 @@
+{
+  "name": "mtm: pinning a project without a directory immediately walks every folder under the configured bases, including non-repositories",
+  "area": "directories",
+  "fixture": "project-bases",
+  "width": 140,
+  "height": 32,
+  "files": ["repo/.git/HEAD", "repo/cmd/", "plain/deep/"],
+  "script": [
+    "P",
+    {"type": "billing-api"},
+    "enter",
+    {"job": "chooser.load"},
+    {"type": "plain deep"},
+    "enter",
+    "P"
+  ],
+  "expect": [
+    {"after": 4, "modal": "dir-chooser", "contains": ["[walk ", "repo/cmd/", "plain/deep/"]},
+    {"after": 5, "contains": ["plain/deep/"], "lacks": ["repo/cmd/"]},
+    {"after": 6, "modal": "", "contains": ["billing-api"]},
+    {"modal": "pin-picker", "contains": ["billing-api", "plain/deep"]}
+  ]
+}

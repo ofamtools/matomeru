@@ -92,6 +92,7 @@ func mtmApp() monogatari.App {
 			{Name: "context-picker", Summary: "seeded, with context from this pane, its project and no project, plus a journaled prompt", Build: buildContextPicker},
 			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
 			{Name: "project-tree", Summary: "seeded, with the story's file tree (files) attached to acme-web as its default directory", Build: buildProjectTree},
+			{Name: "project-bases", Summary: "seeded, with the story's file tree configured as a project base and no attached directories", Build: buildProjectBases},
 			{Name: "scoped-lanes", Summary: "seeded, with a fake Lanes extension exposing direct, inherited and unassociated project rows", Build: buildScopedLanes},
 			{Name: "reminders-rollover", Summary: "A checked reminder, missed prior days and an injected next-local-day clock (ctrl+u)", Build: buildReminderRollover},
 			{Name: "inbox-notice", Summary: "An established notification baseline with fake senders, on an empty database", Build: buildInboxNotice},
@@ -203,6 +204,23 @@ func buildProjectTree(env monogatari.Env) (monogatari.Built, error) {
 	}
 	if err == nil {
 		err = a.refreshProjects()
+	}
+	if err != nil {
+		built.Close()
+		return monogatari.Built{}, err
+	}
+	return built, nil
+}
+
+func buildProjectBases(env monogatari.Env) (monogatari.Built, error) {
+	built, err := buildSeeded(env)
+	if err != nil || env.FilesDir == "" {
+		return built, err
+	}
+	a := built.Program.(*App)
+	config, err := json.Marshal(directoryConfig{Bases: []projectBase{{Path: env.FilesDir, Depth: 1}}})
+	if err == nil {
+		err = os.WriteFile(a.dirsConfigPath(), config, 0o600)
 	}
 	if err != nil {
 		built.Close()
