@@ -738,7 +738,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 	}
 	crudKeys := a.mountCRUD(x, plan, pages)
 	if dropped := a.loadExtBindings(x, e.Catalog.Bindings, pages, crudKeys); len(dropped) > 0 {
-		notify("key rows dropped (mtm binds the key there): %s", strings.Join(dropped, ", "))
+		notify("key rows dropped: %s", strings.Join(dropped, ", "))
 	}
 }
 
@@ -831,17 +831,17 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		where := row.Keys + row.Pattern + " on " + row.Noun
 		req, mounted := x.nouns[row.Request.Noun]
 		if row.Instance != "" || !mounted {
-			dropped = append(dropped, where)
+			dropped = append(dropped, where+": instance-only row or unmounted action noun")
 			continue
 		}
 		row.Request.Noun = req
 		row.Noun = local
 		if row.Keys != "" && slices.Contains(crud[local], strings.Fields(row.Keys)[0]) {
-			dropped = append(dropped, where)
+			dropped = append(dropped, where+": mtm CRUD key takes precedence")
 			continue
 		}
 		if list, ok := home[x.nounOfLocal(local)]; ok && a.keyTaken(list, row) {
-			dropped = append(dropped, where)
+			dropped = append(dropped, where+": mtm binds the key on the list path")
 			continue
 		}
 		data, err := json.Marshal([]ochazuke.Binding{row})
@@ -849,7 +849,7 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 			_, err = a.r.LoadBindings(data)
 		}
 		if err != nil {
-			dropped = append(dropped, where)
+			dropped = append(dropped, where+": "+err.Error())
 		}
 	}
 	return dropped
@@ -903,8 +903,8 @@ func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 // extProxy is the handler of one mounted verb: `<bin> NOUN VERB [--target
 // ID] --json ARGS --yes` off the loop (mtm asked the verb's confirm
 // already); the target is the nearest row of the verb's noun at the
-// focus (extTarget). Its result is the page's status line, and the
-// extension's rows reload.
+// focus (extTarget). Catalog metadata selects capture or terminal handoff;
+// UI dispatch presents text results, and the extension's rows reload.
 func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
 	return func(c ochazuke.Ctx) ochazuke.Result {
 		target := a.extTarget(x, noun, c.Instance)
@@ -942,10 +942,10 @@ func (a *App) extTarget(x *extension, noun string, inst *ochazuke.Instance) stri
 	return ""
 }
 
-// extRun runs one of an extension's verbs off the loop: `<bin> NOUN VERB
-// [--target ID] --json ARGS --yes`. The answer is the page's status line
-// and the extension's rows reload; then, when given, sees the decoded
-// answer first.
+// extRun delegates a mounted verb to the shared catalog proxy. Captured
+// answers retain page status unless the runtime has a text presenter;
+// foreground verbs get the terminal. The callback sees the answer before
+// refreshing rows or presentation.
 func (a *App) extRun(x *extension, noun, verb, target string, args map[string]any, then func(v any, err error)) ochazuke.Result {
 	words := []string{noun, verb}
 	if target != "" {
@@ -961,7 +961,9 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	words = append(words, "--json", string(js), "--yes")
 	bin, env := x.bin, a.extEnv(x.name)
 	project := a.contextProject() // the owner a row it makes or acts on gets (extension_scope.go)
-	if a.quitting {
+	op, _ := a.r.Operation(x.nouns[noun] + "." + verb)
+	spec := ocli.CatalogVerb{Foreground: op.Foreground, Result: op.Result}
+	if a.quitting && !spec.Foreground {
 		// mtm is closing: no job would run, so the last write runs here.
 		out, err := execExt(context.Background(), bin, env, words...)
 		if err != nil {
@@ -969,12 +971,9 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		}
 		return ochazuke.Done(extDecoded(out))
 	}
-	return ochazuke.Pending(func(ctx context.Context) (any, error) {
-		out, err := execExt(ctx, bin, env, words...)
-		if err != nil {
-			return nil, err
-		}
-		return extDecoded(out), nil
+	return ocli.RunMounted(spec, ocli.ProxyCommand{
+		Bin: bin, Args: words, Env: append(os.Environ(), env...),
+		Timeout: extExecTimeout, WaitDelay: extWaitDelay,
 	}).Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err == nil {
 			a.recordExtOwners(x, noun, verb, target, project, v)
@@ -982,7 +981,10 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		if then != nil {
 			then(v, err)
 		}
-		line := extResultLine(noun+" "+verb, v, err)
+		line := ""
+		if err != nil || !ochazuke.IsTextResult(spec.Result) || !a.r.Settings().Bool(ochazuke.KeyTextResultsSetting) || a.r.Settings().String(ochazuke.PaletteTextResultsSetting) == "plain" {
+			line = extResultLine(noun+" "+verb, v, err)
+		}
 		for _, view := range x.views {
 			view.SetStatus(line)
 		}

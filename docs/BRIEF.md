@@ -215,3 +215,15 @@ Task image attachments: in Tasks (`T`, or a project's/task's `O` outline), `ctrl
 Deleting a chip removes that attachment; undo restores it. `task-outline.detach` removes the numbered image (`n`), the only image, or opens a chooser. Cancelling the chooser leaves the attachments unchanged. The outline still writes edits after its typing pause or when leaving the line: Escape saves and closes, never discards a draft. A clipboard read finishing after that editor closes cannot attach to another task or a reopened editor for the same task.
 
 Saved task titles contain the prompt's absolute `@path` mentions (quoted and escaped where necessary), not transient chip numbers. Reopening Tasks restores the chips, including after restarting mtm; other task views and task consumers retain the file mentions. Removing an attachment does not delete its file, matching prompt attachment lifetime. `tasks.image-attachments` defaults to `true`; set it to `false` to show raw mentions and disable image paste/detach in Tasks. The setting takes effect the next time the outline opens.
+
+## Mounted verb results
+
+Extension execution uses ochazuke's `cli.RunMounted` with catalog metadata.
+Declared text results from keys open the host's text viewer instead of being
+flattened into a page status line (`keys.text-results`, default `true`;
+`palette.text-results` retains its text policy). Non-text answers retain the
+page status behavior. Foreground verbs hand over the real terminal, including
+stdin, and resume mtm after exit; the 60-second timeout applies only to
+captured runs. The extension remains responsible for its guards. Dropped
+bindings now name their actual conflict or validation error.
+
