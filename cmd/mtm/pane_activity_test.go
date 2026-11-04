@@ -370,3 +370,32 @@ func TestPaneWorkingThroughSubagentEntersAtTheBottom(t *testing.T) {
 		reload(t, app)
 	}
 }
+
+// A background rebuild that moves the displayed row to another list never
+// takes the focus from an active list filter: the mode and the focus stay,
+// so typed keys go to the filter and not to pane verbs.
+func TestRowMovingListsKeepsAnActiveFilterFocused(t *testing.T) {
+	t.Parallel()
+	app := subagentsPaneApp(t)
+	setting(t, app, settingSubagentsWorking, false) // w1 in Panes
+	reload(t, app)
+	if inWorking(app) {
+		t.Fatal("w1 should start in Panes")
+	}
+	press(t, app, "/")
+	typeText(t, app, "mat")
+	mode := app.r.Mode.Name
+	if mode != ochazuke.ListFilterMode {
+		t.Fatalf("filter mode %s focus %s", mode, app.r.Focus)
+	}
+	setting(t, app, settingSubagentsWorking, true) // the row moves to Working
+	reload(t, app)
+	if !inWorking(app) {
+		t.Fatal("w1 did not move to Working")
+	}
+	// The row left the list the focus was on, so the focus falls back to
+	// that list (it may not follow the row into Working); the mode stays.
+	if app.r.Mode.Name != mode || !app.pv.sections[1].tree.List().Focused() {
+		t.Fatalf("focus %s mode %s, want the Panes list and %s", app.r.Focus, app.r.Mode.Name, mode)
+	}
+}

@@ -368,6 +368,12 @@ func (a *App) sectionOf(row string) int {
 // the active one; when the focus is on one of the lists it moves to the
 // row, so a jump (W, `) shows where it landed.
 func (a *App) selectPaneRow(row string) error {
+	return a.selectPaneRowMoving(row, true)
+}
+
+// selectPaneRowMoving is selectPaneRow; moveFocus false selects and makes
+// the list active but never moves the focus (a background rebuild).
+func (a *App) selectPaneRowMoving(row string, moveFocus bool) error {
 	i := a.sectionOf(row)
 	if i < 0 {
 		return fmt.Errorf("unknown tree node %q", row)
@@ -380,7 +386,7 @@ func (a *App) selectPaneRow(row string) error {
 		return err
 	}
 	a.pv.active = i
-	if inLists && !a.pv.sections[i].tree.List().Focused() {
+	if moveFocus && inLists && !a.pv.sections[i].tree.List().Focused() {
 		return a.r.SetFocus(row)
 	}
 	return nil

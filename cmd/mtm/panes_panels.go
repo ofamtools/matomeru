@@ -207,7 +207,8 @@ func (a *App) holdsRows() bool {
 // a rebuild moved it to another list (it changed section and is not
 // held): that list becomes the active one, with the cursor on the row
 // when the cursor was on one of the lists, so the detail and a live pane
-// stay on the pane that moved.
+// stay on the pane that moved. Only in normal mode: otherwise the focus
+// and the mode are left alone.
 func (a *App) followRow(row string) error {
 	if row == "" || a.pv.held {
 		return nil
@@ -219,7 +220,10 @@ func (a *App) followRow(row string) error {
 	if cur, _ := a.selectedRow(); cur == row && i == a.pv.active {
 		return nil
 	}
-	return a.selectPaneRow(row)
+	// A rebuild is background work: while the mode is not normal (a list
+	// filter or an input being typed in, a visual selection) the row moves
+	// but the focus and the mode stay where the person is working.
+	return a.selectPaneRowMoving(row, a.r.Mode.Name == "normal")
 }
 
 // panelsLayout reports whether the left side draws panels.
