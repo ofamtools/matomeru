@@ -29,7 +29,10 @@ every folder below the project's directories, then below every known
 directory, streamed in as found, so typing a fragment of a nested path
 (`cmd mtm`) finds a deep folder. `ctrl+o` still cycles browse, recent,
 typed, known and project, and browse now starts in the project's default
-directory rather than mtm's working directory. ochazuke's `path.walk`
+directory rather than mtm's working directory. Recent directories are
+supplied to the recent source for both directory and file picks (file picks
+open into the directory to browse contained files; directory picks select directly).
+ochazuke's `path.walk`
 (default on) turns the walk off, which opens the pick on known as before;
 `path.walk-depth`, `path.walk-ignore`, `path.walk-hidden`,
 `path.walk-include` and `path.walk-limit` bound it. `path-remembered` opens

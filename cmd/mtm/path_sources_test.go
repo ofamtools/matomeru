@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"ofam.dev/matomeru/internal/work"
@@ -141,6 +143,133 @@ func TestDirectoryPathChooserRecentIsDirRecent(t *testing.T) {
 	if got := chooserData(c); len(got) < 2 || got[0] != "/new/two" || got[1] != "/old/one" {
 		t.Fatalf("recent rows %q", got)
 	}
+}
+
+// A mounted extension with path parameters receives recent directories in its
+// path chooser via generic argument-form interception and recentSource:
+// - file picks navigate recent directories (Opens: true, NoPick: true) and select contained files;
+// - directory picks retain direct selection.
+func TestMountedExtensionPathPickerRecentDirs(t *testing.T) {
+	t.Parallel()
+	const extCatalog = `{"schema":1,"name":"o-ext","version":"1.0","nouns":[
+ {"name":"item","columns":[{"title":"item"}],"verbs":[
+  {"name":"list","kind":"application"},
+  {"name":"open","kind":"application","params":{"file":{"type":"path","required":true}}},
+  {"name":"clone","kind":"application","params":{"dir":{"type":"path","path":"dir","required":true}}}]}],
+ "pages":[]}`
+	const extArms = `"item list") echo '[{"id":"1","label":"one"}]' ;;
+"item open"|"item clone") echo '{"ok":true}' ;;`
+
+	bin, log := fakeExtension(t, extCatalog, extArms)
+	a := registered(t, seeded(t), "ext", bin)
+	recentDir := t.TempDir()
+	subDir := filepath.Join(recentDir, "nested")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	targetFile := filepath.Join(subDir, "sample.json")
+	if err := os.WriteFile(targetFile, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.work.SeedDirs([]work.DirRecent{{Path: recentDir, LastUsed: 42}}); err != nil {
+		t.Fatal(err)
+	}
+	openExtPage(t, a, "ext/ext")
+
+	// 1. File pick flow: open into recent directory, navigate nested, and pick contained file.
+	press(t, a, ":")
+	typeText(t, a, "ext.item open")
+	press(t, a, "enter")
+	settle(a, a.r.PendingCommands())
+	c := a.r.Chooser(ochazuke.PathChooserKind)
+	if c == nil {
+		t.Fatalf("expected path chooser to open for missing required file, modal is %q", a.r.TopModal())
+	}
+	toSource(t, a, c, ochazuke.PathSourceRecent)
+	if got := chooserData(c); !slices.Contains(got, recentDir) {
+		t.Fatalf("recent source %v lacks recent dir %s", got, recentDir)
+	}
+	t.Logf("Smoke Frame 1 (Recent list in file pick):\n%s", sizedFrame(a, 100, 24))
+	// Enter on the directory row opens into the directory (does not pick directory as file).
+	_, cmd := a.Update(keyMsg("enter"))
+	settle(a, cmd)
+	settle(a, a.r.PendingCommands())
+	if a.r.TopModal() == "" {
+		t.Fatal("chooser closed on directory enter during file pick; expected to open into directory")
+	}
+	t.Logf("Smoke Frame 2 (Opened recent directory):\n%s", sizedFrame(a, 100, 24))
+	// Navigate into nested subfolder.
+	_, cmd = a.Update(keyMsg("enter"))
+	settle(a, cmd)
+	settle(a, a.r.PendingCommands())
+	t.Logf("Smoke Frame 3 (Opened nested subfolder):\n%s", sizedFrame(a, 100, 24))
+	if got := chooserData(c); !slices.Contains(got, targetFile) {
+		t.Fatalf("opened nested directory rows %v lack %s", got, targetFile)
+	}
+	// Select and pick the contained file.
+	typeText(t, a, "sample")
+	_, cmd = a.Update(keyMsg("enter"))
+	settle(a, cmd)
+	settle(a, a.r.PendingCommands())
+	if a.r.TopModal() != "" {
+		t.Fatalf("chooser did not close after picking file: %q", a.r.TopModal())
+	}
+	wantFileCall := fmt.Sprintf(`item open --target i1 --json {"file":%q} --yes`, targetFile)
+	var foundFileCall bool
+	for _, call := range calls(t, log) {
+		if strings.Contains(call, wantFileCall) {
+			foundFileCall = true
+			break
+		}
+	}
+	if !foundFileCall {
+		t.Fatalf("expected call %q, got %v", wantFileCall, calls(t, log))
+	}
+
+	// 2. Directory pick flow: directory pick directly selects the recent directory.
+	press(t, a, ":")
+	typeText(t, a, "ext.item clone")
+	press(t, a, "enter")
+	settle(a, a.r.PendingCommands())
+	c = a.r.Chooser(ochazuke.PathChooserKind)
+	if c == nil {
+		t.Fatalf("expected path chooser to open for missing required dir, modal is %q", a.r.TopModal())
+	}
+	toSource(t, a, c, ochazuke.PathSourceRecent)
+	t.Logf("Smoke Frame 4 (Recent list in directory pick):\n%s", sizedFrame(a, 100, 24))
+	_, cmd = a.Update(keyMsg("enter"))
+	settle(a, cmd)
+	settle(a, a.r.PendingCommands())
+	if a.r.TopModal() != "" {
+		t.Fatalf("chooser did not close after directory pick: %q", a.r.TopModal())
+	}
+	wantDirCall := fmt.Sprintf(`item clone --target i1 --json {"dir":%q} --yes`, recentDir)
+	var foundDirCall bool
+	for _, call := range calls(t, log) {
+		if strings.Contains(call, wantDirCall) {
+			foundDirCall = true
+			break
+		}
+	}
+	if !foundDirCall {
+		t.Fatalf("expected call %q, got %v", wantDirCall, calls(t, log))
+	}
+
+	// 3. Opt-out flow: path.recent-dirs=false omits recent directory from file pick.
+	if err := a.r.Settings().Set("path.recent-dirs", false); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, ":")
+	typeText(t, a, "ext.item open")
+	press(t, a, "enter")
+	settle(a, a.r.PendingCommands())
+	c = a.r.Chooser(ochazuke.PathChooserKind)
+	toSource(t, a, c, ochazuke.PathSourceRecent)
+	t.Logf("Smoke Frame 5 (Recent list with path.recent-dirs=false):\n%s", sizedFrame(a, 100, 24))
+	if got := chooserData(c); slices.Contains(got, recentDir) {
+		t.Fatalf("recent source %v should not contain recent dir when path.recent-dirs=false", got)
+	}
+	press(t, a, "esc")
 }
 
 // directory-chooser path-remembered opens on the source last used; path

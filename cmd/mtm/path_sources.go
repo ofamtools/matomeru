@@ -110,9 +110,6 @@ func (a *App) definePathSources() {
 		return a.pathPickBase()
 	})
 	a.r.SetRecentPaths(func(pick ochazuke.PathPick) []string {
-		if !pick.Dir() {
-			return nil
-		}
 		return a.recentDirectories()
 	})
 }
