@@ -97,6 +97,16 @@ func (a *App) outlinePromote(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(errors.New("select a task"))
 	}
+	// A project made in a project's outline leaves it (the outline shows
+	// one project), so a task with no title yet would become a project
+	// nobody sees and nothing names: it asks for a title first.
+	if o := a.outline; o != nil && !o.scope.all && o.tree != nil {
+		for _, n := range o.tree.Nodes() {
+			if n.ID == ctx.Instance.ID && strings.TrimSpace(n.Label) == "" {
+				return ochazuke.Failed(errors.New("Name the task first: a project made here leaves this outline"))
+			}
+		}
+	}
 	conv, err := a.taskToProject(taskOf(ctx.Instance.ID))
 	return a.converted(ctx, conv, err)
 }
