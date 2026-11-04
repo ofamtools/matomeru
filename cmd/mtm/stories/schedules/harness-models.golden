@@ -3,18 +3,18 @@
  |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  |  schedules · they run while the TUI is open                                         gh-signals
  |  schedule       on          when      last   next  runs
-r|  gh-signals     auto (off)  every 5m  never╭──────────────────────────────────────────────────╮itHub review requests, CI and PR signals
- |  slack-signals  off         every 5m  never│ New schedule prompt · written as you type        │box (o-gh signals)
- |  prompt         off         never     never│ prompt                                           │ommand
- |                                            │                                                  │-gh signals
- |                                            │ when                                             │xec
- |                                            │                                                  │uto (off)
- |                                            │ enabled                                          │uto: not checked yet
- |                                            │   off ▾                                          │very 5m
- |                                            │ harness                                          │nce
- |                                            │   claude ▾                                       │m
- |                                            │ model                                            │uilt-in · schedule.gh-signals.enabled,
- |              ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+r|  gh-signals     auto (off)  every 5m  never╭──────────────────────────────────────────────────╮  GitHub review requests, CI and PR
+ |  slack-signals  off         every 5m  never│ New schedule prompt · written as you type        │o the inbox (o-gh signals)
+ |  prompt         off         never     never│ prompt                                           │  command
+ |                                            │                                                  │  o-gh signals
+ |                                            │ when                                             │  exec
+ |                                            │                                                  │  auto (off)
+ |                                            │ enabled                                          │  auto: not checked yet
+ |                                            │   off ▾                                          │  every 5m
+ |                                            │ harness                                          │  finish
+ |                                            │   claude ▾                                       │  once
+ |                                            │ model                                            │  2m
+ |              ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ls.enabled,
  |              │ Suggest model                                                                                                │
  |              │ ›                                                                                                      fuzzy │
 R|              │   opus  opus (claude)                                                                                        │

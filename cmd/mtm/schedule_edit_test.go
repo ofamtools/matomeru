@@ -7,6 +7,7 @@ import (
 )
 
 func TestScheduleIntervalFromField(t *testing.T) {
+	t.Parallel()
 	var a App
 	var d schedules.Def
 	if err := a.applyScheduleField(&d, "interval-from", "finish"); err != nil || scheduleField(d, "interval-from") != "finish" || !d.FromFinish() {
