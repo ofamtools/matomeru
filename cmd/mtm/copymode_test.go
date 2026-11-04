@@ -586,3 +586,40 @@ func TestCopyModeInheritsNormalAndRestoresFocusModes(t *testing.T) {
 		t.Fatalf("page away: page %s mode %s active %v", app.r.Page, app.r.Mode.Name, app.copy.active)
 	}
 }
+
+// Copy mode's / follows search.case as every search does (R5.17): smart
+// by default (a capital matches case), ignore and sensitive as set.
+func TestCopyModeSearchFollowsSearchCase(t *testing.T) {
+	t.Parallel()
+	app, _, _ := copyApp(t, nil, []string{"Alpha one", "alpha two", "ALPHA three"})
+	enterCopyMode(t, app)
+	keysAt(t, app, "g g", 0, 0)
+	search := func(pattern string) error {
+		_, err := app.r.Execute(ochazuke.Request{Verb: "search", Noun: copyNoun, Target: copyID, Args: ochazuke.Arguments{"pattern": pattern}})
+		return err
+	}
+	if err := search("alpha"); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, "smart: lower case ignores case", 1, 0)
+	keysAt(t, app, "n", 2, 0)
+	if err := search("Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, "smart: a capital matches case", 0, 0)
+	if err := app.r.Settings().Set(ochazuke.SearchCaseSetting, ochazuke.SearchCaseSensitive); err != nil {
+		t.Fatal(err)
+	}
+	if err := search("alpha"); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, "sensitive", 1, 0)
+	keysAt(t, app, "n", 1, 0)
+	if err := app.r.Settings().Set(ochazuke.SearchCaseSetting, ochazuke.SearchCaseIgnore); err != nil {
+		t.Fatal(err)
+	}
+	if err := search("ALPHA"); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, "ignore: a capital still ignores case", 2, 0)
+}

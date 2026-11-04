@@ -438,24 +438,23 @@ func (b *copyBuf) scroll(lines int, moveCursor bool) {
 }
 
 // searchFrom finds text from the cursor, down (or up with back), wrapping
-// at the buffer's ends; a pattern with no capital letter ignores case.
-func (b *copyBuf) searchFrom(text string, back bool, steps int) error {
+// at the buffer's ends; cm says whether case counts (search.case, through
+// Runtime.CaseFor: smart ignores it until the pattern holds a capital).
+func (b *copyBuf) searchFrom(cm ochazuke.CaseMatch, text string, back bool, steps int) error {
 	if text == "" {
 		return errors.New("no search pattern")
 	}
-	fold := strings.ToLower(text) == text
 	needle := []rune(text)
+	for i, r := range needle {
+		needle[i] = cm.Rune(r)
+	}
 	match := func(p copyPos) bool {
 		l := b.line(p.row)
 		if p.col < 0 || p.col+len(needle) > len(l) {
 			return false
 		}
 		for i, r := range needle {
-			c := l[p.col+i]
-			if fold {
-				c = unicode.ToLower(c)
-			}
-			if c != r {
+			if cm.Rune(l[p.col+i]) != r {
 				return false
 			}
 		}

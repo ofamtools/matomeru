@@ -1,0 +1,20 @@
+{
+  "name": "mtm: copy mode's / follows search.case: smart (the default) matches a capital exactly, so IS misses the lower-case screen; with search.case ignore the same IS finds it",
+  "area": "copy",
+  "fixture": "seeded",
+  "skip": "gap: in the seeded story the pane detail stays on the Turns tab (] and panes.tab do not reach the Screen tab), so l runs pane.turns and copy mode never opens; TestCopyModeSearchFollowsSearchCase covers the behaviour until the fixture can reach the Screen tab",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "]", "l",
+    "/", {"type": "IS"}, "enter",
+    ":", {"type": "set search.case ignore"}, "enter",
+    "/", {"type": "IS"}, "enter",
+    "v", "e", "y"
+  ],
+  "expect": [
+    {"after": 2, "focus": "panes/copy"},
+    {"after": 5, "notices": ["pattern not found: IS"]},
+    {"register": "is"}
+  ]
+}

@@ -161,10 +161,10 @@ func (a *App) defineCopy() {
 			c.buf.scroll(lines, ochazuke.StringArg(args, "by", "line") != "line")
 			return nil
 		}), "Scroll the copy view by half a page, a page or a line (dir 1 down, -1 up)").Motion().
-		Verb("next", a.copyOp(func(c *copyMode, _ *ochazuke.Runtime, args ochazuke.Arguments) error {
-			return c.buf.searchFrom(c.buf.search, c.buf.back != boolArg(args, "reverse", false), ochazuke.IntArg(args, "steps", 1))
+		Verb("next", a.copyOp(func(c *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
+			return c.buf.searchFrom(r.CaseFor(c.buf.search), c.buf.search, c.buf.back != boolArg(args, "reverse", false), ochazuke.IntArg(args, "steps", 1))
 		}), "Move to the next match of the last search (reverse: the previous)").Motion().
-		Verb("search", a.copySearch, "Search the copy buffer: down, or up with back; a lowercase pattern ignores case").
+		Verb("search", a.copySearch, "Search the copy buffer: down, or up with back; case as search.case says (smart: a pattern without a capital ignores it)").
 		Verb("select", a.copyOp(func(_ *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
 			shape := ochazuke.StringArg(args, "shape", ochazuke.SelectionChar)
 			mode := r.SelectionMode(shape)
@@ -449,7 +449,7 @@ func (a *App) copySearch(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil
 		}
 		c.buf.search, c.buf.back = text, back
-		return c.buf.searchFrom(text, back, 1)
+		return c.buf.searchFrom(a.r.CaseFor(text), text, back, 1)
 	}
 	if text := ochazuke.StringArg(ctx.Args, "pattern", ""); text != "" {
 		return resultError(run(text))
