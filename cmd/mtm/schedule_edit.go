@@ -28,7 +28,7 @@ const scheduleFormID = "schedule-form"
 // parameters add and edit share, by name.
 var scheduleFields = []string{
 	"prompt", "when", "enabled", "harness", "model", "effort", "fast", "permission-mode",
-	"project", "task", "dir", "into", "pane", "start", "end", "catch-up", "description",
+	"project", "task", "dir", "into", "pane", "start", "end", "catch-up", "interval-from", "description",
 	"kind", "command", "drive", "timeout",
 }
 
@@ -62,6 +62,7 @@ func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 		"start":           {Type: "string", Free: true, Description: "First day it may run: 2026-11-01 (or an RFC 3339 time); empty: now"},
 		"end":             {Type: "string", Free: true, Description: "Last day it may run: 2026-12-31 (inclusive); empty: no end"},
 		"catch-up":        {Type: "string", Enum: schedules.CatchUpValues, Free: true, Description: "Runs missed while mtm was closed: none (skip) or once; empty: the schedules.catch-up setting"},
+		"interval-from":   {Type: "string", Enum: schedules.IntervalFromValues, Free: true, Description: "Where an interval counts from: start (the last run's start, the default) or finish (its finish, so a slow run does not shorten the gap); empty: start"},
 		"description":     {Type: "string", Free: true, Description: "What it is for, shown on its row"},
 		"kind":            {Type: "string", Enum: []string{schedules.KindPrompt, schedules.KindCommand}, Description: "prompt (start an agent) or command (run a command); default: from what is given"},
 		"command":         {Type: "string", Free: true, Description: "A command schedule's command line (words split on spaces)"},
@@ -132,6 +133,11 @@ func (a *App) applyScheduleField(d *schedules.Def, name, v string) error {
 			return fmt.Errorf("catch-up is one of %s", strings.Join(schedules.CatchUpValues, ", "))
 		}
 		d.CatchUp = v
+	case "interval-from":
+		if v != "" && !slices.Contains(schedules.IntervalFromValues, v) {
+			return fmt.Errorf("interval-from is one of %s", strings.Join(schedules.IntervalFromValues, ", "))
+		}
+		d.IntervalFrom = v
 	case "description":
 		d.Description = v
 	case "kind":
@@ -198,6 +204,8 @@ func scheduleField(d schedules.Def, name string) string {
 		return d.End
 	case "catch-up":
 		return d.CatchUp
+	case "interval-from":
+		return d.IntervalFrom
 	case "description":
 		return d.Description
 	case "kind":

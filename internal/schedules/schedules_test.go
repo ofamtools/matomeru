@@ -2,6 +2,7 @@ package schedules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -476,4 +477,112 @@ func TestDefaultGhCheckIsActiveAccount(t *testing.T) {
 		return
 	}
 	t.Fatal("no gh-signals default")
+}
+
+// A finish row counts its interval from the run's finish: a run that
+// takes three minutes pushes the next one five minutes past its end; a
+// start row (and a row with no field) counts from the start.
+func TestIntervalFromFinish(t *testing.T) {
+	for _, tc := range []struct{ from, wantAfterRun string }{{FromFinish, "8m"}, {FromStart, "5m"}, {"", "5m"}} {
+		t.Run("from="+tc.from, func(t *testing.T) {
+			db, _ := openDB(t)
+			c, f := start(), &fake{block: make(chan struct{})}
+			r := newRunner(t, db, c, f, "a")
+			d := def("sig")
+			d.IntervalFrom = tc.from
+			first := c.now().UnixMilli()
+			if got := r.Tick(context.Background(), []Def{d}); len(got) != 1 { // the first run ever: due at once
+				t.Fatalf("first tick %v", got)
+			}
+			waitFor(t, func() bool { return f.count() == 1 })
+			c.add(3 * time.Minute)
+			// In flight: no second run, however late, and the row is not due.
+			c.add(10 * time.Minute)
+			if got := r.Tick(context.Background(), []Def{d}); len(got) != 0 {
+				t.Fatalf("tick during the run started %v", got)
+			}
+			c.t = time.UnixMilli(first).UTC().Add(3 * time.Minute)
+			close(f.block)
+			r.Wait()
+			want, _ := time.ParseDuration(tc.wantAfterRun)
+			states, _ := r.States()
+			s := states["sig"]
+			if wantNext := first + want.Milliseconds(); s.Next != wantNext {
+				t.Fatalf("next %d, want %d (%s after the run) state %+v", s.Next, wantNext, tc.wantAfterRun, s)
+			}
+			c.t = time.UnixMilli(first).UTC().Add(want - time.Second)
+			if got := r.Tick(context.Background(), []Def{d}); len(got) != 0 {
+				t.Fatalf("early tick started %v", got)
+			}
+			c.add(2 * time.Second)
+			f.block = nil
+			if got := r.Tick(context.Background(), []Def{d}); len(got) != 1 {
+				t.Fatalf("due tick started %v", got)
+			}
+			r.Wait()
+		})
+	}
+}
+
+// A restart (a new runner on the same database) reads the same state; an
+// old state row with no finish counts from the start; a crashed run (a
+// lapsed claim, no finish) counts from its start too.
+func TestIntervalFromFinishStates(t *testing.T) {
+	d := def("sig")
+	d.IntervalFrom = FromFinish
+	loc := time.UTC
+	at := func(s State, now int64) (int64, bool) {
+		a, ok, _, _ := d.Occurrence(s, now, loc)
+		return a, ok
+	}
+	const m = int64(60_000)
+	if a, ok := at(State{Last: 1000 * m, LastFinished: 1003 * m}, 1004*m); !ok || a != 1008*m {
+		t.Fatalf("finished run: %d %v", a, ok)
+	}
+	if a, ok := at(State{Last: 1000 * m}, 1004*m); !ok || a != 1005*m {
+		t.Fatalf("legacy state (no finish): %d %v", a, ok)
+	}
+	if a, ok := at(State{Last: 1000 * m, LastFinished: 990 * m, RunningBy: "x", RunningUntil: 2000 * m}, 1100*m); ok {
+		t.Fatalf("in flight is not due: %d", a)
+	}
+	if a, ok := at(State{Last: 1000 * m, RunningBy: "x", RunningUntil: 1001 * m}, 1100*m); !ok || a != 1005*m {
+		t.Fatalf("lapsed claim counts from the start: %d %v", a, ok)
+	}
+	d.IntervalFrom = ""
+	if a, _ := at(State{Last: 1000 * m, LastFinished: 1003 * m}, 1004*m); a != 1005*m {
+		t.Fatalf("start row: %d", a)
+	}
+}
+
+func TestIntervalFromValues(t *testing.T) {
+	d := def("sig")
+	d.IntervalFrom = "end"
+	if err := d.Check(); err == nil || !strings.Contains(err.Error(), "interval_from") {
+		t.Fatalf("check %v", err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "schedules.json")
+	write := func(s string) {
+		if err := os.WriteFile(path, []byte(s), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(`[{"name": "n", "command": ["a"], "interval": "5m", "interval_from": "later"}]`)
+	if _, err := Load(path); err == nil {
+		t.Error("invalid interval_from loaded")
+	}
+	// The built-in signals count from the finish; a user row that does not
+	// say inherits it, and one that says start wins.
+	write(`[{"name": "gh-signals", "interval": "10m"}, {"name": "slack-signals", "interval_from": "start"}]`)
+	defs, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !defs[0].FromFinish() || defs[1].IntervalFrom != FromStart {
+		t.Fatalf("merged %q %q", defs[0].IntervalFrom, defs[1].IntervalFrom)
+	}
+	var unmarshal Def
+	if err := json.Unmarshal([]byte(`{"name":"o","command":["a"],"interval":"5m"}`), &unmarshal); err != nil || unmarshal.FromFinish() {
+		t.Fatalf("old row %+v %v", unmarshal, err)
+	}
 }

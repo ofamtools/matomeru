@@ -181,11 +181,15 @@ type Def struct {
 	// The timing (when.go): an interval, or days and times, or cron;
 	// start and end bound it.
 	Interval Duration `json:"interval,omitempty"`
-	Days     []string `json:"days,omitempty"`
-	At       []string `json:"at,omitempty"`
-	Cron     string   `json:"cron,omitempty"`
-	Start    string   `json:"start,omitempty"`
-	End      string   `json:"end,omitempty"`
+	// IntervalFrom is where an interval counts from: start (the default,
+	// the last run's start) or finish (the last run's finish, so a slow
+	// run does not shorten the gap). Calendar timing ignores it.
+	IntervalFrom string   `json:"interval_from,omitempty"`
+	Days         []string `json:"days,omitempty"`
+	At           []string `json:"at,omitempty"`
+	Cron         string   `json:"cron,omitempty"`
+	Start        string   `json:"start,omitempty"`
+	End          string   `json:"end,omitempty"`
 	// CatchUp is none or once (CatchUpValues); empty takes the caller's
 	// default (mtm's schedules.catch-up setting).
 	CatchUp string   `json:"catch_up,omitempty"`
@@ -203,6 +207,29 @@ type Def struct {
 	// Source is where the row came from (SourceBuiltin, SourceFile,
 	// SourceStored); not stored.
 	Source string `json:"-"`
+}
+
+// Interval anchors (IntervalFrom).
+const (
+	FromStart  = "start"
+	FromFinish = "finish"
+)
+
+// IntervalFromValues are the values of interval_from.
+var IntervalFromValues = []string{FromStart, FromFinish}
+
+// FromFinish reports an interval row that counts from the last run's finish.
+func (d Def) FromFinish() bool { return d.IntervalFrom == FromFinish }
+
+// anchor is the time an interval counts from for state s: the last run's
+// start, or (finish rows) its finish. A run with no finish recorded (in
+// flight, one that died, or a state written before finishes were kept)
+// counts from its start.
+func (d Def) anchor(s State) int64 {
+	if d.FromFinish() && s.LastFinished >= s.Last && s.LastFinished > 0 {
+		return s.LastFinished
+	}
+	return s.Last
 }
 
 // Every is the interval as a time.Duration.
@@ -280,7 +307,10 @@ func (d Def) Occurrence(s State, now int64, loc *time.Location) (at int64, ok, f
 	if !end.IsZero() && now > end.UnixMilli() {
 		return 0, false, false, false
 	}
-	base := max(s.Last, s.Since, d.Created)
+	if d.FromFinish() && d.Interval > 0 && !d.When().Calendar() && s.Running(now) {
+		return 0, false, false, false // in flight: due once it finishes
+	}
+	base := max(d.anchor(s), s.Since, d.Created)
 	if base == 0 {
 		if d.When().Calendar() {
 			return 0, false, false, true
@@ -329,11 +359,11 @@ func (d Def) Limit() time.Duration {
 func Defaults() []Def {
 	return []Def{
 		{Name: "gh-signals", Description: "GitHub review requests, CI and PR signals into the inbox (o-gh signals)",
-			Command: []string{"o-gh", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Auto, CatchUp: CatchUpOnce, Source: SourceBuiltin,
+			Command: []string{"o-gh", "signals"}, Interval: Duration(5 * time.Minute), IntervalFrom: FromFinish, Enabled: Auto, CatchUp: CatchUpOnce, Source: SourceBuiltin,
 			Requires: [][]string{{"gh", "auth", "status", "--active"}},
 			Env:      map[string]string{"O_GH_MTM": "{mtm}", "O_GH_MTM_ARGS": "{mtm-args}"}},
 		{Name: "slack-signals", Description: "Slack mentions, DMs and threads into the inbox (o-slack signals; the work machine)",
-			Command: []string{"o-slack", "signals"}, Interval: Duration(5 * time.Minute), Enabled: Off, CatchUp: CatchUpOnce, Source: SourceBuiltin,
+			Command: []string{"o-slack", "signals"}, Interval: Duration(5 * time.Minute), IntervalFrom: FromFinish, Enabled: Off, CatchUp: CatchUpOnce, Source: SourceBuiltin,
 			Env: map[string]string{"O_SLACK_MTM": "{mtm}", "O_SLACK_MTM_ARGS": "{mtm-args}"}},
 	}
 }
@@ -420,6 +450,8 @@ func (d Def) Check() error {
 		return errors.New("a command schedule needs an interval, days/at or cron")
 	case !slices.Contains(EnabledValues, d.Enabled):
 		return fmt.Errorf("enabled is one of %s", strings.Join(EnabledValues, ", "))
+	case d.IntervalFrom != "" && !slices.Contains(IntervalFromValues, d.IntervalFrom):
+		return fmt.Errorf("interval_from is one of %s", strings.Join(IntervalFromValues, ", "))
 	case d.CatchUp != "" && !slices.Contains(CatchUpValues, d.CatchUp):
 		return fmt.Errorf("catch_up is one of %s", strings.Join(CatchUpValues, ", "))
 	case d.Agent.Target != "" && !slices.Contains(TargetValues, d.Agent.Target):
@@ -461,6 +493,9 @@ type State struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Last  int64  `json:"last"` // the last run's start, Unix ms
+	// LastFinished is when that run finished (Unix ms); 0 or before Last
+	// while it is in flight, and on rows written before it was kept.
+	LastFinished int64 `json:"last_finished,omitempty"`
 	// Since is when the schedule started counting without a run: its first
 	// check (a calendar row), or a skipped catch-up.
 	Since int64 `json:"since,omitempty"`
@@ -796,7 +831,10 @@ func (r *Runner) claim(def Def, manual bool) (State, bool, error) {
 			}
 		}
 		s.Last, s.Updated = now, now
-		s.Next, _ = def.after(now, s.Failures, r.loc())
+		s.Next = 0
+		if !def.FromFinish() {
+			s.Next, _ = def.after(now, s.Failures, r.loc())
+		}
 		s.RunningBy, s.RunningUntil = r.Owner, now+(def.Limit()+claimGrace).Milliseconds()
 		claimed, ok = s, true
 		return tx.Put(Table.Name, s.ID, s)
@@ -952,7 +990,8 @@ func (r *Runner) record(def Def, rec Record) error {
 		} else {
 			s.Failures = 0
 		}
-		s.Next, _ = def.after(s.Last, s.Failures, r.loc())
+		s.LastFinished = max(s.LastFinished, rec.Finished)
+		s.Next, _ = def.after(def.anchor(s), s.Failures, r.loc())
 		s.Updated = rec.Finished
 		return tx.Put(Table.Name, s.ID, s)
 	})

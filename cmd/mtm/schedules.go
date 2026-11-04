@@ -302,30 +302,31 @@ func (a *App) addSchedulesPage() error {
 
 // scheduleView is a schedule as list, show and the rows answer it.
 type scheduleView struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Kind        string          `json:"kind"`
-	Source      string          `json:"source"`
-	Command     []string        `json:"command,omitempty"`
-	Drive       string          `json:"drive,omitempty"` // a command row's: exec (default), terminal or api
-	Prompt      string          `json:"prompt,omitempty"`
-	Agent       schedules.Agent `json:"agent,omitzero"`
-	When        string          `json:"when"`
-	Start       string          `json:"start,omitempty"`
-	End         string          `json:"end,omitempty"`
-	CatchUp     string          `json:"catch_up"`
-	Missed      int             `json:"missed,omitempty"`
-	Interval    string          `json:"interval,omitempty"`
-	Timeout     string          `json:"timeout"`
-	Enabled     string          `json:"enabled"`
-	Active      bool            `json:"active"`
-	Why         string          `json:"why,omitempty"`
-	Running     bool            `json:"running,omitempty"`
-	LastRun     int64           `json:"last_run,omitempty"`
-	LastOutcome string          `json:"last_outcome,omitempty"`
-	LastError   string          `json:"last_error,omitempty"`
-	Failures    int             `json:"failures,omitempty"`
-	NextRun     int64           `json:"next_run,omitempty"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description,omitempty"`
+	Kind         string          `json:"kind"`
+	Source       string          `json:"source"`
+	Command      []string        `json:"command,omitempty"`
+	Drive        string          `json:"drive,omitempty"` // a command row's: exec (default), terminal or api
+	Prompt       string          `json:"prompt,omitempty"`
+	Agent        schedules.Agent `json:"agent,omitzero"`
+	When         string          `json:"when"`
+	Start        string          `json:"start,omitempty"`
+	End          string          `json:"end,omitempty"`
+	CatchUp      string          `json:"catch_up"`
+	Missed       int             `json:"missed,omitempty"`
+	Interval     string          `json:"interval,omitempty"`
+	IntervalFrom string          `json:"interval_from,omitempty"`
+	Timeout      string          `json:"timeout"`
+	Enabled      string          `json:"enabled"`
+	Active       bool            `json:"active"`
+	Why          string          `json:"why,omitempty"`
+	Running      bool            `json:"running,omitempty"`
+	LastRun      int64           `json:"last_run,omitempty"`
+	LastOutcome  string          `json:"last_outcome,omitempty"`
+	LastError    string          `json:"last_error,omitempty"`
+	Failures     int             `json:"failures,omitempty"`
+	NextRun      int64           `json:"next_run,omitempty"`
 	// Runs are the recent runs (show only).
 	Runs []schedules.Record `json:"runs,omitempty"`
 }
@@ -340,6 +341,7 @@ func (a *App) viewSchedule(d schedules.Def, s schedules.State, now int64) schedu
 		Enabled: d.Enabled, Running: s.Running(now), LastRun: s.Last, LastOutcome: s.LastOutcome, LastError: s.LastError, Failures: s.Failures}
 	if d.Interval > 0 {
 		v.Interval = scheduleSpan(d.Every())
+		v.IntervalFrom = cmp.Or(d.IntervalFrom, schedules.FromStart)
 	}
 	switch d.Enabled {
 	case schedules.On:
@@ -543,6 +545,7 @@ func (a *App) scheduleFacts(v scheduleView) string {
 		"enabled", v.onCell(),
 		"why", v.Why,
 		"when", v.When,
+		"counts from", v.IntervalFrom,
 		"from", v.Start,
 		"until", v.End,
 		"catch-up", v.CatchUp,
