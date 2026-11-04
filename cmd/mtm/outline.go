@@ -451,6 +451,10 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 	if o.tree != nil {
 		list = o.tree.List()
 	}
+	var archived map[string]bool
+	if a.archiveVisible(true, list) {
+		archived = archivedTasks(tasks)
+	}
 	tasks = a.liveTasks(tasks, list)
 	owned := func(project string) []work.Task {
 		var out []work.Task
@@ -467,7 +471,7 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 	}
 	private := privateTasks(tasks)
 	taskNodes := func(tasks []work.Task, root string) []ochazuke.TreeNode {
-		return a.outlineTaskNodes(tasks, root, private, exported, o)
+		return a.outlineTaskNodes(tasks, root, private, exported, archived, o)
 	}
 	root := func(id, label string) ochazuke.TreeNode {
 		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label)}
@@ -518,12 +522,12 @@ func rootNoun(scope outlineScope, id string) string {
 
 // outlineTaskNodes are one project's tasks as rows under root; private
 // is which tasks are private (privateTasks), for their glyph; exported is
-// which may leave mtm (work.Exports). A row's props are the task's
-// (taskThing), so the outline's prop filters offer every task field.
-func (a *App) outlineTaskNodes(tasks []work.Task, root string, private, exported map[string]bool, o *outlineState) []ochazuke.TreeNode {
+// which may leave mtm (work.Exports). Props are the task's fields, with
+// archived projected from the task and its ancestors.
+func (a *App) outlineTaskNodes(tasks []work.Task, root string, private, exported, archived map[string]bool, o *outlineState) []ochazuke.TreeNode {
 	return taskTreeNodes(tasks, root, outlineNode, func(t work.Task) ochazuke.TreeNode {
 		label := o.imageLabel(t.ID, t.Title)
-		return ochazuke.TreeNode{Label: label, Noun: outlineTaskNoun, Props: taskThing(t, exported[t.ID]), Cells: a.outlineCells(label, t, private[t.ID])}
+		return ochazuke.TreeNode{Label: label, Noun: outlineTaskNoun, Props: taskTreeThing(t, exported[t.ID], archived), Cells: a.outlineCells(label, t, private[t.ID])}
 	})
 }
 
@@ -821,6 +825,10 @@ func (a *App) outlineChanged(o *outlineState) error {
 		return err
 	}
 	private := privateTasks(tasks)
+	var archived map[string]bool
+	if a.archiveVisible(true, o.tree.List()) {
+		archived = archivedTasks(tasks)
+	}
 	nodes := o.tree.Nodes()
 	for i, n := range nodes {
 		if n.Parent == "" {
@@ -830,7 +838,7 @@ func (a *App) outlineChanged(o *outlineState) error {
 		}
 		t := byID[taskOf(n.ID)]
 		nodes[i].Cells, nodes[i].Noun = a.outlineCells(n.Label, t, private[t.ID]), outlineTaskNoun
-		nodes[i].Props = taskThing(t, exported[t.ID])
+		nodes[i].Props = taskTreeThing(t, exported[t.ID], archived)
 	}
 	if err := o.tree.SetNodes(nodes); err != nil {
 		return err

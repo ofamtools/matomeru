@@ -69,6 +69,7 @@ func (a *App) bindTaskStop() error {
 
 func (a *App) refreshTasks() error {
 	var tasks []work.Task
+	var archived map[string]bool
 	if a.tasksOpen {
 		project := a.current
 		if a.all {
@@ -77,6 +78,9 @@ func (a *App) refreshTasks() error {
 		rows, err := a.work.Tasks(project)
 		if err != nil {
 			return err
+		}
+		if a.archiveVisible(true, a.taskList) {
+			archived = archivedTasks(rows)
 		}
 		rows = a.liveTasks(rows, a.taskList)
 		// The tasks follow the selected project row whatever the pin: the
@@ -123,7 +127,7 @@ func (a *App) refreshTasks() error {
 		if marked[t.ID] {
 			label += " [draft]"
 		}
-		return ochazuke.TreeNode{Label: label, Noun: "task", Props: taskThing(t, exported[t.ID]), Cells: a.taskCells(t, marked[t.ID], now)}
+		return ochazuke.TreeNode{Label: label, Noun: "task", Props: taskTreeThing(t, exported[t.ID], archived), Cells: a.taskCells(t, marked[t.ID], now)}
 	}
 	nodes := a.taskNodes(tasks, row)
 	for _, d := range drafts {

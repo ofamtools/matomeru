@@ -27,6 +27,13 @@ func (a *App) liveTasks(tasks []work.Task, lists ...*ochazuke.List) []work.Task 
 	if a.archiveVisible(true, lists...) {
 		return tasks
 	}
+	archived := archivedTasks(tasks)
+	return slices.DeleteFunc(tasks, func(t work.Task) bool { return archived[t.ID] })
+}
+
+// archivedTasks is the effective archive state of each row, without changing
+// the record's own flag. Trees project it; record verbs keep the stored flag.
+func archivedTasks(tasks []work.Task) map[string]bool {
 	byID := make(map[string]work.Task, len(tasks))
 	for _, t := range tasks {
 		byID[t.ID] = t
@@ -47,7 +54,16 @@ func (a *App) liveTasks(tasks []work.Task, lists ...*ochazuke.List) []work.Task 
 		delete(visiting, id)
 		return hidden[id]
 	}
-	return slices.DeleteFunc(tasks, func(t work.Task) bool { return archived(t.ID) })
+	for _, t := range tasks {
+		archived(t.ID)
+	}
+	return hidden
+}
+
+func taskTreeThing(t work.Task, exported bool, archived map[string]bool) ochazuke.Thing {
+	thing := taskThing(t, exported)
+	thing["archived"] = archived[t.ID]
+	return thing
 }
 
 // Standard lists must retain archived rows for explicit archive conditions.

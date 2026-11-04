@@ -232,6 +232,82 @@ func TestArchivePageSavedFilters(t *testing.T) {
 	}
 }
 
+func TestArchivedTreeFilterIncludesDescendantsWithoutCascade(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	for _, task := range []work.Task{
+		{ID: "archive-child", Title: "live child", ParentID: "t1", ProjectID: "matomeru", Status: work.StatusTodo},
+		{ID: "archive-owned", Title: "own archived grandchild", ParentID: "archive-child", ProjectID: "matomeru", Status: work.StatusTodo, Archived: true},
+	} {
+		if err := a.work.PutTask(task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.reveal("t1"); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "project", "outline", "matomeru", nil)
+	executeA(t, a, "task", "archive", "", ochazuke.Arguments{"id": "t1"})
+	for name, list := range map[string]*ochazuke.List{"work": a.taskList, "outline": a.outline.tree.List()} {
+		if err := list.ApplyFilter("archived"); err != nil {
+			t.Fatal(err)
+		}
+		for _, task := range []string{"t1", "archive-child", "archive-owned"} {
+			id := task
+			if name == "outline" {
+				id = outlineNode(id)
+			}
+			if err := list.Select(id); err != nil {
+				t.Fatalf("%s omitted archived branch row %s: %v", name, task, err)
+			}
+			if row, _ := list.Selected(); row.Props["archived"] != true {
+				t.Fatalf("%s %s lacks effective archive state: %+v", name, task, row)
+			}
+		}
+	}
+	checkChoices := func(want []string) {
+		t.Helper()
+		op, _ := a.r.Operation("task.restore")
+		rows, err := a.r.Choices(a.r.Context(), op.Parameters["id"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		slices.Sort(ids)
+		if !slices.Equal(ids, want) {
+			t.Fatalf("restore choices include inherited archive states: %v, want %v", ids, want)
+		}
+	}
+	checkChoices([]string{"archive-owned", "t1"})
+	// Restoring a live child cannot restore its archived ancestor.
+	executeA(t, a, "task", "restore", "", ochazuke.Arguments{"id": "archive-child"})
+	if parent, err := a.work.Task("t1"); err != nil || !parent.Archived {
+		t.Fatalf("child restore changed its parent: %+v %v", parent, err)
+	}
+	if child, err := a.work.Task("archive-child"); err != nil || child.Archived || child.ParentID != "t1" {
+		t.Fatalf("projection changed the live child's record: %+v %v", child, err)
+	}
+	// Edits inside the outline must not overwrite the projected row props.
+	executeA(t, a, outlineTaskNoun, "status", outlineNode("archive-child"), ochazuke.Arguments{"status": work.StatusBlocked})
+	if err := a.outline.tree.List().Select(outlineNode("archive-child")); err != nil {
+		t.Fatalf("outline edit hid the inherited archived child: %v", err)
+	}
+	if row, _ := a.outline.tree.List().Selected(); row.Props["archived"] != true {
+		t.Fatalf("outline edit lost effective archive state: %+v", row)
+	}
+	executeA(t, a, "task", "restore", "", ochazuke.Arguments{"id": "t1"})
+	if child, err := a.work.Task("archive-child"); err != nil || child.Archived {
+		t.Fatalf("parent restore changed its live child's own flag: %+v %v", child, err)
+	}
+	if child, err := a.work.Task("archive-owned"); err != nil || !child.Archived {
+		t.Fatalf("parent restore cleared a grandchild's own flag: %+v %v", child, err)
+	}
+	checkChoices([]string{"archive-owned"})
+}
+
 func TestOutlineTaskArchiveRestoreAndNotes(t *testing.T) {
 	t.Parallel()
 	a := open(t)

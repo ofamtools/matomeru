@@ -1,0 +1,15 @@
+{
+  "name": "mtm: the outline archived filter includes live children of archived tasks",
+  "area": "tasks",
+  "fixture": "nested",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "ctrl+j", "O",
+    ":", {"type": "task archive t13"}, "enter",
+    ":", {"type": "list filter-saved archived"}, "enter"
+  ],
+  "expect": [
+    {"contains": ["[archived]", "Shipping estimate: API client", "Mock the carrier API"], "lacks": ["Error:"]}
+  ]
+}

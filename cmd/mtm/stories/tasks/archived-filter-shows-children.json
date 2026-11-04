@@ -1,0 +1,3 @@
+{"name":"ux: archived saved filter shows the children hidden with the archived parent","area":"tasks","fixture":"nested","width":120,"height":30,
+ "script":["ctrl+j",":",{"type":"task archive t13"},"enter","tab",":",{"type":"list filter-saved archived"},"enter"],
+ "expect":[{"contains":["[archived]","Shipping estimate: API client","Mock the carrier API"]}]}
