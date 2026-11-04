@@ -1,0 +1,395 @@
+{
+ "schema": 1,
+ "name": "o-ai",
+ "version": "0.1.0",
+ "state": "status.state",
+ "stateDelta": 1,
+ "nouns": [
+  {
+   "name": "quota",
+   "live": true,
+   "columns": [
+    {
+     "title": "harness",
+     "min": 7
+    },
+    {
+     "title": "window",
+     "min": 10
+    },
+    {
+     "title": "used",
+     "align": "right"
+    },
+    {
+     "title": "left",
+     "align": "right",
+     "priority": 1
+    },
+    {
+     "title": "resets",
+     "priority": 2
+    }
+   ],
+   "verbs": [
+    {
+     "examples": [
+      {
+       "args": {},
+       "note": "Template: replace placeholder values before running"
+      }
+     ],
+     "destructive": false,
+     "agent": "allow",
+     "name": "list",
+     "description": "one row per rate-limit window: {id: quota/HARNESS:WINDOW, label, data: {usedPercent, remainingPercent, resetsAt, ...}}; a harness that cannot answer is one quota/HARNESS:error row",
+     "kind": "application",
+     "params": {
+      "backoff": {
+       "type": "string",
+       "description": "after a vendor refusal, how long before it is asked again, a Go duration (default 1m); --fresh and refresh ask anyway"
+      },
+      "format": {
+       "type": "string",
+       "description": "json (an array, the default) or jsonl (one {noun, id, label, data} per line, the state's shape)",
+       "enum": [
+        "json",
+        "jsonl"
+       ]
+      },
+      "fresh": {
+       "type": "boolean",
+       "description": "ask the vendor now even if the cached quota is young"
+      },
+      "harness": {
+       "type": "string",
+       "description": "only this harness: claude or codex",
+       "enum": [
+        "claude",
+        "codex"
+       ]
+      },
+      "home": {
+       "type": "string",
+       "description": "alternate home for file discovery and child processes"
+      },
+      "timeout": {
+       "type": "string",
+       "description": "the usage request's deadline, a Go duration (default 15s)"
+      },
+      "ttl": {
+       "type": "string",
+       "description": "how old a cached quota may be, a Go duration (default 5m; 0s asks the vendor)"
+      }
+     },
+     "result": "JSON value",
+     "rows": "quota",
+     "positional": [
+      "harness"
+     ],
+     "history": "fetch",
+     "builtin": false
+    },
+    {
+     "examples": [
+      {
+       "args": {},
+       "note": "Template: replace placeholder values before running"
+      }
+     ],
+     "destructive": false,
+     "agent": "allow",
+     "name": "refresh",
+     "description": "fetch the quota windows now, past the cache (rows as list; a harness the vendor refuses keeps its last good rows)",
+     "kind": "application",
+     "params": {
+      "backoff": {
+       "type": "string",
+       "description": "after a vendor refusal, how long before it is asked again, a Go duration (default 1m); --fresh and refresh ask anyway"
+      },
+      "format": {
+       "type": "string",
+       "description": "json (an array, the default) or jsonl (one {noun, id, label, data} per line, the state's shape)",
+       "enum": [
+        "json",
+        "jsonl"
+       ]
+      },
+      "fresh": {
+       "type": "boolean",
+       "description": "ask the vendor now even if the cached quota is young"
+      },
+      "harness": {
+       "type": "string",
+       "description": "only this harness: claude or codex",
+       "enum": [
+        "claude",
+        "codex"
+       ]
+      },
+      "home": {
+       "type": "string",
+       "description": "alternate home for file discovery and child processes"
+      },
+      "timeout": {
+       "type": "string",
+       "description": "the usage request's deadline, a Go duration (default 15s)"
+      },
+      "ttl": {
+       "type": "string",
+       "description": "how old a cached quota may be, a Go duration (default 5m; 0s asks the vendor)"
+      }
+     },
+     "result": "JSON value",
+     "rows": "quota",
+     "positional": [
+      "harness"
+     ],
+     "history": "fetch",
+     "builtin": false
+    },
+    {
+     "examples": [
+      {
+       "args": {},
+       "note": "Template: replace placeholder values before running"
+      }
+     ],
+     "destructive": false,
+     "agent": "allow",
+     "name": "show",
+     "description": "a harness's quota record (claude or codex; none prints both): plan, source, observedAt, windows, error",
+     "kind": "application",
+     "params": {
+      "backoff": {
+       "type": "string",
+       "description": "after a vendor refusal, how long before it is asked again, a Go duration (default 1m); --fresh and refresh ask anyway"
+      },
+      "entry": {
+       "type": "string",
+       "description": "claude or codex",
+       "enum": [
+        "claude",
+        "codex"
+       ]
+      },
+      "fresh": {
+       "type": "boolean",
+       "description": "ask the vendor now even if the cached quota is young"
+      },
+      "harness": {
+       "type": "string",
+       "description": "only this harness: claude or codex",
+       "enum": [
+        "claude",
+        "codex"
+       ]
+      },
+      "home": {
+       "type": "string",
+       "description": "alternate home for file discovery and child processes"
+      },
+      "timeout": {
+       "type": "string",
+       "description": "the usage request's deadline, a Go duration (default 15s)"
+      },
+      "ttl": {
+       "type": "string",
+       "description": "how old a cached quota may be, a Go duration (default 5m; 0s asks the vendor)"
+      }
+     },
+     "result": "JSON value",
+     "positional": [
+      "entry"
+     ],
+     "history": "fetch",
+     "builtin": false
+    }
+   ]
+  },
+  {
+   "name": "status",
+   "columns": [
+    {
+     "title": "kind",
+     "min": 10
+    },
+    {
+     "title": "count",
+     "align": "right"
+    }
+   ],
+   "verbs": [
+    {
+     "examples": [
+      {
+       "args": {},
+       "note": "Template: replace placeholder values before running"
+      }
+     ],
+     "destructive": false,
+     "agent": "allow",
+     "name": "list",
+     "description": "how many records of each kind: {id, label, data: {kind, count}}",
+     "kind": "application",
+     "params": {
+      "format": {
+       "type": "string",
+       "description": "json (an array, the default) or jsonl (one {noun, id, label, data} per line, the state's shape)",
+       "enum": [
+        "json",
+        "jsonl"
+       ]
+      },
+      "fresh": {
+       "type": "boolean",
+       "description": "collect now even if the inventory cache is young"
+      },
+      "home": {
+       "type": "string",
+       "description": "alternate home for file discovery and child processes"
+      },
+      "no-probe": {
+       "type": "boolean",
+       "description": "files only; do not run harness metadata commands"
+      },
+      "project": {
+       "type": "string",
+       "description": "inspect this project's settings and resources (default: the working directory)"
+      },
+      "timeout": {
+       "type": "string",
+       "description": "per metadata command deadline, a Go duration (default 15s)"
+      },
+      "ttl": {
+       "type": "string",
+       "description": "how old a cached inventory may be, a Go duration (default 5m; 0s collects)"
+      }
+     },
+     "result": "JSON value",
+     "rows": "status",
+     "history": "fetch",
+     "builtin": false
+    },
+    {
+     "examples": [
+      {
+       "args": {},
+       "note": "Template: replace placeholder values before running"
+      }
+     ],
+     "destructive": false,
+     "agent": "allow",
+     "name": "show",
+     "description": "the whole inventory, warnings included",
+     "kind": "application",
+     "params": {
+      "fresh": {
+       "type": "boolean",
+       "description": "collect now even if the inventory cache is young"
+      },
+      "home": {
+       "type": "string",
+       "description": "alternate home for file discovery and child processes"
+      },
+      "no-probe": {
+       "type": "boolean",
+       "description": "files only; do not run harness metadata commands"
+      },
+      "project": {
+       "type": "string",
+       "description": "inspect this project's settings and resources (default: the working directory)"
+      },
+      "timeout": {
+       "type": "string",
+       "description": "per metadata command deadline, a Go duration (default 15s)"
+      },
+      "ttl": {
+       "type": "string",
+       "description": "how old a cached inventory may be, a Go duration (default 5m; 0s collects)"
+      }
+     },
+     "result": "JSON value",
+     "history": "fetch",
+     "builtin": false
+    },
+    {
+     "examples": [
+      {
+       "args": {},
+       "note": "Template: replace placeholder values before running"
+      }
+     ],
+     "destructive": false,
+     "agent": "allow",
+     "name": "state",
+     "description": "every list's rows in one collection, JSON Lines {noun, id, label, data: the brief record} for harness, provider, model, thinking, skill, agent, settings, mcp, mcp-tool, status (the catalog's state)",
+     "kind": "application",
+     "params": {
+      "fresh": {
+       "type": "boolean",
+       "description": "collect now even if the inventory cache is young"
+      },
+      "harness": {
+       "type": "string",
+       "description": "exact harness id, e.g. omp, claude, codex"
+      },
+      "home": {
+       "type": "string",
+       "description": "alternate home for file discovery and child processes"
+      },
+      "model": {
+       "type": "string",
+       "description": "filter models and thinking levels by model id, slug or display name"
+      },
+      "no-probe": {
+       "type": "boolean",
+       "description": "files only; do not run harness metadata commands"
+      },
+      "project": {
+       "type": "string",
+       "description": "inspect this project's settings and resources (default: the working directory)"
+      },
+      "provider": {
+       "type": "string",
+       "description": "exact provider slug"
+      },
+      "search": {
+       "type": "string",
+       "description": "case-insensitive id, name and description search"
+      },
+      "timeout": {
+       "type": "string",
+       "description": "per metadata command deadline, a Go duration (default 15s)"
+      },
+      "ttl": {
+       "type": "string",
+       "description": "how old a cached inventory may be, a Go duration (default 5m; 0s collects)"
+      }
+     },
+     "result": "JSON value",
+     "history": "fetch",
+     "builtin": false
+    }
+   ]
+  }
+ ],
+ "bindings": [
+  {
+   "mode": "normal",
+   "noun": "quota",
+   "keys": "F",
+   "request": {
+    "verb": "refresh",
+    "noun": "quota"
+   },
+   "hint": "fetch quota now"
+  }
+ ],
+ "pages": [],
+ "extensions": [],
+ "hooks": [],
+ "events": [],
+ "segments": [],
+ "sides": []
+}
