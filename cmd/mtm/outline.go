@@ -349,6 +349,9 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 	a.outline = state
 	tree.NewID = func() string { return outlineNode(work.NewID()) }
 	tree.RowNoun = outlineTaskNoun
+	// tree.delete-children=orphan moves the children of a deleted row to
+	// its project's level: a task stays under a project, never at the top.
+	tree.OrphanParent = func(n ochazuke.TreeNode) string { return rootOf(tree, n.ID) }
 	tree.OnChange = func(c ochazuke.TreeChange) error { return a.writeOutline(state, c) }
 	a.observeArchiveList(tree.List(), a.reloadOutline)
 	if focus != "" {
@@ -758,6 +761,7 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 		return false, nil
 	}
 	project := projectOfRoot(c.ID)
+	var refused error
 	switch {
 	case c.Op == ochazuke.TreeAdd:
 		// AddProject's row with the outline's id (the row is named first).
@@ -790,13 +794,13 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 		}
 		a.r.UI().Notify("A project with tasks is deleted with d d on its row")
 	case c.Op == ochazuke.TreeMove && !a.isProjectRow(c.ID):
-		a.r.UI().Notify("A task stays under a project")
+		refused = fmt.Errorf("A task stays under a project: %w", ochazuke.ErrTreeRefused)
 	}
 	nodes, err := a.outlineNodes(o.scope, o)
 	if err != nil {
 		return true, err
 	}
-	return true, o.tree.SetNodes(nodes)
+	return true, errors.Join(refused, o.tree.SetNodes(nodes))
 }
 
 // projectGoing reports whether a task row is deleted along with its
