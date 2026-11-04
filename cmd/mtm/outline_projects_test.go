@@ -305,3 +305,38 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 	focusRow(t, c, projectNode(""))
 	refused(t, c, "i", "not a project")
 }
+
+// Emptying an existing project's name never deletes the project, even when
+// it has no tasks: the row keeps its name and the store keeps the project.
+func TestAllViewEmptyingAProjectNameKeepsIt(t *testing.T) {
+	t.Parallel()
+	a := allOutline(t, projectNode("ochazuke"))
+	press(t, a, "o")
+	made := newProjects(t, a)
+	if len(made) != 1 {
+		t.Fatalf("o wrote %+v", made)
+	}
+	id := made[0].ID
+	typePaused(t, a, "keepme")
+	press(t, a, "esc")
+	press(t, a, "i", "backspace", "esc")
+	if p, err := a.work.Project(id); err != nil || p.Name != "keepme" {
+		t.Fatalf("emptied name: %+v %v", p, err)
+	}
+	if !slices.ContainsFunc(rootRows(a), func(row string) bool { return projectOfRoot(row) == id }) {
+		t.Fatalf("the project row is gone: %v", rootRows(a))
+	}
+}
+
+// A project row added with o and left blank leaves no project behind.
+func TestAllViewBlankNewProjectRowLeavesNothing(t *testing.T) {
+	t.Parallel()
+	a := allOutline(t, projectNode("ochazuke"))
+	press(t, a, "o", "esc")
+	if made := newProjects(t, a); len(made) != 0 {
+		t.Fatalf("a blank new project row left %+v", made)
+	}
+	if rows := rootRows(a); len(rows) != 3 {
+		t.Fatalf("root rows %v", rows)
+	}
+}

@@ -474,7 +474,7 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 		return a.outlineTaskNodes(tasks, root, private, exported, archived, o)
 	}
 	root := func(id, label string) ochazuke.TreeNode {
-		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true}
+		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true, Fixed: []string{ochazuke.TreeRemoveEmpty}}
 	}
 	var nodes []ochazuke.TreeNode
 	if !scope.all {
@@ -834,7 +834,8 @@ func (a *App) outlineChanged(o *outlineState) error {
 		if n.Parent == "" {
 			nodes[i].Cells, nodes[i].Noun = a.rootCells(n.ID, n.Label), rootNoun(o.scope, n.ID)
 			nodes[i].Props = a.rootProps(n.ID)
-			nodes[i].SpaceAbove = true // a project added in the outline gets the gap too
+			nodes[i].SpaceAbove = true                          // a project added in the outline gets the gap too
+			nodes[i].Fixed = []string{ochazuke.TreeRemoveEmpty} // emptying a project name never deletes the project
 			continue
 		}
 		t := byID[taskOf(n.ID)]
