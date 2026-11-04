@@ -342,7 +342,7 @@ func knownRepos(t *testing.T, a *App, names ...string) string {
 	return root
 }
 
-// directory-chooser known: the classic chooser ends with browse….
+// directory-chooser known: the path chooser opened on the known directories.
 func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -356,7 +356,7 @@ func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
 	if c == nil {
 		t.Fatalf("no directory chooser, modal %q", a.r.TopModal())
 	}
-	if got := labels(c.Matches()); len(got) != 3 || got[2] != "browse…" {
+	if got := labels(c.Matches()); len(got) != 2 {
 		t.Fatalf("directory rows %q", got)
 	}
 	typeText(t, a, "beta")
@@ -398,7 +398,7 @@ func TestPinningDirectorylessProjectAsksAndMovedRowWins(t *testing.T) {
 	}
 }
 
-func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
+func TestDirectoryChooserTypedPathAttaches(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	knownDirectoryChooser(t, a)
@@ -411,25 +411,11 @@ func TestDirectoryChooserTypedPathAttachesAndBrowseOpensPicker(t *testing.T) {
 	openPicker(t, a)
 	typeText(t, a, "ochazuke")
 	pressSettle(t, a, "enter")
-	typeText(t, a, filepath.Join(dir, "plain"))
-	press(t, a, "enter")
+	typePath(t, a, filepath.Join(dir, "plain"))
+	press(t, a, "alt+enter")
+	settle(a, a.r.PendingCommands())
 	if p, _ := a.project("ochazuke"); p.DefaultTree != filepath.Join(dir, "plain") {
 		t.Fatalf("typed path default %q", p.DefaultTree)
-	}
-	// browse runs on a fresh App: the typed path above lives under TMPDIR,
-	// which may itself contain "matomeru" and would let the query match
-	// ochazuke's new directory too.
-	a = open(t)
-	knownDirectoryChooser(t, a)
-	knownRepos(t, a)
-	executeA(t, a, "project", "unpin", "work", nil)
-	openPicker(t, a)
-	typeText(t, a, "matomeru")
-	press(t, a, "enter")
-	typeText(t, a, "browse")
-	press(t, a, "enter")
-	if a.r.Page != "directories" || a.r.TopModal() != "picker" || a.directories.ProjectID != "matomeru" {
-		t.Fatalf("browse: page %s modal %q project %q", a.r.Page, a.r.TopModal(), a.directories.ProjectID)
 	}
 }
 

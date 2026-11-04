@@ -302,7 +302,7 @@ func TestDirectoryChooserSettingStartSource(t *testing.T) {
 		t.Fatalf("path-remembered: opened on %s", c.Source())
 	}
 	knownDirectoryChooser(t, a)
-	if c = reopen(); c.Source() != knownChooserSource || !slices.Contains(labels(c.Matches()), "browse…") {
+	if c = reopen(); c.Source() != pathSourceKnown || !slices.Contains(c.Sources(), ochazuke.PathSourceBrowse) {
 		t.Fatalf("known: source %q rows %q", c.Source(), labels(c.Matches()))
 	}
 }
@@ -442,99 +442,70 @@ func TestDirectoryPathChooserWalkOffAndRemembered(t *testing.T) {
 	}
 }
 
-// openKnownChooser opens the known-directory chooser (directory-chooser
-// known) over the known repos; use records the path it is given.
-func openKnownChooser(t *testing.T, a *App, used *string) *ochazuke.Chooser {
+// typePath types a path, its last rune with a settle: the typed source
+// completes off the loop.
+func typePath(t *testing.T, a *App, path string) {
 	t.Helper()
-	knownDirectoryChooser(t, a)
-	if err := a.chooseDirectoryFor("Directory for matomeru", "matomeru", browseAttach, func(path string) ochazuke.Result {
-		*used = path
-		return ochazuke.Done(path)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	settle(a, a.r.PendingCommands())
-	c := a.r.Chooser(dirChooser)
-	if c == nil {
-		t.Fatalf("no chooser: modal %q", a.r.TopModal())
-	}
-	return c
+	typeText(t, a, path[:len(path)-1])
+	pressSettle(t, a, path[len(path)-1:])
 }
 
-// A path typed into the known-directory chooser is answered at once by
-// the typed source (ChooserSource.Claims, chooser.claim-source), as in the
-// path chooser: it lists the folder and its matches, enter takes the path
-// as typed, a path that is not there says so and keeps the chooser open,
-// and a plain word still fuzzy-matches the known directories. With
-// chooser.claim-source off nothing is claimed.
-func TestKnownDirectoryChooserAnswersTypedPaths(t *testing.T) {
+// directory-chooser known is the path chooser opened on the known
+// source, so a typed path is the default chooser's: a folder attaches, a
+// missing one is a new row (attached, flagged missing), a file is refused
+// with the chooser and query kept, and an empty query offers no row.
+func TestKnownDirectoryChooserIsThePathChooserOnKnown(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	knownRepos(t, a, "alpha", "beta")
+	knownRepos(t, a, "alpha")
+	knownDirectoryChooser(t, a)
 	tmp, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range []string{"tmpfoo", "tmpbar", "other"} {
-		if err := os.Mkdir(filepath.Join(tmp, d), 0o700); err != nil {
-			t.Fatal(err)
-		}
+	file := filepath.Join(tmp, "f.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 	var used string
-	c := openKnownChooser(t, a, &used)
-	if c.Source() != knownChooserSource {
+	reopen := func() *ochazuke.Chooser {
+		t.Helper()
+		if a.r.Chooser(dirChooser) != nil {
+			press(t, a, "esc")
+		}
+		used = ""
+		if err := a.chooseDirectoryFor("Dir", "matomeru", browseAttach, func(p string) ochazuke.Result { used = p; return ochazuke.Done(p) }); err != nil {
+			t.Fatal(err)
+		}
+		settle(a, a.r.PendingCommands())
+		return a.r.Chooser(dirChooser)
+	}
+	c := reopen()
+	if c.Source() != pathSourceKnown {
 		t.Fatalf("opened on %s", c.Source())
 	}
-	// A plain word fuzzy-matches the known directories and stays there.
-	typeText(t, a, "alp")
-	if c.Source() != knownChooserSource || len(c.Matches()) != 1 {
-		t.Fatalf("plain word: source %s, matches %q", c.Source(), labels(c.Matches()))
+	toSource(t, a, c, ochazuke.PathSourceTyped)
+	if len(c.Matches()) != 0 {
+		t.Fatalf("empty query on typed: %q", labels(c.Matches()))
 	}
-	press(t, a, "esc")
-	c = openKnownChooser(t, a, &used)
-	// A path claims the typed source at once; its rows are the folders matching.
-	typeText(t, a, filepath.Join(tmp, "tm"))
-	settle(a, a.r.PendingCommands())
+	// A missing path is a new row; enter takes it.
+	c = reopen()
+	missing := filepath.Join(tmp, "nope", "zzz")
+	typePath(t, a, missing)
 	if c.Source() != ochazuke.PathSourceTyped {
 		t.Fatalf("typed path: source %s", c.Source())
 	}
-	got := chooserData(c)
-	want := []string{filepath.Join(tmp, "tmpbar"), filepath.Join(tmp, "tmpfoo")}
-	slices.Sort(got)
-	if !slices.Equal(got, want) {
-		t.Fatalf("typed rows %q, want %q", got, want)
-	}
-	// Enter on a whole typed folder takes that folder.
-	typeText(t, a, "pfoo")
-	settle(a, a.r.PendingCommands())
 	press(t, a, "enter")
 	settle(a, a.r.PendingCommands())
-	if used != filepath.Join(tmp, "tmpfoo") || a.r.TopModal() != "" {
-		t.Fatalf("used %q, modal %q", used, a.r.TopModal())
+	if used != missing {
+		t.Fatalf("missing path: used %q", used)
 	}
-	// A path that is not there: nothing is used and a message says so (the
-	// framework closes the chooser on a create, as it does for every kind).
-	used = ""
-	c = openKnownChooser(t, a, &used)
-	typeText(t, a, filepath.Join(tmp, "nonexistent"))
-	settle(a, a.r.PendingCommands())
+	// A file is refused: nothing used, chooser and query kept.
+	c = reopen()
+	typePath(t, a, file)
 	_, cmd := a.Update(keyMsg("enter"))
 	settle(a, cmd)
-	if used != "" {
-		t.Fatalf("missing path used %q", used)
-	}
-	if fr := frameWH(a, 120, 30); !strings.Contains(a.m.Status, "no such directory") && !strings.Contains(fr, "no such directory") {
-		t.Fatalf("no message (status %q):\n%s", a.m.Status, fr)
-	}
-	a.m.Status = ""
-	// Claim off: a path is not claimed, the known source keeps the query.
-	if err := a.r.Settings().Set(ochazuke.ChooserClaimSourceSetting, false); err != nil {
-		t.Fatal(err)
-	}
-	c = openKnownChooser(t, a, &used)
-	typeText(t, a, filepath.Join(tmp, "tm"))
-	settle(a, a.r.PendingCommands())
-	if c.Source() != knownChooserSource {
-		t.Fatalf("claim off: source %s", c.Source())
+	if used != "" || a.r.Chooser(dirChooser) == nil || c.Query() != file {
+		t.Fatalf("file: used %q, chooser %v, query %q", used, a.r.Chooser(dirChooser) != nil, c.Query())
 	}
 }

@@ -38,12 +38,12 @@ const (
 	settingDirectoryChooser = "directory-chooser"
 	dirChooserPath          = "path"            // the path chooser, on its walk source (known when there is no walk)
 	dirChooserRemembered    = "path-remembered" // the path chooser, on the source chooser.remember-source gives
-	dirChooserKnown         = "known"           // the known-directory chooser; browse… continues on the Directories page
+	dirChooserKnown         = "known"           // the path chooser, opened on the known source whatever path.walk says
 )
 
 var directoryChooserSetting = ochazuke.Setting{Name: settingDirectoryChooser, Type: ochazuke.SettingString, Default: dirChooserPath,
 	Enum:        []string{dirChooserPath, dirChooserRemembered, dirChooserKnown},
-	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its walk source, every folder under the project's and the known directories; on known when path.walk is off; ctrl+o cycles browse, recent, typed, known, project), path-remembered (the path chooser on the source last used, else the first path.first names) or known (the known directories with browse…)"}
+	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its walk source, every folder under the project's and the known directories; on known when path.walk is off; ctrl+o cycles browse, recent, typed, known, project), path-remembered (the path chooser on the source last used, else the first path.first names) or known (the path chooser opened on the known directories, walk or not; its browse source replaces browse…)"}
 
 // dirParam is a directory parameter: a folder through the path chooser;
 // isNew lets it name a folder not there yet (attached and flagged missing).
@@ -222,8 +222,6 @@ func (a *App) refreshPathChoosers() {
 		c := a.r.Chooser(kind)
 		switch {
 		case c == nil:
-		case c.Source() == knownChooserSource:
-			c.SetRows(a.directoryChoices())
 		case c.Source() == pathSourceKnown:
 			c.SetRows(a.knownDirectoryRows())
 		}
@@ -242,8 +240,11 @@ func (a *App) openPathDirectoryChooser(title, projectID string, use func(string)
 	if a.r.PathWalkOn() && len(a.walkRoots(pick).Roots) > 0 {
 		source = ochazuke.PathSourceWalk
 	}
-	if a.r.Settings().String(settingDirectoryChooser) == dirChooserRemembered {
+	switch a.r.Settings().String(settingDirectoryChooser) {
+	case dirChooserRemembered:
 		source = ""
+	case dirChooserKnown:
+		source = pathSourceKnown
 	}
 	_, err := a.r.OpenPathChooser(ochazuke.PathChooserSpec{
 		Kind:   dirChooser,

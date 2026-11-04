@@ -750,53 +750,6 @@ func (a *App) directoryChoices() []ochazuke.ChooserRow {
 	return append(rows, ochazuke.ChooserRow{ID: "directory:browse", Label: "browse…", Trailing: true})
 }
 
-// knownChooserSource is the known-directory chooser's own source: the
-// known directories and browse…, apart from the path chooser's known
-// source (rows without browse…).
-const knownChooserSource = "directories"
-
-// pathLike reports whether query is written as a path ("/", "~", "./",
-// "../"): ochazuke's rule for its typed source (its unexported pathQuery),
-// which the known chooser's typed source claims on.
-func pathLike(query string) bool {
-	return strings.HasPrefix(query, "/") || query == "~" || strings.HasPrefix(query, "~/") ||
-		strings.HasPrefix(query, "./") || strings.HasPrefix(query, "../")
-}
-
-// typedDirectoryRows complete the path being typed: the typed folder
-// itself when it exists, then its parent's folders that start with the
-// last part (hidden ones only when that part starts with a dot). Row Data
-// is the path a pick takes.
-func typedDirectoryRows(query string, home func() (string, error)) []ochazuke.ChooserRow {
-	typed := strings.TrimSpace(query)
-	path := expandPathWithHome(typed, home)
-	dir, prefix := filepath.Dir(path), filepath.Base(path)
-	if strings.HasSuffix(typed, "/") {
-		dir, prefix = path, ""
-	}
-	as := typed[:strings.LastIndex(typed, "/")+1] // the folder part as written
-	var rows []ochazuke.ChooserRow
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
-		rows = append(rows, ochazuke.ChooserRow{ID: "typed:" + path, Label: strings.TrimSuffix(typed, "/") + "/", Data: path})
-	}
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		name := e.Name()
-		if !strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix)) || strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") {
-			continue
-		}
-		full := filepath.Join(dir, name)
-		if info, err := os.Stat(full); err != nil || !info.IsDir() || full == path {
-			continue
-		}
-		rows = append(rows, ochazuke.ChooserRow{ID: "typed:" + full, Label: as + name + "/", Data: full})
-		if len(rows) >= 200 {
-			break
-		}
-	}
-	return rows
-}
-
 // existingDir is the query as a directory that exists.
 func existingDir(query string) (string, bool) {
 	if strings.TrimSpace(query) == "" {
@@ -841,94 +794,13 @@ func (a *App) openDirectoryChooser(projectID string) error {
 	})
 }
 
-// chooseDirectoryFor asks for a directory as the directory-chooser
-// setting says: the path chooser (path_sources.go: browse, recent, typed,
-// known, the project's), or the known-directory chooser, where browse…
-// continues on the Directories page with purpose. use takes the chosen or
-// typed path.
+// chooseDirectoryFor asks for a directory through the path chooser
+// (path_sources.go: browse, recent, typed, known, the project's); the
+// directory-chooser setting says which source it opens on. purpose is kept
+// for callers (it was the classic chooser's browse… continuation). use
+// takes the chosen or typed path.
 func (a *App) chooseDirectoryFor(title, projectID, purpose string, use func(string) ochazuke.Result) error {
-	if a.r.Settings().String(settingDirectoryChooser) != dirChooserKnown {
-		return a.openPathDirectoryChooser(title, projectID, use)
-	}
-	return a.chooseKnownDirectoryFor(title, projectID, purpose, use)
-}
-
-// chooseKnownDirectoryFor is chooseDirectoryFor's known-directory chooser.
-func (a *App) chooseKnownDirectoryFor(title, projectID, purpose string, use func(string) ochazuke.Result) error {
-	browse := func(query string) ochazuke.Result {
-		a.directories.ProjectID = projectID
-		if err := a.r.OpenPage(directoriesPage); err != nil {
-			return ochazuke.Failed(err)
-		}
-		result := a.browseFor(purpose)
-		if input := a.r.Input(directoryPathID); input != nil && query != "" {
-			if err := input.Replace(0, len(input.Text), query); err != nil {
-				return ochazuke.Failed(err)
-			}
-		}
-		return result
-	}
-	known := ochazuke.ChooserSource{
-		Name:       knownChooserSource,
-		Empty:      ochazuke.EmptyText("known directories"),
-		Loading:    ochazuke.LoadingText("known directories"),
-		LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
-		Keep:       []int{1}, // the path: the branch and projects narrow first (F22)
-		Load: func(string) ochazuke.Result {
-			if !a.directories.Ready {
-				return ochazuke.Done([]ochazuke.ChooserRow(nil)) // refreshPathChoosers fills it once the scan lands
-			}
-			return ochazuke.Done(a.directoryChoices())
-		},
-	}
-	// A query written as a path is the typed source's to answer at once
-	// (ChooserSource.Claims, chooser.claim-source), as in the path chooser.
-	typed := ochazuke.ChooserSource{
-		Name:   ochazuke.PathSourceTyped,
-		Live:   true,
-		Empty:  "type a path",
-		Claims: pathLike,
-		Load: func(query string) ochazuke.Result {
-			return ochazuke.Done(typedDirectoryRows(query, a.home))
-		},
-		Create: func(query string) ochazuke.Result {
-			if path, ok := existingDir(query); ok {
-				return use(path)
-			}
-			return ochazuke.Failed(fmt.Errorf("no such directory: %s", strings.TrimSpace(query)))
-		},
-		CreateLabel: func(query string) string { return "no such directory" },
-	}
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
-		Kind:    dirChooser,
-		Title:   title,
-		Sources: []ochazuke.ChooserSource{known, typed},
-		Source:  knownChooserSource,
-		Plural:  "known directories",
-		Filter:  trailingFilter,
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
-			if path, ok := row.Data.(string); ok {
-				return use(path)
-			}
-			return browse("")
-		},
-		Create: func(query string) ochazuke.Result {
-			if path, ok := existingDir(query); ok {
-				return use(path)
-			}
-			return browse(query)
-		},
-		CreateLabel: func(query string) string {
-			if path, ok := existingDir(query); ok {
-				return "use " + path
-			}
-			return "browse…"
-		},
-	})
-	if err != nil || a.directories.Ready || a.directories.Loading {
-		return err
-	}
-	return a.loadDirectories()
+	return a.openPathDirectoryChooser(title, projectID, use)
 }
 
 // attachDefaultDirectory attaches path to the project and makes it the
