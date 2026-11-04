@@ -32,6 +32,9 @@ type Client struct {
 	Wait   time.Duration // how long Ensure waits for a started server; 0 is ensureWait
 	mu     sync.Mutex    // serializes Ensure, so two calls start one server
 
+	unsupportedMu sync.Mutex
+	unsupported   map[string]bool // "verb.param" pairs the daemon rejected as unknown, for this client's life
+
 	presenceMu sync.Mutex
 	presence   *Presence // the person's presence this process holds, opened on first use
 }
@@ -380,4 +383,28 @@ func (c *Client) DropPresence() {
 		c.presence.Close()
 		c.presence = nil
 	}
+}
+
+// paramRejected reports whether err is the daemon refusing param by name
+// ("verb x has no parameter param"), as an older daemon does for a
+// parameter added later. It keys on the error's code and the parameter's
+// name, never on a version.
+func paramRejected(err error, param string) bool {
+	var remote *Error
+	return errors.As(err, &remote) && remote.Code == "invalid_params" && strings.Contains(remote.Message, "no parameter "+param)
+}
+
+func (c *Client) paramUnsupported(verb, param string) bool {
+	c.unsupportedMu.Lock()
+	defer c.unsupportedMu.Unlock()
+	return c.unsupported[verb+"."+param]
+}
+
+func (c *Client) markUnsupported(verb, param string) {
+	c.unsupportedMu.Lock()
+	defer c.unsupportedMu.Unlock()
+	if c.unsupported == nil {
+		c.unsupported = map[string]bool{}
+	}
+	c.unsupported[verb+"."+param] = true
 }

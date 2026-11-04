@@ -249,6 +249,7 @@ type fakeTurnPanes struct {
 	commands map[string][]daemon.CommandEntry
 	buffers  map[string][]string
 	captures int
+	capErr   error // CaptureRows fails with it
 	pagers   []string
 }
 
@@ -268,6 +269,9 @@ func (f *fakeTurnPanes) CaptureRows(_ context.Context, p pane, start, end int, _
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.captures++
+	if f.capErr != nil {
+		return nil, f.capErr
+	}
 	all := f.buffers[p.ID]
 	if start > len(all) {
 		return nil, nil
@@ -465,4 +469,50 @@ func TestOmpTurnsFromTheSessionFile(t *testing.T) {
 func onTurn(a *App) bool {
 	inst := a.r.Instances[a.r.Focus]
 	return inst != nil && strings.HasPrefix(inst.Noun, "turn") && inst.Noun != promptNoun
+}
+
+// A daemon that refuses a capture (an older tuios answering invalid_params)
+// leaves the shell turn's output as a calm message in the card: no
+// protocol text, no status-line error, and the page still moves.
+func TestShellTurnOutputRefusedIsCalm(t *testing.T) {
+	t.Parallel()
+	app, f := shellTurnsApp(t, 3)
+	useTurnStyle(t, app, turnsStyleTree)
+	f.capErr = &daemon.Error{Code: "invalid_params", Message: "verb capture-pane has no parameter unwrap"}
+	press(t, app, "}", "k")
+	settle(app, key(t, app, "l"))
+	got := strings.Join(turnRows(app), "\n")
+	if !strings.Contains(got, "can't be read from this tuios") || strings.Contains(got, "invalid_params") {
+		t.Fatalf("card:\n%s", got)
+	}
+	if v := frame(app); strings.Contains(v, "invalid_params") {
+		t.Fatalf("screen shows the protocol error:\n%s", v)
+	}
+	press(t, app, "esc", "j")
+}
+
+// A shell that ran nothing says so, with no error.
+func TestShellWithNoCommandsShowsNoTurns(t *testing.T) {
+	t.Parallel()
+	app, f := shellTurnsApp(t, 3)
+	f.commands["w2"] = nil
+	f.panes[1].CommandSeq = 9
+	reload(t, app)
+	got := strings.Join(turnRows(app), "\n")
+	if strings.Contains(got, "unavailable") || strings.Contains(got, "invalid_params") {
+		t.Fatalf("empty shell:\n%s", got)
+	}
+}
+
+// Only an invalid_params refusal gets the restart wording; other daemon
+// errors keep their own text.
+func TestCalmReadErrorKeepsOtherDaemonErrors(t *testing.T) {
+	t.Parallel()
+	if got := calmReadError(&daemon.Error{Code: "invalid_params", Message: "x"}); !strings.Contains(got, "restart") {
+		t.Fatalf("invalid_params: %q", got)
+	}
+	e := &daemon.Error{Code: "not_found", Message: "window not found"}
+	if got := calmReadError(e); got != e.Error() || strings.Contains(got, "restart") {
+		t.Fatalf("not_found: %q", got)
+	}
 }

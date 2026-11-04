@@ -197,9 +197,21 @@ type CaptureResult struct {
 	Truncated   bool   `json:"truncated,omitempty"`
 }
 
+// Capture reads a pane's buffer. A daemon that predates the unwrap
+// parameter refuses it by name; Capture then asks again once without it
+// and sends it no more on this client, so the rows come back soft-wrapped.
 func (c *Client) Capture(ctx context.Context, p CaptureParams) (CaptureResult, error) {
 	var out CaptureResult
+	if p.Unwrap && c.paramUnsupported("capture-pane", "unwrap") {
+		p.Unwrap = false
+	}
 	err := c.Call(ctx, "capture-pane", p, &out)
+	if p.Unwrap && paramRejected(err, "unwrap") {
+		c.markUnsupported("capture-pane", "unwrap")
+		p.Unwrap = false
+		out = CaptureResult{}
+		err = c.Call(ctx, "capture-pane", p, &out)
+	}
 	return out, err
 }
 

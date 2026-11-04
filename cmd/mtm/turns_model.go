@@ -972,6 +972,25 @@ func (a *App) shellOutputLines(b *turnBody, pt *paneTurns, t turns.Turn) {
 	}
 }
 
+// shellRead is a shell output read's answer: the lines, or why not.
+type shellRead struct {
+	lines []string
+	err   string
+}
+
+// calmReadError words a failed output read for the card. An invalid_params
+// refusal (an older tuios) is not shown as a protocol error; other failures keep their text.
+func calmReadError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var remote *daemon.Error
+	if errors.As(err, &remote) && remote.Code == "invalid_params" {
+		return "output can't be read from this tuios (it may need a restart to update)"
+	}
+	return err.Error()
+}
+
 // readShellOutput is a shell turn's whole output, off the loop.
 func readShellOutput(c context.Context, d turnDaemon, p pane, t turns.Turn) ([]string, error) {
 	if t.Command == nil {
@@ -988,15 +1007,15 @@ func (a *App) loadShellOutput(p pane, pt *paneTurns, t turns.Turn) ochazuke.Resu
 	}
 	out := &turnOutput{loading: true}
 	pt.outputs[t.ID] = out
+	// The failure travels in the value, not as the job's error: a refused
+	// read is the card's calm message, never a status-line error.
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		return readShellOutput(c, d, p, t)
-	}).Then(func(_ ochazuke.Ctx, v any, err error) {
+		lines, err := readShellOutput(c, d, p, t)
+		return shellRead{lines: lines, err: calmReadError(err)}, nil
+	}).Then(func(_ ochazuke.Ctx, v any, _ error) {
 		out.loading = false
-		if err != nil {
-			out.err = err.Error()
-		} else {
-			out.lines, _ = v.([]string)
-		}
+		r, _ := v.(shellRead)
+		out.lines, out.err = r.lines, r.err
 		a.turnsRead(p.ID)
 	})
 }
