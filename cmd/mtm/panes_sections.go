@@ -75,6 +75,10 @@ const (
 	queueOutside  = "outside"
 )
 
+// stateWordNames are tuios's agent state words, which panes.sections does
+// not take (panes.working-states and its siblings do).
+var stateWordNames = []string{"none", "working", "needs_input", "needs-input", "idle", "done", "errored", "unknown", "running"}
+
 var paneSignals = []string{signalWaiting, signalErrored, signalUnread, signalWorking}
 
 var queueCategories = []string{signalWaiting, signalErrored, signalUnread, queueOutside}
@@ -159,7 +163,11 @@ func validatePaneSections(v any) error {
 	for _, entry := range listValue(v) {
 		signal, section, ok := strings.Cut(entry, sectionAssignSeparator)
 		if !ok || !slices.Contains(paneSignals, signal) || !slices.Contains(sectionNames, section) {
-			return fmt.Errorf("%q: signal=section, signals %s, sections %s", entry, strings.Join(paneSignals, ", "), strings.Join(sectionNames, ", "))
+			hint := ""
+			if slices.Contains(stateWordNames, signal) {
+				hint = "; " + signal + " is an agent state word: panes.working-states, panes.waiting-states and panes.errored-states say which states count"
+			}
+			return fmt.Errorf("%q: signal=section, signals %s, sections %s%s", entry, strings.Join(paneSignals, ", "), strings.Join(sectionNames, ", "), hint)
 		}
 	}
 	return nil
@@ -223,7 +231,7 @@ var signalRank = []string{signalWaiting, signalErrored, signalUnread}
 // errored or working agent by its state, else the signal its open items
 // give it (fromItems: an unread done turn, a terminal's failed or unread
 // command). An exited pane raises none.
-func paneSignal(p pane, fromItems map[string]string) string {
+func paneSignal(p pane, fromItems map[string]string, childWorking bool) string {
 	if p.Exited {
 		return ""
 	}
@@ -237,7 +245,15 @@ func paneSignal(p pane, fromItems map[string]string) string {
 			return signalWorking
 		}
 	}
-	return fromItems[p.ID]
+	if sig := fromItems[p.ID]; sig != "" {
+		return sig
+	}
+	// Subagent rows running or waiting on their own work: the pane works
+	// (panes.subagents-working), unless an item of its own gave a signal.
+	if childWorking && p.isAgent() {
+		return signalWorking
+	}
+	return ""
 }
 
 // paneSection is one of the three lists and the rows it shows.
@@ -525,7 +541,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 			middle = append(middle, p)
 			continue
 		}
-		s := cmp.Or(sectionOf[paneSignal(p, fromItems)], sectionPanes)
+		s := cmp.Or(sectionOf[paneSignal(p, fromItems, a.childWorking(p, now))], sectionPanes)
 		if s == sectionQueue && !hasItem[p.ID] {
 			s = sectionPanes
 		}

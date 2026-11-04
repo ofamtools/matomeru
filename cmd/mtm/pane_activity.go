@@ -45,6 +45,7 @@ import (
 const (
 	settingPanesSubagents       = "panes.subagents"
 	settingPanesSubagentsLinger = "panes.subagents-linger"
+	settingSubagentsWorking     = "panes.subagents-working"
 	subagentsActive             = "active"
 	subagentsOff                = "off"
 	activityNoun                = "pane-child"
@@ -57,6 +58,8 @@ func paneActivitySettings() []ochazuke.Setting {
 			Description: "Show an agent pane's running subagents as rows under its row (active), or not (off)"},
 		{Name: settingPanesSubagentsLinger, Type: ochazuke.SettingDuration, Default: "30s",
 			Description: "How long a subagent that ended badly (failed, killed, stopped) stays under its pane; a finished one drops at once"},
+		{Name: settingSubagentsWorking, Type: ochazuke.SettingBoolean, Default: true,
+			Description: "An agent pane whose subagent rows are running or waiting on their own work counts as working (the Working list), whatever its own state; off leaves it where its own state puts it"},
 	}
 }
 
@@ -254,6 +257,23 @@ func (a *App) shownActivities(p pane, now time.Time) []turns.Activity {
 		out = append(out, act)
 	}
 	return out
+}
+
+// childWorking reports whether one of the pane's shown activity rows is
+// in the working class (running, or waiting on its own work: the tone its
+// status word takes), so the pane is working while it has them. A row
+// that is done, waiting on the owner or failed does not count. Driven by
+// the rows' status data alone: any harness whose subagents are read.
+func (a *App) childWorking(p pane, now time.Time) bool {
+	if !a.r.Settings().Bool(settingSubagentsWorking) {
+		return false
+	}
+	for _, act := range a.shownActivities(p, now) {
+		if turnStatuses[activityKind(act)].Tone == ochazuke.ToneWorking {
+			return true
+		}
+	}
+	return false
 }
 
 // activityKind is the activity's status kind (statusWords): its word's,

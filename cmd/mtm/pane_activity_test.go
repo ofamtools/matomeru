@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -259,5 +260,89 @@ func TestSubagentRowsFollowTheHarnessLogFormat(t *testing.T) {
 	reload(t, app)
 	if rows := activityRows(app); len(rows) != 0 || len(app.acts) != 0 {
 		t.Fatalf("no format: rows %v, reads %d", rows, len(app.acts))
+	}
+}
+
+// subagentsPaneApp is a Claude pane in state idle with a one-prompt
+// session log plus the given lines: its section depends on its subagent
+// rows alone.
+func subagentsPaneApp(t *testing.T, lines ...string) *App {
+	t.Helper()
+	app, f := panesApp(t)
+	groupBy(t, app, groupProjectSessionPane)
+	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "claude-code", "idle", "s1", "/w/proj"
+	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ago := func(d time.Duration) string { return time.Now().Add(-d).UTC().Format(time.RFC3339) }
+	all := []string{
+		logPrompt(t, "u1", ago(5*time.Minute), "start"),
+		logAgentCall(t, "a1", ago(4*time.Minute), "toolu_1", "Review", true),
+		logLaunched(t, "r1", ago(4*time.Minute), "toolu_1", "a1x"),
+		logDone(t, "d1", ago(4*time.Minute)),
+	}
+	all = append(all, lines...)
+	writeLog(t, filepath.Join(dir, "s1.jsonl"), all...)
+	reload(t, app)
+	return app
+}
+
+// inWorking reports whether the pane w1's row is in the Working list.
+func inWorking(app *App) bool {
+	return slices.Contains(sectionIDs(app, 2), "pane:matomeru/w1")
+}
+
+// A pane whose own state is idle or done belongs in Working while a
+// subagent runs or waits on its own work (panes.subagents-working, on by
+// default); a subagent that is done, failed or waiting on the owner does
+// not make it so, and the setting off restores the old section.
+func TestPaneWithRunningSubagentIsWorking(t *testing.T) {
+	t.Parallel()
+	ago := func(d time.Duration) string { return time.Now().Add(-d).UTC().Format(time.RFC3339) }
+	app := subagentsPaneApp(t)
+	if rows := activityRows(app); len(rows) != 1 {
+		t.Fatalf("rows %v", rows)
+	}
+	if !inWorking(app) {
+		t.Fatalf("a running subagent: the pane stays out of Working\n%s", frameWH(app, 140, 40))
+	}
+	setting(t, app, settingSubagentsWorking, false)
+	reload(t, app)
+	if inWorking(app) {
+		t.Fatal("setting off: the pane is still in Working")
+	}
+	setting(t, app, settingSubagentsWorking, true)
+	reload(t, app)
+	if !inWorking(app) {
+		t.Fatal("setting back on: the pane is not in Working")
+	}
+	for name, n := range map[string]string{
+		"done":   realNotification("a1x", "toolu_1", "completed", `Agent "Review" finished`, "ok"),
+		"failed": realNotification("a1x", "toolu_1", "failed", `Agent "Review" failed: boom`, ""),
+		"owner":  realNotification("a1x", "toolu_1", "waiting for input", `Agent "Review" is waiting for input`, ""),
+	} {
+		app := subagentsPaneApp(t, logNotification(t, "n1", ago(10*time.Second), n))
+		if inWorking(app) {
+			t.Fatalf("%s: the pane is in Working; rows %v", name, activityRows(app))
+		}
+	}
+	// Waiting on its own work is working.
+	app = subagentsPaneApp(t, logNotification(t, "n1", ago(10*time.Second),
+		realNotification("a1x", "toolu_1", "completed", `Agent "Review" is waiting on its own background work`, "")))
+	if rows := activityRows(app); !inWorking(app) {
+		t.Fatalf("waiting on its own work: not in Working; rows %v", rows)
+	}
+}
+
+// panes.sections names panes.working-states when given a state word.
+func TestPaneSectionsErrorNamesWorkingStates(t *testing.T) {
+	t.Parallel()
+	err := validatePaneSections([]string{"needs_input=queue"})
+	if err == nil || !strings.Contains(err.Error(), "panes.working-states") {
+		t.Fatalf("error %v", err)
+	}
+	if err := validatePaneSections([]string{"nonsense=queue"}); err == nil || strings.Contains(err.Error(), "panes.working-states") {
+		t.Fatalf("unrelated error %v", err)
 	}
 }
