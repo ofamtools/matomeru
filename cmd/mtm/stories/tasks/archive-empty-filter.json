@@ -2,7 +2,6 @@
   "name": "mtm: archived saved note filter remains available when every source row is archived",
   "area": "tasks",
   "fixture": "empty",
-  "skip": "gap: ochazuke v0.85.0 List.cacheRows loses the row noun when the app-owned source becomes empty, so its noun-scoped archived filter and prop schema disappear. Needs general declared row-noun metadata.",
   "width": 140,
   "height": 35,
   "script": [

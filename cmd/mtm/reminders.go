@@ -341,7 +341,7 @@ func (a *App) reminderHistory(c ochazuke.Ctx) ochazuke.Result {
 
 func (a *App) addRemindersList() error {
 	var err error
-	a.reminders.list, err = a.r.AddList(reminderListID, nil, ochazuke.Parent(schedulesPage), ochazuke.Columns(reminderColumns...))
+	a.reminders.list, err = a.r.AddList(reminderListID, nil, ochazuke.Parent(schedulesPage), ochazuke.RowNoun(reminderNoun), ochazuke.Columns(reminderColumns...))
 	if err != nil {
 		return err
 	}

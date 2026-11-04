@@ -652,7 +652,7 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	a.projectList = list
-	if a.taskTree, err = r.AddTree(taskTreeID, nil, ochazuke.Parent("work"), ochazuke.Columns(taskColumns...)); err != nil {
+	if a.taskTree, err = r.AddTree(taskTreeID, nil, ochazuke.Parent("work"), ochazuke.RowNoun("task"), ochazuke.Columns(taskColumns...)); err != nil {
 		return nil, err
 	}
 	a.taskList = a.taskTree.List()

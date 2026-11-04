@@ -73,7 +73,7 @@ func (a *App) defineNotes() {
 func (a *App) addNotesPage() error {
 	a.r.Instance(notesPage, ochazuke.Kind("page"))
 	var err error
-	a.noteList, err = a.r.AddList("notes/list", nil, ochazuke.Parent(notesPage), ochazuke.Columns(noteColumns...))
+	a.noteList, err = a.r.AddList("notes/list", nil, ochazuke.Parent(notesPage), ochazuke.RowNoun("note"), ochazuke.Columns(noteColumns...))
 	if err != nil {
 		return err
 	}

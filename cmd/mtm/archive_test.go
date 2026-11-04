@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -190,6 +191,13 @@ func TestArchiveViewsHideBranchesAndHonorOptOut(t *testing.T) {
 func TestArchivePageSavedFilters(t *testing.T) {
 	t.Parallel()
 	a := open(t)
+	// A never-populated source must already support its noun's archive filter.
+	if err := a.noteList.ApplyFilter("archived"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.noteList.SetPropFilters(nil); err != nil {
+		t.Fatal(err)
+	}
 	for _, note := range []work.Note{{ID: "archive-note", Text: "retained note"}, {ID: "live-note", Text: "live note"}} {
 		if err := a.work.PutNote(note); err != nil {
 			t.Fatal(err)
@@ -207,6 +215,20 @@ func TestArchivePageSavedFilters(t *testing.T) {
 	}
 	if selected, ok := a.noteList.Selected(); !ok || selected.ID != "live-note" {
 		t.Fatalf("live notes after clearing archive filter: %+v, selected=%v", selected, ok)
+	}
+	executeA(t, a, "note", "archive", "", ochazuke.Arguments{"id": "live-note"})
+	if _, ok := a.noteList.Selected(); ok {
+		t.Fatal("archiving every note left a visible default row")
+	}
+	if err := a.noteList.ApplyFilter("archived"); err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, row := range a.noteList.Items() {
+		ids = append(ids, row.ID)
+	}
+	if !slices.Equal(ids, []string{"archive-note", "live-note"}) {
+		t.Fatalf("archive filter did not refill both retained notes: %v", ids)
 	}
 }
 

@@ -191,7 +191,7 @@ func (a *App) addContextPage() error {
 	}
 	a.r.Instances[contextQueryID].Unfocusable = true
 	var err error
-	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.Columns(contextColumns...)); err != nil {
+	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.RowNoun(contextNoun), ochazuke.Columns(contextColumns...)); err != nil {
 		return err
 	}
 	if _, err := a.r.AddPage(contextPage, "Context", a.renderContext, ochazuke.Focus(contextListID)); err != nil {

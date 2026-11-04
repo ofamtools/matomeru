@@ -27,7 +27,7 @@ func (a *App) syncOutlineNotes(force bool) error {
 		return nil
 	}
 	if o.notes == nil {
-		list, err := a.r.AddList(outlineNotesList, nil, ochazuke.Parent(outlineModal))
+		list, err := a.r.AddList(outlineNotesList, nil, ochazuke.Parent(outlineModal), ochazuke.RowNoun("note"))
 		if err != nil {
 			return err
 		}

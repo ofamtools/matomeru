@@ -134,6 +134,10 @@ live descendants without restoring independently archived children.
 `list.hide-archived` defaults to `true`; `false` includes archived records
 in these views. Standard list calls also accept `--filter archived` or an
 explicit `--where archived=true`; `get` and `set` still address archived ids.
+The Work task tree refills its source when an archive filter is applied.
+Notes retain their archive filter before the first note and after all notes
+are archived. Restore's palette choices include archived records, so an exact
+archived id does not become an ambiguous prefix of live ids.
 Compared with Vim: not applicable; these are retained workspace records,
 not editor-buffer deletes.
 

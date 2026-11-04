@@ -176,7 +176,7 @@ var inboxRelateParam = ochazuke.Parameter{Type: "string", Noun: actionItemNoun, 
 func (a *App) addInboxPage() error {
 	a.r.Instance(inboxPage, ochazuke.Kind("page"))
 	var err error
-	if a.inbox.list, err = a.r.AddList(inboxListID, nil, ochazuke.Parent(inboxPage), ochazuke.Columns(inboxColumns...)); err != nil {
+	if a.inbox.list, err = a.r.AddList(inboxListID, nil, ochazuke.Parent(inboxPage), ochazuke.RowNoun(actionItemNoun), ochazuke.Columns(inboxColumns...)); err != nil {
 		return err
 	}
 	if a.inbox.detail, err = a.addLinkedDetail(inboxDetailID, inboxPage, func() *ochazuke.List { return a.inbox.list }, a.inboxSubject); err != nil {
