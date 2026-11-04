@@ -215,3 +215,26 @@ Task image attachments: in Tasks (`T`, or a project's/task's `O` outline), `ctrl
 Deleting a chip removes that attachment; undo restores it. `task-outline.detach` removes the numbered image (`n`), the only image, or opens a chooser. Cancelling the chooser leaves the attachments unchanged. The outline still writes edits after its typing pause or when leaving the line: Escape saves and closes, never discards a draft. A clipboard read finishing after that editor closes cannot attach to another task or a reopened editor for the same task.
 
 Saved task titles contain the prompt's absolute `@path` mentions (quoted and escaped where necessary), not transient chip numbers. Reopening Tasks restores the chips, including after restarting mtm; other task views and task consumers retain the file mentions. Removing an attachment does not delete its file, matching prompt attachment lifetime. `tasks.image-attachments` defaults to `true`; set it to `false` to show raw mentions and disable image paste/detach in Tasks. The setting takes effect the next time the outline opens.
+
+## Mounted verb results
+
+Extension execution uses ochazuke's `cli.RunMounted` with catalog metadata.
+Declared text results from keys open the host's text viewer instead of being
+flattened into a page status line (`keys.text-results`, default `true`;
+`palette.text-results` retains its text policy). Non-text answers retain the
+page status behavior. Foreground verbs hand over the real terminal, including
+stdin. The host keeps their final stderr reason and waits after a failed exit
+unless `foreground.hold=off`; successful exits resume at once.
+
+Captured runs use the verb's catalog timeout, with 60 seconds as the fallback.
+A catalog slot prevents repeated work on the same row while it runs.
+`jobs.cancel` stops a running job. The library stops Unix process groups and
+allows record finalization before killing descendants.
+
+Only catalog-published rows defer their guards to the extension. User and host
+rows keep their guards and validation. A catalog `disabled` snapshot hides
+setting-disabled verbs; refresh the catalog after changing the remote setting.
+Late key and palette answers do not cover a changed interaction. They leave a
+status message and their full text in `messages.show`, available on `g <`.
+The extension's fallback panel status clears only when a viewer really opens.
+
