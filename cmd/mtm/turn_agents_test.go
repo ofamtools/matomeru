@@ -378,10 +378,18 @@ func TestAgentsInTheTree(t *testing.T) {
 	}
 }
 
-// A session with 70 subagents (and their notifications) builds and draws
-// fast and reads no subagent log until one is opened.
-func TestSeventySubagentsStayFast(t *testing.T) {
-	t.Parallel()
+// agentsCost is what a session with n subagents (and their notifications)
+// costs to fill and draw: the best of several passes, so a pause from a
+// loaded machine or the race detector does not count, and the open
+// turn's draw likewise. Any subagent log read is counted.
+type agentsCost struct {
+	fill, open time.Duration
+	cards      int
+	reads      int64
+}
+
+func measureAgents(t *testing.T, n int) agentsCost {
+	t.Helper()
 	app, f := panesApp(t)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "claude-code", "idle", "s1", "/w/proj"
 	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))
@@ -389,14 +397,14 @@ func TestSeventySubagentsStayFast(t *testing.T) {
 		t.Fatal(err)
 	}
 	log := filepath.Join(dir, "s1.jsonl")
-	lines := []string{logPrompt(t, "u1", "2026-10-28T10:00:00Z", "start seventy")}
-	for i := range 70 {
+	lines := []string{logPrompt(t, "u1", "2026-10-28T10:00:00Z", "start them")}
+	for i := range n {
 		call, agent := fmt.Sprintf("toolu_%02d", i), fmt.Sprintf("a%02d", i)
 		lines = append(lines, logAgentCall(t, fmt.Sprintf("c%02d", i), "2026-10-28T10:00:01Z", call, fmt.Sprintf("Lane %02d", i), true), logLaunched(t, fmt.Sprintf("l%02d", i), "2026-10-28T10:00:02Z", call, agent))
 		writeAgentFiles(t, log, agent, call, fmt.Sprintf("Lane %02d", i), 1, "", sideLog(t, agent, "x"+agent, "2026-10-28T10:00:02Z", "user", map[string]any{"role": "user", "content": "brief"}))
 	}
 	lines = append(lines, logAssistant(t, "e1", "2026-10-28T10:00:03Z", "end_turn", map[string]any{"type": "text", "text": "Started."}), logDone(t, "d1", "2026-10-28T10:00:04Z"))
-	for i := range 70 {
+	for i := range n {
 		lines = append(lines, logNotification(t, fmt.Sprintf("n%02d", i), fmt.Sprintf("2026-10-28T11:%02d:00Z", i%60), realNotification(fmt.Sprintf("a%02d", i), fmt.Sprintf("toolu_%02d", i), "completed", fmt.Sprintf(`Agent "Lane %02d" finished`, i), "report")),
 			logAssistant(t, fmt.Sprintf("r%02d", i), fmt.Sprintf("2026-10-28T11:%02d:01Z", i%60), "end_turn", map[string]any{"type": "text", "text": "ok"}),
 			logDone(t, fmt.Sprintf("dn%02d", i), fmt.Sprintf("2026-10-28T11:%02d:02Z", i%60)))
@@ -405,37 +413,80 @@ func TestSeventySubagentsStayFast(t *testing.T) {
 	reload(t, app)
 	settle(app, key(t, app, "["))
 	app.m.Width, app.m.Height = 120, 50
-	start := time.Now()
-	for range 10 {
+	best := func(passes int, pass func()) time.Duration {
+		min := time.Duration(1<<63 - 1)
+		for range passes {
+			start := time.Now()
+			pass()
+			if d := time.Since(start); d < min {
+				min = d
+			}
+		}
+		return min
+	}
+	var c agentsCost
+	c.fill = best(7, func() {
 		if err := app.showTurns(app.pv.turnsFor); err != nil {
 			t.Fatal(err)
 		}
 		frame(app)
 		app.wantAgents()
-	}
-	per := time.Since(start) / 10
-	if n := len(app.pv.cards.Cards()); n != 71 {
-		t.Fatalf("%d cards, want the turn and 70 notices", n)
-	}
-	if n := app.subs.logs.Reads(); n != 0 {
-		t.Fatalf("%d subagent logs read with none opened", n)
-	}
-	// Opening the turn draws its 70 agent steps, still without a read.
+	})
+	c.cards = len(app.pv.cards.Cards())
+	// Opening the turn draws its agent steps, still without a read.
 	first := app.pv.cards.Cards()[0].ID
 	_ = app.pv.cards.Select(first)
-	_ = app.pv.cards.SetOpen(first, true)
-	start = time.Now()
-	if err := app.showTurns(app.pv.turnsFor); err != nil {
-		t.Fatal(err)
+	var fr string
+	c.open = best(7, func() {
+		_ = app.pv.cards.SetOpen(first, false)
+		_ = app.pv.cards.SetOpen(first, true)
+		if err := app.showTurns(app.pv.turnsFor); err != nil {
+			t.Fatal(err)
+		}
+		fr = frame(app)
+	})
+	if n > 0 && !strings.Contains(fr, "Lane") {
+		t.Fatalf("the open turn shows no agent steps:\n%s", fr)
 	}
-	fr := frame(app)
-	open := time.Since(start)
-	if n := app.subs.logs.Reads(); n != 0 || !strings.Contains(fr, "Lane") {
-		t.Fatalf("%d reads", n)
+	c.reads = app.subs.logs.Reads()
+	return c
+}
+
+// A session with 70 subagents (and their notifications) builds and draws
+// without a super-linear blowup and reads no subagent log until one is
+// opened. Timing alone cannot judge this on a shared machine (a pass is a
+// few milliseconds, ten times that under the race detector, and a loaded
+// vps2 stretched it fivefold), so the check is relative: the same run
+// measures the best pass of 7 subagents and of 70 and bounds their ratio.
+// Linear growth gives about 10 and a quadratic one about 100; a pause
+// hits both measures alike and the best of seven passes drops it. The
+// absolute bound only catches a hang.
+func TestSeventySubagentsStayFast(t *testing.T) {
+	t.Parallel()
+	small, big := measureAgents(t, 7), measureAgents(t, 70)
+	if big.cards != 71 || small.cards != 8 {
+		t.Fatalf("%d and %d cards, want the turn and the notices (8 and 71)", small.cards, big.cards)
 	}
-	t.Logf("70 subagents: fill+draw %v per pass, open turn %v", per, open)
-	if per > 250*time.Millisecond || open > 250*time.Millisecond {
-		t.Fatalf("too slow: %v per pass, %v to open", per, open)
+	if small.reads != 0 || big.reads != 0 {
+		t.Fatalf("%d and %d subagent logs read with none opened", small.reads, big.reads)
+	}
+	const (
+		scale = 10 // 70 against 7
+		slack = 4  // room above linear for fixed costs, caches and noise
+		floor = 5 * time.Millisecond
+		hang  = 10 * time.Second
+	)
+	t.Logf("fill+draw: 7 subagents %v, 70 subagents %v; open turn: %v, %v", small.fill, big.fill, small.open, big.open)
+	for _, m := range []struct {
+		what       string
+		small, big time.Duration
+	}{{"fill+draw", small.fill, big.fill}, {"open turn", small.open, big.open}} {
+		if m.big > hang {
+			t.Fatalf("%s: %v with 70 subagents", m.what, m.big)
+		}
+		if m.big > scale*slack*m.small+floor {
+			t.Fatalf("%s grows faster than linearly: %v with 7 subagents, %v with 70", m.what, m.small, m.big)
+		}
 	}
 }
 
