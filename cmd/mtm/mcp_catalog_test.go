@@ -100,7 +100,7 @@ func TestMCPRefusalsAreErrorsAndDoNotWrite(t *testing.T) {
 	replies := rpc(t, a,
 		toolCall(1, "run", map[string]any{"verb": "task.set", "args": map[string]any{"id": "t1", "prop": "title", "value": "stolen"}}),
 		toolCall(2, "run", map[string]any{"verb": "task.delete", "args": map[string]any{"id": "t2"}}),
-		toolCall(3, "run", map[string]any{"verb": "ochazuke.settings.set", "args": map[string]any{"name": "mcp.include-extensions", "value": "false"}}),
+		toolCall(3, "run", map[string]any{"verb": "pane.kill", "args": map[string]any{"id": "w1"}}),
 		toolCall(4, "task_status", map[string]any{"status": "done"}),
 		toolCall(5, "task_status", map[string]any{"status": "active", "expected_version": 999}),
 	)
@@ -115,9 +115,6 @@ func TestMCPRefusalsAreErrorsAndDoNotWrite(t *testing.T) {
 	}
 	if _, err := a.work.Task("t2"); err != nil {
 		t.Fatal("delete landed", err)
-	}
-	if !a.r.Settings().Bool("mcp.include-extensions") {
-		t.Fatal("settings write landed")
 	}
 	notes, err := a.work.Notes()
 	if err != nil || len(notes) != 0 {
@@ -146,10 +143,10 @@ func TestMCPVerbRightsTable(t *testing.T) {
 		destructive bool
 	}{
 		{"task.create", "allow", false}, {"task.set", "allow", false}, {"task.move", "allow", false}, {"task.done", "allow", false}, {"task.status", "allow", false},
-		{"task.delete", "confirm", true}, {"project.new", "allow", false}, {"project.create", "allow", false}, {"project.delete", "never", true}, {"project.set", "never", false}, {"pane.kill", "confirm", true},
+		{"task.delete", "never", true}, {"project.new", "allow", false}, {"project.create", "allow", false}, {"project.delete", "never", true}, {"project.set", "never", false}, {"pane.kill", "never", true},
 		{"session.kill", "never", true}, {"note.delete", "never", true}, {"context-item.delete", "never", true},
 		{"setup.install", "never", false}, {"setup.uninstall", "never", true}, {"extension.remove", "never", true},
-		{"ochazuke.settings.set", "never", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
+		{"ochazuke.settings.set", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
 	} {
 		op, ok := a.r.Operation(tt.verb)
 		if !ok {

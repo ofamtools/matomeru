@@ -57,8 +57,8 @@ func TestActionItemShowListCreate(t *testing.T) {
 	}
 	var open, archived, slack []actionThing
 	cliJSON(t, a, &open, "action-item", "list")
-	cliJSON(t, a, &archived, "action-item", "list", "--state", "archived")
-	cliJSON(t, a, &slack, "action-item", "list", "--state", "all", "--source", "slack")
+	cliJSON(t, a, &archived, "action-item", "list", "--state", "archived", "--where", "archived=true")
+	cliJSON(t, a, &slack, "action-item", "list", "--state", "all", "--source", "slack", "--where", "archived=true")
 	if len(open) != 1 || open[0].ID != pr.ID || len(archived) != 1 || archived[0].ID != ping.ID || len(slack) != 1 || slack[0].ID != ping.ID {
 		t.Fatalf("list: open %+v archived %+v slack %+v", open, archived, slack)
 	}

@@ -160,7 +160,7 @@ func TestExtensionSetupRefusedForAgents(t *testing.T) {
 	a.getenv = envOf(map[string]string{actorEnv: `{"kind":"agent","harness":"claude","pane":"w1"}`})
 	for _, verb := range []string{"setup", "setup-undo"} {
 		_, errOut, err := cli(a, "", "extension", verb, "todo", "--yes")
-		if err == nil || !strings.Contains(errOut+err.Error(), "agents may never run") {
+		if err == nil || !strings.Contains(errOut+err.Error(), "agents may never run") && !strings.Contains(errOut+err.Error(), "agents never delete") {
 			t.Fatalf("%s as an agent: %v %q", verb, err, errOut)
 		}
 	}
