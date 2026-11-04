@@ -675,8 +675,11 @@ func (a *App) writeOutline(o *outlineState, c ochazuke.TreeChange) error {
 	if done, err := a.writeProjectRow(o, c); done || err != nil {
 		return err
 	}
-	if c.Op == ochazuke.TreeDelete && a.projectGoing(o, c.ID) {
-		return nil // the project row's delete reloads them (writeProjectRow)
+	if c.Op == ochazuke.TreeDelete && !c.Undone && a.projectGoing(o, c.ID) {
+		// The project row's delete reloads them (writeProjectRow). An undone
+		// add is not that: its rows go leaf first, the tasks then the
+		// project, and each is deleted from the store as it comes.
+		return nil
 	}
 	nodeParent := c.Parent
 	projectID := projectOfRoot(rootOf(o.tree, c.ID))

@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 
+	"ofam.dev/ochazuke"
+
 	"ofam.dev/matomeru/internal/work"
 )
 
@@ -117,5 +119,39 @@ func TestOutlinePutWithNothingShownRefuses(t *testing.T) {
 	}
 	if made := newProjects(t, a); len(made) != 0 {
 		t.Fatalf("p made projects %+v", made)
+	}
+}
+
+// Undoing an add that made a project with tasks (its rows go tasks first,
+// then the project) deletes them all from the store: screen and store
+// agree. A task delete made while its project's row goes (not an undo) is
+// still left to the project's own delete.
+func TestOutlineUndoOfAProjectWithTasksLeavesNothing(t *testing.T) {
+	t.Parallel()
+	a := allOutline(t, projectNode("ochazuke"))
+	o := a.outline
+	if err := a.work.PutProject(work.Project{ID: "px", Name: "px", Status: "open", Created: work.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.work.PutTask(work.Task{ID: "tx", ProjectID: "px", Title: "in px", Position: 1, Status: work.StatusTodo}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshProjects(); err != nil {
+		t.Fatal(err)
+	}
+	// The rows are gone from the tree, as the library's undo leaves them.
+	for _, c := range []ochazuke.TreeChange{
+		{Op: ochazuke.TreeDelete, ID: outlineNode("tx"), Undone: true},
+		{Op: ochazuke.TreeDelete, ID: projectNode("px"), Undone: true},
+	} {
+		if err := a.writeOutline(o, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := a.work.Task("tx"); err == nil {
+		t.Fatal("the undone task is still stored")
+	}
+	if p, err := a.work.Project("px"); err == nil {
+		t.Fatalf("the undone project is still stored: %+v", p)
 	}
 }
