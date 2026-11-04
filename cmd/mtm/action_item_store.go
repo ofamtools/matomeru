@@ -62,6 +62,8 @@ func actionItemProps() []ochazuke.PropSpec {
 		{Name: "pane", Parameter: ochazuke.Parameter{Type: "string", Noun: "pane", Description: "The pane (window id) the item is about: open attaches it when the item has no URL"}},
 		{Name: "session", Parameter: text("The pane's session")},
 		{Name: "read", Parameter: boolean("Whether the item has been read")},
+		{Name: "notify", Parameter: boolean("Notify even when the source is excluded; inbox.notify off still wins")},
+		{Name: "notified-at", ReadOnly: true, Parameter: integer("When an external notification endpoint accepted this item (Unix ms; 0 never)")},
 		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: boolean("Whether the item is archived: it leaves the open items and keeps its row (archiving reads it; restoring wakes a snoozed one)")},
 		{Name: "snoozed-until", Parameter: integer("When the item's snooze ends (Unix ms; 0 for none); a snooze takes it out of the archive")},
 		{Name: "state", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: actionitems.States, Description: "open, snoozed or archived, now"}},
@@ -113,6 +115,7 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 		"id": it.ID, "title": it.Title, "summary": it.Label(), "why": it.Why, "text": it.Text, "url": it.URL, "kind": it.Kind,
 		"source": it.Source, "key": it.Key, "project": it.ProjectID, "task": it.TaskID, "pane": it.Window, "session": it.Session,
 		"read": it.Read(), "archived": it.ArchivedAt > 0, "snoozed-until": it.SnoozedUntil, "state": it.State(a.inbox.items.Now()),
+		"notify": it.Notify, "notified-at": it.NotifiedAt,
 		"extra": extra, "promoted-todo": it.PromotedTodoID, "promoted-task": it.PromotedTaskID,
 		"created": it.Created, "updated": it.Updated, "read-at": it.ReadAt, "archived-at": it.ArchivedAt,
 	}
@@ -159,6 +162,9 @@ func applyActionItem(it *actionitems.Item, values ochazuke.Thing, now int64) {
 		if v, ok := thingString(values, name); ok {
 			*field = v
 		}
+	}
+	if v, ok := values["notify"].(bool); ok {
+		it.Notify = v
 	}
 	if v, ok := values["read"].(bool); ok {
 		switch {

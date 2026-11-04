@@ -137,12 +137,21 @@ func (a *App) declareSettings() error {
 	settings = append(settings, a.scheduleSettings()...)
 	settings = append(settings, ochazuke.Setting{Name: settingRemindersShow, Section: scheduleSection, Group: "Reminders", Type: ochazuke.SettingBoolean, Default: true, Description: "Show the reminders list on Schedules"})
 	settings = append(settings, reminderNotifySettings()...)
+	settings = append(settings, notifySettings()...)
+	settings = append(settings, inboxNotifySettings()...)
 	if err := a.declareSettingLayout(); err != nil {
 		return err
 	}
 	if err := a.r.DeclareSetting(settings...); err != nil {
 		return err
 	}
+	for _, key := range []string{settingInboxNotify, settingInboxSources, settingInboxInApp} {
+		a.r.Settings().Observe(key, func(string, any) { a.syncInboxNotices() })
+	}
+	a.sched.failureLimit.Store(int64(a.r.Settings().Int(settingNotifyFailures)))
+	a.r.Settings().Observe(settingNotifyFailures, func(_ string, value any) {
+		a.sched.failureLimit.Store(int64(value.(int)))
+	})
 	a.observeContextExtraction()
 	return nil
 }

@@ -80,13 +80,14 @@ var intervalChoices = []string{"1m", "5m", "10m", "15m", "30m", "1h", "4h", "24h
 // scheduleState is the feature's state: the rows as configured, the
 // runner, the page's list and detail, and the TUI's timers.
 type scheduleState struct {
-	defs    []schedules.Def
-	stored  []schedules.Def // the rows schedule add stored, over defs by name
-	env     atomic.Pointer[promptEnv]
-	loadErr string // why schedules.json did not load (the built-ins run)
-	runner  *schedules.Runner
-	list    *ochazuke.List
-	detail  *linkedDetail
+	defs         []schedules.Def
+	stored       []schedules.Def // the rows schedule add stored, over defs by name
+	env          atomic.Pointer[promptEnv]
+	failureLimit atomic.Int64 // notification projection reads it off-loop
+	loadErr      string       // why schedules.json did not load (the built-ins run)
+	runner       *schedules.Runner
+	list         *ochazuke.List
+	detail       *linkedDetail
 	// live is set when the TUI starts: only then do schedules run and
 	// pane signals reach the inbox (a CLI command is one-shot).
 	live   bool
@@ -119,6 +120,9 @@ func (a *App) openSchedules(configDir string) error {
 	runner.Location = a.location()
 	defs, err := schedules.Load(filepath.Join(configDir, scheduleFile))
 	st := &scheduleState{defs: defs, runner: runner}
+	runner.AfterRecord = func(rec schedules.Record) error {
+		return syncFailingSchedules(a.db, int(st.failureLimit.Load()), rec.Finished)
+	}
 	if err != nil {
 		st.defs, st.loadErr = schedules.Defaults(), err.Error()
 	}

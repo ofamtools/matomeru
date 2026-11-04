@@ -589,6 +589,9 @@ type Runner struct {
 	// Done receives every finished run Tick started (never blocks: a full
 	// channel drops the message; the rows are in the store anyway).
 	Done chan Record
+	// AfterRecord projects a persisted run into app-owned state. It runs off
+	// the UI loop after the transaction closes, for Tick and RunNow alike.
+	AfterRecord func(Record) error
 	// Kinds run each kind of schedule; New sets command.
 	Kinds map[string]Executor
 	// Drives run a command row by its drive other than exec (which the
@@ -908,6 +911,10 @@ func (r *Runner) execute(ctx context.Context, def Def, state State, manual bool)
 	rec.Summary = def.Name + " · " + rec.Outcome
 	if err := r.record(def, rec); err != nil {
 		rec.Error = strings.TrimPrefix(rec.Error+"; ", "; ") + "recording the run: " + err.Error()
+	} else if r.AfterRecord != nil {
+		if err := r.AfterRecord(rec); err != nil {
+			rec.Error = strings.TrimPrefix(rec.Error+"; ", "; ") + "after recording the run: " + err.Error()
+		}
 	}
 	return rec
 }

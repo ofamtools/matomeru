@@ -1,0 +1,18 @@
+{
+  "name": "mtm: a new action item holds a notice on Work without opening Inbox or taking focus",
+  "area": "inbox",
+  "fixture": "inbox-notice",
+  "width": 140,
+  "height": 36,
+  "config": {"bindings.json": [
+    {"noun":"app","mode":"normal","keys":"ctrl+x","capture":true,"request":{"noun":"action-item","verb":"add","args":{"source":"slack","title":"Review the incident","why":"mentioned"}}},
+    {"noun":"app","mode":"normal","keys":"ctrl+n","capture":true,"request":{"noun":"ochazuke.notice","verb":"clear"}}
+  ]},
+  "script": ["ctrl+j", "ctrl+x", "j", "ctrl+n"],
+  "expect": [
+    {"after":1,"page":"work"},
+    {"after":2,"page":"work","contains":["Inbox: slack · Review the incident"]},
+    {"after":3,"page":"work","contains":["Inbox: slack · Review the incident"]},
+    {"page":"work"}
+  ]
+}

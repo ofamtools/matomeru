@@ -73,9 +73,13 @@ type Item struct {
 	// requested", "CI failed").
 	Why string `json:"why,omitempty"`
 	// Window and Session are the pane the item is about.
-	Window       string `json:"window,omitempty"`
-	Session      string `json:"session,omitempty"`
-	SnoozedUntil int64  `json:"snoozed_until,omitempty"`
+	Window           string `json:"window,omitempty"`
+	Session          string `json:"session,omitempty"`
+	SnoozedUntil     int64  `json:"snoozed_until,omitempty"`
+	Notify           bool   `json:"notify,omitempty"`
+	NotifiedAt       int64  `json:"notified_at,omitempty"`
+	NotifyClaim      string `json:"notify_claim,omitempty"`
+	NotifyClaimUntil int64  `json:"notify_claim_until,omitempty"`
 }
 
 // State is the item's state at now (Unix ms).
@@ -115,6 +119,7 @@ type Spec struct {
 	Extra     map[string]any `json:"extra"`
 	// Reopen makes an archived or snoozed duplicate open and unread again.
 	Reopen bool `json:"reopen"`
+	Notify bool `json:"notify,omitempty"`
 }
 
 // Owner is what an item is associated with; the zero Owner unassociates.
@@ -186,15 +191,19 @@ func (s *Store) Add(spec Spec) (Item, bool, error) {
 				it.Extra = spec.Extra
 			}
 			if spec.Reopen {
+				if it.ArchivedAt > 0 || it.SnoozedUntil > now {
+					it.NotifiedAt = 0
+				}
 				it.ArchivedAt, it.ReadAt, it.SnoozedUntil = 0, 0, 0
 			}
+			it.Notify = it.Notify || spec.Notify
 			it.Updated = now
 			out = it
 			return tx.Put(Table.Name, it.ID, it)
 		}
 		out = Item{ID: work.NewID(), Source: spec.Source, URL: spec.URL, Key: spec.Key, Title: spec.Title, Why: spec.Why, Text: spec.Text,
 			Kind: spec.Kind, ProjectID: spec.ProjectID, TaskID: spec.TaskID, Window: spec.Window, Session: spec.Session, Extra: spec.Extra,
-			Created: now, Updated: now}
+			Created: now, Updated: now, Notify: spec.Notify}
 		created = true
 		return tx.Put(Table.Name, out.ID, out)
 	})

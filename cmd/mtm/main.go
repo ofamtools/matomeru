@@ -300,6 +300,7 @@ type App struct {
 	inbox              *inboxState         // the action_items table and the Inbox page (inbox.go)
 	sched              *scheduleState      // schedules, their runner and the Schedules page (schedules.go)
 	reminders          *reminderState      // daily reminders and their local-date history
+	notify             *notification       // shared terminal and argv notification endpoints
 	runs               *runState           // command runs by drive and the Runs page (runs.go)
 	signals            paneSignalState     // pane state raised into the inbox (pane_signals.go)
 	hist               *history.Journal    // the history journal and review marks (journal.go)
@@ -538,6 +539,7 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
+	a.notify = newNotifications()
 	a.trackNotices()
 	w.SetAgentPolicy(a.agentPolicy) // what an agent may change: the agents.* settings (actor.go)
 	a.claudeProjects = turns.ClaudeProjects()

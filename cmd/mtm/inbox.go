@@ -55,13 +55,16 @@ var inboxColumns = []ochazuke.Column{
 // inboxState is the page's state: the store, its list and detail, the
 // opener and the counts the title row shows.
 type inboxState struct {
-	items  *actionitems.Store
-	list   *ochazuke.List
-	detail *linkedDetail
-	sys    systemActions
-	counts actionitems.Counts
-	sig    string             // what the rows were last built from; a reload that finds it unchanged sets nothing
-	all    []actionitems.Item // the items the rows were built from; the Panes page's top list reads them
+	items       *actionitems.Store
+	list        *ochazuke.List
+	detail      *linkedDetail
+	sys         systemActions
+	counts      actionitems.Counts
+	sig         string             // what the rows were last built from; a reload that finds it unchanged sets nothing
+	all         []actionitems.Item // the items the rows were built from; the Panes page's top list reads them
+	notifySince int64
+	notifyBusy  bool
+	notices     map[string]ochazuke.NoticeID
 	// after schedules the reload timer (tea.Tick); tests set it nil and
 	// deliver inboxDue themselves.
 	after func(time.Duration, tea.Msg) tea.Cmd
@@ -94,6 +97,7 @@ func (a *App) defineInbox() {
 	// aliases; snooze and associate run set; the rest are mtm's own.
 	a.r.Define(n).Props(actionItemProps()...).Store(a.actionItemStore()).Columns(inboxColumns...).
 		Verb("add", a.addActionItem, "Record an action item; the same source and --key (else --url) refreshes its row instead of adding one. Prints the item; new is true when a row was added").
+		Verb("notify-due", a.notifyActionItems, "Send newly created action items once; shares the running TUI's baseline and claims").Agent(ochazuke.AgentAllow).
 		Verb("count", a.countActionItems, "Count the open action items and the unread ones among them").Fetch().
 		Verb("open", a.openActionItem, "Open the item's URL in the browser and mark it read").Positional("id").
 		Verb("snooze", a.snoozeActionItem, "Hide the item until --until (a time) or for --for (90m, 4h, 2d, 1w), the standard set of snoozed-until; omitted, a chooser asks").Positional("id").Many().
@@ -138,6 +142,7 @@ func (a *App) defineInbox() {
 		"kind":   {Type: "string", Description: "The item's type: review-request, mention, ci-failed, …"},
 		"extra":  {Type: "object", Description: "Any JSON the source wants kept with the item"},
 		"reopen": {Type: "boolean", Description: "Make an archived or snoozed duplicate open and unread again"},
+		"notify": {Type: "boolean", Description: "Notify this item even when its source is not in inbox.notify-sources; inbox.notify off still wins"},
 	}
 	for k, v := range inboxOwnerParams {
 		add[k] = v
@@ -197,12 +202,13 @@ func (a *App) inboxTick() tea.Cmd {
 // inboxUpdate reloads the rows on the timer and when the page opens.
 func (a *App) inboxUpdate(msg tea.Msg) tea.Cmd {
 	if _, ok := msg.(inboxDue); !ok {
-		return nil
+		return a.inboxNotificationsUpdate(msg)
 	}
 	if err := a.reloadInbox(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
-	return a.inboxTick()
+	a.syncInboxNotices()
+	return tea.Batch(a.inboxTick(), a.inboxNotificationsUpdate(msg))
 }
 
 // reloadInbox rebuilds the rows only when the items changed (or a snooze
@@ -255,6 +261,7 @@ func (a *App) setInboxRows(items []actionitems.Item) error {
 	}
 	a.inbox.counts = c
 	a.inbox.all = items
+	a.syncInboxNotices()
 	a.refreshTitle()
 	if err := a.inbox.list.SetItems(rows); err != nil {
 		return err
@@ -519,9 +526,10 @@ func (a *App) addActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	arg := func(k string) string { return ochazuke.StringArg(ctx.Args, k, "") }
 	reopen, _ := ctx.Args["reopen"].(bool)
+	notify, _ := ctx.Args["notify"].(bool)
 	extra, _ := ctx.Args["extra"].(map[string]any)
 	it, created, err := a.inbox.items.Add(actionitems.Spec{Source: arg("source"), URL: arg("url"), Key: arg("key"), Title: arg("title"), Why: arg("why"),
-		Text: arg("text"), Kind: arg("kind"), ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session, Extra: extra, Reopen: reopen})
+		Text: arg("text"), Kind: arg("kind"), ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session, Extra: extra, Reopen: reopen, Notify: notify})
 	if err == nil {
 		err = a.refreshInbox()
 	}
@@ -821,6 +829,8 @@ type actionItemJSON struct {
 	ReadAt         int64          `json:"read_at,omitempty"`
 	SnoozedUntil   int64          `json:"snoozed_until,omitempty"`
 	ArchivedAt     int64          `json:"archived_at,omitempty"`
+	Notify         bool           `json:"notify,omitempty"`
+	NotifiedAt     int64          `json:"notified_at,omitempty"`
 	PromotedTodoID string         `json:"promoted_todo_id,omitempty"`
 	PromotedTaskID string         `json:"promoted_task_id,omitempty"`
 	Extra          map[string]any `json:"extra,omitempty"`
@@ -830,5 +840,6 @@ func itemView(it actionitems.Item, now int64) actionItemJSON {
 	return actionItemJSON{ID: it.ID, Source: it.Source, URL: it.URL, Key: it.Key, Title: it.Title, Why: it.Why, Text: it.Text, Kind: it.Kind,
 		State: it.State(now), Read: it.Read(), ProjectID: it.ProjectID, TaskID: it.TaskID, Window: it.Window, Session: it.Session,
 		Created: it.Created, Updated: it.Updated, ReadAt: it.ReadAt, SnoozedUntil: it.SnoozedUntil, ArchivedAt: it.ArchivedAt,
+		Notify: it.Notify, NotifiedAt: it.NotifiedAt,
 		PromotedTodoID: it.PromotedTodoID, PromotedTaskID: it.PromotedTaskID, Extra: it.Extra}
 }

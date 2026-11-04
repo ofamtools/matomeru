@@ -71,7 +71,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.inboxTick(), a.startSchedules(), a.startReminderNotifications(), a.refreshStaleExtensions(), a.setupCheckAtStart())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.startNotifications(), a.startInboxNotifications(), a.startSchedules(), a.startReminderNotifications(), a.refreshStaleExtensions(), a.setupCheckAtStart())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
@@ -127,6 +127,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, c)
 	}
 	if c := a.reminderNotificationsUpdate(msg); c != nil {
+		cmd = tea.Batch(cmd, c)
+	}
+	if c := a.notificationsUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
 	if a.reminders != nil && a.reminders.date != a.reminderNow().Format("2006-01-02") {

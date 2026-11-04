@@ -14,6 +14,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
+
+	"ofam.dev/matomeru/internal/notify"
 )
 
 func reminderApp(t *testing.T) (*App, *time.Time) {
@@ -23,8 +25,8 @@ func reminderApp(t *testing.T) (*App, *time.Time) {
 	a.clock = func() time.Time { return now }
 	a.loc = time.UTC
 	a.reminders.notify.after = nil
-	a.reminders.notify.output = io.Discard
-	a.reminders.notify.exec = func(context.Context, []string) (string, error) {
+	a.notify.output = io.Discard
+	a.notify.exec = func(context.Context, []string) (string, error) {
 		return "", errors.New("unexpected notification command")
 	}
 	return a, &now
@@ -126,9 +128,9 @@ func TestReminderSenderArgvAndPartialFailure(t *testing.T) {
 		}
 	}
 	var terminal bytes.Buffer
-	a.reminders.notify.output = &terminal
+	a.notify.output = &terminal
 	var calls [][]string
-	a.reminders.notify.exec = func(_ context.Context, argv []string) (string, error) {
+	a.notify.exec = func(_ context.Context, argv []string) (string, error) {
 		calls = append(calls, argv)
 		if argv[0] == "extra" {
 			return "offline", errors.New("fake failure")
@@ -167,13 +169,13 @@ func TestReminderSenderArgvAndPartialFailure(t *testing.T) {
 
 func TestReminderTerminalSanitizesControls(t *testing.T) {
 	t.Parallel()
-	got := terminalReminder("plants\x1b\a\n\r\t\x9d\u009b", "body\x1b\a\n")
+	got := notify.Terminal("plants\x1b\a\n\r\t\x9d\u009b", "body\x1b\a\n")
 	// Invalid UTF-8 is a replacement rune, not a C1 byte in UTF-8 output.
 	want := "\x1b]9;mtm: plants� · body\x1b\\"
 	if got != want {
 		t.Fatalf("OSC 9 = %q, want %q", got, want)
 	}
-	if got := terminalReminder("4;danger", "body"); got != "\x1b]9;mtm: 4;danger · body\x1b\\" {
+	if got := notify.Terminal("4;danger", "body"); got != "\x1b]9;mtm: 4;danger · body\x1b\\" {
 		t.Fatalf("OSC 9 numeric title became a subcommand: %q", got)
 	}
 }
@@ -182,7 +184,7 @@ func TestReminderNoticePersistsDismissesAndOptOut(t *testing.T) {
 	t.Parallel()
 	a, _ := reminderApp(t)
 	id := createReminder(t, a, "water the plants")
-	a.reminders.notify.live = true
+	a.notify.live = true
 	a.syncReminderNotices()
 	if len(a.reminders.notify.notices) != 1 {
 		t.Fatalf("notices %v", a.reminders.notify.notices)
@@ -240,12 +242,12 @@ func TestReminderTimerRunsOffLoopAndRetries(t *testing.T) {
 	t.Parallel()
 	a, _ := reminderApp(t)
 	createReminder(t, a, "water the plants")
-	a.reminders.notify.live = true
+	a.notify.live = true
 	if err := a.r.Settings().Set(settingReminderNotify, "os"); err != nil {
 		t.Fatal(err)
 	}
 	calls := 0
-	a.reminders.notify.exec = func(context.Context, []string) (string, error) {
+	a.notify.exec = func(context.Context, []string) (string, error) {
 		calls++
 		if calls == 1 {
 			return "", errors.New("offline")
