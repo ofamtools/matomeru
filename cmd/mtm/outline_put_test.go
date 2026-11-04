@@ -48,3 +48,74 @@ func TestOutlineDeleteThenPutMovesTheTask(t *testing.T) {
 		t.Fatalf("second p: %d tasks", n)
 	}
 }
+
+// p and P on a project row (or the one root of a project's outline, or
+// the no project row) put the rows in it as tasks, first; they never make a
+// project or land on no project.
+func TestOutlinePutOnAProjectRowPutsTasksInIt(t *testing.T) {
+	t.Parallel()
+	for _, row := range []string{projectNode("ochazuke"), projectNode("")} {
+		for _, key := range []string{"p", "P"} {
+			a := allOutline(t, outlineNode("t1"))
+			press(t, a, "y", "y")
+			focusRow(t, a, row)
+			press(t, a, key)
+			if made := newProjects(t, a); len(made) != 0 {
+				t.Fatalf("%s on %s made projects %+v", key, row, made)
+			}
+			want := projectOfRoot(row)
+			tasks, err := a.work.Tasks("")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var found []work.Task
+			for _, x := range tasks {
+				if x.Title == "write the brief" && x.ID != "t1" {
+					found = append(found, x)
+				}
+			}
+			if len(found) != 1 || found[0].ProjectID != want || found[0].ParentID != "" {
+				t.Fatalf("%s on %s: put %+v, want one top task of %q", key, row, found, want)
+			}
+			if got := a.r.Tree(outlineTree).Nodes(); len(got) == 0 {
+				t.Fatal("outline empty")
+			}
+		}
+	}
+	// The one root of a project's outline.
+	a := open(t)
+	press(t, a, "j", "O")
+	focusRow(t, a, projectNode("matomeru"))
+	press(t, a, "y", "y") // a yank of the root: the project and its tasks
+	focusRow(t, a, outlineNode("t1"))
+	press(t, a, "y", "y")
+	focusRow(t, a, projectNode("matomeru"))
+	press(t, a, "p")
+	if made := newProjects(t, a); len(made) != 0 {
+		t.Fatalf("p on the root made projects %+v", made)
+	}
+	if got := rootRows(a); len(got) != 1 {
+		t.Fatalf("roots %v", got)
+	}
+	if kids := tasksOf(t, a, "matomeru"); len(kids) != 3 {
+		t.Fatalf("p on the root: %d tasks, want 3", len(kids))
+	}
+}
+
+// p with rows in the outline but none shown (a filter matching nothing)
+// says so and adds nothing.
+func TestOutlinePutWithNothingShownRefuses(t *testing.T) {
+	t.Parallel()
+	a := allOutline(t, outlineNode("t1"))
+	press(t, a, "y", "y", "/")
+	typeText(t, a, "zzzz")
+	press(t, a, "enter")
+	before := len(tasksOf(t, a, "matomeru"))
+	press(t, a, "p")
+	if got := len(tasksOf(t, a, "matomeru")); got != before {
+		t.Fatalf("p added %d tasks with nothing shown", got-before)
+	}
+	if made := newProjects(t, a); len(made) != 0 {
+		t.Fatalf("p made projects %+v", made)
+	}
+}
