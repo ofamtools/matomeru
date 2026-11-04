@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -167,7 +168,7 @@ func TestInboxNotifyOffLoopHeldNoticeWithoutPageOpen(t *testing.T) {
 	if got := ansi.Strip(a.View().Content); !strings.Contains(got, "Inbox: slack · Review the incident") {
 		t.Fatalf("notice not rendered:\n%s", got)
 	}
-	notice := a.inbox.notices[it.ID]
+	notice := a.inbox.notices[it.ID].id
 	press(t, a, "j")
 	a.Update(noticeExpired{gen: a.notices.gen})
 	if !slicesContainsNotice(a.shownNotices(), notice) {
@@ -186,8 +187,8 @@ func TestInboxNotifyOffLoopHeldNoticeWithoutPageOpen(t *testing.T) {
 	if err := a.r.Settings().Set(settingInboxInApp, true); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.shownNotices()) != 1 {
-		t.Fatal("opt-in did not restore the held unread notice")
+	if len(a.shownNotices()) != 0 {
+		t.Fatal("opt-in restored a dismissed notice")
 	}
 	if err := a.r.Settings().Set(settingInboxNotify, "off"); err != nil {
 		t.Fatal(err)
@@ -206,6 +207,89 @@ func TestInboxNotifyOffLoopHeldNoticeWithoutPageOpen(t *testing.T) {
 	}
 	if len(a.shownNotices()) != 0 {
 		t.Fatal("read item's notice survived")
+	}
+}
+
+func TestInboxDismissalSurvivesReadsThresholdAndRestart(t *testing.T) {
+	t.Parallel()
+	a, now := inboxNotifyApp(t)
+	a.notify.live = true
+	a.m.Width, a.m.Height = 140, 36
+	inboxNotifyTick(t, a)
+	*now = now.Add(time.Millisecond)
+	var ids []string
+	for i := range 11 {
+		it, _, err := a.inbox.items.Add(actionitems.Spec{Source: "slack", Title: fmt.Sprintf("old %d", i), Key: fmt.Sprint(i)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, it.ID)
+	}
+	sent := 0
+	a.notify.exec = func(context.Context, []string) (string, error) { sent++; return "", nil }
+	if result := inboxNotifyTick(t, a); result.err != nil || result.sent != 11 || sent != 1 {
+		t.Fatalf("initial desktop summary: %+v sends=%d", result, sent)
+	}
+	if got := ansi.Strip(a.View().Content); !strings.Contains(got, "Inbox: 11 new action items") {
+		t.Fatalf("initial chrome summary missing:\n%s", got)
+	}
+	executeA(t, a, "ochazuke.notice", "clear", "", nil)
+	assertDismissed := func(app *App) {
+		t.Helper()
+		if got := ansi.Strip(app.View().Content); strings.Contains(got, "Notice: Inbox:") {
+			t.Fatalf("dismissed items raised another chrome notice:\n%s", got)
+		}
+	}
+	assertDismissed(a)
+	other := openWith(t, Options{Data: a.dataPath})
+	other.inbox.items.SetClock(func() int64 { return now.UnixMilli() })
+	// A second connection first leaves ten unread, then crosses the summary
+	// threshold to five; neither change acknowledges anything new.
+	for i := range 6 {
+		*now = now.Add(time.Millisecond)
+		if _, err := other.inbox.items.SetRead(ids[i], true); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 || i == 5 {
+			if err := a.reloadInbox(); err != nil {
+				t.Fatal(err)
+			}
+			assertDismissed(a)
+		}
+	}
+	if counts, err := other.inbox.items.Counts(); err != nil || counts.Open != 11 || counts.Unread != 5 {
+		t.Fatalf("notice dismissal changed inbox state: %+v %v", counts, err)
+	}
+	// A fresh runtime and database connection have no in-memory notice history.
+	b := openWith(t, Options{Data: a.dataPath})
+	b.clock = func() time.Time { return *now }
+	b.inbox.items.SetClock(func() int64 { return now.UnixMilli() })
+	b.inbox.after = nil
+	b.notify.live = true
+	b.m.Width, b.m.Height = 140, 36
+	if err := b.r.Settings().Set(settingNotifyChannel, "os"); err != nil {
+		t.Fatal(err)
+	}
+	var delivered []string
+	b.notify.exec = func(_ context.Context, argv []string) (string, error) {
+		delivered = append(delivered, strings.Join(argv, " "))
+		return "", nil
+	}
+	if result := inboxNotifyTick(t, b); result.err != nil || result.sent != 0 || len(delivered) != 0 {
+		t.Fatalf("restart repeated desktop notifications: %+v sends=%v", result, delivered)
+	}
+	assertDismissed(b)
+	*now = now.Add(time.Millisecond)
+	if _, _, err := other.inbox.items.Add(actionitems.Spec{Source: "slack", Title: "Only genuinely new item", Key: "fresh"}); err != nil {
+		t.Fatal(err)
+	}
+	if result := inboxNotifyTick(t, b); result.err != nil || result.sent != 1 || len(delivered) != 1 ||
+		!strings.Contains(delivered[0], "Only genuinely new item") {
+		t.Fatalf("new-item desktop delivery: %+v sends=%v", result, delivered)
+	}
+	if got := ansi.Strip(b.View().Content); !strings.Contains(got, "Inbox: slack · Only genuinely new item") ||
+		strings.Contains(got, "new action items") {
+		t.Fatalf("chrome counted previously dismissed items:\n%s", got)
 	}
 }
 

@@ -22,7 +22,35 @@ type NotifyOptions struct {
 }
 
 func (o NotifyOptions) Wants(it Item, now int64) bool {
-	return o.Enabled && it.Created > o.Since && !it.Read() && it.State(now) == StateOpen && (it.Notify || slices.Contains(o.Sources, it.Source))
+	return o.Enabled && it.Created > o.Since && it.NoticeDismissedAt == 0 && !it.Read() && it.State(now) == StateOpen && (it.Notify || slices.Contains(o.Sources, it.Source))
+}
+
+// DismissNotices records the items acknowledged in the chrome, not their read
+// or archive state. A repeated clear is idempotent; another process's changes
+// are preserved and a concurrently deleted item is never recreated.
+func (s *Store) DismissNotices(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error {
+		now := s.now()
+		for _, id := range ids {
+			var it Item
+			if err := tx.Get(Table.Name, id, &it); errors.Is(err, store.ErrNotFound) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			if it.NoticeDismissedAt != 0 {
+				continue
+			}
+			it.NoticeDismissedAt = now
+			if err := tx.Put(Table.Name, id, it); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 type notifyClaim struct {

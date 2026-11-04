@@ -131,3 +131,55 @@ func TestActionItemNotifyOffAndMarks(t *testing.T) {
 		t.Fatalf("marks %d %#v %v", n, sent, err)
 	}
 }
+
+func TestDismissedNotificationsRemainAcknowledged(t *testing.T) {
+	t.Parallel()
+	s, _, clock := openStore(t)
+	opts := NotifyOptions{Enabled: true, Sources: []string{"slack"}, Since: *clock}
+	*clock++
+	old, _, err := s.Add(Spec{Source: "slack", Title: "old unread", Key: "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dismissed := *clock
+	if err := s.DismissNotices([]string{old.ID, "deleted-item", old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	*clock++
+	if _, err := s.SetRead(old.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetRead(old.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Add(Spec{Source: "slack", Title: "refreshed unread", Key: "old", Reopen: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DismissNotices([]string{old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if it, err := s.Get(old.ID); err != nil || it.NoticeDismissedAt != dismissed || it.Read() || it.ArchivedAt != 0 || it.SnoozedUntil != 0 {
+		t.Fatalf("read/refresh/repeated clear changed acknowledgement or inbox state: %+v %v", it, err)
+	}
+	var sent []string
+	deliver := func(title, _ string) (bool, error) { sent = append(sent, title); return true, nil }
+	if n, err := s.NotifyDue(*clock, opts, deliver); err != nil || n != 0 || len(sent) != 0 {
+		t.Fatalf("dismissed item reached desktop delivery: %d %v %v", n, sent, err)
+	}
+	if _, _, err := s.Add(Spec{Source: "slack", Title: "fresh item", Key: "fresh"}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.NotifyDue(*clock, opts, deliver); err != nil || n != 1 || !reflect.DeepEqual(sent, []string{"mtm: slack · fresh item"}) {
+		t.Fatalf("fresh item did not notify on its own: %d %v %v", n, sent, err)
+	}
+	// Explicitly reopening an archived item starts a new notification cycle.
+	if _, err := s.Archive(old.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Add(Spec{Source: "slack", Key: "old", Reopen: true}); err != nil {
+		t.Fatal(err)
+	}
+	if it, err := s.Get(old.ID); err != nil || it.NoticeDismissedAt != 0 {
+		t.Fatalf("reopen retained the old notification cycle: %+v %v", it, err)
+	}
+}

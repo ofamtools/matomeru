@@ -28,12 +28,40 @@ type inboxNotified struct {
 	err   error
 }
 
+type inboxNotice struct {
+	id    ochazuke.NoticeID
+	items []string
+	text  string
+}
+
 func inboxNotifySettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
 		{Name: settingInboxNotify, Type: ochazuke.SettingString, Default: "new", Enum: []string{"off", "new"}, Description: "Notify new action items while any mtm TUI runs; off disables inbox delivery and notices"},
 		{Name: settingInboxSources, Type: ochazuke.SettingList, Default: []string{"slack", "gh"}, Description: "Sources that notify; action-item add --notify bypasses this filter, not inbox.notify off"},
 		{Name: settingInboxInApp, Type: ochazuke.SettingBoolean, Default: true, Description: "Hold new unread action item notices in the existing chrome without moving focus"},
 	}
+}
+
+func (a *App) defineInboxNotices() {
+	clearNotice, _ := a.r.Operation("ochazuke.notice.clear")
+	a.r.Define("app").Action("ochazuke.notice.clear", func(r *ochazuke.Runtime, c ochazuke.Context, args ochazuke.Arguments) (any, error) {
+		n := 0
+		for _, notice := range a.inbox.notices {
+			n += len(notice.items)
+		}
+		ids := make([]string, 0, n)
+		for _, notice := range a.inbox.notices {
+			ids = append(ids, notice.items...)
+		}
+		if err := a.inbox.items.DismissNotices(ids); err != nil {
+			return nil, err
+		}
+		value, err := clearNotice.Run(r, c, args)
+		if err != nil {
+			return value, err
+		}
+		return value, a.reloadInbox()
+	})
 }
 
 // inboxNotifySince uses the existing app-state row, preserving its other fields.
@@ -155,11 +183,12 @@ func (a *App) syncInboxNotices() {
 	}
 	st := a.inbox
 	opts := a.inboxNotifyOptions()
-	wanted := map[string]string{}
+	wanted := map[string]inboxNotice{}
+	now := a.now().UnixMilli()
 	if a.r.Settings().Bool(settingInboxInApp) && st.notifySince != 0 {
 		var items []actionitems.Item
 		for _, it := range st.all {
-			if opts.Wants(it, a.now().UnixMilli()) {
+			if opts.Wants(it, now) {
 				items = append(items, it)
 			}
 		}
@@ -169,28 +198,27 @@ func (a *App) syncInboxNotices() {
 				ids[i] = it.ID
 			}
 			slices.Sort(ids)
-			wanted[strings.Join(ids, "/")] = fmt.Sprintf("Inbox: %d new action items · notice clear dismisses", len(items))
+			wanted["summary"] = inboxNotice{items: ids, text: fmt.Sprintf("Inbox: %d new action items · notice clear dismisses", len(items))}
 		} else {
 			for _, it := range items {
-				wanted[it.ID] = "Inbox: " + it.Source + " · " + strings.Join(strings.Fields(it.Label()), " ") + " · notice clear dismisses"
+				wanted[it.ID] = inboxNotice{items: []string{it.ID}, text: "Inbox: " + it.Source + " · " + strings.Join(strings.Fields(it.Label()), " ") + " · notice clear dismisses"}
 			}
 		}
 	}
-	for key, id := range st.notices {
-		if _, ok := wanted[key]; !ok {
-			a.r.UI().ClearNotice(id)
-			delete(st.notices, key)
+	for key, old := range st.notices {
+		if next, ok := wanted[key]; ok && slices.Equal(old.items, next.items) && old.text == next.text {
+			delete(wanted, key)
+			continue
 		}
+		a.r.UI().ClearNotice(old.id)
+		delete(st.notices, key)
 	}
 	if st.notices == nil {
-		st.notices = map[string]ochazuke.NoticeID{}
+		st.notices = map[string]inboxNotice{}
 	}
-	for key, text := range wanted {
-		if _, exists := st.notices[key]; exists {
-			continue
-		} // includes dismissed notices
-		id := a.r.UI().Notify(text)
-		st.notices[key] = id
-		a.noticeSink.keep(id)
+	for key, notice := range wanted {
+		notice.id = a.r.UI().Notify(notice.text)
+		st.notices[key] = notice
+		a.noticeSink.keep(notice.id)
 	}
 }

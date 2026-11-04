@@ -64,7 +64,7 @@ type inboxState struct {
 	all         []actionitems.Item // the items the rows were built from; the Panes page's top list reads them
 	notifySince int64
 	notifyBusy  bool
-	notices     map[string]ochazuke.NoticeID
+	notices     map[string]inboxNotice
 	// after schedules the reload timer (tea.Tick); tests set it nil and
 	// deliver inboxDue themselves.
 	after func(time.Duration, tea.Msg) tea.Cmd
@@ -90,6 +90,7 @@ func (a *App) defineInbox() {
 	a.inbox.after = func(d time.Duration, msg tea.Msg) tea.Cmd {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 	}
+	a.defineInboxNotices()
 	n := actionItemNoun
 	// Props and the store first: the standard verbs (get, list, create,
 	// set, delete, watch, move, duplicate, archive, restore) come from them
@@ -227,7 +228,7 @@ func (a *App) reloadInbox() error {
 func inboxSig(items []actionitems.Item, now int64) string {
 	var b strings.Builder
 	for _, it := range items {
-		b.WriteString(it.ID + ":" + strconv.FormatInt(it.Updated, 10) + ":" + it.State(now) + ";")
+		b.WriteString(it.ID + ":" + strconv.FormatInt(it.Updated, 10) + ":" + strconv.FormatInt(it.NoticeDismissedAt, 10) + ":" + it.State(now) + ";")
 	}
 	return b.String()
 }

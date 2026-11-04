@@ -73,13 +73,14 @@ type Item struct {
 	// requested", "CI failed").
 	Why string `json:"why,omitempty"`
 	// Window and Session are the pane the item is about.
-	Window           string `json:"window,omitempty"`
-	Session          string `json:"session,omitempty"`
-	SnoozedUntil     int64  `json:"snoozed_until,omitempty"`
-	Notify           bool   `json:"notify,omitempty"`
-	NotifiedAt       int64  `json:"notified_at,omitempty"`
-	NotifyClaim      string `json:"notify_claim,omitempty"`
-	NotifyClaimUntil int64  `json:"notify_claim_until,omitempty"`
+	Window            string `json:"window,omitempty"`
+	Session           string `json:"session,omitempty"`
+	SnoozedUntil      int64  `json:"snoozed_until,omitempty"`
+	Notify            bool   `json:"notify,omitempty"`
+	NotifiedAt        int64  `json:"notified_at,omitempty"`
+	NotifyClaim       string `json:"notify_claim,omitempty"`
+	NotifyClaimUntil  int64  `json:"notify_claim_until,omitempty"`
+	NoticeDismissedAt int64  `json:"notice_dismissed_at,omitempty"`
 }
 
 // State is the item's state at now (Unix ms).
@@ -192,7 +193,7 @@ func (s *Store) Add(spec Spec) (Item, bool, error) {
 			}
 			if spec.Reopen {
 				if it.ArchivedAt > 0 || it.SnoozedUntil > now {
-					it.NotifiedAt = 0
+					it.NotifiedAt, it.NoticeDismissedAt = 0, 0
 				}
 				it.ArchivedAt, it.ReadAt, it.SnoozedUntil = 0, 0, 0
 			}
