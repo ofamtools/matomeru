@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"testing"
 
 	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 	"ofam.dev/ochazuke"
 	ocli "ofam.dev/ochazuke/cli"
 	catalogmcp "ofam.dev/ochazuke/cli/mcp"
@@ -125,28 +128,23 @@ func TestMCPRefusalsAreErrorsAndDoNotWrite(t *testing.T) {
 func TestMCPVerbRightsTable(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	for _, row := range mtmAgentDeclarations {
-		op, ok := a.r.Operation(row.Verb)
-		if !ok {
-			t.Errorf("stale declaration: %s", row.Verb)
-			continue
-		}
-		if row.Right != "" && a.r.AgentRight(op, false).Right != row.Right {
-			t.Errorf("declaration not applied: %s", row.Verb)
-		}
-		if row.Destructive && !op.Destructive {
-			t.Errorf("destructive declaration not applied: %s", row.Verb)
-		}
-	}
 	for _, tt := range []struct {
 		verb, right string
 		destructive bool
 	}{
 		{"task.create", "allow", false}, {"task.set", "allow", false}, {"task.move", "allow", false}, {"task.done", "allow", false}, {"task.status", "allow", false},
-		{"task.delete", "never", true}, {"project.new", "allow", false}, {"project.create", "allow", false}, {"project.delete", "never", true}, {"project.set", "never", false}, {"pane.kill", "never", true},
-		{"session.kill", "never", true}, {"note.delete", "never", true}, {"context-item.delete", "never", true},
-		{"setup.install", "never", false}, {"setup.uninstall", "never", true}, {"extension.remove", "never", true},
-		{"ochazuke.settings.set", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
+		{"task.delete", "never", true}, {"project.new", "allow", false}, {"project.create", "allow", false}, {"project.delete", "never", true}, {"project.set", "allow", false}, {"pane.kill", "confirm", false},
+		{"session.kill", "confirm", false}, {"note.delete", "never", true}, {"context-item.delete", "never", true},
+		{"setup.install", "allow", false}, {"setup.uninstall", "allow", false}, {"extension.remove", "never", true},
+		{"extension.register", "never", false}, {"extension.refresh", "allow", false}, {"extension.setup", "allow", false}, {"extension.setup-undo", "allow", false},
+		{"saved.delete", "never", true}, {"vim.delete", "never", true}, {"run.forget", "never", true}, {"action-item.delete", "never", true}, {"action-item.archive", "allow", false},
+		{"outline-project.delete", "never", true}, {"outline-project.confirm-delete", "never", true}, {"outline-root.delete", "never", true}, {"outline-root.confirm-delete", "never", true},
+		{"task.make-project", "allow", false}, {"project.make-task", "allow", false}, {"outline-root.demote", "allow", false}, {"outline-project.demote", "allow", false}, {"outline-task.promote", "allow", false},
+		{"project.remove-directory", "allow", false}, {"project-dir.remove", "allow", false}, {"project-base.remove", "allow", false}, {"dirs.remove-base", "allow", false}, {"dirs.add-base", "allow", false},
+		{"schedule.delete", "never", true}, {"schedule.reset", "allow", false}, {"schedule.set", "allow", false}, {"schedule.toggle", "allow", false},
+		{"session.rename", "allow", false}, {"session.move", "allow", false}, {"session.associate", "allow", false},
+		{"reminder.check", "allow", false}, {"reminder.uncheck", "allow", false}, {"reminder.toggle", "allow", false}, {"reminder.delete", "never", true},
+		{"ochazuke.settings.set", "allow", false}, {"ochazuke.bindings.load", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
 	} {
 		op, ok := a.r.Operation(tt.verb)
 		if !ok {
@@ -169,6 +167,55 @@ func TestMCPVerbRightsTable(t *testing.T) {
 		}
 	}
 
+}
+
+func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
+	t.Parallel()
+	a, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
+	s := mcpServerFor(t, a)
+	mcpRun(t, s, "ochazuke.settings.set", map[string]any{"name": "list.hide-archived", "value": "false"})
+	if a.r.Settings().Bool("list.hide-archived") {
+		t.Fatal("agent setting write did not persist")
+	}
+	path := filepath.Join(t.TempDir(), "bindings.json")
+	if err := os.WriteFile(path, []byte(`[{"mode":"normal","noun":"app","keys":"alt+9","request":{"noun":"ochazuke.page","verb":"open","args":{"id":"notes"}}}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mcpRun(t, s, "ochazuke.bindings.load", map[string]any{"path": path})
+	a.r.Dispatch(ochazuke.MacroKey{Key: "alt+9"})
+	if a.r.Page != "notes" {
+		t.Fatalf("agent-installed binding did not open Notes: %s", a.r.Page)
+	}
+	reply, err := s.Call(context.Background(), "run", map[string]any{"verb": "ochazuke.settings.set", "args": map[string]any{"name": "agents.rights", "value": `[{"match":"*","right":"allow"}]`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reply.(map[string]any); got["status"] != "refused" || !strings.Contains(fmt.Sprint(got["reason"]), "protected setting") {
+		t.Fatalf("agent policy write: %v", reply)
+	}
+	if got := a.r.Settings().String(ochazuke.AgentRightsSetting); got != "[]" {
+		t.Fatalf("agent changed rights: %s", got)
+	}
+	made := mcpRun(t, s, "task.create", map[string]any{"title": "owner-authorized removal", "parent": "t1"})
+	id := made["result"].(map[string]any)["id"].(string)
+	if err := a.r.Settings().Set(ochazuke.AgentRightsSetting, `[{"match":"task.delete","right":"allow"}]`); err != nil {
+		t.Fatal(err)
+	}
+	mcpRun(t, s, "task.delete", map[string]any{"id": id})
+	if _, err := a.work.Task(id); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("owner override did not delete task: %v", err)
+	}
+	for _, verb := range []string{"ochazuke.settings.set", "ochazuke.bindings.load", "task.delete"} {
+		found := false
+		for _, entry := range a.r.HistoryOf(0, ochazuke.HistoryChange) {
+			if entry.Request.Key() == verb && entry.Context.Actor.Pane == "w1" && entry.Context.Source == "mcp" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("missing attributed %s history", verb)
+		}
+	}
 }
 
 func TestMCPExtensionsListedAndGuidanceUsesM5Budget(t *testing.T) {

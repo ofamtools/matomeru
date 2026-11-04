@@ -11,35 +11,28 @@ import (
 	"ofam.dev/ochazuke"
 )
 
-func TestReminderAgentNeedsOwnerOrExplicitAllow(t *testing.T) {
+func TestReminderAgentWritesRecordActor(t *testing.T) {
 	t.Parallel()
 	a, now := reminderApp(t)
 	id := createReminder(t, a, "water the plants")
-	for _, verb := range []string{"check", "uncheck", "toggle"} {
+	for _, step := range []struct {
+		verb string
+		done bool
+	}{{"check", true}, {"uncheck", false}, {"toggle", true}} {
 		var out, stderr bytes.Buffer
 		sh := a.shell(strings.NewReader(""), &out, &stderr)
 		sh.Actor = &ochazuke.Actor{Kind: "agent", Harness: "test", Pane: "test-pane", Session: "test-session"}
-		err := sh.Run(context.Background(), []string{"reminder", verb, id, "--yes"})
-		if err == nil || !strings.Contains(err.Error(), "owner's confirmation") {
-			t.Fatalf("agent %s: %v, %s", verb, err, stderr.String())
+		if err := sh.Run(context.Background(), []string{"reminder", step.verb, id}); err != nil {
+			t.Fatalf("agent %s: %v, %s", step.verb, err, stderr.String())
+		}
+		d, err := a.reminders.store.Day(id, now.Format(time.DateOnly))
+		if err != nil || d.Done != step.done {
+			t.Fatalf("%s: %+v %v", step.verb, d, err)
 		}
 	}
 	d, err := a.reminders.store.Day(id, now.Format(time.DateOnly))
-	if err != nil || d.Done {
-		t.Fatalf("refused check changed day %+v %v", d, err)
-	}
-	if err := a.r.Settings().Set(ochazuke.AgentRightsSetting, `[{"match":"reminder.toggle","right":"allow"}]`); err != nil {
+	if err != nil {
 		t.Fatal(err)
-	}
-	var out, stderr bytes.Buffer
-	sh := a.shell(strings.NewReader(""), &out, &stderr)
-	sh.Actor = &ochazuke.Actor{Kind: "agent", Harness: "test", Pane: "test-pane", Session: "test-session"}
-	if err := sh.Run(context.Background(), []string{"reminder", "toggle", id}); err != nil {
-		t.Fatalf("allowed check: %v, %s", err, stderr.String())
-	}
-	d, err = a.reminders.store.Day(id, now.Format(time.DateOnly))
-	if err != nil || !d.Done {
-		t.Fatalf("allowed check %+v %v", d, err)
 	}
 	raw, err := json.Marshal(d.Actor)
 	if err != nil {

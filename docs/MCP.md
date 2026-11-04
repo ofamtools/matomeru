@@ -34,6 +34,16 @@ words are quoted as data in the generated guidance, subject to its budget.
 Setting this option off hides extension verbs from MCP discovery and their
 text from instructions; the `agents.rights` setting controls permission.
 
+Reads and writes are open by default, including settings, bindings, actions
+and themes. Stored-record deletes are `never`: archive instead when the noun
+offers it. `pane.kill` and `session.kill` require owner confirmation, while
+`extension.register` and `extension.remove` remain owner-only. An explicit
+owner row in `agents.rights` overrides a verb's default, including deletes.
+Agents cannot change `agents.rights`, `agents.rights-gate` or
+`agents.confirm-attribution`; those protected settings belong to the owner.
+For a mounted verb, both the host and extension gates apply: opening the
+host's gate does not override the child's settings.
+
 The eight legacy tool names remain listed for one release and answer as
 alias rows over `run`, preserving their argument schemas:
 
@@ -78,8 +88,9 @@ They say:
 - Track work as lanes. Every lane belongs to an mtm project; when none fits,
   the agent creates one with `project.new` (declared `allow`). Set the lane's
   state as the work moves and associate the lane with the agent's pane.
-- mtm tasks are the owner's. An agent changes a task's status only when
-  asked, and never its title, project or parent.
+- mtm tasks are the owner's. An agent changes their status only when asked.
+  Record policy below restricts other edits; the verb's right alone does not
+  grant access to every task.
 - Findings, reviews and reports go in a Markdown document: `md.doc.new` under
   the project's `docs/` or a docs root, the body written, then
   `document_report` (`context-item.report`) to link it. Notes are for short
@@ -128,9 +139,10 @@ known owner are saved unassociated.
 
 Unknown tool names and schema errors answer JSON-RPC error -32602. A failed
 or refused operation returns `isError: true` with its reason and structured
-`status`. Destructive verbs require the owner's confirmation; headless calls
-refuse and include the owner's CLI command. Owner-only verbs are declared
-`never`; record policy failures name who to ask. No refusal silently succeeds.
+`status`. Destructive stored-data verbs refuse agents, naming the archive
+verb when one exists. Confirm-tier verbs require owner approval; headless
+calls refuse and include the owner's CLI command. Owner-only verbs are
+declared `never`; record policy failures name who to ask. No refusal silently succeeds.
 
 ## Harness config
 
