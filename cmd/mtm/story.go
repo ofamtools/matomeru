@@ -97,6 +97,7 @@ func mtmApp() monogatari.App {
 			{Name: "peer-rows", Summary: "Two sandbox extensions with a cross-extension row key", Build: buildPeerRows},
 			{Name: "peer-rows-missing", Summary: "A sandbox extension whose peer is not registered", Build: buildMissingPeerRows},
 			{Name: "peer-delete-name", Summary: "A sandbox extension whose delete confirmation names a row field", Build: buildNamedDeleteRows},
+			{Name: "pane-lifecycle", Summary: "Seeded panes with a sandbox control for an outside window close", Build: buildPaneLifecycle},
 			{Name: "reminders-rollover", Summary: "A checked reminder, missed prior days and an injected next-local-day clock (ctrl+u)", Build: buildReminderRollover},
 			{Name: "inbox-notice", Summary: "An established notification baseline with fake senders, on an empty database", Build: buildInboxNotice},
 		},
@@ -163,6 +164,24 @@ var seededPanes = []storyPane{
 
 func buildSeeded(env monogatari.Env) (monogatari.Built, error) {
 	return buildStory(env, writeSeeded, seededPanes)
+}
+
+func buildPaneLifecycle(env monogatari.Env) (monogatari.Built, error) {
+	built, err := buildSeeded(env)
+	if err != nil {
+		return built, err
+	}
+	a := built.Program.(*App)
+	a.r.Define("story-pane").Verb("close", func(ochazuke.Ctx) ochazuke.Result {
+		f := a.panesd.(*storyPanes)
+		if err := f.KillPane(context.Background(), a.attached); err != nil {
+			return ochazuke.Failed(err)
+		}
+		panes, err := f.ListPanes(context.Background())
+		a.setPanes(panes, err)
+		return ochazuke.Done(nil)
+	})
+	return built, nil
 }
 
 func buildContextPicker(env monogatari.Env) (monogatari.Built, error) {

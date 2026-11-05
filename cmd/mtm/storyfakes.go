@@ -110,14 +110,20 @@ func (f *storyPanes) PromptQueue(context.Context, pane, string) (daemon.QueuePro
 func (f *storyPanes) rename(session, window, name string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	found := false
 	for i := range f.panes {
 		switch {
 		case f.panes[i].Session != session:
 		case window == "":
 			f.panes[i].Session = name
+			found = true
 		case f.panes[i].ID == window:
 			f.panes[i].Name = name
+			found = true
 		}
+	}
+	if !found && window != "" {
+		return &daemon.Error{Code: "window_not_found", Message: "no window found matching " + window}
 	}
 	return nil
 }

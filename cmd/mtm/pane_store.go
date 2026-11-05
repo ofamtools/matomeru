@@ -8,6 +8,7 @@ import (
 
 	"ofam.dev/ochazuke"
 
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/work"
 )
@@ -242,18 +243,26 @@ func (a *App) updatePane(window string, apply func(*pane)) {
 // closes no job runs, so the write runs here.
 func (a *App) launchWindowRename(c ochazuke.Ctx, p pane, name string) error {
 	name = strings.TrimSpace(name)
-	r := a.renamer
 	follow := func(name string) error { return a.renameSavedOf(p, name) }
 	if a.quitting {
-		if err := r.RenameWindow(context.Background(), p.Session, p.ID, name); err != nil {
+		if err := a.renameWindow(context.Background(), p, name); err != nil {
 			return err
 		}
 		return follow(name)
 	}
 	res := a.afterRename(ochazuke.Pending(func(ctx context.Context) (any, error) {
-		return name, r.RenameWindow(ctx, p.Session, p.ID, name)
+		return name, a.renameWindow(ctx, p, name)
 	}), follow)
 	_, err := c.Runtime.Launch(a.jobOwner(p.rowID()), a.jobVerb(c, "pane.set"), res, c)
+	return err
+}
+
+func (a *App) renameWindow(ctx context.Context, p pane, name string) error {
+	err := a.renamer.RenameWindow(ctx, p.Session, p.ID, name)
+	var remote *daemon.Error
+	if errors.As(err, &remote) && remote.Code == "window_not_found" {
+		return fmt.Errorf("pane %s is no longer available; name not saved", p.label())
+	}
 	return err
 }
 

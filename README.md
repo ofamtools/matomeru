@@ -47,6 +47,8 @@ draft or changing the record being renamed.
 Project references accept an existing id or a case-insensitive name, including
 record editors, moves, association commands and launches. Unknown references in
 record writes still save unassociated and say so.
+If a pane closes while it is being renamed, a failed write names the pane and
+says its name was not saved.
 
 Extension catalogs may declare host-only `peerBindings`: ordinary binding rows
 using stable tool namespaces, including `from: {"target":"row:doc"}` for a
