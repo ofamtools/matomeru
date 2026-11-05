@@ -295,7 +295,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 			lit = "◆ ochazuke"
 		}
 		for _, line := range body {
-			if strings.Contains(line, "\x1b[7m") != strings.Contains(line, lit) {
+			if strings.Contains(line, "\x1b[7m") != strings.Contains(ansi.Strip(line), lit) {
 				t.Fatalf("query %q highlight on %q", query, body)
 			}
 		}
