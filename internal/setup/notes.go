@@ -16,7 +16,7 @@ import (
 // owner's instructions, between mtm markers, in Claude Code's and Codex's user
 // instructions. The rest of either file is untouched, and both items share one
 // marker pair so two paths that resolve to one file hold one note. The hook
-// items above stay mtm's own; the notes ride the library's engine, so an
+// items above stay mtm's own; an item's group is its harness; the notes ride the library's engine, so an
 // item added to notes.json is offered by setup list with no code.
 //
 //go:embed notes.json
@@ -32,11 +32,7 @@ func init() {
 		panic("setup: notes.json: " + err.Error())
 	}
 	for _, it := range items {
-		harness := "claude-code"
-		if it.ID == "codex-agents" {
-			harness = "codex"
-		}
-		defs = append(defs, Definition{ID: it.ID, Name: it.Name, Harness: harness, Description: it.Description})
+		defs = append(defs, Definition{ID: it.ID, Name: it.Name, Harness: it.Group, Description: it.Description})
 	}
 }
 

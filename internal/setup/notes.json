@@ -12,7 +12,7 @@
     "requires": [
       "dir:${CLAUDE_CONFIG_DIR:-~/.claude}"
     ],
-    "group": "agents"
+    "group": "claude-code"
   },
   {
     "id": "codex-agents",
@@ -27,6 +27,6 @@
     "requires": [
       "dir:~/.codex"
     ],
-    "group": "agents"
+    "group": "codex"
   }
 ]
