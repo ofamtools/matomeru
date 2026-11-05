@@ -101,6 +101,7 @@ func mtmApp() monogatari.App {
 			{Name: "lanes-doc-notes", Summary: "Captured o-lane catalog sends its mounted lane row's doc notes through o-md", Build: buildLaneDocNotes},
 			{Name: "reminders-rollover", Summary: "A checked reminder, missed prior days and an injected next-local-day clock (ctrl+u)", Build: buildReminderRollover},
 			{Name: "inbox-notice", Summary: "An established notification baseline with fake senders, on an empty database", Build: buildInboxNotice},
+			{Name: "schedule-references", Summary: "Two projects with opaque ids and distinct readable labels", Build: buildScheduleReferences},
 		},
 		Expected: storyExpected,
 	}

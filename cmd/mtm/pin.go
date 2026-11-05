@@ -24,7 +24,7 @@ func (a *App) definePin() {
 		Verb("pin", a.pinProject, "Pin a project; omit project to pick one").Positional("project").
 		Verb("pick", func(ochazuke.Ctx) ochazuke.Result { return a.pinProject(ochazuke.Ctx{}) }, "Choose a pin from any page").
 		Verb("unpin", a.unpinProject, "Clear the pin, including after restart")
-	a.parameters("project.pin", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.names", Free: true, Description: "Project name or id; omit to pick one"}})
+	a.parameters("project.pin", map[string]ochazuke.Parameter{"project": {Type: "string", Noun: "project", Source: "projects.names", Free: true, Description: "Project name or id; omit to pick one"}})
 	a.r.Define("scope").Verb("all", a.toggleAll, "Toggle all projects without changing the pin").
 		Mode("normal").Bind("S", ochazuke.Do("scope.all"))
 	// P opens the picker from a page, never stacked over a modal (the

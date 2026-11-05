@@ -200,12 +200,12 @@ func (a *App) defineLaunch() {
 	a.parameters("agent.launch", map[string]ochazuke.Parameter{
 		"harness": agent,
 		"model":   model,
-		"project": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name; omit to infer it"},
+		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; omit to infer it"},
 		"task":    task,
 		"scratch": {Type: "boolean", Description: "Launch unassociated in no-project"},
 	})
 	a.parameters("agent.start", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the agent runs in no project (cwd: the home directory)"},
+		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the agent runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"harness": agent,
 		"model":   model,
@@ -609,13 +609,13 @@ func (a *App) defineShell() error {
 		Mode("normal").
 		Bind("n", ochazuke.Do("pane.new"))
 	a.parameters("pane.start", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the shell runs in no project (cwd: the home directory)"},
+		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the shell runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"task":    {Type: "string"},
 		"notice":  {Type: "string"},
 	})
 	a.parameters("pane.new", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Source: "projects.list", Free: true},
+		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true},
 		"task":    {Type: "string"},
 		"scratch": {Type: "boolean", Description: "Launch unassociated in mtm-only"},
 	})

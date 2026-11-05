@@ -1,0 +1,29 @@
+{
+  "name": "mtm: schedule project search shows labels and only commits the chosen reference",
+  "area": "schedules",
+  "fixture": "schedule-references",
+  "width": 140,
+  "height": 40,
+  "config": {
+    "bindings.json": [
+      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.page", "verb": "open", "args": {"id": "schedules"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "set", "args": {"id": "schedule-form/project"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+z", "request": {"noun": "ochazuke.focus", "verb": "set", "args": {"id": "schedule:chooser-check"}}}
+    ]
+  },
+  "script": [
+    ":", {"type": "schedule add --name chooser-check --prompt inspect --when never --project 6f7a9d1c0b2245f6a8e30d4c5b219076 --pane nightly-agent"}, "enter",
+    "ctrl+x", "ctrl+z",
+    ":", {"type": "schedule edit chooser-check"}, "enter",
+    "esc", "ctrl+y", "i", "ctrl+u", "b", "e", "t", "a", "enter", "esc"
+  ],
+  "expect": [
+    {"after": 5, "page": "schedules", "contains": ["chooser-check", "alpha", "nightly-agent"], "lacks": ["6f7a9d1c0b2245f6a8e30d4c5b219076"]},
+    {"after": 10, "modal": "schedule-form", "focus": "schedule-form/project", "contains": ["alpha"], "lacks": ["6f7a9d1c0b2245f6a8e30d4c5b219076"]},
+    {"after": 11, "modal": "form-suggestions", "contains": ["alpha", "beta", "(none)"], "lacks": ["unknown project"]},
+    {"after": 12, "modal": "form-suggestions", "contains": ["alpha", "beta"], "lacks": ["unknown project"]},
+    {"after": 13, "modal": "form-suggestions", "contains": ["beta"], "lacks": ["unknown project"]},
+    {"after": 16, "modal": "form-suggestions", "contains": ["beta"], "lacks": ["unknown project"]},
+    {"page": "schedules", "modal": "", "contains": ["chooser-check", "beta", "nightly-agent"], "lacks": ["unknown project", "a9e25f04781c46bda30f6d529b8170ce", "6f7a9d1c0b2245f6a8e30d4c5b219076"]}
+  ]
+}

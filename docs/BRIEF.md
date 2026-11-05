@@ -219,6 +219,20 @@ Deleting a chip removes that attachment; undo restores it. `task-outline.detach`
 
 Saved task titles contain the prompt's absolute `@path` mentions (quoted and escaped where necessary), not transient chip numbers. Reopening Tasks restores the chips, including after restarting mtm; other task views and task consumers retain the file mentions. Removing an attachment does not delete its file, matching prompt attachment lifetime. `tasks.image-attachments` defaults to `true`; set it to `false` to show raw mentions and disable image paste/detach in Tasks. The setting takes effect the next time the outline opens.
 
+## Schedule project references
+
+The schedule editor's project field is a noun reference, using ochazuke's
+searchable chooser. It displays the project's label and writes its opaque ID
+only when a project is chosen. Clearing the search or typing a partial name
+does not change the stored project or emit unknown-project notices. Choose
+`(none)` to clear the reference; undo restores the previous choice.
+
+Schedule detail resolves a known project's ID to its name and retains the ID
+when that project is unavailable. The schedule's `pane` field is a pane name
+used for matching or creating a window, not a reference to an existing pane;
+it remains free text. Project-reference metadata is also retained by the
+schedule's generated props.
+
 ## Mounted verb results
 
 Extension execution uses ochazuke's `cli.RunMounted` with catalog metadata.

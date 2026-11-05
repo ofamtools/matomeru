@@ -531,6 +531,10 @@ func (a *App) scheduleFacts(v scheduleView) string {
 		settings = "stored by mtm · E edits it"
 	}
 	ag := v.Agent
+	project := ag.Project
+	if project != "" {
+		project = a.ownerLabel(project)
+	}
 	text := v.Name + "\n\n" + facts(
 		"what", v.Description,
 		"kind", v.Kind,
@@ -539,7 +543,7 @@ func (a *App) scheduleFacts(v scheduleView) string {
 		"prompt", v.Prompt,
 		"harness", strings.TrimSpace(ag.Harness+" "+ag.Model),
 		"settings", strings.Join(settingPairs(ag), " "),
-		"project", strings.TrimSpace(ag.Project+" "+ag.Task),
+		"project", strings.TrimSpace(project+" "+ag.Task),
 		"folder", ag.Dir,
 		"target", strings.TrimSpace(ag.Target+" "+ag.Pane),
 		"enabled", v.onCell(),

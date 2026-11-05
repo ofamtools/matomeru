@@ -48,7 +48,7 @@ func (a *App) defineSaved() {
 			params["name"] = ochazuke.Parameter{Type: "string"}
 		}
 		if verb == "associate" {
-			params["project"] = ochazuke.Parameter{Type: "string", Source: "projects.list", Free: true, Description: "Deprecated: saved move ID --to PROJECT (id or name)"}
+			params["project"] = ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "Deprecated: saved move ID --to PROJECT (id or name)"}
 			params["task"] = ochazuke.Parameter{Type: "string", Description: "Deprecated: saved set ID task=TASK (its project follows)"}
 			params["scratch"] = ochazuke.Parameter{Type: "boolean", Description: "Deprecated: saved move ID --to \"\" (unassociate it)"}
 		}
