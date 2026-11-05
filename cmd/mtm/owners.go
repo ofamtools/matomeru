@@ -15,6 +15,23 @@ func (a *App) defineOwners() {
 	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.paneStore()).
 		Verb("associate", a.associatePane, "Choose the project to move the pane to (omit the owner); --action-item and --context-item relate those to it; --project, --task and --scratch are the deprecated forms of move and set").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice runs pane.move").Many()
+	// Keep the standard editor, resolving its record subject through the
+	// same paneAt route as rename. Its interaction context stays on the
+	// originating row, and an explicit id still wins in subjectKey.
+	if op, ok := a.r.Operations["pane.edit"]; ok {
+		edit := op.App
+		op.App = func(ctx ochazuke.Ctx) ochazuke.Result {
+			p, err := a.paneAt(ctx.Instance)
+			if err != nil {
+				return edit(ctx)
+			}
+			row := *ctx.Instance
+			row.Noun, row.ID, row.Label, row.Data = "pane", p.rowID(), p.label(), p
+			ctx.Instance = &row
+			return edit(ctx)
+		}
+		a.r.Operations[op.Key()] = op
+	}
 	if err := a.r.AddActionAlias(starAlias("pane")); err != nil { // * on a pane row (pane_stars.go)
 		panic(err)
 	}
