@@ -5,12 +5,21 @@ import (
 )
 
 // A tab switch takes focus off hidden turns and boxes to the pane row.
-// The next i reveals its prompt again, on every detail tab.
+// A box still drawn on Screen keeps focus; i writes on every detail tab.
 func TestTabSwitchLeavesNoHiddenFocus(t *testing.T) {
 	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
 		t.Run(style, func(t *testing.T) {
-			for _, walk := range [][]string{{"}", "]"}, {"}", "["}, {"i", "esc", "]"}, {"i", "esc", "{", "]"}} {
+			for _, c := range []struct {
+				walk  []string
+				focus string
+			}{
+				{[]string{"}", "]"}, "pane:matomeru/w1"},
+				{[]string{"}", "["}, "pane:matomeru/w1"},
+				{[]string{"i", "esc", "]"}, promptID},
+				{[]string{"i", "esc", "{", "]"}, "pane:matomeru/w1"},
+			} {
+				walk := c.walk
 				app, _, _ := claudeTurnsApp(t)
 				useTurnStyle(t, app, style)
 				frame(app)
@@ -19,8 +28,8 @@ func TestTabSwitchLeavesNoHiddenFocus(t *testing.T) {
 					frame(app)
 				}
 				fr := frame(app)
-				if app.r.Focus != app.pv.turnsFor {
-					t.Fatalf("%v: focus %s, want the pane row %s\n%s", walk, where(app), app.pv.turnsFor, fr)
+				if app.r.Focus != c.focus {
+					t.Fatalf("%v: focus %s, want %s\n%s", walk, where(app), c.focus, fr)
 				}
 				before := string(app.pb.input.Text)
 				app.Update(keyMsg("i"))

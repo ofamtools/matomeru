@@ -1211,21 +1211,22 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	}
 	switch a.pv.tab {
 	case tabScreen:
-		if a.preview.Pane == row {
-			// A live pane's screen ends in the prompt box (prompt_box.go),
-			// pinned to the bottom, as its turns do on the Turns tab.
-			if pp := a.promptPane(); pp != nil && height > 3 {
-				boxH := a.promptBoxHeight()
-				return stackBlocks(a.screenBody(row, width, height-boxH), height-boxH, a.promptBoxBlock(*pp, width))
-			}
-			return a.screenBody(row, width, height)
+		// The prompt belongs to the pane, not its screen capture: it is
+		// drawn and placed even before the preview arrives.
+		if pp := a.promptPane(); pp != nil && height > 3 {
+			boxH := a.promptBoxHeight()
+			return stackBlocks(a.screenBody(row, width, height-boxH), height-boxH, a.promptBoxBlock(*pp, width))
 		}
-		a.detail.panes.hide()
-		return ochazuke.Text("loading…")
+		return a.screenBody(row, width, height)
 	case tabTurns:
 		return a.turnsTabBody(row, width, height)
 	}
-	text, ok := a.pv.text[fmt.Sprintf("%s|%d", row, a.pv.tab)]
+	p, err := a.paneAt(a.r.Instances[row])
+	if err != nil {
+		a.detail.panes.hide()
+		return ochazuke.Text(err.Error())
+	}
+	text, ok := a.pv.text[fmt.Sprintf("%s|%d", p.rowID(), a.pv.tab)]
 	if !ok {
 		a.detail.panes.hide()
 		return ochazuke.Text("loading…")
@@ -1266,6 +1267,11 @@ func (a *App) turnsTabBody(row string, width, height int) ochazuke.Block {
 // screenBody is the Screen tab's screen of the pane at row (its preview
 // loaded) at width x height.
 func (a *App) screenBody(row string, width, height int) ochazuke.Block {
+	p, err := a.paneAt(a.r.Instances[row])
+	if err != nil || a.preview.Pane != p.rowID() {
+		a.detail.panes.hide()
+		return ochazuke.Text("")
+	}
 	// The screen is not wrapped: its lines are cut to the panel, and it
 	// opens on its last line holding text.
 	text := strings.ReplaceAll(trimBlankTail(a.preview.Text), "\t", "    ")

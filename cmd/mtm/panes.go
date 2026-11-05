@@ -748,7 +748,8 @@ func (a *App) capturePreview(p pane, then func(ochazuke.Ctx)) ochazuke.Result {
 			return
 		}
 		a.preview = got
-		if then != nil && a.r.Page == panesPage && a.r.Focus == p.rowID() && a.pv.tab == tabScreen {
+		focused, focusErr := a.paneAt(a.r.Instances[a.r.Focus])
+		if then != nil && a.r.Page == panesPage && focusErr == nil && focused.ID == p.ID && a.pv.tab == tabScreen {
 			then(ctx)
 		}
 	})

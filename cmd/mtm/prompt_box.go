@@ -387,7 +387,10 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	if p == nil {
 		return ochazuke.Failed(errNoPromptBox)
 	}
-	row := p.rowID()
+	row := focus
+	if !a.frontsPane(a.r.Instances[row]) {
+		row = a.pv.turnsFor
+	}
 	if a.pv.tab == tabActivity || a.pv.tab == tabTranscript {
 		if !p.isAgent() {
 			if _, err := a.toScreen(row); err != nil {
