@@ -1,0 +1,3 @@
+{"name":"ux: leader repeat stars the showing pane not the previous one","area":"panes","fixture":"seeded","width":120,"height":34,
+"script":["enter","ctrl+a","*","ctrl+a","j","ctrl+a","."],
+"expect":[{"mode":"terminal","contains":["★   claude","★   shell"]}]}

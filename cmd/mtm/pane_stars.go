@@ -64,17 +64,13 @@ func (a *App) starLive(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.attached.ID == "" || row == nil {
 		return ochazuke.Failed(errors.New("no pane attached"))
 	}
-	key, err := a.paneKey(row)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	args := ochazuke.Arguments{"id": key}
+	args := ochazuke.Arguments{}
 	for _, name := range []string{"starred", "value"} {
 		if v, ok := ctx.Args[name].(bool); ok {
 			args["value"] = v
 		}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Args: args}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row.ID, Args: args}))
 }
 
 // markStars sets Starred on a listing's panes.
