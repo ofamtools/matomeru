@@ -842,6 +842,9 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		if !ok || isPrefixCancel(row) {
 			continue
 		}
+		if slices.Contains(crud[local], "d d") && catalogDeleteRow(row, row.Noun, x.crud[row.Noun].Delete) {
+			continue // mountCRUD already installed this row with its argument sources.
+		}
 		where := row.Keys + row.Pattern + " on " + row.Noun
 		req, mounted := x.nouns[row.Request.Noun]
 		if row.Instance != "" || !mounted {

@@ -96,6 +96,7 @@ func mtmApp() monogatari.App {
 			{Name: "scoped-lanes", Summary: "seeded, with a fake Lanes extension exposing direct, inherited and unassociated project rows", Build: buildScopedLanes},
 			{Name: "peer-rows", Summary: "Two sandbox extensions with a cross-extension row key", Build: buildPeerRows},
 			{Name: "peer-rows-missing", Summary: "A sandbox extension whose peer is not registered", Build: buildMissingPeerRows},
+			{Name: "peer-delete-name", Summary: "A sandbox extension whose delete confirmation names a row field", Build: buildNamedDeleteRows},
 			{Name: "reminders-rollover", Summary: "A checked reminder, missed prior days and an injected next-local-day clock (ctrl+u)", Build: buildReminderRollover},
 			{Name: "inbox-notice", Summary: "An established notification baseline with fake senders, on an empty database", Build: buildInboxNotice},
 		},

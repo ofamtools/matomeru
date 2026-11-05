@@ -242,6 +242,30 @@ func TestExtensionDeleteKeyConfirmsAndRunsTheTool(t *testing.T) {
 	}
 }
 
+func TestExtensionDeleteKeepsCatalogRowArguments(t *testing.T) {
+	t.Parallel()
+	catalog := strings.Replace(crudCatalogNamed("new", "edit", "delete"), `"name":"delete","kind":"application"`, `"name":"delete","kind":"application","confirm":"Remove machine {{name}}?","params":{"name":{"type":"string"}}`, 1)
+	catalog = strings.Replace(catalog, `"bindings":[`, `"bindings":[{"noun":"thing","mode":"normal","keys":"d d","request":{"noun":"thing","verb":"delete"},"from":{"name":"row:title"}},`, 1)
+	a, log := crudApp(t, catalog)
+	if err := a.r.SetFocus("ext/fake/thing/t1"); err != nil {
+		t.Fatal(err)
+	}
+	n := len(calls(t, log))
+	press(t, a, "d", "d")
+	if modal := a.r.Instances[a.r.TopModal()]; modal == nil || modal.Payload.Prompt != "Remove machine one?" {
+		t.Fatalf("confirm: %+v", modal)
+	}
+	pressJob(t, a, "n")
+	if got := since(t, log, n); len(got) != 0 {
+		t.Fatalf("decline ran: %q", got)
+	}
+	press(t, a, "d", "d")
+	pressJob(t, a, "y")
+	if got := since(t, log, n); len(got) != 1 || got[0] != `thing delete --target t1 --json {"name":"one"} --yes` {
+		t.Fatalf("calls %q", got)
+	}
+}
+
 // A tool without CRUD verbs gets none of the keys.
 func TestExtensionWithoutCRUDVerbsBindsNoCRUDKeys(t *testing.T) {
 	t.Parallel()

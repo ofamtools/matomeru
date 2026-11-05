@@ -11,12 +11,18 @@ import (
 	ocli "ofam.dev/ochazuke/cli"
 )
 
-func buildPeerRows(env monogatari.Env) (monogatari.Built, error) { return buildPeerFixture(env, false) }
+func buildPeerRows(env monogatari.Env) (monogatari.Built, error) {
+	return buildPeerFixture(env, false, "")
+}
 func buildMissingPeerRows(env monogatari.Env) (monogatari.Built, error) {
-	return buildPeerFixture(env, true)
+	return buildPeerFixture(env, true, "")
 }
 
-func buildPeerFixture(env monogatari.Env, missing bool) (built monogatari.Built, err error) {
+func buildNamedDeleteRows(env monogatari.Env) (monogatari.Built, error) {
+	return buildPeerFixture(env, false, `{"schema":1,"name":"o-alpha","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application","rows":"item"},{"name":"delete","kind":"application","confirm":"Remove machine {{name}}?","params":{"name":{"type":"string"}}}]}],"bindings":[{"noun":"item","mode":"normal","keys":"d d","request":{"noun":"item","verb":"delete"},"from":{"name":"row:name"}}]}`)
+}
+
+func buildPeerFixture(env monogatari.Env, missing bool, alphaCatalog string) (built monogatari.Built, err error) {
 	built, err = buildSeeded(env)
 	if err != nil {
 		return built, err
@@ -31,6 +37,9 @@ func buildPeerFixture(env monogatari.Env, missing bool) (built monogatari.Built,
 		"alpha": `{"schema":1,"name":"o-alpha","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application","rows":"item"},{"name":"delete","kind":"application","confirm":"Delete {{label}}?","params":{"force":{"type":"boolean"}}}]}],"bindings":[{"noun":"item","mode":"normal","keys":"d D","request":{"noun":"item","verb":"delete","args":{"force":true}}}],"peerBindings":[{"noun":"alpha.item","mode":"normal","keys":"g s","request":{"noun":"beta.doc","verb":"send"},"from":{"target":"row:doc","pane":"row:pane"}}]}`,
 		"beta":  `{"schema":1,"name":"o-beta","nouns":[{"name":"doc","verbs":[{"name":"send","kind":"application","params":{"pane":{"type":"string"}}}]}]}`,
 	}
+	if alphaCatalog != "" {
+		catalogs["alpha"] = alphaCatalog
+	}
 	for _, name := range []string{"alpha", "beta"} {
 		if missing && name == "beta" {
 			continue
@@ -41,7 +50,7 @@ func buildPeerFixture(env monogatari.Env, missing bool) (built monogatari.Built,
 		}
 		bin := filepath.Join(a.dataDir(), "o-"+name)
 		script := "#!/bin/sh\ncase \"$1 $2\" in\n\"catalog \") cat <<'CATALOG'\n" + catalogs[name] + "\nCATALOG\n;;\n" +
-			`"item list") echo '{"id":"i1","label":"Source row","doc":"doc-7","pane":"pane-9"}' ;;
+			`"item list") echo '{"id":"i1","label":"Source row","name":"sandbox","doc":"doc-7","pane":"pane-9"}' ;;
 "doc send") printf '%s\n' "$*" ;;
 *) echo '[]' ;;
 esac

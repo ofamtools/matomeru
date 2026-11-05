@@ -1,0 +1,3 @@
+{"name":"ux: catalog delete keeps row fields in its confirmation","area":"extensions","fixture":"peer-delete-name","width":120,"height":30,
+"script":[":",{"type":"page open ext/alpha"},"enter",{"job":"catalog-load"},"d","d","n"],
+"expect":[{"after":6,"contains":["Remove machine sandbox?"],"lacks":["{{name}}"]},{"contains":["Source row"],"lacks":["Remove machine sandbox?"]}]}

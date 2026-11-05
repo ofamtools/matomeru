@@ -59,6 +59,12 @@ func crudOf(n ocli.CatalogNoun) extCRUD {
 	return extCRUD{New: find("new"), Edit: find("edit"), Delete: find("delete")}
 }
 
+func catalogDeleteRow(row ochazuke.Binding, noun, verb string) bool {
+	return verb != "" && row.Noun == noun && row.Instance == "" &&
+		(row.Mode == "" || row.Mode == "normal") && row.Keys == "d d" &&
+		row.Pattern == "" && row.Request.Key() == noun+"."+verb
+}
+
 // defineExtForms adds the form noun: new on a list, edit on a row.
 func (a *App) defineExtForms() {
 	a.r.Define(extFormNoun).
@@ -93,7 +99,15 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 				op.Confirm = "Delete {{label}}?"
 				a.r.Operations[a.r.CanonicalKey(key)] = op
 			}
-			b.Bind("d d", ochazuke.Do(key))
+			row := ochazuke.Do(key)
+			for _, original := range x.doc.Bindings {
+				if catalogDeleteRow(original, n.Name, c.Delete) {
+					row = original
+					row.Request.Noun, row.When = local, ""
+					break
+				}
+			}
+			b.Bind("d d", row)
 			taken[local] = append(taken[local], "d d")
 		}
 		if c.Edit != "" && len(a.r.Operations[a.r.CanonicalKey(local+"."+c.Edit)].Parameters) > 0 {
