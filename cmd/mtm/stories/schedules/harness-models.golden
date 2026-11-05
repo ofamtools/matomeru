@@ -22,7 +22,7 @@ R|              │   opus  opus (claude)                                       
  |  reminder  ti│   haiku  haiku (claude)                                                                                      │
  |  no rows     │ enter chooser.pick · esc modal.close · tab search.cycle-match                                                │
  |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
- |                                            │                                                  │
+ |                                            │   (none) ▾                                       │
  |                                            │ task                                             │
  |                                            │                                                  │
  |                                            │ dir                                              │
