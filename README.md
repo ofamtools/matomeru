@@ -34,6 +34,8 @@ motions and focus-bound commands (reattach, detail tabs and the hidden prompt bo
 program. Existing explicit leader rows are unchanged. Compared with Vim:
 the doubled terminal leader matches `t_CTRL-W_.`; outside-command fall-through
 is similar to Neovim's `t_CTRL-\\_CTRL-O`, but excludes component motions.
+On a Needs you item that shows a pane's prompt, `i` writes to that prompt;
+an item without a pane keeps its standard record editor.
 
 Extension catalogs may declare host-only `peerBindings`: ordinary binding rows
 using stable tool namespaces, including `from: {"target":"row:doc"}` for a

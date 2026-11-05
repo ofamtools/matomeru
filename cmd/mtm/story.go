@@ -127,7 +127,8 @@ func storyClock(env monogatari.Env) func() time.Time {
 // storySeed is the app data a story hands its fixture (its seed field).
 type storySeed struct {
 	// Panes replace the fixture's fake panes; [] is none.
-	Panes *[]storyPane `json:"panes"`
+	Panes *[]storyPane       `json:"panes"`
+	Items []actionitems.Spec `json:"items,omitempty"`
 }
 
 // storyPane is one fake pane: its session, window id, name and screen.
@@ -316,6 +317,16 @@ func buildStory(env monogatari.Env, fill func(path string, now int64) error, pan
 		return built, err
 	}
 	if err := sandboxStory(a, env, now, dir, panes); err != nil {
+		a.Close()
+		return built, err
+	}
+	for _, item := range seed.Items {
+		if _, _, err := a.inbox.items.Add(item); err != nil {
+			a.Close()
+			return built, err
+		}
+	}
+	if err := a.refreshInbox(); err != nil {
 		a.Close()
 		return built, err
 	}

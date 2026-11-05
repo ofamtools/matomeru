@@ -267,6 +267,12 @@ func (a *App) addPromptBox() error {
 			Mode("normal").
 			Bind("i", ochazuke.Do(noun+".prompt").Hinted("prompt"))
 	}
+	a.r.DefineGuard("queue-pane-prompt", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		return r.Page == panesPage && a.frontsPane(r.Instances[ev.Focus]) && a.promptPaneAt(ev.Focus) != nil
+	})
+	a.r.Define(actionItemNoun).
+		Verb("prompt", a.focusPrompt, "Write to the pane shown by this Needs you row").FocusBound().When("queue-pane-prompt").
+		Mode("normal").Bind("i", ochazuke.Do(actionItemNoun+".prompt").Hinted("prompt"))
 	a.pb.input = ochazuke.NewInput(promptID, "", true)
 	at := ochazuke.CompletionTrigger{Trigger: "@", Search: a.searchMentions}
 	slash := ochazuke.CompletionTrigger{Trigger: "/", Search: a.searchCommands}
@@ -328,7 +334,7 @@ func (a *App) promptPaneAt(focus string) *pane {
 	if a.pv.tab != tabTurns && a.promptRow() == "" {
 		return nil
 	}
-	if inst := a.r.Instances[focus]; inst != nil && inst.Noun == "pane" {
+	if inst := a.r.Instances[focus]; inst != nil && a.frontsPane(inst) {
 		p, err := a.paneAt(inst)
 		if err != nil || !a.promptServes(p) {
 			return nil
@@ -371,7 +377,7 @@ func (a *App) promptBoxFor(p pane) (box harness.PromptBox, terminal bool) {
 // when they are not shown, then focus the box in insert mode, the cursor
 // after the draft.
 func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
-	if ctx.Instance != nil && ctx.Instance.Noun == "pane" && a.pv.tab == tabTurns && a.pv.turnsFor != ctx.Instance.ID {
+	if ctx.Instance != nil && a.frontsPane(ctx.Instance) && a.pv.tab == tabTurns && a.pv.turnsFor != ctx.Instance.ID {
 		if err := a.showTurns(ctx.Instance.ID); err != nil {
 			return ochazuke.Failed(err)
 		}

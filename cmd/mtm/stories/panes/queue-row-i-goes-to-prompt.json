@@ -1,0 +1,10 @@
+{
+  "name":"ux: i on a Needs you row showing a pane writes to its prompt",
+  "area":"panes","fixture":"seeded","width":120,"height":34,
+  "seed":{"items":[{"source":"mtm","kind":"needs-input","key":"queue-pane","title":"answer the pane","window":"w1","session":"acme-web"}]},
+  "script":["g","n","g","g","i","esc","esc","j","i"],
+  "expect":[
+    {"after":5,"mode":"insert","focus":"panes/prompt","lacks":["Edit action-item"]},
+    {"mode":"normal","contains":["Edit action-item"]}
+  ]
+}
