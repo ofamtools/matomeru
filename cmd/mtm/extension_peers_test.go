@@ -160,3 +160,36 @@ func TestExtensionPeerPoliciesAndOwnerLayer(t *testing.T) {
 		t.Fatal("last removal left stale peer statuses")
 	}
 }
+
+func TestExtensionPeerOwnRowsAndStatusOff(t *testing.T) {
+	t.Parallel()
+	a := peerSourceFixture(t)
+	log := addPeerFixture(t, a, "beta", false)
+	a.syncExtensions()
+	if err := a.r.Settings().Set(settingExtPeerStatus, false); err != nil {
+		t.Fatal(err)
+	}
+	focusPeerSource(t, a)
+	press(t, a, "g")
+	pressJob(t, a, "s")
+	if !slices.ContainsFunc(calls(t, log), func(c string) bool { return strings.Contains(c, "doc send --target doc-7") }) {
+		t.Fatal("peer did not run")
+	}
+	if strings.Contains(frame(a), "peer sent doc-7 pane-9") {
+		t.Fatal("status off still draws on source page")
+	}
+	x := a.extension("fake")
+	x.doc.PeerBindings[0].Noun = "task"
+	if err := a.r.Settings().Set(settingExtPeerKeys, "own-rows"); err != nil {
+		t.Fatal(err)
+	}
+	if p := a.r.PeerBindings(); len(p) != 1 || p[0].Loaded || !strings.Contains(p[0].Reason, "declaring extension") {
+		t.Fatalf("own-rows: %+v", p)
+	}
+	if err := a.r.Settings().Set(settingExtPeerKeys, "any"); err != nil {
+		t.Fatal(err)
+	}
+	if p := a.r.PeerBindings(); len(p) != 1 || !p[0].Loaded {
+		t.Fatalf("any: %+v", p)
+	}
+}

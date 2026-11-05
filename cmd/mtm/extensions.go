@@ -190,7 +190,7 @@ func execExt(ctx context.Context, bin string, env []string, args ...string) ([]b
 	// A killed tool's children may hold its output open: stop waiting
 	// for them shortly after the kill.
 	cmd.WaitDelay = extWaitDelay
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = extensionExecEnv(env, len(args) > 0 && args[0] == "catalog")
 	var out, errOut bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errOut
 	if err := cmd.Run(); err != nil {
@@ -356,9 +356,10 @@ func (a *App) extEnv(name string) []string {
 	return append(a.baseExtEnv(name), a.contextEnv()...)
 }
 
-// baseExtEnv is extEnv without the project context (safe off the loop).
+// baseExtEnv snapshots the active request's actor and host policy on the loop.
 func (a *App) baseExtEnv(name string) []string {
-	return []string{"MTM_DATA=" + a.dataDir(), "MTM_EXTENSION=" + name, actorEnv + "=" + a.actorEnvValue()}
+	env := []string{"MTM_DATA=" + a.dataDir(), "MTM_EXTENSION=" + name, actorEnv + "=" + a.actorEnvValue(), "OCHAZUKE_EXTENSION=" + name}
+	return append(env, a.hostEnv()...)
 }
 
 // dataDir is mtm's data directory: the directory of its database.
@@ -375,9 +376,11 @@ func (a *App) defineExtensions() {
 		Verb("register", a.registerExtension, "Register a family tool's catalog under NAME (its bin: --bin, else o-NAME or NAME on PATH); its pages are tabs after mtm's").Positional("name").
 		Verb("list", a.listExtensions, "List the registered extensions").Fetch().
 		Verb("peer-rows", a.peerRows, "List declared peer keys, whether loaded, and why a row was dropped").Fetch().
+		Verb("peers", a.extensionPeers, "List registered peers' namespaces, versions and application verbs").Fetch().Positional("name").
 		Verb("available", a.availableExtensions, "List the family tools on PATH (o-NAME answering catalog) and the registered extensions, each available, registered, stale or missing").Fetch().Quiet().
 		Verb("refresh", a.refreshExtension, "Read a registered extension's catalog again (every extension when NAME is omitted)").Positional("name").
 		Verb("remove", a.removeExtension, "Unregister an extension; --purge also deletes its data file").Positional("name").Confirm("Remove extension {{label}}? Its data file stays (mtm extension remove NAME --purge deletes it).")
+	a.parameters("extension.peers", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "Only this registered extension"}})
 	a.parameters("extension.register", map[string]ochazuke.Parameter{
 		"name": {Type: "string", Description: "The extension's name: its tab and the prefix of its nouns (lowercase letters, digits, dashes); on an Extensions row, the row's"},
 		"bin":  {Type: "string", Description: "The tool's executable, a path or a name on PATH (default o-NAME, else NAME)"},
@@ -714,13 +717,13 @@ func (a *App) mountExtension(name string, e extEntry) {
 			return naming.local(name, n)
 		},
 		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
-			return execExt(c, x.bin, x.loadEnv(a.baseExtEnv(name)), noun, verb, "--json", "{}")
+			return execExt(c, x.bin, x.loadEnv(nil), noun, verb, "--json", "{}")
 		},
 		// The state verb asks for what changed since the rows the page
 		// holds (ochazuke's state deltas), when the catalog declares
 		// stateDelta; an older tool keeps full answers through Fetch.
 		FetchFlags: func(c context.Context, noun, verb string, flags []string) ([]byte, error) {
-			return execExt(c, x.bin, x.loadEnv(a.baseExtEnv(name)), append([]string{noun, verb, "--json", "{}"}, flags...)...)
+			return execExt(c, x.bin, x.loadEnv(nil), append([]string{noun, verb, "--json", "{}"}, flags...)...)
 		},
 		// Rows that land are scoped by project (extension_scope.go).
 		OnRows: func(list string, rows []ocli.Row) { a.extRowsLanded(x, list, rows) },
@@ -810,8 +813,8 @@ func pagesOf(name string, doc ocli.CatalogDoc, plan []ocli.CatalogNoun, mounted 
 // loadExtBindings installs the catalog's key rows of mounted nouns, renamed
 // to mtm's nouns. A row naming one of the tool's own instances, running a
 // verb mtm did not mount, whose keys clash with a row of a noun on its
-// list's path (the list, the page, app: keyTaken), or whose first key is
-// one of mtm's CRUD keys on that noun (crud: n, i, d) is dropped and named
+// list's path (the list, the page, app: keyTaken), or whose sequence clashes
+// with mtm's CRUD keys on that noun (n, i, d d) is dropped and named
 // in the answer. A sequence's generated prefix cancel ("g esc" for "g s")
 // is skipped silently: loading the sequence brings its own back.
 func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocli.CatalogPage, crud map[string][]string) []string {
@@ -995,7 +998,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		return ochazuke.Done(extDecoded(out))
 	}
 	return ocli.RunMounted(spec, ocli.ProxyCommand{
-		Bin: bin, Args: words, Env: append(os.Environ(), env...),
+		Bin: bin, Args: words, Env: extensionExecEnv(env, false),
 		Timeout: extExecTimeout, WaitDelay: extWaitDelay,
 	}).Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err == nil {

@@ -1,0 +1,7 @@
+{
+  "name":"mtm: leader i cannot open the hidden prompt or a different pane edit form",
+  "area":"panes",
+  "fixture":"seeded",
+  "script":["enter","ctrl+a","i"],
+  "expect":[{"mode":"terminal","focus":"panes/terminal","lacks":["Edit pane:"]}]
+}

@@ -36,6 +36,7 @@ var mtmAgentDeclarations = []struct {
 	{"saved.delete", "", true}, {"vim.delete", "", true}, {"run.forget", "", true},
 	{"extension.register", ochazuke.AgentNever, false}, {"extension.refresh", ochazuke.AgentAllow, false}, {"extension.remove", ochazuke.AgentNever, true},
 	{"extension.peer-rows", ochazuke.AgentAllow, false},
+	{"extension.peers", ochazuke.AgentAllow, false},
 	{"extension.setup", ochazuke.AgentAllow, false}, {"extension.setup-undo", ochazuke.AgentAllow, false},
 	{"extension.setup-plan", ochazuke.AgentAllow, false}, {"extension.setup-status", ochazuke.AgentAllow, false},
 	{"setup.install", ochazuke.AgentAllow, false}, {"setup.uninstall", ochazuke.AgentAllow, false},

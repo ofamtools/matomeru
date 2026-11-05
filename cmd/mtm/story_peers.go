@@ -28,7 +28,7 @@ func buildPeerFixture(env monogatari.Env, missing bool) (built monogatari.Built,
 	}()
 	a := built.Program.(*App)
 	catalogs := map[string]string{
-		"alpha": `{"schema":1,"name":"o-alpha","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application","rows":"item"}]}],"peerBindings":[{"noun":"alpha.item","mode":"normal","keys":"g s","request":{"noun":"beta.doc","verb":"send"},"from":{"target":"row:doc","pane":"row:pane"}}]}`,
+		"alpha": `{"schema":1,"name":"o-alpha","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application","rows":"item"},{"name":"delete","kind":"application","confirm":"Delete {{label}}?","params":{"force":{"type":"boolean"}}}]}],"bindings":[{"noun":"item","mode":"normal","keys":"d D","request":{"noun":"item","verb":"delete","args":{"force":true}}}],"peerBindings":[{"noun":"alpha.item","mode":"normal","keys":"g s","request":{"noun":"beta.doc","verb":"send"},"from":{"target":"row:doc","pane":"row:pane"}}]}`,
 		"beta":  `{"schema":1,"name":"o-beta","nouns":[{"name":"doc","verbs":[{"name":"send","kind":"application","params":{"pane":{"type":"string"}}}]}]}`,
 	}
 	for _, name := range []string{"alpha", "beta"} {

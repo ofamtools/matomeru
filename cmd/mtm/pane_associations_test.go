@@ -97,7 +97,7 @@ func TestLeaderInventory(t *testing.T) {
 	}
 	rows := map[string]ochazuke.Binding{}
 	for _, b := range outside {
-		if b.Mode == "normal" && b.Keys != "" && !strings.Contains(b.Keys, " ") {
+		if (b.Mode == "normal" || b.Mode == "") && b.Keys != "" && !strings.Contains(b.Keys, " ") {
 			if _, ok := rows[b.Keys]; !ok {
 				rows[b.Keys] = b
 			}
@@ -119,14 +119,14 @@ func TestLeaderInventory(t *testing.T) {
 		b := rows[k]
 		action := "—"
 		if b.Request.Verb != "" {
-			action = a.r.DisplayKey(b.Request.Key())
+			action = a.r.DisplayKey(a.r.CanonicalKey(b.Request.Key()))
 			if b.When != "" {
 				action += " [" + b.When + "]"
 			}
 		}
 		live := "send to program"
 		if e, ok := explicit[k]; ok {
-			live = a.r.DisplayKey(e.Request.Key()) + " (explicit)"
+			live = a.r.DisplayKey(a.r.CanonicalKey(e.Request.Key())) + " (explicit)"
 		} else if b.Request.Verb != "" {
 			op, _ := a.r.Operation(b.Request.Key())
 			if op.Motion {
@@ -151,5 +151,24 @@ func TestLeaderInventory(t *testing.T) {
 	}
 	if string(want) != out.String() {
 		t.Fatalf("leader inventory changed:\n%s", out.String())
+	}
+}
+
+func TestLiveFocusBoundOutsideKeysStayLive(t *testing.T) {
+	t.Parallel()
+	for _, k := range []string{"enter", "]", "i"} {
+		t.Run(k, func(t *testing.T) {
+			t.Parallel()
+			a, f := panesApp(t)
+			press(t, a, "enter")
+			stream := a.r.Terminal(paneTermID)
+			press(t, a, "ctrl+a", k)
+			if a.r.Terminal(paneTermID) != stream || a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
+				t.Fatalf("%s changed the live terminal", k)
+			}
+			if !slices.Equal(slices.Concat(f.streams[0].sent...), []string{"ctrl+a", k}) {
+				t.Fatalf("%s sent %v", k, f.streams[0].sent)
+			}
+		})
 	}
 }

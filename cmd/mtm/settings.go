@@ -125,6 +125,7 @@ func (a *App) declareSettings() error {
 	}
 	settings = append(settings, agentSettings()...)
 	settings = append(settings, extPeerSettings...)
+	settings = append(settings, extHostSettings...)
 	settings = append(settings, taskViewSettings()...)
 	settings = append(settings, turnStatusSettings()...)
 	settings = append(settings, pinColorsSettings()...)
@@ -155,6 +156,11 @@ func (a *App) declareSettings() error {
 	})
 	a.observeContextExtraction()
 	a.r.Settings().Observe(settingExtPeerKeys, func(string, any) { a.reloadPeerBindings() })
+	a.r.Settings().Observe(settingExtHostCall, func(string, any) {
+		for _, x := range a.exts {
+			a.syncFetchEnv(x)
+		}
+	})
 	return nil
 }
 

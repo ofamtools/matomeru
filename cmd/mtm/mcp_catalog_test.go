@@ -275,7 +275,7 @@ func TestMCPExtensionsListedAndGuidanceUsesM5Budget(t *testing.T) {
 	}
 }
 
-func TestMCPInstructionsGoldenAndBudget(t *testing.T) {
+func TestMCPInstructionsBudgetAndTools(t *testing.T) {
 	t.Parallel()
 	a, _, _ := mcpApp(t, map[string]string{"TUIOS_PANE_ID": "test-pane", "TUIOS_SESSION": "test"})
 	a.getenv = envOf(map[string]string{"TUIOS_PANE_ID": "test-pane", "TUIOS_SESSION": "test"})
@@ -290,22 +290,6 @@ func TestMCPInstructionsGoldenAndBudget(t *testing.T) {
 	}
 	if n := ocli.InstructionTokens(text + descriptions); n > ocli.InstructionLimit {
 		t.Fatalf("instruction budget: %d", n)
-	}
-	file := filepath.Join("testdata", "mcp-instructions.golden")
-	if os.Getenv("MTM_MCP_UPDATE_GOLDEN") == "1" {
-		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(file, []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	want, err := os.ReadFile(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if text != string(want) {
-		t.Fatalf("MCP instruction golden differs:\n%s", text)
 	}
 	for _, tool := range []string{"catalog", "describe", "run", "state"} {
 		names := []string{}

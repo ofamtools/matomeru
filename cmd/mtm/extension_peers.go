@@ -26,8 +26,10 @@ func (a *App) extBindingPolicy(row ochazuke.Binding, home map[string]string, cru
 	if row.Instance != "" {
 		return "instance-only row"
 	}
-	if row.Keys != "" && slices.Contains(crud[row.Noun], strings.Fields(row.Keys)[0]) {
-		return "mtm CRUD key takes precedence"
+	for _, reserved := range crud[row.Noun] {
+		if row.Keys != "" && keysClash(strings.Fields(reserved), strings.Fields(row.Keys)) {
+			return "mtm CRUD key takes precedence"
+		}
 	}
 	list := home[row.Noun]
 	if list == "" {

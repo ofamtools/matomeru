@@ -94,7 +94,7 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 				a.r.Operations[a.r.CanonicalKey(key)] = op
 			}
 			b.Bind("d d", ochazuke.Do(key))
-			taken[local] = append(taken[local], "d")
+			taken[local] = append(taken[local], "d d")
 		}
 		if c.Edit != "" && len(a.r.Operations[a.r.CanonicalKey(local+"."+c.Edit)].Parameters) > 0 {
 			b.Bind("i", ochazuke.Do(extFormNoun+".edit").Hinted("edit"))

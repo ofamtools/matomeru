@@ -40,14 +40,18 @@ var cliUsage = "usage: mtm [--data PATH] [--server NAME|default] [--socket PATH]
 func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	sh := ocli.New(a.r, "mtm", stdin, stdout, stderr, ocli.About(mtmAbout), ocli.AgentRules(mtmAgentRules))
 	sh.MCPAliases = mcp.Aliases()
-	cmd := a.mcpServerCommand(io.Discard)
-	sh.MCPCommand = append([]string{cmd.Executable}, cmd.Args[:len(cmd.Args)-2]...)
+	sh.MCPCommand = a.hostCommand()
 	act, actorErr := a.cliActor()
 	if a.actorSet {
 		act = a.work.Actor()
 		actorErr = nil
 	}
 	sh.Actor = &ochazuke.Actor{Kind: act.Kind, Harness: act.Harness, Pane: act.Pane, Session: act.Session, Model: act.Model}
+	// Callbacks carry the full framework actor, including Name and Via.
+	// Let the shell detect/narrow it instead of projecting through work.Actor.
+	if a.getenv("OCHAZUKE_CALLER") != "" {
+		sh.Actor = nil
+	}
 	a.stdin = stdin
 	a.notify.output = stdout
 	sh.Usage = cliUsage

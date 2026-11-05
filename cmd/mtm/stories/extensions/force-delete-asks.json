@@ -1,0 +1,12 @@
+{
+  "name": "mtm: a catalog force-delete sequence asks before executing",
+  "area": "extensions",
+  "fixture": "peer-rows",
+  "width": 120,
+  "height": 30,
+  "script": [":", {"type":"page open ext/alpha"}, "enter", {"job":"catalog-load"}, "d", "D", "n"],
+  "expect": [
+    {"after":6,"contains":["Delete Source row?"]},
+    {"contains":["Source row"],"lacks":["Delete Source row?"]}
+  ]
+}

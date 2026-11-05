@@ -46,6 +46,25 @@ declaring extension, and `off` disables them. `extensions.peer-status` (on)
 also shows the result on the originating extension page. Dropped rows appear in
 the Extensions detail unless `bindings.peer-notices` is `off`.
 
+Extensions also receive `OCHAZUKE_HOST`, the JSON argv of this mtm with its
+global data/server flags, plus `OCHAZUKE_EXTENSION` and the active
+`OCHAZUKE_ACTOR`. `cli.HostFromEnv()` can list `extension peers` or invoke a
+peer through mtm's rights and history boundary. Catalog/discovery subprocesses
+never receive the host variable. `extensions.host-call` defaults on; off
+removes even an inherited host variable. Callbacks run as an extension agent
+by default. `extensions.host-call-rights=caller` is a protected owner-only
+opt-out; it inherits the detected caller, never promotes an agent to owner.
+`extensions.host-call-depth` defaults to 4, preserving depth and chain across
+each proxy. `extension.register` remains agent-never.
+
+The v0.88.0 bump adds standard edit forms on stored rows without an app-specific
+edit key, including action items, context, saved panes, Vim sessions and session
+rows. Existing `i` bindings still win. The form opens in normal mode; `i` in
+its text field starts typing. Changes commit after the typing pause and when
+the field is left, with no save step. Catalog delete variants such as `d D`
+now coexist with mtm's reserved `d d` sequence; each keeps its verb's
+confirmation. Previously the CRUD reservation dropped the whole `d` prefix.
+
 Unreleased: a project's directory pick (`c` on a project, attach, move;
 `directory-chooser` `path`, the default) opens on ochazuke's `walk` source:
 every folder below the project's directories, configured project bases and
