@@ -459,7 +459,8 @@ type App struct {
 	// extForm is the open form over an extension's row (extension_forms.go).
 	extForm *ochazuke.RecordEditor
 	// renaming is the open rename form of a pane, session or saved pane (rename.go).
-	renaming *ochazuke.RecordEditor
+	renaming   *ochazuke.RecordEditor
+	renameNoun string
 	// extSyncDue asks the next update to mount the registry as it is now
 	// (extension_sync.go); extErrsSeen are the registry errors shown.
 	extSyncDue  bool

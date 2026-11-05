@@ -47,6 +47,9 @@ func (a *App) sessionAt(inst *ochazuke.Instance) (pane, error) {
 // the name given or typed in the form, each write as you type a set (the
 // daemon renames the window as a job, pane_store.go).
 func (a *App) renamePane(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.resumeRename("pane", ctx) {
+		return ochazuke.Done(renameFormID + "/name")
+	}
 	p, err := a.paneAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -60,7 +63,7 @@ func (a *App) renamePane(ctx ochazuke.Ctx) ochazuke.Result {
 	if name, given := ctx.Args["name"].(string); given {
 		return set(name)
 	}
-	return resultError(a.renameForm("Rename pane "+p.label(), p.Name, false, set))
+	return resultError(a.renameForm("pane", "Rename pane "+p.label(), p.Name, false, set))
 }
 
 // renameSavedOf follows a pane rename in the pane's saved records that
@@ -93,6 +96,9 @@ func (a *App) renameSavedOf(p pane, name string) error {
 // renameSession is session.rename (r): the standard set of the session's
 // name, the name given or typed in the form, each write as you type a set.
 func (a *App) renameSession(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.resumeRename("session", ctx) {
+		return ochazuke.Done(renameFormID + "/name")
+	}
 	p, err := a.sessionAt(ctx.Instance)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -106,12 +112,17 @@ func (a *App) renameSession(ctx ochazuke.Ctx) ochazuke.Result {
 	if name, given := ctx.Args["name"].(string); given {
 		return set(name)
 	}
-	return resultError(a.renameForm("Rename session "+p.Session, p.Session, true, set))
+	return resultError(a.renameForm("session", "Rename session "+p.Session, p.Session, true, set))
 }
 
 // renameFormID is the rename form's modal instance; its one field is
 // renameFormID/name.
 const renameFormID = "rename"
+
+func (a *App) resumeRename(noun string, ctx ochazuke.Ctx) bool {
+	return a.renaming != nil && a.renameNoun == noun && len(ctx.Args) == 0 &&
+		ctx.Instance != nil && ctx.Instance.ID == renameFormID+"/name"
+}
 
 // renameForm opens the rename form: ochazuke's record editor as a modal
 // with one name field in insert mode, written as you type (after the
@@ -121,7 +132,7 @@ const renameFormID = "rename"
 // It is a rename (RecordSpec.Rename): with ochazuke's rename.select on (the
 // default) the name opens selected, so typing replaces it and a motion
 // keeps it (UX-RULES R11.6).
-func (a *App) renameForm(title, current string, required bool, write func(name string) ochazuke.Result) error {
+func (a *App) renameForm(noun, title, current string, required bool, write func(name string) ochazuke.Result) error {
 	if a.renaming != nil && a.r.Instances[renameFormID] != nil {
 		return errors.New("a rename is already open")
 	}
@@ -133,12 +144,13 @@ func (a *App) renameForm(title, current string, required bool, write func(name s
 		Rename:   true,
 		Load:     func() (ochazuke.Record, error) { return ochazuke.Record{"name": current}, nil },
 		Save:     func(w ochazuke.RecordWrite) ochazuke.Result { return write(w.Values["name"]) },
-		OnLeave:  func() { a.renaming = nil },
+		OnLeave:  func() { a.renaming, a.renameNoun = nil, "" },
 	})
 	if err != nil {
 		return err
 	}
 	a.renaming = form
+	a.renameNoun = noun
 	for _, key := range []string{"enter", "esc"} {
 		row := ochazuke.Do(ochazuke.FormNoun + ".leave")
 		row.Instance, row.Mode, row.Keys = renameFormID+"/name", "insert", key

@@ -42,6 +42,8 @@ Leader+`*`, switch panes, leader+`.` repeats the star on the showing pane,
 not the pane that was showing when it was first starred.
 Mounted extension `d d` keeps the catalog delete row's arguments and row-field
 sources, so its confirmation and execution name the same record.
+Re-running rename from its open form returns to that form without losing its
+draft or changing the record being renamed.
 
 Extension catalogs may declare host-only `peerBindings`: ordinary binding rows
 using stable tool namespaces, including `from: {"target":"row:doc"}` for a

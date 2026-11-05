@@ -237,3 +237,23 @@ func TestRenameASessionAsYouType(t *testing.T) {
 		t.Fatalf("calls %v modal %q", fr.calls, app.r.TopModal())
 	}
 }
+
+func TestRenameReopenPreservesDraftAndSubject(t *testing.T) {
+	t.Parallel()
+	a, panes := panesApp(t)
+	renamer := &fakeRenamer{panes: panes}
+	a.renamer = renamer
+	press(t, a, "enter", "ctrl+a", "r")
+	typeText(t, a, "kept draft")
+	form := a.renaming
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "rename"}); err != nil {
+		t.Fatal(err)
+	}
+	if a.renaming != form || form.Values()["name"] != "kept draft" || a.r.Focus != renameFormID+"/name" {
+		t.Fatal("reopening discarded the form or draft")
+	}
+	pressJob(t, a, "enter")
+	if len(renamer.calls) != 1 || renamer.calls[0] != "window matomeru/w1 kept draft" {
+		t.Fatalf("calls %q", renamer.calls)
+	}
+}

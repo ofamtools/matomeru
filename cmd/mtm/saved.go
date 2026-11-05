@@ -304,6 +304,9 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 // renameSaved is saved.rename (r): the standard set of name, the name
 // given or typed in the form, each write as you type a set.
 func (a *App) renameSaved(ctx ochazuke.Ctx) ochazuke.Result {
+	if a.resumeRename("saved", ctx) {
+		return ochazuke.Done(renameFormID + "/name")
+	}
 	row, err := a.savedAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -314,7 +317,7 @@ func (a *App) renameSaved(ctx ochazuke.Ctx) ochazuke.Result {
 	if name, ok := ctx.Args["name"].(string); ok {
 		return set(name)
 	}
-	return resultError(a.renameForm("Rename saved pane", row.Name, false, set))
+	return resultError(a.renameForm("saved", "Rename saved pane", row.Name, false, set))
 }
 
 // associateSaved is saved.associate. From a key or the palette with no
