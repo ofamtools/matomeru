@@ -35,6 +35,17 @@ program. Existing explicit leader rows are unchanged. Compared with Vim:
 the doubled terminal leader matches `t_CTRL-W_.`; outside-command fall-through
 is similar to Neovim's `t_CTRL-\\_CTRL-O`, but excludes component motions.
 
+Extension catalogs may declare host-only `peerBindings`: ordinary binding rows
+using stable tool namespaces, including `from: {"target":"row:doc"}` for a
+remote `--target`. mtm resolves those namespaces after every mount/sync, including
+renamed registrations and legacy noun naming. Missing peers or verbs drop the
+key until a later sync; `extension peer-rows` explains every declaration.
+The owner's binding file is applied last and can override or unbind peer keys.
+`extensions.peer-keys` defaults to `any`; `own-rows` limits the row noun to the
+declaring extension, and `off` disables them. `extensions.peer-status` (on)
+also shows the result on the originating extension page. Dropped rows appear in
+the Extensions detail unless `bindings.peer-notices` is `off`.
+
 Unreleased: a project's directory pick (`c` on a project, attach, move;
 `directory-chooser` `path`, the default) opens on ochazuke's `walk` source:
 every folder below the project's directories, configured project bases and

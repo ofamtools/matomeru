@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -322,12 +323,14 @@ type extension struct {
 	nouns map[string]string // catalog noun -> mtm noun (<ext>.<noun>, extension_names.go)
 	// naming is how its nouns were named when it mounted, and aliases
 	// the old spellings mtm gave them (extension_names.go).
-	naming  extNounNaming
-	aliases []string
-	views   []*ocli.PageView
-	entry   []byte                // the registry entry it was mounted from, as JSON (extension_sync.go)
-	crud    map[string]extCRUD    // catalog noun -> its new, edit and delete verbs (extension_forms.go)
-	sources map[string]*extSource // a parameter source (the tool's NOUN.VERB) -> its cached choices (extension_sources.go)
+	naming       extNounNaming
+	aliases      []string
+	views        []*ocli.PageView
+	entry        []byte                // the registry entry it was mounted from, as JSON (extension_sync.go)
+	crud         map[string]extCRUD    // catalog noun -> its new, edit and delete verbs (extension_forms.go)
+	sources      map[string]*extSource // a parameter source (the tool's NOUN.VERB) -> its cached choices (extension_sources.go)
+	bindingLists map[string]string     // host noun -> mounted list, shared catalog key policy
+	bindingCRUD  map[string][]string
 	// fetchEnv is the environment its page loads run with, read on the
 	// loop when its rows reload (extension_context.go).
 	fetchEnv atomic.Pointer[[]string]
@@ -371,6 +374,7 @@ func (a *App) defineExtensions() {
 	a.r.Define("extension").
 		Verb("register", a.registerExtension, "Register a family tool's catalog under NAME (its bin: --bin, else o-NAME or NAME on PATH); its pages are tabs after mtm's").Positional("name").
 		Verb("list", a.listExtensions, "List the registered extensions").Fetch().
+		Verb("peer-rows", a.peerRows, "List declared peer keys, whether loaded, and why a row was dropped").Fetch().
 		Verb("available", a.availableExtensions, "List the family tools on PATH (o-NAME answering catalog) and the registered extensions, each available, registered, stale or missing").Fetch().Quiet().
 		Verb("refresh", a.refreshExtension, "Read a registered extension's catalog again (every extension when NAME is omitted)").Positional("name").
 		Verb("remove", a.removeExtension, "Unregister an extension; --purge also deletes its data file").Positional("name").Confirm("Remove extension {{label}}? Its data file stays (mtm extension remove NAME --purge deletes it).")
@@ -617,6 +621,7 @@ func (a *App) removeExtension(ctx ochazuke.Ctx) ochazuke.Result {
 			}
 		}
 		a.refreshSides()
+		a.reloadPeerBindings()
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -644,6 +649,7 @@ func (a *App) mountExtensions() {
 	}
 	a.refreshSides()
 	a.syncBareNounNames()
+	a.reloadPeerBindings()
 }
 
 // mountExtension adds one extension: a proxy verb on mtm's noun for every
@@ -822,6 +828,11 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 			}
 		}
 	}
+	x.bindingLists = make(map[string]string, len(home))
+	for noun, list := range home {
+		x.bindingLists[x.nouns[noun]] = list
+	}
+	x.bindingCRUD = crud
 	var dropped []string
 	for _, row := range rows {
 		local, ok := x.nouns[row.Noun]
@@ -839,12 +850,8 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		// Catalog guards run only in the producing runtime. Host and user
 		// binding files still validate their own guards normally.
 		row.When = ""
-		if row.Keys != "" && slices.Contains(crud[local], strings.Fields(row.Keys)[0]) {
-			dropped = append(dropped, where+": mtm CRUD key takes precedence")
-			continue
-		}
-		if list, ok := home[x.nounOfLocal(local)]; ok && a.keyTaken(list, row) {
-			dropped = append(dropped, where+": mtm binds the key on the list path")
+		if reason := a.extBindingPolicy(row, x.bindingLists, crud); reason != "" {
+			dropped = append(dropped, where+": "+reason)
 			continue
 		}
 		data, err := json.Marshal([]ochazuke.Binding{row})
@@ -911,12 +918,21 @@ func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
 	return func(c ochazuke.Ctx) ochazuke.Result {
 		target := a.extTarget(x, noun, c.Instance)
-		if !a.cli {
-			if name, p, ok := missingNounParam(x.doc, noun, verb, c.Args); ok {
-				return a.askNounParam(x, noun, verb, target, name, p, c.Args)
+		args := c.Args
+		op, _ := a.r.Operation(x.nouns[noun] + "." + verb)
+		if _, declared := op.Parameters["target"]; !declared {
+			if explicit, ok := args["target"].(string); ok {
+				target = explicit
+				args = maps.Clone(args)
+				delete(args, "target")
 			}
 		}
-		return a.extRun(x, noun, verb, target, c.Args, nil)
+		if !a.cli {
+			if name, p, ok := missingNounParam(x.doc, noun, verb, args); ok {
+				return a.askNounParam(x, noun, verb, target, name, p, args)
+			}
+		}
+		return a.extRun(x, noun, verb, target, args, nil)
 	}
 }
 
@@ -965,6 +981,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	bin, env := x.bin, a.extEnv(x.name)
 	project := a.contextProject() // the owner a row it makes or acts on gets (extension_scope.go)
 	op, _ := a.r.Operation(x.nouns[noun] + "." + verb)
+	_, currentView := a.extViewOf(a.r.Page)
 	spec := ocli.CatalogVerb{Name: noun + " " + verb, Foreground: op.Foreground, Result: op.Result}
 	if op.Timeout > 0 {
 		spec.Timeout = op.Timeout.String()
@@ -990,6 +1007,9 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		line := extResultLine(noun+" "+verb, v, err)
 		for _, view := range x.views {
 			view.SetStatus(line)
+		}
+		if a.r.Settings().Bool(settingExtPeerStatus) && currentView != nil && !slices.Contains(x.views, currentView) {
+			currentView.SetStatus(line)
 		}
 		if !a.cli {
 			a.reloadExtension(x)

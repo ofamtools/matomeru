@@ -124,6 +124,7 @@ func (a *App) declareSettings() error {
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
 	}
 	settings = append(settings, agentSettings()...)
+	settings = append(settings, extPeerSettings...)
 	settings = append(settings, taskViewSettings()...)
 	settings = append(settings, turnStatusSettings()...)
 	settings = append(settings, pinColorsSettings()...)
@@ -153,6 +154,7 @@ func (a *App) declareSettings() error {
 		a.sched.failureLimit.Store(int64(value.(int)))
 	})
 	a.observeContextExtraction()
+	a.r.Settings().Observe(settingExtPeerKeys, func(string, any) { a.reloadPeerBindings() })
 	return nil
 }
 

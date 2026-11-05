@@ -475,6 +475,7 @@ func (a *App) extFacts(c extCandidate) string {
 	if setup := a.extSetupFacts(c); setup != "" {
 		b.WriteString("\n\n" + setup)
 	}
+	b.WriteString(a.peerRowFacts(c.Name))
 	plan := extPlan(c.catalog)
 	b.WriteString("\n\nnouns and verbs\n")
 	if len(plan) == 0 {

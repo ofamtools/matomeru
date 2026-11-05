@@ -88,6 +88,7 @@ func (a *App) remountExtensions() { a.mountRegistry(true) }
 // mountRegistry mounts the registry as it is now, keeping the extensions
 // whose entries did not change unless all is set.
 func (a *App) mountRegistry(all bool) {
+	defer a.reloadPeerBindings()
 	names, entries, errs := a.extRegistry().Ordered()
 	a.notifyExtErrs(errs)
 	i := 0

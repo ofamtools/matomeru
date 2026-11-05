@@ -1,0 +1,31 @@
+{
+  "name": "mtm: peer-key-runs-other-extension",
+  "area": "extensions",
+  "fixture": "peer-rows",
+  "width": 120,
+  "height": 30,
+  "script": [
+    ":",
+    {
+      "type": "page open ext/alpha"
+    },
+    "enter",
+    {
+      "job": "catalog-load"
+    },
+    "g",
+    "s",
+    {"job": "beta.doc.send"}
+  ],
+  "expect": [
+    {
+      "contains": [
+        "Source row",
+        "doc send --target doc-7"
+      ],
+      "lacks": [
+        "no such verb"
+      ]
+    }
+  ]
+}
