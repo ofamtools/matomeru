@@ -56,6 +56,13 @@ type Definition struct {
 
 // Items are the installable items, in listing order.
 func Items() []Definition {
+	return append(hookDefinitions(), defs...)
+}
+
+// defs are the notes.json items' definitions (filled by notes.go).
+var defs []Definition
+
+func hookDefinitions() []Definition {
 	return []Definition{
 		{ID: OMP, Name: "OMP turn capture", Harness: "omp", Description: "An OMP extension that records each request and final answer in mtm's history. Reload OMP after installing."},
 		{ID: Claude, Name: "Claude Code turn capture", Harness: "claude-code", Description: "UserPromptSubmit and Stop hooks in Claude Code's settings.json that record each prompt and final answer in mtm's history."},
@@ -65,9 +72,10 @@ func Items() []Definition {
 
 // Options say where the harnesses' files are and what the hooks run.
 type Options struct {
-	Home string // stands for the home directory; "" is the user's own, with the harnesses' environment variables
-	Bin  string // the mtm binary the hooks run (absolute)
-	Data string // the database the hooks write (absolute)
+	Home string   // stands for the home directory; "" is the user's own, with the harnesses' environment variables
+	Bin  string   // the mtm binary the hooks run (absolute)
+	Data string   // the database the hooks write (absolute)
+	Skip []string // note item ids to skip (setup.skip); nil takes the default
 }
 
 // Item is one item's state: missing, installed, outdated (owned but not
@@ -196,6 +204,9 @@ func (o Options) Plan(id string) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	if isNote(id) {
+		return o.notePlan(id)
+	}
 	path, err := o.path(id)
 	if err != nil {
 		return Plan{}, err
@@ -238,6 +249,9 @@ func (o Options) Plan(id string) (Plan, error) {
 // Install writes the item (a no-op when it is installed) and returns its
 // new state. A file mtm does not own is refused.
 func (o Options) Install(id string) (Item, error) {
+	if isNote(id) {
+		return o.noteApply(id, false)
+	}
 	p, err := o.Plan(id)
 	if err != nil {
 		return p.Item, err
@@ -257,6 +271,9 @@ func (o Options) Install(id string) (Item, error) {
 
 // Uninstall removes mtm's own file or hooks and nothing else.
 func (o Options) Uninstall(id string) (Item, error) {
+	if isNote(id) {
+		return o.noteApply(id, true)
+	}
 	p, err := o.Plan(id)
 	if err != nil {
 		return p.Item, err

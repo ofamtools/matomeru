@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 
 	"ofam.dev/matomeru/internal/setup"
 )
@@ -16,6 +17,13 @@ import (
 // own file or hook entries and ask first (--yes answers). --home DIR
 // stands for the home directory, so a dry run or a test writes under DIR
 // instead of ~/.claude, ~/.codex and ~/.omp.
+
+// setupSettings: setup.skip names setup items to leave alone. Empty takes the
+// default: of identical instruction notes whose files resolve to one directory
+// (files that import each other), only the last is offered.
+func setupSettings() []ochazuke.Setting {
+	return []ochazuke.Setting{{Name: ocli.SetupSkipSetting, Type: ochazuke.SettingList, Default: []string{}, Section: ochazuke.SettingsGeneralSection, Description: "Setup item ids to skip; empty skips earlier identical instruction notes in the same resolved directory"}}
+}
 
 // defineSetup adds the setup noun.
 func (a *App) defineSetup() {
@@ -48,7 +56,11 @@ func (a *App) setupOptions(ctx ochazuke.Ctx) (setup.Options, error) {
 	if err != nil {
 		return setup.Options{}, err
 	}
-	return setup.Options{Home: ochazuke.StringArg(ctx.Args, "home", ""), Bin: bin, Data: data}, nil
+	var skip []string
+	if s := a.r.Settings().Strings(ocli.SetupSkipSetting); len(s) > 0 {
+		skip = s
+	}
+	return setup.Options{Home: ochazuke.StringArg(ctx.Args, "home", ""), Bin: bin, Data: data, Skip: skip}, nil
 }
 
 // setupEach runs fn for the item argument, else every item.

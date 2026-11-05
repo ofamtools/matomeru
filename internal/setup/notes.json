@@ -1,0 +1,32 @@
+[
+  {
+    "id": "claude-md",
+    "name": "Claude Code instructions note",
+    "description": "Adds the 'One MCP server: mtm' note to Claude Code's user instructions, between mtm markers; the rest of the file is untouched.",
+    "kind": "block",
+    "follow": true,
+    "path": "${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md",
+    "begin": "<!-- mtm:begin -->",
+    "end": "<!-- mtm:end -->",
+    "content": "## One MCP server: mtm\n\n`mtm mcp serve` is the family's single MCP gateway: its `catalog`, `describe` and `run` tools reach mtm's own verbs and every registered extension's (o-lane `lane.*`, o-questions `questions.*`, o-cmds `cmds.*`, o-md `md.*`, o-git `git.*`). Use it rather than a tool's own MCP server.",
+    "requires": [
+      "dir:${CLAUDE_CONFIG_DIR:-~/.claude}"
+    ],
+    "group": "agents"
+  },
+  {
+    "id": "codex-agents",
+    "name": "Codex instructions note",
+    "description": "Adds the same note to Codex's user instructions. Both items share one marker pair, so when both paths are the same file the note appears once.",
+    "kind": "block",
+    "follow": true,
+    "path": "~/.codex/AGENTS.md",
+    "begin": "<!-- mtm:begin -->",
+    "end": "<!-- mtm:end -->",
+    "content": "## One MCP server: mtm\n\n`mtm mcp serve` is the family's single MCP gateway: its `catalog`, `describe` and `run` tools reach mtm's own verbs and every registered extension's (o-lane `lane.*`, o-questions `questions.*`, o-cmds `cmds.*`, o-md `md.*`, o-git `git.*`). Use it rather than a tool's own MCP server.",
+    "requires": [
+      "dir:~/.codex"
+    ],
+    "group": "agents"
+  }
+]
