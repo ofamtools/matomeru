@@ -22,7 +22,7 @@ import (
 // bound in defineOutline.
 func (a *App) defineConversions() {
 	a.r.Define("project").Verb("make-task", a.makeTask, "Turn the project into a task of the project above it (or --parent): its tasks become the task's subtasks, its notes, items, panes and sessions the task's, its directories the parent's, its pin the parent's")
-	a.parameters("project.make-task", map[string]ochazuke.Parameter{"parent": {Type: "string", Source: "projects.list", Description: "The project it becomes a task of; omitted, the project listed above it"}})
+	a.parameters("project.make-task", map[string]ochazuke.Parameter{"parent": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name it becomes a task of; omitted, the project listed above it"}})
 	a.r.Define("task").Verb("make-project", a.makeProject, "Turn a task directly under its project into a project listed after it: its subtasks become the project's tasks, its notes, items, panes and sessions the project's, and every directory its panes, Vim sessions and context items name the project's directories")
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
 		a.r.Define(noun).Verb("demote", a.outlineDemote, "Turn the project into a task of the project above it (tab); u undoes it")
@@ -35,7 +35,11 @@ func (a *App) makeTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(errors.New("select a project"))
 	}
-	conv, err := a.projectToTask(projectOfRoot(ctx.Instance.ID), ochazuke.StringArg(ctx.Args, "parent", ""))
+	parent := ochazuke.StringArg(ctx.Args, "parent", "")
+	if id, ok := a.projectNamed(parent); parent != "" && ok {
+		parent = id
+	}
+	conv, err := a.projectToTask(projectOfRoot(ctx.Instance.ID), parent)
 	return a.converted(ctx, conv, err)
 }
 

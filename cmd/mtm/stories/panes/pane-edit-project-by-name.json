@@ -1,0 +1,3 @@
+{"name":"ux: a project name in the pane editor saves its real project id","area":"panes","fixture":"seeded","width":120,"height":34,
+"script":[":",{"type":"project set billing-api name=beta"},"enter",":",{"type":"pane edit"},"enter","tab","i","ctrl+u",{"type":"beta"},"esc","esc"],
+"expect":[{"after":7,"focus":"edit-form/project"},{"mode":"normal","contains":["beta (1)"],"lacks":["unknown project beta","Edit pane"]}]}

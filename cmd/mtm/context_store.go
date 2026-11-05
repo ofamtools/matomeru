@@ -174,6 +174,11 @@ func (a *App) contextOwnerOf(c ochazuke.Ctx, it contextitems.Item, values ochazu
 // context item, pane and saved stores share it.
 func (a *App) ownerWrite(c ochazuke.Ctx, curProject, curTask string, values ochazuke.Thing) (string, string, bool) {
 	project, hasProject := thingString(values, "project")
+	if project != "" {
+		if id, found := a.projectNamed(project); found {
+			project = id
+		}
+	}
 	task, hasTask := thingString(values, "task")
 	if !hasProject && !hasTask {
 		return "", "", false

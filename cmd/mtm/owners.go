@@ -40,7 +40,7 @@ func (a *App) defineOwners() {
 	// deprecated (m is task.choose-move).
 	a.r.Define("task").Verb("associate", a.associateTask, "Associate a thing with this task (--pane, --action-item or --context-item ID); --project, --task or --scratch is the deprecated form of task.move").Many()
 	for _, noun := range []string{"pane", "session", "task"} {
-		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
+		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	}
 	for _, noun := range []string{"review"} {
 		op := a.r.Operations[a.r.CanonicalKey(noun+".list")]

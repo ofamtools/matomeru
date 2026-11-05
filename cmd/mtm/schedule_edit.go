@@ -107,7 +107,7 @@ func (a *App) applyScheduleField(d *schedules.Def, name, v string) error {
 	case "permission-mode":
 		d.Agent.Permission = v
 	case "project":
-		d.Agent.Project = strings.TrimPrefix(v, "project:")
+		d.Agent.Project, _ = a.noteOwner(ochazuke.Ctx{Runtime: a.r}, strings.TrimPrefix(v, "project:"), true, "", false)
 	case "task":
 		d.Agent.Task = strings.TrimPrefix(v, "task:")
 	case "dir":

@@ -252,6 +252,11 @@ func thingInt(v any) int64 {
 // unassociated with a notice. Without a project, the task keeps keep. It
 // answers the project and the parent.
 func (a *App) taskOwner(c ochazuke.Ctx, project string, hasProject bool, parent, keep string) (string, string) {
+	if project != "" {
+		if id, found := a.projectNamed(project); found {
+			project = id
+		}
+	}
 	if parent != "" {
 		t, err := a.work.Task(parent)
 		switch {

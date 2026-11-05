@@ -200,12 +200,12 @@ func (a *App) defineLaunch() {
 	a.parameters("agent.launch", map[string]ochazuke.Parameter{
 		"harness": agent,
 		"model":   model,
-		"project": {Type: "string", Source: "projects.list", Description: "Omit to infer it"},
+		"project": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name; omit to infer it"},
 		"task":    task,
 		"scratch": {Type: "boolean", Description: "Launch unassociated in no-project"},
 	})
 	a.parameters("agent.start", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the agent runs in no project (cwd: the home directory)"},
+		"project": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the agent runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"harness": agent,
 		"model":   model,
@@ -497,14 +497,15 @@ func projectArgs(p work.Project, fixed string) ochazuke.Arguments {
 }
 
 // startProject is the project a confirmed agent.start or pane.start runs
-// in: the loaded project by id, or none (the zero project) when the
+// in: the loaded project by id or name, or none (the zero project) when the
 // request names none.
 func (a *App) startProject(ctx ochazuke.Ctx) (work.Project, error) {
 	id := ochazuke.StringArg(ctx.Args, "project", "")
 	if id == "" {
 		return work.Project{}, nil
 	}
-	if p, ok := a.project(id); ok {
+	if resolved, ok := a.projectNamed(id); ok {
+		p, _ := a.project(resolved)
 		return p, nil
 	}
 	return work.Project{}, fmt.Errorf("project %s is not loaded", id)
@@ -608,13 +609,13 @@ func (a *App) defineShell() error {
 		Mode("normal").
 		Bind("n", ochazuke.Do("pane.new"))
 	a.parameters("pane.start", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Source: "projects.list", Description: "The project id; omitted, the shell runs in no project (cwd: the home directory)"},
+		"project": {Type: "string", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the shell runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"task":    {Type: "string"},
 		"notice":  {Type: "string"},
 	})
 	a.parameters("pane.new", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Source: "projects.list"},
+		"project": {Type: "string", Source: "projects.list", Free: true},
 		"task":    {Type: "string"},
 		"scratch": {Type: "boolean", Description: "Launch unassociated in mtm-only"},
 	})

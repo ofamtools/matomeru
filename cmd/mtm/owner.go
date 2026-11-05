@@ -21,6 +21,11 @@ func (a *App) resolveOwner(ctx ochazuke.Ctx, args ochazuke.Arguments) (Owner, er
 		return Owner{}, nil
 	}
 	project, hasProject := args["project"]
+	if name, ok := project.(string); ok && name != "" {
+		if id, found := a.projectNamed(name); found {
+			project = id
+		}
+	}
 	task, hasTask := args["task"]
 	if hasTask {
 		id, _ := task.(string)
