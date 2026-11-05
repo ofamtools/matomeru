@@ -12,22 +12,9 @@ func (a *App) defineOwners() {
 	// pane_store.go, session_store.go) with m on every row through the
 	// project chooser (choose-move); associate keeps the chooser, the
 	// relation forms and the deprecated owner forms.
-	a.r.Define("pane").Props(paneProps()...).Store(a.paneStore()).
+	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.paneStore()).
 		Verb("associate", a.associatePane, "Choose the project to move the pane to (omit the owner); --action-item and --context-item relate those to it; --project, --task and --scratch are the deprecated forms of move and set").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice runs pane.move").Many()
-	// Live i must not fall past the unavailable hidden prompt to the
-	// newly generated standard edit form. Rename stays available live.
-	a.r.DefineGuard("pane-not-attached", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
-		p, err := a.paneAt(r.Instances[ev.Focus])
-		return err == nil && p.ID != a.attached.ID
-	})
-	if op, ok := a.r.Operation("pane.edit"); ok && op.Standard == "edit" {
-		n := a.r.Noun("pane")
-		if n.Guards == nil {
-			n.Guards = map[string]string{}
-		}
-		n.Guards["edit"] = "pane-not-attached"
-	}
 	if err := a.r.AddActionAlias(starAlias("pane")); err != nil { // * on a pane row (pane_stars.go)
 		panic(err)
 	}

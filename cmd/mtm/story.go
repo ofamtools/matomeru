@@ -135,12 +135,14 @@ type storySeed struct {
 
 // storyPane is one fake pane: its session, window id, name and screen.
 type storyPane struct {
-	Session string `json:"session"`
-	Window  string `json:"window"`
-	Name    string `json:"name"`
-	Screen  string `json:"screen"`
-	Parent  string `json:"parent,omitempty"`
-	Side    string `json:"side,omitempty"`
+	Session    string `json:"session"`
+	Window     string `json:"window"`
+	Name       string `json:"name"`
+	Screen     string `json:"screen"`
+	Parent     string `json:"parent,omitempty"`
+	Side       string `json:"side,omitempty"`
+	Harness    string `json:"harness,omitempty"`
+	AgentState string `json:"agentState,omitempty"`
 }
 
 func seedOf(env monogatari.Env) (storySeed, error) {
@@ -379,7 +381,7 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	var fakes []pane
 	screens := map[string]string{}
 	for _, p := range panes {
-		fakes = append(fakes, pane{Session: p.Session, Pane: daemon.Pane{ID: p.Window, Name: p.Name}})
+		fakes = append(fakes, pane{Session: p.Session, Harness: p.Harness, Pane: daemon.Pane{ID: p.Window, Name: p.Name, AgentState: p.AgentState}})
 		screens[p.Window] = p.Screen
 		if p.Parent != "" {
 			if err := a.work.PutCompanion(work.Companion{Window: p.Window, Parent: p.Parent, Kind: p.Side}); err != nil {

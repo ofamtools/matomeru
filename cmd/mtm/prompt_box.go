@@ -250,9 +250,8 @@ func (a *App) addPromptBox() error {
 	})
 	a.parameters(promptNoun+".mode", map[string]ochazuke.Parameter{"mode": {Type: "string", Enum: promptModes, Description: "The mode to switch to; none takes the next"}})
 	a.parameters(promptNoun+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "The image's number, as its chip [image n] shows; none: the only one, else a chooser"}})
-	// i writes a prompt: from the pane row while the Turns or Screen tab
-	// shows, and from any row of the turns. Only a live pane has a box, so
-	// on an exited one i stands aside (availability, not a guard row).
+	// i writes from every detail tab, revealing the pane's box if needed.
+	// Exited panes and boxes disabled by settings leave the key alone.
 	a.r.DefineGuard("pane-prompt", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		return a.promptPaneAt(ev.Focus) != nil
 	})
@@ -327,21 +326,24 @@ func (a *App) promptPane() *pane {
 	return &p
 }
 
-// promptPaneAt is the pane i at focus would write to: a pane row's own
-// (on the Turns or Screen tab), else the shown pane's for a row of the
-// turns.
+// promptPaneAt is the pane i at focus would write to, even when its box
+// is on another tab. Live and copy screens keep their own input.
 func (a *App) promptPaneAt(focus string) *pane {
-	if a.pv.tab != tabTurns && a.promptRow() == "" {
+	if a.pv.tab == tabScreen && a.promptRow() == "" {
 		return nil
 	}
-	if inst := a.r.Instances[focus]; inst != nil && a.frontsPane(inst) {
-		p, err := a.paneAt(inst)
-		if err != nil || !a.promptServes(p) {
-			return nil
-		}
-		return &p
+	inst := a.r.Instances[focus]
+	if !a.frontsPane(inst) {
+		inst = a.r.Instances[a.pv.turnsFor]
 	}
-	return a.promptPane()
+	p, err := a.paneAt(inst)
+	if err != nil || !a.promptServes(p) {
+		return nil
+	}
+	if !p.isAgent() && a.pv.tab != tabTurns && !a.r.Settings().Bool(settingPromptScreen) {
+		return nil
+	}
+	return &p
 }
 
 // promptServes reports whether the pane gets a prompt box: any live pane,
@@ -373,24 +375,52 @@ func (a *App) promptBoxFor(p pane) (box harness.PromptBox, terminal bool) {
 	return harness.TerminalPromptBox, true
 }
 
-// focusPrompt is pane.prompt and turn*.prompt (i): show the row's turns
-// when they are not shown, then focus the box in insert mode, the cursor
-// after the draft.
+// focusPrompt is pane.prompt and turn*.prompt (i): reveal the box, then
+// write after its draft. Activity and Transcript return to Turns for an
+// agent, Screen for a shell.
 func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
-	if ctx.Instance != nil && a.frontsPane(ctx.Instance) && a.pv.tab == tabTurns && a.pv.turnsFor != ctx.Instance.ID {
-		if err := a.showTurns(ctx.Instance.ID); err != nil {
-			return ochazuke.Failed(err)
-		}
+	focus := a.r.Focus
+	if ctx.Instance != nil {
+		focus = ctx.Instance.ID
 	}
-	a.syncPromptDraft()
-	p := a.promptPane()
+	p := a.promptPaneAt(focus)
 	if p == nil {
 		return ochazuke.Failed(errNoPromptBox)
 	}
-	a.promptTargetFor(*p)
+	row := p.rowID()
+	if a.pv.tab == tabActivity || a.pv.tab == tabTranscript {
+		if !p.isAgent() {
+			if _, err := a.toScreen(row); err != nil {
+				return ochazuke.Failed(err)
+			}
+			if err := a.r.SetFocus(row); err != nil {
+				return ochazuke.Failed(err)
+			}
+			return a.capturePreview(*p, func(ctx ochazuke.Ctx) {
+				if err := a.beginPrompt(*p); err != nil {
+					ctx.Error(err.Error())
+				}
+			})
+		}
+		a.pv.tab, a.pv.followed = tabTurns, fmt.Sprintf("%s|%d", row, tabTurns)
+	}
+	if a.pv.tab == tabTurns && a.pv.turnsFor != row {
+		if err := a.showTurns(row); err != nil {
+			return ochazuke.Failed(err)
+		}
+	}
+	if err := a.beginPrompt(*p); err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(promptID)
+}
+
+func (a *App) beginPrompt(p pane) error {
+	a.syncPromptDraft()
+	a.promptTargetFor(p)
 	from := a.r.Focus
 	if err := a.r.SetFocus(promptID); err != nil {
-		return ochazuke.Failed(err)
+		return err
 	}
 	if from != promptID {
 		// Coming in from the row or a turn, i writes after the draft
@@ -398,7 +428,7 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 		a.pb.input.Cursor = len(a.pb.input.Text)
 	}
 	a.pb.input.SetMode("insert")
-	return ochazuke.Done(promptID)
+	return nil
 }
 
 // errNoPromptBox is a box verb's answer where no box is drawn.

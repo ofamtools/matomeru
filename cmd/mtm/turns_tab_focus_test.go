@@ -4,10 +4,8 @@ import (
 	"testing"
 )
 
-// F1: a tab switch that stops drawing the turns and the box takes the
-// focus off them, to the pane row, so the footer is the row's and the
-// next keys answer there. The Screen tab draws the box too, so there i
-// writes to it; on a tab without one i leaves the box alone.
+// A tab switch takes focus off hidden turns and boxes to the pane row.
+// The next i reveals its prompt again, on every detail tab.
 func TestTabSwitchLeavesNoHiddenFocus(t *testing.T) {
 	t.Parallel()
 	for _, style := range []string{turnsStyleCards, turnsStyleTree} {
@@ -28,10 +26,7 @@ func TestTabSwitchLeavesNoHiddenFocus(t *testing.T) {
 				app.Update(keyMsg("i"))
 				app.Update(keyMsg("x"))
 				frame(app)
-				want := before
-				if app.pv.tab == tabScreen {
-					want += "x"
-				}
+				want := before + "x"
 				if got := string(app.pb.input.Text); got != want {
 					t.Fatalf("%v then i x on tab %d: the box holds %q, want %q", walk, app.pv.tab, got, want)
 				}

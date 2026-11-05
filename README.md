@@ -36,6 +36,11 @@ the doubled terminal leader matches `t_CTRL-W_.`; outside-command fall-through
 is similar to Neovim's `t_CTRL-\\_CTRL-O`, but excludes component motions.
 On a Needs you item that shows a pane's prompt, `i` writes to that prompt;
 an item without a pane keeps its standard record editor.
+On a pane row, `i` writes to the pane on every detail tab. Activity and
+Transcript return to Turns for an agent or Screen for a shell, then focus
+the prompt. Dead panes and disabled boxes leave the key alone. `:pane edit`
+still opens the record editor, including from live through its pane association;
+CLI edits require an explicit pane id. Live `ctrl+a i` goes to the program.
 From live, leader+`l` uses the same copy workflow as leader+`[`: Escape
 returns to the terminal that had focus, including a side terminal.
 Leader+`*`, switch panes, leader+`.` repeats the star on the showing pane,
