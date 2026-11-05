@@ -371,6 +371,9 @@ func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
+	if a.r.Terminal(a.r.Focus) != nil && p.ID == a.attached.ID {
+		return a.terminalCopy(ctx)
+	}
 	source := ""
 	if a.r.Terminal(paneTermID) != nil && a.attached.ID == p.ID {
 		source = paneTermID

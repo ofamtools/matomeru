@@ -623,3 +623,20 @@ func TestCopyModeSearchFollowsSearchCase(t *testing.T) {
 	}
 	at(t, app, "ignore: a capital still ignores case", 2, 0)
 }
+
+func TestLeaderLCopyReturnsToFocusedSide(t *testing.T) {
+	t.Parallel()
+	a, _ := sideViewApp(t)
+	if err := a.showSide(a.attached, "term"); err != nil {
+		t.Fatal(err)
+	}
+	side := a.r.Instances[sideTermID].Data.(pane)
+	press(t, a, "ctrl+a", "l")
+	if a.r.Mode.Name != "copy" || a.copy.pane.ID != side.ID {
+		t.Fatalf("copied %s in %s", a.copy.pane.ID, a.r.Mode.Name)
+	}
+	press(t, a, "esc")
+	if a.r.Focus != sideTermID || a.r.Mode.Name != "terminal" || a.r.Terminal(sideTermID) == nil {
+		t.Fatalf("lost side: %s %s", a.r.Focus, a.r.Mode.Name)
+	}
+}
