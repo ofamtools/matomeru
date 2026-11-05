@@ -19,7 +19,7 @@ type renamer interface {
 // mtm keys ownership by session and window ids, so a rename keeps every
 // association.
 func (a *App) defineRenames() {
-	a.r.Define("pane").Verb("rename", a.renamePane, "Rename the pane's window; omit name to type it (empty falls back to the shell's title)").Positional("name").
+	a.r.Define("pane").Verb("rename", a.renamePane, "Rename the pane's window; omit name to type it (empty falls back to the shell's title)").ByAssociation().Positional("name").
 		Mode("normal").Bind("r", ochazuke.Do("pane.rename"))
 	a.r.Define("session").Verb("rename", a.renameSession, "Rename the session; omit name to type it").Positional("name").
 		Mode("normal").Bind("r", ochazuke.Do("session.rename"))

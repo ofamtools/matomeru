@@ -1,0 +1,38 @@
+{
+  "name": "mtm: live leader rename",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "enter",
+    "ctrl+a",
+    "r",
+    {
+      "type": "reviewer"
+    },
+    "enter",
+    {
+      "job": "pane.rename"
+    },
+    {
+      "job": "panes.refresh"
+    }
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "mode": "insert",
+      "contains": [
+        "Rename pane acme-web/claude"
+      ]
+    },
+    {
+      "mode": "terminal",
+      "focus": "panes/terminal",
+      "contains": [
+        "reviewer"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "mtm: live leader rename off",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "settings": [
+    {"name": "leader.fall-through", "type": "string", "default": "off"}
+  ],
+  "script": [
+    "enter",
+    "ctrl+a",
+    "r",
+    "ctrl+a",
+    "ctrl+a",
+    "r"
+  ],
+  "expect": [
+    {
+      "mode": "terminal",
+      "focus": "panes/terminal",
+      "lacks": [
+        "Rename pane"
+      ],
+      "contains": [
+        "claude"
+      ]
+    }
+  ]
+}

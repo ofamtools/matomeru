@@ -1,0 +1,42 @@
+{
+  "name": "mtm: live palette rename",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    "enter",
+    "ctrl+a",
+    ":",
+    {
+      "type": "pane rename"
+    },
+    "enter",
+    {
+      "type": "reviewer"
+    },
+    "enter",
+    {
+      "job": "pane.rename"
+    },
+    {
+      "job": "panes.refresh"
+    }
+  ],
+  "expect": [
+    {
+      "after": 5,
+      "mode": "insert",
+      "contains": [
+        "Rename pane acme-web/claude"
+      ]
+    },
+    {
+      "mode": "terminal",
+      "focus": "panes/terminal",
+      "contains": [
+        "reviewer"
+      ]
+    }
+  ]
+}

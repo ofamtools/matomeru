@@ -85,19 +85,20 @@ func tildePath(path, home string) string {
 // pane is one row: a window, the session it lives in and, when an agent
 // runs in it, the agent (list-agents: harness, state time, needs you).
 type pane struct {
-	Session       string
-	SessionID     string
-	OwnerUnsaved  bool
-	Harness       string            `json:"harness,omitempty"`
-	StateAt       int64             `json:"state_at,omitempty"`
-	NeedsYou      bool              `json:"needs_you,omitempty"`
-	Queued        int               `json:"queued,omitempty"`         // prompts waiting in the pane's delivery queue (list-agents); the row's W
-	AgentSession  string            `json:"agent_session,omitempty"`  // the agent's session id (list-agents), the Turns tab's log
-	Model         string            `json:"model,omitempty"`          // from the launch recipe, when mtm started it
-	LaunchHarness string            `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
-	LaunchFlags   []string          `json:"launch_flags,omitempty"`   // the recipe's argv after the command
-	Meta          map[string]string `json:"meta,omitempty"`           // the agent's metadata in tuios (model, context, cost…)
-	SideWindows   map[string]string `json:"sides,omitempty"`
+	Session        string
+	SessionID      string
+	OwnerUnsaved   bool
+	AssociatedPane string            `json:"pane,omitempty"` // side terminals act on their parent row
+	Harness        string            `json:"harness,omitempty"`
+	StateAt        int64             `json:"state_at,omitempty"`
+	NeedsYou       bool              `json:"needs_you,omitempty"`
+	Queued         int               `json:"queued,omitempty"`         // prompts waiting in the pane's delivery queue (list-agents); the row's W
+	AgentSession   string            `json:"agent_session,omitempty"`  // the agent's session id (list-agents), the Turns tab's log
+	Model          string            `json:"model,omitempty"`          // from the launch recipe, when mtm started it
+	LaunchHarness  string            `json:"launch_harness,omitempty"` // the recipe's harness, for the detail header
+	LaunchFlags    []string          `json:"launch_flags,omitempty"`   // the recipe's argv after the command
+	Meta           map[string]string `json:"meta,omitempty"`           // the agent's metadata in tuios (model, context, cost…)
+	SideWindows    map[string]string `json:"sides,omitempty"`
 	// Legacy read-only projections for existing pane consumers. New side
 	// behaviour uses SideWindows and App.sides; no kind enum is stored here.
 	SideVim, SideTerm string
@@ -276,12 +277,16 @@ type paneEventsDue struct{}
 // noun (refresh).
 func (a *App) definePanes() {
 	r := a.r
+	r.Define("ochazuke.terminal").Props(ochazuke.PropSpec{
+		Name: "pane", ReadOnly: true, Association: true,
+		Parameter: ochazuke.Parameter{Type: "string", Noun: "pane", Description: "The pane this terminal shows"},
+	})
 	a.pv = &paneUI{tab: tabTurns, text: map[string]string{}, lastState: map[string]string{}, after: func(d time.Duration, msg tea.Msg) tea.Cmd {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 	}}
 	r.Define("pane").
 		Columns(paneColumns...).
-		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches back to the tab it left, ctrl+a z zooms").
+		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches back to the tab it left, ctrl+a z zooms").FocusBound().
 		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Fetch().Quiet().
 		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
 		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
@@ -321,7 +326,7 @@ func (a *App) definePanes() {
 	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
 	r.Define("panes").
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
-		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").
+		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").FocusBound().
 		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").
 		Verb("read-activities", a.readActivities, "Read every agent pane's running subagents for the rows under its pane (panes.subagents)").Fetch().Quiet().
 		Verb("focus-section", a.focusSection, "Move the focus to one of the page's lists: queue (Needs you), panes or working")
@@ -818,6 +823,7 @@ func (a *App) attachLive(p pane, returnTo string) error {
 		stream.Release() // never added, so no Terminal.Close releases it
 		return err
 	}
+	a.r.Instances[paneTermID].Data = map[string]any{"pane": p.rowID()}
 	a.attached = p
 	a.pv.zoom = false
 	a.pv.tab = tabScreen

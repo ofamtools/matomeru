@@ -134,6 +134,8 @@ type storyPane struct {
 	Window  string `json:"window"`
 	Name    string `json:"name"`
 	Screen  string `json:"screen"`
+	Parent  string `json:"parent,omitempty"`
+	Side    string `json:"side,omitempty"`
 }
 
 func seedOf(env monogatari.Env) (storySeed, error) {
@@ -346,6 +348,11 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	for _, p := range panes {
 		fakes = append(fakes, pane{Session: p.Session, Pane: daemon.Pane{ID: p.Window, Name: p.Name}})
 		screens[p.Window] = p.Screen
+		if p.Parent != "" {
+			if err := a.work.PutCompanion(work.Companion{Window: p.Window, Parent: p.Parent, Kind: p.Side}); err != nil {
+				return err
+			}
+		}
 	}
 	sp := newStoryPanes(fakes, screens)
 	a.panesd, a.renamer, a.launcher = sp, sp, storyLauncher{}

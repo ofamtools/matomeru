@@ -263,7 +263,7 @@ func (a *App) addPromptBox() error {
 	})
 	for _, noun := range []string{"pane", "turn", "turn-line", "turn-step", "turn-separator"} {
 		a.r.Define(noun).
-			Verb("prompt", a.focusPrompt, "Write to the pane: focus the prompt box below its turns or its screen, in insert mode").When("pane-prompt").
+			Verb("prompt", a.focusPrompt, "Write to the pane: focus the prompt box below its turns or its screen, in insert mode").FocusBound().When("pane-prompt").
 			Mode("normal").
 			Bind("i", ochazuke.Do(noun+".prompt").Hinted("prompt"))
 	}

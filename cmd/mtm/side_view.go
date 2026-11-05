@@ -122,7 +122,9 @@ func (a *App) syncSideView() error {
 	}
 	if inst := a.r.Instances[sideTermID]; inst != nil {
 		if current, ok := inst.Data.(pane); ok && current.ID == id {
-			inst.Data = a.companionPanes[id]
+			side := a.companionPanes[id]
+			side.AssociatedPane = p.rowID()
+			inst.Data = side
 			return nil
 		}
 	}
@@ -131,6 +133,7 @@ func (a *App) syncSideView() error {
 		return err
 	}
 	side := a.companionPanes[id]
+	side.AssociatedPane = p.rowID()
 	stream := a.openStream(side)
 	// The stream dials on its first read, which can come before the first
 	// frame draws the side: give it the side's region now, so it opens

@@ -1,0 +1,57 @@
+{
+  "name": "mtm: side leader rename",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "seed": {
+    "panes": [
+      {
+        "session": "acme-web",
+        "window": "w1",
+        "name": "claude"
+      },
+      {
+        "session": "acme-web",
+        "window": "s1",
+        "name": "scratch",
+        "parent": "w1",
+        "side": "term"
+      }
+    ]
+  },
+  "script": [
+    "enter",
+    "ctrl+a",
+    "t",
+    {"job": "pane.side"},
+    "ctrl+a",
+    "r",
+    {
+      "type": "reviewer"
+    },
+    "enter",
+    {
+      "job": "pane.rename"
+    },
+    {
+      "job": "panes.refresh"
+    }
+  ],
+  "expect": [
+    {
+      "after": 6,
+      "mode": "insert",
+      "contains": [
+        "Rename pane acme-web/claude"
+      ]
+    },
+    {
+      "mode": "terminal",
+      "focus": "pane-side-terminal",
+      "contains": [
+        "reviewer"
+      ]
+    }
+  ]
+}

@@ -23,6 +23,18 @@ still run. These caches follow ochazuke's `render.max-fps` setting, default
 subagent/card work while their detail is covered or their page is hidden;
 false restores background refreshes.
 
+Unreleased: `ctrl+a r` and `:pane rename` over a live terminal rename
+the pane it shows; from a side terminal they rename its parent. The form
+names the pane and returns to the same live terminal. This uses the terminal's
+declared `pane` association, not the list's selection. `subject.from-association`
+(default on) disables that lookup when off. Unbound single-key leader commands
+now use the outside row; `leader.fall-through` defaults to `no-motions`, excluding
+motions and focus-bound commands (reattach, detail tabs and the hidden prompt box).
+`off` restores forwarding. Use `ctrl+a ctrl+a r` to send `ctrl+a r` to a nested
+program. Existing explicit leader rows are unchanged. Compared with Vim:
+the doubled terminal leader matches `t_CTRL-W_.`; outside-command fall-through
+is similar to Neovim's `t_CTRL-\\_CTRL-O`, but excludes component motions.
+
 Unreleased: a project's directory pick (`c` on a project, attach, move;
 `directory-chooser` `path`, the default) opens on ochazuke's `walk` source:
 every folder below the project's directories, configured project bases and
