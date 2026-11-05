@@ -396,14 +396,10 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 			if _, err := a.toScreen(row); err != nil {
 				return ochazuke.Failed(err)
 			}
-			if err := a.r.SetFocus(row); err != nil {
+			if err := a.beginPrompt(*p); err != nil {
 				return ochazuke.Failed(err)
 			}
-			return a.capturePreview(*p, func(ctx ochazuke.Ctx) {
-				if err := a.beginPrompt(*p); err != nil {
-					ctx.Error(err.Error())
-				}
-			})
+			return a.capturePreview(*p, nil)
 		}
 		a.pv.tab, a.pv.followed = tabTurns, fmt.Sprintf("%s|%d", row, tabTurns)
 	}
