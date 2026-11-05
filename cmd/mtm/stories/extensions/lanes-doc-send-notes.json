@@ -1,0 +1,25 @@
+{
+  "name": "mtm: lanes-doc-send-notes",
+  "area": "extensions",
+  "fixture": "lanes-doc-notes",
+  "width": 140,
+  "height": 36,
+  "script": [
+    ":",
+    {"type": "page open ext/lane"},
+    "enter",
+    {"job": "catalog-load", "note": "Load the lane row and all five chooser sources from the captured catalog"},
+    {"job": "catalog-load"},
+    {"job": "catalog-load"},
+    {"job": "catalog-load"},
+    {"job": "catalog-load"},
+    {"job": "catalog-load"},
+    "g",
+    "s",
+    {"job": "md.doc.send-notes"}
+  ],
+  "expect": [
+    {"contains": ["Implementation", "doc send-notes --target /docs/review.md", "--json {\\\"pane\\\":\\\"w1\\\"}"],
+     "lacks": ["name a doc", "no such verb"]}
+  ]
+}

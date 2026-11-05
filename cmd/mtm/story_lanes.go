@@ -3,6 +3,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -55,5 +56,44 @@ esac
 		return built, err
 	}
 	a.mountExtension("lane", entry)
+	return built, nil
+}
+
+// Captured from o-lane with ochazuke v0.88.0; only whitespace is compacted.
+// Keeping its real page source and host-only row catches contract drift.
+//
+//go:embed testdata/o-lane-catalog.json
+var laneDocCatalog []byte
+
+func buildLaneDocNotes(env monogatari.Env) (built monogatari.Built, err error) {
+	built, err = buildSeeded(env)
+	if err != nil {
+		return built, err
+	}
+	defer func() {
+		if err != nil {
+			built.Close()
+		}
+	}()
+	a := built.Program.(*App)
+	mdCatalog := `{"schema":1,"name":"o-md","nouns":[{"name":"doc","verbs":[{"name":"send-notes","kind":"application","params":{"pane":{"type":"string"}}}]}]}`
+	for _, fixture := range []struct{ name, catalog, body string }{
+		{"lane", string(laneDocCatalog), `"lane page-rows") echo '{"noun":"lane","id":"lane-1","label":"Implementation","cells":["Implementation","running"],"data":{"doc":"/docs/review.md","pane":"w1"}}' ;;`},
+		{"md", mdCatalog, `"doc send-notes") printf '%s\n' "$*" ;;`},
+	} {
+		var doc ocli.CatalogDoc
+		if err = json.Unmarshal([]byte(fixture.catalog), &doc); err != nil {
+			return built, err
+		}
+		bin := filepath.Join(a.dataDir(), "o-"+fixture.name)
+		script := "#!/bin/sh\ncase \"$1 $2\" in\n\"catalog \") cat <<'CATALOG'\n" + fixture.catalog + "\nCATALOG\n;;\n" + fixture.body + "\n*) echo '[]' ;;\nesac\n"
+		if err = os.WriteFile(bin, []byte(script), 0o755); err != nil {
+			return built, err
+		}
+		if err = a.extRegistry().write(fixture.name, extEntry{Bin: bin, Catalog: doc}); err != nil {
+			return built, err
+		}
+	}
+	a.syncExtensions()
 	return built, nil
 }
