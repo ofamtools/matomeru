@@ -470,7 +470,7 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	s.frames <- ochazuke.TerminalFrame{Lines: []string{"live screen"}, Hidden: true}
 	runOnce(app, cmd)
 	fr := frame(app)
-	if !strings.Contains(fr, "╭━ matomeru/claude ━") || !strings.Contains(fr, "┃ shell") || !strings.Contains(fr, "┃ live screen") || !strings.Contains(fr, "live · ctrl+a ? keys") {
+	if !strings.Contains(fr, "━ matomeru/claude ━") || !strings.Contains(fr, "┃ shell") || !strings.Contains(fr, "┃ live screen") || !strings.Contains(fr, "live · ctrl+a ? keys") {
 		t.Fatalf("frame while attached:\n%s", fr)
 	}
 	// The lease is the detail panel's inner cells less the header and tab
@@ -507,7 +507,7 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	if app.r.Focus != "pane:matomeru/w1" || app.r.Mode.Name != "normal" {
 		t.Fatalf("after detach: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
 	}
-	if fr := frame(app); strings.Contains(fr, "╭━ matomeru/claude") {
+	if fr := frame(app); strings.Contains(fr, "━ matomeru/claude ") {
 		t.Fatalf("frame after detach:\n%s", fr)
 	}
 }

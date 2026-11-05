@@ -1,7 +1,7 @@
   ◆ Matomeru · no pin                                                                                    NORMAL         
    › Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  Schedules  Runs  Extensions                   
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
-  panes (2)                          ╭━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  
+  panes (2)                          ┏━ matomeru/claude ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓  
   ╭─ Needs you (0) ────────────────╮ ┃ claude-code · idle                                                            ┃  
   │ Nothing needs you              │ ┃ [Turns] Screen Activity Transcript · [ ] tabs                                 ┃  
   │                                │ ┃ ▾ prompt 1 · 1 answer · Sep 21 14:13                                          ┃  
@@ -28,7 +28,7 @@
   │                                │ ┃                                                                               ┃  
   │                                │ ┃ ── [send] claude-code ─ enter sends · ctrl+t mode ─────────────────────────── ┃  
   │                                │ ┃ › write to the agent                                                          ┃  
-  ╰────────────────────────────────╯ ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  
+  ╰────────────────────────────────╯ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
   enter turn.close · esc turn.back · y turn.copy · Y turn.copy-all · i prompt · space list.mark · ] next tab · [ prev…  
                                                                                                                         

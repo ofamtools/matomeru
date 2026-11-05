@@ -13,7 +13,7 @@ func TestDetailPanelFocusedWithTheBox(t *testing.T) {
 	fr := frame(app)
 	for _, l := range strings.Split(fr, "\n") {
 		if strings.Contains(l, "─ matomeru/claude ") || strings.Contains(l, "━ matomeru/claude ") {
-			if !strings.Contains(l, "╭━ matomeru/claude") {
+			if !strings.Contains(l, "━ matomeru/claude ━") {
 				t.Fatalf("the detail panel looks unfocused:\n%s", fr)
 			}
 			return

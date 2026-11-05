@@ -49,6 +49,8 @@ record editors, moves, association commands and launches. Unknown references in
 record writes still save unassociated and say so.
 If a pane closes while it is being renamed, a failed write names the pane and
 says its name was not saved.
+ochazuke v0.89.0 supplies focused chrome, reference-field validation and labels,
+missing-target refusal, and modal return focus when a pane closes.
 
 Extension catalogs may declare host-only `peerBindings`: ordinary binding rows
 using stable tool namespaces, including `from: {"target":"row:doc"}` for a
