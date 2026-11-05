@@ -14,7 +14,13 @@ import (
 // tab drawn again takes } back into the turns.
 func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 	t.Parallel()
-	for _, start := range []string{"turns", "box"} {
+	// The box stays drawn on the Screen tab (72f45c5), so it keeps the
+	// focus there; its own tab-off (esc, then ]) reaches a tab that hides it.
+	for _, c := range []struct{ start, focus, mode string }{
+		{"turns", "", "normal"},
+		{"box", promptID, "insert"},
+	} {
+		start := c.start
 		t.Run(start, func(t *testing.T) {
 			app, _, _ := claudeTurnsApp(t)
 			row := app.pv.turnsFor
@@ -41,8 +47,20 @@ func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 				t.Fatalf("panes.tab moved the focus itself to %s; the library's frame should", where(app))
 			}
 			frame(app)
-			if app.r.Focus != row || app.r.Mode.Name != "normal" {
-				t.Fatalf("after the frame: %s mode %s, want the row %s in normal", where(app), app.r.Mode.Name, row)
+			wantFocus := c.focus
+			if wantFocus == "" {
+				wantFocus = row
+			}
+			if app.r.Focus != wantFocus || app.r.Mode.Name != c.mode {
+				t.Fatalf("after the frame: %s mode %s, want %s in %s", where(app), app.r.Mode.Name, wantFocus, c.mode)
+			}
+			if c.mode == "insert" {
+				press(t, app, "esc")
+				press(t, app, "]")
+				frame(app)
+				if app.r.Focus != row || app.r.Mode.Name != "normal" {
+					t.Fatalf("after the box hides: %s mode %s, want the row %s in normal", where(app), app.r.Mode.Name, row)
+				}
 			}
 			for app.pv.tab != tabTurns {
 				press(t, app, "]")
