@@ -462,3 +462,66 @@ func TestFocusLeavesAnEmptyListAfterTheFilterOrConfirmCloses(t *testing.T) {
 		focusLeavesEmptyList(t, app)
 	})
 }
+
+// A pane whose own turn is done but whose subagents run says so: its row
+// reads "waiting on N agent(s)" in the working glyph and tone, never
+// "done", and the Working title counts the panes and the agents beside
+// them (panes.section-agent-count off counts the panes alone).
+func TestPaneWorkingThroughSubagentsSaysWaitingOnThem(t *testing.T) {
+	t.Parallel()
+	app := subagentsPaneApp(t)
+	row := sectionItems(app)[0]
+	for _, it := range sectionItems(app) {
+		if it.ID == "pane:matomeru/w1" {
+			row = it
+		}
+	}
+	if row.ID != "pane:matomeru/w1" || !strings.Contains(row.Cells[1], "waiting on 1 agent") || strings.Contains(row.Cells[1], "done") ||
+		!strings.Contains(row.Cells[0], "◐") {
+		t.Fatalf("row %v", row.Cells)
+	}
+	if got := app.titleCount(app.pv.sections[2]); got != "1 · 1 agent" {
+		t.Fatalf("title count %q", got)
+	}
+	setting(t, app, settingSectionAgentCount, false)
+	if got := app.titleCount(app.pv.sections[2]); got != "1" {
+		t.Fatalf("setting off: title count %q", got)
+	}
+}
+
+// A running subagent with no sign of life for panes.subagents-stale was
+// killed without its end recorded: its row drops, and the pane with it
+// leaves Working. 0 keeps every running row.
+func TestStaleSubagentRowIsAGhost(t *testing.T) {
+	t.Parallel()
+	app := subagentsPaneApp(t)
+	if len(activityRows(app)) != 1 {
+		t.Fatalf("rows %v", activityRows(app))
+	}
+	setting(t, app, settingSubagentsStale, "1m")
+	reload(t, app)
+	if rows := activityRows(app); len(rows) != 0 || inWorking(app) {
+		t.Fatalf("stale: rows %v, working %v", rows, inWorking(app))
+	}
+	setting(t, app, settingSubagentsStale, "0s")
+	reload(t, app)
+	if len(activityRows(app)) != 1 || !inWorking(app) {
+		t.Fatal("stale off: the running row is not back")
+	}
+}
+
+// The type shows once: left out when the description says a word of it.
+func TestTypeOnce(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ title, kind, want string }{
+		{"Lane och-name-guard", "ofam-lane", ""},
+		{"Re-walk UX findings", "ux-reviewer", ""},
+		{"Check the diff", "ux-reviewer", "ux-reviewer"},
+		{"Explore the repo", "Explore", ""},
+		{"Audit", "", ""},
+	} {
+		if got := typeOnce(c.title, c.kind); got != c.want {
+			t.Errorf("typeOnce(%q, %q) = %q, want %q", c.title, c.kind, got, c.want)
+		}
+	}
+}

@@ -387,7 +387,7 @@ func (a *App) panelsBlock(width, height int) ochazuke.Block {
 func (a *App) panelBlock(layout ochazuke.Layout, st ochazuke.Styles, sec *paneSection, width, height int) ochazuke.Block {
 	text := panelTexts[sec.name]
 	cw, ch := ochazuke.PanelContentSize(width, height)
-	title := fmt.Sprintf("%s (%d)", cmp.Or(text.title, sec.title), sec.rows)
+	title := fmt.Sprintf("%s (%s)", cmp.Or(text.title, sec.title), a.titleCount(sec))
 	var body ochazuke.Block
 	if len(sec.nodes) == 0 {
 		body = ochazuke.Text(st.Muted.Render(text.empty))

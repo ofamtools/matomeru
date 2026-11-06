@@ -46,6 +46,9 @@ const (
 	settingPanesSubagents       = "panes.subagents"
 	settingPanesSubagentsLinger = "panes.subagents-linger"
 	settingSubagentsWorking     = "panes.subagents-working"
+	settingSubagentsStale       = "panes.subagents-stale"
+	settingSubagentsTypeOnce    = "panes.subagents-type-once"
+	settingSectionAgentCount    = "panes.section-agent-count"
 	subagentsActive             = "active"
 	subagentsOff                = "off"
 	activityNoun                = "pane-child"
@@ -60,6 +63,12 @@ func paneActivitySettings() []ochazuke.Setting {
 			Description: "How long a subagent that ended badly (failed, killed, stopped) stays under its pane; a finished one drops at once"},
 		{Name: settingSubagentsWorking, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "An agent pane whose subagent rows are running or waiting on their own work counts as working (the Working list) unless its own state or items put it elsewhere (waiting, errored, unread win); off leaves it where its own state puts it"},
+		{Name: settingSubagentsStale, Type: ochazuke.SettingDuration, Default: "30m",
+			Description: "A running subagent row with no sign of life (a notification, a write to its transcript) for this long is a ghost (killed or stopped without ending) and drops; 0 keeps every running row"},
+		{Name: settingSubagentsTypeOnce, Type: ochazuke.SettingBoolean, Default: true,
+			Description: "A subagent row leaves out its type when its description already says it (a word in common), so it reads once; off always shows description and type"},
+		{Name: settingSectionAgentCount, Type: ochazuke.SettingBoolean, Default: true,
+			Description: "A list's title counts its subagent rows beside its panes (Working (1 · 4 agents)); off counts the panes alone"},
 	}
 }
 
@@ -240,10 +249,14 @@ func (a *App) shownActivities(p pane, now time.Time) []turns.Activity {
 		return nil
 	}
 	linger := a.r.Settings().Duration(settingPanesSubagentsLinger)
+	stale := a.r.Settings().Duration(settingSubagentsStale)
 	var out []turns.Activity
 	for _, act := range pa.list {
 		switch {
 		case act.Running():
+			if stale > 0 && !act.SeenAt.IsZero() && now.Sub(act.SeenAt) >= stale {
+				continue // a ghost: killed or stopped, its end never recorded
+			}
 			if !act.Background && !p.working() && !p.needsInput() {
 				continue
 			}
@@ -259,21 +272,49 @@ func (a *App) shownActivities(p pane, now time.Time) []turns.Activity {
 	return out
 }
 
-// childWorking reports whether one of the pane's shown activity rows is
-// in the working class (running, or waiting on its own work: the tone its
-// status word takes), so the pane is working while it has them. A row
-// that is done, waiting on the owner or failed does not count. Driven by
-// the rows' status data alone: any harness whose subagents are read.
-func (a *App) childWorking(p pane, now time.Time) bool {
+// childAgents counts the pane's shown activity rows in the working
+// class (running, or waiting on its own work: the tone its status word
+// takes) and gives when the oldest started, so the pane is working while
+// it has any. A row that is done, waiting on the owner or failed does not
+// count. Driven by the rows' status data alone: any harness whose
+// subagents are read. 0 when panes.subagents-working is off.
+func (a *App) childAgents(p pane, now time.Time) (int, time.Time) {
 	if !a.r.Settings().Bool(settingSubagentsWorking) {
-		return false
+		return 0, time.Time{}
 	}
+	n, since := 0, time.Time{}
 	for _, act := range a.shownActivities(p, now) {
-		if turnStatuses[activityKind(act)].Tone == ochazuke.ToneWorking {
-			return true
+		if turnStatuses[activityKind(act)].Tone != ochazuke.ToneWorking {
+			continue
+		}
+		n++
+		if since.IsZero() || !act.StartedAt.IsZero() && act.StartedAt.Before(since) {
+			since = act.StartedAt
 		}
 	}
-	return false
+	return n, since
+}
+
+// childWorking reports whether the pane has a working-class child row.
+func (a *App) childWorking(p pane, now time.Time) bool {
+	n, _ := a.childAgents(p, now)
+	return n > 0
+}
+
+// typeOnce is the type to show beside a description: "" when the
+// description already says it (any word of the type, case aside, is a
+// word of the description), so a row reads "Lane x", not "Lane x · ofam-lane".
+func typeOnce(title, kind string) string {
+	words := func(s string) []string {
+		return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool { return r == '-' || r == '_' || r == ' ' || r == '/' || r == ':' || r == '.' })
+	}
+	have := words(title)
+	for _, w := range words(kind) {
+		if slices.Contains(have, w) {
+			return ""
+		}
+	}
+	return kind
 }
 
 // activityKind is the activity's status kind (statusWords): its word's,
@@ -295,7 +336,11 @@ func (a *App) activityNodes(p pane, parent string, now time.Time) []ochazuke.Tre
 		st := turnStatuses[kind]
 		glyph := cmp.Or(st.Glyph, "·")
 		title := cmp.Or(oneLine(act.Title), "subagent")
-		name := glyph + " " + joinNonEmpty(title, act.Kind)
+		kindWord := act.Kind
+		if a.r.Settings().Bool(settingSubagentsTypeOnce) {
+			kindWord = typeOnce(title, kindWord)
+		}
+		name := glyph + " " + joinNonEmpty(title, kindWord)
 		since := act.StartedAt
 		if !act.Running() {
 			since = act.EndedAt

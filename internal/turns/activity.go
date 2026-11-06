@@ -33,6 +33,11 @@ type Activity struct {
 	Background bool
 	StartedAt  time.Time
 	EndedAt    time.Time // zero while it runs
+	// SeenAt is the last sign of life: its start, its last notification
+	// (resumed, waiting on its own work) or its transcript's last write.
+	// An agent killed or stopped never notifies, so a row still running
+	// long after this is stale (panes.subagents-stale).
+	SeenAt time.Time
 }
 
 // Running reports whether the activity has not ended.
@@ -87,7 +92,18 @@ func (l *ActivityLog) Activities() []Activity {
 			status = activityStatus(ag.State)
 		}
 		out = append(out, Activity{ID: id, AgentID: ag.ID, Title: ag.Description, Kind: ag.Type, State: ag.State, Status: status,
-			Summary: ag.Summary, Background: ag.Background, StartedAt: c.at, EndedAt: ag.EndedAt})
+			Summary: ag.Summary, Background: ag.Background, StartedAt: c.at, EndedAt: ag.EndedAt, SeenAt: latest(c.at, c.noteAt, l.metas[id].Active)})
+	}
+	return out
+}
+
+// latest is the latest of the times.
+func latest(ts ...time.Time) time.Time {
+	var out time.Time
+	for _, t := range ts {
+		if t.After(out) {
+			out = t
+		}
 	}
 	return out
 }
@@ -120,7 +136,8 @@ type activityParser struct {
 type activityCall struct {
 	agent  *Agent
 	at     time.Time
-	status string // the notification's status word, "" before one
+	status string    // the notification's status word, "" before one
+	noteAt time.Time // the last notification
 }
 
 var (
@@ -233,6 +250,7 @@ func (p *activityParser) notifications(text string, at time.Time) {
 		if c == nil {
 			continue
 		}
+		c.noteAt = at
 		switch {
 		case strings.Contains(n.Summary, "waiting on its own background work"), n.Status == "" && strings.Contains(n.Summary, "was resumed"):
 			// Not an end: it waits on its own agents, or it runs again.

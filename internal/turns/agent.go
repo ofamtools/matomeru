@@ -378,6 +378,10 @@ type AgentMeta struct {
 	Finished    bool   `json:"finished"`
 	Stopped     bool   `json:"stoppedByUser"`
 	Transcript  string `json:"-"` // agent-<id>.jsonl, "" when the directory lacks it
+	// Active is the transcript's last write: a live agent keeps writing
+	// it, so a running agent whose parent's log and transcript both went
+	// quiet was cut off without its end being recorded.
+	Active time.Time `json:"-"`
 }
 
 // apply fills what the parent's log left out from the agent's meta.
@@ -468,10 +472,14 @@ func (d *metaDir) read(dir string) AgentMetas {
 	if d.files == nil {
 		d.files = map[string]metaFile{}
 	}
-	logs := map[string]bool{}
+	logs := map[string]time.Time{}
 	for _, e := range entries {
 		if name := e.Name(); strings.HasSuffix(name, ".jsonl") {
-			logs[strings.TrimSuffix(name, ".jsonl")] = true
+			var mod time.Time
+			if info, err := e.Info(); err == nil {
+				mod = info.ModTime()
+			}
+			logs[strings.TrimSuffix(name, ".jsonl")] = mod
 		}
 	}
 	out := AgentMetas{}
@@ -498,8 +506,8 @@ func (d *metaDir) read(dir string) AgentMetas {
 		base := strings.TrimSuffix(name, ".meta.json")
 		m := f.meta
 		m.ID = strings.TrimPrefix(base, "agent-")
-		if logs[base] {
-			m.Transcript = filepath.Join(dir, base+".jsonl")
+		if mod, ok := logs[base]; ok {
+			m.Transcript, m.Active = filepath.Join(dir, base+".jsonl"), mod
 		}
 		out[m.ToolUseID] = m
 	}

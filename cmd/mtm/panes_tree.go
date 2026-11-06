@@ -56,6 +56,14 @@ func (p pane) needsInput() bool {
 // which the header's W next jumps to).
 const queuedMarker = "W"
 
+// viaChildren reports whether the pane is working only through its
+// children: its own turn is not working (done, idle) and not waiting on
+// or failed, but subagent rows in the working class run. Its row then says
+// so, as the Working list that holds it does, not "done".
+func (p pane) viaChildren() bool {
+	return p.ChildAgents > 0 && p.isAgent() && !p.Exited && !p.needsInput() && !p.errored() && !p.working()
+}
+
 // stateGlyph is the agent's state as one cell; a shell has none.
 func stateGlyph(p pane) string {
 	if p.Exited {
@@ -69,6 +77,8 @@ func stateGlyph(p pane) string {
 		return "?"
 	case p.working():
 		return "●"
+	case p.viaChildren():
+		return turnStatuses[statusWaiting].Glyph
 	case p.AgentState == "done":
 		return "✓"
 	case p.errored():
@@ -111,7 +121,7 @@ func stateTone(p pane) string {
 		return ""
 	case p.needsInput():
 		return ochazuke.ToneNeedsInput
-	case p.working():
+	case p.working(), p.viaChildren():
 		return ochazuke.ToneWorking
 	case p.AgentState == "done":
 		return ochazuke.ToneDone
@@ -188,8 +198,12 @@ func (p pane) stateCell(now time.Time) string {
 		return p.kind()
 	}
 	cell := p.stateWord()
-	if p.StateAt > 0 {
-		cell += " " + age(now.Sub(time.UnixMilli(p.StateAt)))
+	since := p.StateAt
+	if p.viaChildren() && p.ChildSince > 0 {
+		since = p.ChildSince
+	}
+	if since > 0 {
+		cell += " " + age(now.Sub(time.UnixMilli(since)))
 	}
 	return cell
 }
@@ -206,6 +220,9 @@ func (p pane) stateWord() string {
 	}
 	if p.needsInput() {
 		state = "needs input"
+	}
+	if p.viaChildren() {
+		state = fmt.Sprintf("waiting on %d agent%s", p.ChildAgents, map[bool]string{true: "", false: "s"}[p.ChildAgents == 1])
 	}
 	return strings.ReplaceAll(state, "_", " ")
 }

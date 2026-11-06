@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // An activity log follows a session's subagents alone: a background
@@ -144,5 +145,22 @@ func TestActivityWaitingOnItsOwnWorkOutlivesAFinishedMeta(t *testing.T) {
 	}
 	if acts := log.Activities(); acts[0].Running() || acts[0].Status != "completed" {
 		t.Fatalf("after its report: %+v", acts[0])
+	}
+}
+
+// SeenAt is the latest sign of life: the start, a notification, or the
+// transcript's last write (the activity's meta).
+func TestActivitySeenAt(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	note := start.Add(time.Hour)
+	l := &ActivityLog{p: activityParser{calls: map[string]*activityCall{"c1": {agent: &Agent{State: AgentRunning}, at: start, noteAt: note}}, order: []string{"c1"}},
+		metas: AgentMetas{"c1": {Active: note.Add(time.Minute)}}}
+	if got := l.Activities()[0].SeenAt; !got.Equal(note.Add(time.Minute)) {
+		t.Fatalf("with a transcript write: %v", got)
+	}
+	l.metas = nil
+	if got := l.Activities()[0].SeenAt; !got.Equal(note) {
+		t.Fatalf("notification: %v", got)
 	}
 }

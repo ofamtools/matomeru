@@ -264,6 +264,16 @@ type paneSection struct {
 	tree  *ochazuke.Tree
 	nodes []ochazuke.TreeNode
 	rows  int // the rows it holds (pane and item rows; group rows not counted)
+	kids  int // the subagent rows under them
+}
+
+// titleCount is the section's count for its title: "4", or "1 · 4 agents"
+// while it holds subagent rows (panes.section-agent-count).
+func (a *App) titleCount(sec *paneSection) string {
+	if sec.kids == 0 || !a.r.Settings().Bool(settingSectionAgentCount) {
+		return fmt.Sprint(sec.rows)
+	}
+	return fmt.Sprintf("%d · %d agent%s", sec.rows, sec.kids, map[bool]string{true: "", false: "s"}[sec.kids == 1])
 }
 
 func (s *paneSection) listID() string { return s.tree.ID() + "/list" }
@@ -476,6 +486,15 @@ func (a *App) releaseHold() error {
 // three sections and builds each one's nodes; the view it answers holds
 // the counts and the drawing order of every pane row.
 func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
+	panes = slices.Clone(panes)
+	for i := range panes {
+		if n, since := a.childAgents(panes[i], now); n > 0 && panes[i].ID != "" {
+			panes[i].ChildAgents = n
+			if !since.IsZero() {
+				panes[i].ChildSince = since.UnixMilli()
+			}
+		}
+	}
 	sectionOf := a.sectionFor()
 	ranks := a.queueRanks()
 	nowMs := now.UnixMilli()
@@ -643,9 +662,12 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		}
 		return nil
 	}
+	ss[0].kids, ss[2].kids = 0, 0
 	for _, r := range queue {
 		ss[0].nodes = append(ss[0].nodes, r.node)
-		ss[0].nodes = append(ss[0].nodes, children(r)...)
+		kids := children(r)
+		ss[0].kids += len(kids)
+		ss[0].nodes = append(ss[0].nodes, kids...)
 		if r.pane {
 			order = append(order, r.node.ID)
 		}
@@ -653,7 +675,9 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	order = append(order, view.order...)
 	for _, r := range bottom {
 		ss[2].nodes = append(ss[2].nodes, r.node)
-		ss[2].nodes = append(ss[2].nodes, children(r)...)
+		kids := children(r)
+		ss[2].kids += len(kids)
+		ss[2].nodes = append(ss[2].nodes, kids...)
 		order = append(order, r.node.ID)
 		view.usage = view.usage || r.node.Cells[2] != ""
 	}
@@ -789,7 +813,7 @@ func (a *App) sectionsBlock(width, height int) ochazuke.Block {
 		if h <= 0 {
 			continue
 		}
-		title := fmt.Sprintf("%s (%d)", sec.title, sec.rows)
+		title := fmt.Sprintf("%s (%s)", sec.title, a.titleCount(sec))
 		if shown := h - 1; need[i] > h && shown > 0 {
 			title += fmt.Sprintf(" · +%d more", need[i]-h)
 		}

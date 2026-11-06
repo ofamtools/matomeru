@@ -37,6 +37,7 @@ import (
 	"ofam.dev/matomeru/internal/contextitems"
 	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/history"
+	"ofam.dev/matomeru/internal/turns"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
 )
@@ -145,6 +146,12 @@ type storyPane struct {
 	Side       string `json:"side,omitempty"`
 	Harness    string `json:"harness,omitempty"`
 	AgentState string `json:"agentState,omitempty"`
+	// AgentSession, Cwd and Log give an agent pane a Claude session log
+	// (Log: one JSON record per line, times on storyStart's clock), so its
+	// subagent rows have something to read.
+	AgentSession string            `json:"agentSession,omitempty"`
+	Cwd          string            `json:"cwd,omitempty"`
+	Log          []json.RawMessage `json:"log,omitempty"`
 }
 
 func seedOf(env monogatari.Env) (storySeed, error) {
@@ -359,6 +366,7 @@ func buildStory(env monogatari.Env, fill func(path string, now int64) error, pan
 	// explorer start on the panes; a later refresh is a job event.
 	listed, err := sideListing(context.Background(), a.panesd, a.work, a.server())
 	a.setPanes(listed, err)
+	storySettle(a, a.r.PendingCommands(), 4)
 	a.m.Width, a.m.Height = env.Width, env.Height
 	a.View()
 	return monogatari.Built{
@@ -383,7 +391,20 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	var fakes []pane
 	screens := map[string]string{}
 	for _, p := range panes {
-		fakes = append(fakes, pane{Session: p.Session, Harness: p.Harness, Pane: daemon.Pane{ID: p.Window, Name: p.Name, AgentState: p.AgentState}})
+		fakes = append(fakes, pane{Session: p.Session, Harness: p.Harness, AgentSession: p.AgentSession, Pane: daemon.Pane{ID: p.Window, Name: p.Name, AgentState: p.AgentState, Cwd: p.Cwd}})
+		if p.AgentSession != "" && len(p.Log) > 0 {
+			logDir := filepath.Join(dir, "claude", turns.ClaudeProjectDir(p.Cwd))
+			if err := os.MkdirAll(logDir, 0o755); err != nil {
+				return err
+			}
+			var lines []string
+			for _, l := range p.Log {
+				lines = append(lines, string(l))
+			}
+			if err := os.WriteFile(filepath.Join(logDir, p.AgentSession+".jsonl"), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+				return err
+			}
+		}
 		screens[p.Window] = p.Screen
 		if p.Parent != "" {
 			if err := a.work.PutCompanion(work.Companion{Window: p.Window, Parent: p.Parent, Kind: p.Side}); err != nil {
@@ -586,4 +607,33 @@ func writeNested(path string, now int64) error {
 		}
 	}
 	return nil
+}
+
+// storySettle delivers the messages of the jobs the first listing started
+// (the subagent reads of an agent pane with a log) to a, depth steps deep:
+// a story has no event loop before its first key. A command that does not
+// answer at once (a timer) is left.
+func storySettle(a *App, cmd tea.Cmd, depth int) {
+	if cmd == nil || depth == 0 {
+		return
+	}
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	var msg tea.Msg
+	select {
+	case msg = <-done:
+	case <-time.After(2 * time.Second):
+		return
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			storySettle(a, c, depth-1)
+		}
+		return
+	}
+	if msg == nil {
+		return
+	}
+	_, next := a.Update(msg)
+	storySettle(a, next, depth-1)
 }

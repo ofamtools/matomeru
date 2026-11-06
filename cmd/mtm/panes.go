@@ -85,6 +85,12 @@ func tildePath(path, home string) string {
 // pane is one row: a window, the session it lives in and, when an agent
 // runs in it, the agent (list-agents: harness, state time, needs you).
 type pane struct {
+	// ChildAgents is how many of the pane's shown subagent rows are in the
+	// working class now, and ChildSince (ms) when the oldest started: set
+	// by the section build, never by the listing. A pane whose own turn
+	// ended but whose children run shows as waiting on them (viaChildren).
+	ChildAgents    int   `json:"-"`
+	ChildSince     int64 `json:"-"`
 	Session        string
 	SessionID      string
 	OwnerUnsaved   bool
