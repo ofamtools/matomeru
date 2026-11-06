@@ -269,8 +269,8 @@ func (a *App) bindSideKeys() error {
 		return nil
 	}
 	occupied := map[string]bool{}
-	for _, b := range a.r.DefaultBindings() {
-		if b.Noun == a.r.CanonicalNoun("terminal") && b.Mode == "leader_pending" && b.Source != sidesBindingsSource && b.Keys != "" {
+	for _, b := range a.r.RowsOf(a.r.CanonicalNoun("terminal"), "leader_pending") {
+		if b.Source != sidesBindingsSource && b.Keys != "" {
 			occupied[b.Keys] = true
 		}
 	}
@@ -311,8 +311,8 @@ func (a *App) updateSideLeaderHint() error {
 		parts = append(parts, b.Keys+" "+a.sideHint(name))
 	}
 	parts = append(parts, "d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T todos · S all · : palette · , settings · ' pages · ? keys")
-	for _, b := range a.r.DefaultBindings() {
-		if b.Noun == a.r.CanonicalNoun("terminal") && b.Mode == "terminal" && (b.Keys == "{terminal-leader}" || b.Keys == a.r.TerminalLeader()) {
+	for _, b := range a.r.RowsOf(a.r.CanonicalNoun("terminal"), "terminal") {
+		if b.Keys == "{terminal-leader}" || b.Keys == a.r.TerminalLeader() {
 			row := b.Binding
 			row.Hint = "leader: " + strings.Join(parts, " · ")
 			return a.r.SetDefaultBindings(sidesLeaderSource, []ochazuke.Binding{row})

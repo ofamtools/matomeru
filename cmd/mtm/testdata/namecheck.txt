@@ -1,0 +1,463 @@
+# namecheck baseline: file, function, kind, literal, count, reason (tab separated).
+# A row with a reason is a legitimate use that stays. A row without one is debt that may only shrink:
+# NAMECHECK_UPDATE=1 removes rows and lowers counts, never adds them. Adding a row is a reviewed edit.
+../../internal/actionitems/actionitems.go	Store.Counts	compare	"open"	1
+../../internal/actionitems/actionitems.go	section	case	"archived"	1
+../../internal/actionitems/notify.go	NotifyOptions.Wants	compare	"open"	1
+../../internal/compose/files.go	var skipDirs	table	"target"	1
+../../internal/contextitems/extract.go	Extract	compare	"command"	1
+../../internal/contextitems/extract.go	Extract	compare	"prompt"	1
+../../internal/contextitems/origins.go	var sourceOrigins	table	"command"	1
+../../internal/contextitems/origins.go	var sourceOrigins	table	"create"	1
+../../internal/contextitems/origins.go	var sourceOrigins	table	"history"	1
+../../internal/contextitems/origins.go	var sourceOrigins	table	"prompt"	1
+../../internal/contextitems/origins.go	var sourceOrigins	table	"response"	1
+../../internal/contextitems/origins.go	var sourceOrigins	table	"transcript"	1
+../../internal/contextitems/store.go	Item.Path	compare	"dir"	1
+../../internal/contextitems/store.go	normalize	compare	"link"	1
+../../internal/contextitems/wrap.go	joinNext	cyclo	"-"	27
+../../internal/daemon/client.go	decodeEvent	case	"at"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/client.go	decodeEvent	case	"session"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/client.go	decodeEvent	case	"time"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/client.go	decodeEvent	case	"type"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/client.go	decodeEvent	case	"window"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/launch.go	LaunchWorkspace	cyclo	"-"	29
+../../internal/harness/harness.go	Harness.Validate	case	"paste"	1
+../../internal/harness/promptbox.go	PromptBox.validate	case	"enter"	1
+../../internal/harness/promptbox.go	PromptBox.validate	case	"send"	1
+../../internal/harness/session.go	SessionSource.validate	case	"lines"	1
+../../internal/harness/settings.go	Harness.Choices	compare	"model"	1
+../../internal/harness/settings.go	Harness.LaunchSettings	compare	"model"	1
+../../internal/harness/settings.go	Setting.validate	compare	"fast"	2
+../../internal/history/history.go	FromActivity	compare	"prompt"	1
+../../internal/history/project.go	project	cyclo	"-"	37
+../../internal/history/turns.go	Journal.OpenCapture	compare	"harness"	2
+../../internal/locate/locate.go	Locator.records	cyclo	"-"	32
+../../internal/locate/locate.go	readRecord	compare	"lines"	1
+../../internal/notify/notify.go	Sender.Send	compare	"terminal"	1
+../../internal/panesignals/commands.go	CommandFailed	compare	"command"	1
+../../internal/panesignals/commands.go	CommandRule.Raises	case	"all"	1
+../../internal/panesignals/commands.go	ReconcileCommands	cyclo	"-"	26
+../../internal/panesignals/commands.go	clearCommands	compare	"command"	1
+../../internal/panesignals/commands.go	commandKeyParts	compare	"command"	1
+../../internal/panesignals/panesignals.go	Pane.Kind	compare	"done"	1
+../../internal/panesignals/panesignals.go	Reconcile	compare	"command"	1
+../../internal/panesignals/panesignals.go	Reconcile	compare	"done"	2
+../../internal/panesignals/panesignals.go	Why	case	"done"	1
+../../internal/reminders/store.go	Store.Check	case	"check"	1
+../../internal/reminders/store.go	Store.Check	case	"toggle"	1
+../../internal/reminders/store.go	Store.Check	case	"uncheck"	1
+../../internal/schedules/defs.go	Runner.ImportLegacy	compare	"prompt"	1
+../../internal/schedules/schedules.go	Def.Check	compare	"command"	2
+../../internal/schedules/schedules.go	Def.FromFinish	compare	"finish"	1
+../../internal/schedules/schedules.go	Runner.Active	case	"on"	1
+../../internal/schedules/when.go	ParseWhen	compare	"at"	1	words of the schedule time grammar, not noun or verb names
+../../internal/schedules/when.go	ParseWhen	compare	"on"	1	words of the schedule time grammar, not noun or verb names
+../../internal/turns/activity.go	activityParser.feed	case	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/activity.go	activityParser.feed	cyclo	"-"	27
+../../internal/turns/activity.go	activityStatus	case	"done"	1
+../../internal/turns/agent.go	parseNotification	case	"status"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/agent.go	parseNotification	case	"summary"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/claude.go	ClaudeParser.assistant	case	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/claude.go	ClaudeParser.user	case	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/claude.go	contentText	compare	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/omp.go	OmpParser.Feed	compare	"session"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/omp.go	ompBuild.node	case	"message"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/omp.go	ompBuild.node	case	"stop"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/omp.go	ompBuild.node	case	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/omp.go	ompBuild.node	cyclo	"-"	32
+../../internal/turns/omp.go	ompText	compare	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
+../../internal/turns/settings.go	Live.FeedCodex	compare	"default"	2
+../../internal/turns/settings.go	Live.feedClaude	case	"fast"	1
+../../internal/turns/settings.go	Live.feedClaude	case	"permission-mode"	1
+../../internal/turns/settings.go	Live.feedOmp	case	"message"	1
+../../internal/turns/settings.go	Live.feedOmp	cyclo	"-"	27
+../../internal/turns/turn.go	Turn.Response	compare	"text"	1
+../../internal/work/actor.go	Actor.IsAgent	compare	"agent"	1
+../../internal/work/actor.go	Actor.String	compare	"agent"	1
+../../internal/work/actor.go	Actor.kind	case	"agent"	1
+../../internal/work/actor.go	Actor.kind	case	"owner"	1
+../../internal/work/actor.go	MayChangeTask	case	"project"	1
+../../internal/work/actor.go	ParseActor	case	"agent"	1
+../../internal/work/actor.go	ParseActor	case	"owner"	1
+../../internal/work/convert.go	Store.DemoteProject	cyclo	"-"	31
+../../internal/work/convert.go	Store.PromoteTask	cyclo	"-"	27
+../../internal/work/convert.go	taskDirectories	compare	"dir"	1
+../../internal/work/convert.go	taskDirectories	cyclo	"-"	31
+../../internal/work/delete.go	Store.deleteRecord	compare	"project"	2
+../../internal/work/delete.go	Store.deleteRecord	compare	"task"	3
+../../internal/work/delete.go	Store.deleteRecord	cyclo	"-"	38
+../../internal/work/reviews.go	Store.SetReviewStatus	case	"pending"	1
+../../internal/work/work.go	NormalStatus	compare	"open"	1
+../../internal/work/work.go	StatusGlyph	case	"done"	1
+../../internal/work/work.go	StatusRank	case	"done"	1
+../../internal/work/work.go	Store.ToggleDone	compare	"done"	1
+action_item_store.go	App.listActionItemThings	compare	"all"	1
+actor.go	App.showByColumn	compare	"by"	1
+actor.go	App.taskGlyphs	compare	"agent"	1
+actor.go	byCell	case	"agent"	1
+actor.go	byCell	case	"owner"	1
+agent_verbs.go	App.defineTaskEvidence	compare	"done"	1
+agent_verbs.go	App.defineTaskEvidence	compare	"task"	1
+archive.go	App.archiveVisible	compare	"archived"	1
+archive.go	App.queryShowsArchived	compare	"archived"	1
+capture.go	lastAnswer	compare	"text"	2
+context.go	App.contextAt	compare	"context-item"	1
+context.go	App.itemCell	case	"command"	1
+context.go	App.itemCell	case	"dir"	1
+context.go	App.itemCell	case	"prompt"	1
+context.go	App.openContext	case	"dir"	1
+context.go	App.openContext	case	"link"	1
+context_extract.go	App.extractContext	compare	"pane"	1
+context_picker.go	App.pickContext	case	"prompt"	1
+context_picker.go	App.pickerOpen	case	"dir"	1
+context_picker.go	App.pickerOpen	case	"link"	1
+context_store.go	App.associateContext	compare	"context-item"	1
+context_turns.go	transcriptEntryKind	compare	"text"	1
+convert.go	App.conversionReload	compare	"demote"	4
+convert.go	App.conversionReload	compare	"task-outline"	1
+convert.go	conversionNotice	case	"demote"	1
+copybuf.go	copyBuf.move	case	"WORD-backward"	1
+copybuf.go	copyBuf.move	case	"WORD-end"	1
+copybuf.go	copyBuf.move	case	"WORD-end-backward"	1
+copybuf.go	copyBuf.move	case	"WORD-forward"	1
+copybuf.go	copyBuf.move	case	"down"	1
+copybuf.go	copyBuf.move	case	"first-blank"	1
+copybuf.go	copyBuf.move	case	"first-line"	1
+copybuf.go	copyBuf.move	case	"last-blank"	1
+copybuf.go	copyBuf.move	case	"last-line"	1
+copybuf.go	copyBuf.move	case	"left"	1
+copybuf.go	copyBuf.move	case	"line-end"	1
+copybuf.go	copyBuf.move	case	"line-start"	1
+copybuf.go	copyBuf.move	case	"match"	1
+copybuf.go	copyBuf.move	case	"paragraph-backward"	1
+copybuf.go	copyBuf.move	case	"paragraph-forward"	1
+copybuf.go	copyBuf.move	case	"right"	1
+copybuf.go	copyBuf.move	case	"screen-bottom"	1
+copybuf.go	copyBuf.move	case	"screen-middle"	1
+copybuf.go	copyBuf.move	case	"screen-top"	1
+copybuf.go	copyBuf.move	case	"up"	1
+copybuf.go	copyBuf.move	case	"word-backward"	1
+copybuf.go	copyBuf.move	case	"word-end"	1
+copybuf.go	copyBuf.move	case	"word-end-backward"	1
+copybuf.go	copyBuf.move	case	"word-forward"	1
+copybuf.go	copyBuf.move	compare	"first-line"	1
+copybuf.go	copyBuf.move	compare	"line-end"	1
+copybuf.go	copyBuf.move	compare	"paragraph-backward"	1
+copybuf.go	copyBuf.move	compare	"up"	1
+copybuf.go	copyBuf.move	cyclo	"-"	33
+copybuf.go	var verticalMotions	table	"down"	1
+copybuf.go	var verticalMotions	table	"first-line"	1
+copybuf.go	var verticalMotions	table	"last-line"	1
+copybuf.go	var verticalMotions	table	"paragraph-backward"	1
+copybuf.go	var verticalMotions	table	"paragraph-forward"	1
+copybuf.go	var verticalMotions	table	"screen-bottom"	1
+copybuf.go	var verticalMotions	table	"screen-middle"	1
+copybuf.go	var verticalMotions	table	"screen-top"	1
+copybuf.go	var verticalMotions	table	"up"	1
+copymode.go	App.copyUpdate	compare	"panes"	1
+copymode.go	App.defineCopy	compare	"line"	1
+copymode.go	App.defineCopy	compare	"visual_count_pending"	1
+delete.go	App.deleteThing	compare	"project"	1
+delete.go	App.deletionConfirm	compare	"delete"	1
+delete.go	App.orphanDrafts	compare	"project"	1
+delete.go	App.orphanDrafts	compare	"task"	1
+detail_links.go	App.followLink	case	"dir"	1
+detail_links.go	App.followLink	case	"pane"	1
+detail_links.go	App.followLink	case	"project"	1
+detail_links.go	App.followLink	case	"saved"	1
+detail_links.go	App.followLink	case	"vim"	1
+directories.go	App.attachBrowsedDirectory	compare	"base"	1
+directories.go	App.endBrowse	compare	"directories"	1
+directories.go	App.knownDirs	compare	"repo"	1
+directories.go	App.refreshDirectories	compare	"directories"	1
+directories.go	App.renderDirectoryLists	compare	"base"	1
+directories_detail.go	App.directoryFacts	compare	"repo"	1
+editor.go	App.Update	case	"directories"	1
+editor.go	App.Update	case	"saved"	1
+editor.go	App.Update	cyclo	"-"	37
+editor.go	App.editorPage	compare	"note"	1
+editor.go	App.recordValues	case	"note"	1
+editor.go	App.recordValues	case	"project"	1
+editor.go	App.recordValues	case	"task"	1
+editor.go	App.storeRecord	case	"task"	1
+extension_autorefresh.go	App.autoRefreshCatalogs	compare	"stale"	1
+extension_context.go	var nounChoosers	table	"pane"	1
+extension_forms.go	catalogDeleteRow	compare	"normal"	1
+extension_forms.go	prefill	case	"label"	1
+extension_forms.go	prefill	case	"name"	1
+extension_forms.go	prefill	case	"title"	1
+extension_forms.go	var crudVerbs	table	"delete"	1
+extension_forms.go	var crudVerbs	table	"edit"	1
+extension_forms.go	var crudVerbs	table	"new"	1
+extension_page.go	App.extFacts	case	"available"	1
+extension_page.go	App.setExtRows	compare	"available"	1
+extension_page.go	App.setExtRows	compare	"stale"	1
+extension_page.go	extRow	compare	"extension"	1
+extension_scope.go	App.instanceProject	case	"draft"	1
+extension_scope.go	App.instanceProject	case	"note"	1
+extension_scope.go	App.instanceProject	case	"pane"	1
+extension_scope.go	App.instanceProject	case	"project"	1
+extension_scope.go	App.instanceProject	case	"review"	1
+extension_scope.go	App.instanceProject	case	"saved"	1
+extension_scope.go	App.instanceProject	case	"session"	1
+extension_scope.go	App.instanceProject	case	"task"	1
+extension_scope.go	App.instanceProject	case	"vim"	1
+extension_setup.go	App.defineExtensionSetup	compare	"setup-undo"	1
+extension_setup.go	App.defineExtensionSetup	compare	"stale"	1
+extension_setup.go	App.extSetupFacts	compare	"stale"	1
+extension_setup.go	App.setupNeededCount	compare	"stale"	1
+extensions.go	extPlan	compare	"normal"	1
+extensions.go	isPrefixCancel	compare	"ochazuke.mode.leave"	1
+inbox.go	App.actionItemAt	compare	"action-item"	1
+inbox.go	App.associateActionItem	compare	"action-item"	1
+inbox.go	App.inboxFacts	compare	"open"	1
+inbox.go	App.promoteActionItem	compare	"task"	1
+inbox.go	App.setInboxRows	compare	"open"	1
+inbox.go	inboxGlyph	case	"archived"	1
+inbox_notify.go	App.inboxNotifyOptions	compare	"new"	1
+journal.go	App.turnsHistoryActive	compare	"panes"	1
+launch.go	App.launchRecord	compare	"project"	1
+launch.go	recordLaunchArgs	case	"project"	1
+launch.go	recordLaunchArgs	case	"task"	1
+live_hints.go	App.endHints	compare	"hints"	1
+live_hints.go	App.hintTerminals	compare	"panes"	1
+live_hints.go	App.hintsUpdate	compare	"hints"	1
+live_hints.go	App.hintsUpdate	compare	"panes"	1
+live_hints.go	App.openHint	case	"dir"	1
+live_hints.go	App.openHint	case	"link"	1
+live_hints.go	App.startRowHints	compare	"pane"	1
+live_hints.go	var hintActions	table	"copy"	1
+live_hints.go	var hintActions	table	"open"	1
+live_hints.go	var hintActions	table	"type"	1
+main.go	App.refreshProjects	compare	"done"	1
+main.go	New	compare	"all"	1
+main.go	New	cyclo	"-"	43
+main.go	Options.client	compare	"default"	1
+mcp.go	App.defineMCPCommand	compare	"done"	1
+mcp_ops.go	App.addContextText	compare	"command"	1
+mcp_ops.go	App.addContextText	compare	"prompt"	1
+note_store.go	App.patchNote	compare	"note"	1
+note_store.go	App.patchNote	cyclo	"-"	28
+note_store.go	App.removeNote	compare	"note"	1
+notes.go	App.newNote	compare	"project"	2
+notes.go	App.newNote	compare	"task"	1
+notes.go	App.renderNotes	compare	"note"	1
+notes.go	App.selectedNote	compare	"note"	2
+notes_doc.go	App.syncNoteDoc	compare	"note"	1
+outline.go	App.openOutline	compare	"task"	1
+outline.go	App.openTodos	compare	"task-outline"	2
+outline.go	App.outlineTaskOf	compare	"outline-task"	1
+outline.go	App.reloadOutline	compare	"task-outline"	1
+owner.go	App.resolveOwner	case	"draft"	1
+owner.go	App.resolveOwner	case	"pane"	1
+owner.go	App.resolveOwner	case	"project"	1
+owner.go	App.resolveOwner	case	"review"	1
+owner.go	App.resolveOwner	case	"saved"	1
+owner.go	App.resolveOwner	case	"session"	1
+owner.go	App.resolveOwner	case	"task"	1
+owner.go	App.resolveOwner	case	"unassociated"	1
+owner.go	App.resolveOwner	case	"vim"	1
+owner.go	App.resolveOwner	compare	"task"	1
+owner.go	App.resolveOwner	cyclo	"-"	35
+pane_activity.go	App.pollActivities	compare	"panes"	1
+pane_settings.go	App.settingFields	compare	"launch"	1
+pane_settings.go	App.settingFields	compare	"on"	1
+pane_settings.go	App.settingPane	compare	"pane-setting"	1
+pane_settings.go	App.togglePaneFast	compare	"fast"	1
+pane_settings.go	App.togglePaneFast	compare	"on"	1
+pane_settings.go	permissionLabel	case	"plan"	1
+pane_settings.go	valueMatches	compare	"model"	1
+pane_settings.go	var settingArgs	table	"effort"	1
+pane_settings.go	var settingArgs	table	"fast"	1
+pane_settings.go	var settingArgs	table	"model"	1
+pane_settings.go	var settingArgs	table	"permission-mode"	1
+pane_settings.go	var settingVerbs	table	"effort"	1
+pane_settings.go	var settingVerbs	table	"fast"	1
+pane_settings.go	var settingVerbs	table	"model"	1
+pane_settings.go	var settingVerbs	table	"permission-mode"	1
+pane_task.go	App.taskPickerRows	compare	"done"	1
+pane_view.go	App.setPaneView	compare	"default"	1
+pane_view.go	viewTab	compare	"terminal"	1
+panekeys.go	paneKey	cyclo	"-"	28
+panes.go	App.capturePreview	compare	"panes"	1
+panes.go	App.keepHeld	compare	"panes"	1
+panes.go	App.markPanes	compare	"vim"	1
+panes.go	App.setPanes	cyclo	"-"	28
+panes.go	tuios.Exited	compare	"timeout"	1
+panes_detail.go	App.groupSummary	case	"session"	1
+panes_detail.go	App.loadDetail	compare	"panes"	1
+panes_detail.go	App.moveOwner	case	"action-item"	1
+panes_detail.go	App.moveOwner	case	"context-item"	1
+panes_detail.go	App.moveOwner	case	"note"	1
+panes_detail.go	App.moveOwner	case	"saved"	1
+panes_detail.go	App.moveOwner	case	"task"	1
+panes_detail.go	App.moveOwner	case	"vim"	1
+panes_detail.go	App.moveOwner	compare	"pane"	1
+panes_detail.go	App.moveTo	compare	"move"	1
+panes_detail.go	App.moveTo	compare	"scratch"	1
+panes_detail.go	App.panesUpdate	compare	"panes"	4
+panes_detail.go	App.panesUpdate	cyclo	"-"	41
+panes_events.go	App.pushPaneTitles	compare	"pane"	1
+panes_leader.go	App.paneNear	compare	"pane"	1
+panes_panels.go	App.focusOnEmptyList	compare	"normal"	1
+panes_panels.go	App.focusSection	compare	"panes"	1
+panes_panels.go	App.followRow	compare	"normal"	1
+panes_panels.go	var panelTexts	table	"panes"	1
+panes_sections.go	App.buildPaneSections	compare	"open"	1
+panes_sections.go	App.buildPaneSections	compare	"panes"	2
+panes_sections.go	App.buildPaneSections	cyclo	"-"	63
+panes_sections.go	App.firstPaneRow	compare	"pane"	1
+panes_sections.go	App.focusOpenList	compare	"panes"	1
+panes_sections.go	App.sectionNeed	compare	"panes"	1
+panes_sections.go	itemCategory	case	"command"	1
+panes_sections.go	itemCategory	case	"done"	1
+panes_tree.go	App.buildPaneTree	compare	"panes"	1
+panes_tree.go	App.buildPaneTree	cyclo	"-"	41
+panes_tree.go	stateGlyph	compare	"done"	1
+panes_tree.go	stateTone	compare	"done"	1
+pin.go	App.openPinPicker	compare	"done"	1
+pin.go	App.pinProject	compare	"project"	1
+pin.go	App.refreshScope	compare	"project"	1
+project.go	App.followProject	case	"project"	1
+project.go	App.followProject	case	"unassociated"	1
+project.go	App.followProject	compare	"projects"	1
+project.go	App.workSelected	case	"project"	1
+project.go	App.workSelected	case	"task"	1
+project.go	App.workSelected	case	"unassociated"	1
+project_store.go	App.patchProject	compare	"project"	1
+prompt.go	App.commitPrompt	compare	"field"	1
+prompt_box.go	App.addPromptBox	compare	"panes"	1
+prompt_box.go	App.promptBoxBlock	compare	"normal"	1
+prompt_box.go	App.promptMode	compare	"send"	1
+prompt_box.go	App.promptTargetFor	compare	"command"	1
+prompt_box.go	App.promptTargetFor	compare	"prompt"	1
+prompt_box.go	App.selectNewestTurnRow	compare	"turn"	1
+prompt_box.go	App.sendPrompt	compare	"paste"	1
+prompt_box.go	App.sendPrompt	cyclo	"-"	35
+prompt_box.go	promptMention	compare	"dir"	1
+prompt_box.go	promptModeLabel	compare	"send"	1
+prompt_box.go	promptPlaceholder	compare	"send"	1
+quicknote.go	App.flushQuickNote	compare	"quick-note"	1
+quicknote.go	App.quickNoteOwner	compare	"task"	1
+quicknote.go	App.quickNoteUpdate	compare	"insert"	1
+relations.go	App.associateProject	compare	"project"	1
+reminders.go	App.defineReminders	compare	"check"	1
+reminders.go	App.defineReminders	compare	"history"	1
+reminders.go	App.defineReminders	compare	"toggle"	1
+reminders.go	App.defineReminders	compare	"uncheck"	1
+reminders.go	App.openReminderForm	compare	"days"	1
+reminders.go	App.openReminderForm	compare	"time"	1
+reminders.go	App.reminderAt	compare	"reminder"	1
+reviews.go	App.review	compare	"review"	1
+runs.go	App.runAt	compare	"run"	1
+runs.go	App.runCommandVerb	compare	"terminal"	1
+saved.go	App.associateSaved	compare	"saved"	1
+saved.go	App.defineSaved	compare	"associate"	1
+saved.go	App.defineSaved	compare	"rename"	1
+saved.go	App.savePane	compare	"pane"	1
+saved.go	App.savePane	compare	"saved"	1
+saved.go	App.savedAt	compare	"saved"	1
+schedule_edit.go	App.applyScheduleField	case	"catch-up"	1
+schedule_edit.go	App.applyScheduleField	case	"command"	1
+schedule_edit.go	App.applyScheduleField	case	"description"	1
+schedule_edit.go	App.applyScheduleField	case	"dir"	1
+schedule_edit.go	App.applyScheduleField	case	"drive"	1
+schedule_edit.go	App.applyScheduleField	case	"effort"	1
+schedule_edit.go	App.applyScheduleField	case	"enabled"	1
+schedule_edit.go	App.applyScheduleField	case	"end"	1
+schedule_edit.go	App.applyScheduleField	case	"fast"	1
+schedule_edit.go	App.applyScheduleField	case	"harness"	1
+schedule_edit.go	App.applyScheduleField	case	"interval-from"	1
+schedule_edit.go	App.applyScheduleField	case	"into"	1
+schedule_edit.go	App.applyScheduleField	case	"kind"	1
+schedule_edit.go	App.applyScheduleField	case	"model"	1
+schedule_edit.go	App.applyScheduleField	case	"pane"	1
+schedule_edit.go	App.applyScheduleField	case	"permission-mode"	1
+schedule_edit.go	App.applyScheduleField	case	"project"	1
+schedule_edit.go	App.applyScheduleField	case	"prompt"	1
+schedule_edit.go	App.applyScheduleField	case	"start"	1
+schedule_edit.go	App.applyScheduleField	case	"task"	1
+schedule_edit.go	App.applyScheduleField	case	"timeout"	1
+schedule_edit.go	App.applyScheduleField	case	"when"	1
+schedule_edit.go	App.applyScheduleField	compare	"end"	1
+schedule_edit.go	App.applyScheduleField	compare	"on"	1
+schedule_edit.go	App.applyScheduleField	compare	"start"	1
+schedule_edit.go	App.applyScheduleField	cyclo	"-"	41
+schedule_edit.go	App.openScheduleForm	compare	"prompt"	1
+schedule_edit.go	scheduleField	case	"catch-up"	1
+schedule_edit.go	scheduleField	case	"command"	1
+schedule_edit.go	scheduleField	case	"description"	1
+schedule_edit.go	scheduleField	case	"dir"	1
+schedule_edit.go	scheduleField	case	"drive"	1
+schedule_edit.go	scheduleField	case	"effort"	1
+schedule_edit.go	scheduleField	case	"enabled"	1
+schedule_edit.go	scheduleField	case	"end"	1
+schedule_edit.go	scheduleField	case	"fast"	1
+schedule_edit.go	scheduleField	case	"harness"	1
+schedule_edit.go	scheduleField	case	"interval-from"	1
+schedule_edit.go	scheduleField	case	"into"	1
+schedule_edit.go	scheduleField	case	"kind"	1
+schedule_edit.go	scheduleField	case	"model"	1
+schedule_edit.go	scheduleField	case	"pane"	1
+schedule_edit.go	scheduleField	case	"permission-mode"	1
+schedule_edit.go	scheduleField	case	"project"	1
+schedule_edit.go	scheduleField	case	"prompt"	1
+schedule_edit.go	scheduleField	case	"start"	1
+schedule_edit.go	scheduleField	case	"task"	1
+schedule_edit.go	scheduleField	case	"timeout"	1
+schedule_edit.go	scheduleField	case	"when"	1
+schedule_prompts.go	App.runPromptSchedule	compare	"pane"	1
+schedule_store.go	App.scheduleProps	compare	"enabled"	1
+schedule_store.go	App.scheduleProps	compare	"prompt"	1
+schedule_store.go	scheduleFieldsOf	compare	"enabled"	1
+schedules.go	App.scheduleAt	compare	"schedule"	1
+schedules.go	App.viewSchedule	case	"on"	1
+schedules.go	commandDrive	compare	"command"	1
+schedules.go	scheduleView.runsCell	compare	"pane"	1
+schedules.go	scheduleView.runsCell	compare	"prompt"	1
+side.go	App.defineSides	compare	"show"	1
+side.go	App.sidePane	compare	"command"	2
+side.go	App.sidePane	compare	"list"	5
+side.go	App.sidePane	compare	"pane"	1
+side.go	App.sidePane	cyclo	"-"	53
+side.go	recordedEnvironment	compare	"env"	1
+sides_config.go	App.setSideChoices	compare	"pane.side"	1
+sides_config.go	validateSideRow	compare	"list"	1
+store_tables.go	App.showStoreTable	compare	"store-table"	1
+task_notes.go	App.syncOutlineNotes	compare	"outline-task"	1
+task_store.go	App.defineTaskSubjects	compare	"outline-task"	1
+task_store.go	App.defineTaskSubjects	compare	"task"	1
+task_store.go	App.patchTask	compare	"task"	1
+task_store.go	App.patchTask	cyclo	"-"	31
+task_store.go	App.taskStore	compare	"all"	2
+tasks.go	App.refreshTasks	compare	"by"	1
+tasks.go	App.refreshTasks	compare	"project"	1
+tasks.go	App.refreshTasks	cyclo	"-"	30
+tasks.go	App.task	compare	"task"	1
+tasks.go	App.toggleTask	compare	"done"	1
+turn_agents.go	App.agentBody	compare	"done"	1
+turn_agents.go	App.agentNodes	compare	"text"	1
+turn_agents.go	App.agentSteps	compare	"text"	1
+turn_cards.go	App.modelStepsIn	case	"text"	1
+turn_cards.go	App.noticeCard	compare	"answer"	1
+turn_cards.go	App.turnCards	compare	"tree"	1
+turn_cards.go	App.turnStyleChanged	compare	"turn"	1
+turn_cards.go	finalStep	compare	"text"	1
+turn_status.go	App.meta	case	"all"	1
+turn_status.go	var turnStatuses	table	"done"	1
+turn_status.go	var turnStatuses	table	"waiting"	1
+turn_wrap.go	App.selectNewestTurn	compare	"turn"	1
+turn_wrap.go	App.setTurnNodes	compare	"turn-line"	2
+turns.go	App.turnAt	compare	"turn"	1
+turns.go	App.turnClosed	compare	"turn"	1
+turns_model.go	App.modelTurnNodes	case	"text"	1
+turns_model.go	App.modelTurnNodes	compare	"text"	2
+turns_model.go	App.modelTurnNodes	cyclo	"-"	29
+turns_model.go	App.readLogTurns	cyclo	"-"	27
+turns_model.go	App.refillModelTurns	compare	"turn"	1
+turns_model.go	App.refillModelTurns	compare	"turn-step"	1
+turns_model.go	turnsNeedBuild	compare	"turn"	1
+turns_refresh.go	App.refreshPaneTurns	compare	"pane"	1
+vim.go	App.vimAt	compare	"pane"	1
+vim.go	App.vimAt	compare	"vim"	1
