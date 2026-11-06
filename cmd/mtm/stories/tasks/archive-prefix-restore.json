@@ -1,7 +1,6 @@
 {
   "name": "mtm: palette restores an exact archived id despite other live ids sharing its prefix",
   "area": "tasks",
-  "skip": "gap: ochazuke R1 set resolves a target among the shown (unarchived) things first: task set --id t1 on an archived t1 is ambiguous with t10, t11, t12 (library bug, reported)",
   "fixture": "nested",
   "width": 120,
   "height": 30,
