@@ -31,9 +31,8 @@ func TestSavedVerbsAreStandard(t *testing.T) {
 	a := open(t)
 	standardIs(t, a, "saved", map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"move": "move", "duplicate": "duplicate",
-		"rename": "", "save": "", "reopen": "", "associate": "", "choose-move": "",
-	})
+		"save": "", "reopen": "", "associate": "", "choose-move": "",
+	}, "move", "rename", "duplicate", "restore")
 	var forget *ochazuke.ActionAlias
 	for _, alias := range a.r.AliasesOf("saved.delete") {
 		if alias.Alias == "saved.forget" {
@@ -83,11 +82,11 @@ func TestSavedMoveRenameCreate(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	row := savedRecord(t, a)
-	executeA(t, a, "saved", "move", "", ochazuke.Arguments{"id": row.ID, "to": "matomeru"})
+	executeA(t, a, "saved", "set", "", ochazuke.Arguments{"id": row.ID, "props": map[string]any{"@owner": "matomeru"}})
 	if o, _ := a.work.PaneOwner("w2", ""); o.ProjectID != "matomeru" {
 		t.Fatalf("the pane did not follow: %+v", o)
 	}
-	executeA(t, a, "saved", "rename", "", ochazuke.Arguments{"id": row.ID, "name": "unit"})
+	executeA(t, a, "saved", "set", "", ochazuke.Arguments{"id": row.ID, "props": map[string]any{"@label": "unit"}})
 	if got, _ := a.work.SavedPane(row.ID); got.Name != "unit" || got.ProjectID != "matomeru" {
 		t.Fatalf("rename: %+v", got)
 	}

@@ -301,7 +301,7 @@ func (a *App) openReminderForm(r reminders.Reminder, title string) error {
 			for _, f := range w.Changed {
 				changes[f] = w.Values[f]
 			}
-			return resultOf(a.r.Execute(ochazuke.Request{Noun: reminderNoun, Verb: "set", Args: ochazuke.Arguments{"id": r.ID, "changes": changes}}))
+			return resultOf(a.r.Execute(ochazuke.Request{Noun: reminderNoun, Verb: "set", Args: ochazuke.Arguments{"id": r.ID, "props": changes}}))
 		},
 	})
 	return err

@@ -246,8 +246,8 @@ func (a *App) defineCopy() {
 	selects(visual).
 		Bind("y", ochazuke.Do(copyNoun+".yank").Hinted("yank")).
 		Bind("o", ochazuke.Do(copyNoun+".swap").Hinted("other end")).
-		Bind("esc", ochazuke.Do("mode.set", ochazuke.Arguments{"mode": "copy"}).Hinted("end selection")).
-		Bind("q", ochazuke.Do("mode.set", ochazuke.Arguments{"mode": "copy"}).Hide()).
+		Bind("esc", ochazuke.Do("mode.switch", ochazuke.Arguments{"mode": "copy"}).Hinted("end selection")).
+		Bind("q", ochazuke.Do("mode.switch", ochazuke.Arguments{"mode": "copy"}).Hide()).
 		// A count in a selection (3j): the app's count rows answer in normal only.
 		Pattern("digit-0", ochazuke.Do("mode.enter", ochazuke.Arguments{"mode": "visual_count_pending"}).FromPayload("count", ochazuke.SourceDigit).Hide())
 	for _, m := range motions {

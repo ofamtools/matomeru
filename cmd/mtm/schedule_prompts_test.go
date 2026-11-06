@@ -153,7 +153,7 @@ func TestScheduleRowVerbs(t *testing.T) {
 	if _, _, err := cli(a, "", "schedule", "delete", "gh-signals", "--yes"); err == nil || !strings.Contains(err.Error(), "schedule disable gh-signals") {
 		t.Fatalf("deleted a built-in: %v", err)
 	}
-	out := mustCLI(t, a, "schedule", "list")
+	out := strings.ReplaceAll(mustCLI(t, a, "schedule", "list"), `": "`, `":"`)
 	if !strings.Contains(out, `"name":"tidy-the-notes-please"`) || !strings.Contains(out, `"harness":"codex"`) || !strings.Contains(out, `"prompt":"Tidy the notes, please"`) {
 		t.Fatalf("list:\n%s", out)
 	}

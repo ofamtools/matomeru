@@ -7,12 +7,12 @@
   "script": [
     "ctrl+j",
     ":", {"type": "task archive t13"}, "enter",
-    ":", {"type": "settings set list.hide-archived false"}, "enter",
-    ":", {"type": "settings set list.hide-archived true"}, "enter",
-    ":", {"type": "task restore t13"}, "enter",
+    ":", {"type": "setting set list.hide-archived false"}, "enter",
+    ":", {"type": "setting set list.hide-archived true"}, "enter",
+    ":", {"type": "task set t13 @archive=false"}, "enter",
     "O",
     ":", {"type": "task archive t13"}, "enter",
-    ":", {"type": "task restore t13"}, "enter"
+    ":", {"type": "task set t13 @archive=false"}, "enter"
   ],
   "expect": [
     {"after": 1, "page": "work", "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},

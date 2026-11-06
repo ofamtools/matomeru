@@ -380,19 +380,16 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	if !strings.Contains(frame(app), "agent.start claude done") {
 		t.Fatalf("ticker lacks the done job:\n%s", frame(app))
 	}
-	out, err := app.r.Execute(ochazuke.Request{Verb: "list", Noun: "jobs"})
-	if err != nil {
-		t.Fatal(err)
-	}
 	// The other listed job is the attached terminal's frame read.
+	out := app.r.Jobs()
 	var starts []ochazuke.JobInfo
-	for _, j := range out.([]ochazuke.JobInfo) {
+	for _, j := range out {
 		if j.Verb == "agent.start" {
 			starts = append(starts, j)
 		}
 	}
 	if len(starts) != 1 || starts[0].State != ochazuke.JobDone {
-		t.Fatalf("jobs.list = %+v", out)
+		t.Fatalf("job.list = %+v", out)
 	}
 }
 
@@ -423,7 +420,7 @@ func TestAgentLaunchParameters(t *testing.T) {
 	f := &fakeDaemon{}
 	app.launcher = f
 	launch := app.r.Operations["agent.launch"]
-	if p := launch.Parameters["project"]; p.Required || p.Source != "projects.list" || launch.Parameters["model"].Source != "harness.models" || len(launch.Parameters["harness"].Enum) != 3 {
+	if p := launch.Parameters["project"]; p.Required || p.Source != "projects.all" || launch.Parameters["model"].Source != "harness.models" || len(launch.Parameters["harness"].Enum) != 3 {
 		t.Fatalf("agent.launch parameters = %+v", launch.Parameters)
 	}
 	for _, key := range []string{"project.launch", "task.launch", "agent.launch"} {

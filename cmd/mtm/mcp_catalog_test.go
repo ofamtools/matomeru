@@ -61,8 +61,8 @@ func TestMCPCatalogWritesRecordActorAndUndo(t *testing.T) {
 		args  map[string]any
 		check func(work.Task) bool
 	}{
-		{"task.set", map[string]any{"id": id, "prop": "title", "value": "changed"}, func(t work.Task) bool { return t.Title == "changed" }},
-		{"task.move", map[string]any{"id": id, "to": "ochazuke"}, func(t work.Task) bool { return t.ProjectID == "ochazuke" && t.ParentID == "" }},
+		{"task.set", map[string]any{"id": id, "props": map[string]any{"title": "changed"}}, func(t work.Task) bool { return t.Title == "changed" }},
+		{"task.set", map[string]any{"id": id, "props": map[string]any{"@owner": "ochazuke"}}, func(t work.Task) bool { return t.ProjectID == "ochazuke" && t.ParentID == "" }},
 		{"task.done", map[string]any{"id": id, "note": "complete"}, func(t work.Task) bool { return t.Status == work.StatusDone }},
 	} {
 		reply := mcpRun(t, s, step.verb, step.args)
@@ -84,7 +84,7 @@ func TestMCPCatalogWritesRecordActorAndUndo(t *testing.T) {
 		}
 	}
 	entries := a.r.HistoryOf(0, ochazuke.HistoryChange)
-	for _, name := range []string{"task.create", "task.set", "task.move"} {
+	for _, name := range []string{"task.create", "task.set"} {
 		found := false
 		for _, entry := range entries {
 			if entry.Request.Key() == name && entry.Context.Source == "mcp" && entry.Context.Actor.Pane == "w1" && entry.Context.Actor.Harness == "claude" {
@@ -101,7 +101,7 @@ func TestMCPRefusalsAreErrorsAndDoNotWrite(t *testing.T) {
 	t.Parallel()
 	a, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
 	replies := rpc(t, a,
-		toolCall(1, "run", map[string]any{"verb": "task.set", "args": map[string]any{"id": "t1", "prop": "title", "value": "stolen"}}),
+		toolCall(1, "run", map[string]any{"verb": "task.set", "args": map[string]any{"id": "t1", "props": map[string]any{"title": "stolen"}}}),
 		toolCall(2, "run", map[string]any{"verb": "task.delete", "args": map[string]any{"id": "t2"}}),
 		toolCall(3, "run", map[string]any{"verb": "pane.kill", "args": map[string]any{"id": "w1"}}),
 		toolCall(4, "task_status", map[string]any{"status": "done"}),
@@ -132,19 +132,19 @@ func TestMCPVerbRightsTable(t *testing.T) {
 		verb, right string
 		destructive bool
 	}{
-		{"task.create", "allow", false}, {"task.set", "allow", false}, {"task.move", "allow", false}, {"task.done", "allow", false}, {"task.status", "allow", false},
+		{"task.create", "allow", false}, {"task.set", "allow", false}, {"task.done", "allow", false}, {"task.status", "allow", false},
 		{"task.delete", "never", true}, {"project.new", "allow", false}, {"project.create", "allow", false}, {"project.delete", "never", true}, {"project.set", "allow", false}, {"pane.kill", "confirm", false},
 		{"session.kill", "confirm", false}, {"note.delete", "never", true}, {"context-item.delete", "never", true},
 		{"setup.install", "allow", false}, {"setup.uninstall", "allow", false}, {"extension.remove", "never", true},
 		{"extension.register", "never", false}, {"extension.refresh", "allow", false}, {"extension.setup", "allow", false}, {"extension.setup-undo", "allow", false},
 		{"saved.delete", "never", true}, {"vim.delete", "never", true}, {"run.forget", "never", true}, {"action-item.delete", "never", true}, {"action-item.archive", "allow", false},
-		{"outline-project.delete", "never", true}, {"outline-project.confirm-delete", "never", true}, {"outline-root.delete", "never", true}, {"outline-root.confirm-delete", "never", true},
+		{"outline-project.delete-project", "never", true}, {"outline-project.confirm-delete", "never", true}, {"outline-root.delete-project", "never", true}, {"outline-root.confirm-delete", "never", true},
 		{"task.make-project", "allow", false}, {"project.make-task", "allow", false}, {"outline-root.demote", "allow", false}, {"outline-project.demote", "allow", false}, {"outline-task.promote", "allow", false},
 		{"project.remove-directory", "allow", false}, {"project-dir.remove", "allow", false}, {"project-base.remove", "allow", false}, {"dirs.remove-base", "allow", false}, {"dirs.add-base", "allow", false},
 		{"schedule.delete", "never", true}, {"schedule.reset", "allow", false}, {"schedule.set", "allow", false}, {"schedule.toggle", "allow", false},
-		{"session.rename", "allow", false}, {"session.move", "allow", false}, {"session.associate", "allow", false},
+		{"session.associate", "allow", false}, {"pane.delete", "confirm", false}, {"session.delete", "confirm", false},
 		{"reminder.check", "allow", false}, {"reminder.uncheck", "allow", false}, {"reminder.toggle", "allow", false}, {"reminder.delete", "never", true},
-		{"ochazuke.settings.set", "allow", false}, {"ochazuke.bindings.load", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
+		{"ochazuke.setting.set", "allow", false}, {"ochazuke.bindings.load", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
 	} {
 		op, ok := a.r.Operation(tt.verb)
 		if !ok {
@@ -173,7 +173,7 @@ func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
 	t.Parallel()
 	a, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
 	s := mcpServerFor(t, a)
-	mcpRun(t, s, "ochazuke.settings.set", map[string]any{"name": "list.hide-archived", "value": "false"})
+	mcpRun(t, s, "ochazuke.setting.set", map[string]any{"name": "list.hide-archived", "value": "false"})
 	if a.r.Settings().Bool("list.hide-archived") {
 		t.Fatal("agent setting write did not persist")
 	}
@@ -186,7 +186,7 @@ func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
 	if a.r.Page != "notes" {
 		t.Fatalf("agent-installed binding did not open Notes: %s", a.r.Page)
 	}
-	reply, err := s.Call(context.Background(), "run", map[string]any{"verb": "ochazuke.settings.set", "args": map[string]any{"name": "agents.rights", "value": `[{"match":"*","right":"allow"}]`}})
+	reply, err := s.Call(context.Background(), "run", map[string]any{"verb": "ochazuke.setting.set", "args": map[string]any{"name": "agents.rights", "value": `[{"match":"*","right":"allow"}]`}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
 	if _, err := a.work.Task(id); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("owner override did not delete task: %v", err)
 	}
-	for _, verb := range []string{"ochazuke.settings.set", "ochazuke.bindings.load", "task.delete"} {
+	for _, verb := range []string{"ochazuke.setting.set", "ochazuke.bindings.load", "task.delete"} {
 		found := false
 		for _, entry := range a.r.HistoryOf(0, ochazuke.HistoryChange) {
 			if entry.Request.Key() == verb && entry.Context.Actor.Pane == "w1" && entry.Context.Source == "mcp" {
@@ -328,7 +328,7 @@ func TestMCPActorStaysBoundAndLaneAssignmentRefreshes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := list.(map[string]any)["result"].([]any)
+	rows := resultRows(list.(map[string]any))
 	if len(rows) != 1 || rows[0].(map[string]any)["id"] != "t1" {
 		t.Fatalf("owner pin leaked into agent lane: %v", list)
 	}
@@ -336,7 +336,7 @@ func TestMCPActorStaysBoundAndLaneAssignmentRefreshes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows := list.(map[string]any)["result"].([]any); len(rows) != 2 {
+	if rows := resultRows(list.(map[string]any)); len(rows) != 2 {
 		t.Fatalf("scope all: %v", list)
 	}
 	env["TUIOS_PANE_ID"], env["TUIOS_SESSION"] = "w9", "other"
@@ -418,7 +418,7 @@ func TestMCPShellActorBridgesTheStore(t *testing.T) {
 	if task.Maker().Pane != "w1" || task.Maker().Harness != "test-harness" || task.Maker().Task != "t1" {
 		t.Fatalf("shared shell used store owner: %s", compactJSON(task.Maker()))
 	}
-	out, err := s.Call(context.Background(), "run", map[string]any{"verb": "task.set", "target": id, "args": map[string]any{"prop": "title", "value": "explicit target"}})
+	out, err := s.Call(context.Background(), "run", map[string]any{"verb": "task.set", "target": id, "args": map[string]any{"props": map[string]any{"title": "explicit target"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

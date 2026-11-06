@@ -136,6 +136,11 @@ type pane struct {
 // prefix keeps them apart from project and task rows.
 func (p pane) rowID() string { return "pane:" + p.Session + "/" + p.ID }
 
+// keyProps are the pane row's key prop (its window id) beside the pane
+// it carries as Data, whose JSON names the window window_id: the standard
+// verbs read a row's thing by its key prop, never by the row id.
+func (p pane) keyProps() ochazuke.Thing { return ochazuke.Thing{"id": p.ID} }
+
 // label is the row text, the panel title and the {{label}} a confirm
 // prompt reads. A uuid-named session shows its first 8 characters.
 func (p pane) label() string {
@@ -303,7 +308,8 @@ func (a *App) definePanes() {
 		Bind("enter", ochazuke.Do("pane.attach").Hinted("live")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
 		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
-		Bind("m", ochazuke.Do("pane.choose-move"))
+		Bind("m", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
+		Bind("r", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename"))
 	// In visual-line (V) d kills the selected panes, as the list's d deletes
 	// rows: the pane's visual-line table reads its normal rows after its
 	// own, and the normal d d no longer waits over it (ochazuke's
@@ -322,7 +328,8 @@ func (a *App) definePanes() {
 		Verb("kill", a.killSession, "Close the session and every pane in it").Confirm("Kill {{label}} and its panes?").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("session.attach").Guard("session-has-pane")).
-		Bind("m", ochazuke.Do("session.choose-move")).
+		Bind("m", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
+		Bind("r", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename")).
 		Bind("d d", ochazuke.Do("session.kill"))
 	// enter attaches a session only when it has a pane to attach.
 	a.r.DefineGuard("session-has-pane", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {

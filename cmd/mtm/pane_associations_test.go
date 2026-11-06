@@ -35,7 +35,7 @@ func TestLiveRenameAssociation(t *testing.T) {
 				t.Fatal(err)
 			}
 			press(t, a, "ctrl+a", "r")
-			if a.r.Focus != renameFormID+"/name" || !strings.Contains(frame(a), "Rename pane matomeru/claude") {
+			if a.r.Focus != editFormID+"/name" || !strings.Contains(frame(a), "Edit pane name: matomeru/claude") {
 				t.Fatalf("rename did not name live parent: %s", frame(a))
 			}
 			typeText(t, a, "reviewer")

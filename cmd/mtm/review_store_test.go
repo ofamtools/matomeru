@@ -17,8 +17,8 @@ func TestReviewVerbsAreStandard(t *testing.T) {
 	a := open(t)
 	standardIs(t, a, "review", map[string]string{
 		"get": "get", "list": "list", "set": "set", "watch": "watch",
-		"open": "", "accept": "", "reject": "", "choose-status": "", "saveAnswer": "",
-	}, "create", "delete", "move", "rename", "duplicate")
+		"open": "", "accept": "", "reject": "", "choose-status": "", "saveAnswer": "", "create": "",
+	}, "move", "rename", "duplicate", "restore")
 	if status := aliasOf(a, "review.set", "review.status"); status == nil || status.Deprecated() || status.Args["prop"] != "status" {
 		t.Fatalf("status: %+v", status)
 	}
@@ -67,7 +67,7 @@ func TestReviewWritesAreStandardAndUndo(t *testing.T) {
 		t.Fatalf("get: %v", got)
 	}
 	var rows []map[string]any
-	cliJSON(t, app, &rows, "review", "list", "--all")
+	cliRows(t, app, &rows, "review", "list", "--all")
 	if len(rows) != 1 || rows[0]["id"] != rv.ID {
 		t.Fatalf("list: %v", rows)
 	}
@@ -89,7 +89,7 @@ func TestReviewSetWritesAJournalRowsRecord(t *testing.T) {
 	if _, err := app.work.Review(id); err == nil {
 		t.Fatal("the journal row was stored before a write")
 	}
-	executeA(t, app, "review", "set", "", ochazuke.Arguments{"id": id, "prop": "status", "value": "accepted"})
+	executeA(t, app, "review", "set", "", ochazuke.Arguments{"id": id, "props": map[string]any{"status": "accepted"}})
 	if got := storedReview(t, app, id); got.Status != work.ReviewAccepted || got.Window == "" {
 		t.Fatalf("record: %+v", got)
 	}

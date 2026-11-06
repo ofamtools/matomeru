@@ -9,7 +9,7 @@ import (
 )
 
 // A task's subtasks belong to its project: a move to another project
-// (task.move, task set project= or parent=, m, the outline's move across a
+// (task set @owner=, task set project= or parent=, m, the outline's move across a
 // project row, AssociateTask) writes the task and gives every task under
 // it the same project in one transaction, and an undo of the move (which
 // writes the task's old project back through the same path) takes them

@@ -20,7 +20,7 @@
       "mode": "terminal",
       "focus": "panes/terminal",
       "lacks": [
-        "Rename pane"
+        "Edit pane name"
       ],
       "contains": [
         "claude"

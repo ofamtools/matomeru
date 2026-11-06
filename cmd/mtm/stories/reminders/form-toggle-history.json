@@ -7,8 +7,8 @@
   "config": {
     "bindings.json": [
       {"noun":"app","mode":"normal","keys":"ctrl+x","request":{"noun":"ochazuke.page","verb":"open","args":{"id":"schedules"}}},
-      {"noun":"app","mode":"normal","keys":"ctrl+t","request":{"noun":"ochazuke.focus","verb":"set","args":{"id":"reminder-form/time"}}},
-      {"noun":"app","mode":"normal","keys":"ctrl+d","request":{"noun":"ochazuke.focus","verb":"set","args":{"id":"reminder-form/days"}}}
+      {"noun":"app","mode":"normal","keys":"ctrl+t","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"reminder-form/time"}}},
+      {"noun":"app","mode":"normal","keys":"ctrl+d","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"reminder-form/days"}}}
     ]
   },
   "script": ["ctrl+x", "tab", "n", {"type":"water the plants"}, "esc", "ctrl+t", "i", "ctrl+a", "ctrl+k", {"type":"10:30"}, "esc", "ctrl+d", "i", "ctrl+a", "ctrl+k", {"type":"mon,wed,fri"}, "esc", "q", "x", "enter"],

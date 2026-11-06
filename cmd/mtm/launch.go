@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"unicode"
@@ -170,16 +171,16 @@ func harnessCells(h harness.Harness) []string {
 	return []string{h.Name, strings.Join(h.Command, " "), models, prompt}
 }
 
-// defineLaunch adds the agent noun, the projects.list source and the launch
+// defineLaunch adds the agent noun, the projects.all source and the launch
 // parameters.
 func (a *App) defineLaunch() {
 	r := a.r
-	r.Define("projects").Verb("list", a.listProjects, "List the projects as choices (id and name)").Fetch().
+	r.Define("projects").Verb("all", a.listProjects, "List the projects as choices (id and name)").Fetch().
 		Verb("names", a.projectNames, "List project names as choices; ids remain accepted by project verbs").Fetch().
 		Verb("directories", a.projectDirectories, "Every project's directories as rows {id, label, data: {directories, default}}, paths resolved (absolute, symlinks followed); for tools asking whether a project already has a directory").Fetch().
 		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
 	r.Define("harness").Columns(harnessColumns...).
-		Verb("list", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").Fetch().
+		Verb("all", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").Fetch().
 		Verb("models", a.listModels, "List a harness's models as choices; without a harness, combine every harness's models").Fetch().
 		Verb("names", a.harnessNames, "List the harness names as choices (the project editor's harness field)").Fetch()
 	// Launches belong to mtm; ochazuke.agent owns framework rights inspection.
@@ -200,12 +201,12 @@ func (a *App) defineLaunch() {
 	a.parameters("agent.launch", map[string]ochazuke.Parameter{
 		"harness": agent,
 		"model":   model,
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; omit to infer it"},
+		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omit to infer it"},
 		"task":    task,
 		"scratch": {Type: "boolean", Description: "Launch unassociated in no-project"},
 	})
 	a.parameters("agent.start", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the agent runs in no project (cwd: the home directory)"},
+		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, the agent runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"harness": agent,
 		"model":   model,
@@ -217,7 +218,7 @@ func (a *App) defineLaunch() {
 	a.parameters("task.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model, "drive": driveParam})
 }
 
-// listHarnesses is harness.list: the registry as data.
+// listHarnesses is harness.all: the registry as data.
 func (a *App) listHarnesses(ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(a.harnesses.List())
 }
@@ -305,9 +306,17 @@ func (a *App) harnessFor(args ochazuke.Arguments, p work.Project) (harness.Harne
 }
 
 // parameters sets an operation's parameters after Define registered it.
+// The ones the framework gave it and params does not name stay: an
+// application's own edit keeps the field parameter ochazuke adopts for
+// edit {field} (the one-field form of r and m).
 func (a *App) parameters(key string, params map[string]ochazuke.Parameter) {
 	op := a.r.Operations[a.r.CanonicalKey(key)]
-	op.Parameters = params
+	merged := maps.Clone(op.Parameters)
+	if merged == nil {
+		merged = map[string]ochazuke.Parameter{}
+	}
+	maps.Copy(merged, params)
+	op.Parameters = merged
 	a.r.Operations[a.r.CanonicalKey(key)] = op
 }
 
@@ -609,13 +618,13 @@ func (a *App) defineShell() error {
 		Mode("normal").
 		Bind("n", ochazuke.Do("pane.new"))
 	a.parameters("pane.start", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; omitted, the shell runs in no project (cwd: the home directory)"},
+		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, the shell runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"task":    {Type: "string"},
 		"notice":  {Type: "string"},
 	})
 	a.parameters("pane.new", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true},
+		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true},
 		"task":    {Type: "string"},
 		"scratch": {Type: "boolean", Description: "Launch unassociated in mtm-only"},
 	})

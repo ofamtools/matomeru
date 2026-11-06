@@ -17,7 +17,7 @@ import (
 // review.choose-status, the chooser; accept, reject and saveAnswer stay
 // named ("do not force generic CRUD onto review history") and run set.
 // Everything else (the pane, its owner, the capture, the turns) is the
-// pane's, read-only: a review follows its pane (pane.move moves the
+// pane's, read-only: a review follows its pane (pane set @owner moves the
 // pane), so a review has no move. No create or delete: a launch records a
 // review, and a review's history is kept.
 
@@ -35,7 +35,7 @@ func reviewProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The review's key")},
 		pane,
-		ro("project", ochazuke.Parameter{Type: "string", Noun: "project", Description: "The project the pane worked for (the pane's; pane.move changes it)"}),
+		ro("project", ochazuke.Parameter{Type: "string", Noun: "project", Description: "The project the pane worked for (the pane's; pane set @owner changes it)"}),
 		ro("task", ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane worked on"}),
 		ro("harness", text("The harness the pane runs")),
 		ro("session", text("The pane's session")),

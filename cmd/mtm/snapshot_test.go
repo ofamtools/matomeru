@@ -29,7 +29,7 @@ func monoFrame(t *testing.T, a *App) string {
 // mono switches the app to the mono theme.
 func mono(t *testing.T, a *App) {
 	t.Helper()
-	if _, err := a.r.Execute(ochazuke.Request{Verb: "set", Noun: "appearance", Args: ochazuke.Arguments{"theme": "mono"}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "set", Noun: "appearance", Args: ochazuke.Arguments{"props": map[string]any{"theme": "mono"}}}); err != nil {
 		t.Fatal(err)
 	}
 }

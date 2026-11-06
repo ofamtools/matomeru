@@ -30,7 +30,22 @@ func TestNoNewNameBranches(t *testing.T) {
 			}
 		}
 	}
-	merge(open(t))
+	for _, a := range vocabApps(t) {
+		merge(a)
+	}
+	namecheck.Check(t, namecheck.Config{
+		Vocab:    vocab,
+		Baseline: "testdata/namecheck.txt",
+		Dirs:     []string{".", "../../internal/...", "../../store/..."},
+	})
+}
+
+// vocabApps are the test app and an app with each real extension catalog
+// mounted (o-ai's quota catalog and o-lane's): the full vocabulary mtm's
+// checks read.
+func vocabApps(t *testing.T) []*App {
+	t.Helper()
+	apps := []*App{open(t)}
 	for _, ext := range []struct{ name, catalog string }{
 		{"ai", "testdata/o-ai-quota-catalog.json"},
 		{"lane", "testdata/o-lane-catalog.json"},
@@ -42,11 +57,7 @@ func TestNoNewNameBranches(t *testing.T) {
 		bin, _ := fakeExtension(t, strings.TrimSpace(string(catalog)), "")
 		path := seeded(t)
 		mustCLI(t, openAt(t, path), "extension", "register", ext.name, "--bin", bin)
-		merge(openAt(t, path))
+		apps = append(apps, openAt(t, path))
 	}
-	namecheck.Check(t, namecheck.Config{
-		Vocab:    vocab,
-		Baseline: "testdata/namecheck.txt",
-		Dirs:     []string{".", "../../internal/...", "../../store/..."},
-	})
+	return apps
 }

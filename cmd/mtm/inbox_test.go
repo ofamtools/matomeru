@@ -32,6 +32,35 @@ func cliJSON(t *testing.T, a *App, v any, args ...string) {
 	}
 }
 
+// cliRows decodes a list verb's CLI answer into v: the rows of the
+// standard list's answer ({items, page, per_page, total}), or a command
+// verb's array as it is.
+func cliRows(t *testing.T, a *App, v any, args ...string) {
+	t.Helper()
+	out := mustCLI(t, a, args...)
+	var page struct {
+		Items json.RawMessage `json:"items"`
+	}
+	raw := []byte(out)
+	if strings.HasPrefix(strings.TrimSpace(out), "{") && json.Unmarshal(raw, &page) == nil && page.Items != nil {
+		raw = page.Items
+	}
+	if err := json.Unmarshal(raw, v); err != nil {
+		t.Fatalf("mtm %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+}
+
+// resultRows are an MCP run's rows: a list answer's items, else the
+// result as it is.
+func resultRows(reply map[string]any) []any {
+	result := reply["result"]
+	if page, ok := result.(map[string]any); ok {
+		result = page["items"]
+	}
+	rows, _ := result.([]any)
+	return rows
+}
+
 type addAnswer struct {
 	ID        string `json:"id"`
 	New       bool   `json:"new"`
@@ -100,7 +129,7 @@ func TestCLIActionItemAddRecordsWhateverItIsGiven(t *testing.T) {
 		t.Fatalf("project by name: %+v", byName)
 	}
 	var rows []actionThing
-	cliJSON(t, a, &rows, "action-item", "list", "--project", "matomeru")
+	cliRows(t, a, &rows, "action-item", "list", "--project", "matomeru")
 	if len(rows) != 1 || rows[0].ID != onTask.ID {
 		t.Fatalf("list --project: %+v", rows)
 	}
@@ -143,19 +172,19 @@ func TestCLIActionItemVerbs(t *testing.T) {
 		t.Fatalf("snooze: %+v", got)
 	}
 	var open []any
-	cliJSON(t, a, &open, "action-item", "list")
+	cliRows(t, a, &open, "action-item", "list")
 	if len(open) != 0 {
 		t.Fatalf("snoozed item listed as open: %v", open)
 	}
 	got = actionThing{}
-	cliJSON(t, a, &got, "action-item", "restore", it.ID)
+	cliJSON(t, a, &got, "action-item", "set", it.ID, "@archive=false")
 	got = actionThing{}
 	cliJSON(t, a, &got, "action-item", "archive", it.ID)
 	if got.State != "archived" || !got.Read {
 		t.Fatalf("archive: %+v", got)
 	}
 	got = actionThing{}
-	cliJSON(t, a, &got, "action-item", "restore", it.ID)
+	cliJSON(t, a, &got, "action-item", "set", it.ID, "@archive=false")
 	if got.State != "open" {
 		t.Fatalf("restore: %+v", got)
 	}
@@ -308,11 +337,7 @@ func TestInboxPageKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "m")
-	if a.r.TopModal() == "" {
-		t.Fatal("m did not ask")
-	}
-	typeText(t, a, "ochazuke")
-	press(t, a, "enter")
+	pickOwner(t, a, "ochazuke")
 	if it, _ := a.inbox.items.Get(ping.ID); it.ProjectID != "ochazuke" {
 		t.Fatalf("m: %+v", it)
 	}

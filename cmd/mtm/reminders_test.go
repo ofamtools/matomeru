@@ -96,7 +96,11 @@ func TestReminderArchivePreservesHistory(t *testing.T) {
 		if verb == "check" {
 			args = ochazuke.Arguments{"name": id}
 		}
-		_, err := a.r.Execute(ochazuke.Request{Noun: reminderNoun, Verb: verb, Args: args})
+		q := ochazuke.Request{Noun: reminderNoun, Verb: verb, Args: args}
+		if verb == "restore" { // set {@archive: false} since R1
+			q.Verb, q.Args = "set", ochazuke.Arguments{"id": id, "props": map[string]any{"@archive": false}}
+		}
+		_, err := a.r.Execute(q)
 		if err != nil {
 			t.Fatalf("%s: %v", verb, err)
 		}

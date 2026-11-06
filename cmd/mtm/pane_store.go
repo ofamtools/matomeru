@@ -70,7 +70,7 @@ func paneProps() []ochazuke.PropSpec {
 		{Name: "name", Role: ochazuke.RoleLabel, Fallback: "display", Parameter: text("The window's name in the daemon; empty falls back to the shell's title")},
 		ro("display", "The pane as lists show it: session/name, or the program when the window has its default name"),
 		ro("session", "The session the pane is in"),
-		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the pane belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane works on; its project wins over project"}},
 		{Name: "starred", Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the pane is starred (` and the leader's s go to the next starred pane)"}},
@@ -238,7 +238,7 @@ func (a *App) updatePane(window string, apply func(*pane)) {
 }
 
 // launchWindowRename renames the window in the daemon as a job of the
-// write (off the loop, as pane.rename always ran), its saved records that
+// write (off the loop, as the pane rename always ran), its saved records that
 // still carry the old name following; the list reloads after it. While mtm
 // closes no job runs, so the write runs here.
 func (a *App) launchWindowRename(c ochazuke.Ctx, p pane, name string) error {
@@ -277,7 +277,7 @@ func (a *App) jobOwner(row string) string {
 }
 
 // jobVerb is the verb a store's job runs under, as the ticker shows it:
-// the named verb that ran the standard write (writeVerb, pane.rename),
+// the named verb that ran the standard write (writeVerb),
 // else the verb the request was invoked by, else fallback.
 func (a *App) jobVerb(c ochazuke.Ctx, fallback string) string {
 	switch {
@@ -311,7 +311,7 @@ func (a *App) paneKey(inst *ochazuke.Instance) (string, error) {
 // associatePaneOne is pane.associate's old form on one pane, its owner
 // given: the standard set of its project and task (a task names its
 // project; one not found is unassociated with a notice). The form is
-// deprecated: associatePane's notice names pane.move and pane set.
+// deprecated: associatePane's notice names pane set (@owner, task).
 func (a *App) associatePaneOne(ctx ochazuke.Ctx) ochazuke.Result {
 	key, err := a.paneKey(ctx.Instance)
 	if err != nil {
@@ -326,7 +326,7 @@ func (a *App) associatePaneOne(ctx ochazuke.Ctx) ochazuke.Result {
 			changes = map[string]any{"task": fmt.Sprint(v)}
 		}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "changes": changes}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "props": changes}}))
 }
 
 // associatePane is pane.associate. Its relation forms (--action-item,
@@ -341,7 +341,7 @@ func (a *App) associatePane(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "pane")
 	}
-	ctx.Notify(fmt.Sprintf("pane.associate --project is an old form of pane.move --to, --task of pane set ID task=TASK (since %s; removed after %s)", paneAssociateSince, paneAssociateRemoveAfter))
+	ctx.Notify(fmt.Sprintf("pane.associate --project is an old form of pane set ID @owner=PROJECT, --task of pane set ID task=TASK (since %s; removed after %s)", paneAssociateSince, paneAssociateRemoveAfter))
 	return ctx.Each(a.associatePaneOne)
 }
 
@@ -360,5 +360,5 @@ func (a *App) relatePane(p pane, o Owner) ochazuke.Result {
 	if o.TaskID != "" {
 		changes = map[string]any{"task": o.TaskID}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "changes": changes}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": key, "props": changes}}))
 }

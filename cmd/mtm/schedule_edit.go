@@ -54,7 +54,7 @@ func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 		"effort":          {Type: "string", Enum: settingChoices(harness.SettingEffort), Free: true, Description: "Thinking effort at launch (the harness's effort setting)"},
 		"fast":            {Type: "string", Enum: []string{"on", "off"}, Free: true, Description: "Fast mode at launch: on or off"},
 		"permission-mode": {Type: "string", Enum: settingChoices(harness.SettingPermission), Free: true, Description: "Permission mode at launch (the harness's permission-mode setting)"},
-		"project":         {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project the agent works in (its session and directory); empty: no project"},
+		"project":         {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project the agent works in (its session and directory); empty: no project"},
 		"task":            {Type: "string", Free: true, Description: "A task id the pane is linked to (its title is the prompt when there is none)"},
 		"dir":             dirParam("The working folder; empty: the project's directory, else home", false),
 		"into":            {Type: "string", Enum: schedules.TargetValues, Description: "Where each run goes: new, a new pane; pane, send to the pane named by pane when it is ready (a new one when none is open)"},

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -134,9 +133,7 @@ func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 	// every-mode) row starts with the leader.
 	for _, target := range []string{"pane:matomeru/w1", paneListID, panesDetailID} {
 		var rows []ochazuke.Binding
-		if err := json.Unmarshal([]byte(mustCLI(t, app, "bindings", "list", "--target", target)), &rows); err != nil {
-			t.Fatal(err)
-		}
+		cliRows(t, app, &rows, "bindings", "list", "--target", target)
 		listed := map[string]string{}
 		for _, b := range rows {
 			if (b.Mode == "normal" || b.Mode == "") && strings.HasPrefix(b.Keys, "ctrl+a") {

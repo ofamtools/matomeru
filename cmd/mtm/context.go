@@ -141,7 +141,7 @@ func (a *App) defineContext() {
 		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
 		Verb("associate", a.associateContext, "Choose the project to move the item to (omit the owner); --task, --project and --scratch are the deprecated forms of set task and move").Positional("id").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice runs context-item.move").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
 		Verb("turns", a.extractTurns, "Extract items from every journaled turn's prompt and answer now (new turns are extracted as they are journaled)").
 		Verb("follow", a.followPanes, "Read the panes that printed since the last read and keep what is new (runs by itself about once a second)").Quiet().
@@ -152,7 +152,7 @@ func (a *App) defineContext() {
 		Bind("o", ochazuke.Do(contextNoun+".open")).
 		Bind("R", ochazuke.Do(contextNoun+".reveal")).
 		Bind("*", ochazuke.Do(contextNoun+".star")).
-		Bind("m", ochazuke.Do(contextNoun+".choose-move")).
+		Bind("m", ochazuke.Do(contextNoun+".edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
 		Bind("d d", ochazuke.Do(contextNoun+".delete"))
 	// forget is the noun's own word for delete (the record only), kept as
 	// a lasting alias: context-item forget ID works as before. star is the
@@ -171,8 +171,8 @@ func (a *App) defineContext() {
 	}
 	a.parameters(contextNoun+".associate", map[string]ochazuke.Parameter{"id": id["id"],
 		"task":    {Type: "string", Noun: "task", Description: "Deprecated: context-item set ID task=TASK (its project follows)"},
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "Deprecated: context-item move ID --to PROJECT; one not found is left out with a notice"},
-		"scratch": {Type: "boolean", Description: "Deprecated: context-item move ID --to \"\" (unassociate it)"}})
+		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "Deprecated: context-item set ID @owner=PROJECT; one not found is left out with a notice"},
+		"scratch": {Type: "boolean", Description: "Deprecated: context-item set ID @owner= (unassociate it)"}})
 	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
 	a.r.Define("context-search").Pin("insert").
 		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").

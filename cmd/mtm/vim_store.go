@@ -32,7 +32,7 @@ func vimProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The session's key")},
 		{Name: "name", Role: ochazuke.RoleLabel, Parameter: text("The session's name (mtm's record; the pane keeps its window name)")},
-		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the session (and its running pane) belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the session belongs to; its project wins over project"}},
 		ro("path", "The session file reopen restores (:mksession; vim save writes it)"),

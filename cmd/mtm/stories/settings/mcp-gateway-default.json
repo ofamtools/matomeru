@@ -31,8 +31,8 @@
         "mode": "normal",
         "keys": "ctrl+x",
         "request": {
-          "noun": "ochazuke.settings",
-          "verb": "edit"
+          "noun": "ochazuke.setting",
+          "verb": "open"
         },
         "noun": "app"
       },
@@ -40,8 +40,8 @@
         "mode": "normal",
         "keys": "ctrl+y",
         "request": {
-          "noun": "ochazuke.settings",
-          "verb": "tab",
+          "noun": "ochazuke.setting",
+          "verb": "show-tab",
           "args": {
             "name": "ochazuke"
           }
@@ -53,8 +53,8 @@
         "mode": "normal",
         "keys": "ctrl+z",
         "request": {
-          "noun": "ochazuke.settings",
-          "verb": "section",
+          "noun": "ochazuke.setting",
+          "verb": "show-section",
           "args": {
             "name": "agents"
           }

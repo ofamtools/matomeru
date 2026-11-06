@@ -28,7 +28,7 @@ func setupSettings() []ochazuke.Setting {
 // defineSetup adds the setup noun.
 func (a *App) defineSetup() {
 	a.r.Define("setup").
-		Verb("list", a.setupList, "List the capture hooks mtm can install and their state (missing, installed, outdated, conflict)").Fetch().
+		Verb("all", a.setupList, "List the capture hooks mtm can install and their state (missing, installed, outdated, conflict)").Fetch().
 		Verb("plan", a.setupPlan, "Print what installing writes (path and whole content) without writing").Fetch().
 		Verb("install", a.setupInstall, "Install mtm's turn-capture hooks; omit item for all of them").Confirm("Write mtm's turn-capture hooks into the harness configuration?").
 		Verb("uninstall", a.setupUninstall, "Remove mtm's turn-capture hooks and nothing else; omit item for all of them").Confirm("Remove mtm's turn-capture hooks?")
@@ -37,7 +37,7 @@ func (a *App) defineSetup() {
 		"item": {Type: "string", Enum: setup.IDs(), Description: "One item; omit for all"},
 		"home": {Type: "string", Description: "A directory standing for the home directory (dry runs, tests)"},
 	}
-	for _, verb := range []string{"list", "plan", "install", "uninstall"} {
+	for _, verb := range []string{"all", "plan", "install", "uninstall"} {
 		a.parameters("setup."+verb, params)
 		op := a.r.Operations[a.r.CanonicalKey("setup."+verb)]
 		op.Positional = []string{"item"}

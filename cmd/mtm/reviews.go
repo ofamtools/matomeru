@@ -228,7 +228,7 @@ func (a *App) refreshReviews() error {
 	for _, r := range shown {
 		a.reviews = append(a.reviews, r.Review)
 		a.reviewRows[r.Review.ID] = r
-		items = append(items, ochazuke.ListItem{ID: r.Review.ID, Label: a.reviewLabel(r, now), Noun: "review", Cells: a.reviewCells(r, now)})
+		items = append(items, ochazuke.ListItem{ID: r.Review.ID, Label: a.reviewLabel(r, now), Noun: "review", Props: ochazuke.Thing{"id": r.Review.ID}, Cells: a.reviewCells(r, now)})
 	}
 	if a.reviewList == nil {
 		return nil
@@ -527,7 +527,7 @@ func (a *App) chooseReviewStatus(ctx ochazuke.Ctx) ochazuke.Result {
 
 // reviewSet runs the standard set of one prop of a review.
 func (a *App) reviewSet(id, prop string, value any) ochazuke.Result {
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "review", Verb: "set", Args: ochazuke.Arguments{"id": id, "prop": prop, "value": value}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "review", Verb: "set", Args: ochazuke.Arguments{"id": id, "props": map[string]any{prop: value}}}))
 }
 
 // setReviewStatus is accept and reject: the standard set of status on the
@@ -574,7 +574,7 @@ func (a *App) answerCommit(rv work.Review) func(string) error {
 		if text == rv.Answer {
 			return a.drafts.Clear("review", rv.ID)
 		}
-		_, err := a.r.Execute(ochazuke.Request{Noun: "review", Verb: "set", Args: ochazuke.Arguments{"id": rv.ID, "prop": "answer", "value": text}})
+		_, err := a.r.Execute(ochazuke.Request{Noun: "review", Verb: "set", Args: ochazuke.Arguments{"id": rv.ID, "props": map[string]any{"answer": text}}})
 		return err
 	}
 }

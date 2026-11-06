@@ -130,9 +130,7 @@ func TestCLIHistoryListShowsTheOperationsThisProcessRan(t *testing.T) {
 		t.Fatalf("title = %q", got)
 	}
 	var entries []ochazuke.HistoryEntry
-	if err := json.Unmarshal([]byte(mustCLI(t, app, "history", "list")), &entries); err != nil {
-		t.Fatal(err)
-	}
+	cliRows(t, app, &entries, "history", "list")
 	var found bool
 	for _, e := range entries {
 		if e.Request.Key() == "task.edit" && e.Request.Target == "t1" && e.Context.Source == "cli" && e.Result.OK {
@@ -154,17 +152,15 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 	}
 	stops := map[string][]string{
 		"matomeru":         {"enter project.open", "l project.open", "L project.launch"},
-		"t1":               {"enter task.edit", "l task.open", "L task.launch", "i task.edit", "x task.toggle", "s task.choose-status", "m task.choose-move", "n task.new"},
-		"pane:matomeru/w1": {"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.choose-move", "n pane.new", "] panes.tab"},
+		"t1":               {"enter task.edit", "l task.open", "L task.launch", "i task.edit", "x task.toggle", "s task.choose-status", "m task.edit", "n task.new"},
+		"pane:matomeru/w1": {"enter pane.attach", "d d pane.kill", "r pane.edit", "m pane.edit", "n pane.new", "] panes.tab"},
 		paneListID:         {"n pane.new", "e daemon.ensure"},
 		reviews[0].ID:      {"enter review.open", "x review.accept", "s review.choose-status", "i review.saveAnswer"},
 	}
 	fkey := regexp.MustCompile(`(^|[ +])f\d+$`)
 	for target, want := range stops {
 		var rows []ochazuke.Binding
-		if err := json.Unmarshal([]byte(mustCLI(t, app, "bindings", "list", "--target", target)), &rows); err != nil {
-			t.Fatal(err)
-		}
+		cliRows(t, app, &rows, "bindings", "list", "--target", target)
 		seen := map[string]bool{}
 		listed := map[string]bool{}
 		for _, b := range rows {
@@ -225,11 +221,11 @@ func TestCLIThroughRun(t *testing.T) {
 	if err := run(append(args, "bindings", "list"), strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("bindings list: %v\n%s", err, errOut.String())
 	}
-	if !strings.Contains(out.String(), `"keys":"ctrl+j"`) {
+	if !strings.Contains(strings.ReplaceAll(out.String(), `": "`, `":"`), `"keys":"ctrl+j"`) {
 		t.Fatalf("bindings list:\n%s", out.String())
 	}
 	out.Reset()
-	if err := run(append(args, "history", "list"), strings.NewReader(""), &out, &errOut); err != nil || strings.TrimSpace(out.String()) != "[]" {
+	if err := run(append(args, "history", "list"), strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), `"items": []`) {
 		t.Fatalf("history list in a fresh process: %q, %v", out.String(), err)
 	}
 	if err := run(append(args, "nope", "list"), strings.NewReader(""), &out, &errOut); err == nil {

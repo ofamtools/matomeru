@@ -141,19 +141,19 @@ func TestSavedRenameIsWrittenAsYouType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	savedCall(t, a, "rename", ochazuke.Arguments{"id": row.ID})
-	if a.renaming == nil || a.r.Focus != renameFormID+"/name" {
+	savedCall(t, a, "edit", ochazuke.Arguments{"id": row.ID, "field": "@label"})
+	if editing(a) == nil || a.r.Focus != editFormID+"/name" {
 		t.Fatalf("rename did not open the form: focus %s", a.r.Focus)
 	}
 	typeText(t, a, "renamed")
-	pauseForm(t, a, a.renaming)
+	pauseForm(t, a, editing(a))
 	if got, err := a.work.SavedPane(row.ID); err != nil || got.Name != "renamed" {
 		t.Fatalf("after the pause: %+v %v", got, err)
 	}
 	typeText(t, a, "!")
 	press(t, a, "enter")
 	got, err := a.work.SavedPane(row.ID)
-	if err != nil || got.Name != "renamed!" || a.renaming != nil || a.r.TopModal() != "" {
+	if err != nil || got.Name != "renamed!" || editing(a) != nil || a.r.TopModal() != "" {
 		t.Fatalf("rename: %+v %v modal %q", got, err, a.r.TopModal())
 	}
 }

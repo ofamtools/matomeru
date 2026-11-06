@@ -9,7 +9,7 @@
     "ctrl+a",
     ":",
     {
-      "type": "pane rename"
+      "type": "pane edit --field @label"
     },
     "enter",
     {
@@ -17,7 +17,7 @@
     },
     "enter",
     {
-      "job": "pane.rename"
+      "job": "pane.set"
     },
     {
       "job": "panes.refresh"
@@ -28,7 +28,7 @@
       "after": 5,
       "mode": "insert",
       "contains": [
-        "Rename pane acme-web/claude"
+        "Edit pane name: acme-web/claude"
       ]
     },
     {

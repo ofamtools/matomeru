@@ -25,7 +25,7 @@ For example:
 omitting it keeps the previous value, and an empty value falls back to `name`.
 The built-ins use `vim` and `term`. Catalog sides fall back to their names
 (for example, o-git's `diff`); a `sides.json` override can supply another hint.
-`title` stays the longer label in menus, `side.list`, the `panes.sides` chooser
+`title` stays the longer label in menus, `side.all`, the `panes.sides` chooser
 and keyboard help (`?`). Set `hint` to the title to use that wording in hints.
 
 The Settings page's side-layout description names the file. `config.reload`
@@ -43,7 +43,7 @@ and `{bin}` (the registered extension binary). User overrides of an extension
 row retain its binary. `vim-session` selects the existing owned vim-session
 launcher. An unknown launcher produces a notice and launches nothing.
 
-`side.list` shows definitions, sources, keys and commands. `side.show NAME`
+`side.all` shows definitions, sources, keys and commands. `side.show NAME`
 and `pane.side --kind NAME` open or focus a side; `--pane WINDOW_ID` supplies
 the parent to CLI callers. `side.restart NAME` closes that side and opens it
 again in the parent's current folder; in live use the omitted name means

@@ -709,7 +709,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 // flatPaneNode is a pane's row in the top or bottom list.
 func (a *App) flatPaneNode(p pane, name string, now time.Time) ochazuke.TreeNode {
 	cells, tones := a.flatPaneCells(p, name, now)
-	return ochazuke.TreeNode{ID: p.rowID(), Label: p.label(), Noun: "pane", Data: p, Cells: cells, Tones: tones}
+	return ochazuke.TreeNode{ID: p.rowID(), Label: p.label(), Noun: "pane", Data: p, Props: p.keyProps(), Cells: cells, Tones: tones}
 }
 
 // flatPaneCells are a pane's cells in a flat list (its own row, or its

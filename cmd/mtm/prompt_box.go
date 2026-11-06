@@ -893,7 +893,7 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	if n := attachmentsLabel(len(a.pb.live())); n != "" {
 		label += " · " + n
 	}
-	hint := a.keySentence(promptID, keyAction{promptNoun + ".send", "sends"}, keyAction{promptNoun + ".mode", "mode"})
+	hint := a.keySentence(promptID, keyAction{promptNoun + ".send", "sends", nil}, keyAction{promptNoun + ".mode", "mode", nil})
 	rule := "── " + label + " "
 	if hint != "" {
 		rule += "─ " + hint + " "
@@ -914,7 +914,7 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 			if k := a.keyForRequest(promptID, "input.begin", ochazuke.Arguments{"position": "insert"}); k != "" {
 				cue = append(cue, k+" to write")
 			}
-			if back := a.keySentence(promptID, keyAction{promptNoun + ".back", "back"}); back != "" {
+			if back := a.keySentence(promptID, keyAction{promptNoun + ".back", "back", nil}); back != "" {
 				cue = append(cue, back)
 			}
 			field = field.WithText(s.Muted.Render(strings.Join(cue, " · ")))

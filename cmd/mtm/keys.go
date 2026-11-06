@@ -68,14 +68,19 @@ func sameArgs(got, want ochazuke.Arguments) bool {
 	return true
 }
 
-// keyAction is one "key does this" phrase of a hint sentence.
-type keyAction struct{ op, does string }
+// keyAction is one "key does this" phrase of a hint sentence: the
+// operation, and the arguments its row gives (nil: any), so r and m, both
+// edit, are told apart by their field.
+type keyAction struct {
+	op, does string
+	args     ochazuke.Arguments
+}
 
 // keySentence joins "KEY does" for each action that has a key at focus.
 func (a *App) keySentence(focus string, actions ...keyAction) string {
 	var parts []string
 	for _, act := range actions {
-		if k := a.keyFor(focus, act.op); k != "" {
+		if k := a.keyForRequest(focus, act.op, act.args); k != "" {
 			parts = append(parts, k+" "+act.does)
 		}
 	}

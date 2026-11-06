@@ -456,11 +456,6 @@ type App struct {
 	// extAmbiguous keeps the owners of shared, otherwise unclaimed noun
 	// names, so the CLI can reserve each exact word (extension_names.go).
 	extAmbiguous map[string][]string
-	// extForm is the open form over an extension's row (extension_forms.go).
-	extForm *ochazuke.RecordEditor
-	// renaming is the open rename form of a pane, session or saved pane (rename.go).
-	renaming   *ochazuke.RecordEditor
-	renameNoun string
 	// extSyncDue asks the next update to mount the registry as it is now
 	// (extension_sync.go); extErrsSeen are the registry errors shown.
 	extSyncDue  bool
@@ -595,7 +590,6 @@ func New(opts Options) (*App, error) {
 	a.defineSaved()
 	a.defineVim()
 	a.defineLinks()
-	a.defineRenames()
 	a.defineOutline()
 	a.defineQuickNote()
 	a.defineSides()
@@ -611,7 +605,6 @@ func New(opts Options) (*App, error) {
 	a.defineExtensionRows()
 	a.defineExtensionSetup()
 	a.defineAbout()
-	a.defineExtForms()
 	a.defineConfigReload()
 	if err := a.declareSettings(); err != nil {
 		return nil, err
@@ -707,6 +700,8 @@ func New(opts Options) (*App, error) {
 	if err := a.addExtensionsPage(); err != nil {
 		return nil, err
 	}
+	a.defineCoreVerbs()
+	a.defineCommandRenames()
 	a.defineAgentDeclarations()
 	a.mountExtensions()
 	// After the first mount: its read of the naming loads settings.json,
@@ -758,7 +753,7 @@ func New(opts Options) (*App, error) {
 func (a *App) Close() error {
 	a.quitting = true
 	a.stopSchedules()
-	return errors.Join(a.flushEditor(), a.flushExtForm(), a.flushRename(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
+	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.
@@ -803,7 +798,7 @@ func (a *App) refreshProjects() error {
 		if marked[p.ID] {
 			name += " [draft]"
 		}
-		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project", Cells: []string{name, countCell(open[p.ID]), tildePath(p.DefaultTree, home), p.Origin}})
+		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project", Props: ochazuke.Thing{"id": p.ID}, Cells: []string{name, countCell(open[p.ID]), tildePath(p.DefaultTree, home), p.Origin}})
 	}
 	for _, d := range drafts {
 		if _, exists := a.project(d.ID); !exists {

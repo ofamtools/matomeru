@@ -18,15 +18,15 @@ func TestReadVerbsAreFetches(t *testing.T) {
 	app := open(t)
 	want := []string{
 		"action-item.count", "action-item.get", "action-item.list", "action-item.watch",
-		"context-item.get", "context-item.list", "context-item.watch", "dirs.bases", "dirs.list", "dirs.refresh",
-		"extension.available", "extension.list", "extension.peer-rows", "extension.peers", "extension.setup-plan", "extension.setup-status",
-		"harness.list", "harness.models", "harness.names",
+		"context-item.get", "context-item.list", "context-item.watch", "dirs.bases", "dirs.refresh",
+		"extension.all", "extension.available", "extension.peer-rows", "extension.peers", "extension.setup-plan", "extension.setup-status",
+		"harness.all", "harness.models", "harness.names",
 		"note.get", "note.list", "note.watch", "pane.activity", "pane.get", "pane.list", "pane.preview", "pane.read-settings", "pane.read-turns", "pane.refresh-turns", "pane.settings", "pane.transcript", "pane.watch", "pane.whoami",
-		"panes.read-activities", "panes.refresh", "project.get", "project.list", "project.watch", "projects.directories", "projects.list", "projects.names", "projects.state",
+		"panes.read-activities", "panes.refresh", "project.get", "project.list", "project.watch", "projects.all", "projects.directories", "projects.names", "projects.state",
 		"reminder.get", "reminder.history", "reminder.list", "reminder.notify-status", "reminder.watch",
-		"review.get", "review.list", "review.watch", "run.list", "run.show", "saved.get", "saved.list", "saved.watch", "schedule.get", "schedule.history", "schedule.list", "schedule.watch", "session.get", "session.list", "session.watch", "setup.list", "setup.plan",
-		"side.list",
-		"store-table.list", "store-table.show", "store.tables", "task.get", "task.list", "task.watch", "turn-line.refresh-turns", "turn-separator.refresh-turns", "turn-step.refresh-turns", "turn.refresh-turns", "vim.get", "vim.list", "vim.watch",
+		"review.get", "review.list", "review.watch", "run.all", "run.show", "saved.get", "saved.list", "saved.watch", "schedule.get", "schedule.history", "schedule.list", "schedule.watch", "session.get", "session.list", "session.watch", "setup.all", "setup.plan",
+		"side.all",
+		"store-table.all", "store-table.show", "store.tables", "task.get", "task.list", "task.watch", "turn-line.refresh-turns", "turn-separator.refresh-turns", "turn-step.refresh-turns", "turn.refresh-turns", "vim.get", "vim.list", "vim.watch",
 	}
 	var got []string
 	for key, op := range app.r.Operations {

@@ -67,7 +67,7 @@ func (a *App) editProject(ctx ochazuke.Ctx) ochazuke.Result {
 			changes[name] = ochazuke.StringArg(ctx.Args, name, "")
 		}
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "set", Args: ochazuke.Arguments{"id": p.ID, "changes": changes}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "set", Args: ochazuke.Arguments{"id": p.ID, "props": changes}}); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return a.storedProject(p.ID)

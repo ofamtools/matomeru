@@ -56,7 +56,7 @@ func actionItemProps() []ochazuke.PropSpec {
 		{Name: "kind", Parameter: text("The item's type: review-request, mention, ci-failed, …")},
 		{Name: "source", CreateOnly: true, Parameter: text("The tool or service: gh, slack, ci, agent, … (default manual)")},
 		{Name: "key", ReadOnly: true, Parameter: text("The de-duplication key add matches, unique per source")},
-		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the item is for (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the item is for; its project wins over project"}},
 		{Name: "pane", Parameter: ochazuke.Parameter{Type: "string", Noun: "pane", Description: "The pane (window id) the item is about: open attaches it when the item has no URL"}},
@@ -88,7 +88,7 @@ func (a *App) actionItemStore() ochazuke.Store {
 		ListParams: map[string]ochazuke.Parameter{
 			"state":  {Type: "string", Enum: append([]string{"all"}, actionitems.States...), Description: "Which items (default open)"},
 			"source": {Type: "string", Description: "Only this source's items"},
-			"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true,
+			"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true,
 				Description: "Only this project's items (id or name; an item on a task is its task's project's)"},
 		},
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
@@ -277,7 +277,7 @@ func (a *App) removeActionItem(_ ochazuke.Ctx, id string) error {
 
 // actionItemSet runs the standard set of changes on one item.
 func (a *App) actionItemSet(id string, changes map[string]any) ochazuke.Result {
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: actionItemNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "changes": changes}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: actionItemNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "props": changes}}))
 }
 
 // actionOwnerChanges are an owner as set's changes: every owner prop, so
@@ -288,6 +288,6 @@ func actionOwnerChanges(o actionitems.Owner) map[string]any {
 
 // associateNotice says that associate's owner form is an old form.
 func associateNotice(ctx ochazuke.Ctx) {
-	ctx.Notify(fmt.Sprintf("action-item.associate --project/--task/--dir/--pane/--scratch is an old form of action-item set ID project=… task=… pane=… (move --to for a project; since %s; removed after %s)",
+	ctx.Notify(fmt.Sprintf("action-item.associate --project/--task/--dir/--pane/--scratch is an old form of action-item set ID project=… task=… pane=… (@owner= for a project; since %s; removed after %s)",
 		actionAssociateSince, actionAssociateRemoveAfter))
 }

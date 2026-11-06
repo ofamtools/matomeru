@@ -60,7 +60,7 @@ func contextProps() []ochazuke.PropSpec {
 			Description: "The item's kind: file, dir, link, pr, branch, commit, command or prompt"}},
 		{Name: "text", CreateOnly: true, Role: ochazuke.RoleLabel, Parameter: ochazuke.Parameter{Type: "string", Required: true,
 			Description: "What the item is: the path, URL, branch, commit, command or prompt"}},
-		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the item belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 			Description: "The task the item belongs to; its project wins over project"}},
@@ -313,7 +313,7 @@ func (a *App) associateContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if _, ok := ctx.Args["task"]; ok {
 		ctx.Notify(fmt.Sprintf("context-item.associate --task is an old form of context-item set ID task=TASK (since %s; removed after %s)", contextAssociateSince, contextAssociateRemoveAfter))
 	} else {
-		ctx.Notify(fmt.Sprintf("context-item.associate --project is an old form of context-item.move --to (since %s; removed after %s)", contextAssociateSince, contextAssociateRemoveAfter))
+		ctx.Notify(fmt.Sprintf("context-item.associate --project is an old form of context-item set ID @owner=PROJECT (since %s; removed after %s)", contextAssociateSince, contextAssociateRemoveAfter))
 	}
 	return ctx.Each(a.associateContextOne)
 }
@@ -334,7 +334,7 @@ func (a *App) associateContextOne(ctx ochazuke.Ctx) ochazuke.Result {
 	if scratch, _ := ctx.Args["scratch"].(bool); scratch {
 		to = ""
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "move", Args: ochazuke.Arguments{"id": it.ID, "to": to}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "set", Args: ochazuke.Arguments{"id": it.ID, "props": map[string]any{"@owner": to}}}))
 }
 
 // relateContextItemTo is the one handler behind the reverse verbs,
@@ -346,5 +346,5 @@ func (a *App) relateContextItemTo(id string, o relOwner) ochazuke.Result {
 	if o.TaskID != "" {
 		changes = map[string]any{"task": o.TaskID}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "changes": changes}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "props": changes}}))
 }

@@ -48,10 +48,10 @@ func TestTheTickerShowsOnlyApplicationJobsNewestFirst(t *testing.T) {
 	settle(app, follow(app))
 	tickerIs(t, app, "a quiet preview", "agent.start claude done")
 	for _, name := range []string{"a", "b", "c"} {
-		executeA(t, app, "pane", "rename", app.r.Focus, map[string]any{"name": name})
+		executeA(t, app, "pane", "set", app.r.Focus, map[string]any{"props": map[string]any{"@label": name}})
 		settle(app, app.r.PendingCommands())
 	}
-	tickerIs(t, app, "three renames", "pane.rename done", "pane.rename done")
+	tickerIs(t, app, "three renames", "pane.set done", "pane.set done")
 	lingerTick(t, app)
 	tickerIs(t, app, "after the linger deadline")
 }

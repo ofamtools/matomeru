@@ -60,7 +60,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("W: focus %s", app.r.Focus)
 	}
 	// Every terminal verb answers on the agent row.
-	want := []string{"enter pane.attach", "d d pane.kill", "r pane.rename", "m pane.choose-move", "n pane.new"}
+	want := []string{"enter pane.attach", "d d pane.kill", "r pane.edit", "m pane.edit", "n pane.new"}
 	listed := map[string]bool{}
 	for _, b := range app.r.ListBindings(row) {
 		listed[b.Keys+" "+b.Request.Key()] = true
@@ -74,7 +74,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	if app.preview.Pane != row {
 		t.Fatalf("preview %+v", app.preview)
 	}
-	executeA(t, app, "pane", "rename", row, ochazuke.Arguments{"name": "fixer"})
+	executeA(t, app, "pane", "set", row, ochazuke.Arguments{"props": map[string]any{"@label": "fixer"}})
 	settle(app, app.r.PendingCommands())
 	if f.panes[1].Name != "fixer" || !strings.Contains(cells(app, row), "? fixer") {
 		t.Fatalf("rename: %q %q", f.panes[1].Name, cells(app, row))
@@ -102,12 +102,12 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	}
 }
 
-// m opens the project chooser (no hex ids), without the pane's current
+// choose-move opens the project chooser (no hex ids), without the pane's current
 // owner; picking a project moves the pane.
 func TestMoveUsesTheProjectChooser(t *testing.T) {
 	t.Parallel()
 	app, _ := panesApp(t)
-	key(t, app, "m")
+	chooseMove(t, app)
 	c := app.r.Chooser(moveChooser)
 	if c == nil {
 		t.Fatal("m opened no chooser")
@@ -143,7 +143,7 @@ func TestSessionRowVerbs(t *testing.T) {
 		t.Fatalf("k: focus %s", app.r.Focus)
 	}
 	session := app.r.Focus
-	executeA(t, app, "session", "rename", session, ochazuke.Arguments{"name": "mtm"})
+	executeA(t, app, "session", "set", session, ochazuke.Arguments{"props": map[string]any{"@label": "mtm"}})
 	settle(app, app.r.PendingCommands())
 	if f.panes[0].Session != "mtm" {
 		t.Fatalf("rename: %+v", f.panes)

@@ -138,7 +138,7 @@ func TestNoteMakerFiltersPageAndModal(t *testing.T) {
 	assertNoteFilterFrame(t, a, "agents")
 	// The same noun's standard verbs resolve the modal row's record key.
 	row, _ := a.outline.notes.Selected()
-	executeA(t, a, "note", "rename", row.ID, ochazuke.Arguments{"name": "renamed in modal"})
+	executeA(t, a, "note", "set", row.ID, ochazuke.Arguments{"props": map[string]any{"@label": "renamed in modal"}})
 	n, err := a.work.Note("maker-agent")
 	if err != nil || n.Title != "renamed in modal" {
 		t.Fatalf("rename: %+v %v", n, err)

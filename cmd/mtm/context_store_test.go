@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -35,8 +34,8 @@ func TestContextItemVerbsAreStandard(t *testing.T) {
 	a, _ := contextApp(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"move": "move", "duplicate": "duplicate", "star": "set", // star: the alias of set {prop: starred, toggle: true}
-		"add": "", "copy": "", "open": "", "reveal": "", "associate": "", "choose-move": "",
+		"star": "set", // star: the alias of set {prop: starred, toggle: true}
+		"add":  "", "copy": "", "open": "", "reveal": "", "associate": "", "choose-move": "",
 		"extract": "", "turns": "", "follow": "", "kind": "", "search": "", "pick": "", "copy-prompt": "",
 	} {
 		op, ok := a.r.Operation(contextNoun + "." + verb)
@@ -44,8 +43,10 @@ func TestContextItemVerbsAreStandard(t *testing.T) {
 			t.Errorf("%s.%s: ok %v standard %q, want %q", contextNoun, verb, ok, op.Standard, standard)
 		}
 	}
-	if _, ok := a.r.Operation(contextNoun + ".rename"); ok {
-		t.Fatal("the text is create-only, so no rename")
+	for _, verb := range []string{"rename", "move", "duplicate", "restore"} {
+		if _, ok := a.r.Operation(contextNoun + "." + verb); ok {
+			t.Errorf("%s.%s is purged (R1)", contextNoun, verb)
+		}
 	}
 	var forget *ochazuke.ActionAlias
 	for _, alias := range a.r.AliasesOf(contextNoun + ".delete") {
@@ -77,11 +78,10 @@ func TestContextItemKeysStarMoveForget(t *testing.T) {
 	}
 	selectContext(t, a, "https://example.com/ochazuke")
 	press(t, a, "m")
-	if a.r.Chooser(moveChooser) == nil {
+	if editing(a) == nil {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
-	typeText(t, a, "matom")
-	press(t, a, "enter")
+	pickOwner(t, a, "matom")
 	if it, _ := a.contexts.Get(link); it.ProjectID != "matomeru" {
 		t.Fatalf("m: %+v", it)
 	}
@@ -109,22 +109,22 @@ func TestContextItemOwnerProps(t *testing.T) {
 	t.Parallel()
 	a, _ := contextApp(t)
 	id := contextIDOf(t, a, "1ba025f")
-	thing, _ := executeA(t, a, contextNoun, "set", "", ochazuke.Arguments{"id": id, "prop": "task", "value": "t1"}).(map[string]any)
+	thing, _ := executeA(t, a, contextNoun, "set", "", ochazuke.Arguments{"id": id, "props": map[string]any{"task": "t1"}}).(map[string]any)
 	if thing["task"] != "t1" || thing["project"] != "matomeru" {
 		t.Fatalf("set task: %v", thing)
 	}
 	if it, _ := a.contexts.Get(id); it.TaskID != "t1" || it.ProjectID != "" {
 		t.Fatalf("stored: %+v", it)
 	}
-	thing, _ = executeA(t, a, contextNoun, "move", "", ochazuke.Arguments{"id": id, "to": "matomeru"}).(map[string]any)
+	thing, _ = executeA(t, a, contextNoun, "set", "", ochazuke.Arguments{"id": id, "props": map[string]any{"@owner": "matomeru"}}).(map[string]any)
 	if thing["task"] != "t1" {
 		t.Fatalf("a move within the task's project keeps the task: %v", thing)
 	}
-	thing, _ = executeA(t, a, contextNoun, "move", "", ochazuke.Arguments{"id": id, "to": "ochazuke"}).(map[string]any)
+	thing, _ = executeA(t, a, contextNoun, "set", "", ochazuke.Arguments{"id": id, "props": map[string]any{"@owner": "ochazuke"}}).(map[string]any)
 	if thing["task"] != "" || thing["project"] != "ochazuke" {
 		t.Fatalf("move to another project: %v", thing)
 	}
-	thing, _ = executeA(t, a, contextNoun, "move", "", ochazuke.Arguments{"id": id, "to": "nowhere"}).(map[string]any)
+	thing, _ = executeA(t, a, contextNoun, "set", "", ochazuke.Arguments{"id": id, "props": map[string]any{"@owner": "nowhere"}}).(map[string]any)
 	if thing["project"] != "" {
 		t.Fatalf("an unknown project: %v", thing)
 	}
@@ -147,9 +147,7 @@ func TestContextItemStandardVerbsFromTheCLI(t *testing.T) {
 	mustCLI(t, a, contextNoun, "star", branch)
 	var rows []map[string]any
 	for _, args := range [][]string{{"list", "--kind", "branch"}, {"list", "--where", "type=branch"}} {
-		if err := json.Unmarshal([]byte(mustCLI(t, a, append([]string{contextNoun}, args...)...)), &rows); err != nil {
-			t.Fatal(err)
-		}
+		cliRows(t, a, &rows, append([]string{contextNoun}, args...)...)
 		if len(rows) != 1 || rows[0]["id"] != branch || rows[0]["label"] != "lane/context" || rows[0]["starred"] != true {
 			t.Fatalf("%v: %v", args, rows)
 		}
@@ -177,7 +175,7 @@ func TestContextItemStandardVerbsFromTheCLI(t *testing.T) {
 		t.Fatal("create without a type succeeded")
 	}
 	_, errOut, err := cli(a, "", contextNoun, "associate", branch, "--project", "ochazuke")
-	if err != nil || !strings.Contains(errOut, "old form of context-item.move") {
+	if err != nil || !strings.Contains(errOut, "old form of context-item set ID @owner=PROJECT") {
 		t.Fatalf("associate --project: %v %q", err, errOut)
 	}
 	if it, _ := a.contexts.Get(branch); it.ProjectID != "ochazuke" {

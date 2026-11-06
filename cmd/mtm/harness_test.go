@@ -195,7 +195,7 @@ func TestCLIHarnessListPrintsTheRegistry(t *testing.T) {
 	t.Parallel()
 	app, _ := harnessApp(t, "")
 	var list []harness.Harness
-	if err := json.Unmarshal([]byte(mustCLI(t, app, "harness", "list")), &list); err != nil {
+	if err := json.Unmarshal([]byte(mustCLI(t, app, "harness", "all")), &list); err != nil {
 		t.Fatal(err)
 	}
 	if len(list) != 3 || list[0].Name != "claude" || list[1].Name != "omp" || list[2].Name != "codex" || list[1].Command[0] != "omp" || list[0].Models[0] != "opus" {

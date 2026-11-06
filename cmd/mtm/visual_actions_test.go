@@ -73,11 +73,10 @@ func TestVisualInboxActsOnEverySelectedRow(t *testing.T) {
 
 	a, ids, clock = visualInbox(t)
 	press(t, a, "V", "j", "j", "m")
-	if a.r.Chooser(moveChooser) == nil {
+	if editing(a) == nil {
 		t.Fatalf("V j j m: modal %q", a.r.TopModal())
 	}
-	typeText(t, a, "ochazuke")
-	press(t, a, "enter")
+	pickOwner(t, a, "ochazuke")
 	if _, owned := countItems(t, a, ids, *clock, "", "ochazuke"); owned != 3 {
 		t.Fatalf("V j j m: %d moved", owned)
 	}
@@ -108,11 +107,10 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 	}
 
 	press(t, app, "g", "g", "V", "j", "m")
-	if app.r.Chooser(moveChooser) == nil {
+	if editing(app) == nil {
 		t.Fatalf("V j m: modal %q", app.r.TopModal())
 	}
-	typeText(t, app, "ochazuke")
-	press(t, app, "enter")
+	pickOwner(t, app, "ochazuke")
 	if stored(t, app, "t1").ProjectID != "ochazuke" || stored(t, app, "t2").ProjectID != "ochazuke" {
 		t.Fatalf("V j m: %q %q", stored(t, app, "t1").ProjectID, stored(t, app, "t2").ProjectID)
 	}
@@ -226,13 +224,10 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 		t.Fatalf("V j: focus %s", app.r.Focus)
 	}
 	press(t, app, "m")
-	if app.r.Chooser(moveChooser) == nil {
+	if editing(app) == nil {
 		t.Fatalf("V j m: modal %q", app.r.TopModal())
 	}
-	if f := frameAt(app, 160); !strings.Contains(f, "Move 2 rows to") {
-		t.Fatalf("V j m: the chooser does not count both panes:\n%s", f)
-	}
-	press(t, app, "esc")
+	press(t, app, "esc", "esc")
 	if app.r.Mode.Name != "normal" {
 		t.Fatalf("after the chooser: mode %s", app.r.Mode.Name)
 	}

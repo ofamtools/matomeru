@@ -79,7 +79,7 @@ func TestVerbPrefixResolves(t *testing.T) {
 	t.Parallel()
 	app, _ := cliApp(t)
 	out, errOut, err := mtm(app, t.TempDir(), "bind", "li")
-	if err != nil || !strings.Contains(out, `"keys":"ctrl+j"`) {
+	if err != nil || !strings.Contains(strings.ReplaceAll(out, `": "`, `":"`), `"keys":"ctrl+j"`) {
 		t.Fatalf("mtm bind li: %v\n%s%s", err, out, errOut)
 	}
 }

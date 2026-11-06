@@ -8,8 +8,8 @@
     "harnesses.json": [{"name": "omp", "models": ["openai/sol", "openai/terra"]}],
     "bindings.json": [
       {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.page", "verb": "open", "args": {"id": "schedules"}}},
-      {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "set", "args": {"id": "schedule-form/harness"}}},
-      {"noun": "app", "mode": "normal", "keys": "ctrl+u", "request": {"noun": "ochazuke.focus", "verb": "set", "args": {"id": "schedule-form/model"}}}
+      {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "schedule-form/harness"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+u", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "schedule-form/model"}}}
     ]
   },
   "script": ["ctrl+x", "n", "esc", "ctrl+y", "enter", "j", "j", "enter", "ctrl+u", "enter", "esc", "ctrl+y", "enter", "k", "enter", "ctrl+u", "enter"],

@@ -181,7 +181,7 @@ func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	typeText(t, a, " unfinished")
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Target: note.ID, Args: ochazuke.Arguments{"prop": "task", "value": "t1"}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Target: note.ID, Args: ochazuke.Arguments{"props": map[string]any{"task": "t1"}}}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := a.work.Note(note.ID)
@@ -191,19 +191,12 @@ func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
 	if a.editor != nil {
 		t.Fatal("the editor stayed open over a patch of its note")
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "move", Target: note.ID, Args: ochazuke.Arguments{"to": ""}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Target: note.ID, Args: ochazuke.Arguments{"props": map[string]any{"@owner": ""}}}); err != nil {
 		t.Fatal(err)
 	}
 	got, err = a.work.Note(note.ID)
 	if err != nil || got.ProjectID != "" || got.TaskID != "" || got.Text != "saved unfinished" {
 		t.Fatalf("scratch association: %+v %v", got, err)
-	}
-	// The deprecated name still runs move for one release.
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "associate", Target: note.ID, Args: ochazuke.Arguments{"to": "ochazuke"}}); err != nil {
-		t.Fatal(err)
-	}
-	if got, err = a.work.Note(note.ID); err != nil || got.ProjectID != "ochazuke" {
-		t.Fatalf("note.associate: %+v %v", got, err)
 	}
 }
 

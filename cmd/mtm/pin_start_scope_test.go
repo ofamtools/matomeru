@@ -48,7 +48,7 @@ func TestPinStartScopeSetting(t *testing.T) {
 			if all {
 				other = "pin"
 			}
-			mustCLI(t, a, "settings", "set", "pin.start-scope", other, "-y")
+			mustCLI(t, a, "setting", "set", "pin.start-scope", other, "--scope", "file", "-y")
 			mustCLI(t, a, "config", "reload")
 			check(all)
 			press(t, a, "S")
@@ -59,7 +59,7 @@ func TestPinStartScopeSetting(t *testing.T) {
 			if b.all != !all || b.pin != "matomeru" {
 				t.Fatalf("next startup: pin %q all %v", b.pin, b.all)
 			}
-			if _, _, err := cli(a, "", "settings", "set", "pin.start-scope", "last", "-y"); err == nil {
+			if _, _, err := cli(a, "", "setting", "set", "pin.start-scope", "last", "--scope", "file", "-y"); err == nil {
 				t.Fatal("unsupported scope accepted")
 			}
 			if _, err := a.r.ValidateBindings(); err != nil {

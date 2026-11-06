@@ -8,8 +8,8 @@
     "settings.json": {"results.show-data": false},
     "bindings.json": [
       {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.page", "verb": "open", "args": {"id": "schedules"}}},
-      {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "set", "args": {"id": "schedule-form/project"}}},
-      {"noun": "app", "mode": "normal", "keys": "ctrl+z", "request": {"noun": "ochazuke.focus", "verb": "set", "args": {"id": "schedule:chooser-check"}}}
+      {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "schedule-form/project"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+z", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "schedule:chooser-check"}}}
     ]
   },
   "script": [

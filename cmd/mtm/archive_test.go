@@ -36,12 +36,16 @@ func TestMCPAgentArchiveRoundTrip(t *testing.T) {
 	for _, row := range []struct{ noun, id string }{{"task", "t1"}, {"note", "archive-note"}, {contextNoun, "archive-context"}} {
 		t.Run(row.noun, func(t *testing.T) {
 			for _, verb := range []string{"archive", "restore"} {
-				mcpRun(t, s, row.noun+"."+verb, map[string]any{"id": row.id})
+				if verb == "archive" {
+					mcpRun(t, s, row.noun+".archive", map[string]any{"id": row.id})
+				} else { // restore is set {@archive: false} since R1
+					mcpRun(t, s, row.noun+".set", map[string]any{"id": row.id, "props": map[string]any{"@archive": false}})
+				}
 				got := mcpRun(t, s, row.noun+".get", map[string]any{"id": row.id})["result"].(map[string]any)
 				if got["archived"] != (verb == "archive") {
 					t.Fatalf("%s: %v", verb, got)
 				}
-				listed := mcpRun(t, s, row.noun+".list", map[string]any{"all": true})["result"].([]any)
+				listed := resultRows(mcpRun(t, s, row.noun+".list", map[string]any{"all": true}))
 				found := false
 				for _, item := range listed {
 					if item.(map[string]any)["id"] == row.id {
@@ -63,14 +67,14 @@ func TestMCPAgentArchiveRoundTrip(t *testing.T) {
 					}
 				}
 				if verb == "archive" {
-					archived := mcpRun(t, s, row.noun+".list", map[string]any{"all": true, "filter": "archived"})["result"].([]any)
+					archived := resultRows(mcpRun(t, s, row.noun+".list", map[string]any{"all": true, "filter": "archived"}))
 					if len(archived) != 1 || archived[0].(map[string]any)["id"] != row.id {
 						t.Fatalf("archive filter: %v", archived)
 					}
 				}
 				found = false
 				for _, entry := range a.r.HistoryOf(0, ochazuke.HistoryChange) {
-					if entry.Request.Key() == row.noun+"."+verb && entry.Context.Actor.Pane == "w1" && entry.Context.Actor.Harness == "claude" && entry.Context.Source == "mcp" {
+					if (entry.Request.Key() == row.noun+"."+verb || verb == "restore" && entry.Request.Key() == row.noun+".set") && entry.Context.Actor.Pane == "w1" && entry.Context.Actor.Harness == "claude" && entry.Context.Source == "mcp" {
 						found = true
 					}
 				}
@@ -183,7 +187,7 @@ func TestArchiveViewsHideBranchesAndHonorOptOut(t *testing.T) {
 	}
 	assertViews(true)
 	for _, row := range []struct{ noun, id string }{{"task", "t1"}, {"note", "archive-note"}, {contextNoun, "archive-context"}} {
-		executeA(t, a, row.noun, "restore", "", ochazuke.Arguments{"id": row.id})
+		executeA(t, a, row.noun, "set", "", ochazuke.Arguments{"id": row.id, "props": map[string]any{"@archive": false}})
 	}
 	assertViews(false)
 }
@@ -265,25 +269,8 @@ func TestArchivedTreeFilterIncludesDescendantsWithoutCascade(t *testing.T) {
 			}
 		}
 	}
-	checkChoices := func(want []string) {
-		t.Helper()
-		op, _ := a.r.Operation("task.restore")
-		rows, err := a.r.Choices(a.r.Context(), op.Parameters["id"])
-		if err != nil {
-			t.Fatal(err)
-		}
-		var ids []string
-		for _, row := range rows {
-			ids = append(ids, row.ID)
-		}
-		slices.Sort(ids)
-		if !slices.Equal(ids, want) {
-			t.Fatalf("restore choices include inherited archive states: %v, want %v", ids, want)
-		}
-	}
-	checkChoices([]string{"archive-owned", "t1"})
 	// Restoring a live child cannot restore its archived ancestor.
-	executeA(t, a, "task", "restore", "", ochazuke.Arguments{"id": "archive-child"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "archive-child", "props": map[string]any{"@archive": false}})
 	if parent, err := a.work.Task("t1"); err != nil || !parent.Archived {
 		t.Fatalf("child restore changed its parent: %+v %v", parent, err)
 	}
@@ -298,14 +285,13 @@ func TestArchivedTreeFilterIncludesDescendantsWithoutCascade(t *testing.T) {
 	if row, _ := a.outline.tree.List().Selected(); row.Props["archived"] != true {
 		t.Fatalf("outline edit lost effective archive state: %+v", row)
 	}
-	executeA(t, a, "task", "restore", "", ochazuke.Arguments{"id": "t1"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t1", "props": map[string]any{"@archive": false}})
 	if child, err := a.work.Task("archive-child"); err != nil || child.Archived {
 		t.Fatalf("parent restore changed its live child's own flag: %+v %v", child, err)
 	}
 	if child, err := a.work.Task("archive-owned"); err != nil || !child.Archived {
 		t.Fatalf("parent restore cleared a grandchild's own flag: %+v %v", child, err)
 	}
-	checkChoices([]string{"archive-owned"})
 }
 
 func TestOutlineTaskArchiveRestoreAndNotes(t *testing.T) {
@@ -342,7 +328,7 @@ func TestOutlineTaskArchiveRestoreAndNotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	focus("outline-a")
-	executeA(t, a, "task", "restore", "", nil)
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"props": map[string]any{"@archive": false}})
 	if task, err := a.work.Task("outline-a"); err != nil || task.Archived {
 		t.Fatalf("selected outline task not restored: %+v %v", task, err)
 	}
@@ -364,7 +350,7 @@ func TestOutlineTaskArchiveRestoreAndNotes(t *testing.T) {
 	if rows := o.notes.Items(); len(rows) != 1 || rows[0].ID != noteRow {
 		t.Fatalf("outline's archived note filter: %+v", rows)
 	}
-	executeA(t, a, "note", "restore", noteRow, nil)
+	executeA(t, a, "note", "set", noteRow, ochazuke.Arguments{"props": map[string]any{"@archive": false}})
 	if note, err := a.work.Note("outline-note"); err != nil || note.Archived {
 		t.Fatalf("outline note not restored: %+v %v", note, err)
 	}
@@ -421,6 +407,6 @@ func TestArchiveRefreshesOpenContextPicker(t *testing.T) {
 		t.Fatal(err)
 	}
 	visible(false)
-	executeA(t, a, contextNoun, "restore", "", ochazuke.Arguments{"id": id})
+	executeA(t, a, contextNoun, "set", "", ochazuke.Arguments{"id": id, "props": map[string]any{"@archive": false}})
 	visible(true)
 }

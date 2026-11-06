@@ -35,9 +35,9 @@ func (a *App) defineVim() {
 		Verb("open", a.openVim, "Open real Neovim; optional file or directory, otherwise a scratch buffer").Positional("path").
 		Verb("save", a.saveVim, "Write :mksession through Neovim RPC; edited files are not written").Positional("path").
 		Verb("reopen", a.reopenVim, "Attach the live pane or restore its saved Neovim session").Positional("id").
-		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice runs vim.move").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Mode("normal").Bind("n", ochazuke.Do("vim.open")).Bind("w", ochazuke.Do("vim.save")).
-		Bind("enter", ochazuke.Do("vim.reopen")).Bind("m", ochazuke.Do("vim.choose-move")).Bind("d d", ochazuke.Do("vim.delete"))
+		Bind("enter", ochazuke.Do("vim.reopen")).Bind("m", ochazuke.Do("vim.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).Bind("d d", ochazuke.Do("vim.delete"))
 	// forget is the noun's own word for delete, kept as a lasting alias:
 	// vim forget ID works as before.
 	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "vim.forget", Action: "vim.delete",

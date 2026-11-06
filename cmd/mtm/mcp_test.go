@@ -214,7 +214,7 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 		}
 	}
 	var listed []string
-	for _, row := range structured(t, out[3]).([]any) {
+	for _, row := range resultRows(map[string]any{"result": structured(t, out[3])}) {
 		listed = append(listed, row.(map[string]any)["id"].(string))
 	}
 	if !reflect.DeepEqual(listed, []string{"t1"}) {

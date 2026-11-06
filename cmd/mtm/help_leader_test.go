@@ -46,7 +46,7 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 			}
 			row, ok := byKey[leader+" "+w.key]
 			// The framework appends the operation's aliases ("· also: opt,
-			// options" on settings.edit since ochazuke v0.50.0).
+			// options" on setting.open since ochazuke v0.50.0).
 			if desc, _, _ := strings.Cut(row.Description, " · also: "); !ok || row.Under != leader || desc != w.text {
 				t.Fatalf("%s %s: row %+v", leader, w.key, row)
 			}

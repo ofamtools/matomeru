@@ -378,7 +378,7 @@ type dirRow struct {
 }
 
 func (a *App) defineDirectories() {
-	a.r.Define("dirs").Verb("list", a.refreshDirectories, "Refresh known directories").Fetch().Verb("refresh", a.refreshDirectories, "Refresh directory cache").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
+	a.r.Define("dirs").Verb("refresh", a.refreshDirectories, "Refresh directory cache").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
 		bases, err := a.projectBases()
 		if err != nil {
 			return ochazuke.Failed(err)
@@ -400,8 +400,8 @@ func (a *App) defineDirectories() {
 	a.r.Define("project-dir").Columns(projectDirColumns...).
 		Verb("default", a.defaultDirRow, "Make this the project's default directory").
 		Verb("remove", a.removeDirRow, "Detach from the project (disk untouched; the default passes to the next)").Confirm("Detach {{label}} from the project? Nothing on disk changes.").
-		Verb("edit", a.editDirRow, "Point this directory at another path").
-		Mode("normal").Bind("enter", ochazuke.Do("project-dir.default")).Bind("d d", ochazuke.Do("project-dir.remove")).Bind("i", ochazuke.Do("project-dir.edit"))
+		Verb("retarget", a.editDirRow, "Point this directory at another path").
+		Mode("normal").Bind("enter", ochazuke.Do("project-dir.default")).Bind("d d", ochazuke.Do("project-dir.remove")).Bind("i", ochazuke.Do("project-dir.retarget"))
 	a.r.Define("project-base").Columns(baseColumns...).
 		Verb("remove", a.removeBaseRow, "Stop scanning this base (disk untouched)").Confirm("Stop scanning {{label}}? Nothing on disk changes.").
 		Mode("normal").Bind("d d", ochazuke.Do("project-base.remove"))
@@ -1028,7 +1028,7 @@ func (a *App) removeDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	return a.detachDirectory(row.ProjectID, row.Path)
 }
 
-// editDirRow is project-dir.edit: the directory chooser picks the new path.
+// editDirRow is project-dir.retarget (i): the directory chooser picks the new path.
 func (a *App) editDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	row, err := a.dirRowAt(ctx)
 	if err != nil {
@@ -1249,7 +1249,7 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 
 	head(fmt.Sprintf("project base dirs (%d)", a.baseList.Len()))
 	if a.baseList.Len() == 0 {
-		add(a.fill("none; "+a.keySentence(baseListID, keyAction{"dirs.add-base", "adds one"}), baseBlock))
+		add(a.fill("none; "+a.keySentence(baseListID, keyAction{"dirs.add-base", "adds one", nil}), baseBlock))
 	} else {
 		add(a.view(a.baseList, width, baseBlock))
 	}

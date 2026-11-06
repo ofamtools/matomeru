@@ -23,17 +23,16 @@ var savedColumns = []ochazuke.Column{{Title: "name", Min: 14}, {Title: "project"
 func (a *App) defineSaved() {
 	// Props and the store first: the standard verbs (get, list, create,
 	// set, delete, watch, move, duplicate) come from them (saved_store.go);
-	// forget is delete's lasting alias, rename wraps set, associate's old
+	// forget is delete's lasting alias, r is edit of @label, m edit of @owner, associate's old
 	// forms run set; save, reopen and the chooser are mtm's own.
 	a.r.Define("saved").Props(savedProps()...).Store(a.savedStore()).Columns(savedColumns...).
 		Verb("save", a.savePane, "Save a live pane's confirmed launch recipe").Positional("pane", "name").
 		Verb("reopen", a.reopenSaved, "Attach the live pane, otherwise relaunch its recorded argv").Positional("id").
-		Verb("rename", a.renameSaved, "Rename the saved record (standard set of name); omit name to type it, written as you type").Positional("id", "name").
 		Verb("associate", a.associateSaved, "Choose the project to move the record and its live pane to (omit the owner); --project, --task and --scratch are the deprecated forms of move and set").Positional("id").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the record and its live pane to (most recent first, unassociated last); the choice runs saved.move").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the record and its live pane to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Mode("normal").Bind("w", ochazuke.Do("saved.save")).
-		Bind("enter", ochazuke.Do("saved.reopen")).Bind("r", ochazuke.Do("saved.rename")).
-		Bind("m", ochazuke.Do("saved.choose-move")).Bind("d d", ochazuke.Do("saved.delete"))
+		Bind("enter", ochazuke.Do("saved.reopen")).Bind("r", ochazuke.Do("saved.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename")).
+		Bind("m", ochazuke.Do("saved.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).Bind("d d", ochazuke.Do("saved.delete"))
 	// forget is the noun's own word for delete (the record only), kept as
 	// a lasting alias: saved forget ID works as before.
 	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "saved.forget", Action: "saved.delete",
@@ -42,15 +41,12 @@ func (a *App) defineSaved() {
 	}
 	a.r.Define("pane").Mode("normal").Bind("w", ochazuke.Do("saved.save"))
 	a.parameters("saved.save", map[string]ochazuke.Parameter{"pane": {Type: "string"}, "name": {Type: "string"}, "session": {Type: "string"}})
-	for _, verb := range []string{"reopen", "rename", "associate"} {
+	for _, verb := range []string{"reopen", "associate"} {
 		params := map[string]ochazuke.Parameter{"id": {Type: "string", Source: "saved.list"}}
-		if verb == "rename" {
-			params["name"] = ochazuke.Parameter{Type: "string"}
-		}
 		if verb == "associate" {
-			params["project"] = ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "Deprecated: saved move ID --to PROJECT (id or name)"}
+			params["project"] = ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "Deprecated: saved set ID @owner=PROJECT (id or name)"}
 			params["task"] = ochazuke.Parameter{Type: "string", Description: "Deprecated: saved set ID task=TASK (its project follows)"}
-			params["scratch"] = ochazuke.Parameter{Type: "boolean", Description: "Deprecated: saved move ID --to \"\" (unassociate it)"}
+			params["scratch"] = ochazuke.Parameter{Type: "boolean", Description: "Deprecated: saved set ID @owner= (unassociate it)"}
 		}
 		a.parameters("saved."+verb, params)
 	}
@@ -301,25 +297,6 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 	}).Label(row.Harness) // "" for a shell: no label
 }
 
-// renameSaved is saved.rename (r): the standard set of name, the name
-// given or typed in the form, each write as you type a set.
-func (a *App) renameSaved(ctx ochazuke.Ctx) ochazuke.Result {
-	if a.resumeRename("saved", ctx) {
-		return ochazuke.Done(renameFormID + "/name")
-	}
-	row, err := a.savedAt(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	set := func(name string) ochazuke.Result {
-		return resultOf(a.r.Execute(ochazuke.Request{Noun: "saved", Verb: "set", Args: ochazuke.Arguments{"id": row.ID, "prop": "name", "value": name}}))
-	}
-	if name, ok := ctx.Args["name"].(string); ok {
-		return set(name)
-	}
-	return resultError(a.renameForm("saved", "Rename saved pane", row.Name, false, set))
-}
-
 // associateSaved is saved.associate. From a key or the palette with no
 // owner named, the project chooser asks (as m does), its choice the
 // standard move; --project, --task and --scratch are the deprecated forms
@@ -331,6 +308,6 @@ func (a *App) associateSaved(ctx ochazuke.Ctx) ochazuke.Result {
 	if !a.cli && !hasProject && !hasTask && !hasScratch && ctx.Instance != nil && ctx.Instance.Noun == "saved" {
 		return a.moveTo(ctx, "saved") // the project chooser, as m on every row
 	}
-	ctx.Notify(fmt.Sprintf("saved.associate --project is an old form of saved.move --to, --task of saved set ID task=TASK (since %s; removed after %s)", savedAssociateSince, savedAssociateRemoveAfter))
+	ctx.Notify(fmt.Sprintf("saved.associate --project is an old form of saved set ID @owner=PROJECT, --task of saved set ID task=TASK (since %s; removed after %s)", savedAssociateSince, savedAssociateRemoveAfter))
 	return ctx.Each(a.associateSavedOne)
 }

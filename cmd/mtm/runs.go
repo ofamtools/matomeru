@@ -104,7 +104,7 @@ func (a *App) defineRuns() {
 	a.ownedBy(commandNoun, runsListID)
 	n := runNoun
 	a.r.Define(n).Columns(runColumns...).
-		Verb("list", a.listRuns, "List the command runs this TUI made, newest first, with their state and exit code").Rows(n).Fetch().
+		Verb("all", a.listRuns, "List the command runs this TUI made, newest first, with their state and exit code").Rows(n).Fetch().
 		Verb("show", a.showRun, "Show a run with its output").Positional("id").Fetch().
 		Verb("rerun", a.rerunRun, "Run the run's command again, the same drive and folder").Positional("id").
 		Verb("stop", a.stopRun, "Stop a running run (its process group is killed)").Positional("id").

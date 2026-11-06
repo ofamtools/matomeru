@@ -10,6 +10,13 @@ import (
 	"ofam.dev/matomeru/internal/work"
 )
 
+// editFormID is ochazuke's standard edit form (r is edit {field:
+// "@label"}); its one field is editFormID/name.
+const editFormID = "edit-form"
+
+// editing is the open standard edit form, nil when none is open.
+func editing(a *App) *ochazuke.RecordEditor { return a.r.RecordEditor(editFormID) }
+
 // fakeRenamer renames the fake daemon's panes and sessions in place.
 type fakeRenamer struct {
 	panes *fakePanes
@@ -51,8 +58,8 @@ func TestRenameAPaneFromItsRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, app, "r")
-	if app.r.Focus != renameFormID+"/name" || app.renaming.Values()["name"] != "claude" || app.r.Mode.Name != "insert" {
-		t.Fatalf("r: focus %s mode %s values %v", app.r.Focus, app.r.Mode.Name, app.renaming.Values())
+	if app.r.Focus != editFormID+"/name" || editing(app).Values()["name"] != "claude" || app.r.Mode.Name != "insert" {
+		t.Fatalf("r: focus %s mode %s values %v", app.r.Focus, app.r.Mode.Name, editing(app).Values())
 	}
 	press(t, app, "ctrl+u")
 	typeText(t, app, "reviewer")
@@ -88,7 +95,7 @@ func TestRenameAPaneOpensTheNameSelected(t *testing.T) {
 		t.Fatalf("r: selected %d..%d %v mode %s", lo, hi, ok, app.r.Mode.Name)
 	}
 	typeText(t, app, "reviewer")
-	if got := app.renaming.Values()["name"]; got != "reviewer" {
+	if got := editing(app).Values()["name"]; got != "reviewer" {
 		t.Fatalf("typing over the selection: %q", got)
 	}
 	_, cmd := app.Update(keyMsg("enter"))
@@ -117,7 +124,7 @@ func TestRenameASession(t *testing.T) {
 	if app.r.Instances["session:id-matomeru"] == nil {
 		t.Fatalf("no session row: %+v", app.paneList.Items())
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "session", Verb: "rename", Target: "session:id-matomeru", Args: ochazuke.Arguments{"name": "renamed"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "session", Verb: "set", Target: "session:id-matomeru", Args: ochazuke.Arguments{"props": map[string]any{"@label": "renamed"}}}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
@@ -133,8 +140,9 @@ func TestRenameASession(t *testing.T) {
 	}
 }
 
-// esc closes the rename prompt and keeps what was typed (esc never
-// discards); esc with nothing changed renames nothing (UX review 2 F4).
+// esc closes the rename form (edit {field: "@label"}: esc ends insert, a
+// second esc closes it) and keeps what was typed (esc never discards);
+// esc with nothing changed renames nothing (UX review 2 F4).
 func TestRenameEscKeepsTheTypedName(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
@@ -146,7 +154,7 @@ func TestRenameEscKeepsTheTypedName(t *testing.T) {
 	if err := app.paneList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	press(t, app, "r")
+	press(t, app, "r", "esc") // insert ends; a second esc closes the form
 	_, cmd := app.Update(keyMsg("esc"))
 	settle(app, cmd)
 	if len(fr.calls) != 0 || app.r.TopModal() != "" {
@@ -154,8 +162,8 @@ func TestRenameEscKeepsTheTypedName(t *testing.T) {
 	}
 	press(t, app, "r", "ctrl+u")
 	typeText(t, app, "shellbuild")
-	_, cmd = app.Update(keyMsg("esc"))
-	settle(app, cmd)
+	pressJob(t, app, "esc") // insert ends: the name is written as a job
+	pressJob(t, app, "esc")
 	if len(fr.calls) != 1 || fr.calls[0] != "window matomeru/w1 shellbuild" || app.r.TopModal() != "" {
 		t.Fatalf("esc after typing: calls %v modal %q", fr.calls, app.r.TopModal())
 	}
@@ -175,7 +183,7 @@ func TestRenamingAPaneRenamesItsSavedRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "rename", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"name": "builder"}})
+	_, err = app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"props": map[string]any{"@label": "builder"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,36 +232,16 @@ func TestRenameASessionAsYouType(t *testing.T) {
 	}
 	press(t, app, "r", "end")
 	typeText(t, app, "2")
-	pauseForm(t, app, app.renaming)
+	pauseForm(t, app, editing(app))
 	press(t, app, "ctrl+u")
-	pauseForm(t, app, app.renaming)
-	if !strings.Contains(app.renaming.Problem("name"), "required") {
-		t.Fatalf("empty name: problem %q", app.renaming.Problem("name"))
+	pauseForm(t, app, editing(app))
+	if !strings.Contains(editing(app).Problem("name"), "needs a name") {
+		t.Fatalf("empty name: problem %q", editing(app).Problem("name"))
 	}
 	typeText(t, app, "m3")
-	_, cmd := app.Update(keyMsg("esc"))
-	settle(app, cmd)
+	pressJob(t, app, "esc") // insert ends: the name is written as a job
+	pressJob(t, app, "esc")
 	if want := []string{"session matomeru matomeru2", "session matomeru2 m3"}; strings.Join(fr.calls, ",") != strings.Join(want, ",") || app.r.TopModal() != "" {
 		t.Fatalf("calls %v modal %q", fr.calls, app.r.TopModal())
-	}
-}
-
-func TestRenameReopenPreservesDraftAndSubject(t *testing.T) {
-	t.Parallel()
-	a, panes := panesApp(t)
-	renamer := &fakeRenamer{panes: panes}
-	a.renamer = renamer
-	press(t, a, "enter", "ctrl+a", "r")
-	typeText(t, a, "kept draft")
-	form := a.renaming
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "rename"}); err != nil {
-		t.Fatal(err)
-	}
-	if a.renaming != form || form.Values()["name"] != "kept draft" || a.r.Focus != renameFormID+"/name" {
-		t.Fatal("reopening discarded the form or draft")
-	}
-	pressJob(t, a, "enter")
-	if len(renamer.calls) != 1 || renamer.calls[0] != "window matomeru/w1 kept draft" {
-		t.Fatalf("calls %q", renamer.calls)
 	}
 }

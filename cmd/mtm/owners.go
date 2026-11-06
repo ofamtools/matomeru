@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 
 	"ofam.dev/matomeru/internal/work"
@@ -14,37 +15,32 @@ func (a *App) defineOwners() {
 	// relation forms and the deprecated owner forms.
 	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.paneStore()).
 		Verb("associate", a.associatePane, "Choose the project to move the pane to (omit the owner); --action-item and --context-item relate those to it; --project, --task and --scratch are the deprecated forms of move and set").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice runs pane.move").Many()
-	// Keep the standard editor, resolving its record subject through the
-	// same paneAt route as rename. Its interaction context stays on the
-	// originating row, and an explicit id still wins in subjectKey.
-	if op, ok := a.r.Operations["pane.edit"]; ok {
-		edit := op.App
-		op.App = func(ctx ochazuke.Ctx) ochazuke.Result {
-			p, err := a.paneAt(ctx.Instance)
-			if err != nil {
-				return edit(ctx)
-			}
-			row := *ctx.Instance
-			row.Noun, row.ID, row.Label, row.Data = "pane", p.rowID(), p.label(), p
-			ctx.Instance = &row
-			return edit(ctx)
-		}
-		a.r.Operations[op.Key()] = op
-	}
+		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
+	// Keep the standard editor (i, r is edit of @label, m of @owner),
+	// resolving its record subject from the row (a session row, a side
+	// pane's) or, through the association, the live pane (ctrl+a r).
+	a.editSubject("pane", func(inst *ochazuke.Instance) (string, string, any, error) {
+		p, err := a.paneAt(inst)
+		return p.rowID(), p.label(), p.keyProps(), err
+	})
 	if err := a.r.AddActionAlias(starAlias("pane")); err != nil { // * on a pane row (pane_stars.go)
 		panic(err)
 	}
 	a.r.Define("session").Props(sessionProps()...).Store(a.sessionStore()).
 		Verb("associate", a.associateSession, "Choose the project to move the session to (omit it); --project and --scratch are the deprecated form of move; panes with their own owner keep it").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice runs session.move").Many()
+		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
+	a.editSubject("session", func(inst *ochazuke.Instance) (string, string, any, error) {
+		p, err := a.sessionAt(inst)
+		key := cmp.Or(p.SessionID, p.Session)
+		return "session:" + key, p.Session, ochazuke.Thing{"id": key}, err
+	})
 	// task.associate is the reverse of the relations (--pane,
 	// --action-item, --context-item: relations.go); its move form
-	// (--project, --task, --scratch) runs the standard task.move and is
+	// (--project, --task, --scratch) runs the standard set of @owner and is
 	// deprecated (m is task.choose-move).
-	a.r.Define("task").Verb("associate", a.associateTask, "Associate a thing with this task (--pane, --action-item or --context-item ID); --project, --task or --scratch is the deprecated form of task.move").Many()
+	a.r.Define("task").Verb("associate", a.associateTask, "Associate a thing with this task (--pane, --action-item or --context-item ID); --project, --task or --scratch is the deprecated form of task set ID @owner=PROJECT").Many()
 	for _, noun := range []string{"pane", "session", "task"} {
-		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
+		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	}
 	for _, noun := range []string{"review"} {
 		op := a.r.Operations[a.r.CanonicalKey(noun+".list")]
@@ -55,6 +51,30 @@ func (a *App) defineOwners() {
 		a.r.Operations[a.r.CanonicalKey(noun+".list")] = op
 	}
 	a.ownedBy("session", paneListID)
+}
+
+// editSubject wraps the noun's standard edit so its subject is the thing
+// resolve finds from the focused row (row id, label, data), and lets it
+// act through an association (a live pane's leader keys). A row resolve
+// cannot read is left to the standard edit, so an explicit id still wins.
+func (a *App) editSubject(noun string, resolve func(*ochazuke.Instance) (id, label string, data any, err error)) {
+	op, ok := a.r.Operations[noun+".edit"]
+	if !ok {
+		return
+	}
+	edit := op.App
+	op.ByAssociation = true
+	op.App = func(ctx ochazuke.Ctx) ochazuke.Result {
+		id, label, data, err := resolve(ctx.Instance)
+		if err != nil {
+			return edit(ctx)
+		}
+		row := *ctx.Instance
+		row.Noun, row.ID, row.Label, row.Data = noun, id, label, data
+		ctx.Instance = &row
+		return edit(ctx)
+	}
+	a.r.Operations[op.Key()] = op
 }
 
 func (a *App) paneOwner(p pane) work.Assignment {
@@ -72,14 +92,14 @@ func (a *App) associateTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "task")
 	}
-	ctx.Notify(fmt.Sprintf("task.associate --project is an old form of task.move --to (since %s; removed after %s)", taskAssociateSince, taskAssociateRemoveAfter))
+	ctx.Notify(fmt.Sprintf("task.associate --project is an old form of task set ID @owner=PROJECT (since %s; removed after %s)", taskAssociateSince, taskAssociateRemoveAfter))
 	return ctx.Each(a.associateTaskOne)
 }
 
 // associateTaskOne is task.associate's move form on one task, its owner
-// given: the standard task.move to the owner's project (a task names its
+// given: the standard set of @owner to the owner's project (a task names its
 // project; a task or project not found is unassociated with a notice).
-// The form is deprecated: associateTask's notice names task.move.
+// The form is deprecated: associateTask's notice names set @owner.
 func (a *App) associateTaskOne(ctx ochazuke.Ctx) ochazuke.Result {
 	t, err := a.task(ctx)
 	if err != nil {
@@ -92,5 +112,5 @@ func (a *App) associateTaskOne(ctx ochazuke.Ctx) ochazuke.Result {
 	if o.Notice != "" {
 		ctx.Notify(o.Notice)
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "move", Args: ochazuke.Arguments{"id": t.ID, "to": o.ProjectID}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "props": map[string]any{"@owner": o.ProjectID}}}))
 }

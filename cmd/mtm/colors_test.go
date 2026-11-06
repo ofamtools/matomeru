@@ -14,7 +14,7 @@ func TestColoursFollowThePin(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	executeA(t, app, "project", "unpin", "", nil)
-	executeA(t, app, "appearance", "set", "", ochazuke.Arguments{"theme": "dark"})
+	executeA(t, app, "appearance", "set", "", ochazuke.Arguments{"props": map[string]any{"theme": "dark"}})
 	app.View()
 	ap := app.m.Appearance
 	if ap.Theme != "dark" || ap.Accent != nil {
@@ -74,7 +74,7 @@ func TestPinColorsSetting(t *testing.T) {
 	if raw := rawFrame(app); strings.Contains(raw, "38;2;") {
 		t.Fatalf("mono, no pin drew colour")
 	}
-	executeA(t, app, "appearance", "set", "", ochazuke.Arguments{"theme": "dark"})
+	executeA(t, app, "appearance", "set", "", ochazuke.Arguments{"props": map[string]any{"theme": "dark"}})
 	app.View()
 	if ap.Theme != "mono" {
 		t.Fatalf("mono, no pin after appearance set: theme %q", ap.Theme)

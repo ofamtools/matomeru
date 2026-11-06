@@ -216,7 +216,7 @@ func TestMCPWritesAreThePanesAgent(t *testing.T) {
 	if got, _ := app.work.Task("t1"); got.Status != work.StatusBlocked {
 		t.Fatalf("task_status on the lane task: %+v", got)
 	}
-	result, err = server.Call(context.Background(), "run", map[string]any{"verb": "task.set", "args": map[string]any{"id": "mine", "prop": "title", "value": "the agent's words"}})
+	result, err = server.Call(context.Background(), "run", map[string]any{"verb": "task.set", "args": map[string]any{"id": "mine", "props": map[string]any{"title": "the agent's words"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

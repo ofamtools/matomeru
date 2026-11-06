@@ -28,7 +28,6 @@ func TestProjectVerbsAreStandard(t *testing.T) {
 	a := open(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
-		"rename": "rename", "duplicate": "duplicate",
 		"delete": "delete", "confirm-delete": "delete", "new": "", "edit": "", "open": "", "view": "", "launch": "",
 		"directory": "", "default": "", "remove-directory": "", "edit-directory": "",
 		"pin": "", "unpin": "", "pick": "", "make-task": "", "outline": "", "associate": "",
@@ -38,8 +37,10 @@ func TestProjectVerbsAreStandard(t *testing.T) {
 			t.Errorf("project.%s: ok %v standard %q, want %q", verb, ok, op.Standard, standard)
 		}
 	}
-	if _, ok := a.r.Operation("project.move"); ok {
-		t.Fatal("a project has no owner prop, so no move")
+	for _, verb := range []string{"rename", "move", "duplicate", "restore"} {
+		if _, ok := a.r.Operation("project." + verb); ok {
+			t.Errorf("project.%s is purged (R1)", verb)
+		}
 	}
 	if ps, ok := a.r.PropOf("project", "dir"); !ok || !ps.CreateOnly {
 		t.Fatalf("dir: %+v %v", ps, ok)
@@ -60,13 +61,13 @@ func TestProjectVerbsAreStandard(t *testing.T) {
 func TestProjectSetRenameAndUndo(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	executeA(t, a, "project", "rename", "", ochazuke.Arguments{"id": "matomeru", "name": "Matomeru"})
-	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "changes": map[string]any{"color": "blue", "preset": "fast"}})
+	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "props": map[string]any{"@label": "Matomeru"}})
+	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "props": map[string]any{"color": "blue", "preset": "fast"}})
 	p, _ := a.work.Project("matomeru")
 	if p.Name != "Matomeru" || p.Theme.Color != "blue" || p.Settings.Preset != "fast" || p.Theme.Glyph != "◆" {
 		t.Fatalf("after rename and set: %+v", p)
 	}
-	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "prop": "harness", "value": "bogusharness"})
+	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "props": map[string]any{"harness": "bogusharness"}})
 	if p, _ := a.work.Project("matomeru"); p.Settings.Harness != "bogusharness" {
 		t.Fatalf("harness: %+v", p.Settings)
 	}
@@ -121,14 +122,12 @@ func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
 	if p, err := a.work.Project(other); err != nil || p.Name != "other" || p.Theme.Color != "red" || p.Status != "open" {
 		t.Fatalf("create: %+v %v", p, err)
 	}
-	cliJSON(t, a, &thing, "project", "duplicate", "--id", made.ID, `name="fresh copy"`)
+	cliJSON(t, a, &thing, "project", "create", "--from", made.ID, `name="fresh copy"`)
 	if p, err := a.work.Project(thing["id"].(string)); err != nil || p.Name != "fresh copy" || p.DefaultTree != dir {
 		t.Fatalf("duplicate: %+v %v", p, err)
 	}
 	var rows []map[string]any
-	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "list")), &rows); err != nil {
-		t.Fatal(err)
-	}
+	cliRows(t, a, &rows, "project", "list")
 	if len(rows) != 5 || rows[0]["id"] != "ochazuke" || rows[0]["label"] != "ochazuke" {
 		t.Fatalf("list: %v", rows)
 	}
@@ -162,13 +161,13 @@ func TestProjectKeysEditRenameDelete(t *testing.T) {
 		t.Fatalf("q: editor %v, focus %q", a.editor != nil, a.r.Focus)
 	}
 	press(t, a, ":")
-	typeText(t, a, "rename")
+	typeText(t, a, "edit --field @label")
 	press(t, a, "enter")
-	if a.r.TopModal() != ochazuke.ArgsFormID || !strings.Contains(frame(a), "matomeru") {
+	if editing(a) == nil || !strings.Contains(frame(a), "matomeru") {
 		t.Fatalf("modal %q\n%s", a.r.TopModal(), frame(a))
 	}
 	typeText(t, a, "Mato")
-	press(t, a, "enter", "enter")
+	press(t, a, "enter")
 	if p, _ := a.work.Project("matomeru"); p.Name != "Mato" {
 		t.Fatalf("palette rename: %q\n%s", p.Name, frame(a))
 	}

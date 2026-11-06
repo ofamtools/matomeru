@@ -162,13 +162,13 @@ func TestMoveChooserByRecencyWithoutCurrent(t *testing.T) {
 		}
 		return strings.Join(out, ",")
 	}
-	key(t, app, "m")
+	chooseMove(t, app)
 	if got := labels(); got != "matomeru,ochazuke" {
 		t.Fatalf("by recency: %s", got)
 	}
 	typeText(t, app, "mato")
 	settle(app, key(t, app, "enter"))
-	key(t, app, "m")
+	chooseMove(t, app)
 	if got := labels(); got != "ochazuke,unassociated" {
 		t.Fatalf("without current: %s", got)
 	}

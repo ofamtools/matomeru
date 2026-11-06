@@ -78,7 +78,7 @@ var inboxIDParam = ochazuke.Parameter{Type: "string", Noun: actionItemNoun, Sour
 
 // inboxOwnerParams are the association parameters add and associate take.
 var inboxOwnerParams = map[string]ochazuke.Parameter{
-	"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project id or name; one not found is left out with a notice"},
+	"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; one not found is left out with a notice"},
 	"dir":     {Type: "string", Description: "A directory: the project holding it"},
 	"task":    {Type: "string", Noun: "task", Description: "The task id (its project follows)"},
 	"pane":    {Type: "string", Noun: "pane", Description: "The pane's window id (its owner follows when no project or task is named)"},
@@ -105,23 +105,23 @@ func (a *App) defineInbox() {
 		Verb("promote-todo", a.promoteTodo, "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated); the item is archived and points at it").Positional("id").
 		Verb("promote-task", a.promoteTask, "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo").Positional("id").
 		Verb("associate", a.associateActionItem, "Choose the project to move the item to (omit the owner); --project, --task, --dir, --pane and --scratch are the deprecated forms of set").Positional("id").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice runs action-item.move").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Mode("normal").
 		Bind("enter", ochazuke.Do(n+".open")).
 		Bind("u", ochazuke.Do(n+".toggle-read").Hinted("read/unread")).
 		Bind("x", ochazuke.Do(n+".archive")).
-		Bind("X", ochazuke.Do(n+".restore")).
+		Bind("X", ochazuke.Do(n+".set", ochazuke.Arguments{"props": map[string]any{"@archive": false}}).Hinted("restore")).
 		Bind("s", ochazuke.Do(n+".snooze")).
 		Bind("t", ochazuke.Do(n+".promote-todo").Hinted("to todo")).
 		Bind("c", ochazuke.Do(n+".promote-task").Hinted("to task")).
-		Bind("m", ochazuke.Do(n+".choose-move")).
+		Bind("m", ochazuke.Do(n+".edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
 		Bind("d d", ochazuke.Do(n+".delete"))
 	// show is get under its old name; read, unread and toggle-read are the
 	// standard set of read (read shares the prop's name as its set).
 	for _, alias := range []ochazuke.ActionAlias{
 		{Alias: n + ".show", Action: n + ".get", Note: "the standard get: every prop of the item"},
 		{Alias: n + ".read", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "value": true}, Note: "the standard set of read"},
-		{Alias: n + ".unread", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "value": false}, Note: "the standard set of read, off"},
+		{Alias: n + ".unread", Action: n + ".set", Args: ochazuke.Arguments{"props": map[string]any{"read": false}}, Note: "the standard set of read, off"},
 		{Alias: n + ".toggle-read", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "toggle": true}, Note: "the standard set of read, flipped"},
 	} {
 		if err := a.r.AddActionAlias(alias); err != nil {
@@ -155,14 +155,14 @@ func (a *App) defineInbox() {
 		"for":   {Type: "string", Description: "How long: 90m, 4h, 2d, 1w"}})
 	promote := map[string]ochazuke.Parameter{"id": inboxIDParam,
 		"title":   {Type: "string", Description: "The task's title (default the item's)"},
-		"project": {Type: "string", Noun: "project", Source: "projects.list", Free: true, Description: "The project to add it to (id or name)"}}
+		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project to add it to (id or name)"}}
 	a.parameters(n+".promote-todo", promote)
 	promoteTask := map[string]ochazuke.Parameter{"parent": {Type: "string", Noun: "task", Description: "The task to add it under"}}
 	for k, v := range promote {
 		promoteTask[k] = v
 	}
 	a.parameters(n+".promote-task", promoteTask)
-	associate := map[string]ochazuke.Parameter{"id": inboxIDParam, "scratch": {Type: "boolean", Description: "Deprecated: action-item move ID --to \"\" (unassociate it)"}}
+	associate := map[string]ochazuke.Parameter{"id": inboxIDParam, "scratch": {Type: "boolean", Description: "Deprecated: action-item set ID @owner= (unassociate it)"}}
 	for k, v := range inboxOwnerParams {
 		v.Description = "Deprecated (action-item set): " + v.Description
 		associate[k] = v
@@ -662,7 +662,7 @@ func (a *App) snoozeOne(ctx ochazuke.Ctx) ochazuke.Result {
 
 // snoozeTo is a snooze's write: the standard set of snoozed-until.
 func (a *App) snoozeTo(id string, until int64) ochazuke.Result {
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: actionItemNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "prop": "snoozed-until", "value": until}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: actionItemNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "props": map[string]any{"snoozed-until": until}}}))
 }
 
 // parseSpan reads a snooze length: a Go duration, or a count of days (d)

@@ -402,5 +402,5 @@ func (a *App) removeSchedule(c ochazuke.Ctx, name string) error {
 
 // scheduleSet runs the standard set of changes on the row name.
 func (a *App) scheduleSet(name string, changes map[string]any) ochazuke.Result {
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: scheduleNoun, Verb: "set", Args: ochazuke.Arguments{"name": name, "changes": changes}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: scheduleNoun, Verb: "set", Args: ochazuke.Arguments{"name": name, "props": changes}}))
 }

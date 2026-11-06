@@ -248,8 +248,8 @@ func (a *App) defineSchedules() {
 	// and disable are the standard set of enabled.
 	for _, alias := range []ochazuke.ActionAlias{
 		{Alias: n + ".show", Action: n + ".get", Note: "the standard get: the schedule's props and its recent runs"},
-		{Alias: n + ".enable", Action: n + ".set", Args: ochazuke.Arguments{"prop": "enabled", "value": schedules.On}, Note: "the standard set of enabled: on (schedule.NAME.enabled for a configured row)"},
-		{Alias: n + ".disable", Action: n + ".set", Args: ochazuke.Arguments{"prop": "enabled", "value": schedules.Off}, Note: "the standard set of enabled: off"},
+		{Alias: n + ".enable", Action: n + ".set", Args: ochazuke.Arguments{"props": map[string]any{"enabled": schedules.On}}, Note: "the standard set of enabled: on (schedule.NAME.enabled for a configured row)"},
+		{Alias: n + ".disable", Action: n + ".set", Args: ochazuke.Arguments{"props": map[string]any{"enabled": schedules.Off}}, Note: "the standard set of enabled: off"},
 	} {
 		if err := a.r.AddActionAlias(alias); err != nil {
 			panic(err)

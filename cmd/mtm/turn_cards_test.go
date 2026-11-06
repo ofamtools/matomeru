@@ -74,7 +74,7 @@ func TestTurnCardsFromTheSessionLog(t *testing.T) {
 		t.Fatalf("z 2:\n%s", fr)
 	}
 	for name, value := range map[string]string{settingTurnsThinking: "false", settingTurnsToolsOpen: "true"} {
-		if _, err := app.r.Execute(ochazuke.Request{Noun: "settings", Verb: "set", Args: ochazuke.Arguments{"name": name, "value": value}}); err != nil {
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": name, "value": value, "scope": "file"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -302,7 +302,7 @@ func TestTurnsStyleSwitchesLive(t *testing.T) {
 	if fr := frame(app); app.r.Focus != turnCardID("w1", "u1") || !strings.Contains(fr, "╭") || app.pv.turns.List().Len() != 0 {
 		t.Fatalf("cards: %s tree rows %d\n%s", where(app), app.pv.turns.List().Len(), fr)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "settings", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": "compact"}}); err == nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": "compact", "scope": "file"}}); err == nil {
 		t.Fatal("turns.style took a value it does not offer")
 	}
 }

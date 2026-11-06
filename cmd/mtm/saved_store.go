@@ -37,7 +37,7 @@ func savedProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The record's key")},
 		{Name: "name", Role: ochazuke.RoleLabel, Parameter: text("The record's name (reopen names the window after it)")},
-		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the record (and its live pane) belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the record belongs to; its project wins over project"}},
 		{Name: "command", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "The argv reopen runs (empty: a daemon shell)"}},
@@ -272,5 +272,5 @@ func (a *App) associateSavedOne(ctx ochazuke.Ctx) ochazuke.Result {
 			changes = map[string]any{"task": fmt.Sprint(v)}
 		}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "saved", Verb: "set", Args: ochazuke.Arguments{"id": key, "changes": changes}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "saved", Verb: "set", Args: ochazuke.Arguments{"id": key, "props": changes}}))
 }

@@ -41,7 +41,7 @@ func TestProjectReferencesResolveNamesAcrossStores(t *testing.T) {
 				if ref == "missing project" || ref == "" {
 					want = ""
 				}
-				executeA(t, a, row.noun, "set", "", ochazuke.Arguments{"id": row.id, "prop": "project", "value": ref})
+				executeA(t, a, row.noun, "set", "", ochazuke.Arguments{"id": row.id, "props": map[string]any{"project": ref}})
 				thing := executeA(t, a, row.noun, "get", "", ochazuke.Arguments{"id": row.id}).(map[string]any)
 				if thing["project"] != want {
 					t.Fatalf("%q saved project %v, want %q", ref, thing["project"], want)
@@ -54,8 +54,8 @@ func TestProjectReferencesResolveNamesAcrossStores(t *testing.T) {
 	}
 	task := executeA(t, a, "task", "create", "", ochazuke.Arguments{"title": "owned task", "project": "Readable project"}).(map[string]any)
 	taskID := task["id"].(string)
-	executeA(t, a, "pane", "set", "", ochazuke.Arguments{"id": "w1", "prop": "task", "value": taskID})
-	executeA(t, a, "pane", "set", "", ochazuke.Arguments{"id": "w1", "prop": "project", "value": "Readable project"})
+	executeA(t, a, "pane", "set", "", ochazuke.Arguments{"id": "w1", "props": map[string]any{"task": taskID}})
+	executeA(t, a, "pane", "set", "", ochazuke.Arguments{"id": "w1", "props": map[string]any{"project": "Readable project"}})
 	if owner, err := a.work.PaneOwner("w1", ""); err != nil || owner.TaskID != taskID || owner.ProjectID != "project-reference-id" {
 		t.Fatalf("name within task's project lost ownership: %+v %v", owner, err)
 	}
@@ -72,7 +72,7 @@ func TestProjectReferencesResolveNamesAcrossStores(t *testing.T) {
 	if def, _ := a.scheduleDef(scheduleName); def.Agent.Project != "project-reference-id" {
 		t.Fatalf("schedule project by name: %+v", def.Agent)
 	}
-	executeA(t, a, scheduleNoun, "set", "", ochazuke.Arguments{"name": scheduleName, "prop": "project", "value": "missing project"})
+	executeA(t, a, scheduleNoun, "set", "", ochazuke.Arguments{"name": scheduleName, "props": map[string]any{"project": "missing project"}})
 	if def, _ := a.scheduleDef(scheduleName); def.Agent.Project != "" || !strings.Contains(a.m.Status+frame(a), "unknown project missing project") {
 		t.Fatalf("unknown schedule project: %+v", def.Agent)
 	}

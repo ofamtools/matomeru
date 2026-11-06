@@ -41,30 +41,16 @@ func rowLabel(t *testing.T, a *App, id string) string {
 }
 
 // The note's verbs are the standard ones its props and store give, beside
-// the named new, edit, view and choose-move; associate is a deprecated
-// alias of move.
+// the named new, edit, view and choose-move; the purged move, rename and
+// duplicate are gone (set {@owner}, edit {field: "@label"}, create {from}).
 func TestNoteVerbsAreStandard(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	for verb, standard := range map[string]string{
+	standardIs(t, a, "note", map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete",
-		"watch": "watch", "rename": "rename", "move": "move", "duplicate": "duplicate",
+		"watch": "watch", "archive": "archive",
 		"new": "", "edit": "", "view": "", "choose-move": "",
-	} {
-		op, ok := a.r.Operation("note." + verb)
-		if !ok || op.Standard != standard {
-			t.Errorf("note.%s: ok %v standard %q, want %q", verb, ok, op.Standard, standard)
-		}
-	}
-	var found bool
-	for _, alias := range a.r.AliasesOf("note.move") {
-		if alias.Alias == "note.associate" {
-			found = alias.Deprecated()
-		}
-	}
-	if !found {
-		t.Fatal("note.associate is not a deprecated alias of note.move")
-	}
+	}, "move", "rename", "duplicate", "restore", "associate")
 }
 
 // A note written before titles existed shows as before (its first line);
@@ -86,17 +72,17 @@ func TestNoteLabelFallsBackToTheSummary(t *testing.T) {
 	if thing["title"] != "" || thing["summary"] != "first line" || thing["text"] != "first line\nbody" || thing["project"] != "matomeru" {
 		t.Fatalf("get: %v", out)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Target: old.ID, Args: ochazuke.Arguments{"prop": "summary", "value": "x"}}); err == nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Target: old.ID, Args: ochazuke.Arguments{"props": map[string]any{"summary": "x"}}}); err == nil {
 		t.Fatal("summary was written")
 	}
-	executeA(t, a, "note", "rename", old.ID, ochazuke.Arguments{"name": "Plans"})
+	executeA(t, a, "note", "set", old.ID, ochazuke.Arguments{"props": map[string]any{"@label": "Plans"}})
 	if got := rowLabel(t, a, old.ID); got != "Plans" {
 		t.Fatalf("titled row: %q", got)
 	}
 	if fr := frame(a); !strings.Contains(fr, "Plans") {
 		t.Fatalf("frame lacks the title:\n%s", fr)
 	}
-	executeA(t, a, "note", "rename", old.ID, ochazuke.Arguments{"name": ""})
+	executeA(t, a, "note", "set", old.ID, ochazuke.Arguments{"props": map[string]any{"@label": ""}})
 	if got := rowLabel(t, a, old.ID); got != "first line" {
 		t.Fatalf("an empty title shows the summary again: %q", got)
 	}
@@ -112,7 +98,7 @@ func TestNoteRenameWritesOnlyTheTitle(t *testing.T) {
 		t.Fatal(err)
 	}
 	notesOn(t, a, n.ID)
-	executeA(t, a, "note", "rename", "", ochazuke.Arguments{"name": "Renamed"})
+	executeA(t, a, "note", "set", "", ochazuke.Arguments{"props": map[string]any{"@label": "Renamed"}})
 	got, err := a.work.Note(n.ID)
 	if err != nil || got.Title != "Renamed" || got.Text != "keep this body" || got.ProjectID != "matomeru" || got.TaskID != "t1" || got.Created != n.Created {
 		t.Fatalf("renamed: %+v %v", got, err)
@@ -162,20 +148,20 @@ func TestNoteOwnerPropsFollowTheTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "prop": "task", "value": "t1"})
+	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"task": "t1"}})
 	if got, _ := a.work.Note(n.ID); got.ProjectID != "matomeru" || got.TaskID != "t1" {
 		t.Fatalf("task set: %+v", got)
 	}
-	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "prop": "task", "value": ""})
+	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"task": ""}})
 	if got, _ := a.work.Note(n.ID); got.ProjectID != "matomeru" || got.TaskID != "" {
 		t.Fatalf("task cleared alone keeps the project: %+v", got)
 	}
-	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "prop": "task", "value": "t1"})
-	executeA(t, a, "note", "move", "", ochazuke.Arguments{"id": n.ID, "to": "ochazuke"})
+	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"task": "t1"}})
+	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"@owner": "ochazuke"}})
 	if got, _ := a.work.Note(n.ID); got.ProjectID != "ochazuke" || got.TaskID != "" {
 		t.Fatalf("moved: %+v", got)
 	}
-	executeA(t, a, "note", "move", "", ochazuke.Arguments{"id": n.ID, "to": "nowhere"})
+	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"@owner": "nowhere"}})
 	if got, _ := a.work.Note(n.ID); got.ProjectID != "" {
 		t.Fatalf("an unknown project is saved unassociated: %+v", got)
 	}
@@ -191,7 +177,7 @@ func TestNoteUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 	notesOn(t, a, n.ID)
-	executeA(t, a, "note", "rename", n.ID, ochazuke.Arguments{"name": "Titled"})
+	executeA(t, a, "note", "set", n.ID, ochazuke.Arguments{"props": map[string]any{"@label": "Titled"}})
 	executeA(t, a, "history", "undo", "", nil)
 	if got, _ := a.work.Note(n.ID); got.Title != "" || got.Text != "undo me" {
 		t.Fatalf("rename undone: %+v", got)
@@ -257,21 +243,19 @@ func TestNoteKeysMoveAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	executeA(t, a, "note", "rename", "", ochazuke.Arguments{"id": n.ID, "name": "Movable"})
+	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"@label": "Movable"}})
 	notesOn(t, a, n.ID)
 	press(t, a, "m")
-	if a.r.TopModal() == "" || !strings.Contains(frame(a), "Move Movable to") {
+	if a.r.TopModal() == "" || !strings.Contains(frame(a), "Edit note project: Movable") {
 		t.Fatalf("m: modal %q\n%s", a.r.TopModal(), frame(a))
 	}
-	typeText(t, a, "ochaz")
-	press(t, a, "enter")
+	pickOwner(t, a, "ochaz")
 	if got, _ := a.work.Note(n.ID); got.ProjectID != "ochazuke" {
 		t.Fatalf("m moved to %+v", got)
 	}
 	notesOn(t, a, n.ID)
 	press(t, a, "m")
-	typeText(t, a, "unassoc")
-	press(t, a, "enter")
+	pickOwner(t, a, "none")
 	if got, _ := a.work.Note(n.ID); got.ProjectID != "" {
 		t.Fatalf("m to unassociated: %+v", got)
 	}
@@ -299,8 +283,8 @@ func TestNoteStandardVerbsFromTheCLI(t *testing.T) {
 	if !strings.Contains(out, n.ID) || !strings.Contains(out, "cli body") {
 		t.Fatalf("note list:\n%s", out)
 	}
-	mustCLI(t, a, "note", "rename", "--id", n.ID, "--name", "From CLI")
-	mustCLI(t, a, "note", "move", "--id", n.ID, "--to", "ochazuke")
+	mustCLI(t, a, "note", "set", n.ID, "@label=From CLI")
+	mustCLI(t, a, "note", "set", n.ID, "@owner=ochazuke")
 	got, err := a.work.Note(n.ID)
 	if err != nil || got.Title != "From CLI" || got.ProjectID != "ochazuke" || got.Text != "cli body" {
 		t.Fatalf("after CLI writes: %+v %v", got, err)
@@ -309,7 +293,7 @@ func TestNoteStandardVerbsFromTheCLI(t *testing.T) {
 	if got, _ := a.work.Note(n.ID); got.TaskID != "t1" || got.ProjectID != "matomeru" {
 		t.Fatalf("set task=t1: %+v", got)
 	}
-	mustCLI(t, a, "note", "move", "--id", n.ID, "--to", "")
+	mustCLI(t, a, "note", "set", n.ID, "@owner=")
 	if got, _ := a.work.Note(n.ID); got.TaskID != "" || got.ProjectID != "" {
 		t.Fatalf("move --to \"\": %+v", got)
 	}
@@ -326,33 +310,33 @@ func TestNoteStandardVerbsFromTheCLI(t *testing.T) {
 	}
 }
 
-// Targeted palette: :rename and :note rename on a titled note row open
-// the args form on the old title; typing replaces it and enter writes the
-// title only. ":note rename" reads note as the noun (ochazuke v0.55: a
+// Targeted palette: :edit --field @label and :note edit --field @label on a titled note row open
+// the one-field form on the old title (edit --field @label); typing
+// replaces it and enter writes the title only. ":note edit" reads note as the noun (ochazuke v0.55: a
 // first word that is a noun and a verb is the noun when the next word is
 // its verb), not as the focused Markdown doc's own verb note.
 func TestNoteRenameFromThePalette(t *testing.T) {
 	t.Parallel()
-	for _, line := range []string{"rename", "note rename"} {
+	for _, line := range []string{"edit --field @label", "note edit --field @label"} {
 		t.Run(line, func(t *testing.T) {
 			a := open(t)
 			n, err := a.work.AddNote("matomeru", "", "body stays")
 			if err != nil {
 				t.Fatal(err)
 			}
-			executeA(t, a, "note", "rename", "", ochazuke.Arguments{"id": n.ID, "name": "Old"})
+			executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"@label": "Old"}})
 			notesOn(t, a, n.ID)
 			press(t, a, ":")
 			typeText(t, a, line)
 			press(t, a, "enter")
-			if a.r.TopModal() != ochazuke.ArgsFormID {
+			if editing(a) == nil {
 				t.Fatalf("modal %q\n%s", a.r.TopModal(), frame(a))
 			}
 			if fr := frame(a); !strings.Contains(fr, "Old") {
 				t.Fatalf("the form does not hold the old title:\n%s", fr)
 			}
 			typeText(t, a, "New")
-			press(t, a, "enter", "enter")
+			press(t, a, "enter")
 			got, err := a.work.Note(n.ID)
 			if err != nil || got.Title != "New" || got.Text != "body stays" {
 				t.Fatalf("renamed: %+v %v\n%s", got, err, frame(a))

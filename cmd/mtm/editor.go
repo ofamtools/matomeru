@@ -104,7 +104,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		editErr = a.editor.Form.Failure()
 	}
 	quick, quickErr := a.quickNoteUpdate(msg)
-	if err := errors.Join(editErr, a.extFormFailure(), a.renameFailure(), quickErr, a.autosaveAnswer()); err != nil {
+	if err := errors.Join(editErr, quickErr, a.autosaveAnswer()); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 	if quick != nil {

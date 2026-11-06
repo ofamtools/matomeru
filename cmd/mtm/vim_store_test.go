@@ -42,9 +42,8 @@ func TestVimVerbsAreStandard(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	standardIs(t, a, "vim", map[string]string{
-		"get": "get", "list": "list", "set": "set", "delete": "delete", "watch": "watch", "rename": "rename", "move": "move",
-		"open": "", "save": "", "reopen": "", "choose-move": "",
-	}, "create", "duplicate")
+		"get": "get", "list": "list", "set": "set", "delete": "delete", "watch": "watch", "open": "", "save": "", "reopen": "", "choose-move": "", "create": "",
+	}, "move", "rename", "duplicate", "restore")
 	if forget := aliasOf(a, "vim.delete", "vim.forget"); forget == nil || forget.Deprecated() {
 		t.Fatalf("forget: %+v", forget)
 	}
@@ -57,8 +56,8 @@ func TestVimKeysAndWrites(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	row := vimSession(t, a)
-	executeA(t, a, "vim", "rename", "", ochazuke.Arguments{"id": row.ID, "name": "plans"})
-	executeA(t, a, "vim", "move", "", ochazuke.Arguments{"id": row.ID, "to": "ochazuke"})
+	executeA(t, a, "vim", "set", "", ochazuke.Arguments{"id": row.ID, "props": map[string]any{"@label": "plans"}})
+	executeA(t, a, "vim", "set", "", ochazuke.Arguments{"id": row.ID, "props": map[string]any{"@owner": "ochazuke"}})
 	if got, _ := a.work.VimSession(row.ID); got.Name != "plans" || got.ProjectID != "ochazuke" {
 		t.Fatalf("rename, move: %+v", got)
 	}
@@ -100,11 +99,11 @@ func TestVimListIsStandard(t *testing.T) {
 	}
 	a.pin = "matomeru"
 	var rows []map[string]any
-	cliJSON(t, a, &rows, "vim", "list")
+	cliRows(t, a, &rows, "vim", "list")
 	if len(rows) != 1 || rows[0]["id"] != "vim-a" || rows[0]["name"] != "notes" || rows[0]["project"] != "matomeru" {
 		t.Fatalf("list: %v", rows)
 	}
-	cliJSON(t, a, &rows, "vim", "list", "--all")
+	cliRows(t, a, &rows, "vim", "list", "--all")
 	if len(rows) != 2 {
 		t.Fatalf("list --all: %v", rows)
 	}

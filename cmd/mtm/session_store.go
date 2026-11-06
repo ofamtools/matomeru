@@ -34,7 +34,7 @@ func sessionProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's id (or its row id, session:ID)"}},
 		{Name: "name", Role: ochazuke.RoleLabel, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's name in the daemon (never empty)"}},
-		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the session belongs to (empty: unassociated); panes with their own owner keep it"}},
 		{Name: "panes", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "How many panes the session holds"}},
 	}
@@ -207,7 +207,7 @@ func (a *App) associateSession(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.moving(ctx) {
 		return a.moveTo(ctx, "session")
 	}
-	ctx.Notify(fmt.Sprintf("session.associate --project is an old form of session.move --to (since %s; removed after %s)", sessionAssociateSince, sessionAssociateRemoveAfter))
+	ctx.Notify(fmt.Sprintf("session.associate --project is an old form of session set ID @owner=PROJECT (since %s; removed after %s)", sessionAssociateSince, sessionAssociateRemoveAfter))
 	return ctx.Each(a.associateSessionOne)
 }
 
@@ -226,5 +226,5 @@ func (a *App) associateSessionOne(ctx ochazuke.Ctx) ochazuke.Result {
 			to = a.taskProject(task)
 		}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "session", Verb: "move", Args: ochazuke.Arguments{"id": key, "to": to}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "session", Verb: "set", Args: ochazuke.Arguments{"id": key, "props": map[string]any{"@owner": to}}}))
 }

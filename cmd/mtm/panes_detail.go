@@ -413,6 +413,15 @@ func (a *App) moving(ctx ochazuke.Ctx) bool {
 
 const moveChooser = "move-chooser"
 
+// ownerWritable reports whether the noun has a writable owner prop (role
+// owner), which the standard set writes as @owner.
+func (a *App) ownerWritable(noun string) bool {
+	n := a.r.Noun(noun)
+	return n != nil && n.Store != nil && slices.ContainsFunc(n.Props, func(p ochazuke.PropSpec) bool {
+		return p.Role == ochazuke.RoleOwner && !p.ReadOnly
+	})
+}
+
 func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(fmt.Errorf("select a %s", noun))
@@ -423,16 +432,16 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 	if len(subjects) < 2 {
 		subjects = nil
 	}
-	// A noun with the standard move (its owner a prop) runs it with to,
-	// "" for unassociated; the others run their associate.
-	verb, standard := "associate", false
-	if op, ok := a.r.Operation(noun + ".move"); ok && op.Standard == "move" {
-		verb, standard = "move", true
+	// A noun whose owner is a writable prop (role owner) runs the standard
+	// set of it, "" for unassociated; the others run their associate.
+	verb, standard := "associate", a.ownerWritable(noun)
+	if standard {
+		verb = "set"
 	}
 	associate := func(args ochazuke.Arguments) ochazuke.Result {
 		if standard {
 			to, _ := args["project"].(string)
-			args = ochazuke.Arguments{"to": to}
+			args = ochazuke.Arguments{"props": map[string]any{"@owner": to}}
 		}
 		out, err := a.r.Execute(ochazuke.Request{Verb: verb, Noun: noun, Target: row, Subjects: subjects, Args: args})
 		if err != nil {
@@ -604,7 +613,7 @@ func (a *App) defineLiveKeys() {
 		Bind("I", ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": "inbox"})).
 		Bind(":", ochazuke.Do("ochazuke.palette.open")).
 		Bind("ctrl+space", ochazuke.Do("ochazuke.palette.open")).
-		Bind(",", ochazuke.Do("ochazuke.settings.edit").Guard("no-modal")).
+		Bind(",", ochazuke.Do("ochazuke.setting.open").Guard("no-modal")).
 		Bind("'", ochazuke.Do("ochazuke.page.pick").Guard("no-modal")).
 		Bind("ctrl+j", ochazuke.Do("ochazuke.page.next")).
 		Bind("ctrl+k", ochazuke.Do("ochazuke.page.previous")).
@@ -967,7 +976,7 @@ func (a *App) paneListBlock(width, height int) ochazuke.Block {
 		return ochazuke.Text(a.fill("daemon is not running\ne starts it (daemon.ensure)\n"+name, height, width))
 	case len(a.pv.view.nodes) == 0:
 		a.r.Placed(paneListID)
-		return ochazuke.Text(a.fill("no panes\n"+a.keySentence(paneListID, keyAction{"pane.new", "opens a shell"}, keyAction{"agent.choose", "launches an agent"}), height, width))
+		return ochazuke.Text(a.fill("no panes\n"+a.keySentence(paneListID, keyAction{"pane.new", "opens a shell", nil}, keyAction{"agent.choose", "launches an agent", nil}), height, width))
 	}
 	return a.sectionsBlock(width, height)
 }
@@ -1351,9 +1360,9 @@ func (a *App) groupSummary(inst *ochazuke.Instance) (string, ochazuke.Block) {
 		s, _ := inst.Data.(pane)
 		owner, _ := a.work.SessionOwner(s.SessionID)
 		head := plural(len(lines), "pane") + " · " + a.ownerLabel(owner.ProjectID)
-		keys := a.keySentence(inst.ID, keyAction{"session.attach", "attaches the first pane"}, keyAction{"session.move", "moves"}, keyAction{"session.rename", "renames"}, keyAction{"session.kill", "kills"})
+		keys := a.keySentence(inst.ID, keyAction{"session.attach", "attaches the first pane", nil}, keyAction{"session.edit", "moves", ochazuke.Arguments{"field": "@owner"}}, keyAction{"session.edit", "renames", ochazuke.Arguments{"field": "@label"}}, keyAction{"session.kill", "kills", nil})
 		if len(lines) == 0 {
-			keys = "no panes · " + a.keySentence(inst.ID, keyAction{"pane.new", "opens a shell"}, keyAction{"agent.choose", "launches an agent"}, keyAction{"session.move", "moves"}, keyAction{"session.rename", "renames"}, keyAction{"session.kill", "kills"})
+			keys = "no panes · " + a.keySentence(inst.ID, keyAction{"pane.new", "opens a shell", nil}, keyAction{"agent.choose", "launches an agent", nil}, keyAction{"session.edit", "moves", ochazuke.Arguments{"field": "@owner"}}, keyAction{"session.edit", "renames", ochazuke.Arguments{"field": "@label"}}, keyAction{"session.kill", "kills", nil})
 		}
 		return "session " + s.Session, ochazuke.Text(head + "\n\n" + strings.Join(lines, "\n") + "\n\n" + keys)
 	}

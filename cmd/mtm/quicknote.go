@@ -47,11 +47,11 @@ func (a *App) defineQuickNote() {
 	a.r.Define(quickNoteModal).
 		Verb("open", a.openQuickNote, "Write a note for the selected task, else the pin, else no project; it is written as you type").
 		Verb("close", a.closeQuickNote, "Close the quick note; every change is already written").
-		Verb("list", a.listQuickNote, "Close the quick note and open the Notes page on it").
+		Verb("open-notes", a.listQuickNote, "Close the quick note and open the Notes page on it").
 		Mode("normal").
 		Bind("N", ochazuke.Do(quickNoteModal+".close")).
 		Mode("").
-		Bind("ctrl+o", ochazuke.Do(quickNoteModal+".list"))
+		Bind("ctrl+o", ochazuke.Do(quickNoteModal+".open-notes"))
 	a.r.Define(quickNoteText)
 	a.r.Define("app").Mode("normal").Bind("N", ochazuke.Do(quickNoteModal+".open"))
 	a.ownedBy(quickNoteModal, notesPage)
@@ -132,7 +132,7 @@ func (a *App) closeQuickNote(ochazuke.Ctx) ochazuke.Result {
 	return resultError(a.flushQuickNote(true))
 }
 
-// listQuickNote is quick-note.list (ctrl+o): close, then the Notes page,
+// listQuickNote is quick-note.open-notes (ctrl+o): close, then the Notes page,
 // on the note when one was written.
 func (a *App) listQuickNote(ochazuke.Ctx) ochazuke.Result {
 	q := a.quick

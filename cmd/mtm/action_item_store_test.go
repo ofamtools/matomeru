@@ -29,9 +29,8 @@ func TestActionItemVerbsAreStandard(t *testing.T) {
 	a, _, _ := inboxApp(t)
 	standardIs(t, a, actionItemNoun, map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"move": "move", "duplicate": "duplicate", "archive": "archive", "restore": "restore", "rename": "rename",
-		"add": "", "count": "", "open": "", "snooze": "", "promote-todo": "", "promote-task": "", "associate": "", "choose-move": "",
-	})
+		"archive": "archive", "add": "", "count": "", "open": "", "snooze": "", "promote-todo": "", "promote-task": "", "associate": "", "choose-move": "",
+	}, "move", "rename", "duplicate", "restore")
 	for alias, action := range map[string]string{"show": "get", "read": "set", "unread": "set", "toggle-read": "set"} {
 		got := aliasOf(a, actionItemNoun+"."+action, actionItemNoun+"."+alias)
 		if got == nil || got.Deprecated() {
@@ -56,9 +55,9 @@ func TestActionItemShowListCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	var open, archived, slack []actionThing
-	cliJSON(t, a, &open, "action-item", "list")
-	cliJSON(t, a, &archived, "action-item", "list", "--state", "archived", "--where", "archived=true")
-	cliJSON(t, a, &slack, "action-item", "list", "--state", "all", "--source", "slack", "--where", "archived=true")
+	cliRows(t, a, &open, "action-item", "list")
+	cliRows(t, a, &archived, "action-item", "list", "--state", "archived", "--where", "archived=true")
+	cliRows(t, a, &slack, "action-item", "list", "--state", "all", "--source", "slack", "--where", "archived=true")
 	if len(open) != 1 || open[0].ID != pr.ID || len(archived) != 1 || archived[0].ID != ping.ID || len(slack) != 1 || slack[0].ID != ping.ID {
 		t.Fatalf("list: open %+v archived %+v slack %+v", open, archived, slack)
 	}
@@ -122,7 +121,7 @@ func TestActionItemMoveAndAssociate(t *testing.T) {
 	if _, err := a.inbox.items.Associate(pr.ID, actionitems.Owner{ProjectID: "matomeru", Window: "w1", Session: "matomeru"}); err != nil {
 		t.Fatal(err)
 	}
-	executeA(t, a, actionItemNoun, "move", "", ochazuke.Arguments{"id": pr.ID, "to": "ochazuke"})
+	executeA(t, a, actionItemNoun, "set", "", ochazuke.Arguments{"id": pr.ID, "props": map[string]any{"@owner": "ochazuke"}})
 	if it, _ := a.inbox.items.Get(pr.ID); it.ProjectID != "ochazuke" || it.Window != "w1" {
 		t.Fatalf("move: %+v", it)
 	}
@@ -133,7 +132,7 @@ func TestActionItemMoveAndAssociate(t *testing.T) {
 	if it, _ := a.inbox.items.Get(pr.ID); it.TaskID != "t1" || it.ProjectID != "matomeru" || it.Window != "" {
 		t.Fatalf("associate --task: %+v", it)
 	}
-	executeA(t, a, actionItemNoun, "set", "", ochazuke.Arguments{"id": pr.ID, "changes": map[string]any{"title": "Lift it", "read": true}})
+	executeA(t, a, actionItemNoun, "set", "", ochazuke.Arguments{"id": pr.ID, "props": map[string]any{"title": "Lift it", "read": true}})
 	if it, _ := a.inbox.items.Get(pr.ID); it.Title != "Lift it" || !it.Read() {
 		t.Fatalf("set: %+v", it)
 	}
@@ -147,7 +146,7 @@ func TestActionItemUndoOfArchiveKeepsTheSnooze(t *testing.T) {
 	a, _, clock := inboxApp(t)
 	pr, _ := seedInbox(t, a, clock)
 	until := *clock + int64(time.Hour/time.Millisecond)
-	executeA(t, a, "action-item", "set", "", ochazuke.Arguments{"id": pr.ID, "changes": map[string]any{"read": false, "snoozed-until": until}})
+	executeA(t, a, "action-item", "set", "", ochazuke.Arguments{"id": pr.ID, "props": map[string]any{"read": false, "snoozed-until": until}})
 	if it, _ := a.inbox.items.Get(pr.ID); it.SnoozedUntil != until || it.Read() {
 		t.Fatalf("snooze: %+v", it)
 	}

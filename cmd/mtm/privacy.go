@@ -13,13 +13,13 @@ import (
 // a default key.
 func (a *App) definePrivacyVerbs() {
 	for _, alias := range []ochazuke.ActionAlias{
-		{Alias: "project.make-family", Action: "project.set", Args: ochazuke.Arguments{"prop": "privacy", "value": work.PrivacyFamily},
+		{Alias: "project.make-family", Action: "project.set", Args: ochazuke.Arguments{"props": map[string]any{"privacy": work.PrivacyFamily}},
 			Note: "the standard set of privacy with family: the project's tasks may be exported (owner only)"},
-		{Alias: "project.make-private", Action: "project.set", Args: ochazuke.Arguments{"prop": "privacy", "value": work.PrivacyPrivate},
+		{Alias: "project.make-private", Action: "project.set", Args: ochazuke.Arguments{"props": map[string]any{"privacy": work.PrivacyPrivate}},
 			Note: "the standard set of privacy with private: the project's tasks stay in mtm"},
-		{Alias: "task.make-private", Action: "task.set", Args: ochazuke.Arguments{"prop": "private", "value": true},
+		{Alias: "task.make-private", Action: "task.set", Args: ochazuke.Arguments{"props": map[string]any{"private": true}},
 			Note: "the standard set of private with true: the task and its subtasks stay in mtm"},
-		{Alias: "task.make-family", Action: "task.set", Args: ochazuke.Arguments{"prop": "private", "value": false},
+		{Alias: "task.make-family", Action: "task.set", Args: ochazuke.Arguments{"props": map[string]any{"private": false}},
 			Note: "the standard set of private with false: the task follows its project's privacy (owner only)"},
 	} {
 		if err := a.r.AddActionAlias(alias); err != nil {

@@ -22,7 +22,7 @@
     "S",
     ":",
     {
-      "type": "settings set ext.lane.scope off"
+      "type": "setting set ext.lane.scope off"
     },
     "enter"
   ],

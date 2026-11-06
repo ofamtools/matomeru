@@ -24,26 +24,27 @@ func standardIs(t *testing.T, a *App, noun string, want map[string]string, absen
 	}
 }
 
-// The pane's verbs: get, list, set, watch and move are standard; no
-// create or delete (kill is a real action); rename, associate and the
-// agent's set-* verbs are named; star is an alias of set (starred,
-// toggled) and unassociate a lasting alias of move.
+// The pane's verbs: get, list, set and watch are standard; create is
+// pane.new's handler and delete pane.kill's (core_verbs.go); associate and
+// the agent's set-* verbs are named; star is an alias of set (starred,
+// toggled) and unassociate a lasting alias of set {@owner: ""}. The purged
+// verbs (move, rename, duplicate, restore) are gone.
 func TestPaneVerbsAreStandard(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
 	standardIs(t, a, "pane", map[string]string{
-		"get": "get", "list": "list", "set": "set", "watch": "watch", "move": "move", "star": "set",
-		"rename": "", "associate": "", "choose-move": "", "kill": "",
+		"get": "get", "list": "list", "set": "set", "watch": "watch", "star": "set",
+		"associate": "", "choose-move": "", "kill": "", "create": "", "delete": "",
 		"set-model": "", "set-effort": "", "set-fast": "", "set-permission-mode": "", "toggle-fast": "",
-	}, "create", "delete", "duplicate")
+	}, "move", "rename", "duplicate", "restore")
 	var found bool
-	for _, alias := range a.r.AliasesOf("pane.move") {
+	for _, alias := range a.r.AliasesOf("pane.set") {
 		if alias.Alias == "pane.unassociate" {
 			found = !alias.Deprecated()
 		}
 	}
 	if !found {
-		t.Fatal("pane.unassociate is not a lasting alias of pane.move")
+		t.Fatal("pane.unassociate is not a lasting alias of pane.set")
 	}
 }
 
@@ -56,11 +57,11 @@ func TestPaneGetAndReadOnlySettings(t *testing.T) {
 	if thing["name"] != "claude" || thing["session"] != "matomeru" || thing["display"] != "matomeru/claude" {
 		t.Fatalf("get: %v", thing)
 	}
-	_, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": "w1", "prop": "model", "value": "opus"}})
+	_, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": "w1", "props": map[string]any{"model": "opus"}}})
 	if err == nil {
 		t.Fatal("set model was written")
 	}
-	rows, _ := executeA(t, a, "pane", "list", "", ochazuke.Arguments{"all": true}).([]map[string]any)
+	rows, _ := ochazuke.AnswerRows(executeA(t, a, "pane", "list", "", ochazuke.Arguments{"all": true})).([]map[string]any)
 	if len(rows) != 2 {
 		t.Fatalf("list: %v", rows)
 	}
@@ -86,16 +87,16 @@ func TestPaneStarKeyAndUndo(t *testing.T) {
 }
 
 // pane rename NAME is the standard set of name: the daemon renames the
-// window in a job named pane.rename; undo renames it back.
+// window in a job named pane.set; undo renames it back.
 func TestPaneRenameIsSetAndUndoes(t *testing.T) {
 	t.Parallel()
 	a, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	a.renamer = fr
 	row := "pane:matomeru/w1"
-	executeA(t, a, "pane", "rename", row, ochazuke.Arguments{"name": "fixer"})
+	executeA(t, a, "pane", "set", row, ochazuke.Arguments{"props": map[string]any{"@label": "fixer"}})
 	settle(a, a.r.PendingCommands())
-	if len(jobsOf(a, "pane.rename")) != 1 {
+	if len(jobsOf(a, "pane.set")) != 1 {
 		t.Fatalf("jobs: %+v", a.r.Jobs())
 	}
 	executeA(t, a, "history", "undo", "", nil)
@@ -105,8 +106,9 @@ func TestPaneRenameIsSetAndUndoes(t *testing.T) {
 	}
 }
 
-// m on a pane row opens the project chooser, whose choice is the standard
-// move; unassociate moves it to no project.
+// m on a pane row is edit {field: "@owner"}: the one-field form, enter
+// opens the project's choices and the pick is the standard set of the
+// owner; unassociate sets it to no project.
 func TestPaneMoveKeyAndUnassociate(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
@@ -115,11 +117,10 @@ func TestPaneMoveKeyAndUnassociate(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "m")
-	if a.r.Chooser(moveChooser) == nil {
+	if editing(a) == nil {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
-	typeText(t, a, "ochaz")
-	press(t, a, "enter")
+	pickOwner(t, a, "ochaz")
 	if o, _ := a.work.PaneOwner("w1", ""); o.ProjectID != "ochazuke" {
 		t.Fatalf("m: %+v", o)
 	}

@@ -137,25 +137,25 @@ func TestTerminalCommandModes(t *testing.T) {
 	a, _, _ := scheduleApp(t)
 	liveSignals(t, a, "b1")
 	a.setPanes([]pane{shellPane("w1", 1, "true", exitCode(0), 5)}, nil)
-	mustCLI(t, a, "settings", "set", "inbox.terminal-commands", "off", "-y")
+	mustCLI(t, a, "setting", "set", "inbox.terminal-commands", "off", "--scope", "file", "-y")
 	a.setPanes([]pane{shellPane("w1", 2, "false", exitCode(1), 5)}, nil)
 	if got := commandItems(t, a); len(got) != 0 {
 		t.Fatalf("off raised %+v", got)
 	}
-	mustCLI(t, a, "settings", "set", "inbox.terminal-commands", "failed", "-y")
+	mustCLI(t, a, "setting", "set", "inbox.terminal-commands", "failed", "--scope", "file", "-y")
 	a.setPanes([]pane{shellPane("w1", 3, "make build", exitCode(0), 60*minute)}, nil)
 	if got := commandItems(t, a); len(got) != 0 {
 		t.Fatalf("failed mode raised a long success %+v", got)
 	}
-	mustCLI(t, a, "settings", "set", "inbox.terminal-commands", "all", "-y")
+	mustCLI(t, a, "setting", "set", "inbox.terminal-commands", "all", "--scope", "file", "-y")
 	a.setPanes([]pane{shellPane("w1", 4, "ls", exitCode(0), 5)}, nil)
 	a.setPanes([]pane{shellPane("w1", 5, "vim notes.md", exitCode(0), 5)}, nil)
 	got := commandItems(t, a)
 	if len(got) != 1 || got[0].Key != "command:w1:b1:4" {
 		t.Fatalf("all: %+v", got)
 	}
-	mustCLI(t, a, "settings", "set", "inbox.terminal-commands", "long", "-y")
-	mustCLI(t, a, "settings", "set", "inbox.terminal-commands.long-minutes", "1", "-y")
+	mustCLI(t, a, "setting", "set", "inbox.terminal-commands", "long", "--scope", "file", "-y")
+	mustCLI(t, a, "setting", "set", "inbox.terminal-commands.long-minutes", "1", "--scope", "file", "-y")
 	a.setPanes([]pane{shellPane("w1", 6, "sleep 70", exitCode(0), 70_000)}, nil)
 	if got := commandItems(t, a); len(got) != 2 {
 		t.Fatalf("long-minutes 1: %+v", got)

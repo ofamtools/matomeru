@@ -111,12 +111,12 @@ func (a *App) defineOutline() {
 	// project.delete does; it stays at the top level in creation order.
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
 		a.r.Define(noun).
-			Verb("delete", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
+			Verb("delete-project", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
 			Verb("confirm-delete", a.outlineConfirmDeleteProject, "Confirm deleting the project: project.delete orphans its tasks and records").Confirm(projectDeleteConfirm).
 			Mode("normal").
 			Bind("enter", ochazuke.Do("outline.fold")).
 			Bind("n", addTask).
-			Bind("d d", ochazuke.Do(noun+".delete").Hinted("delete project")).
+			Bind("d d", ochazuke.Do(noun+".delete-project").Hinted("delete project")).
 			Bind("tab", ochazuke.Do(noun+".demote").Hinted("make task")).
 			Bind("J", refuse("Projects keep their creation order")).
 			Bind("K", refuse("Projects keep their creation order"))
@@ -187,7 +187,7 @@ func (a *App) outlineTopTask(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 	return ok && parent != "" && parents[parent] == ""
 }
 
-// outlineDeleteProject is outline-project.delete (d d on a project row):
+// outlineDeleteProject is outline-project.delete-project (d d on a project row):
 // the delete's confirm, opened on the row (inside the outline: a confirm
 // for the Work page's project row would open beneath it), naming what
 // deleting every selected project orphans (deletionImpact, as

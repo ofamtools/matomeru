@@ -68,27 +68,13 @@ func taskTreeThing(t work.Task, exported bool, archived map[string]bool) ochazuk
 
 // Standard lists must retain archived rows for explicit archive conditions.
 // The library applies the condition itself; mtm also hides task descendants.
-func (a *App) queryShowsArchived(c ochazuke.Ctx, q ochazuke.ListQuery, noun string) bool {
+func (a *App) queryShowsArchived(q ochazuke.ListQuery) bool {
 	if !a.r.Settings().Bool(settingHideArchived) {
 		return true
 	}
-	if _, explicit := q.Where["archived"]; explicit {
-		return true
-	}
-	filters, err := a.r.SavedFilters("", noun)
-	if err != nil {
-		return false // runList has already validated the named filter.
-	}
-	for _, filter := range filters {
-		if filter.Name != ochazuke.StringArg(c.Args, "filter", "") {
-			continue
-		}
-		if _, explicit := filter.Where["archived"]; explicit {
-			return true
-		}
-		return slices.ContainsFunc(filter.Conditions, func(f ochazuke.PropFilter) bool { return f.Prop == "archived" })
-	}
-	return false
+	// listQueryOf folds a where, the filter words and a saved filter's
+	// conditions into Filters; --archived is q.Archived.
+	return q.Archived || slices.ContainsFunc(q.Filters, func(f ochazuke.PropFilter) bool { return f.Prop == "archived" })
 }
 
 func (a *App) refreshArchiveViews() error {

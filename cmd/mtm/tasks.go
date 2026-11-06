@@ -22,16 +22,16 @@ func (a *App) defineTask() {
 	r.Define("task").Filters(taskFilters()...).Props(taskProps()...).Store(a.taskStore()).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
-		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").
+		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").Many().
 		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo (standard set of status)").
 		Verb("choose-status", a.chooseStatus, "Choose the task's status: todo, active, blocked or done; over a visual selection one choice sets every task (standard set of status)").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the task to (most recent first, unassociated last); the choice runs task.move").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the task to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Verb("new", a.newTask, "Add a task (standard create: under --parent, else the pin or no project); omit title to open the draft editor").Positional("title").
 		Verb("launch", a.launchRecord, "Launch an agent on the task").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.edit")).Bind("l", ochazuke.Do("task.open")).Bind("L", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.choose-status")).
-		Bind("m", ochazuke.Do("task.choose-move"))
+		Bind("m", ochazuke.Do("task.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	a.defineTaskEvidence()
 	a.defineTaskSubjects()
 	// done and status are the standard set with the status preset (2.5:
@@ -40,7 +40,7 @@ func (a *App) defineTask() {
 	// still sets it, with a one-time notice (ochazuke.ParamAlias; Keep
 	// actions: seed scripts run task status --id T --status X).
 	for _, alias := range []ochazuke.ActionAlias{
-		{Alias: "task.done", Action: "task.set", Args: ochazuke.Arguments{"prop": "status", "value": work.StatusDone},
+		{Alias: "task.done", Action: "task.set", Args: ochazuke.Arguments{"props": map[string]any{"status": work.StatusDone}},
 			Note: "the standard set of status with done"},
 		{Alias: "task.status", Action: "task.set", Args: ochazuke.Arguments{"prop": "status", "require-summary": true},
 			Note:         "the standard set of status: task status ID STATUS; s (task.choose-status) chooses one (--status before " + taskStatusSince + ")",
@@ -319,7 +319,7 @@ func (a *App) editTask(ctx ochazuke.Ctx) ochazuke.Result {
 			changes[name] = ochazuke.StringArg(ctx.Args, name, "")
 		}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "changes": changes}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "props": changes}}))
 }
 
 // toggleTask is task.toggle (x): the standard set of status, done for a
@@ -333,7 +333,7 @@ func (a *App) toggleTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if t.Status == work.StatusDone {
 		status = work.StatusTodo
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "prop": "status", "value": status}}))
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "props": map[string]any{"status": status}}}))
 }
 
 // chooseStatus is task.choose-status (s): a chooser of the four statuses
@@ -349,7 +349,7 @@ func (a *App) chooseStatus(ctx ochazuke.Ctx) ochazuke.Result {
 		subjects = ctx.SubjectIDs()
 	}
 	return resultError(a.openStatusChooserFor(t, max(len(subjects), 1), func(status string) ochazuke.Result {
-		q := ochazuke.Request{Noun: "task", Verb: "set", Target: ctx.Instance.ID, Subjects: subjects, Args: ochazuke.Arguments{"prop": "status", "value": status}}
+		q := ochazuke.Request{Noun: "task", Verb: "set", Target: ctx.Instance.ID, Subjects: subjects, Args: ochazuke.Arguments{"props": map[string]any{"status": status}}}
 		if subjects == nil {
 			q.Args["id"] = t.ID
 		}

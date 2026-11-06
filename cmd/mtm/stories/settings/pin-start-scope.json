@@ -8,8 +8,8 @@
   "expect": [{"contains": ["pin.start-scope", "‹ pin ›", "Scope when mtm starts"]}],
   "config": {
     "bindings.json": [
-      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.settings", "verb": "edit"}},
-      {"noun": "app", "mode": "normal", "keys": "ctrl+z", "request": {"noun": "ochazuke.settings", "verb": "section", "args": {"name": "pin"}}}
+      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.setting", "verb": "open"}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+z", "request": {"noun": "ochazuke.setting", "verb": "show-section", "args": {"name": "pin"}}}
     ]
   }
 }

@@ -327,7 +327,6 @@ type extension struct {
 	aliases      []string
 	views        []*ocli.PageView
 	entry        []byte                // the registry entry it was mounted from, as JSON (extension_sync.go)
-	crud         map[string]extCRUD    // catalog noun -> its new, edit and delete verbs (extension_forms.go)
 	sources      map[string]*extSource // a parameter source (the tool's NOUN.VERB) -> its cached choices (extension_sources.go)
 	bindingLists map[string]string     // host noun -> mounted list, shared catalog key policy
 	bindingCRUD  map[string][]string
@@ -374,7 +373,7 @@ func (a *App) extRegistry() extRegistry {
 func (a *App) defineExtensions() {
 	a.r.Define("extension").
 		Verb("register", a.registerExtension, "Register a family tool's catalog under NAME (its bin: --bin, else o-NAME or NAME on PATH); its pages are tabs after mtm's").Positional("name").
-		Verb("list", a.listExtensions, "List the registered extensions").Fetch().
+		Verb("all", a.listExtensions, "List the registered extensions").Fetch().
 		Verb("peer-rows", a.peerRows, "List declared peer keys, whether loaded, and why a row was dropped").Fetch().
 		Verb("peers", a.extensionPeers, "List registered peers' namespaces, versions and application verbs").Fetch().Positional("name").
 		Verb("available", a.availableExtensions, "List the family tools on PATH (o-NAME answering catalog) and the registered extensions, each available, registered, stale or missing").Fetch().Quiet().
@@ -471,7 +470,7 @@ func summaryOf(name, bin, file string, doc ocli.CatalogDoc) extSummary {
 	return extSummary{Name: name, Bin: bin, Version: doc.Version, File: file, Nouns: len(extPlan(doc)), Pages: len(doc.Pages)}
 }
 
-// extListing is one row of extension.list.
+// extListing is one row of extension.all.
 type extListing struct {
 	Name         string    `json:"name"`
 	Bin          string    `json:"bin,omitempty"`
@@ -842,7 +841,7 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		if !ok || isPrefixCancel(row) {
 			continue
 		}
-		if slices.Contains(crud[local], "d d") && catalogDeleteRow(row, row.Noun, x.crud[row.Noun].Delete) {
+		if slices.Contains(crud[local], "d d") && catalogDeleteRow(row, row.Noun) {
 			continue // mountCRUD already installed this row with its argument sources.
 		}
 		where := row.Keys + row.Pattern + " on " + row.Noun

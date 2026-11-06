@@ -98,7 +98,7 @@ func writeLog(t *testing.T, path string, lines ...string) {
 // useTurnStyle sets turns.style (cards or tree) as the settings verb does.
 func useTurnStyle(t *testing.T, a *App, style string) {
 	t.Helper()
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "settings", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": style}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": style, "scope": "file"}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -153,17 +153,17 @@ func TestClaudeTurnsFromTheSessionLog(t *testing.T) {
 		t.Fatalf("the steer is not under the prompt:\n%s", got)
 	}
 	// The settings: thinking hidden, tool calls open.
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "settings", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsThinking, "value": "false"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsThinking, "value": "false", "scope": "file"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "settings", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsToolsOpen, "value": "true"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsToolsOpen, "value": "true", "scope": "file"}}); err != nil {
 		t.Fatal(err)
 	}
 	got = strings.Join(turnRows(app), "\n")
 	if strings.Contains(got, "thinking") || !strings.Contains(got, "▾ tool Bash") || !strings.Contains(got, "input:") || !strings.Contains(got, "ok cmd/mtm") {
 		t.Fatalf("after the settings:\n%s", got)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "settings", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsTools, "value": "false"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsTools, "value": "false", "scope": "file"}}); err != nil {
 		t.Fatal(err)
 	}
 	if got = strings.Join(turnRows(app), "\n"); strings.Contains(got, "tool Bash") {

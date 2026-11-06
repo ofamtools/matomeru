@@ -36,7 +36,7 @@ func (a *App) defineStore() {
 	// palette, o-inventory) can act on one: list is store.tables again on
 	// the noun its rows are, show is one table. Nothing writes.
 	a.r.Define(storeTableNoun).Columns(storeTableColumns...).
-		Verb("list", a.storeTables, "List every declared table with its owner, key, version, append-only flag and row count (read-only)").Rows(storeTableNoun).Fetch().
+		Verb("all", a.storeTables, "List every declared table with its owner, key, version, append-only flag and row count (read-only)").Rows(storeTableNoun).Fetch().
 		Verb("show", a.showStoreTable, "Show one declared table: its owner, key, version, append-only flag and row count (read-only)").Positional("name").Fetch()
 	a.parameters(storeTableNoun+".show", map[string]ochazuke.Parameter{
 		"name": {Type: "string", Noun: storeTableNoun, Description: "The table name; omitted, the selected row"}})
@@ -44,7 +44,7 @@ func (a *App) defineStore() {
 		Verb("tables", a.storeTables, "List every declared table with its owner, key, version, append-only flag and row count (read-only)").Rows(storeTableNoun)
 }
 
-// storeTables is store.tables and store-table.list, read off the loop.
+// storeTables is store.tables and store-table.all, read off the loop.
 func (a *App) storeTables(ochazuke.Ctx) ochazuke.Result {
 	path, db := a.dataPath, a.db
 	return ochazuke.Pending(func(context.Context) (any, error) {

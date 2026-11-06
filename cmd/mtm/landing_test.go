@@ -21,12 +21,8 @@ func assertLanded(t *testing.T, a *App, f *fakePanes, row, window string) {
 	if sel, ok := a.paneList.Selected(); !ok || sel.ID != row {
 		t.Fatalf("selected row = %+v, want %s", sel, row)
 	}
-	out, err := a.r.Execute(ochazuke.Request{Verb: "list", Noun: "history"})
-	if err != nil {
-		t.Fatal(err)
-	}
 	var attach *ochazuke.HistoryEntry
-	for _, e := range out.([]ochazuke.HistoryEntry) {
+	for _, e := range a.r.History(0) {
 		if e.Request.Key() == "pane.attach" {
 			e := e
 			attach = &e

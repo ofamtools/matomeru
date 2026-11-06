@@ -171,7 +171,7 @@ func TestExtensionHostExecutable(t *testing.T) {
 		t.Fatalf("discovery inherited host: %v %s", err, stderr)
 	}
 	// Off must also scrub the inherited host, not merely omit our assignment.
-	if _, stderr, err := run("settings", "set", settingExtHostCall, "false", "--yes"); err != nil {
+	if _, stderr, err := run("setting", "set", settingExtHostCall, "false", "--scope", "file", "--yes"); err != nil {
 		t.Fatalf("off: %v %s", err, stderr)
 	}
 	raw, stderr, err = run("alpha.tool", "probe")

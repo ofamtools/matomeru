@@ -258,12 +258,12 @@ func TestContextExtractionSettingChangesWhileJournalReads(t *testing.T) {
 func TestContextExtractionSettingPersistsAndReloads(t *testing.T) {
 	t.Parallel()
 	a, _ := cliApp(t)
-	mustCLI(t, a, "settings", "set", settingContextExtractFrom, `["scrollback","command"]`, "-y")
+	mustCLI(t, a, "setting", "set", settingContextExtractFrom, `["scrollback","command"]`, "--scope", "file", "-y")
 	b := openWith(t, Options{Data: a.dataPath})
 	if !slices.Equal(b.contextExtraction(), []string{"scrollback", "command"}) {
 		t.Fatal(b.contextExtraction())
 	}
-	mustCLI(t, a, "settings", "set", settingContextExtractFrom, `[]`, "-y")
+	mustCLI(t, a, "setting", "set", settingContextExtractFrom, `[]`, "--scope", "file", "-y")
 	if problems := b.r.Settings().Reload(); len(problems) > 0 {
 		t.Fatal(problems)
 	}

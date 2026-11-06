@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"ofam.dev/ochazuke"
 )
 
 // mtm's key map: q never starts a macro; Q records and stops one; q closes
@@ -100,7 +102,35 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 	}
 }
 
-// m moves a task, like a pane: the project chooser, then the pick.
+// chooseMove runs NOUN.choose-move on the focused row: the project
+// chooser m opened before R1 (m is edit {field: "@owner"} now), kept as a
+// verb a user's bindings.json can put on m.
+func chooseMove(t *testing.T, a *App) {
+	t.Helper()
+	inst := a.r.Instances[a.r.Focus]
+	if inst == nil {
+		t.Fatalf("no focused row at %q", a.r.Focus)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: inst.Noun, Verb: "choose-move", Target: inst.ID}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// pickOwner answers m's one-field form (edit {field: "@owner"}): enter
+// opens the field's choices, typing filters them, enter picks, esc closes
+// the form.
+func pickOwner(t *testing.T, a *App, text string) {
+	t.Helper()
+	if editing(a) == nil {
+		t.Fatalf("no edit form: modal %q", a.r.TopModal())
+	}
+	press(t, a, "enter")
+	typeText(t, a, text)
+	press(t, a, "enter", "esc")
+}
+
+// choose-move moves a task, like a pane: the project chooser, then the
+// pick (the standard set of @owner).
 func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
 	t.Parallel()
 	app := open(t)
@@ -108,7 +138,7 @@ func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
 	if app.r.Focus != "t1" {
 		t.Fatalf("focus %s", app.r.Focus)
 	}
-	press(t, app, "m")
+	chooseMove(t, app)
 	c := app.r.Chooser(moveChooser)
 	if c == nil {
 		t.Fatalf("m opened %q", app.r.TopModal())
@@ -124,8 +154,19 @@ func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
 	}
 }
 
-// keyRow is one normal-mode row: where it is bound, its keys and operation.
+// keyRow is one normal-mode row: where it is bound, its keys and operation
+// (with the field an edit row opens, edit@owner: r and m are edit).
 type keyRow struct{ at, keys, op string }
+
+// rowOp is a row's operation as the key map names it: NOUN.VERB, and the
+// field it opens when it gives one (task.edit@owner).
+func rowOp(a *App, b ochazuke.Binding) string {
+	op := a.r.DisplayKey(b.Request.Key())
+	if field, ok := b.Request.Args["field"].(string); ok {
+		op += field
+	}
+	return op
+}
 
 // normalRows lists every normal-mode row of the runtime: noun tables and
 // instance rows.
@@ -134,14 +175,14 @@ func normalRows(a *App) []keyRow {
 	for name, noun := range a.r.Nouns {
 		for _, b := range noun.Bindings["normal"] {
 			if !b.Unbind {
-				out = append(out, keyRow{"noun " + a.r.DisplayNoun(name), b.Keys, a.r.DisplayKey(b.Request.Key())})
+				out = append(out, keyRow{"noun " + a.r.DisplayNoun(name), b.Keys, rowOp(a, b)})
 			}
 		}
 	}
 	for id, inst := range a.r.Instances {
 		for _, b := range inst.Bindings {
 			if b.Mode == "normal" && !b.Unbind {
-				out = append(out, keyRow{"instance " + id, b.Keys, a.r.DisplayKey(b.Request.Key())})
+				out = append(out, keyRow{"instance " + id, b.Keys, rowOp(a, b)})
 			}
 		}
 	}
@@ -158,12 +199,12 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		"d d": {"pane.kill", "session.kill", "saved.delete", "vim.delete", actionItemNoun + ".delete", "project-dir.remove", "project-base.remove", "project.delete", "task.delete", "note.delete", "outline.delete", contextNoun + ".delete", "extension.remove", "schedule.delete"},
 		"n":   {"pane.new", "project.new", "task.new", "note.new", "vim.open", "dirs.add-base", "extension.register", "schedule.add"},
 		"L":   {"agent.choose", "project.launch", "task.launch", "extension.refresh"}, // L refreshes an Extensions row (owner, 2026-10-26)
-		"i":   {"project.edit", "task.edit", "note.edit", "project-dir.edit", "review.saveAnswer", "outline.edit"},
-		"r":   {"pane.rename", "session.rename", "saved.rename"},
+		"i":   {"project.edit", "task.edit", "note.edit", "project-dir.retarget", "review.saveAnswer", "outline.edit"},
+		"r":   {"pane.edit@label", "session.edit@label", "saved.edit@label"},
 		"x":   {"task.toggle", outlineModal + ".toggle", "review.accept"},
 		"s":   {"task.choose-status", outlineModal + ".status", "review.choose-status"},
 		"w":   {"saved.save", "vim.save"},
-		"m":   {"pane.choose-move", "session.choose-move", "task.choose-move", "note.choose-move", contextNoun + ".choose-move", "saved.choose-move", "vim.choose-move", actionItemNoun + ".choose-move"},
+		"m":   {"pane.edit@owner", "session.edit@owner", "task.edit@owner", "note.edit@owner", contextNoun + ".edit@owner", "saved.edit@owner", "vim.edit@owner", actionItemNoun + ".edit@owner"},
 	}
 	want := map[string]string{}
 	for k, ops := range families {
@@ -198,7 +239,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 	// editor, ochazuke's form, the outline, modals, the Settings and About
 	// pages) and
 	// never a macro; refresh has no key.
-	closers := map[string]bool{copyNoun + ".leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.close": true, "settings.close": true, "about.close": true}
+	closers := map[string]bool{copyNoun + ".leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.close": true, "setting.close": true, "about.close": true}
 	for _, row := range rows {
 		switch {
 		case row.at == "noun editor", row.at == "noun markdown":

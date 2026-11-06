@@ -81,7 +81,7 @@ func TestStoreTableIsACatalogNoun(t *testing.T) {
 			}
 		}
 	}
-	if !verbs["list"] || !verbs["show"] {
+	if !verbs["all"] || !verbs["show"] {
 		t.Fatalf("store-table verbs in the catalog: %v", verbs)
 	}
 	var got store.TableInfo
@@ -97,7 +97,7 @@ func TestStoreTableIsACatalogNoun(t *testing.T) {
 	var rows []struct {
 		Noun string `json:"noun"`
 	}
-	if err := json.Unmarshal([]byte(mustCLI(t, app, "store-table", "list")), &rows); err != nil || len(rows) == 0 || rows[0].Noun != storeTableNoun {
+	if err := json.Unmarshal([]byte(mustCLI(t, app, "store-table", "all")), &rows); err != nil || len(rows) == 0 || rows[0].Noun != storeTableNoun {
 		t.Fatalf("list: %v %v", rows, err)
 	}
 }

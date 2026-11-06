@@ -69,10 +69,10 @@ const taskPicker = "task-picker"
 var paneRelateParam = ochazuke.Parameter{Type: "string", Noun: "pane", Source: "pane.list", Free: true, Description: "A pane (its row id or window id) to associate with this one"}
 
 func (a *App) definePaneTask() {
-	// unassociate is a lasting alias of the standard move to no project
-	// (the task goes with it).
-	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "pane.unassociate", Action: "pane.move", Args: ochazuke.Arguments{"to": ""},
-		Note: "the standard move to no project: the pane is left with no task or project"}); err != nil {
+	// unassociate is a lasting alias of the standard set of the owner to
+	// no project (the task goes with it).
+	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "pane.unassociate", Action: "pane.set", Args: ochazuke.Arguments{"props": map[string]any{"@owner": ""}},
+		Note: "the standard set of the owner to no project: the pane is left with no task or project"}); err != nil {
 		panic(err)
 	}
 	a.r.Define("pane").
@@ -131,7 +131,7 @@ func (a *App) afterSubmit(ctx ochazuke.Ctx, p pane) {
 		return
 	}
 	// The box takes prompt.after-submit-mode first, while it still has the
-	// focus (mode.set's path: the focused input's own transition), so a
+	// focus (mode.switch's path: the focused input's own transition), so a
 	// picker opened next hands the focus back to it in that mode.
 	if a.r.Focus == promptID {
 		if err := a.r.SetMode(a.r.Settings().String(settingAfterSubmitMode)); err != nil {

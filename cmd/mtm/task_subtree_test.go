@@ -33,13 +33,13 @@ func projectsOf(t *testing.T, a *App, ids ...string) string {
 	return strings.Join(out, " ")
 }
 
-// task.move (m's verb) takes the subtree to the project in one write; one
+// set @owner (m's edit {field: "@owner"}) takes the subtree to the project in one write; one
 // undo takes every task back; set parent= into another project does too.
 func TestTaskMoveTakesTheSubtreeAndOneUndoRestoresIt(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	addSubtree(t, a.work)
-	executeA(t, a, "task", "move", "", ochazuke.Arguments{"id": "t1", "to": "ochazuke"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t1", "props": map[string]any{"@owner": "ochazuke"}})
 	if got := projectsOf(t, a, "t1", "kid", "grand", "t2"); got != "ochazuke ochazuke ochazuke matomeru" {
 		t.Fatalf("move: %s", got)
 	}
@@ -51,17 +51,17 @@ func TestTaskMoveTakesTheSubtreeAndOneUndoRestoresIt(t *testing.T) {
 		t.Fatalf("one undo: %s", got)
 	}
 	// A move of a subtask: it leaves its parent, its subtask with it.
-	executeA(t, a, "task", "move", "", ochazuke.Arguments{"id": "kid", "to": "ochazuke"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "kid", "props": map[string]any{"@owner": "ochazuke"}})
 	if got := projectsOf(t, a, "t1", "kid", "grand"); got != "matomeru ochazuke ochazuke" || stored(t, a, "kid").ParentID != "" {
 		t.Fatalf("move kid: %s %+v", got, stored(t, a, "kid"))
 	}
 	// Under a parent in matomeru again: its project follows, grand too.
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "kid", "prop": "parent", "value": "t2"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "kid", "props": map[string]any{"parent": "t2"}})
 	if got := projectsOf(t, a, "kid", "grand"); got != "matomeru matomeru" {
 		t.Fatalf("set parent: %s", got)
 	}
 	// Record first: a move to no project leaves the subtree unassociated.
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "prop": "project", "value": ""})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"project": ""}})
 	if got := projectsOf(t, a, "t2", "kid", "grand"); got != "  " {
 		t.Fatalf("unassociate: %q", got)
 	}
@@ -83,7 +83,7 @@ func TestCLITaskMoveTakesTheSubtree(t *testing.T) {
 	db.Close()
 	var out, errOut bytes.Buffer
 	args := []string{"--data", path, "--socket", filepath.Join(t.TempDir(), "none.sock")}
-	if err := run(append(args, "task", "move", "--id", "t1", "--to", "ochazuke"), strings.NewReader(""), &out, &errOut); err != nil {
+	if err := run(append(args, "task", "set", "t1", "@owner=ochazuke"), strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("task move: %v\n%s", err, errOut.String())
 	}
 	a := openAt(t, path)

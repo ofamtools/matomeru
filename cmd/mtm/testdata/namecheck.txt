@@ -17,6 +17,7 @@
 ../../internal/contextitems/store.go	normalize	compare	"link"	1
 ../../internal/contextitems/wrap.go	joinNext	cyclo	"-"	27
 ../../internal/daemon/client.go	decodeEvent	case	"at"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/client.go	decodeEvent	case	"seq"	1	wire field names of the daemon event JSON, not mtm vocabulary (seq became a word with ochazuke R1's history noun)
 ../../internal/daemon/client.go	decodeEvent	case	"session"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"time"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"type"	1	wire field names of the daemon event JSON, not mtm vocabulary
@@ -183,13 +184,7 @@ editor.go	App.recordValues	case	"task"	1
 editor.go	App.storeRecord	case	"task"	1
 extension_autorefresh.go	App.autoRefreshCatalogs	compare	"stale"	1
 extension_context.go	var nounChoosers	table	"pane"	1
-extension_forms.go	catalogDeleteRow	compare	"normal"	1
-extension_forms.go	prefill	case	"label"	1
-extension_forms.go	prefill	case	"name"	1
-extension_forms.go	prefill	case	"title"	1
-extension_forms.go	var crudVerbs	table	"delete"	1
-extension_forms.go	var crudVerbs	table	"edit"	1
-extension_forms.go	var crudVerbs	table	"new"	1
+extension_core_keys.go	catalogDeleteRow	compare	"normal"	1
 extension_page.go	App.extFacts	case	"available"	1
 extension_page.go	App.setExtRows	compare	"available"	1
 extension_page.go	App.setExtRows	compare	"stale"	1
@@ -294,7 +289,6 @@ panes_detail.go	App.moveOwner	case	"saved"	1
 panes_detail.go	App.moveOwner	case	"task"	1
 panes_detail.go	App.moveOwner	case	"vim"	1
 panes_detail.go	App.moveOwner	compare	"pane"	1
-panes_detail.go	App.moveTo	compare	"move"	1
 panes_detail.go	App.moveTo	compare	"scratch"	1
 panes_detail.go	App.panesUpdate	compare	"panes"	4
 panes_detail.go	App.panesUpdate	cyclo	"-"	41
@@ -354,7 +348,6 @@ runs.go	App.runAt	compare	"run"	1
 runs.go	App.runCommandVerb	compare	"terminal"	1
 saved.go	App.associateSaved	compare	"saved"	1
 saved.go	App.defineSaved	compare	"associate"	1
-saved.go	App.defineSaved	compare	"rename"	1
 saved.go	App.savePane	compare	"pane"	1
 saved.go	App.savePane	compare	"saved"	1
 saved.go	App.savedAt	compare	"saved"	1

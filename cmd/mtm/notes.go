@@ -22,15 +22,9 @@ func (a *App) defineNotes() {
 	a.r.Define("note").Filters(taskFilters()...).Props(noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
-		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").
-		Verb("choose-move", a.chooseMove, "Choose the project to move the note to (most recent first, unassociated last); the choice runs note.move").Many().
-		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.choose-move"))
-	// note.associate moved to the standard move (Keep actions: the old
-	// name stays one release, its notice naming move).
-	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "note.associate", Action: "note.move", Since: noteAssociateSince, RemoveAfter: noteAssociateRemoveAfter,
-		Note: "move takes the project as to (\"\" for unassociated); a task is note set task=ID"}); err != nil {
-		panic(err)
-	}
+		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").Many().
+		Verb("choose-move", a.chooseMove, "Choose the project to move the note to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
+		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	a.r.Define(noteBodyNoun).Focusable().
 		Verb("scroll", a.scrollNoteBody, "Scroll the note's text: delta lines, or half a screen (half 1 down, -1 up)").Motion().
 		Mode("normal").
@@ -386,7 +380,7 @@ func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return ochazuke.Done(note)
 	}
-	out, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Args: ochazuke.Arguments{"id": note.ID, "prop": "text", "value": ochazuke.StringArg(ctx.Args, "text", "")}})
+	out, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "set", Args: ochazuke.Arguments{"id": note.ID, "props": map[string]any{"text": ochazuke.StringArg(ctx.Args, "text", "")}}})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -424,7 +418,7 @@ func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	leftWidth := max(1, width/2-1)
 	rightWidth := max(1, width-leftWidth-2)
 	left := fmt.Sprintf("notes (%d)\n", a.noteList.Len()) + a.view(a.noteList, leftWidth, max(1, height-1))
-	right := ochazuke.Text("Select a note; " + a.keySentence("notes/list", keyAction{"note.new", "creates one"}))
+	right := ochazuke.Text("Select a note; " + a.keySentence("notes/list", keyAction{"note.new", "creates one", nil}))
 	drawn := false
 	if a.editor != nil && a.editor.Page == notesPage {
 		// The note is edited here, in this page's right-hand panel.

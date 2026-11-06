@@ -413,7 +413,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		}
 		use := p.usageCell()
 		view.usage = view.usage || use != ""
-		view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: parent, Label: p.label(), Noun: "pane", Data: p, Cells: []string{name, p.stateCell(now), use}, Tones: paneTones(p, name)})
+		view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: parent, Label: p.label(), Noun: "pane", Data: p, Props: p.keyProps(), Cells: []string{name, p.stateCell(now), use}, Tones: paneTones(p, name)})
 		view.nodes = append(view.nodes, a.activityNodes(p, p.rowID(), now)...)
 		view.order = append(view.order, p.rowID())
 	}
@@ -458,7 +458,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 				// after its project read as the project twice (F22).
 				cell = "session " + label
 			}
-			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Cells: []string{cell, waitingCell(w)}})
+			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Props: ochazuke.Thing{"id": cmp.Or(g.session.SessionID, g.session.Session)}, Cells: []string{cell, waitingCell(w)}})
 			for _, p := range g.panes {
 				addPane(p, g.id)
 			}

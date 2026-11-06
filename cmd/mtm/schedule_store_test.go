@@ -19,8 +19,8 @@ func TestScheduleVerbsAreStandard(t *testing.T) {
 	a, _, _ := scheduleApp(t)
 	standardIs(t, a, scheduleNoun, map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"add": "", "edit": "", "duplicate": "", "history": "", "run-now": "", "toggle": "", "set-interval": "", "reset": "",
-	}, "rename", "move")
+		"add": "", "edit": "", "history": "", "run-now": "", "toggle": "", "set-interval": "", "reset": "",
+	}, "move", "rename", "restore")
 	for alias, action := range map[string]string{"show": "get", "enable": "set", "disable": "set"} {
 		if got := aliasOf(a, scheduleNoun+"."+action, scheduleNoun+"."+alias); got == nil || got.Deprecated() {
 			t.Errorf("%s: %+v", alias, got)
@@ -52,7 +52,7 @@ func TestScheduleKeysAreSetsAndUndo(t *testing.T) {
 	if got := s.Duration("schedule.slack-signals.interval"); got != 5*time.Minute {
 		t.Fatalf("undo of i: %s", got)
 	}
-	executeA(t, a, scheduleNoun, "set", "", ochazuke.Arguments{"name": "gh-signals", "changes": map[string]any{"description": "mine", "enabled": "off"}})
+	executeA(t, a, scheduleNoun, "set", "", ochazuke.Arguments{"name": "gh-signals", "props": map[string]any{"description": "mine", "enabled": "off"}})
 	d, _ := a.scheduleDef("gh-signals")
 	if d.Source != schedules.SourceStored || d.Description != "mine" || d.Enabled != schedules.Off {
 		t.Fatalf("set: %+v", d)

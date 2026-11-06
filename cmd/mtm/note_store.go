@@ -23,13 +23,6 @@ import (
 // field above the body (the UI opt-out for the stored title).
 const settingNotesTitleField = "notes.title-field"
 
-// noteAssociateSince and noteAssociateRemoveAfter date the deprecated
-// note.associate alias (Keep actions: one release).
-const (
-	noteAssociateSince       = "mtm std-verbs-m1 (2026-10-29)"
-	noteAssociateRemoveAfter = "the next mtm release"
-)
-
 // noteProps are the note's props: the key; the optional title (the label;
 // empty, the summary stands in, owner decision 23); the read-only summary
 // (the body's first line); the body text, never the label; the project
@@ -42,7 +35,7 @@ func noteProps() []ochazuke.PropSpec {
 		{Name: "title", Role: ochazuke.RoleLabel, Fallback: "summary", Parameter: text("The note's title (optional; empty shows the summary)")},
 		{Name: "summary", ReadOnly: true, Parameter: text("The first line of the text")},
 		{Name: "text", Multiline: true, Parameter: text("The note's body")},
-		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.list", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the note belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 			Description: "The task the note belongs to; its project wins over project"}},

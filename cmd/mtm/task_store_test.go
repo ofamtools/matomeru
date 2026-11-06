@@ -36,7 +36,6 @@ func TestTaskVerbsAreStandard(t *testing.T) {
 	a := open(t)
 	for verb, standard := range map[string]string{
 		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
-		"rename": "rename", "move": "move", "duplicate": "duplicate",
 		"delete": "delete", "confirm-delete": "delete", "new": "", "edit": "", "open": "", "view": "", "toggle": "",
 		"choose-status": "", "choose-move": "", "launch": "", "outline": "", "make-project": "", "associate": "",
 	} {
@@ -54,7 +53,7 @@ func TestTaskVerbsAreStandard(t *testing.T) {
 	for _, alias := range a.r.AliasesOf("task.set") {
 		presets[alias.Alias] = compactJSON(alias.Args)
 	}
-	if presets["task.done"] != `{"prop":"status","value":"done"}` || presets["task.status"] != `{"prop":"status","require-summary":true}` {
+	if presets["task.done"] != `{"props":{"status":"done"}}` || presets["task.status"] != `{"prop":"status","require-summary":true}` {
 		t.Fatalf("aliases of task.set: %v", presets)
 	}
 	if ps, ok := a.r.PropOf("task", "position"); !ok || !ps.ReadOnly {
@@ -116,10 +115,10 @@ func TestTaskStatusWritesMany(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "prop": "status", "value": "active"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"status": "active"}})
 	tasksOn(t, a, "t1")
 	ids := []string{"t1", "t2", third.ID}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Target: "t1", Subjects: ids, Args: ochazuke.Arguments{"prop": "status", "value": "blocked"}}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Target: "t1", Subjects: ids, Args: ochazuke.Arguments{"props": map[string]any{"status": "blocked"}}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, id := range ids {
@@ -166,47 +165,46 @@ func TestTaskKeysDoneStatusMove(t *testing.T) {
 	}
 	tasksOn(t, a, "t2")
 	press(t, a, "m")
-	if a.r.Chooser(moveChooser) == nil {
+	if editing(a) == nil {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
-	typeText(t, a, "ochaz")
-	press(t, a, "enter")
+	pickOwner(t, a, "ochaz")
 	if got := stored(t, a, "t2").ProjectID; got != "ochazuke" {
 		t.Fatalf("m: %q", got)
 	}
 	tasksOn(t, a, "t2")
 	press(t, a, "m")
-	typeText(t, a, "unassoc")
-	press(t, a, "enter")
+	pickOwner(t, a, "none")
 	if got := stored(t, a, "t2").ProjectID; got != "" {
 		t.Fatalf("m to unassociated: %q", got)
 	}
 }
 
-// rename writes the title only, from the API, the CLI and the palette
-// (the args form opens on the old title).
+// The label (@label, the title) is written alone, from the API, the CLI
+// and the palette (edit --field @label: the one-field form opens on the
+// old title, selected).
 func TestTaskRename(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	executeA(t, a, "task", "rename", "", ochazuke.Arguments{"id": "t1", "name": "Rewrite the brief"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t1", "props": map[string]any{"@label": "Rewrite the brief"}})
 	got := stored(t, a, "t1")
 	if got.Title != "Rewrite the brief" || got.Status != work.StatusTodo || got.ProjectID != "matomeru" || got.Position != 1 {
 		t.Fatalf("rename: %+v", got)
 	}
 	tasksOn(t, a, "t2")
 	press(t, a, ":")
-	typeText(t, a, "rename")
+	typeText(t, a, "edit --field @label")
 	press(t, a, "enter")
-	if a.r.TopModal() != ochazuke.ArgsFormID || !strings.Contains(frame(a), "lift the store") {
+	if editing(a) == nil || !strings.Contains(frame(a), "lift the store") {
 		t.Fatalf("modal %q\n%s", a.r.TopModal(), frame(a))
 	}
 	typeText(t, a, "Lift")
-	press(t, a, "enter", "enter")
+	press(t, a, "enter")
 	if got := stored(t, a, "t2").Title; got != "Lift" {
 		t.Fatalf("palette rename: %q\n%s", got, frame(a))
 	}
 	c, _ := cliApp(t)
-	mustCLI(t, c, "task", "rename", "--id", "t1", "--name", "From CLI")
+	mustCLI(t, c, "task", "set", "t1", "@label=From CLI")
 	if got := stored(t, c, "t1").Title; got != "From CLI" {
 		t.Fatalf("CLI rename: %q", got)
 	}
@@ -222,25 +220,25 @@ func TestTaskOwnerProps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "prop": "parent", "value": other.ID})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"parent": other.ID}})
 	if got := stored(t, a, "t2"); got.ParentID != other.ID || got.ProjectID != "ochazuke" {
 		t.Fatalf("parent: %+v", got)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": other.ID, "prop": "parent", "value": "t2"}}); err == nil || !strings.Contains(err.Error(), "cannot be under") {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": other.ID, "props": map[string]any{"parent": "t2"}}}); err == nil || !strings.Contains(err.Error(), "cannot be under") {
 		t.Fatalf("a loop: %v", err)
 	}
-	executeA(t, a, "task", "move", "", ochazuke.Arguments{"id": "t2", "to": "matomeru"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"@owner": "matomeru"}})
 	if got := stored(t, a, "t2"); got.ParentID != "" || got.ProjectID != "matomeru" {
 		t.Fatalf("move: %+v", got)
 	}
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "prop": "parent", "value": "nope"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"parent": "nope"}})
 	if got := stored(t, a, "t2"); got.ParentID != "" || got.ProjectID != "matomeru" {
 		t.Fatalf("an unknown parent: %+v", got)
 	}
 	if !strings.Contains(a.m.Status+frame(a), "unknown task nope") {
 		t.Fatalf("no notice for the unknown parent:\n%s", frame(a))
 	}
-	executeA(t, a, "task", "move", "", ochazuke.Arguments{"id": "t2", "to": "nowhere"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"@owner": "nowhere"}})
 	if got := stored(t, a, "t2"); got.ProjectID != "" {
 		t.Fatalf("an unknown project: %+v", got)
 	}
@@ -262,9 +260,7 @@ func TestTaskStandardVerbsFromTheCLI(t *testing.T) {
 	t.Parallel()
 	a, _ := cliApp(t)
 	var rows []map[string]any
-	if err := json.Unmarshal([]byte(mustCLI(t, a, "task", "list", "--all")), &rows); err != nil {
-		t.Fatal(err)
-	}
+	cliRows(t, a, &rows, "task", "list", "--all")
 	if len(rows) != 2 || rows[0]["id"] != "t1" || rows[0]["label"] != "write the brief" || rows[0]["project"] != "matomeru" || rows[0]["status"] != "todo" {
 		t.Fatalf("task list: %v", rows)
 	}
@@ -273,7 +269,7 @@ func TestTaskStandardVerbsFromTheCLI(t *testing.T) {
 		t.Fatalf("set pairs: %+v", got)
 	}
 	_, errOut, err := cli(a, "", "task", "associate", "--target", "t2", "--project", "ochazuke")
-	if err != nil || !strings.Contains(errOut, "old form of task.move") {
+	if err != nil || !strings.Contains(errOut, "old form of task set ID @owner=PROJECT") {
 		t.Fatalf("associate: %v %q", err, errOut)
 	}
 	if got := stored(t, a, "t2").ProjectID; got != "ochazuke" {
@@ -287,11 +283,11 @@ func TestTaskStandardVerbsFromTheCLI(t *testing.T) {
 func TestTaskMoveUndoRestoresTheParent(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "prop": "parent", "value": "t1"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"parent": "t1"}})
 	if got := stored(t, a, "t2"); got.ParentID != "t1" || got.ProjectID != "matomeru" {
 		t.Fatalf("parent: %+v", got)
 	}
-	executeA(t, a, "task", "move", "", ochazuke.Arguments{"id": "t2", "to": "ochazuke"})
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"@owner": "ochazuke"}})
 	if got := stored(t, a, "t2"); got.ParentID != "" || got.ProjectID != "ochazuke" {
 		t.Fatalf("move: %+v", got)
 	}

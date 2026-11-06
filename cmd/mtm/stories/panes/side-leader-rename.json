@@ -32,7 +32,7 @@
     },
     "enter",
     {
-      "job": "pane.rename"
+      "job": "pane.set"
     },
     {
       "job": "panes.refresh"
@@ -43,7 +43,7 @@
       "after": 6,
       "mode": "insert",
       "contains": [
-        "Rename pane acme-web/claude"
+        "Edit pane name: acme-web/claude"
       ]
     },
     {
