@@ -519,13 +519,17 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 
 // now runs cmd, dropping one still waiting after 100ms (a timer such as the
 // jobs ticker's JobLinger tick) instead of sleeping through it.
-func now(cmd tea.Cmd) tea.Msg {
+func now(cmd tea.Cmd) tea.Msg { return nowWithin(cmd, 100*time.Millisecond) }
+
+// nowWithin runs cmd and answers its message, nil when it takes longer
+// than wait.
+func nowWithin(cmd tea.Cmd, wait time.Duration) tea.Msg {
 	ch := make(chan tea.Msg, 1)
 	go func() { ch <- cmd() }()
 	select {
 	case msg := <-ch:
 		return msg
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(wait):
 		return nil
 	}
 }

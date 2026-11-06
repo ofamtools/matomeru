@@ -33,10 +33,13 @@ func (a *App) coreKeysOf(local string) coreKeyVerbs {
 	return coreKeyVerbs{Create: has("create"), Delete: has("delete")}
 }
 
+// catalogDeleteRow reports whether a catalog row is the noun's plain
+// delete: its request is the core delete of that noun with no preset
+// arguments (row-field sources are kept), on the noun's rows. mtm's d d
+// takes that row; a variant presetting arguments (force) stays its own.
 func catalogDeleteRow(row ochazuke.Binding, noun string) bool {
-	return row.Noun == noun && row.Instance == "" &&
-		(row.Mode == "" || row.Mode == "normal") && row.Keys == "d d" &&
-		row.Pattern == "" && row.Request.Key() == noun+".delete"
+	return row.Noun == noun && row.Instance == "" && row.Pattern == "" &&
+		row.Request.Key() == noun+".delete" && len(row.Request.Args) == 0
 }
 
 // mountCRUD binds the core verbs' keys of an extension's mounted nouns: d

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -317,14 +318,19 @@ func (s *fakeStream) drop() error { s.released, s.lease = true, [2]int{}; return
 // runOnce runs the commands an update returned and feeds their messages
 // back, without running what those deliveries schedule (a terminal's next
 // read blocks until the pane changes).
-func runOnce(a *App, cmd tea.Cmd) {
+func runOnce(a *App, cmd tea.Cmd) { runOnceWithin(a, cmd, 100*time.Millisecond) }
+
+// runOnceWithin is runOnce with a longer wait for each command: a launch
+// job under -race can take longer than runOnce's 100ms, and its answer
+// (the review it records) would be dropped.
+func runOnceWithin(a *App, cmd tea.Cmd, wait time.Duration) {
 	if cmd == nil {
 		return
 	}
-	switch msg := now(cmd).(type) {
+	switch msg := nowWithin(cmd, wait).(type) {
 	case tea.BatchMsg:
 		for _, c := range msg {
-			runOnce(a, c)
+			runOnceWithin(a, c, wait)
 		}
 	case nil:
 	default:

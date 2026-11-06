@@ -23,7 +23,9 @@ func reviewApp(t *testing.T) (*App, *fakePanes, work.Review) {
 	f := app.panesd.(*fakePanes)
 	app.launcher = &fakeDaemon{}
 	press(t, app, "j", "enter")
-	runOnce(app, launchKey(t, app))
+	// The launch is a job: wait for it (and the review it records) long
+	// enough for a slow run (-race) before reading.
+	runOnceWithin(app, launchKey(t, app), 2*time.Second)
 	reviews, err := app.work.Reviews()
 	if err != nil {
 		t.Fatal(err)

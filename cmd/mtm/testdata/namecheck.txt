@@ -101,7 +101,6 @@ actor.go	byCell	case	"owner"	1
 agent_verbs.go	App.defineTaskEvidence	compare	"done"	1
 agent_verbs.go	App.defineTaskEvidence	compare	"task"	1
 archive.go	App.archiveVisible	compare	"archived"	1
-archive.go	App.queryShowsArchived	compare	"archived"	1
 capture.go	lastAnswer	compare	"text"	2
 context.go	App.contextAt	compare	"context-item"	1
 context.go	App.itemCell	case	"command"	1
@@ -184,7 +183,6 @@ editor.go	App.recordValues	case	"task"	1
 editor.go	App.storeRecord	case	"task"	1
 extension_autorefresh.go	App.autoRefreshCatalogs	compare	"stale"	1
 extension_context.go	var nounChoosers	table	"pane"	1
-extension_core_keys.go	catalogDeleteRow	compare	"normal"	1
 extension_page.go	App.extFacts	case	"available"	1
 extension_page.go	App.setExtRows	compare	"available"	1
 extension_page.go	App.setExtRows	compare	"stale"	1

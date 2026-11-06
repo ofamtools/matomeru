@@ -134,7 +134,7 @@ func (a *App) taskStore() ochazuke.Store {
 			if err != nil {
 				return nil, err
 			}
-			if !a.queryShowsArchived(q) {
+			if !a.queryShowsArchived("task", q) {
 				tasks = a.liveTasks(tasks)
 			}
 			exported, err := a.work.Exports()
