@@ -206,6 +206,9 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		case row.at == "noun filter-form":
 			// ochazuke's list filter form binds D to filter-form.delete-saved
 			// (its saved-filter deletion picker); the key is the library's.
+		case row.at == "noun bindings-help" && row.keys == "a":
+			// ochazuke v0.90.0: the help's a opens the args form of the
+			// selected verb (bindings-help.args); the key is the library's.
 		case row.keys == "a" || row.keys == "D":
 			t.Errorf("%s still binds %q (%s)", row.at, row.keys, row.op)
 		case row.keys == "q" && !closers[row.op]:

@@ -20,6 +20,11 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 		rows := ochazuke.BindingHelp(app.r, paneTermID)
 		byKey := map[string]ochazuke.HelpRow{}
 		for _, row := range rows {
+			if row.Unbound {
+				// The help also lists the noun's verbs no key runs (ochazuke
+				// v0.90.0), keyless rows of their own.
+				continue
+			}
 			if _, dup := byKey[row.Key]; dup {
 				t.Fatalf("%q listed twice", row.Key)
 			}

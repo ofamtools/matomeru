@@ -5,6 +5,7 @@
   "width": 140,
   "height": 40,
   "config": {
+    "settings.json": {"results.show-data": false},
     "bindings.json": [
       {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.page", "verb": "open", "args": {"id": "schedules"}}},
       {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "set", "args": {"id": "schedule-form/project"}}},
