@@ -22,7 +22,7 @@ func (a *App) defineNotes() {
 	a.r.Define("note").Filters(taskFilters()...).Props(noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
-		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").Many().
+		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").
 		Verb("choose-move", a.chooseMove, "Choose the project to move the note to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.choose-move").Hinted("move"))
 	a.r.Define(noteBodyNoun).Focusable().

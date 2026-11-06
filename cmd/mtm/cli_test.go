@@ -283,3 +283,27 @@ func TestCLITaskStatusBadValueNamesTheStatuses(t *testing.T) {
 		t.Fatalf("bad status: %v", err)
 	}
 }
+
+// A CLI word naming a verb mtm or ochazuke purged in R1 says what to write
+// instead (Runtime.RemovedWords), never oden's "not found" or "ambiguous".
+func TestCLIRemovedVerbNamesReplacement(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "mtm.db")
+	args := []string{"--data", path, "--socket", filepath.Join(t.TempDir(), "none.sock")}
+	for _, c := range []struct {
+		words []string
+		want  string
+	}{
+		{[]string{"pane", "rename", "w1"}, `edit {field: "@label"}`},
+		{[]string{"settings", "list"}, "ochazuke.setting.list"},
+		{[]string{"dirs", "list"}, "dirs.refresh"},
+		{[]string{"note", "associate"}, "note set ID @owner=PROJECT"},
+		{[]string{"extension", "list"}, "extension.all"},
+	} {
+		var out, errOut bytes.Buffer
+		err := run(append(args, c.words...), strings.NewReader(""), &out, &errOut)
+		if err == nil || !strings.Contains(err.Error(), c.want) || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "ambiguous") {
+			t.Errorf("mtm %s: %v (stderr %q), want the replacement %q", strings.Join(c.words, " "), err, errOut.String(), c.want)
+		}
+	}
+}

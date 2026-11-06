@@ -22,7 +22,7 @@ func (a *App) defineTask() {
 	r.Define("task").Filters(taskFilters()...).Props(taskProps()...).Store(a.taskStore()).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
-		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").Many().
+		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").
 		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo (standard set of status)").
 		Verb("choose-status", a.chooseStatus, "Choose the task's status: todo, active, blocked or done; over a visual selection one choice sets every task (standard set of status)").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the task to (most recent first, unassociated last); the choice is the standard set of @owner").Many().

@@ -47,12 +47,13 @@ func (a *App) defineCoreVerbs() {
 // projects.list is kept as an alias of projects.all (the command verb
 // renamed in the R1 adoption so no command verb is named like a core
 // verb): extension catalogs name it as a parameter source, until they move
-// to projects.all. The other renamed command verbs (dirs.list,
-// extension.list, harness.list, quick-note.list, run.list, setup.list,
-// side.list, store-table.list, outline-project.delete,
-// outline-root.delete, project-dir.edit) are purged with no alias
-// (DESIGN-001, owner decision).
+// to projects.all. The other renamed command verbs are purged with no
+// alias (DESIGN-001, owner decision): removed_verbs.go lists each with
+// its replacement.
 func (a *App) defineCommandRenames() {
+	if err := a.r.AddRemovedVerbs(mtmRemovedVerbs...); err != nil {
+		panic(err)
+	}
 	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "projects.list", Action: "projects.all",
 		Note: "extension catalogs name projects.list as a parameter source; projects.all is its name"}); err != nil {
 		panic(err)

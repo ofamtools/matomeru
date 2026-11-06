@@ -1,0 +1,15 @@
+{
+  "name": "mtm: a purged verb typed in the palette names its replacement (dirs list says dirs.refresh; note associate says note set @owner, the removed row, not the markdown doc's note verb)",
+  "area": "settings",
+  "fixture": "seeded",
+  "width": 120,
+  "height": 30,
+  "script": [
+    ":", {"type": "dirs list"}, "enter",
+    "ctrl+u", {"type": "note associate"}, "enter"
+  ],
+  "expect": [
+    {"after": 3, "contains": ["dirs.refresh"]},
+    {"contains": ["note associate was removed", "note set ID @owner=PROJECT"]}
+  ]
+}

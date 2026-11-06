@@ -12,12 +12,11 @@ import (
 )
 
 // The note noun's record side (standard verbs phase 1, lane M1): its props
-// and its store, so note get, list, create, set (alias patch), delete,
-// watch, rename (the title), move (the project) and duplicate are
-// ochazuke's standard verbs over the work store, with no verb handler of
-// mtm's own. note new and note edit wrap create and set (notes.go); view
-// and choose-move stay named; note.associate is a deprecated alias of
-// move.
+// and its store, so note get, list, create, set, delete, archive, edit
+// and watch are ochazuke's standard verbs over the work store, with no
+// verb handler of mtm's own. note new and note edit wrap create and set
+// (notes.go); view and choose-move stay named; the old associate alias is
+// purged (removed_verbs.go).
 
 // settingNotesTitleField says whether the note editor shows the title
 // field above the body (the UI opt-out for the stored title).

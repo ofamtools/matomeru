@@ -226,7 +226,16 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		_, err := tea.NewProgram(app).Run()
 		return err
 	}
-	return app.commands(words, stdin, stdout, stderr, tui, shellOptions...).Run(context.Background())
+	err = app.commands(words, stdin, stdout, stderr, tui, shellOptions...).Run(context.Background())
+	if err != nil {
+		// A word naming a removed verb (ochazuke's removed_verbs.json and
+		// mtm's own rows, removed_verbs.go) says what to write instead,
+		// before oden's "not found" or "ambiguous" does.
+		if removed := app.r.RemovedWords(words); removed != nil {
+			return removed
+		}
+	}
+	return err
 }
 
 // smokeOptions makes --smoke safe to run anywhere: without an explicit
