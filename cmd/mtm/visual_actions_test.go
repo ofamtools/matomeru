@@ -73,7 +73,7 @@ func TestVisualInboxActsOnEverySelectedRow(t *testing.T) {
 
 	a, ids, clock = visualInbox(t)
 	press(t, a, "V", "j", "j", "m")
-	if editing(a) == nil {
+	if a.r.Chooser(moveChooser) == nil {
 		t.Fatalf("V j j m: modal %q", a.r.TopModal())
 	}
 	pickOwner(t, a, "ochazuke")
@@ -107,7 +107,7 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 	}
 
 	press(t, app, "g", "g", "V", "j", "m")
-	if editing(app) == nil {
+	if app.r.Chooser(moveChooser) == nil {
 		t.Fatalf("V j m: modal %q", app.r.TopModal())
 	}
 	pickOwner(t, app, "ochazuke")
@@ -224,10 +224,13 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 		t.Fatalf("V j: focus %s", app.r.Focus)
 	}
 	press(t, app, "m")
-	if editing(app) == nil {
+	if app.r.Chooser(moveChooser) == nil {
 		t.Fatalf("V j m: modal %q", app.r.TopModal())
 	}
-	press(t, app, "esc", "esc")
+	if f := frameAt(app, 160); !strings.Contains(f, "Move 2 rows to") {
+		t.Fatalf("V j m: the chooser does not count both panes:\n%s", f)
+	}
+	press(t, app, "esc")
 	if app.r.Mode.Name != "normal" {
 		t.Fatalf("after the chooser: mode %s", app.r.Mode.Name)
 	}

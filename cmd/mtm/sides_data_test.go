@@ -106,7 +106,7 @@ func TestSidesUserAndExtensionLaunchCurrentContextAndRestart(t *testing.T) {
 	}
 	a.mountExtension("fake", extEntry{Bin: "/fake bin", Catalog: ocli.CatalogDoc{Sides: []ocli.CatalogSide{{Name: "tool", Title: "Side tool", Key: "g", Command: []string{"{bin}", "{dir}", "{pane}", "{session}", "{project}", "{shell}"}}}}})
 	sideConfig(t, a, `[{"name":"scratch","title":"Scratch","command":["scratch","{dir}"]}]`)
-	list := runSideVerb(t, a, "side", "list", nil).([]sideRow)
+	list := runSideVerb(t, a, "side", "all", nil).([]sideRow)
 	if len(list) != 4 {
 		t.Fatalf("list: %+v", list)
 	}
@@ -393,7 +393,7 @@ func TestSidesHintsKeepTitlesAndFollowReload(t *testing.T) {
 		if hint != want || !strings.Contains(summary, "g "+want+" · ") || strings.Contains(summary, "Git working tree diff") {
 			t.Fatalf("hint=%q summary=%q; want %q", hint, summary, want)
 		}
-		rows := runSideVerb(t, a, "side", "list", nil).([]sideRow)
+		rows := runSideVerb(t, a, "side", "all", nil).([]sideRow)
 		if row := rows[len(rows)-1]; row.Title != "Git working tree diff" {
 			t.Fatalf("list lost title: %+v", row)
 		}

@@ -13,7 +13,7 @@ func TestCLISetupInATempHome(t *testing.T) {
 	t.Parallel()
 	app, _ := cliApp(t)
 	home := t.TempDir()
-	if out := mustCLI(t, app, "setup", "list", "--home", home); strings.Count(out, `"missing"`) != 3 {
+	if out := mustCLI(t, app, "setup", "all", "--home", home); strings.Count(out, `"missing"`) != 3 {
 		t.Fatalf("list:\n%s", out)
 	}
 	out := mustCLI(t, app, "setup", "plan", "claude-code-turns", "--home", home)
@@ -30,11 +30,11 @@ func TestCLISetupInATempHome(t *testing.T) {
 			t.Fatalf("%s: %v\n%s", path, err, data)
 		}
 	}
-	if out := mustCLI(t, app, "setup", "list", "--home", home); strings.Count(out, `"installed"`) != 5 {
+	if out := mustCLI(t, app, "setup", "all", "--home", home); strings.Count(out, `"installed"`) != 5 {
 		t.Fatalf("list after install:\n%s", out)
 	}
 	mustCLI(t, app, "setup", "uninstall", "codex-turns", "--home", home, "--yes")
-	if out := mustCLI(t, app, "setup", "list", "--home", home); strings.Count(out, `"installed"`) != 4 {
+	if out := mustCLI(t, app, "setup", "all", "--home", home); strings.Count(out, `"installed"`) != 4 {
 		t.Fatalf("list after uninstall:\n%s", out)
 	}
 }
@@ -57,7 +57,7 @@ func TestCLISetupInstructionNotes(t *testing.T) {
 	if err := os.WriteFile(claude, []byte(existing), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	out := mustCLI(t, app, "setup", "list", "--home", home)
+	out := mustCLI(t, app, "setup", "all", "--home", home)
 	for _, id := range []string{"claude-md", "codex-agents"} {
 		if !strings.Contains(out, id) {
 			t.Fatalf("setup list misses %s:\n%s", id, out)
@@ -78,7 +78,7 @@ func TestCLISetupInstructionNotes(t *testing.T) {
 	if b, _ := os.ReadFile(claude); !strings.HasPrefix(string(b), existing) {
 		t.Fatalf("existing text changed:\n%s", b)
 	}
-	if out := mustCLI(t, app, "setup", "list", "claude-md", "--home", home); !strings.Contains(out, `"installed"`) {
+	if out := mustCLI(t, app, "setup", "all", "claude-md", "--home", home); !strings.Contains(out, `"installed"`) {
 		t.Fatalf("after install:\n%s", out)
 	}
 	mustCLI(t, app, "setup", "uninstall", "claude-md", "--home", home, "--yes")

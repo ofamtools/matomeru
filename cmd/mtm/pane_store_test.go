@@ -106,9 +106,8 @@ func TestPaneRenameIsSetAndUndoes(t *testing.T) {
 	}
 }
 
-// m on a pane row is edit {field: "@owner"}: the one-field form, enter
-// opens the project's choices and the pick is the standard set of the
-// owner; unassociate sets it to no project.
+// m on a pane row opens the project chooser (choose-move), whose pick is
+// the standard set of @owner; unassociate sets it to no project.
 func TestPaneMoveKeyAndUnassociate(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
@@ -117,7 +116,7 @@ func TestPaneMoveKeyAndUnassociate(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "m")
-	if editing(a) == nil {
+	if a.r.Chooser(moveChooser) == nil {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
 	pickOwner(t, a, "ochaz")

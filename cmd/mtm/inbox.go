@@ -114,7 +114,7 @@ func (a *App) defineInbox() {
 		Bind("s", ochazuke.Do(n+".snooze")).
 		Bind("t", ochazuke.Do(n+".promote-todo").Hinted("to todo")).
 		Bind("c", ochazuke.Do(n+".promote-task").Hinted("to task")).
-		Bind("m", ochazuke.Do(n+".edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
+		Bind("m", ochazuke.Do(n+".choose-move").Hinted("move")).
 		Bind("d d", ochazuke.Do(n+".delete"))
 	// show is get under its old name; read, unread and toggle-read are the
 	// standard set of read (read shares the prop's name as its set).

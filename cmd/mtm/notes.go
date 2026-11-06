@@ -24,7 +24,7 @@ func (a *App) defineNotes() {
 		Verb("view", a.viewNote, "View the saved note without editing").
 		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the note to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
-		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
+		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.choose-move").Hinted("move"))
 	a.r.Define(noteBodyNoun).Focusable().
 		Verb("scroll", a.scrollNoteBody, "Scroll the note's text: delta lines, or half a screen (half 1 down, -1 up)").Motion().
 		Mode("normal").

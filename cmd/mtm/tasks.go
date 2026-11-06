@@ -31,7 +31,7 @@ func (a *App) defineTask() {
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.edit")).Bind("l", ochazuke.Do("task.open")).Bind("L", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.choose-status")).
-		Bind("m", ochazuke.Do("task.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
+		Bind("m", ochazuke.Do("task.choose-move").Hinted("move"))
 	a.defineTaskEvidence()
 	a.defineTaskSubjects()
 	// done and status are the standard set with the status preset (2.5:

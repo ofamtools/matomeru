@@ -102,9 +102,8 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 	}
 }
 
-// chooseMove runs NOUN.choose-move on the focused row: the project
-// chooser m opened before R1 (m is edit {field: "@owner"} now), kept as a
-// verb a user's bindings.json can put on m.
+// chooseMove runs NOUN.choose-move (m) on the focused row: the project
+// chooser, its pick the standard set of @owner.
 func chooseMove(t *testing.T, a *App) {
 	t.Helper()
 	inst := a.r.Instances[a.r.Focus]
@@ -116,17 +115,15 @@ func chooseMove(t *testing.T, a *App) {
 	}
 }
 
-// pickOwner answers m's one-field form (edit {field: "@owner"}): enter
-// opens the field's choices, typing filters them, enter picks, esc closes
-// the form.
+// pickOwner answers m's project chooser (NOUN.choose-move, which writes
+// set {@owner}): typing filters it, enter picks.
 func pickOwner(t *testing.T, a *App, text string) {
 	t.Helper()
-	if editing(a) == nil {
-		t.Fatalf("no edit form: modal %q", a.r.TopModal())
+	if a.r.Chooser(moveChooser) == nil {
+		t.Fatalf("no move chooser: modal %q", a.r.TopModal())
 	}
-	press(t, a, "enter")
 	typeText(t, a, text)
-	press(t, a, "enter", "esc")
+	press(t, a, "enter")
 }
 
 // choose-move moves a task, like a pane: the project chooser, then the
@@ -204,7 +201,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		"x":   {"task.toggle", outlineModal + ".toggle", "review.accept"},
 		"s":   {"task.choose-status", outlineModal + ".status", "review.choose-status"},
 		"w":   {"saved.save", "vim.save"},
-		"m":   {"pane.edit@owner", "session.edit@owner", "task.edit@owner", "note.edit@owner", contextNoun + ".edit@owner", "saved.edit@owner", "vim.edit@owner", actionItemNoun + ".edit@owner"},
+		"m":   {"pane.choose-move", "session.choose-move", "task.choose-move", "note.choose-move", contextNoun + ".choose-move", "saved.choose-move", "vim.choose-move", actionItemNoun + ".choose-move"},
 	}
 	want := map[string]string{}
 	for k, ops := range families {

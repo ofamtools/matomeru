@@ -1109,14 +1109,11 @@
           "noun": "pane",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "pane",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "pane"
           },
-          "action": "pane.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "pane.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -10321,14 +10318,11 @@
           "noun": "pane",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "pane",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "pane"
           },
-          "action": "pane.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "pane.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -12380,14 +12374,11 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "action-item",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "action-item"
           },
-          "action": "action-item.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "action-item.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -27286,14 +27277,11 @@
           "noun": "note",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "note",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "note"
           },
-          "action": "note.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "note.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -39279,14 +39267,11 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "action-item",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "action-item"
           },
-          "action": "action-item.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "action-item.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -45062,14 +45047,11 @@
           "noun": "task",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "task",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "task"
           },
-          "action": "task.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "task.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -56661,14 +56643,11 @@
           "noun": "note",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "note",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "note"
           },
-          "action": "note.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "note.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -76424,14 +76403,11 @@
           "noun": "task",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "task",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "task"
           },
-          "action": "task.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "task.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -109698,14 +109674,11 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "action-item",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "action-item"
           },
-          "action": "action-item.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "action-item.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {
@@ -125758,14 +125731,11 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "edit",
-            "noun": "action-item",
-            "args": {
-              "field": "@owner"
-            }
+            "verb": "choose-move",
+            "noun": "action-item"
           },
-          "action": "action-item.edit",
-          "label": "Move: edit the owner in a one-field form (edit {field: \"@owner\"})",
+          "action": "action-item.choose-move",
+          "label": "Choose the project to move it to (most recent first, unassociated last); the choice is the standard set of @owner",
           "hint": "move"
         },
         {

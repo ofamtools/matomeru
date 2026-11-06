@@ -150,7 +150,7 @@ func TestExtensionRegisterMountsATabAfterMtmsPages(t *testing.T) {
 			t.Fatalf("frame lacks %q:\n%s", want, f)
 		}
 	}
-	listing := strings.ReplaceAll(mustCLI(t, a, "extension", "list"), " ", "")
+	listing := strings.ReplaceAll(mustCLI(t, a, "extension", "all"), " ", "")
 	if !strings.Contains(listing, `"name":"fake"`) || !strings.Contains(listing, `"version":"1.0"`) {
 		t.Fatalf("extension list:\n%s", listing)
 	}
@@ -261,7 +261,7 @@ func TestExtensionRefreshAndRemovePurge(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("mtm's database: %v", err)
 	}
-	if out := mustCLI(t, a, "extension", "list"); strings.Contains(out, "fake") {
+	if out := mustCLI(t, a, "extension", "all"); strings.Contains(out, "fake") {
 		t.Fatalf("still listed:\n%s", out)
 	}
 	if b := openAt(t, path); b.r.Instances["ext/fake"] != nil {

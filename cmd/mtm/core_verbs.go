@@ -44,43 +44,17 @@ func (a *App) defineCoreVerbs() {
 	}
 }
 
-// commandVerbRenames are mtm's command-noun verbs (nouns with no store)
-// that were named like a core verb, renamed in the R1 adoption so a word
-// after a noun means one thing (Runtime.ValidateNouns). The old name stays
-// one release as a deprecated alias (Keep actions); projects.list stays
-// for good, since extension catalogs name it as a parameter source.
-var commandVerbRenames = []struct {
-	old, now string
-	lasting  bool
-}{
-	{"dirs.list", "dirs.refresh", false},
-	{"extension.list", "extension.all", false},
-	{"harness.list", "harness.all", false},
-	{"projects.list", "projects.all", true},
-	{"quick-note.list", "quick-note.open-notes", false},
-	{"run.list", "run.all", false},
-	{"setup.list", "setup.all", false},
-	{"side.list", "side.all", false},
-	{"store-table.list", "store-table.all", false},
-	{"outline-project.delete", "outline-project.delete-project", false},
-	{"outline-root.delete", "outline-root.delete-project", false},
-	{"project-dir.edit", "project-dir.retarget", false},
-}
-
-// commandRenameSince dates the renames; the deprecated names go after the
-// next release.
-const commandRenameSince = "mtm R1 adoption (2026-11-06)"
-
-// defineCommandRenames adds the old names as aliases of the new.
+// projects.list is kept as an alias of projects.all (the command verb
+// renamed in the R1 adoption so no command verb is named like a core
+// verb): extension catalogs name it as a parameter source, until they move
+// to projects.all. The other renamed command verbs (dirs.list,
+// extension.list, harness.list, quick-note.list, run.list, setup.list,
+// side.list, store-table.list, outline-project.delete,
+// outline-root.delete, project-dir.edit) are purged with no alias
+// (DESIGN-001, owner decision).
 func (a *App) defineCommandRenames() {
-	for _, row := range commandVerbRenames {
-		alias := ochazuke.ActionAlias{Alias: row.old, Action: row.now,
-			Note: "renamed so a command verb is never named like a core verb (create, get, set, delete, archive, list, edit)"}
-		if !row.lasting {
-			alias.Since, alias.RemoveAfter = commandRenameSince, "the next mtm release"
-		}
-		if err := a.r.AddActionAlias(alias); err != nil {
-			panic(err)
-		}
+	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "projects.list", Action: "projects.all",
+		Note: "extension catalogs name projects.list as a parameter source; projects.all is its name"}); err != nil {
+		panic(err)
 	}
 }

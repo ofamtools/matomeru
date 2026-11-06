@@ -60,7 +60,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("W: focus %s", app.r.Focus)
 	}
 	// Every terminal verb answers on the agent row.
-	want := []string{"enter pane.attach", "d d pane.kill", "r pane.edit", "m pane.edit", "n pane.new"}
+	want := []string{"enter pane.attach", "d d pane.kill", "r pane.edit", "m pane.choose-move", "n pane.new"}
 	listed := map[string]bool{}
 	for _, b := range app.r.ListBindings(row) {
 		listed[b.Keys+" "+b.Request.Key()] = true

@@ -1360,9 +1360,9 @@ func (a *App) groupSummary(inst *ochazuke.Instance) (string, ochazuke.Block) {
 		s, _ := inst.Data.(pane)
 		owner, _ := a.work.SessionOwner(s.SessionID)
 		head := plural(len(lines), "pane") + " · " + a.ownerLabel(owner.ProjectID)
-		keys := a.keySentence(inst.ID, keyAction{"session.attach", "attaches the first pane", nil}, keyAction{"session.edit", "moves", ochazuke.Arguments{"field": "@owner"}}, keyAction{"session.edit", "renames", ochazuke.Arguments{"field": "@label"}}, keyAction{"session.kill", "kills", nil})
+		keys := a.keySentence(inst.ID, keyAction{"session.attach", "attaches the first pane", nil}, keyAction{"session.choose-move", "moves", nil}, keyAction{"session.edit", "renames", ochazuke.Arguments{"field": "@label"}}, keyAction{"session.kill", "kills", nil})
 		if len(lines) == 0 {
-			keys = "no panes · " + a.keySentence(inst.ID, keyAction{"pane.new", "opens a shell", nil}, keyAction{"agent.choose", "launches an agent", nil}, keyAction{"session.edit", "moves", ochazuke.Arguments{"field": "@owner"}}, keyAction{"session.edit", "renames", ochazuke.Arguments{"field": "@label"}}, keyAction{"session.kill", "kills", nil})
+			keys = "no panes · " + a.keySentence(inst.ID, keyAction{"pane.new", "opens a shell", nil}, keyAction{"agent.choose", "launches an agent", nil}, keyAction{"session.choose-move", "moves", nil}, keyAction{"session.edit", "renames", ochazuke.Arguments{"field": "@label"}}, keyAction{"session.kill", "kills", nil})
 		}
 		return "session " + s.Session, ochazuke.Text(head + "\n\n" + strings.Join(lines, "\n") + "\n\n" + keys)
 	}
