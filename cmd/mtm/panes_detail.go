@@ -491,48 +491,11 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 // moveOwner is the project a pane or session row belongs to now ("" for
 // unassociated); ok is false when it cannot be told.
 func (a *App) moveOwner(inst *ochazuke.Instance, noun string) (string, bool) {
-	switch noun {
-	case "task":
-		t, err := a.task(ochazuke.Ctx{Instance: inst})
-		return t.ProjectID, err == nil
-	case "note":
-		n, err := a.selectedNote(ochazuke.Ctx{Instance: inst})
-		if err != nil {
-			return "", false
-		}
-		project, err := a.work.NoteProject(n)
-		return project, err == nil
-	case "saved":
-		row, err := a.savedAt(ochazuke.Ctx{Instance: inst})
-		return row.ProjectID, err == nil
-	case actionItemNoun:
-		it, err := a.actionItemAt(ochazuke.Ctx{Instance: inst})
-		return cmp.Or(it.ProjectID, a.taskProject(it.TaskID)), err == nil
-	case contextNoun:
-		it, err := a.contextAt(ochazuke.Ctx{Instance: inst})
-		return cmp.Or(it.ProjectID, a.taskProject(it.TaskID)), err == nil
-	case "vim":
-		row, err := a.vimAt(ochazuke.Ctx{Instance: inst})
-		if err != nil {
-			return "", false
-		}
-		project, err := a.work.VimProject(row)
-		return project, err == nil
-	}
-	if noun == "pane" {
-		p, err := a.paneAt(inst)
-		if err != nil {
-			return "", false
-		}
-		owner, ok := a.pv.view.owners[p.ID]
-		return owner, ok
-	}
-	s, err := a.sessionAt(inst)
-	if err != nil || s.SessionID == "" {
+	o, found, err := a.instanceOwner(inst, noun)
+	if err != nil || !found {
 		return "", false
 	}
-	owner, err := a.work.SessionOwner(s.SessionID)
-	return owner.ProjectID, err == nil
+	return cmp.Or(o.ProjectID, a.taskProject(o.TaskID)), true
 }
 
 // projectsByRecency is the projects, the one whose directories were used

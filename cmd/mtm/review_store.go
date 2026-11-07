@@ -32,10 +32,12 @@ func reviewProps() []ochazuke.PropSpec {
 	}
 	pane := ro("pane", text("The pane the review is of, as it reads"))
 	pane.Role = ochazuke.RoleLabel
+	owner := ro("project", ochazuke.Parameter{Type: "string", Noun: "project", Description: "The project the pane worked for (the pane's; pane set @owner changes it)"})
+	owner.Role = ochazuke.RoleOwner
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The review's key")},
 		pane,
-		ro("project", ochazuke.Parameter{Type: "string", Noun: "project", Description: "The project the pane worked for (the pane's; pane set @owner changes it)"}),
+		owner,
 		ro("task", ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane worked on"}),
 		ro("harness", text("The harness the pane runs")),
 		ro("session", text("The pane's session")),

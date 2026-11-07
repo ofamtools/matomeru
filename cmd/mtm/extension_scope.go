@@ -123,23 +123,7 @@ func (a *App) instanceProject(id string) string {
 		}
 		return ""
 	}
-	switch inst.Noun {
-	case "project":
-		return known(inst.ID)
-	case "task":
-		if t, err := a.work.Task(inst.ID); err == nil {
-			return known(t.ProjectID)
-		}
-		return ""
-	case "note":
-		note, err := a.work.Note(inst.ID)
-		if err != nil {
-			return ""
-		}
-		project, _ := a.work.NoteProject(note)
-		return known(project)
-	case "pane", "session", "saved", "vim", "review", "draft":
-		o, err := a.resolveOwner(ochazuke.Ctx{Runtime: a.r, Instance: inst}, nil)
+	if o, found, err := a.instanceOwner(inst, inst.Noun); found {
 		if err != nil {
 			return ""
 		}

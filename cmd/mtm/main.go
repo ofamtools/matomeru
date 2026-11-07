@@ -804,7 +804,7 @@ func (a *App) refreshProjects() error {
 			items = append(items, ochazuke.ListItem{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d, Cells: []string{"untitled [draft]"}})
 		}
 	}
-	items = append(items, ochazuke.ListItem{ID: unassociatedID, Label: "no project (unassociated)", Noun: "unassociated", Cells: []string{"no project", countCell(open[""])}})
+	items = append(items, ochazuke.ListItem{ID: unassociatedID, Label: "no project (unassociated)", Noun: "unassociated", Data: Owner{}, Cells: []string{"no project", countCell(open[""])}})
 	a.refreshTitle() // a name or default directory may have changed
 	if err := a.projectList.SetItems(items); err != nil {
 		return err

@@ -435,13 +435,10 @@ func recordLaunchArgs(ctx ochazuke.Ctx) ochazuke.Arguments {
 		args[k] = v
 	}
 	if ctx.Instance != nil {
-		if _, explicit := args["project"]; !explicit {
-			if _, explicitTask := args["task"]; !explicitTask {
-				switch ctx.Instance.Noun {
-				case "project":
-					args["project"] = ctx.Instance.ID
-				case "task":
-					args["task"] = ctx.Instance.ID
+		if arg := ownerSlotArg(ctx.Instance.Noun); arg != "" {
+			if _, explicit := args["project"]; !explicit {
+				if _, explicitTask := args["task"]; !explicitTask {
+					args[arg] = ctx.Instance.ID
 				}
 			}
 		}
@@ -464,7 +461,7 @@ func (a *App) launchRecord(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	title := "Launch an agent on " + ctx.Instance.Label
-	if ctx.Instance.Noun == "project" {
+	if ownerSlotArg(ctx.Instance.Noun) == ownerSlots[0].arg {
 		title = "Launch an agent in " + projectName(to.Project)
 	}
 	return resultError(a.chooseHarness(title, to.Project, ochazuke.Request{Verb: "launch", Noun: ctx.Instance.Noun, Target: ctx.Instance.ID, Args: asked}))
