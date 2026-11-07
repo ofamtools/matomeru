@@ -63,7 +63,7 @@ func linkedFixture(t *testing.T) linked {
 	if err := a.work.PutVimSession(work.VimSession{ID: l.vimID, Name: "notes", Path: "/home/test/.local/v1.vim", Cwd: l.alpha, ProjectID: "matomeru", WindowID: "w2", Created: work.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshSaved(); err != nil {
+	if err := a.savedList.Refill(); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshVim(); err != nil {
@@ -173,7 +173,7 @@ func TestDirectoriesLinksJumpToTheirRows(t *testing.T) {
 		{linkProject, "matomeru", "work", "matomeru"},
 		{linkPane, l.paneRow, panesPage, l.paneRow},
 		{linkDirectory, l.worktree, directoriesPage, "directory:" + l.worktree},
-		{linkSaved, l.savedID, savedPage, l.savedID},
+		{linkSaved, l.savedID, savedPage, savedListID + "/" + l.savedID},
 		{linkVim, l.vimID, vimPage, l.vimID},
 	} {
 		back()

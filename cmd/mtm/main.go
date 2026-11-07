@@ -276,9 +276,7 @@ func (a *App) reveal(id string) error {
 	if err := a.refreshReviews(); err != nil {
 		return err
 	}
-	if err := a.refreshSaved(); err != nil {
-		return err
-	}
+	a.r.Changed("saved")
 	if err := a.refreshVim(); err != nil {
 		return err
 	}
@@ -436,7 +434,6 @@ type App struct {
 	colors        pinColors             // the theme beneath the pin state's colours (colors.go)
 	savedList     *ochazuke.List
 	vimList       *ochazuke.List
-	savedAll      []work.SavedPane // every saved pane as last read, in scope or not (the details read it)
 	// savedForgotten are the records this session deleted, by id, so
 	// history.undo puts one back as it was (saved_store.go).
 	savedForgotten map[string]work.SavedPane

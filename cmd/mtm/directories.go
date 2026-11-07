@@ -465,7 +465,7 @@ func (a *App) openedDirectories() error {
 	a.refreshDirectoryRows()
 	// The detail lists the saved panes and Vim sessions started in a
 	// directory: read them as they are now.
-	errs := []error{a.refreshSaved(), a.refreshVim()}
+	errs := []error{a.refreshVim()}
 	// The first visit lands on the first list drawn: the pinned project's
 	// directories when it has any (UX review 2 F22); later visits keep the
 	// page's remembered focus.

@@ -145,7 +145,8 @@ func (a *App) directoryLinks(key string) []link {
 			}
 		}
 	}
-	for _, s := range a.savedAll {
+	saved, _ := a.work.SavedPanes()
+	for _, s := range saved {
 		if a.sameDir(s.Cwd, key) {
 			links = append(links, link{Text: savedName(s), To: linkTarget{linkSaved, s.ID}})
 		}

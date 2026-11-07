@@ -24,8 +24,9 @@ func (a *App) savedSubject() (string, string, []link) {
 	if !ok {
 		return "", "", nil
 	}
-	s, ok := item.Data.(work.SavedPane)
-	if !ok {
+	id, _ := item.Data.(ochazuke.Thing)["id"].(string)
+	s, err := a.work.SavedPane(id)
+	if err != nil {
 		return "", "", nil
 	}
 	return s.ID, a.savedFacts(s), a.savedLinks(s)

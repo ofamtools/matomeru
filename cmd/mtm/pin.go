@@ -268,9 +268,7 @@ func (a *App) refreshScope() error {
 	if err := a.refreshNotes(); err != nil {
 		return err
 	}
-	if err := a.refreshSaved(); err != nil {
-		return err
-	}
+	a.r.Changed("saved")
 	if err := a.refreshVim(); err != nil {
 		return err
 	}

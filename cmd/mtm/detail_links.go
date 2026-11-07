@@ -233,7 +233,7 @@ func (a *App) followLink(ctx ochazuke.Ctx) ochazuke.Result {
 	case linkDirectory:
 		return resultError(a.jumpDirectory(t.ID))
 	case linkSaved:
-		return resultError(a.jumpRow(savedPage, a.savedList, t.ID, a.refreshSaved))
+		return resultError(a.jumpRow(savedPage, a.savedList, savedListID+"/"+t.ID, a.savedList.Refill))
 	case linkVim:
 		return resultError(a.jumpRow(vimPage, a.vimList, t.ID, a.refreshVim))
 	}

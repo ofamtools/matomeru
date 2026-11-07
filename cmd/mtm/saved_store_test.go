@@ -18,7 +18,7 @@ func savedRecord(t *testing.T, a *App) work.SavedPane {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshSaved(); err != nil {
+	if err := a.savedList.Refill(); err != nil {
 		t.Fatal(err)
 	}
 	return row
@@ -53,7 +53,7 @@ func TestSavedForgetKeyAndUndo(t *testing.T) {
 	if err := a.r.OpenPage(savedPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.savedList.Select(row.ID); err != nil {
+	if err := a.savedList.Select(savedListID + "/" + row.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.savedList.Focus(); err != nil {
