@@ -66,8 +66,8 @@ func TestPaneHighlightLeaderCycleMovesStandout(t *testing.T) {
 		}
 		want := order[i+delta]
 		press(t, a, "ctrl+a", step)
-		if a.r.Mode.Name != "terminal" || a.r.Focus != paneTermID {
-			t.Fatalf("%s: focus=%q mode=%q", step, a.r.Focus, a.r.Mode.Name)
+		if a.r.CurrentMode().Name != "terminal" || a.r.FocusID() != paneTermID {
+			t.Fatalf("%s: focus=%q mode=%q", step, a.r.FocusID(), a.r.CurrentMode().Name)
 		}
 		if got := a.displayedRow(); got != want {
 			t.Fatalf("%s: displayed %q, want %q", step, got, want)
@@ -123,8 +123,8 @@ func TestPaneHighlightSideFocusMarksParent(t *testing.T) {
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
 	}
-	if a.r.Focus != sideTermID {
-		t.Fatalf("focus %q", a.r.Focus)
+	if a.r.FocusID() != sideTermID {
+		t.Fatalf("focus %q", a.r.FocusID())
 	}
 	a.Update(nil)
 	if got := a.displayedRow(); got != parent {

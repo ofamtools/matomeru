@@ -193,8 +193,8 @@ func TestExtensionVerbOnARowRunsTheToolAfterItsConfirm(t *testing.T) {
 	}
 	// j still moves the list.
 	pressJob(t, a, "j")
-	if a.r.Focus != "ext/fake/item/i2" {
-		t.Fatalf("j: focus %s", a.r.Focus)
+	if a.r.FocusID() != "ext/fake/item/i2" {
+		t.Fatalf("j: focus %s", a.r.FocusID())
 	}
 }
 

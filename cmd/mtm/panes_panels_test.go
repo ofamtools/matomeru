@@ -240,7 +240,7 @@ func TestPanesPanelsFocusWalk(t *testing.T) {
 	for range len(queue) + len(a.pv.sections[1].tree.Nodes()) + len(working) - 1 {
 		press(t, a, "j")
 		frameWH(a, 120, 40)
-		walk = append(walk, a.r.Focus)
+		walk = append(walk, a.r.FocusID())
 	}
 	if walk[len(queue)-1] != a.pv.sections[1].tree.Nodes()[0].ID {
 		t.Fatalf("j off Needs you: %v", walk)
@@ -252,8 +252,8 @@ func TestPanesPanelsFocusWalk(t *testing.T) {
 		t.Fatalf("walk %v", walk)
 	}
 	press(t, a, "k")
-	if a.r.Focus != working[0] {
-		t.Fatalf("k: %s", a.r.Focus)
+	if a.r.FocusID() != working[0] {
+		t.Fatalf("k: %s", a.r.FocusID())
 	}
 }
 
@@ -265,20 +265,20 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 	a, panes := sectionsApp(t)
 	frameWH(a, 120, 40)
 	press(t, a, "g", "w")
-	if a.r.Focus != "pane:s/wold" {
-		t.Fatalf("g w: focus %s", a.r.Focus)
+	if a.r.FocusID() != "pane:s/wold" {
+		t.Fatalf("g w: focus %s", a.r.FocusID())
 	}
 	press(t, a, "j", "g", "w") // again: it stays on Working's selected row
-	if a.r.Focus != "pane:s/wnew" {
-		t.Fatalf("g w again: focus %s", a.r.Focus)
+	if a.r.FocusID() != "pane:s/wnew" {
+		t.Fatalf("g w again: focus %s", a.r.FocusID())
 	}
 	press(t, a, "g", "n")
-	if a.r.Focus != "pane:s/wwait" {
-		t.Fatalf("g n: focus %s", a.r.Focus)
+	if a.r.FocusID() != "pane:s/wwait" {
+		t.Fatalf("g n: focus %s", a.r.FocusID())
 	}
 	press(t, a, "g", "p")
-	if a.r.Focus != "pane:s/widle" {
-		t.Fatalf("g p: focus %s", a.r.Focus)
+	if a.r.FocusID() != "pane:s/widle" {
+		t.Fatalf("g p: focus %s", a.r.FocusID())
 	}
 	if row, _ := a.selectedRow(); row != "pane:s/widle" {
 		t.Fatalf("the detail follows %s", row)
@@ -291,8 +291,8 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 	}
 	a.setPanes(panes, nil)
 	v, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "focus-section", Args: ochazuke.Arguments{"section": sectionWorking}})
-	if err != nil || v != "No agent is working" || a.r.Focus != "pane:s/widle" {
-		t.Fatalf("empty Working: %v %v focus %s", v, err, a.r.Focus)
+	if err != nil || v != "No agent is working" || a.r.FocusID() != "pane:s/widle" {
+		t.Fatalf("empty Working: %v %v focus %s", v, err, a.r.FocusID())
 	}
 	// From another page, the verb opens Panes.
 	if err := a.r.OpenPage("work"); err != nil {
@@ -301,11 +301,11 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "focus-section", Args: ochazuke.Arguments{"section": sectionQueue}}); err != nil {
 		t.Fatal(err)
 	}
-	if a.r.Page != panesPage || a.r.Focus != "pane:s/wwait" {
-		t.Fatalf("from Work: page %s focus %s", a.r.Page, a.r.Focus)
+	if a.r.Page != panesPage || a.r.FocusID() != "pane:s/wwait" {
+		t.Fatalf("from Work: page %s focus %s", a.r.Page, a.r.FocusID())
 	}
 	// The keys are binding rows on the page, so hints and help read them.
-	if k := a.keyFor(a.r.Focus, "panes.focus-section"); k == "" {
+	if k := a.keyFor(a.r.FocusID(), "panes.focus-section"); k == "" {
 		t.Fatal("no key for panes.focus-section")
 	}
 }
@@ -324,8 +324,8 @@ func TestPanesRowsMoveWithoutSticky(t *testing.T) {
 	if slices.Contains(sectionIDs(a, 2), row) || !slices.Contains(sectionIDs(a, 1), row) {
 		t.Fatalf("working %v middle %v", sectionIDs(a, 2), sectionIDs(a, 1))
 	}
-	if a.r.Focus != row {
-		t.Fatalf("focus %s, want it on the moved row", a.r.Focus)
+	if a.r.FocusID() != row {
+		t.Fatalf("focus %s, want it on the moved row", a.r.FocusID())
 	}
 	if got, _ := a.selectedRow(); got != row {
 		t.Fatalf("detail follows %s", got)
@@ -333,8 +333,8 @@ func TestPanesRowsMoveWithoutSticky(t *testing.T) {
 	// It starts working again: back to Working, the cursor with it.
 	panes[4].AgentState = "working"
 	a.setPanes(panes, nil)
-	if !slices.Contains(sectionIDs(a, 2), row) || a.r.Focus != row {
-		t.Fatalf("working %v focus %s", sectionIDs(a, 2), a.r.Focus)
+	if !slices.Contains(sectionIDs(a, 2), row) || a.r.FocusID() != row {
+		t.Fatalf("working %v focus %s", sectionIDs(a, 2), a.r.FocusID())
 	}
 }
 
@@ -353,8 +353,8 @@ func TestPanesStickyRowsHoldOnlyUnderTheCursor(t *testing.T) {
 	}
 	press(t, a, "enter")
 	settle(a, a.r.PendingCommands())
-	if a.attached.ID != "wold" || a.r.Terminal(a.r.Focus) == nil {
-		t.Fatalf("attached %q focus %s", a.attached.ID, a.r.Focus)
+	if a.attached.ID != "wold" || a.r.Terminal(a.r.FocusID()) == nil {
+		t.Fatalf("attached %q focus %s", a.attached.ID, a.r.FocusID())
 	}
 	panes[4].AgentState = "idle"
 	a.setPanes(panes, nil)

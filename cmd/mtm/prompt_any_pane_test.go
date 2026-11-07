@@ -20,8 +20,8 @@ func screenBoxApp(t *testing.T) (*App, *fakePanes) {
 	}
 	app.pv.tab = tabScreen
 	settle(app, follow(app))
-	if app.pv.tab != tabScreen || app.preview.Pane != app.r.Focus {
-		t.Fatalf("tab %d preview %q focus %s", app.pv.tab, app.preview.Pane, app.r.Focus)
+	if app.pv.tab != tabScreen || app.preview.Pane != app.r.FocusID() {
+		t.Fatalf("tab %d preview %q focus %s", app.pv.tab, app.preview.Pane, app.r.FocusID())
 	}
 	return app, f
 }
@@ -50,13 +50,13 @@ func TestPromptBoxTypesIntoAShell(t *testing.T) {
 		t.Fatalf("no box below the shell's screen:\n%s", fr)
 	}
 	press(t, app, "i")
-	if app.r.Focus != promptID || app.r.BaseMode() != "insert" {
-		t.Fatalf("i focused %s in %s", app.r.Focus, app.r.BaseMode())
+	if app.r.FocusID() != promptID || app.r.BaseMode() != "insert" {
+		t.Fatalf("i focused %s in %s", app.r.FocusID(), app.r.BaseMode())
 	}
 	if r := boxRule(t, app); !strings.Contains(r, "[send] shell") || strings.Contains(r, "ctrl+t mode") {
 		t.Fatalf("rule %q", r)
 	}
-	if app.r.VerbShown(promptNoun+".mode", promptID, app.r.Mode) {
+	if app.r.VerbShown(promptNoun+".mode", promptID, app.r.CurrentMode()) {
 		t.Fatal("a terminal's box offers modes")
 	}
 	press(t, app, "ctrl+t")
@@ -75,7 +75,7 @@ func TestPromptBoxTypesIntoAShell(t *testing.T) {
 	}
 	// esc esc goes back to the pane row (the Screen tab has no turns).
 	press(t, app, "esc", "esc")
-	if app.r.Focus != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:matomeru/w1" {
 		t.Fatalf("esc esc focused %s", where(app))
 	}
 }
@@ -130,11 +130,11 @@ func TestAnExitedPaneHasNoPromptBox(t *testing.T) {
 	if fr := frame(app); strings.Contains(fr, "type into the pane") {
 		t.Fatalf("an exited pane drew the box:\n%s", fr)
 	}
-	if app.r.Available(ochazuke.Request{Noun: "pane", Verb: "prompt"}, app.r.Focus, app.r.Mode) {
+	if app.r.Available(ochazuke.Request{Noun: "pane", Verb: "prompt"}, app.r.FocusID(), app.r.CurrentMode()) {
 		t.Fatal("pane.prompt is available on an exited pane")
 	}
 	app.Update(keyMsg("i"))
-	if app.r.Focus == promptID {
+	if app.r.FocusID() == promptID {
 		t.Fatal("i focused a box for an exited pane")
 	}
 }

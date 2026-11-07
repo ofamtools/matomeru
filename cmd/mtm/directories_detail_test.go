@@ -87,7 +87,7 @@ func toLinks(t *testing.T, a *App, ld *linkedDetail) {
 		}
 		press(t, a, "}")
 	}
-	t.Fatalf("} never reached the links; focus %s", a.r.Focus)
+	t.Fatalf("} never reached the links; focus %s", a.r.FocusID())
 }
 
 // followLinkTo selects the link to target on ld's list and presses enter.
@@ -96,9 +96,9 @@ func followLinkTo(t *testing.T, a *App, ld *linkedDetail, kind, id string) {
 	toLinks(t, a, ld)
 	row := ld.linkRow(linkTarget{kind, id})
 	ids := itemIDs(ld.links)
-	at, want := slices.Index(ids, a.r.Focus), slices.Index(ids, row)
+	at, want := slices.Index(ids, a.r.FocusID()), slices.Index(ids, row)
 	if at < 0 || want < 0 {
-		t.Fatalf("focus %s, no link %s among %v", a.r.Focus, row, ids)
+		t.Fatalf("focus %s, no link %s among %v", a.r.FocusID(), row, ids)
 	}
 	for ; at < want; at++ {
 		press(t, a, "j")
@@ -106,8 +106,8 @@ func followLinkTo(t *testing.T, a *App, ld *linkedDetail, kind, id string) {
 	for ; at > want; at-- {
 		press(t, a, "k")
 	}
-	if a.r.Focus != row {
-		t.Fatalf("focus %s, want %s", a.r.Focus, row)
+	if a.r.FocusID() != row {
+		t.Fatalf("focus %s, want %s", a.r.FocusID(), row)
 	}
 	pressSettle(t, a, "enter")
 }
@@ -178,8 +178,8 @@ func TestDirectoriesLinksJumpToTheirRows(t *testing.T) {
 	} {
 		back()
 		followLinkTo(t, a, a.detail.dirs, c.kind, c.id)
-		if a.r.Page != c.page || a.r.Focus != c.focus {
-			t.Fatalf("%s link: page %s focus %s, want %s on %s", c.kind, a.r.Page, a.r.Focus, c.focus, c.page)
+		if a.r.Page != c.page || a.r.FocusID() != c.focus {
+			t.Fatalf("%s link: page %s focus %s, want %s on %s", c.kind, a.r.Page, a.r.FocusID(), c.focus, c.page)
 		}
 	}
 	// The project landed as the selected Work row, its tasks shown.
@@ -207,10 +207,10 @@ func TestDirectoriesDetailScrollsWithJK(t *testing.T) {
 	if !d.Overflows() {
 		t.Fatalf("the detail fits:\n%s", sizedFrame(a, 140, 14))
 	}
-	focus := a.r.Focus
+	focus := a.r.FocusID()
 	press(t, a, "J")
-	if fr := sizedFrame(a, 140, 14); d.Offset() != 1 || a.r.Focus != focus || !strings.Contains(fr, "J/K detail") {
-		t.Fatalf("J: offset %d focus %s\n%s", d.Offset(), a.r.Focus, fr)
+	if fr := sizedFrame(a, 140, 14); d.Offset() != 1 || a.r.FocusID() != focus || !strings.Contains(fr, "J/K detail") {
+		t.Fatalf("J: offset %d focus %s\n%s", d.Offset(), a.r.FocusID(), fr)
 	}
 	press(t, a, "K")
 	if sizedFrame(a, 140, 14); d.Offset() != 0 {

@@ -61,7 +61,7 @@ func (a *App) defineQuickNote() {
 // quickNoteOwner is the note rule from the focus: a task row or an
 // outline task is the owner; else the pin; else no project.
 func (a *App) quickNoteOwner() (Owner, error) {
-	if inst := a.r.Instances[a.r.Focus]; inst != nil {
+	if inst := a.r.Instances[a.r.FocusID()]; inst != nil {
 		task := ""
 		switch {
 		case inst.Noun == "task":
@@ -205,7 +205,7 @@ func (a *App) quickNoteUpdate(msg tea.Msg) (tea.Cmd, error) {
 		return nil, a.flushQuickNote(true)
 	}
 	text := string(q.input.Text)
-	typing := a.r.Mode.Name == "insert" && a.r.Focus == quickNoteInput
+	typing := a.liveModeTraits().Typing && a.r.FocusID() == quickNoteInput
 	var cmd tea.Cmd
 	commit := !typing
 	if d, ok := msg.(quickNoteDebounceMsg); ok && d.Seq == q.seq {

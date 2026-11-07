@@ -1154,7 +1154,7 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 
 	known := fmt.Sprintf("known directories (%d)", len(a.directories.Rows))
 	switch {
-	case a.r.Focus == directoryQueryID:
+	case a.shownFocused(directoryQueryID):
 		prefix := known + "  / "
 		field := ochazuke.InputBlock(a.directoryQuery, max(8, width-ansi.StringWidth(prefix)), 1)
 		cursor, focusLine = field.Offset(ansi.StringWidth(prefix), 0), len(lines)
@@ -1196,7 +1196,7 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 		head(label)
 		if input := a.r.Input(directoryPathID); input != nil {
 			field := ochazuke.InputBlock(input, width, 1)
-			if a.r.Focus == directoryPathID {
+			if a.shownFocused(directoryPathID) {
 				cursor, focusLine = field, len(lines)
 			}
 			add(field.Text)

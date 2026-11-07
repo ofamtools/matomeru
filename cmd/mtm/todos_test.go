@@ -158,8 +158,8 @@ func TestTodoEditsPersistAsMade(t *testing.T) {
 	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
-	if a.r.Focus != outlineNode("t1") {
-		t.Fatalf("focus %s", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("focus %s", a.r.FocusID())
 	}
 	press(t, a, "j", "tab")
 	if got := stored(t, a, "t2").ParentID; got != "t1" {
@@ -177,7 +177,7 @@ func TestTodoEditsPersistAsMade(t *testing.T) {
 	if p1, p2 := stored(t, a, "t1").Position, stored(t, a, "t2").Position; p1 >= p2 {
 		t.Fatalf("undo move: positions t1 %d t2 %d", p1, p2)
 	}
-	if a.r.Focus != outlineNode("t2") {
+	if a.r.FocusID() != outlineNode("t2") {
 		press(t, a, "j")
 	}
 	press(t, a, "x")
@@ -278,8 +278,8 @@ func TestTInInsertModeTypesTheLetter(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	press(t, a, "j", "enter", "i")
-	if a.editor == nil || a.r.Focus != a.editor.fieldID("title") || a.r.Mode.Name != "insert" {
-		t.Fatalf("editor: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	if a.editor == nil || a.r.FocusID() != a.editor.fieldID("title") || a.r.CurrentMode().Name != "insert" {
+		t.Fatalf("editor: focus %s mode %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	press(t, a, "T")
 	if a.r.TopModal() != "" || !strings.HasSuffix(a.editor.Value("title"), "T") {

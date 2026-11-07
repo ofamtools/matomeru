@@ -29,8 +29,8 @@ func TestDirectoryPathPickerBindingOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "esc", "i")
-	if a.r.Focus != directoryPathID || a.r.Mode.Name != "insert" {
-		t.Fatalf("focus=%s mode=%s", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != directoryPathID || a.r.CurrentMode().Name != "insert" {
+		t.Fatalf("focus=%s mode=%s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	press(t, a, "ctrl+o")
 	if a.r.TopModal() != "" {

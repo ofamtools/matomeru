@@ -157,8 +157,8 @@ func TestSidesLeaderWalkFrames(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaderKey(t, a, "ctrl+a", "g")
-	if a.r.Focus != sideTermID || a.attached.SideFront != "tool" || len(driver.launches) != 1 {
-		t.Fatalf("leader open: %s %+v %v", a.r.Focus, a.attached, driver.launches)
+	if a.r.FocusID() != sideTermID || a.attached.SideFront != "tool" || len(driver.launches) != 1 {
+		t.Fatalf("leader open: %s %+v %v", a.r.FocusID(), a.attached, driver.launches)
 	}
 	if got := a.keyForRequest(paneTermID, "terminal.side", ochazuke.Arguments{"kind": "tool"}); got != "ctrl+a g" {
 		t.Fatalf("hint key: %q", got)
@@ -168,7 +168,7 @@ func TestSidesLeaderWalkFrames(t *testing.T) {
 		t.Fatal("side title missing")
 	}
 	leaderKey(t, a, "ctrl+a", "g")
-	if a.r.Focus != paneTermID || len(driver.launches) != 1 {
+	if a.r.FocusID() != paneTermID || len(driver.launches) != 1 {
 		t.Fatal("second key failed to return to parent")
 	}
 	leaderKey(t, a, "ctrl+a", "w")
@@ -194,7 +194,7 @@ func TestSidesLeaderWalkFrames(t *testing.T) {
 	driver.panes.panes = driver.panes.panes[:len(driver.panes.panes)-1]
 	driver.panes.mu.Unlock()
 	a.setPanes(driver.panes.panes, nil)
-	if a.r.Terminal(sideTermID) != nil || a.r.Focus != paneTermID {
+	if a.r.Terminal(sideTermID) != nil || a.r.FocusID() != paneTermID {
 		t.Fatal("exit failed to close the side")
 	}
 	if dir := os.Getenv("MTM_SIDE_ARTIFACTS"); dir != "" {
@@ -271,8 +271,8 @@ func TestSidesRestartKeepsFrontSideFocused(t *testing.T) {
 	before := a.companionPanes[a.sides[a.attached.ID].Windows["tool"]]
 	driver.panes.panes[0].Cwd = t.TempDir()
 	runSideVerb(t, a, "side", "restart", nil) // no name: the front side
-	if a.r.Focus != sideTermID || a.sides[a.attached.ID].Windows["tool"] == before.ID || len(driver.launches) != 2 || driver.launches[1].Cwd != driver.panes.panes[0].Cwd {
-		t.Fatalf("restart: focus %s, sides %+v, launches %+v", a.r.Focus, a.sides, driver.launches)
+	if a.r.FocusID() != sideTermID || a.sides[a.attached.ID].Windows["tool"] == before.ID || len(driver.launches) != 2 || driver.launches[1].Cwd != driver.panes.panes[0].Cwd {
+		t.Fatalf("restart: focus %s, sides %+v, launches %+v", a.r.FocusID(), a.sides, driver.launches)
 	}
 }
 

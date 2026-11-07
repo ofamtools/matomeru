@@ -74,8 +74,8 @@ func TestDeadLivePaneDetachesAndIsRemoved(t *testing.T) {
 			if a.r.Terminal(paneTermID) != nil || a.attached.ID != "" || !stream.released {
 				t.Fatalf("dead pane still attached: %+v, released %v", a.attached, stream.released)
 			}
-			if a.r.Mode.Name != "normal" || a.r.Focus == paneTermID || a.r.Page != panesPage {
-				t.Fatalf("focus %s mode %s page %s", a.r.Focus, a.r.Mode.Name, a.r.Page)
+			if a.r.CurrentMode().Name != "normal" || a.r.FocusID() == paneTermID || a.r.Page != panesPage {
+				t.Fatalf("focus %s mode %s page %s", a.r.FocusID(), a.r.CurrentMode().Name, a.r.Page)
 			}
 			if !gone && !slices.Contains(f.killed, "w1") {
 				t.Fatalf("exited window retained: %v", f.killed)
@@ -114,8 +114,8 @@ func TestParentExitReleasesStreamsAndPreservesLiveSides(t *testing.T) {
 			t.Fatalf("surviving side %s removed: panes %+v, killed %v", id, a.panes, f.killed)
 		}
 	}
-	if a.r.Mode.Name != "normal" || a.r.Focus == sideTermID || a.r.Focus == paneTermID {
-		t.Fatalf("focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	if a.r.CurrentMode().Name != "normal" || a.r.FocusID() == sideTermID || a.r.FocusID() == paneTermID {
+		t.Fatalf("focus %s mode %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }
 

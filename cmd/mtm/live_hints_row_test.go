@@ -30,7 +30,7 @@ func rowHintsApp(t *testing.T) (*App, *fakePanes, *fakeSystem, string) {
 	app.m.Width, app.m.Height = 140, 40
 	f.screens["w1"] = strings.Join([]string{"$ open " + rowURL, "edit " + path, "see " + rowShared + " and " + rowShared, "$ "}, "\n")
 	settle(app, follow(app))
-	if view := plainView(app); !strings.Contains(view, rowURL) || app.r.Focus != rowW1 || app.r.Terminal(paneTermID) != nil {
+	if view := plainView(app); !strings.Contains(view, rowURL) || app.r.FocusID() != rowW1 || app.r.Terminal(paneTermID) != nil {
 		t.Fatalf("no preview on the row:\n%s", view)
 	}
 	return app, f, sys, path
@@ -41,8 +41,8 @@ func rowHintsApp(t *testing.T) (*App, *fakePanes, *fakeSystem, string) {
 func startRowHints(t *testing.T, app *App) string {
 	t.Helper()
 	pressAll(t, app, "f")
-	if app.r.Mode.Name != hintsMode || app.r.Focus != rowW1 || app.hinting == nil || app.hinting.row != rowW1 {
-		t.Fatalf("f on the row: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	if app.r.CurrentMode().Name != hintsMode || app.r.FocusID() != rowW1 || app.hinting == nil || app.hinting.row != rowW1 {
+		t.Fatalf("f on the row: mode %s focus %s", app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	return plainView(app)
 }
@@ -51,8 +51,8 @@ func startRowHints(t *testing.T, app *App) string {
 // mode with the focus.
 func rowCleared(t *testing.T, app *App, after string) {
 	t.Helper()
-	if app.hinting != nil || app.r.Mode.Name != "normal" || app.r.Focus != rowW1 {
-		t.Fatalf("%s: hinting %v mode %s focus %s", after, app.hinting != nil, app.r.Mode.Name, app.r.Focus)
+	if app.hinting != nil || app.r.CurrentMode().Name != "normal" || app.r.FocusID() != rowW1 {
+		t.Fatalf("%s: hinting %v mode %s focus %s", after, app.hinting != nil, app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	if view := plainView(app); !strings.Contains(view, rowShared) {
 		t.Fatalf("%s: preview still marked:\n%s", after, view)
@@ -120,8 +120,8 @@ func TestRowHintsSwallowAndCancel(t *testing.T) {
 	startRowHints(t, app)
 	for _, k := range []string{"j", "enter", "tab", "1", "]"} {
 		pressAll(t, app, k)
-		if app.r.Mode.Name != hintsMode || app.r.Focus != rowW1 || app.r.Terminal(paneTermID) != nil || app.pv.tab != tabScreen {
-			t.Fatalf("%q: mode %s focus %s", k, app.r.Mode.Name, app.r.Focus)
+		if app.r.CurrentMode().Name != hintsMode || app.r.FocusID() != rowW1 || app.r.Terminal(paneTermID) != nil || app.pv.tab != tabScreen {
+			t.Fatalf("%q: mode %s focus %s", k, app.r.CurrentMode().Name, app.r.FocusID())
 		}
 	}
 	app.Update(tea.PasteMsg{Content: "pasted"})
@@ -144,8 +144,8 @@ func TestRowHintsSwallowAndCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
-	if app.hinting != nil || app.r.Mode.Name == hintsMode {
-		t.Fatalf("focus change: hinting %v mode %s", app.hinting != nil, app.r.Mode.Name)
+	if app.hinting != nil || app.r.CurrentMode().Name == hintsMode {
+		t.Fatalf("focus change: hinting %v mode %s", app.hinting != nil, app.r.CurrentMode().Name)
 	}
 }
 
@@ -157,21 +157,21 @@ func TestRowHintsWithNoScreen(t *testing.T) {
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
 	pressAll(t, app, "j", "j") // the ochazuke session's shell; no follow yet
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	plainView(app)
 	app.Update(keyMsg("f"))
-	if !strings.Contains(app.m.Info, "no screen for this pane yet") || app.r.Mode.Name != "normal" || app.hinting != nil {
-		t.Fatalf("no screen: status %q mode %s", app.m.Info, app.r.Mode.Name)
+	if !strings.Contains(app.m.Info, "no screen for this pane yet") || app.r.CurrentMode().Name != "normal" || app.hinting != nil {
+		t.Fatalf("no screen: status %q mode %s", app.m.Info, app.r.CurrentMode().Name)
 	}
 
 	app, _, _, _ = rowHintsApp(t)
 	pressAll(t, app, "]")
 	plainView(app)
 	app.Update(keyMsg("f"))
-	if app.hinting != nil || app.r.Mode.Name != "normal" {
-		t.Fatalf("Activity tab: mode %s", app.r.Mode.Name)
+	if app.hinting != nil || app.r.CurrentMode().Name != "normal" {
+		t.Fatalf("Activity tab: mode %s", app.r.CurrentMode().Name)
 	}
 }
 
@@ -191,8 +191,8 @@ func TestRowHintsLabelTheLivePanes(t *testing.T) {
 		t.Fatal("the live panes are not drawn from the row")
 	}
 	pressAll(t, app, "f")
-	if app.r.Mode.Name != hintsMode || app.r.Focus != row || len(app.hinting.screens) != 2 {
-		t.Fatalf("f: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	if app.r.CurrentMode().Name != hintsMode || app.r.FocusID() != row || len(app.hinting.screens) != 2 {
+		t.Fatalf("f: mode %s focus %s", app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	view := plainView(app)
 	for _, raw := range []string{mainURL, sideURL} {
@@ -204,8 +204,8 @@ func TestRowHintsLabelTheLivePanes(t *testing.T) {
 	if !slices.Equal(main.pasted, []string{sharedURL}) || len(side.pasted) != 0 || len(main.sent)+len(side.sent) != 0 {
 		t.Fatalf("type shared: main %v side %v", main.pasted, side.pasted)
 	}
-	if app.r.Focus != row || app.r.Mode.Name != "normal" || app.r.Terminal(paneTermID).Overlay() != nil || app.r.Terminal(sideTermID).Overlay() != nil {
-		t.Fatalf("after type: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	if app.r.FocusID() != row || app.r.CurrentMode().Name != "normal" || app.r.Terminal(paneTermID).Overlay() != nil || app.r.Terminal(sideTermID).Overlay() != nil {
+		t.Fatalf("after type: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 }
 

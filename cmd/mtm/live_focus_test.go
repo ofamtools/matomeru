@@ -9,8 +9,8 @@ import (
 // mode is on.
 func notLive(t *testing.T, app *App, after string) {
 	t.Helper()
-	if app.r.Focus == paneTermID || app.r.Mode.Name == "terminal" {
-		t.Fatalf("%s went live: focus %s mode %s", after, app.r.Focus, app.r.Mode.Name)
+	if app.r.FocusID() == paneTermID || app.r.CurrentMode().Name == "terminal" {
+		t.Fatalf("%s went live: focus %s mode %s", after, app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 }
 
@@ -22,8 +22,8 @@ func TestCopyModeFromLReturnsToTheRow(t *testing.T) {
 	enterCopyMode(t, app)
 	notLive(t, app, "l")
 	press(t, app, "q")
-	if app.r.Focus != "pane:matomeru/w1" || app.copy.active || app.r.Terminal(paneTermID) != nil {
-		t.Fatalf("q: focus %s copy %v attached %v", app.r.Focus, app.copy.active, app.r.Terminal(paneTermID) != nil)
+	if app.r.FocusID() != "pane:matomeru/w1" || app.copy.active || app.r.Terminal(paneTermID) != nil {
+		t.Fatalf("q: focus %s copy %v attached %v", app.r.FocusID(), app.copy.active, app.r.Terminal(paneTermID) != nil)
 	}
 	notLive(t, app, "q")
 }
@@ -34,13 +34,13 @@ func TestBraceOntoTheScreenTabIsCopyMode(t *testing.T) {
 	t.Parallel()
 	app, _, _ := copyApp(t, []string{"h1"}, []string{"s1", "s2"})
 	press(t, app, "}")
-	if app.r.Focus != copyID || !app.copy.active {
-		t.Fatalf("}: focus %s copy %v", app.r.Focus, app.copy.active)
+	if app.r.FocusID() != copyID || !app.copy.active {
+		t.Fatalf("}: focus %s copy %v", app.r.FocusID(), app.copy.active)
 	}
 	notLive(t, app, "}")
 	press(t, app, "esc")
-	if !strings.HasPrefix(app.r.Focus, "pane:") || app.copy.active {
-		t.Fatalf("esc: focus %s copy %v", app.r.Focus, app.copy.active)
+	if !strings.HasPrefix(app.r.FocusID(), "pane:") || app.copy.active {
+		t.Fatalf("esc: focus %s copy %v", app.r.FocusID(), app.copy.active)
 	}
 	notLive(t, app, "esc")
 }
@@ -60,7 +60,7 @@ func TestBraceAndTabOnTheTurnsTabReachTheTurns(t *testing.T) {
 		frame(app)
 		press(t, app, k)
 		if !onTurn(app) || app.copy.active || app.pv.tab != tabTurns {
-			t.Fatalf("%s on Turns: focus %s copy %v tab %d", k, app.r.Focus, app.copy.active, app.pv.tab)
+			t.Fatalf("%s on Turns: focus %s copy %v tab %d", k, app.r.FocusID(), app.copy.active, app.pv.tab)
 		}
 		notLive(t, app, k+" on Turns")
 	}
@@ -72,8 +72,8 @@ func TestCopyModeFromLiveReturnsLive(t *testing.T) {
 	app, _ := liveApp(t)
 	for _, round := range []string{"first", "second"} {
 		press(t, app, "ctrl+a", "[")
-		if app.r.Focus != copyID || !app.copy.active {
-			t.Fatalf("%s ctrl+a [: focus %s copy %v", round, app.r.Focus, app.copy.active)
+		if app.r.FocusID() != copyID || !app.copy.active {
+			t.Fatalf("%s ctrl+a [: focus %s copy %v", round, app.r.FocusID(), app.copy.active)
 		}
 		press(t, app, "q")
 		live(t, app, round+" q from copy mode entered live")

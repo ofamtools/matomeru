@@ -22,29 +22,29 @@ func TestPaneFocusAttachSelectsDisplayedRow(t *testing.T) {
 	if got, _ := a.selectedRow(); got != "pane:s/wold" {
 		t.Fatalf("displayed s/oldest but sidebar selects %q", got)
 	}
-	if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("attach focus=%q mode=%q", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("attach focus=%q mode=%q", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	for range 2 {
 		a.Update(nil)
-		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-			t.Fatalf("unchanged update: selected=%q focus=%q mode=%q", got, a.r.Focus, a.r.Mode.Name)
+		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+			t.Fatalf("unchanged update: selected=%q focus=%q mode=%q", got, a.r.FocusID(), a.r.CurrentMode().Name)
 		}
 	}
 	press(t, a, "ctrl+a", "?")
-	modalFocus := a.r.Focus
+	modalFocus := a.r.FocusID()
 	if modalFocus == paneTermID {
 		t.Fatal("help did not take focus from the terminal")
 	}
 	for range 2 {
 		a.Update(nil)
-		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.Focus != modalFocus {
-			t.Fatalf("modal update: selected=%q focus=%q, want %q", got, a.r.Focus, modalFocus)
+		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.FocusID() != modalFocus {
+			t.Fatalf("modal update: selected=%q focus=%q, want %q", got, a.r.FocusID(), modalFocus)
 		}
 	}
 	press(t, a, "esc")
-	if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("closing help: focus=%q mode=%q", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("closing help: focus=%q mode=%q", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }
 
@@ -72,8 +72,8 @@ func TestPaneFocusLiveAcrossCollapsedSections(t *testing.T) {
 		if got, _ := a.selectedRow(); got != "pane:s/wold" {
 			t.Fatalf("%s: displayed s/oldest but sidebar selects %q", state, got)
 		}
-		if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-			t.Fatalf("%s: focus=%q mode=%q", state, a.r.Focus, a.r.Mode.Name)
+		if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+			t.Fatalf("%s: focus=%q mode=%q", state, a.r.FocusID(), a.r.CurrentMode().Name)
 		}
 		if fr := frameWH(a, 160, 40); !strings.Contains(fr, "s/oldest") {
 			t.Fatalf("%s: displayed pane missing:\n%s", state, fr)
@@ -85,8 +85,8 @@ func TestPaneFocusLiveAcrossCollapsedSections(t *testing.T) {
 		t.Fatalf("terminal input lost: %+v", f.streams)
 	}
 	press(t, a, "ctrl+a", "d")
-	if a.r.Focus != "pane:s/wold" || a.r.Mode.Name != "normal" {
-		t.Fatalf("detach focus=%q mode=%q", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != "pane:s/wold" || a.r.CurrentMode().Name != "normal" {
+		t.Fatalf("detach focus=%q mode=%q", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }
 
@@ -104,8 +104,8 @@ func TestPaneFocusOutsidePinSurvivesIdle(t *testing.T) {
 	for _, state := range []string{"idle", "working"} {
 		panes[4].AgentState = state
 		a.setPanes(panes, nil)
-		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.Focus != "pane:s/wold" {
-			t.Fatalf("%s outside pin: selected=%q focus=%q", state, got, a.r.Focus)
+		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.FocusID() != "pane:s/wold" {
+			t.Fatalf("%s outside pin: selected=%q focus=%q", state, got, a.r.FocusID())
 		}
 		if state == "idle" && !strings.Contains(frameWH(a, 160, 40), "outside pin") {
 			t.Fatal("retained pane is not labelled outside pin")
@@ -130,8 +130,8 @@ func TestPaneFocusBrowsingLeavesAttachedScreen(t *testing.T) {
 	if !strings.Contains(fr, "s/newest") || strings.Contains(fr, "s/oldest") {
 		t.Fatalf("browsing newest still displays the old attachment:\n%s", fr)
 	}
-	if a.r.Focus != "pane:s/wnew" || a.attached.ID != "wold" {
-		t.Fatalf("browsing changed input ownership: focus=%q attached=%q", a.r.Focus, a.attached.ID)
+	if a.r.FocusID() != "pane:s/wnew" || a.attached.ID != "wold" {
+		t.Fatalf("browsing changed input ownership: focus=%q attached=%q", a.r.FocusID(), a.attached.ID)
 	}
 	if err := a.r.SetFocus(paneTermID); err != nil {
 		t.Fatal(err)
@@ -144,8 +144,8 @@ func TestPaneFocusBrowsingLeavesAttachedScreen(t *testing.T) {
 		t.Fatalf("returning to the live terminal displays another pane:\n%s", fr)
 	}
 	press(t, a, "ctrl+a", "d")
-	if a.r.Focus != "pane:s/wold" || a.r.Mode.Name != "normal" {
-		t.Fatalf("detach after browsing: focus=%q mode=%q", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != "pane:s/wold" || a.r.CurrentMode().Name != "normal" {
+		t.Fatalf("detach after browsing: focus=%q mode=%q", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }
 

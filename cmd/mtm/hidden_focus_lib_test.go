@@ -29,11 +29,11 @@ func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 				press(t, app, "l")
 			} else {
 				press(t, app, "i")
-				if app.r.Focus != promptID || app.r.Mode.Name != "insert" {
-					t.Fatalf("i: %s mode %s", where(app), app.r.Mode.Name)
+				if app.r.FocusID() != promptID || app.r.CurrentMode().Name != "insert" {
+					t.Fatalf("i: %s mode %s", where(app), app.r.CurrentMode().Name)
 				}
 			}
-			was := app.r.Focus
+			was := app.r.FocusID()
 			if was == row {
 				t.Fatalf("%s: focus still on the row", start)
 			}
@@ -43,7 +43,7 @@ func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 			if app.pv.tab == tabTurns {
 				t.Fatalf("panes.tab stayed on Turns")
 			}
-			if app.r.Focus != was {
+			if app.r.FocusID() != was {
 				t.Fatalf("panes.tab moved the focus itself to %s; the library's frame should", where(app))
 			}
 			frame(app)
@@ -51,15 +51,15 @@ func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 			if wantFocus == "" {
 				wantFocus = row
 			}
-			if app.r.Focus != wantFocus || app.r.Mode.Name != c.mode {
-				t.Fatalf("after the frame: %s mode %s, want %s in %s", where(app), app.r.Mode.Name, wantFocus, c.mode)
+			if app.r.FocusID() != wantFocus || app.r.CurrentMode().Name != c.mode {
+				t.Fatalf("after the frame: %s mode %s, want %s in %s", where(app), app.r.CurrentMode().Name, wantFocus, c.mode)
 			}
 			if c.mode == "insert" {
 				press(t, app, "esc")
 				press(t, app, "]")
 				frame(app)
-				if app.r.Focus != row || app.r.Mode.Name != "normal" {
-					t.Fatalf("after the box hides: %s mode %s, want the row %s in normal", where(app), app.r.Mode.Name, row)
+				if app.r.FocusID() != row || app.r.CurrentMode().Name != "normal" {
+					t.Fatalf("after the box hides: %s mode %s, want the row %s in normal", where(app), app.r.CurrentMode().Name, row)
 				}
 			}
 			for app.pv.tab != tabTurns {
@@ -68,7 +68,7 @@ func TestHiddenTurnsFocusMovesThroughTheLibrary(t *testing.T) {
 			}
 			press(t, app, "}")
 			frame(app)
-			if app.r.Focus == row {
+			if app.r.FocusID() == row {
 				t.Fatalf("} on the Turns tab again stayed on the row")
 			}
 		})

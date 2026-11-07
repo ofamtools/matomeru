@@ -231,18 +231,20 @@ func (a *App) followRow(row string) error {
 	if cur, _ := a.selectedRow(); cur == row && i == a.pv.active && !a.focusOnEmptyList() {
 		return nil
 	}
-	// A rebuild is background work: while the mode is not normal (a list
-	// filter or an input being typed in, a visual selection) the row moves
+	// A rebuild is background work: while the mode is not the resting one
+	// (CursorOnChar; not a list filter or an input being typed in, a
+	// visual selection) the row moves
 	// but the focus and the mode stay where the person is working.
-	return a.selectPaneRowMoving(row, a.r.Mode.Name == "normal")
+	return a.selectPaneRowMoving(row, a.liveModeTraits().CursorOnChar)
 }
 
 // focusOnEmptyList reports whether the focus is on a list with no rows,
 // where j and k go nowhere: left there by a row that moved out while a
-// filter or a modal held the mode, it is found again in normal mode and
-// followRow moves it to the row, whatever route led there.
+// filter or a modal held the mode, it is found again in the resting mode
+// (CursorOnChar: normal) and followRow moves it to the row, whatever route
+// led there.
 func (a *App) focusOnEmptyList() bool {
-	if a.r.Mode.Name != "normal" {
+	if !a.liveModeTraits().CursorOnChar {
 		return false
 	}
 	for _, s := range a.pv.sections {
@@ -433,7 +435,7 @@ func (a *App) focusSection(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(fmt.Errorf("unknown row %q", target))
 	}
 	a.pv.active = i
-	if a.r.Focus != target {
+	if a.r.FocusID() != target {
 		if err := a.r.SetFocus(target); err != nil {
 			return ochazuke.Failed(err)
 		}

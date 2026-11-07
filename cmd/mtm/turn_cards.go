@@ -806,7 +806,7 @@ func (a *App) refoldCards() {
 func (a *App) turnStyleChanged() {
 	var was turnRef
 	focused := false
-	if inst := a.r.Instances[a.r.Focus]; inst != nil {
+	if inst := a.r.Instances[a.r.FocusID()]; inst != nil {
 		if ref, ok := inst.Data.(turnRef); ok && !ref.Review && (inst.Noun == "turn" || strings.HasPrefix(inst.Noun, "turn-")) {
 			was, focused = ref, true
 		}
@@ -858,7 +858,7 @@ func (a *App) scrollTurns(ctx ochazuke.Ctx) ochazuke.Result {
 // the registers (timeline.yank-step), then it goes to the clipboard as
 // copy mode's yank does (OSC 52 when no clipboard program answers).
 func (a *App) copyStep(ctx ochazuke.Ctx) ochazuke.Result {
-	res, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.timeline", Verb: "yank-step", Target: a.r.Focus})
+	res, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.timeline", Verb: "yank-step", Target: a.r.FocusID()})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -882,7 +882,7 @@ func (a *App) copyStep(ctx ochazuke.Ctx) ochazuke.Result {
 
 // copyStepTurn is Y inside a card: turn.copy-all on the card.
 func (a *App) copyStepTurn(ctx ochazuke.Ctx) ochazuke.Result {
-	tl := a.r.Timeline(strings.TrimSuffix(strings.TrimSuffix(a.r.Focus, "/body"), "/list"))
+	tl := a.r.Timeline(strings.TrimSuffix(strings.TrimSuffix(a.r.FocusID(), "/body"), "/list"))
 	if tl == nil || tl.SelectedID() == "" {
 		return ochazuke.Failed(fmt.Errorf("not inside a turn"))
 	}

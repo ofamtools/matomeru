@@ -106,8 +106,8 @@ func TestTerminalKeysListsLeaderKeys(t *testing.T) {
 		t.Fatalf("generic help shown:\n%s", fr)
 	}
 	press(t, a, "esc")
-	if a.r.TopModal() != "" || a.r.Focus != paneTermID {
-		t.Fatalf("esc: modal %q focus %s", a.r.TopModal(), a.r.Focus)
+	if a.r.TopModal() != "" || a.r.FocusID() != paneTermID {
+		t.Fatalf("esc: modal %q focus %s", a.r.TopModal(), a.r.FocusID())
 	}
 }
 
@@ -117,8 +117,8 @@ func TestKillRefusesBeforeConfirmWhileSidesAreOpen(t *testing.T) {
 	t.Parallel()
 	a, f := sideViewApp(t)
 	press(t, a, "ctrl+a", "d")
-	if a.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("focus %s", a.r.Focus)
+	if a.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("focus %s", a.r.FocusID())
 	}
 	a.Update(keyMsg("d"))
 	a.Update(keyMsg("d"))

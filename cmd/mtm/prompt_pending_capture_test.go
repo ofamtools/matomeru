@@ -31,7 +31,7 @@ func TestActivityPromptCapturesKeysBeforePreviewCompletes(t *testing.T) {
 						_, cmd := a.Update(keyMsg(string(key)))
 						commands = append(commands, cmd)
 						fr := frame(a)
-						if a.r.Focus != promptID || a.r.BaseMode() != "insert" || !strings.Contains(fr, "[send]") || strings.Contains(fr, "COPY") || len(a.r.Modals()) != 0 {
+						if a.r.FocusID() != promptID || a.r.BaseMode() != "insert" || !strings.Contains(fr, "[send]") || strings.Contains(fr, "COPY") || len(a.r.Modals()) != 0 {
 							t.Fatalf("key %c before capture completed: %s\n%s", key, where(a), fr)
 						}
 					}
@@ -46,7 +46,7 @@ func TestActivityPromptCapturesKeysBeforePreviewCompletes(t *testing.T) {
 						t.Fatalf("sent %q, killed %q", f.prompts, f.killed)
 					}
 					press(t, a, "esc", "esc")
-					if a.r.Focus != row {
+					if a.r.FocusID() != row {
 						t.Fatalf("Esc returned to %s, want %s", where(a), row)
 					}
 				})
@@ -65,14 +65,14 @@ func TestActivityPromptCaptureFailureKeepsDraftAndReportsError(t *testing.T) {
 	frame(a)
 	settle(a, cmd)
 	fr := frame(a)
-	if a.r.Focus != promptID || a.r.BaseMode() != "insert" || string(a.pb.input.Text) != "draft survives" || !strings.Contains(fr, "[send]") {
+	if a.r.FocusID() != promptID || a.r.BaseMode() != "insert" || string(a.pb.input.Text) != "draft survives" || !strings.Contains(fr, "[send]") {
 		t.Fatalf("capture failure lost prompt: %s\n%s", where(a), fr)
 	}
 	if !strings.Contains(a.m.Status, "capture unavailable") {
 		t.Fatalf("capture failure feedback = %q", a.m.Status)
 	}
 	press(t, a, "esc", "esc")
-	if a.r.Focus != row {
+	if a.r.FocusID() != row {
 		t.Fatalf("Esc returned to %s, want %s", where(a), row)
 	}
 }

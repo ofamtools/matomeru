@@ -18,7 +18,7 @@ func TestTerminalDetachHint(t *testing.T) {
 		t.Fatalf("leader has no exit row hint:\n%s", f)
 	}
 	press(t, a, "d")
-	if a.r.Mode.Name == "terminal" {
+	if a.r.CurrentMode().Name == "terminal" {
 		t.Fatal("did not detach")
 	}
 }

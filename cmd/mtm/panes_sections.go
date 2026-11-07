@@ -872,7 +872,7 @@ func (a *App) focusOpenList() error {
 	if n, ok := s.tree.Selected(); ok {
 		target = n.ID
 	}
-	if a.r.Instances[target] == nil || a.r.Focus == target {
+	if a.r.Instances[target] == nil || a.r.FocusID() == target {
 		return nil
 	}
 	a.pv.active = i

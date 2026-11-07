@@ -713,7 +713,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	// list: a stop the frame does not place is skipped by } and spills.
 	a.r.Placed(answerID)
 	field := ochazuke.Text(ansi.Truncate(string(a.answer.Text), width, "…"))
-	if a.r.Focus == answerID {
+	if a.shownFocused(answerID) {
 		field = ochazuke.InputBlock(a.answer, max(1, width), 1).Offset(0, before)
 	}
 	text := strings.Join(append(lines, field.Text), "\n")

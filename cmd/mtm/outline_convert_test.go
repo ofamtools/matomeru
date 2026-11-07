@@ -79,8 +79,8 @@ func TestOutlineTabMakesAProjectATaskOfTheOneAbove(t *testing.T) {
 	if made.ID == "" || made.ParentID != "" {
 		t.Fatalf("no task matomeru under ochazuke: %+v", tasksOf(t, a, "ochazuke"))
 	}
-	if a.r.Focus != outlineNode(made.ID) {
-		t.Fatalf("focus %s, want the new task", a.r.Focus)
+	if a.r.FocusID() != outlineNode(made.ID) {
+		t.Fatalf("focus %s, want the new task", a.r.FocusID())
 	}
 	for id, parent := range map[string]string{"t1": made.ID, "t2": made.ID, "t1a": "t1"} {
 		if got := stored(t, a, id); got.ProjectID != "ochazuke" || got.ParentID != parent {
@@ -127,8 +127,8 @@ func TestOutlineTabMakesAProjectATaskOfTheOneAbove(t *testing.T) {
 	if p, _ := a.work.Project("ochazuke"); len(p.Trees) != 1 {
 		t.Fatalf("u: ochazuke dirs %+v", p.Trees)
 	}
-	if a.r.Focus != projectNode("matomeru") {
-		t.Fatalf("u: focus %s", a.r.Focus)
+	if a.r.FocusID() != projectNode("matomeru") {
+		t.Fatalf("u: focus %s", a.r.FocusID())
 	}
 	if got := frameAt(a, 100); got != before {
 		t.Fatalf("u: frame differs from before:\n%s", got)
@@ -148,8 +148,8 @@ func TestPinnedOutlineTabMovesThePin(t *testing.T) {
 	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T", "k")
-	if a.r.Focus != projectNode("matomeru") {
-		t.Fatalf("focus %s", a.r.Focus)
+	if a.r.FocusID() != projectNode("matomeru") {
+		t.Fatalf("focus %s", a.r.FocusID())
 	}
 	press(t, a, "tab")
 	if a.pin != "ochazuke" {
@@ -198,8 +198,8 @@ func TestOutlineShiftTabMakesATopTaskAProject(t *testing.T) {
 	if roots := rootRows(a); !slices.Equal(roots, []string{projectNode("ochazuke"), projectNode("matomeru"), projectNode(made.ID), projectNode("")}) {
 		t.Fatalf("roots %v", roots)
 	}
-	if a.r.Focus != projectNode(made.ID) {
-		t.Fatalf("focus %s", a.r.Focus)
+	if a.r.FocusID() != projectNode(made.ID) {
+		t.Fatalf("focus %s", a.r.FocusID())
 	}
 	if got := stored(t, a, "t1a"); got.ProjectID != made.ID || got.ParentID != "" {
 		t.Fatalf("subtask %+v", got)
@@ -223,8 +223,8 @@ func TestOutlineShiftTabMakesATopTaskAProject(t *testing.T) {
 	if len(newProjects(t, a)) != 0 {
 		t.Fatal("u kept the new project")
 	}
-	if a.r.Focus != outlineNode("t1") {
-		t.Fatalf("u: focus %s", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("u: focus %s", a.r.FocusID())
 	}
 	press(t, a, "ctrl+r")
 	if _, err := a.work.Project(made.ID); err != nil {

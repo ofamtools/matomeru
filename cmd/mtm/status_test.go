@@ -71,8 +71,8 @@ func TestTaskRowToggleAndStatusChooser(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
-	if app.r.Focus != "t1" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	press(t, app, "x")
 	if got := stored(t, app, "t1").Status; got != work.StatusDone {
@@ -83,7 +83,7 @@ func TestTaskRowToggleAndStatusChooser(t *testing.T) {
 		t.Fatalf("x again: %s", got)
 	}
 	for _, c := range []struct{ key, want string }{{"a", "active"}, {"b", "blocked"}, {"d", "done"}, {"t", "todo"}} {
-		if app.r.Focus != "t1" {
+		if app.r.FocusID() != "t1" {
 			press(t, app, "g", "g") // the first row again after a re-sort
 		}
 		press(t, app, "s")

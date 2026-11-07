@@ -18,8 +18,8 @@ func TestWorkStartsOnThePinnedRow(t *testing.T) {
 	a := openAt(t, path)
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	b := openAt(t, path)
-	if b.r.Focus != "matomeru" {
-		t.Fatalf("focus %s", b.r.Focus)
+	if b.r.FocusID() != "matomeru" {
+		t.Fatalf("focus %s", b.r.FocusID())
 	}
 	for _, item := range b.projectList.Items() {
 		if pinned := strings.Contains(item.Cells[0], "📌"); pinned != (item.ID == "matomeru") {

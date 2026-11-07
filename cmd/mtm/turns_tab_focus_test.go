@@ -28,7 +28,7 @@ func TestTabSwitchLeavesNoHiddenFocus(t *testing.T) {
 					frame(app)
 				}
 				fr := frame(app)
-				if app.r.Focus != c.focus {
+				if app.r.FocusID() != c.focus {
 					t.Fatalf("%v: focus %s, want %s\n%s", walk, where(app), c.focus, fr)
 				}
 				before := string(app.pb.input.Text)

@@ -14,14 +14,14 @@ func TestOutlineZoomsWithABreadcrumb(t *testing.T) {
 	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
-	if a.r.Focus != outlineNode("t1") {
-		t.Fatalf("T: focus %s", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("T: focus %s", a.r.FocusID())
 	}
 	tree := a.r.Tree(outlineTree)
 	press(t, a, "j", "tab") // t2 under t1
 	press(t, a, "k")
-	if a.r.Focus != outlineNode("t1") {
-		t.Fatalf("k: focus %s", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("k: focus %s", a.r.FocusID())
 	}
 	t1, t2 := stored(t, a, "t1").Title, stored(t, a, "t2").Title
 	press(t, a, "z", "+")
@@ -35,12 +35,12 @@ func TestOutlineZoomsWithABreadcrumb(t *testing.T) {
 	if !strings.Contains(f, t1) || !strings.Contains(f, t2) {
 		t.Fatalf("zoomed frame lacks the crumb %q or the row %q:\n%s", t1, t2, f)
 	}
-	if a.r.Focus != outlineNode("t2") {
-		t.Fatalf("z +: focus %s, want the subtree's top row", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t2") {
+		t.Fatalf("z +: focus %s, want the subtree's top row", a.r.FocusID())
 	}
 	press(t, a, "h") // one level out: onto t1, the zoom on its parent
-	if tree.Zoomed() == outlineNode("t1") || a.r.Focus != outlineNode("t1") {
-		t.Fatalf("h: zoomed %q focus %s", tree.Zoomed(), a.r.Focus)
+	if tree.Zoomed() == outlineNode("t1") || a.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("h: zoomed %q focus %s", tree.Zoomed(), a.r.FocusID())
 	}
 	press(t, a, "z", "+", "z", "0")
 	if tree.Zoomed() != "" || tree.Height() != tree.List().Height() {

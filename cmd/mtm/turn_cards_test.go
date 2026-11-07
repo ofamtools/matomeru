@@ -108,34 +108,34 @@ func TestTurnCardsFollowHoldAndG(t *testing.T) {
 		t.Fatalf("follow from the pane row: %s\n%s", selectedCard(app), got)
 	}
 	press(t, app, "}")
-	if app.r.Focus != turnCardID("w1", "p8") {
+	if app.r.FocusID() != turnCardID("w1", "p8") {
 		t.Fatalf("} focused %s", where(app))
 	}
 	moreClaudeTurns(t, log, 9, 10)
 	reload(t, app)
-	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 9") || app.r.Focus != turnCardID("w1", "p9") {
+	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 9") || app.r.FocusID() != turnCardID("w1", "p9") {
 		t.Fatalf("follow from a card: %s\n%s", where(app), got)
 	}
 	// k holds.
 	press(t, app, "k")
 	held := turnsRegion(t, app)
-	if app.pv.cards.Following() || app.r.Focus != turnCardID("w1", "p8") {
+	if app.pv.cards.Following() || app.r.FocusID() != turnCardID("w1", "p8") {
 		t.Fatalf("k: %s following %v", where(app), app.pv.cards.Following())
 	}
 	moreClaudeTurns(t, log, 10, 11)
 	reload(t, app)
-	if got := turnsRegion(t, app); got != held || app.r.Focus != turnCardID("w1", "p8") {
+	if got := turnsRegion(t, app); got != held || app.r.FocusID() != turnCardID("w1", "p8") {
 		t.Fatalf("an append moved the held cards (%s):\n%s\nwas:\n%s", where(app), got, held)
 	}
 	// G follows again.
 	press(t, app, "G")
-	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 10") || app.r.Focus != turnCardID("w1", "p10") || !app.pv.cards.Following() {
+	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 10") || app.r.FocusID() != turnCardID("w1", "p10") || !app.pv.cards.Following() {
 		t.Fatalf("G: %s\n%s", where(app), got)
 	}
 	// K from the pane row scrolls up and holds too; J back to the end
 	// follows again.
 	press(t, app, "esc")
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "pane" {
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "pane" {
 		t.Fatalf("esc focused %s", where(app))
 	}
 	press(t, app, "K", "K", "K")
@@ -164,7 +164,7 @@ func TestTurnCardsFollowHoldAndG(t *testing.T) {
 	frame(app) // following is judged when the cards are drawn
 	moreClaudeTurns(t, log, 12, 13)
 	reload(t, app)
-	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 12") || !app.pv.cards.Following() || app.r.Focus != turnCardID("w1", "p12") {
+	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 12") || !app.pv.cards.Following() || app.r.FocusID() != turnCardID("w1", "p12") {
 		t.Fatalf("j back to the newest does not follow (%s):\n%s", where(app), got)
 	}
 }
@@ -209,7 +209,7 @@ func TestTurnCardsKeepTheirPlacePerPane(t *testing.T) {
 	t.Parallel()
 	app, _, _ := cardsApp(t)
 	press(t, app, "}", "k", "k", "l", "J")
-	held, sel := turnsRegion(t, app), app.r.Focus
+	held, sel := turnsRegion(t, app), app.r.FocusID()
 	press(t, app, "esc", "j")
 	settle(app, follow(app))
 	frame(app)
@@ -291,15 +291,15 @@ func TestTurnsStyleSwitchesLive(t *testing.T) {
 	app, _, _ := claudeTurnsApp(t)
 	frame(app)
 	press(t, app, "}")
-	if app.r.Focus != turnCardID("w1", "u1") {
+	if app.r.FocusID() != turnCardID("w1", "u1") {
 		t.Fatalf("} focused %s", where(app))
 	}
 	useTurnStyle(t, app, turnsStyleTree)
-	if fr := frame(app); app.r.Focus != "turn:u1" || !strings.Contains(fr, "fix the flaky test · 1 steer") {
+	if fr := frame(app); app.r.FocusID() != "turn:u1" || !strings.Contains(fr, "fix the flaky test · 1 steer") {
 		t.Fatalf("tree: %s\n%s", where(app), fr)
 	}
 	useTurnStyle(t, app, turnsStyleCards)
-	if fr := frame(app); app.r.Focus != turnCardID("w1", "u1") || !strings.Contains(fr, "╭") || app.pv.turns.List().Len() != 0 {
+	if fr := frame(app); app.r.FocusID() != turnCardID("w1", "u1") || !strings.Contains(fr, "╭") || app.pv.turns.List().Len() != 0 {
 		t.Fatalf("cards: %s tree rows %d\n%s", where(app), app.pv.turns.List().Len(), fr)
 	}
 	if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": "compact", "scope": "file"}}); err == nil {

@@ -18,8 +18,8 @@ func liveApp(t *testing.T) (*App, *fakePanes) {
 	plainView(app)
 	settle(app, key(t, app, "enter"))
 	plainView(app)
-	if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
-		t.Fatalf("enter: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	if app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("enter: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	return app, f
 }
@@ -27,8 +27,8 @@ func liveApp(t *testing.T) (*App, *fakePanes) {
 // live fails unless the attached terminal has the focus in terminal mode.
 func live(t *testing.T, app *App, after string) {
 	t.Helper()
-	if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" || app.r.TopModal() != "" || app.r.Page != panesPage {
-		t.Fatalf("%s: focus %s mode %s modal %q page %s", after, app.r.Focus, app.r.Mode.Name, app.r.TopModal(), app.r.Page)
+	if app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" || app.r.TopModal() != "" || app.r.Page != panesPage {
+		t.Fatalf("%s: focus %s mode %s modal %q page %s", after, app.r.FocusID(), app.r.CurrentMode().Name, app.r.TopModal(), app.r.Page)
 	}
 }
 
@@ -80,8 +80,8 @@ func TestLeaderCaptureKeysReturnToTheLivePane(t *testing.T) {
 		settle(app, key(t, app, "ctrl+a"))
 		settle(app, key(t, app, c.key))
 		plainView(app)
-		if app.r.TopModal() != c.opened && app.r.Focus != c.opened {
-			t.Fatalf("ctrl+a %s: modal %q focus %s", c.key, app.r.TopModal(), app.r.Focus)
+		if app.r.TopModal() != c.opened && app.r.FocusID() != c.opened {
+			t.Fatalf("ctrl+a %s: modal %q focus %s", c.key, app.r.TopModal(), app.r.FocusID())
 		}
 		if c.key == "n" {
 			app.Update(keyMsg("x")) // a title, written as typed

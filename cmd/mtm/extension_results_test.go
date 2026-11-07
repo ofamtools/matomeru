@@ -51,7 +51,7 @@ func TestExtensionResultPresentation(t *testing.T) {
 				settleJobs(t, a, cmd)
 			}
 			if change == "none" || change == "palette" {
-				in := a.r.Input(a.r.Focus)
+				in := a.r.Input(a.r.FocusID())
 				if a.r.TopModal() != ochazuke.TextViewID || in == nil || string(in.Text) != "Decision\nUse staged rollout." {
 					t.Fatalf("viewer missing: %s", frame(a))
 				}
@@ -59,8 +59,8 @@ func TestExtensionResultPresentation(t *testing.T) {
 					t.Fatal("text flattened under viewer")
 				}
 				pressJob(t, a, "esc")
-				if a.r.Focus != "ext/fake/item/i1" {
-					t.Fatal(a.r.Focus)
+				if a.r.FocusID() != "ext/fake/item/i1" {
+					t.Fatal(a.r.FocusID())
 				}
 			} else if a.r.TopModal() != "" {
 				t.Fatal("late result covered new interaction")

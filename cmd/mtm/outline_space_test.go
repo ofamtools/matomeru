@@ -40,8 +40,8 @@ func TestAllViewProjectRowsHaveSpaceAbove(t *testing.T) {
 	}
 	focusRow(t, a, outlineNode("t2"))
 	press(t, a, "j")
-	if a.r.Focus != projectNode("") {
-		t.Fatalf("j from the last task landed on %q, want the next project row", a.r.Focus)
+	if a.r.FocusID() != projectNode("") {
+		t.Fatalf("j from the last task landed on %q, want the next project row", a.r.FocusID())
 	}
 	press(t, a, "o")
 	typeText(t, a, "newproj")
@@ -72,8 +72,8 @@ func TestOutlineDeletePassesSubtasksUp(t *testing.T) {
 	if got.ParentID != "" || got.ProjectID != "matomeru" {
 		t.Fatalf("t2 after deleting its parent: %+v, want it moved up under the project", got)
 	}
-	if a.r.Focus != outlineNode("t2") {
-		t.Fatalf("cursor on %q, want the promoted t2", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t2") {
+		t.Fatalf("cursor on %q, want the promoted t2", a.r.FocusID())
 	}
 	press(t, a, "u")
 	if got := stored(t, a, "t2"); got.ParentID != "t1" {

@@ -32,8 +32,8 @@ func assertLanded(t *testing.T, a *App, f *fakePanes, row, window string) {
 		t.Fatalf("pane.attach history = %+v", attach)
 	}
 	term := a.r.Terminal(paneTermID)
-	if term == nil || a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("terminal %v focus %s mode %s", term, a.r.Focus, a.r.Mode.Name)
+	if term == nil || a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("terminal %v focus %s mode %s", term, a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	if s := f.streams[len(f.streams)-1]; s.pane.ID != window || s.released {
 		t.Fatalf("stream = %+v, want window %s", s.pane, window)
@@ -42,8 +42,8 @@ func assertLanded(t *testing.T, a *App, f *fakePanes, row, window string) {
 		t.Fatalf("frame lacks the live pane:\n%s", fr)
 	}
 	press(t, a, "ctrl+a", "d")
-	if a.r.Focus != row {
-		t.Fatalf("after detach, focus = %s, want %s", a.r.Focus, row)
+	if a.r.FocusID() != row {
+		t.Fatalf("after detach, focus = %s, want %s", a.r.FocusID(), row)
 	}
 }
 

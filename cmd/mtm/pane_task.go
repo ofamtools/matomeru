@@ -133,7 +133,7 @@ func (a *App) afterSubmit(ctx ochazuke.Ctx, p pane) {
 	// The box takes prompt.after-submit-mode first, while it still has the
 	// focus (mode.switch's path: the focused input's own transition), so a
 	// picker opened next hands the focus back to it in that mode.
-	if a.r.Focus == promptID {
+	if a.r.FocusID() == promptID {
 		if err := a.r.SetMode(a.r.Settings().String(settingAfterSubmitMode)); err != nil {
 			ctx.Error("prompt mode: " + err.Error())
 		}

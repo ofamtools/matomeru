@@ -11,8 +11,8 @@ import (
 // attached.
 func selectedNotLive(t *testing.T, app *App, step, focus string) {
 	t.Helper()
-	if app.r.Focus != focus || app.r.Mode.Name != "normal" || app.attached.ID != "" || app.r.Instances[paneTermID] != nil {
-		t.Fatalf("%s: focus %s mode %s attached %q terminal %v", step, app.r.Focus, app.r.Mode.Name, app.attached.ID, app.r.Instances[paneTermID] != nil)
+	if app.r.FocusID() != focus || app.r.CurrentMode().Name != "normal" || app.attached.ID != "" || app.r.Instances[paneTermID] != nil {
+		t.Fatalf("%s: focus %s mode %s attached %q terminal %v", step, app.r.FocusID(), app.r.CurrentMode().Name, app.attached.ID, app.r.Instances[paneTermID] != nil)
 	}
 }
 
@@ -50,15 +50,15 @@ func TestLeaderCyclesPanesOutsideLive(t *testing.T) {
 
 	// From the session row between the panes.
 	press(t, app, "k")
-	if !strings.HasPrefix(app.r.Focus, "session") && app.r.Instances[app.r.Focus].Noun != "session" {
-		t.Fatalf("k from w2: focus %s", app.r.Focus)
+	if !strings.HasPrefix(app.r.FocusID(), "session") && app.r.Instances[app.r.FocusID()].Noun != "session" {
+		t.Fatalf("k from w2: focus %s", app.r.FocusID())
 	}
-	session := app.r.Focus
+	session := app.r.FocusID()
 	press(t, app, "ctrl+a", "j")
 	selectedNotLive(t, app, "ctrl+a j from a session", "pane:ochazuke/w2")
 	press(t, app, "k")
-	if app.r.Focus != session {
-		t.Fatalf("k back: focus %s", app.r.Focus)
+	if app.r.FocusID() != session {
+		t.Fatalf("k back: focus %s", app.r.FocusID())
 	}
 	press(t, app, "ctrl+a", "k")
 	selectedNotLive(t, app, "ctrl+a k from a session", "pane:matomeru/w1")
@@ -102,8 +102,8 @@ func TestLeaderSelectsStarredOutsideLive(t *testing.T) {
 	// Live, it still attaches.
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "s")
-	if app.attached.ID != "w2" || app.r.Focus != paneTermID {
-		t.Fatalf("live ctrl+a s: attached %s focus %s", app.attached.ID, app.r.Focus)
+	if app.attached.ID != "w2" || app.r.FocusID() != paneTermID {
+		t.Fatalf("live ctrl+a s: attached %s focus %s", app.attached.ID, app.r.FocusID())
 	}
 }
 
@@ -113,7 +113,7 @@ func TestLeaderSelectsStarredOutsideLive(t *testing.T) {
 func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 	t.Parallel()
 	app, _ := panesApp(t)
-	if hints := ochazuke.BindingHints(app.r, app.r.Focus); !strings.Contains(hints, "next pane") {
+	if hints := ochazuke.BindingHints(app.r, app.r.FocusID()); !strings.Contains(hints, "next pane") {
 		t.Errorf("hints %q", hints)
 	}
 	if err := app.r.Settings().Set(ochazuke.TerminalLeaderSetting, "ctrl+b"); err != nil {

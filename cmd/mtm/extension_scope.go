@@ -101,7 +101,7 @@ func (a *App) contextProject() string {
 // focusStack is where the focus is and where it came from: the focus, then
 // each open modal's return focus, innermost modal first.
 func (a *App) focusStack() []string {
-	out := []string{a.r.Focus}
+	out := []string{a.r.FocusID()}
 	modals := a.r.Modals()
 	for i := len(modals) - 1; i >= 0; i-- {
 		if modals[i] != nil && modals[i].Payload.Return != "" {

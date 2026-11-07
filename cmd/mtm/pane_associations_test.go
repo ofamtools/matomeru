@@ -27,7 +27,7 @@ func TestLiveRenameAssociation(t *testing.T) {
 				a, f = panesApp(t)
 				press(t, a, "enter")
 			}
-			live := a.r.Focus
+			live := a.r.FocusID()
 			fr := &fakeRenamer{panes: f}
 			a.renamer = fr
 			// A different selected row must never steal the live subject.
@@ -35,7 +35,7 @@ func TestLiveRenameAssociation(t *testing.T) {
 				t.Fatal(err)
 			}
 			press(t, a, "ctrl+a", "r")
-			if a.r.Focus != editFormID+"/name" || !strings.Contains(frame(a), "Edit pane name: matomeru/claude") {
+			if a.r.FocusID() != editFormID+"/name" || !strings.Contains(frame(a), "Edit pane name: matomeru/claude") {
 				t.Fatalf("rename did not name live parent: %s", frame(a))
 			}
 			typeText(t, a, "reviewer")
@@ -43,8 +43,8 @@ func TestLiveRenameAssociation(t *testing.T) {
 			if !slices.Equal(fr.calls, []string{"window matomeru/w1 reviewer"}) {
 				t.Fatalf("renamed %v", fr.calls)
 			}
-			if a.r.Focus != live || a.r.Mode.Name != "terminal" || a.attached.ID != "w1" {
-				t.Fatalf("lost live: %s %s %+v", a.r.Focus, a.r.Mode.Name, a.attached)
+			if a.r.FocusID() != live || a.r.CurrentMode().Name != "terminal" || a.attached.ID != "w1" {
+				t.Fatalf("lost live: %s %s %+v", a.r.FocusID(), a.r.CurrentMode().Name, a.attached)
 			}
 		})
 	}
@@ -72,8 +72,8 @@ func TestLiveRenameOptOutAndNestedLeader(t *testing.T) {
 			} else {
 				press(t, a, "ctrl+a", "r")
 			}
-			if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-				t.Fatalf("lost live: %s %s", a.r.Focus, a.r.Mode.Name)
+			if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+				t.Fatalf("lost live: %s %s", a.r.FocusID(), a.r.CurrentMode().Name)
 			}
 			if !slices.Equal(slices.Concat(f.streams[0].sent...), []string{"ctrl+a", "r"}) {
 				t.Fatalf("forwarded %v", f.streams[0].sent)
@@ -86,9 +86,9 @@ func TestLiveRenameOptOutAndNestedLeader(t *testing.T) {
 func TestLeaderInventory(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
-	outside := a.r.ListBindings(a.r.Focus)
+	outside := a.r.ListBindings(a.r.FocusID())
 	press(t, a, "enter", "ctrl+a")
-	leader := a.r.ListBindings(a.r.Focus)
+	leader := a.r.ListBindings(a.r.FocusID())
 	explicit := map[string]ochazuke.Binding{}
 	for _, b := range leader {
 		if b.Mode == "leader_pending" && b.Keys != "" {
@@ -163,7 +163,7 @@ func TestLiveFocusBoundOutsideKeysStayLive(t *testing.T) {
 			press(t, a, "enter")
 			stream := a.r.Terminal(paneTermID)
 			press(t, a, "ctrl+a", k)
-			if a.r.Terminal(paneTermID) != stream || a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
+			if a.r.Terminal(paneTermID) != stream || a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
 				t.Fatalf("%s changed the live terminal", k)
 			}
 			if !slices.Equal(slices.Concat(f.streams[0].sent...), []string{"ctrl+a", k}) {

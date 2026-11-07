@@ -19,8 +19,8 @@ func openPicker(t *testing.T, a *App) *ochazuke.Chooser {
 	t.Helper()
 	press(t, a, "P")
 	c := a.r.Chooser(pinPicker)
-	if c == nil || a.r.TopModal() != pinPicker || a.r.Focus != pinPicker+"/query" || a.r.Mode.Name != "insert" {
-		t.Fatalf("picker modal %q focus %q mode %q", a.r.TopModal(), a.r.Focus, a.r.Mode.Name)
+	if c == nil || a.r.TopModal() != pinPicker || a.r.FocusID() != pinPicker+"/query" || a.r.CurrentMode().Name != "insert" {
+		t.Fatalf("picker modal %q focus %q mode %q", a.r.TopModal(), a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	return c
 }
@@ -30,8 +30,8 @@ func openPicker(t *testing.T, a *App) *ochazuke.Chooser {
 func leaveDirectoryChooser(t *testing.T, a *App) {
 	t.Helper()
 	pin := a.pin
-	if a.r.TopModal() != dirChooser || a.r.Focus != dirChooser+"/query" || a.r.Mode.Name != "insert" {
-		t.Fatalf("expected the directory chooser, modal %q focus %q", a.r.TopModal(), a.r.Focus)
+	if a.r.TopModal() != dirChooser || a.r.FocusID() != dirChooser+"/query" || a.r.CurrentMode().Name != "insert" {
+		t.Fatalf("expected the directory chooser, modal %q focus %q", a.r.TopModal(), a.r.FocusID())
 	}
 	press(t, a, "esc")
 	if a.r.TopModal() != "" || a.pin != pin {

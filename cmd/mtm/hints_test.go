@@ -15,7 +15,7 @@ import (
 // with a Hint (the leader's "ctrl+a leader: …", "] next tab").
 func hintKeys(a *App) []string {
 	var out []string
-	for _, h := range strings.Split(ochazuke.BindingHints(a.r, a.r.Focus), " · ") {
+	for _, h := range strings.Split(ochazuke.BindingHints(a.r, a.r.FocusID()), " · ") {
 		if strings.HasPrefix(h, "ctrl+a leader:") {
 			h = "ctrl+a leader"
 		}
@@ -36,7 +36,7 @@ func footerLabels(t *testing.T, a *App) {
 	for _, h := range hintKeys(a) {
 		k, label, _ := strings.Cut(h, " ")
 		if other, ok := seen[label]; ok {
-			t.Errorf("focus %s: %q and %q both read %q", a.r.Focus, other, k, label)
+			t.Errorf("focus %s: %q and %q both read %q", a.r.FocusID(), other, k, label)
 		}
 		seen[label] = k
 	}
@@ -70,8 +70,8 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 	app := open(t)
 	mono(t, app)
 	press(t, app, "j", "enter")
-	if app.r.Focus != "t1" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	press(t, app, "?")
 	if top := app.r.TopModal(); top != "bindings-help" {
@@ -102,8 +102,8 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 		t.Fatalf("help modal's selected first row = %q\n%s", first, strings.Join(lines, "\n"))
 	}
 	press(t, app, "esc")
-	if app.r.TopModal() != "" || app.r.Focus != "t1" {
-		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.Focus)
+	if app.r.TopModal() != "" || app.r.FocusID() != "t1" {
+		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.FocusID())
 	}
 }
 
@@ -179,8 +179,8 @@ func TestLeaderHintsNameEachKey(t *testing.T) {
 	t.Parallel()
 	app, _ := panesApp(t)
 	press(t, app, "enter", "ctrl+a")
-	if app.r.Mode.Name != "leader_pending" {
-		t.Fatalf("mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "leader_pending" {
+		t.Fatalf("mode %s", app.r.CurrentMode().Name)
 	}
 	footerLabels(t, app)
 }
@@ -196,7 +196,7 @@ func TestTabLineEnterLiveOnlyOnAPaneRow(t *testing.T) {
 	settle(app, key(t, app, "["))
 	press(t, app, "}")
 	if fr := frame(app); strings.Contains(fr, "enter live") {
-		t.Fatalf("turns tree (focus %s):\n%s", app.r.Focus, fr)
+		t.Fatalf("turns tree (focus %s):\n%s", app.r.FocusID(), fr)
 	}
 }
 
@@ -211,9 +211,9 @@ func TestLiveLeaderWaitsPastTheBindingTimeout(t *testing.T) {
 		t.Fatalf("sequence-timeout %+v %v", v, err)
 	}
 	press(t, app, "enter")
-	live := app.r.Focus
-	if app.r.Mode.Name != "terminal" {
-		t.Fatalf("enter: focus %s mode %s", live, app.r.Mode.Name)
+	live := app.r.FocusID()
+	if app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("enter: focus %s mode %s", live, app.r.CurrentMode().Name)
 	}
 	cmd := key(t, app, "ctrl+a")
 	if app.r.BindingTimeoutCommand() != nil {
@@ -221,12 +221,12 @@ func TestLiveLeaderWaitsPastTheBindingTimeout(t *testing.T) {
 	}
 	time.Sleep(50 * time.Millisecond)
 	settle(app, cmd)
-	if app.r.Mode.Name != "leader_pending" || app.r.Focus != live {
-		t.Fatalf("after the binding timeout: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	if app.r.CurrentMode().Name != "leader_pending" || app.r.FocusID() != live {
+		t.Fatalf("after the binding timeout: mode %s focus %s", app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	press(t, app, "d")
-	if app.r.Mode.Name == "leader_pending" || app.r.Mode.Name == "terminal" || app.r.Focus == live {
-		t.Fatalf("ctrl+a d: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	if app.r.CurrentMode().Name == "leader_pending" || app.r.CurrentMode().Name == "terminal" || app.r.FocusID() == live {
+		t.Fatalf("ctrl+a d: mode %s focus %s", app.r.CurrentMode().Name, app.r.FocusID())
 	}
 }
 
@@ -238,14 +238,14 @@ func TestLiveLeaderUnknownKeyFollowsSequenceUnknown(t *testing.T) {
 	app, f := panesApp(t)
 	app.r.EnsureConfigSettings()
 	press(t, app, "enter")
-	live := app.r.Focus
+	live := app.r.FocusID()
 	before := len(f.streams[0].sent)
 	if err := app.r.Settings().Set(ochazuke.SequenceUnknownSetting, ochazuke.SequenceSwallow); err != nil {
 		t.Fatal(err)
 	}
 	press(t, app, "ctrl+a", "ctrl+o")
-	if got := f.streams[0].sent[before:]; len(got) != 0 || app.r.Mode.Name != "terminal" || app.r.Focus != live {
-		t.Fatalf("swallow: sent %v mode %s focus %s", got, app.r.Mode.Name, app.r.Focus)
+	if got := f.streams[0].sent[before:]; len(got) != 0 || app.r.CurrentMode().Name != "terminal" || app.r.FocusID() != live {
+		t.Fatalf("swallow: sent %v mode %s focus %s", got, app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	if err := app.r.Settings().Set(ochazuke.SequenceUnknownSetting, ochazuke.SequencePass); err != nil {
 		t.Fatal(err)

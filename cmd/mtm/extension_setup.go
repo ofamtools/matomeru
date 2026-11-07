@@ -314,7 +314,7 @@ func (a *App) setupConfirm(undo bool) func(*ochazuke.Runtime, ochazuke.Context, 
 		if name == "" {
 			if row, ok := extRow(r.Instances[q.Target]); ok {
 				name = row.Name
-			} else if row, ok := extRow(r.Instances[r.Focus]); ok {
+			} else if row, ok := extRow(r.Instances[r.FocusID()]); ok {
 				name = row.Name
 			}
 		}

@@ -26,7 +26,7 @@ func TestPanesScreenDetailScrollsWithJK(t *testing.T) {
 	groupBy(t, app, groupProjectSessionPane)
 	f.screens["w1"] = numbered("row", 100)
 	settle(app, follow(app))
-	focus := app.r.Focus
+	focus := app.r.FocusID()
 	d := app.detail.panes.d
 	fr := frame(app)
 	if !strings.Contains(fr, "row 100") || strings.Contains(fr, "row 001") || !strings.Contains(fr, "/ 100") {
@@ -35,8 +35,8 @@ func TestPanesScreenDetailScrollsWithJK(t *testing.T) {
 	end := d.Offset()
 	press(t, app, "K")
 	frame(app)
-	if d.Offset() != end-1 || app.r.Focus != focus {
-		t.Fatalf("K: offset %d want %d, focus %s", d.Offset(), end-1, app.r.Focus)
+	if d.Offset() != end-1 || app.r.FocusID() != focus {
+		t.Fatalf("K: offset %d want %d, focus %s", d.Offset(), end-1, app.r.FocusID())
 	}
 	press(t, app, "2", "0", "K")
 	if fr = frame(app); d.Offset() != end-21 || strings.Contains(fr, "row 100") {
@@ -48,8 +48,8 @@ func TestPanesScreenDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("refresh moved the detail: offset %d want %d", d.Offset(), end-21)
 	}
 	press(t, app, "J")
-	if frame(app); d.Offset() != end-20 || app.r.Focus != focus {
-		t.Fatalf("J: offset %d want %d, focus %s", d.Offset(), end-20, app.r.Focus)
+	if frame(app); d.Offset() != end-20 || app.r.FocusID() != focus {
+		t.Fatalf("J: offset %d want %d, focus %s", d.Offset(), end-20, app.r.FocusID())
 	}
 	press(t, app, "j", "j")
 	f.screens["w2"] = numbered("shell", 60)
@@ -96,8 +96,8 @@ func TestWorkDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("the detail fits:\n%s", frame(app))
 	}
 	press(t, app, "5", "J")
-	if frame(app); d.Offset() != 5 || app.r.Focus != "matomeru" {
-		t.Fatalf("5J: offset %d focus %s", d.Offset(), app.r.Focus)
+	if frame(app); d.Offset() != 5 || app.r.FocusID() != "matomeru" {
+		t.Fatalf("5J: offset %d focus %s", d.Offset(), app.r.FocusID())
 	}
 	press(t, app, "K")
 	if frame(app); d.Offset() != 4 {
@@ -123,16 +123,16 @@ func TestNotesDetailScrollsFromTheList(t *testing.T) {
 	if err := a.noteList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	focus := a.r.Focus
+	focus := a.r.FocusID()
 	frame(a)
 	press(t, a, "1", "0", "J")
 	fr := frame(a)
-	if a.r.Focus != focus || strings.Contains(fr, "line 010") || !strings.Contains(fr, "line 011") || !strings.Contains(fr, "11–") {
-		t.Fatalf("10J from the list: focus %s\n%s", a.r.Focus, fr)
+	if a.r.FocusID() != focus || strings.Contains(fr, "line 010") || !strings.Contains(fr, "line 011") || !strings.Contains(fr, "11–") {
+		t.Fatalf("10J from the list: focus %s\n%s", a.r.FocusID(), fr)
 	}
 	press(t, a, "enter")
 	if fr = frame(a); !a.noteDocFocused() || !strings.Contains(fr, "line 001") {
-		t.Fatalf("enter did not open the Doc on its first line: focus %s\n%s", a.r.Focus, fr)
+		t.Fatalf("enter did not open the Doc on its first line: focus %s\n%s", a.r.FocusID(), fr)
 	}
 }
 
@@ -143,7 +143,7 @@ func TestJKAnswerOnlyWhileTheDetailOverflows(t *testing.T) {
 	app, f := panesApp(t)
 	settle(app, follow(app))
 	frame(app)
-	hinted := func() bool { return strings.Contains(ochazuke.BindingHints(app.r, app.r.Focus), "J/K detail") }
+	hinted := func() bool { return strings.Contains(ochazuke.BindingHints(app.r, app.r.FocusID()), "J/K detail") }
 	if app.detail.panes.d.Overflows() || hinted() {
 		t.Fatalf("a short screen overflows or hints J/K")
 	}
@@ -151,7 +151,7 @@ func TestJKAnswerOnlyWhileTheDetailOverflows(t *testing.T) {
 	settle(app, follow(app))
 	frame(app)
 	if !hinted() {
-		t.Fatalf("no J/K detail hint for a long screen: %q", ochazuke.BindingHints(app.r, app.r.Focus))
+		t.Fatalf("no J/K detail hint for a long screen: %q", ochazuke.BindingHints(app.r, app.r.FocusID()))
 	}
 }
 
@@ -162,14 +162,14 @@ func TestReviewOutputScrollsWithJK(t *testing.T) {
 	app, f, rv := reviewApp(t)
 	f.screens[rv.Window] = numbered("out", 100)
 	settle(app, key(t, app, "enter"))
-	focus := app.r.Focus
+	focus := app.r.FocusID()
 	d := app.detail.reviews.d
 	if fr := frame(app); !d.Overflows() || !strings.Contains(fr, "out 100") {
 		t.Fatalf("opened (focus %s):\n%s", focus, fr)
 	}
 	end := d.Offset()
 	press(t, app, "K")
-	if fr := frame(app); d.Offset() != end-1 || app.r.Focus != focus || strings.Contains(fr, "out 100") {
-		t.Fatalf("K: offset %d want %d focus %s\n%s", d.Offset(), end-1, app.r.Focus, fr)
+	if fr := frame(app); d.Offset() != end-1 || app.r.FocusID() != focus || strings.Contains(fr, "out 100") {
+		t.Fatalf("K: offset %d want %d focus %s\n%s", d.Offset(), end-1, app.r.FocusID(), fr)
 	}
 }

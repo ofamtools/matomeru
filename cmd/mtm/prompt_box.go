@@ -375,7 +375,7 @@ func (a *App) promptBoxFor(p pane) (box harness.PromptBox, terminal bool) {
 // write after its draft. Activity and Transcript return to Turns for an
 // agent, Screen for a shell.
 func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
-	focus := a.r.Focus
+	focus := a.r.FocusID()
 	if ctx.Instance != nil {
 		focus = ctx.Instance.ID
 	}
@@ -413,7 +413,7 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 func (a *App) beginPrompt(p pane) error {
 	a.syncPromptDraft()
 	a.promptTargetFor(p)
-	from := a.r.Focus
+	from := a.r.FocusID()
 	if err := a.r.SetFocus(promptID); err != nil {
 		return err
 	}
@@ -434,7 +434,7 @@ var errNoPromptBox = errors.New("no prompt box here: it writes to a live pane, b
 func (a *App) promptBack(ochazuke.Ctx) ochazuke.Result {
 	if a.pv.tab == tabTurns && a.turnsList().Len() > 0 {
 		if err := a.focusTurnsView(); err == nil {
-			return ochazuke.Done(a.r.Focus)
+			return ochazuke.Done(a.r.FocusID())
 		}
 	}
 	target := paneListID
@@ -504,7 +504,7 @@ func promptMention(kind, text string) string {
 // insertIntoPrompt writes text at the box's cursor and leaves the box
 // focused in insert mode, the cursor after the text.
 func (a *App) insertIntoPrompt(text string) error {
-	if a.r.Focus != promptID {
+	if a.r.FocusID() != promptID {
 		if err := a.r.SetFocus(promptID); err != nil {
 			return err
 		}
@@ -844,7 +844,7 @@ func (a *App) promptAfter(before promptState) {
 		return
 	}
 	in := a.pb.input
-	a.pb.focused = a.r.Focus == promptID
+	a.pb.focused = a.r.FocusID() == promptID
 	if a.pb.focused && !before.focused {
 		if p := a.promptPane(); p != nil {
 			a.promptTargetFor(*p)
@@ -884,7 +884,7 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	// (bold in mono) while it does, muted (dim in mono) while it does not.
 	// Only the style changes, never the text, so nothing moves.
 	style := s.Muted
-	if a.r.Focus == promptID {
+	if a.shownFocused(promptID) {
 		style = a.promptModeStyle(s)
 	}
 	box := a.promptBoxOf(p)
@@ -907,9 +907,9 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	rows := min(promptRows, max(1, strings.Count(string(in.Text), "\n")+1))
 	fieldW := max(1, width-2)
 	var field ochazuke.Block
-	if a.r.Focus == promptID {
+	if view := a.r.PresentationAt(promptID); view.Focus == promptID {
 		field = ochazuke.InputBlock(in, fieldW, rows).Offset(2, 1)
-		if len(in.Text) == 0 && a.r.BaseMode() == "normal" {
+		if len(in.Text) == 0 && a.modeTraits(a.shownBaseMode(view)).CursorOnChar {
 			// The empty box in normal mode says how to write and leave,
 			// from its rows, under the cursor.
 			var cue []string

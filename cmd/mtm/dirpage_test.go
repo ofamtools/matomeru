@@ -47,8 +47,8 @@ func TestDirectoriesPageLoadsAndEditsProjectDirectories(t *testing.T) {
 	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{"directory:" + alpha, "directory:" + beta, "directory:browse"}) {
 		t.Fatalf("known rows %v", got)
 	}
-	if a.projectDirList.Len() != 0 || a.r.Focus != "directory:"+alpha {
-		t.Fatalf("focus %s, project rows %v", a.r.Focus, itemIDs(a.projectDirList))
+	if a.projectDirList.Len() != 0 || a.r.FocusID() != "directory:"+alpha {
+		t.Fatalf("focus %s, project rows %v", a.r.FocusID(), itemIDs(a.projectDirList))
 	}
 	press(t, a, "enter", "j", "enter")
 	if a.r.Page != directoriesPage {
@@ -103,18 +103,18 @@ func TestDirectoriesSearchIsReachable(t *testing.T) {
 	root := knownRepos(t, a, "alpha", "beta")
 	openDirectories(t, a)
 	press(t, a, "/")
-	if a.r.Focus != directoryQueryID || a.r.Mode.Name != "insert" {
-		t.Fatalf("search focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != directoryQueryID || a.r.CurrentMode().Name != "insert" {
+		t.Fatalf("search focus %s mode %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	typeText(t, a, "bet")
 	press(t, a, "enter")
 	beta := "directory:" + directoryKey(filepath.Join(root, "beta"))
-	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{beta, "directory:browse"}) || a.r.Focus != beta || a.r.Mode.Name != "normal" {
-		t.Fatalf("filtered %v focus %s mode %s", got, a.r.Focus, a.r.Mode.Name)
+	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{beta, "directory:browse"}) || a.r.FocusID() != beta || a.r.CurrentMode().Name != "normal" {
+		t.Fatalf("filtered %v focus %s mode %s", got, a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	for range 4 {
 		press(t, a, "}")
-		if a.r.Focus == directoryQueryID {
+		if a.r.FocusID() == directoryQueryID {
 			t.Fatal("} landed in the search")
 		}
 	}
@@ -268,7 +268,7 @@ func TestDirectoriesOpensOnTheFirstListDrawn(t *testing.T) {
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	executeA(t, a, "project", "directory", "matomeru", ochazuke.Arguments{"path": alpha})
 	openDirectories(t, a)
-	if a.r.Focus != "project-dir:"+alpha {
-		t.Fatalf("focus %s, project rows %v", a.r.Focus, itemIDs(a.projectDirList))
+	if a.r.FocusID() != "project-dir:"+alpha {
+		t.Fatalf("focus %s, project rows %v", a.r.FocusID(), itemIDs(a.projectDirList))
 	}
 }

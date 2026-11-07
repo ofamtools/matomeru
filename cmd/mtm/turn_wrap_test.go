@@ -183,8 +183,8 @@ func TestALongAnswerWrapsAndRewrapsAtTheDetailWidth(t *testing.T) {
 	// The selection is the piece holding where the selected one started.
 	sel, ok := app.pv.turns.Selected()
 	now, _ := sel.Data.(turnRef)
-	if !ok || app.r.Focus != sel.ID || now.Line != was.Line || now.Offset > was.Offset {
-		t.Fatalf("selection after re-wrap: %+v (was %+v) focus %s", sel, was, app.r.Focus)
+	if !ok || app.r.FocusID() != sel.ID || now.Line != was.Line || now.Offset > was.Offset {
+		t.Fatalf("selection after re-wrap: %+v (was %+v) focus %s", sel, was, app.r.FocusID())
 	}
 	for _, it := range app.pv.turns.List().Items() {
 		if ref, _ := it.Data.(turnRef); it.Noun == "turn-line" && ref.Line == was.Line && ref.Offset > now.Offset && ref.Offset <= was.Offset {

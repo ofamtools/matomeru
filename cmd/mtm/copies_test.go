@@ -169,7 +169,7 @@ func TestEndedRowOffersNoLiveVerb(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, verb := range []string{"attach", "kill", "prompt", "copy", "hints", "preview"} {
-		if a.r.Available(ochazuke.Request{Noun: "pane", Verb: verb}, row, a.r.Mode) {
+		if a.r.Available(ochazuke.Request{Noun: "pane", Verb: verb}, row, a.r.CurrentMode()) {
 			t.Errorf("pane.%s is available on an ended row", verb)
 		}
 	}
@@ -190,7 +190,7 @@ func TestEndedRowOffersNoLiveVerb(t *testing.T) {
 	}
 	// A live row still attaches.
 	live := "pane:matomeru/w1"
-	if !a.r.Available(ochazuke.Request{Noun: "pane", Verb: "attach"}, live, a.r.Mode) {
+	if !a.r.Available(ochazuke.Request{Noun: "pane", Verb: "attach"}, live, a.r.CurrentMode()) {
 		t.Fatal("pane.attach is unavailable on a live row")
 	}
 }

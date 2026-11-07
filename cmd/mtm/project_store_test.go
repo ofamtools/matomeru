@@ -157,8 +157,8 @@ func TestProjectKeysEditRenameDelete(t *testing.T) {
 		}
 	}
 	press(t, a, "esc", "q")
-	if sel, ok := a.projectList.Selected(); a.editor != nil || !ok || sel.ID != "matomeru" || a.r.Focus != "matomeru" {
-		t.Fatalf("q: editor %v, focus %q", a.editor != nil, a.r.Focus)
+	if sel, ok := a.projectList.Selected(); a.editor != nil || !ok || sel.ID != "matomeru" || a.r.FocusID() != "matomeru" {
+		t.Fatalf("q: editor %v, focus %q", a.editor != nil, a.r.FocusID())
 	}
 	press(t, a, ":")
 	typeText(t, a, "edit --field @label")

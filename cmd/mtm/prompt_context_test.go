@@ -60,8 +60,8 @@ func TestPromptBoxAltOInsertsAFileAtTheCursor(t *testing.T) {
 	if got := string(app.pb.input.Text); got != want {
 		t.Fatalf("text %q, want %q", got, want)
 	}
-	if app.r.Focus != promptID || app.r.BaseMode() != "insert" || app.pb.input.Cursor != len([]rune("read @"+file)) {
-		t.Fatalf("focus %s mode %s cursor %d", app.r.Focus, app.r.BaseMode(), app.pb.input.Cursor)
+	if app.r.FocusID() != promptID || app.r.BaseMode() != "insert" || app.pb.input.Cursor != len([]rune("read @"+file)) {
+		t.Fatalf("focus %s mode %s cursor %d", app.r.FocusID(), app.r.BaseMode(), app.pb.input.Cursor)
 	}
 	// From normal mode too: it writes at the cursor and leaves insert on.
 	press(t, app, "esc")
@@ -71,8 +71,8 @@ func TestPromptBoxAltOInsertsAFileAtTheCursor(t *testing.T) {
 	openBoxPicker(t, app)
 	typeText(t, app, "1ba0")
 	settle(app, key(t, app, "enter"))
-	if got := string(app.pb.input.Text); !strings.Contains(got, "1ba025f") || app.r.BaseMode() != "insert" || app.r.Focus != promptID {
-		t.Fatalf("normal mode: %q focus %s mode %s", got, app.r.Focus, app.r.BaseMode())
+	if got := string(app.pb.input.Text); !strings.Contains(got, "1ba025f") || app.r.BaseMode() != "insert" || app.r.FocusID() != promptID {
+		t.Fatalf("normal mode: %q focus %s mode %s", got, app.r.FocusID(), app.r.BaseMode())
 	}
 }
 
@@ -97,8 +97,8 @@ func TestPromptBoxAltOEscLeavesTheText(t *testing.T) {
 	openBoxPicker(t, app)
 	typeText(t, app, "notes")
 	press(t, app, "esc")
-	if app.r.TopModal() == contextPicker || app.r.Focus != promptID {
-		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.Focus)
+	if app.r.TopModal() == contextPicker || app.r.FocusID() != promptID {
+		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.FocusID())
 	}
 	if got := string(app.pb.input.Text); got != "keep me" {
 		t.Fatalf("text %q", got)

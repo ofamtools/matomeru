@@ -26,8 +26,8 @@ func TestStarAPaneRow(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
 	settle(app, follow(app))
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	press(t, app, "*")
 	if _, ok := starred(t, app)["w1"]; !ok || !strings.Contains(cells(app, "pane:matomeru/w1"), "★   claude") {
@@ -78,8 +78,8 @@ func TestBacktickSelectsTheNextStarredPane(t *testing.T) {
 	app, _ := panesApp(t)
 	settle(app, follow(app))
 	app.Update(keyMsg("`"))
-	if app.r.Focus != "pane:matomeru/w1" || !strings.Contains(app.m.Info, "no starred panes") {
-		t.Fatalf("none starred: focus %s status %q", app.r.Focus, app.m.Info)
+	if app.r.FocusID() != "pane:matomeru/w1" || !strings.Contains(app.m.Info, "no starred panes") {
+		t.Fatalf("none starred: focus %s status %q", app.r.FocusID(), app.m.Info)
 	}
 	for _, row := range []string{"pane:matomeru/w1", "pane:ochazuke/w2"} {
 		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row}); err != nil {
@@ -87,11 +87,11 @@ func TestBacktickSelectsTheNextStarredPane(t *testing.T) {
 		}
 	}
 	press(t, app, "`")
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("`: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("`: focus %s", app.r.FocusID())
 	}
 	press(t, app, "`")
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("` wraps: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("` wraps: focus %s", app.r.FocusID())
 	}
 }

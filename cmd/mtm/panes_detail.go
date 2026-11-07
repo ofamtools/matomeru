@@ -873,7 +873,7 @@ func (a *App) panesHead(width int) string {
 		parts = append(parts, headPart{{fmt.Sprintf("%d working", v.working), 0}, {fmt.Sprintf("%d work", v.working), 3}, {"", 2}})
 	}
 	if v.waiting > 0 {
-		if k := a.keyFor(a.r.Focus, "panes.waiting"); k != "" {
+		if k := a.keyFor(a.shownFocus(panesPage), "panes.waiting"); k != "" {
 			parts = append(parts, headPart{{k + " next", 0}, {"", 5}})
 		}
 	}
@@ -1009,11 +1009,11 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		}
 		body = a.tabBody(row, cw, ch)
 		// The turns or the prompt box below them: both are the panel's.
-		focused = a.pv.tab == tabTurns && (a.turnsList().Focused() || a.r.Focus == promptID)
+		focused = a.pv.tab == tabTurns && (a.turnsList().Focused() || a.shownFocused(promptID))
 	default:
 		title, body = a.groupSummary(inst)
 	}
-	tabs := a.tabLine(live, a.frontsPane(a.r.Instances[a.r.Focus]))
+	tabs := a.tabLine(live, a.frontsPane(a.r.Instances[a.shownFocus(panesPage)]))
 	if a.copyShown(paneTermID) {
 		tabs = a.copyTabLine()
 	}
@@ -1269,7 +1269,7 @@ func (a *App) turnsBody(width, height int) ochazuke.Block {
 		a.r.Placed(turnsTreeID + "/list")
 		return ochazuke.Text(a.noTurnsText(st))
 	}
-	if list.Focused() || a.r.Focus == promptID {
+	if list.Focused() || a.shownFocused(promptID) {
 		// In the tree the selection moves and the tree keeps it in
 		// view; J and K scroll it only from the pane list. The prompt
 		// box below keeps the tree's window too: j from the last turn

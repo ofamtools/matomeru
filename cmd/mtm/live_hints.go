@@ -147,7 +147,7 @@ func (a *App) hintTerminal(ctx ochazuke.Ctx) (*ochazuke.Terminal, error) {
 			return t, nil
 		}
 	}
-	if t := a.r.Terminal(a.r.Focus); t != nil {
+	if t := a.r.Terminal(a.r.FocusID()); t != nil {
 		return t, nil
 	}
 	return nil, errors.New(a.r.TerminalLeader() + " f works in a live pane")
@@ -481,9 +481,9 @@ func (a *App) endHints() {
 		home = h.home
 		a.hinting = nil
 	}
-	if a.r.Mode.Name == hintsMode {
+	if a.r.CurrentMode().Name == hintsMode {
 		mode := "normal"
-		if a.r.Terminal(a.r.Focus) != nil || home != "" && a.r.Terminal(home) != nil {
+		if a.r.Terminal(a.r.FocusID()) != nil || home != "" && a.r.Terminal(home) != nil {
 			mode = "terminal"
 		}
 		_ = a.r.SetMode(mode)
@@ -524,7 +524,7 @@ func (a *App) hintsUpdate() {
 	if a.r.TopModal() != "" {
 		return
 	}
-	if a.r.Focus != h.home || a.r.Mode.Name != hintsMode {
+	if a.r.FocusID() != h.home || a.r.CurrentMode().Name != hintsMode {
 		a.endHints()
 	}
 }

@@ -20,7 +20,7 @@ func footerLine(a *App) string {
 
 // focusNoun is the focused instance's noun.
 func focusNoun(a *App) string {
-	if inst := a.r.Instances[a.r.Focus]; inst != nil {
+	if inst := a.r.Instances[a.r.FocusID()]; inst != nil {
 		return inst.Noun
 	}
 	return ""
@@ -35,7 +35,7 @@ func boxNormal(t *testing.T, a *App) {
 	frame(a)
 	press(t, a, "}")
 	frame(a)
-	if a.r.Focus != promptID || a.r.BaseMode() != "normal" {
+	if a.r.FocusID() != promptID || a.r.BaseMode() != "normal" {
 		t.Fatalf("G } focused %s", where(a))
 	}
 }

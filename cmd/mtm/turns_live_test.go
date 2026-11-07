@@ -47,22 +47,22 @@ func turnsLive(t *testing.T, harness string) {
 		t.Fatalf("leader keys:\n%s", lastLines(frame(app), 3))
 	}
 	press(t, app, "d")
-	if app.r.Terminal(paneTermID) != nil || app.r.Instances[app.r.Focus].Noun != "pane" {
-		t.Fatalf("ctrl+a d: terminal %v focus %s", app.r.Terminal(paneTermID) != nil, app.r.Focus)
+	if app.r.Terminal(paneTermID) != nil || app.r.Instances[app.r.FocusID()].Noun != "pane" {
+		t.Fatalf("ctrl+a d: terminal %v focus %s", app.r.Terminal(paneTermID) != nil, app.r.FocusID())
 	}
 	app.pv.tab = tabTurns
 	settle(app, follow(app))
 	pressAll(t, app, "f")
 	settle(app, app.r.PendingCommands())
-	if app.pv.tab != tabScreen || app.r.Mode.Name != hintsMode || app.hinting == nil || app.hinting.row != rowW1 {
-		t.Fatalf("f on Turns: tab %d mode %s hinting %v\n%s", app.pv.tab, app.r.Mode.Name, app.hinting != nil, frame(app))
+	if app.pv.tab != tabScreen || app.r.CurrentMode().Name != hintsMode || app.hinting == nil || app.hinting.row != rowW1 {
+		t.Fatalf("f on Turns: tab %d mode %s hinting %v\n%s", app.pv.tab, app.r.CurrentMode().Name, app.hinting != nil, frame(app))
 	}
 	if l := labelOf(t, app, "https://example.com/turns"); !drawnLabel(plainView(app), l, "https://example.com/turns") {
 		t.Fatalf("label %q not drawn:\n%s", l, plainView(app))
 	}
 	pressAll(t, app, "esc")
-	if app.hinting != nil || app.r.Focus != rowW1 {
-		t.Fatalf("esc: hinting %v focus %s", app.hinting != nil, app.r.Focus)
+	if app.hinting != nil || app.r.FocusID() != rowW1 {
+		t.Fatalf("esc: hinting %v focus %s", app.hinting != nil, app.r.FocusID())
 	}
 }
 
@@ -78,8 +78,8 @@ func TestPaneCopyFromTurnsSwitchesToScreen(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
-	if app.pv.tab != tabScreen || app.r.Focus != copyID || !app.copy.active {
-		t.Fatalf("pane.copy on Turns: tab %d focus %s active %v", app.pv.tab, app.r.Focus, app.copy.active)
+	if app.pv.tab != tabScreen || app.r.FocusID() != copyID || !app.copy.active {
+		t.Fatalf("pane.copy on Turns: tab %d focus %s active %v", app.pv.tab, app.r.FocusID(), app.copy.active)
 	}
 	if !strings.Contains(frame(app), "$ echo copy") {
 		t.Fatalf("copy mode lacks the screen:\n%s", frame(app))
@@ -111,16 +111,16 @@ func TestLiveKeysFromEveryTab(t *testing.T) {
 				case "f":
 					pressAll(t, app, "f")
 					settle(app, app.r.PendingCommands())
-					if app.pv.tab != tabScreen || app.r.Mode.Name != hintsMode || app.hinting == nil {
-						t.Fatalf("f on %s: tab %d mode %s\n%s", name, app.pv.tab, app.r.Mode.Name, frame(app))
+					if app.pv.tab != tabScreen || app.r.CurrentMode().Name != hintsMode || app.hinting == nil {
+						t.Fatalf("f on %s: tab %d mode %s\n%s", name, app.pv.tab, app.r.CurrentMode().Name, frame(app))
 					}
 				case "copy":
 					if _, err := app.r.Execute(ochazuke.Request{Verb: "copy", Noun: "pane", Target: rowW1}); err != nil {
 						t.Fatal(err)
 					}
 					settle(app, app.r.PendingCommands())
-					if app.pv.tab != tabScreen || app.r.Focus != copyID || !app.copy.active {
-						t.Fatalf("pane.copy on %s: tab %d focus %s", name, app.pv.tab, app.r.Focus)
+					if app.pv.tab != tabScreen || app.r.FocusID() != copyID || !app.copy.active {
+						t.Fatalf("pane.copy on %s: tab %d focus %s", name, app.pv.tab, app.r.FocusID())
 					}
 				}
 			}

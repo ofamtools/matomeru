@@ -61,8 +61,8 @@ func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 	if got != want {
 		t.Fatalf("review = %+v", rv)
 	}
-	if app.r.Focus != rv.ID {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != rv.ID {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	fr := frame(app)
 	for _, want := range []string{"reviews (1)", "enter captures"} {
@@ -145,8 +145,8 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	if label := app.r.Instances[rv.ID].Label; !strings.HasPrefix(label, "[rejected] ") {
 		t.Fatalf("row label = %q", label)
 	}
-	if app.r.Focus != rv.ID {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != rv.ID {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 }
 
@@ -156,16 +156,16 @@ func TestSaveAnswerThroughTheArea(t *testing.T) {
 	t.Parallel()
 	app, _, rv := reviewApp(t)
 	press(t, app, "i")
-	if app.r.Focus != answerID || app.r.Mode.Name != "insert" || app.opened != rv.ID {
-		t.Fatalf("i: focus %s mode %s opened %s", app.r.Focus, app.r.Mode.Name, app.opened)
+	if app.r.FocusID() != answerID || app.r.CurrentMode().Name != "insert" || app.opened != rv.ID {
+		t.Fatalf("i: focus %s mode %s opened %s", app.r.FocusID(), app.r.CurrentMode().Name, app.opened)
 	}
 	typeText(t, app, "ship it")
 	press(t, app, "enter")
 	if got := storedReview(t, app, rv.ID).Answer; got != "ship it" {
 		t.Fatalf("answer = %q", got)
 	}
-	if app.r.Focus != rv.ID || !strings.HasSuffix(app.r.Instances[rv.ID].Label, "(answered)") {
-		t.Fatalf("after save: focus %s label %q", app.r.Focus, app.r.Instances[rv.ID].Label)
+	if app.r.FocusID() != rv.ID || !strings.HasSuffix(app.r.Instances[rv.ID].Label, "(answered)") {
+		t.Fatalf("after save: focus %s label %q", app.r.FocusID(), app.r.Instances[rv.ID].Label)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestSaveAnswerTakesAnArgumentWithoutAPrompt(t *testing.T) {
 	if _, err := app.r.Execute(ochazuke.Request{Verb: "saveAnswer", Noun: "review", Target: rv.ID, Args: ochazuke.Arguments{"answer": "from the cli"}}); err != nil {
 		t.Fatal(err)
 	}
-	if app.ask != nil || app.r.Focus == fieldID {
+	if app.ask != nil || app.r.FocusID() == fieldID {
 		t.Fatal("the argument path opened a prompt")
 	}
 	if got := storedReview(t, app, rv.ID).Answer; got != "from the cli" {
@@ -192,8 +192,8 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 	app, _, rv := reviewApp(t)
 	settle(app, key(t, app, "enter"))
 	press(t, app, "}")
-	if app.r.Focus != answerID || app.r.Mode.Name != "normal" {
-		t.Fatalf("}: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	if app.r.FocusID() != answerID || app.r.CurrentMode().Name != "normal" {
+		t.Fatalf("}: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	press(t, app, "i")
 	typeText(t, app, "looks right")
@@ -201,18 +201,18 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 		t.Fatalf("frame while editing:\n%s", fr)
 	}
 	press(t, app, "enter")
-	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.Focus != rv.ID {
-		t.Fatalf("enter: answer %q focus %s", got, app.r.Focus)
+	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.FocusID() != rv.ID {
+		t.Fatalf("enter: answer %q focus %s", got, app.r.FocusID())
 	}
 	press(t, app, "i")
 	typeText(t, app, " maybe")
 	press(t, app, "esc")
-	if app.r.Mode.Name != "normal" || string(app.answer.Text) != "looks right maybe" {
-		t.Fatalf("esc: mode %s area %q", app.r.Mode.Name, string(app.answer.Text))
+	if app.r.CurrentMode().Name != "normal" || string(app.answer.Text) != "looks right maybe" {
+		t.Fatalf("esc: mode %s area %q", app.r.CurrentMode().Name, string(app.answer.Text))
 	}
 	press(t, app, "esc")
-	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.Focus != rv.ID {
-		t.Fatalf("leave: answer %q focus %s", got, app.r.Focus)
+	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.FocusID() != rv.ID {
+		t.Fatalf("leave: answer %q focus %s", got, app.r.FocusID())
 	}
 	if draft, ok := app.answerDraftOf(rv.ID); !ok || draft != "looks right maybe" {
 		t.Fatalf("draft %q %v", draft, ok)
@@ -227,8 +227,8 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 		t.Fatalf("reopen: area %q", string(app.answer.Text))
 	}
 	press(t, app, "}", "U")
-	if string(app.answer.Text) != "looks right" || app.r.Focus != rv.ID {
-		t.Fatalf("U: area %q focus %s", string(app.answer.Text), app.r.Focus)
+	if string(app.answer.Text) != "looks right" || app.r.FocusID() != rv.ID {
+		t.Fatalf("U: area %q focus %s", string(app.answer.Text), app.r.FocusID())
 	}
 	if _, ok := app.answerDraftOf(rv.ID); ok {
 		t.Fatal("U kept the draft")
@@ -346,12 +346,12 @@ func TestOneReviewRowPerPane(t *testing.T) {
 	if label := items[0].Label; !strings.Contains(label, "matomeru/claude") || !strings.Contains(label, "2 unreviewed") || !strings.Contains(label, `"prompt 2`) {
 		t.Fatalf("label %q", label)
 	}
-	if app.r.Focus != id {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != id {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	settle(app, key(t, app, "enter"))
-	if !strings.HasPrefix(app.r.Focus, "review-turn:") {
-		t.Fatalf("enter: focus %s", app.r.Focus)
+	if !strings.HasPrefix(app.r.FocusID(), "review-turn:") {
+		t.Fatalf("enter: focus %s", app.r.FocusID())
 	}
 	fr := frame(app)
 	if !strings.Contains(fr, "turns: matomeru/claude · 2 unreviewed turns") || !strings.Contains(fr, "prompt 1 · 1 answer") {
@@ -365,8 +365,8 @@ func TestOneReviewRowPerPane(t *testing.T) {
 		t.Fatalf("after open: %q", label)
 	}
 	press(t, app, "esc")
-	if app.r.Focus != id {
-		t.Fatalf("esc: focus %s", app.r.Focus)
+	if app.r.FocusID() != id {
+		t.Fatalf("esc: focus %s", app.r.FocusID())
 	}
 	if _, err := app.work.Review(id); err == nil {
 		t.Fatal("the pane's record was written before a verb needed it")

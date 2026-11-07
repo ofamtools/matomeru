@@ -30,8 +30,8 @@ func TestQuickNoteWritesAsYouType(t *testing.T) {
 	a := open(t)
 	before := len(notesOf(t, a))
 	press(t, a, "N")
-	if a.r.TopModal() != quickNoteModal || a.r.Focus != quickNoteInput || a.r.Mode.Name != "insert" {
-		t.Fatalf("N: modal %q focus %q mode %q", a.r.TopModal(), a.r.Focus, a.r.Mode.Name)
+	if a.r.TopModal() != quickNoteModal || a.r.FocusID() != quickNoteInput || a.r.CurrentMode().Name != "insert" {
+		t.Fatalf("N: modal %q focus %q mode %q", a.r.TopModal(), a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	fr := frame(a)
 	if !strings.Contains(fr, "Note") || !strings.Contains(fr, "no project · nothing stored until you type") {
@@ -69,8 +69,8 @@ func TestQuickNoteWritesAsYouType(t *testing.T) {
 	}
 	t.Log("\n" + frame(a))
 	press(t, a, "esc")
-	if a.r.TopModal() != "" || a.quick != nil || a.r.Focus != "matomeru" && a.r.Focus != "ochazuke" {
-		t.Fatalf("esc: modal %q focus %q", a.r.TopModal(), a.r.Focus)
+	if a.r.TopModal() != "" || a.quick != nil || a.r.FocusID() != "matomeru" && a.r.FocusID() != "ochazuke" {
+		t.Fatalf("esc: modal %q focus %q", a.r.TopModal(), a.r.FocusID())
 	}
 	if n := len(notesOf(t, a)); n != before+1 {
 		t.Fatalf("%d notes, want %d", n, before+1)
@@ -139,8 +139,8 @@ func TestQuickNoteFromPanesOpensTheNoteList(t *testing.T) {
 	if got := notesOf(t, a)[id].Text; got != "Note from Panes" {
 		t.Fatalf("ctrl+o did not write: %q", got)
 	}
-	if sel, ok := a.noteList.Selected(); !ok || sel.ID != id || a.r.Focus != id {
-		t.Fatalf("Notes page on %+v, focus %s", sel, a.r.Focus)
+	if sel, ok := a.noteList.Selected(); !ok || sel.ID != id || a.r.FocusID() != id {
+		t.Fatalf("Notes page on %+v, focus %s", sel, a.r.FocusID())
 	}
 }
 

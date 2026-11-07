@@ -197,13 +197,13 @@ func TestReminderNoticePersistsDismissesAndOptOut(t *testing.T) {
 	for _, n := range a.reminders.notify.notices {
 		notice = n
 	}
-	focus := a.r.Focus
+	focus := a.r.FocusID()
 	press(t, a, "j")
 	a.Update(noticeExpired{gen: a.notices.gen})
 	if !slicesContainsNotice(a.shownNotices(), notice) {
 		t.Fatal("due notice expired on key or timer")
 	}
-	if a.r.Focus == "reminder:"+id || focus == "reminder:"+id {
+	if a.r.FocusID() == "reminder:"+id || focus == "reminder:"+id {
 		t.Fatal("notice stole focus")
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.notice", Verb: "clear"}); err != nil {
@@ -301,7 +301,7 @@ func TestReminderShowOptOutRemovesListAndFocusStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "tab")
-	if strings.HasPrefix(a.r.Focus, reminderListID) || strings.HasPrefix(a.r.Focus, "reminder:") {
-		t.Fatalf("hidden reminder has focus %s", a.r.Focus)
+	if strings.HasPrefix(a.r.FocusID(), reminderListID) || strings.HasPrefix(a.r.FocusID(), "reminder:") {
+		t.Fatalf("hidden reminder has focus %s", a.r.FocusID())
 	}
 }

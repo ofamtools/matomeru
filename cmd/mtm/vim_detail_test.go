@@ -59,12 +59,12 @@ func TestVimLinksJumpToTheirRows(t *testing.T) {
 		frame(a)
 		toLinks(t, a, a.detail.vim)
 		// A link answers enter; it takes no marks.
-		if hints := ochazuke.BindingHints(a.r, a.r.Focus); !strings.Contains(hints, "enter detail-link.follow") || strings.Contains(hints, "list.mark") {
+		if hints := ochazuke.BindingHints(a.r, a.r.FocusID()); !strings.Contains(hints, "enter detail-link.follow") || strings.Contains(hints, "list.mark") {
 			t.Fatalf("link hints %q", hints)
 		}
 		followLinkTo(t, a, a.detail.vim, c.kind, c.id)
-		if a.r.Page != c.page || a.r.Focus != c.focus {
-			t.Fatalf("%s link: page %s focus %s, want %s on %s", c.kind, a.r.Page, a.r.Focus, c.focus, c.page)
+		if a.r.Page != c.page || a.r.FocusID() != c.focus {
+			t.Fatalf("%s link: page %s focus %s, want %s on %s", c.kind, a.r.Page, a.r.FocusID(), c.focus, c.page)
 		}
 	}
 }
@@ -82,8 +82,8 @@ func TestVimDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("the detail fits:\n%s", sizedFrame(a, 140, 14))
 	}
 	press(t, a, "2", "J")
-	if sizedFrame(a, 140, 14); d.Offset() != 2 || a.r.Focus != l.vimID {
-		t.Fatalf("2J: offset %d focus %s", d.Offset(), a.r.Focus)
+	if sizedFrame(a, 140, 14); d.Offset() != 2 || a.r.FocusID() != l.vimID {
+		t.Fatalf("2J: offset %d focus %s", d.Offset(), a.r.FocusID())
 	}
 	press(t, a, "K")
 	if sizedFrame(a, 140, 14); d.Offset() != 1 {

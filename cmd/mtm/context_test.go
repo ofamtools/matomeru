@@ -190,8 +190,8 @@ func TestContextKindFilterAndSearch(t *testing.T) {
 		t.Fatalf("search rows = %v", got)
 	}
 	press(t, a, "enter")
-	if sel, ok := a.cx.list.Selected(); !ok || sel.Label != "https://example.com/ochazuke" || a.r.Mode.Name != "normal" {
-		t.Fatalf("enter leaves the search on the match; selected %v, mode %s", sel, a.r.Mode.Name)
+	if sel, ok := a.cx.list.Selected(); !ok || sel.Label != "https://example.com/ochazuke" || a.r.CurrentMode().Name != "normal" {
+		t.Fatalf("enter leaves the search on the match; selected %v, mode %s", sel, a.r.CurrentMode().Name)
 	}
 	if !strings.Contains(frame(a), "/ example") {
 		t.Fatal("the filter shows in the heading")
@@ -290,7 +290,7 @@ func TestContextItemAssociateFromARowAsks(t *testing.T) {
 	t.Parallel()
 	a, _ := contextAppAt(t, seeded(t))
 	selectContext(t, a, "1ba025f")
-	row := a.r.Focus
+	row := a.r.FocusID()
 	if _, err := a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "associate", Target: row}); err != nil {
 		t.Fatal(err)
 	}

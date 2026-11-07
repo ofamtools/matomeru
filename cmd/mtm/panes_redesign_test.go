@@ -57,8 +57,8 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("needs input is not first: %+v", items)
 	}
 	press(t, app, "W")
-	if app.r.Focus != row {
-		t.Fatalf("W: focus %s", app.r.Focus)
+	if app.r.FocusID() != row {
+		t.Fatalf("W: focus %s", app.r.FocusID())
 	}
 	// Every terminal verb answers on the agent row.
 	want := []string{"enter pane.attach", "d d pane.kill", "r pane.edit", "m pane.edit", "n pane.new"}
@@ -81,16 +81,16 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("rename: %q %q", f.panes[1].Name, cells(app, row))
 	}
 	key(t, app, "enter")
-	if app.attached.ID != "w2" || app.r.Focus != paneTermID {
-		t.Fatalf("attach: %s %s", app.attached.ID, app.r.Focus)
+	if app.attached.ID != "w2" || app.r.FocusID() != paneTermID {
+		t.Fatalf("attach: %s %s", app.attached.ID, app.r.FocusID())
 	}
 	press(t, app, "ctrl+a", "z")
 	if !app.pv.zoom {
 		t.Fatal("zoom on the agent row")
 	}
 	press(t, app, "ctrl+a", "d")
-	if app.r.Focus != row {
-		t.Fatalf("detach: focus %s", app.r.Focus)
+	if app.r.FocusID() != row {
+		t.Fatalf("detach: focus %s", app.r.FocusID())
 	}
 	executeA(t, app, "pane", "associate", row, ochazuke.Arguments{"project": "matomeru"})
 	if o, _ := app.work.PaneOwner("w2", ""); o.ProjectID != "matomeru" {
@@ -140,10 +140,10 @@ func TestSessionRowVerbs(t *testing.T) {
 	groupBy(t, app, groupProjectSessionPane)
 	app.renamer = &fakeRenamer{panes: f}
 	press(t, app, "k")
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "session" {
-		t.Fatalf("k: focus %s", app.r.Focus)
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "session" {
+		t.Fatalf("k: focus %s", app.r.FocusID())
 	}
-	session := app.r.Focus
+	session := app.r.FocusID()
 	executeA(t, app, "session", "set", session, ochazuke.Arguments{"props": map[string]any{"@label": "mtm"}})
 	settle(app, app.r.PendingCommands())
 	if f.panes[0].Session != "mtm" {
@@ -273,8 +273,8 @@ func TestTurnsFromTheJournal(t *testing.T) {
 		t.Fatalf("turns tab:\n%s", fr)
 	}
 	press(t, app, "}")
-	if !strings.HasPrefix(app.r.Focus, "turn:") {
-		t.Fatalf("} from the tree: focus %s", app.r.Focus)
+	if !strings.HasPrefix(app.r.FocusID(), "turn:") {
+		t.Fatalf("} from the tree: focus %s", app.r.FocusID())
 	}
 	press(t, app, "g", "g", "l") // } lands on the newest turn (F9); open the first
 	fr = frame(app)
@@ -305,16 +305,16 @@ func TestTurnsFromTheJournal(t *testing.T) {
 	}
 	// esc goes back up to the pane list, from a turn and from a turn's line.
 	press(t, app, "esc")
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("esc from a turn: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("esc from a turn: focus %s", app.r.FocusID())
 	}
 	press(t, app, "}", "j")
-	if !strings.HasPrefix(app.r.Focus, "turn:") || !strings.Contains(app.r.Focus, "/") {
-		t.Fatalf("j into the turn's lines: focus %s", app.r.Focus)
+	if !strings.HasPrefix(app.r.FocusID(), "turn:") || !strings.Contains(app.r.FocusID(), "/") {
+		t.Fatalf("j into the turn's lines: focus %s", app.r.FocusID())
 	}
 	press(t, app, "esc")
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("esc from a turn line: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("esc from a turn line: focus %s", app.r.FocusID())
 	}
 }
 
@@ -370,8 +370,8 @@ func TestPluralCounts(t *testing.T) {
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
 	press(t, app, "k") // the claude pane's session row
-	if app.r.Focus != "session:matomeru" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "session:matomeru" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	settle(app, follow(app))
 	if fr := frame(app); !strings.Contains(fr, "1 pane ·") || strings.Contains(fr, "1 panes") {
@@ -413,15 +413,15 @@ func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
 	frame(app)
 	press(t, app, "esc")
 	frame(app)
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("esc from a turn: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("esc from a turn: focus %s", app.r.FocusID())
 	}
 	for range 2 {
 		press(t, app, "l")
 		frame(app)
 		if !onTurn(app) || app.pv.tab != tabTurns || app.copy.active ||
-			app.r.Terminal(paneTermID) != nil || app.r.Mode.Name != "normal" {
-			t.Fatalf("l on the pane row with Turns: focus %s tab %d copy %v mode %s", app.r.Focus, app.pv.tab, app.copy.active, app.r.Mode.Name)
+			app.r.Terminal(paneTermID) != nil || app.r.CurrentMode().Name != "normal" {
+			t.Fatalf("l on the pane row with Turns: focus %s tab %d copy %v mode %s", app.r.FocusID(), app.pv.tab, app.copy.active, app.r.CurrentMode().Name)
 		}
 		press(t, app, "esc")
 		frame(app)
@@ -430,8 +430,8 @@ func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
 	settle(app, key(t, app, "]")) // Activity
 	frame(app)
 	press(t, app, "l")
-	if app.r.Focus != "pane:matomeru/w1" || app.pv.tab != tabActivity || app.copy.active {
-		t.Fatalf("l on the pane row with Activity: focus %s tab %d copy %v", app.r.Focus, app.pv.tab, app.copy.active)
+	if app.r.FocusID() != "pane:matomeru/w1" || app.pv.tab != tabActivity || app.copy.active {
+		t.Fatalf("l on the pane row with Activity: focus %s tab %d copy %v", app.r.FocusID(), app.pv.tab, app.copy.active)
 	}
 }
 
@@ -453,8 +453,8 @@ func TestAnAttachedTerminalIsReenteredOnlyFromTheScreenTab(t *testing.T) {
 		frame(app)
 		settle(app, key(t, app, "enter"))
 		frame(app)
-		if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
-			t.Fatalf("enter attaches: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+		if app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
+			t.Fatalf("enter attaches: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 		}
 		// The focus leaves the terminal without detaching (a click on the row).
 		if err := app.r.SetFocus(row); err != nil {
@@ -473,14 +473,14 @@ func TestAnAttachedTerminalIsReenteredOnlyFromTheScreenTab(t *testing.T) {
 		}
 		press(t, app, keys...)
 		frame(app)
-		if !onTurn(app) || app.r.Mode.Name != "normal" || app.r.Terminal(paneTermID) == nil {
-			t.Fatalf("%v on Turns: focus %s mode %s attached %v", keys, app.r.Focus, app.r.Mode.Name, app.r.Terminal(paneTermID) != nil)
+		if !onTurn(app) || app.r.CurrentMode().Name != "normal" || app.r.Terminal(paneTermID) == nil {
+			t.Fatalf("%v on Turns: focus %s mode %s attached %v", keys, app.r.FocusID(), app.r.CurrentMode().Name, app.r.Terminal(paneTermID) != nil)
 		}
 	}
 	// Screen keeps today's behaviour: } goes back into the live terminal.
 	app := attachedThenLeft(t)
 	press(t, app, "}")
-	if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
-		t.Fatalf("} on Screen: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	if app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("} on Screen: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 }

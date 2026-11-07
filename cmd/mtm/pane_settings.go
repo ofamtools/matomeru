@@ -522,7 +522,7 @@ func (a *App) focusPaneSettings(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.pv.settings.Focus(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(a.r.Focus)
+	return ochazuke.Done(a.r.FocusID())
 }
 
 // settingsBack is pane-setting.back (esc): the pane row.

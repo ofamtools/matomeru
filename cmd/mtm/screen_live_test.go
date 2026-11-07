@@ -54,8 +54,8 @@ func screenLive(t *testing.T, harness string) {
 		t.Fatalf("leader keys:\n%s", lastLines(frame(app), 3))
 	}
 	press(t, app, "d")
-	if app.r.Terminal(paneTermID) != nil || app.pv.tab != tabScreen || app.r.Instances[app.r.Focus].Noun != "pane" {
-		t.Fatalf("ctrl+a d: terminal %v tab %d focus %s", app.r.Terminal(paneTermID) != nil, app.pv.tab, app.r.Focus)
+	if app.r.Terminal(paneTermID) != nil || app.pv.tab != tabScreen || app.r.Instances[app.r.FocusID()].Noun != "pane" {
+		t.Fatalf("ctrl+a d: terminal %v tab %d focus %s", app.r.Terminal(paneTermID) != nil, app.pv.tab, app.r.FocusID())
 	}
 }
 

@@ -98,7 +98,7 @@ func (a *App) mountRegistry(all bool) {
 	if i == len(a.exts) && i == len(names) {
 		return
 	}
-	page, focus := a.r.Page, a.r.Focus
+	page, focus := a.r.Page, a.r.FocusID()
 	var uerrs []error
 	for _, x := range a.exts[i:] {
 		uerrs = append(uerrs, a.unmountExtension(x))

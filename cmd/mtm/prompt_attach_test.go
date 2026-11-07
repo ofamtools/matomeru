@@ -60,8 +60,8 @@ func TestPromptPasteImageInsertsAChip(t *testing.T) {
 	if got := string(app.pb.input.Text); got != "look at [image 1] please" {
 		t.Fatalf("text %q", got)
 	}
-	if app.r.Focus != promptID || app.r.BaseMode() != "insert" {
-		t.Fatalf("focus %s %s", app.r.Focus, app.r.BaseMode())
+	if app.r.FocusID() != promptID || app.r.BaseMode() != "insert" {
+		t.Fatalf("focus %s %s", app.r.FocusID(), app.r.BaseMode())
 	}
 	live := app.pb.live()
 	if len(live) != 1 || live[0].path != clip.asked[0] {
@@ -134,8 +134,8 @@ func TestPromptPasteTextEmptyAndUnreadable(t *testing.T) {
 	}
 	clip.err = errors.New("osascript: execution error")
 	pressSettle(t, app, "ctrl+v")
-	if !strings.Contains(app.m.Status, "could not read the clipboard: osascript: execution error") || app.r.Focus != promptID {
-		t.Fatalf("unreadable: %q focus %s", app.m.Status, app.r.Focus)
+	if !strings.Contains(app.m.Status, "could not read the clipboard: osascript: execution error") || app.r.FocusID() != promptID {
+		t.Fatalf("unreadable: %q focus %s", app.m.Status, app.r.FocusID())
 	}
 	if m := app.r.TopModal(); m != "" {
 		t.Fatalf("a modal opened: %s", m)

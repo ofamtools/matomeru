@@ -409,8 +409,8 @@ func TestAFailingLaunchShowsInTheRail(t *testing.T) {
 	// The app keeps working: the next key runs.
 	app.m.Status = ""
 	press(t, app, "j")
-	if app.r.Focus != "matomeru" {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != "matomeru" {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 }
 
@@ -502,8 +502,8 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 		t.Fatalf("review = %+v", rv)
 	}
 	press(t, app, "ctrl+a", "d", "ctrl+j", "ctrl+j") // Panes, Work, Review
-	if app.r.Page != reviewsPage || app.r.Focus != rv.ID {
-		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
+	if app.r.Page != reviewsPage || app.r.FocusID() != rv.ID {
+		t.Fatalf("page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	if fr := frame(app); !rowWith(fr, "pending", "no-project/claude", "unassociated", "claude") {
 		t.Fatalf("frame:\n%s", fr)

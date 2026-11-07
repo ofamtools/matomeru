@@ -28,8 +28,8 @@ func shellApp(t *testing.T) (*App, *fakeDaemon) {
 	}
 	settle(app, app.r.PendingCommands())
 	press(t, app, "ctrl+k") // Panes is the tab before Work
-	if app.r.Page != panesPage || app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
+	if app.r.Page != panesPage || app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	return app, f
 }
@@ -94,8 +94,8 @@ func TestNewPaneAnswersOnAnEmptyList(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
-	if app.r.Focus != paneListID {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != paneListID {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	runOnce(app, key(t, app, "n"))
 	if len(f.shells) != 1 || f.shells[0].Session != "matomeru" {
@@ -123,8 +123,8 @@ func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 	}
 	// The app keeps working: j walks the tree, the next session's row first.
 	press(t, app, "j", "j")
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 }
 

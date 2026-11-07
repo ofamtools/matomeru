@@ -17,7 +17,7 @@ func TestTurnsJAtTheBottomNeverFocusesTheBox(t *testing.T) {
 	app.m.Width, app.m.Height = 120, 22
 	frame(app)
 	press(t, app, "}", "G")
-	newest := app.r.Focus
+	newest := app.r.FocusID()
 	settle(app, key(t, app, "l"))
 	frame(app)
 	// Scroll the open newest turn up so its end is off screen (K holds
@@ -26,13 +26,13 @@ func TestTurnsJAtTheBottomNeverFocusesTheBox(t *testing.T) {
 		press(t, app, "K")
 	}
 	fr := frame(app)
-	if !app.pv.cards.IsOpen(newest) || app.r.Focus != newest || strings.Contains(fr, "answer 4 line 8") {
+	if !app.pv.cards.IsOpen(newest) || app.r.FocusID() != newest || strings.Contains(fr, "answer 4 line 8") {
 		t.Fatalf("the newest turn's end is still in view (open %v, %s):\n%s", app.pv.cards.IsOpen(newest), where(app), fr)
 	}
 	for k := 0; k < 12; k++ {
 		press(t, app, "j")
 		fr = frame(app)
-		if app.r.Focus == promptID || app.r.Focus != newest {
+		if app.r.FocusID() == promptID || app.r.FocusID() != newest {
 			t.Fatalf("j %d at the bottom focused %s\n%s", k+1, where(app), fr)
 		}
 	}
@@ -43,7 +43,7 @@ func TestTurnsJAtTheBottomNeverFocusesTheBox(t *testing.T) {
 	press(t, app, "l")
 	for k := 0; k < 20; k++ {
 		press(t, app, "j")
-		if app.r.Focus == promptID {
+		if app.r.FocusID() == promptID {
 			t.Fatalf("j inside the newest turn focused the box")
 		}
 	}
@@ -53,14 +53,14 @@ func TestTurnsJAtTheBottomNeverFocusesTheBox(t *testing.T) {
 	press(t, app, "esc")
 	for _, keys := range [][]string{{"}"}, {"tab"}, {"i"}} {
 		press(t, app, keys...)
-		if app.r.Focus != promptID {
+		if app.r.FocusID() != promptID {
 			t.Fatalf("%v from the newest turn focused %s, want the box", keys, where(app))
 		}
 		if app.r.BaseMode() == "insert" {
 			press(t, app, "esc")
 		}
 		press(t, app, "k")
-		if app.r.Focus != newest {
+		if app.r.FocusID() != newest {
 			t.Fatalf("k from the box focused %s", where(app))
 		}
 	}
@@ -74,7 +74,7 @@ func TestTurnCardHFoldsTheAnswer(t *testing.T) {
 	app.m.Width, app.m.Height = 120, 50
 	frame(app)
 	press(t, app, "}")
-	card := app.r.Focus
+	card := app.r.FocusID()
 	settle(app, key(t, app, "l"))
 	press(t, app, "l", "j", "j", "j", "j")
 	frame(app)
@@ -91,7 +91,7 @@ func TestTurnCardHFoldsTheAnswer(t *testing.T) {
 		t.Fatalf("the cursor left the folded answer (step %d, was %d):\n%s", step, before, fr)
 	}
 	press(t, app, "h")
-	if app.r.Focus != card || !app.pv.cards.IsOpen(card) {
+	if app.r.FocusID() != card || !app.pv.cards.IsOpen(card) {
 		t.Fatalf("h on the folded answer: %s", where(app))
 	}
 }

@@ -91,8 +91,8 @@ func TestAllViewOAddsAProjectThatTypingNames(t *testing.T) {
 	if p, ok := a.project(id); !ok || projectName(p) != "release train" {
 		t.Fatalf("Work page projects lack the new one: %+v", a.projects)
 	}
-	if row := a.r.Instances[a.r.Focus]; row == nil || row.Noun != outlineProjectNoun {
-		t.Fatalf("new project row %s is %+v", a.r.Focus, row)
+	if row := a.r.Instances[a.r.FocusID()]; row == nil || row.Noun != outlineProjectNoun {
+		t.Fatalf("new project row %s is %+v", a.r.FocusID(), row)
 	}
 	press(t, a, "u")
 	if p, err := a.work.Project(id); err != nil || p.Name != "" {
@@ -180,8 +180,8 @@ func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 	// In the open line shift+tab is the row's own shift+tab: the task
 	// becomes a project, the line stays open, and u puts it back.
 	press(t, a, "i", "shift+tab")
-	if a.r.Mode.Name != "insert" {
-		t.Fatalf("shift+tab in the line left insert: mode %s", a.r.Mode.Name)
+	if a.r.CurrentMode().Name != "insert" {
+		t.Fatalf("shift+tab in the line left insert: mode %s", a.r.CurrentMode().Name)
 	}
 	if _, err := a.work.Task("t1"); err == nil {
 		t.Fatal("shift+tab in the line did not make t1 a project")
@@ -256,8 +256,8 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
-	if a.r.Focus != outlineNode("t1") {
-		t.Fatalf("focus %s", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("focus %s", a.r.FocusID())
 	}
 	if roots := rootRows(a); !slices.Equal(roots, []string{projectNode("matomeru")}) {
 		t.Fatalf("roots %v", roots)
@@ -266,8 +266,8 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 		t.Fatalf("root row or hint missing:\n%s", f)
 	}
 	press(t, a, "k")
-	if row := a.r.Instances[a.r.Focus]; a.r.Focus != projectNode("matomeru") || row.Noun != outlineRootNoun {
-		t.Fatalf("k: focus %s", a.r.Focus)
+	if row := a.r.Instances[a.r.FocusID()]; a.r.FocusID() != projectNode("matomeru") || row.Noun != outlineRootNoun {
+		t.Fatalf("k: focus %s", a.r.FocusID())
 	}
 	press(t, a, "i", "end")
 	typeText(t, a, " app")

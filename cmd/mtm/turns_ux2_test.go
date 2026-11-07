@@ -11,11 +11,11 @@ import (
 // turnOpen reports whether the focused turn shows its body: an open card,
 // or an expanded tree row.
 func turnOpen(a *App) bool {
-	ref, _ := a.r.Instances[a.r.Focus].Data.(turnRef)
+	ref, _ := a.r.Instances[a.r.FocusID()].Data.(turnRef)
 	if ref.Card {
-		return a.pv.cards.IsOpen(a.r.Focus)
+		return a.pv.cards.IsOpen(a.r.FocusID())
 	}
-	return !a.pv.turns.Collapsed(a.r.Focus)
+	return !a.pv.turns.Collapsed(a.r.FocusID())
 }
 
 // F8: h on an open turn closes it and stays; h on a closed turn goes back
@@ -33,19 +33,19 @@ func TestHOnAClosedTurnGoesToThePaneRow(t *testing.T) {
 			if focusNoun(app) != "turn" {
 				t.Fatalf("}: %s", where(app))
 			}
-			turn := app.r.Focus
+			turn := app.r.FocusID()
 			if !turnOpen(app) {
 				press(t, app, "l")
 				frame(app)
 			}
 			press(t, app, "h")
 			frame(app)
-			if app.r.Focus != turn || turnOpen(app) {
+			if app.r.FocusID() != turn || turnOpen(app) {
 				t.Fatalf("h on the open turn: %s open %v", where(app), turnOpen(app))
 			}
 			press(t, app, "h")
 			frame(app)
-			if app.r.Focus != row {
+			if app.r.FocusID() != row {
 				t.Fatalf("h on the closed turn: %s, want the pane row %s", where(app), row)
 			}
 		})
@@ -73,18 +73,18 @@ func TestFirstEntryLandsOnTheNewestTurn(t *testing.T) {
 						newest = it.ID
 					}
 				}
-				if app.r.Focus != newest {
+				if app.r.FocusID() != newest {
 					t.Fatalf("first %s: %s, want the newest turn %s", k, where(app), newest)
 				}
 				// Moving up and leaving keeps the place: the next l comes back to it.
 				press(t, app, "k")
 				frame(app)
-				was := app.r.Focus
+				was := app.r.FocusID()
 				press(t, app, "esc")
 				frame(app)
 				press(t, app, "l")
 				frame(app)
-				if app.r.Focus != was {
+				if app.r.FocusID() != was {
 					t.Fatalf("second l: %s, want %s", where(app), was)
 				}
 			})
@@ -111,12 +111,12 @@ func TestPasteCompletionKeepsTheFocusWhereItWent(t *testing.T) {
 			typeText(t, app, "draft ")
 			paste := key(t, app, "ctrl+v") // the clipboard read is still running
 			press(t, app, "esc", "esc")    // insert, normal, then out to the turns
-			left := app.r.Focus
+			left := app.r.FocusID()
 			if left == promptID {
 				t.Fatalf("esc esc stayed in the box: %s", where(app))
 			}
 			settle(app, paste)
-			if app.r.Focus != left {
+			if app.r.FocusID() != left {
 				t.Fatalf("the paste pulled the focus: %s, want %s", where(app), left)
 			}
 			if got := string(app.pb.input.Text); got != tc.want {
@@ -127,7 +127,7 @@ func TestPasteCompletionKeepsTheFocusWhereItWent(t *testing.T) {
 			}
 			// Back in the box, i writes after the pasted text.
 			press(t, app, "i")
-			if app.r.Focus != promptID || app.pb.input.Cursor != len(app.pb.input.Text) {
+			if app.r.FocusID() != promptID || app.pb.input.Cursor != len(app.pb.input.Text) {
 				t.Fatalf("i: %s cursor %d of %d", where(app), app.pb.input.Cursor, len(app.pb.input.Text))
 			}
 		})
@@ -160,19 +160,19 @@ func TestCopyAndHintsFromTheTurnsLeaveTheHiddenTurns(t *testing.T) {
 				t.Fatalf("pane.%s: tab %d", verb, app.pv.tab)
 			}
 			frame(app) // the frame that drops the turns moves the focus (ochazuke R3.13)
-			if app.r.Focus != row {
+			if app.r.FocusID() != row {
 				t.Fatalf("pane.%s left the focus on what Screen hides: %s", verb, where(app))
 			}
 			settle(app, app.r.PendingCommands())
 			frame(app)
 			if verb == "copy" {
-				if app.r.Focus != copyID {
+				if app.r.FocusID() != copyID {
 					t.Fatalf("copy mode: %s", where(app))
 				}
 			}
 			press(t, app, "esc")
 			frame(app)
-			if app.r.Focus != row || app.pv.tab != tabScreen {
+			if app.r.FocusID() != row || app.pv.tab != tabScreen {
 				t.Fatalf("after %s: %s tab %d, want the row on Screen", verb, where(app), app.pv.tab)
 			}
 		})

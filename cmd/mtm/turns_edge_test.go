@@ -10,10 +10,10 @@ import (
 // where is the focus, its noun and the mode, for a failure message.
 func where(a *App) string {
 	noun := "?"
-	if inst := a.r.Instances[a.r.Focus]; inst != nil {
+	if inst := a.r.Instances[a.r.FocusID()]; inst != nil {
 		noun = inst.Noun
 	}
-	return a.r.Focus + " (" + noun + ", " + a.r.Mode.Name + ")"
+	return a.r.FocusID() + " (" + noun + ", " + a.r.CurrentMode().Name + ")"
 }
 
 // j at the bottom of an opened turn stays on it with the answer in view
@@ -37,15 +37,15 @@ func jIntoTheBox(t *testing.T, style string) {
 	if !strings.Contains(before, "Fixed: the test now fakes the clock.") {
 		t.Skipf("the answer fits no window here:\n%s", before)
 	}
-	last := app.r.Focus
+	last := app.r.FocusID()
 	press(t, app, "j")
 	after := frame(app)
-	if app.r.Focus != last || !strings.Contains(after, "Fixed: the test now fakes the clock.") {
+	if app.r.FocusID() != last || !strings.Contains(after, "Fixed: the test now fakes the clock.") {
 		t.Fatalf("j at the bottom (%s) left the turn or moved the window:\n%s", where(app), after)
 	}
 	press(t, app, "}")
 	after = frame(app)
-	if app.r.Focus != promptID || !strings.Contains(after, "Fixed: the test now fakes the clock.") {
+	if app.r.FocusID() != promptID || !strings.Contains(after, "Fixed: the test now fakes the clock.") {
 		t.Fatalf("} into the box (%s) moved the turns' window:\n%s", where(app), after)
 	}
 }
@@ -148,21 +148,21 @@ func boxKeepsTheTurns(t *testing.T, style string) {
 	}
 	press(t, app, into...)
 	frame(app)
-	sel := app.r.Focus
+	sel := app.r.FocusID()
 	before := turnsRegion(t, app)
 	if !strings.Contains(before, "answer 6 line 2") || strings.Contains(before, "fix the flaky test") {
 		t.Fatalf("the middle turn is not on screen:\n%s", before)
 	}
 	for _, into := range [][]string{{"}"}, {"tab"}, {"i", "esc"}} {
 		press(t, app, into...)
-		if app.r.Focus != promptID {
+		if app.r.FocusID() != promptID {
 			t.Fatalf("%v focused %s", into, where(app))
 		}
 		if got := turnsRegion(t, app); got != unfocusedCorners(before) {
 			t.Fatalf("%v into the box moved the turns:\n%s\nwas:\n%s", into, got, before)
 		}
 		press(t, app, "esc")
-		if app.r.Focus != sel {
+		if app.r.FocusID() != sel {
 			t.Fatalf("esc from the box focused %s, not %s", where(app), sel)
 		}
 		if got := turnsRegion(t, app); got != before {
@@ -174,11 +174,11 @@ func boxKeepsTheTurns(t *testing.T, style string) {
 	moreClaudeTurns(t, log, 8, 9)
 	f.panes[0].AgentState = "idle"
 	reload(t, app)
-	if got := turnsRegion(t, app); got != unfocusedCorners(before) || app.r.Focus != promptID {
+	if got := turnsRegion(t, app); got != unfocusedCorners(before) || app.r.FocusID() != promptID {
 		t.Fatalf("a new turn moved the held turns (%s):\n%s\nwas:\n%s", where(app), got, before)
 	}
 	press(t, app, "{")
-	if app.r.Focus != sel || turnsRegion(t, app) != before {
+	if app.r.FocusID() != sel || turnsRegion(t, app) != before {
 		t.Fatalf("{ from the box: %s\n%s", where(app), turnsRegion(t, app))
 	}
 	if style != turnsStyleCards {
@@ -186,16 +186,16 @@ func boxKeepsTheTurns(t *testing.T, style string) {
 	}
 	// Following the newest card, the box focused: a new turn shows.
 	press(t, app, "G", "}")
-	if app.r.Focus != promptID || !app.pv.cards.Following() {
+	if app.r.FocusID() != promptID || !app.pv.cards.Following() {
 		t.Fatalf("G then }: %s following %v", where(app), app.pv.cards.Following())
 	}
 	moreClaudeTurns(t, log, 9, 10)
 	reload(t, app)
-	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 9") || app.r.Focus != promptID {
+	if got := turnsRegion(t, app); !strings.Contains(got, "prompt number 9") || app.r.FocusID() != promptID {
 		t.Fatalf("following with the box focused (%s):\n%s", where(app), got)
 	}
 	press(t, app, "esc")
-	if app.r.Focus != turnCardID("w1", "p9") {
+	if app.r.FocusID() != turnCardID("w1", "p9") {
 		t.Fatalf("esc after following focused %s", where(app))
 	}
 }

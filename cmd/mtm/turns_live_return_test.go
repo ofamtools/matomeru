@@ -15,12 +15,12 @@ func TestDetachReturnsToTurns(t *testing.T) {
 	row := app.pv.turnsFor
 	frame(app)
 	press(t, app, "enter")
-	if app.r.Focus != paneTermID || app.pv.tab != tabScreen {
+	if app.r.FocusID() != paneTermID || app.pv.tab != tabScreen {
 		t.Fatalf("enter: %s tab %d", where(app), app.pv.tab)
 	}
 	press(t, app, "ctrl+a", "d")
 	frame(app)
-	if app.pv.tab != tabTurns || app.r.Focus != row {
+	if app.pv.tab != tabTurns || app.r.FocusID() != row {
 		t.Fatalf("ctrl+a d: %s tab %d", where(app), app.pv.tab)
 	}
 	// From the box: turn-prompt.live, and back to the box.
@@ -28,19 +28,19 @@ func TestDetachReturnsToTurns(t *testing.T) {
 	if _, err := app.r.Execute(ochazuke.Request{Noun: promptNoun, Verb: "live"}); err != nil {
 		t.Fatal(err)
 	}
-	if app.r.Focus != paneTermID {
+	if app.r.FocusID() != paneTermID {
 		t.Fatalf("turn-prompt.live: %s", where(app))
 	}
 	press(t, app, "ctrl+a", "d")
 	frame(app)
-	if app.pv.tab != tabTurns || app.r.Focus != promptID {
+	if app.pv.tab != tabTurns || app.r.FocusID() != promptID {
 		t.Fatalf("detach from the box's live: %s tab %d", where(app), app.pv.tab)
 	}
 	// From a turn: turn.live, and back to the turn. The box came back in
 	// normal mode, so one esc goes up to the turns.
 	press(t, app, "esc")
 	frame(app)
-	turn := app.r.Focus
+	turn := app.r.FocusID()
 	if focusNoun(app) != "turn" {
 		t.Fatalf("esc: %s", where(app))
 	}
@@ -49,7 +49,7 @@ func TestDetachReturnsToTurns(t *testing.T) {
 	}
 	press(t, app, "ctrl+a", "d")
 	frame(app)
-	if app.pv.tab != tabTurns || app.r.Focus != turn {
+	if app.pv.tab != tabTurns || app.r.FocusID() != turn {
 		t.Fatalf("detach from the turn's live: %s tab %d", where(app), app.pv.tab)
 	}
 	// A pane that waits on the person names the way to answer it.

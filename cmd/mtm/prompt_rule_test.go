@@ -32,7 +32,7 @@ func TestThePromptRuleShowsTheBoxFocus(t *testing.T) {
 			}
 			rule := func() string { setTheme(); return strings.SplitN(app.promptBoxBlock(*p, 70).Text, "\n", 2)[0] }
 			press(t, app, "esc", "esc") // the turns have the focus
-			if app.r.Focus == promptID {
+			if app.r.FocusID() == promptID {
 				t.Fatalf("esc esc stayed in the box")
 			}
 			unfocused := rule()
@@ -44,8 +44,8 @@ func TestThePromptRuleShowsTheBoxFocus(t *testing.T) {
 			}
 			app.pb.mode = promptSend
 			press(t, app, "}")
-			if app.r.Focus != promptID {
-				t.Fatalf("} focused %s", app.r.Focus)
+			if app.r.FocusID() != promptID {
+				t.Fatalf("} focused %s", app.r.FocusID())
 			}
 			focused := rule()
 			for mode := range promptModes {

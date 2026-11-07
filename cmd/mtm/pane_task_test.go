@@ -99,8 +99,8 @@ func TestPaneTaskPickerOpensAfterSubmitWithoutDelayingTheSend(t *testing.T) {
 		t.Fatalf("picker not drawn:\n%s", frame(a))
 	}
 	press(t, a, "esc")
-	if a.r.TopModal() != "" || a.r.Focus != promptID {
-		t.Fatalf("esc: top %q focus %s", a.r.TopModal(), a.r.Focus)
+	if a.r.TopModal() != "" || a.r.FocusID() != promptID {
+		t.Fatalf("esc: top %q focus %s", a.r.TopModal(), a.r.FocusID())
 	}
 	if o := ownerOf(t, a, p); o.TaskID != "" || o.ProjectID != "" {
 		t.Fatalf("esc changed the owner: %+v", o)
@@ -134,8 +134,8 @@ func TestPaneTaskPickerPreselectsTheCurrentTask(t *testing.T) {
 		t.Fatalf("rows %s", got)
 	}
 	press(t, a, "enter")
-	if o := ownerOf(t, a, p); o.TaskID != "t2" || a.r.TopModal() != "" || a.r.Focus != promptID {
-		t.Fatalf("enter kept: %+v top %q focus %s", o, a.r.TopModal(), a.r.Focus)
+	if o := ownerOf(t, a, p); o.TaskID != "t2" || a.r.TopModal() != "" || a.r.FocusID() != promptID {
+		t.Fatalf("enter kept: %+v top %q focus %s", o, a.r.TopModal(), a.r.FocusID())
 	}
 	press(t, a, "i") // the send left the box in normal mode (prompt.after-submit-mode)
 	typeText(t, a, "next")
@@ -183,7 +183,7 @@ func TestPaneTaskAfterSubmitSetting(t *testing.T) {
 	}
 	setAfterSubmit(t, a, afterSubmitNone)
 	send("one")
-	if a.r.TopModal() != "" || a.r.Focus != promptID {
+	if a.r.TopModal() != "" || a.r.FocusID() != promptID {
 		t.Fatalf("none opened %q", a.r.TopModal())
 	}
 	setAfterSubmit(t, a, afterSubmitPickTaskUnassociated)
@@ -290,8 +290,8 @@ func TestPromptAfterSubmitMode(t *testing.T) {
 			}
 			press(t, a, tc.close)
 		}
-		if a.r.TopModal() != "" || a.r.Focus != promptID || a.pb.input.Mode != want || a.r.Mode.Name != want {
-			t.Fatalf("%s: top %q focus %s box %s mode %s, want %s", name, a.r.TopModal(), a.r.Focus, a.pb.input.Mode, a.r.Mode.Name, want)
+		if a.r.TopModal() != "" || a.r.FocusID() != promptID || a.pb.input.Mode != want || a.r.CurrentMode().Name != want {
+			t.Fatalf("%s: top %q focus %s box %s mode %s, want %s", name, a.r.TopModal(), a.r.FocusID(), a.pb.input.Mode, a.r.CurrentMode().Name, want)
 		}
 	}
 	a, _ := promptApp(t)

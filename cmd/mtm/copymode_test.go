@@ -46,8 +46,8 @@ func enterCopyMode(t *testing.T, app *App) {
 		t.Fatalf("l: %s", app.m.Status)
 	}
 	settle(app, cmd)
-	if app.r.Focus != copyID || !app.copy.active || app.r.Mode.Name != "copy" {
-		t.Fatalf("after l: focus %s active %v mode %s", app.r.Focus, app.copy.active, app.r.Mode.Name)
+	if app.r.FocusID() != copyID || !app.copy.active || app.r.CurrentMode().Name != "copy" {
+		t.Fatalf("after l: focus %s active %v mode %s", app.r.FocusID(), app.copy.active, app.r.CurrentMode().Name)
 	}
 }
 
@@ -105,31 +105,31 @@ func TestCopyModeFromTheListIsFocusedNotLive(t *testing.T) {
 	}
 	// i goes live; ctrl+a [ enters copy mode; esc restores live without detaching.
 	press(t, app, "i")
-	if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" || app.copy.active {
-		t.Fatalf("after i: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	if app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" || app.copy.active {
+		t.Fatalf("after i: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	press(t, app, "ctrl+a", "[")
-	if app.r.Focus != copyID || app.r.Terminal(paneTermID) == nil || app.copy.source != paneTermID {
-		t.Fatalf("after ctrl+a [: focus %s source %q", app.r.Focus, app.copy.source)
+	if app.r.FocusID() != copyID || app.r.Terminal(paneTermID) == nil || app.copy.source != paneTermID {
+		t.Fatalf("after ctrl+a [: focus %s source %q", app.r.FocusID(), app.copy.source)
 	}
 	press(t, app, "esc")
-	if app.r.Focus != paneTermID || app.r.Terminal(paneTermID) == nil || app.copy.active || app.r.Mode.Name != "terminal" || f.streams[0].released {
-		t.Fatalf("after esc: focus %s terminal %v", app.r.Focus, app.r.Terminal(paneTermID) != nil)
+	if app.r.FocusID() != paneTermID || app.r.Terminal(paneTermID) == nil || app.copy.active || app.r.CurrentMode().Name != "terminal" || f.streams[0].released {
+		t.Fatalf("after esc: focus %s terminal %v", app.r.FocusID(), app.r.Terminal(paneTermID) != nil)
 	}
 	press(t, app, "ctrl+a", "[", "q")
-	if app.r.Focus != paneTermID || app.copy.active || f.streams[0].released {
-		t.Fatalf("after q: focus %s active %v released %v", app.r.Focus, app.copy.active, f.streams[0].released)
+	if app.r.FocusID() != paneTermID || app.copy.active || f.streams[0].released {
+		t.Fatalf("after q: focus %s active %v released %v", app.r.FocusID(), app.copy.active, f.streams[0].released)
 	}
 	press(t, app, "ctrl+a", "d")
 	// } reaches the copy stop from the list too; q leaves like esc.
 	frame(app)
 	press(t, app, "}")
-	if app.r.Focus != copyID || !app.copy.active {
-		t.Fatalf("after }: focus %s", app.r.Focus)
+	if app.r.FocusID() != copyID || !app.copy.active {
+		t.Fatalf("after }: focus %s", app.r.FocusID())
 	}
 	press(t, app, "q")
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("after q: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("after q: focus %s", app.r.FocusID())
 	}
 }
 
@@ -179,8 +179,8 @@ func TestCopyModeFromLiveKeepsTheScreenAndYanksLines(t *testing.T) {
 	_, cmd2 := app.Update(keyMsg("ctrl+a"))
 	_, cmd2 = app.Update(keyMsg("["))
 	settle(app, cmd2)
-	if app.m.Status != "" || app.r.Focus != copyID {
-		t.Fatalf("ctrl+a [: %s focus %s", app.m.Status, app.r.Focus)
+	if app.m.Status != "" || app.r.FocusID() != copyID {
+		t.Fatalf("ctrl+a [: %s focus %s", app.m.Status, app.r.FocusID())
 	}
 	at(t, app, "ctrl+a [", 200, 0) // the terminal cursor's line, on the prompt
 	copied := frame(app)
@@ -201,8 +201,8 @@ func TestCopyModeFromLiveKeepsTheScreenAndYanksLines(t *testing.T) {
 	if !reflect.DeepEqual(sys.copied, []string{want}) {
 		t.Fatalf("clipboard = %q", sys.copied)
 	}
-	if app.r.Mode.Name != "copy" || app.r.Focus != copyID {
-		t.Fatalf("after y: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	if app.r.CurrentMode().Name != "copy" || app.r.FocusID() != copyID {
+		t.Fatalf("after y: mode %s focus %s", app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	// New output while copy mode is on lands in the buffer's tail.
 	deliverFrame(t, app, ochazuke.TerminalFrame{Lines: append(append([]string(nil), screen[2:]...), "new output", "$ ")})
@@ -210,8 +210,8 @@ func TestCopyModeFromLiveKeepsTheScreenAndYanksLines(t *testing.T) {
 		t.Fatalf("after new output: tail %q, row %d", b.lines[len(b.lines)-3:], b.row)
 	}
 	press(t, app, "i")
-	if app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" || s.released {
-		t.Fatalf("after i: focus %s mode %s released %v", app.r.Focus, app.r.Mode.Name, s.released)
+	if app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" || s.released {
+		t.Fatalf("after i: focus %s mode %s released %v", app.r.FocusID(), app.r.CurrentMode().Name, s.released)
 	}
 }
 
@@ -380,8 +380,8 @@ func TestCopyModeVisualShapesYank(t *testing.T) {
 		if got := sys.copied[len(sys.copied)-1]; got != want {
 			t.Fatalf("%s: clipboard %q", keys, got)
 		}
-		if app.r.Mode.Name != "copy" {
-			t.Fatalf("%s: mode %s after the yank", keys, app.r.Mode.Name)
+		if app.r.CurrentMode().Name != "copy" {
+			t.Fatalf("%s: mode %s after the yank", keys, app.r.CurrentMode().Name)
 		}
 	}
 	yank("g g 0 5 l ctrl+v 2 j 5 l y", "56789a\nFGHIJK\nvwxyzQ", "block")
@@ -393,8 +393,8 @@ func TestCopyModeVisualShapesYank(t *testing.T) {
 	yank("g g 2 Y", "0123456789abcdef\nABCDEFGHIJKLMNOP\n", "line")
 	// esc ends a selection; esc again leaves copy mode.
 	press(t, app, "v", "esc")
-	if app.r.Mode.Name != "copy" || app.r.Focus != copyID {
-		t.Fatalf("v esc: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	if app.r.CurrentMode().Name != "copy" || app.r.FocusID() != copyID {
+		t.Fatalf("v esc: mode %s focus %s", app.r.CurrentMode().Name, app.r.FocusID())
 	}
 }
 
@@ -441,7 +441,7 @@ func TestCopyModeFooterHasNoMotions(t *testing.T) {
 	t.Parallel()
 	app, _, _ := copyApp(t, nil, []string{"one", "two"})
 	enterCopyMode(t, app)
-	hints := ochazuke.BindingHints(app.r, app.r.Focus)
+	hints := ochazuke.BindingHints(app.r, app.r.FocusID())
 	for _, want := range []string{"i live", "q back", "v select", "/ search"} {
 		if !strings.Contains(hints, want) {
 			t.Fatalf("footer lacks %q: %s", want, hints)
@@ -453,7 +453,7 @@ func TestCopyModeFooterHasNoMotions(t *testing.T) {
 		}
 	}
 	press(t, app, "v")
-	if hints := ochazuke.BindingHints(app.r, app.r.Focus); !strings.Contains(hints, "y yank") {
+	if hints := ochazuke.BindingHints(app.r, app.r.FocusID()); !strings.Contains(hints, "y yank") {
 		t.Fatalf("visual footer: %s", hints)
 	}
 }
@@ -471,8 +471,8 @@ func TestCopyModeInZoom(t *testing.T) {
 		t.Fatalf("zoomed copy frame:\n%s", fr)
 	}
 	press(t, app, "esc")
-	if !app.pv.zoom || app.r.Focus != paneTermID {
-		t.Fatalf("esc: zoom %v focus %s", app.pv.zoom, app.r.Focus)
+	if !app.pv.zoom || app.r.FocusID() != paneTermID {
+		t.Fatalf("esc: zoom %v focus %s", app.pv.zoom, app.r.FocusID())
 	}
 }
 
@@ -502,15 +502,15 @@ func TestCopyModeWithASidePane(t *testing.T) {
 		t.Fatal(err)
 	}
 	pressAll(t, app, "ctrl+a", "[")
-	if app.r.Focus != copyID || app.copy.source != sideTermID || app.copy.pane.ID != "side-vim" {
-		t.Fatalf("side ctrl+a [: focus %s source %q pane %s", app.r.Focus, app.copy.source, app.copy.pane.ID)
+	if app.r.FocusID() != copyID || app.copy.source != sideTermID || app.copy.pane.ID != "side-vim" {
+		t.Fatalf("side ctrl+a [: focus %s source %q pane %s", app.r.FocusID(), app.copy.source, app.copy.pane.ID)
 	}
 	if fr := frame(app); !strings.Contains(fr, "side · ") || !strings.Contains(fr, "copy mode") || !strings.Contains(fr, "PARENT SCREEN") {
 		t.Fatalf("side copy frame:\n%s", fr)
 	}
 	press(t, app, "esc")
-	if app.r.Focus != sideTermID || app.copy.active {
-		t.Fatalf("i: focus %s", app.r.Focus)
+	if app.r.FocusID() != sideTermID || app.copy.active {
+		t.Fatalf("i: focus %s", app.r.FocusID())
 	}
 	if err := app.r.SetFocus(paneTermID); err != nil {
 		t.Fatal(err)
@@ -540,16 +540,16 @@ func TestCopyModeSelectionReturnsToCopy(t *testing.T) {
 				app, _, _ := copyApp(t, nil, []string{"alpha beta", "second line", "last line"})
 				enterCopyMode(t, app)
 				pressAll(t, app, "g", "g", shape.key)
-				if app.r.Mode.Name != shape.mode {
-					t.Fatalf("%s: mode %s", shape.key, app.r.Mode.Name)
+				if app.r.CurrentMode().Name != shape.mode {
+					t.Fatalf("%s: mode %s", shape.key, app.r.CurrentMode().Name)
 				}
 				pressAll(t, app, "2", "j", end)
-				if app.r.Mode.Name != "copy" || !app.copy.active || app.r.Focus != copyID {
-					t.Fatalf("%s: mode %s active %v focus %s", end, app.r.Mode.Name, app.copy.active, app.r.Focus)
+				if app.r.CurrentMode().Name != "copy" || !app.copy.active || app.r.FocusID() != copyID {
+					t.Fatalf("%s: mode %s active %v focus %s", end, app.r.CurrentMode().Name, app.copy.active, app.r.FocusID())
 				}
 				pressAll(t, app, "esc")
-				if app.r.Mode.Name != "normal" || app.copy.active || app.r.Focus != "pane:matomeru/w1" {
-					t.Fatalf("esc out: mode %s active %v focus %s", app.r.Mode.Name, app.copy.active, app.r.Focus)
+				if app.r.CurrentMode().Name != "normal" || app.copy.active || app.r.FocusID() != "pane:matomeru/w1" {
+					t.Fatalf("esc out: mode %s active %v focus %s", app.r.CurrentMode().Name, app.copy.active, app.r.FocusID())
 				}
 			})
 		}
@@ -566,24 +566,24 @@ func TestCopyModeInheritsNormalAndRestoresFocusModes(t *testing.T) {
 		t.Fatal("normal palette binding did not answer in copy")
 	}
 	pressAll(t, app, "esc")
-	if app.r.Focus != copyID || app.r.Mode.Name != "copy" || !app.copy.active {
-		t.Fatalf("palette return: focus %s mode %s active %v", app.r.Focus, app.r.Mode.Name, app.copy.active)
+	if app.r.FocusID() != copyID || app.r.CurrentMode().Name != "copy" || !app.copy.active {
+		t.Fatalf("palette return: focus %s mode %s active %v", app.r.FocusID(), app.r.CurrentMode().Name, app.copy.active)
 	}
 	// Pending find and count modes consume their key back into copy.
 	pressAll(t, app, "g", "g", "0", "f", "b")
 	at(t, app, "fb", 0, 6)
-	if app.r.Mode.Name != "copy" {
-		t.Fatalf("find return: mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "copy" {
+		t.Fatalf("find return: mode %s", app.r.CurrentMode().Name)
 	}
 	pressAll(t, app, "2", "h")
 	at(t, app, "2h", 0, 4)
-	if app.r.Mode.Name != "copy" {
-		t.Fatalf("count return: mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "copy" {
+		t.Fatalf("count return: mode %s", app.r.CurrentMode().Name)
 	}
 	// A normal page binding still answers and leaving the stop ends copy.
 	pressAll(t, app, "ctrl+j")
-	if app.r.Page == panesPage || app.r.Mode.Name != "normal" || app.copy.active {
-		t.Fatalf("page away: page %s mode %s active %v", app.r.Page, app.r.Mode.Name, app.copy.active)
+	if app.r.Page == panesPage || app.r.CurrentMode().Name != "normal" || app.copy.active {
+		t.Fatalf("page away: page %s mode %s active %v", app.r.Page, app.r.CurrentMode().Name, app.copy.active)
 	}
 }
 
@@ -632,11 +632,11 @@ func TestLeaderLCopyReturnsToFocusedSide(t *testing.T) {
 	}
 	side := a.r.Instances[sideTermID].Data.(pane)
 	press(t, a, "ctrl+a", "l")
-	if a.r.Mode.Name != "copy" || a.copy.pane.ID != side.ID {
-		t.Fatalf("copied %s in %s", a.copy.pane.ID, a.r.Mode.Name)
+	if a.r.CurrentMode().Name != "copy" || a.copy.pane.ID != side.ID {
+		t.Fatalf("copied %s in %s", a.copy.pane.ID, a.r.CurrentMode().Name)
 	}
 	press(t, a, "esc")
-	if a.r.Focus != sideTermID || a.r.Mode.Name != "terminal" || a.r.Terminal(sideTermID) == nil {
-		t.Fatalf("lost side: %s %s", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != sideTermID || a.r.CurrentMode().Name != "terminal" || a.r.Terminal(sideTermID) == nil {
+		t.Fatalf("lost side: %s %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }

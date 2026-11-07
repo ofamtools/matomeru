@@ -29,7 +29,7 @@ func TestPaneRowWritesFromEveryTab(t *testing.T) {
 						wantTab = tabTurns
 					}
 				}
-				if app.r.Focus != promptID || app.r.BaseMode() != "insert" || app.pv.tab != wantTab {
+				if app.r.FocusID() != promptID || app.r.BaseMode() != "insert" || app.pv.tab != wantTab {
 					t.Fatalf("i: %s tab %d, want prompt on %s:\n%s", where(app), app.pv.tab, tabNames[wantTab], frame(app))
 				}
 				typeText(t, app, "write here")
@@ -67,10 +67,10 @@ func TestPaneWithoutABoxIgnoresInsertKey(t *testing.T) {
 				app.pv.tab = tab
 				settle(app, follow(app))
 				frame(app)
-				before := app.r.Focus
+				before := app.r.FocusID()
 				pressSettle(t, app, "i")
 				fr := frame(app)
-				if app.r.Focus != before || app.r.BaseMode() != "normal" || app.m.Status != "" || strings.Contains(fr, "Edit pane") {
+				if app.r.FocusID() != before || app.r.BaseMode() != "normal" || app.m.Status != "" || strings.Contains(fr, "Edit pane") {
 					t.Fatalf("i without a box: %s status %q:\n%s", where(app), app.m.Status, fr)
 				}
 			})
@@ -82,7 +82,7 @@ func TestLiveLeaderInsertStillReachesTheProgram(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
 	press(t, app, "enter", "ctrl+a", "i")
-	if app.r.Focus != paneTermID || app.r.BaseMode() != "terminal" || !reflect.DeepEqual(f.streams[0].sent, [][]string{{"ctrl+a"}, {"i"}}) {
+	if app.r.FocusID() != paneTermID || app.r.BaseMode() != "terminal" || !reflect.DeepEqual(f.streams[0].sent, [][]string{{"ctrl+a"}, {"i"}}) {
 		t.Fatalf("leader i: %s sent %v", where(app), f.streams[0].sent)
 	}
 }

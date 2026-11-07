@@ -60,7 +60,7 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 				leaderKey(t, a, leader, c.key)
 				plainView(a)
 				if !c.opened(a) {
-					t.Fatalf("%s %s: page %q modal %q focus %s palette %v", leader, c.key, a.r.Page, a.r.TopModal(), a.r.Focus, a.m.Palette.IsActive())
+					t.Fatalf("%s %s: page %q modal %q focus %s palette %v", leader, c.key, a.r.Page, a.r.TopModal(), a.r.FocusID(), a.m.Palette.IsActive())
 				}
 				for _, k := range c.close {
 					settle(a, key(t, a, k))
@@ -109,8 +109,8 @@ func TestLeaderPageKeysLeaveAndComeBackLive(t *testing.T) {
 			a, s, _ := hintsApp(t, padRows("$ "))
 			leaderKey(t, a, "ctrl+a", c.key)
 			plainView(a)
-			if a.r.Page == panesPage || a.r.TopModal() != "" || a.r.Mode.Name == "terminal" {
-				t.Fatalf("ctrl+a %s: page %q mode %q modal %q", c.key, a.r.Page, a.r.Mode.Name, a.r.TopModal())
+			if a.r.Page == panesPage || a.r.TopModal() != "" || a.r.CurrentMode().Name == "terminal" {
+				t.Fatalf("ctrl+a %s: page %q mode %q modal %q", c.key, a.r.Page, a.r.CurrentMode().Name, a.r.TopModal())
 			}
 			if c.page != "" && a.r.Page != c.page {
 				t.Fatalf("ctrl+a %s: page %q, want %q", c.key, a.r.Page, c.page)
@@ -256,8 +256,8 @@ func TestLiveFocusSurvivesFrames(t *testing.T) {
 	for range 3 {
 		plainView(a)
 	}
-	if a.r.Focus != sideTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("ctrl+a v: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != sideTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("ctrl+a v: focus %s mode %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	settle(a, key(t, a, "ctrl+a"))
 	settle(a, key(t, a, ":"))
@@ -269,8 +269,8 @@ func TestLiveFocusSurvivesFrames(t *testing.T) {
 	for range 3 {
 		plainView(a)
 	}
-	if a.r.Focus != sideTermID || a.r.Mode.Name != "terminal" || a.r.TopModal() != "" {
-		t.Fatalf("palette closed over the side: focus %s mode %s modal %q", a.r.Focus, a.r.Mode.Name, a.r.TopModal())
+	if a.r.FocusID() != sideTermID || a.r.CurrentMode().Name != "terminal" || a.r.TopModal() != "" {
+		t.Fatalf("palette closed over the side: focus %s mode %s modal %q", a.r.FocusID(), a.r.CurrentMode().Name, a.r.TopModal())
 	}
 	settle(a, key(t, a, "ctrl+a"))
 	settle(a, key(t, a, "v")) // v again: back to the parent

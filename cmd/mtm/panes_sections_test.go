@@ -332,8 +332,8 @@ func TestPaneSectionsHoldTheRowUnderTheCursor(t *testing.T) {
 		t.Fatalf("working reordered: %v", got)
 	}
 	press(t, a, "j") // the cursor moves to wnew: wold may go now
-	if a.r.Focus != "pane:s/wnew" {
-		t.Fatalf("focus %s", a.r.Focus)
+	if a.r.FocusID() != "pane:s/wnew" {
+		t.Fatalf("focus %s", a.r.FocusID())
 	}
 	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wnew"}) {
 		t.Fatalf("working after the move %v", got)
@@ -353,20 +353,20 @@ func TestPaneSectionsSpillJK(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "j")
-	if first := a.pv.sections[1].tree.Nodes()[0].ID; a.r.Focus != first {
-		t.Fatalf("j off the queue: focus %s, want %s", a.r.Focus, first)
+	if first := a.pv.sections[1].tree.Nodes()[0].ID; a.r.FocusID() != first {
+		t.Fatalf("j off the queue: focus %s, want %s", a.r.FocusID(), first)
 	}
 	press(t, a, "k")
-	if a.r.Focus != queue[len(queue)-1] {
-		t.Fatalf("k back: focus %s", a.r.Focus)
+	if a.r.FocusID() != queue[len(queue)-1] {
+		t.Fatalf("k back: focus %s", a.r.FocusID())
 	}
 	if err := a.r.SetFocus(middle[len(middle)-1]); err != nil {
 		t.Fatal(err)
 	}
 	frame(a)
 	press(t, a, "j")
-	if a.r.Focus != working[0] {
-		t.Fatalf("j off the middle: focus %s, want %s", a.r.Focus, working[0])
+	if a.r.FocusID() != working[0] {
+		t.Fatalf("j off the middle: focus %s, want %s", a.r.FocusID(), working[0])
 	}
 }
 
@@ -481,16 +481,16 @@ func sectionItems(a *App) []ochazuke.ListItem {
 func TestPaneSectionsOpenOnTheQueue(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
-	if a.r.Focus != "pane:s/wwait" {
-		t.Fatalf("first listing: focus %s, want the queue's first row", a.r.Focus)
+	if a.r.FocusID() != "pane:s/wwait" {
+		t.Fatalf("first listing: focus %s, want the queue's first row", a.r.FocusID())
 	}
 	if err := a.r.SetFocus("pane:s/widle"); err != nil {
 		t.Fatal(err)
 	}
 	toPage(t, a, inboxPage)
 	press(t, a, "I")
-	if a.r.Page != panesPage || a.sectionOf(a.r.Focus) != 0 {
-		t.Fatalf("I: page %s focus %s", a.r.Page, a.r.Focus)
+	if a.r.Page != panesPage || a.sectionOf(a.r.FocusID()) != 0 {
+		t.Fatalf("I: page %s focus %s", a.r.Page, a.r.FocusID())
 	}
 
 	quiet := open(t)
@@ -501,8 +501,8 @@ func TestPaneSectionsOpenOnTheQueue(t *testing.T) {
 	if err := quiet.r.OpenPage(panesPage); err != nil {
 		t.Fatal(err)
 	}
-	if quiet.sectionOf(quiet.r.Focus) != 1 {
-		t.Fatalf("empty queue: focus %s", quiet.r.Focus)
+	if quiet.sectionOf(quiet.r.FocusID()) != 1 {
+		t.Fatalf("empty queue: focus %s", quiet.r.FocusID())
 	}
 }
 

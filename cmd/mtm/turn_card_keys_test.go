@@ -17,23 +17,23 @@ func TestTurnCardEnterOpensThenCloses(t *testing.T) {
 	app.m.Width, app.m.Height = 120, 50
 	frame(app)
 	press(t, app, "}")
-	card := app.r.Focus
+	card := app.r.FocusID()
 	if app.pv.cards.IsOpen(card) {
 		t.Fatalf("the card starts open: %s", where(app))
 	}
 	settle(app, key(t, app, "enter"))
 	frame(app)
-	if !app.pv.cards.IsOpen(card) || app.r.Focus != card {
+	if !app.pv.cards.IsOpen(card) || app.r.FocusID() != card {
 		t.Fatalf("enter on the closed card: %s open %v", where(app), app.pv.cards.IsOpen(card))
 	}
 	settle(app, key(t, app, "enter"))
 	frame(app)
-	if app.pv.cards.IsOpen(card) || app.r.Focus != card {
+	if app.pv.cards.IsOpen(card) || app.r.FocusID() != card {
 		t.Fatalf("enter on the open card: %s open %v", where(app), app.pv.cards.IsOpen(card))
 	}
 	settle(app, key(t, app, "l"))
 	frame(app)
-	if !app.pv.cards.IsOpen(card) || app.r.Focus != card {
+	if !app.pv.cards.IsOpen(card) || app.r.FocusID() != card {
 		t.Fatalf("l on the closed card: %s", where(app))
 	}
 	press(t, app, "l")
@@ -45,10 +45,10 @@ func TestTurnCardEnterOpensThenCloses(t *testing.T) {
 	// the focus is on it.
 	settle(app, key(t, app, "enter"))
 	frame(app)
-	if app.pv.cards.IsOpen(card) || app.r.Focus != card {
+	if app.pv.cards.IsOpen(card) || app.r.FocusID() != card {
 		t.Fatalf("enter inside: %s open %v", where(app), app.pv.cards.IsOpen(card))
 	}
-	if !app.r.Available(ochazuke.Request{Noun: "turn", Verb: "open"}, card, app.r.Mode) || app.r.Available(ochazuke.Request{Noun: "turn", Verb: "close"}, card, app.r.Mode) {
+	if !app.r.Available(ochazuke.Request{Noun: "turn", Verb: "open"}, card, app.r.CurrentMode()) || app.r.Available(ochazuke.Request{Noun: "turn", Verb: "close"}, card, app.r.CurrentMode()) {
 		t.Fatal("on a closed card turn.open is available and turn.close is not")
 	}
 }

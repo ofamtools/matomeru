@@ -12,12 +12,12 @@ func TestQClosesAndCapitalQRecordsAMacro(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "q")
-	if app.r.Mode.Name != "normal" {
-		t.Fatalf("q on a page: mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "normal" {
+		t.Fatalf("q on a page: mode %s", app.r.CurrentMode().Name)
 	}
 	press(t, app, "Q")
-	if app.r.Mode.Name != "macro_pending" {
-		t.Fatalf("Q: mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "macro_pending" {
+		t.Fatalf("Q: mode %s", app.r.CurrentMode().Name)
 	}
 	press(t, app, "a")
 	if app.r.Registers().Macro.Recording != "a" {
@@ -32,8 +32,8 @@ func TestQClosesAndCapitalQRecordsAMacro(t *testing.T) {
 		t.Fatalf("T: modal %q", app.r.TopModal())
 	}
 	press(t, app, "q")
-	if app.r.TopModal() != "" || app.r.Mode.Name != "normal" {
-		t.Fatalf("q in the outline: modal %q mode %s", app.r.TopModal(), app.r.Mode.Name)
+	if app.r.TopModal() != "" || app.r.CurrentMode().Name != "normal" {
+		t.Fatalf("q in the outline: modal %q mode %s", app.r.TopModal(), app.r.CurrentMode().Name)
 	}
 	press(t, app, "?")
 	if app.r.TopModal() != "bindings-help" {
@@ -93,8 +93,8 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 	}
 	press(t, app, "esc")
 	press(t, app, "l")
-	if app.r.Focus == "matomeru" {
-		t.Fatalf("l did not open the project (focus %s)", app.r.Focus)
+	if app.r.FocusID() == "matomeru" {
+		t.Fatalf("l did not open the project (focus %s)", app.r.FocusID())
 	}
 	settle(app, launchKey(t, app))
 	if len(f.launches) != 1 || f.launches[0].Session != "matomeru" {
@@ -106,9 +106,9 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 // chooser, its pick the standard set of @owner.
 func chooseMove(t *testing.T, a *App) {
 	t.Helper()
-	inst := a.r.Instances[a.r.Focus]
+	inst := a.r.Instances[a.r.FocusID()]
 	if inst == nil {
-		t.Fatalf("no focused row at %q", a.r.Focus)
+		t.Fatalf("no focused row at %q", a.r.FocusID())
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: inst.Noun, Verb: "choose-move", Target: inst.ID}); err != nil {
 		t.Fatal(err)
@@ -133,8 +133,8 @@ func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
-	if app.r.Focus != "t1" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	chooseMove(t, app)
 	c := app.r.Chooser(moveChooser)

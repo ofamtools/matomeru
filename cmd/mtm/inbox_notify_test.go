@@ -152,7 +152,7 @@ func TestInboxNotifyOffLoopHeldNoticeWithoutPageOpen(t *testing.T) {
 	}
 	calls := 0
 	a.notify.exec = func(context.Context, []string) (string, error) { calls++; return "", nil }
-	focus, page := a.r.Focus, a.r.Page
+	focus, page := a.r.FocusID(), a.r.Page
 	cmd := a.inboxUpdate(inboxDue{})
 	if calls != 0 {
 		t.Fatal("sender ran on the UI loop")
@@ -162,7 +162,7 @@ func TestInboxNotifyOffLoopHeldNoticeWithoutPageOpen(t *testing.T) {
 	if result.err != nil || result.sent != 1 || calls != 1 {
 		t.Fatalf("tick %+v calls=%d", result, calls)
 	}
-	if a.r.Focus != focus || a.r.Page != page || len(a.r.Modals()) != 0 {
+	if a.r.FocusID() != focus || a.r.Page != page || len(a.r.Modals()) != 0 {
 		t.Fatal("inbox notification navigated or opened a modal")
 	}
 	if got := ansi.Strip(a.View().Content); !strings.Contains(got, "Inbox: slack · Review the incident") {

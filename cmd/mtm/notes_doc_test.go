@@ -58,7 +58,7 @@ func TestNoteChecklistTogglesInTheStore(t *testing.T) {
 	frame(a)
 	press(t, a, "enter")
 	if !a.noteDocFocused() {
-		t.Fatalf("enter focus %s", a.r.Focus)
+		t.Fatalf("enter focus %s", a.r.FocusID())
 	}
 	if _, off := a.noteDoc.Cursor(); off != 0 {
 		t.Fatalf("enter cursor line %d", off)
@@ -118,8 +118,8 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 	t.Parallel()
 	a, note := notesDocApp(t)
 	press(t, a, "enter", "esc")
-	if a.r.Focus != note.ID {
-		t.Fatalf("esc focus %s", a.r.Focus)
+	if a.r.FocusID() != note.ID {
+		t.Fatalf("esc focus %s", a.r.FocusID())
 	}
 	press(t, a, "enter", "i")
 	if !a.noteDoc.Editing() || a.editor != nil {
@@ -147,7 +147,7 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 	}
 	press(t, a, "enter")
 	if !a.noteDocFocused() {
-		t.Fatalf("plain note enter focus %s", a.r.Focus)
+		t.Fatalf("plain note enter focus %s", a.r.FocusID())
 	}
 }
 
@@ -246,12 +246,12 @@ func TestNoteBodyEscLandsOnTheRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "enter", "esc")
-	if a.r.Focus != note.ID {
-		t.Fatalf("esc focus %s, want the row %s", a.r.Focus, note.ID)
+	if a.r.FocusID() != note.ID {
+		t.Fatalf("esc focus %s, want the row %s", a.r.FocusID(), note.ID)
 	}
 	press(t, a, "enter")
 	if !a.noteDocFocused() {
-		t.Fatalf("enter after esc: focus %s", a.r.Focus)
+		t.Fatalf("enter after esc: focus %s", a.r.FocusID())
 	}
 }
 

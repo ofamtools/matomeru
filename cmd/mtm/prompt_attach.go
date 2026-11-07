@@ -212,7 +212,7 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 			ctx.Info(notice)
 			return
 		}
-		if in := a.pb.input; a.r.Focus != promptID && string(in.Text) == was {
+		if in := a.pb.input; a.r.FocusID() != promptID && string(in.Text) == was {
 			in.Cursor = at
 		}
 		if read.got.Text == "" {
@@ -235,7 +235,7 @@ func (a *App) pastePrompt(ochazuke.Ctx) ochazuke.Result {
 // the focus and mode stay where they put them (F10): a late result never
 // pulls the focus back.
 func (a *App) pasteIntoPrompt(text string) error {
-	if a.r.Focus == promptID {
+	if a.r.FocusID() == promptID {
 		return a.insertIntoPrompt(text)
 	}
 	in := a.pb.input

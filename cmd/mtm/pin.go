@@ -326,7 +326,7 @@ func (a *App) fitTitle() {
 // titleWidth is the cells ochazuke's title row leaves the title: the width
 // less the gutters, the "◆ " marker and the padded mode badge with its gap.
 func (a *App) titleWidth() int {
-	badge := strings.ToUpper(strings.ReplaceAll(a.r.Mode.Name, "_", " "))
+	badge := strings.ToUpper(strings.ReplaceAll(a.r.CurrentMode().Name, "_", " "))
 	if rec := a.r.Registers().Macro.Recording; rec != "" {
 		badge += " · REC @" + rec
 	}

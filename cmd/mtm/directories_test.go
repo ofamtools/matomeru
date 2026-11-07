@@ -215,8 +215,8 @@ func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 	a.m.Width, a.m.Height = 100, 30
 	frameView(a)
 	press(t, a, "}")
-	if a.r.Focus != a.editor.fieldID("status") {
-		t.Fatalf("status field unreachable: %s", a.r.Focus)
+	if a.r.FocusID() != a.editor.fieldID("status") {
+		t.Fatalf("status field unreachable: %s", a.r.FocusID())
 	}
 	press(t, a, "i", "j", "j")
 	if got := stored(t, a, "t1"); got.Title != "write the brief keyboard" || got.Status != work.StatusTodo {

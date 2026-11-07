@@ -94,8 +94,8 @@ func labelOf(t *testing.T, app *App, raw string) string {
 func startHints(t *testing.T, app *App, s *fakeStream) *ochazuke.TerminalOverlay {
 	t.Helper()
 	pressAll(t, app, "ctrl+a", "f")
-	if app.r.Mode.Name != hintsMode || app.r.Focus != paneTermID || app.hinting == nil {
-		t.Fatalf("ctrl+a f: mode %s focus %s", app.r.Mode.Name, app.r.Focus)
+	if app.r.CurrentMode().Name != hintsMode || app.r.FocusID() != paneTermID || app.hinting == nil {
+		t.Fatalf("ctrl+a f: mode %s focus %s", app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	o := app.r.Terminal(paneTermID).Overlay()
 	if o == nil || !o.Dim || len(o.Marks) == 0 {
@@ -209,8 +209,8 @@ func TestHintsTwoLetterLabels(t *testing.T) {
 	}
 	pressAll(t, app, label[:1])
 	narrowed := app.r.Terminal(paneTermID).Overlay().Marks
-	if len(narrowed) == 0 || len(narrowed) >= all || app.r.Mode.Name != hintsMode {
-		t.Fatalf("first letter: %d of %d marks, mode %s", len(narrowed), all, app.r.Mode.Name)
+	if len(narrowed) == 0 || len(narrowed) >= all || app.r.CurrentMode().Name != hintsMode {
+		t.Fatalf("first letter: %d of %d marks, mode %s", len(narrowed), all, app.r.CurrentMode().Name)
 	}
 	for _, m := range narrowed {
 		if !strings.HasPrefix(m.Text, label[:1]) {
@@ -240,14 +240,14 @@ func TestHintsCancelAndSwallow(t *testing.T) {
 		startHints(t, app, s)
 		for _, k := range []string{"enter", "1", "tab", "up", "z"} {
 			pressAll(t, app, k)
-			if app.r.Mode.Name != hintsMode {
-				t.Fatalf("%q left hints: mode %s sent %v", k, app.r.Mode.Name, s.sent)
+			if app.r.CurrentMode().Name != hintsMode {
+				t.Fatalf("%q left hints: mode %s sent %v", k, app.r.CurrentMode().Name, s.sent)
 			}
 		}
 		app.Update(tea.KeyPressMsg{Code: tea.KeySpace, Mod: tea.ModCtrl})
 		app.Update(tea.PasteMsg{Content: "pasted"})
-		if len(s.sent) != 0 || len(s.pasted) != 0 || len(sys.copied) != 0 || app.r.Mode.Name != hintsMode || app.hinting == nil {
-			t.Fatalf("swallowed keys: sent %v pasted %v copied %v mode %s", s.sent, s.pasted, sys.copied, app.r.Mode.Name)
+		if len(s.sent) != 0 || len(s.pasted) != 0 || len(sys.copied) != 0 || app.r.CurrentMode().Name != hintsMode || app.hinting == nil {
+			t.Fatalf("swallowed keys: sent %v pasted %v copied %v mode %s", s.sent, s.pasted, sys.copied, app.r.CurrentMode().Name)
 		}
 		pressAll(t, app, cancel)
 		cleared(t, app, cancel)
@@ -273,8 +273,8 @@ func TestHintsClearOnFocusChangeAndDetach(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
-	if o := app.r.Terminal(paneTermID).Overlay(); o != nil || app.hinting != nil || app.r.Mode.Name == hintsMode {
-		t.Fatalf("focus change: overlay %+v mode %s", o, app.r.Mode.Name)
+	if o := app.r.Terminal(paneTermID).Overlay(); o != nil || app.hinting != nil || app.r.CurrentMode().Name == hintsMode {
+		t.Fatalf("focus change: overlay %+v mode %s", o, app.r.CurrentMode().Name)
 	}
 
 	app, s, _ = hintsApp(t, rows)
@@ -283,8 +283,8 @@ func TestHintsClearOnFocusChangeAndDetach(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
-	if app.hinting != nil || app.r.Mode.Name == hintsMode {
-		t.Fatalf("detach: hinting %v mode %s", app.hinting != nil, app.r.Mode.Name)
+	if app.hinting != nil || app.r.CurrentMode().Name == hintsMode {
+		t.Fatalf("detach: hinting %v mode %s", app.hinting != nil, app.r.CurrentMode().Name)
 	}
 }
 
@@ -304,8 +304,8 @@ func TestHintsWithNothingToLabel(t *testing.T) {
 		if !strings.Contains(app.m.Info, c.status) {
 			t.Fatalf("%s: status %q", c.name, app.m.Info)
 		}
-		if app.hinting != nil || app.r.Terminal(paneTermID).Overlay() != nil || app.r.Mode.Name != "terminal" || len(s.sent) != 0 {
-			t.Fatalf("%s: hinting %v mode %s sent %v", c.name, app.hinting != nil, app.r.Mode.Name, s.sent)
+		if app.hinting != nil || app.r.Terminal(paneTermID).Overlay() != nil || app.r.CurrentMode().Name != "terminal" || len(s.sent) != 0 {
+			t.Fatalf("%s: hinting %v mode %s sent %v", c.name, app.hinting != nil, app.r.CurrentMode().Name, s.sent)
 		}
 	}
 }
@@ -391,8 +391,8 @@ func TestHintsLabelBothPanes(t *testing.T) {
 			own, other = sideURL, mainURL
 		}
 		pressAll(t, app, "ctrl+a", "f")
-		if app.r.Mode.Name != hintsMode || app.r.Focus != from || app.hinting == nil || len(app.hinting.screens) != 2 {
-			t.Fatalf("from %s: mode %s focus %s", from, app.r.Mode.Name, app.r.Focus)
+		if app.r.CurrentMode().Name != hintsMode || app.r.FocusID() != from || app.hinting == nil || len(app.hinting.screens) != 2 {
+			t.Fatalf("from %s: mode %s focus %s", from, app.r.CurrentMode().Name, app.r.FocusID())
 		}
 		if got := []string{labelOf(t, app, own), labelOf(t, app, sharedURL), labelOf(t, app, other)}; !slices.Equal(got, first) {
 			t.Fatalf("from %s: labels %v, want %v", from, got, first)
@@ -414,8 +414,8 @@ func TestHintsLabelBothPanes(t *testing.T) {
 				t.Fatalf("from %s: esc left %s's overlay", from, id)
 			}
 		}
-		if app.hinting != nil || app.r.Mode.Name != "terminal" || app.r.Focus != from {
-			t.Fatalf("from %s: esc: mode %s focus %s", from, app.r.Mode.Name, app.r.Focus)
+		if app.hinting != nil || app.r.CurrentMode().Name != "terminal" || app.r.FocusID() != from {
+			t.Fatalf("from %s: esc: mode %s focus %s", from, app.r.CurrentMode().Name, app.r.FocusID())
 		}
 	}
 }

@@ -147,8 +147,8 @@ func TestSavedRenameIsWrittenAsYouType(t *testing.T) {
 		t.Fatal(err)
 	}
 	savedCall(t, a, "edit", ochazuke.Arguments{"id": row.ID, "field": "@label"})
-	if editing(a) == nil || a.r.Focus != editFormID+"/name" {
-		t.Fatalf("rename did not open the form: focus %s", a.r.Focus)
+	if editing(a) == nil || a.r.FocusID() != editFormID+"/name" {
+		t.Fatalf("rename did not open the form: focus %s", a.r.FocusID())
 	}
 	typeText(t, a, "renamed")
 	pauseForm(t, a, editing(a))

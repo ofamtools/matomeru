@@ -202,16 +202,16 @@ func TestNoteEditorTitleField(t *testing.T) {
 	}
 	notesOn(t, a, n.ID)
 	press(t, a, "i")
-	if a.editor == nil || a.r.Focus != a.editor.fieldID("text") {
-		t.Fatalf("editor focus %s", a.r.Focus)
+	if a.editor == nil || a.r.FocusID() != a.editor.fieldID("text") {
+		t.Fatalf("editor focus %s", a.r.FocusID())
 	}
 	if _, ok := a.editor.Form.Values()["title"]; !ok {
 		t.Fatalf("no title field: %v", a.editor.Form.Values())
 	}
 	// shift+tab in insert mode goes up to the title.
 	a.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
-	if a.r.Focus != a.editor.fieldID("title") {
-		t.Fatalf("shift+tab focus %s", a.r.Focus)
+	if a.r.FocusID() != a.editor.fieldID("title") {
+		t.Fatalf("shift+tab focus %s", a.r.FocusID())
 	}
 	typeText(t, a, "Head")
 	press(t, a, "esc", "q")

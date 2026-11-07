@@ -280,8 +280,8 @@ func TestNoteEditsInPlaceOnTheNotesPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "n")
-	if a.r.Page != notesPage || a.editor == nil || a.r.Focus != a.editor.fieldID("text") || a.editor.Page != notesPage {
-		t.Fatalf("page %s focus %s", a.r.Page, a.r.Focus)
+	if a.r.Page != notesPage || a.editor == nil || a.r.FocusID() != a.editor.fieldID("text") || a.editor.Page != notesPage {
+		t.Fatalf("page %s focus %s", a.r.Page, a.r.FocusID())
 	}
 	typeText(t, a, "kept here")
 	if fr := frame(a); !strings.Contains(fr, "editing note") || !strings.Contains(fr, "kept here") || !strings.Contains(fr, "notes (") {
@@ -316,7 +316,7 @@ func TestLongNoteBodyScrollsOnItsOwn(t *testing.T) {
 	}
 	press(t, a, "enter")
 	if !a.noteDocFocused() {
-		t.Fatalf("enter focus %s", a.r.Focus)
+		t.Fatalf("enter focus %s", a.r.FocusID())
 	}
 	f := frame(a)
 	if !strings.Contains(f, "line 002") || !strings.Contains(f, "notes (1)") {
@@ -334,10 +334,10 @@ func TestLongNoteBodyScrollsOnItsOwn(t *testing.T) {
 	}
 	press(t, a, "esc")
 	if a.noteDocFocused() || a.r.BaseFocus() == noteBodyID {
-		t.Fatalf("esc focus %s", a.r.Focus)
+		t.Fatalf("esc focus %s", a.r.FocusID())
 	}
 	press(t, a, "}")
 	if !a.noteDocFocused() {
-		t.Fatalf("} from the list: focus %s", a.r.Focus)
+		t.Fatalf("} from the list: focus %s", a.r.FocusID())
 	}
 }

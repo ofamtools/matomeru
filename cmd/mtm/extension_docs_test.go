@@ -81,8 +81,8 @@ func TestDocsPageEditsTheSelectedFile(t *testing.T) {
 	}
 	press(t, a, "tab")
 	frame(a)
-	if !strings.Contains(a.r.Focus, "/markdown/line/") {
-		t.Fatalf("tab focus %s", a.r.Focus)
+	if !strings.Contains(a.r.FocusID(), "/markdown/line/") {
+		t.Fatalf("tab focus %s", a.r.FocusID())
 	}
 	press(t, a, "]", "x", "x")
 	if text := readFile(t, doc); !strings.Contains(text, "- [x] first task") {
@@ -161,22 +161,22 @@ func TestDocsGSSendsNotesFromTheListAndTheEditor(t *testing.T) {
 	}
 	// The g prefix cancels with esc (the cancel loading g s brought back).
 	press(t, a, "g", "esc")
-	if a.r.Mode.Name != "normal" || a.r.TopModal() != "" {
-		t.Fatalf("g esc: mode %q modal %q", a.r.Mode.Name, a.r.TopModal())
+	if a.r.CurrentMode().Name != "normal" || a.r.TopModal() != "" {
+		t.Fatalf("g esc: mode %q modal %q", a.r.CurrentMode().Name, a.r.TopModal())
 	}
 	for _, where := range []string{"list", "editor"} {
 		if where == "editor" {
 			press(t, a, "tab")
 		}
 		frame(a)
-		if inEditor := strings.Contains(a.r.Focus, "/markdown/line/"); inEditor != (where == "editor") {
-			t.Fatalf("%s: focus %s", where, a.r.Focus)
+		if inEditor := strings.Contains(a.r.FocusID(), "/markdown/line/"); inEditor != (where == "editor") {
+			t.Fatalf("%s: focus %s", where, a.r.FocusID())
 		}
 		before := len(calls(t, log))
 		press(t, a, "g", "s")
 		top := a.r.Instances[a.r.TopModal()]
 		if top == nil || top.Noun != "ext-pane" {
-			t.Fatalf("%s: g s opened no pane chooser: top %+v focus %s", where, top, a.r.Focus)
+			t.Fatalf("%s: g s opened no pane chooser: top %+v focus %s", where, top, a.r.FocusID())
 		}
 		pressJob(t, a, "enter")
 		got := calls(t, log)[before:]

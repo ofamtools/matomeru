@@ -203,35 +203,35 @@ func TestSettingsLineIsAStopAndItsFieldsAreRows(t *testing.T) {
 	app, _, _ := settingsApp(t)
 	frame(app)
 	press(t, app, "}", "}") // the turns, then the box
-	if app.r.Focus != promptID {
-		t.Fatalf("focus %s, want the box", app.r.Focus)
+	if app.r.FocusID() != promptID {
+		t.Fatalf("focus %s, want the box", app.r.FocusID())
 	}
 	press(t, app, "j") // the box's last line: down to the line under it
-	if want := settingRowID("pane:matomeru/w1", harness.SettingModel); app.r.Focus != want {
-		t.Fatalf("} after the box: %s, want %s", app.r.Focus, want)
+	if want := settingRowID("pane:matomeru/w1", harness.SettingModel); app.r.FocusID() != want {
+		t.Fatalf("} after the box: %s, want %s", app.r.FocusID(), want)
 	}
 	press(t, app, "l", "l")
-	if want := settingRowID("pane:matomeru/w1", harness.SettingFast); app.r.Focus != want {
-		t.Fatalf("l l: %s", app.r.Focus)
+	if want := settingRowID("pane:matomeru/w1", harness.SettingFast); app.r.FocusID() != want {
+		t.Fatalf("l l: %s", app.r.FocusID())
 	}
 	press(t, app, "l", "l", "l", "l") // clamps at the last field
-	if want := settingRowID("pane:matomeru/w1", fieldCost); app.r.Focus != want {
-		t.Fatalf("past the end: %s", app.r.Focus)
+	if want := settingRowID("pane:matomeru/w1", fieldCost); app.r.FocusID() != want {
+		t.Fatalf("past the end: %s", app.r.FocusID())
 	}
 	press(t, app, "h", "h", "h", "h") // back to effort
 	press(t, app, "enter")
 	c := app.r.Chooser("pane-setting-" + harness.SettingEffort)
 	if c == nil {
-		t.Fatalf("enter on effort opened no chooser; focus %s", app.r.Focus)
+		t.Fatalf("enter on effort opened no chooser; focus %s", app.r.FocusID())
 	}
 	press(t, app, "esc")
 	press(t, app, "esc")
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("esc: %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("esc: %s", app.r.FocusID())
 	}
 	press(t, app, "}", "}", "j", "k")
-	if app.r.Focus != promptID {
-		t.Fatalf("k from the line: %s, want the box", app.r.Focus)
+	if app.r.FocusID() != promptID {
+		t.Fatalf("k from the line: %s, want the box", app.r.FocusID())
 	}
 }
 

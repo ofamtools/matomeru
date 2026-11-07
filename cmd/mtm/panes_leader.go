@@ -59,7 +59,7 @@ func (a *App) bindPageLeader() error {
 // pane) has the focus: the leader's j, k and s attach there and select
 // everywhere else.
 func (a *App) inLive() bool {
-	return a.attached.ID != "" && a.r.Terminal(a.r.Focus) != nil
+	return a.attached.ID != "" && a.r.Terminal(a.r.FocusID()) != nil
 }
 
 // paneNear is the pane row delta steps from row in the tree's pane order

@@ -637,10 +637,13 @@ func (a *App) agentNodes(parent string, j int, s turns.Step, ref turnRef, width,
 // The subagent verbs: on a subagent's step (inside a card, or its tree
 // row) and on its notification's card.
 
-// focusedAgent is the subagent the focus is on: the step the focus is
-// inside a card on, the tree row, or a notification card's agent.
-func (a *App) focusedAgent() *turns.Agent {
-	focus := a.r.Focus
+// focusedAgent is the subagent the live focus is on (agentAt).
+func (a *App) focusedAgent() *turns.Agent { return a.agentAt(a.r.FocusID()) }
+
+// agentAt is the subagent focus is on: the step the focus is inside a
+// card on, the tree row, or a notification card's agent. A guard passes
+// its event's focus.
+func (a *App) agentAt(focus string) *turns.Agent {
 	if tl := a.pv.cards; tl != nil && focus == tl.BodyID() {
 		card, _, ok := tl.Step()
 		text, _ := tl.StepText()
@@ -735,7 +738,7 @@ func (pv *paneUI) turnsWindow() string {
 // addAgentVerbs defines the subagent verbs on the nouns a subagent's step
 // is focused as.
 func (a *App) addAgentVerbs() {
-	a.r.DefineGuard("on-agent", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.focusedAgent() != nil })
+	a.r.DefineGuard("on-agent", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool { return a.agentAt(ev.Focus) != nil })
 	for _, noun := range []string{ochazuke.TimelineBodyNoun, "turn-step", "turn"} {
 		a.r.Define(noun).
 			Verb("open-transcript", a.agentHandler(a.openAgentTranscript), "Open the subagent's own transcript file in a pager").When("on-agent").

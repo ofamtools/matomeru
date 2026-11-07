@@ -173,8 +173,8 @@ func TestLivePaneUnsendableKeySaysSoOnce(t *testing.T) {
 	if len(s.tokens) != 0 || len(s.sent) != 2 {
 		t.Fatalf("send-keys got %q (keys %q)", s.tokens, s.sent)
 	}
-	if app.r.Mode.Name != "terminal" {
-		t.Fatalf("mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("mode %s", app.r.CurrentMode().Name)
 	}
 }
 

@@ -132,7 +132,7 @@ func TestExtensionPeerPoliciesAndOwnerLayer(t *testing.T) {
 		}
 	}
 	focusPeerSource(t, a)
-	rows := a.r.ListBindings(a.r.Focus)
+	rows := a.r.ListBindings(a.r.FocusID())
 	if !slices.ContainsFunc(rows, func(b ochazuke.Binding) bool { return b.Keys == "g s" && b.Request.Key() == "fake.link.toggle" }) {
 		t.Fatal("owner row lost precedence")
 	}

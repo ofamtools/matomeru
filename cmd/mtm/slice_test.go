@@ -37,7 +37,7 @@ func TestSliceEndToEnd(t *testing.T) {
 			t.Fatalf("key %q: %s", k, app.m.Status)
 		}
 		if rawFrame(app) == before { // raw: a moved highlight is a change
-			t.Fatalf("key %q changed nothing (focus %s mode %s):\n%s", k, app.r.Focus, app.r.Mode.Name, before)
+			t.Fatalf("key %q changed nothing (focus %s mode %s):\n%s", k, app.r.FocusID(), app.r.CurrentMode().Name, before)
 		}
 		return cmd
 	}
@@ -54,13 +54,13 @@ func TestSliceEndToEnd(t *testing.T) {
 
 	step("j") // matomeru, the project with tasks
 	step("enter")
-	if app.r.Focus != "t1" {
-		t.Fatalf("enter: focus %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("enter: focus %s", app.r.FocusID())
 	}
 	step("L")     // the harness chooser, the project's harness first
 	step("enter") // the launch lands attached on the panes page, unasked
-	if app.r.Page != panesPage || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
-		t.Fatalf("after y: page %s focus %s mode %s", app.r.Page, app.r.Focus, app.r.Mode.Name)
+	if app.r.Page != panesPage || app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("after y: page %s focus %s mode %s", app.r.Page, app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	has("━ matomeru/write the brief ━")
 	has("agent.start claude done")
@@ -70,8 +70,8 @@ func TestSliceEndToEnd(t *testing.T) {
 	if app.r.Terminal(paneTermID) != nil {
 		t.Fatal("ctrl+a d left the terminal")
 	}
-	if app.r.Focus != "pane:matomeru/a1" { // detach lands on the row, so enter re-attaches
-		t.Fatalf("after detach: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/a1" { // detach lands on the row, so enter re-attaches
+		t.Fatalf("after detach: focus %s", app.r.FocusID())
 	}
 	read := step("enter")
 	feed("claude: re-attached")
@@ -82,10 +82,10 @@ func TestSliceEndToEnd(t *testing.T) {
 
 	step("ctrl+j") // Work
 	step("ctrl+j")
-	if app.r.Page != reviewsPage || app.r.Instances[app.r.Focus].Noun != "review" {
-		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.Focus)
+	if app.r.Page != reviewsPage || app.r.Instances[app.r.FocusID()].Noun != "review" {
+		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.FocusID())
 	}
-	rv := app.r.Focus
+	rv := app.r.FocusID()
 	step("enter")
 	has("claude: brief written")
 	step("i")
@@ -98,8 +98,8 @@ func TestSliceEndToEnd(t *testing.T) {
 	}
 
 	step("ctrl+k")
-	if app.r.Page != "work" || app.r.Focus != "t1" {
-		t.Fatalf("back to work: page %s focus %s", app.r.Page, app.r.Focus)
+	if app.r.Page != "work" || app.r.FocusID() != "t1" {
+		t.Fatalf("back to work: page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	step("x")
 	if got := stored(t, app, "t1").Status; got != work.StatusDone {

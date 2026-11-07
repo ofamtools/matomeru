@@ -40,7 +40,7 @@ func (a *App) registerPrompt() {
 
 func (a *App) commitPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	q := a.ask
-	if q == nil || ctx.Runtime.Focus != fieldID {
+	if q == nil || ctx.Runtime.FocusID() != fieldID {
 		return ochazuke.Failed(errors.New("no prompt is open"))
 	}
 	text := string(a.field.Text)

@@ -64,8 +64,8 @@ func TestRenameAPaneFromItsRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, app, "r")
-	if app.r.Focus != editFormID+"/name" || editing(app).Values()["name"] != "claude" || app.r.Mode.Name != "insert" {
-		t.Fatalf("r: focus %s mode %s values %v", app.r.Focus, app.r.Mode.Name, editing(app).Values())
+	if app.r.FocusID() != editFormID+"/name" || editing(app).Values()["name"] != "claude" || app.r.CurrentMode().Name != "insert" {
+		t.Fatalf("r: focus %s mode %s values %v", app.r.FocusID(), app.r.CurrentMode().Name, editing(app).Values())
 	}
 	press(t, app, "ctrl+u")
 	typeText(t, app, "reviewer")
@@ -93,12 +93,12 @@ func TestRenameAPaneOpensTheNameSelected(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, app, "r")
-	in := app.r.Input(app.r.Focus)
+	in := app.r.Input(app.r.FocusID())
 	if in == nil {
-		t.Fatalf("no input at %s", app.r.Focus)
+		t.Fatalf("no input at %s", app.r.FocusID())
 	}
-	if lo, hi, ok := in.SelectedText(); !ok || lo != 0 || hi != len([]rune("claude")) || app.r.Mode.Name != "insert" {
-		t.Fatalf("r: selected %d..%d %v mode %s", lo, hi, ok, app.r.Mode.Name)
+	if lo, hi, ok := in.SelectedText(); !ok || lo != 0 || hi != len([]rune("claude")) || app.r.CurrentMode().Name != "insert" {
+		t.Fatalf("r: selected %d..%d %v mode %s", lo, hi, ok, app.r.CurrentMode().Name)
 	}
 	typeText(t, app, "reviewer")
 	if got := editing(app).Values()["name"]; got != "reviewer" {

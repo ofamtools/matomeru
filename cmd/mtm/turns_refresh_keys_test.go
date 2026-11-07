@@ -33,7 +33,7 @@ func TestTurnsRefreshKeyAndOpenAll(t *testing.T) {
 	t.Parallel()
 	app, _, _ := cardsApp(t)
 	press(t, app, "}")
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "turn" {
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "turn" {
 		t.Fatalf("} focused %s", where(app))
 	}
 	press(t, app, "z", "M")
@@ -48,7 +48,7 @@ func TestTurnsRefreshKeyAndOpenAll(t *testing.T) {
 		t.Fatalf("R on a card did not refresh (%s)", where(app))
 	}
 	press(t, app, "esc")
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "pane" {
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "pane" {
 		t.Fatalf("esc focused %s", where(app))
 	}
 	if !pressRefresh(t, app) {
@@ -61,7 +61,7 @@ func TestTurnsRefreshKeyAndOpenAll(t *testing.T) {
 		t.Fatal("R on the pane row (tree) did not refresh")
 	}
 	press(t, app, "}")
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "turn" {
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "turn" {
 		t.Fatalf("} in the tree focused %s", where(app))
 	}
 	if !pressRefresh(t, app) {

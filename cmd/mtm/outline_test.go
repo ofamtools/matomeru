@@ -34,12 +34,12 @@ func TestTaskOutlineWritesEveryChange(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "j")
-	if app.r.Focus != "matomeru" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "matomeru" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	press(t, app, "O")
-	if app.r.TopModal() != outlineModal || app.r.Focus != outlineNode("t1") {
-		t.Fatalf("modal %q focus %s", app.r.TopModal(), app.r.Focus)
+	if app.r.TopModal() != outlineModal || app.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("modal %q focus %s", app.r.TopModal(), app.r.FocusID())
 	}
 	if f := frame(app); !strings.Contains(f, "write the brief") || !strings.Contains(f, "lift the store") {
 		t.Fatalf("outline:\n%s", f)

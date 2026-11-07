@@ -30,8 +30,8 @@ func liveContextApp(t *testing.T) (*App, *fakeSystem, pane, string) {
 		}
 	}
 	key(t, a, "enter")
-	if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("not live: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("not live: focus %s mode %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	live := a.attached
 	other := "w1"
@@ -98,8 +98,8 @@ func TestLivePickerListsThisPaneFirst(t *testing.T) {
 		t.Fatalf("typing filters: %v", got)
 	}
 	press(t, a, "esc")
-	if a.r.TopModal() != "" || a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("esc returns to the live pane: modal %q focus %s mode %s", a.r.TopModal(), a.r.Focus, a.r.Mode.Name)
+	if a.r.TopModal() != "" || a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("esc returns to the live pane: modal %q focus %s mode %s", a.r.TopModal(), a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }
 
@@ -111,8 +111,8 @@ func TestLivePickerCopiesOpensAndReveals(t *testing.T) {
 	if !slices.Equal(sys.copied, []string{file}) {
 		t.Fatalf("enter copied %v", sys.copied)
 	}
-	if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("after a copy the pane is live again: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("after a copy the pane is live again: focus %s mode %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	press(t, a, "ctrl+a", "c")
 	typeText(t, a, "older-here")
@@ -239,8 +239,8 @@ func TestLivePickerListsThisPanesPrompts(t *testing.T) {
 	if !slices.Equal(sys.copied, []string{"first prompt\nwith a second line"}) {
 		t.Fatalf("enter copied %q", sys.copied)
 	}
-	if a.r.Focus != paneTermID || a.r.Mode.Name != "terminal" {
-		t.Fatalf("after a copy the pane is live again: focus %s mode %s", a.r.Focus, a.r.Mode.Name)
+	if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("after a copy the pane is live again: focus %s mode %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	// Typing filters prompts by their words.
 	press(t, a, "ctrl+a", "c")
@@ -264,8 +264,8 @@ func TestLivePickerOpensAPromptsTurn(t *testing.T) {
 	if a.r.TopModal() != "" || a.r.Terminal(paneTermID) != nil {
 		t.Fatalf("still live: modal %q", a.r.TopModal())
 	}
-	if row, _ := a.selectedRow(); a.r.Page != panesPage || row != live.rowID() || a.pv.tab != tabTurns || a.r.Focus != a.turnRowID(live.ID, turns[0].ID) {
-		t.Fatalf("page %s row %s tab %d focus %s", a.r.Page, row, a.pv.tab, a.r.Focus)
+	if row, _ := a.selectedRow(); a.r.Page != panesPage || row != live.rowID() || a.pv.tab != tabTurns || a.r.FocusID() != a.turnRowID(live.ID, turns[0].ID) {
+		t.Fatalf("page %s row %s tab %d focus %s", a.r.Page, row, a.pv.tab, a.r.FocusID())
 	}
 	if f := frame(a); !strings.Contains(f, "first answer") {
 		t.Fatalf("the turn is not open:\n%s", f)

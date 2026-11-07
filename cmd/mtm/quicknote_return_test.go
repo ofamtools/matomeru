@@ -14,7 +14,7 @@ func TestQuickNoteReturnsToPanes(t *testing.T) {
 			if live {
 				press(t, a, "enter")
 			}
-			focus, page, mode := a.r.Focus, a.r.Page, a.r.Mode.Name
+			focus, page, mode := a.r.FocusID(), a.r.Page, a.r.CurrentMode().Name
 			if live {
 				press(t, a, "ctrl+a")
 			}
@@ -22,8 +22,8 @@ func TestQuickNoteReturnsToPanes(t *testing.T) {
 			typeText(t, a, "keep this")
 			id := a.quick.id
 			press(t, a, "esc", "esc")
-			if a.r.TopModal() != "" || a.r.Focus != focus || a.r.Page != page || a.r.Mode.Name != mode {
-				t.Fatalf("return: modal=%s focus=%s page=%s mode=%s", a.r.TopModal(), a.r.Focus, a.r.Page, a.r.Mode.Name)
+			if a.r.TopModal() != "" || a.r.FocusID() != focus || a.r.Page != page || a.r.CurrentMode().Name != mode {
+				t.Fatalf("return: modal=%s focus=%s page=%s mode=%s", a.r.TopModal(), a.r.FocusID(), a.r.Page, a.r.CurrentMode().Name)
 			}
 			if notesOf(t, a)[id].Text != "keep this" {
 				t.Fatal("lost note")

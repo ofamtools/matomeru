@@ -69,8 +69,8 @@ func TestSavedLinksJumpToTheirRows(t *testing.T) {
 		openSaved(t, a, l.savedID)
 		frame(a)
 		followLinkTo(t, a, a.detail.saved, c.kind, c.id)
-		if a.r.Page != c.page || a.r.Focus != c.focus {
-			t.Fatalf("%s link: page %s focus %s, want %s on %s", c.kind, a.r.Page, a.r.Focus, c.focus, c.page)
+		if a.r.Page != c.page || a.r.FocusID() != c.focus {
+			t.Fatalf("%s link: page %s focus %s, want %s on %s", c.kind, a.r.Page, a.r.FocusID(), c.focus, c.page)
 		}
 	}
 }
@@ -106,15 +106,15 @@ func TestSavedDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("the detail fits:\n%s", frame(a))
 	}
 	press(t, a, "5", "J")
-	if frame(a); d.Offset() != 5 || a.r.Focus != savedListID+"/"+long.ID {
-		t.Fatalf("5J: offset %d focus %s", d.Offset(), a.r.Focus)
+	if frame(a); d.Offset() != 5 || a.r.FocusID() != savedListID+"/"+long.ID {
+		t.Fatalf("5J: offset %d focus %s", d.Offset(), a.r.FocusID())
 	}
 	press(t, a, "K")
-	if fr := frame(a); d.Offset() != 4 || !strings.Contains(ochazuke.BindingHints(a.r, a.r.Focus), "J/K detail") {
+	if fr := frame(a); d.Offset() != 4 || !strings.Contains(ochazuke.BindingHints(a.r, a.r.FocusID()), "J/K detail") {
 		t.Fatalf("K: offset %d\n%s", d.Offset(), fr)
 	}
 	press(t, a, "k")
-	if frame(a); a.r.Focus != savedListID+"/"+l.savedID || d.Offset() != 0 {
-		t.Fatalf("k: focus %s (want %s), offset %d", a.r.Focus, l.savedID, d.Offset())
+	if frame(a); a.r.FocusID() != savedListID+"/"+l.savedID || d.Offset() != 0 {
+		t.Fatalf("k: focus %s (want %s), offset %d", a.r.FocusID(), l.savedID, d.Offset())
 	}
 }

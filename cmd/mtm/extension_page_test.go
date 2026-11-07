@@ -91,8 +91,8 @@ func TestExtensionsPageKeys(t *testing.T) {
 	if a.r.PageOf("ext/alpha") == nil || extStatus(a, "alpha") != statusRegistered {
 		t.Fatalf("n: page %v, status %q", a.r.PageOf("ext/alpha") != nil, extStatus(a, "alpha"))
 	}
-	if a.r.Focus != alpha {
-		t.Fatalf("n moved the focus to %s", a.r.Focus)
+	if a.r.FocusID() != alpha {
+		t.Fatalf("n moved the focus to %s", a.r.FocusID())
 	}
 	if !strings.Contains(frame(a), "registered") {
 		t.Fatalf("frame:\n%s", frame(a))

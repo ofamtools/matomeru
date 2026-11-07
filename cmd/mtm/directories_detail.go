@@ -47,7 +47,7 @@ func (a *App) directoryDetailPath() string {
 	switch {
 	case a.projectDirList.Focused():
 		a.directories.Subject, _ = selectedPath(a.projectDirList)
-	case a.directoryList.Focused() || a.r.Focus == directoryQueryID:
+	case a.directoryList.Focused() || a.r.FocusID() == directoryQueryID:
 		a.directories.Subject, _ = selectedPath(a.directoryList)
 	case a.directories.Subject == "":
 		path, _ := selectedPath(a.directoryList)

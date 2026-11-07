@@ -42,32 +42,32 @@ func TestSideFocusReplacementAndDetachStack(t *testing.T) {
 		t.Fatal(err)
 	}
 	vim := f.streams[1]
-	if a.r.Focus != sideTermID || !a.attached.ShowVim || a.attached.SideFront != "vim" {
-		t.Fatalf("vim not focused: focus %s parent %+v", a.r.Focus, a.attached)
+	if a.r.FocusID() != sideTermID || !a.attached.ShowVim || a.attached.SideFront != "vim" {
+		t.Fatalf("vim not focused: focus %s parent %+v", a.r.FocusID(), a.attached)
 	}
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
 	}
-	if a.r.Focus != paneTermID || !a.attached.ShowVim || len(f.streams) != 2 {
-		t.Fatalf("same side should focus parent without hiding or reopening: focus %s parent %+v streams %d", a.r.Focus, a.attached, len(f.streams))
+	if a.r.FocusID() != paneTermID || !a.attached.ShowVim || len(f.streams) != 2 {
+		t.Fatalf("same side should focus parent without hiding or reopening: focus %s parent %+v streams %d", a.r.FocusID(), a.attached, len(f.streams))
 	}
 	if err := a.showSide(a.attached, "term"); err != nil {
 		t.Fatal(err)
 	}
-	if a.r.Focus != sideTermID || !a.attached.ShowVim || !a.attached.ShowTerm || a.attached.SideFront != "term" || !vim.released || parent.released {
-		t.Fatalf("replacement lost state or parent stream: focus %s parent %+v", a.r.Focus, a.attached)
+	if a.r.FocusID() != sideTermID || !a.attached.ShowVim || !a.attached.ShowTerm || a.attached.SideFront != "term" || !vim.released || parent.released {
+		t.Fatalf("replacement lost state or parent stream: focus %s parent %+v", a.r.FocusID(), a.attached)
 	}
 	press(t, a, "ctrl+a", "d")
-	if a.attached.SideFront != "vim" || a.attached.ShowTerm || a.r.Focus != sideTermID || f.streams[len(f.streams)-1].pane.ID != "side-vim" {
-		t.Fatalf("first close did not restore vim: focus %s parent %+v", a.r.Focus, a.attached)
+	if a.attached.SideFront != "vim" || a.attached.ShowTerm || a.r.FocusID() != sideTermID || f.streams[len(f.streams)-1].pane.ID != "side-vim" {
+		t.Fatalf("first close did not restore vim: focus %s parent %+v", a.r.FocusID(), a.attached)
 	}
 	press(t, a, "ctrl+a", "d")
-	if a.r.Terminal(sideTermID) != nil || a.attached.ShowVim || a.r.Focus != paneTermID || parent.released {
-		t.Fatalf("second close did not hide only sidebar: focus %s parent %+v", a.r.Focus, a.attached)
+	if a.r.Terminal(sideTermID) != nil || a.attached.ShowVim || a.r.FocusID() != paneTermID || parent.released {
+		t.Fatalf("second close did not hide only sidebar: focus %s parent %+v", a.r.FocusID(), a.attached)
 	}
 	press(t, a, "ctrl+a", "d")
-	if !parent.parked || parent.released || a.r.Terminal(paneTermID) != nil || a.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("final close did not detach parent: focus %s parked %v released %v", a.r.Focus, parent.parked, parent.released)
+	if !parent.parked || parent.released || a.r.Terminal(paneTermID) != nil || a.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("final close did not detach parent: focus %s parked %v released %v", a.r.FocusID(), parent.parked, parent.released)
 	}
 	if len(f.killed) != 0 {
 		t.Fatalf("hiding killed daemon panes: %v", f.killed)
@@ -85,13 +85,13 @@ func TestSideRefreshFallsBackAfterExit(t *testing.T) {
 	}
 	f.panes = f.panes[:len(f.panes)-1] // the side terminal exited on its own
 	a.setPanes(f.panes, nil)
-	if a.attached.SideTerm != "" || a.attached.SideFront != "vim" || a.r.Focus != sideTermID || f.streams[len(f.streams)-1].pane.ID != "side-vim" {
-		t.Fatalf("refresh failed to restore surviving side: focus %s parent %+v", a.r.Focus, a.attached)
+	if a.attached.SideTerm != "" || a.attached.SideFront != "vim" || a.r.FocusID() != sideTermID || f.streams[len(f.streams)-1].pane.ID != "side-vim" {
+		t.Fatalf("refresh failed to restore surviving side: focus %s parent %+v", a.r.FocusID(), a.attached)
 	}
 	f.panes = f.panes[:len(f.panes)-1]
 	a.setPanes(f.panes, nil)
-	if a.r.Terminal(sideTermID) != nil || a.r.Focus != paneTermID || a.attached.SideVim != "" {
-		t.Fatalf("last side exit did not return to parent: focus %s parent %+v", a.r.Focus, a.attached)
+	if a.r.Terminal(sideTermID) != nil || a.r.FocusID() != paneTermID || a.attached.SideVim != "" {
+		t.Fatalf("last side exit did not return to parent: focus %s parent %+v", a.r.FocusID(), a.attached)
 	}
 }
 
@@ -281,16 +281,16 @@ func TestLeaderOCyclesParentAndSide(t *testing.T) {
 	t.Parallel()
 	a, f := sideViewApp(t)
 	press(t, a, "ctrl+a", "o")
-	if a.r.Focus != paneTermID || len(f.streams[0].sent) != 0 {
-		t.Fatalf("no side: focus %s sent %v", a.r.Focus, f.streams[0].sent)
+	if a.r.FocusID() != paneTermID || len(f.streams[0].sent) != 0 {
+		t.Fatalf("no side: focus %s sent %v", a.r.FocusID(), f.streams[0].sent)
 	}
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{paneTermID, sideTermID, paneTermID} {
 		press(t, a, "ctrl+a", "o")
-		if a.r.Focus != want {
-			t.Fatalf("focus %s, want %s", a.r.Focus, want)
+		if a.r.FocusID() != want {
+			t.Fatalf("focus %s, want %s", a.r.FocusID(), want)
 		}
 	}
 	if len(f.streams[0].sent) != 0 || len(f.streams[1].sent) != 0 {
@@ -335,8 +335,8 @@ func TestSideChooserJumpsToAnySide(t *testing.T) {
 	}
 	typeText(t, a, "ochazuke")
 	press(t, a, "enter")
-	if a.attached.ID != other.ID || a.r.Focus != sideTermID || a.attached.SideFront != "vim" {
-		t.Fatalf("attached %s focus %s front %q", a.attached.ID, a.r.Focus, a.attached.SideFront)
+	if a.attached.ID != other.ID || a.r.FocusID() != sideTermID || a.attached.SideFront != "vim" {
+		t.Fatalf("attached %s focus %s front %q", a.attached.ID, a.r.FocusID(), a.attached.SideFront)
 	}
 	if row, _ := a.selectedRow(); row != other.rowID() {
 		t.Fatalf("selected %s", row)
@@ -467,8 +467,8 @@ func TestSideZoomAsksForTheZoomedSize(t *testing.T) {
 	press(t, a, "ctrl+a", "o")
 	press(t, a, "ctrl+a", "z")
 	a.renderPanes(a.r, 240, 30)
-	if a.r.Focus != paneTermID || parent.lease != [2]int{zw, zh} || side.lease != [2]int{sw, sh} {
-		t.Fatalf("parent zoom: focus %s parent %v side %v", a.r.Focus, parent.lease, side.lease)
+	if a.r.FocusID() != paneTermID || parent.lease != [2]int{zw, zh} || side.lease != [2]int{sw, sh} {
+		t.Fatalf("parent zoom: focus %s parent %v side %v", a.r.FocusID(), parent.lease, side.lease)
 	}
 	if got, want := lastFit(), fmt.Sprintf("%s %dx%d", a.attached.ID, zw, zh); got != want {
 		t.Fatalf("parent zoom: last fit %q, want %q", got, want)

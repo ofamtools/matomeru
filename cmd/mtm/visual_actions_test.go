@@ -128,7 +128,7 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 	f := frameAt(app, 120)
 	for _, want := range []string{"Delete task write the brief and 1 more?", "Orphan:", "0 tasks", "0 notes"} {
 		if !strings.Contains(f, want) {
-			t.Fatalf("V j d: the confirm lacks %q (modal %q, mode %q):\n%s", want, app.r.TopModal(), app.r.Mode.Name, f)
+			t.Fatalf("V j d: the confirm lacks %q (modal %q, mode %q):\n%s", want, app.r.TopModal(), app.r.CurrentMode().Name, f)
 		}
 	}
 	if strings.Contains(f, "true?") {
@@ -149,18 +149,18 @@ func TestVisualPanesDKillsTheSelectionAtOnce(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
 	press(t, app, "V")
-	for i := 0; i < 4 && app.r.Focus != "pane:ochazuke/w2"; i++ {
+	for i := 0; i < 4 && app.r.FocusID() != "pane:ochazuke/w2"; i++ {
 		press(t, app, "j")
 	}
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("V j: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("V j: focus %s", app.r.FocusID())
 	}
-	if hints := ochazuke.BindingHints(app.r, app.r.Focus); strings.Contains(hints, "d d") || !strings.Contains(hints, "d kill") {
+	if hints := ochazuke.BindingHints(app.r, app.r.FocusID()); strings.Contains(hints, "d d") || !strings.Contains(hints, "d kill") {
 		t.Fatalf("visual-line footer: %s", hints)
 	}
 	press(t, app, "d")
-	if app.r.TopModal() != "confirm" || app.r.Mode.Payload.Prefix != "" {
-		t.Fatalf("V j d: modal %q mode %q", app.r.TopModal(), app.r.Mode.Name)
+	if app.r.TopModal() != "confirm" || app.r.CurrentMode().Payload.Prefix != "" {
+		t.Fatalf("V j d: modal %q mode %q", app.r.TopModal(), app.r.CurrentMode().Name)
 	}
 	if fr := frameAt(app, 160); !strings.Contains(fr, "2 rows") {
 		t.Fatalf("V j d: the confirm does not count both panes:\n%s", fr)
@@ -177,8 +177,8 @@ func TestVisualOutlineActsOnEverySelectedTaskAsOneUndo(t *testing.T) {
 	t.Parallel()
 	a := pinned(t)
 	press(t, a, "T")
-	if a.r.Focus != outlineNode("t1") {
-		t.Fatalf("T: focus %s", a.r.Focus)
+	if a.r.FocusID() != outlineNode("t1") {
+		t.Fatalf("T: focus %s", a.r.FocusID())
 	}
 	press(t, a, "V", "j", "x")
 	if stored(t, a, "t1").Status != work.StatusDone || stored(t, a, "t2").Status != work.StatusDone {
@@ -216,17 +216,17 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 	t.Parallel()
 	app, _ := panesApp(t)
 	press(t, app, "V")
-	if app.r.Mode.Name != "visual-line" || app.r.SelectionShape(app.r.Mode.Name) != ochazuke.SelectionLine {
-		t.Fatalf("V: mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "visual-line" || app.r.SelectionShape(app.r.CurrentMode().Name) != ochazuke.SelectionLine {
+		t.Fatalf("V: mode %s", app.r.CurrentMode().Name)
 	}
 	if f := frameAt(app, 160); !strings.Contains(f, "VISUAL-LINE") {
 		t.Fatalf("V: no VISUAL-LINE badge:\n%s", f)
 	}
-	for i := 0; i < 4 && app.r.Focus != "pane:ochazuke/w2"; i++ {
+	for i := 0; i < 4 && app.r.FocusID() != "pane:ochazuke/w2"; i++ {
 		press(t, app, "j")
 	}
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("V j: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("V j: focus %s", app.r.FocusID())
 	}
 	press(t, app, "m")
 	if app.r.Chooser(ochazuke.EditChooserKind) == nil {
@@ -237,8 +237,8 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 	}
 	// ochazuke v0.93.1: esc resumes the selection (visual-line, same rows).
 	press(t, app, "esc")
-	if app.r.Mode.Name != "visual-line" {
-		t.Fatalf("after the chooser: mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "visual-line" {
+		t.Fatalf("after the chooser: mode %s", app.r.CurrentMode().Name)
 	}
 }
 
@@ -278,7 +278,7 @@ func TestVisualSurvivesATurnPoll(t *testing.T) {
 	executeA(t, a, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
 	press(t, a, "T")
 	press(t, a, "V", "j")
-	mode := a.r.Mode.Name
+	mode := a.r.CurrentMode().Name
 	if mode != "visual-line" {
 		t.Fatalf("V j: mode %q", mode)
 	}
@@ -287,8 +287,8 @@ func TestVisualSurvivesATurnPoll(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())
-	if a.r.Mode.Name != mode || a.r.TopModal() != outlineModal {
-		t.Fatalf("after poll: mode %q modal %q", a.r.Mode.Name, a.r.TopModal())
+	if a.r.CurrentMode().Name != mode || a.r.TopModal() != outlineModal {
+		t.Fatalf("after poll: mode %q modal %q", a.r.CurrentMode().Name, a.r.TopModal())
 	}
 	for _, n := range a.m.Notices[before:] {
 		if strings.Contains(n, "done on") {
@@ -310,8 +310,8 @@ func TestAppEditLabelVisualFocusedRow(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter", "V", "j")
-	if app.r.Focus != "t2" || !app.taskList.Visual() {
-		t.Fatalf("V j: focus %s visual %v", app.r.Focus, app.taskList.Visual())
+	if app.r.FocusID() != "t2" || !app.taskList.Visual() {
+		t.Fatalf("V j: focus %s visual %v", app.r.FocusID(), app.taskList.Visual())
 	}
 	t1, t2 := stored(t, app, "t1").Title, stored(t, app, "t2").Title
 	press(t, app, ":")

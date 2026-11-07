@@ -227,8 +227,8 @@ func TestOpenProjectReturnsTheRow(t *testing.T) {
 	if p, ok := out.(work.Project); !ok || p.Name != "matomeru" {
 		t.Fatalf("project.open = %#v", out)
 	}
-	if app.r.Focus != "t1" || len(app.tasks) != 2 {
-		t.Fatalf("focus = %s, tasks = %+v", app.r.Focus, app.tasks)
+	if app.r.FocusID() != "t1" || len(app.tasks) != 2 {
+		t.Fatalf("focus = %s, tasks = %+v", app.r.FocusID(), app.tasks)
 	}
 }
 
@@ -236,16 +236,16 @@ func TestStopsMoveBetweenProjectsAndTasks(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
-	if app.r.Focus != "t1" {
-		t.Fatalf("enter on a project: focus = %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("enter on a project: focus = %s", app.r.FocusID())
 	}
 	press(t, app, "{")
-	if app.r.Focus != "matomeru" {
-		t.Fatalf("{: focus = %s", app.r.Focus)
+	if app.r.FocusID() != "matomeru" {
+		t.Fatalf("{: focus = %s", app.r.FocusID())
 	}
 	press(t, app, "}")
-	if app.r.Focus != "t1" {
-		t.Fatalf("}: focus = %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("}: focus = %s", app.r.FocusID())
 	}
 	app.m.Width, app.m.Height = 80, 24
 	frame := ansi.Strip(frameView(app).Content)
@@ -262,20 +262,20 @@ func TestEnterOnATaskRowOpensTheRecordEditor(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter")
-	if app.r.Focus != "t1" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	press(t, app, "enter")
-	if app.r.Focus != app.editor.fieldID("title") || app.editor.Record.ID != "t1" || app.editor.Value("title") != "write the brief" {
-		t.Fatalf("enter: focus = %s, editor = %+v", app.r.Focus, app.editor)
+	if app.r.FocusID() != app.editor.fieldID("title") || app.editor.Record.ID != "t1" || app.editor.Value("title") != "write the brief" {
+		t.Fatalf("enter: focus = %s, editor = %+v", app.r.FocusID(), app.editor)
 	}
 	press(t, app, "esc", "q")
-	if app.r.Focus != "t1" {
-		t.Fatalf("leave: focus = %s", app.r.Focus)
+	if app.r.FocusID() != "t1" {
+		t.Fatalf("leave: focus = %s", app.r.FocusID())
 	}
 	press(t, app, "l")
-	if app.r.Focus != "t1" || app.detailTask != "t1" {
-		t.Fatalf("l: focus = %s, detail = %q", app.r.Focus, app.detailTask)
+	if app.r.FocusID() != "t1" || app.detailTask != "t1" {
+		t.Fatalf("l: focus = %s, detail = %q", app.r.FocusID(), app.detailTask)
 	}
 }
 
@@ -285,12 +285,12 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	press(t, app, "j", "enter")
 
 	press(t, app, "i")
-	if app.r.Focus != app.editor.fieldID("title") || app.editor.Value("title") != "write the brief" {
-		t.Fatalf("open: focus = %s, editor = %+v", app.r.Focus, app.editor)
+	if app.r.FocusID() != app.editor.fieldID("title") || app.editor.Value("title") != "write the brief" {
+		t.Fatalf("open: focus = %s, editor = %+v", app.r.FocusID(), app.editor)
 	}
 	press(t, app, "esc", "q")
-	if app.r.Focus != "t1" || stored(t, app, "t1").Title != "write the brief" {
-		t.Fatalf("cancel: focus = %s, task = %+v", app.r.Focus, stored(t, app, "t1"))
+	if app.r.FocusID() != "t1" || stored(t, app, "t1").Title != "write the brief" {
+		t.Fatalf("cancel: focus = %s, task = %+v", app.r.FocusID(), stored(t, app, "t1"))
 	}
 	press(t, app, "i")
 	typeText(t, app, " first")
@@ -303,8 +303,8 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	press(t, app, "j", "i", "ctrl+u")
 	typeText(t, app, "lift store and daemon")
 	press(t, app, "enter", "q") // enter moves to the status; q leaves
-	if got := stored(t, app, "t2").Title; got != "lift store and daemon" || app.r.Focus != "t2" {
-		t.Fatalf("edit: title = %q, focus = %s", got, app.r.Focus)
+	if got := stored(t, app, "t2").Title; got != "lift store and daemon" || app.r.FocusID() != "t2" {
+		t.Fatalf("edit: title = %q, focus = %s", got, app.r.FocusID())
 	}
 
 	// x marks it done.
@@ -318,8 +318,8 @@ func TestTaskVerbsPersistThroughPanel(t *testing.T) {
 	press(t, app, "n")
 	typeText(t, app, "launch an agent")
 	press(t, app, "enter", "q") // enter moves to the status; q leaves
-	if len(app.tasks) != 3 || app.tasks[1].Title != "launch an agent" || app.r.Focus != app.tasks[1].ID || app.tasks[2].ID != "t2" {
-		t.Fatalf("new: tasks = %+v, focus = %s", app.tasks, app.r.Focus)
+	if len(app.tasks) != 3 || app.tasks[1].Title != "launch an agent" || app.r.FocusID() != app.tasks[1].ID || app.tasks[2].ID != "t2" {
+		t.Fatalf("new: tasks = %+v, focus = %s", app.tasks, app.r.FocusID())
 	}
 
 	app.m.Width, app.m.Height = 80, 24

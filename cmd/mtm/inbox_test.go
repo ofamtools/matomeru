@@ -260,12 +260,12 @@ func TestInboxPageKeys(t *testing.T) {
 	a, sys, clock := inboxApp(t)
 	pr, ping := seedInbox(t, a, clock)
 	press(t, a, "I")
-	if a.r.Page != panesPage || a.r.Instances[a.r.Focus] == nil || a.r.Instances[a.r.Focus].Parent != queueTreeID+"/list" {
-		t.Fatalf("I: page %s focus %s", a.r.Page, a.r.Focus)
+	if a.r.Page != panesPage || a.r.Instances[a.r.FocusID()] == nil || a.r.Instances[a.r.FocusID()].Parent != queueTreeID+"/list" {
+		t.Fatalf("I: page %s focus %s", a.r.Page, a.r.FocusID())
 	}
 	toPage(t, a, inboxPage)
-	if a.r.Instances[a.r.Focus] == nil || a.r.Instances[a.r.Focus].Parent != inboxListID {
-		t.Fatalf("Items: focus %s", a.r.Focus)
+	if a.r.Instances[a.r.FocusID()] == nil || a.r.Instances[a.r.FocusID()].Parent != inboxListID {
+		t.Fatalf("Items: focus %s", a.r.FocusID())
 	}
 	f := frameAt(a, 120)
 	for _, want := range []string{"inbox 1/2", "● Lift the store", "· standup notes", "review requested", "matomeru", "unassociated"} {

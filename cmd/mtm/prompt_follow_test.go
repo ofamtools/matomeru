@@ -44,7 +44,7 @@ func TestSendFollowsTheNewTurn(t *testing.T) {
 			if style == turnsStyleCards && !app.pv.cards.Following() {
 				t.Fatal("the cards do not follow the newest after a send")
 			}
-			if app.r.Focus != promptID {
+			if app.r.FocusID() != promptID {
 				t.Fatalf("the send moved the focus: %s", where(app))
 			}
 		})

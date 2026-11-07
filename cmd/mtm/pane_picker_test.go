@@ -44,8 +44,8 @@ func TestLeaderPOpensThePanePicker(t *testing.T) {
 	t.Parallel()
 	app, f := pickerApp(t)
 	key(t, app, "enter")
-	if app.r.Focus != paneTermID {
-		t.Fatalf("attach: focus %s", app.r.Focus)
+	if app.r.FocusID() != paneTermID {
+		t.Fatalf("attach: focus %s", app.r.FocusID())
 	}
 	press(t, app, "ctrl+a", "p")
 	want := []string{"pane:ochazuke/w2", "pane:nabe/w3", "pane:matomeru/w1"}
@@ -66,8 +66,8 @@ func TestLeaderPOpensThePanePicker(t *testing.T) {
 		t.Fatalf("picker frame:\n%s", fr)
 	}
 	press(t, app, "esc")
-	if app.r.Chooser(panePickerKind) != nil || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
-		t.Fatalf("esc: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	if app.r.Chooser(panePickerKind) != nil || app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("esc: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	s := f.streams[len(f.streams)-1]
 	press(t, app, "x")
@@ -98,8 +98,8 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 		t.Fatalf("substring rows %v (mode %s)", got, c.MatchMode())
 	}
 	press(t, app, "enter")
-	if app.attached.ID != "w3" || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" || app.r.Page != panesPage {
-		t.Fatalf("pick: attached %s focus %s mode %s page %s", app.attached.ID, app.r.Focus, app.r.Mode.Name, app.r.Page)
+	if app.attached.ID != "w3" || app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" || app.r.Page != panesPage {
+		t.Fatalf("pick: attached %s focus %s mode %s page %s", app.attached.ID, app.r.FocusID(), app.r.CurrentMode().Name, app.r.Page)
 	}
 	if n := len(f.streams); n != 2 || f.streams[1].pane.ID != "w3" || !f.streams[0].released {
 		t.Fatalf("streams after the pick: %d", n)
@@ -116,8 +116,8 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 		t.Fatalf("highlighted %v", h.ID)
 	}
 	press(t, app, "enter") // back to the pane last left
-	if app.attached.ID != "w1" || app.r.Focus != paneTermID || len(f.streams) != 3 {
-		t.Fatalf("enter on the first row: attached %s focus %s", app.attached.ID, app.r.Focus)
+	if app.attached.ID != "w1" || app.r.FocusID() != paneTermID || len(f.streams) != 3 {
+		t.Fatalf("enter on the first row: attached %s focus %s", app.attached.ID, app.r.FocusID())
 	}
 	press(t, app, "ctrl+a", "p")
 	want = []string{"pane:nabe/w3", "pane:ochazuke/w2", "pane:matomeru/w1"}
@@ -140,8 +140,8 @@ func TestPanePickerKeyFromAnotherPage(t *testing.T) {
 		t.Fatalf("rows %v", got)
 	}
 	press(t, app, "down", "enter")
-	if app.r.Page != panesPage || app.attached.ID != "w2" || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
-		t.Fatalf("pick: page %s attached %s focus %s mode %s", app.r.Page, app.attached.ID, app.r.Focus, app.r.Mode.Name)
+	if app.r.Page != panesPage || app.attached.ID != "w2" || app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("pick: page %s attached %s focus %s mode %s", app.r.Page, app.attached.ID, app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	if len(f.streams) != 1 || f.streams[0].pane.ID != "w2" {
 		t.Fatalf("streams %d", len(f.streams))

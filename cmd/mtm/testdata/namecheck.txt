@@ -252,9 +252,7 @@ panes_detail.go	App.panesUpdate	compare	"panes"	4
 panes_detail.go	App.panesUpdate	cyclo	"-"	41
 panes_events.go	App.pushPaneTitles	compare	"pane"	1
 panes_leader.go	App.paneNear	compare	"pane"	1
-panes_panels.go	App.focusOnEmptyList	compare	"normal"	1
 panes_panels.go	App.focusSection	compare	"panes"	1
-panes_panels.go	App.followRow	compare	"normal"	1
 panes_panels.go	var panelTexts	table	"panes"	1
 panes_sections.go	App.buildPaneSections	compare	"open"	1
 panes_sections.go	App.buildPaneSections	compare	"panes"	2
@@ -282,7 +280,6 @@ project.go	App.workSelected	case	"unassociated"	1
 project_store.go	App.patchProject	compare	"project"	1
 prompt.go	App.commitPrompt	compare	"field"	1
 prompt_box.go	App.addPromptBox	compare	"panes"	1
-prompt_box.go	App.promptBoxBlock	compare	"normal"	1
 prompt_box.go	App.promptMode	compare	"send"	1
 prompt_box.go	App.promptTargetFor	compare	"command"	1
 prompt_box.go	App.promptTargetFor	compare	"prompt"	1
@@ -294,7 +291,6 @@ prompt_box.go	promptModeLabel	compare	"send"	1
 prompt_box.go	promptPlaceholder	compare	"send"	1
 quicknote.go	App.flushQuickNote	compare	"quick-note"	1
 quicknote.go	App.quickNoteOwner	compare	"task"	1
-quicknote.go	App.quickNoteUpdate	compare	"insert"	1
 relations.go	App.associateProject	compare	"project"	1
 reminders.go	App.defineReminders	compare	"check"	1
 reminders.go	App.defineReminders	compare	"history"	1

@@ -123,8 +123,8 @@ func TestNoteMakerFiltersPageAndModal(t *testing.T) {
 	a.m.Width, a.m.Height = 140, 35
 	frameView(a)
 	press(t, a, "ctrl+w", "w")
-	if a.r.Focus != outlineNotesList+":maker-owner" && a.r.Focus != outlineNotesList+":maker-agent" {
-		t.Fatalf("pane focus: %s", a.r.Focus)
+	if a.r.FocusID() != outlineNotesList+":maker-owner" && a.r.FocusID() != outlineNotesList+":maker-agent" {
+		t.Fatalf("pane focus: %s", a.r.FocusID())
 	}
 	for _, name := range []string{"mine", "agents", "all"} {
 		press(t, a, "z", "]")

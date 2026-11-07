@@ -88,8 +88,8 @@ func TestTaskKeysWorkOnASubtaskRow(t *testing.T) {
 	if err := a.taskTree.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	if a.r.Focus != "t5" {
-		t.Fatalf("focus %s, want t5", a.r.Focus)
+	if a.r.FocusID() != "t5" {
+		t.Fatalf("focus %s, want t5", a.r.FocusID())
 	}
 	press(t, a, "l")
 	if a.detailTask != "t5" {
@@ -99,16 +99,16 @@ func TestTaskKeysWorkOnASubtaskRow(t *testing.T) {
 	if got := stored(t, a, "t5").Status; got != work.StatusDone {
 		t.Fatalf("x: status %q", got)
 	}
-	if a.r.Focus != "t5" {
-		t.Fatalf("x: focus %s, want t5", a.r.Focus)
+	if a.r.FocusID() != "t5" {
+		t.Fatalf("x: focus %s, want t5", a.r.FocusID())
 	}
 	press(t, a, "h") // a leaf: onto its parent
-	if a.r.Focus != "t3" {
-		t.Fatalf("h on a leaf: focus %s, want its parent t3", a.r.Focus)
+	if a.r.FocusID() != "t3" {
+		t.Fatalf("h on a leaf: focus %s, want its parent t3", a.r.FocusID())
 	}
 	press(t, a, "h") // an open parent: folded
-	if !a.taskTree.Collapsed("t3") || a.r.Focus != "t3" {
-		t.Fatalf("h on t3: collapsed %v focus %s", a.taskTree.Collapsed("t3"), a.r.Focus)
+	if !a.taskTree.Collapsed("t3") || a.r.FocusID() != "t3" {
+		t.Fatalf("h on t3: collapsed %v focus %s", a.taskTree.Collapsed("t3"), a.r.FocusID())
 	}
 	if strings.Contains(frameAt(a, 120), "list the queries") {
 		t.Fatal("folded t3 still draws t5")

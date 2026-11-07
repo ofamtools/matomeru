@@ -52,8 +52,8 @@ func TestHintsLabelOnlyWhatIsDrawn(t *testing.T) {
 				t.Fatalf("%s: side drawn %d rows", name, rows)
 			}
 			pressAll(t, app, "ctrl+a", "f")
-			if app.r.Mode.Name != hintsMode || len(app.hinting.screens) != 2 || len(app.hinting.spans) != 2 {
-				t.Fatalf("%s: mode %s spans %v", name, app.r.Mode.Name, app.hinting.spans)
+			if app.r.CurrentMode().Name != hintsMode || len(app.hinting.screens) != 2 || len(app.hinting.spans) != 2 {
+				t.Fatalf("%s: mode %s spans %v", name, app.r.CurrentMode().Name, app.hinting.spans)
 			}
 			view := plainView(app)
 			for _, raw := range []string{mainURL, sideURL} {
@@ -69,8 +69,8 @@ func TestHintsLabelOnlyWhatIsDrawn(t *testing.T) {
 				}
 			}
 			pressAll(t, app, "esc")
-			if app.hinting != nil || app.r.Focus != from || len(main.sent)+len(side.sent) != 0 {
-				t.Fatalf("%s: esc: hinting %v focus %s", name, app.hinting != nil, app.r.Focus)
+			if app.hinting != nil || app.r.FocusID() != from || len(main.sent)+len(side.sent) != 0 {
+				t.Fatalf("%s: esc: hinting %v focus %s", name, app.hinting != nil, app.r.FocusID())
 			}
 		}
 	}
@@ -118,8 +118,8 @@ func TestHintsLabelAVimSide(t *testing.T) {
 	app, _, _, _ = hintsSideAppIn(t, mainRows, vimScreen(15, status), t.TempDir())
 	app.Update(keyMsg("ctrl+a"))
 	app.Update(keyMsg("f"))
-	if app.r.Mode.Name != hintsMode || len(app.hinting.screens) != 1 || !strings.Contains(app.m.Info, "nothing to label on the side") {
-		t.Fatalf("vim side with nothing: mode %s status %q", app.r.Mode.Name, app.m.Info)
+	if app.r.CurrentMode().Name != hintsMode || len(app.hinting.screens) != 1 || !strings.Contains(app.m.Info, "nothing to label on the side") {
+		t.Fatalf("vim side with nothing: mode %s status %q", app.r.CurrentMode().Name, app.m.Info)
 	}
 }
 
@@ -154,8 +154,8 @@ func TestHintsQCancels(t *testing.T) {
 			t.Fatalf("from %s: ctrl+q or Q acted", from)
 		}
 		pressAll(t, app, "q")
-		if app.hinting != nil || app.r.Mode.Name != "terminal" || app.r.Focus != from {
-			t.Fatalf("from %s: q: hinting %v mode %s focus %s", from, app.hinting != nil, app.r.Mode.Name, app.r.Focus)
+		if app.hinting != nil || app.r.CurrentMode().Name != "terminal" || app.r.FocusID() != from {
+			t.Fatalf("from %s: q: hinting %v mode %s focus %s", from, app.hinting != nil, app.r.CurrentMode().Name, app.r.FocusID())
 		}
 		for _, id := range []string{paneTermID, sideTermID} {
 			if app.r.Terminal(id).Overlay() != nil {

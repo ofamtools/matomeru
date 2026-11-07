@@ -229,7 +229,7 @@ func TestNotificationCardOpensToTheResult(t *testing.T) {
 	}
 	press(t, app, "}", "k")
 	frame(app)
-	if app.r.Focus != id {
+	if app.r.FocusID() != id {
 		t.Fatalf("focus %s, want %s", where(app), id)
 	}
 	settle(app, key(t, app, "l"))
@@ -317,7 +317,7 @@ func TestAgentStepNestsItsTranscript(t *testing.T) {
 	sys := &fakeSystem{}
 	app.cx.sys = sys
 	for _, verb := range []string{"copy-brief", "copy-result", "open-transcript"} {
-		res, err := app.r.Execute(ochazuke.Request{Noun: ochazuke.TimelineBodyNoun, Verb: verb, Target: app.r.Focus})
+		res, err := app.r.Execute(ochazuke.Request{Noun: ochazuke.TimelineBodyNoun, Verb: verb, Target: app.r.FocusID()})
 		if err != nil {
 			t.Fatalf("%s: %v", verb, err)
 		}
@@ -354,7 +354,7 @@ func TestAgentsInTheTree(t *testing.T) {
 				t.Fatalf("rows:\n%s", rows)
 			}
 			press(t, app, "}")
-			for app.r.Focus != "turn:u1" {
+			for app.r.FocusID() != "turn:u1" {
 				press(t, app, "k")
 			}
 			settle(app, key(t, app, "l"))

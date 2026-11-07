@@ -36,7 +36,7 @@ func TestExternalQueueRowWritesFromEveryTab(t *testing.T) {
 				a, f, row := externalQueuePromptApp(t, agent, tab)
 				pressSettle(t, a, "i")
 				fr := frame(a)
-				if a.r.Focus != promptID || a.r.BaseMode() != "insert" || !strings.Contains(fr, "[send]") || strings.Contains(fr, "loading…") {
+				if a.r.FocusID() != promptID || a.r.BaseMode() != "insert" || !strings.Contains(fr, "[send]") || strings.Contains(fr, "loading…") {
 					t.Fatalf("i from %s: %s\n%s", row, where(a), fr)
 				}
 				if selected, _ := a.selectedRow(); selected != row {
@@ -48,7 +48,7 @@ func TestExternalQueueRowWritesFromEveryTab(t *testing.T) {
 					t.Fatalf("writes = %q", f.prompts)
 				}
 				press(t, a, "esc", "esc")
-				if a.r.Focus != row {
+				if a.r.FocusID() != row {
 					t.Fatalf("Esc returned to %s, want originating %s", where(a), row)
 				}
 			})

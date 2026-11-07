@@ -64,7 +64,7 @@ func (a *App) showSide(parent pane, kind string) error {
 		return errors.New("attach the parent pane before opening its side")
 	}
 	s := a.sides[parent.ID].initialized()
-	if a.r.Focus == sideTermID && s.Front == kind {
+	if a.r.FocusID() == sideTermID && s.Front == kind {
 		return a.r.SetFocus(paneTermID)
 	}
 	id := s.Windows[kind]
@@ -128,7 +128,7 @@ func (a *App) syncSideView() error {
 			return nil
 		}
 	}
-	focused := a.r.Focus == sideTermID
+	focused := a.r.FocusID() == sideTermID
 	if err := a.closeSideTerminal(); err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (a *App) focusOther(ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Done(nil)
 	}
 	next := sideTermID
-	if a.r.Focus == sideTermID {
+	if a.r.FocusID() == sideTermID {
 		next = paneTermID
 	}
 	if err := a.r.SetFocus(next); err != nil {
@@ -401,7 +401,7 @@ func (a *App) jumpToSide(parent pane, kind string) error {
 	if err := a.selectPaneRow(parent.rowID()); err != nil {
 		return err
 	}
-	if a.r.Focus == sideTermID && a.attached.SideFront == kind {
+	if a.r.FocusID() == sideTermID && a.attached.SideFront == kind {
 		return nil // there already; showSide would hand the focus back
 	}
 	return a.showSide(a.attached, kind)

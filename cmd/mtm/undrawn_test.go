@@ -11,8 +11,8 @@ func TestHiddenPaneStopsAreSkippedByTheirFrame(t *testing.T) {
 	press(t, app, "]") // Activity: no copy stop, no tree drawn
 	frame(app)
 	press(t, app, "}")
-	if app.r.Focus == turnsTreeID+"/list" || app.r.Focus == copyID {
-		t.Fatalf("} reached a hidden stop: %s", app.r.Focus)
+	if app.r.FocusID() == turnsTreeID+"/list" || app.r.FocusID() == copyID {
+		t.Fatalf("} reached a hidden stop: %s", app.r.FocusID())
 	}
 }
 
@@ -31,7 +31,7 @@ func TestAnEmptyNotesPageHasNoBodyStop(t *testing.T) {
 	}
 	frame(a)
 	press(t, a, "}")
-	if a.r.Focus == noteBodyID {
+	if a.r.FocusID() == noteBodyID {
 		t.Fatal("} landed on the undrawn note body")
 	}
 }

@@ -302,7 +302,7 @@ func (a *App) focusTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	if err := a.focusTurnsView(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(a.r.Focus)
+	return ochazuke.Done(a.r.FocusID())
 }
 
 // turnsBack is turn.back (and turn-line.back): focus the row the tree

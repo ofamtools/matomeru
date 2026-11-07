@@ -307,11 +307,11 @@ func shellTurnsApp(t *testing.T, big int) (*App, *fakeTurnPanes) {
 	}
 	app.cx.sys = &fakeSystem{}
 	reload(t, app)
-	for i := 0; i < 4 && app.r.Focus != "pane:ochazuke/w2"; i++ {
+	for i := 0; i < 4 && app.r.FocusID() != "pane:ochazuke/w2"; i++ {
 		press(t, app, "j") // down to the shell's row
 	}
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	settle(app, key(t, app, "["))
 	return app, f
@@ -383,7 +383,7 @@ func TestCopyingAHugeShellOutputOffersAFile(t *testing.T) {
 	}
 	ch := app.r.Chooser(turnSaveChooser)
 	if ch == nil {
-		t.Fatalf("no save chooser; focus %s status %q", app.r.Focus, app.m.Status)
+		t.Fatalf("no save chooser; focus %s status %q", app.r.FocusID(), app.m.Status)
 	}
 	if f.captures < 2 {
 		t.Fatalf("captures %d", f.captures)
@@ -467,7 +467,7 @@ func TestOmpTurnsFromTheSessionFile(t *testing.T) {
 // onTurn reports whether the focus is a turn of the Turns tab, a card or a
 // tree row.
 func onTurn(a *App) bool {
-	inst := a.r.Instances[a.r.Focus]
+	inst := a.r.Instances[a.r.FocusID()]
 	return inst != nil && strings.HasPrefix(inst.Noun, "turn") && inst.Noun != promptNoun
 }
 

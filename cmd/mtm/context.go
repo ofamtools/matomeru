@@ -359,7 +359,7 @@ func (a *App) renderContext(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	var cursor ochazuke.Block
 	focusLine := -1
 	switch {
-	case a.r.Focus == contextQueryID:
+	case a.shownFocused(contextQueryID):
 		prefix := head + "  / "
 		field := ochazuke.InputBlock(a.cx.query, max(8, width-ansi.StringWidth(prefix)), 1)
 		cursor, focusLine = field.Offset(ansi.StringWidth(prefix), 0), 0

@@ -379,8 +379,8 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	// panels).
 	groupBy(t, app, groupProjectSessionPane)
 	setting(t, app, settingPanesLayout, layoutStacked)
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	f := frame(app)
 	for _, want := range []string{"panes (2)", "unassociated (2)", "matomeru (1)", "claude", "ochazuke (1)", "shell", "Turns [Screen] Activity Transcript"} {
@@ -389,12 +389,12 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 		}
 	}
 	press(t, app, "ctrl+j")
-	if app.r.Page != "work" || app.r.Focus != "ochazuke" {
-		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.Focus)
+	if app.r.Page != "work" || app.r.FocusID() != "ochazuke" {
+		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	press(t, app, "ctrl+k")
-	if app.r.Page != panesPage || app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("ctrl+k: page %s focus %s", app.r.Page, app.r.Focus)
+	if app.r.Page != panesPage || app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("ctrl+k: page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 }
 
@@ -436,8 +436,8 @@ func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 	groupBy(t, app, groupProjectSessionPane)
 	first := follow(app)
 	press(t, app, "j", "j")
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	second := follow(app)
 	var running []ochazuke.JobInfo
@@ -466,8 +466,8 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 	app, f := panesApp(t)
 	cmd := key(t, app, "enter")
 	term := app.r.Terminal(paneTermID)
-	if term == nil || app.r.Instances[paneTermID].Parent != panesPage || app.r.Focus != paneTermID || app.r.Mode.Name != "terminal" {
-		t.Fatalf("after enter: terminal %v focus %s mode %s", term, app.r.Focus, app.r.Mode.Name)
+	if term == nil || app.r.Instances[paneTermID].Parent != panesPage || app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
+		t.Fatalf("after enter: terminal %v focus %s mode %s", term, app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	if len(f.streams) != 1 || f.streams[0].pane.ID != "w1" {
 		t.Fatalf("streams = %+v", f.streams)
@@ -510,8 +510,8 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 		t.Fatalf("detach should park the stream: released %v parked %v lease %v", s.released, s.parked, s.lease)
 	}
 	// Detach lands back on the row the attach came from.
-	if app.r.Focus != "pane:matomeru/w1" || app.r.Mode.Name != "normal" {
-		t.Fatalf("after detach: focus %s mode %s", app.r.Focus, app.r.Mode.Name)
+	if app.r.FocusID() != "pane:matomeru/w1" || app.r.CurrentMode().Name != "normal" {
+		t.Fatalf("after detach: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	if fr := frame(app); strings.Contains(fr, "━ matomeru/claude ") {
 		t.Fatalf("frame after detach:\n%s", fr)
@@ -532,8 +532,8 @@ func TestLeaderZoomAndNextPane(t *testing.T) {
 		t.Fatalf("zoom: %v\n%s", app.pv.zoom, frame(app))
 	}
 	press(t, app, "ctrl+a", "j")
-	if app.attached.ID != "w2" || app.r.Focus != paneTermID || !app.pv.zoom || len(f.streams) != 2 || !f.streams[0].released {
-		t.Fatalf("ctrl+a j: attached %s focus %s zoom %v streams %d", app.attached.ID, app.r.Focus, app.pv.zoom, len(f.streams))
+	if app.attached.ID != "w2" || app.r.FocusID() != paneTermID || !app.pv.zoom || len(f.streams) != 2 || !f.streams[0].released {
+		t.Fatalf("ctrl+a j: attached %s focus %s zoom %v streams %d", app.attached.ID, app.r.FocusID(), app.pv.zoom, len(f.streams))
 	}
 	press(t, app, "ctrl+a", "j") // the last pane: a quiet edge
 	if app.attached.ID != "w2" {
@@ -544,14 +544,14 @@ func TestLeaderZoomAndNextPane(t *testing.T) {
 		t.Fatalf("unzoom:\n%s", frame(app))
 	}
 	press(t, app, "ctrl+a", "k", "ctrl+a", "d")
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("detach after ctrl+a k: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("detach after ctrl+a k: focus %s", app.r.FocusID())
 	}
 	key(t, app, "enter")
 	if app.pv.zoom {
 		t.Fatal("a new attach is zoomed")
 	}
-	if hints := ochazuke.BindingHints(app.r, app.r.Focus); !strings.Contains(hints, "z zoom") {
+	if hints := ochazuke.BindingHints(app.r, app.r.FocusID()); !strings.Contains(hints, "z zoom") {
 		t.Fatalf("leader hint: %q", hints)
 	}
 }
@@ -563,14 +563,14 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	groupBy(t, app, groupProjectSessionPane)
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("after detach: focus %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("after detach: focus %s", app.r.FocusID())
 	}
 	press(t, app, "j", "j")
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
-	if app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	// The first pane's stream was dropped when the selection left its
 	// row; the second stays parked under its own preview.
@@ -586,8 +586,8 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	}
 	frame(app)
 	press(t, app, "}")
-	if app.r.Focus != paneTermID {
-		t.Fatalf("} from the list: focus %s", app.r.Focus)
+	if app.r.FocusID() != paneTermID {
+		t.Fatalf("} from the list: focus %s", app.r.FocusID())
 	}
 }
 
@@ -596,16 +596,16 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	app, f := panesApp(t)
 	press(t, app, "d", "d")
 	settle(app, key(t, app, "n"))
-	if len(f.killed) != 0 || len(jobsOf(app, "pane.kill")) != 0 || app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("n: killed %v jobs %+v focus %s", f.killed, app.r.Jobs(), app.r.Focus)
+	if len(f.killed) != 0 || len(jobsOf(app, "pane.kill")) != 0 || app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("n: killed %v jobs %+v focus %s", f.killed, app.r.Jobs(), app.r.FocusID())
 	}
 	press(t, app, "d", "d")
 	settle(app, key(t, app, "y"))
 	if !reflect.DeepEqual(f.killed, []string{"w1"}) {
 		t.Fatalf("killed = %v", f.killed)
 	}
-	if app.r.Instances["pane:matomeru/w1"] != nil || app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("after kill: focus %s", app.r.Focus)
+	if app.r.Instances["pane:matomeru/w1"] != nil || app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("after kill: focus %s", app.r.FocusID())
 	}
 	// The kill completed on its own row, which its completion removed.
 	if jobs := jobsOf(app, "pane.kill"); len(jobs) != 1 || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].State != ochazuke.JobDone {
@@ -638,8 +638,8 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	if len(app.m.Notices) != 1 || !strings.Contains(app.m.Notices[0], "no such file") {
 		t.Fatalf("notices = %q", app.m.Notices)
 	}
-	if app.r.Focus != paneListID {
-		t.Fatalf("focus = %s", app.r.Focus)
+	if app.r.FocusID() != paneListID {
+		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	// e runs daemon.ensure from the empty list, and the panes come back.
 	f.err = nil
@@ -648,8 +648,8 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 		t.Fatalf("after e: err %q", app.paneErr)
 	}
 	press(t, app, "ctrl+j", "j")
-	if app.r.Page != "work" || app.r.Focus != "matomeru" {
-		t.Fatalf("page %s focus %s", app.r.Page, app.r.Focus)
+	if app.r.Page != "work" || app.r.FocusID() != "matomeru" {
+		t.Fatalf("page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 }
 
@@ -771,15 +771,15 @@ func TestPaneSearchEnterChoosesAndClears(t *testing.T) {
 	press(t, app, "/")
 	typeText(t, app, "shell") // both panes' harness is shell; the selection stays on claude
 	press(t, app, "down")
-	if app.paneList.Filter() != "shell" || app.paneList.Shown() != 2 || app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("search: query %q shown %d of %d focus %s", app.paneList.Filter(), app.paneList.Shown(), rows, app.r.Focus)
+	if app.paneList.Filter() != "shell" || app.paneList.Shown() != 2 || app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("search: query %q shown %d of %d focus %s", app.paneList.Filter(), app.paneList.Shown(), rows, app.r.FocusID())
 	}
 	press(t, app, "enter")
-	if app.r.Mode.Name != "normal" || app.paneList.Filter() != "" || app.paneList.Shown() != rows {
-		t.Fatalf("enter: mode %s query %q shown %d of %d", app.r.Mode.Name, app.paneList.Filter(), app.paneList.Shown(), rows)
+	if app.r.CurrentMode().Name != "normal" || app.paneList.Filter() != "" || app.paneList.Shown() != rows {
+		t.Fatalf("enter: mode %s query %q shown %d of %d", app.r.CurrentMode().Name, app.paneList.Filter(), app.paneList.Shown(), rows)
 	}
-	if sel, ok := app.paneList.Selected(); !ok || sel.ID != "pane:ochazuke/w2" || app.r.Focus != "pane:ochazuke/w2" {
-		t.Fatalf("enter: selected %v focus %s", sel.ID, app.r.Focus)
+	if sel, ok := app.paneList.Selected(); !ok || sel.ID != "pane:ochazuke/w2" || app.r.FocusID() != "pane:ochazuke/w2" {
+		t.Fatalf("enter: selected %v focus %s", sel.ID, app.r.FocusID())
 	}
 	if f := frame(app); !strings.Contains(f, "claude") || strings.Contains(f, "2 of 5") {
 		t.Fatalf("every pane shows again and the query line is gone:\n%s", f)
@@ -865,20 +865,20 @@ func TestSessionRowHLExpandsAndStepsIn(t *testing.T) {
 		// This test reads the session rows (project → session → pane).
 		groupBy(t, app, groupProjectSessionPane)
 		press(t, app, "k")
-		if app.r.Focus != "session:matomeru" {
-			t.Fatalf("k: focus %s", app.r.Focus)
+		if app.r.FocusID() != "session:matomeru" {
+			t.Fatalf("k: focus %s", app.r.FocusID())
 		}
 		press(t, app, "h")
-		if app.r.Focus != "session:matomeru" || cells(app, "pane:matomeru/w1") != "" {
-			t.Fatalf("h: focus %s, pane row %q", app.r.Focus, cells(app, "pane:matomeru/w1"))
+		if app.r.FocusID() != "session:matomeru" || cells(app, "pane:matomeru/w1") != "" {
+			t.Fatalf("h: focus %s, pane row %q", app.r.FocusID(), cells(app, "pane:matomeru/w1"))
 		}
 		press(t, app, right)
-		if app.r.Focus != "session:matomeru" || cells(app, "pane:matomeru/w1") == "" {
-			t.Fatalf("%s on a closed session: focus %s, pane row %q", right, app.r.Focus, cells(app, "pane:matomeru/w1"))
+		if app.r.FocusID() != "session:matomeru" || cells(app, "pane:matomeru/w1") == "" {
+			t.Fatalf("%s on a closed session: focus %s, pane row %q", right, app.r.FocusID(), cells(app, "pane:matomeru/w1"))
 		}
 		press(t, app, right)
-		if app.r.Focus != "pane:matomeru/w1" {
-			t.Fatalf("%s on an open session: focus %s, want its first pane", right, app.r.Focus)
+		if app.r.FocusID() != "pane:matomeru/w1" {
+			t.Fatalf("%s on an open session: focus %s, want its first pane", right, app.r.FocusID())
 		}
 	}
 }

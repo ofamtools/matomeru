@@ -38,29 +38,29 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 	// the projects, in drawing order; j from the last project row spills
 	// into the (unassociated) tasks.
 	press(t, a, "}")
-	if a.r.Focus != "busy" {
-		t.Fatalf("} did not reach the tasks: focus %s", a.r.Focus)
+	if a.r.FocusID() != "busy" {
+		t.Fatalf("} did not reach the tasks: focus %s", a.r.FocusID())
 	}
 	press(t, a, "k")
-	if a.r.Focus != unassociatedID {
-		t.Fatalf("k did not spill into the projects: focus %s", a.r.Focus)
+	if a.r.FocusID() != unassociatedID {
+		t.Fatalf("k did not spill into the projects: focus %s", a.r.FocusID())
 	}
 	// The spill does not rebuild the tasks: j goes back to the task left.
 	press(t, a, "j")
-	if a.r.Focus != "busy" {
-		t.Fatalf("k then j did not come back: focus %s", a.r.Focus)
+	if a.r.FocusID() != "busy" {
+		t.Fatalf("k then j did not come back: focus %s", a.r.FocusID())
 	}
 	press(t, a, "k")
 	if err := a.work.PutTask(work.Task{ID: "loose", Title: "loose end"}); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "k", "j", "j")
-	if a.r.Focus != "loose" {
-		t.Fatalf("j did not spill into the tasks: focus %s", a.r.Focus)
+	if a.r.FocusID() != "loose" {
+		t.Fatalf("j did not spill into the tasks: focus %s", a.r.FocusID())
 	}
 	press(t, a, "k", "k", "}")
-	if a.r.Focus != "busy" {
-		t.Fatalf("back on matomeru's tasks: focus %s", a.r.Focus)
+	if a.r.FocusID() != "busy" {
+		t.Fatalf("back on matomeru's tasks: focus %s", a.r.FocusID())
 	}
 	f := frameAt(a, 120)
 	if !strings.Contains(f, "status: active") || !strings.Contains(f, "[>] busy task") {
@@ -108,28 +108,28 @@ func TestWorkSpillRoundTripReturnsToTheTask(t *testing.T) {
 		a := openAt(t, seededWith(t, map[string]string{"busy": "active", "stuck": "blocked"}))
 		a.m.Width, a.m.Height = width, 24
 		press(t, a, "j", "}")
-		if a.r.Focus != "busy" {
-			t.Fatalf("%d: focus %s", width, a.r.Focus)
+		if a.r.FocusID() != "busy" {
+			t.Fatalf("%d: focus %s", width, a.r.FocusID())
 		}
 		frameAt(a, width)
 		press(t, a, "k")
-		if a.r.Focus != unassociatedID || a.current != "matomeru" {
-			t.Fatalf("%d: k: focus %s current %q", width, a.r.Focus, a.current)
+		if a.r.FocusID() != unassociatedID || a.current != "matomeru" {
+			t.Fatalf("%d: k: focus %s current %q", width, a.r.FocusID(), a.current)
 		}
 		if f := frameAt(a, width); !strings.Contains(f, "busy task") {
 			t.Fatalf("%d: the spill rebuilt the tasks:\n%s", width, f)
 		}
 		press(t, a, "j")
-		if a.r.Focus != "busy" {
-			t.Fatalf("%d: k then j: focus %s", width, a.r.Focus)
+		if a.r.FocusID() != "busy" {
+			t.Fatalf("%d: k then j: focus %s", width, a.r.FocusID())
 		}
 		press(t, a, "k", "k")
-		if a.r.Focus != "matomeru" || a.current != "matomeru" {
-			t.Fatalf("%d: k k: focus %s current %q", width, a.r.Focus, a.current)
+		if a.r.FocusID() != "matomeru" || a.current != "matomeru" {
+			t.Fatalf("%d: k k: focus %s current %q", width, a.r.FocusID(), a.current)
 		}
 		press(t, a, "j")
-		if a.r.Focus != unassociatedID || a.current != "" {
-			t.Fatalf("%d: a move in the projects did not follow: focus %s current %q", width, a.r.Focus, a.current)
+		if a.r.FocusID() != unassociatedID || a.current != "" {
+			t.Fatalf("%d: a move in the projects did not follow: focus %s current %q", width, a.r.FocusID(), a.current)
 		}
 	}
 }

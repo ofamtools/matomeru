@@ -23,8 +23,8 @@ func promptApp(t *testing.T) (*App, *fakePanes) {
 		t.Fatalf("no prompt box under the turns:\n%s", frame(app))
 	}
 	press(t, app, "i")
-	if app.r.Focus != promptID || app.r.BaseMode() != "insert" {
-		t.Fatalf("i focused %s in %s", app.r.Focus, app.r.BaseMode())
+	if app.r.FocusID() != promptID || app.r.BaseMode() != "insert" {
+		t.Fatalf("i focused %s in %s", app.r.FocusID(), app.r.BaseMode())
 	}
 	return app, f
 }
@@ -96,8 +96,8 @@ func TestPromptBoxSendsAndClears(t *testing.T) {
 		t.Fatalf("calls %q", f.prompts)
 	}
 	// The box leaves insert mode (prompt.after-submit-mode normal).
-	if len(app.pb.input.Text) != 0 || app.r.Focus != promptID || app.r.BaseMode() != "normal" {
-		t.Fatalf("after send: %q focus %s %s", string(app.pb.input.Text), app.r.Focus, app.r.BaseMode())
+	if len(app.pb.input.Text) != 0 || app.r.FocusID() != promptID || app.r.BaseMode() != "normal" {
+		t.Fatalf("after send: %q focus %s %s", string(app.pb.input.Text), app.r.FocusID(), app.r.BaseMode())
 	}
 	// Nothing to send is refused, and nothing reaches the pane.
 	app.Update(keyMsg("enter"))
@@ -180,12 +180,12 @@ func TestPromptBoxIsAStopAfterTheTurns(t *testing.T) {
 	t.Parallel()
 	app, _ := promptApp(t)
 	press(t, app, "esc", "esc")
-	if app.r.Instances[app.r.Focus].Noun != "turn" {
-		t.Fatalf("esc esc focused %s", app.r.Focus)
+	if app.r.Instances[app.r.FocusID()].Noun != "turn" {
+		t.Fatalf("esc esc focused %s", app.r.FocusID())
 	}
 	press(t, app, "}")
-	if app.r.Focus != promptID {
-		t.Fatalf("} from the turns focused %s", app.r.Focus)
+	if app.r.FocusID() != promptID {
+		t.Fatalf("} from the turns focused %s", app.r.FocusID())
 	}
 	if _, err := app.r.ValidateBindings(); err != nil {
 		t.Fatal(err)

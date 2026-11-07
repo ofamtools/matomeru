@@ -20,7 +20,7 @@ func TestBoxInNormalModeSaysHowToWrite(t *testing.T) {
 	}
 	// i still positions the cursor as the editor's i does.
 	press(t, app, "i")
-	if app.r.BaseMode() != "insert" || app.r.Focus != promptID {
+	if app.r.BaseMode() != "insert" || app.r.FocusID() != promptID {
 		t.Fatalf("i in the box: %s", where(app))
 	}
 	typeText(t, app, "ab")

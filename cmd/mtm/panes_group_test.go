@@ -148,7 +148,7 @@ func TestPanesGroupVerbs(t *testing.T) {
 		t.Fatalf("cycle back: %s", got)
 	}
 	// The focused pane stays focused through a regroup.
-	if app.r.Focus != "pane:matomeru/w1" {
-		t.Fatalf("focus after regrouping: %s", app.r.Focus)
+	if app.r.FocusID() != "pane:matomeru/w1" {
+		t.Fatalf("focus after regrouping: %s", app.r.FocusID())
 	}
 }

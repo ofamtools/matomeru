@@ -34,17 +34,17 @@ func TestTurnCardStepsWalk(t *testing.T) {
 	frame(app)
 	items := app.turnsList().Items()
 	first, second := items[0].ID, items[1].ID
-	if app.r.Focus != first {
+	if app.r.FocusID() != first {
 		t.Fatalf("} k: %s, want %s", where(app), first)
 	}
 	settle(app, key(t, app, "l"))
 	frame(app)
-	if !app.pv.cards.IsOpen(first) || app.r.Focus != first {
+	if !app.pv.cards.IsOpen(first) || app.r.FocusID() != first {
 		t.Fatalf("l on the closed card: %s", where(app))
 	}
 	press(t, app, "l")
 	frame(app)
-	if app.r.Focus != app.pv.cards.BodyID() || stepText(t, app) != "fix the flaky test" {
+	if app.r.FocusID() != app.pv.cards.BodyID() || stepText(t, app) != "fix the flaky test" {
 		t.Fatalf("l on the open card: %s", where(app))
 	}
 	if fr := frame(app); !strings.Contains(fr, "▌▾ fix the flaky test") {
@@ -79,12 +79,12 @@ func TestTurnCardStepsWalk(t *testing.T) {
 	if y, _ := app.r.ReadYank("\""); y.Text != "Fixed: the test now fakes the clock." {
 		t.Fatalf("y yanked %q", y.Text)
 	}
-	if app.r.Focus != app.pv.cards.BodyID() {
+	if app.r.FocusID() != app.pv.cards.BodyID() {
 		t.Fatalf("y moved the focus: %s", where(app))
 	}
 	press(t, app, "j")
 	frame(app)
-	if app.r.Focus != second {
+	if app.r.FocusID() != second {
 		t.Fatalf("j past the last step: %s, want %s", where(app), second)
 	}
 	settle(app, key(t, app, "l"))
@@ -99,15 +99,15 @@ func TestTurnCardStepsWalk(t *testing.T) {
 	}
 	press(t, app, "k", "k", "k")
 	frame(app)
-	if app.r.Focus != second || !app.pv.cards.IsOpen(second) {
+	if app.r.FocusID() != second || !app.pv.cards.IsOpen(second) {
 		t.Fatalf("k before the first step: %s", where(app))
 	}
 	press(t, app, "h")
-	if app.pv.cards.IsOpen(second) || app.r.Focus != second {
+	if app.pv.cards.IsOpen(second) || app.r.FocusID() != second {
 		t.Fatalf("h on the open card: %s", where(app))
 	}
 	press(t, app, "h")
-	if app.r.Focus != row {
+	if app.r.FocusID() != row {
 		t.Fatalf("h on the closed card: %s, want the pane row %s", where(app), row)
 	}
 }
@@ -122,7 +122,7 @@ func TestTurnCardStepsLeave(t *testing.T) {
 			app.m.Width, app.m.Height = 120, 50
 			frame(app)
 			press(t, app, "}")
-			card := app.r.Focus
+			card := app.r.FocusID()
 			settle(app, key(t, app, "l"))
 			press(t, app, "l", "j")
 			frame(app)
@@ -139,7 +139,7 @@ func TestTurnCardStepsLeave(t *testing.T) {
 			if k == "h" && app.pv.cards.InBody() {
 				press(t, app, k) // the first h folded the step's open section
 			}
-			if app.r.Focus != card || !app.pv.cards.IsOpen(card) {
+			if app.r.FocusID() != card || !app.pv.cards.IsOpen(card) {
 				t.Fatalf("%s inside: %s open %v", k, where(app), app.pv.cards.IsOpen(card))
 			}
 		})

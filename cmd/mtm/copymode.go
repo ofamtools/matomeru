@@ -132,7 +132,7 @@ func (a *App) defineCopy() {
 	r := a.r
 	_ = r.DefineMode("copy", false, ochazuke.ModeExtends("normal"))
 	for _, mode := range []string{"visual", "visual-line", "visual-block", "visual_count_pending"} {
-		if !r.Modes[mode] {
+		if !r.IsBaseMode(mode) {
 			_ = r.DefineMode(mode, mode == "visual_count_pending")
 		}
 	}
@@ -350,7 +350,7 @@ func (a *App) enterCopy(p pane, source string) error {
 	c.buf.top, c.buf.row, c.buf.col = 0, cursor.row, cursor.col
 	c.buf.clamp()
 	a.pv.tab = tabScreen
-	if a.r.Focus != copyID {
+	if a.r.FocusID() != copyID {
 		if err := a.r.SetFocus(copyID); err != nil {
 			c.active = false
 			return err
@@ -371,7 +371,7 @@ func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if a.r.Terminal(a.r.Focus) != nil && p.ID == a.attached.ID {
+	if a.r.Terminal(a.r.FocusID()) != nil && p.ID == a.attached.ID {
 		return a.terminalCopy(ctx)
 	}
 	source := ""
@@ -395,7 +395,7 @@ func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 // terminalCopy is terminal.copy (ctrl+a [): copy mode on the focused
 // terminal's pane, which stays attached.
 func (a *App) terminalCopy(ctx ochazuke.Ctx) ochazuke.Result {
-	id := a.r.Focus
+	id := a.r.FocusID()
 	if a.r.Terminal(id) == nil {
 		id = paneTermID
 	}
@@ -563,7 +563,7 @@ func (a *App) copyUpdate(msg tea.Msg) {
 	if c.active && a.r.BaseFocus() != copyID {
 		c.active = false
 	}
-	if !c.active && a.r.Focus == copyID {
+	if !c.active && a.r.FocusID() == copyID {
 		_, inst := a.selectedRow()
 		p, err := a.paneAt(inst)
 		if err == nil {

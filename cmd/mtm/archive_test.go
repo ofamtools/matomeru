@@ -321,8 +321,8 @@ func TestOutlineTaskArchiveRestoreAndNotes(t *testing.T) {
 	if task, err := a.work.Task("outline-a"); err != nil || !task.Archived {
 		t.Fatalf("selected outline task not archived: %+v %v", task, err)
 	}
-	if row, ok := o.tree.Selected(); !ok || row.ID != outlineNode("outline-b") || a.r.Focus != row.ID {
-		t.Fatalf("archive did not focus the next outline task: %+v focus=%q", row, a.r.Focus)
+	if row, ok := o.tree.Selected(); !ok || row.ID != outlineNode("outline-b") || a.r.FocusID() != row.ID {
+		t.Fatalf("archive did not focus the next outline task: %+v focus=%q", row, a.r.FocusID())
 	}
 	if err := o.tree.List().ApplyFilter("archived"); err != nil {
 		t.Fatal(err)

@@ -79,7 +79,7 @@ func (a *App) noteTurnsEntered() {
 	if a.pv.turns == nil || a.turnCards() {
 		return
 	}
-	if slices.Contains(a.r.Ancestry(a.r.Focus), turnsTreeID) {
+	if slices.Contains(a.r.Ancestry(a.r.FocusID()), turnsTreeID) {
 		a.turnFillOf(a.pv.turns).entered = true
 	}
 }

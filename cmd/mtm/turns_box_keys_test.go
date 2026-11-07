@@ -21,22 +21,22 @@ func jAtTheBottom(t *testing.T, style string) {
 	useTurnStyle(t, app, style)
 	frame(app)
 	press(t, app, "}")
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "turn" {
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "turn" {
 		t.Fatalf("} focused %s", where(app))
 	}
 	press(t, app, "G")
 	frame(app)
-	last := app.r.Focus
+	last := app.r.FocusID()
 	t.Logf("last turn: %s", where(app))
 	press(t, app, "j", "j")
 	fr := frame(app)
 	t.Logf("j on the last turn: %s", where(app))
-	if app.r.Focus != last {
+	if app.r.FocusID() != last {
 		t.Fatalf("j on the last turn focused %s, want %s\n%s", where(app), last, fr)
 	}
 	press(t, app, "}")
 	fr = frame(app)
-	if app.r.Focus != promptID {
+	if app.r.FocusID() != promptID {
 		t.Fatalf("} from the last turn focused %s\n%s", where(app), fr)
 	}
 	if app.r.BaseMode() != "normal" {
@@ -45,13 +45,13 @@ func jAtTheBottom(t *testing.T, style string) {
 	press(t, app, "j")
 	fr = frame(app)
 	t.Logf("j in the box: %s", where(app))
-	if app.r.Focus != promptID || app.r.BaseMode() != "normal" {
+	if app.r.FocusID() != promptID || app.r.BaseMode() != "normal" {
 		t.Fatalf("j in the box focused %s\n%s", where(app), fr)
 	}
 	press(t, app, "k")
 	frame(app)
 	t.Logf("k in the box: %s", where(app))
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "turn" {
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "turn" {
 		t.Fatalf("k from the box focused %s", where(app))
 	}
 	// i, type, esc to normal mode, j: still the box; { goes back up.
@@ -61,12 +61,12 @@ func jAtTheBottom(t *testing.T, style string) {
 	press(t, app, "j")
 	fr = frame(app)
 	t.Logf("j in the box after esc: %s", where(app))
-	if app.r.Focus != promptID || app.r.BaseMode() != "normal" {
+	if app.r.FocusID() != promptID || app.r.BaseMode() != "normal" {
 		t.Fatalf("j in the box after esc focused %s\n%s", where(app), fr)
 	}
 	press(t, app, "{")
 	frame(app)
-	if inst := app.r.Instances[app.r.Focus]; inst == nil || inst.Noun != "turn" {
+	if inst := app.r.Instances[app.r.FocusID()]; inst == nil || inst.Noun != "turn" {
 		t.Fatalf("{ from the box focused %s", where(app))
 	}
 	if !strings.Contains(frame(app), "write to the agent") && !strings.Contains(frame(app), "hi") {

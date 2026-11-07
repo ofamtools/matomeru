@@ -159,14 +159,14 @@ func TestSubagentRowsAreSelectableAndOpenTheirCard(t *testing.T) {
 	if err := app.selectPaneRow("child:w1/toolu_fg"); err != nil {
 		t.Fatal(err)
 	}
-	focus := app.r.Focus
+	focus := app.r.FocusID()
 	settle(app, key(t, app, "enter"))
 	settle(app, follow(app))
 	if app.pv.tab != tabTurns {
 		t.Fatalf("tab %d", app.pv.tab)
 	}
-	if app.r.Focus != focus {
-		t.Fatalf("focus moved: %s → %s", focus, app.r.Focus)
+	if app.r.FocusID() != focus {
+		t.Fatalf("focus moved: %s → %s", focus, app.r.FocusID())
 	}
 	tl := app.pv.timelines["w1"]
 	if tl == nil {
@@ -384,9 +384,9 @@ func TestRowMovingListsKeepsAnActiveFilterFocused(t *testing.T) {
 	}
 	press(t, app, "/")
 	typeText(t, app, "mat")
-	mode := app.r.Mode.Name
+	mode := app.r.CurrentMode().Name
 	if mode != ochazuke.ListFilterMode {
-		t.Fatalf("filter mode %s focus %s", mode, app.r.Focus)
+		t.Fatalf("filter mode %s focus %s", mode, app.r.FocusID())
 	}
 	setting(t, app, settingSubagentsWorking, true) // the row moves to Working
 	reload(t, app)
@@ -395,8 +395,8 @@ func TestRowMovingListsKeepsAnActiveFilterFocused(t *testing.T) {
 	}
 	// The row left the list the focus was on, so the focus falls back to
 	// that list (it may not follow the row into Working); the mode stays.
-	if app.r.Mode.Name != mode || !app.pv.sections[1].tree.List().Focused() {
-		t.Fatalf("focus %s mode %s, want the Panes list and %s", app.r.Focus, app.r.Mode.Name, mode)
+	if app.r.CurrentMode().Name != mode || !app.pv.sections[1].tree.List().Focused() {
+		t.Fatalf("focus %s mode %s, want the Panes list and %s", app.r.FocusID(), app.r.CurrentMode().Name, mode)
 	}
 }
 
@@ -424,11 +424,11 @@ func focusLeavesEmptyList(t *testing.T, app *App) {
 	settle(app, follow(app))
 	for _, s := range app.pv.sections {
 		if l := s.tree.List(); l.Focused() && l.Len() == 0 {
-			t.Fatalf("focus %s is on an empty list, mode %s", app.r.Focus, app.r.Mode.Name)
+			t.Fatalf("focus %s is on an empty list, mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 		}
 	}
-	if app.r.Mode.Name != "normal" {
-		t.Fatalf("mode %s", app.r.Mode.Name)
+	if app.r.CurrentMode().Name != "normal" {
+		t.Fatalf("mode %s", app.r.CurrentMode().Name)
 	}
 }
 
