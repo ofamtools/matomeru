@@ -1058,7 +1058,7 @@ func (a *App) paneByWindow(window string) (pane, error) {
 // row muted. Rows already styled (the selected one, a faded list) keep
 // their own look; the marker still names the running turn.
 func (a *App) styleTurnRows(text string) string {
-	styles := a.m.Styles()
+	styles := a.pageStyles()
 	lines := strings.Split(text, "\n")
 	for i, l := range lines {
 		if strings.Contains(l, "\x1b") || !(strings.HasPrefix(l, "▸ ") || strings.HasPrefix(l, "▾ ")) {

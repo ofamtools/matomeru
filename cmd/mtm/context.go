@@ -352,7 +352,7 @@ func (a *App) contextUpdate(msg tea.Msg) tea.Cmd {
 }
 
 func (a *App) renderContext(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	s := a.m.Styles()
+	s := a.pageStyles()
 	kind := cmp.Or(a.cx.kind, "all")
 	head := fmt.Sprintf("context (%d) · kind %s (f)", a.cx.list.Len(), kind)
 	var lines []string

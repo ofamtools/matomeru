@@ -342,7 +342,7 @@ func (a *App) inboxCountLabel() string {
 
 func (a *App) renderInbox(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
 	return a.withLinkedDetail(a.inbox.detail, width, height, func(w, h int) ochazuke.Block {
-		s := a.m.Styles()
+		s := a.pageStyles()
 		c := a.inbox.counts
 		head := fmt.Sprintf("inbox · %d unread · %d open · %d in all", c.Unread, c.Open, a.inbox.list.Len())
 		lines := []string{s.Muted.Render(ansi.Truncate(head, w, "…"))}

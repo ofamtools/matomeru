@@ -438,9 +438,9 @@ func (a *App) settingsLine(p pane, row string, width int) string {
 	}
 	a.setSettingRows(row, fields)
 	list := a.pv.settings
-	focused := list.Focused()
+	focused := list.DrawnFocused()
 	sel, _ := list.Selected()
-	s := a.m.Styles()
+	s := a.pageStyles()
 	parts := make([]string, len(fields))
 	for i, f := range fields {
 		st := s.Tone(f.Tone)

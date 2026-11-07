@@ -647,7 +647,7 @@ func (a *App) cancelAnswerArea(ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	s := a.m.Styles()
+	s := a.pageStyles()
 	top := max(1, (height-5)/3)
 	head := fmt.Sprintf("reviews (%d)", len(a.reviews))
 	list := a.view(a.reviewList, width, top)
@@ -692,7 +692,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 				detail += " · pane gone"
 			}
 			a.wrapTurns(a.reviewTurns, width)
-			if list := a.reviewTurns.List(); list.Focused() {
+			if list := a.reviewTurns.List(); list.DrawnFocused() {
 				// In the tree the selection moves and the tree keeps it
 				// in view; J and K scroll it only from the review list.
 				a.detail.reviews.hide()

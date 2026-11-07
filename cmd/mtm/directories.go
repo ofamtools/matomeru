@@ -1112,7 +1112,7 @@ func (a *App) renderDirectories(_ *ochazuke.Runtime, width, height int) ochazuke
 
 // renderDirectoryLists draws the page's three lists in width by height.
 func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
-	s := a.m.Styles()
+	s := a.pageStyles()
 	var lines []string
 	cursor := ochazuke.Block{}
 	focusLine := -1

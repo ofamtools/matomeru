@@ -474,7 +474,7 @@ func (a *App) renderNoteBody(note work.Note, width, height int) string {
 	a.noteBody.visible = max(1, height-2)
 	head := ansi.Truncate(a.noteOwnerLabel(note), width, "…")
 	if a.r.BaseFocus() == noteBodyID || a.noteDocFocused() {
-		styles := a.m.Styles()
+		styles := a.pageStyles()
 		head = styles.Selection(true).Render(head)
 	}
 	text := head + "\n\n" + a.renderNoteText(note, width, a.noteBody.visible)

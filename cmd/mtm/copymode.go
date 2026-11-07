@@ -635,7 +635,7 @@ func (a *App) copyBlock(width, height int) ochazuke.Block {
 	width, height = max(1, width), max(1, height)
 	b.height = height
 	b.show()
-	shape := a.r.SelectionShape(a.r.BaseMode())
+	shape := a.r.SelectionShape(a.r.DrawnBaseMode(copyID))
 	cur := b.line(b.row)
 	cursorX := ansi.StringWidth(string(cur[:min(b.col, len(cur))]))
 	left := max(0, cursorX-width+1)

@@ -776,12 +776,12 @@ func (a *App) cyclePane(ctx ochazuke.Ctx) ochazuke.Result {
 // panel: its tabs and the selected row's tab, the attached terminal in the
 // Screen tab, or, zoomed, the terminal over the whole body.
 func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
-	s := a.m.Styles()
+	s := a.pageStyles()
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: s}
 	term := a.r.Terminal(paneTermID)
 	if a.liveShown() && a.pv.zoom {
 		p := a.attached
-		if side := a.r.Terminal(sideTermID); side != nil && side.Focused() {
+		if side := a.r.Terminal(sideTermID); side != nil && side.DrawnFocused() {
 			term = side
 			p, _ = a.r.Instances[sideTermID].Data.(pane)
 		}
@@ -791,10 +791,10 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 			return a.panePanel(layout, a.copy.pane).PanelBlock(a.copyTitle()+" · zoomed", a.copyBlock(cw, ch), width, height, true)
 		}
 		body := term.ViewBlock(cw, ch)
-		if !term.Focused() {
+		if !term.DrawnFocused() {
 			body.Cursor = nil
 		}
-		return a.panePanel(layout, p).PanelBlock(title, body, width, height, term.Focused())
+		return a.panePanel(layout, p).PanelBlock(title, body, width, height, term.DrawnFocused())
 	}
 	listW, listH, detailW, detailH := width, max(1, (height-1)/3), width, 0
 	side := width >= sideBySide
@@ -956,11 +956,11 @@ func (a *App) liveShown() bool {
 		return false
 	}
 	row, _ := a.selectedRow()
-	if term.Focused() || a.pv.tab == tabScreen && row == a.attached.rowID() {
+	if term.DrawnFocused() || a.pv.tab == tabScreen && row == a.attached.rowID() {
 		return true
 	}
 	side := a.r.Terminal(sideTermID)
-	return side != nil && side.Focused()
+	return side != nil && side.DrawnFocused()
 }
 
 // parentDetailBlock draws the parent's tabs and live stream or selected tab.
@@ -993,7 +993,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 			title += ": " + e
 		}
 		body = term.ViewBlock(cw, ch)
-		focused = term.Focused()
+		focused = term.DrawnFocused()
 		if !focused {
 			body.Cursor = nil
 		}
@@ -1009,7 +1009,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		}
 		body = a.tabBody(row, cw, ch)
 		// The turns or the prompt box below them: both are the panel's.
-		focused = a.pv.tab == tabTurns && (a.turnsList().Focused() || a.shownFocused(promptID))
+		focused = a.pv.tab == tabTurns && (a.turnsList().DrawnFocused() || a.shownFocused(promptID))
 	default:
 		title, body = a.groupSummary(inst)
 	}
@@ -1250,7 +1250,7 @@ func (a *App) screenBody(row string, width, height int) ochazuke.Block {
 	drawn := a.detail.panes.lines(text, 0, width, height)
 	if sc := a.previewHints(row); sc != nil {
 		// While hints are up the window they labelled stays put.
-		return ochazuke.Text(overlayText(sc.win.text, sc.win.width, sc.win.shown, sc.overlay, a.m.Styles().Backdrop))
+		return ochazuke.Text(overlayText(sc.win.text, sc.win.width, sc.win.shown, sc.overlay, a.pageStyles().Backdrop))
 	}
 	a.pv.screen = a.screenWindow(row, text, drawn, width, height)
 	return ochazuke.Text(drawn)
@@ -1269,7 +1269,7 @@ func (a *App) turnsBody(width, height int) ochazuke.Block {
 		a.r.Placed(turnsTreeID + "/list")
 		return ochazuke.Text(a.noTurnsText(st))
 	}
-	if list.Focused() || a.shownFocused(promptID) {
+	if list.DrawnFocused() || a.shownFocused(promptID) {
 		// In the tree the selection moves and the tree keeps it in
 		// view; J and K scroll it only from the pane list. The prompt
 		// box below keeps the tree's window too: j from the last turn

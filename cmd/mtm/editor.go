@@ -430,7 +430,7 @@ func (a *App) renderEditor(width, height int) ochazuke.Block {
 // the form (its fields, each label saying why a value is not written).
 func (a *App) editorPanel(rightWidth, height int) ochazuke.Block {
 	e := a.editor
-	e.Form.Styles = a.m.Styles()
+	e.Form.Styles = a.pageStyles()
 	form := e.Form.Block(rightWidth, max(1, height-1)).Offset(0, 1)
 	heading := "editing " + e.Record.Noun + " · written as you type"
 	if e.Draft {

@@ -349,7 +349,7 @@ func (a *App) sectionsNeed() int {
 // panelsBlock draws the panels layout in width x height: the top panel,
 // the Panes tree filling the middle, the bottom panel on the last lines.
 func (a *App) panelsBlock(width, height int) ochazuke.Block {
-	st := a.m.Styles()
+	st := a.pageStyles()
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: st}
 	sizes := a.panelSizes(height)
 	var lines []string
@@ -399,7 +399,7 @@ func (a *App) panelBlock(layout ochazuke.Layout, st ochazuke.Styles, sec *paneSe
 			title += fmt.Sprintf(" · +%d more", need-ch)
 		}
 	}
-	return a.cachedPanePanel(&sec.panel, layout, title, "", body, width, height, sec.tree.List().Focused())
+	return a.cachedPanePanel(&sec.panel, layout, title, "", body, width, height, sec.tree.List().DrawnFocused())
 }
 
 // focusSection is panes.focus-section: the focus on one of the page's

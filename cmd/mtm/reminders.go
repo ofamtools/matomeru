@@ -409,7 +409,7 @@ func (a *App) refreshReminders() error {
 }
 
 func (a *App) renderReminders(w, h int) string {
-	lines := []string{a.m.Styles().Muted.Render("Reminders · daily checkoffs (local dates)")}
+	lines := []string{a.pageStyles().Muted.Render("Reminders · daily checkoffs (local dates)")}
 	lines = append(lines, a.view(a.reminders.list, w, max(1, h-len(lines))))
 	return strings.Join(lines, "\n")
 }

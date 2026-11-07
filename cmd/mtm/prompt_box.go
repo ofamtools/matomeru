@@ -880,7 +880,7 @@ func (a *App) promptAfter(before promptState) {
 // when the box has the focus.
 func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	in := a.pb.input
-	s := a.m.Styles()
+	s := a.m.StylesAt(promptID)
 	// The rule shows whether the box has the focus: the mode's colour
 	// (bold in mono) while it does, muted (dim in mono) while it does not.
 	// Only the style changes, never the text, so nothing moves.
@@ -908,9 +908,9 @@ func (a *App) promptBoxBlock(p pane, width int) ochazuke.Block {
 	rows := min(promptRows, max(1, strings.Count(string(in.Text), "\n")+1))
 	fieldW := max(1, width-2)
 	var field ochazuke.Block
-	if view := a.r.PresentationAt(promptID); view.Focus == promptID {
+	if a.shownFocused(promptID) {
 		field = ochazuke.InputBlock(in, fieldW, rows).Offset(2, 1)
-		if len(in.Text) == 0 && a.modeTraits(a.shownBaseMode(view)).CursorOnChar {
+		if len(in.Text) == 0 && a.modeTraits(a.r.DrawnBaseMode(promptID)).CursorOnChar {
 			// The empty box in normal mode says how to write and leave,
 			// from its rows, under the cursor.
 			var cue []string

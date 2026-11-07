@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
 )
 
@@ -639,4 +640,46 @@ func TestLeaderLCopyReturnsToFocusedSide(t *testing.T) {
 	if a.r.FocusID() != sideTermID || a.r.CurrentMode().Name != "terminal" || a.r.Terminal(sideTermID) == nil {
 		t.Fatalf("lost side: %s %s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
+}
+
+// A page drawn under a modal keeps what it drew before the modal opened:
+// ochazuke no longer swaps the focus and mode while drawing, so a renderer
+// reads the drawn focus and mode (shownFocused, DrawnBaseMode, StylesAt),
+// not the live ones, which are the modal's. Copy mode with a visual
+// selection under the help modal still has its focus, its mode, its
+// selection and its focused border.
+func TestPageUnderModalKeepsItsFocusAndSelection(t *testing.T) {
+	t.Parallel()
+	app, _, _ := copyApp(t, nil, []string{"0123456789", "abcdefghij", "ABCDEFGHIJ"})
+	enterCopyMode(t, app)
+	pressAll(t, app, "g", "g", "v", "l")
+	before := app.copyBlock(40, 6).Text
+	panel := rawFrame(app)
+	if app.r.DrawnBaseMode(copyID) != "visual" || !app.shownFocused(copyID) {
+		t.Fatalf("before the modal: mode %q focus %q", app.r.DrawnBaseMode(copyID), app.r.DrawnFocus(copyID))
+	}
+	pressAll(t, app, "?")
+	if len(app.r.Modals()) == 0 {
+		t.Fatalf("? opened no modal (focus %s mode %s)", app.r.FocusID(), app.r.CurrentMode().Name)
+	}
+	if app.r.FocusID() == copyID {
+		t.Fatalf("the modal did not take the live focus")
+	}
+	if got := app.r.DrawnBaseMode(copyID); got != "visual" {
+		t.Fatalf("drawn mode under the modal %q, want visual", got)
+	}
+	if !app.shownFocused(copyID) {
+		t.Fatalf("the copy view lost its drawn focus under the modal")
+	}
+	if after := app.copyBlock(40, 6).Text; after != before {
+		t.Fatalf("selection under the modal changed:\n%q\n%q", before, after)
+	}
+	if app.pageStyles().ChromeLevel() != app.m.StylesAt(app.r.Page).ChromeLevel() {
+		t.Fatal("page styles are not the drawn ones")
+	}
+	// The page under the modal still draws the copy view.
+	if with := rawFrame(app); !strings.Contains(ansi.Strip(with), "abcdefghij") {
+		t.Fatalf("the copy view is gone under the modal:\n%s", with)
+	}
+	_ = panel
 }

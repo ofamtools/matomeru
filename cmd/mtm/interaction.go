@@ -10,21 +10,16 @@ import "ofam.dev/ochazuke"
 
 // shownFocus is the focus the surface holding id is drawn with: the live
 // focus on the top surface, beneath an open modal the focus the modal
-// above it saved.
-func (a *App) shownFocus(id string) string { return a.r.PresentationAt(id).Focus }
+// above it saved (Runtime.DrawnFocus).
+func (a *App) shownFocus(id string) string { return a.r.DrawnFocus(id) }
 
 // shownFocused reports whether id is drawn as its surface's focus.
 func (a *App) shownFocused(id string) bool { return a.shownFocus(id) == id }
 
-// shownBaseMode is the base mode view is drawn in: the live base mode
-// (Runtime.BaseMode, under a pending prefix the mode it returns to) on the
-// top surface, else the base mode the modal above saved.
-func (a *App) shownBaseMode(view ochazuke.Presentation) string {
-	if view.Live {
-		return a.r.BaseMode()
-	}
-	return view.Mode.Name
-}
+// pageStyles is the styles the current page draws with: its chrome in the
+// mode the page is drawn in, so a page beneath a modal keeps the mode
+// colour it had when the modal opened (Model.StylesAt).
+func (a *App) pageStyles() ochazuke.Styles { return a.m.StylesAt(a.r.Page) }
 
 // modeTraits is mode's own traits: whether it types text (Typing), rests
 // the cursor on a character (CursorOnChar, the resting mode), is pending.
