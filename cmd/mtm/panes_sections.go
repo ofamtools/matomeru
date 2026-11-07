@@ -411,7 +411,7 @@ func (a *App) rebuildPanes() error {
 	a.stampStates(a.panes)
 	row := a.displayedRow()
 	inst := a.r.Instances[row]
-	a.pv.view = a.buildPaneSections(a.panes, a.now())
+	a.pv.view = a.buildPaneSections(a.shownPanes(), a.now())
 	if err := a.applyPaneSections(); err != nil {
 		return err
 	}

@@ -51,6 +51,7 @@ func TestEventLoadRetitleInPlace(t *testing.T) {
 	t.Parallel()
 	a, f := panesApp(t)
 	f.panes[0].Name, f.panes[0].Title = "old", "old"
+	forgetCopies(t, a) // the fixture recast the window: first seen now
 	a.setPanes(f.panes, nil)
 	before := len(jobsOf(a, "panes.refresh"))
 	// No database access may be needed to update a title.

@@ -1,0 +1,50 @@
+{
+  "name": "mtm: a pane renamed in mtm keeps its name after a daemon restart; pane refresh shows the difference as a pick",
+  "area": "copies",
+  "fixture": "pane-restart",
+  "width": 120,
+  "height": 34,
+  "script": [
+    "r",
+    "ctrl+u",
+    {
+      "type": "fixer"
+    },
+    "enter",
+    {
+      "job": "pane.set"
+    },
+    {
+      "job": "panes.refresh"
+    },
+    ":",
+    {
+      "type": "story-daemon restart"
+    },
+    "enter",
+    ":",
+    {
+      "type": "pane refresh"
+    },
+    "enter"
+  ],
+  "expect": [
+    {
+      "after": 9,
+      "mode": "normal",
+      "contains": [
+        "acme-web/fixer"
+      ],
+      "lacks": [
+        "acme-web/claude"
+      ]
+    },
+    {
+      "contains": [
+        "Refresh pane",
+        "- name: fixer",
+        "+ name: claude"
+      ]
+    }
+  ]
+}

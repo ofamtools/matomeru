@@ -13,7 +13,10 @@ func (a *App) defineOwners() {
 	// pane_store.go, session_store.go) with m on every row through the
 	// project chooser (choose-move); associate keeps the chooser, the
 	// relation forms and the deprecated owner forms.
-	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.paneStore()).
+	// Their stores are copies of the daemon's (copies.go): the name is the
+	// copy's own, sent on to the daemon (Through, as are the owner and the
+	// star, which are mtm's records).
+	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.copyStore("pane", a.paneStore(), func(k string) string { return a.paneRef(k).ID }, "name")).
 		Verb("associate", a.associatePane, "Choose the project to move the pane to (omit the owner); --action-item and --context-item relate those to it; --project, --task and --scratch are the deprecated forms of move and set").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
 	// Keep the standard editor (i, r is edit of @label, m of @owner),
@@ -26,9 +29,11 @@ func (a *App) defineOwners() {
 	if err := a.r.AddActionAlias(starAlias("pane")); err != nil { // * on a pane row (pane_stars.go)
 		panic(err)
 	}
-	a.r.Define("session").Props(sessionProps()...).Store(a.sessionStore()).
+	a.readCopiesNow("pane", nil)
+	a.r.Define("session").Props(sessionProps()...).Store(a.copyStore("session", a.sessionStore(), a.sessionCopyKey, "name")).
 		Verb("associate", a.associateSession, "Choose the project to move the session to (omit it); --project and --scratch are the deprecated form of move; panes with their own owner keep it").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
+	a.readCopiesNow("session", checkSessionName)
 	a.editSubject("session", func(inst *ochazuke.Instance) (string, string, any, error) {
 		p, err := a.sessionAt(inst)
 		key := cmp.Or(p.SessionID, p.Session)

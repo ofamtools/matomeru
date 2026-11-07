@@ -35,6 +35,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	groupBy(t, app, groupProjectSessionPane)
 	app.renamer = &fakeRenamer{panes: f}
 	f.panes[1].Name = "Terminal 0e90e60d"
+	forgetCopies(t, app) // the fixture recast the window: first seen now
 	reload(t, app)
 	row := "pane:ochazuke/w2"
 	if n := countRows(app, "pane"); n != 2 || !strings.Contains(cells(app, row), "shell") {

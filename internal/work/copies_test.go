@@ -45,7 +45,7 @@ func TestCopiesMigrateAnExistingDatabase(t *testing.T) {
 	if ps, err := w.Projects(); err != nil || len(ps) != 1 || ps[0].Name != "kept" {
 		t.Fatalf("projects: %v %v", ps, err)
 	}
-	if err := w.PutCopy("pane", "w1", map[string]any{"id": "w1", "name": "fixer"}); err != nil {
+	if err := w.PutCopy("pane", "w1", "sock", map[string]any{"id": "w1", "name": "fixer"}); err != nil {
 		t.Fatal(err)
 	}
 	if c, ok, err := w.Copy("pane", "w1"); err != nil || !ok || c.Props["name"] != "fixer" {
@@ -72,20 +72,20 @@ func TestCopiesPutListDelete(t *testing.T) {
 	for _, c := range []struct{ noun, key, name string }{
 		{"pane", "w2", "b"}, {"session", "s1", "main"}, {"pane", "w1|x", "a"},
 	} {
-		if err := w.PutCopy(c.noun, c.key, map[string]any{"id": c.key, "name": c.name}); err != nil {
+		if err := w.PutCopy(c.noun, c.key, "sock", map[string]any{"id": c.key, "name": c.name}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	first, _, _ := w.Copy("pane", "w2")
-	if err := w.PutCopy("pane", "w2", map[string]any{"id": "w2", "name": "b2"}); err != nil {
+	if err := w.PutCopy("pane", "w2", "other", map[string]any{"id": "w2", "name": "b2"}); err != nil {
 		t.Fatal(err)
 	}
 	panes, err := w.Copies("pane")
 	if err != nil || len(panes) != 2 || panes[0].Key != "w2" || panes[0].Props["name"] != "b2" || panes[1].Key != "w1|x" {
 		t.Fatalf("pane copies: %+v %v", panes, err)
 	}
-	if panes[0].BackfilledAt != first.BackfilledAt {
-		t.Fatalf("a rewrite moved the backfill time: %d, was %d", panes[0].BackfilledAt, first.BackfilledAt)
+	if panes[0].BackfilledAt != first.BackfilledAt || panes[0].Source != "sock" {
+		t.Fatalf("a rewrite moved the backfill time or the source: %+v, was %+v", panes[0], first)
 	}
 	if err := w.DeleteCopy("pane", "w2"); err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestCopiesPutListDelete(t *testing.T) {
 	if ss, _ := w.Copies("session"); len(ss) != 1 {
 		t.Fatalf("session copies: %+v", ss)
 	}
-	if err := w.PutCopy("a|b", "k", nil); err == nil {
+	if err := w.PutCopy("a|b", "k", "", nil); err == nil {
 		t.Fatal("a noun with | was written")
 	}
 }

@@ -14,12 +14,16 @@ import (
 // outlives the source's (a pane that ended stays). Props is the thing as
 // the copy store put it, a tombstone included (ochazuke.CopyTombstone).
 type Copy struct {
-	ID           string         `json:"id"` // noun|key
-	Noun         string         `json:"noun"`
-	Key          string         `json:"key"`
-	Props        map[string]any `json:"props"`
-	BackfilledAt int64          `json:"backfilled_at"`
-	Updated      int64          `json:"updated"`
+	ID    string         `json:"id"` // noun|key
+	Noun  string         `json:"noun"`
+	Key   string         `json:"key"`
+	Props map[string]any `json:"props"`
+	// Source is where the thing was copied from (the daemon's socket for
+	// a pane or a session): one database serves every mtm, on any TUIOS
+	// server, so a listing speaks only for its own source's copies.
+	Source       string `json:"source,omitempty"`
+	BackfilledAt int64  `json:"backfilled_at"`
+	Updated      int64  `json:"updated"`
 }
 
 // copiesTable is the copies' table (Tables).
@@ -42,20 +46,21 @@ func (s *Store) Copy(noun, key string) (Copy, bool, error) {
 	return c, true, nil
 }
 
-// PutCopy writes the copy of noun's thing key: the first write stamps
-// BackfilledAt, a later one keeps it (and the row's place in Copies).
-func (s *Store) PutCopy(noun, key string, props map[string]any) error {
+// PutCopy writes the copy of noun's thing key from source: the first
+// write stamps BackfilledAt and Source, a later one keeps them (and the
+// row's place in Copies).
+func (s *Store) PutCopy(noun, key, source string, props map[string]any) error {
 	if noun == "" || strings.Contains(noun, "|") || key == "" {
 		return errors.New("a copy requires a noun (one word) and a key")
 	}
 	id := copyID(noun, key)
 	return s.db.Tx([]string{copiesTable}, func(tx *store.Tx) error {
 		now := Now()
-		c := Copy{ID: id, Noun: noun, Key: key, Props: props, BackfilledAt: now, Updated: now}
+		c := Copy{ID: id, Noun: noun, Key: key, Props: props, Source: source, BackfilledAt: now, Updated: now}
 		var old Copy
 		switch err := tx.Get(copiesTable, id, &old); {
 		case err == nil:
-			c.BackfilledAt = old.BackfilledAt
+			c.BackfilledAt, c.Source = old.BackfilledAt, old.Source
 		case !errors.Is(err, store.ErrNotFound):
 			return err
 		}

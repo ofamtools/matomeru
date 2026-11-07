@@ -53,6 +53,7 @@ func TestQueuedPromptsMarkThePaneRow(t *testing.T) {
 	queued.Store(2)
 	app, f := panesApp(t)
 	app.panesd = daemonListed{f, tuios{Client: daemon.New(queuedDaemon(t, &queued))}}
+	forgetCopies(t, app) // another daemon, the same window ids: first seen now
 	reload(t, app)
 	agent, shell := "pane:work/w1", "pane:work/w2"
 	if got := cells(app, agent); !strings.Contains(got, "● fixer W |") || strings.Contains(got, "2") {

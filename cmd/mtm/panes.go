@@ -113,6 +113,13 @@ type pane struct {
 	Exited            bool   `json:"exited,omitempty"`  // the window's process ended; TUIOS still lists it
 	Program           string `json:"program,omitempty"` // what mtm knows runs in a shell pane ("vim"), else ""
 	Starred           bool   `json:"starred,omitempty"` // pane.star (pane_stars.go)
+	// copied: the pane has a copy in mtm (copies.go); sourceName is the
+	// name the daemon gives it (paneThing, the source's view, reads it)
+	// and named says Name is the copy's, not the daemon's. ended: the
+	// daemon no longer lists the pane; the row is its copy.
+	copied, named bool
+	sourceName    string
+	ended         bool
 	// states are the state words panes.working-states and its siblings
 	// read the agent's state with (panes_panels.go); nil reads tuios's
 	// defaults.
@@ -239,6 +246,7 @@ type paneUI struct {
 	subscribed      bool
 	exited          map[string]bool // windows seen exited, kept across plain listings
 	listed          bool            // a listing has succeeded (the Vim page's state follows it)
+	ended           []pane          // the panes that ended, their copies kept (copies.go)
 	leader          string          // the leader the page's leader rows are bound to (panes_leader.go)
 
 	// reconcilePending: an event in the pending window needs a reconciling
@@ -367,6 +375,9 @@ func (a *App) ownedBy(noun, instance string) { a.owners[noun] = instance }
 // and jump to a pane that needs input from any stop on it.
 func (a *App) addPanesPage() error {
 	if err := a.r.DeclareSetting(eventLoadSettings()...); err != nil {
+		return err
+	}
+	if err := a.r.DeclareSetting(copySettings()...); err != nil {
 		return err
 	}
 	a.r.Instance(panesPage, ochazuke.Kind("page"))
@@ -582,6 +593,7 @@ func (a *App) setPanes(panes []pane, err error) {
 	a.markViews(panes)
 	a.stampStates(panes)
 	a.panes = panes
+	a.applyPaneCopies(err)
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {
 			return p.ID == a.attached.ID && !p.Exited

@@ -363,12 +363,13 @@ type App struct {
 	dirKeys        map[string]string // directoryKey of a path, remembered (detail_links.go)
 	askedDir       map[string]bool   // projects the pin picker already asked for a directory
 	tasks          []work.Task
-	panes          []pane     // every pane the daemon reports; launches and kills reload it
-	paneErr        string     // why the last listing failed (the daemon is not reachable)
-	preview        preview    // the last captured screen, shown while no terminal is attached
-	attached       pane       // the pane the attached terminal streams
-	recent         paneVisits // when each pane was last attached (pane_picker.go)
-	held           heldStream // the attached pane's stream, parked after detach
+	panes          []pane                 // every pane the daemon reports; launches and kills reload it
+	copies         map[string]*copiedNoun // the nouns whose stores are copies of the daemon's things (copies.go)
+	paneErr        string                 // why the last listing failed (the daemon is not reachable)
+	preview        preview                // the last captured screen, shown while no terminal is attached
+	attached       pane                   // the pane the attached terminal streams
+	recent         paneVisits             // when each pane was last attached (pane_picker.go)
+	held           heldStream             // the attached pane's stream, parked after detach
 	sideRows       []sideRow
 	sides          map[string]sideState
 	companionPanes map[string]pane

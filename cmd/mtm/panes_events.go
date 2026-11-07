@@ -67,19 +67,31 @@ type paneTitle struct {
 }
 
 func retitlePane(p *pane, title string, rename bool) bool {
-	if rename {
-		if p.Name == title {
-			return false
+	// The event changes what the daemon calls the pane; a pane whose name
+	// is its copy's keeps it (copies.go).
+	names := []*string{&p.Name}
+	if p.copied {
+		names[0] = &p.sourceName
+		if !p.named {
+			names = append(names, &p.Name)
 		}
-		p.Name = title
-		return true
+	}
+	if rename {
+		changed := false
+		for _, name := range names {
+			changed = changed || *name != title
+			*name = title
+		}
+		return changed
 	}
 	if p.Title == title {
 		return false
 	}
 	// display_name falls back to the terminal title; retain a custom name.
-	if p.Name == p.Title {
-		p.Name = title
+	for _, name := range names {
+		if *name == p.Title {
+			*name = title
+		}
 	}
 	p.Title = title
 	return true

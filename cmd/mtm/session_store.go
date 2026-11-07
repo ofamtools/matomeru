@@ -33,10 +33,11 @@ const (
 func sessionProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's id (or its row id, session:ID)"}},
-		{Name: "name", Role: ochazuke.RoleLabel, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's name in the daemon (never empty)"}},
-		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
+		{Name: "name", Role: ochazuke.RoleLabel, Through: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's name: mtm's copy's, sent on to the daemon (never empty)"}},
+		{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the session belongs to (empty: unassociated); panes with their own owner keep it"}},
 		{Name: "panes", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "How many panes the session holds"}},
+		endedPropSpec("session"),
 	}
 }
 
@@ -149,11 +150,11 @@ func (a *App) patchSession(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 	if err != nil {
 		return nil, err
 	}
+	if err := checkSessionName(changes); err != nil {
+		return nil, err
+	}
 	if to, ok := thingString(changes, "name"); ok {
 		to = strings.TrimSpace(to)
-		if to == "" {
-			return nil, errors.New("a session needs a name")
-		}
 		if err := a.launchSessionRename(c, "session:"+cmp.Or(p.SessionID, p.Session), p.Session, to); err != nil {
 			return nil, err
 		}
@@ -173,6 +174,15 @@ func (a *App) patchSession(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 		t["project"] = project
 	}
 	return t, nil
+}
+
+// checkSessionName refuses a session name that is empty: the daemon needs
+// one, so neither it nor mtm's copy takes it.
+func checkSessionName(changes ochazuke.Thing) error {
+	if to, ok := thingString(changes, "name"); ok && strings.TrimSpace(to) == "" {
+		return errors.New("a session needs a name")
+	}
+	return nil
 }
 
 // launchSessionRename renames a session in the daemon as a job of the
@@ -227,4 +237,31 @@ func (a *App) associateSessionOne(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 	}
 	return resultOf(a.r.Execute(ochazuke.Request{Noun: "session", Verb: "set", Args: ochazuke.Arguments{"id": key, "props": map[string]any{"@owner": to}}}))
+}
+
+// sessionCopyKey is the key a session's copy is kept under (copies.go) for
+// any form of its key: its row id or id, or its name, read from the
+// listing, else from the copies (a name mtm gave it included).
+func (a *App) sessionCopyKey(key string) string {
+	key = sessionKeyOf(key)
+	for _, p := range a.panes {
+		if p.SessionID != "" && (p.SessionID == key || p.Session == key) {
+			return p.SessionID
+		}
+	}
+	copies, err := a.work.Copies("session")
+	if err != nil {
+		return key
+	}
+	for _, c := range copies {
+		if c.Key == key {
+			return key
+		}
+	}
+	for _, c := range copies {
+		if name, _ := c.Props["name"].(string); name == key {
+			return c.Key
+		}
+	}
+	return key
 }

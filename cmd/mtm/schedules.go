@@ -827,7 +827,7 @@ func (a *App) afterScheduleRun(rec schedules.Record) {
 		a.r.UI().Error(err.Error())
 	}
 	if rec.Launched != nil && a.r.Instances[paneListID] != nil {
-		if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "refresh", Target: paneListID}); err != nil {
+		if _, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "refresh", Target: paneListID}); err != nil {
 			a.r.UI().Error(err.Error())
 		}
 	}

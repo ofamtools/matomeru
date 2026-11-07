@@ -192,6 +192,8 @@ func (p pane) baseName() string {
 // "shell". The harness is the detail header's.
 func (p pane) stateCell(now time.Time) string {
 	switch {
+	case p.ended:
+		return endedProp
 	case p.Exited:
 		return "exited"
 	case !p.isAgent():
@@ -211,6 +213,9 @@ func (p pane) stateCell(now time.Time) string {
 // stateWord is an agent's state in words: "working", "needs input",
 // "agent" for an agent with no state.
 func (p pane) stateWord() string {
+	if p.ended {
+		return endedProp
+	}
 	if p.Exited {
 		return "exited"
 	}

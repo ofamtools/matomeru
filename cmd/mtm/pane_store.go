@@ -67,18 +67,19 @@ func paneProps() []ochazuke.PropSpec {
 	}
 	props := []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The pane's window id (or its row id, pane:SESSION/WINDOW)")},
-		{Name: "name", Role: ochazuke.RoleLabel, Fallback: "display", Parameter: text("The window's name in the daemon; empty falls back to the shell's title")},
+		{Name: "name", Role: ochazuke.RoleLabel, Fallback: "display", Through: true, Parameter: text("The pane's name: mtm's copy's, sent on to the daemon's window; empty falls back to the shell's title")},
 		ro("display", "The pane as lists show it: session/name, or the program when the window has its default name"),
 		ro("session", "The session the pane is in"),
-		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the pane belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
-		{Name: "task", Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane works on; its project wins over project"}},
-		{Name: "starred", Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the pane is starred (` and the leader's s go to the next starred pane)"}},
+		{Name: "task", Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane works on; its project wins over project"}},
+		{Name: "starred", Through: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the pane is starred (` and the leader's s go to the next starred pane)"}},
 		ro("title", "The shell's title for the window"),
 		ro("cwd", "The pane's working directory"),
 		ro("state", "The agent's state in tuios (working, idle, needs_input…), empty for a shell"),
 		ro("harness", "The agent's harness, as tuios reports it or mtm launched it"),
 		{Name: "exited", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the window's process has ended"}},
+		endedPropSpec("pane"),
 	}
 	for _, name := range paneSettingProps {
 		props = append(props, ro(name, "The agent's "+name+" as the settings line reads it (its session's log, tuios, else the launch flags); pane.set-"+strings.TrimSuffix(name, "-mode")+"… changes it in the session"))
@@ -173,7 +174,7 @@ func (a *App) paneThing(p pane) ochazuke.Thing {
 		h = p.LaunchHarness
 	}
 	t := ochazuke.Thing{
-		"id": p.ID, "name": p.Name, "display": p.label(), "session": p.Session,
+		"id": p.ID, "name": p.givenName(), "display": p.label(), "session": p.Session,
 		"project": owner.ProjectID, "task": owner.TaskID, "starred": p.Starred,
 		"title": p.Title, "cwd": p.Cwd, "state": p.AgentState, "harness": h, "exited": p.Exited,
 	}
@@ -185,6 +186,21 @@ func (a *App) paneThing(p pane) ochazuke.Thing {
 		}
 	}
 	return t
+}
+
+// givenName is the name the daemon gives the window, "" when it has none
+// of its own (the daemon's display name is then the shell's title or its
+// default "Terminal 1a2b3c4d"): a copied pane's (copies.go) is the
+// daemon's, never the copy's.
+func (p pane) givenName() string {
+	name := p.Name
+	if p.copied {
+		name = p.sourceName
+	}
+	if name == p.Title || defaultWindowName.MatchString(name) {
+		return ""
+	}
+	return name
 }
 
 // patchPane is the store's Patch: the name in the daemon, the star and
@@ -200,14 +216,22 @@ func (a *App) patchPane(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		return nil, errors.New("name the pane (its row id or window id)")
 	}
 	if name, ok := thingString(changes, "name"); ok {
-		if !listed && p.Session == "" {
+		switch {
+		case !listed && p.Session == "" && a.pv != nil && a.pv.listed:
+			return nil, fmt.Errorf("pane %s is no longer listed by the daemon", id)
+		case !listed && p.Session == "":
 			return nil, fmt.Errorf("pane %s is not listed: name it by its row id (pane:SESSION/WINDOW) to rename it", id)
 		}
 		if err := a.launchWindowRename(c, p, name); err != nil {
 			return nil, err
 		}
 		p.Name = strings.TrimSpace(name)
-		a.updatePane(p.ID, func(q *pane) { q.Name = p.Name })
+		a.updatePane(p.ID, func(q *pane) {
+			q.Name, q.named = p.Name, false
+			if q.copied {
+				q.sourceName = p.Name
+			}
+		})
 	}
 	starPatch, err := thingOver(struct {
 		Starred *bool `json:"starred"`

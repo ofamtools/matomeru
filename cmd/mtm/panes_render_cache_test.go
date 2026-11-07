@@ -53,6 +53,7 @@ func TestPaneTitleCacheKeepsDuplicateNamesInSync(t *testing.T) {
 				f.panes[i].Session = "fixture"
 				f.panes[i].Title = f.panes[i].Name
 			}
+			forgetCopies(t, a) // the fixture recast the windows: first seen now
 			if working {
 				f.panes[1].Harness = "claude-code"
 				f.panes[1].AgentState = "working"
