@@ -32,17 +32,7 @@ var builtinCommands = map[string][]string{
 func (s *Sources) Commands(_ context.Context, harness, dir string) []Command {
 	key := harness + "\x00" + dir
 	roots := s.commandRoots(harness, dir)
-	inputs := []string{}
-	for _, r := range roots {
-		inputs = append(inputs, r.dir)
-	}
-	switch harness {
-	case Claude:
-		inputs = append(inputs, filepath.Join(s.Env.ClaudeDir, "settings.json"), filepath.Join(s.Env.ClaudeDir, "plugins", "installed_plugins.json"))
-	case Omp:
-		inputs = append(inputs, filepath.Join(s.Env.OmpDir, "config.yml"))
-	}
-	print := fingerprint(inputs)
+	print := fingerprint(s.commandInputs(harness, dir))
 	s.mu.Lock()
 	c, ok := s.commands[key]
 	s.mu.Unlock()
@@ -84,6 +74,22 @@ func (s *Sources) Commands(_ context.Context, harness, dir string) []Command {
 	s.commands[key] = cached[[]Command]{print: print, at: s.now(), value: out}
 	s.mu.Unlock()
 	return out
+}
+
+// commandInputs are the paths whose mtimes say the commands may have
+// changed: every root, and the config files that add or drop roots.
+func (s *Sources) commandInputs(harness, dir string) []string {
+	inputs := []string{}
+	for _, r := range s.commandRoots(harness, dir) {
+		inputs = append(inputs, r.dir)
+	}
+	switch harness {
+	case Claude:
+		inputs = append(inputs, filepath.Join(s.Env.ClaudeDir, "settings.json"), filepath.Join(s.Env.ClaudeDir, "plugins", "installed_plugins.json"))
+	case Omp:
+		inputs = append(inputs, filepath.Join(s.Env.OmpDir, "config.yml"))
+	}
+	return inputs
 }
 
 // commandRoots are the harness's command directories seen from dir.
