@@ -1127,12 +1127,15 @@
           "noun": "pane",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "pane"
+            "verb": "edit",
+            "noun": "pane",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "pane.choose-move",
-          "label": "Choose the project to move the pane to (most recent first, unassociated last)"
+          "action": "pane.edit",
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "mode": "normal",
@@ -1184,7 +1187,7 @@
           },
           "hint": "rename",
           "action": "pane.edit",
-          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused)"
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "mode": "normal",
@@ -10578,12 +10581,15 @@
           "noun": "pane",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "pane"
+            "verb": "edit",
+            "noun": "pane",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "pane.choose-move",
-          "label": "Choose the project to move the pane to (most recent first, unassociated last)"
+          "action": "pane.edit",
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "mode": "normal",
@@ -10635,7 +10641,7 @@
           },
           "hint": "rename",
           "action": "pane.edit",
-          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused)"
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "mode": "normal",
@@ -12707,12 +12713,15 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "action-item"
+            "verb": "edit",
+            "noun": "action-item",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "action-item.choose-move",
-          "label": "Choose the project to move the item to (most recent first, unassociated last)"
+          "action": "action-item.edit",
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "mode": "normal",
@@ -19220,16 +19229,16 @@
     },
     {
       "id": "state-024",
-      "title": "Panes: move chooser · choices (insert)",
+      "title": "Panes: edit choose · choices (insert)",
       "group": "Agents and panes",
-      "where": "Panes page · move chooser · choices · insert mode",
+      "where": "Panes page · edit choose · choices · insert mode",
       "what": "Filter the available choices and confirm one.",
       "page": "panes",
       "noun": "ochazuke.chooser",
       "mode": "insert",
-      "modal": "move-chooser",
+      "modal": "edit-choose",
       "modals": [
-        "move-chooser"
+        "edit-choose"
       ],
       "keys": [
         {
@@ -19832,6 +19841,20 @@
           "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
         },
         {
+          "noun": "ochazuke.chooser",
+          "keys": "shift+tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search",
+            "args": {
+              "step": -1
+            }
+          },
+          "hidden": true,
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
           "mode": "insert",
           "noun": "ochazuke.editor",
           "keys": "space",
@@ -19892,6 +19915,16 @@
           "when": "input",
           "action": "ochazuke.input.move",
           "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search"
+          },
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
         },
         {
           "noun": "ochazuke.chooser",
@@ -30153,12 +30186,15 @@
           "noun": "note",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "note"
+            "verb": "edit",
+            "noun": "note",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "note.choose-move",
-          "label": "Choose the project to move the note to (most recent first, unassociated last)"
+          "action": "note.edit",
+          "label": "Edit a note in the right panel"
         },
         {
           "mode": "normal",
@@ -41799,12 +41835,15 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "action-item"
+            "verb": "edit",
+            "noun": "action-item",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "action-item.choose-move",
-          "label": "Choose the project to move the item to (most recent first, unassociated last)"
+          "action": "action-item.edit",
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "noun": "app",
@@ -49803,12 +49842,15 @@
           "noun": "task",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "task"
+            "verb": "edit",
+            "noun": "task",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "task.choose-move",
-          "label": "Choose the project to move the task to (most recent first, unassociated last)"
+          "action": "task.edit",
+          "label": "Edit title and status (standard set of those given)"
         },
         {
           "mode": "normal",
@@ -67010,12 +67052,15 @@
           "noun": "note",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "note"
+            "verb": "edit",
+            "noun": "note",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "note.choose-move",
-          "label": "Choose the project to move the note to (most recent first, unassociated last)"
+          "action": "note.edit",
+          "label": "Edit a note in the right panel"
         },
         {
           "noun": "app",
@@ -72144,6 +72189,720 @@
     },
     {
       "id": "state-111",
+      "title": "Notes: edit choose · choices (insert)",
+      "group": "Notes and inbox",
+      "where": "Notes page · edit choose · choices · insert mode",
+      "what": "Filter the available choices and confirm one.",
+      "page": "notes",
+      "noun": "ochazuke.chooser",
+      "mode": "insert",
+      "modal": "edit-choose",
+      "modals": [
+        "edit-choose"
+      ],
+      "keys": [
+        {
+          "mode": "insert",
+          "noun": "ochazuke.chooser",
+          "pattern": "paste",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input"
+          },
+          "from": {
+            "text": "text"
+          },
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.chooser",
+          "pattern": "printable",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input"
+          },
+          "from": {
+            "text": "text"
+          },
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+b",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+d",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "alt+enter",
+          "request": {
+            "verb": "pick",
+            "noun": "ochazuke.chooser"
+          },
+          "action": "ochazuke.chooser.pick",
+          "label": "Take the highlighted row, else the top match, else create from the query"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+f",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "backspace",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input",
+            "args": {
+              "direction": "backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+\\",
+          "request": {
+            "verb": "help",
+            "noun": "ochazuke.bindings"
+          },
+          "hidden": true,
+          "action": "ochazuke.bindings.help",
+          "label": "Open the keys the focus answers to, with the operation each runs and its description"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+a",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+b",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "left"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "noun": "app",
+          "keys": "ctrl+c",
+          "request": {
+            "verb": "quit",
+            "noun": "app"
+          },
+          "hidden": true,
+          "action": "app.quit",
+          "label": "Exit the application"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+d",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input"
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+delete",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+e",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+f",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "right"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+h",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input",
+            "args": {
+              "direction": "backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+j",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+k",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+n",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+p",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "app",
+          "keys": "ctrl+space",
+          "request": {
+            "verb": "open",
+            "noun": "ochazuke.palette"
+          },
+          "hidden": true,
+          "action": "ochazuke.palette.open",
+          "label": "Open the command line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+u",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+w",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+y",
+          "request": {
+            "verb": "paste",
+            "noun": "ochazuke.input",
+            "args": {
+              "before": true,
+              "literal": true
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.paste",
+          "label": "Paste a shared register preserving its shape"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "delete",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input"
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "down",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "end",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "enter",
+          "request": {
+            "verb": "pick",
+            "noun": "ochazuke.chooser"
+          },
+          "action": "ochazuke.chooser.pick",
+          "label": "Take the highlighted row, else the top match, else create from the query"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "esc",
+          "request": {
+            "verb": "close",
+            "noun": "ochazuke.modal"
+          },
+          "aliases": [
+            "modal.pop"
+          ],
+          "action": "ochazuke.modal.close",
+          "label": "Close the active modal: run its close request (CloseWith), else pop it back to the focus and mode it opened over"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "home",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "left"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "meta+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "meta+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "app",
+          "keys": "pgdown",
+          "request": {
+            "verb": "scroll",
+            "noun": "ochazuke.surface",
+            "args": {
+              "lines": 8
+            }
+          },
+          "action": "ochazuke.surface.scroll",
+          "label": "Scroll the active page or modal without changing focus"
+        },
+        {
+          "noun": "app",
+          "keys": "pgup",
+          "request": {
+            "verb": "scroll",
+            "noun": "ochazuke.surface",
+            "args": {
+              "lines": -8
+            }
+          },
+          "action": "ochazuke.surface.scroll",
+          "label": "Scroll the active page or modal without changing focus"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "right"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "shift+tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search",
+            "args": {
+              "step": -1
+            }
+          },
+          "hidden": true,
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "space",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input",
+            "args": {
+              "text": " "
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search"
+          },
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "up",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        }
+      ]
+    },
+    {
+      "id": "state-112",
       "title": "Notes: list (normal)",
       "group": "Notes and inbox",
       "where": "Notes page · list · normal mode",
@@ -73193,7 +73952,7 @@
       ]
     },
     {
-      "id": "state-112",
+      "id": "state-113",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -73235,7 +73994,7 @@
       ]
     },
     {
-      "id": "state-113",
+      "id": "state-114",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -74485,7 +75244,7 @@
       ]
     },
     {
-      "id": "state-114",
+      "id": "state-115",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -74528,7 +75287,7 @@
       ]
     },
     {
-      "id": "state-115",
+      "id": "state-116",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -74585,7 +75344,7 @@
       ]
     },
     {
-      "id": "state-116",
+      "id": "state-117",
       "title": "Panes: quick note · note text (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · quick note · note text · row selection mode",
@@ -75344,7 +76103,7 @@
       ]
     },
     {
-      "id": "state-117",
+      "id": "state-118",
       "title": "Panes: quick note · note text (operator pending)",
       "group": "Agents and panes",
       "where": "Panes page · quick note · note text · operator pending mode",
@@ -75807,7 +76566,7 @@
       ]
     },
     {
-      "id": "state-118",
+      "id": "state-119",
       "title": "Panes: quick note · note text (cell selection)",
       "group": "Agents and panes",
       "where": "Panes page · quick note · note text · cell selection mode",
@@ -76533,7 +77292,7 @@
       ]
     },
     {
-      "id": "state-119",
+      "id": "state-120",
       "title": "Panes: quick note · note text (g pending)",
       "group": "Agents and panes",
       "where": "Panes page · quick note · note text · g pending mode",
@@ -76589,7 +77348,7 @@
       ]
     },
     {
-      "id": "state-120",
+      "id": "state-121",
       "title": "Panes: quick note · note text (selection)",
       "group": "Agents and panes",
       "where": "Panes page · quick note · note text · selection mode",
@@ -77315,7 +78074,7 @@
       ]
     },
     {
-      "id": "state-121",
+      "id": "state-122",
       "title": "Panes: task outline · project outline (filter)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · project outline · filter mode",
@@ -77597,7 +78356,7 @@
       ]
     },
     {
-      "id": "state-122",
+      "id": "state-123",
       "title": "Panes: task outline · task outline (filter)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · task outline · filter mode",
@@ -77855,7 +78614,7 @@
       ]
     },
     {
-      "id": "state-123",
+      "id": "state-124",
       "title": "Panes: task outline · list (filter)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · list · filter mode",
@@ -78137,7 +78896,7 @@
       ]
     },
     {
-      "id": "state-124",
+      "id": "state-125",
       "title": "Panes: task outline · task outline (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · task outline · row selection mode",
@@ -78734,7 +79493,7 @@
       ]
     },
     {
-      "id": "state-125",
+      "id": "state-126",
       "title": "Panes: task outline · project outline (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · project outline · row selection mode",
@@ -79376,7 +80135,7 @@
       ]
     },
     {
-      "id": "state-126",
+      "id": "state-127",
       "title": "Panes: task outline · list (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · list · row selection mode",
@@ -79975,7 +80734,7 @@
       ]
     },
     {
-      "id": "state-127",
+      "id": "state-128",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -80017,7 +80776,7 @@
       ]
     },
     {
-      "id": "state-128",
+      "id": "state-129",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -80980,7 +81739,7 @@
       ]
     },
     {
-      "id": "state-129",
+      "id": "state-130",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -81023,7 +81782,7 @@
       ]
     },
     {
-      "id": "state-130",
+      "id": "state-131",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -81080,7 +81839,7 @@
       ]
     },
     {
-      "id": "state-131",
+      "id": "state-132",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -81122,7 +81881,7 @@
       ]
     },
     {
-      "id": "state-132",
+      "id": "state-133",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -82167,7 +82926,7 @@
       ]
     },
     {
-      "id": "state-133",
+      "id": "state-134",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -82210,7 +82969,7 @@
       ]
     },
     {
-      "id": "state-134",
+      "id": "state-135",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -82267,7 +83026,7 @@
       ]
     },
     {
-      "id": "state-135",
+      "id": "state-136",
       "title": "Panes: task outline · notes (normal)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · notes · normal mode",
@@ -83108,12 +83867,15 @@
           "noun": "note",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "note"
+            "verb": "edit",
+            "noun": "note",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "note.choose-move",
-          "label": "Choose the project to move the note to (most recent first, unassociated last)"
+          "action": "note.edit",
+          "label": "Edit a note in the right panel"
         },
         {
           "noun": "app",
@@ -83343,7 +84105,7 @@
       ]
     },
     {
-      "id": "state-136",
+      "id": "state-137",
       "title": "Panes: task outline / status chooser · choices (insert)",
       "group": "Agents and panes",
       "where": "Panes page · task outline / status chooser · choices · insert mode",
@@ -84034,7 +84796,7 @@
       ]
     },
     {
-      "id": "state-137",
+      "id": "state-138",
       "title": "Panes: task outline · task outline (normal y)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · task outline · normal y mode",
@@ -84072,7 +84834,7 @@
       ]
     },
     {
-      "id": "state-138",
+      "id": "state-139",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -84114,7 +84876,7 @@
       ]
     },
     {
-      "id": "state-139",
+      "id": "state-140",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -85159,7 +85921,7 @@
       ]
     },
     {
-      "id": "state-140",
+      "id": "state-141",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -85202,7 +85964,7 @@
       ]
     },
     {
-      "id": "state-141",
+      "id": "state-142",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -85259,7 +86021,7 @@
       ]
     },
     {
-      "id": "state-142",
+      "id": "state-143",
       "title": "Panes: task outline · project outline (normal y)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · project outline · normal y mode",
@@ -85297,7 +86059,7 @@
       ]
     },
     {
-      "id": "state-143",
+      "id": "state-144",
       "title": "Panes: list (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · list · row selection mode",
@@ -86085,7 +86847,7 @@
       ]
     },
     {
-      "id": "state-144",
+      "id": "state-145",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -86127,7 +86889,7 @@
       ]
     },
     {
-      "id": "state-145",
+      "id": "state-146",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -87377,7 +88139,7 @@
       ]
     },
     {
-      "id": "state-146",
+      "id": "state-147",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -87420,7 +88182,7 @@
       ]
     },
     {
-      "id": "state-147",
+      "id": "state-148",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -87477,7 +88239,7 @@
       ]
     },
     {
-      "id": "state-148",
+      "id": "state-149",
       "title": "Panes: edit form · record field (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record field · row selection mode",
@@ -88216,7 +88978,7 @@
       ]
     },
     {
-      "id": "state-149",
+      "id": "state-150",
       "title": "Panes: edit form · record field (operator pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record field · operator pending mode",
@@ -88679,7 +89441,7 @@
       ]
     },
     {
-      "id": "state-150",
+      "id": "state-151",
       "title": "Panes: edit form · record field (cell selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record field · cell selection mode",
@@ -89395,7 +90157,7 @@
       ]
     },
     {
-      "id": "state-151",
+      "id": "state-152",
       "title": "Panes: edit form · record field (g pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record field · g pending mode",
@@ -89451,7 +90213,7 @@
       ]
     },
     {
-      "id": "state-152",
+      "id": "state-153",
       "title": "Panes: edit form · record field (selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record field · selection mode",
@@ -90167,7 +90929,7 @@
       ]
     },
     {
-      "id": "state-153",
+      "id": "state-154",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -90207,7 +90969,7 @@
       ]
     },
     {
-      "id": "state-154",
+      "id": "state-155",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -91458,7 +92220,7 @@
       ]
     },
     {
-      "id": "state-155",
+      "id": "state-156",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -91499,7 +92261,7 @@
       ]
     },
     {
-      "id": "state-156",
+      "id": "state-157",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -91554,7 +92316,7 @@
       ]
     },
     {
-      "id": "state-157",
+      "id": "state-158",
       "title": "Panes: list filter remove · choices (insert)",
       "group": "Agents and panes",
       "where": "Panes page · list filter remove · choices · insert mode",
@@ -92268,7 +93030,7 @@
       ]
     },
     {
-      "id": "state-158",
+      "id": "state-159",
       "title": "Work: unassociated tasks (filter)",
       "group": "Projects and work",
       "where": "Work page · unassociated tasks · filter mode",
@@ -92550,7 +93312,7 @@
       ]
     },
     {
-      "id": "state-159",
+      "id": "state-160",
       "title": "Work: list (filter)",
       "group": "Projects and work",
       "where": "Work page · list · filter mode",
@@ -92832,7 +93594,7 @@
       ]
     },
     {
-      "id": "state-160",
+      "id": "state-161",
       "title": "Work: unassociated tasks (row selection)",
       "group": "Projects and work",
       "where": "Work page · unassociated tasks · row selection mode",
@@ -93516,7 +94278,7 @@
       ]
     },
     {
-      "id": "state-161",
+      "id": "state-162",
       "title": "Work: list (normal)",
       "group": "Projects and work",
       "where": "Work page · list · normal mode",
@@ -94643,7 +95405,7 @@
       ]
     },
     {
-      "id": "state-162",
+      "id": "state-163",
       "title": "Work: tasks (filter)",
       "group": "Projects and work",
       "where": "Work page · tasks · filter mode",
@@ -94901,7 +95663,7 @@
       ]
     },
     {
-      "id": "state-163",
+      "id": "state-164",
       "title": "Work: tasks (row selection)",
       "group": "Projects and work",
       "where": "Work page · tasks · row selection mode",
@@ -95330,12 +96092,15 @@
           "noun": "task",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "task"
+            "verb": "edit",
+            "noun": "task",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "task.choose-move",
-          "label": "Choose the project to move the task to (most recent first, unassociated last)"
+          "action": "task.edit",
+          "label": "Edit title and status (standard set of those given)"
         },
         {
           "noun": "app",
@@ -95523,7 +96288,721 @@
       ]
     },
     {
-      "id": "state-164",
+      "id": "state-165",
+      "title": "Work: edit choose · choices (insert)",
+      "group": "Projects and work",
+      "where": "Work page · edit choose · choices · insert mode",
+      "what": "Filter the available choices and confirm one.",
+      "page": "work",
+      "noun": "ochazuke.chooser",
+      "mode": "insert",
+      "modal": "edit-choose",
+      "modals": [
+        "edit-choose"
+      ],
+      "keys": [
+        {
+          "mode": "insert",
+          "noun": "ochazuke.chooser",
+          "pattern": "paste",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input"
+          },
+          "from": {
+            "text": "text"
+          },
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.chooser",
+          "pattern": "printable",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input"
+          },
+          "from": {
+            "text": "text"
+          },
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+b",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+d",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "alt+enter",
+          "request": {
+            "verb": "pick",
+            "noun": "ochazuke.chooser"
+          },
+          "action": "ochazuke.chooser.pick",
+          "label": "Take the highlighted row, else the top match, else create from the query"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+f",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "backspace",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input",
+            "args": {
+              "direction": "backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+\\",
+          "request": {
+            "verb": "help",
+            "noun": "ochazuke.bindings"
+          },
+          "hidden": true,
+          "action": "ochazuke.bindings.help",
+          "label": "Open the keys the focus answers to, with the operation each runs and its description"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+a",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+b",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "left"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "noun": "app",
+          "keys": "ctrl+c",
+          "request": {
+            "verb": "quit",
+            "noun": "app"
+          },
+          "hidden": true,
+          "action": "app.quit",
+          "label": "Exit the application"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+d",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input"
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+delete",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+e",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+f",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "right"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+h",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input",
+            "args": {
+              "direction": "backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+j",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+k",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+n",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+p",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "app",
+          "keys": "ctrl+space",
+          "request": {
+            "verb": "open",
+            "noun": "ochazuke.palette"
+          },
+          "hidden": true,
+          "action": "ochazuke.palette.open",
+          "label": "Open the command line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+u",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+w",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+y",
+          "request": {
+            "verb": "paste",
+            "noun": "ochazuke.input",
+            "args": {
+              "before": true,
+              "literal": true
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.paste",
+          "label": "Paste a shared register preserving its shape"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "delete",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input"
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "down",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "end",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "enter",
+          "request": {
+            "verb": "pick",
+            "noun": "ochazuke.chooser"
+          },
+          "action": "ochazuke.chooser.pick",
+          "label": "Take the highlighted row, else the top match, else create from the query"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "esc",
+          "request": {
+            "verb": "close",
+            "noun": "ochazuke.modal"
+          },
+          "aliases": [
+            "modal.pop"
+          ],
+          "action": "ochazuke.modal.close",
+          "label": "Close the active modal: run its close request (CloseWith), else pop it back to the focus and mode it opened over"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "home",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "left"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "meta+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "meta+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "app",
+          "keys": "pgdown",
+          "request": {
+            "verb": "scroll",
+            "noun": "ochazuke.surface",
+            "args": {
+              "lines": 8
+            }
+          },
+          "action": "ochazuke.surface.scroll",
+          "label": "Scroll the active page or modal without changing focus"
+        },
+        {
+          "noun": "app",
+          "keys": "pgup",
+          "request": {
+            "verb": "scroll",
+            "noun": "ochazuke.surface",
+            "args": {
+              "lines": -8
+            }
+          },
+          "action": "ochazuke.surface.scroll",
+          "label": "Scroll the active page or modal without changing focus"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "right"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "shift+tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search",
+            "args": {
+              "step": -1
+            }
+          },
+          "hidden": true,
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "space",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input",
+            "args": {
+              "text": " "
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search"
+          },
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "up",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        }
+      ]
+    },
+    {
+      "id": "state-166",
       "title": "Review: list (filter)",
       "group": "Review results",
       "where": "Review page · list · filter mode",
@@ -95781,7 +97260,7 @@
       ]
     },
     {
-      "id": "state-165",
+      "id": "state-167",
       "title": "Review: answer (normal)",
       "group": "Review results",
       "where": "Review page · answer · normal mode",
@@ -97049,7 +98528,7 @@
       ]
     },
     {
-      "id": "state-166",
+      "id": "state-168",
       "title": "Review: copy history · copy history (normal)",
       "group": "Review results",
       "where": "Review page · copy history · copy history · normal mode",
@@ -97798,7 +99277,7 @@
       ]
     },
     {
-      "id": "state-167",
+      "id": "state-169",
       "title": "Work: record field (normal)",
       "group": "Projects and work",
       "where": "Work page · record field · normal mode",
@@ -99034,7 +100513,7 @@
       ]
     },
     {
-      "id": "state-168",
+      "id": "state-170",
       "title": "Runs: list (filter)",
       "group": "Workspace tools",
       "where": "Runs page · list · filter mode",
@@ -99292,7 +100771,7 @@
       ]
     },
     {
-      "id": "state-169",
+      "id": "state-171",
       "title": "Schedules: schedule (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule · normal mode",
@@ -100359,7 +101838,7 @@
       ]
     },
     {
-      "id": "state-170",
+      "id": "state-172",
       "title": "Runs: copy history · copy history (normal)",
       "group": "Workspace tools",
       "where": "Runs page · copy history · copy history · normal mode",
@@ -101108,7 +102587,7 @@
       ]
     },
     {
-      "id": "state-171",
+      "id": "state-173",
       "title": "Panes: text view · editor (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · text view · editor · visual count pending mode",
@@ -101620,7 +103099,7 @@
       ]
     },
     {
-      "id": "state-172",
+      "id": "state-174",
       "title": "Panes: text view · editor (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · text view · editor · operator g pending mode",
@@ -101667,7 +103146,7 @@
       ]
     },
     {
-      "id": "state-173",
+      "id": "state-175",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -101707,7 +103186,7 @@
       ]
     },
     {
-      "id": "state-174",
+      "id": "state-176",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -102937,7 +104416,7 @@
       ]
     },
     {
-      "id": "state-175",
+      "id": "state-177",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -102978,7 +104457,7 @@
       ]
     },
     {
-      "id": "state-176",
+      "id": "state-178",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -103033,7 +104512,7 @@
       ]
     },
     {
-      "id": "state-177",
+      "id": "state-179",
       "title": "Panes: prompt box (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · row selection mode",
@@ -103813,7 +105292,7 @@
       ]
     },
     {
-      "id": "state-178",
+      "id": "state-180",
       "title": "Panes: prompt box (operator pending)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · operator pending mode",
@@ -104274,7 +105753,7 @@
       ]
     },
     {
-      "id": "state-179",
+      "id": "state-181",
       "title": "Panes: prompt box (cell selection)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · cell selection mode",
@@ -104990,7 +106469,7 @@
       ]
     },
     {
-      "id": "state-180",
+      "id": "state-182",
       "title": "Panes: prompt box (normal g)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · normal g mode",
@@ -105086,7 +106565,7 @@
       ]
     },
     {
-      "id": "state-181",
+      "id": "state-183",
       "title": "Panes: prompt box (selection)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · selection mode",
@@ -105802,7 +107281,7 @@
       ]
     },
     {
-      "id": "state-182",
+      "id": "state-184",
       "title": "Panes: list filter form · record field (normal)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · normal mode",
@@ -107120,7 +108599,7 @@
       ]
     },
     {
-      "id": "state-183",
+      "id": "state-185",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -107162,7 +108641,7 @@
       ]
     },
     {
-      "id": "state-184",
+      "id": "state-186",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -108412,7 +109891,7 @@
       ]
     },
     {
-      "id": "state-185",
+      "id": "state-187",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -108455,7 +109934,7 @@
       ]
     },
     {
-      "id": "state-186",
+      "id": "state-188",
       "title": "Panes: list filter form / list filter delete · choices (insert)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form / list filter delete · choices · insert mode",
@@ -109169,7 +110648,7 @@
       ]
     },
     {
-      "id": "state-187",
+      "id": "state-189",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -109226,7 +110705,7 @@
       ]
     },
     {
-      "id": "state-188",
+      "id": "state-190",
       "title": "Panes: list filter form · choices (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · row selection mode",
@@ -110122,7 +111601,7 @@
       ]
     },
     {
-      "id": "state-189",
+      "id": "state-191",
       "title": "Panes: list filter form · choices (operator pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · operator pending mode",
@@ -110585,7 +112064,7 @@
       ]
     },
     {
-      "id": "state-190",
+      "id": "state-192",
       "title": "Panes: list filter form · choices (cell selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · cell selection mode",
@@ -111407,7 +112886,7 @@
       ]
     },
     {
-      "id": "state-191",
+      "id": "state-193",
       "title": "Panes: list filter form · choices (normal g)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · normal g mode",
@@ -111474,7 +112953,7 @@
       ]
     },
     {
-      "id": "state-192",
+      "id": "state-194",
       "title": "Panes: list filter form · choices (selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · selection mode",
@@ -112296,7 +113775,7 @@
       ]
     },
     {
-      "id": "state-193",
+      "id": "state-195",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -112338,7 +113817,7 @@
       ]
     },
     {
-      "id": "state-194",
+      "id": "state-196",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -112991,7 +114470,7 @@
       ]
     },
     {
-      "id": "state-195",
+      "id": "state-197",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -113034,7 +114513,7 @@
       ]
     },
     {
-      "id": "state-196",
+      "id": "state-198",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -113091,7 +114570,7 @@
       ]
     },
     {
-      "id": "state-197",
+      "id": "state-199",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -113133,7 +114612,7 @@
       ]
     },
     {
-      "id": "state-198",
+      "id": "state-200",
       "title": "Panes: list filter form · list (filter)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · list · filter mode",
@@ -113395,7 +114874,7 @@
       ]
     },
     {
-      "id": "state-199",
+      "id": "state-201",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -114305,7 +115784,7 @@
       ]
     },
     {
-      "id": "state-200",
+      "id": "state-202",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -114348,7 +115827,7 @@
       ]
     },
     {
-      "id": "state-201",
+      "id": "state-203",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -114405,7 +115884,7 @@
       ]
     },
     {
-      "id": "state-202",
+      "id": "state-204",
       "title": "Panes: list filter form · filter save (insert)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · insert mode",
@@ -115118,7 +116597,7 @@
       ]
     },
     {
-      "id": "state-203",
+      "id": "state-205",
       "title": "About: list (filter)",
       "group": "Navigation",
       "where": "About page · list · filter mode",
@@ -115400,7 +116879,7 @@
       ]
     },
     {
-      "id": "state-204",
+      "id": "state-206",
       "title": "Notes: list (filter)",
       "group": "Notes and inbox",
       "where": "Notes page · list · filter mode",
@@ -115682,7 +117161,7 @@
       ]
     },
     {
-      "id": "state-205",
+      "id": "state-207",
       "title": "Notes: list (row selection)",
       "group": "Notes and inbox",
       "where": "Notes page · list · row selection mode",
@@ -116410,7 +117889,7 @@
       ]
     },
     {
-      "id": "state-206",
+      "id": "state-208",
       "title": "Notes: note lines (filter)",
       "group": "Notes and inbox",
       "where": "Notes page · note lines · filter mode",
@@ -116668,7 +118147,7 @@
       ]
     },
     {
-      "id": "state-207",
+      "id": "state-209",
       "title": "Notes: markdown edit (insert)",
       "group": "Notes and inbox",
       "where": "Notes page · markdown edit · insert mode",
@@ -117462,7 +118941,7 @@
       ]
     },
     {
-      "id": "state-208",
+      "id": "state-210",
       "title": "Notes: checklist item (normal)",
       "group": "Notes and inbox",
       "where": "Notes page · checklist item · normal mode",
@@ -118956,7 +120435,7 @@
       ]
     },
     {
-      "id": "state-209",
+      "id": "state-211",
       "title": "Notes: markdown outline · choices (insert)",
       "group": "Notes and inbox",
       "where": "Notes page · markdown outline · choices · insert mode",
@@ -119670,7 +121149,7 @@
       ]
     },
     {
-      "id": "state-210",
+      "id": "state-212",
       "title": "Saved: list (filter)",
       "group": "Workspace tools",
       "where": "Saved page · list · filter mode",
@@ -119928,7 +121407,7 @@
       ]
     },
     {
-      "id": "state-211",
+      "id": "state-213",
       "title": "Vim-Sessions: list (normal)",
       "group": "Navigation",
       "where": "Vim-Sessions page · list · normal mode",
@@ -120897,7 +122376,7 @@
       ]
     },
     {
-      "id": "state-212",
+      "id": "state-214",
       "title": "Saved: copy history · copy history (normal)",
       "group": "Workspace tools",
       "where": "Saved page · copy history · copy history · normal mode",
@@ -121646,7 +123125,7 @@
       ]
     },
     {
-      "id": "state-213",
+      "id": "state-215",
       "title": "Directories: dir search (insert)",
       "group": "Workspace tools",
       "where": "Directories page · dir search · insert mode",
@@ -122321,7 +123800,7 @@
       ]
     },
     {
-      "id": "state-214",
+      "id": "state-216",
       "title": "Directories: directory browser (row selection)",
       "group": "Workspace tools",
       "where": "Directories page · directory browser · row selection mode",
@@ -122832,7 +124311,7 @@
       ]
     },
     {
-      "id": "state-215",
+      "id": "state-217",
       "title": "Directories: picker · command input (insert)",
       "group": "Workspace tools",
       "where": "Directories page · picker · command input · insert mode",
@@ -123553,7 +125032,7 @@
       ]
     },
     {
-      "id": "state-216",
+      "id": "state-218",
       "title": "Directories: copy history · copy history (normal)",
       "group": "Workspace tools",
       "where": "Directories page · copy history · copy history · normal mode",
@@ -124302,7 +125781,7 @@
       ]
     },
     {
-      "id": "state-217",
+      "id": "state-219",
       "title": "Notes: record text (normal)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · normal mode",
@@ -125557,7 +127036,7 @@
       ]
     },
     {
-      "id": "state-218",
+      "id": "state-220",
       "title": "Notes: record field (insert)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · insert mode",
@@ -126284,7 +127763,7 @@
       ]
     },
     {
-      "id": "state-219",
+      "id": "state-221",
       "title": "Notes: form choice (normal)",
       "group": "Notes and inbox",
       "where": "Notes page · form choice · normal mode",
@@ -127069,7 +128548,7 @@
       ]
     },
     {
-      "id": "state-220",
+      "id": "state-222",
       "title": "Panes: quick note · note text (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · quick note · note text · visual count pending mode",
@@ -127758,7 +129237,7 @@
       ]
     },
     {
-      "id": "state-221",
+      "id": "state-223",
       "title": "Panes: quick note · note text (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · quick note · note text · operator g pending mode",
@@ -127805,7 +129284,7 @@
       ]
     },
     {
-      "id": "state-222",
+      "id": "state-224",
       "title": "Panes: task outline / list filter remove · choices (insert)",
       "group": "Agents and panes",
       "where": "Panes page · task outline / list filter remove · choices · insert mode",
@@ -128520,7 +129999,7 @@
       ]
     },
     {
-      "id": "state-223",
+      "id": "state-225",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -128562,7 +130041,7 @@
       ]
     },
     {
-      "id": "state-224",
+      "id": "state-226",
       "title": "Panes: task outline · notes (filter)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · notes · filter mode",
@@ -128820,7 +130299,7 @@
       ]
     },
     {
-      "id": "state-225",
+      "id": "state-227",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -129783,7 +131262,7 @@
       ]
     },
     {
-      "id": "state-226",
+      "id": "state-228",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -129826,7 +131305,7 @@
       ]
     },
     {
-      "id": "state-227",
+      "id": "state-229",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -129883,7 +131362,7 @@
       ]
     },
     {
-      "id": "state-228",
+      "id": "state-230",
       "title": "Panes: task outline · notes (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · task outline · notes · row selection mode",
@@ -130302,12 +131781,15 @@
           "noun": "note",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "note"
+            "verb": "edit",
+            "noun": "note",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "note.choose-move",
-          "label": "Choose the project to move the note to (most recent first, unassociated last)"
+          "action": "note.edit",
+          "label": "Edit a note in the right panel"
         },
         {
           "noun": "app",
@@ -130482,7 +131964,7 @@
       ]
     },
     {
-      "id": "state-229",
+      "id": "state-231",
       "title": "Work: record text (insert)",
       "group": "Projects and work",
       "where": "Work page · record text · insert mode",
@@ -131198,18 +132680,18 @@
       ]
     },
     {
-      "id": "state-230",
-      "title": "Panes: task outline / move chooser · choices (insert)",
+      "id": "state-232",
+      "title": "Panes: task outline / edit choose · choices (insert)",
       "group": "Agents and panes",
-      "where": "Panes page · task outline / move chooser · choices · insert mode",
+      "where": "Panes page · task outline / edit choose · choices · insert mode",
       "what": "Filter the available choices and confirm one.",
       "page": "panes",
       "noun": "ochazuke.chooser",
       "mode": "insert",
-      "modal": "move-chooser",
+      "modal": "edit-choose",
       "modals": [
         "task-outline",
-        "move-chooser"
+        "edit-choose"
       ],
       "keys": [
         {
@@ -131812,6 +133294,20 @@
           "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
         },
         {
+          "noun": "ochazuke.chooser",
+          "keys": "shift+tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search",
+            "args": {
+              "step": -1
+            }
+          },
+          "hidden": true,
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
           "mode": "insert",
           "noun": "ochazuke.editor",
           "keys": "space",
@@ -131875,6 +133371,16 @@
         },
         {
           "noun": "ochazuke.chooser",
+          "keys": "tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search"
+          },
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
+          "noun": "ochazuke.chooser",
           "keys": "up",
           "request": {
             "verb": "move",
@@ -131889,7 +133395,7 @@
       ]
     },
     {
-      "id": "state-231",
+      "id": "state-233",
       "title": "Panes: edit form · form choice (normal)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · form choice · normal mode",
@@ -132702,7 +134208,7 @@
       ]
     },
     {
-      "id": "state-232",
+      "id": "state-234",
       "title": "Panes: edit form · record text (normal)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · normal mode",
@@ -134003,7 +135509,7 @@
       ]
     },
     {
-      "id": "state-233",
+      "id": "state-235",
       "title": "Panes: edit form · record field (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record field · visual count pending mode",
@@ -134692,7 +136198,7 @@
       ]
     },
     {
-      "id": "state-234",
+      "id": "state-236",
       "title": "Panes: edit form · record field (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record field · operator g pending mode",
@@ -134739,7 +136245,7 @@
       ]
     },
     {
-      "id": "state-235",
+      "id": "state-237",
       "title": "Work: list (row selection)",
       "group": "Projects and work",
       "where": "Work page · list · row selection mode",
@@ -135294,7 +136800,7 @@
       ]
     },
     {
-      "id": "state-236",
+      "id": "state-238",
       "title": "Review: answer (insert)",
       "group": "Review results",
       "where": "Review page · answer · insert mode",
@@ -135977,7 +137483,7 @@
       ]
     },
     {
-      "id": "state-237",
+      "id": "state-239",
       "title": "Review: answer (row selection)",
       "group": "Review results",
       "where": "Review page · answer · row selection mode",
@@ -136737,7 +138243,7 @@
       ]
     },
     {
-      "id": "state-238",
+      "id": "state-240",
       "title": "Review: answer (operator pending)",
       "group": "Review results",
       "where": "Review page · answer · operator pending mode",
@@ -137198,7 +138704,7 @@
       ]
     },
     {
-      "id": "state-239",
+      "id": "state-241",
       "title": "Review: answer (cell selection)",
       "group": "Review results",
       "where": "Review page · answer · cell selection mode",
@@ -137914,7 +139420,7 @@
       ]
     },
     {
-      "id": "state-240",
+      "id": "state-242",
       "title": "Review: answer (g pending)",
       "group": "Review results",
       "where": "Review page · answer · g pending mode",
@@ -137968,7 +139474,7 @@
       ]
     },
     {
-      "id": "state-241",
+      "id": "state-243",
       "title": "Review: answer (selection)",
       "group": "Review results",
       "where": "Review page · answer · selection mode",
@@ -138684,7 +140190,7 @@
       ]
     },
     {
-      "id": "state-242",
+      "id": "state-244",
       "title": "Work: record field (row selection)",
       "group": "Projects and work",
       "where": "Work page · record field · row selection mode",
@@ -139412,7 +140918,7 @@
       ]
     },
     {
-      "id": "state-243",
+      "id": "state-245",
       "title": "Work: record field (operator pending)",
       "group": "Projects and work",
       "where": "Work page · record field · operator pending mode",
@@ -139873,7 +141379,7 @@
       ]
     },
     {
-      "id": "state-244",
+      "id": "state-246",
       "title": "Work: record field (cell selection)",
       "group": "Projects and work",
       "where": "Work page · record field · cell selection mode",
@@ -140589,7 +142095,7 @@
       ]
     },
     {
-      "id": "state-245",
+      "id": "state-247",
       "title": "Work: record field (g pending)",
       "group": "Projects and work",
       "where": "Work page · record field · g pending mode",
@@ -140643,7 +142149,7 @@
       ]
     },
     {
-      "id": "state-246",
+      "id": "state-248",
       "title": "Work: record field (selection)",
       "group": "Projects and work",
       "where": "Work page · record field · selection mode",
@@ -141359,7 +142865,7 @@
       ]
     },
     {
-      "id": "state-247",
+      "id": "state-249",
       "title": "Schedules: schedule (filter)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule · filter mode",
@@ -141617,7 +143123,7 @@
       ]
     },
     {
-      "id": "state-248",
+      "id": "state-250",
       "title": "Schedules: schedule editor · record text (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · insert mode",
@@ -142333,7 +143839,7 @@
       ]
     },
     {
-      "id": "state-249",
+      "id": "state-251",
       "title": "Schedules: schedule (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule · row selection mode",
@@ -142920,7 +144426,7 @@
       ]
     },
     {
-      "id": "state-250",
+      "id": "state-252",
       "title": "Schedules: list (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · list · normal mode",
@@ -143946,7 +145452,7 @@
       ]
     },
     {
-      "id": "state-251",
+      "id": "state-253",
       "title": "Inbox: inbox items (normal)",
       "group": "Notes and inbox",
       "where": "Inbox page · inbox items · normal mode",
@@ -144827,12 +146333,15 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "action-item"
+            "verb": "edit",
+            "noun": "action-item",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "action-item.choose-move",
-          "label": "Choose the project to move the item to (most recent first, unassociated last)"
+          "action": "action-item.edit",
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "noun": "app",
@@ -145123,7 +146632,7 @@
       ]
     },
     {
-      "id": "state-252",
+      "id": "state-254",
       "title": "Schedules: copy history · copy history (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · copy history · copy history · normal mode",
@@ -145872,7 +147381,7 @@
       ]
     },
     {
-      "id": "state-253",
+      "id": "state-255",
       "title": "Schedules: interval chooser · choices (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · interval chooser · choices · insert mode",
@@ -146586,7 +148095,7 @@
       ]
     },
     {
-      "id": "state-254",
+      "id": "state-256",
       "title": "Panes: prompt box (g pending)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · g pending mode",
@@ -146640,7 +148149,7 @@
       ]
     },
     {
-      "id": "state-255",
+      "id": "state-257",
       "title": "Panes: prompt box (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · visual count pending mode",
@@ -147327,7 +148836,7 @@
       ]
     },
     {
-      "id": "state-256",
+      "id": "state-258",
       "title": "Panes: prompt box (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · prompt box · operator g pending mode",
@@ -147372,7 +148881,7 @@
       ]
     },
     {
-      "id": "state-257",
+      "id": "state-259",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -147414,7 +148923,7 @@
       ]
     },
     {
-      "id": "state-258",
+      "id": "state-260",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -148664,7 +150173,7 @@
       ]
     },
     {
-      "id": "state-259",
+      "id": "state-261",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -148707,7 +150216,7 @@
       ]
     },
     {
-      "id": "state-260",
+      "id": "state-262",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -148764,7 +150273,7 @@
       ]
     },
     {
-      "id": "state-261",
+      "id": "state-263",
       "title": "Panes: list filter form · record field (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · row selection mode",
@@ -149570,7 +151079,7 @@
       ]
     },
     {
-      "id": "state-262",
+      "id": "state-264",
       "title": "Panes: list filter form · record field (operator pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · operator pending mode",
@@ -150033,7 +151542,7 @@
       ]
     },
     {
-      "id": "state-263",
+      "id": "state-265",
       "title": "Panes: list filter form · record field (cell selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · cell selection mode",
@@ -150790,7 +152299,7 @@
       ]
     },
     {
-      "id": "state-264",
+      "id": "state-266",
       "title": "Panes: list filter form · record field (g pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · g pending mode",
@@ -150846,7 +152355,7 @@
       ]
     },
     {
-      "id": "state-265",
+      "id": "state-267",
       "title": "Panes: list filter form · record field (selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · selection mode",
@@ -151603,7 +153112,7 @@
       ]
     },
     {
-      "id": "state-266",
+      "id": "state-268",
       "title": "Panes: list filter form · choices (g pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · g pending mode",
@@ -151659,7 +153168,7 @@
       ]
     },
     {
-      "id": "state-267",
+      "id": "state-269",
       "title": "Panes: list filter form · choices (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · visual count pending mode",
@@ -152348,7 +153857,7 @@
       ]
     },
     {
-      "id": "state-268",
+      "id": "state-270",
       "title": "Panes: list filter form · choices (visual-line g)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · visual-line g mode",
@@ -152389,7 +153898,7 @@
       ]
     },
     {
-      "id": "state-269",
+      "id": "state-271",
       "title": "Panes: list filter form · choices (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · choices · operator g pending mode",
@@ -152436,7 +153945,7 @@
       ]
     },
     {
-      "id": "state-270",
+      "id": "state-272",
       "title": "Panes: list filter form · filter save (normal)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · normal mode",
@@ -153801,7 +155310,7 @@
       ]
     },
     {
-      "id": "state-271",
+      "id": "state-273",
       "title": "About: list (normal)",
       "group": "Navigation",
       "where": "About page · list · normal mode",
@@ -154871,7 +156380,7 @@
       ]
     },
     {
-      "id": "state-272",
+      "id": "state-274",
       "title": "Notes: checklist item (filter)",
       "group": "Notes and inbox",
       "where": "Notes page · checklist item · filter mode",
@@ -155129,7 +156638,7 @@
       ]
     },
     {
-      "id": "state-273",
+      "id": "state-275",
       "title": "Vim-Sessions: list (filter)",
       "group": "Navigation",
       "where": "Vim-Sessions page · list · filter mode",
@@ -155387,7 +156896,7 @@
       ]
     },
     {
-      "id": "state-274",
+      "id": "state-276",
       "title": "Context: list (normal)",
       "group": "Review results",
       "where": "Context page · list · normal mode",
@@ -156410,7 +157919,7 @@
       ]
     },
     {
-      "id": "state-275",
+      "id": "state-277",
       "title": "Vim-Sessions: copy history · copy history (normal)",
       "group": "Navigation",
       "where": "Vim-Sessions page · copy history · copy history · normal mode",
@@ -157159,7 +158668,7 @@
       ]
     },
     {
-      "id": "state-276",
+      "id": "state-278",
       "title": "Directories: directory path (normal)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · normal mode",
@@ -158414,7 +159923,7 @@
       ]
     },
     {
-      "id": "state-277",
+      "id": "state-279",
       "title": "Notes: record text (row selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · row selection mode",
@@ -159161,7 +160670,7 @@
       ]
     },
     {
-      "id": "state-278",
+      "id": "state-280",
       "title": "Notes: record text (operator pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · operator pending mode",
@@ -159622,7 +161131,7 @@
       ]
     },
     {
-      "id": "state-279",
+      "id": "state-281",
       "title": "Notes: record text (cell selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · cell selection mode",
@@ -160338,7 +161847,7 @@
       ]
     },
     {
-      "id": "state-280",
+      "id": "state-282",
       "title": "Notes: record field (normal)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · normal mode",
@@ -161574,7 +163083,7 @@
       ]
     },
     {
-      "id": "state-281",
+      "id": "state-283",
       "title": "Notes: record text (g pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · g pending mode",
@@ -161628,7 +163137,7 @@
       ]
     },
     {
-      "id": "state-282",
+      "id": "state-284",
       "title": "Notes: record text (selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · selection mode",
@@ -162344,7 +163853,7 @@
       ]
     },
     {
-      "id": "state-283",
+      "id": "state-285",
       "title": "Notes: form suggestions · choices (insert)",
       "group": "Notes and inbox",
       "where": "Notes page · form suggestions · choices · insert mode",
@@ -163058,7 +164567,7 @@
       ]
     },
     {
-      "id": "state-284",
+      "id": "state-286",
       "title": "Notes: field choices · form option (normal)",
       "group": "Notes and inbox",
       "where": "Notes page · field choices · form option · normal mode",
@@ -163977,7 +165486,7 @@
       ]
     },
     {
-      "id": "state-285",
+      "id": "state-287",
       "title": "Work: record text (normal)",
       "group": "Projects and work",
       "where": "Work page · record text · normal mode",
@@ -165232,7 +166741,7 @@
       ]
     },
     {
-      "id": "state-286",
+      "id": "state-288",
       "title": "Work: form choice (normal)",
       "group": "Projects and work",
       "where": "Work page · form choice · normal mode",
@@ -166017,7 +167526,7 @@
       ]
     },
     {
-      "id": "state-287",
+      "id": "state-289",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -166059,7 +167568,7 @@
       ]
     },
     {
-      "id": "state-288",
+      "id": "state-290",
       "title": "Panes: edit form / form suggestions · choices (insert)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / form suggestions · choices · insert mode",
@@ -166774,7 +168283,7 @@
       ]
     },
     {
-      "id": "state-289",
+      "id": "state-291",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -167427,7 +168936,7 @@
       ]
     },
     {
-      "id": "state-290",
+      "id": "state-292",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -167470,7 +168979,7 @@
       ]
     },
     {
-      "id": "state-291",
+      "id": "state-293",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -167527,7 +169036,7 @@
       ]
     },
     {
-      "id": "state-292",
+      "id": "state-294",
       "title": "Panes: edit form / field choices · form option (normal)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / field choices · form option · normal mode",
@@ -168447,7 +169956,7 @@
       ]
     },
     {
-      "id": "state-293",
+      "id": "state-295",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -168489,7 +169998,7 @@
       ]
     },
     {
-      "id": "state-294",
+      "id": "state-296",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -169739,7 +171248,7 @@
       ]
     },
     {
-      "id": "state-295",
+      "id": "state-297",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -169782,7 +171291,7 @@
       ]
     },
     {
-      "id": "state-296",
+      "id": "state-298",
       "title": "Panes: edit form · record text (insert)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · insert mode",
@@ -170498,7 +172007,7 @@
       ]
     },
     {
-      "id": "state-297",
+      "id": "state-299",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -170555,7 +172064,7 @@
       ]
     },
     {
-      "id": "state-298",
+      "id": "state-300",
       "title": "Panes: edit form · record text (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · row selection mode",
@@ -171313,7 +172822,7 @@
       ]
     },
     {
-      "id": "state-299",
+      "id": "state-301",
       "title": "Panes: edit form · record text (operator pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · operator pending mode",
@@ -171776,7 +173285,7 @@
       ]
     },
     {
-      "id": "state-300",
+      "id": "state-302",
       "title": "Panes: edit form · record text (cell selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · cell selection mode",
@@ -172492,7 +174001,7 @@
       ]
     },
     {
-      "id": "state-301",
+      "id": "state-303",
       "title": "Panes: edit form · record text (g pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · g pending mode",
@@ -172548,7 +174057,7 @@
       ]
     },
     {
-      "id": "state-302",
+      "id": "state-304",
       "title": "Panes: edit form · record text (selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · selection mode",
@@ -173264,7 +174773,7 @@
       ]
     },
     {
-      "id": "state-303",
+      "id": "state-305",
       "title": "Review: answer (visual count pending)",
       "group": "Review results",
       "where": "Review page · answer · visual count pending mode",
@@ -173951,7 +175460,7 @@
       ]
     },
     {
-      "id": "state-304",
+      "id": "state-306",
       "title": "Review: answer (operator g pending)",
       "group": "Review results",
       "where": "Review page · answer · operator g pending mode",
@@ -173996,7 +175505,7 @@
       ]
     },
     {
-      "id": "state-305",
+      "id": "state-307",
       "title": "Work: record field (visual count pending)",
       "group": "Projects and work",
       "where": "Work page · record field · visual count pending mode",
@@ -174683,7 +176192,7 @@
       ]
     },
     {
-      "id": "state-306",
+      "id": "state-308",
       "title": "Work: record field (operator g pending)",
       "group": "Projects and work",
       "where": "Work page · record field · operator g pending mode",
@@ -174728,7 +176237,7 @@
       ]
     },
     {
-      "id": "state-307",
+      "id": "state-309",
       "title": "Schedules: list (filter)",
       "group": "Workspace tools",
       "where": "Schedules page · list · filter mode",
@@ -175010,7 +176519,7 @@
       ]
     },
     {
-      "id": "state-308",
+      "id": "state-310",
       "title": "Schedules: schedule editor · record text (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · normal mode",
@@ -176311,7 +177820,7 @@
       ]
     },
     {
-      "id": "state-309",
+      "id": "state-311",
       "title": "Schedules: schedule editor · record field (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · insert mode",
@@ -177038,7 +178547,7 @@
       ]
     },
     {
-      "id": "state-310",
+      "id": "state-312",
       "title": "Schedules: reminder form · record text (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · insert mode",
@@ -177754,7 +179263,7 @@
       ]
     },
     {
-      "id": "state-311",
+      "id": "state-313",
       "title": "Inbox: inbox items (filter)",
       "group": "Notes and inbox",
       "where": "Inbox page · inbox items · filter mode",
@@ -178012,7 +179521,7 @@
       ]
     },
     {
-      "id": "state-312",
+      "id": "state-314",
       "title": "Inbox: inbox items (row selection)",
       "group": "Notes and inbox",
       "where": "Inbox page · inbox items · row selection mode",
@@ -178443,12 +179952,15 @@
           "noun": "action-item",
           "keys": "m",
           "request": {
-            "verb": "choose-move",
-            "noun": "action-item"
+            "verb": "edit",
+            "noun": "action-item",
+            "args": {
+              "field": "@owner"
+            }
           },
           "hint": "move",
-          "action": "action-item.choose-move",
-          "label": "Choose the project to move the item to (most recent first, unassociated last)"
+          "action": "action-item.edit",
+          "label": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its chooser instead, edit.field-chooser or chooser)"
         },
         {
           "noun": "app",
@@ -178682,7 +180194,7 @@
       ]
     },
     {
-      "id": "state-313",
+      "id": "state-315",
       "title": "Inbox: detail link (normal)",
       "group": "Notes and inbox",
       "where": "Inbox page · detail link · normal mode",
@@ -179610,7 +181122,7 @@
       ]
     },
     {
-      "id": "state-314",
+      "id": "state-316",
       "title": "Inbox: copy history · copy history (normal)",
       "group": "Notes and inbox",
       "where": "Inbox page · copy history · copy history · normal mode",
@@ -180359,7 +181871,721 @@
       ]
     },
     {
-      "id": "state-315",
+      "id": "state-317",
+      "title": "Inbox: edit choose · choices (insert)",
+      "group": "Notes and inbox",
+      "where": "Inbox page · edit choose · choices · insert mode",
+      "what": "Filter the available choices and confirm one.",
+      "page": "inbox",
+      "noun": "ochazuke.chooser",
+      "mode": "insert",
+      "modal": "edit-choose",
+      "modals": [
+        "edit-choose"
+      ],
+      "keys": [
+        {
+          "mode": "insert",
+          "noun": "ochazuke.chooser",
+          "pattern": "paste",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input"
+          },
+          "from": {
+            "text": "text"
+          },
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.chooser",
+          "pattern": "printable",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input"
+          },
+          "from": {
+            "text": "text"
+          },
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+b",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+d",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "alt+enter",
+          "request": {
+            "verb": "pick",
+            "noun": "ochazuke.chooser"
+          },
+          "action": "ochazuke.chooser.pick",
+          "label": "Take the highlighted row, else the top match, else create from the query"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+f",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "alt+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "backspace",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input",
+            "args": {
+              "direction": "backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+\\",
+          "request": {
+            "verb": "help",
+            "noun": "ochazuke.bindings"
+          },
+          "hidden": true,
+          "action": "ochazuke.bindings.help",
+          "label": "Open the keys the focus answers to, with the operation each runs and its description"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+a",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+b",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "left"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "noun": "app",
+          "keys": "ctrl+c",
+          "request": {
+            "verb": "quit",
+            "noun": "app"
+          },
+          "hidden": true,
+          "action": "app.quit",
+          "label": "Exit the application"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+d",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input"
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+delete",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+e",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+f",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "right"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+h",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input",
+            "args": {
+              "direction": "backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+j",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+k",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-previous"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+n",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "ctrl+p",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-next"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "app",
+          "keys": "ctrl+space",
+          "request": {
+            "verb": "open",
+            "noun": "ochazuke.palette"
+          },
+          "hidden": true,
+          "action": "ochazuke.palette.open",
+          "label": "Open the command line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+u",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+w",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-backward"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "ctrl+y",
+          "request": {
+            "verb": "paste",
+            "noun": "ochazuke.input",
+            "args": {
+              "before": true,
+              "literal": true
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.paste",
+          "label": "Paste a shared register preserving its shape"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "delete",
+          "request": {
+            "verb": "erase",
+            "noun": "ochazuke.input"
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.erase",
+          "label": "Erase forward/backward runes without crossing a normal-mode line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "down",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": 1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "end",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "enter",
+          "request": {
+            "verb": "pick",
+            "noun": "ochazuke.chooser"
+          },
+          "action": "ochazuke.chooser.pick",
+          "label": "Take the highlighted row, else the top match, else create from the query"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "esc",
+          "request": {
+            "verb": "close",
+            "noun": "ochazuke.modal"
+          },
+          "aliases": [
+            "modal.pop"
+          ],
+          "action": "ochazuke.modal.close",
+          "label": "Close the active modal: run its close request (CloseWith), else pop it back to the focus and mode it opened over"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "home",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "left"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "meta+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "meta+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "app",
+          "keys": "pgdown",
+          "request": {
+            "verb": "scroll",
+            "noun": "ochazuke.surface",
+            "args": {
+              "lines": 8
+            }
+          },
+          "action": "ochazuke.surface.scroll",
+          "label": "Scroll the active page or modal without changing focus"
+        },
+        {
+          "noun": "app",
+          "keys": "pgup",
+          "request": {
+            "verb": "scroll",
+            "noun": "ochazuke.surface",
+            "args": {
+              "lines": -8
+            }
+          },
+          "action": "ochazuke.surface.scroll",
+          "label": "Scroll the active page or modal without changing focus"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "right"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "shift+tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search",
+            "args": {
+              "step": -1
+            }
+          },
+          "hidden": true,
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "space",
+          "request": {
+            "verb": "insert",
+            "noun": "ochazuke.input",
+            "args": {
+              "text": " "
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.insert",
+          "label": "Insert literal text at the rune cursor"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+backspace",
+          "request": {
+            "verb": "kill",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "hidden": true,
+          "action": "ochazuke.input.kill",
+          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+left",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-start"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "mode": "insert",
+          "noun": "ochazuke.editor",
+          "keys": "super+right",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "line-end"
+            }
+          },
+          "when": "input",
+          "action": "ochazuke.input.move",
+          "label": "Move by left/right/up/down, Vim word-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "tab",
+          "request": {
+            "verb": "cycle-match",
+            "noun": "ochazuke.search"
+          },
+          "action": "ochazuke.search.cycle-match",
+          "label": "Step the open search (the / filter line, a chooser, the path picker) to the next match mode: substring, fuzzy, regex, round again"
+        },
+        {
+          "noun": "ochazuke.chooser",
+          "keys": "up",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.chooser",
+            "args": {
+              "delta": -1
+            }
+          },
+          "action": "ochazuke.chooser.move",
+          "label": "Move the highlight"
+        }
+      ]
+    },
+    {
+      "id": "state-318",
       "title": "Inbox: list (normal)",
       "group": "Notes and inbox",
       "where": "Inbox page · list · normal mode",
@@ -181414,7 +183640,7 @@
       ]
     },
     {
-      "id": "state-316",
+      "id": "state-319",
       "title": "Panes: list filter form · record field (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · visual count pending mode",
@@ -182103,7 +184329,7 @@
       ]
     },
     {
-      "id": "state-317",
+      "id": "state-320",
       "title": "Panes: list filter form · record field (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · record field · operator g pending mode",
@@ -182150,7 +184376,7 @@
       ]
     },
     {
-      "id": "state-318",
+      "id": "state-321",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -182192,7 +184418,7 @@
       ]
     },
     {
-      "id": "state-319",
+      "id": "state-322",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -183442,7 +185668,7 @@
       ]
     },
     {
-      "id": "state-320",
+      "id": "state-323",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -183485,7 +185711,7 @@
       ]
     },
     {
-      "id": "state-321",
+      "id": "state-324",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -183542,7 +185768,7 @@
       ]
     },
     {
-      "id": "state-322",
+      "id": "state-325",
       "title": "Panes: list filter form · filter save (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · row selection mode",
@@ -184392,7 +186618,7 @@
       ]
     },
     {
-      "id": "state-323",
+      "id": "state-326",
       "title": "Panes: list filter form · filter save (operator pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · operator pending mode",
@@ -184855,7 +187081,7 @@
       ]
     },
     {
-      "id": "state-324",
+      "id": "state-327",
       "title": "Panes: list filter form · filter save (cell selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · cell selection mode",
@@ -185612,7 +187838,7 @@
       ]
     },
     {
-      "id": "state-325",
+      "id": "state-328",
       "title": "Panes: list filter form · filter save (g pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · g pending mode",
@@ -185668,7 +187894,7 @@
       ]
     },
     {
-      "id": "state-326",
+      "id": "state-329",
       "title": "Panes: list filter form · filter save (selection)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · selection mode",
@@ -186425,7 +188651,7 @@
       ]
     },
     {
-      "id": "state-327",
+      "id": "state-330",
       "title": "Context: context search (insert)",
       "group": "Review results",
       "where": "Context page · context search · insert mode",
@@ -187100,7 +189326,7 @@
       ]
     },
     {
-      "id": "state-328",
+      "id": "state-331",
       "title": "Context: copy history · copy history (normal)",
       "group": "Review results",
       "where": "Context page · copy history · copy history · normal mode",
@@ -187849,7 +190075,7 @@
       ]
     },
     {
-      "id": "state-329",
+      "id": "state-332",
       "title": "Directories: directory path (insert)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · insert mode",
@@ -188546,7 +190772,7 @@
       ]
     },
     {
-      "id": "state-330",
+      "id": "state-333",
       "title": "Directories: directory path (row selection)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · row selection mode",
@@ -189295,7 +191521,7 @@
       ]
     },
     {
-      "id": "state-331",
+      "id": "state-334",
       "title": "Directories: directory path (operator pending)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · operator pending mode",
@@ -189756,7 +191982,7 @@
       ]
     },
     {
-      "id": "state-332",
+      "id": "state-335",
       "title": "Directories: directory path (cell selection)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · cell selection mode",
@@ -190472,7 +192698,7 @@
       ]
     },
     {
-      "id": "state-333",
+      "id": "state-336",
       "title": "Directories: attach project · choices (insert)",
       "group": "Workspace tools",
       "where": "Directories page · attach project · choices · insert mode",
@@ -191186,7 +193412,7 @@
       ]
     },
     {
-      "id": "state-334",
+      "id": "state-337",
       "title": "Directories: directory path (g pending)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · g pending mode",
@@ -191240,7 +193466,7 @@
       ]
     },
     {
-      "id": "state-335",
+      "id": "state-338",
       "title": "Directories: directory path (selection)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · selection mode",
@@ -191956,7 +194182,7 @@
       ]
     },
     {
-      "id": "state-336",
+      "id": "state-339",
       "title": "Notes: record text (visual count pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · visual count pending mode",
@@ -192643,7 +194869,7 @@
       ]
     },
     {
-      "id": "state-337",
+      "id": "state-340",
       "title": "Notes: record text (operator g pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · operator g pending mode",
@@ -192688,7 +194914,7 @@
       ]
     },
     {
-      "id": "state-338",
+      "id": "state-341",
       "title": "Notes: record field (row selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · row selection mode",
@@ -193416,7 +195642,7 @@
       ]
     },
     {
-      "id": "state-339",
+      "id": "state-342",
       "title": "Notes: record field (operator pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · operator pending mode",
@@ -193877,7 +196103,7 @@
       ]
     },
     {
-      "id": "state-340",
+      "id": "state-343",
       "title": "Notes: record field (cell selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · cell selection mode",
@@ -194593,7 +196819,7 @@
       ]
     },
     {
-      "id": "state-341",
+      "id": "state-344",
       "title": "Notes: record field (g pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · g pending mode",
@@ -194647,7 +196873,7 @@
       ]
     },
     {
-      "id": "state-342",
+      "id": "state-345",
       "title": "Notes: record field (selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · selection mode",
@@ -195363,7 +197589,7 @@
       ]
     },
     {
-      "id": "state-343",
+      "id": "state-346",
       "title": "Notes: field choices · form option (filter)",
       "group": "Notes and inbox",
       "where": "Notes page · field choices · form option · filter mode",
@@ -195621,7 +197847,7 @@
       ]
     },
     {
-      "id": "state-344",
+      "id": "state-347",
       "title": "Notes: field choices · form option (row selection)",
       "group": "Notes and inbox",
       "where": "Notes page · field choices · form option · row selection mode",
@@ -196059,7 +198285,7 @@
       ]
     },
     {
-      "id": "state-345",
+      "id": "state-348",
       "title": "Work: record text (row selection)",
       "group": "Projects and work",
       "where": "Work page · record text · row selection mode",
@@ -196806,7 +199032,7 @@
       ]
     },
     {
-      "id": "state-346",
+      "id": "state-349",
       "title": "Work: record text (operator pending)",
       "group": "Projects and work",
       "where": "Work page · record text · operator pending mode",
@@ -197267,7 +199493,7 @@
       ]
     },
     {
-      "id": "state-347",
+      "id": "state-350",
       "title": "Work: record text (cell selection)",
       "group": "Projects and work",
       "where": "Work page · record text · cell selection mode",
@@ -197983,7 +200209,7 @@
       ]
     },
     {
-      "id": "state-348",
+      "id": "state-351",
       "title": "Work: record text (g pending)",
       "group": "Projects and work",
       "where": "Work page · record text · g pending mode",
@@ -198037,7 +200263,7 @@
       ]
     },
     {
-      "id": "state-349",
+      "id": "state-352",
       "title": "Work: record text (selection)",
       "group": "Projects and work",
       "where": "Work page · record text · selection mode",
@@ -198753,7 +200979,7 @@
       ]
     },
     {
-      "id": "state-350",
+      "id": "state-353",
       "title": "Work: form suggestions · choices (insert)",
       "group": "Projects and work",
       "where": "Work page · form suggestions · choices · insert mode",
@@ -199467,7 +201693,7 @@
       ]
     },
     {
-      "id": "state-351",
+      "id": "state-354",
       "title": "Work: field choices · form option (normal)",
       "group": "Projects and work",
       "where": "Work page · field choices · form option · normal mode",
@@ -200386,7 +202612,7 @@
       ]
     },
     {
-      "id": "state-352",
+      "id": "state-355",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -200429,7 +202655,7 @@
       ]
     },
     {
-      "id": "state-353",
+      "id": "state-356",
       "title": "Panes: edit form / field choices · form option (filter)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / field choices · form option · filter mode",
@@ -200688,7 +202914,7 @@
       ]
     },
     {
-      "id": "state-354",
+      "id": "state-357",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -201562,7 +203788,7 @@
       ]
     },
     {
-      "id": "state-355",
+      "id": "state-358",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -201606,7 +203832,7 @@
       ]
     },
     {
-      "id": "state-356",
+      "id": "state-359",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -201664,7 +203890,7 @@
       ]
     },
     {
-      "id": "state-357",
+      "id": "state-360",
       "title": "Panes: edit form / field choices · form option (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / field choices · form option · row selection mode",
@@ -202103,7 +204329,7 @@
       ]
     },
     {
-      "id": "state-358",
+      "id": "state-361",
       "title": "Panes: edit form · record text (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · visual count pending mode",
@@ -202792,7 +205018,7 @@
       ]
     },
     {
-      "id": "state-359",
+      "id": "state-362",
       "title": "Panes: edit form · record text (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · operator g pending mode",
@@ -202839,7 +205065,7 @@
       ]
     },
     {
-      "id": "state-360",
+      "id": "state-363",
       "title": "Schedules: schedule editor · record text (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · row selection mode",
@@ -203597,7 +205823,7 @@
       ]
     },
     {
-      "id": "state-361",
+      "id": "state-364",
       "title": "Schedules: schedule editor · record text (operator pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · operator pending mode",
@@ -204060,7 +206286,7 @@
       ]
     },
     {
-      "id": "state-362",
+      "id": "state-365",
       "title": "Schedules: schedule editor · record field (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · normal mode",
@@ -205342,7 +207568,7 @@
       ]
     },
     {
-      "id": "state-363",
+      "id": "state-366",
       "title": "Schedules: schedule editor · record text (cell selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · cell selection mode",
@@ -206058,7 +208284,7 @@
       ]
     },
     {
-      "id": "state-364",
+      "id": "state-367",
       "title": "Schedules: schedule editor · record text (g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · g pending mode",
@@ -206114,7 +208340,7 @@
       ]
     },
     {
-      "id": "state-365",
+      "id": "state-368",
       "title": "Schedules: schedule editor · record text (selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · selection mode",
@@ -206830,7 +209056,7 @@
       ]
     },
     {
-      "id": "state-366",
+      "id": "state-369",
       "title": "Schedules: schedule editor · form choice (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · form choice · normal mode",
@@ -207643,7 +209869,7 @@
       ]
     },
     {
-      "id": "state-367",
+      "id": "state-370",
       "title": "Schedules: reminder form · record text (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · normal mode",
@@ -208944,7 +211170,7 @@
       ]
     },
     {
-      "id": "state-368",
+      "id": "state-371",
       "title": "Schedules: reminder form · record field (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · insert mode",
@@ -209671,7 +211897,7 @@
       ]
     },
     {
-      "id": "state-369",
+      "id": "state-372",
       "title": "Inbox: list (filter)",
       "group": "Notes and inbox",
       "where": "Inbox page · list · filter mode",
@@ -209953,7 +212179,7 @@
       ]
     },
     {
-      "id": "state-370",
+      "id": "state-373",
       "title": "Inbox: list (row selection)",
       "group": "Notes and inbox",
       "where": "Inbox page · list · row selection mode",
@@ -210520,7 +212746,7 @@
       ]
     },
     {
-      "id": "state-371",
+      "id": "state-374",
       "title": "Inbox: detail link (filter)",
       "group": "Notes and inbox",
       "where": "Inbox page · detail link · filter mode",
@@ -210778,7 +213004,7 @@
       ]
     },
     {
-      "id": "state-372",
+      "id": "state-375",
       "title": "Panes: list filter form · filter save (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · visual count pending mode",
@@ -211467,7 +213693,7 @@
       ]
     },
     {
-      "id": "state-373",
+      "id": "state-376",
       "title": "Panes: list filter form · filter save (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save · operator g pending mode",
@@ -211514,7 +213740,7 @@
       ]
     },
     {
-      "id": "state-374",
+      "id": "state-377",
       "title": "Directories: directory path (visual count pending)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · visual count pending mode",
@@ -212201,7 +214427,7 @@
       ]
     },
     {
-      "id": "state-375",
+      "id": "state-378",
       "title": "Directories: directory path (operator g pending)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · operator g pending mode",
@@ -212246,7 +214472,7 @@
       ]
     },
     {
-      "id": "state-376",
+      "id": "state-379",
       "title": "Notes: record field (visual count pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · visual count pending mode",
@@ -212933,7 +215159,7 @@
       ]
     },
     {
-      "id": "state-377",
+      "id": "state-380",
       "title": "Notes: record field (operator g pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · operator g pending mode",
@@ -212978,7 +215204,7 @@
       ]
     },
     {
-      "id": "state-378",
+      "id": "state-381",
       "title": "Notes: field choices · list (filter)",
       "group": "Notes and inbox",
       "where": "Notes page · field choices · list · filter mode",
@@ -213260,7 +215486,7 @@
       ]
     },
     {
-      "id": "state-379",
+      "id": "state-382",
       "title": "Work: record text (visual count pending)",
       "group": "Projects and work",
       "where": "Work page · record text · visual count pending mode",
@@ -213947,7 +216173,7 @@
       ]
     },
     {
-      "id": "state-380",
+      "id": "state-383",
       "title": "Work: record text (operator g pending)",
       "group": "Projects and work",
       "where": "Work page · record text · operator g pending mode",
@@ -213992,7 +216218,7 @@
       ]
     },
     {
-      "id": "state-381",
+      "id": "state-384",
       "title": "Work: field choices · form option (filter)",
       "group": "Projects and work",
       "where": "Work page · field choices · form option · filter mode",
@@ -214250,7 +216476,7 @@
       ]
     },
     {
-      "id": "state-382",
+      "id": "state-385",
       "title": "Work: field choices · form option (row selection)",
       "group": "Projects and work",
       "where": "Work page · field choices · form option · row selection mode",
@@ -214688,7 +216914,7 @@
       ]
     },
     {
-      "id": "state-383",
+      "id": "state-386",
       "title": "Panes: edit form / field choices · list (filter)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / field choices · list · filter mode",
@@ -214971,7 +217197,7 @@
       ]
     },
     {
-      "id": "state-384",
+      "id": "state-387",
       "title": "Schedules: schedule editor · record text (visual count pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · visual count pending mode",
@@ -215660,7 +217886,7 @@
       ]
     },
     {
-      "id": "state-385",
+      "id": "state-388",
       "title": "Schedules: schedule editor · record text (operator g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · operator g pending mode",
@@ -215707,7 +217933,7 @@
       ]
     },
     {
-      "id": "state-386",
+      "id": "state-389",
       "title": "Schedules: schedule editor · record field (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · row selection mode",
@@ -216446,7 +218672,7 @@
       ]
     },
     {
-      "id": "state-387",
+      "id": "state-390",
       "title": "Schedules: schedule editor · record field (operator pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · operator pending mode",
@@ -216909,7 +219135,7 @@
       ]
     },
     {
-      "id": "state-388",
+      "id": "state-391",
       "title": "Schedules: schedule editor · record field (cell selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · cell selection mode",
@@ -217625,7 +219851,7 @@
       ]
     },
     {
-      "id": "state-389",
+      "id": "state-392",
       "title": "Schedules: schedule editor · record field (g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · g pending mode",
@@ -217681,7 +219907,7 @@
       ]
     },
     {
-      "id": "state-390",
+      "id": "state-393",
       "title": "Schedules: schedule editor · record field (selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · selection mode",
@@ -218397,7 +220623,7 @@
       ]
     },
     {
-      "id": "state-391",
+      "id": "state-394",
       "title": "Schedules: schedule editor / form suggestions · choices (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor / form suggestions · choices · insert mode",
@@ -219112,7 +221338,7 @@
       ]
     },
     {
-      "id": "state-392",
+      "id": "state-395",
       "title": "Schedules: schedule editor / field choices · form option (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor / field choices · form option · normal mode",
@@ -220032,7 +222258,7 @@
       ]
     },
     {
-      "id": "state-393",
+      "id": "state-396",
       "title": "Schedules: reminder form · record text (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · row selection mode",
@@ -220790,7 +223016,7 @@
       ]
     },
     {
-      "id": "state-394",
+      "id": "state-397",
       "title": "Schedules: reminder form · record text (operator pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · operator pending mode",
@@ -221253,7 +223479,7 @@
       ]
     },
     {
-      "id": "state-395",
+      "id": "state-398",
       "title": "Schedules: reminder form · record field (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · normal mode",
@@ -222535,7 +224761,7 @@
       ]
     },
     {
-      "id": "state-396",
+      "id": "state-399",
       "title": "Schedules: reminder form · record text (cell selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · cell selection mode",
@@ -223251,7 +225477,7 @@
       ]
     },
     {
-      "id": "state-397",
+      "id": "state-400",
       "title": "Schedules: reminder form · form choice (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · form choice · normal mode",
@@ -224064,7 +226290,7 @@
       ]
     },
     {
-      "id": "state-398",
+      "id": "state-401",
       "title": "Schedules: reminder (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder · normal mode",
@@ -225149,7 +227375,7 @@
       ]
     },
     {
-      "id": "state-399",
+      "id": "state-402",
       "title": "Schedules: reminder form · record text (g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · g pending mode",
@@ -225205,7 +227431,7 @@
       ]
     },
     {
-      "id": "state-400",
+      "id": "state-403",
       "title": "Schedules: reminder form · record text (selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · selection mode",
@@ -225921,7 +228147,7 @@
       ]
     },
     {
-      "id": "state-401",
+      "id": "state-404",
       "title": "Notes: field choices · list (normal)",
       "group": "Notes and inbox",
       "where": "Notes page · field choices · list · normal mode",
@@ -226860,7 +229086,7 @@
       ]
     },
     {
-      "id": "state-402",
+      "id": "state-405",
       "title": "Work: field choices · list (filter)",
       "group": "Projects and work",
       "where": "Work page · field choices · list · filter mode",
@@ -227142,7 +229368,7 @@
       ]
     },
     {
-      "id": "state-403",
+      "id": "state-406",
       "title": "Panes: edit form / field choices · list (normal)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / field choices · list · normal mode",
@@ -228082,7 +230308,7 @@
       ]
     },
     {
-      "id": "state-404",
+      "id": "state-407",
       "title": "Schedules: schedule editor · record field (visual count pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · visual count pending mode",
@@ -228771,7 +230997,7 @@
       ]
     },
     {
-      "id": "state-405",
+      "id": "state-408",
       "title": "Schedules: schedule editor · record field (operator g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · operator g pending mode",
@@ -228818,7 +231044,7 @@
       ]
     },
     {
-      "id": "state-406",
+      "id": "state-409",
       "title": "Schedules: schedule editor / field choices · form option (filter)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor / field choices · form option · filter mode",
@@ -229077,7 +231303,7 @@
       ]
     },
     {
-      "id": "state-407",
+      "id": "state-410",
       "title": "Schedules: schedule editor / field choices · form option (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor / field choices · form option · row selection mode",
@@ -229516,7 +231742,7 @@
       ]
     },
     {
-      "id": "state-408",
+      "id": "state-411",
       "title": "Schedules: reminder form · record text (visual count pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · visual count pending mode",
@@ -230205,7 +232431,7 @@
       ]
     },
     {
-      "id": "state-409",
+      "id": "state-412",
       "title": "Schedules: reminder form · record text (operator g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · operator g pending mode",
@@ -230252,7 +232478,7 @@
       ]
     },
     {
-      "id": "state-410",
+      "id": "state-413",
       "title": "Schedules: reminder form · record field (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · row selection mode",
@@ -230991,7 +233217,7 @@
       ]
     },
     {
-      "id": "state-411",
+      "id": "state-414",
       "title": "Schedules: reminder form · record field (operator pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · operator pending mode",
@@ -231454,7 +233680,7 @@
       ]
     },
     {
-      "id": "state-412",
+      "id": "state-415",
       "title": "Schedules: reminder form · record field (cell selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · cell selection mode",
@@ -232170,7 +234396,7 @@
       ]
     },
     {
-      "id": "state-413",
+      "id": "state-416",
       "title": "Schedules: reminder form · record field (g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · g pending mode",
@@ -232226,7 +234452,7 @@
       ]
     },
     {
-      "id": "state-414",
+      "id": "state-417",
       "title": "Schedules: reminder form · record field (selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · selection mode",
@@ -232942,7 +235168,7 @@
       ]
     },
     {
-      "id": "state-415",
+      "id": "state-418",
       "title": "Schedules: reminder form / form suggestions · choices (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form / form suggestions · choices · insert mode",
@@ -233657,7 +235883,7 @@
       ]
     },
     {
-      "id": "state-416",
+      "id": "state-419",
       "title": "Schedules: reminder form / field choices · form option (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form / field choices · form option · normal mode",
@@ -234611,7 +236837,7 @@
       ]
     },
     {
-      "id": "state-417",
+      "id": "state-420",
       "title": "Schedules: reminder (filter)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder · filter mode",
@@ -234869,7 +237095,7 @@
       ]
     },
     {
-      "id": "state-418",
+      "id": "state-421",
       "title": "Schedules: reminder (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder · row selection mode",
@@ -235462,7 +237688,7 @@
       ]
     },
     {
-      "id": "state-419",
+      "id": "state-422",
       "title": "Schedules: reminder history · choices (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder history · choices · insert mode",
@@ -236176,7 +238402,7 @@
       ]
     },
     {
-      "id": "state-420",
+      "id": "state-423",
       "title": "Work: field choices · list (normal)",
       "group": "Projects and work",
       "where": "Work page · field choices · list · normal mode",
@@ -237115,7 +239341,7 @@
       ]
     },
     {
-      "id": "state-421",
+      "id": "state-424",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -237158,7 +239384,7 @@
       ]
     },
     {
-      "id": "state-422",
+      "id": "state-425",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -238077,7 +240303,7 @@
       ]
     },
     {
-      "id": "state-423",
+      "id": "state-426",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -238121,7 +240347,7 @@
       ]
     },
     {
-      "id": "state-424",
+      "id": "state-427",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -238179,7 +240405,7 @@
       ]
     },
     {
-      "id": "state-425",
+      "id": "state-428",
       "title": "Schedules: schedule editor / field choices · list (filter)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor / field choices · list · filter mode",
@@ -238462,7 +240688,7 @@
       ]
     },
     {
-      "id": "state-426",
+      "id": "state-429",
       "title": "Schedules: reminder form · record field (visual count pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · visual count pending mode",
@@ -239151,7 +241377,7 @@
       ]
     },
     {
-      "id": "state-427",
+      "id": "state-430",
       "title": "Schedules: reminder form · record field (operator g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · operator g pending mode",
@@ -239198,7 +241424,7 @@
       ]
     },
     {
-      "id": "state-428",
+      "id": "state-431",
       "title": "Schedules: reminder form / field choices · form option (filter)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form / field choices · form option · filter mode",
@@ -239457,7 +241683,7 @@
       ]
     },
     {
-      "id": "state-429",
+      "id": "state-432",
       "title": "Schedules: reminder form / field choices · form option (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form / field choices · form option · row selection mode",
@@ -239930,7 +242156,7 @@
       ]
     },
     {
-      "id": "state-430",
+      "id": "state-433",
       "title": "Schedules: list (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · list · row selection mode",
@@ -240485,7 +242711,7 @@
       ]
     },
     {
-      "id": "state-431",
+      "id": "state-434",
       "title": "Schedules: schedule editor / field choices · list (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor / field choices · list · normal mode",
@@ -241425,7 +243651,7 @@
       ]
     },
     {
-      "id": "state-432",
+      "id": "state-435",
       "title": "Schedules: reminder form / field choices · list (filter)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form / field choices · list · filter mode",
@@ -241708,7 +243934,7 @@
       ]
     },
     {
-      "id": "state-433",
+      "id": "state-436",
       "title": "Schedules: reminder form / field choices · list (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form / field choices · list · normal mode",
