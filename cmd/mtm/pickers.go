@@ -79,8 +79,9 @@ var errNoProjectForDirectory = errors.New("focus a project or pin one to choose 
 // project's.
 func (a *App) openFocusedDirectoryPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
 	id := a.pin
-	if inst := a.r.Instances[a.r.FocusID()]; inst != nil && inst.Noun == "project" {
-		id = inst.ID
+	// The focus is a project when its id is a loaded project's.
+	if p, ok := a.project(a.r.FocusID()); ok {
+		id = p.ID
 	}
 	if id == "" {
 		return nil, errNoProjectForDirectory
