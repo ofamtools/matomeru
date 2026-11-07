@@ -43,9 +43,8 @@ func (a *App) defineCoreVerbs() {
 // The command verbs renamed in the R1 adoption (so no command verb is
 // named like a core verb) are purged with no alias (DESIGN-001, owner
 // decision): removed_verbs.go lists each with its replacement.
-// projects.list, kept as an alias of projects.all while extension
-// catalogs named it as a parameter source, is purged too (ochazuke
-// v0.93.0 bump: no catalog names it any more).
+// The projects alias kept for extension catalogs' parameter sources is
+// purged too (ochazuke v0.93.0 bump: no catalog names it any more).
 func (a *App) defineCommandRenames() {
 	if err := a.r.AddRemovedVerbs(mtmRemovedVerbs...); err != nil {
 		panic(err)

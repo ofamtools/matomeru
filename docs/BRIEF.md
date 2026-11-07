@@ -12,7 +12,7 @@ One complete workflow, end to end, before any second feature: select a project a
 define("project",  { verbs: { new, open, launch },                  bindings: { normal: { enter: "open", l: "launch" } } })
 define("task",     { verbs: { list, new, open, launch, done, edit }, bindings: { normal: { enter: "open", l: "launch", x: "done", i: "edit" } } })
 define("pane",     { verbs: { attach, preview, kill: { confirm: "Kill pane {{label}}?" } }, bindings: { normal: { enter: "attach", p: "preview", K: "kill" } } })
-define("agent",    { verbs: { launch: { params: { harness: { enum: registry.names }, model: { source: "harness.models", free: true }, project: { source: "projects.list" } } } } })
+define("agent",    { verbs: { launch: { params: { harness: { enum: registry.names }, model: { source: "harness.models", free: true }, project: { source: "projects.all" } } } } })
 define("harness",  { verbs: { list, models } })                       // data only: the registry and the model pick list
 define("review",   { verbs: { open, accept, reject, saveAnswer },      bindings: { normal: { enter: "open", a: "accept", r: "reject", s: "saveAnswer" } } })
 define("prompt",   framework noun: Readline, insert pinned)
