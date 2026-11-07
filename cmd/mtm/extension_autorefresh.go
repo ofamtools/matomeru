@@ -18,8 +18,15 @@ var extAutoRefreshSetting = ochazuke.Setting{Name: settingExtAutoRefresh, Owner:
 // when an extension tab opens. It uses discovery's exact stale mechanism,
 // limited to registered tools. The old catalog remains usable throughout.
 func (a *App) refreshStaleExtensions(names ...string) tea.Cmd {
+	a.checkStaleExtensions(names...)
+	return a.r.PendingCommands()
+}
+
+// checkStaleExtensions launches the check; its jobs start with the next
+// PendingCommands.
+func (a *App) checkStaleExtensions(names ...string) {
 	if a.cli {
-		return nil
+		return
 	}
 	d := a.discovery()
 	d.registeredOnly, d.names = true, names
@@ -36,7 +43,6 @@ func (a *App) refreshStaleExtensions(names ...string) tea.Cmd {
 	if _, err := a.r.Launch("app", "extension.available", res, ctx); err != nil {
 		a.r.UI().Notify("extension catalog check: " + err.Error())
 	}
-	return a.r.PendingCommands()
 }
 
 // autoRefreshCatalogs adopts successful stale answers without executing a

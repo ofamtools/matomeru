@@ -735,6 +735,14 @@ func (a *App) mountExtension(name string, e extEntry) {
 			continue
 		}
 		x.views = append(x.views, v)
+		// An extension's page reloads its rows when it is opened (off the
+		// loop; the rows on screen stay until they land). A rebuilt bin's
+		// catalog is read again first; the refresh reloads the rows once it
+		// lands.
+		a.r.PageOf(v.Page()).OnOpen = func(*ochazuke.Runtime, string) {
+			a.checkStaleExtensions(x.name)
+			a.reloadExtension(x)
+		}
 		x.trackExtLists(v)
 		for _, l := range p.Lists {
 			if local, ok := x.nouns[l.Noun]; ok {

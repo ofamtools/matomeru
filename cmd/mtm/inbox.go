@@ -189,6 +189,8 @@ func (a *App) addInboxPage() error {
 	if _, err = a.r.AddPage(inboxPage, inboxTitle, a.renderInbox, ochazuke.Focus(inboxListID)); err != nil {
 		return err
 	}
+	// Outside tools add items from other processes.
+	a.onOpen(inboxPage, a.reloadInbox)
 	return a.refreshInbox()
 }
 

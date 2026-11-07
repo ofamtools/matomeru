@@ -334,7 +334,7 @@ type App struct {
 	projectDirList     *ochazuke.List
 	baseList           *ochazuke.List
 	directoryQuery     *ochazuke.Input
-	lastPage           string // the page the last update ended on; a change runs that page's open hook
+	pagesWatched       map[*ochazuke.Page]bool // pages whose open step also asks for an extension sync (pages_open.go)
 	detailTask         string
 	cli                bool
 	actorSet           bool            // the actor was set before the CLI's Prepare (the MCP server's; actor.go)

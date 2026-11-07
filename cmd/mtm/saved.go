@@ -66,6 +66,9 @@ func (a *App) addSavedPage() error {
 	if _, err = a.r.AddPage(savedPage, "Saved", a.renderSaved, ochazuke.Focus(savedListID)); err != nil {
 		return err
 	}
+	// Refresh is automatic: the page reads its records on opening (another
+	// mtm or the CLI may have changed them).
+	a.onOpen(savedPage, a.refreshSaved)
 	return a.refreshSaved()
 }
 

@@ -112,6 +112,8 @@ func (a *App) addReviewPage() error {
 		return err
 	}
 	page.OnOpen = func(*ochazuke.Runtime, string) {
+		// Capture hooks write turns from other processes; the rows also
+		// name panes after the latest listing.
 		if err := a.refreshReviews(); err != nil {
 			a.r.UI().Error("history: " + err.Error())
 		}
