@@ -1,0 +1,37 @@
+{
+  "name": "mtm: dirs.add-base without a path opens the path chooser on its declared start, the folders holding known directories (parents), not a hand-made chooser",
+  "area": "directories",
+  "fixture": "project-tree",
+  "width": 120,
+  "height": 30,
+  "files": [
+    "cmd/mtm/"
+  ],
+  "script": [
+    ":",
+    {
+      "type": "dirs add-base"
+    },
+    "enter",
+    {
+      "job": "dirs.refresh"
+    }
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "modal": "path-chooser",
+      "contains": [
+        "[parents]",
+        "loading folders holding known directories"
+      ]
+    },
+    {
+      "modal": "path-chooser",
+      "contains": [
+        "[parents]",
+        "known)"
+      ]
+    }
+  ]
+}

@@ -111,9 +111,10 @@ func (a *App) openContextPicker(p pane, choose func(ochazuke.ChooserRow) ochazuk
 		Noun:  contextNoun,
 		Title: "Context · " + p.label(),
 		Rows:  a.pickerRows(p),
-		// Every typed word is in the row: a long path must not match a
-		// query by scattering its letters.
-		Filter:  func(query string, row ochazuke.ChooserRow) bool { return wordsMatch(query, row.Label) },
+		// Every typed word is in the row (the substring match mode): a
+		// long path must not match a query by scattering its letters. tab
+		// still steps the mode.
+		Match:   ochazuke.MatchSubstring,
 		Empty:   "no context yet: paths, URLs, PRs, branches and commits appear as panes print them",
 		Choose:  choose,
 		Preview: pickerPreview,

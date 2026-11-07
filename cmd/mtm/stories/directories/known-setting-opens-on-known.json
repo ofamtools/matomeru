@@ -1,0 +1,28 @@
+{
+  "name": "mtm: with directory-chooser known, c on a project opens its directory pick on the known start that setting value declares, walk or not",
+  "area": "directories",
+  "fixture": "project-tree",
+  "width": 120,
+  "height": 30,
+  "files": [
+    "cmd/mtm/"
+  ],
+  "script": [
+    "ctrl+j",
+    "c"
+  ],
+  "expect": [
+    {
+      "modal": "dir-chooser",
+      "contains": [
+        "[known"
+      ],
+      "lacks": [
+        "[walk"
+      ]
+    }
+  ],
+  "values": {
+    "directory-chooser": "known"
+  }
+}

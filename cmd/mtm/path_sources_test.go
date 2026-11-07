@@ -568,3 +568,67 @@ func TestPinDirectoryChooserWalksBasesWithoutProjectDirectory(t *testing.T) {
 		}
 	}
 }
+
+// Every directory-chooser value maps to declared start sources (data, no
+// branch per value), and the directory pick's parameter carries the start
+// the chooser opens on: path walks (known without walk), path-remembered
+// declares none, known declares known.
+func TestDirectoryChooserValuesAreDeclaredStarts(t *testing.T) {
+	t.Parallel()
+	for _, value := range directoryChooserSetting.Enum {
+		if _, ok := directoryChooserStarts[value]; !ok {
+			t.Errorf("directory-chooser %q has no starts", value)
+		}
+	}
+	a := open(t)
+	walkProject(t, a)
+	pick := ochazuke.PathPick{Name: "directory", Parameter: dirParam("", true)}
+	for value, want := range map[string]string{
+		dirChooserPath:       ochazuke.PathSourceWalk,
+		dirChooserRemembered: "",
+		dirChooserKnown:      pathSourceKnown,
+	} {
+		if err := a.r.Settings().Set(settingDirectoryChooser, value); err != nil {
+			t.Fatal(err)
+		}
+		a.pathChooserProject = "matomeru"
+		got := a.directoryStart(pick)
+		a.pathChooserProject = ""
+		if got != want {
+			t.Errorf("%s: start %q, want %q", value, got, want)
+		}
+	}
+	// path falls back to known when walk is off.
+	if err := a.r.Settings().Set(settingDirectoryChooser, dirChooserPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.Settings().Set(ochazuke.PathWalkSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.directoryStart(pick); got != pathSourceKnown {
+		t.Errorf("path with walk off: start %q, want known", got)
+	}
+}
+
+// dirs.add-base declares its path: required, a folder, opening on the
+// parents source; that source is offered only to the pick that declares
+// it, so the other directory choosers keep their sources.
+func TestAddBaseDeclaresParentsStart(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	knownRepos(t, a)
+	p := a.r.Operations[a.r.CanonicalKey("dirs.add-base")].Parameters["path"]
+	if !p.Required || p.Start != pathSourceParents || p.Path != ochazuke.PathDir {
+		t.Fatalf("dirs.add-base path: %+v", p)
+	}
+	if err := a.chooseDirectoryFor("Dir", "", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
+		t.Fatal(err)
+	}
+	if c := a.r.Chooser(dirChooser); c == nil || slices.Contains(c.Sources(), pathSourceParents) {
+		t.Fatalf("directory chooser offers parents: %v", c.Sources())
+	}
+	press(t, a, "esc")
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base"}); err == nil {
+		t.Fatal("add-base without a path ran")
+	}
+}

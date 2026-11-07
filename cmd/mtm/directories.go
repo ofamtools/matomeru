@@ -42,7 +42,7 @@ type directoryCache struct {
 	Loading   bool   // a scan is running
 	Query     string
 	ProjectID string
-	Browse    string // what the open path field is for (browseAttach, browseBase, browseEdit+path); "" when closed
+	Browse    string // what the open path field is for (browseAttach, browseEdit+path); "" when closed
 	Want      string // a directory a link opened before the scan listed it; the scan selects it
 	Subject   string // the directory the detail is about: the last one selected in a directory list
 }
@@ -383,12 +383,12 @@ func (a *App) defineDirectories() {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(bases)
-	}).Fetch().Verb("add-base", a.addBase, "Add a project base and scan it; omit path to choose").Positional("path").
+	}).Fetch().Verb("add-base", a.addBase, "Add a project base and scan it; omit path to choose one").Positional("path").
 		Renamed("base.add", oldNamesSince, oldNamesRemoveAfter).
 		Verb("remove-base", a.removeBase, "Stop scanning a project base (disk untouched)").Positional("path").
 		Renamed("base.remove", oldNamesSince, oldNamesRemoveAfter).
 		Verb("search", a.searchDirectories, "Filter the known directories")
-	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": dirParam("The folder whose children are known directories", false), "depth": {Type: "integer"}})
+	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": baseParam, "depth": {Type: "integer"}})
 	a.parameters("dirs.remove-base", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
 	a.r.Define("dir-search").Pin("insert").
 		Verb("done", a.leaveDirectorySearch, "Keep the filter and return to the known directories").
@@ -510,9 +510,6 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 			}
 		}
 		a.refreshPathChoosers()
-		if c := a.r.Chooser(baseChooser); c != nil {
-			c.SetRows(a.baseChoices())
-		}
 	})
 }
 
@@ -743,40 +740,6 @@ func (a *App) directoryChoices() []ochazuke.ChooserRow {
 	return append(rows, ochazuke.ChooserRow{ID: "directory:browse", Label: "browse…", Trailing: true})
 }
 
-// existingDir is the query as a directory that exists.
-func existingDir(query string) (string, bool) {
-	if strings.TrimSpace(query) == "" {
-		return "", false
-	}
-	path := expandPath(strings.TrimSpace(query))
-	info, err := os.Stat(path)
-	return path, err == nil && info.IsDir()
-}
-
-// trailingFilter keeps a trailing row only when the query is a substring of
-// its label; ordinary rows match fuzzily.
-func trailingFilter(query string, row ochazuke.ChooserRow) bool {
-	if row.Trailing {
-		return strings.Contains(strings.ToLower(row.Label), strings.ToLower(strings.TrimSpace(query)))
-	}
-	return fuzzyMatch(query, row.Label)
-}
-
-// fuzzyMatch reports whether query's runes appear in text in order,
-// ignoring case (the framework chooser's default filter, which it does not
-// export).
-func fuzzyMatch(query, text string) bool {
-	text = strings.ToLower(text)
-	for _, char := range strings.ToLower(query) {
-		pos := strings.IndexRune(text, char)
-		if pos < 0 {
-			return false
-		}
-		text = text[pos+len(string(char)):]
-	}
-	return true
-}
-
 // openDirectoryChooser asks for the project's directory the palette way:
 // enter attaches the top known directory (or the moved-to one) as the
 // default, browse… opens the path picker, esc leaves the project without
@@ -898,7 +861,6 @@ func (a *App) rememberDirectory(tree work.Tree) {
 // Browse purposes: what the typed or picked path is for.
 const (
 	browseAttach = "attach"
-	browseBase   = "base"
 	browseEdit   = "edit:" // + the path being replaced
 )
 
@@ -936,8 +898,6 @@ func (a *App) attachBrowsedDirectory(ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	switch {
-	case purpose == browseBase:
-		return a.addBasePath(path, 1)
 	case strings.HasPrefix(purpose, browseEdit):
 		return a.replaceDirectory(a.directoryTarget(), strings.TrimPrefix(purpose, browseEdit), path)
 	}
@@ -1033,11 +993,18 @@ func (a *App) editDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	}))
 }
 
-// baseChooser is the add-a-base chooser's kind.
-const baseChooser = "base-chooser"
+// baseParam is dirs.add-base's path: a folder that exists, required, so
+// a request without one (n on the bases list) opens the path chooser on
+// the folders that hold known directories (pathSourceParents); ctrl+o
+// cycles to browse, recent, typed and the other folder sources.
+var baseParam = func() ochazuke.Parameter {
+	p := dirParam("The folder whose children are known directories", false)
+	p.Required, p.Start = true, pathSourceParents
+	return p
+}()
 
 // baseChoices are the folders that hold known directories and are not
-// bases yet, the fullest first, then browse….
+// bases yet, the fullest first, each row's Data its path.
 func (a *App) baseChoices() []ochazuke.ChooserRow {
 	bases, _ := a.projectBases()
 	taken := map[string]bool{}
@@ -1057,59 +1024,22 @@ func (a *App) baseChoices() []ochazuke.ChooserRow {
 	}
 	slices.SortFunc(parents, func(x, y string) int { return cmp.Or(cmp.Compare(counts[y], counts[x]), cmp.Compare(x, y)) })
 	home, _ := a.home()
-	rows := make([]ochazuke.ChooserRow, 0, len(parents)+1)
+	rows := make([]ochazuke.ChooserRow, 0, len(parents))
 	for _, parent := range parents {
 		rows = append(rows, ochazuke.ChooserRow{ID: "base-choice:" + parent, Label: fmt.Sprintf("%s  (%d known)", tildePath(parent, home), counts[parent]), Data: parent})
 	}
-	return append(rows, ochazuke.ChooserRow{ID: "base-choice:browse", Label: "browse…", Trailing: true})
+	return rows
 }
 
-// addBase is dirs.add-base: a path adds it at once; none (the a key)
-// opens the chooser of known parent folders.
+// addBase is dirs.add-base: the path is added at once. The path is a
+// declared parameter (baseParam): without one, the framework asks for it
+// through the path chooser, on the CLI it is required.
 func (a *App) addBase(ctx ochazuke.Ctx) ochazuke.Result {
-	if path := ochazuke.StringArg(ctx.Args, "path", ""); path != "" {
-		return a.addBasePath(path, ochazuke.IntArg(ctx.Args, "depth", 1))
-	}
-	if a.cli {
+	path := ochazuke.StringArg(ctx.Args, "path", "")
+	if path == "" {
 		return ochazuke.Failed(errors.New("path is required"))
 	}
-	browse := func(query string) ochazuke.Result {
-		if err := a.r.OpenPage(directoriesPage); err != nil {
-			return ochazuke.Failed(err)
-		}
-		result := a.browseFor(browseBase)
-		if input := a.r.Input(directoryPathID); input != nil && query != "" {
-			if err := input.Replace(0, len(input.Text), query); err != nil {
-				return ochazuke.Failed(err)
-			}
-		}
-		return result
-	}
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
-		Kind:   baseChooser,
-		Title:  "Add a project base dir",
-		Rows:   a.baseChoices(),
-		Filter: trailingFilter,
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
-			if path, ok := row.Data.(string); ok {
-				return a.addBasePath(path, 1)
-			}
-			return browse("")
-		},
-		Create: func(query string) ochazuke.Result {
-			if path, ok := existingDir(query); ok {
-				return a.addBasePath(path, 1)
-			}
-			return browse(query)
-		},
-		CreateLabel: func(query string) string {
-			if path, ok := existingDir(query); ok {
-				return "add " + path
-			}
-			return "browse…"
-		},
-	})
-	return resultError(err)
+	return a.addBasePath(path, ochazuke.IntArg(ctx.Args, "depth", 1))
 }
 
 // addBasePath writes the base and, in the TUI, scans at once in the
@@ -1260,8 +1190,6 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 	if a.directories.Browse != "" {
 		label := "path (enter attaches):"
 		switch {
-		case a.directories.Browse == browseBase:
-			label = "base path (enter adds and scans):"
 		case strings.HasPrefix(a.directories.Browse, browseEdit):
 			label = "new path (enter moves the directory):"
 		}

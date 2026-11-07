@@ -31,6 +31,12 @@ import (
 const (
 	pathSourceKnown   = "known"
 	pathSourceProject = "project"
+	// pathSourceParents is the folders that hold known directories and are
+	// not project bases yet, the fullest first: dirs.add-base's path
+	// declares it as its start. It is offered only to a pick whose
+	// parameter declares it (declaredOnly), so other folder picks keep
+	// their sources.
+	pathSourceParents = "parents"
 )
 
 // The directory-chooser setting: what chooseDirectoryFor opens.
@@ -40,6 +46,15 @@ const (
 	dirChooserRemembered    = "path-remembered" // the path chooser, on the source chooser.remember-source gives
 	dirChooserKnown         = "known"           // the path chooser, opened on the known source whatever path.walk says
 )
+
+// directoryChooserStarts are the start sources each directory-chooser value
+// declares, tried in order: the first the pick offers is its parameter's
+// Start (offersPathSource); none leaves it to chooser.remember-source.
+var directoryChooserStarts = map[string][]string{
+	dirChooserPath:       {ochazuke.PathSourceWalk, pathSourceKnown},
+	dirChooserRemembered: nil,
+	dirChooserKnown:      {pathSourceKnown},
+}
 
 var directoryChooserSetting = ochazuke.Setting{Name: settingDirectoryChooser, Type: ochazuke.SettingString, Default: dirChooserPath,
 	Enum:        []string{dirChooserPath, dirChooserRemembered, dirChooserKnown},
@@ -102,6 +117,23 @@ func (a *App) definePathSources() {
 			Load:  func(string) ochazuke.Result { return ochazuke.Done(rows) },
 		}, true
 	})
+	a.r.AddPathSource(pathSourceParents, declaredOnly(pathSourceParents, func(ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
+		return ochazuke.ChooserSource{
+			Empty:      ochazuke.EmptyText("folders holding known directories"),
+			Loading:    ochazuke.LoadingText("folders holding known directories"),
+			LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
+			Load: func(string) ochazuke.Result {
+				if !a.directories.Ready && !a.directories.Loading && len(a.directories.Rows) == 0 {
+					// The scan fills an open chooser on this source when
+					// it lands (refreshPathChoosers).
+					if err := a.loadDirectories(); err != nil {
+						return ochazuke.Failed(err)
+					}
+				}
+				return ochazuke.Done(a.baseChoices())
+			},
+		}, true
+	}))
 	a.r.AddWalkPathSource(a.walkRoots)
 	a.r.SetPathBase(func(pick ochazuke.PathPick) string {
 		if !pick.Dir() {
@@ -112,6 +144,18 @@ func (a *App) definePathSources() {
 	a.r.SetRecentPaths(func(pick ochazuke.PathPick) []string {
 		return a.recentDirectories()
 	})
+}
+
+// declaredOnly offers a folder source only to a pick whose parameter
+// declares it as its start (Parameter.Start): a source made for one
+// parameter stays out of every other path chooser's ctrl+o cycle.
+func declaredOnly(name string, fn func(ochazuke.PathPick) (ochazuke.ChooserSource, bool)) func(ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
+	return func(pick ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
+		if !pick.Dir() || pick.Parameter.Start != name {
+			return ochazuke.ChooserSource{}, false
+		}
+		return fn(pick)
+	}
 }
 
 // pathPickProject is the project a directory pick is for: the one a
@@ -228,35 +272,56 @@ func (a *App) refreshPathChoosers() {
 		case c == nil:
 		case c.Source() == pathSourceKnown:
 			c.SetRows(a.knownDirectoryRows())
+		case c.Source() == pathSourceParents:
+			c.SetRows(a.baseChoices())
 		}
 	}
 }
 
 // openPathDirectoryChooser is chooseDirectoryFor through the path chooser:
-// use takes the picked folder. Unless the setting asks for the remembered
-// source, it opens on walk (PathChooserSpec.Source), or on known, as the
-// known-directory chooser did, when there is no walk (path.walk off, or no
-// roots yet).
+// use takes the picked folder. Its directory parameter declares its start
+// (directoryStart): the directory-chooser setting's sources, the first
+// this pick offers.
 func (a *App) openPathDirectoryChooser(title, projectID string, use func(string) ochazuke.Result) error {
 	a.pathChooserProject = projectID
 	pick := ochazuke.PathPick{Name: "directory", Parameter: dirParam("", true)}
-	source := pathSourceKnown
-	if a.r.PathWalkOn() && len(a.walkRoots(pick).Roots) > 0 {
-		source = ochazuke.PathSourceWalk
-	}
-	switch a.r.Settings().String(settingDirectoryChooser) {
-	case dirChooserRemembered:
-		source = ""
-	case dirChooserKnown:
-		source = pathSourceKnown
-	}
+	pick.Parameter.Start = a.directoryStart(pick)
 	_, err := a.r.OpenPathChooser(ochazuke.PathChooserSpec{
 		Kind:   dirChooser,
 		Title:  title,
 		Pick:   pick,
-		Source: source,
 		Choose: use,
 	})
 	a.pathChooserProject = ""
 	return err
+}
+
+// directoryStart is the start source a directory pick declares: the first
+// of the directory-chooser value's starts (directoryChooserStarts) that
+// pick offers, "" for none (the remembered source).
+func (a *App) directoryStart(pick ochazuke.PathPick) string {
+	for _, name := range directoryChooserStarts[a.r.Settings().String(settingDirectoryChooser)] {
+		if a.offersPathSource(name, pick) {
+			return name
+		}
+	}
+	return ""
+}
+
+// offersPathSource reports whether a directory pick lists the source
+// name, by the rule that source's registration applies: walk with path.walk
+// on and roots to walk (AddWalkPathSource), project with a project that has
+// directories, a declared-only source when the pick declares it, and the
+// others (known, browse, recent, typed) always.
+func (a *App) offersPathSource(name string, pick ochazuke.PathPick) bool {
+	switch name {
+	case ochazuke.PathSourceWalk:
+		return a.r.PathWalkOn() && len(a.walkRoots(pick).Roots) > 0
+	case pathSourceProject:
+		p, ok := a.pathPickProject()
+		return ok && len(p.Trees) > 0
+	case pathSourceParents:
+		return pick.Parameter.Start == name
+	}
+	return pick.Dir()
 }

@@ -170,11 +170,16 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "n")
-	c := a.r.Chooser(baseChooser)
+	// dirs.add-base's path is declared (baseParam): n opens the path
+	// chooser on its declared start, the folders holding known directories.
+	c := a.r.Chooser(ochazuke.PathChooserKind)
 	if c == nil {
 		t.Fatalf("modal %q", a.r.TopModal())
 	}
-	if got := labels(c.Matches()); len(got) < 2 || !strings.HasPrefix(got[0], tildePath(directoryKey(second), "/home/test")) {
+	if c.Source() != pathSourceParents {
+		t.Fatalf("opened on %q, want %q (sources %v)", c.Source(), pathSourceParents, c.Sources())
+	}
+	if got := labels(c.Matches()); len(got) < 1 || !strings.HasPrefix(got[0], tildePath(directoryKey(second), "/home/test")) {
 		t.Fatalf("base choices %q", got)
 	}
 	_, cmd := a.Update(keyMsg("enter"))
