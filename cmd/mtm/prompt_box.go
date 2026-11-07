@@ -239,7 +239,12 @@ func (a *App) addPromptBox() error {
 		// elsewhere they move the cursor up a line. j on the last line
 		// stays: the box is the bottom of the page.
 		Bind("k", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide()).
-		Bind("up", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide())
+		Bind("up", ochazuke.Do(promptNoun+".back").Guard("prompt-top-line").Hide()).
+		// } and { walk the page's stops from the box, as outside it: the
+		// editor's paragraph motions (ochazuke v0.98.0: capture rows on a
+		// multiline input) would keep the keys inside the box, so these rows capture too.
+		Bind("}", ochazuke.Do("ochazuke.focus.next").FromPayload("steps", ochazuke.SourceCount).Hide().Captured()).
+		Bind("{", ochazuke.Do("ochazuke.focus.previous").FromPayload("steps", ochazuke.SourceCount).Hide().Captured())
 	a.r.DefineGuard("prompt-top-line", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		in := a.pb.input
 		if in == nil || ev.Focus != promptID {
