@@ -99,7 +99,7 @@ func mtmApp() monogatari.App {
 			{Name: "peer-rows-missing", Summary: "A sandbox extension whose peer is not registered", Build: buildMissingPeerRows},
 			{Name: "peer-delete-name", Summary: "A sandbox extension whose delete confirmation names a row field", Build: buildNamedDeleteRows},
 			{Name: "pane-lifecycle", Summary: "Seeded panes with a sandbox control for an outside window close", Build: buildPaneLifecycle},
-			{Name: "pane-restart", Summary: "Seeded panes with a sandbox control for a daemon restart that forgets every rename (story-daemon restart)", Build: buildPaneRestart},
+			{Name: "pane-restart", Summary: "Seeded panes with sandbox controls for a daemon restart that forgets every rename (story-daemon restart) and a window retitled, renamed or closed outside mtm (story-daemon retitle|rename|close WINDOW VALUE)", Build: buildPaneRestart},
 			{Name: "lanes-doc-notes", Summary: "Captured o-lane catalog sends its mounted lane row's doc notes through o-md", Build: buildLaneDocNotes},
 			{Name: "reminders-rollover", Summary: "A checked reminder, missed prior days and an injected next-local-day clock (ctrl+u)", Build: buildReminderRollover},
 			{Name: "inbox-notice", Summary: "An established notification baseline with fake senders, on an empty database", Build: buildInboxNotice},
@@ -216,6 +216,41 @@ func buildPaneRestart(env monogatari.Env) (monogatari.Built, error) {
 		a.setPanes(panes, err)
 		return ochazuke.Done(nil)
 	})
+	// The program in a window, or a person outside mtm, changes it: its
+	// title (retitle), its name (rename) or closes it (close); the page
+	// lists it again.
+	change := func(apply func(p *pane, value string) bool) func(ochazuke.Ctx) ochazuke.Result {
+		return func(c ochazuke.Ctx) ochazuke.Result {
+			f := a.panesd.(*storyPanes)
+			window, value := ochazuke.StringArg(c.Args, "window", ""), ochazuke.StringArg(c.Args, "value", "")
+			f.mu.Lock()
+			kept := f.panes[:0]
+			for i := range f.panes {
+				if f.panes[i].ID != window || apply(&f.panes[i], value) {
+					kept = append(kept, f.panes[i])
+				}
+			}
+			f.panes = kept
+			f.mu.Unlock()
+			panes, err := f.ListPanes(context.Background())
+			a.setPanes(panes, err)
+			return ochazuke.Done(nil)
+		}
+	}
+	params := map[string]ochazuke.Parameter{
+		"window": {Type: "string", Description: "The window"},
+		"value":  {Type: "string", Description: "The new title or name"},
+	}
+	a.r.Define("story-daemon").
+		Verb("retitle", change(func(p *pane, v string) bool {
+			if p.Name == p.Title {
+				p.Name = v // the daemon's display name follows a title it was
+			}
+			p.Title = v
+			return true
+		}), "Retitle a window as its program does").Params(params).Positional("window", "value").
+		Verb("rename", change(func(p *pane, v string) bool { p.Name = v; return true }), "Rename a window outside mtm").Params(params).Positional("window", "value").
+		Verb("close", change(func(*pane, string) bool { return false }), "Close a window outside mtm").Params(params).Positional("window")
 	return built, nil
 }
 

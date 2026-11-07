@@ -30,15 +30,31 @@ const (
 // sessionProps are a session's props: the key (the daemon's session id,
 // else its name), the name (the label), the owning project, and how many
 // panes it holds.
-func sessionProps() []ochazuke.PropSpec {
-	return []ochazuke.PropSpec{
-		{Name: "id", Key: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's id (or its row id, session:ID)"}},
-		{Name: "name", Role: ochazuke.RoleLabel, Through: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's name: mtm's copy's, sent on to the daemon (never empty)"}},
-		{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
-			Description: "The project the session belongs to (empty: unassociated); panes with their own owner keep it"}},
-		{Name: "panes", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "How many panes the session holds"}},
-		endedPropSpec("session"),
+func sessionProps() []ochazuke.PropSpec { return specsOf(sessionCopiedProps()) }
+
+// sessionCopiedProps are sessionProps with what a session's copy row keeps
+// of each (copies.go), beside its key and when it ended: its name (held
+// once mtm writes it). The project is mtm's session owner record
+// (sessionRecords), the pane count the daemon's.
+func sessionCopiedProps() []copiedProp {
+	return append([]copiedProp{
+		{PropSpec: ochazuke.PropSpec{Name: "id", Key: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's id (or its row id, session:ID)"}}},
+		{PropSpec: ochazuke.PropSpec{Name: "name", Role: ochazuke.RoleLabel, Through: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's name: mtm's copy's once renamed in mtm, sent on to the daemon, else the daemon's (never empty)"}}, Copy: copyHeld},
+		{PropSpec: ochazuke.PropSpec{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
+			Description: "The project the session belongs to (empty: unassociated); panes with their own owner keep it"}}},
+		{PropSpec: ochazuke.PropSpec{Name: "panes", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "How many panes the session holds"}}},
+	}, endedProps("session")...)
+}
+
+// sessionRecords are mtm's own records of a session its copy t stands for
+// when the daemon does not list it: its project.
+func (a *App) sessionRecords(t ochazuke.Thing) ochazuke.Thing {
+	id, _ := t["id"].(string)
+	o, err := a.work.SessionOwner(id)
+	if err != nil {
+		return ochazuke.Thing{"panes": 0}
 	}
+	return ochazuke.Thing{"project": o.ProjectID, "panes": 0}
 }
 
 // sessionStore is the session noun's store over the listed panes'

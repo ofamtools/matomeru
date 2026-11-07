@@ -244,7 +244,7 @@ panekeys.go	paneKey	cyclo	"-"	28
 panes.go	App.capturePreview	compare	"panes"	1
 panes.go	App.keepHeld	compare	"panes"	1
 panes.go	App.markPanes	compare	"vim"	1
-panes.go	App.setPanes	cyclo	"-"	28
+panes.go	App.showPanes	cyclo	"-"	28
 panes.go	tuios.Exited	compare	"timeout"	1
 panes_detail.go	App.groupSummary	case	"session"	1
 panes_detail.go	App.loadDetail	compare	"panes"	1
@@ -364,3 +364,4 @@ turns_model.go	turnsNeedBuild	compare	"turn"	1
 turns_refresh.go	App.refreshPaneTurns	compare	"pane"	1
 vim.go	App.vimAt	compare	"pane"	1
 vim.go	App.vimAt	compare	"vim"	1
+copies.go	copiedNoun.holds	compare	"all"	1	copies.hold-names is an enum setting (written | all, owner decision F4): its value picks the hold rule

@@ -16,7 +16,7 @@ func (a *App) defineOwners() {
 	// Their stores are copies of the daemon's (copies.go): the name is the
 	// copy's own, sent on to the daemon (Through, as are the owner and the
 	// star, which are mtm's records).
-	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.copyStore("pane", a.paneStore(), func(k string) string { return a.paneRef(k).ID }, "name")).
+	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.copyStore("pane", a.paneStore(), a.paneCopyKey, rolesOf(paneCopiedProps()), a.paneRecords)).
 		Verb("associate", a.associatePane, "Choose the project to move the pane to (omit the owner); --action-item and --context-item relate those to it; --project, --task and --scratch are the deprecated forms of move and set").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
 	// Keep the standard editor (i, r is edit of @label, m of @owner),
@@ -30,7 +30,7 @@ func (a *App) defineOwners() {
 		panic(err)
 	}
 	a.readCopiesNow("pane", nil)
-	a.r.Define("session").Props(sessionProps()...).Store(a.copyStore("session", a.sessionStore(), a.sessionCopyKey, "name")).
+	a.r.Define("session").Props(sessionProps()...).Store(a.copyStore("session", a.sessionStore(), a.sessionCopyKey, rolesOf(sessionCopiedProps()), a.sessionRecords)).
 		Verb("associate", a.associateSession, "Choose the project to move the session to (omit it); --project and --scratch are the deprecated form of move; panes with their own owner keep it").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
 	a.readCopiesNow("session", checkSessionName)

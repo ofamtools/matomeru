@@ -1,9 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"ofam.dev/ochazuke"
@@ -60,31 +62,53 @@ var paneSettingProps = []string{harness.SettingModel, harness.SettingEffort, har
 // paneProps are a pane's props: the key (the window id); its name, the
 // label (the display name shown when it is empty); its owner (project,
 // move writes it) and task; its star; and read-only state.
-func paneProps() []ochazuke.PropSpec {
+func paneProps() []ochazuke.PropSpec { return specsOf(paneCopiedProps()) }
+
+// paneCopiedProps are paneProps with what a pane's copy row keeps of each
+// (copies.go), beside its key and when it ended: its name (held once mtm
+// writes it), and the last seen facts that show and find an ended pane.
+// Nothing else is stored: the daemon's live facts (title, state, exited,
+// the agent's settings) are read from it each time, and the owner and the
+// star are mtm's own records in their own stores (paneRecords).
+func paneCopiedProps() []copiedProp {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	ro := func(name, desc string) ochazuke.PropSpec {
 		return ochazuke.PropSpec{Name: name, ReadOnly: true, Parameter: text(desc)}
 	}
-	props := []ochazuke.PropSpec{
-		{Name: "id", Key: true, Parameter: text("The pane's window id (or its row id, pane:SESSION/WINDOW)")},
-		{Name: "name", Role: ochazuke.RoleLabel, Fallback: "display", Through: true, Parameter: text("The pane's name: mtm's copy's, sent on to the daemon's window; empty falls back to the shell's title")},
-		ro("display", "The pane as lists show it: session/name, or the program when the window has its default name"),
-		ro("session", "The session the pane is in"),
-		{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
-			Description: "The project the pane belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
-		{Name: "task", Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane works on; its project wins over project"}},
-		{Name: "starred", Through: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the pane is starred (` and the leader's s go to the next starred pane)"}},
-		ro("title", "The shell's title for the window"),
-		ro("cwd", "The pane's working directory"),
-		ro("state", "The agent's state in tuios (working, idle, needs_input…), empty for a shell"),
-		ro("harness", "The agent's harness, as tuios reports it or mtm launched it"),
-		{Name: "exited", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the window's process has ended"}},
-		endedPropSpec("pane"),
+	props := []copiedProp{
+		{PropSpec: ochazuke.PropSpec{Name: "id", Key: true, Parameter: text("The pane's window id (or its row id, pane:SESSION/WINDOW)")}},
+		{PropSpec: ochazuke.PropSpec{Name: "name", Role: ochazuke.RoleLabel, Fallback: "display", Through: true, Parameter: text("The pane's name: mtm's copy's once renamed in mtm, sent on to the daemon's window, else the daemon's; empty falls back to the shell's title")}, Copy: copyHeld},
+		{PropSpec: ro("display", "The pane as lists show it: session/name, or the program when the window has its default name")},
+		{PropSpec: ro("session", "The session the pane is in"), Copy: copySeen},
+		{PropSpec: ochazuke.PropSpec{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
+			Description: "The project the pane belongs to (empty: unassociated); one not found is saved unassociated with a notice"}}},
+		{PropSpec: ochazuke.PropSpec{Name: "task", Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane works on; its project wins over project"}}},
+		{PropSpec: ochazuke.PropSpec{Name: "starred", Through: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the pane is starred (` and the leader's s go to the next starred pane)"}}},
+		{PropSpec: ro("title", "The shell's title for the window")},
+		{PropSpec: ro("cwd", "The pane's working directory"), Copy: copySeen},
+		{PropSpec: ro("state", "The agent's state in tuios (working, idle, needs_input…), empty for a shell")},
+		{PropSpec: ro("harness", "The agent's harness, as tuios reports it or mtm launched it"), Copy: copySeen},
+		{PropSpec: ochazuke.PropSpec{Name: "exited", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the window's process has ended"}}},
 	}
+	props = append(props, endedProps("pane")...)
 	for _, name := range paneSettingProps {
-		props = append(props, ro(name, "The agent's "+name+" as the settings line reads it (its session's log, tuios, else the launch flags); pane.set-"+strings.TrimSuffix(name, "-mode")+"… changes it in the session"))
+		props = append(props, copiedProp{PropSpec: ro(name, "The agent's "+name+" as the settings line reads it (its session's log, tuios, else the launch flags); pane.set-"+strings.TrimSuffix(name, "-mode")+"… changes it in the session")})
 	}
 	return props
+}
+
+// paneRecords are mtm's own records of a pane its copy t stands for when
+// the daemon does not list it: its owner and star, read from their stores,
+// and how lists show it.
+func (a *App) paneRecords(t ochazuke.Thing) ochazuke.Thing {
+	p := endedPane(t)
+	owner := a.paneOwner(p)
+	starred := false
+	if stars, err := a.work.PaneStars(); err == nil {
+		_, starred = stars[p.ID]
+	}
+	p.Starred = starred
+	return ochazuke.Thing{"project": owner.ProjectID, "task": owner.TaskID, "starred": starred, "display": p.label()}
 }
 
 // paneStore is the pane noun's store over the listed panes.
@@ -158,12 +182,56 @@ func (a *App) paneLookup(c ochazuke.Ctx, key string) (pane, bool) {
 	if err != nil {
 		return pane{}, false
 	}
+	ids := make([]string, 0, len(panes))
 	for _, p := range panes {
-		if p.ID != "" && p.ID == want.ID {
+		ids = append(ids, p.ID)
+	}
+	id := uniqueID(want.ID, ids)
+	for _, p := range panes {
+		if p.ID != "" && p.ID == id {
 			return p, true
 		}
 	}
 	return pane{}, false
+}
+
+// uniqueID is the one of ids that id names: itself, else the only one it
+// is a prefix of (a window id shortened as tuios prints it); id when it
+// names none or several.
+func uniqueID(id string, ids []string) string {
+	if id == "" || slices.Contains(ids, id) {
+		return id
+	}
+	found := ""
+	for _, c := range ids {
+		if strings.HasPrefix(c, id) && c != found {
+			if found != "" {
+				return id
+			}
+			found = c
+		}
+	}
+	return cmp.Or(found, id)
+}
+
+// paneCopyKey is the key a pane's copy is kept under (copies.go) for any
+// form of its key: its row id or window id, or a unique prefix of a window
+// id the listing or the copies have.
+func (a *App) paneCopyKey(key string) string {
+	id := a.paneRef(key).ID
+	ids := make([]string, 0, len(a.panes))
+	for _, p := range a.panes {
+		ids = append(ids, p.ID)
+	}
+	for k := range a.copyFacts["pane"] {
+		ids = append(ids, k)
+	}
+	if copies, err := a.work.Copies("pane"); err == nil {
+		for _, c := range copies {
+			ids = append(ids, c.Key)
+		}
+	}
+	return uniqueID(id, ids)
 }
 
 // paneThing is a pane as its props.
@@ -216,8 +284,13 @@ func (a *App) patchPane(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		return nil, errors.New("name the pane (its row id or window id)")
 	}
 	if name, ok := thingString(changes, "name"); ok {
+		_, copied, _ := a.work.Copy("pane", a.paneCopyKey(id))
 		switch {
-		case !listed && p.Session == "" && a.pv != nil && a.pv.listed:
+		case !listed && copied:
+			// A pane mtm kept a copy of: the copy store names it, and says
+			// its copy keeps the name.
+			return nil, errors.New("the daemon no longer lists it")
+		case !listed && p.Session == "" && a.listedNow():
 			return nil, fmt.Errorf("pane %s is no longer listed by the daemon", id)
 		case !listed && p.Session == "":
 			return nil, fmt.Errorf("pane %s is not listed: name it by its row id (pane:SESSION/WINDOW) to rename it", id)

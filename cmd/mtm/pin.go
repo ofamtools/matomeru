@@ -275,7 +275,9 @@ func (a *App) refreshScope() error {
 	if err := a.refreshContext(); err != nil {
 		return err
 	}
-	a.setPanes(a.panes, nil)
+	// The listing again under the new pin, never a listing of its own:
+	// before any (the CLI, a page not loaded yet) it claims none (copies.go).
+	a.showPanes(a.panes, nil)
 	a.rescopeExtensions()
 	if err := a.refreshReviews(); err != nil {
 		return err

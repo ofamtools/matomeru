@@ -246,6 +246,7 @@ type paneUI struct {
 	subscribed      bool
 	exited          map[string]bool // windows seen exited, kept across plain listings
 	listed          bool            // a listing has succeeded (the Vim page's state follows it)
+	listErr         error           // why the last listing failed, nil when it succeeded
 	ended           []pane          // the panes that ended, their copies kept (copies.go)
 	leader          string          // the leader the page's leader rows are bound to (panes_leader.go)
 
@@ -311,8 +312,13 @@ func (a *App) definePanes() {
 		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
 		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Fetch().Quiet().
 		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Fetch().Quiet().
+		Verb("gone", a.paneEnded, "Say that the pane ended (enter and d d on an ended row): its window is gone, mtm keeps its copy").When("pane-ended").
 		Verb("read-turns", a.readPaneTurns, "Read the pane's turns from the agent's session log or the shell's commands into the Turns tab").Fetch().Quiet().
 		Mode("normal").
+		// On an ended row (panes.show-ended) enter and d d say it ended:
+		// no verb that needs the window is available there (pane-live).
+		Bind("enter", ochazuke.Do("pane.gone").Guard("pane-ended").Hide()).
+		Bind("d d", ochazuke.Do("pane.gone").Guard("pane-ended").Hide()).
 		Bind("enter", ochazuke.Do("pane.attach").Hinted("live")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
 		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
@@ -323,6 +329,7 @@ func (a *App) definePanes() {
 	// own, and the normal d d no longer waits over it (ochazuke's
 	// sequence-inherit).
 	r.Define("pane").Mode("visual-line").Extends("normal").
+		Bind("d", ochazuke.Do("pane.gone").Guard("pane-ended").Hide()).
 		Bind("d", ochazuke.Do("pane.kill").Guard("pane-no-sides").Hinted("kill")).
 		Bind("d", ochazuke.Do("pane.killBlocked").Hide())
 	// d d asks to kill only a pane with no side pane open; with one, it says
@@ -445,7 +452,10 @@ func (a *App) addPanesPage() error {
 		row, _ := a.selectedRow()
 		return fmt.Sprintf("%s|%d", row, a.pv.tab)
 	}, func() bool { return a.pv.tab != tabTurns })
-	return err
+	if err != nil {
+		return err
+	}
+	return a.guardLiveVerbs()
 }
 
 // refreshPanes is panes.refresh: list the panes off the loop, then push them.
@@ -561,6 +571,17 @@ func (a *App) reloadPanes() error {
 // empties the tree and keeps the error for the hint. Agents that started
 // or finished a turn since the last listing are recorded (turns.go).
 func (a *App) setPanes(panes []pane, err error) {
+	a.pv.listErr = err
+	if err == nil {
+		a.pv.listed = true
+	}
+	a.showPanes(panes, err)
+}
+
+// showPanes is setPanes without the listing: the panes (the cached
+// listing again, under a new pin) pushed to the tree. It claims no listing
+// of the daemon, so it marks no copy ended (copies.go).
+func (a *App) showPanes(panes []pane, err error) {
 	was := a.paneErr
 	a.paneErr = ""
 	if err != nil {
@@ -572,7 +593,6 @@ func (a *App) setPanes(panes []pane, err error) {
 		}
 	}
 	if err == nil {
-		a.pv.listed = true
 		a.markPanes(panes)
 		a.queueExitReconcile(panes)
 		var mergeErr error
@@ -740,9 +760,77 @@ func (a *App) paneAt(inst *ochazuke.Instance) (pane, error) {
 				return p, nil
 			}
 		}
+		if p, ok := a.endedAt(inst); ok {
+			return pane{}, fmt.Errorf("%s ended", p.label())
+		}
 		return pane{}, fmt.Errorf("no pane at %s", inst.ID)
 	}
 	return pane{}, errors.New("no pane selected")
+}
+
+// endedAt is the ended pane a row shows (panes.show-ended), when inst is
+// one: a pane the daemon no longer lists, its copy kept.
+func (a *App) endedAt(inst *ochazuke.Instance) (pane, bool) {
+	if inst == nil {
+		return pane{}, false
+	}
+	for _, p := range a.panes {
+		if p.rowID() == inst.ID {
+			return pane{}, false
+		}
+	}
+	for _, p := range a.pv.ended {
+		if p.rowID() == inst.ID {
+			return p, true
+		}
+	}
+	return pane{}, false
+}
+
+// paneRowOf is the row a pane verb at inst acts on: inst when it is a
+// pane's row (an ended one included), else the row whose turns the
+// detail shows (the focus is in its turns or its box).
+func (a *App) paneRowOf(inst *ochazuke.Instance) *ochazuke.Instance {
+	if _, ended := a.endedAt(inst); ended || a.frontsPane(inst) {
+		return inst
+	}
+	return a.r.Instances[a.pv.turnsFor]
+}
+
+// paneEnded is pane.gone: enter and d d on an ended row say the pane
+// ended (no verb that needs its window is offered there: pane-live).
+func (a *App) paneEnded(ctx ochazuke.Ctx) ochazuke.Result {
+	p, ok := a.endedAt(ctx.Instance)
+	if !ok {
+		return ochazuke.Failed(errors.New("the pane has not ended"))
+	}
+	ctx.Notify(p.label() + " ended")
+	return ochazuke.Done(nil)
+}
+
+// liveVerbs are the pane verbs that need its window in the daemon: none
+// is available on an ended row (the pane-live guard).
+var liveVerbs = []string{"pane.attach", "pane.kill", "pane.killBlocked", "pane.prompt", "pane.copy", "pane.hints", "pane.preview",
+	"pane.side", "pane.set-model", "pane.set-effort", "pane.set-fast", "pane.toggle-fast", "pane.set-permission-mode", "pane.view"}
+
+// guardLiveVerbs makes liveVerbs unavailable on an ended row, so enter,
+// d d and the rest go to pane.gone there and the hints offer none of
+// them. Run once every pane verb is defined.
+func (a *App) guardLiveVerbs() error {
+	a.r.DefineGuard("pane-live", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		_, ended := a.endedAt(r.Instances[ev.Focus])
+		return !ended
+	})
+	a.r.DefineGuard("pane-ended", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
+		_, ended := a.endedAt(r.Instances[ev.Focus])
+		return ended
+	})
+	for _, key := range liveVerbs {
+		if err := a.r.AddVerbAvailability(key, "pane-live"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // previewPane is pane.preview: capture the screen in the preview slot
@@ -804,11 +892,9 @@ func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(errors.New("select a pane"))
 	}
-	row := ctx.Instance
-	if !a.frontsPane(row) {
-		if row = a.r.Instances[a.pv.turnsFor]; row == nil {
-			return ochazuke.Failed(errors.New("no pane's turns are shown"))
-		}
+	row := a.paneRowOf(ctx.Instance)
+	if row == nil {
+		return ochazuke.Failed(errors.New("no pane's turns are shown"))
 	}
 	p, err := a.paneAt(row)
 	if err != nil {

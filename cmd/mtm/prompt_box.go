@@ -332,11 +332,7 @@ func (a *App) promptPaneAt(focus string) *pane {
 	if a.pv.tab == tabScreen && a.promptRow() == "" {
 		return nil
 	}
-	inst := a.r.Instances[focus]
-	if !a.frontsPane(inst) {
-		inst = a.r.Instances[a.pv.turnsFor]
-	}
-	p, err := a.paneAt(inst)
+	p, err := a.paneAt(a.paneRowOf(a.r.Instances[focus]))
 	if err != nil || !a.promptServes(p) {
 		return nil
 	}

@@ -1,3 +1,3 @@
 {"name":"ux: a pane closing under rename leaves a usable pane list and readable error","area":"panes","fixture":"pane-lifecycle","width":120,"height":34,
 "script":["enter","ctrl+a","r","ctrl+space",{"type":"story-pane close"},"enter",{"type":"gone"},"esc","esc","enter"],
-"expect":[{"after":8,"contains":["kept here, not written to the source","no longer listed"],"lacks":["window_not_found"]},{"after":9,"focus":"pane:billing-api/w2","mode":"normal","lacks":["window_not_found"]},{"mode":"terminal","focus":"panes/terminal","contains":["billing-api/shell"]}]}
+"expect":[{"after":8,"contains":["kept here, not written to the source","no longer lists it"],"lacks":["window_not_found"]},{"after":9,"focus":"pane:billing-api/w2","mode":"normal","lacks":["window_not_found"]},{"mode":"terminal","focus":"panes/terminal","contains":["billing-api/shell"]}]}
