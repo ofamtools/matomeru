@@ -100,6 +100,9 @@ var Tables = []store.Table{
 	{Name: "pane_sessions", Owner: "work", Key: "window", Version: 1},
 	{Name: "vim_sessions", Owner: "vim", Key: "id", Version: 1},
 	{Name: "ext_rows", Owner: "work", Key: "id", Version: 1},
+	// copies: mtm's copies of the things a source holds (copies.go); an
+	// existing database gains the table on its next open.
+	{Name: copiesTable, Owner: "work", Key: "id", Version: 1},
 }
 
 // Store is the work unit's view of the database.
