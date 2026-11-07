@@ -17,13 +17,17 @@ const editFormID = "edit-form"
 // editing is the open standard edit form, nil when none is open.
 func editing(a *App) *ochazuke.RecordEditor { return a.r.RecordEditor(editFormID) }
 
-// fakeRenamer renames the fake daemon's panes and sessions in place.
+// fakeRenamer renames the fake daemon's panes and sessions in place. Its
+// renames run as jobs, several at once: the fake daemon's lock guards its
+// calls and its panes.
 type fakeRenamer struct {
 	panes *fakePanes
 	calls []string
 }
 
 func (f *fakeRenamer) RenameSession(_ context.Context, session, name string) error {
+	f.panes.mu.Lock()
+	defer f.panes.mu.Unlock()
 	f.calls = append(f.calls, "session "+session+" "+name)
 	for i := range f.panes.panes {
 		if f.panes.panes[i].Session == session {
@@ -34,6 +38,8 @@ func (f *fakeRenamer) RenameSession(_ context.Context, session, name string) err
 }
 
 func (f *fakeRenamer) RenameWindow(_ context.Context, session, window, name string) error {
+	f.panes.mu.Lock()
+	defer f.panes.mu.Unlock()
 	f.calls = append(f.calls, "window "+session+"/"+window+" "+name)
 	for i := range f.panes.panes {
 		if f.panes.panes[i].Session == session && f.panes.panes[i].ID == window {
