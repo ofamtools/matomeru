@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"ofam.dev/matomeru/internal/daemon"
@@ -57,4 +59,35 @@ func TestOwnerOfPaneRowMatchesTheListing(t *testing.T) {
 	if so, found, err := a.instanceOwner(&ochazuke.Instance{ID: "session:s1", Noun: "session"}, "session"); err != nil || !found {
 		t.Fatalf("session: %+v %v %v", so, found, err)
 	}
+}
+
+// Resolving a row's owner reads cached data only: with the panes not yet
+// listed it makes no daemon call and is unassociated, without error.
+func TestOwnerOfPaneRowNeverCallsTheDaemon(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	a.pv.listed = false
+	a.panes = nil
+	calls := &listCounter{fakePanes: newFakePanes()}
+	a.panesd = calls
+	o, found, err := a.instanceOwner(&ochazuke.Instance{ID: "pane:work/w1", Noun: "pane"}, "pane")
+	if err != nil || !found || o != (Owner{}) {
+		t.Fatalf("unlisted pane: %+v %v %v", o, found, err)
+	}
+	if _, found, err = a.instanceOwner(&ochazuke.Instance{ID: "session:s1", Noun: "session"}, "session"); err != nil || !found {
+		t.Fatalf("session: %v %v", found, err)
+	}
+	if n := calls.n.Load(); n != 0 {
+		t.Fatalf("owner resolution called the daemon %d times", n)
+	}
+}
+
+type listCounter struct {
+	*fakePanes
+	n atomic.Int32
+}
+
+func (l *listCounter) ListPanes(ctx context.Context) ([]pane, error) {
+	l.n.Add(1)
+	return l.fakePanes.ListPanes(ctx)
 }

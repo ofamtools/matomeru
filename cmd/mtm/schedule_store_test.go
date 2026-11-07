@@ -97,3 +97,63 @@ func TestScheduleShowCreateDeleteAndUndo(t *testing.T) {
 		t.Fatalf("deleted a built-in: %v", err)
 	}
 }
+
+// Every optional enum field clears to its default (empty text is a choice
+// unless the field is strict), by edit and by set, and a bad value is
+// refused in applyScheduleField's own words, not the prop enum's.
+func TestScheduleOptionalEnumFieldsClearAndKeepTheirErrors(t *testing.T) {
+	t.Parallel()
+	a, _, _ := scheduleApp(t)
+	if _, _, err := cli(a, "", "schedule", "add", "--name", "enum-check", "--command", "echo hi", "--when", "every 30m"); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ field, good, bad, msg, cleared string }{
+		{"fast", "on", "maybe", "fast: fast is on or off", ""},
+		{"catch-up", "once", "later", "catch-up: catch-up is one of none, once", "none"},
+		{"interval-from", "finish", "middle", "interval-from: interval-from is one of start, finish", ""},
+		{"into", "pane", "bogus", "into: target is one of new, pane", ""},
+	} {
+		for _, verb := range []string{"set", "edit"} {
+			set := func(v string) error {
+				if verb == "set" {
+					_, _, err := cli(a, "", "schedule", "set", "--name", "enum-check", tc.field+"="+v)
+					return err
+				}
+				_, _, err := cli(a, "", "schedule", "edit", "enum-check", "--"+tc.field, v)
+				return err
+			}
+			if err := set(tc.good); err != nil {
+				t.Fatalf("%s %s=%s: %v", verb, tc.field, tc.good, err)
+			}
+			if got := scheduleField(mustSchedule(t, a, "enum-check"), tc.field); got != tc.good {
+				t.Fatalf("%s %s stored %q", verb, tc.field, got)
+			}
+			want := tc.msg
+			if verb == "edit" && tc.field == "into" {
+				want = "into must be one of new, pane" // edit's own (non-free) parameter enum, as before
+			}
+			err := set(tc.bad)
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("%s %s=%s: %v, want %q", verb, tc.field, tc.bad, err, want)
+			}
+			if verb == "edit" && tc.field == "into" {
+				continue // edit's own parameter enum refuses an empty into (unchanged)
+			}
+			if err := set(""); err != nil {
+				t.Fatalf("%s clear %s: %v", verb, tc.field, err)
+			}
+			if got := scheduleField(mustSchedule(t, a, "enum-check"), tc.field); got != tc.cleared {
+				t.Fatalf("%s clear %s stored %q", verb, tc.field, got)
+			}
+		}
+	}
+}
+
+func mustSchedule(t *testing.T, a *App, name string) schedules.Def {
+	t.Helper()
+	d, err := a.scheduleNamed(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}

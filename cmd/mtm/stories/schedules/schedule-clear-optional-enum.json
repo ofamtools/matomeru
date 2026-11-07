@@ -1,0 +1,24 @@
+{
+  "name": "mtm: clearing an optional enum field in the schedule form saves its default, with no error",
+  "area": "schedules",
+  "fixture": "empty",
+  "width": 140,
+  "height": 40,
+  "config": {
+    "bindings.json": [
+      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.page", "verb": "open", "args": {"id": "schedules"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "schedule-form/catch-up"}}}
+    ]
+  },
+  "script": [
+    ":", {"type": "schedule edit gh-signals --catch-up once"}, "enter", "esc",
+    ":", {"type": "schedule edit gh-signals"}, "enter",
+    "esc", "ctrl+y", "i", "ctrl+u", "esc", "esc",
+    ":", {"type": "schedule get gh-signals"}, "enter"
+  ],
+  "expect": [
+    {"after": 7, "modal": "schedule-form", "contains": ["Edit schedule gh-signals"]},
+    {"after": 12, "modal": "schedule-form", "focus": "schedule-form/catch-up", "lacks": ["must be one of", "is one of"]},
+    {"contains": ["catch-up         none"], "lacks": ["catch-up         once"]}
+  ]
+}

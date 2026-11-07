@@ -123,10 +123,16 @@ func (a *App) paneStore() ochazuke.Store {
 	}
 }
 
+// cachedOnlyArg, true in a store read's args, asks the stores that list
+// from the daemon to answer from what is cached and never call it (owner
+// resolution runs on the UI loop).
+const cachedOnlyArg = "cached-only"
+
 // livePanes are the panes as the page last listed them, else (the CLI, a
-// page not loaded yet) as the daemon lists them now.
+// page not loaded yet) as the daemon lists them now; a cached-only read
+// (cachedOnlyArg) is the cache as it is, empty when never listed.
 func (a *App) livePanes(c ochazuke.Ctx) ([]pane, error) {
-	if a.pv != nil && a.pv.listed {
+	if cached, _ := c.Args[cachedOnlyArg].(bool); cached || a.pv != nil && a.pv.listed {
 		return a.panes, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), daemonTimeout)

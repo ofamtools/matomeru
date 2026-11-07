@@ -148,7 +148,8 @@ func (a *App) instanceOwner(inst *ochazuke.Instance, noun string) (Owner, bool, 
 	}
 	// The store's own synchronous read, never the verb (rights, history, jobs).
 	// Record first: a failed read is an unassociated owner, never an error.
-	thing, err := n.Store.Get(ochazuke.Ctx{Runtime: a.r, Instance: inst}, inst.ID)
+	// Cached data only: this runs on the UI loop, never the daemon.
+	thing, err := n.Store.Get(ochazuke.Ctx{Runtime: a.r, Instance: inst, Args: ochazuke.Arguments{cachedOnlyArg: true}}, inst.ID)
 	if err != nil {
 		return Owner{}, true, nil
 	}
