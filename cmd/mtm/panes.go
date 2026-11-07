@@ -493,22 +493,26 @@ func (a *App) refreshPanes(ctx ochazuke.Ctx) ochazuke.Result {
 
 const agentChooser = "agent-chooser"
 
-// chooseAgent is agent.choose (L on every page): a chooser of the
-// harnesses with the pin's project's harness (else the default) first and
-// highlighted, so L enter launches it; Enter runs agent.launch, which
-// lands the new agent live on Panes.
-func (a *App) chooseAgent(ochazuke.Ctx) ochazuke.Result {
+// chooseAgent is agent.choose (L on every page): the harness picker
+// (picker.open harness).
+func (a *App) chooseAgent(ochazuke.Ctx) ochazuke.Result { return a.openNamedPicker(harnessPickerName) }
+
+// openHarnessPicker is the harness picker's Open (pickers.go): a chooser
+// of the harnesses with the pin's project's harness (else the default)
+// first and highlighted, so L enter launches it; Enter runs agent.launch,
+// which lands the new agent live on Panes.
+func (a *App) openHarnessPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
 	p, _ := a.project(a.pin)
 	where := "no project"
 	if p.ID != "" {
 		where = projectName(p)
 	}
-	return resultError(a.chooseHarness("Launch an agent in "+where, p, ochazuke.Request{Verb: "launch", Noun: "agent"}))
+	return a.chooseHarness("Launch an agent in "+where, p, ochazuke.Request{Verb: "launch", Noun: "agent"})
 }
 
 // chooseHarness opens the harness chooser, p's harness (else the default)
 // first and highlighted; Enter runs launch with the chosen harness.
-func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Request) error {
+func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Request) (*ochazuke.Chooser, error) {
 	first := cmp.Or(p.Settings.Harness, a.launchHarness())
 	names := a.harnesses.Names()
 	slices.SortStableFunc(names, func(x, y string) int { return -cmp.Compare(btoi(x == first), btoi(y == first)) })
@@ -516,7 +520,7 @@ func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Reques
 	for _, name := range names {
 		rows = append(rows, ochazuke.PickerRow{ID: name, Label: name})
 	}
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
+	return a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  agentChooser,
 		Title: title,
 		Rows:  rows,
@@ -534,7 +538,6 @@ func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Reques
 			return ochazuke.Done(out)
 		},
 	})
-	return err
 }
 
 // ensureVerb is daemon.ensure: make the daemon answer off the loop (Ensure

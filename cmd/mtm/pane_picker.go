@@ -143,9 +143,13 @@ func (a *App) panePreview(row ochazuke.PickerRow) string {
 	return strings.Join(lines, "\n")
 }
 
-// pickPane is pane.pick: open the pane chooser over the focus.
-func (a *App) pickPane(ctx ochazuke.Ctx) ochazuke.Result {
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
+// pickPane is pane.pick: the pane picker (picker.open pane).
+func (a *App) pickPane(ochazuke.Ctx) ochazuke.Result { return a.openNamedPicker(panePickerName) }
+
+// openPanePicker is the pane picker's Open (pickers.go): the pane chooser
+// over the focus.
+func (a *App) openPanePicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
+	return a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:    panePickerKind,
 		Title:   "Panes",
 		Rows:    a.panePickerRows(a.now()),
@@ -160,7 +164,6 @@ func (a *App) pickPane(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Done(p.label())
 		},
 	})
-	return resultError(err)
 }
 
 // attachPicked opens the Panes page, selects the pane's row and attaches

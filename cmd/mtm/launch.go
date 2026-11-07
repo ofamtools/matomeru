@@ -464,7 +464,8 @@ func (a *App) launchRecord(ctx ochazuke.Ctx) ochazuke.Result {
 	if ownerSlotArg(ctx.Instance.Noun) == ownerSlots[0].arg {
 		title = "Launch an agent in " + projectName(to.Project)
 	}
-	return resultError(a.chooseHarness(title, to.Project, ochazuke.Request{Verb: "launch", Noun: ctx.Instance.Noun, Target: ctx.Instance.ID, Args: asked}))
+	_, err = a.chooseHarness(title, to.Project, ochazuke.Request{Verb: "launch", Noun: ctx.Instance.Noun, Target: ctx.Instance.ID, Args: asked})
+	return resultError(err)
 }
 
 // Generic launches use explicit arguments or the pin, not browsing selection.

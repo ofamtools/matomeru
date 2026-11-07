@@ -476,7 +476,7 @@ func (a *App) pickIntoPrompt() ochazuke.Result {
 	if p == nil {
 		return ochazuke.Failed(errNoPromptBox)
 	}
-	return a.openContextPicker(*p, func(row ochazuke.PickerRow) ochazuke.Result {
+	_, err := a.openContextPicker(*p, func(row ochazuke.PickerRow) ochazuke.Result {
 		var text string
 		switch d := row.Data.(type) {
 		case promptRow:
@@ -489,6 +489,7 @@ func (a *App) pickIntoPrompt() ochazuke.Result {
 		}
 		return ochazuke.Done(text)
 	})
+	return resultError(err)
 }
 
 // promptMention is how an item reads in a prompt, as the @ completion

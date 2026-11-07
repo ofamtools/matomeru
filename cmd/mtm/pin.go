@@ -49,7 +49,7 @@ func (a *App) pinProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance != nil && ctx.Instance.Noun == "project" {
 		return a.setPin(ctx.Instance.ID)
 	}
-	return a.openPinPicker()
+	return a.openNamedPicker(pinPickerName)
 }
 
 // pinPicker is the pin chooser's modal kind.
@@ -58,16 +58,17 @@ const pinPicker = "pin-picker"
 // unpinRow is the pin chooser's fixed "no pin" row.
 const unpinRow = "pin-choice:none"
 
-// openPinPicker opens the pin chooser: projects most recently pinned first,
+// openPinPicker is the pin picker's Open (pickers.go, project.pick):
+// the pin chooser: projects most recently pinned first,
 // then by name, each with its directory; "no pin (unpin)" fixed at the
 // bottom, which typing never reaches (move onto it). Enter pins the top
 // match. No key creates: a typed query adds a `+ new project "<query>"` row
 // above the unpin row, highlighted only when nothing matches; Enter on it
 // creates the project and pins it.
-func (a *App) openPinPicker() ochazuke.Result {
+func (a *App) openPinPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
 	pinned, err := a.work.PinnedAt()
 	if err != nil {
-		return ochazuke.Failed(err)
+		return nil, err
 	}
 	projects := slices.Clone(a.projects)
 	slices.SortStableFunc(projects, func(x, y work.Project) int {
@@ -76,7 +77,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 	home, _ := a.home()
 	tasks, err := a.work.Tasks("")
 	if err != nil {
-		return ochazuke.Failed(err)
+		return nil, err
 	}
 	tasks = a.liveTasks(tasks)
 	open := map[string]int{}
@@ -101,7 +102,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 		rows = append(rows, ochazuke.PickerRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
 	}
 	rows = append(rows, ochazuke.PickerRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Fixed: true})
-	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
+	return a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  pinPicker,
 		Title: "Pin project",
 		Rows:  rows,
@@ -118,7 +119,6 @@ func (a *App) openPinPicker() ochazuke.Result {
 			return fmt.Sprintf("new project %q", strings.TrimSpace(query))
 		},
 	})
-	return resultError(err)
 }
 
 // createPinnedProject records a project named from the query (a nameless

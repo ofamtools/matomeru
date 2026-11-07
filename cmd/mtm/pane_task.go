@@ -116,10 +116,18 @@ func (a *App) pickPaneTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.openTaskPicker(p); err != nil {
-		return ochazuke.Failed(err)
+	_, err = a.openTaskPicker(p)
+	return resultError(err)
+}
+
+// openFocusedTaskPicker is the pane-task picker's Open (pickers.go): the
+// task picker of the pane in focus (a pane row, a live pane or its side).
+func (a *App) openFocusedTaskPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
+	p, err := a.paneAt(a.r.Instances[a.r.FocusID()])
+	if err != nil {
+		return nil, err
 	}
-	return ochazuke.Done(nil)
+	return a.openTaskPicker(p)
 }
 
 // afterSubmit runs prompt.after-submit-mode and prompt.after-submit for a
@@ -146,7 +154,7 @@ func (a *App) afterSubmit(ctx ochazuke.Ctx, p pane) {
 			return
 		}
 	}
-	if err := a.openTaskPicker(p); err != nil {
+	if _, err := a.openTaskPicker(p); err != nil {
 		ctx.Error("task picker: " + err.Error())
 	}
 }
@@ -162,7 +170,7 @@ type pickedOwner struct {
 // the pane through pane.associate; the chooser gives the focus back to
 // where it was (the prompt box after a send), so the next thing is one
 // key away.
-func (a *App) openTaskPicker(p pane) error {
+func (a *App) openTaskPicker(p pane) (*ochazuke.Chooser, error) {
 	owner := a.paneOwner(p)
 	rows := a.taskPickerRows(owner)
 	project := cmp.Or(owner.ProjectID, a.pin)
@@ -178,7 +186,7 @@ func (a *App) openTaskPicker(p pane) error {
 		}
 		return ochazuke.Done(out)
 	}
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
+	return a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  taskPicker,
 		Title: "Task for " + p.label(),
 		Rows:  rows,
@@ -215,7 +223,6 @@ func (a *App) openTaskPicker(p pane) error {
 			return associate(ochazuke.Arguments{"task": t.ID})
 		},
 	})
-	return err
 }
 
 // taskPickerRows are the picker's rows for a pane owned by owner: the

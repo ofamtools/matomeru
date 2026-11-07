@@ -87,26 +87,42 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	return a.openContextPicker(p, func(row ochazuke.PickerRow) ochazuke.Result {
-		if pr, ok := row.Data.(promptRow); ok {
-			return a.runOnPrompt(pr)
-		}
-		return a.runOnItem("copy", row.ID)
-	})
+	_, err = a.openContextPicker(p, a.copyContextRow)
+	return resultError(err)
+}
+
+// openLiveContextPicker is the context picker's Open (pickers.go): the
+// live picker of the pane in focus (the attached pane, or its side), enter
+// copying the row.
+func (a *App) openLiveContextPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
+	p, err := a.pickedPane(a.r.Instances[a.r.FocusID()])
+	if err != nil {
+		return nil, err
+	}
+	return a.openContextPicker(p, a.copyContextRow)
+}
+
+// copyContextRow is the live picker's enter: copy the item, or a
+// prompt's whole text.
+func (a *App) copyContextRow(row ochazuke.PickerRow) ochazuke.Result {
+	if pr, ok := row.Data.(promptRow); ok {
+		return a.runOnPrompt(pr)
+	}
+	return a.runOnItem("copy", row.ID)
 }
 
 // openContextPicker opens the picker over pane p's rows; choose is what
 // enter does with the chosen row.
-func (a *App) openContextPicker(p pane, choose func(ochazuke.PickerRow) ochazuke.Result) ochazuke.Result {
+func (a *App) openContextPicker(p pane, choose func(ochazuke.PickerRow) ochazuke.Result) (*ochazuke.Chooser, error) {
 	if err := a.reloadContextItems(); err != nil {
-		return ochazuke.Failed(err)
+		return nil, err
 	}
 	var err error
 	if a.cx.turns, err = a.hist.Turns(p.ID); err != nil {
-		return ochazuke.Failed(err)
+		return nil, err
 	}
 	a.cx.picking = p
-	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
+	return a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  contextPicker,
 		Noun:  contextNoun,
 		Title: "Context · " + p.label(),
@@ -119,7 +135,6 @@ func (a *App) openContextPicker(p pane, choose func(ochazuke.PickerRow) ochazuke
 		Choose:  choose,
 		Preview: pickerPreview,
 	})
-	return resultError(err)
 }
 
 // pickerRows are the picker's rows for pane p: its own items newest

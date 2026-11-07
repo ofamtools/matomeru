@@ -599,6 +599,7 @@ func New(opts Options) (*App, error) {
 	a.defineExtensionSetup()
 	a.defineAbout()
 	a.defineConfigReload()
+	a.definePickers()
 	if err := a.declareSettings(); err != nil {
 		return nil, err
 	}

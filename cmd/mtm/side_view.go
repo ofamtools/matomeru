@@ -348,12 +348,17 @@ type sideChoice struct {
 	kind   string
 }
 
-// chooseSide is panes.sides (leader w, live and on the Panes page): a
-// chooser of every open side across every pane, "TITLE · parent". The links come from the last listing
-// (mergeCompanions), so only sides whose windows and parents this server
-// lists are there; an exited parent or side is left out. Enter attaches
+// chooseSide is panes.sides (leader w, live and on the Panes page): the
+// side picker (picker.open side).
+func (a *App) chooseSide(ochazuke.Ctx) ochazuke.Result { return a.openNamedPicker(sidePickerName) }
+
+// openSidePicker is the side picker's Open (pickers.go): a chooser of
+// every open side across every pane, "TITLE · parent". The links come
+// from the last listing (mergeCompanions), so only sides whose windows and
+// parents this server lists are there; an exited parent or side is left
+// out, and with none open it says so and opens nothing. Enter attaches
 // the parent, shows that side and focuses it (jumpToSide).
-func (a *App) chooseSide(ctx ochazuke.Ctx) ochazuke.Result {
+func (a *App) openSidePicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
 	var rows []ochazuke.PickerRow
 	for _, p := range a.panes {
 		s, ok := a.sides[p.ID]
@@ -369,10 +374,10 @@ func (a *App) chooseSide(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 	}
 	if len(rows) == 0 {
-		ctx.Notify("no side panes are open")
-		return ochazuke.Done(nil)
+		a.r.UI().Notify("no side panes are open")
+		return nil, nil
 	}
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
+	return a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  sideChooser,
 		Title: "Side panes",
 		Rows:  rows,
@@ -384,7 +389,6 @@ func (a *App) chooseSide(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Done(row.Label)
 		},
 	})
-	return resultError(err)
 }
 
 // jumpToSide selects the parent on the Panes page, attaches it live
