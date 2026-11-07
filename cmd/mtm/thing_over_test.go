@@ -39,6 +39,22 @@ func TestThingOverSnoozeAndDifferences(t *testing.T) {
 		t.Error("an unnamed snooze must stay nil")
 	}
 
+	// A null bool is false and a null snooze 0, as the hand-decoding read
+	// them, for every noun (a task's stored true, an action item's stored
+	// snooze).
+	nulls, err := thingOver(taskPatch{Easy: true, Private: true, Archived: true, SnoozedUntil: 7}, ochazuke.Thing{"easy": nil, "private": nil, "archived": nil, "snoozed-until": nil})
+	if err != nil || nulls.Easy || nulls.Private || nulls.Archived || nulls.SnoozedUntil != 0 {
+		t.Errorf("task nulls = %+v, %v; want false and 0", nulls, err)
+	}
+	seven, yes := wholeNumber(7), true
+	aiNull, err := thingOver(actionItemPatch{SnoozedUntil: &seven, Read: &yes, Notify: true}, ochazuke.Thing{"snoozed-until": nil, "read": nil, "notify": nil})
+	if err != nil || aiNull.SnoozedUntil == nil || *aiNull.SnoozedUntil != 0 || aiNull.Read == nil || *aiNull.Read || aiNull.Notify {
+		t.Errorf("action item nulls = %+v, %v; want a named 0 and false", aiNull, err)
+	}
+	if kept, _ := thingOver(actionItemPatch{SnoozedUntil: &seven}, ochazuke.Thing{"title": "x"}); kept.SnoozedUntil == nil || *kept.SnoozedUntil != 7 {
+		t.Error("a write that does not name the snooze keeps it")
+	}
+
 	// Deliberate difference: a null string keeps the stored value (it was "").
 	p, err := thingOver(taskPatch{Title: "kept"}, ochazuke.Thing{"title": nil})
 	if err != nil || p.Title != "kept" {

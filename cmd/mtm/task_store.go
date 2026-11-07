@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -253,11 +254,42 @@ type namePatch struct {
 // thingOver reads a write's props over the record's own values (cur): a
 // prop the write names replaces the value, one it does not keeps it. A
 // value of the wrong type refuses the write (set has already typed it).
+//
+// A null value reads as the hand-decoding always read it: a null bool is
+// false and a null number 0 (a pointer field, which says whether the write
+// named it, points at that), while a null string keeps the stored value.
 func thingOver[P any](cur P, changes ochazuke.Thing) (P, error) {
 	if err := changes.Into(&cur); err != nil {
 		return cur, &ochazuke.ArgumentError{Err: err}
 	}
+	v := reflect.ValueOf(&cur).Elem()
+	if v.Kind() != reflect.Struct {
+		return cur, nil
+	}
+	for i := range v.NumField() {
+		name, _, _ := strings.Cut(v.Type().Field(i).Tag.Get("json"), ",")
+		if val, named := changes[name]; !named || val != nil {
+			continue
+		}
+		f := v.Field(i)
+		if f.Kind() == reflect.Pointer && nullZeroes(f.Type().Elem().Kind()) {
+			f.Set(reflect.New(f.Type().Elem()))
+		} else if nullZeroes(f.Kind()) {
+			f.SetZero()
+		}
+	}
 	return cur, nil
+}
+
+// nullZeroes reports whether a null write of a field of kind k is its zero
+// value (a bool or a number); any other kind keeps what is stored.
+func nullZeroes(k reflect.Kind) bool {
+	switch k {
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
 }
 
 // thingString reads a prop value of a write as text; ok is whether the
