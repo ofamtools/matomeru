@@ -24,14 +24,6 @@ import (
 
 const scheduleFormID = "schedule-form"
 
-// scheduleFields are the editable fields in the form's order: the
-// parameters add and edit share, by name.
-var scheduleFields = []string{
-	"prompt", "when", "enabled", "harness", "model", "effort", "fast", "permission-mode",
-	"project", "task", "dir", "into", "pane", "start", "end", "catch-up", "interval-from", "description",
-	"kind", "command", "drive", "timeout",
-}
-
 // scheduleParams are add's and edit's parameters (edit's name is the row's).
 func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 	settingChoices := func(name string) []string {
@@ -48,21 +40,21 @@ func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 	return map[string]ochazuke.Parameter{
 		"prompt":          {Type: "string", Description: "The prompt the agent is given each run (a prompt schedule)"},
 		"when":            {Type: "string", Description: "When it runs: every 30m, daily 09:00, mon,wed,fri 09:00,17:30, weekdays 8:30, cron 0 9 * * 1-5, or never"},
-		"enabled":         {Type: "string", Enum: schedules.EnabledValues, Description: "on, off, or auto (when its command is installed and its checks pass)"},
+		"enabled":         {Type: "string", Enum: scheduleChoices("enabled"), Description: "on, off, or auto (when its command is installed and its checks pass)"},
 		"harness":         {Type: "string", Enum: a.harnesses.Names(), Description: "The harness profile (harnesses.json); empty: the project's, else default-harness"},
 		"model":           {Type: "string", Source: "harness.models", SourceArgs: map[string]string{"harness": "harness"}, Free: true, Description: "The model; empty: the harness's first"},
 		"effort":          {Type: "string", Enum: settingChoices(harness.SettingEffort), Free: true, Description: "Thinking effort at launch (the harness's effort setting)"},
-		"fast":            {Type: "string", Enum: []string{"on", "off"}, Free: true, Description: "Fast mode at launch: on or off"},
+		"fast":            {Type: "string", Enum: scheduleChoices("fast"), Free: true, Description: "Fast mode at launch: on or off"},
 		"permission-mode": {Type: "string", Enum: settingChoices(harness.SettingPermission), Free: true, Description: "Permission mode at launch (the harness's permission-mode setting)"},
 		"project":         {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project the agent works in (its session and directory); empty: no project"},
 		"task":            {Type: "string", Free: true, Description: "A task id the pane is linked to (its title is the prompt when there is none)"},
 		"dir":             dirParam("The working folder; empty: the project's directory, else home", false),
-		"into":            {Type: "string", Enum: schedules.TargetValues, Description: "Where each run goes: new, a new pane; pane, send to the pane named by pane when it is ready (a new one when none is open)"},
+		"into":            {Type: "string", Enum: scheduleChoices("into"), Description: "Where each run goes: new, a new pane; pane, send to the pane named by pane when it is ready (a new one when none is open)"},
 		"pane":            {Type: "string", Free: true, Description: "The pane's name: the pane a target pane run sends to, and the name of a pane a run opens (default: the schedule's name)"},
 		"start":           {Type: "string", Free: true, Description: "First day it may run: 2026-11-01 (or an RFC 3339 time); empty: now"},
 		"end":             {Type: "string", Free: true, Description: "Last day it may run: 2026-12-31 (inclusive); empty: no end"},
-		"catch-up":        {Type: "string", Enum: schedules.CatchUpValues, Free: true, Description: "Runs missed while mtm was closed: none (skip) or once; empty: the schedules.catch-up setting"},
-		"interval-from":   {Type: "string", Enum: schedules.IntervalFromValues, Free: true, Description: "Where an interval counts from: start (the last run's start, the default) or finish (its finish, so a slow run does not shorten the gap); empty: start"},
+		"catch-up":        {Type: "string", Enum: scheduleChoices("catch-up"), Free: true, Description: "Runs missed while mtm was closed: none (skip) or once; empty: the schedules.catch-up setting"},
+		"interval-from":   {Type: "string", Enum: scheduleChoices("interval-from"), Free: true, Description: "Where an interval counts from: start (the last run's start, the default) or finish (its finish, so a slow run does not shorten the gap); empty: start"},
 		"description":     {Type: "string", Free: true, Description: "What it is for, shown on its row"},
 		"kind":            {Type: "string", Enum: []string{schedules.KindPrompt, schedules.KindCommand}, Description: "prompt (start an agent) or command (run a command); default: from what is given"},
 		"command":         {Type: "string", Free: true, Description: "A command schedule's command line (words split on spaces)"},
@@ -71,156 +63,172 @@ func (a *App) scheduleParams() map[string]ochazuke.Parameter {
 	}
 }
 
+// scheduleFieldSpec is one editable field as data: where it lives in the
+// Def (str, a plain string), the choices its text must be one of (empty
+// text passes unless strict), a check run first (a lookup or a parse), and
+// set/get for the few fields that are more than a string.
+type scheduleFieldSpec struct {
+	name    string
+	str     func(*schedules.Def) *string
+	trim    string // a prefix stripped from the text (a typed reference)
+	choices []string
+	label   string // the name in the choices error (default: the field's)
+	msg     string // the whole choices error, when it is not "X is one of …"
+	strict  bool   // empty text is not a choice either
+	check   func(a *App, v string) error
+	set     func(a *App, d *schedules.Def, v string) error
+	get     func(d schedules.Def) string
+}
+
+func checkHarness(a *App, v string) error {
+	if v == "" {
+		return nil
+	}
+	_, err := a.harnesses.Lookup(v)
+	return err
+}
+
+func checkBound(end bool) func(a *App, v string) error {
+	return func(a *App, v string) error {
+		_, err := schedules.ParseBound(v, end, a.location())
+		return err
+	}
+}
+
+func checkDrive(_ *App, v string) error { return drive.Check(v) }
+
+func setWhen(_ *App, d *schedules.Def, v string) error {
+	w, err := schedules.ParseWhen(v)
+	if err != nil {
+		return err
+	}
+	d.SetWhen(w)
+	return nil
+}
+
+func getWhen(d schedules.Def) string {
+	if d.When().Zero() {
+		return ""
+	}
+	return d.When().Text()
+}
+
+func setProject(a *App, d *schedules.Def, v string) error {
+	d.Agent.Project, _ = a.noteOwner(ochazuke.Ctx{Runtime: a.r}, strings.TrimPrefix(v, "project:"), true, "", false)
+	return nil
+}
+
+func getProject(d schedules.Def) string { return d.Agent.Project }
+
+func setCommand(_ *App, d *schedules.Def, v string) error { d.Command = strings.Fields(v); return nil }
+
+func getCommand(d schedules.Def) string { return strings.Join(d.Command, " ") }
+
+func setTimeout(_ *App, d *schedules.Def, v string) error {
+	if v == "" {
+		d.Timeout = 0
+		return nil
+	}
+	t, err := time.ParseDuration(v)
+	if err != nil || t < time.Second {
+		return fmt.Errorf("timeout %q: a duration such as 2m", v)
+	}
+	d.Timeout = schedules.Duration(t)
+	return nil
+}
+
+func getTimeout(d schedules.Def) string {
+	if d.Timeout == 0 {
+		return ""
+	}
+	return scheduleSpan(time.Duration(d.Timeout))
+}
+
+// scheduleSpecs are the editable fields in the form's order. The plain
+// string fields are one row each; the custom parsers are when, project,
+// command and timeout.
+var scheduleSpecs = []scheduleFieldSpec{
+	{name: "prompt", str: func(d *schedules.Def) *string { return &d.Prompt }},
+	{name: "when", set: setWhen, get: getWhen},
+	{name: "enabled", str: func(d *schedules.Def) *string { return &d.Enabled }, choices: schedules.EnabledValues, strict: true},
+	{name: "harness", str: func(d *schedules.Def) *string { return &d.Agent.Harness }, check: checkHarness},
+	{name: "model", str: func(d *schedules.Def) *string { return &d.Agent.Model }},
+	{name: "effort", str: func(d *schedules.Def) *string { return &d.Agent.Effort }},
+	{name: "fast", str: func(d *schedules.Def) *string { return &d.Agent.Fast }, choices: []string{"on", "off"}, msg: "fast is on or off"},
+	{name: "permission-mode", str: func(d *schedules.Def) *string { return &d.Agent.Permission }},
+	{name: "project", set: setProject, get: getProject},
+	{name: "task", str: func(d *schedules.Def) *string { return &d.Agent.Task }, trim: "task:"},
+	{name: "dir", str: func(d *schedules.Def) *string { return &d.Agent.Dir }},
+	{name: "into", str: func(d *schedules.Def) *string { return &d.Agent.Target }, choices: schedules.TargetValues, label: "target"},
+	{name: "pane", str: func(d *schedules.Def) *string { return &d.Agent.Pane }},
+	{name: "start", str: func(d *schedules.Def) *string { return &d.Start }, check: checkBound(false)},
+	{name: "end", str: func(d *schedules.Def) *string { return &d.End }, check: checkBound(true)},
+	{name: "catch-up", str: func(d *schedules.Def) *string { return &d.CatchUp }, choices: schedules.CatchUpValues},
+	{name: "interval-from", str: func(d *schedules.Def) *string { return &d.IntervalFrom }, choices: schedules.IntervalFromValues},
+	{name: "description", str: func(d *schedules.Def) *string { return &d.Description }},
+	{name: "kind", str: func(d *schedules.Def) *string { return &d.Kind }},
+	{name: "command", set: setCommand, get: getCommand},
+	{name: "drive", str: func(d *schedules.Def) *string { return &d.Drive }, check: checkDrive},
+	{name: "timeout", set: setTimeout, get: getTimeout},
+}
+
+// scheduleFields are the editable fields in the form's order: the
+// parameters add and edit share, by name.
+var scheduleFields = func() []string {
+	out := make([]string, len(scheduleSpecs))
+	for i, s := range scheduleSpecs {
+		out[i] = s.name
+	}
+	return out
+}()
+
+// scheduleSpec is the field's row, nil for a name no field has.
+func scheduleSpec(name string) *scheduleFieldSpec {
+	if i := slices.IndexFunc(scheduleSpecs, func(s scheduleFieldSpec) bool { return s.name == name }); i >= 0 {
+		return &scheduleSpecs[i]
+	}
+	return nil
+}
+
+// scheduleChoices are the field's choices (its prop's enum).
+func scheduleChoices(name string) []string { return scheduleSpec(name).choices }
+
 // applyScheduleField sets one field of d from its parameter's text.
 func (a *App) applyScheduleField(d *schedules.Def, name, v string) error {
-	v = strings.TrimSpace(v)
-	switch name {
-	case "prompt":
-		d.Prompt = v
-	case "when":
-		w, err := schedules.ParseWhen(v)
-		if err != nil {
-			return err
-		}
-		d.SetWhen(w)
-	case "enabled":
-		if !slices.Contains(schedules.EnabledValues, v) {
-			return fmt.Errorf("enabled is one of %s", strings.Join(schedules.EnabledValues, ", "))
-		}
-		d.Enabled = v
-	case "harness":
-		if v != "" {
-			if _, err := a.harnesses.Lookup(v); err != nil {
-				return err
-			}
-		}
-		d.Agent.Harness = v
-	case "model":
-		d.Agent.Model = v
-	case "effort":
-		d.Agent.Effort = v
-	case "fast":
-		if v != "" && v != "on" && v != "off" {
-			return errors.New("fast is on or off")
-		}
-		d.Agent.Fast = v
-	case "permission-mode":
-		d.Agent.Permission = v
-	case "project":
-		d.Agent.Project, _ = a.noteOwner(ochazuke.Ctx{Runtime: a.r}, strings.TrimPrefix(v, "project:"), true, "", false)
-	case "task":
-		d.Agent.Task = strings.TrimPrefix(v, "task:")
-	case "dir":
-		d.Agent.Dir = v
-	case "into":
-		if v != "" && !slices.Contains(schedules.TargetValues, v) {
-			return fmt.Errorf("target is one of %s", strings.Join(schedules.TargetValues, ", "))
-		}
-		d.Agent.Target = v
-	case "pane":
-		d.Agent.Pane = v
-	case "start", "end":
-		if _, err := schedules.ParseBound(v, name == "end", a.location()); err != nil {
-			return err
-		}
-		if name == "start" {
-			d.Start = v
-		} else {
-			d.End = v
-		}
-	case "catch-up":
-		if v != "" && !slices.Contains(schedules.CatchUpValues, v) {
-			return fmt.Errorf("catch-up is one of %s", strings.Join(schedules.CatchUpValues, ", "))
-		}
-		d.CatchUp = v
-	case "interval-from":
-		if v != "" && !slices.Contains(schedules.IntervalFromValues, v) {
-			return fmt.Errorf("interval-from is one of %s", strings.Join(schedules.IntervalFromValues, ", "))
-		}
-		d.IntervalFrom = v
-	case "description":
-		d.Description = v
-	case "kind":
-		d.Kind = v
-	case "command":
-		d.Command = strings.Fields(v)
-	case "drive":
-		if err := drive.Check(v); err != nil {
-			return err
-		}
-		d.Drive = v
-	case "timeout":
-		if v == "" {
-			d.Timeout = 0
-			break
-		}
-		t, err := time.ParseDuration(v)
-		if err != nil || t < time.Second {
-			return fmt.Errorf("timeout %q: a duration such as 2m", v)
-		}
-		d.Timeout = schedules.Duration(t)
-	default:
+	s := scheduleSpec(name)
+	if s == nil {
 		return fmt.Errorf("schedules have no field %q", name)
 	}
+	v = strings.TrimSpace(v)
+	if len(s.choices) > 0 && !slices.Contains(s.choices, v) && (v != "" || s.strict) {
+		if s.msg != "" {
+			return errors.New(s.msg)
+		}
+		return fmt.Errorf("%s is one of %s", cmp.Or(s.label, s.name), strings.Join(s.choices, ", "))
+	}
+	if s.check != nil {
+		if err := s.check(a, v); err != nil {
+			return err
+		}
+	}
+	if s.set != nil {
+		return s.set(a, d, v)
+	}
+	*s.str(d) = strings.TrimPrefix(v, s.trim)
 	return nil
 }
 
 // scheduleField is one field of d as its parameter's text (what the form
 // loads and edit compares).
 func scheduleField(d schedules.Def, name string) string {
-	switch name {
-	case "prompt":
-		return d.Prompt
-	case "when":
-		if d.When().Zero() {
-			return ""
-		}
-		return d.When().Text()
-	case "enabled":
-		return d.Enabled
-	case "harness":
-		return d.Agent.Harness
-	case "model":
-		return d.Agent.Model
-	case "effort":
-		return d.Agent.Effort
-	case "fast":
-		return d.Agent.Fast
-	case "permission-mode":
-		return d.Agent.Permission
-	case "project":
-		return d.Agent.Project
-	case "task":
-		return d.Agent.Task
-	case "dir":
-		return d.Agent.Dir
-	case "into":
-		return d.Agent.Target
-	case "pane":
-		return d.Agent.Pane
-	case "start":
-		return d.Start
-	case "end":
-		return d.End
-	case "catch-up":
-		return d.CatchUp
-	case "interval-from":
-		return d.IntervalFrom
-	case "description":
-		return d.Description
-	case "kind":
-		return d.Kind
-	case "command":
-		return strings.Join(d.Command, " ")
-	case "drive":
-		return d.Drive
-	case "timeout":
-		if d.Timeout == 0 {
-			return ""
-		}
-		return scheduleSpan(time.Duration(d.Timeout))
+	s := scheduleSpec(name)
+	switch {
+	case s == nil:
+		return ""
+	case s.get != nil:
+		return s.get(d)
 	}
-	return ""
+	return *s.str(&d)
 }
 
 // givenFields are the schedule fields a request names, in form order.
