@@ -115,12 +115,13 @@ func chooseMove(t *testing.T, a *App) {
 	}
 }
 
-// pickOwner answers m's project chooser (NOUN.choose-move, which writes
-// set {@owner}): typing filters it, enter picks.
+// pickOwner answers m's owner chooser (NOUN.edit {field: "@owner"}, the
+// edit chooser, or NOUN.choose-move's project chooser; both write set
+// {@owner}): typing filters it, enter picks.
 func pickOwner(t *testing.T, a *App, text string) {
 	t.Helper()
-	if a.r.Chooser(moveChooser) == nil {
-		t.Fatalf("no move chooser: modal %q", a.r.TopModal())
+	if a.r.Chooser(ochazuke.EditChooserKind) == nil && a.r.Chooser(moveChooser) == nil {
+		t.Fatalf("no owner chooser: modal %q", a.r.TopModal())
 	}
 	typeText(t, a, text)
 	press(t, a, "enter")
@@ -201,7 +202,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		"x":   {"task.toggle", outlineModal + ".toggle", "review.accept"},
 		"s":   {"task.choose-status", outlineModal + ".status", "review.choose-status"},
 		"w":   {"saved.save", "vim.save"},
-		"m":   {"pane.choose-move", "session.choose-move", "task.choose-move", "note.choose-move", contextNoun + ".choose-move", "saved.choose-move", "vim.choose-move", actionItemNoun + ".choose-move"},
+		"m":   {"pane.edit@owner", "session.edit@owner", "task.edit@owner", "note.edit@owner", contextNoun + ".edit@owner", "saved.edit@owner", "vim.edit@owner", actionItemNoun + ".edit@owner"},
 	}
 	want := map[string]string{}
 	for k, ops := range families {

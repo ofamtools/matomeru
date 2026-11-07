@@ -246,7 +246,7 @@ func TestNoteKeysMoveAndDelete(t *testing.T) {
 	executeA(t, a, "note", "set", "", ochazuke.Arguments{"id": n.ID, "props": map[string]any{"@label": "Movable"}})
 	notesOn(t, a, n.ID)
 	press(t, a, "m")
-	if a.r.TopModal() == "" || !strings.Contains(frame(a), "Move Movable to") {
+	if a.r.TopModal() == "" || !strings.Contains(frame(a), "Edit note project: Movable") {
 		t.Fatalf("m: modal %q\n%s", a.r.TopModal(), frame(a))
 	}
 	pickOwner(t, a, "ochaz")
@@ -255,7 +255,7 @@ func TestNoteKeysMoveAndDelete(t *testing.T) {
 	}
 	notesOn(t, a, n.ID)
 	press(t, a, "m")
-	pickOwner(t, a, "unassoc")
+	pickOwner(t, a, "none")
 	if got, _ := a.work.Note(n.ID); got.ProjectID != "" {
 		t.Fatalf("m to unassociated: %+v", got)
 	}

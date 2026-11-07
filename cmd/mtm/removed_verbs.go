@@ -19,10 +19,12 @@ var mtmRemovedVerbs = []namecheck.Removed{
 	purged("outline-project", "delete", "outline-project.delete-project"),
 	purged("outline-root", "delete", "outline-root.delete-project"),
 	purged("project-dir", "edit", "project-dir.retarget"),
-	purged("note", "associate", `note set ID @owner=PROJECT (set {props: {"@owner": id}}), or m (note.choose-move)`),
+	purged("note", "associate", `note set ID @owner=PROJECT (set {props: {"@owner": id}}), or m (note.edit {field: "@owner"})`),
 	purged("pane", "rename", `edit {field: "@label"} (r), or pane set ID @label=NAME`),
 	purged("session", "rename", `edit {field: "@label"} (r), or session set ID @label=NAME`),
 	purged("saved", "rename", `edit {field: "@label"} (r), or saved set ID @label=NAME`),
+	{Noun: "projects", Verb: "list", Replacement: "projects.all",
+		Since: "mtm ochazuke v0.93.0 bump", Note: "the alias kept for extension catalogs; none names it any more"},
 }
 
 // purged is one row of mtmRemovedVerbs: removed in mtm's R1 adoption.

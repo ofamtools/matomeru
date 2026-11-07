@@ -114,13 +114,13 @@ func (a *App) defineInbox() {
 		Bind("s", ochazuke.Do(n+".snooze")).
 		Bind("t", ochazuke.Do(n+".promote-todo").Hinted("to todo")).
 		Bind("c", ochazuke.Do(n+".promote-task").Hinted("to task")).
-		Bind("m", ochazuke.Do(n+".choose-move").Hinted("move")).
+		Bind("m", ochazuke.Do(n+".edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
 		Bind("d d", ochazuke.Do(n+".delete"))
 	// show is get under its old name; read, unread and toggle-read are the
 	// standard set of read (read shares the prop's name as its set).
 	for _, alias := range []ochazuke.ActionAlias{
 		{Alias: n + ".show", Action: n + ".get", Note: "the standard get: every prop of the item"},
-		{Alias: n + ".read", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "value": true}, Note: "the standard set of read"},
+		{Alias: n + ".read", Action: n + ".set", Args: ochazuke.Arguments{"props": map[string]any{"read": true}}, Note: "the standard set of read"},
 		{Alias: n + ".unread", Action: n + ".set", Args: ochazuke.Arguments{"props": map[string]any{"read": false}}, Note: "the standard set of read, off"},
 		{Alias: n + ".toggle-read", Action: n + ".set", Args: ochazuke.Arguments{"prop": "read", "toggle": true}, Note: "the standard set of read, flipped"},
 	} {

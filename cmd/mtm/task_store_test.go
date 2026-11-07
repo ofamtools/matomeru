@@ -165,7 +165,7 @@ func TestTaskKeysDoneStatusMove(t *testing.T) {
 	}
 	tasksOn(t, a, "t2")
 	press(t, a, "m")
-	if a.r.Chooser(moveChooser) == nil {
+	if a.r.Chooser(ochazuke.EditChooserKind) == nil {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
 	pickOwner(t, a, "ochaz")
@@ -174,7 +174,7 @@ func TestTaskKeysDoneStatusMove(t *testing.T) {
 	}
 	tasksOn(t, a, "t2")
 	press(t, a, "m")
-	pickOwner(t, a, "unassoc")
+	pickOwner(t, a, "none")
 	if got := stored(t, a, "t2").ProjectID; got != "" {
 		t.Fatalf("m to unassociated: %q", got)
 	}

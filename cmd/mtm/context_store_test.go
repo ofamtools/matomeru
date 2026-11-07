@@ -78,7 +78,7 @@ func TestContextItemKeysStarMoveForget(t *testing.T) {
 	}
 	selectContext(t, a, "https://example.com/ochazuke")
 	press(t, a, "m")
-	if a.r.Chooser(moveChooser) == nil {
+	if a.r.Chooser(ochazuke.EditChooserKind) == nil {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
 	pickOwner(t, a, "matom")

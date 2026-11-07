@@ -308,7 +308,7 @@ func (a *App) definePanes() {
 		Bind("enter", ochazuke.Do("pane.attach").Hinted("live")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
 		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
-		Bind("m", ochazuke.Do("pane.choose-move").Hinted("move")).
+		Bind("m", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
 		Bind("r", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename"))
 	// In visual-line (V) d kills the selected panes, as the list's d deletes
 	// rows: the pane's visual-line table reads its normal rows after its
@@ -328,7 +328,7 @@ func (a *App) definePanes() {
 		Verb("kill", a.killSession, "Close the session and every pane in it").Confirm("Kill {{label}} and its panes?").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("session.attach").Guard("session-has-pane")).
-		Bind("m", ochazuke.Do("session.choose-move").Hinted("move")).
+		Bind("m", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
 		Bind("r", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename")).
 		Bind("d d", ochazuke.Do("session.kill"))
 	// enter attaches a session only when it has a pane to attach.

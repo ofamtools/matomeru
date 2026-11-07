@@ -22,7 +22,7 @@ func (a *App) defineTask() {
 	r.Define("task").Filters(taskFilters()...).Props(taskProps()...).Store(a.taskStore()).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
 		Verb("view", a.openTask, "View task without editing").
-		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").
+		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").Many().
 		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo (standard set of status)").
 		Verb("choose-status", a.chooseStatus, "Choose the task's status: todo, active, blocked or done; over a visual selection one choice sets every task (standard set of status)").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the task to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
@@ -31,7 +31,7 @@ func (a *App) defineTask() {
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.edit")).Bind("l", ochazuke.Do("task.open")).Bind("L", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.choose-status")).
-		Bind("m", ochazuke.Do("task.choose-move").Hinted("move"))
+		Bind("m", ochazuke.Do("task.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	a.defineTaskEvidence()
 	a.defineTaskSubjects()
 	// done and status are the standard set with the status preset (2.5:
@@ -319,7 +319,18 @@ func (a *App) editTask(ctx ochazuke.Ctx) ochazuke.Result {
 			changes[name] = ochazuke.StringArg(ctx.Args, name, "")
 		}
 	}
-	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": t.ID, "props": changes}}))
+	return resultOf(a.r.Execute(subjectsSet(ctx, "task", t.ID, changes)))
+}
+
+// subjectsSet is the standard set of changes on a Many verb's subjects:
+// every row of a visual selection or the marks (one undo group), else the
+// one thing id. edit is Many (edit {field} opens the field's chooser over
+// the selection), so its named form writes every subject too.
+func subjectsSet(ctx ochazuke.Ctx, noun, id string, changes map[string]any) ochazuke.Request {
+	if len(ctx.Subjects) > 1 && ctx.Instance != nil {
+		return ochazuke.Request{Noun: noun, Verb: "set", Target: ctx.Instance.ID, Subjects: ctx.SubjectIDs(), Args: ochazuke.Arguments{"props": changes}}
+	}
+	return ochazuke.Request{Noun: noun, Verb: "set", Args: ochazuke.Arguments{"id": id, "props": changes}}
 }
 
 // toggleTask is task.toggle (x): the standard set of status, done for a

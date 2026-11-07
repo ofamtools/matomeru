@@ -116,7 +116,7 @@ func TestPaneMoveKeyAndUnassociate(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "m")
-	if a.r.Chooser(moveChooser) == nil {
+	if a.r.Chooser(ochazuke.EditChooserKind) == nil {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
 	pickOwner(t, a, "ochaz")

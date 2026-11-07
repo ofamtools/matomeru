@@ -152,7 +152,7 @@ func (a *App) defineContext() {
 		Bind("o", ochazuke.Do(contextNoun+".open")).
 		Bind("R", ochazuke.Do(contextNoun+".reveal")).
 		Bind("*", ochazuke.Do(contextNoun+".star")).
-		Bind("m", ochazuke.Do(contextNoun+".choose-move").Hinted("move")).
+		Bind("m", ochazuke.Do(contextNoun+".edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
 		Bind("d d", ochazuke.Do(contextNoun+".delete"))
 	// forget is the noun's own word for delete (the record only), kept as
 	// a lasting alias: context-item forget ID works as before. star is the
