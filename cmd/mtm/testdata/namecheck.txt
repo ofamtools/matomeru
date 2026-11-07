@@ -117,6 +117,7 @@ context_turns.go	transcriptEntryKind	compare	"text"	1
 convert.go	App.conversionReload	compare	"demote"	4
 convert.go	App.conversionReload	compare	"task-outline"	1
 convert.go	conversionNotice	case	"demote"	1
+copies.go	copiedNoun.holds	compare	"all"	1	copies.hold-names is an enum setting (written | all, owner decision F4): its value picks the hold rule
 copybuf.go	copyBuf.move	case	"WORD-backward"	1
 copybuf.go	copyBuf.move	case	"WORD-end"	1
 copybuf.go	copyBuf.move	case	"WORD-end-backward"	1
@@ -167,11 +168,9 @@ detail_links.go	App.followLink	case	"pane"	1
 detail_links.go	App.followLink	case	"project"	1
 detail_links.go	App.followLink	case	"saved"	1
 detail_links.go	App.followLink	case	"vim"	1
-directories.go	App.attachBrowsedDirectory	compare	"base"	1
 directories.go	App.endBrowse	compare	"directories"	1
 directories.go	App.knownDirs	compare	"repo"	1
 directories.go	App.refreshDirectories	compare	"directories"	1
-directories.go	App.renderDirectoryLists	compare	"base"	1
 directories_detail.go	App.directoryFacts	compare	"repo"	1
 extension_autorefresh.go	App.autoRefreshCatalogs	compare	"stale"	1
 extension_context.go	var nounChoosers	table	"pane"	1
@@ -269,6 +268,8 @@ panes_tree.go	App.buildPaneTree	compare	"panes"	1
 panes_tree.go	App.buildPaneTree	cyclo	"-"	41
 panes_tree.go	stateGlyph	compare	"done"	1
 panes_tree.go	stateTone	compare	"done"	1
+path_sources.go	App.offersPathSource	case	"project"	1
+path_sources.go	var directoryChooserStarts	table	"path"	1	the directory-chooser setting's values mapped to start sources as data
 pin.go	App.openPinPicker	compare	"done"	1
 pin.go	App.pinProject	compare	"project"	1
 pin.go	App.refreshScope	compare	"project"	1
@@ -364,4 +365,3 @@ turns_model.go	turnsNeedBuild	compare	"turn"	1
 turns_refresh.go	App.refreshPaneTurns	compare	"pane"	1
 vim.go	App.vimAt	compare	"pane"	1
 vim.go	App.vimAt	compare	"vim"	1
-copies.go	copiedNoun.holds	compare	"all"	1	copies.hold-names is an enum setting (written | all, owner decision F4): its value picks the hold rule
