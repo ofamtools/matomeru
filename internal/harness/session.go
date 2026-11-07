@@ -121,32 +121,3 @@ func (s SessionSource) validate(harness string) error {
 	}
 	return nil
 }
-
-// builtinSession is a built-in harness's session source: Claude Code
-// rewrites sessions/<pid>.json when the process moves to another session
-// (2.1.312: {"pid", "sessionId", "cwd", "kind", "procStart", …}); omp
-// (oh-my-pi 18) writes terminal-sessions/<tty>, the folder on line 1 and
-// the session file on line 2, when it sets a session file.
-func builtinSession(name string) *SessionSource {
-	switch name {
-	case "claude":
-		home := "${CLAUDE_CONFIG_DIR:-~/.claude}"
-		return &SessionSource{
-			Agents: []string{"claude-code", "claude"},
-			Files:  home + "/sessions/*.json",
-			PID:    "pid", Start: "procStart", Env: []string{"TUIOS_WINDOW_ID", "TUIOS_PANE_ID"},
-			Session: "sessionId", Cwd: "cwd",
-			Transcript: home + "/projects/{cwd_slug}/{session}.jsonl",
-		}
-	case "omp":
-		return &SessionSource{
-			Agents:  []string{"omp"},
-			Files:   "${PI_CODING_AGENT_DIR:-~/.omp/agent}/terminal-sessions/{tty}",
-			Format:  SessionLines,
-			Process: "omp",
-			Cwd:     "1", Path: "2",
-			SessionPattern: `_([0-9A-Za-z-]+)\.jsonl$`,
-		}
-	}
-	return nil
-}

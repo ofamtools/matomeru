@@ -168,50 +168,6 @@ func (h Harness) ContextWindow(model string) (int64, error) {
 	return 0, ErrNoWindow
 }
 
-// builtinSettings are the in-session commands of the harness versions on
-// the owner's machine, read from each harness (2026-10-28):
-//
-//   - Claude Code 2.1.312: /model <model> (it also saves the model as the
-//     default for new sessions: "Set model to `Opus 5.5` and saved as your
-//     default for new sessions"), /effort <low|medium|high|xhigh|max|auto>,
-//     /fast [on|off]. The permission mode has no command: shift+tab (BTab)
-//     cycles default → acceptEdits → plan → bypassPermissions (when the
-//     session may bypass) → auto (when the account has it) → default, and
-//     the prompt's footer says which is on.
-//   - omp 18.13.0 (src/slash-commands/builtin-modes.ts): /switch <model>
-//     (session only; /model in the TUI opens its picker and drops the
-//     argument), /effort <level>, /fast <on|off>. No permission modes.
-//   - Codex 0.162.1: /model and /permissions open pickers and take no
-//     argument, so no row: Codex's settings are shown, not changed.
-func builtinSettings(name string) (map[string]Setting, map[string]int64) {
-	switch name {
-	case "claude":
-		return map[string]Setting{
-			SettingModel:  {Values: []string{"opus", "fable", "sonnet", "haiku", "default"}, Command: "/model {value}", Note: "Claude Code also saves it as the default for new sessions"},
-			SettingEffort: {Values: []string{"low", "medium", "high", "xhigh", "max", "auto"}, Command: "/effort {value}"},
-			SettingFast:   {Values: []string{"on", "off"}, Command: "/fast {value}"},
-			SettingPermission: {Key: "BTab", Cycle: []string{"default", "acceptEdits", "plan", "bypassPermissions", "auto"}, Screen: map[string]string{
-				"acceptEdits": "accept edits on", "plan": "plan mode on", "bypassPermissions": "bypass permissions on", "auto": "auto mode on",
-			}, Flags: []string{"--permission-mode", "{value}"}},
-		}, map[string]int64{
-			// Claude Code's own window per model is not in its log; these
-			// are what the owner's sessions show (an Opus 5.5 session read
-			// 436k tokens of context). A model none matches shows tokens.
-			"claude-opus-5*":   1_000_000,
-			"claude-fable-5*":  1_000_000,
-			"claude-*\\[1m\\]": 1_000_000,
-			"claude-*":         200_000,
-		}
-	case "omp":
-		return map[string]Setting{
-			SettingModel:  {Command: "/switch {value}"},
-			SettingEffort: {Values: []string{"off", "minimal", "low", "medium", "high", "xhigh", "max", "auto"}, Command: "/effort {value}"},
-			SettingFast:   {Values: []string{"on", "off"}, Command: "/fast {value}"},
-		}, nil
-	}
-	return nil, nil
-}
-
 // LaunchSettings is how a launch applies settings (by name: effort, fast,
 // permission-mode; the model has its own flag): the argv words of the
 // rows with Flags, the commands to type once the pane is ready for the

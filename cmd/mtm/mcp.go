@@ -123,7 +123,15 @@ func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io
 				return printJSON(out)
 			}
 			home, _ := a.home()
-			config, err := mcp.Config(cmd, args[0], home, a.getenv)
+			// A harnesses.json row names its recipe ("mcp"), so a
+			// harness of the owner's (claude-work) prints claude's.
+			recipe := args[0]
+			if a.harnesses != nil {
+				if h, ok := a.harnesses.Get(args[0]); ok && h.MCP != "" {
+					recipe = h.MCP
+				}
+			}
+			config, err := mcp.ConfigAs(cmd, args[0], recipe, home, a.getenv)
 			if err != nil {
 				return err
 			}

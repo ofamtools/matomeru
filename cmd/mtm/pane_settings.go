@@ -13,7 +13,6 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
 
-	"ofam.dev/matomeru/internal/compose"
 	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/turns"
@@ -180,13 +179,17 @@ func (a *App) addPaneSettings() error {
 	return nil
 }
 
-// harnessOf is the pane's harness profile: by the harness tuios reports,
-// else the one mtm launched it with.
+// harnessOf is the pane's harness profile: the row whose ids cover the
+// harness tuios reports (the launch's first), else the one mtm launched
+// it with, else the row named as tuios reports it.
 func (a *App) harnessOf(p pane) (harness.Harness, bool) {
 	if a.harnesses == nil {
 		return harness.Harness{}, false
 	}
-	for _, name := range []string{compose.Harness(p.Harness), p.LaunchHarness, p.Harness} {
+	if h, ok := a.harnesses.ForAgent(p.Harness, p.LaunchHarness); ok {
+		return h, true
+	}
+	for _, name := range []string{p.LaunchHarness, p.Harness} {
 		if h, ok := a.harnesses.Get(name); ok && name != "" {
 			return h, true
 		}
@@ -194,27 +197,18 @@ func (a *App) harnessOf(p pane) (harness.Harness, bool) {
 	return harness.Harness{}, false
 }
 
-// isCodex reports whether the pane runs Codex.
-func isCodex(p pane) bool {
-	return strings.HasPrefix(p.Harness, "codex") || p.Harness == "" && strings.HasPrefix(p.LaunchHarness, "codex")
-}
-
 // paneLive is what the pane's session log says of its settings, and which
 // log that is ("" when none has been read).
 func (a *App) paneLive(p pane) (turns.Live, string) {
-	switch {
-	case isCodex(p):
-		return a.codexLive[p.ID], "codex rollout"
-	case isClaude(p), isOmp(p):
+	switch f := a.logFormatOf(p); {
+	case f.rollout:
+		return a.codexLive[p.ID], f.from
+	case f.turns != turnsJournal:
 		pt := a.mturns[p.ID]
 		if pt == nil || pt.chain == nil {
 			return turns.Live{}, ""
 		}
-		from := "Claude transcript"
-		if isOmp(p) {
-			from = "omp session log"
-		}
-		return pt.chain.Settings(), from
+		return pt.chain.Settings(), f.from
 	}
 	return turns.Live{}, ""
 }
@@ -783,7 +777,7 @@ func (a *App) stepSetting(p pane, row string, st harness.Setting, name, value, b
 // rereadSettings reads the pane's log again (the Turns tab's read, or a
 // Codex rollout); a watched change gives its notice once the read is in.
 func (a *App) rereadSettings(ctx ochazuke.Ctx, p pane, row string) {
-	if isCodex(p) {
+	if a.logFormatOf(p).rollout {
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "read-settings", Noun: "pane", Target: row}); err != nil {
 			ctx.Error(err.Error())
 		}
@@ -836,7 +830,7 @@ func (a *App) readCodexSettings(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if !isCodex(p) || p.AgentSession == "" {
+	if !a.logFormatOf(p).rollout || p.AgentSession == "" {
 		return ochazuke.Done(nil)
 	}
 	root := a.codexSessions

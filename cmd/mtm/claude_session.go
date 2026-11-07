@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/turns"
 	"ofam.dev/matomeru/internal/work"
 )
@@ -29,7 +30,7 @@ import (
 // claudeLookup is the lookup of p's current transcript against the
 // listing (the other panes) and the recorded sessions. Run off the loop:
 // it reads the store and stats transcripts.
-func claudeLookup(projects string, ws *work.Store, p pane, listing []pane, started func(pane) time.Time) turns.ClaudeLookup {
+func claudeLookup(reg *harness.Registry, projects string, ws *work.Store, p pane, listing []pane, started func(pane) time.Time) turns.ClaudeLookup {
 	q := turns.ClaudeLookup{Projects: projects, Cwd: p.Cwd, Session: p.AgentSession}
 	if started != nil {
 		q.Started = func() time.Time { return started(p) }
@@ -54,7 +55,7 @@ func claudeLookup(projects string, ws *work.Store, p pane, listing []pane, start
 		if o.AgentSession != "" {
 			q.Claimed = append(q.Claimed, o.AgentSession)
 		}
-		if o.Exited || !isClaude(o) || turns.ClaudeProjectDir(o.Cwd) != dir {
+		if o.Exited || paneLog(reg, o) != harness.LogClaude || turns.ClaudeProjectDir(o.Cwd) != dir {
 			continue
 		}
 		if _, err := turns.FindClaudeLog(projects, o.Cwd, o.AgentSession); err != nil {

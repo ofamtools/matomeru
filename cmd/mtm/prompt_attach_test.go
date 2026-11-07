@@ -249,7 +249,7 @@ func TestPromptQueueAndInterruptCarryMentions(t *testing.T) {
 func TestPromptPasteHarnessPastesPathsFirst(t *testing.T) {
 	t.Parallel()
 	app, f, clip := clipApp(t)
-	reg, err := harness.NewRegistry([]harness.Harness{{Name: "claude", Command: []string{"claude"}, Attach: harness.AttachPaste}})
+	reg, err := harness.NewRegistry([]harness.Harness{{Name: "claude", Command: []string{"claude"}, Ids: []string{"claude*"}, Attach: harness.AttachPaste}})
 	if err != nil {
 		t.Fatal(err)
 	}

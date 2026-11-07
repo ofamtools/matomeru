@@ -5,7 +5,8 @@
 // (syntax.go). It knows nothing of the UI; cmd/mtm turns these into
 // ochazuke completion suggestions.
 //
-// Which skills a harness sees is the harness's own search path:
+// Which skills a harness sees is the harness's own search path, data on
+// its harnesses.json row (harness.Compose; the built-ins'):
 //
 //   - Claude Code: ~/.claude/skills (user), .claude/skills in the pane's
 //     directory and each parent up to the repository root (project), and
@@ -23,7 +24,8 @@
 //
 // o-ai (~/proj/o-ai) already resolves these per harness, omp's many
 // providers included, so when it is on PATH Skills asks it first
-// (`o-ai skill list --harness H --project DIR --no-probe --json`) and
+// (`o-ai skill list --harness H --project DIR --no-probe --json`, H the
+// row's compose.oai) and
 // drops the rows it says the harness does not load; the scan above is
 // the fallback. Either answer is cached by a fingerprint of the search
 // path's directories and config files (their mtimes), so a completion
@@ -44,28 +46,9 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
-)
 
-// Harnesses, as compose names them (Harness maps tuios's ids).
-const (
-	Claude = "claude"
-	Omp    = "omp"
-	Codex  = "codex"
+	"ofam.dev/matomeru/internal/harness"
 )
-
-// Harness is compose's name for a tuios harness id ("claude-code" is
-// Claude), "" for a harness it does not know.
-func Harness(id string) string {
-	switch {
-	case strings.HasPrefix(id, "claude"):
-		return Claude
-	case id == "omp":
-		return Omp
-	case strings.HasPrefix(id, "codex"):
-		return Codex
-	}
-	return ""
-}
 
 // Skill is one skill a harness can load.
 type Skill struct {
@@ -126,18 +109,19 @@ func NewSources(env Env) *Sources {
 }
 
 // Skills are the skills the harness sees from dir, sorted by name.
-func (s *Sources) Skills(ctx context.Context, harness, dir string) []Skill {
-	key := harness + "\x00" + dir
-	print := fingerprint(s.skillInputs(harness, dir))
+func (s *Sources) Skills(ctx context.Context, h harness.Harness, dir string) []Skill {
+	key := h.Name + "\x00" + dir
+	c := profile(h)
+	print := fingerprint(s.skillInputs(c, dir))
 	s.mu.Lock()
-	c, ok := s.skills[key]
+	got, ok := s.skills[key]
 	s.mu.Unlock()
-	if ok && c.print == print {
-		return c.value
+	if ok && got.print == print {
+		return got.value
 	}
 	var skills []Skill
-	if s.Env.OAI != nil && harness != "" {
-		if out, err := s.Env.OAI(ctx, harness, dir); err == nil {
+	if s.Env.OAI != nil && c.OAI != "" {
+		if out, err := s.Env.OAI(ctx, c.OAI, dir); err == nil {
 			skills, ok = ParseOAISkills(out)
 		} else {
 			ok = false
@@ -146,7 +130,7 @@ func (s *Sources) Skills(ctx context.Context, harness, dir string) []Skill {
 		ok = false
 	}
 	if !ok {
-		skills = s.scanSkills(harness, dir)
+		skills = s.scanSkills(c, dir)
 	}
 	s.mu.Lock()
 	s.skills[key] = cached[[]Skill]{print: print, at: s.now(), value: skills}
@@ -223,75 +207,88 @@ func sortSkills(skills []Skill) {
 // skillRoot is one directory of skill directories.
 type skillRoot struct{ dir, scope, plugin string }
 
+// profile is the harness's compose row; an empty one when it has none.
+func profile(h harness.Harness) harness.Compose {
+	if h.Compose == nil {
+		return harness.Compose{}
+	}
+	return *h.Compose
+}
+
 // skillRoots are the harness's skill directories seen from dir.
-func (s *Sources) skillRoots(harness, dir string) []skillRoot {
+func (s *Sources) skillRoots(c harness.Compose, dir string) []skillRoot {
+	return s.roots(c, c.Skills, dir)
+}
+
+// roots are the directories of a Compose list seen from dir, in order:
+// an up group takes each of its entries at dir and every parent up to
+// the repository root; a plugins entry the folder in every plugin the
+// Claude Code config directory enables; a list entry the paths a config
+// key holds (relative to dir).
+func (s *Sources) roots(c harness.Compose, dirs []harness.Dir, dir string) []skillRoot {
 	e := s.Env
-	up := ancestors(dir, e.Home)
+	cfg := readConfig(s.path(c.Config))
 	var roots []skillRoot
-	switch harness {
-	case Claude:
-		roots = append(roots, skillRoot{filepath.Join(e.ClaudeDir, "skills"), "user", ""})
-		for _, d := range up {
-			roots = append(roots, skillRoot{filepath.Join(d, ".claude", "skills"), "project", ""})
+	for _, d := range dirs {
+		if !cfg.holds(d.If) {
+			continue
 		}
-		for _, p := range claudePlugins(e.ClaudeDir, dir) {
-			roots = append(roots, skillRoot{filepath.Join(p.root, "skills"), "plugin", p.name})
-		}
-	case Omp:
-		cfg := ompConfig(e.OmpDir)
-		if cfg.Skills.Enabled != nil && !*cfg.Skills.Enabled {
-			return nil
-		}
-		roots = append(roots,
-			skillRoot{filepath.Join(e.OmpDir, "skills"), "user", ""},
-			skillRoot{filepath.Join(e.OmpDir, "managed-skills"), "managed", ""},
-			skillRoot{filepath.Join(e.Home, ".agents", "skills"), "shared", ""})
-		for _, d := range up {
-			roots = append(roots,
-				skillRoot{filepath.Join(d, ".omp", "skills"), "project", ""},
-				skillRoot{filepath.Join(d, ".agents", "skills"), "project", ""},
-				skillRoot{filepath.Join(d, ".claude", "skills"), "project", ""})
-		}
-		if cfg.Skills.EnableClaudeUser {
-			roots = append(roots, skillRoot{filepath.Join(e.ClaudeDir, "skills"), "user", ""})
-		}
-		for _, c := range cfg.Skills.CustomDirectories {
-			roots = append(roots, skillRoot{expand(c, e.Home, dir), "configured", ""})
-		}
-	case Codex:
-		roots = append(roots,
-			skillRoot{filepath.Join(e.Home, ".codex", "skills"), "user", ""},
-			skillRoot{filepath.Join(e.Home, ".agents", "skills"), "shared", ""})
-		for _, d := range up {
-			roots = append(roots,
-				skillRoot{filepath.Join(d, ".codex", "skills"), "project", ""},
-				skillRoot{filepath.Join(d, ".agents", "skills"), "project", ""})
+		switch {
+		case len(d.Up) > 0:
+			for _, a := range ancestors(dir, e.Home) {
+				for _, u := range d.Up {
+					if cfg.holds(u.If) {
+						roots = append(roots, skillRoot{filepath.Join(a, u.Path), u.Scope, ""})
+					}
+				}
+			}
+		case d.Plugins != "":
+			for _, p := range claudePlugins(s.path(d.Plugins), dir) {
+				roots = append(roots, skillRoot{filepath.Join(p.root, d.Path), d.Scope, p.name})
+			}
+		case d.List != "":
+			for _, p := range cfg.strings(d.List) {
+				roots = append(roots, skillRoot{expand(p, e.Home, dir), d.Scope, ""})
+			}
+		default:
+			roots = append(roots, skillRoot{s.path(d.Path), d.Scope, ""})
 		}
 	}
 	return roots
 }
 
+// path is a Compose path with ~, {claudeDir} and {ompDir} replaced by
+// the Env's directories.
+func (s *Sources) path(p string) string {
+	switch {
+	case p == "":
+		return ""
+	case p == "~" || strings.HasPrefix(p, "~/"):
+		return filepath.Join(s.Env.Home, p[1:])
+	}
+	p = strings.ReplaceAll(p, "{claudeDir}", s.Env.ClaudeDir)
+	p = strings.ReplaceAll(p, "{ompDir}", s.Env.OmpDir)
+	return filepath.Clean(p)
+}
+
 // skillInputs are the paths whose mtimes say the skills may have changed:
 // every root, and the config files that add or drop roots.
-func (s *Sources) skillInputs(harness, dir string) []string {
+func (s *Sources) skillInputs(c harness.Compose, dir string) []string {
 	var paths []string
-	for _, r := range s.skillRoots(harness, dir) {
+	for _, r := range s.skillRoots(c, dir) {
 		paths = append(paths, r.dir)
 	}
-	switch harness {
-	case Claude:
-		paths = append(paths, filepath.Join(s.Env.ClaudeDir, "settings.json"), filepath.Join(s.Env.ClaudeDir, "plugins", "installed_plugins.json"))
-	case Omp:
-		paths = append(paths, filepath.Join(s.Env.OmpDir, "config.yml"))
+	for _, in := range c.Inputs {
+		paths = append(paths, s.path(in))
 	}
 	return paths
 }
 
 // scanSkills reads each root's <name>/SKILL.md.
-func (s *Sources) scanSkills(harness, dir string) []Skill {
+func (s *Sources) scanSkills(c harness.Compose, dir string) []Skill {
 	seen := map[string]bool{}
 	var skills []Skill
-	for _, r := range s.skillRoots(harness, dir) {
+	for _, r := range s.skillRoots(c, dir) {
 		entries, err := os.ReadDir(r.dir)
 		if err != nil {
 			continue
@@ -362,25 +359,72 @@ func claudePlugins(claudeDir, dir string) []claudePlugin {
 	return out
 }
 
-// ompSettings is the part of omp's config.yml compose reads.
-type ompSettings struct {
-	Skills struct {
-		Enabled           *bool    `yaml:"enabled"`
-		EnableClaudeUser  bool     `yaml:"enableClaudeUser"`
-		CustomDirectories []string `yaml:"customDirectories"`
-	} `yaml:"skills"`
-	Commands struct {
-		EnableClaudeUser    bool  `yaml:"enableClaudeUser"`
-		EnableClaudeProject *bool `yaml:"enableClaudeProject"`
-	} `yaml:"commands"`
+// config is a Compose row's settings file, parsed (YAML, so JSON too);
+// nil when there is none or it does not parse.
+type config map[string]any
+
+func readConfig(path string) config {
+	if path == "" {
+		return nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var m map[string]any
+	if yaml.Unmarshal(b, &m) != nil {
+		return nil
+	}
+	return m
 }
 
-func ompConfig(ompDir string) ompSettings {
-	var cfg ompSettings
-	if b, err := os.ReadFile(filepath.Join(ompDir, "config.yml")); err == nil {
-		_ = yaml.Unmarshal(b, &cfg)
+// value is the dotted key's value; false when it is not set.
+func (c config) value(key string) (any, bool) {
+	var v any = map[string]any(c)
+	for _, part := range strings.Split(key, ".") {
+		m, ok := v.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		if v, ok = m[part]; !ok {
+			return nil, false
+		}
 	}
-	return cfg
+	return v, v != nil
+}
+
+// holds reports whether every condition holds: "key" (the key is true),
+// "key=value" or "key!=value" (an unset key equals nothing).
+func (c config) holds(conds []string) bool {
+	for _, cond := range conds {
+		key, want, neg := cond, "", false
+		if k, v, ok := strings.Cut(cond, "!="); ok {
+			key, want, neg = k, v, true
+		} else if k, v, ok := strings.Cut(cond, "="); ok {
+			key, want = k, v
+		} else {
+			want = "true"
+		}
+		v, set := c.value(strings.TrimSpace(key))
+		equal := set && fmt.Sprint(v) == strings.TrimSpace(want)
+		if equal == neg {
+			return false
+		}
+	}
+	return true
+}
+
+// strings are the key's list of strings (other items skipped).
+func (c config) strings(key string) []string {
+	v, _ := c.value(key)
+	list, _ := v.([]any)
+	var out []string
+	for _, item := range list {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // ancestors are dir and its parents up to the repository root (the first

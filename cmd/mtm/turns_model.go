@@ -165,16 +165,6 @@ func (c paneCapturer) Capture(ctx context.Context, start, end int, unwrap bool) 
 	return c.d.CaptureRows(ctx, c.p, start, end, unwrap)
 }
 
-// isClaude reports whether the pane runs Claude Code.
-func isClaude(p pane) bool {
-	return strings.HasPrefix(p.Harness, "claude") || p.Harness == "" && strings.HasPrefix(p.LaunchHarness, "claude")
-}
-
-// isOmp reports whether the pane runs omp (oh-my-pi).
-func isOmp(p pane) bool {
-	return p.Harness == "omp" || p.Harness == "" && strings.HasPrefix(p.LaunchHarness, "omp")
-}
-
 // paneTurnsOf is the pane's read turns, made on first use.
 func (a *App) paneTurnsOf(window string) *paneTurns {
 	if a.mturns == nil {
@@ -209,14 +199,15 @@ func (a *App) agentSessions(p pane) []string {
 	return out
 }
 
-// recordAgentSessions keeps every Claude or omp pane's session as tuios reports
-// it, so a /clear later still chains the turns before it.
+// recordAgentSessions keeps the session of every pane whose log gives its
+// turns as tuios reports it, so a /clear later still chains the turns
+// before it.
 func (a *App) recordAgentSessions(panes []pane) {
 	if a.sessionSeen == nil {
 		a.sessionSeen = map[string]string{}
 	}
 	for _, p := range panes {
-		if p.ID == "" || p.AgentSession == "" || !(isClaude(p) || isOmp(p)) || a.sessionSeen[p.ID] == p.AgentSession {
+		if p.ID == "" || p.AgentSession == "" || a.logFormatOf(p).turns == turnsJournal || a.sessionSeen[p.ID] == p.AgentSession {
 			continue
 		}
 		if _, err := a.work.AddPaneSession(p.ID, p.Harness, p.AgentSession); err != nil {
@@ -408,12 +399,12 @@ var logFinders = map[string]func(a *App, p pane) func(session string) turns.Log{
 // (the pane's cwd first; the current session through
 // turns.ResolveClaudeLog, which falls back when tuios's id is stale).
 func claudeLogFinder(a *App, p pane) func(session string) turns.Log {
-	projects, ws, listing, started := a.claudeProjects, a.work, slices.Clone(a.panes), a.agentStartedFunc()
+	projects, ws, listing, started, reg := a.claudeProjects, a.work, slices.Clone(a.panes), a.agentStartedFunc(), a.harnesses
 	return func(s string) turns.Log {
 		if s == p.AgentSession {
 			// The current session: tuios's id, else the resume fallback
 			// (claude_session.go).
-			path, session, err := turns.ResolveClaudeLog(claudeLookup(projects, ws, p, listing, started))
+			path, session, err := turns.ResolveClaudeLog(claudeLookup(reg, projects, ws, p, listing, started))
 			if err != nil {
 				return nil
 			}
@@ -473,7 +464,7 @@ func (a *App) pollTurns() {
 	if err != nil {
 		return
 	}
-	if isCodex(p) && p.AgentSession != "" {
+	if a.logFormatOf(p).rollout && p.AgentSession != "" {
 		// Codex's turns are the journal's; its settings line reads the
 		// rollout's end on each listing.
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "read-settings", Noun: "pane", Target: a.pv.turnsFor}); err != nil {
