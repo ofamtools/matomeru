@@ -97,13 +97,18 @@ func TestVisualTasksActOnEverySelectedRow(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	press(t, app, "j", "enter", "V", "j", "s")
-	if app.r.TopModal() != statusChooser || app.taskList.Visual() {
+	// ochazuke v0.93.1: the selection waits under the chooser (esc
+	// resumes it); the pick ends it.
+	if app.r.TopModal() != statusChooser {
 		t.Fatalf("V j s: modal %q visual %v", app.r.TopModal(), app.taskList.Visual())
 	}
 	typeText(t, app, "b")
 	press(t, app, "enter")
 	if stored(t, app, "t1").Status != work.StatusBlocked || stored(t, app, "t2").Status != work.StatusBlocked {
 		t.Fatalf("V j s b: %s %s", stored(t, app, "t1").Status, stored(t, app, "t2").Status)
+	}
+	if app.taskList.Visual() {
+		t.Fatal("V j s b: the pick kept the selection")
 	}
 
 	press(t, app, "g", "g", "V", "j", "m")
@@ -227,11 +232,12 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 	if app.r.Chooser(ochazuke.EditChooserKind) == nil {
 		t.Fatalf("V j m: modal %q", app.r.TopModal())
 	}
-	if f := frameAt(app, 160); !strings.Contains(f, "Edit pane project") {
-		t.Fatalf("V j m: no owner chooser:\n%s", f)
+	if f := frameAt(app, 160); !strings.Contains(f, "Edit 2 panes project") {
+		t.Fatalf("V j m: the chooser does not count both panes:\n%s", f)
 	}
+	// ochazuke v0.93.1: esc resumes the selection (visual-line, same rows).
 	press(t, app, "esc")
-	if app.r.Mode.Name != "normal" {
+	if app.r.Mode.Name != "visual-line" {
 		t.Fatalf("after the chooser: mode %s", app.r.Mode.Name)
 	}
 }

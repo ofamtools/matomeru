@@ -59,7 +59,7 @@ func (a *App) defineReminders() {
 	n := reminderNoun
 	a.r.Define(n).Props(reminderProps()...).Store(a.reminderStore()).Columns(reminderColumns...).
 		Verb("add", a.addReminder, "Record a reminder and open its form; CLI uses reminder create").
-		Verb("edit", a.editReminder, "Edit the reminder's title, local time, days and enabled state").Positional("name").
+		Verb("edit", a.editReminder, "Edit the reminder's title, local time, days and enabled state").Positional("name").ShadowsStandard().
 		Verb("check", a.checkReminder("check"), "Check the reminder for today, or --date YYYY-MM-DD").Positional("name").
 		Verb("uncheck", a.checkReminder("uncheck"), "Uncheck the reminder for today, or --date YYYY-MM-DD").Positional("name").
 		Verb("toggle", a.checkReminder("toggle"), "Toggle the reminder for today, or --date YYYY-MM-DD").Positional("name").

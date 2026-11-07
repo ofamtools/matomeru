@@ -19,7 +19,7 @@ func (a *App) defineProject() {
 	a.r.Define("project").Props(projectProps()...).Store(a.projectStore()).Columns(projectColumns...).
 		Verb("open", a.openProject, "View project and tasks").
 		Verb("view", a.openProject, "View project and tasks").
-		Verb("edit", a.editProject, "Edit name, theme and launch settings (standard set of those given); omit arguments for the editor").Positional("name").
+		Verb("edit", a.editProject, "Edit name, theme and launch settings (standard set of those given); omit arguments for the editor").Positional("name").ShadowsStandard().
 		Verb("launch", a.launchRecord, "Launch an agent into this project's session").
 		Verb("directory", a.addProjectDirectory, "Attach directory; omit path to choose").Positional("path").
 		Verb("default", a.defaultProjectDirectory, "Set default directory").Positional("path").

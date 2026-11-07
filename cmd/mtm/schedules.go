@@ -230,7 +230,7 @@ func (a *App) defineSchedules() {
 	// rest are mtm's own.
 	a.r.Define(n).Props(a.scheduleProps()...).Store(a.scheduleStore()).Columns(scheduleColumns...).
 		Verb("add", a.addSchedule, "Add a schedule: a prompt (--prompt, --when, the agent's --harness, --model, --effort, --fast, --permission-mode, --project, --task, --dir, --target, --pane) or a command; in the TUI with no fields, a form").
-		Verb("edit", a.editSchedule, "Change a schedule's fields (the standard set: stored by mtm; a built-in or schedules.json row gets a stored copy); in the TUI with none, its form").Positional("name").
+		Verb("edit", a.editSchedule, "Change a schedule's fields (the standard set: stored by mtm; a built-in or schedules.json row gets a stored copy); in the TUI with none, its form").Positional("name").ShadowsStandard().
 		Verb("duplicate", a.duplicateSchedule, "Copy a schedule to a new stored row, off (--as NAME, else NAME-copy)").Positional("name").
 		Verb("history", a.scheduleHistory, "List a schedule's recent runs, newest first, with their output").Positional("name").Fetch().
 		Verb("run-now", a.runScheduleNow, "Run the schedule now, on or off, and wait for it; refused while it already runs").Positional("name").
