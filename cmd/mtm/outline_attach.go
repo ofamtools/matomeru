@@ -183,13 +183,13 @@ func (a *App) detachTaskImage(ctx ochazuke.Ctx) ochazuke.Result {
 	if len(live) == 1 {
 		return detach(live[0])
 	}
-	rows := make([]ochazuke.ChooserRow, len(live))
+	rows := make([]ochazuke.PickerRow, len(live))
 	for i, at := range live {
-		rows[i] = ochazuke.ChooserRow{ID: at.chip(), Label: at.chip() + " " + at.path, Data: at, Cells: []string{at.chip(), at.path}}
+		rows[i] = ochazuke.PickerRow{ID: at.chip(), Label: at.chip() + " " + at.path, Data: at, Cells: []string{at.chip(), at.path}}
 	}
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind: "task-attachments", Title: "Detach an attachment", Rows: rows,
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
 			return detach(row.Data.(promptAttachment))
 		},
 	})

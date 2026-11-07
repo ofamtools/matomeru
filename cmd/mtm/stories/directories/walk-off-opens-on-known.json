@@ -12,7 +12,7 @@
   ],
   "expect": [
     {
-      "contains": ["browse recent typed [known"],
+      "contains": ["browse recent typed find [known"],
       "lacks": ["walk", "cmd/mtm/"]
     }
   ]

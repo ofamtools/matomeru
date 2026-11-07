@@ -718,19 +718,19 @@ func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.cli {
 		return ochazuke.Failed(errors.New("set-interval needs --interval (1m, 5m, 1h, …)"))
 	}
-	rows := make([]ochazuke.ChooserRow, 0, len(intervalChoices))
+	rows := make([]ochazuke.PickerRow, 0, len(intervalChoices))
 	for _, c := range intervalChoices {
 		label := "every " + c
 		if mustDuration(c) == d.Every() {
 			label += " (now)"
 		}
-		rows = append(rows, ochazuke.ChooserRow{ID: c, Label: label, Data: c})
+		rows = append(rows, ochazuke.PickerRow{ID: c, Label: label, Data: c})
 	}
-	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  "interval-chooser",
 		Title: "Run " + d.Name,
 		Rows:  rows,
-		Choose: func(c ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
 			return a.scheduleSet(d.Name, map[string]any{scheduleIntervalProp: c.Data.(string)})
 		},
 	})

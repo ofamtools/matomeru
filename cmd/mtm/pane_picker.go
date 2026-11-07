@@ -92,9 +92,9 @@ func (a *App) panePickerOrder() ([]pane, string) {
 
 // panePickerRows are the chooser's rows: label, project, kind, state
 // glyph and age, then "current" on the attached pane.
-func (a *App) panePickerRows(now time.Time) []ochazuke.ChooserRow {
+func (a *App) panePickerRows(now time.Time) []ochazuke.PickerRow {
 	panes, current := a.panePickerOrder()
-	rows := make([]ochazuke.ChooserRow, 0, len(panes))
+	rows := make([]ochazuke.PickerRow, 0, len(panes))
 	for _, p := range panes {
 		project := a.ownerLabel(a.paneOwner(p).ProjectID)
 		state := pickerState(p, now)
@@ -102,7 +102,7 @@ func (a *App) panePickerRows(now time.Time) []ochazuke.ChooserRow {
 		if p.rowID() == current {
 			mark = "current"
 		}
-		rows = append(rows, ochazuke.ChooserRow{
+		rows = append(rows, ochazuke.PickerRow{
 			ID:    p.rowID(),
 			Label: p.label() + " " + project + " " + p.kind(),
 			Data:  p,
@@ -125,7 +125,7 @@ func pickerState(p pane, now time.Time) string {
 // panePreview is the highlighted pane's text already in memory, never a
 // daemon call: its last captured screen, else its Activity tab's text,
 // else what the row says (kind, state, directory).
-func (a *App) panePreview(row ochazuke.ChooserRow) string {
+func (a *App) panePreview(row ochazuke.PickerRow) string {
 	if a.preview.Pane == row.ID && a.preview.Text != "" {
 		return trimBlankTail(a.preview.Text)
 	}
@@ -145,14 +145,14 @@ func (a *App) panePreview(row ochazuke.ChooserRow) string {
 
 // pickPane is pane.pick: open the pane chooser over the focus.
 func (a *App) pickPane(ctx ochazuke.Ctx) ochazuke.Result {
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:    panePickerKind,
 		Title:   "Panes",
 		Rows:    a.panePickerRows(a.now()),
 		Empty:   "no panes",
 		Keep:    []int{0},
 		Preview: a.panePreview,
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
 			p, _ := row.Data.(pane)
 			if err := a.attachPicked(p); err != nil {
 				return ochazuke.Failed(err)

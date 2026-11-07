@@ -37,7 +37,7 @@ func TestDirectoryPathPickerBindingOverride(t *testing.T) {
 		t.Fatalf("ctrl+o opened %s", a.r.TopModal())
 	}
 	a.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModAlt})
-	if a.r.TopModal() != "picker" {
+	if a.r.TopModal() != ochazuke.PathChooserKind {
 		t.Fatalf("alt+o modal=%s status=%s", a.r.TopModal(), a.m.Status)
 	}
 }

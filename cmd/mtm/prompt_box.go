@@ -476,7 +476,7 @@ func (a *App) pickIntoPrompt() ochazuke.Result {
 	if p == nil {
 		return ochazuke.Failed(errNoPromptBox)
 	}
-	return a.openContextPicker(*p, func(row ochazuke.ChooserRow) ochazuke.Result {
+	return a.openContextPicker(*p, func(row ochazuke.PickerRow) ochazuke.Result {
 		var text string
 		switch d := row.Data.(type) {
 		case promptRow:

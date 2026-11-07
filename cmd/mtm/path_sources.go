@@ -68,11 +68,11 @@ func dirParam(description string, isNew bool) ochazuke.Parameter {
 
 // definePathSources adds mtm's sources to every path chooser.
 func (a *App) definePathSources() {
-	a.r.AddPathSource(pathSourceKnown, func(pick ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
+	a.r.AddPathSource(pathSourceKnown, func(pick ochazuke.PathPick) (ochazuke.PickerSource, bool) {
 		if !pick.Dir() {
-			return ochazuke.ChooserSource{}, false
+			return ochazuke.PickerSource{}, false
 		}
-		return ochazuke.ChooserSource{
+		return ochazuke.PickerSource{
 			Empty:      ochazuke.EmptyText("known directories"),
 			Loading:    ochazuke.LoadingText("known directories"),
 			LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
@@ -86,39 +86,39 @@ func (a *App) definePathSources() {
 							return ochazuke.Failed(err)
 						}
 					}
-					return ochazuke.Done([]ochazuke.ChooserRow(nil))
+					return ochazuke.Done([]ochazuke.PickerRow(nil))
 				}
 				return ochazuke.Done(a.knownDirectoryRows())
 			},
 		}, true
 	})
-	a.r.AddPathSource(pathSourceProject, func(pick ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
+	a.r.AddPathSource(pathSourceProject, func(pick ochazuke.PathPick) (ochazuke.PickerSource, bool) {
 		if !pick.Dir() {
-			return ochazuke.ChooserSource{}, false
+			return ochazuke.PickerSource{}, false
 		}
 		p, ok := a.pathPickProject()
 		if !ok || len(p.Trees) == 0 {
-			return ochazuke.ChooserSource{}, false
+			return ochazuke.PickerSource{}, false
 		}
 		home, _ := a.home()
-		var rows []ochazuke.ChooserRow
+		var rows []ochazuke.PickerRow
 		for _, tree := range p.Trees {
-			row := ochazuke.ChooserRow{ID: "project-dir:" + tree.Path, Label: tildePath(tree.Path, home), Data: tree.Path}
+			row := ochazuke.PickerRow{ID: "project-dir:" + tree.Path, Label: tildePath(tree.Path, home), Data: tree.Path}
 			if filepath.Clean(tree.Path) == filepath.Clean(p.DefaultTree) {
 				row.Label += "  (default)"
-				rows = append([]ochazuke.ChooserRow{row}, rows...)
+				rows = append([]ochazuke.PickerRow{row}, rows...)
 				continue
 			}
 			rows = append(rows, row)
 		}
 		name := projectName(p)
-		return ochazuke.ChooserSource{
+		return ochazuke.PickerSource{
 			Label: func() string { return pathSourceProject + " " + name },
 			Load:  func(string) ochazuke.Result { return ochazuke.Done(rows) },
 		}, true
 	})
-	a.r.AddPathSource(pathSourceParents, declaredOnly(pathSourceParents, func(ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
-		return ochazuke.ChooserSource{
+	a.r.AddPathSource(pathSourceParents, declaredOnly(pathSourceParents, func(ochazuke.PathPick) (ochazuke.PickerSource, bool) {
+		return ochazuke.PickerSource{
 			Empty:      ochazuke.EmptyText("folders holding known directories"),
 			Loading:    ochazuke.LoadingText("folders holding known directories"),
 			LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
@@ -149,10 +149,10 @@ func (a *App) definePathSources() {
 // declaredOnly offers a folder source only to a pick whose parameter
 // declares it as its start (Parameter.Start): a source made for one
 // parameter stays out of every other path chooser's ctrl+o cycle.
-func declaredOnly(name string, fn func(ochazuke.PathPick) (ochazuke.ChooserSource, bool)) func(ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
-	return func(pick ochazuke.PathPick) (ochazuke.ChooserSource, bool) {
+func declaredOnly(name string, fn func(ochazuke.PathPick) (ochazuke.PickerSource, bool)) func(ochazuke.PathPick) (ochazuke.PickerSource, bool) {
+	return func(pick ochazuke.PathPick) (ochazuke.PickerSource, bool) {
 		if !pick.Dir() || pick.Parameter.Start != name {
-			return ochazuke.ChooserSource{}, false
+			return ochazuke.PickerSource{}, false
 		}
 		return fn(pick)
 	}
@@ -256,8 +256,8 @@ func (a *App) recentDirectories() []string {
 
 // knownDirectoryRows are the known directories as path-chooser rows (Data
 // the path), without directoryChoices' browse… row.
-func (a *App) knownDirectoryRows() []ochazuke.ChooserRow {
-	return slices.DeleteFunc(a.directoryChoices(), func(row ochazuke.ChooserRow) bool {
+func (a *App) knownDirectoryRows() []ochazuke.PickerRow {
+	return slices.DeleteFunc(a.directoryChoices(), func(row ochazuke.PickerRow) bool {
 		_, ok := row.Data.(string)
 		return !ok
 	})

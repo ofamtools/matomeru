@@ -108,7 +108,7 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 }
 
 // Test pass item 9: a chooser's footer and hint line list no motions
-// (chooser.move is a motion, as list.move is on pages).
+// (picker.move is a motion, as list.move is on pages).
 func TestChooserFooterListsNoMotions(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -117,7 +117,7 @@ func TestChooserFooterListsNoMotions(t *testing.T) {
 		t.Fatalf("modal %q", a.r.TopModal())
 	}
 	f := frameAt(a, 120)
-	if strings.Contains(f, "chooser.move") || !strings.Contains(f, "enter chooser.pick") {
+	if strings.Contains(f, "picker.move") || !strings.Contains(f, "enter picker.pick") {
 		t.Fatalf("chooser hints:\n%s", f)
 	}
 }

@@ -240,7 +240,7 @@ func TestSettingsLineIsAStopAndItsFieldsAreRows(t *testing.T) {
 func TestSettingChoosersListTheConfiguredValues(t *testing.T) {
 	t.Parallel()
 	app, _, _ := settingsApp(t)
-	open := func(verb string) []ochazuke.ChooserRow {
+	open := func(verb string) []ochazuke.PickerRow {
 		t.Helper()
 		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: verb, Target: "pane:matomeru/w1"}); err != nil {
 			t.Fatal(err)
@@ -256,7 +256,7 @@ func TestSettingChoosersListTheConfiguredValues(t *testing.T) {
 		}
 		return rows
 	}
-	marked := func(rows []ochazuke.ChooserRow) (vals []string, cur string) {
+	marked := func(rows []ochazuke.PickerRow) (vals []string, cur string) {
 		for _, r := range rows {
 			vals = append(vals, r.ID)
 			if r.Cells[0] == "●" {

@@ -87,7 +87,7 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	return a.openContextPicker(p, func(row ochazuke.ChooserRow) ochazuke.Result {
+	return a.openContextPicker(p, func(row ochazuke.PickerRow) ochazuke.Result {
 		if pr, ok := row.Data.(promptRow); ok {
 			return a.runOnPrompt(pr)
 		}
@@ -97,7 +97,7 @@ func (a *App) pickContext(ctx ochazuke.Ctx) ochazuke.Result {
 
 // openContextPicker opens the picker over pane p's rows; choose is what
 // enter does with the chosen row.
-func (a *App) openContextPicker(p pane, choose func(ochazuke.ChooserRow) ochazuke.Result) ochazuke.Result {
+func (a *App) openContextPicker(p pane, choose func(ochazuke.PickerRow) ochazuke.Result) ochazuke.Result {
 	if err := a.reloadContextItems(); err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -106,7 +106,7 @@ func (a *App) openContextPicker(p pane, choose func(ochazuke.ChooserRow) ochazuk
 		return ochazuke.Failed(err)
 	}
 	a.cx.picking = p
-	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  contextPicker,
 		Noun:  contextNoun,
 		Title: "Context · " + p.label(),
@@ -125,7 +125,7 @@ func (a *App) openContextPicker(p pane, choose func(ochazuke.ChooserRow) ochazuk
 // pickerRows are the picker's rows for pane p: its own items newest
 // first, then the rest of its project's, then the unassociated ones.
 // Other projects' items are left out.
-func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
+func (a *App) pickerRows(p pane) []ochazuke.PickerRow {
 	project := a.contextOwner(p).ProjectID
 	if project == "" {
 		project = a.paneOwner(p).ProjectID
@@ -150,12 +150,12 @@ func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
 		}
 	}
 	now := a.now()
-	var rows []ochazuke.ChooserRow
+	var rows []ochazuke.PickerRow
 	add := func(items []contextitems.Item, where, scope string) {
 		for _, it := range items {
 			props := contextThing(it, tasks)
 			props["scope"] = scope
-			rows = append(rows, ochazuke.ChooserRow{Props: props, ID: it.ID, Label: it.Kind + " " + it.Text, Data: it, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
+			rows = append(rows, ochazuke.PickerRow{Props: props, ID: it.ID, Label: it.Kind + " " + it.Text, Data: it, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
 		}
 	}
 	add(own, "this pane", "pane")
@@ -164,7 +164,7 @@ func (a *App) pickerRows(p pane) []ochazuke.ChooserRow {
 		if t.Window != p.ID || strings.TrimSpace(t.Prompt) == "" {
 			continue
 		}
-		rows = append(rows, ochazuke.ChooserRow{ID: "prompt:" + t.ID, Label: "prompt " + t.Prompt, Data: promptRow{turn: t, pane: p},
+		rows = append(rows, ochazuke.PickerRow{ID: "prompt:" + t.ID, Label: "prompt " + t.Prompt, Data: promptRow{turn: t, pane: p},
 			Props: ochazuke.Thing{"id": "prompt:" + t.ID, "category": "prompt", "origin": "prompt", "origins": []string{"prompt"}, "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session},
 			Cells: []string{"prompt", firstLine(t.Prompt), "this pane", age(now.Sub(time.UnixMilli(t.StartedAt)))}})
 	}
@@ -181,7 +181,7 @@ type promptRow struct {
 
 // pickerPreview is what the picker shows beside the rows: a prompt's
 // answer, an item's whole text and where it was seen.
-func pickerPreview(row ochazuke.ChooserRow) string {
+func pickerPreview(row ochazuke.PickerRow) string {
 	switch d := row.Data.(type) {
 	case promptRow:
 		if len(d.turn.Responses) == 0 {

@@ -281,8 +281,8 @@ func TestLivePickerOpensAPromptsTurn(t *testing.T) {
 func TestChooserPreviewNeedsTheWidth(t *testing.T) {
 	t.Parallel()
 	r := ochazuke.NewRuntime()
-	c, err := r.OpenChooser(ochazuke.ChooserSpec{Kind: "preview-test", Rows: []ochazuke.ChooserRow{{ID: "a", Label: "a"}}, Filter: func(string, ochazuke.ChooserRow) bool { return true },
-		Preview: func(ochazuke.ChooserRow) string { return "preview text" }})
+	c, err := r.OpenPicker(ochazuke.PickerSpec{Kind: "preview-test", Rows: []ochazuke.PickerRow{{ID: "a", Label: "a"}}, Filter: func(string, ochazuke.PickerRow) bool { return true },
+		Preview: func(ochazuke.PickerRow) string { return "preview text" }})
 	if err != nil {
 		t.Fatal(err)
 	}

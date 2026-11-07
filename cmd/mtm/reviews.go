@@ -504,23 +504,23 @@ func (a *App) chooseReviewStatus(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	rows := make([]ochazuke.ChooserRow, 0, len(reviewStatuses))
+	rows := make([]ochazuke.PickerRow, 0, len(reviewStatuses))
 	for _, s := range reviewStatuses {
 		label := s
 		if s == rv.Status {
 			label += " (current)"
 		}
-		rows = append(rows, ochazuke.ChooserRow{ID: "review-status:" + s, Label: label, Data: s})
+		rows = append(rows, ochazuke.PickerRow{ID: "review-status:" + s, Label: label, Data: s})
 	}
 	id := rv.ID
-	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  statusChooser,
 		Title: "Status · " + ctx.Instance.Label,
 		Rows:  rows,
-		Filter: func(query string, row ochazuke.ChooserRow) bool {
+		Filter: func(query string, row ochazuke.PickerRow) bool {
 			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
 		},
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
 			return a.reviewSet(id, "status", row.Data)
 		},
 	})

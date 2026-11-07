@@ -354,7 +354,7 @@ type sideChoice struct {
 // lists are there; an exited parent or side is left out. Enter attaches
 // the parent, shows that side and focuses it (jumpToSide).
 func (a *App) chooseSide(ctx ochazuke.Ctx) ochazuke.Result {
-	var rows []ochazuke.ChooserRow
+	var rows []ochazuke.PickerRow
 	for _, p := range a.panes {
 		s, ok := a.sides[p.ID]
 		if !ok || p.Exited {
@@ -365,18 +365,18 @@ func (a *App) chooseSide(ctx ochazuke.Ctx) ochazuke.Result {
 			if c, live := a.companionPanes[id]; id == "" || !live || c.Exited {
 				continue
 			}
-			rows = append(rows, ochazuke.ChooserRow{ID: p.ID + "/" + name, Label: a.sideTitle(name) + " · " + p.label(), Data: sideChoice{parent: p, kind: name}})
+			rows = append(rows, ochazuke.PickerRow{ID: p.ID + "/" + name, Label: a.sideTitle(name) + " · " + p.label(), Data: sideChoice{parent: p, kind: name}})
 		}
 	}
 	if len(rows) == 0 {
 		ctx.Notify("no side panes are open")
 		return ochazuke.Done(nil)
 	}
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  sideChooser,
 		Title: "Side panes",
 		Rows:  rows,
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
 			c := row.Data.(sideChoice)
 			if err := a.jumpToSide(c.parent, c.kind); err != nil {
 				return ochazuke.Failed(err)

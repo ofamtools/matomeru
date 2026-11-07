@@ -485,13 +485,13 @@ func resultOf(v any, err error) ochazuke.Result {
 // the title counts them, no status is current) and hands the chosen one
 // to set.
 func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) ochazuke.Result) error {
-	rows := make([]ochazuke.ChooserRow, 0, len(work.Statuses))
+	rows := make([]ochazuke.PickerRow, 0, len(work.Statuses))
 	for _, s := range work.Statuses {
 		label := s
 		if s == t.Status && n == 1 {
 			label += " (current)"
 		}
-		rows = append(rows, ochazuke.ChooserRow{ID: "status-choice:" + s, Label: label, Data: s, Cells: []string{work.StatusGlyph(s), label}})
+		rows = append(rows, ochazuke.PickerRow{ID: "status-choice:" + s, Label: label, Data: s, Cells: []string{work.StatusGlyph(s), label}})
 	}
 	title := t.Title
 	if title == "" {
@@ -500,14 +500,14 @@ func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) o
 	if n > 1 {
 		title = fmt.Sprintf("%d tasks", n)
 	}
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  statusChooser,
 		Title: "Status · " + title,
 		Rows:  rows,
-		Filter: func(query string, row ochazuke.ChooserRow) bool {
+		Filter: func(query string, row ochazuke.PickerRow) bool {
 			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
 		},
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
 			status, _ := row.Data.(string)
 			return set(status)
 		},

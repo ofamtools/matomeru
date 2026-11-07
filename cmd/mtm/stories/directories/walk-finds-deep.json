@@ -8,7 +8,7 @@
   "script": [
     "ctrl+j",
     "c",
-    {"job": "chooser.load"},
+    {"job": "picker.load"},
     {"type": "cmd mtm"}
   ],
   "expect": [

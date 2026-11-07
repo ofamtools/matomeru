@@ -415,11 +415,11 @@ func (a *App) defineDirectories() {
 
 func (a *App) addDirectoriesPage() error {
 	a.defineDirectories()
-	picker := ochazuke.NewPicker(a.r)
-	a.r.Define("picker").Mode("insert").Bind("ctrl+y", ochazuke.Do("picker.choose", ochazuke.Arguments{"current": true}))
-	a.m.ModalViews["picker"] = ochazuke.ModalView{Title: "Choose directory", Render: func(_ *ochazuke.Runtime, _ *ochazuke.Instance, w, h int) ochazuke.Block {
-		return picker.ViewBlock(w, h)
-	}}
+	// ctrl+y takes the folder the path picker's find source searches; the
+	// row sits on the path pickers' kinds, not on every picker.
+	for _, kind := range []string{dirChooser, ochazuke.PathChooserKind} {
+		a.r.Define(kind).Mode("insert").Bind("ctrl+y", ochazuke.Do("picker.pick", ochazuke.Arguments{"current": true}))
+	}
 	a.r.Instance(directoriesPage, ochazuke.Kind("page"))
 	a.directoryQuery = ochazuke.NewInput(directoryQueryID, "", false)
 	if err := a.r.AddInput(a.directoryQuery, ochazuke.Parent(directoriesPage), ochazuke.Kind("dir-search")); err != nil {
@@ -728,16 +728,16 @@ func directoryCells(row knownDirectory, owners []string, home string, now time.T
 const dirChooser = "dir-chooser"
 
 // directoryChoices are the known directories as chooser rows, then browse….
-func (a *App) directoryChoices() []ochazuke.ChooserRow {
+func (a *App) directoryChoices() []ochazuke.PickerRow {
 	owners := a.directoryOwners()
 	home, _ := a.home()
 	now := a.now()
-	rows := make([]ochazuke.ChooserRow, 0, len(a.directories.Rows)+1)
+	rows := make([]ochazuke.PickerRow, 0, len(a.directories.Rows)+1)
 	for _, row := range a.directories.Rows {
 		cells := directoryCells(row, owners[row.Path], home, now)
-		rows = append(rows, ochazuke.ChooserRow{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
+		rows = append(rows, ochazuke.PickerRow{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
 	}
-	return append(rows, ochazuke.ChooserRow{ID: "directory:browse", Label: "browse…", Trailing: true})
+	return append(rows, ochazuke.PickerRow{ID: "directory:browse", Label: "browse…", Trailing: true})
 }
 
 // openDirectoryChooser asks for the project's directory the palette way:
@@ -795,15 +795,15 @@ func (a *App) attachOrAsk(path string) ochazuke.Result {
 		return a.attachDirectory(target, path)
 	}
 	home, _ := a.home()
-	rows := make([]ochazuke.ChooserRow, 0, len(a.projects))
+	rows := make([]ochazuke.PickerRow, 0, len(a.projects))
 	for _, p := range a.projects {
-		rows = append(rows, ochazuke.ChooserRow{ID: "attach:" + p.ID, Label: projectLabel(p), Data: p.ID})
+		rows = append(rows, ochazuke.PickerRow{ID: "attach:" + p.ID, Label: projectLabel(p), Data: p.ID})
 	}
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  attachProjectChooser,
 		Title: "Attach " + tildePath(path, home) + " to",
 		Rows:  rows,
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
 			return a.attachDirectory(row.Data.(string), path)
 		},
 		Create: func(name string) ochazuke.Result {
@@ -1005,7 +1005,7 @@ var baseParam = func() ochazuke.Parameter {
 
 // baseChoices are the folders that hold known directories and are not
 // bases yet, the fullest first, each row's Data its path.
-func (a *App) baseChoices() []ochazuke.ChooserRow {
+func (a *App) baseChoices() []ochazuke.PickerRow {
 	bases, _ := a.projectBases()
 	taken := map[string]bool{}
 	for _, base := range bases {
@@ -1024,9 +1024,9 @@ func (a *App) baseChoices() []ochazuke.ChooserRow {
 	}
 	slices.SortFunc(parents, func(x, y string) int { return cmp.Or(cmp.Compare(counts[y], counts[x]), cmp.Compare(x, y)) })
 	home, _ := a.home()
-	rows := make([]ochazuke.ChooserRow, 0, len(parents))
+	rows := make([]ochazuke.PickerRow, 0, len(parents))
 	for _, parent := range parents {
-		rows = append(rows, ochazuke.ChooserRow{ID: "base-choice:" + parent, Label: fmt.Sprintf("%s  (%d known)", tildePath(parent, home), counts[parent]), Data: parent})
+		rows = append(rows, ochazuke.PickerRow{ID: "base-choice:" + parent, Label: fmt.Sprintf("%s  (%d known)", tildePath(parent, home), counts[parent]), Data: parent})
 	}
 	return rows
 }

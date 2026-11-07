@@ -578,7 +578,7 @@ func (a *App) openActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // snoozeChoices are the snooze chooser's rows: a label and its end.
-func snoozeChoices(now time.Time) []ochazuke.ChooserRow {
+func snoozeChoices(now time.Time) []ochazuke.PickerRow {
 	day := func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), 9, 0, 0, 0, t.Location()) }
 	monday := day(now.AddDate(0, 0, 1))
 	for monday.Weekday() != time.Monday {
@@ -593,9 +593,9 @@ func snoozeChoices(now time.Time) []ochazuke.ChooserRow {
 		{"tomorrow 9:00", day(now.AddDate(0, 0, 1))},
 		{"next week (Monday 9:00)", monday},
 	}
-	out := make([]ochazuke.ChooserRow, 0, len(rows))
+	out := make([]ochazuke.PickerRow, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, ochazuke.ChooserRow{ID: r.label, Label: r.label, Data: r.at.Format(time.RFC3339)})
+		out = append(out, ochazuke.PickerRow{ID: r.label, Label: r.label, Data: r.at.Format(time.RFC3339)})
 	}
 	return out
 }
@@ -617,11 +617,11 @@ func (a *App) snoozeActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	if many {
 		title = fmt.Sprintf("Snooze %d items until", len(ctx.Subjects))
 	}
-	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  "snooze-chooser",
 		Title: title,
 		Rows:  snoozeChoices(now),
-		Choose: func(c ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
 			q := ochazuke.Request{Noun: actionItemNoun, Verb: "snooze", Args: ochazuke.Arguments{"id": it.ID, "until": c.Data.(string)}}
 			if many {
 				// One chooser over a visual selection: its time for every item.

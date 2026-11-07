@@ -9,7 +9,7 @@
     "P",
     {"type": "billing-api"},
     "enter",
-    {"job": "chooser.load"},
+    {"job": "picker.load"},
     {"type": "plain deep"},
     "enter",
     "P"

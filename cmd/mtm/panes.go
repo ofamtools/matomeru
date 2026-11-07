@@ -512,15 +512,15 @@ func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Reques
 	first := cmp.Or(p.Settings.Harness, a.launchHarness())
 	names := a.harnesses.Names()
 	slices.SortStableFunc(names, func(x, y string) int { return -cmp.Compare(btoi(x == first), btoi(y == first)) })
-	rows := make([]ochazuke.ChooserRow, 0, len(names))
+	rows := make([]ochazuke.PickerRow, 0, len(names))
 	for _, name := range names {
-		rows = append(rows, ochazuke.ChooserRow{ID: name, Label: name})
+		rows = append(rows, ochazuke.PickerRow{ID: name, Label: name})
 	}
-	_, err := a.r.OpenChooser(ochazuke.ChooserSpec{
+	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  agentChooser,
 		Title: title,
 		Rows:  rows,
-		Choose: func(c ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
 			req := launch
 			req.Args = ochazuke.Arguments{}
 			for k, v := range launch.Args {

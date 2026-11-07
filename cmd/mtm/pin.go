@@ -86,7 +86,7 @@ func (a *App) openPinPicker() ochazuke.Result {
 		}
 	}
 	now := a.now()
-	rows := make([]ochazuke.ChooserRow, 0, len(projects)+1)
+	rows := make([]ochazuke.PickerRow, 0, len(projects)+1)
 	for _, p := range projects {
 		dir := tildePath(projectDir(p), home)
 		label := strings.TrimSpace(projectLabel(p) + "  " + dir)
@@ -98,14 +98,14 @@ func (a *App) openPinPicker() ochazuke.Result {
 		if pinned[p.ID] != 0 {
 			used = "pinned " + sinceUse(pinned[p.ID], now)
 		}
-		rows = append(rows, ochazuke.ChooserRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
+		rows = append(rows, ochazuke.PickerRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
 	}
-	rows = append(rows, ochazuke.ChooserRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Fixed: true})
-	_, err = a.r.OpenChooser(ochazuke.ChooserSpec{
+	rows = append(rows, ochazuke.PickerRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Fixed: true})
+	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
 		Kind:  pinPicker,
 		Title: "Pin project",
 		Rows:  rows,
-		Choose: func(row ochazuke.ChooserRow) ochazuke.Result {
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
 			id, _ := row.Data.(string)
 			return a.pinAndAskDirectory(id)
 		},

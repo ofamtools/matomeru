@@ -124,14 +124,14 @@ func TestTaskPickerShowsTheAncestorPath(t *testing.T) {
 	t.Parallel()
 	a := pinned(t)
 	nestedTasks(t, a)
-	row := func() ochazuke.ChooserRow {
+	row := func() ochazuke.PickerRow {
 		for _, r := range a.taskPickerRows(work.Assignment{}) {
 			if r.ID == "task:t5" {
 				return r
 			}
 		}
 		t.Fatal("no t5 row")
-		return ochazuke.ChooserRow{}
+		return ochazuke.PickerRow{}
 	}
 	got := row()
 	if !strings.HasPrefix(got.Label, "[ ] write the brief › outline the store › list the queries") {

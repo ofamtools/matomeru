@@ -39,7 +39,7 @@ func leaveDirectoryChooser(t *testing.T, a *App) {
 	}
 }
 
-func labels(rows []ochazuke.ChooserRow) []string {
+func labels(rows []ochazuke.PickerRow) []string {
 	out := make([]string, len(rows))
 	for i, row := range rows {
 		out[i] = row.Label
@@ -255,12 +255,12 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		a.m.Width, a.m.Height = width, 24
 		frame := ansi.Strip(frameView(a).Content)
-		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter chooser.pick", "esc modal.close"} {
+		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter picker.pick", "esc modal.close"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("at %d missing %q:\n%s", width, want, frame)
 			}
 		}
-		if strings.Contains(frame, "chooser.new") {
+		if strings.Contains(frame, "picker.new") {
 			t.Fatalf("at %d a key still creates:\n%s", width, frame)
 		}
 		for i, line := range strings.Split(frame, "\n") {
@@ -536,7 +536,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 func TestChooserColumnsFitAndLoadingKeepsWidth(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	c, err := a.r.OpenChooser(ochazuke.ChooserSpec{Kind: "fit-test", Title: "Fit", Empty: "loading…"})
+	c, err := a.r.OpenPicker(ochazuke.PickerSpec{Kind: "fit-test", Title: "Fit", Empty: "loading…"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +545,7 @@ func TestChooserColumnsFitAndLoadingKeepsWidth(t *testing.T) {
 			t.Fatalf("loading line %q is %d wide, want 74", line, ansi.StringWidth(line))
 		}
 	}
-	c.SetRows([]ochazuke.ChooserRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo", "~/proj/some/repo", "main", "never", "[" + strings.Repeat("project, ", 12) + "]"}}})
+	c.SetRows([]ochazuke.PickerRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo", "~/proj/some/repo", "main", "never", "[" + strings.Repeat("project, ", 12) + "]"}}})
 	view := ansi.Strip(c.View(74, 10).Text)
 	if !strings.Contains(view, "~/proj/some/repo") || !strings.Contains(view, "never") {
 		t.Fatalf("path or age cut:\n%s", view)
@@ -608,14 +608,14 @@ func TestDirectoryChooserCutsThePathLast(t *testing.T) {
 	}
 	c := a.r.Chooser(dirChooser)
 	path := "~/proj/some/deep/repo-ab" // 24 cells
-	c.SetRows([]ochazuke.ChooserRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo-name1", path, "feature/branch-abc", "3d ago", "[alpha, beta, ga]"}}})
+	c.SetRows([]ochazuke.PickerRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo-name1", path, "feature/branch-abc", "3d ago", "[alpha, beta, ga]"}}})
 	if view := ansi.Strip(c.View(72, 6).Text); !strings.Contains(view, path) {
 		t.Fatalf("path cut:\n%s", view)
 	}
 }
 
 // The path chooser's known source keeps the same rule (its
-// ChooserSource.Keep): the branch and projects narrow before the path.
+// PickerSource.Keep): the branch and projects narrow before the path.
 func TestPathChooserKnownSourceCutsThePathLast(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -628,7 +628,7 @@ func TestPathChooserKnownSourceCutsThePathLast(t *testing.T) {
 		t.Fatalf("not the path chooser on known: %v", c)
 	}
 	path := "~/proj/some/deep/repo-ab" // 24 cells
-	c.SetRows([]ochazuke.ChooserRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo-name1", path, "feature/branch-abc", "3d ago", "[alpha, beta, ga]"}}})
+	c.SetRows([]ochazuke.PickerRow{{ID: "r", Label: "repo", Data: "/p/repo", Cells: []string{"repo-name1", path, "feature/branch-abc", "3d ago", "[alpha, beta, ga]"}}})
 	if view := ansi.Strip(c.View(72, 6).Text); !strings.Contains(view, path) {
 		t.Fatalf("path cut:\n%s", view)
 	}

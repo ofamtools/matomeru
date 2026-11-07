@@ -629,13 +629,13 @@ func valueMatches(name, choice, current string) bool {
 // values (omp's models) takes the typed value.
 func (a *App) openSettingChooser(p pane, row string, h harness.Harness, st harness.Setting, name string) ochazuke.Result {
 	cur := a.currentSetting(p, name)
-	var rows []ochazuke.ChooserRow
+	var rows []ochazuke.PickerRow
 	for _, v := range h.Choices(name) {
 		mark := " "
 		if valueMatches(name, v, cur.Value) {
 			mark = "●"
 		}
-		rows = append(rows, ochazuke.ChooserRow{ID: v, Label: v, Data: v, Cells: []string{mark, v}})
+		rows = append(rows, ochazuke.PickerRow{ID: v, Label: v, Data: v, Cells: []string{mark, v}})
 	}
 	title := name + " · " + p.label()
 	if cur.Value != "" {
@@ -645,18 +645,18 @@ func (a *App) openSettingChooser(p pane, row string, h harness.Harness, st harne
 		title += " · " + st.Note
 	}
 	apply := func(v string) ochazuke.Result { return a.applySetting(p, row, name, v, false) }
-	spec := ochazuke.ChooserSpec{
+	spec := ochazuke.PickerSpec{
 		Kind:   "pane-setting-" + name,
 		Title:  title,
 		Rows:   rows,
-		Choose: func(r ochazuke.ChooserRow) ochazuke.Result { return apply(r.ID) },
+		Choose: func(r ochazuke.PickerRow) ochazuke.Result { return apply(r.ID) },
 		Empty:  "type a value",
 	}
 	if len(rows) == 0 {
 		spec.Create, spec.CreateRow = apply, true
 		spec.CreateLabel = func(q string) string { return "set " + name + " to " + q }
 	}
-	_, err := a.r.OpenChooser(spec)
+	_, err := a.r.OpenPicker(spec)
 	return resultError(err)
 }
 
