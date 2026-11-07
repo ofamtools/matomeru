@@ -127,9 +127,11 @@ func (a *App) patchVim(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochaz
 	if err != nil {
 		return nil, err
 	}
-	if v, ok := thingString(changes, "name"); ok {
-		row.Name = v
+	props, err := thingOver(namePatch{Name: row.Name}, changes)
+	if err != nil {
+		return nil, err
 	}
+	row.Name = props.Name
 	current, err := a.work.VimProject(row)
 	if err != nil {
 		return nil, err

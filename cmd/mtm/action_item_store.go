@@ -79,7 +79,7 @@ func actionItemProps() []ochazuke.PropSpec {
 
 // actionItemStore is the action-item noun's store over the inbox's items.
 // history.undo may revert its writes (Undo); an undone delete puts the
-// row back as it was (AcceptsKey, actionForgotten).
+// row back as it was (AcceptsKey, forgotten).
 func (a *App) actionItemStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
@@ -156,25 +156,26 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 // the read mark (or clears it); archived archives (reading the item, as
 // archive always did) or restores (waking a snooze, as restore always
 // did); snoozed-until snoozes, out of the archive.
-func applyActionItem(it *actionitems.Item, values ochazuke.Thing, now int64) {
-	for name, field := range map[string]*string{"title": &it.Title, "why": &it.Why, "text": &it.Text, "url": &it.URL, "kind": &it.Kind,
-		"pane": &it.Window, "session": &it.Session} {
-		if v, ok := thingString(values, name); ok {
-			*field = v
-		}
+func applyActionItem(it *actionitems.Item, values ochazuke.Thing, now int64) error {
+	// The plain fields start as the item's own; the marks and the snooze
+	// stay nil unless the write names them, since each has a rule.
+	props, err := thingOver(actionItemPatch{Title: it.Title, Why: it.Why, Text: it.Text, URL: it.URL, Kind: it.Kind,
+		Window: it.Window, Session: it.Session, Notify: it.Notify}, values)
+	if err != nil {
+		return err
 	}
-	if v, ok := values["notify"].(bool); ok {
-		it.Notify = v
-	}
-	if v, ok := values["read"].(bool); ok {
+	it.Title, it.Why, it.Text, it.URL, it.Kind = props.Title, props.Why, props.Text, props.URL, props.Kind
+	it.Window, it.Session, it.Notify = props.Window, props.Session, props.Notify
+	if v := props.Read; v != nil {
 		switch {
-		case !v:
+		case !*v:
 			it.ReadAt = 0
 		case it.ReadAt == 0:
 			it.ReadAt = now
 		}
 	}
-	if v, ok := values["archived"].(bool); ok {
+	if props.Archived != nil {
+		v := *props.Archived
 		if v {
 			if it.ReadAt == 0 {
 				it.ReadAt = now
@@ -187,12 +188,30 @@ func applyActionItem(it *actionitems.Item, values ochazuke.Thing, now int64) {
 		}
 		it.SnoozedUntil = 0
 	}
-	if v, ok := values["snoozed-until"]; ok {
-		it.SnoozedUntil = thingInt(v)
+	if props.SnoozedUntil != nil {
+		it.SnoozedUntil = *props.SnoozedUntil
 		if it.SnoozedUntil > 0 {
 			it.ArchivedAt = 0
 		}
 	}
+	return nil
+}
+
+// actionItemPatch are the action item props a write sets: the plain
+// fields onto the item (thingOver), the pointers only when the write names
+// them, since the read and archived marks and the snooze take rules.
+type actionItemPatch struct {
+	Title        string `json:"title"`
+	Why          string `json:"why"`
+	Text         string `json:"text"`
+	URL          string `json:"url"`
+	Kind         string `json:"kind"`
+	Window       string `json:"pane"`
+	Session      string `json:"session"`
+	Notify       bool   `json:"notify"`
+	Read         *bool  `json:"read"`
+	Archived     *bool  `json:"archived"`
+	SnoozedUntil *int64 `json:"snoozed-until"`
 }
 
 // createActionItem is the store's Create: one new item from the props
@@ -207,18 +226,19 @@ func (a *App) createActionItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.
 			id = ""
 		}
 	}
-	it, restored := a.actionForgotten[id]
+	it, restored := recall[actionitems.Item](a, actionItemNoun, id)
 	if !restored {
 		it = actionitems.Item{ID: id}
 	}
-	delete(a.actionForgotten, id)
 	if v, ok := thingString(values, "source"); ok {
 		it.Source = v
 	}
 	if v, ok := values["extra"].(map[string]any); ok {
 		it.Extra = v
 	}
-	applyActionItem(&it, values, a.inbox.items.Now())
+	if err := applyActionItem(&it, values, a.inbox.items.Now()); err != nil {
+		return nil, err
+	}
 	if project, task, ok := a.ownerWrite(c, it.ProjectID, it.TaskID, values); ok {
 		it.ProjectID, it.TaskID = project, task
 	}
@@ -242,7 +262,9 @@ func (a *App) patchActionItem(c ochazuke.Ctx, id string, changes ochazuke.Thing)
 	project, task, owned := a.ownerWrite(c, cmp.Or(cur.ProjectID, a.taskProject(cur.TaskID)), cur.TaskID, changes)
 	now := a.inbox.items.Now()
 	it, err := a.inbox.items.Update(id, func(it *actionitems.Item) error {
-		applyActionItem(it, changes, now)
+		if err := applyActionItem(it, changes, now); err != nil {
+			return err
+		}
 		if owned {
 			it.ProjectID, it.TaskID = project, task
 		}
@@ -268,10 +290,7 @@ func (a *App) removeActionItem(_ ochazuke.Ctx, id string) error {
 	if err := a.inbox.items.Delete(it.ID); err != nil {
 		return err
 	}
-	if a.actionForgotten == nil {
-		a.actionForgotten = map[string]actionitems.Item{}
-	}
-	a.actionForgotten[it.ID] = it
+	forget(a, actionItemNoun, it.ID, it)
 	return a.refreshInbox()
 }
 

@@ -93,8 +93,7 @@ func contextFilters() []ochazuke.SavedFilter {
 
 // contextStore is the context-item noun's store over the context store.
 // history.undo may revert its writes (Undo); an undone delete puts the
-// row back as it was, sightings and all (AcceptsKey, contextState's
-// forgotten rows).
+// row back as it was, sightings and all (AcceptsKey, forgotten).
 func (a *App) contextStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
@@ -206,7 +205,7 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 		}
 	}
 	now := work.Now()
-	it, restored := a.cx.forgotten[id]
+	it, restored := recall[contextitems.Item](a, contextNoun, id)
 	if id == "" || !restored {
 		if id == "" {
 			id = work.NewID()
@@ -218,7 +217,6 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 	if v, _ := thingString(values, "type"); v == "" && !restored {
 		return nil, &ochazuke.ArgumentError{Err: fmt.Errorf("type is required: one of %s", strings.Join(contextitems.Kinds, ", "))}
 	}
-	delete(a.cx.forgotten, id)
 	if v, ok := thingString(values, "type"); ok {
 		it.Kind = v
 	}
@@ -228,12 +226,11 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 	if owner, ok := a.contextOwnerOf(c, contextitems.Item{}, values); ok {
 		it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
 	}
-	if v, ok := values["starred"].(bool); ok {
-		it.Starred = v
+	props, err := thingOver(contextPatch{Starred: it.Starred, Archived: it.Archived}, values)
+	if err != nil {
+		return nil, err
 	}
-	if v, ok := values["archived"].(bool); ok {
-		it.Archived = v
-	}
+	it.Starred, it.Archived = props.Starred, props.Archived
 	if err := a.contexts.Put(it); err != nil {
 		return nil, err
 	}
@@ -247,6 +244,13 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 	return contextThing(stored, a.contextProjects()), nil
 }
 
+// contextPatch are the context item props a write sets straight onto the
+// item (thingOver); the owner takes rules of its own.
+type contextPatch struct {
+	Starred  bool `json:"starred"`
+	Archived bool `json:"archived"`
+}
+
 // patchContextItem is the store's Patch: the owner (a task brings its
 // project) and the star; the kind and text are the item's, never
 // rewritten.
@@ -256,18 +260,15 @@ func (a *App) patchContextItem(c ochazuke.Ctx, id string, changes ochazuke.Thing
 		return nil, err
 	}
 	owner, owned := a.contextOwnerOf(c, it, changes)
-	starred, hasStar := changes["starred"].(bool)
-	archived, hasArchive := changes["archived"].(bool)
+	props, err := thingOver(contextPatch{Starred: it.Starred, Archived: it.Archived}, changes)
+	if err != nil {
+		return nil, err
+	}
 	it, err = a.contexts.Update(id, func(it *contextitems.Item) {
 		if owned {
 			it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
 		}
-		if hasStar {
-			it.Starred = starred
-		}
-		if hasArchive {
-			it.Archived = archived
-		}
+		it.Starred, it.Archived = props.Starred, props.Archived
 	})
 	if err != nil {
 		return nil, err
@@ -290,10 +291,7 @@ func (a *App) removeContextItem(c ochazuke.Ctx, id string) error {
 	if err := a.contexts.Forget(it.ID); err != nil {
 		return err
 	}
-	if a.cx.forgotten == nil {
-		a.cx.forgotten = map[string]contextitems.Item{}
-	}
-	a.cx.forgotten[it.ID] = it
+	forget(a, contextNoun, it.ID, it)
 	a.cx.follow.forget(it)
 	if err := a.reloadContext(); err != nil {
 		return err

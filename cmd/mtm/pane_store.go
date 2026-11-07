@@ -209,7 +209,14 @@ func (a *App) patchPane(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		p.Name = strings.TrimSpace(name)
 		a.updatePane(p.ID, func(q *pane) { q.Name = p.Name })
 	}
-	if starred, ok := changes["starred"].(bool); ok {
+	starPatch, err := thingOver(struct {
+		Starred *bool `json:"starred"`
+	}{}, changes)
+	if err != nil {
+		return nil, err
+	}
+	if starPatch.Starred != nil {
+		starred := *starPatch.Starred
 		if err := a.work.SetPaneStar(work.PaneStar{Window: p.ID, Session: p.Session, Name: p.label()}, starred); err != nil {
 			return nil, err
 		}

@@ -138,14 +138,7 @@ func (a *App) noteOwner(c ochazuke.Ctx, project string, hasProject bool, task st
 // createNote is the store's Create: a new note from the props given, under
 // the key given when it is free (an undone delete).
 func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
-	str := func(name string) (string, bool) {
-		v, ok := values[name]
-		if !ok || v == nil {
-			return "", ok
-		}
-		return fmt.Sprint(v), true
-	}
-	id, _ := str("id")
+	id, _ := thingString(values, "id")
 	if id != "" {
 		if _, err := a.work.Note(id); err == nil {
 			id = ""
@@ -154,8 +147,8 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	if id == "" {
 		id = work.NewID()
 	}
-	project, hasProject := str("project")
-	task, hasTask := str("task")
+	project, hasProject := thingString(values, "project")
+	task, hasTask := thingString(values, "task")
 	now := work.Now()
 	note := work.Note{ID: id, Created: now, Updated: now}
 	// Undo restores the recorded maker. Normal create omits the read-only
@@ -168,8 +161,11 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 		note.CreatedBy = by
 	}
 	note.ProjectID, note.TaskID = a.noteOwner(c, project, hasProject, task, hasTask)
-	note.Title, _ = str("title")
-	note.Text, _ = str("text")
+	props, err := thingOver(notePatch{}, values)
+	if err != nil {
+		return nil, err
+	}
+	note.Title, note.Text = props.Title, props.Text
 	note.Archived, _ = values["archived"].(bool)
 	if err := a.work.PutNote(note); err != nil {
 		return nil, err
@@ -182,6 +178,14 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 		return nil, err
 	}
 	return a.noteThing(stored), nil
+}
+
+// notePatch are the note props a write sets straight onto the record
+// (thingOver); the owner takes rules of its own.
+type notePatch struct {
+	Title    string `json:"title"`
+	Text     string `json:"text"`
+	Archived bool   `json:"archived"`
 }
 
 // patchNote is the store's Patch: it writes the changed props. A task
@@ -206,24 +210,13 @@ func (a *App) patchNote(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 			return nil, err
 		}
 	}
-	str := func(name string) (string, bool) {
-		v, ok := changes[name]
-		if !ok || v == nil {
-			return "", ok
-		}
-		return fmt.Sprint(v), true
+	props, err := thingOver(notePatch{Title: note.Title, Text: note.Text, Archived: note.Archived}, changes)
+	if err != nil {
+		return nil, err
 	}
-	if v, ok := str("title"); ok {
-		note.Title = v
-	}
-	if v, ok := str("text"); ok {
-		note.Text = v
-	}
-	if v, ok := changes["archived"].(bool); ok {
-		note.Archived = v
-	}
-	project, hasProject := str("project")
-	task, hasTask := str("task")
+	note.Title, note.Text, note.Archived = props.Title, props.Text, props.Archived
+	project, hasProject := thingString(changes, "project")
+	task, hasTask := thingString(changes, "task")
 	owned := hasProject || hasTask
 	if owned {
 		switch {

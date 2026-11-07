@@ -197,9 +197,11 @@ func (a *App) patchSaved(c ochazuke.Ctx, id string, changes ochazuke.Thing) (och
 	if err != nil {
 		return nil, err
 	}
-	if v, ok := thingString(changes, "name"); ok {
-		row.Name = v
+	props, err := thingOver(namePatch{Name: row.Name}, changes)
+	if err != nil {
+		return nil, err
 	}
+	row.Name = props.Name
 	project, task, owned := a.ownerWrite(c, row.ProjectID, row.TaskID, changes)
 	if owned {
 		row.ProjectID, row.TaskID = project, task

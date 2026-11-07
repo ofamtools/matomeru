@@ -81,7 +81,7 @@ func (a *App) scheduleProps() []ochazuke.PropSpec {
 
 // scheduleStore is the schedule noun's store over the rows. history.undo
 // may revert its writes (Undo); an undone delete puts the stored row back
-// as it was (AcceptsKey, scheduleForgotten).
+// as it was (AcceptsKey, forgotten).
 func (a *App) scheduleStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.Collection,
@@ -252,14 +252,13 @@ func (a *App) createSchedule(_ ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Th
 	if _, taken := a.scheduleDef(name); taken {
 		name = ""
 	}
-	d, restored := a.scheduleForgotten[name]
+	d, restored := recall[schedules.Def](a, "schedule", name)
 	if !restored {
 		var err error
 		if d, err = a.newSchedule(values, name); err != nil {
 			return nil, err
 		}
 	}
-	delete(a.scheduleForgotten, name)
 	if err := a.saveSchedule(d); err != nil {
 		return nil, err
 	}
@@ -389,10 +388,7 @@ func (a *App) removeSchedule(c ochazuke.Ctx, name string) error {
 	if err := a.sched.runner.Delete(d.Name); err != nil {
 		return err
 	}
-	if a.scheduleForgotten == nil {
-		a.scheduleForgotten = map[string]schedules.Def{}
-	}
-	a.scheduleForgotten[d.Name] = d
+	forget(a, "schedule", d.Name, d)
 	if err := a.reloadStoredSchedules(); err != nil {
 		return err
 	}

@@ -106,28 +106,35 @@ func projectThing(p work.Project) ochazuke.Thing {
 // writeProjectProps writes the changed writable props onto p: the name
 // trimmed; a harness the registry does not know is written as given with
 // a notice (record first: the launch falls back to the default).
-func (a *App) writeProjectProps(c ochazuke.Ctx, p *work.Project, values ochazuke.Thing) {
-	if v, ok := thingString(values, "name"); ok {
-		p.Name = strings.TrimSpace(v)
+func (a *App) writeProjectProps(c ochazuke.Ctx, p *work.Project, values ochazuke.Thing) error {
+	props, err := thingOver(projectPatch{Name: p.Name, Color: p.Theme.Color, Glyph: p.Theme.Glyph,
+		Harness: p.Settings.Harness, Preset: p.Settings.Preset, Privacy: p.Settings.Privacy}, values)
+	if err != nil {
+		return err
 	}
-	if v, ok := thingString(values, "color"); ok {
-		p.Theme.Color = v
+	if props.Name != p.Name {
+		p.Name = strings.TrimSpace(props.Name)
 	}
-	if v, ok := thingString(values, "glyph"); ok {
-		p.Theme.Glyph = v
+	p.Theme.Color, p.Theme.Glyph, p.Settings.Preset = props.Color, props.Glyph, props.Preset
+	if _, named := values["harness"]; named && !a.knownHarness(props.Harness) {
+		c.Notify(fmt.Sprintf("unknown harness %s; saved, launches use the default until it is registered", props.Harness))
 	}
-	if v, ok := thingString(values, "harness"); ok {
-		if !a.knownHarness(v) {
-			c.Notify(fmt.Sprintf("unknown harness %s; saved, launches use the default until it is registered", v))
-		}
-		p.Settings.Harness = v
+	p.Settings.Harness = props.Harness
+	if props.Privacy != "" { // an empty privacy keeps the stored one
+		p.Settings.Privacy = props.Privacy
 	}
-	if v, ok := thingString(values, "preset"); ok {
-		p.Settings.Preset = v
-	}
-	if v, ok := thingString(values, "privacy"); ok && v != "" {
-		p.Settings.Privacy = v
-	}
+	return nil
+}
+
+// projectPatch are the project props a write sets onto the record
+// (thingOver); the harness, the name and the privacy take rules.
+type projectPatch struct {
+	Name    string `json:"name"`
+	Color   string `json:"color"`
+	Glyph   string `json:"glyph"`
+	Harness string `json:"harness"`
+	Preset  string `json:"preset"`
+	Privacy string `json:"privacy"`
 }
 
 // createProject is the store's Create: a new open project from the props
@@ -144,7 +151,9 @@ func (a *App) createProject(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thi
 		id = work.NewID()
 	}
 	p := work.Project{ID: id, Status: "open", Created: work.Now()}
-	a.writeProjectProps(c, &p, values)
+	if err := a.writeProjectProps(c, &p, values); err != nil {
+		return nil, err
+	}
 	if err := a.work.PutProject(p); err != nil {
 		return nil, err
 	}
@@ -182,7 +191,9 @@ func (a *App) patchProject(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 			return nil, err
 		}
 	}
-	a.writeProjectProps(c, &p, changes)
+	if err := a.writeProjectProps(c, &p, changes); err != nil {
+		return nil, err
+	}
 	if err := a.work.PutProject(p); err != nil {
 		return nil, err
 	}

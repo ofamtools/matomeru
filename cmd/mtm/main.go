@@ -27,7 +27,6 @@ import (
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/history"
 	"ofam.dev/matomeru/internal/locate"
-	"ofam.dev/matomeru/internal/schedules"
 	"ofam.dev/matomeru/internal/turns"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
@@ -440,12 +439,8 @@ type App struct {
 	// savedForgotten are the records this session deleted, by id, so
 	// history.undo puts one back as it was (saved_store.go).
 	savedForgotten map[string]work.SavedPane
-	// actionForgotten are the action items this session deleted, by id, so
-	// history.undo puts one back as it was (action_item_store.go).
-	actionForgotten map[string]actionitems.Item
-	// scheduleForgotten are the stored schedules this session deleted, by
-	// name, so history.undo puts one back as it was (schedule_store.go).
-	scheduleForgotten map[string]schedules.Def
+	// forgotten are the other rows this session deleted (forgotten.go).
+	forgotten forgotten
 	// writeVerb is the named verb running a standard write, the verb its
 	// jobs run under (pane_store.go jobVerb).
 	writeVerb string

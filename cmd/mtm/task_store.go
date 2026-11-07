@@ -218,6 +218,34 @@ func thingActor(v any) (work.Actor, error) {
 	return act, nil
 }
 
+// taskPatch are the task props a write sets straight onto the record: the
+// record's own values with the write's read over them (thingOver). The
+// owner and the maker take rules of their own, so they are not here.
+type taskPatch struct {
+	Title        string `json:"title"`
+	Status       string `json:"status"`
+	Easy         bool   `json:"easy"`
+	SnoozedUntil int64  `json:"snoozed-until"`
+	Private      bool   `json:"private"`
+	Archived     bool   `json:"archived"`
+}
+
+// namePatch is the one prop a record whose write only renames it sets
+// (thingOver).
+type namePatch struct {
+	Name string `json:"name"`
+}
+
+// thingOver reads a write's props over the record's own values (cur): a
+// prop the write names replaces the value, one it does not keeps it. A
+// value of the wrong type refuses the write (set has already typed it).
+func thingOver[P any](cur P, changes ochazuke.Thing) (P, error) {
+	if err := changes.Into(&cur); err != nil {
+		return cur, &ochazuke.ArgumentError{Err: err}
+	}
+	return cur, nil
+}
+
 // thingString reads a prop value of a write as text; ok is whether the
 // write names the prop.
 func thingString(values ochazuke.Thing, name string) (string, bool) {
@@ -389,24 +417,18 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		}
 	}
 	before := t
-	if v, ok := thingString(changes, "title"); ok {
-		t.Title = strings.TrimSpace(v)
+	props, err := thingOver(taskPatch{Title: t.Title, Status: t.Status, Easy: t.Easy, SnoozedUntil: t.SnoozedUntil,
+		Private: t.Private, Archived: t.Archived}, changes)
+	if err != nil {
+		return nil, err
 	}
-	if v, ok := thingString(changes, "status"); ok {
-		t.Status = work.NormalStatus(v)
+	if props.Title != t.Title {
+		t.Title = strings.TrimSpace(props.Title)
 	}
-	if v, ok := changes["easy"]; ok {
-		t.Easy, _ = v.(bool)
+	if props.Status != t.Status {
+		t.Status = work.NormalStatus(props.Status)
 	}
-	if v, ok := changes["snoozed-until"]; ok {
-		t.SnoozedUntil = thingInt(v)
-	}
-	if v, ok := changes["private"]; ok {
-		t.Private, _ = v.(bool)
-	}
-	if v, ok := changes["archived"].(bool); ok {
-		t.Archived = v
-	}
+	t.Easy, t.SnoozedUntil, t.Private, t.Archived = props.Easy, props.SnoozedUntil, props.Private, props.Archived
 	t.CreatedBy = work.Actor{} // the store keeps the stored maker
 	if v, ok := changes["created-by"]; ok && v != nil {
 		by, err := thingActor(v)

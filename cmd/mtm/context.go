@@ -69,9 +69,6 @@ type contextState struct {
 	follow  *contextFollower   // continuous extraction (context_follow.go)
 	picking pane               // the pane the live picker was opened in (context_picker.go)
 	turns   []history.PaneTurn // the picked pane's turns, oldest first (its prompt rows)
-	// forgotten are the rows this session deleted, by id, so
-	// history.undo puts one back as it was (context_store.go).
-	forgotten map[string]contextitems.Item
 }
 
 // systemActions are the clipboard and the system opener; tests replace
