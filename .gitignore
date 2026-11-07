@@ -7,3 +7,7 @@ go.work.sum
 .worktrees/
 /bin/
 *.bak-20*
+# built binaries: go build in a cmd/<name> folder writes cmd/<name>/<name>
+/cmd/*/*
+!/cmd/*/*.*
+!/cmd/*/*/
