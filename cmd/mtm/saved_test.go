@@ -101,14 +101,19 @@ func TestSavedRowsRespectPinAndAll(t *testing.T) {
 		}
 	}
 	a.pin = "matomeru"
-	rows, err := a.savedRows()
-	if err != nil || len(rows) != 1 || rows[0].Data.(work.SavedPane).ProjectID != "matomeru" || len(rows[0].Cells) != len(savedColumns) {
-		t.Fatalf("scoped rows: %+v, %v", rows, err)
+	if err := a.savedList.Refill(); err != nil {
+		t.Fatal(err)
+	}
+	rows := a.savedList.Items()
+	if len(rows) != 1 || rows[0].Data.(ochazuke.Thing)["project"] != "matomeru" || len(rows[0].Cells) != len(savedColumns) {
+		t.Fatalf("scoped rows: %+v", rows)
 	}
 	a.all = true
-	rows, err = a.savedRows()
-	if err != nil || len(rows) != 3 {
-		t.Fatalf("all rows: %+v %v", rows, err)
+	if err := a.savedList.Refill(); err != nil {
+		t.Fatal(err)
+	}
+	if rows = a.savedList.Items(); len(rows) != 3 {
+		t.Fatalf("all rows: %+v", rows)
 	}
 }
 
@@ -195,10 +200,10 @@ func TestSavedAndVimShowHomePathsWithTilde(t *testing.T) {
 	if err := a.work.PutVimSession(work.VimSession{ID: "v9", Name: "notes", Path: "/home/test/.local/v9.vim", Created: 1}); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := a.savedRows()
-	if err != nil {
+	if err := a.savedList.Refill(); err != nil {
 		t.Fatal(err)
 	}
+	saved := a.savedList.Items()
 	vims, err := a.vimRows()
 	if err != nil {
 		t.Fatal(err)
@@ -208,5 +213,25 @@ func TestSavedAndVimShowHomePathsWithTilde(t *testing.T) {
 	}
 	if len(vims) != 1 || vims[0].Cells[3] != "~/.local/v9.vim" {
 		t.Fatalf("vim cells %+v", vims)
+	}
+}
+
+// A record created from the CLI shows on the page with no explicit refresh:
+// the list is the saved store's view.
+func TestSavedCreateShowsWithoutRefresh(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "saved", Verb: "create", Args: ochazuke.Arguments{"name": "fresh", "cwd": "/tmp/x"}}); err != nil {
+		t.Fatal(err)
+	}
+	rows := a.savedList.Items()
+	if len(rows) != 1 || rows[0].Label != "fresh" || rows[0].Cells[0] != "fresh" || rows[0].Cells[2] != "daemon shell" {
+		t.Fatalf("rows after create: %+v", rows)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "saved", Verb: "delete", Target: rows[0].ID, Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	if n := a.savedList.Len(); n != 0 {
+		t.Fatalf("rows after delete: %d", n)
 	}
 }

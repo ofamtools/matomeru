@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"ofam.dev/ochazuke"
 
@@ -32,17 +33,30 @@ const (
 // its project (move writes it) and task, both filled from the focus by
 // create; the recipe (command, env, cwd, harness, model, flags), written by
 // create only; and the read-only pane it was saved from and its times.
-func savedProps() []ochazuke.PropSpec {
+func (a *App) savedProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The record's key")},
-		{Name: "name", Role: ochazuke.RoleLabel, Parameter: text("The record's name (reopen names the window after it)")},
+		{Name: "name", Role: ochazuke.RoleLabel, Parameter: text("The record's name (reopen names the window after it)"),
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { return savedCellName(t) }},
 		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
-			Description: "The project the record (and its live pane) belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
+			Description: "The project the record (and its live pane) belongs to (empty: unassociated); one not found is saved unassociated with a notice"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { id, _ := t["project"].(string); return a.ownerLabel(id) }},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the record belongs to; its project wins over project"}},
-		{Name: "command", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "The argv reopen runs (empty: a daemon shell)"}},
+		{Name: "command", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "The argv reopen runs (empty: a daemon shell)"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				if command := strings.Join(thingList(t["command"]), " "); command != "" {
+					return command
+				}
+				return "daemon shell"
+			}},
 		{Name: "env", CreateOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropObject, Description: "Environment variables reopen sets, an object of name to value"}},
-		{Name: "cwd", CreateOnly: true, Parameter: text("The directory reopen starts in")},
+		{Name: "cwd", CreateOnly: true, Parameter: text("The directory reopen starts in"),
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				home, _ := a.home()
+				cwd, _ := t["cwd"].(string)
+				return tildePath(cwd, home)
+			}},
 		{Name: "harness", CreateOnly: true, Parameter: text("The agent's harness, for an agent's record")},
 		{Name: "model", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "string", Source: "harness.models", SourceArgs: map[string]string{"harness": "harness"}, Free: true,
 			Description: "The agent's model, for an agent's record"}},
@@ -93,6 +107,15 @@ func (a *App) savedStore() ochazuke.Store {
 }
 
 // savedThing is a record as its props.
+// savedCellName is the name column: the record's name, else its id.
+func savedCellName(t ochazuke.Thing) string {
+	if name, _ := t["name"].(string); name != "" {
+		return name
+	}
+	id, _ := t["id"].(string)
+	return id
+}
+
 func savedThing(row work.SavedPane) ochazuke.Thing {
 	t := ochazuke.Thing{
 		"id": row.ID, "name": row.Name, "project": row.ProjectID, "task": row.TaskID,
@@ -184,9 +207,6 @@ func (a *App) createSaved(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing
 	if err != nil {
 		return nil, err
 	}
-	if err := a.refreshSaved(); err != nil {
-		return nil, err
-	}
 	return savedThing(saved), nil
 }
 
@@ -214,8 +234,6 @@ func (a *App) patchSaved(c ochazuke.Ctx, id string, changes ochazuke.Thing) (och
 		if err := a.refreshScope(); err != nil {
 			return nil, err
 		}
-	} else if err := a.refreshSaved(); err != nil {
-		return nil, err
 	}
 	return savedThing(row), nil
 }
@@ -235,9 +253,6 @@ func (a *App) removeSaved(c ochazuke.Ctx, id string) error {
 		a.savedForgotten = map[string]work.SavedPane{}
 	}
 	a.savedForgotten[row.ID] = row
-	if err := a.refreshSaved(); err != nil {
-		return err
-	}
 	name := row.Name
 	if name == "" {
 		name = row.ID

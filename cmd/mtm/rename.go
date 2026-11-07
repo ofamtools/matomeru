@@ -57,7 +57,8 @@ func (a *App) renameSavedOf(p pane, name string) error {
 	if !changed {
 		return nil
 	}
-	return a.refreshSaved()
+	a.r.Changed("saved")
+	return nil
 }
 
 // afterRename reloads the pane list once the daemon has the new name,

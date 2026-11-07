@@ -12,7 +12,6 @@ import (
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
 	"ofam.dev/ochazuke"
-	ocli "ofam.dev/ochazuke/cli"
 )
 
 const savedPage = "saved"
@@ -25,7 +24,7 @@ func (a *App) defineSaved() {
 	// set, delete, watch, move, duplicate) come from them (saved_store.go);
 	// forget is delete's lasting alias, r is edit of @label, m edit of @owner, associate's old
 	// forms run set; save, reopen and the chooser are mtm's own.
-	a.r.Define("saved").Props(savedProps()...).Store(a.savedStore()).Columns(savedColumns...).
+	a.r.Define("saved").Props(a.savedProps()...).Store(a.savedStore()).Columns(savedColumns...).
 		Verb("save", a.savePane, "Save a live pane's confirmed launch recipe").Positional("pane", "name").
 		Verb("reopen", a.reopenSaved, "Attach the live pane, otherwise relaunch its recorded argv").Positional("id").
 		Verb("associate", a.associateSaved, "Choose the project to move the record and its live pane to (omit the owner); --project, --task and --scratch are the deprecated forms of move and set").Positional("id").Many().
@@ -56,7 +55,7 @@ func (a *App) defineSaved() {
 func (a *App) addSavedPage() error {
 	a.r.Instance(savedPage, ochazuke.Kind("page"))
 	var err error
-	a.savedList, err = a.r.AddList(savedListID, nil, ochazuke.Parent(savedPage), ochazuke.Columns(savedColumns...))
+	a.savedList, err = a.r.AddList(savedListID, nil, ochazuke.Parent(savedPage), ochazuke.From("saved"))
 	if err != nil {
 		return err
 	}
@@ -66,56 +65,25 @@ func (a *App) addSavedPage() error {
 	if _, err = a.r.AddPage(savedPage, "Saved", a.renderSaved, ochazuke.Focus(savedListID)); err != nil {
 		return err
 	}
-	// Refresh is automatic: the page reads its records on opening (another
-	// mtm or the CLI may have changed them).
-	a.onOpen(savedPage, a.refreshSaved)
-	return a.refreshSaved()
+	// The list is the saved store's view and fills itself after any change
+	// of the noun; opening reads again (another mtm may have changed them).
+	a.onOpen(savedPage, a.savedList.Refill)
+	return nil
 }
 
-func (a *App) savedRows() ([]ocli.Row, error) {
-	rows, err := a.work.SavedPanes()
-	if err != nil {
-		return nil, err
+// savedRowKey is the record key a saved row stands for: its thing's id.
+func savedRowKey(row *ochazuke.Instance) string {
+	if t, ok := row.Data.(ochazuke.Thing); ok {
+		id, _ := t["id"].(string)
+		return id
 	}
-	a.savedAll = rows
-	out := make([]ocli.Row, 0, len(rows))
-	home, _ := a.home() // paths read with ~, as on every other page
-	for _, row := range rows {
-		if !a.inScope(row.ProjectID) {
-			continue
-		}
-		command := strings.Join(row.Command, " ")
-		if command == "" {
-			command = "daemon shell"
-		}
-		name := row.Name
-		if name == "" {
-			name = row.ID
-		}
-		out = append(out, ocli.Row{Noun: "saved", ID: row.ID, Label: name, Cells: []string{name, a.ownerLabel(row.ProjectID), command, tildePath(row.Cwd, home)}, Data: row})
-	}
-	return out, nil
-}
-
-func (a *App) refreshSaved() error {
-	if a.savedList == nil {
-		return nil
-	}
-	rows, err := a.savedRows()
-	if err != nil {
-		return err
-	}
-	items := make([]ochazuke.ListItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, ochazuke.ListItem{ID: row.ID, Noun: "saved", Label: row.Label, Cells: row.Cells, Data: row.Data})
-	}
-	return a.savedList.SetItems(items)
+	return ""
 }
 
 func (a *App) savedAt(ctx ochazuke.Ctx) (work.SavedPane, error) {
 	id := ochazuke.StringArg(ctx.Args, "id", "")
 	if id == "" && ctx.Instance != nil && ctx.Instance.Noun == "saved" {
-		id = ctx.Instance.ID
+		id = savedRowKey(ctx.Instance)
 	}
 	if id == "" {
 		return work.SavedPane{}, errors.New("specify a saved id or select a saved row")
@@ -188,9 +156,7 @@ func (a *App) savePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return nil, fmt.Errorf("live pane %s not found", id)
 	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
-			if err := a.refreshSaved(); err != nil {
-				ctx.Notify(err.Error())
-			}
+			a.r.Changed("saved")
 		}
 	})
 }
@@ -293,9 +259,7 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 		if err != nil {
 			return
 		}
-		if err := a.refreshSaved(); err != nil {
-			ctx.Notify(err.Error())
-		}
+		a.r.Changed("saved")
 		a.finishLaunch(v.(launched), owner, version)
 	}).Label(row.Harness) // "" for a shell: no label
 }

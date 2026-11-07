@@ -17,7 +17,7 @@ func openSaved(t *testing.T, a *App, id string) {
 		t.Fatal(err)
 	}
 	a.Update(nil)
-	if err := a.savedList.Select(id); err != nil {
+	if err := a.savedList.Select(savedListID + "/" + id); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.savedList.Focus(); err != nil {
@@ -45,7 +45,7 @@ func TestSavedDetailShowsTheRecordAndItsLinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshSaved(); err != nil {
+	if err := a.savedList.Refill(); err != nil {
 		t.Fatal(err)
 	}
 	openSaved(t, a, gone.ID)
@@ -96,7 +96,7 @@ func TestSavedDetailScrollsWithJK(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshSaved(); err != nil {
+	if err := a.savedList.Refill(); err != nil {
 		t.Fatal(err)
 	}
 	openSaved(t, a, long.ID)
@@ -106,7 +106,7 @@ func TestSavedDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("the detail fits:\n%s", frame(a))
 	}
 	press(t, a, "5", "J")
-	if frame(a); d.Offset() != 5 || a.r.Focus != long.ID {
+	if frame(a); d.Offset() != 5 || a.r.Focus != savedListID+"/"+long.ID {
 		t.Fatalf("5J: offset %d focus %s", d.Offset(), a.r.Focus)
 	}
 	press(t, a, "K")
@@ -114,7 +114,7 @@ func TestSavedDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("K: offset %d\n%s", d.Offset(), fr)
 	}
 	press(t, a, "k")
-	if frame(a); a.r.Focus != l.savedID || d.Offset() != 0 {
+	if frame(a); a.r.Focus != savedListID+"/"+l.savedID || d.Offset() != 0 {
 		t.Fatalf("k: focus %s (want %s), offset %d", a.r.Focus, l.savedID, d.Offset())
 	}
 }
