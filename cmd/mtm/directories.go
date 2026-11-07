@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
@@ -445,6 +444,7 @@ func (a *App) addDirectoriesPage() error {
 	if _, err := a.r.AddPage(directoriesPage, "Directories", a.renderDirectories, ochazuke.Focus(directoryListID)); err != nil {
 		return err
 	}
+	a.onOpen(directoriesPage, a.openedDirectories)
 	search := ochazuke.Do("dirs.search")
 	search.Instance, search.Mode, search.Keys = directoriesPage, "normal", "/"
 	add := ochazuke.Do("dirs.add-base")
@@ -461,31 +461,24 @@ func (a *App) addDirectoriesPage() error {
 // openedDirectories runs when the Directories page comes up: the rows are
 // pushed from the cache at once and a stale cache reloads in the
 // background.
-func (a *App) openedDirectories() tea.Cmd {
+func (a *App) openedDirectories() error {
 	a.refreshDirectoryRows()
 	// The detail lists the saved panes and Vim sessions started in a
 	// directory: read them as they are now.
-	if err := errors.Join(a.refreshSaved(), a.refreshVim()); err != nil {
-		a.r.UI().Error(err.Error())
-	}
+	errs := []error{a.refreshSaved(), a.refreshVim()}
 	// The first visit lands on the first list drawn: the pinned project's
 	// directories when it has any (UX review 2 F22); later visits keep the
 	// page's remembered focus.
 	if !a.dirsVisited {
 		a.dirsVisited = true
 		if a.projectDirList.Len() > 0 {
-			if err := a.projectDirList.Focus(); err != nil {
-				a.r.UI().Error(err.Error())
-			}
+			errs = append(errs, a.projectDirList.Focus())
 		}
 	}
-	if a.directories.Ready || a.directories.Loading {
-		return nil
+	if !a.directories.Ready && !a.directories.Loading {
+		errs = append(errs, a.loadDirectories())
 	}
-	if err := a.loadDirectories(); err != nil {
-		a.r.UI().Error(err.Error())
-	}
-	return a.r.PendingCommands()
+	return errors.Join(errs...)
 }
 
 func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {

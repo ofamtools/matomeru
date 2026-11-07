@@ -290,6 +290,7 @@ func (a *App) addSchedulesPage() error {
 	if _, err = a.r.AddPage(schedulesPage, "Schedules", a.renderSchedules, ochazuke.Focus(scheduleListID)); err != nil {
 		return err
 	}
+	a.onOpen(schedulesPage, a.refreshSchedules)
 	// S on the Inbox's list (empty or not) opens the Schedules page: what
 	// feeds the inbox.
 	row := ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": schedulesPage}).Hinted("schedules")

@@ -110,15 +110,20 @@ func (a *App) mountRegistry(all bool) {
 	}
 	a.syncBareNounNames()
 	if a.r.Page != page && a.r.PageOf(page) != nil {
+		// Putting the page back is not opening it: its open step (a
+		// catalog check, a sync request) stays off; the rows reload below.
+		opened := a.r.PageOf(page)
+		step := opened.OnOpen
+		opened.OnOpen = nil
 		if err := a.r.OpenPage(page); err != nil {
 			uerrs = append(uerrs, err)
 		} else if a.r.Instances[focus] != nil {
 			uerrs = append(uerrs, a.r.SetFocus(focus))
 		}
+		opened.OnOpen = step
 		if x, _ := a.extViewOf(page); x != nil {
 			a.reloadExtension(x)
 		}
-		a.lastPage = a.r.Page
 	}
 	if err := errors.Join(uerrs...); err != nil {
 		a.r.UI().Error(err.Error())

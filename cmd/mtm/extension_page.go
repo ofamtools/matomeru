@@ -278,8 +278,12 @@ func (a *App) addExtensionsPage() error {
 		return err
 	}
 	a.extList.SetColumns(extListColumns(a.extSetupOn())...)
-	_, err = a.r.AddPage(extensionsPage, "Extensions", a.renderExtensions, ochazuke.Focus(extListID))
-	return err
+	if _, err = a.r.AddPage(extensionsPage, "Extensions", a.renderExtensions, ochazuke.Focus(extListID)); err != nil {
+		return err
+	}
+	// The tools on PATH and their catalogs may have changed.
+	a.onOpen(extensionsPage, func() error { a.extPage.due = true; return nil })
+	return nil
 }
 
 // extSubject names what the detail shows: the selected row and its status.

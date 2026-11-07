@@ -66,6 +66,7 @@ func (a *App) addVimPage() error {
 	if _, err := a.r.AddPage(vimPage, "Vim", a.renderVim, ochazuke.Focus(vimListID)); err != nil {
 		return err
 	}
+	a.onOpen(vimPage, a.refreshVim)
 	// n opens one from the empty list too; the list refreshes itself
 	// (on opening the page and with every pane listing), so no key does.
 	row := ochazuke.Do("vim.open")

@@ -157,60 +157,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, c)
 	}
 	a.followProject()
-	if a.r.Page != a.lastPage {
-		// A refresh or register from the CLI shows when a page is opened.
-		a.extSyncDue = true
-	}
+	a.watchPageOpens()
 	if a.extSyncDue && a.r.TopModal() == "" {
 		a.extSyncDue = false
 		a.syncExtensions()
 		cmd = tea.Batch(cmd, a.r.PendingCommands())
 	}
-	if a.r.Page != a.lastPage {
-		a.lastPage = a.r.Page
-		switch a.r.Page {
-		case directoriesPage:
-			cmd = tea.Batch(cmd, a.openedDirectories())
-		case savedPage:
-			// Refresh is automatic: the page reads its records on opening
-			// (another mtm or the CLI may have changed them).
-			if err := a.refreshSaved(); err != nil {
-				a.r.UI().Error(err.Error())
-			}
-		case inboxPage:
-			// Outside tools add items from other processes.
-			if err := a.reloadInbox(); err != nil {
-				a.r.UI().Error(err.Error())
-			}
-		case vimPage:
-			if err := a.refreshVim(); err != nil {
-				a.r.UI().Error(err.Error())
-			}
-		case extensionsPage:
-			// The tools on PATH and their catalogs may have changed.
-			a.extPage.due = true
-		case reviewsPage:
-			// Capture hooks write turns from other processes; the rows
-			// also name panes after the latest listing.
-			if err := a.refreshReviews(); err != nil {
-				a.r.UI().Error(err.Error())
-			}
-		case schedulesPage:
-			if err := a.refreshSchedules(); err != nil {
-				a.r.UI().Error(err.Error())
-			}
-		default:
-			// An extension's page reloads its rows when it is opened
-			// (off the loop; the rows on screen stay until they land).
-			// A rebuilt bin's catalog is read again first; the
-			// refresh reloads the rows once it lands.
-			if x, _ := a.extViewOf(a.r.Page); x != nil {
-				cmd = tea.Batch(cmd, a.refreshStaleExtensions(x.name))
-				a.reloadExtension(x)
-				cmd = tea.Batch(cmd, a.r.PendingCommands())
-			}
-		}
-	}
+	// Pages refresh as they open (Page.OnOpen); jobs they launched start here.
+	cmd = tea.Batch(cmd, a.r.PendingCommands())
 	if a.extensionsUpdate() {
 		cmd = tea.Batch(cmd, a.r.PendingCommands())
 	}
