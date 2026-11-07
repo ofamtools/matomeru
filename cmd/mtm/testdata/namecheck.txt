@@ -118,44 +118,7 @@ convert.go	App.conversionReload	compare	"demote"	4
 convert.go	App.conversionReload	compare	"task-outline"	1
 convert.go	conversionNotice	case	"demote"	1
 copies.go	copiedNoun.holds	compare	"all"	1	copies.hold-names is an enum setting (written | all, owner decision F4): its value picks the hold rule
-copybuf.go	copyBuf.move	case	"WORD-backward"	1
-copybuf.go	copyBuf.move	case	"WORD-end"	1
-copybuf.go	copyBuf.move	case	"WORD-end-backward"	1
-copybuf.go	copyBuf.move	case	"WORD-forward"	1
-copybuf.go	copyBuf.move	case	"down"	1
-copybuf.go	copyBuf.move	case	"first-blank"	1
-copybuf.go	copyBuf.move	case	"first-line"	1
-copybuf.go	copyBuf.move	case	"last-blank"	1
-copybuf.go	copyBuf.move	case	"last-line"	1
-copybuf.go	copyBuf.move	case	"left"	1
-copybuf.go	copyBuf.move	case	"line-end"	1
-copybuf.go	copyBuf.move	case	"line-start"	1
-copybuf.go	copyBuf.move	case	"match"	1
-copybuf.go	copyBuf.move	case	"paragraph-backward"	1
-copybuf.go	copyBuf.move	case	"paragraph-forward"	1
-copybuf.go	copyBuf.move	case	"right"	1
-copybuf.go	copyBuf.move	case	"screen-bottom"	1
-copybuf.go	copyBuf.move	case	"screen-middle"	1
-copybuf.go	copyBuf.move	case	"screen-top"	1
-copybuf.go	copyBuf.move	case	"up"	1
-copybuf.go	copyBuf.move	case	"word-backward"	1
-copybuf.go	copyBuf.move	case	"word-end"	1
-copybuf.go	copyBuf.move	case	"word-end-backward"	1
-copybuf.go	copyBuf.move	case	"word-forward"	1
-copybuf.go	copyBuf.move	compare	"first-line"	1
 copybuf.go	copyBuf.move	compare	"line-end"	1
-copybuf.go	copyBuf.move	compare	"paragraph-backward"	1
-copybuf.go	copyBuf.move	compare	"up"	1
-copybuf.go	copyBuf.move	cyclo	"-"	33
-copybuf.go	var verticalMotions	table	"down"	1
-copybuf.go	var verticalMotions	table	"first-line"	1
-copybuf.go	var verticalMotions	table	"last-line"	1
-copybuf.go	var verticalMotions	table	"paragraph-backward"	1
-copybuf.go	var verticalMotions	table	"paragraph-forward"	1
-copybuf.go	var verticalMotions	table	"screen-bottom"	1
-copybuf.go	var verticalMotions	table	"screen-middle"	1
-copybuf.go	var verticalMotions	table	"screen-top"	1
-copybuf.go	var verticalMotions	table	"up"	1
 copymode.go	App.copyUpdate	compare	"panes"	1
 copymode.go	App.defineCopy	compare	"line"	1
 copymode.go	App.defineCopy	compare	"visual_count_pending"	1

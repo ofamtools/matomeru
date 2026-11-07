@@ -303,7 +303,7 @@ func TestCopyModeMotionsTakeCounts(t *testing.T) {
 	keysAt(t, app, "{", 5, 0)
 	keysAt(t, app, "2 {", 0, 0)
 	keysAt(t, app, "}", 2, 0)
-	keysAt(t, app, "2 }", 7, 0)
+	keysAt(t, app, "2 }", 7, 2) // past the last paragraph: the last character, as Vim's }
 	keysAt(t, app, "H", 0, 2)
 	keysAt(t, app, "L", 7, 0)
 	keysAt(t, app, "M", 3, 0)
@@ -682,4 +682,15 @@ func TestPageUnderModalKeepsItsFocusAndSelection(t *testing.T) {
 		t.Fatalf("the copy view is gone under the modal:\n%s", with)
 	}
 	_ = panel
+}
+
+// A paragraph ends at an empty line only, as in Vim and in ochazuke's
+// motion table: a line holding only a tab does not (copy mode used to stop there; plainLines already empties a line of spaces).
+func TestCopyModeParagraphsEndAtEmptyLinesOnly(t *testing.T) {
+	t.Parallel()
+	app, _, _ := copyApp(t, nil, []string{"one", "\t", "two", "", "three"})
+	enterCopyMode(t, app)
+	keysAt(t, app, "g g", 0, 0)
+	keysAt(t, app, "}", 3, 0)
+	keysAt(t, app, "{", 0, 0)
 }

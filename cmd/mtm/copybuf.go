@@ -3,9 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 
+	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
 )
 
@@ -17,7 +19,7 @@ import (
 type copyBuf struct {
 	lines    []string
 	row, col int
-	goal     int // the column j and k aim for; -1 is the cursor's own
+	goal     int // the column j and k aim for, in cells; -1 is the cursor's own
 	top      int // the first line on screen
 	height   int // the view's height when it was last drawn
 	anchor   copyPos
@@ -25,6 +27,9 @@ type copyBuf struct {
 	search   string
 	back     bool // the last search ran upward (?)
 	find     copyFind
+
+	text   []rune // the lines joined by newlines (Runes), valid while starts is not nil
+	starts []int  // the offset in text of each line's first rune
 }
 
 type copyPos struct{ row, col int }
@@ -70,6 +75,7 @@ func (b *copyBuf) show() {
 func (b *copyBuf) setLines(lines []string, shift int) {
 	following := b.row >= b.last() && len(b.lines) > 0
 	b.lines = lines
+	b.text, b.starts = nil, nil
 	b.row += shift
 	b.anchor.row += shift
 	b.top += shift
@@ -132,63 +138,6 @@ func (b *copyBuf) prev(p copyPos) (copyPos, bool) {
 
 func (b *copyBuf) emptyLine(p copyPos) bool { return len(b.line(p.row)) == 0 && p.col == 0 }
 
-// wordForward is w (W with big): past this word, then past blanks, stopping
-// on an empty line.
-func (b *copyBuf) wordForward(p copyPos, big bool) copyPos {
-	start := p
-	ok := true
-	if c := charClass(b.at(p), big); c != 0 {
-		for ok && charClass(b.at(p), big) == c {
-			p, ok = b.next(p)
-		}
-	}
-	for ok && charClass(b.at(p), big) == 0 && !(b.emptyLine(p) && p != start) {
-		p, ok = b.next(p)
-	}
-	if !ok {
-		return b.lastChar()
-	}
-	return p
-}
-
-// wordEnd is e (E): to the last character of this or the next word.
-func (b *copyBuf) wordEnd(p copyPos, big bool) copyPos {
-	p, ok := b.next(p)
-	for ok && charClass(b.at(p), big) == 0 {
-		p, ok = b.next(p)
-	}
-	if !ok {
-		return b.lastChar()
-	}
-	c := charClass(b.at(p), big)
-	for {
-		n, ok := b.next(p)
-		if !ok || n.row != p.row || charClass(b.at(n), big) != c {
-			return p
-		}
-		p = n
-	}
-}
-
-// wordBackward is b (B): to the start of this or the previous word.
-func (b *copyBuf) wordBackward(p copyPos, big bool) copyPos {
-	p, ok := b.prev(p)
-	for ok && charClass(b.at(p), big) == 0 && !b.emptyLine(p) {
-		p, ok = b.prev(p)
-	}
-	if !ok {
-		return copyPos{}
-	}
-	if b.emptyLine(p) {
-		return p
-	}
-	c := charClass(b.at(p), big)
-	for p.col > 0 && charClass(b.line(p.row)[p.col-1], big) == c {
-		p.col--
-	}
-	return p
-}
-
 // wordEndBackward is ge (gE): to the end of the previous word.
 func (b *copyBuf) wordEndBackward(p copyPos, big bool) copyPos {
 	ok := true
@@ -210,161 +159,172 @@ func (b *copyBuf) lastChar() copyPos {
 	return copyPos{b.last(), max(0, len(b.line(b.last()))-1)}
 }
 
-// firstBlank is the column of the line's first non-blank character (^).
-func firstBlank(l []rune) int {
-	for i, r := range l {
-		if !unicode.IsSpace(r) {
-			return i
+// Runes is the buffer's text, its lines joined by newlines, and
+// ScreenLines the view: copyBuf is an ochazuke.TextBuffer, so the motions
+// of ochazuke's table (ochazuke.TextMotion) move over it as they do over a
+// text field.
+func (b *copyBuf) Runes() []rune {
+	if b.starts == nil {
+		b.starts = make([]int, len(b.lines))
+		b.text = b.text[:0]
+		for i, l := range b.lines {
+			b.starts[i] = len(b.text)
+			if i > 0 {
+				b.text = append(b.text, '\n')
+				b.starts[i] = len(b.text)
+			}
+			b.text = append(b.text, []rune(l)...)
+		}
+		if b.starts == nil {
+			b.starts = []int{}
 		}
 	}
-	return max(0, len(l)-1)
+	return b.text
 }
 
-// lastBlank is the column of the line's last non-blank character (g_).
-func lastBlank(l []rune) int {
-	for i := len(l) - 1; i >= 0; i-- {
-		if !unicode.IsSpace(l[i]) {
-			return i
-		}
+func (b *copyBuf) ScreenLines() (first, count int) { return b.top, max(1, b.height) }
+
+// offset is the rune offset of p in Runes; posAt the position of an offset.
+func (b *copyBuf) offset(p copyPos) int {
+	b.Runes()
+	if len(b.starts) == 0 {
+		return 0
 	}
-	return 0
+	row := min(max(0, p.row), len(b.starts)-1)
+	return b.starts[row] + min(max(0, p.col), len(b.line(row)))
 }
 
-// vertical motions keep the goal column and a block selection's $.
-var verticalMotions = map[string]bool{"up": true, "down": true, "first-line": true, "last-line": true, "screen-top": true, "screen-middle": true, "screen-bottom": true, "paragraph-forward": true, "paragraph-backward": true}
+func (b *copyBuf) posAt(off int) copyPos {
+	b.Runes()
+	row := sort.Search(len(b.starts), func(i int) bool { return b.starts[i] > off }) - 1
+	row = max(0, row)
+	return copyPos{row, off - b.starts[row]}
+}
+
+// cellsAt is the screen column of rune column col in l, colAt the rune
+// column at or before cells (the goal column is kept in cells, as an
+// Input's is, so a line of wide characters keeps j and k on the screen's
+// column).
+func cellsAt(l []rune, col int) int {
+	return ansi.StringWidth(string(l[:min(max(0, col), len(l))]))
+}
+
+func colAt(l []rune, cells int) int {
+	col, w := 0, 0
+	for col < len(l) {
+		cw := ansi.StringWidth(string(l[col]))
+		if w+cw > cells {
+			break
+		}
+		w += cw
+		col++
+	}
+	return col
+}
+
+// copyMotions are copy mode's rows of the motion table where it differs
+// from ochazuke's or adds to it: gg and G land on the line's first
+// non-blank (Vim's startofline), where the table's land on its start; ^, g_
+// and ge, gE are not in the table. They are looked up before the table.
+var copyMotions = ochazuke.MotionTable{
+	"first-line":        landsOnFirstBlank("first-line"),
+	"last-line":         landsOnFirstBlank("last-line"),
+	"first-blank":       {To: toFirstBlank},
+	"last-blank":        {Inclusive: true, To: toLastBlank},
+	"word-end-backward": {Inclusive: true, To: wordsEndBackward(false)},
+	"WORD-end-backward": {Inclusive: true, To: wordsEndBackward(true)},
+}
+
+// copyMotion is the row named name: copy mode's own, else the table's.
+func copyMotion(name string) (ochazuke.Motion, bool) {
+	if m, ok := copyMotions[name]; ok {
+		return m, true
+	}
+	return ochazuke.TextMotion(name)
+}
+
+// landsOnFirstBlank is the table's row name moving to the first non-blank
+// of the line it lands on.
+func landsOnFirstBlank(name string) ochazuke.Motion {
+	row, _ := ochazuke.TextMotion(name)
+	to := row.To
+	row.To = func(b ochazuke.TextBuffer, a ochazuke.MotionArgs) (int, bool) {
+		pos, ok := to(b, a)
+		return firstBlankOffset(b.Runes(), pos), ok
+	}
+	return row
+}
+
+// firstBlankOffset is the offset of the first non-blank of pos's line, or
+// the line's end when it is all blank.
+func firstBlankOffset(text []rune, pos int) int {
+	start, end := ochazuke.TextLineBounds(text, pos)
+	for start < end && unicode.IsSpace(text[start]) {
+		start++
+	}
+	return start
+}
+
+func toFirstBlank(b ochazuke.TextBuffer, a ochazuke.MotionArgs) (int, bool) {
+	return firstBlankOffset(b.Runes(), a.Pos), true
+}
+
+// toLastBlank is g_: the last non-blank of the line steps-1 below.
+func toLastBlank(b ochazuke.TextBuffer, a ochazuke.MotionArgs) (int, bool) {
+	text := b.Runes()
+	start, end := ochazuke.TextLineBounds(text, a.Pos)
+	for n := a.Steps; n > 1 && end < len(text); n-- {
+		start, end = ochazuke.TextLineBounds(text, end+1)
+	}
+	for end > start && unicode.IsSpace(text[end-1]) {
+		end--
+	}
+	return max(start, end-1), true
+}
+
+// wordsEndBackward is ge (gE): to the end of the previous word, steps times.
+func wordsEndBackward(big bool) func(ochazuke.TextBuffer, ochazuke.MotionArgs) (int, bool) {
+	return func(tb ochazuke.TextBuffer, a ochazuke.MotionArgs) (int, bool) {
+		b := tb.(*copyBuf)
+		p := b.posAt(a.Pos)
+		for range a.Steps {
+			p = b.wordEndBackward(p, big)
+		}
+		return b.offset(p), true
+	}
+}
 
 // move runs one motion steps times; line is a count given to G and gg (0
-// is none).
+// is none). The motion is a row of ochazuke's motion table, moved over this
+// buffer; a motion that keeps the goal column (j, k) aims for it, every
+// other forgets it, and a block selection's $ lasts only with j and k.
 func (b *copyBuf) move(motion string, steps, line int, block bool) error {
 	steps = max(1, steps)
 	if len(b.lines) == 0 {
 		return nil
 	}
-	if !verticalMotions[motion] {
+	row, ok := copyMotion(motion)
+	if !ok {
+		return fmt.Errorf("unknown copy motion %q", motion)
+	}
+	if !row.KeepsGoal {
 		b.goal = -1
 		if block {
 			b.blockEnd = motion == "line-end"
 		}
 	}
 	p := copyPos{b.row, b.col}
-	h := max(1, b.height)
-	switch motion {
-	case "left":
-		p.col -= steps
-	case "right":
-		p.col += steps
-	case "up", "down":
-		if b.goal < 0 {
-			b.goal = b.col
-		}
-		if motion == "up" {
-			p.row -= steps
-		} else {
-			p.row += steps
-		}
-		p.col = b.goal
-	case "word-forward", "WORD-forward", "word-end", "WORD-end", "word-backward", "WORD-backward", "word-end-backward", "WORD-end-backward":
-		big := strings.HasPrefix(motion, "WORD")
-		for range steps {
-			switch strings.TrimPrefix(strings.TrimPrefix(motion, "word"), "WORD") {
-			case "-forward":
-				p = b.wordForward(p, big)
-			case "-end":
-				p = b.wordEnd(p, big)
-			case "-backward":
-				p = b.wordBackward(p, big)
-			case "-end-backward":
-				p = b.wordEndBackward(p, big)
-			}
-		}
-	case "line-start":
-		p.col = 0
-	case "first-blank":
-		p.col = firstBlank(b.line(p.row))
-	case "line-end":
-		p.row += steps - 1
-		p.col = max(0, len(b.line(min(p.row, b.last())))-1)
-	case "last-blank":
-		p.row += steps - 1
-		p.col = lastBlank(b.line(min(p.row, b.last())))
-	case "first-line", "last-line":
-		switch {
-		case line > 0:
-			p.row = line - 1
-		case motion == "first-line":
-			p.row = 0
-		default:
-			p.row = b.last()
-		}
-		p.col = firstBlank(b.line(min(max(0, p.row), b.last())))
-	case "screen-top":
-		p.row = b.top + steps - 1
-		p.col = firstBlank(b.line(p.row))
-	case "screen-middle":
-		p.row = b.top + (min(h, len(b.lines)-b.top)-1)/2
-		p.col = firstBlank(b.line(p.row))
-	case "screen-bottom":
-		p.row = min(b.top+h, len(b.lines)) - steps
-		p.col = firstBlank(b.line(min(max(0, p.row), b.last())))
-	case "paragraph-forward", "paragraph-backward":
-		dir := 1
-		if motion == "paragraph-backward" {
-			dir = -1
-		}
-		for range steps {
-			r := p.row + dir
-			for r > 0 && r < b.last() && strings.TrimSpace(b.lines[r]) != "" {
-				r += dir
-			}
-			p.row = min(max(0, r), b.last())
-		}
-		p.col = 0
-	case "match":
-		q, ok := b.matchPair(p)
-		if !ok {
-			return errors.New("no bracket on this line")
-		}
-		p = q
-	default:
-		return fmt.Errorf("unknown copy motion %q", motion)
+	if row.KeepsGoal && b.goal < 0 {
+		b.goal = cellsAt(b.line(b.row), b.col)
 	}
+	to, moved := row.To(b, ochazuke.MotionArgs{Pos: b.offset(p), Steps: steps, Line: line, Goal: max(0, b.goal), OnChar: true})
+	if !moved {
+		return errors.New("no bracket on this line")
+	}
+	p = b.posAt(to)
 	b.row, b.col = p.row, p.col
 	b.clamp()
 	return nil
-}
-
-var pairs = map[rune]rune{'(': ')', '[': ']', '{': '}', ')': '(', ']': '[', '}': '{'}
-
-// matchPair is %: the bracket under or after the cursor on its line and
-// the one that matches it, across lines.
-func (b *copyBuf) matchPair(p copyPos) (copyPos, bool) {
-	l := b.line(p.row)
-	for p.col < len(l) && pairs[l[p.col]] == 0 {
-		p.col++
-	}
-	if p.col >= len(l) {
-		return p, false
-	}
-	open := l[p.col]
-	want := pairs[open]
-	forward := strings.ContainsRune("([{", open)
-	depth := 0
-	step := b.next
-	if !forward {
-		step = b.prev
-	}
-	for q, ok := p, true; ok; q, ok = step(q) {
-		switch b.at(q) {
-		case open:
-			depth++
-		case want:
-			depth--
-			if depth == 0 {
-				return q, true
-			}
-		}
-	}
-	return p, false
 }
 
 // findChar is f, F, t and T: the count-th occurrence of char on the line,
@@ -430,10 +390,10 @@ func (b *copyBuf) scroll(lines int, moveCursor bool) {
 	}
 	b.row = min(max(b.row, b.top), b.top+h-1)
 	if b.goal < 0 {
-		b.goal = b.col
+		b.goal = cellsAt(b.line(b.row), b.col)
 	}
-	b.col = b.goal
 	b.row = min(max(0, b.row), b.last())
+	b.col = colAt(b.line(b.row), b.goal)
 	b.col = min(max(0, b.col), max(0, len(b.line(b.row))-1))
 }
 
