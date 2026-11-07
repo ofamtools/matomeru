@@ -294,3 +294,40 @@ func TestVisualSurvivesATurnPoll(t *testing.T) {
 		t.Fatalf("x after poll: %s %s", stored(t, a, "t1").Status, stored(t, a, "t2").Status)
 	}
 }
+
+// app-edit-label-visual-focused-row (UX review F2): mtm's own task.edit
+// over a visual selection keeps ochazuke's rule for a name: the title
+// (the label, which names one thing) goes to the focused row only, with
+// a notice that the rest were left as they were; other props (status)
+// still go to every selected row.
+func TestAppEditLabelVisualFocusedRow(t *testing.T) {
+	t.Parallel()
+	app := open(t)
+	press(t, app, "j", "enter", "V", "j")
+	if app.r.Focus != "t2" || !app.taskList.Visual() {
+		t.Fatalf("V j: focus %s visual %v", app.r.Focus, app.taskList.Visual())
+	}
+	t1, t2 := stored(t, app, "t1").Title, stored(t, app, "t2").Title
+	press(t, app, ":")
+	typeText(t, app, "task edit dup")
+	press(t, app, "enter")
+	if got := stored(t, app, "t2").Title; got != "dup" {
+		t.Fatalf("focused row title %q, want dup", got)
+	}
+	if got := stored(t, app, "t1").Title; got != t1 {
+		t.Fatalf("other selected row renamed: %q (was %q; t2 was %q)", got, t1, t2)
+	}
+	if fr := frame(app); !strings.Contains(fr, "left 1 as they were: title names one row") {
+		t.Fatalf("no notice:\n%s", fr)
+	}
+	// Status is not a name: it fans out over the selection.
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t2", Subjects: []string{"t1", "t2"}, Args: ochazuke.Arguments{"status": work.StatusBlocked}}); err != nil {
+		t.Fatal(err)
+	}
+	if s1, s2 := stored(t, app, "t1").Status, stored(t, app, "t2").Status; s1 != work.StatusBlocked || s2 != work.StatusBlocked {
+		t.Fatalf("status over two rows: %s %s", s1, s2)
+	}
+	if got := stored(t, app, "t1").Title; got != t1 {
+		t.Fatalf("status edit renamed t1: %q", got)
+	}
+}

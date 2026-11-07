@@ -319,18 +319,69 @@ func (a *App) editTask(ctx ochazuke.Ctx) ochazuke.Result {
 			changes[name] = ochazuke.StringArg(ctx.Args, name, "")
 		}
 	}
-	return resultOf(a.r.Execute(subjectsSet(ctx, "task", t.ID, changes)))
+	return resultOf(a.subjectsSet(ctx, "task", t.ID, changes))
 }
 
 // subjectsSet is the standard set of changes on a Many verb's subjects:
-// every row of a visual selection or the marks (one undo group), else the
-// one thing id. edit is Many (edit {field} opens the field's chooser over
-// the selection), so its named form writes every subject too.
-func subjectsSet(ctx ochazuke.Ctx, noun, id string, changes map[string]any) ochazuke.Request {
-	if len(ctx.Subjects) > 1 && ctx.Instance != nil {
-		return ochazuke.Request{Noun: noun, Verb: "set", Target: ctx.Instance.ID, Subjects: ctx.SubjectIDs(), Args: ochazuke.Arguments{"props": changes}}
+// every row of a visual selection or the marks, else the one thing id
+// (the focused row). edit is Many (edit {field} opens the field's chooser
+// over the selection), so its named form writes every subject too, with
+// ochazuke's rule for a name (standard_edit.go humanKeyAlone): the
+// noun's human prop (humanProp) names one thing, so it goes to the
+// focused row only and a notice says the rest were left as they were.
+// The other props fan out over every subject.
+func (a *App) subjectsSet(ctx ochazuke.Ctx, noun, id string, changes map[string]any) (any, error) {
+	single := ochazuke.Request{Noun: noun, Verb: "set", Args: ochazuke.Arguments{"id": id, "props": changes}}
+	if len(ctx.Subjects) < 2 || ctx.Instance == nil {
+		return a.r.Execute(single)
 	}
-	return ochazuke.Request{Noun: noun, Verb: "set", Args: ochazuke.Arguments{"id": id, "props": changes}}
+	fan, one := map[string]any{}, map[string]any{}
+	human := humanProp(a.r.Noun(noun))
+	for k, v := range changes {
+		if human != "" && k == human {
+			one[k] = v
+		} else {
+			fan[k] = v
+		}
+	}
+	var out any
+	if len(fan) > 0 {
+		res, err := a.r.Execute(ochazuke.Request{Noun: noun, Verb: "set", Target: ctx.Instance.ID, Subjects: ctx.SubjectIDs(), Args: ochazuke.Arguments{"props": fan}})
+		if err != nil {
+			return nil, err
+		}
+		out = res
+	}
+	if len(one) > 0 {
+		single.Args["props"] = one
+		res, err := a.r.Execute(single)
+		if err != nil {
+			return nil, err
+		}
+		out = res
+		a.r.UI().Info(fmt.Sprintf("left %d as they were: %s names one row", len(ctx.Subjects)-1, human))
+	}
+	return out, nil
+}
+
+// humanProp is the name of the noun's prop that names one thing, as
+// ochazuke decides it (Noun.humanProp, unexported): the first Human
+// prop, else the label-role prop; "" when it has neither.
+func humanProp(n *ochazuke.Noun) string {
+	if n == nil {
+		return ""
+	}
+	for _, p := range n.Props {
+		if p.Human {
+			return p.Name
+		}
+	}
+	for _, p := range n.Props {
+		if p.Role == ochazuke.RoleLabel {
+			return p.Name
+		}
+	}
+	return ""
 }
 
 // toggleTask is task.toggle (x): the standard set of status, done for a

@@ -380,7 +380,7 @@ func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		return ochazuke.Done(note)
 	}
-	out, err := a.r.Execute(subjectsSet(ctx, "note", note.ID, map[string]any{"text": ochazuke.StringArg(ctx.Args, "text", "")}))
+	out, err := a.subjectsSet(ctx, "note", note.ID, map[string]any{"text": ochazuke.StringArg(ctx.Args, "text", "")})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
