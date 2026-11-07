@@ -143,11 +143,15 @@ func (a *App) instanceOwner(inst *ochazuke.Instance, noun string) (Owner, bool, 
 	if props[0] == "" {
 		return owner, found, nil
 	}
-	out, err := a.r.Execute(ochazuke.Request{Verb: "get", Noun: noun, Target: inst.ID})
-	if err != nil {
-		return Owner{}, true, err
+	if n.Store.Get == nil {
+		return Owner{}, true, nil // no synchronous read: unassociated
 	}
-	thing, _ := out.(map[string]any)
+	// The store's own synchronous read, never the verb (rights, history, jobs).
+	// Record first: a failed read is an unassociated owner, never an error.
+	thing, err := n.Store.Get(ochazuke.Ctx{Runtime: a.r, Instance: inst}, inst.ID)
+	if err != nil {
+		return Owner{}, true, nil
+	}
 	for i, name := range props {
 		if v, _ := thing[name].(string); v != "" {
 			*ownerSlots[i].field(&owner) = v
