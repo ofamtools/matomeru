@@ -54,9 +54,7 @@ func (a *App) scheduleProps() []ochazuke.PropSpec {
 	for _, f := range scheduleFields {
 		p := params[f]
 		param := ochazuke.Parameter{Type: "string", Noun: p.Noun, Source: p.Source, SourceArgs: p.SourceArgs, Free: p.Free, Description: p.Description}
-		if f == "enabled" {
-			param.Enum = schedules.EnabledValues
-		}
+		param.Enum = scheduleChoices(f)
 		props = append(props, ochazuke.PropSpec{Name: f, Multiline: f == "prompt", Parameter: param})
 	}
 	ro := func(name, typ, desc string) ochazuke.PropSpec {
