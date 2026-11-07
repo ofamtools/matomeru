@@ -691,7 +691,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 	mounted := ocli.MountCatalog(a.r, doc, ocli.HostMount{
 		Local: func(noun string) string { return naming.local(name, noun) },
 		Param: extParameter,
-		Proxy: func(noun string, v ocli.CatalogVerb) any { return a.extProxy(x, noun, v.Name) },
+		Proxy: func(noun string, v ocli.CatalogVerb) any { return a.extProxy(x, noun, v.Name, v.OpensPage) },
 	})
 	x.nouns = mounted.Nouns
 	for _, warning := range mounted.Warnings {
@@ -928,8 +928,19 @@ func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 // already); the target is the nearest row of the verb's noun at the
 // focus (extTarget). Catalog metadata selects capture or terminal handoff;
 // UI dispatch presents text results, and the extension's rows reload.
-func (a *App) extProxy(x *extension, noun, verb string) ochazuke.AppHandler {
+func (a *App) extProxy(x *extension, noun, verb, opensPage string) ochazuke.AppHandler {
 	return func(c ochazuke.Ctx) ochazuke.Result {
+		// A verb the catalog says opens a page of the tool opens that page
+		// here, when this host mounted it: the tool would only start its
+		// own terminal program, with no terminal behind a job.
+		if opensPage != "" && !a.cli {
+			if id := extPageID(x.name, opensPage); a.r.PageOf(id) != nil {
+				if err := a.r.OpenPage(id); err != nil {
+					return ochazuke.Failed(err)
+				}
+				return ochazuke.Done(nil)
+			}
+		}
 		target := a.extTarget(x, noun, c.Instance)
 		args := c.Args
 		op, _ := a.r.Operation(x.nouns[noun] + "." + verb)
