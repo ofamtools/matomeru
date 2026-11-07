@@ -1,0 +1,172 @@
+[
+  {
+    "name": "claude",
+    "command": [
+      "claude"
+    ],
+    "modelFlag": "--model",
+    "models": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
+    "prompt": "send-text",
+    "ready": {
+      "state": "idle,done",
+      "timeoutMs": 15000
+    },
+    "attach": "mention",
+    "settings": {
+      "effort": {
+        "values": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "auto"
+        ],
+        "command": "/effort {value}"
+      },
+      "fast": {
+        "values": [
+          "on",
+          "off"
+        ],
+        "command": "/fast {value}"
+      },
+      "model": {
+        "values": [
+          "opus",
+          "fable",
+          "sonnet",
+          "haiku",
+          "default"
+        ],
+        "command": "/model {value}",
+        "note": "Claude Code also saves it as the default for new sessions"
+      },
+      "permission-mode": {
+        "key": "BTab",
+        "cycle": [
+          "default",
+          "acceptEdits",
+          "plan",
+          "bypassPermissions",
+          "auto"
+        ],
+        "screen": {
+          "acceptEdits": "accept edits on",
+          "auto": "auto mode on",
+          "bypassPermissions": "bypass permissions on",
+          "plan": "plan mode on"
+        },
+        "flags": [
+          "--permission-mode",
+          "{value}"
+        ]
+      }
+    },
+    "contextWindows": {
+      "claude-*": 200000,
+      "claude-*\\[1m\\]": 1000000,
+      "claude-fable-5*": 1000000,
+      "claude-opus-5*": 1000000
+    },
+    "session": {
+      "agents": [
+        "claude-code",
+        "claude"
+      ],
+      "files": "${CLAUDE_CONFIG_DIR:-~/.claude}/sessions/*.json",
+      "pid": "pid",
+      "start": "procStart",
+      "env": [
+        "TUIOS_WINDOW_ID",
+        "TUIOS_PANE_ID"
+      ],
+      "session": "sessionId",
+      "cwd": "cwd",
+      "transcript": "${CLAUDE_CONFIG_DIR:-~/.claude}/projects/{cwd_slug}/{session}.jsonl"
+    },
+    "log": "claude",
+    "promptBox": {
+      "deliver": "queue",
+      "submit": "enter"
+    },
+    "agentEnv": [
+      "CLAUDECODE"
+    ]
+  },
+  {
+    "name": "omp",
+    "command": [
+      "omp"
+    ],
+    "modelFlag": "--model",
+    "prompt": "send-text",
+    "ready": {
+      "state": "idle,done",
+      "timeoutMs": 15000
+    },
+    "attach": "mention",
+    "settings": {
+      "effort": {
+        "values": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "auto"
+        ],
+        "command": "/effort {value}"
+      },
+      "fast": {
+        "values": [
+          "on",
+          "off"
+        ],
+        "command": "/fast {value}"
+      },
+      "model": {
+        "command": "/switch {value}"
+      }
+    },
+    "session": {
+      "agents": [
+        "omp"
+      ],
+      "files": "${PI_CODING_AGENT_DIR:-~/.omp/agent}/terminal-sessions/{tty}",
+      "format": "lines",
+      "process": "omp",
+      "cwd": "1",
+      "path": "2",
+      "sessionPattern": "_([0-9A-Za-z-]+)\\.jsonl$"
+    },
+    "log": "omp",
+    "promptBox": {
+      "deliver": "queue",
+      "submit": "enter"
+    }
+  },
+  {
+    "name": "codex",
+    "command": [
+      "codex"
+    ],
+    "modelFlag": "--model",
+    "prompt": "send-text",
+    "ready": {
+      "state": "idle,done",
+      "timeoutMs": 15000
+    },
+    "attach": "paste",
+    "promptBox": {
+      "deliver": "queue",
+      "submit": "enter"
+    }
+  }
+]

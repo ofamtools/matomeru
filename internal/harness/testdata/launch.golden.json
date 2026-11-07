@@ -1,0 +1,505 @@
+[
+  {
+    "harness": "claude",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "claude",
+      "argv": [
+        "claude",
+        "--model",
+        "opus"
+      ],
+      "prompt": "none"
+    },
+    "calls": [
+      "open s n /src [claude --model opus]"
+    ]
+  },
+  {
+    "harness": "claude",
+    "prompt": "fix the test",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "claude",
+      "argv": [
+        "claude",
+        "--model",
+        "opus"
+      ],
+      "prompt": "sent"
+    },
+    "calls": [
+      "open s n /src [claude --model opus]",
+      "wait s/w7 idle,done",
+      "send s/w7 fix the test"
+    ]
+  },
+  {
+    "harness": "claude",
+    "model": "sonnet",
+    "prompt": "fix it",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "claude",
+      "argv": [
+        "claude",
+        "--model",
+        "sonnet"
+      ],
+      "prompt": "sent"
+    },
+    "calls": [
+      "open s n /src [claude --model sonnet]",
+      "wait s/w7 idle,done",
+      "send s/w7 fix it"
+    ]
+  },
+  {
+    "harness": "claude",
+    "model": "openai/sol",
+    "error": "model \"openai/sol\" is not one of claude's models: opus, sonnet, haiku"
+  },
+  {
+    "harness": "claude",
+    "prompt": "go",
+    "settings": {
+      "effort": "high"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "claude",
+      "argv": [
+        "claude",
+        "--model",
+        "opus"
+      ],
+      "prompt": "sent",
+      "typed": [
+        "/effort high"
+      ]
+    },
+    "calls": [
+      "open s n /src [claude --model opus]",
+      "wait s/w7 idle,done",
+      "send s/w7 /effort high",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  },
+  {
+    "harness": "claude",
+    "prompt": "go",
+    "settings": {
+      "fast": "on",
+      "permission-mode": "plan"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "claude",
+      "argv": [
+        "claude",
+        "--model",
+        "opus",
+        "--permission-mode",
+        "plan"
+      ],
+      "prompt": "sent",
+      "typed": [
+        "/fast on"
+      ]
+    },
+    "calls": [
+      "open s n /src [claude --model opus --permission-mode plan]",
+      "wait s/w7 idle,done",
+      "send s/w7 /fast on",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  },
+  {
+    "harness": "claude",
+    "settings": {
+      "permission-mode": "acceptEdits"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "claude",
+      "argv": [
+        "claude",
+        "--model",
+        "opus",
+        "--permission-mode",
+        "acceptEdits"
+      ],
+      "prompt": "none"
+    },
+    "calls": [
+      "open s n /src [claude --model opus --permission-mode acceptEdits]"
+    ]
+  },
+  {
+    "harness": "claude",
+    "prompt": "go",
+    "settings": {
+      "effort": "minimal"
+    },
+    "error": "claude takes effort: low, medium, high, xhigh, max, auto"
+  },
+  {
+    "harness": "omp",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp"
+      ],
+      "prompt": "none"
+    },
+    "calls": [
+      "open s n /src [omp]"
+    ]
+  },
+  {
+    "harness": "omp",
+    "prompt": "fix the test",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp"
+      ],
+      "prompt": "sent"
+    },
+    "calls": [
+      "open s n /src [omp]",
+      "wait s/w7 idle,done",
+      "send s/w7 fix the test"
+    ]
+  },
+  {
+    "harness": "omp",
+    "model": "sonnet",
+    "prompt": "fix it",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp",
+        "--model",
+        "sonnet"
+      ],
+      "prompt": "sent"
+    },
+    "calls": [
+      "open s n /src [omp --model sonnet]",
+      "wait s/w7 idle,done",
+      "send s/w7 fix it"
+    ]
+  },
+  {
+    "harness": "omp",
+    "model": "openai/sol",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp",
+        "--model",
+        "openai/sol"
+      ],
+      "prompt": "none"
+    },
+    "calls": [
+      "open s n /src [omp --model openai/sol]"
+    ]
+  },
+  {
+    "harness": "omp",
+    "prompt": "go",
+    "settings": {
+      "effort": "high"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp"
+      ],
+      "prompt": "sent",
+      "typed": [
+        "/effort high"
+      ]
+    },
+    "calls": [
+      "open s n /src [omp]",
+      "wait s/w7 idle,done",
+      "send s/w7 /effort high",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  },
+  {
+    "harness": "omp",
+    "prompt": "go",
+    "settings": {
+      "fast": "on",
+      "permission-mode": "plan"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp"
+      ],
+      "prompt": "sent",
+      "note": "omp has no launch flag or command for permission-mode; permission-mode=plan not applied (add a settings row in harnesses.json)",
+      "typed": [
+        "/fast on"
+      ]
+    },
+    "calls": [
+      "open s n /src [omp]",
+      "wait s/w7 idle,done",
+      "send s/w7 /fast on",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  },
+  {
+    "harness": "omp",
+    "settings": {
+      "permission-mode": "acceptEdits"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp"
+      ],
+      "prompt": "none",
+      "note": "omp has no launch flag or command for permission-mode; permission-mode=acceptEdits not applied (add a settings row in harnesses.json)"
+    },
+    "calls": [
+      "open s n /src [omp]"
+    ]
+  },
+  {
+    "harness": "omp",
+    "prompt": "go",
+    "settings": {
+      "effort": "minimal"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "omp",
+      "argv": [
+        "omp"
+      ],
+      "prompt": "sent",
+      "typed": [
+        "/effort minimal"
+      ]
+    },
+    "calls": [
+      "open s n /src [omp]",
+      "wait s/w7 idle,done",
+      "send s/w7 /effort minimal",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  },
+  {
+    "harness": "codex",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex"
+      ],
+      "prompt": "none"
+    },
+    "calls": [
+      "open s n /src [codex]"
+    ]
+  },
+  {
+    "harness": "codex",
+    "prompt": "fix the test",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex"
+      ],
+      "prompt": "sent"
+    },
+    "calls": [
+      "open s n /src [codex]",
+      "wait s/w7 idle,done",
+      "send s/w7 fix the test"
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "sonnet",
+    "prompt": "fix it",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex",
+        "--model",
+        "sonnet"
+      ],
+      "prompt": "sent"
+    },
+    "calls": [
+      "open s n /src [codex --model sonnet]",
+      "wait s/w7 idle,done",
+      "send s/w7 fix it"
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "openai/sol",
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex",
+        "--model",
+        "openai/sol"
+      ],
+      "prompt": "none"
+    },
+    "calls": [
+      "open s n /src [codex --model openai/sol]"
+    ]
+  },
+  {
+    "harness": "codex",
+    "prompt": "go",
+    "settings": {
+      "effort": "high"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex"
+      ],
+      "prompt": "sent",
+      "note": "codex has no launch flag or command for effort; effort=high not applied (add a settings row in harnesses.json)"
+    },
+    "calls": [
+      "open s n /src [codex]",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  },
+  {
+    "harness": "codex",
+    "prompt": "go",
+    "settings": {
+      "fast": "on",
+      "permission-mode": "plan"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex"
+      ],
+      "prompt": "sent",
+      "note": "codex has no launch flag or command for fast; fast=on not applied (add a settings row in harnesses.json); codex has no launch flag or command for permission-mode; permission-mode=plan not applied (add a settings row in harnesses.json)"
+    },
+    "calls": [
+      "open s n /src [codex]",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  },
+  {
+    "harness": "codex",
+    "settings": {
+      "permission-mode": "acceptEdits"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex"
+      ],
+      "prompt": "none",
+      "note": "codex has no launch flag or command for permission-mode; permission-mode=acceptEdits not applied (add a settings row in harnesses.json)"
+    },
+    "calls": [
+      "open s n /src [codex]"
+    ]
+  },
+  {
+    "harness": "codex",
+    "prompt": "go",
+    "settings": {
+      "effort": "minimal"
+    },
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "codex",
+      "argv": [
+        "codex"
+      ],
+      "prompt": "sent",
+      "note": "codex has no launch flag or command for effort; effort=minimal not applied (add a settings row in harnesses.json)"
+    },
+    "calls": [
+      "open s n /src [codex]",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
+  }
+]
