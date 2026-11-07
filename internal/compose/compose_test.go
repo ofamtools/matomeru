@@ -7,7 +7,21 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"ofam.dev/matomeru/internal/harness"
 )
+
+// The built-in harness rows the tests complete for.
+var Claude, Omp, Codex = builtin("claude"), builtin("omp"), builtin("codex")
+
+func builtin(name string) harness.Harness {
+	for _, h := range harness.Builtins() {
+		if h.Name == name {
+			return h
+		}
+	}
+	panic("no built-in " + name)
+}
 
 func write(t *testing.T, path, text string) {
 	t.Helper()
@@ -119,7 +133,7 @@ func TestSkillsPreferOAI(t *testing.T) {
 	calls := 0
 	e.OAI = func(_ context.Context, harness, dir string) ([]byte, error) {
 		calls++
-		if harness != Claude || dir != pane {
+		if harness != "claude" || dir != pane {
 			t.Fatalf("o-ai asked %s %s", harness, dir)
 		}
 		return []byte(`[
@@ -200,10 +214,25 @@ func TestFilesWalkAndRank(t *testing.T) {
 	}
 }
 
-func TestHarnessNames(t *testing.T) {
-	for id, want := range map[string]string{"claude-code": Claude, "omp": Omp, "codex": Codex, "aider": ""} {
-		if Harness(id) != want {
-			t.Fatalf("%s: %q", id, Harness(id))
-		}
+// A harness row named claude-work with claude's compose fields completes
+// exactly as claude: no name decides.
+func TestCompletionsFollowTheRowNotTheName(t *testing.T) {
+	e, pane := env(t)
+	skill(t, filepath.Join(e.ClaudeDir, "skills"), "deploy", "Ship it")
+	write(t, filepath.Join(e.ClaudeDir, "commands", "cr.md"), "review\n")
+	work := Claude
+	work.Name = "claude-work"
+	s := NewSources(e)
+	if a, b := names(s.Skills(context.Background(), Claude, pane)), names(s.Skills(context.Background(), work, pane)); a != b || a == "" {
+		t.Fatalf("skills: claude %q, claude-work %q", a, b)
+	}
+	if a, b := s.Commands(context.Background(), Claude, pane), s.Commands(context.Background(), work, pane); len(a) != len(b) || len(a) == 0 {
+		t.Fatalf("commands: claude %d, claude-work %d", len(a), len(b))
+	}
+	if SkillInvocation(work, Skill{Name: "deploy"}) != "/deploy" || !SkillsAreCommands(work) || SkillsAreCommands(Codex) {
+		t.Fatal("invocation follows the row")
+	}
+	if got := NewSources(e).Skills(context.Background(), harness.Harness{Name: "claude"}, pane); len(got) != 0 {
+		t.Fatalf("a row named claude without compose fields has no skills: %v", got)
 	}
 }

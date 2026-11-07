@@ -15,7 +15,6 @@ import (
 
 	"ofam.dev/ochazuke"
 
-	"ofam.dev/matomeru/internal/compose"
 	"ofam.dev/matomeru/internal/harness"
 )
 
@@ -142,17 +141,11 @@ func promptOutgoing(text string, live []promptAttachment, mentions bool) string 
 	return text
 }
 
-// attachMode is how the pane's harness takes files: its registry entry's
-// attach mode (compose's name for the tuios harness, else the launch's),
-// else mentions.
+// attachMode is how the pane's harness takes files: its profile's
+// attach mode (harnessOf), else mentions.
 func (a *App) attachMode(p pane) string {
-	if a.harnesses == nil {
-		return harness.AttachMention
-	}
-	for _, name := range []string{compose.Harness(p.Harness), p.LaunchHarness} {
-		if h, ok := a.harnesses.Get(name); ok && name != "" {
-			return h.AttachMode()
-		}
+	if h, ok := a.harnessOf(p); ok {
+		return h.AttachMode()
 	}
 	return harness.AttachMention
 }

@@ -3,13 +3,16 @@
 // flag that picks a model, the models it offers, how it takes its first
 // prompt and how to tell it is ready for one. Built-ins cover claude, omp
 // and codex; a JSON file adds harnesses or changes them by name, so a new
-// harness needs no Go change. Launch is the one flow every harness and a
+// harness needs no Go change: the built-ins are themselves such a file
+// (builtins.json), and every difference between harnesses is a field
+// mtm reads, never a test of a harness's name. Launch is the one flow every harness and a
 // plain shell share: open a pane running the argv, wait until it is ready,
 // type the prompt into it. The package knows nothing about the app or the
 // daemon's wire format; a Driver supplies the three pane operations.
 package harness
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,8 +65,14 @@ const (
 //	 attach: "mention", promptBox: {deliver: "queue", submit: "enter"},
 //	 drive: "terminal", view: {open: "turns", split: 50}}
 type Harness struct {
-	Name      string            `json:"name"`
-	Command   []string          `json:"command"`             // argv; command[0] is looked up on PATH
+	Name    string   `json:"name"`
+	Command []string `json:"command"` // argv; command[0] is looked up on PATH
+	// Ids are the harness ids tuios reports for a pane running the
+	// harness, as path.Match globs ("claude*" covers claude-code); empty:
+	// the harness's name. A pane's capabilities (its log, settings,
+	// prompt box, completions) come from the harness whose ids cover the
+	// id tuios reports, the one mtm launched it with first.
+	Ids       []string          `json:"ids,omitempty"`
 	ModelFlag string            `json:"modelFlag,omitempty"` // "--model"; empty: the harness takes no model
 	Models    []string          `json:"models,omitempty"`    // the accepted models, the first the default; empty: any model, no default
 	Prompt    string            `json:"prompt,omitempty"`    // PromptSendText (default) or PromptArg
@@ -82,10 +91,23 @@ type Harness struct {
 	// session object merges by field into the built-in's; null removes it.
 	Session *SessionSource `json:"session,omitempty"`
 	// Log is the format of the harness's session log (its transcript),
-	// which mtm reads for a pane's turns and its subagents: LogClaude or
-	// LogOmp. Empty, or a format mtm has no reader for: the pane's log is
-	// not read (its turns are mtm's journal, it shows no subagents).
+	// which mtm reads for a pane's turns and its subagents (LogClaude,
+	// LogOmp) or only for its settings line (LogCodex, Codex's rollout).
+	// Empty, or a format mtm has no reader for: the pane's log is not
+	// read (its turns are mtm's journal, it shows no subagents).
 	Log string `json:"log,omitempty"`
+	// Compose is what the prompt box completes from in the harness's
+	// panes (compose.go); nil: files only. A file's compose object
+	// merges by field into the built-in's; null removes it.
+	Compose *Compose `json:"compose,omitempty"`
+	// MCP names the recipe `mtm mcp config` prints for the harness
+	// (internal/mcp: claude, codex, omp, opencode); empty: none.
+	MCP string `json:"mcp,omitempty"`
+	// Extends, on a file entry that adds a harness, names the harness
+	// it starts as a copy of; its own fields then change that copy by
+	// field, as an entry naming a built-in does ({"name": "claude-work",
+	// "extends": "claude", "env": {"CLAUDE_CONFIG_DIR": "~/.claude-work"}}).
+	Extends string `json:"extends,omitempty"`
 	// PromptBox is how mtm's prompt box writes to the harness's panes
 	// (promptbox.go); nil: AgentPromptBox. A file's promptBox object
 	// merges by field into the built-in's; null removes it.
@@ -126,24 +148,57 @@ func (r Ready) Zero() bool { return r.State == "" && r.Pattern == "" }
 // DefaultReadyTimeoutMS bounds a readiness wait whose harness sets none.
 const DefaultReadyTimeoutMS = 15000
 
-// Builtins are the harnesses matomeru knows without a file, lifted from
-// how matomeru-old launched them (internal/prompts/models.go: every one
-// takes --model; tuios reports claude's state from its hooks and screen,
-// omp's from the extension in internal/setup/omp.ts, codex's from its
-// screen, so each is ready at idle or done).
+//go:embed builtins.json
+var builtinsJSON []byte
+
+// Builtins are the harnesses matomeru knows without a file:
+// builtins.json, in the same format as a user's harnesses.json. The
+// launch rows are lifted from how matomeru-old launched them
+// (internal/prompts/models.go: every one takes --model; tuios reports
+// claude's state from its hooks and screen, omp's from the extension in
+// internal/setup/omp.ts, codex's from its screen, so each is ready at
+// idle or done).
+//
+// The settings rows are the in-session commands of the harness versions
+// on the owner's machine, read from each harness (2026-10-28):
+//
+//   - Claude Code 2.1.312: /model <model> (it also saves the model as the
+//     default for new sessions: "Set model to `Opus 5.5` and saved as your
+//     default for new sessions"), /effort <low|medium|high|xhigh|max|auto>,
+//     /fast [on|off]. The permission mode has no command: shift+tab (BTab)
+//     cycles default → acceptEdits → plan → bypassPermissions (when the
+//     session may bypass) → auto (when the account has it) → default, and
+//     the prompt's footer says which is on. Its context windows per model
+//     are not in its log; they are what the owner's sessions show (an Opus
+//     5.5 session read 436k tokens of context). A model none matches shows
+//     tokens.
+//   - omp 18.13.0 (src/slash-commands/builtin-modes.ts): /switch <model>
+//     (session only; /model in the TUI opens its picker and drops the
+//     argument), /effort <level>, /fast <on|off>. No permission modes.
+//   - Codex 0.162.1: /model and /permissions open pickers and take no
+//     argument, so no row: Codex's settings are shown, not changed.
+//
+// The session sources: Claude Code rewrites sessions/<pid>.json when the
+// process moves to another session (2.1.312: {"pid", "sessionId", "cwd",
+// "kind", "procStart", …}); omp (oh-my-pi 18) writes terminal-sessions/
+// <tty>, the folder on line 1 and the session file on line 2, when it
+// sets a session file.
+//
+// The compose rows are each harness's own search path (see
+// internal/compose): Claude Code's skills and commands under its config
+// directory, .claude/ up to the repository root and its enabled plugins;
+// omp's from ~/.omp/agent/config.yml; Codex's under ~/.codex and
+// ~/.agents. Claude Code's commands are its documented built-ins (2.1.x),
+// omp's its slash-command registry (src/slash-commands/builtin-*.ts,
+// 18.13.0), Codex's from its TUI. A skill is /name in Claude Code
+// (/plugin:name for a plugin's), /skill:name in omp
+// (src/extensibility/skills.ts) and $name in Codex (codex-cli 0.162.1).
 func Builtins() []Harness {
-	ready := Ready{State: "idle,done", TimeoutMS: DefaultReadyTimeoutMS}
-	list := []Harness{
-		{Name: "claude", Command: []string{"claude"}, ModelFlag: "--model", Models: []string{"opus", "sonnet", "haiku"}, Prompt: PromptSendText, Ready: ready, Attach: AttachMention, AgentEnv: []string{"CLAUDECODE"}},
-		{Name: "omp", Command: []string{"omp"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachMention},
-		{Name: "codex", Command: []string{"codex"}, ModelFlag: "--model", Prompt: PromptSendText, Ready: ready, Attach: AttachPaste},
-	}
-	for i := range list {
-		list[i].Settings, list[i].ContextWindows = builtinSettings(list[i].Name)
-		list[i].Session = builtinSession(list[i].Name)
-		list[i].Log = builtinLog[list[i].Name]
-		box := AgentPromptBox
-		list[i].PromptBox = &box
+	var list []Harness
+	dec := json.NewDecoder(strings.NewReader(string(builtinsJSON)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&list); err != nil {
+		panic("harness: builtins.json: " + err.Error())
 	}
 	return list
 }
@@ -152,11 +207,8 @@ func Builtins() []Harness {
 const (
 	LogClaude = "claude"
 	LogOmp    = "omp"
+	LogCodex  = "codex"
 )
-
-// builtinLog is each built-in harness's session log format; codex's
-// rollout is read by its own path (the settings line) and has none here.
-var builtinLog = map[string]string{"claude": LogClaude, "omp": LogOmp}
 
 // Validate reports what makes a definition unusable.
 func (h Harness) Validate() error {
@@ -190,6 +242,12 @@ func (h Harness) Validate() error {
 			return err
 		}
 	}
+	return h.validateParts()
+}
+
+// validateParts checks the harness's objects: its session, prompt box,
+// drive, view, compose row, ids and context windows.
+func (h Harness) validateParts() error {
 	if h.Session != nil {
 		if err := h.Session.validate(h.Name); err != nil {
 			return err
@@ -206,6 +264,16 @@ func (h Harness) Validate() error {
 	if h.View != nil {
 		if err := h.View.validate(h.Name); err != nil {
 			return err
+		}
+	}
+	if h.Compose != nil {
+		if err := h.Compose.validate(h.Name); err != nil {
+			return err
+		}
+	}
+	for _, id := range h.Ids {
+		if _, err := path.Match(id, ""); err != nil || strings.TrimSpace(id) == "" {
+			return fmt.Errorf("harness %s: ids %q: a glob of the id tuios reports", h.Name, id)
 		}
 	}
 	for p, n := range h.ContextWindows {
@@ -324,6 +392,38 @@ func (r *Registry) AgentFromEnv(getenv func(string) string) string {
 	return ""
 }
 
+// Covers reports whether the harness's Ids (else its name) cover id, a
+// harness id tuios reports.
+func (h Harness) Covers(id string) bool {
+	if id == "" {
+		return false
+	}
+	if len(h.Ids) == 0 {
+		return id == h.Name
+	}
+	for _, g := range h.Ids {
+		if ok, _ := path.Match(g, id); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// ForAgent is the harness of a pane tuios reports as running id: the
+// harness named first (the one mtm launched the pane with) when it covers
+// id, else the first in registry order that does.
+func (r *Registry) ForAgent(id, first string) (Harness, bool) {
+	if h, ok := r.Get(first); ok && first != "" && h.Covers(id) {
+		return h, true
+	}
+	for _, h := range r.list {
+		if h.Covers(id) {
+			return h, true
+		}
+	}
+	return Harness{}, false
+}
+
 // Get finds a harness by name.
 func (r *Registry) Get(name string) (Harness, bool) {
 	for _, h := range r.list {
@@ -345,7 +445,8 @@ func (r *Registry) Lookup(name string) (Harness, error) {
 // Load is the built-ins merged with the file at path: a JSON array of
 // harness objects. An entry whose name is a built-in's changes only the
 // fields it gives (an entry {"name": "omp", "command": ["omp-dev"]} keeps
-// omp's model flag and readiness); any other entry adds a harness. A
+// omp's model flag and readiness); any other entry adds a harness,
+// starting empty or, with extends, as a copy of the harness it names. A
 // missing file (or an empty path) is the built-ins alone.
 func Load(path string) (*Registry, error) {
 	list := Builtins()
@@ -370,6 +471,32 @@ func Load(path string) (*Registry, error) {
 	return r, nil
 }
 
+// clone is h with its slices, maps and objects copied, so an entry
+// merged into it changes none of h's. A field the entry gives replaces
+// the whole value; a settings or contextWindows object merges by key, and
+// a session, promptBox, view or compose object by field.
+func (h Harness) clone() Harness {
+	h.Command, h.Models, h.AgentEnv, h.Ids = slices.Clone(h.Command), slices.Clone(h.Models), slices.Clone(h.AgentEnv), slices.Clone(h.Ids)
+	h.Env, h.Settings, h.ContextWindows = maps.Clone(h.Env), maps.Clone(h.Settings), maps.Clone(h.ContextWindows)
+	if h.Session != nil {
+		src := *h.Session
+		src.Agents, src.Env = slices.Clone(src.Agents), slices.Clone(src.Env)
+		h.Session = &src
+	}
+	if h.PromptBox != nil {
+		box := *h.PromptBox
+		h.PromptBox = &box
+	}
+	if h.View != nil {
+		view := *h.View
+		h.View = &view
+	}
+	if h.Compose != nil {
+		h.Compose = h.Compose.clone()
+	}
+	return h
+}
+
 // Merge applies a harness file's JSON array to base by name (see Load).
 func Merge(base []Harness, data []byte) ([]Harness, error) {
 	var entries []json.RawMessage
@@ -379,7 +506,8 @@ func Merge(base []Harness, data []byte) ([]Harness, error) {
 	out := slices.Clone(base)
 	for i, raw := range entries {
 		var named struct {
-			Name string `json:"name"`
+			Name    string `json:"name"`
+			Extends string `json:"extends"`
 		}
 		if err := json.Unmarshal(raw, &named); err != nil {
 			return nil, fmt.Errorf("entry %d: %w", i, err)
@@ -389,26 +517,16 @@ func Merge(base []Harness, data []byte) ([]Harness, error) {
 		}
 		at := slices.IndexFunc(out, func(h Harness) bool { return h.Name == named.Name })
 		var h Harness
-		if at >= 0 {
-			h = out[at]
-			// A field the entry gives replaces the built-in's whole value.
-			// A settings or contextWindows object merges by key into the
-			// built-in's, so the maps are copied first.
-			h.Command, h.Models, h.AgentEnv = slices.Clone(h.Command), slices.Clone(h.Models), slices.Clone(h.AgentEnv)
-			h.Env, h.Settings, h.ContextWindows = maps.Clone(h.Env), maps.Clone(h.Settings), maps.Clone(h.ContextWindows)
-			if h.Session != nil {
-				src := *h.Session
-				src.Agents, src.Env = slices.Clone(src.Agents), slices.Clone(src.Env)
-				h.Session = &src
-			}
-			if h.PromptBox != nil {
-				box := *h.PromptBox
-				h.PromptBox = &box
-			}
-			if h.View != nil {
-				view := *h.View
-				h.View = &view
-			}
+		switch from := slices.IndexFunc(out, func(h Harness) bool { return h.Name == named.Extends }); {
+		case named.Extends != "" && at >= 0:
+			return nil, fmt.Errorf("harness %s: extends is for an entry that adds a harness; %s exists, so the entry changes it", named.Name, named.Name)
+		case named.Extends != "" && from < 0:
+			return nil, fmt.Errorf("harness %s: extends %q, which is not a harness defined before it", named.Name, named.Extends)
+		case at >= 0:
+			h = out[at].clone()
+		case from >= 0:
+			h = out[from].clone()
+			h.Name = named.Name
 		}
 		dec := json.NewDecoder(strings.NewReader(string(raw)))
 		dec.DisallowUnknownFields()

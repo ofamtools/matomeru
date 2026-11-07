@@ -4,6 +4,9 @@
     "command": [
       "claude"
     ],
+    "ids": [
+      "claude*"
+    ],
     "modelFlag": "--model",
     "models": [
       "opus",
@@ -90,6 +93,88 @@
       "transcript": "${CLAUDE_CONFIG_DIR:-~/.claude}/projects/{cwd_slug}/{session}.jsonl"
     },
     "log": "claude",
+    "compose": {
+      "oai": "claude",
+      "inputs": [
+        "{claudeDir}/settings.json",
+        "{claudeDir}/plugins/installed_plugins.json"
+      ],
+      "skills": [
+        {
+          "path": "{claudeDir}/skills",
+          "scope": "user"
+        },
+        {
+          "up": [
+            {
+              "path": ".claude/skills",
+              "scope": "project"
+            }
+          ]
+        },
+        {
+          "path": "skills",
+          "scope": "plugin",
+          "plugins": "{claudeDir}"
+        }
+      ],
+      "commandDirs": [
+        {
+          "up": [
+            {
+              "path": ".claude/commands",
+              "scope": "project"
+            }
+          ]
+        },
+        {
+          "path": "{claudeDir}/commands",
+          "scope": "user"
+        },
+        {
+          "path": "commands",
+          "scope": "plugin",
+          "plugins": "{claudeDir}"
+        }
+      ],
+      "commands": [
+        "add-dir",
+        "agents",
+        "bug",
+        "clear",
+        "compact",
+        "config",
+        "context",
+        "cost",
+        "doctor",
+        "exit",
+        "export",
+        "help",
+        "hooks",
+        "init",
+        "login",
+        "logout",
+        "mcp",
+        "memory",
+        "model",
+        "permissions",
+        "plugin",
+        "pr-comments",
+        "release-notes",
+        "resume",
+        "review",
+        "rewind",
+        "security-review",
+        "status",
+        "statusline",
+        "todos",
+        "usage",
+        "vim"
+      ],
+      "skill": "/{name}",
+      "pluginSkill": "/{plugin}:{name}"
+    },
+    "mcp": "claude",
     "promptBox": {
       "deliver": "queue",
       "submit": "enter"
@@ -101,6 +186,9 @@
   {
     "name": "omp",
     "command": [
+      "omp"
+    ],
+    "ids": [
       "omp"
     ],
     "modelFlag": "--model",
@@ -147,6 +235,161 @@
       "sessionPattern": "_([0-9A-Za-z-]+)\\.jsonl$"
     },
     "log": "omp",
+    "compose": {
+      "oai": "omp",
+      "config": "{ompDir}/config.yml",
+      "inputs": [
+        "{ompDir}/config.yml"
+      ],
+      "skills": [
+        {
+          "path": "{ompDir}/skills",
+          "scope": "user",
+          "if": [
+            "skills.enabled!=false"
+          ]
+        },
+        {
+          "path": "{ompDir}/managed-skills",
+          "scope": "managed",
+          "if": [
+            "skills.enabled!=false"
+          ]
+        },
+        {
+          "path": "~/.agents/skills",
+          "scope": "shared",
+          "if": [
+            "skills.enabled!=false"
+          ]
+        },
+        {
+          "up": [
+            {
+              "path": ".omp/skills",
+              "scope": "project"
+            },
+            {
+              "path": ".agents/skills",
+              "scope": "project"
+            },
+            {
+              "path": ".claude/skills",
+              "scope": "project"
+            }
+          ],
+          "if": [
+            "skills.enabled!=false"
+          ]
+        },
+        {
+          "path": "{claudeDir}/skills",
+          "scope": "user",
+          "if": [
+            "skills.enabled!=false",
+            "skills.enableClaudeUser"
+          ]
+        },
+        {
+          "scope": "configured",
+          "list": "skills.customDirectories",
+          "if": [
+            "skills.enabled!=false"
+          ]
+        }
+      ],
+      "commandDirs": [
+        {
+          "up": [
+            {
+              "path": ".omp/commands",
+              "scope": "project"
+            },
+            {
+              "path": ".claude/commands",
+              "scope": "project",
+              "if": [
+                "commands.enableClaudeProject!=false"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "{ompDir}/commands",
+          "scope": "user"
+        },
+        {
+          "path": "{claudeDir}/commands",
+          "scope": "user",
+          "if": [
+            "commands.enableClaudeUser"
+          ]
+        }
+      ],
+      "commands": [
+        "add-dir",
+        "advisor",
+        "agents",
+        "branch",
+        "btw",
+        "changelog",
+        "clear",
+        "collab",
+        "compact",
+        "context",
+        "copy",
+        "debug",
+        "delete",
+        "dirs",
+        "dump",
+        "effort",
+        "exit",
+        "export",
+        "extensions",
+        "fast",
+        "fork",
+        "fresh",
+        "git",
+        "goal",
+        "handoff",
+        "hotkeys",
+        "jobs",
+        "login",
+        "logout",
+        "loop",
+        "marketplace",
+        "mcp",
+        "memory",
+        "model",
+        "move",
+        "new",
+        "open",
+        "plan",
+        "plugins",
+        "queue",
+        "quit",
+        "reload-plugins",
+        "rename",
+        "restart",
+        "resume",
+        "retry",
+        "session",
+        "settings",
+        "setup",
+        "share",
+        "skills",
+        "slow",
+        "stats",
+        "switch",
+        "todo",
+        "tools",
+        "trace",
+        "tree",
+        "usage"
+      ],
+      "skill": "/skill:{name}"
+    },
+    "mcp": "omp",
     "promptBox": {
       "deliver": "queue",
       "submit": "enter"
@@ -157,6 +400,9 @@
     "command": [
       "codex"
     ],
+    "ids": [
+      "codex*"
+    ],
     "modelFlag": "--model",
     "prompt": "send-text",
     "ready": {
@@ -164,6 +410,48 @@
       "timeoutMs": 15000
     },
     "attach": "paste",
+    "log": "codex",
+    "compose": {
+      "oai": "codex",
+      "skills": [
+        {
+          "path": "~/.codex/skills",
+          "scope": "user"
+        },
+        {
+          "path": "~/.agents/skills",
+          "scope": "shared"
+        },
+        {
+          "up": [
+            {
+              "path": ".codex/skills",
+              "scope": "project"
+            },
+            {
+              "path": ".agents/skills",
+              "scope": "project"
+            }
+          ]
+        }
+      ],
+      "commands": [
+        "approvals",
+        "compact",
+        "diff",
+        "init",
+        "logout",
+        "mcp",
+        "mention",
+        "model",
+        "new",
+        "quit",
+        "review",
+        "status"
+      ],
+      "skill": "${name}"
+    },
+    "mcp": "codex",
     "promptBox": {
       "deliver": "queue",
       "submit": "enter"

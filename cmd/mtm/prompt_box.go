@@ -124,16 +124,16 @@ type promptBox struct {
 // and read by the searches off it.
 type promptTarget struct {
 	mu      sync.Mutex
-	harness string // compose's name
+	harness harness.Harness // the pane's row, for its completions
 	cwd     string
 	context []contextSuggestion
 }
 
 type contextSuggestion struct{ text, kind string }
 
-func (t *promptTarget) set(harness, cwd string) {
+func (t *promptTarget) set(h harness.Harness, cwd string) {
 	t.mu.Lock()
-	t.harness, t.cwd = harness, cwd
+	t.harness, t.cwd = h, cwd
 	t.mu.Unlock()
 }
 
@@ -143,7 +143,7 @@ func (t *promptTarget) setContext(items []contextSuggestion) {
 	t.mu.Unlock()
 }
 
-func (t *promptTarget) get() (string, string, []contextSuggestion) {
+func (t *promptTarget) get() (harness.Harness, string, []contextSuggestion) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.harness, t.cwd, t.context
@@ -700,7 +700,13 @@ func (a *App) selectNewestTurnRow() {
 // promptTargetFor points the completions at the pane and loads the
 // context items they offer (on the loop: the store is the loop's).
 func (a *App) promptTargetFor(p pane) {
-	a.pb.target.set(compose.Harness(p.Harness), p.Cwd)
+	// The completions follow the harness tuios reports, none before it
+	// reports one.
+	var h harness.Harness
+	if a.harnesses != nil {
+		h, _ = a.harnesses.ForAgent(p.Harness, p.LaunchHarness)
+	}
+	a.pb.target.set(h, p.Cwd)
 	if a.contexts == nil {
 		return
 	}
@@ -748,8 +754,8 @@ func (a *App) searchMentions(ctx context.Context, query string) ([]ochazuke.Sugg
 	return out, nil
 }
 
-// searchCommands answers /: the harness's commands, then (Claude Code,
-// where a skill is a command) its skills.
+// searchCommands answers /: the harness's commands, then (a harness whose
+// skills are slash commands: Claude Code, omp) its skills.
 func (a *App) searchCommands(ctx context.Context, query string) ([]ochazuke.Suggestion, error) {
 	harness, cwd, _ := a.pb.target.get()
 	cmds := a.pb.sources.Commands(ctx, harness, cwd)
@@ -762,7 +768,7 @@ func (a *App) searchCommands(ctx context.Context, query string) ([]ochazuke.Sugg
 		c := cmds[m.Index]
 		out = append(out, ochazuke.Suggestion{Text: c.Name, Detail: firstText(c.Description, c.Source)})
 	}
-	if harness == compose.Claude || harness == compose.Omp {
+	if compose.SkillsAreCommands(harness) {
 		skills := a.pb.sources.Skills(ctx, harness, cwd)
 		forms := make([]string, len(skills))
 		for i, s := range skills {

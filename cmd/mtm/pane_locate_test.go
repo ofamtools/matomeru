@@ -139,7 +139,7 @@ func TestLocatePanesTakesTheRecordsHarness(t *testing.T) {
 		t.Fatalf("no locator changed the pane: %+v", got[0])
 	}
 	got := locatePanes(panes, f.locate)
-	if got[0].Harness != "claude" || got[0].AgentSession != "live" || !isClaude(got[0]) {
+	if got[0].Harness != "claude" || got[0].AgentSession != "live" || paneLog(app.harnesses, got[0]) != harness.LogClaude {
 		t.Fatalf("pane %+v", got[0])
 	}
 }

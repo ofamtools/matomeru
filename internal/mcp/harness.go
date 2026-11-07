@@ -27,6 +27,33 @@ type HarnessConfig struct {
 	Entry   any      `json:"entry"`
 }
 
+// recipes are how each harness id gets the server, by recipe name (a
+// harnesses.json row names its recipe in "mcp"); harnesses lists them in
+// the order Harnesses prints.
+var recipes = map[string]func(cmd Command, home string, getenv func(string) string) HarnessConfig{
+	"claude": func(cmd Command, home string, _ func(string) string) HarnessConfig {
+		entry := Stdio(cmd)
+		inline, _ := json.Marshal(entry)
+		// User scope: ~/.claude.json's mcpServers; --mcp-config takes the
+		// same JSON for one run without touching any file.
+		return HarnessConfig{File: filepath.Join(home, ".claude.json"), Args: []string{"--mcp-config", string(inline)}, Entry: entry}
+	},
+	"codex": func(cmd Command, home string, getenv func(string) string) HarnessConfig {
+		argv, _ := json.Marshal(cmd.Args)
+		dir := getenv("CODEX_HOME")
+		if dir == "" {
+			dir = filepath.Join(home, ".codex")
+		}
+		return HarnessConfig{File: filepath.Join(dir, "config.toml"), Args: []string{"-c", fmt.Sprintf("mcp_servers.mtm.command=%q", cmd.Executable), "-c", "mcp_servers.mtm.args=" + string(argv)}, Entry: map[string]any{"mcp_servers": map[string]any{"mtm": map[string]any{"command": cmd.Executable, "args": cmd.Args}}}}
+	},
+	"omp": func(cmd Command, home string, getenv func(string) string) HarnessConfig {
+		return HarnessConfig{File: ompConfigPath(home, getenv), Entry: map[string]any{"mcpServers": map[string]any{"mtm": map[string]any{"command": cmd.Executable, "args": cmd.Args}}}}
+	},
+	"opencode": func(cmd Command, home string, getenv func(string) string) HarnessConfig {
+		return HarnessConfig{File: opencodeConfigPath(home, getenv), Entry: map[string]any{"mcp": map[string]any{"mtm": map[string]any{"type": "local", "command": append([]string{cmd.Executable}, cmd.Args...), "enabled": true}}}}
+	},
+}
+
 var harnesses = []string{"claude", "codex", "omp", "opencode"}
 
 // ErrUnknownHarness marks a harness mtm has no configuration recipe for.
@@ -44,29 +71,23 @@ func Stdio(cmd Command) map[string]any {
 // server. home is the user's home directory; getenv reads the variables
 // that move a harness's config (os.Getenv when nil).
 func Config(cmd Command, harness, home string, getenv func(string) string) (HarnessConfig, error) {
+	return ConfigAs(cmd, harness, harness, home, getenv)
+}
+
+// ConfigAs is Config for a harness that takes another's recipe (a
+// harnesses.json row's "mcp"): the entry recipe makes, under harness's
+// name.
+func ConfigAs(cmd Command, harness, recipe, home string, getenv func(string) string) (HarnessConfig, error) {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	switch harness {
-	case "claude":
-		entry := Stdio(cmd)
-		inline, _ := json.Marshal(entry)
-		// User scope: ~/.claude.json's mcpServers; --mcp-config takes the
-		// same JSON for one run without touching any file.
-		return HarnessConfig{Harness: harness, File: filepath.Join(home, ".claude.json"), Args: []string{"--mcp-config", string(inline)}, Entry: entry}, nil
-	case "codex":
-		argv, _ := json.Marshal(cmd.Args)
-		dir := getenv("CODEX_HOME")
-		if dir == "" {
-			dir = filepath.Join(home, ".codex")
-		}
-		return HarnessConfig{Harness: harness, File: filepath.Join(dir, "config.toml"), Args: []string{"-c", fmt.Sprintf("mcp_servers.mtm.command=%q", cmd.Executable), "-c", "mcp_servers.mtm.args=" + string(argv)}, Entry: map[string]any{"mcp_servers": map[string]any{"mtm": map[string]any{"command": cmd.Executable, "args": cmd.Args}}}}, nil
-	case "omp":
-		return HarnessConfig{Harness: harness, File: ompConfigPath(home, getenv), Entry: map[string]any{"mcpServers": map[string]any{"mtm": map[string]any{"command": cmd.Executable, "args": cmd.Args}}}}, nil
-	case "opencode":
-		return HarnessConfig{Harness: harness, File: opencodeConfigPath(home, getenv), Entry: map[string]any{"mcp": map[string]any{"mtm": map[string]any{"type": "local", "command": append([]string{cmd.Executable}, cmd.Args...), "enabled": true}}}}, nil
+	build, ok := recipes[recipe]
+	if !ok {
+		return HarnessConfig{}, fmt.Errorf("%w %q (known: %s)", ErrUnknownHarness, harness, strings.Join(harnesses, ", "))
 	}
-	return HarnessConfig{}, fmt.Errorf("%w %q (known: %s)", ErrUnknownHarness, harness, strings.Join(harnesses, ", "))
+	out := build(cmd, home, getenv)
+	out.Harness = harness
+	return out, nil
 }
 
 func ompConfigPath(home string, getenv func(string) string) string {

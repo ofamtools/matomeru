@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ofam.dev/matomeru/internal/harness"
 )
 
 // TestBuiltinCompletionsAreGolden fills every directory the built-in
@@ -67,9 +69,9 @@ func TestBuiltinCompletionsAreGolden(t *testing.T) {
 			skill(t, sk, "same", k)
 		}
 		rel := func(p string) string { return strings.TrimPrefix(p, home) }
-		for _, h := range []string{Claude, Omp, Codex} {
+		for _, h := range []harness.Harness{Claude, Omp, Codex} {
 			s := NewSources(e)
-			a := answer{Harness: h, Config: []string{"none", "opt-ins", "disabled"}[ci]}
+			a := answer{Harness: h.Name, Config: []string{"none", "opt-ins", "disabled"}[ci]}
 			for _, sk := range s.Skills(context.Background(), h, pane) {
 				a.Skills = append(a.Skills, sk.Plugin+":"+sk.Name+" "+sk.Scope+" "+rel(sk.Path)+" "+sk.Description+" → "+SkillInvocation(h, sk))
 			}
@@ -80,10 +82,10 @@ func TestBuiltinCompletionsAreGolden(t *testing.T) {
 				}
 				a.Commands = append(a.Commands, c.Name+" "+c.Source+" "+c.Description)
 			}
-			for _, p := range s.skillInputs(h, pane) {
+			for _, p := range s.skillInputs(profile(h), pane) {
 				a.Inputs = append(a.Inputs, rel(p))
 			}
-			for _, p := range s.commandInputs(h, pane) {
+			for _, p := range s.commandInputs(profile(h), pane) {
 				a.CmdIn = append(a.CmdIn, rel(p))
 			}
 			out = append(out, a)

@@ -309,11 +309,11 @@ func TestSideFollowsTheTurnsTabsResolution(t *testing.T) {
 	}
 	parent := pane{Harness: "claude-code", AgentSession: "gone"}
 	parent.ID, parent.Cwd = "w1", "/w/proj"
-	if got := agentCwd(context.Background(), app.work, projects, parent, nil, nil, ""); got != "" {
+	if got := agentCwd(context.Background(), app.harnesses, app.work, projects, parent, nil, nil, ""); got != "" {
 		t.Fatalf("with no resolution and no start time the side guessed %q", got)
 	}
 	r := resolutions{"w1": {reported: "gone", session: resumedID}}
-	if got := agentCwd(context.Background(), app.work, projects, parent, nil, nil, r.of(parent)); got != agent {
+	if got := agentCwd(context.Background(), app.harnesses, app.work, projects, parent, nil, nil, r.of(parent)); got != agent {
 		t.Fatalf("side cwd %q, want %q (the tab's resolution)", got, agent)
 	}
 	parent.AgentSession = "newer"

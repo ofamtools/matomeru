@@ -56,11 +56,9 @@ func (a *App) now() time.Time {
 // logKind is where the pane's turns come from when a log is found: the
 // kind turnKind gives before any fallback.
 func (a *App) logKind(p pane) int {
-	switch {
-	case isClaude(p) && len(a.agentSessions(p)) > 0:
-		return turnsClaude
-	case isOmp(p) && len(a.agentSessions(p)) > 0:
-		return turnsOmp
+	switch f := a.logFormatOf(p); {
+	case f.turns != turnsJournal && len(a.agentSessions(p)) > 0:
+		return f.turns
 	case !p.isAgent() && p.MarksCommands:
 		return turnsShell
 	}
