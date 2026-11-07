@@ -189,7 +189,7 @@ func applyActionItem(it *actionitems.Item, values ochazuke.Thing, now int64) err
 		it.SnoozedUntil = 0
 	}
 	if props.SnoozedUntil != nil {
-		it.SnoozedUntil = *props.SnoozedUntil
+		it.SnoozedUntil = int64(*props.SnoozedUntil)
 		if it.SnoozedUntil > 0 {
 			it.ArchivedAt = 0
 		}
@@ -201,17 +201,17 @@ func applyActionItem(it *actionitems.Item, values ochazuke.Thing, now int64) err
 // fields onto the item (thingOver), the pointers only when the write names
 // them, since the read and archived marks and the snooze take rules.
 type actionItemPatch struct {
-	Title        string `json:"title"`
-	Why          string `json:"why"`
-	Text         string `json:"text"`
-	URL          string `json:"url"`
-	Kind         string `json:"kind"`
-	Window       string `json:"pane"`
-	Session      string `json:"session"`
-	Notify       bool   `json:"notify"`
-	Read         *bool  `json:"read"`
-	Archived     *bool  `json:"archived"`
-	SnoozedUntil *int64 `json:"snoozed-until"`
+	Title        string       `json:"title"`
+	Why          string       `json:"why"`
+	Text         string       `json:"text"`
+	URL          string       `json:"url"`
+	Kind         string       `json:"kind"`
+	Window       string       `json:"pane"`
+	Session      string       `json:"session"`
+	Notify       bool         `json:"notify"`
+	Read         *bool        `json:"read"`
+	Archived     *bool        `json:"archived"`
+	SnoozedUntil *wholeNumber `json:"snoozed-until"`
 }
 
 // createActionItem is the store's Create: one new item from the props

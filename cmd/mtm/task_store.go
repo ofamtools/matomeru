@@ -222,12 +222,26 @@ func thingActor(v any) (work.Actor, error) {
 // record's own values with the write's read over them (thingOver). The
 // owner and the maker take rules of their own, so they are not here.
 type taskPatch struct {
-	Title        string `json:"title"`
-	Status       string `json:"status"`
-	Easy         bool   `json:"easy"`
-	SnoozedUntil int64  `json:"snoozed-until"`
-	Private      bool   `json:"private"`
-	Archived     bool   `json:"archived"`
+	Title        string      `json:"title"`
+	Status       string      `json:"status"`
+	Easy         bool        `json:"easy"`
+	SnoozedUntil wholeNumber `json:"snoozed-until"`
+	Private      bool        `json:"private"`
+	Archived     bool        `json:"archived"`
+}
+
+// wholeNumber is an integer prop as a write gives it: a number (a float is
+// rounded) or its text; text that is not a number, and null, read as 0
+// (what thingInt always did).
+type wholeNumber int64
+
+func (w *wholeNumber) UnmarshalJSON(raw []byte) error {
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return err
+	}
+	*w = wholeNumber(thingInt(v))
+	return nil
 }
 
 // namePatch is the one prop a record whose write only renames it sets
@@ -417,7 +431,7 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		}
 	}
 	before := t
-	props, err := thingOver(taskPatch{Title: t.Title, Status: t.Status, Easy: t.Easy, SnoozedUntil: t.SnoozedUntil,
+	props, err := thingOver(taskPatch{Title: t.Title, Status: t.Status, Easy: t.Easy, SnoozedUntil: wholeNumber(t.SnoozedUntil),
 		Private: t.Private, Archived: t.Archived}, changes)
 	if err != nil {
 		return nil, err
@@ -428,7 +442,7 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	if props.Status != t.Status {
 		t.Status = work.NormalStatus(props.Status)
 	}
-	t.Easy, t.SnoozedUntil, t.Private, t.Archived = props.Easy, props.SnoozedUntil, props.Private, props.Archived
+	t.Easy, t.SnoozedUntil, t.Private, t.Archived = props.Easy, int64(props.SnoozedUntil), props.Private, props.Archived
 	t.CreatedBy = work.Actor{} // the store keeps the stored maker
 	if v, ok := changes["created-by"]; ok && v != nil {
 		by, err := thingActor(v)
