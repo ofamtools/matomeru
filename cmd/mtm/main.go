@@ -326,13 +326,8 @@ type App struct {
 	unsendable         map[string]bool     // keys already reported as not sendable to a pane (panekeys.go)
 	drafts             *draft.Store
 	editor             *recordEditor
-	quick              *quickNote // the open quick note (N), nil when closed
-	editorSave         map[string]func(editRecord, ochazuke.Record) (any, error)
-	editorFields       map[string]func() []ochazuke.RecordField // a noun's editor schema from its props (note)
-	editorText         map[string]string                        // the field an older mtm's draft text holds
-	editorStart        map[string]string                        // the field the editor starts on
-	editorRefresh      map[string]func() error
-	editorFinish       map[string]func(editRecord) error
+	quick              *quickNote            // the open quick note (N), nil when closed
+	editorNouns        map[string]editorNoun // the editable nouns, one row each (editor.go)
 	directories        directoryCache
 	pathChooserProject string // the project a directory path chooser is opened for (path_sources.go)
 	directoryList      *ochazuke.List
@@ -568,12 +563,7 @@ func New(opts Options) (*App, error) {
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
-	a.editorSave = make(map[string]func(editRecord, ochazuke.Record) (any, error))
-	a.editorFields = make(map[string]func() []ochazuke.RecordField)
-	a.editorText = make(map[string]string)
-	a.editorStart = make(map[string]string)
-	a.editorRefresh = make(map[string]func() error)
-	a.editorFinish = make(map[string]func(editRecord) error)
+	a.editorNouns = make(map[string]editorNoun)
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 

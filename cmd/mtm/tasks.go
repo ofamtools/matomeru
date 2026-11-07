@@ -58,7 +58,43 @@ func (a *App) defineTask() {
 	// assignment, rather than the one task a pinned UI happens to have loaded.
 	// Explicit ids and targets still name their record; TUI focus is unchanged.
 	a.owners["task"] = "work"
-	a.editorFields["task"] = a.taskFields
+	a.editorNouns["task"] = editorNoun{
+		fields: a.taskFields,
+		load: func(record editRecord) (ochazuke.Record, error) {
+			if record.New {
+				return ochazuke.Record{"status": work.StatusTodo}, nil
+			}
+			t, err := a.work.Task(record.ID)
+			return ochazuke.Record{"title": t.Title, "status": t.Status}, err
+		},
+		save: a.saveTaskRecord,
+	}
+}
+
+// saveTaskRecord writes the editor's task: a new one is appended to its
+// project's list, an existing one is read and updated.
+func (a *App) saveTaskRecord(record editRecord, values ochazuke.Record) (any, error) {
+	t := work.Task{ID: record.ID, ProjectID: record.ProjectID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Status: work.StatusTodo, Created: work.Now()}
+	var err error
+	if record.New {
+		var rows []work.Task
+		rows, err = a.work.Tasks(record.ProjectID)
+		for _, row := range rows {
+			t.Position = max(t.Position, row.Position)
+		}
+		t.Position++
+	} else {
+		t, err = a.work.Task(record.ID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	t.Title = strings.TrimSpace(record.Text)
+	if status := values["status"]; work.ValidStatus(status) {
+		t.Status = status
+	}
+	t.Updated = work.Now()
+	return nil, a.work.PutTask(t)
 }
 
 func (a *App) bindTaskStop() error {

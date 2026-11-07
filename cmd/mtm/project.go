@@ -32,16 +32,25 @@ func (a *App) defineProject() {
 		Bind("i", ochazuke.Do("project.edit")).Bind("L", ochazuke.Do("project.launch")).
 		Bind("c", ochazuke.Do("project.directory"))
 	a.parameters("project.edit", map[string]ochazuke.Parameter{"name": {Type: "string"}, "color": {Type: "string"}, "glyph": {Type: "string"}, "harness": {Type: "string", Source: "harness.names", Free: true}, "preset": {Type: "string"}})
-	a.editorFields["project"] = a.projectFields
-	a.editorText["project"] = "name"
-	a.editorSave["project"] = a.saveProjectRecord
-	a.editorFinish["project"] = func(record editRecord) error {
-		if a.r.Instances[record.ID] != nil {
-			if err := a.projectList.Select(record.ID); err != nil {
-				return err
+	a.editorNouns["project"] = editorNoun{
+		fields: a.projectFields,
+		text:   "name",
+		load: func(record editRecord) (ochazuke.Record, error) {
+			if record.New {
+				return ochazuke.Record{}, nil
 			}
-		}
-		return a.projectList.Focus()
+			p, err := a.work.Project(record.ID)
+			return ochazuke.Record{"name": p.Name, "color": p.Theme.Color, "glyph": p.Theme.Glyph, "harness": p.Settings.Harness, "preset": p.Settings.Preset}, err
+		},
+		save: a.saveProjectRecord,
+		finish: func(record editRecord) error {
+			if a.r.Instances[record.ID] != nil {
+				if err := a.projectList.Select(record.ID); err != nil {
+					return err
+				}
+			}
+			return a.projectList.Focus()
+		},
 	}
 	a.parameters("project.directory", map[string]ochazuke.Parameter{"path": dirParam("The directory to attach (a missing one is attached and flagged); omitted, a chooser asks", true)})
 	a.parameters("project.default", map[string]ochazuke.Parameter{"path": {Type: "string"}})

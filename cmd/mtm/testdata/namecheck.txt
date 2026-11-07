@@ -176,11 +176,6 @@ directories_detail.go	App.directoryFacts	compare	"repo"	1
 editor.go	App.Update	case	"directories"	1
 editor.go	App.Update	case	"saved"	1
 editor.go	App.Update	cyclo	"-"	37
-editor.go	App.editorPage	compare	"note"	1
-editor.go	App.recordValues	case	"note"	1
-editor.go	App.recordValues	case	"project"	1
-editor.go	App.recordValues	case	"task"	1
-editor.go	App.storeRecord	case	"task"	1
 extension_autorefresh.go	App.autoRefreshCatalogs	compare	"stale"	1
 extension_context.go	var nounChoosers	table	"pane"	1
 extension_page.go	App.extFacts	case	"available"	1

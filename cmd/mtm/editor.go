@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
 )
 
@@ -61,11 +59,29 @@ func (e *recordEditor) Value(name string) string { return e.Form.Values()[name] 
 // the edit-debounce setting's default (settings.go).
 const editorDebounce = ochazuke.DefaultRecordDebounce
 
-// editorPage is where a record is edited: a note on the Notes page stays
-// there (its detail is the right-hand panel); everything else on Work.
+// editorNoun is one editable noun: a row in App.editorNouns, registered by
+// the noun's file. Adding an editable noun is adding one row; nothing in
+// the editor names a noun.
+type editorNoun struct {
+	fields  func() []ochazuke.RecordField                  // the editor's schema, read from the noun's props
+	text    string                                         // the field an older mtm's draft text holds; empty is "title"
+	start   string                                         // the field the editor starts on
+	stayOn  string                                         // a page the editor stays on when opened there; else Work
+	load    func(editRecord) (ochazuke.Record, error)      // the stored record as field values
+	save    func(editRecord, ochazuke.Record) (any, error) // writes the record (a new one is created by its first write)
+	refresh func() error                                   // reloads the noun's own lists after a write
+	finish  func(editRecord) error                         // where the focus goes when the editor closes
+}
+
+// editorFor is a noun's row (the zero row for an unknown noun).
+func (a *App) editorFor(noun string) editorNoun { return a.editorNouns[noun] }
+
+// editorPage is where a record is edited: a noun whose row names a page it
+// stays on (a note on the Notes page: its detail is the right-hand panel)
+// stays there; everything else on Work.
 func (a *App) editorPage(record editRecord) string {
-	if record.Noun == "note" && a.r.Page == notesPage {
-		return notesPage
+	if stay := a.editorFor(record.Noun).stayOn; stay != "" && a.r.Page == stay {
+		return stay
 	}
 	return "work"
 }
@@ -214,7 +230,7 @@ func (a *App) defineRecordEditor() {
 // the noun's editorText when it names one (a note's body, a project's
 // name), else the title.
 func (a *App) titleField(noun string) string {
-	if f := a.editorText[noun]; f != "" {
+	if f := a.editorFor(noun).text; f != "" {
 		return f
 	}
 	return "title"
@@ -224,7 +240,7 @@ func (a *App) titleField(noun string) string {
 // (editorFields). The status and harness are chosen from the same lists s
 // and L offer (never free text; UX review 2 F2).
 func (a *App) recordFields(noun string) []ochazuke.RecordField {
-	if fields := a.editorFields[noun]; fields != nil {
+	if fields := a.editorFor(noun).fields; fields != nil {
 		return fields()
 	}
 	return nil
@@ -232,25 +248,8 @@ func (a *App) recordFields(noun string) []ochazuke.RecordField {
 
 // recordValues reads a stored record into the editor's fields.
 func (a *App) recordValues(record editRecord) (ochazuke.Record, error) {
-	switch record.Noun {
-	case "project":
-		if record.New {
-			return ochazuke.Record{}, nil
-		}
-		p, err := a.work.Project(record.ID)
-		return ochazuke.Record{"name": p.Name, "color": p.Theme.Color, "glyph": p.Theme.Glyph, "harness": p.Settings.Harness, "preset": p.Settings.Preset}, err
-	case "task":
-		if record.New {
-			return ochazuke.Record{"status": work.StatusTodo}, nil
-		}
-		t, err := a.work.Task(record.ID)
-		return ochazuke.Record{"title": t.Title, "status": t.Status}, err
-	case "note":
-		if record.New {
-			return ochazuke.Record{}, nil
-		}
-		n, err := a.work.Note(record.ID)
-		return ochazuke.Record{"title": n.Title, "text": n.Text}, err
+	if load := a.editorFor(record.Noun).load; load != nil {
+		return load(record)
 	}
 	return nil, errors.New("unknown editor noun " + record.Noun)
 }
@@ -284,7 +283,7 @@ func (a *App) openEditor(record editRecord, fromDraft bool) error {
 	e := &recordEditor{Record: record, Page: page}
 	spec := ochazuke.RecordSpec{
 		Fields:   a.recordFields(record.Noun),
-		Start:    a.editorStart[record.Noun],
+		Start:    a.editorFor(record.Noun).start,
 		Debounce: a.editDebounce(),
 		Insert:   true,
 		Load: func() (ochazuke.Record, error) {
@@ -326,7 +325,7 @@ func (a *App) openEditor(record editRecord, fromDraft bool) error {
 	}
 	e.Form = form
 	a.editor = e
-	if refresh := a.editorRefresh[record.Noun]; refresh != nil {
+	if refresh := a.editorFor(record.Noun).refresh; refresh != nil {
 		if err := refresh(); err != nil {
 			return err
 		}
@@ -382,37 +381,11 @@ func (a *App) openDraft(ctx ochazuke.Ctx) ochazuke.Result {
 func (a *App) storeRecord(e *recordEditor, values ochazuke.Record) error {
 	record := e.Record
 	record.Text = values[a.titleField(record.Noun)]
-	var err error
-	if save := a.editorSave[record.Noun]; save != nil {
-		_, err = save(record, values)
-	} else {
-		switch record.Noun {
-		case "task":
-			t := work.Task{ID: record.ID, ProjectID: record.ProjectID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Status: work.StatusTodo, Created: work.Now()}
-			if record.New {
-				var rows []work.Task
-				rows, err = a.work.Tasks(record.ProjectID)
-				for _, row := range rows {
-					t.Position = max(t.Position, row.Position)
-				}
-				t.Position++
-			} else {
-				t, err = a.work.Task(record.ID)
-			}
-			if err != nil {
-				break
-			}
-			t.Title = strings.TrimSpace(record.Text)
-			if status := values["status"]; work.ValidStatus(status) {
-				t.Status = status
-			}
-			t.Updated = work.Now()
-			err = a.work.PutTask(t)
-		default:
-			err = errors.New("unknown editor noun " + record.Noun)
-		}
+	save := a.editorFor(record.Noun).save
+	if save == nil {
+		return errors.New("unknown editor noun " + record.Noun)
 	}
-	if err != nil {
+	if _, err := save(record, values); err != nil {
 		return err
 	}
 	e.Record.New = false
@@ -422,7 +395,7 @@ func (a *App) storeRecord(e *recordEditor, values ochazuke.Record) error {
 	if err := a.refreshTasks(); err != nil {
 		return err
 	}
-	if refresh := a.editorRefresh[record.Noun]; refresh != nil {
+	if refresh := a.editorFor(record.Noun).refresh; refresh != nil {
 		return refresh()
 	}
 	return nil
@@ -455,7 +428,7 @@ func (a *App) finishEdit(record editRecord) error {
 	if err := a.refreshTasks(); err != nil {
 		return err
 	}
-	if refresh := a.editorRefresh[record.Noun]; refresh != nil {
+	if refresh := a.editorFor(record.Noun).refresh; refresh != nil {
 		if err := refresh(); err != nil {
 			return err
 		}
@@ -466,7 +439,7 @@ func (a *App) finishEdit(record editRecord) error {
 		}
 		return a.r.SetFocus(record.ReturnTo)
 	}
-	if finish := a.editorFinish[record.Noun]; finish != nil {
+	if finish := a.editorFor(record.Noun).finish; finish != nil {
 		return finish(record)
 	}
 	if a.r.Instances[record.ID] != nil {

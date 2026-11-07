@@ -43,24 +43,35 @@ func (a *App) defineNotes() {
 	a.parameters("note.edit", map[string]ochazuke.Parameter{"text": {Type: "string"}})
 	a.owners["note"] = "notes/list"
 	a.defineNoteDoc()
-	a.editorFields["note"] = a.noteFields
-	// An older mtm's note draft holds the body in its text; the editor
-	// starts on the body, the title (optional) above it.
-	a.editorText["note"], a.editorStart["note"] = "text", "text"
-	a.editorSave["note"] = func(record editRecord, values ochazuke.Record) (any, error) {
-		return a.saveNoteRecord(record, values)
-	}
-	a.editorRefresh["note"] = a.refreshNotes
-	a.editorFinish["note"] = func(record editRecord) error {
-		if err := a.r.OpenPage(notesPage); err != nil {
-			return err
-		}
-		if a.r.Instances[record.ID] != nil {
-			if err := a.noteList.Select(record.ID); err != nil {
+	a.editorNouns["note"] = editorNoun{
+		fields: a.noteFields,
+		// An older mtm's note draft holds the body in its text; the editor
+		// starts on the body, the title (optional) above it.
+		text:   "text",
+		start:  "text",
+		stayOn: notesPage,
+		load: func(record editRecord) (ochazuke.Record, error) {
+			if record.New {
+				return ochazuke.Record{}, nil
+			}
+			n, err := a.work.Note(record.ID)
+			return ochazuke.Record{"title": n.Title, "text": n.Text}, err
+		},
+		save: func(record editRecord, values ochazuke.Record) (any, error) {
+			return a.saveNoteRecord(record, values)
+		},
+		refresh: a.refreshNotes,
+		finish: func(record editRecord) error {
+			if err := a.r.OpenPage(notesPage); err != nil {
 				return err
 			}
-		}
-		return a.noteList.Focus()
+			if a.r.Instances[record.ID] != nil {
+				if err := a.noteList.Select(record.ID); err != nil {
+					return err
+				}
+			}
+			return a.noteList.Focus()
+		},
 	}
 }
 
