@@ -918,3 +918,6 @@ zoom	action	seed
 zoom-in	action	seed	
 zoom-out	action	seed	
 zoom-reset	action	seed	
+enqueue	action	yes	
+guide	action	yes	
+resize	action	yes	

@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -71,8 +72,8 @@ func TestEveryTuiosMCPToolHasAGatewayVerb(t *testing.T) {
 		}
 	}
 	for _, w := range wireVerbs {
-		if !slices.Contains(verbs, w.key()) {
-			t.Errorf("wire verb %s maps no tuios tool", w.key())
+		if !slices.Contains(verbs, w.key()) && !slices.Contains(slices.Collect(maps.Values(tuiosCLICommands)), w.key()) {
+			t.Errorf("wire verb %s maps no tuios tool or CLI command", w.key())
 		}
 	}
 	// Reads are allowed, never left to confirmation.
