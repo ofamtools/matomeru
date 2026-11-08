@@ -6,7 +6,6 @@ noun-action	copy
 noun-action	count
 noun-action	history
 noun-action	mode
-noun-action	note
 noun-action	outline
 noun-action	plan
 noun-action	prompt
@@ -21,7 +20,6 @@ pair	panes/pane
 pair	projects/project
 plural-noun	dirs
 plural-noun	todos
-unclassified	choose-state
 unclassified	dir-chooser
 unclassified	outline-none
 unclassified	page-group

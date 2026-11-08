@@ -82,12 +82,12 @@ They say:
 
 - mtm is the only MCP server an agent needs. The mounted family tools are
   reached through this gateway's `run`, not their own servers: o-lane
-  (`lane.lane.define`, `lane.lane.state`, `lane.lane.associate`), o-questions
+  (`lane.lane.define`, `lane.lane.set` with the `status` prop and a `reason`, `lane.lane.associate`), o-questions
   (`question.question.ask`, `answer`, `follow-up`), o-cmds (`cmd.cmd.add`),
   o-md (`md.doc.new`) and o-git.
 - Track work as lanes. Every lane belongs to an mtm project; when none fits,
   the agent creates one with `project.new` (declared `allow`). Set the lane's
-  state as the work moves and associate the lane with the agent's pane.
+  status as the work moves and associate the lane with the agent's pane.
 - mtm tasks are the owner's. An agent changes their status only when asked.
   Record policy below restricts other edits; the verb's right alone does not
   grant access to every task.

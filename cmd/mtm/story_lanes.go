@@ -59,7 +59,7 @@ esac
 	return built, nil
 }
 
-// Captured from o-lane with ochazuke v0.88.0; only whitespace is compacted.
+// Captured from o-lane v0.2.0 (ochazuke v0.105.0, built from main) with `catalog`; only whitespace is compacted.
 // Keeping its real page source and host-only row catches contract drift.
 //
 //go:embed testdata/o-lane-catalog.json
