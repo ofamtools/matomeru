@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -29,6 +30,7 @@ import (
 type extSource struct {
 	key    string // the tool's NOUN.VERB
 	params []extSourceParam
+	fixed  map[string]any // the source's constant arguments (Parameter.SourceFixed)
 	ids    []string
 	labels map[string]string // id -> the thing's human label, when it has one
 	err    string            // why its last load failed
@@ -70,6 +72,9 @@ func (a *App) mountSources(x *extension, plan []ocli.CatalogNoun) {
 				if src == nil {
 					src = &extSource{key: p.Source}
 					x.sources[p.Source] = src
+				}
+				if len(p.SourceFixed) > 0 && src.fixed == nil {
+					src.fixed = p.SourceFixed
 				}
 				base := p
 				base.Source = ""
@@ -132,7 +137,13 @@ func (a *App) loadSources(x *extension) error {
 		src := x.sources[key]
 		noun, verb, _ := strings.Cut(key, ".")
 		res := ochazuke.Pending(func(ctx context.Context) (any, error) {
-			out, err := execExt(ctx, bin, env, noun, verb, "--json", "{}")
+			args := "{}"
+			if len(src.fixed) > 0 {
+				if raw, err := json.Marshal(src.fixed); err == nil {
+					args = string(raw)
+				}
+			}
+			out, err := execExt(ctx, bin, env, noun, verb, "--json", args)
 			if err != nil {
 				return nil, err
 			}

@@ -13,7 +13,7 @@ import (
 const sourceCatalog = `{"schema":1,"name":"o-fake","version":"1.0","nouns":[
  {"name":"item","verbs":[
   {"name":"list","kind":"application"},
-  {"name":"move","kind":"application","params":{"to":{"type":"string","required":true,"source":"place.list","enum":["nowhere"]}}},
+  {"name":"move","kind":"application","params":{"to":{"type":"string","required":true,"source":"place.list","sourceFixed":{"flat":true},"enum":["nowhere"]}}},
   {"name":"tag","kind":"application","params":{"name":{"type":"string","source":"label.list"}}}]},
  {"name":"place","verbs":[{"name":"list","kind":"application"}]}],
  "bindings":[],"pages":[]}`
@@ -41,7 +41,7 @@ func TestExtensionSourcedParameterGetsSuggestions(t *testing.T) {
 	}
 	n := len(calls(t, log))
 	openExtPage(t, a, "ext/fake")
-	if got := calls(t, log)[n:]; !slices.ContainsFunc(got, func(c string) bool { return strings.HasSuffix(c, "|place list --json {}") }) {
+	if got := calls(t, log)[n:]; !slices.ContainsFunc(got, func(c string) bool { return strings.HasSuffix(c, `|place list --json {"flat":true}`) }) {
 		t.Fatalf("no source load: %q", got)
 	}
 	p = a.r.Operations.At("fake.item.move").Parameters["to"]
