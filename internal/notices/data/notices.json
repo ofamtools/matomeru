@@ -934,7 +934,7 @@
   },
   {
    "path": "ofam.dev/mtmd",
-   "version": "v0.1.1",
+   "version": "v0.2.0",
    "daemonOnly": true,
    "files": [
     {
@@ -977,6 +977,22 @@
       "BSD-3-Clause"
      ],
      "text": "911f8f5782931320"
+    },
+    {
+     "name": "internal/vt/LICENSE",
+     "kind": "license",
+     "spdx": [
+      "MIT"
+     ],
+     "text": "ff521c71cdd95d36"
+    },
+    {
+     "name": "internal/vt/NOTICE",
+     "kind": "notice",
+     "spdx": [
+      "MIT"
+     ],
+     "text": "d7aee22f1e7d8fd0"
     },
     {
      "name": "third_party/tuios.dev/loom/LICENSE",
@@ -1042,28 +1058,12 @@
       "MIT"
      ],
      "text": "ff521c71cdd95d36"
-    },
-    {
-     "name": "third_party/tuios.dev/vt/LICENSE",
-     "kind": "license",
-     "spdx": [
-      "MIT"
-     ],
-     "text": "ff521c71cdd95d36"
-    },
-    {
-     "name": "third_party/tuios.dev/vt/NOTICE",
-     "kind": "notice",
-     "spdx": [
-      "MIT"
-     ],
-     "text": "d7aee22f1e7d8fd0"
     }
    ]
   },
   {
    "path": "ofam.dev/ochazuke",
-   "version": "v0.107.0",
+   "version": "v0.108.0",
    "files": [
     {
      "name": "LICENSE",
