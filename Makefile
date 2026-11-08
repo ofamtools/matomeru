@@ -46,6 +46,16 @@ split-check:
 	$(MAKE) story-bin STORY_BIN=bin/mtm-story
 	@n=$$(go tool nm bin/mtm-story | grep -c monogatari); echo "mtm-story: $$n monogatari symbols"; test "$$n" -gt 0
 
+# Third-party notices embedded in mtm (internal/notices/data; mtm license all|show).
+# licenses regenerates them from go list -deps and the module cache after a go.mod
+# change; licenses-check fails when the files on disk differ. TestEmbeddedDataIsCurrent
+# is the fast check (go.mod against the data, unknown or disallowed licences).
+.PHONY: licenses licenses-check
+licenses:
+	go run ./internal/notices/gen
+licenses-check:
+	go run ./internal/notices/gen -check
+
 # Portable state/key reference; reads committed data and never runs the app.
 .PHONY: states-test states-export
 states-test:

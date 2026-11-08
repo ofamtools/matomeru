@@ -359,10 +359,10 @@ func (e daemonExit) Error() string { return fmt.Sprintf("daemon exited with stat
 func (a *App) defineDaemon(r *ochazuke.Runtime) {
 	n := r.Define("daemon").About("The TUIOS server mtm runs on: its state, its start and stop, its log")
 	// verb declares one verb of the noun; local says it needs no daemon
-	// running first, which the CLI's start-when-missing step reads.
+	// running first (see localVerb).
 	verb := func(name string, local bool, h any, about string) *ochazuke.NounBuilder {
 		if local {
-			a.localVerbs["daemon."+name] = true
+			return a.localVerb(n, "daemon", name, h, about)
 		}
 		return n.Verb(name, h, about)
 	}
@@ -373,6 +373,17 @@ func (a *App) defineDaemon(r *ochazuke.Runtime) {
 	verb("restart", true, a.daemonRestartVerb, "Stop the daemon, then start it again (it restores its saved state)").Confirm("Restart the daemon? Panes end and are restored from saved state.")
 	verb("serve", true, a.daemonServeVerb, "Run the daemon in this process until it is stopped (CLI)")
 	a.parameters("daemon.show-log", map[string]ochazuke.Parameter{"lines": {Type: "integer", Description: "How many trailing lines (default 50)"}})
+}
+
+// localVerb declares a verb of any noun that never starts a daemon: the CLI
+// skips its start-when-missing step before it. It is the one way a noun says
+// so, at the verb's declaration; no table of names exists.
+func (a *App) localVerb(n *ochazuke.NounBuilder, noun, name string, h any, about string) *ochazuke.NounBuilder {
+	if a.localVerbs == nil {
+		a.localVerbs = map[string]bool{}
+	}
+	a.localVerbs[noun+"."+name] = true
+	return n.Verb(name, h, about)
 }
 
 // startsNoDaemon is true when this run's command resolves to a verb declared
@@ -400,7 +411,9 @@ func (a *App) startsNoDaemon() bool {
 // probe. The runner (daemon.runner, MTM_DAEMON_RUNNER) is read when a start
 // is needed, so settings.json and the environment apply to this run.
 func (a *App) wireDaemonStart(client *daemon.Client) {
-	a.localVerbs = map[string]bool{}
+	if a.localVerbs == nil {
+		a.localVerbs = map[string]bool{}
+	}
 	if client.Server != "" {
 		client.Start, client.Ready = a.startServer, a.serverReady
 	}

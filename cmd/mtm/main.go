@@ -625,6 +625,7 @@ func New(opts Options) (*App, error) {
 	a.defineExtensionRows()
 	a.defineExtensionSetup()
 	a.defineAbout()
+	a.defineLicense()
 	a.defineConfigReload()
 	a.definePickers()
 	if err := a.declareSettings(); err != nil {

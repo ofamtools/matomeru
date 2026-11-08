@@ -287,6 +287,12 @@ With `daemon.pin-binary` (default on) the self daemon runs from a copy of the mt
 
 The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and skew, runner, binary), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
 
+## Credits and licences
+
+The daemon in mtm (the `self` runner above) is [tuios](https://github.com/Gaurav-Gosain/tuios) by Gaurav Gosain, MIT, Copyright (c) 2025 Gaurav Gosain. mtm links a trimmed fork of it (`ofam.dev/mtmd`, kept by the mtm authors) and the `tuios.dev/*` modules it uses (`vt`, `sketch`, `loom`, ...), all under the same licence, and mtm itself is a separate project from tuios. Thank you, Gaurav, for tuios.
+
+Every binary carries the licence and notice text of everything it links: the tuios MIT licence and its copied notices (Charmbracelet MIT, the Go BSD-3 text, Alec Thomas's chroma MIT, herdr's Apache-2.0 and the Arimo OFL notice), Charm's libraries, chroma, the Go standard library and the rest of `go.mod`. Read them with `mtm license all` (every linked module and its licences) and `mtm license show [MODULE]` (the texts; the output is JSON, so `mtm license show | jq -r .` prints it as text). A `-tags nodaemon` binary lists fewer modules, since it does not link the daemon. The data is generated into `internal/notices/data` (`make licenses`); `go test ./internal/notices` fails on a licence it cannot name, on one outside the allowed set, and on data older than `go.mod`.
+
 ## Live shell keys
 
 In a live pane every key goes to the program in it, except the `terminal-leader` setting (default `ctrl+a`). After the leader, the app's own normal-mode keys do what they do outside live: the same verb, and the same guard. The palette, settings and pickers open over the pane; closing them (`esc`) gives the pane its keys again.

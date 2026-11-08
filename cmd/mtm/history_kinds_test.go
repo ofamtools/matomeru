@@ -20,7 +20,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		"action-item.count", "action-item.get", "action-item.list", "action-item.watch",
 		"context-item.get", "context-item.list", "context-item.watch", "daemon.show-log", "daemon.status", "dirs.bases", "dirs.refresh",
 		"extension.all", "extension.available", "extension.peer-rows", "extension.peers", "extension.setup-plan", "extension.setup-status",
-		"harness.all", "harness.models", "harness.names",
+		"harness.all", "harness.models", "harness.names", "license.all", "license.show",
 		"note.get", "note.list", "note.watch", "pane.activity", "pane.get", "pane.list", "pane.preview", "pane.read-settings", "pane.read-turns", "pane.refresh", "pane.refresh-turns", "pane.settings", "pane.transcript", "pane.watch", "pane.whoami",
 		"panes.read-activities", "panes.refresh", "project.get", "project.list", "project.watch", "projects.all", "projects.directories", "projects.names", "projects.state",
 		"reminder.get", "reminder.history", "reminder.list", "reminder.notify-status", "reminder.watch",

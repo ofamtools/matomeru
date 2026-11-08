@@ -410,6 +410,7 @@ layout	action	seed
 leave	action	seed	
 leeches	prop	seed	
 lib	noun	seed	
+license	noun	yes	
 limit	action	seed	
 link	action	seed	
 link-copy	action	seed	

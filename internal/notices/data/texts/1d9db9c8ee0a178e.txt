@@ -1,0 +1,104 @@
+tuiffects is a Go port of ttfx, which is itself a port of TerminalTextEffects.
+
+The chain, oldest first:
+
+    TerminalTextEffects (TTE)
+    https://github.com/ChrisBuilds/terminaltexteffects
+    MIT License, Copyright (c) 2023 ChrisBuilds
+
+    ttfx (Rust port of TTE)
+    https://github.com/omacom-io/ttfx
+    MIT License, Copyright (c) 2026 37signals / omacom-io
+
+    tuiffects (this package, Go port of ttfx)
+    https://github.com/Gaurav-Gosain/tuiffects
+    MIT License, Copyright (c) 2026 Gaurav Gosain
+
+Every effect here, and the architecture of the animation engine that runs
+them, are ChrisBuilds' design. ttfx translated that work to Rust and says
+plainly that it originates none of the art. This package translates ttfx to
+Go and originates none of it either.
+
+What was translated, file by file:
+
+    engine.go, character.go, canvas.go, terminal.go
+        ttfx src/engine/{ctx,character,canvas,terminal}.rs
+        TTE terminaltexteffects/engine/{base_character,terminal}.py
+
+    clock.go       ttfx src/engine/ctx.rs (Clock)
+    animation.go   ttfx src/engine/animation.rs, TTE engine/animation.py
+    motion.go      ttfx src/engine/motion.rs,    TTE engine/motion.py
+    events.go      ttfx src/engine/events.rs,    TTE engine/base_character.py
+    easing.go      ttfx src/utils/easing.rs,     TTE utils/easing.py
+    color.go       ttfx src/utils/graphics.rs,   TTE utils/graphics.py
+    geometry.go    ttfx src/utils/geometry.rs,   TTE utils/geometry.py
+
+    particles.go
+        ttfx src/engine/particles.rs
+        TTE terminaltexteffects/engine/effect_support/particles.py
+
+    spanning_tree.go
+        ttfx src/utils/spanning_tree.rs
+        TTE terminaltexteffects/utils/spanningtree/
+
+    effect_binarypath.go       ttfx src/effects/binarypath.rs,       TTE effects/effect_binarypath.py
+    effect_blackhole.go        ttfx src/effects/blackhole.rs,        TTE effects/effect_blackhole.py
+    effect_bouncyballs.go      ttfx src/effects/bouncyballs.rs,      TTE effects/effect_bouncyballs.py
+    effect_bubbles.go          ttfx src/effects/bubbles.rs,          TTE effects/effect_bubbles.py
+    effect_burn.go             ttfx src/effects/burn.rs,             TTE effects/effect_burn.py
+    effect_crumble.go          ttfx src/effects/crumble.rs,          TTE effects/effect_crumble.py
+    effect_decrypt.go          ttfx src/effects/decrypt.rs,          TTE effects/effect_decrypt.py
+    effect_errorcorrect.go     ttfx src/effects/errorcorrect.rs,     TTE effects/effect_errorcorrect.py
+    effect_expand.go           ttfx src/effects/expand.rs,           TTE effects/effect_expand.py
+    effect_fireworks.go        ttfx src/effects/fireworks.rs,        TTE effects/effect_fireworks.py
+    effect_highlight.go        ttfx src/effects/highlight.rs,        TTE effects/effect_highlight.py
+    effect_laseretch.go        ttfx src/effects/laseretch.rs,        TTE effects/effect_laseretch.py
+    effect_matrix.go           ttfx src/effects/matrix.rs,           TTE effects/effect_matrix.py
+    effect_middleout.go        ttfx src/effects/middleout.rs,        TTE effects/effect_middleout.py
+    effect_orbittingvolley.go  ttfx src/effects/orbittingvolley.rs,  TTE effects/effect_orbittingvolley.py
+    effect_overflow.go         ttfx src/effects/overflow.rs,         TTE effects/effect_overflow.py
+    effect_pour.go             ttfx src/effects/pour.rs,             TTE effects/effect_pour.py
+    effect_print.go            ttfx src/effects/print_effect.rs,     TTE effects/effect_print.py
+    effect_rain.go             ttfx src/effects/rain.rs,             TTE effects/effect_rain.py
+    effect_randomsequence.go   ttfx src/effects/random_sequence.rs,  TTE effects/effect_random_sequence.py
+    effect_rings.go            ttfx src/effects/rings.rs,            TTE effects/effect_rings.py
+    effect_scattered.go        ttfx src/effects/scattered.rs,        TTE effects/effect_scattered.py
+    effect_slice.go            ttfx src/effects/slice.rs,            TTE effects/effect_slice.py
+    effect_slide.go            ttfx src/effects/slide.rs,            TTE effects/effect_slide.py
+    effect_smoke.go            ttfx src/effects/smoke.rs,            TTE effects/effect_smoke.py
+    effect_spotlights.go       ttfx src/effects/spotlights.rs,       TTE effects/effect_spotlights.py
+    effect_spray.go            ttfx src/effects/spray.rs,            TTE effects/effect_spray.py
+    effect_swarm.go            ttfx src/effects/swarm.rs,            TTE effects/effect_swarm.py
+    effect_sweep.go            ttfx src/effects/sweep.rs,            TTE effects/effect_sweep.py
+    effect_synthgrid.go        ttfx src/effects/synthgrid.rs,        TTE effects/effect_synthgrid.py
+    effect_thunderstorm.go     ttfx src/effects/thunderstorm.rs,     TTE effects/effect_thunderstorm.py
+    effect_unstable.go         ttfx src/effects/unstable.rs,         TTE effects/effect_unstable.py
+    effect_vhstape.go          ttfx src/effects/vhstape.rs,          TTE effects/effect_vhstape.py
+    effect_waves.go            ttfx src/effects/waves.rs,            TTE effects/effect_waves.py
+    effect_wipe.go             ttfx src/effects/wipe.rs,             TTE effects/effect_wipe.py
+
+What was deliberately NOT carried over:
+
+  * ttfx reproduces the Python original byte for byte, which requires a
+    Mersenne Twister clone and a parity harness. This port makes no parity
+    claim, so it uses Go's own generator and ships no parity suite. The same
+    effect will not produce the same frames here as it does there.
+  * The command-line interface, the tty writer, and resize handling. This
+    package renders into a host program's screen, not into a terminal it
+    owns.
+  * Two of ttfx's thirty-seven effects, `beams` and `colorshift`. The other
+    thirty-five are all here.
+  * The AldousBroder spanning tree, which ttfx also leaves out because no
+    shipped effect uses it.
+
+Rounding quirks that ARE carried over, because they change how the effects
+look and removing them would silently retune every one of them: half-to-even
+rounding on coordinates, integer floor division on gradient channel steps,
+and the bezier arc-length estimate that stops at t=0.9.
+
+Where this port deviates on purpose, it is because upstream is written for
+piped text and this is written for a screen that already exists. Each such
+deviation is commented where it is made, and each is scoped to the
+input-colour policy so the default behaviour stays upstream's.
+
+If you enjoy these effects, the credit belongs upstream, with ChrisBuilds.
