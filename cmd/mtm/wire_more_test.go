@@ -12,7 +12,7 @@ import (
 // serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestWindowAndSessionVerbsRunAgainstASelfDaemon(t *testing.T) {
 	make, client := selfDaemonApp(t, paneScopeAll)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second*raceSlowdown)
 	defer cancel()
 	_ = ctx
 

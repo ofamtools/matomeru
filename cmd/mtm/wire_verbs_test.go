@@ -115,7 +115,7 @@ func selfDaemonApp(t *testing.T, scope string) (func() *App, *daemon.Client) {
 	}
 	self := daemon.SelfStart{Word: daemonWord, PinDir: filepath.Join(root, "state", "daemon-bin"), Label: "test", InUse: func(string) bool { return true }}
 	client := daemon.ForServer(server)
-	client.Start, client.Wait = self.Start, 60*time.Second
+	client.Start, client.Wait = self.Start, 60*time.Second*raceSlowdown
 	client.Ready = client.HelloReady
 	_ = exe
 	make := func() *App {
@@ -132,7 +132,7 @@ func selfDaemonApp(t *testing.T, scope string) (func() *App, *daemon.Client) {
 		}
 		return app
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second*raceSlowdown)
 	defer cancel()
 	if err := client.Ensure(ctx); err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func resultMap(t *testing.T, resp map[string]any) map[string]any {
 // serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestWireVerbsRunAgainstASelfDaemonThroughMCPServe(t *testing.T) {
 	make, client := selfDaemonApp(t, paneScopeAll)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second*raceSlowdown)
 	defer cancel()
 
 	// The table agrees with the daemon: every verb exists, every parameter
@@ -329,7 +329,7 @@ func toJSON(v any) string {
 // serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestWireVerbsOfAnAgentAreHeldToItsScope(t *testing.T) {
 	make, client := selfDaemonApp(t, paneScopeOwn)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second*raceSlowdown)
 	defer cancel()
 	var made struct {
 		Window string `json:"window_id"`
