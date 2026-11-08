@@ -219,6 +219,13 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		}
 		return nil
 	}
+	// So do the agent hook, status line and state commands (agent_hook_shell.go).
+	if code, handled := agentShell(words, opts, stdin, stdout, stderr); handled {
+		if code != 0 {
+			return daemonExit(code)
+		}
+		return nil
+	}
 	if *smoke {
 		cleanup, err := smokeOptions(&opts, flags)
 		if err != nil {
@@ -373,6 +380,7 @@ type App struct {
 	launcher            harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
 	harnesses           *harness.Registry           // the built-ins merged with the harness file
 	locator             *locate.Locator             // the harnesses' session records (pane_locate.go); nil none
+	executable          func() (string, error)      // the mtm binary the per-launch hooks run (os.Executable; tests replace it)
 	promptDelay         time.Duration               // the wait before typing into a pane whose harness has no readiness probe
 	sleep               func(context.Context, time.Duration) error
 	panesd              paneDaemon
@@ -558,7 +566,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
+	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()

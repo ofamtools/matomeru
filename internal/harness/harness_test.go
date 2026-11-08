@@ -2,10 +2,12 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -247,5 +249,59 @@ func TestLaunchOpensWaitsAndTypesThePrompt(t *testing.T) {
 				t.Fatalf("note = %q", out.Note)
 			}
 		})
+	}
+}
+
+func TestHookFlagsCarryTheHookSettingsPerLaunch(t *testing.T) {
+	h := Builtins()[0]
+	if h.Name != "claude" || len(h.HookArgs) != 2 || h.HookArgs[0] != "--settings" {
+		t.Fatalf("claude's hookArgs = %q", h.HookArgs)
+	}
+	for _, exe := range []string{"/usr/local/bin/mtm", "/tmp/a b/it's/mtm", `/tmp/"q"/mtm`} {
+		flags := h.HookFlags(exe)
+		if len(flags) != 2 || flags[0] != "--settings" {
+			t.Fatalf("flags for %q = %q", exe, flags)
+		}
+		var settings struct {
+			Hooks map[string][]struct {
+				Hooks []struct {
+					Type, Command string
+					Timeout       int
+				}
+			}
+		}
+		if err := json.Unmarshal([]byte(flags[1]), &settings); err != nil {
+			t.Fatalf("the --settings word is not JSON for %q: %v\n%s", exe, err, flags[1])
+		}
+		for _, ev := range []string{"SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "PostToolUse", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "Notification"} {
+			g := settings.Hooks[ev]
+			if len(g) != 1 || len(g[0].Hooks) != 1 {
+				t.Fatalf("%s: %+v", ev, g)
+			}
+			c := g[0].Hooks[0]
+			// Run through a shell, the command must name the binary as one word.
+			q := "'" + strings.ReplaceAll(exe, "'", `'\''`) + "'"
+			if c.Type != "command" || c.Command != q+" agent hook claude-code --integration 3" {
+				t.Fatalf("%s command = %q, want %q", ev, c.Command, q+" agent hook claude-code --integration 3")
+			}
+			if (ev == "PermissionRequest") != (c.Timeout == 310) {
+				t.Fatalf("%s timeout = %d", ev, c.Timeout)
+			}
+		}
+	}
+	if got := h.HookFlags(""); got != nil {
+		t.Fatalf("no binary: %q", got)
+	}
+	if got := Builtins()[1].HookFlags("/x/mtm"); got != nil {
+		t.Fatalf("a harness without hookArgs got %q", got)
+	}
+}
+
+func TestLaunchAddsSpecFlagsAfterSettings(t *testing.T) {
+	h := Harness{Name: "x", Command: []string{"x"}, ModelFlag: "--model"}
+	got := h.ArgvWith("m", "", append([]string{"--a"}, "--settings", "{}"))
+	want := []string{"x", "--model", "m", "--a", "--settings", "{}"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("argv = %q, want %q", got, want)
 	}
 }

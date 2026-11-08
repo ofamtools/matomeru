@@ -38,6 +38,9 @@ type Spec struct {
 	// fast, permission-mode): flags in the argv, or commands typed before
 	// the prompt (Harness.LaunchSettings).
 	Settings map[string]string
+	// Flags are argv words added after the settings' flags (the hook
+	// settings of Harness.HookFlags).
+	Flags []string
 }
 
 // Prompt statuses of a Result.
@@ -106,7 +109,7 @@ func (l *Launcher) Launch(ctx context.Context, h Harness, s Spec) (Result, error
 	if err != nil {
 		return Result{}, err
 	}
-	argv := h.ArgvWith(s.Model, s.Prompt, flags)
+	argv := h.ArgvWith(s.Model, s.Prompt, append(flags, s.Flags...))
 	id, err := l.Driver.OpenWindow(ctx, Window{Session: s.Session, Name: s.Name, Cwd: s.Cwd, Command: argv})
 	if err != nil {
 		return Result{}, err

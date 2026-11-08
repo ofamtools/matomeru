@@ -4,6 +4,22 @@
 ../../internal/actionitems/actionitems.go	Store.Counts	compare	"open"	1
 ../../internal/actionitems/actionitems.go	section	case	"archived"	1
 ../../internal/actionitems/notify.go	NotifyOptions.Wants	compare	"open"	1
+../../internal/agenthook/approval.go	Approval.IsPlan	compare	"plan"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/approval.go	claudeAcceptEdits	compare	"session"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/approval.go	var claudeDestinations	table	"session"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/approval.go	var openCodeWholeTools	table	"read"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/cmd_agent_hook.go	flushAtTurnEnd	compare	"done"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/cmd_agent_hook.go	reportHookSession	compare	"transcript_path"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/cmd_agent_statusline.go	reportStatusLine	cyclo	"-"	32	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
+../../internal/agenthook/hook.go	StateActivity	case	"prompt"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook.go	var harnessAliases	table	"cursor"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_claude.go	translateClaude	cyclo	"-"	33	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
+../../internal/agenthook/hook_cursor.go	translateCursor	case	"stop"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"pending"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_plugins.go	translateAmp	case	"agent.start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_plugins.go	translateAmp	case	"done"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_plugins.go	translatePi	compare	"confirm"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/proc.go	var launcherNames	table	"env"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/compose/files.go	var skipDirs	table	"target"	1
 ../../internal/contextitems/extract.go	Extract	compare	"command"	1
 ../../internal/contextitems/extract.go	Extract	compare	"prompt"	1
@@ -98,6 +114,9 @@ actor.go	App.showByColumn	compare	"by"	1
 actor.go	App.taskGlyphs	compare	"agent"	1
 actor.go	byCell	case	"agent"	1
 actor.go	byCell	case	"owner"	1
+agent_hook_shell.go	agentShell	compare	"agent"	1	hot-path glue words run before the runtime opens (like the hidden daemon word), not runtime verbs
+agent_hook_shell.go	var agentShellWords	table	"hook"	1	hot-path glue words run before the runtime opens (like the hidden daemon word), not runtime verbs
+agent_hook_shell.go	var agentShellWords	table	"state"	1	hot-path glue words run before the runtime opens (like the hidden daemon word), not runtime verbs
 agent_verbs.go	App.defineTaskEvidence	compare	"done"	1
 agent_verbs.go	App.defineTaskEvidence	compare	"task"	1
 archive.go	App.archiveVisible	compare	"archived"	1

@@ -124,6 +124,7 @@ func (a *App) declareSettings() error {
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
 	}
 	settings = append(settings, daemonSettings()...)
+	settings = append(settings, agentHookSettings()...)
 	settings = append(settings, agentSettings()...)
 	settings = append(settings, extPeerSettings...)
 	settings = append(settings, extHostSettings...)

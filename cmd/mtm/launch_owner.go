@@ -87,6 +87,7 @@ func (c creationRecorder) Call(ctx context.Context, verb string, params, out any
 }
 
 func (a *App) launchJob(owner Owner, h harness.Harness, spec harness.Spec) func(context.Context) (any, error) {
+	spec.Flags = append(spec.Flags, a.hookFlags(h)...)
 	d := &recordingDriver{Driver: a.launcher, work: a.work, owner: owner, harness: h.Name, model: spec.Model}
 	l := &harness.Launcher{Driver: d, Delay: a.promptDelay, Sleep: a.sleep}
 	panes := a.panesd

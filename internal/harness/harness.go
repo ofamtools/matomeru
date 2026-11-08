@@ -121,6 +121,16 @@ type Harness struct {
 	// nil: the agent.view settings. A file's view object merges by field
 	// into the built-in's; null removes it.
 	View *View `json:"view,omitempty"`
+	// HookArgs are argv words a launch adds so the agent reports its own
+	// state (turn and approval state, session id, transcript, prompt,
+	// subagents) to the daemon through mtm agent hook, with the hook
+	// settings carried per launch instead of in a global config file.
+	// {mtm} is the shell-quoted path of the mtm binary; {mtm_json} is the
+	// same escaped to sit inside a JSON string. Claude Code takes them as
+	// --settings JSON. Empty: the harness takes none (see the agent.hooks
+	// setting, which turns them off). Codex takes hooks per launch with -c but
+	// holds them untrusted until each one's hash is trusted, so it has none.
+	HookArgs []string `json:"hookArgs,omitempty"`
 	// AgentEnv names environment variables the harness sets in the
 	// processes its agent runs (Claude Code sets CLAUDECODE): a CLI call
 	// that finds one of them set, inside a pane mtm did not launch, runs as
@@ -347,6 +357,23 @@ func (h Harness) ArgvWith(model, prompt string, flags []string) []string {
 	return argv
 }
 
+// HookFlags are HookArgs with the mtm binary's path filled in: the words a
+// launch adds so the agent's hooks run mtm agent hook. mtm is the binary's
+// path; with none, or a harness with no HookArgs, there are none.
+func (h Harness) HookFlags(mtm string) []string {
+	if mtm == "" || len(h.HookArgs) == 0 {
+		return nil
+	}
+	quoted := "'" + strings.ReplaceAll(mtm, "'", `'\''`) + "'"
+	enc, _ := json.Marshal(quoted)
+	inJSON := string(enc[1 : len(enc)-1])
+	out := make([]string, len(h.HookArgs))
+	for i, a := range h.HookArgs {
+		out[i] = strings.NewReplacer("{mtm_json}", inJSON, "{mtm}", quoted).Replace(a)
+	}
+	return out
+}
+
 // Registry is the loaded harnesses in order: the built-ins, then the
 // ones a file added.
 type Registry struct{ list []Harness }
@@ -477,6 +504,7 @@ func Load(path string) (*Registry, error) {
 // a session, promptBox, view or compose object by field.
 func (h Harness) clone() Harness {
 	h.Command, h.Models, h.AgentEnv, h.Ids = slices.Clone(h.Command), slices.Clone(h.Models), slices.Clone(h.AgentEnv), slices.Clone(h.Ids)
+	h.HookArgs = slices.Clone(h.HookArgs)
 	h.Env, h.Settings, h.ContextWindows = maps.Clone(h.Env), maps.Clone(h.Settings), maps.Clone(h.ContextWindows)
 	if h.Session != nil {
 		src := *h.Session
