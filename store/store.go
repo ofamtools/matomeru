@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -59,9 +61,40 @@ func Open(path string) (*Store, error) {
 		dsn = (&url.URL{Scheme: "file", Path: absolute}).String()
 	}
 	dsn += "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_txlock=immediate"
+	// The first connection to a new file switches it to WAL, which SQLite
+	// refuses at once (no busy wait) while another opener holds the file:
+	// retry the whole setup with a short backoff inside the busy window.
+	deadline := time.Now().Add(10 * time.Second)
+	delay := 5 * time.Millisecond
+	var db *sql.DB
+	for {
+		var err error
+		db, err = initialize(dsn)
+		if err == nil {
+			break
+		}
+		if !isBusy(err) || time.Now().After(deadline) {
+			return nil, fmt.Errorf("initialize store: %w", err)
+		}
+		time.Sleep(delay + time.Duration(rand.Int63n(int64(delay))))
+		if delay < 200*time.Millisecond {
+			delay *= 2
+		}
+	}
+	return &Store{db: db}, nil
+}
+
+func isBusy(err error) bool {
+	text := err.Error()
+	return strings.Contains(text, "SQLITE_BUSY") || strings.Contains(text, "database is locked")
+}
+
+// initialize opens the database and creates the metadata table; on failure
+// it closes the handle.
+func initialize(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("open store: %w", err)
+		return nil, err
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
@@ -74,9 +107,9 @@ func Open(path string) (*Store, error) {
 	)`)
 	if err != nil {
 		db.Close()
-		return nil, fmt.Errorf("initialize store: %w", err)
+		return nil, err
 	}
-	return &Store{db: db}, nil
+	return db, nil
 }
 
 // OpenReadOnly opens an existing SQLite file for reading only (mode=ro):
