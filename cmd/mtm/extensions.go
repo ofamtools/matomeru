@@ -318,6 +318,7 @@ func extHistoryKind(v ocli.CatalogVerb) (string, error) {
 // extension is one mounted extension.
 type extension struct {
 	name  string
+	ns    string // the namespace its nouns mount under (extNamespace)
 	bin   string
 	doc   ocli.CatalogDoc
 	nouns map[string]string // catalog noun -> mtm noun (<ext>.<noun>, extension_names.go)
@@ -661,7 +662,8 @@ func (a *App) mountExtensions() {
 // does not try again until its registry entry changes.
 func (a *App) mountExtension(name string, e extEntry) {
 	notify := func(format string, args ...any) { a.r.UI().Notify(name + ": " + fmt.Sprintf(format, args...)) }
-	x := &extension{name: name, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
+	ns, nsErr := extNamespace(name, e.Bin, e.Catalog)
+	x := &extension{name: name, ns: ns, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
 	defer func() {
 		a.exts = append(a.exts, x)
 		a.refreshSides()
@@ -670,7 +672,10 @@ func (a *App) mountExtension(name string, e extEntry) {
 		a.r.ReloadUserActions()
 		a.r.ReloadUserBindings()
 	}()
-	naming, err := a.extNamingFor(name)
+	naming, err := a.extNamingFor(ns)
+	if nsErr != nil {
+		notify("%v", nsErr)
+	}
 	if err != nil {
 		notify("%v", err)
 	}
@@ -689,7 +694,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 		}
 	}
 	mounted := ocli.MountCatalog(a.r, doc, ocli.HostMount{
-		Local: func(noun string) string { return naming.local(name, noun) },
+		Local: func(noun string) string { return naming.local(ns, noun) },
 		Param: extParameter,
 		Proxy: func(noun string, v ocli.CatalogVerb) any { return a.extProxy(x, noun, v.Name, v.OpensPage) },
 	})
@@ -713,7 +718,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 			if local, ok := x.nouns[n]; ok {
 				return local
 			}
-			return naming.local(name, n)
+			return naming.local(ns, n)
 		},
 		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
 			return execExt(c, x.bin, x.loadEnv(nil), noun, verb, "--json", "{}")
@@ -969,7 +974,7 @@ func (a *App) extTarget(x *extension, noun string, inst *ochazuke.Instance) stri
 	if inst == nil {
 		return ""
 	}
-	want := a.r.CanonicalNoun(x.naming.local(x.name, noun))
+	want := a.r.CanonicalNoun(x.naming.local(x.ns, noun))
 	if local, ok := x.nouns[noun]; ok {
 		want = a.r.CanonicalNoun(local)
 	}
@@ -1115,9 +1120,9 @@ func (a *App) revealExtTarget(target string) bool {
 				if !ok || id == "" {
 					continue
 				}
-				noun := x.naming.local(x.name, l.Noun)
+				noun := x.naming.local(x.ns, l.Noun)
 				if verb, rows := x.doc.RowSource(l.Noun); verb != "" {
-					noun = x.naming.local(x.name, rows)
+					noun = x.naming.local(x.ns, rows)
 				}
 				inst := a.r.Instance(target, ochazuke.Parent(l.ID), ochazuke.Kind(noun))
 				inst.Data, inst.Label = id, id

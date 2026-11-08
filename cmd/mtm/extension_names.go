@@ -87,7 +87,7 @@ func (a *App) extNoun(ext, noun string) string {
 // "" when local is not one.
 func (x *extension) catalogNounOf(local string) string {
 	for _, n := range x.doc.Nouns {
-		if x.naming.local != nil && x.naming.local(x.name, n.Name) == local {
+		if x.naming.local != nil && x.naming.local(x.ns, n.Name) == local {
 			return n.Name
 		}
 	}
@@ -103,7 +103,7 @@ func (a *App) mountOldNounNames(x *extension, notify func(string, ...any)) {
 		return
 	}
 	for _, n := range slices.Sorted(maps.Keys(x.nouns)) {
-		local, old := x.nouns[n], x.naming.old(x.name, n)
+		local, old := x.nouns[n], x.naming.old(x.ns, n)
 		if old == local || a.r.Noun(old) != nil {
 			continue
 		}
@@ -147,7 +147,7 @@ func (a *App) syncBareNounNames() {
 	owners := map[string][]string{} // a catalog noun -> the mtm nouns of that name
 	namespaces := map[string]bool{}
 	for _, x := range a.exts {
-		namespaces[x.name] = true
+		namespaces[x.ns] = true
 		if !x.naming.bare {
 			continue
 		}
@@ -217,4 +217,19 @@ func (a *App) observeExtNounNames() {
 			a.remountExtensions()
 		}
 	})
+}
+
+// extNamespace is the namespace an extension's nouns mount under: the one
+// its catalog declares (cli.CatalogNamespace, singular: question for
+// o-questions), else its registered name. A declared name that fails the
+// framework's checks is reported and the registered name is used.
+func extNamespace(name, bin string, doc ocli.CatalogDoc) (string, error) {
+	if doc.Namespace == "" {
+		return name, nil
+	}
+	ns, err := ocli.CatalogNamespace(doc, bin)
+	if err != nil {
+		return name, err
+	}
+	return ns, nil
 }

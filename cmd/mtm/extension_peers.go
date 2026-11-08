@@ -42,7 +42,7 @@ func (a *App) extBindingPolicy(row ochazuke.Binding, home map[string]string, cru
 }
 
 func extensionNamespace(x *extension) string {
-	ns, err := ocli.ExtensionNamespace(x.bin)
+	ns, err := ocli.CatalogNamespace(x.doc, x.bin)
 	if err != nil {
 		return x.name
 	}

@@ -8,7 +8,7 @@
     "path": "${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md",
     "begin": "<!-- mtm:begin -->",
     "end": "<!-- mtm:end -->",
-    "content": "## One MCP server: mtm\n\n`mtm mcp serve` is the family's single MCP gateway: its `catalog`, `describe` and `run` tools reach mtm's own verbs and every registered extension's (o-lane `lane.*`, o-questions `questions.*`, o-cmds `cmds.*`, o-md `md.*`, o-git `git.*`). Use it rather than a tool's own MCP server.",
+    "content": "## One MCP server: mtm\n\n`mtm mcp serve` is the family's single MCP gateway: its `catalog`, `describe` and `run` tools reach mtm's own verbs and every registered extension's (o-lane `lane.*`, o-questions `question.*`, o-cmds `cmd.*`, o-md `md.*`, o-git `git.*`). Use it rather than a tool's own MCP server.",
     "requires": [
       "dir:${CLAUDE_CONFIG_DIR:-~/.claude}"
     ],
@@ -23,7 +23,7 @@
     "path": "~/.codex/AGENTS.md",
     "begin": "<!-- mtm:begin -->",
     "end": "<!-- mtm:end -->",
-    "content": "## One MCP server: mtm\n\n`mtm mcp serve` is the family's single MCP gateway: its `catalog`, `describe` and `run` tools reach mtm's own verbs and every registered extension's (o-lane `lane.*`, o-questions `questions.*`, o-cmds `cmds.*`, o-md `md.*`, o-git `git.*`). Use it rather than a tool's own MCP server.",
+    "content": "## One MCP server: mtm\n\n`mtm mcp serve` is the family's single MCP gateway: its `catalog`, `describe` and `run` tools reach mtm's own verbs and every registered extension's (o-lane `lane.*`, o-questions `question.*`, o-cmds `cmd.*`, o-md `md.*`, o-git `git.*`). Use it rather than a tool's own MCP server.",
     "requires": [
       "dir:~/.codex"
     ],

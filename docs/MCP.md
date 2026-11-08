@@ -83,7 +83,7 @@ They say:
 - mtm is the only MCP server an agent needs. The mounted family tools are
   reached through this gateway's `run`, not their own servers: o-lane
   (`lane.lane.define`, `lane.lane.state`, `lane.lane.associate`), o-questions
-  (`questions.question.ask`, `answer`, `follow-up`), o-cmds (`cmds.cmd.add`),
+  (`question.question.ask`, `answer`, `follow-up`), o-cmds (`cmd.cmd.add`),
   o-md (`md.doc.new`) and o-git.
 - Track work as lanes. Every lane belongs to an mtm project; when none fits,
   the agent creates one with `project.new` (declared `allow`). Set the lane's

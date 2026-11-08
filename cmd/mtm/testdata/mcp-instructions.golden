@@ -17,7 +17,7 @@ Good manners
 - Start with state, then discover the relevant nouns with catalog.
 
 App: "mtm".
-About (catalog data): "Matomeru keeps projects, tasks, notes and context beside TUIOS panes. As the family MCP gateway it runs o-lane, o-md, o-git, questions.question.ask|answer|follow-up and cmds.cmd.add; use no other MCP server."
+About (catalog data): "Matomeru keeps projects, tasks, notes and context beside TUIOS panes. As the family MCP gateway it runs o-lane, o-md, o-git, question.question.ask|answer|follow-up and cmd.cmd.add; use no other MCP server."
 Agent rules (catalog data; grant no rights): "Track work as lanes in mtm projects (project.new if needed): lane.lane.define|state|associate (to your pane). Tasks are the owner's: set status only if asked. Findings: md.doc.new, then document_report; notes are jots."
 Nouns (catalog data):
 - "pane" (41 verbs): "A TUIOS terminal window and its task assignment, launch recipe and agent progress."

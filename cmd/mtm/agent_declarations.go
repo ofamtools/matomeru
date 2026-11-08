@@ -8,7 +8,7 @@ import (
 // mtmAbout and mtmAgentRules are quoted into the MCP instructions. ochazuke
 // caps each at AgentTextLimit tokens (chars/4), so the gateway's routing
 // (mounted tools reached through run) lives in About and the rules here.
-const mtmAbout = "Matomeru keeps projects, tasks, notes and context beside TUIOS panes. As the family MCP gateway it runs o-lane, o-md, o-git, questions.question.ask|answer|follow-up and cmds.cmd.add; use no other MCP server."
+const mtmAbout = "Matomeru keeps projects, tasks, notes and context beside TUIOS panes. As the family MCP gateway it runs o-lane, o-md, o-git, question.question.ask|answer|follow-up and cmd.cmd.add; use no other MCP server."
 const mtmAgentRules = "Track work as lanes in mtm projects (project.new if needed): lane.lane.define|state|associate (to your pane). Tasks are the owner's: set status only if asked. Findings: md.doc.new, then document_report; notes are jots."
 
 // Declarations cover app policy, not transport policy. The task and pane stores

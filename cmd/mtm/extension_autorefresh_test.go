@@ -127,3 +127,58 @@ func TestExtensionCatalogRefreshesWhenItsBinChanges(t *testing.T) {
 		t.Fatal("a failed catalog was not checked for recovery")
 	}
 }
+
+// A bin rebuilt while no TUI runs (a CLI command, the MCP gateway) is
+// mounted with the catalog it answers now: the entry's stamp differs, so
+// refreshChangedBins reads the catalog again and writes it.
+func TestExtensionMountReadsCatalogOfRebuiltBin(t *testing.T) {
+	t.Parallel()
+	path := seeded(t)
+	bin, log := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
+	registered(t, path, "fake", bin)
+	file := filepath.Join(filepath.Dir(path), "extensions", "fake.json")
+	read := func() extEntry {
+		var e extEntry
+		raw, err := os.ReadFile(file)
+		if err != nil || json.Unmarshal(raw, &e) != nil {
+			t.Fatalf("registry: %v", err)
+		}
+		return e
+	}
+	hasVerb := func(a *App, verb string) bool {
+		_, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey("fake.item." + verb)))
+		return ok
+	}
+
+	cliOpen := func(path string) *App {
+		a := openAt(t, path)
+		a.refreshChangedBins()
+		return a
+	}
+	// Unchanged bin: mounting asks nothing.
+	before := fakeCatalogCalls(t, log)
+	if a := cliOpen(path); hasVerb(a, "archive") || fakeCatalogCalls(t, log) != before {
+		t.Fatalf("unchanged bin: catalog asked %d times", fakeCatalogCalls(t, log)-before)
+	}
+
+	// Rebuilt: the next mount reads the new catalog, writes it with the new
+	// stamp, and mounts its verb; the one after asks nothing.
+	rebuildFake(t, bin, fakeWithVerb("2.0", "archive"), 1)
+	if a := cliOpen(path); !hasVerb(a, "archive") {
+		t.Fatal("the rebuilt bin's verb is not mounted")
+	}
+	if e := read(); e.Catalog.Version != "2.0" || e.BinStamp == nil || *e.BinStamp != *binStamp(bin) {
+		t.Fatalf("stored %s %+v", e.Catalog.Version, e.BinStamp)
+	}
+	asked := fakeCatalogCalls(t, log)
+	cliOpen(path)
+	if fakeCatalogCalls(t, log) != asked {
+		t.Fatal("a refreshed catalog was asked again")
+	}
+
+	// A rebuild that answers no catalog keeps the cached one.
+	rebuildFake(t, bin, "not json", 2)
+	if a := cliOpen(path); !hasVerb(a, "archive") || read().Catalog.Version != "2.0" {
+		t.Fatal("a failed read replaced the cached catalog")
+	}
+}

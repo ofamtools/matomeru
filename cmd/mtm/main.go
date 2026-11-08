@@ -32,6 +32,14 @@ import (
 	"ofam.dev/matomeru/store"
 )
 
+// mtm's own operations are in the namespace mtm, declared before the first
+// runtime is made (ochazuke.DeclareNamespace); a test binary shares it.
+func init() {
+	if err := ochazuke.DeclareNamespace("mtm"); err != nil {
+		panic(err)
+	}
+}
+
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		os.Exit(oden.Report(os.Stderr, "mtm", err))
@@ -215,6 +223,9 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		app.m.Width, app.m.Height = 80, 24
 		fmt.Fprintln(stdout, ansi.Strip(app.View().Content))
 		return nil
+	}
+	if len(words) > 0 {
+		app.refreshChangedBins() // a command or the MCP gateway: no TUI check follows
 	}
 	tui := func() error {
 		// The daemon is ensured and the pane list loads off the loop; the
