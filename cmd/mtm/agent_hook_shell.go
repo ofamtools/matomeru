@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/internal/agenthook"
@@ -64,12 +63,15 @@ func agentHookSettings() []ochazuke.Setting {
 // when agent.hooks is off or the harness takes none. They are its hookArgs,
 // then its per-event hooks (with their trust words), then its hook files:
 // each file is written under the data directory's hooks folder, and skipped
-// when a file it would duplicate is installed already.
+// unless a global config already runs the hook (hookGlobal).
 func (a *App) hookFlags(h harness.Harness) []string {
 	if len(h.HookArgs) == 0 && h.Hooks == nil && len(h.HookFiles) == 0 {
 		return nil
 	}
 	if a.executable == nil || !a.r.Settings().Bool(settingAgentHooks) {
+		return nil
+	}
+	if a.globalHooks(h) {
 		return nil
 	}
 	exe, err := a.executable()
@@ -78,9 +80,6 @@ func (a *App) hookFlags(h harness.Harness) []string {
 	}
 	out := append(h.HookFlags(exe), h.EventFlags(exe)...)
 	for _, f := range h.HookFiles {
-		if slices.ContainsFunc(f.SkipIfExists, func(p string) bool { _, err := os.Stat(a.expandPath(p)); return err == nil }) {
-			continue
-		}
 		body, err := harness.HookFileContent(f.Source, exe)
 		if err != nil {
 			continue
@@ -96,4 +95,16 @@ func (a *App) hookFlags(h harness.Harness) []string {
 		}
 	}
 	return out
+}
+
+// globalHooks reports whether one of h's global config files already runs
+// mtm's hook, so a launch adds none of its own.
+func (a *App) globalHooks(h harness.Harness) bool {
+	for _, g := range h.HookGlobal {
+		body, err := os.ReadFile(a.expandPath(g.Path))
+		if err == nil && g.Holds(string(body)) {
+			return true
+		}
+	}
+	return false
 }

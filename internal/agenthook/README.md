@@ -56,8 +56,13 @@ of `{event_name, hooks:[{type, command, timeout, async}]}`
 `/<session-flags>/config.toml:<event>:0:0`; `harness.HookHash` computes it, and
 a test checks every event against the installed codex's `hooks/list`
 (a Codex change to the identity shows there). OMP: `hookFiles` writes
-`<data>/hooks/omp-agent-state.ts` and passes `-e FILE`, unless
-`~/.omp/agent/extensions/mtm-omp-agent-state.ts` is installed.
+`<data>/hooks/omp-agent-state.ts` and passes `-e FILE`.
+
+No double reports: a row's `hookGlobal` names global config files (claude
+`~/.claude/settings.json`, codex `~/.codex/hooks.json`, omp the installed
+extension). When one exists and holds a `match` string (`agent hook <harness>`
+or `mtm-hook <harness>`; any content when none is given), a launch adds none
+of the per-launch hooks.
 
 Hook command: `mtm-hook` (cmd/mtm-hook, about 4 MB) when it sits beside mtm,
 else `mtm agent hook`. mtm's first exec after an install takes about two

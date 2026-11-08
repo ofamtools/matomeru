@@ -52,12 +52,10 @@ type HookTrust struct {
 
 // HookFile is a file a launch carries. Source names an embedded file
 // (hookfiles/); Args is the argv word group with {path} the written file;
-// SkipIfExists lists files (a leading ~/ is the home directory) whose
-// presence means the harness reports already, so the launch adds none.
+// (Whether the harness reports already is HookGlobal's question.)
 type HookFile struct {
-	Source       string   `json:"source"`
-	Args         []string `json:"args"`
-	SkipIfExists []string `json:"skipIfExists,omitempty"`
+	Source string   `json:"source"`
+	Args   []string `json:"args"`
 }
 
 //go:embed hookfiles/omp-agent-state.ts
@@ -164,4 +162,27 @@ func (h Harness) EventFlags(mtm string) []string {
 		}
 	}
 	return out
+}
+
+// HookGlobal names a global config file of the harness (a leading ~/ is the
+// home directory) that may already run mtm's hook. When the file exists and
+// holds any Match string (any content when Match is empty), the harness
+// reports on its own and a launch adds no per-launch hooks, so nothing
+// reports twice.
+type HookGlobal struct {
+	Path  string   `json:"path"`
+	Match []string `json:"match,omitempty"`
+}
+
+// Holds reports whether body shows the hook already installed.
+func (g HookGlobal) Holds(body string) bool {
+	if len(g.Match) == 0 {
+		return true
+	}
+	for _, m := range g.Match {
+		if strings.Contains(body, m) {
+			return true
+		}
+	}
+	return false
 }

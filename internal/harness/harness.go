@@ -137,6 +137,10 @@ type Harness struct {
 	// when the harness holds command-line hooks untrusted, the trust words
 	// carrying each hook's hash (hooks.go). Nil: none.
 	Hooks *HookSpec `json:"hooks,omitempty"`
+	// HookGlobal lists the global config files that may already run mtm's
+	// hook; one that holds it turns every per-launch hook of this row off
+	// (hooks.go HookGlobal). Empty: always add them.
+	HookGlobal []HookGlobal `json:"hookGlobal,omitempty"`
 	// HookFiles are files mtm writes for a launch and names on its command
 	// line (OMP: -e extension.ts); each is skipped when a file it would
 	// duplicate is installed already (hooks.go). Empty: none.
@@ -511,7 +515,7 @@ func Load(path string) (*Registry, error) {
 // a session, promptBox, view or compose object by field.
 func (h Harness) clone() Harness {
 	h.Command, h.Models, h.AgentEnv, h.Ids = slices.Clone(h.Command), slices.Clone(h.Models), slices.Clone(h.AgentEnv), slices.Clone(h.Ids)
-	h.HookArgs, h.HookFiles = slices.Clone(h.HookArgs), slices.Clone(h.HookFiles)
+	h.HookArgs, h.HookFiles, h.HookGlobal = slices.Clone(h.HookArgs), slices.Clone(h.HookFiles), slices.Clone(h.HookGlobal)
 	if h.Hooks != nil {
 		spec := *h.Hooks
 		spec.Events, spec.Args = slices.Clone(spec.Events), slices.Clone(spec.Args)

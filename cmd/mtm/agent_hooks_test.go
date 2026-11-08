@@ -23,6 +23,8 @@ import (
 func TestLaunchCarriesHookSettingsUntilTheSettingIsOff(t *testing.T) {
 	t.Parallel()
 	app := open(t)
+	home := t.TempDir()
+	app.home = func() (string, error) { return home, nil }
 	app.executable = func() (string, error) { return "/opt/it's mtm/mtm", nil }
 	h, ok := app.harnesses.Get("claude")
 	if !ok {
@@ -125,6 +127,8 @@ func TestCodexLaunchHooksAreTrusted(t *testing.T) {
 		t.Skip("codex is not installed")
 	}
 	app := open(t)
+	home := t.TempDir()
+	app.home = func() (string, error) { return home, nil }
 	app.executable = func() (string, error) { return "/opt/it's mtm/mtm", nil }
 	h, _ := app.harnesses.Get("codex")
 	flags := app.hookFlags(h)
@@ -180,5 +184,43 @@ func TestOmpLaunchCarriesTheExtensionUnlessInstalled(t *testing.T) {
 	}
 	if got := app.hookFlags(h); got != nil {
 		t.Fatalf("agent.hooks off still gave %q", got)
+	}
+}
+
+// A harness whose global config already runs mtm's hook gets no per-launch
+// hooks (nothing reports twice); a config without it, or none, gets them.
+func TestLaunchSkipsHooksTheGlobalConfigAlreadyRuns(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ harness, file, with, without string }{
+		{"claude", ".claude/settings.json", `{"hooks":{"Stop":[{"hooks":[{"command":"mtm agent hook claude-code --integration 3"}]}]}}`, `{"hooks":{"Stop":[{"hooks":[{"command":"other-tool"}]}]}}`},
+		{"codex", ".codex/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"command":"/x/mtm-hook codex --integration 1"}]}]}}`, `{"hooks":{}}`},
+		{"omp", ".omp/agent/extensions/mtm-omp-agent-state.ts", "x", ""},
+	}
+	for _, c := range cases {
+		app := open(t)
+		home := t.TempDir()
+		app.home = func() (string, error) { return home, nil }
+		app.executable = func() (string, error) { return "/opt/mtm", nil }
+		h, ok := app.harnesses.Get(c.harness)
+		if !ok {
+			t.Fatal(c.harness)
+		}
+		if len(app.hookFlags(h)) == 0 {
+			t.Fatalf("%s: no global config, no per-launch hooks", c.harness)
+		}
+		path := filepath.Join(home, c.file)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if c.without != "" {
+			os.WriteFile(path, []byte(c.without), 0o644)
+			if len(app.hookFlags(h)) == 0 {
+				t.Fatalf("%s: a config without the hook still skipped them", c.harness)
+			}
+		}
+		os.WriteFile(path, []byte(c.with), 0o644)
+		if got := app.hookFlags(h); got != nil {
+			t.Fatalf("%s: the global config runs the hook, got %q", c.harness, got)
+		}
 	}
 }
