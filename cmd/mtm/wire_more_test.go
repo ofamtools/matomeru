@@ -4,9 +4,13 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"ofam.dev/matomeru/internal/agenthook"
 )
 
 // serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
@@ -99,5 +103,29 @@ func TestWindowAndSessionVerbsRunAgainstASelfDaemon(t *testing.T) {
 	}
 	if all := resultMap(t, rpc(t, make(), runVerb(1, "agent.guide", map[string]any{"all": true}))[0]); !strings.Contains(toJSON(all["shown"]), "events") {
 		t.Errorf("agent.guide all: %v", all)
+	}
+}
+
+// pane.show and agent.status name the transcript the pane's agent hook
+// reported (the daemon holds the path in memory only and does not say it).
+//
+// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
+func TestPaneShowAndAgentStatusNameTheTranscript(t *testing.T) {
+	make, client := selfDaemonApp(t, paneScopeAll)
+	made := resultMap(t, rpc(t, make(), runVerb(1, "session.new", map[string]any{"name": "tr", "cwd": "/tmp", "command": []any{"cat"}}))[0])
+	win, _ := made["window_id"].(string)
+	if win == "" {
+		t.Fatalf("session.new: %v", made)
+	}
+	const path = "/synthetic/projects/c1.jsonl"
+	// What mtm agent hook leaves beside the daemon's socket.
+	if err := os.WriteFile(agenthook.TranscriptStamp(filepath.Dir(client.Socket), win), []byte(path), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, verb := range []string{"pane.show", "agent.status"} {
+		r := payload(rpc(t, make(), runVerb(1, verb, map[string]any{"session": "tr", "window": win}))[0])
+		if !strings.Contains(toJSON(r), path) {
+			t.Errorf("%s does not name the transcript: %v", verb, r)
+		}
 	}
 }

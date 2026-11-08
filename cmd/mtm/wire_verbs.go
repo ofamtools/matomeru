@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"ofam.dev/matomeru/internal/agenthook"
 	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/mcp"
 	"ofam.dev/ochazuke"
@@ -62,6 +64,10 @@ type wireVerb struct {
 	Base time.Duration
 	// Untrusted marks a result carrying another program's text.
 	Untrusted bool
+	// Transcript marks a verb whose reply describes one pane (it carries
+	// window_id): the reply gains transcript_path, the file the pane's agent
+	// hook last named. The daemon joins the pane to it but does not say it.
+	Transcript bool
 }
 
 // wireMargin is added to a call's blocking parameters.
@@ -78,7 +84,7 @@ var wireVerbs = []wireVerb{
 		Params: []wireParam{sessionParam, {Name: "rail", Type: "boolean", Desc: "Order and group the windows as the rail shows them"}}},
 	{Noun: "agent", Verb: "scan", Wire: "list-agents", Desc: "List the agent panes of a session with the state each reports, its harness and where it works", Right: ochazuke.AgentAllow, Fetch: true,
 		Params: []wireParam{sessionParam, {Name: "all", Type: "boolean", Desc: "Include panes that run no agent"}, {Name: "all_sessions", Type: "boolean", Desc: "Every session (refused under scope own)"}, {Name: "select", Type: "string", Desc: "Only agents a selector matches"}}},
-	{Noun: "agent", Verb: "status", Wire: "get-agent-state", Desc: "Read the agent state a pane last reported, with its message, meta, and what blocks it", Right: ochazuke.AgentAllow, Fetch: true,
+	{Noun: "agent", Verb: "status", Wire: "get-agent-state", Desc: "Read the agent state a pane last reported, with its message, meta, the transcript file its agent hook named, and what blocks it", Right: ochazuke.AgentAllow, Fetch: true, Transcript: true,
 		Params: []wireParam{sessionParam, windowParam("The pane's window id; omit for the one that is focused")}},
 	{Noun: "pane", Verb: "capture", Wire: "capture-pane", Desc: "Read a pane's screen as text, or a range of its scrollback or command output", Right: ochazuke.AgentAllow, Fetch: true, Untrusted: true,
 		Params: []wireParam{sessionParam, windowParam("The pane's window id; omit for the one that is focused"),
@@ -184,7 +190,7 @@ var wireVerbs = []wireVerb{
 			{Name: "direction", Type: "string", Desc: "The neighbouring pane in a direction; needs an attached client", Enum: []string{"left", "right", "up", "down"}}}},
 	{Noun: "pane", Verb: "close", Wire: "close-window", Desc: "Close a window in the daemon by session and window id. Like pane.kill, which closes a pane of the panes page, it needs the owner's approval from an agent", Right: ochazuke.AgentConfirm,
 		Params: []wireParam{sessionParam, windowParam("The window id or name; omit for the focused one")}},
-	{Noun: "pane", Verb: "show", Wire: "get-window", Desc: "Describe one window as the daemon holds it: name, size, directory, agent state", Right: ochazuke.AgentAllow, Fetch: true,
+	{Noun: "pane", Verb: "show", Wire: "get-window", Desc: "Describe one window as the daemon holds it: name, size, directory, agent state and the transcript file its agent hook named", Right: ochazuke.AgentAllow, Fetch: true, Transcript: true,
 		Params: []wireParam{sessionParam, windowParam("The window id or name; omit for the focused one")}},
 	{Noun: "pane", Verb: "resize", Wire: "resize", Desc: "Resize a window's terminal", Right: ochazuke.AgentAllow,
 		Params: []wireParam{sessionParam, windowParam("The window id or name; omit for the focused one"),
@@ -352,8 +358,23 @@ func (a *App) wireHandler(w wireVerb) func(ochazuke.Ctx) ochazuke.Result {
 			if w.Untrusted {
 				reply["untrusted"] = true
 			}
+			if w.Transcript {
+				a.addTranscript(reply)
+			}
 			return reply, nil
 		})
+	}
+}
+
+// addTranscript adds transcript_path to a reply about one pane: the path
+// the pane's agent hook kept beside the daemon's socket, if it did.
+func (a *App) addTranscript(reply map[string]any) {
+	window, _ := reply["window_id"].(string)
+	if window == "" || a.daemon == nil {
+		return
+	}
+	if path := agenthook.ReadTranscript(filepath.Dir(a.daemon.Socket), window); path != "" {
+		reply["transcript_path"] = path
 	}
 }
 

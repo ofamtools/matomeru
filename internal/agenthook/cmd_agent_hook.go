@@ -152,6 +152,7 @@ func runAgentHook(o agentHookOptions, args []string, hio agentHookIO) {
 	case <-time.After(timeout):
 		out = agentHookOutcome{Decision: Decision{Harness: harness}, Error: "gave up after " + timeout.String()}
 	}
+	keepHookTranscript(out, hio)
 	writeContext(out, hio.stdout, hio.noContext)
 	if holdable(out) {
 		out.Hold = holdForAnswer(out, hio)
@@ -159,6 +160,20 @@ func runAgentHook(o agentHookOptions, args []string, hio agentHookIO) {
 	if o.explain {
 		line, _ := json.Marshal(out)
 		fmt.Fprintln(hio.stderr, string(line))
+	}
+}
+
+// keepHookTranscript keeps the transcript path an applied report named
+// (keepTranscript), unless the daemon refused to join the pane to it.
+func keepHookTranscript(out agentHookOutcome, hio agentHookIO) {
+	if hio.stampDir == nil || out.Report == nil || out.Report.TranscriptPath == "" || out.TranscriptRefused != "" {
+		return
+	}
+	if out.Applied == nil || !*out.Applied {
+		return
+	}
+	if dir, err := hio.stampDir(); err == nil {
+		keepTranscript(dir, out.Window, out.Report.TranscriptPath)
 	}
 }
 

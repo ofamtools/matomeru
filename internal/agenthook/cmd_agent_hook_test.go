@@ -160,6 +160,8 @@ type hookRun struct {
 	dialWait time.Duration
 	// sendCwd and noContext are the hook's --send-cwd and --no-context.
 	sendCwd, noContext bool
+	// stampDir, when set, is where the hook keeps the pane's transcript path.
+	stampDir func() (string, error)
 }
 
 func (h *hookRun) run(t *testing.T, o agentHookOptions, payload string, args ...string) {
@@ -182,6 +184,7 @@ func (h *hookRun) run(t *testing.T, o agentHookOptions, payload string, args ...
 		},
 		self:       func() (int, []int) { return 4242, []int{4250, 4242} },
 		harnessPID: func(ancestors []int) int { return ancestors[0] },
+		stampDir:   h.stampDir,
 	})
 }
 
@@ -495,5 +498,22 @@ func TestAgentHookLeavesOutWhatThePTYAlreadyGives(t *testing.T) {
 	h.run(t, agentHookOptions{}, start, "claude-code")
 	if h.stdout.Len() != 0 || len(h.daemon.reports()) != 1 {
 		t.Fatalf("--no-context: stdout %q reports %v", h.stdout.String(), h.daemon.reports())
+	}
+}
+
+// The transcript path a hook payload names is kept for the pane, where mtm
+// pane show and mtm agent status read it back: the daemon holds it in memory
+// only and does not report it.
+func TestAgentHookKeepsTheTranscriptPath(t *testing.T) {
+	dir := t.TempDir()
+	h := &hookRun{env: map[string]string{"TUIOS_PANE_ID": "w1"}, stampDir: func() (string, error) { return dir, nil }}
+	h.run(t, agentHookOptions{}, `{"hook_event_name":"UserPromptSubmit","session_id":"c1","prompt":"hi","transcript_path":"/synthetic/projects/c1.jsonl"}`, "claude-code")
+	if got := ReadTranscript(dir, "w1"); got != "/synthetic/projects/c1.jsonl" {
+		t.Fatalf("kept transcript = %q\n%s", got, h.stderr.String())
+	}
+	// An event that names none leaves the kept path alone.
+	h.run(t, agentHookOptions{}, `{"hook_event_name":"Stop","session_id":"c1"}`, "claude-code")
+	if got := ReadTranscript(dir, "w1"); got != "/synthetic/projects/c1.jsonl" {
+		t.Fatalf("kept transcript after an event without one = %q", got)
 	}
 }
