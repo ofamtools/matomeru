@@ -5,6 +5,7 @@ go 1.26.8
 require (
 	charm.land/bubbletea/v2 v2.1.0
 	github.com/charmbracelet/x/ansi v0.11.9
+	golang.org/x/term v0.46.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 	ofam.dev/monogatari v0.8.0
@@ -24,24 +25,27 @@ require (
 	github.com/charmbracelet/x/vt v0.1.0 // indirect
 	github.com/charmbracelet/x/xpty v0.1.4 // indirect
 	github.com/creack/pty v1.1.24 // indirect
-	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
+	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/lrstanley/bubbletint/v2 v2.0.2 // indirect
 	github.com/lrstanley/go-nf v0.0.0-20260418212552-215ab243b591 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260627054121-477a66015f15 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
+	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.7 // indirect
 	github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
+	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.mitchellh.com/libghostty v0.0.0-20260920220152-31b65cdc24cf // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	tuios.dev/loom v0.2.3-0.20261031063707-452bfc53d580 // indirect
 	tuios.dev/plot v0.2.2-0.20261023124927-50c38920e301 // indirect
@@ -78,7 +82,6 @@ require (
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	ofam.dev/mtmd v0.0.0-20261108072445-68960f1d3d91
+	ofam.dev/mtmd v0.1.0
 	ofam.dev/oden v0.3.0
 )
-

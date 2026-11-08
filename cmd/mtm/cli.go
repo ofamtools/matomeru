@@ -20,7 +20,7 @@ import (
 // JSON. mtm passes in only the slice hooks:
 //
 //   - Prepare starts mtm's server when missing before every command (but
-//     the ones in noDaemonStart: status, stop and the like never start
+//     the verbs declared local (localVerb): status, stop and the like never start
 //     one); a
 //     failure is printed and kept as the pane list's error, and the
 //     command still runs (a store verb needs no daemon).
