@@ -21,6 +21,11 @@ import (
 // even through the default -data, and turns off
 // the o-proj source of known directories.
 func TestMain(m *testing.M) {
+	// The self daemon re-runs this binary behind the hidden word
+	// (daemon_runner_test.go): serve it before anything else.
+	if code, handled := daemonShell(os.Args[1:]); handled {
+		os.Exit(code)
+	}
 	dir, err := os.MkdirTemp("", "mtm-config")
 	if err != nil {
 		panic(err)

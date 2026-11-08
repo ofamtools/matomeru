@@ -42,6 +42,10 @@ func init() {
 
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+		var exit daemonExit
+		if errors.As(err, &exit) {
+			os.Exit(int(exit))
+		}
 		os.Exit(oden.Report(os.Stderr, "mtm", err))
 	}
 }
@@ -207,6 +211,14 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	if handled, err := storyShell(words, stdin, stdout, stderr); handled {
 		return err
 	}
+	// So does the daemon's hidden word (daemon_shell.go): the daemon runs no
+	// app code, so it opens no database and starts no runtime.
+	if code, handled := daemonShell(words); handled {
+		if code != 0 {
+			return daemonExit(code)
+		}
+		return nil
+	}
 	if *smoke {
 		cleanup, err := smokeOptions(&opts, flags)
 		if err != nil {
@@ -224,6 +236,7 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		fmt.Fprintln(stdout, ansi.Strip(app.View().Content))
 		return nil
 	}
+	app.cliWords = words
 	if len(words) > 0 {
 		app.refreshChangedBins() // a command or the MCP gateway: no TUI check follows
 	}
@@ -354,6 +367,7 @@ type App struct {
 	// titleHead and titleDir are the title row before fitting; see fitTitle.
 	titleHead, titleDir string
 	daemon              *daemon.Client
+	cliWords            []string                    // the command words of this run (startsNoDaemon)
 	ensure              func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
 	launcher            harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
 	harnesses           *harness.Registry           // the built-ins merged with the harness file
@@ -544,6 +558,11 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
+	if client.Server != "" {
+		// The runner (daemon.runner, MTM_DAEMON_RUNNER) is read when a start
+		// is needed, so settings.json and the environment apply to this run.
+		client.Start, client.Ready = a.startServer, a.serverReady
+	}
 	a.notify = newNotifications()
 	a.trackNotices()
 	w.SetAgentPolicy(a.agentPolicy) // what an agent may change: the agents.* settings (actor.go)

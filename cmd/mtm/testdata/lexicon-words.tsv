@@ -752,6 +752,7 @@ sha	prop	seed
 shape	prop	seed	
 short_sha	prop	seed	
 show	action	seed	
+show-log	action	yes	the daemon log tail; show is the action, log what it shows
 show-section	action	seed	
 show-tab	action	seed	
 shrink	action	seed	

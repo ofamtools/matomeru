@@ -123,6 +123,7 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: settingTurnsToolsOpen, Type: ochazuke.SettingBoolean, Default: false,
 			Description: "Start each tool call open when a turn is opened (else folded; l opens it)"},
 	}
+	settings = append(settings, daemonSettings()...)
 	settings = append(settings, agentSettings()...)
 	settings = append(settings, extPeerSettings...)
 	settings = append(settings, extHostSettings...)
@@ -198,6 +199,7 @@ func (a *App) declareSettingLayout() error {
 		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),
 		app("schedules", "Schedules", "Missed runs, configured schedules, and daily reminders and their notifications"),
 		app("status", "Status bar", "mtm's status segments in the header rule: cpu, ram and disk"),
+		app("daemon", "Daemon", "How mtm starts its TUIOS server: the tuios on PATH or the daemon linked into mtm, and whether it runs from a pinned copy of the binary"),
 		app("pin", "Pin", "The startup scope and how the pin state (pinned, show all, no pin) colours the theme"),
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: ochazuke.SettingsGeneralSection, Title: "General", Description: "How every extension mounts: catalog refresh and the names of its nouns"},
 		ochazuke.SettingSection{Owner: extensionsOwner, ID: "status", Title: "Status bar", Description: "The status segments the extensions add"},

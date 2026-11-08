@@ -19,7 +19,9 @@ import (
 // jobs, answers a confirm from --yes or stdin and prints the result as
 // JSON. mtm passes in only the slice hooks:
 //
-//   - Prepare starts mtm's server when missing before every command; a
+//   - Prepare starts mtm's server when missing before every command (but
+//     the ones in noDaemonStart: status, stop and the like never start
+//     one); a
 //     failure is printed and kept as the pane list's error, and the
 //     command still runs (a store verb needs no daemon).
 //   - Reveal loads the rows that hold a --target no list shows yet.
@@ -75,6 +77,9 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 		}
 		if err := a.r.SetFocus("work"); err != nil {
 			return err
+		}
+		if a.startsNoDaemon() {
+			return nil
 		}
 		if err := a.ensure(ctx); err != nil {
 			fmt.Fprintln(stderr, "mtm:", err)

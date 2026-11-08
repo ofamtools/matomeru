@@ -276,6 +276,17 @@ Use per-app environment/clock seams and temporary fixtures in new tests.
 
 The tests run every story through `host.Test` in the tagged build (`cmd/mtm/stories_test.go`; `-update` rewrites goldens): `make story-test` (`go vet` and `go test -race` with `-tags monogatari`). A UI bug becomes a story before it is fixed; a known gap is a story with `"skip": "gap: ..."`. Editors need `-tags monogatari` in gopls's build flags to see the tagged files.
 
+## Daemon runner
+
+mtm runs its agents and shells in panes of a TUIOS-compatible daemon it starts for itself (`-server`, default `mtm-daemon`). Two runners start it, chosen by the setting `daemon.runner` (Settings, Daemon) or, for one run, `MTM_DAEMON_RUNNER`:
+
+- `tuios` (the default): `tuios --server NAME start-server` from PATH, as before.
+- `self`: the daemon is linked into mtm (the `ofam.dev/mtmd` module) and runs behind the hidden word `__mtmd`: `mtm __mtmd --server NAME daemon`. No tuios is needed on the machine. The route is handled before any database opens, so the daemon process runs no app code. `-tags nodaemon` builds a slim mtm without the module; it keeps the `tuios` runner and `self` is refused with a message.
+
+With `daemon.pin-binary` (default on) the self daemon runs from a copy of the mtm binary at `<state dir>/daemon-bin/mtm-<build>` (`$XDG_STATE_HOME/matomeru/daemon-bin`, or beside the database for a non-default `--data`). Overwriting the installed mtm cannot then kill it. A new build adds its copy and removes copies of other builds that no process runs. Off runs the installed binary.
+
+The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and skew, runner, binary), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
+
 ## Live shell keys
 
 In a live pane every key goes to the program in it, except the `terminal-leader` setting (default `ctrl+a`). After the leader, the app's own normal-mode keys do what they do outside live: the same verb, and the same guard. The palette, settings and pickers open over the pane; closing them (`esc`) gives the pane its keys again.

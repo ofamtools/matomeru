@@ -363,6 +363,7 @@ func (a *App) definePanes() {
 	a.parameters("panes.focus-section", map[string]ochazuke.Parameter{"section": {Type: "string", Required: true, Enum: sectionNames,
 		Description: "queue (the Needs you list at the top), panes (the middle) or working (the bottom)"}})
 	r.Define("daemon").Verb("ensure", a.ensureVerb, "Start mtm's TUIOS server when it is not running, then reload the pane list").Quiet()
+	a.defineDaemon(r)
 	a.defineLiveKeys()
 	a.definePaneStars()
 	a.definePaneView()
