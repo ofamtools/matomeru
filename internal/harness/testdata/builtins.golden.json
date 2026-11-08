@@ -181,7 +181,7 @@
     },
     "hookArgs": [
       "--settings",
-      "{\"hooks\":{\"Notification\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"PreToolUse\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"PermissionRequest\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":310}]}],\"PostToolUse\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"PostToolUseFailure\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"PermissionDenied\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"ElicitationResult\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"StopFailure\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"SessionEnd\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"SubagentStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}],\"SubagentStop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_json} agent hook claude-code --integration 3\",\"timeout\":5}]}]}}"
+      "{\"hooks\":{\"Notification\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"PreToolUse\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"PermissionRequest\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":310}]}],\"PostToolUse\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"PostToolUseFailure\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"PermissionDenied\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"ElicitationResult\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"StopFailure\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"SessionEnd\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"SubagentStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}],\"SubagentStop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"{mtm_hook_json} claude-code --integration 3\",\"timeout\":5}]}]}}"
     ],
     "agentEnv": [
       "CLAUDECODE"
@@ -397,7 +397,19 @@
     "promptBox": {
       "deliver": "queue",
       "submit": "enter"
-    }
+    },
+    "hookFiles": [
+      {
+        "source": "omp-agent-state.ts",
+        "args": [
+          "-e",
+          "{path}"
+        ],
+        "skipIfExists": [
+          "~/.omp/agent/extensions/mtm-omp-agent-state.ts"
+        ]
+      }
+    ]
   },
   {
     "name": "codex",
@@ -459,6 +471,62 @@
     "promptBox": {
       "deliver": "queue",
       "submit": "enter"
+    },
+    "hooks": {
+      "command": "{mtm_hook} codex --integration 1",
+      "events": [
+        {
+          "name": "SessionStart",
+          "key": "session_start",
+          "timeout": 5
+        },
+        {
+          "name": "UserPromptSubmit",
+          "key": "user_prompt_submit",
+          "timeout": 5
+        },
+        {
+          "name": "PreToolUse",
+          "key": "pre_tool_use",
+          "timeout": 5
+        },
+        {
+          "name": "PermissionRequest",
+          "key": "permission_request",
+          "timeout": 5
+        },
+        {
+          "name": "PostToolUse",
+          "key": "post_tool_use",
+          "timeout": 5
+        },
+        {
+          "name": "Stop",
+          "key": "stop",
+          "timeout": 5
+        },
+        {
+          "name": "Interrupt",
+          "key": "interrupt",
+          "timeout": 2
+        },
+        {
+          "name": "SessionEnd",
+          "key": "session_end",
+          "timeout": 2
+        }
+      ],
+      "args": [
+        "-c",
+        "hooks.{event}=[{hooks=[{type=\"command\",command={command_toml},timeout={timeout}}]}]"
+      ],
+      "trust": {
+        "stateKey": "/\u003csession-flags\u003e/config.toml:{key}:0:0",
+        "args": [
+          "-c",
+          "hooks.state={state}"
+        ]
+      }
     }
   }
 ]

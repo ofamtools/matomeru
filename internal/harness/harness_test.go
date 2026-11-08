@@ -305,3 +305,51 @@ func TestLaunchAddsSpecFlagsAfterSettings(t *testing.T) {
 		t.Fatalf("argv = %q, want %q", got, want)
 	}
 }
+
+// HookHash is Codex's own hash: this value is the currentHash `codex
+// app-server` hooks/list reported (0.166.0) for the same hook.
+func TestHookHashMatchesCodex(t *testing.T) {
+	c := "mtm agent hook codex --integration 1"
+	if got, want := HookHash("session_start", c, 5), "sha256:b7d454271e2c7a4b2c0ae058789079041370a5368a2119c23574d66abd112112"; got != want {
+		t.Fatalf("session_start = %s, want %s", got, want)
+	}
+	if got, want := HookHash("interrupt", c, 2), "sha256:3dd15f6bbe94186fa72af18775de63fe119e2c97fdf89b2ff21a404c36c7f44b"; got != want {
+		t.Fatalf("interrupt = %s, want %s", got, want)
+	}
+}
+
+// The hook command is the small mtm-hook binary when it sits beside mtm,
+// else mtm agent hook; settings, event words and files all follow it.
+func TestHookCommandPrefersTheSiblingBinary(t *testing.T) {
+	dir := t.TempDir()
+	mtm := filepath.Join(dir, "mtm")
+	if got := HookCommand(mtm); !slices.Equal(got, []string{mtm, "agent", "hook"}) {
+		t.Fatalf("no sibling: %q", got)
+	}
+	sib := filepath.Join(dir, "mtm-hook")
+	if err := os.WriteFile(sib, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := HookCommand(mtm); !slices.Equal(got, []string{sib}) {
+		t.Fatalf("sibling: %q", got)
+	}
+	var codex, claude Harness
+	for _, h := range Builtins() {
+		switch h.Name {
+		case "codex":
+			codex = h
+		case "claude":
+			claude = h
+		}
+	}
+	if f := strings.Join(codex.EventFlags(mtm), "\n"); !strings.Contains(f, `command="`+"'"+sib+"' codex --integration 1"+`"`) {
+		t.Fatalf("codex flags:\n%s", f)
+	}
+	if f := claude.HookFlags(mtm)[1]; !strings.Contains(f, "'"+sib+"' claude-code --integration 3") || strings.Contains(f, "agent hook") {
+		t.Fatalf("claude settings: %s", f)
+	}
+	body, _ := HookFileContent("omp-agent-state.ts", mtm)
+	if !strings.Contains(body, `const HOOK = ["`+sib+`"];`) {
+		t.Fatalf("omp extension: %s", body)
+	}
+}

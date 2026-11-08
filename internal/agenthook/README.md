@@ -46,8 +46,23 @@ A harness with `hookArgs` (data in `internal/harness/builtins.json`) is launched
 with its hook config on its command line, so no global settings file is needed.
 Claude Code: `--settings '{"hooks":{...}}'` with every event running
 `'<mtm>' agent hook claude-code --integration 3`. The setting `agent.hooks`
-(default on) turns this off. Codex takes hooks with `-c hooks.<Event>=[...]`
-but holds them untrusted until each is trusted, so it has no `hookArgs`.
+(default on) turns this off.
+
+Codex: the harness row's `hooks` gives one `-c 'hooks.<Event>=[...]'` per event
+plus `-c 'hooks.state={...}'` carrying each hook's trust hash, so Codex lists
+them `trusted`. The hash is Codex's own: SHA-256 of the sorted-key compact JSON
+of `{event_name, hooks:[{type, command, timeout, async}]}`
+(`codex-rs/config/src/fingerprint.rs`, `hooks/src/engine/discovery.rs`), keyed
+`/<session-flags>/config.toml:<event>:0:0`; `harness.HookHash` computes it, and
+a test checks every event against the installed codex's `hooks/list`
+(a Codex change to the identity shows there). OMP: `hookFiles` writes
+`<data>/hooks/omp-agent-state.ts` and passes `-e FILE`, unless
+`~/.omp/agent/extensions/mtm-omp-agent-state.ts` is installed.
+
+Hook command: `mtm-hook` (cmd/mtm-hook, about 4 MB) when it sits beside mtm,
+else `mtm agent hook`. mtm's first exec after an install takes about two
+seconds on macOS (the system verifies the 77 MB file), over a hook's 500 ms
+budget; `mtm-hook` takes about 0.25 s.
 
 ## Comparing with tuios
 
