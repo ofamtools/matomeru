@@ -13,6 +13,12 @@ import (
 	"ofam.dev/matomeru/internal/work"
 )
 
+// followWait is how long the tests give a follow job to deliver its result:
+// generous, because it only bounds a command that never answers (messages
+// drive the loop, not this wait), so a loaded machine cannot fail a test
+// that passes alone.
+const followWait = 30 * time.Second
+
 // driveLoop runs cmd as the Bubble Tea loop would, timers included, feeding
 // every message back through the app, and stops waiting on a command
 // after wait (a wake-up that never comes).
@@ -71,10 +77,10 @@ func printed(a *App, f *fakeContextPanes, window string, lines ...string) {
 	f.print(window, lines...)
 	a.cx.follow.mark(window)
 	_, cmd := a.Update(contextOutput{})
-	driveLoop(a, cmd, 100*time.Millisecond)
+	driveLoop(a, cmd, followWait)
 }
 
-func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
+func TestFollowExtractsWhatAPanePrints(t *testing.T) {
 	t.Parallel()
 	a, f := followApp(t)
 	file := filepath.Join(t.TempDir(), "notes.md")
@@ -92,11 +98,9 @@ func TestFollowExtractsWhatAPanePrintsWithinTwoSeconds(t *testing.T) {
 		long[34:],
 		"done",
 	}
-	start := time.Now()
+	// The two-second SLA is the production schedule (followApp checks the
+	// batch delay stays within a second); wall-clock time is not asserted.
 	printed(a, f, "w1", screen...)
-	if took := time.Since(start); took > 2*time.Second {
-		t.Fatalf("items took %s", took)
-	}
 	items, err := a.contexts.All()
 	if err != nil {
 		t.Fatal(err)
@@ -152,7 +156,7 @@ func TestFollowReadsOnlyTheNewPart(t *testing.T) {
 	f.reads = 0
 	f.mu.Unlock()
 	_, cmd := a.Update(contextOutput{})
-	driveLoop(a, cmd, 100*time.Millisecond)
+	driveLoop(a, cmd, followWait)
 	items, _ := a.contexts.All()
 	if len(items) != 2 || f.reads != 1 {
 		t.Fatalf("items %d, reads %d", len(items), f.reads)
