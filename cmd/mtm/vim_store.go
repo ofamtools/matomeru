@@ -49,7 +49,7 @@ func vimProps() []ochazuke.PropSpec {
 // may revert its writes (Undo): a rename, a move.
 func (a *App) vimStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind:    ochazuke.Collection,
+		Kind:    ochazuke.KindCollection,
 		Undo:    true,
 		Confirm: map[string]string{"delete": "Forget {{label}}? Edited files and the live pane stay."},
 		ListParams: map[string]ochazuke.Parameter{

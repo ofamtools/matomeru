@@ -40,7 +40,7 @@ func TestScheduleKeysAreSetsAndUndo(t *testing.T) {
 	if got := s.String("schedule.slack-signals.enabled"); got != schedules.On {
 		t.Fatalf("e: %q", got)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if got := s.String("schedule.slack-signals.enabled"); got != schedules.Off {
 		t.Fatalf("undo of e: %q", got)
 	}
@@ -48,7 +48,7 @@ func TestScheduleKeysAreSetsAndUndo(t *testing.T) {
 	if got := s.Duration("schedule.slack-signals.interval"); got != time.Minute {
 		t.Fatalf("i: %s", got)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if got := s.Duration("schedule.slack-signals.interval"); got != 5*time.Minute {
 		t.Fatalf("undo of i: %s", got)
 	}
@@ -88,7 +88,7 @@ func TestScheduleShowCreateDeleteAndUndo(t *testing.T) {
 	if _, ok := a.scheduleDef("sweep-the-inbox"); ok {
 		t.Fatal("y kept the row")
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	back, ok := a.scheduleDef("sweep-the-inbox")
 	if !ok || back.Prompt != before.Prompt || back.Every() != 30*time.Minute || back.Created != before.Created {
 		t.Fatalf("undo: %+v, want %+v", back, before)

@@ -110,7 +110,7 @@ func (a *App) defineTaskSubjects() {
 // (AcceptsKey).
 func (a *App) taskStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		// The standard delete's prompt names what the delete orphans.
 		ConfirmFor: a.deletionConfirm("task"),

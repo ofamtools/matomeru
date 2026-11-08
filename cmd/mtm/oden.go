@@ -44,12 +44,12 @@ func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer,
 		}
 		return oden.ErrNotFound
 	}
-	ocli.Mount(app, sh)                            // bindings and history are framework aliases since ochazuke v0.17: Mount adds their groups
+	ocli.Mount(app, sh)                            // binding and history-entry are framework nouns: Mount adds their groups
 	a.defineMCPCommand(app, stdin, stdout, stderr) // mtm mcp (mcp.go)
 	// Mount also mounts the framework's binding noun, which made "bind" an
-	// ambiguous prefix; bind stays the short spelling of bindings.
-	app.Add(oden.Command{Name: "bind", Summary: "bindings (short spelling)", Source: "alias", Run: func(ctx context.Context, args []string) error {
-		return sh.Run(ctx, append([]string{"bindings"}, args...))
+	// ambiguous prefix; bind stays the short spelling of binding.
+	app.Add(oden.Command{Name: "bind", Summary: "binding (short spelling)", Source: "alias", Run: func(ctx context.Context, args []string) error {
+		return sh.Run(ctx, append([]string{"binding"}, args...))
 	}})
 	// proj is the short spelling of project, mtm's own noun (a work
 	// context). An inline name outranks any external, and o-proj is hidden

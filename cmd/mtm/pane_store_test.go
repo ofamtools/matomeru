@@ -80,7 +80,7 @@ func TestPaneStarKeyAndUndo(t *testing.T) {
 	if stars, _ := a.work.PaneStars(); len(stars) != 1 {
 		t.Fatalf("* stars: %v", stars)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if stars, _ := a.work.PaneStars(); len(stars) != 0 {
 		t.Fatalf("undo kept the star: %v", stars)
 	}
@@ -99,7 +99,7 @@ func TestPaneRenameIsSetAndUndoes(t *testing.T) {
 	if len(jobsOf(a, "pane.set")) != 1 {
 		t.Fatalf("jobs: %+v", a.r.Jobs())
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	settle(a, a.r.PendingCommands())
 	if got := strings.Join(fr.calls, "; "); got != "window matomeru/w1 fixer; window matomeru/w1 claude" {
 		t.Fatalf("calls %s", got)

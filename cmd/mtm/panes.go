@@ -218,10 +218,10 @@ type paneUI struct {
 	text      map[string]string // row + tab → the Activity or Transcript text
 	lastState map[string]string // window → the agent state at the last listing
 	turns     *ochazuke.Tree
-	settings  *ochazuke.List // the Turns tab's settings line (pane_settings.go)
-	watch     *settingWatch  // a setting change sent, its notice due after the next read
-	turnsFor  string         // the pane row the Turns tree shows
-	wantCall  string         // window + "\x00" + call: the card pane-child.open selects once drawn (pane_activity.go)
+	settings  *ochazuke.Collection // the Turns tab's settings line (pane_settings.go)
+	watch     *settingWatch        // a setting change sent, its notice due after the next read
+	turnsFor  string               // the pane row the Turns tree shows
+	wantCall  string               // window + "\x00" + call: the card pane-child.open selects once drawn (pane_activity.go)
 	// liveFrom is the tab an attach left (liveSaved), which the detach
 	// that ends it goes back to.
 	liveFrom  int

@@ -135,7 +135,7 @@ func TestTaskDeleteIsStandardAndUndoes(t *testing.T) {
 	if _, err := a.work.Task("t1"); err == nil {
 		t.Fatal("delete kept the task")
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	after, err := a.work.Task("t1")
 	if err != nil || after.Title != before.Title || after.ProjectID != before.ProjectID || after.Status != before.Status {
 		t.Fatalf("undo: %+v %v, want %+v", after, err, before)

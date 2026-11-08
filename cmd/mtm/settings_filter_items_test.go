@@ -9,7 +9,7 @@ import (
 	"ofam.dev/ochazuke"
 )
 
-// ochazuke v0.100.0 (list.filter-keeps-children): filtering the Settings
+// ochazuke v0.100.0 (collection.filter-keeps-children): filtering the Settings
 // page by "task" keeps agents.owner-task-props with its item rows, and enter
 // on an item opens "item 1 of 2".
 func TestSettingsFilterKeepsListItems(t *testing.T) {

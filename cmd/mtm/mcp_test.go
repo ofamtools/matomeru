@@ -204,7 +204,7 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 		}
 	}
 	slices.Sort(names)
-	if want := []string{"catalog", "context_add", "describe", "document_report", "report_progress", "run", "state", "task_done", "task_list", "task_note_add", "task_status", "whoami"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"catalog", "context_add", "describe", "document_report", "report_progress", "run", "snapshot", "task_done", "task_list", "task_note_add", "task_status", "whoami"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("tools %v, want %v", names, want)
 	}
 	who := structured(t, out[2]).(map[string]any)

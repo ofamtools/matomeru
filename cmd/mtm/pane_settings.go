@@ -145,10 +145,10 @@ func (a *App) addPaneSettings() error {
 		Verb("back", a.settingsBack, "Go back to the pane row").
 		Mode("normal").
 		Bind("enter", ochazuke.Do(settingNoun+".change").Hinted("change")).
-		Bind("h", ochazuke.Do("ochazuke.list.move", ochazuke.Arguments{"delta": -1}).Hide()).
-		Bind("left", ochazuke.Do("ochazuke.list.move", ochazuke.Arguments{"delta": -1}).Hide()).
-		Bind("l", ochazuke.Do("ochazuke.list.move", ochazuke.Arguments{"delta": 1}).Hide()).
-		Bind("right", ochazuke.Do("ochazuke.list.move", ochazuke.Arguments{"delta": 1}).Hide()).
+		Bind("h", ochazuke.Do("ochazuke.collection.move", ochazuke.Arguments{"delta": -1}).Hide()).
+		Bind("left", ochazuke.Do("ochazuke.collection.move", ochazuke.Arguments{"delta": -1}).Hide()).
+		Bind("l", ochazuke.Do("ochazuke.collection.move", ochazuke.Arguments{"delta": 1}).Hide()).
+		Bind("right", ochazuke.Do("ochazuke.collection.move", ochazuke.Arguments{"delta": 1}).Hide()).
 		Bind("j", ochazuke.Do("ochazuke.focus.next").Hide()).
 		Bind("down", ochazuke.Do("ochazuke.focus.next").Hide()).
 		Bind("k", ochazuke.Do("ochazuke.focus.previous").Hide()).

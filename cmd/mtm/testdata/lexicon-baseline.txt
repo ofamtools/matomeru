@@ -1,0 +1,30 @@
+# lexiconcheck baseline: rule, subject (tab separated). One row per known violation.
+# A row may only be removed: LEXICONCHECK_UPDATE=1 drops the rows the registry no longer breaks.
+# Adding a row is a reviewed edit; LEXICONCHECK_UPDATE=seed writes a baseline that does not exist yet.
+noun-action	context
+noun-action	copy
+noun-action	count
+noun-action	history
+noun-action	mode
+noun-action	note
+noun-action	outline
+noun-action	plan
+noun-action	prompt
+noun-action	register
+noun-action	review
+noun-action	run
+noun-action	search
+noun-action	setup
+noun-action	side
+noun-action	status
+pair	panes/pane
+pair	projects/project
+plural-noun	dirs
+plural-noun	todos
+unclassified	choose-state
+unclassified	dir-chooser
+unclassified	outline-none
+unclassified	page-group
+unclassified	pane-project
+unclassified	path-chooser
+unclassified	quick-note-text

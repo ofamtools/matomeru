@@ -78,11 +78,11 @@ func actionItemProps() []ochazuke.PropSpec {
 }
 
 // actionItemStore is the action-item noun's store over the inbox's items.
-// history.undo may revert its writes (Undo); an undone delete puts the
+// history-entry.undo may revert its writes (Undo); an undone delete puts the
 // row back as it was (AcceptsKey, forgotten).
 func (a *App) actionItemStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		Confirm: map[string]string{"delete": "Delete {{label}}? x archives it instead."},
 		ListParams: map[string]ochazuke.Parameter{
@@ -217,7 +217,7 @@ type actionItemPatch struct {
 // createActionItem is the store's Create: one new item from the props
 // given, always a row of its own (add refreshes a duplicate; a create, and
 // a duplicate, does not), under a key given that is free. The key of a row
-// this session deleted puts that row back as it was (history.undo of a
+// this session deleted puts that row back as it was (history-entry.undo of a
 // delete), with the props given over it.
 func (a *App) createActionItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
 	id, _ := thingString(values, "id")
@@ -281,7 +281,7 @@ func (a *App) patchActionItem(c ochazuke.Ctx, id string, changes ochazuke.Thing)
 
 // removeActionItem is the store's Delete (action-item.delete, d d; the
 // standard delete asks first): the row goes. It is kept for this session,
-// so history.undo puts it back as it was.
+// so history-entry.undo puts it back as it was.
 func (a *App) removeActionItem(_ ochazuke.Ctx, id string) error {
 	it, err := a.inbox.items.Get(id)
 	if err != nil {

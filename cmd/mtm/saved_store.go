@@ -73,7 +73,7 @@ func (a *App) savedProps() []ochazuke.PropSpec {
 // record back as it was (AcceptsKey, savedForgotten).
 func (a *App) savedStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		Confirm: map[string]string{"delete": "Forget {{label}}? Its pane keeps running."},
 		ListParams: map[string]ochazuke.Parameter{

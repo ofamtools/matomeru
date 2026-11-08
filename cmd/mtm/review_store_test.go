@@ -34,18 +34,18 @@ func TestReviewWritesAreStandardAndUndo(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewRejected {
 		t.Fatalf("s: %q", got)
 	}
-	executeA(t, app, "history", "undo", "", nil)
+	executeA(t, app, "history-entry", "undo", "", nil)
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewAccepted {
 		t.Fatalf("undo of s: %q", got)
 	}
-	executeA(t, app, "history", "undo", "", nil)
+	executeA(t, app, "history-entry", "undo", "", nil)
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewPending {
 		t.Fatalf("undo of x: %q", got)
 	}
 	if _, err := app.r.Execute(ochazuke.Request{Verb: "saveAnswer", Noun: "review", Target: rv.ID, Args: ochazuke.Arguments{"answer": "ship it"}}); err != nil {
 		t.Fatal(err)
 	}
-	executeA(t, app, "history", "undo", "", nil)
+	executeA(t, app, "history-entry", "undo", "", nil)
 	if got := storedReview(t, app, rv.ID).Answer; got != "" {
 		t.Fatalf("undo of the answer: %q", got)
 	}

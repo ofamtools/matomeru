@@ -338,9 +338,9 @@ type App struct {
 	editorNouns        map[string]editorNoun // the editable nouns, one row each (editor.go)
 	directories        directoryCache
 	pathChooserProject string // the project a directory path chooser is opened for (path_sources.go)
-	directoryList      *ochazuke.List
-	projectDirList     *ochazuke.List
-	baseList           *ochazuke.List
+	directoryList      *ochazuke.Collection
+	projectDirList     *ochazuke.Collection
+	baseList           *ochazuke.Collection
 	directoryQuery     *ochazuke.Input
 	pagesWatched       map[*ochazuke.Page]bool // pages whose open step also asks for an extension sync (pages_open.go)
 	detailTask         string
@@ -400,12 +400,12 @@ type App struct {
 
 	r           *ochazuke.Runtime
 	m           *ochazuke.Model
-	projectList *ochazuke.List
-	taskList    *ochazuke.List // the task tree's rows (tasks.go)
-	taskTree    *ochazuke.Tree // the Work page's tasks, a tree or flat by work.tasks-layout
-	paneList    *ochazuke.List // the pane tree's rows (panes_tree.go)
-	pv          *paneUI        // the panes page's tree, detail tabs and timers
-	reviewList  *ochazuke.List
+	projectList *ochazuke.Collection
+	taskList    *ochazuke.Collection // the task tree's rows (tasks.go)
+	taskTree    *ochazuke.Tree       // the Work page's tasks, a tree or flat by work.tasks-layout
+	paneList    *ochazuke.Collection // the pane tree's rows (panes_tree.go)
+	pv          *paneUI              // the panes page's tree, detail tabs and timers
+	reviewList  *ochazuke.Collection
 	reviewTurns *ochazuke.Tree             // the opened review row's turns (reviews.go)
 	turnFills   map[string]*turnFill       // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
 	mturns      map[string]*paneTurns      // window → its turns read from the agent's log or the shell (turns_model.go)
@@ -437,15 +437,15 @@ type App struct {
 	pb            *promptBox // the Turns tab's prompt box (prompt_box.go)
 	answer        *ochazuke.Input
 	answerDraft   string // the answer text last written as the opened review's draft
-	noteList      *ochazuke.List
+	noteList      *ochazuke.Collection
 	noteBody      noteBody              // the Notes page's scrollable body (notes.go)
 	termStreams   map[string]paneStream // the stream behind each terminal (stream_reconnect.go)
 	noteDoc       *markdown.Doc         // the selected note's Markdown (notes_doc.go)
 	noteDocNote   string                // the note noteDoc fronts
 	detail        pageDetails           // the pages' details J and K scroll (details.go)
 	colors        pinColors             // the theme beneath the pin state's colours (colors.go)
-	savedList     *ochazuke.List
-	vimList       *ochazuke.List
+	savedList     *ochazuke.Collection
+	vimList       *ochazuke.Collection
 	// savedForgotten are the records this session deleted, by id, so
 	// history.undo puts one back as it was (saved_store.go).
 	savedForgotten map[string]work.SavedPane
@@ -472,7 +472,7 @@ type App struct {
 
 	// extList is the Extensions page's table; extPage its discovery state
 	// (extension_page.go).
-	extList *ochazuke.List
+	extList *ochazuke.Collection
 	extPage extPageState
 	// projectPrefixes are the projects' directories, longest first, that
 	// extension rows are matched to; extScopeObserved is set once the

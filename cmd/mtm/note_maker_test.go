@@ -201,7 +201,7 @@ func TestNoteMakerUndoRetainsProvenance(t *testing.T) {
 			}
 			notesOn(t, a, n.ID)
 			executeA(t, a, "note", "delete", n.ID, nil)
-			executeA(t, a, "history", "undo", "", nil)
+			executeA(t, a, "history-entry", "undo", "", nil)
 			restored, err := a.work.Note(n.ID)
 			if err != nil || restored.MadeBy() != kind {
 				t.Fatalf("restored: %+v %v", restored, err)

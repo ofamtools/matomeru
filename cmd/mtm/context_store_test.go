@@ -72,7 +72,7 @@ func TestContextItemKeysStarMoveForget(t *testing.T) {
 	if it, _ := a.contexts.Get(link); !it.Starred {
 		t.Fatal("* did not star")
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if it, _ := a.contexts.Get(link); it.Starred {
 		t.Fatal("undo of * kept the star")
 	}
@@ -96,7 +96,7 @@ func TestContextItemKeysStarMoveForget(t *testing.T) {
 	if _, err := a.contexts.Get(commit); err == nil {
 		t.Fatal("y kept the item")
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if back, err := a.contexts.Get(commit); err != nil || !reflect.DeepEqual(back, before) {
 		t.Fatalf("undo of the delete: %+v %v, want %+v", back, err, before)
 	}

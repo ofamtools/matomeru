@@ -19,7 +19,7 @@ func TestOwnerOfUnreadableRowIsUnassociated(t *testing.T) {
 	a.r.Define("probe").Props(
 		ochazuke.PropSpec{Name: "id", Key: true, Parameter: ochazuke.Parameter{Type: "string"}},
 		ochazuke.PropSpec{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project"}},
-	).Store(ochazuke.Store{Kind: ochazuke.Collection, Get: func(ochazuke.Ctx, string) (ochazuke.Thing, error) {
+	).Store(ochazuke.Store{Kind: ochazuke.KindCollection, Get: func(ochazuke.Ctx, string) (ochazuke.Thing, error) {
 		return nil, errors.New("boom")
 	}})
 	a.cli = false

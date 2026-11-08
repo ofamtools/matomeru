@@ -74,11 +74,11 @@ func TestProjectSetRenameAndUndo(t *testing.T) {
 	if !strings.Contains(a.m.Status+frame(a), "unknown harness bogusharness") {
 		t.Fatalf("no notice for the unknown harness:\n%s", frame(a))
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if p, _ := a.work.Project("matomeru"); p.Settings.Harness != "" || p.Theme.Color != "blue" {
 		t.Fatalf("undo of the harness: %+v", p)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if p, _ := a.work.Project("matomeru"); p.Theme.Color != "" || p.Settings.Preset != "" || p.Name != "Matomeru" {
 		t.Fatalf("undo of the set: %+v", p)
 	}
@@ -88,7 +88,7 @@ func TestProjectSetRenameAndUndo(t *testing.T) {
 	if p, _ := a.work.Project("matomeru"); p.Theme.Glyph != "★" || p.Name != "Matomeru" {
 		t.Fatalf("edit --glyph: %+v", p)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if p, _ := a.work.Project("matomeru"); p.Theme.Glyph != "◆" {
 		t.Fatalf("undo of edit: %+v", p)
 	}
@@ -133,7 +133,7 @@ func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
 	}
 	b := open(t)
 	created, _ := executeA(t, b, "project", "create", "", ochazuke.Arguments{"name": "short-lived"}).(map[string]any)
-	executeA(t, b, "history", "undo", "", nil)
+	executeA(t, b, "history-entry", "undo", "", nil)
 	if _, err := b.work.Project(created["id"].(string)); err == nil {
 		t.Fatal("undo of create kept the project")
 	}

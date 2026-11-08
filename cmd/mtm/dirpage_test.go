@@ -24,7 +24,7 @@ func openDirectories(t *testing.T, a *App) {
 	}
 }
 
-func itemIDs(l *ochazuke.List) []string {
+func itemIDs(l *ochazuke.Collection) []string {
 	var out []string
 	for _, item := range l.Items() {
 		out = append(out, item.ID)

@@ -221,7 +221,7 @@ func TestCopyModeFromLiveKeepsTheScreenAndYanksLines(t *testing.T) {
 func deliverFrame(t *testing.T, app *App, f ochazuke.TerminalFrame) {
 	t.Helper()
 	for _, j := range app.r.Jobs() {
-		if j.Owner == paneTermID && j.State == ochazuke.JobRunning {
+		if j.Owner == paneTermID && j.Status == ochazuke.JobRunning {
 			app.Update(ochazuke.Completion{Ticket: ochazuke.Ticket{Owner: j.Owner, Job: j.Job, Slot: j.Slot}, Value: f})
 			return
 		}

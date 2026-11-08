@@ -58,7 +58,7 @@ func reviewProps() []ochazuke.PropSpec {
 // revert its writes (Undo): a status, an answer.
 func (a *App) reviewStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true,
 		ListParams: map[string]ochazuke.Parameter{
 			"all": {Type: "boolean", Description: "Every project, whatever the pin"},

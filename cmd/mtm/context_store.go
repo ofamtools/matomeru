@@ -92,11 +92,11 @@ func contextFilters() []ochazuke.SavedFilter {
 }
 
 // contextStore is the context-item noun's store over the context store.
-// history.undo may revert its writes (Undo); an undone delete puts the
+// history-entry.undo may revert its writes (Undo); an undone delete puts the
 // row back as it was, sightings and all (AcceptsKey, forgotten).
 func (a *App) contextStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		// The old forget's prompt: the record goes, never the thing.
 		Confirm: map[string]string{"delete": "Forget {{label}}?"},
@@ -196,7 +196,7 @@ func (a *App) ownerWrite(c ochazuke.Ctx, curProject, curTask string, values ocha
 // given, always a row of its own (context-item add merges what is seen
 // again; a create, and a duplicate, does not). Under a key given that is
 // free; the key of a row this session forgot puts that row back as it was
-// (history.undo of a delete), with the props given.
+// (history-entry.undo of a delete), with the props given.
 func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
 	id, _ := thingString(values, "id")
 	if id != "" {
@@ -282,7 +282,7 @@ func (a *App) patchContextItem(c ochazuke.Ctx, id string, changes ochazuke.Thing
 // removeContextItem is the store's Delete (context-item.delete, its alias
 // forget, d d; the standard delete asks first): the record only, never
 // the file, page or branch it names. The row is kept for this session, so
-// history.undo puts it back as it was.
+// history-entry.undo puts it back as it was.
 func (a *App) removeContextItem(c ochazuke.Ctx, id string) error {
 	it, err := a.contexts.Get(id)
 	if err != nil {

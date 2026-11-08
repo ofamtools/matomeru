@@ -103,10 +103,10 @@ func setupApplies(s osetup.State) bool {
 func summarizeSetup(name string, plan osetup.Plan) extSetupInfo {
 	info := extSetupInfo{Name: name, State: setupComplete, Items: plan.Items, Writes: plan.Writes, Commands: plan.Commands}
 	for _, it := range plan.Items {
-		if setupApplies(it.State) {
+		if setupApplies(it.Status) {
 			info.Total++
 		}
-		if setupNeeds(it.State) {
+		if setupNeeds(it.Status) {
 			info.Missing++
 		}
 	}
@@ -341,14 +341,14 @@ func setupSummary(info extSetupInfo, group string, undo bool, home string) strin
 		if group != "" && it.Group != group {
 			continue
 		}
-		if undo && it.State != osetup.Installed && it.State != osetup.Outdated {
+		if undo && it.Status != osetup.Installed && it.Status != osetup.Outdated {
 			continue
 		}
-		if !undo && !setupNeeds(it.State) {
+		if !undo && !setupNeeds(it.Status) {
 			continue
 		}
 		n++
-		fmt.Fprintf(&b, "  %s  %s", it.Name, it.State)
+		fmt.Fprintf(&b, "  %s  %s", it.Name, it.Status)
 		if it.Path != "" {
 			fmt.Fprintf(&b, "  %s", tildePath(it.Path, home))
 		}
@@ -431,7 +431,7 @@ func (a *App) runSetup(ctx ochazuke.Ctx, verb, group string) ochazuke.Result {
 func setupRowsLine(rows []osetup.Status) string {
 	parts := make([]string, 0, len(rows))
 	for _, r := range rows {
-		parts = append(parts, r.ID+" "+string(r.State))
+		parts = append(parts, r.ID+" "+string(r.Status))
 	}
 	if len(parts) == 0 {
 		return "nothing selected"
@@ -476,7 +476,7 @@ func setupPlanText(name string, plan osetup.Plan, group string) string {
 		if group != "" && it.Group != group {
 			continue
 		}
-		fmt.Fprintf(&b, "  %s (%s)  %s\n", it.Name, it.ID, it.State)
+		fmt.Fprintf(&b, "  %s (%s)  %s\n", it.Name, it.ID, it.Status)
 		if it.Path != "" {
 			fmt.Fprintf(&b, "    target: %s\n", it.Path)
 		}
@@ -609,16 +609,16 @@ func (a *App) extSetupFacts(c extCandidate) string {
 		w = max(w, len(it.Name))
 	}
 	for _, it := range info.Items {
-		fmt.Fprintf(&b, "\n  %-*s  %s", w, it.Name, it.State)
+		fmt.Fprintf(&b, "\n  %-*s  %s", w, it.Name, it.Status)
 		if it.Path != "" {
 			b.WriteString("\n    " + tildePath(it.Path, home))
 		}
 		if it.Description != "" {
 			b.WriteString("\n    " + it.Description)
 		}
-		if setupNeeds(it.State) && it.Next != "" {
+		if setupNeeds(it.Status) && it.Next != "" {
 			b.WriteString("\n    next: " + it.Next)
-		} else if it.Reason != "" && it.State != osetup.Installed {
+		} else if it.Reason != "" && it.Status != osetup.Installed {
 			b.WriteString("\n    " + it.Reason)
 		}
 	}

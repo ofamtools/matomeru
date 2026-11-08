@@ -20,7 +20,7 @@ func savedCall(t *testing.T, a *App, verb string, args ochazuke.Arguments) {
 	}
 	settle(a, a.r.PendingCommands())
 	for _, job := range a.r.Jobs() {
-		if job.State == ochazuke.JobFailed {
+		if job.Status == ochazuke.JobFailed {
 			t.Fatalf("%s: %+v", verb, job)
 		}
 	}

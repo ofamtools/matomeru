@@ -184,7 +184,7 @@ func (a *App) replaceDirectory(projectID, path, to string) ochazuke.Result {
 // projects get at least half and the tasks the rest.
 func (a *App) workLists(width, height int) string {
 	avail := max(2, height-2)
-	want := func(l *ochazuke.List) int { return l.Len() + 1 }
+	want := func(l *ochazuke.Collection) int { return l.Len() + 1 }
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
 	return a.projectsHeading() + a.view(a.projectList, width, top) + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskTree, width, max(1, avail-top))
@@ -244,7 +244,7 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	rightWidth := max(1, width-leftWidth-2)
 	detail, _ := a.workDetail()
 	avail := max(2, height-2)
-	want := func(l *ochazuke.List) int { return l.Len() + 1 }
+	want := func(l *ochazuke.Collection) int { return l.Len() + 1 }
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
 	left := a.projectsHeading() + a.view(a.projectList, leftWidth, top)
@@ -264,7 +264,7 @@ func (a *App) workSelected() (taskID, projectID string) {
 	selected := a.r.Instances[a.r.BaseFocus()]
 	// A focus on a list itself (a jump that has not landed on a row) shows
 	// that list's selected row.
-	for id, l := range map[string]*ochazuke.List{"projects": a.projectList, taskTreeID: a.taskList, taskListID: a.taskList} {
+	for id, l := range map[string]*ochazuke.Collection{"projects": a.projectList, taskTreeID: a.taskList, taskListID: a.taskList} {
 		if selected != nil && selected.ID == id {
 			if item, ok := l.Selected(); ok {
 				selected = a.r.Instances[item.ID]

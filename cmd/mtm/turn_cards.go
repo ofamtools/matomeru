@@ -666,7 +666,7 @@ func (a *App) cardsBody(width, height int) ochazuke.Block {
 }
 
 // turnsList is the list of whichever style the tab draws.
-func (a *App) turnsList() *ochazuke.List {
+func (a *App) turnsList() *ochazuke.Collection {
 	if a.turnCards() && a.pv.cards != nil {
 		return a.pv.cards.List()
 	}

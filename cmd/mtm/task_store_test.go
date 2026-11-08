@@ -88,7 +88,7 @@ func TestTaskAliasesWithPresets(t *testing.T) {
 		t.Fatalf("get: %v", thing)
 	}
 	// One undo reverts the last write: t2 is todo again, t1 stays done.
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if s1, s2 := stored(t, a, "t1").Status, stored(t, a, "t2").Status; s1 != work.StatusDone || s2 != work.StatusTodo {
 		t.Fatalf("undo: t1 %s t2 %s", s1, s2)
 	}
@@ -126,7 +126,7 @@ func TestTaskStatusWritesMany(t *testing.T) {
 			t.Fatalf("%s: %s", id, got)
 		}
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	for id, want := range map[string]string{"t1": "todo", "t2": "active", third.ID: "todo"} {
 		if got := stored(t, a, id).Status; got != want {
 			t.Fatalf("undo %s: %s, want %s", id, got, want)
@@ -145,7 +145,7 @@ func TestTaskKeysDoneStatusMove(t *testing.T) {
 	if got := stored(t, a, "t1").Status; got != work.StatusDone {
 		t.Fatalf("x: %s", got)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if got := stored(t, a, "t1").Status; got != work.StatusTodo {
 		t.Fatalf("x undone: %s", got)
 	}
@@ -159,7 +159,7 @@ func TestTaskKeysDoneStatusMove(t *testing.T) {
 	if s1, s2 := stored(t, a, "t1").Status, stored(t, a, "t2").Status; s1 != work.StatusBlocked || s2 != work.StatusBlocked {
 		t.Fatalf("s over two rows: %s %s", s1, s2)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if s1, s2 := stored(t, a, "t1").Status, stored(t, a, "t2").Status; s1 != work.StatusTodo || s2 != work.StatusTodo {
 		t.Fatalf("one undo of s: %s %s", s1, s2)
 	}
@@ -291,7 +291,7 @@ func TestTaskMoveUndoRestoresTheParent(t *testing.T) {
 	if got := stored(t, a, "t2"); got.ParentID != "" || got.ProjectID != "ochazuke" {
 		t.Fatalf("move: %+v", got)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if got := stored(t, a, "t2"); got.ParentID != "t1" || got.ProjectID != "matomeru" {
 		t.Fatalf("undo of move: %+v", got)
 	}

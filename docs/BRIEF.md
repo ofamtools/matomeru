@@ -89,7 +89,7 @@ In a live pane every key goes to the program in it, except the `terminal-leader`
 | `'` | pick a page (guard `no-modal`) | `ochazuke.page.pick` |
 | `ctrl+j` / `ctrl+k` | next / previous page | `ochazuke.page.next` / `ochazuke.page.previous` |
 | `I` | the Inbox page | `ochazuke.page.open {id: inbox}` |
-| `?` | keyboard help: the help tree, with the leader as one row and its keys under it | `ochazuke.bindings.help` |
+| `?` | keyboard help: the help tree, with the leader as one row and its keys under it | `ochazuke.binding.help` |
 | `` ` `` | next starred pane, attached live (`s` does the same) | `terminal.starred` |
 | `W` | next pane that needs input, attached live | `terminal.waiting` |
 | `*` | star or unstar the live pane | `terminal.star` (shares `pane.star`'s handler) |

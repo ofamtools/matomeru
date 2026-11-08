@@ -46,7 +46,7 @@ func TestSessionMoveRenameAndUndo(t *testing.T) {
 	if o, _ := a.work.SessionOwner("id-matomeru"); o.ProjectID != "ochazuke" {
 		t.Fatalf("move: %+v", o)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if o, _ := a.work.SessionOwner("id-matomeru"); o.ProjectID != "" {
 		t.Fatalf("undo of the move: %+v", o)
 	}

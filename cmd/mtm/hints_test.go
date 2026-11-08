@@ -108,7 +108,7 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 }
 
 // Test pass item 9: a chooser's footer and hint line list no motions
-// (picker.move is a motion, as list.move is on pages).
+// (picker.move is a motion, as collection.move is on pages).
 func TestChooserFooterListsNoMotions(t *testing.T) {
 	t.Parallel()
 	a := open(t)

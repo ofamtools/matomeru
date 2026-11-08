@@ -42,9 +42,9 @@ func setupTool(t *testing.T, dir, name, state string, withSetup bool) string {
 	hook := filepath.Join(dir, "home", ".harness", name+".json")
 	plan := func(first string) string {
 		return `{"operation":"install","items":[` +
-			`{"id":"hook","name":"Harness hook","description":"Adds the ` + name + ` hook to the harness","kind":"json","path":"` + hook + `","group":"harness","state":"` + first + `","next":"o-` + name + ` setup install hook"},` +
-			`{"id":"shell","name":"Shell block","kind":"block","path":"` + filepath.Join(dir, "home", ".zshrc") + `","state":"installed"},` +
-			`{"id":"other","name":"Other harness","kind":"check","state":"n/a","reason":"requires dir:~/.other"}],` +
+			`{"id":"hook","name":"Harness hook","description":"Adds the ` + name + ` hook to the harness","kind":"json","path":"` + hook + `","group":"harness","status":"` + first + `","next":"o-` + name + ` setup install hook"},` +
+			`{"id":"shell","name":"Shell block","kind":"block","path":"` + filepath.Join(dir, "home", ".zshrc") + `","status":"installed"},` +
+			`{"id":"other","name":"Other harness","kind":"check","status":"n/a","reason":"requires dir:~/.other"}],` +
 			`"writes":[{"path":"` + hook + `","content":"{}"}],"commands":[]}`
 	}
 	script := `#!/bin/sh
@@ -58,8 +58,8 @@ case "$1 $2" in
   installed) echo '` + plan("installed") + `' ;;
   *) echo "setup.json: broken" >&2; exit 1 ;;
   esac ;;
-"ochazuke.setup install") echo installed > '` + stateFile + `'; echo '[{"id":"hook","name":"Harness hook","kind":"json","state":"installed"}]' ;;
-"ochazuke.setup uninstall") echo missing > '` + stateFile + `'; echo '[{"id":"hook","name":"Harness hook","kind":"json","state":"missing"}]' ;;
+"ochazuke.setup install") echo installed > '` + stateFile + `'; echo '[{"id":"hook","name":"Harness hook","kind":"json","status":"installed"}]' ;;
+"ochazuke.setup uninstall") echo missing > '` + stateFile + `'; echo '[{"id":"hook","name":"Harness hook","kind":"json","status":"missing"}]' ;;
 *) echo "unknown $*" >&2; exit 2 ;;
 esac
 `
@@ -134,9 +134,9 @@ func TestExtensionSetupStatusStates(t *testing.T) {
 func TestSummarizeSetupCounts(t *testing.T) {
 	t.Parallel()
 	plan := osetup.Plan{Items: []osetup.Status{
-		{Item: osetup.Item{ID: "a"}, State: osetup.Missing}, {Item: osetup.Item{ID: "b"}, State: osetup.Outdated},
-		{Item: osetup.Item{ID: "c"}, State: osetup.Installed}, {Item: osetup.Item{ID: "d"}, State: osetup.Skipped},
-		{Item: osetup.Item{ID: "e"}, State: osetup.Manual},
+		{Item: osetup.Item{ID: "a"}, Status: osetup.Missing}, {Item: osetup.Item{ID: "b"}, Status: osetup.Outdated},
+		{Item: osetup.Item{ID: "c"}, Status: osetup.Installed}, {Item: osetup.Item{ID: "d"}, Status: osetup.Skipped},
+		{Item: osetup.Item{ID: "e"}, Status: osetup.Manual},
 	}}
 	info := summarizeSetup("x", plan)
 	if info.State != setupNeeded || info.Missing != 2 || info.Total != 4 {

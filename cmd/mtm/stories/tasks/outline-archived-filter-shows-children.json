@@ -7,7 +7,7 @@
   "script": [
     "ctrl+j", "O",
     ":", {"type": "task archive t13"}, "enter",
-    ":", {"type": "list filter-saved archived"}, "enter"
+    ":", {"type": "collection filter-saved archived"}, "enter"
   ],
   "expect": [
     {"contains": ["[archived]", "Shipping estimate: API client", "Mock the carrier API"], "lacks": ["Error:"]}

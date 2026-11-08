@@ -135,7 +135,7 @@ func TestArchiveViewsHideBranchesAndHonorOptOut(t *testing.T) {
 	assertViews := func(hidden bool) {
 		t.Helper()
 		for _, id := range []string{"t1", "archive-child", "archive-grandchild"} {
-			for name, list := range map[string]*ochazuke.List{"work": a.taskList, "outline": a.outline.tree.List()} {
+			for name, list := range map[string]*ochazuke.Collection{"work": a.taskList, "outline": a.outline.tree.List()} {
 				found := false
 				for _, item := range list.Items() {
 					if item.ID == id || item.ID == outlineNode(id) {
@@ -147,7 +147,7 @@ func TestArchiveViewsHideBranchesAndHonorOptOut(t *testing.T) {
 				}
 			}
 		}
-		for name, list := range map[string]*ochazuke.List{"notes": a.noteList, "context": a.cx.list} {
+		for name, list := range map[string]*ochazuke.Collection{"notes": a.noteList, "context": a.cx.list} {
 			id := "archive-note"
 			if name == "context" {
 				id = "archive-context"
@@ -252,7 +252,7 @@ func TestArchivedTreeFilterIncludesDescendantsWithoutCascade(t *testing.T) {
 	}
 	executeA(t, a, "project", "outline", "matomeru", nil)
 	executeA(t, a, "task", "archive", "", ochazuke.Arguments{"id": "t1"})
-	for name, list := range map[string]*ochazuke.List{"work": a.taskList, "outline": a.outline.tree.List()} {
+	for name, list := range map[string]*ochazuke.Collection{"work": a.taskList, "outline": a.outline.tree.List()} {
 		if err := list.ApplyFilter("archived"); err != nil {
 			t.Fatal(err)
 		}

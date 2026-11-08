@@ -22,7 +22,7 @@ const (
 
 type reminderState struct {
 	store  *reminders.Store
-	list   *ochazuke.List
+	list   *ochazuke.Collection
 	date   string
 	notify *reminderNotification
 }
@@ -83,7 +83,7 @@ func (a *App) defineReminders() {
 
 func (a *App) reminderStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
 			r, err := a.reminderNamed(id)
 			if err != nil {

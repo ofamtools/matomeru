@@ -438,7 +438,7 @@ func (a *App) addDirectoriesPage() error {
 	if a.baseList, err = a.r.AddList(baseListID, nil, ochazuke.Parent(directoriesPage), ochazuke.Columns(baseColumns...)); err != nil {
 		return err
 	}
-	if a.detail.dirs, err = a.addLinkedDetail(dirsDetailID, directoriesPage, func() *ochazuke.List { return a.directoryList }, a.directorySubject); err != nil {
+	if a.detail.dirs, err = a.addLinkedDetail(dirsDetailID, directoriesPage, func() *ochazuke.Collection { return a.directoryList }, a.directorySubject); err != nil {
 		return err
 	}
 	if _, err := a.r.AddPage(directoriesPage, "Directories", a.renderDirectories, ochazuke.Focus(directoryListID)); err != nil {
@@ -1123,7 +1123,7 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 
 	// Each block's height: a table is its header plus its rows; an empty
 	// list is one line saying what fills it.
-	block := func(l *ochazuke.List, most int) int {
+	block := func(l *ochazuke.Collection, most int) int {
 		if l.Len() == 0 {
 			return 1
 		}

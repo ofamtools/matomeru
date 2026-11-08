@@ -29,7 +29,7 @@ func TestCommandRunExecStreamsOutputAndRecordsTheExitCode(t *testing.T) {
 		t.Fatal("no run recorded")
 	}
 	jobs := jobsOf(app, "command.run")
-	if len(jobs) != 1 || jobs[0].Label != "echo first; echo to-stderr >&2; sleep 0.4; echo second; exit 4" || jobs[0].State != ochazuke.JobRunning {
+	if len(jobs) != 1 || jobs[0].Label != "echo first; echo to-stderr >&2; sleep 0.4; echo second; exit 4" || jobs[0].Status != ochazuke.JobRunning {
 		t.Fatalf("jobs %+v", jobs)
 	}
 	// The job's work runs off the loop: start it, and read the run while

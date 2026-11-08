@@ -595,7 +595,7 @@ func (a *App) copyUpdate(msg tea.Msg) {
 // not stack loads (each would cancel the last before it lands).
 func (a *App) copyLoading() bool {
 	for _, j := range a.r.Jobs() {
-		if j.Owner == copyID && j.State == ochazuke.JobRunning {
+		if j.Owner == copyID && j.Status == ochazuke.JobRunning {
 			return true
 		}
 	}

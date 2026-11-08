@@ -59,7 +59,7 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 
 	mono(t, app)
 	app.m.Width, app.m.Height = 160, 200
-	if _, err := app.r.Execute(ochazuke.Do("ochazuke.bindings.help").Request); err != nil {
+	if _, err := app.r.Execute(ochazuke.Do("ochazuke.binding.help").Request); err != nil {
 		t.Fatal(err)
 	}
 	frame := ansi.Strip(frameView(app).Content)

@@ -77,7 +77,7 @@ func TestRunEnsuresOnlyOutsideSmoke(t *testing.T) {
 	if err := run([]string{"--data", data, "--smoke"}, strings.NewReader(""), &out, &errOut); err != nil || *starts != 0 {
 		t.Fatalf("smoke: %v, starts %d", err, *starts)
 	}
-	if err := run([]string{"--data", data, "bindings", "list"}, strings.NewReader(""), &out, &errOut); err != nil || *starts != 1 {
+	if err := run([]string{"--data", data, "binding", "list"}, strings.NewReader(""), &out, &errOut); err != nil || *starts != 1 {
 		t.Fatalf("cli: %v, starts %d", err, *starts)
 	}
 	if !strings.Contains(errOut.String(), "mtm: daemon mtm-daemon not running: boom") {
@@ -91,11 +91,11 @@ func TestDefaultDaemonIsNeverStarted(t *testing.T) {
 	data := filepath.Join(t.TempDir(), "mtm.db")
 	t.Setenv("TUIOS_SOCKET", filepath.Join(dir, "none.sock"))
 	var out, errOut bytes.Buffer
-	if err := run([]string{"--data", data, "--server", DefaultDaemon, "bindings", "list"}, strings.NewReader(""), &out, &errOut); err != nil {
+	if err := run([]string{"--data", data, "--server", DefaultDaemon, "binding", "list"}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("MTM_SERVER", DefaultDaemon)
-	if err := run([]string{"--data", data, "bindings", "list"}, strings.NewReader(""), &out, &errOut); err != nil {
+	if err := run([]string{"--data", data, "binding", "list"}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatal(err)
 	}
 	// Since ochazuke v0.4.0 the CLI also prints the panes notice

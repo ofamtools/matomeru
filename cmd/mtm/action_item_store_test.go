@@ -72,7 +72,7 @@ func TestActionItemShowListCreate(t *testing.T) {
 }
 
 // d d asks the store's prompt (x archives instead) and deletes the row;
-// history.undo puts it back as it was. x and X are the standard archive
+// history-entry.undo puts it back as it was. x and X are the standard archive
 // and restore, and undo reverts an archive.
 func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 	t.Parallel()
@@ -86,7 +86,7 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateArchived || !it.Read() {
 		t.Fatalf("x: %+v", it)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	// The archive's side change (it reads the item) is undone too
 	// (ochazuke v0.55: undo restores every prop the write changed).
 	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateOpen || it.Read() {
@@ -104,7 +104,7 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 	if _, err := a.inbox.items.Get(pr.ID); err == nil {
 		t.Fatal("y kept the row")
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	back, err := a.inbox.items.Get(pr.ID)
 	back.Updated, before.Updated = 0, 0
 	if err != nil || !reflect.DeepEqual(back, before) {
@@ -154,7 +154,7 @@ func TestActionItemUndoOfArchiveKeepsTheSnooze(t *testing.T) {
 	if it, _ := a.inbox.items.Get(pr.ID); it.ArchivedAt == 0 || it.SnoozedUntil != 0 || !it.Read() {
 		t.Fatalf("archive: %+v", it)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if it, _ := a.inbox.items.Get(pr.ID); it.ArchivedAt != 0 || it.SnoozedUntil != until || it.Read() {
 		t.Fatalf("undo of archive: %+v", it)
 	}

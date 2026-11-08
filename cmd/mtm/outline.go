@@ -67,7 +67,7 @@ type outlineScope struct {
 type outlineState struct {
 	scope, base outlineScope
 	tree        *ochazuke.Tree
-	notes       *ochazuke.List
+	notes       *ochazuke.Collection
 	notesTask   string
 	notesReady  bool
 	images      bool
@@ -454,7 +454,7 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 	if err != nil {
 		return nil, err
 	}
-	var list *ochazuke.List
+	var list *ochazuke.Collection
 	if o.tree != nil {
 		list = o.tree.List()
 	}

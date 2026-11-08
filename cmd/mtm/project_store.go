@@ -56,7 +56,7 @@ func projectProps() []ochazuke.PropSpec {
 // it is given (AcceptsKey).
 func (a *App) projectStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		// The standard delete's prompt names what the delete orphans.
 		ConfirmFor: a.deletionConfirm("project"),

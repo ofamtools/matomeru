@@ -31,7 +31,7 @@ func (a *App) directorySubject() (string, string, []link) {
 // the focus and keeps the last one otherwise; before any, the selected
 // known directory.
 func (a *App) directoryDetailPath() string {
-	selectedPath := func(l *ochazuke.List) (string, bool) {
+	selectedPath := func(l *ochazuke.Collection) (string, bool) {
 		item, ok := l.Selected()
 		if !ok {
 			return "", false

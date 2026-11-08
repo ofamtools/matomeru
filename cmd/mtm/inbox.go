@@ -56,7 +56,7 @@ var inboxColumns = []ochazuke.Column{
 // opener and the counts the title row shows.
 type inboxState struct {
 	items       *actionitems.Store
-	list        *ochazuke.List
+	list        *ochazuke.Collection
 	detail      *linkedDetail
 	sys         systemActions
 	counts      actionitems.Counts
@@ -180,7 +180,7 @@ func (a *App) addInboxPage() error {
 	if a.inbox.list, err = a.r.AddList(inboxListID, nil, ochazuke.Parent(inboxPage), ochazuke.RowNoun(actionItemNoun), ochazuke.Columns(inboxColumns...)); err != nil {
 		return err
 	}
-	if a.inbox.detail, err = a.addLinkedDetail(inboxDetailID, inboxPage, func() *ochazuke.List { return a.inbox.list }, a.inboxSubject); err != nil {
+	if a.inbox.detail, err = a.addLinkedDetail(inboxDetailID, inboxPage, func() *ochazuke.Collection { return a.inbox.list }, a.inboxSubject); err != nil {
 		return err
 	}
 	// Items: every action item in every state. The Panes page, titled

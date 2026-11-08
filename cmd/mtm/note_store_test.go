@@ -178,14 +178,14 @@ func TestNoteUndo(t *testing.T) {
 	}
 	notesOn(t, a, n.ID)
 	executeA(t, a, "note", "set", n.ID, ochazuke.Arguments{"props": map[string]any{"@label": "Titled"}})
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if got, _ := a.work.Note(n.ID); got.Title != "" || got.Text != "undo me" {
 		t.Fatalf("rename undone: %+v", got)
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "delete", Target: n.ID, Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if got, err := a.work.Note(n.ID); err != nil || got.Text != "undo me" || got.ProjectID != "matomeru" {
 		t.Fatalf("delete undone: %+v %v", got, err)
 	}

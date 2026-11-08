@@ -51,7 +51,7 @@ func noteProps() []ochazuke.PropSpec {
 // old key (AcceptsKey).
 func (a *App) noteStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		ListParams: map[string]ochazuke.Parameter{"all": {Type: "boolean", Description: "Every note, not only those in the current scope"}},
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {

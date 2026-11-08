@@ -2,7 +2,7 @@
 
 `mtm mcp serve` is the family's MCP gateway. It serves ochazuke's catalog
 protocol (JSON-RPC 2.0 on stdio) over mtm's headless runtime. Its four
-primary tools are `catalog`, `describe`, `run` and `state`: discover a verb,
+primary tools are `catalog`, `describe`, `run` and `snapshot`: discover a verb,
 read its parameters and right, then run it through the same checks as the CLI.
 
 The existing harness registration still starts `mtm mcp serve` with the
@@ -23,7 +23,7 @@ read as `mtm mcp. mcp-call list`) and by their bare names when unique.
 One headless runtime serves the connection, so history and exact undo entry
 ids survive calls. Each run reads the pane's current assignment and stamps
 writes with the bound agent actor. It does not attach to the owner's TUI.
-`state` describes this headless runtime; it has no owner's marks or live
+`snapshot` describes this headless runtime; it has no owner's marks or live
 confirmation dialogs. Successful changes return their history entry and an
 undo call when their store supports undo. Undo refuses another actor's entry
 and refuses to overwrite changes made since that entry.
@@ -131,7 +131,7 @@ Default lists, Work tasks, task outlines, Notes, note details and context
 sources hide archived rows. A task's descendants hide with its parent, but
 their own flags and parent links do not change. Restoring the parent reveals
 live descendants without restoring independently archived children.
-`list.hide-archived` defaults to `true`; `false` includes archived records
+`collection.hide-archived` defaults to `true`; `false` includes archived records
 in these views. Standard list calls also accept `--filter archived` or an
 explicit `--where archived=true`; `get` and `set` still address archived ids.
 The Work task tree refills its source when an archive filter is applied.

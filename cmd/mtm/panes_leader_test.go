@@ -133,7 +133,7 @@ func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 	// every-mode) row starts with the leader.
 	for _, target := range []string{"pane:matomeru/w1", paneListID, panesDetailID} {
 		var rows []ochazuke.Binding
-		cliRows(t, app, &rows, "bindings", "list", "--target", target)
+		cliRows(t, app, &rows, "binding", "list", "--target", target)
 		listed := map[string]string{}
 		for _, b := range rows {
 			if (b.Mode == "normal" || b.Mode == "") && strings.HasPrefix(b.Keys, "ctrl+a") {

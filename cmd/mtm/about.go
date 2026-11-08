@@ -15,7 +15,7 @@ import (
 const aboutHelloTimeout = 500 * time.Millisecond
 
 // defineAbout adds mtm's sections to ochazuke's About page
-// (ochazuke.about.open, about.show, about.copy): where mtm keeps its data
+// (ochazuke.about.open, about.show, about.yank): where mtm keeps its data
 // and config, which daemon it talks to and its version, and the registered
 // extensions. Each runs when the page opens or refreshes, never at startup.
 func (a *App) defineAbout() {

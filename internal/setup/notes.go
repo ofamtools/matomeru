@@ -125,8 +125,8 @@ func (o Options) notePlan(id string) (Plan, error) {
 // says the engine's others (n/a, skipped, external) as they are, with the
 // reason where there is one.
 func noteStatus(st osetup.Status) string {
-	s := string(st.State)
-	if st.Reason != "" && st.State != osetup.Installed && st.State != osetup.Missing {
+	s := string(st.Status)
+	if st.Reason != "" && st.Status != osetup.Installed && st.Status != osetup.Missing {
 		s += " (" + st.Reason + ")"
 	}
 	return s

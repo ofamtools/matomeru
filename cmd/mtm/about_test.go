@@ -71,7 +71,7 @@ func TestAboutSectionsFromAFakeDaemon(t *testing.T) {
 	if exts["notes"].Value != "/opt/bin/mtm-notes" || exts["notes"].Note != "catalog v1.4.0" || exts["notes"].Kind != ochazuke.AboutPath {
 		t.Fatalf("extensions %#v", exts)
 	}
-	text, err := app.r.Execute(ochazuke.Request{Noun: "ochazuke.about", Verb: "copy"})
+	text, err := app.r.Execute(ochazuke.Request{Noun: "ochazuke.about", Verb: "yank"})
 	if err != nil || !strings.Contains(text.(string), "Daemon\n") || !strings.Contains(text.(string), data) {
 		t.Fatalf("copy %v %v", text, err)
 	}

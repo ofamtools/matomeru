@@ -146,7 +146,7 @@ func TestSavedTaskFiltersKeepAncestorContext(t *testing.T) {
 	if f := frameAt(a, 140); !a.taskList.Lingering("agent") || !strings.Contains(f, "agent example") || !strings.Contains(f, "~") {
 		t.Fatalf("former ancestor must linger after flattening:\n%s", f)
 	}
-	executeA(t, a, "ochazuke.list", "flush-lingering", "", ochazuke.Arguments{"id": "agent"})
+	executeA(t, a, "ochazuke.collection", "flush-lingering", "", ochazuke.Arguments{"id": "agent"})
 	if a.taskList.Lingering("agent") {
 		t.Fatal("flushed ancestor still lingering")
 	}

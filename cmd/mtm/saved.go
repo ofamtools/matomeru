@@ -59,7 +59,7 @@ func (a *App) addSavedPage() error {
 	if err != nil {
 		return err
 	}
-	if a.detail.saved, err = a.addLinkedDetail(savedDetailID, savedPage, func() *ochazuke.List { return a.savedList }, a.savedSubject); err != nil {
+	if a.detail.saved, err = a.addLinkedDetail(savedDetailID, savedPage, func() *ochazuke.Collection { return a.savedList }, a.savedSubject); err != nil {
 		return err
 	}
 	if _, err = a.r.AddPage(savedPage, "Saved", a.renderSaved, ochazuke.Focus(savedListID)); err != nil {

@@ -50,11 +50,11 @@ type link struct {
 // linkedDetail is one page's detail with its links list.
 type linkedDetail struct {
 	*pageDetail
-	links   *ochazuke.List
+	links   *ochazuke.Collection
 	linksID string
 	// main is the page's list the focus returns to when the links empty
 	// under it.
-	main func() *ochazuke.List
+	main func() *ochazuke.Collection
 	// subject reports the record the detail is about now ("" for none),
 	// its text and its links.
 	subject func() (id, text string, links []link)
@@ -71,7 +71,7 @@ func (a *App) defineLinks() {
 // beneath page, after the page's own lists, so the links are the last
 // stop in drawing order. subject names what the detail shows; main is the
 // list the focus returns to.
-func (a *App) addLinkedDetail(id, page string, main func() *ochazuke.List, subject func() (string, string, []link)) (*linkedDetail, error) {
+func (a *App) addLinkedDetail(id, page string, main func() *ochazuke.Collection, subject func() (string, string, []link)) (*linkedDetail, error) {
 	ld := &linkedDetail{main: main, subject: subject, linksID: id + "/links"}
 	d, err := a.addDetail(id, page, func() string { s, _, _ := ld.subject(); return s }, nil)
 	if err != nil {
@@ -275,7 +275,7 @@ func (a *App) jumpPane(row string) error {
 }
 
 // jumpRow opens page on the row id of list, read again first (refresh).
-func (a *App) jumpRow(page string, list *ochazuke.List, id string, refresh func() error) error {
+func (a *App) jumpRow(page string, list *ochazuke.Collection, id string, refresh func() error) error {
 	if err := refresh(); err != nil {
 		return err
 	}

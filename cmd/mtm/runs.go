@@ -79,7 +79,7 @@ type runState struct {
 	mu     sync.Mutex
 	runs   []*commandRun
 	seq    int
-	list   *ochazuke.List
+	list   *ochazuke.Collection
 	detail *linkedDetail
 	// after schedules the redraw timer; tests set it nil.
 	after   func(time.Duration, tea.Msg) tea.Cmd
@@ -125,7 +125,7 @@ func (a *App) addRunsPage() error {
 	if st.list, err = a.r.AddList(runsListID, nil, ochazuke.Parent(runsPage), ochazuke.Columns(runColumns...)); err != nil {
 		return err
 	}
-	if st.detail, err = a.addLinkedDetail(runsDetailID, runsPage, func() *ochazuke.List { return st.list }, a.runSubject); err != nil {
+	if st.detail, err = a.addLinkedDetail(runsDetailID, runsPage, func() *ochazuke.Collection { return st.list }, a.runSubject); err != nil {
 		return err
 	}
 	if _, err = a.r.AddPage(runsPage, "Runs", a.renderRuns, ochazuke.Focus(runsListID)); err != nil {

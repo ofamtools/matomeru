@@ -84,7 +84,7 @@ func (a *App) scheduleProps() []ochazuke.PropSpec {
 // as it was (AcceptsKey, forgotten).
 func (a *App) scheduleStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		Get: func(_ ochazuke.Ctx, name string) (ochazuke.Thing, error) {
 			d, err := a.scheduleNamed(name)

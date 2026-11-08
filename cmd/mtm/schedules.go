@@ -86,7 +86,7 @@ type scheduleState struct {
 	failureLimit atomic.Int64 // notification projection reads it off-loop
 	loadErr      string       // why schedules.json did not load (the built-ins run)
 	runner       *schedules.Runner
-	list         *ochazuke.List
+	list         *ochazuke.Collection
 	detail       *linkedDetail
 	// live is set when the TUI starts: only then do schedules run and
 	// pane signals reach the inbox (a CLI command is one-shot).
@@ -284,7 +284,7 @@ func (a *App) addSchedulesPage() error {
 	if err := a.addRemindersList(); err != nil {
 		return err
 	}
-	if st.detail, err = a.addLinkedDetail(scheduleDetailID, schedulesPage, func() *ochazuke.List { return st.list }, a.scheduleSubject); err != nil {
+	if st.detail, err = a.addLinkedDetail(scheduleDetailID, schedulesPage, func() *ochazuke.Collection { return st.list }, a.scheduleSubject); err != nil {
 		return err
 	}
 	if _, err = a.r.AddPage(schedulesPage, "Schedules", a.renderSchedules, ochazuke.Focus(scheduleListID)); err != nil {

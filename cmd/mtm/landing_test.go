@@ -133,7 +133,7 @@ func TestCLILaunchAndNewPaneCloseTheLandedTerminal(t *testing.T) {
 				t.Fatalf("terminal %v page %s", app.r.Terminal(paneTermID), app.r.Page)
 			}
 			for _, j := range app.r.Jobs() {
-				if j.State == ochazuke.JobRunning {
+				if j.Status == ochazuke.JobRunning {
 					t.Fatalf("a job is still running: %+v", j)
 				}
 			}

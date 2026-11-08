@@ -54,7 +54,7 @@ func TestNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	app, f := shellApp(t)
 	cmd := key(t, app, "n")
 	jobs := jobsOf(app, "pane.start")
-	if len(jobs) != 1 || jobs[0].State != ochazuke.JobRunning || jobs[0].Owner != panesPage {
+	if len(jobs) != 1 || jobs[0].Status != ochazuke.JobRunning || jobs[0].Owner != panesPage {
 		t.Fatalf("jobs after n = %+v", jobs)
 	}
 	if fr := frame(app); !strings.Contains(fr, "pane.start running") {
@@ -78,7 +78,7 @@ func TestNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	if len(app.panes) != 3 || app.r.Instances["pane:matomeru/s1"] == nil {
 		t.Fatalf("panes = %+v", app.panes)
 	}
-	if jobs := jobsOf(app, "pane.start"); len(jobs) != 1 || jobs[0].State != ochazuke.JobDone {
+	if jobs := jobsOf(app, "pane.start"); len(jobs) != 1 || jobs[0].Status != ochazuke.JobDone {
 		t.Fatalf("jobs after completion = %+v", jobs)
 	}
 	if fr := frame(app); !strings.Contains(fr, "panes (3)") || !strings.Contains(fr, "matomeru/shell") {
@@ -111,7 +111,7 @@ func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 	f.err = errors.New("dial: no daemon")
 	settle(app, key(t, app, "n"))
 	jobs := jobsOf(app, "pane.start")
-	if len(jobs) != 1 || jobs[0].State != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "new pane in matomeru: dial: no daemon") {
+	if len(jobs) != 1 || jobs[0].Status != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "new pane in matomeru: dial: no daemon") {
 		t.Fatalf("jobs = %+v", jobs)
 	}
 	if len(app.panes) != 2 || app.r.Page != panesPage {

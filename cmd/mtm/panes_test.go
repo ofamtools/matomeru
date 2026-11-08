@@ -410,7 +410,7 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 			jobs = append(jobs, j)
 		}
 	}
-	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Scope != panesPage || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].State != ochazuke.JobRunning {
+	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Scope != panesPage || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].Status != ochazuke.JobRunning {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, cmd)
@@ -442,12 +442,12 @@ func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 	second := follow(app)
 	var running []ochazuke.JobInfo
 	for _, j := range jobsOf(app, "pane.preview") {
-		if j.State == ochazuke.JobRunning {
+		if j.Status == ochazuke.JobRunning {
 			running = append(running, j)
 		}
 	}
 	// Two rows asked; the page's slot keeps only the newest running.
-	if jobs := jobsOf(app, "pane.preview"); len(running) != 1 || len(jobs) != 2 || jobs[0].State != ochazuke.JobCancelled ||
+	if jobs := jobsOf(app, "pane.preview"); len(running) != 1 || len(jobs) != 2 || jobs[0].Status != ochazuke.JobCancelled ||
 		jobs[0].Owner != "pane:matomeru/w1" || running[0].Owner != "pane:ochazuke/w2" || running[0].Scope != panesPage {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
@@ -608,7 +608,7 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 		t.Fatalf("after kill: focus %s", app.r.FocusID())
 	}
 	// The kill completed on its own row, which its completion removed.
-	if jobs := jobsOf(app, "pane.kill"); len(jobs) != 1 || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].State != ochazuke.JobDone {
+	if jobs := jobsOf(app, "pane.kill"); len(jobs) != 1 || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].Status != ochazuke.JobDone {
 		t.Fatalf("kill jobs = %+v", jobs)
 	}
 	if fr := frame(app); !strings.Contains(fr, "panes (1)") {

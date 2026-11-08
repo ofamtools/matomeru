@@ -61,7 +61,7 @@ type contextState struct {
 	kind        string              // the kind shown, "" for every kind
 	query       *ochazuke.Input     // the page's search field
 	seen        string              // the query the list was last filtered by
-	list        *ochazuke.List
+	list        *ochazuke.Collection
 	sys         systemActions
 	// cmds are commands a completion asks the loop to run (an OSC 52
 	// copy); contextUpdate hands them to Bubble Tea.

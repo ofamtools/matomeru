@@ -359,7 +359,7 @@ func TestLivePickerSavedFiltersAndPropPicker(t *testing.T) {
 		t.Fatalf("backward cycle:\n%s", f)
 	}
 	a.Update(keytest.Msg("alt+backspace", false, false))
-	// ctrl+f opens the prop filter form (list.filter-form, default on) in
+	// ctrl+f opens the prop filter form (collection.filter-form, default on) in
 	// its compact layout: type the prop, Enter lists its values (scope's are
 	// pane, project, none), Escape then Space picks the first, Enter returns
 	// to fields and two Escapes close the form.

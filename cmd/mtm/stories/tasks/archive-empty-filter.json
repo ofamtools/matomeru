@@ -8,7 +8,7 @@
     ":", {"type": "page open notes"}, "enter",
     ":", {"type": "note new \"retained archive note\""}, "enter",
     ":", {"type": "note archive"}, "enter",
-    ":", {"type": "list filter-saved archived"}, "enter"
+    ":", {"type": "collection filter-saved archived"}, "enter"
   ],
   "expect": [
     {"after": 6, "contains": ["retained archive note"], "lacks": ["Command palette", "Error:"]},

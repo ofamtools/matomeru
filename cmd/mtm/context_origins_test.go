@@ -201,7 +201,7 @@ func TestContextPickerOriginFiltersAndGenericProperty(t *testing.T) {
 		}
 	}
 	a.Update(keyMsg("alt+backspace"))
-	// ctrl+f opens the prop filter form (list.filter-form, default on) in
+	// ctrl+f opens the prop filter form (collection.filter-form, default on) in
 	// its compact layout: type the prop, Enter lists its values (prompt,
 	// response), Escape then j Space picks response, Enter returns to fields, two Escapes close the form.
 	press(t, a, "ctrl+f")

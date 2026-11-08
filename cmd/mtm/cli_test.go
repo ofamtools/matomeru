@@ -130,7 +130,7 @@ func TestCLIHistoryListShowsTheOperationsThisProcessRan(t *testing.T) {
 		t.Fatalf("title = %q", got)
 	}
 	var entries []ochazuke.HistoryEntry
-	cliRows(t, app, &entries, "history", "list")
+	cliRows(t, app, &entries, "history-entry", "list")
 	var found bool
 	for _, e := range entries {
 		if e.Request.Key() == "task.edit" && e.Request.Target == "t1" && e.Context.Source == "cli" && e.Result.OK {
@@ -160,7 +160,7 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 	fkey := regexp.MustCompile(`(^|[ +])f\d+$`)
 	for target, want := range stops {
 		var rows []ochazuke.Binding
-		cliRows(t, app, &rows, "bindings", "list", "--target", target)
+		cliRows(t, app, &rows, "binding", "list", "--target", target)
 		seen := map[string]bool{}
 		listed := map[string]bool{}
 		for _, b := range rows {
@@ -218,14 +218,14 @@ func TestCLIThroughRun(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mtm.db")
 	var out, errOut bytes.Buffer
 	args := []string{"--data", path, "--socket", filepath.Join(t.TempDir(), "none.sock")}
-	if err := run(append(args, "bindings", "list"), strings.NewReader(""), &out, &errOut); err != nil {
+	if err := run(append(args, "binding", "list"), strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("bindings list: %v\n%s", err, errOut.String())
 	}
 	if !strings.Contains(strings.ReplaceAll(out.String(), `": "`, `":"`), `"keys":"ctrl+j"`) {
 		t.Fatalf("bindings list:\n%s", out.String())
 	}
 	out.Reset()
-	if err := run(append(args, "history", "list"), strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), `"items": []`) {
+	if err := run(append(args, "history-entry", "list"), strings.NewReader(""), &out, &errOut); err != nil || !strings.Contains(out.String(), `"items": []`) {
 		t.Fatalf("history list in a fresh process: %q, %v", out.String(), err)
 	}
 	if err := run(append(args, "nope", "list"), strings.NewReader(""), &out, &errOut); err == nil {

@@ -60,7 +60,7 @@ func (a *App) addVimPage() error {
 	if err != nil {
 		return err
 	}
-	if a.detail.vim, err = a.addLinkedDetail(vimDetailID, vimPage, func() *ochazuke.List { return a.vimList }, a.vimSubject); err != nil {
+	if a.detail.vim, err = a.addLinkedDetail(vimDetailID, vimPage, func() *ochazuke.Collection { return a.vimList }, a.vimSubject); err != nil {
 		return err
 	}
 	if _, err := a.r.AddPage(vimPage, "Vim", a.renderVim, ochazuke.Focus(vimListID)); err != nil {

@@ -46,7 +46,7 @@ func TestTaskMoveTakesTheSubtreeAndOneUndoRestoresIt(t *testing.T) {
 	if g := stored(t, a, "grand"); g.ParentID != "kid" {
 		t.Fatalf("grand's parent: %+v", g)
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	if got := projectsOf(t, a, "t1", "kid", "grand"); got != "matomeru matomeru matomeru" {
 		t.Fatalf("one undo: %s", got)
 	}

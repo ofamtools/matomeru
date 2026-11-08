@@ -114,7 +114,7 @@ func (a *App) paneRecords(t ochazuke.Thing) ochazuke.Thing {
 // paneStore is the pane noun's store over the listed panes.
 func (a *App) paneStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true,
 		ListParams: map[string]ochazuke.Parameter{
 			"all": {Type: "boolean", Description: "Every project, whatever the pin"},

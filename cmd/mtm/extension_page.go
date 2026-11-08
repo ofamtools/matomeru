@@ -146,13 +146,13 @@ func (a *App) extActivity() map[string]string {
 			continue
 		}
 		switch {
-		case j.State == ochazuke.JobRunning:
+		case j.Status == ochazuke.JobRunning:
 			loading[name] = true
 		case j.Job > a.extPage.seenJob:
 			a.extPage.seenJob = j.Job
-			if j.State == ochazuke.JobFailed {
+			if j.Status == ochazuke.JobFailed {
 				a.extFailed(name, j.Error)
-			} else if j.State == ochazuke.JobDone {
+			} else if j.Status == ochazuke.JobDone {
 				delete(a.extPage.failed, name)
 			}
 		}

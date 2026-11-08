@@ -67,7 +67,7 @@ func TestSavedForgetKeyAndUndo(t *testing.T) {
 	if _, err := a.work.SavedPane(row.ID); err == nil {
 		t.Fatal("y kept the record")
 	}
-	executeA(t, a, "history", "undo", "", nil)
+	executeA(t, a, "history-entry", "undo", "", nil)
 	back, err := a.work.SavedPane(row.ID)
 	back.Updated, row.Updated = 0, 0
 	if err != nil || !reflect.DeepEqual(back, row) {

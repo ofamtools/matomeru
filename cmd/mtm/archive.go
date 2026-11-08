@@ -7,9 +7,9 @@ import (
 	"ofam.dev/ochazuke"
 )
 
-const settingHideArchived = "list.hide-archived"
+const settingHideArchived = "collection.hide-archived"
 
-func (a *App) archiveVisible(archived bool, lists ...*ochazuke.List) bool {
+func (a *App) archiveVisible(archived bool, lists ...*ochazuke.Collection) bool {
 	if !archived || !a.r.Settings().Bool(settingHideArchived) {
 		return true
 	}
@@ -23,7 +23,7 @@ func (a *App) archiveVisible(archived bool, lists ...*ochazuke.List) bool {
 
 // liveTasks hides entire archived branches without changing any child's row.
 // Missing parents and legacy cycles retain their ordinary live rows.
-func (a *App) liveTasks(tasks []work.Task, lists ...*ochazuke.List) []work.Task {
+func (a *App) liveTasks(tasks []work.Task, lists ...*ochazuke.Collection) []work.Task {
 	if a.archiveVisible(true, lists...) {
 		return tasks
 	}
@@ -102,7 +102,7 @@ func (a *App) refreshArchiveViews() error {
 
 func (a *App) observeArchiveViews() {
 	for _, row := range []struct {
-		list    *ochazuke.List
+		list    *ochazuke.Collection
 		refresh func() error
 	}{{a.taskList, a.refreshTasks}, {a.noteList, a.refreshNotes}, {a.cx.list, a.refreshContext}} {
 		a.observeArchiveList(row.list, row.refresh)
@@ -116,9 +116,9 @@ func (a *App) observeArchiveViews() {
 
 // Refill an app-owned source when a prop filter explicitly requests archives.
 // SetItems can hear the callback again; record the new state before refilling.
-func (a *App) observeArchiveList(list *ochazuke.List, refresh func() error) {
+func (a *App) observeArchiveList(list *ochazuke.Collection, refresh func() error) {
 	shown := a.archiveVisible(true, list)
-	list.OnFilter(func(*ochazuke.List) {
+	list.OnFilter(func(*ochazuke.Collection) {
 		next := a.archiveVisible(true, list)
 		if next == shown {
 			return

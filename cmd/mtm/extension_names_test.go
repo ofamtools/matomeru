@@ -132,10 +132,10 @@ func TestExtensionReservedNamespaceKeepsDashes(t *testing.T) {
 	t.Parallel()
 	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
 	path := seeded(t)
-	mustCLI(t, openAt(t, path), "extension", "register", "list", "--bin", bin)
+	mustCLI(t, openAt(t, path), "extension", "register", "collection", "--bin", bin)
 	a := openAt(t, path)
-	if a.r.Nouns["list-item"] == nil || a.r.Nouns["list.item"] != nil {
-		t.Fatalf("list-item %v, list.item %v", a.r.Nouns["list-item"] != nil, a.r.Nouns["list.item"] != nil)
+	if a.r.Nouns["collection-item"] == nil || a.r.Nouns["collection.item"] != nil {
+		t.Fatalf("collection-item %v, collection.item %v", a.r.Nouns["collection-item"] != nil, a.r.Nouns["collection.item"] != nil)
 	}
 }
 

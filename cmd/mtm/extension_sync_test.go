@@ -132,7 +132,7 @@ func TestExtensionUserActionsSurviveRemount(t *testing.T) {
 		}
 		before := len(jobsOf(a, "fake.item.inspect-user"))
 		pressJob(t, a, "U")
-		if jobs := jobsOf(a, "fake.item.inspect-user"); len(jobs) != before+1 || jobs[len(jobs)-1].State != ochazuke.JobDone {
+		if jobs := jobsOf(a, "fake.item.inspect-user"); len(jobs) != before+1 || jobs[len(jobs)-1].Status != ochazuke.JobDone {
 			t.Fatalf("user binding did not run action: %+v", jobs)
 		}
 	}

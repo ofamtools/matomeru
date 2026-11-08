@@ -144,7 +144,7 @@ func TestMCPVerbRightsTable(t *testing.T) {
 		{"schedule.delete", "never", true}, {"schedule.reset", "allow", false}, {"schedule.set", "allow", false}, {"schedule.toggle", "allow", false},
 		{"session.associate", "allow", false}, {"pane.delete", "confirm", false}, {"session.delete", "confirm", false},
 		{"reminder.check", "allow", false}, {"reminder.uncheck", "allow", false}, {"reminder.toggle", "allow", false}, {"reminder.delete", "never", true},
-		{"ochazuke.setting.set", "allow", false}, {"ochazuke.bindings.load", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
+		{"ochazuke.setting.set", "allow", false}, {"ochazuke.binding.load", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
 	} {
 		op, ok := a.r.Operation(tt.verb)
 		if !ok {
@@ -173,15 +173,15 @@ func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
 	t.Parallel()
 	a, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "matomeru", "TUIOS_PANE_ID": "w1"})
 	s := mcpServerFor(t, a)
-	mcpRun(t, s, "ochazuke.setting.set", map[string]any{"name": "list.hide-archived", "value": "false"})
-	if a.r.Settings().Bool("list.hide-archived") {
+	mcpRun(t, s, "ochazuke.setting.set", map[string]any{"name": "collection.hide-archived", "value": "false"})
+	if a.r.Settings().Bool("collection.hide-archived") {
 		t.Fatal("agent setting write did not persist")
 	}
 	path := filepath.Join(t.TempDir(), "bindings.json")
 	if err := os.WriteFile(path, []byte(`[{"mode":"normal","noun":"app","keys":"alt+9","request":{"noun":"ochazuke.page","verb":"open","args":{"id":"notes"}}}]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	mcpRun(t, s, "ochazuke.bindings.load", map[string]any{"path": path})
+	mcpRun(t, s, "ochazuke.binding.load", map[string]any{"path": path})
 	a.r.Dispatch(ochazuke.MacroKey{Key: "alt+9"})
 	if a.r.Page != "notes" {
 		t.Fatalf("agent-installed binding did not open Notes: %s", a.r.Page)
@@ -205,7 +205,7 @@ func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
 	if _, err := a.work.Task(id); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("owner override did not delete task: %v", err)
 	}
-	for _, verb := range []string{"ochazuke.setting.set", "ochazuke.bindings.load", "task.delete"} {
+	for _, verb := range []string{"ochazuke.setting.set", "ochazuke.binding.load", "task.delete"} {
 		found := false
 		for _, entry := range a.r.HistoryOf(0, ochazuke.HistoryChange) {
 			if entry.Request.Key() == verb && entry.Context.Actor.Pane == "w1" && entry.Context.Source == "mcp" {
@@ -307,7 +307,7 @@ func TestMCPInstructionsGoldenAndBudget(t *testing.T) {
 	if text != string(want) {
 		t.Fatalf("MCP instruction golden differs:\n%s", text)
 	}
-	for _, tool := range []string{"catalog", "describe", "run", "state"} {
+	for _, tool := range []string{"catalog", "describe", "run", "snapshot"} {
 		names := []string{}
 		for _, t := range s.Tools() {
 			names = append(names, t.Name)

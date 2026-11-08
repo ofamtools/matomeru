@@ -25,7 +25,7 @@ func TestMCPServeRoutesToAppAndFrameworkStaysNamespaced(t *testing.T) {
 		}
 	}
 	slices.Sort(names)
-	want := []string{"catalog", "context_add", "describe", "document_report", "report_progress", "run", "state", "task_done", "task_list", "task_note_add", "task_status", "whoami"}
+	want := []string{"catalog", "context_add", "describe", "document_report", "report_progress", "run", "snapshot", "task_done", "task_list", "task_note_add", "task_status", "whoami"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("mtm mcp serve reached tools %v, want %v", names, want)
 	}

@@ -61,7 +61,7 @@ func (a *App) sessionRecords(t ochazuke.Thing) ochazuke.Thing {
 // sessions.
 func (a *App) sessionStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.Collection,
+		Kind: ochazuke.KindCollection,
 		Undo: true,
 		ListParams: map[string]ochazuke.Parameter{
 			"all": {Type: "boolean", Description: "Every project, whatever the pin"},

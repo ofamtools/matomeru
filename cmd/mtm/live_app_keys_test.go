@@ -195,7 +195,7 @@ func TestResizeAndRepeatAreNotLeaderKeys(t *testing.T) {
 			t.Fatalf("leader %s is bound: %+v", b.Keys, b)
 		}
 	}
-	for _, op := range []string{"ochazuke.pane.shrink", "ochazuke.pane.grow", "ochazuke.pane.reset", "ochazuke.history.repeat"} {
+	for _, op := range []string{"ochazuke.pane.shrink", "ochazuke.pane.grow", "ochazuke.pane.reset", "ochazuke.history-entry.repeat"} {
 		if _, ok := a.r.Operations.Find(ochazuke.Key(op)); !ok {
 			t.Fatalf("%s is gone", op)
 		}

@@ -129,7 +129,7 @@ func driveCommandsUntilIdle(a *App, cmd tea.Cmd, recurse, appUpdate bool, idle <
 	}
 	initial := map[uint64]bool{}
 	for _, j := range a.r.Jobs() {
-		if j.State == ochazuke.JobRunning {
+		if j.Status == ochazuke.JobRunning {
 			initial[j.Job] = true
 		}
 	}
@@ -141,7 +141,7 @@ func driveCommandsUntilIdle(a *App, cmd tea.Cmd, recurse, appUpdate bool, idle <
 			// App updates can remount a page and start catalog-load jobs,
 			// which have no registered operation. Wait for their completions
 			// too, rather than treating a slow row fetch as a parked timer.
-			if (recurse || initial[j.Job]) && j.State == ochazuke.JobRunning {
+			if (recurse || initial[j.Job]) && j.Status == ochazuke.JobRunning {
 				return true
 			}
 		}
@@ -240,7 +240,7 @@ const settleLimit = 10 * time.Second
 // ticker shows), not a component's own read.
 func jobRunning(a *App) bool {
 	for _, j := range a.r.Jobs() {
-		if j.State == ochazuke.JobRunning && a.r.Operations.At(ochazuke.Key(j.Verb)).Kind == ochazuke.KindApplication {
+		if j.Status == ochazuke.JobRunning && a.r.Operations.At(ochazuke.Key(j.Verb)).Kind == ochazuke.KindApplication {
 			return true
 		}
 	}
@@ -360,7 +360,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	press(t, app, "j", "enter")
 	cmd := launchKey(t, app)
 	jobs := app.r.Jobs()
-	if len(jobs) != 1 || jobs[0].Verb != "agent.start" || jobs[0].State != ochazuke.JobRunning || jobs[0].Owner != "work" {
+	if len(jobs) != 1 || jobs[0].Verb != "agent.start" || jobs[0].Status != ochazuke.JobRunning || jobs[0].Owner != "work" {
 		t.Fatalf("jobs after l = %+v", jobs)
 	}
 	if !strings.Contains(frame(app), "agent.start claude running") {
@@ -388,7 +388,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 			starts = append(starts, j)
 		}
 	}
-	if len(starts) != 1 || starts[0].State != ochazuke.JobDone {
+	if len(starts) != 1 || starts[0].Status != ochazuke.JobDone {
 		t.Fatalf("job.list = %+v", out)
 	}
 }
@@ -400,7 +400,7 @@ func TestAFailingLaunchShowsInTheRail(t *testing.T) {
 	press(t, app, "j", "k")
 	settle(app, launchKey(t, app))
 	jobs := app.r.Jobs()
-	if len(jobs) != 1 || jobs[0].State != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "no daemon") {
+	if len(jobs) != 1 || jobs[0].Status != ochazuke.JobFailed || !strings.Contains(jobs[0].Error, "no daemon") {
 		t.Fatalf("jobs = %+v", jobs)
 	}
 	if !strings.Contains(frame(app), "agent.start claude failed: launch claude into ochazuke: dial: no daemon") {
