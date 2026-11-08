@@ -1,8 +1,11 @@
+//go:build !nodaemon
+
 package main
 
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -137,5 +140,71 @@ func TestHistoryLogVerbsRunAgainstASelfDaemon(t *testing.T) {
 	}
 	if !strings.Contains(fmt.Sprint(res["purged"]), id) {
 		t.Fatalf("purged: %v", res)
+	}
+}
+
+// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
+// Copy mode's windows over a real daemon with a log: the last chunk, and the
+// chunks before it, name the daemon's own line numbers, and join up exactly.
+func TestScrollbackWindowsJoinUpOverASelfDaemonLog(t *testing.T) {
+	_, client := selfDaemonApp(t, paneScopeAll)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second*raceSlowdown)
+	defer cancel()
+	var made struct {
+		Window string `json:"window_id"`
+	}
+	if err := client.Call(ctx, "new-session", map[string]any{"name": "win", "cwd": "/tmp", "command": []string{"sh"}}, &made); err != nil {
+		t.Fatal(err)
+	}
+	const rows = 30000
+	script := fmt.Sprintf("i=0; while [ $i -lt %d ]; do seq $((i+1)) $((i+5000)); i=$((i+5000)); sleep 0.25; done; echo done-%d\n", rows, rows)
+	if err := client.Call(ctx, "send-text", map[string]any{"session": "win", "window": made.Window, "text": script}, nil); err != nil {
+		t.Fatal(err)
+	}
+	d := tuios{Client: client}
+	var p pane
+	p.Session, p.ID = "win", made.Window
+	var tail scrollback
+	for end := time.Now().Add(90 * time.Second * raceSlowdown); time.Now().Before(end); time.Sleep(300 * time.Millisecond) {
+		var err error
+		if tail, err = d.ScrollbackWindow(ctx, p, scrollWindow{Tail: 500}); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains("\n"+tail.Text, "\ndone-30000") {
+			break
+		}
+	}
+	if !strings.Contains("\n"+tail.Text, "\ndone-30000") {
+		t.Fatalf("the flood never finished: %q", tail.Text)
+	}
+	lines := strings.Split(strings.TrimRight(tail.Text, "\n"), "\n")
+	if len(lines) > 500 || tail.From <= 0 || tail.History < rows-1000 {
+		t.Fatalf("tail: %d lines from %d, history %d", len(lines), tail.From, tail.History)
+	}
+	// Three chunks back, each ending where the last began.
+	before, all := tail.From, lines
+	for range 3 {
+		w, err := d.ScrollbackWindow(ctx, p, scrollWindow{Before: before, Count: 1000})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := strings.Split(strings.TrimSuffix(w.Text, "\n"), "\n")
+		if w.From != before-1000 || len(got) != 1000 {
+			t.Fatalf("chunk before %d: %d lines from %d", before, len(got), w.From)
+		}
+		all, before = append(got, all...), w.From
+	}
+	// seq prints 1..5000 over and over: consecutive lines in a run differ by
+	// one, so a missing or doubled line shows.
+	prev := -1
+	for i, l := range all {
+		n, err := strconv.Atoi(strings.TrimSpace(l))
+		if err != nil || strings.HasPrefix(l, "done-") {
+			continue
+		}
+		if prev >= 0 && n != prev+1 && n != 1 {
+			t.Fatalf("line %d (%d) follows %d: the chunks do not join", before+i, n, prev)
+		}
+		prev = n
 	}
 }

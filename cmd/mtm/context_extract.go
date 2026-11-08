@@ -27,6 +27,40 @@ type contextDaemon interface {
 type scrollback struct {
 	Text    string
 	History int
+	// From is the daemon's line number (0-based) of Text's first line; Want
+	// is how many lines a bounded window asked for, so blank lines the
+	// capture trims at its end still count.
+	From, Want int
+}
+
+// scrollWindow is the part of a pane's scrollback to read: the last Tail
+// lines, or the Count lines before line Before (0-based). Neither reads it
+// all.
+type scrollWindow struct {
+	Tail          int
+	Before, Count int
+}
+
+// ScrollbackWindow reads a window of the pane's recent buffer, unstyled: the
+// daemon cuts it, so a pane with a long log costs the window, not the log.
+func (t tuios) ScrollbackWindow(ctx context.Context, p pane, w scrollWindow) (scrollback, error) {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	params := daemon.CaptureParams{Session: p.Session, Window: p.ID, Source: "recent"}
+	from, want := 0, 0
+	if w.Count > 0 {
+		start := max(0, w.Before-w.Count)
+		first, last := start+1, w.Before // capture-pane counts lines from 1, inclusive
+		params.Start, params.End = &first, &last
+		from, want = start, last-start
+	} else {
+		params.Lines = w.Tail
+	}
+	got, err := t.Capture(ctx, params)
+	if w.Count == 0 {
+		from = got.LinesOmitted
+	}
+	return scrollback{Text: got.Content, History: got.HistoryRows, From: from, Want: want}, err
 }
 
 // Scrollback is the pane's recent buffer from line from, unstyled.

@@ -25,9 +25,49 @@ const (
 	copyID       = "panes/copy"
 	copyNoun     = "copy"
 	copyFindMode = "copy_find_pending"
-	// copyCap is the most lines the buffer holds, history and screen.
-	copyCap = 10000
+	// settingCopyMaxLines is the most lines the buffer holds, history and
+	// screen; settingCopyChunk is how many lines one read of the scrollback
+	// brings, the first when copy mode opens and each older one as the
+	// cursor nears the top of what is loaded.
+	settingCopyMaxLines = "copy.max-lines"
+	settingCopyChunk    = "copy.chunk-lines"
+	defaultCopyMax      = 100000
+	defaultCopyChunk    = 2000
 )
+
+// copyModeSettings are copy mode's settings.
+func copyModeSettings() []ochazuke.Setting {
+	atLeast := func(n int) func(any) error {
+		return func(v any) error {
+			if i, _ := v.(int); i < n {
+				return fmt.Errorf("at least %d", n)
+			}
+			return nil
+		}
+	}
+	return []ochazuke.Setting{
+		{Name: settingCopyMaxLines, Section: ochazuke.SettingsGeneralSection, Group: "Copy mode", Type: ochazuke.SettingInteger, Default: defaultCopyMax, Validate: atLeast(100),
+			Description: "The most lines copy mode holds of a pane's scrollback and screen. Older lines load as you scroll up, a chunk at a time, until this many are loaded; a pane's whole log is never read at once"},
+		{Name: settingCopyChunk, Section: ochazuke.SettingsGeneralSection, Group: "Copy mode", Type: ochazuke.SettingInteger, Default: defaultCopyChunk, Validate: atLeast(50),
+			Description: "How many lines one read of a pane's scrollback brings: the first when copy mode opens, then each older one as the cursor nears the top of what is loaded"},
+	}
+}
+
+// maxLines and chunkLines are the settings, read when used.
+func (c *copyMode) maxLines() int   { return max(100, c.r.Settings().Int(settingCopyMaxLines)) }
+func (c *copyMode) chunkLines() int { return max(50, c.r.Settings().Int(settingCopyChunk)) }
+
+// roomAbove is how many older lines may still load: the cap less what is
+// loaded.
+func (c *copyMode) roomAbove() int {
+	return c.maxLines() - len(c.history) - len(c.screen)
+}
+
+// wantsOlder reports whether the cursor's view has neared the top of the
+// loaded lines while older ones remain unread and the cap leaves room.
+func (c *copyMode) wantsOlder() bool {
+	return c.loaded && c.base > 0 && c.roomAbove() > 0 && min(c.buf.top, c.buf.row) < c.chunkLines()/2
+}
 
 // copyMode is the copy instance's component and the panes page's copy
 // state: the buffer, the pane it reads and where its screen comes from.
@@ -64,9 +104,10 @@ func (c *copyMode) ModeChanged(from, to string) {
 	}
 }
 
-// scrollbackReader is the daemon's scrollback capture (tuios.Scrollback).
+// scrollbackReader is the daemon's scrollback capture by window
+// (tuios.ScrollbackWindow).
 type scrollbackReader interface {
-	Scrollback(ctx context.Context, p pane, from int) (scrollback, error)
+	ScrollbackWindow(ctx context.Context, p pane, w scrollWindow) (scrollback, error)
 }
 
 // plainLines is a screen as plain text, trailing blanks cut.
@@ -88,26 +129,57 @@ func (c *copyMode) rebuild(shift int) {
 	c.buf.setLines(lines, shift)
 }
 
-// apply takes a scrollback capture: its history above the screen, and its
-// screen unless an attached terminal supplies a live one.
+// mergeHistory joins a window of history lines (first line numbered from)
+// with the lines already loaded (numbered from oldBase). A window that
+// reaches the end of the history (toEnd) replaces everything after its
+// start; one that does not (an older chunk) keeps what follows it. Windows
+// that leave a gap, or a history that shrank, start the loaded lines over.
+func mergeHistory(old []string, oldBase int, window []string, from int, toEnd bool) ([]string, int) {
+	end, oldEnd := from+len(window), oldBase+len(old)
+	if from > oldEnd || end < oldBase || toEnd && end < oldEnd {
+		return window, from
+	}
+	var out []string
+	if from > oldBase {
+		out = append(out, old[:from-oldBase]...)
+	}
+	out = append(out, window...)
+	if !toEnd && end < oldEnd {
+		out = append(out, old[end-oldBase:]...)
+	}
+	return out, min(from, oldBase)
+}
+
+// apply takes a window of the scrollback: its history joins the loaded
+// lines, and its screen replaces the screen unless an attached terminal
+// supplies a live one. The oldest lines go when the cap is passed.
 func (c *copyMode) apply(back scrollback) {
 	lines := strings.Split(strings.TrimRight(back.Text, "\n"), "\n")
+	for len(lines) < back.Want {
+		lines = append(lines, "")
+	}
 	lines = plainLines(lines)
-	hist := min(max(0, back.History), len(lines))
-	history, screen := lines[:hist], lines[hist:]
-	if c.source == "" {
+	hist := min(max(0, back.History-back.From), len(lines))
+	window, screen := lines[:hist], lines[hist:]
+	if c.source == "" && len(screen) > 0 {
 		c.screen = screen
 	}
-	if drop := len(history) + len(c.screen) - copyCap; drop > 0 {
-		history = history[min(drop, len(history)):]
+	toEnd := back.Want == 0
+	oldBase := c.base
+	history, base := window, back.From
+	if c.loaded {
+		history, base = mergeHistory(c.history, c.base, window, back.From, toEnd)
 	}
-	base := back.History - len(history)
-	old := c.base
+	if drop := len(history) + len(c.screen) - c.maxLines(); drop > 0 {
+		cut := min(drop, len(history))
+		history, base = history[cut:], base+cut
+	}
+	shift := oldBase - base
 	if !c.loaded {
-		old = back.History // the buffer was the screen alone
+		shift = len(history) // the buffer was the screen alone
 	}
 	c.history, c.base, c.loaded = history, base, true
-	c.rebuild(old - base)
+	c.rebuild(shift)
 }
 
 // followSource reads the attached terminal's screen into the buffer's tail
@@ -187,6 +259,7 @@ func (a *App) defineCopy() {
 		Verb("live", a.copyLive, "Go live: keys go to the pane again").
 		Verb("leave", a.copyLeave, "Return to the entry state: live terminal or pane list").
 		Verb("load", a.copyLoad, "Read the pane's scrollback into the copy buffer").Quiet()
+	a.parameters(copyNoun+".load", map[string]ochazuke.Parameter{"older": {Type: "boolean", Description: "Read the chunk of lines before the loaded ones instead of the latest"}})
 	a.parameters(copyNoun+".move", map[string]ochazuke.Parameter{"motion": {Type: "string", Required: true}, "steps": {Type: "integer"}, "line": {Type: "integer"}})
 	a.parameters(copyNoun+".find", map[string]ochazuke.Parameter{"kind": {Type: "string", Required: true, Enum: []string{"f", "F", "t", "T"}}, "char": {Type: "string", Required: true}, "steps": {Type: "integer"}})
 	a.parameters(copyNoun+".repeat", map[string]ochazuke.Parameter{"reverse": {Type: "boolean"}, "steps": {Type: "integer"}})
@@ -415,15 +488,24 @@ func (a *App) terminalCopy(ctx ochazuke.Ctx) ochazuke.Result {
 
 // copyLoad is copy.load: the pane's scrollback, off the loop; a newer load
 // replaces an older one.
-func (a *App) copyLoad(ochazuke.Ctx) ochazuke.Result {
+func (a *App) copyLoad(ctx ochazuke.Ctx) ochazuke.Result {
 	c := a.copy
 	d, ok := a.panesd.(scrollbackReader)
 	if !ok || !c.active {
 		return ochazuke.Done(nil)
 	}
 	p := c.pane
+	// The first read and each refresh bring the last chunk of lines; the
+	// older argument brings the chunk before what is loaded, within the cap.
+	win := scrollWindow{Tail: c.chunkLines()}
+	if boolArg(ctx.Args, "older", false) {
+		if !c.loaded || c.base <= 0 || c.roomAbove() <= 0 {
+			return ochazuke.Done(nil)
+		}
+		win = scrollWindow{Before: c.base, Count: min(c.chunkLines(), c.roomAbove())}
+	}
 	return ochazuke.Pending(func(ctx context.Context) (any, error) {
-		return d.Scrollback(ctx, p, 0)
+		return d.ScrollbackWindow(ctx, p, win)
 	}).Replacing("load").Then(func(_ ochazuke.Ctx, v any, err error) {
 		if !c.active || c.pane.ID != p.ID || c.pane.Session != p.Session {
 			return
@@ -583,6 +665,12 @@ func (a *App) copyUpdate(msg tea.Msg) {
 		return
 	}
 	changed := c.followSource(a.r)
+	if c.wantsOlder() && !a.copyLoading() {
+		if _, err := a.r.Execute(ochazuke.Request{Verb: "load", Noun: copyNoun, Target: copyID, Args: ochazuke.Arguments{"older": true}}); err != nil {
+			a.r.UI().Error(err.Error())
+		}
+		return
+	}
 	_, tick := msg.(refreshDue)
 	if (changed || tick && a.r.Page == panesPage) && !a.copyLoading() {
 		if _, err := a.r.Execute(ochazuke.Request{Verb: "load", Noun: copyNoun, Target: copyID}); err != nil {

@@ -25,6 +25,30 @@ func (f *fakePanes) Scrollback(_ context.Context, p pane, _ int) (scrollback, er
 	return scrollback{Text: f.screens[p.ID]}, nil
 }
 
+// ScrollbackWindow cuts the fake's capture as the daemon does: the last Tail
+// lines (trailing blank rows are not lines), or the Count lines before
+// Before. It counts the windows it was asked for.
+func (f *fakePanes) ScrollbackWindow(ctx context.Context, p pane, w scrollWindow) (scrollback, error) {
+	back, err := f.Scrollback(ctx, p, 0)
+	if err != nil {
+		return back, err
+	}
+	f.mu.Lock()
+	f.windows = append(f.windows, w)
+	f.mu.Unlock()
+	lines := strings.Split(strings.TrimSuffix(back.Text, "\n"), "\n")
+	if w.Count > 0 {
+		start := max(0, w.Before-w.Count)
+		return scrollback{Text: strings.Join(lines[start:w.Before], "\n") + "\n", History: back.History, From: start, Want: w.Before - start}, nil
+	}
+	body := lines
+	for len(body) > 0 && strings.TrimSpace(body[len(body)-1]) == "" {
+		body = body[:len(body)-1]
+	}
+	from := max(0, len(body)-w.Tail)
+	return scrollback{Text: strings.Join(body[from:], "\n"), History: back.History, From: from}, nil
+}
+
 // copyApp is the panes page with w1's scrollback set: history lines then
 // screen lines, and a clipboard fake.
 func copyApp(t *testing.T, history, screen []string) (*App, *fakePanes, *fakeSystem) {
@@ -477,18 +501,100 @@ func TestCopyModeInZoom(t *testing.T) {
 	}
 }
 
-// The buffer holds at most copyCap lines: the oldest history goes.
+// The buffer holds at most copy.max-lines lines: the oldest history goes,
+// and older lines stop loading at the cap.
 func TestCopyModeCapsTheScrollback(t *testing.T) {
 	t.Parallel()
 	var history []string
-	for i := range copyCap + 50 {
+	for i := range 1050 {
 		history = append(history, fmt.Sprint(i))
 	}
-	app, _, _ := copyApp(t, history, []string{"$"})
+	app, f, _ := copyApp(t, history, []string{"$"})
+	for name, v := range map[string]int{settingCopyMaxLines: 300, settingCopyChunk: 200} {
+		if err := app.r.Settings().Set(name, v); err != nil {
+			t.Fatal(err)
+		}
+	}
 	enterCopyMode(t, app)
 	b := app.copy.buf
-	if len(b.lines) != copyCap || b.lines[0] != "51" || b.lines[len(b.lines)-1] != "$" || b.row != copyCap-1 {
-		t.Fatalf("buffer: %d lines, first %q, last %q, row %d", len(b.lines), b.lines[0], b.lines[len(b.lines)-1], b.row)
+	if len(b.lines) != 200 || b.lines[0] != "851" || b.lines[len(b.lines)-1] != "$" || b.row != 199 {
+		t.Fatalf("first chunk: %d lines, first %q, last %q, row %d", len(b.lines), b.lines[0], b.lines[len(b.lines)-1], b.row)
+	}
+	// Scrolling up loads the chunk before it, but only up to the cap.
+	pressAll(t, app, "g", "g")
+	settleCopyLoads(t, app)
+	b = app.copy.buf
+	if len(b.lines) != 300 || b.lines[0] != "751" || b.lines[len(b.lines)-1] != "$" {
+		t.Fatalf("at the cap: %d lines, first %q, last %q", len(b.lines), b.lines[0], b.lines[len(b.lines)-1])
+	}
+	loads := len(f.windows)
+	pressAll(t, app, "g", "g")
+	settleCopyLoads(t, app)
+	if len(f.windows) != loads {
+		t.Fatalf("a read past the cap: %v", f.windows[loads:])
+	}
+}
+
+// settleCopyLoads lets the loads copy mode starts as the view nears the top
+// of the loaded lines run to completion.
+func settleCopyLoads(t *testing.T, app *App) {
+	t.Helper()
+	for range 5 {
+		_, cmd := app.Update(ochazuke.JobLingerMsg{})
+		settle(app, cmd)
+	}
+}
+
+// Opening copy mode reads one chunk of a long scrollback, not all of it; the
+// older chunks load as the cursor reaches the top of what is loaded, each
+// bounded by copy.chunk-lines, and the lines join up with none missing.
+func TestCopyModeLoadsOlderLinesInChunks(t *testing.T) {
+	t.Parallel()
+	var history []string
+	for i := range 5000 {
+		history = append(history, fmt.Sprint(i))
+	}
+	app, f, _ := copyApp(t, history, []string{"$"})
+	if err := app.r.Settings().Set(settingCopyChunk, 1000); err != nil {
+		t.Fatal(err)
+	}
+	enterCopyMode(t, app)
+	if len(f.windows) != 1 || f.windows[0] != (scrollWindow{Tail: 1000}) {
+		t.Fatalf("entering read %v, want one tail chunk", f.windows)
+	}
+	if b := app.copy.buf; len(b.lines) != 1000 || b.lines[0] != "4001" || app.copy.base != 4001 {
+		t.Fatalf("first chunk: %d lines from %q, base %d", len(b.lines), b.lines[0], app.copy.base)
+	}
+	// The cursor is at the bottom: nothing older is read.
+	settleCopyLoads(t, app)
+	if len(f.windows) != 1 {
+		t.Fatalf("read without scrolling: %v", f.windows)
+	}
+	// Scrolling to the top of the loaded lines reads the chunk before them.
+	for range 6 {
+		pressAll(t, app, "g", "g")
+		settleCopyLoads(t, app)
+	}
+	for _, w := range f.windows[1:] {
+		if w.Count > 1000 || w.Count < 1 {
+			t.Fatalf("an older read is not one chunk: %v", w)
+		}
+	}
+	b := app.copy.buf
+	if len(b.lines) != 5001 || app.copy.base != 0 {
+		t.Fatalf("after scrolling to the top: %d lines, base %d", len(b.lines), app.copy.base)
+	}
+	for i, want := range history {
+		if b.lines[i] != want {
+			t.Fatalf("line %d is %q, want %q", i, b.lines[i], want)
+		}
+	}
+	// Everything is loaded: no further reads.
+	n := len(f.windows)
+	pressAll(t, app, "g", "g")
+	settleCopyLoads(t, app)
+	if len(f.windows) != n {
+		t.Fatalf("read with nothing older: %v", f.windows[n:])
 	}
 }
 

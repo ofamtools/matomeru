@@ -385,7 +385,7 @@ func (a *App) addPanesPage() error {
 	if err := a.r.DeclareSetting(eventLoadSettings()...); err != nil {
 		return err
 	}
-	if err := a.r.DeclareSetting(copySettings()...); err != nil {
+	if err := a.r.DeclareSetting(append(copySettings(), copyModeSettings()...)...); err != nil {
 		return err
 	}
 	a.r.Instance(panesPage, ochazuke.Kind("page"))

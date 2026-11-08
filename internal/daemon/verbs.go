@@ -196,6 +196,9 @@ type CaptureResult struct {
 	ExitCode    *int   `json:"exit_code,omitempty"`
 	CommandSeq  uint64 `json:"command_seq,omitempty"`
 	Truncated   bool   `json:"truncated,omitempty"`
+	// LinesOmitted is how many lines a lines-limited capture cut from the
+	// front: the number of the first line returned, counting from 0.
+	LinesOmitted int `json:"lines_omitted,omitempty"`
 }
 
 // Capture reads a pane's buffer. A daemon that predates the unwrap

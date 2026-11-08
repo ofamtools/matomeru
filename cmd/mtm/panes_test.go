@@ -32,7 +32,8 @@ type fakePanes struct {
 	streams  []*fakeStream
 	exited   map[string]bool // windows whose process ended but stay listed
 	// backs are the windows' scrollback captures (copy mode reads them).
-	backs map[string]scrollback
+	backs   map[string]scrollback
+	windows []scrollWindow // the windows copy mode asked for
 	// transcript replaces the agents' default transcript when set.
 	transcript string
 	// fits are the window sizes FitWindow set, "window colsxrows".
