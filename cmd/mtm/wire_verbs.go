@@ -87,7 +87,7 @@ const wireMargin = 10 * time.Second
 
 var sessionParam = wireParam{Name: "session", Type: "string", Desc: "Session name. Omit for your own; an agent reaches its own session, its fan group and the sessions its fans started (agents.pane-scope)"}
 
-var logParam = wireParam{Name: "log", Type: "string", Desc: "The log's id, session/window, as history-log.list gives it", Required: true}
+var logParam = wireParam{Name: "log", Type: "string", Desc: "The log's id, session/window, as history-log.all gives it", Required: true}
 
 func windowParam(desc string) wireParam {
 	return wireParam{Name: "window", Type: "string", Desc: desc}
@@ -210,7 +210,7 @@ var wireVerbs = []wireVerb{
 		Params: []wireParam{sessionParam, windowParam("The window id or name; omit for the focused one"),
 			{Name: "width", Type: "integer", Desc: "Columns", Required: true},
 			{Name: "height", Type: "integer", Desc: "Rows", Required: true}}},
-	{Noun: "history-log", Verb: "list", Wire: "list-history-logs", Desc: "List the cold scrollback logs of panes: the rows a pane let go of from memory, kept on disk. Each row has its log id (session/window), label (the pane's title, else the id), state (live while a pane owns it, orphaned once its pane is gone), rows, bytes, closed_at, days_left (until an orphan is deleted; absent when kept) and keep", Right: ochazuke.AgentAllow, Fetch: true, Untrusted: true, NoTuios: true,
+	{Noun: "history-log", Verb: "all", Wire: "list-history-logs", Desc: "List the cold scrollback logs of panes: the rows a pane let go of from memory, kept on disk. Each row has its log id (session/window), label (the pane's title, else the id), state (live while a pane owns it, orphaned once its pane is gone), rows, bytes, closed_at, days_left (until an orphan is deleted; absent when kept) and keep", Right: ochazuke.AgentAllow, Fetch: true, Untrusted: true, NoTuios: true,
 		Rows: "logs", Label: []string{"title", "log"},
 		Params: []wireParam{{Name: "state", Type: "string", Desc: "Which logs to list", Default: "all", Enum: []string{"all", "live", "orphaned"}}, {Name: "session", Type: "string", Desc: "Only the logs under this session name"}}},
 	{Noun: "history-log", Verb: "show", Wire: "show-history-log", Desc: "Describe one cold scrollback log: rows, size, first and next row ids, segments, state, days left, keep, why its pane went, its title and folder, and the runs of rows it lost", Right: ochazuke.AgentAllow, Fetch: true, Untrusted: true, NoTuios: true,

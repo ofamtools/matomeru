@@ -52,9 +52,9 @@ func TestHistoryLogVerbsRunAgainstASelfDaemon(t *testing.T) {
 	}
 	var live map[string]any
 	for end := time.Now().Add(90 * time.Second * raceSlowdown); time.Now().Before(end); time.Sleep(300 * time.Millisecond) {
-		p := payload(rpc(t, app, runVerb(1, "history-log.list", map[string]any{"state": "live"}))[0])
+		p := payload(rpc(t, app, runVerb(1, "history-log.all", map[string]any{"state": "live"}))[0])
 		if p["status"] != "done" {
-			t.Fatalf("history-log.list: %v", p)
+			t.Fatalf("history-log.all: %v", p)
 		}
 		res, _ := p["result"].(map[string]any)
 		for _, l := range res["logs"].([]any) {
@@ -110,7 +110,7 @@ func TestHistoryLogVerbsRunAgainstASelfDaemon(t *testing.T) {
 		t.Fatalf("an agent purged with the token: %v", again)
 	}
 
-	for verb, want := range map[string]string{"history-log.adopt": ochazuke.AgentConfirm, "pane.adopt-history": ochazuke.AgentConfirm, "history-log.list": ochazuke.AgentAllow} {
+	for verb, want := range map[string]string{"history-log.adopt": ochazuke.AgentConfirm, "pane.adopt-history": ochazuke.AgentConfirm, "history-log.all": ochazuke.AgentAllow} {
 		if op, ok := app.r.Operation(verb); !ok || op.Agent != want {
 			t.Errorf("%s: agent right %q, want %q", verb, op.Agent, want)
 		}

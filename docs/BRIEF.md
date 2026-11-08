@@ -73,7 +73,7 @@ Compared with Vim: copy mode is a read-only pane buffer; its base mode is called
 
 Copy mode reads a pane's scrollback in chunks, never all at once: opening it reads the last `copy.chunk-lines` lines (default 2000) through `capture-pane` (`source=recent`, `lines`), and when the cursor or the view comes within half a chunk of the first loaded line the chunk before it loads (`start`/`end`), until `copy.max-lines` lines (default 100000) are loaded; past that the oldest lines drop as new ones arrive. Search, `gg` and yank work on the loaded lines, so `gg` goes to the first loaded line and older ones load as you stay there. The pane's cold log on disk (daemon `scrollback_disk`) is read only for the chunks asked for.
 
-A pane's cold history log is the `history-log` noun: `history-log list` (label, state live or orphaned, rows, size, closed, days left, keep), `show`, `keep`, `unkeep`, `adopt` (also `pane adopt-history`, one handler: an orphaned log's rows come before the pane's own) and `purge` (`log`, `older_than_days` or `all_orphaned`; `dry_run` prints a confirm token the owner passes to delete). An agent's `purge` is always a dry run and `adopt` asks the owner.
+A pane's cold history log is the `history-log` noun: `history-log all` (label, state live or orphaned, rows, size, closed, days left, keep), `show`, `keep`, `unkeep`, `adopt` (also `pane adopt-history`, one handler: an orphaned log's rows come before the pane's own) and `purge` (`log`, `older_than_days` or `all_orphaned`; `dry_run` prints a confirm token the owner passes to delete). An agent's `purge` is always a dry run and `adopt` asks the owner.
 
 | Vim form | `:help` tag | mtm |
 |---|---|---|
