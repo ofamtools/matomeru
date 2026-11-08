@@ -638,7 +638,6 @@ func (d *daemonUnder) agentSteps(sess, w1 string) {
 
 func (d *daemonUnder) presenceSteps(sess, w1 string) {
 	paneEnv := filepath.Join(d.root, "pane-env.txt")
-	var paneEnvText string
 	d.step("env", "env/pane-TUIOS_*+event/window-exit", func() error {
 		m := d.events.mark()
 		ctx, cancel := d.ctx()
@@ -669,13 +668,6 @@ func (d *daemonUnder) presenceSteps(sess, w1 string) {
 			return fmt.Errorf("TUIOS_SOCKET is not the daemon socket %s", d.c.Socket)
 		}
 		_ = ev
-		paneEnvText = string(raw)
-		return nil
-	})
-	d.step("env", "env/TUIOS_WINDOW_NAME", func() error {
-		if !strings.Contains("\n"+paneEnvText, "\nTUIOS_WINDOW_NAME=") {
-			return fmt.Errorf("a pane's environment has no TUIOS_WINDOW_NAME (mtm reads it at cmd/mtm/capture.go:128 and internal/setup/omp.ts:68)")
-		}
 		return nil
 	})
 	d.step("error", "error/forbidden(presence-from-pane)", func() error {

@@ -350,15 +350,13 @@ vim.go	App.vimAt	compare	"vim"	1
 ../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"idle"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	piTurnStart	case	"session_start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/run.go	agentRefusalText	case	"if_state"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
-../../internal/daemon/importstate.go	PlanImport	compare	"copy"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	PlanImport	compare	"history"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	PlanImport	compare	"replace"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	PlanImport	cyclo	"-"	34	copied-and-adapted logic whose branches are its protocol; splitting it is a refactor outside the daemon integration
+../../internal/daemon/importstate.go	pickFiles	compare	"copy"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
+../../internal/daemon/importstate.go	pickFiles	compare	"history"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
+../../internal/daemon/importstate.go	guardClash	compare	"replace"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	ServerStateDir	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	normalServer	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	validServerName	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/notices/gen/main.go	scan	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
-../../internal/notices/gen/main.go	scan	cyclo	"-"	26	copied-and-adapted logic whose branches are its protocol; splitting it is a refactor outside the daemon integration
+../../internal/notices/gen/main.go	noticeFile	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
 ../../internal/notices/notices.go	Index.Check	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
 ../../internal/notices/notices.go	Module.Licenses	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
 ../../internal/notices/notices.go	ParseRequires	compare	"require"	2	licence-file and go.mod parsing words, not mtm runtime names

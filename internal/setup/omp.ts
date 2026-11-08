@@ -65,7 +65,7 @@ export default function (pi: ExtensionAPI) {
       return;
     }
     const start: Turn = {
-      id: randomUUID(), session, window, pane: process.env.TUIOS_WINDOW_NAME || window,
+      id: randomUUID(), session, window, pane: window,
       harness: "omp", conversation_id: ctx.sessionManager.getSessionId(),
       transcript_path: ctx.sessionManager.getSessionFile(), prompt: event.prompt, started_at: Date.now(),
     };

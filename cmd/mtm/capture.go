@@ -125,7 +125,7 @@ func (a *App) captureHook(ctx ochazuke.Ctx) ochazuke.Result {
 		if id == "" {
 			id = history.NewID()
 		}
-		turn := history.Turn{ID: id, Session: session, Window: window, Pane: a.getenv("TUIOS_WINDOW_NAME"), Harness: harness,
+		turn := history.Turn{ID: id, Session: session, Window: window, Harness: harness,
 			ConversationID: conversation, Prompt: p.Prompt, StartedAt: a.now().UnixMilli(), TranscriptPath: p.TranscriptPath}
 		entry, err := a.hist.Capture(turn)
 		if err != nil {

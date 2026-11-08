@@ -68,11 +68,6 @@ var expectedDifferences = []known{
 		Why:      "mtm's call at cmd/mtm/turns_model.go:134 (Unwrap and Trim together) is refused by v0.10.0 naming trim first, and daemon.Client.Capture only falls back when the refusal names unwrap, so the call fails on this daemon (a real mtm gap, not only a version difference)",
 	},
 	{
-		ID:       "env/TUIOS_WINDOW_NAME",
-		Versions: []string{"v0.10.0", "v0.12.1"},
-		Why:      "no daemon version puts TUIOS_WINDOW_NAME in a pane's environment, though mtm reads it (cmd/mtm/capture.go:128, internal/setup/omp.ts:68); both fall back (empty, window id)",
-	},
-	{
 		ID:       "capture-pane/unwrap-raw",
 		Versions: []string{"v0.10.0"},
 		Why:      "capture-pane has no parameter unwrap at v0.10.0 (P4: invalid_params, sent from cmd/mtm/turns_model.go:134); the daemon.Client.Capture fallback hides it",

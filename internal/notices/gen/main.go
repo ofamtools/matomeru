@@ -187,50 +187,19 @@ func dirsOf(f *found) []string {
 // the only root files taken (the standard library).
 func scan(module, root string, pkgDirs []string, texts map[string]string, names ...string) ([]notices.File, error) {
 	rels := map[string]bool{}
-	addDir := func(dir string) {
-		ents, err := os.ReadDir(dir)
-		if err != nil {
-			return
-		}
-		for _, e := range ents {
-			if e.Type().IsRegular() && licenseName.MatchString(e.Name()) {
-				if rel, err := filepath.Rel(root, filepath.Join(dir, e.Name())); err == nil {
-					rels[filepath.ToSlash(rel)] = true
-				}
-			}
-		}
-	}
 	if len(names) > 0 {
-		for _, n := range names {
-			if _, err := os.Stat(filepath.Join(root, n)); err == nil {
-				rels[n] = true
-			}
-		}
+		namedFiles(root, names, rels)
 	} else {
 		for _, d := range pkgDirs {
 			for dir := d; strings.HasPrefix(dir, root); dir = filepath.Dir(dir) {
-				addDir(dir)
+				licenseFilesIn(root, dir, rels)
 				if dir == root {
 					break
 				}
 			}
 		}
-		addDir(root)
-		// Notices a fork copies into its tree and lists in THIRD_PARTY.md.
-		if b, err := os.ReadFile(filepath.Join(root, "THIRD_PARTY.md")); err == nil {
-			for _, m := range backtick.FindAllStringSubmatch(string(b), -1) {
-				if !licenseName.MatchString(filepath.Base(m[1])) {
-					continue
-				}
-				matches, _ := filepath.Glob(filepath.Join(root, m[1]))
-				for _, mm := range matches {
-					if st, err := os.Stat(mm); err == nil && st.Mode().IsRegular() {
-						rel, _ := filepath.Rel(root, mm)
-						rels[filepath.ToSlash(rel)] = true
-					}
-				}
-			}
-		}
+		licenseFilesIn(root, root, rels)
+		thirdPartyFiles(root, rels)
 	}
 	var names2 []string
 	for r := range rels {
@@ -239,25 +208,78 @@ func scan(module, root string, pkgDirs []string, texts map[string]string, names 
 	sort.Strings(names2)
 	var out []notices.File
 	for _, rel := range names2 {
-		b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		f, err := noticeFile(module, root, rel, texts)
 		if err != nil {
 			return nil, err
 		}
-		text := string(b)
-		h := notices.Hash(text)
-		texts[h] = text
-		kind := notices.KindLicense
-		base := strings.ToLower(filepath.Base(rel))
-		if strings.HasPrefix(base, "notice") || strings.HasPrefix(base, "patent") || notices.Reviewed[module+" "+rel] != "" {
-			kind = notices.KindNotice
-		}
-		spdx := notices.Classify(text)
-		if len(spdx) == 0 && kind == notices.KindLicense {
-			spdx = []string{notices.Unknown}
-		}
-		out = append(out, notices.File{Name: rel, Kind: kind, SPDX: spdx, Text: h})
+		out = append(out, f)
 	}
 	return out, nil
+}
+
+// licenseFilesIn adds the licence-named files directly in dir, as paths under root.
+func licenseFilesIn(root, dir string, rels map[string]bool) {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range ents {
+		if e.Type().IsRegular() && licenseName.MatchString(e.Name()) {
+			if rel, err := filepath.Rel(root, filepath.Join(dir, e.Name())); err == nil {
+				rels[filepath.ToSlash(rel)] = true
+			}
+		}
+	}
+}
+
+// namedFiles adds the root files in names that exist.
+func namedFiles(root string, names []string, rels map[string]bool) {
+	for _, n := range names {
+		if _, err := os.Stat(filepath.Join(root, n)); err == nil {
+			rels[n] = true
+		}
+	}
+}
+
+// thirdPartyFiles adds the notices a fork copies into its tree and lists in THIRD_PARTY.md.
+func thirdPartyFiles(root string, rels map[string]bool) {
+	b, err := os.ReadFile(filepath.Join(root, "THIRD_PARTY.md"))
+	if err != nil {
+		return
+	}
+	for _, m := range backtick.FindAllStringSubmatch(string(b), -1) {
+		if !licenseName.MatchString(filepath.Base(m[1])) {
+			continue
+		}
+		matches, _ := filepath.Glob(filepath.Join(root, m[1]))
+		for _, mm := range matches {
+			if st, err := os.Stat(mm); err == nil && st.Mode().IsRegular() {
+				rel, _ := filepath.Rel(root, mm)
+				rels[filepath.ToSlash(rel)] = true
+			}
+		}
+	}
+}
+
+// noticeFile reads one file under root, records its text by hash, and classifies it.
+func noticeFile(module, root, rel string, texts map[string]string) (notices.File, error) {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+	if err != nil {
+		return notices.File{}, err
+	}
+	text := string(b)
+	h := notices.Hash(text)
+	texts[h] = text
+	kind := notices.KindLicense
+	base := strings.ToLower(filepath.Base(rel))
+	if strings.HasPrefix(base, "notice") || strings.HasPrefix(base, "patent") || notices.Reviewed[module+" "+rel] != "" {
+		kind = notices.KindNotice
+	}
+	spdx := notices.Classify(text)
+	if len(spdx) == 0 && kind == notices.KindLicense {
+		spdx = []string{notices.Unknown}
+	}
+	return notices.File{Name: rel, Kind: kind, SPDX: spdx, Text: h}, nil
 }
 
 // write lays out the data directory, or with check compares it.

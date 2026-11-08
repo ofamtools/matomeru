@@ -208,15 +208,47 @@ type srcFile struct {
 // writes nothing. A refusal is returned as an error with the report so far.
 func PlanImport(o ImportOptions) (ImportReport, []srcFile, error) {
 	rep := ImportReport{From: o.From, To: o.To, DryRun: o.DryRun}
-	if err := validServerName(o.From); err != nil {
+	srcDir, err := planEndpoints(o, &rep)
+	if err != nil {
 		return rep, nil, err
 	}
-	if err := validServerName(o.To); err != nil {
+	files, err := walkSource(srcDir)
+	if err != nil {
 		return rep, nil, err
+	}
+
+	// Sessions first: they decide which history follows, and they are what
+	// can make the whole import unreadable.
+	saved, err := readSessions(files, &rep)
+	if err != nil {
+		return rep, nil, err
+	}
+	picked := pickFiles(files, saved, &rep)
+	if len(picked) == 0 {
+		return rep, nil, fmt.Errorf("%w: %s", ErrNothing, srcDir)
+	}
+	if !o.Overwrite {
+		if err := guardClash(rep.Files); err != nil {
+			return rep, nil, err
+		}
+	}
+	rep.Notes = append(rep.Notes,
+		"Processes do not survive: every pane restarts as a new shell with a new pid and pty. The layout, saved history, and the session and window IDs (and so mtm's associations) are kept.")
+	return rep, picked, nil
+}
+
+// planEndpoints validates both server names, finds the source state directory,
+// fills the report's directories, and refuses a live or missing endpoint.
+func planEndpoints(o ImportOptions, rep *ImportReport) (string, error) {
+	if err := validServerName(o.From); err != nil {
+		return "", err
+	}
+	if err := validServerName(o.To); err != nil {
+		return "", err
 	}
 	from, to := normalServer(o.From), normalServer(o.To)
 	if from == to {
-		return rep, nil, fmt.Errorf("%w (%s)", ErrSameServer, serverLabel(from))
+		return "", fmt.Errorf("%w (%s)", ErrSameServer, serverLabel(from))
 	}
 	live := o.Live
 	if live == nil {
@@ -234,15 +266,19 @@ func PlanImport(o ImportOptions) (ImportReport, []srcFile, error) {
 	rep.SourceDir, rep.TargetDir = srcDir, ServerStateDir(o.Base, to)
 
 	if yes, how := live(SocketFor(from)); yes {
-		return rep, nil, fmt.Errorf("%w (%s): stop it first (tuios kill-server%s); nothing was copied", ErrSourceLive, how, serverFlag(from))
+		return "", fmt.Errorf("%w (%s): stop it first (tuios kill-server%s); nothing was copied", ErrSourceLive, how, serverFlag(from))
 	}
 	if yes, how := live(SocketFor(to)); yes {
-		return rep, nil, fmt.Errorf("%w (%s): stop it first (mtm daemon stop); nothing was copied", ErrTargetLive, how)
+		return "", fmt.Errorf("%w (%s): stop it first (mtm daemon stop); nothing was copied", ErrTargetLive, how)
 	}
 	if !isDir(srcDir) {
-		return rep, nil, fmt.Errorf("%w: %s does not exist", ErrNothing, srcDir)
+		return "", fmt.Errorf("%w: %s does not exist", ErrNothing, srcDir)
 	}
+	return srcDir, nil
+}
 
+// walkSource lists and classifies every file under srcDir, sorted by path.
+func walkSource(srcDir string) ([]srcFile, error) {
 	var files []srcFile
 	err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -266,12 +302,15 @@ func PlanImport(o ImportOptions) (ImportReport, []srcFile, error) {
 		return nil
 	})
 	if err != nil {
-		return rep, nil, err
+		return nil, err
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].rel < files[j].rel })
+	return files, nil
+}
 
-	// Sessions first: they decide which history follows, and they are what
-	// can make the whole import unreadable.
+// readSessions reads the session files into the report and returns the names
+// of the sessions that will be restored. An unreadable file refuses the plan.
+func readSessions(files []srcFile, rep *ImportReport) (map[string]bool, error) {
 	saved := map[string]bool{}
 	var unreadable []string
 	for _, f := range files {
@@ -290,9 +329,14 @@ func PlanImport(o ImportOptions) (ImportReport, []srcFile, error) {
 		rep.Sessions = append(rep.Sessions, s)
 	}
 	if len(unreadable) > 0 {
-		return rep, nil, fmt.Errorf("%w: %s; nothing was copied", ErrUnreadable, strings.Join(unreadable, "; "))
+		return nil, fmt.Errorf("%w: %s; nothing was copied", ErrUnreadable, strings.Join(unreadable, "; "))
 	}
+	return saved, nil
+}
 
+// pickFiles decides copy, replace or skip for each file, records it in the
+// report, and returns the files to copy.
+func pickFiles(files []srcFile, saved map[string]bool, rep *ImportReport) []srcFile {
 	var picked []srcFile
 	for _, f := range files {
 		item := ImportFile{Path: f.rel, Class: f.class.Name, Bytes: f.size, Action: "copy"}
@@ -312,23 +356,21 @@ func PlanImport(o ImportOptions) (ImportReport, []srcFile, error) {
 		}
 		rep.Files = append(rep.Files, item)
 	}
-	if len(picked) == 0 {
-		return rep, nil, fmt.Errorf("%w: %s", ErrNothing, srcDir)
-	}
-	if !o.Overwrite {
-		var clash []string
-		for _, f := range rep.Files {
-			if f.Action == "replace" && classify(f.Path).Guard {
-				clash = append(clash, f.Path)
-			}
-		}
-		if len(clash) > 0 {
-			return rep, nil, fmt.Errorf("%w: %s; nothing was copied (overwrite archives them first)", ErrConflict, summarize(clash, 5))
+	return picked
+}
+
+// guardClash refuses a plan that would replace guarded files.
+func guardClash(items []ImportFile) error {
+	var clash []string
+	for _, f := range items {
+		if f.Action == "replace" && classify(f.Path).Guard {
+			clash = append(clash, f.Path)
 		}
 	}
-	rep.Notes = append(rep.Notes,
-		"Processes do not survive: every pane restarts as a new shell with a new pid and pty. The layout, saved history, and the session and window IDs (and so mtm's associations) are kept.")
-	return rep, picked, nil
+	if len(clash) > 0 {
+		return fmt.Errorf("%w: %s; nothing was copied (overwrite archives them first)", ErrConflict, summarize(clash, 5))
+	}
+	return nil
 }
 
 // ImportState plans the import and, unless DryRun, performs it: each file is
