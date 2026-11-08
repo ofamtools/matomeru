@@ -113,7 +113,7 @@ func TestPromptBoxContextHintAndVerb(t *testing.T) {
 	if hints := hintKeys(app); !slices.Contains(hints, "alt+o context") {
 		t.Fatalf("footer %q", hints)
 	}
-	if _, ok := app.r.Operations[app.r.CanonicalKey(promptNoun+".context")]; !ok {
+	if _, ok := app.r.Operations.Find(ochazuke.Key(app.r.CanonicalKey(promptNoun + ".context"))); !ok {
 		t.Fatal("no turn-prompt.context verb")
 	}
 	if _, err := app.r.Execute(ochazuke.Request{Verb: "pick", Noun: contextNoun, Args: ochazuke.Arguments{"into": "prompt"}}); err != nil || app.r.TopModal() != contextPicker {

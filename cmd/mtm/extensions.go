@@ -292,8 +292,8 @@ func extMountable(noun string, v ocli.CatalogVerb, fallback bool) bool {
 var frameworkVerbs = sync.OnceValue(func() map[string]bool {
 	r := ochazuke.NewRuntime()
 	ochazuke.NewModel(r)
-	keys := make(map[string]bool, 2*len(r.Operations))
-	for key := range r.Operations {
+	keys := make(map[string]bool, 2*r.Operations.Len())
+	for key := range r.Operations.Entries() {
 		keys[key] = true
 		// An older catalog names the framework's nouns by their short
 		// names (outline.expand, before ochazuke's namespace).

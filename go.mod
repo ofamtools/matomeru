@@ -7,8 +7,8 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
-	ofam.dev/monogatari v0.4.1
-	ofam.dev/ochazuke v0.101.0
+	ofam.dev/monogatari v0.6.0
+	ofam.dev/ochazuke v0.102.0
 )
 
 require (

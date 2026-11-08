@@ -66,7 +66,7 @@ func (a *App) defineAgentDeclarations() {
 			op.Agent = row.Right
 		}
 		op.Destructive = op.Destructive || row.Destructive
-		a.r.Operations[op.Key()] = op
+		a.r.Operations.Set(op)
 	}
 
 	a.bindCatalogActors()
@@ -76,9 +76,9 @@ func (a *App) defineAgentDeclarations() {
 // Map it at that boundary, including standard verbs, undo and mounted proxies;
 // the pane stays bound while its current lane is looked up for every request.
 func (a *App) bindCatalogActors() {
-	for key, op := range a.r.Operations {
-		if handler := op.App; handler != nil {
-			op.App = func(c ochazuke.Ctx) ochazuke.Result {
+	for _, op := range a.r.Operations.Entries() {
+		if handler := op.AppHandler; handler != nil {
+			op.AppHandler = func(c ochazuke.Ctx) ochazuke.Result {
 				if err := a.useRequestActor(c.Actor()); err != nil {
 					return ochazuke.Failed(err)
 				}
@@ -93,7 +93,7 @@ func (a *App) bindCatalogActors() {
 				return handler(r, c, args)
 			}
 		}
-		a.r.Operations[key] = op
+		a.r.Operations.Set(op)
 	}
 }
 

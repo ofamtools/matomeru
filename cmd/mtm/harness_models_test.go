@@ -51,7 +51,7 @@ func TestModelSourcesFollowHarness(t *testing.T) {
 	a, _ := harnessApp(t, modelHarnesses)
 	sh := a.shell(strings.NewReader(""), io.Discard, io.Discard)
 	for _, key := range []string{"agent.launch", "agent.start", "project.launch", "task.launch", "schedule.add", "schedule.edit", "schedule.create", "saved.create"} {
-		op := a.r.Operations[a.r.CanonicalKey(key)]
+		op := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(key)))
 		p := op.Parameters["model"]
 		if p.Source != "harness.models" || !reflect.DeepEqual(p.SourceArgs, map[string]string{"harness": "harness"}) || !p.Free {
 			t.Fatalf("%s model: %+v", key, p)

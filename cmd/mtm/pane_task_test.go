@@ -69,7 +69,7 @@ func TestPaneTaskAssociateBothWays(t *testing.T) {
 		t.Fatalf("unlisted pane: %+v", o)
 	}
 	for _, key := range []string{"task.associate", "project.associate"} {
-		if prm, ok := a.r.Operations[a.r.CanonicalKey(key)].Parameters["pane"]; !ok || prm.Noun != "pane" {
+		if prm, ok := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(key))).Parameters["pane"]; !ok || prm.Noun != "pane" {
 			t.Fatalf("%s --pane: %+v %v", key, prm, ok)
 		}
 	}

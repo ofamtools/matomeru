@@ -411,7 +411,7 @@ func (a *App) openScheduleForm(name, title string) error {
 	if a.r.Instances[scheduleFormID] != nil {
 		return errors.New("a schedule form is already open")
 	}
-	op := a.r.Operations[a.r.CanonicalKey(scheduleNoun+".edit")]
+	op := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(scheduleNoun + ".edit")))
 	var fields []ochazuke.RecordField
 	for _, f := range scheduleFields {
 		p, ok := op.Parameters[f]

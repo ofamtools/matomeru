@@ -273,7 +273,7 @@ func TestContextItemAssociateBothWays(t *testing.T) {
 	// Both reverse verbs declare the noun-typed parameter; pane does not
 	// (a context item belongs to a task or a project).
 	for key, want := range map[string]bool{"task.associate": true, "project.associate": true, "pane.associate": false} {
-		p, ok := a.r.Operations[a.r.CanonicalKey(key)].Parameters[contextNoun]
+		p, ok := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(key))).Parameters[contextNoun]
 		if ok != want || ok && p.Noun != contextNoun {
 			t.Fatalf("%s --context-item: %+v %v", key, p, ok)
 		}

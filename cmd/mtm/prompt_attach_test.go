@@ -301,7 +301,7 @@ func TestPromptPasteKeysAndVerbs(t *testing.T) {
 		t.Fatalf("footer %q", hints)
 	}
 	for _, verb := range []string{"paste", "detach"} {
-		if _, ok := app.r.Operations[app.r.CanonicalKey(promptNoun+"."+verb)]; !ok {
+		if _, ok := app.r.Operations.Find(ochazuke.Key(app.r.CanonicalKey(promptNoun + "." + verb))); !ok {
 			t.Errorf("no %s.%s verb", promptNoun, verb)
 		}
 	}

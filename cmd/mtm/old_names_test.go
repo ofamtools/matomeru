@@ -24,8 +24,8 @@ func TestRenamedVerbsKeepTheirOldNames(t *testing.T) {
 		if !ok || alias.Action != canonical || !alias.Deprecated() {
 			t.Errorf("%s: %+v %v, want a deprecated alias of %s", old, alias, ok, canonical)
 		}
-		if op, ok := a.r.Operation(old); !ok || op.Key() != canonical {
-			t.Errorf("%s resolves to %s", old, op.Key())
+		if op, ok := a.r.Operation(old); !ok || op.Key.Short() != canonical {
+			t.Errorf("%s resolves to %s", old, op.Key.Short())
 		}
 	}
 	if q := a.r.CanonicalRequest(ochazuke.Request{Noun: "dirs", Verb: "base.add"}); q.Key() != "dirs.add-base" || q.Via != "dirs.base.add" {

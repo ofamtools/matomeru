@@ -199,7 +199,7 @@ func (a *App) setSideChoices() {
 		names = append(names, row.Name)
 	}
 	for _, key := range []string{"pane.side", "terminal.side", "side.show", "side.restart"} {
-		op, ok := a.r.Operations[a.r.CanonicalKey(key)]
+		op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(key)))
 		if !ok {
 			continue
 		}
@@ -213,7 +213,7 @@ func (a *App) setSideChoices() {
 			p.Enum = append(p.Enum, "list")
 		}
 		op.Parameters[param] = p
-		a.r.Operations[a.r.CanonicalKey(key)] = op
+		a.r.Operations.Set(op)
 	}
 }
 

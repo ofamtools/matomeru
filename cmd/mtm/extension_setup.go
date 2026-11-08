@@ -292,9 +292,9 @@ func (a *App) defineExtensionSetup() {
 	a.parameters("extension.setup-undo", map[string]ochazuke.Parameter{"name": name})
 	for _, verb := range []string{"setup", "setup-undo"} {
 		key := a.r.CanonicalKey("extension." + verb)
-		op := a.r.Operations[key]
+		op := a.r.Operations.At(ochazuke.Key(key))
 		op.ConfirmFor = a.setupConfirm(verb == "setup-undo")
-		a.r.Operations[key] = op
+		a.r.Operations.Set(op)
 	}
 	a.r.DefineGuard("ext-needs-setup", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		c, ok := extRow(r.Instances[ev.Focus])

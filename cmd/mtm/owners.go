@@ -48,12 +48,12 @@ func (a *App) defineOwners() {
 		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	}
 	for _, noun := range []string{"review"} {
-		op := a.r.Operations[a.r.CanonicalKey(noun+".list")]
+		op := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(noun + ".list")))
 		if op.Parameters == nil {
 			op.Parameters = map[string]ochazuke.Parameter{}
 		}
 		op.Parameters["all"] = ochazuke.Parameter{Type: "boolean"}
-		a.r.Operations[a.r.CanonicalKey(noun+".list")] = op
+		a.r.Operations.Set(op)
 	}
 	a.ownedBy("session", paneListID)
 }
@@ -63,13 +63,13 @@ func (a *App) defineOwners() {
 // act through an association (a live pane's leader keys). A row resolve
 // cannot read is left to the standard edit, so an explicit id still wins.
 func (a *App) editSubject(noun string, resolve func(*ochazuke.Instance) (id, label string, data any, err error)) {
-	op, ok := a.r.Operations[noun+".edit"]
+	op, ok := a.r.Operations.Find(ochazuke.Key(noun + ".edit"))
 	if !ok {
 		return
 	}
-	edit := op.App
+	edit := op.AppHandler
 	op.ByAssociation = true
-	op.App = func(ctx ochazuke.Ctx) ochazuke.Result {
+	op.AppHandler = func(ctx ochazuke.Ctx) ochazuke.Result {
 		id, label, data, err := resolve(ctx.Instance)
 		if err != nil {
 			return edit(ctx)
@@ -79,7 +79,7 @@ func (a *App) editSubject(noun string, resolve func(*ochazuke.Instance) (id, lab
 		ctx.Instance = &row
 		return edit(ctx)
 	}
-	a.r.Operations[op.Key()] = op
+	a.r.Operations.Set(op)
 }
 
 func (a *App) paneOwner(p pane) work.Assignment {

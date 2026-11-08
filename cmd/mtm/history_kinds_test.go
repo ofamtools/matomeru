@@ -29,7 +29,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		"store-table.all", "store-table.show", "store.tables", "task.get", "task.list", "task.watch", "turn-line.refresh-turns", "turn-separator.refresh-turns", "turn-step.refresh-turns", "turn.refresh-turns", "vim.get", "vim.list", "vim.watch",
 	}
 	var got []string
-	for key, op := range app.r.Operations {
+	for key, op := range app.r.Operations.Entries() {
 		if op.Kind != ochazuke.KindApplication || op.Builtin {
 			continue
 		}
@@ -42,7 +42,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		t.Fatalf("fetch verbs\n got %v\nwant %v", got, want)
 	}
 	for _, key := range []string{"agent.launch", "agent.start", "agent.choose", "side.show", "side.restart", "reminder.notify-due"} {
-		op, ok := app.r.Operations[key]
+		op, ok := app.r.Operations.Find(ochazuke.Key(key))
 		if !ok || op.HistoryKindOf() != ochazuke.HistoryChange {
 			t.Errorf("%s must remain an app change, got %+v", key, op)
 		}

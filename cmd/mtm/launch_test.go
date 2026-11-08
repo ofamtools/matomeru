@@ -240,7 +240,7 @@ const settleLimit = 10 * time.Second
 // ticker shows), not a component's own read.
 func jobRunning(a *App) bool {
 	for _, j := range a.r.Jobs() {
-		if j.State == ochazuke.JobRunning && a.r.Operations[j.Verb].Kind == ochazuke.KindApplication {
+		if j.State == ochazuke.JobRunning && a.r.Operations.At(ochazuke.Key(j.Verb)).Kind == ochazuke.KindApplication {
 			return true
 		}
 	}
@@ -419,16 +419,16 @@ func TestAgentLaunchParameters(t *testing.T) {
 	app := open(t)
 	f := &fakeDaemon{}
 	app.launcher = f
-	launch := app.r.Operations["agent.launch"]
+	launch := app.r.Operations.At("agent.launch")
 	if p := launch.Parameters["project"]; p.Required || p.Source != "projects.all" || launch.Parameters["model"].Source != "harness.models" || len(launch.Parameters["harness"].Enum) != 3 {
 		t.Fatalf("agent.launch parameters = %+v", launch.Parameters)
 	}
 	for _, key := range []string{"project.launch", "task.launch", "agent.launch"} {
-		if c := app.r.Operations[key].Confirm; c != "" {
+		if c := app.r.Operations.At(ochazuke.Key(key)).Confirm; c != "" {
 			t.Fatalf("%s confirms itself (%q); agent.start holds the confirm", key, c)
 		}
 	}
-	if got := app.r.Operations["agent.start"].Confirm; got != "" {
+	if got := app.r.Operations.At("agent.start").Confirm; got != "" {
 		t.Fatalf("agent.start confirm = %q; a launch does not ask", got)
 	}
 	choices, err := app.r.Choices(app.r.Context(), launch.Parameters["project"])

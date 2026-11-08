@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ofam.dev/ochazuke"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -229,5 +230,5 @@ func TestExtensionsPageEmpty(t *testing.T) {
 
 func opQuiet(t *testing.T, key string) bool {
 	t.Helper()
-	return open(t).r.Operations[key].Quiet
+	return open(t).r.Operations.At(ochazuke.Key(key)).Quiet
 }

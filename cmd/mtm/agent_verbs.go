@@ -77,7 +77,7 @@ func (a *App) defineTaskEvidence() {
 	}
 	op.Parameters["expected_version"] = ochazuke.Parameter{Type: "integer", Description: "Reject a stale task version; 0 skips the check"}
 	op.Parameters["require-summary"] = ochazuke.Parameter{Type: "boolean", Description: "Require a summary when setting a task done (task.status preset)"}
-	op.App = func(c ochazuke.Ctx) ochazuke.Result {
+	op.AppHandler = func(c ochazuke.Ctx) ochazuke.Result {
 		args := maps.Clone(c.Args)
 		if args == nil {
 			args = ochazuke.Arguments{}
@@ -110,11 +110,11 @@ func (a *App) defineTaskEvidence() {
 		args["id"] = id
 		c.Args = args
 		// Evidence is saved by patchTask only after the checked task write succeeds.
-		return set.App(c)
+		return set.AppHandler(c)
 	}
 	// Replacing just the app handler preserves standard identity and aliases.
 	// Re-registering a standard operation would regenerate its checks unnecessarily.
-	a.r.Operations[op.Key()] = op
+	a.r.Operations.Set(op)
 }
 
 // saveTaskEvidence is shared by all task.set spellings, including done/status.

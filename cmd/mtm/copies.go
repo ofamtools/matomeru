@@ -461,13 +461,13 @@ func (a *App) readCopiesNow(noun string, check func(ochazuke.Thing) error) {
 		}
 		return t, nil
 	}
-	if op, ok := a.r.Operations[a.r.CanonicalKey(noun+".refresh")]; ok && op.App != nil {
-		refresh := op.App
-		op.App = func(c ochazuke.Ctx) ochazuke.Result {
+	if op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(noun + ".refresh"))); ok && op.AppHandler != nil {
+		refresh := op.AppHandler
+		op.AppHandler = func(c ochazuke.Ctx) ochazuke.Result {
 			a.syncCopies(c, cn)
 			return refresh(c)
 		}
-		a.r.Operations[a.r.CanonicalKey(noun+".refresh")] = op
+		a.r.Operations.Set(op)
 	}
 }
 

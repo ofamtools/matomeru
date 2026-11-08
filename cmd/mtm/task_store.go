@@ -83,12 +83,12 @@ func taskArchiveProp() ochazuke.PropSpec {
 // handlers (including archive/restore, validation and undo), adapting only
 // their record subject; the interaction context stays on the outline row.
 func (a *App) defineTaskSubjects() {
-	for key, op := range a.r.Operations {
-		if op.Noun != "task" || op.Standard == "" || !op.Parameters["id"].Focus {
+	for _, op := range a.r.Operations.Entries() {
+		if op.Noun() != "task" || op.Standard == "" || !op.Parameters["id"].Focus {
 			continue
 		}
-		run := op.App
-		op.App = func(c ochazuke.Ctx) ochazuke.Result {
+		run := op.AppHandler
+		op.AppHandler = func(c ochazuke.Ctx) ochazuke.Result {
 			if c.Instance == nil || c.Instance.Noun != outlineTaskNoun {
 				return run(c)
 			}
@@ -100,7 +100,7 @@ func (a *App) defineTaskSubjects() {
 				return run(one)
 			})
 		}
-		a.r.Operations[key] = op
+		a.r.Operations.Set(op)
 	}
 }
 

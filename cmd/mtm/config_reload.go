@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"ofam.dev/matomeru/internal/harness"
+	"ofam.dev/ochazuke"
 )
 
 // mtm's own configuration files join ochazuke's config.reload (`mtm config
@@ -47,7 +48,7 @@ func (a *App) reloadHarnesses() []string {
 func (a *App) setHarnessChoices() {
 	names := a.harnesses.Names()
 	for _, key := range harnessOps {
-		op, ok := a.r.Operations[a.r.CanonicalKey(key)]
+		op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(key)))
 		if !ok {
 			continue
 		}
@@ -57,7 +58,7 @@ func (a *App) setHarnessChoices() {
 		}
 		p.Enum = slices.Clone(names)
 		op.Parameters["harness"] = p
-		a.r.Operations[a.r.CanonicalKey(key)] = op
+		a.r.Operations.Set(op)
 	}
 }
 

@@ -708,7 +708,7 @@ func (a *App) leaderKeys(ochazuke.Ctx) ochazuke.Result {
 				text = b.Hint
 			}
 			if text == "" {
-				text = a.r.Operations[a.r.CanonicalKey(b.Request.Key())].Description
+				text = a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(b.Request.Key()))).Description
 			}
 			add(key, text)
 		}

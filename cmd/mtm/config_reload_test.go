@@ -37,9 +37,9 @@ func TestAgentLaunchKeepsAppNamespace(t *testing.T) {
 		for _, verb := range []string{"launch", "start", "choose"} {
 			key := "agent." + verb
 			canonical := app.r.CanonicalKey(key)
-			op, ok := app.r.Operations[canonical]
-			if !ok || canonical != key || op.Noun != "agent" || op.Builtin {
-				t.Fatalf("%s canonical=%q noun=%q builtin=%v harness=%v", key, canonical, op.Noun, op.Builtin, op.Parameters["harness"].Enum)
+			op, ok := app.r.Operations.Find(ochazuke.Key(canonical))
+			if !ok || canonical != key || op.Noun() != "agent" || op.Builtin {
+				t.Fatalf("%s canonical=%q noun=%q builtin=%v harness=%v", key, canonical, op.Noun(), op.Builtin, op.Parameters["harness"].Enum)
 			}
 		}
 		var rights []ochazuke.AgentRight
@@ -71,7 +71,7 @@ func TestConfigReloadReadsTheHarnessFileAgain(t *testing.T) {
 		t.Fatalf("goose not loaded: %v", app.harnesses.Names())
 	}
 	for _, key := range harnessOps {
-		if got := app.r.Operations[key].Parameters["harness"].Enum; !slices.Contains(got, "goose") {
+		if got := app.r.Operations.At(ochazuke.Key(key)).Parameters["harness"].Enum; !slices.Contains(got, "goose") {
 			t.Fatalf("%s harness enum %v", key, got)
 		}
 	}
@@ -83,7 +83,7 @@ func TestConfigReloadReadsTheHarnessFileAgain(t *testing.T) {
 	if _, ok := app.harnesses.Get("goose"); !ok {
 		t.Fatal("a bad file dropped the registry")
 	}
-	if got := app.r.Operations["agent.launch"].Parameters["harness"].Enum; !slices.Contains(got, "goose") || slices.Contains(got, "x") {
+	if got := app.r.Operations.At("agent.launch").Parameters["harness"].Enum; !slices.Contains(got, "goose") || slices.Contains(got, "x") {
 		t.Fatalf("enum after a bad file %v", got)
 	}
 }

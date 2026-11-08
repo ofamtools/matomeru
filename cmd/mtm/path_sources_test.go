@@ -314,7 +314,7 @@ func TestDirectoryFieldsArePathParameters(t *testing.T) {
 		scheduleNoun + ".edit":   "dir",
 		scheduleNoun + ".add":    "dir",
 	} {
-		p := a.r.Operations[a.r.CanonicalKey(key)].Parameters[name]
+		p := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(key))).Parameters[name]
 		if p.Type != ochazuke.PathParameterType || p.Path != ochazuke.PathDir {
 			t.Errorf("%s %s: %+v", key, name, p)
 		}
@@ -617,7 +617,7 @@ func TestAddBaseDeclaresParentsStart(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	knownRepos(t, a)
-	p := a.r.Operations[a.r.CanonicalKey("dirs.add-base")].Parameters["path"]
+	p := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey("dirs.add-base"))).Parameters["path"]
 	if !p.Required || p.Start != pathSourceParents || p.Path != ochazuke.PathDir {
 		t.Fatalf("dirs.add-base path: %+v", p)
 	}

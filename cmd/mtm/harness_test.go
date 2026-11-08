@@ -152,7 +152,7 @@ func TestAHarnessFileAddsAHarnessAndChangesACommand(t *testing.T) {
 	  {"name": "omp", "command": ["omp-dev", "--no-extensions"]},
 	  {"name": "aider", "command": ["aider"], "prompt": "arg"}
 	]`)
-	if got := app.r.Operations["agent.launch"].Parameters["harness"].Enum; strings.Join(got, " ") != "claude omp codex aider" {
+	if got := app.r.Operations.At("agent.launch").Parameters["harness"].Enum; strings.Join(got, " ") != "claude omp codex aider" {
 		t.Fatalf("harness enum = %v", got)
 	}
 	got := launchCLI(t, app, f, "agent", "launch", "--target", "t1", "--harness", "omp", "--yes")

@@ -105,7 +105,7 @@ func TestExtensionCLIChangesShowWhenAPageOpens(t *testing.T) {
 	}
 }
 
-func hasOp(a *App, key string) bool { _, ok := a.r.Operations[key]; return ok }
+func hasOp(a *App, key string) bool { _, ok := a.r.Operations.Find(ochazuke.Key(key)); return ok }
 
 func TestExtensionUserActionsSurviveRemount(t *testing.T) {
 	t.Parallel()

@@ -54,12 +54,12 @@ func (a *App) defineRelations() {
 	for _, rel := range a.relations() {
 		for _, noun := range rel.on {
 			key := a.r.CanonicalKey(noun + ".associate")
-			op := a.r.Operations[key]
+			op := a.r.Operations.At(ochazuke.Key(key))
 			if op.Parameters == nil {
 				op.Parameters = map[string]ochazuke.Parameter{}
 			}
 			op.Parameters[rel.noun] = rel.param
-			a.r.Operations[key] = op
+			a.r.Operations.Set(op)
 		}
 	}
 }

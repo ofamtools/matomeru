@@ -126,7 +126,7 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 		t.Fatalf("i did not edit the block in place: editing %v editor %+v", a.noteDoc.Editing(), a.editor)
 	}
 	press(t, a, "esc")
-	if _, ok := a.r.Operations[a.r.CanonicalKey("note.edit")]; !ok {
+	if _, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey("note.edit"))); !ok {
 		t.Fatal("note.edit is gone")
 	}
 	plain, err := a.work.AddNote("matomeru", "", "no tasks here")

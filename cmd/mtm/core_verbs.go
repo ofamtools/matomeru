@@ -1,6 +1,8 @@
 package main
 
-import "slices"
+import (
+	"ofam.dev/ochazuke"
+)
 
 // coreVerbAs are the core verbs (DESIGN-001: every thing noun has create,
 // get, set, delete, archive, list and edit) whose work is a named verb mtm
@@ -23,20 +25,17 @@ var coreVerbAs = []struct{ noun, verb, from string }{
 // replacing the generated core verb its store cannot run.
 func (a *App) defineCoreVerbs() {
 	for _, row := range coreVerbAs {
-		src, ok := a.r.Operations[a.r.CanonicalKey(row.from)]
+		src, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(row.from)))
 		if !ok {
 			panic("core verb " + row.noun + "." + row.verb + ": no " + row.from)
 		}
 		op := src
-		op.Noun, op.Verb, op.Standard, op.Unavailable = row.noun, row.verb, "", ""
+		op.Key, op.Standard, op.Unavailable = ochazuke.KeyOf(row.noun, row.verb), "", ""
 		op.Description = src.Description + " (as " + row.from + ")"
-		if op.App != nil {
+		if op.AppHandler != nil {
 			op.Run = nil
 		}
 		a.r.Register(op)
-		if n := a.r.Noun(row.noun); n != nil && !slices.Contains(n.Verbs, row.verb) {
-			a.r.Define(row.noun).Verbs(row.verb)
-		}
 	}
 }
 

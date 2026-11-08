@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"ofam.dev/ochazuke"
 	"strings"
 )
 
@@ -66,9 +67,9 @@ func (a *App) unmountExtension(x *extension) error {
 	a.unmountNounNames(x)
 	for _, local := range x.nouns {
 		delete(a.r.Nouns, local)
-		for key := range a.r.Operations {
+		for key := range a.r.Operations.Entries() {
 			if strings.HasPrefix(key, local+".") {
-				delete(a.r.Operations, key)
+				a.r.Operations.Delete(ochazuke.Key(key))
 			}
 		}
 		delete(a.owners, local)

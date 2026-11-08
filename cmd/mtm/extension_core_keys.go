@@ -27,7 +27,7 @@ type coreKeyVerbs struct{ Create, Delete bool }
 // coreKeysOf reads which of create and delete the mounted noun can run.
 func (a *App) coreKeysOf(local string) coreKeyVerbs {
 	has := func(verb string) bool {
-		op, ok := a.r.Operations[a.r.CanonicalKey(local+"."+verb)]
+		op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(local + "." + verb)))
 		return ok && op.Unavailable == ""
 	}
 	return coreKeyVerbs{Create: has("create"), Delete: has("delete")}
@@ -53,12 +53,12 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 			continue
 		}
 		key := a.r.CanonicalKey(local + ".delete")
-		if len(requiredOf(a.r.Operations[key])) > 0 {
+		if len(requiredOf(a.r.Operations.At(ochazuke.Key(key)))) > 0 {
 			continue
 		}
-		if op := a.r.Operations[key]; op.Confirm == "" {
+		if op := a.r.Operations.At(ochazuke.Key(key)); op.Confirm == "" {
 			op.Confirm = "Delete {{label}}?"
-			a.r.Operations[key] = op
+			a.r.Operations.Set(op)
 		}
 		row := ochazuke.Do(local + ".delete")
 		for _, original := range x.doc.Bindings {

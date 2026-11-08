@@ -45,7 +45,7 @@ func TestExtensionVerbsKeepTheCatalogHistory(t *testing.T) {
 		"fake.item.rename":     ochazuke.HistoryChange,
 		"fake.history.capture": ochazuke.HistoryChange,
 	} {
-		op, ok := a.r.Operations[key]
+		op, ok := a.r.Operations.Find(ochazuke.Key(key))
 		if !ok {
 			t.Errorf("%s not mounted", key)
 			continue

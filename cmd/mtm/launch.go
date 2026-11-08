@@ -310,14 +310,14 @@ func (a *App) harnessFor(args ochazuke.Arguments, p work.Project) (harness.Harne
 // application's own edit keeps the field parameter ochazuke adopts for
 // edit {field} (the one-field form of r and m).
 func (a *App) parameters(key string, params map[string]ochazuke.Parameter) {
-	op := a.r.Operations[a.r.CanonicalKey(key)]
+	op := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(key)))
 	merged := maps.Clone(op.Parameters)
 	if merged == nil {
 		merged = map[string]ochazuke.Parameter{}
 	}
 	maps.Copy(merged, params)
 	op.Parameters = merged
-	a.r.Operations[a.r.CanonicalKey(key)] = op
+	a.r.Operations.Set(op)
 }
 
 func (a *App) listProjects(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(a.projectChoices()) }

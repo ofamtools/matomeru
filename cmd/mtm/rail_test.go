@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ofam.dev/ochazuke"
 	"reflect"
 	"strings"
 	"testing"
@@ -66,7 +67,7 @@ func TestTheTickerSkipsQuietVerbs(t *testing.T) {
 		t.Fatal("no panes.refresh job to hide")
 	}
 	for _, verb := range []string{"panes.refresh", "daemon.ensure"} {
-		if !app.r.Operations[verb].Quiet {
+		if !app.r.Operations.At(ochazuke.Key(verb)).Quiet {
 			t.Fatalf("%s is not marked quiet", verb)
 		}
 	}
