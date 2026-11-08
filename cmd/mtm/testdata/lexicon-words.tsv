@@ -270,6 +270,7 @@ extra	prop	seed
 extract	action	seed	
 failures	prop	seed	
 family	prop	seed	
+fan	action	seed	
 fast	prop	seed	
 fetch	action	seed	
 fetched	prop	seed	
@@ -365,6 +366,7 @@ identity_status	prop	seed
 ignore	action	seed	
 ignored	filter	seed	
 import	action	seed	
+import-state	action	seed	
 in	action	seed	
 increase	action	seed	
 indent	action	seed	
@@ -417,6 +419,7 @@ link-copy	action	seed
 link-open	action	seed	
 link-yank	action	lx4	
 list	action+noun	seed	
+list-panes	action	seed	
 lists	prop	seed	
 live	action	seed	
 live_state	prop	seed	
@@ -556,6 +559,7 @@ path	action+prop	seed
 pattern	prop	seed	
 pause	action	seed	
 paused	filter	seed	
+peek-prompt	action	seed	
 peer-rows	prop	seed	
 peers	prop+relation	seed	
 pending	prop	seed	
@@ -669,6 +673,7 @@ reset-columns	action	seed
 resize-column	action	seed	
 resolve	action	seed	
 resolved	prop	seed	
+respond	action	seed	
 restart	action	seed	
 restore	action	seed	
 restored	prop	seed	
@@ -702,6 +707,7 @@ savePath	prop	seed
 save_path	prop	seed	
 saved	noun	seed	
 say	action	seed	
+scan	action	seed	
 schedule	noun	seed	
 schema	prop	seed	
 scope	noun+prop	seed	
@@ -720,7 +726,9 @@ segment	noun	seed
 select	action	seed	
 selection	noun	seed	
 send	action	seed	
+send-keys	action	seed	
 send-notes	action	seed	
+send-text	action	seed	
 send-to-inbox	action	seed	
 seq	prop	seed	
 serve	action	seed	
@@ -733,8 +741,10 @@ set-effort	action	seed
 set-fast	action	seed	
 set-interval	action	seed	
 set-match	action	seed	
+set-meta	action	seed	
 set-model	action	seed	
 set-permission-mode	action	seed	
+set-status	action	seed	
 setting	noun+prop	seed	
 setting-change	noun	seed	
 setting-item	noun	seed	

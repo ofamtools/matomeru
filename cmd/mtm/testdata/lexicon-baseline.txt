@@ -26,3 +26,4 @@ unclassified	page-group
 unclassified	pane-project
 unclassified	path-chooser
 unclassified	quick-note-text
+word-part	events

@@ -743,7 +743,6 @@
   {
    "path": "golang.org/x/term",
    "version": "v0.46.0",
-   "daemonOnly": true,
    "files": [
     {
      "name": "LICENSE",
@@ -922,12 +921,20 @@
       "MIT"
      ],
      "text": "26593953084bb7a5"
+    },
+    {
+     "name": "internal/agenthook/LICENSE-tuios",
+     "kind": "license",
+     "spdx": [
+      "MIT"
+     ],
+     "text": "ff521c71cdd95d36"
     }
    ]
   },
   {
    "path": "ofam.dev/mtmd",
-   "version": "v0.0.0-20261108072445-68960f1d3d91",
+   "version": "v0.1.0",
    "daemonOnly": true,
    "files": [
     {
@@ -1056,7 +1063,7 @@
   },
   {
    "path": "ofam.dev/ochazuke",
-   "version": "v0.105.1",
+   "version": "v0.106.0",
    "files": [
     {
      "name": "LICENSE",
@@ -1230,8 +1237,28 @@
  ],
  "unlinked": [
   {
-   "path": "github.com/dlclark/regexp2",
-   "version": "v1.11.0",
+   "path": "github.com/go-ole/go-ole",
+   "version": "v1.3.0",
+   "files": null
+  },
+  {
+   "path": "github.com/lufia/plan9stats",
+   "version": "v0.0.0-20260627054121-477a66015f15",
+   "files": null
+  },
+  {
+   "path": "github.com/power-devops/perfstat",
+   "version": "v0.0.0-20240221224432-82ca36839d55",
+   "files": null
+  },
+  {
+   "path": "github.com/tklauser/numcpus",
+   "version": "v0.12.0",
+   "files": null
+  },
+  {
+   "path": "github.com/yusufpapurcu/wmi",
+   "version": "v1.2.4",
    "files": null
   },
   {
