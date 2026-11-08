@@ -40,6 +40,8 @@ func TestMain(m *testing.M) {
 	// A minimal PATH: no test scans the owner's ~/bin for mtm-* extensions
 	// (mountExtensions stats every PATH entry on every App). It keeps the
 	// directories of the tools tests run; a test that needs another sets its own.
+	// codex is found before PATH is narrowed (TestCodexLaunchHooksAreTrusted)
+	codexBin, _ = exec.LookPath("codex")
 	os.Setenv("PATH", testPath())
 	code := m.Run()
 	os.RemoveAll(dir)
@@ -250,3 +252,6 @@ func testPath() string {
 	}
 	return strings.Join(dirs, string(os.PathListSeparator))
 }
+
+// codexBin is the installed codex, "" when none: found before the tests narrow PATH.
+var codexBin string

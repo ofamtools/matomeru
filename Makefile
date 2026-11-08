@@ -14,9 +14,12 @@ export GOWORK := off
 .PHONY: build install gate story-bin story-vet story-run story-test split-check
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/mtm ./cmd/mtm
+	go build -trimpath -ldflags "-s -w" -o bin/mtm-hook ./cmd/mtm-hook
 
+# mtm-hook goes beside mtm: a launch names it for hooks when it is there.
 install:
 	go install -trimpath -ldflags "$(LDFLAGS)" ./cmd/mtm
+	go install -trimpath -ldflags "-s -w" ./cmd/mtm-hook
 
 # One release gate, with elapsed seconds per step.
 gate:
