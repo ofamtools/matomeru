@@ -363,3 +363,4 @@ vim.go	App.vimAt	compare	"vim"	1
 ../../internal/notices/notices.go	Module.Licenses	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
 ../../internal/notices/notices.go	ParseRequires	compare	"require"	2	licence-file and go.mod parsing words, not mtm runtime names
 daemon_import.go	App.importOptions	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
+wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch

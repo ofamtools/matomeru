@@ -349,3 +349,34 @@ func TestWireVerbsOfAnAgentAreHeldToItsScope(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A value mtm spells differently from the daemon is mapped by the row's Wire
+// table, and every mapped value is one the parameter accepts.
+func TestWireParamValuesMapToTheDaemonSpelling(t *testing.T) {
+	t.Parallel()
+	for _, w := range wireVerbs {
+		for _, p := range w.Params {
+			for from, to := range p.Wire {
+				if len(p.Enum) > 0 && !slices.Contains(p.Enum, from) {
+					t.Errorf("%s %s: Wire maps %q, which is not in its enum %v", w.key(), p.Name, from, p.Enum)
+				}
+				if got := p.wireValue(from); got != to {
+					t.Errorf("%s %s: %q went to the daemon as %v, want %q", w.key(), p.Name, from, got, to)
+				}
+			}
+			if got := p.wireValue(42); got != 42 {
+				t.Errorf("%s %s: a non-string value changed: %v", w.key(), p.Name, got)
+			}
+		}
+	}
+	for _, w := range wireVerbs {
+		if w.key() != "pane.switch" {
+			continue
+		}
+		for _, p := range w.Params {
+			if p.Name == "relative" && (p.wireValue("previous") != "prev" || p.wireValue("next") != "next") {
+				t.Errorf("pane.switch relative: previous -> %v, next -> %v", p.wireValue("previous"), p.wireValue("next"))
+			}
+		}
+	}
+}

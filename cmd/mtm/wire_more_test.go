@@ -65,6 +65,14 @@ func TestWindowAndSessionVerbsRunAgainstASelfDaemon(t *testing.T) {
 		t.Errorf("pane.capture ansi: %v", c)
 	}
 
+	// Relative moves: mtm's previous reaches the daemon as its prev.
+	for i, rel := range []string{"next", "previous"} {
+		r := payload(rpc(t, make(), runVerb(i+1, "pane.switch", with(map[string]any{"relative": rel})))[0])
+		if r["status"] != "done" {
+			t.Errorf("pane.switch --relative %s: %v", rel, r)
+		}
+	}
+
 	// No agent runs there: queue-prompt reaches the daemon and is refused by it.
 	q := payload(rpc(t, make(), runVerb(1, "agent.enqueue", with(map[string]any{"window": win, "text": "next"})))[0])
 	if q["status"] != "done" && !strings.Contains(toJSON(q), "queue-prompt:") {

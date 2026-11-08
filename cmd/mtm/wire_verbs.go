@@ -37,6 +37,9 @@ type wireParam struct {
 	Name, Type, Desc, Default string
 	Required                  bool
 	Enum                      []string
+	// Wire maps a value to the daemon's spelling of it, where mtm's word
+	// differs (previous is the daemon's prev). Values not listed pass as given.
+	Wire map[string]string
 }
 
 // wireVerb is one row of the table.
@@ -177,7 +180,7 @@ var wireVerbs = []wireVerb{
 		Waits: []string{"timeout"}},
 	{Noun: "pane", Verb: "switch", Wire: "focus-window", Desc: "Move the daemon's focus to a window (workspace switched too), or to the next or previous window or the neighbour in a direction; give exactly one of window, relative, direction", Right: ochazuke.AgentAllow,
 		Params: []wireParam{sessionParam, windowParam("The window id or name to focus"),
-			{Name: "relative", Type: "string", Desc: "next or previous window on the workspace", Enum: []string{"next", "previous"}},
+			{Name: "relative", Type: "string", Desc: "next or previous window on the workspace", Enum: []string{"next", "previous"}, Wire: map[string]string{"previous": "prev"}},
 			{Name: "direction", Type: "string", Desc: "The neighbouring pane in a direction; needs an attached client", Enum: []string{"left", "right", "up", "down"}}}},
 	{Noun: "pane", Verb: "close", Wire: "close-window", Desc: "Close a window in the daemon by session and window id. Like pane.kill, which closes a pane of the panes page, it needs the owner's approval from an agent", Right: ochazuke.AgentConfirm,
 		Params: []wireParam{sessionParam, windowParam("The window id or name; omit for the focused one")}},
@@ -223,6 +226,16 @@ func (w wireVerb) timeout(args ochazuke.Arguments) time.Duration {
 		total += time.Duration(ms) * time.Millisecond
 	}
 	return total + wireMargin
+}
+
+// wireValue is v as the daemon spells it.
+func (p wireParam) wireValue(v any) any {
+	if s, ok := v.(string); ok {
+		if w, ok := p.Wire[s]; ok {
+			return w
+		}
+	}
+	return v
 }
 
 func (w wireVerb) key() string { return w.Noun + "." + w.Verb }
@@ -304,7 +317,7 @@ func (a *App) wireHandler(w wireVerb) func(ochazuke.Ctx) ochazuke.Result {
 		params := map[string]any{}
 		for _, p := range w.Params {
 			if v, ok := ctx.Args[p.Name]; ok && v != nil {
-				params[p.Name] = v
+				params[p.Name] = p.wireValue(v)
 			}
 		}
 		for _, name := range w.Self {
