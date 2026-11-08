@@ -362,3 +362,6 @@ vim.go	App.vimAt	compare	"vim"	1
 ../../internal/notices/notices.go	ParseRequires	compare	"require"	2	licence-file and go.mod parsing words, not mtm runtime names
 daemon_import.go	App.importOptions	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch
+pane_settings.go	App.settingFields	compare	"log"	1	the settings source kind (sourceLog), a word coincidence with the history-log parameter named log
+pane_settings.go	App.settingsRead	compare	"log"	1	the settings source kind (sourceLog), a word coincidence with the history-log parameter named log
+wire_verbs.go	var wireVerbs	table	"dry_run"	1	the daemon's parameter name in a row's AgentArgs (purge always dry-runs for an agent); data in the row, no branch

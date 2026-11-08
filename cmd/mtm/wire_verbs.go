@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -68,12 +69,25 @@ type wireVerb struct {
 	// window_id): the reply gains transcript_path, the file the pane's agent
 	// hook last named. The daemon joins the pane to it but does not say it.
 	Transcript bool
+	// NoTuios marks a verb with no counterpart in the tuios MCP server or CLI
+	// (the history-log verbs are mtm's own).
+	NoTuios bool
+	// AgentArgs are arguments an agent's call always carries, whatever it
+	// passed: a row's way of limiting an agent to the safe form of a verb
+	// (purge to dry_run). The owner's calls are not touched.
+	AgentArgs map[string]any
+	// Rows names the reply's list of rows, and Label the fields (first
+	// non-empty wins) that give each row a human label beside its id.
+	Rows  string
+	Label []string
 }
 
 // wireMargin is added to a call's blocking parameters.
 const wireMargin = 10 * time.Second
 
 var sessionParam = wireParam{Name: "session", Type: "string", Desc: "Session name. Omit for your own; an agent reaches its own session, its fan group and the sessions its fans started (agents.pane-scope)"}
+
+var logParam = wireParam{Name: "log", Type: "string", Desc: "The log's id, session/window, as history-log.list gives it", Required: true}
 
 func windowParam(desc string) wireParam {
 	return wireParam{Name: "window", Type: "string", Desc: desc}
@@ -196,6 +210,23 @@ var wireVerbs = []wireVerb{
 		Params: []wireParam{sessionParam, windowParam("The window id or name; omit for the focused one"),
 			{Name: "width", Type: "integer", Desc: "Columns", Required: true},
 			{Name: "height", Type: "integer", Desc: "Rows", Required: true}}},
+	{Noun: "history-log", Verb: "list", Wire: "list-history-logs", Desc: "List the cold scrollback logs of panes: the rows a pane let go of from memory, kept on disk. Each row has its log id (session/window), label (the pane's title, else the id), state (live while a pane owns it, orphaned once its pane is gone), rows, bytes, closed_at, days_left (until an orphan is deleted; absent when kept) and keep", Right: ochazuke.AgentAllow, Fetch: true, Untrusted: true, NoTuios: true,
+		Rows: "logs", Label: []string{"title", "log"},
+		Params: []wireParam{{Name: "state", Type: "string", Desc: "Which logs to list", Default: "all", Enum: []string{"all", "live", "orphaned"}}, {Name: "session", Type: "string", Desc: "Only the logs under this session name"}}},
+	{Noun: "history-log", Verb: "show", Wire: "show-history-log", Desc: "Describe one cold scrollback log: rows, size, first and next row ids, segments, state, days left, keep, why its pane went, its title and folder, and the runs of rows it lost", Right: ochazuke.AgentAllow, Fetch: true, Untrusted: true, NoTuios: true,
+		Params: []wireParam{logParam}},
+	{Noun: "history-log", Verb: "keep", Wire: "keep-history-log", Desc: "Keep an orphaned log: exempt it from the grace period that deletes it", Right: ochazuke.AgentAllow, NoTuios: true,
+		Params: []wireParam{logParam}},
+	{Noun: "history-log", Verb: "unkeep", Wire: "unkeep-history-log", Desc: "Put a kept orphaned log back under the grace period", Right: ochazuke.AgentAllow, NoTuios: true,
+		Params: []wireParam{logParam}},
+	{Noun: "history-log", Verb: "adopt", Wire: "adopt-history-log", Desc: "Give an orphaned log to a pane: its rows come before the pane's own history. Like pane.adopt-history, which names the pane first; the owner approves from an agent", Right: ochazuke.AgentConfirm, NoTuios: true,
+		Params: []wireParam{logParam, sessionParam, windowParam("The pane's window id; omit for the one that is focused")}},
+	{Noun: "pane", Verb: "adopt-history", Wire: "adopt-history", Desc: "Give an orphaned history log to this pane: its rows come before the pane's own history. Like history-log.adopt, which names the log first; the owner approves from an agent", Right: ochazuke.AgentConfirm, NoTuios: true,
+		Params: []wireParam{logParam, sessionParam, windowParam("The pane's window id; omit for the one that is focused")}},
+	{Noun: "history-log", Verb: "purge", Wire: "purge-history-logs", Desc: "Delete orphaned logs: one (log), those closed more than older_than_days ago, or every one not kept (all_orphaned); name exactly one. Kept and live logs are never deleted. dry_run lists what would go with a confirm token; the owner deletes by passing that token as confirm. An agent's call is always a dry run", Right: ochazuke.AgentAllow, NoTuios: true,
+		AgentArgs: map[string]any{"dry_run": true},
+		Params: []wireParam{{Name: "log", Type: "string", Desc: "One orphaned log's id"}, {Name: "older_than_days", Type: "integer", Desc: "Orphans closed more than this many days ago"}, {Name: "all_orphaned", Type: "boolean", Desc: "Every orphan not kept"},
+			{Name: "dry_run", Type: "boolean", Desc: "Only list what would be deleted, with the confirm token"}, {Name: "confirm", Type: "string", Desc: "The token a dry run printed"}}},
 	{Noun: "session", Verb: "new", Wire: "new-session", Desc: "Create a detached session with its first window; the answer carries the session name and window_id. A name the daemon already holds is refused", Right: ochazuke.AgentAllow,
 		Params: []wireParam{{Name: "name", Type: "string", Desc: "The new session's name; omit to have one generated"},
 			{Name: "width", Type: "integer", Desc: "Nominal columns", Default: "80"}, {Name: "height", Type: "integer", Desc: "Nominal rows", Default: "24"},
@@ -326,6 +357,9 @@ func (a *App) wireHandler(w wireVerb) func(ochazuke.Ctx) ochazuke.Result {
 				params[p.Name] = p.wireValue(v)
 			}
 		}
+		if a.work.Actor().IsAgent() {
+			maps.Copy(params, w.AgentArgs)
+		}
 		for _, name := range w.Self {
 			if _, ok := params[name]; !ok {
 				if pane := a.ownPane(); pane != "" {
@@ -361,8 +395,27 @@ func (a *App) wireHandler(w wireVerb) func(ochazuke.Ctx) ochazuke.Result {
 			if w.Transcript {
 				a.addTranscript(reply)
 			}
+			w.addLabels(reply)
 			return reply, nil
 		})
+	}
+}
+
+// addLabels gives each row of the reply's Rows a label: the first non-empty
+// of the Label fields.
+func (w wireVerb) addLabels(reply map[string]any) {
+	rows, _ := reply[w.Rows].([]any)
+	for _, r := range rows {
+		row, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, f := range w.Label {
+			if s, _ := row[f].(string); s != "" {
+				row["label"] = s
+				break
+			}
+		}
 	}
 }
 

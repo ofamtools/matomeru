@@ -72,7 +72,7 @@ func TestEveryTuiosMCPToolHasAGatewayVerb(t *testing.T) {
 		}
 	}
 	for _, w := range wireVerbs {
-		if !slices.Contains(verbs, w.key()) && !slices.Contains(slices.Collect(maps.Values(tuiosCLICommands)), w.key()) {
+		if !w.NoTuios && !slices.Contains(verbs, w.key()) && !slices.Contains(slices.Collect(maps.Values(tuiosCLICommands)), w.key()) {
 			t.Errorf("wire verb %s maps no tuios tool or CLI command", w.key())
 		}
 	}
