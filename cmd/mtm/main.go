@@ -367,6 +367,7 @@ type App struct {
 	// titleHead and titleDir are the title row before fitting; see fitTitle.
 	titleHead, titleDir string
 	daemon              *daemon.Client
+	localVerbs          map[string]bool             // verbs that start no daemon (daemon_runner.go)
 	cliWords            []string                    // the command words of this run (startsNoDaemon)
 	ensure              func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
 	launcher            harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
@@ -558,11 +559,7 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
 	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
-	if client.Server != "" {
-		// The runner (daemon.runner, MTM_DAEMON_RUNNER) is read when a start
-		// is needed, so settings.json and the environment apply to this run.
-		client.Start, client.Ready = a.startServer, a.serverReady
-	}
+	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()
 	w.SetAgentPolicy(a.agentPolicy) // what an agent may change: the agents.* settings (actor.go)

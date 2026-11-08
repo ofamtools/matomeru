@@ -353,28 +353,55 @@ type daemonExit int
 
 func (e daemonExit) Error() string { return fmt.Sprintf("daemon exited with status %d", int(e)) }
 
-// defineDaemon adds the daemon noun's verbs beside ensure. status, show-log,
-// stop and restart never start one themselves.
+// defineDaemon adds the daemon noun's verbs beside ensure. A verb declared
+// local (see localVerb) never starts a daemon itself: it asks about the
+// daemon, stops it, or is the daemon.
 func (a *App) defineDaemon(r *ochazuke.Runtime) {
 	n := r.Define("daemon").About("The TUIOS server mtm runs on: its state, its start and stop, its log")
-	n.Verb("start", a.ensureVerb, "Start mtm's TUIOS server when it is not running (same as ensure), then reload the pane list").Quiet()
-	n.Verb("status", a.daemonStatusVerb, "Whether the daemon runs: pid, its version beside this client's, runner, socket, binary and version skew. Never starts one").Fetch().Quiet()
-	n.Verb("show-log", a.daemonLogsVerb, "Tail the daemon log (lines, default 50). Never starts a daemon").Fetch().Quiet()
-	n.Verb("stop", a.daemonStopVerb, "Stop the daemon; its panes die. A daemon that is not running is left alone").Confirm("Stop the daemon? Its panes end.")
-	n.Verb("restart", a.daemonRestartVerb, "Stop the daemon, then start it again (it restores its saved state)").Confirm("Restart the daemon? Panes end and are restored from saved state.")
-	n.Verb("serve", a.daemonServeVerb, "Run the daemon in this process until it is stopped (CLI)")
+	// verb declares one verb of the noun; local says it needs no daemon
+	// running first, which the CLI's start-when-missing step reads.
+	verb := func(name string, local bool, h any, about string) *ochazuke.NounBuilder {
+		if local {
+			a.localVerbs["daemon."+name] = true
+		}
+		return n.Verb(name, h, about)
+	}
+	verb("start", false, a.ensureVerb, "Start mtm's TUIOS server when it is not running (same as ensure), then reload the pane list").Quiet()
+	verb("status", true, a.daemonStatusVerb, "Whether the daemon runs: pid, its version beside this client's, runner, socket, binary and version skew. Never starts one").Fetch().Quiet()
+	verb("show-log", true, a.daemonLogsVerb, "Tail the daemon log (lines, default 50). Never starts a daemon").Fetch().Quiet()
+	verb("stop", true, a.daemonStopVerb, "Stop the daemon; its panes die. A daemon that is not running is left alone").Confirm("Stop the daemon? Its panes end.")
+	verb("restart", true, a.daemonRestartVerb, "Stop the daemon, then start it again (it restores its saved state)").Confirm("Restart the daemon? Panes end and are restored from saved state.")
+	verb("serve", true, a.daemonServeVerb, "Run the daemon in this process until it is stopped (CLI)")
 	a.parameters("daemon.show-log", map[string]ochazuke.Parameter{"lines": {Type: "integer", Description: "How many trailing lines (default 50)"}})
 }
 
-// noDaemonStart lists the verbs (noun.verb) that never start a daemon: they
-// ask about it, stop it, or are the daemon. The CLI skips its start-when-
-// missing step before them. Data, not a branch: add a row for a new one.
-var noDaemonStart = map[string]bool{
-	"daemon.status": true, "daemon.show-log": true,
-	"daemon.stop": true, "daemon.restart": true, "daemon.serve": true,
+// startsNoDaemon is true when this run's command resolves to a verb declared
+// local. It resolves the typed words the way the shell does (an abbreviated
+// noun or verb included), so the answer is about the verb, not the spelling.
+func (a *App) startsNoDaemon() bool {
+	noun, rest, ok := a.r.NounWords(a.cliWords)
+	if !ok || len(rest) == 0 {
+		return false
+	}
+	if _, found := a.r.Operation(noun + "." + rest[0]); found {
+		return a.localVerbs[noun+"."+rest[0]]
+	}
+	var verbs []string
+	for _, op := range a.r.Operations.Entries() {
+		if op.Noun() == noun {
+			verbs = append(verbs, op.Name())
+		}
+	}
+	read := a.r.ReadNounWord(noun, rest[0], verbs)
+	return read.Kind == ochazuke.NounWordVerb && a.localVerbs[noun+"."+read.Value]
 }
 
-// startsNoDaemon is true when this run's command is one of noDaemonStart.
-func (a *App) startsNoDaemon() bool {
-	return len(a.cliWords) >= 2 && noDaemonStart[a.cliWords[0]+"."+a.cliWords[1]]
+// wireDaemonStart gives the client the runner-based start and the readiness
+// probe. The runner (daemon.runner, MTM_DAEMON_RUNNER) is read when a start
+// is needed, so settings.json and the environment apply to this run.
+func (a *App) wireDaemonStart(client *daemon.Client) {
+	a.localVerbs = map[string]bool{}
+	if client.Server != "" {
+		client.Start, client.Ready = a.startServer, a.serverReady
+	}
 }

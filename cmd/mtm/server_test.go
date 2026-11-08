@@ -204,3 +204,25 @@ func TestSmokeUsesATempDatabaseAndNoDaemon(t *testing.T) {
 		t.Fatalf("explicit -data smoke options = %+v", opts)
 	}
 }
+
+// A verb declared local starts no daemon, however it is spelled: the check
+// follows the resolved verb, so abbreviations count too.
+// serial: exercises daemon process environment and the package serverStart hook.
+func TestLocalDaemonVerbsStartNoDaemonByAnySpelling(t *testing.T) {
+	isolate(t)
+	data := filepath.Join(t.TempDir(), "mtm.db")
+	app, err := New(Options{Data: data, Server: MtmServer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	for words, want := range map[string]bool{
+		"daemon status": true, "daemon stat": true, "daemon sho": true, "daemon stop": true,
+		"daemon start": false, "binding list": false, "daemon": false,
+	} {
+		app.cliWords = strings.Fields(words)
+		if got := app.startsNoDaemon(); got != want {
+			t.Errorf("%q: startsNoDaemon = %v, want %v", words, got, want)
+		}
+	}
+}
