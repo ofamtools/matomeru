@@ -32,11 +32,14 @@ func TestPaneShowReportsResizedSize(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("MTM_DAEMON_RUNNER", runnerSelf)
-	t.Setenv("MTM_SERVER", "sizechk")
 	for _, k := range []string{"TUIOS_SOCKET", "TUIOS_SERVER", "TUIOS_PANE_ID", "TUIOS_PANE_TOKEN", "TUIOS_SESSION", "TUIOS_WINDOW_ID"} {
-		t.Setenv(k, "")
-		os.Unsetenv(k)
+		// Both names: the daemon exports MTM_ beside TUIOS_, and mtm reads MTM_ first.
+		for _, k := range []string{k, "MTM_" + strings.TrimPrefix(k, "TUIOS_")} {
+			t.Setenv(k, "")
+			os.Unsetenv(k)
+		}
 	}
+	t.Setenv("MTM_SERVER", "sizechk")
 	data := filepath.Join(root, "mtm.db")
 	if err := os.WriteFile(filepath.Join(root, "settings.json"), []byte(`{"daemon.pin-binary":false}`), 0o644); err != nil {
 		t.Fatal(err)

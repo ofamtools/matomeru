@@ -34,11 +34,14 @@ func TestSelfRunnerRacingStartersConvergeOnOneDaemon(t *testing.T) {
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("MTM_DAEMON_RUNNER", runnerSelf)
 	server := "selfrace"
-	t.Setenv("MTM_SERVER", server)
 	for _, k := range []string{"TUIOS_SOCKET", "TUIOS_SERVER"} {
-		t.Setenv(k, "")
-		os.Unsetenv(k)
+		// Both names: the daemon exports MTM_ beside TUIOS_, and mtm reads MTM_ first.
+		for _, k := range []string{k, "MTM_" + strings.TrimPrefix(k, "TUIOS_")} {
+			t.Setenv(k, "")
+			os.Unsetenv(k)
+		}
 	}
+	t.Setenv("MTM_SERVER", server)
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
