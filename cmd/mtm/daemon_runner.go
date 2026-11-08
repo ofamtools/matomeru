@@ -139,32 +139,85 @@ func (a *App) daemonBinDir() string {
 
 // daemonVersion labels the daemon's hello: this build, else the daemon's own.
 func daemonVersion() string {
-	if v := buildStamp().Version; v != "" {
-		return v
+	st := buildStamp()
+	v := st.Version
+	if v == "" {
+		v = "devel"
 	}
-	return "devel"
+	return daemonLabelOf(v, st.Commit)
+}
+
+// daemonLabelOf is the label a self daemon announces: the version, then "+"
+// and the first 12 characters of the VCS revision, so status can compare
+// builds by what they are made from.
+func daemonLabelOf(version, commit string) string {
+	if len(commit) > 12 {
+		commit = commit[:12]
+	}
+	if commit == "" {
+		return version
+	}
+	return version + "+" + commit
+}
+
+// labelRevision is the revision a daemon label names: the part after "+",
+// else the "-g<hex>" suffix of a git-describe label. Empty when it has none.
+func labelRevision(label string) string {
+	if _, rev, ok := strings.Cut(label, "+"); ok {
+		return rev
+	}
+	if i := strings.LastIndex(label, "-g"); i >= 0 {
+		rev := label[i+2:]
+		if rev != "" && strings.Trim(rev, "0123456789abcdef") == "" {
+			return rev
+		}
+	}
+	return ""
+}
+
+// daemonSkew says whether the daemon and the client are different builds,
+// and the daemon's revision when its label names one. The self runner
+// compares revisions (prefix match, so a short describe hash equals the full
+// one) and falls back to the labels when the daemon names none; the tuios
+// runner keeps comparing labels.
+func daemonSkew(runner, daemonLabel, clientLabel, clientCommit string) (string, bool) {
+	if runner != runnerSelf {
+		return "", daemonLabel != clientLabel
+	}
+	rev := labelRevision(daemonLabel)
+	if rev == "" {
+		return "", daemonLabel != clientLabel
+	}
+	if clientCommit == "" {
+		return rev, daemonLabel != clientLabel
+	}
+	return rev, !strings.HasPrefix(clientCommit, rev) && !strings.HasPrefix(rev, clientCommit)
 }
 
 // daemonInfo is what daemon.status reports.
 type daemonInfo struct {
-	Running  bool   `json:"running"`
-	Server   string `json:"server"`
-	Socket   string `json:"socket"`
-	Runner   string `json:"runner"`
-	PID      int    `json:"pid,omitempty"`
-	Version  string `json:"daemon_version,omitempty"`
-	Client   string `json:"client_version"`
-	Binary   string `json:"binary,omitempty"`
-	Skew     bool   `json:"skew"`
-	Protocol int    `json:"protocol,omitempty"`
-	Sessions int    `json:"sessions,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Running bool   `json:"running"`
+	Server  string `json:"server"`
+	Socket  string `json:"socket"`
+	Runner  string `json:"runner"`
+	PID     int    `json:"pid,omitempty"`
+	Version string `json:"daemon_version,omitempty"`
+	Client  string `json:"client_version"`
+	// Commit is the daemon's VCS revision when its label names one;
+	// ClientCommit is this client's. Skew compares them, not the labels.
+	Commit       string `json:"daemon_commit,omitempty"`
+	ClientCommit string `json:"client_commit,omitempty"`
+	Binary       string `json:"binary,omitempty"`
+	Skew         bool   `json:"skew"`
+	Protocol     int    `json:"protocol,omitempty"`
+	Sessions     int    `json:"sessions,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 // daemonStatus asks the daemon's hello. It never starts one: a daemon that
 // is not there is a row with running false.
 func (a *App) daemonStatus(ctx context.Context) daemonInfo {
-	info := daemonInfo{Server: a.daemon.Server, Socket: a.daemon.Socket, Runner: a.runnerName(), Client: daemonVersion()}
+	info := daemonInfo{Server: a.daemon.Server, Socket: a.daemon.Socket, Runner: a.runnerName(), Client: daemonVersion(), ClientCommit: buildStamp().Commit}
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	h, err := a.daemon.Hello(cctx)
@@ -174,7 +227,7 @@ func (a *App) daemonStatus(ctx context.Context) daemonInfo {
 	}
 	info.Running, info.PID, info.Version, info.Protocol, info.Sessions = true, h.PID, h.DaemonVersion, h.Protocol, h.Sessions
 	info.Binary = processBinary(h.PID)
-	info.Skew = h.DaemonVersion != info.Client
+	info.Commit, info.Skew = daemonSkew(info.Runner, h.DaemonVersion, info.Client, info.ClientCommit)
 	return info
 }
 
