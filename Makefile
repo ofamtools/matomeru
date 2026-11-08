@@ -11,7 +11,7 @@ LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) \
 
 export GOWORK := off
 
-.PHONY: build install gate story-bin story-test split-check
+.PHONY: build install gate story-bin story-vet story-run story-test split-check
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/mtm ./cmd/mtm
 
@@ -31,10 +31,12 @@ story-bin:
 # The standalone tagged vet/race suite includes all tests and stories.
 # make gate narrows the tagged run to TestStories after the untagged race pass.
 STORY_PACKAGES ?= ./...
-STORY_TEST_FLAGS ?= -race
-story-test:
-	go vet -tags monogatari $(STORY_PACKAGES)
+STORY_TEST_FLAGS ?= -race -count=1
+story-vet:
+	go vet -tags monogatari,ochazuke_strict $(STORY_PACKAGES)
+story-run:
 	go test -trimpath $(STORY_TEST_FLAGS) -tags monogatari $(STORY_PACKAGES)
+story-test: story-vet story-run
 
 # A normal build links no monogatari; the tester does.
 split-check:

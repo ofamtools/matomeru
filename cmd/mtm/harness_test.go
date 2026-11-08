@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,8 +32,15 @@ func TestMain(m *testing.M) {
 	// tests run as the owner, though they may run in an agent's pane
 	// (actor.go); the actor tests set their own environment
 	os.Setenv("MTM_ACTOR", "owner")
+	// A minimal PATH: no test scans the owner's ~/bin for mtm-* extensions
+	// (mountExtensions stats every PATH entry on every App). It keeps the
+	// directories of the tools tests run; a test that needs another sets its own.
+	os.Setenv("PATH", testPath())
 	code := m.Run()
 	os.RemoveAll(dir)
+	if hostBuilt.host != "" {
+		os.RemoveAll(filepath.Dir(hostBuilt.host))
+	}
 	os.Exit(code)
 }
 
@@ -215,4 +224,24 @@ func TestTheDriverRequests(t *testing.T) {
 	if got := wire(waitParams("s", "w1", harness.Ready{Pattern: "> $"})); got != `{"condition":"window-output","session":"s","window":"w1","pattern":"\u003e $"}` {
 		t.Fatalf("wait-for = %s", got)
 	}
+}
+
+// testPath is the system directories plus the directory of each tool the
+// tests run (go, sh, git, nvim, vim, tmux), found on the real PATH.
+func testPath() string {
+	var dirs []string
+	add := func(d string) {
+		if !slices.Contains(dirs, d) {
+			dirs = append(dirs, d)
+		}
+	}
+	for _, tool := range []string{"go", "sh", "git", "nvim", "vim", "tmux"} {
+		if p, err := exec.LookPath(tool); err == nil {
+			add(filepath.Dir(p))
+		}
+	}
+	for _, d := range []string{"/usr/bin", "/bin", "/usr/sbin", "/sbin"} {
+		add(d)
+	}
+	return strings.Join(dirs, string(os.PathListSeparator))
 }

@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"ofam.dev/ochazuke"
@@ -76,6 +79,43 @@ func TestExtensionHostCallRights(t *testing.T) {
 	}
 }
 
+var (
+	hostOnce  sync.Once
+	hostBuilt struct{ host, peer string }
+	hostErr   error
+)
+
+// hostBinaries builds the mtm host and the testdata peer once per test
+// binary run, both at the same time, and returns their paths.
+func hostBinaries(t *testing.T) struct{ host, peer string } {
+	t.Helper()
+	hostOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "mtm-host-bin")
+		if err != nil {
+			hostErr = err
+			return
+		}
+		hostBuilt.host, hostBuilt.peer = filepath.Join(dir, "mtm"), filepath.Join(dir, "peer")
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		for i, b := range [][2]string{{hostBuilt.host, "."}, {hostBuilt.peer, "./testdata/host-peer"}} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if data, err := exec.Command("go", "build", "-o", b[0], b[1]).CombinedOutput(); err != nil {
+					errs[i] = fmt.Errorf("build %s: %v\n%s", b[1], err, data)
+				}
+			}()
+		}
+		wg.Wait()
+		hostErr = errors.Join(errs...)
+	})
+	if hostErr != nil {
+		t.Fatal(hostErr)
+	}
+	return hostBuilt
+}
+
 // This exercises the actual mtm shell in a fresh process, not a fake host:
 // alpha -> mtm -> beta uses the same --data, with an extension agent and Via.
 func TestExtensionHostExecutable(t *testing.T) {
@@ -84,17 +124,17 @@ func TestExtensionHostExecutable(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	build := func(out, target string) {
-		t.Helper()
-		cmd := exec.Command("go", "build", "-o", out, target)
-		if data, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("build %s: %v\n%s", target, err, data)
+	built := hostBinaries(t)
+	host, tool := filepath.Join(dir, "mtm"), filepath.Join(dir, "o-alpha")
+	for from, to := range map[string]string{built.host: host, built.peer: tool} {
+		raw, err := os.ReadFile(from)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(to, raw, 0o755); err != nil {
+			t.Fatal(err)
 		}
 	}
-	host := filepath.Join(dir, "mtm")
-	tool := filepath.Join(dir, "o-alpha")
-	build(host, ".")
-	build(tool, "./testdata/host-peer")
 	data := filepath.Join(dir, "mtm.db")
 	a := openAt(t, data)
 	bin, _ := fakeExtension(t, peerTargetCatalog, `"doc send") printf '{"data":"%s","actor":%s,"depth":"%s","chain":%s}\n' "$MTM_DATA" "$OCHAZUKE_ACTOR" "$OCHAZUKE_HOST_DEPTH" "$OCHAZUKE_HOST_CHAIN" ;;`)

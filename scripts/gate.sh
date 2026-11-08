@@ -26,8 +26,15 @@ format_check() {
 }
 
 step gofmt format_check
-step vet go vet ./...
-step race go test -race ./...
-step stories "$make_command" story-test STORY_PACKAGES=./cmd/mtm 'STORY_TEST_FLAGS=-race -run ^TestStories'
+# Vet once per build-tag set. ochazuke_strict leaves out ochazuke's deprecated
+# names, so a use fails the vet (this replaces both the plain vet and the old
+# TestNoDeprecatedOchazuke); monogatari adds the story files (story-vet).
+step vet go vet -tags ochazuke_strict ./...
+step vet-tagged "$make_command" story-vet STORY_PACKAGES=./cmd/mtm
+# -count=1: the gate never reuses a cached result, and the test cache costs
+# minutes of hashing the test's file and env reads after the last test.
+step race go test -race -count=1 ./...
+# Stories replay key flows on one App; the race step covers concurrency.
+step stories "$make_command" story-run STORY_PACKAGES=./cmd/mtm 'STORY_TEST_FLAGS=-count=1 -run ^TestStories'
 step split "$make_command" split-check
 step states "$make_command" states-test
