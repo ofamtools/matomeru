@@ -47,6 +47,7 @@ func taskProps() []ochazuke.PropSpec {
 		{Name: "title", Role: ochazuke.RoleLabel, Parameter: text("The task's title")},
 		{Name: "status", Default: work.StatusTodo, Parameter: ochazuke.Parameter{Type: "string", Enum: work.Statuses,
 			Description: "The task's status: todo, active, blocked or done (a value from an older mtm reads as it is)"}},
+		priorityProp("task"),
 		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the task belongs to (empty: unassociated); one not found is saved unassociated with a notice; a move to another project takes the task to its top level, its subtasks with it"}},
 		{Name: "parent", Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Free: true,
@@ -67,6 +68,31 @@ func taskProps() []ochazuke.PropSpec {
 			Description: "Who wrote the task last: owner or agent (as created-by); empty before mtm recorded it"}},
 		taskMakerProp(),
 	}
+}
+
+// priorityProp is the priority prop of the task and project nouns. Its enum
+// is work.Priorities, lowest first, so sorting by priority ranks in that
+// order (descending puts urgent first) and --where priority=high filters.
+func priorityProp(noun string) ochazuke.PropSpec {
+	return ochazuke.PropSpec{Name: "priority", Default: work.PriorityNone, Parameter: ochazuke.Parameter{Type: "string", Enum: work.Priorities,
+		Description: "How much the " + noun + " matters: none (unset), low, medium, high or urgent; a value from an older mtm reads as it is"}}
+}
+
+// priorityChange reads a write's priority: the value to store, and whether
+// the write names it. A value that is not a priority refuses the write.
+func priorityChange(values ochazuke.Thing) (string, bool, error) {
+	v, named := thingString(values, "priority")
+	if !named {
+		return "", false, nil
+	}
+	v = strings.ToLower(strings.TrimSpace(v))
+	if v == "" {
+		v = work.PriorityNone
+	}
+	if !work.ValidPriority(v) {
+		return "", true, &ochazuke.ArgumentError{Err: fmt.Errorf("priority %q is not one of %s", v, strings.Join(work.Priorities, ", "))}
+	}
+	return work.StoredPriority(v), true, nil
 }
 
 // taskMakerProp is shared by the task noun and its editable outline rows.
@@ -181,8 +207,8 @@ func taskThing(t work.Task, exported bool) ochazuke.Thing {
 	thing := ochazuke.Thing{
 		"id": t.ID, "title": t.Title, "status": t.Status, "project": t.ProjectID, "parent": t.ParentID,
 		"easy": t.Easy, "snoozed-until": t.SnoozedUntil, "position": t.Position, "created": t.Created, "updated": t.Updated,
-		"archived": t.Archived,
-		"private":  t.Private, "exported": exported, "created-by": t.Maker(), "made-by": t.MadeBy(), "changed-by": "",
+		"archived": t.Archived, "priority": work.NormalPriority(t.Priority),
+		"private": t.Private, "exported": exported, "created-by": t.Maker(), "made-by": t.MadeBy(), "changed-by": "",
 	}
 	if t.ChangedBy.Kind != "" {
 		thing["changed-by"] = t.ChangedBy
@@ -406,6 +432,11 @@ func (a *App) createTask(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 		t.Archived = v
 	}
 	t.SnoozedUntil = thingInt(values["snoozed-until"])
+	if v, named, err := priorityChange(values); err != nil {
+		return nil, err
+	} else if named {
+		t.Priority = v
+	}
 	if v, ok := values["private"].(bool); ok {
 		t.Private = v
 	}
@@ -475,6 +506,11 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		t.Status = work.NormalStatus(props.Status)
 	}
 	t.Easy, t.SnoozedUntil, t.Private, t.Archived = props.Easy, int64(props.SnoozedUntil), props.Private, props.Archived
+	if v, named, err := priorityChange(changes); err != nil {
+		return nil, err
+	} else if named {
+		t.Priority = v
+	}
 	t.CreatedBy = work.Actor{} // the store keeps the stored maker
 	if v, ok := changes["created-by"]; ok && v != nil {
 		by, err := thingActor(v)

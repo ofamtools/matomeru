@@ -34,6 +34,7 @@ func projectProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The project's key")},
 		{Name: "name", Role: ochazuke.RoleLabel, Fallback: "dir", Parameter: text("The project's name (empty: untitled, shown by its directory)")},
+		priorityProp("project"),
 		{Name: "color", Parameter: text("The colour the project is drawn with")},
 		{Name: "glyph", Parameter: text("The glyph drawn before the project's name (empty: " + defaultProjectGlyph + ")")},
 		{Name: "harness", Parameter: ochazuke.Parameter{Type: "string", Source: "harness.names", Free: true,
@@ -99,7 +100,7 @@ func projectThing(p work.Project) ochazuke.Thing {
 	return ochazuke.Thing{
 		"id": p.ID, "name": p.Name, "color": p.Theme.Color, "glyph": p.Theme.Glyph,
 		"harness": p.Settings.Harness, "preset": p.Settings.Preset, "dir": projectDir(p),
-		"repo": p.Repo, "origin": p.Origin, "created": p.Created, "privacy": work.PrivacyOf(p),
+		"repo": p.Repo, "origin": p.Origin, "created": p.Created, "privacy": work.PrivacyOf(p), "priority": work.NormalPriority(p.Priority),
 	}
 }
 
@@ -120,6 +121,11 @@ func (a *App) writeProjectProps(c ochazuke.Ctx, p *work.Project, values ochazuke
 		c.Notify(fmt.Sprintf("unknown harness %s; saved, launches use the default until it is registered", props.Harness))
 	}
 	p.Settings.Harness = props.Harness
+	if v, named, err := priorityChange(values); err != nil {
+		return err
+	} else if named {
+		p.Priority = v
+	}
 	if props.Privacy != "" { // an empty privacy keeps the stored one
 		p.Settings.Privacy = props.Privacy
 	}

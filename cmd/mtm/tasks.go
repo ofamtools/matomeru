@@ -144,9 +144,9 @@ func (a *App) refreshTasks() error {
 	// The project column shows only when the rows can belong to more than
 	// one project (all projects).
 	// The by column shows unless tasks.columns leaves it out.
-	by := a.showByColumn()
+	by, priority := a.showByColumn(), a.showPriorityColumn()
 	cols := slices.DeleteFunc(slices.Clone(taskColumns), func(c ochazuke.Column) bool {
-		return c.Title == "project" && !a.all || c.Title == columnBy && !by
+		return c.Title == "project" && !a.all || c.Title == columnBy && !by || c.Title == columnPriority && !priority
 	})
 	a.taskList.SetColumns(cols...)
 	now := a.now()
@@ -253,6 +253,7 @@ func (a *App) observeTasksLayout() {
 var taskColumns = []ochazuke.Column{
 	{Title: "task", Min: 24},
 	{Title: "status", Priority: 1},
+	{Title: columnPriority, Priority: 5},
 	{Title: columnBy, Priority: 4},
 	{Title: "project", Priority: 2},
 	{Title: "updated", Priority: 3},
@@ -291,6 +292,9 @@ func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
 		updated = sinceUse(t.Updated, now)
 	}
 	cells := []string{box + title, status}
+	if a.showPriorityColumn() {
+		cells = append(cells, work.NormalPriority(t.Priority))
+	}
 	if a.showByColumn() {
 		cells = append(cells, byCell(t))
 	}

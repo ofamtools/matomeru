@@ -30,6 +30,8 @@ type Project struct {
 	// Origin is the tool that created or adopted the project ("o-proj");
 	// rows written before it existed, and by mtm itself, leave it empty.
 	Origin string `json:"origin,omitempty"`
+	// Priority is one of Priorities (priority.go); empty reads none.
+	Priority string `json:"priority,omitempty"`
 }
 
 // Theme is the colour and glyph a project or task is drawn with.
@@ -73,6 +75,8 @@ type Task struct {
 	// Private keeps the task and every task under it out of exports,
 	// inside a family project too (privacy.go).
 	Private bool `json:"private,omitempty"`
+	// Priority is one of Priorities (priority.go); empty reads none.
+	Priority string `json:"priority,omitempty"`
 	// CreatedBy is who made the task, stamped once; zero on a row written
 	// before mtm recorded it (it reads unknown). ChangedBy is who wrote it
 	// last (actor.go).
