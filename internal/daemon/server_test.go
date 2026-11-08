@@ -113,7 +113,7 @@ func TestEnsureReportsAFailedStart(t *testing.T) {
 	}
 	c.Start = func(context.Context, string) (<-chan error, error) {
 		exited := make(chan error, 1)
-		exited <- errors.New("exit status 1")
+		exited <- errors.New("tuios --server bad start-server: exit status 1") // the StartFunc names its own command
 		return exited, nil
 	}
 	if err := c.Ensure(context.Background()); err == nil || !strings.Contains(err.Error(), "daemon bad not running: tuios --server bad start-server: exit status 1") {

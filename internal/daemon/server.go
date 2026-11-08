@@ -33,7 +33,13 @@ func StartServer(_ context.Context, name string) (<-chan error, error) {
 		return nil, fmt.Errorf("tuios --server %s start-server: %w", name, err)
 	}
 	exited := make(chan error, 1)
-	go func() { exited <- cmd.Wait() }()
+	go func() {
+		err := cmd.Wait()
+		if err != nil {
+			err = fmt.Errorf("tuios --server %s start-server: %w", name, err)
+		}
+		exited <- err
+	}()
 	return exited, nil
 }
 
@@ -56,28 +62,38 @@ func (c *Client) Label() string {
 	return c.Socket
 }
 
-// Ensure makes the daemon answer. It probes the socket (a connect); when
-// nothing listens (no socket file, or connection refused) and the client
-// names a Server, it runs Start once and polls the socket every 50ms until
-// it answers, the start command fails, or Wait passes. A client with no
-// Server only probes. Calls are serialized, so a second Ensure finds the
+// Ensure makes the daemon answer. It probes the socket (a connect, then
+// Ready when the client has one); when nothing listens (no socket file, or
+// connection refused) and the client names a Server, it runs Start once and
+// polls every 50ms until the daemon answers, the start command fails, or
+// Wait passes. A socket that accepts but is not Ready yet (a daemon another
+// starter is bringing up) is waited for without a second start. A client with
+// no Server only probes. Calls are serialized, so a second Ensure finds the
 // server the first started. Every failure reads "daemon NAME not running: ...".
 func (c *Client) Ensure(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	err := c.probe(ctx)
+	err := c.answers(ctx)
 	if err == nil {
 		return nil
 	}
-	if c.Server == "" || !absent(err) {
+	if c.Server == "" {
 		return c.notRunning(err)
 	}
-	start := c.Start
-	if start == nil {
-		start = StartServer
-	}
-	exited, err := start(ctx, c.Server)
-	if err != nil {
+	var exited <-chan error
+	switch {
+	case absent(err):
+		start := c.Start
+		if start == nil {
+			start = StartServer
+		}
+		exited, err = start(ctx, c.Server)
+		if err != nil {
+			return c.notRunning(err)
+		}
+	case errors.Is(err, errNotReady):
+		// Listening already: another starter's daemon. Wait for it.
+	default:
 		return c.notRunning(err)
 	}
 	wait := c.Wait
@@ -89,22 +105,47 @@ func (c *Client) Ensure(ctx context.Context) error {
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
 	for {
-		if c.probe(ctx) == nil {
+		last := c.answers(ctx)
+		if last == nil {
 			return nil
 		}
 		select {
 		case err := <-exited:
 			if err != nil {
-				return c.notRunning(fmt.Errorf("tuios --server %s start-server: %w", c.Server, err))
+				return c.notRunning(err)
 			}
 			exited = nil // it detached; keep polling
 		case <-tick.C:
 		case <-deadline.C:
+			if errors.Is(last, errNotReady) {
+				return c.notRunning(fmt.Errorf("%s accepts connections but the daemon was not ready within %s (%w)", c.Socket, wait, last))
+			}
 			return c.notRunning(fmt.Errorf("started, but %s did not answer within %s", c.Socket, wait))
 		case <-ctx.Done():
 			return c.notRunning(ctx.Err())
 		}
 	}
+}
+
+// errNotReady marks a socket that accepts connections while the daemon behind
+// it has not passed the client's Ready check.
+var errNotReady = errors.New("daemon is not ready")
+
+// answers is the probe, then the client's Ready check when it has one. A
+// failed Ready is errNotReady, never an absent socket.
+func (c *Client) answers(ctx context.Context) error {
+	if err := c.probe(ctx); err != nil {
+		return err
+	}
+	if c.Ready == nil {
+		return nil
+	}
+	rctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	if err := c.Ready(rctx); err != nil {
+		return fmt.Errorf("%w: %v", errNotReady, err)
+	}
+	return nil
 }
 
 // probe connects to the socket and hangs up.

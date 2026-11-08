@@ -30,7 +30,10 @@ type Client struct {
 	Server string
 	Start  StartFunc     // how Ensure starts Server; nil runs StartServer
 	Wait   time.Duration // how long Ensure waits for a started server; 0 is ensureWait
-	mu     sync.Mutex    // serializes Ensure, so two calls start one server
+	// Ready, when set, is what "the daemon answers" means beyond a connect
+	// (HelloReady: a compatible hello). Nil is a bare connect.
+	Ready func(ctx context.Context) error
+	mu    sync.Mutex // serializes Ensure, so two calls start one server
 
 	unsupportedMu sync.Mutex
 	unsupported   map[string]bool // "verb.param" pairs the daemon rejected as unknown, for this client's life

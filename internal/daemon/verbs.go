@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 type Session struct {
@@ -418,4 +419,18 @@ func (c *Client) RenameSession(ctx context.Context, session, name string) error 
 // window falls back to the title its shell sets.
 func (c *Client) RenameWindow(ctx context.Context, session, window, name string) error {
 	return c.Call(ctx, "set-window", map[string]any{"session": session, "window": window, "name": name}, nil)
+}
+
+// HelloReady is a Client.Ready: the daemon answers hello with a protocol
+// version, so a socket another starter has bound but not yet served is not
+// taken for a running daemon.
+func (c *Client) HelloReady(ctx context.Context) error {
+	h, err := c.Hello(ctx)
+	if err != nil {
+		return err
+	}
+	if h.Protocol <= 0 {
+		return fmt.Errorf("hello names no protocol (%+v)", h)
+	}
+	return nil
 }
