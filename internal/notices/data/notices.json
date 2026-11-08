@@ -934,7 +934,7 @@
   },
   {
    "path": "ofam.dev/mtmd",
-   "version": "v0.1.0",
+   "version": "v0.1.1",
    "daemonOnly": true,
    "files": [
     {
@@ -1063,7 +1063,7 @@
   },
   {
    "path": "ofam.dev/ochazuke",
-   "version": "v0.106.0",
+   "version": "v0.107.0",
    "files": [
     {
      "name": "LICENSE",

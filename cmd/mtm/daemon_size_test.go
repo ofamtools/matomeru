@@ -12,11 +12,8 @@ import (
 	"testing"
 )
 
-// The size a pane reports after pane.resize is the size it was resized to.
-// Known gap (mtmd, not mtm): the daemon's get-window and list-windows answer
-// the window's layout size (nominal 80x24), not the PTY's, so this skips
-// until ofam.dev/mtmd reports PTY.Size(); it then passes with no change
-// here.
+// The size a pane reports after pane.resize is the size it was resized to
+// (mtmd reports the PTY size since v0.1.1).
 //
 // serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestPaneShowReportsResizedSize(t *testing.T) {
@@ -68,6 +65,6 @@ func TestPaneShowReportsResizedSize(t *testing.T) {
 		t.Fatal(err)
 	}
 	if row.Width != 100 || row.Height != 30 {
-		t.Skipf("mtmd reports the nominal window size %dx%d after resize to 100x30 (mtmd resize verb leaves the layout size; see verbResize)", row.Width, row.Height)
+		t.Fatalf("pane show reports %dx%d after resize to 100x30", row.Width, row.Height)
 	}
 }
