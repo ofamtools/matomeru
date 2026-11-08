@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ofam.dev/oden"
 	"strings"
 	"testing"
 
@@ -70,8 +71,8 @@ func TestExtensionBareNounNeedsAUniqueName(t *testing.T) {
 	if got := a.r.CanonicalNoun("item"); got != "item" {
 		t.Fatalf("item names %s while two extensions have one", got)
 	}
-	if out, _, err := mtm(a, t.TempDir(), "item", "list"); err == nil || err.Error() != "item is ambiguous: fake.item or zzz.item (use mtm fake item ... or mtm zzz item ...)" || out != "" {
-		t.Fatalf("shared item: out %q, error %v", out, err)
+	if out, errOut, err := mtm(a, t.TempDir(), "item", "list"); oden.ExitCode(err) != 1 || out != "" || !strings.Contains(errOut, `"item list" is ambiguous: fake.item list, zzz.item list`) {
+		t.Fatalf("shared item: out %q, stderr %q, error %v", out, errOut, err)
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "extension", Verb: "remove", Args: ochazuke.Arguments{"name": "zzz"}, Confirmed: true}); err != nil {
 		t.Fatal(err)

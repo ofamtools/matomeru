@@ -30,10 +30,13 @@ func TestAmbiguousExtensionNounCLI(t *testing.T) {
 	mustCLI(t, openAt(t, path), "extension", "register", "json", "--bin", bin)
 	a := openAt(t, path)
 	want := "doc is ambiguous: json.doc or md.doc (use mtm json doc ... or mtm md doc ...)"
+	// The bare noun is mtm's own exact command; with an action word the
+	// reader (ochazuke v0.103.0) names the pairs the words read as.
+	wantWords := "is ambiguous: "
 	for _, words := range [][]string{{"doc"}, {"doc", "list"}, {"doc", "rename", "--to", "new"}} {
-		out, _, err := mtm(a, t.TempDir(), words...)
-		if err == nil || err.Error() != want || out != "" {
-			t.Fatalf("%v: out %q, error %v, want %q", words, out, err, want)
+		out, errOut, err := mtm(a, t.TempDir(), words...)
+		if err == nil || out != "" || !strings.Contains(errOut+err.Error(), wantWords) || !strings.Contains(errOut+err.Error(), "json.doc") || !strings.Contains(errOut+err.Error(), "md.doc") {
+			t.Fatalf("%v: out %q, stderr %q, error %v, want %q", words, out, errOut, err, wantWords)
 		}
 	}
 	for _, words := range [][]string{{"md", "doc", "list"}, {"md.doc", "list"}, {"json", "doc", "list"}, {"json.doc", "list"}} {

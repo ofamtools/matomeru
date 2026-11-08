@@ -84,12 +84,15 @@ func TestVerbPrefixResolves(t *testing.T) {
 	}
 }
 
-func TestAmbiguousPrefixListsCandidates(t *testing.T) {
+// ochazuke v0.103.0 reads the words through one reader: "pa list" pairs the
+// prefix with the action, so the noun it names best (pane) lists; an
+// ambiguity is the reader's (TestAmbiguousExtensionNounCLI).
+func TestPrefixReadsThroughTheReader(t *testing.T) {
 	t.Parallel()
 	app, _ := cliApp(t)
-	_, errOut, err := mtm(app, t.TempDir(), "pa", "list")
-	if oden.ExitCode(err) != 1 || !strings.Contains(errOut, `"pa" is ambiguous`) || !strings.Contains(errOut, "panes") || !strings.Contains(errOut, "pane ") {
-		t.Fatalf("mtm pa: %v\n%s", err, errOut)
+	out, errOut, err := mtm(app, t.TempDir(), "pa", "list")
+	if err != nil || !strings.Contains(out, `"id": "w1"`) || errOut != "" {
+		t.Fatalf("mtm pa list: %v\n%s%s", err, out, errOut)
 	}
 }
 
