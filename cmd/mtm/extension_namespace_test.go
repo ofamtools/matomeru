@@ -14,6 +14,7 @@ func TestExtensionMountsUnderDeclaredNamespace(t *testing.T) {
 	t.Parallel()
 	path := seeded(t)
 	catalog := strings.Replace(strings.Replace(fakeCatalog, "VERSION", "1.0", 1), `"name":"o-fake",`, `"name":"o-fake","namespace":"widget",`, 1)
+	catalog = strings.Replace(catalog, `{"name":"item",`, `{"name":"item","main":true,"defaultAction":"list",`, 1)
 	bin, _ := fakeExtension(t, catalog, "")
 	a := registered(t, path, "fake", bin)
 	has := func(key string) bool {
@@ -25,6 +26,9 @@ func TestExtensionMountsUnderDeclaredNamespace(t *testing.T) {
 	}
 	if has("fake.item.done") {
 		t.Fatal("the registered name still names the nouns")
+	}
+	if n := a.r.Noun("widget.item"); n == nil || !n.Main || n.DefaultAction != "list" {
+		t.Fatalf("main and defaultAction were not mounted: %+v", n)
 	}
 	if got := extensionNamespace(a.extension("fake")); got != "widget" {
 		t.Fatalf("peer namespace %q", got)
