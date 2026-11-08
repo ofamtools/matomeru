@@ -49,10 +49,14 @@ type contextFollower struct {
 	running bool                       // a follow job is in flight
 	// after schedules msg after d (tea.Tick); tests replace it.
 	after func(d time.Duration, msg tea.Msg) tea.Cmd
+	// pace is the least time between two wake-ups: output only marks
+	// dirty panes (mark), and the loop hears of it at most this often, so
+	// busy panes do not make the loop update and redraw per burst.
+	pace time.Duration
 }
 
 func newContextFollower() *contextFollower {
-	return &contextFollower{dirty: map[string]bool{}, offset: map[string]int{}, seen: map[string]map[string]bool{}, after: func(d time.Duration, msg tea.Msg) tea.Cmd {
+	return &contextFollower{pace: contextBatch, dirty: map[string]bool{}, offset: map[string]int{}, seen: map[string]map[string]bool{}, after: func(d time.Duration, msg tea.Msg) tea.Cmd {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 	}}
 }
@@ -99,13 +103,18 @@ func (f *contextFollower) forget(it contextitems.Item) {
 	}
 }
 
-// waitOutput waits for the next wake-up; nil without a subscription.
-func (f *contextFollower) waitOutput() tea.Cmd {
+// waitOutput waits for the next wake-up; nil without a subscription. It
+// first rests for pause, so wake-ups come at most that often; output in
+// the meantime keeps its dirty mark and its one pending signal.
+func (f *contextFollower) waitOutput(pause time.Duration) tea.Cmd {
 	ch := f.signal
 	if ch == nil {
 		return nil
 	}
 	return func() tea.Msg {
+		if pause > 0 {
+			time.Sleep(pause)
+		}
 		<-ch
 		return contextOutput{}
 	}
@@ -140,7 +149,7 @@ func (a *App) followContext() tea.Cmd {
 			time.Sleep(5 * time.Second)
 		}
 	}()
-	return f.waitOutput()
+	return f.waitOutput(0)
 }
 
 // followUpdate is continuous extraction's part of every update: a wake-up
@@ -150,7 +159,7 @@ func (a *App) followUpdate(msg tea.Msg) tea.Cmd {
 	f := a.cx.follow
 	switch msg.(type) {
 	case contextOutput:
-		return tea.Batch(f.waitOutput(), f.arm())
+		return tea.Batch(f.waitOutput(f.pace), f.arm())
 	case contextScanDue:
 		f.armed = false
 		if f.running {

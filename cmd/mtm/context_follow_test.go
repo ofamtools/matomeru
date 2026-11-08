@@ -172,3 +172,40 @@ func TestFollowNeverRunsOnAKey(t *testing.T) {
 		t.Fatalf("reads = %d without output", f.reads)
 	}
 }
+
+// Output from busy panes wakes the loop at most once per pace: each wake-up
+// is a full update and redraw, so one per burst kept an idle mtm busy.
+func TestFollowWakesTheLoopAtMostOncePerPace(t *testing.T) {
+	t.Parallel()
+	f := newContextFollower()
+	f.signal = make(chan struct{}, 1)
+	f.pace = 50 * time.Millisecond
+	stop := make(chan struct{})
+	go func() { // a pane writing every millisecond
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				f.mark("w1")
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}()
+	wakes, start := 0, time.Now()
+	cmd := f.waitOutput(0)
+	for time.Since(start) < 400*time.Millisecond {
+		if _, ok := cmd().(contextOutput); !ok {
+			t.Fatal("not a wake-up")
+		}
+		wakes++
+		cmd = f.waitOutput(f.pace)
+	}
+	close(stop)
+	if limit := int(400*time.Millisecond/f.pace) + 2; wakes > limit {
+		t.Fatalf("%d wake-ups in 400ms with a %s pace; want at most %d", wakes, f.pace, limit)
+	}
+	if !f.pending() {
+		t.Fatal("the output was marked dirty, so the batch still reads it")
+	}
+}
