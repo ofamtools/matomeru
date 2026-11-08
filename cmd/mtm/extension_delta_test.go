@@ -23,7 +23,7 @@ func deltaAnswers(t *testing.T) (full, unchanged []byte, hash string) {
 			ocli.Row{Noun: "item", ID: "s1", Label: "one", Cells: []string{"one", "open"}},
 			ocli.Row{Noun: "item", ID: "s2", Label: "two", Cells: []string{"two", "done"}},
 		})
-	}, "").State()
+	}, "").Lists()
 	dir := filepath.Join(t.TempDir(), "state")
 	var out, errOut bytes.Buffer
 	sh := ocli.New(r, "o-fake", strings.NewReader(""), &out, &errOut)

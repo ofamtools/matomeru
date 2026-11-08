@@ -202260,215 +202260,142 @@
     },
     {
       "id": "state-337",
-      "title": "Directories: path chooser · picker (insert)",
+      "title": "Directories: directory path (g pending)",
       "group": "Workspace tools",
-      "where": "Directories page · path chooser · picker · insert mode",
-      "what": "Explore the actions available in path chooser.",
+      "where": "Directories page · directory path · g pending mode",
+      "what": "Complete or cancel a navigation prefix.",
       "page": "directories",
-      "noun": "ochazuke.picker",
-      "mode": "insert",
-      "modal": "path-chooser",
-      "modals": [
-        "path-chooser"
-      ],
+      "noun": "directory-path",
+      "mode": "g_pending",
+      "modal": "",
+      "modals": [],
       "keys": [
         {
-          "mode": "insert",
-          "noun": "ochazuke.picker",
-          "pattern": "paste",
+          "mode": "g_pending",
+          "noun": "ochazuke.editor",
+          "pattern": "any",
           "request": {
-            "verb": "insert",
+            "verb": "cancel",
             "noun": "ochazuke.input"
           },
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
+        },
+        {
+          "mode": "g_pending",
+          "noun": "ochazuke.editor",
+          "keys": "g",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "first-line"
+            }
+          },
           "from": {
-            "text": "text"
+            "line": "count"
           },
-          "hidden": true,
-          "action": "ochazuke.input.insert",
-          "label": "Insert literal text at the rune cursor"
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
-          "noun": "ochazuke.picker",
-          "pattern": "printable",
+          "mode": "g_pending",
+          "noun": "ochazuke.editor",
+          "keys": "y",
           "request": {
-            "verb": "insert",
-            "noun": "ochazuke.input"
+            "verb": "open",
+            "noun": "ochazuke.yank-history"
+          },
+          "action": "ochazuke.yank-history.open",
+          "label": "Select a previous application yank without inserting it"
+        }
+      ]
+    },
+    {
+      "id": "state-338",
+      "title": "Directories: directory path (selection)",
+      "group": "Workspace tools",
+      "where": "Directories page · directory path · selection mode",
+      "what": "Extend a text selection and act on the selected text.",
+      "page": "directories",
+      "noun": "directory-path",
+      "mode": "visual",
+      "modal": "",
+      "modals": [],
+      "keys": [
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "pattern": "digit-0",
+          "request": {
+            "verb": "enter",
+            "noun": "ochazuke.mode",
+            "args": {
+              "mode": "visual_count_pending"
+            }
           },
           "from": {
-            "text": "text"
+            "count": "digit"
           },
-          "hidden": true,
-          "action": "ochazuke.input.insert",
-          "label": "Insert literal text at the rune cursor"
+          "action": "ochazuke.mode.enter",
+          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
+          "noun": "app",
+          "keys": "\"",
+          "request": {
+            "verb": "enter",
+            "noun": "ochazuke.mode",
+            "args": {
+              "mode": "register_pending"
+            }
+          },
+          "hidden": true,
+          "help": "Pick the register the next yank, delete or paste uses (\"a)",
+          "action": "ochazuke.mode.enter",
+          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
+        },
+        {
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "alt+b",
+          "keys": "$",
           "request": {
             "verb": "move",
             "noun": "ochazuke.input",
             "args": {
-              "motion": "word-previous"
+              "motion": "line-end"
             }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
           },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "alt+backspace",
-          "request": {
-            "verb": "kill",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-previous"
-            }
-          },
-          "hidden": true,
-          "action": "ochazuke.input.kill",
-          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "alt+d",
-          "request": {
-            "verb": "kill",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-next"
-            }
-          },
-          "hidden": true,
-          "action": "ochazuke.input.kill",
-          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "alt+enter",
-          "request": {
-            "verb": "pick",
-            "noun": "ochazuke.picker"
-          },
-          "aliases": [
-            "picker.choose"
-          ],
-          "action": "ochazuke.picker.pick",
-          "label": "Take the highlighted row, else the top match, else create from the query"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "alt+f",
+          "keys": "%",
           "request": {
             "verb": "move",
             "noun": "ochazuke.input",
             "args": {
-              "motion": "word-next"
+              "motion": "match"
             }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
           },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "alt+left",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-previous"
-            }
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "alt+o",
-          "request": {
-            "verb": "previous-source",
-            "noun": "ochazuke.picker"
-          },
-          "action": "ochazuke.picker.previous-source",
-          "label": "Show the previous source's rows"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "alt+right",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-next"
-            }
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "alt+up",
-          "request": {
-            "verb": "up",
-            "noun": "ochazuke.picker"
-          },
-          "aliases": [
-            "picker.parent"
-          ],
-          "action": "ochazuke.picker.up",
-          "label": "Step the source back out (the parent folder)"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "backspace",
-          "request": {
-            "verb": "erase",
-            "noun": "ochazuke.input",
-            "args": {
-              "direction": "backward"
-            }
-          },
-          "hidden": true,
-          "action": "ochazuke.input.erase",
-          "label": "Erase forward/backward runes without crossing a normal-mode line"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "backspace",
-          "request": {
-            "verb": "up",
-            "noun": "ochazuke.picker"
-          },
-          "when": "picker-up-empty",
-          "aliases": [
-            "picker.parent"
-          ],
-          "action": "ochazuke.picker.up",
-          "label": "Step the source back out (the parent folder)"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+\\",
-          "request": {
-            "verb": "help",
-            "noun": "ochazuke.binding"
-          },
-          "hidden": true,
-          "action": "ochazuke.binding.help",
-          "label": "Open the keys the focus answers to, with the operation each runs and its description"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+a",
+          "keys": "0",
           "request": {
             "verb": "move",
             "noun": "ochazuke.input",
@@ -202476,37 +202403,280 @@
               "motion": "line-start"
             }
           },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
+          "noun": "app",
+          "keys": "@",
+          "request": {
+            "verb": "enter",
+            "noun": "ochazuke.mode",
+            "args": {
+              "mode": "replay_pending"
+            }
+          },
+          "from": {
+            "count": "count"
+          },
+          "hidden": true,
+          "help": "Replay the macro in the register typed next (@a), count times",
+          "action": "ochazuke.mode.enter",
+          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
+        },
+        {
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "ctrl+b",
+          "keys": "A",
+          "request": {
+            "verb": "cancel",
+            "noun": "ochazuke.input"
+          },
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "B",
           "request": {
             "verb": "move",
             "noun": "ochazuke.input",
             "args": {
-              "motion": "left"
+              "motion": "WORD-backward"
             }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
           },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "ctrl+backspace",
+          "keys": "E",
           "request": {
-            "verb": "kill",
+            "verb": "move",
             "noun": "ochazuke.input",
             "args": {
-              "motion": "word-previous"
+              "motion": "WORD-end"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "G",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "last-line"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "H",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "screen-top"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "I",
+          "request": {
+            "verb": "cancel",
+            "noun": "ochazuke.input"
+          },
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "L",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "screen-bottom"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "M",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "screen-middle"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "O",
+          "request": {
+            "verb": "cancel",
+            "noun": "ochazuke.input"
+          },
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "P",
+          "request": {
+            "verb": "paste",
+            "noun": "ochazuke.input",
+            "args": {
+              "before": true
+            }
+          },
+          "from": {
+            "steps": "count"
+          },
+          "action": "ochazuke.input.paste",
+          "label": "Paste a shared register preserving its shape"
+        },
+        {
+          "mode": "visual",
+          "noun": "app",
+          "keys": "Q",
+          "request": {
+            "verb": "enter",
+            "noun": "ochazuke.mode",
+            "args": {
+              "mode": "macro_pending"
             }
           },
           "hidden": true,
-          "action": "ochazuke.input.kill",
-          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+          "help": "Record a macro into the register typed next (Qa); Q again stops",
+          "action": "ochazuke.mode.enter",
+          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "V",
+          "request": {
+            "verb": "select",
+            "noun": "ochazuke.input",
+            "args": {
+              "shape": "line"
+            }
+          },
+          "action": "ochazuke.input.select",
+          "label": "Start or toggle character, line, or block visual selection"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "W",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "WORD-forward"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "a",
+          "request": {
+            "verb": "cancel",
+            "noun": "ochazuke.input"
+          },
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "b",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-backward"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "c",
+          "request": {
+            "verb": "operator",
+            "noun": "ochazuke.input",
+            "args": {
+              "operator": "c"
+            }
+          },
+          "action": "ochazuke.input.operator",
+          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
         },
         {
           "noun": "app",
@@ -202515,197 +202685,25 @@
             "verb": "quit",
             "noun": "app"
           },
+          "when": "no-modal",
+          "capture": true,
           "hidden": true,
           "action": "app.quit",
           "label": "Exit the application"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "ctrl+d",
+          "keys": "ctrl+r",
           "request": {
-            "verb": "erase",
+            "verb": "redo",
             "noun": "ochazuke.input"
           },
-          "hidden": true,
-          "action": "ochazuke.input.erase",
-          "label": "Erase forward/backward runes without crossing a normal-mode line"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+delete",
-          "request": {
-            "verb": "kill",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-next"
-            }
+          "from": {
+            "steps": "count"
           },
-          "hidden": true,
-          "action": "ochazuke.input.kill",
-          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+e",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-end"
-            }
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+f",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "right"
-            }
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+h",
-          "request": {
-            "verb": "erase",
-            "noun": "ochazuke.input",
-            "args": {
-              "direction": "backward"
-            }
-          },
-          "hidden": true,
-          "action": "ochazuke.input.erase",
-          "label": "Erase forward/backward runes without crossing a normal-mode line"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+j",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.picker",
-            "args": {
-              "delta": 1
-            }
-          },
-          "action": "ochazuke.picker.move",
-          "label": "Move the highlight"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+k",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.picker",
-            "args": {
-              "delta": -1
-            }
-          },
-          "action": "ochazuke.picker.move",
-          "label": "Move the highlight"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+l",
-          "request": {
-            "verb": "into",
-            "noun": "ochazuke.picker"
-          },
-          "aliases": [
-            "chooser.open",
-            "ochazuke.chooser.open",
-            "picker.descend"
-          ],
-          "action": "ochazuke.picker.into",
-          "label": "Browse into the highlighted row inside its source (a folder)"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+left",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-previous"
-            }
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+n",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.picker",
-            "args": {
-              "delta": 1
-            }
-          },
-          "action": "ochazuke.picker.move",
-          "label": "Move the highlight"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+o",
-          "request": {
-            "verb": "next-source",
-            "noun": "ochazuke.picker"
-          },
-          "action": "ochazuke.picker.next-source",
-          "label": "Show the next source's rows"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+p",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.picker",
-            "args": {
-              "delta": -1
-            }
-          },
-          "action": "ochazuke.picker.move",
-          "label": "Move the highlight"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+right",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-next"
-            }
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+s",
-          "request": {
-            "verb": "pick",
-            "noun": "ochazuke.picker"
-          },
-          "aliases": [
-            "picker.choose"
-          ],
-          "action": "ochazuke.picker.pick",
-          "label": "Take the highlighted row, else the top match, else create from the query"
+          "action": "ochazuke.input.redo",
+          "label": "Redo changes"
         },
         {
           "noun": "app",
@@ -202719,89 +202717,85 @@
           "label": "Open the command line"
         },
         {
-          "noun": "ochazuke.picker",
-          "keys": "ctrl+t",
-          "request": {
-            "verb": "cycle-match",
-            "noun": "ochazuke.search"
-          },
-          "action": "ochazuke.search.cycle-match",
-          "label": "Step the open search (the / filter line or a picker, the path finder too) to the next match mode: substring, fuzzy, regex, round again"
-        },
-        {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "ctrl+u",
+          "keys": "ctrl+v",
           "request": {
-            "verb": "kill",
+            "verb": "select",
             "noun": "ochazuke.input",
             "args": {
-              "motion": "line-start"
+              "shape": "block"
             }
           },
-          "hidden": true,
-          "action": "ochazuke.input.kill",
-          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+          "action": "ochazuke.input.select",
+          "label": "Start or toggle character, line, or block visual selection"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "ctrl+w",
+          "keys": "d",
           "request": {
-            "verb": "kill",
+            "verb": "operator",
             "noun": "ochazuke.input",
             "args": {
-              "motion": "word-backward"
+              "operator": "d"
             }
           },
-          "hidden": true,
-          "action": "ochazuke.input.kill",
-          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
+          "action": "ochazuke.input.operator",
+          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
         },
         {
-          "mode": "insert",
-          "noun": "path-chooser",
-          "keys": "ctrl+y",
-          "request": {
-            "verb": "pick",
-            "noun": "ochazuke.picker",
-            "args": {
-              "current": true
-            }
-          },
-          "aliases": [
-            "picker.choose"
-          ],
-          "action": "ochazuke.picker.pick",
-          "label": "Take the highlighted row, else the top match, else create from the query"
-        },
-        {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
           "keys": "delete",
           "request": {
-            "verb": "erase",
-            "noun": "ochazuke.input"
+            "verb": "operator",
+            "noun": "ochazuke.input",
+            "args": {
+              "operator": "d"
+            }
           },
-          "hidden": true,
-          "action": "ochazuke.input.erase",
-          "label": "Erase forward/backward runes without crossing a normal-mode line"
+          "action": "ochazuke.input.operator",
+          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
         },
         {
-          "noun": "ochazuke.picker",
+          "mode": "visual",
+          "noun": "ochazuke.editor",
           "keys": "down",
           "request": {
             "verb": "move",
-            "noun": "ochazuke.picker",
+            "noun": "ochazuke.input",
             "args": {
-              "delta": 1
+              "motion": "down"
             }
           },
-          "action": "ochazuke.picker.move",
-          "label": "Move the highlight"
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "e",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-end"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
           "noun": "ochazuke.editor",
           "keys": "end",
           "request": {
@@ -202811,40 +202805,61 @@
               "motion": "line-end"
             }
           },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "noun": "ochazuke.picker",
-          "keys": "enter",
-          "request": {
-            "verb": "into",
-            "noun": "ochazuke.picker"
-          },
-          "when": "picker-enter-opens",
-          "aliases": [
-            "chooser.open",
-            "ochazuke.chooser.open",
-            "picker.descend"
-          ],
-          "action": "ochazuke.picker.into",
-          "label": "Browse into the highlighted row inside its source (a folder)"
-        },
-        {
-          "noun": "ochazuke.picker",
+          "mode": "visual",
+          "noun": "ochazuke.editor",
           "keys": "esc",
           "request": {
-            "verb": "close",
-            "noun": "ochazuke.modal"
+            "verb": "cancel",
+            "noun": "ochazuke.input"
           },
-          "aliases": [
-            "modal.pop"
-          ],
-          "action": "ochazuke.modal.close",
-          "label": "Close the active modal: run its close request (CloseWith), else pop it back to the focus and mode it opened over"
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "g",
+          "request": {
+            "verb": "enter",
+            "noun": "ochazuke.mode",
+            "args": {
+              "mode": "g_pending"
+            }
+          },
+          "from": {
+            "count": "count"
+          },
+          "action": "ochazuke.mode.enter",
+          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "h",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "left"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
           "noun": "ochazuke.editor",
           "keys": "home",
           "request": {
@@ -202854,11 +202869,80 @@
               "motion": "line-start"
             }
           },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "i",
+          "request": {
+            "verb": "cancel",
+            "noun": "ochazuke.input"
+          },
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "j",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "down"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "k",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "up"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "l",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "right"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
           "noun": "ochazuke.editor",
           "keys": "left",
           "request": {
@@ -202868,36 +202952,40 @@
               "motion": "left"
             }
           },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "meta+left",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-start"
-            }
+          "from": {
+            "line": "line",
+            "steps": "count"
           },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "meta+right",
+          "keys": "o",
           "request": {
-            "verb": "move",
+            "verb": "cancel",
+            "noun": "ochazuke.input"
+          },
+          "action": "ochazuke.input.cancel",
+          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "p",
+          "request": {
+            "verb": "paste",
             "noun": "ochazuke.input",
             "args": {
-              "motion": "line-end"
+              "before": false
             }
           },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+          "from": {
+            "steps": "count"
+          },
+          "action": "ochazuke.input.paste",
+          "label": "Paste a shared register preserving its shape"
         },
         {
           "noun": "app",
@@ -202926,7 +203014,7 @@
           "label": "Scroll the active page or modal without changing focus"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
           "keys": "right",
           "request": {
@@ -202936,108 +203024,147 @@
               "motion": "right"
             }
           },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "noun": "ochazuke.picker",
-          "keys": "shift+tab",
-          "request": {
-            "verb": "cycle-match",
-            "noun": "ochazuke.search",
-            "args": {
-              "step": -1
-            }
-          },
-          "hidden": true,
-          "action": "ochazuke.search.cycle-match",
-          "label": "Step the open search (the / filter line or a picker, the path finder too) to the next match mode: substring, fuzzy, regex, round again"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "space",
-          "request": {
-            "verb": "insert",
-            "noun": "ochazuke.input",
-            "args": {
-              "text": " "
-            }
-          },
-          "hidden": true,
-          "action": "ochazuke.input.insert",
-          "label": "Insert literal text at the rune cursor"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "super+backspace",
-          "request": {
-            "verb": "kill",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-start"
-            }
-          },
-          "hidden": true,
-          "action": "ochazuke.input.kill",
-          "label": "Kill preceding WORD/path component, readline word before or after, or line into shared yank history"
-        },
-        {
-          "mode": "insert",
-          "noun": "ochazuke.editor",
-          "keys": "super+left",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-start"
-            }
+          "from": {
+            "line": "line",
+            "steps": "count"
           },
           "action": "ochazuke.input.move",
           "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         },
         {
-          "mode": "insert",
+          "mode": "visual",
           "noun": "ochazuke.editor",
-          "keys": "super+right",
+          "keys": "u",
           "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-end"
-            }
+            "verb": "undo",
+            "noun": "ochazuke.input"
           },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+          "from": {
+            "steps": "count"
+          },
+          "action": "ochazuke.input.undo",
+          "label": "Undo changes in this input"
         },
         {
-          "noun": "ochazuke.picker",
-          "keys": "tab",
-          "request": {
-            "verb": "complete",
-            "noun": "ochazuke.picker"
-          },
-          "action": "ochazuke.picker.complete",
-          "label": "Complete the highlighted path into the query"
-        },
-        {
-          "noun": "ochazuke.picker",
+          "mode": "visual",
+          "noun": "ochazuke.editor",
           "keys": "up",
           "request": {
             "verb": "move",
-            "noun": "ochazuke.picker",
+            "noun": "ochazuke.input",
             "args": {
-              "delta": -1
+              "motion": "up"
             }
           },
-          "action": "ochazuke.picker.move",
-          "label": "Move the highlight"
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "v",
+          "request": {
+            "verb": "select",
+            "noun": "ochazuke.input",
+            "args": {
+              "shape": "char"
+            }
+          },
+          "action": "ochazuke.input.select",
+          "label": "Start or toggle character, line, or block visual selection"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "w",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "word-forward"
+            }
+          },
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "x",
+          "request": {
+            "verb": "operator",
+            "noun": "ochazuke.input",
+            "args": {
+              "operator": "d"
+            }
+          },
+          "action": "ochazuke.input.operator",
+          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "y",
+          "request": {
+            "verb": "operator",
+            "noun": "ochazuke.input",
+            "args": {
+              "operator": "y"
+            }
+          },
+          "action": "ochazuke.input.operator",
+          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "{",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "paragraph-backward"
+            }
+          },
+          "when": "multiline",
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
+        },
+        {
+          "mode": "visual",
+          "noun": "ochazuke.editor",
+          "keys": "}",
+          "request": {
+            "verb": "move",
+            "noun": "ochazuke.input",
+            "args": {
+              "motion": "paragraph-forward"
+            }
+          },
+          "when": "multiline",
+          "from": {
+            "line": "line",
+            "steps": "count"
+          },
+          "action": "ochazuke.input.move",
+          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
         }
       ]
     },
     {
-      "id": "state-338",
+      "id": "state-339",
       "title": "Notes: record text (visual count pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · visual count pending mode",
@@ -203861,7 +203988,7 @@
       ]
     },
     {
-      "id": "state-339",
+      "id": "state-340",
       "title": "Notes: record text (operator g pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record text · operator g pending mode",
@@ -203905,7 +204032,7 @@
       ]
     },
     {
-      "id": "state-340",
+      "id": "state-341",
       "title": "Notes: record field (row selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · row selection mode",
@@ -204775,7 +204902,7 @@
       ]
     },
     {
-      "id": "state-341",
+      "id": "state-342",
       "title": "Notes: record field (operator pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · operator pending mode",
@@ -205393,7 +205520,7 @@
       ]
     },
     {
-      "id": "state-342",
+      "id": "state-343",
       "title": "Notes: record field (cell selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · cell selection mode",
@@ -206245,7 +206372,7 @@
       ]
     },
     {
-      "id": "state-343",
+      "id": "state-344",
       "title": "Notes: record field (g pending)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · g pending mode",
@@ -206298,7 +206425,7 @@
       ]
     },
     {
-      "id": "state-344",
+      "id": "state-345",
       "title": "Notes: record field (selection)",
       "group": "Notes and inbox",
       "where": "Notes page · record field · selection mode",
@@ -207150,7 +207277,7 @@
       ]
     },
     {
-      "id": "state-345",
+      "id": "state-346",
       "title": "Notes: field choices · form option (filter)",
       "group": "Notes and inbox",
       "where": "Notes page · field choices · form option · filter mode",
@@ -207408,7 +207535,7 @@
       ]
     },
     {
-      "id": "state-346",
+      "id": "state-347",
       "title": "Notes: field choices · form option (row selection)",
       "group": "Notes and inbox",
       "where": "Notes page · field choices · form option · row selection mode",
@@ -207846,7 +207973,7 @@
       ]
     },
     {
-      "id": "state-347",
+      "id": "state-348",
       "title": "Work: record text (row selection)",
       "group": "Projects and work",
       "where": "Work page · record text · row selection mode",
@@ -208731,7 +208858,7 @@
       ]
     },
     {
-      "id": "state-348",
+      "id": "state-349",
       "title": "Work: record text (operator pending)",
       "group": "Projects and work",
       "where": "Work page · record text · operator pending mode",
@@ -209349,7 +209476,7 @@
       ]
     },
     {
-      "id": "state-349",
+      "id": "state-350",
       "title": "Work: record text (cell selection)",
       "group": "Projects and work",
       "where": "Work page · record text · cell selection mode",
@@ -210201,7 +210328,7 @@
       ]
     },
     {
-      "id": "state-350",
+      "id": "state-351",
       "title": "Work: record text (g pending)",
       "group": "Projects and work",
       "where": "Work page · record text · g pending mode",
@@ -210254,7 +210381,7 @@
       ]
     },
     {
-      "id": "state-351",
+      "id": "state-352",
       "title": "Work: record text (selection)",
       "group": "Projects and work",
       "where": "Work page · record text · selection mode",
@@ -211106,7 +211233,7 @@
       ]
     },
     {
-      "id": "state-352",
+      "id": "state-353",
       "title": "Work: form suggestions · picker (insert)",
       "group": "Projects and work",
       "where": "Work page · form suggestions · picker · insert mode",
@@ -211818,7 +211945,7 @@
       ]
     },
     {
-      "id": "state-353",
+      "id": "state-354",
       "title": "Work: field choices · form option (normal)",
       "group": "Projects and work",
       "where": "Work page · field choices · form option · normal mode",
@@ -212737,7 +212864,7 @@
       ]
     },
     {
-      "id": "state-354",
+      "id": "state-355",
       "title": "Choose a register",
       "group": "Navigation",
       "where": "Panes page · register prefix",
@@ -212780,7 +212907,7 @@
       ]
     },
     {
-      "id": "state-355",
+      "id": "state-356",
       "title": "Panes: edit form / field choices · form option (filter)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / field choices · form option · filter mode",
@@ -213039,7 +213166,7 @@
       ]
     },
     {
-      "id": "state-356",
+      "id": "state-357",
       "title": "Repeat an action with a count",
       "group": "Navigation",
       "where": "Panes page · count prefix",
@@ -213913,7 +214040,7 @@
       ]
     },
     {
-      "id": "state-357",
+      "id": "state-358",
       "title": "Replay a macro",
       "group": "Navigation",
       "where": "Panes page · replay prefix",
@@ -213957,7 +214084,7 @@
       ]
     },
     {
-      "id": "state-358",
+      "id": "state-359",
       "title": "Record a macro",
       "group": "Navigation",
       "where": "Panes page · macro prefix",
@@ -214015,7 +214142,7 @@
       ]
     },
     {
-      "id": "state-359",
+      "id": "state-360",
       "title": "Panes: edit form / field choices · form option (row selection)",
       "group": "Agents and panes",
       "where": "Panes page · edit form / field choices · form option · row selection mode",
@@ -214454,7 +214581,7 @@
       ]
     },
     {
-      "id": "state-360",
+      "id": "state-361",
       "title": "Panes: edit form · record text (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · visual count pending mode",
@@ -215280,7 +215407,7 @@
       ]
     },
     {
-      "id": "state-361",
+      "id": "state-362",
       "title": "Panes: edit form · record text (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · edit form · record text · operator g pending mode",
@@ -215326,7 +215453,7 @@
       ]
     },
     {
-      "id": "state-362",
+      "id": "state-363",
       "title": "Schedules: schedule editor · record text (row selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · row selection mode",
@@ -216222,7 +216349,7 @@
       ]
     },
     {
-      "id": "state-363",
+      "id": "state-364",
       "title": "Schedules: schedule editor · record text (operator pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · operator pending mode",
@@ -216842,7 +216969,7 @@
       ]
     },
     {
-      "id": "state-364",
+      "id": "state-365",
       "title": "Schedules: schedule editor · record field (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record field · normal mode",
@@ -218208,7 +218335,7 @@
       ]
     },
     {
-      "id": "state-365",
+      "id": "state-366",
       "title": "Schedules: schedule editor · record text (cell selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · cell selection mode",
@@ -219060,7 +219187,7 @@
       ]
     },
     {
-      "id": "state-366",
+      "id": "state-367",
       "title": "Schedules: schedule editor · record text (g pending)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · g pending mode",
@@ -219115,7 +219242,7 @@
       ]
     },
     {
-      "id": "state-367",
+      "id": "state-368",
       "title": "Schedules: schedule editor · record text (selection)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · record text · selection mode",
@@ -219967,7 +220094,7 @@
       ]
     },
     {
-      "id": "state-368",
+      "id": "state-369",
       "title": "Schedules: schedule editor · form choice (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · schedule editor · form choice · normal mode",
@@ -220780,7 +220907,7 @@
       ]
     },
     {
-      "id": "state-369",
+      "id": "state-370",
       "title": "Schedules: reminder form · record text (normal)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record text · normal mode",
@@ -222173,7 +222300,7 @@
       ]
     },
     {
-      "id": "state-370",
+      "id": "state-371",
       "title": "Schedules: reminder form · record field (insert)",
       "group": "Workspace tools",
       "where": "Schedules page · reminder form · record field · insert mode",
@@ -222862,7 +222989,7 @@
       ]
     },
     {
-      "id": "state-371",
+      "id": "state-372",
       "title": "Inbox: collection (filter)",
       "group": "Notes and inbox",
       "where": "Inbox page · collection · filter mode",
@@ -223144,7 +223271,7 @@
       ]
     },
     {
-      "id": "state-372",
+      "id": "state-373",
       "title": "Inbox: collection (row selection)",
       "group": "Notes and inbox",
       "where": "Inbox page · collection · row selection mode",
@@ -223711,7 +223838,7 @@
       ]
     },
     {
-      "id": "state-373",
+      "id": "state-374",
       "title": "Inbox: detail link (filter)",
       "group": "Notes and inbox",
       "where": "Inbox page · detail link · filter mode",
@@ -223969,7 +224096,7 @@
       ]
     },
     {
-      "id": "state-374",
+      "id": "state-375",
       "title": "Panes: list filter form · filter save form (visual count pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save form · visual count pending mode",
@@ -224795,7 +224922,7 @@
       ]
     },
     {
-      "id": "state-375",
+      "id": "state-376",
       "title": "Panes: list filter form · filter save form (operator g pending)",
       "group": "Agents and panes",
       "where": "Panes page · list filter form · filter save form · operator g pending mode",
@@ -224841,7 +224968,7 @@
       ]
     },
     {
-      "id": "state-376",
+      "id": "state-377",
       "title": "Directories: directory path (visual count pending)",
       "group": "Workspace tools",
       "where": "Directories page · directory path · visual count pending mode",
@@ -225513,858 +225640,6 @@
           },
           "action": "ochazuke.input.paste",
           "label": "Paste a shared register preserving its shape"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "right",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "right"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "u",
-          "request": {
-            "verb": "undo",
-            "noun": "ochazuke.input"
-          },
-          "from": {
-            "steps": "count"
-          },
-          "action": "ochazuke.input.undo",
-          "label": "Undo changes in this input"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "up",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "up"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "v",
-          "request": {
-            "verb": "select",
-            "noun": "ochazuke.input",
-            "args": {
-              "shape": "char"
-            }
-          },
-          "action": "ochazuke.input.select",
-          "label": "Start or toggle character, line, or block visual selection"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "w",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-forward"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "x",
-          "request": {
-            "verb": "operator",
-            "noun": "ochazuke.input",
-            "args": {
-              "operator": "d"
-            }
-          },
-          "action": "ochazuke.input.operator",
-          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "y",
-          "request": {
-            "verb": "operator",
-            "noun": "ochazuke.input",
-            "args": {
-              "operator": "y"
-            }
-          },
-          "action": "ochazuke.input.operator",
-          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "{",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "paragraph-backward"
-            }
-          },
-          "when": "multiline",
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "}",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "paragraph-forward"
-            }
-          },
-          "when": "multiline",
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        }
-      ]
-    },
-    {
-      "id": "state-377",
-      "title": "Directories: directory path (selection)",
-      "group": "Workspace tools",
-      "where": "Directories page · directory path · selection mode",
-      "what": "Extend a text selection and act on the selected text.",
-      "page": "directories",
-      "noun": "directory-path",
-      "mode": "visual",
-      "modal": "",
-      "modals": [],
-      "keys": [
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "pattern": "digit-0",
-          "request": {
-            "verb": "enter",
-            "noun": "ochazuke.mode",
-            "args": {
-              "mode": "visual_count_pending"
-            }
-          },
-          "from": {
-            "count": "digit"
-          },
-          "action": "ochazuke.mode.enter",
-          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
-        },
-        {
-          "mode": "visual",
-          "noun": "app",
-          "keys": "\"",
-          "request": {
-            "verb": "enter",
-            "noun": "ochazuke.mode",
-            "args": {
-              "mode": "register_pending"
-            }
-          },
-          "hidden": true,
-          "help": "Pick the register the next yank, delete or paste uses (\"a)",
-          "action": "ochazuke.mode.enter",
-          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "$",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-end"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "%",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "match"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "0",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-start"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "app",
-          "keys": "@",
-          "request": {
-            "verb": "enter",
-            "noun": "ochazuke.mode",
-            "args": {
-              "mode": "replay_pending"
-            }
-          },
-          "from": {
-            "count": "count"
-          },
-          "hidden": true,
-          "help": "Replay the macro in the register typed next (@a), count times",
-          "action": "ochazuke.mode.enter",
-          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "A",
-          "request": {
-            "verb": "cancel",
-            "noun": "ochazuke.input"
-          },
-          "action": "ochazuke.input.cancel",
-          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "B",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "WORD-backward"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "E",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "WORD-end"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "G",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "last-line"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "H",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "screen-top"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "I",
-          "request": {
-            "verb": "cancel",
-            "noun": "ochazuke.input"
-          },
-          "action": "ochazuke.input.cancel",
-          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "L",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "screen-bottom"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "M",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "screen-middle"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "O",
-          "request": {
-            "verb": "cancel",
-            "noun": "ochazuke.input"
-          },
-          "action": "ochazuke.input.cancel",
-          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "P",
-          "request": {
-            "verb": "paste",
-            "noun": "ochazuke.input",
-            "args": {
-              "before": true
-            }
-          },
-          "from": {
-            "steps": "count"
-          },
-          "action": "ochazuke.input.paste",
-          "label": "Paste a shared register preserving its shape"
-        },
-        {
-          "mode": "visual",
-          "noun": "app",
-          "keys": "Q",
-          "request": {
-            "verb": "enter",
-            "noun": "ochazuke.mode",
-            "args": {
-              "mode": "macro_pending"
-            }
-          },
-          "hidden": true,
-          "help": "Record a macro into the register typed next (Qa); Q again stops",
-          "action": "ochazuke.mode.enter",
-          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "V",
-          "request": {
-            "verb": "select",
-            "noun": "ochazuke.input",
-            "args": {
-              "shape": "line"
-            }
-          },
-          "action": "ochazuke.input.select",
-          "label": "Start or toggle character, line, or block visual selection"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "W",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "WORD-forward"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "a",
-          "request": {
-            "verb": "cancel",
-            "noun": "ochazuke.input"
-          },
-          "action": "ochazuke.input.cancel",
-          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "b",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-backward"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "c",
-          "request": {
-            "verb": "operator",
-            "noun": "ochazuke.input",
-            "args": {
-              "operator": "c"
-            }
-          },
-          "action": "ochazuke.input.operator",
-          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
-        },
-        {
-          "noun": "app",
-          "keys": "ctrl+c",
-          "request": {
-            "verb": "quit",
-            "noun": "app"
-          },
-          "when": "no-modal",
-          "capture": true,
-          "hidden": true,
-          "action": "app.quit",
-          "label": "Exit the application"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+r",
-          "request": {
-            "verb": "redo",
-            "noun": "ochazuke.input"
-          },
-          "from": {
-            "steps": "count"
-          },
-          "action": "ochazuke.input.redo",
-          "label": "Redo changes"
-        },
-        {
-          "noun": "app",
-          "keys": "ctrl+space",
-          "request": {
-            "verb": "open",
-            "noun": "ochazuke.palette"
-          },
-          "hidden": true,
-          "action": "ochazuke.palette.open",
-          "label": "Open the command line"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "ctrl+v",
-          "request": {
-            "verb": "select",
-            "noun": "ochazuke.input",
-            "args": {
-              "shape": "block"
-            }
-          },
-          "action": "ochazuke.input.select",
-          "label": "Start or toggle character, line, or block visual selection"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "d",
-          "request": {
-            "verb": "operator",
-            "noun": "ochazuke.input",
-            "args": {
-              "operator": "d"
-            }
-          },
-          "action": "ochazuke.input.operator",
-          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "delete",
-          "request": {
-            "verb": "operator",
-            "noun": "ochazuke.input",
-            "args": {
-              "operator": "d"
-            }
-          },
-          "action": "ochazuke.input.operator",
-          "label": "Yank, delete, or change a selection, whole lines, or an existing motion"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "down",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "down"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "e",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "word-end"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "end",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-end"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "esc",
-          "request": {
-            "verb": "cancel",
-            "noun": "ochazuke.input"
-          },
-          "action": "ochazuke.input.cancel",
-          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "g",
-          "request": {
-            "verb": "enter",
-            "noun": "ochazuke.mode",
-            "args": {
-              "mode": "g_pending"
-            }
-          },
-          "from": {
-            "count": "count"
-          },
-          "action": "ochazuke.mode.enter",
-          "label": "Enter a pending mode with a typed payload (op, count, opcount; prefix arms the sequence timer, request is what it runs)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "h",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "left"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "home",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "line-start"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "i",
-          "request": {
-            "verb": "cancel",
-            "noun": "ochazuke.input"
-          },
-          "action": "ochazuke.input.cancel",
-          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "j",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "down"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "k",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "up"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "l",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "right"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "left",
-          "request": {
-            "verb": "move",
-            "noun": "ochazuke.input",
-            "args": {
-              "motion": "left"
-            }
-          },
-          "from": {
-            "line": "line",
-            "steps": "count"
-          },
-          "action": "ochazuke.input.move",
-          "label": "Move by a text motion: left/right/up/down, Vim word- and WORD-forward/backward/end, Readline word-next/previous, line-start/end, first-line/last-line, paragraph-forward/backward, screen-top/middle/bottom, match (%)"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "o",
-          "request": {
-            "verb": "cancel",
-            "noun": "ochazuke.input"
-          },
-          "action": "ochazuke.input.cancel",
-          "label": "Cancel the pending count, operator, prefix or register of the focused instance"
-        },
-        {
-          "mode": "visual",
-          "noun": "ochazuke.editor",
-          "keys": "p",
-          "request": {
-            "verb": "paste",
-            "noun": "ochazuke.input",
-            "args": {
-              "before": false
-            }
-          },
-          "from": {
-            "steps": "count"
-          },
-          "action": "ochazuke.input.paste",
-          "label": "Paste a shared register preserving its shape"
-        },
-        {
-          "noun": "app",
-          "keys": "pgdown",
-          "request": {
-            "verb": "scroll",
-            "noun": "ochazuke.surface",
-            "args": {
-              "lines": 8
-            }
-          },
-          "action": "ochazuke.surface.scroll",
-          "label": "Scroll the active page or modal without changing focus"
-        },
-        {
-          "noun": "app",
-          "keys": "pgup",
-          "request": {
-            "verb": "scroll",
-            "noun": "ochazuke.surface",
-            "args": {
-              "lines": -8
-            }
-          },
-          "action": "ochazuke.surface.scroll",
-          "label": "Scroll the active page or modal without changing focus"
         },
         {
           "mode": "visual",

@@ -6,7 +6,7 @@ How it works
 - Things have ids. Pass target with an id from snapshot or a list verb's rows. Without target, a verb uses the nearest thing of its noun at the focus.
 - `snapshot` shows page, focus, mode, modals and recent history when requested. Selection and marks require a live backend; check its supported acts before using them.
 - Runs carry your actor identity into history. A recorded change may return an exact undo call. Use `ochazuke.history-entry.undo` only for your own entries, and only when asked.
-- Rights are per verb: allow runs; confirm needs the owner's approval (a live prompt, or a headless refusal with an owner command); never refuses. Describe and `ochazuke.agent.rights` show your right and its source. A refusal is final: do not reach the same effect through another verb. Rights are guard rails, not authentication.
+- Rights are per verb: allow runs; confirm needs the owner's approval (a live prompt, or a headless refusal with an owner command); never refuses. Describe and `ochazuke.agent.get` with prop rights show your right and its source. A refusal is final: do not reach the same effect through another verb. Rights are guard rails, not authentication.
 
 Good manners
 - Read before writing; prefer fetch verbs to learn the state.

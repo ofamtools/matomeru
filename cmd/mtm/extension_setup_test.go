@@ -14,8 +14,7 @@ import (
 // marked builtin as a real tool's catalog marks them.
 func setupCatalog(name string) string {
 	setupNoun := `{"name":"ochazuke.setup","verbs":[
-  {"name":"status","kind":"application","builtin":true},
-  {"name":"plan","kind":"application","builtin":true},
+  {"name":"check","kind":"application","builtin":true},
   {"name":"install","kind":"application","builtin":true,"confirm":"Apply setup install?","agent":"confirm"},
   {"name":"uninstall","kind":"application","builtin":true,"confirm":"Apply setup uninstall?","agent":"confirm"}]},
  {"name":"app"`
@@ -23,7 +22,7 @@ func setupCatalog(name string) string {
 }
 
 // setupTool writes an executable o-NAME into dir whose catalog is
-// setupCatalog when withSetup, else the plain one. Its setup plan reads
+// setupCatalog when withSetup, else the plain one. Its setup install --dry-run reads
 // dir/NAME.setup: "missing" (one of two items missing, one installed),
 // "installed" (both installed) or "error" (the plan fails). install
 // writes "installed" there, uninstall "missing". Every call is logged to
@@ -52,13 +51,16 @@ echo "$*" >> '` + log + `'
 case "$1 $2" in
 "catalog ") cat '` + filepath.Join(dir, name+".catalog") + `' ;;
 "item "*) echo '[{"id":"i1","label":"one","cells":["one","open"]}]' ;;
-"ochazuke.setup plan")
+"ochazuke.setup install")
+  case "$*" in
+  *dry-run*)
   case "$(cat '` + stateFile + `')" in
   missing) echo '` + plan("missing") + `' ;;
   installed) echo '` + plan("installed") + `' ;;
   *) echo "setup.json: broken" >&2; exit 1 ;;
   esac ;;
-"ochazuke.setup install") echo installed > '` + stateFile + `'; echo '[{"id":"hook","name":"Harness hook","kind":"json","status":"installed"}]' ;;
+  *) echo installed > '` + stateFile + `'; echo '[{"id":"hook","name":"Harness hook","kind":"json","status":"installed"}]' ;;
+  esac ;;
 "ochazuke.setup uninstall") echo missing > '` + stateFile + `'; echo '[{"id":"hook","name":"Harness hook","kind":"json","status":"missing"}]' ;;
 *) echo "unknown $*" >&2; exit 2 ;;
 esac

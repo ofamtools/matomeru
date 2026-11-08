@@ -43,10 +43,11 @@ func TestAgentLaunchKeepsAppNamespace(t *testing.T) {
 			}
 		}
 		var rights []ochazuke.AgentRight
-		if err := json.Unmarshal([]byte(mustCLI(t, app, "ochazuke", "agent", "rights", "--verb", "agent.launch")), &rights); err != nil {
+		if err := json.Unmarshal([]byte(mustCLI(t, app, "ochazuke", "agent", "get", "--prop", "rights")), &rights); err != nil {
 			t.Fatal(err)
 		}
-		if len(rights) != 1 || rights[0].Verb != "agent.launch" {
+		rights = slices.DeleteFunc(rights, func(r ochazuke.AgentRight) bool { return r.Verb != "agent.launch" })
+		if len(rights) != 1 {
 			t.Fatalf("framework agent rights lost the app launch: %+v", rights)
 		}
 	}

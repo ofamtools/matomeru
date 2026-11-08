@@ -178,7 +178,7 @@ func (a *App) defineLaunch() {
 	r.Define("projects").Verb("all", a.listProjects, "List the projects as choices (id and name)").Fetch().
 		Verb("names", a.projectNames, "List project names as choices; ids remain accepted by project verbs").Fetch().
 		Verb("directories", a.projectDirectories, "Every project's directories as rows {id, label, data: {directories, default}}, paths resolved (absolute, symlinks followed); for tools asking whether a project already has a directory").Fetch().
-		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").State()
+		Verb("state", a.state, "Every list's rows in one call, JSON Lines of {noun, id, label, cells} for projects, harness, session and pane (the catalog's state, for a host)").Lists()
 	r.Define("harness").Columns(harnessColumns...).
 		Verb("all", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").Fetch().
 		Verb("models", a.listModels, "List a harness's models as choices; without a harness, combine every harness's models").Fetch().

@@ -18,7 +18,7 @@ import (
 // noun in its catalog. mtm reads from the catalog only whether it has
 // setup; the items' states are runtime facts (files, harness config,
 // check commands) only the tool can probe, so mtm asks `<bin>
-// ochazuke.setup plan --json {}` off the loop (one exec answers both the
+// ochazuke.setup install --json {"dry-run":true}` off the loop (one exec answers both the
 // item states and the writes and commands an install would make) and
 // keeps the answer per extension, like the catalogs: checked at startup
 // and when the Extensions page opens, and again after every setup verb.
@@ -39,6 +39,9 @@ import (
 
 // extSetupNoun is ochazuke's shared setup noun in a catalog.
 const extSetupNoun = "ochazuke.setup"
+
+// extSetupDryRun is install's argument for the plan (no confirmation, nothing written).
+const extSetupDryRun = `{"dry-run":true}`
 
 // settingExtSetupStatus turns the setup column, the detail's setup
 // section, the page's summary line, the key's hint and the automatic
@@ -83,7 +86,7 @@ func extHasSetup(doc ocli.CatalogDoc) bool {
 		for _, v := range n.Verbs {
 			have[v.Name] = true
 		}
-		return have["plan"] && have["install"] && have["uninstall"]
+		return have["install"] && have["uninstall"]
 	}
 	return false
 }
@@ -116,7 +119,7 @@ func summarizeSetup(name string, plan osetup.Plan) extSetupInfo {
 	return info
 }
 
-// parseSetupPlan reads a tool's `ochazuke.setup plan --json` answer.
+// parseSetupPlan reads a tool's `ochazuke.setup install --json {"dry-run":true}` answer.
 func parseSetupPlan(out []byte) (osetup.Plan, error) {
 	var p osetup.Plan
 	if err := json.Unmarshal(out, &p); err != nil {
@@ -189,7 +192,7 @@ func probeSetup(ctx context.Context, t extSetupTarget) extSetupInfo {
 	if !t.has {
 		return extSetupInfo{Name: t.name, State: setupNone, CheckedAt: time.Now()}
 	}
-	out, err := execExt(ctx, t.bin, t.env, extSetupNoun, "plan", "--json", "{}")
+	out, err := execExt(ctx, t.bin, t.env, extSetupNoun, "install", "--json", extSetupDryRun)
 	var plan osetup.Plan
 	if err == nil {
 		plan, err = parseSetupPlan(out)
@@ -448,7 +451,7 @@ func (a *App) extensionSetupPlan(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	group := ochazuke.StringArg(ctx.Args, "group", "")
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		out, err := execExt(c, t.bin, t.env, extSetupNoun, "plan", "--json", "{}")
+		out, err := execExt(c, t.bin, t.env, extSetupNoun, "install", "--json", extSetupDryRun)
 		if err != nil {
 			return nil, err
 		}
