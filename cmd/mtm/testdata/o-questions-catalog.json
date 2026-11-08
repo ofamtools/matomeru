@@ -48,6 +48,12 @@
       ]
     },
     {
+      "name": "decision",
+      "kind": "inline",
+      "summary": "export list open-page accept applied archive ask-back associate decide decision-note delete link open rename reply restore show star tag undecide undo unstar untag yank · std get watch",
+      "source": "noun"
+    },
+    {
       "name": "help",
       "kind": "inline",
       "summary": "list the commands by audience",
@@ -759,18 +765,12 @@
     {
       "name": "question",
       "kind": "inline",
-      "summary": "accept annotate answer applied archive ask ask-back associate backup check choose-status correct decide decision-note decisions delete edit follow-up history import link list merge moot open pose rename reopen reply restore show split star tag undecide undo unlink unstar untag yank queue · std get set watch",
+      "summary": "queue accept annotate answer applied archive ask ask-back associate backup check choose-status correct decide decision-note delete edit follow-up history import link list merge moot open pose rename reopen reply restore show split star tag undecide undo unlink unstar untag yank · std get set watch",
       "source": "noun"
     },
     {
       "name": "question-thread",
       "kind": "inline",
-      "source": "noun"
-    },
-    {
-      "name": "review",
-      "kind": "inline",
-      "summary": "accept applied archive ask-back associate decide decision-note delete link open rename reply restore show star tag undecide undo unstar untag yank list open-page · std get watch",
       "source": "noun"
     },
     {
@@ -909,6 +909,545 @@
           "result": "boolean",
           "history": "action",
           "builtin": true
+        }
+      ]
+    },
+    {
+      "name": "decision",
+      "kind": "collection",
+      "columns": [
+        {
+          "title": "Decision",
+          "width": 12
+        },
+        {
+          "title": "Question",
+          "min": 18
+        },
+        {
+          "title": "Agent",
+          "max": 15,
+          "priority": 1
+        },
+        {
+          "title": "Age",
+          "width": 7,
+          "priority": 2
+        },
+        {
+          "title": "Replies",
+          "width": 7,
+          "priority": 2
+        }
+      ],
+      "props": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "Record ID",
+          "readOnly": true,
+          "key": true
+        },
+        {
+          "name": "project_id",
+          "aliases": [
+            "project"
+          ],
+          "type": "string",
+          "description": "Project ID; empty when unassociated",
+          "readOnly": true
+        },
+        {
+          "name": "agent",
+          "type": "string",
+          "description": "Recording harness",
+          "readOnly": true
+        },
+        {
+          "name": "direction",
+          "type": "string",
+          "description": "Who answers the question",
+          "enum": [
+            "to-agent",
+            "to-owner"
+          ],
+          "readOnly": true
+        },
+        {
+          "name": "pane",
+          "type": "string",
+          "description": "Asking pane",
+          "readOnly": true
+        },
+        {
+          "name": "agent_session",
+          "type": "string",
+          "description": "Agent session",
+          "readOnly": true
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "description": "The owner's question (question edit changes it)",
+          "readOnly": true
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "description": "open, answered, follow-up or moot; writing it sets an explicit, sticky status",
+          "enum": [
+            "open",
+            "answered",
+            "follow-up",
+            "moot"
+          ]
+        },
+        {
+          "name": "starred",
+          "type": "boolean",
+          "description": "Starred (question star toggles it)",
+          "readOnly": true
+        },
+        {
+          "name": "tags",
+          "type": "list",
+          "description": "Tags (question tag and untag change them)",
+          "readOnly": true
+        },
+        {
+          "name": "asked_at",
+          "type": "string",
+          "description": "When it was asked (RFC 3339)",
+          "readOnly": true
+        },
+        {
+          "name": "thread",
+          "type": "string",
+          "description": "The complete thread as markdown",
+          "readOnly": true,
+          "noFilter": true,
+          "computed": true
+        },
+        {
+          "name": "latest_answer",
+          "type": "string",
+          "description": "The latest answer's text",
+          "readOnly": true,
+          "noFilter": true,
+          "computed": true
+        },
+        {
+          "name": "record_path",
+          "type": "string",
+          "description": "The question's record file",
+          "readOnly": true,
+          "noFilter": true,
+          "computed": true
+        }
+      ],
+      "defaultAction": "open-page",
+      "verbs": [
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "name": "create",
+          "description": "Create a thing from the props given (each omitted one its default), or a copy of the thing from names (its props create writes, the props given in place of its values); answers the new thing",
+          "kind": "application",
+          "params": {
+            "from": {
+              "type": "any",
+              "description": "Copy this thing (an id or a human key, or a row holding its key): every prop create writes, read from it, unless given",
+              "source": "decision.list",
+              "free": true,
+              "noun": "decision",
+              "covers": true
+            },
+            "pairs": {
+              "type": "string",
+              "description": "prop=value words for the props (plan 2.6: NOUN create [p=v ...]), after the label",
+              "rest": true,
+              "pairs": true
+            },
+            "status": {
+              "type": "string",
+              "description": "open, answered, follow-up or moot; writing it sets an explicit, sticky status",
+              "enum": [
+                "open",
+                "answered",
+                "follow-up",
+                "moot"
+              ]
+            }
+          },
+          "result": "JSON value",
+          "disabled": true,
+          "unavailable": "a system fact",
+          "positional": [
+            "pairs"
+          ],
+          "history": "change",
+          "builtin": false,
+          "standard": "create"
+        },
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "name": "edit",
+          "description": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its picker instead, edit.field-picker or the chooser argument); supplied props write directly without opening a form",
+          "kind": "application",
+          "params": {
+            "chooser": {
+              "type": "boolean",
+              "description": "With field on a prop that takes a choice: true opens its picker (the pick writes and closes), false the one-field form; omitted, edit.field-picker decides (the argument keeps its old name chooser)",
+              "plumbing": true
+            },
+            "field": {
+              "type": "string",
+              "description": "The one prop to edit (a name, or @label, @owner, @archive for the prop with that role): with edit.field-only the form holds only it, else the full form opens on it",
+              "enum": [
+                "status"
+              ],
+              "free": true,
+              "plumbing": true
+            },
+            "id": {
+              "type": "string",
+              "description": "The decision's id (default: the decision the request acts for)",
+              "source": "decision.list",
+              "free": true,
+              "noun": "decision",
+              "focus": true
+            },
+            "status": {
+              "type": "string",
+              "description": "open, answered, follow-up or moot; writing it sets an explicit, sticky status",
+              "enum": [
+                "open",
+                "answered",
+                "follow-up",
+                "moot"
+              ],
+              "named": true
+            }
+          },
+          "result": "JSON value",
+          "disabled": true,
+          "unavailable": "its store writes no props (no Store.Patch)",
+          "many": true,
+          "positional": [
+            "id",
+            "field",
+            "chooser"
+          ],
+          "history": "action",
+          "builtin": false,
+          "standard": "edit"
+        },
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "agentDeclared": "allow",
+          "name": "export",
+          "description": "The owner's decisions, asks and undecided items, for the agent",
+          "kind": "application",
+          "params": {
+            "all": {
+              "type": "boolean",
+              "description": "Include applied decisions"
+            },
+            "date": {
+              "type": "string",
+              "description": "Date for plan sections (YYYY-MM-DD)"
+            },
+            "group": {
+              "type": "string",
+              "description": "Topic"
+            },
+            "render": {
+              "type": "string",
+              "description": "json (default) or plan: Owner decisions sections for plan-imported items",
+              "enum": [
+                "json",
+                "plan"
+              ]
+            }
+          },
+          "result": "JSON value",
+          "history": "change",
+          "builtin": false
+        },
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "name": "get",
+          "description": "Read a thing's props: every prop as an object, one prop's value (prop), or some props (props)",
+          "kind": "application",
+          "params": {
+            "id": {
+              "type": "string",
+              "description": "The decision's id (default: the decision the request acts for)",
+              "source": "decision.list",
+              "free": true,
+              "noun": "decision",
+              "focus": true
+            },
+            "prop": {
+              "type": "string",
+              "description": "One prop (or @role: the prop with that role): answer its value alone; a dotted path (prop.key.0.key) reads inside an object or list prop",
+              "enum": [
+                "id",
+                "project_id",
+                "agent",
+                "direction",
+                "pane",
+                "agent_session",
+                "text",
+                "status",
+                "starred",
+                "tags",
+                "asked_at",
+                "thread",
+                "latest_answer",
+                "record_path"
+              ],
+              "free": true
+            },
+            "props": {
+              "type": "string",
+              "description": "The props to answer, comma-separated (default: every prop but secrets)"
+            }
+          },
+          "result": "JSON value",
+          "positional": [
+            "id",
+            "prop"
+          ],
+          "history": "fetch",
+          "builtin": false,
+          "standard": "get"
+        },
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "agentDeclared": "allow",
+          "name": "list",
+          "description": "List questions for the owner, grouped by topic",
+          "kind": "application",
+          "params": {
+            "group": {
+              "type": "string",
+              "description": "Topic"
+            },
+            "show": {
+              "type": "string",
+              "description": "Decision state shown; default decision.show",
+              "enum": [
+                "pending",
+                "undecided",
+                "asked",
+                "changed",
+                "decided",
+                "applied",
+                "all"
+              ]
+            }
+          },
+          "result": "JSON value",
+          "rows": "decision",
+          "quiet": true,
+          "history": "fetch",
+          "builtin": false,
+          "aliases": [
+            {
+              "alias": "question.queue",
+              "action": "decision.list",
+              "noun": "question",
+              "verb": "queue",
+              "source": "app"
+            }
+          ]
+        },
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "name": "open-page",
+          "description": "Open the Decisions page (--web: mgmt's browser page)",
+          "kind": "application",
+          "params": {
+            "height": {
+              "type": "integer",
+              "description": "Frame height for --smoke"
+            },
+            "no-open": {
+              "type": "boolean",
+              "description": "With --web: do not open the browser"
+            },
+            "port": {
+              "type": "integer",
+              "description": "With --web: port to serve on"
+            },
+            "smoke": {
+              "type": "boolean",
+              "description": "Render one frame and exit"
+            },
+            "web": {
+              "type": "boolean",
+              "description": "Serve mgmt's browser page instead of the terminal page"
+            },
+            "width": {
+              "type": "integer",
+              "description": "Frame width for --smoke"
+            }
+          },
+          "result": "JSON value",
+          "opensPage": "decision",
+          "history": "change",
+          "builtin": false
+        },
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "name": "set",
+          "description": "Write a thing's props: props, an object of prop to value (a subset or all of them; @label, @owner and @archive name a prop by its role), or prop=value words; toggle flips one boolean prop; answers the thing after the write",
+          "kind": "application",
+          "params": {
+            "changes": {
+              "type": "object",
+              "description": "The old name of props (accepted for one release)"
+            },
+            "id": {
+              "type": "string",
+              "description": "The decision's id (default: the decision the request acts for)",
+              "source": "decision.list",
+              "free": true,
+              "noun": "decision",
+              "focus": true
+            },
+            "pairs": {
+              "type": "string",
+              "description": "More prop=value words after the first, filling props",
+              "rest": true
+            },
+            "prop": {
+              "type": "string",
+              "description": "The prop toggle flips; a prop=value word fills props (with value, the one-prop form props replaces)",
+              "enum": [
+                "status"
+              ],
+              "free": true,
+              "pairs": true
+            },
+            "props": {
+              "type": "object",
+              "description": "The props to write: an object of prop (or @role: @label, @owner, @archive) to value, a subset or all of them; the others keep their values"
+            },
+            "toggle": {
+              "type": "boolean",
+              "description": "Flip the boolean prop instead of giving a value",
+              "excludes": [
+                "value"
+              ]
+            },
+            "value": {
+              "type": "any",
+              "description": "The prop's new value, typed by the prop (a word such as 3, true or 400ms, a JSON array or object); props replaces it",
+              "valueOf": "prop"
+            }
+          },
+          "result": "JSON value",
+          "disabled": true,
+          "unavailable": "a system fact",
+          "many": true,
+          "positional": [
+            "id",
+            "prop",
+            "value",
+            "pairs"
+          ],
+          "history": "change",
+          "builtin": false,
+          "standard": "set"
+        },
+        {
+          "examples": [
+            {
+              "args": {},
+              "note": "Template: replace placeholder values before running"
+            }
+          ],
+          "destructive": false,
+          "agent": "allow",
+          "name": "watch",
+          "description": "Stream what happens to the things (one, or those where matches): a JSON line per thing added, modified or deleted, from since when given; the CLI streams until interrupted",
+          "kind": "application",
+          "params": {
+            "id": {
+              "type": "string",
+              "description": "The decision's id: this one alone (default: every decision)",
+              "source": "decision.list",
+              "free": true,
+              "noun": "decision"
+            },
+            "since": {
+              "type": "string",
+              "description": "Start from this hash (an earlier event's hash): emit what changed since it instead of every thing as added"
+            },
+            "where": {
+              "type": "string",
+              "description": "prop=value pairs, comma- or space-separated: watch the things whose props equal every value",
+              "free": true,
+              "pairs": true
+            }
+          },
+          "result": "JSON value",
+          "positional": [
+            "id"
+          ],
+          "history": "fetch",
+          "builtin": false,
+          "standard": "watch"
         }
       ]
     },
@@ -19065,9 +19604,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.accept",
+              "alias": "decision.accept",
               "action": "question.accept",
-              "noun": "review",
+              "noun": "decision",
               "verb": "accept",
               "source": "app"
             }
@@ -19240,9 +19779,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.applied",
+              "alias": "decision.applied",
               "action": "question.applied",
-              "noun": "review",
+              "noun": "decision",
               "verb": "applied",
               "source": "app"
             }
@@ -19277,9 +19816,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.archive",
+              "alias": "decision.archive",
               "action": "question.archive",
-              "noun": "review",
+              "noun": "decision",
               "verb": "archive",
               "source": "app"
             }
@@ -19409,9 +19948,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.ask-back",
+              "alias": "decision.ask-back",
               "action": "question.ask-back",
-              "noun": "review",
+              "noun": "decision",
               "verb": "ask-back",
               "source": "app"
             }
@@ -19455,9 +19994,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.associate",
+              "alias": "decision.associate",
               "action": "question.associate",
-              "noun": "review",
+              "noun": "decision",
               "verb": "associate",
               "source": "app"
             }
@@ -19696,9 +20235,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.decide",
+              "alias": "decision.decide",
               "action": "question.decide",
-              "noun": "review",
+              "noun": "decision",
               "verb": "decide",
               "source": "app"
             }
@@ -19742,52 +20281,13 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.decision-note",
+              "alias": "decision.decision-note",
               "action": "question.decision-note",
-              "noun": "review",
+              "noun": "decision",
               "verb": "decision-note",
               "source": "app"
             }
           ]
-        },
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "agentDeclared": "allow",
-          "name": "decisions",
-          "description": "The owner's decisions, asks and undecided items, for the agent",
-          "kind": "application",
-          "params": {
-            "all": {
-              "type": "boolean",
-              "description": "Include applied decisions"
-            },
-            "date": {
-              "type": "string",
-              "description": "Date for plan sections (YYYY-MM-DD)"
-            },
-            "group": {
-              "type": "string",
-              "description": "Topic"
-            },
-            "render": {
-              "type": "string",
-              "description": "json (default) or plan: Owner decisions sections for plan-imported items",
-              "enum": [
-                "json",
-                "plan"
-              ]
-            }
-          },
-          "result": "JSON value",
-          "history": "change",
-          "builtin": false
         },
         {
           "examples": [
@@ -19818,9 +20318,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.delete",
+              "alias": "decision.delete",
               "action": "question.delete",
-              "noun": "review",
+              "noun": "decision",
               "verb": "delete",
               "source": "app"
             }
@@ -20028,7 +20528,7 @@
             },
             "root": {
               "type": "string",
-              "description": "Plans folder; default review.plans-root"
+              "description": "Plans folder; default decision.plans-root"
             }
           },
           "result": "JSON value",
@@ -20075,9 +20575,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.link",
+              "alias": "decision.link",
               "action": "question.link",
-              "noun": "review",
+              "noun": "decision",
               "verb": "link",
               "source": "app"
             }
@@ -20248,9 +20748,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.open",
+              "alias": "decision.open",
               "action": "question.open",
-              "noun": "review",
+              "noun": "decision",
               "verb": "open",
               "source": "app"
             }
@@ -20274,7 +20774,7 @@
           "params": {
             "actions": {
               "type": "array",
-              "description": "Allowed actions; default the review.actions setting"
+              "description": "Allowed actions; default the decision.actions setting"
             },
             "cwd": {
               "type": "string",
@@ -20376,9 +20876,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.rename",
+              "alias": "decision.rename",
               "action": "question.rename",
-              "noun": "review",
+              "noun": "decision",
               "verb": "rename",
               "source": "app"
             }
@@ -20462,9 +20962,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.reply",
+              "alias": "decision.reply",
               "action": "question.reply",
-              "noun": "review",
+              "noun": "decision",
               "verb": "reply",
               "source": "app"
             }
@@ -20503,9 +21003,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.restore",
+              "alias": "decision.restore",
               "action": "question.restore",
-              "noun": "review",
+              "noun": "decision",
               "verb": "restore",
               "source": "app"
             }
@@ -20610,9 +21110,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.show",
+              "alias": "decision.show",
               "action": "question.show",
-              "noun": "review",
+              "noun": "decision",
               "verb": "show",
               "source": "app"
             }
@@ -20683,9 +21183,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.star",
+              "alias": "decision.star",
               "action": "question.star",
-              "noun": "review",
+              "noun": "decision",
               "verb": "star",
               "source": "app"
             }
@@ -20728,9 +21228,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.tag",
+              "alias": "decision.tag",
               "action": "question.tag",
-              "noun": "review",
+              "noun": "decision",
               "verb": "tag",
               "source": "app"
             }
@@ -20765,9 +21265,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.undecide",
+              "alias": "decision.undecide",
               "action": "question.undecide",
-              "noun": "review",
+              "noun": "decision",
               "verb": "undecide",
               "source": "app"
             }
@@ -20791,9 +21291,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.undo",
+              "alias": "decision.undo",
               "action": "question.undo",
-              "noun": "review",
+              "noun": "decision",
               "verb": "undo",
               "source": "app"
             }
@@ -20864,9 +21364,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.unstar",
+              "alias": "decision.unstar",
               "action": "question.unstar",
-              "noun": "review",
+              "noun": "decision",
               "verb": "unstar",
               "source": "app"
             }
@@ -20909,9 +21409,9 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.untag",
+              "alias": "decision.untag",
               "action": "question.untag",
-              "noun": "review",
+              "noun": "decision",
               "verb": "untag",
               "source": "app"
             }
@@ -20993,513 +21493,13 @@
           "builtin": false,
           "aliases": [
             {
-              "alias": "review.yank",
+              "alias": "decision.yank",
               "action": "question.yank",
-              "noun": "review",
+              "noun": "decision",
               "verb": "yank",
               "source": "app"
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "review",
-      "kind": "collection",
-      "columns": [
-        {
-          "title": "Decision",
-          "width": 12
-        },
-        {
-          "title": "Question",
-          "min": 18
-        },
-        {
-          "title": "Agent",
-          "max": 15,
-          "priority": 1
-        },
-        {
-          "title": "Age",
-          "width": 7,
-          "priority": 2
-        },
-        {
-          "title": "Replies",
-          "width": 7,
-          "priority": 2
-        }
-      ],
-      "props": [
-        {
-          "name": "id",
-          "type": "string",
-          "description": "Record ID",
-          "readOnly": true,
-          "key": true
-        },
-        {
-          "name": "project_id",
-          "aliases": [
-            "project"
-          ],
-          "type": "string",
-          "description": "Project ID; empty when unassociated",
-          "readOnly": true
-        },
-        {
-          "name": "agent",
-          "type": "string",
-          "description": "Recording harness",
-          "readOnly": true
-        },
-        {
-          "name": "direction",
-          "type": "string",
-          "description": "Who answers the question",
-          "enum": [
-            "to-agent",
-            "to-owner"
-          ],
-          "readOnly": true
-        },
-        {
-          "name": "pane",
-          "type": "string",
-          "description": "Asking pane",
-          "readOnly": true
-        },
-        {
-          "name": "agent_session",
-          "type": "string",
-          "description": "Agent session",
-          "readOnly": true
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "description": "The owner's question (question edit changes it)",
-          "readOnly": true
-        },
-        {
-          "name": "status",
-          "type": "string",
-          "description": "open, answered, follow-up or moot; writing it sets an explicit, sticky status",
-          "enum": [
-            "open",
-            "answered",
-            "follow-up",
-            "moot"
-          ]
-        },
-        {
-          "name": "starred",
-          "type": "boolean",
-          "description": "Starred (question star toggles it)",
-          "readOnly": true
-        },
-        {
-          "name": "tags",
-          "type": "list",
-          "description": "Tags (question tag and untag change them)",
-          "readOnly": true
-        },
-        {
-          "name": "asked_at",
-          "type": "string",
-          "description": "When it was asked (RFC 3339)",
-          "readOnly": true
-        },
-        {
-          "name": "thread",
-          "type": "string",
-          "description": "The complete thread as markdown",
-          "readOnly": true,
-          "noFilter": true,
-          "computed": true
-        },
-        {
-          "name": "latest_answer",
-          "type": "string",
-          "description": "The latest answer's text",
-          "readOnly": true,
-          "noFilter": true,
-          "computed": true
-        },
-        {
-          "name": "record_path",
-          "type": "string",
-          "description": "The question's record file",
-          "readOnly": true,
-          "noFilter": true,
-          "computed": true
-        }
-      ],
-      "defaultAction": "open-page",
-      "verbs": [
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "name": "create",
-          "description": "Create a thing from the props given (each omitted one its default), or a copy of the thing from names (its props create writes, the props given in place of its values); answers the new thing",
-          "kind": "application",
-          "params": {
-            "from": {
-              "type": "any",
-              "description": "Copy this thing (an id or a human key, or a row holding its key): every prop create writes, read from it, unless given",
-              "source": "review.list",
-              "free": true,
-              "noun": "review",
-              "covers": true
-            },
-            "pairs": {
-              "type": "string",
-              "description": "prop=value words for the props (plan 2.6: NOUN create [p=v ...]), after the label",
-              "rest": true,
-              "pairs": true
-            },
-            "status": {
-              "type": "string",
-              "description": "open, answered, follow-up or moot; writing it sets an explicit, sticky status",
-              "enum": [
-                "open",
-                "answered",
-                "follow-up",
-                "moot"
-              ]
-            }
-          },
-          "result": "JSON value",
-          "disabled": true,
-          "unavailable": "a system fact",
-          "positional": [
-            "pairs"
-          ],
-          "history": "change",
-          "builtin": false,
-          "standard": "create"
-        },
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "name": "edit",
-          "description": "Edit a thing's writable props in a form, or one of them (field, a prop or @role: with edit.field-only the form holds only it, else it is focused; a field that takes a choice opens its picker instead, edit.field-picker or the chooser argument); supplied props write directly without opening a form",
-          "kind": "application",
-          "params": {
-            "chooser": {
-              "type": "boolean",
-              "description": "With field on a prop that takes a choice: true opens its picker (the pick writes and closes), false the one-field form; omitted, edit.field-picker decides (the argument keeps its old name chooser)",
-              "plumbing": true
-            },
-            "field": {
-              "type": "string",
-              "description": "The one prop to edit (a name, or @label, @owner, @archive for the prop with that role): with edit.field-only the form holds only it, else the full form opens on it",
-              "enum": [
-                "status"
-              ],
-              "free": true,
-              "plumbing": true
-            },
-            "id": {
-              "type": "string",
-              "description": "The review's id (default: the review the request acts for)",
-              "source": "review.list",
-              "free": true,
-              "noun": "review",
-              "focus": true
-            },
-            "status": {
-              "type": "string",
-              "description": "open, answered, follow-up or moot; writing it sets an explicit, sticky status",
-              "enum": [
-                "open",
-                "answered",
-                "follow-up",
-                "moot"
-              ],
-              "named": true
-            }
-          },
-          "result": "JSON value",
-          "disabled": true,
-          "unavailable": "its store writes no props (no Store.Patch)",
-          "many": true,
-          "positional": [
-            "id",
-            "field",
-            "chooser"
-          ],
-          "history": "action",
-          "builtin": false,
-          "standard": "edit"
-        },
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "name": "get",
-          "description": "Read a thing's props: every prop as an object, one prop's value (prop), or some props (props)",
-          "kind": "application",
-          "params": {
-            "id": {
-              "type": "string",
-              "description": "The review's id (default: the review the request acts for)",
-              "source": "review.list",
-              "free": true,
-              "noun": "review",
-              "focus": true
-            },
-            "prop": {
-              "type": "string",
-              "description": "One prop (or @role: the prop with that role): answer its value alone; a dotted path (prop.key.0.key) reads inside an object or list prop",
-              "enum": [
-                "id",
-                "project_id",
-                "agent",
-                "direction",
-                "pane",
-                "agent_session",
-                "text",
-                "status",
-                "starred",
-                "tags",
-                "asked_at",
-                "thread",
-                "latest_answer",
-                "record_path"
-              ],
-              "free": true
-            },
-            "props": {
-              "type": "string",
-              "description": "The props to answer, comma-separated (default: every prop but secrets)"
-            }
-          },
-          "result": "JSON value",
-          "positional": [
-            "id",
-            "prop"
-          ],
-          "history": "fetch",
-          "builtin": false,
-          "standard": "get"
-        },
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "agentDeclared": "allow",
-          "name": "list",
-          "description": "List questions for the owner, grouped by topic",
-          "kind": "application",
-          "params": {
-            "group": {
-              "type": "string",
-              "description": "Topic"
-            },
-            "show": {
-              "type": "string",
-              "description": "Review state shown; default review.show",
-              "enum": [
-                "pending",
-                "undecided",
-                "asked",
-                "changed",
-                "decided",
-                "applied",
-                "all"
-              ]
-            }
-          },
-          "result": "JSON value",
-          "rows": "review",
-          "quiet": true,
-          "history": "fetch",
-          "builtin": false,
-          "aliases": [
-            {
-              "alias": "question.queue",
-              "action": "review.list",
-              "noun": "question",
-              "verb": "queue",
-              "source": "app"
-            }
-          ]
-        },
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "name": "open-page",
-          "description": "Open the Decisions page (--web: mgmt's browser page)",
-          "kind": "application",
-          "params": {
-            "height": {
-              "type": "integer",
-              "description": "Frame height for --smoke"
-            },
-            "no-open": {
-              "type": "boolean",
-              "description": "With --web: do not open the browser"
-            },
-            "port": {
-              "type": "integer",
-              "description": "With --web: port to serve on"
-            },
-            "smoke": {
-              "type": "boolean",
-              "description": "Render one frame and exit"
-            },
-            "web": {
-              "type": "boolean",
-              "description": "Serve mgmt's browser page instead of the terminal page"
-            },
-            "width": {
-              "type": "integer",
-              "description": "Frame width for --smoke"
-            }
-          },
-          "result": "JSON value",
-          "opensPage": "review",
-          "history": "change",
-          "builtin": false
-        },
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "name": "set",
-          "description": "Write a thing's props: props, an object of prop to value (a subset or all of them; @label, @owner and @archive name a prop by its role), or prop=value words; toggle flips one boolean prop; answers the thing after the write",
-          "kind": "application",
-          "params": {
-            "changes": {
-              "type": "object",
-              "description": "The old name of props (accepted for one release)"
-            },
-            "id": {
-              "type": "string",
-              "description": "The review's id (default: the review the request acts for)",
-              "source": "review.list",
-              "free": true,
-              "noun": "review",
-              "focus": true
-            },
-            "pairs": {
-              "type": "string",
-              "description": "More prop=value words after the first, filling props",
-              "rest": true
-            },
-            "prop": {
-              "type": "string",
-              "description": "The prop toggle flips; a prop=value word fills props (with value, the one-prop form props replaces)",
-              "enum": [
-                "status"
-              ],
-              "free": true,
-              "pairs": true
-            },
-            "props": {
-              "type": "object",
-              "description": "The props to write: an object of prop (or @role: @label, @owner, @archive) to value, a subset or all of them; the others keep their values"
-            },
-            "toggle": {
-              "type": "boolean",
-              "description": "Flip the boolean prop instead of giving a value",
-              "excludes": [
-                "value"
-              ]
-            },
-            "value": {
-              "type": "any",
-              "description": "The prop's new value, typed by the prop (a word such as 3, true or 400ms, a JSON array or object); props replaces it",
-              "valueOf": "prop"
-            }
-          },
-          "result": "JSON value",
-          "disabled": true,
-          "unavailable": "a system fact",
-          "many": true,
-          "positional": [
-            "id",
-            "prop",
-            "value",
-            "pairs"
-          ],
-          "history": "change",
-          "builtin": false,
-          "standard": "set"
-        },
-        {
-          "examples": [
-            {
-              "args": {},
-              "note": "Template: replace placeholder values before running"
-            }
-          ],
-          "destructive": false,
-          "agent": "allow",
-          "name": "watch",
-          "description": "Stream what happens to the things (one, or those where matches): a JSON line per thing added, modified or deleted, from since when given; the CLI streams until interrupted",
-          "kind": "application",
-          "params": {
-            "id": {
-              "type": "string",
-              "description": "The review's id: this one alone (default: every review)",
-              "source": "review.list",
-              "free": true,
-              "noun": "review"
-            },
-            "since": {
-              "type": "string",
-              "description": "Start from this hash (an earlier event's hash): emit what changed since it instead of every thing as added"
-            },
-            "where": {
-              "type": "string",
-              "description": "prop=value pairs, comma- or space-separated: watch the things whose props equal every value",
-              "free": true,
-              "pairs": true
-            }
-          },
-          "result": "JSON value",
-          "positional": [
-            "id"
-          ],
-          "history": "fetch",
-          "builtin": false,
-          "standard": "watch"
         }
       ]
     }
@@ -23846,6 +23846,274 @@
       },
       "from": {
         "steps": "count"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "1",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 1
+        },
+        "via": "decision.decide"
+      },
+      "hint": "decide"
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "2",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 2
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "3",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 3
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "4",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 4
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "5",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 5
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "6",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 6
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "7",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 7
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "8",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 8
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "9",
+      "request": {
+        "verb": "decide",
+        "noun": "question",
+        "args": {
+          "choice": 9
+        },
+        "via": "decision.decide"
+      },
+      "hidden": true
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "?",
+      "request": {
+        "verb": "ask-back",
+        "noun": "question",
+        "via": "decision.ask-back"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "a",
+      "request": {
+        "verb": "accept",
+        "noun": "question",
+        "via": "decision.accept"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "d d",
+      "request": {
+        "verb": "delete",
+        "noun": "question",
+        "via": "decision.delete"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "d esc",
+      "request": {
+        "verb": "leave",
+        "noun": "ochazuke.mode"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "enter",
+      "request": {
+        "verb": "show",
+        "noun": "question",
+        "via": "decision.show"
+      },
+      "when": "question-thread-enabled"
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "g esc",
+      "request": {
+        "verb": "leave",
+        "noun": "ochazuke.mode"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "g x",
+      "request": {
+        "verb": "open",
+        "noun": "question",
+        "via": "decision.open"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "n",
+      "request": {
+        "verb": "decision-note",
+        "noun": "question",
+        "via": "decision.decision-note"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "o",
+      "request": {
+        "verb": "cycle",
+        "noun": "ochazuke.setting",
+        "args": {
+          "name": "decision.show"
+        }
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "t",
+      "request": {
+        "verb": "tag",
+        "noun": "question",
+        "via": "decision.tag"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "u",
+      "request": {
+        "verb": "undo",
+        "noun": "question",
+        "via": "decision.undo"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "v",
+      "request": {
+        "verb": "show",
+        "noun": "question",
+        "via": "decision.show"
+      },
+      "when": "question-thread-enabled"
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "x",
+      "request": {
+        "verb": "undecide",
+        "noun": "question",
+        "via": "decision.undecide"
+      }
+    },
+    {
+      "mode": "normal",
+      "noun": "decision",
+      "keys": "y",
+      "request": {
+        "verb": "yank",
+        "noun": "question",
+        "via": "decision.yank"
       }
     },
     {
@@ -28313,274 +28581,6 @@
       "capture": true
     },
     {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "1",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 1
-        },
-        "via": "review.decide"
-      },
-      "hint": "decide"
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "2",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 2
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "3",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 3
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "4",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 4
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "5",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 5
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "6",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 6
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "7",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 7
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "8",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 8
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "9",
-      "request": {
-        "verb": "decide",
-        "noun": "question",
-        "args": {
-          "choice": 9
-        },
-        "via": "review.decide"
-      },
-      "hidden": true
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "?",
-      "request": {
-        "verb": "ask-back",
-        "noun": "question",
-        "via": "review.ask-back"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "a",
-      "request": {
-        "verb": "accept",
-        "noun": "question",
-        "via": "review.accept"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "d d",
-      "request": {
-        "verb": "delete",
-        "noun": "question",
-        "via": "review.delete"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "d esc",
-      "request": {
-        "verb": "leave",
-        "noun": "ochazuke.mode"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "enter",
-      "request": {
-        "verb": "show",
-        "noun": "question",
-        "via": "review.show"
-      },
-      "when": "question-thread-enabled"
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "g esc",
-      "request": {
-        "verb": "leave",
-        "noun": "ochazuke.mode"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "g x",
-      "request": {
-        "verb": "open",
-        "noun": "question",
-        "via": "review.open"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "n",
-      "request": {
-        "verb": "decision-note",
-        "noun": "question",
-        "via": "review.decision-note"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "o",
-      "request": {
-        "verb": "cycle",
-        "noun": "ochazuke.setting",
-        "args": {
-          "name": "review.show"
-        }
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "t",
-      "request": {
-        "verb": "tag",
-        "noun": "question",
-        "via": "review.tag"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "u",
-      "request": {
-        "verb": "undo",
-        "noun": "question",
-        "via": "review.undo"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "v",
-      "request": {
-        "verb": "show",
-        "noun": "question",
-        "via": "review.show"
-      },
-      "when": "question-thread-enabled"
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "x",
-      "request": {
-        "verb": "undecide",
-        "noun": "question",
-        "via": "review.undecide"
-      }
-    },
-    {
-      "mode": "normal",
-      "noun": "review",
-      "keys": "y",
-      "request": {
-        "verb": "yank",
-        "noun": "question",
-        "via": "review.yank"
-      }
-    },
-    {
       "mode": "operator_g_pending",
       "noun": "ochazuke.editor",
       "pattern": "any",
@@ -30161,15 +30161,15 @@
       }
     },
     {
-      "id": "review",
+      "id": "decision",
       "title": "Decisions",
       "layout": "split",
       "lists": [
         {
           "tree": true,
-          "id": "review/questions",
-          "noun": "review",
-          "source": "review.list",
+          "id": "decision/questions",
+          "noun": "decision",
+          "source": "decision.list",
           "title": "For you"
         }
       ],
@@ -30180,7 +30180,7 @@
           "choices",
           "details_view",
           "topic",
-          "decision"
+          "decision_view"
         ],
         "sections": [
           {
@@ -30223,42 +30223,42 @@
               },
               {
                 "label": "Decision",
-                "field": "decision",
+                "field": "decision_view",
                 "format": "badge"
               },
               {
                 "label": "Note",
-                "field": "review.note",
+                "field": "decision.note",
                 "format": "text"
               },
               {
                 "label": "Recommended",
-                "field": "review.recommended_action",
+                "field": "decision.recommended_action",
                 "format": "text"
               },
               {
                 "label": "Changed",
-                "field": "review.context_changed",
+                "field": "decision.context_changed",
                 "format": "text"
               },
               {
                 "label": "New reply",
-                "field": "review.new_reply",
+                "field": "decision.new_reply",
                 "format": "text"
               },
               {
                 "label": "Applied",
-                "field": "review.status",
+                "field": "decision.status",
                 "format": "badge"
               },
               {
                 "label": "Result",
-                "field": "review.result",
+                "field": "decision.result",
                 "format": "text"
               },
               {
                 "label": "Source",
-                "field": "review.source",
+                "field": "decision.source",
                 "format": "path"
               },
               {
@@ -30289,9 +30289,9 @@
       "noun": "question"
     },
     {
-      "name": "review",
+      "name": "decision",
       "about": "The questions waiting for the owner's decision; pick one to open it",
-      "noun": "review"
+      "noun": "decision"
     }
   ]
 }
