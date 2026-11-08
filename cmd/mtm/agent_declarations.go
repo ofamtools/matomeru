@@ -31,7 +31,7 @@ var mtmAgentDeclarations = []struct {
 	{"note.delete", "", true},
 	{"daemon.ensure", ochazuke.AgentAllow, false}, {"daemon.start", ochazuke.AgentAllow, false}, {"daemon.status", ochazuke.AgentAllow, false},
 	{"daemon.show-log", ochazuke.AgentAllow, false},
-	{"daemon.stop", ochazuke.AgentNever, false}, {"daemon.restart", ochazuke.AgentNever, false}, {"daemon.serve", ochazuke.AgentNever, false},
+	{"daemon.stop", ochazuke.AgentNever, false}, {"daemon.restart", ochazuke.AgentNever, false}, {"daemon.serve", ochazuke.AgentNever, false}, {"daemon.import-state", ochazuke.AgentNever, false},
 	{"context-item.delete", "", true},
 	{"pane.kill", ochazuke.AgentConfirm, false}, {"session.kill", ochazuke.AgentConfirm, false},
 	{"pane.delete", ochazuke.AgentConfirm, false}, {"session.delete", ochazuke.AgentConfirm, false},

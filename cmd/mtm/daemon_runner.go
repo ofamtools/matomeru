@@ -371,6 +371,8 @@ func (a *App) defineDaemon(r *ochazuke.Runtime) {
 	verb("show-log", true, a.daemonLogsVerb, "Tail the daemon log (lines, default 50). Never starts a daemon").Fetch().Quiet()
 	verb("stop", true, a.daemonStopVerb, "Stop the daemon; its panes die. A daemon that is not running is left alone").Confirm("Stop the daemon? Its panes end.")
 	verb("restart", true, a.daemonRestartVerb, "Stop the daemon, then start it again (it restores its saved state)").Confirm("Restart the daemon? Panes end and are restored from saved state.")
+	verb("import-state", true, a.daemonImportStateVerb, daemonImportAbout)
+	a.defineDaemonImportParameters()
 	verb("serve", true, a.daemonServeVerb, "Run the daemon in this process until it is stopped (CLI)")
 	a.parameters("daemon.show-log", map[string]ochazuke.Parameter{"lines": {Type: "integer", Description: "How many trailing lines (default 50)"}})
 }
