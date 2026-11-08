@@ -52,6 +52,13 @@ func TestExtensionSourcedParameterGetsSuggestions(t *testing.T) {
 	if err != nil || len(choices) != 3 {
 		t.Fatalf("choices %v %v", choices, err)
 	}
+	// The pick list names each thing: its label rides beside its id.
+	if choices[1].ID != "p1" || choices[1].Label != "Kitchen" || choices[2].Label != "Shed" || choices[0].Label != "nowhere" {
+		t.Fatalf("labels lost: %+v", choices)
+	}
+	if row := choices[1].Row(); row.Label != "Kitchen  p1" {
+		t.Fatalf("picker row %+v", row)
+	}
 	// Suggestions only: a value outside them runs the tool.
 	if err := a.r.SetFocus("ext/fake/item/i1"); err != nil {
 		t.Fatal(err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -29,7 +30,8 @@ type extSource struct {
 	key    string // the tool's NOUN.VERB
 	params []extSourceParam
 	ids    []string
-	err    string // why its last load failed
+	labels map[string]string // id -> the thing's human label, when it has one
+	err    string            // why its last load failed
 }
 
 // extSourceParam is one parameter a source fills: the operation key, the
@@ -88,6 +90,15 @@ func (a *App) applyChoices(src *extSource) {
 				p.Enum = append(p.Enum, id)
 			}
 		}
+		if len(src.labels) > 0 {
+			p.EnumLabels = maps.Clone(p.EnumLabels)
+			if p.EnumLabels == nil {
+				p.EnumLabels = map[string]string{}
+			}
+			for id, label := range src.labels {
+				p.EnumLabels[id] = label
+			}
+		}
 		p.Free = true
 		op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(sp.op)))
 		if !ok {
@@ -139,9 +150,12 @@ func (a *App) loadSources(x *extension) error {
 				return
 			}
 			src.err = ""
-			src.ids = src.ids[:0]
+			src.ids, src.labels = src.ids[:0], map[string]string{}
 			for _, c := range choices {
 				src.ids = append(src.ids, c.ID)
+				if c.Label != "" && c.Label != c.ID {
+					src.labels[c.ID] = c.Label
+				}
 			}
 			a.applyChoices(src)
 		})
@@ -167,8 +181,19 @@ func extChoices(v any) ([]ochazuke.Choice, error) {
 						break
 					}
 				}
+				// The thing's human label: its label or title (the
+				// label-role prop a list row carries), else its name.
+				label := id
+				for _, k := range []string{"label", "Label", "title", "Title", "name", "Name"} {
+					if s, ok := item[k]; ok && s != nil {
+						if t := fieldText(s); t != "" && t != id {
+							label = t
+							break
+						}
+					}
+				}
 				if id != "" {
-					out = append(out, ochazuke.Choice{ID: id, Label: id})
+					out = append(out, ochazuke.Choice{ID: id, Label: label})
 				}
 			default:
 				if s := fieldText(item); s != "" {
