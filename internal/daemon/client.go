@@ -122,6 +122,10 @@ func (c *Client) dial(ctx context.Context) (*connection, error) {
 	}
 	result := &connection{Conn: conn, reader: bufio.NewReader(conn)}
 	result.stop = context.AfterFunc(ctx, func() { conn.Close() })
+	if err := result.restrict(ctx); err != nil {
+		result.Close()
+		return nil, contextError(ctx, err)
+	}
 	return result, nil
 }
 func readLine(r *bufio.Reader) ([]byte, error) {

@@ -17,6 +17,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	want := []string{
+		"agent.peek-prompt", "agent.scan", "agent.status", "pane.capture", "pane.wait", "session.events", "session.list-panes",
 		"action-item.count", "action-item.get", "action-item.list", "action-item.watch",
 		"context-item.get", "context-item.list", "context-item.watch", "daemon.show-log", "daemon.status", "dirs.bases", "dirs.refresh",
 		"extension.all", "extension.available", "extension.peer-rows", "extension.peers", "extension.setup-plan", "extension.setup-status",
@@ -38,6 +39,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
+	sort.Strings(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("fetch verbs\n got %v\nwant %v", got, want)
 	}

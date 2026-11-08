@@ -38,6 +38,7 @@ const (
 func agentSettings() []ochazuke.Setting {
 	def := work.DefaultAgentPolicy()
 	return []ochazuke.Setting{
+		paneScopeSetting(),
 		{Name: settingAgentsWriteScope, Type: ochazuke.SettingString, Default: def.WriteScope, Enum: work.WriteScopes,
 			Description: "Which tasks an agent may change besides those its pane or lane made: subtree (its lane task and the tasks under it), own (none), project (its pane's project) or any; the owner is never limited"},
 		{Name: settingAgentsWriteMakers, Type: ochazuke.SettingList, Default: def.WriteMakers,

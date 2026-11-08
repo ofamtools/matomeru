@@ -32,6 +32,9 @@
 ../../internal/contextitems/store.go	Item.Path	compare	"dir"	1
 ../../internal/contextitems/store.go	normalize	compare	"link"	1
 ../../internal/contextitems/wrap.go	joinNext	cyclo	"-"	27
+../../internal/daemon/client.go	decodeEvent	case	"boot_id"	1	wire field names of the daemon event JSON, not mtm vocabulary (boot_id became a word with session.events)
+../../internal/harness/harness.go	Harness.Validate	case	"send-text"	1	the daemon verb a harness manifest names, not an mtm verb (send-text became a word with pane.send-text)
+../../internal/history/project.go	project	case	"session_start"	1	wire field of the agent-state report, not mtm vocabulary (session_start became a word with agent.set-status)
 ../../internal/daemon/client.go	decodeEvent	case	"at"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"seq"	1	wire field names of the daemon event JSON, not mtm vocabulary (seq became a word with ochazuke R1's history noun)
 ../../internal/daemon/client.go	decodeEvent	case	"session"	1	wire field names of the daemon event JSON, not mtm vocabulary

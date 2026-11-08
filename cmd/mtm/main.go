@@ -627,6 +627,7 @@ func New(opts Options) (*App, error) {
 	a.definePathSources()
 	a.defineCapture()
 	a.defineMCPOperations()
+	a.defineWireVerbs()
 	a.defineSetup()
 	a.defineStore()
 	a.defineExtensions()

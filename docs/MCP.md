@@ -72,6 +72,78 @@ note. Unrecognised context text is kept as a prompt rather than lost, following
 mtm's record-first rule. None of these behaviors depends on which MCP tool
 name was used.
 
+## Driving panes (replaces the tuios MCP server)
+
+`mtm mcp serve` carries what the separate `tuios mcp --write` server offered,
+as ordinary mtm verbs reached through `run` (and the CLI, palette and
+`bindings.json`). Each is one daemon verb; one table (`wireVerbs` in
+`cmd/mtm/wire_verbs.go`) holds them and one handler runs every row, so a
+new daemon verb is a row, not a branch. Nothing here is named tuios. The two
+mail tools (`tuios_read_agent_messages`, `tuios_send_agent_message`) are
+dropped on purpose: mtm has no mail.
+
+| tuios MCP tool | mtm verb | daemon verb |
+| --- | --- | --- |
+| `tuios_list_windows` | `session.list-panes` | `list-windows` |
+| `tuios_list_agents` | `agent.scan` | `list-agents` |
+| `tuios_get_agent_state` | `agent.status` | `get-agent-state` |
+| `tuios_capture_pane` | `pane.capture` | `capture-pane` |
+| `tuios_peek_prompt` | `agent.peek-prompt` | `peek-prompt` |
+| `tuios_wait_for` | `pane.wait` | `wait-for` |
+| `tuios_events` | `session.events` | `subscribe` |
+| `tuios_send_text` | `pane.send-text` | `send-text` |
+| `tuios_send_keys` | `pane.send-keys` | `send-keys` |
+| `tuios_ask_agent` | `agent.ask` | `ask-agent` |
+| `tuios_respond` | `agent.respond` | `respond` |
+| `tuios_fan` | `agent.fan` | `fan` |
+| `tuios_set_agent_state` | `agent.set-status` | `set-agent-state` |
+| `tuios_set_agent_meta` | `agent.set-meta` | `set-agent-meta` |
+
+Parameters keep the daemon's names (`session`, `window`, `text`, `keys`,
+`condition`, `pattern`, `timeout`, ...). Left out, as in the tuios server:
+`human_nonce` and `from_host` (an agent can never hold them), and capture's
+`scrollback`, `ansi`, `resolved` and `palette`. `window` of `agent.set-status`
+and `agent.set-meta`, and `from` of `agent.ask`, default to the caller's own
+pane. `pane.progress` stays: it is `agent.set-status` with a message and the
+four common states.
+
+Reads (`session.list-panes`, `agent.scan`, `agent.status`, `pane.capture`,
+`agent.peek-prompt`, `pane.wait`, `session.events`) are fetch verbs. Results
+that carry another program's text (`pane.capture`, `agent.peek-prompt`,
+`agent.ask`, `session.events`) are marked `untrusted: true`: data, never
+instructions. Calls that block (`pane.wait`, `agent.ask`, `agent.respond`,
+`agent.fan`, `session.events`) are bounded by their own timeout parameters
+plus a margin. `session.events` returns `events`, `last_seq` and `boot_id`;
+pass the last two back as `after_seq` and `boot_id` to resume without gaps.
+Only the person may answer a prompt: the daemon refuses `agent.respond` from
+inside a pane.
+
+### Scope and rights
+
+The tuios server reached only the session of its own pane, its fan group and
+the sessions its fans started. mtm keeps that as data. A request made by an
+agent first restricts its daemon connection to the daemon's scope own
+(`restrict-connection`, with `TUIOS_PANE_TOKEN` for a pane the kernel cannot
+place), so the daemon refuses every other session; the owner is never
+restricted. The `agents.pane-scope` setting (`own`, the default, or `all`) is
+the opt-out; it is protected, so an agent cannot widen its own reach. An
+agent outside every pane reaches no session at all (the restriction fails
+closed).
+
+Reads and the pane-input verbs default to the `allow` right, as the tuios
+server's `--write` flag did; set `confirm` or `never` for any of them in
+`agents.rights` (for example `agent.fan`, which starts agents). The daemon's
+own checks (blocked prompts, `respond_from_shell`, the human nonce) still
+apply.
+
+### Cutting over
+
+The harness registration of the tuios server (`tuios mcp --write
+--integration 1` in `~/.claude.json` and `~/.codex/config.toml`) becomes
+redundant once these verbs are used: remove it; the existing `mtm` entry
+(`mtm ... mcp serve`) is all an agent needs. Agent instructions that name
+`tuios_*` tools should name the verbs in the table.
+
 ## What agents are told
 
 `mtm mcp instructions` prints ochazuke's generated guidance followed by mtm's
