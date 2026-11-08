@@ -331,6 +331,11 @@ type extension struct {
 	sources      map[string]*extSource // a parameter source (the tool's NOUN.VERB) -> its cached choices (extension_sources.go)
 	bindingLists map[string]string     // host noun -> mounted list, shared catalog key policy
 	bindingCRUD  map[string][]string
+	// viaNouns is, per mounted noun, the mounted nouns whose rows its verbs
+	// are named on: a catalog key row on a review row running the question
+	// verb decide "via review.decide" says a review row is a thing that verb
+	// acts on, so its id is the target (extTarget).
+	viaNouns map[string]map[string]bool
 	// fetchEnv is the environment its page loads run with, read on the
 	// loop when its rows reload (extension_context.go).
 	fetchEnv atomic.Pointer[[]string]
@@ -848,6 +853,7 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		x.bindingLists[x.nouns[noun]] = list
 	}
 	x.bindingCRUD = crud
+	x.viaNouns = map[string]map[string]bool{}
 	var dropped []string
 	for _, row := range rows {
 		local, ok := x.nouns[row.Noun]
@@ -862,6 +868,12 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		if row.Instance != "" || !mounted {
 			dropped = append(dropped, where+": instance-only row or unmounted action noun")
 			continue
+		}
+		if i := strings.LastIndex(row.Request.Via, "."); i > 0 && row.Request.Via[:i] == row.Noun && row.Noun != row.Request.Noun {
+			if x.viaNouns[req] == nil {
+				x.viaNouns[req] = map[string]bool{}
+			}
+			x.viaNouns[req][local] = true
 		}
 		row.Request.Noun = req
 		row.Noun = local
@@ -978,9 +990,13 @@ func (a *App) extTarget(x *extension, noun string, inst *ochazuke.Instance) stri
 	if local, ok := x.nouns[noun]; ok {
 		want = a.r.CanonicalNoun(local)
 	}
+	named := x.viaNouns[x.nouns[noun]]
 	for _, id := range a.r.Ancestry(inst.ID) {
 		in := a.r.Instances[id]
-		if in == nil || a.r.CanonicalNoun(in.Noun) != want {
+		if in == nil {
+			continue
+		}
+		if cn := a.r.CanonicalNoun(in.Noun); cn != want && !named[in.Noun] && !named[cn] {
 			continue
 		}
 		if target, ok := in.Data.(string); ok {
