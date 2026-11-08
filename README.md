@@ -285,7 +285,7 @@ mtm runs its agents and shells in panes of a TUIOS-compatible daemon it starts f
 
 With `daemon.pin-binary` (default on) the self daemon runs from a copy of the mtm binary at `<state dir>/daemon-bin/mtm-<build>` (`$XDG_STATE_HOME/matomeru/daemon-bin`, or beside the database for a non-default `--data`). Overwriting the installed mtm cannot then kill it. A new build adds its copy and removes copies of other builds that no process runs. Off runs the installed binary.
 
-The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and skew, runner, binary), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
+The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and commits, skew, runner, binary; skew compares the builds' VCS revisions, not their version labels), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
 
 ## Credits and licences
 
