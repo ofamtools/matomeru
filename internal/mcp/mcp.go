@@ -2,7 +2,11 @@
 // The protocol and catalog server belong to ochazuke/cli/mcp.
 package mcp
 
-import "os"
+import (
+	"os"
+
+	"ofam.dev/matomeru/internal/daemon"
+)
 
 // Identity is who is talking: the pane and what it is assigned to.
 type Identity struct {
@@ -23,21 +27,18 @@ type Identity struct {
 }
 
 // IdentityFromEnv reads the pane the server was started in from getenv
-// (os.Getenv when nil). TUIOS sets TUIOS_SESSION and TUIOS_PANE_ID on every
-// pane, and a harness passes them on to the MCP servers it starts;
-// MTM_SESSION and MTM_WINDOW override them for tests and explicit bridges,
-// as in matomeru-old.
+// (os.Getenv when nil). The daemon sets MTM_SESSION and MTM_PANE_ID (and
+// TUIOS_SESSION and TUIOS_PANE_ID, for one release) on every pane, and a
+// harness passes them on to the MCP servers it starts; MTM_WINDOW overrides
+// the pane for tests and explicit bridges, as in matomeru-old.
 func IdentityFromEnv(getenv func(string) string) Identity {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	session := getenv("MTM_SESSION")
-	if session == "" {
-		session = getenv("TUIOS_SESSION")
-	}
+	session := daemon.EnvSession.Get(getenv)
 	window := getenv("MTM_WINDOW")
 	if window == "" {
-		window = getenv("TUIOS_PANE_ID")
+		window = daemon.EnvPaneID.Get(getenv)
 	}
 	return Identity{Session: session, Window: window, Bound: window != ""}
 }

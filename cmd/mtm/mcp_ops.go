@@ -39,8 +39,8 @@ func (a *App) defineMCPOperations() {
 	a.parameters(contextNoun+".add", map[string]ochazuke.Parameter{
 		"text":    {Type: "string", Required: true, Description: "The text the items are taken from"},
 		"kind":    {Type: "string", Enum: contextitems.Kinds, Description: "Keep only items of this kind; prompt or command keeps the whole text as one; a kind the text yields none of keeps the whole text as that kind"},
-		"session": {Type: "string", Description: "The pane's session name (default TUIOS_SESSION)"},
-		"window":  {Type: "string", Description: "The pane's window id (default TUIOS_PANE_ID); it owns the items"},
+		"session": {Type: "string", Description: "The pane's session name (default MTM_SESSION or TUIOS_SESSION)"},
+		"window":  {Type: "string", Description: "The pane's window id (default MTM_PANE_ID or TUIOS_PANE_ID); it owns the items"},
 		"task_id": {Type: "string", Description: "Compatibility argument; ownership comes from the pane"},
 		"cwd":     {Type: "string", Description: "The directory relative paths resolve against"},
 	})
@@ -53,8 +53,8 @@ func (a *App) defineMCPOperations() {
 	a.parameters("pane.progress", map[string]ochazuke.Parameter{
 		"message": {Type: "string", Required: true, Description: "What the agent is doing right now"},
 		"state":   {Type: "string", Enum: progressStates, Description: "The agent state (default working)"},
-		"session": {Type: "string", Description: "The pane's session name (default TUIOS_SESSION)"},
-		"window":  {Type: "string", Description: "The pane's window id (default TUIOS_PANE_ID)"},
+		"session": {Type: "string", Description: "The pane's session name (default MTM_SESSION or TUIOS_SESSION)"},
+		"window":  {Type: "string", Description: "The pane's window id (default MTM_PANE_ID or TUIOS_PANE_ID)"},
 	})
 }
 

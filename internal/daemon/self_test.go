@@ -106,8 +106,8 @@ func TestPinRacingStartersLeaveOneWholeCopy(t *testing.T) {
 }
 
 func TestScrubEnv(t *testing.T) {
-	got := ScrubEnv([]string{"PATH=/bin", "TUIOS_SOCKET=/x", "TUIOS_SERVER=a", "TMUX=1", "TMUX_PANE=%1", "STY=s", "CLAUDECODE=1", "HOME=/h", "ZELLIJ=0"})
-	if strings.Join(got, ",") != "PATH=/bin,HOME=/h" {
+	got := ScrubEnv([]string{"PATH=/bin", "TUIOS_SOCKET=/x", "TUIOS_SERVER=a", "MTM_SOCKET=/x", "MTM_SERVER=a", "MTM_PANE_ID=w", "TMUX=1", "TMUX_PANE=%1", "STY=s", "CLAUDECODE=1", "HOME=/h", "ZELLIJ=0", "MTM_DATA=/d"})
+	if strings.Join(got, ",") != "PATH=/bin,HOME=/h,MTM_DATA=/d" {
 		t.Fatalf("env = %v", got)
 	}
 }
@@ -116,9 +116,11 @@ func TestSelfStartRunsThePinnedBinaryWithTheHiddenWord(t *testing.T) {
 	root := t.TempDir()
 	out := filepath.Join(root, "out")
 	exe := filepath.Join(root, "mtm")
-	writeExe(t, exe, "#!/bin/sh\necho \"$0 $*\" > "+out+"\necho \"TUIOS_SERVER=${TUIOS_SERVER-unset}\" >> "+out+"\n")
-	s := SelfStart{Word: "__w", Exe: exe, PinDir: filepath.Join(root, "bin"), Label: "t", InUse: func(string) bool { return true },
-		Environ: func() []string { return []string{"PATH=/usr/bin:/bin", "TUIOS_SERVER=enclosing"} }}
+	writeExe(t, exe, "#!/bin/sh\necho \"$0 $*\" > "+out+"\necho \"TUIOS_SERVER=${TUIOS_SERVER-unset} MTM_SERVER=${MTM_SERVER-unset} PATHS=${MTM_DAEMON_PATHS-unset}\" >> "+out+"\n")
+	s := SelfStart{Word: "__w", Exe: exe, PinDir: filepath.Join(root, "bin"), Label: "t", InUse: func(string) bool { return true }, Paths: "mtm",
+		Environ: func() []string {
+			return []string{"PATH=/usr/bin:/bin", "TUIOS_SERVER=enclosing", "MTM_SERVER=enclosing", "MTM_DAEMON_PATHS=tuios"}
+		}}
 	exited, err := s.Start(context.Background(), "srv")
 	if err != nil {
 		t.Fatal(err)
@@ -132,8 +134,8 @@ func TestSelfStartRunsThePinnedBinaryWithTheHiddenWord(t *testing.T) {
 	if len(pins) != 1 || !strings.HasPrefix(lines[0], filepath.Join(root, "bin", pins[0])+" __w --server srv start-server") {
 		t.Fatalf("ran %q, pins %v", lines[0], pins)
 	}
-	if lines[1] != "TUIOS_SERVER=unset" {
-		t.Fatalf("the enclosing server leaked: %q", lines[1])
+	if lines[1] != "TUIOS_SERVER=unset MTM_SERVER=unset PATHS=mtm" {
+		t.Fatalf("the enclosing server leaked or the layout was not handed on: %q", lines[1])
 	}
 	// Unpinned (daemon.pin-binary off): the binary itself.
 	s.PinDir = ""

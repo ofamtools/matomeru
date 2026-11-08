@@ -33,6 +33,8 @@ func isolate(t *testing.T) (dir string, starts *int) {
 	t.Setenv("TUIOS_SERVER", "")
 	t.Setenv("MTM_SERVER", "")
 	os.Unsetenv("MTM_SERVER")
+	t.Setenv("MTM_SOCKET", "")
+	t.Setenv("MTM_DAEMON_PATHS", "")
 	starts = new(int)
 	old := serverStart
 	serverStart = func(context.Context, string) (<-chan error, error) { *starts++; return nil, errors.New("boom") }

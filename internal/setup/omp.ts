@@ -36,11 +36,17 @@ async function run(bin: string, args: string[], input?: string): Promise<void> {
   return promise;
 }
 
+// paneEnv reads a pane variable under mtm's name first, then TUIOS_'s (the
+// daemon exports both for one release).
+function paneEnv(name: string): string | undefined {
+  return process.env[`MTM_${name}`] || process.env[`TUIOS_${name}`];
+}
+
 export default function (pi: ExtensionAPI) {
-  if (process.env.TUIOS_ENV !== "1" || !process.env.TUIOS_PANE_ID || !process.env.TUIOS_SESSION || !process.env.TUIOS_SOCKET) return;
-  const session = process.env.TUIOS_SESSION;
-  const window = process.env.TUIOS_PANE_ID;
-  const socket = process.env.TUIOS_SOCKET;
+  if (paneEnv("ENV") !== "1" || !paneEnv("PANE_ID") || !paneEnv("SESSION") || !paneEnv("SOCKET")) return;
+  const session = paneEnv("SESSION")!;
+  const window = paneEnv("PANE_ID")!;
+  const socket = paneEnv("SOCKET")!;
   const main = (ctx: ExtensionContext) => ctx.mode === "tui" && ctx.agent.kind === "main";
   let active: { start: Turn; prompts: string[]; saved: boolean } | undefined;
 

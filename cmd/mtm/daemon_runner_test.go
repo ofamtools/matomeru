@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // The daemon module is linked by one file (and its off twin): nothing else
@@ -123,5 +125,42 @@ func TestUnknownDaemonRunnerNamesTheChoices(t *testing.T) {
 	_ = run([]string{"--data", data, "binding", "list"}, strings.NewReader(""), &out, &errOut)
 	if !strings.Contains(errOut.String(), `unknown daemon runner "carrier-pigeon" (tuios`) {
 		t.Fatalf("stderr: %s", errOut.String())
+	}
+}
+
+// serial: exercises daemon process environment and the package serverStart hook.
+func TestDaemonPathsFollowTheRunnerThenEnvironmentThenSetting(t *testing.T) {
+	dir, _ := isolate(t)
+	data := filepath.Join(t.TempDir(), "mtm.db")
+	t.Setenv("MTM_DAEMON_RUNNER", "")
+	sock := func(layout string) string {
+		l, err := daemon.LayoutNamed(layout)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filepath.Join(dir, l.SocketApp, "servers", MtmServer, l.SocketFile)
+	}
+	// The tuios runner's daemon is a tuios: always tuios's names.
+	if info := daemonStatusRow(t, data); info.Paths != "tuios" || info.Socket != sock("tuios") {
+		t.Fatalf("tuios runner: paths %q socket %s", info.Paths, info.Socket)
+	}
+	cfg := filepath.Join(filepath.Dir(data), "settings.json")
+	write := func(body string) {
+		if err := os.WriteFile(cfg, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(`{"daemon.runner":"self"}`)
+	info := daemonStatusRow(t, data)
+	if info.Paths != "mtm" || info.Socket != sock("mtm") || !strings.HasSuffix(info.StateDir, filepath.Join("mtm", "servers", MtmServer)) {
+		t.Fatalf("self runner: paths %q socket %s state %s", info.Paths, info.Socket, info.StateDir)
+	}
+	write(`{"daemon.runner":"self","daemon.paths":"tuios"}`)
+	if info := daemonStatusRow(t, data); info.Paths != "tuios" || info.Socket != sock("tuios") || !strings.HasSuffix(info.StateDir, filepath.Join("tuios-servers", MtmServer, "tuios")) {
+		t.Fatalf("daemon.paths=tuios: paths %q socket %s state %s", info.Paths, info.Socket, info.StateDir)
+	}
+	t.Setenv("MTM_DAEMON_PATHS", "mtm")
+	if info := daemonStatusRow(t, data); info.Paths != "mtm" || info.Socket != sock("mtm") {
+		t.Fatalf("MTM_DAEMON_PATHS=mtm: paths %q socket %s", info.Paths, info.Socket)
 	}
 }

@@ -177,9 +177,10 @@ func TestImportOverwriteArchivesAndRollsBack(t *testing.T) {
 	write(t, filepath.Join(dst, "attention", "items.json"), "KEEP")
 	calls := 0
 	o.Live = func(s string) (bool, string) {
-		// The third check is ImportState's own, just before copying: touch
-		// the source then, as a writer that started late would.
-		if calls++; calls == 3 {
+		// The plan checks both servers under every layout; the next check is
+		// ImportState's own, just before copying: touch the source then, as
+		// a writer that started late would.
+		if calls++; calls == 2*len(Layouts)+1 {
 			write(t, filepath.Join(ServerStateDir(base, ""), "alpha.json"), session("alpha", 1, "w1", "w2", "w3"))
 		}
 		return false, ""
@@ -192,5 +193,32 @@ func TestImportOverwriteArchivesAndRollsBack(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(dst, "attention", "items.json")); string(b) != "KEEP" {
 		t.Errorf("attention/items.json = %q, want the original restored", b)
+	}
+}
+
+// A source saved under tuios's names (a tuios, or an mtm daemon from before
+// the rename) is found and imported into the target under mtm's.
+func TestImportFindsASourceUnderTheOtherLayout(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv(EnvPaths, "")
+	tuios, _ := LayoutNamed("tuios")
+	src := tuios.SessionsDir(base, "old")
+	write(t, filepath.Join(src, "alpha.json"), session("alpha", 1, "w1"))
+	rep, err := ImportState(ImportOptions{From: "old", To: "tgt", Base: base, Live: func(string) (bool, string) { return false, "" }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.SourceDir != src || rep.TargetDir != filepath.Join(base, "mtm", "servers", "tgt", "sessions") {
+		t.Fatalf("source %s target %s", rep.SourceDir, rep.TargetDir)
+	}
+	if _, err := os.Stat(filepath.Join(rep.TargetDir, "alpha.json")); err != nil {
+		t.Fatal(err)
+	}
+	// A daemon of the source under either names refuses the import.
+	live := tuios.Socket("old")
+	_, err = ImportState(ImportOptions{From: "old", To: "tgt2", Base: base, Live: func(s string) (bool, string) { return s == live, "socket" }})
+	if !errors.Is(err, ErrSourceLive) {
+		t.Fatalf("err = %v, want the source's tuios-named daemon to refuse", err)
 	}
 }

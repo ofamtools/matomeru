@@ -285,7 +285,21 @@ mtm runs its agents and shells in panes of a TUIOS-compatible daemon it starts f
 
 With `daemon.pin-binary` (default on) the self daemon runs from a copy of the mtm binary at `<state dir>/daemon-bin/mtm-<build>` (`$XDG_STATE_HOME/matomeru/daemon-bin`, or beside the database for a non-default `--data`). Overwriting the installed mtm cannot then kill it. A new build adds its copy and removes copies of other builds that no process runs. Off runs the installed binary.
 
-The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and commits, skew, runner, binary; skew compares the builds' VCS revisions, not their version labels), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
+### Daemon paths
+
+The self daemon gives its folders mtm's names, chosen by the setting `daemon.paths` (default `mtm`; `MTM_DAEMON_PATHS` for one run, and the daemon hands it to its panes). The rows live in `internal/daemon` (`Layouts`):
+
+| | `mtm` | `tuios` (before the rename; the `tuios` runner always) |
+|---|---|---|
+| socket | `$XDG_RUNTIME_DIR/mtm/servers/NAME/mtm.sock`, or `/tmp/mtm-UID/servers/NAME/mtm.sock` | `.../tuios/servers/NAME/tuios.sock`, `/tmp/tuios-UID/...` |
+| state | `<state home>/mtm/servers/NAME/` (`~/Library/Application Support` on macOS) | `<state home>/tuios-servers/NAME/tuios/` |
+| config | `<config home>/mtm/config.toml` | `<config home>/tuios/config.toml` |
+
+On its first start under `mtm`, a named server's daemon moves its state (saved sessions, scrollback cold logs, log) from the tuios folder into the mtm one and leaves `MOVED-TO` there, and copies `config.toml` when mtm has none (the old file stays). It refuses, and does not start, while a daemon still answers on the old socket. `mtm __mtmd --server NAME migrate-paths [--dry-run] [--rollback]` runs the move alone (JSON report); the rollback renames back while no daemon runs. A client reaches a daemon still listening under the other names until that daemon restarts.
+
+Panes get every pane variable under both names for one release: `MTM_ENV`, `MTM_SESSION`, `MTM_PANE_ID`, `MTM_WINDOW_ID`, `MTM_SOCKET`, `MTM_SERVER` (and the rest of `daemon.EnvNames`) beside `TUIOS_ENV`, `TUIOS_SESSION`, ... mtm, `mtm-hook` and the installed hooks read the `MTM_` name first.
+
+The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and commits, skew, runner, paths and state folder, binary; skew compares the builds' VCS revisions, not their version labels), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
 
 ## Credits and licences
 

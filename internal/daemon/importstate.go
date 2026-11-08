@@ -74,9 +74,13 @@ var importClasses = []ImportClass{
 // the target daemon uses (see StateHome); the zero value of every other field
 // is the safe default.
 type ImportOptions struct {
-	From, To  string // server names: "" or DefaultServerName is the unnamed server
-	Base      string // state home of the target (and of the source unless it is found elsewhere)
-	Bases     []string
+	From, To string // server names: "" or DefaultServerName is the unnamed server
+	Base     string // state home of the target (and of the source unless it is found elsewhere)
+	Bases    []string
+	// Layout is the target's names (a Layouts row); the zero value is
+	// PreferredLayout. The source is looked for under every layout, this
+	// one first.
+	Layout    Layout
 	DryRun    bool
 	Overwrite bool // archive colliding target files first instead of refusing
 	// Live reports whether a daemon runs on the server whose socket it is
@@ -84,6 +88,14 @@ type ImportOptions struct {
 	Live func(socket string) (bool, string)
 	// Now stamps the archive folder an overwrite makes; nil is time.Now.
 	Now func() time.Time
+}
+
+// target is the target's layout.
+func (o ImportOptions) target() Layout {
+	if o.Layout.Name == "" {
+		return PreferredLayout()
+	}
+	return o.Layout
 }
 
 // ImportFile is one file of the plan.
@@ -126,13 +138,22 @@ type ImportReport struct {
 }
 
 // ServerStateDir is the folder a server keeps its saved sessions in under
-// the state home base: base/tuios/sessions for the unnamed server and
-// base/tuios-servers/NAME/tuios/sessions for a named one.
+// the state home base, in the preferred layout (Layout.SessionsDir):
+// base/mtm/servers/NAME/sessions under mtm's names,
+// base/tuios-servers/NAME/tuios/sessions under tuios's.
 func ServerStateDir(base, server string) string {
-	if server != "" && server != DefaultServerName {
-		base = filepath.Join(base, "tuios-servers", server)
+	return PreferredLayout().SessionsDir(base, server)
+}
+
+// liveAnywhere is live for the server's socket under every layout: a daemon
+// started under either names writes to that server's state.
+func liveAnywhere(live func(string) (bool, string), server string) (bool, string) {
+	for _, l := range Layouts {
+		if yes, how := live(l.Socket(server)); yes {
+			return yes, how
+		}
 	}
-	return filepath.Join(base, "tuios", "sessions")
+	return false, ""
 }
 
 // StateHome is the state home a daemon started from this environment uses:
@@ -256,19 +277,29 @@ func planEndpoints(o ImportOptions, rep *ImportReport) (string, error) {
 	}
 	bases := slices.Clone(o.Bases)
 	bases = append([]string{o.Base}, bases...)
-	srcDir := ServerStateDir(bases[0], from)
-	for _, b := range bases {
-		if d := ServerStateDir(b, from); isDir(d) {
-			srcDir = d
-			break
+	target := o.target()
+	layouts := []Layout{target}
+	for _, l := range Layouts {
+		if l.Name != target.Name {
+			layouts = append(layouts, l)
 		}
 	}
-	rep.SourceDir, rep.TargetDir = srcDir, ServerStateDir(o.Base, to)
+	srcDir := target.SessionsDir(bases[0], from)
+found:
+	for _, b := range bases {
+		for _, l := range layouts {
+			if d := l.SessionsDir(b, from); isDir(d) {
+				srcDir = d
+				break found
+			}
+		}
+	}
+	rep.SourceDir, rep.TargetDir = srcDir, target.SessionsDir(o.Base, to)
 
-	if yes, how := live(SocketFor(from)); yes {
+	if yes, how := liveAnywhere(live, from); yes {
 		return "", fmt.Errorf("%w (%s): stop it first (tuios kill-server%s); nothing was copied", ErrSourceLive, how, serverFlag(from))
 	}
-	if yes, how := live(SocketFor(to)); yes {
+	if yes, how := liveAnywhere(live, to); yes {
 		return "", fmt.Errorf("%w (%s): stop it first (mtm daemon stop); nothing was copied", ErrTargetLive, how)
 	}
 	if !isDir(srcDir) {
@@ -402,7 +433,7 @@ func ImportState(o ImportOptions) (ImportReport, error) {
 		rep.Copied, rep.CopiedFile, rep.Archived = false, 0, ""
 		return rep, fmt.Errorf("%w; nothing was left in %s", err, rep.TargetDir)
 	}
-	if yes, how := live(SocketFor(normalServer(o.To))); yes {
+	if yes, how := liveAnywhere(live, normalServer(o.To)); yes {
 		return rep, fmt.Errorf("%w (%s); nothing was copied", ErrTargetLive, how)
 	}
 	now := time.Now

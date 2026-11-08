@@ -353,7 +353,6 @@ vim.go	App.vimAt	compare	"vim"	1
 ../../internal/daemon/importstate.go	pickFiles	compare	"copy"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	pickFiles	compare	"history"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	guardClash	compare	"replace"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	ServerStateDir	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	normalServer	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	validServerName	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/notices/gen/main.go	noticeFile	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names

@@ -9,7 +9,7 @@ argument). Harnesses: claude-code, codex, copilot, cursor-agent, gemini-cli,
 opencode, amp, kilo, kimi, omp, pi, qwen (state) and antigravity, crush, devin,
 droid, grok, hermes, qoder (conversation id only).
 
-The pane is found from --window, then TUIOS_PANE_ID, then the process's
+The pane is found from --window, then MTM_PANE_ID (or TUIOS_PANE_ID), then the process's
 terminal and parent processes. It only connects: with no daemon running it
 exits 0 and prints nothing. It always exits 0, gives up after 500ms, and
 --explain prints on stderr what it decided and why. --no-context leaves out

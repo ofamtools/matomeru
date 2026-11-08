@@ -542,17 +542,17 @@ func flushAtTurnEnd(out agentHookOutcome, res hookReportResult, client verbCalle
 // session and its ancestors.
 func resolveHookPane(o agentHookOptions, hio agentHookIO, client verbCaller, sid int, ancestors []int) (sess, window, by string, err error) {
 	if o.window != "" {
-		return cmp.Or(o.session, hio.getenv("TUIOS_SESSION")), o.window, "flag", nil
+		return cmp.Or(o.session, daemon.EnvSession.Get(hio.getenv)), o.window, "flag", nil
 	}
-	if id := hio.getenv("TUIOS_PANE_ID"); id != "" {
-		return cmp.Or(o.session, hio.getenv("TUIOS_SESSION")), id, "env", nil
+	if id := daemon.EnvPaneID.Get(hio.getenv); id != "" {
+		return cmp.Or(o.session, daemon.EnvSession.Get(hio.getenv)), id, "env", nil
 	}
 	if sid <= 1 && len(ancestors) == 0 {
-		return "", "", "", errors.New("no pane: TUIOS_PANE_ID is unset")
+		return "", "", "", errors.New("no pane: MTM_PANE_ID (TUIOS_PANE_ID) is unset")
 	}
 	raw, err := client.Call("resolve-pane", map[string]any{"sid": sid, "pids": ancestors})
 	if err != nil {
-		return "", "", "", fmt.Errorf("no pane: TUIOS_PANE_ID is unset and %w", err)
+		return "", "", "", fmt.Errorf("no pane: MTM_PANE_ID (TUIOS_PANE_ID) is unset and %w", err)
 	}
 	var res struct {
 		Session  string `json:"session"`

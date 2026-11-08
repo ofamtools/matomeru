@@ -11,12 +11,8 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -42,44 +38,25 @@ type Client struct {
 	presence   *Presence // the person's presence this process holds, opened on first use
 }
 
-// New is the client for socket; an empty socket is TUIOS_SOCKET, else the
-// socket of the server TUIOS_SERVER names (the default daemon when unset).
+// New is the client for socket; an empty socket is MTM_SOCKET (or
+// TUIOS_SOCKET), else the socket of the server MTM_SERVER (or TUIOS_SERVER)
+// names, the default daemon when unset.
 func New(socket string) *Client {
 	if socket == "" {
-		socket = os.Getenv("TUIOS_SOCKET")
+		socket = EnvSocket.Get(os.Getenv)
 	}
 	if socket == "" {
-		socket = SocketFor(os.Getenv("TUIOS_SERVER"))
+		socket = SocketFor(EnvServer.Get(os.Getenv))
 	}
 	return &Client{Socket: socket}
 }
 
-// SocketFor is the socket of the TUIOS server named name under the runtime
-// dir (XDG_RUNTIME_DIR/tuios, /run/user/UID or /tmp/tuios-UID), where
-// tuios --server NAME puts it: servers/NAME/tuios.sock. An empty name is
-// the default daemon's socket; a name that is not one path element is "".
+// SocketFor is the socket of the server named name: under the preferred
+// layout (EnvPaths, else mtm's names), or under another layout whose daemon
+// still answers there (ResolveSocket). An empty name is the default
+// daemon's socket; a name that is not one path element is "".
 func SocketFor(name string) string {
-	base := os.Getenv("XDG_RUNTIME_DIR")
-	if base == "" && runtime.GOOS != "darwin" {
-		dir := filepath.Join("/run/user", strconv.Itoa(os.Getuid()))
-		if info, err := os.Lstat(dir); err == nil && info.IsDir() && info.Mode().Perm() == 0o700 {
-			if stat, ok := info.Sys().(*syscall.Stat_t); ok && int(stat.Uid) == os.Getuid() {
-				base = dir
-			}
-		}
-	}
-	if base == "" {
-		base = filepath.Join("/tmp", "tuios-"+strconv.Itoa(os.Getuid()))
-	} else {
-		base = filepath.Join(base, "tuios")
-	}
-	if name != "" {
-		if strings.ContainsAny(name, "/\\") || name == "." || name == ".." {
-			return ""
-		}
-		base = filepath.Join(base, "servers", name)
-	}
-	return filepath.Join(base, "tuios.sock")
+	return ResolveSocket(PreferredLayout(), name)
 }
 
 // ForServer is the client of the TUIOS server named name, which Ensure
@@ -114,7 +91,7 @@ func (c *connection) Close() error {
 }
 func (c *Client) dial(ctx context.Context) (*connection, error) {
 	if c.Socket == "" {
-		return nil, errors.New("daemon socket is unresolved; supply -socket PATH or TUIOS_SOCKET")
+		return nil, errors.New("daemon socket is unresolved; supply -socket PATH or MTM_SOCKET")
 	}
 	conn, err := (&net.Dialer{}).DialContext(ctx, "unix", c.Socket)
 	if err != nil {

@@ -193,10 +193,10 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit; uses a fresh temp database unless -data is given, and never reaches the daemon")
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
-	flags.StringVar(&opts.Socket, "socket", "", "TUIOS daemon socket; when set it wins over -server (TUIOS_SOCKET alone does not)")
+	flags.StringVar(&opts.Socket, "socket", "", "daemon socket; when set it wins over -server (MTM_SOCKET or TUIOS_SOCKET alone does not)")
 	flags.StringVar(&opts.Config, "config", "", "Config directory for dirs.json and harnesses.json (env MTM_CONFIG_DIR); default: beside a non-default -data, else $XDG_CONFIG_HOME/matomeru or ~/.config/matomeru")
 	flags.StringVar(&opts.Harnesses, "harnesses", "", "Harness definitions (JSON array) merged by name over the built-ins claude, omp and codex; default <config>/harnesses.json; a missing file is the built-ins")
-	flags.StringVar(&opts.Server, "server", defaultServer(), "TUIOS server mtm runs on, started when missing (env MTM_SERVER); \""+DefaultDaemon+"\" is your own daemon (TUIOS_SOCKET or the runtime dir), never started")
+	flags.StringVar(&opts.Server, "server", defaultServer(), "server mtm runs on, started when missing (env MTM_SERVER); \""+DefaultDaemon+"\" is your own daemon (MTM_SOCKET, TUIOS_SOCKET or the runtime dir), never started")
 	words := []string{"help"} // -h and --help list the commands after the flags
 	if err := flags.Parse(args); err == nil {
 		words = flags.Args()
@@ -644,6 +644,9 @@ func New(opts Options) (*App, error) {
 	if err := a.migrateSettingAliases(settingWorkTasksFilter); err != nil {
 		return nil, err
 	}
+	// The daemon's socket follows daemon.runner and daemon.paths, which are
+	// readable from here on; a later change takes effect next launch.
+	a.resolveDaemonSocket()
 	if err := a.addSegments(); err != nil {
 		return nil, err
 	}

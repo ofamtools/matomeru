@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -27,6 +28,7 @@ const daemonWord = "__mtmd"
 const (
 	settingDaemonRunner = "daemon.runner"
 	settingDaemonPin    = "daemon.pin-binary"
+	settingDaemonPaths  = "daemon.paths"
 	envDaemonRunner     = "MTM_DAEMON_RUNNER"
 
 	runnerTuios = "tuios"
@@ -42,12 +44,15 @@ type daemonRunner struct {
 	Built       bool // this build can run it (the self row needs the linked daemon)
 	// Hello: Ensure waits for a compatible hello, not a bare connect.
 	Hello bool
+	// Paths is the layout (a daemon.Layouts row) this runner's daemon always
+	// uses; "" is the daemon.paths setting's.
+	Paths string
 	Start func(a *App) daemon.StartFunc
 }
 
 func daemonRunners() []daemonRunner {
 	return []daemonRunner{
-		{Name: runnerTuios, Built: true, Description: "tuios start-server from PATH, as before",
+		{Name: runnerTuios, Built: true, Paths: "tuios", Description: "tuios start-server from PATH, as before",
 			Start: func(*App) daemon.StartFunc {
 				return func(ctx context.Context, name string) (<-chan error, error) { return serverStart(ctx, name) }
 			}},
@@ -70,6 +75,8 @@ func daemonSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
 		{Name: settingDaemonRunner, Type: ochazuke.SettingString, Default: runnerTuios, Enum: daemonRunnerNames(),
 			Description: "How mtm starts its TUIOS server: tuios (the tuios on PATH) or self (the daemon linked into mtm, no tuios needed). " + envDaemonRunner + " overrides for one run"},
+		{Name: settingDaemonPaths, Type: ochazuke.SettingString, Default: daemon.Layouts[0].Name, Enum: daemon.LayoutNames(),
+			Description: "The names the self daemon gives its socket, state and config folders: mtm (socket <runtime>/mtm/servers/NAME/mtm.sock, state <state home>/mtm/servers/NAME; a server's tuios-named state moves there once, on start) or tuios (the folders from before the rename). " + daemon.EnvPaths + " overrides for one run. The tuios runner always uses tuios's"},
 		{Name: settingDaemonPin, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Run the self daemon from a pinned copy of the mtm binary under the state directory (daemon-bin), so overwriting the installed mtm cannot kill it. Off runs the installed binary"},
 	}
@@ -101,6 +108,36 @@ func (a *App) runner() (daemonRunner, error) {
 	return daemonRunner{}, fmt.Errorf("unknown daemon runner %q (%s)", name, strings.Join(daemonRunnerNames(), ", "))
 }
 
+// daemonLayout is the layout the daemon mtm starts uses: the runner's own
+// when it has one, else MTM_DAEMON_PATHS, else the daemon.paths setting.
+func (a *App) daemonLayout() daemon.Layout {
+	name := ""
+	if r, err := a.runner(); err == nil {
+		name = r.Paths
+	}
+	if name == "" {
+		name = a.getenv(daemon.EnvPaths)
+	}
+	if name == "" {
+		name = a.r.Settings().String(settingDaemonPaths)
+	}
+	if l, err := daemon.LayoutNamed(name); err == nil {
+		return l
+	}
+	return daemon.Layouts[0]
+}
+
+// resolveDaemonSocket aims the client of a named server at its socket under
+// the daemon's layout, once the settings are read (the client was made
+// before them, under PreferredLayout). An explicit -socket and the default
+// daemon are left alone.
+func (a *App) resolveDaemonSocket() {
+	if a.daemon == nil || a.daemon.Server == "" || (a.opts.Socket != "") {
+		return
+	}
+	a.daemon.Socket = daemon.ResolveSocket(a.daemonLayout(), a.daemon.Server)
+}
+
 // startServer is the daemon client's Start: the chosen runner's.
 func (a *App) startServer(ctx context.Context, name string) (<-chan error, error) {
 	r, err := a.runner()
@@ -123,7 +160,7 @@ func (a *App) serverReady(ctx context.Context) error {
 // selfStart is the self runner's starter: this binary, the hidden word, and
 // the pinned copy under the state directory (daemon.pin-binary).
 func (a *App) selfStart() daemon.SelfStart {
-	s := daemon.SelfStart{Word: daemonWord, Label: daemonVersion(), Environ: os.Environ}
+	s := daemon.SelfStart{Word: daemonWord, Label: daemonVersion(), Environ: os.Environ, Paths: a.daemonLayout().Name}
 	if a.r.Settings().Bool(settingDaemonPin) {
 		s.PinDir = a.daemonBinDir()
 	}
@@ -200,9 +237,13 @@ type daemonInfo struct {
 	Server  string `json:"server"`
 	Socket  string `json:"socket"`
 	Runner  string `json:"runner"`
-	PID     int    `json:"pid,omitempty"`
-	Version string `json:"daemon_version,omitempty"`
-	Client  string `json:"client_version"`
+	// Paths is the layout mtm starts the daemon under; StateDir the
+	// server's state folder in it.
+	Paths    string `json:"paths"`
+	StateDir string `json:"state_dir,omitempty"`
+	PID      int    `json:"pid,omitempty"`
+	Version  string `json:"daemon_version,omitempty"`
+	Client   string `json:"client_version"`
 	// Commit is the daemon's VCS revision when its label names one;
 	// ClientCommit is this client's. Skew compares them, not the labels.
 	Commit       string `json:"daemon_commit,omitempty"`
@@ -217,7 +258,12 @@ type daemonInfo struct {
 // daemonStatus asks the daemon's hello. It never starts one: a daemon that
 // is not there is a row with running false.
 func (a *App) daemonStatus(ctx context.Context) daemonInfo {
-	info := daemonInfo{Server: a.daemon.Server, Socket: a.daemon.Socket, Runner: a.runnerName(), Client: daemonVersion(), ClientCommit: buildStamp().Commit}
+	info := daemonInfo{Server: a.daemon.Server, Socket: a.daemon.Socket, Runner: a.runnerName(), Paths: a.daemonLayout().Name, Client: daemonVersion(), ClientCommit: buildStamp().Commit}
+	if a.daemon.Server != "" {
+		if bases := a.stateBases(); len(bases) > 0 {
+			info.StateDir = a.daemonLayout().StateDir(bases[0], a.daemon.Server)
+		}
+	}
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	h, err := a.daemon.Hello(cctx)
@@ -251,31 +297,51 @@ func processBinary(pid int) string {
 	return strings.TrimSpace(out)
 }
 
-// daemonLogPath is the daemon's log file for the server, where the daemon
-// writes it (state home, tuios-servers/NAME for a named server, then
-// tuios/daemon.log); of the candidate state homes the first that exists wins.
-func (a *App) daemonLogPath() string {
+// stateBases are the state homes a daemon may keep its files under, the one
+// a daemon started from here uses first (daemon.StateHome).
+func (a *App) stateBases() []string {
 	var bases []string
 	if v := a.getenv("XDG_STATE_HOME"); v != "" {
 		bases = append(bases, v)
 	}
 	if home, err := a.home(); err == nil {
-		bases = append(bases, filepath.Join(home, ".local", "state"), filepath.Join(home, "Library", "Application Support"))
-	}
-	var first string
-	for _, base := range bases {
-		if name := a.daemon.Server; name != "" {
-			base = filepath.Join(base, "tuios-servers", name)
-		}
-		path := filepath.Join(base, "tuios", "daemon.log")
-		if first == "" {
-			first = path
-		}
-		if _, err := os.Stat(path); err == nil {
-			return path
+		bases = append(bases, daemon.StateHome(a.getenv, home))
+		for _, b := range []string{filepath.Join(home, ".local", "state"), filepath.Join(home, "Library", "Application Support")} {
+			if !slices.Contains(bases, b) {
+				bases = append(bases, b)
+			}
 		}
 	}
-	return first
+	return bases
+}
+
+// daemonLogPath is the daemon's log file for the server, where the daemon
+// writes it: the layout's state folder under the state home, then
+// daemon.log. Of the candidate state homes and layouts (the daemon's first),
+// the first whose log exists wins, else the daemon's layout under the first
+// state home.
+func (a *App) daemonLogPath() string {
+	bases := a.stateBases()
+	first := a.daemonLayout()
+	layouts := []daemon.Layout{first}
+	for _, l := range daemon.Layouts {
+		if l.Name != first.Name {
+			layouts = append(layouts, l)
+		}
+	}
+	var fallback string
+	for _, l := range layouts {
+		for _, base := range bases {
+			path := l.LogPath(base, a.daemon.Server)
+			if fallback == "" {
+				fallback = path
+			}
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
+		}
+	}
+	return fallback
 }
 
 func (a *App) daemonLogsVerb(ctx ochazuke.Ctx) ochazuke.Result {
@@ -365,7 +431,7 @@ func (a *App) daemonServeVerb(ochazuke.Ctx) ochazuke.Result {
 	if a.daemon.Server == "" {
 		return ochazuke.Failed(errors.New("daemon.serve needs a named server (-server NAME), not -socket or -server default"))
 	}
-	if code := daemonForeground(a.daemon.Server); code != 0 {
+	if code := daemonForeground(a.daemon.Server, a.daemonLayout().Name); code != 0 {
 		return ochazuke.Failed(fmt.Errorf("daemon exited with status %d", code))
 	}
 	return ochazuke.Done(nil)

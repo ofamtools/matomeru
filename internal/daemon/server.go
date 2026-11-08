@@ -19,8 +19,8 @@ const ensureWait = 5 * time.Second
 type StartFunc func(ctx context.Context, name string) (<-chan error, error)
 
 // StartServer runs tuios --server NAME start-server detached from this
-// process (its own session, no stdio), with TUIOS_SOCKET and TUIOS_SERVER
-// removed from its environment so it never reaches the daemon mtm runs in.
+// process (its own session, no stdio), with the socket and server variables
+// (MTM_ and TUIOS_) removed from its environment so it never reaches the daemon mtm runs in.
 func StartServer(_ context.Context, name string) (<-chan error, error) {
 	path, err := exec.LookPath("tuios")
 	if err != nil {
@@ -46,7 +46,8 @@ func StartServer(_ context.Context, name string) (<-chan error, error) {
 func withoutDaemonEnv(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
-		if strings.HasPrefix(kv, "TUIOS_SOCKET=") || strings.HasPrefix(kv, "TUIOS_SERVER=") {
+		k, _, _ := strings.Cut(kv, "=")
+		if k == EnvSocket.Upstream || k == EnvServer.Upstream || k == EnvSocket.Name || k == EnvServer.Name {
 			continue
 		}
 		out = append(out, kv)

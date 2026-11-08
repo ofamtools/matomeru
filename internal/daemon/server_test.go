@@ -25,6 +25,9 @@ func runtimeDir(t *testing.T) string {
 	t.Setenv("XDG_RUNTIME_DIR", dir)
 	t.Setenv("TUIOS_SOCKET", "")
 	t.Setenv("TUIOS_SERVER", "")
+	t.Setenv("MTM_SOCKET", "")
+	t.Setenv("MTM_SERVER", "")
+	t.Setenv(EnvPaths, "")
 	return dir
 }
 
@@ -61,12 +64,17 @@ func fakeStart(t *testing.T, calls *atomic.Int32) StartFunc {
 func TestForServerDerivesTheNamedSocket(t *testing.T) {
 	dir := runtimeDir(t)
 	c := ForServer("mtm-daemon")
-	if want := filepath.Join(dir, "tuios", "servers", "mtm-daemon", "tuios.sock"); c.Socket != want || c.Server != "mtm-daemon" {
+	if want := filepath.Join(dir, "mtm", "servers", "mtm-daemon", "mtm.sock"); c.Socket != want || c.Server != "mtm-daemon" {
 		t.Fatalf("ForServer = %+v, want socket %s", c, want)
 	}
 	t.Setenv("TUIOS_SERVER", "mtm-daemon")
 	if got := New("").Socket; got != c.Socket {
 		t.Fatalf("New with TUIOS_SERVER = %s, want %s", got, c.Socket)
+	}
+	t.Setenv("TUIOS_SERVER", "other")
+	t.Setenv("MTM_SERVER", "mtm-daemon")
+	if got := New("").Socket; got != c.Socket {
+		t.Fatalf("New with MTM_SERVER = %s, want %s (MTM_SERVER is read first)", got, c.Socket)
 	}
 	if ForServer("../x").Socket != "" {
 		t.Fatal("a name with a slash resolved a socket")

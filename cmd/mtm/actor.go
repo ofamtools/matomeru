@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/mcp"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
@@ -95,12 +96,12 @@ func (a *App) cliActor() (work.Actor, error) {
 }
 
 // envPane is the pane this process runs in (MTM_WINDOW overrides
-// TUIOS_PANE_ID, as for the MCP server).
+// MTM_PANE_ID, then TUIOS_PANE_ID, as for the MCP server).
 func (a *App) envPane() string {
 	if w := a.getenv("MTM_WINDOW"); w != "" {
 		return w
 	}
-	return a.getenv("TUIOS_PANE_ID")
+	return daemon.EnvPaneID.Get(a.getenv)
 }
 
 // paneAgent fills an agent actor's pane, session and lane task from the
@@ -110,10 +111,7 @@ func (a *App) paneAgent(act work.Actor) work.Actor {
 		act.Pane = a.envPane()
 	}
 	if act.Session == "" {
-		act.Session = a.getenv("MTM_SESSION")
-		if act.Session == "" {
-			act.Session = a.getenv("TUIOS_SESSION")
-		}
+		act.Session = daemon.EnvSession.Get(a.getenv)
 	}
 	if act.Task == "" && act.Pane != "" {
 		act.Task, _, _ = journalOwner(a.work)(act.Session, act.Pane)

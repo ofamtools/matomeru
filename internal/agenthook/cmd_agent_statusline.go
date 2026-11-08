@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/internal/agenthook/atomicfile"
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // agentStatusLineDeadline bounds the tuios half of a status line run: reading
@@ -170,12 +171,12 @@ func reportStatusLine(o agentStatusLineOptions, harness string, payload []byte, 
 			stampDir = dir
 		}
 	}
-	out.Session = cmp.Or(o.session, getenv("TUIOS_SESSION"))
+	out.Session = cmp.Or(o.session, daemon.EnvSession.Get(getenv))
 	switch {
 	case o.window != "":
 		out.Window, out.PaneBy = o.window, "flag"
-	case getenv("TUIOS_PANE_ID") != "":
-		out.Window, out.PaneBy = getenv("TUIOS_PANE_ID"), "env"
+	case daemon.EnvPaneID.Get(getenv) != "":
+		out.Window, out.PaneBy = daemon.EnvPaneID.Get(getenv), "env"
 	default:
 		// No pane named: ask the daemon which pane this process runs in,
 		// the way agent-hook does. A status line runs several times a

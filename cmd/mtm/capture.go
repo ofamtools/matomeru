@@ -10,6 +10,7 @@ import (
 
 	"ofam.dev/ochazuke"
 
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/history"
 )
 
@@ -104,7 +105,7 @@ type hookPayload struct {
 // captureHook is history.capture-hook.
 func (a *App) captureHook(ctx ochazuke.Ctx) ochazuke.Result {
 	harness := ochazuke.StringArg(ctx.Args, "harness", "")
-	session, window := a.getenv("TUIOS_SESSION"), a.getenv("TUIOS_PANE_ID")
+	session, window := daemon.EnvSession.Get(a.getenv), daemon.EnvPaneID.Get(a.getenv)
 	var p hookPayload
 	if err := json.NewDecoder(a.input()).Decode(&p); err != nil {
 		return ochazuke.Failed(fmt.Errorf("read the hook payload: %w", err))

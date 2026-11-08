@@ -163,8 +163,8 @@ func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + 
 // thrown away (a hook's stdout would reach the agent) and always exiting
 // 0, so a capture never blocks or disturbs the agent.
 func (o Options) HookCommand(harness string) string {
-	return `[ -n "$TUIOS_PANE_ID" ] && [ -n "$TUIOS_SOCKET" ] && ` + quote(o.Bin) + " --data " + quote(o.Data) +
-		` --socket "$TUIOS_SOCKET"` + hookMark + harness + " >/dev/null 2>&1; exit 0"
+	return `[ -n "${MTM_PANE_ID:-$TUIOS_PANE_ID}" ] && [ -n "${MTM_SOCKET:-$TUIOS_SOCKET}" ] && ` + quote(o.Bin) + " --data " + quote(o.Data) +
+		` --socket "${MTM_SOCKET:-$TUIOS_SOCKET}"` + hookMark + harness + " >/dev/null 2>&1; exit 0"
 }
 
 // extension is the OMP extension with this mtm's binary and database.

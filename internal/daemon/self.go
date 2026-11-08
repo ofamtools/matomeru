@@ -24,6 +24,9 @@ type SelfStart struct {
 	Label   string // the build label in a pinned copy's name
 	InUse   func(path string) bool
 	Environ func() []string // nil is os.Environ
+	// Paths is the layout the daemon uses (a Layouts row), handed to it as
+	// EnvPaths; "" leaves the daemon's default (mtm's names).
+	Paths string
 }
 
 // Start is a StartFunc: it runs "<binary> Word --server NAME start-server"
@@ -51,6 +54,9 @@ func (s SelfStart) Start(_ context.Context, name string) (<-chan error, error) {
 	what := fmt.Sprintf("%s %s --server %s start-server", filepath.Base(exe), s.Word, name)
 	cmd := exec.Command(exe, s.Word, "--server", name, "start-server")
 	cmd.Env = ScrubEnv(env())
+	if s.Paths != "" {
+		cmd.Env = append(withoutKey(cmd.Env, EnvPaths), EnvPaths+"="+s.Paths)
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("%s: %w", what, err)
@@ -74,7 +80,8 @@ var (
 )
 
 // ScrubEnv is env without the enclosing multiplexer's and agent's variables,
-// including TUIOS_SOCKET and TUIOS_SERVER (which would aim the daemon at the
+// including the pane variables under both names (EnvNames: MTM_SOCKET and
+// TUIOS_SOCKET, MTM_SERVER and TUIOS_SERVER would aim the daemon at the
 // server mtm itself runs in).
 func ScrubEnv(env []string) []string {
 	out := make([]string, 0, len(env))
@@ -91,7 +98,23 @@ next:
 				continue next
 			}
 		}
+		for _, e := range EnvNames {
+			if key == e.Name {
+				continue next
+			}
+		}
 		out = append(out, kv)
+	}
+	return out
+}
+
+// withoutKey is env without the assignments of key.
+func withoutKey(env []string, key string) []string {
+	out := env[:0:0]
+	for _, kv := range env {
+		if k, _, _ := strings.Cut(kv, "="); k != key {
+			out = append(out, kv)
+		}
 	}
 	return out
 }

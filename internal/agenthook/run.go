@@ -55,19 +55,19 @@ func (e Env) getenv() func(string) string {
 }
 
 // socket is the daemon to reach: an explicit --socket; else the server a pane
-// names in TUIOS_SERVER (a non-default server's panes get it; tuios picks its
-// daemon by server name and XDG_RUNTIME_DIR the same way); else the socket a
-// pane names in TUIOS_SOCKET (the default server's panes have only that); else
-// mtm's own --server, else the user's own daemon.
+// names in MTM_SERVER or TUIOS_SERVER (a non-default server's panes get both;
+// the daemon is picked by server name and XDG_RUNTIME_DIR the same way); else
+// the socket a pane names in MTM_SOCKET or TUIOS_SOCKET (the default server's
+// panes have only that); else mtm's own --server, else the user's own daemon.
 func (e Env) socket() string {
 	if e.Socket != "" {
 		return e.Socket
 	}
 	g := e.getenv()
-	if s := g("TUIOS_SERVER"); s != "" {
+	if s := daemon.EnvServer.Get(g); s != "" {
 		return daemon.SocketFor(s)
 	}
-	if s := g("TUIOS_SOCKET"); s != "" {
+	if s := daemon.EnvSocket.Get(g); s != "" {
 		return s
 	}
 	if e.Server != "" && e.Server != e.DefaultServer {
@@ -295,9 +295,10 @@ type stateResult struct {
 // setState is runSetAgentState of tuios: the report is about the pane the
 // command runs in unless a window is named.
 func setState(client verbCaller, getenv func(string) string, sess, window, state, message, source, harness string, extra stateExtras) (stateResult, error) {
-	if window == "" && (sess == "" || sess == getenv("TUIOS_SESSION")) {
-		if pane := getenv("TUIOS_PANE_ID"); pane != "" && getenv("TUIOS_SESSION") != "" {
-			window, sess = pane, getenv("TUIOS_SESSION")
+	envSess := daemon.EnvSession.Get(getenv)
+	if window == "" && (sess == "" || sess == envSess) {
+		if pane := daemon.EnvPaneID.Get(getenv); pane != "" && envSess != "" {
+			window, sess = pane, envSess
 		}
 	}
 	params := map[string]any{"session": sess, "window": window, "state": state, "message": message, "source": source, "harness": harness}
@@ -332,7 +333,7 @@ func agentRefusalText(reason string) string {
 	case "foreign_harness":
 		return "another harness reported this pane mid-turn, so this looks like a nested run."
 	case "foreign_pane":
-		return "the harness that ran the hook is a background session outside this pane. It inherited the pane's TUIOS_PANE_ID."
+		return "the harness that ran the hook is a background session outside this pane. It inherited the pane's MTM_PANE_ID (TUIOS_PANE_ID)."
 	default:
 		return "a higher-ranked source owns this pane."
 	}

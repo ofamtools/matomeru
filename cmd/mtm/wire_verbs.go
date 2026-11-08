@@ -332,7 +332,7 @@ func (a *App) wireScope() (daemon.Scope, bool) {
 	if !actor.IsAgent() || a.r.Settings().String(settingAgentsPaneScope) != paneScopeOwn {
 		return daemon.Scope{}, false
 	}
-	return daemon.Scope{PaneID: actor.Pane, PaneToken: a.getenv("TUIOS_PANE_TOKEN")}, true
+	return daemon.Scope{PaneID: actor.Pane, PaneToken: daemon.EnvPaneToken.Get(a.getenv)}, true
 }
 
 // ownPane is the pane a request acts as: the agent's pane, else the pane of
