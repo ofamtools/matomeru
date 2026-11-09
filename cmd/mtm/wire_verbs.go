@@ -422,6 +422,11 @@ func (w wireVerb) addLabels(reply map[string]any) {
 // addTranscript adds transcript_path to a reply about one pane: the path
 // the pane's agent hook kept beside the daemon's socket, if it did.
 func (a *App) addTranscript(reply map[string]any) {
+	// A daemon from mtmd v0.4.0 on names the transcript itself; the stamp
+	// below stays for an older daemon.
+	if p, _ := reply["transcript_path"].(string); p != "" {
+		return
+	}
 	window, _ := reply["window_id"].(string)
 	if window == "" || a.daemon == nil {
 		return

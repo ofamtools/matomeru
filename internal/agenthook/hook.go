@@ -380,6 +380,20 @@ func (in Input) env(name string) string {
 // owns the pane. It is the same variable the daemon's detector reads.
 const AgentHintEnv = "TUIOS_AGENT"
 
+// AgentHintEnvMtm is AgentHintEnv's mtm name; it is read first.
+const AgentHintEnvMtm = "MTM_AGENT"
+
+// agentHint is the pane's agent hint: MTM_AGENT, else TUIOS_AGENT.
+func agentHint(getenv func(string) string) string {
+	if getenv == nil {
+		return ""
+	}
+	if v := strings.TrimSpace(getenv(AgentHintEnvMtm)); v != "" {
+		return v
+	}
+	return strings.TrimSpace(getenv(AgentHintEnv))
+}
+
 // Translate decides what one hook event reports.
 //
 // It never guesses. A payload that does not parse, an event it has no mapping
@@ -395,7 +409,7 @@ func Translate(harnessName string, in Input) Decision {
 	if !ok {
 		return skip(harnessName, in.Event, "no hook mapping for harness "+harnessName)
 	}
-	if hint := strings.TrimSpace(in.env(AgentHintEnv)); hint != "" {
+	if hint := agentHint(in.Getenv); hint != "" {
 		if owner, known := hintOwner(hint); known && owner != id {
 			return skip(id, in.Event, "foreign harness: "+AgentHintEnv+" names "+owner)
 		}

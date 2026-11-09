@@ -199,12 +199,13 @@ var (
 	EnvPaneGrants = EnvName{"MTM_PANE_GRANTS", "TUIOS_PANE_GRANTS"}
 	EnvPaneTTY    = EnvName{"MTM_PANE_TTY", "TUIOS_PANE_TTY"}
 	EnvRestored   = EnvName{"MTM_RESTORED", "TUIOS_RESTORED"}
+	EnvAgent      = EnvName{"MTM_AGENT", "TUIOS_AGENT"}
 )
 
 // EnvNames is every pair, the table the daemon exports from.
 var EnvNames = []EnvName{
 	EnvMarker, EnvSession, EnvSessionID, EnvPaneID, EnvWindowID, EnvWindowName, EnvSocket,
-	EnvServer, EnvHost, EnvPaneToken, EnvPaneGrants, EnvPaneTTY, EnvRestored,
+	EnvServer, EnvHost, EnvPaneToken, EnvPaneGrants, EnvPaneTTY, EnvRestored, EnvAgent,
 }
 
 // Get is the variable's value: Name's when set, else Upstream's.
