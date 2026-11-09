@@ -93,7 +93,8 @@ func (a *App) defineOutlineAttachments() {
 		Verb("detach", a.detachTaskImage, "Remove an image from the task being edited: image n, the only one, else choose").When("task-image-input").
 		Mode("insert").
 		Bind("ctrl+v", ochazuke.Do(outlineModal+".paste").Hinted("paste/attach"))
-	a.parameters(outlineModal+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "Image number; omit to choose"}})
+	a.parameters(outlineModal+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Source: outlineModal + ".attachments", Description: "Image number; omit to choose"}})
+	a.choiceSource(outlineModal+".attachments", "List the edited task's attachments as choices: the image number, its chip and path (the n parameter's pick list)", nil, a.taskAttachments)
 }
 
 func (a *App) outlineImageInput() (string, *ochazuke.Input) {
@@ -183,15 +184,19 @@ func (a *App) detachTaskImage(ctx ochazuke.Ctx) ochazuke.Result {
 	if len(live) == 1 {
 		return detach(live[0])
 	}
-	rows := make([]ochazuke.PickerRow, len(live))
-	for i, at := range live {
-		rows[i] = ochazuke.PickerRow{ID: at.chip(), Label: at.chip() + " " + at.path, Data: at, Cells: []string{at.chip(), at.path}}
-	}
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind: "task-attachments", Title: "Detach an attachment", Rows: rows,
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			return detach(row.Data.(promptAttachment))
-		},
+	_, err := a.askParameter(outlineModal+".detach", "n", nil, pickSpec{
+		Kind: "task-attachments", Title: "Detach an attachment",
+		Pick: func(id string) ochazuke.Result { return detach(attachmentByID(live, id)) },
 	})
 	return resultError(err)
+}
+
+// taskAttachments is the outline modal's attachments, the n parameter's
+// pick list: the edited task's live attachments.
+func (a *App) taskAttachments(ochazuke.Ctx) ([]ochazuke.Choice, error) {
+	id, in := a.outlineImageInput()
+	if in == nil {
+		return nil, errors.New("edit a task to remove an image")
+	}
+	return attachmentChoices(a.outline.taskImages(id).live(string(in.Text))), nil
 }

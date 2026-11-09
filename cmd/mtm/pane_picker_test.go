@@ -161,10 +161,10 @@ func TestPanePickerPreview(t *testing.T) {
 	app.preview = preview{Pane: "pane:matomeru/w1", Text: "claude is thinking\n\n"}
 	press(t, app, `\`)
 	rows := app.r.Chooser(panePickerKind).Matches()
-	if got := app.panePreview(rows[0]); got != "claude is thinking" {
+	if got := app.panePreview(rows[0].ID); got != "claude is thinking" {
 		t.Fatalf("preview %q", got)
 	}
-	if got := app.panePreview(rows[1]); !strings.Contains(got, "ochazuke/shell") || !strings.Contains(got, "shell") {
+	if got := app.panePreview(rows[1].ID); !strings.Contains(got, "ochazuke/shell") || !strings.Contains(got, "shell") {
 		t.Fatalf("preview %q", got)
 	}
 }

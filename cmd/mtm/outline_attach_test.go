@@ -186,3 +186,27 @@ func TestTaskImagesQuotedPathsSurviveReopen(t *testing.T) {
 		t.Fatalf("quoted image chips missing:\n%s", got)
 	}
 }
+
+// With two attachments detach without n asks the n parameter's declared
+// choices (the general picker); picking one removes that image.
+func TestTaskImageDetachAsksDeclaredChoices(t *testing.T) {
+	t.Parallel()
+	a, clip, _ := taskImageApp(t)
+	typeText(t, a, "look ")
+	clip.files = []string{"/shots/a.PNG", "/shots/b.webp"}
+	pressSettle(t, a, "ctrl+v")
+	if _, err := a.r.Execute(ochazuke.Request{Noun: outlineModal, Verb: "detach"}); err != nil {
+		t.Fatal(err)
+	}
+	if a.r.TopModal() != "task-attachments" {
+		t.Fatalf("top modal %q", a.r.TopModal())
+	}
+	if got := frame(a); !strings.Contains(got, "[image 1]") || !strings.Contains(got, "[image 2]") {
+		t.Fatalf("chooser rows:\n%s", got)
+	}
+	typeText(t, a, "image 2")
+	press(t, a, "enter")
+	if got := string(a.r.Input(outlineTree + "/line").Text); strings.Contains(got, "[image 2]") || !strings.Contains(got, "[image 1]") {
+		t.Fatalf("task input %q", got)
+	}
+}

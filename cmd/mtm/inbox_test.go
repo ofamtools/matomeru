@@ -412,7 +412,7 @@ func TestSnoozeParsing(t *testing.T) {
 		}
 	}
 	rows := snoozeChoices(now)
-	if len(rows) != 4 || rows[3].Data != time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC).Format(time.RFC3339) {
+	if len(rows) != 4 || rows[3].ID != time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC).Format(time.RFC3339) {
 		t.Fatalf("choices %+v", rows)
 	}
 }

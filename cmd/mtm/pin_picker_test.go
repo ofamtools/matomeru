@@ -39,10 +39,20 @@ func leaveDirectoryChooser(t *testing.T, a *App) {
 	}
 }
 
+// shown is the text a row draws: its label without the short id the
+// general picker appends for the filter (Choice.Row).
+func shown(row ochazuke.PickerRow) string {
+	short := row.ID
+	if i := strings.LastIndex(short, "/"); i >= 0 && i < len(short)-1 {
+		short = short[i+1:]
+	}
+	return strings.TrimSuffix(row.Label, "  "+short)
+}
+
 func labels(rows []ochazuke.PickerRow) []string {
 	out := make([]string, len(rows))
 	for i, row := range rows {
-		out[i] = row.Label
+		out[i] = shown(row)
 	}
 	return out
 }
@@ -55,7 +65,7 @@ func TestPinPickerEnterPinsTopMatch(t *testing.T) {
 	if got := labels(c.Matches()); strings.Join(got, "|") != "◆ matomeru|◆ ochazuke|no pin (unpin)" {
 		t.Fatalf("rows %q", got)
 	}
-	if row, ok := c.Highlighted(); !ok || row.Data != "matomeru" {
+	if row, ok := c.Highlighted(); !ok || row.ID != "matomeru" {
 		t.Fatalf("top row not highlighted: %+v", row)
 	}
 	typeText(t, a, "chz")
@@ -79,7 +89,7 @@ func TestPinPickerMovedHighlightWins(t *testing.T) {
 		t.Fatal("down did not count as a move")
 	}
 	press(t, a, "ctrl+j", "ctrl+k")
-	if row, _ := c.Highlighted(); row.Data != "ochazuke" {
+	if row, _ := c.Highlighted(); row.ID != "ochazuke" {
 		t.Fatalf("highlight %+v", row)
 	}
 	press(t, a, "enter")
@@ -89,7 +99,7 @@ func TestPinPickerMovedHighlightWins(t *testing.T) {
 	leaveDirectoryChooser(t, a)
 	// Most recently pinned leads the next time.
 	c = openPicker(t, a)
-	if row, _ := c.Highlighted(); row.Data != "ochazuke" {
+	if row, _ := c.Highlighted(); row.ID != "ochazuke" {
 		t.Fatalf("recent first %+v", labels(c.Matches()))
 	}
 	press(t, a, "esc", "q")
@@ -139,7 +149,7 @@ func TestPinPickerCtrlNMovesAndNeverCreates(t *testing.T) {
 		t.Fatalf("rows %q", got)
 	}
 	press(t, a, "ctrl+n")
-	if row, _ := c.Highlighted(); row.Data != "ochazuke" || !c.Moved() {
+	if row, _ := c.Highlighted(); row.ID != "ochazuke" || !c.Moved() {
 		t.Fatalf("ctrl+n highlight %+v", row)
 	}
 	press(t, a, "ctrl+n", "ctrl+n", "ctrl+n")
@@ -147,7 +157,7 @@ func TestPinPickerCtrlNMovesAndNeverCreates(t *testing.T) {
 		t.Fatalf("ctrl+n clamps on the unpin row, got %+v", row)
 	}
 	press(t, a, "ctrl+p", "ctrl+p", "ctrl+p")
-	if row, _ := c.Highlighted(); row.Data != "matomeru" {
+	if row, _ := c.Highlighted(); row.ID != "matomeru" {
 		t.Fatalf("ctrl+p highlight %+v", row)
 	}
 	if n := projectCount(t, a); n != before || a.r.TopModal() != pinPicker || a.pin != "" {
@@ -169,7 +179,7 @@ func TestPinPickerCreateRowCreatesAndPins(t *testing.T) {
 	before := projectCount(t, a)
 	c := openPicker(t, a)
 	typeText(t, a, "mato")
-	if row, _ := c.Highlighted(); row.Data != "matomeru" {
+	if row, _ := c.Highlighted(); row.ID != "matomeru" {
 		t.Fatalf("default %+v", row)
 	}
 	press(t, a, "ctrl+n")
@@ -275,7 +285,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 	// no separate "enter:" hint. The last frame has the highlight moved
 	// onto the create row while a project matches.
 	a.m.Width, a.m.Height = 80, 24
-	for _, query := range []string{"och", "zz", "och+move"} {
+	for _, query := range []string{"och", "qqq", "och+move"} {
 		press(t, a, "ctrl+u")
 		typeText(t, a, strings.TrimSuffix(query, "+move"))
 		if query == "och+move" { // past ochazuke and matomeru
@@ -283,8 +293,8 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 		}
 		frame := ansi.Strip(frameView(a).Content)
 		want := []string{"◆ ochazuke", `+ new project "och"`, "no pin (unpin)"}
-		if query == "zz" {
-			want = []string{"no rows match 'zz'", `+ new project "zz"`, "no pin (unpin)"}
+		if query == "qqq" {
+			want = []string{"no rows match 'qqq'", `+ new project "qqq"`, "no pin (unpin)"}
 		}
 		if strings.Contains(frame, "enter:") {
 			t.Fatalf("query %q shows a create hint beside the row:\n%s", query, frame)
@@ -510,7 +520,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 	}
 	f := frameAt(a, 80)
 	row, _ := c.Highlighted()
-	if !strings.Contains(f, "no pin (unpin)") || !strings.Contains(f, strings.TrimPrefix(row.Label, "◆ ")) {
+	if !strings.Contains(f, "no pin (unpin)") || !strings.Contains(f, strings.TrimPrefix(shown(row), "◆ ")) {
 		t.Fatalf("after 20 ctrl+n (on %q) the highlight or no pin is off screen:\n%s", row.Label, f)
 	}
 	press(t, a, "esc", "q")
@@ -525,7 +535,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 	press(t, a, "esc", "q")
 	c = openPicker(t, a)
 	typeText(t, a, "inbox")
-	if row, _ := c.Highlighted(); row.Data != inbox.ID {
+	if row, _ := c.Highlighted(); row.ID != inbox.ID {
 		t.Fatalf("inbox highlights %+v", row)
 	}
 }

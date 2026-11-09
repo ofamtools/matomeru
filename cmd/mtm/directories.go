@@ -795,17 +795,15 @@ func (a *App) attachOrAsk(path string) ochazuke.Result {
 		return a.attachDirectory(target, path)
 	}
 	home, _ := a.home()
-	rows := make([]ochazuke.PickerRow, 0, len(a.projects))
+	choices := make([]ochazuke.Choice, 0, len(a.projects))
 	for _, p := range a.projects {
-		rows = append(rows, ochazuke.PickerRow{ID: "attach:" + p.ID, Label: projectLabel(p), Data: p.ID})
+		choices = append(choices, plainChoice(p.ID, projectLabel(p)))
 	}
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  attachProjectChooser,
-		Title: "Attach " + tildePath(path, home) + " to",
-		Rows:  rows,
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			return a.attachDirectory(row.Data.(string), path)
-		},
+	_, err := a.choose(pickSpec{
+		Kind:    attachProjectChooser,
+		Title:   "Attach " + tildePath(path, home) + " to",
+		Choices: choices,
+		Pick:    func(id string) ochazuke.Result { return a.attachDirectory(id, path) },
 		Create: func(name string) ochazuke.Result {
 			p, err := a.work.AddProject(name)
 			if err != nil {
@@ -817,7 +815,6 @@ func (a *App) attachOrAsk(path string) ochazuke.Result {
 			return a.attachDirectory(p.ID, path)
 		},
 		CreateLabel: func(query string) string { return fmt.Sprintf("new project %q", strings.TrimSpace(query)) },
-		CreateRow:   true,
 	})
 	return resultError(err)
 }

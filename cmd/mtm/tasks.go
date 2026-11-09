@@ -461,13 +461,17 @@ func (a *App) chooseStatus(ctx ochazuke.Ctx) ochazuke.Result {
 	if len(ctx.Subjects) > 1 {
 		subjects = ctx.SubjectIDs()
 	}
-	return resultError(a.openStatusChooserFor(t, max(len(subjects), 1), func(status string) ochazuke.Result {
+	set := func(status string) ochazuke.Result {
 		q := ochazuke.Request{Noun: "task", Verb: "set", Target: ctx.Instance.ID, Subjects: subjects, Args: ochazuke.Arguments{"props": map[string]any{"status": status}}}
 		if subjects == nil {
 			q.Args["id"] = t.ID
 		}
 		return resultOf(a.r.Execute(q))
-	}))
+	}
+	if status := ochazuke.StringArg(ctx.Args, "status", ""); status != "" {
+		return set(status)
+	}
+	return resultError(a.openStatusChooserFor(t, max(len(subjects), 1), set))
 }
 
 // statusChooser is the status chooser's modal kind.
@@ -496,18 +500,10 @@ func resultOf(v any, err error) ochazuke.Result {
 	return ochazuke.Done(v)
 }
 
-// openStatusChooserFor opens the four statuses for t (n tasks with it:
-// the title counts them, no status is current) and hands the chosen one
-// to set.
+// openStatusChooserFor asks task.choose-status's status parameter for t
+// (n tasks with it: the title counts them, no status is current) and
+// hands the chosen one to set.
 func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) ochazuke.Result) error {
-	rows := make([]ochazuke.PickerRow, 0, len(work.Statuses))
-	for _, s := range work.Statuses {
-		label := s
-		if s == t.Status && n == 1 {
-			label += " (current)"
-		}
-		rows = append(rows, ochazuke.PickerRow{ID: "status-choice:" + s, Label: label, Data: s, Cells: []string{work.StatusGlyph(s), label}})
-	}
 	title := t.Title
 	if title == "" {
 		title = "untitled"
@@ -515,19 +511,43 @@ func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) o
 	if n > 1 {
 		title = fmt.Sprintf("%d tasks", n)
 	}
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  statusChooser,
-		Title: "Status · " + title,
-		Rows:  rows,
-		Filter: func(query string, row ochazuke.PickerRow) bool {
-			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
-		},
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			status, _ := row.Data.(string)
-			return set(status)
-		},
+	_, err := a.askParameter("task.choose-status", "status", ochazuke.Arguments{"id": t.ID, "count": n}, pickSpec{
+		Kind: statusChooser, Title: "Status · " + title, Filter: pickFilterPrefix, Pick: set,
 	})
 	return err
+}
+
+// taskStatuses is task.statuses, the status parameter's pick list: the
+// statuses with their glyph, the task's own marked while one task is asked
+// about.
+func (a *App) taskStatuses(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
+	current := ""
+	if ochazuke.IntArg(ctx.Args, "count", 1) <= 1 {
+		if t, err := a.work.Task(ochazuke.StringArg(ctx.Args, "id", "")); err == nil {
+			current = t.Status
+		} else if t, err := a.task(ctx); err == nil {
+			current = t.Status
+		}
+	}
+	return statusChoices(work.Statuses, current, work.StatusGlyph), nil
+}
+
+// statusChoices are statuses as choices, the current one marked; glyph,
+// when set, is the first column.
+func statusChoices(statuses []string, current string, glyph func(string) string) []ochazuke.Choice {
+	out := make([]ochazuke.Choice, 0, len(statuses))
+	for _, s := range statuses {
+		label := s
+		if s == current {
+			label += " (current)"
+		}
+		c := ochazuke.Choice{ID: s, Label: label}
+		if glyph != nil {
+			c.Cells = []string{glyph(s), label}
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 // newTask is task.new, a wrap of the standard create: the owner is

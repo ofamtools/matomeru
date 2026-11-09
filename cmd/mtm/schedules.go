@@ -74,8 +74,8 @@ var scheduleColumns = []ochazuke.Column{
 // about the runs it missed while mtm was closed.
 const settingCatchUp = "schedules.catch-up"
 
-// intervalChoices are the set-interval chooser's rows.
-var intervalChoices = []string{"1m", "5m", "10m", "15m", "30m", "1h", "4h", "24h"}
+// intervalChoiceIDs are the set-interval chooser's rows.
+var intervalChoiceIDs = []string{"1m", "5m", "10m", "15m", "30m", "1h", "4h", "24h"}
 
 // scheduleState is the feature's state: the rows as configured, the
 // runner, the page's list and detail, and the TUI's timers.
@@ -263,7 +263,9 @@ func (a *App) defineSchedules() {
 	a.parameters(n+".history", map[string]ochazuke.Parameter{"name": scheduleNameParam,
 		"limit": {Type: "integer", Description: "At most this many runs (default all kept)"}})
 	a.parameters(n+".set-interval", map[string]ochazuke.Parameter{"name": scheduleNameParam,
-		"interval": {Type: "string", Description: "How often: 1m, 5m, 1h, …"}})
+		"interval": {Type: "string", Source: n + ".intervals", SourceArgs: map[string]string{"name": "name"}, Free: true, Description: "How often: 1m, 5m, 1h, …"}})
+	a.choiceSource(n+".intervals", "List the intervals a schedule can run at as choices, the current one marked (the interval parameter's pick list)",
+		map[string]ochazuke.Parameter{"name": scheduleNameParam}, a.intervalChoices)
 	add, edit := a.scheduleParams(), a.scheduleParams()
 	add["name"] = ochazuke.Parameter{Type: "string", Description: "The schedule's name (letters, digits, dashes); omitted, made from the prompt"}
 	edit["name"] = scheduleNameParam
@@ -718,26 +720,35 @@ func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.cli {
 		return ochazuke.Failed(errors.New("set-interval needs --interval (1m, 5m, 1h, …)"))
 	}
-	rows := make([]ochazuke.PickerRow, 0, len(intervalChoices))
-	for _, c := range intervalChoices {
-		label := "every " + c
-		if mustDuration(c) == d.Every() {
-			label += " (now)"
-		}
-		rows = append(rows, ochazuke.PickerRow{ID: c, Label: label, Data: c})
-	}
-	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
+	_, err = a.askParameter(scheduleNoun+".set-interval", "interval", ochazuke.Arguments{"name": d.Name}, pickSpec{
 		Kind:  "interval-chooser",
 		Title: "Run " + d.Name,
-		Rows:  rows,
-		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
-			return a.scheduleSet(d.Name, map[string]any{scheduleIntervalProp: c.Data.(string)})
+		Pick: func(every string) ochazuke.Result {
+			return a.scheduleSet(d.Name, map[string]any{scheduleIntervalProp: every})
 		},
 	})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(nil)
+}
+
+// intervalChoices is schedule.intervals: the intervals, the schedule's
+// own marked.
+func (a *App) intervalChoices(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
+	d, err := a.scheduleAt(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ochazuke.Choice, 0, len(intervalChoiceIDs))
+	for _, c := range intervalChoiceIDs {
+		label := "every " + c
+		if mustDuration(c) == d.Every() {
+			label += " (now)"
+		}
+		out = append(out, ochazuke.Choice{ID: c, Label: label})
+	}
+	return out, nil
 }
 
 func (a *App) resetSchedule(ctx ochazuke.Ctx) ochazuke.Result {

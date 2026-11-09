@@ -1,7 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"errors"
+	"slices"
+	"strings"
 
 	"ofam.dev/ochazuke"
 )
@@ -56,6 +59,7 @@ func (a *App) pickerDefs() []ochazuke.PickerDef {
 // definePickers registers mtm's pickers; it runs after every verb a
 // picker names is defined.
 func (a *App) definePickers() {
+	a.defineChoiceSources()
 	for _, def := range a.pickerDefs() {
 		if err := a.r.AddPicker(def); err != nil {
 			panic(err)
@@ -90,4 +94,171 @@ func (a *App) openFocusedDirectoryPicker(*ochazuke.Runtime, string) (*ochazuke.C
 		return nil, err
 	}
 	return a.r.Chooser(dirChooser), nil
+}
+
+// The one general picker (pickers plan PU5). Every mtm chooser that is not
+// a path chooser or the palette is a pickSpec: rows come from a data source
+// ([]ochazuke.Choice: labels, cells and tones are data, Choice.Row the only
+// row builder), and the picked id goes to Pick. A chooser asking for a
+// verb's missing parameter takes its rows from the parameter's own
+// declaration (askParameter: Noun, Source, SourceArgs, Enum); a chooser
+// that says more than a parameter can (a preview, props for the prop
+// filters, a create row, a fixed order) is a pickerDefs row, still opened
+// here. OpenPicker is called nowhere else in cmd/mtm outside the path
+// chooser (TestPickersDeclared).
+
+// pickFilter is how typing narrows a pickSpec's rows.
+type pickFilter int
+
+const (
+	// pickFilterDefault is the chooser's own match mode.
+	pickFilterDefault pickFilter = iota
+	// pickFilterPrefix matches the start of the label (status choosers:
+	// t, a, b, d).
+	pickFilterPrefix
+	// pickFilterTrailing is fuzzy, but a trailing row ("unassociated")
+	// matches by substring only.
+	pickFilterTrailing
+)
+
+// pickSpec is one chooser as data.
+type pickSpec struct {
+	Kind, Title, Empty, Plural string
+	// Noun is the rows' noun (prop filters); Match the match mode.
+	Noun, Match string
+	// Keep names the columns cut last; NoSort keeps the source order.
+	Keep   []int
+	NoSort bool
+	Filter pickFilter
+	// Choices are the rows: the source's answer.
+	Choices []ochazuke.Choice
+	// Lead is the id listed first (the current one, the project's own).
+	Lead string
+	// Props are a row's props for the prop filters (nil: none).
+	Props func(id string) ochazuke.Thing
+	// Data is a row's app payload, read back from a highlighted row by
+	// the picker's own keys (nil: none).
+	Data func(id string) any
+	// Preview is the highlighted row's text (nil: none).
+	Preview func(id string) string
+	// Pick is what enter does with the chosen id.
+	Pick func(id string) ochazuke.Result
+	// Create, when set, adds a row that creates from the typed query;
+	// CreateLabel says what it will do.
+	Create      func(query string) ochazuke.Result
+	CreateLabel func(query string) string
+	// Notice, when the source has no rows, is said instead of opening.
+	Notice string
+}
+
+// rows are the spec's choices as chooser rows (Choice.Row), with props.
+func (s pickSpec) rows() []ochazuke.PickerRow {
+	if s.Lead != "" {
+		s.Choices = slices.Clone(s.Choices)
+		slices.SortStableFunc(s.Choices, func(x, y ochazuke.Choice) int { return -cmp.Compare(btoi(x.ID == s.Lead), btoi(y.ID == s.Lead)) })
+	}
+	rows := make([]ochazuke.PickerRow, len(s.Choices))
+	for i, c := range s.Choices {
+		rows[i] = c.Row()
+		if s.Props != nil {
+			rows[i].Props = s.Props(c.ID)
+		}
+		if s.Data != nil {
+			rows[i].Data = s.Data(c.ID)
+		}
+	}
+	return rows
+}
+
+// choose opens the general picker over s.
+func (a *App) choose(s pickSpec) (*ochazuke.Chooser, error) {
+	if len(s.Choices) == 0 && s.Notice != "" {
+		a.r.UI().Notify(s.Notice)
+		return nil, nil
+	}
+	spec := ochazuke.PickerSpec{
+		Kind: s.Kind, Noun: s.Noun, Title: s.Title, Match: s.Match, Rows: s.rows(),
+		Empty: s.Empty, Plural: s.Plural, Keep: s.Keep, NoSort: s.NoSort,
+		Choose: func(row ochazuke.PickerRow) ochazuke.Result { return s.Pick(row.ID) },
+	}
+	switch s.Filter {
+	case pickFilterPrefix:
+		spec.Filter = func(query string, row ochazuke.PickerRow) bool {
+			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
+		}
+	case pickFilterTrailing:
+		spec.Filter = func(query string, row ochazuke.PickerRow) bool {
+			if row.Trailing {
+				return strings.Contains(row.Label, strings.ToLower(query))
+			}
+			return fuzzy(query, row.Label)
+		}
+	}
+	if s.Preview != nil {
+		spec.Preview = func(row ochazuke.PickerRow) string { return s.Preview(row.ID) }
+	}
+	if s.Create != nil {
+		spec.Create, spec.CreateLabel, spec.CreateRow = s.Create, s.CreateLabel, true
+	}
+	return a.r.OpenPicker(spec)
+}
+
+// askParameter is the chooser for a verb's missing parameter: its rows
+// are the parameter's declared choices (Noun, Source with SourceArgs read
+// from args, Enum), so the palette, the form and the CLI offer the same.
+func (a *App) askParameter(key, name string, args ochazuke.Arguments, s pickSpec) (*ochazuke.Chooser, error) {
+	op, ok := a.r.Operation(key)
+	if !ok {
+		return nil, errors.New("unknown operation " + key)
+	}
+	choices, err := a.r.ParameterChoices(a.r.Context(), op, name, "", args)
+	if err != nil {
+		return nil, err
+	}
+	s.Choices = choices
+	return a.choose(s)
+}
+
+// choiceSource registers key (noun.verb) as a read verb whose answer is
+// choices: the Source of a parameter that asks for a thing the verb's
+// noun has no list of (a status, an interval, the attachments of the
+// prompt). Like projects.all, it reads the app's state; one that depends
+// on the row it asks about reads it from its name parameter or the focus.
+func (a *App) choiceSource(key, about string, params map[string]ochazuke.Parameter, fn func(ochazuke.Ctx) ([]ochazuke.Choice, error)) {
+	noun, verb := ochazuke.SplitKey(key)
+	a.r.Define(noun).Verb(verb, func(c ochazuke.Ctx) ochazuke.Result {
+		choices, err := fn(c)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(choices)
+	}, about).Fetch()
+	if len(params) > 0 {
+		a.parameters(key, params)
+	}
+}
+
+// defineChoiceSources registers the choice sources the general picker's
+// parameters read, and declares those parameters on the verbs that ask.
+func (a *App) defineChoiceSources() {
+	id := map[string]ochazuke.Parameter{"id": {Type: "string", Description: "The row asked about; omitted, the selected one"}}
+	a.choiceSource("task.statuses", "List the statuses as choices with their glyph, the task's own marked (the status parameter's pick list)",
+		map[string]ochazuke.Parameter{"id": id["id"], "count": {Type: "integer", Description: "How many tasks the choice sets; the current status is marked only for one"}}, a.taskStatuses)
+	a.parameters("task.choose-status", map[string]ochazuke.Parameter{"status": {Type: "string", Source: "task.statuses", SourceArgs: map[string]string{"id": "id", "count": "count"},
+		Description: "The status to set; omitted, a chooser asks"}})
+	a.choiceSource(actionItemNoun+".snooze-times", "List when an item can be snoozed until as choices (the until parameter's pick list)", nil, a.snoozeTimes)
+	a.choiceSource("review.statuses", "List the review statuses as choices, the review's own marked (the status parameter's pick list)", id, a.reviewStatusChoices)
+	a.parameters("review.choose-status", map[string]ochazuke.Parameter{"status": {Type: "string", Source: "review.statuses", SourceArgs: map[string]string{"id": "id"},
+		Description: "The status to set; omitted, a chooser asks"}})
+}
+
+// plainChoice is a choice shown by its label alone: the id is a machine
+// id (a project's), so a single cell keeps it from being drawn.
+func plainChoice(id, label string) ochazuke.Choice {
+	return ochazuke.Choice{ID: id, Label: label, Cells: []string{label}}
+}
+
+// choiceRows are choices as chooser rows (Choice.Row).
+func choiceRows(choices []ochazuke.Choice) []ochazuke.PickerRow {
+	return pickSpec{Choices: choices}.rows()
 }

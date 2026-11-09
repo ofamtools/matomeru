@@ -90,11 +90,11 @@ func (a *App) panePickerOrder() ([]pane, string) {
 	return append(append(visited, rest...), cur...), current
 }
 
-// panePickerRows are the chooser's rows: label, project, kind, state
-// glyph and age, then "current" on the attached pane.
-func (a *App) panePickerRows(now time.Time) []ochazuke.PickerRow {
+// panePickerChoices are the chooser's choices: label, project, kind,
+// state glyph and age, then "current" on the attached pane.
+func (a *App) panePickerChoices(now time.Time) []ochazuke.Choice {
 	panes, current := a.panePickerOrder()
-	rows := make([]ochazuke.PickerRow, 0, len(panes))
+	out := make([]ochazuke.Choice, 0, len(panes))
 	for _, p := range panes {
 		project := a.ownerLabel(a.paneOwner(p).ProjectID)
 		state := pickerState(p, now)
@@ -102,14 +102,22 @@ func (a *App) panePickerRows(now time.Time) []ochazuke.PickerRow {
 		if p.rowID() == current {
 			mark = "current"
 		}
-		rows = append(rows, ochazuke.PickerRow{
+		out = append(out, ochazuke.Choice{
 			ID:    p.rowID(),
 			Label: p.label() + " " + project + " " + p.kind(),
-			Data:  p,
 			Cells: []string{p.label(), project, p.kind(), state, mark},
 		})
 	}
-	return rows
+	return out
+}
+
+// paneOfRow is the listed pane whose row id is id.
+func (a *App) paneOfRow(id string) pane {
+	i := slices.IndexFunc(a.panes, func(p pane) bool { return p.rowID() == id })
+	if i < 0 {
+		return pane{}
+	}
+	return a.panes[i]
 }
 
 // pickerState is an agent's state glyph and cell ("● working 2m"), "×
@@ -125,15 +133,15 @@ func pickerState(p pane, now time.Time) string {
 // panePreview is the highlighted pane's text already in memory, never a
 // daemon call: its last captured screen, else its Activity tab's text,
 // else what the row says (kind, state, directory).
-func (a *App) panePreview(row ochazuke.PickerRow) string {
-	if a.preview.Pane == row.ID && a.preview.Text != "" {
+func (a *App) panePreview(id string) string {
+	if a.preview.Pane == id && a.preview.Text != "" {
 		return trimBlankTail(a.preview.Text)
 	}
-	if text := a.pv.text[fmt.Sprintf("%s|%d", row.ID, tabActivity)]; text != "" {
+	if text := a.pv.text[fmt.Sprintf("%s|%d", id, tabActivity)]; text != "" {
 		return text
 	}
-	p, ok := row.Data.(pane)
-	if !ok {
+	p := a.paneOfRow(id)
+	if p.ID == "" {
 		return ""
 	}
 	lines := []string{p.label(), strings.TrimSuffix(p.kind()+" · "+pickerState(p, a.now()), " · ")}
@@ -149,15 +157,15 @@ func (a *App) pickPane(ochazuke.Ctx) ochazuke.Result { return a.openNamedPicker(
 // openPanePicker is the pane picker's Open (pickers.go): the pane chooser
 // over the focus.
 func (a *App) openPanePicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
-	return a.r.OpenPicker(ochazuke.PickerSpec{
+	return a.choose(pickSpec{
 		Kind:    panePickerKind,
 		Title:   "Panes",
-		Rows:    a.panePickerRows(a.now()),
+		Choices: a.panePickerChoices(a.now()),
 		Empty:   "no panes",
 		Keep:    []int{0},
 		Preview: a.panePreview,
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			p, _ := row.Data.(pane)
+		Pick: func(id string) ochazuke.Result {
+			p := a.paneOfRow(id)
 			if err := a.attachPicked(p); err != nil {
 				return ochazuke.Failed(err)
 			}
