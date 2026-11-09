@@ -342,12 +342,6 @@ func (a *App) sideDetailBlock(layout ochazuke.Layout, width, height int) ochazuk
 
 const sideChooser = "side-chooser"
 
-// sideChoice is one side chooser row: the parent and which side.
-type sideChoice struct {
-	parent pane
-	kind   string
-}
-
 // chooseSide is panes.sides (leader w, live and on the Panes page): the
 // side picker (picker.open side).
 func (a *App) chooseSide(ochazuke.Ctx) ochazuke.Result { return a.openNamedPicker(sidePickerName) }
@@ -359,7 +353,7 @@ func (a *App) chooseSide(ochazuke.Ctx) ochazuke.Result { return a.openNamedPicke
 // out, and with none open it says so and opens nothing. Enter attaches
 // the parent, shows that side and focuses it (jumpToSide).
 func (a *App) openSidePicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error) {
-	var rows []ochazuke.PickerRow
+	var choices []ochazuke.Choice
 	for _, p := range a.panes {
 		s, ok := a.sides[p.ID]
 		if !ok || p.Exited {
@@ -370,23 +364,24 @@ func (a *App) openSidePicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, erro
 			if c, live := a.companionPanes[id]; id == "" || !live || c.Exited {
 				continue
 			}
-			rows = append(rows, ochazuke.PickerRow{ID: p.ID + "/" + name, Label: a.sideTitle(name) + " · " + p.label(), Data: sideChoice{parent: p, kind: name}})
+			choices = append(choices, plainChoice(p.ID+"/"+name, a.sideTitle(name)+" · "+p.label()))
 		}
 	}
-	if len(rows) == 0 {
-		a.r.UI().Notify("no side panes are open")
-		return nil, nil
-	}
-	return a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  sideChooser,
-		Title: "Side panes",
-		Rows:  rows,
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			c := row.Data.(sideChoice)
-			if err := a.jumpToSide(c.parent, c.kind); err != nil {
+	return a.choose(pickSpec{
+		Kind:    sideChooser,
+		Title:   "Side panes",
+		Choices: choices,
+		Notice:  "no side panes are open",
+		Pick: func(id string) ochazuke.Result {
+			window, kind, _ := strings.Cut(id, "/")
+			i := slices.IndexFunc(a.panes, func(p pane) bool { return p.ID == window })
+			if i < 0 {
+				return ochazuke.Failed(fmt.Errorf("no pane %s", window))
+			}
+			if err := a.jumpToSide(a.panes[i], kind); err != nil {
 				return ochazuke.Failed(err)
 			}
-			return ochazuke.Done(row.Label)
+			return ochazuke.Done(a.sideTitle(kind) + " · " + a.panes[i].label())
 		},
 	})
 }

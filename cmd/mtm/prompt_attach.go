@@ -312,20 +312,42 @@ func (a *App) detachPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	if len(live) == 1 {
 		return a.detach(live[0])
 	}
-	rows := make([]ochazuke.PickerRow, len(live))
-	for i, at := range live {
-		rows[i] = ochazuke.PickerRow{ID: at.chip(), Label: at.chip() + " " + at.path, Data: at, Cells: []string{at.chip(), at.path}}
-	}
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
+	_, err := a.askParameter(promptNoun+".detach", "n", nil, pickSpec{
 		Kind:  "prompt-attachments",
 		Title: "Detach an attachment",
-		Rows:  rows,
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			at, _ := row.Data.(promptAttachment)
-			return a.detach(at)
-		},
+		Pick:  func(id string) ochazuke.Result { return a.detach(attachmentByID(a.pb.live(), id)) },
 	})
 	return resultError(err)
+}
+
+// attachmentChoices are the attachments as choices: the id is the image's
+// number (the n parameter's value), the cells its chip and path.
+func attachmentChoices(live []promptAttachment) []ochazuke.Choice {
+	out := make([]ochazuke.Choice, len(live))
+	for i, at := range live {
+		out[i] = ochazuke.Choice{ID: strconv.Itoa(at.n), Label: at.chip() + " " + at.path, Cells: []string{at.chip(), at.path}}
+	}
+	return out
+}
+
+// attachmentByID is the attachment whose number is id.
+func attachmentByID(live []promptAttachment, id string) promptAttachment {
+	n, _ := strconv.Atoi(id)
+	for _, at := range live {
+		if at.n == n {
+			return at
+		}
+	}
+	return promptAttachment{}
+}
+
+// promptAttachments is turn-prompt.attachments, the n parameter's pick
+// list: the prompt's live attachments.
+func (a *App) promptAttachments(ochazuke.Ctx) ([]ochazuke.Choice, error) {
+	if a.pb == nil {
+		return nil, errNoPromptBox
+	}
+	return attachmentChoices(a.pb.live()), nil
 }
 
 // detach removes every copy of the attachment's chip from the box, which

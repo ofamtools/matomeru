@@ -321,16 +321,18 @@ func (a *App) reminderHistory(c ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if !a.cli {
-		rows := make([]ochazuke.PickerRow, 0, len(hs))
+		choices := make([]ochazuke.Choice, 0, len(hs))
+		byDate := map[string]reminders.HistoryDay{}
 		for _, h := range hs {
-			rows = append(rows, ochazuke.PickerRow{ID: h.Date, Label: h.Date + " · " + h.State + " · " + h.ScheduledTime, Data: h})
+			choices = append(choices, ochazuke.Choice{ID: h.Date, Label: h.Date + " · " + h.State + " · " + h.ScheduledTime})
+			byDate[h.Date] = h
 		}
-		_, err = a.r.OpenPicker(ochazuke.PickerSpec{Kind: "reminder-history", Title: "Reminder history · " + r.Title, Rows: rows, NoSort: true,
-			Preview: func(row ochazuke.PickerRow) string {
-				d := row.Data.(reminders.HistoryDay)
+		_, err = a.choose(pickSpec{Kind: "reminder-history", Title: "Reminder history · " + r.Title, Choices: choices, NoSort: true,
+			Preview: func(id string) string {
+				d := byDate[id]
 				return fmt.Sprintf("%s\n%s\nDone at: %s\nActor: %+v\nNotified: %s", d.Date, d.State, d.DoneAt, d.Actor, d.NotifiedAt)
 			},
-			Choose: func(row ochazuke.PickerRow) ochazuke.Result { return ochazuke.Done(row.Data) },
+			Pick: func(id string) ochazuke.Result { return ochazuke.Done(byDate[id]) },
 		})
 		if err != nil {
 			return ochazuke.Failed(err)

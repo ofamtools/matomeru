@@ -56,7 +56,7 @@ func (a *App) pinProject(ctx ochazuke.Ctx) ochazuke.Result {
 const pinPicker = "pin-picker"
 
 // unpinRow is the pin chooser's fixed "no pin" row.
-const unpinRow = "pin-choice:none"
+const unpinRow = "no pin (unpin)"
 
 // openPinPicker is the pin picker's Open (pickers.go, project.pick):
 // the pin chooser: projects most recently pinned first,
@@ -87,7 +87,7 @@ func (a *App) openPinPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error
 		}
 	}
 	now := a.now()
-	rows := make([]ochazuke.PickerRow, 0, len(projects)+1)
+	choices := make([]ochazuke.Choice, 0, len(projects)+1)
 	for _, p := range projects {
 		dir := tildePath(projectDir(p), home)
 		label := strings.TrimSpace(projectLabel(p) + "  " + dir)
@@ -99,19 +99,20 @@ func (a *App) openPinPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error
 		if pinned[p.ID] != 0 {
 			used = "pinned " + sinceUse(pinned[p.ID], now)
 		}
-		rows = append(rows, ochazuke.PickerRow{ID: "pin-choice:" + p.ID, Label: label, Data: p.ID, Cells: []string{projectLabel(p), count, used, dir}})
+		choices = append(choices, ochazuke.Choice{ID: p.ID, Label: label, Cells: []string{projectLabel(p), count, used, dir}})
 	}
-	rows = append(rows, ochazuke.PickerRow{ID: unpinRow, Label: "no pin (unpin)", Data: "", Fixed: true})
-	return a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  pinPicker,
-		Title: "Pin project",
-		Rows:  rows,
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			id, _ := row.Data.(string)
+	choices = append(choices, ochazuke.Choice{ID: unpinRow, Label: "no pin (unpin)", RowFlags: ochazuke.RowFlags{Fixed: true}})
+	return a.choose(pickSpec{
+		Kind:    pinPicker,
+		Title:   "Pin project",
+		Choices: choices,
+		Pick: func(id string) ochazuke.Result {
+			if id == unpinRow {
+				id = ""
+			}
 			return a.pinAndAskDirectory(id)
 		},
-		Create:    a.createPinnedProject,
-		CreateRow: true,
+		Create: a.createPinnedProject,
 		CreateLabel: func(query string) string {
 			if strings.TrimSpace(query) == "" {
 				return "new untitled project"

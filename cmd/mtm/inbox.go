@@ -151,7 +151,7 @@ func (a *App) defineInbox() {
 	a.parameters(n+".add", add)
 	a.parameters(n+".open", map[string]ochazuke.Parameter{"id": inboxIDParam})
 	a.parameters(n+".snooze", map[string]ochazuke.Parameter{"id": inboxIDParam,
-		"until": {Type: "string", Description: "When it comes back: RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"},
+		"until": {Type: "string", Source: n + ".snooze-times", Free: true, Description: "When it comes back: RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"},
 		"for":   {Type: "string", Description: "How long: 90m, 4h, 2d, 1w"}})
 	promote := map[string]ochazuke.Parameter{"id": inboxIDParam,
 		"title":   {Type: "string", Description: "The task's title (default the item's)"},
@@ -577,8 +577,13 @@ func (a *App) openActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	})
 }
 
-// snoozeChoices are the snooze chooser's rows: a label and its end.
-func snoozeChoices(now time.Time) []ochazuke.PickerRow {
+// snoozeTimes is action-item.snooze-times, the until parameter's pick list.
+func (a *App) snoozeTimes(ochazuke.Ctx) ([]ochazuke.Choice, error) {
+	return snoozeChoices(time.UnixMilli(a.inbox.items.Now()).In(a.location())), nil
+}
+
+// snoozeChoices are the snooze choices: a label and its end (the id).
+func snoozeChoices(now time.Time) []ochazuke.Choice {
 	day := func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), 9, 0, 0, 0, t.Location()) }
 	monday := day(now.AddDate(0, 0, 1))
 	for monday.Weekday() != time.Monday {
@@ -593,9 +598,9 @@ func snoozeChoices(now time.Time) []ochazuke.PickerRow {
 		{"tomorrow 9:00", day(now.AddDate(0, 0, 1))},
 		{"next week (Monday 9:00)", monday},
 	}
-	out := make([]ochazuke.PickerRow, 0, len(rows))
+	out := make([]ochazuke.Choice, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, ochazuke.PickerRow{ID: r.label, Label: r.label, Data: r.at.Format(time.RFC3339)})
+		out = append(out, ochazuke.Choice{ID: r.at.Format(time.RFC3339), Label: r.label, Cells: []string{r.label}})
 	}
 	return out
 }
@@ -610,22 +615,20 @@ func (a *App) snoozeActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	now := time.UnixMilli(a.inbox.items.Now()).In(a.location())
 	title := "Snooze " + it.Label() + " until"
 	_, byID := ctx.Args["id"]
 	many := !byID && len(ctx.Subjects) > 1
 	if many {
 		title = fmt.Sprintf("Snooze %d items until", len(ctx.Subjects))
 	}
-	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
+	_, err = a.askParameter(actionItemNoun+".snooze", "until", ochazuke.Arguments{"id": it.ID}, pickSpec{
 		Kind:  "snooze-chooser",
 		Title: title,
-		Rows:  snoozeChoices(now),
-		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
-			q := ochazuke.Request{Noun: actionItemNoun, Verb: "snooze", Args: ochazuke.Arguments{"id": it.ID, "until": c.Data.(string)}}
+		Pick: func(until string) ochazuke.Result {
+			q := ochazuke.Request{Noun: actionItemNoun, Verb: "snooze", Args: ochazuke.Arguments{"id": it.ID, "until": until}}
 			if many {
 				// One chooser over a visual selection: its time for every item.
-				q.Target, q.Subjects, q.Args = ctx.Instance.ID, ctx.SubjectIDs(), ochazuke.Arguments{"until": c.Data.(string)}
+				q.Target, q.Subjects, q.Args = ctx.Instance.ID, ctx.SubjectIDs(), ochazuke.Arguments{"until": until}
 			}
 			return resultOf(a.r.Execute(q))
 		},

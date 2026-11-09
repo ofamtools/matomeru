@@ -514,29 +514,18 @@ func (a *App) openHarnessPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, e
 // chooseHarness opens the harness chooser, p's harness (else the default)
 // first and highlighted; Enter runs launch with the chosen harness.
 func (a *App) chooseHarness(title string, p work.Project, launch ochazuke.Request) (*ochazuke.Chooser, error) {
-	first := cmp.Or(p.Settings.Harness, a.launchHarness())
-	names := a.harnesses.Names()
-	slices.SortStableFunc(names, func(x, y string) int { return -cmp.Compare(btoi(x == first), btoi(y == first)) })
-	rows := make([]ochazuke.PickerRow, 0, len(names))
-	for _, name := range names {
-		rows = append(rows, ochazuke.PickerRow{ID: name, Label: name})
-	}
-	return a.r.OpenPicker(ochazuke.PickerSpec{
+	return a.askParameter("agent.launch", "harness", nil, pickSpec{
 		Kind:  agentChooser,
+		Lead:  cmp.Or(p.Settings.Harness, a.launchHarness()),
 		Title: title,
-		Rows:  rows,
-		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
+		Pick: func(harness string) ochazuke.Result {
 			req := launch
 			req.Args = ochazuke.Arguments{}
 			for k, v := range launch.Args {
 				req.Args[k] = v
 			}
-			req.Args["harness"] = c.ID
-			out, err := a.r.Execute(req)
-			if err != nil {
-				return ochazuke.Failed(err)
-			}
-			return ochazuke.Done(out)
+			req.Args["harness"] = harness
+			return resultOf(a.r.Execute(req))
 		},
 	})
 }

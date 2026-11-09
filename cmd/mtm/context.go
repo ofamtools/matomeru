@@ -321,7 +321,7 @@ func (a *App) refreshContext() error {
 		return err
 	}
 	if picker := a.r.Chooser(contextPicker); picker != nil {
-		picker.SetRows(a.pickerRows(a.cx.picking))
+		picker.SetRows(a.contextPickSpec(a.cx.picking).rows())
 	}
 	return nil
 }

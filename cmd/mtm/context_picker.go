@@ -104,16 +104,16 @@ func (a *App) openLiveContextPicker(*ochazuke.Runtime, string) (*ochazuke.Choose
 
 // copyContextRow is the live picker's enter: copy the item, or a
 // prompt's whole text.
-func (a *App) copyContextRow(row ochazuke.PickerRow) ochazuke.Result {
-	if pr, ok := row.Data.(promptRow); ok {
+func (a *App) copyContextRow(id string, data any) ochazuke.Result {
+	if pr, ok := data.(promptRow); ok {
 		return a.runOnPrompt(pr)
 	}
-	return a.runOnItem("copy", row.ID)
+	return a.runOnItem("copy", id)
 }
 
 // openContextPicker opens the picker over pane p's rows; choose is what
-// enter does with the chosen row.
-func (a *App) openContextPicker(p pane, choose func(ochazuke.PickerRow) ochazuke.Result) (*ochazuke.Chooser, error) {
+// enter does with the chosen row's id and payload.
+func (a *App) openContextPicker(p pane, choose func(id string, data any) ochazuke.Result) (*ochazuke.Chooser, error) {
 	if err := a.reloadContextItems(); err != nil {
 		return nil, err
 	}
@@ -122,25 +122,36 @@ func (a *App) openContextPicker(p pane, choose func(ochazuke.PickerRow) ochazuke
 		return nil, err
 	}
 	a.cx.picking = p
-	return a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  contextPicker,
-		Noun:  contextNoun,
-		Title: "Context · " + p.label(),
-		Rows:  a.pickerRows(p),
+	spec := a.contextPickSpec(p)
+	spec.Pick = func(id string) ochazuke.Result { return choose(id, spec.Data(id)) }
+	return a.choose(spec)
+}
+
+// contextPickSpec is the context picker over pane p, less what enter does.
+func (a *App) contextPickSpec(p pane) pickSpec {
+	choices, props, data := a.contextChoices(p)
+	return pickSpec{
+		Kind:    contextPicker,
+		Noun:    contextNoun,
+		Title:   "Context · " + p.label(),
+		Choices: choices,
+		Props:   func(id string) ochazuke.Thing { return props[id] },
+		Data:    func(id string) any { return data[id] },
+		Preview: func(id string) string { return pickerPreview(data[id]) },
 		// Every typed word is in the row (the substring match mode): a
 		// long path must not match a query by scattering its letters. tab
 		// still steps the mode.
-		Match:   ochazuke.MatchSubstring,
-		Empty:   "no context yet: paths, URLs, PRs, branches and commits appear as panes print them",
-		Choose:  choose,
-		Preview: pickerPreview,
-	})
+		Match: ochazuke.MatchSubstring,
+		Empty: "no context yet: paths, URLs, PRs, branches and commits appear as panes print them",
+	}
 }
 
-// pickerRows are the picker's rows for pane p: its own items newest
+// contextChoices are the picker's choices for pane p (with each row's props
+// and payload by id): its own items newest
 // first, then the rest of its project's, then the unassociated ones.
 // Other projects' items are left out.
-func (a *App) pickerRows(p pane) []ochazuke.PickerRow {
+func (a *App) contextChoices(p pane) (rows []ochazuke.Choice, props map[string]ochazuke.Thing, data map[string]any) {
+	props, data = map[string]ochazuke.Thing{}, map[string]any{}
 	project := a.contextOwner(p).ProjectID
 	if project == "" {
 		project = a.paneOwner(p).ProjectID
@@ -165,12 +176,12 @@ func (a *App) pickerRows(p pane) []ochazuke.PickerRow {
 		}
 	}
 	now := a.now()
-	var rows []ochazuke.PickerRow
 	add := func(items []contextitems.Item, where, scope string) {
 		for _, it := range items {
-			props := contextThing(it, tasks)
-			props["scope"] = scope
-			rows = append(rows, ochazuke.PickerRow{Props: props, ID: it.ID, Label: it.Kind + " " + it.Text, Data: it, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
+			thing := contextThing(it, tasks)
+			thing["scope"] = scope
+			rows = append(rows, ochazuke.Choice{ID: it.ID, Label: it.Kind + " " + it.Text, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
+			props[it.ID], data[it.ID] = thing, it
 		}
 	}
 	add(own, "this pane", "pane")
@@ -179,13 +190,15 @@ func (a *App) pickerRows(p pane) []ochazuke.PickerRow {
 		if t.Window != p.ID || strings.TrimSpace(t.Prompt) == "" {
 			continue
 		}
-		rows = append(rows, ochazuke.PickerRow{ID: "prompt:" + t.ID, Label: "prompt " + t.Prompt, Data: promptRow{turn: t, pane: p},
-			Props: ochazuke.Thing{"id": "prompt:" + t.ID, "category": "prompt", "origin": "prompt", "origins": []string{"prompt"}, "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session},
+		id := "prompt:" + t.ID
+		rows = append(rows, ochazuke.Choice{ID: id, Label: "prompt " + t.Prompt,
 			Cells: []string{"prompt", firstLine(t.Prompt), "this pane", age(now.Sub(time.UnixMilli(t.StartedAt)))}})
+		props[id] = ochazuke.Thing{"id": id, "category": "prompt", "origin": "prompt", "origins": []string{"prompt"}, "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session}
+		data[id] = promptRow{turn: t, pane: p}
 	}
 	add(theirs, a.ownerLabel(project), "project")
 	add(loose, "no project", "none")
-	return rows
+	return rows, props, data
 }
 
 // promptRow is a prompt row's data: the turn and the pane it was asked in.
@@ -196,8 +209,8 @@ type promptRow struct {
 
 // pickerPreview is what the picker shows beside the rows: a prompt's
 // answer, an item's whole text and where it was seen.
-func pickerPreview(row ochazuke.PickerRow) string {
-	switch d := row.Data.(type) {
+func pickerPreview(data any) string {
+	switch d := data.(type) {
 	case promptRow:
 		if len(d.turn.Responses) == 0 {
 			return "(no answer yet)"
@@ -231,7 +244,7 @@ func (a *App) pickerTurnsChanged() error {
 // contextChanged refreshes the open picker's rows when items land.
 func (a *App) contextChanged() {
 	if c := a.r.Chooser(contextPicker); c != nil {
-		c.SetRows(a.pickerRows(a.cx.picking))
+		c.SetRows(a.contextPickSpec(a.cx.picking).rows())
 	}
 }
 

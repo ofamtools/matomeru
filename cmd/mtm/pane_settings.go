@@ -132,10 +132,12 @@ func (a *App) addPaneSettings() error {
 	for name, verb := range settingVerbs {
 		arg := settingArgs[name]
 		a.parameters("pane."+verb, map[string]ochazuke.Parameter{
-			arg:         {Type: "string", Description: "The value; none opens a chooser of the values the harness takes"},
+			arg:         {Type: "string", Source: "pane.setting-values", SourceFixed: map[string]any{"setting": name}, Free: true, Description: "The value; none opens a chooser of the values the harness takes"},
 			"confirmed": {Type: "boolean", Description: "Send even though the prompt box holds a draft for the pane"},
 		})
 	}
+	a.choiceSource("pane.setting-values", "List the values the pane's harness takes for a setting as choices, the current one marked (the set-* verbs' value pick list)",
+		map[string]ochazuke.Parameter{"setting": {Type: "string", Required: true, Description: "The setting: model, effort, fast or permission-mode"}}, a.settingValues)
 	a.parameters("pane.toggle-fast", map[string]ochazuke.Parameter{"confirmed": {Type: "boolean", Description: "Send even though the prompt box holds a draft for the pane"}})
 	// A field of the line: enter changes it, h and l walk the line, j and
 	// k leave it for the stop drawn below or above, esc goes back to the
@@ -629,14 +631,6 @@ func valueMatches(name, choice, current string) bool {
 // values (omp's models) takes the typed value.
 func (a *App) openSettingChooser(p pane, row string, h harness.Harness, st harness.Setting, name string) ochazuke.Result {
 	cur := a.currentSetting(p, name)
-	var rows []ochazuke.PickerRow
-	for _, v := range h.Choices(name) {
-		mark := " "
-		if valueMatches(name, v, cur.Value) {
-			mark = "●"
-		}
-		rows = append(rows, ochazuke.PickerRow{ID: v, Label: v, Data: v, Cells: []string{mark, v}})
-	}
 	title := name + " · " + p.label()
 	if cur.Value != "" {
 		title += " · now " + cur.Text
@@ -645,19 +639,37 @@ func (a *App) openSettingChooser(p pane, row string, h harness.Harness, st harne
 		title += " · " + st.Note
 	}
 	apply := func(v string) ochazuke.Result { return a.applySetting(p, row, name, v, false) }
-	spec := ochazuke.PickerSpec{
-		Kind:   "pane-setting-" + name,
-		Title:  title,
-		Rows:   rows,
-		Choose: func(r ochazuke.PickerRow) ochazuke.Result { return apply(r.ID) },
-		Empty:  "type a value",
-	}
-	if len(rows) == 0 {
-		spec.Create, spec.CreateRow = apply, true
+	spec := pickSpec{Kind: "pane-setting-" + name, Title: title, Empty: "type a value", Pick: apply}
+	if len(h.Choices(name)) == 0 {
+		spec.Create = apply
 		spec.CreateLabel = func(q string) string { return "set " + name + " to " + q }
 	}
-	_, err := a.r.OpenPicker(spec)
+	_, err := a.askParameter("pane."+settingVerbs[name], settingArgs[name], ochazuke.Arguments{"setting": name}, spec)
 	return resultError(err)
+}
+
+// settingValues is pane.setting-values: the values the pane's harness
+// takes for the setting, the current one marked.
+func (a *App) settingValues(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
+	name := ochazuke.StringArg(ctx.Args, "setting", "")
+	p, _, err := a.settingPane(ctx)
+	if err != nil {
+		return nil, err
+	}
+	h, _, err := a.settingOf(p, name)
+	if err != nil {
+		return nil, err
+	}
+	cur := a.currentSetting(p, name)
+	var out []ochazuke.Choice
+	for _, v := range h.Choices(name) {
+		mark := " "
+		if valueMatches(name, v, cur.Value) {
+			mark = "●"
+		}
+		out = append(out, ochazuke.Choice{ID: v, Label: v, Cells: []string{mark, v}})
+	}
+	return out, nil
 }
 
 // settingWatch is a change sent and not yet confirmed: the notice the

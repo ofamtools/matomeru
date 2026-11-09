@@ -159,20 +159,12 @@ func (a *App) afterSubmit(ctx ochazuke.Ctx, p pane) {
 	}
 }
 
-// pickedOwner is a picker row's owner: a task, a project with no task, or
-// none (unassociated).
-type pickedOwner struct {
-	project, task string
-	scratch       bool
-}
-
 // openTaskPicker opens the task picker for p. Choosing a row associates
 // the pane through pane.associate; the chooser gives the focus back to
 // where it was (the prompt box after a send), so the next thing is one
 // key away.
 func (a *App) openTaskPicker(p pane) (*ochazuke.Chooser, error) {
 	owner := a.paneOwner(p)
-	rows := a.taskPickerRows(owner)
 	project := cmp.Or(owner.ProjectID, a.pin)
 	where := "no project"
 	if project != "" {
@@ -186,28 +178,21 @@ func (a *App) openTaskPicker(p pane) (*ochazuke.Chooser, error) {
 		}
 		return ochazuke.Done(out)
 	}
-	return a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  taskPicker,
-		Title: "Task for " + p.label(),
-		Rows:  rows,
-		Empty: "no open tasks or projects; type a title for a new task",
-		Filter: func(query string, row ochazuke.PickerRow) bool {
-			if row.Trailing {
-				return strings.Contains(row.Label, strings.ToLower(query))
+	return a.choose(pickSpec{
+		Kind:    taskPicker,
+		Title:   "Task for " + p.label(),
+		Choices: a.taskPickerChoices(owner),
+		Empty:   "no open tasks or projects; type a title for a new task",
+		Filter:  pickFilterTrailing,
+		Pick: func(id string) ochazuke.Result {
+			switch kind, rest, _ := strings.Cut(id, ":"); kind {
+			case "task":
+				return associate(ochazuke.Arguments{"task": rest})
+			case "project":
+				return associate(ochazuke.Arguments{"project": rest})
 			}
-			return fuzzy(query, row.Label)
+			return associate(ochazuke.Arguments{"scratch": true})
 		},
-		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
-			o, _ := c.Data.(pickedOwner)
-			switch {
-			case o.scratch:
-				return associate(ochazuke.Arguments{"scratch": true})
-			case o.task != "":
-				return associate(ochazuke.Arguments{"task": o.task})
-			}
-			return associate(ochazuke.Arguments{"project": o.project})
-		},
-		CreateRow:   true,
 		CreateLabel: func(query string) string { return fmt.Sprintf("new task %q in %s", strings.TrimSpace(query), where) },
 		Create: func(query string) ochazuke.Result {
 			if strings.TrimSpace(query) == "" {
@@ -225,12 +210,13 @@ func (a *App) openTaskPicker(p pane) (*ochazuke.Chooser, error) {
 	})
 }
 
-// taskPickerRows are the picker's rows for a pane owned by owner: the
+// taskPickerChoices are the picker's choices for a pane owned by owner: the
 // current task or project first (enter keeps it), the open tasks (the
 // owner's project's first, then the most recently updated), the projects
-// by recency, and "unassociated" last while the pane has an owner.
-func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.PickerRow {
-	var rows []ochazuke.PickerRow
+// by recency, and "unassociated" last while the pane has an owner. A
+// choice's id is task:ID, project:ID or scratch.
+func (a *App) taskPickerChoices(owner work.Assignment) []ochazuke.Choice {
+	var rows []ochazuke.Choice
 	tasks, err := a.work.Tasks("")
 	if err != nil {
 		a.r.UI().Error("tasks: " + err.Error())
@@ -241,7 +227,7 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.PickerRow {
 		byID[t.ID] = t
 	}
 	withPath := a.r.Settings().Bool(settingTaskPickerPath)
-	taskRow := func(t work.Task, current bool) ochazuke.PickerRow {
+	taskRow := func(t work.Task, current bool) ochazuke.Choice {
 		label, tones := taskLabel(t), []ochazuke.ToneSpan(nil)
 		if withPath {
 			label, tones = taskPathLabel(t, byID)
@@ -252,14 +238,14 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.PickerRow {
 		if current {
 			label += " (current)"
 		}
-		return ochazuke.PickerRow{ID: "task:" + t.ID, Label: label, Tones: tones, Data: pickedOwner{project: t.ProjectID, task: t.ID}}
+		return ochazuke.Choice{ID: "task:" + t.ID, Label: label, Cells: []string{label}, Tones: tones}
 	}
-	projectRow := func(p work.Project, current bool) ochazuke.PickerRow {
+	projectRow := func(p work.Project, current bool) ochazuke.Choice {
 		label := projectName(p) + " · no task"
 		if current {
 			label += " (current)"
 		}
-		return ochazuke.PickerRow{ID: "project:" + p.ID, Label: label, Data: pickedOwner{project: p.ID}}
+		return plainChoice("project:"+p.ID, label)
 	}
 	if owner.TaskID != "" {
 		if t, ok := byID[owner.TaskID]; ok {
@@ -283,7 +269,7 @@ func (a *App) taskPickerRows(owner work.Assignment) []ochazuke.PickerRow {
 		rows = append(rows, projectRow(p, false))
 	}
 	if owner.ProjectID != "" || owner.TaskID != "" {
-		rows = append(rows, ochazuke.PickerRow{ID: "scratch", Label: "unassociated", Trailing: true, Data: pickedOwner{scratch: true}})
+		rows = append(rows, ochazuke.Choice{ID: "scratch", Label: "unassociated", Cells: []string{"unassociated"}, RowFlags: ochazuke.RowFlags{Trailing: true}})
 	}
 	return rows
 }

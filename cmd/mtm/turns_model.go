@@ -1211,20 +1211,20 @@ func (a *App) offerTurnSave(ref turnRef, out copyOutcome) error {
 	if out.big {
 		why = fmt.Sprintf("%d KB is too much for the clipboard", (len(out.text)+1023)/1024)
 	}
-	rows := []ochazuke.PickerRow{
-		{ID: "save", Label: "Save to " + tildePath(path, homeDir())},
-		{ID: "pager", Label: "Open in a pager (a new pane)"},
+	choices := []ochazuke.Choice{
+		plainChoice("save", "Save to "+tildePath(path, homeDir())),
+		plainChoice("pager", "Open in a pager (a new pane)"),
 	}
 	if !out.big {
-		rows = append(rows, ochazuke.PickerRow{ID: "osc", Label: "Copy through the terminal (OSC 52)"})
+		choices = append(choices, plainChoice("osc", "Copy through the terminal (OSC 52)"))
 	}
 	text := out.text
-	_, err := a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  turnSaveChooser,
-		Title: why,
-		Rows:  rows,
-		Choose: func(c ochazuke.PickerRow) ochazuke.Result {
-			switch c.ID {
+	_, err := a.choose(pickSpec{
+		Kind:    turnSaveChooser,
+		Title:   why,
+		Choices: choices,
+		Pick: func(id string) ochazuke.Result {
+			switch id {
 			case "osc":
 				if err := a.copyOSC52(text); err != nil {
 					return ochazuke.Failed(err)

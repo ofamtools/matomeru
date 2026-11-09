@@ -504,27 +504,24 @@ func (a *App) chooseReviewStatus(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	rows := make([]ochazuke.PickerRow, 0, len(reviewStatuses))
-	for _, s := range reviewStatuses {
-		label := s
-		if s == rv.Status {
-			label += " (current)"
-		}
-		rows = append(rows, ochazuke.PickerRow{ID: "review-status:" + s, Label: label, Data: s})
+	if status := ochazuke.StringArg(ctx.Args, "status", ""); status != "" {
+		return a.reviewSet(rv.ID, "status", status)
 	}
-	id := rv.ID
-	_, err = a.r.OpenPicker(ochazuke.PickerSpec{
-		Kind:  statusChooser,
-		Title: "Status · " + ctx.Instance.Label,
-		Rows:  rows,
-		Filter: func(query string, row ochazuke.PickerRow) bool {
-			return strings.HasPrefix(row.Label, strings.ToLower(strings.TrimSpace(query)))
-		},
-		Choose: func(row ochazuke.PickerRow) ochazuke.Result {
-			return a.reviewSet(id, "status", row.Data)
-		},
+	_, err = a.askParameter("review.choose-status", "status", ochazuke.Arguments{"id": rv.ID}, pickSpec{
+		Kind: statusChooser, Title: "Status · " + ctx.Instance.Label, Filter: pickFilterPrefix,
+		Pick: func(status string) ochazuke.Result { return a.reviewSet(rv.ID, "status", status) },
 	})
 	return resultError(err)
+}
+
+// reviewStatusChoices is review.statuses: the statuses, the review's own
+// marked.
+func (a *App) reviewStatusChoices(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
+	current := ""
+	if rv, err := a.work.Review(ochazuke.StringArg(ctx.Args, "id", "")); err == nil {
+		current = rv.Status
+	}
+	return statusChoices(reviewStatuses, current, nil), nil
 }
 
 // reviewSet runs the standard set of one prop of a review.
