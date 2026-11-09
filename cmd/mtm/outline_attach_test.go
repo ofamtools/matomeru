@@ -31,7 +31,7 @@ func TestTaskImagesSaveReopenRemoveAndUndo(t *testing.T) {
 	if got := stored(t, a, id).Title; got != want {
 		t.Fatalf("saved %q, want %q", got, want)
 	}
-	press(t, a, "esc", "O")
+	press(t, a, "esc", "q", "O")
 	if got := frame(a); !strings.Contains(got, "look at [image 1] [image 2]") {
 		t.Fatalf("reopened task:\n%s", got)
 	}
@@ -72,7 +72,7 @@ func TestTaskImagesLateReadCannotEnterAnotherEditor(t *testing.T) {
 			case "same task":
 				press(t, a, "i")
 			case "reopened modal":
-				press(t, a, "esc", "O")
+				press(t, a, "esc", "q", "O")
 				if err := a.outline.tree.Select(outlineNode(id)); err != nil {
 					t.Fatal(err)
 				}
@@ -103,12 +103,12 @@ func TestTaskImagesChooserCancelAndOptOut(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: outlineModal, Verb: "detach"}); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "esc", "esc")
+	press(t, a, "esc", "q", "esc")
 	want := "@/a.png @/b.jpg"
 	if got := stored(t, a, id).Title; got != want {
 		t.Fatalf("cancelled chooser removed an image: %q", got)
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if _, err := a.r.Settings().SetSession(settingTaskImages, false); err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestTaskImagesPreserveTextAndClipboardErrors(t *testing.T) {
 	if got := stored(t, a, id).Title; got != "literal [image 1] @/a.gif @/notes.txt ordinary 日本語" {
 		t.Fatalf("ordinary text changed: %q", got)
 	}
-	press(t, a, "esc", "O")
+	press(t, a, "esc", "q", "O")
 	if got := frame(a); !strings.Contains(got, "literal [image 1] [image 2]") {
 		t.Fatalf("literal chip collision after reopen:\n%s", got)
 	}
@@ -169,7 +169,7 @@ func TestTaskImagesQuotedPathsSurviveReopen(t *testing.T) {
 	if got := stored(t, a, id).Title; got != want {
 		t.Fatalf("quoted paths saved as %q", got)
 	}
-	press(t, a, "esc", "O")
+	press(t, a, "esc", "q", "O")
 	if err := a.outline.tree.Select(outlineNode(id)); err != nil {
 		t.Fatal(err)
 	}

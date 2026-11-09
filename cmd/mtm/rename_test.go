@@ -160,8 +160,8 @@ func TestRenameEscKeepsTheTypedName(t *testing.T) {
 	if err := app.paneList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	press(t, app, "r", "esc") // insert ends; a second esc closes the form
-	_, cmd := app.Update(keyMsg("esc"))
+	press(t, app, "r", "esc") // insert ends; q closes the form
+	_, cmd := app.Update(keyMsg("q"))
 	settle(app, cmd)
 	if len(fr.calls) != 0 || app.r.TopModal() != "" {
 		t.Fatalf("unchanged esc: calls %v modal %q", fr.calls, app.r.TopModal())
@@ -169,7 +169,7 @@ func TestRenameEscKeepsTheTypedName(t *testing.T) {
 	press(t, app, "r", "ctrl+u")
 	typeText(t, app, "shellbuild")
 	pressJob(t, app, "esc") // insert ends: the name is written as a job
-	pressJob(t, app, "esc")
+	pressJob(t, app, "q")
 	if len(fr.calls) != 1 || fr.calls[0] != "window matomeru/w1 shellbuild" || app.r.TopModal() != "" {
 		t.Fatalf("esc after typing: calls %v modal %q", fr.calls, app.r.TopModal())
 	}
@@ -246,7 +246,7 @@ func TestRenameASessionAsYouType(t *testing.T) {
 	}
 	typeText(t, app, "m3")
 	pressJob(t, app, "esc") // insert ends: the name is written as a job
-	pressJob(t, app, "esc")
+	pressJob(t, app, "q")
 	if want := []string{"session matomeru matomeru2", "session matomeru2 m3"}; strings.Join(fr.calls, ",") != strings.Join(want, ",") || app.r.TopModal() != "" {
 		t.Fatalf("calls %v modal %q", fr.calls, app.r.TopModal())
 	}

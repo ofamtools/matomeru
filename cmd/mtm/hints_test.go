@@ -101,7 +101,7 @@ func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
 	if !strings.HasPrefix(first, want) {
 		t.Fatalf("help modal's selected first row = %q\n%s", first, strings.Join(lines, "\n"))
 	}
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
 	if app.r.TopModal() != "" || app.r.FocusID() != "t1" {
 		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.FocusID())
 	}

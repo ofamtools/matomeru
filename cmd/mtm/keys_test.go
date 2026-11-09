@@ -91,7 +91,7 @@ func TestLLaunchesThroughTheChooserOnTheProjectsHarness(t *testing.T) {
 	if c == nil || len(c.Matches()) == 0 || c.Matches()[0].ID != "codex" {
 		t.Fatalf("L on the project: chooser %+v", c)
 	}
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
 	press(t, app, "l")
 	if app.r.FocusID() == "matomeru" {
 		t.Fatalf("l did not open the project (focus %s)", app.r.FocusID())
@@ -237,7 +237,7 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 	// editor, ochazuke's form, the outline, modals, the Settings and About
 	// pages) and
 	// never a macro; refresh has no key.
-	closers := map[string]bool{copyNoun + ".leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.close": true, "setting.close": true, "about.close": true}
+	closers := map[string]bool{copyNoun + ".leave": true, "form.leave": true, outlineModal + ".close": true, quickNoteModal + ".close": true, "modal.close": true, "palette.close": true, "picker.close": true, "setting.close": true, "about.close": true}
 	for _, row := range rows {
 		switch {
 		case row.at == "noun editor", row.at == "noun markdown":
@@ -267,7 +267,7 @@ func TestPDoesNotStackThePickerOverAModal(t *testing.T) {
 	if app.r.TopModal() != "bindings-help" {
 		t.Fatalf("P in the help: top modal %q", app.r.TopModal())
 	}
-	press(t, app, "esc", "P")
+	press(t, app, "esc", "q", "P")
 	if app.r.TopModal() != "pin-picker" {
 		t.Fatalf("P on the page: top modal %q", app.r.TopModal())
 	}

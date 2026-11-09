@@ -12,9 +12,9 @@
       {"noun": "app", "mode": "normal", "keys": "ctrl+u", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "schedule-form/model"}}}
     ]
   },
-  "script": ["ctrl+x", "n", "esc", "ctrl+y", "enter", "j", "j", "enter", "ctrl+u", "enter", "esc", "ctrl+y", "enter", "k", "enter", "ctrl+u", "enter"],
+  "script": ["ctrl+x", "n", "esc", "ctrl+y", "enter", "j", "j", "enter", "ctrl+u", "enter", "esc", "q", "ctrl+y", "enter", "k", "enter", "ctrl+u", "enter"],
   "expect": [
     {"after": 10, "modal": "form-suggestions", "contains": ["openai/sol", "openai/terra"], "lacks": ["sonnet", "haiku"]},
-    {"after": 17, "modal": "form-suggestions", "contains": ["opus", "sonnet", "haiku"], "lacks": ["openai/sol", "openai/terra"]}
+    {"after": 18, "modal": "form-suggestions", "contains": ["opus", "sonnet", "haiku"], "lacks": ["openai/sol", "openai/terra"]}
   ]
 }

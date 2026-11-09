@@ -401,7 +401,7 @@ func TestSidesHintsKeepTitlesAndFollowReload(t *testing.T) {
 		if !strings.Contains(plainView(a), "Git working tree diff") {
 			t.Fatal("keys modal lost title")
 		}
-		press(t, a, "esc")
+		press(t, a, "esc", "q")
 	}
 	check("diff")
 	sideConfig(t, a, `[{"name":"diff","hint":"changes"}]`)

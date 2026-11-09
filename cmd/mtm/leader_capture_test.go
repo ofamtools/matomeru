@@ -72,8 +72,8 @@ func TestLeaderCaptureKeysReturnToTheLivePane(t *testing.T) {
 		key, opened string
 		close       []string
 	}{
-		{"N", quickNoteModal, []string{"esc", "esc"}},
-		{"T", outlineModal, []string{"esc"}},
+		{"N", quickNoteModal, []string{"esc", "q"}},
+		{"T", outlineModal, []string{"esc", "q"}},
 		{"n", recordEditorID + "/title", []string{"esc", "esc"}},
 	} {
 		app, _ := liveApp(t)

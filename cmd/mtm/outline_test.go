@@ -71,7 +71,7 @@ func TestTaskOutlineWritesEveryChange(t *testing.T) {
 	if taskTitled(tasksOf(t, app, "matomeru"), "draft the outline").ID == "" {
 		t.Fatal("u did not restore the task")
 	}
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
 	if app.r.TopModal() != "" {
 		t.Fatalf("esc left %q open", app.r.TopModal())
 	}

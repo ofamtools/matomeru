@@ -409,7 +409,7 @@ func TestContextProjectWalksTheFocusStack(t *testing.T) {
 		t.Fatal("no picker")
 	}
 	want("picker over the project row", "ochazuke")
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 
 	// A task row: its task's project.
 	if _, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "project", Target: "matomeru"}); err != nil {

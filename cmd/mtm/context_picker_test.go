@@ -97,7 +97,7 @@ func TestLivePickerListsThisPaneFirst(t *testing.T) {
 	if got := pickerTexts(t, a); !slices.Equal(got, []string{"lane/context"}) {
 		t.Fatalf("typing filters: %v", got)
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.r.TopModal() != "" || a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
 		t.Fatalf("esc returns to the live pane: modal %q focus %s mode %s", a.r.TopModal(), a.r.FocusID(), a.r.CurrentMode().Name)
 	}
@@ -365,7 +365,7 @@ func TestLivePickerSavedFiltersAndPropPicker(t *testing.T) {
 	// to fields and two Escapes close the form.
 	press(t, a, "ctrl+f")
 	typeText(t, a, "scope")
-	press(t, a, "enter", "esc", "space", "enter", "esc", "esc")
+	press(t, a, "enter", "esc", "space", "enter", "esc", "esc", "q")
 	if a.r.TopModal() != contextPicker || len(c.Matches()) != 3 {
 		t.Fatalf("nested picker: %s %d\n%s", a.r.TopModal(), len(c.Matches()), frame(a))
 	}

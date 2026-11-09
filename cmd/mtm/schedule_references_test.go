@@ -62,7 +62,7 @@ func TestScheduleReferenceChooserPersistsOnlySelection(t *testing.T) {
 		t.Fatalf("selection did not persist beta's id while keeping the pane name: %+v", got.Agent)
 	}
 	// Searching and cancelling also keeps the last committed reference.
-	for _, key := range []string{"enter", "ctrl+u", "a", "esc"} {
+	for _, key := range []string{"enter", "ctrl+u", "a", "esc", "q"} {
 		pressJob(t, a, key)
 	}
 	if got := read(); got.Agent.Project != beta {

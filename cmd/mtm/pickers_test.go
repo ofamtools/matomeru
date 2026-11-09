@@ -89,7 +89,7 @@ func TestDirectoryPickerTakesTheFocusedProject(t *testing.T) {
 	if a.r.TopModal() != dirChooser {
 		t.Fatalf("top modal %q", a.r.TopModal())
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if err := a.r.OpenPage(panesPage); err != nil {
 		t.Fatal(err)
 	}

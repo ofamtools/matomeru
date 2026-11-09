@@ -59,6 +59,7 @@ func TestExtensionResultPresentation(t *testing.T) {
 					t.Fatal("text flattened under viewer")
 				}
 				pressJob(t, a, "esc")
+				pressJob(t, a, "q")
 				if a.r.FocusID() != "ext/fake/item/i1" {
 					t.Fatal(a.r.FocusID())
 				}

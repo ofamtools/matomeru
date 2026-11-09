@@ -91,7 +91,7 @@ func TestScheduleModelFormRederives(t *testing.T) {
 	if !strings.Contains(fr, "openai/sol") || strings.Contains(fr, "sonnet") || strings.Contains(fr, "other/model") {
 		t.Fatalf("omp choices:\n%s", fr)
 	}
-	press(t, a, "esc", "k", "enter", "k", "enter", "j", "enter")
+	press(t, a, "esc", "q", "k", "enter", "k", "enter", "j", "enter")
 	fr = frame(a)
 	if !strings.Contains(fr, "sonnet") || strings.Contains(fr, "openai/sol") || strings.Contains(fr, "other/model") {
 		t.Fatalf("claude choices after changing harness:\n%s", fr)

@@ -33,9 +33,9 @@ func leaveDirectoryChooser(t *testing.T, a *App) {
 	if a.r.TopModal() != dirChooser || a.r.FocusID() != dirChooser+"/query" || a.r.CurrentMode().Name != "insert" {
 		t.Fatalf("expected the directory chooser, modal %q focus %q", a.r.TopModal(), a.r.FocusID())
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.r.TopModal() != "" || a.pin != pin {
-		t.Fatalf("esc: modal %q pin %q want %q", a.r.TopModal(), a.pin, pin)
+		t.Fatalf("q: modal %q pin %q want %q", a.r.TopModal(), a.pin, pin)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestPinPickerMovedHighlightWins(t *testing.T) {
 	if row, _ := c.Highlighted(); row.Data != "ochazuke" {
 		t.Fatalf("recent first %+v", labels(c.Matches()))
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.pin != "ochazuke" || a.r.TopModal() != "" {
 		t.Fatalf("esc changed pin %q or left modal %q", a.pin, a.r.TopModal())
 	}
@@ -255,7 +255,7 @@ func TestPinPickerRendersAndHints(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		a.m.Width, a.m.Height = width, 24
 		frame := ansi.Strip(frameView(a).Content)
-		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter picker.pick", "esc modal.close"} {
+		for _, want := range []string{"Pin project", "◆ matomeru  2 open", "~/proj/clients", "no pin (unpin)", "enter picker.pick", "esc normal"} {
 			if !strings.Contains(frame, want) {
 				t.Fatalf("at %d missing %q:\n%s", width, want, frame)
 			}
@@ -441,7 +441,7 @@ func TestPinPickerTypingReachesUnpin(t *testing.T) {
 	if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
 		t.Fatalf("unp highlights %+v of %q", row, labels(c.Matches()))
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	for _, query := range []string{"no pin", "unpin"} {
 		c = openPicker(t, a)
 		typeText(t, a, query)
@@ -451,7 +451,7 @@ func TestPinPickerTypingReachesUnpin(t *testing.T) {
 		if got := labels(c.Matches()); len(got) != 2 || got[1] != "no pin (unpin)" {
 			t.Fatalf("%q rows %q", query, got)
 		}
-		press(t, a, "esc")
+		press(t, a, "esc", "q")
 	}
 	before := projectCount(t, a)
 	openPicker(t, a)
@@ -513,7 +513,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 	if !strings.Contains(f, "no pin (unpin)") || !strings.Contains(f, strings.TrimPrefix(row.Label, "◆ ")) {
 		t.Fatalf("after 20 ctrl+n (on %q) the highlight or no pin is off screen:\n%s", row.Label, f)
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	c = openPicker(t, a)
 	typeText(t, a, "unpin")
 	if got := labels(c.Matches()); !slices.ContainsFunc(got, func(l string) bool { return strings.Contains(l, "tuios-inbox") }) {
@@ -522,7 +522,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 	if row, ok := c.Highlighted(); !ok || row.ID != unpinRow {
 		t.Fatalf("unpin highlights %+v", row)
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	c = openPicker(t, a)
 	typeText(t, a, "inbox")
 	if row, _ := c.Highlighted(); row.Data != inbox.ID {
@@ -586,7 +586,7 @@ func TestADirectorylessProjectIsAskedOnce(t *testing.T) {
 	if a.r.Chooser(dirChooser) == nil {
 		t.Fatalf("first pin: modal %q", a.r.TopModal())
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	executeA(t, a, "project", "unpin", "work", nil)
 	openPicker(t, a)
 	typeText(t, a, "matomeru")

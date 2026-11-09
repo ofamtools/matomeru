@@ -16,7 +16,7 @@
     ":", {"type": "schedule add --name chooser-check --prompt inspect --when never --project 6f7a9d1c0b2245f6a8e30d4c5b219076 --pane nightly-agent"}, "enter",
     "ctrl+x", "ctrl+z",
     ":", {"type": "schedule edit chooser-check"}, "enter",
-    "esc", "ctrl+y", "i", "ctrl+u", "b", "e", "t", "a", "enter", "esc"
+    "esc", "ctrl+y", "i", "ctrl+u", "b", "e", "t", "a", "enter", "esc", "q"
   ],
   "expect": [
     {"after": 5, "page": "schedules", "contains": ["chooser-check", "alpha", "nightly-agent"], "lacks": ["6f7a9d1c0b2245f6a8e30d4c5b219076"]},

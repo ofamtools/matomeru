@@ -17,10 +17,10 @@ r|  gh-signals     auto (off)  every 5m  never╭──────────�
  |              ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ls.enabled,
  |              │ Suggest model                                                                                                │
  |              │ ›                                                                                                      fuzzy │
-R|              │   opus  opus (claude)                                                                                        │
- |  Reminders · │   sonnet  sonnet (claude)                                                                                    │
- |  reminder  ti│   haiku  haiku (claude)                                                                                      │
- |  no rows     │ enter picker.pick · esc modal.close · tab search.cycle-match                                                 │
+R|              │   opus (claude)  opus                                                                                        │
+ |  Reminders · │   sonnet (claude)  sonnet                                                                                    │
+ |  reminder  ti│   haiku (claude)  haiku                                                                                      │
+ |  no rows     │ esc normal · enter picker.pick · tab search.cycle-match                                                      │
  |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
  |                                            │   (none) ▾                                       │
  |                                            │ task                                             │
@@ -36,5 +36,5 @@ R|              │   opus  opus (claude)                                       
  |
  |
  |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- |  enter picker.pick · esc modal.close · tab search.cycle-match
+ |  esc normal · enter picker.pick · tab search.cycle-match
  |

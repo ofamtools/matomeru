@@ -268,7 +268,7 @@ func TestMountedExtensionPathPickerRecentDirs(t *testing.T) {
 	if got := chooserData(c); slices.Contains(got, recentDir) {
 		t.Fatalf("recent source %v should not contain recent dir when path.recent-dirs=false", got)
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 }
 
 // directory-chooser path-remembered opens on the source last used; known
@@ -280,7 +280,7 @@ func TestDirectoryChooserSettingStartSource(t *testing.T) {
 	reopen := func() *ochazuke.Chooser {
 		t.Helper()
 		if c := a.r.Chooser(dirChooser); c != nil {
-			press(t, a, "esc")
+			press(t, a, "esc", "q")
 		}
 		if err := a.chooseDirectoryFor("Dir", "", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 			t.Fatal(err)
@@ -412,7 +412,7 @@ func TestDirectoryPathChooserWalkOffAndRemembered(t *testing.T) {
 	reopen := func() *ochazuke.Chooser {
 		t.Helper()
 		if c := a.r.Chooser(dirChooser); c != nil {
-			press(t, a, "esc")
+			press(t, a, "esc", "q")
 		}
 		if err := a.chooseDirectoryFor("Dir", "matomeru", func(string) ochazuke.Result { return ochazuke.Done(nil) }); err != nil {
 			t.Fatal(err)
@@ -466,7 +466,7 @@ func TestKnownDirectoryChooserIsThePathChooserOnKnown(t *testing.T) {
 	reopen := func() *ochazuke.Chooser {
 		t.Helper()
 		if a.r.Chooser(dirChooser) != nil {
-			press(t, a, "esc")
+			press(t, a, "esc", "q")
 		}
 		used = ""
 		if err := a.chooseDirectoryFor("Dir", "matomeru", func(p string) ochazuke.Result { used = p; return ochazuke.Done(p) }); err != nil {
@@ -627,7 +627,7 @@ func TestAddBaseDeclaresParentsStart(t *testing.T) {
 	if c := a.r.Chooser(dirChooser); c == nil || slices.Contains(c.Sources(), pathSourceParents) {
 		t.Fatalf("directory chooser offers parents: %v", c.Sources())
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base"}); err == nil {
 		t.Fatal("add-base without a path ran")
 	}

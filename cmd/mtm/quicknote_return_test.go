@@ -21,7 +21,7 @@ func TestQuickNoteReturnsToPanes(t *testing.T) {
 			press(t, a, "N")
 			typeText(t, a, "keep this")
 			id := a.quick.id
-			press(t, a, "esc", "esc")
+			press(t, a, "esc", "q")
 			if a.r.TopModal() != "" || a.r.FocusID() != focus || a.r.Page != page || a.r.CurrentMode().Name != mode {
 				t.Fatalf("return: modal=%s focus=%s page=%s mode=%s", a.r.TopModal(), a.r.FocusID(), a.r.Page, a.r.CurrentMode().Name)
 			}

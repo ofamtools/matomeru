@@ -672,7 +672,7 @@ func TestCopyModeInheritsNormalAndRestoresFocusModes(t *testing.T) {
 	if len(app.r.Modals()) == 0 {
 		t.Fatal("normal palette binding did not answer in copy")
 	}
-	pressAll(t, app, "esc")
+	pressAll(t, app, "esc", "q")
 	if app.r.FocusID() != copyID || app.r.CurrentMode().Name != "copy" || !app.copy.active {
 		t.Fatalf("palette return: focus %s mode %s active %v", app.r.FocusID(), app.r.CurrentMode().Name, app.copy.active)
 	}

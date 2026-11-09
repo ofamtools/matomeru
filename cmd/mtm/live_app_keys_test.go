@@ -35,14 +35,14 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 		opened func(a *App) bool
 		close  []string
 	}{
-		{":", func(a *App) bool { return a.m.Palette.IsActive() }, []string{"esc"}},
-		{"ctrl+space", func(a *App) bool { return a.m.Palette.IsActive() }, []string{"esc"}},
-		{",", func(a *App) bool { return a.r.Page == ochazuke.SettingsPageID }, []string{"esc"}},
-		{"'", func(a *App) bool { return a.r.TopModal() == "page-picker" }, []string{"esc"}},
-		{"?", func(a *App) bool { return a.r.TopModal() == "bindings-help" }, []string{"esc"}},
-		{"\\", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc"}},
-		{"P", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc"}},
-		{"L", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc"}},
+		{":", func(a *App) bool { return a.m.Palette.IsActive() }, []string{"esc", "q"}},
+		{"ctrl+space", func(a *App) bool { return a.m.Palette.IsActive() }, []string{"esc", "q"}},
+		{",", func(a *App) bool { return a.r.Page == ochazuke.SettingsPageID }, []string{"esc", "q"}},
+		{"'", func(a *App) bool { return a.r.TopModal() == "page-picker" }, []string{"esc", "q"}},
+		{"?", func(a *App) bool { return a.r.TopModal() == "bindings-help" }, []string{"esc", "q"}},
+		{"\\", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc", "q"}},
+		{"P", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc", "q"}},
+		{"L", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc", "q"}},
 	}
 	// Every mirror key uses the same leader setting. Exercise every key
 	// with one leader and cross-check the setting with the palette key.
@@ -235,6 +235,7 @@ func TestLeaderQuestionOpensTheHelpTree(t *testing.T) {
 		}
 	}
 	settle(app, key(t, app, "esc"))
+	settle(app, key(t, app, "q"))
 	live(t, app, "closing the help")
 }
 
@@ -266,6 +267,7 @@ func TestLiveFocusSurvivesFrames(t *testing.T) {
 		t.Fatal("ctrl+a : from the side opened no palette")
 	}
 	settle(a, key(t, a, "esc"))
+	settle(a, key(t, a, "q"))
 	for range 3 {
 		plainView(a)
 	}
@@ -277,6 +279,7 @@ func TestLiveFocusSurvivesFrames(t *testing.T) {
 	settle(a, key(t, a, "ctrl+a"))
 	settle(a, key(t, a, ":"))
 	settle(a, key(t, a, "esc"))
+	settle(a, key(t, a, "q"))
 	for range 3 {
 		plainView(a)
 	}

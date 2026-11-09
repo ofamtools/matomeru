@@ -74,7 +74,7 @@ func TestVimKeysAndWrites(t *testing.T) {
 	if a.r.TopModal() == "" {
 		t.Fatal("m did not ask")
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	press(t, a, "d", "d")
 	if fr := frame(a); !strings.Contains(fr, "Forget plans? Edited files and the live pane stay.") {
 		t.Fatalf("d d:\n%s", fr)

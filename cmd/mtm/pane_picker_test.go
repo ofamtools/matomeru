@@ -65,7 +65,7 @@ func TestLeaderPOpensThePanePicker(t *testing.T) {
 	if fr := frame(app); !strings.Contains(fr, "current") || !strings.Contains(fr, "nabe/notes") {
 		t.Fatalf("picker frame:\n%s", fr)
 	}
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
 	if app.r.Chooser(panePickerKind) != nil || app.r.FocusID() != paneTermID || app.r.CurrentMode().Name != "terminal" {
 		t.Fatalf("esc: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}

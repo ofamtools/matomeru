@@ -10,7 +10,8 @@
     "tab",
     "tab",
     "shift+tab",
-    "esc"
+    "esc",
+    "q"
   ],
   "expect": [
     {"after": 2, "modal": "pane-picker", "contains": ["› acme", "fuzzy", "acme-web"], "lacks": ["billing-api"]},

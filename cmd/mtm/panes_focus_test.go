@@ -42,7 +42,7 @@ func TestPaneFocusAttachSelectsDisplayedRow(t *testing.T) {
 			t.Fatalf("modal update: selected=%q focus=%q, want %q", got, a.r.FocusID(), modalFocus)
 		}
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
 		t.Fatalf("closing help: focus=%q mode=%q", a.r.FocusID(), a.r.CurrentMode().Name)
 	}

@@ -369,7 +369,7 @@ func TestSideChooserFromPageAndPalette(t *testing.T) {
 	if a.r.TopModal() != sideChooser {
 		t.Fatalf("page leader w: top modal %q", a.r.TopModal())
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	press(t, a, ":")
 	typeText(t, a, "panes sides")
 	press(t, a, "enter")
@@ -414,7 +414,7 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 			t.Fatalf("leader keys lack %q:\n%s", want, text)
 		}
 	}
-	press(t, a, "esc")
+	press(t, a, "q")
 	before := len(f.streams[0].sent)
 	press(t, a, "ctrl+a", "ctrl+o")
 	// sequence-unknown pass: the leader, then the key alone.

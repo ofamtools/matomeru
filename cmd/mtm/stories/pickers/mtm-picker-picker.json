@@ -7,7 +7,8 @@
   "script": [
     ":", {"type": "picker open pickers"}, "enter",
     {"type": "harness"}, "enter",
-    "esc"
+    "esc",
+    "q"
   ],
   "expect": [
     {"after": 3, "modal": "picker-pickers", "contains": ["Pickers", "pane", "pin", "pane-task", "context", "directory", "side", "harness", "Launch an agent"]},

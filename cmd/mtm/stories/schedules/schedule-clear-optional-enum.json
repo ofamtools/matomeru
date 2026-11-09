@@ -11,9 +11,9 @@
     ]
   },
   "script": [
-    ":", {"type": "schedule edit gh-signals --catch-up once"}, "enter", "esc",
+    ":", {"type": "schedule edit gh-signals --catch-up once"}, "enter", "q",
     ":", {"type": "schedule edit gh-signals"}, "enter",
-    "esc", "ctrl+y", "i", "ctrl+u", "esc", "esc",
+    "esc", "ctrl+y", "i", "ctrl+u", "esc", "q",
     ":", {"type": "schedule get gh-signals"}, "enter"
   ],
   "expect": [

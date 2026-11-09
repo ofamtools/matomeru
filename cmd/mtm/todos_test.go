@@ -69,7 +69,7 @@ func TestTOpensTheTodoOutlineOnEveryPage(t *testing.T) {
 		t.Fatalf("no pin outline:\n%s", f)
 	}
 	t.Logf("no pin, 80 columns:\n%s", f)
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.r.TopModal() != "" {
 		t.Fatalf("esc left %q", a.r.TopModal())
 	}

@@ -224,8 +224,8 @@ func TestSettingsLineIsAStopAndItsFieldsAreRows(t *testing.T) {
 	if c == nil {
 		t.Fatalf("enter on effort opened no chooser; focus %s", app.r.FocusID())
 	}
-	press(t, app, "esc")
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
+	press(t, app, "esc", "q")
 	if app.r.FocusID() != "pane:matomeru/w1" {
 		t.Fatalf("esc: %s", app.r.FocusID())
 	}

@@ -78,7 +78,7 @@ func TestNoticesClearOnNextKeyOrAfterLinger(t *testing.T) {
 
 // terminal.keys (from the palette; the leader's ? is the help tree,
 // TestLeaderQuestionOpensTheHelpTree) lists the leader keys, not the
-// generic help; esc closes it and the pane stays live.
+// generic help; q closes it and the pane stays live.
 func TestTerminalKeysListsLeaderKeys(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
@@ -105,9 +105,9 @@ func TestTerminalKeysListsLeaderKeys(t *testing.T) {
 	if strings.Contains(fr, "pending mode") {
 		t.Fatalf("generic help shown:\n%s", fr)
 	}
-	press(t, a, "esc")
+	press(t, a, "q")
 	if a.r.TopModal() != "" || a.r.FocusID() != paneTermID {
-		t.Fatalf("esc: modal %q focus %s", a.r.TopModal(), a.r.FocusID())
+		t.Fatalf("q: modal %q focus %s", a.r.TopModal(), a.r.FocusID())
 	}
 }
 

@@ -192,7 +192,7 @@ func TestUnpinSurvivesAppRestartAndPickerWorksEveryPage(t *testing.T) {
 		if c.r.TopModal() != "pin-picker" {
 			t.Fatalf("picker unavailable on %s", page)
 		}
-		press(t, c, "esc")
+		press(t, c, "esc", "q")
 	}
 	if _, err := c.r.ValidateBindings(); err != nil {
 		t.Fatal(err)

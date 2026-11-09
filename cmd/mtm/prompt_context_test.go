@@ -96,7 +96,7 @@ func TestPromptBoxAltOEscLeavesTheText(t *testing.T) {
 	typeText(t, app, "keep me")
 	openBoxPicker(t, app)
 	typeText(t, app, "notes")
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
 	if app.r.TopModal() == contextPicker || app.r.FocusID() != promptID {
 		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.FocusID())
 	}

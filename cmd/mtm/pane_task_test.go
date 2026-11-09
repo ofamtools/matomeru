@@ -98,7 +98,7 @@ func TestPaneTaskPickerOpensAfterSubmitWithoutDelayingTheSend(t *testing.T) {
 	if !strings.Contains(frame(a), "Task for") {
 		t.Fatalf("picker not drawn:\n%s", frame(a))
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.r.TopModal() != "" || a.r.FocusID() != promptID {
 		t.Fatalf("esc: top %q focus %s", a.r.TopModal(), a.r.FocusID())
 	}
@@ -192,7 +192,7 @@ func TestPaneTaskAfterSubmitSetting(t *testing.T) {
 	if a.r.TopModal() != taskPicker {
 		t.Fatalf("unassociated pane: no picker")
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	executeA(t, a, "pane", "associate", p.rowID(), ochazuke.Arguments{"project": "matomeru"})
 	press(t, a, "i")
 	send("three")
@@ -233,7 +233,7 @@ func TestPaneTaskPickFromThePaneRow(t *testing.T) {
 	if a.r.TopModal() != taskPicker {
 		t.Fatalf("t on the row: %q", a.r.TopModal())
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 }
 
 // The detail header names the pane's task, or says an agent with no task
@@ -288,7 +288,11 @@ func TestPromptAfterSubmitMode(t *testing.T) {
 			if a.r.TopModal() != taskPicker {
 				t.Fatalf("%s: no picker", name)
 			}
-			press(t, a, tc.close)
+			if tc.close == "esc" {
+				press(t, a, "esc", "q")
+			} else {
+				press(t, a, tc.close)
+			}
 		}
 		if a.r.TopModal() != "" || a.r.FocusID() != promptID || a.pb.input.Mode != want || a.r.CurrentMode().Name != want {
 			t.Fatalf("%s: top %q focus %s box %s mode %s, want %s", name, a.r.TopModal(), a.r.FocusID(), a.pb.input.Mode, a.r.CurrentMode().Name, want)

@@ -68,7 +68,7 @@ func TestQuickNoteWritesAsYouType(t *testing.T) {
 		t.Fatalf("redo was not written: %q", got)
 	}
 	t.Log("\n" + frame(a))
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.r.TopModal() != "" || a.quick != nil || a.r.FocusID() != "matomeru" && a.r.FocusID() != "ochazuke" {
 		t.Fatalf("esc: modal %q focus %q", a.r.TopModal(), a.r.FocusID())
 	}

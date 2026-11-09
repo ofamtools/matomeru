@@ -82,7 +82,7 @@ func TestCommaOpensTheSettingsEditor(t *testing.T) {
 	if app.r.Page != ochazuke.SettingsPageID || app.r.TopModal() != "" {
 		t.Fatalf("page %q, top modal %q; want the Settings page", app.r.Page, app.r.TopModal())
 	}
-	press(t, app, "esc")
+	press(t, app, "q")
 	if app.r.Page != from {
 		t.Fatalf("esc left page %q, want %q", app.r.Page, from)
 	}

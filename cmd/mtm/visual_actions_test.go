@@ -236,7 +236,7 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 		t.Fatalf("V j m: the chooser does not count both panes:\n%s", f)
 	}
 	// ochazuke v0.93.1: esc resumes the selection (visual-line, same rows).
-	press(t, app, "esc")
+	press(t, app, "esc", "q")
 	if app.r.CurrentMode().Name != "visual-line" {
 		t.Fatalf("after the chooser: mode %s", app.r.CurrentMode().Name)
 	}

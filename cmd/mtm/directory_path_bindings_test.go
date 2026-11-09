@@ -28,7 +28,7 @@ func TestDirectoryPathPickerBindingOverride(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "directory-browse", Verb: "open"}); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "esc", "i")
+	press(t, a, "esc", "q", "i")
 	if a.r.FocusID() != directoryPathID || a.r.CurrentMode().Name != "insert" {
 		t.Fatalf("focus=%s mode=%s", a.r.FocusID(), a.r.CurrentMode().Name)
 	}

@@ -17,7 +17,7 @@ func TestExplicitPaneEditFromExternalQueueRow(t *testing.T) {
 	if a.r.FocusID() != "edit-form/name" || !strings.Contains(fr, "Edit pane: matomeru/claude") || strings.Contains(fr, "Edit action-item") {
 		t.Fatalf("pane edit from %s: %s\n%s", row, where(a), fr)
 	}
-	press(t, a, "esc")
+	press(t, a, "esc", "q")
 	if a.r.FocusID() != row {
 		t.Fatalf("edit returned to %s, want %s", where(a), row)
 	}
