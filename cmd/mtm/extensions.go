@@ -877,9 +877,14 @@ func (a *App) loadExtBindings(x *extension, rows []ochazuke.Binding, pages []ocl
 		}
 		row.Request.Noun = req
 		row.Noun = local
-		// Catalog guards run only in the producing runtime. Host and user
-		// binding files still validate their own guards normally.
-		row.When = ""
+		// An application guard runs only in the producing runtime, so it is
+		// left off; a portable guard (a built-in, a row guard such as
+		// row:!item) reads only the key and the row, and stays: mtm judges
+		// it on the mounted row as the tool does. Host and user binding
+		// files still validate their own guards normally.
+		if !ochazuke.PortableGuard(row.When) {
+			row.When = ""
+		}
 		if reason := a.extBindingPolicy(row, x.bindingLists, crud); reason != "" {
 			dropped = append(dropped, where+": "+reason)
 			continue
