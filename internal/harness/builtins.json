@@ -48,7 +48,7 @@
       "files": "${CLAUDE_CONFIG_DIR:-~/.claude}/sessions/*.json",
       "pid": "pid",
       "start": "procStart",
-      "env": ["TUIOS_WINDOW_ID", "TUIOS_PANE_ID"],
+      "env": ["MTM_WINDOW_ID", "MTM_PANE_ID", "TUIOS_WINDOW_ID", "TUIOS_PANE_ID"],
       "session": "sessionId",
       "cwd": "cwd",
       "transcript": "${CLAUDE_CONFIG_DIR:-~/.claude}/projects/{cwd_slug}/{session}.jsonl"

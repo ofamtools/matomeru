@@ -482,7 +482,7 @@ func TestShellTurnOutputRefusedIsCalm(t *testing.T) {
 	press(t, app, "}", "k")
 	settle(app, key(t, app, "l"))
 	got := strings.Join(turnRows(app), "\n")
-	if !strings.Contains(got, "can't be read from this tuios") || strings.Contains(got, "invalid_params") {
+	if !strings.Contains(got, "can't be read from this daemon") || strings.Contains(got, "invalid_params") {
 		t.Fatalf("card:\n%s", got)
 	}
 	if v := frame(app); strings.Contains(v, "invalid_params") {

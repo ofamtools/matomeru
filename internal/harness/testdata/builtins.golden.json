@@ -85,6 +85,8 @@
       "pid": "pid",
       "start": "procStart",
       "env": [
+        "MTM_WINDOW_ID",
+        "MTM_PANE_ID",
         "TUIOS_WINDOW_ID",
         "TUIOS_PANE_ID"
       ],

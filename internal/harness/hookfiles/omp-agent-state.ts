@@ -44,7 +44,7 @@ function report(event, ctx, extra = {}) {
 }
 
 export default function (pi) {
-  if (process.env.TUIOS_ENV !== "1" && !process.env.TUIOS_AGENT) return;
+  if (process.env.MTM_ENV !== "1" && process.env.TUIOS_ENV !== "1" && !process.env.TUIOS_AGENT) return;
   const mainTUI = (ctx) => ctx?.mode === "tui" && ctx?.agent?.kind === "main";
   pi.on("session_start", (_event, ctx) => {
     if (mainTUI(ctx)) report("session_start", ctx, { busy: ctx?.isIdle?.() === false });

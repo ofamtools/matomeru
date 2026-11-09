@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/mcp"
 	"ofam.dev/ochazuke"
 	ocli "ofam.dev/ochazuke/cli"
@@ -92,7 +93,7 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 
 // stateScope is what projects.state's answer depends on beyond its
 // arguments, for the shell's state cache (ochazuke's state deltas): the
-// database and the TUIOS daemon socket, so two mtm instances on other data
+// database and the daemon server (daemon.ServerID, stable across a socket path rename), so two mtm instances on other data
 // or another server never answer deltas from each other's cached rows.
 func (a *App) stateScope(ochazuke.Arguments) string {
 	data := a.dataPath
@@ -101,9 +102,9 @@ func (a *App) stateScope(ochazuke.Arguments) string {
 	}
 	socket := ""
 	if a.daemon != nil {
-		socket = a.daemon.Socket
+		socket = daemon.ServerID(a.daemon.Socket)
 	}
-	return "data=" + data + "\nsocket=" + socket
+	return "data=" + data + "\nserver=" + socket
 }
 
 // closeTerminals removes every terminal instance, in id order; closing one

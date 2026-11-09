@@ -148,3 +148,60 @@ func TestCaptureDropsUnwrapAnOlderDaemonRefuses(t *testing.T) {
 		t.Fatal("any invalid_params counted")
 	}
 }
+
+// A daemon that predates both unwrap and trim names one per answer: Capture
+// drops each in turn, answers, and sends neither again on that client.
+// serial: runtimeDir sets the environment.
+func TestCaptureDropsEachOptionalParameterTheDaemonRefuses(t *testing.T) {
+	dir := runtimeDir(t)
+	socket := filepath.Join(dir, "c.sock")
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	var calls atomic.Int32
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				line, err := bufio.NewReader(c).ReadBytes('\n')
+				if err != nil {
+					return
+				}
+				var req struct {
+					ID     string         `json:"id"`
+					Params map[string]any `json:"params"`
+				}
+				if json.Unmarshal(line, &req) != nil {
+					return
+				}
+				calls.Add(1)
+				reply := map[string]any{"id": req.ID}
+				switch {
+				case req.Params["trim"] != nil:
+					reply["error"] = map[string]any{"code": "invalid_params", "message": "verb capture-pane has no parameter trim"}
+				case req.Params["unwrap"] != nil:
+					reply["error"] = map[string]any{"code": "invalid_params", "message": "verb capture-pane has no parameter unwrap"}
+				default:
+					reply["result"] = map[string]any{"content": "a\n"}
+				}
+				out, _ := json.Marshal(reply)
+				c.Write(append(out, '\n'))
+			}(c)
+		}
+	}()
+	c := New(socket)
+	got, err := c.Capture(context.Background(), CaptureParams{Window: "w", Unwrap: true, Trim: true})
+	if err != nil || got.Content != "a\n" || calls.Load() != 3 {
+		t.Fatalf("first capture %+v %v after %d calls", got, err, calls.Load())
+	}
+	got, err = c.Capture(context.Background(), CaptureParams{Window: "w", Unwrap: true, Trim: true})
+	if err != nil || got.Content != "a\n" || calls.Load() != 4 {
+		t.Fatalf("second capture %+v %v after %d calls", got, err, calls.Load())
+	}
+}

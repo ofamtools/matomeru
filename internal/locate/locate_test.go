@@ -284,3 +284,22 @@ func TestParseProcs(t *testing.T) {
 		t.Fatalf("%v", env)
 	}
 }
+
+// A pane's process names its window in whichever environment variable the
+// daemon sets: MTM_* (mtmd) or TUIOS_* (tuios and older mtmd).
+func TestClaudeRecordNamesThePaneByAnyEnvName(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"MTM_WINDOW_ID", "MTM_PANE_ID", "TUIOS_WINDOW_ID", "TUIOS_PANE_ID"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			w := newClaudeWorld(t)
+			w.transcript("/w/hub", "live")
+			w.process(10, "live", "/w/hub", "")
+			w.sys.env[10] = map[string]string{name: "w1"}
+			f := w.l.Locate([]Pane{{ID: "w1", Harness: "claude-code", Session: "stale", Cwd: "/w/hub"}})["w1"]
+			if f.Session != "live" {
+				t.Fatalf("got %+v", f)
+			}
+		})
+	}
+}
