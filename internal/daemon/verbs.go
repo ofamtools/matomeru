@@ -201,22 +201,50 @@ type CaptureResult struct {
 	LinesOmitted int `json:"lines_omitted,omitempty"`
 }
 
-// Capture reads a pane's buffer. A daemon that predates the unwrap
-// parameter refuses it by name; Capture then asks again once without it
-// and sends it no more on this client, so the rows come back soft-wrapped.
+// captureOptional are capture-pane's parameters that only shape the text:
+// a daemon that predates one refuses it by name and the capture is still
+// worth having without it. Each row says whether p sets the parameter and
+// how to clear it.
+var captureOptional = []struct {
+	name string
+	set  func(*CaptureParams) bool
+	drop func(*CaptureParams)
+}{
+	{"unwrap", func(p *CaptureParams) bool { return p.Unwrap }, func(p *CaptureParams) { p.Unwrap = false }},
+	{"trim", func(p *CaptureParams) bool { return p.Trim }, func(p *CaptureParams) { p.Trim = false }},
+	{"resolved", func(p *CaptureParams) bool { return p.Resolved }, func(p *CaptureParams) { p.Resolved = false }},
+	{"palette", func(p *CaptureParams) bool { return len(p.Palette) > 0 }, func(p *CaptureParams) { p.Palette = nil }},
+}
+
+// Capture reads a pane's buffer. A daemon that predates an optional
+// parameter (captureOptional) refuses it by name, one name per answer;
+// Capture then asks again without each rejected one and sends it no more on
+// this client, so the rows come back soft-wrapped, untrimmed and so on.
 func (c *Client) Capture(ctx context.Context, p CaptureParams) (CaptureResult, error) {
-	var out CaptureResult
-	if p.Unwrap && c.paramUnsupported("capture-pane", "unwrap") {
-		p.Unwrap = false
+	for _, o := range captureOptional {
+		if o.set(&p) && c.paramUnsupported("capture-pane", o.name) {
+			o.drop(&p)
+		}
 	}
-	err := c.Call(ctx, "capture-pane", p, &out)
-	if p.Unwrap && paramRejected(err, "unwrap") {
-		c.markUnsupported("capture-pane", "unwrap")
-		p.Unwrap = false
-		out = CaptureResult{}
-		err = c.Call(ctx, "capture-pane", p, &out)
+	for {
+		var out CaptureResult
+		err := c.Call(ctx, "capture-pane", p, &out)
+		if err == nil {
+			return out, nil
+		}
+		dropped := false
+		for _, o := range captureOptional {
+			if o.set(&p) && paramRejected(err, o.name) {
+				c.markUnsupported("capture-pane", o.name)
+				o.drop(&p)
+				dropped = true
+				break
+			}
+		}
+		if !dropped {
+			return out, err
+		}
 	}
-	return out, err
 }
 
 type SendTextParams struct {
