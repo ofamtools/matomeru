@@ -24,7 +24,9 @@ func (s *Store) Companions() ([]Companion, error) {
 	return all[Companion](s.db, "companions")
 }
 
-// PutCompanion permits at most one window of each kind per parent.
+// PutCompanion permits at most one window of each kind per parent. Server
+// is a daemon.ServerID, stable across a socket path change, so a link
+// written before the rename still counts.
 func (s *Store) PutCompanion(row Companion) error {
 	if row.Window == "" || row.Parent == "" || row.Window == row.Parent {
 		return errors.New("companion requires distinct nonempty window and parent ids")
@@ -33,21 +35,37 @@ func (s *Store) PutCompanion(row Companion) error {
 		return errors.New("companion kind must be nonempty")
 	}
 	return s.db.Tx([]string{"companions"}, func(tx *store.Tx) error {
-		raws, err := tx.All("companions")
-		if err != nil {
+		if err := companionConflict(tx, row); err != nil {
 			return err
-		}
-		for _, raw := range raws {
-			var existing Companion
-			if err := json.Unmarshal(raw, &existing); err != nil {
-				return err
-			}
-			if existing.Window != row.Window && existing.Parent == row.Parent && existing.Kind == row.Kind {
-				return fmt.Errorf("pane %s already has a side %s", row.Parent, row.Kind)
-			}
 		}
 		return tx.Put("companions", row.Window, row)
 	})
+}
+
+// CheckCompanion reports the error PutCompanion would give for a link of
+// kind to parent on server, before any window exists. Its Window is unknown,
+// so any link already there conflicts.
+func (s *Store) CheckCompanion(parent, kind, server string) error {
+	return s.db.Tx([]string{"companions"}, func(tx *store.Tx) error {
+		return companionConflict(tx, Companion{Window: "\x00new", Parent: parent, Kind: kind, Server: server})
+	})
+}
+
+func companionConflict(tx *store.Tx, row Companion) error {
+	raws, err := tx.All("companions")
+	if err != nil {
+		return err
+	}
+	for _, raw := range raws {
+		var existing Companion
+		if err := json.Unmarshal(raw, &existing); err != nil {
+			return err
+		}
+		if existing.Window != row.Window && existing.Parent == row.Parent && existing.Kind == row.Kind {
+			return fmt.Errorf("pane %s already has a side %s", row.Parent, row.Kind)
+		}
+	}
+	return nil
 }
 
 func (s *Store) DeleteCompanion(window string) error {

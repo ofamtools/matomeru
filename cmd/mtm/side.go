@@ -189,7 +189,10 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil, err
 		}
 		cwd := sideCwd(agentCwd(c, reg, ws, projects, parent, panes, started, resolved.of(parent)), parent, sideProjectDir(ws, owner.ProjectID), recipe)
-		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, cwd: cwd, kind: kind, env: recordedEnvironment(recipe), fit: fit}
+		side := &sideDriver{Driver: launcher, work: ws, server: server, parent: parent, cwd: cwd, kind: kind, env: recordedEnvironment(recipe), fit: fit,
+			kill: func(c context.Context, id string) error {
+				return pd.KillPane(c, pane{Pane: daemon.Pane{ID: id}, Session: parent.Session})
+			}}
 		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
 		side.note = driver.note
 		var command []string
@@ -290,11 +293,18 @@ type sideDriver struct {
 	// the region is not known yet.
 	fit  func(ctx context.Context, session, window string) error
 	note func(error) // the launch's notes (recordingDriver.note)
+	// kill closes a window the link could not be saved for; nil leaves it.
+	kill func(ctx context.Context, window string) error
 }
 
 func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, error) {
 	w.Session, w.Workspace, w.Cwd = d.parent.Session, d.parent.Workspace, d.cwd
 	w.Command = savedCommand(work.PaneRecipe{Command: w.Command, Env: d.env})
+	// Validate the link before creating the window: a refused link must not
+	// leave a loose pane behind.
+	if err := d.work.CheckCompanion(d.parent.ID, d.kind, d.server); err != nil {
+		return "", err
+	}
 	id, err := d.Driver.OpenWindow(ctx, w)
 	if err != nil {
 		return id, err
@@ -303,6 +313,12 @@ func (d *sideDriver) OpenWindow(ctx context.Context, w harness.Window) (string, 
 		return "", errors.New("side launch returned no pane id")
 	}
 	if err := d.work.PutCompanion(work.Companion{Window: id, Parent: d.parent.ID, Kind: d.kind, Server: d.server}); err != nil {
+		// A race since the check: close the new window rather than orphan it.
+		if d.kill != nil {
+			if kerr := d.kill(ctx, id); kerr == nil {
+				return "", fmt.Errorf("side pane not opened: its link could not be saved: %w", err)
+			}
+		}
 		return id, fmt.Errorf("side pane %s is open but its link could not be saved: %w", id, err)
 	}
 	if d.fit != nil {
@@ -570,7 +586,7 @@ func (a *App) server() string {
 	if a.daemon == nil || a.daemon.Socket == "" {
 		return ""
 	}
-	return filepath.Clean(a.daemon.Socket)
+	return daemon.ServerID(a.daemon.Socket)
 }
 
 // sideListing closes exited windows and reconciles companion links.

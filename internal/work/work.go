@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/store"
 )
 
@@ -98,7 +99,7 @@ var Tables = []store.Table{
 	{Name: "notes", Owner: "notes", Key: "id", Version: 2},
 	{Name: "saved_panes", Owner: "work", Key: "id", Version: 1},
 	{Name: "pane_recipes", Owner: "work", Key: "window", Version: 1},
-	{Name: "companions", Owner: "work", Key: "window", Version: 1},
+	{Name: "companions", Owner: "work", Key: "window", Version: 2},
 	{Name: "pane_stars", Owner: "work", Key: "window", Version: 1},
 	{Name: "pane_views", Owner: "work", Key: "window", Version: 1},
 	{Name: "pane_sessions", Owner: "work", Key: "window", Version: 1},
@@ -106,7 +107,21 @@ var Tables = []store.Table{
 	{Name: "ext_rows", Owner: "work", Key: "id", Version: 1},
 	// copies: mtm's copies of the things a source holds (copies.go); an
 	// existing database gains the table on its next open.
-	{Name: copiesTable, Owner: "work", Key: "id", Version: 1},
+	{Name: copiesTable, Owner: "work", Key: "id", Version: 2},
+}
+
+// serverIDRewrite maps the socket path in a row's field to its server id.
+func serverIDRewrite(field string) store.Rewrite {
+	return func(_ *store.Tx, row json.RawMessage) (any, error) {
+		m := map[string]any{}
+		if err := json.Unmarshal(row, &m); err != nil {
+			return nil, err
+		}
+		if v, ok := m[field].(string); ok && v != "" {
+			m[field] = daemon.ServerID(v)
+		}
+		return m, nil
+	}
 }
 
 // Store is the work unit's view of the database.
@@ -120,6 +135,14 @@ type Store struct {
 func Open(db *store.Store) (*Store, error) {
 	// Optional maker data needs no content rewrite: old rows read unknown.
 	if err := db.Migrate("notes", 1, 2, nil); err != nil {
+		return nil, err
+	}
+	// Server identities replace socket paths (daemon.ServerID): rows keep
+	// their place and every other field; a re-run does nothing.
+	if err := db.Migrate("companions", 1, 2, serverIDRewrite("server")); err != nil {
+		return nil, err
+	}
+	if err := db.Migrate(copiesTable, 1, 2, serverIDRewrite("source")); err != nil {
 		return nil, err
 	}
 	for _, t := range Tables {
