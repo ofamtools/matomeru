@@ -64,7 +64,10 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 		for _, original := range x.doc.Bindings {
 			if catalogDeleteRow(original, n.Name) {
 				row = original
-				row.Request.Noun, row.When = local, ""
+				row.Request.Noun = local
+				if !ochazuke.PortableGuard(row.When) {
+					row.When = "" // as loadExtBindings: only a portable guard stays
+				}
 				break
 			}
 		}
