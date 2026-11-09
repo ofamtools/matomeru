@@ -34,12 +34,16 @@ func (a *App) coreKeysOf(local string) coreKeyVerbs {
 }
 
 // catalogDeleteRow reports whether a catalog row is the noun's plain
-// delete: its request is the core delete of that noun with no preset
-// arguments (row-field sources are kept), on the noun's rows. mtm's d d
-// takes that row; a variant presetting arguments (force) stays its own.
+// delete: its request is the core delete of that noun, named directly or
+// through the noun's alias (Via: o-questions' decision rows run
+// question.delete via decision.delete), with no preset arguments
+// (row-field sources are kept), on the noun's rows. mtm's d d takes that
+// row, and its portable guard; a variant presetting arguments (force)
+// stays its own.
 func catalogDeleteRow(row ochazuke.Binding, noun string) bool {
 	return row.Noun == noun && row.Instance == "" && row.Pattern == "" &&
-		row.Request.Key() == noun+".delete" && len(row.Request.Args) == 0
+		(row.Request.Key() == noun+".delete" || row.Request.Via == noun+".delete") &&
+		len(row.Request.Args) == 0
 }
 
 // mountCRUD binds the core verbs' keys of an extension's mounted nouns: d
@@ -64,7 +68,7 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 		for _, original := range x.doc.Bindings {
 			if catalogDeleteRow(original, n.Name) {
 				row = original
-				row.Request.Noun = local
+				row.Request.Noun, row.Request.Via = local, ""
 				if !ochazuke.PortableGuard(row.When) {
 					row.When = "" // as loadExtBindings: only a portable guard stays
 				}

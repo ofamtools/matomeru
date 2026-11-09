@@ -7,15 +7,18 @@ import (
 )
 
 // rowGuardCatalog is crudCatalog with a mark verb and key rows guarded by
-// the row: a row guard (row:!item) on the mark key and on d d, and an
-// application guard the tool alone defines on M.
-func rowGuardCatalog() string {
+// the row: a row guard (row:!item) on g m and on d d (dd is its request:
+// the thing's delete, or another noun's delete reached through the
+// thing.delete alias, as o-questions' decision rows run question.delete),
+// and an application guard the tool alone defines on Z.
+func rowGuardCatalog(dd string) string {
 	c := crudCatalogNamed("create", "edit", "delete")
 	c = strings.Replace(c, `{"name":"list","kind":"application"},`, `{"name":"list","kind":"application"},{"name":"mark","kind":"application"},`, 1)
+	c = strings.Replace(c, `{"name":"thing",`, `{"name":"record","verbs":[{"name":"delete","kind":"application"}]},{"name":"thing",`, 1)
 	return strings.Replace(c, `"bindings":[`, `"bindings":[`+
 		`{"noun":"thing","mode":"normal","keys":"g m","when":"row:!item","request":{"noun":"thing","verb":"mark"}},`+
 		`{"noun":"thing","mode":"normal","keys":"Z","when":"tool-only-guard","request":{"noun":"thing","verb":"mark"}},`+
-		`{"noun":"thing","mode":"normal","keys":"d d","when":"row:!item","request":{"noun":"thing","verb":"delete"}},`, 1)
+		`{"noun":"thing","mode":"normal","keys":"d d","when":"row:!item","request":`+dd+`},`, 1)
 }
 
 // A catalog key row with a row guard keeps it when mtm mounts it: on a row
@@ -24,15 +27,33 @@ func rowGuardCatalog() string {
 // guard is still left off (mtm cannot judge it) and its key runs anywhere.
 func TestExtensionRowGuardKeepsKeysOffNonMatchingRows(t *testing.T) {
 	t.Parallel()
-	bin, log := fakeExtension(t, rowGuardCatalog(), `"thing list") echo '[{"id":"t1","label":"one","cells":["one"],"data":{"title":"one","item":"i1"}},{"id":"t2","label":"two","cells":["two"],"data":{"title":"two"}}]' ;;
-"thing mark"|"thing delete") echo '{"ok":true}' ;;`)
-	a := registered(t, seeded(t), "fake", bin)
+	for name, dd := range map[string]string{
+		"delete":    `{"noun":"thing","verb":"delete"}`,
+		"via-alias": `{"noun":"record","verb":"delete","via":"thing.delete"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			testRowGuardKeys(t, rowGuardCatalog(dd))
+		})
+	}
+}
+
+func testRowGuardKeys(t *testing.T, catalog string) {
+	bin, log := fakeExtension(t, catalog, `"thing list") echo '[{"id":"t1","label":"one","cells":["one"],"data":{"title":"one","item":"i1"}},{"id":"t2","label":"two","cells":["two"],"data":{"title":"two"}}]' ;;
+"thing mark"|"thing delete"|"record delete") echo '{"ok":true}' ;;`)
+	path := seeded(t)
+	if out := mustCLI(t, openAt(t, path), "extension", "register", "fake", "--bin", bin); !strings.Contains(out, `"nouns": 2`) {
+		t.Fatalf("register answered:\n%s", out)
+	}
+	a := openAt(t, path)
 	openExtPage(t, a, "ext/fake")
 	if l := a.r.List("ext/fake/thing"); l == nil || l.Len() != 2 {
 		t.Fatalf("rows not loaded: %+v", l)
 	}
-	if slices.ContainsFunc(a.m.Notices, func(s string) bool { return strings.Contains(s, " on thing:") && strings.Contains(s, "z ") }) {
-		t.Fatalf("g m dropped: %q", a.m.Notices)
+	if slices.ContainsFunc(a.m.Notices, func(s string) bool {
+		return strings.Contains(s, "g m on thing") || strings.Contains(s, "d d on thing")
+	}) {
+		t.Fatalf("guarded rows dropped: %q", a.m.Notices)
 	}
 	focus := func(id string) {
 		t.Helper()
