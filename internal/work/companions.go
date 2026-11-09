@@ -24,9 +24,9 @@ func (s *Store) Companions() ([]Companion, error) {
 	return all[Companion](s.db, "companions")
 }
 
-// PutCompanion permits at most one window of each kind per parent on a
-// server. A link recorded for another server is not a conflict: its window
-// is not on this server (an unknown server "" may be, so it still counts).
+// PutCompanion permits at most one window of each kind per parent. Server
+// is a daemon.ServerID, stable across a socket path change, so a link
+// written before the rename still counts.
 func (s *Store) PutCompanion(row Companion) error {
 	if row.Window == "" || row.Parent == "" || row.Window == row.Parent {
 		return errors.New("companion requires distinct nonempty window and parent ids")
@@ -61,8 +61,7 @@ func companionConflict(tx *store.Tx, row Companion) error {
 		if err := json.Unmarshal(raw, &existing); err != nil {
 			return err
 		}
-		sameServer := existing.Server == row.Server || existing.Server == "" || row.Server == ""
-		if existing.Window != row.Window && existing.Parent == row.Parent && existing.Kind == row.Kind && sameServer {
+		if existing.Window != row.Window && existing.Parent == row.Parent && existing.Kind == row.Kind {
 			return fmt.Errorf("pane %s already has a side %s", row.Parent, row.Kind)
 		}
 	}

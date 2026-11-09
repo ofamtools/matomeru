@@ -586,7 +586,7 @@ func (a *App) server() string {
 	if a.daemon == nil || a.daemon.Socket == "" {
 		return ""
 	}
-	return filepath.Clean(a.daemon.Socket)
+	return daemon.ServerID(a.daemon.Socket)
 }
 
 // sideListing closes exited windows and reconciles companion links.

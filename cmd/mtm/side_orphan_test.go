@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"ofam.dev/matomeru/internal/daemon"
@@ -19,33 +18,22 @@ func openTermSide(t *testing.T, a *App, p pane) {
 	settle(a, a.r.PendingCommands())
 }
 
-// A link left on another server (the tuios daemon mtm used before its own
-// daemon) is not this server's side: it must not refuse a new side link
-// after the window was created (the owner's orphan "side-term").
-func TestSideIgnoresStaleLinkFromAnotherServer(t *testing.T) {
+// A side opened before the daemon socket path changed (tuios-shaped path)
+// is the same server's side under the mtm path: it is reused, not doubled.
+func TestSideLinkSurvivesTheSocketPathRename(t *testing.T) {
 	t.Parallel()
 	a, driver := shellApp(t)
 	a.cli = true
-	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "mtmd.sock")}.client()
+	a.daemon = Options{Socket: "/tmp/mtm-501/servers/mtm-daemon/mtm.sock"}.client()
 	p := driver.panes.panes[0]
-	if err := a.work.PutCompanion(work.Companion{Window: "old-side", Parent: p.ID, Kind: "term", Server: "/old/tuios.sock"}); err != nil {
+	driver.panes.panes = append(driver.panes.panes, pane{Pane: daemon.Pane{ID: "old-side", Workspace: p.Workspace}, Session: p.Session})
+	// Written by the pre-rename code, then migrated (work.Open) to an id.
+	if err := a.work.PutCompanion(work.Companion{Window: "old-side", Parent: p.ID, Kind: "term", Server: daemon.ServerID("/tmp/tuios-501/servers/mtm-daemon/tuios.sock")}); err != nil {
 		t.Fatal(err)
 	}
 	openTermSide(t, a, p)
-	for _, job := range jobsOf(a, "pane.side") {
-		if job.Error != "" {
-			t.Fatal(job.Error)
-		}
-	}
-	links, _ := a.work.Companions()
-	mine := 0
-	for _, l := range links {
-		if l.Server == a.server() && l.Parent == p.ID && l.Kind == "term" {
-			mine++
-		}
-	}
-	if mine != 1 || len(driver.launches) != 1 {
-		t.Fatalf("links %+v, launches %d", links, len(driver.launches))
+	if len(driver.launches) != 0 {
+		t.Fatalf("a second side term was opened beside the existing one: %d launches", len(driver.launches))
 	}
 }
 
