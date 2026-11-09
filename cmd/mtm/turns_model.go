@@ -970,14 +970,14 @@ type shellRead struct {
 }
 
 // calmReadError words a failed output read for the card. An invalid_params
-// refusal (an older tuios) is not shown as a protocol error; other failures keep their text.
+// refusal (an older daemon) is not shown as a protocol error; other failures keep their text.
 func calmReadError(err error) string {
 	if err == nil {
 		return ""
 	}
 	var remote *daemon.Error
 	if errors.As(err, &remote) && remote.Code == "invalid_params" {
-		return "output can't be read from this tuios (it may need a restart to update)"
+		return "output can't be read from this daemon (it may need a restart to update)"
 	}
 	return err.Error()
 }

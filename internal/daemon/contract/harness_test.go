@@ -63,19 +63,14 @@ var expectedDifferences = []known{
 		Why:      "v0.10.0's capture-pane registry has no unwrap or trim, which mtm's CaptureParams carries",
 	},
 	{
-		ID:       "capture-pane/turns_model(unwrap+trim)",
-		Versions: []string{"v0.10.0"},
-		Why:      "mtm's call at cmd/mtm/turns_model.go:134 (Unwrap and Trim together) is refused by v0.10.0 naming trim first, and daemon.Client.Capture only falls back when the refusal names unwrap, so the call fails on this daemon (a real mtm gap, not only a version difference)",
-	},
-	{
 		ID:       "capture-pane/unwrap-raw",
 		Versions: []string{"v0.10.0"},
-		Why:      "capture-pane has no parameter unwrap at v0.10.0 (P4: invalid_params, sent from cmd/mtm/turns_model.go:134); the daemon.Client.Capture fallback hides it",
+		Why:      "capture-pane has no parameter unwrap at v0.10.0 (P4: invalid_params, sent from cmd/mtm/turns_model.go:134); daemon.Client.Capture retries without it",
 	},
 	{
 		ID:       "capture-pane/trim-raw",
 		Versions: []string{"v0.10.0"},
-		Why:      "capture-pane has no parameter trim at v0.10.0; Capture's fallback only retries without unwrap, so a Trim-only call is refused",
+		Why:      "capture-pane has no parameter trim at v0.10.0; a raw call is refused (daemon.Client.Capture retries without trim)",
 	},
 }
 
