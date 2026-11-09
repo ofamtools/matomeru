@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
@@ -60,7 +61,7 @@ func TestNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	if fr := frame(app); !strings.Contains(fr, "pane.start running") {
 		t.Fatalf("rail lacks the running job:\n%s", fr)
 	}
-	runOnce(app, cmd)
+	runOnceWithin(app, cmd, 10*time.Second) // the job must finish before the fake is read
 	if len(f.shells) != 1 {
 		t.Fatalf("shells = %+v", f.shells)
 	}
@@ -97,7 +98,7 @@ func TestNewPaneAnswersOnAnEmptyList(t *testing.T) {
 	if app.r.FocusID() != paneListID {
 		t.Fatalf("focus = %s", app.r.FocusID())
 	}
-	runOnce(app, key(t, app, "n"))
+	runOnceWithin(app, key(t, app, "n"), 10*time.Second)
 	if len(f.shells) != 1 || f.shells[0].Session != "matomeru" {
 		t.Fatalf("shells = %+v", f.shells)
 	}
@@ -138,7 +139,7 @@ func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
 	if app.m.Palette.IsOpen() || app.r.TopModal() != "" {
 		t.Fatalf("pane.new with nothing inferred opened %q", app.r.TopModal())
 	}
-	runOnce(app, cmd)
+	runOnceWithin(app, cmd, 10*time.Second)
 	if len(f.shells) != 1 || f.shells[0].Session != "mtm-only" || f.shells[0].Cwd != "/home/test" {
 		t.Fatalf("shells = %+v", f.shells)
 	}
