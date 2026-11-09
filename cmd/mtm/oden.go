@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	ocli "ofam.dev/ochazuke/cli"
 	"ofam.dev/oden"
@@ -79,4 +80,15 @@ func (f familyFS) Stat(path string) (fs.FileInfo, error) {
 		return nil, &fs.PathError{Op: "stat", Path: path, Err: fs.ErrNotExist}
 	}
 	return os.Stat(path)
+}
+
+// DiscoverCacheKey lets oden remember discovery (oden.CachedFS); the hidden
+// set is part of the key.
+func (f familyFS) DiscoverCacheKey() string {
+	names := make([]string, 0, len(f.hidden))
+	for n := range f.hidden {
+		names = append(names, n)
+	}
+	slices.Sort(names)
+	return "family:" + strings.Join(names, ",")
 }

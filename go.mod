@@ -9,7 +9,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 	ofam.dev/monogatari v0.8.0
-	ofam.dev/ochazuke v0.110.1
+	ofam.dev/ochazuke v0.110.2
 )
 
 require (
@@ -83,5 +83,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 	ofam.dev/mtmd v0.4.0
-	ofam.dev/oden v0.3.0
+	ofam.dev/oden v0.4.0
 )
