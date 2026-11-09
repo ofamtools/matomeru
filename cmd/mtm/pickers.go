@@ -218,7 +218,7 @@ func (a *App) askParameter(key, name string, args ochazuke.Arguments, s pickSpec
 }
 
 // choiceSet is one pick list a parameter declares as its Source: a named
-// set of choices that the one verb choice.list answers (Of names it), and
+// set of choices that the one verb choice.offer answers (Of names it), and
 // the parameter of a verb that takes its value from it. The table below is
 // the data; no set has a verb of its own, and no noun is added per set.
 type choiceSet struct {
@@ -256,10 +256,10 @@ func (a *App) choiceSets() []choiceSet {
 	}
 }
 
-// choiceListKey is the verb every set answers.
-const choiceListKey = "choice.list"
+// choiceOfferKey is the verb every set answers.
+const choiceOfferKey = "choice.offer"
 
-// defineChoiceSources registers choice.list and points each set's parameter
+// defineChoiceSources registers choice.offer and points each set's parameter
 // at it.
 func (a *App) defineChoiceSources() {
 	sets := a.choiceSets()
@@ -267,7 +267,7 @@ func (a *App) defineChoiceSources() {
 	for _, set := range sets {
 		by[set.Of] = set
 	}
-	a.r.Define("choice").Verb("list", func(c ochazuke.Ctx) ochazuke.Result {
+	a.r.Define("choice").Verb("offer", func(c ochazuke.Ctx) ochazuke.Result {
 		set, ok := by[ochazuke.StringArg(c.Args, "of", "")]
 		if !ok {
 			return ochazuke.Failed(errors.New("unknown choice set"))
@@ -281,8 +281,8 @@ func (a *App) defineChoiceSources() {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(choices)
-	}, "List a set of choices a parameter takes its value from (of: task-status, review-status, schedule-interval, snooze-time, prompt-attachment, outline-attachment, pane-setting-value)").Fetch()
-	a.parameters(choiceListKey, map[string]ochazuke.Parameter{
+	}, "Offer a set of choices a parameter takes its value from (of: task-status, review-status, schedule-interval, snooze-time, prompt-attachment, outline-attachment, pane-setting-value)").Fetch()
+	a.parameters(choiceOfferKey, map[string]ochazuke.Parameter{
 		"of":      {Type: "string", Required: true, Description: "The set"},
 		"id":      {Type: "string", Description: "The row asked about; omitted, the selected one"},
 		"count":   {Type: "integer", Description: "How many rows the choice applies to; the current value is marked only for one"},
@@ -300,7 +300,7 @@ func (a *App) defineChoiceSources() {
 		}
 		fixed := map[string]any{"of": set.Of}
 		maps.Copy(fixed, set.Fixed)
-		p.Source, p.SourceArgs, p.SourceFixed, p.Free = choiceListKey, set.Args, fixed, set.Free
+		p.Source, p.SourceArgs, p.SourceFixed, p.Free = choiceOfferKey, set.Args, fixed, set.Free
 		a.parameters(set.Key, map[string]ochazuke.Parameter{set.Param: p})
 	}
 }

@@ -248,6 +248,10 @@ func TestBindingsFollowTheKeyMap(t *testing.T) {
 		case row.at == "noun bindings-help" && row.keys == "a":
 			// ochazuke v0.90.0: the help's a opens the args form of the
 			// selected verb (bindings-help.args); the key is the library's.
+		case row.at == "noun related-section" && row.keys == "a":
+			// ochazuke v0.110.0: a related section's a associates the
+			// focused row (related-section.associate); the key is the
+			// library's.
 		case row.keys == "a" || row.keys == "D":
 			t.Errorf("%s still binds %q (%s)", row.at, row.keys, row.op)
 		case row.keys == "q" && !closers[row.op]:

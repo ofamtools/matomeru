@@ -17,7 +17,7 @@ func TestReadVerbsAreFetches(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	want := []string{
-		"agent.guide", "choice.list", "agent.peek-prompt", "agent.scan", "agent.status", "pane.capture", "pane.wait", "session.events", "session.list-panes",
+		"agent.guide", "choice.offer", "agent.peek-prompt", "agent.scan", "agent.status", "pane.capture", "pane.wait", "session.events", "session.list-panes",
 		"action-item.count", "action-item.get", "action-item.list", "action-item.watch",
 		"context-item.get", "context-item.list", "context-item.watch", "daemon.show-log", "daemon.status", "dirs.bases", "dirs.refresh",
 		"extension.all", "extension.available", "extension.peer-rows", "extension.peers", "extension.setup-plan", "extension.setup-status",

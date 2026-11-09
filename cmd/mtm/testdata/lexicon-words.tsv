@@ -94,7 +94,7 @@ chip-edge	action	seed
 chip-line	action	seed	
 chip-move	action	seed	
 chip-toggle	action	seed	
-choice	noun	yes	the pick lists of parameters (list {of})
+choice	noun	yes	the pick lists of parameters (offer {of})
 choices	relation	seed	
 choose	action	seed	
 choose-column	action	seed	
@@ -510,6 +510,7 @@ nouns	noun+prop	seed
 observed_at	prop	seed	
 ochazuke	namespace	seed	
 off	prop	seed	
+offer	action	yes	list a choice set
 old_path	prop	seed	
 on	prop	seed	
 oncall	filter	seed	
