@@ -220,7 +220,7 @@ pane_settings.go	var settingVerbs	table	"effort"	1
 pane_settings.go	var settingVerbs	table	"fast"	1
 pane_settings.go	var settingVerbs	table	"model"	1
 pane_settings.go	var settingVerbs	table	"permission-mode"	1
-pane_task.go	App.taskPickerRows	compare	"done"	1
+pane_task.go	App.taskPickerChoices	compare	"done"	1
 pane_view.go	App.setPaneView	compare	"default"	1
 pane_view.go	viewTab	compare	"terminal"	1
 panekeys.go	paneKey	cyclo	"-"	28
@@ -231,7 +231,6 @@ panes.go	App.showPanes	cyclo	"-"	28
 panes.go	tuios.Exited	compare	"timeout"	1
 panes_detail.go	App.groupSummary	case	"session"	1
 panes_detail.go	App.loadDetail	compare	"panes"	1
-panes_detail.go	App.moveTo	compare	"scratch"	1
 panes_detail.go	App.panesUpdate	compare	"panes"	4
 panes_detail.go	App.panesUpdate	cyclo	"-"	41
 panes_events.go	App.pushPaneTitles	compare	"pane"	1

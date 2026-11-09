@@ -3,9 +3,11 @@ package main
 import (
 	"cmp"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/ochazuke"
 )
 
@@ -134,11 +136,6 @@ type pickSpec struct {
 	Choices []ochazuke.Choice
 	// Lead is the id listed first (the current one, the project's own).
 	Lead string
-	// Props are a row's props for the prop filters (nil: none).
-	Props func(id string) ochazuke.Thing
-	// Data is a row's app payload, read back from a highlighted row by
-	// the picker's own keys (nil: none).
-	Data func(id string) any
 	// Preview is the highlighted row's text (nil: none).
 	Preview func(id string) string
 	// Pick is what enter does with the chosen id.
@@ -151,23 +148,24 @@ type pickSpec struct {
 	Notice string
 }
 
-// rows are the spec's choices as chooser rows (Choice.Row), with props.
+// rows are the spec's choices as chooser rows (ochazuke.ChoiceRows; a
+// choice carries its props and payload), the Lead one first.
 func (s pickSpec) rows() []ochazuke.PickerRow {
 	if s.Lead != "" {
 		s.Choices = slices.Clone(s.Choices)
 		slices.SortStableFunc(s.Choices, func(x, y ochazuke.Choice) int { return -cmp.Compare(btoi(x.ID == s.Lead), btoi(y.ID == s.Lead)) })
 	}
-	rows := make([]ochazuke.PickerRow, len(s.Choices))
-	for i, c := range s.Choices {
-		rows[i] = c.Row()
-		if s.Props != nil {
-			rows[i].Props = s.Props(c.ID)
-		}
-		if s.Data != nil {
-			rows[i].Data = s.Data(c.ID)
-		}
+	return ochazuke.ChoiceRows(s.Choices)
+}
+
+// dataByID is the payload each choice carries (Choice.Data), by id: what a
+// pick reads back for the id it was given.
+func dataByID(choices []ochazuke.Choice) map[string]any {
+	out := make(map[string]any, len(choices))
+	for _, c := range choices {
+		out[c.ID] = c.Data
 	}
-	return rows
+	return out
 }
 
 // choose opens the general picker over s.
@@ -219,46 +217,96 @@ func (a *App) askParameter(key, name string, args ochazuke.Arguments, s pickSpec
 	return a.choose(s)
 }
 
-// choiceSource registers key (noun.verb) as a read verb whose answer is
-// choices: the Source of a parameter that asks for a thing the verb's
-// noun has no list of (a status, an interval, the attachments of the
-// prompt). Like projects.all, it reads the app's state; one that depends
-// on the row it asks about reads it from its name parameter or the focus.
-func (a *App) choiceSource(key, about string, params map[string]ochazuke.Parameter, fn func(ochazuke.Ctx) ([]ochazuke.Choice, error)) {
-	noun, verb := ochazuke.SplitKey(key)
-	a.r.Define(noun).Verb(verb, func(c ochazuke.Ctx) ochazuke.Result {
-		choices, err := fn(c)
+// choiceSet is one pick list a parameter declares as its Source: a named
+// set of choices that the one verb choice.list answers (Of names it), and
+// the parameter of a verb that takes its value from it. The table below is
+// the data; no set has a verb of its own, and no noun is added per set.
+type choiceSet struct {
+	// Of names the set; Fn lists it. A set reads the row it is about from
+	// its id, name or setting argument (SourceArgs maps the verb's own
+	// parameters to them), else from the focus.
+	Of string
+	Fn func(ochazuke.Ctx) ([]ochazuke.Choice, error)
+	// Key.Param is the parameter that takes its values from the set.
+	Key, Param string
+	// Type and Description declare the parameter when the verb does not.
+	Type, Description string
+	// Args maps the source's arguments to the verb's sibling parameters;
+	// Fixed gives it constants; Free accepts a value outside the set.
+	Args  map[string]string
+	Fixed map[string]any
+	Free  bool
+}
+
+// choiceSets are the pick lists of mtm's parameters (the general picker
+// asks them through askParameter; the palette, the form and the CLI offer
+// the same).
+func (a *App) choiceSets() []choiceSet {
+	return []choiceSet{
+		{Of: "task-status", Fn: a.taskStatuses, Key: "task.choose-status", Param: "status", Type: "string", Description: "The status to set; omitted, a chooser asks", Args: map[string]string{"id": "id", "count": "count"}},
+		{Of: "review-status", Fn: a.reviewStatusChoices, Key: "review.choose-status", Param: "status", Type: "string", Description: "The status to set; omitted, a chooser asks", Args: map[string]string{"id": "id"}},
+		{Of: "schedule-interval", Fn: a.intervalChoices, Key: scheduleNoun + ".set-interval", Param: "interval", Args: map[string]string{"name": "name"}, Free: true},
+		{Of: "snooze-time", Fn: a.snoozeTimes, Key: actionItemNoun + ".snooze", Param: "until", Free: true},
+		{Of: "prompt-attachment", Fn: a.promptAttachments, Key: promptNoun + ".detach", Param: "n"},
+		{Of: "outline-attachment", Fn: a.taskAttachments, Key: outlineModal + ".detach", Param: "n"},
+		{Of: "pane-setting-value", Fn: a.settingValues, Key: "pane.set-model", Param: settingArgs[harness.SettingModel], Fixed: map[string]any{"setting": harness.SettingModel}, Free: true},
+		{Of: "pane-setting-value", Fn: a.settingValues, Key: "pane.set-effort", Param: settingArgs[harness.SettingEffort], Fixed: map[string]any{"setting": harness.SettingEffort}, Free: true},
+		{Of: "pane-setting-value", Fn: a.settingValues, Key: "pane.set-fast", Param: settingArgs[harness.SettingFast], Fixed: map[string]any{"setting": harness.SettingFast}, Free: true},
+		{Of: "pane-setting-value", Fn: a.settingValues, Key: "pane.set-permission-mode", Param: settingArgs[harness.SettingPermission], Fixed: map[string]any{"setting": harness.SettingPermission}, Free: true},
+	}
+}
+
+// choiceListKey is the verb every set answers.
+const choiceListKey = "choice.list"
+
+// defineChoiceSources registers choice.list and points each set's parameter
+// at it.
+func (a *App) defineChoiceSources() {
+	sets := a.choiceSets()
+	by := map[string]choiceSet{}
+	for _, set := range sets {
+		by[set.Of] = set
+	}
+	a.r.Define("choice").Verb("list", func(c ochazuke.Ctx) ochazuke.Result {
+		set, ok := by[ochazuke.StringArg(c.Args, "of", "")]
+		if !ok {
+			return ochazuke.Failed(errors.New("unknown choice set"))
+		}
+		if c.Instance == nil {
+			// The sets are about the row at the focus when none is named.
+			c.Instance = a.r.Instances[a.r.FocusID()]
+		}
+		choices, err := set.Fn(c)
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(choices)
-	}, about).Fetch()
-	if len(params) > 0 {
-		a.parameters(key, params)
+	}, "List a set of choices a parameter takes its value from (of: task-status, review-status, schedule-interval, snooze-time, prompt-attachment, outline-attachment, pane-setting-value)").Fetch()
+	a.parameters(choiceListKey, map[string]ochazuke.Parameter{
+		"of":      {Type: "string", Required: true, Description: "The set"},
+		"id":      {Type: "string", Description: "The row asked about; omitted, the selected one"},
+		"count":   {Type: "integer", Description: "How many rows the choice applies to; the current value is marked only for one"},
+		"name":    {Type: "string", Description: "The schedule asked about; omitted, the selected one"},
+		"setting": {Type: "string", Description: "The pane setting: model, effort, fast or permission-mode"},
+	})
+	for _, set := range sets {
+		op, ok := a.r.Operation(set.Key)
+		if !ok {
+			continue // a verb this build does not define (the prompt box's)
+		}
+		p := op.Parameters[set.Param]
+		if set.Type != "" {
+			p.Type, p.Description = set.Type, set.Description
+		}
+		fixed := map[string]any{"of": set.Of}
+		maps.Copy(fixed, set.Fixed)
+		p.Source, p.SourceArgs, p.SourceFixed, p.Free = choiceListKey, set.Args, fixed, set.Free
+		a.parameters(set.Key, map[string]ochazuke.Parameter{set.Param: p})
 	}
 }
 
-// defineChoiceSources registers the choice sources the general picker's
-// parameters read, and declares those parameters on the verbs that ask.
-func (a *App) defineChoiceSources() {
-	id := map[string]ochazuke.Parameter{"id": {Type: "string", Description: "The row asked about; omitted, the selected one"}}
-	a.choiceSource("task.statuses", "List the statuses as choices with their glyph, the task's own marked (the status parameter's pick list)",
-		map[string]ochazuke.Parameter{"id": id["id"], "count": {Type: "integer", Description: "How many tasks the choice sets; the current status is marked only for one"}}, a.taskStatuses)
-	a.parameters("task.choose-status", map[string]ochazuke.Parameter{"status": {Type: "string", Source: "task.statuses", SourceArgs: map[string]string{"id": "id", "count": "count"},
-		Description: "The status to set; omitted, a chooser asks"}})
-	a.choiceSource(actionItemNoun+".snooze-times", "List when an item can be snoozed until as choices (the until parameter's pick list)", nil, a.snoozeTimes)
-	a.choiceSource("review.statuses", "List the review statuses as choices, the review's own marked (the status parameter's pick list)", id, a.reviewStatusChoices)
-	a.parameters("review.choose-status", map[string]ochazuke.Parameter{"status": {Type: "string", Source: "review.statuses", SourceArgs: map[string]string{"id": "id"},
-		Description: "The status to set; omitted, a chooser asks"}})
-}
-
-// plainChoice is a choice shown by its label alone: the id is a machine
-// id (a project's), so a single cell keeps it from being drawn.
+// plainChoice is a choice shown by its label alone: the id is only a
+// handle (a project's), so Bare keeps the dim id off the row.
 func plainChoice(id, label string) ochazuke.Choice {
-	return ochazuke.Choice{ID: id, Label: label, Cells: []string{label}}
-}
-
-// choiceRows are choices as chooser rows (Choice.Row).
-func choiceRows(choices []ochazuke.Choice) []ochazuke.PickerRow {
-	return pickSpec{Choices: choices}.rows()
+	return ochazuke.Choice{ID: id, Label: label, RowFlags: ochazuke.RowFlags{Bare: true}}
 }

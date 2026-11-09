@@ -254,8 +254,7 @@ func (a *App) addPromptBox() error {
 		return !slices.Contains(in.Text[:at], '\n')
 	})
 	a.parameters(promptNoun+".mode", map[string]ochazuke.Parameter{"mode": {Type: "string", Enum: promptModes, Description: "The mode to switch to; none takes the next"}})
-	a.parameters(promptNoun+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Source: promptNoun + ".attachments", Description: "The image's number, as its chip [image n] shows; none: the only one, else a chooser"}})
-	a.choiceSource(promptNoun+".attachments", "List the prompt's attachments as choices: the image number, its chip and path (the n parameter's pick list)", nil, a.promptAttachments)
+	a.parameters(promptNoun+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "The image's number, as its chip [image n] shows; none: the only one, else a chooser"}})
 	// i writes from every detail tab, revealing the pane's box if needed.
 	// Exited panes and boxes disabled by settings leave the key alone.
 	a.r.DefineGuard("pane-prompt", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {

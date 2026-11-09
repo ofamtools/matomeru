@@ -517,7 +517,7 @@ func (a *App) openStatusChooserFor(t work.Task, n int, set func(status string) o
 	return err
 }
 
-// taskStatuses is task.statuses, the status parameter's pick list: the
+// taskStatuses is task-status.list, the status parameter's pick list: the
 // statuses with their glyph, the task's own marked while one task is asked
 // about.
 func (a *App) taskStatuses(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
@@ -541,7 +541,7 @@ func statusChoices(statuses []string, current string, glyph func(string) string)
 		if s == current {
 			label += " (current)"
 		}
-		c := ochazuke.Choice{ID: s, Label: label}
+		c := ochazuke.Choice{ID: s, Label: label, RowFlags: ochazuke.RowFlags{Bare: true}}
 		if glyph != nil {
 			c.Cells = []string{glyph(s), label}
 		}

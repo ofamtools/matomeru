@@ -324,7 +324,7 @@ func (a *App) reminderHistory(c ochazuke.Ctx) ochazuke.Result {
 		choices := make([]ochazuke.Choice, 0, len(hs))
 		byDate := map[string]reminders.HistoryDay{}
 		for _, h := range hs {
-			choices = append(choices, ochazuke.Choice{ID: h.Date, Label: h.Date + " · " + h.State + " · " + h.ScheduledTime})
+			choices = append(choices, ochazuke.Choice{ID: h.Date, Label: h.Date + " · " + h.State + " · " + h.ScheduledTime, RowFlags: ochazuke.RowFlags{Bare: true}})
 			byDate[h.Date] = h
 		}
 		_, err = a.choose(pickSpec{Kind: "reminder-history", Title: "Reminder history · " + r.Title, Choices: choices, NoSort: true,

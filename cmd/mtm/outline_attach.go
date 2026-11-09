@@ -93,8 +93,7 @@ func (a *App) defineOutlineAttachments() {
 		Verb("detach", a.detachTaskImage, "Remove an image from the task being edited: image n, the only one, else choose").When("task-image-input").
 		Mode("insert").
 		Bind("ctrl+v", ochazuke.Do(outlineModal+".paste").Hinted("paste/attach"))
-	a.parameters(outlineModal+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Source: outlineModal + ".attachments", Description: "Image number; omit to choose"}})
-	a.choiceSource(outlineModal+".attachments", "List the edited task's attachments as choices: the image number, its chip and path (the n parameter's pick list)", nil, a.taskAttachments)
+	a.parameters(outlineModal+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "Image number; omit to choose"}})
 }
 
 func (a *App) outlineImageInput() (string, *ochazuke.Input) {

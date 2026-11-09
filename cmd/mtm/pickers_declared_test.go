@@ -60,6 +60,7 @@ func mtmSourceFiles(t *testing.T) map[string]*ast.File {
 }
 
 func TestPickersDeclared(t *testing.T) {
+	t.Parallel()
 	openers := []string{"OpenChooser", "OpenPicker", "OpenPathChooser"}
 	called := map[string][]string{}
 	literal := map[string]bool{}

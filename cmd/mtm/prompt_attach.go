@@ -325,7 +325,7 @@ func (a *App) detachPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 func attachmentChoices(live []promptAttachment) []ochazuke.Choice {
 	out := make([]ochazuke.Choice, len(live))
 	for i, at := range live {
-		out[i] = ochazuke.Choice{ID: strconv.Itoa(at.n), Label: at.chip() + " " + at.path, Cells: []string{at.chip(), at.path}}
+		out[i] = ochazuke.Choice{ID: strconv.Itoa(at.n), Label: at.chip() + " " + at.path, Cells: []string{at.chip(), at.path}, RowFlags: ochazuke.RowFlags{Bare: true}}
 	}
 	return out
 }
@@ -341,7 +341,7 @@ func attachmentByID(live []promptAttachment, id string) promptAttachment {
 	return promptAttachment{}
 }
 
-// promptAttachments is turn-prompt.attachments, the n parameter's pick
+// promptAttachments is prompt-attachment.list, the n parameter's pick
 // list: the prompt's live attachments.
 func (a *App) promptAttachments(ochazuke.Ctx) ([]ochazuke.Choice, error) {
 	if a.pb == nil {

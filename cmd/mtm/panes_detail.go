@@ -460,22 +460,20 @@ func (a *App) moveTo(ctx ochazuke.Ctx, noun string) ochazuke.Result {
 		if hasOwner && p.ID == current {
 			continue // moving to where it already is does nothing
 		}
-		choices = append(choices, plainChoice(p.ID, projectName(p)))
+		c := plainChoice(p.ID, projectName(p))
+		c.Data = ochazuke.Arguments{"project": p.ID}
+		choices = append(choices, c)
 	}
 	if !hasOwner || current != "" {
-		choices = append(choices, ochazuke.Choice{ID: "unassociated", Label: "unassociated", Cells: []string{"unassociated"}, RowFlags: ochazuke.RowFlags{Trailing: true}})
+		choices = append(choices, ochazuke.Choice{ID: "unassociated", Label: "unassociated", Data: ochazuke.Arguments{"scratch": true}, RowFlags: ochazuke.RowFlags{Trailing: true, Bare: true}})
 	}
+	data := dataByID(choices)
 	_, err := a.choose(pickSpec{
 		Kind:    moveChooser,
 		Title:   title,
 		Choices: choices,
 		Filter:  pickFilterTrailing,
-		Pick: func(id string) ochazuke.Result {
-			if id == "unassociated" {
-				return associate(ochazuke.Arguments{"scratch": true})
-			}
-			return associate(ochazuke.Arguments{"project": id})
-		},
+		Pick:    func(id string) ochazuke.Result { return associate(data[id].(ochazuke.Arguments)) },
 	})
 	if err != nil {
 		return ochazuke.Failed(err)

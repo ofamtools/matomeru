@@ -263,9 +263,7 @@ func (a *App) defineSchedules() {
 	a.parameters(n+".history", map[string]ochazuke.Parameter{"name": scheduleNameParam,
 		"limit": {Type: "integer", Description: "At most this many runs (default all kept)"}})
 	a.parameters(n+".set-interval", map[string]ochazuke.Parameter{"name": scheduleNameParam,
-		"interval": {Type: "string", Source: n + ".intervals", SourceArgs: map[string]string{"name": "name"}, Free: true, Description: "How often: 1m, 5m, 1h, …"}})
-	a.choiceSource(n+".intervals", "List the intervals a schedule can run at as choices, the current one marked (the interval parameter's pick list)",
-		map[string]ochazuke.Parameter{"name": scheduleNameParam}, a.intervalChoices)
+		"interval": {Type: "string", Description: "How often: 1m, 5m, 1h, …"}})
 	add, edit := a.scheduleParams(), a.scheduleParams()
 	add["name"] = ochazuke.Parameter{Type: "string", Description: "The schedule's name (letters, digits, dashes); omitted, made from the prompt"}
 	edit["name"] = scheduleNameParam
@@ -733,7 +731,7 @@ func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(nil)
 }
 
-// intervalChoices is schedule.intervals: the intervals, the schedule's
+// intervalChoices is schedule-interval.list: the intervals, the schedule's
 // own marked.
 func (a *App) intervalChoices(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
 	d, err := a.scheduleAt(ctx)
@@ -746,7 +744,7 @@ func (a *App) intervalChoices(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
 		if mustDuration(c) == d.Every() {
 			label += " (now)"
 		}
-		out = append(out, ochazuke.Choice{ID: c, Label: label})
+		out = append(out, ochazuke.Choice{ID: c, Label: label, RowFlags: ochazuke.RowFlags{Bare: true}})
 	}
 	return out, nil
 }

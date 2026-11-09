@@ -514,7 +514,7 @@ func (a *App) chooseReviewStatus(ctx ochazuke.Ctx) ochazuke.Result {
 	return resultError(err)
 }
 
-// reviewStatusChoices is review.statuses: the statuses, the review's own
+// reviewStatusChoices is review-status.list: the statuses, the review's own
 // marked.
 func (a *App) reviewStatusChoices(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
 	current := ""

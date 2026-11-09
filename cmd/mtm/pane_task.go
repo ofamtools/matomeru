@@ -178,21 +178,15 @@ func (a *App) openTaskPicker(p pane) (*ochazuke.Chooser, error) {
 		}
 		return ochazuke.Done(out)
 	}
+	choices := a.taskPickerChoices(owner)
+	data := dataByID(choices)
 	return a.choose(pickSpec{
-		Kind:    taskPicker,
-		Title:   "Task for " + p.label(),
-		Choices: a.taskPickerChoices(owner),
-		Empty:   "no open tasks or projects; type a title for a new task",
-		Filter:  pickFilterTrailing,
-		Pick: func(id string) ochazuke.Result {
-			switch kind, rest, _ := strings.Cut(id, ":"); kind {
-			case "task":
-				return associate(ochazuke.Arguments{"task": rest})
-			case "project":
-				return associate(ochazuke.Arguments{"project": rest})
-			}
-			return associate(ochazuke.Arguments{"scratch": true})
-		},
+		Kind:        taskPicker,
+		Title:       "Task for " + p.label(),
+		Choices:     choices,
+		Empty:       "no open tasks or projects; type a title for a new task",
+		Filter:      pickFilterTrailing,
+		Pick:        func(id string) ochazuke.Result { return associate(data[id].(ochazuke.Arguments)) },
 		CreateLabel: func(query string) string { return fmt.Sprintf("new task %q in %s", strings.TrimSpace(query), where) },
 		Create: func(query string) ochazuke.Result {
 			if strings.TrimSpace(query) == "" {
@@ -238,14 +232,16 @@ func (a *App) taskPickerChoices(owner work.Assignment) []ochazuke.Choice {
 		if current {
 			label += " (current)"
 		}
-		return ochazuke.Choice{ID: "task:" + t.ID, Label: label, Cells: []string{label}, Tones: tones}
+		return ochazuke.Choice{ID: "task:" + t.ID, Label: label, Tones: tones, Data: ochazuke.Arguments{"task": t.ID}, RowFlags: ochazuke.RowFlags{Bare: true}}
 	}
 	projectRow := func(p work.Project, current bool) ochazuke.Choice {
 		label := projectName(p) + " · no task"
 		if current {
 			label += " (current)"
 		}
-		return plainChoice("project:"+p.ID, label)
+		c := plainChoice("project:"+p.ID, label)
+		c.Data = ochazuke.Arguments{"project": p.ID}
+		return c
 	}
 	if owner.TaskID != "" {
 		if t, ok := byID[owner.TaskID]; ok {
@@ -269,7 +265,7 @@ func (a *App) taskPickerChoices(owner work.Assignment) []ochazuke.Choice {
 		rows = append(rows, projectRow(p, false))
 	}
 	if owner.ProjectID != "" || owner.TaskID != "" {
-		rows = append(rows, ochazuke.Choice{ID: "scratch", Label: "unassociated", Cells: []string{"unassociated"}, RowFlags: ochazuke.RowFlags{Trailing: true}})
+		rows = append(rows, ochazuke.Choice{ID: "scratch", Label: "unassociated", Data: ochazuke.Arguments{"scratch": true}, RowFlags: ochazuke.RowFlags{Trailing: true, Bare: true}})
 	}
 	return rows
 }

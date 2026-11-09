@@ -103,9 +103,10 @@ func (a *App) panePickerChoices(now time.Time) []ochazuke.Choice {
 			mark = "current"
 		}
 		out = append(out, ochazuke.Choice{
-			ID:    p.rowID(),
-			Label: p.label() + " " + project + " " + p.kind(),
-			Cells: []string{p.label(), project, p.kind(), state, mark},
+			ID:       p.rowID(),
+			Label:    p.label() + " " + project + " " + p.kind(),
+			Cells:    []string{p.label(), project, p.kind(), state, mark},
+			RowFlags: ochazuke.RowFlags{Bare: true},
 		})
 	}
 	return out

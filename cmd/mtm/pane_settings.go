@@ -132,12 +132,10 @@ func (a *App) addPaneSettings() error {
 	for name, verb := range settingVerbs {
 		arg := settingArgs[name]
 		a.parameters("pane."+verb, map[string]ochazuke.Parameter{
-			arg:         {Type: "string", Source: "pane.setting-values", SourceFixed: map[string]any{"setting": name}, Free: true, Description: "The value; none opens a chooser of the values the harness takes"},
+			arg:         {Type: "string", Description: "The value; none opens a chooser of the values the harness takes"},
 			"confirmed": {Type: "boolean", Description: "Send even though the prompt box holds a draft for the pane"},
 		})
 	}
-	a.choiceSource("pane.setting-values", "List the values the pane's harness takes for a setting as choices, the current one marked (the set-* verbs' value pick list)",
-		map[string]ochazuke.Parameter{"setting": {Type: "string", Required: true, Description: "The setting: model, effort, fast or permission-mode"}}, a.settingValues)
 	a.parameters("pane.toggle-fast", map[string]ochazuke.Parameter{"confirmed": {Type: "boolean", Description: "Send even though the prompt box holds a draft for the pane"}})
 	// A field of the line: enter changes it, h and l walk the line, j and
 	// k leave it for the stop drawn below or above, esc goes back to the
@@ -639,16 +637,16 @@ func (a *App) openSettingChooser(p pane, row string, h harness.Harness, st harne
 		title += " · " + st.Note
 	}
 	apply := func(v string) ochazuke.Result { return a.applySetting(p, row, name, v, false) }
-	spec := pickSpec{Kind: "pane-setting-" + name, Title: title, Empty: "type a value", Pick: apply}
+	spec := pickSpec{Kind: "pane-setting-" + name, Title: title, Empty: "type a value", Pick: apply, Choices: a.settingChoices(p, h, name)}
 	if len(h.Choices(name)) == 0 {
 		spec.Create = apply
 		spec.CreateLabel = func(q string) string { return "set " + name + " to " + q }
 	}
-	_, err := a.askParameter("pane."+settingVerbs[name], settingArgs[name], ochazuke.Arguments{"setting": name}, spec)
+	_, err := a.choose(spec)
 	return resultError(err)
 }
 
-// settingValues is pane.setting-values: the values the pane's harness
+// settingValues is pane-setting-value.list: the values the pane's harness
 // takes for the setting, the current one marked.
 func (a *App) settingValues(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
 	name := ochazuke.StringArg(ctx.Args, "setting", "")
@@ -660,6 +658,12 @@ func (a *App) settingValues(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
 	if err != nil {
 		return nil, err
 	}
+	return a.settingChoices(p, h, name), nil
+}
+
+// settingChoices are the values h takes for the setting on pane p, the
+// current one marked.
+func (a *App) settingChoices(p pane, h harness.Harness, name string) []ochazuke.Choice {
 	cur := a.currentSetting(p, name)
 	var out []ochazuke.Choice
 	for _, v := range h.Choices(name) {
@@ -669,7 +673,7 @@ func (a *App) settingValues(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
 		}
 		out = append(out, ochazuke.Choice{ID: v, Label: v, Cells: []string{mark, v}})
 	}
-	return out, nil
+	return out
 }
 
 // settingWatch is a change sent and not yet confirmed: the notice the

@@ -99,9 +99,9 @@ func (a *App) openPinPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error
 		if pinned[p.ID] != 0 {
 			used = "pinned " + sinceUse(pinned[p.ID], now)
 		}
-		choices = append(choices, ochazuke.Choice{ID: p.ID, Label: label, Cells: []string{projectLabel(p), count, used, dir}})
+		choices = append(choices, ochazuke.Choice{ID: p.ID, Label: label, Cells: []string{projectLabel(p), count, used, dir}, RowFlags: ochazuke.RowFlags{Bare: true}})
 	}
-	choices = append(choices, ochazuke.Choice{ID: unpinRow, Label: "no pin (unpin)", RowFlags: ochazuke.RowFlags{Fixed: true}})
+	choices = append(choices, ochazuke.Choice{ID: unpinRow, Label: "no pin (unpin)", RowFlags: ochazuke.RowFlags{Fixed: true, Bare: true}})
 	return a.choose(pickSpec{
 		Kind:    pinPicker,
 		Title:   "Pin project",

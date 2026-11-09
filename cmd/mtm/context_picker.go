@@ -123,20 +123,20 @@ func (a *App) openContextPicker(p pane, choose func(id string, data any) ochazuk
 	}
 	a.cx.picking = p
 	spec := a.contextPickSpec(p)
-	spec.Pick = func(id string) ochazuke.Result { return choose(id, spec.Data(id)) }
+	data := dataByID(spec.Choices)
+	spec.Pick = func(id string) ochazuke.Result { return choose(id, data[id]) }
 	return a.choose(spec)
 }
 
 // contextPickSpec is the context picker over pane p, less what enter does.
 func (a *App) contextPickSpec(p pane) pickSpec {
-	choices, props, data := a.contextChoices(p)
+	choices := a.contextChoices(p)
+	data := dataByID(choices)
 	return pickSpec{
 		Kind:    contextPicker,
 		Noun:    contextNoun,
 		Title:   "Context · " + p.label(),
 		Choices: choices,
-		Props:   func(id string) ochazuke.Thing { return props[id] },
-		Data:    func(id string) any { return data[id] },
 		Preview: func(id string) string { return pickerPreview(data[id]) },
 		// Every typed word is in the row (the substring match mode): a
 		// long path must not match a query by scattering its letters. tab
@@ -146,12 +146,11 @@ func (a *App) contextPickSpec(p pane) pickSpec {
 	}
 }
 
-// contextChoices are the picker's choices for pane p (with each row's props
-// and payload by id): its own items newest
+// contextChoices are the picker's choices for pane p (each carries its props
+// and payload: Choice.Props, Choice.Data): its own items newest
 // first, then the rest of its project's, then the unassociated ones.
 // Other projects' items are left out.
-func (a *App) contextChoices(p pane) (rows []ochazuke.Choice, props map[string]ochazuke.Thing, data map[string]any) {
-	props, data = map[string]ochazuke.Thing{}, map[string]any{}
+func (a *App) contextChoices(p pane) (rows []ochazuke.Choice) {
 	project := a.contextOwner(p).ProjectID
 	if project == "" {
 		project = a.paneOwner(p).ProjectID
@@ -180,8 +179,7 @@ func (a *App) contextChoices(p pane) (rows []ochazuke.Choice, props map[string]o
 		for _, it := range items {
 			thing := contextThing(it, tasks)
 			thing["scope"] = scope
-			rows = append(rows, ochazuke.Choice{ID: it.ID, Label: it.Kind + " " + it.Text, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}})
-			props[it.ID], data[it.ID] = thing, it
+			rows = append(rows, ochazuke.Choice{ID: it.ID, Label: it.Kind + " " + it.Text, Cells: []string{it.Kind, a.itemCell(it), where, age(now.Sub(time.UnixMilli(it.Seen())))}, RowFlags: ochazuke.RowFlags{Bare: true}, Props: thing, Data: it})
 		}
 	}
 	add(own, "this pane", "pane")
@@ -192,13 +190,13 @@ func (a *App) contextChoices(p pane) (rows []ochazuke.Choice, props map[string]o
 		}
 		id := "prompt:" + t.ID
 		rows = append(rows, ochazuke.Choice{ID: id, Label: "prompt " + t.Prompt,
-			Cells: []string{"prompt", firstLine(t.Prompt), "this pane", age(now.Sub(time.UnixMilli(t.StartedAt)))}})
-		props[id] = ochazuke.Thing{"id": id, "category": "prompt", "origin": "prompt", "origins": []string{"prompt"}, "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session}
-		data[id] = promptRow{turn: t, pane: p}
+			Cells: []string{"prompt", firstLine(t.Prompt), "this pane", age(now.Sub(time.UnixMilli(t.StartedAt)))}, RowFlags: ochazuke.RowFlags{Bare: true},
+			Props: ochazuke.Thing{"id": id, "category": "prompt", "origin": "prompt", "origins": []string{"prompt"}, "type": "prompt", "text": t.Prompt, "scope": "pane", "project": project, "window": p.ID, "session": p.Session},
+			Data:  promptRow{turn: t, pane: p}})
 	}
 	add(theirs, a.ownerLabel(project), "project")
 	add(loose, "no project", "none")
-	return rows, props, data
+	return rows
 }
 
 // promptRow is a prompt row's data: the turn and the pane it was asked in.

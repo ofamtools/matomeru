@@ -94,6 +94,7 @@ chip-edge	action	seed
 chip-line	action	seed	
 chip-move	action	seed	
 chip-toggle	action	seed	
+choice	noun	yes	the pick lists of parameters (list {of})
 choices	relation	seed	
 choose	action	seed	
 choose-column	action	seed	
@@ -309,6 +310,7 @@ find	action	seed
 find-line	noun	seed	
 finish	action	seed	
 finished	prop	seed	
+first	action	seed	
 fit-column	action	seed	
 fit-columns	action	seed	
 flags	prop	seed	
@@ -353,6 +355,7 @@ head	prop	seed
 help	action	seed	
 helptext	prop	seed	
 hidden	prop	seed	
+hide	action	seed	
 hint	action+prop	seed	
 hints	action	seed	
 hints-cancel	action	seed	
@@ -409,6 +412,7 @@ label	prop	seed
 lane	namespace+noun	seed	
 lane_count	prop	seed	
 lanes	relation	seed	
+last	action	seed	
 last-done	prop	seed	
 last-error	prop	seed	
 last-outcome	prop	seed	
@@ -474,6 +478,8 @@ moot	action	seed
 more	prop	seed	
 motion	prop	seed	
 move	action	seed	
+move-down	action	seed	
+move-up	action	seed	
 moved	prop	seed	
 msg	prop	seed	
 multiply	action	seed	
@@ -646,6 +652,7 @@ recheck	action	seed
 record	action	seed	
 redo	action	seed	
 ref	prop	seed	
+referrer	noun	seed	
 refresh	action	seed	
 refresh-turns	action	seed	
 refuse	action	seed	
@@ -653,6 +660,8 @@ register	action+noun	seed
 registers	prop	seed	
 registry	prop	seed	
 reject	action	seed	
+related	noun	seed	
+related-section	noun	seed	
 reload	action	seed	
 reminder	noun	seed	
 remote	prop	seed	

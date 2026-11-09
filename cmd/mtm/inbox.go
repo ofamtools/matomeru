@@ -151,7 +151,7 @@ func (a *App) defineInbox() {
 	a.parameters(n+".add", add)
 	a.parameters(n+".open", map[string]ochazuke.Parameter{"id": inboxIDParam})
 	a.parameters(n+".snooze", map[string]ochazuke.Parameter{"id": inboxIDParam,
-		"until": {Type: "string", Source: n + ".snooze-times", Free: true, Description: "When it comes back: RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"},
+		"until": {Type: "string", Description: "When it comes back: RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"},
 		"for":   {Type: "string", Description: "How long: 90m, 4h, 2d, 1w"}})
 	promote := map[string]ochazuke.Parameter{"id": inboxIDParam,
 		"title":   {Type: "string", Description: "The task's title (default the item's)"},
@@ -577,7 +577,7 @@ func (a *App) openActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	})
 }
 
-// snoozeTimes is action-item.snooze-times, the until parameter's pick list.
+// snoozeTimes is snooze-time.list, the until parameter's pick list.
 func (a *App) snoozeTimes(ochazuke.Ctx) ([]ochazuke.Choice, error) {
 	return snoozeChoices(time.UnixMilli(a.inbox.items.Now()).In(a.location())), nil
 }
@@ -600,7 +600,7 @@ func snoozeChoices(now time.Time) []ochazuke.Choice {
 	}
 	out := make([]ochazuke.Choice, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, ochazuke.Choice{ID: r.at.Format(time.RFC3339), Label: r.label, Cells: []string{r.label}})
+		out = append(out, ochazuke.Choice{ID: r.at.Format(time.RFC3339), Label: r.label, RowFlags: ochazuke.RowFlags{Bare: true}})
 	}
 	return out
 }
