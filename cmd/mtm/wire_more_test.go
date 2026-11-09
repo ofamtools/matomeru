@@ -70,7 +70,7 @@ func TestWindowAndSessionVerbsRunAgainstASelfDaemon(t *testing.T) {
 	}
 
 	// Relative moves: mtm's previous reaches the daemon as its prev.
-	for i, rel := range []string{"next", "previous"} {
+	for i, rel := range []string{"next", "previous", "prev"} {
 		r := payload(rpc(t, make(), runVerb(i+1, "pane.switch", with(map[string]any{"relative": rel})))[0])
 		if r["status"] != "done" {
 			t.Errorf("pane.switch --relative %s: %v", rel, r)

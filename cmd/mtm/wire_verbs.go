@@ -200,7 +200,7 @@ var wireVerbs = []wireVerb{
 		Waits: []string{"timeout"}},
 	{Noun: "pane", Verb: "switch", Wire: "focus-window", Desc: "Move the daemon's focus to a window (workspace switched too), or to the next or previous window or the neighbour in a direction; give exactly one of window, relative, direction", Right: ochazuke.AgentAllow,
 		Params: []wireParam{sessionParam, windowParam("The window id or name to focus"),
-			{Name: "relative", Type: "string", Desc: "next or previous window on the workspace", Enum: []string{"next", "previous"}, Wire: map[string]string{"previous": "prev"}},
+			{Name: "relative", Type: "string", Desc: "next or previous window on the workspace (prev is the daemon's spelling of previous)", Enum: []string{"next", "previous", "prev"}, Wire: map[string]string{"previous": "prev"}},
 			{Name: "direction", Type: "string", Desc: "The neighbouring pane in a direction; needs an attached client", Enum: []string{"left", "right", "up", "down"}}}},
 	{Noun: "pane", Verb: "close", Wire: "close-window", Desc: "Close a window in the daemon by session and window id. Like pane.kill, which closes a pane of the panes page, it needs the owner's approval from an agent", Right: ochazuke.AgentConfirm,
 		Params: []wireParam{sessionParam, windowParam("The window id or name; omit for the focused one")}},

@@ -377,7 +377,7 @@ func TestWireParamValuesMapToTheDaemonSpelling(t *testing.T) {
 			continue
 		}
 		for _, p := range w.Params {
-			if p.Name == "relative" && (p.wireValue("previous") != "prev" || p.wireValue("next") != "next") {
+			if p.Name == "relative" && (p.wireValue("previous") != "prev" || p.wireValue("next") != "next" || p.wireValue("prev") != "prev" || !slices.Contains(p.Enum, "prev")) {
 				t.Errorf("pane.switch relative: previous -> %v, next -> %v", p.wireValue("previous"), p.wireValue("next"))
 			}
 		}
