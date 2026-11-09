@@ -95,6 +95,21 @@ func priorityChange(values ochazuke.Thing) (string, bool, error) {
 	return work.StoredPriority(v), true, nil
 }
 
+// patchProps reads a patch's plain props over t's, and applies the priority
+// the patch names to t.
+func patchProps(t *work.Task, changes ochazuke.Thing) (taskPatch, error) {
+	props, err := thingOver(taskPatch{Title: t.Title, Status: t.Status, Easy: t.Easy, SnoozedUntil: wholeNumber(t.SnoozedUntil),
+		Private: t.Private, Archived: t.Archived}, changes)
+	if err != nil {
+		return props, err
+	}
+	v, named, err := priorityChange(changes)
+	if named && err == nil {
+		t.Priority = v
+	}
+	return props, err
+}
+
 // taskMakerProp is shared by the task noun and its editable outline rows.
 func taskMakerProp() ochazuke.PropSpec {
 	return ochazuke.PropSpec{Name: "made-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{work.ActorOwner, work.ActorAgent, work.ActorUnknown},
@@ -494,8 +509,7 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		}
 	}
 	before := t
-	props, err := thingOver(taskPatch{Title: t.Title, Status: t.Status, Easy: t.Easy, SnoozedUntil: wholeNumber(t.SnoozedUntil),
-		Private: t.Private, Archived: t.Archived}, changes)
+	props, err := patchProps(&t, changes)
 	if err != nil {
 		return nil, err
 	}
@@ -506,11 +520,6 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		t.Status = work.NormalStatus(props.Status)
 	}
 	t.Easy, t.SnoozedUntil, t.Private, t.Archived = props.Easy, int64(props.SnoozedUntil), props.Private, props.Archived
-	if v, named, err := priorityChange(changes); err != nil {
-		return nil, err
-	} else if named {
-		t.Priority = v
-	}
 	t.CreatedBy = work.Actor{} // the store keeps the stored maker
 	if v, ok := changes["created-by"]; ok && v != nil {
 		by, err := thingActor(v)

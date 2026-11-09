@@ -113,7 +113,6 @@
 ../../internal/work/work.go	StatusRank	case	"done"	1
 ../../internal/work/work.go	Store.ToggleDone	compare	"done"	1
 action_item_store.go	App.listActionItemThings	compare	"all"	1
-actor.go	App.showByColumn	compare	"by"	1
 actor.go	App.taskGlyphs	compare	"agent"	1
 actor.go	byCell	case	"agent"	1
 actor.go	byCell	case	"owner"	1
@@ -316,9 +315,8 @@ task_store.go	App.defineTaskSubjects	compare	"task"	1
 task_store.go	App.patchTask	compare	"task"	1
 task_store.go	App.patchTask	cyclo	"-"	28
 task_store.go	App.taskStore	compare	"all"	2
-tasks.go	App.refreshTasks	compare	"by"	1
-tasks.go	App.refreshTasks	compare	"project"	1
-tasks.go	App.refreshTasks	cyclo	"-"	30
+tasks.go	App.visibleTaskColumns	compare	"project"	1	moved from refreshTasks unchanged
+tasks.go	App.refreshTasks	cyclo	"-"	27
 tasks.go	App.task	compare	"task"	1
 tasks.go	App.toggleTask	compare	"done"	1
 turn_agents.go	App.agentBody	compare	"done"	1
