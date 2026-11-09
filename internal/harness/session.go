@@ -16,7 +16,7 @@ import (
 // numbers from 1 for Format "lines".
 //
 //	{"agents": ["claude-code"], "files": "~/.claude/sessions/*.json",
-//	 "pid": "pid", "start": "procStart", "env": ["TUIOS_WINDOW_ID"],
+//	 "pid": "pid", "start": "procStart", "env": ["MTM_WINDOW_ID", "TUIOS_WINDOW_ID"],
 //	 "session": "sessionId", "cwd": "cwd",
 //	 "transcript": "~/.claude/projects/{cwd_slug}/{session}.jsonl"}
 type SessionSource struct {
