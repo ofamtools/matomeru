@@ -144,10 +144,7 @@ func (a *App) refreshTasks() error {
 	// The project column shows only when the rows can belong to more than
 	// one project (all projects).
 	// The by column shows unless tasks.columns leaves it out.
-	by := a.showByColumn()
-	cols := slices.DeleteFunc(slices.Clone(taskColumns), func(c ochazuke.Column) bool {
-		return c.Title == "project" && !a.all || c.Title == columnBy && !by
-	})
+	cols := a.visibleTaskColumns()
 	a.taskList.SetColumns(cols...)
 	now := a.now()
 	a.taskPrivate = privateTasks(tasks)
@@ -250,9 +247,24 @@ func (a *App) observeTasksLayout() {
 // draft mark and the private and agent marks), the status, who made it
 // (tasks.columns), the project (all projects only) and the last change;
 // narrow, by drops first, then the change, then the project.
+// visibleTaskColumns is taskColumns less the ones that do not show: project
+// outside all projects, and a setting column tasks.columns leaves out.
+func (a *App) visibleTaskColumns() []ochazuke.Column {
+	return slices.DeleteFunc(slices.Clone(taskColumns), func(c ochazuke.Column) bool {
+		if slices.Contains(settingTaskColumns, c.Title) {
+			return !a.showsColumn(c.Title)
+		}
+		return c.Title == "project" && !a.all
+	})
+}
+
+// settingTaskColumns are the columns tasks.columns turns on.
+var settingTaskColumns = []string{columnBy, columnPriority}
+
 var taskColumns = []ochazuke.Column{
 	{Title: "task", Min: 24},
 	{Title: "status", Priority: 1},
+	{Title: columnPriority, Priority: 5},
 	{Title: columnBy, Priority: 4},
 	{Title: "project", Priority: 2},
 	{Title: "updated", Priority: 3},
@@ -291,6 +303,9 @@ func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
 		updated = sinceUse(t.Updated, now)
 	}
 	cells := []string{box + title, status}
+	if a.showPriorityColumn() {
+		cells = append(cells, work.NormalPriority(t.Priority))
+	}
 	if a.showByColumn() {
 		cells = append(cells, byCell(t))
 	}

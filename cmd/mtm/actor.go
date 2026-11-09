@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/internal/actionitems"
@@ -159,7 +160,8 @@ const (
 	settingWorkTasksFilter   = "work.tasks-filter"
 	settingPrivacyInbox      = "projects.privacy-inbox"
 
-	columnBy = "by"
+	columnBy       = "by"
+	columnPriority = "priority"
 
 	madeByAll    = "all"
 	madeByMine   = "mine"
@@ -173,7 +175,7 @@ const (
 func taskViewSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
 		{Name: settingTasksColumns, Type: ochazuke.SettingList, Default: []string{columnBy},
-			Description: "The extra columns of the Work page's tasks and the tasks outline: by (who made the task: me, the agent's harness, or ? for unknown); [] shows none"},
+			Description: "The extra columns of the Work page's tasks and the tasks outline: by (who made the task: me, the agent's harness, or ? for unknown), priority (none, low, medium, high or urgent; off by default, Work page only); [] shows none"},
 		{Name: settingTasksAgentGlyph, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Mark tasks an agent made with " + agentGlyph + " before their title (Work page and tasks outline)"},
 		{Name: settingTasksPrivateGlyph, Type: ochazuke.SettingBoolean, Default: true,
@@ -204,13 +206,14 @@ func (a *App) observeTaskView() {
 }
 
 // showByColumn reports whether the by column shows.
-func (a *App) showByColumn() bool {
-	for _, c := range a.r.Settings().Strings(settingTasksColumns) {
-		if c == columnBy {
-			return true
-		}
-	}
-	return false
+func (a *App) showByColumn() bool { return a.showsColumn(columnBy) }
+
+// showPriorityColumn reports whether the priority column shows (off unless
+// tasks.columns lists it).
+func (a *App) showPriorityColumn() bool { return a.showsColumn(columnPriority) }
+
+func (a *App) showsColumn(name string) bool {
+	return slices.Contains(a.r.Settings().Strings(settingTasksColumns), name)
 }
 
 // byCell is a task's by column: me, the agent's harness (or agent), or ?
