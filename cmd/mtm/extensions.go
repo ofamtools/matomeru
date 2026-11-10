@@ -1046,10 +1046,13 @@ func (a *App) extTarget(x *extension, noun string, inst *ochazuke.Instance) stri
 	return ""
 }
 
-// extRun delegates a mounted verb to the shared catalog proxy. Captured
-// answers retain page status unless the runtime has a text presenter;
-// foreground verbs get the terminal. The callback sees the answer before
-// refreshing rows or presentation.
+// extRun delegates a mounted verb to the shared catalog proxy. The runtime
+// presents a captured answer by the kind its catalog row declares (text,
+// Markdown and preformatted in their viewer, rows in the results table;
+// keys.text-results, keys.table-results), and OnPresented then clears the
+// status line below; any other answer stays that one line, the page's
+// status. Foreground verbs get the terminal. The callback sees the answer
+// before refreshing rows or presentation.
 func (a *App) extRun(x *extension, noun, verb, target string, args map[string]any, then func(v any, err error)) ochazuke.Result {
 	words := []string{noun, verb}
 	if target != "" {

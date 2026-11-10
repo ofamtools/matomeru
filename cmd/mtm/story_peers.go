@@ -18,6 +18,10 @@ func buildMissingPeerRows(env monogatari.Env) (monogatari.Built, error) {
 	return buildPeerFixture(env, true, "")
 }
 
+func buildMountedResults(env monogatari.Env) (monogatari.Built, error) {
+	return buildPeerFixture(env, true, `{"schema":1,"name":"o-alpha","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application","rows":"item"},{"name":"output","kind":"application","result":"text"},{"name":"history","kind":"application","result":"rows"}]}],"bindings":[{"noun":"item","mode":"normal","keys":"enter","request":{"noun":"item","verb":"output"}},{"noun":"item","mode":"normal","keys":"H","request":{"noun":"item","verb":"history"}}]}`)
+}
+
 func buildNamedDeleteRows(env monogatari.Env) (monogatari.Built, error) {
 	return buildPeerFixture(env, false, `{"schema":1,"name":"o-alpha","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application","rows":"item"},{"name":"delete","kind":"application","confirm":"Remove machine {{name}}?","params":{"name":{"type":"string"}}}]}],"bindings":[{"noun":"item","mode":"normal","keys":"d d","request":{"noun":"item","verb":"delete"},"from":{"name":"row:name"}}]}`)
 }
@@ -52,6 +56,8 @@ func buildPeerFixture(env monogatari.Env, missing bool, alphaCatalog string) (bu
 		script := "#!/bin/sh\ncase \"$1 $2\" in\n\"catalog \") cat <<'CATALOG'\n" + catalogs[name] + "\nCATALOG\n;;\n" +
 			`"item list") echo '{"id":"i1","label":"Source row","name":"sandbox","doc":"doc-7","pane":"pane-9"}' ;;
 "doc send") printf '%s\n' "$*" ;;
+"item output") printf '%s\n' '"hello-out\nexit 0"' ;;
+"item history") printf '%s\n' '[{"name":"build","status":"ok"},{"name":"test","status":"failed"}]' ;;
 *) echo '[]' ;;
 esac
 `

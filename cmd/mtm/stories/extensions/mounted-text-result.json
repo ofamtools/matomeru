@@ -1,0 +1,18 @@
+{
+  "name": "mtm: a mounted verb's text answer opens in the text view (o-cmds enter)",
+  "area": "extensions",
+  "fixture": "mounted-results",
+  "width": 120,
+  "height": 30,
+  "script": [
+    ":",
+    {"type": "page open ext/alpha"},
+    "enter",
+    {"job": "catalog-load"},
+    "enter",
+    {"job": "alpha.item.output"}
+  ],
+  "expect": [
+    {"modal": "text-view", "contains": ["hello-out", "exit 0"], "lacks": ["item output:"]}
+  ]
+}
