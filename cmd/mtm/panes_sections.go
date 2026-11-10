@@ -79,7 +79,7 @@ const (
 // not take (panes.working-states and its siblings do).
 var stateWordNames = []string{"none", "working", "needs_input", "needs-input", "idle", "done", "errored", "unknown", "running"}
 
-var paneSignals = []string{signalWaiting, signalErrored, signalUnread, signalWorking}
+var paneSignals = []string{signalWaiting, signalErrored, signalUnread, queueOutside, signalWorking}
 
 var queueCategories = []string{signalWaiting, signalErrored, signalUnread, queueOutside}
 
@@ -106,7 +106,7 @@ const (
 	sectionAssignSeparator      = "="
 )
 
-var defaultPaneSections = []string{"waiting=queue", "errored=queue", "unread=queue", "working=working"}
+var defaultPaneSections = []string{"waiting=queue", "errored=queue", "unread=queue", "outside=queue", "working=working"}
 
 // paneSectionSettings are the sections' settings.
 func paneSectionSettings() []ochazuke.Setting {
@@ -124,7 +124,7 @@ func paneSectionSettings() []ochazuke.Setting {
 		{Name: settingRememberedHighlights, Type: ochazuke.SettingBoolean, Default: false,
 			Description: "Keep every unfocused pane section's remembered selection bar; off keeps only the displayed row marked. The input-focused list always marks its cursor"},
 		{Name: settingPaneSections, Type: ochazuke.SettingList, Default: defaultPaneSections,
-			Description: "Which list a pane's row goes to, as signal=section: signals waiting, errored, unread, working; sections queue (top), panes (middle), working (bottom). A signal not listed stays in panes",
+			Description: "Which list a pane's row goes to, as signal=section: signals waiting, errored, unread, outside (an unread item from another source, shown as a child row of the pane while panes.children holds items), working; sections queue (top), panes (middle), working (bottom). A signal not listed stays in panes",
 			Validate:    validatePaneSections},
 		{Name: settingQueueOrder, Type: ochazuke.SettingList, Default: queueCategories,
 			Description: "The top list's item order by category: waiting, errored, unread, outside (every other source); oldest first in each; a category left out is not in the list (the Inbox page still has it)",
@@ -225,7 +225,7 @@ func itemCategory(it actionitems.Item) string {
 }
 
 // signalRank orders the signals an item gives its pane: the first wins.
-var signalRank = []string{signalWaiting, signalErrored, signalUnread}
+var signalRank = []string{signalWaiting, signalErrored, signalUnread, queueOutside}
 
 // paneSignal is the signal a pane raises now, "" for none: a waiting,
 // errored or working agent by its state, else the signal its open items
@@ -418,6 +418,11 @@ func (a *App) rebuildPanes() error {
 	if r, err := activityAt(inst); err == nil && a.sectionOf(row) < 0 {
 		row = r.Row // a child row that dropped off leaves the cursor on its pane
 	}
+	if it, ok := instItem(inst); ok && a.sectionOf(row) < 0 {
+		if p, err := a.paneAt(&ochazuke.Instance{Data: it}); err == nil {
+			row = p.rowID() // so does an item row that dropped off
+		}
+	}
 	return a.followRow(row)
 }
 
@@ -467,7 +472,7 @@ func (a *App) applyPaneSections() error {
 			inst.Unfocusable = len(s.nodes) == 0 && !(empty && s.listID() == paneListID)
 		}
 	}
-	return nil
+	return a.foldItemRows()
 }
 
 // releaseHold rebuilds the lists once the cursor has left a row that was
@@ -512,13 +517,21 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	var items []queued
 	fromItems := map[string]string{} // window → the first-ranked signal its open items give it
 	hasItem := map[string]bool{}     // window → an item of the queue names it
+	kinds := a.childKinds()
+	childItems := slices.ContainsFunc(kinds, func(k childKind) bool { return k.name == childKindItems })
+	a.pv.kidItems, a.pv.kidCounts = nil, nil
+	if childItems {
+		a.pv.kidItems, a.pv.kidCounts = a.paneKidItems(nowMs)
+	}
 	if a.inbox != nil {
 		for _, it := range a.inbox.all {
 			if it.State(nowMs) != actionitems.StateOpen {
 				continue
 			}
 			c := itemCategory(it)
-			if r := slices.Index(signalRank, c); r >= 0 && it.Window != "" {
+			// An item of another source raises the outside signal only while
+			// it is unread, and only where items are the pane's child rows.
+			if r := slices.Index(signalRank, c); r >= 0 && it.Window != "" && (c != queueOutside || childItems && !it.Read()) {
 				if was, ok := fromItems[it.Window]; !ok || r < slices.Index(signalRank, was) {
 					fromItems[it.Window] = c
 				}
@@ -606,9 +619,32 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	}
 	var queue []row
 	stands := map[string]bool{}
+	type bestItem struct {
+		rank int
+		at   int64
+	}
+	best := map[string]bestItem{} // window → the item that places its pane's row in the queue
+	queueAt := map[string]int{}   // window → index of its pane's row in queue
 	for _, q := range items {
 		it := q.it
 		p, listed := byWindow[it.Window]
+		if childItems && listed {
+			// The pane's row carries the item as a child row; in the queue it
+			// takes the rank and time of its best item.
+			if section[p.ID] == sectionQueue {
+				b, ok := best[p.ID]
+				if !ok {
+					// The row sits where its first item would, so ties keep
+					// the order the items came in; its place is set below.
+					queueAt[p.ID] = len(queue)
+					queue = append(queue, row{node: a.flatPaneNode(p, names[p.ID], now), pane: true})
+				}
+				if r := ranks[q.category]; !ok || r < b.rank || r == b.rank && it.Created < b.at {
+					best[p.ID] = bestItem{rank: r, at: it.Created}
+				}
+			}
+			continue
+		}
 		id := queueRowStart + it.ID
 		standsFor := listed && section[p.ID] == sectionQueue && !stands[p.ID]
 		if standsFor {
@@ -624,6 +660,11 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 			node.Cells = []string{cell, cmp.Or(it.Why, it.Kind), it.Source}
 		}
 		queue = append(queue, row{node: node, at: at, pane: standsFor})
+	}
+	for _, p := range panes {
+		if b, ok := best[p.ID]; ok && p.ID != "" {
+			queue[queueAt[p.ID]].at = place(p.rowID(), sectionQueue, b.rank, b.at)
+		}
 	}
 	for _, p := range heldQueue {
 		at := place(p.rowID(), sectionQueue, len(queueCategories), nowMs)
@@ -652,21 +693,29 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	ss[0].nodes, ss[0].rows = nil, len(queue)
 	ss[2].nodes, ss[2].rows = nil, len(bottom)
 	var order []string
-	// children are a pane row's child rows (its subagents: pane_activity.go).
+	// children are a pane row's child rows (panes.children: pane_children.go).
 	children := func(r row) []ochazuke.TreeNode {
 		if p, ok := r.node.Data.(pane); r.pane && ok {
-			return a.activityNodes(p, r.node.ID, now)
+			return a.childNodes(p, r.node.ID, now)
 		}
 		if it, ok := r.node.Data.(actionitems.Item); r.pane && ok {
-			return a.activityNodes(byWindow[it.Window], r.node.ID, now)
+			return a.childNodes(byWindow[it.Window], r.node.ID, now)
 		}
 		return nil
+	}
+	countKids := func(kids []ochazuke.TreeNode) (n int) {
+		for _, k := range kids {
+			if k.Noun == activityNoun {
+				n++
+			}
+		}
+		return n
 	}
 	ss[0].kids, ss[2].kids = 0, 0
 	for _, r := range queue {
 		ss[0].nodes = append(ss[0].nodes, r.node)
 		kids := children(r)
-		ss[0].kids += len(kids)
+		ss[0].kids += countKids(kids)
 		ss[0].nodes = append(ss[0].nodes, kids...)
 		if r.pane {
 			order = append(order, r.node.ID)
@@ -676,7 +725,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	for _, r := range bottom {
 		ss[2].nodes = append(ss[2].nodes, r.node)
 		kids := children(r)
-		ss[2].kids += len(kids)
+		ss[2].kids += countKids(kids)
 		ss[2].nodes = append(ss[2].nodes, kids...)
 		order = append(order, r.node.ID)
 		view.usage = view.usage || r.node.Cells[2] != ""
@@ -717,7 +766,7 @@ func (a *App) flatPaneNode(p pane, name string, now time.Time) ochazuke.TreeNode
 // with its project after it, since these lists hold every project's
 // panes, and its use.
 func (a *App) flatPaneCells(p pane, name string, now time.Time) ([]string, []ochazuke.ToneSpan) {
-	name = markerGutter(p) + " " + name
+	name = markerGutter(p) + " " + name + a.itemMark(p)
 	if p.Queued > 0 {
 		name += " " + queuedMarker
 	}
@@ -921,4 +970,13 @@ func (a *App) openItemPane(ctx ochazuke.Ctx, p pane) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(p.label())
+}
+
+// instItem is the action item an instance holds, a pane's child row.
+func instItem(inst *ochazuke.Instance) (actionitems.Item, bool) {
+	if inst == nil || !strings.HasPrefix(inst.ID, itemRowStart) {
+		return actionitems.Item{}, false
+	}
+	it, ok := inst.Data.(actionitems.Item)
+	return it, ok
 }

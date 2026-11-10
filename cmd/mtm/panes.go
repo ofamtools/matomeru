@@ -271,6 +271,12 @@ type paneUI struct {
 	hold     string
 	held     bool
 	places   map[string]sectionPlace
+	// kidItems are the action items drawn as child rows of their pane, by
+	// window; kidCounts the open ones' count (pane_children.go). foldedIn
+	// is the list each pane row's initial fold was last set for.
+	kidItems  map[string][]actionitems.Item
+	kidCounts map[string]int
+	foldedIn  map[string]string
 	// landed is set once the first listing with rows put the focus where
 	// the page opens (focusOpenList).
 	landed bool

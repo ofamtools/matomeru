@@ -103,6 +103,9 @@ func TestPanelHeights(t *testing.T) {
 func TestPanesPanelsLayout(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
+	// The goldens are the layout of one row per queue entry; panes.children
+	// without items keeps item rows out of the panes' children.
+	setting(t, a, settingPaneChildren, []string{childKindSubagents})
 	if err := a.r.SetFocus("pane:s/widle"); err != nil {
 		t.Fatal(err)
 	}

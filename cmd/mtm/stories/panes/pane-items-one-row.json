@@ -1,7 +1,6 @@
 {
   "name": "mtm: a pane that has two open action items is drawn once on the Panes page, its items under it as child rows (no repeated pane rows)",
   "area": "panes",
-  "skip": "gap: a pane with two open items is drawn once per item in the top list (Needs you (4), the pane twice) and again in its own list; AIP1 (pane children) draws it once with its items as child rows",
   "fixture": "seeded",
   "width": 120,
   "height": 34,

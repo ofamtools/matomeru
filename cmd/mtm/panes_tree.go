@@ -412,14 +412,14 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 	})
 	needsInputFirst := func(x, y pane) int { return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput())) }
 	addPane := func(p pane, parent string) {
-		name := markerGutter(p) + " " + names[p.ID]
+		name := markerGutter(p) + " " + names[p.ID] + a.itemMark(p)
 		if p.Queued > 0 {
 			name += " " + queuedMarker
 		}
 		use := p.usageCell()
 		view.usage = view.usage || use != ""
 		view.nodes = append(view.nodes, ochazuke.TreeNode{ID: p.rowID(), Parent: parent, Label: p.label(), Noun: "pane", Data: p, Props: p.keyProps(), Cells: []string{name, p.stateCell(now), use}, Tones: paneTones(p, name)})
-		view.nodes = append(view.nodes, a.activityNodes(p, p.rowID(), now)...)
+		view.nodes = append(view.nodes, a.childNodes(p, p.rowID(), now)...)
 		view.order = append(view.order, p.rowID())
 	}
 	tree := byProject && (a.pin == "" || a.all)

@@ -17,7 +17,7 @@ func externalQueuePromptApp(t *testing.T, agent bool, tab int) (*App, *fakePanes
 	}
 	it := addItem(t, a, actionitems.Spec{Source: "gh", Kind: "review-request", Key: "queue-pane", Title: "answer the pane", Window: "w1", Session: "matomeru"})
 	reload(t, a)
-	row := queueRowStart + it.ID
+	row := itemRowStart + it.ID
 	if err := a.r.SetFocus(row); err != nil {
 		t.Fatal(err)
 	}

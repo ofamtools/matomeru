@@ -86,7 +86,7 @@ func TestPaneDetailFollowOnlyOnPanes(t *testing.T) {
 func sectionIDs(a *App, section int) []string {
 	var out []string
 	for _, n := range a.pv.sections[section].tree.Nodes() {
-		if n.Noun == "pane" || n.Noun == actionItemNoun {
+		if n.Noun == "pane" || n.Noun == actionItemNoun && !strings.HasPrefix(n.ID, itemRowStart) {
 			out = append(out, n.ID)
 		}
 	}
@@ -168,12 +168,15 @@ func TestPaneSectionsDefaultAssignment(t *testing.T) {
 	if !slices.Equal(middle, []string{"pane:s/widle", "pane:s/wterm"}) {
 		t.Fatalf("middle %v", middle)
 	}
-	// A queue row of a pane's signal is an action item that fronts the pane.
+	// A queue row of a pane's signal is the pane's row; its item is a child
+	// row that fronts the same pane.
 	inst := a.r.Instances["pane:s/wwait"]
-	if inst.Noun != actionItemNoun {
+	if inst.Noun != "pane" {
 		t.Fatalf("noun %s", inst.Noun)
 	}
-	if p, err := a.paneAt(inst); err != nil || p.ID != "wwait" {
+	if kid := a.r.Instances[itemRowStart+itemByKey(t, a, "w").ID]; kid == nil || kid.Noun != actionItemNoun {
+		t.Fatalf("no item child row: %v", kid)
+	} else if p, err := a.paneAt(kid); err != nil || p.ID != "wwait" {
 		t.Fatalf("paneAt %v %v", p.ID, err)
 	}
 	if head := a.pv.view.sectionsHead(); head != "4 need you · 2 working" {
@@ -204,8 +207,13 @@ func TestPaneSectionsFromSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	wait := itemByKey(t, a, "w")
-	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"queue:" + wait.ID, "pane:s/werr"}) {
+	// The waiting item's pane stays in Panes (no waiting=queue), so the item
+	// is a child row of that pane there.
+	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"pane:s/werr"}) {
 		t.Fatalf("queue %v", got)
+	}
+	if !slices.ContainsFunc(a.pv.sections[1].tree.Nodes(), func(n ochazuke.TreeNode) bool { return n.ID == itemRowStart+wait.ID && n.Parent == "pane:s/wwait" }) {
+		t.Fatalf("the waiting item is not a child row of its pane in Panes")
 	}
 	middle := sectionIDs(a, 1)
 	for _, id := range []string{"pane:s/wwait", "pane:s/wdone", "pane:s/wterm"} {
@@ -387,7 +395,16 @@ func TestPaneSectionsQueueRowIsThePane(t *testing.T) {
 	if !strings.Contains(frame(a), "Turns") {
 		t.Fatalf("the detail does not show the pane's tabs:\n%s", frame(a))
 	}
-	press(t, a, "u") // action-item.toggle-read on the queue row
+	// The pane's item is a child row: the inbox verbs answer on it, and its
+	// selection still shows the pane's detail.
+	child := itemRowStart + itemByKey(t, a, "e").ID
+	if err := a.r.SetFocus(child); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(frame(a), "Turns") {
+		t.Fatalf("the detail does not follow the item row:\n%s", frame(a))
+	}
+	press(t, a, "u") // action-item.toggle-read on the item row
 	if !itemByKey(t, a, "e").Read() {
 		t.Fatal("u did not mark the item read")
 	}
