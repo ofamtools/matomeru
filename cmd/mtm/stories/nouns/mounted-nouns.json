@@ -1,0 +1,25 @@
+{
+  "area": "nouns",
+  "fixture": "nouns",
+  "width": 150,
+  "height": 50,
+  "name": "mtm: the Nouns page lists the mounted extensions' nouns from their catalogs, by kind",
+  "script": [
+    "ctrl+k",
+    "G"
+  ],
+  "expect": [
+    {
+      "contains": [
+        "commands",
+        "┃ item",
+        "list delete",
+        "┃ doc",
+        "send"
+      ],
+      "lacks": [
+        "turn-step"
+      ]
+    }
+  ]
+}

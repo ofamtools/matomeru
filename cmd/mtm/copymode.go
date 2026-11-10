@@ -210,7 +210,7 @@ func (a *App) defineCopy() {
 	}
 	_ = r.DefineMode(copyFindMode, true)
 	a.copy = &copyMode{buf: copyBuf{goal: -1}, r: r}
-	r.Define(copyNoun).Focusable().
+	r.Define(copyNoun).Kind(ochazuke.NounKindPart).Focusable().
 		Verb("move", a.copyOp(func(c *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
 			return c.buf.move(ochazuke.StringArg(args, "motion", ""), ochazuke.IntArg(args, "steps", 1), ochazuke.IntArg(args, "line", 0), r.SelectionShape(r.BaseMode()) == ochazuke.SelectionBlock)
 		}), "Move the copy cursor (Vim motions: left, word-forward, line-end, first-line, screen-top, paragraph-forward, match, ...)").Motion().

@@ -155,7 +155,7 @@ func (a *App) defineContext() {
 		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "Deprecated: context-item set ID @owner=PROJECT; one not found is left out with a notice"},
 		"scratch": {Type: "boolean", Description: "Deprecated: context-item set ID @owner= (unassociate it)"}})
 	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
-	a.r.Define("context-search").Pin("insert").
+	a.r.Define("context-search").Kind(ochazuke.NounKindPart).Pin("insert").
 		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").
 		Mode("insert").Bind("enter", ochazuke.Do("context-search.done")).Bind("esc", ochazuke.Do("context-search.done")).Bind("down", ochazuke.Do("context-search.done"))
 	a.ownedBy(contextNoun, contextListID)

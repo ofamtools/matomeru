@@ -48,7 +48,7 @@ type quickNote struct {
 type quickNoteDebounceMsg struct{ Seq uint64 }
 
 func (a *App) defineQuickNote() {
-	a.r.Define(quickNoteModal).
+	a.r.Define(quickNoteModal).Kind(ochazuke.NounKindPart).
 		Verb("open", a.openQuickNote, "Write a note about the focused thing (its project, else the pin); it is written as you type").
 		Verb("close", a.closeQuickNote, "Close the quick note; every change is already written").
 		Verb("open-notes", a.listQuickNote, "Close the quick note and open the Notes page on it").

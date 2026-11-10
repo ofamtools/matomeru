@@ -2,12 +2,15 @@ package main
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"ofam.dev/ochazuke"
 
 	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/store"
 )
 
 // The action-item noun's record side (standard verbs phase 1, lane M3c):
@@ -88,7 +91,7 @@ func (a *App) actionItemStore() ochazuke.Store {
 		Undo:        true, AcceptsKey: true,
 		Confirm: map[string]string{"delete": "Delete {{label}}? x archives it instead."},
 		ListParams: map[string]ochazuke.Parameter{
-			"state":  {Type: "string", Enum: append([]string{"all"}, actionitems.States...), Description: "Which items (default open)"},
+			"state":  {Type: "string", Enum: append([]string{actionStateAll}, actionitems.States...), Description: "Which items (default open)"},
 			"source": {Type: "string", Description: "Only this source's items"},
 			"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true,
 				Description: "Only this project's items (id or name; an item on a task is its task's project's)"},
@@ -101,9 +104,93 @@ func (a *App) actionItemStore() ochazuke.Store {
 			return a.actionItemThing(it), nil
 		},
 		List:   a.listActionItemThings,
+		Query:  a.actionTableQuery().Query,
 		Create: a.createActionItem,
 		Patch:  a.patchActionItem,
 		Delete: a.removeActionItem,
+	}
+}
+
+// actionStateAll is the state argument that lists every item.
+const actionStateAll = "all"
+
+// actionStateRule is the conditions of one state argument.
+type actionStateRule struct {
+	state string
+	conds func(now int64) []store.QueryCond
+}
+
+// actionStateRules are the store conditions of the list's state argument at
+// now (Unix ms), the SQL form of actionitems.Item.State; the row for "all"
+// has none.
+var actionStateRules = []actionStateRule{
+	{actionitems.StateOpen, func(now int64) []store.QueryCond {
+		return []store.QueryCond{{Fields: []string{"dismissed_at"}, Op: store.OpLe, Value: 0}, {Fields: []string{"snoozed_until"}, Op: store.OpLe, Value: now}}
+	}},
+	{actionitems.StateSnoozed, func(now int64) []store.QueryCond {
+		return []store.QueryCond{{Fields: []string{"dismissed_at"}, Op: store.OpLe, Value: 0}, {Fields: []string{"snoozed_until"}, Op: store.OpGt, Value: now}}
+	}},
+	{actionitems.StateArchived, func(int64) []store.QueryCond {
+		return []store.QueryCond{{Fields: []string{"dismissed_at"}, Op: store.OpGt, Value: 0}}
+	}},
+	{actionStateAll, func(int64) []store.QueryCond { return nil }},
+}
+
+// actionTableQuery is the action-item noun's Query: the row's own props and
+// the state, source list arguments run in SQLite; a project filter (an item
+// on a task is its task's project's) and the derived state prop take the
+// List path.
+func (a *App) actionTableQuery() *tableQuery {
+	text := func(f string) tableColumn { return tableColumn{Fields: []string{f}, Kind: columnText} }
+	num := func(f string) tableColumn { return tableColumn{Fields: []string{f}, Kind: columnNumber} }
+	stamp := func(f string) tableColumn { return tableColumn{Fields: []string{f}, Kind: columnStamp} }
+	return &tableQuery{
+		app: a, noun: actionItemNoun, table: actionitems.Table.Name,
+		columns: map[string]tableColumn{
+			"id": text("id"), "title": text("title"), "why": text("why"), "text": text("text"), "url": text("source_url"),
+			"kind": text("action_type"), "source": text("service"), "key": text("key"), "task": text("task_id"),
+			"pane": text("window"), "session": text("session"), "pane-label": text("pane_label"),
+			"read": stamp("seen_at"), "archived": stamp("dismissed_at"), "notify": {Fields: []string{"notify"}, Kind: columnBool},
+			"notified-at": num("notified_at"), "snoozed-until": num("snoozed_until"),
+			"created": num("created"), "updated": num("updated"), "read-at": num("seen_at"), "archived-at": num("dismissed_at"),
+		},
+		archive: "archived",
+		search:  []string{"title", "why", "text", "url"},
+		args: func(args ochazuke.Arguments) ([]store.QueryCond, bool) {
+			if ochazuke.StringArg(args, "project", "") != "" {
+				return nil, false
+			}
+			now := a.inbox.items.Now()
+			var conds []store.QueryCond
+			state := ochazuke.StringArg(args, "state", actionitems.StateOpen)
+			at := slices.IndexFunc(actionStateRules, func(r actionStateRule) bool {
+				return r.state == state
+			})
+			if at < 0 {
+				return nil, false
+			}
+			conds = append(conds, actionStateRules[at].conds(now)...)
+			if source := strings.ToLower(ochazuke.StringArg(args, "source", "")); source != "" {
+				conds = append(conds, store.QueryCond{Fields: []string{"service"}, Op: store.OpEq, Value: source})
+			}
+			return conds, true
+		},
+		// The inbox order: open unread, open read, snoozed (soonest awake
+		// first), archived; newest first within each, then by id.
+		order: `CASE WHEN COALESCE(json_extract(row, '$.dismissed_at'), 0) > 0 THEN 3 WHEN COALESCE(json_extract(row, '$.snoozed_until'), 0) > ? THEN 2 WHEN COALESCE(json_extract(row, '$.seen_at'), 0) > 0 THEN 1 ELSE 0 END,
+CASE WHEN COALESCE(json_extract(row, '$.dismissed_at'), 0) <= 0 AND COALESCE(json_extract(row, '$.snoozed_until'), 0) > ? THEN json_extract(row, '$.snoozed_until') ELSE 0 END,
+COALESCE(json_extract(row, '$.created'), 0) DESC, json_extract(row, '$.id')`,
+		orderArgs: func() []any { now := a.inbox.items.Now(); return []any{now, now} },
+		thing: func() func(json.RawMessage) (ochazuke.Thing, error) {
+			return func(raw json.RawMessage) (ochazuke.Thing, error) {
+				var it actionitems.Item
+				if err := json.Unmarshal(raw, &it); err != nil {
+					return nil, err
+				}
+				return a.actionItemThing(it), nil
+			}
+		},
+		list: a.listActionItemThings,
 	}
 }
 
@@ -142,7 +229,7 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 	now := a.inbox.items.Now()
 	out := []ochazuke.Thing{}
 	for _, it := range items {
-		if state != "all" && it.State(now) != state || source != "" && it.Source != source {
+		if state != actionStateAll && it.State(now) != state || source != "" && it.Source != source {
 			continue
 		}
 		if project != "" && cmp.Or(it.ProjectID, a.taskProject(it.TaskID)) != project {

@@ -58,6 +58,14 @@ match, in insertion order. A prefix is a range over the same expression, so an
 index over the leading fields serves equality and prefix queries alike (the
 test checks `EXPLAIN QUERY PLAN`). Match the leading fields of an index.
 
+`db.Query(table, Query)` is a read SQLite answers: conditions (`=`, `!=`,
+`contains`, `in`, ordering operators, each optionally negated) and a
+word-by-word text search over JSON fields, sorted by fields or a caller's
+`OrderSQL`, cut to a page, with the count of matching rows. A field list reads
+the first non-zero one, and a missing field reads as zero (`archived = false`
+matches a row that never wrote it). It decodes only the page and is not a full
+read (`FullReads` does not count it).
+
 `db.Backup(dest)` writes a consistent copy (`VACUUM INTO`) and refuses an
 existing file; a unit calls it before a migration that rewrites rows for good.
 `db.TableVersion(table)` tells a file that still has to migrate.

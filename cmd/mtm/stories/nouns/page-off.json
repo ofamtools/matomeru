@@ -1,0 +1,50 @@
+{
+  "area": "nouns",
+  "fixture": "nouns",
+  "width": 150,
+  "height": 50,
+  "name": "mtm: nouns.page off takes the Nouns tab out of the tab row; noun-browser.open still opens the page",
+  "config": {
+    "settings.json": {
+      "nouns.page": false
+    },
+    "bindings.json": [
+      {
+        "mode": "normal",
+        "keys": "ctrl+x",
+        "request": {
+          "noun": "ochazuke.noun-browser",
+          "verb": "open"
+        },
+        "noun": "app"
+      }
+    ]
+  },
+  "script": [
+    "ctrl+k",
+    "ctrl+x"
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "contains": [
+        "Extensions  alpha  › beta"
+      ],
+      "lacks": [
+        "Nouns"
+      ]
+    },
+    {
+      "page": "__nouns",
+      "contains": [
+        "Extensions  alpha  beta",
+        "Noun               Count",
+        "action-item"
+      ],
+      "lacks": [
+        "beta  Nouns",
+        "› Nouns"
+      ]
+    }
+  ]
+}

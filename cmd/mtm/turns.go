@@ -56,7 +56,7 @@ func (a *App) addTurns() error {
 		Mode("normal").
 		Bind("R", ochazuke.Do("pane.refresh-turns").Guard("pane-tab-turns").Hinted("refresh turns"))
 	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {
-		a.r.Define(noun).
+		a.r.Define(noun).Kind(ochazuke.NounKindPart).
 			Verb("refresh-turns", a.refreshPaneTurns, "Find the log of the pane the turns are of again and reread its turns").Fetch().
 			Mode("normal").Bind("R", ochazuke.Do(noun+".refresh-turns").Hide())
 	}
@@ -119,7 +119,7 @@ func (a *App) addTurns() error {
 	}
 	// A thinking or tool step opens and closes as the tree's rows do (l, h);
 	// enter flips it.
-	a.r.Define("turn-step").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
+	a.r.Define("turn-step").Kind(ochazuke.NounKindPart).Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
 	a.addAgentVerbs()
 	for _, name := range []string{settingTurnsThinking, settingTurnsThinkingOpen, settingTurnsTools, settingTurnsToolsOpen} {
 		a.r.Settings().Observe(name, func(string, any) { a.turnSettingsChanged() })

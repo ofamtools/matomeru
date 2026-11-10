@@ -62,7 +62,7 @@ type linkedDetail struct {
 }
 
 func (a *App) defineLinks() {
-	a.r.Define(linkNoun).
+	a.r.Define(linkNoun).Kind(ochazuke.NounKindPart).
 		Verb("follow", a.followLink, "Open the linked record on its page, its row selected").
 		Mode("normal").Bind("enter", ochazuke.Do(linkNoun+".follow"))
 }

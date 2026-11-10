@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"ofam.dev/matomeru/internal/contextitems"
 	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 )
 
 // The context-item noun's record side (standard verbs phase 1, lane M3a):
@@ -127,9 +129,56 @@ func (a *App) contextStore() ochazuke.Store {
 		// A cheap token, so the watch of this noun lists it again only after
 		// a write (store.Store.Version).
 		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.contexts.Version() },
-		Create:      a.createContextItem,
-		Patch:       a.patchContextItem,
-		Delete:      a.removeContextItem,
+		// Counts and windowed pages run in SQLite (tableQuery).
+		Query:  a.contextTableQuery().Query,
+		Create: a.createContextItem,
+		Patch:  a.patchContextItem,
+		Delete: a.removeContextItem,
+	}
+}
+
+// contextTableQuery is the context-item noun's Query: the row's own props
+// are pushed to SQLite; a request on a derived one (project, origin, scope)
+// or one under a pin that scopes the list takes the List path.
+func (a *App) contextTableQuery() *tableQuery {
+	text := func(f ...string) tableColumn { return tableColumn{Fields: f, Kind: columnText} }
+	num := func(f ...string) tableColumn { return tableColumn{Fields: f, Kind: columnNumber} }
+	flag := func(f string) tableColumn { return tableColumn{Fields: []string{f}, Kind: columnBool} }
+	return &tableQuery{
+		app: a, noun: contextNoun, table: contextitems.Table.Name,
+		columns: map[string]tableColumn{
+			"id": text("id"), "type": text("kind"), "text": text("text"), "task": text("task_id"),
+			"session": text("session"), "window": text("window"), "pane": text("pane"),
+			"starred": flag("starred"), "archived": flag("archived"),
+			"created": num("created"), "seen": num("last_seen", "created"),
+		},
+		archive: "archived",
+		search:  []string{"text", "type"},
+		args: func(args ochazuke.Arguments) ([]store.QueryCond, bool) {
+			all, _ := args["all"].(bool)
+			if !all && a.pin != "" && !a.all {
+				return nil, false // the pin scopes by the derived project
+			}
+			if kind, _ := args["kind"].(string); kind != "" {
+				return []store.QueryCond{{Fields: []string{"kind"}, Op: store.OpEq, Value: kind}}, true
+			}
+			return nil, true
+		},
+		// Starred first, then the newest sighting; a tie keeps insertion order.
+		order: "COALESCE(json_extract(row, '$.starred'), 0) DESC, COALESCE(NULLIF(json_extract(row, '$.last_seen'), 0), json_extract(row, '$.created')) DESC",
+		thing: func() func(json.RawMessage) (ochazuke.Thing, error) {
+			tasks := a.contextProjects()
+			return func(raw json.RawMessage) (ochazuke.Thing, error) {
+				var it contextitems.Item
+				if err := json.Unmarshal(raw, &it); err != nil {
+					return nil, err
+				}
+				return contextThing(it, tasks), nil
+			}
+		},
+		list: func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
+			return a.contextStore().List(c, q)
+		},
 	}
 }
 

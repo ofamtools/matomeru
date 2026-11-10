@@ -357,7 +357,7 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 func (a *App) defineProjectCreation() {
 	a.r.Define("project").Verb("new", a.newProject, "Register a project (standard create of name and dir); omit name to open the editor").Positional("name")
 	a.parameters("project.new", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "An empty name saves an untitled project"}, "dir": dirParam("Attach this directory and make it the default (a missing path is attached and flagged)", true)})
-	a.r.Define("unassociated").Verb("open", a.openUnassociated, "Show tasks with no project").
+	a.r.Define("unassociated").Kind(ochazuke.NounKindPart).Verb("open", a.openUnassociated, "Show tasks with no project").
 		Mode("normal").Bind("enter", ochazuke.Do("unassociated.open"))
 }
 

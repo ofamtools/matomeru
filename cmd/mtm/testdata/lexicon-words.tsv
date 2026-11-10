@@ -113,6 +113,7 @@ collapse	action	seed
 collection	noun	seed	
 color	prop	seed	
 column	action	seed	
+columns	action	seed	
 command	noun+prop	seed	
 command_id	prop	seed	
 command_name	prop	seed	
@@ -519,6 +520,7 @@ notify	prop	seed
 notify-due	action	seed	
 notify-status	prop	seed	
 noun	action+noun+prop	seed	
+noun-browser	noun	seed	
 nouns	noun+prop	seed	
 observed_at	prop	seed	
 ochazuke	namespace	seed	
@@ -800,6 +802,7 @@ sha	prop	seed
 shape	prop	seed	
 short_sha	prop	seed	
 show	action	seed	
+show-archived	action	seed	
 show-log	action	yes	the daemon log tail; show is the action, log what it shows
 show-section	action	seed	
 show-tab	action	seed	

@@ -178,7 +178,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 func (a *App) defineRecordEditor() {
-	a.r.Define("draft").Verb("open", a.openDraft, "Open a draft left by an older mtm; it is written as a record at once").Mode("normal").Bind("enter", ochazuke.Do("draft.open"))
+	a.r.Define("draft").Kind(ochazuke.NounKindPart).Verb("open", a.openDraft, "Open a draft left by an older mtm; it is written as a record at once").Mode("normal").Bind("enter", ochazuke.Do("draft.open"))
 }
 
 // titleField is the field a draft's Text holds (an older mtm's drafts):

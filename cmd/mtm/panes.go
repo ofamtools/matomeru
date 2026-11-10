@@ -358,7 +358,7 @@ func (a *App) definePanes() {
 	})
 	r.Define("pane-project").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
 	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
-	r.Define("panes").
+	r.Define("panes").Kind(ochazuke.NounKindPart).
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").FocusBound().
 		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").

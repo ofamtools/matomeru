@@ -88,7 +88,7 @@ func (a *App) defineOutline() {
 	a.r.Define("todos").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it")
 	a.r.Define("app").Mode("normal").Bind("T", ochazuke.Do("todos.open"))
 	a.ownedBy("todos", "work")
-	a.r.Define(outlineModal).
+	a.r.Define(outlineModal).Kind(ochazuke.NounKindPart).
 		Verb("refuse", func(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(errors.New(ochazuke.StringArg(ctx.Args, "reason", "not on this row")))
 		}, "Refuse a key that does not apply to the row and say why (projects keep their creation order; no project is not a project)").
@@ -110,7 +110,7 @@ func (a *App) defineOutline() {
 	// rows), n adds a task in it, typing renames it, d d deletes it as
 	// project.delete does; it stays at the top level in creation order.
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
-		a.r.Define(noun).
+		a.r.Define(noun).Kind(ochazuke.NounKindPart).
 			Verb("delete-project", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
 			Verb("confirm-delete", a.outlineConfirmDeleteProject, "Confirm deleting the project: project.delete orphans its tasks and records").Confirm(projectDeleteConfirm).
 			Mode("normal").
@@ -146,7 +146,7 @@ func (a *App) defineOutline() {
 	// selection (V) they act on every selected task, as one undo step;
 	// the outline's toggle and status (on the modal) stay for the
 	// palette and for the rows that are not tasks, which they refuse.
-	a.r.Define(outlineTaskNoun).Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
+	a.r.Define(outlineTaskNoun).Kind(ochazuke.NounKindPart).Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
 		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().

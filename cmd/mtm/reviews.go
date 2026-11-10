@@ -77,7 +77,7 @@ func (a *App) defineReviews() {
 	// The answer area is not insert-pinned: } lands on it in normal mode,
 	// so the next command key is never typed into it. Typing is autosaved
 	// as a draft; esc leaves insert and keeps the text.
-	r.Define("answer").
+	r.Define("answer").Kind(ochazuke.NounKindPart).
 		Verb("save", a.saveAnswerArea, "Save the answer area as the opened review's answer").
 		Verb("leave", a.leaveAnswerArea, "Return to the review list; the typed answer stays as a draft").
 		Verb("cancel", a.cancelAnswerArea, "Drop the draft: restore the saved answer and return to the list").

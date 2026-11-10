@@ -98,7 +98,7 @@ type activityRead struct {
 }
 
 func (a *App) definePaneActivities() {
-	a.r.Define(activityNoun).
+	a.r.Define(activityNoun).Kind(ochazuke.NounKindPart).
 		Verb("open", a.openActivity, "Show the subagent's pane on its Turns tab, at the card of the call that started it").
 		Verb("copy", a.copyActivity, "Copy the subagent's description, type and id").
 		Mode("normal").
