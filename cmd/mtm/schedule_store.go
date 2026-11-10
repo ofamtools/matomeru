@@ -54,6 +54,9 @@ func (a *App) scheduleProps() []ochazuke.PropSpec {
 	for _, f := range scheduleFields {
 		p := params[f]
 		param := ochazuke.Parameter{Type: "string", Noun: p.Noun, Source: p.Source, SourceArgs: p.SourceArgs, Free: p.Free, Description: p.Description}
+		if p.IsPath() { // a working folder keeps its path type: picker, open, reveal, yank-path
+			param.Type, param.Path = p.Type, p.Path
+		}
 		if scheduleSpec(f).strict { // a non-strict field takes empty (its default): applyScheduleField checks it
 			param.Enum = scheduleChoices(f)
 		}

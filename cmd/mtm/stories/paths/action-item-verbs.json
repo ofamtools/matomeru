@@ -1,0 +1,32 @@
+{
+  "name": "mtm: action-item lists the link verbs (from its url prop)",
+  "area": "paths",
+  "fixture": "seeded",
+  "width": 130,
+  "height": 40,
+  "script": [
+    ":",
+    {
+      "type": "action-item ope"
+    },
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "action-item yank-p"
+    }
+  ],
+  "expect": [
+    {
+      "after": 2,
+      "contains": [
+        "open \u00b7"
+      ]
+    },
+    {
+      "contains": [
+        "yank-path \u00b7"
+      ]
+    }
+  ]
+}

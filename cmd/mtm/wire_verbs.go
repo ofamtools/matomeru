@@ -43,6 +43,10 @@ type wireParam struct {
 	// Wire maps a value to the daemon's spelling of it, where mtm's word
 	// differs (previous is the daemon's prev). Values not listed pass as given.
 	Wire map[string]string
+	// Path is "dir" or "file" for a parameter that holds a file system path
+	// (its Type is then the path type, whatever Type says): the library gives
+	// it the path picker and the open, reveal and yank-path verbs.
+	Path string
 }
 
 // wireVerb is one row of the table.
@@ -165,20 +169,20 @@ var wireVerbs = []wireVerb{
 	{Noun: "agent", Verb: "fan", Wire: "fan", Desc: "Fan a prompt out across several agents, each in its own worktree and session", Right: ochazuke.AgentAllow, Base: 2 * time.Minute,
 		Params: []wireParam{{Name: "count", Type: "integer", Desc: "How many agents"}, {Name: "agent", Type: "string", Desc: "The harness"}, {Name: "agents", Type: "array", Desc: "A harness for each"},
 			{Name: "prompt", Type: "string", Desc: "The prompt for all"}, {Name: "prompts", Type: "array", Desc: "A prompt for each"},
-			{Name: "repo", Type: "string", Desc: "The repository"}, {Name: "base", Type: "string", Desc: "The branch the worktrees start from"},
+			{Name: "repo", Type: "string", Path: "dir", Desc: "The repository"}, {Name: "base", Type: "string", Desc: "The branch the worktrees start from"},
 			{Name: "name", Type: "string", Desc: "A name for the group"}, {Name: "join", Type: "string", Desc: "A group to join"},
 			{Name: "ready_timeout", Type: "integer", Desc: "Milliseconds to wait for each agent", Default: "600000"},
 			{Name: "env", Type: "object", Desc: "Environment for each agent"}, {Name: "task", Type: "string", Desc: "A task card to attach"}, {Name: "task_session", Type: "string", Desc: "The task's session"},
-			{Name: "grants", Type: "array", Desc: "Grants for each agent"}, {Name: "repo_url", Type: "string", Desc: "A repository to clone"}, {Name: "repos_root", Type: "string", Desc: "Where clones go"}, {Name: "clone", Type: "boolean", Desc: "Clone repo_url"}}},
+			{Name: "grants", Type: "array", Desc: "Grants for each agent"}, {Name: "repo_url", Type: ochazuke.PropURL, Desc: "A repository to clone"}, {Name: "repos_root", Type: "string", Path: "dir", Desc: "Where clones go"}, {Name: "clone", Type: "boolean", Desc: "Clone repo_url"}}},
 	{Noun: "agent", Verb: "set-status", Wire: "set-agent-state", Desc: "Set the state a pane's agent reports (working, needs_input, idle, done, errored, or none to clear), with a message", Right: ochazuke.AgentAllow,
 		Params: []wireParam{sessionParam, windowParam("The pane's window id; omit: it is your own"),
 			{Name: "state", Type: "string", Desc: "The state", Required: true},
 			{Name: "message", Type: "string", Desc: "What the agent is doing"},
 			{Name: "source", Type: "string", Desc: "Who reports it", Default: "report"},
 			{Name: "harness", Type: "string", Desc: "The harness"}, {Name: "kind", Type: "string", Desc: "The kind of report"},
-			{Name: "agent_session_id", Type: "string", Desc: "The harness's session id"}, {Name: "transcript_path", Type: "string", Desc: "The transcript file"}, {Name: "transcript_leaf", Type: "string", Desc: "The transcript's newest entry"},
+			{Name: "agent_session_id", Type: "string", Desc: "The harness's session id"}, {Name: "transcript_path", Type: "string", Path: "file", Desc: "The transcript file"}, {Name: "transcript_leaf", Type: "string", Desc: "The transcript's newest entry"},
 			{Name: "if_state", Type: "string", Desc: "Only when the current state is this"}, {Name: "subagent_id", Type: "string", Desc: "A subagent this report is about"}, {Name: "if_subagent_id", Type: "string", Desc: "Only when this subagent is the current one"},
-			{Name: "harness_pid", Type: "integer", Desc: "The harness process"}, {Name: "session_start", Type: "boolean", Desc: "A session just started"}, {Name: "agent_cwd", Type: "string", Desc: "The agent's directory"}, {Name: "activity", Type: "object", Desc: "What the agent is doing, as data"}},
+			{Name: "harness_pid", Type: "integer", Desc: "The harness process"}, {Name: "session_start", Type: "boolean", Desc: "A session just started"}, {Name: "agent_cwd", Type: "string", Path: "dir", Desc: "The agent's directory"}, {Name: "activity", Type: "object", Desc: "What the agent is doing, as data"}},
 		Self: []string{"window"}},
 	{Noun: "agent", Verb: "enqueue", Wire: "queue-prompt", Desc: "Queue a prompt for an agent: it is typed when the agent next comes to rest, and the answer says its place in the queue", Right: ochazuke.AgentAllow,
 		Params: []wireParam{sessionParam, {Name: "window", Type: "string", Desc: "The agent pane's window id (the daemon refuses a call without one)"},
@@ -188,7 +192,7 @@ var wireVerbs = []wireVerb{
 		Params: []wireParam{sessionParam,
 			{Name: "name", Type: "string", Desc: "The window's name"},
 			{Name: "workspace", Type: "integer", Desc: "The workspace to open it on"},
-			{Name: "cwd", Type: "string", Desc: "The directory it starts in"},
+			{Name: "cwd", Type: "string", Path: "dir", Desc: "The directory it starts in"},
 			{Name: "focus", Type: "boolean", Desc: "Focus the new window; false leaves the focus where it is", Default: "true"},
 			{Name: "command", Type: "array", Desc: "The argv to run instead of a shell"},
 			{Name: "grants", Type: "array", Desc: "What the pane may do through the daemon (you may give only what you hold)"},
@@ -232,7 +236,7 @@ var wireVerbs = []wireVerb{
 			{Name: "width", Type: "integer", Desc: "Nominal columns", Default: "80"}, {Name: "height", Type: "integer", Desc: "Nominal rows", Default: "24"},
 			{Name: "window", Type: "boolean", Desc: "Create the first window; false makes an empty session", Default: "true"},
 			{Name: "window_name", Type: "string", Desc: "The first window's name"},
-			{Name: "cwd", Type: "string", Desc: "The directory the session's windows start in"},
+			{Name: "cwd", Type: "string", Path: "dir", Desc: "The directory the session's windows start in"},
 			{Name: "command", Type: "array", Desc: "The argv of the first window's process instead of a shell"},
 			{Name: "env", Type: "object", Desc: "Environment for the first window's process"}}},
 	{Noun: "agent", Verb: "set-meta", Wire: "set-agent-meta", Desc: "Record display metadata about a pane's agent (model, context used, cost, a short summary)", Right: ochazuke.AgentAllow,
@@ -301,6 +305,9 @@ func (a *App) defineWireVerbs() {
 				desc = "Omit: it is your own pane. " + desc
 			}
 			params[p.Name] = ochazuke.Parameter{Type: p.Type, Required: p.Required, Description: desc, Enum: p.Enum}
+			if p.Path != "" {
+				params[p.Name] = ochazuke.Parameter{Type: ochazuke.PathParameterType, Path: p.Path, Required: p.Required, Description: desc}
+			}
 		}
 		a.parameters(w.key(), params)
 	}

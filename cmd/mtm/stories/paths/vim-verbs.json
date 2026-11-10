@@ -1,0 +1,56 @@
+{
+  "name": "mtm: vim lists the path verbs (from its path prop)",
+  "area": "paths",
+  "fixture": "seeded",
+  "width": 130,
+  "height": 40,
+  "script": [
+    ":",
+    {
+      "type": "vim open-w"
+    },
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "vim reve"
+    },
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "vim yank-p"
+    },
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "vim ope"
+    }
+  ],
+  "expect": [
+    {
+      "after": 2,
+      "contains": [
+        "open-with \u00b7"
+      ]
+    },
+    {
+      "after": 6,
+      "contains": [
+        "reveal \u00b7"
+      ]
+    },
+    {
+      "after": 10,
+      "contains": [
+        "yank-path \u00b7"
+      ]
+    },
+    {
+      "contains": [
+        "open \u00b7"
+      ]
+    }
+  ]
+}

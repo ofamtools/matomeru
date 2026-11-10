@@ -55,7 +55,7 @@ func actionItemProps() []ochazuke.PropSpec {
 		{Name: "summary", ReadOnly: true, Parameter: text("The item's one line: its title, else why, else the URL")},
 		{Name: "why", Parameter: text("What it wants of you: review requested, CI failed, mentioned")},
 		{Name: "text", Multiline: true, Parameter: text("Details")},
-		{Name: "url", Parameter: text("What open opens")},
+		{Name: "url", Parameter: ochazuke.Parameter{Type: ochazuke.PropURL, Description: "What open opens"}},
 		{Name: "kind", Parameter: text("The item's type: review-request, mention, ci-failed, …")},
 		{Name: "source", CreateOnly: true, Parameter: text("The tool or service: gh, slack, ci, agent, … (default manual)")},
 		{Name: "key", ReadOnly: true, Parameter: text("The de-duplication key add matches, unique per source")},
