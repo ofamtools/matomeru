@@ -156,13 +156,14 @@ func (a *App) actionTableQuery() *tableQuery {
 		},
 		archive: "archived",
 		search:  []string{"title", "why", "text", "url"},
-		args: func(args ochazuke.Arguments) ([]store.QueryCond, bool) {
+		args: func(q ochazuke.ListQuery) ([]store.QueryCond, bool) {
+			args := q.Args
 			if ochazuke.StringArg(args, "project", "") != "" {
 				return nil, false
 			}
 			now := a.inbox.items.Now()
 			var conds []store.QueryCond
-			state := ochazuke.StringArg(args, "state", actionitems.StateOpen)
+			state := actionListState(q)
 			at := slices.IndexFunc(actionStateRules, func(r actionStateRule) bool {
 				return r.state == state
 			})
@@ -218,7 +219,7 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 	if err != nil {
 		return nil, err
 	}
-	state := ochazuke.StringArg(q.Args, "state", actionitems.StateOpen)
+	state := actionListState(q)
 	source := strings.ToLower(ochazuke.StringArg(q.Args, "source", ""))
 	project := ochazuke.StringArg(q.Args, "project", "")
 	if project != "" {
@@ -238,6 +239,16 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 		out = append(out, a.actionItemThing(it))
 	}
 	return out, nil
+}
+
+// actionListState keeps an explicit state filter, but skips the default
+// open-only list for Every requests (the Nouns page's counts).
+func actionListState(q ochazuke.ListQuery) string {
+	state := actionitems.StateOpen
+	if q.Every {
+		state = actionStateAll
+	}
+	return ochazuke.StringArg(q.Args, "state", state)
 }
 
 // applyActionItem writes the props values gives to it, now being the

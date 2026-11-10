@@ -52,9 +52,9 @@ type tableQuery struct {
 	archive string
 	// search are the props a text query matches.
 	search []string
-	// args turns the request's ListParams into conditions; false: this
-	// request's arguments need the store's List.
-	args func(ochazuke.Arguments) ([]store.QueryCond, bool)
+	// args turns the request's ListParams into conditions; Every skips
+	// defaults. False means the request needs the store's List.
+	args func(ochazuke.ListQuery) ([]store.QueryCond, bool)
 	// order is the default order (a fragment written here, never user text)
 	// and its arguments, used when the request names no sort.
 	order     string
@@ -99,7 +99,7 @@ func (t *tableQuery) translate(q ochazuke.ListQuery) (store.Query, bool) {
 	if q.Grouped() || t.args == nil {
 		return sq, false
 	}
-	conds, ok := t.args(q.Args)
+	conds, ok := t.args(q)
 	if !ok {
 		return sq, false
 	}

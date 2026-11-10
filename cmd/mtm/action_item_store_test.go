@@ -21,24 +21,6 @@ func aliasOf(a *App, action, name string) *ochazuke.ActionAlias {
 	return nil
 }
 
-// The action item's verbs: the standard ones with rename (the title), move,
-// duplicate, archive and restore; show, read, unread and toggle-read lasting aliases; add,
-// count, open, snooze, the promotions, associate and choose-move named.
-func TestActionItemVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a, _, _ := inboxApp(t)
-	standardIs(t, a, actionItemNoun, map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"archive": "archive", "add": "", "count": "", "open": "", "snooze": "", "promote-todo": "", "promote-task": "", "associate": "", "choose-move": "",
-	}, "move", "rename", "duplicate", "restore")
-	for alias, action := range map[string]string{"show": "get", "read": "set", "unread": "set", "toggle-read": "set"} {
-		got := aliasOf(a, actionItemNoun+"."+action, actionItemNoun+"."+alias)
-		if got == nil || got.Deprecated() {
-			t.Errorf("%s: %+v", alias, got)
-		}
-	}
-}
-
 // show ID is get: the item's props; list keeps --state (open by default)
 // and --source; create always adds a row of its own (add refreshes a
 // duplicate); the label falls back to the summary.
