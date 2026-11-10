@@ -1002,9 +1002,9 @@ func (a *App) extProxy(x *extension, noun, verb, opensPage string) ochazuke.AppH
 				return ochazuke.Done(nil)
 			}
 		}
-		target := a.extTarget(x, noun, c.Instance)
 		args := c.Args
 		op, _ := a.r.Operation(x.nouns[noun] + "." + verb)
+		target := a.rowTargetUnlessSubjectGiven(op, args, a.extTarget(x, noun, c.Instance))
 		if _, declared := op.Parameters["target"]; !declared {
 			if explicit, ok := args["target"].(string); ok {
 				target = explicit
@@ -1019,6 +1019,27 @@ func (a *App) extProxy(x *extension, noun, verb, opensPage string) ochazuke.AppH
 		}
 		return a.extRun(x, noun, verb, target, args, nil)
 	}
+}
+
+// rowTargetUnlessSubjectGiven is target, or "" when the verb takes its
+// subject from the row (a parameter whose From is row or row:FIELD) and the
+// request carries that value: the tool then has the subject by name, and
+// the row's list id (culprit/NAME) is a handle only mtm's list knows; a
+// tool resolves its own --target only when it reveals the row, so sending
+// both makes it refuse an id it never needed.
+func (a *App) rowTargetUnlessSubjectGiven(op ochazuke.Operation, args map[string]any, target string) string {
+	if target == "" {
+		return target
+	}
+	for name, p := range op.Parameters {
+		if p.From != ochazuke.SourceRow && !strings.HasPrefix(p.From, ochazuke.SourceRow+":") {
+			continue
+		}
+		if v, ok := args[name]; ok && v != nil && v != "" {
+			return ""
+		}
+	}
+	return target
 }
 
 // extTarget is the tool's id of the nearest thing of noun (a catalog
