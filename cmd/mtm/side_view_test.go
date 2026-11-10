@@ -346,13 +346,14 @@ func TestSideChooserJumpsToAnySide(t *testing.T) {
 	}
 }
 
-// With no side open, leader w says so instead of opening an empty chooser.
+// With no side open, leader w still opens the chooser (a picker never
+// answers without opening), saying "no side panes are open" as its empty line.
 func TestSideChooserWithNoSides(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
 	press(t, a, "ctrl+a", "w") // the page leader row: normal mode on Panes
-	if a.r.TopModal() != "" || !slices.Contains(a.m.Notices, "no side panes are open") {
-		t.Fatalf("modal %q notices %q", a.r.TopModal(), a.m.Notices)
+	if a.r.TopModal() != "side-chooser" || !strings.Contains(frame(a), "no side panes are open") {
+		t.Fatalf("modal %q\n%s", a.r.TopModal(), frame(a))
 	}
 }
 

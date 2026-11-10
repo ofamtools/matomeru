@@ -1,0 +1,53 @@
+{
+  "area": "pickers",
+  "width": 140,
+  "height": 35,
+  "fixture": "seeded",
+  "name": "mtm: the task picker opens on open tasks; alt+s steps open, all, archived and back; S in normal mode steps too (it is not scope.all there)",
+  "script": [
+    "t",
+    "alt+s",
+    "alt+s",
+    "alt+s",
+    "esc",
+    "S"
+  ],
+  "expect": [
+    {
+      "after": 1,
+      "contains": [
+        "Task for acme-web/claude",
+        "open │"
+      ]
+    },
+    {
+      "after": 2,
+      "contains": [
+        "all │"
+      ],
+      "lacks": [
+        "open │"
+      ]
+    },
+    {
+      "after": 3,
+      "contains": [
+        "archived │"
+      ]
+    },
+    {
+      "after": 4,
+      "contains": [
+        "open │"
+      ]
+    },
+    {
+      "contains": [
+        "all │"
+      ],
+      "lacks": [
+        "Scope: all projects"
+      ]
+    }
+  ]
+}

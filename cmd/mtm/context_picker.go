@@ -130,9 +130,15 @@ func (a *App) openContextPicker(p pane, choose func(id string, data any) ochazuk
 
 // contextPickSpec is the context picker over pane p, less what enter does.
 func (a *App) contextPickSpec(p pane) pickSpec {
-	choices := a.contextChoices(p)
-	data := dataByID(choices)
+	choices := a.contextChoices(p, false)
+	data := dataByID(a.contextChoices(p, true)) // the widest scope's rows carry every id
 	return pickSpec{
+		// project: the pane's, its project's and the unassociated items;
+		// all: every project's as well.
+		Scopes: []pickScope{
+			{Name: "project", Choices: func() []ochazuke.Choice { return a.contextChoices(p, false) }},
+			{Name: "all", Choices: func() []ochazuke.Choice { return a.contextChoices(p, true) }},
+		},
 		Kind:    contextPicker,
 		Noun:    contextNoun,
 		Title:   "Context · " + p.label(),
@@ -149,8 +155,8 @@ func (a *App) contextPickSpec(p pane) pickSpec {
 // contextChoices are the picker's choices for pane p (each carries its props
 // and payload: Choice.Props, Choice.Data): its own items newest
 // first, then the rest of its project's, then the unassociated ones.
-// Other projects' items are left out.
-func (a *App) contextChoices(p pane) (rows []ochazuke.Choice) {
+// Other projects' items are in the all scope only.
+func (a *App) contextChoices(p pane, everyProject bool) (rows []ochazuke.Choice) {
 	project := a.contextOwner(p).ProjectID
 	if project == "" {
 		project = a.paneOwner(p).ProjectID
@@ -159,7 +165,7 @@ func (a *App) contextChoices(p pane) (rows []ochazuke.Choice) {
 	fromPane := func(it contextitems.Item) bool {
 		return it.Window == p.ID || slices.ContainsFunc(it.Sources, func(s contextitems.Source) bool { return s.Window == p.ID })
 	}
-	var own, theirs, loose []contextitems.Item
+	var own, theirs, loose, others []contextitems.Item
 	if err := a.cx.load.ensure(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
@@ -175,6 +181,8 @@ func (a *App) contextChoices(p pane) (rows []ochazuke.Choice) {
 			theirs = append(theirs, it)
 		case owner == "":
 			loose = append(loose, it)
+		default:
+			others = append(others, it)
 		}
 	}
 	now := a.now()
@@ -199,6 +207,11 @@ func (a *App) contextChoices(p pane) (rows []ochazuke.Choice) {
 	}
 	add(theirs, a.ownerLabel(project), "project")
 	add(loose, "no project", "none")
+	if everyProject {
+		for _, it := range others {
+			add([]contextitems.Item{it}, a.ownerLabel(itemProject(it, tasks)), "")
+		}
+	}
 	return rows
 }
 
@@ -245,7 +258,7 @@ func (a *App) pickerTurnsChanged() error {
 // contextChanged refreshes the open picker's rows when items land.
 func (a *App) contextChanged() {
 	if c := a.r.Chooser(contextPicker); c != nil {
-		c.SetRows(a.contextPickSpec(a.cx.picking).rows())
+		c.SetRows(a.contextPickSpec(a.cx.picking).scopeRows(c.Source()))
 	}
 }
 

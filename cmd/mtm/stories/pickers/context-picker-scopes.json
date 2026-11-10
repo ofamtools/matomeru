@@ -1,0 +1,29 @@
+{
+  "area": "pickers",
+  "width": 140,
+  "height": 35,
+  "fixture": "context-picker",
+  "name": "mtm: the context picker opens on project (the pane's, its project's, unassociated) with 'more in all'; alt+s shows every project",
+  "script": [
+    "enter",
+    "ctrl+a",
+    "c",
+    "alt+s"
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "contains": [
+        "project · 1 more in all"
+      ]
+    },
+    {
+      "contains": [
+        "all  substr"
+      ],
+      "lacks": [
+        "more in all"
+      ]
+    }
+  ]
+}

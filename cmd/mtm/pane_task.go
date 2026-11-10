@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -178,12 +179,18 @@ func (a *App) openTaskPicker(p pane) (*ochazuke.Chooser, error) {
 		}
 		return ochazuke.Done(out)
 	}
-	choices := a.taskPickerChoices(owner)
-	data := dataByID(choices)
+	choices := a.taskPickerChoices(owner, taskScopeOpen)
+	data := map[string]any{} // what a pick reads back, for every scope's rows
+	scopes := make([]pickScope, len(taskScopes))
+	for i, sc := range taskScopes {
+		maps.Copy(data, dataByID(a.taskPickerChoices(owner, sc)))
+		scopes[i] = pickScope{Name: sc.name, Choices: func() []ochazuke.Choice { return a.taskPickerChoices(owner, sc) }}
+	}
 	return a.choose(pickSpec{
 		Kind:        taskPicker,
 		Title:       "Task for " + p.label(),
 		Choices:     choices,
+		Scopes:      scopes,
 		Empty:       "no open tasks or projects; type a title for a new task",
 		Filter:      pickFilterTrailing,
 		Pick:        func(id string) ochazuke.Result { return associate(data[id].(ochazuke.Arguments)) },
@@ -204,16 +211,51 @@ func (a *App) openTaskPicker(p pane) (*ochazuke.Chooser, error) {
 	})
 }
 
+// The task picker's scopes, narrowest first (picker scopes, S): open tasks
+// (and the projects), every task whatever its status, the archived tasks.
+type taskScope struct {
+	name string
+	// withDone lists the done tasks too; archivedOnly lists the archived
+	// tasks and nothing else.
+	withDone, archivedOnly bool
+}
+
+var (
+	taskScopeOpen = taskScope{name: "open"}
+	taskScopeAll  = taskScope{name: "all", withDone: true}
+	taskScopes    = []taskScope{taskScopeOpen, taskScopeAll, {name: "archived", archivedOnly: true}}
+)
+
+// archivedTaskChoices are the archived tasks as the picker's rows, the most
+// recently updated first.
+func (a *App) archivedTaskChoices(tasks []work.Task) []ochazuke.Choice {
+	archived := archivedTasks(tasks)
+	tasks = slices.DeleteFunc(slices.Clone(tasks), func(t work.Task) bool { return !archived[t.ID] })
+	slices.SortStableFunc(tasks, func(x, y work.Task) int { return cmp.Compare(y.Updated, x.Updated) })
+	rows := make([]ochazuke.Choice, 0, len(tasks))
+	for _, t := range tasks {
+		label := taskLabel(t)
+		if t.ProjectID != "" {
+			label += " · " + a.ownerLabel(t.ProjectID)
+		}
+		rows = append(rows, ochazuke.Choice{ID: "task:" + t.ID, Label: label, Data: ochazuke.Arguments{"task": t.ID}, RowFlags: ochazuke.RowFlags{Bare: true}})
+	}
+	return rows
+}
+
 // taskPickerChoices are the picker's choices for a pane owned by owner: the
 // current task or project first (enter keeps it), the open tasks (the
 // owner's project's first, then the most recently updated), the projects
 // by recency, and "unassociated" last while the pane has an owner. A
 // choice's id is task:ID, project:ID or scratch.
-func (a *App) taskPickerChoices(owner work.Assignment) []ochazuke.Choice {
+func (a *App) taskPickerChoices(owner work.Assignment, scope taskScope) []ochazuke.Choice {
 	var rows []ochazuke.Choice
 	tasks, err := a.work.Tasks("")
 	if err != nil {
 		a.r.UI().Error("tasks: " + err.Error())
+	}
+	if scope.archivedOnly {
+		return a.archivedTaskChoices(tasks)
 	}
 	tasks = a.liveTasks(tasks)
 	byID := make(map[string]work.Task, len(tasks))
@@ -250,7 +292,9 @@ func (a *App) taskPickerChoices(owner work.Assignment) []ochazuke.Choice {
 	} else if p, ok := a.project(owner.ProjectID); ok {
 		rows = append(rows, projectRow(p, true))
 	}
-	tasks = slices.DeleteFunc(tasks, func(t work.Task) bool { return t.Status == work.StatusDone || t.ID == owner.TaskID })
+	tasks = slices.DeleteFunc(tasks, func(t work.Task) bool {
+		return t.ID == owner.TaskID || t.Status == work.StatusDone && !scope.withDone
+	})
 	home := cmp.Or(owner.ProjectID, a.pin)
 	slices.SortStableFunc(tasks, func(x, y work.Task) int {
 		return cmp.Or(cmpBool(y.ProjectID == home && home != "", x.ProjectID == home && home != ""), cmp.Compare(y.Updated, x.Updated))

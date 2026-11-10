@@ -116,7 +116,11 @@ const (
 	// pickFilterDefault is the chooser's own match mode.
 	pickFilterDefault pickFilter = iota
 	// pickFilterPrefix matches the start of the label (status choosers:
-	// t, a, b, d).
+	// t, a, b, d). Kept as it was: ochazuke v0.119.0's prefix-first rank
+	// is in the fuzzy score (palette, path picker, list filters) but a
+	// chooser still lists its substring hits in source order, so "r" would
+	// put "accepted (current)" above "rejected". Moves to the shared matcher
+	// when a chooser ranks by it.
 	pickFilterPrefix
 	// pickFilterTrailing is fuzzy, but a trailing row ("unassociated")
 	// matches by substring only.
@@ -144,8 +148,33 @@ type pickSpec struct {
 	// CreateLabel says what it will do.
 	Create      func(query string) ochazuke.Result
 	CreateLabel func(query string) string
-	// Notice, when the source has no rows, is said instead of opening.
+	// Notice is the empty line when the source has no rows (Empty first):
+	// the picker still opens, so the way out (a create row, a typed value)
+	// is there; it never answers without opening.
 	Notice string
+	// Scopes, when there are two or more, are the named slices of the rows
+	// (ochazuke's picker scopes), narrowest first: the picker opens on the
+	// first and S / alt+s step through them (setting picker.scopes off
+	// opens the first alone). Each is a function, so a scope is read when
+	// shown (and again when its rows change).
+	Scopes []pickScope
+}
+
+// pickScope is one scope of a pickSpec: its name and its choices.
+type pickScope struct {
+	Name    string
+	Choices func() []ochazuke.Choice
+}
+
+// scopeRows are the rows of the scope named name (the first when none is).
+func (s pickSpec) scopeRows(name string) []ochazuke.PickerRow {
+	for _, sc := range s.Scopes {
+		if sc.Name == name {
+			s.Choices = sc.Choices()
+			return s.rows()
+		}
+	}
+	return s.rows()
 }
 
 // rows are the spec's choices as chooser rows (ochazuke.ChoiceRows; a
@@ -170,13 +199,9 @@ func dataByID(choices []ochazuke.Choice) map[string]any {
 
 // choose opens the general picker over s.
 func (a *App) choose(s pickSpec) (*ochazuke.Chooser, error) {
-	if len(s.Choices) == 0 && s.Notice != "" {
-		a.r.UI().Notify(s.Notice)
-		return nil, nil
-	}
 	spec := ochazuke.PickerSpec{
 		Kind: s.Kind, Noun: s.Noun, Title: s.Title, Match: s.Match, Rows: s.rows(),
-		Empty: s.Empty, Plural: s.Plural, Keep: s.Keep, NoSort: s.NoSort,
+		Empty: cmp.Or(s.Empty, s.Notice), Plural: s.Plural, Keep: s.Keep, NoSort: s.NoSort,
 		Choose: func(row ochazuke.PickerRow) ochazuke.Result { return s.Pick(row.ID) },
 	}
 	switch s.Filter {
@@ -191,6 +216,18 @@ func (a *App) choose(s pickSpec) (*ochazuke.Chooser, error) {
 			}
 			return fuzzy(query, row.Label)
 		}
+	}
+	if len(s.Scopes) > 1 {
+		spec.Scoped = true
+		for _, sc := range s.Scopes {
+			spec.Sources = append(spec.Sources, ochazuke.PickerSource{
+				Name:  sc.Name,
+				Load:  func(string) ochazuke.Result { return ochazuke.Done(s.scopeRows(sc.Name)) },
+				Count: func(string) (int, bool) { return len(sc.Choices()), true },
+			})
+		}
+		spec.Source = s.Scopes[0].Name
+		spec.Rows = s.scopeRows(spec.Source)
 	}
 	if s.Preview != nil {
 		spec.Preview = func(row ochazuke.PickerRow) string { return s.Preview(row.ID) }
