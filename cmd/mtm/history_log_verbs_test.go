@@ -30,8 +30,8 @@ func historyLogs(t *testing.T, ctx context.Context, client *daemon.Client) map[s
 	return out
 }
 
-// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestHistoryLogVerbsRunAgainstASelfDaemon(t *testing.T) {
+	t.Parallel()
 	make, client := selfDaemonApp(t, paneScopeAll)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second*raceSlowdown)
 	defer cancel()
@@ -143,10 +143,10 @@ func TestHistoryLogVerbsRunAgainstASelfDaemon(t *testing.T) {
 	}
 }
 
-// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 // Copy mode's windows over a real daemon with a log: the last chunk, and the
 // chunks before it, name the daemon's own line numbers, and join up exactly.
 func TestScrollbackWindowsJoinUpOverASelfDaemonLog(t *testing.T) {
+	t.Parallel()
 	_, client := selfDaemonApp(t, paneScopeAll)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second*raceSlowdown)
 	defer cancel()

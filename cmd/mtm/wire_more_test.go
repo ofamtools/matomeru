@@ -13,8 +13,8 @@ import (
 	"ofam.dev/matomeru/internal/agenthook"
 )
 
-// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestWindowAndSessionVerbsRunAgainstASelfDaemon(t *testing.T) {
+	t.Parallel()
 	make, client := selfDaemonApp(t, paneScopeAll)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second*raceSlowdown)
 	defer cancel()
@@ -108,9 +108,8 @@ func TestWindowAndSessionVerbsRunAgainstASelfDaemon(t *testing.T) {
 
 // pane.show and agent.status name the transcript the pane's agent hook
 // reported (the daemon holds the path in memory only and does not say it).
-//
-// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestPaneShowAndAgentStatusNameTheTranscript(t *testing.T) {
+	t.Parallel()
 	make, client := selfDaemonApp(t, paneScopeAll)
 	made := resultMap(t, rpc(t, make(), runVerb(1, "session.new", map[string]any{"name": "tr", "cwd": "/tmp", "command": []any{"cat"}}))[0])
 	win, _ := made["window_id"].(string)

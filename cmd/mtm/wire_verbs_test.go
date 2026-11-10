@@ -93,36 +93,38 @@ func selfDaemonApp(t *testing.T, scope string) (func() *App, *daemon.Client) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(root) })
-	for _, d := range []string{"home", "run", "config", "state", "data"} {
-		os.MkdirAll(filepath.Join(root, d), 0o700)
+	env := map[string]string{
+		"PATH": os.Getenv("PATH"), "SHELL": "/bin/sh",
+		"GOMAXPROCS": os.Getenv("GOMAXPROCS"), "GOMEMLIMIT": os.Getenv("GOMEMLIMIT"),
+		"MTM_DAEMON_RUNNER": runnerSelf,
 	}
-	t.Setenv("HOME", filepath.Join(root, "home"))
-	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("SHELL", "/bin/sh")
-	t.Setenv("MTM_DAEMON_RUNNER", runnerSelf)
-	server := "wire" + scope
-	for _, k := range []string{"TUIOS_SOCKET", "TUIOS_SERVER"} {
-		// Both names: the daemon exports MTM_ beside TUIOS_, and mtm reads MTM_ first.
-		for _, k := range []string{k, "MTM_" + strings.TrimPrefix(k, "TUIOS_")} {
-			t.Setenv(k, "")
-			os.Unsetenv(k)
+	for _, d := range []struct{ key, dir string }{
+		{"HOME", "home"}, {"XDG_RUNTIME_DIR", "run"}, {"XDG_CONFIG_HOME", "config"},
+		{"XDG_STATE_HOME", "state"}, {"XDG_DATA_HOME", "data"},
+	} {
+		env[d.key] = filepath.Join(root, d.dir)
+		if err := os.MkdirAll(env[d.key], 0o700); err != nil {
+			t.Fatal(err)
 		}
 	}
-	t.Setenv("MTM_SERVER", server)
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
+	var environ []string
+	for key, value := range env {
+		environ = append(environ, key+"="+value)
 	}
-	self := daemon.SelfStart{Word: daemonWord, PinDir: filepath.Join(root, "state", "daemon-bin"), Label: "test", InUse: func(string) bool { return true }}
-	client := daemon.ForServer(server)
+	layout := daemon.Layouts[0]
+	server := "wire" + scope
+	self := daemon.SelfStart{Word: daemonWord, Paths: layout.Name, Environ: func() []string { return environ }}
+	client := &daemon.Client{
+		Socket: filepath.Join(env["XDG_RUNTIME_DIR"], layout.SocketApp, "servers", server, layout.SocketFile),
+		Server: server,
+	}
 	client.Start, client.Wait = self.Start, 60*time.Second*raceSlowdown
 	client.Ready = client.HelloReady
-	_ = exe
 	make := func() *App {
-		app := openWith(t, Options{Data: filepath.Join(root, "mtm.db"), Server: server})
+		app := openWith(t, Options{
+			Data: filepath.Join(root, "mtm.db"), Socket: client.Socket,
+			lookupEnv: func(key string) (string, bool) { value, ok := env[key]; return value, ok },
+		})
 		app.getenv = func(string) string { return "" }
 		app.mcpPrepare = func(a *App) {
 			a.daemon = client
@@ -178,8 +180,8 @@ func resultMap(t *testing.T, resp map[string]any) map[string]any {
 	return m
 }
 
-// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestWireVerbsRunAgainstASelfDaemonThroughMCPServe(t *testing.T) {
+	t.Parallel()
 	make, client := selfDaemonApp(t, paneScopeAll)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second*raceSlowdown)
 	defer cancel()
@@ -329,8 +331,8 @@ func toJSON(v any) string {
 	return string(raw)
 }
 
-// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
 func TestWireVerbsOfAnAgentAreHeldToItsScope(t *testing.T) {
+	t.Parallel()
 	make, client := selfDaemonApp(t, paneScopeOwn)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second*raceSlowdown)
 	defer cancel()
