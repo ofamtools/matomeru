@@ -90,7 +90,7 @@ func (a *App) remountExtensions() { a.mountRegistry(true) }
 // whose entries did not change unless all is set.
 func (a *App) mountRegistry(all bool) {
 	defer a.reloadPeerBindings()
-	names, entries, errs := a.extRegistry().Ordered()
+	names, entries, errs := a.orderedForMount()
 	a.notifyExtErrs(errs)
 	i := 0
 	for !all && i < len(a.exts) && i < len(names) && a.exts[i].name == names[i] && bytes.Equal(a.exts[i].entry, entryJSON(entries[names[i]])) {
@@ -106,9 +106,11 @@ func (a *App) mountRegistry(all bool) {
 	}
 	a.exts = a.exts[:i]
 	a.refreshSides()
-	for _, name := range names[i:] {
-		a.mountExtension(name, entries[name])
-	}
+	a.mountBatch(func() {
+		for _, name := range names[i:] {
+			a.mountExtension(name, entries[name])
+		}
+	})
 	a.syncBareNounNames()
 	if a.r.Page != page && a.r.PageOf(page) != nil {
 		// Putting the page back is not opening it: its open step (a

@@ -191,7 +191,8 @@ func (a *App) addInboxPage() error {
 	}
 	// Outside tools add items from other processes.
 	a.onOpen(inboxPage, a.reloadInbox)
-	return a.refreshInbox()
+	a.inboxLoad.load = a.loadInbox
+	return nil
 }
 
 // inboxTick starts the reload timer.
@@ -217,6 +218,9 @@ func (a *App) inboxUpdate(msg tea.Msg) tea.Cmd {
 // reloadInbox rebuilds the rows only when the items changed (or a snooze
 // ended) since the last build.
 func (a *App) reloadInbox() error {
+	if !a.inboxLoad.loaded {
+		return a.inboxLoad.ensure()
+	}
 	items, err := a.inbox.items.All()
 	if err != nil {
 		return err
@@ -235,8 +239,19 @@ func inboxSig(items []actionitems.Item, now int64) string {
 	return b.String()
 }
 
-// refreshInbox reloads the rows and the title row's counts.
+// refreshInbox reloads the rows and the title row's counts once they have
+// loaded (inboxLoad); before that nothing shows them.
 func (a *App) refreshInbox() error {
+	if a.inbox == nil || a.inbox.list == nil {
+		return nil
+	}
+	return a.inboxLoad.refresh()
+}
+
+// loadInbox is the page's load (inboxLoad): the store read and the push.
+// The TUI loads it before its first frame and a headless call when a row
+// of it is asked for (lazy.go).
+func (a *App) loadInbox() error {
 	if a.inbox == nil || a.inbox.list == nil {
 		return nil
 	}

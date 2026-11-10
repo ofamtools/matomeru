@@ -240,6 +240,9 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	defer app.Close()
 	if *smoke {
 		app.m.Width, app.m.Height = 80, 24
+		if err := app.inboxLoad.ensure(); err != nil {
+			return err
+		}
 		fmt.Fprintln(stdout, ansi.Strip(app.View().Content))
 		return nil
 	}
@@ -251,6 +254,9 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		// The daemon is ensured and the pane list loads off the loop; the
 		// first update starts the job.
 		if err := app.ensureDaemon(); err != nil {
+			return err
+		}
+		if err := app.inboxLoad.ensure(); err != nil {
 			return err
 		}
 		_, err := tea.NewProgram(app).Run()
@@ -303,9 +309,6 @@ func (a *App) reveal(id string) error {
 	} // An explicit CLI target may be outside the pin.
 	a.r.Changed("saved")
 	if err := a.refreshVim(); err != nil {
-		return err
-	}
-	if err := a.refreshInbox(); err != nil {
 		return err
 	}
 	if a.r.Instances[id] != nil {
@@ -422,24 +425,29 @@ type App struct {
 
 	owners map[string]string // nouns with no instance of their own → the instance their verbs act for (panes → the pane list); the CLI targets it
 
-	r           *ochazuke.Runtime
-	m           *ochazuke.Model
-	projectList *ochazuke.Collection
-	taskList    *ochazuke.Collection // the task tree's rows (tasks.go)
-	taskTree    *ochazuke.Tree       // the Work page's tasks, a tree or flat by work.tasks-layout
-	paneList    *ochazuke.Collection // the pane tree's rows (panes_tree.go)
-	pv          *paneUI              // the panes page's tree, detail tabs and timers
-	reviewList  *ochazuke.Collection
-	notesLoad   pageLoad                   // the Notes rows load on first need (lazy.go)
-	reviewsLoad pageLoad                   // the Review rows load on first need (lazy.go)
-	reviewTurns *ochazuke.Tree             // the opened review row's turns (reviews.go)
-	turnFills   map[string]*turnFill       // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
-	mturns      map[string]*paneTurns      // window → its turns read from the agent's log or the shell (turns_model.go)
-	subs        subagents                  // the Turns tab's subagents, read when their steps open (turn_agents.go)
-	acts        map[string]*paneActivities // window → its activities, the pane list's child rows (pane_activity.go)
-	actsJobs    []activityJob              // the reads the next panes.read-activities runs
-	actsSince   time.Time                  // when the read of the activities that is out started; zero none
-	sessionSeen map[string]string          // window → the agent session last recorded for it (turns_model.go)
+	r             *ochazuke.Runtime
+	m             *ochazuke.Model
+	projectList   *ochazuke.Collection
+	taskList      *ochazuke.Collection // the task tree's rows (tasks.go)
+	taskTree      *ochazuke.Tree       // the Work page's tasks, a tree or flat by work.tasks-layout
+	paneList      *ochazuke.Collection // the pane tree's rows (panes_tree.go)
+	pv            *paneUI              // the panes page's tree, detail tabs and timers
+	reviewList    *ochazuke.Collection
+	startRegistry *registrySnapshot          // the registry as the start mounted it (extension_mount_cache.go)
+	mountDepth    int                        // >0 inside mountBatch (extensions.go)
+	mountReloads  int                        // how many shared reloads ran (the test seam)
+	mountReload   bool                       // a mount in the batch asked for the shared reload
+	inboxLoad     pageLoad                   // the Inbox rows load on first need (lazy.go)
+	notesLoad     pageLoad                   // the Notes rows load on first need (lazy.go)
+	reviewsLoad   pageLoad                   // the Review rows load on first need (lazy.go)
+	reviewTurns   *ochazuke.Tree             // the opened review row's turns (reviews.go)
+	turnFills     map[string]*turnFill       // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
+	mturns        map[string]*paneTurns      // window → its turns read from the agent's log or the shell (turns_model.go)
+	subs          subagents                  // the Turns tab's subagents, read when their steps open (turn_agents.go)
+	acts          map[string]*paneActivities // window → its activities, the pane list's child rows (pane_activity.go)
+	actsJobs      []activityJob              // the reads the next panes.read-activities runs
+	actsSince     time.Time                  // when the read of the activities that is out started; zero none
+	sessionSeen   map[string]string          // window → the agent session last recorded for it (turns_model.go)
 	// claudeProjects is Claude Code's projects directory, where session
 	// logs are (turns.ClaudeProjects); tests replace it.
 	claudeProjects string

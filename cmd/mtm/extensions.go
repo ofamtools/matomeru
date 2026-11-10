@@ -650,14 +650,47 @@ func (a *App) extension(name string) *extension {
 // mountExtensions mounts every registered extension in tab order; a file
 // that cannot be read or mounted is a notice, never a failed start.
 func (a *App) mountExtensions() {
-	names, entries, errs := a.extRegistry().Ordered()
-	a.notifyExtErrs(errs)
-	for _, name := range names {
-		a.mountExtension(name, entries[name])
+	names, entries, errs := a.orderedForMount()
+	if a.cli {
+		a.startRegistry = &registrySnapshot{names, entries}
 	}
-	a.refreshSides()
+	a.notifyExtErrs(errs)
+	a.mountBatch(func() {
+		for _, name := range names {
+			a.mountExtension(name, entries[name])
+		}
+	})
 	a.syncBareNounNames()
 	a.reloadPeerBindings()
+}
+
+// mountBatch runs mounts that share one reload of the sides, the user
+// actions and the user bindings. Each mount asks for that reload; inside a
+// batch the asks collapse to one run after the last mount, since only the
+// result of the last reload is ever seen (a reload replaces the previous
+// one's rows).
+func (a *App) mountBatch(mounts func()) {
+	if a.mountDepth > 0 {
+		mounts()
+		return
+	}
+	a.mountDepth++
+	a.mountReload = false
+	mounts()
+	a.mountDepth--
+	if a.mountReload {
+		a.mountReload = false
+		a.reloadMounted()
+	}
+}
+
+// reloadMounted reapplies what a mount changes: the sides, then the user's
+// actions before bindings, so their rows can name the mounted actions.
+func (a *App) reloadMounted() {
+	a.mountReloads++
+	a.refreshSides()
+	a.r.ReloadUserActions()
+	a.r.ReloadUserBindings()
 }
 
 // mountExtension adds one extension: a proxy verb on mtm's noun for every
@@ -671,11 +704,13 @@ func (a *App) mountExtension(name string, e extEntry) {
 	x := &extension{name: name, ns: ns, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
 	defer func() {
 		a.exts = append(a.exts, x)
-		a.refreshSides()
-		// Mounting replaces the noun's verbs and key rows. Reapply user
-		// actions before bindings, so their rows can name those actions.
-		a.r.ReloadUserActions()
-		a.r.ReloadUserBindings()
+		// Mounting replaces the noun's verbs and key rows; the user's
+		// actions and bindings are reapplied (mountBatch shares it).
+		if a.mountDepth > 0 {
+			a.mountReload = true
+			return
+		}
+		a.reloadMounted()
 	}()
 	naming, err := a.extNamingFor(ns)
 	if nsErr != nil {

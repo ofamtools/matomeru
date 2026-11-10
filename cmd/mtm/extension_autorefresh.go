@@ -88,7 +88,16 @@ const extStampRefreshTimeout = 10 * time.Second
 // the background check above.
 func (a *App) refreshChangedBins() {
 	reg := a.extRegistry()
-	names, entries, _ := reg.Ordered()
+	// The registry mounted a moment ago (mountExtensions) is not read again.
+	snap := a.startRegistry
+	a.startRegistry = nil
+	var names []string
+	var entries map[string]extEntry
+	if snap != nil {
+		names, entries = snap.names, snap.entries
+	} else {
+		names, entries, _ = a.orderedForMount()
+	}
 	changed := false
 	for _, name := range names {
 		if e := a.refreshChangedBin(reg, name, entries[name]); e.BinStamp != entries[name].BinStamp {

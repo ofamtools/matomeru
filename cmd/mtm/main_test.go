@@ -144,7 +144,7 @@ func openWith(t *testing.T, opts Options) *App {
 	// Most tests read the Notes, Review and Context rows without opening
 	// those pages: load them as the TUI would on first need. TestPagesLoadLazily
 	// calls New itself to see them unloaded.
-	for _, l := range []*pageLoad{&app.notesLoad, &app.reviewsLoad, &app.cx.load} {
+	for _, l := range []*pageLoad{&app.notesLoad, &app.reviewsLoad, &app.cx.load, &app.inboxLoad} {
 		if err := l.ensure(); err != nil {
 			t.Fatal(err)
 		}

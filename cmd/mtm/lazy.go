@@ -37,7 +37,7 @@ func (p *pageLoad) refresh() error {
 
 // loadPagesFor loads the lazy pages, one at a time, until a row holds id.
 func (a *App) loadPagesFor(id string) error {
-	for _, l := range []*pageLoad{&a.notesLoad, &a.reviewsLoad, &a.cx.load} {
+	for _, l := range []*pageLoad{&a.notesLoad, &a.reviewsLoad, &a.cx.load, &a.inboxLoad} {
 		if a.r.Instances[id] != nil {
 			return nil
 		}

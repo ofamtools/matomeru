@@ -104,6 +104,7 @@ func (a *App) declareSettings() error {
 		draftPerTargetSetting,
 		extNounNamesSetting,
 		extAutoRefreshSetting,
+		extMountCacheSetting,
 		extSegmentReloadSetting,
 		extSetupStatusSetting,
 		ochazuke.Setting{Name: settingSideLayout, Type: ochazuke.SettingString, Default: sideAuto, Enum: []string{sideAuto, sideBeside, sideBelow},

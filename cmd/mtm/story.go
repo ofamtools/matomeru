@@ -416,7 +416,7 @@ func buildStory(env monogatari.Env, fill func(path string, now int64) error, pan
 			return built, err
 		}
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.reload(); err != nil {
 		a.Close()
 		return built, err
 	}
@@ -516,7 +516,7 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	if err := env.Sandbox(a.m); err != nil {
 		return err
 	}
-	if err := a.refreshInbox(); err != nil { // its rows' times, on the story clock
+	if err := a.inboxLoad.reload(); err != nil { // its rows' times, on the story clock
 		return err
 	}
 	// Env.Sandbox runs a foreground program headless; a story runs none
