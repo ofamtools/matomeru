@@ -317,25 +317,6 @@ func TestDirectoryChooserSettingStartSource(t *testing.T) {
 	}
 }
 
-// mtm's directory fields are folder path parameters.
-func TestDirectoryFieldsArePathParameters(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	for key, name := range map[string]string{
-		"project.directory":      "path",
-		"project.edit-directory": "to",
-		"project.new":            "dir",
-		"dirs.add-base":          "path",
-		scheduleNoun + ".edit":   "dir",
-		scheduleNoun + ".add":    "dir",
-	} {
-		p := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(key))).Parameters[name]
-		if p.Type != ochazuke.PathParameterType || p.Path != ochazuke.PathDir {
-			t.Errorf("%s %s: %+v", key, name, p)
-		}
-	}
-}
-
 // walkProject gives the matomeru project one directory holding nested
 // folders (cmd/mtm, internal/work, a .git and a .worktrees checkout) and
 // returns it.

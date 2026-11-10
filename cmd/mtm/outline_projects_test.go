@@ -235,20 +235,6 @@ func TestAllViewNAddsATaskInTheProject(t *testing.T) {
 	}
 }
 
-// Moving a task across a project boundary would refile it. ochazuke's
-// outline moves (J/K swap siblings, tab/shift+tab nest under the sibling
-// above or follow the parent) never leave the parent's children, so no
-// key crosses a project boundary yet: a gap in the library.
-func TestOutlineMovesATaskAcrossAProjectBoundary(t *testing.T) {
-	t.Parallel()
-	t.Skip("gap: ochazuke's outline has no move across parents (J past the last sibling); see the report")
-	a := allOutline(t, outlineNode("t2"))
-	press(t, a, "J")
-	if got := stored(t, a, "t2"); got.ProjectID != "" {
-		t.Fatalf("J past matomeru's last task: %+v", got)
-	}
-}
-
 // The pin's outline (T) and O on a project show the project as the root
 // row with its tasks under it, and no other project; typing on it renames
 // the project, u undoes it, and o on it adds a task.
