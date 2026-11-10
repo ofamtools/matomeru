@@ -9,7 +9,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 	ofam.dev/monogatari v0.8.0
-	ofam.dev/ochazuke v0.114.0
+	ofam.dev/ochazuke v0.115.0
 )
 
 require (
