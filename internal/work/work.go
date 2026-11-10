@@ -1,6 +1,8 @@
 // Package work owns the project and task rows of the work page. The row
 // shapes and table declarations are the ones matomeru-old persisted, so the
-// existing database opens unchanged.
+// existing database opens unchanged, except projects: version 2 moved the
+// trees and default_tree fields into directory relations (directories.go),
+// copying the file first.
 package work
 
 import (
