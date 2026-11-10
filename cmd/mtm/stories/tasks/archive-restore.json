@@ -21,6 +21,7 @@
     {"after": 10, "contains": ["Checkout page: show the shipping estimate"], "lacks": ["Shipping estimate: API client", "Mock the carrier API"]},
     {"after": 13, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},
     {"after": 17, "contains": ["Checkout page: show the shipping estimate", "Move the cart drawer"], "lacks": ["Shipping estimate: API client", "Mock the carrier API"]},
-    {"after": 20, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]}
+    {"after": 20, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},
+    {"page":"work","contains":["Checkout page: show the shipping estimate","Shipping estimate: API client","Mock the carrier API"],"lacks":["Error:"]}
   ]
 }

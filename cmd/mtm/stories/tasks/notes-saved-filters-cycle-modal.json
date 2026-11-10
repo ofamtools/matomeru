@@ -61,6 +61,7 @@
         "owner note example",
         "unknown note example"
       ]
-    }
+    },
+    {"mode":"normal","contains":["[agents]","agent note example"],"lacks":["owner note example","unknown note example","Error:"]}
   ]
 }

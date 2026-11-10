@@ -7,17 +7,20 @@
   "config": {
     "bindings.json": [
       {"noun":"app","mode":"normal","keys":"ctrl+e","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"panes/detail/show/form/name"}}},
-      {"noun":"app","mode":"normal","keys":"ctrl+r","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"pane:acme-web/w1"}}}
+      {"noun":"app","mode":"normal","keys":"ctrl+x","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"pane:acme-web/w1"}}},
+      {"noun":"app","mode":"normal","keys":"ctrl+s","request":{"noun":"pane","verb":"view","target":"pane:acme-web/w1","args":{"view":"terminal"}}},
+      {"noun":"app","mode":"normal","keys":"ctrl+p","request":{"noun":"pane","verb":"preview","target":"pane:acme-web/w1"}}
     ]
   },
-  "script": ["]", "ctrl+e", "i", "ctrl+a", "ctrl+k", {"type":"review-pane"}, "esc", {"job":"pane.set"}, {"job":"panes.refresh"}, "ctrl+r", "enter", "ctrl+a", "[", "esc", "ctrl+a", "d"],
+  "script": ["ctrl+s", "ctrl+p", {"job":"pane.preview"}, "ctrl+e", "i", "ctrl+a", "ctrl+k", {"type":"review-pane"}, "esc", {"job":"pane.set"}, {"job":"panes.refresh"}, "ctrl+x", "enter", "ctrl+a", "[", "esc", "ctrl+a", "d"],
   "expect": [
-    {"after":1,"contains":["claude is thinking","archived","starred"]},
-    {"after":2,"focus":"panes/detail/show/form/name"},
-    {"after":9,"contains":["review-pane","History"],"lacks":["Error:"]},
-    {"after":11,"focus":"panes/terminal","mode":"terminal"},
-    {"after":13,"focus":"panes/copy","mode":"copy"},
-    {"after":14,"focus":"panes/terminal","mode":"terminal"},
+    {"after":3,"contains":["claude is thinking","archived","starred"]},
+    {"after":4,"focus":"panes/detail/show/form/name"},
+    {"after":11,"contains":["review-pane","History"],"lacks":["Error:"]},
+    {"after":12,"focus":"pane:acme-web/w1"},
+    {"after":13,"focus":"panes/terminal","mode":"terminal"},
+    {"after":15,"focus":"panes/copy","mode":"copy"},
+    {"after":16,"focus":"panes/terminal","mode":"terminal"},
     {"focus":"pane:acme-web/w1","mode":"normal","contains":["review-pane","archived"]}
   ]
 }

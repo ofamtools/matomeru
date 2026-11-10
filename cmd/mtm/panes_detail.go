@@ -1239,20 +1239,22 @@ func (a *App) paneTabContent(row string, width, height int) ochazuke.Block {
 // notesTabBody is the Notes tab: the related sections of the selected pane
 // (notes about it first), scrolled as a whole by J and K from the list.
 func (a *App) notesTabBody(width, height int) ochazuke.Block {
-	if a.detail.panes.showingForm() {
-		return a.detail.panes.recordBlock("", width, height)
-	}
 	text := a.detail.panes.relatedText(width)
 	if text == "" {
-		a.detail.panes.hide()
-		if !a.r.Settings().Bool(ochazuke.RelatedDetailSetting) {
-			return ochazuke.Text("related sections are off (detail.related)")
-		}
 		msg := "no notes about this pane yet"
-		if hint := a.keySentence("app", keyAction{"quick-note.open", "writes one", nil}); hint != "" {
+		if !a.r.Settings().Bool(ochazuke.RelatedDetailSetting) {
+			msg = "related sections are off (detail.related)"
+		} else if hint := a.keySentence("app", keyAction{"quick-note.open", "writes one", nil}); hint != "" {
 			msg += "; " + hint
 		}
+		if a.detail.panes.showingForm() {
+			return a.detail.panes.recordBlock(msg, width, height)
+		}
+		a.detail.panes.hide()
 		return ochazuke.Text(msg)
+	}
+	if a.detail.panes.showingForm() {
+		return a.detail.panes.recordBlock("", width, height)
 	}
 	return ochazuke.Text(a.detail.panes.lines(text, 0, width, height))
 }

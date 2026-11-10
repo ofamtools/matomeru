@@ -140,6 +140,11 @@ func TestScaffoldShowFormUsesRelatedSettingsAndCustomNoteView(t *testing.T) {
 	if strings.Count(text, "custom note renderer") != 1 || strings.Contains(text, "stored note") || strings.LastIndex(text, "History") <= strings.Index(text, "custom note renderer") {
 		t.Fatalf("custom view or last history section lost:\n%s", text)
 	}
+	for _, width := range []int{80, 120} {
+		if text := frameWH(a, width, 24); !strings.Contains(text, "custom note renderer") {
+			t.Fatalf("custom note view is clipped at %dx24:\n%s", width, text)
+		}
+	}
 	form := a.detail.work.show.Form()
 	if err := custom.Focus(); err != nil {
 		t.Fatal(err)
@@ -268,5 +273,27 @@ func TestScaffoldWorkRetainsDirectoryAnnotations(t *testing.T) {
 		if text := frameWH(a, 180, 70); !strings.Contains(text, "checkout annotations stay") || !strings.Contains(text, "directories (1)") {
 			t.Fatalf("directory content disappeared (form=%v):\n%s", on, text)
 		}
+	}
+}
+
+func TestScaffoldPaneNotesStayVisibleAtNormalHeight(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	executeA(t, a, "note", "create", "", ochazuke.Arguments{"text": "reachable pane note", "about": "pane:w1"})
+	if err := a.selectPaneRow("pane:matomeru/w1"); err != nil {
+		t.Fatal(err)
+	}
+	a.pv.tab = tabNotes
+	a.detail.panes.show.Sync()
+	if text := frameWH(a, 120, 24); !strings.Contains(text, "reachable pane note") {
+		t.Fatalf("pane note is clipped by its form:\n%s", text)
+	}
+	form := a.detail.panes.show.Form()
+	if err := a.detail.panes.rel.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	a.detail.panes.show.Sync()
+	if a.detail.panes.show.Form() != form {
+		t.Fatal("focusing the related notes changed the pane form")
 	}
 }

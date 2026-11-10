@@ -258,6 +258,11 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	want := func(l *ochazuke.Collection) int { return l.Len() + 1 }
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
+	if a.detail.work.showingForm() {
+		// A short projects list must not reduce the form/related viewport to
+		// a few lines; keep room for sections while retaining the task table.
+		top = min(avail-1, max(top, height*3/5))
+	}
 	left := a.projectsHeading() + a.view(a.projectList, leftWidth, top)
 	body := a.detail.work.recordBlock(detail, rightWidth, top+1)
 	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).Render(body.Text))
