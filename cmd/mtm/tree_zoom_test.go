@@ -48,8 +48,8 @@ func TestOutlineZoomsWithABreadcrumb(t *testing.T) {
 	}
 }
 
-// A panes section sizes itself with Tree.Height: zoomed, its need counts
-// the breadcrumb line, so the rows under it keep their lines.
+// A panes section counts the breadcrumb alongside wrapped rows, so zooming
+// does not cut a line out of the tree's content budget.
 func TestPaneSectionNeedCountsTheBreadcrumb(t *testing.T) {
 	t.Parallel()
 	app, _ := panesApp(t)
@@ -65,7 +65,8 @@ func TestPaneSectionNeedCountsTheBreadcrumb(t *testing.T) {
 		if parent == "" {
 			continue
 		}
-		before := app.sectionNeed(sec)
+		const width = 120
+		before := app.sectionNeed(sec, width)
 		if err := sec.tree.Zoom(parent); err != nil {
 			t.Fatal(err)
 		}
@@ -73,7 +74,7 @@ func TestPaneSectionNeedCountsTheBreadcrumb(t *testing.T) {
 		if sec.name == sectionPanes {
 			header = 1
 		}
-		if got, want := app.sectionNeed(sec), 1+header+sec.tree.List().Height()+1; got != want {
+		if got, want := app.sectionNeed(sec, width), 1+header+sec.tree.List().Height()+1; got != want {
 			t.Fatalf("%s zoomed: need %d, want %d (before %d)", sec.name, got, want, before)
 		}
 		return

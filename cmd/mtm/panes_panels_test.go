@@ -97,6 +97,80 @@ func TestPanelHeights(t *testing.T) {
 	}
 }
 
+func TestPaneHostsSizeWrappedContent(t *testing.T) {
+	t.Parallel()
+	a, _ := sectionsApp(t)
+	setting(t, a, settingPanelMin, 3)
+	const title = "alpha beta gamma delta epsilon zeta"
+	for _, sec := range a.pv.sections {
+		sec.nodes = []ochazuke.TreeNode{{ID: sec.listID() + "-wrap", Label: title}}
+		sec.tree.List().SetColumns()
+		if err := sec.tree.SetNodes(sec.nodes); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		width int
+		want  [3]int
+	}{
+		{40, [3]int{4, 22, 4}},
+		{44, [3]int{3, 24, 3}},
+	} {
+		if got := a.panelSizes(tc.width, 30); got != tc.want {
+			t.Fatalf("panels at width %d: %v, want %v", tc.width, got, tc.want)
+		}
+	}
+	if got := a.sectionsNeed(40); got != 10 {
+		t.Fatalf("panel split need %d, want 10", got)
+	}
+	st := a.pageStyles()
+	block := a.panelBlock(ochazuke.Layout{Styles: st}, st, a.pv.sections[0], 40, 3)
+	t.Logf("wrapped panel:\n%s", block.Text)
+	if !strings.Contains(ansi.Strip(block.Text), "+1 more") {
+		t.Fatalf("panel did not count its hidden continuation:\n%s", block.Text)
+	}
+	block = a.panelBlock(ochazuke.Layout{Styles: st}, st, a.pv.sections[0], 40, 4)
+	t.Logf("fully sized wrapped panel:\n%s", block.Text)
+	if !strings.Contains(ansi.Strip(block.Text), "zeta") || strings.Contains(ansi.Strip(block.Text), "+1 more") {
+		t.Fatalf("the continuation did not fit its natural panel height:\n%s", block.Text)
+	}
+	setting(t, a, settingPanesLayout, layoutStacked)
+	for _, tc := range []struct {
+		width int
+		want  [3]int
+		total int
+	}{
+		{32, [3]int{3, 4, 3}, 10},
+		{40, [3]int{2, 3, 2}, 7},
+	} {
+		for i, sec := range a.pv.sections {
+			if got := a.sectionNeed(sec, tc.width); got != tc.want[i] {
+				t.Fatalf("section %s at width %d: %d, want %d", sec.name, tc.width, got, tc.want[i])
+			}
+		}
+		if got := a.sectionsNeed(tc.width); got != tc.total {
+			t.Fatalf("stacked split at width %d: %d, want %d", tc.width, got, tc.total)
+		}
+	}
+	sec := a.pv.sections[0]
+	sec.tree.List().SetFilter("alpha")
+	if got := a.sectionNeed(sec, 32); got != 4 {
+		t.Fatalf("filtered wrapped section need %d, want 4", got)
+	}
+	sec.tree.List().SetFilter("")
+	setting(t, a, "tree.wrap", false)
+	if got := a.sectionNeed(sec, 32); got != 2 {
+		t.Fatalf("unwrapped section need %d, want 2", got)
+	}
+	sec.nodes = nil
+	if got := panelContent(sec, 32); got != 0 {
+		t.Fatalf("empty panel need %d, want 0", got)
+	}
+	if got := a.sectionNeed(sec, 32); got != 0 {
+		t.Fatalf("empty section need %d, want 0", got)
+	}
+}
+
 // The panels layout at 24, 40 and 60 lines: Needs you is a panel at the
 // top and Working a panel on the column's last lines, each at least 6
 // lines, the panes list filling the lines between (goldens in testdata).

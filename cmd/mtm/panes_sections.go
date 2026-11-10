@@ -824,14 +824,14 @@ func (a *App) sectionShares() [3]int {
 	return [3]int{s.Int(settingQueuePercent), s.Int(settingPanesPercent), s.Int(settingWorkingPercent)}
 }
 
-// sectionNeed is the lines a list would fill: its title, a table's
-// header and its rows (Tree.Height: the breadcrumb line while zoomed and
-// the filter line while filtering count too); 0 when it is empty.
-func (a *App) sectionNeed(s *paneSection) int {
+// sectionNeed is the lines a list would fill at width: its title, a table's
+// header and its wrapped rows (including breadcrumb and filter lines);
+// 0 when it is empty.
+func (a *App) sectionNeed(s *paneSection, width int) int {
 	if len(s.nodes) == 0 {
 		return 0
 	}
-	n := 1 + s.tree.Height()
+	n := 1 + s.tree.HeightAt(width)
 	if s.name == sectionPanes {
 		n++ // the column header
 	}
@@ -847,7 +847,7 @@ func (a *App) sectionsBlock(width, height int) ochazuke.Block {
 	s := a.pageStyles()
 	var need [3]int
 	for i, sec := range a.pv.sections {
-		need[i] = a.sectionNeed(sec)
+		need[i] = a.sectionNeed(sec, width)
 	}
 	heights := sectionHeights(height, need, a.sectionShares())
 	var lines []string

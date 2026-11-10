@@ -268,13 +268,13 @@ func (a *App) panelLimits() (int, int) {
 	return lo, max(lo, s.Int(settingPanelMax))
 }
 
-// panelContent is the lines a list's rows fill (Tree.Height: the
-// breadcrumb and filter lines count), 0 for an empty list.
-func panelContent(s *paneSection) int {
+// panelContent is the display lines a list's rows fill at width (including
+// breadcrumb and filter lines), 0 for an empty list.
+func panelContent(s *paneSection, width int) int {
 	if len(s.nodes) == 0 {
 		return 0
 	}
-	return s.tree.Height()
+	return s.tree.HeightAt(width)
 }
 
 // panelHeights splits height lines between the top panel, the Panes tree
@@ -318,12 +318,17 @@ func panelHeights(height int, content [3]int, lo, hi int, hide bool) [3]int {
 	return out
 }
 
-// panelSizes are the three heights for height lines.
-func (a *App) panelSizes(height int) [3]int {
+// panelSizes are the three heights for width x height cells.
+func (a *App) panelSizes(width, height int) [3]int {
 	lo, hi := a.panelLimits()
 	var content [3]int
+	cw, _ := ochazuke.PanelContentSize(width, smallestPanel)
 	for i, s := range a.pv.sections {
-		content[i] = panelContent(s)
+		w := cw
+		if i == 1 {
+			w = width // the middle tree has no panel border or padding
+		}
+		content[i] = panelContent(s, w)
 	}
 	if content[1] > 0 {
 		content[1]++ // the column header
@@ -334,16 +339,16 @@ func (a *App) panelSizes(height int) [3]int {
 // sectionsNeed is the lines the left side would fill, for the narrow
 // layout's split: the panels at their size and the Panes tree's rows, or
 // the stacked lists' titles and rows.
-func (a *App) sectionsNeed() int {
+func (a *App) sectionsNeed(width int) int {
 	if !a.panelsLayout() {
 		need := 0
 		for _, sec := range a.pv.sections {
-			need += a.sectionNeed(sec)
+			need += a.sectionNeed(sec, width)
 		}
 		return need
 	}
-	sizes := a.panelSizes(1 << 20)
-	return sizes[0] + sizes[2] + max(0, a.sectionNeed(a.pv.sections[1])-1)
+	sizes := a.panelSizes(width, 1<<20)
+	return sizes[0] + sizes[2] + max(0, a.sectionNeed(a.pv.sections[1], width)-1)
 }
 
 // panelsBlock draws the panels layout in width x height: the top panel,
@@ -351,7 +356,7 @@ func (a *App) sectionsNeed() int {
 func (a *App) panelsBlock(width, height int) ochazuke.Block {
 	st := a.pageStyles()
 	layout := ochazuke.Layout{Width: width, Height: height, Styles: st}
-	sizes := a.panelSizes(height)
+	sizes := a.panelSizes(width, height)
 	var lines []string
 	var cursor *ochazuke.Pos
 	for i, sec := range a.pv.sections {
@@ -395,7 +400,7 @@ func (a *App) panelBlock(layout ochazuke.Layout, st ochazuke.Styles, sec *paneSe
 		body = ochazuke.Text(st.Muted.Render(text.empty))
 	} else {
 		body = sec.tree.Block(cw, max(1, ch))
-		if need := sec.tree.Height(); need > ch && ch > 0 {
+		if need := sec.tree.HeightAt(cw); need > ch && ch > 0 {
 			title += fmt.Sprintf(" · +%d more", need-ch)
 		}
 	}
