@@ -193,7 +193,7 @@ func (a *App) actionTableQuery() *tableQuery {
 			}
 			now := a.inbox.items.Now()
 			var conds []store.QueryCond
-			state := actionListState(q)
+			state := listArgDefault(q, "state", actionitems.StateOpen, actionStateAll)
 			at := slices.IndexFunc(actionStateRules, func(r actionStateRule) bool {
 				return r.state == state
 			})
@@ -252,7 +252,7 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 	if err != nil {
 		return nil, err
 	}
-	state := actionListState(q)
+	state := listArgDefault(q, "state", actionitems.StateOpen, actionStateAll)
 	source := strings.ToLower(ochazuke.StringArg(q.Args, "source", ""))
 	project := ochazuke.StringArg(q.Args, "project", "")
 	if project != "" {
@@ -274,15 +274,15 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 	return out, nil
 }
 
-// actionListState keeps an explicit state argument. Every, archive-inclusive
-// reads and explicit state filters skip the default open-only list. A From
-// list's whole-source read includes archives but has no local filters yet.
-func actionListState(q ochazuke.ListQuery) string {
-	state := actionitems.StateOpen
-	if q.Every || q.Archived || slices.ContainsFunc(q.Filters, func(f ochazuke.PropFilter) bool { return f.Prop == "state" }) {
-		state = actionStateAll
+// listArgDefault keeps an explicit argument. Inclusive reads and filters on
+// that argument's prop bypass its implicit default, so a source read does not
+// narrow the rows before the collection's own filters run.
+func listArgDefault(q ochazuke.ListQuery, name, implicit, unrestricted string) string {
+	fallback := implicit
+	if q.Every || q.Archived || slices.ContainsFunc(q.Filters, func(f ochazuke.PropFilter) bool { return f.Prop == name }) {
+		fallback = unrestricted
 	}
-	return ochazuke.StringArg(q.Args, "state", state)
+	return ochazuke.StringArg(q.Args, name, fallback)
 }
 
 // applyActionItem writes the props values gives to it, now being the
