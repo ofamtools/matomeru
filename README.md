@@ -14,9 +14,12 @@
 
 Matomeru (`mtm`) is built on [ochazuke](https://github.com/ofamtools/ochazuke) and runs its agents in panes of a [TUIOS](https://github.com/Gaurav-Gosain/tuios) daemon it starts for itself. Every action in the TUI is also a command: `mtm task new --title ...`, `mtm project pin`, `mtm catalog`.
 
-The current adoption targets ochazuke **v0.121.0**, the released module in
-`go.mod`. It includes `ShowFormSpec.Related`; no unreleased API, local replace
-or workspace is required for a standalone build.
+The current adoption targets ochazuke **v0.122.0**, the released module in
+`go.mod`. It includes `ShowFormSpec.Related` and wrapping in the Work task tree
+and modal outlines, with continuation lines aligned under the title after
+nesting and glyphs. `tree.wrap` defaults to `true`; `false` restores single-line
+clipping. No unreleased API, local replace or workspace is required for a
+standalone build.
 
 Unreleased: the Panes page reuses panel layout and column composition when
 their content, cursor, size and styles match. An unchanged listing retains
