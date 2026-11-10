@@ -115,7 +115,7 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	if bases[0].Source != "variable" {
 		t.Fatalf("source: %+v", bases)
 	}
-	paths, _ := scanBases([]projectBase{{Path: root, Depth: 2}})
+	paths, _ := scanBases([]projectBase{{Path: root, Depth: 2}}, nil)
 	if len(paths) != 3 {
 		t.Fatalf("depth 2: %v", paths)
 	}

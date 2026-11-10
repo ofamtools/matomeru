@@ -150,7 +150,11 @@ func gitCommonDir(path string) string {
 	return filepath.Clean(strings.TrimSpace(string(output)))
 }
 
-func scanBases(bases []projectBase) ([]string, []string) {
+// scanBases lists the repositories under the bases, to their depths. A base
+// that listable refuses (a path.no-auto-list prefix: a volume the owner keeps
+// from being listed unasked; Runtime.PathAutoListable) is skipped, neither
+// walked nor reported missing; nil lists every base.
+func scanBases(bases []projectBase, listable func(string) bool) ([]string, []string) {
 	var paths, missing []string
 	seen := map[string]int{}
 	var walk func(string, int)
@@ -185,6 +189,9 @@ func scanBases(bases []projectBase) ([]string, []string) {
 		}
 	}
 	for _, base := range bases {
+		if listable != nil && !listable(base.Path) {
+			continue
+		}
 		if info, err := os.Stat(base.Path); err != nil || !info.IsDir() {
 			missing = append(missing, base.Path)
 			continue
@@ -241,7 +248,7 @@ func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	paths, missing := scanBases(bases)
+	paths, missing := scanBases(bases, a.r.PathAutoListable)
 	manifest, manifestErr := a.manifestDirs(ctx)
 	paths = append(paths, manifest...)
 	sessions, daemonErr := a.daemon.Sessions(ctx)

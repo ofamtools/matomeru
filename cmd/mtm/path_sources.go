@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
@@ -92,6 +93,7 @@ func (a *App) definePathSources() {
 			return ochazuke.PickerSource{}, false
 		}
 		return ochazuke.PickerSource{
+			Section:    "Known",
 			Empty:      ochazuke.EmptyText("known directories"),
 			Loading:    ochazuke.LoadingText("known directories"),
 			LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
@@ -133,12 +135,14 @@ func (a *App) definePathSources() {
 		rows := ochazuke.ChoiceRows(choices)
 		name := projectName(p)
 		return ochazuke.PickerSource{
-			Label: func() string { return pathSourceProject + " " + name },
-			Load:  func(string) ochazuke.Result { return ochazuke.Done(rows) },
+			Section: "Project",
+			Label:   func() string { return pathSourceProject + " " + name },
+			Load:    func(string) ochazuke.Result { return ochazuke.Done(rows) },
 		}, true
 	})
 	a.r.AddPathSource(pathSourceParents, declaredOnly(pathSourceParents, func(ochazuke.PathPick) (ochazuke.PickerSource, bool) {
 		return ochazuke.PickerSource{
+			Section:    "Bases",
 			Empty:      ochazuke.EmptyText("folders holding known directories"),
 			Loading:    ochazuke.LoadingText("folders holding known directories"),
 			LoadingJob: ochazuke.JobSlot{Scope: "app", Slot: "directories"},
@@ -163,6 +167,26 @@ func (a *App) definePathSources() {
 	})
 	a.r.SetRecentPaths(func(pick ochazuke.PathPick) []string {
 		return a.recentDirectories()
+	})
+	// How often and how lately each folder was used ranks the recent source
+	// and the hybrid style's Recent section (frecency).
+	a.r.SetRecentUses(func(ochazuke.PathPick) []ochazuke.PathUse {
+		recent, err := a.work.RecentDirs()
+		if err != nil {
+			return nil
+		}
+		out := make([]ochazuke.PathUse, 0, len(recent))
+		for _, row := range recent {
+			if row.Path == "" {
+				continue
+			}
+			use := ochazuke.PathUse{Path: row.Path, Uses: int(row.Uses)}
+			if row.LastUsed > 0 {
+				use.LastUsed = time.UnixMilli(row.LastUsed)
+			}
+			out = append(out, use)
+		}
+		return out
 	})
 }
 
