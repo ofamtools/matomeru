@@ -90,12 +90,13 @@ func (d *domainDocs) with(c ochazuke.Ctx) func() {
 }
 
 // docStore preserves domain identity on create (relations are keyed by their
-// ends, reminders use stable IDs). All other CRUD runs through DocStore. Keep
-// the source's metadata, including its copy contract and list arguments.
+// ends, reminders use stable IDs) and CopyStore's record-first patch contract.
+// Other CRUD uses DocStore, retaining the source metadata and query semantics.
 func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 	d := &domainDocs{a: a, noun: noun, source: source}
 	doc := ochazuke.DocStore(d, noun)
 	out := source
+	_, copied := source.CopySource()
 	if source.ChangeToken != nil {
 		out.ChangeToken = func(c ochazuke.Ctx) (string, error) {
 			token, err := source.ChangeToken(c)
@@ -121,6 +122,11 @@ func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 	}
 	out.Patch = func(c ochazuke.Ctx, key string, t ochazuke.Thing) (ochazuke.Thing, error) {
 		c.Runtime = a.r
+		// CopyStore owns record-first writes to external keys not observed yet.
+		// Do not impose DocStore's existing-row requirement on that contract.
+		if copied {
+			return source.Patch(c, key, t)
+		}
 		defer d.with(c)()
 		return doc.Patch(c, key, t)
 	}

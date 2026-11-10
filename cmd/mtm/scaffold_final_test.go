@@ -51,6 +51,11 @@ func TestScaffoldPaneArchiveIsLocalAcrossListingsAndReopen(t *testing.T) {
 	if got["archived"] != true || len(f.panes) != 2 || len(f.killed) != 0 {
 		t.Fatalf("archive changed daemon state or was overwritten: %v, killed %v", got, f.killed)
 	}
+	executeA(t, a, "ochazuke.collection", "filter-saved", paneListID, ochazuke.Arguments{"name": "archived"})
+	if err := a.pv.tree.Select("pane:matomeru/w1"); err != nil {
+		t.Fatalf("archived pane filter omitted the retained copy: %v", err)
+	}
+	executeA(t, a, "ochazuke.collection", "filter-props-clear", paneListID, nil)
 	other := openWith(t, Options{Data: path})
 	fresh := other.panesd.(*fakePanes)
 	other.setPanes(fresh.panes, nil)

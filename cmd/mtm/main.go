@@ -856,7 +856,7 @@ func (a *App) refreshProjects() error {
 		if marked[p.ID] {
 			name += " [draft]"
 		}
-		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project", Props: ochazuke.Thing{"id": p.ID}, Cells: []string{name, countCell(open[p.ID]), tildePath(p.DefaultTree, home), p.Origin}})
+		items = append(items, ochazuke.ListItem{ID: p.ID, Label: label, Noun: "project", Props: projectThing(p), Cells: []string{name, countCell(open[p.ID]), tildePath(p.DefaultTree, home), p.Origin}})
 	}
 	for _, d := range drafts {
 		if _, exists := a.project(d.ID); !exists {
