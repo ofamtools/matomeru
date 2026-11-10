@@ -30,6 +30,9 @@ type QueryCond struct {
 	Value  any
 	// Not turns the condition over (not-contains, not-in).
 	Not bool
+	// Any and All compose conditions; leaf values remain bound SQL arguments.
+	Any []QueryCond
+	All []QueryCond
 }
 
 // QuerySort orders by one field (same Fields rule). Text sorts compare
@@ -142,6 +145,28 @@ func (c QueryCond) sql() (string, []any, error) {
 }
 
 func (c QueryCond) test() (string, []any, error) {
+	if c.Any != nil || c.All != nil {
+		children, join := c.Any, " OR "
+		if c.All != nil {
+			children, join = c.All, " AND "
+		}
+		parts := make([]string, 0, len(children))
+		var args []any
+		for _, child := range children {
+			part, values, err := child.sql()
+			if err != nil {
+				return "", nil, err
+			}
+			parts, args = append(parts, part), append(args, values...)
+		}
+		if len(parts) == 0 {
+			if c.All != nil {
+				return "1", nil, nil
+			}
+			return "0", nil, nil
+		}
+		return "(" + strings.Join(parts, join) + ")", args, nil
+	}
 	expr, err := valueExpr(c.Fields)
 	if err != nil {
 		return "", nil, err
