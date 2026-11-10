@@ -60,6 +60,16 @@ func TestPagesLoadLazily(t *testing.T) {
 	if err := b.reveal("c1"); err != nil || b.r.Instances["c1"] == nil || b.cx.load.count != 1 {
 		t.Fatalf("reveal of a context item: %v", err)
 	}
+
+	// Execute (keys, palette, MCP) resolves a target through the same hook.
+	c := newUnloaded(t, path)
+	got := executeA(t, c, "context-item", "get", "c2", nil)
+	if c.cx.load.count != 1 || got == nil {
+		t.Fatalf("get by id through Execute: count %d out %v", c.cx.load.count, got)
+	}
+	if _, err := c.r.Execute(ochazuke.Request{Noun: "context-item", Verb: "get", Target: "nope"}); err == nil {
+		t.Fatal("unknown id accepted")
+	}
 }
 
 // newUnloaded is New on the database with nothing else done to the app.

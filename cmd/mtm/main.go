@@ -320,13 +320,11 @@ func (a *App) reveal(id string) error {
 		return err
 	}
 	// Pages that load on first need (lazy.go): only an id no row names yet.
-	for _, l := range []*pageLoad{&a.notesLoad, &a.reviewsLoad, &a.cx.load} {
-		if err := l.ensure(); err != nil {
-			return err
-		}
-		if a.r.Instances[id] != nil {
-			return nil
-		}
+	if err := a.loadPagesFor(id); err != nil {
+		return err
+	}
+	if a.r.Instances[id] != nil {
+		return nil
 	}
 	return a.reloadPanes()
 }
@@ -748,6 +746,7 @@ func New(opts Options) (*App, error) {
 	// which would tell an observer of the change from the default.
 	a.observeExtNounNames()
 	a.observeArchiveViews()
+	a.hookLazyPages()
 	if a.pin, err = a.work.Pin(); err != nil {
 		db.Close()
 		return nil, err

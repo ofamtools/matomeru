@@ -34,3 +34,31 @@ func (p *pageLoad) refresh() error {
 	}
 	return p.reload()
 }
+
+// loadPagesFor loads the lazy pages, one at a time, until a row holds id.
+func (a *App) loadPagesFor(id string) error {
+	for _, l := range []*pageLoad{&a.notesLoad, &a.reviewsLoad, &a.cx.load} {
+		if a.r.Instances[id] != nil {
+			return nil
+		}
+		if err := l.ensure(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// hookLazyPages sets the one lookup-miss hook for every caller (keys,
+// palette, CLI, MCP): a target no instance names loads the lazy pages until
+// one holds it.
+func (a *App) hookLazyPages() {
+	a.r.ResolveTarget = func(target string) (string, error) {
+		if err := a.loadPagesFor(target); err != nil {
+			return "", err
+		}
+		if len(a.r.Ancestry(target)) > 0 {
+			return target, nil
+		}
+		return "", nil
+	}
+}
