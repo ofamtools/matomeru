@@ -72,7 +72,7 @@ func noteFilterRows(t *testing.T, a *App) {
 			t.Fatal(err)
 		}
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -103,7 +103,7 @@ func TestNoteMakerFiltersPageAndModal(t *testing.T) {
 	}
 	press(t, a, "z", "[")
 	assertNoteFilterFrame(t, a, "agents")
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	assertNoteFilterFrame(t, a, "agents")
@@ -132,7 +132,7 @@ func TestNoteMakerFiltersPageAndModal(t *testing.T) {
 	}
 	press(t, a, "z", "[")
 	assertNoteFilterFrame(t, a, "agents")
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	assertNoteFilterFrame(t, a, "agents")
@@ -169,7 +169,7 @@ func TestNoteMakerModalView(t *testing.T) {
 	if _, err := a.work.AddNote("matomeru", "t2", "last task note"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	executeA(t, a, "project", "outline", "matomeru", nil)

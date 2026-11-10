@@ -24,13 +24,13 @@ func notesDocApp(t *testing.T) (*App, work.Note) {
 		t.Fatal(err)
 	}
 	a.all = true
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(note.ID); err != nil {
+	if err := a.noteList.Select("notes/list/" + note.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.noteList.Focus(); err != nil {
@@ -118,7 +118,7 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 	t.Parallel()
 	a, note := notesDocApp(t)
 	press(t, a, "enter", "esc")
-	if a.r.FocusID() != note.ID {
+	if savedRowKey(a.r.Instances[a.r.FocusID()]) != note.ID {
 		t.Fatalf("esc focus %s", a.r.FocusID())
 	}
 	press(t, a, "enter", "i")
@@ -136,10 +136,10 @@ func TestNoteChecklistEditAndBack(t *testing.T) {
 	if err := a.leaveEditor(); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(plain.ID); err != nil {
+	if err := a.noteList.Select("notes/list/" + plain.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.noteList.Focus(); err != nil {
@@ -159,7 +159,7 @@ func TestNoteLinesRenderOneLinePerSourceLine(t *testing.T) {
 	if _, err := a.work.AddNote("matomeru", "", "first line\nsecond line\nthird line"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	for _, item := range a.noteList.Items() {
@@ -199,13 +199,13 @@ func TestNoteHardBreaksStayOutOfTheStore(t *testing.T) {
 			t.Fatal(err)
 		}
 		a.all = true
-		if err := a.refreshNotes(); err != nil {
+		if err := a.notesLoad.refresh(); err != nil {
 			t.Fatal(err)
 		}
 		if err := a.r.OpenPage(notesPage); err != nil {
 			t.Fatal(err)
 		}
-		if err := a.noteList.Select(note.ID); err != nil {
+		if err := a.noteList.Select("notes/list/" + note.ID); err != nil {
 			t.Fatal(err)
 		}
 		if err := a.noteList.Focus(); err != nil {
@@ -233,20 +233,20 @@ func TestNoteBodyEscLandsOnTheRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.all = true
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(note.ID); err != nil {
+	if err := a.noteList.Select("notes/list/" + note.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.noteList.Focus(); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "enter", "esc")
-	if a.r.FocusID() != note.ID {
+	if savedRowKey(a.r.Instances[a.r.FocusID()]) != note.ID {
 		t.Fatalf("esc focus %s, want the row %s", a.r.FocusID(), note.ID)
 	}
 	press(t, a, "enter")
@@ -267,13 +267,13 @@ func TestNoteChecklistDrawsTheDoc(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.all = true
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(note.ID); err != nil {
+	if err := a.noteList.Select("notes/list/" + note.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.noteList.Focus(); err != nil {

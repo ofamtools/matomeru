@@ -92,7 +92,7 @@ func (a *App) roleProp(noun, role string) string {
 }
 
 func (a *App) refreshArchiveViews() error {
-	for _, refresh := range []func() error{a.refreshTasks, a.refreshProjects, a.reloadOutline, a.refreshNotes, a.refreshContext} {
+	for _, refresh := range []func() error{a.refreshTasks, a.refreshProjects, a.reloadOutline, a.notesLoad.refresh, a.reloadContext} {
 		if err := refresh(); err != nil {
 			return err
 		}
@@ -104,7 +104,7 @@ func (a *App) observeArchiveViews() {
 	for _, row := range []struct {
 		list    *ochazuke.Collection
 		refresh func() error
-	}{{a.taskList, a.refreshTasks}, {a.noteList, a.refreshNotes}, {a.cx.list, a.refreshContext}} {
+	}{{a.taskList, a.refreshTasks}} {
 		a.observeArchiveList(row.list, row.refresh)
 	}
 	a.r.Settings().Observe(settingHideArchived, func(string, any) {

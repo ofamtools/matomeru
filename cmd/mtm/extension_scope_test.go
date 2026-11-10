@@ -423,10 +423,10 @@ func TestContextProjectWalksTheFocusStack(t *testing.T) {
 	if err := a.work.PutNote(note); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
-	focus("n1")
+	focus("notes/list/n1")
 	want("note", "ochazuke")
 
 	// A pane row and the live pane: the pane's owner.

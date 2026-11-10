@@ -14,7 +14,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
-	ocli "ofam.dev/ochazuke/cli"
 
 	"ofam.dev/matomeru/internal/drive"
 	"ofam.dev/matomeru/internal/schedules"
@@ -228,7 +227,7 @@ func (a *App) defineSchedules() {
 	// set, delete, watch) come from them (schedule_store.go); show, enable
 	// and disable are aliases; edit, toggle and set-interval run set; the
 	// rest are mtm's own.
-	a.r.Define(n).Props(a.scheduleProps()...).Store(a.scheduleStore()).Columns(scheduleColumns...).
+	a.r.Define(n).Props(a.scheduleProps()...).Store(a.docStore(n, a.scheduleStore())).Columns(scheduleColumns...).
 		Verb("add", a.addSchedule, "Add a schedule: a prompt (--prompt, --when, the agent's --harness, --model, --effort, --fast, --permission-mode, --project, --task, --dir, --target, --pane) or a command; in the TUI with no fields, a form").
 		Verb("edit", a.editSchedule, "Change a schedule's fields (the standard set: stored by mtm; a built-in or schedules.json row gets a stored copy); in the TUI with none, its form").Positional("name").ShadowsStandard().
 		Verb("duplicate", a.duplicateSchedule, "Copy a schedule to a new stored row, off (--as NAME, else NAME-copy)").Positional("name").
@@ -277,7 +276,7 @@ func (a *App) addSchedulesPage() error {
 	a.r.Instance(schedulesPage, ochazuke.Kind("page"))
 	st := a.sched
 	var err error
-	if st.list, err = a.r.AddList(scheduleListID, nil, ochazuke.Parent(schedulesPage), ochazuke.Columns(scheduleColumns...)); err != nil {
+	if st.list, err = a.r.AddList(scheduleListID, nil, ochazuke.Parent(schedulesPage), ochazuke.From(scheduleNoun), ochazuke.Columns(scheduleColumns...)); err != nil {
 		return err
 	}
 	if err := a.addRemindersList(); err != nil {
@@ -289,7 +288,7 @@ func (a *App) addSchedulesPage() error {
 	if _, err = a.r.AddPage(schedulesPage, "Schedules", a.renderSchedules, ochazuke.Focus(scheduleListID)); err != nil {
 		return err
 	}
-	a.onOpen(schedulesPage, a.refreshSchedules)
+	a.onOpen(schedulesPage, a.refillSchedules)
 	// S on the Inbox's list (empty or not) opens the Schedules page: what
 	// feeds the inbox.
 	row := ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": schedulesPage}).Hinted("schedules")
@@ -297,7 +296,7 @@ func (a *App) addSchedulesPage() error {
 	if err := a.r.Bind(row); err != nil {
 		return err
 	}
-	return a.refreshSchedules()
+	return a.refillSchedules()
 }
 
 // scheduleView is a schedule as list, show and the rows answer it.
@@ -356,6 +355,9 @@ func (a *App) viewSchedule(d schedules.Def, s schedules.State, now int64) schedu
 		} else {
 			v.Why = "auto: not checked yet"
 		}
+	}
+	if d.Archived {
+		v.Active, v.Why = false, "archived"
 	}
 	if v.Active {
 		if at, ok := d.Upcoming(s, now, d.CatchUp, a.sched.runner.Location); ok {
@@ -424,20 +426,6 @@ func (v scheduleView) nextCell(now int64) string {
 
 func (a *App) scheduleNow() int64 { return a.sched.runner.Now().UnixMilli() }
 
-// scheduleViews are every row with its state.
-func (a *App) scheduleViews() ([]scheduleView, error) {
-	states, err := a.sched.runner.States()
-	if err != nil {
-		return nil, err
-	}
-	now := a.scheduleNow()
-	var out []scheduleView
-	for _, d := range a.scheduleDefs() {
-		out = append(out, a.viewSchedule(d, states[d.Name], now))
-	}
-	return out, nil
-}
-
 // commandDrive is a command row's drive for its view; "" for a prompt row.
 func commandDrive(d schedules.Def) string {
 	if d.KindOf() != schedules.KindCommand {
@@ -446,29 +434,11 @@ func commandDrive(d schedules.Def) string {
 	return d.DriveOf()
 }
 
-func scheduleRowID(name string) string { return "schedule:" + name }
+func scheduleRowID(name string) string { return scheduleListID + "/" + name }
 
-func (a *App) scheduleRow(v scheduleView, now int64) ocli.Row {
-	return ocli.Row{Noun: scheduleNoun, ID: scheduleRowID(v.Name), Label: v.Name, Data: v, Cells: []string{
-		v.Name, v.onCell(), v.When, v.lastCell(now), v.nextCell(now), v.runsCell()}}
-}
-
-// refreshSchedules rebuilds the page's rows.
-func (a *App) refreshSchedules() error {
-	if a.sched == nil || a.sched.list == nil {
-		return nil
-	}
-	views, err := a.scheduleViews()
-	if err != nil {
-		return err
-	}
-	now := a.scheduleNow()
-	rows := make([]ochazuke.ListItem, 0, len(views))
-	for _, v := range views {
-		row := a.scheduleRow(v, now)
-		rows = append(rows, ochazuke.ListItem{ID: row.ID, Noun: scheduleNoun, Label: row.Label, Cells: row.Cells, Data: v})
-	}
-	if err := a.sched.list.SetItems(rows); err != nil {
+// refillSchedules also updates the independent daily reminder collection.
+func (a *App) refillSchedules() error {
+	if err := a.sched.list.Refill(); err != nil {
 		return err
 	}
 	return a.reminders.list.Refill()
@@ -502,7 +472,11 @@ func (a *App) scheduleSubject() (string, string, []link) {
 	if !ok {
 		return "", "", nil
 	}
-	v, ok := item.Data.(scheduleView)
+	t, ok := item.Data.(ochazuke.Thing)
+	if !ok {
+		return "", "", nil
+	}
+	v, ok := t["_view"].(scheduleView)
 	if !ok {
 		return "", "", nil
 	}
@@ -608,7 +582,7 @@ func settingPairs(ag schedules.Agent) []string {
 func (a *App) scheduleAt(ctx ochazuke.Ctx) (schedules.Def, error) {
 	name := strings.TrimPrefix(ochazuke.StringArg(ctx.Args, "name", ""), "schedule:")
 	if name == "" && ctx.Instance != nil && ctx.Instance.Noun == scheduleNoun {
-		name = strings.TrimPrefix(ctx.Instance.ID, "schedule:")
+		name, _ = ctx.Instance.Data.(ochazuke.Thing)["name"].(string)
 	}
 	if name == "" {
 		return schedules.Def{}, errors.New("specify a schedule name or select a schedule row")
@@ -627,7 +601,7 @@ func (a *App) scheduleAt(ctx ochazuke.Ctx) (schedules.Def, error) {
 // scheduleAnswer is the schedule after a change, as its props (the
 // standard verbs' answer), the rows rebuilt.
 func (a *App) scheduleAnswer(d schedules.Def) ochazuke.Result {
-	if err := a.refreshSchedules(); err != nil {
+	if err := a.refillSchedules(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	if d, ok := a.scheduleDef(d.Name); ok {
@@ -670,7 +644,7 @@ func (a *App) runScheduleNow(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Pending(func(context.Context) (any, error) {
 		return runner.RunNow(runCtx, d)
 	}).Then(func(c ochazuke.Ctx, v any, err error) {
-		if err := a.refreshSchedules(); err != nil {
+		if err := a.refillSchedules(); err != nil {
 			a.r.UI().Error(err.Error())
 		}
 		if rec, ok := v.(schedules.Record); ok && err == nil {
@@ -808,7 +782,7 @@ func (a *App) schedulesUpdate(msg tea.Msg) tea.Cmd {
 		return func() tea.Msg { return scheduleTicked{runner.Tick(ctx, defs)} }
 	case scheduleTicked:
 		a.sched.ticking = false
-		if err := a.refreshSchedules(); err != nil {
+		if err := a.refillSchedules(); err != nil {
 			a.r.UI().Error(err.Error())
 		}
 		if a.sched.after == nil {
@@ -816,7 +790,7 @@ func (a *App) schedulesUpdate(msg tea.Msg) tea.Cmd {
 		}
 		return a.sched.after(scheduleEvery, scheduleDue{})
 	case scheduleRan:
-		if err := a.refreshSchedules(); err != nil {
+		if err := a.refillSchedules(); err != nil {
 			a.r.UI().Error(err.Error())
 		}
 		a.afterScheduleRun(msg.rec)
@@ -831,7 +805,7 @@ func (a *App) schedulesUpdate(msg tea.Msg) tea.Cmd {
 // afterScheduleRun brings the run's results in: the inbox (signals), and
 // the pane list when it started or reached a pane.
 func (a *App) afterScheduleRun(rec schedules.Record) {
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 	if rec.Launched != nil && a.r.Instances[paneListID] != nil {

@@ -99,7 +99,7 @@ func (a *App) defineInbox() {
 	// set, delete, watch, move, duplicate, archive, restore) come from them
 	// (action_item_store.go); show, read, unread and toggle-read are
 	// aliases; snooze and associate run set; the rest are mtm's own.
-	a.r.Define(n).Props(actionItemProps()...).Store(a.actionItemStore()).Columns(inboxColumns...).
+	a.r.Define(n).Props(a.actionItemProps()...).Store(a.docStore(n, a.actionItemStore())).Columns(inboxColumns...).
 		Verb("add", a.addActionItem, "Record an action item; the same source and --key (else --url) refreshes its row instead of adding one. Prints the item; new is true when a row was added").
 		Verb("notify-due", a.notifyActionItems, "Send newly created action items once; shares the running TUI's baseline and claims").Agent(ochazuke.AgentAllow).
 		Verb("count", a.countActionItems, "Count the open action items and the unread ones among them").Fetch().
@@ -253,15 +253,6 @@ func inboxSig(items []actionitems.Item, now int64) string {
 		b.WriteString(it.ID + ":" + strconv.FormatInt(it.Updated, 10) + ":" + strconv.FormatInt(it.NoticeDismissedAt, 10) + ":" + it.State(now) + ";")
 	}
 	return b.String()
-}
-
-// refreshInbox reloads the rows and the title row's counts once they have
-// loaded (inboxLoad); before that nothing shows them.
-func (a *App) refreshInbox() error {
-	if a.inbox == nil || a.inbox.list == nil {
-		return nil
-	}
-	return a.inboxLoad.refresh()
 }
 
 // loadInbox is the page's load (inboxLoad): the store read and the push.
@@ -476,6 +467,8 @@ func (a *App) actionItemAt(ctx ochazuke.Ctx) (actionitems.Item, error) {
 		id = ctx.Instance.ID
 		if it, ok := ctx.Instance.Data.(actionitems.Item); ok {
 			id = it.ID
+		} else if key := savedRowKey(ctx.Instance); key != "" {
+			id = key
 		}
 	}
 	if id == "" {
@@ -487,7 +480,7 @@ func (a *App) actionItemAt(ctx ochazuke.Ctx) (actionitems.Item, error) {
 // inboxChanged reloads the rows after a change and answers the item.
 func (a *App) inboxChanged(it actionitems.Item, err error) ochazuke.Result {
 	if err == nil {
-		err = a.refreshInbox()
+		err = a.inboxLoad.refresh()
 	}
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -576,7 +569,7 @@ func (a *App) addActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	it, created, err := a.inbox.items.Add(actionitems.Spec{Source: arg("source"), URL: arg("url"), Key: arg("key"), Title: arg("title"), Why: arg("why"),
 		Text: arg("text"), Kind: arg("kind"), ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session, PaneLabel: o.PaneLabel, Extra: extra, Reopen: reopen, Notify: notify})
 	if err == nil {
-		err = a.refreshInbox()
+		err = a.inboxLoad.refresh()
 	}
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -601,7 +594,7 @@ func (a *App) openActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	if it, err = a.inbox.items.SetRead(it.ID, true); err == nil {
-		err = a.refreshInbox()
+		err = a.inboxLoad.refresh()
 	}
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -794,7 +787,7 @@ func (a *App) promoteActionItem(ctx ochazuke.Ctx, to string) ochazuke.Result {
 	}
 	it, err = a.inbox.items.Promoted(it.ID, to, t)
 	if err == nil {
-		err = errors.Join(a.refreshProjects(), a.refreshTasks(), a.refreshInbox())
+		err = errors.Join(a.refreshProjects(), a.refreshTasks(), a.inboxLoad.refresh())
 	}
 	if err != nil {
 		return ochazuke.Failed(err)

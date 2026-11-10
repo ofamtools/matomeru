@@ -24,24 +24,29 @@ import (
 
 // vimProps are a Neovim session's props: the key; its name (the label);
 // its project (move writes it) and task; and the read-only rest.
-func vimProps() []ochazuke.PropSpec {
+func (a *App) vimProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	ro := func(name, desc string) ochazuke.PropSpec {
 		return ochazuke.PropSpec{Name: name, ReadOnly: true, Parameter: text(desc)}
 	}
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The session's key")},
-		{Name: "name", Role: ochazuke.RoleLabel, Parameter: text("The session's name (mtm's record; the pane keeps its window name)")},
-		{Name: "project", Role: ochazuke.RoleOwner, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
+		{Name: "name", Role: ochazuke.RoleLabel, Parameter: ochazuke.Parameter{Type: "string", Required: true, Description: "The session's name (mtm's record; the pane keeps its window name)"}},
+		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { return a.ownerLabel(fmt.Sprint(t["project"])) }, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the session (and its running pane) belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
-		{Name: "task", Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the session belongs to; its project wins over project"}},
-		asFile(ro("path", "The session file reopen restores (:mksession; vim save writes it)")),
-		asDir(ro("cwd", "The directory Neovim starts in")),
+		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the session belongs to; its project wins over project"}},
+		{Name: "path", Aliases: []string{"session-file"}, CreateOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropPath, Path: "file", Description: "The existing session file reopen restores; metadata copies never own or remove it"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				home, _ := a.home()
+				return tildePath(fmt.Sprint(t["path"]), home)
+			}},
+		{Name: "cwd", CreateOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropPath, Path: "dir", Description: "The directory Neovim starts in"}},
 		ro("session", "The daemon session the pane opens in"),
 		ro("window", "The pane (window id) Neovim runs in, while it runs"),
 		{Name: "state", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{"running", "closed"}, Description: "running while its pane is listed and Neovim has not exited, else closed"}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the session was opened first (Unix ms)"}},
 		{Name: "updated", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the record last changed (Unix ms)"}},
+		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the record without changing its session file or live pane"}},
 	}
 }
 
@@ -63,6 +68,7 @@ func (a *App) vimStore() ochazuke.Store {
 			return a.vimThing(row, a.vimState), nil
 		},
 		List:   a.listVimThings,
+		Create: a.createVim,
 		Patch:  a.patchVim,
 		Delete: a.removeVim,
 	}
@@ -77,6 +83,7 @@ func (a *App) vimThing(row work.VimSession, state func(work.VimSession) string) 
 	return ochazuke.Thing{
 		"id": row.ID, "name": row.Name, "project": project, "task": row.TaskID, "path": row.Path, "cwd": row.Cwd,
 		"session": row.Session, "window": row.WindowID, "state": state(row), "created": row.Created, "updated": row.Updated,
+		"archived": row.Archived,
 	}
 }
 
@@ -104,20 +111,38 @@ func (a *App) listVimThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Th
 			}
 		}
 	}
-	previous := a.all
-	if all, _ := q.Args["all"].(bool); all {
-		a.all = true
-	}
-	defer func() { a.all = previous }()
-	rows, err := a.vimRowsWith(state)
+	sessions, err := a.work.VimSessions()
 	if err != nil {
 		return nil, err
 	}
-	out := []ochazuke.Thing{}
-	for _, row := range rows {
-		out = append(out, a.vimThing(row.Data.(work.VimSession), func(s work.VimSession) string { return s.State }))
+	a.vimAll = sessions
+	all, _ := q.Args["all"].(bool)
+	out := make([]ochazuke.Thing, 0, len(sessions))
+	for _, row := range sessions {
+		project, err := a.work.VimProject(row)
+		if err != nil {
+			return nil, err
+		}
+		if q.Every || all || a.inScope(project) {
+			out = append(out, a.vimThing(row, state))
+		}
 	}
 	return out, nil
+}
+
+// createVim records a recipe for reopen; only open launches Neovim.
+// A copied path is a reference, never an owned file or a running pane.
+func (a *App) createVim(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
+	row := work.VimSession{ID: work.NewID(), State: "closed", Created: work.Now(), Updated: work.Now()}
+	row.Name, _ = thingString(values, "name")
+	row.Path, _ = thingString(values, "path")
+	row.Cwd, _ = thingString(values, "cwd")
+	row.Archived, _ = values["archived"].(bool)
+	row.ProjectID, row.TaskID, _ = a.ownerWrite(c, "", "", values)
+	if err := a.work.PutVimSession(row); err != nil {
+		return nil, err
+	}
+	return a.vimThing(row, a.vimState), nil
 }
 
 // patchVim is the store's Patch: the name, and the owner, which a running
@@ -132,6 +157,9 @@ func (a *App) patchVim(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochaz
 		return nil, err
 	}
 	row.Name = props.Name
+	if archived, ok := changes["archived"].(bool); ok {
+		row.Archived = archived
+	}
 	current, err := a.work.VimProject(row)
 	if err != nil {
 		return nil, err
@@ -151,7 +179,7 @@ func (a *App) patchVim(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochaz
 		if err := a.refreshScope(); err != nil {
 			return nil, err
 		}
-	} else if err := a.refreshVim(); err != nil {
+	} else if err := a.vimList.Refill(); err != nil {
 		return nil, err
 	}
 	return a.vimThing(row, a.vimState), nil
@@ -171,7 +199,7 @@ func (a *App) removeVim(c ochazuke.Ctx, id string) error {
 	if err := a.work.ForgetVimSession(row.ID); err != nil {
 		return err
 	}
-	if err := a.refreshVim(); err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		return err
 	}
 	name := row.Name

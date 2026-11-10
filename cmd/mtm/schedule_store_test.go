@@ -63,6 +63,17 @@ func TestScheduleShowCreateDeleteAndUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")
+	if got, _ := a.scheduleDef("sweep-the-inbox"); !got.Archived {
+		t.Fatal("first delete did not archive")
+	}
+	a.sched.list.SetShowArchived(true)
+	if err := a.sched.list.Select(scheduleRowID("sweep-the-inbox")); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.sched.list.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "d", "d")
 	if fr := frame(a); !strings.Contains(fr, "Delete schedule sweep-the-inbox?") {
 		t.Fatalf("d d:\n%s", fr)
 	}

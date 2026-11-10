@@ -272,5 +272,5 @@ func (a *App) writeSignals(plan panesignals.Plan) error {
 			return err
 		}
 	}
-	return a.refreshInbox()
+	return a.inboxLoad.refresh()
 }

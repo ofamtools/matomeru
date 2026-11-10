@@ -19,7 +19,7 @@ func (a *App) defineNotes() {
 	// set, delete, watch, rename, move, duplicate) come from them
 	// (note_store.go); new and edit wrap create and set, show and
 	// choose-move are mtm's own.
-	a.r.Define("note").Filters(taskFilters()...).Props(a.noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
+	a.r.Define("note").Filters(taskFilters()...).Props(a.noteProps()...).Store(a.docStore("note", a.noteStore())).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("show", a.viewNote, "View the saved note without editing").Renamed("view", "the next mtm release (ochazuke v0.120.0)", "the following mtm release").
 		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").Many().ShadowsStandard().
@@ -60,13 +60,13 @@ func (a *App) defineNotes() {
 		save: func(record editRecord, values ochazuke.Record) (any, error) {
 			return a.saveNoteRecord(record, values)
 		},
-		refresh: a.refreshNotes,
+		refresh: a.notesLoad.refresh,
 		finish: func(record editRecord) error {
 			if err := a.r.OpenPage(notesPage); err != nil {
 				return err
 			}
-			if a.r.Instances[record.ID] != nil {
-				if err := a.noteList.Select(record.ID); err != nil {
+			if a.r.Instances["notes/list/"+record.ID] != nil {
+				if err := a.noteList.Select("notes/list/" + record.ID); err != nil {
 					return err
 				}
 			}
@@ -78,7 +78,7 @@ func (a *App) defineNotes() {
 func (a *App) addNotesPage() error {
 	a.r.Instance(notesPage, ochazuke.Kind("page"))
 	var err error
-	a.noteList, err = a.r.AddList("notes/list", nil, ochazuke.Parent(notesPage), ochazuke.RowNoun("note"), ochazuke.Columns(noteColumns...))
+	a.noteList, err = a.r.AddList("notes/list", nil, ochazuke.Parent(notesPage), ochazuke.From("note"), ochazuke.Columns(noteColumns...))
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (a *App) addNotesPage() error {
 	// list, j and k inside the body.
 	if a.detail.notes, err = a.addDetail(notesDetailID, notesPage, func() string {
 		selected, _ := a.noteList.Selected()
-		return selected.ID
+		return savedRowKey(a.r.Instances[selected.ID])
 	}, nil); err != nil {
 		return err
 	}
@@ -163,10 +163,6 @@ var noteColumns = []ochazuke.Column{
 	{Title: "updated", Priority: 4},
 }
 
-// noteAboutCell is what a note is about as a table cell: the thing as
-// noun:key, empty when it is the task (the task column says so) or nothing.
-func noteAboutCell(note work.Note) string { return aboutCell(note.AboutRef()) }
-
 // aboutCell is a stored about as a table cell: empty for a task (the task
 // column says so).
 func aboutCell(about string) string {
@@ -174,22 +170,6 @@ func aboutCell(about string) string {
 		return ""
 	}
 	return about
-}
-
-// noteOwnerCells are a note's project and task as table cells.
-func (a *App) noteOwnerCells(note work.Note) (string, string) {
-	project, err := a.work.NoteProject(note)
-	if err != nil {
-		return err.Error(), ""
-	}
-	task := ""
-	if note.TaskID != "" {
-		task = note.TaskID
-		if t, err := a.work.Task(note.TaskID); err == nil {
-			task = t.Title
-		}
-	}
-	return a.ownerLabel(project), task
 }
 
 func noteLabel(text string) string {
@@ -200,50 +180,37 @@ func noteLabel(text string) string {
 	return ansi.Truncate(line, 70, "…")
 }
 
-func (a *App) refreshNotes() error { return a.notesLoad.refresh() }
-
 // loadNotes is the page's load (notesLoad).
 func (a *App) loadNotes() error {
-	if err := a.setNoteRows(); err != nil {
+	if err := a.noteList.Refill(); err != nil {
+		return err
+	}
+	if err := a.addNoteDraftRows(); err != nil {
 		return err
 	}
 	return a.syncNoteDoc()
 }
 
-// setNoteRows pushes the notes in scope and the new-note drafts to the
-// list.
-func (a *App) setNoteRows() error {
-	if a.noteList == nil {
-		return nil
-	}
-	notes, err := a.scopedNotes()
-	if err != nil {
-		return err
-	}
+// addNoteDraftRows retains the recoverable drafts written by older mtm
+// versions. Stored note rows and their cells come only from From("note").
+func (a *App) addNoteDraftRows() error {
 	drafts, err := a.draftRecords("note")
 	if err != nil {
 		return err
+	}
+	if len(drafts) == 0 {
+		return a.syncOutlineNotes(true)
 	}
 	marked := make(map[string]bool, len(drafts))
 	for _, d := range drafts {
 		marked[d.ID] = true
 	}
-	now := a.now()
-	showArchived := a.archiveVisible(true, a.noteList)
-	items := make([]ochazuke.ListItem, 0, len(notes)+len(drafts))
-	for _, note := range notes {
-		if note.Archived && !showArchived {
-			continue
+	items := a.noteList.Items()
+	for i := range items {
+		id := savedRowKey(a.r.Instances[items[i].ID])
+		if marked[id] && len(items[i].Cells) > 0 {
+			items[i].Cells[0] += " [draft]"
 		}
-		// The label is the title, else the first line (a confirm reads
-		// it); the owner is in its own cells.
-		first := noteTitle(note)
-		if marked[note.ID] {
-			first += " [draft]"
-		}
-		label := first
-		project, task := a.noteOwnerCells(note)
-		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note", Data: a.noteThing(note), Props: a.noteThing(note), Cells: []string{first, project, task, noteAboutCell(note), sinceUse(note.Updated, now)}})
 	}
 	for _, d := range drafts {
 		if d.New && a.inScope(d.ProjectID) {
@@ -310,7 +277,10 @@ func (a *App) showNote(note work.Note) error {
 	if err := a.r.OpenPage(notesPage); err != nil {
 		return err
 	}
-	if err := a.noteList.Select(note.ID); err != nil {
+	if err := a.noteList.Refill(); err != nil {
+		return err
+	}
+	if err := a.noteList.Select("notes/list/" + note.ID); err != nil {
 		return err
 	}
 	return a.noteList.Focus()
@@ -495,7 +465,7 @@ func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		// The note is edited here, in this page's right-hand panel.
 		right = a.editorPanel(rightWidth, height)
 	} else if selected, ok := a.noteList.Selected(); ok && selected.Noun == "note" {
-		if note, err := a.work.Note(selected.ID); err == nil {
+		if note, err := a.work.Note(savedRowKey(a.r.Instances[selected.ID])); err == nil {
 			project, err := a.work.NoteProject(note)
 			if err == nil && a.inScope(project) {
 				right = ochazuke.Text(a.renderNoteBody(note, rightWidth, height))

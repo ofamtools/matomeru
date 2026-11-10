@@ -202,7 +202,7 @@ func TestInboxNotifyOffLoopHeldNoticeWithoutPageOpen(t *testing.T) {
 	if _, err := a.inbox.items.SetRead(it.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.shownNotices()) != 0 {

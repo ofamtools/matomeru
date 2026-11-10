@@ -34,7 +34,8 @@ type PaneRecipe struct {
 }
 
 type SavedPane struct {
-	ID string `json:"id"`
+	ID       string `json:"id"`
+	Archived bool   `json:"archived,omitempty"`
 	PaneRecipe
 }
 

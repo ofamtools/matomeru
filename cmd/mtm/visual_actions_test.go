@@ -22,7 +22,7 @@ func visualInbox(t *testing.T) (*App, []string, *int64) {
 		}
 		ids = append(ids, it.ID)
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "I")

@@ -45,13 +45,28 @@ const (
 // de-duplication key add matches, read-only); its owner (project, move
 // writes it; task; the pane and its session); its marks (read, archived,
 // the archive prop, snoozed-until); and read-only state and times.
-func actionItemProps() []ochazuke.PropSpec {
+func (a *App) actionItemProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	integer := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "integer", Description: desc} }
 	boolean := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "boolean", Description: desc} }
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The item's key")},
 		{Name: "title", Role: ochazuke.RoleLabel, Fallback: "summary", Parameter: text("The thing: a PR title, a message's first line; empty shows the summary")},
+		{Name: "item", ReadOnly: true, Parameter: text("The item's label and read state"),
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				it, _ := t["_item"].(actionitems.Item)
+				return inboxGlyph(it, a.inbox.items.Now()) + " " + it.Label()
+			}},
+		{Name: "for", ReadOnly: true, Parameter: text("The item's task, project or pane"),
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				it, _ := t["_item"].(actionitems.Item)
+				return a.inboxOwner(it)
+			}},
+		{Name: "when", ReadOnly: true, Parameter: text("The snooze deadline, else the item's age"),
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				it, _ := t["_item"].(actionitems.Item)
+				return a.inboxWhen(it, a.inbox.items.Now())
+			}},
 		{Name: "summary", ReadOnly: true, Parameter: text("The item's one line: its title, else why, else the URL")},
 		{Name: "why", Parameter: text("What it wants of you: review requested, CI failed, mentioned")},
 		{Name: "text", Multiline: true, Parameter: text("Details")},
@@ -86,9 +101,12 @@ func actionItemProps() []ochazuke.PropSpec {
 // row back as it was (AcceptsKey, forgotten).
 func (a *App) actionItemStore() ochazuke.Store {
 	return ochazuke.Store{
-		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.inbox.items.Version() },
-		Kind:        ochazuke.KindCollection,
-		Undo:        true, AcceptsKey: true,
+		ChangeToken: func(ochazuke.Ctx) (string, error) {
+			token, err := a.inbox.items.Version()
+			return fmt.Sprintf("%s/%d", token, a.inbox.items.Now()/inboxEvery.Milliseconds()), err
+		},
+		Kind: ochazuke.KindCollection,
+		Undo: true, AcceptsKey: true,
 		Confirm: map[string]string{"delete": "Delete {{label}}? x archives it instead."},
 		ListParams: map[string]ochazuke.Parameter{
 			"state":  {Type: "string", Enum: append([]string{actionStateAll}, actionitems.States...), Description: "Which items (default open)"},
@@ -207,6 +225,7 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 		"read": it.Read(), "archived": it.ArchivedAt > 0, "snoozed-until": it.SnoozedUntil, "state": it.State(a.inbox.items.Now()),
 		"notify": it.Notify, "notified-at": it.NotifiedAt,
 		"extra": extra, "promoted-todo": it.PromotedTodoID, "promoted-task": it.PromotedTaskID,
+		"_item":   it,
 		"created": it.Created, "updated": it.Updated, "read-at": it.ReadAt, "archived-at": it.ArchivedAt,
 	}
 }
@@ -348,7 +367,7 @@ func (a *App) createActionItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.
 	if err != nil {
 		return nil, err
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		return nil, err
 	}
 	return a.actionItemThing(made), nil
@@ -377,7 +396,7 @@ func (a *App) patchActionItem(c ochazuke.Ctx, id string, changes ochazuke.Thing)
 	if err != nil {
 		return nil, err
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		return nil, err
 	}
 	return a.actionItemThing(it), nil
@@ -395,7 +414,7 @@ func (a *App) removeActionItem(_ ochazuke.Ctx, id string) error {
 		return err
 	}
 	forget(a, actionItemNoun, it.ID, it)
-	return a.refreshInbox()
+	return a.inboxLoad.refresh()
 }
 
 // actionItemSet runs the standard set of changes on one item.

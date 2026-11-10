@@ -29,7 +29,7 @@ func vimSession(t *testing.T, a *App) work.VimSession {
 	if err := a.work.PutVimSession(row); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshVim(); err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		t.Fatal(err)
 	}
 	return row
@@ -61,6 +61,18 @@ func TestVimKeysAndWrites(t *testing.T) {
 		t.Fatal("m did not ask")
 	}
 	press(t, a, "esc", "q")
+	press(t, a, "d", "d")
+	if got, _ := a.work.VimSession(row.ID); !got.Archived {
+		t.Fatal("first delete did not archive the session")
+	}
+	if _, err := os.Stat(row.Path); err != nil {
+		t.Fatalf("archive changed the session file: %v", err)
+	}
+	executeA(t, a, "vim", "restore", "", ochazuke.Arguments{"id": row.ID})
+	openVimPage(t, a, row.ID)
+	executeA(t, a, "vim", "archive", "", ochazuke.Arguments{"id": row.ID})
+	a.vimList.SetShowArchived(true)
+	openVimPage(t, a, row.ID)
 	press(t, a, "d", "d")
 	if fr := frame(a); !strings.Contains(fr, "Forget plans? Edited files and the live pane stay.") {
 		t.Fatalf("d d:\n%s", fr)

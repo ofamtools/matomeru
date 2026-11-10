@@ -19,7 +19,7 @@ func TestContextShowsTheFocusedItemsNotes(t *testing.T) {
 		t.Fatalf("an item with no notes shows a section:\n%s", fr)
 	}
 	item, _ := a.cx.list.Selected()
-	newAbout(t, a, ochazuke.Arguments{"text": "main.go needs a split", "about": "context-item:" + item.ID})
+	newAbout(t, a, ochazuke.Arguments{"text": "main.go needs a split", "about": "context-item:" + savedRowKey(a.r.Instances[item.ID])})
 	if err := a.r.OpenPage(contextPage); err != nil {
 		t.Fatal(err)
 	}
@@ -49,20 +49,20 @@ func TestNotesPageShowsNotesAboutTheSelectedNote(t *testing.T) {
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(base.ID); err != nil {
+	if err := a.noteList.Select("notes/list/" + base.ID); err != nil {
 		t.Fatal(err)
 	}
 	if fr := frame(a); strings.Contains(fr, "Notes (") {
 		t.Fatalf("a note with no notes shows a section:\n%s", fr)
 	}
 	newAbout(t, a, ochazuke.Arguments{"text": "a remark on the base", "about": "note:" + base.ID})
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(base.ID); err != nil {
+	if err := a.noteList.Select("notes/list/" + base.ID); err != nil {
 		t.Fatal(err)
 	}
 	if fr := frame(a); !strings.Contains(fr, "Notes (") || !strings.Contains(fr, "a remark on the base") {

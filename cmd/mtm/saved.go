@@ -24,7 +24,7 @@ func (a *App) defineSaved() {
 	// set, delete, watch, move, duplicate) come from them (saved_store.go);
 	// forget is delete's lasting alias, r is edit of @label, m edit of @owner, associate's old
 	// forms run set; save, reopen and the chooser are mtm's own.
-	a.r.Define("saved").Props(a.savedProps()...).Store(a.savedStore()).Columns(savedColumns...).
+	a.r.Define("saved").Props(a.savedProps()...).Store(a.docStore("saved", a.savedStore())).Columns(savedColumns...).
 		Verb("save", a.savePane, "Save a live pane's confirmed launch recipe").Positional("pane", "name").
 		Verb("reopen", a.reopenSaved, "Attach the live pane, otherwise relaunch its recorded argv").Positional("id").
 		Verb("associate", a.associateSaved, "Choose the project to move the record and its live pane to (omit the owner); --project, --task and --scratch are the deprecated forms of move and set").Positional("id").Many().
@@ -73,6 +73,9 @@ func (a *App) addSavedPage() error {
 
 // savedRowKey is the record key a saved row stands for: its thing's id.
 func savedRowKey(row *ochazuke.Instance) string {
+	if row == nil {
+		return ""
+	}
 	if t, ok := row.Data.(ochazuke.Thing); ok {
 		id, _ := t["id"].(string)
 		return id

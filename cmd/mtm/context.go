@@ -11,12 +11,10 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
-	ocli "ofam.dev/ochazuke/cli"
 
 	"ofam.dev/matomeru/internal/contextitems"
 	"ofam.dev/matomeru/internal/history"
@@ -44,7 +42,7 @@ const (
 // contextColumns are the context-item noun's table; narrow, the source
 // drops first, then the project, then the age.
 var contextColumns = []ochazuke.Column{
-	{Title: "kind", Min: 6},
+	{Title: "type", Min: 6},
 	{Title: "text", Min: 20},
 	{Title: "source", Priority: 3},
 	{Title: "project", Priority: 2},
@@ -117,7 +115,7 @@ func (a *App) defineContext() {
 	// set, delete, watch, move, duplicate) come from them
 	// (context_store.go); forget is delete's lasting alias, star and
 	// associate run set and move; the rest are mtm's own.
-	a.r.Define(contextNoun).Filters(contextFilters()...).Props(contextProps()...).Store(a.contextStore()).Columns(contextColumns...).
+	a.r.Define(contextNoun).Filters(contextFilters()...).Props(a.contextProps()...).Store(a.docStore(contextNoun, a.contextStore())).Columns(contextColumns...).
 		Verb("copy", a.copyContext, "Copy the item's text to the clipboard (OSC 52 when no clipboard program serves the session)").Positional("id").
 		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
@@ -171,14 +169,14 @@ func (a *App) addContextPage() error {
 	}
 	a.r.Instances[contextQueryID].Unfocusable = true
 	var err error
-	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.RowNoun(contextNoun), ochazuke.Columns(contextColumns...)); err != nil {
+	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.From(contextNoun), ochazuke.Columns(contextColumns...)); err != nil {
 		return err
 	}
 	// The focused item's notes, in a region under the table that exists
 	// only while it has some (contextNotes).
 	if a.detail.context, err = a.addDetailAbout(contextDetailID, contextPage, func() string {
 		item, _ := a.cx.list.Selected()
-		return item.ID
+		return savedRowKey(a.r.Instances[item.ID])
 	}, nil, a.r.SelectionTarget(func() *ochazuke.Collection { return a.cx.list })); err != nil {
 		return err
 	}
@@ -213,18 +211,18 @@ func (a *App) reloadContext() error {
 	if a.cx == nil || a.cx.list == nil {
 		return nil
 	}
+	if picker := a.r.Chooser(contextPicker); picker != nil {
+		if err := a.reloadContextItems(); err != nil {
+			return err
+		}
+		picker.SetRows(a.contextPickSpec(a.cx.picking).rows())
+	}
 	return a.cx.load.refresh()
 }
 
-// loadContext reads the items from the store and pushes the rows.
+// loadContext refills only the visible window, never the whole table.
 func (a *App) loadContext() error {
-	tok, _ := a.contexts.Version() // before the read, so a write in between is read next time
-	items, err := a.contexts.All()
-	if err != nil {
-		return err
-	}
-	a.cx.items, a.cx.itemsTok = items, tok
-	return a.refreshContext()
+	return a.cx.list.Refill()
 }
 
 // contextProjects maps every task to its project, so an item owned by a
@@ -249,26 +247,6 @@ func itemProject(it contextitems.Item, tasks map[string]string) string {
 	return tasks[it.TaskID]
 }
 
-// contextRows are the items in scope (the pin, unless all) of kind ("" for
-// any) matching the query's words: starred first, then the newest.
-func (a *App) contextRows(kind, query string, all bool) []ocli.Row {
-	tasks := a.contextProjects()
-	now := a.now()
-	showArchived := a.archiveVisible(true, a.cx.list)
-	var rows []ocli.Row
-	for _, it := range a.contextItemsIn(kind, all, tasks) {
-		if it.Archived && !showArchived {
-			continue
-		}
-		cells := a.contextCells(it, itemProject(it, tasks), now)
-		if query != "" && !wordsMatch(query, strings.Join(cells, " ")) {
-			continue
-		}
-		rows = append(rows, ocli.Row{Noun: contextNoun, ID: it.ID, Label: it.Text, Cells: cells, Data: it})
-	}
-	return rows
-}
-
 // cmpBool orders false before true.
 func cmpBool(x, y bool) int {
 	switch {
@@ -278,23 +256,6 @@ func cmpBool(x, y bool) int {
 		return 1
 	}
 	return -1
-}
-
-// contextCells is a row's cells in contextColumns order.
-func (a *App) contextCells(it contextitems.Item, project string, now time.Time) []string {
-	text := a.itemCell(it)
-	if it.Exists != nil && !*it.Exists {
-		text += " (missing)"
-	}
-	source := shortSession(it.Session)
-	if it.Pane != "" {
-		source += "/" + it.Pane
-	}
-	star := ""
-	if it.Starred {
-		star = "★"
-	}
-	return []string{it.Kind, text, source, a.ownerLabel(project), age(now.Sub(time.UnixMilli(it.Seen()))), star}
 }
 
 // itemCell is an item's text for a cell: a path as pathCell shortens it
@@ -310,24 +271,25 @@ func (a *App) itemCell(it contextitems.Item) string {
 	return it.Text
 }
 
-// refreshContext pushes the filtered rows; selection is kept by id.
-func (a *App) refreshContext() error {
-	if a.cx == nil || a.cx.list == nil || !a.cx.load.loaded {
-		return nil
-	}
+// syncContextView applies the curated kind and search controls to the index.
+func (a *App) syncContextView() error {
 	a.cx.seen = string(a.cx.query.Text)
-	rows := a.contextRows(a.cx.kind, a.cx.seen, false)
-	items := make([]ochazuke.ListItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, ochazuke.ListItem{ID: row.ID, Noun: contextNoun, Label: row.Label, Cells: row.Cells, Data: row.Data})
+	a.cx.list.SetFilter(a.cx.seen)
+	condition := ochazuke.PropFilter{Prop: "type"}
+	if a.cx.kind != "" {
+		condition.Value = a.cx.kind
 	}
-	if err := a.cx.list.SetItems(items); err != nil {
-		return err
+	return setCollectionCondition(a.cx.list, condition)
+}
+
+// setCollectionCondition changes one declared condition without losing the
+// user's other property filters. A nil value removes that condition.
+func setCollectionCondition(list *ochazuke.Collection, condition ochazuke.PropFilter) error {
+	filters := slices.DeleteFunc(list.PropFilters(), func(f ochazuke.PropFilter) bool { return f.Prop == condition.Prop })
+	if condition.Value != nil {
+		filters = append(filters, condition)
 	}
-	if picker := a.r.Chooser(contextPicker); picker != nil {
-		picker.SetRows(a.contextPickSpec(a.cx.picking).rows())
-	}
-	return nil
+	return list.SetPropFilters(filters)
 }
 
 // filterContext refilters when the search text changed (after every update).
@@ -335,7 +297,7 @@ func (a *App) filterContext() {
 	if a.cx == nil || a.cx.query == nil || string(a.cx.query.Text) == a.cx.seen {
 		return
 	}
-	if err := a.refreshContext(); err != nil {
+	if err := a.syncContextView(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 }
@@ -422,10 +384,14 @@ func (a *App) contextNotes(width, body int) (string, int) {
 
 // contextEmpty says why the table is empty and what fills it.
 func (a *App) contextEmpty() string {
-	hidden := len(a.contextRows(a.cx.kind, string(a.cx.query.Text), true))
+	page, err := a.contextTableQuery().Query(ochazuke.Ctx{}, ochazuke.ListQuery{Every: true, Args: ochazuke.Arguments{"all": true, "kind": a.cx.kind}, Text: string(a.cx.query.Text), PerPage: 1})
+	if err != nil {
+		return err.Error()
+	}
+	hidden := page.Total
 	var why []string
 	switch {
-	case len(a.cx.items) == 0:
+	case hidden == 0:
 		why = append(why, "nothing yet: paths, URLs, PRs, branches and commits appear here as panes print them")
 	case hidden > 0:
 		why = append(why, fmt.Sprintf("none in %s; %d in other projects (S shows all)", a.ownerLabel(a.pin), hidden))
@@ -442,7 +408,7 @@ func (a *App) contextEmpty() string {
 func (a *App) contextAt(ctx ochazuke.Ctx) (contextitems.Item, error) {
 	id := ochazuke.StringArg(ctx.Args, "id", "")
 	if id == "" && ctx.Instance != nil && ctx.Instance.Noun == contextNoun {
-		id = ctx.Instance.ID
+		id = savedRowKey(ctx.Instance)
 	}
 	if id == "" {
 		return contextitems.Item{}, errors.New("specify a context item id or select a row")
@@ -564,7 +530,7 @@ func (a *App) cycleContextKind(ochazuke.Ctx) ochazuke.Result {
 	kinds := append([]string{""}, contextitems.Kinds...)
 	i := slices.Index(kinds, a.cx.kind)
 	a.cx.kind = kinds[(i+1)%len(kinds)]
-	if err := a.refreshContext(); err != nil {
+	if err := a.syncContextView(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(cmp.Or(a.cx.kind, "all"))

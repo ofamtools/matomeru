@@ -296,7 +296,7 @@ func TestNotesPageAboutColumn(t *testing.T) {
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	fr := frame(a)

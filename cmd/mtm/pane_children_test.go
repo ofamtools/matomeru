@@ -93,7 +93,7 @@ func TestPaneItemsStayWithTheirPaneWhenRead(t *testing.T) {
 	if _, err := a.inbox.items.Update(it.ID, func(i *actionitems.Item) error { i.ReadAt = 1; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if got := sectionOfRow(a, row); got != sectionPanes {
@@ -156,7 +156,7 @@ func TestPaneChildItemsStates(t *testing.T) {
 	if _, err := a.inbox.items.Update(it.ID, func(i *actionitems.Item) error { i.SnoozedUntil = until; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	row := "pane:s/widle"

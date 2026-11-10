@@ -16,7 +16,6 @@ import (
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
-	ocli "ofam.dev/ochazuke/cli"
 )
 
 const vimPage = "vim-sessions"
@@ -31,12 +30,12 @@ func (a *App) defineVim() {
 	// Props and the store first: the standard verbs (get, list, set,
 	// delete, watch, rename, move) come from them (vim_store.go); forget is
 	// delete's lasting alias; open, save and reopen are mtm's own.
-	a.r.Define("vim").Props(vimProps()...).Store(a.vimStore()).Columns(vimColumns...).
+	a.r.Define("vim").Props(a.vimProps()...).Store(a.docStore("vim", a.vimStore())).Columns(vimColumns...).
 		Verb("open", a.openVim, "Open real Neovim; optional file or directory, otherwise a scratch buffer").Positional("path").
 		Verb("save", a.saveVim, "Write :mksession through Neovim RPC; edited files are not written").Positional("path").
 		Verb("reopen", a.reopenVim, "Attach the live pane or restore its saved Neovim session").Positional("id").
 		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
-		Mode("normal").Bind("n", ochazuke.Do("vim.open")).Bind("w", ochazuke.Do("vim.save")).
+		Mode("normal").Bind("w", ochazuke.Do("vim.save")).
 		Bind("enter", ochazuke.Do("vim.reopen")).Bind("m", ochazuke.Do("vim.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	// forget is the noun's own word for delete, kept as a lasting alias:
 	// vim forget ID works as before.
@@ -56,7 +55,7 @@ func (a *App) defineVim() {
 func (a *App) addVimPage() error {
 	a.r.Instance(vimPage, ochazuke.Kind("page"))
 	var err error
-	a.vimList, err = a.r.AddList(vimListID, nil, ochazuke.Parent(vimPage), ochazuke.Columns(vimColumns...))
+	a.vimList, err = a.r.AddList(vimListID, nil, ochazuke.Parent(vimPage), ochazuke.From("vim"), ochazuke.Columns(vimColumns...))
 	if err != nil {
 		return err
 	}
@@ -66,45 +65,8 @@ func (a *App) addVimPage() error {
 	if _, err := a.r.AddPage(vimPage, "Vim", a.renderVim, ochazuke.Focus(vimListID)); err != nil {
 		return err
 	}
-	a.onOpen(vimPage, a.refreshVim)
-	// n opens one from the empty list too; the list refreshes itself
-	// (on opening the page and with every pane listing), so no key does.
-	row := ochazuke.Do("vim.open")
-	row.Instance, row.Mode, row.Keys = vimListID, "normal", "n"
-	if err := a.r.Bind(row); err != nil {
-		return err
-	}
-	return a.refreshVim()
-}
-
-func (a *App) vimRows() ([]ocli.Row, error) { return a.vimRowsWith(a.vimState) }
-
-// vimRowsWith is the rows in scope, each session's state from state.
-func (a *App) vimRowsWith(state func(work.VimSession) string) ([]ocli.Row, error) {
-	sessions, err := a.work.VimSessions()
-	if err != nil {
-		return nil, err
-	}
-	a.vimAll = sessions
-	rows := make([]ocli.Row, 0, len(sessions))
-	home, _ := a.home() // paths read with ~, as on every other page
-	for _, session := range sessions {
-		project, err := a.work.VimProject(session)
-		if err != nil {
-			return nil, err
-		}
-		if !a.inScope(project) {
-			continue
-		}
-		label := session.Name
-		if label == "" {
-			label = "untitled"
-		}
-		session.State = state(session)
-		rows = append(rows, ocli.Row{Noun: "vim", ID: session.ID, Label: label,
-			Cells: []string{label, a.ownerLabel(project), session.State, tildePath(session.Path, home)}, Data: session})
-	}
-	return rows, nil
+	a.onOpen(vimPage, a.vimList.Refill)
+	return a.vimList.Refill()
 }
 
 // vimState is a session's state from the last pane listing: running
@@ -131,21 +93,6 @@ func (a *App) vimState(session work.VimSession) string {
 	return "closed"
 }
 
-func (a *App) refreshVim() error {
-	if a.vimList == nil {
-		return nil
-	}
-	rows, err := a.vimRows()
-	if err != nil {
-		return err
-	}
-	items := make([]ochazuke.ListItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, ochazuke.ListItem{ID: row.ID, Noun: row.Noun, Label: row.Label, Cells: row.Cells, Data: row.Data})
-	}
-	return a.vimList.SetItems(items)
-}
-
 func (a *App) vimAt(ctx ochazuke.Ctx) (work.VimSession, error) {
 	if id := ochazuke.StringArg(ctx.Args, "id", ""); id != "" {
 		return a.work.VimSession(id)
@@ -153,7 +100,7 @@ func (a *App) vimAt(ctx ochazuke.Ctx) (work.VimSession, error) {
 	window := ochazuke.StringArg(ctx.Args, "pane", "")
 	if window == "" && ctx.Instance != nil {
 		if ctx.Instance.Noun == "vim" {
-			return a.work.VimSession(ctx.Instance.ID)
+			return a.work.VimSession(savedRowKey(ctx.Instance))
 		}
 		if ctx.Instance.Noun == "pane" {
 			p, err := a.paneAt(ctx.Instance)
@@ -245,7 +192,7 @@ func (a *App) startVim(session work.VimSession, owner Owner, path string, reopen
 	version := a.pinVersion
 	return ochazuke.Pending(a.vimLaunchJob(session, owner, path, reopen)).Then(func(ctx ochazuke.Ctx, value any, err error) {
 		if done, ok := value.(vimStarted); ok && err == nil {
-			if refreshErr := a.refreshVim(); refreshErr != nil {
+			if refreshErr := a.vimList.Refill(); refreshErr != nil {
 				ctx.Notify(refreshErr.Error())
 			}
 			if !a.cli {
@@ -439,7 +386,7 @@ func (a *App) saveVim(ctx ochazuke.Ctx) ochazuke.Result {
 		return current, nil
 	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
-			if err := a.refreshVim(); err != nil {
+			if err := a.vimList.Refill(); err != nil {
 				ctx.Notify(err.Error())
 			}
 		}

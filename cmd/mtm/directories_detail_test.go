@@ -66,7 +66,7 @@ func linkedFixture(t *testing.T) linked {
 	if err := a.savedList.Refill(); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshVim(); err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		t.Fatal(err)
 	}
 	return l
@@ -174,7 +174,7 @@ func TestDirectoriesLinksJumpToTheirRows(t *testing.T) {
 		{linkPane, l.paneRow, panesPage, l.paneRow},
 		{linkDirectory, l.worktree, directoriesPage, "directory:" + l.worktree},
 		{linkSaved, l.savedID, savedPage, savedListID + "/" + l.savedID},
-		{linkVim, l.vimID, vimPage, l.vimID},
+		{linkVim, l.vimID, vimPage, vimListID + "/" + l.vimID},
 	} {
 		back()
 		followLinkTo(t, a, a.detail.dirs, c.kind, c.id)

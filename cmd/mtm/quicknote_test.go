@@ -143,7 +143,7 @@ func TestQuickNoteFromPanesOpensTheNoteList(t *testing.T) {
 	if got := notesOf(t, a)[id].Text; got != "Note from Panes" {
 		t.Fatalf("ctrl+o did not write: %q", got)
 	}
-	if sel, ok := a.noteList.Selected(); !ok || sel.ID != id || a.r.FocusID() != id {
+	if sel, ok := a.noteList.Selected(); !ok || savedRowKey(a.r.Instances[sel.ID]) != id || a.r.FocusID() != sel.ID {
 		t.Fatalf("Notes page on %+v, focus %s", sel, a.r.FocusID())
 	}
 }

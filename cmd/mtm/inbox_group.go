@@ -142,8 +142,8 @@ func (a *App) inboxGrouping() inboxGrouping {
 	return inboxGroupTable[0]
 }
 
-// groupInboxRows puts rows (one per item, in the store's order) under
-// group headers and in group order.
+// groupInboxRows preserves the curated Items view until windowed From lists
+// support grouping; the independent noun index already uses the scaffold.
 func (a *App) groupInboxRows(items []actionitems.Item, rows []ochazuke.ListItem, now int64) []ochazuke.ListItem {
 	g := a.inboxGrouping()
 	if g.of == nil || len(items) != len(rows) {

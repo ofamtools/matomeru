@@ -236,6 +236,7 @@ func projectDir(p work.Project) string {
 }
 
 func (a *App) refreshScope() error {
+	a.scopeDocLists()
 	a.refreshTitle()
 	a.preview = preview{}
 	a.captureErr, a.landErr = "", ""
@@ -269,14 +270,14 @@ func (a *App) refreshScope() error {
 	if err := a.refreshTasks(); err != nil {
 		return err
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		return err
 	}
 	a.r.Changed("saved")
-	if err := a.refreshVim(); err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		return err
 	}
-	if err := a.refreshContext(); err != nil {
+	if err := a.cx.list.Refill(); err != nil {
 		return err
 	}
 	// The listing again under the new pin, never a listing of its own:

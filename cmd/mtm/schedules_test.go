@@ -263,8 +263,8 @@ func TestSchedulePageKeys(t *testing.T) {
 	a, f, _ := scheduleApp(t)
 	toPage(t, a, inboxPage)
 	press(t, a, "S")
-	if sel, _ := a.sched.list.Selected(); sel.ID != "schedule:gh-signals" {
-		t.Fatalf("first row %s", sel.ID)
+	if err := a.sched.list.Select(scheduleRowID("gh-signals")); err != nil {
+		t.Fatal(err)
 	}
 	settle(a, key(t, a, "r"))
 	if f.runs() != 1 {

@@ -166,6 +166,8 @@ type Agent struct {
 type Def struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Archived    bool   `json:"archived,omitempty"`
 	// Kind is what a run does: command (the default when Command is
 	// given) or prompt (the default when Prompt is).
 	Kind    string   `json:"kind,omitempty"`
@@ -699,6 +701,9 @@ func (r *Runner) expand(s string) string {
 // An auto schedule's checks run at most every probeEvery and may take a
 // few seconds; call it off the UI loop (Tick does).
 func (r *Runner) Active(ctx context.Context, def Def) (bool, string) {
+	if def.Archived {
+		return false, "archived"
+	}
 	switch def.Enabled {
 	case On:
 		return true, ""

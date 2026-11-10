@@ -342,7 +342,7 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	if err := a.work.PutNote(note); err != nil {
 		return nil, err
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		return nil, err
 	}
 	stored, err := a.work.Note(note.ID)
@@ -410,7 +410,7 @@ func (a *App) patchNote(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 			return nil, err
 		}
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		return nil, err
 	}
 	return a.noteThing(note), nil
@@ -438,7 +438,7 @@ func (a *App) removeNote(c ochazuke.Ctx, id string) error {
 	if err := a.drafts.Clear("note", note.ID); err != nil {
 		return err
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		return err
 	}
 	c.Notify("Deleted note " + noteTitle(note))

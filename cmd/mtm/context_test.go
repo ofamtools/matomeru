@@ -296,6 +296,7 @@ func TestContextItemAssociateFromARowAsks(t *testing.T) {
 	a, _ := contextAppAt(t, seeded(t))
 	selectContext(t, a, "1ba025f")
 	row := a.r.FocusID()
+	id := savedRowKey(a.r.Instances[row])
 	if _, err := a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "associate", Target: row}); err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +305,7 @@ func TestContextItemAssociateFromARowAsks(t *testing.T) {
 	}
 	typeText(t, a, "ochazuke")
 	press(t, a, "enter")
-	if it, _ := a.contexts.Get(row); it.ProjectID != "ochazuke" {
+	if it, _ := a.contexts.Get(id); it.ProjectID != "ochazuke" {
 		t.Fatalf("chosen: %+v", it)
 	}
 }

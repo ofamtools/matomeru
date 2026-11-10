@@ -138,7 +138,7 @@ func (a *App) saveTaskEvidence(before, after work.Task, args ochazuke.Arguments)
 	if _, err := a.work.AddNote(after.ProjectID, after.ID, note); err != nil {
 		return err
 	}
-	return a.refreshNotes()
+	return a.notesLoad.refresh()
 }
 
 func (a *App) documentReport(c ochazuke.Ctx) ochazuke.Result {
@@ -186,7 +186,7 @@ func (a *App) documentReport(c ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		return ochazuke.Failed(err)
 	}
 	result := map[string]any{"path": path, "title": title, "kind": kind, "summary": summary, "task_id": id.TaskID, "project_id": id.ProjectID, "size": info.Size(), "note_id": note.ID}

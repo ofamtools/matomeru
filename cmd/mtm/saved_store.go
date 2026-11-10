@@ -63,6 +63,7 @@ func (a *App) savedProps() []ochazuke.PropSpec {
 		{Name: "flags", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "The harness flags the agent was launched with"}},
 		{Name: "window", ReadOnly: true, Parameter: text("The pane (window id) the record reopens: attached while it is live")},
 		{Name: "session", ReadOnly: true, Parameter: text("The session the pane was in")},
+		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the saved recipe without changing its pane"}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the record was saved (Unix ms)"}},
 		{Name: "updated", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the record last changed (Unix ms)"}},
 	}
@@ -122,6 +123,7 @@ func savedThing(row work.SavedPane) ochazuke.Thing {
 		"command": slices.Clone(row.Command), "cwd": row.Cwd, "harness": row.Harness, "model": row.Model,
 		"flags": slices.Clone(row.Flags), "window": row.Window, "session": row.Session,
 		"created": row.Created, "updated": row.Updated,
+		"archived": row.Archived,
 	}
 	if t["command"] == nil {
 		t["command"] = []string{}
@@ -186,6 +188,9 @@ func (a *App) createSaved(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing
 	if v, ok := thingString(values, "name"); ok {
 		row.Name = v
 	}
+	if archived, ok := values["archived"].(bool); ok {
+		row.Archived = archived
+	}
 	for name, field := range map[string]*string{"cwd": &row.Cwd, "harness": &row.Harness, "model": &row.Model} {
 		if v, ok := thingString(values, name); ok {
 			*field = v
@@ -222,6 +227,9 @@ func (a *App) patchSaved(c ochazuke.Ctx, id string, changes ochazuke.Thing) (och
 		return nil, err
 	}
 	row.Name = props.Name
+	if archived, ok := changes["archived"].(bool); ok {
+		row.Archived = archived
+	}
 	project, task, owned := a.ownerWrite(c, row.ProjectID, row.TaskID, changes)
 	if owned {
 		row.ProjectID, row.TaskID = project, task

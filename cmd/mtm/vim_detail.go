@@ -20,10 +20,11 @@ func (a *App) vimSubject() (string, string, []link) {
 	if !ok {
 		return "", "", nil
 	}
-	v, ok := item.Data.(work.VimSession)
-	if !ok {
+	v, err := a.work.VimSession(savedRowKey(a.r.Instances[item.ID]))
+	if err != nil {
 		return "", "", nil
 	}
+	v.State = a.vimState(v)
 	project, err := a.work.VimProject(v)
 	if err != nil {
 		project = v.ProjectID

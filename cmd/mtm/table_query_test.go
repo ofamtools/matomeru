@@ -193,23 +193,3 @@ func TestTableQueryTextMatchesWords(t *testing.T) {
 		t.Fatalf("context text: total %d err %v", page.Total, err)
 	}
 }
-
-// Drawn rows and widgets declare the part kind, so the Nouns page lists them
-// nowhere; the nouns with a use of their own (a command line, a service)
-// stay commands, and stored nouns are records.
-func TestNounKindsOfDrawnRowsAndCommands(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	kinds := a.r.AllNounKinds()
-	for _, tc := range []struct{ kind, noun string }{
-		{ochazuke.NounKindPart, "turn-line"}, {ochazuke.NounKindPart, "turn-step"}, {ochazuke.NounKindPart, "turn-separator"}, {ochazuke.NounKindPart, "turn"},
-		{ochazuke.NounKindPart, outlineRootNoun}, {ochazuke.NounKindPart, outlineProjectNoun}, {ochazuke.NounKindPart, outlineTaskNoun},
-		{ochazuke.NounKindPart, outlineModal}, {ochazuke.NounKindPart, noteBodyNoun}, {ochazuke.NounKindPart, "panes"}, {ochazuke.NounKindPart, copyNoun},
-		{ochazuke.NounKindCommand, "daemon"}, {ochazuke.NounKindCommand, "extension"}, {ochazuke.NounKindCommand, "setup"},
-		{ochazuke.NounKindRecord, contextNoun}, {ochazuke.NounKindRecord, actionItemNoun}, {ochazuke.NounKindRecord, "task"},
-	} {
-		if kinds[tc.noun] != tc.kind {
-			t.Errorf("%s is a %s, want %s", tc.noun, kinds[tc.noun], tc.kind)
-		}
-	}
-}

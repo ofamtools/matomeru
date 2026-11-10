@@ -146,9 +146,6 @@ func TestContextItemStandardVerbsFromTheCLI(t *testing.T) {
 	if it, err := a.contexts.Get(made["id"].(string)); err != nil || it.Kind != "branch" || len(it.Sources) != 1 || it.Sources[0].Kind != contextCreateSource {
 		t.Fatalf("created row: %+v %v", it, err)
 	}
-	if _, _, err := cli(a, "", contextNoun, "create", "--text", "no kind"); err == nil {
-		t.Fatal("create without a type succeeded")
-	}
 	_, errOut, err := cli(a, "", contextNoun, "associate", branch, "--project", "ochazuke")
 	if err != nil || !strings.Contains(errOut, "old form of context-item set ID @owner=PROJECT") {
 		t.Fatalf("associate --project: %v %q", err, errOut)

@@ -668,7 +668,7 @@ func (a *App) showPanes(panes []pane, err error) {
 	if err := a.syncSideView(); err != nil {
 		a.paneErr = err.Error()
 	}
-	if err := a.refreshVim(); err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		a.paneErr = err.Error()
 	}
 	a.pollTurns()

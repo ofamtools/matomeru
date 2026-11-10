@@ -40,6 +40,20 @@ func TestSavedForgetKeyAndUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")
+	if got, _ := a.work.SavedPane(row.ID); !got.Archived {
+		t.Fatal("first delete did not archive")
+	}
+	executeA(t, a, "saved", "restore", "", ochazuke.Arguments{"id": row.ID})
+	if err := a.r.Settings().Set(ochazuke.HideArchivedSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.savedList.Select(savedListID + "/" + row.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.savedList.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "d", "d", "d", "d")
 	if fr := frame(a); !strings.Contains(fr, "Forget tests? Its pane keeps running.") {
 		t.Fatalf("d d:\n%s", fr)
 	}
@@ -50,6 +64,7 @@ func TestSavedForgetKeyAndUndo(t *testing.T) {
 	executeA(t, a, "history-entry", "undo", "", nil)
 	back, err := a.work.SavedPane(row.ID)
 	back.Updated, row.Updated = 0, 0
+	row.Archived = true
 	if err != nil || !reflect.DeepEqual(back, row) {
 		t.Fatalf("undo: %+v %v, want %+v", back, err, row)
 	}

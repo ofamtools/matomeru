@@ -14,7 +14,7 @@ func openVimPage(t *testing.T, a *App, id string) {
 		t.Fatal(err)
 	}
 	a.Update(nil)
-	if err := a.vimList.Select(id); err != nil {
+	if err := a.vimList.Select(vimListID + "/" + id); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.vimList.Focus(); err != nil {
@@ -82,7 +82,7 @@ func TestVimDetailScrollsWithJK(t *testing.T) {
 		t.Fatalf("the detail fits:\n%s", sizedFrame(a, 140, 14))
 	}
 	press(t, a, "2", "J")
-	if sizedFrame(a, 140, 14); d.Offset() != 2 || a.r.FocusID() != l.vimID {
+	if sizedFrame(a, 140, 14); d.Offset() != 2 || savedRowKey(a.r.Instances[a.r.FocusID()]) != l.vimID {
 		t.Fatalf("2J: offset %d focus %s", d.Offset(), a.r.FocusID())
 	}
 	press(t, a, "K")

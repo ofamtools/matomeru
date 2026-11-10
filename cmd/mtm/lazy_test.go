@@ -57,7 +57,7 @@ func TestPagesLoadLazily(t *testing.T) {
 	}
 
 	b := newUnloaded(t, path)
-	if err := b.reveal("c1"); err != nil || b.r.Instances["c1"] == nil || b.cx.load.count != 1 {
+	if err := b.reveal("c1"); err != nil || b.r.Instances[contextListID+"/c1"] == nil || b.cx.load.count != 1 {
 		t.Fatalf("reveal of a context item: %v", err)
 	}
 

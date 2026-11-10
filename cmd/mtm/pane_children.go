@@ -271,14 +271,14 @@ func (a *App) refreshInboxPaneNames() {
 	if a.inbox == nil || a.inbox.list == nil || !a.inboxLoad.loaded || a.inboxGroupSig(a.inbox.all) == a.inbox.paneSig {
 		return
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 }
 
 // groupSettingChanged rebuilds the Inbox rows under the new grouping.
 func (a *App) groupSettingChanged() {
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 }

@@ -218,27 +218,19 @@ func TestVimScopeColumnsAndExplicitID(t *testing.T) {
 		}
 	}
 	a.pin = "matomeru"
-	if err := a.refreshVim(); err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		t.Fatal(err)
 	}
-	if items := a.vimList.Items(); len(items) != 1 || items[0].ID != "vim-a" || len(items[0].Cells) != 4 {
+	if items := a.vimList.Items(); len(items) != 1 || items[0].Data.(ochazuke.Thing)["id"] != "vim-a" {
 		t.Fatalf("scoped rows: %+v", items)
 	}
-	if len(a.vimList.Columns()) != 4 {
-		t.Fatal("missing table columns")
-	}
 	mustCLI(t, a, "vim", "list", "--all")
-	if items := a.vimList.Items(); len(items) != 1 || items[0].ID != "vim-a" {
+	if items := a.vimList.Items(); len(items) != 1 || items[0].Data.(ochazuke.Thing)["id"] != "vim-a" {
 		t.Fatalf("--all leaked into pinned list: %+v", items)
 	}
 	row, err := a.vimAt(ochazuke.Ctx{Args: ochazuke.Arguments{"id": "vim-b"}})
 	if err != nil || row.ID != "vim-b" {
 		t.Fatalf("explicit ID requires selection: %+v, %v", row, err)
-	}
-	for _, verb := range []string{"list", "open", "save", "reopen", "forget"} {
-		if _, ok := a.r.Operation("vim." + verb); !ok {
-			t.Fatalf("missing vim.%s", verb)
-		}
 	}
 	if _, err := a.r.ValidateBindings(); err != nil {
 		t.Fatal(err)

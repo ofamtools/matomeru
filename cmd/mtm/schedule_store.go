@@ -49,8 +49,12 @@ const scheduleIntervalProp = "interval"
 // interval; and the read-only source and state.
 func (a *App) scheduleProps() []ochazuke.PropSpec {
 	params := a.scheduleParams()
-	props := []ochazuke.PropSpec{{Name: "name", Key: true, Parameter: ochazuke.Parameter{Type: "string",
-		Description: "The schedule's name (letters, digits, dashes): its key"}}}
+	props := []ochazuke.PropSpec{
+		{Name: "name", Key: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The schedule's stable key"}},
+		{Name: "label", Role: ochazuke.RoleLabel, Fallback: "name", Parameter: ochazuke.Parameter{Type: "string", Description: "The schedule's display name; its key and run history stay unchanged"}},
+		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Retain the schedule and history without running it"}},
+		{Name: "schedule", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The displayed label, else the stable name"}},
+	}
 	for _, f := range scheduleFields {
 		p := params[f]
 		param := ochazuke.Parameter{Type: "string", Noun: p.Noun, Source: p.Source, SourceArgs: p.SourceArgs, Free: p.Free, Description: p.Description}
@@ -68,6 +72,9 @@ func (a *App) scheduleProps() []ochazuke.PropSpec {
 	return append(props,
 		ochazuke.PropSpec{Name: scheduleIntervalProp, Parameter: ochazuke.Parameter{Type: ochazuke.SettingDuration,
 			Description: "How often it runs (at least 1m; 0 for a row timed by the clock); a stored or clock-timed row's interval replaces its timing"}},
+		ro("on", "string", "The effective enabled state"),
+		ro("last", "string", "The last run's outcome and age"),
+		ro("next", "string", "The time until the next run"),
 		ro("source", "string", "Where the row comes from: builtin, file (schedules.json) or stored (by mtm)"),
 		ro("active", "boolean", "Whether it runs: on, or auto with its checks passing"),
 		ro("why", "string", "Why an auto row does not run"),
@@ -78,7 +85,8 @@ func (a *App) scheduleProps() []ochazuke.PropSpec {
 		ro("failures", "integer", "Failures in a row (they back off the interval)"),
 		ro("next-run", "integer", "When it is due next (Unix ms; 0 when it does not run)"),
 		ro("missed", "integer", "Runs missed while mtm was closed"),
-		ro("runs", "list", "Its recent runs, newest first (get only)"),
+		ochazuke.PropSpec{Name: "runs", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "Its recent runs, newest first (get only)"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { v, _ := t["_view"].(scheduleView); return v.runsCell() }},
 	)
 }
 
@@ -151,7 +159,8 @@ func (a *App) scheduleThing(d schedules.Def) (ochazuke.Thing, error) {
 		return nil, err
 	}
 	v := a.viewSchedule(d, states[d.Name], a.scheduleNow())
-	t := ochazuke.Thing{"name": d.Name}
+	t := ochazuke.Thing{"name": d.Name, "label": d.Label, "archived": d.Archived, "schedule": cmp.Or(d.Label, d.Name),
+		"on": v.onCell(), "last": v.lastCell(a.scheduleNow()), "next": v.nextCell(a.scheduleNow()), "_view": v}
 	for _, f := range scheduleFields {
 		t[f] = scheduleField(d, f)
 	}
@@ -184,6 +193,12 @@ func scheduleFieldsOf(values ochazuke.Thing) []string {
 // applyScheduleValues sets d's fields from values (enabled and the
 // interval are not fields: scheduleEnable and scheduleEvery write them).
 func (a *App) applyScheduleValues(d *schedules.Def, values ochazuke.Thing) error {
+	if label, ok := thingString(values, "label"); ok {
+		d.Label = label
+	}
+	if archived, ok := values["archived"].(bool); ok {
+		d.Archived = archived
+	}
 	for _, name := range scheduleFieldsOf(values) {
 		if err := a.applyScheduleField(d, name, argText(values[name])); err != nil {
 			return fmt.Errorf("%s: %w", name, err)
@@ -281,7 +296,9 @@ func (a *App) patchSchedule(_ ochazuke.Ctx, name string, changes ochazuke.Thing)
 		return nil, err
 	}
 	changes = sameTiming(changes)
-	if len(scheduleFieldsOf(changes)) > 0 {
+	_, label := changes["label"]
+	_, archived := changes["archived"]
+	if len(scheduleFieldsOf(changes)) > 0 || label || archived {
 		if err := a.applyScheduleValues(&d, changes); err != nil {
 			return nil, err
 		}
@@ -309,7 +326,7 @@ func (a *App) patchSchedule(_ ochazuke.Ctx, name string, changes ochazuke.Thing)
 			return nil, err
 		}
 	}
-	if err := a.refreshSchedules(); err != nil {
+	if err := a.refillSchedules(); err != nil {
 		return nil, err
 	}
 	if d, err = a.scheduleNamed(name); err != nil {

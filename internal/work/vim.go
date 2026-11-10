@@ -27,6 +27,7 @@ type VimSession struct {
 	State           string `json:"state"`
 	Listen          string `json:"listen,omitempty"`
 	OwnedPath       string `json:"owned_path,omitempty"`
+	Archived        bool   `json:"archived,omitempty"`
 	extra           map[string]json.RawMessage
 }
 
@@ -41,7 +42,7 @@ func (v *VimSession) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &v.extra); err != nil {
 		return err
 	}
-	for _, key := range []string{"id", "name", "path", "project_id", "task_id", "former_project_id", "former_task_id", "cwd", "created", "updated", "session", "window_id", "state", "listen", "owned_path"} {
+	for _, key := range []string{"id", "name", "path", "project_id", "task_id", "former_project_id", "former_task_id", "cwd", "created", "updated", "session", "window_id", "state", "listen", "owned_path", "archived"} {
 		delete(v.extra, key)
 	}
 	return nil

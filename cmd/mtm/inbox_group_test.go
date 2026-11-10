@@ -78,7 +78,7 @@ func TestInboxGroupPaneProjectSourceStateNone(t *testing.T) {
 	}
 	for _, c := range cases {
 		setting(t, a, settingInboxGroup, c.mode)
-		if err := a.refreshInbox(); err != nil {
+		if err := a.inboxLoad.refresh(); err != nil {
 			t.Fatal(err)
 		}
 		if got, _ := inboxSections(a); !slices.Equal(got, c.want) {
@@ -87,7 +87,7 @@ func TestInboxGroupPaneProjectSourceStateNone(t *testing.T) {
 	}
 	// none is today's flat table: no headers, the store's order.
 	setting(t, a, settingInboxGroup, groupNone)
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	var flat []string

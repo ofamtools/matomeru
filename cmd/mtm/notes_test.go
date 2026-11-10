@@ -104,7 +104,7 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "show", Target: original.ID}); err != nil {
@@ -174,7 +174,7 @@ func TestNoteAssociationPreservesBodyAndDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "edit", Target: note.ID}); err != nil {
@@ -235,13 +235,13 @@ func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.all = true
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(gone.ID); err != nil {
+	if err := a.noteList.Select("notes/list/" + gone.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.noteList.Focus(); err != nil {

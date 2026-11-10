@@ -239,7 +239,7 @@ func (a *App) followLink(ctx ochazuke.Ctx) ochazuke.Result {
 	case linkSaved:
 		return resultError(a.jumpRow(savedPage, a.savedList, savedListID+"/"+t.ID, a.savedList.Refill))
 	case linkVim:
-		return resultError(a.jumpRow(vimPage, a.vimList, t.ID, a.refreshVim))
+		return resultError(a.jumpRow(vimPage, a.vimList, vimListID+"/"+t.ID, a.vimList.Refill))
 	}
 	return ochazuke.Failed(fmt.Errorf("unknown link kind %q", t.Kind))
 }

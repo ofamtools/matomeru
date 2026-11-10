@@ -131,7 +131,7 @@ func addItem(t *testing.T, a *App, spec actionitems.Spec) actionitems.Item {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	return it
@@ -473,7 +473,7 @@ func TestPaneSectionsLifecycle(t *testing.T) {
 	if _, err := a.inbox.items.SetRead(itemByKey(t, a, "beta").ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"pane:rail/gamma", "pane:rail/alpha"}) {

@@ -316,7 +316,7 @@ func (a *App) reloadStoredSchedules() error {
 		return err
 	}
 	a.sched.stored = stored
-	return a.refreshSchedules()
+	return a.refillSchedules()
 }
 
 // addSchedule is schedule.add: a stored row from the fields given (on when

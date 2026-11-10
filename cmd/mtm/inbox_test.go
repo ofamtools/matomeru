@@ -246,7 +246,7 @@ func seedInbox(t *testing.T, a *App, clock *int64) (actionitems.Item, actionitem
 	if _, err := a.inbox.items.SetRead(ping.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshInbox(); err != nil {
+	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	return pr, ping

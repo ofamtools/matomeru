@@ -247,7 +247,7 @@ func (a *App) writeQuickNote() error {
 		return err
 	}
 	q.created, q.committed = true, text
-	return a.refreshNotes()
+	return a.notesLoad.refresh()
 }
 
 // quickNoteUpdate writes the open quick note as it changes: typing after

@@ -39,7 +39,10 @@ func (a *App) noteSource(id string) markdown.Source {
 				return err
 			}
 			// The rows only (the updated column); the Doc is the caller.
-			return a.setNoteRows()
+			if err := a.noteList.Refill(); err != nil {
+				return err
+			}
+			return a.syncOutlineNotes(true)
 		},
 	}
 }
@@ -72,7 +75,7 @@ func (a *App) syncNoteDoc() error {
 	}
 	want := ""
 	if selected, ok := a.noteList.Selected(); ok && selected.Noun == "note" {
-		want = selected.ID
+		want = savedRowKey(a.r.Instances[selected.ID])
 	}
 	var err error
 	switch {

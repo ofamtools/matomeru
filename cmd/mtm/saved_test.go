@@ -204,10 +204,10 @@ func TestSavedAndVimShowHomePathsWithTilde(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved := a.savedList.Items()
-	vims, err := a.vimRows()
-	if err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		t.Fatal(err)
 	}
+	vims := a.vimList.Items()
 	if len(saved) != 1 || saved[0].Cells[3] != "~/proj/x" {
 		t.Fatalf("saved cells %+v", saved)
 	}

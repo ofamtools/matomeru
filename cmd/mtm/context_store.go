@@ -44,7 +44,7 @@ const contextCreateSource = "create"
 // (session, window, pane) and times. The kind is the prop type, because
 // kind is the verb that cycles the page's filter (f) and a word after a
 // noun is a verb or a prop, never both.
-func contextProps() []ochazuke.PropSpec {
+func (a *App) contextProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The item's key")},
@@ -52,28 +52,46 @@ func contextProps() []ochazuke.PropSpec {
 		{Name: "origin", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: contextitems.Origins, Description: "Most conversational recorded origin (prompt, then response); origins keeps every sighting kind"}},
 		{Name: "origins", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "All recorded origins, derived from source provenance; unknown when none is available"}},
 		{Name: "scope", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{"pane", "project", "none"}, Description: "Context picker scope: this pane, the rest of its project, or no project; absent outside the picker"}},
-		// Workaround (ochazuke v0.55.0): standard create's positional order
-		// is the label, the focus fills, then the pairs rest parameter, and
-		// Register refuses a required parameter after the rest one; so type
-		// is not Required here and createContextItem refuses a create
-		// without it. Drop this once ochazuke puts required create props
-		// before pairs.
-		{Name: "type", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: contextitems.Kinds,
+		{Name: "type", Default: "prompt", Parameter: ochazuke.Parameter{Type: "string", Enum: contextitems.Kinds,
 			Description: "The item's kind: file, dir, link, pr, branch, commit, command or prompt"}},
-		{Name: "text", CreateOnly: true, Role: ochazuke.RoleLabel, Parameter: ochazuke.Parameter{Type: "string", Required: true,
-			Description: "What the item is: the path, URL, branch, commit, command or prompt"}},
+		{Name: "text", Role: ochazuke.RoleLabel, Parameter: ochazuke.Parameter{Type: "string", Required: true,
+			Description: "What the item is: the path, URL, branch, commit, command or prompt"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				it := contextitems.Item{Kind: fmt.Sprint(t["type"]), Text: fmt.Sprint(t["text"])}
+				label := a.itemCell(it)
+				if exists, ok := t["exists"].(bool); ok && !exists {
+					label += " (missing)"
+				}
+				return label
+			}},
 		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
-			Description: "The project the item belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
+			Description: "The project the item belongs to (empty: unassociated); one not found is saved unassociated with a notice"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { return a.ownerLabel(fmt.Sprint(t["project"])) }},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 			Description: "The task the item belongs to; its project wins over project"}},
-		{Name: "starred", Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the item is starred (starred items sort first)"}},
+		{Name: "starred", Aliases: []string{"★"}, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the item is starred (starred items sort first)"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				if t["starred"] == true {
+					return "★"
+				}
+				return ""
+			}},
 		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the item's sightings and provenance and hide it from default views"}},
 		{Name: "session", ReadOnly: true, Parameter: text("The session the item was first seen in")},
 		{Name: "window", ReadOnly: true, Parameter: text("The pane (window id) the item was first seen in")},
 		{Name: "pane", ReadOnly: true, Parameter: text("The name of the pane the item was first seen in")},
 		{Name: "exists", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether a file or dir item's path existed when it was last seen (absent for other kinds)"}},
+		{Name: "source", ReadOnly: true, Parameter: text("The first recorded session and pane"),
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				source := shortSession(fmt.Sprint(t["session"]))
+				if pane, _ := t["pane"].(string); pane != "" {
+					source += "/" + pane
+				}
+				return source
+			}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the item was first kept (Unix ms)"}},
-		{Name: "seen", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the item was last seen (Unix ms)"}},
+		{Name: "seen", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the item was last seen (Unix ms)"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { return sinceUse(thingInt(t["seen"]), a.now()) }},
 	}
 }
 
@@ -157,13 +175,26 @@ func (a *App) contextTableQuery() *tableQuery {
 		args: func(q ochazuke.ListQuery) ([]store.QueryCond, bool) {
 			args := q.Args
 			all, _ := args["all"].(bool)
-			if !all && a.pin != "" && !a.all {
-				return nil, false // the pin scopes by the derived project
+			var conds []store.QueryCond
+			if !q.Every && !all && a.pin != "" && !a.all {
+				var tasks []string
+				for id, project := range a.contextProjects() {
+					if project == a.pin {
+						tasks = append(tasks, id)
+					}
+				}
+				conds = append(conds, store.QueryCond{Any: []store.QueryCond{
+					{Fields: []string{"project_id"}, Op: store.OpEq, Value: a.pin},
+					{All: []store.QueryCond{
+						{Fields: []string{"project_id"}, Op: store.OpEq, Value: ""},
+						{Fields: []string{"task_id"}, Op: store.OpIn, Value: tasks},
+					}},
+				}})
 			}
 			if kind, _ := args["kind"].(string); kind != "" {
-				return []store.QueryCond{{Fields: []string{"kind"}, Op: store.OpEq, Value: kind}}, true
+				conds = append(conds, store.QueryCond{Fields: []string{"kind"}, Op: store.OpEq, Value: kind})
 			}
-			return nil, true
+			return conds, true
 		},
 		// Starred first, then the newest sighting; a tie keeps insertion order.
 		order: "COALESCE(json_extract(row, '$.starred'), 0) DESC, COALESCE(NULLIF(json_extract(row, '$.last_seen'), 0), json_extract(row, '$.created')) DESC",
@@ -300,24 +331,25 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 // contextPatch are the context item props a write sets straight onto the
 // item (thingOver); the owner takes rules of its own.
 type contextPatch struct {
-	Starred  bool `json:"starred"`
-	Archived bool `json:"archived"`
+	Text     string `json:"text"`
+	Type     string `json:"type"`
+	Starred  bool   `json:"starred"`
+	Archived bool   `json:"archived"`
 }
 
-// patchContextItem is the store's Patch: the owner (a task brings its
-// project) and the star; the kind and text are the item's, never
-// rewritten.
+// patchContextItem edits the record without changing its sightings or provenance.
 func (a *App) patchContextItem(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochazuke.Thing, error) {
 	it, err := a.contexts.Get(id)
 	if err != nil {
 		return nil, err
 	}
 	owner, owned := a.contextOwnerOf(c, it, changes)
-	props, err := thingOver(contextPatch{Starred: it.Starred, Archived: it.Archived}, changes)
+	props, err := thingOver(contextPatch{Text: it.Text, Type: it.Kind, Starred: it.Starred, Archived: it.Archived}, changes)
 	if err != nil {
 		return nil, err
 	}
 	it, err = a.contexts.Update(id, func(it *contextitems.Item) {
+		it.Text, it.Kind = props.Text, props.Type
 		if owned {
 			it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
 		}

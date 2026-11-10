@@ -14,13 +14,13 @@ import (
 func notesOn(t *testing.T, a *App, id string) {
 	t.Helper()
 	a.all = true
-	if err := a.refreshNotes(); err != nil {
+	if err := a.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.r.OpenPage(notesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.noteList.Select(id); err != nil {
+	if err := a.noteList.Select("notes/list/" + id); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.noteList.Focus(); err != nil {
@@ -32,7 +32,7 @@ func notesOn(t *testing.T, a *App, id string) {
 func rowLabel(t *testing.T, a *App, id string) string {
 	t.Helper()
 	for _, it := range a.noteList.Items() {
-		if it.ID == id {
+		if savedRowKey(a.r.Instances[it.ID]) == id {
 			return it.Label
 		}
 	}

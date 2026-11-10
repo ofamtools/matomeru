@@ -39,6 +39,8 @@ func (a *App) defineMCPOperations() {
 	a.parameters(contextNoun+".add", map[string]ochazuke.Parameter{
 		"text":    {Type: "string", Required: true, Description: "The text the items are taken from"},
 		"kind":    {Type: "string", Enum: contextitems.Kinds, Description: "Keep only items of this kind; prompt or command keeps the whole text as one; a kind the text yields none of keeps the whole text as that kind"},
+		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The item's project; explicit ownership wins over the calling pane"},
+		"task":    {Type: "string", Noun: "task", Description: "The item's task; its project wins over project"},
 		"session": {Type: "string", Description: "The pane's session name (default MTM_SESSION or TUIOS_SESSION)"},
 		"window":  {Type: "string", Description: "The pane's window id (default MTM_PANE_ID or TUIOS_PANE_ID); it owns the items"},
 		"task_id": {Type: "string", Description: "Compatibility argument; ownership comes from the pane"},
@@ -100,7 +102,9 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 		items = []contextitems.Item{{Kind: "prompt", Text: body, Session: session, Window: window, Created: now, Sources: []contextitems.Source{src}}}
 	}
 	var owner contextitems.Owner
-	if window != "" {
+	if project, task, explicit := a.ownerWrite(ctx, "", "", ochazuke.Thing(ctx.Args)); explicit {
+		owner = contextitems.Owner{ProjectID: project, TaskID: task}
+	} else if window != "" {
 		task, project, err := journalOwner(a.work)(session, window)
 		if err != nil {
 			return ochazuke.Failed(err)

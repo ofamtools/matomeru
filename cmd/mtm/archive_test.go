@@ -154,7 +154,7 @@ func TestArchiveViewsHideBranchesAndHonorOptOut(t *testing.T) {
 			}
 			found := false
 			for _, item := range list.Items() {
-				if item.ID == id {
+				if savedRowKey(a.r.Instances[item.ID]) == id {
 					found = true
 				}
 			}
@@ -196,41 +196,32 @@ func TestArchivePageSavedFilters(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	// A never-populated source must already support its noun's archive filter.
-	if err := a.noteList.ApplyFilter("archived"); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.noteList.SetPropFilters(nil); err != nil {
-		t.Fatal(err)
-	}
+	executeA(t, a, "ochazuke.collection", "filter-saved", notesPage+"/list", ochazuke.Arguments{"name": "archived"})
+	executeA(t, a, "ochazuke.collection", "filter-props-clear", notesPage+"/list", nil)
 	for _, note := range []work.Note{{ID: "archive-note", Text: "retained note"}, {ID: "live-note", Text: "live note"}} {
 		if err := a.work.PutNote(note); err != nil {
 			t.Fatal(err)
 		}
 	}
 	executeA(t, a, "note", "archive", "", ochazuke.Arguments{"id": "archive-note"})
-	if err := a.noteList.ApplyFilter("archived"); err != nil {
-		t.Fatal(err)
-	}
-	if selected, ok := a.noteList.Selected(); !ok || selected.ID != "archive-note" {
+	executeA(t, a, "ochazuke.collection", "filter-saved", notesPage+"/list", ochazuke.Arguments{"name": "archived"})
+	if selected, ok := a.noteList.Selected(); !ok || savedRowKey(a.r.Instances[selected.ID]) != "archive-note" {
 		t.Fatalf("archived note filter: %+v, selected=%v", selected, ok)
 	}
-	if err := a.noteList.SetPropFilters(nil); err != nil {
-		t.Fatal(err)
-	}
-	if selected, ok := a.noteList.Selected(); !ok || selected.ID != "live-note" {
+	executeA(t, a, "ochazuke.collection", "filter-props-clear", notesPage+"/list", nil)
+	if selected, ok := a.noteList.Selected(); !ok || savedRowKey(a.r.Instances[selected.ID]) != "live-note" {
 		t.Fatalf("live notes after clearing archive filter: %+v, selected=%v", selected, ok)
 	}
 	executeA(t, a, "note", "archive", "", ochazuke.Arguments{"id": "live-note"})
 	if _, ok := a.noteList.Selected(); ok {
 		t.Fatal("archiving every note left a visible default row")
 	}
-	if err := a.noteList.ApplyFilter("archived"); err != nil {
-		t.Fatal(err)
-	}
+	executeA(t, a, "ochazuke.collection", "filter-saved", notesPage+"/list", ochazuke.Arguments{"name": "archived"})
 	var ids []string
 	for _, row := range a.noteList.Items() {
-		ids = append(ids, row.ID)
+		ids = append(ids, savedRowKey(a.r.Instances[row.ID]))
 	}
+	slices.Sort(ids)
 	if !slices.Equal(ids, []string{"archive-note", "live-note"}) {
 		t.Fatalf("archive filter did not refill both retained notes: %v", ids)
 	}

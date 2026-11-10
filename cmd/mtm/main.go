@@ -310,7 +310,7 @@ func (a *App) reveal(id string) error {
 		a.all = true
 	} // An explicit CLI target may be outside the pin.
 	a.r.Changed("saved")
-	if err := a.refreshVim(); err != nil {
+	if err := a.vimList.Refill(); err != nil {
 		return err
 	}
 	if a.r.Instances[id] != nil {
@@ -758,6 +758,7 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	a.defineCoreVerbs()
+	a.defineDocForms()
 	a.defineCommandRenames()
 	a.defineAgentDeclarations()
 	a.mountExtensions()

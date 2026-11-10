@@ -2,11 +2,11 @@
  |   Inbox  Work  Review  Directories  Notes  Saved  Vim  Context  Items  › Schedules  Runs  Extensions
  |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  |  schedules · they run while the TUI is open                                         gh-signals
- |  schedule       on          when      last   next  runs
-r|  gh-signals     auto (off)  every 5m  never╭──────────────────────────────────────────────────╮  GitHub review requests, CI and PR
- |  slack-signals  off         every 5m  never│ New schedule prompt · written as you type        │o the inbox (o-gh signals)
- |  prompt         off         never     never│ prompt                                           │  command
- |                                            │                                                  │  o-gh signals
+ |  page 1/1 of 3
+ |  schedule       on          when      last ╭──────────────────────────────────────────────────╮  GitHub review requests, CI and PR
+r|  gh-signals     auto (off)  every 5m  never│ New schedule prompt · written as you type        │o the inbox (o-gh signals)
+ |  slack-signals  off         every 5m  never│ prompt                                           │  command
+ |  prompt         off         never     never│                                                  │  o-gh signals
  |                                            │ when                                             │  exec
  |                                            │                                                  │  auto (off)
  |                                            │ enabled                                          │  auto: not checked yet

@@ -17,7 +17,7 @@ func TestHandlerNoticesGoThroughTheUISink(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.all = true
-	if err := app.refreshNotes(); err != nil {
+	if err := app.notesLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	rec := &ochazuke.RecordingSink{}

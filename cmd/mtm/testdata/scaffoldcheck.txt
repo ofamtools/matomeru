@@ -1,16 +1,5 @@
 # scaffoldcheck baseline: noun<TAB>check, a failure accepted today; it only shrinks.
-# The context label is create-only identity, not a renamable prop.
-context-item	keys
 pane	archive
 pane	restore
 project	archive
 project	restore
-saved	archive
-saved	restore
-schedule	archive
-schedule	label
-schedule	restore
-vim	archive
-vim	restore
-# Vim creation launches Neovim; its store cannot copy session records.
-vim	verbs

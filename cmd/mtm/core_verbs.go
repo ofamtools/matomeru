@@ -17,7 +17,6 @@ var coreVerbAs = []struct{ noun, verb, from string }{
 	{"pane", "delete", "pane.kill"},
 	{"session", "create", "pane.new"},
 	{"session", "delete", "session.kill"},
-	{"vim", "create", "vim.open"},
 }
 
 // defineCoreVerbs registers each coreVerbAs row as the noun's own verb,
