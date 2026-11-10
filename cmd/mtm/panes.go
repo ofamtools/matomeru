@@ -458,10 +458,20 @@ func (a *App) addPanesPage() error {
 	a.detail.panes, err = a.addDetail(panesDetailID, panesPage, func() string {
 		row, _ := a.selectedRow()
 		return fmt.Sprintf("%s|%d", row, a.pv.tab)
-	}, func() bool { return a.pv.tab != tabTurns })
+	}, func() bool { return a.pv.tab != tabTurns && a.pv.tab != tabNotes })
 	if err != nil {
 		return err
 	}
+	if err := a.addDetailRelated(a.detail.panes, a.paneTarget); err != nil {
+		return err
+	}
+	// A Notes tab turned off while shown leaves the pane on Turns.
+	a.r.Settings().Observe(settingPanesNotesTab, func(string, any) {
+		if a.pv.tab == tabNotes && !a.r.Settings().Bool(settingPanesNotesTab) {
+			a.pv.tab = tabTurns
+			a.pv.followed = ""
+		}
+	})
 	return a.guardLiveVerbs()
 }
 

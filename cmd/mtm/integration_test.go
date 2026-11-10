@@ -29,7 +29,7 @@ func TestScopeRefreshHidesNotesDraftsAndLateCaptures(t *testing.T) {
 	if a.noteList.Len() != 1 {
 		t.Fatalf("notes=%+v", a.noteList.Items())
 	}
-	if got := a.detailNotes("matomeru", "t1"); !strings.Contains(got, "A note") || strings.Contains(got, "secret") {
+	if got := a.workRelated(t, "t1"); !strings.Contains(got, "A note") || strings.Contains(got, "secret") {
 		t.Fatal(got)
 	}
 	executeA(t, a, "pane", "preview", f.panes[0].rowID(), nil)

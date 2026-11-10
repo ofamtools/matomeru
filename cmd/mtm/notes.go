@@ -19,7 +19,7 @@ func (a *App) defineNotes() {
 	// set, delete, watch, rename, move, duplicate) come from them
 	// (note_store.go); new and edit wrap create and set, view and
 	// choose-move are mtm's own.
-	a.r.Define("note").Filters(taskFilters()...).Props(noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
+	a.r.Define("note").Filters(taskFilters()...).Props(a.noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("view", a.viewNote, "View the saved note without editing").
 		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").Many().ShadowsStandard().
@@ -150,12 +150,27 @@ func (a *App) noteOwnerLabel(note work.Note) string {
 }
 
 // noteColumns are the note noun's table: the first line, the project, the
-// task and the last change; narrow, the change drops first, then the task.
+// task, what else the note is about and the last change; narrow, the change
+// drops first, then the about, then the task.
 var noteColumns = []ochazuke.Column{
 	{Title: "note", Min: 16},
 	{Title: "project", Priority: 1},
 	{Title: "task", Priority: 2},
-	{Title: "updated", Priority: 3},
+	{Title: "about", Priority: 3},
+	{Title: "updated", Priority: 4},
+}
+
+// noteAboutCell is what a note is about as a table cell: the thing as
+// noun:key, empty when it is the task (the task column says so) or nothing.
+func noteAboutCell(note work.Note) string { return aboutCell(note.AboutRef()) }
+
+// aboutCell is a stored about as a table cell: empty for a task (the task
+// column says so).
+func aboutCell(about string) string {
+	if noun, _, ok := ochazuke.SplitAnyRef(about); ok && ownerSlotArg(noun) != "" {
+		return ""
+	}
+	return about
 }
 
 // noteOwnerCells are a note's project and task as table cells.
@@ -225,7 +240,7 @@ func (a *App) setNoteRows() error {
 		}
 		label := first
 		project, task := a.noteOwnerCells(note)
-		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note", Data: a.noteThing(note), Props: a.noteThing(note), Cells: []string{first, project, task, sinceUse(note.Updated, now)}})
+		items = append(items, ochazuke.ListItem{ID: note.ID, Label: label, Noun: "note", Data: a.noteThing(note), Props: a.noteThing(note), Cells: []string{first, project, task, noteAboutCell(note), sinceUse(note.Updated, now)}})
 	}
 	for _, d := range drafts {
 		if d.New && a.inScope(d.ProjectID) {
@@ -309,49 +324,9 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Args == nil {
 		ctx.Args = ochazuke.Arguments{}
 	}
-	if owner, ok := ctx.Args["owner"].(map[string]any); ok {
-		// The compatibility owner {kind, id}: a task or project as ever, any
-		// other noun is what the note is about.
-		kind, id := ochazuke.StringArg(owner, "kind", "task"), ochazuke.StringArg(owner, "id", "")
-		switch {
-		case ownerSlotArg(kind) != "" && id != "":
-			ctx.Args[kind] = id
-		case ownerSlotArg(kind) == ownerSlots[0].arg:
-			ctx.Args["scratch"] = true
-		case ownerSlotArg(kind) == "" && id != "":
-			ctx.Args["about"] = ochazuke.AnyRef(kind, id)
-		}
-	}
-	about := ochazuke.StringArg(ctx.Args, "about", "")
-	named := ctx.Args["task"] != nil || ctx.Args["project"] != nil || ctx.Args["scratch"] == true
-	if actor := a.work.Actor(); actor.IsAgent() && !named && about == "" {
-		id, err := a.currentPaneIdentity()
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		if id.TaskID != "" {
-			ctx.Args["task"] = id.TaskID
-		} else if id.ProjectID != "" {
-			ctx.Args["project"] = id.ProjectID
-		} else {
-			ctx.Args["scratch"] = true
-		}
-	}
-	// What the note is about decides its owner (noteLinks) unless the call
-	// names one; every other write infers it as resolveOwner always did.
-	var owner Owner
-	aboutRef := ""
-	if about != "" && !named {
-		project, task, ref := a.noteLinks(ctx, work.Note{}, aboutWrite{about: about, hasAbout: true})
-		owner, aboutRef = Owner{ProjectID: project, TaskID: task}, ref
-	} else {
-		var err error
-		if owner, err = a.resolveOwner(ctx, ctx.Args); err != nil {
-			return ochazuke.Failed(err)
-		}
-		if about != "" {
-			aboutRef = about
-		}
+	owner, aboutRef, err := a.newNoteOwner(ctx)
+	if err != nil {
+		return ochazuke.Failed(err)
 	}
 	if owner.Notice != "" {
 		ctx.Notify(owner.Notice)
@@ -399,6 +374,56 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 		noteValue
 		Notice string `json:"notice,omitempty"`
 	}{noteValue(note), owner.Notice})
+}
+
+// newNoteOwner is the owner and the about of a new note: the compatibility
+// owner {kind, id} (a task or project as ever, any other noun is what the
+// note is about), an agent's own pane, what the call names (task, project,
+// scratch), what it is about (noteLinks), else what resolveOwner infers.
+func (a *App) newNoteOwner(ctx ochazuke.Ctx) (Owner, string, error) {
+	if owner, ok := ctx.Args["owner"].(map[string]any); ok {
+		kind, id := ochazuke.StringArg(owner, "kind", "task"), ochazuke.StringArg(owner, "id", "")
+		switch {
+		case ownerSlotArg(kind) != "" && id != "":
+			ctx.Args[kind] = id
+		case ownerSlotArg(kind) == ownerSlots[0].arg:
+			ctx.Args["scratch"] = true
+		case ownerSlotArg(kind) == "" && id != "":
+			ctx.Args["about"] = ochazuke.AnyRef(kind, id)
+		}
+	}
+	about := ochazuke.StringArg(ctx.Args, "about", "")
+	named := ctx.Args["task"] != nil || ctx.Args["project"] != nil || ctx.Args["scratch"] == true
+	if err := a.agentOwnerArgs(ctx, named || about != ""); err != nil {
+		return Owner{}, "", err
+	}
+	if about != "" && !named {
+		project, task, ref := a.noteLinks(ctx, work.Note{}, aboutWrite{about: about, hasAbout: true})
+		return Owner{ProjectID: project, TaskID: task}, ref, nil
+	}
+	owner, err := a.resolveOwner(ctx, ctx.Args)
+	return owner, about, err
+}
+
+// agentOwnerArgs gives an agent's write that names no owner its pane's: the
+// pane's task, else its project, else scratch.
+func (a *App) agentOwnerArgs(ctx ochazuke.Ctx, named bool) error {
+	if named || !a.work.Actor().IsAgent() {
+		return nil
+	}
+	id, err := a.currentPaneIdentity()
+	if err != nil {
+		return err
+	}
+	switch {
+	case id.TaskID != "":
+		ctx.Args["task"] = id.TaskID
+	case id.ProjectID != "":
+		ctx.Args["project"] = id.ProjectID
+	default:
+		ctx.Args["scratch"] = true
+	}
+	return nil
 }
 
 // editNote is note.edit: without text it opens the editor on the note;
@@ -521,25 +546,4 @@ func (a *App) scrollNoteBody(ctx ochazuke.Ctx) ochazuke.Result {
 		delta = half * max(1, a.noteBody.visible/2)
 	}
 	return ochazuke.Done(map[string]int{"offset": a.detail.notes.scroll(delta)})
-}
-
-func (a *App) detailNotes(project, task string) string {
-	notes, err := a.scopedNotes()
-	if err != nil {
-		return "\n\nnotes: " + err.Error()
-	}
-	var lines []string
-	for _, note := range notes {
-		if !a.archiveVisible(note.Archived) {
-			continue
-		}
-		owner, err := a.work.NoteProject(note)
-		if err != nil {
-			return "\n\nnotes: " + err.Error()
-		}
-		if (task != "" && note.TaskID == task) || (task == "" && owner == project) {
-			lines = append(lines, note.Text)
-		}
-	}
-	return fmt.Sprintf("\n\nnotes (%d)\n%s", len(lines), strings.Join(lines, "\n\n"))
 }

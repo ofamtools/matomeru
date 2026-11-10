@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestPaneRowWritesFromEveryTab(t *testing.T) {
 				pressSettle(t, app, "i")
 				frame(app)
 				wantTab := tab
-				if tab == tabActivity || tab == tabTranscript {
+				if slices.Contains(tabsWithoutPrompt, tab) {
 					wantTab = tabScreen
 					if agent {
 						wantTab = tabTurns

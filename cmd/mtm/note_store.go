@@ -27,24 +27,44 @@ const settingNotesTitleField = "notes.title-field"
 // (the body's first line); the body text, never the label; the project
 // that owns the note (move writes it) and its task, both filled from the
 // focus by create (create.from-focus); and the read-only times.
-func noteProps() []ochazuke.PropSpec {
+func (a *App) noteProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The note's key")},
 		{Name: "title", Role: ochazuke.RoleLabel, Fallback: "summary", Parameter: text("The note's title (optional; empty shows the summary)")},
 		{Name: "summary", ReadOnly: true, Parameter: text("The first line of the text")},
+		// The note's first column in a table fed from the store (a related
+		// section): the title, else the summary, as the Notes page shows it.
+		{Name: "note", ReadOnly: true, Parameter: text("The note as a table shows it: its title, else its first line"),
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { s, _ := t["note"].(string); return s }},
 		{Name: "text", Multiline: true, Parameter: text("The note's body")},
-		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
-			Description: "The project the note belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
-		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
-			Description: "The task the note belongs to; its project wins over project"}},
-		{Name: "about", Parameter: ochazuke.Parameter{Type: "string", Noun: ochazuke.AnyNoun,
-			Description: "The thing the note is about, noun:key (pane:W12, lane.lane:X, task:ID); a task's or project's note keeps its task and project in step. One not found is saved as written"}},
+		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true,
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { id, _ := t["project"].(string); return a.ownerLabel(id) },
+			Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
+				Description: "The project the note belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
+		{Name: "task", FromFocus: true,
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				id, _ := t["task"].(string)
+				if task, err := a.work.Task(id); err == nil && id != "" {
+					return task.Title
+				}
+				return id
+			},
+			Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
+				Description: "The task the note belongs to; its project wins over project"}},
+		{Name: "about",
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
+				about, _ := t["about"].(string)
+				return aboutCell(about)
+			},
+			Parameter: ochazuke.Parameter{Type: "string", Noun: ochazuke.AnyNoun,
+				Description: "The thing the note is about, noun:key (pane:W12, lane.lane:X, task:ID); a task's or project's note keeps its task and project in step. One not found is saved as written"}},
 		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the note and hide it from default views"}},
 		taskMakerProp(),
 		{Name: "created-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "object", Description: "The note's recorded maker and agent identity"}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note was created (Unix ms)"}},
-		{Name: "updated", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note last changed (Unix ms)"}},
+		{Name: "updated", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note last changed (Unix ms)"},
+			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { return sinceUse(thingInt(t["updated"]), a.now()) }},
 	}
 }
 
@@ -95,7 +115,7 @@ func (a *App) noteThing(n work.Note) ochazuke.Thing {
 		project = n.ProjectID
 	}
 	return ochazuke.Thing{
-		"id": n.ID, "title": n.Title, "summary": noteLabel(n.Text), "text": n.Text,
+		"id": n.ID, "title": n.Title, "note": noteTitle(n), "summary": noteLabel(n.Text), "text": n.Text,
 		"project": project, "task": n.TaskID, "about": n.AboutRef(), "created": n.Created, "updated": n.Updated,
 		"made-by": n.MadeBy(), "created-by": n.Maker(),
 		"archived": n.Archived,
@@ -159,65 +179,99 @@ type aboutWrite struct {
 // and the owner project is the thing's own when it has one. Task wins over
 // project, as for every owner.
 func (a *App) noteLinks(c ochazuke.Ctx, cur work.Note, w aboutWrite) (projectID, taskID, aboutRef string) {
-	project, hasProject, task, hasTask := w.project, w.hasProject, w.task, w.hasTask
-	aboutRef = cur.About
+	w, aboutRef = a.fillFromAbout(cur, w)
+	w = a.keepLinked(cur, w)
+	if w.hasProject || w.hasTask {
+		projectID, taskID = a.noteOwner(c, w.project, w.hasProject, w.task, w.hasTask)
+	} else {
+		projectID, taskID = cur.ProjectID, cur.TaskID
+	}
+	return projectID, taskID, a.settleAbout(cur, w, taskID, aboutRef)
+}
+
+// fillFromAbout reads the about a write gives: the owner or reference slot
+// it names is filled (when the write names none), and the about to store
+// comes back (cur's when the write gives none).
+func (a *App) fillFromAbout(cur work.Note, w aboutWrite) (aboutWrite, string) {
+	ref := cur.About
 	noun, key, isRef := ochazuke.SplitAnyRef(w.about)
 	slot := ownerSlotArg(noun)
 	switch {
 	case !w.hasAbout:
 	case w.about == "":
 		// About cleared: a task that was the about goes with it.
-		aboutRef = ""
-		if !hasTask && cur.TaskID != "" && cur.AboutRef() == "task:"+cur.TaskID {
-			task, hasTask = "", true
-			project, _ = a.work.NoteProject(cur)
-			hasProject = true
+		ref = ""
+		if !w.hasTask && a.aboutIsTask(cur) {
+			w.task, w.hasTask = "", true
+			w.project, _ = a.work.NoteProject(cur)
+			w.hasProject = true
 		}
 	case !isRef:
-		aboutRef = w.about // not noun:key: kept as written
+		ref = w.about // not noun:key: kept as written
 	case slot == ownerSlots[0].arg:
-		aboutRef = ""
-		if !hasProject && !hasTask {
-			project, hasProject = key, true
+		ref = "" // the owner itself, not a reference
+		if !w.hasProject && !w.hasTask {
+			w.project, w.hasProject = key, true
 		}
 	case slot != "":
-		aboutRef = w.about
-		if !hasTask {
-			task, hasTask = key, true
+		ref = w.about
+		if !w.hasTask {
+			w.task, w.hasTask = key, true
 		}
 	default:
-		aboutRef = w.about
-		if !hasProject && !hasTask {
-			project, hasProject = a.aboutProject(noun, key), true
-			if project == "" {
-				project, _ = a.work.NoteProject(cur) // a thing with no owner leaves the note's
-			}
+		ref = w.about
+		w = a.fillFromThing(cur, w, noun, key)
+	}
+	return w, ref
+}
+
+// fillFromThing gives a write about a thing that is no owner slot the
+// thing's own project (else the note's), and takes the note off a task it
+// was about.
+func (a *App) fillFromThing(cur work.Note, w aboutWrite, noun, key string) aboutWrite {
+	if !w.hasProject && !w.hasTask {
+		w.project, w.hasProject = a.aboutProject(noun, key), true
+		if w.project == "" {
+			w.project, _ = a.work.NoteProject(cur) // a thing with no owner leaves the note's
 		}
-		if !hasTask && cur.TaskID != "" && cur.AboutRef() == "task:"+cur.TaskID {
-			task, hasTask = "", true // re-filed away from its task
-		}
 	}
-	// A change of project alone keeps the task in that project; a task cleared
-	// alone keeps the project (the earlier rules of note set).
+	if !w.hasTask && a.aboutIsTask(cur) {
+		w.task, w.hasTask = "", true // re-filed away from its task
+	}
+	return w
+}
+
+// aboutIsTask reports whether the note is about its task.
+func (a *App) aboutIsTask(n work.Note) bool {
+	return n.TaskID != "" && n.AboutRef() == ochazuke.AnyRef("task", n.TaskID)
+}
+
+// keepLinked keeps what a write leaves alone: a change of project alone
+// keeps the task that is in that project, a task cleared alone keeps the
+// project.
+func (a *App) keepLinked(cur work.Note, w aboutWrite) aboutWrite {
 	switch {
-	case hasProject && !hasTask && cur.TaskID != "" && a.taskProject(cur.TaskID) == project:
-		task, hasTask = cur.TaskID, true
-	case hasTask && task == "" && !hasProject:
-		project, _ = a.work.NoteProject(cur)
-		hasProject = true
+	case w.hasProject && !w.hasTask && cur.TaskID != "" && a.taskProject(cur.TaskID) == w.project:
+		w.task, w.hasTask = cur.TaskID, true
+	case w.hasTask && w.task == "" && !w.hasProject:
+		w.project, _ = a.work.NoteProject(cur)
+		w.hasProject = true
 	}
-	if hasProject || hasTask {
-		projectID, taskID = a.noteOwner(c, project, hasProject, task, hasTask)
-	} else {
-		projectID, taskID = cur.ProjectID, cur.TaskID
-	}
+	return w
+}
+
+// settleAbout is the about stored once the task is known: a task the note
+// has is what it is about unless it is about another kind of thing, and a
+// task cleared takes its about with it.
+func (a *App) settleAbout(cur work.Note, w aboutWrite, taskID, ref string) string {
+	isSlot := ownerSlotArg(nounOf(ref)) != ""
 	switch {
-	case taskID != "" && (aboutRef == "" || ownerSlotArg(nounOf(aboutRef)) != ""):
-		aboutRef = ochazuke.AnyRef("task", taskID)
-	case taskID == "" && hasTask && task == "" && cur.TaskID != "" && aboutRef != "" && ownerSlotArg(nounOf(aboutRef)) != "":
-		aboutRef = "" // the task was cleared with its about
+	case taskID != "" && (ref == "" || isSlot):
+		return ochazuke.AnyRef("task", taskID)
+	case taskID == "" && w.hasTask && w.task == "" && cur.TaskID != "" && isSlot:
+		return ""
 	}
-	return projectID, taskID, aboutRef
+	return ref
 }
 
 // nounOf is the noun of a stored about ("" when it holds none).

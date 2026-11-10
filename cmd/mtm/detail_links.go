@@ -78,6 +78,9 @@ func (a *App) addLinkedDetail(id, page string, main func() *ochazuke.Collection,
 		return nil, err
 	}
 	ld.pageDetail = d
+	if err := a.addDetailRelated(d, a.r.SelectionTarget(main)); err != nil {
+		return nil, err
+	}
 	if ld.links, err = a.r.AddList(ld.linksID, nil, ochazuke.Parent(page), ochazuke.NoMarks()); err != nil {
 		return nil, err
 	}
@@ -145,6 +148,7 @@ func (a *App) linkedPanel(ld *linkedDetail, width, height int) string {
 		ld.hide()
 		return fillLines("", height, width)
 	}
+	text = ld.withRelated(text, width) // the notes about it, under its facts
 	n := ld.links.Len()
 	if n == 0 {
 		return ld.lines(text, width, width, height)

@@ -195,8 +195,6 @@ mcp_ops.go	App.addContextText	compare	"command"	1
 mcp_ops.go	App.addContextText	compare	"prompt"	1
 note_store.go	App.patchNote	compare	"note"	1
 note_store.go	App.removeNote	compare	"note"	1
-notes.go	App.newNote	compare	"project"	2
-notes.go	App.newNote	compare	"task"	1
 notes.go	App.renderNotes	compare	"note"	1
 notes.go	App.selectedNote	compare	"note"	2
 notes_doc.go	App.syncNoteDoc	compare	"note"	1

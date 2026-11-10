@@ -248,7 +248,7 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
 	left := a.projectsHeading() + a.view(a.projectList, leftWidth, top)
-	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).Render(a.detail.work.fit(detail, rightWidth, rightWidth, top+1)))
+	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).Render(a.detail.work.fit(a.detail.work.withRelated(detail, rightWidth), rightWidth, rightWidth, top+1)))
 	return ochazuke.Text(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskTree, width, max(1, avail-top)))
 }
 
@@ -284,6 +284,20 @@ func (a *App) workSelected() (taskID, projectID string) {
 	return taskID, projectID
 }
 
+// workTarget is the thing the Work detail shows, as noun and key: the
+// highlighted task, else the highlighted project ("" for none). Its related
+// sections (the notes about it) are drawn under the detail's text.
+func (a *App) workTarget() (string, string) {
+	taskID, projectID := a.workSelected()
+	switch {
+	case taskID != "":
+		return "task", taskID
+	case projectID != "":
+		return "project", projectID
+	}
+	return "", ""
+}
+
 // workItem names what the Work detail shows, for its scroll.
 func (a *App) workItem() string {
 	taskID, projectID := a.workSelected()
@@ -305,7 +319,6 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 	}
 	if task != nil {
 		detail = fmt.Sprintf("%s\n\nstatus: %s\nproject: %s", taskLabel(*task), task.Status, a.ownerLabel(task.ProjectID))
-		detail += a.detailNotes(task.ProjectID, task.ID)
 	} else if p, ok := a.project(projectID); ok {
 		detail = projectLabel(p) + "\n"
 		// Only the settings that are set; i edits them all.
@@ -322,9 +335,6 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 				line += "  [" + strings.Join(marks, "] [") + "]"
 			}
 			detail += "\n" + line
-		}
-		if a.inScope(p.ID) {
-			detail += a.detailNotes(p.ID, "")
 		}
 	}
 	return detail, task != nil

@@ -27,9 +27,29 @@ const (
 	tabScreen
 	tabActivity
 	tabTranscript
+	tabNotes
 )
 
-var tabNames = []string{"Turns", "Screen", "Activity", "Transcript"}
+var tabNames = []string{"Turns", "Screen", "Activity", "Transcript", "Notes"}
+
+// settingPanesNotesTab shows the Notes tab: the notes about the selected
+// pane (the related sections of the pane, drawn as on any detail).
+const settingPanesNotesTab = "panes.notes-tab"
+
+var panesNotesTabSetting = ochazuke.Setting{Name: settingPanesNotesTab, Type: ochazuke.SettingBoolean, Default: true,
+	Description: "Show the Notes tab on the Panes detail: the notes about the selected pane, with n, a and d u from the related sections; off leaves the four tabs (detail.related also turns the sections off)"}
+
+// paneTabs are the tabs the detail has now, in order: every tab, the Notes
+// tab only while panes.notes-tab is on.
+func (a *App) paneTabs() []int {
+	tabs := make([]int, 0, len(tabNames))
+	for tab := range tabNames {
+		if tab != tabNotes || a.r.Settings().Bool(settingPanesNotesTab) {
+			tabs = append(tabs, tab)
+		}
+	}
+	return tabs
+}
 
 // sideBySide is the width from which the detail sits right of the tree.
 const sideBySide = 100
@@ -195,6 +215,9 @@ func (a *App) loadDetail() {
 		return
 	}
 	verb := map[int]string{tabScreen: "preview", tabActivity: "activity", tabTranscript: "transcript"}[a.pv.tab]
+	if a.pv.tab == tabNotes {
+		return // drawn from the stores, nothing to fetch
+	}
 	if a.pv.tab == tabTurns {
 		if err := a.showTurns(row); err != nil {
 			a.paneErr = err.Error()
@@ -224,7 +247,9 @@ func (a *App) loadSplitScreen(row string) {
 
 // paneTab is panes.tab: the next or previous detail tab, loaded at once.
 func (a *App) paneTab(ctx ochazuke.Ctx) ochazuke.Result {
-	a.pv.tab = (a.pv.tab + ochazuke.IntArg(ctx.Args, "delta", 1) + len(tabNames)) % len(tabNames)
+	tabs := a.paneTabs()
+	at := slices.Index(tabs, a.pv.tab) // a tab turned off since is the first
+	a.pv.tab = tabs[(max(at, 0)+ochazuke.IntArg(ctx.Args, "delta", 1)%len(tabs)+len(tabs))%len(tabs)]
 	row, _ := a.selectedRow()
 	a.pv.followed = fmt.Sprintf("%s|%d", row, a.pv.tab)
 	a.loadDetail()
@@ -1024,12 +1049,13 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 // the focus is a pane row, where enter attaches it (in the Turns tree
 // enter opens a turn).
 func (a *App) tabLine(live, onPane bool) string {
-	parts := make([]string, len(tabNames))
-	for i, name := range tabNames {
+	parts := make([]string, 0, len(tabNames))
+	for _, i := range a.paneTabs() {
+		name := tabNames[i]
 		if i == a.pv.tab {
 			name = "[" + name + "]"
 		}
-		parts[i] = name
+		parts = append(parts, name)
 	}
 	line := strings.Join(parts, " ")
 	if live {
@@ -1185,6 +1211,8 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 		return a.screenBody(row, width, height)
 	case tabTurns:
 		return a.turnsTabBody(row, width, height)
+	case tabNotes:
+		return a.notesTabBody(width, height)
 	}
 	p, err := a.paneAt(a.r.Instances[row])
 	if err != nil {
@@ -1199,6 +1227,41 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	// Long lines wrap to the panel, so an explanation or a reply reads
 	// whole; the newest stay at the bottom until K scrolls back.
 	return ochazuke.Text(a.detail.panes.lines(text, max(1, width), width, height))
+}
+
+// notesTabBody is the Notes tab: the related sections of the selected pane
+// (notes about it first), scrolled as a whole by J and K from the list.
+func (a *App) notesTabBody(width, height int) ochazuke.Block {
+	text := a.detail.panes.relatedText(width)
+	if text == "" {
+		a.detail.panes.hide()
+		if !a.r.Settings().Bool(ochazuke.RelatedDetailSetting) {
+			return ochazuke.Text("related sections are off (detail.related)")
+		}
+		msg := "no notes about this pane yet"
+		if hint := a.keySentence("app", keyAction{"quick-note.open", "writes one", nil}); hint != "" {
+			msg += "; " + hint
+		}
+		return ochazuke.Text(msg)
+	}
+	return ochazuke.Text(a.detail.panes.lines(text, 0, width, height))
+}
+
+// paneTarget is the pane the Panes detail shows, as noun and key ("" for
+// none): the selected row's pane, a child row's pane included.
+func (a *App) paneTarget() (string, string) {
+	row, inst := a.selectedRow()
+	if r, err := activityAt(inst); err == nil {
+		row, inst = r.Row, a.r.Instances[r.Row]
+	}
+	if row == "" || !a.frontsPane(inst) {
+		return "", ""
+	}
+	p, err := a.paneAt(inst)
+	if err != nil {
+		return "", ""
+	}
+	return "pane", p.ID // the pane's key (its window id), as the pane noun's verbs take it
 }
 
 // turnsTabBody is the Turns tab of row's pane at width x height.

@@ -124,7 +124,16 @@ func (a *App) addReviewPage() error {
 	a.detail.reviews, err = a.addDetail(reviewsDetailID, reviewsPage, func() string { return a.opened }, func() bool {
 		return len(a.reviewRows[a.opened].Turns) == 0
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	// The notes about the opened review.
+	return a.addDetailRelated(a.detail.reviews, func() (string, string) {
+		if a.opened == "" {
+			return "", ""
+		}
+		return "review", a.opened
+	})
 }
 
 // paneReview is one row: a pane, its review record and its turns in
@@ -691,7 +700,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 		case rv.CapturedAt != 0:
 			detail += " · captured " + time.UnixMilli(rv.CapturedAt).Format("15:04:05")
 		}
-		body = a.detail.reviews.lines(trimBlankTail(rv.Output), 0, width, rows)
+		body = a.detail.reviews.lines(a.detail.reviews.withRelated(trimBlankTail(rv.Output), width), 0, width, rows)
 		if row := a.reviewRows[rv.ID]; len(row.Turns) > 0 {
 			// The pane's turns are the detail; its screen only without them.
 			detail = fmt.Sprintf("turns: %s · %s", rv.Pane, plural(row.unread(), "unreviewed turn"))
@@ -708,7 +717,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 				a.detail.reviews.hide()
 				body = a.fill(a.reviewTurns.Block(width, rows).Text, rows)
 			} else {
-				body = a.detail.reviews.lines(a.reviewTurns.Block(width, max(1, list.Len())).Text, 0, width, rows)
+				body = a.detail.reviews.lines(a.detail.reviews.withRelated(a.reviewTurns.Block(width, max(1, list.Len())).Text, width), 0, width, rows)
 			}
 		}
 		// The keys that edit, save and drop the answer are on the footer.

@@ -1,0 +1,14 @@
+{
+  "name": "mtm: notes.quick-about task keeps the earlier rule for N",
+  "area": "notes",
+  "fixture": "seeded",
+  "width": 130,
+  "height": 36,
+  "config": {
+    "settings.json": {"notes.quick-about": "task"}
+  },
+  "script": ["N"],
+  "expect": [
+    {"modal": "quick-note", "lacks": ["about pane:"]}
+  ]
+}

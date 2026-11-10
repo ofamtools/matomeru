@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"ofam.dev/matomeru/internal/work"
@@ -180,5 +181,129 @@ func TestNoteAboutMovesToFormerWhenTaskIsDeleted(t *testing.T) {
 	}
 	if kept, _ := a.work.Note(other.ID); kept.About != "pane:W1" {
 		t.Fatalf("another note changed: %+v", kept)
+	}
+}
+
+// workRelated is the stack the Work detail draws for task id: the sections
+// about it, as text.
+func (a *App) workRelated(t *testing.T, id string) string {
+	t.Helper()
+	a.detailTask = id
+	return a.detail.work.relatedText(100)
+}
+
+// A task's detail shows the notes about it once, and a project's detail the
+// notes of the project and of its tasks, with no per-noun code: the stack is
+// the sections of the noun's referrers.
+func TestWorkDetailStackShowsNotesOnce(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	newAbout(t, a, ochazuke.Arguments{"text": "about the brief", "about": "task:t1"})
+	newAbout(t, a, ochazuke.Arguments{"text": "about the project", "project": "matomeru"})
+	task := a.workRelated(t, "t1")
+	if strings.Count(task, "about the brief") != 1 || strings.Contains(task, "about the project") {
+		t.Fatalf("task t1 stack:\n%s", task)
+	}
+	a.detailTask = ""
+	a.current = "matomeru"
+	project := a.detail.work.relatedText(100)
+	for _, want := range []string{"about the brief", "about the project"} {
+		if strings.Count(project, want) != 1 {
+			t.Fatalf("project stack lacks %q (or twice):\n%s", want, project)
+		}
+	}
+	if strings.Contains(project, "Tasks") {
+		t.Fatalf("project stack lists its tasks:\n%s", project)
+	}
+	// detail.related off draws nothing; the hidden list is data.
+	if err := a.r.Settings().Set(ochazuke.RelatedDetailSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.detail.work.relatedText(100); got != "" {
+		t.Fatalf("detail.related off: %q", got)
+	}
+	if err := a.r.Settings().Set(ochazuke.RelatedDetailSetting, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.Settings().Set(settingRelatedHidden, []string{"note.*"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.detail.work.relatedText(100); strings.Contains(got, "about the") {
+		t.Fatalf("notes.related-hidden note.*: %q", got)
+	}
+}
+
+// N is about the focused thing: a pane's note is about the pane, shows in the
+// Notes tab and is the pane's, with the tab off and notes.quick-about task
+// both opt-outs.
+func TestQuickNoteAboutThePaneShowsInItsNotesTab(t *testing.T) {
+	t.Parallel()
+	a, f := panesApp(t)
+	a.setPanes(f.panes, nil)
+	row := f.panes[0].ID
+	if err := a.selectPaneRow(f.panes[0].rowID()); err != nil {
+		t.Fatal(err)
+	}
+	if noun, key := a.focusedThing(); noun != "pane" || key != row {
+		t.Fatalf("focused thing %q %q, want pane %q", noun, key, row)
+	}
+	press(t, a, "N")
+	typeText(t, a, "the build is flaky")
+	press(t, a, "esc", "q")
+	var found work.Note
+	for _, n := range notesOf(t, a) {
+		found = n
+	}
+	if found.About != "pane:"+row {
+		t.Fatalf("note about %q, want pane:%s (%+v)", found.About, row, found)
+	}
+	// The Notes tab draws it.
+	a.pv.tab = tabNotes
+	if noun, key := a.paneTarget(); noun != "pane" || key != row {
+		t.Fatalf("pane target %q %q", noun, key)
+	}
+	if got := a.detail.panes.relatedText(80); !strings.Contains(got, "the build is flaky") {
+		t.Fatalf("notes tab:\n%s", got)
+	}
+	// Tabs cycle through Notes, and panes.notes-tab off drops it.
+	a.pv.tab = tabTranscript
+	a.paneTab(ochazuke.Ctx{Runtime: a.r, Args: ochazuke.Arguments{"delta": 1}})
+	if a.pv.tab != tabNotes {
+		t.Fatalf("] from Transcript: tab %d", a.pv.tab)
+	}
+	if err := a.r.Settings().Set(settingPanesNotesTab, false); err != nil {
+		t.Fatal(err)
+	}
+	if a.pv.tab == tabNotes {
+		t.Fatal("tab left on Notes when panes.notes-tab turned off")
+	}
+	a.pv.tab = tabTranscript
+	a.paneTab(ochazuke.Ctx{Runtime: a.r, Args: ochazuke.Arguments{"delta": 1}})
+	if a.pv.tab != tabTurns {
+		t.Fatalf("] from Transcript with Notes off: tab %d", a.pv.tab)
+	}
+	if strings.Contains(a.tabLine(false, true), "Notes") {
+		t.Fatal("Notes in the tab line while off")
+	}
+}
+
+// The Notes page shows what a note is about as a column, the task's apart.
+func TestNotesPageAboutColumn(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	newAbout(t, a, ochazuke.Arguments{"text": "on a pane", "about": "pane:W7"})
+	newAbout(t, a, ochazuke.Arguments{"text": "on a task", "about": "task:t1"})
+	if err := a.r.OpenPage(notesPage); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.refreshNotes(); err != nil {
+		t.Fatal(err)
+	}
+	fr := frame(a)
+	if !strings.Contains(fr, "about") || !strings.Contains(fr, "pane:W7") {
+		t.Fatalf("notes page:\n%s", fr)
+	}
+	if strings.Contains(fr, "task:t1") {
+		t.Fatalf("the task shows twice:\n%s", fr)
 	}
 }

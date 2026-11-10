@@ -300,6 +300,10 @@ var (
 		Description: "Draw the prompt box below the Screen tab's screen too, not only below the Turns tab's turns"}
 )
 
+// tabsWithoutPrompt are the tabs that draw no prompt box: i on one goes to
+// the Screen (a shell) or the Turns (an agent), which do.
+var tabsWithoutPrompt = []int{tabActivity, tabTranscript, tabNotes}
+
 // promptRow is the row of the pane the box writes to: on the Turns tab
 // the pane whose turns it shows, on the Screen tab the selected pane while
 // its screen (not a live terminal or copy mode) is drawn. "" is none.
@@ -392,7 +396,7 @@ func (a *App) focusPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	if !a.frontsPane(a.r.Instances[row]) {
 		row = a.pv.turnsFor
 	}
-	if a.pv.tab == tabActivity || a.pv.tab == tabTranscript {
+	if slices.Contains(tabsWithoutPrompt, a.pv.tab) {
 		if !p.isAgent() {
 			if _, err := a.toScreen(row); err != nil {
 				return ochazuke.Failed(err)

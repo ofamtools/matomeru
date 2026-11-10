@@ -19,12 +19,12 @@ R|            │   ▾ [>] Checkout page: show the shipping estimate       acti
  |            │     [x] Dark mode for the order history                 done     me                          │
  |            │ notes                                                                                        │
  |            │ no rows                                                                                      │
- |            │                                                                                              │
+r|            │                                                                                              │
  |            │                                                                                              │
  |            │                                                                                              │
  |            │ x outline-task.toggle · s outline-task.status · enter outline.fold · shift+tab make project… │
  |            ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
- |                                      1–12 / 16
+ |
  |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  |  x outline-task.toggle · s outline-task.status · enter outline.fold · shift+tab make project · space collection.mark…
  |

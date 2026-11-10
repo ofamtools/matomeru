@@ -1,0 +1,11 @@
+{
+  "name": "mtm: a pane with no notes says so on its Notes tab",
+  "area": "notes",
+  "fixture": "seeded",
+  "width": 130,
+  "height": 36,
+  "script": ["]", "]", "]", "]", "]"],
+  "expect": [
+    {"page": "panes", "contains": ["[Notes]", "no notes about this pane yet"]}
+  ]
+}

@@ -19,8 +19,8 @@
         "  [ ] Shipping estimate: API client"
       ],
       "lacks": [
-        "▾",
-        "▸"
+        "▾ [",
+        "▸ ["
       ]
     }
   ]

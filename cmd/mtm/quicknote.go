@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -12,9 +13,11 @@ import (
 )
 
 // The quick note: N in normal mode on any page opens a note in a modal,
-// the notes counterpart of T. Its owner is the selected task (a task row,
-// or a task in the outline), else the pin, else no project: the note
-// rule. Every change is written as it is made: typing after
+// the notes counterpart of T. It is about the thing the focus is on (the
+// selected row of the list holding it: a pane, a task, a saved pane, an
+// extension's row), its project that thing's owner, else the pin, else no
+// project; setting notes.quick-about task restores the earlier rule: the
+// selected task (a task row, or a task in the outline), else the pin. Every change is written as it is made: typing after
 // editorDebounce, at once when insert mode ends, the modal closes or mtm
 // quits; u undoes like any edit and the undo is written too. Nothing is
 // ever discarded, and nothing is created until something is typed. esc
@@ -32,6 +35,7 @@ const (
 type quickNote struct {
 	id        string
 	owner     Owner
+	about     string // what the note is about, noun:key ("" for nothing)
 	input     *ochazuke.Input
 	created   bool   // the note exists in the store
 	committed string // the text as last written
@@ -45,7 +49,7 @@ type quickNoteDebounceMsg struct{ Seq uint64 }
 
 func (a *App) defineQuickNote() {
 	a.r.Define(quickNoteModal).
-		Verb("open", a.openQuickNote, "Write a note for the selected task, else the pin, else no project; it is written as you type").
+		Verb("open", a.openQuickNote, "Write a note about the focused thing (its project, else the pin); it is written as you type").
 		Verb("close", a.closeQuickNote, "Close the quick note; every change is already written").
 		Verb("open-notes", a.listQuickNote, "Close the quick note and open the Notes page on it").
 		Mode("normal").
@@ -58,9 +62,60 @@ func (a *App) defineQuickNote() {
 	a.m.ModalViews[quickNoteModal] = ochazuke.ModalView{Title: "Note", Render: a.renderQuickNote}
 }
 
-// quickNoteOwner is the note rule from the focus: a task row or an
-// outline task is the owner; else the pin; else no project.
-func (a *App) quickNoteOwner() (Owner, error) {
+// settingQuickAbout says what the quick note is about: thing (the focused
+// thing, the default) or task (the selected task, else the pin).
+const (
+	settingQuickAbout = "notes.quick-about"
+	quickAboutThing   = "thing"
+	quickAboutTask    = "task"
+)
+
+// quickAboutRules are the setting's values in order; the first is the
+// default rule, read as a place in this table, never by its name.
+var quickAboutRules = []string{quickAboutThing, quickAboutTask}
+
+// quickAboutFocus reports whether the quick note is about the focused thing
+// (the first rule), else it follows the selected task.
+func (a *App) quickAboutFocus() bool {
+	return slices.Index(quickAboutRules, a.r.Settings().String(settingQuickAbout)) <= 0
+}
+
+var quickAboutSetting = ochazuke.Setting{Name: settingQuickAbout, Type: ochazuke.SettingString, Default: quickAboutThing,
+	Enum:        quickAboutRules,
+	Description: "What the quick note (N) is about: thing (the focused thing of any noun: a pane, a task, a saved pane, a row of an extension; its project is the thing's owner, else the pin) or task (the selected task, else the pin)"}
+
+// focusedThing is the thing the focus is on, as noun and key: the selected
+// row of the nearest list on the focus's ancestry, when its noun has a store
+// ("" for none: the focus is on no thing).
+func (a *App) focusedThing() (noun, key string) {
+	for _, id := range a.r.Ancestry(a.r.FocusID()) {
+		list := a.r.List(id)
+		if list == nil {
+			continue
+		}
+		noun, key = a.r.SelectionTarget(func() *ochazuke.Collection { return list })()
+		if n := a.r.Nouns[noun]; n == nil || n.Store == nil || key == "" {
+			return "", ""
+		}
+		return noun, key
+	}
+	return "", ""
+}
+
+// quickNoteOwner is the note rule from the focus: the focused thing is what
+// the note is about and its owner project the note's (the pin when it has
+// none); with notes.quick-about task, a task row or an outline task is the
+// owner; else the pin; else no project.
+func (a *App) quickNoteOwner() (Owner, string, error) {
+	if a.quickAboutFocus() {
+		if noun, key := a.focusedThing(); noun != "" {
+			project, task, about := a.noteLinks(ochazuke.Ctx{Runtime: a.r}, work.Note{}, aboutWrite{about: ochazuke.AnyRef(noun, key), hasAbout: true})
+			if project == "" && task == "" {
+				project = a.pin
+			}
+			return Owner{ProjectID: project, TaskID: task}, about, nil
+		}
+	}
 	if inst := a.r.Instances[a.r.FocusID()]; inst != nil {
 		task := ""
 		switch {
@@ -71,14 +126,14 @@ func (a *App) quickNoteOwner() (Owner, error) {
 		}
 		if task != "" {
 			if t, err := a.work.Task(task); err == nil {
-				return Owner{ProjectID: t.ProjectID, TaskID: t.ID}, nil
+				return Owner{ProjectID: t.ProjectID, TaskID: t.ID}, ochazuke.AnyRef("task", t.ID), nil
 			}
 		}
 	}
 	if a.pin != "" {
-		return Owner{ProjectID: a.pin}, nil
+		return Owner{ProjectID: a.pin}, "", nil
 	}
-	return Owner{}, nil
+	return Owner{}, "", nil
 }
 
 // openQuickNote is quick-note.open (N): a new, empty note in the modal,
@@ -90,12 +145,12 @@ func (a *App) openQuickNote(ochazuke.Ctx) ochazuke.Result {
 	if a.quick != nil {
 		return resultError(a.flushQuickNote(true))
 	}
-	owner, err := a.quickNoteOwner()
+	owner, about, err := a.quickNoteOwner()
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	q := &quickNote{id: work.NewID(), owner: owner, input: ochazuke.NewInput(quickNoteInput, "", true)}
-	if _, err := a.r.OpenModal(quickNoteModal, ochazuke.Payload{Prompt: a.quickNoteScope(owner)}, ochazuke.WithInput(q.input, ochazuke.Kind(quickNoteText)), ochazuke.CloseWith(ochazuke.Request{Noun: quickNoteModal, Verb: "close"})); err != nil {
+	q := &quickNote{id: work.NewID(), owner: owner, about: about, input: ochazuke.NewInput(quickNoteInput, "", true)}
+	if _, err := a.r.OpenModal(quickNoteModal, ochazuke.Payload{Prompt: a.quickNoteScope(owner, about)}, ochazuke.WithInput(q.input, ochazuke.Kind(quickNoteText)), ochazuke.CloseWith(ochazuke.Request{Noun: quickNoteModal, Verb: "close"})); err != nil {
 		return ochazuke.Failed(err)
 	}
 	a.quick = q
@@ -110,7 +165,7 @@ func (a *App) openQuickNote(ochazuke.Ctx) ochazuke.Result {
 
 // quickNoteScope names the owner: the project and the task, or "no
 // project".
-func (a *App) quickNoteScope(owner Owner) string {
+func (a *App) quickNoteScope(owner Owner, about string) string {
 	label := "no project"
 	if owner.ProjectID != "" {
 		label = a.ownerLabel(owner.ProjectID)
@@ -119,6 +174,9 @@ func (a *App) quickNoteScope(owner Owner) string {
 		if t, err := a.work.Task(owner.TaskID); err == nil {
 			label += " · " + taskLabel(t)
 		}
+	}
+	if noun, _, ok := ochazuke.SplitAnyRef(about); ok && ownerSlotArg(noun) == "" {
+		label += " · about " + about
 	}
 	return label
 }
@@ -185,7 +243,7 @@ func (a *App) writeQuickNote() error {
 		return nil
 	}
 	// The quick note is body-only: its title is left as it is.
-	if _, err := a.saveNoteRecord(editRecord{Noun: "note", ID: q.id, ProjectID: q.owner.ProjectID, TaskID: q.owner.TaskID, New: !q.created}, ochazuke.Record{"text": text}); err != nil {
+	if _, err := a.saveNoteRecord(editRecord{Noun: "note", ID: q.id, ProjectID: q.owner.ProjectID, TaskID: q.owner.TaskID, About: q.about, New: !q.created}, ochazuke.Record{"text": text}); err != nil {
 		return err
 	}
 	q.created, q.committed = true, text

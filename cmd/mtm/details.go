@@ -37,6 +37,9 @@ const detailEnd = 1 << 30
 // pageDetail is one page's detail and its tail state.
 type pageDetail struct {
 	d *ochazuke.Detail
+	// rel is the stack of related sections about what the detail shows
+	// (notes about it, ...), nil when the detail has none.
+	rel *ochazuke.Related
 	// tail reports whether the shown text is newest-at-the-bottom: it
 	// starts at the end and follows it.
 	tail func() bool
@@ -53,6 +56,72 @@ func (a *App) addDetail(id, page string, item func() string, tail func() bool) (
 		return nil, err
 	}
 	return &pageDetail{d: d, tail: tail}, nil
+}
+
+// The related stack of a detail: the sections of the things that name what
+// the detail shows (a note's about, a task's project), the referrers of its
+// noun, drawn under its text. ochazuke owns the stack, its keys and its
+// settings detail.related (off: nothing read or drawn) and
+// detail.related-hidden; mtm adds these two, read by every detail's stack.
+const (
+	// settingRelatedHidden lists the section ids (NOUN.PROP, or a PREFIX*)
+	// kept out of mtm's detail stacks. The default keeps to the notes: the
+	// things that only share a project or task with the row are rows of
+	// their own pages.
+	settingRelatedHidden = "notes.related-hidden"
+	// settingRelatedEmpty is what a section with nothing in it shows:
+	// header (the heading and its count), hide (nothing) or open.
+	settingRelatedEmpty = "notes.related-empty"
+)
+
+var (
+	relatedHiddenSetting = ochazuke.Setting{Name: settingRelatedHidden, Type: ochazuke.SettingList,
+		Default:     []string{"note.task", "pane.*", "task.*", "session.*", "review.*", "action-item.*", "schedule.*", "saved.*", "vim.*", "context-item.*", "ochazuke.*"},
+		Description: "Related sections kept out of mtm's details, as NOUN.PROP ids (a trailing * is a prefix). The default keeps the notes (note.about, note.project) and hides the rest and note.task, which note.about shows already; list fewer to show more. detail.related turns the stacks off"}
+	relatedEmptySetting = ochazuke.Setting{Name: settingRelatedEmpty, Type: ochazuke.SettingString, Default: ochazuke.RelatedEmptyHide,
+		Enum:        []string{ochazuke.RelatedEmptyHeader, ochazuke.RelatedEmptyHide, ochazuke.RelatedEmptyOpen},
+		Description: "What a related section with nothing in it shows in a detail: hide (nothing), header (its heading and count) or open (the heading and an empty row)"}
+)
+
+// addDetailRelated gives the detail p a related stack about the thing
+// target names now (noun and key; "" for none). The stack is a child of
+// the detail, so its sections are focus stops while the detail draws them.
+func (a *App) addDetailRelated(p *pageDetail, target func() (noun, key string)) error {
+	rel, err := a.r.AddRelated(p.d.ID()+"/related", ochazuke.RelatedSpec{
+		Target: target, Enabled: ochazuke.RelatedDetailSetting, Hidden: settingRelatedHidden, Empty: settingRelatedEmpty,
+	}, ochazuke.Parent(p.d.ID()))
+	p.rel = rel
+	return err
+}
+
+// addDetailAbout is addDetail with the related stack about target.
+func (a *App) addDetailAbout(id, page string, item func() string, tail func() bool, target func() (noun, key string)) (*pageDetail, error) {
+	p, err := a.addDetail(id, page, item, tail)
+	if err != nil {
+		return nil, err
+	}
+	return p, a.addDetailRelated(p, target)
+}
+
+// relatedText is the stack drawn width cells wide ("" when the detail has
+// none, it is off or nothing is shown).
+func (p *pageDetail) relatedText(width int) string {
+	if p.rel == nil || width < 1 {
+		return ""
+	}
+	return p.rel.Text(width)
+}
+
+// withRelated is text with the stack under it, a blank line between.
+func (p *pageDetail) withRelated(text string, width int) string {
+	stack := p.relatedText(width)
+	switch {
+	case stack == "":
+		return text
+	case text == "":
+		return stack
+	}
+	return text + "\n\n" + stack
 }
 
 // window is the detail's lines of text in width by height (wrapped to

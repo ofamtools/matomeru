@@ -123,12 +123,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 				}
 				if noun == "task" && (task == id || (child.name == "tasks" && parent == id)) {
 					row["former_task_id"] = id
-					if about, _ := row["about"].(string); child.name == "notes" && about == "task:"+id {
-						// The note stays; what it was about moves to former_about.
-						row["former_about"] = about
-						delete(row, "about")
-						changed = true
-					}
+					moveAboutToFormer(row, "task:"+id)
 					if task == id {
 						row["task_id"] = ""
 					}
@@ -159,4 +154,13 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 		return nil
 	})
 	return counts, err
+}
+
+// moveAboutToFormer moves a row's about to former_about when it is about
+// the deleted thing about (only a note row has one); the note stays.
+func moveAboutToFormer(row map[string]any, about string) {
+	if row["about"] == about {
+		row["former_about"] = about
+		delete(row, "about")
+	}
 }

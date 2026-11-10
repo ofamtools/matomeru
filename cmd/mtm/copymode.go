@@ -763,12 +763,13 @@ func (a *App) copyBlock(width, height int) ochazuke.Block {
 // copyTabLine is the tab line in copy mode: the tabs, the mode and its
 // way out.
 func (a *App) copyTabLine() string {
-	parts := make([]string, len(tabNames))
-	for i, name := range tabNames {
+	parts := make([]string, 0, len(tabNames))
+	for _, i := range a.paneTabs() {
+		name := tabNames[i]
 		if i == tabScreen {
 			name = "[" + name + "]"
 		}
-		parts[i] = name
+		parts = append(parts, name)
 	}
 	back := "list"
 	if a.copy.returnLive != "" {

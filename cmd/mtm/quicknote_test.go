@@ -21,13 +21,17 @@ func notesOf(t *testing.T, a *App) map[string]work.Note {
 	return out
 }
 
-// N opens a quick note with no pin and nothing selected as no project;
+// N opens a quick note with no pin and no task selected as no project (the
+// earlier rule, notes.quick-about task; the default is the focused thing);
 // nothing is stored until something is typed; typing is written after the
 // pause, leaving insert mode and an undo at once; esc closes with
 // everything written.
 func TestQuickNoteWritesAsYouType(t *testing.T) {
 	t.Parallel()
 	a := open(t)
+	if err := a.r.Settings().Set(settingQuickAbout, quickAboutTask); err != nil {
+		t.Fatal(err)
+	}
 	before := len(notesOf(t, a))
 	press(t, a, "N")
 	if a.r.TopModal() != quickNoteModal || a.r.FocusID() != quickNoteInput || a.r.CurrentMode().Name != "insert" {

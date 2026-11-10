@@ -331,7 +331,9 @@ form-chip	noun	lx4
 form-chips	noun	seed	
 form-choice	noun	seed	
 form-field	noun	seed	
+form-item	noun	yes	pp-library
 form-option	noun	seed	
+form-read-only	noun	yes	pp-library
 form-suggest	noun	seed	
 form-text	noun	seed	
 format	prop	seed	
@@ -397,6 +399,16 @@ into	action+prop	seed
 inventory	namespace+noun	seed	
 invert	action	seed	
 invert-condition	action	seed	
+item-add	action	yes	pp-library: list field rows (record_list.go)
+item-delete	action	yes	pp-library: list field rows (record_list.go)
+item-edit	action	yes	pp-library: list field rows (record_list.go)
+item-first	action	yes	pp-library: list field rows (record_list.go)
+item-last	action	yes	pp-library: list field rows (record_list.go)
+item-move-down	action	yes	pp-library: list field rows (record_list.go)
+item-move-up	action	yes	pp-library: list field rows (record_list.go)
+item-next	action	yes	pp-library: list field rows (record_list.go)
+item-previous	action	yes	pp-library: list field rows (record_list.go)
+item-yank	action	yes	pp-library: list field rows (record_list.go)
 job	noun+prop	seed	
 jobs	prop	seed	
 json	namespace+prop	seed	

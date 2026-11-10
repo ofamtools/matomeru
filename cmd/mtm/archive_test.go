@@ -167,7 +167,7 @@ func TestArchiveViewsHideBranchesAndHonorOptOut(t *testing.T) {
 				t.Fatalf("hidden task in picker: %+v", row)
 			}
 		}
-		if hidden && strings.Contains(a.detailNotes("matomeru", "t1"), "retained note") {
+		if hidden && strings.Contains(a.workRelated(t, "t1"), "retained note") {
 			t.Fatal("archived note in detail")
 		}
 	}
