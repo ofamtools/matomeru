@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -53,11 +54,20 @@ func (s *Store) Index(table, name string, fields ...string) error {
 // fieldExpr is the indexed expression of a JSON field. The path is a
 // literal in the text, not a bound argument: SQLite uses an expression
 // index only when the query repeats the expression exactly.
+//
+// A field written "path|trim" is the string with surrounding whitespace
+// removed (the ASCII spaces strings.TrimSpace removes), in an index and in a
+// match alike; a match on it trims its values the same way.
 func fieldExpr(field string) (string, error) {
-	if !fieldName.MatchString(field) {
+	path, trimmed := strings.CutSuffix(field, "|trim")
+	if !fieldName.MatchString(path) {
 		return "", fmt.Errorf("store: invalid field %q", field)
 	}
-	return `json_extract(row, '$.` + field + `')`, nil
+	expr := `json_extract(row, '$.` + path + `')`
+	if trimmed {
+		expr = `trim(` + expr + `, char(32, 9, 10, 11, 12, 13))`
+	}
+	return expr, nil
 }
 
 // matchWhere is the WHERE clause and the arguments of the matches. A prefix
@@ -68,6 +78,20 @@ func matchWhere(matches []JSONMatch) (string, []any, error) {
 		expr, err := fieldExpr(m.Field)
 		if err != nil {
 			return "", nil, err
+		}
+		if strings.HasSuffix(m.Field, "|trim") {
+			m.Value = strings.Trim(m.Value, " \t\n\v\f\r")
+			m.Values = slices.Clone(m.Values)
+			for i := range m.Values {
+				m.Values[i] = strings.Trim(m.Values[i], " \t\n\v\f\r")
+			}
+		}
+		if len(m.Values) > 0 {
+			where += ` AND ` + expr + ` IN (` + strings.TrimSuffix(strings.Repeat("?,", len(m.Values)), ",") + `)`
+			for _, v := range m.Values {
+				args = append(args, v)
+			}
+			continue
 		}
 		if !m.Prefix {
 			where += ` AND ` + expr + ` = ?`

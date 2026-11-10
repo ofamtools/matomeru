@@ -83,8 +83,9 @@ func actionItemProps() []ochazuke.PropSpec {
 // row back as it was (AcceptsKey, forgotten).
 func (a *App) actionItemStore() ochazuke.Store {
 	return ochazuke.Store{
-		Kind: ochazuke.KindCollection,
-		Undo: true, AcceptsKey: true,
+		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.inbox.items.Version() },
+		Kind:        ochazuke.KindCollection,
+		Undo:        true, AcceptsKey: true,
 		Confirm: map[string]string{"delete": "Delete {{label}}? x archives it instead."},
 		ListParams: map[string]ochazuke.Parameter{
 			"state":  {Type: "string", Enum: append([]string{"all"}, actionitems.States...), Description: "Which items (default open)"},

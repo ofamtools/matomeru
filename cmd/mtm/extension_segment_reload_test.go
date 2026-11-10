@@ -74,6 +74,12 @@ func TestExtensionSegmentChangeReloadsItsPage(t *testing.T) {
 	a, log, brief := stateApp(t)
 	now := time.Unix(1_790_000_000, 0)
 	a.m.Now = func() time.Time { return now }
+	// This test is about the page reload, not the poll rate: with backoff on
+	// (ochazuke v0.117.0) an unchanged answer stretches the wait past the
+	// test clock's 3s step, so the changed answer would not be asked for.
+	if _, err := a.r.Settings().SetSession(ochazuke.SegmentBackoffSetting, false); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := a.r.Settings().SetSession(ochazuke.SegmentSetting("fake-link"), true); err != nil {
 		t.Fatal(err)
 	}

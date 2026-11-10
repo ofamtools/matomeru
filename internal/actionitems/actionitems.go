@@ -153,6 +153,10 @@ func Open(db *store.Store) (*Store, error) {
 	return &Store{db: db, now: work.Now}, nil
 }
 
+// Version is a cheap token for the table: equal tokens mean no write of it
+// in between (store.Store.Version).
+func (s *Store) Version() (string, error) { return s.db.Version(Table.Name) }
+
 // SetClock replaces the clock (Unix ms); tests use it.
 func (s *Store) SetClock(now func() int64) { s.now = now }
 

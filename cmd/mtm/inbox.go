@@ -60,6 +60,8 @@ type inboxState struct {
 	detail      *linkedDetail
 	sys         systemActions
 	counts      actionitems.Counts
+	tok         string             // the store token the rows were built at
+	wake        int64              // when a snooze ends (Unix ms) and the rows change without a write; 0: none
 	sig         string             // what the rows were last built from; a reload that finds it unchanged sets nothing
 	paneSig     string             // the pane names the rows were built with (inboxPaneSig)
 	all         []actionitems.Item // the items the rows were built from; the Panes page's top list reads them
@@ -231,10 +233,15 @@ func (a *App) reloadInbox() error {
 	if !a.inboxLoad.loaded {
 		return a.inboxLoad.ensure()
 	}
+	tok, _ := a.inbox.items.Version()
+	if tok != "" && tok == a.inbox.tok && (a.inbox.wake == 0 || a.inbox.items.Now() < a.inbox.wake) {
+		return nil // nothing wrote the items and no snooze has ended
+	}
 	items, err := a.inbox.items.All()
 	if err != nil {
 		return err
 	}
+	a.inbox.tok = tok
 	if inboxSig(items, a.inbox.items.Now()) == a.inbox.sig && a.inboxGroupSig(items) == a.inbox.paneSig {
 		return nil
 	}
@@ -265,16 +272,24 @@ func (a *App) loadInbox() error {
 	if a.inbox == nil || a.inbox.list == nil {
 		return nil
 	}
+	tok, _ := a.inbox.items.Version()
 	items, err := a.inbox.items.All()
 	if err != nil {
 		return err
 	}
+	a.inbox.tok = tok
 	return a.setInboxRows(items)
 }
 
 func (a *App) setInboxRows(items []actionitems.Item) error {
 	now := a.inbox.items.Now()
 	a.inbox.sig = inboxSig(items, now)
+	a.inbox.wake = 0
+	for _, it := range items {
+		if it.SnoozedUntil > now && (a.inbox.wake == 0 || it.SnoozedUntil < a.inbox.wake) {
+			a.inbox.wake = it.SnoozedUntil
+		}
+	}
 	a.inbox.paneSig = a.inboxGroupSig(items)
 	rows := make([]ochazuke.ListItem, 0, len(items))
 	var c actionitems.Counts

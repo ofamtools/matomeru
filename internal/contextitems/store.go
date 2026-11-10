@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
@@ -114,8 +115,21 @@ func Open(db *store.Store) (*Store, error) {
 	if err := db.Declare(Table); err != nil {
 		return nil, err
 	}
+	// The index Merge looks items up by. A read-only file cannot make it;
+	// Merge then still finds the rows, by a scan that decodes none.
+	_ = db.Index(Table.Name, indexName, keyFields...)
 	return &Store{db: db}, nil
 }
+
+// keyFields are the row fields a duplicate is looked up by (the owner is
+// compared after the rows are read); indexName is their index.
+var keyFields = []string{"kind", "text|trim"}
+
+const indexName = "kind_text"
+
+// decoded counts the rows Merge has decoded to find duplicates, so a test
+// can show it reads the few rows it needs and not the table.
+var decoded atomic.Int64
 
 // All is every item, newest sighting first (starred ones are sorted by
 // the caller).
@@ -136,6 +150,10 @@ func (s *Store) All() ([]Item, error) {
 	return out, nil
 }
 
+// Version is a cheap token for the table: equal tokens mean no write of it
+// (by this process, or by another since the file was opened) in between.
+func (s *Store) Version() (string, error) { return s.db.Version(Table.Name) }
+
 // Get is one item.
 func (s *Store) Get(id string) (Item, error) {
 	var it Item
@@ -155,22 +173,41 @@ func (s *Store) Merge(items []Item, owner Owner, now int64) ([]Item, int, error)
 	}
 	var added, seen []Item
 	err := s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error {
-		rows, err := tx.All(Table.Name)
-		if err != nil {
-			return err
-		}
-		existing := make(map[string]Item, len(rows))
-		for _, raw := range rows {
-			var it Item
-			if err := json.Unmarshal(raw, &it); err != nil {
+		existing := map[string]Item{}
+		looked := map[string]bool{}
+		// find reads the stored rows that can share its key (same kind
+		// and text, any owner) once per kind and text, by index.
+		find := func(it Item) error {
+			n := normalize(it.Kind, it.Text)
+			if looked[it.Kind+"\x00"+n] {
+				return nil
+			}
+			looked[it.Kind+"\x00"+n] = true
+			// A stored text may keep the trailing slash normalize drops;
+			// the rows are compared by key() once read, so a variant that
+			// is not a match costs nothing.
+			texts := []string{n, n + "/"}
+			rows, err := tx.Match(Table.Name, store.JSONMatch{Field: keyFields[0], Value: it.Kind}, store.JSONMatch{Field: keyFields[1], Values: texts})
+			if err != nil {
 				return err
 			}
-			existing[key(it)] = it
+			for _, raw := range rows {
+				decoded.Add(1)
+				var old Item
+				if err := json.Unmarshal(raw, &old); err != nil {
+					return err
+				}
+				existing[key(old)] = old
+			}
+			return nil
 		}
 		for _, it := range items {
 			it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
 			if it.TaskID != "" {
 				it.ProjectID = ""
+			}
+			if err := find(it); err != nil {
+				return err
 			}
 			k := key(it)
 			if prev, ok := existing[k]; ok {

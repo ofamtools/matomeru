@@ -88,7 +88,7 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 	if kind == "prompt" || kind == "command" {
 		src.EntryKind = kind
 	}
-	items := contextitems.Extract(body, 0, src)
+	items := a.extractItems(body, 0, src)
 	if kind != "" {
 		items = slices.DeleteFunc(items, func(it contextitems.Item) bool { return it.Kind != kind })
 		if len(items) == 0 {

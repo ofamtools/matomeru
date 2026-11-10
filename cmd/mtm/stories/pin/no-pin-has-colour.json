@@ -7,7 +7,7 @@
   "theme": "dark",
   "script": [":", {"type": "set pin.colors=mono"}, "enter"],
   "expect": [
-    {"after": 1, "contains": ["Matomeru · no pin"], "attrs": {"INSERT": "bold,bg", "Needs you (2)": "bold,fg"}},
+    {"after": 1, "contains": ["Matomeru · no pin"], "attrs": {"INSERT": "bold,bg", "Inbox": "bold,fg"}},
     {"contains": ["Matomeru · no pin"], "attrs": {"NORMAL": "bold,-bg", "Needs you (2)": "bold,-fg"}}
   ]
 }

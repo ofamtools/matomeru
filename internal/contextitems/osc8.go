@@ -1,6 +1,7 @@
 package contextitems
 
 import (
+	"errors"
 	"net/url"
 	"regexp"
 	"strings"
@@ -99,6 +100,9 @@ func hyperlinkFound(target string, stat StatFunc) (f found, raw string) {
 		kind := "file"
 		if exists && info.IsDir() {
 			kind = "dir"
+		}
+		if errors.Is(err, ErrNotLocal) {
+			return found{kind: kind, value: u.Path}, u.Path
 		}
 		return found{kind: kind, value: u.Path, exists: &exists}, u.Path
 	}

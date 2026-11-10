@@ -316,7 +316,7 @@ func startsNewLink(kind int, cont, cwd string, stat StatFunc) bool {
 		return false
 	}
 	if strings.HasPrefix(cont, "/") && strings.Count(strings.Trim(cont, "/"), "/") > 0 {
-		if _, _, exists, ok := classifyPath(trimPath(cont), cwd, stat); ok && exists {
+		if _, _, exists, _, ok := classifyPath(trimPath(cont), cwd, stat); ok && exists {
 			return true
 		}
 	}
@@ -348,13 +348,13 @@ func stillLink(kind int, piece, joined, cwd string, stat StatFunc) bool {
 	if raw == "" {
 		return false
 	}
-	_, _, exists, ok := classifyPath(raw, cwd, stat)
+	_, _, exists, _, ok := classifyPath(raw, cwd, stat)
 	if !ok {
 		return false
 	}
 	if !exists {
 		if p := trimPath(piece); p != "" {
-			if _, _, pieceExists, ok := classifyPath(p, cwd, stat); ok && pieceExists {
+			if _, _, pieceExists, _, ok := classifyPath(p, cwd, stat); ok && pieceExists {
 				return false
 			}
 		}

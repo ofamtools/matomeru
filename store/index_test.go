@@ -157,3 +157,30 @@ func TestBackupCopiesAndRefusesAnExistingFile(t *testing.T) {
 		t.Fatal("an existing backup is not overwritten")
 	}
 }
+
+func TestMatchTrimmedFieldsAndValueLists(t *testing.T) {
+	t.Parallel()
+	db := indexFixture(t)
+	err := db.Tx([]string{"rels"}, func(tx *Tx) error {
+		return tx.Put("rels", "5", map[string]string{"id": "5", "from": "  project:a \n", "kind": "directory"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Index("rels", "from_trim", "from|trim"); err != nil {
+		t.Fatal(err)
+	}
+	var rows int
+	err = db.View([]string{"rels"}, func(tx *Tx) error {
+		got, err := tx.Match("rels", JSONMatch{Field: "from|trim", Values: []string{" project:a ", "project:b"}})
+		rows = len(got)
+		return err
+	})
+	if err != nil || rows != 4 { // 1, 2, 3 and the padded 5
+		t.Fatalf("rows = %d, %v; want 4", rows, err)
+	}
+	plan, err := db.plan("rels", JSONMatch{Field: "from|trim", Values: []string{"project:a"}})
+	if err != nil || !strings.Contains(plan, "idx_rels_from_trim") {
+		t.Fatalf("plan = %q, %v; want the trimmed index", plan, err)
+	}
+}

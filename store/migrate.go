@@ -95,7 +95,11 @@ func (s *Store) Migrate(table string, from, to int, rewrite Rewrite) error {
 	if _, err := tx.Exec(`UPDATE __deck_tables SET version = ? WHERE name = ?`, to, table); err != nil {
 		return fmt.Errorf("migrate %s: %w", table, err)
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.noteWrites(map[string]bool{table: true})
+	return nil
 }
 
 // same reports whether two JSON documents hold the same value, so a rewrite

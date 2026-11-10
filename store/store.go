@@ -11,7 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -35,6 +38,23 @@ type Table struct {
 type Store struct {
 	db   *sql.DB
 	path string // the file Open was given (":memory:" for none)
+
+	// writes counts, per table, the committed transactions of this process
+	// that wrote it (Version).
+	mu     sync.Mutex
+	writes map[string]uint64
+	// fullReads counts whole-table reads (All, Entries), so a test can show
+	// a path reads no table.
+	fullReads sync.Map // table name → *atomic.Int64
+}
+
+// FullReads is how many whole-table reads (All, Tx.All, Tx.Entries) of the
+// table this store has made.
+func (s *Store) FullReads(table string) int64 { return s.counter(table).Load() }
+
+func (s *Store) counter(table string) *atomic.Int64 {
+	c, _ := s.fullReads.LoadOrStore(table, new(atomic.Int64))
+	return c.(*atomic.Int64)
 }
 
 // Tx grants access only to the tables named in Store.Tx.
@@ -43,6 +63,8 @@ type Tx struct {
 	tx       *sql.Tx
 	tables   map[string]Table
 	readOnly bool
+	wrote    map[string]bool // tables Put or Delete touched
+	store    *Store
 }
 
 // Open opens a SQLite file, creating its parent directory if necessary.
@@ -257,7 +279,7 @@ func (s *Store) run(tables []string, readOnly bool, fn func(*Tx) error) error {
 		return err
 	}
 	defer tx.Rollback()
-	scope := &Tx{tx: tx, tables: make(map[string]Table, len(tables)), readOnly: readOnly}
+	scope := &Tx{tx: tx, tables: make(map[string]Table, len(tables)), readOnly: readOnly, store: s}
 	for _, name := range tables {
 		table, err := readTable(tx.QueryRow(`SELECT name, owner, key, version, append_only FROM __deck_tables WHERE name = ?`, name))
 		if err != nil {
@@ -268,7 +290,47 @@ func (s *Store) run(tables []string, readOnly bool, fn func(*Tx) error) error {
 	if err := fn(scope); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.noteWrites(scope.wrote)
+	return nil
+}
+
+func (s *Store) noteWrites(tables map[string]bool) {
+	if len(tables) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.writes == nil {
+		s.writes = map[string]uint64{}
+	}
+	for name := range tables {
+		s.writes[name]++
+	}
+}
+
+// Version is a cheap token for a table's rows as they are now: two equal
+// answers mean nothing wrote the table between them. It combines a count of
+// this process's committed writes of the table (every write goes through
+// Tx.Put, Tx.Delete or Migrate) with SQLite's data_version, which moves
+// when another connection, in another process, commits to the file (any
+// table: coarse, never missing a write). The store holds one connection, so
+// its own commits never move data_version, only the counter. Equal tokens
+// cost a counter read and one pragma, far below reading the table.
+func (s *Store) Version(table string) (string, error) {
+	if err := s.declared(table); err != nil {
+		return "", err
+	}
+	var dv int64
+	if err := s.db.QueryRow(`PRAGMA data_version`).Scan(&dv); err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	n := s.writes[table]
+	s.mu.Unlock()
+	return strconv.FormatUint(n, 10) + "." + strconv.FormatInt(dv, 10), nil
 }
 
 func (s *Store) Get(table, id string, dst any) error {
@@ -283,6 +345,7 @@ func (s *Store) All(table string) ([]json.RawMessage, error) {
 	if err := s.declared(table); err != nil {
 		return nil, err
 	}
+	s.counter(table).Add(1)
 	return readRows(s.db.Query(`SELECT row FROM ` + quote(table) + ` ORDER BY rowid`))
 }
 
@@ -305,6 +368,9 @@ func (t *Tx) All(table string) ([]json.RawMessage, error) {
 	if _, err := t.allowed(table); err != nil {
 		return nil, err
 	}
+	if t.store != nil {
+		t.store.counter(table).Add(1)
+	}
 	return readRows(t.tx.Query(`SELECT row FROM ` + quote(table) + ` ORDER BY rowid`))
 }
 
@@ -319,6 +385,9 @@ type Entry struct {
 func (t *Tx) Entries(table string) ([]Entry, error) {
 	if _, err := t.allowed(table); err != nil {
 		return nil, err
+	}
+	if t.store != nil {
+		t.store.counter(table).Add(1)
 	}
 	rows, err := t.tx.Query(`SELECT id, row FROM ` + quote(table) + ` ORDER BY rowid`)
 	if err != nil {
@@ -361,6 +430,7 @@ func (t *Tx) Put(table, id string, row any) error {
 	if err != nil {
 		return err
 	}
+	t.note(table)
 	if id == "" {
 		return errors.New("store: row id is required")
 	}
@@ -389,8 +459,16 @@ func (t *Tx) Delete(table, id string) error {
 	if definition.AppendOnly {
 		return fmt.Errorf("store: table %q is append-only", table)
 	}
+	t.note(table)
 	_, err = t.tx.Exec(`DELETE FROM `+quote(table)+` WHERE id = ?`, id)
 	return err
+}
+
+func (t *Tx) note(table string) {
+	if t.wrote == nil {
+		t.wrote = map[string]bool{}
+	}
+	t.wrote[table] = true
 }
 
 func (t *Tx) allowed(name string) (Table, error) {

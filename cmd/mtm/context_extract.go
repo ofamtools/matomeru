@@ -146,7 +146,7 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 			if err != nil {
 				return nil, fmt.Errorf("capture %s: %w", p.label(), err)
 			}
-			items = contextitems.Extract(back.Text, p.Width, contextSource(p, "scrollback"))
+			items = a.extractItems(back.Text, p.Width, contextSource(p, "scrollback"))
 		}
 		// History is best effort: a pane without shell integration has none.
 		if extractsFrom(origins, contextSource(p, "history")) {
@@ -157,7 +157,7 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 					if cmd.Cwd != "" {
 						src.Cwd = cmd.Cwd
 					}
-					items = append(items, contextitems.Extract(cmd.Cmdline, 0, src)...)
+					items = append(items, a.extractItems(cmd.Cmdline, 0, src)...)
 				}
 			}
 		}

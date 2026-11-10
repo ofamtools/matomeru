@@ -1,6 +1,7 @@
 package contextitems
 
 import (
+	"errors"
 	"io/fs"
 	"net/url"
 	"os"
@@ -160,7 +161,17 @@ func overlaps(spans []span, at [2]int) bool {
 // source.Cwd and are checked on disk (Exists); each kind and text appears
 // once. Owner fields are left for Merge.
 func Extract(text string, width int, source Source) []Item {
-	text = joinText(text, width, source.Cwd, os.Stat)
+	return ExtractStat(text, width, source, os.Stat)
+}
+
+// ExtractStat is Extract with the paths checked through stat (nil: os.Stat),
+// so a caller can pass a cache, or a check that does not look at paths of
+// another host (ErrNotLocal).
+func ExtractStat(text string, width int, source Source, stat StatFunc) []Item {
+	if stat == nil {
+		stat = os.Stat
+	}
+	text = joinText(text, width, source.Cwd, stat)
 	var result []Item
 	seen := map[string]bool{}
 	add := func(kind, value string, exists *bool) {
@@ -175,7 +186,7 @@ func Extract(text string, width int, source Source) []Item {
 	if kind := source.EntryKind; kind == "prompt" || kind == "command" {
 		add(kind, text, nil)
 	}
-	for _, m := range find(text, source.Cwd, os.Stat) {
+	for _, m := range find(text, source.Cwd, stat) {
 		add(m.kind, m.value, m.exists)
 	}
 	return result
@@ -194,6 +205,12 @@ func itemKey(kind, value string) string {
 // ExtractSpans takes one so a caller on the UI loop can pass a cache
 // (CachedStat).
 type StatFunc func(path string) (fs.FileInfo, error)
+
+// ErrNotLocal is what a StatFunc answers for a path it was told not to
+// look at (it belongs to another host, or under a root that is slow to
+// ask): the path is kept when it is explicit and its Exists stays unknown
+// (nil), never false.
+var ErrNotLocal = errors.New("path not checked on this machine")
 
 // found is one match in the joined text: its kind, the item text (a path
 // resolved and cleaned), and the byte range [start, end) of the text it
@@ -251,12 +268,16 @@ func find(text, cwd string, stat StatFunc) []found {
 		if raw == "" {
 			continue
 		}
-		kind, path, exists, ok := classifyPath(raw, cwd, stat)
+		kind, path, exists, known, ok := classifyPath(raw, cwd, stat)
 		if !ok {
 			continue
 		}
 		claimed = append(claimed, span{at[0], at[1]})
-		out = append(out, found{kind: kind, value: path, start: at[0], end: at[0] + len(raw), exists: &exists})
+		f := found{kind: kind, value: path, start: at[0], end: at[0] + len(raw)}
+		if known {
+			f.exists = &exists
+		}
+		out = append(out, f)
 	}
 	for _, at := range commitPattern.FindAllStringIndex(text, -1) {
 		if commitAt(text, at) && !overlaps(claimed, [2]int{at[0], at[1]}) {
@@ -311,10 +332,13 @@ func trimPath(raw string) string {
 // ./, ../) that does not exist yet. A bare dotted word counts only when it
 // exists, so prose is not a path; a relative word with a slash that does
 // not exist (origin/main, owner/repo) is not one either.
-func classifyPath(raw, cwd string, stat StatFunc) (kind, path string, exists, ok bool) {
+//
+// known is false when stat answered ErrNotLocal: an explicit path is kept
+// with exists unknown, a bare word is not a path.
+func classifyPath(raw, cwd string, stat StatFunc) (kind, path string, exists, known, ok bool) {
 	path = locationSuffix.ReplaceAllString(raw, "")
 	if strings.Trim(path, "./~") == "" { // ./..., .., / name no file
-		return "", "", false, false
+		return "", "", false, false, false
 	}
 	explicit := strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") ||
 		strings.HasPrefix(path, "/") && strings.Contains(strings.Trim(path, "/"), "/")
@@ -327,23 +351,33 @@ func classifyPath(raw, cwd string, stat StatFunc) (kind, path string, exists, ok
 		path = filepath.Join(cwd, path)
 	}
 	info, err := stat(path)
+	if errors.Is(err, ErrNotLocal) {
+		if !explicit {
+			return "", "", false, false, false
+		}
+		kind = "file"
+		if strings.HasSuffix(raw, "/") {
+			kind = "dir"
+		}
+		return kind, filepath.Clean(path), false, false, true
+	}
 	exists = err == nil
 	if !exists && !explicit {
-		return "", "", false, false
+		return "", "", false, true, false
 	}
 	// A missing absolute path whose top folder does not exist either
 	// (/eval/browser, /debug/pprof) is a URL path or prose, not a file.
 	if !exists && filepath.IsAbs(path) {
 		top := "/" + strings.SplitN(strings.TrimPrefix(path, "/"), "/", 2)[0]
 		if _, err := stat(top); err != nil {
-			return "", "", false, false
+			return "", "", false, true, false
 		}
 	}
 	kind = "file"
 	if strings.HasSuffix(raw, "/") || exists && info.IsDir() {
 		kind = "dir"
 	}
-	return kind, filepath.Clean(path), exists, true
+	return kind, filepath.Clean(path), exists, true, true
 }
 
 // commitAt reports whether the hex run at is a commit SHA: 7 or 9 to 12

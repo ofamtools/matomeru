@@ -54,11 +54,13 @@ var contextColumns = []ochazuke.Column{
 
 // contextState is the Context page's own state.
 type contextState struct {
-	extractFrom atomic.Value        // immutable []string snapshot, also read by the journal goroutine
-	items       []contextitems.Item // every stored item, newest sighting first
-	kind        string              // the kind shown, "" for every kind
-	query       *ochazuke.Input     // the page's search field
-	seen        string              // the query the list was last filtered by
+	extractFrom atomic.Value                         // immutable []string snapshot, also read by the journal goroutine
+	itemsTok    string                               // the store token cx.items was read at; "" when not read
+	stats       atomic.Pointer[contextitems.Statter] // path checks of extraction (context_stat.go)
+	items       []contextitems.Item                  // every stored item, newest sighting first
+	kind        string                               // the kind shown, "" for every kind
+	query       *ochazuke.Input                      // the page's search field
+	seen        string                               // the query the list was last filtered by
 	list        *ochazuke.Collection
 	load        pageLoad // the items load on first need (lazy.go)
 	sys         systemActions
@@ -123,7 +125,7 @@ func (a *App) defineContext() {
 		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Verb("extract", a.extractContext, "Extract items from a pane's whole scrollback and command history now (panes are followed continuously anyway)").
 		Verb("turns", a.extractTurns, "Extract items from every journaled turn's prompt and answer now (new turns are extracted as they are journaled)").
-		Verb("follow", a.followPanes, "Read the panes that printed since the last read and keep what is new (runs by itself about once a second)").Quiet().
+		Verb("follow", a.followPanes, "Read the panes that printed since the last read and keep what is new (runs by itself, see context.follow-interval)").Quiet().
 		Verb("kind", a.cycleContextKind, "Show one kind at a time: all, then each kind in turn").
 		Verb("search", a.searchContext, "Filter the context items by words").
 		Mode("normal").
@@ -217,11 +219,12 @@ func (a *App) reloadContext() error {
 
 // loadContext reads the items from the store and pushes the rows.
 func (a *App) loadContext() error {
+	tok, _ := a.contexts.Version() // before the read, so a write in between is read next time
 	items, err := a.contexts.All()
 	if err != nil {
 		return err
 	}
-	a.cx.items = items
+	a.cx.items, a.cx.itemsTok = items, tok
 	return a.refreshContext()
 }
 
@@ -449,9 +452,19 @@ func (a *App) contextAt(ctx ochazuke.Ctx) (contextitems.Item, error) {
 }
 
 // reloadContextItems reads the items without pushing rows (the CLI).
+// It reads nothing while the store's token is the one the items were read
+// at (every write of the table moves it).
 func (a *App) reloadContextItems() error {
+	tok, err := a.contexts.Version()
+	if err == nil && tok != "" && tok == a.cx.itemsTok {
+		return nil
+	}
 	items, err := a.contexts.All()
 	a.cx.items = items
+	a.cx.itemsTok = ""
+	if err == nil {
+		a.cx.itemsTok = tok
+	}
 	return err
 }
 

@@ -41,10 +41,14 @@ func (s *Store) After(table string, sequence int64) ([]SequencedRow, error) {
 }
 
 // JSONMatch selects rows by a JSON string field; Prefix compares a literal
-// prefix (no LIKE wildcards), otherwise the whole value must match.
+// prefix (no LIKE wildcards), otherwise the whole value must match. Values,
+// when given, replaces Value: the field must equal one of them (Match and
+// Tx.Match only). A Field written "path|trim" compares the trimmed string
+// (see Index).
 type JSONMatch struct {
 	Field, Value string
 	Prefix       bool
+	Values       []string
 }
 
 // MaxNumber reads an aggregate without materializing or decoding documents.

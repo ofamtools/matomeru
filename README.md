@@ -382,6 +382,17 @@ is no maker filter. User `collection.filters` rows can override these defaults b
 name with `list: "context-picker"`.
 
 Context extraction defaults to `context.extract-from: ["prompt", "response"]`.
+
+Continuous extraction (reading panes as they print) has settings:
+`context.follow` (default `true`; off stops it), `context.follow-interval`
+(default `1s`, never under `250ms`: how long after output a pane is read; a pane
+that yields nothing new is read at doubling intervals up to 30s) and
+`context.stat-skip-roots` (default `["/home", "/net", "/Network"]` on macOS, `[]`
+elsewhere: folders whose contents are not checked on disk, because looking under an
+automounted root wakes the automounter). Paths printed by a pane on another host are
+never checked here and keep an unknown `exists`. `Merge` looks up only the rows it
+is about to write, through the `context_items_kind_text` index, created on first
+start (it adds no declaration; back up `mtm.db` first if you like).
 The setting is a list of source origins: it gates journal/capture/backfill
 extraction from prompts and responses, on-demand/continuous scrollback
 extraction, shell command history, and extraction when a transcript is read.

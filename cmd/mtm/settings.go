@@ -97,6 +97,9 @@ func (a *App) declareSettings() error {
 		relatedEmptySetting,
 		panesNotesTabSetting,
 		contextNotesSetting,
+		contextFollowSetting,
+		contextFollowIntervalSetting,
+		contextStatSkipSetting,
 		quickAboutSetting,
 		directoryChooserSetting,
 		pinDirectoryWalkSetting,
@@ -167,6 +170,8 @@ func (a *App) declareSettings() error {
 		a.sched.failureLimit.Store(int64(value.(int)))
 	})
 	a.observeContextExtraction()
+	a.observeContextStat()
+	a.observeContextFollow()
 	a.r.Settings().Observe(settingExtPeerKeys, func(string, any) { a.reloadPeerBindings() })
 	a.r.Settings().Observe(settingExtHostCall, func(string, any) {
 		for _, x := range a.exts {

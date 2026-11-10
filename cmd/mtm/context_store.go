@@ -124,9 +124,12 @@ func (a *App) contextStore() ochazuke.Store {
 			}
 			return out, nil
 		},
-		Create: a.createContextItem,
-		Patch:  a.patchContextItem,
-		Delete: a.removeContextItem,
+		// A cheap token, so the watch of this noun lists it again only after
+		// a write (store.Store.Version).
+		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.contexts.Version() },
+		Create:      a.createContextItem,
+		Patch:       a.patchContextItem,
+		Delete:      a.removeContextItem,
 	}
 }
 

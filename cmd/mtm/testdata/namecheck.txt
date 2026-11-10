@@ -21,8 +21,8 @@
 ../../internal/agenthook/hook_plugins.go	translatePi	compare	"confirm"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/proc.go	var launcherNames	table	"env"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/compose/files.go	var skipDirs	table	"target"	1
-../../internal/contextitems/extract.go	Extract	compare	"command"	1
-../../internal/contextitems/extract.go	Extract	compare	"prompt"	1
+../../internal/contextitems/extract.go	ExtractStat	compare	"command"	1
+../../internal/contextitems/extract.go	ExtractStat	compare	"prompt"	1
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"command"	1
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"create"	1
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"history"	1

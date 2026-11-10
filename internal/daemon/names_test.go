@@ -44,8 +44,15 @@ func TestSocketForFollowsTheLayout(t *testing.T) {
 		t.Fatalf("SocketFor under %s=tuios = %s, want %s", EnvPaths, got, want)
 	}
 	t.Setenv("XDG_RUNTIME_DIR", "")
-	if got := (Layouts[0]).SocketBase(); filepath.Base(got) != "mtm-"+strconv.Itoa(os.Getuid()) {
-		t.Fatalf("SocketBase without a runtime dir = %s", got)
+	// Without XDG_RUNTIME_DIR, Linux falls back to a private /run/user/UID
+	// when the host has one (a root shell on vps2 does); else, and on macOS,
+	// to /tmp/mtm-UID. The test cannot remove the host's /run/user/UID, so
+	// it accepts either fallback.
+	got := (Layouts[0]).SocketBase()
+	tmp := filepath.Join("/tmp", "mtm-"+strconv.Itoa(os.Getuid()))
+	run := filepath.Join("/run/user", strconv.Itoa(os.Getuid()), "mtm")
+	if got != tmp && got != run {
+		t.Fatalf("SocketBase without a runtime dir = %s, want %s or %s", got, tmp, run)
 	}
 }
 
