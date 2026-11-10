@@ -1202,7 +1202,17 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 	}
 	return a.detail.panes.under(func(w, h int) ochazuke.Block {
 		return a.paneTabContent(row, w, h)
-	}, width, height)
+	}, width, height, a.paneContentFocused())
+}
+
+func (a *App) paneContentFocused() bool {
+	for _, id := range a.r.InstancePath(a.r.BaseFocus()) {
+		if id == turnsTreeID || id == promptID || id == settingsListID ||
+			a.pv.cards != nil && id == a.pv.cards.ID() {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) paneTabContent(row string, width, height int) ochazuke.Block {

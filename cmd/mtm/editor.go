@@ -178,6 +178,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	a.syncLinks()
 	a.applyPinColors()
+	// App-owned updates can replace a list or its scope after the runtime's
+	// request hooks have run. Commit the final selection to the native forms.
+	a.detail.work.show.Sync()
+	a.detail.panes.show.Sync()
 	return a, cmd
 }
 func (a *App) defineRecordEditor() {

@@ -63,7 +63,8 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 		t.Fatalf("back on matomeru's tasks: focus %s", a.r.FocusID())
 	}
 	f := frameAt(a, 120)
-	if !strings.Contains(f, "status: active") || !strings.Contains(f, "[>] busy task") {
+	if e := a.detail.work.show.Form(); e == nil || e.Values()["title"] != "busy task" ||
+		e.Values()["status"] != work.StatusActive || !strings.Contains(f, "title") || !strings.Contains(f, "[>] busy task") {
 		t.Fatalf("task detail not under the table:\n%s", f)
 	}
 	t.Logf("task selected, 120 columns:\n%s", f)
@@ -98,10 +99,9 @@ func TestWorkStackedTaskTableUsesFullWidth(t *testing.T) {
 	}
 }
 
-// UX review 2 F6: k off the first task spills into the projects' last row
-// and j spills straight back onto that task, at both layouts; the tasks
-// shown are not rebuilt by the spill. A move inside the projects still
-// follows.
+// Moving between the projects and tasks follows drawing order, including
+// the record fields between the lists in the stacked layout. Crossing those
+// fields must not forget the task scope; moving inside Projects still follows.
 func TestWorkSpillRoundTripReturnsToTheTask(t *testing.T) {
 	t.Parallel()
 	for _, width := range []int{80, 140} {
@@ -112,18 +112,33 @@ func TestWorkSpillRoundTripReturnsToTheTask(t *testing.T) {
 			t.Fatalf("%d: focus %s", width, a.r.FocusID())
 		}
 		frameAt(a, width)
-		press(t, a, "k")
+		stepTo := func(key, target string) {
+			t.Helper()
+			for range len(a.r.Instances) + 1 {
+				press(t, a, key)
+				frameAt(a, width)
+				if a.r.FocusID() == target {
+					return
+				}
+				if !a.detail.work.recordFocused() || a.current != "matomeru" {
+					t.Fatalf("%d: %s crossed an unrelated stop: focus %s current %q", width, key, a.r.FocusID(), a.current)
+				}
+			}
+			t.Fatalf("%d: %s never reached %s", width, key, target)
+		}
+		stepTo("k", unassociatedID)
 		if a.r.FocusID() != unassociatedID || a.current != "matomeru" {
 			t.Fatalf("%d: k: focus %s current %q", width, a.r.FocusID(), a.current)
 		}
 		if f := frameAt(a, width); !strings.Contains(f, "busy task") {
 			t.Fatalf("%d: the spill rebuilt the tasks:\n%s", width, f)
 		}
-		press(t, a, "j")
+		stepTo("j", "busy")
 		if a.r.FocusID() != "busy" {
 			t.Fatalf("%d: k then j: focus %s", width, a.r.FocusID())
 		}
-		press(t, a, "k", "k")
+		stepTo("k", unassociatedID)
+		press(t, a, "k")
 		if a.r.FocusID() != "matomeru" || a.current != "matomeru" {
 			t.Fatalf("%d: k k: focus %s current %q", width, a.r.FocusID(), a.current)
 		}

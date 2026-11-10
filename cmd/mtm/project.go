@@ -219,14 +219,23 @@ func (a *App) tasksHeading() string {
 // instead of into a list the spill rebuilt (UX review 2 F6).
 func (a *App) followProject() {
 	prev := a.workFocus
-	a.workFocus = a.r.BaseFocus()
 	if a.editor != nil {
 		return
 	}
 	selected := a.r.Instances[a.r.BaseFocus()]
-	if selected == nil || selected.Parent != "projects" {
+	if selected == nil {
 		return
 	}
+	// Passing through the record/related stops does not change the list the
+	// user came from; a spill back from tasks must keep their selected scope.
+	if a.isTaskList(selected.ID) || a.isTaskList(selected.Parent) {
+		a.workFocus = selected.ID
+		return
+	}
+	if selected.Parent != "projects" {
+		return
+	}
+	a.workFocus = selected.ID
 	if from := a.r.Instances[prev]; a.isTaskList(prev) || from != nil && a.isTaskList(from.Parent) {
 		return
 	}

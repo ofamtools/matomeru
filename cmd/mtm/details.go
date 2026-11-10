@@ -124,12 +124,7 @@ func (a *App) addDetailShow(id, page string, item func() string, tail func() boo
 	// row. Keep following the same selection until focus returns to the page.
 	var noun, key string
 	follow := func() (string, string) {
-		focus := a.r.BaseFocus()
-		inside := p.show != nil && p.show.Holds(focus)
-		if p.rel != nil {
-			inside = inside || slices.Contains(a.r.InstancePath(focus), p.rel.ID())
-		}
-		if !inside {
+		if !p.recordFocused() {
 			noun, key = target()
 		}
 		return noun, key
@@ -144,6 +139,11 @@ func (a *App) addDetailShow(id, page string, item func() string, tail func() boo
 	return p, nil
 }
 
+func (p *pageDetail) recordFocused() bool {
+	focus := p.r.BaseFocus()
+	return p.show != nil && p.show.Holds(focus) ||
+		p.rel != nil && slices.Contains(p.r.InstancePath(focus), p.rel.ID())
+}
 func (p *pageDetail) showingForm() bool {
 	return p.show != nil && p.show.Form() != nil && p.r.Settings().Bool(ochazuke.DetailShowFormSetting)
 }
@@ -157,11 +157,18 @@ func (p *pageDetail) recordBlock(text string, width, height int) ochazuke.Block 
 }
 
 // Keep custom components intact, including their cursor and focus placement.
-func (p *pageDetail) under(render func(int, int) ochazuke.Block, width, height int) ochazuke.Block {
-	if !p.showingForm() {
+func (p *pageDetail) under(render func(int, int) ochazuke.Block, width, height int, contentFocused bool) ochazuke.Block {
+	if !p.showingForm() || contentFocused {
 		return render(width, height)
 	}
-	top := max(1, height*2/5)
+	// At rest a single field previews the record without taking the working
+	// viewport away from the custom renderer. Editing expands the same form.
+	top := height - 4
+	if p.recordFocused() {
+		top = max(1, height*2/5)
+	} else if top < 8 {
+		return render(width, height)
+	}
 	head := render(width, top)
 	tail := p.show.Block("", width, max(1, height-top-1))
 	return stackBlocks(head, top, tail)

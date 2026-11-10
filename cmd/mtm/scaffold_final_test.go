@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -223,6 +224,83 @@ func TestScaffoldPanesTurnsRemainAboveTheForm(t *testing.T) {
 		if !strings.Contains(text, "fix the flaky test") || (a.detail.panes.show.Form() != nil) != on {
 			t.Fatalf("turns and form do not coexist (on=%v):\n%s", on, text)
 		}
+	}
+}
+
+func TestScaffoldPaneContentRemainsUsableWithMetadata(t *testing.T) {
+	t.Parallel()
+	for _, style := range []string{turnsStyleTree, turnsStyleCards} {
+		t.Run(style, func(t *testing.T) {
+			t.Parallel()
+			a, f, log := claudeTurnsApp(t)
+			lines := []string{
+				logPrompt(t, "readable", "2026-10-27T10:00:00Z", "Read the prompt"),
+				logAssistant(t, "answer", "2026-10-27T10:00:01Z", "end_turn", map[string]any{"type": "text", "text": "The answer is visible."}),
+				logDone(t, "done", "2026-10-27T10:00:02Z"),
+			}
+			if err := os.WriteFile(log, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			f.panes[0].Meta = map[string]string{"model": "claude-opus-5-5", "context": "32%"}
+			reload(t, a)
+			useTurnStyle(t, a, style)
+			content := func(wants ...string) {
+				t.Helper()
+				text := frameWH(a, 120, 24)
+				for _, want := range wants {
+					if !strings.Contains(text, want) {
+						t.Fatalf("120x24 lacks %q:\n%s", want, text)
+					}
+				}
+			}
+			content("Read the prompt", "name", "write to the agent", "Opus 5.5")
+			form := a.detail.panes.show.Form()
+			if form == nil {
+				t.Fatal("the default show form is disabled")
+			}
+			press(t, a, "}")
+			settle(a, key(t, a, "l"))
+			content("Read the prompt", "The answer is visible.", "write to the agent", "Opus 5.5")
+			turnFocus := a.r.FocusID()
+			turn, _ := a.turnsList().Selected()
+			row, _ := a.selectedRow()
+			subject := func() {
+				t.Helper()
+				gotTurn, _ := a.turnsList().Selected()
+				gotRow, _ := a.selectedRow()
+				if gotRow != row || gotTurn.ID != turn.ID || a.detail.panes.show.Form() != form {
+					t.Fatalf("transition changed subject: pane %s -> %s; turn %s -> %s", row, gotRow, turn.ID, gotTurn.ID)
+				}
+			}
+			press(t, a, "i")
+			if a.r.FocusID() != promptID {
+				t.Fatalf("prompt input is unreachable: %s", where(a))
+			}
+			content("Read the prompt", "The answer is visible.", "write to the agent", "Opus 5.5")
+			press(t, a, "esc")
+			if err := a.pv.settings.Focus(); err != nil {
+				t.Fatal(err)
+			}
+			content("Read the prompt", "The answer is visible.", "write to the agent", "Opus 5.5")
+			subject()
+			if err := a.r.SetFocus(form.ID() + "/name"); err != nil {
+				t.Fatal(err)
+			}
+			content("name", "starred")
+			subject()
+			executeA(t, a, "panes", "tab", "", ochazuke.Arguments{"delta": -1})
+			if a.pv.tab != tabNotes {
+				t.Fatalf("previous tab did not open Notes: %d", a.pv.tab)
+			}
+			content("name", "archived")
+			subject()
+			executeA(t, a, "panes", "tab", "", ochazuke.Arguments{"delta": 1})
+			if err := a.r.SetFocus(turnFocus); err != nil {
+				t.Fatal(err)
+			}
+			content("Read the prompt", "The answer is visible.", "write to the agent", "Opus 5.5")
+			subject()
+		})
 	}
 }
 
