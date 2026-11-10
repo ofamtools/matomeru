@@ -201,7 +201,7 @@ dir	prop	seed
 dir-search	noun	seed	
 direction	action+prop	seed	
 directories	relation	seed	
-directory	action	seed	
+directory	noun+action	yes	the noun is the To end of a project's directory relation; the action project.directory is kept (Keep actions)
 directory-browse	noun	seed	
 directory-path	noun	seed	
 dirs	noun	seed	plural
@@ -677,8 +677,11 @@ register	action+noun	seed
 registers	prop	seed	
 registry	prop	seed	
 reject	action	seed	
+relate	action	yes	NOUN.relate: relate a thing to another (ochazuke relations)
 related	noun	seed	
 related-section	noun	seed	
+relation	noun	yes	one row of the relations table: anything points to anything
+relation-kind	noun	yes	the declared kinds of relation (ochazuke.relation-kind)
 reload	action	seed	
 reminder	noun	seed	
 remote	prop	seed	
@@ -907,6 +910,7 @@ unpin	action	seed
 unpin-column	action	seed	
 unpin-columns	action	seed	
 unread	prop	seed	
+unrelate	action	yes	NOUN.unrelate: unrelate a thing from another (ochazuke relations)
 unstaged	prop	seed	
 unstar	action	seed	
 untag	action	seed	

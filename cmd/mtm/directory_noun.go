@@ -82,5 +82,7 @@ func (a *App) directoryStore() ochazuke.Store {
 }
 
 func (a *App) defineDirectoryNoun() {
-	a.r.Define(work.DirectoryNoun).Props(directoryProps()...).Store(a.directoryStore())
+	// The declared directory picker (pickers.go) is the one that chooses a
+	// directory for a project; the noun keeps out of the derived pickers.
+	a.r.Define(work.DirectoryNoun).Props(directoryProps()...).Store(a.directoryStore()).NoPicker()
 }

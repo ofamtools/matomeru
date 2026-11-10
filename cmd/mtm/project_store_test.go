@@ -102,14 +102,14 @@ func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
 	a, _ := cliApp(t)
 	dir := t.TempDir()
 	var made struct {
-		ID          string `json:"id"`
-		Name        string `json:"name"`
-		DefaultTree string `json:"default_tree"`
+		ID               string `json:"id"`
+		Name             string `json:"name"`
+		DefaultDirectory string `json:"default_directory"`
 	}
 	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "new", "fresh", "--dir", dir)), &made); err != nil {
 		t.Fatal(err)
 	}
-	if made.Name != "fresh" || made.DefaultTree != dir {
+	if made.Name != "fresh" || made.DefaultDirectory != dir {
 		t.Fatalf("project new: %+v", made)
 	}
 	var thing map[string]any

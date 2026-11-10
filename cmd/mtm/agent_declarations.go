@@ -59,8 +59,8 @@ func (a *App) defineAgentDeclarations() {
 		"task":             "A nested unit of work, with status, maker and last writer. Agent writes follow its lane and record policy.",
 		"pane":             "A TUIOS terminal window and its task assignment, launch recipe and agent progress.",
 		"note":             "Short jots, closing lines and evidence, associated with a task or project, or unassociated. Longer findings belong in a document.",
-		relationNoun:       "Anything pointing to anything: two noun:key ends, a kind (any word), free text, a JSON data object and an order. A project's directories are relations of kind directory (the default is data.default). Unrelating archives first; unrelating an archived relation removes it.",
-		work.DirectoryNoun: "A directory path, the end of a project's directory relation. Its projects are the inverse of a project's directories.",
+		relationNoun:       "Anything pointing to anything: noun:key ends, a kind (any word), text, a JSON data object, an order. A project's directories are relations of kind directory; unrelate archives first.",
+		work.DirectoryNoun: "A directory path, the end of a project's directory relation.",
 		contextNoun:        "Links, files, directories, commits, prompts and commands kept from a pane or supplied text.",
 	} {
 		a.r.Define(noun).About(about)

@@ -394,19 +394,7 @@ func (s *Store) DemoteProject(id, parent string) (Conversion, error) {
 		if err := movePin(c, id, parent); err != nil {
 			return err
 		}
-		moved, err := c.moveDirectories(id, parent)
-		if err != nil {
-			return err
-		}
-		conv.Directories = moved
-		merged := target
-		if len(moved) > 0 {
-			merged = mergeRepo(target, source)
-		}
-		if err := c.put("projects", merged); err != nil {
-			return err
-		}
-		if err := c.detachRelations(ProjectRef(id)); err != nil {
+		if conv.Directories, err = c.absorbProject(id, parent, target, source); err != nil {
 			return err
 		}
 		return c.delete("projects", byID[id])
@@ -482,19 +470,55 @@ func (c *convertTx) putRelation(x ochazuke.Relation, created int64, before []byt
 	return c.put(relations.Table, rowEntry{id: row.ID, before: before, row: m})
 }
 
-// moveDirectories gives the target the source's live directories it lacks
+// putDirectories gives a new project its directories as relations, the
+// first the default.
+func (c *convertTx) putDirectories(projectID string, dirs []string) error {
+	for i, d := range dirs {
+		data := map[string]any{"kind": "directory"}
+		if i == 0 {
+			data[DefaultFlag] = true
+		}
+		x := ochazuke.Relation{Kind: DirectoryKind, From: ProjectRef(projectID), To: DirectoryRef(d), Data: data, Position: (i + 1) * 1024}
+		if err := c.putRelation(x, 0, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// absorbProject is what a demoted project hands its parent beyond its
+// tasks: its directories join the parent's (the parent's repository too,
+// when it has none and directories came), and every other relation that
+// names the project keeps its row, the end moving to the former end. It
+// answers the paths the parent gained.
+func (c *convertTx) absorbProject(source, target string, parent rowEntry, from Project) ([]string, error) {
+	moved, err := c.moveRelations(source, target, DirectoryKind)
+	if err != nil {
+		return nil, err
+	}
+	merged := parent
+	if len(moved) > 0 {
+		merged = mergeRepo(parent, from)
+	}
+	if err := c.put("projects", merged); err != nil {
+		return nil, err
+	}
+	return moved, c.detachRelations(ProjectRef(source))
+}
+
+// moveRelations gives the target the source's live directories it lacks
 // (identical paths once), after its own, in the source's order; the
 // target's default stays, and with none the source's becomes it. It
 // removes the source's directory relations and answers the paths the
 // target gained.
-func (c *convertTx) moveDirectories(source, target string) ([]string, error) {
+func (c *convertTx) moveRelations(source, target, kind string) ([]string, error) {
 	rows, entries, err := c.relationRows()
 	if err != nil {
 		return nil, err
 	}
 	have, hasDefault, last := map[string]int{}, false, 0
 	for i, r := range rows {
-		if r.Kind != DirectoryKind || r.From != ProjectRef(target) {
+		if r.Kind != kind || r.From != ProjectRef(target) {
 			continue
 		}
 		have[r.To] = i
@@ -503,7 +527,7 @@ func (c *convertTx) moveDirectories(source, target string) ([]string, error) {
 	}
 	var added []string
 	for i, r := range rows {
-		if r.Kind != DirectoryKind || r.From != ProjectRef(source) {
+		if r.Kind != kind || r.From != ProjectRef(source) {
 			continue
 		}
 		if err := c.delete(relations.Table, entries[i]); err != nil {
@@ -628,15 +652,8 @@ func (s *Store) PromoteTask(id string) (Conversion, error) {
 		if err := c.put("projects", rowEntry{id: p.ID, row: newRow}); err != nil {
 			return err
 		}
-		for i, d := range dirs {
-			data := map[string]any{"kind": "directory"}
-			if i == 0 {
-				data[DefaultFlag] = true
-			}
-			x := ochazuke.Relation{Kind: DirectoryKind, From: ProjectRef(p.ID), To: DirectoryRef(d), Data: data, Position: (i + 1) * 1024}
-			if err := c.putRelation(x, 0, nil); err != nil {
-				return err
-			}
+		if err := c.putDirectories(p.ID, dirs); err != nil {
+			return err
 		}
 		var self rowEntry
 		for _, e := range idx.entries {

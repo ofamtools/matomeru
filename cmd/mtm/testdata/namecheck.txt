@@ -101,7 +101,7 @@
 ../../internal/work/actor.go	ParseActor	case	"agent"	1
 ../../internal/work/actor.go	ParseActor	case	"owner"	1
 ../../internal/work/convert.go	Store.DemoteProject	cyclo	"-"	31
-../../internal/work/convert.go	Store.PromoteTask	cyclo	"-"	27
+../../internal/work/convert.go	Store.PromoteTask	cyclo	"-"	26
 ../../internal/work/convert.go	taskDirectories	compare	"dir"	1
 ../../internal/work/convert.go	taskDirectories	cyclo	"-"	31
 ../../internal/work/delete.go	Store.deleteRecord	compare	"project"	2

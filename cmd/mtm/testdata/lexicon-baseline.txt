@@ -4,6 +4,7 @@
 noun-action	context
 noun-action	copy
 noun-action	count
+noun-action	directory
 noun-action	history
 noun-action	mode
 noun-action	outline

@@ -57,8 +57,9 @@ type Tree struct {
 	Repo   string `json:"repo,omitempty"`
 	Branch string `json:"branch,omitempty"`
 	Text   string `json:"text,omitempty"`
-	// Data is the rest of the relation's data (anything but kind, repo,
-	// branch and the default flag), kept as written.
+	// Data is the relation's whole data object as stored (kind, repo and
+	// branch, the default flag, anything the owner set); Kind, Repo and
+	// Branch above read from it.
 	Data map[string]any `json:"data,omitempty"`
 }
 
@@ -140,6 +141,7 @@ func serverIDRewrite(field string) store.Rewrite {
 // Store is the work unit's view of the database.
 type Store struct {
 	db     *store.Store
+	rels   *relations.Store   // the relations table (directories.go)
 	actor  Actor              // who writes run as (actor.go); zero is the owner
 	policy func() AgentPolicy // what an agent may change; nil is the default
 }
@@ -171,7 +173,11 @@ func Open(db *store.Store) (*Store, error) {
 			return nil, err
 		}
 	}
-	s := &Store{db: db}
+	rels, err := relations.Open(db)
+	if err != nil {
+		return nil, err
+	}
+	s := &Store{db: db, rels: rels}
 	if err := s.importOwners(); err != nil {
 		return nil, err
 	}
@@ -182,6 +188,10 @@ func Open(db *store.Store) (*Store, error) {
 	}
 	return s, nil
 }
+
+// Relations is the relation table, the store the runtime is given
+// (Runtime.SetRelationStore).
+func (s *Store) Relations() *relations.Store { return s.rels }
 
 // Projects returns every project, oldest first.
 func (s *Store) Projects() ([]Project, error) {

@@ -40,11 +40,21 @@ func (h relationHub) Remove(x ochazuke.Relation) error {
 	return nil
 }
 
-// relationChanged reloads what caches a project's directories.
+// relationWatchers are what a change to a relation of a kind reloads: the
+// kinds that cache something in the app (data, not a branch on a kind).
+func (a *App) relationWatchers() map[string]func() {
+	return map[string]func(){work.DirectoryKind: a.reloadDirectories}
+}
+
+// relationChanged runs the watcher of the relation's kind.
 func (a *App) relationChanged(x ochazuke.Relation) {
-	if x.Kind != work.DirectoryKind || a.projectList == nil {
-		return
+	if reload := a.relationWatchers()[x.Kind]; reload != nil && a.projectList != nil {
+		reload()
 	}
+}
+
+// reloadDirectories reloads what caches a project's directories.
+func (a *App) reloadDirectories() {
 	a.directories.Ready = false
 	if err := a.refreshProjects(); err != nil {
 		a.r.UI().Notify("could not reload projects: " + err.Error())
@@ -55,16 +65,15 @@ func (a *App) relationChanged(x ochazuke.Relation) {
 
 // declareRelationKinds declares the kinds mtm knows and gives the runtime
 // its relation store. It runs once, after every noun is defined.
-func (a *App) declareRelationKinds() error {
+func (a *App) declareRelationKinds() {
 	if err := a.r.DeclareRelationKind(ochazuke.RelationKind{
 		Name: work.DirectoryKind, Description: "A directory a project works in: any number, ordered, each with text and data; data.default marks the default",
 		From: "project", To: work.DirectoryNoun, Ordered: true, Exclusive: []string{work.DefaultFlag},
 		Prop: "directories", Inverse: "projects",
 	}); err != nil {
-		return err
+		panic(err) // a bad declaration is a programming error, as for every Define
 	}
 	a.r.SetRelationStore(relationHub{Store: a.relStore, changed: a.relationChanged})
-	return nil
 }
 
 // relationCtx is c, or a context on the runtime when c has none (a chooser

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -243,6 +244,19 @@ func (a *App) deleteRelation(c ochazuke.Ctx, id string) error {
 	return err
 }
 
+// movePlace is the 0-based place a move to word takes among n relations,
+// the relation now at at: a name from the table, or a 1-based number.
+func movePlace(word string, at, n int) (int, error) {
+	if place, ok := map[string]int{"first": 0, "last": n - 1, "up": max(0, at-1), "down": min(n-1, at+1)}[word]; ok {
+		return place, nil
+	}
+	var k int
+	if _, err := fmt.Sscanf(word, "%d", &k); err != nil || k < 1 {
+		return 0, fmt.Errorf("to is first, last, up, down or a place from 1, not %q", word)
+	}
+	return min(k, n) - 1, nil
+}
+
 // relStoreHub is the relation store the runtime uses.
 func (a *App) relStoreHub() ochazuke.RelationStore { return a.r.RelationStore() }
 
@@ -266,7 +280,7 @@ func relationIDParam() ochazuke.Parameter {
 
 // relationKeyOf is the relation a verb acts on: the selected row's, else id.
 func relationKeyOf(ctx ochazuke.Ctx) string {
-	if ctx.Instance != nil && ctx.Instance.Noun == relationNoun {
+	if ctx.Instance != nil { // the verb is the relation's own: a selected row is one
 		return ctx.Instance.ID
 	}
 	return ochazuke.StringArg(ctx.Args, "id", "")
@@ -289,15 +303,10 @@ func (a *App) followRelation(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	ref := r.To
-	switch ochazuke.StringArg(ctx.Args, "end", "") {
-	case "from":
-		ref = r.From
-	case "to":
-	default:
-		if ref == "" {
-			ref = r.From
-		}
+	ends := map[string]string{"from": r.From, "to": r.To}
+	ref, named := ends[ochazuke.StringArg(ctx.Args, "end", "")]
+	if !named {
+		ref = cmp.Or(r.To, r.From) // the other end by default: to, else from
 	}
 	if ref == "" {
 		return ochazuke.Failed(errors.New("that end is gone: the thing was deleted (see former-from, former-to)"))
@@ -318,14 +327,9 @@ func (a *App) yankRelation(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	text := ochazuke.AnyRef(relationNoun, r.Key)
-	switch what := ochazuke.StringArg(ctx.Args, "what", "key"); what {
-	case "key":
-	case "from":
-		text = r.From
-	case "to":
-		text = r.To
-	default:
+	what := ochazuke.StringArg(ctx.Args, "what", "key")
+	text, ok := map[string]string{"key": ochazuke.AnyRef(relationNoun, r.Key), "from": r.From, "to": r.To}[what]
+	if !ok {
 		return ochazuke.Failed(fmt.Errorf("yank key, from or to, not %q", what))
 	}
 	if text == "" {
@@ -355,22 +359,9 @@ func (a *App) moveRelation(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("only a live relation with a from thing is moved"))
 	}
 	to := strings.TrimSpace(ochazuke.StringArg(ctx.Args, "to", ""))
-	var place int
-	switch to {
-	case "first":
-		place = 0
-	case "last":
-		place = len(group) - 1
-	case "up":
-		place = max(0, at-1)
-	case "down":
-		place = min(len(group)-1, at+1)
-	default:
-		var n int
-		if _, err := fmt.Sscanf(to, "%d", &n); err != nil || n < 1 {
-			return ochazuke.Failed(fmt.Errorf("to is first, last, up, down or a place from 1, not %q", to))
-		}
-		place = min(n, len(group)) - 1
+	place, err := movePlace(to, at, len(group))
+	if err != nil {
+		return ochazuke.Failed(err)
 	}
 	moved := group[at]
 	rest := slices.Delete(slices.Clone(group), at, at+1)

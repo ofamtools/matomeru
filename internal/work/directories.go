@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 	"time"
@@ -66,16 +67,7 @@ func treeOf(x ochazuke.Relation) Tree {
 		kind = "directory" // a relation made by set directories+= has not been inspected
 	}
 	t := Tree{Kind: kind, Path: path, Repo: str("repo"), Branch: str("branch"), Text: x.Text}
-	for k, v := range x.Data {
-		switch k {
-		case "kind", "repo", "branch", DefaultFlag:
-		default:
-			if t.Data == nil {
-				t.Data = map[string]any{}
-			}
-			t.Data[k] = v
-		}
-	}
+	t.Data = maps.Clone(x.Data)
 	return t
 }
 

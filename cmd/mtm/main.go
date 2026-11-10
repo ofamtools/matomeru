@@ -547,11 +547,6 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
-	relStore, err := relations.Open(db)
-	if err != nil {
-		db.Close()
-		return nil, err
-	}
 	contexts, err := contextitems.Open(db)
 	if err != nil {
 		db.Close()
@@ -587,7 +582,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{db: db, work: w, relStore: relStore, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
+	a := &App{db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()
@@ -661,9 +656,7 @@ func New(opts Options) (*App, error) {
 	a.defineLicense()
 	a.defineConfigReload()
 	a.definePickers()
-	if err := a.declareRelationKinds(); err != nil {
-		return nil, err
-	}
+	a.declareRelationKinds()
 	if err := a.declareSettings(); err != nil {
 		return nil, err
 	}
