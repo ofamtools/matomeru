@@ -14,8 +14,8 @@
   },
   "script": ["ctrl+s", "ctrl+p", {"job":"pane.preview"}, "ctrl+e", "i", "ctrl+a", "ctrl+k", {"type":"review-pane"}, "esc", {"job":"pane.set"}, {"job":"panes.refresh"}, "ctrl+x", "enter", "ctrl+a", "[", "esc", "ctrl+a", "d"],
   "expect": [
-    {"after":3,"contains":["claude is thinking","name"]},
-    {"after":4,"focus":"panes/detail/show/form/name","contains":["archived","starred"]},
+    {"after":3,"contains":["claude is thinking"]},
+    {"after":4,"focus":"panes/detail/show/form/name","contains":["claude is thinking","archived","starred"]},
     {"after":11,"contains":["review-pane","History"],"lacks":["Error:"]},
     {"after":12,"focus":"pane:acme-web/w1"},
     {"after":13,"focus":"panes/terminal","mode":"terminal"},

@@ -192,6 +192,14 @@ func TestScaffoldFormOptOutKeepsCuratedViews(t *testing.T) {
 			if (a.detail.panes.show.Form() != nil) != on {
 				t.Fatalf("pane form opt-out ignored: %v", on)
 			}
+			if on {
+				if err := a.r.SetFocus(a.detail.panes.show.Form().ID() + "/name"); err != nil {
+					t.Fatal(err)
+				}
+				if text := frameWH(a, 160, 60); !strings.Contains(text, "preserved screen") || !strings.Contains(text, "external-id") {
+					t.Fatalf("focused metadata lost the form or screen:\n%s", text)
+				}
+			}
 			executeA(t, a, "pane", "attach", "pane:matomeru/w1", nil)
 			if frameWH(a, 160, 60); a.r.Terminal(paneTermID) == nil || len(f.streams) == 0 {
 				t.Fatal("show form replaced the live terminal")
@@ -217,12 +225,23 @@ func TestScaffoldPanesTurnsRemainAboveTheForm(t *testing.T) {
 	t.Parallel()
 	a, _, _ := claudeTurnsApp(t)
 	useTurnStyle(t, a, turnsStyleTree)
+	frameWH(a, 160, 60)
+	press(t, a, "}")
+	settle(a, key(t, a, "l"))
 	for _, on := range []bool{false, true} {
 		setting(t, a, ochazuke.DetailShowFormSetting, on)
 		a.detail.panes.show.Sync()
+		if on {
+			if err := a.r.SetFocus(a.detail.panes.show.Form().ID() + "/name"); err != nil {
+				t.Fatal(err)
+			}
+		}
 		text := frameWH(a, 160, 60)
-		if !strings.Contains(text, "fix the flaky test") || (a.detail.panes.show.Form() != nil) != on {
+		if !strings.Contains(text, "fix the flaky test") || !strings.Contains(text, "Fixed: the test now fakes the clock.") || (a.detail.panes.show.Form() != nil) != on {
 			t.Fatalf("turns and form do not coexist (on=%v):\n%s", on, text)
+		}
+		if on && (!strings.Contains(text, "external-id") || strings.Index(text, "Fixed:") > strings.Index(text, "external-id")) {
+			t.Fatalf("the native form is not below the real turn body:\n%s", text)
 		}
 	}
 }
@@ -253,7 +272,7 @@ func TestScaffoldPaneContentRemainsUsableWithMetadata(t *testing.T) {
 					}
 				}
 			}
-			content("Read the prompt", "name", "write to the agent", "Opus 5.5")
+			content("Read the prompt", "write to the agent", "Opus 5.5")
 			form := a.detail.panes.show.Form()
 			if form == nil {
 				t.Fatal("the default show form is disabled")
@@ -273,15 +292,19 @@ func TestScaffoldPaneContentRemainsUsableWithMetadata(t *testing.T) {
 				}
 			}
 			press(t, a, "i")
-			if a.r.FocusID() != promptID {
+			if a.r.FocusID() != promptID || a.r.BaseMode() != "insert" {
 				t.Fatalf("prompt input is unreachable: %s", where(a))
 			}
-			content("Read the prompt", "The answer is visible.", "write to the agent", "Opus 5.5")
+			typeText(t, a, "unsent draft")
+			if got := string(a.pb.input.Text); got != "unsent draft" {
+				t.Fatalf("the live prompt did not accept typing: %q", got)
+			}
+			content("Read the prompt", "The answer is visible.", "unsent draft", "Opus 5.5")
 			press(t, a, "esc")
 			if err := a.pv.settings.Focus(); err != nil {
 				t.Fatal(err)
 			}
-			content("Read the prompt", "The answer is visible.", "write to the agent", "Opus 5.5")
+			content("Read the prompt", "The answer is visible.", "unsent draft", "Opus 5.5")
 			subject()
 			if err := a.r.SetFocus(form.ID() + "/name"); err != nil {
 				t.Fatal(err)
@@ -298,7 +321,7 @@ func TestScaffoldPaneContentRemainsUsableWithMetadata(t *testing.T) {
 			if err := a.r.SetFocus(turnFocus); err != nil {
 				t.Fatal(err)
 			}
-			content("Read the prompt", "The answer is visible.", "write to the agent", "Opus 5.5")
+			content("Read the prompt", "The answer is visible.", "unsent draft", "Opus 5.5")
 			subject()
 		})
 	}
