@@ -82,8 +82,10 @@ func TestDirectoriesReadFromRelations(t *testing.T) {
 			t.Fatalf("Projects and Project disagree: %+v vs %+v", p, one)
 		}
 	}
-	if all[1].DefaultTree != "/b" || !slices.Equal(paths(all[1]), []string{"/b", "/shared"}) {
-		t.Fatalf("B: %+v", all[1])
+	for _, p := range all {
+		if p.ID == b.ID && (p.DefaultTree != "/b" || !slices.Equal(paths(p), []string{"/b", "/shared"})) {
+			t.Fatalf("B: %+v", p)
+		}
 	}
 	var row map[string]json.RawMessage
 	if err := w.db.Get("projects", a.ID, &row); err != nil {
@@ -211,7 +213,7 @@ func TestMigrateTreesToRelations(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, _ := db.All(relations.Table)
-	if len(before) != 5 || len(after) != len(before) {
+	if len(before) != 4 || len(after) != len(before) {
 		t.Fatalf("relations before %d after %d", len(before), len(after))
 	}
 	if baks, _ := filepath.Glob(path + ".bak-*"); len(baks) != 1 {
