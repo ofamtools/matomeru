@@ -15,15 +15,6 @@ func TestScaffoldOptionalPropsNewAsksBeforeCreating(t *testing.T) {
 		t.Run(noun, func(t *testing.T) {
 			t.Parallel()
 			a := open(t)
-			args := ochazuke.Arguments{}
-			for _, p := range a.r.Noun(noun).Props {
-				if p.Role == ochazuke.RoleLabel {
-					args[p.Name] = "a stored record"
-				}
-			}
-			if _, err := a.r.Execute(ochazuke.Request{Noun: noun, Verb: "create", Args: args}); err != nil {
-				t.Fatal(err)
-			}
 			if err := a.r.OpenIndex(noun, ""); err != nil {
 				t.Fatal(err)
 			}

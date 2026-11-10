@@ -662,7 +662,8 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 			id, stands[p.ID] = p.rowID(), true
 		}
 		at := place(id, sectionQueue, ranks[q.category], it.Created)
-		node := ochazuke.TreeNode{ID: id, Label: it.Label(), Noun: actionItemNoun, Data: it}
+		node := ochazuke.TreeNode{ID: id, Label: it.Label(), Noun: actionItemNoun, Data: it,
+			Props: ochazuke.Thing{"id": it.ID, "pane": it.Window, "session": it.Session, "task": it.TaskID, "project": it.ProjectID}}
 		if listed {
 			node.Cells, node.Tones = a.flatPaneCells(p, names[p.ID], now)
 			view.usage = view.usage || p.usageCell() != ""

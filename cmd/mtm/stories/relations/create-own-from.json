@@ -1,0 +1,16 @@
+{
+  "name": "mtm: relation create accepts from and to properties in the palette",
+  "area": "relations",
+  "fixture": "seeded",
+  "width": 160,
+  "height": 40,
+  "config": {
+    "bindings.json": [{"noun":"app","mode":"normal","keys":"ctrl+x","request":{"noun":"ochazuke.noun","verb":"show","args":{"noun":"relation"}}}]
+  },
+  "script": [":", {"type":"relation create kind=adoption from=project:acme-web to=project:billing-api text=palette-created"}, "enter", "ctrl+x"],
+  "expect": {
+    "page":"nouns/relation",
+    "modal":"",
+    "contains":["adoption", "project:acme-web", "project:billing-api", "palette-created"]
+  }
+}

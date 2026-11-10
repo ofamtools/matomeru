@@ -243,6 +243,7 @@ panes.go	App.capturePreview	compare	"panes"	1
 panes.go	App.keepHeld	compare	"panes"	1
 panes.go	App.markPanes	compare	"vim"	1
 panes.go	App.showPanes	cyclo	"-"	28
+panes.go	endedNormally	compare	"closed"	1	mtmd X-frame wire reason, not an app noun or state branch; existing protocol comparison newly recognized by the released vocabulary
 panes.go	tuios.Exited	compare	"timeout"	1
 panes_detail.go	App.groupSummary	case	"session"	1
 panes_detail.go	App.loadDetail	compare	"panes"	1

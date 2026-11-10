@@ -159,6 +159,7 @@ func (a *App) itemNodes(p pane, parent string, now time.Time) []ochazuke.TreeNod
 		cell := inboxGlyph(it, nowMs) + " " + it.Label()
 		out = append(out, ochazuke.TreeNode{
 			ID: itemRowStart + it.ID, Parent: parent, Label: it.Label(), Noun: actionItemNoun, Data: it,
+			Props: ochazuke.Thing{"id": it.ID, "pane": it.Window, "session": it.Session, "task": it.TaskID, "project": it.ProjectID},
 			Cells: []string{cell, cmp.Or(it.Why, it.Kind), it.Source},
 		})
 	}

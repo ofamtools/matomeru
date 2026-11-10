@@ -35,9 +35,9 @@ func buildScaffold(env monogatari.Env) (monogatari.Built, error) {
 		return built, err
 	}
 	a := built.Program.(*App)
-	_, err = a.r.Relate(ochazuke.Ctx{Runtime: a.r}, ochazuke.Relation{
-		Kind: "links", From: "project:acme-web", To: "project:billing-api", Text: "scaffold relation",
-	})
+	_, err = a.r.Execute(ochazuke.Request{Noun: relationNoun, Verb: "create", Args: ochazuke.Arguments{
+		"kind": "links", "from": "project:acme-web", "to": "project:billing-api", "text": "scaffold relation",
+	}})
 	if err != nil {
 		built.Close()
 		return monogatari.Built{}, err

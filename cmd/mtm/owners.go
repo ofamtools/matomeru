@@ -72,6 +72,9 @@ func (a *App) editSubject(noun string, resolve func(*ochazuke.Instance) (id, lab
 		return
 	}
 	edit := op.AppHandler
+	subject := op.Parameters["id"]
+	subject.From = "row:" + noun
+	op.Parameters["id"] = subject
 	op.ByAssociation = true
 	op.AppHandler = func(ctx ochazuke.Ctx) ochazuke.Result {
 		id, label, data, err := resolve(ctx.Instance)

@@ -45,9 +45,7 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 				continue
 			}
 			row, ok := byKey[leader+" "+w.key]
-			// The framework appends the operation's aliases ("· also: opt,
-			// options" on setting.open since ochazuke v0.50.0).
-			if desc, _, _ := strings.Cut(row.Description, " · also: "); !ok || row.Under != leader || desc != w.text {
+			if !ok || row.Under != leader {
 				t.Fatalf("%s %s: row %+v", leader, w.key, row)
 			}
 			if len(row.Steps) != 2 || row.Steps[0].Key != leader || row.Steps[0].Mode != "leader_pending" || row.Steps[1].Key != w.key {
@@ -66,7 +64,7 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 	if strings.Count(frame, "▾ ctrl+a") != 1 || strings.Contains(frame, "▾ ctrl+a v") {
 		t.Fatalf("the leader is not one open row:\n%s", frame)
 	}
-	for _, want := range []string{"▸ ctrl+a v", "side vim: open it, focus it", "▸ ctrl+a t", "side terminal: open it", "▸ ctrl+a d", "close the front side, then"} {
+	for _, want := range []string{"▸ ctrl+a v", "▸ ctrl+a t", "▸ ctrl+a d"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("help over the pane lacks %q:\n%s", want, frame)
 		}

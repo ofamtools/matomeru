@@ -147,7 +147,9 @@ func (p pane) rowID() string { return "pane:" + p.Session + "/" + p.ID }
 // keyProps are the pane row's key prop (its window id) beside the pane
 // it carries as Data, whose JSON names the window window_id: the standard
 // verbs read a row's thing by its key prop, never by the row id.
-func (p pane) keyProps() ochazuke.Thing { return ochazuke.Thing{"id": p.ID, "archived": p.Archived} }
+func (p pane) keyProps() ochazuke.Thing {
+	return ochazuke.Thing{"id": p.ID, "pane": p.ID, "session": cmp.Or(p.SessionID, p.Session), "archived": p.Archived}
+}
 
 // label is the row text, the panel title and the {{label}} a confirm
 // prompt reads. A uuid-named session shows its first 8 characters.
