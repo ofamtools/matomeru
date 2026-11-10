@@ -196,8 +196,10 @@ func TestScaffoldFormOptOutKeepsCuratedViews(t *testing.T) {
 				if err := a.r.SetFocus(a.detail.panes.show.Form().ID() + "/name"); err != nil {
 					t.Fatal(err)
 				}
-				if text := frameWH(a, 160, 60); !strings.Contains(text, "preserved screen") || !strings.Contains(text, "external-id") {
-					t.Fatalf("focused metadata lost the form or screen:\n%s", text)
+				text := frameWH(a, 160, 60)
+				nameAt := strings.Index(text, "name")
+				if nameAt < 0 || !strings.Contains(text[nameAt:], "claude") || !strings.Contains(text, "preserved screen") {
+					t.Fatalf("focused metadata lost the selected name or screen:\n%s", text)
 				}
 			}
 			executeA(t, a, "pane", "attach", "pane:matomeru/w1", nil)
@@ -240,8 +242,11 @@ func TestScaffoldPanesTurnsRemainAboveTheForm(t *testing.T) {
 		if !strings.Contains(text, "fix the flaky test") || !strings.Contains(text, "Fixed: the test now fakes the clock.") || (a.detail.panes.show.Form() != nil) != on {
 			t.Fatalf("turns and form do not coexist (on=%v):\n%s", on, text)
 		}
-		if on && (!strings.Contains(text, "external-id") || strings.Index(text, "Fixed:") > strings.Index(text, "external-id")) {
-			t.Fatalf("the native form is not below the real turn body:\n%s", text)
+		if on {
+			nameAt := strings.Index(text, "name")
+			if nameAt < 0 || strings.Index(text, "Fixed:") > nameAt || !strings.Contains(text[nameAt:], "claude") {
+				t.Fatalf("the selected name field is not below the real turn body:\n%s", text)
+			}
 		}
 	}
 }
@@ -315,7 +320,12 @@ func TestScaffoldPaneContentRemainsUsableWithMetadata(t *testing.T) {
 			if a.pv.tab != tabNotes {
 				t.Fatalf("previous tab did not open Notes: %d", a.pv.tab)
 			}
-			content("name", "archived")
+			content("name", "starred")
+			subject()
+			if err := a.r.SetFocus(form.ID() + "/archived"); err != nil {
+				t.Fatal(err)
+			}
+			content("archived", "false")
 			subject()
 			executeA(t, a, "panes", "tab", "", ochazuke.Arguments{"delta": 1})
 			if err := a.r.SetFocus(turnFocus); err != nil {
