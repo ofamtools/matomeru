@@ -50,10 +50,21 @@ func TestTaskTableStatusesAndOrder(t *testing.T) {
 		t.Fatalf("order %s", got)
 	}
 	for _, width := range []int{80, 120} {
-		f := frameAt(app, width)
-		for _, want := range []string{"[>] busy task", "[ ] legacy task", "[!] stuck task", "[?] old task", "[x] over task", "skipped", "blocked"} {
-			if !strings.Contains(f, want) {
-				t.Fatalf("width %d lacks %q:\n%s", width, want, f)
+		for _, row := range []struct{ id, glyph, status string }{
+			{"busy", "[>]", "active"}, {"legacy", "[ ]", "todo"},
+			{"stuck", "[!]", "blocked"}, {"old", "[?]", "skipped"}, {"over", "[x]", "done"},
+		} {
+			if err := app.taskList.Select(row.id); err != nil {
+				t.Fatal(err)
+			}
+			if err := app.taskList.Focus(); err != nil {
+				t.Fatal(err)
+			}
+			f := frameAt(app, width)
+			for _, want := range []string{row.glyph + " " + row.id + " task", row.status} {
+				if !strings.Contains(f, want) {
+					t.Fatalf("width %d selected %s lacks %q:\n%s", width, row.id, want, f)
+				}
 			}
 		}
 	}
