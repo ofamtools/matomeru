@@ -61,6 +61,7 @@ func actionItemProps() []ochazuke.PropSpec {
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the item is for; its project wins over project"}},
 		{Name: "pane", Parameter: ochazuke.Parameter{Type: "string", Noun: "pane", Description: "The pane (window id) the item is about: open attaches it when the item has no URL"}},
 		{Name: "session", Parameter: text("The pane's session")},
+		{Name: "pane-label", ReadOnly: true, Parameter: text("The pane's name when the item last named it: a closed pane still reads by name")},
 		{Name: "read", Parameter: boolean("Whether the item has been read")},
 		{Name: "notify", Parameter: boolean("Notify even when the source is excluded; inbox.notify off still wins")},
 		{Name: "notified-at", ReadOnly: true, Parameter: integer("When an external notification endpoint accepted this item (Unix ms; 0 never)")},
@@ -113,7 +114,7 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 	}
 	return ochazuke.Thing{
 		"id": it.ID, "title": it.Title, "summary": it.Label(), "why": it.Why, "text": it.Text, "url": it.URL, "kind": it.Kind,
-		"source": it.Source, "key": it.Key, "project": it.ProjectID, "task": it.TaskID, "pane": it.Window, "session": it.Session,
+		"source": it.Source, "key": it.Key, "project": it.ProjectID, "task": it.TaskID, "pane": it.Window, "pane-label": it.PaneLabel, "session": it.Session,
 		"read": it.Read(), "archived": it.ArchivedAt > 0, "snoozed-until": it.SnoozedUntil, "state": it.State(a.inbox.items.Now()),
 		"notify": it.Notify, "notified-at": it.NotifiedAt,
 		"extra": extra, "promoted-todo": it.PromotedTodoID, "promoted-task": it.PromotedTaskID,
@@ -236,9 +237,11 @@ func (a *App) createActionItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.
 	if v, ok := values["extra"].(map[string]any); ok {
 		it.Extra = v
 	}
+	was := it.Window
 	if err := applyActionItem(&it, values, a.inbox.items.Now()); err != nil {
 		return nil, err
 	}
+	a.stampPaneLabel(&it, was)
 	if project, task, ok := a.ownerWrite(c, it.ProjectID, it.TaskID, values); ok {
 		it.ProjectID, it.TaskID = project, task
 	}
@@ -262,9 +265,11 @@ func (a *App) patchActionItem(c ochazuke.Ctx, id string, changes ochazuke.Thing)
 	project, task, owned := a.ownerWrite(c, cmp.Or(cur.ProjectID, a.taskProject(cur.TaskID)), cur.TaskID, changes)
 	now := a.inbox.items.Now()
 	it, err := a.inbox.items.Update(id, func(it *actionitems.Item) error {
+		was := it.Window
 		if err := applyActionItem(it, changes, now); err != nil {
 			return err
 		}
+		a.stampPaneLabel(it, was)
 		if owned {
 			it.ProjectID, it.TaskID = project, task
 		}

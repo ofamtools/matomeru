@@ -182,3 +182,44 @@ func TestPaneChildrenValidates(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The Inbox page's for text names the pane (AIP2): the listed pane's own
+// label, a closed pane by the name the item kept, and the item remembers
+// the name from the listing when it is added or its pane is set.
+func TestItemRemembersPaneLabelAndNamesClosedPanes(t *testing.T) {
+	t.Parallel()
+	a, _ := sectionsApp(t)
+	out, _, err := cli(a, "", "action-item", "add", "--source", "gh", "--key", "named", "--title", "named ask", "--pane", "widle", "--session", "s")
+	if err != nil {
+		t.Fatalf("add: %s %v", out, err)
+	}
+	it := itemByKey(t, a, "named")
+	if it.PaneLabel != "s/idler" {
+		t.Fatalf("pane label %q", it.PaneLabel)
+	}
+	if got := a.itemPaneText(it); got != "s/idler" {
+		t.Fatalf("listed pane text %q", got)
+	}
+	// The pane closes: the item names it as closed, by the kept name.
+	a.setPanes(slices.DeleteFunc(slices.Clone(a.panes), func(p pane) bool { return p.ID == "widle" }), nil)
+	if got := a.itemPaneText(it); got != "closed pane s/idler" {
+		t.Fatalf("closed pane text %q", got)
+	}
+	if got := a.itemPaneText(actionitems.Item{Window: "wgone"}); got != "closed pane wgone" {
+		t.Fatalf("item without a kept name: %q", got)
+	}
+	// The prop is read-only and shows in get.
+	th, err := a.actionItemStore().Get(ochazuke.Ctx{}, it.ID)
+	if err != nil || th["pane-label"] != "s/idler" {
+		t.Fatalf("pane-label prop: %v %v", th, err)
+	}
+	// Setting pane stamps the new pane's name; clearing it drops the name.
+	executeA(t, a, actionItemNoun, "set", "", ochazuke.Arguments{"id": it.ID, "props": map[string]any{"pane": "wterm"}})
+	if got := itemByKey(t, a, "named"); got.PaneLabel != "s/term" {
+		t.Fatalf("after set pane: %q", got.PaneLabel)
+	}
+	executeA(t, a, actionItemNoun, "set", "", ochazuke.Arguments{"id": it.ID, "props": map[string]any{"pane": ""}})
+	if got := itemByKey(t, a, "named"); got.PaneLabel != "" {
+		t.Fatalf("after clearing pane: %q", got.PaneLabel)
+	}
+}

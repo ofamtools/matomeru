@@ -73,8 +73,11 @@ type Item struct {
 	// requested", "CI failed").
 	Why string `json:"why,omitempty"`
 	// Window and Session are the pane the item is about.
-	Window            string `json:"window,omitempty"`
-	Session           string `json:"session,omitempty"`
+	Window  string `json:"window,omitempty"`
+	Session string `json:"session,omitempty"`
+	// PaneLabel is the pane's name when the item last named it, so a pane
+	// that has closed still reads by name.
+	PaneLabel         string `json:"pane_label,omitempty"`
 	SnoozedUntil      int64  `json:"snoozed_until,omitempty"`
 	Notify            bool   `json:"notify,omitempty"`
 	NotifiedAt        int64  `json:"notified_at,omitempty"`
@@ -117,6 +120,7 @@ type Spec struct {
 	TaskID    string         `json:"task_id"`
 	Window    string         `json:"window"`
 	Session   string         `json:"session"`
+	PaneLabel string         `json:"pane_label"`
 	Extra     map[string]any `json:"extra"`
 	// Reopen makes an archived or snoozed duplicate open and unread again.
 	Reopen bool `json:"reopen"`
@@ -129,6 +133,7 @@ type Owner struct {
 	TaskID    string
 	Window    string
 	Session   string
+	PaneLabel string
 }
 
 // Store is the inbox's view of the database.
@@ -188,6 +193,7 @@ func (s *Store) Add(spec Spec) (Item, bool, error) {
 			set(&it.TaskID, spec.TaskID)
 			set(&it.Window, spec.Window)
 			set(&it.Session, spec.Session)
+			set(&it.PaneLabel, spec.PaneLabel)
 			if len(spec.Extra) > 0 {
 				it.Extra = spec.Extra
 			}
@@ -203,7 +209,7 @@ func (s *Store) Add(spec Spec) (Item, bool, error) {
 			return tx.Put(Table.Name, it.ID, it)
 		}
 		out = Item{ID: work.NewID(), Source: spec.Source, URL: spec.URL, Key: spec.Key, Title: spec.Title, Why: spec.Why, Text: spec.Text,
-			Kind: spec.Kind, ProjectID: spec.ProjectID, TaskID: spec.TaskID, Window: spec.Window, Session: spec.Session, Extra: spec.Extra,
+			Kind: spec.Kind, ProjectID: spec.ProjectID, TaskID: spec.TaskID, Window: spec.Window, Session: spec.Session, PaneLabel: spec.PaneLabel, Extra: spec.Extra,
 			Created: now, Updated: now, Notify: spec.Notify}
 		created = true
 		return tx.Put(Table.Name, out.ID, out)
@@ -380,7 +386,7 @@ func (s *Store) Snooze(id string, until int64) (Item, error) {
 // Associate sets what the item is about; the zero Owner unassociates it.
 func (s *Store) Associate(id string, o Owner) (Item, error) {
 	return s.Update(id, func(it *Item) error {
-		it.ProjectID, it.TaskID, it.Window, it.Session = o.ProjectID, o.TaskID, o.Window, o.Session
+		it.ProjectID, it.TaskID, it.Window, it.Session, it.PaneLabel = o.ProjectID, o.TaskID, o.Window, o.Session, o.PaneLabel
 		return nil
 	})
 }

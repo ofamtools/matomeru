@@ -61,6 +61,7 @@ type inboxState struct {
 	sys         systemActions
 	counts      actionitems.Counts
 	sig         string             // what the rows were last built from; a reload that finds it unchanged sets nothing
+	paneSig     string             // the pane names the rows were built with (inboxPaneSig)
 	all         []actionitems.Item // the items the rows were built from; the Panes page's top list reads them
 	notifySince int64
 	notifyBusy  bool
@@ -268,6 +269,7 @@ func (a *App) loadInbox() error {
 func (a *App) setInboxRows(items []actionitems.Item) error {
 	now := a.inbox.items.Now()
 	a.inbox.sig = inboxSig(items, now)
+	a.inbox.paneSig = a.inboxPaneSig(items)
 	rows := make([]ochazuke.ListItem, 0, len(items))
 	var c actionitems.Counts
 	for _, it := range items {
@@ -323,7 +325,7 @@ func (a *App) inboxOwner(it actionitems.Item) string {
 		return a.ownerLabel(it.ProjectID)
 	}
 	if it.Window != "" {
-		return "pane " + it.Window
+		return a.itemPaneText(it)
 	}
 	return "unassociated"
 }
@@ -504,6 +506,7 @@ func (a *App) actionOwner(args ochazuke.Arguments) (actionitems.Owner, string, e
 	}
 	if pane := ochazuke.StringArg(args, "pane", ""); pane != "" {
 		o.Window, o.Session = pane, ochazuke.StringArg(args, "session", "")
+		o.PaneLabel = a.paneLabelOf(pane)
 		if o.ProjectID == "" && o.TaskID == "" {
 			owner, err := a.work.PaneOwner(pane, "")
 			if err == nil {
@@ -550,7 +553,7 @@ func (a *App) addActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	notify, _ := ctx.Args["notify"].(bool)
 	extra, _ := ctx.Args["extra"].(map[string]any)
 	it, created, err := a.inbox.items.Add(actionitems.Spec{Source: arg("source"), URL: arg("url"), Key: arg("key"), Title: arg("title"), Why: arg("why"),
-		Text: arg("text"), Kind: arg("kind"), ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session, Extra: extra, Reopen: reopen, Notify: notify})
+		Text: arg("text"), Kind: arg("kind"), ProjectID: o.ProjectID, TaskID: o.TaskID, Window: o.Window, Session: o.Session, PaneLabel: o.PaneLabel, Extra: extra, Reopen: reopen, Notify: notify})
 	if err == nil {
 		err = a.refreshInbox()
 	}

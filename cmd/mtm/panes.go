@@ -612,6 +612,7 @@ func (a *App) showPanes(panes []pane, err error) {
 	a.markViews(panes)
 	a.stampStates(panes)
 	a.panes = panes
+	a.refreshInboxPaneNames()
 	a.applyPaneCopies(err)
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {

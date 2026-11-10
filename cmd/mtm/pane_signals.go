@@ -249,7 +249,7 @@ func (a *App) writeSignals(plan panesignals.Plan) error {
 			extra = map[string]any{"state_at": s.StateAt}
 		}
 		it, _, err := a.inbox.items.Add(actionitems.Spec{Source: panesignals.Source, Key: s.Key, Kind: s.Kind, Title: s.Title, Why: s.Why,
-			ProjectID: o.ProjectID, TaskID: o.TaskID, Window: s.Window, Session: s.Session, Extra: extra})
+			ProjectID: o.ProjectID, TaskID: o.TaskID, Window: s.Window, Session: s.Session, PaneLabel: o.PaneLabel, Extra: extra})
 		if err != nil {
 			return err
 		}

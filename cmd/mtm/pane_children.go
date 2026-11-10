@@ -209,3 +209,65 @@ func (a *App) foldItemRows() error {
 	}
 	return nil
 }
+
+// paneLabelOf is the name of the listed pane with the window id, "" for
+// none.
+func (a *App) paneLabelOf(window string) string {
+	for _, p := range a.panes {
+		if p.ID == window && window != "" {
+			return p.label()
+		}
+	}
+	return ""
+}
+
+// stampPaneLabel keeps an item's remembered pane name with its pane: it
+// goes when the item names no pane, and is read from the listing when the
+// pane changed (was is the window before the write) or no name is kept.
+func (a *App) stampPaneLabel(it *actionitems.Item, was string) {
+	switch {
+	case it.Window == "":
+		it.PaneLabel = ""
+	case it.Window != was:
+		it.PaneLabel = a.paneLabelOf(it.Window)
+	case it.PaneLabel == "":
+		it.PaneLabel = a.paneLabelOf(it.Window)
+	}
+}
+
+// itemPaneText names the pane an item is about: the listed pane's own name,
+// else "closed pane" and the name the item kept (the window id for an item
+// recorded before it kept one); with no listing to compare, "pane".
+func (a *App) itemPaneText(it actionitems.Item) string {
+	if label := a.paneLabelOf(it.Window); label != "" {
+		return label
+	}
+	name := cmp.Or(it.PaneLabel, it.Window)
+	if len(a.panes) == 0 || a.paneErr != "" {
+		return "pane " + name
+	}
+	return "closed pane " + name
+}
+
+// inboxPaneSig is the pane names the Inbox rows show, for the items that
+// name a pane: a listing that renames or ends a pane changes it.
+func (a *App) inboxPaneSig(items []actionitems.Item) string {
+	var b strings.Builder
+	for _, it := range items {
+		if it.Window != "" {
+			b.WriteString(it.ID + "=" + a.itemPaneText(it) + ";")
+		}
+	}
+	return b.String()
+}
+
+// refreshInboxPaneNames rebuilds the Inbox rows when a new pane listing
+// changes a pane name they show.
+func (a *App) refreshInboxPaneNames() {
+	if a.inbox == nil || a.inbox.list == nil || !a.inboxLoad.loaded || a.inboxPaneSig(a.inbox.all) == a.inbox.paneSig {
+		return
+	}
+	if err := a.refreshInbox(); err != nil {
+		a.r.UI().Error(err.Error())
+	}
+}

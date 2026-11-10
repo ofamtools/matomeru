@@ -1,6 +1,7 @@
 package actionitems
 
 import (
+	"bytes"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -217,5 +218,37 @@ func TestPutWritesARowOfItsOwn(t *testing.T) {
 	all, _ := s.All()
 	if len(all) != 3 {
 		t.Fatalf("rows: %d", len(all))
+	}
+}
+
+// An item remembers its pane's name: add keeps it, a re-add with a name
+// refreshes it (without one, keeps it), associate sets or clears it, and an
+// older row without the field reads as empty.
+func TestPaneLabel(t *testing.T) {
+	s, _, _ := openStore(t)
+	a, _, _ := s.Add(Spec{Source: "gh", Key: "k", Title: "x", Window: "w1", PaneLabel: "claude"})
+	if a.PaneLabel != "claude" {
+		t.Fatalf("add: %+v", a)
+	}
+	if b, _, _ := s.Add(Spec{Source: "gh", Key: "k", Title: "x"}); b.PaneLabel != "claude" {
+		t.Fatalf("re-add without a name lost it: %+v", b)
+	}
+	if b, _, _ := s.Add(Spec{Source: "gh", Key: "k", Title: "x", Window: "w1", PaneLabel: "renamed"}); b.PaneLabel != "renamed" {
+		t.Fatalf("re-add with a name: %+v", b)
+	}
+	it, err := s.Associate(a.ID, Owner{Window: "w2", PaneLabel: "shell"})
+	if err != nil || it.Window != "w2" || it.PaneLabel != "shell" {
+		t.Fatalf("associate: %+v %v", it, err)
+	}
+	if it, _ := s.Associate(a.ID, Owner{}); it.PaneLabel != "" {
+		t.Fatalf("unassociate kept the name: %+v", it)
+	}
+	var old Item
+	if err := json.Unmarshal([]byte(`{"id":"x","window":"w1"}`), &old); err != nil || old.PaneLabel != "" {
+		t.Fatalf("older row: %+v %v", old, err)
+	}
+	raw, _ := json.Marshal(Item{ID: "y"})
+	if bytes.Contains(raw, []byte("pane_label")) {
+		t.Fatalf("empty label written: %s", raw)
 	}
 }
