@@ -19,7 +19,7 @@ import (
 // rename (the title), move (the project) and duplicate are ochazuke's
 // standard verbs over the work store. task new and task edit wrap create
 // and set (tasks.go); task.done and task.status are aliases of set with
-// the status preset; toggle, choose-status, choose-move, open, view,
+// the status preset; toggle, choose-status, choose-move, open, show,
 // launch, outline and make-project stay named. delete is the standard
 // delete: the store's ConfirmFor counts what it orphans (delete.go).
 

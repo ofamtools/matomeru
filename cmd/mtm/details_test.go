@@ -81,6 +81,9 @@ func TestPanesTailDetailFollowsItsEnd(t *testing.T) {
 func TestWorkDetailScrollsWithJK(t *testing.T) {
 	t.Parallel()
 	app := open(t)
+	// This exercises the text-detail opt-out; form/section scrolling is owned
+	// by the framework's record and related components.
+	setting(t, app, ochazuke.DetailShowFormSetting, false)
 	for i := 1; i <= 40; i++ {
 		executeA(t, app, "note", "new", "", ochazuke.Arguments{"text": fmt.Sprintf("note %03d", i), "project": "matomeru"})
 	}

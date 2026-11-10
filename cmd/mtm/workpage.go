@@ -30,7 +30,7 @@ func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 	detail, _ := a.workDetail()
 	rest := max(2, height-1)
 	tableH := rest
-	if editing || detail != "" {
+	if editing || detail != "" || a.detail.work.showingForm() {
 		tableH = max(2, min(a.taskTree.Height()+1, rest*3/5))
 	}
 	lowerH := max(1, rest-tableH-1)
@@ -46,14 +46,14 @@ func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 		// The table is drawn before the detail, so the notes sections under
 		// the detail's text come after the tasks in the focus order.
 		right = table()
-		lower = ochazuke.Text(lipgloss.NewStyle().Width(rightW).Render(a.detail.work.fit(a.detail.work.withRelated(detail, rightW), rightW, rightW, lowerH)))
+		lower = a.detail.work.recordBlock(detail, rightW, lowerH)
 	}
 	top := 1 + tableH + 1
-	if editing || detail != "" {
+	if editing || detail != "" || a.detail.work.showingForm() {
 		right += "\n\n" + lower.Text
 	}
 	body := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftW+2).Render(left), lipgloss.NewStyle().Width(rightW).Render(right))
-	if editing {
+	if editing || a.detail.work.showingForm() {
 		return lower.Offset(leftW+2, top).WithText(body)
 	}
 	return ochazuke.Text(body)

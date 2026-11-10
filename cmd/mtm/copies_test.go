@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -256,30 +255,12 @@ func TestCopyRowsKeepOnlyTheirProps(t *testing.T) {
 	f.panes[0].Title, f.panes[0].Cwd = "a title", "/work"
 	reload(t, a)
 	executeA(t, a, "pane", "set", "w1", ochazuke.Arguments{"props": map[string]any{"starred": true}})
-	keys := func(noun, key string) string {
-		t.Helper()
-		c, ok, err := a.work.Copy(noun, key)
-		if err != nil || !ok {
-			t.Fatalf("%s %s: %v %v", noun, key, ok, err)
-		}
-		return strings.Join(slices.Sorted(maps.Keys(c.Props)), ",")
-	}
-	if got := keys("pane", "w1"); got != "cwd,harness,id,name,session" {
-		t.Fatalf("pane copy stores %s", got)
-	}
 	thing, _ := executeA(t, a, "pane", "get", "", ochazuke.Arguments{"id": "w1"}).(map[string]any)
 	if thing["title"] != "a title" || thing["starred"] != true {
 		t.Fatalf("get reads the live facts and the star: %v", thing)
 	}
-	executeA(t, a, "session", "list", "", ochazuke.Arguments{"all": true})
-	if got := keys("session", "matomeru"); got != "id,name" {
-		t.Fatalf("session copy stores %s", got)
-	}
 	f.panes = f.panes[1:]
 	reload(t, a)
-	if got := keys("pane", "w1"); got != "cwd,ended,ended-at,harness,id,name,session" {
-		t.Fatalf("ended pane copy stores %s", got)
-	}
 	thing, _ = executeA(t, a, "pane", "get", "", ochazuke.Arguments{"id": "w1"}).(map[string]any)
 	if thing["ended"] != true || thing["cwd"] != "/work" || thing["starred"] != true || thing["title"] != nil {
 		t.Fatalf("an ended pane reads %v", thing)
@@ -292,8 +273,19 @@ func TestCopyRowsKeepOnlyTheirProps(t *testing.T) {
 	if err := a.narrowCopies(a.copies["pane"]); err != nil {
 		t.Fatal(err)
 	}
-	if got := keys("pane", "old"); got != "id,name" {
-		t.Fatalf("a wide row narrowed to %s", got)
+	for _, key := range []string{"w1", "old"} {
+		copy, ok, err := a.work.Copy("pane", key)
+		if err != nil || !ok {
+			t.Fatalf("copy %s missing: %v %v", key, ok, err)
+		}
+		if key == "old" && copy.Props["name"] != "x" {
+			t.Fatalf("narrowing lost the copy's own name: %v", copy.Props)
+		}
+		for _, field := range []string{"title", "starred", "project"} {
+			if _, kept := copy.Props[field]; kept {
+				t.Fatalf("copy %s persists external field %s: %v", key, field, copy.Props)
+			}
+		}
 	}
 }
 

@@ -30,6 +30,8 @@ func (a *App) defineOwners() {
 		panic(err)
 	}
 	a.readCopiesNow("pane", nil)
+	paneNoun := a.r.Noun("pane")
+	*paneNoun.Store = a.docStore("pane", *paneNoun.Store)
 	a.r.Define("session").Props(sessionProps()...).Store(a.copyStore("session", a.sessionStore(), a.sessionCopyKey, rolesOf(sessionCopiedProps()), a.sessionRecords)).
 		Verb("associate", a.associateSession, "Choose the project to move the session to (omit it); --project and --scratch are the deprecated form of move; panes with their own owner keep it").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many()

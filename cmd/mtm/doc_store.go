@@ -20,6 +20,7 @@ type domainDocs struct {
 	noun   string
 	source ochazuke.Store
 	ctx    ochazuke.Ctx
+	query  ochazuke.ListQuery
 }
 
 func (d *domainDocs) Get(key string) (ochazuke.Thing, bool, error) {
@@ -64,8 +65,9 @@ func (d *domainDocs) Version() (string, error) {
 }
 
 func (d *domainDocs) Query(q ochazuke.DocQuery) (ochazuke.ListPage, error) {
-	query := ochazuke.ListQuery{Args: d.ctx.Args, Archived: true}
-	things, err := d.source.List(d.ctx, query)
+	// Preserve domain list semantics (including inherited archive state) before
+	// DocStore applies the catalog filters, sort and window.
+	things, err := d.source.List(d.ctx, d.query)
 	if err != nil {
 		return ochazuke.ListPage{}, err
 	}
@@ -88,12 +90,13 @@ func (d *domainDocs) with(c ochazuke.Ctx) func() {
 }
 
 // docStore preserves domain identity on create (relations are keyed by their
-// ends, reminders use stable IDs). All other CRUD runs through DocStore. Keep
-// the source's metadata, including its copy contract and list arguments.
+// ends, reminders use stable IDs) and CopyStore's record-first patch contract.
+// Other CRUD uses DocStore, retaining the source metadata and query semantics.
 func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 	d := &domainDocs{a: a, noun: noun, source: source}
 	doc := ochazuke.DocStore(d, noun)
 	out := source
+	_, copied := source.CopySource()
 	if source.ChangeToken != nil {
 		out.ChangeToken = func(c ochazuke.Ctx) (string, error) {
 			token, err := source.ChangeToken(c)
@@ -112,10 +115,18 @@ func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 			return source.Query(c, q)
 		}
 		defer d.with(c)()
+		previous := d.query
+		d.query = q
+		defer func() { d.query = previous }()
 		return doc.Query(c, q)
 	}
 	out.Patch = func(c ochazuke.Ctx, key string, t ochazuke.Thing) (ochazuke.Thing, error) {
 		c.Runtime = a.r
+		// CopyStore owns record-first writes to external keys not observed yet.
+		// Do not impose DocStore's existing-row requirement on that contract.
+		if copied {
+			return source.Patch(c, key, t)
+		}
 		defer d.with(c)()
 		return doc.Patch(c, key, t)
 	}

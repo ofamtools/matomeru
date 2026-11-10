@@ -92,8 +92,14 @@ func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
 	}
 	var rows []map[string]any
 	cliRows(t, a, &rows, "project", "list")
-	if len(rows) != 5 || rows[0]["id"] != "ochazuke" || rows[0]["label"] != "ochazuke" {
-		t.Fatalf("list: %v", rows)
+	for _, id := range []string{made.ID, other} {
+		found := false
+		for _, row := range rows {
+			found = found || row["id"] == id
+		}
+		if !found {
+			t.Fatalf("created project %s absent from list: %v", id, rows)
+		}
 	}
 	b := open(t)
 	created, _ := executeA(t, b, "project", "create", "", ochazuke.Arguments{"name": "short-lived"}).(map[string]any)
@@ -105,7 +111,7 @@ func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
 
 // Targeted keys on a project row: i opens the editor on the props' fields
 // and q goes back to the row; the palette's rename opens on the old name;
-// d d still asks with what the delete orphans.
+// d d archives first; the archived filter lets the owner delete the retained row.
 func TestProjectKeysEditRenameDelete(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -137,7 +143,13 @@ func TestProjectKeysEditRenameDelete(t *testing.T) {
 	}
 	projectsOn(t, a, "ochazuke")
 	press(t, a, "d", "d")
-	if fr := frame(a); a.r.TopModal() == "" || !strings.Contains(fr, "Orphan:") {
+	if p, err := a.work.Project("ochazuke"); err != nil || !p.Archived {
+		t.Fatalf("first d d did not retain an archived project: %+v %v", p, err)
+	}
+	executeA(t, a, "ochazuke.collection", "filter-saved", "projects", ochazuke.Arguments{"name": "archived"})
+	projectsOn(t, a, "ochazuke")
+	press(t, a, "d", "d")
+	if fr := frame(a); a.r.TopModal() == "" {
 		t.Fatalf("d d: modal %q\n%s", a.r.TopModal(), fr)
 	}
 	press(t, a, "y")

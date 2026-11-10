@@ -63,7 +63,8 @@ func TestWorkPageTasksInTheRightPane(t *testing.T) {
 		t.Fatalf("back on matomeru's tasks: focus %s", a.r.FocusID())
 	}
 	f := frameAt(a, 120)
-	if !strings.Contains(f, "status: active") || !strings.Contains(f, "[>] busy task") {
+	if e := a.detail.work.show.Form(); e == nil || e.Values()["title"] != "busy task" ||
+		e.Values()["status"] != work.StatusActive || !strings.Contains(f, "title") || !strings.Contains(f, "[>] busy task") {
 		t.Fatalf("task detail not under the table:\n%s", f)
 	}
 	t.Logf("task selected, 120 columns:\n%s", f)
@@ -98,10 +99,9 @@ func TestWorkStackedTaskTableUsesFullWidth(t *testing.T) {
 	}
 }
 
-// UX review 2 F6: k off the first task spills into the projects' last row
-// and j spills straight back onto that task, at both layouts; the tasks
-// shown are not rebuilt by the spill. A move inside the projects still
-// follows.
+// The wide layout spills directly between the projects and tasks. In the
+// stacked layout the native form is between them; its j/k stay within fields,
+// so component navigation crosses it without changing the selected task scope.
 func TestWorkSpillRoundTripReturnsToTheTask(t *testing.T) {
 	t.Parallel()
 	for _, width := range []int{80, 140} {
@@ -112,20 +112,51 @@ func TestWorkSpillRoundTripReturnsToTheTask(t *testing.T) {
 			t.Fatalf("%d: focus %s", width, a.r.FocusID())
 		}
 		frameAt(a, width)
+		crossRecord := func(direction string) {
+			t.Helper()
+			for range len(a.r.Instances) + 1 {
+				press(t, a, "ctrl+w", direction)
+				frameAt(a, width)
+				if a.current != "matomeru" {
+					t.Fatalf("%d: component navigation changed scope to %q", width, a.current)
+				}
+				if !a.detail.work.recordFocused() {
+					return
+				}
+			}
+			t.Fatalf("%d: component navigation never left the record", width)
+		}
 		press(t, a, "k")
-		if a.r.FocusID() != unassociatedID || a.current != "matomeru" {
-			t.Fatalf("%d: k: focus %s current %q", width, a.r.FocusID(), a.current)
+		frameAt(a, width)
+		throughRecord := a.detail.work.recordFocused()
+		if throughRecord {
+			crossRecord("W")
+			if a.r.FocusID() != "matomeru" {
+				t.Fatalf("%d: previous component forgot Projects' selection: %s", width, a.r.FocusID())
+			}
+		} else if a.r.FocusID() != unassociatedID {
+			t.Fatalf("%d: k did not spill to the last project row: %s", width, a.r.FocusID())
 		}
-		if f := frameAt(a, width); !strings.Contains(f, "busy task") {
-			t.Fatalf("%d: the spill rebuilt the tasks:\n%s", width, f)
+		if f := frameAt(a, width); a.current != "matomeru" || !strings.Contains(f, "busy task") {
+			t.Fatalf("%d: leaving the task rebuilt its scope %q:\n%s", width, a.current, f)
 		}
-		press(t, a, "j")
+		if throughRecord {
+			crossRecord("w")
+		} else {
+			press(t, a, "j")
+		}
 		if a.r.FocusID() != "busy" {
-			t.Fatalf("%d: k then j: focus %s", width, a.r.FocusID())
+			t.Fatalf("%d: returning did not retain the task: %s", width, a.r.FocusID())
 		}
-		press(t, a, "k", "k")
+		press(t, a, "k")
+		frameAt(a, width)
+		if a.detail.work.recordFocused() {
+			crossRecord("W")
+		} else {
+			press(t, a, "k")
+		}
 		if a.r.FocusID() != "matomeru" || a.current != "matomeru" {
-			t.Fatalf("%d: k k: focus %s current %q", width, a.r.FocusID(), a.current)
+			t.Fatalf("%d: back on Projects: focus %s current %q", width, a.r.FocusID(), a.current)
 		}
 		press(t, a, "j")
 		if a.r.FocusID() != unassociatedID || a.current != "" {
