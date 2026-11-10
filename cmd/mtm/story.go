@@ -97,6 +97,7 @@ func mtmApp() monogatari.App {
 			{Name: "scoped-lanes", Summary: "seeded, with a fake Lanes extension exposing direct, inherited and unassociated project rows", Build: buildScopedLanes},
 			{Name: "peer-rows", Summary: "Two sandbox extensions with a cross-extension row key", Build: buildPeerRows},
 			{Name: "nouns", Summary: "peer-rows (alpha.item, beta.doc) with the Nouns page registered last, as Model.Init does", Build: buildNouns},
+			{Name: "scaffold", Summary: "seeded panes and one relation between projects, for the runtime noun indexes", Build: buildScaffold},
 			{Name: "peer-rows-missing", Summary: "A sandbox extension whose peer is not registered", Build: buildMissingPeerRows},
 			{Name: "detail-notes", Summary: "mounted-results (an alpha extension page) plus a context item, each with a note about it, and a context item and an alpha row without", Build: buildDetailNotes},
 			{Name: "mounted-results", Summary: "A sandbox extension whose text verb (enter) and rows verb (H) answer, as o-cmds run and history do", Build: buildMountedResults},
@@ -143,6 +144,7 @@ type storySeed struct {
 // storyPane is one fake pane: its session, window id, name and screen.
 type storyPane struct {
 	Session    string `json:"session"`
+	SessionID  string `json:"sessionId,omitempty"`
 	Window     string `json:"window"`
 	Name       string `json:"name"`
 	Screen     string `json:"screen"`
@@ -453,7 +455,7 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	var fakes []pane
 	screens := map[string]string{}
 	for _, p := range panes {
-		fakes = append(fakes, pane{Session: p.Session, Harness: p.Harness, AgentSession: p.AgentSession, Pane: daemon.Pane{ID: p.Window, Name: p.Name, AgentState: p.AgentState, Cwd: p.Cwd}})
+		fakes = append(fakes, pane{Session: p.Session, SessionID: p.SessionID, Harness: p.Harness, AgentSession: p.AgentSession, Pane: daemon.Pane{ID: p.Window, Name: p.Name, AgentState: p.AgentState, Cwd: p.Cwd}})
 		if p.AgentSession != "" && len(p.Log) > 0 {
 			logDir := filepath.Join(dir, "claude", turns.ClaudeProjectDir(p.Cwd))
 			if err := os.MkdirAll(logDir, 0o755); err != nil {

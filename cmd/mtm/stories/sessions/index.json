@@ -1,0 +1,23 @@
+{
+  "name": "mtm: session index edits the daemon copy and archives locally without closing its panes",
+  "area": "sessions",
+  "fixture": "scaffold",
+  "width": 160,
+  "height": 52,
+  "config": {
+    "bindings.json": [
+      {"noun":"app","mode":"normal","keys":"ctrl+x","request":{"noun":"ochazuke.noun","verb":"show","args":{"noun":"session","key":"id-acme-web"}}},
+      {"noun":"app","mode":"normal","keys":"ctrl+t","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"nouns/session/form/name"}}},
+      {"noun":"app","mode":"normal","keys":"ctrl+d","request":{"noun":"session","verb":"archive","args":{"id":"id-acme-web"}}},
+      {"noun":"session","mode":"normal","keys":"ctrl+u","request":{"noun":"session","verb":"set","args":{"id":"id-acme-web","props":{"archived":false}}}}
+    ]
+  },
+  "script": ["ctrl+x", "ctrl+t", "i", "ctrl+a", "ctrl+k", {"type":"focus-room"}, "esc", "ctrl+d", "ctrl+u", "ctrl+j"],
+  "expect": [
+    {"after":1,"page":"nouns/session","contains":["name","project","panes","archived","ended-at","acme-web"]},
+    {"after":7,"contains":["focus-room"]},
+    {"after":8,"lacks":["focus-room"]},
+    {"after":9,"contains":["focus-room"]},
+    {"lacks":["nouns/session  "]}
+  ]
+}

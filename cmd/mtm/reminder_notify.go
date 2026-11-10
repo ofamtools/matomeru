@@ -79,7 +79,7 @@ func (a *App) notifyReminders(c ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.Join(err, a.reminders.store.RecordRun(a.reminderNow(), "", false, err)))
 	}
 	return ochazuke.Pending(func(ctx context.Context) (any, error) { n, err := work(ctx); return map[string]int{"sent": n}, err }).Then(func(c ochazuke.Ctx, _ any, _ error) {
-		if err := a.refreshReminders(); err != nil {
+		if err := a.reminders.list.Refill(); err != nil {
 			c.Error(err.Error())
 		}
 		a.syncReminderNotices()
@@ -154,7 +154,7 @@ func (a *App) reminderNotificationsUpdate(msg tea.Msg) tea.Cmd {
 		if msg.err != nil {
 			a.r.UI().Error("reminder notifications: " + msg.err.Error())
 		}
-		if err := a.refreshReminders(); err != nil {
+		if err := a.reminders.list.Refill(); err != nil {
 			a.r.UI().Error(err.Error())
 		}
 		a.syncReminderNotices()

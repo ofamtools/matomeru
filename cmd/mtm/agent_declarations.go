@@ -37,7 +37,7 @@ var mtmAgentDeclarations = []struct {
 	{"daemon.stop", ochazuke.AgentNever, false}, {"daemon.restart", ochazuke.AgentNever, false}, {"daemon.serve", ochazuke.AgentNever, false}, {"daemon.import-state", ochazuke.AgentNever, false},
 	{"context-item.delete", "", true},
 	{"pane.kill", ochazuke.AgentConfirm, false}, {"session.kill", ochazuke.AgentConfirm, false},
-	{"pane.delete", ochazuke.AgentConfirm, false}, {"session.delete", ochazuke.AgentConfirm, false},
+	{"pane.delete", ochazuke.AgentConfirm, false}, {"session.delete", "", true},
 	{"session.set", ochazuke.AgentAllow, false}, {"session.associate", ochazuke.AgentAllow, false}, {"session.choose-move", ochazuke.AgentAllow, false},
 	{"saved.delete", "", true}, {"vim.delete", "", true}, {"run.forget", "", true},
 	{"extension.register", ochazuke.AgentNever, false}, {"extension.refresh", ochazuke.AgentAllow, false}, {"extension.remove", ochazuke.AgentNever, true},

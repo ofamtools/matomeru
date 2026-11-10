@@ -54,7 +54,7 @@ func (a *App) defineReviews() {
 	// watch) come from them (review_store.go); status is set's alias of
 	// status; accept, reject and saveAnswer run set; open and the status
 	// chooser are mtm's own.
-	r.Define("review").Props(reviewProps()...).Store(a.reviewStore()).Columns(reviewColumns...).
+	r.Define("review").Props(a.reviewProps()...).Store(a.docStore("review", a.reviewStore())).Columns(reviewColumns...).
 		Verb("open", a.openReview, "Capture the review's pane into the detail and load its answer").
 		Verb("accept", a.acceptReview, "Mark the review accepted (the standard set of status; the task is left as it is)").
 		Verb("reject", a.rejectReview, "Mark the review rejected (the standard set of status)").
@@ -93,12 +93,17 @@ func (a *App) defineReviews() {
 // then the answer area.
 func (a *App) addReviewPage() error {
 	a.r.Instance(reviewsPage, ochazuke.Kind("page"))
-	list, err := a.r.AddList(reviewListID, nil, ochazuke.Parent(reviewsPage), ochazuke.Columns(reviewColumns...))
+	list, err := a.r.AddList(reviewListID, nil, ochazuke.Parent(reviewsPage), ochazuke.From("review"))
 	if err != nil {
 		return err
 	}
 	a.reviewList = list
-	a.reviewsLoad.load = a.loadReviews
+	a.reviewsLoad.load = func() error {
+		if err := a.reviewList.Refill(); err != nil {
+			return err
+		}
+		return a.showReviewTurns(false)
+	}
 	if a.reviewTurns, err = a.r.AddTree(reviewTreeID, nil, ochazuke.Parent(reviewsPage)); err != nil {
 		return err
 	}
@@ -193,9 +198,14 @@ func (a *App) paneReviews() ([]paneReview, error) {
 	}
 	type key struct{ session, window string }
 	rows := map[key]*paneReview{}
+	deleted := map[key]bool{}
 	var order []key
 	for _, rv := range reviews {
-		k := key{rv.Session, rv.Window}
+		k := key{rv.Session, cmp.Or(rv.Window, rv.ID)}
+		if rv.Deleted {
+			deleted[k] = true
+			continue
+		}
 		if rows[k] != nil {
 			continue // the window's first review is its record
 		}
@@ -207,6 +217,9 @@ func (a *App) paneReviews() ([]paneReview, error) {
 			continue
 		}
 		k := key{t.Session, t.Window}
+		if deleted[k] {
+			continue
+		}
 		if rows[k] == nil {
 			rows[k] = &paneReview{Review: work.Review{ID: paneReviewID(t.Session, t.Window), ProjectID: t.ProjectID, TaskID: t.TaskID,
 				Harness: t.Harness, Session: t.Session, Window: t.Window, Pane: a.turnPane(t), Status: work.ReviewPending, Created: t.StartedAt}}
@@ -216,6 +229,9 @@ func (a *App) paneReviews() ([]paneReview, error) {
 	}
 	var shown []paneReview
 	for _, k := range order {
+		if deleted[k] {
+			continue
+		}
 		if r := rows[k]; len(r.Turns) > 0 || a.inScope(r.Review.ProjectID) {
 			shown = append(shown, *r)
 		}
@@ -225,33 +241,6 @@ func (a *App) paneReviews() ([]paneReview, error) {
 		return cmp.Or(cmp.Compare(min(y.unread(), 1), min(x.unread(), 1)), cmp.Compare(y.at(), x.at()), cmp.Compare(x.Review.ID, y.Review.ID))
 	})
 	return shown, nil
-}
-
-// refreshReviews reloads the rows, one per pane, and pushes them to the
-// list; the opened row's Turns tree follows.
-func (a *App) refreshReviews() error { return a.reviewsLoad.refresh() }
-
-// loadReviews is the page's load (reviewsLoad): the store read and the push.
-func (a *App) loadReviews() error {
-	shown, err := a.paneReviews()
-	if err != nil {
-		return err
-	}
-	a.reviews, a.reviewRows = nil, map[string]paneReview{}
-	now := a.now()
-	items := make([]ochazuke.ListItem, 0, len(shown))
-	for _, r := range shown {
-		a.reviews = append(a.reviews, r.Review)
-		a.reviewRows[r.Review.ID] = r
-		items = append(items, ochazuke.ListItem{ID: r.Review.ID, Label: a.reviewLabel(r, now), Noun: "review", Props: ochazuke.Thing{"id": r.Review.ID}, Cells: a.reviewCells(r, now)})
-	}
-	if a.reviewList == nil {
-		return nil
-	}
-	if err := a.reviewList.SetItems(items); err != nil {
-		return err
-	}
-	return a.showReviewTurns(false)
 }
 
 // turnPane is how a turn's pane reads: the live pane's label, else the
@@ -296,19 +285,6 @@ var reviewColumns = []ochazuke.Column{
 	{Title: "harness", Priority: 5},
 }
 
-// reviewCells are a row's cells in reviewColumns order.
-func (a *App) reviewCells(r paneReview, now time.Time) []string {
-	rv := r.Review
-	status := rv.Status
-	if rv.Answer != "" {
-		status += " · answered"
-	}
-	if _, ok := a.answerDraftOf(rv.ID); ok {
-		status += " · draft"
-	}
-	return []string{status, rv.Pane, countCell(r.unread()), r.lastPrompt(), sinceUse(r.at(), now), a.ownerLabel(rv.ProjectID), a.taskTitle(rv.TaskID), rv.Harness}
-}
-
 // taskTitle is a task's title, else its id; "" for none.
 func (a *App) taskTitle(id string) string {
 	if id == "" {
@@ -349,7 +325,7 @@ func (a *App) recordReview(projectID, taskID string, started harness.Result) {
 	p := pane{Session: started.Session, Pane: daemon.Pane{ID: started.Window, Name: started.Name}}
 	_, err := a.work.AddReview(work.Review{ProjectID: projectID, TaskID: taskID, Harness: started.Harness, Session: p.Session, Window: p.ID, Pane: p.label()})
 	if err == nil {
-		err = a.refreshReviews()
+		err = a.reviewsLoad.refresh()
 	}
 	a.reviewErr = ""
 	if err != nil {
@@ -364,7 +340,11 @@ func (a *App) review(ctx ochazuke.Ctx, write ...bool) (work.Review, error) {
 	if ctx.Instance == nil || ctx.Instance.Noun != "review" {
 		return work.Review{}, errors.New("no review is selected")
 	}
-	row, ok := a.reviewRows[ctx.Instance.ID]
+	id := savedRowKey(ctx.Instance)
+	if id == "" {
+		id = ctx.Instance.ID
+	}
+	row, ok := a.reviewRows[id]
 	if ok && !row.Stored && len(write) > 0 && !write[0] {
 		return row.Review, nil // opening reads; it writes nothing
 	}
@@ -373,9 +353,9 @@ func (a *App) review(ctx ochazuke.Ctx, write ...bool) (work.Review, error) {
 			return work.Review{}, err
 		}
 		row.Stored = true
-		a.reviewRows[ctx.Instance.ID] = row
+		a.reviewRows[id] = row
 	}
-	rv, err := a.work.Review(ctx.Instance.ID)
+	rv, err := a.work.Review(id)
 	if err != nil {
 		return work.Review{}, fmt.Errorf("review %s: %w", ctx.Instance.ID, err)
 	}
@@ -487,7 +467,7 @@ func (a *App) openReview(ctx ochazuke.Ctx) ochazuke.Result {
 			a.captureErr = err.Error()
 			return
 		}
-		if err := a.refreshReviews(); err != nil {
+		if err := a.reviewsLoad.refresh(); err != nil {
 			a.captureErr = err.Error()
 		}
 	})
@@ -610,7 +590,7 @@ func (a *App) openedReview() (work.Review, bool) {
 // backToReview returns focus to the opened review's row (else the list).
 func (a *App) backToReview() error {
 	if _, ok := a.openedReview(); ok {
-		if err := a.reviewList.Select(a.opened); err != nil {
+		if err := a.reviewList.Select(reviewListID + "/" + a.opened); err != nil {
 			return err
 		}
 	}
@@ -640,7 +620,7 @@ func (a *App) leaveAnswerArea(ochazuke.Ctx) ochazuke.Result {
 	if err := a.autosaveAnswer(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.refreshReviews(); err != nil { // the row's draft mark
+	if err := a.reviewsLoad.refresh(); err != nil { // the row's draft mark
 		return ochazuke.Failed(err)
 	}
 	return resultError(a.backToReview())

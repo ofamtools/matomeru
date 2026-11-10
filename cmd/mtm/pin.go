@@ -283,7 +283,7 @@ func (a *App) refreshScope() error {
 	// before any (the CLI, a page not loaded yet) it claims none (copies.go).
 	a.showPanes(a.panes, nil)
 	a.rescopeExtensions()
-	if err := a.refreshReviews(); err != nil {
+	if err := a.reviewsLoad.refresh(); err != nil {
 		return err
 	}
 	if _, ok := a.openedReview(); !ok {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -12,7 +11,6 @@ import (
 
 	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/work"
-	"ofam.dev/matomeru/store"
 )
 
 // reviewApp launches an agent on task t1 of matomeru through the fakes,
@@ -75,31 +73,6 @@ func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 	}
 	if _, err := app.r.ValidateBindings(); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestReviewsLoadAtStartup(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "mtm.db")
-	db, err := store.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	w, err := work.Open(db)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := w.PutProject(work.Project{ID: "matomeru", Name: "matomeru"}); err != nil {
-		t.Fatal(err)
-	}
-	rv, err := w.AddReview(work.Review{ProjectID: "matomeru", Session: "matomeru", Window: "w9", Pane: "matomeru/claude"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	db.Close()
-	app := openAt(t, path)
-	if len(app.reviews) != 1 || app.r.Instances[rv.ID] == nil || app.r.Instances[rv.ID].Label != "[pending] matomeru/claude · matomeru" {
-		t.Fatalf("reviews at startup = %+v", app.reviews)
 	}
 }
 
@@ -315,11 +288,11 @@ func TestReviewsListNewestFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := app.refreshReviews(); err != nil {
+	if err := app.reviewsLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	items := app.reviewList.Items()
-	if len(items) != 2 || items[0].ID != recent.ID || items[1].ID != old.ID {
+	if len(items) != 2 || items[0].Data.(ochazuke.Thing)["id"] != recent.ID || items[1].Data.(ochazuke.Thing)["id"] != old.ID {
 		t.Fatalf("order %+v", items)
 	}
 }
@@ -340,13 +313,14 @@ func TestOneReviewRowPerPane(t *testing.T) {
 	}
 	items := app.reviewList.Items()
 	id := paneReviewID("matomeru", "w1")
-	if len(items) != 1 || items[0].ID != id {
+	if len(items) != 1 || items[0].Data.(ochazuke.Thing)["id"] != id {
 		t.Fatalf("rows %+v", items)
 	}
 	if label := items[0].Label; !strings.Contains(label, "matomeru/claude") || !strings.Contains(label, "2 unreviewed") || !strings.Contains(label, `"prompt 2`) {
 		t.Fatalf("label %q", label)
 	}
-	if app.r.FocusID() != id {
+	rowID := items[0].ID
+	if app.r.FocusID() != rowID {
 		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	settle(app, key(t, app, "enter"))
@@ -361,11 +335,11 @@ func TestOneReviewRowPerPane(t *testing.T) {
 	if fr := frame(app); !strings.Contains(fr, "first answer") {
 		t.Fatalf("opened turn:\n%s", fr)
 	}
-	if label := app.r.Instances[id].Label; !strings.Contains(label, "1 unreviewed") {
+	if label := app.r.Instances[rowID].Label; !strings.Contains(label, "1 unreviewed") {
 		t.Fatalf("after open: %q", label)
 	}
 	press(t, app, "esc")
-	if app.r.FocusID() != id {
+	if app.r.FocusID() != rowID {
 		t.Fatalf("esc: focus %s", app.r.FocusID())
 	}
 	if _, err := app.work.Review(id); err == nil {

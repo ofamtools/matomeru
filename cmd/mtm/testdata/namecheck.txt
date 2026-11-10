@@ -9,17 +9,21 @@
 ../../internal/agenthook/approval.go	var claudeDestinations	table	"session"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/approval.go	var openCodeWholeTools	table	"read"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/cmd_agent_hook.go	flushAtTurnEnd	compare	"done"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/cmd_agent_hook.go	reportHookSession	compare	"transcript_leaf"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/cmd_agent_hook.go	reportHookSession	compare	"transcript_path"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/cmd_agent_statusline.go	reportStatusLine	cyclo	"-"	32	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
 ../../internal/agenthook/hook.go	StateActivity	case	"prompt"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook.go	var harnessAliases	table	"cursor"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_claude.go	translateClaude	cyclo	"-"	33	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
 ../../internal/agenthook/hook_cursor.go	translateCursor	case	"stop"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"idle"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"pending"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_plugins.go	piTurnStart	case	"session_start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translateAmp	case	"agent.start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translateAmp	case	"done"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translatePi	compare	"confirm"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/proc.go	var launcherNames	table	"env"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/run.go	agentRefusalText	case	"if_state"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/compose/files.go	var skipDirs	table	"target"	1
 ../../internal/contextitems/extract.go	ExtractStat	compare	"command"	1
 ../../internal/contextitems/extract.go	ExtractStat	compare	"prompt"	1
@@ -32,18 +36,22 @@
 ../../internal/contextitems/store.go	Item.Path	compare	"dir"	1
 ../../internal/contextitems/store.go	normalize	compare	"link"	1
 ../../internal/contextitems/wrap.go	joinNext	cyclo	"-"	27
-../../internal/daemon/client.go	decodeEvent	case	"boot_id"	1	wire field names of the daemon event JSON, not mtm vocabulary (boot_id became a word with session.events)
-../../internal/harness/harness.go	Harness.Validate	case	"send-text"	1	the daemon verb a harness manifest names, not an mtm verb (send-text became a word with pane.send-text)
-../../internal/history/project.go	project	case	"session_start"	1	wire field of the agent-state report, not mtm vocabulary (session_start became a word with agent.set-status)
 ../../internal/daemon/client.go	decodeEvent	case	"at"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/client.go	decodeEvent	case	"boot_id"	1	wire field names of the daemon event JSON, not mtm vocabulary (boot_id became a word with session.events)
+../../internal/daemon/client.go	decodeEvent	case	"data"	1	wire field names of the daemon event JSON, not mtm vocabulary (data became a word with the relation noun's data prop)
 ../../internal/daemon/client.go	decodeEvent	case	"seq"	1	wire field names of the daemon event JSON, not mtm vocabulary (seq became a word with ochazuke R1's history noun)
 ../../internal/daemon/client.go	decodeEvent	case	"session"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"time"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"type"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"window"	1	wire field names of the daemon event JSON, not mtm vocabulary
-../../internal/daemon/client.go	decodeEvent	case	"data"	1	wire field names of the daemon event JSON, not mtm vocabulary (data became a word with the relation noun's data prop)
+../../internal/daemon/importstate.go	guardClash	compare	"replace"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
+../../internal/daemon/importstate.go	normalServer	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
+../../internal/daemon/importstate.go	pickFiles	compare	"copy"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
+../../internal/daemon/importstate.go	pickFiles	compare	"history"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
+../../internal/daemon/importstate.go	validServerName	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/launch.go	LaunchWorkspace	cyclo	"-"	29
 ../../internal/harness/harness.go	Harness.Validate	case	"paste"	1
+../../internal/harness/harness.go	Harness.Validate	case	"send-text"	1	the daemon verb a harness manifest names, not an mtm verb (send-text became a word with pane.send-text)
 ../../internal/harness/promptbox.go	PromptBox.validate	case	"enter"	1
 ../../internal/harness/promptbox.go	PromptBox.validate	case	"send"	1
 ../../internal/harness/session.go	SessionSource.validate	case	"lines"	1
@@ -51,10 +59,15 @@
 ../../internal/harness/settings.go	Harness.LaunchSettings	compare	"model"	1
 ../../internal/harness/settings.go	Setting.validate	compare	"fast"	2
 ../../internal/history/history.go	FromActivity	compare	"prompt"	1
+../../internal/history/project.go	project	case	"session_start"	1	wire field of the agent-state report, not mtm vocabulary (session_start became a word with agent.set-status)
 ../../internal/history/project.go	project	cyclo	"-"	37
 ../../internal/history/turns.go	Journal.OpenCapture	compare	"harness"	2
 ../../internal/locate/locate.go	Locator.records	cyclo	"-"	32
 ../../internal/locate/locate.go	readRecord	compare	"lines"	1
+../../internal/notices/gen/main.go	noticeFile	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
+../../internal/notices/notices.go	Index.Check	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
+../../internal/notices/notices.go	Module.Licenses	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
+../../internal/notices/notices.go	ParseRequires	compare	"require"	2	licence-file and go.mod parsing words, not mtm runtime names
 ../../internal/notify/notify.go	Sender.Send	compare	"terminal"	1
 ../../internal/panesignals/commands.go	CommandFailed	compare	"command"	1
 ../../internal/panesignals/commands.go	CommandRule.Raises	case	"all"	1
@@ -144,6 +157,7 @@ copybuf.go	copyBuf.move	compare	"line-end"	1
 copymode.go	App.copyUpdate	compare	"panes"	1
 copymode.go	App.defineCopy	compare	"line"	1
 copymode.go	App.defineCopy	compare	"visual_count_pending"	1
+daemon_import.go	App.importOptions	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 delete.go	App.deleteThing	compare	"project"	1
 delete.go	App.deletionConfirm	compare	"delete"	1
 delete.go	App.orphanDrafts	compare	"project"	1
@@ -205,8 +219,10 @@ outline.go	App.outlineTaskOf	compare	"outline-task"	1
 outline.go	App.reloadOutline	compare	"task-outline"	1
 pane_activity.go	App.pollActivities	compare	"panes"	1
 pane_settings.go	App.settingFields	compare	"launch"	1
+pane_settings.go	App.settingFields	compare	"log"	1	the settings source kind (sourceLog), a word coincidence with the history-log parameter named log
 pane_settings.go	App.settingFields	compare	"on"	1
 pane_settings.go	App.settingPane	compare	"pane-setting"	1
+pane_settings.go	App.settingsRead	compare	"log"	1	the settings source kind (sourceLog), a word coincidence with the history-log parameter named log
 pane_settings.go	App.togglePaneFast	compare	"fast"	1
 pane_settings.go	App.togglePaneFast	compare	"on"	1
 pane_settings.go	permissionLabel	case	"plan"	1
@@ -234,8 +250,8 @@ panes_detail.go	App.panesUpdate	compare	"panes"	4
 panes_detail.go	App.panesUpdate	cyclo	"-"	41
 panes_events.go	App.pushPaneTitles	compare	"pane"	1
 panes_leader.go	App.paneNear	compare	"pane"	1
-panes_panels.go	App.panelSizes	compare	"hide"	1	existing panel empty-mode value (emptyHide), flagged because v0.110.0 made hide a verb; not a name branch
 panes_panels.go	App.focusSection	compare	"panes"	1
+panes_panels.go	App.panelSizes	compare	"hide"	1	existing panel empty-mode value (emptyHide), flagged because v0.110.0 made hide a verb; not a name branch
 panes_panels.go	var panelTexts	table	"panes"	1
 panes_sections.go	App.buildPaneSections	compare	"panes"	2
 panes_sections.go	App.buildPaneSections	cyclo	"-"	61
@@ -279,9 +295,6 @@ reminders.go	App.defineReminders	compare	"check"	1
 reminders.go	App.defineReminders	compare	"history"	1
 reminders.go	App.defineReminders	compare	"toggle"	1
 reminders.go	App.defineReminders	compare	"uncheck"	1
-reminders.go	App.openReminderForm	compare	"days"	1
-reminders.go	App.openReminderForm	compare	"time"	1
-reminders.go	App.reminderAt	compare	"reminder"	1
 reviews.go	App.review	compare	"review"	1
 runs.go	App.runAt	compare	"run"	1
 runs.go	App.runCommandVerb	compare	"terminal"	1
@@ -314,10 +327,10 @@ task_store.go	App.defineTaskSubjects	compare	"task"	1
 task_store.go	App.patchTask	compare	"task"	1
 task_store.go	App.patchTask	cyclo	"-"	28
 task_store.go	App.taskStore	compare	"all"	2
-tasks.go	App.visibleTaskColumns	compare	"project"	1	moved from refreshTasks unchanged
 tasks.go	App.refreshTasks	cyclo	"-"	27
 tasks.go	App.task	compare	"task"	1
 tasks.go	App.toggleTask	compare	"done"	1
+tasks.go	App.visibleTaskColumns	compare	"project"	1	moved from refreshTasks unchanged
 turn_agents.go	App.agentBody	compare	"done"	1
 turn_agents.go	App.agentNodes	compare	"text"	1
 turn_agents.go	App.agentSteps	compare	"text"	1
@@ -343,21 +356,5 @@ turns_model.go	turnsNeedBuild	compare	"turn"	1
 turns_refresh.go	App.refreshPaneTurns	compare	"pane"	1
 vim.go	App.vimAt	compare	"pane"	1
 vim.go	App.vimAt	compare	"vim"	1
-../../internal/agenthook/cmd_agent_hook.go	reportHookSession	compare	"transcript_leaf"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
-../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"idle"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
-../../internal/agenthook/hook_plugins.go	piTurnStart	case	"session_start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
-../../internal/agenthook/run.go	agentRefusalText	case	"if_state"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
-../../internal/daemon/importstate.go	pickFiles	compare	"copy"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	pickFiles	compare	"history"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	guardClash	compare	"replace"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	normalServer	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/daemon/importstate.go	validServerName	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-../../internal/notices/gen/main.go	noticeFile	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
-../../internal/notices/notices.go	Index.Check	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
-../../internal/notices/notices.go	Module.Licenses	compare	"license"	1	licence-file and go.mod parsing words, not mtm runtime names
-../../internal/notices/notices.go	ParseRequires	compare	"require"	2	licence-file and go.mod parsing words, not mtm runtime names
-daemon_import.go	App.importOptions	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
-wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch
-pane_settings.go	App.settingFields	compare	"log"	1	the settings source kind (sourceLog), a word coincidence with the history-log parameter named log
-pane_settings.go	App.settingsRead	compare	"log"	1	the settings source kind (sourceLog), a word coincidence with the history-log parameter named log
 wire_verbs.go	var wireVerbs	table	"dry_run"	1	the daemon's parameter name in a row's AgentArgs (purge always dry-runs for an agent); data in the row, no branch
+wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch

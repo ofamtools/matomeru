@@ -142,7 +142,7 @@ func TestMCPVerbRightsTable(t *testing.T) {
 		{"task.make-project", "allow", false}, {"project.make-task", "allow", false}, {"outline-root.demote", "allow", false}, {"outline-project.demote", "allow", false}, {"outline-task.promote", "allow", false},
 		{"project.remove-directory", "allow", false}, {"project-dir.remove", "allow", false}, {"project-base.remove", "allow", false}, {"dirs.remove-base", "allow", false}, {"dirs.add-base", "allow", false},
 		{"schedule.delete", "never", true}, {"schedule.reset", "allow", false}, {"schedule.set", "allow", false}, {"schedule.toggle", "allow", false},
-		{"session.associate", "allow", false}, {"pane.delete", "confirm", false}, {"session.delete", "confirm", false},
+		{"session.associate", "allow", false}, {"pane.delete", "confirm", false}, {"session.delete", "never", true},
 		{"reminder.check", "allow", false}, {"reminder.uncheck", "allow", false}, {"reminder.toggle", "allow", false}, {"reminder.delete", "never", true},
 		{"ochazuke.setting.set", "allow", false}, {"ochazuke.binding.load", "allow", false}, {"pane.whoami", "allow", false}, {"pane.progress", "allow", false}, {"context-item.report", "allow", false},
 	} {

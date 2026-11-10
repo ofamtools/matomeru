@@ -30,7 +30,7 @@ func buildReminderRollover(env monogatari.Env) (monogatari.Built, error) {
 		return monogatari.Built{}, err
 	}
 	a.r.Define("story-clock").Verb("tomorrow", func(ochazuke.Ctx) ochazuke.Result { offset += 24 * time.Hour; return ochazuke.Done(nil) })
-	if err := a.refreshReminders(); err != nil {
+	if err := a.reminders.list.Refill(); err != nil {
 		built.Close()
 		return monogatari.Built{}, err
 	}

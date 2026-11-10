@@ -263,7 +263,7 @@ func (a *App) relStoreHub() ochazuke.RelationStore { return a.r.RelationStore() 
 // defineRelation defines the relation noun with its store and its own
 // verbs. Keys are binding rows; none are bound by default.
 func (a *App) defineRelation() {
-	a.r.Define(relationNoun).Props(relationProps()...).Store(a.relationStore()).
+	a.r.Define(relationNoun).Props(relationProps()...).Store(a.docStore(relationNoun, a.relationStore())).
 		Verb("follow", a.followRelation, "Open the other end of the relation (end: from or to; default to, else from)").Positional("id", "end").
 		Verb("yank", a.yankRelation, "Copy the relation's key, or an end as noun:key, to the clipboard (what: key, from, to)").Positional("id", "what").
 		Verb("move", a.moveRelation, "Move the relation among those of the same from thing and kind: to first, last, up, down or a 1-based place").Positional("id", "to")
