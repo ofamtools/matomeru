@@ -502,7 +502,7 @@ func TestANoProjectReviewListsAndOpens(t *testing.T) {
 		t.Fatalf("review = %+v", rv)
 	}
 	press(t, app, "ctrl+a", "d", "ctrl+j", "ctrl+j") // Panes, Work, Review
-	if app.r.Page != reviewsPage || app.r.FocusID() != rv.ID {
+	if app.r.Page != reviewsPage || savedRowKey(app.r.Instances[app.r.FocusID()]) != rv.ID {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	if fr := frame(app); !rowWith(fr, "pending", "no-project/claude", "unassociated", "claude") {

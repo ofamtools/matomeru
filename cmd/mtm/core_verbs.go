@@ -9,9 +9,8 @@ import (
 // get, set, delete, archive, list and edit) whose work is a named verb mtm
 // already has: a pane is created by opening a shell and deleted by
 // killing its window (confirmed), a session is created by opening a shell
-// in the project's session and deleted by killing it (confirmed), a vim
-// session is created by opening Neovim, a review by launching an agent
-// (each launch records one). The named verbs stay (Keep actions); the core
+// in the project's session and deleted by killing it (confirmed); a vim
+// session is created by opening Neovim. The named verbs stay (Keep actions); the core
 // verb runs the same handler with the same parameters and confirm.
 var coreVerbAs = []struct{ noun, verb, from string }{
 	{"pane", "create", "pane.new"},
@@ -19,7 +18,6 @@ var coreVerbAs = []struct{ noun, verb, from string }{
 	{"session", "create", "pane.new"},
 	{"session", "delete", "session.kill"},
 	{"vim", "create", "vim.open"},
-	{"review", "create", "agent.launch"},
 }
 
 // defineCoreVerbs registers each coreVerbAs row as the noun's own verb,

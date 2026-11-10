@@ -19,9 +19,9 @@ r|  gh-signals     auto (off)  every 5m  never╭──────────�
  |              │ ›                                                                                                      fuzzy │
 R|              │   opus (claude)  opus                                                                                        │
  |  Reminders · │   sonnet (claude)  sonnet                                                                                    │
- |  reminder  ti│   haiku (claude)  haiku                                                                                      │
- |  no rows     │ esc normal · enter picker.pick · tab search.cycle-match                                                      │
- |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ |  page 1/1 of │   haiku (claude)  haiku                                                                                      │
+ |  reminder  ti│ esc normal · enter picker.pick · tab search.cycle-match                                                      │
+ |  no rows     ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
  |                                            │   (none) ▾                                       │
  |                                            │ task                                             │
  |                                            │                                                  │

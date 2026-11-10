@@ -53,13 +53,14 @@ func storedReview(t *testing.T, a *App, id string) work.Review {
 func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 	t.Parallel()
 	app, _, rv := reviewApp(t)
+	rowID := app.reviewList.Items()[0].ID
 	want := work.Review{ProjectID: "matomeru", TaskID: "t1", Harness: "claude", Session: "matomeru", Window: "w1", Pane: "matomeru/write the brief", Status: work.ReviewPending}
 	got := rv
 	got.ID, got.Created, got.Updated = "", 0, 0
 	if got != want {
 		t.Fatalf("review = %+v", rv)
 	}
-	if app.r.FocusID() != rv.ID {
+	if app.r.FocusID() != rowID {
 		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	fr := frame(app)
@@ -76,12 +77,34 @@ func TestALaunchRecordsAReviewOnTheReviewPage(t *testing.T) {
 	}
 }
 
+func TestReviewsLoadAtStartup(t *testing.T) {
+	t.Parallel()
+	path := seeded(t)
+	a := openAt(t, path)
+	rv, err := a.work.AddReview(work.Review{ProjectID: "matomeru", Session: "matomeru", Window: "w9", Pane: "matomeru/claude", Answer: "persisted answer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
+	other := openAt(t, path)
+	items := other.reviewList.Items()
+	if len(items) != 1 {
+		t.Fatalf("reviews at startup: %+v", items)
+	}
+	got := items[0].Data.(ochazuke.Thing)
+	if got["id"] != rv.ID || got["answer"] != "persisted answer" || got["status"] != work.ReviewPending {
+		t.Fatalf("review after restart: %v", got)
+	}
+}
+
 func TestOpenCapturesThePaneIntoTheDetail(t *testing.T) {
 	t.Parallel()
 	app, f, rv := reviewApp(t)
 	cmd := key(t, app, "enter")
 	jobs := jobsOf(app, "review.open")
-	if len(jobs) != 1 || jobs[0].Slot != "capture" || jobs[0].Scope != reviewListID || jobs[0].Owner != rv.ID {
+	if len(jobs) != 1 || jobs[0].Slot != "capture" || jobs[0].Scope != reviewListID || jobs[0].Owner != app.reviewList.Items()[0].ID {
 		t.Fatalf("open jobs = %+v", jobs)
 	}
 	settle(app, cmd)
@@ -96,6 +119,7 @@ func TestOpenCapturesThePaneIntoTheDetail(t *testing.T) {
 func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	t.Parallel()
 	app, _, rv := reviewApp(t)
+	rowID := app.reviewList.Items()[0].ID
 	press(t, app, "x")
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewAccepted {
 		t.Fatalf("accept: status = %q", got)
@@ -115,10 +139,10 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Status; got != work.ReviewRejected {
 		t.Fatalf("reject: status = %q", got)
 	}
-	if label := app.r.Instances[rv.ID].Label; !strings.HasPrefix(label, "[rejected] ") {
+	if label := app.r.Instances[rowID].Label; !strings.HasPrefix(label, "[rejected] ") {
 		t.Fatalf("row label = %q", label)
 	}
-	if app.r.FocusID() != rv.ID {
+	if app.r.FocusID() != rowID {
 		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 }
@@ -128,6 +152,7 @@ func TestAcceptAndRejectPersistAndLeaveTheTask(t *testing.T) {
 func TestSaveAnswerThroughTheArea(t *testing.T) {
 	t.Parallel()
 	app, _, rv := reviewApp(t)
+	rowID := app.reviewList.Items()[0].ID
 	press(t, app, "i")
 	if app.r.FocusID() != answerID || app.r.CurrentMode().Name != "insert" || app.opened != rv.ID {
 		t.Fatalf("i: focus %s mode %s opened %s", app.r.FocusID(), app.r.CurrentMode().Name, app.opened)
@@ -137,8 +162,8 @@ func TestSaveAnswerThroughTheArea(t *testing.T) {
 	if got := storedReview(t, app, rv.ID).Answer; got != "ship it" {
 		t.Fatalf("answer = %q", got)
 	}
-	if app.r.FocusID() != rv.ID || !strings.HasSuffix(app.r.Instances[rv.ID].Label, "(answered)") {
-		t.Fatalf("after save: focus %s label %q", app.r.FocusID(), app.r.Instances[rv.ID].Label)
+	if app.r.FocusID() != rowID || !strings.HasSuffix(app.r.Instances[rowID].Label, "(answered)") {
+		t.Fatalf("after save: focus %s label %q", app.r.FocusID(), app.r.Instances[rowID].Label)
 	}
 }
 
@@ -163,6 +188,7 @@ func TestSaveAnswerTakesAnArgumentWithoutAPrompt(t *testing.T) {
 func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 	t.Parallel()
 	app, _, rv := reviewApp(t)
+	rowID := app.reviewList.Items()[0].ID
 	settle(app, key(t, app, "enter"))
 	press(t, app, "}")
 	if app.r.FocusID() != answerID || app.r.CurrentMode().Name != "normal" {
@@ -174,7 +200,7 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 		t.Fatalf("frame while editing:\n%s", fr)
 	}
 	press(t, app, "enter")
-	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.FocusID() != rv.ID {
+	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.FocusID() != rowID {
 		t.Fatalf("enter: answer %q focus %s", got, app.r.FocusID())
 	}
 	press(t, app, "i")
@@ -184,13 +210,13 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 		t.Fatalf("esc: mode %s area %q", app.r.CurrentMode().Name, string(app.answer.Text))
 	}
 	press(t, app, "esc")
-	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.FocusID() != rv.ID {
+	if got := storedReview(t, app, rv.ID).Answer; got != "looks right" || app.r.FocusID() != rowID {
 		t.Fatalf("leave: answer %q focus %s", got, app.r.FocusID())
 	}
 	if draft, ok := app.answerDraftOf(rv.ID); !ok || draft != "looks right maybe" {
 		t.Fatalf("draft %q %v", draft, ok)
 	}
-	if !strings.Contains(app.r.Instances[rv.ID].Label, "answered") || !rowWith(frame(app), "draft") {
+	if !strings.Contains(app.r.Instances[rowID].Label, "answered") || !rowWith(frame(app), "draft") {
 		t.Fatalf("row does not show the draft:\n%s", frame(app))
 	}
 	// Opening the review again brings the draft back.
@@ -200,7 +226,7 @@ func TestTheAnswerAreaIsTheSecondStop(t *testing.T) {
 		t.Fatalf("reopen: area %q", string(app.answer.Text))
 	}
 	press(t, app, "}", "U")
-	if string(app.answer.Text) != "looks right" || app.r.FocusID() != rv.ID {
+	if string(app.answer.Text) != "looks right" || app.r.FocusID() != rowID {
 		t.Fatalf("U: area %q focus %s", string(app.answer.Text), app.r.FocusID())
 	}
 	if _, ok := app.answerDraftOf(rv.ID); ok {

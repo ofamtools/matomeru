@@ -79,3 +79,16 @@ func TestReviewSetWritesAJournalRowsRecord(t *testing.T) {
 		t.Fatalf("record: %+v", got)
 	}
 }
+
+func TestReviewCreatePreservesManualAnswer(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	var made map[string]any
+	cliJSON(t, a, &made, "review", "create", "--answer", "manual review", "--status", "accepted")
+	id := made["id"].(string)
+	other := openAt(t, a.dataPath)
+	got := storedReview(t, other, id)
+	if got.Answer != "manual review" || got.Status != work.ReviewAccepted || got.Pane != "unassociated" || got.Window != "" {
+		t.Fatalf("manual review after restart: %+v", got)
+	}
+}

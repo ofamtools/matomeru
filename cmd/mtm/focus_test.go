@@ -62,7 +62,7 @@ func TestTheReviewPageOpensOnAStoredReviewRow(t *testing.T) {
 	db.Close()
 	app := openAt(t, path)
 	press(t, app, "ctrl+j") // Work, then Review
-	if app.r.Page != reviewsPage || app.r.FocusID() != rv.ID {
+	if app.r.Page != reviewsPage || savedRowKey(app.r.Instances[app.r.FocusID()]) != rv.ID {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	press(t, app, "x")

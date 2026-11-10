@@ -62,6 +62,22 @@ func TestTerminalFooterExposesPassthroughLeader(t *testing.T) {
 
 }
 
+func TestHelpOnATaskRowReturnsToItsTask(t *testing.T) {
+	t.Parallel()
+	app := open(t)
+	press(t, app, "j", "enter", "?")
+	if app.r.TopModal() != "bindings-help" {
+		t.Fatalf("help modal: %q", app.r.TopModal())
+	}
+	if got := frameAt(app, 120); !strings.Contains(got, "task.edit") {
+		t.Fatalf("task edit is absent from help:\n%s", got)
+	}
+	press(t, app, "esc", "q")
+	if app.r.TopModal() != "" || app.r.FocusID() != "t1" {
+		t.Fatalf("return: modal %q focus %s", app.r.TopModal(), app.r.FocusID())
+	}
+}
+
 // Test pass item 9: a chooser's footer and hint line list no motions
 // (picker.move is a motion, as collection.move is on pages).
 func TestChooserFooterListsNoMotions(t *testing.T) {

@@ -85,7 +85,7 @@ func TestSliceEndToEnd(t *testing.T) {
 	if app.r.Page != reviewsPage || app.r.Instances[app.r.FocusID()].Noun != "review" {
 		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.FocusID())
 	}
-	rv := app.r.FocusID()
+	rv := savedRowKey(app.r.Instances[app.r.FocusID()])
 	step("enter")
 	has("claude: brief written")
 	step("i")

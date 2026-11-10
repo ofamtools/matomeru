@@ -132,8 +132,15 @@ func (a *App) instanceOwner(inst *ochazuke.Instance, noun string) (Owner, bool, 
 	if n == nil || n.Store == nil {
 		return owner, found, nil
 	}
+	key := inst.ID
+	data, _ := inst.Data.(ochazuke.Thing)
 	props := map[int]string{} // slot index -> prop name
 	for _, p := range n.Props {
+		if p.Key {
+			if value, ok := data[p.Name].(string); ok && value != "" {
+				key = value
+			}
+		}
 		for i, s := range ownerSlots {
 			if i == 0 && p.Role == ochazuke.RoleOwner || i > 0 && p.Noun == s.noun && props[i] == "" {
 				props[i] = p.Name
@@ -149,7 +156,7 @@ func (a *App) instanceOwner(inst *ochazuke.Instance, noun string) (Owner, bool, 
 	// The store's own synchronous read, never the verb (rights, history, jobs).
 	// Record first: a failed read is an unassociated owner, never an error.
 	// Cached data only: this runs on the UI loop, never the daemon.
-	thing, err := n.Store.Get(ochazuke.Ctx{Runtime: a.r, Instance: inst, Args: ochazuke.Arguments{cachedOnlyArg: true}}, inst.ID)
+	thing, err := n.Store.Get(ochazuke.Ctx{Runtime: a.r, Instance: inst, Args: ochazuke.Arguments{cachedOnlyArg: true}}, key)
 	if err != nil {
 		return Owner{}, true, nil
 	}
