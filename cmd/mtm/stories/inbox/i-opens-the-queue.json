@@ -15,11 +15,12 @@
     },
     {
       "page": "panes",
+      "focus": "queue:inbox-checkout",
       "contains": [
         "› Inbox",
-        "Needs you (2)"
-      ],
-      "highlightedText": "Checkout: sh"
+        "Needs you (2)",
+        "Checkout: shipping estimate"
+      ]
     }
   ]
 }

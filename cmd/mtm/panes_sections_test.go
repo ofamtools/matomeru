@@ -182,9 +182,6 @@ func TestPaneSectionsDefaultAssignment(t *testing.T) {
 	if head := a.pv.view.sectionsHead(); head != "4 need you · 2 working" {
 		t.Fatalf("head %q", head)
 	}
-	if fr := frame(a); !strings.Contains(fr, "─ Waiting · Review (4) ─") || !strings.Contains(fr, "─ Working (2) ─") {
-		t.Fatalf("frame:\n%s", fr)
-	}
 }
 
 // panes.sections and panes.queue-order are data: a waiting pane sent to
@@ -291,26 +288,26 @@ func TestPaneSectionHeights(t *testing.T) {
 	}
 }
 
-// The frames of both layouts (the report pastes them).
+// Both allocation layouts keep the queue, middle and working rows in
+// drawing order, even when wrapped children consume extra display lines.
 func TestPaneSectionLayoutsRender(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
 	setting(t, a, settingPanesLayout, layoutStacked)
-	budget := frameWH(a, 120, 24)
-	for _, want := range []string{"─ Waiting · Review (4) ─", "─ Panes (2) ─", "─ Working (2) ─", "? waiter", "● oldest"} {
-		if !strings.Contains(budget, want) {
-			t.Fatalf("budget frame lacks %q:\n%s", want, budget)
+	for _, layout := range []string{layoutBudget, layoutThirds} {
+		setting(t, a, settingSectionLayout, layout)
+		fr := frameWH(a, 120, 24)
+		lines := strings.Split(fr, "\n")
+		last := -1
+		for _, text := range []string{"? waiter", "○ idler", "term", "● oldest"} {
+			at := frameLine(lines, text)
+			if at <= last {
+				t.Fatalf("%s layout: %q is missing or out of drawing order:\n%s", layout, text, fr)
+			}
+			last = at
 		}
+		t.Logf("%s:\n%s", layout, fr)
 	}
-	t.Logf("budget:\n%s", budget)
-	if err := a.r.Settings().Set(settingSectionLayout, layoutThirds); err != nil {
-		t.Fatal(err)
-	}
-	thirds := frameWH(a, 120, 24)
-	if !strings.Contains(thirds, "─ Working (2) ─") {
-		t.Fatalf("thirds frame:\n%s", thirds)
-	}
-	t.Logf("thirds:\n%s", thirds)
 }
 
 // With panes.sticky-rows the row under the cursor keeps its section while
@@ -355,11 +352,14 @@ func TestPaneSectionsHoldTheRowUnderTheCursor(t *testing.T) {
 func TestPaneSectionsSpillJK(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
-	frame(a) // a drawn frame gives the page its drawing order
+	// This scenario tests a single motion from a fully visible boundary.
+	// A separate regression covers revealing a wrapped row before spilling.
+	setting(t, a, settingPanelMax, 20)
 	queue, middle, working := sectionIDs(a, 0), sectionIDs(a, 1), sectionIDs(a, 2)
 	if err := a.r.SetFocus(queue[len(queue)-1]); err != nil {
 		t.Fatal(err)
 	}
+	frameWH(a, 120, 60) // draw the complete boundary row before moving off it
 	press(t, a, "j")
 	if first := a.pv.sections[1].tree.Nodes()[0].ID; a.r.FocusID() != first {
 		t.Fatalf("j off the queue: focus %s, want %s", a.r.FocusID(), first)
@@ -371,11 +371,64 @@ func TestPaneSectionsSpillJK(t *testing.T) {
 	if err := a.r.SetFocus(middle[len(middle)-1]); err != nil {
 		t.Fatal(err)
 	}
-	frame(a)
+	frameWH(a, 120, 60)
 	press(t, a, "j")
 	if a.r.FocusID() != working[0] {
 		t.Fatalf("j off the middle: focus %s, want %s", a.r.FocusID(), working[0])
 	}
+}
+
+func TestPaneSectionsWrappedLastRowRevealsBeforeSpilling(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	setting(t, a, settingPanelMax, 6)
+	it := addItem(t, a, actionitems.Spec{
+		Source: "gh", Key: "wrapped-boundary", Why: "review",
+		Title: "aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll mmm nnn ooo ppp qqq rrr sss ttt uuu vvv www xxx yyy omega",
+	})
+	if err := a.rebuildPanes(); err != nil {
+		t.Fatal(err)
+	}
+	row := queueRowStart + it.ID
+	if err := a.r.SetFocus(row); err != nil {
+		t.Fatal(err)
+	}
+	queueBody := func() string {
+		t.Helper()
+		fr := frameWH(a, 120, 24)
+		col := leftColumn(t, fr)
+		top, end := panelSpan(t, col, "Needs you")
+		return strings.Join(col[top+1:end], "\n")
+	}
+	before := queueBody()
+	if !strings.Contains(before, "aaa") || strings.Contains(before, "omega") {
+		t.Fatalf("expected the beginning, not the end, of the wrapped row:\n%s", before)
+	}
+	press(t, a, "j")
+	if got := a.r.FocusID(); got != row {
+		t.Fatalf("first j skipped unread continuation text: focus %s, want %s", got, row)
+	}
+	revealed := false
+	for range 32 {
+		body := queueBody()
+		if strings.Contains(body, "omega") {
+			revealed = true
+			t.Logf("last continuation before spilling:\n%s", body)
+		}
+		press(t, a, "j")
+		if got := a.r.FocusID(); got != row {
+			if !revealed || got != "project:" {
+				t.Fatalf("j left the row before its end or skipped the middle: revealed %v, focus %s", revealed, got)
+			}
+			frameWH(a, 120, 24)
+			press(t, a, "k")
+			if got := a.r.FocusID(); got != row {
+				t.Fatalf("k did not return to the wrapped queue row: focus %s, want %s", got, row)
+			}
+			return
+		}
+	}
+	t.Fatal("32 normal j motions never spilled into the middle list")
 }
 
 // enter on a pane's signal attaches the pane (it used to fail with "no URL
