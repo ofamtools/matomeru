@@ -509,6 +509,7 @@ next-missing	action	seed
 next-row	action	seed	
 next-run	prop	seed	
 next-same	action	seed	
+next-scope	action	seed	
 next-source	action	seed	
 normal	action	seed	
 note	action+noun+prop	seed	
@@ -626,6 +627,7 @@ previous-class	action	seed
 previous-kind	action	seed	
 previous-link	action	seed	
 previous-same	action	seed	
+previous-scope	action	seed	
 previous-source	action	seed	
 privacy	prop	seed	
 private	prop	seed	

@@ -1,11 +1,11 @@
 {
-  "name":"ux: explicit pane edit works on the row and on the showing live pane",
+  "name":"ux: explicit pane edit works on the row and on the showing live pane; with no pane focused it asks for the pane (the missing target is a parameter)",
   "area":"panes","fixture":"seeded","width":120,"height":34,
   "script":[":",{"type":"pane edit"},"enter","esc","q","enter","ctrl+a",":",{"type":"pane edit"},"enter","esc","q","ctrl+a","d","g","n","g","g",":",{"type":"pane edit"},"enter"],
   "expect":[
     {"after":3,"focus":"edit-form/name","contains":["Edit pane: acme-web/claude"]},
     {"after":6,"mode":"terminal","focus":"panes/terminal"},
     {"after":10,"focus":"edit-form/name","contains":["Edit pane: acme-web/claude"],"lacks":["names no verb","Error:"]},
-    {"contains":["id is required: no pane is focused"],"lacks":["names no verb","Edit pane:"]}
+    {"contains":["Run pane.edit","The pane's id","required"],"lacks":["names no verb","Edit pane:","Error:"]}
   ]
 }

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
@@ -33,13 +34,27 @@ func chooserData(c *ochazuke.Chooser) []string {
 }
 
 // toSource steps the open directory chooser to the source name.
+// settleChooser waits (up to 5 s) until nothing the picker shows is loading:
+// the source's rows now come in off the loop (Chooser.Settled).
+func settleChooser(a *App, c *ochazuke.Chooser) {
+	for end := time.Now().Add(5 * time.Second); !c.Settled() && time.Now().Before(end); {
+		settle(a, a.r.PendingCommands())
+		time.Sleep(10 * time.Millisecond)
+	}
+	settle(a, a.r.PendingCommands())
+}
+
 func toSource(t *testing.T, a *App, c *ochazuke.Chooser, name string) {
 	t.Helper()
 	for range c.Sources() {
 		if c.Source() == name {
+			settleChooser(a, c)
 			return
 		}
-		press(t, a, "ctrl+o") // chooser.next-source; tab cycles the match mode since ochazuke v0.59.0
+		// chooser.next-source; tab cycles the match mode since ochazuke v0.59.0.
+		// The source's rows load in a job off the loop: deliver its command.
+		_, cmd := a.Update(keyMsg("ctrl+o"))
+		settle(a, cmd)
 	}
 	t.Fatalf("no source %s in %q (at %s)", name, c.Sources(), c.Source())
 }
