@@ -249,6 +249,7 @@ panes_tree.go	stateGlyph	compare	"done"	1
 panes_tree.go	stateTone	compare	"done"	1
 path_sources.go	App.offersPathSource	case	"project"	1
 path_sources.go	var directoryChooserStarts	table	"path"	1	the directory-chooser setting's values mapped to start sources as data
+path_sources.go	var pinDirectoryWalks	table	"project"	1	the pin.directory-walk setting's values mapped to whether the walk reaches beyond the project as data
 pin.go	App.openPinPicker	compare	"done"	1
 pin.go	App.pinProject	compare	"project"	1
 pin.go	App.refreshScope	compare	"project"	1

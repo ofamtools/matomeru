@@ -146,7 +146,10 @@ func (a *App) pinAndAskDirectory(id string) ochazuke.Result {
 			a.askedDir = map[string]bool{}
 		}
 		a.askedDir[id] = true
-		if err := a.openDirectoryChooser(id); err != nil {
+		a.pathChooserOwn = !pinDirectoryWalks[a.r.Settings().String(settingPinDirectoryWalk)].Beyond
+		err := a.openDirectoryChooser(id)
+		a.pathChooserOwn = false
+		if err != nil {
 			return ochazuke.Failed(err)
 		}
 	}

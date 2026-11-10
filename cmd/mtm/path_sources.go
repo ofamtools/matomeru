@@ -13,8 +13,7 @@ import (
 // field is a path parameter (dirParam), so its form field and a missing
 // argument open the chooser; beside its own browse, recent and typed
 // sources it lists:
-//   - known: the directories the Directories page knows (directoryChoices'
-//     rows without browse…), each row's Data its path;
+//   - known: the directories the Directories page knows (knownDirectoryChoices), each row's Data its path;
 //   - project: the directories of the project in view (the one a chooser
 //     is opened for, else the Directories page's target or the pinned
 //     project), the default first;
@@ -60,6 +59,26 @@ var directoryChooserSetting = ochazuke.Setting{Name: settingDirectoryChooser, Ty
 	Enum:        []string{dirChooserPath, dirChooserRemembered, dirChooserKnown},
 	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its walk source, every folder under the project's directories, configured project bases and known directories; on known when path.walk is off; ctrl+o cycles browse, recent, typed, known, project), path-remembered (the path chooser on the source last used, else the first path.first names) or known (the path chooser opened on the known directories, walk or not; its browse source replaces browse…)"}
 
+// The pin.directory-walk setting: how far the walk of the directory pick a
+// pin asks for reaches. Only the pin's pick reads it (pathChooserOwn);
+// moving a directory and every other pick keep the wide walk.
+const (
+	settingPinDirectoryWalk = "pin.directory-walk"
+	pinWalkWide             = "wide"    // the project's directories, the project bases and every known folder
+	pinWalkProject          = "project" // only the project's own directories
+)
+
+// pinDirectoryWalks says, per pin.directory-walk value, whether the walk
+// reaches beyond the project's own directories (the bases, the known folders).
+var pinDirectoryWalks = map[string]struct{ Beyond bool }{
+	pinWalkWide:    {Beyond: true},
+	pinWalkProject: {Beyond: false},
+}
+
+var pinDirectoryWalkSetting = ochazuke.Setting{Name: settingPinDirectoryWalk, Type: ochazuke.SettingString, Default: pinWalkWide,
+	Enum:        []string{pinWalkWide, pinWalkProject},
+	Description: "How far the directory pick of a pinned project walks (P, a pin without a directory): wide (the project's directories, the configured project bases and every known folder) or project (only the project's own directories; a project with none opens on the known directories). Moving or editing a directory always walks wide"}
+
 // dirParam is a directory parameter: a folder through the path chooser;
 // isNew lets it name a folder not there yet (attached and flagged missing).
 func dirParam(description string, isNew bool) ochazuke.Parameter {
@@ -101,16 +120,17 @@ func (a *App) definePathSources() {
 			return ochazuke.PickerSource{}, false
 		}
 		home, _ := a.home()
-		var rows []ochazuke.PickerRow
+		var choices []ochazuke.Choice
 		for _, tree := range p.Trees {
-			row := ochazuke.PickerRow{ID: "project-dir:" + tree.Path, Label: tildePath(tree.Path, home), Data: tree.Path}
+			choice := ochazuke.Choice{ID: "project-dir:" + tree.Path, Label: tildePath(tree.Path, home), Data: tree.Path}
 			if filepath.Clean(tree.Path) == filepath.Clean(p.DefaultTree) {
-				row.Label += "  (default)"
-				rows = append([]ochazuke.PickerRow{row}, rows...)
+				choice.Label += "  (default)"
+				choices = append([]ochazuke.Choice{choice}, choices...)
 				continue
 			}
-			rows = append(rows, row)
+			choices = append(choices, choice)
 		}
+		rows := ochazuke.ChoiceRows(choices)
 		name := projectName(p)
 		return ochazuke.PickerSource{
 			Label: func() string { return pathSourceProject + " " + name },
@@ -130,7 +150,7 @@ func (a *App) definePathSources() {
 						return ochazuke.Failed(err)
 					}
 				}
-				return ochazuke.Done(a.baseChoices())
+				return ochazuke.Done(ochazuke.ChoiceRows(a.baseChoices()))
 			},
 		}, true
 	}))
@@ -222,6 +242,9 @@ func (a *App) walkRoots(pick ochazuke.PathPick) ochazuke.PathWalk {
 			add(tree)
 		}
 	}
+	if a.pathChooserOwn {
+		return walk
+	}
 	if bases, err := a.projectBases(); err == nil {
 		for _, base := range bases {
 			add(base.Path)
@@ -255,12 +278,9 @@ func (a *App) recentDirectories() []string {
 }
 
 // knownDirectoryRows are the known directories as path-chooser rows (Data
-// the path), without directoryChoices' browse… row.
+// the path).
 func (a *App) knownDirectoryRows() []ochazuke.PickerRow {
-	return slices.DeleteFunc(a.directoryChoices(), func(row ochazuke.PickerRow) bool {
-		_, ok := row.Data.(string)
-		return !ok
-	})
+	return ochazuke.ChoiceRows(a.knownDirectoryChoices())
 }
 
 // refreshPathChoosers fills the open directory choosers after the known
@@ -273,7 +293,7 @@ func (a *App) refreshPathChoosers() {
 		case c.Source() == pathSourceKnown:
 			c.SetRows(a.knownDirectoryRows())
 		case c.Source() == pathSourceParents:
-			c.SetRows(a.baseChoices())
+			c.SetRows(ochazuke.ChoiceRows(a.baseChoices()))
 		}
 	}
 }

@@ -727,17 +727,18 @@ func directoryCells(row knownDirectory, owners []string, home string, now time.T
 // dirChooser is the known-directory chooser's modal kind.
 const dirChooser = "dir-chooser"
 
-// directoryChoices are the known directories as chooser rows, then browse….
-func (a *App) directoryChoices() []ochazuke.PickerRow {
+// knownDirectoryChoices are the known directories as choices of the path
+// chooser's known source, each Data its path (Choice.Row builds the row).
+func (a *App) knownDirectoryChoices() []ochazuke.Choice {
 	owners := a.directoryOwners()
 	home, _ := a.home()
 	now := a.now()
-	rows := make([]ochazuke.PickerRow, 0, len(a.directories.Rows)+1)
+	choices := make([]ochazuke.Choice, 0, len(a.directories.Rows))
 	for _, row := range a.directories.Rows {
 		cells := directoryCells(row, owners[row.Path], home, now)
-		rows = append(rows, ochazuke.PickerRow{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
+		choices = append(choices, ochazuke.Choice{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
 	}
-	return append(rows, ochazuke.PickerRow{ID: "directory:browse", Label: "browse…", Trailing: true})
+	return choices
 }
 
 // openDirectoryChooser asks for the project's directory the palette way:
@@ -1001,8 +1002,8 @@ var baseParam = func() ochazuke.Parameter {
 }()
 
 // baseChoices are the folders that hold known directories and are not
-// bases yet, the fullest first, each row's Data its path.
-func (a *App) baseChoices() []ochazuke.PickerRow {
+// bases yet, the fullest first, each choice's Data its path.
+func (a *App) baseChoices() []ochazuke.Choice {
 	bases, _ := a.projectBases()
 	taken := map[string]bool{}
 	for _, base := range bases {
@@ -1021,11 +1022,11 @@ func (a *App) baseChoices() []ochazuke.PickerRow {
 	}
 	slices.SortFunc(parents, func(x, y string) int { return cmp.Or(cmp.Compare(counts[y], counts[x]), cmp.Compare(x, y)) })
 	home, _ := a.home()
-	rows := make([]ochazuke.PickerRow, 0, len(parents))
+	choices := make([]ochazuke.Choice, 0, len(parents))
 	for _, parent := range parents {
-		rows = append(rows, ochazuke.PickerRow{ID: "base-choice:" + parent, Label: fmt.Sprintf("%s  (%d known)", tildePath(parent, home), counts[parent]), Data: parent})
+		choices = append(choices, ochazuke.Choice{ID: "base-choice:" + parent, Label: fmt.Sprintf("%s  (%d known)", tildePath(parent, home), counts[parent]), Data: parent})
 	}
-	return rows
+	return choices
 }
 
 // addBase is dirs.add-base: the path is added at once. The path is a
