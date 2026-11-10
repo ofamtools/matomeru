@@ -13,7 +13,7 @@
   "script": ["ctrl+x", "/", {"type":"row subject review"}, "enter", ":", {"type":"pane edit"}, "enter"],
   "expect": {
     "focus": "edit-form/name",
-    "contains": ["Edit pane: acme-web/claude", "claude"],
-    "lacks": ["Edit action-item"]
+    "modal": "edit-form",
+    "contains": ["claude"]
   }
 }

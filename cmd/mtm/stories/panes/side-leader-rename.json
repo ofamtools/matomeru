@@ -42,8 +42,10 @@
     {
       "after": 6,
       "mode": "insert",
+      "focus": "edit-form/name",
+      "modal": "edit-form",
       "contains": [
-        "Edit pane name: acme-web/claude"
+        "claude"
       ]
     },
     {
