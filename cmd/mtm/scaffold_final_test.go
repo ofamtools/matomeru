@@ -384,7 +384,7 @@ func TestScaffoldWorkRetainsDirectoryAnnotations(t *testing.T) {
 	for _, on := range []bool{false, true} {
 		setting(t, a, ochazuke.DetailShowFormSetting, on)
 		a.detail.work.show.Sync()
-		if text := frameWH(a, 180, 70); !strings.Contains(text, "checkout annotations stay") || !strings.Contains(text, "directories (1)") {
+		if text := frameWH(a, 180, 70); !strings.Contains(strings.Join(strings.Fields(text), " "), "checkout annotations stay") || !strings.Contains(text, "directories (1)") {
 			t.Fatalf("directory content disappeared (form=%v):\n%s", on, text)
 		}
 	}
