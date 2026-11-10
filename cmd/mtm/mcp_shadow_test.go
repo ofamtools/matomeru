@@ -37,8 +37,8 @@ func TestMCPCommandWinsOverAnExtensionNamedMCP(t *testing.T) {
 			t.Fatalf("mtm %s: %v\n%s\n%s", strings.Join(args, " "), err, out, errOut)
 		}
 	}
-	out, errOut, err := run("", "--help")
+	out, errOut, err := run("", "help", "--all")
 	if err != nil || !strings.Contains(out, "shadows alias mcp of mcp. namespace") || !strings.Contains(out, "\n  mcp.item, item ") {
-		t.Fatalf("mtm --help: %v\n%s\n%s", err, out, errOut)
+		t.Fatalf("mtm help --all: %v\n%s\n%s", err, out, errOut)
 	}
 }
