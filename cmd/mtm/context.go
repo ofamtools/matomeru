@@ -173,6 +173,14 @@ func (a *App) addContextPage() error {
 	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.RowNoun(contextNoun), ochazuke.Columns(contextColumns...)); err != nil {
 		return err
 	}
+	// The focused item's notes, in a region under the table that exists
+	// only while it has some (contextNotes).
+	if a.detail.context, err = a.addDetailAbout(contextDetailID, contextPage, func() string {
+		item, _ := a.cx.list.Selected()
+		return item.ID
+	}, nil, a.r.SelectionTarget(func() *ochazuke.Collection { return a.cx.list })); err != nil {
+		return err
+	}
 	a.cx.load.load = a.loadContext
 	page, err := a.r.AddPage(contextPage, "Context", a.renderContext, ochazuke.Focus(contextListID))
 	if err != nil {
@@ -367,16 +375,47 @@ func (a *App) renderContext(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 		lines = append(lines, s.Muted.Render(ansi.Truncate(head+"  / searches", width, "…")))
 	}
 	body := max(1, height-1)
+	notes := ""
 	if a.cx.list.Len() == 0 {
+		a.detail.context.hide()
 		lines = append(lines, a.fill(a.contextEmpty(), body, width))
 	} else {
-		lines = append(lines, a.view(a.cx.list, width, body))
+		var n int
+		notes, n = a.contextNotes(width, body)
+		lines = append(lines, a.view(a.cx.list, width, max(1, body-n)))
+	}
+	if notes != "" {
+		lines = append(lines, notes)
 	}
 	text := strings.Join(lines, "\n")
 	if focusLine >= 0 {
 		return cursor.Offset(0, focusLine).WithText(text)
 	}
 	return ochazuke.Text(text)
+}
+
+// settingContextNotes shows the focused item's notes under the Context table.
+const settingContextNotes = "context.notes"
+
+var contextNotesSetting = ochazuke.Setting{Name: settingContextNotes, Type: ochazuke.SettingBoolean, Default: true,
+	Description: "Show the notes about the focused context item in a region under the table, only while it has some; off leaves the table the whole page (detail.related also turns the sections off)"}
+
+// contextNotes is the notes region under the table: the related stack of the
+// focused item drawn at most half the body, preceded by a blank line, and the
+// lines it takes from the table. "" and 0 while the item has no notes, the
+// setting is off or the page is too short.
+func (a *App) contextNotes(width, body int) (string, int) {
+	d := a.detail.context
+	stack := ""
+	if a.r.Settings().Bool(settingContextNotes) && body >= 6 {
+		stack = d.relatedText(width)
+	}
+	if stack == "" {
+		d.hide()
+		return "", 0
+	}
+	n := min(strings.Count(stack, "\n")+1, body/2)
+	return "\n" + d.lines(stack, 0, width, n), n + 1
 }
 
 // contextEmpty says why the table is empty and what fills it.

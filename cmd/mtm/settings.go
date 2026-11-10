@@ -96,6 +96,7 @@ func (a *App) declareSettings() error {
 		relatedHiddenSetting,
 		relatedEmptySetting,
 		panesNotesTabSetting,
+		contextNotesSetting,
 		quickAboutSetting,
 		directoryChooserSetting,
 		paneGroupSetting,

@@ -22,11 +22,12 @@ const (
 	notesDetailID   = "notes/detail"
 	reviewsDetailID = "reviews/detail"
 	dirsDetailID    = "directories/detail"
+	contextDetailID = "context/detail"
 )
 
 // pageDetails are the pages' details.
 type pageDetails struct {
-	panes, work, notes, reviews, ext *pageDetail
+	panes, work, notes, reviews, ext, context *pageDetail
 	// The linked details (detail_links.go).
 	dirs, saved, vim *linkedDetail
 }

@@ -277,6 +277,17 @@ func (a *App) addExtensionsPage() error {
 	if a.detail.ext, err = a.addDetail(extDetailID, extensionsPage, a.extSubject, nil); err != nil {
 		return err
 	}
+	// The notes about the selected tool, under its facts.
+	if err := a.addDetailRelated(a.detail.ext, func() (string, string) {
+		item, ok := a.extList.Selected()
+		c, isRow := item.Data.(extCandidate)
+		if !ok || !isRow {
+			return "", ""
+		}
+		return "extension", c.Name
+	}); err != nil {
+		return err
+	}
 	a.extList.SetColumns(extListColumns(a.extSetupOn())...)
 	if _, err = a.r.AddPage(extensionsPage, "Extensions", a.renderExtensions, ochazuke.Focus(extListID)); err != nil {
 		return err
@@ -442,7 +453,7 @@ func (a *App) extPanel(width, height int) string {
 		a.detail.ext.hide()
 		return fillLines("", height, width)
 	}
-	return a.detail.ext.lines(a.extFacts(c), width, width, height)
+	return a.detail.ext.lines(a.detail.ext.withRelated(a.extFacts(c), width), width, width, height)
 }
 
 // extFacts is the detail's text for a row: the facts, the catalog's nouns

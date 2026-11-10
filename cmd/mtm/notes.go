@@ -91,6 +91,9 @@ func (a *App) addNotesPage() error {
 	}, nil); err != nil {
 		return err
 	}
+	if err := a.addDetailRelated(a.detail.notes, a.r.SelectionTarget(func() *ochazuke.Collection { return a.noteList })); err != nil {
+		return err
+	}
 	a.notesLoad.load = a.loadNotes
 	notes, err := a.r.AddPage(notesPage, "Notes", a.renderNotes, ochazuke.Focus("notes/list"))
 	if err != nil {
@@ -529,12 +532,24 @@ type noteBody struct {
 // reverse video while the body has the focus.
 func (a *App) renderNoteBody(note work.Note, width, height int) string {
 	a.noteBody.visible = max(1, height-2)
+	// The notes about this note, under its text, only while it has some.
+	stack, taken := "", 0
+	if height >= 8 {
+		stack = a.detail.notes.relatedText(width)
+	}
+	if stack != "" {
+		taken = min(strings.Count(stack, "\n")+2, a.noteBody.visible/2)
+		a.noteBody.visible -= taken
+	}
 	head := ansi.Truncate(a.noteOwnerLabel(note), width, "…")
 	if a.r.BaseFocus() == noteBodyID || a.noteDocFocused() {
 		styles := a.pageStyles()
 		head = styles.Selection(true).Render(head)
 	}
 	text := head + "\n\n" + a.renderNoteText(note, width, a.noteBody.visible)
+	if stack != "" {
+		text += "\n\n" + fillLines(stack, taken-1, width)
+	}
 	a.r.Placed(noteBodyID)
 	return a.r.PlacedAt(noteBodyID, text, 0, 1)
 }
