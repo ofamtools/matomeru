@@ -1,0 +1,23 @@
+{
+  "name": "mtm: pane form edits coexist with screen preview, live terminal, copy and detach",
+  "area": "panes",
+  "fixture": "seeded",
+  "width": 160,
+  "height": 60,
+  "config": {
+    "bindings.json": [
+      {"noun":"app","mode":"normal","keys":"ctrl+e","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"panes/detail/show/form/name"}}},
+      {"noun":"app","mode":"normal","keys":"ctrl+r","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"pane:acme-web/w1"}}}
+    ]
+  },
+  "script": ["]", "ctrl+e", "i", "ctrl+a", "ctrl+k", {"type":"review-pane"}, "esc", {"job":"pane.set"}, {"job":"panes.refresh"}, "ctrl+r", "enter", "ctrl+a", "[", "esc", "ctrl+a", "d"],
+  "expect": [
+    {"after":1,"contains":["claude is thinking","archived","starred"]},
+    {"after":2,"focus":"panes/detail/show/form/name"},
+    {"after":9,"contains":["review-pane","History"],"lacks":["Error:"]},
+    {"after":11,"focus":"panes/terminal","mode":"terminal"},
+    {"after":13,"focus":"panes/copy","mode":"copy"},
+    {"after":14,"focus":"panes/terminal","mode":"terminal"},
+    {"focus":"pane:acme-web/w1","mode":"normal","contains":["review-pane","archived"]}
+  ]
+}

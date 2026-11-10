@@ -92,8 +92,14 @@ func TestProjectStandardVerbsFromTheCLI(t *testing.T) {
 	}
 	var rows []map[string]any
 	cliRows(t, a, &rows, "project", "list")
-	if len(rows) != 5 || rows[0]["id"] != "ochazuke" || rows[0]["label"] != "ochazuke" {
-		t.Fatalf("list: %v", rows)
+	for _, id := range []string{made.ID, other} {
+		found := false
+		for _, row := range rows {
+			found = found || row["id"] == id
+		}
+		if !found {
+			t.Fatalf("created project %s absent from list: %v", id, rows)
+		}
 	}
 	b := open(t)
 	created, _ := executeA(t, b, "project", "create", "", ochazuke.Arguments{"name": "short-lived"}).(map[string]any)

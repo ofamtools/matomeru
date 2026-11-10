@@ -1,0 +1,21 @@
+{
+  "name": "mtm: Work's selected task is a commit-on-change form with its existing notes and last history section",
+  "area": "tasks",
+  "fixture": "reference",
+  "width": 160,
+  "height": 60,
+  "config": {
+    "bindings.json": [
+      {"noun":"app","mode":"normal","keys":"ctrl+w","request":{"noun":"project","verb":"open","target":"acme-web"}},
+      {"noun":"app","mode":"normal","keys":"ctrl+t","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"t1"}}},
+      {"noun":"app","mode":"normal","keys":"ctrl+e","request":{"noun":"ochazuke.focus","verb":"to","args":{"id":"work/detail/show/form/title"}}}
+    ]
+  },
+  "script": ["ctrl+j", "ctrl+w", "ctrl+t", "ctrl+e", "i", "ctrl+a", "ctrl+k", {"type":"checkout via the Work form"}, "esc", "u"],
+  "expect": [
+    {"after":3,"page":"work","contains":["Checkout page: show the shipping estimate","Check the shipping estimate on mobile"]},
+    {"after":4,"focus":"work/detail/show/form/title"},
+    {"after":9,"focus":"work/detail/show/form/title","contains":["checkout via the Work form","History","Check the shipping estimate on mobile"]},
+    {"contains":["Checkout page: show the shipping estimate"],"lacks":["checkout via the Work form","Error:"]}
+  ]
+}
