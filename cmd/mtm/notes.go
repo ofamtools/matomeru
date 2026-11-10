@@ -39,7 +39,7 @@ func (a *App) defineNotes() {
 		// child), so enter right after reads it again.
 		Bind("esc", ochazuke.Do("focus.previous"))
 	a.parameters(noteBodyNoun+".scroll", map[string]ochazuke.Parameter{"delta": {Type: "integer"}, "half": {Type: "integer"}})
-	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "title": {Type: "string", Description: "The note's title (optional)"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}, "owner": {Type: "object", Description: "Compatibility owner: kind task or project, and id"}})
+	a.parameters("note.new", map[string]ochazuke.Parameter{"text": {Type: "string"}, "title": {Type: "string", Description: "The note's title (optional)"}, "task": {Type: "string"}, "project": {Type: "string"}, "scratch": {Type: "boolean"}, "about": {Type: "string", Noun: ochazuke.AnyNoun, Description: "The thing the note is about, noun:key (pane:W12, lane.lane:X, task:ID); its project is the thing's owner. One not found is saved as written"}, "owner": {Type: "object", Description: "Compatibility owner: kind and id; task and project as before, any other noun is what the note is about"}})
 	a.parameters("note.edit", map[string]ochazuke.Parameter{"text": {Type: "string"}})
 	a.owners["note"] = "notes/list"
 	a.defineNoteDoc()
@@ -310,17 +310,21 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 		ctx.Args = ochazuke.Arguments{}
 	}
 	if owner, ok := ctx.Args["owner"].(map[string]any); ok {
+		// The compatibility owner {kind, id}: a task or project as ever, any
+		// other noun is what the note is about.
 		kind, id := ochazuke.StringArg(owner, "kind", "task"), ochazuke.StringArg(owner, "id", "")
-		if kind != "task" && kind != "project" {
-			return ochazuke.Failed(errors.New("owner.kind must be task or project"))
-		}
-		if id != "" {
+		switch {
+		case ownerSlotArg(kind) != "" && id != "":
 			ctx.Args[kind] = id
-		} else if kind == "project" {
+		case ownerSlotArg(kind) == ownerSlots[0].arg:
 			ctx.Args["scratch"] = true
+		case ownerSlotArg(kind) == "" && id != "":
+			ctx.Args["about"] = ochazuke.AnyRef(kind, id)
 		}
 	}
-	if actor := a.work.Actor(); actor.IsAgent() && ctx.Args["task"] == nil && ctx.Args["project"] == nil && ctx.Args["scratch"] != true {
+	about := ochazuke.StringArg(ctx.Args, "about", "")
+	named := ctx.Args["task"] != nil || ctx.Args["project"] != nil || ctx.Args["scratch"] == true
+	if actor := a.work.Actor(); actor.IsAgent() && !named && about == "" {
 		id, err := a.currentPaneIdentity()
 		if err != nil {
 			return ochazuke.Failed(err)
@@ -333,9 +337,21 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 			ctx.Args["scratch"] = true
 		}
 	}
-	owner, err := a.resolveOwner(ctx, ctx.Args)
-	if err != nil {
-		return ochazuke.Failed(err)
+	// What the note is about decides its owner (noteLinks) unless the call
+	// names one; every other write infers it as resolveOwner always did.
+	var owner Owner
+	aboutRef := ""
+	if about != "" && !named {
+		project, task, ref := a.noteLinks(ctx, work.Note{}, aboutWrite{about: about, hasAbout: true})
+		owner, aboutRef = Owner{ProjectID: project, TaskID: task}, ref
+	} else {
+		var err error
+		if owner, err = a.resolveOwner(ctx, ctx.Args); err != nil {
+			return ochazuke.Failed(err)
+		}
+		if about != "" {
+			aboutRef = about
+		}
 	}
 	if owner.Notice != "" {
 		ctx.Notify(owner.Notice)
@@ -346,13 +362,16 @@ func (a *App) newNote(ctx ochazuke.Ctx) ochazuke.Result {
 				return ochazuke.Failed(err)
 			}
 		}
-		record := editRecord{Noun: "note", ID: work.NewID(), ProjectID: owner.ProjectID, TaskID: owner.TaskID, New: true}
+		record := editRecord{Noun: "note", ID: work.NewID(), ProjectID: owner.ProjectID, TaskID: owner.TaskID, About: aboutRef, New: true}
 		if err := a.beginEdit(record); err != nil {
 			return ochazuke.Failed(err)
 		}
 		return ochazuke.Done(owner)
 	}
 	args := ochazuke.Arguments{"text": ochazuke.StringArg(ctx.Args, "text", ""), "project": owner.ProjectID, "task": owner.TaskID}
+	if aboutRef != "" {
+		args["about"] = aboutRef
+	}
 	if title := ochazuke.StringArg(ctx.Args, "title", ""); title != "" {
 		args["title"] = title
 	}
@@ -395,7 +414,7 @@ func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 				return ochazuke.Failed(err)
 			}
 		}
-		record := editRecord{Noun: "note", ID: note.ID, Text: note.Text, ProjectID: note.ProjectID, TaskID: note.TaskID}
+		record := editRecord{Noun: "note", ID: note.ID, Text: note.Text, ProjectID: note.ProjectID, TaskID: note.TaskID, About: note.About}
 		if err := a.beginEdit(record); err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -411,7 +430,7 @@ func (a *App) editNote(ctx ochazuke.Ctx) ochazuke.Result {
 // saveNoteRecord is the editor's write of a note: a new note is created
 // by its first write; the title is written only when the editor shows it.
 func (a *App) saveNoteRecord(record editRecord, values ochazuke.Record) (work.Note, error) {
-	note := work.Note{ID: record.ID, ProjectID: record.ProjectID, TaskID: record.TaskID, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Created: work.Now(), CreatedBy: a.work.Actor()}
+	note := work.Note{ID: record.ID, ProjectID: record.ProjectID, TaskID: record.TaskID, About: record.About, FormerProjectID: record.FormerProjectID, FormerTaskID: record.FormerTaskID, Created: work.Now(), CreatedBy: a.work.Actor()}
 	if !record.New {
 		var err error
 		note, err = a.work.Note(record.ID)

@@ -22,10 +22,17 @@ type Note struct {
 	Archived        bool   `json:"archived,omitempty"`
 	FormerProjectID string `json:"former_project_id,omitempty"`
 	FormerTaskID    string `json:"former_task_id,omitempty"`
-	Created         int64  `json:"created"`
-	Updated         int64  `json:"updated"`
-	CreatedBy       Actor  `json:"created_by,omitempty"`
-	extra           map[string]json.RawMessage
+	// About is the thing the note is about, "noun:key" (ochazuke.AnyRef) for
+	// a thing of any noun. Rows written before it existed hold none: read
+	// them through AboutRef, which maps their task, and never rewrite them.
+	About string `json:"about,omitempty"`
+	// FormerAbout is About of a thing that was deleted (a deleted task moves
+	// its reference here); the note stays.
+	FormerAbout string `json:"former_about,omitempty"`
+	Created     int64  `json:"created"`
+	Updated     int64  `json:"updated"`
+	CreatedBy   Actor  `json:"created_by,omitempty"`
+	extra       map[string]json.RawMessage
 }
 
 type noteFields Note
@@ -39,7 +46,7 @@ func (n *Note) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &n.extra); err != nil {
 		return err
 	}
-	for _, key := range []string{"id", "title", "text", "project_id", "task_id", "archived", "former_project_id", "former_task_id", "created", "updated", "created_by"} {
+	for _, key := range []string{"id", "title", "text", "project_id", "task_id", "archived", "former_project_id", "former_task_id", "about", "former_about", "created", "updated", "created_by"} {
 		delete(n.extra, key)
 	}
 	return nil
@@ -104,6 +111,19 @@ func (s *Store) AddNote(projectID, taskID, text string) (Note, error) {
 		return Note{}, err
 	}
 	return s.Note(note.ID)
+}
+
+// AboutRef is what the note is about, "noun:key": its About, else (a row
+// written before About existed) its task as task:ID, else "". Reading never
+// rewrites the row.
+func (n Note) AboutRef() string {
+	if n.About != "" {
+		return n.About
+	}
+	if n.TaskID != "" {
+		return "task:" + n.TaskID
+	}
+	return ""
 }
 
 // NoteProject resolves task-only legacy rows without rewriting them on read.

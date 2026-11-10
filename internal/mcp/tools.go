@@ -39,8 +39,9 @@ func Aliases() []catalogmcp.Alias {
 			"commit":           str("Commit, branch or PR that carries the work"),
 			"blocker":          str("Why it is blocked"),
 		}, "status")},
-		{Name: "task_note_add", Description: "Add a note to a task or project; the pane's task when owner is empty.", InputSchema: schema(map[string]any{
-			"owner": map[string]any{"type": "object", "description": "{kind: task|project, id}", "properties": map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"task", "project"}, "description": "task or project"}, "id": str("Owner id")}, "additionalProperties": false},
+		{Name: "task_note_add", Description: "Add a note to a task, a project or any other thing; the pane's task when owner and about are empty.", InputSchema: schema(map[string]any{
+			"owner": map[string]any{"type": "object", "description": "{kind, id}: a task or project, or the noun of any other thing the note is about", "properties": map[string]any{"kind": str("task, project, or the noun of a thing (pane, lane.lane, ...)"), "id": str("The thing's id")}, "additionalProperties": false},
+			"about": str("What the note is about, noun:key (pane:W12, lane.lane:X); its project is the thing's owner"),
 			"text":  str("Note text"),
 		}, "text")},
 		{Name: "context_add", Description: "Save a link, file path, PR, command or prompt as a context item of the pane's task.", InputSchema: schema(map[string]any{

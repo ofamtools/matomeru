@@ -38,6 +38,8 @@ func noteProps() []ochazuke.PropSpec {
 			Description: "The project the note belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 			Description: "The task the note belongs to; its project wins over project"}},
+		{Name: "about", Parameter: ochazuke.Parameter{Type: "string", Noun: ochazuke.AnyNoun,
+			Description: "The thing the note is about, noun:key (pane:W12, lane.lane:X, task:ID); a task's or project's note keeps its task and project in step. One not found is saved as written"}},
 		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the note and hide it from default views"}},
 		taskMakerProp(),
 		{Name: "created-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "object", Description: "The note's recorded maker and agent identity"}},
@@ -94,7 +96,7 @@ func (a *App) noteThing(n work.Note) ochazuke.Thing {
 	}
 	return ochazuke.Thing{
 		"id": n.ID, "title": n.Title, "summary": noteLabel(n.Text), "text": n.Text,
-		"project": project, "task": n.TaskID, "created": n.Created, "updated": n.Updated,
+		"project": project, "task": n.TaskID, "about": n.AboutRef(), "created": n.Created, "updated": n.Updated,
 		"made-by": n.MadeBy(), "created-by": n.Maker(),
 		"archived": n.Archived,
 	}
@@ -135,6 +137,121 @@ func (a *App) noteOwner(c ochazuke.Ctx, project string, hasProject bool, task st
 	return o.ProjectID, o.TaskID
 }
 
+// aboutWrite is the owner side of a note write: the props given and
+// whether each was given (an empty value that was given clears).
+type aboutWrite struct {
+	about      string
+	hasAbout   bool
+	project    string
+	hasProject bool
+	task       string
+	hasTask    bool
+}
+
+// noteLinks works out the project, task and about a write leaves the note
+// with; cur is the note as it is (zero for a new one). One rule for every
+// noun, driven by the owner slots (owner.go): the about of a thing in the
+// owner slot (a project) is the owner itself, not a reference; the about of
+// a thing in a reference slot (a task) fills that slot, and a slot filled
+// is about that thing (task set alone sets about, about=task:X sets task
+// and its project); the about of any other thing keeps its value as
+// written (record first: a thing that is not found is kept, never refused)
+// and the owner project is the thing's own when it has one. Task wins over
+// project, as for every owner.
+func (a *App) noteLinks(c ochazuke.Ctx, cur work.Note, w aboutWrite) (projectID, taskID, aboutRef string) {
+	project, hasProject, task, hasTask := w.project, w.hasProject, w.task, w.hasTask
+	aboutRef = cur.About
+	noun, key, isRef := ochazuke.SplitAnyRef(w.about)
+	slot := ownerSlotArg(noun)
+	switch {
+	case !w.hasAbout:
+	case w.about == "":
+		// About cleared: a task that was the about goes with it.
+		aboutRef = ""
+		if !hasTask && cur.TaskID != "" && cur.AboutRef() == "task:"+cur.TaskID {
+			task, hasTask = "", true
+			project, _ = a.work.NoteProject(cur)
+			hasProject = true
+		}
+	case !isRef:
+		aboutRef = w.about // not noun:key: kept as written
+	case slot == ownerSlots[0].arg:
+		aboutRef = ""
+		if !hasProject && !hasTask {
+			project, hasProject = key, true
+		}
+	case slot != "":
+		aboutRef = w.about
+		if !hasTask {
+			task, hasTask = key, true
+		}
+	default:
+		aboutRef = w.about
+		if !hasProject && !hasTask {
+			project, hasProject = a.aboutProject(noun, key), true
+			if project == "" {
+				project, _ = a.work.NoteProject(cur) // a thing with no owner leaves the note's
+			}
+		}
+		if !hasTask && cur.TaskID != "" && cur.AboutRef() == "task:"+cur.TaskID {
+			task, hasTask = "", true // re-filed away from its task
+		}
+	}
+	// A change of project alone keeps the task in that project; a task cleared
+	// alone keeps the project (the earlier rules of note set).
+	switch {
+	case hasProject && !hasTask && cur.TaskID != "" && a.taskProject(cur.TaskID) == project:
+		task, hasTask = cur.TaskID, true
+	case hasTask && task == "" && !hasProject:
+		project, _ = a.work.NoteProject(cur)
+		hasProject = true
+	}
+	if hasProject || hasTask {
+		projectID, taskID = a.noteOwner(c, project, hasProject, task, hasTask)
+	} else {
+		projectID, taskID = cur.ProjectID, cur.TaskID
+	}
+	switch {
+	case taskID != "" && (aboutRef == "" || ownerSlotArg(nounOf(aboutRef)) != ""):
+		aboutRef = ochazuke.AnyRef("task", taskID)
+	case taskID == "" && hasTask && task == "" && cur.TaskID != "" && aboutRef != "" && ownerSlotArg(nounOf(aboutRef)) != "":
+		aboutRef = "" // the task was cleared with its about
+	}
+	return projectID, taskID, aboutRef
+}
+
+// nounOf is the noun of a stored about ("" when it holds none).
+func nounOf(about string) string {
+	noun, _, _ := ochazuke.SplitAnyRef(about)
+	return noun
+}
+
+// aboutProject is the owner project of a thing of any noun, "" for none: a
+// thing of a noun with an owner prop is read as instanceOwner reads a row
+// (the store's own synchronous read); an extension's row has the owner mtm
+// recorded for it.
+func (a *App) aboutProject(noun, key string) string {
+	if key == "" {
+		return ""
+	}
+	for _, x := range a.exts {
+		if local := x.catalogNoun(noun); local != "" {
+			return a.extRowProject(x.name, local, key)
+		}
+	}
+	if a.r.Noun(noun) == nil {
+		return ""
+	}
+	owner, found, err := a.instanceOwner(&ochazuke.Instance{ID: key, Noun: noun}, noun)
+	if err != nil || !found {
+		return ""
+	}
+	if _, ok := a.project(owner.ProjectID); !ok {
+		return ""
+	}
+	return owner.ProjectID
+}
+
 // createNote is the store's Create: a new note from the props given, under
 // the key given when it is free (an undone delete).
 func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
@@ -149,6 +266,7 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	}
 	project, hasProject := thingString(values, "project")
 	task, hasTask := thingString(values, "task")
+	about, hasAbout := thingString(values, "about")
 	now := work.Now()
 	note := work.Note{ID: id, Created: now, Updated: now}
 	// Undo restores the recorded maker. Normal create omits the read-only
@@ -160,7 +278,7 @@ func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 		}
 		note.CreatedBy = by
 	}
-	note.ProjectID, note.TaskID = a.noteOwner(c, project, hasProject, task, hasTask)
+	note.ProjectID, note.TaskID, note.About = a.noteLinks(c, work.Note{}, aboutWrite{about, hasAbout, project, hasProject, task, hasTask})
 	props, err := thingOver(notePatch{}, values)
 	if err != nil {
 		return nil, err
@@ -217,17 +335,11 @@ func (a *App) patchNote(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	note.Title, note.Text, note.Archived = props.Title, props.Text, props.Archived
 	project, hasProject := thingString(changes, "project")
 	task, hasTask := thingString(changes, "task")
-	owned := hasProject || hasTask
+	about, hasAbout := thingString(changes, "about")
+	owned := hasProject || hasTask || hasAbout
 	if owned {
-		switch {
-		case hasProject && !hasTask && note.TaskID != "" && a.taskProject(note.TaskID) == project:
-			task, hasTask = note.TaskID, true // the task stays when it is in the new project
-		case hasTask && task == "" && !hasProject:
-			// A task cleared alone keeps the note's project.
-			project, _ = a.work.NoteProject(note)
-			hasProject = true
-		}
-		note.ProjectID, note.TaskID = a.noteOwner(c, project, hasProject, task, hasTask)
+		note.ProjectID, note.TaskID, note.About = a.noteLinks(c, note, aboutWrite{about, hasAbout, project, hasProject, task, hasTask})
+		note.FormerAbout = ""
 	}
 	note.Updated = work.Now()
 	if err := a.work.PutNote(note); err != nil {

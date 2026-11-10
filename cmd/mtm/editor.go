@@ -24,6 +24,7 @@ type editRecord struct {
 	Text            string            `json:"text"`
 	ProjectID       string            `json:"project_id"`
 	TaskID          string            `json:"task_id,omitempty"`
+	About           string            `json:"about,omitempty"`
 	FormerProjectID string            `json:"former_project_id,omitempty"`
 	FormerTaskID    string            `json:"former_task_id,omitempty"`
 	New             bool              `json:"new"`

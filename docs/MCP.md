@@ -53,7 +53,7 @@ alias rows over `run`, preserving their argument schemas:
 | `task_list` | `task.list` | unchanged (`scope` and `status`) |
 | `task_done` | `task.done` | `task_id` → `id` |
 | `task_status` | `task.status` | `task_id` → `id`, `status` → `value` |
-| `task_note_add` | `note.new` | unchanged (`owner` object and `text`) |
+| `task_note_add` | `note.new` | `owner` object (any kind: a thing of another noun than task or project is what the note is about), `about` (`noun:key`) and `text` |
 | `context_add` | `context-item.add` | unchanged; `task_id` remains ignored |
 | `document_report` | `context-item.report` | unchanged |
 | `report_progress` | `pane.progress` | unchanged |
