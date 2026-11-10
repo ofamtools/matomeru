@@ -20,6 +20,7 @@ type domainDocs struct {
 	noun   string
 	source ochazuke.Store
 	ctx    ochazuke.Ctx
+	query  ochazuke.ListQuery
 }
 
 func (d *domainDocs) Get(key string) (ochazuke.Thing, bool, error) {
@@ -64,8 +65,9 @@ func (d *domainDocs) Version() (string, error) {
 }
 
 func (d *domainDocs) Query(q ochazuke.DocQuery) (ochazuke.ListPage, error) {
-	query := ochazuke.ListQuery{Args: d.ctx.Args, Archived: true}
-	things, err := d.source.List(d.ctx, query)
+	// Preserve domain list semantics (including inherited archive state) before
+	// DocStore applies the catalog filters, sort and window.
+	things, err := d.source.List(d.ctx, d.query)
 	if err != nil {
 		return ochazuke.ListPage{}, err
 	}
@@ -112,6 +114,9 @@ func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 			return source.Query(c, q)
 		}
 		defer d.with(c)()
+		previous := d.query
+		d.query = q
+		defer func() { d.query = previous }()
 		return doc.Query(c, q)
 	}
 	out.Patch = func(c ochazuke.Ctx, key string, t ochazuke.Thing) (ochazuke.Thing, error) {

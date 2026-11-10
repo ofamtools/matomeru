@@ -115,11 +115,12 @@ func TestScaffoldShowFormUsesRelatedSettingsAndCustomNoteView(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	executeA(t, a, "note", "create", "", ochazuke.Arguments{"title": "stored note", "text": "note body", "about": "task:t1"})
-	custom, err := a.r.AddList("work/custom-notes", []ochazuke.ListItem{{ID: "work/custom-notes/one", Label: "custom note renderer", Noun: "note"}}, ochazuke.Parent("work"))
+	const customID = "work/custom-notes"
+	custom, err := a.r.AddList(customID, []ochazuke.ListItem{{ID: customID + "/one", Label: "custom note renderer", Noun: "note"}}, ochazuke.Parent("work"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.r.Define("note").RelatedView(custom.ID())
+	a.r.Define("note").RelatedView(customID)
 	projectsOn(t, a, "matomeru")
 	executeA(t, a, "project", "open", "matomeru", nil)
 	if err := a.taskList.Select("t1"); err != nil {
@@ -211,6 +212,41 @@ func TestScaffoldPanesTurnsRemainAboveTheForm(t *testing.T) {
 		text := frameWH(a, 160, 60)
 		if !strings.Contains(text, "fix the flaky test") || (a.detail.panes.show.Form() != nil) != on {
 			t.Fatalf("turns and form do not coexist (on=%v):\n%s", on, text)
+		}
+	}
+}
+
+func TestScaffoldTaskQueryKeepsInheritedArchiveSemantics(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	child := executeA(t, a, "task", "create", "", ochazuke.Arguments{"title": "retained child", "parent": "t1"}).(map[string]any)
+	id := child["id"].(string)
+	executeA(t, a, "task", "archive", "", ochazuke.Arguments{"id": "t1"})
+	query := func(archived, every bool) ochazuke.ListPage {
+		t.Helper()
+		page, err := a.r.Noun("task").Store.Query(ochazuke.Ctx{Runtime: a.r}, ochazuke.ListQuery{Args: ochazuke.Arguments{"all": true}, Archived: archived, Every: every})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return page
+	}
+	for _, row := range query(false, false).Items {
+		if row["id"] == "t1" || row["id"] == id {
+			t.Fatalf("default index exposes an archived subtree: %v", row)
+		}
+	}
+	for _, page := range []ochazuke.ListPage{query(true, false), query(true, true)} {
+		found := false
+		for _, row := range page.Items {
+			if row["id"] == id {
+				found = true
+				if row["archived"] != false {
+					t.Fatalf("listing changed the child's own archive flag: %v", row)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("explicit archive query lost the retained child: %v", page)
 		}
 	}
 }

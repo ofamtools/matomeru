@@ -27,6 +27,7 @@ import (
 //     name follow (renameSavedOf);
 //   - starred, project and task are mtm's own records (the star by window
 //     id, the owner assignment): set writes them in the store;
+//   - archived belongs only to the local copy, never the daemon;
 //   - everything else is read-only state: the daemon's (session, title,
 //     cwd, state, exited) or the agent's (harness, model, effort, fast,
 //     permission-mode, as the settings line reads them, live source first).
@@ -40,10 +41,8 @@ import (
 // the value before back; neither holds for a value the agent owns, so
 // undo and . never type into an agent.
 //
-// No standard create or delete: a pane is opened by pane.new, pane.start
-// and the launches, and closed by pane.kill, a real action (killing a
-// process is not deleting a record). A user who wants the word adds an
-// actions.json row (pane.delete → pane.kill).
+// Standard create/delete retain the existing launch/kill handlers. Archive and
+// restore only hide/reveal the local copy; neither closes its daemon window.
 //
 // history.undo reverts the store's writes (Undo): a name, a star, an
 // owner. The values it writes back are what mtm wrote or the daemon held
