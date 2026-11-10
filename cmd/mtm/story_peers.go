@@ -3,11 +3,17 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
+	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/monogatari"
+	"ofam.dev/ochazuke"
 	ocli "ofam.dev/ochazuke/cli"
 )
 
@@ -69,5 +75,38 @@ esac
 		}
 	}
 	a.syncExtensions()
+	return built, nil
+}
+
+// buildDetailNotes is mounted-results with two context items and a note about
+// each thing that has one: the first context item and the alpha row i1.
+func buildDetailNotes(env monogatari.Env) (monogatari.Built, error) {
+	built, err := buildMountedResults(env)
+	if err != nil {
+		return built, err
+	}
+	a := built.Program.(*App)
+	fail := func(err error) (monogatari.Built, error) {
+		built.Close()
+		return monogatari.Built{}, err
+	}
+	var about []string
+	for i, it := range []contextitems.Item{
+		{Kind: "link", Text: "https://example.com/with-note", Window: "w1"},
+		{Kind: "link", Text: "https://example.com/no-note", Window: "w1"},
+	} {
+		added, _, err := a.contexts.Merge([]contextitems.Item{it}, contextitems.Owner{}, int64(i+1))
+		if err != nil || len(added) == 0 {
+			return fail(cmp.Or(err, errors.New("context item not added")))
+		}
+		about = append(about, ochazuke.AnyRef(contextNoun, added[0].ID))
+	}
+	about = append(about[:1], ochazuke.AnyRef("alpha.item", "i1"))
+	for i, ref := range about {
+		note := work.Note{ID: fmt.Sprintf("detail-note-%d", i), Text: []string{"Ask for the spec link", "Source row needs a rerun"}[i], About: ref, Created: int64(i + 20), Updated: int64(i + 20)}
+		if err := a.work.PutNote(note); err != nil {
+			return fail(err)
+		}
+	}
 	return built, nil
 }

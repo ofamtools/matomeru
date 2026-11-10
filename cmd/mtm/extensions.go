@@ -771,6 +771,10 @@ func (a *App) mountExtension(name string, e extEntry) {
 		},
 		// Rows that land are scoped by project (extension_scope.go).
 		OnRows: func(list string, rows []ocli.Row) { a.extRowsLanded(x, list, rows) },
+		// Every page's detail shows the notes about the selected row (the
+		// same stack as mtm's own details: notes.related-hidden keeps to
+		// them, notes.related-empty hides it while there are none).
+		Related: &ocli.RelatedConfig{Hidden: settingRelatedHidden, Empty: settingRelatedEmpty},
 	}
 	a.mountExtensionSegments(x, cfg.Noun)
 	for _, p := range pages {

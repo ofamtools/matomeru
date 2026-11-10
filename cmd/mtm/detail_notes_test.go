@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"ofam.dev/ochazuke"
 )
 
@@ -85,4 +87,56 @@ func TestExtensionsPageShowsNotesAboutTheSelectedTool(t *testing.T) {
 	if fr := frame(a); !strings.Contains(fr, "alpha needs a newer catalog") {
 		t.Fatalf("the tool's note is not shown:\n%s", fr)
 	}
+}
+
+// A mounted extension page's detail shows the notes about its selected row,
+// whatever the tool declared, and nothing for a row without notes.
+func TestMountedPageDetailShowsTheRowsNotes(t *testing.T) {
+	t.Parallel()
+	path := seeded(t)
+	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
+	a := registered(t, path, "fake", bin)
+	openExtPage(t, a, "ext/fake")
+	list := a.r.List("ext/fake/item")
+	if list == nil || list.Len() != 2 {
+		t.Fatalf("rows not loaded: %v", list)
+	}
+	if err := a.r.SetFocus("ext/fake/item/i1"); err != nil {
+		t.Fatal(err)
+	}
+	if fr := tallFrame(a); strings.Contains(fr, "Notes (") {
+		t.Fatalf("a row with no notes shows a section:\n%s", fr)
+	}
+	newAbout(t, a, ochazuke.Arguments{"text": "one needs finishing", "about": "fake.item:i1"})
+	if err := a.r.OpenPage("ext/fake"); err != nil { // note new opened the Notes page
+		t.Fatal(err)
+	}
+	if err := a.r.SetFocus("ext/fake/item/i1"); err != nil {
+		t.Fatal(err)
+	}
+	if fr := tallFrame(a); !strings.Contains(fr, "Notes (") || !strings.Contains(fr, "one needs finishing") {
+		t.Fatalf("the row's note is not in its detail:\n%s", fr)
+	}
+	if err := a.r.SetFocus("ext/fake/item/i2"); err != nil {
+		t.Fatal(err)
+	}
+	if fr := tallFrame(a); strings.Contains(fr, "one needs finishing") {
+		t.Fatalf("the next row shows the note:\n%s", fr)
+	}
+	if err := a.r.SetFocus("ext/fake/item/i1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.Settings().Set(ochazuke.RelatedDetailSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	if fr := tallFrame(a); strings.Contains(fr, "one needs finishing") {
+		t.Fatalf("detail.related off still shows the note:\n%s", fr)
+	}
+}
+
+// tallFrame is the frame on a tall screen, so a mounted detail has room for
+// its record and the stack under it.
+func tallFrame(a *App) string {
+	a.m.Width, a.m.Height = 120, 60
+	return ansi.Strip(frameView(a).Content)
 }

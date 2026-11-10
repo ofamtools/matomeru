@@ -97,6 +97,7 @@ func mtmApp() monogatari.App {
 			{Name: "scoped-lanes", Summary: "seeded, with a fake Lanes extension exposing direct, inherited and unassociated project rows", Build: buildScopedLanes},
 			{Name: "peer-rows", Summary: "Two sandbox extensions with a cross-extension row key", Build: buildPeerRows},
 			{Name: "peer-rows-missing", Summary: "A sandbox extension whose peer is not registered", Build: buildMissingPeerRows},
+			{Name: "detail-notes", Summary: "mounted-results (an alpha extension page) plus a context item, each with a note about it, and a context item and an alpha row without", Build: buildDetailNotes},
 			{Name: "mounted-results", Summary: "A sandbox extension whose text verb (enter) and rows verb (H) answer, as o-cmds run and history do", Build: buildMountedResults},
 			{Name: "peer-delete-name", Summary: "A sandbox extension whose delete confirmation names a row field", Build: buildNamedDeleteRows},
 			{Name: "pane-lifecycle", Summary: "Seeded panes with a sandbox control for an outside window close", Build: buildPaneLifecycle},

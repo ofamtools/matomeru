@@ -1,0 +1,32 @@
+{
+  "name": "mtm: the Context page shows the focused item's notes under the table, and nothing for an item without",
+  "area": "context",
+  "fixture": "detail-notes",
+  "width": 120,
+  "height": 30,
+  "script": [
+    ":",
+    {
+      "type": "page open context"
+    },
+    "enter",
+    "j"
+  ],
+  "expect": [
+    {
+      "after": 3,
+      "page": "context",
+      "lacks": [
+        "Notes (",
+        "Ask for the spec link"
+      ]
+    },
+    {
+      "page": "context",
+      "contains": [
+        "Notes (",
+        "Ask for the spec link"
+      ]
+    }
+  ]
+}
