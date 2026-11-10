@@ -152,20 +152,18 @@ func (a *App) refreshTasks() error {
 	if err != nil {
 		return err
 	}
+	// The editable label excludes notation; Cells own the displayed metadata.
 	row := func(t work.Task) ochazuke.TreeNode {
-		label := taskLabel(t)
-		if a.all || a.pin == "" {
-			label += " · " + a.ownerLabel(t.ProjectID)
-		}
-		if marked[t.ID] {
-			label += " [draft]"
+		label := t.Title
+		if label == "" {
+			label = "untitled"
 		}
 		return ochazuke.TreeNode{Label: label, Noun: "task", Props: taskTreeThing(t, exported[t.ID], archived), Cells: a.taskCells(t, marked[t.ID], now)}
 	}
 	nodes := a.taskNodes(tasks, row)
 	for _, d := range drafts {
 		if d.New && a.tasksOpen && (a.all || d.ProjectID == a.current) && a.inScope(d.ProjectID) {
-			nodes = append(nodes, ochazuke.TreeNode{ID: d.ID, Label: "untitled [draft]", Noun: "draft", Data: d, Cells: []string{"[ ] untitled [draft]"}})
+			nodes = append(nodes, ochazuke.TreeNode{ID: d.ID, Label: "untitled", Noun: "draft", Data: d, Cells: []string{"[ ] untitled [draft]"}})
 		}
 	}
 	if err := a.taskTree.SetNodes(nodes); err != nil {

@@ -31,7 +31,7 @@ func (a *App) renderWorkWide(width, height int) ochazuke.Block {
 	rest := max(2, height-1)
 	tableH := rest
 	if editing || detail != "" || a.detail.work.showingForm() {
-		tableH = max(2, min(a.taskTree.Height()+1, rest*3/5))
+		tableH = max(2, min(a.taskTree.HeightAt(rightW)+1, rest*3/5))
 	}
 	lowerH := max(1, rest-tableH-1)
 	table := func() string {
