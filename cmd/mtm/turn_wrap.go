@@ -27,9 +27,8 @@ import (
 // <turn>/<line>.<piece>, so what is expanded and the marks on whole
 // lines survive, and the selection stays on the piece holding the same
 // part of the same source line. The / filter matches a source line whole
-// (each piece carries its line as its one cell, which the filter reads
-// and a list without columns does not draw), so a phrase split across
-// pieces still finds every piece of its line.
+// (each piece carries its line in Search, never in the display Cells),
+// so a phrase split across pieces still finds every piece of its line.
 
 // turnLineIndent is how far a turn-line row is drawn from the tree's left
 // edge: one level of depth and the expand marker's column (Tree.prefix).
@@ -204,7 +203,7 @@ func turnNodes(st *turnFill, loc *time.Location) []ochazuke.TreeNode {
 					n.ID = fmt.Sprintf("%s/%d.%d", id, j, k)
 				}
 				if len(pieces) > 1 {
-					n.Cells = []string{line} // the filter's haystack: the line whole
+					n.Search = []string{line}
 				}
 				nodes = append(nodes, n)
 			}

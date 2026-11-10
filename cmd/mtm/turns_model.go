@@ -727,7 +727,7 @@ func (b *turnBody) line(text string) {
 			n.ID = fmt.Sprintf("%s/%d.%d", b.parent, b.n, k)
 		}
 		if len(pieces) > 1 {
-			n.Cells = []string{text}
+			n.Search = []string{text}
 		}
 		*b.nodes = append(*b.nodes, n)
 	}

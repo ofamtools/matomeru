@@ -328,7 +328,6 @@ task_store.go	App.defineTaskSubjects	compare	"task"	1
 task_store.go	App.patchTask	compare	"task"	1
 task_store.go	App.patchTask	cyclo	"-"	28
 task_store.go	App.taskStore	compare	"all"	2
-tasks.go	App.refreshTasks	cyclo	"-"	27
 tasks.go	App.task	compare	"task"	1
 tasks.go	App.toggleTask	compare	"done"	1
 tasks.go	App.visibleTaskColumns	compare	"project"	1	moved from refreshTasks unchanged

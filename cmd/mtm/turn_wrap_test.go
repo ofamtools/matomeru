@@ -131,7 +131,7 @@ func wrapAppStyle(t *testing.T, answer, style string) *App {
 func answerRows(app *App, word string) []string {
 	var out []string
 	for _, it := range app.pv.turns.List().Items() {
-		if it.Noun == "turn-line" && (strings.Contains(it.Label, word) || len(out) > 0 && len(it.Cells) > 0 && strings.Contains(it.Cells[0], word)) {
+		if it.Noun == "turn-line" && (strings.Contains(it.Label, word) || len(out) > 0 && len(it.Search) > 0 && strings.Contains(it.Search[0], word)) {
 			out = append(out, it.Label)
 		}
 	}

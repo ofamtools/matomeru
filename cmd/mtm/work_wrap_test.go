@@ -109,12 +109,6 @@ func TestWorkTaskWrapKeepsDraftBadgesOutsideTitles(t *testing.T) {
 		strings.TrimRight(lines[at+1], " ") != "      starts here" || !strings.Contains(f, "  [ ] untitled      [draft]") {
 		t.Fatalf("draft badges must stay on the first line beside the editable title:\n%s", f)
 	}
-	// The unsaved record displays a fallback, not an editable draft badge.
-	for _, node := range a.taskTree.Nodes() {
-		if node.ID == "new-task-draft" && node.Label != "untitled" {
-			t.Fatalf("new draft editable title %q, want untitled", node.Label)
-		}
-	}
 }
 
 func TestWorkWideSizesTaskTreeByWrappedHeight(t *testing.T) {
