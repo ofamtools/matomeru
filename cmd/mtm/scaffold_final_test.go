@@ -325,7 +325,10 @@ func TestScaffoldPaneContentRemainsUsableWithMetadata(t *testing.T) {
 			if err := a.r.SetFocus(form.ID() + "/archived"); err != nil {
 				t.Fatal(err)
 			}
-			content("archived", "false")
+			content("archived")
+			if a.r.FocusID() != form.ID()+"/archived" {
+				t.Fatalf("the archive field is not focused: %s", where(a))
+			}
 			subject()
 			executeA(t, a, "panes", "tab", "", ochazuke.Arguments{"delta": 1})
 			if err := a.r.SetFocus(turnFocus); err != nil {
