@@ -141,6 +141,14 @@ func openWith(t *testing.T, opts Options) *App {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { app.Close() })
+	// Most tests read the Notes, Review and Context rows without opening
+	// those pages: load them as the TUI would on first need. TestPagesLoadLazily
+	// calls New itself to see them unloaded.
+	for _, l := range []*pageLoad{&app.notesLoad, &app.reviewsLoad, &app.cx.load} {
+		if err := l.ensure(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	clock := &fakeClock{t: time.Unix(1_790_000_000, 0)}
 	app.m.Now = clock.now
 	app.home = func() (string, error) { return "/home/test", nil }

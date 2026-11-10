@@ -98,6 +98,7 @@ func (a *App) addReviewPage() error {
 		return err
 	}
 	a.reviewList = list
+	a.reviewsLoad.load = a.loadReviews
 	if a.reviewTurns, err = a.r.AddTree(reviewTreeID, nil, ochazuke.Parent(reviewsPage)); err != nil {
 		return err
 	}
@@ -114,7 +115,7 @@ func (a *App) addReviewPage() error {
 	page.OnOpen = func(*ochazuke.Runtime, string) {
 		// Capture hooks write turns from other processes; the rows also
 		// name panes after the latest listing.
-		if err := a.refreshReviews(); err != nil {
+		if err := a.reviewsLoad.reload(); err != nil {
 			a.r.UI().Error("history: " + err.Error())
 		}
 	}
@@ -219,7 +220,10 @@ func (a *App) paneReviews() ([]paneReview, error) {
 
 // refreshReviews reloads the rows, one per pane, and pushes them to the
 // list; the opened row's Turns tree follows.
-func (a *App) refreshReviews() error {
+func (a *App) refreshReviews() error { return a.reviewsLoad.refresh() }
+
+// loadReviews is the page's load (reviewsLoad): the store read and the push.
+func (a *App) loadReviews() error {
 	shown, err := a.paneReviews()
 	if err != nil {
 		return err
@@ -580,6 +584,12 @@ func (a *App) answerCommit(rv work.Review) func(string) error {
 
 // openedReview is the review in the detail.
 func (a *App) openedReview() (work.Review, bool) {
+	if a.opened == "" {
+		return work.Review{}, false
+	}
+	if err := a.reviewsLoad.ensure(); err != nil {
+		a.reviewErr = "history: " + err.Error()
+	}
 	for _, rv := range a.reviews {
 		if rv.ID == a.opened {
 			return rv, true
@@ -644,6 +654,9 @@ func (a *App) cancelAnswerArea(ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
+	if err := a.reviewsLoad.ensure(); err != nil {
+		a.reviewErr = "history: " + err.Error()
+	}
 	s := a.pageStyles()
 	top := max(1, (height-5)/3)
 	head := fmt.Sprintf("reviews (%d)", len(a.reviews))

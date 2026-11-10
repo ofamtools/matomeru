@@ -160,6 +160,9 @@ func (a *App) contextChoices(p pane) (rows []ochazuke.Choice) {
 		return it.Window == p.ID || slices.ContainsFunc(it.Sources, func(s contextitems.Source) bool { return s.Window == p.ID })
 	}
 	var own, theirs, loose []contextitems.Item
+	if err := a.cx.load.ensure(); err != nil {
+		a.r.UI().Error(err.Error())
+	}
 	for _, it := range a.cx.items { // newest sighting first
 		if !a.archiveVisible(it.Archived) {
 			continue

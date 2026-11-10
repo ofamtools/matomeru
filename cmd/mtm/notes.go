@@ -91,15 +91,22 @@ func (a *App) addNotesPage() error {
 	}, nil); err != nil {
 		return err
 	}
-	if _, err := a.r.AddPage(notesPage, "Notes", a.renderNotes, ochazuke.Focus("notes/list")); err != nil {
+	a.notesLoad.load = a.loadNotes
+	notes, err := a.r.AddPage(notesPage, "Notes", a.renderNotes, ochazuke.Focus("notes/list"))
+	if err != nil {
 		return err
+	}
+	notes.OnOpen = func(*ochazuke.Runtime, string) {
+		if err := a.notesLoad.ensure(); err != nil {
+			a.r.UI().Error("notes: " + err.Error())
+		}
 	}
 	row := ochazuke.Do("note.new")
 	row.Instance, row.Mode, row.Keys = "notes/list", "normal", "n"
 	if err := a.r.Bind(row); err != nil {
 		return err
 	}
-	return a.refreshNotes()
+	return nil
 }
 
 func (a *App) scopedNotes() ([]work.Note, error) {
@@ -175,7 +182,10 @@ func noteLabel(text string) string {
 	return ansi.Truncate(line, 70, "…")
 }
 
-func (a *App) refreshNotes() error {
+func (a *App) refreshNotes() error { return a.notesLoad.refresh() }
+
+// loadNotes is the page's load (notesLoad).
+func (a *App) loadNotes() error {
 	if err := a.setNoteRows(); err != nil {
 		return err
 	}
@@ -426,6 +436,9 @@ func (a *App) chooseMove(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) renderNotes(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
+	if err := a.notesLoad.ensure(); err != nil {
+		a.r.UI().Error("notes: " + err.Error())
+	}
 	leftWidth := max(1, width/2-1)
 	rightWidth := max(1, width-leftWidth-2)
 	left := fmt.Sprintf("notes (%d)\n", a.noteList.Len()) + a.view(a.noteList, leftWidth, max(1, height-1))

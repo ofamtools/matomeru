@@ -188,7 +188,7 @@ live_hints.go	var hintActions	table	"open"	1
 live_hints.go	var hintActions	table	"type"	1
 main.go	App.refreshProjects	compare	"done"	1
 main.go	New	compare	"all"	1
-main.go	New	cyclo	"-"	43
+main.go	New	cyclo	"-"	42
 main.go	Options.client	compare	"default"	1
 mcp.go	App.defineMCPCommand	compare	"done"	1
 mcp_ops.go	App.addContextText	compare	"command"	1
