@@ -34,6 +34,8 @@ func (a *App) defineOwners() {
 		Verb("associate", a.associateSession, "Choose the project to move the session to (omit it); --project and --scratch are the deprecated form of move; panes with their own owner keep it").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
 	a.readCopiesNow("session", checkSessionName)
+	session := a.r.Noun("session")
+	*session.Store = a.docStore("session", *session.Store)
 	a.editSubject("session", func(inst *ochazuke.Instance) (string, string, any, error) {
 		p, err := a.sessionAt(inst)
 		key := cmp.Or(p.SessionID, p.Session)

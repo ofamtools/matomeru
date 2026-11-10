@@ -451,7 +451,7 @@ func (a *App) markTurn(window, id string) error {
 			if _, err := a.hist.MarkReviewed(t); err != nil {
 				return err
 			}
-			return a.refreshReviews()
+			return a.reviewsLoad.refresh()
 		}
 	}
 	return nil

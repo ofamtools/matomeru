@@ -29,6 +29,9 @@ type Review struct {
 	Answer          string `json:"answer,omitempty"`
 	Created         int64  `json:"created"`
 	Updated         int64  `json:"updated"`
+	Archived        bool   `json:"archived,omitempty"`
+	// Deleted is a tombstone: journaled turns must not recreate a deleted review.
+	Deleted bool `json:"deleted,omitempty"`
 	// TurnID and ReviewedAt are kept for rows written before turns came
 	// from the history journal (internal/history); nothing sets them now.
 	TurnID     string `json:"turn_id,omitempty"`

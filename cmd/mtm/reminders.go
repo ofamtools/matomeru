@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -29,11 +28,11 @@ type reminderState struct {
 
 var reminderColumns = []ochazuke.Column{{Title: "reminder", Min: 14}, {Title: "time"}, {Title: "days", Priority: 2}, {Title: "today"}, {Title: "last done", Priority: 3}}
 
-func reminderProps() []ochazuke.PropSpec {
+func (a *App) reminderProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The reminder's stable key")},
-		{Name: "title", Role: ochazuke.RoleLabel, Multiline: true, Parameter: text("Any reminder text")},
+		{Name: "title", Aliases: []string{"reminder"}, Role: ochazuke.RoleLabel, Multiline: true, Cell: reminderTitleCell, Parameter: text("Any reminder text")},
 		{Name: "time", Default: "10:30", Parameter: text("Local HH:MM, 00:00 through 23:59")},
 		{Name: "days", Default: "sun,mon,tue,wed,thu,fri,sat", Parameter: text("Comma-separated sun,mon,tue,wed,thu,fri,sat; daily for all, none for no days")},
 		{Name: "enabled", Default: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether notifications and scheduled days are enabled"}},
@@ -41,6 +40,7 @@ func reminderProps() []ochazuke.PropSpec {
 		{Name: "due-today", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Scheduled on today's local date"}},
 		{Name: "done-today", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Checked on today's local date"}},
 		{Name: "last-done", ReadOnly: true, Parameter: text("The latest checked local date, empty when none")},
+		{Name: "today", ReadOnly: true, Cell: reminderTodayCell, Parameter: text("Today's checkoff state")},
 	}
 }
 
@@ -57,7 +57,7 @@ func (a *App) reminderNow() time.Time { return a.now().In(a.location()) }
 
 func (a *App) defineReminders() {
 	n := reminderNoun
-	a.r.Define(n).Props(reminderProps()...).Store(a.reminderStore()).Columns(reminderColumns...).
+	a.r.Define(n).Props(a.reminderProps()...).Store(a.docStore(n, a.reminderStore())).Columns(reminderColumns...).
 		Verb("add", a.addReminder, "Record a reminder and open its form; CLI uses reminder create").
 		Verb("edit", a.editReminder, "Edit the reminder's title, local time, days and enabled state").Positional("name").ShadowsStandard().
 		Verb("check", a.checkReminder("check"), "Check the reminder for today, or --date YYYY-MM-DD").Positional("name").
@@ -107,16 +107,15 @@ func (a *App) reminderStore() ochazuke.Store {
 			return out, nil
 		},
 		Create: func(_ ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
+			defer a.syncReminderNotices()
 			r, err := a.reminders.store.Write(work.NewID(), a.reminderNow(), func(r *reminders.Reminder, rule *reminders.Rule) error { return applyReminder(r, rule, values) })
 			if err != nil {
-				return nil, err
-			}
-			if err := a.refreshReminders(); err != nil {
 				return nil, err
 			}
 			return a.reminderThing(r)
 		},
 		Patch: func(_ ochazuke.Ctx, id string, values ochazuke.Thing) (ochazuke.Thing, error) {
+			defer a.syncReminderNotices()
 			r, err := a.reminderNamed(id)
 			if err != nil {
 				return nil, err
@@ -125,12 +124,10 @@ func (a *App) reminderStore() ochazuke.Store {
 			if err != nil {
 				return nil, err
 			}
-			if err := a.refreshReminders(); err != nil {
-				return nil, err
-			}
 			return a.reminderThing(r)
 		},
 		Delete: func(_ ochazuke.Ctx, id string) error {
+			defer a.syncReminderNotices()
 			r, err := a.reminderNamed(id)
 			if err != nil {
 				return err
@@ -138,7 +135,7 @@ func (a *App) reminderStore() ochazuke.Store {
 			if err := a.reminders.store.Delete(r.ID); err != nil {
 				return err
 			}
-			return a.refreshReminders()
+			return nil
 		},
 	}
 }
@@ -175,8 +172,10 @@ func (a *App) reminderThing(r reminders.Reminder) (ochazuke.Thing, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ochazuke.Thing{"id": r.ID, "title": r.Title, "time": rule.Time, "days": strings.Join(rule.Days, ","), "enabled": rule.Enabled, "archived": rule.Archived,
-		"due-today": r.On(now.Format(time.DateOnly)).Due(now), "done-today": d.Done, "last-done": last}, nil
+	v := ochazuke.Thing{"id": r.ID, "title": r.Title, "time": rule.Time, "days": strings.Join(rule.Days, ","), "enabled": rule.Enabled, "archived": rule.Archived,
+		"due-today": r.On(now.Format(time.DateOnly)).Due(now), "done-today": d.Done, "last-done": last}
+	v["today"] = reminderTodayCell(ochazuke.Ctx{}, v)
+	return v, nil
 }
 
 func (a *App) reminderNamed(name string) (reminders.Reminder, error) {
@@ -203,9 +202,9 @@ func (a *App) reminderNamed(name string) (reminders.Reminder, error) {
 	return reminders.Reminder{}, fmt.Errorf("no reminder %q; reminder list shows ids", name)
 }
 func (a *App) reminderAt(c ochazuke.Ctx) (reminders.Reminder, error) {
-	name := ochazuke.StringArg(c.Args, "name", "")
-	if name == "" && c.Instance != nil && c.Instance.Noun == reminderNoun {
-		name = c.Instance.ID
+	name := ochazuke.StringArg(c.Args, "name", ochazuke.StringArg(c.Args, "id", ""))
+	if name == "" && c.Instance != nil {
+		name = savedRowKey(c.Instance)
 	}
 	if name == "" {
 		return reminders.Reminder{}, errors.New("select a reminder or give its title/id")
@@ -225,9 +224,8 @@ func (a *App) checkReminder(verb string) ochazuke.AppHandler {
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
-		if err := a.refreshReminders(); err != nil {
-			return ochazuke.Failed(err)
-		}
+		a.r.Changed(reminderNoun)
+		a.syncReminderNotices()
 		return ochazuke.Done(d)
 	}
 }
@@ -248,7 +246,10 @@ func (a *App) addReminder(c ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if err := a.r.SetFocus("reminder:" + r.ID); err != nil {
+	if err := a.reminders.list.Refill(); err != nil {
+		return ochazuke.Failed(err)
+	}
+	if err := a.r.SetFocus(reminderListID + "/" + r.ID); err != nil {
 		return ochazuke.Failed(err)
 	}
 	return resultError(a.openReminderForm(r, "New reminder"))
@@ -264,46 +265,19 @@ func (a *App) editReminder(c ochazuke.Ctx) ochazuke.Result {
 	return resultError(a.openReminderForm(r, "Edit reminder"))
 }
 func (a *App) openReminderForm(r reminders.Reminder, title string) error {
-	var fields []ochazuke.RecordField
-	for _, p := range reminderProps() {
-		if !slices.Contains([]string{"title", "time", "days", "enabled"}, p.Name) {
-			continue
-		}
-		f := ochazuke.PropField(p)
-		f.Validate = func(text string) error {
-			if f.Name == "time" {
-				return reminders.CheckTime(text)
-			}
-			if f.Name == "days" {
-				_, err := reminders.ParseDays(text)
-				return err
-			}
-			return nil
-		}
-		fields = append(fields, f)
+	spec, err := a.r.EditSpec(reminderNoun, r.ID)
+	if err != nil {
+		return err
 	}
-	_, err := a.r.OpenRecordEditor(reminderFormID, ochazuke.RecordSpec{
-		Title: title + " · written as you type", Fields: fields, Debounce: a.editDebounce(), Insert: true,
-		Load: func() (ochazuke.Record, error) {
-			r, err := a.reminders.store.Get(r.ID)
-			if err != nil {
-				return nil, err
-			}
-			rule := r.Current()
-			on := "false"
-			if rule.Enabled {
-				on = "true"
-			}
-			return ochazuke.Record{"title": r.Title, "time": rule.Time, "days": strings.Join(rule.Days, ","), "enabled": on}, nil
-		},
-		Save: func(w ochazuke.RecordWrite) ochazuke.Result {
-			changes := map[string]any{}
-			for _, f := range w.Changed {
-				changes[f] = w.Values[f]
-			}
-			return resultOf(a.r.Execute(ochazuke.Request{Noun: reminderNoun, Verb: "set", Args: ochazuke.Arguments{"id": r.ID, "props": changes}}))
-		},
-	})
+	spec.Title, spec.Debounce, spec.Insert = title+" · written as you type", a.editDebounce(), true
+	validators := map[string]func(string) error{
+		"time": reminders.CheckTime,
+		"days": func(text string) error { _, err := reminders.ParseDays(text); return err },
+	}
+	for i := range spec.Fields {
+		spec.Fields[i].Validate = validators[spec.Fields[i].Name]
+	}
+	_, err = a.r.OpenRecordEditor(reminderFormID, spec)
 	return err
 }
 
@@ -343,7 +317,7 @@ func (a *App) reminderHistory(c ochazuke.Ctx) ochazuke.Result {
 
 func (a *App) addRemindersList() error {
 	var err error
-	a.reminders.list, err = a.r.AddList(reminderListID, nil, ochazuke.Parent(schedulesPage), ochazuke.RowNoun(reminderNoun), ochazuke.Columns(reminderColumns...))
+	a.reminders.list, err = a.r.AddList(reminderListID, nil, ochazuke.Parent(schedulesPage), ochazuke.From(reminderNoun))
 	if err != nil {
 		return err
 	}
@@ -352,62 +326,36 @@ func (a *App) addRemindersList() error {
 	if err := a.r.Bind(row); err != nil {
 		return err
 	}
-	a.r.Settings().Observe(settingRemindersShow, func(string, any) {
-		if err := a.refreshReminders(); err != nil {
-			a.r.UI().Error(err.Error())
-		}
-	})
+	a.r.Settings().Observe(settingRemindersShow, func(string, any) { a.r.Changed(reminderNoun) })
 	a.r.Settings().Observe(settingReminderInApp, func(string, any) { a.syncReminderNotices() })
-	return a.refreshReminders()
+	a.reminders.date = a.reminderNow().Format(time.DateOnly)
+	return nil
 }
 
-func (a *App) refreshReminders() error {
-	st := a.reminders
-	if st == nil || st.list == nil {
-		return nil
+func reminderTitleCell(_ ochazuke.Ctx, v ochazuke.Thing) string {
+	mark := "☐ "
+	if done, _ := v["done-today"].(bool); done {
+		mark = "☑ "
 	}
-	rows := []ochazuke.ListItem{}
-	if a.r.Settings().Bool(settingRemindersShow) {
-		rs, err := st.store.All()
-		if err != nil {
-			return err
-		}
-		for _, r := range rs {
-			if r.Current().Archived {
-				continue
-			}
-			v, err := a.reminderThing(r)
-			if err != nil {
-				return err
-			}
-			mark, state := "☐ ", "not scheduled"
-			if v["due-today"].(bool) {
-				state = "due"
-			}
-			if v["done-today"].(bool) {
-				mark, state = "☑ ", "done"
-			}
-			if !r.Current().Enabled {
-				state = "disabled"
-			}
-			label := mark + strings.Join(strings.Fields(r.Title), " ")
-			if r.Title == "" {
-				label = mark + "untitled"
-			}
-			item := ochazuke.ListItem{ID: "reminder:" + r.ID, Noun: reminderNoun, Label: label, Data: v, Props: v, Cells: []string{label, r.Current().Time, v["days"].(string), state, v["last-done"].(string)}}
-			if state == "due" {
-				item.Cells[3] = "! due"
-				item.Tones = []ochazuke.ToneSpan{{Cell: 0, Tone: ochazuke.ToneNeedsInput}, {Cell: 3, Tone: ochazuke.ToneNeedsInput}}
-			}
-			rows = append(rows, item)
-		}
+	title, _ := v["title"].(string)
+	if title == "" {
+		title = "untitled"
 	}
-	st.date = a.reminderNow().Format(time.DateOnly)
-	if err := st.list.SetItems(rows); err != nil {
-		return err
+	return mark + strings.Join(strings.Fields(title), " ")
+}
+
+func reminderTodayCell(_ ochazuke.Ctx, v ochazuke.Thing) string {
+	state := "not scheduled"
+	if due, _ := v["due-today"].(bool); due {
+		state = "! due"
 	}
-	a.syncReminderNotices()
-	return nil
+	if done, _ := v["done-today"].(bool); done {
+		state = "done"
+	}
+	if enabled, _ := v["enabled"].(bool); !enabled {
+		state = "disabled"
+	}
+	return state
 }
 
 func (a *App) renderReminders(w, h int) string {

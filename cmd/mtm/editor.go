@@ -150,9 +150,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, c)
 	}
 	if a.reminders != nil && a.reminders.date != a.reminderNow().Format("2006-01-02") {
-		if err := a.refreshReminders(); err != nil {
+		a.reminders.date = a.reminderNow().Format("2006-01-02")
+		a.r.Changed(reminderNoun)
+		if err := a.reminders.list.Refill(); err != nil {
 			a.r.UI().Error(err.Error())
 		}
+		a.syncReminderNotices()
 	}
 	if c := a.runsUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)

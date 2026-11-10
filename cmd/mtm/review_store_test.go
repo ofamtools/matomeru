@@ -85,7 +85,7 @@ func TestReviewSetWritesAJournalRowsRecord(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("rows %+v", items)
 	}
-	id := items[0].ID
+	id := items[0].Data.(ochazuke.Thing)["id"].(string)
 	if _, err := app.work.Review(id); err == nil {
 		t.Fatal("the journal row was stored before a write")
 	}

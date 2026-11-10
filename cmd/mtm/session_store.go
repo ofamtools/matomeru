@@ -43,6 +43,7 @@ func sessionCopiedProps() []copiedProp {
 		{PropSpec: ochazuke.PropSpec{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the session belongs to (empty: unassociated); panes with their own owner keep it"}}},
 		{PropSpec: ochazuke.PropSpec{Name: "panes", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "How many panes the session holds"}}},
+		{PropSpec: ochazuke.PropSpec{Name: "archived", Role: ochazuke.RoleArchive, Default: false, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the local session record without closing the daemon session"}}, Copy: copyOwn},
 	}, endedProps("session")...)
 }
 

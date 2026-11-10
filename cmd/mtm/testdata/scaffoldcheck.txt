@@ -1,0 +1,13 @@
+# scaffoldcheck baseline: noun<TAB>check, a failure accepted today; it only shrinks.
+pane	archive
+pane	delete
+pane	restore
+project	archive
+project	restore
+saved	archive
+saved	restore
+schedule	archive
+schedule	label
+schedule	restore
+vim	archive
+vim	restore

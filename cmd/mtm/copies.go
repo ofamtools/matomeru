@@ -57,6 +57,8 @@ const (
 	// copyHeld: the copy's own once held (copies.hold-names); until then
 	// as copySeen.
 	copyHeld
+	// copyOwn: local metadata, never replaced by the daemon's facts.
+	copyOwn
 )
 
 // The copy settings.
@@ -270,6 +272,9 @@ func (cn *copiedNoun) keep(t ochazuke.Thing) ochazuke.Thing {
 // a held prop mtm wrote, or (copies.hold-names all) any held prop with a
 // value; an empty one is never held under all.
 func (cn *copiedNoun) holds(t ochazuke.Thing, name string) bool {
+	if cn.roles[name] == copyOwn {
+		return true
+	}
 	if cn.roles[name] != copyHeld {
 		return false
 	}

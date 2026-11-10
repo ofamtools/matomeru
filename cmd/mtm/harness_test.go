@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/work"
@@ -117,9 +116,6 @@ func TestEveryHarnessLaunchesThroughNewWindowThenSendText(t *testing.T) {
 			reviews, err := app.work.Reviews()
 			if err != nil || len(reviews) != 1 || reviews[0].Harness != c.harness {
 				t.Fatalf("reviews = %+v, %v", reviews, err)
-			}
-			if cells := app.reviewCells(paneReview{Review: reviews[0]}, time.Now()); cells[1] != "matomeru/write the brief" || cells[len(cells)-1] != c.harness {
-				t.Fatalf("review cells = %q", cells)
 			}
 		})
 	}

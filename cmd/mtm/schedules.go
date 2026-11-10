@@ -472,7 +472,7 @@ func (a *App) refreshSchedules() error {
 	if err := a.sched.list.SetItems(rows); err != nil {
 		return err
 	}
-	return a.refreshReminders()
+	return a.reminders.list.Refill()
 }
 
 func (a *App) renderSchedules(_ *ochazuke.Runtime, width, height int) ochazuke.Block {

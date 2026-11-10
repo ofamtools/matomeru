@@ -188,7 +188,7 @@ func TestCreationFromReviewKeepsRecordedOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.refreshReviews(); err != nil {
+	if err := a.reviewsLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.r.OpenPage(reviewsPage); err != nil {

@@ -1,5 +1,10 @@
 package main
 
+import (
+	"maps"
+	"slices"
+)
+
 // pageLoad defers a page's store reads until something needs its rows: the
 // page opens (Page.OnOpen), a reader of the loaded data asks (ensure), or a
 // verb that reads the rows through the page. A headless CLI/MCP call draws no
@@ -58,6 +63,18 @@ func (a *App) hookLazyPages() {
 		}
 		if len(a.r.Ancestry(target)) > 0 {
 			return target, nil
+		}
+		// From scopes a row's ID as LIST/KEY; explicit targets keep
+		// naming the record key, independent of which list shows it.
+		for _, id := range slices.Sorted(maps.Keys(a.r.Instances)) {
+			list := a.r.List(id)
+			if list == nil || list.From() == "" {
+				continue
+			}
+			row := id + "/" + target
+			if a.r.Instances[row] != nil {
+				return row, nil
+			}
 		}
 		return "", nil
 	}

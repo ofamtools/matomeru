@@ -301,7 +301,7 @@ func (a *App) historyChanged() {
 		errs = append(errs, a.showTurns(a.pv.turnsFor))
 	}
 	if !visibleOnly || a.r.Page == reviewsPage {
-		errs = append(errs, a.refreshReviews())
+		errs = append(errs, a.reviewsLoad.refresh())
 	}
 	errs = append(errs, a.pickerTurnsChanged())
 	if a.feed != nil && a.feed.contextAdded.Swap(false) {
