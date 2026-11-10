@@ -267,9 +267,6 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 // workDetail is the detail of the highlighted task, else of the
 // highlighted (or open) project; isTask reports a task's.
 func (a *App) workDetail() (detail string, isTask bool) {
-	if a.detail.work.showingForm() {
-		return "", false
-	}
 	return a.workDetailOf(a.workSelected())
 }
 
@@ -340,11 +337,38 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 		}
 	}
 	if task != nil {
-		detail = a.recordText("task", a.taskThingOf(*task))
+		if !a.detail.work.showingForm() {
+			detail = a.recordText("task", a.taskThingOf(*task))
+		}
 	} else if p, ok := a.project(projectID); ok {
-		detail = a.recordText("project", projectThing(p))
+		detail = a.projectDirectoryText(p)
+		if !a.detail.work.showingForm() {
+			detail = a.recordText("project", projectThing(p)) + "\n\n" + detail
+		}
 	}
 	return detail, task != nil
+}
+
+// Directory annotations and checkout marks are page-owned content, not a
+// second layout of the project's catalog fields.
+func (a *App) projectDirectoryText(p work.Project) string {
+	if len(p.Trees) == 0 {
+		return ""
+	}
+	var lines []string
+	lines = append(lines, fmt.Sprintf("directories (%d)", len(p.Trees)))
+	home, _ := a.home()
+	for _, tree := range p.Trees {
+		line := tildePath(tree.Path, home)
+		if marks := a.treeMarks(p, tree); len(marks) > 0 {
+			line += "  [" + strings.Join(marks, "] [") + "]"
+		}
+		if first, _, _ := strings.Cut(strings.TrimSpace(tree.Text), "\n"); first != "" {
+			line += "  " + first
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // The opt-out still shows the record, from the same catalog prop order as the

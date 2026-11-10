@@ -151,7 +151,7 @@ func (p *pageDetail) showingForm() bool {
 func (p *pageDetail) recordBlock(text string, width, height int) ochazuke.Block {
 	if p.showingForm() {
 		p.hide()
-		return p.show.Block("", width, height)
+		return p.show.Block(ansi.Wrap(text, width, ""), width, height)
 	}
 	return ochazuke.Text(p.lines(p.withRelated(text, width), width, width, height))
 }

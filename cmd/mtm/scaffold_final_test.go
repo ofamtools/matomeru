@@ -255,3 +255,18 @@ func TestScaffoldTaskQueryKeepsInheritedArchiveSemantics(t *testing.T) {
 		}
 	}
 }
+
+func TestScaffoldWorkRetainsDirectoryAnnotations(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	dir := t.TempDir()
+	executeA(t, a, "project", "directory", "matomeru", ochazuke.Arguments{"path": dir, "text": "checkout annotations stay"})
+	projectsOn(t, a, "matomeru")
+	for _, on := range []bool{false, true} {
+		setting(t, a, ochazuke.DetailShowFormSetting, on)
+		a.detail.work.show.Sync()
+		if text := frameWH(a, 180, 70); !strings.Contains(text, "checkout annotations stay") || !strings.Contains(text, "directories (1)") {
+			t.Fatalf("directory content disappeared (form=%v):\n%s", on, text)
+		}
+	}
+}
