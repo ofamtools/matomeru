@@ -172,7 +172,7 @@ func (a *App) actionTableQuery() *tableQuery {
 			"read": stamp("seen_at"), "archived": stamp("dismissed_at"), "notify": {Fields: []string{"notify"}, Kind: columnBool},
 			"notified-at": num("notified_at"), "snoozed-until": num("snoozed_until"),
 			"created": num("created"), "updated": num("updated"), "read-at": num("seen_at"), "archived-at": num("dismissed_at"),
-			"state": {Fields: []string{"_state"}, Kind: columnText},
+			"state":             {Fields: []string{"_state"}, Kind: columnText},
 			inboxGroupProp:      {Fields: []string{inboxGroupField + ".label"}, Kind: columnText},
 			inboxGroupClassProp: {Fields: []string{inboxGroupField + ".class"}, Kind: columnNumber},
 		},
@@ -180,7 +180,7 @@ func (a *App) actionTableQuery() *tableQuery {
 			inboxGroupField: a.inboxGroupProjection,
 			"_state": func() []store.QueryProjection {
 				return []store.QueryProjection{{Field: "_state",
-					SQL: `CASE WHEN COALESCE(json_extract(source.row, '$.dismissed_at'), 0) > 0 THEN 'archived' WHEN COALESCE(json_extract(source.row, '$.snoozed_until'), 0) > ? THEN 'snoozed' ELSE 'open' END`,
+					SQL:  `CASE WHEN COALESCE(json_extract(source.row, '$.dismissed_at'), 0) > 0 THEN 'archived' WHEN COALESCE(json_extract(source.row, '$.snoozed_until'), 0) > ? THEN 'snoozed' ELSE 'open' END`,
 					Args: []any{a.inbox.items.Now()}}}
 			},
 		},

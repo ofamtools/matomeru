@@ -108,7 +108,7 @@ func TestQueryGroupsBeforeOffsetAndLimit(t *testing.T) {
 	reads := db.FullReads("things")
 	q := Query{
 		Projections: []QueryProjection{{Field: "bucket", SQL: `CASE WHEN json_extract(source.row, '$.n') % 2 = 0 THEN ? ELSE ? END`, Args: []any{"even", "odd"}}},
-		GroupBy: []QuerySort{{Fields: []string{"bucket"}, Text: true}}, Sort: []QuerySort{{Fields: []string{"n"}, Desc: true}},
+		GroupBy:     []QuerySort{{Fields: []string{"bucket"}, Text: true}}, Sort: []QuerySort{{Fields: []string{"n"}, Desc: true}},
 		Limit: 3, Offset: 49,
 	}
 	page, err := db.Query("things", q)

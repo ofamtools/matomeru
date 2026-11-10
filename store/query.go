@@ -60,12 +60,12 @@ type QueryProjection struct {
 // does not count it). A Query is a generic pushdown: it knows nothing of
 // any table's props; the caller maps its props to row fields.
 type Query struct {
-	Where       []QueryCond
-	Search      string
-	SearchIn    [][]string
-	Sort        []QuerySort
-	OrderSQL    string
-	OrderArgs   []any
+	Where     []QueryCond
+	Search    string
+	SearchIn  [][]string
+	Sort      []QuerySort
+	OrderSQL  string
+	OrderArgs []any
 	// Projections are derived fields; GroupBy gathers equal values in first-seen
 	// order after sorting, unless GroupSort explicitly orders the groups.
 	Projections []QueryProjection
