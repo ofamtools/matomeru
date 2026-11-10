@@ -1,21 +1,50 @@
 {
-  "name": "mtm: a project's directories are relations: any number, in order, each with text; project default moves the default flag; remove-directory promotes the next and says so",
+  "name": "mtm: a project's directories are relations: any number, in order; project default moves the default flag; remove-directory promotes the next default and answers the directories left",
   "area": "projects",
   "fixture": "seeded",
   "width": 140,
   "height": 36,
   "script": [
     "ctrl+j",
-    ":", {"type": "project directory /srv/web --target acme-web --text main-checkout"}, "enter",
-    ":", {"type": "project directory /srv/api --target acme-web"}, "enter",
-    ":", {"type": "project directory /srv/docs --target acme-web"}, "enter",
-    ":", {"type": "project default /srv/api --target acme-web"}, "enter",
-    ":", {"type": "project remove-directory /srv/api --target acme-web"}, "enter"
+    ":",
+    {
+      "type": "project directory /srv/web"
+    },
+    "enter",
+    ":",
+    {
+      "type": "project directory /srv/api"
+    },
+    "enter",
+    ":",
+    {
+      "type": "project directory /srv/docs"
+    },
+    "enter",
+    ":",
+    {
+      "type": "project default /srv/api"
+    },
+    "enter",
+    ":",
+    {
+      "type": "project remove-directory /srv/api"
+    },
+    "enter"
   ],
   "expect": [
     {
-      "contains": ["directories (2)", "/srv/web", "[default]", "main-checkout", "/srv/docs"],
-      "lacks": ["/srv/api"]
+      "contains": [
+        "\"directories\": [",
+        "\"/srv/web\",",
+        "\"/srv/docs\"",
+        "\"default_directory\": \"/srv/web\"",
+        "\"promoted\": \"/srv/web\"",
+        "Removed /srv/api"
+      ],
+      "lacks": [
+        "\"/srv/api\""
+      ]
     }
   ]
 }
