@@ -33,7 +33,8 @@ type Table struct {
 }
 
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string // the file Open was given (":memory:" for none)
 }
 
 // Tx grants access only to the tables named in Store.Tx.
@@ -81,7 +82,7 @@ func Open(path string) (*Store, error) {
 			delay *= 2
 		}
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, path: path}, nil
 }
 
 func isBusy(err error) bool {

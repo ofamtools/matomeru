@@ -42,3 +42,22 @@ return db.Declare(store.Table{Name: "ai_pins", Owner: "mtm-ai", Key: "id", Versi
   changes a row; a nil rewrite moves the version alone.
 - Purging is removing `ExtensionPath(dataDir, name)`.
 - Inspecting without writing: `OpenReadOnly(path)` and `Tables()`.
+
+## Indexes, matches and backups
+
+A table is `(id, row)`; a query by a field of the row would scan every row.
+`db.Index(table, name, fields...)` creates (idempotently, `CREATE INDEX IF NOT
+EXISTS`) an index over `json_extract` expressions of those fields, in order.
+It changes no row and is kept outside `__deck_tables`, so declarations stay
+byte-identical, a file written before the index opens unchanged, and an older
+binary opens a file that has it. Call it right after `Declare`.
+
+`db.Match(table, JSONMatch...)` and `tx.Match` (also `tx.MatchEntries`, with
+the ids) read the rows whose fields equal, or with `Prefix` start with, every
+match, in insertion order. A prefix is a range over the same expression, so an
+index over the leading fields serves equality and prefix queries alike (the
+test checks `EXPLAIN QUERY PLAN`). Match the leading fields of an index.
+
+`db.Backup(dest)` writes a consistent copy (`VACUUM INTO`) and refuses an
+existing file; a unit calls it before a migration that rewrites rows for good.
+`db.TableVersion(table)` tells a file that still has to migrate.
