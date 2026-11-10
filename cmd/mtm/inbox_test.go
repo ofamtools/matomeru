@@ -274,7 +274,7 @@ func TestInboxPageKeys(t *testing.T) {
 		}
 	}
 	t.Logf("inbox, 120 columns:\n%s", f)
-	if sel, _ := a.inbox.list.Selected(); sel.ID != pr.ID {
+	if sel, _ := a.inbox.list.Selected(); savedRowKey(a.r.Instances[sel.ID]) != pr.ID {
 		t.Fatalf("first row %s, want the unread %s", sel.ID, pr.ID)
 	}
 
@@ -298,14 +298,14 @@ func TestInboxPageKeys(t *testing.T) {
 		t.Fatal("open did not mark read")
 	}
 
-	if err := a.inbox.list.Select(pr.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "x")
 	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateArchived {
 		t.Fatal("x did not archive")
 	}
-	if err := a.inbox.list.Select(pr.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "X")
@@ -314,7 +314,7 @@ func TestInboxPageKeys(t *testing.T) {
 	}
 
 	// s asks how long; enter takes the first choice, an hour.
-	if err := a.inbox.list.Select(ping.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + ping.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "s")
@@ -333,7 +333,7 @@ func TestInboxPageKeys(t *testing.T) {
 	}
 
 	// m moves the item to a project with the chooser.
-	if err := a.inbox.list.Select(ping.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + ping.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "m")
@@ -343,7 +343,7 @@ func TestInboxPageKeys(t *testing.T) {
 	}
 
 	// t promotes to a todo in the item's project.
-	if err := a.inbox.list.Select(pr.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "t")
@@ -354,14 +354,14 @@ func TestInboxPageKeys(t *testing.T) {
 	}
 
 	// d d archives first; on an archived row it asks and y deletes.
-	if err := a.inbox.list.Select(ping.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + ping.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")
 	if got, err := a.inbox.items.Get(ping.ID); err != nil || got.State(*clock) != actionitems.StateArchived || a.r.TopModal() != "" {
 		t.Fatalf("first d d: %+v %v", got, err)
 	}
-	if err := a.inbox.list.Select(ping.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + ping.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")

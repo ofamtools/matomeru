@@ -93,6 +93,8 @@ func (a *App) actionItemProps() []ochazuke.PropSpec {
 		{Name: "updated", ReadOnly: true, Parameter: integer("When the item last changed (Unix ms)")},
 		{Name: "read-at", ReadOnly: true, Parameter: integer("When the item was read (Unix ms; 0 unread)")},
 		{Name: "archived-at", ReadOnly: true, Parameter: integer("When the item was archived (Unix ms; 0 not archived)")},
+		{Name: inboxGroupProp, ReadOnly: true, Parameter: text("The Items group label selected by inbox.group")},
+		{Name: inboxGroupClassProp, ReadOnly: true, Parameter: integer("The Items group class; equal classes retain first-seen order")},
 	}
 }
 
@@ -103,7 +105,7 @@ func (a *App) actionItemStore() ochazuke.Store {
 	return ochazuke.Store{
 		ChangeToken: func(ochazuke.Ctx) (string, error) {
 			token, err := a.inbox.items.Version()
-			return fmt.Sprintf("%s/%d", token, a.inbox.items.Now()/inboxEvery.Milliseconds()), err
+			return fmt.Sprintf("%s/%d/%s/%s", token, a.inbox.items.Now()/inboxEvery.Milliseconds(), a.inboxGroupSig(a.inbox.all), a.workData()), err
 		},
 		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
@@ -154,10 +156,9 @@ var actionStateRules = []actionStateRule{
 	{actionStateAll, func(int64) []store.QueryCond { return nil }},
 }
 
-// actionTableQuery is the action-item noun's Query: the row's own props and
-// the state, source list arguments run in SQLite; a project filter (an item
-// on a task is its task's project's) and the derived state prop take the
-// List path.
+// actionTableQuery pushes stored props and the clock-derived state into SQLite.
+// The curated group label/class use the same grouping table as the row props;
+// project list arguments retain their task-aware domain List contract.
 func (a *App) actionTableQuery() *tableQuery {
 	text := func(f string) tableColumn { return tableColumn{Fields: []string{f}, Kind: columnText} }
 	num := func(f string) tableColumn { return tableColumn{Fields: []string{f}, Kind: columnNumber} }
@@ -171,6 +172,17 @@ func (a *App) actionTableQuery() *tableQuery {
 			"read": stamp("seen_at"), "archived": stamp("dismissed_at"), "notify": {Fields: []string{"notify"}, Kind: columnBool},
 			"notified-at": num("notified_at"), "snoozed-until": num("snoozed_until"),
 			"created": num("created"), "updated": num("updated"), "read-at": num("seen_at"), "archived-at": num("dismissed_at"),
+			"state": {Fields: []string{"_state"}, Kind: columnText},
+			inboxGroupProp:      {Fields: []string{inboxGroupField + ".label"}, Kind: columnText},
+			inboxGroupClassProp: {Fields: []string{inboxGroupField + ".class"}, Kind: columnNumber},
+		},
+		projections: map[string]func() []store.QueryProjection{
+			inboxGroupField: a.inboxGroupProjection,
+			"_state": func() []store.QueryProjection {
+				return []store.QueryProjection{{Field: "_state",
+					SQL: `CASE WHEN COALESCE(json_extract(source.row, '$.dismissed_at'), 0) > 0 THEN 'archived' WHEN COALESCE(json_extract(source.row, '$.snoozed_until'), 0) > ? THEN 'snoozed' ELSE 'open' END`,
+					Args: []any{a.inbox.items.Now()}}}
+			},
 		},
 		archive: "archived",
 		search:  []string{"title", "why", "text", "url"},
@@ -219,6 +231,7 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 	for k, v := range it.Extra {
 		extra[k] = v
 	}
+	group := a.inboxItemGroup(it)
 	return ochazuke.Thing{
 		"id": it.ID, "title": it.Title, "summary": it.Label(), "why": it.Why, "text": it.Text, "url": it.URL, "kind": it.Kind,
 		"source": it.Source, "key": it.Key, "project": it.ProjectID, "task": it.TaskID, "pane": it.Window, "pane-label": it.PaneLabel, "session": it.Session,
@@ -227,6 +240,7 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 		"extra": extra, "promoted-todo": it.PromotedTodoID, "promoted-task": it.PromotedTaskID,
 		"_item":   it,
 		"created": it.Created, "updated": it.Updated, "read-at": it.ReadAt, "archived-at": it.ArchivedAt,
+		inboxGroupProp: group.label, inboxGroupClassProp: group.class,
 	}
 }
 
@@ -260,11 +274,12 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 	return out, nil
 }
 
-// actionListState keeps an explicit state filter, but skips the default
-// open-only list for Every requests (the Nouns page's counts).
+// actionListState keeps an explicit state argument. Every, archive-inclusive
+// reads and explicit state filters skip the default open-only list. A From
+// list's whole-source read includes archives but has no local filters yet.
 func actionListState(q ochazuke.ListQuery) string {
 	state := actionitems.StateOpen
-	if q.Every {
+	if q.Every || q.Archived || slices.ContainsFunc(q.Filters, func(f ochazuke.PropFilter) bool { return f.Prop == "state" }) {
 		state = actionStateAll
 	}
 	return ochazuke.StringArg(q.Args, "state", state)

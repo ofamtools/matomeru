@@ -51,7 +51,7 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 	a, _, clock := inboxApp(t)
 	pr, _ := seedInbox(t, a, clock)
 	toPage(t, a, inboxPage)
-	if err := a.inbox.list.Select(pr.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "x")
@@ -64,7 +64,7 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateOpen || it.Read() {
 		t.Fatalf("undo of x: %+v", it)
 	}
-	if err := a.inbox.list.Select(pr.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")
@@ -72,7 +72,7 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 		t.Fatalf("first d d: %+v %v", got, err)
 	}
 	before, _ := a.inbox.items.Get(pr.ID)
-	if err := a.inbox.list.Select(pr.ID); err != nil {
+	if err := a.inbox.list.Select(inboxListID + "/" + pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")

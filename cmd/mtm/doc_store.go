@@ -80,7 +80,7 @@ func (d *domainDocs) Query(q ochazuke.DocQuery) (ochazuke.ListPage, error) {
 			out = append(out, t)
 		}
 	}
-	return d.a.r.QueryAll(d.noun, out, ochazuke.ListQuery{Filters: q.Filters, Sort: q.Sort, Archived: true, Page: q.Page, PerPage: q.PerPage}), nil
+	return d.a.r.QueryAll(d.noun, out, ochazuke.ListQuery{Filters: q.Filters, Sort: q.Sort, GroupBy: q.GroupBy, GroupSort: q.GroupSort, Archived: true, Page: q.Page, PerPage: q.PerPage}), nil
 }
 
 func (d *domainDocs) with(c ochazuke.Ctx) func() {

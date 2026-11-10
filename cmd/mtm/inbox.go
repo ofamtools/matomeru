@@ -12,7 +12,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
-	ocli "ofam.dev/ochazuke/cli"
 
 	"ofam.dev/matomeru/internal/actionitems"
 	"ofam.dev/matomeru/internal/work"
@@ -64,7 +63,7 @@ type inboxState struct {
 	wake        int64              // when a snooze ends (Unix ms) and the rows change without a write; 0: none
 	sig         string             // what the rows were last built from; a reload that finds it unchanged sets nothing
 	paneSig     string             // the pane names the rows were built with (inboxPaneSig)
-	all         []actionitems.Item // the items the rows were built from; the Panes page's top list reads them
+	all         []actionitems.Item // full domain cache for Panes, independent of the Items query window
 	notifySince int64
 	notifyBusy  bool
 	notices     map[string]inboxNotice
@@ -179,7 +178,11 @@ var inboxRelateParam = ochazuke.Parameter{Type: "string", Noun: actionItemNoun, 
 func (a *App) addInboxPage() error {
 	a.r.Instance(inboxPage, ochazuke.Kind("page"))
 	var err error
-	if a.inbox.list, err = a.r.AddList(inboxListID, nil, ochazuke.Parent(inboxPage), ochazuke.RowNoun(actionItemNoun), ochazuke.Columns(inboxColumns...)); err != nil {
+	if a.inbox.list, err = a.r.AddList(inboxListID, nil, ochazuke.Parent(inboxPage), ochazuke.From(actionItemNoun), ochazuke.Columns(inboxColumns...)); err != nil {
+		return err
+	}
+	a.inbox.list.SetShowArchived(true)
+	if err := a.syncInboxGrouping(); err != nil {
 		return err
 	}
 	if a.inbox.detail, err = a.addLinkedDetail(inboxDetailID, inboxPage, func() *ochazuke.Collection { return a.inbox.list }, a.inboxSubject); err != nil {
@@ -281,7 +284,6 @@ func (a *App) setInboxRows(items []actionitems.Item) error {
 		}
 	}
 	a.inbox.paneSig = a.inboxGroupSig(items)
-	rows := make([]ochazuke.ListItem, 0, len(items))
 	var c actionitems.Counts
 	for _, it := range items {
 		if it.State(now) == actionitems.StateOpen {
@@ -290,15 +292,15 @@ func (a *App) setInboxRows(items []actionitems.Item) error {
 				c.Unread++
 			}
 		}
-		row := a.inboxRow(it, now)
-		rows = append(rows, ochazuke.ListItem{ID: row.ID, Noun: actionItemNoun, Label: row.Label, Cells: row.Cells, Data: it})
 	}
-	rows = a.groupInboxRows(items, rows, now)
 	a.inbox.counts = c
 	a.inbox.all = items
 	a.syncInboxNotices()
 	a.refreshTitle()
-	if err := a.inbox.list.SetItems(rows); err != nil {
+	if err := a.syncInboxGrouping(); err != nil {
+		return err
+	}
+	if err := a.inbox.list.Refill(); err != nil {
 		return err
 	}
 	// The Panes page's top list is these items (panes_sections.go).
@@ -317,11 +319,6 @@ func inboxGlyph(it actionitems.Item, now int64) string {
 		return "·"
 	}
 	return "●"
-}
-
-func (a *App) inboxRow(it actionitems.Item, now int64) ocli.Row {
-	return ocli.Row{Noun: actionItemNoun, ID: it.ID, Label: it.Label(), Data: itemView(it, now), Cells: []string{
-		inboxGlyph(it, now) + " " + it.Label(), it.Why, it.Source, a.inboxOwner(it), a.inboxWhen(it, now)}}
 }
 
 // inboxOwner is what the item is for: its task, else its project, else its
@@ -376,7 +373,7 @@ func (a *App) renderInbox(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	return a.withLinkedDetail(a.inbox.detail, width, height, func(w, h int) ochazuke.Block {
 		s := a.pageStyles()
 		c := a.inbox.counts
-		head := fmt.Sprintf("inbox · %d unread · %d open · %d in all", c.Unread, c.Open, a.inbox.list.Len())
+		head := fmt.Sprintf("inbox · %d unread · %d open · %d in all", c.Unread, c.Open, len(a.inbox.all))
 		lines := []string{s.Muted.Render(ansi.Truncate(head, w, "…"))}
 		body := max(1, h-1)
 		if a.inbox.list.Len() == 0 {
@@ -394,7 +391,11 @@ func (a *App) inboxSubject() (string, string, []link) {
 	if !ok {
 		return "", "", nil
 	}
-	it, ok := item.Data.(actionitems.Item)
+	thing, ok := item.Data.(ochazuke.Thing)
+	if !ok {
+		return "", "", nil
+	}
+	it, ok := thing["_item"].(actionitems.Item)
 	if !ok {
 		return "", "", nil
 	}

@@ -101,3 +101,40 @@ func TestQueryOperatorsSearchAndFirstNonZeroField(t *testing.T) {
 		t.Fatal("a bad field name was accepted")
 	}
 }
+
+func TestQueryGroupsBeforeOffsetAndLimit(t *testing.T) {
+	t.Parallel()
+	db := queryFixture(t)
+	reads := db.FullReads("things")
+	q := Query{
+		Projections: []QueryProjection{{Field: "bucket", SQL: `CASE WHEN json_extract(source.row, '$.n') % 2 = 0 THEN ? ELSE ? END`, Args: []any{"even", "odd"}}},
+		GroupBy: []QuerySort{{Fields: []string{"bucket"}, Text: true}}, Sort: []QuerySort{{Fields: []string{"n"}, Desc: true}},
+		Limit: 3, Offset: 49,
+	}
+	page, err := db.Query("things", q)
+	if err != nil || page.Total != 100 || fmt.Sprint(ids(t, page)) != "[t001 t098 t096]" {
+		t.Fatalf("first-seen groups across a page boundary: %v total=%d, %v", ids(t, page), page.Total, err)
+	}
+	q.GroupSort = []QuerySort{{Fields: []string{"bucket"}, Text: true}}
+	page, err = db.Query("things", q)
+	if err != nil || page.Total != 100 || fmt.Sprint(ids(t, page)) != "[t000 t099 t097]" {
+		t.Fatalf("explicit group order across a page boundary: %v total=%d, %v", ids(t, page), page.Total, err)
+	}
+	q.Where = []QueryCond{{Fields: []string{"n"}, Op: OpGe, Value: 90}}
+	q.Search, q.SearchIn = "Item 9", [][]string{{"name"}}
+	q.Offset, q.Limit = 4, 3
+	page, err = db.Query("things", q)
+	if err != nil || page.Total != 10 || fmt.Sprint(ids(t, page)) != "[t090 t099 t097]" {
+		t.Fatalf("filtered groups before the cut: %v total=%d, %v", ids(t, page), page.Total, err)
+	}
+	q.Sort, q.GroupSort = nil, nil
+	q.OrderSQL = `CASE WHEN json_extract(row, '$.n') > ? THEN 0 ELSE 1 END, json_extract(row, '$.n') DESC`
+	q.OrderArgs = []any{95}
+	page, err = db.Query("things", q)
+	if err != nil || page.Total != 10 || fmt.Sprint(ids(t, page)) != "[t091 t098 t096]" {
+		t.Fatalf("bound default order and grouped filter arguments: %v total=%d, %v", ids(t, page), page.Total, err)
+	}
+	if db.FullReads("things") != reads {
+		t.Fatal("grouping performed a whole-table decode")
+	}
+}

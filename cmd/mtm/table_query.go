@@ -37,7 +37,7 @@ type tableColumn struct {
 // conditions, sort, text and page of a list request run in SQLite over the
 // JSON row (store.Query), so a count or a page of a 20,000 row table reads
 // that page only. A request it cannot push (a derived prop in a filter or
-// sort, groups, a list argument it has no condition for) is answered the
+// sort, a list argument it has no condition for) is answered the
 // way the store's List and the library's queryAll answer it, so every
 // request has one right answer and pushing is only ever faster. The
 // per-noun part is data: the columns, the searched props, the default
@@ -50,6 +50,8 @@ type tableQuery struct {
 	// prop, hidden unless the request asks for archived rows.
 	columns map[string]tableColumn
 	archive string
+	// projections supply SQL-derived row fields only when a query uses them.
+	projections map[string]func() []store.QueryProjection
 	// search are the props a text query matches.
 	search []string
 	// args turns the request's ListParams into conditions; Every skips
@@ -96,7 +98,7 @@ func (t *tableQuery) Query(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListP
 // can see.
 func (t *tableQuery) translate(q ochazuke.ListQuery) (store.Query, bool) {
 	var sq store.Query
-	if q.Grouped() || t.args == nil {
+	if t.args == nil {
 		return sq, false
 	}
 	conds, ok := t.args(q)
@@ -122,12 +124,8 @@ func (t *tableQuery) translate(q ochazuke.ListQuery) (store.Query, bool) {
 		}
 		sq.Where = append(sq.Where, cs)
 	}
-	for _, k := range q.Sort {
-		col, ok := t.columns[k.Field]
-		if !ok {
-			return sq, false
-		}
-		sq.Sort = append(sq.Sort, store.QuerySort{Fields: col.Fields, Desc: k.Desc, Text: col.Kind == columnText})
+	if !t.arrange(q, &sq) {
+		return sq, false
 	}
 	if strings.TrimSpace(q.Text) != "" {
 		if len(t.search) == 0 {
@@ -142,16 +140,73 @@ func (t *tableQuery) translate(q ochazuke.ListQuery) (store.Query, bool) {
 			sq.SearchIn = append(sq.SearchIn, col.Fields)
 		}
 	}
-	if len(sq.Sort) == 0 {
-		sq.OrderSQL = t.order
-		if t.orderArgs != nil {
-			sq.OrderArgs = t.orderArgs()
-		}
+	sq.OrderSQL = t.order
+	if t.orderArgs != nil {
+		sq.OrderArgs = t.orderArgs()
 	}
 	if q.PerPage > 0 {
 		sq.Limit, sq.Offset = q.PerPage, (max(q.Page, 1)-1)*q.PerPage
 	}
+	t.project(&sq)
 	return sq, true
+}
+
+func (t *tableQuery) arrange(q ochazuke.ListQuery, sq *store.Query) bool {
+	// Enum ordering belongs to the declared prop, not lexical SQL ordering.
+	for _, key := range q.GroupSort {
+		for _, p := range t.app.r.Noun(t.noun).Props {
+			if p.Name == key.Field && len(p.Enum) > 0 {
+				return false
+			}
+		}
+	}
+	for _, pair := range []struct {
+		from []ochazuke.SortKey
+		to   *[]store.QuerySort
+	}{{q.Sort, &sq.Sort}, {q.GroupSort, &sq.GroupSort}} {
+		for _, k := range pair.from {
+			col, ok := t.columns[k.Field]
+			if !ok {
+				return false
+			}
+			*pair.to = append(*pair.to, store.QuerySort{Fields: col.Fields, Desc: k.Desc, Text: col.Kind == columnText})
+		}
+	}
+	for _, field := range q.GroupBy {
+		col, ok := t.columns[field]
+		if !ok || col.Kind == columnStamp {
+			return false
+		}
+		sq.GroupBy = append(sq.GroupBy, store.QuerySort{Fields: col.Fields, Text: col.Kind == columnText})
+	}
+	return true
+}
+
+func (t *tableQuery) project(sq *store.Query) {
+	seen := map[string]bool{}
+	add := func(fields []string) {
+		for _, field := range fields {
+			root, _, _ := strings.Cut(field, ".")
+			if project := t.projections[root]; project != nil && !seen[root] {
+				sq.Projections = append(sq.Projections, project()...)
+				seen[root] = true
+			}
+		}
+	}
+	for _, c := range sq.Where {
+		add(c.Fields)
+	}
+	for _, sorts := range [][]store.QuerySort{sq.Sort, sq.GroupSort} {
+		for _, k := range sorts {
+			add(k.Fields)
+		}
+	}
+	for _, group := range sq.GroupBy {
+		add(group.Fields)
+	}
+	for _, fields := range sq.SearchIn {
+		add(fields)
+	}
 }
 
 // condition is the store condition for one prop filter.

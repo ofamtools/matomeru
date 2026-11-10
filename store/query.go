@@ -43,6 +43,14 @@ type QuerySort struct {
 	Text   bool
 }
 
+// QueryProjection adds a caller-owned SQL expression to the JSON row before
+// filtering and arranging it. Values remain bound arguments, never SQL text.
+type QueryProjection struct {
+	Field string
+	SQL   string
+	Args  []any
+}
+
 // Query is one read of a table that SQLite answers: the rows meeting every
 // condition (Where) and every word of Search in some field of SearchIn, in
 // Sort order (else OrderSQL, a fragment the caller wrote, never user text;
@@ -52,14 +60,19 @@ type QuerySort struct {
 // does not count it). A Query is a generic pushdown: it knows nothing of
 // any table's props; the caller maps its props to row fields.
 type Query struct {
-	Where     []QueryCond
-	Search    string
-	SearchIn  [][]string
-	Sort      []QuerySort
-	OrderSQL  string
-	OrderArgs []any
-	Limit     int
-	Offset    int
+	Where       []QueryCond
+	Search      string
+	SearchIn    [][]string
+	Sort        []QuerySort
+	OrderSQL    string
+	OrderArgs   []any
+	// Projections are derived fields; GroupBy gathers equal values in first-seen
+	// order after sorting, unless GroupSort explicitly orders the groups.
+	Projections []QueryProjection
+	GroupBy     []QuerySort
+	GroupSort   []QuerySort
+	Limit       int
+	Offset      int
 }
 
 // QueryResult is a Query's answer: the page's rows and Total, the number of
@@ -267,12 +280,70 @@ func (q Query) order() (string, []any, error) {
 		parts = append(parts, e)
 	}
 	var args []any
-	if len(parts) == 0 && q.OrderSQL != "" {
+	if q.OrderSQL != "" {
 		parts = append(parts, q.OrderSQL)
 		args = q.OrderArgs
 	}
 	parts = append(parts, "rowid")
 	return " ORDER BY " + strings.Join(parts, ", "), args, nil
+}
+
+// source projects derived fields once, before conditions and window functions.
+func (q Query) source(table string) (string, string, []any, error) {
+	if len(q.Projections) == 0 {
+		return "", quote(table), nil, nil
+	}
+	parts := []string{"source.row"}
+	var args []any
+	for _, p := range q.Projections {
+		if _, err := fieldExpr(p.Field); err != nil {
+			return "", "", nil, err
+		}
+		parts = append(parts, "?, "+p.SQL)
+		args = append(args, "$."+p.Field)
+		args = append(args, p.Args...)
+	}
+	prefix := "WITH projected AS (SELECT source.rowid, json_set(" + strings.Join(parts, ", ") + ") AS row FROM " + quote(table) + " AS source) "
+	return prefix, "projected", args, nil
+}
+
+// grouped gathers rows by the first sorted occurrence of each group, retaining
+// their order within it. The final LIMIT/OFFSET is applied only to this result.
+func (q Query) grouped(source, where, order string) (string, error) {
+	var by []string
+	for _, k := range q.GroupBy {
+		e, err := valueExpr(k.Fields)
+		if err != nil {
+			return "", err
+		}
+		if k.Text {
+			e = "CASE WHEN trim(COALESCE(CAST(" + e + " AS TEXT), '')) = '' THEN '' ELSE CAST(" + e + " AS TEXT) END"
+		} else {
+			e = "COALESCE(" + e + ", 0)"
+		}
+		by = append(by, e)
+	}
+	partition := strings.Join(by, ", ")
+	parts := make([]string, 0, len(q.GroupSort)+2)
+	for _, k := range q.GroupSort {
+		// FIRST_VALUE reads the group's first row, as the document adapter does.
+		value, err := valueExpr(k.Fields)
+		if err != nil {
+			return "", err
+		}
+		if k.Text {
+			value = "lower(COALESCE(CAST(" + value + " AS TEXT), ''))"
+		} else {
+			value = "COALESCE(" + value + ", 0)"
+		}
+		value = "FIRST_VALUE(" + value + ") OVER (PARTITION BY " + partition + " ORDER BY position)"
+		if k.Desc {
+			value += " DESC"
+		}
+		parts = append(parts, value)
+	}
+	parts = append(parts, "MIN(position) OVER (PARTITION BY "+partition+")", "position")
+	return "SELECT row FROM (WITH matched AS (SELECT row, rowid FROM " + source + where + ") SELECT row, ROW_NUMBER() OVER (" + order + ") AS position FROM matched) ORDER BY " + strings.Join(parts, ", "), nil
 }
 
 // Query runs q on a declared table (see Query). The count and the page are
@@ -287,7 +358,12 @@ func (s *Store) Query(table string, q Query) (QueryResult, error) {
 		return QueryResult{}, err
 	}
 	var res QueryResult
-	if err := s.db.QueryRow(`SELECT count(*) FROM `+quote(table)+where, wargs...).Scan(&res.Total); err != nil {
+	prefix, source, pargs, err := q.source(table)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	countArgs := append(append([]any{}, pargs...), wargs...)
+	if err := s.db.QueryRow(prefix+`SELECT count(*) FROM `+source+where, countArgs...).Scan(&res.Total); err != nil {
 		return QueryResult{}, err
 	}
 	if q.Limit < 0 || q.Offset < 0 || q.Limit == 0 && q.Offset > 0 {
@@ -297,8 +373,15 @@ func (s *Store) Query(table string, q Query) (QueryResult, error) {
 	if err != nil {
 		return QueryResult{}, err
 	}
-	sql := `SELECT row FROM ` + quote(table) + where + order
-	args := append(append([]any{}, wargs...), oargs...)
+	sql := `SELECT row FROM ` + source + where + order
+	if len(q.GroupBy) > 0 {
+		sql, err = q.grouped(source, where, order)
+		if err != nil {
+			return QueryResult{}, err
+		}
+	}
+	sql = prefix + sql
+	args := append(countArgs, oargs...)
 	if q.Limit > 0 {
 		sql += ` LIMIT ? OFFSET ?`
 		args = append(args, q.Limit, q.Offset)

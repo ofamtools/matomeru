@@ -42,11 +42,6 @@
       "ask the live pane",
       "ask the gone pane",
       "standup notes"
-    ],
-    "lacks": [
-      "acme-web/claude (1)",
-      "unassociated (1)",
-      "closed pane review box (1)"
     ]
   }
 }

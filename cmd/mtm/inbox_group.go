@@ -2,9 +2,7 @@ package main
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
-	"strings"
 
 	"ofam.dev/ochazuke"
 
@@ -41,17 +39,24 @@ type itemGroup struct {
 
 // inboxGrouping is one value of inbox.group; of is nil for none.
 type inboxGrouping struct {
-	name string
-	of   func(a *App, it actionitems.Item, now int64) itemGroup
+	name               string
+	of                 func(a *App, it actionitems.Item, now int64) itemGroup
+	labelSQL, classSQL string
 }
 
 var inboxGroupTable = []inboxGrouping{
-	{name: groupOwner, of: (*App).groupByOwner},
-	{name: "pane", of: (*App).groupByPane},
-	{name: "project", of: (*App).groupByProject},
-	{name: "source", of: (*App).groupBySource},
-	{name: "state", of: (*App).groupByState},
-	{name: groupNone},
+	{name: groupOwner, of: (*App).groupByOwner,
+		labelSQL: `CASE WHEN window != '' AND (pane != '' OR NOT known) THEN pane_name WHEN task_id != '' THEN task WHEN project_id != '' THEN project WHEN window != '' THEN pane_name ELSE 'unassociated' END`,
+		classSQL: `CASE WHEN window != '' AND (pane != '' OR NOT known) THEN 0 WHEN task_id != '' THEN 1 WHEN project_id != '' THEN 2 WHEN window != '' THEN 3 ELSE 4 END`},
+	{name: "pane", of: (*App).groupByPane,
+		labelSQL: `CASE WHEN window = '' THEN 'no pane' ELSE pane_name END`,
+		classSQL: `CASE WHEN window = '' THEN 2 WHEN pane != '' OR NOT known THEN 0 ELSE 1 END`},
+	{name: "project", of: (*App).groupByProject,
+		labelSQL: `CASE WHEN effective_project = '' THEN 'no project' ELSE project_name END`,
+		classSQL: `CASE WHEN effective_project = '' THEN 1 ELSE 0 END`},
+	{name: "source", of: (*App).groupBySource, labelSQL: `COALESCE(NULLIF(json_extract(item, '$.service'), ''), 'manual')`, classSQL: `0`},
+	{name: "state", of: (*App).groupByState, labelSQL: `state`, classSQL: `CASE state WHEN 'open' THEN 0 WHEN 'snoozed' THEN 1 ELSE 2 END`},
+	{name: groupNone, labelSQL: `''`, classSQL: `0`},
 }
 
 func inboxGroupNames() []string {
@@ -142,50 +147,29 @@ func (a *App) inboxGrouping() inboxGrouping {
 	return inboxGroupTable[0]
 }
 
-// groupInboxRows preserves the curated Items view until windowed From lists
-// support grouping; the independent noun index already uses the scaffold.
-func (a *App) groupInboxRows(items []actionitems.Item, rows []ochazuke.ListItem, now int64) []ochazuke.ListItem {
-	g := a.inboxGrouping()
-	if g.of == nil || len(items) != len(rows) {
-		return rows
+// syncInboxGrouping declares the curated view; arranging and folding belong to
+// the collection, and its source query groups before selecting a bounded page.
+func (a *App) syncInboxGrouping() error {
+	var by []string
+	var sort []ochazuke.SortKey
+	if a.inboxGrouping().of != nil {
+		by = []string{inboxGroupProp}
+		sort = []ochazuke.SortKey{{Field: inboxGroupClassProp}}
 	}
-	groups := make([]itemGroup, len(items))
-	first := map[string]int{}
-	class := map[string]int{}
-	count := map[string]int{}
-	for i, it := range items {
-		groups[i] = g.of(a, it, now)
-		label := groups[i].label
-		if _, ok := first[label]; !ok {
-			first[label], class[label] = i, groups[i].class
+	view := a.inbox.list.ListView()
+	if !slices.Equal(view.Sort, sort) {
+		if err := a.inbox.list.SetSort(sort); err != nil {
+			return err
 		}
-		count[label]++
 	}
-	order := make([]int, len(items))
-	for i := range order {
-		order[i] = i
+	if !slices.Equal(view.GroupBy, by) || len(view.GroupSort) > 0 {
+		return a.inbox.list.SetGroupBy(by, nil)
 	}
-	slices.SortStableFunc(order, func(x, y int) int {
-		lx, ly := groups[x].label, groups[y].label
-		if lx == ly {
-			return 0
-		}
-		return cmp.Or(cmp.Compare(class[lx], class[ly]), cmp.Compare(first[lx], first[ly]))
-	})
-	out := make([]ochazuke.ListItem, 0, len(rows))
-	for _, i := range order {
-		row := rows[i]
-		row.Section = fmt.Sprintf("%s (%d)", groups[i].label, count[groups[i].label])
-		out = append(out, row)
-	}
-	return out
+	return nil
 }
 
-// inboxGroupSig is what the grouped rows depend on beyond the items: the
-// grouping and the pane names. A change rebuilds them.
+// inboxGroupSig also invalidates the source's derived group labels when the
+// grouping or a listed pane's name changes.
 func (a *App) inboxGroupSig(items []actionitems.Item) string {
-	var b strings.Builder
-	b.WriteString(a.inboxGrouping().name + ";")
-	b.WriteString(a.inboxPaneSig(items))
-	return b.String()
+	return a.inboxGrouping().name + ";" + a.inboxPaneSig(items)
 }

@@ -17,7 +17,7 @@ func inboxSections(a *App) (headers []string, rows map[string][]string) {
 		if len(headers) == 0 || headers[len(headers)-1] != it.Section {
 			headers = append(headers, it.Section)
 		}
-		rows[it.Section] = append(rows[it.Section], it.ID)
+		rows[it.Section] = append(rows[it.Section], savedRowKey(a.r.Instances[it.ID]))
 	}
 	return headers, rows
 }
@@ -51,15 +51,15 @@ func TestInboxGroupOwner(t *testing.T) {
 	t.Parallel()
 	a, items := groupApp(t)
 	headers, rows := inboxSections(a)
-	want := []string{"s/idler (2)", "s/waiter (1)", "s/errs (1)", "s/finisher (1)", "matomeru › ship it (2)", "matomeru (1)", "closed pane old box (1)", "unassociated (2)"}
+	want := []string{"s/idler", "s/waiter", "s/errs", "s/finisher", "matomeru › ship it", "matomeru", "closed pane old box", "unassociated"}
 	if !slices.Equal(headers, want) {
 		t.Fatalf("headers %q, want %q", headers, want)
 	}
-	if !slices.Contains(rows["s/idler (2)"], items["live2"].ID) {
+	if !slices.Contains(rows["s/idler"], items["live2"].ID) {
 		t.Fatalf("a listed pane wins over the project: %v", rows)
 	}
 	// The closed pane falls through to its task when it has one.
-	if !slices.Contains(rows["matomeru › ship it (2)"], items["closed-task"].ID) {
+	if !slices.Contains(rows["matomeru › ship it"], items["closed-task"].ID) {
 		t.Fatalf("a closed pane with a task is grouped by the task: %v", rows)
 	}
 }
@@ -71,10 +71,10 @@ func TestInboxGroupPaneProjectSourceStateNone(t *testing.T) {
 		mode string
 		want []string
 	}{
-		{"pane", []string{"s/idler (2)", "s/waiter (1)", "s/errs (1)", "s/finisher (1)", "closed pane wgone (1)", "closed pane old box (1)", "no pane (4)"}},
-		{"project", []string{"matomeru (4)", "no project (7)"}},
-		{"source", []string{"gh (7)", "slack (1)", "mtm (3)"}},
-		{"state", []string{"open (11)"}},
+		{"pane", []string{"s/idler", "s/waiter", "s/errs", "s/finisher", "closed pane wgone", "closed pane old box", "no pane"}},
+		{"project", []string{"matomeru", "no project"}},
+		{"source", []string{"gh", "slack", "mtm"}},
+		{"state", []string{"open"}},
 	}
 	for _, c := range cases {
 		setting(t, a, settingInboxGroup, c.mode)
@@ -95,7 +95,7 @@ func TestInboxGroupPaneProjectSourceStateNone(t *testing.T) {
 		if it.Section != "" {
 			t.Fatalf("a header with inbox.group none: %q", it.Section)
 		}
-		flat = append(flat, it.ID)
+		flat = append(flat, savedRowKey(a.r.Instances[it.ID]))
 	}
 	var stored []string
 	for _, it := range a.inbox.all {
@@ -115,7 +115,7 @@ func TestInboxGroupFollowsSettingAndPaneNames(t *testing.T) {
 	if err := a.reloadInbox(); err != nil {
 		t.Fatal(err)
 	}
-	if headers, _ := inboxSections(a); !slices.Contains(headers, "slack (1)") {
+	if headers, _ := inboxSections(a); !slices.Contains(headers, "slack") {
 		t.Fatalf("a reload kept the old grouping: %q", headers)
 	}
 	setting(t, a, settingInboxGroup, groupOwner)
