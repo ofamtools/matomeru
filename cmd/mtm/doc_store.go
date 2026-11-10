@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"reflect"
 
@@ -93,21 +94,31 @@ func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 	d := &domainDocs{a: a, noun: noun, source: source}
 	doc := ochazuke.DocStore(d, noun)
 	out := source
-	out.Get = func(c ochazuke.Ctx, key string) (ochazuke.Thing, error) { defer d.with(c)(); return doc.Get(c, key) }
-	out.List = func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
-		c.Args = q.Args
+	if source.ChangeToken != nil {
+		out.ChangeToken = func(c ochazuke.Ctx) (string, error) {
+			token, err := source.ChangeToken(c)
+			return fmt.Sprintf("%s/%s/%t/%t", token, a.pin, a.all, a.r.Settings().Bool(settingHideArchived)), err
+		}
+	}
+	out.Get = func(c ochazuke.Ctx, key string) (ochazuke.Thing, error) {
+		c.Runtime = a.r
 		defer d.with(c)()
-		return doc.List(c, q)
+		return doc.Get(c, key)
 	}
 	out.Query = func(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListPage, error) {
+		c.Runtime = a.r
 		c.Args = q.Args
+		if source.Query != nil {
+			return source.Query(c, q)
+		}
 		defer d.with(c)()
 		return doc.Query(c, q)
 	}
 	out.Patch = func(c ochazuke.Ctx, key string, t ochazuke.Thing) (ochazuke.Thing, error) {
+		c.Runtime = a.r
 		defer d.with(c)()
 		return doc.Patch(c, key, t)
 	}
-	out.Delete = func(c ochazuke.Ctx, key string) error { defer d.with(c)(); return doc.Delete(c, key) }
+	out.Delete = func(c ochazuke.Ctx, key string) error { c.Runtime = a.r; defer d.with(c)(); return doc.Delete(c, key) }
 	return out
 }
