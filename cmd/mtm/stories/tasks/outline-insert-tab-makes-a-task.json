@@ -34,6 +34,7 @@
     },
     {
       "mode": "normal",
+      "focus": "outline:project:billing-api",
       "order": ["acme-web", "Dark mode for the order history", "billing-api", "Retry failed webhooks", "docs-site"],
       "lacks": ["billing-api!"]
     }
