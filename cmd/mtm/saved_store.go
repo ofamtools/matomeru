@@ -51,7 +51,7 @@ func (a *App) savedProps() []ochazuke.PropSpec {
 				return "daemon shell"
 			}},
 		{Name: "env", CreateOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropObject, Description: "Environment variables reopen sets, an object of name to value"}},
-		{Name: "cwd", CreateOnly: true, Parameter: text("The directory reopen starts in"),
+		{Name: "cwd", CreateOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropPath, Path: "dir", Description: "The directory reopen starts in"},
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
 				home, _ := a.home()
 				cwd, _ := t["cwd"].(string)

@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -85,8 +83,9 @@ type systemActions interface {
 	Reveal(ctx context.Context, path string) error
 }
 
-// osSystem runs pbcopy, open and open -R (xdg-open on Linux).
-type osSystem struct{}
+// osSystem runs pbcopy; opening and revealing go through the runtime's
+// opener (ochazuke.Opener), which tests and stories replace with a fake.
+type osSystem struct{ rt *ochazuke.Runtime }
 
 func (osSystem) Copy(ctx context.Context, text string) (bool, error) {
 	pbcopy, err := exec.LookPath("pbcopy")
@@ -101,27 +100,9 @@ func (osSystem) Copy(ctx context.Context, text string) (bool, error) {
 	return false, nil
 }
 
-func (osSystem) Open(ctx context.Context, target string) error {
-	if runtime.GOOS == "darwin" {
-		return runOpener(ctx, "open", "--", target)
-	}
-	return runOpener(ctx, "xdg-open", target)
-}
+func (s osSystem) Open(_ context.Context, target string) error { return s.rt.Opener().Open(target) }
 
-func (osSystem) Reveal(ctx context.Context, path string) error {
-	if runtime.GOOS == "darwin" {
-		return runOpener(ctx, "open", "-R", "--", path)
-	}
-	return runOpener(ctx, "xdg-open", filepath.Dir(path))
-}
-
-func runOpener(ctx context.Context, name string, args ...string) error {
-	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
+func (s osSystem) Reveal(_ context.Context, path string) error { return s.rt.Opener().Reveal(path) }
 
 // osc52 is the terminal's clipboard sequence for text.
 func osc52(text string) string {
@@ -129,7 +110,7 @@ func osc52(text string) string {
 }
 
 func (a *App) defineContext() {
-	a.cx = &contextState{sys: osSystem{}, follow: newContextFollower()}
+	a.cx = &contextState{sys: osSystem{a.r}, follow: newContextFollower()}
 	// Props and the store first: the standard verbs (get, list, create,
 	// set, delete, watch, move, duplicate) come from them
 	// (context_store.go); forget is delete's lasting alias, star and

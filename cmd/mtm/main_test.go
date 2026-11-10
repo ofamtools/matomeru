@@ -154,6 +154,8 @@ func openWith(t *testing.T, opts Options) *App {
 	app.home = func() (string, error) { return "/home/test", nil }
 	// Launches in tests carry no per-launch hook settings (agent_hooks_test.go covers them).
 	app.executable = func() (string, error) { return "", errors.New("a test binary is not mtm") }
+	// No test launches an application: the runtime's opener records instead.
+	app.r.SetOpener(ochazuke.Opener{GOOS: "darwin", Start: func(string, ...string) error { return nil }})
 	// No test reaches the real daemon.
 	app.panesd = newFakePanes()
 	app.renamer = &fakeRenamer{panes: app.panesd.(*fakePanes)} // never the real daemon

@@ -7,6 +7,7 @@ about-page	noun	seed
 about-row	noun	seed	
 about-state	noun	seed	
 accept	action	seed	
+act	action	yes	act on the focused thing (ochazuke focus.act)
 action	noun	seed	
 action-item	noun	seed	
 actions	noun	seed	plural
@@ -522,8 +523,11 @@ open-json	action	seed
 open-notes	action	seed	
 open-result-json	action	seed	
 open-transcript	action	seed	
+open-with	action	yes	open a path with a named application
 open_notes	prop	seed	
 open_tasks	prop	seed	
+opener	noun	yes	the opener table and OS opener
+opener-state	noun	yes	the runtime's opener component
 opensPage	prop	seed	
 operation	noun	lx4	
 operations	noun	seed	plural

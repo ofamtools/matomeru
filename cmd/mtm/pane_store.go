@@ -85,7 +85,7 @@ func paneCopiedProps() []copiedProp {
 		{PropSpec: ochazuke.PropSpec{Name: "task", Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane works on; its project wins over project"}}},
 		{PropSpec: ochazuke.PropSpec{Name: "starred", Through: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the pane is starred (` and the leader's s go to the next starred pane)"}}},
 		{PropSpec: ro("title", "The shell's title for the window")},
-		{PropSpec: ro("cwd", "The pane's working directory"), Copy: copySeen},
+		{PropSpec: asDir(ro("cwd", "The pane's working directory")), Copy: copySeen},
 		{PropSpec: ro("state", "The agent's state in tuios (working, idle, needs_input…), empty for a shell")},
 		{PropSpec: ro("harness", "The agent's harness, as tuios reports it or mtm launched it"), Copy: copySeen},
 		{PropSpec: ochazuke.PropSpec{Name: "exited", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the window's process has ended"}}},

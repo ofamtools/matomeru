@@ -40,7 +40,7 @@ func projectProps() []ochazuke.PropSpec {
 		{Name: "harness", Parameter: ochazuke.Parameter{Type: "string", Source: "harness.names", Free: true,
 			Description: "The harness launches into this project use (empty: the default); one not registered is saved with a notice"}},
 		{Name: "preset", Parameter: text("The launch preset")},
-		{Name: "dir", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "string",
+		{Name: "dir", CreateOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropPath, Path: "dir",
 			Description: "The default directory: create attaches it (a missing path is attached and flagged); project default and project directory change it after"}},
 		{Name: "repo", ReadOnly: true, Parameter: text("The repository of the project's first checkout")},
 		{Name: "origin", ReadOnly: true, Parameter: text("The tool that created or adopted the project (empty: mtm)")},

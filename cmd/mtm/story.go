@@ -493,6 +493,8 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 	a.pb.sources = compose.NewSources(compose.Env{Home: home, ClaudeDir: filepath.Join(home, ".claude"), OmpDir: filepath.Join(home, ".omp", "agent")})
 	a.pb.clip = storyClipboard{}
 	a.cx.sys, a.inbox.sys = storySystem{}, storySystem{}
+	// The free path verbs reach the OS through the runtime's opener: take them too.
+	a.r.SetOpener(ochazuke.Opener{Start: func(string, ...string) error { return nil }})
 	a.sleep = func(context.Context, time.Duration) error { return nil }
 	// The clock is the session's (storyClock), so times shown read the
 	// same every run.

@@ -86,7 +86,7 @@ var inboxOwnerParams = map[string]ochazuke.Parameter{
 }
 
 func (a *App) defineInbox() {
-	a.inbox.sys = osSystem{}
+	a.inbox.sys = osSystem{a.r}
 	a.inbox.after = func(d time.Duration, msg tea.Msg) tea.Cmd {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 	}
