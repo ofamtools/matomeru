@@ -28,11 +28,9 @@ var openAllowed = map[string]struct {
 }
 
 // rowLiteralAllowed are the non-test files that may build a PickerRow by
-// hand.
-var rowLiteralAllowed = map[string]string{
-	"directories.go":  "known and base directory rows: paths, to move onto the path chooser's declared sources (lane PU4)",
-	"path_sources.go": "the path chooser's project-directory rows (owner exception; lane PU4)",
-}
+// hand: none. Every row comes from an ochazuke.Choice (Choice.Row, ChoiceRows),
+// the directory choosers' sources included (path_sources.go declares them).
+var rowLiteralAllowed = map[string]string{}
 
 func mtmSourceFiles(t *testing.T) map[string]*ast.File {
 	t.Helper()

@@ -2,7 +2,7 @@
   "name": "mtm: pinning a project without a directory immediately walks every folder under the configured bases, including non-repositories",
   "area": "directories",
   "fixture": "project-bases",
-  "width": 140,
+  "width": 240,
   "height": 32,
   "files": ["repo/.git/HEAD", "repo/cmd/", "plain/deep/"],
   "script": [
