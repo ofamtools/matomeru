@@ -20,11 +20,17 @@ var fieldName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-
 // prefixed with the table's); a field is a JSON path without the "$."
 // ("from", "data.kind").
 func (s *Store) Index(table, name string, fields ...string) error {
-	if err := s.declared(table); err != nil {
-		return err
-	}
 	if !tableName.MatchString(name) {
 		return fmt.Errorf("store: invalid index name %q", name)
+	}
+	// An index that exists needs no write transaction (every start asks).
+	var have string
+	full := "idx_" + table + "_" + name
+	if s.db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?`, full).Scan(&have) == nil {
+		return nil
+	}
+	if err := s.declared(table); err != nil {
+		return err
 	}
 	if len(fields) == 0 {
 		return fmt.Errorf("store: index %s.%s needs a field", table, name)
@@ -103,6 +109,20 @@ func (s *Store) Match(table string, matches ...JSONMatch) ([]json.RawMessage, er
 		return nil, err
 	}
 	return readRows(s.db.Query(`SELECT row FROM `+quote(table)+where+` ORDER BY rowid`, args...))
+}
+
+// MatchOrdered is Match without the insertion-order sort: the rows come in
+// the order the database finds them (an Index over the leading fields
+// returns them by that index), for a caller that sorts by its own key.
+func (s *Store) MatchOrdered(table string, matches ...JSONMatch) ([]json.RawMessage, error) {
+	if err := s.declared(table); err != nil {
+		return nil, err
+	}
+	where, args, err := matchWhere(matches)
+	if err != nil {
+		return nil, err
+	}
+	return readRows(s.db.Query(`SELECT row FROM `+quote(table)+where, args...))
 }
 
 // Match is Store.Match inside a transaction.
@@ -195,3 +215,13 @@ func (s *Store) Backup(dest string) error {
 
 // Path is the file the store was opened on (":memory:" for none).
 func (s *Store) Path() string { return s.path }
+
+// DataVersion is SQLite's data version of the file: it changes when another
+// connection (another process) commits, not for this store's own commits. A
+// reader that caches rows validates the cache with it, and with its own
+// write counter for what this process writes.
+func (s *Store) DataVersion() (int64, error) {
+	var v int64
+	err := s.db.QueryRow(`PRAGMA data_version`).Scan(&v)
+	return v, err
+}

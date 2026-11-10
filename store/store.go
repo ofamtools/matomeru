@@ -193,6 +193,12 @@ func (s *Store) Declare(table Table) error {
 	if table.Owner == "" || table.Key == "" || table.Version < 1 {
 		return errors.New("store: table owner, key, and positive version are required")
 	}
+	// An identical declaration that is already persisted needs no write
+	// transaction: every start declares every table, and a read takes no
+	// write lock.
+	if existing, err := readTable(s.db.QueryRow(`SELECT name, owner, key, version, append_only FROM __deck_tables WHERE name = ?`, table.Name)); err == nil && existing == table {
+		return nil
+	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err

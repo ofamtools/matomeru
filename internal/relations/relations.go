@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"ofam.dev/matomeru/store"
@@ -86,7 +87,10 @@ func Declare(db *store.Store) error {
 }
 
 // Store is the relation table as an ochazuke.RelationStore.
-type Store struct{ db *store.Store }
+type Store struct {
+	db  *store.Store
+	gen atomic.Uint64
+}
 
 var _ ochazuke.RelationStore = (*Store)(nil)
 
@@ -97,6 +101,14 @@ func Open(db *store.Store) (*Store, error) {
 	}
 	return &Store{db: db}, nil
 }
+
+// Gen counts the writes this store made (and Bump noted): a reader that
+// caches relations is stale when it changes.
+func (s *Store) Gen() uint64 { return s.gen.Load() }
+
+// Bump notes a write made to the table by other means (a conversion's
+// transaction).
+func (s *Store) Bump() { s.gen.Add(1) }
 
 // Relations answers the relations that meet q, by position (ties in the
 // order they were stored). Kind, From and To are matched in the database;
@@ -186,6 +198,7 @@ func (s *Store) ByKey(key string) (Row, error) {
 // Put inserts the relation or replaces the row with its identity (the
 // created time is kept).
 func (s *Store) Put(x ochazuke.Relation) error {
+	s.Bump()
 	return s.db.Tx([]string{Table}, func(tx *store.Tx) error { return PutTx(tx, x, time.Now().UnixMilli()) })
 }
 
@@ -206,5 +219,6 @@ func PutTx(tx *store.Tx, x ochazuke.Relation, now int64) error {
 
 // Remove deletes the row with the relation's identity.
 func (s *Store) Remove(x ochazuke.Relation) error {
+	s.Bump()
 	return s.db.Tx([]string{Table}, func(tx *store.Tx) error { return tx.Delete(Table, x.ID()) })
 }

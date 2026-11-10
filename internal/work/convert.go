@@ -190,6 +190,7 @@ func (s *Store) convertTables() []string {
 }
 
 func (s *Store) convert(fn func(c *convertTx, declared map[string]bool) error) ([]RowChange, error) {
+	s.rels.Bump() // a conversion moves directory relations
 	tables := s.convertTables()
 	declared := map[string]bool{}
 	for _, t := range tables {
@@ -876,6 +877,7 @@ func (s *Store) Undo(c Conversion) error { return s.replay(c.Rows, true) }
 func (s *Store) Redo(c Conversion) error { return s.replay(c.Rows, false) }
 
 func (s *Store) replay(rows []RowChange, back bool) error {
+	s.rels.Bump() // an undo or redo may put relation rows back
 	var tables []string
 	for _, r := range rows {
 		if !slices.Contains(tables, r.Table) {

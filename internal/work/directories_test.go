@@ -238,3 +238,65 @@ func TestFreshFileNeedsNoMigration(t *testing.T) {
 	}
 	_ = w
 }
+
+// The directory rows startup reads again and again are kept until this
+// process writes a relation (or undoes a conversion) or another process
+// commits to the file.
+func TestProjectTreesCacheFollowsOwnAndOtherWrites(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "mtm.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := w.AddProject("A")
+	read := func(w *Store) []string {
+		t.Helper()
+		ps, err := w.Projects()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range ps {
+			if p.ID == a.ID {
+				return paths(p)
+			}
+		}
+		return nil
+	}
+	if got := read(w); len(got) != 0 {
+		t.Fatalf("empty: %v", got)
+	}
+	if err := w.PutDirectory(a.ID, Tree{Path: "/one"}, true, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(w); !slices.Equal(got, []string{"/one"}) {
+		t.Fatalf("after an own write: %v", got)
+	}
+	if err := w.Relations().Put(ochazuke.Relation{Kind: DirectoryKind, From: ProjectRef(a.ID), To: DirectoryRef("/two"), Position: 5000}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(w); !slices.Equal(got, []string{"/one", "/two"}) {
+		t.Fatalf("after a relation store write: %v", got)
+	}
+	// Another process: a second handle on the same file.
+	other, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	ow, err := Open(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ow.PutDirectory(a.ID, Tree{Path: "/three"}, false, 9000); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(w); !slices.Equal(got, []string{"/one", "/two", "/three"}) {
+		t.Fatalf("after another process wrote: %v", got)
+	}
+}

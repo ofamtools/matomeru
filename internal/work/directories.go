@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"path/filepath"
 	"strings"
 	"time"
@@ -58,56 +57,92 @@ func DirectoryData(t Tree) map[string]any {
 	return data
 }
 
-// treeOf reads a directory relation as a tree.
-func treeOf(x ochazuke.Relation) Tree {
-	_, path, _ := ochazuke.SplitAnyRef(x.To)
-	str := func(key string) string { s, _ := x.Data[key].(string); return s }
-	kind := str("kind")
-	if kind == "" {
-		kind = "directory" // a relation made by set directories+= has not been inspected
-	}
-	t := Tree{Kind: kind, Path: path, Repo: str("repo"), Branch: str("branch"), Text: x.Text}
-	t.Data = maps.Clone(x.Data)
-	return t
-}
-
-// setTrees sets the project's directories from its live directory
-// relations (position order).
-func (p *Project) setTrees(xs []ochazuke.Relation) {
+// setTrees sets the project's directories from its live directory rows
+// (position order).
+func (p *Project) setTrees(xs []dirRow) {
 	p.Trees, p.DefaultTree = nil, ""
 	for _, x := range xs {
-		t := treeOf(x)
-		p.Trees = append(p.Trees, t)
-		if x.Flag(DefaultFlag) && p.DefaultTree == "" {
-			p.DefaultTree = t.Path
+		_, path, _ := ochazuke.SplitAnyRef(x.To)
+		kind := x.Data.Kind
+		if kind == "" {
+			kind = "directory" // a relation made by set directories+= has not been inspected
+		}
+		p.Trees = append(p.Trees, Tree{Kind: kind, Path: path, Repo: x.Data.Repo, Branch: x.Data.Branch, Text: x.Text})
+		if x.Data.Default && p.DefaultTree == "" {
+			p.DefaultTree = path
 		}
 	}
 }
+
+// dirRow is the part of a relation row a project's directories read: a
+// fixed shape, so decoding the many rows of startup allocates no map.
+type dirRow struct {
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Text       string `json:"text"`
+	Position   int    `json:"position"`
+	Archived   bool   `json:"archived"`
+	FormerFrom string `json:"former_from"`
+	FormerTo   string `json:"former_to"`
+	Data       struct {
+		Kind    string `json:"kind"`
+		Repo    string `json:"repo"`
+		Branch  string `json:"branch"`
+		Default bool   `json:"default"`
+	} `json:"data"`
+}
+
+// live reports whether the row is a project's live directory.
+func (r dirRow) live() bool { return !r.Archived && r.FormerFrom == "" && r.FormerTo == "" }
 
 // projectTrees reads every project's live directory relations in one
 // indexed query (the relations table's from index), by project id.
-func (s *Store) projectTrees() (map[string][]ochazuke.Relation, error) {
-	raws, err := s.db.Match(relations.Table, store.JSONMatch{Field: "from", Value: "project:", Prefix: true}, store.JSONMatch{Field: "kind", Value: DirectoryKind})
+func (s *Store) projectTrees() (map[string][]dirRow, error) {
+	// Startup reads the projects several times: the rows are kept until
+	// this process writes a relation or another one commits to the file.
+	ver, verr := s.db.DataVersion()
+	gen := s.rels.Gen()
+	s.treesMu.Lock()
+	defer s.treesMu.Unlock()
+	if c := s.trees; verr == nil && c.rows != nil && c.ver == ver && c.gen == gen {
+		return c.rows, nil
+	}
+	out, err := s.readProjectTrees()
+	if err == nil && verr == nil {
+		s.trees = treeCache{rows: out, ver: ver, gen: gen}
+	}
+	return out, err
+}
+
+// treeCache is the directory rows of every project as last read, and the
+// file's data version and relation write count it was read at.
+type treeCache struct {
+	rows map[string][]dirRow
+	ver  int64
+	gen  uint64
+}
+
+func (s *Store) readProjectTrees() (map[string][]dirRow, error) {
+	raws, err := s.db.MatchOrdered(relations.Table, store.JSONMatch{Field: "from", Value: "project:", Prefix: true}, store.JSONMatch{Field: "kind", Value: DirectoryKind})
 	if err != nil {
 		return nil, err
 	}
-	out := map[string][]ochazuke.Relation{}
+	out := map[string][]dirRow{}
 	for _, raw := range raws {
-		var r relations.Row
-		if json.Unmarshal(raw, &r) != nil || r.Archived || r.FormerFrom != "" || r.FormerTo != "" {
+		var r dirRow
+		if json.Unmarshal(raw, &r) != nil || !r.live() {
 			continue
 		}
 		_, id, _ := ochazuke.SplitAnyRef(r.From)
-		out[id] = append(out[id], r.Relation())
+		out[id] = append(out[id], r)
 	}
-	for id, xs := range out {
-		sortByPosition(xs)
-		out[id] = xs
+	for _, xs := range out {
+		sortRows(xs)
 	}
 	return out, nil
 }
 
-func sortByPosition(xs []ochazuke.Relation) {
+func sortRows(xs []dirRow) {
 	// insertion sort: stable, and the lists are a handful of rows
 	for i := 1; i < len(xs); i++ {
 		for j := i; j > 0 && xs[j].Position < xs[j-1].Position; j-- {
@@ -122,18 +157,18 @@ func (s *Store) Project(id string) (Project, error) {
 	if err := s.db.Get("projects", id, &p); err != nil {
 		return p, err
 	}
-	raws, err := s.db.Match(relations.Table, store.JSONMatch{Field: "from", Value: ProjectRef(id)}, store.JSONMatch{Field: "kind", Value: DirectoryKind})
+	raws, err := s.db.MatchOrdered(relations.Table, store.JSONMatch{Field: "from", Value: ProjectRef(id)}, store.JSONMatch{Field: "kind", Value: DirectoryKind})
 	if err != nil {
 		return p, err
 	}
-	var xs []ochazuke.Relation
+	var xs []dirRow
 	for _, raw := range raws {
-		var r relations.Row
-		if json.Unmarshal(raw, &r) == nil && !r.Archived && r.FormerFrom == "" && r.FormerTo == "" {
-			xs = append(xs, r.Relation())
+		var r dirRow
+		if json.Unmarshal(raw, &r) == nil && r.live() {
+			xs = append(xs, r)
 		}
 	}
-	sortByPosition(xs)
+	sortRows(xs)
 	p.setTrees(xs)
 	return p, nil
 }
@@ -216,6 +251,7 @@ var ErrNotAttached = errors.New("directory is not attached to this project")
 // verbs use ochazuke's Relate (cmd/mtm/project_directories.go). position 0
 // puts it after the project's last.
 func (s *Store) PutDirectory(projectID string, t Tree, isDefault bool, position int) error {
+	s.rels.Bump()
 	return s.db.Tx([]string{relations.Table}, func(tx *store.Tx) error {
 		if position == 0 {
 			raws, err := tx.Match(relations.Table, store.JSONMatch{Field: "from", Value: ProjectRef(projectID)}, store.JSONMatch{Field: "kind", Value: DirectoryKind})

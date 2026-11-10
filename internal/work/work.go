@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"ofam.dev/matomeru/internal/daemon"
@@ -57,9 +58,9 @@ type Tree struct {
 	Repo   string `json:"repo,omitempty"`
 	Branch string `json:"branch,omitempty"`
 	Text   string `json:"text,omitempty"`
-	// Data is the relation's whole data object as stored (kind, repo and
-	// branch, the default flag, anything the owner set); Kind, Repo and
-	// Branch above read from it.
+	// Data is extra data to store on the directory's relation when the
+	// tree is attached (the verbs' data argument); it is not read back
+	// into a loaded project (relation get answers the whole object).
 	Data map[string]any `json:"data,omitempty"`
 }
 
@@ -140,10 +141,14 @@ func serverIDRewrite(field string) store.Rewrite {
 
 // Store is the work unit's view of the database.
 type Store struct {
-	db     *store.Store
-	rels   *relations.Store   // the relations table (directories.go)
-	actor  Actor              // who writes run as (actor.go); zero is the owner
-	policy func() AgentPolicy // what an agent may change; nil is the default
+	db   *store.Store
+	rels *relations.Store // the relations table (directories.go)
+	// trees are the projects' directory rows as last read, kept while the
+	// file and this process's relation writes are unchanged.
+	treesMu sync.Mutex
+	trees   treeCache
+	actor   Actor              // who writes run as (actor.go); zero is the owner
+	policy  func() AgentPolicy // what an agent may change; nil is the default
 }
 
 // Open declares the tables and returns the unit.

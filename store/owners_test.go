@@ -49,7 +49,7 @@ func TestOwnerDeclarationsReopenUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(before) != len(after) || len(after) != len(work.Tables)+3 {
+	if len(before) != len(after) || len(after) != len(work.Tables)+4 {
 		t.Fatalf("tables before %d after %d", len(before), len(after))
 	}
 	for i := range before {
