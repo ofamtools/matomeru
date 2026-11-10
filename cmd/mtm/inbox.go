@@ -192,7 +192,10 @@ func (a *App) addInboxPage() error {
 	// Outside tools add items from other processes.
 	a.onOpen(inboxPage, a.reloadInbox)
 	a.inboxLoad.load = a.loadInbox
-	return nil
+	if a.headless {
+		return nil
+	}
+	return a.inboxLoad.reload()
 }
 
 // inboxTick starts the reload timer.

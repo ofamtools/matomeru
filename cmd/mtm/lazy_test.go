@@ -76,7 +76,7 @@ func TestPagesLoadLazily(t *testing.T) {
 func newUnloaded(t *testing.T, path string) *App {
 	t.Helper()
 	env := map[string]string{"HOME": "/home/test", "MTM_O_PROJ": "none"}
-	app, err := New(Options{Data: path, lookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok }})
+	app, err := New(Options{Data: path, Headless: true, lookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok }})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -54,6 +54,9 @@ func main() {
 // talk to. Empty values resolve to the defaults below.
 type Options struct {
 	lookupEnv func(string) (string, bool) // nil reads the process environment
+	// Headless is a command or the MCP gateway: no frame is drawn, so the
+	// rows only a screen shows (the Inbox) load when something asks for them.
+	Headless bool
 
 	Data   string
 	Socket string // an explicit daemon socket; it wins over Server
@@ -233,6 +236,7 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		}
 		defer cleanup()
 	}
+	opts.Headless = len(words) > 0 && !*smoke
 	app, err := New(opts)
 	if err != nil {
 		return err
@@ -240,9 +244,6 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	defer app.Close()
 	if *smoke {
 		app.m.Width, app.m.Height = 80, 24
-		if err := app.inboxLoad.ensure(); err != nil {
-			return err
-		}
 		fmt.Fprintln(stdout, ansi.Strip(app.View().Content))
 		return nil
 	}
@@ -256,7 +257,7 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		if err := app.ensureDaemon(); err != nil {
 			return err
 		}
-		if err := app.inboxLoad.ensure(); err != nil {
+		if err := app.inboxLoad.ensure(); err != nil { // an explicit tui word ran New headless
 			return err
 		}
 		_, err := tea.NewProgram(app).Run()
@@ -433,6 +434,7 @@ type App struct {
 	paneList      *ochazuke.Collection // the pane tree's rows (panes_tree.go)
 	pv            *paneUI              // the panes page's tree, detail tabs and timers
 	reviewList    *ochazuke.Collection
+	headless      bool                       // Options.Headless
 	startRegistry *registrySnapshot          // the registry as the start mounted it (extension_mount_cache.go)
 	mountDepth    int                        // >0 inside mountBatch (extensions.go)
 	mountReloads  int                        // how many shared reloads ran (the test seam)
@@ -577,7 +579,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}}
+	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()
