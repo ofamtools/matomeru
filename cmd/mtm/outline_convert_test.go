@@ -18,11 +18,11 @@ func seedConvert(t *testing.T, a *App) {
 			t.Fatal(err)
 		}
 	}
-	_, err := a.work.AddTree("ochazuke", work.Tree{Kind: "directory", Path: "/src/shared"})
+	_, err := a.addTree("ochazuke", work.Tree{Kind: "directory", Path: "/src/shared"})
 	must(err)
-	_, err = a.work.AddTree("matomeru", work.Tree{Kind: "directory", Path: "/src/matomeru"})
+	_, err = a.addTree("matomeru", work.Tree{Kind: "directory", Path: "/src/matomeru"})
 	must(err)
-	_, err = a.work.AddTree("matomeru", work.Tree{Kind: "directory", Path: "/src/shared"})
+	_, err = a.addTree("matomeru", work.Tree{Kind: "directory", Path: "/src/shared"})
 	must(err)
 	must(a.work.PutNote(work.Note{ID: "note", ProjectID: "matomeru", Text: "project note"}))
 	must(a.work.SetPaneOwner(work.Assignment{Window: "w1", Session: "s1", ProjectID: "matomeru"}))

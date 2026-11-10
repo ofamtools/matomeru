@@ -63,7 +63,7 @@ func (a *App) declareRelationKinds() error {
 	}); err != nil {
 		return err
 	}
-	a.r.SetRelationStore(relationHub{Store: a.relations, changed: a.relationChanged})
+	a.r.SetRelationStore(relationHub{Store: a.relStore, changed: a.relationChanged})
 	return nil
 }
 
@@ -79,7 +79,13 @@ func (a *App) relationCtx(c ochazuke.Ctx) ochazuke.Ctx {
 // directoryRelation is the live directory relation from the project to the
 // path, false when the project does not have it.
 func (a *App) directoryRelation(projectID, path string) (ochazuke.Relation, bool, error) {
-	found, err := a.r.RelationsOf(ochazuke.RelationQuery{Kind: work.DirectoryKind, From: work.ProjectRef(projectID), To: work.DirectoryRef(path)})
+	return a.directoryRelationIn(projectID, path, false)
+}
+
+// directoryRelationIn is directoryRelation, counting an archived relation
+// too when archived is set.
+func (a *App) directoryRelationIn(projectID, path string, archived bool) (ochazuke.Relation, bool, error) {
+	found, err := a.r.RelationsOf(ochazuke.RelationQuery{Kind: work.DirectoryKind, From: work.ProjectRef(projectID), To: work.DirectoryRef(path), Archived: archived})
 	if err != nil || len(found) == 0 {
 		return ochazuke.Relation{}, false, err
 	}
@@ -96,9 +102,11 @@ func (a *App) relateDirectory(c ochazuke.Ctx, projectID string, tree work.Tree) 
 	if err != nil {
 		return p, err
 	}
+	// Attaching what the project has does nothing, unless it brings text or
+	// data (then the relation is updated: relating again merges).
 	if _, has, err := a.directoryRelation(projectID, tree.Path); err != nil {
 		return p, err
-	} else if !has {
+	} else if !has || tree.Text != "" || tree.Data != nil {
 		x := ochazuke.Relation{Kind: work.DirectoryKind, From: work.ProjectRef(projectID), To: work.DirectoryRef(tree.Path), Text: tree.Text, Data: work.DirectoryData(tree)}
 		if _, err := a.r.Relate(a.relationCtx(c), x); err != nil {
 			return p, err
@@ -144,7 +152,8 @@ func (a *App) unrelateDirectory(c ochazuke.Ctx, projectID, path string) (p work.
 	if err != nil {
 		return before, "", err
 	}
-	if _, has, err := a.directoryRelation(projectID, path); err != nil {
+	// An archived relation is unrelated too: that removes it for good.
+	if _, has, err := a.directoryRelationIn(projectID, path, true); err != nil {
 		return before, "", err
 	} else if !has {
 		return before, "", work.ErrNotAttached

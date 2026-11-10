@@ -271,7 +271,7 @@ func scopeApp(t *testing.T) (a *App, log, root string) {
 		{ID: "ochazuke", Name: "ochazuke", Created: 1, DefaultTree: filepath.Join(root, "ochazuke")},
 		{ID: "matomeru", Name: "matomeru", Created: 2, DefaultTree: filepath.Join(root, "matomeru")},
 	} {
-		if err := a.work.PutProject(p); err != nil {
+		if err := putProjectDirs(a.work, p); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -483,7 +483,7 @@ func TestDocNewFromAPaneIsTheProjectsDoc(t *testing.T) {
 	}
 	// Recorded beats path: attaching the doc's directory to matomeru (the
 	// longer prefix) does not move it.
-	if err := a.work.PutProject(work.Project{ID: "matomeru", Name: "matomeru", Created: 2, DefaultTree: filepath.Join(root, "matomeru"), Trees: []work.Tree{{Kind: "dir", Path: dir}}}); err != nil {
+	if err := putProjectDirs(a.work, work.Project{ID: "matomeru", Name: "matomeru", Created: 2, DefaultTree: filepath.Join(root, "matomeru"), Trees: []work.Tree{{Kind: "dir", Path: dir}}}); err != nil {
 		t.Fatal(err)
 	}
 	pin(t, a, "matomeru")
@@ -600,7 +600,7 @@ func TestDocsRowsFollowThePinnedProject(t *testing.T) {
 
 	// Attaching matomeru-old to ochazuke moves stray (derived) to it;
 	// theirs (recorded) stays matomeru's.
-	if err := a.work.PutProject(work.Project{ID: "ochazuke", Name: "ochazuke", Created: 1, DefaultTree: filepath.Join(root, "ochazuke"), Trees: []work.Tree{{Kind: "dir", Path: filepath.Join(root, "matomeru-old")}}}); err != nil {
+	if err := putProjectDirs(a.work, work.Project{ID: "ochazuke", Name: "ochazuke", Created: 1, DefaultTree: filepath.Join(root, "ochazuke"), Trees: []work.Tree{{Kind: "dir", Path: filepath.Join(root, "matomeru-old")}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {

@@ -313,7 +313,7 @@ func withTrees(t *testing.T, a *App) {
 		{ID: "ochazuke", Name: "ochazuke", Created: 1, Trees: []work.Tree{{Kind: "dir", Path: "/src/ochazuke"}}},
 		{ID: "matomeru", Name: "matomeru", Created: 2, DefaultTree: "/src/matomeru", Trees: []work.Tree{{Kind: "dir", Path: "/src/ochazuke/vendor/matomeru"}}},
 	} {
-		if err := a.work.PutProject(p); err != nil {
+		if err := putProjectDirs(a.work, p); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"ofam.dev/matomeru/internal/work"
 )
 
 // project new --dir attaches the directory and makes it the default; a
@@ -25,11 +23,11 @@ func TestProjectNewDirAndProjectsDirectories(t *testing.T) {
 	if err := os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
-	var p work.Project
+	var p projectView
 	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "new", "demo", "--dir", link)), &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.Name != "demo" || len(p.Trees) != 1 || p.DefaultTree != link {
+	if p.Name != "demo" || len(p.Directories) != 1 || p.DefaultDirectory != link {
 		t.Fatalf("project %+v", p)
 	}
 	missing := filepath.Join(base, "not-yet")
@@ -72,19 +70,19 @@ func TestProjectDirectoryRemoveAndEditCLI(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var p work.Project
+	var p projectView
 	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "new", "demo", "--dir", one)), &p); err != nil {
 		t.Fatal(err)
 	}
 	mustCLI(t, a, "project", "directory", "--target", p.ID, "--path", two)
 	var removed struct {
-		work.Project
+		projectView
 		Promoted string `json:"promoted"`
 	}
 	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "remove-directory", "--target", p.ID, "--path", one)), &removed); err != nil {
 		t.Fatal(err)
 	}
-	if removed.Promoted != two || removed.DefaultTree != two || len(removed.Trees) != 1 {
+	if removed.Promoted != two || removed.DefaultDirectory != two || len(removed.Directories) != 1 {
 		t.Fatalf("removed %+v", removed)
 	}
 	if _, err := os.Stat(one); err != nil {
@@ -93,7 +91,7 @@ func TestProjectDirectoryRemoveAndEditCLI(t *testing.T) {
 	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "edit-directory", "--target", p.ID, "--path", two, "--to", three)), &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.DefaultTree != three || len(p.Trees) != 1 || p.Trees[0].Path != three {
+	if p.DefaultDirectory != three || len(p.Directories) != 1 || p.Directories[0] != three {
 		t.Fatalf("edited %+v", p)
 	}
 }

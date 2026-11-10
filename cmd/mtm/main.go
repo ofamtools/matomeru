@@ -27,6 +27,7 @@ import (
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/history"
 	"ofam.dev/matomeru/internal/locate"
+	"ofam.dev/matomeru/internal/relations"
 	"ofam.dev/matomeru/internal/turns"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
@@ -336,6 +337,7 @@ func (a *App) reveal(id string) error {
 // App owns domain state (the store, the daemon client, the rows); the
 // runtime owns interaction state.
 type App struct {
+	relStore           *relations.Store // the relations table (project_directories.go)
 	db                 *store.Store
 	work               *work.Store
 	contexts           *contextitems.Store // the context_items table (context.go)
@@ -545,6 +547,11 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
+	relStore, err := relations.Open(db)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
 	contexts, err := contextitems.Open(db)
 	if err != nil {
 		db.Close()
@@ -580,7 +587,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{db: db, work: w, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
+	a := &App{db: db, work: w, relStore: relStore, contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()
@@ -610,6 +617,7 @@ func New(opts Options) (*App, error) {
 	a.m.Title = "Matomeru"
 	a.registerPrompt()
 
+	a.defineDirectoryNoun()
 	a.defineProject()
 	a.defineTask()
 	a.definePrivacyVerbs()
@@ -637,6 +645,7 @@ func New(opts Options) (*App, error) {
 	a.defineSides()
 	a.defineContext()
 	a.defineRelations()
+	a.defineRelation()
 	a.defineCopy()
 	a.definePathSources()
 	a.defineCapture()
@@ -652,6 +661,9 @@ func New(opts Options) (*App, error) {
 	a.defineLicense()
 	a.defineConfigReload()
 	a.definePickers()
+	if err := a.declareRelationKinds(); err != nil {
+		return nil, err
+	}
 	if err := a.declareSettings(); err != nil {
 		return nil, err
 	}

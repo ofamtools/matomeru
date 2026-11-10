@@ -43,6 +43,9 @@ func DirectoryRef(path string) string {
 // DirectoryData is the data a tree carries into its relation.
 func DirectoryData(t Tree) map[string]any {
 	data := map[string]any{}
+	for k, v := range t.Data {
+		data[k] = v
+	}
 	for k, v := range map[string]string{"kind": t.Kind, "repo": t.Repo, "branch": t.Branch} {
 		if v != "" {
 			data[k] = v
@@ -58,7 +61,22 @@ func DirectoryData(t Tree) map[string]any {
 func treeOf(x ochazuke.Relation) Tree {
 	_, path, _ := ochazuke.SplitAnyRef(x.To)
 	str := func(key string) string { s, _ := x.Data[key].(string); return s }
-	return Tree{Kind: str("kind"), Path: path, Repo: str("repo"), Branch: str("branch"), Text: x.Text}
+	kind := str("kind")
+	if kind == "" {
+		kind = "directory" // a relation made by set directories+= has not been inspected
+	}
+	t := Tree{Kind: kind, Path: path, Repo: str("repo"), Branch: str("branch"), Text: x.Text}
+	for k, v := range x.Data {
+		switch k {
+		case "kind", "repo", "branch", DefaultFlag:
+		default:
+			if t.Data == nil {
+				t.Data = map[string]any{}
+			}
+			t.Data[k] = v
+		}
+	}
+	return t
 }
 
 // setTrees sets the project's directories from its live directory

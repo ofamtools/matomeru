@@ -52,7 +52,9 @@ func (a *App) defineProject() {
 			return a.projectList.Focus()
 		},
 	}
-	a.parameters("project.directory", map[string]ochazuke.Parameter{"path": dirParam("The directory to attach (a missing one is attached and flagged); omitted, a chooser asks", true)})
+	a.parameters("project.directory", map[string]ochazuke.Parameter{"path": dirParam("The directory to attach (a missing one is attached and flagged); omitted, a chooser asks", true),
+		"text": {Type: "string", Description: "Free text kept with the directory's relation (relation set changes it later)"},
+		"data": {Type: ochazuke.PropObject, Description: "A JSON object kept with the directory's relation; a key set to null is removed"}})
 	a.parameters("project.default", map[string]ochazuke.Parameter{"path": {Type: "string"}})
 	a.parameters("project.remove-directory", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
 	a.parameters("project.edit-directory", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}, "to": dirParam("The new path (a missing one is attached and flagged)", true)})
@@ -89,7 +91,7 @@ func (a *App) storedProject(id string) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(p)
+	return ochazuke.Done(viewOf(p))
 }
 
 func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
@@ -104,7 +106,15 @@ func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 		return resultError(a.openDirectoryChooser(p.ID))
 	}
 	tree := inspectDirectory(a.expandPath(path.(string)))
-	p, err = a.work.AddTree(p.ID, tree)
+	tree.Text = ochazuke.StringArg(ctx.Args, "text", "")
+	if raw, ok := ctx.Args["data"]; ok && raw != nil {
+		data, ok := raw.(map[string]any)
+		if !ok {
+			return ochazuke.Failed(&ochazuke.ArgumentError{Err: errors.New("data is a JSON object")})
+		}
+		tree.Data = data
+	}
+	p, err = a.relateDirectory(ctx, p.ID, tree)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -112,18 +122,18 @@ func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.directories.Ready = false
-	return ochazuke.Done(p)
+	return ochazuke.Done(viewOf(p))
 }
 
 func (a *App) defaultProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.work.SetDefaultTree(ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
+	p, err := a.defaultDirectory(ctx, ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	if err := a.refreshProjects(); err != nil {
 		return ochazuke.Failed(err)
 	}
-	return ochazuke.Done(p)
+	return ochazuke.Done(viewOf(p))
 }
 
 // removeProjectDirectory is project.remove-directory: the directory leaves
@@ -134,15 +144,16 @@ func (a *App) removeProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
-	p, promoted, err := a.work.RemoveTree(projectID, path)
+	p, promoted, err := a.unrelateDirectory(ochazuke.Ctx{}, projectID, path)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
 	home, _ := a.home()
 	msg := "Removed " + tildePath(path, home) + " from " + projectName(p) + "; nothing on disk changed"
+	// Promoting the next directory to default is announced by the library
+	// (kind directory is Exclusive on the default flag).
 	switch {
 	case promoted != "":
-		msg += "; default is now " + tildePath(promoted, home)
 	case len(p.Trees) == 0:
 		msg += "; it has no directories left"
 	}
@@ -153,9 +164,9 @@ func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
 	}
 	a.refreshDirectoryRows()
 	return ochazuke.Done(struct {
-		work.Project
+		projectView
 		Promoted string `json:"promoted,omitempty"`
-	}{p, promoted})
+	}{viewOf(p), promoted})
 }
 
 // editProjectDirectory is project.edit-directory: path is re-pointed at to.
@@ -167,7 +178,7 @@ func (a *App) replaceDirectory(projectID, path, to string) ochazuke.Result {
 	if strings.TrimSpace(to) == "" {
 		return ochazuke.Failed(errors.New("to is required"))
 	}
-	p, err := a.work.ReplaceTree(projectID, path, inspectDirectory(a.expandPath(to)))
+	p, err := a.repointDirectory(ochazuke.Ctx{}, projectID, path, inspectDirectory(a.expandPath(to)))
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -176,7 +187,7 @@ func (a *App) replaceDirectory(projectID, path, to string) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.refreshDirectoryRows()
-	return ochazuke.Done(p)
+	return ochazuke.Done(viewOf(p))
 }
 
 // workLists draws the projects table over the tasks table. Each takes the
@@ -333,6 +344,9 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 			line := tildePath(tree.Path, home)
 			if marks := a.treeMarks(p, tree); len(marks) > 0 {
 				line += "  [" + strings.Join(marks, "] [") + "]"
+			}
+			if first, _, _ := strings.Cut(strings.TrimSpace(tree.Text), "\n"); first != "" {
+				line += "  " + first
 			}
 			detail += "\n" + line
 		}

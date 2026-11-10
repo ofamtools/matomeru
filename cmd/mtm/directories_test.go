@@ -20,7 +20,7 @@ func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
 	t.Parallel()
 	path := seeded(t)
 	a := openAt(t, path)
-	if _, err := a.work.AddTree("matomeru", work.Tree{Path: "/shared"}); err != nil {
+	if _, err := a.addTree("matomeru", work.Tree{Path: "/shared"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {
@@ -94,7 +94,7 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	a := open(t)
 	testEnv(a, "MTM_PROJECT_BASE_DIRS", root+string(os.PathListSeparator)+filepath.Join(root, "missing"))
 	a.daemon = Options{Socket: filepath.Join(t.TempDir(), "missing.sock")}.client()
-	if _, err := a.work.AddTree("ochazuke", work.Tree{Path: two}); err != nil {
+	if _, err := a.addTree("ochazuke", work.Tree{Path: two}); err != nil {
 		t.Fatal(err)
 	}
 	// Seed independent launch history, preserving attached-directory recency.

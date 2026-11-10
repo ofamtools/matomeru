@@ -19,11 +19,12 @@ func TestReadVerbsAreFetches(t *testing.T) {
 	want := []string{
 		"agent.guide", "choice.offer", "agent.peek-prompt", "agent.scan", "agent.status", "pane.capture", "pane.wait", "session.events", "session.list-panes",
 		"action-item.count", "action-item.get", "action-item.list", "action-item.watch",
-		"context-item.get", "context-item.list", "context-item.watch", "daemon.show-log", "daemon.status", "dirs.bases", "dirs.refresh",
+		"context-item.get", "context-item.list", "context-item.watch", "daemon.show-log", "daemon.status", "directory.get", "directory.list", "directory.watch", "dirs.bases", "dirs.refresh",
 		"extension.all", "extension.available", "extension.peer-rows", "extension.peers", "extension.setup-plan", "extension.setup-status",
 		"harness.all", "harness.models", "harness.names", "history-log.all", "history-log.show", "license.all", "license.show",
 		"note.get", "note.list", "note.watch", "pane.activity", "pane.get", "pane.list", "pane.preview", "pane.read-settings", "pane.read-turns", "pane.show", "pane.refresh", "pane.refresh-turns", "pane.settings", "pane.transcript", "pane.watch", "pane.whoami",
 		"panes.read-activities", "panes.refresh", "project.get", "project.list", "project.watch", "projects.all", "projects.directories", "projects.names", "projects.state",
+		"relation.get", "relation.list", "relation.watch",
 		"reminder.get", "reminder.history", "reminder.list", "reminder.notify-status", "reminder.watch",
 		"review.get", "review.list", "review.watch", "run.all", "run.show", "saved.get", "saved.list", "saved.watch", "schedule.get", "schedule.history", "schedule.list", "schedule.watch", "session.get", "session.list", "session.refresh", "session.watch", "setup.all", "setup.plan",
 		"side.all",

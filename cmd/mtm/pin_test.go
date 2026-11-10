@@ -236,7 +236,7 @@ func TestProjectNameFallsBackToFolderThenUntitled(t *testing.T) {
 		}
 	}
 	a := open(t)
-	if err := a.work.PutProject(work.Project{ID: "nameless", DefaultTree: "/src/folder", Trees: []work.Tree{{Kind: "dir", Path: "/src/folder"}}}); err != nil {
+	if err := putProjectDirs(a.work, work.Project{ID: "nameless", DefaultTree: "/src/folder", Trees: []work.Tree{{Kind: "dir", Path: "/src/folder"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {
@@ -259,7 +259,7 @@ func titled(t *testing.T) *App {
 	t.Helper()
 	a := open(t)
 	a.home = func() (string, error) { return "/home/u", nil }
-	if _, err := a.work.AddTree("matomeru", work.Tree{Kind: "dir", Path: "/home/u/proj/clients/acme/very-long-checkout-name/matomeru"}); err != nil {
+	if _, err := a.addTree("matomeru", work.Tree{Kind: "dir", Path: "/home/u/proj/clients/acme/very-long-checkout-name/matomeru"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {
@@ -317,7 +317,7 @@ func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	a.home = func() (string, error) { return "/home/u", nil }
-	if err := a.work.PutProject(work.Project{ID: "nameless", Created: 9}); err != nil {
+	if err := putProjectDirs(a.work, work.Project{ID: "nameless", Created: 9}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {
@@ -327,7 +327,7 @@ func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
 	if a.m.Title != "📌 untitled" {
 		t.Fatalf("pathless %q", a.m.Title)
 	}
-	if _, err := a.work.AddTree("nameless", work.Tree{Kind: "dir", Path: "/home/u/src/folder"}); err != nil {
+	if _, err := a.addTree("nameless", work.Tree{Kind: "dir", Path: "/home/u/src/folder"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {
@@ -336,7 +336,7 @@ func TestTitleFollowsNameAndDefaultDirectory(t *testing.T) {
 	if a.m.Title != "📌 folder  ~/src/folder" {
 		t.Fatalf("folder name %q", a.m.Title)
 	}
-	if _, err := a.work.AddTree("nameless", work.Tree{Kind: "dir", Path: "/elsewhere/other"}); err != nil {
+	if _, err := a.addTree("nameless", work.Tree{Kind: "dir", Path: "/elsewhere/other"}); err != nil {
 		t.Fatal(err)
 	}
 	executeA(t, a, "project", "default", "nameless", ochazuke.Arguments{"path": "/elsewhere/other"})
@@ -383,7 +383,7 @@ func TestEveryProjectDrawsAGlyph(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "new", Args: ochazuke.Arguments{"name": "fresh"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.work.PutProject(work.Project{ID: "starred", Name: "starred", Theme: work.Theme{Glyph: "★"}}); err != nil {
+	if err := putProjectDirs(a.work, work.Project{ID: "starred", Name: "starred", Theme: work.Theme{Glyph: "★"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {

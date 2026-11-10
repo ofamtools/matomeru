@@ -42,6 +42,9 @@ func projectProps() []ochazuke.PropSpec {
 		{Name: "preset", Parameter: text("The launch preset")},
 		{Name: "dir", CreateOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropPath, Path: "dir",
 			Description: "The default directory: create attaches it (a missing path is attached and flagged); project default and project directory change it after"}},
+		{Name: "directories", Relation: work.DirectoryKind, Parameter: ochazuke.Parameter{Type: ochazuke.SettingList,
+			Items:       &ochazuke.Parameter{Type: ochazuke.PropPath, Path: "dir", Noun: work.DirectoryNoun},
+			Description: "The directories the project works in, in order: relations of kind directory, each with text and data (project directory, default, remove-directory and edit-directory change them; set directories+=PATH adds one, directories-=PATH removes one; relation set changes a relation's text and data)"}},
 		{Name: "repo", ReadOnly: true, Parameter: text("The repository of the project's first checkout")},
 		{Name: "origin", ReadOnly: true, Parameter: text("The tool that created or adopted the project (empty: mtm)")},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the project was created (Unix ms)"}},
@@ -165,11 +168,11 @@ func (a *App) createProject(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thi
 	}
 	if dir, _ := thingString(values, "dir"); strings.TrimSpace(dir) != "" {
 		tree := inspectDirectory(a.expandPath(dir))
-		if _, err := a.work.AddTree(p.ID, tree); err != nil {
+		if _, err := a.relateDirectory(c, p.ID, tree); err != nil {
 			return nil, err
 		}
 		var err error
-		if p, err = a.work.SetDefaultTree(p.ID, tree.Path); err != nil {
+		if p, err = a.defaultDirectory(c, p.ID, tree.Path); err != nil {
 			return nil, err
 		}
 		a.directories.Ready = false

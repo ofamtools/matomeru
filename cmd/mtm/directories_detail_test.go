@@ -41,7 +41,7 @@ func linkedFixture(t *testing.T) linked {
 		t.Fatal(err)
 	}
 	p.Trees, p.DefaultTree = []work.Tree{{Kind: "repo", Path: l.alpha, Repo: l.alpha}}, l.alpha
-	if err := a.work.PutProject(p); err != nil {
+	if err := putProjectDirs(a.work, p); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {

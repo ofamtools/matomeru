@@ -25,6 +25,9 @@ var mtmAgentDeclarations = []struct {
 	{"project.delete", "", true}, {"project.make-task", ochazuke.AgentAllow, false},
 	{"project.directory", ochazuke.AgentAllow, false}, {"project.default", ochazuke.AgentAllow, false},
 	{"project.remove-directory", ochazuke.AgentAllow, false}, {"project.edit-directory", ochazuke.AgentAllow, false},
+	{"relation.create", ochazuke.AgentAllow, false}, {"relation.set", ochazuke.AgentAllow, false}, {"relation.move", ochazuke.AgentAllow, false},
+	{"relation.archive", ochazuke.AgentAllow, false}, {"relation.follow", ochazuke.AgentAllow, false}, {"relation.yank", ochazuke.AgentAllow, false},
+	{"relation.delete", "", true},
 	{"outline-project.delete-project", "", true},
 	{"outline-project.confirm-delete", "", true}, {"outline-root.delete-project", "", true}, {"outline-root.confirm-delete", "", true}, {"outline-root.demote", ochazuke.AgentAllow, false}, {"outline-project.demote", ochazuke.AgentAllow, false},
 	{"outline-task.promote", ochazuke.AgentAllow, false},
@@ -52,11 +55,13 @@ var mtmAgentDeclarations = []struct {
 
 func (a *App) defineAgentDeclarations() {
 	for noun, about := range map[string]string{
-		"project":   "A work context with a repository, directories, launch settings and privacy.",
-		"task":      "A nested unit of work, with status, maker and last writer. Agent writes follow its lane and record policy.",
-		"pane":      "A TUIOS terminal window and its task assignment, launch recipe and agent progress.",
-		"note":      "Short jots, closing lines and evidence, associated with a task or project, or unassociated. Longer findings belong in a document.",
-		contextNoun: "Links, files, directories, commits, prompts and commands kept from a pane or supplied text.",
+		"project":          "A work context with a repository, directories, launch settings and privacy.",
+		"task":             "A nested unit of work, with status, maker and last writer. Agent writes follow its lane and record policy.",
+		"pane":             "A TUIOS terminal window and its task assignment, launch recipe and agent progress.",
+		"note":             "Short jots, closing lines and evidence, associated with a task or project, or unassociated. Longer findings belong in a document.",
+		relationNoun:       "Anything pointing to anything: two noun:key ends, a kind (any word), free text, a JSON data object and an order. A project's directories are relations of kind directory (the default is data.default). Unrelating archives first; unrelating an archived relation removes it.",
+		work.DirectoryNoun: "A directory path, the end of a project's directory relation. Its projects are the inverse of a project's directories.",
+		contextNoun:        "Links, files, directories, commits, prompts and commands kept from a pane or supplied text.",
 	} {
 		a.r.Define(noun).About(about)
 	}

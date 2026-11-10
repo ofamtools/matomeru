@@ -296,8 +296,8 @@ func buildProjectTree(env monogatari.Env) (monogatari.Built, error) {
 		return built, err
 	}
 	a := built.Program.(*App)
-	if _, err = a.work.AddTree("acme-web", inspectDirectory(env.FilesDir)); err == nil {
-		_, err = a.work.SetDefaultTree("acme-web", env.FilesDir)
+	if _, err = a.relateDirectory(ochazuke.Ctx{}, "acme-web", inspectDirectory(env.FilesDir)); err == nil {
+		_, err = a.defaultDirectory(ochazuke.Ctx{}, "acme-web", env.FilesDir)
 	}
 	if err == nil {
 		err = a.refreshProjects()

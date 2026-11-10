@@ -142,7 +142,7 @@ func TestMoveChooserByRecencyWithoutCurrent(t *testing.T) {
 	var withDirs []work.Project
 	for _, p := range app.projects {
 		p.Trees = []work.Tree{{Kind: "dir", Path: "/tmp/move-" + p.ID}}
-		if err := app.work.PutProject(p); err != nil {
+		if err := putProjectDirs(app.work, p); err != nil {
 			t.Fatal(err)
 		}
 		withDirs = append(withDirs, p)

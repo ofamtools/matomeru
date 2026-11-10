@@ -87,11 +87,11 @@ func TestDirectoryPathChooserProjectAndTypedSources(t *testing.T) {
 	knownRepos(t, a)
 	one, two := t.TempDir(), t.TempDir()
 	for _, path := range []string{one, two} {
-		if _, err := a.work.AddTree("matomeru", inspectDirectory(path)); err != nil {
+		if _, err := a.addTree("matomeru", inspectDirectory(path)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := a.work.SetDefaultTree("matomeru", two); err != nil {
+	if _, err := a.setDefaultTree("matomeru", two); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {
@@ -336,10 +336,10 @@ func walkProject(t *testing.T, a *App) string {
 			t.Fatal(err)
 		}
 	}
-	if _, err := a.work.AddTree("matomeru", inspectDirectory(tree)); err != nil {
+	if _, err := a.addTree("matomeru", inspectDirectory(tree)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.work.SetDefaultTree("matomeru", tree); err != nil {
+	if _, err := a.setDefaultTree("matomeru", tree); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {

@@ -495,7 +495,7 @@ func TestPinPickerKeepsFixedRowsAndWantsAStrongMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.work.AddTree(inbox.ID, work.Tree{Path: "/x/proj/tuios-inbox"}); err != nil {
+	if _, err := a.addTree(inbox.ID, work.Tree{Path: "/x/proj/tuios-inbox"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {

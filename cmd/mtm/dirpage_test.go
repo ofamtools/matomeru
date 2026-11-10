@@ -69,7 +69,7 @@ func TestDirectoriesPageLoadsAndEditsProjectDirectories(t *testing.T) {
 	}
 	press(t, a, "d", "d", "y")
 	p, _ = a.work.Project("matomeru")
-	if len(p.Trees) != 1 || p.DefaultTree != beta || !strings.Contains(strings.Join(a.m.Notices, "|"), "default is now") {
+	if len(p.Trees) != 1 || p.DefaultTree != beta || !strings.Contains(strings.Join(a.m.Notices, "|"), "is now the default directory") {
 		t.Fatalf("remove %+v notices %q", p, a.m.Notices)
 	}
 	if _, err := os.Stat(alpha); err != nil {
@@ -159,7 +159,7 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A known directory outside every base points at its parent.
-	if _, err := a.work.AddTree("ochazuke", inspectDirectory(filepath.Join(second, "gamma"))); err != nil {
+	if _, err := a.addTree("ochazuke", inspectDirectory(filepath.Join(second, "gamma"))); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.refreshProjects(); err != nil {

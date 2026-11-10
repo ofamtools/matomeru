@@ -55,6 +55,9 @@ type Tree struct {
 	Repo   string `json:"repo,omitempty"`
 	Branch string `json:"branch,omitempty"`
 	Text   string `json:"text,omitempty"`
+	// Data is the rest of the relation's data (anything but kind, repo,
+	// branch and the default flag), kept as written.
+	Data map[string]any `json:"data,omitempty"`
 }
 
 // ProjectSettings are the per-project launch defaults.

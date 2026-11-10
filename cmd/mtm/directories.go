@@ -763,9 +763,9 @@ func (a *App) chooseDirectoryFor(title, projectID string, use func(string) ochaz
 // default when the project has none, without leaving the current page.
 func (a *App) attachDefaultDirectory(projectID, path string) ochazuke.Result {
 	tree := inspectDirectory(a.expandPath(path))
-	p, err := a.work.AddTree(projectID, tree)
+	p, err := a.relateDirectory(ochazuke.Ctx{}, projectID, tree)
 	if err == nil && p.DefaultTree == "" {
-		p, err = a.work.SetDefaultTree(projectID, tree.Path)
+		p, err = a.defaultDirectory(ochazuke.Ctx{}, projectID, tree.Path)
 	}
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -775,7 +775,7 @@ func (a *App) attachDefaultDirectory(projectID, path string) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.refreshDirectoryRows()
-	return ochazuke.Done(p)
+	return ochazuke.Done(viewOf(p))
 }
 
 // chooseDirectory is known-directory.attach: to the page's project, else a
@@ -824,7 +824,7 @@ func (a *App) attachOrAsk(path string) ochazuke.Result {
 // project becomes the page's target so its directories show on top.
 func (a *App) attachDirectory(projectID, path string) ochazuke.Result {
 	tree := inspectDirectory(a.expandPath(path))
-	p, err := a.work.AddTree(projectID, tree)
+	p, err := a.relateDirectory(ochazuke.Ctx{}, projectID, tree)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -840,7 +840,7 @@ func (a *App) attachDirectory(projectID, path string) ochazuke.Result {
 		msg += " (default)"
 	}
 	a.r.UI().Notify(msg)
-	return ochazuke.Done(p)
+	return ochazuke.Done(viewOf(p))
 }
 
 // rememberDirectory puts a newly attached path at the top of the cached
@@ -956,7 +956,7 @@ func (a *App) defaultDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	p, err := a.work.SetDefaultTree(row.ProjectID, row.Path)
+	p, err := a.defaultDirectory(ochazuke.Ctx{}, row.ProjectID, row.Path)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -966,7 +966,7 @@ func (a *App) defaultDirRow(ctx ochazuke.Ctx) ochazuke.Result {
 	a.refreshDirectoryRows()
 	home, _ := a.home()
 	ctx.Notify("Default for " + projectName(p) + " is " + tildePath(row.Path, home))
-	return ochazuke.Done(p)
+	return ochazuke.Done(viewOf(p))
 }
 
 // removeDirRow is project-dir.remove (d d): enter on the known directory
