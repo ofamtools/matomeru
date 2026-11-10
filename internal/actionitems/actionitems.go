@@ -97,6 +97,9 @@ func (it Item) State(now int64) string {
 	return StateOpen
 }
 
+// Open reports whether the item is open (not archived or snoozed) at now.
+func (it Item) Open(now int64) bool { return it.ArchivedAt == 0 && it.SnoozedUntil <= now }
+
 // Read reports whether the item has been read.
 func (it Item) Read() bool { return it.ReadAt > 0 }
 

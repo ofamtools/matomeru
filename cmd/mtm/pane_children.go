@@ -124,25 +124,25 @@ func (a *App) paneKidItems(nowMs int64) (map[string][]actionitems.Item, map[stri
 		return items, counts
 	}
 	ranks := a.queueRanks()
-	states := map[string]bool{actionitems.StateOpen: true}
-	switch a.r.Settings().String(settingChildItems) {
-	case childItemsOpenSnoozed:
-		states[actionitems.StateSnoozed] = true
-	case childItemsAll:
-		states[actionitems.StateSnoozed], states[actionitems.StateArchived] = true, true
-	}
+	states := listsOf(childItemStates, a.r.Settings().String(settingChildItems), func(r struct {
+		name   string
+		states []string
+	}) (string, []string) {
+		return r.name, r.states
+	})
 	for _, it := range a.inbox.all {
 		if it.Window == "" {
 			continue
 		}
 		state := it.State(nowMs)
+		opened := it.Open(nowMs)
 		if _, ok := ranks[itemCategory(it)]; !ok || itemCategory(it) == "" {
 			continue
 		}
-		if state == actionitems.StateOpen {
+		if opened {
 			counts[it.Window]++
 		}
-		if states[state] {
+		if slices.Contains(states, state) {
 			items[it.Window] = append(items[it.Window], it)
 		}
 	}
@@ -184,11 +184,16 @@ func (a *App) foldItemRows() error {
 	if a.pv.foldedIn == nil {
 		a.pv.foldedIn = map[string]string{}
 	}
-	mode := a.r.Settings().String(settingItemsOpen)
+	open := listsOf(itemsOpenLists, a.r.Settings().String(settingItemsOpen), func(r struct {
+		name  string
+		lists []string
+	}) (string, []string) {
+		return r.name, r.lists
+	})
 	seen := map[string]bool{}
 	for _, s := range a.pv.sections {
 		for _, n := range s.tree.Nodes() {
-			if n.Noun != actionItemNoun || !strings.HasPrefix(n.ID, itemRowStart) || n.Parent == "" {
+			if _, ok := n.Data.(actionitems.Item); !ok || !strings.HasPrefix(n.ID, itemRowStart) || n.Parent == "" {
 				continue
 			}
 			seen[n.Parent] = true
@@ -196,8 +201,7 @@ func (a *App) foldItemRows() error {
 				continue
 			}
 			a.pv.foldedIn[n.Parent] = s.name
-			open := mode == itemsOpenAll || mode == itemsOpenQueue && s.name == sectionQueue
-			if err := s.tree.SetCollapsed(n.Parent, !open); err != nil {
+			if err := s.tree.SetCollapsed(n.Parent, !slices.Contains(open, s.name)); err != nil {
 				return err
 			}
 		}
@@ -288,4 +292,58 @@ func (a *App) childSettingChanged(name string) {
 	if err := a.rebuildPanes(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
+}
+
+// rowChildren are the child rows of a pane's row in the top or bottom list
+// (panes.children): the pane's own row, or the row an item stands for.
+func (a *App) rowChildren(r row, byWindow map[string]pane, now time.Time) []ochazuke.TreeNode {
+	if p, ok := r.node.Data.(pane); r.pane && ok {
+		return a.childNodes(p, r.node.ID, now)
+	}
+	if it, ok := r.node.Data.(actionitems.Item); r.pane && ok {
+		return a.childNodes(byWindow[it.Window], r.node.ID, now)
+	}
+	return nil
+}
+
+// countActivities counts the subagent rows among child rows.
+func countActivities(kids []ochazuke.TreeNode) (n int) {
+	for _, k := range kids {
+		if _, ok := k.Data.(activityRow); ok {
+			n++
+		}
+	}
+	return n
+}
+
+// childItemStates are the item states each value of panes.child-items
+// shows as child rows.
+var childItemStates = []struct {
+	name   string
+	states []string
+}{
+	{childItemsOpen, []string{actionitems.StateOpen}},
+	{childItemsOpenSnoozed, []string{actionitems.StateOpen, actionitems.StateSnoozed}},
+	{childItemsAll, actionitems.States},
+}
+
+// itemsOpenLists are the lists each value of panes.items-open leaves a
+// pane row's items unfolded in.
+var itemsOpenLists = []struct {
+	name  string
+	lists []string
+}{
+	{itemsOpenQueue, []string{sectionQueue}},
+	{itemsOpenAll, sectionNames},
+	{itemsOpenNone, nil},
+}
+
+// listsOf is the lists a setting value of a table above names.
+func listsOf[T any](table []T, name string, key func(T) (string, []string)) []string {
+	for _, row := range table {
+		if n, v := key(row); n == name {
+			return v
+		}
+	}
+	return nil
 }

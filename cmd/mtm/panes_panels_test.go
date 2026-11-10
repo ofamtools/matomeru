@@ -236,19 +236,21 @@ func TestPanesPanelsFocusWalk(t *testing.T) {
 	a, _ := sectionsApp(t)
 	frameWH(a, 120, 40)
 	queue, middle, working := sectionIDs(a, 0), sectionIDs(a, 1), sectionIDs(a, 2)
+	// The walk takes every row, an item's child row included.
+	queueRows, workingRows := a.pv.sections[0].tree.Nodes(), a.pv.sections[2].tree.Nodes()
 	if err := a.r.SetFocus(queue[0]); err != nil {
 		t.Fatal(err)
 	}
 	var walk []string
-	for range len(queue) + len(a.pv.sections[1].tree.Nodes()) + len(working) - 1 {
+	for range len(queueRows) + len(a.pv.sections[1].tree.Nodes()) + len(workingRows) - 1 {
 		press(t, a, "j")
 		frameWH(a, 120, 40)
 		walk = append(walk, a.r.FocusID())
 	}
-	if walk[len(queue)-1] != a.pv.sections[1].tree.Nodes()[0].ID {
+	if walk[len(queueRows)-1] != a.pv.sections[1].tree.Nodes()[0].ID {
 		t.Fatalf("j off Needs you: %v", walk)
 	}
-	if last := walk[len(walk)-1]; last != working[len(working)-1] {
+	if last := walk[len(walk)-1]; last != workingRows[len(workingRows)-1].ID {
 		t.Fatalf("j walk ends on %s: %v", last, walk)
 	}
 	if !slices.Contains(walk, middle[0]) || !slices.Contains(walk, working[0]) {

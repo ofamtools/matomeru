@@ -487,6 +487,51 @@ func (a *App) releaseHold() error {
 	return a.rebuildPanes()
 }
 
+// row is a node of the top and bottom lists with its place; pane is set
+// when it is a pane's own row (its child rows go under it).
+type row struct {
+	node ochazuke.TreeNode
+	at   sectionPlace
+	pane bool
+}
+
+// queuedItem is an open item of the queue and its category.
+type queuedItem struct {
+	it       actionitems.Item
+	category string
+}
+
+// queueItems are the queue's items: open ones in a category
+// panes.queue-order lists; fromItems is the first-ranked signal each
+// window's open items give it, hasItem the windows an item of the queue
+// names. An item of another source raises the outside signal only while it
+// is unread, and only where items are the pane's child rows.
+func (a *App) queueItems(nowMs int64, ranks map[string]int, childItems bool) (items []queuedItem, fromItems map[string]string, hasItem map[string]bool) {
+	fromItems, hasItem = map[string]string{}, map[string]bool{}
+	if a.inbox == nil {
+		return nil, fromItems, hasItem
+	}
+	for _, it := range a.inbox.all {
+		if !it.Open(nowMs) {
+			continue
+		}
+		c := itemCategory(it)
+		if r := slices.Index(signalRank, c); r >= 0 && it.Window != "" && (c != queueOutside || childItems && !it.Read()) {
+			if was, ok := fromItems[it.Window]; !ok || r < slices.Index(signalRank, was) {
+				fromItems[it.Window] = c
+			}
+		}
+		if _, ok := ranks[c]; !ok || c == "" {
+			continue
+		}
+		items = append(items, queuedItem{it: it, category: c})
+		if it.Window != "" {
+			hasItem[it.Window] = true
+		}
+	}
+	return items, fromItems, hasItem
+}
+
 // buildPaneSections sorts the panes and the open inbox items into the
 // three sections and builds each one's nodes; the view it answers holds
 // the counts and the drawing order of every pane row.
@@ -509,42 +554,13 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 			byWindow[p.ID] = p
 		}
 	}
-	// The queue's items: open ones in a category panes.queue-order lists.
-	type queued struct {
-		it       actionitems.Item
-		category string
-	}
-	var items []queued
-	fromItems := map[string]string{} // window → the first-ranked signal its open items give it
-	hasItem := map[string]bool{}     // window → an item of the queue names it
 	kinds := a.childKinds()
 	childItems := slices.ContainsFunc(kinds, func(k childKind) bool { return k.name == childKindItems })
 	a.pv.kidItems, a.pv.kidCounts = nil, nil
 	if childItems {
 		a.pv.kidItems, a.pv.kidCounts = a.paneKidItems(nowMs)
 	}
-	if a.inbox != nil {
-		for _, it := range a.inbox.all {
-			if it.State(nowMs) != actionitems.StateOpen {
-				continue
-			}
-			c := itemCategory(it)
-			// An item of another source raises the outside signal only while
-			// it is unread, and only where items are the pane's child rows.
-			if r := slices.Index(signalRank, c); r >= 0 && it.Window != "" && (c != queueOutside || childItems && !it.Read()) {
-				if was, ok := fromItems[it.Window]; !ok || r < slices.Index(signalRank, was) {
-					fromItems[it.Window] = c
-				}
-			}
-			if _, ok := ranks[c]; !ok || c == "" {
-				continue
-			}
-			items = append(items, queued{it: it, category: c})
-			if it.Window != "" {
-				hasItem[it.Window] = true
-			}
-		}
-	}
+	items, fromItems, hasItem := a.queueItems(nowMs, ranks, childItems)
 	cur := ""
 	if s := a.activeSection(); s != nil && a.holdsRows() {
 		if n, ok := s.tree.Selected(); ok {
@@ -612,11 +628,6 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		}
 	}
 	// The queue: items, a pane's first item standing for the pane.
-	type row struct {
-		node ochazuke.TreeNode
-		at   sectionPlace
-		pane bool
-	}
 	var queue []row
 	stands := map[string]bool{}
 	type bestItem struct {
@@ -693,29 +704,12 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	ss[0].nodes, ss[0].rows = nil, len(queue)
 	ss[2].nodes, ss[2].rows = nil, len(bottom)
 	var order []string
-	// children are a pane row's child rows (panes.children: pane_children.go).
-	children := func(r row) []ochazuke.TreeNode {
-		if p, ok := r.node.Data.(pane); r.pane && ok {
-			return a.childNodes(p, r.node.ID, now)
-		}
-		if it, ok := r.node.Data.(actionitems.Item); r.pane && ok {
-			return a.childNodes(byWindow[it.Window], r.node.ID, now)
-		}
-		return nil
-	}
-	countKids := func(kids []ochazuke.TreeNode) (n int) {
-		for _, k := range kids {
-			if k.Noun == activityNoun {
-				n++
-			}
-		}
-		return n
-	}
+	children := func(r row) []ochazuke.TreeNode { return a.rowChildren(r, byWindow, now) }
 	ss[0].kids, ss[2].kids = 0, 0
 	for _, r := range queue {
 		ss[0].nodes = append(ss[0].nodes, r.node)
 		kids := children(r)
-		ss[0].kids += countKids(kids)
+		ss[0].kids += countActivities(kids)
 		ss[0].nodes = append(ss[0].nodes, kids...)
 		if r.pane {
 			order = append(order, r.node.ID)
@@ -725,7 +719,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	for _, r := range bottom {
 		ss[2].nodes = append(ss[2].nodes, r.node)
 		kids := children(r)
-		ss[2].kids += countKids(kids)
+		ss[2].kids += countActivities(kids)
 		ss[2].nodes = append(ss[2].nodes, kids...)
 		order = append(order, r.node.ID)
 		view.usage = view.usage || r.node.Cells[2] != ""
