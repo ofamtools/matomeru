@@ -278,7 +278,7 @@ Pane and session edit declare their subject sources as `row:pane` and `row:sessi
 
 On an empty generated index or curated `From` list, `n` opens that noun's declared creation form without fabricating a row. `keys.noun-defaults` defaults on; off disables these generated keys.
 
-`relation create from=project:hub to=task:ID` works in the CLI and palette. The `from` prop names the relation's holder. To copy a relation, use `relation create create-from=RELATION to=task:OTHER`; explicit props replace copied ones. Other nouns keep `from` as the copy control unless a prop owns that name.
+`relation create from=project:hub to=task:ID` works in the CLI and palette. The `from` prop names the relation's holder. To copy a relation from the CLI, use `relation create --create-from RELATION to=task:OTHER`; the palette also accepts `relation create create-from=RELATION to=task:OTHER`. Explicit props replace copied ones. CLI `prop=value` words name props; controls use their declared flags. Other nouns keep `--from` as the copy control unless a prop owns that name.
 
 `TestScaffold` checks all fourteen stored nouns against `cmd/mtm/testdata/scaffoldcheck.txt`, whose exception baseline is empty. The curated Directories page still scans filesystem paths and draws its project directories, known directories, and bases as separate views.
 

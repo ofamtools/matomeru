@@ -73,7 +73,11 @@ func TestScaffoldRelationCreateOwnFromAndCopy(t *testing.T) {
 			if err != nil || len(stored) != 1 {
 				t.Fatalf("source relation: %+v %v", stored, err)
 			}
-			run("create-from="+stored[0].Key, "to=task:t1")
+			if route == "CLI" {
+				run("--create-from", stored[0].Key, "to=task:t1")
+			} else {
+				run("create-from="+stored[0].Key, "to=task:t1")
+			}
 			copied := relationsOf(t, a, ochazuke.RelationQuery{Kind: "adoption", From: "project:matomeru", To: "task:t1"})
 			if len(copied) != 1 || copied[0].Text != "retained" || copied[0].Position != 2048 {
 				t.Fatalf("create-from did not retain copied props: %+v", copied)

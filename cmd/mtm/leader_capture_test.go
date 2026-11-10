@@ -111,4 +111,3 @@ func TestLeaderCaptureKeysReturnToTheLivePane(t *testing.T) {
 	}
 	live(t, app, "ctrl+a S")
 }
-
