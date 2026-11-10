@@ -397,22 +397,22 @@ func (a *App) defineDirectories() {
 		Verb("search", a.searchDirectories, "Filter the known directories")
 	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": baseParam, "depth": {Type: "integer"}})
 	a.parameters("dirs.remove-base", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
-	a.r.Define("dir-search").Kind(ochazuke.NounKindPart).Pin("insert").
+	a.r.Define("dir-search").Kind(ochazuke.NounKindPart).DefaultKeys(false).Pin("insert").
 		Verb("done", a.leaveDirectorySearch, "Keep the filter and return to the known directories").
 		Mode("insert").Bind("enter", ochazuke.Do("dir-search.done")).Bind("esc", ochazuke.Do("dir-search.done")).Bind("down", ochazuke.Do("dir-search.done"))
-	a.r.Define("known-directory").Kind(ochazuke.NounKindPart).Columns(knownDirectoryColumns...).
+	a.r.Define("known-directory").Kind(ochazuke.NounKindPart).DefaultKeys(false).Columns(knownDirectoryColumns...).
 		Verb("attach", a.chooseDirectory, "Attach to the pinned project, else choose one").
 		Mode("normal").Bind("enter", ochazuke.Do("known-directory.attach"))
-	a.r.Define("project-dir").Kind(ochazuke.NounKindPart).Columns(projectDirColumns...).
+	a.r.Define("project-dir").Kind(ochazuke.NounKindPart).DefaultKeys(false).Columns(projectDirColumns...).
 		Verb("default", a.defaultDirRow, "Make this the project's default directory").
 		Verb("remove", a.removeDirRow, "Detach from the project (disk untouched; the default passes to the next)").Confirm("Detach {{label}} from the project? Nothing on disk changes.").
 		Verb("retarget", a.editDirRow, "Point this directory at another path").
 		Mode("normal").Bind("enter", ochazuke.Do("project-dir.default")).Bind("d d", ochazuke.Do("project-dir.remove")).Bind("i", ochazuke.Do("project-dir.retarget"))
-	a.r.Define("project-base").Kind(ochazuke.NounKindPart).Columns(baseColumns...).
+	a.r.Define("project-base").Kind(ochazuke.NounKindPart).DefaultKeys(false).Columns(baseColumns...).
 		Verb("remove", a.removeBaseRow, "Stop scanning this base (disk untouched)").Confirm("Stop scanning {{label}}? Nothing on disk changes.").
 		Mode("normal").Bind("d d", ochazuke.Do("project-base.remove"))
-	a.r.Define("directory-browse").Kind(ochazuke.NounKindPart).Verb("open", a.browseDirectory, "Browse for a directory").Mode("normal").Bind("enter", ochazuke.Do("directory-browse.open"))
-	a.r.Define("directory-path").Kind(ochazuke.NounKindPart).
+	a.r.Define("directory-browse").Kind(ochazuke.NounKindPart).DefaultKeys(false).Verb("open", a.browseDirectory, "Browse for a directory").Mode("normal").Bind("enter", ochazuke.Do("directory-browse.open"))
+	a.r.Define("directory-path").Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("attach", a.attachBrowsedDirectory, "Use the typed or picked directory").
 		Verb("cancel", a.cancelBrowse, "Stop browsing").
 		Mode("insert").Bind("enter", ochazuke.Do("directory-path.attach")).Bind("ctrl+o", ochazuke.Do("picker.open", ochazuke.Arguments{"filter": "dir"})).

@@ -148,6 +148,11 @@ func TestContextStarAndForgetPersist(t *testing.T) {
 		t.Fatal("the star column shows ★")
 	}
 	selectContext(t, a, "1ba025f")
+	if err := a.r.Settings().Set(ochazuke.HideArchivedSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "d", "d")
+	selectContext(t, a, "1ba025f")
 	press(t, a, "d", "d")
 	if a.r.TopModal() != "confirm" {
 		t.Fatalf("d d asks first; top modal %q", a.r.TopModal())

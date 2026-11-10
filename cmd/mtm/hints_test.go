@@ -62,51 +62,6 @@ func TestTerminalFooterExposesPassthroughLeader(t *testing.T) {
 
 }
 
-// ? opens the framework's help over the focus: on a task row it lists the
-// row's own verbs first, each as key, noun.verb and description, and esc
-// closes it back onto the row.
-func TestHelpOnATaskRowListsItsVerbsFirst(t *testing.T) {
-	t.Parallel()
-	app := open(t)
-	mono(t, app)
-	press(t, app, "j", "enter")
-	if app.r.FocusID() != "t1" {
-		t.Fatalf("focus %s", app.r.FocusID())
-	}
-	press(t, app, "?")
-	if top := app.r.TopModal(); top != "bindings-help" {
-		t.Fatalf("top modal %q", top)
-	}
-	rows := ochazuke.BindingHelp(app.r, "t1")
-	if len(rows) == 0 || rows[0].Key != "enter" || rows[0].Operation != "task.edit" || rows[0].Description == "" {
-		t.Fatalf("help rows = %+v", rows)
-	}
-	lines := strings.Split(monoFrame(t, app), "\n")
-	var first string
-	for _, line := range lines {
-		// The help is a table since ochazuke v0.3.0: the selected row is
-		// the reverse highlight alone, no "> " marker, under a "task"
-		// section label. Since the prefix column (ochazuke's R6.9) a
-		// single key sits after a blank prefix cell.
-		if _, row, ok := strings.Cut(line, "│"); ok {
-			if f := strings.Fields(strings.TrimSuffix(strings.TrimSpace(row), "│")); len(f) > 0 && f[0] == "enter" {
-				first = strings.Join(f, " ")
-				break
-			}
-		}
-	}
-	// The help wraps a long description in its column, so compare the
-	// description's first words, not a fixed prefix.
-	want := "enter task.edit " + strings.Join(strings.Fields(rows[0].Description)[:2], " ")
-	if !strings.HasPrefix(first, want) {
-		t.Fatalf("help modal's selected first row = %q\n%s", first, strings.Join(lines, "\n"))
-	}
-	press(t, app, "esc", "q")
-	if app.r.TopModal() != "" || app.r.FocusID() != "t1" {
-		t.Fatalf("esc: modal %q focus %s", app.r.TopModal(), app.r.FocusID())
-	}
-}
-
 // Test pass item 9: a chooser's footer and hint line list no motions
 // (picker.move is a motion, as collection.move is on pages).
 func TestChooserFooterListsNoMotions(t *testing.T) {

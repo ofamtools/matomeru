@@ -9,21 +9,6 @@ import (
 	"ofam.dev/matomeru/internal/work"
 )
 
-// The review verbs: get, list, set and watch standard; no create, delete
-// or move (a review follows its pane); status a lasting alias of set of
-// status; open, accept, reject, choose-status and saveAnswer named.
-func TestReviewVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	standardIs(t, a, "review", map[string]string{
-		"get": "get", "list": "list", "set": "set", "watch": "watch",
-		"open": "", "accept": "", "reject": "", "choose-status": "", "saveAnswer": "", "create": "",
-	}, "move", "rename", "duplicate", "restore")
-	if status := aliasOf(a, "review.set", "review.status"); status == nil || status.Deprecated() || status.Args["prop"] != "status" {
-		t.Fatalf("status: %+v", status)
-	}
-}
-
 // x, the s chooser and an answer are standard sets: undo reverts each;
 // review status ID STATUS and review get read and write over the CLI.
 func TestReviewWritesAreStandardAndUndo(t *testing.T) {

@@ -25,7 +25,7 @@ type question struct {
 
 // registerPrompt creates the field and the verbs that close it.
 func (a *App) registerPrompt() {
-	a.r.Define("field").Kind(ochazuke.NounKindPart).Pin("insert").
+	a.r.Define("field").Kind(ochazuke.NounKindPart).DefaultKeys(false).Pin("insert").
 		Verb("commit", a.commitPrompt, "Close the prompt and run the question with the field's text").
 		Verb("leave", a.leavePrompt, "Close the prompt, keeping what was typed: a changed text is committed").
 		Mode("insert").

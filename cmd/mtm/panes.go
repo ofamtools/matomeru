@@ -328,8 +328,7 @@ func (a *App) definePanes() {
 		Bind("enter", ochazuke.Do("pane.attach").Hinted("live")).
 		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
 		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
-		Bind("m", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
-		Bind("r", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename"))
+		Bind("m", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	// In visual-line (V) d kills the selected panes, as the list's d deletes
 	// rows: the pane's visual-line table reads its normal rows after its
 	// own, and the normal d d no longer waits over it (ochazuke's
@@ -349,16 +348,14 @@ func (a *App) definePanes() {
 		Verb("kill", a.killSession, "Close the session and every pane in it").Confirm("Kill {{label}} and its panes?").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("session.attach").Guard("session-has-pane")).
-		Bind("m", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).
-		Bind("r", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename")).
-		Bind("d d", ochazuke.Do("session.kill"))
+		Bind("m", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	// enter attaches a session only when it has a pane to attach.
 	a.r.DefineGuard("session-has-pane", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		return a.sessionPane(ev.Focus) != ""
 	})
-	r.Define("pane-project").Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
+	r.Define("pane-project").DefaultKeys(false).Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
 	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
-	r.Define("panes").Kind(ochazuke.NounKindPart).
+	r.Define("panes").Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").FocusBound().
 		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").

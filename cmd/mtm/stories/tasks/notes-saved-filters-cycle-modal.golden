@@ -26,10 +26,10 @@ R|              │ agent note example                                          
  |              │                                                                                                              │
  |              │                                                                                                              │
  |              │                                                                                                              │
- |              │ enter note.view · i note.edit · d d note.delete · m move · space collection.mark · z C clear props · z ] ne… │
+ |              │ enter note.show · i note.edit · m move · space collection.mark · z C clear props · z ] next filter · x task… │
  |              ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
  |
  |
  |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- |  enter note.view · i note.edit · d d note.delete · m move · space collection.mark · z C clear props · z ] next filter · x task-outline.t…
+ |  enter note.show · i note.edit · m move · space collection.mark · z C clear props · z ] next filter · x task-outline.toggle · s task-out…
  |

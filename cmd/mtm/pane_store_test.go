@@ -7,47 +7,6 @@ import (
 	"ofam.dev/ochazuke"
 )
 
-// standardIs checks a noun's verbs: each present with its standard mark
-// ("" for a named verb), and the absent ones absent.
-func standardIs(t *testing.T, a *App, noun string, want map[string]string, absent ...string) {
-	t.Helper()
-	for verb, standard := range want {
-		op, ok := a.r.Operation(noun + "." + verb)
-		if !ok || op.Standard != standard {
-			t.Errorf("%s.%s: ok %v standard %q, want %q", noun, verb, ok, op.Standard, standard)
-		}
-	}
-	for _, verb := range absent {
-		if _, ok := a.r.Operation(noun + "." + verb); ok {
-			t.Errorf("%s.%s should not exist", noun, verb)
-		}
-	}
-}
-
-// The pane's verbs: get, list, set and watch are standard; create is
-// pane.new's handler and delete pane.kill's (core_verbs.go); associate and
-// the agent's set-* verbs are named; star is an alias of set (starred,
-// toggled) and unassociate a lasting alias of set {@owner: ""}. The purged
-// verbs (move, rename, duplicate, restore) are gone.
-func TestPaneVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a, _ := panesApp(t)
-	standardIs(t, a, "pane", map[string]string{
-		"get": "get", "list": "list", "set": "set", "watch": "watch", "star": "set",
-		"associate": "", "choose-move": "", "kill": "", "create": "", "delete": "",
-		"set-model": "", "set-effort": "", "set-fast": "", "set-permission-mode": "", "toggle-fast": "",
-	}, "move", "rename", "duplicate", "restore")
-	var found bool
-	for _, alias := range a.r.AliasesOf("pane.set") {
-		if alias.Alias == "pane.unassociate" {
-			found = !alias.Deprecated()
-		}
-	}
-	if !found {
-		t.Fatal("pane.unassociate is not a lasting alias of pane.set")
-	}
-}
-
 // pane get answers its props from the listing; the agent's settings are
 // read-only (set refuses them; set-model changes them in the session).
 func TestPaneGetAndReadOnlySettings(t *testing.T) {

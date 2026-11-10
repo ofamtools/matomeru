@@ -14,15 +14,14 @@
       "after": 2,
       "page": "nouns/action-item",
       "contains": [
-        "Extensions  alpha  beta  Nouns",
+        "Extensions  alpha  beta  › Nouns",
         "action-item · 2",
         "page 1/1 of 2",
         "review requested",
         "mentioned"
       ],
       "lacks": [
-        "nouns/action-item  ",
-        "› Nouns"
+        "nouns/action-item  "
       ]
     },
     {

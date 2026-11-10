@@ -31,7 +31,6 @@ const projectDeleteConfirm = "Delete {{label}}?\nOrphan:\n{{affected}}\nDirector
 // actions), and its old name delete.confirm a deprecated one.
 func (a *App) defineDeletion() {
 	for _, noun := range []string{"project", "task"} {
-		a.r.Define(noun).Mode("normal").Bind("d d", ochazuke.Do(noun+".delete"))
 		for _, alias := range []ochazuke.ActionAlias{
 			{Alias: noun + ".confirm-delete", Action: noun + ".delete", Note: "the standard delete: it asks, naming what it orphans"},
 			{Alias: noun + ".delete.confirm", Action: noun + ".delete", Since: oldNamesSince, RemoveAfter: oldNamesRemoveAfter},

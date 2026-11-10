@@ -305,14 +305,14 @@ func TestNoteChecklistDrawsTheDoc(t *testing.T) {
 // the markdown noun are safe to bind at any time, not only at setup.
 func TestMarkdownRowBoundMidSequenceKeepsDD(t *testing.T) {
 	t.Parallel()
-	a, _ := notesDocApp(t)
+	a, note := notesDocApp(t)
 	a.Update(keyMsg("d"))
 	if a.r.Pending != "d" {
 		t.Fatalf("pending %q", a.r.Pending)
 	}
 	a.r.Define(markdown.DocNoun).Mode("normal").Bind("I", ochazuke.Do("note.edit"))
 	a.Update(keyMsg("d"))
-	if a.r.TopModal() == "" {
-		t.Fatalf("d d after a Bind did not ask to delete: pending %q status %q", a.r.Pending, a.m.Status)
+	if got, err := a.work.Note(note.ID); err != nil || !got.Archived {
+		t.Fatalf("d d after a Bind did not archive: %+v %v", got, err)
 	}
 }

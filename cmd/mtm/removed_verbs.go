@@ -19,7 +19,6 @@ var mtmRemovedVerbs = []namecheck.Removed{
 	purged("outline-project", "delete", "outline-project.delete-project"),
 	purged("outline-root", "delete", "outline-root.delete-project"),
 	purged("project-dir", "edit", "project-dir.retarget"),
-	purged("note", "associate", `note set ID @owner=PROJECT (set {props: {"@owner": id}}), or m (note.edit {field: "@owner"})`),
 	purged("pane", "rename", `edit {field: "@label"} (r), or pane set ID @label=NAME`),
 	purged("session", "rename", `edit {field: "@label"} (r), or session set ID @label=NAME`),
 	purged("saved", "rename", `edit {field: "@label"} (r), or saved set ID @label=NAME`),

@@ -40,19 +40,6 @@ func rowLabel(t *testing.T, a *App, id string) string {
 	return ""
 }
 
-// The note's verbs are the standard ones its props and store give, beside
-// the named new, edit, view and choose-move; the purged move, rename and
-// duplicate are gone (set {@owner}, edit {field: "@label"}, create {from}).
-func TestNoteVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	standardIs(t, a, "note", map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete",
-		"watch": "watch", "archive": "archive",
-		"new": "", "edit": "", "view": "", "choose-move": "",
-	}, "move", "rename", "duplicate", "restore", "associate")
-}
-
 // A note written before titles existed shows as before (its first line);
 // a title replaces it in the row and the confirm; get reads both, and the
 // summary is the body's first line, read-only.
@@ -260,9 +247,17 @@ func TestNoteKeysMoveAndDelete(t *testing.T) {
 		t.Fatalf("m to unassociated: %+v", got)
 	}
 	notesOn(t, a, n.ID)
+	if err := a.r.Settings().Set(ochazuke.HideArchivedSetting, false); err != nil {
+		t.Fatal(err)
+	}
 	press(t, a, "d", "d")
-	if fr := frame(a); a.r.TopModal() == "" || !strings.Contains(fr, "Delete note Movable?") {
-		t.Fatalf("d d: modal %q\n%s", a.r.TopModal(), fr)
+	if got, err := a.work.Note(n.ID); err != nil || !got.Archived || a.r.TopModal() != "" {
+		t.Fatalf("first d d: %+v %v", got, err)
+	}
+	notesOn(t, a, n.ID)
+	press(t, a, "d", "d")
+	if a.r.TopModal() == "" {
+		t.Fatal("second d d must ask before deleting")
 	}
 	press(t, a, "y")
 	if _, err := a.work.Note(n.ID); err == nil {

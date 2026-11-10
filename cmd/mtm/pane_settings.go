@@ -140,7 +140,7 @@ func (a *App) addPaneSettings() error {
 	// A field of the line: enter changes it, h and l walk the line, j and
 	// k leave it for the stop drawn below or above, esc goes back to the
 	// pane row.
-	a.r.Define(settingNoun).Kind(ochazuke.NounKindPart).
+	a.r.Define(settingNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("change", a.changePaneSetting, "Change this setting: a chooser of the values the harness takes, the current one marked").
 		Verb("back", a.settingsBack, "Go back to the pane row").
 		Mode("normal").

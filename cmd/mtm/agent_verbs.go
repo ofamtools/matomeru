@@ -112,8 +112,8 @@ func (a *App) defineTaskEvidence() {
 		// Evidence is saved by patchTask only after the checked task write succeeds.
 		return set.AppHandler(c)
 	}
-	// Replacing just the app handler preserves standard identity and aliases.
-	// Re-registering a standard operation would regenerate its checks unnecessarily.
+	// Preserve the standard identity and aliases. Annotation props must
+	// already be declared: RoleAbout regenerates other nouns' standard verbs.
 	a.r.Operations.Set(op)
 }
 

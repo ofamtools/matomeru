@@ -17,15 +17,15 @@ const notesPage = "notes"
 func (a *App) defineNotes() {
 	// Props and the store first: the standard verbs (get, list, create,
 	// set, delete, watch, rename, move, duplicate) come from them
-	// (note_store.go); new and edit wrap create and set, view and
+	// (note_store.go); new and edit wrap create and set, show and
 	// choose-move are mtm's own.
 	a.r.Define("note").Filters(taskFilters()...).Props(a.noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
-		Verb("view", a.viewNote, "View the saved note without editing").
+		Verb("show", a.viewNote, "View the saved note without editing").Renamed("view", "the next mtm release (ochazuke v0.120.0)", "the following mtm release").
 		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").Many().ShadowsStandard().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the note to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
-		Mode("normal").Bind("enter", ochazuke.Do("note.view")).Bind("i", ochazuke.Do("note.edit")).Bind("d d", ochazuke.Do("note.delete")).Bind("m", ochazuke.Do("note.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
-	a.r.Define(noteBodyNoun).Kind(ochazuke.NounKindPart).Focusable().
+		Mode("normal").Bind("enter", ochazuke.Do("note.show")).Bind("i", ochazuke.Do("note.edit")).Bind("m", ochazuke.Do("note.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
+	a.r.Define(noteBodyNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Focusable().
 		Verb("scroll", a.scrollNoteBody, "Scroll the note's text: delta lines, or half a screen (half 1 down, -1 up)").Motion().
 		Mode("normal").
 		Bind("j", ochazuke.Do(noteBodyNoun+".scroll", ochazuke.Arguments{"delta": 1})).

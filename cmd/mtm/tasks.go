@@ -21,7 +21,7 @@ func (a *App) defineTask() {
 	// set; the rest are mtm's own.
 	r.Define("task").Filters(taskFilters()...).Props(taskProps()...).Store(a.taskStore()).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
-		Verb("view", a.openTask, "View task without editing").
+		Verb("show", a.openTask, "View task without editing").Renamed("view", "the next mtm release (ochazuke v0.120.0)", "the following mtm release").
 		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").Many().ShadowsStandard().
 		Verb("toggle", a.toggleTask, "Mark the task done, or a done task todo (standard set of status)").
 		Verb("choose-status", a.chooseStatus, "Choose the task's status: todo, active, blocked or done; over a visual selection one choice sets every task (standard set of status)").Many().

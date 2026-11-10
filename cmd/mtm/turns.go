@@ -56,7 +56,7 @@ func (a *App) addTurns() error {
 		Mode("normal").
 		Bind("R", ochazuke.Do("pane.refresh-turns").Guard("pane-tab-turns").Hinted("refresh turns"))
 	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {
-		a.r.Define(noun).Kind(ochazuke.NounKindPart).
+		a.r.Define(noun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 			Verb("refresh-turns", a.refreshPaneTurns, "Find the log of the pane the turns are of again and reread its turns").Fetch().
 			Mode("normal").Bind("R", ochazuke.Do(noun+".refresh-turns").Hide())
 	}

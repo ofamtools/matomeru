@@ -11,16 +11,6 @@ import (
 	"ofam.dev/matomeru/internal/actionitems"
 )
 
-// aliasOf is the alias named name among action's aliases, nil for none.
-func aliasOf(a *App, action, name string) *ochazuke.ActionAlias {
-	for _, alias := range a.r.AliasesOf(action) {
-		if alias.Alias == name {
-			return &alias
-		}
-	}
-	return nil
-}
-
 // show ID is get: the item's props; list keeps --state (open by default)
 // and --source; create always adds a row of its own (add refreshes a
 // duplicate); the label falls back to the summary.
@@ -74,13 +64,20 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateOpen || it.Read() {
 		t.Fatalf("undo of x: %+v", it)
 	}
+	if err := a.inbox.list.Select(pr.ID); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "d", "d")
+	if got, err := a.inbox.items.Get(pr.ID); err != nil || got.State(*clock) != actionitems.StateArchived || a.r.TopModal() != "" {
+		t.Fatalf("first d d: %+v %v", got, err)
+	}
 	before, _ := a.inbox.items.Get(pr.ID)
 	if err := a.inbox.list.Select(pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")
-	if fr := frame(a); !strings.Contains(fr, "Delete Lift the store? x archives it instead.") {
-		t.Fatalf("d d:\n%s", fr)
+	if a.r.TopModal() == "" {
+		t.Fatal("second d d must ask before deleting")
 	}
 	press(t, a, "y")
 	if _, err := a.inbox.items.Get(pr.ID); err == nil {

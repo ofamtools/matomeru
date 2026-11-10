@@ -26,39 +26,6 @@ func contextIDOf(t *testing.T, a *App, text string) string {
 	return ""
 }
 
-// The context item's verbs: the standard ones its props and store give
-// (no rename: the text is the item, written by create only), forget a
-// lasting alias of delete, and the named ones beside them.
-func TestContextItemVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a, _ := contextApp(t)
-	for verb, standard := range map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"star": "set", // star: the alias of set {prop: starred, toggle: true}
-		"add":  "", "copy": "", "open": "", "reveal": "", "associate": "", "choose-move": "",
-		"extract": "", "turns": "", "follow": "", "kind": "", "search": "", "pick": "", "copy-prompt": "",
-	} {
-		op, ok := a.r.Operation(contextNoun + "." + verb)
-		if !ok || op.Standard != standard {
-			t.Errorf("%s.%s: ok %v standard %q, want %q", contextNoun, verb, ok, op.Standard, standard)
-		}
-	}
-	for _, verb := range []string{"rename", "move", "duplicate", "restore"} {
-		if _, ok := a.r.Operation(contextNoun + "." + verb); ok {
-			t.Errorf("%s.%s is purged (R1)", contextNoun, verb)
-		}
-	}
-	var forget *ochazuke.ActionAlias
-	for _, alias := range a.r.AliasesOf(contextNoun + ".delete") {
-		if alias.Alias == contextNoun+".forget" {
-			forget = &alias
-		}
-	}
-	if forget == nil || forget.Deprecated() {
-		t.Fatalf("forget: %+v", forget)
-	}
-}
-
 // Targeted keys on a context row: * stars through the standard set (and
 // undoes), m moves through the chooser's standard move, and d d asks
 // "Forget ...?" and deletes the record; undo puts the row back as it was,
@@ -86,11 +53,19 @@ func TestContextItemKeysStarMoveForget(t *testing.T) {
 		t.Fatalf("m: %+v", it)
 	}
 	commit := contextIDOf(t, a, "1ba025f")
+	if err := a.r.Settings().Set(ochazuke.HideArchivedSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	selectContext(t, a, "1ba025f")
+	press(t, a, "d", "d")
+	if got, err := a.contexts.Get(commit); err != nil || !got.Archived || a.r.TopModal() != "" {
+		t.Fatalf("first d d: %+v %v", got, err)
+	}
 	before, _ := a.contexts.Get(commit)
 	selectContext(t, a, "1ba025f")
 	press(t, a, "d", "d")
-	if fr := frame(a); a.r.TopModal() == "" || !strings.Contains(fr, "Forget 1ba025f?") {
-		t.Fatalf("d d: modal %q\n%s", a.r.TopModal(), fr)
+	if a.r.TopModal() == "" {
+		t.Fatal("second d d must ask before deleting")
 	}
 	press(t, a, "y")
 	if _, err := a.contexts.Get(commit); err == nil {

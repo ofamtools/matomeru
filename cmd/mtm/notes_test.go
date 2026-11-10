@@ -107,7 +107,7 @@ func TestNoteDraftRestartCancelAndSave(t *testing.T) {
 	if err := a.refreshNotes(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "view", Target: original.ID}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "show", Target: original.ID}); err != nil {
 		t.Fatal(err)
 	}
 	if a.editor != nil {
@@ -247,6 +247,14 @@ func TestNoteDeleteConfirmsAndClearsDraft(t *testing.T) {
 	if err := a.noteList.Focus(); err != nil {
 		t.Fatal(err)
 	}
+	if err := a.r.Settings().Set(ochazuke.HideArchivedSetting, false); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "d", "d")
+	if note, err := a.work.Note(gone.ID); err != nil || !note.Archived || a.r.TopModal() != "" {
+		t.Fatalf("first delete must archive without asking: %+v %v", note, err)
+	}
+	notesOn(t, a, gone.ID)
 	press(t, a, "d", "d")
 	if a.r.TopModal() == "" {
 		t.Fatal("note delete did not ask")

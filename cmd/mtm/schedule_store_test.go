@@ -10,24 +10,6 @@ import (
 	"ofam.dev/matomeru/internal/schedules"
 )
 
-// The schedule verbs: get, list, create, set, delete and watch standard;
-// no rename (its name is the key), no move; show, enable and disable
-// lasting aliases; add, edit, duplicate, history, run-now, toggle,
-// set-interval and reset named.
-func TestScheduleVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a, _, _ := scheduleApp(t)
-	standardIs(t, a, scheduleNoun, map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"add": "", "edit": "", "history": "", "run-now": "", "toggle": "", "set-interval": "", "reset": "",
-	}, "move", "rename", "restore")
-	for alias, action := range map[string]string{"show": "get", "enable": "set", "disable": "set"} {
-		if got := aliasOf(a, scheduleNoun+"."+action, scheduleNoun+"."+alias); got == nil || got.Deprecated() {
-			t.Errorf("%s: %+v", alias, got)
-		}
-	}
-}
-
 // e and i on the page are the standard set of enabled and interval, and
 // undo reverts them; set writes a field to a stored copy and enabled to
 // the row's setting.

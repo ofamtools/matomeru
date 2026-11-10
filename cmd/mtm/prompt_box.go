@@ -206,7 +206,7 @@ func (t tuios) PromptQueue(ctx context.Context, p pane, text string) (daemon.Que
 // addPromptBox adds the box's input and its noun.
 func (a *App) addPromptBox() error {
 	a.pb = &promptBox{sources: compose.NewSources(compose.DefaultEnv()), clip: macClipboard{}}
-	a.r.Define(promptNoun).Kind(ochazuke.NounKindPart).
+	a.r.Define(promptNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("send", a.sendPrompt, "Send the prompt to the pane: to an agent in the box's mode, send (a steer while it works), queue (typed when it rests) or interrupt (Escape, then send); to a terminal typed, then Enter unless its profile's promptBox.submit is none").
 		Verb("mode", a.cyclePromptMode, "Switch the prompt box's mode: send, queue, interrupt (or the one named); an agent's box only").When("prompt-modes").
 		Verb("back", a.promptBack, "Go back to the turns, else the pane row").

@@ -617,11 +617,11 @@ func New(opts Options) (*App, error) {
 
 	a.defineDirectoryNoun()
 	a.defineProject()
+	a.defineNotes()
 	a.defineTask()
 	a.definePrivacyVerbs()
 	a.defineProjectCreation()
 	a.defineRecordEditor()
-	a.defineNotes()
 	a.defineLaunch()
 	a.definePanes()
 	a.definePanePicker()
