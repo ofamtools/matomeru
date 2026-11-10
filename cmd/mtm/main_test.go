@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +16,6 @@ import (
 
 	"ofam.dev/matomeru/internal/compose"
 	"ofam.dev/matomeru/internal/work"
-	"ofam.dev/matomeru/store"
 )
 
 // press sends named keys the way Bubble Tea v2 delivers them, failing on
@@ -82,31 +83,52 @@ func open(t *testing.T) *App {
 	return openAt(t, seeded(t))
 }
 
-// seeded writes the seeded database (see open) and returns its path.
+// seeded copies a closed, fully migrated database; every caller still owns
+// its file and exercises the real store, including persistence and reopen.
 func seeded(t *testing.T) string {
 	t.Helper()
+	data, err := seededTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(t.TempDir(), "mtm.db")
-	db, err := store.Open(path)
-	if err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	w, err := work.Open(db)
+	return path
+}
+
+var seededTemplate = sync.OnceValues(func() ([]byte, error) {
+	dir, err := os.MkdirTemp("", "mtm-seed")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "mtm.db")
+	app, err := New(Options{Data: path, lookupEnv: func(key string) (string, bool) {
+		value, ok := map[string]string{"HOME": dir, "MTM_O_PROJ": "none"}[key]
+		return value, ok
+	}})
+	if err != nil {
+		return nil, err
+	}
+	defer app.Close()
 	for i, name := range []string{"ochazuke", "matomeru"} {
-		if err := w.PutProject(work.Project{ID: name, Name: name, Created: int64(i + 1), Theme: work.Theme{Glyph: "◆"}}); err != nil {
-			t.Fatal(err)
+		if err := app.work.PutProject(work.Project{ID: name, Name: name, Created: int64(i + 1), Theme: work.Theme{Glyph: "◆"}}); err != nil {
+			return nil, err
 		}
 	}
 	for i, title := range []string{"write the brief", "lift the store"} {
-		if err := w.PutTask(work.Task{ID: "t" + string(rune('1'+i)), ProjectID: "matomeru", Title: title, Position: int64(i + 1), Status: work.StatusTodo}); err != nil {
-			t.Fatal(err)
+		if err := app.work.PutTask(work.Task{ID: "t" + string(rune('1'+i)), ProjectID: "matomeru", Title: title, Position: int64(i + 1), Status: work.StatusTodo}); err != nil {
+			return nil, err
 		}
 	}
-	db.Close()
-	return path
-}
+	// Closing the last SQLite connection checkpoints its WAL into the file.
+	if err := app.Close(); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(path)
+})
 
 // openAt builds the app on an existing database file and goes to the Work
 // page, its first project row focused: most tests start among the seeded
@@ -136,11 +158,30 @@ func openWith(t *testing.T, opts Options) *App {
 		env := map[string]string{"HOME": "/home/test", "MTM_O_PROJ": "none"}
 		opts.lookupEnv = func(k string) (string, bool) { v, ok := env[k]; return v, ok }
 	}
+	// A fixture has no project bases until a directory test declares them.
+	// In particular, do not stat the synthetic HOME (macOS automounts /home).
+	if err := os.MkdirAll(opts.ConfigDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	bases, err := os.OpenFile(filepath.Join(opts.ConfigDir(), "dirs.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err == nil {
+		_, writeErr := bases.WriteString(`{"project_base_dirs":[]}`)
+		if err := errors.Join(writeErr, bases.Close()); err != nil {
+			t.Fatal(err)
+		}
+	} else if !errors.Is(err, os.ErrExist) {
+		t.Fatal(err)
+	}
 	app, err := New(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { app.Close() })
+	t.Cleanup(func() {
+		app.Close()
+		// testing retains completed parallel tests and their cleanup backing
+		// arrays until the parent ends. Do not retain every app with them.
+		app = nil
+	})
 	// Most tests read the Notes, Review and Context rows without opening
 	// those pages: load them as the TUI would on first need. TestPagesLoadLazily
 	// calls New itself to see them unloaded.

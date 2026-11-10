@@ -169,10 +169,17 @@ func driveCommandsUntilIdle(a *App, cmd tea.Cmd, recurse, appUpdate bool, idle <
 						update = a.Update
 					}
 					_, next := update(msg)
+					if !recurse {
+						nexts = append(nexts, next)
+					}
+					// Job completion is the barrier, not the next idle tick.
+					// New jobs are registered before Update returns; only
+					// timers and component reads remain when waiting is false.
+					if completion && !waiting() {
+						return nexts
+					}
 					if recurse {
 						start(next)
-					} else {
-						nexts = append(nexts, next)
 					}
 				}
 			}
@@ -236,11 +243,15 @@ func lingerTick(t *testing.T, a *App) {
 // settleLimit bounds how long settle waits for a running job.
 const settleLimit = 10 * time.Second
 
-// jobRunning reports a running job of an application verb (what the jobs
-// ticker shows), not a component's own read.
+// jobRunning includes application work and catalog/chooser loads without a
+// registered verb, but not a component's continuous read.
 func jobRunning(a *App) bool {
 	for _, j := range a.r.Jobs() {
-		if j.Status == ochazuke.JobRunning && a.r.Operations.At(ochazuke.Key(j.Verb)).Kind == ochazuke.KindApplication {
+		if j.Status != ochazuke.JobRunning {
+			continue
+		}
+		op, known := a.r.Operations.Find(ochazuke.Key(j.Verb))
+		if known && op.Kind == ochazuke.KindApplication || !known && a.r.Terminal(j.Owner) == nil {
 			return true
 		}
 	}

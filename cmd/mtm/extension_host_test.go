@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -86,7 +85,7 @@ var (
 )
 
 // hostBinaries builds the mtm host and the testdata peer once per test
-// binary run, both at the same time, and returns their paths.
+// binary run, sequentially, and returns their paths.
 func hostBinaries(t *testing.T) struct{ host, peer string } {
 	t.Helper()
 	hostOnce.Do(func() {
@@ -96,19 +95,12 @@ func hostBinaries(t *testing.T) struct{ host, peer string } {
 			return
 		}
 		hostBuilt.host, hostBuilt.peer = filepath.Join(dir, "mtm"), filepath.Join(dir, "peer")
-		var wg sync.WaitGroup
-		errs := make([]error, 2)
-		for i, b := range [][2]string{{hostBuilt.host, "."}, {hostBuilt.peer, "./testdata/host-peer"}} {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if data, err := exec.Command("go", "build", "-o", b[0], b[1]).CombinedOutput(); err != nil {
-					errs[i] = fmt.Errorf("build %s: %v\n%s", b[1], err, data)
-				}
-			}()
+		for _, b := range [][2]string{{hostBuilt.host, "."}, {hostBuilt.peer, "./testdata/host-peer"}} {
+			if data, err := exec.Command("go", "build", "-o", b[0], b[1]).CombinedOutput(); err != nil {
+				hostErr = fmt.Errorf("build %s: %v\n%s", b[1], err, data)
+				return
+			}
 		}
-		wg.Wait()
-		hostErr = errors.Join(errs...)
 	})
 	if hostErr != nil {
 		t.Fatal(hostErr)
