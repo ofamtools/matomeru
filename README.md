@@ -274,6 +274,8 @@ The existing `detail.related`, `notes.related-hidden` and `notes.related-empty` 
 
 The curated Items page uses `From(action-item)` with query-driven grouping before offset/limit, just like its generated index. `inbox.group` defaults to `owner`; `none` keeps a flat table. Groups retain their source order, labels and folds. Counts show matched rows on the current page, not whole-store totals. Panes still uses the full domain cache, not the visible Items window.
 
+The archive-inclusive `From` source read includes all action-item states before the collection applies its filters, rather than inheriting the CLI's implicit `state=open`. Explicit state arguments still win. Plain `action-item list` retains its open-items default; the collection's archive toggle governs which archived source rows it shows.
+
 Pane and session edit declare their subject sources as `row:pane` and `row:session`, retaining standard parameter metadata. From an Items action-item row, `:pane edit` opens its pane's form directly. Queue and child rows carry the same reference fields. Explicit subjects win; a missing pane still opens the chooser. Targetless CLI/API requests never read UI focus.
 
 On an empty generated index or curated `From` list, `n` opens that noun's declared creation form without fabricating a row. `keys.noun-defaults` defaults on; off disables these generated keys.
