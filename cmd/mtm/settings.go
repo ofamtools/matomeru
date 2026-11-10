@@ -99,6 +99,7 @@ func (a *App) declareSettings() error {
 		contextNotesSetting,
 		quickAboutSetting,
 		directoryChooserSetting,
+		pinDirectoryWalkSetting,
 		paneGroupSetting,
 		workTasksLayoutSetting,
 		taskPickerPathSetting,

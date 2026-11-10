@@ -60,13 +60,20 @@ var directoryChooserSetting = ochazuke.Setting{Name: settingDirectoryChooser, Ty
 	Description: "What asks for a project's directory (c, attach, move): path (the path chooser on its walk source, every folder under the project's directories, configured project bases and known directories; on known when path.walk is off; ctrl+o cycles browse, recent, typed, known, project), path-remembered (the path chooser on the source last used, else the first path.first names) or known (the path chooser opened on the known directories, walk or not; its browse source replaces browse…)"}
 
 // The pin.directory-walk setting: how far the walk of the directory pick a
-// pin asks for reaches. Only the pin's pick reads it (pathChooserWalk);
+// pin asks for reaches. Only the pin's pick reads it (pathChooserOwn);
 // moving a directory and every other pick keep the wide walk.
 const (
 	settingPinDirectoryWalk = "pin.directory-walk"
 	pinWalkWide             = "wide"    // the project's directories, the project bases and every known folder
 	pinWalkProject          = "project" // only the project's own directories
 )
+
+// pinDirectoryWalks says, per pin.directory-walk value, whether the walk
+// reaches beyond the project's own directories (the bases, the known folders).
+var pinDirectoryWalks = map[string]struct{ Beyond bool }{
+	pinWalkWide:    {Beyond: true},
+	pinWalkProject: {Beyond: false},
+}
 
 var pinDirectoryWalkSetting = ochazuke.Setting{Name: settingPinDirectoryWalk, Type: ochazuke.SettingString, Default: pinWalkWide,
 	Enum:        []string{pinWalkWide, pinWalkProject},
@@ -235,7 +242,7 @@ func (a *App) walkRoots(pick ochazuke.PathPick) ochazuke.PathWalk {
 			add(tree)
 		}
 	}
-	if a.pathChooserWalk == pinWalkProject {
+	if a.pathChooserOwn {
 		return walk
 	}
 	if bases, err := a.projectBases(); err == nil {

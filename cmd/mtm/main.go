@@ -363,6 +363,7 @@ type App struct {
 	editorNouns        map[string]editorNoun // the editable nouns, one row each (editor.go)
 	directories        directoryCache
 	pathChooserProject string // the project a directory path chooser is opened for (path_sources.go)
+	pathChooserOwn     bool   // that chooser walks only the project's own directories (pinDirectoryWalks; path_sources.go)
 	directoryList      *ochazuke.Collection
 	projectDirList     *ochazuke.Collection
 	baseList           *ochazuke.Collection
