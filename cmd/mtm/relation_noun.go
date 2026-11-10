@@ -280,10 +280,10 @@ func relationIDParam() ochazuke.Parameter {
 
 // relationKeyOf is the relation a verb acts on: the selected row's, else id.
 func relationKeyOf(ctx ochazuke.Ctx) string {
-	if ctx.Instance != nil { // the verb is the relation's own: a selected row is one
-		return ctx.Instance.ID
+	if id := ochazuke.StringArg(ctx.Args, "id", ""); id != "" || ctx.Instance == nil {
+		return id
 	}
-	return ochazuke.StringArg(ctx.Args, "id", "")
+	return ctx.Instance.ID // a selected relation row
 }
 
 // jumps are the pages a noun:key opens (data: noun to the function that

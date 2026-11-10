@@ -24,20 +24,27 @@ type relationHub struct {
 	changed func(ochazuke.Relation)
 }
 
-func (h relationHub) Put(x ochazuke.Relation) error {
+func (h *relationHub) Put(x ochazuke.Relation) error {
 	if err := h.Store.Put(x); err != nil {
 		return err
 	}
-	h.changed(x)
+	h.notify(x)
 	return nil
 }
 
-func (h relationHub) Remove(x ochazuke.Relation) error {
+func (h *relationHub) Remove(x ochazuke.Relation) error {
 	if err := h.Store.Remove(x); err != nil {
 		return err
 	}
-	h.changed(x)
+	h.notify(x)
 	return nil
+}
+
+// notify tells the app (once it is built) that the relation changed.
+func (h *relationHub) notify(x ochazuke.Relation) {
+	if h.changed != nil {
+		h.changed(x)
+	}
 }
 
 // relationWatchers are what a change to a relation of a kind reloads: the
@@ -63,8 +70,10 @@ func (a *App) reloadDirectories() {
 	a.refreshDirectoryRows()
 }
 
-// declareRelationKinds declares the kinds mtm knows and gives the runtime
-// its relation store. It runs once, after every noun is defined.
+// declareRelationKinds declares the kinds mtm knows. It runs after the nouns
+// they name are defined. (The runtime is given its relation store before any
+// noun is defined, in New: setting it later re-registers the standard verbs
+// and would drop what the app adjusted on them.)
 func (a *App) declareRelationKinds() {
 	if err := a.r.DeclareRelationKind(ochazuke.RelationKind{
 		Name: work.DirectoryKind, Description: "A directory a project works in: any number, ordered, each with text and data; data.default marks the default",
@@ -73,7 +82,6 @@ func (a *App) declareRelationKinds() {
 	}); err != nil {
 		panic(err) // a bad declaration is a programming error, as for every Define
 	}
-	a.r.SetRelationStore(relationHub{Store: a.relStore, changed: a.relationChanged})
 }
 
 // relationCtx is c, or a context on the runtime when c has none (a chooser

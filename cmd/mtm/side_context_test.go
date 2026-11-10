@@ -120,7 +120,7 @@ func ownSideParent(t *testing.T, a *App, parent pane, dir string) {
 		t.Fatal(err)
 	}
 	p.Trees, p.DefaultTree = []work.Tree{{Kind: "dir", Path: dir}}, dir
-	if err := a.work.PutProject(p); err != nil {
+	if err := putProjectDirs(a.work, p); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.work.SetPaneOwner(work.Assignment{Window: parent.ID, Session: parent.SessionID, ProjectID: p.ID}); err != nil {

@@ -572,6 +572,8 @@ func New(opts Options) (*App, error) {
 		return nil, fmt.Errorf("harnesses: %w", err)
 	}
 	r := ochazuke.NewRuntime()
+	hub := &relationHub{Store: w.Relations()}
+	r.SetRelationStore(hub)
 	// mtm's pane (a tuios pane) is its own noun: since ochazuke v0.16 the
 	// short name pane is the alias of the framework's ochazuke.pane (the
 	// divider verbs), so mtm claims it before anything defines it.
@@ -583,6 +585,7 @@ func New(opts Options) (*App, error) {
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
 	a := &App{db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
+	hub.changed = a.relationChanged
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()

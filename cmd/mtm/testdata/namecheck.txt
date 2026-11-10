@@ -41,6 +41,7 @@
 ../../internal/daemon/client.go	decodeEvent	case	"time"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"type"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"window"	1	wire field names of the daemon event JSON, not mtm vocabulary
+../../internal/daemon/client.go	decodeEvent	case	"data"	1	wire field names of the daemon event JSON, not mtm vocabulary (data became a word with the relation noun's data prop)
 ../../internal/daemon/launch.go	LaunchWorkspace	cyclo	"-"	29
 ../../internal/harness/harness.go	Harness.Validate	case	"paste"	1
 ../../internal/harness/promptbox.go	PromptBox.validate	case	"enter"	1
