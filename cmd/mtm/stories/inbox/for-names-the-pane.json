@@ -38,20 +38,24 @@
       "ask the gone pane",
       "acme-web/claude",
       "closed pane review",
-      "acme-web/claude (1)",
-      "acme-web (1)",
-      "closed pane review box (1)",
-      "unassociated (1)"
+      "closed pane review box",
+      "unassociated"
     ],
     "lacks": [
       "pane w1",
       "pane w-closed"
     ],
     "order": [
-      "acme-web/claude (1)",
-      "acme-web (1)",
-      "closed pane review box (1)",
-      "unassociated (1)"
+      "ask the live pane",
+      "gh",
+      "acme-web/claude",
+      "Checkout: shipping",
+      "ask the gone pane",
+      "gh",
+      "closed pane review",
+      "standup notes",
+      "slack",
+      "unassociated"
     ]
   }
 }
