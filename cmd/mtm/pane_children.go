@@ -264,10 +264,28 @@ func (a *App) inboxPaneSig(items []actionitems.Item) string {
 // refreshInboxPaneNames rebuilds the Inbox rows when a new pane listing
 // changes a pane name they show.
 func (a *App) refreshInboxPaneNames() {
-	if a.inbox == nil || a.inbox.list == nil || !a.inboxLoad.loaded || a.inboxPaneSig(a.inbox.all) == a.inbox.paneSig {
+	if a.inbox == nil || a.inbox.list == nil || !a.inboxLoad.loaded || a.inboxGroupSig(a.inbox.all) == a.inbox.paneSig {
 		return
 	}
 	if err := a.refreshInbox(); err != nil {
+		a.r.UI().Error(err.Error())
+	}
+}
+
+// groupSettingChanged rebuilds the Inbox rows under the new grouping.
+func (a *App) groupSettingChanged() {
+	if err := a.refreshInbox(); err != nil {
+		a.r.UI().Error(err.Error())
+	}
+}
+
+// childSettingChanged redraws the Panes page's lists with the new child
+// rows; a new first fold (panes.items-open) applies to every row again.
+func (a *App) childSettingChanged(name string) {
+	if name == settingItemsOpen {
+		a.pv.foldedIn = nil
+	}
+	if err := a.rebuildPanes(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 }

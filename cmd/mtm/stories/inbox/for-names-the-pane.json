@@ -1,13 +1,28 @@
 {
-  "name": "mtm: the Inbox page's for column names an item's pane by its label, and a closed pane as closed with the name the item kept",
+  "name": "mtm: the Inbox page groups items under headers by owner (the pane first, then task, project, a closed pane, unassociated last), and the for column names an item's pane by its label, a closed pane as closed with the name the item kept",
   "area": "inbox",
   "fixture": "seeded",
   "width": 140,
   "height": 30,
   "seed": {
     "items": [
-      {"source": "gh", "kind": "review-request", "key": "live", "title": "ask the live pane", "window": "w1", "session": "acme-web"},
-      {"source": "gh", "kind": "review-request", "key": "gone", "title": "ask the gone pane", "window": "w-closed", "session": "acme-web", "pane_label": "review box"}
+      {
+        "source": "gh",
+        "kind": "review-request",
+        "key": "live",
+        "title": "ask the live pane",
+        "window": "w1",
+        "session": "acme-web"
+      },
+      {
+        "source": "gh",
+        "kind": "review-request",
+        "key": "gone",
+        "title": "ask the gone pane",
+        "window": "w-closed",
+        "session": "acme-web",
+        "pane_label": "review box"
+      }
     ]
   },
   "script": [
@@ -18,7 +33,25 @@
   ],
   "expect": {
     "page": "inbox",
-    "contains": ["ask the live pane", "ask the gone pane", "acme-web/claude", "closed pane review"],
-    "lacks": ["pane w1", "pane w-closed"]
+    "contains": [
+      "ask the live pane",
+      "ask the gone pane",
+      "acme-web/claude",
+      "closed pane review",
+      "acme-web/claude (1)",
+      "acme-web (1)",
+      "closed pane review box (1)",
+      "unassociated (1)"
+    ],
+    "lacks": [
+      "pane w1",
+      "pane w-closed"
+    ],
+    "order": [
+      "acme-web/claude (1)",
+      "acme-web (1)",
+      "closed pane review box (1)",
+      "unassociated (1)"
+    ]
   }
 }

@@ -145,6 +145,7 @@ func (a *App) declareSettings() error {
 	settings = append(settings, reminderNotifySettings()...)
 	settings = append(settings, notifySettings()...)
 	settings = append(settings, inboxNotifySettings()...)
+	settings = append(settings, inboxGroupSettings()...)
 	settings = append(settings, setupSettings()...)
 	if err := a.declareSettingLayout(); err != nil {
 		return err

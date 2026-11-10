@@ -193,6 +193,12 @@ func (a *App) addInboxPage() error {
 	// Outside tools add items from other processes.
 	a.onOpen(inboxPage, a.reloadInbox)
 	a.inboxLoad.load = a.loadInbox
+	// A change of how the rows are grouped, or of how a pane's items are
+	// drawn, shows at once.
+	a.r.Settings().Observe(settingInboxGroup, func(string, any) { a.groupSettingChanged() })
+	for _, name := range []string{settingPaneChildren, settingChildItems, settingItemCount, settingItemsOpen} {
+		a.r.Settings().Observe(name, func(n string, _ any) { a.childSettingChanged(n) })
+	}
 	if a.headless {
 		return nil
 	}
@@ -229,7 +235,7 @@ func (a *App) reloadInbox() error {
 	if err != nil {
 		return err
 	}
-	if inboxSig(items, a.inbox.items.Now()) == a.inbox.sig {
+	if inboxSig(items, a.inbox.items.Now()) == a.inbox.sig && a.inboxGroupSig(items) == a.inbox.paneSig {
 		return nil
 	}
 	return a.setInboxRows(items)
@@ -269,7 +275,7 @@ func (a *App) loadInbox() error {
 func (a *App) setInboxRows(items []actionitems.Item) error {
 	now := a.inbox.items.Now()
 	a.inbox.sig = inboxSig(items, now)
-	a.inbox.paneSig = a.inboxPaneSig(items)
+	a.inbox.paneSig = a.inboxGroupSig(items)
 	rows := make([]ochazuke.ListItem, 0, len(items))
 	var c actionitems.Counts
 	for _, it := range items {
@@ -282,6 +288,7 @@ func (a *App) setInboxRows(items []actionitems.Item) error {
 		row := a.inboxRow(it, now)
 		rows = append(rows, ochazuke.ListItem{ID: row.ID, Noun: actionItemNoun, Label: row.Label, Cells: row.Cells, Data: it})
 	}
+	rows = a.groupInboxRows(items, rows, now)
 	a.inbox.counts = c
 	a.inbox.all = items
 	a.syncInboxNotices()
