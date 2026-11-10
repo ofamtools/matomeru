@@ -317,6 +317,8 @@ Use per-app environment/clock seams and temporary fixtures in new tests.
 
 The tests run every story through `host.Test` in the tagged build (`cmd/mtm/stories_test.go`; `-update` rewrites goldens): `make story-test` (`go vet` and `go test -race` with `-tags monogatari`). A UI bug becomes a story before it is fixed; a known gap is a story with `"skip": "gap: ..."`. Editors need `-tags monogatari` in gopls's build flags to see the tagged files.
 
+Extension stories must deliver the page's row load before using a row binding. Chooser loads share the `catalog-load` job name and may finish first. The lane doc-notes regression holds the row completion until every chooser has landed, then checks that the row binding sends the correct doc and pane.
+
 ## Daemon runner
 
 mtm runs its agents and shells in panes of a TUIOS-compatible daemon it starts for itself (`-server`, default `mtm-daemon`). Two runners start it, chosen by the setting `daemon.runner` (Settings, Daemon) or, for one run, `MTM_DAEMON_RUNNER`:
