@@ -353,7 +353,14 @@ func TestInboxPageKeys(t *testing.T) {
 		t.Fatalf("t: item %+v task %+v %v", it, task, err)
 	}
 
-	// d d asks; y deletes.
+	// d d archives first; on an archived row it asks and y deletes.
+	if err := a.inbox.list.Select(ping.ID); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "d", "d")
+	if got, err := a.inbox.items.Get(ping.ID); err != nil || got.State(*clock) != actionitems.StateArchived || a.r.TopModal() != "" {
+		t.Fatalf("first d d: %+v %v", got, err)
+	}
 	if err := a.inbox.list.Select(ping.ID); err != nil {
 		t.Fatal(err)
 	}

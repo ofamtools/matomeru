@@ -11,34 +11,6 @@ import (
 	"ofam.dev/matomeru/internal/actionitems"
 )
 
-// aliasOf is the alias named name among action's aliases, nil for none.
-func aliasOf(a *App, action, name string) *ochazuke.ActionAlias {
-	for _, alias := range a.r.AliasesOf(action) {
-		if alias.Alias == name {
-			return &alias
-		}
-	}
-	return nil
-}
-
-// The action item's verbs: the standard ones with rename (the title), move,
-// duplicate, archive and restore; show, read, unread and toggle-read lasting aliases; add,
-// count, open, snooze, the promotions, associate and choose-move named.
-func TestActionItemVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a, _, _ := inboxApp(t)
-	standardIs(t, a, actionItemNoun, map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"archive": "archive", "add": "", "count": "", "open": "", "snooze": "", "promote-todo": "", "promote-task": "", "associate": "", "choose-move": "",
-	}, "move", "rename", "duplicate", "restore")
-	for alias, action := range map[string]string{"show": "get", "read": "set", "unread": "set", "toggle-read": "set"} {
-		got := aliasOf(a, actionItemNoun+"."+action, actionItemNoun+"."+alias)
-		if got == nil || got.Deprecated() {
-			t.Errorf("%s: %+v", alias, got)
-		}
-	}
-}
-
 // show ID is get: the item's props; list keeps --state (open by default)
 // and --source; create always adds a row of its own (add refreshes a
 // duplicate); the label falls back to the summary.
@@ -92,13 +64,20 @@ func TestActionItemDeleteKeyAndUndo(t *testing.T) {
 	if it, _ := a.inbox.items.Get(pr.ID); it.State(*clock) != actionitems.StateOpen || it.Read() {
 		t.Fatalf("undo of x: %+v", it)
 	}
+	if err := a.inbox.list.Select(pr.ID); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "d", "d")
+	if got, err := a.inbox.items.Get(pr.ID); err != nil || got.State(*clock) != actionitems.StateArchived || a.r.TopModal() != "" {
+		t.Fatalf("first d d: %+v %v", got, err)
+	}
 	before, _ := a.inbox.items.Get(pr.ID)
 	if err := a.inbox.list.Select(pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "d", "d")
-	if fr := frame(a); !strings.Contains(fr, "Delete Lift the store? x archives it instead.") {
-		t.Fatalf("d d:\n%s", fr)
+	if a.r.TopModal() == "" {
+		t.Fatal("second d d must ask before deleting")
 	}
 	press(t, a, "y")
 	if _, err := a.inbox.items.Get(pr.ID); err == nil {

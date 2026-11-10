@@ -20,5 +20,5 @@
   │ › type into the pane                                                                         │  
   ╰──────────────────────────────────────────────────────────────────────────────────────────────╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────  
-  enter live · d d pane.kill · m move · r rename · f hints · * pane.set · w saved.save · l copy m…  
+  enter live · d d pane.kill · m move · f hints · * pane.set · n pane.new · w saved.save · l copy…  
                                                                                                     

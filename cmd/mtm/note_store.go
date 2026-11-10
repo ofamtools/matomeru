@@ -15,7 +15,7 @@ import (
 // and its store, so note get, list, create, set, delete, archive, edit
 // and watch are ochazuke's standard verbs over the work store, with no
 // verb handler of mtm's own. note new and note edit wrap create and set
-// (notes.go); view and choose-move stay named; the old associate alias is
+// (notes.go); show and choose-move stay named; the old associate alias is
 // purged (removed_verbs.go).
 
 // settingNotesTitleField says whether the note editor shows the title
@@ -52,7 +52,7 @@ func (a *App) noteProps() []ochazuke.PropSpec {
 			},
 			Parameter: ochazuke.Parameter{Type: "string", Noun: "task",
 				Description: "The task the note belongs to; its project wins over project"}},
-		{Name: "about",
+		{Name: "about", Role: ochazuke.RoleAbout,
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
 				about, _ := t["about"].(string)
 				return aboutCell(about)

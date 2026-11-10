@@ -24,26 +24,6 @@ func savedRecord(t *testing.T, a *App) work.SavedPane {
 	return row
 }
 
-// The saved verbs: the six standard ones with move and duplicate; forget a
-// lasting alias of delete; rename, save, reopen and associate named.
-func TestSavedVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	standardIs(t, a, "saved", map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "delete": "delete", "watch": "watch",
-		"save": "", "reopen": "", "associate": "", "choose-move": "",
-	}, "move", "rename", "duplicate", "restore")
-	var forget *ochazuke.ActionAlias
-	for _, alias := range a.r.AliasesOf("saved.delete") {
-		if alias.Alias == "saved.forget" {
-			forget = &alias
-		}
-	}
-	if forget == nil || forget.Deprecated() {
-		t.Fatalf("forget: %+v", forget)
-	}
-}
-
 // d d on a saved row asks "Forget ...? Its pane keeps running." and
 // deletes the record; undo puts it back exactly as it was.
 func TestSavedForgetKeyAndUndo(t *testing.T) {

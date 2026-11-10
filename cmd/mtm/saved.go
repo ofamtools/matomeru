@@ -30,8 +30,8 @@ func (a *App) defineSaved() {
 		Verb("associate", a.associateSaved, "Choose the project to move the record and its live pane to (omit the owner); --project, --task and --scratch are the deprecated forms of move and set").Positional("id").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the record and its live pane to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Mode("normal").Bind("w", ochazuke.Do("saved.save")).
-		Bind("enter", ochazuke.Do("saved.reopen")).Bind("r", ochazuke.Do("saved.edit", ochazuke.Arguments{"field": "@label"}).Hinted("rename")).
-		Bind("m", ochazuke.Do("saved.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move")).Bind("d d", ochazuke.Do("saved.delete"))
+		Bind("enter", ochazuke.Do("saved.reopen")).
+		Bind("m", ochazuke.Do("saved.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	// forget is the noun's own word for delete (the record only), kept as
 	// a lasting alias: saved forget ID works as before.
 	if err := a.r.AddActionAlias(ochazuke.ActionAlias{Alias: "saved.forget", Action: "saved.delete",

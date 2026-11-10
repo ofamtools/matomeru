@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"ofam.dev/ochazuke"
 )
 
@@ -30,6 +31,27 @@ func (a *App) defineCoreVerbs() {
 			panic("core verb " + row.noun + "." + row.verb + ": no " + row.from)
 		}
 		op := src
+		// Keep only extra parameters used by generated keys; the app's
+		// handler must not silently accept unrelated standard options.
+		if core, ok := a.r.Operation(row.noun + "." + row.verb); ok {
+			op.Parameters = maps.Clone(src.Parameters)
+			for _, key := range ochazuke.NounKeyRows() {
+				if key.Verb != row.verb {
+					continue
+				}
+				for name := range key.Args {
+					if _, own := src.Parameters[name]; own {
+						continue
+					}
+					if param, ok := core.Parameters[name]; ok {
+						if op.Parameters == nil {
+							op.Parameters = map[string]ochazuke.Parameter{}
+						}
+						op.Parameters[name] = param
+					}
+				}
+			}
+		}
 		op.Key, op.Standard, op.Unavailable = ochazuke.KeyOf(row.noun, row.verb), "", ""
 		op.Description = src.Description + " (as " + row.from + ")"
 		if op.AppHandler != nil {

@@ -36,5 +36,5 @@
   │                                │ │ › write to the agent                                                          │  
   ╰────────────────────────────────╯ ╰───────────────────────────────────────────────────────────────────────────────╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
-  enter live · d d pane.kill · m move · r rename · f hints · * pane.set · w saved.save · l turns · R refresh turns · …  
+  enter live · d d pane.kill · m move · f hints · * pane.set · n pane.new · R refresh turns · w saved.save · l turns …  
                                                                                                                         

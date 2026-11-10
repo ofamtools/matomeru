@@ -297,7 +297,6 @@ func TestCLIRemovedVerbNamesReplacement(t *testing.T) {
 		{[]string{"pane", "rename", "w1"}, `edit {field: "@label"}`},
 		{[]string{"settings", "list"}, "ochazuke.setting.list"},
 		{[]string{"dirs", "list"}, "dirs.refresh"},
-		{[]string{"note", "associate"}, "note set ID @owner=PROJECT"},
 		{[]string{"extension", "list"}, "extension.all"},
 	} {
 		var out, errOut bytes.Buffer

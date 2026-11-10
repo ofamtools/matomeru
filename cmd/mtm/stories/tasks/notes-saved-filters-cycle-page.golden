@@ -31,5 +31,5 @@ R|  agent note example    acme-web  Checkout page: …         just now
  |
  |
  |  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- |  enter note.view · i note.edit · d d note.delete · m move · n note.new · space collection.mark · z C clear props · z ] next filter · : p…
+ |  enter note.show · i note.edit · m move · n note.new · space collection.mark · z C clear props · z ] next filter · : palette.open · ? bi…
  |

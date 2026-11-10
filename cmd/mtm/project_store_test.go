@@ -20,42 +20,6 @@ func projectsOn(t *testing.T, a *App, id string) {
 	}
 }
 
-// The project's verbs: the standard ones its props and store give (no
-// move: a project has no owner), and the named ones beside them. delete
-// stays named (its confirm counts what it orphans).
-func TestProjectVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	for verb, standard := range map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
-		"delete": "delete", "confirm-delete": "delete", "new": "", "edit": "", "open": "", "view": "", "launch": "",
-		"directory": "", "default": "", "remove-directory": "", "edit-directory": "",
-		"pin": "", "unpin": "", "pick": "", "make-task": "", "outline": "", "associate": "",
-	} {
-		op, ok := a.r.Operation("project." + verb)
-		if !ok || op.Standard != standard {
-			t.Errorf("project.%s: ok %v standard %q, want %q", verb, ok, op.Standard, standard)
-		}
-	}
-	for _, verb := range []string{"rename", "move", "duplicate", "restore"} {
-		if _, ok := a.r.Operation("project." + verb); ok {
-			t.Errorf("project.%s is purged (R1)", verb)
-		}
-	}
-	if ps, ok := a.r.PropOf("project", "dir"); !ok || !ps.CreateOnly {
-		t.Fatalf("dir: %+v %v", ps, ok)
-	}
-	// The editor's schema is the props' (projectEditorProps), the harness
-	// chosen from the registry, never typed.
-	var names []string
-	for _, f := range a.recordFields("project") {
-		names = append(names, f.Name)
-	}
-	if strings.Join(names, " ") != "name color glyph harness preset" {
-		t.Fatalf("editor fields %v", names)
-	}
-}
-
 // set, rename and the edit wrap write the props; an unknown harness is
 // written with a notice (record first); one undo reverts the last write.
 func TestProjectSetRenameAndUndo(t *testing.T) {

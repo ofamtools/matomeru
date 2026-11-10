@@ -242,8 +242,7 @@ func (a *App) defineSchedules() {
 		Bind("e", ochazuke.Do(n+".toggle").Hinted("on/off")).
 		Bind("i", ochazuke.Do(n+".set-interval").Hinted("interval")).
 		Bind("n", ochazuke.Do(n+".add").Hinted("add")).
-		Bind("E", ochazuke.Do(n+".edit").Hinted("edit")).
-		Bind("d d", ochazuke.Do(n+".delete").Hinted("delete"))
+		Bind("E", ochazuke.Do(n+".edit").Hinted("edit"))
 	// show is get under its old name (its runs are the runs prop); enable
 	// and disable are the standard set of enabled.
 	for _, alias := range []ochazuke.ActionAlias{

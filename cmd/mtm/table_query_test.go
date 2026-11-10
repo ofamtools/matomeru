@@ -57,9 +57,8 @@ func bulkRows(t *testing.T, a *App, n, m int) {
 }
 
 // The Nouns page counts context-item (20,000 rows) and action-item (3,000)
-// with one-row pages in SQLite: no full read of either table. The action
-// store lists the open items by default (state), so its count is the open
-// ones: 3000 less 600 dismissed and 600 snoozed.
+// with one-row pages in SQLite: no full read of either table. Counts include
+// every state, including 600 archived and 600 snoozed action items.
 func TestNounsPageCountsWithoutReadingTheTables(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -71,7 +70,7 @@ func TestNounsPageCountsWithoutReadingTheTables(t *testing.T) {
 	if err := a.r.OpenPage(ochazuke.NounsPageID); err != nil {
 		t.Fatal(err)
 	}
-	for noun, want := range map[string][2]int{contextNoun: {20000, 2000}, actionItemNoun: {1800, 0}} {
+	for noun, want := range map[string][2]int{contextNoun: {20000, 2000}, actionItemNoun: {3000, 600}} {
 		count, archived, known, hasArchived := a.r.NounCount(noun)
 		if !known || !hasArchived || count != want[0] || archived != want[1] {
 			t.Fatalf("%s: count %d archived %d known %v, want %v", noun, count, archived, known, want)
@@ -134,6 +133,10 @@ func TestTableQueryAgreesWithTheListPath(t *testing.T) {
 		{contextNoun, ochazuke.ListQuery{Filters: []ochazuke.PropFilter{{Prop: "origin", Value: "prompt"}}}}, // derived: the List path
 		{contextNoun, ochazuke.ListQuery{GroupBy: []string{"type"}}},
 		{actionItemNoun, ochazuke.ListQuery{}},
+		{actionItemNoun, ochazuke.ListQuery{Every: true}},
+		{actionItemNoun, ochazuke.ListQuery{Every: true, Filters: []ochazuke.PropFilter{{Prop: "archived", Value: true}}}},
+		{actionItemNoun, ochazuke.ListQuery{Every: true, Args: ochazuke.Arguments{"state": "snoozed"}, Archived: true}},
+		{actionItemNoun, ochazuke.ListQuery{Every: true, Args: ochazuke.Arguments{"source": "slack"}, Archived: true, GroupBy: []string{"source"}}},
 		{actionItemNoun, ochazuke.ListQuery{Args: ochazuke.Arguments{"state": "all"}}},
 		{actionItemNoun, ochazuke.ListQuery{Args: ochazuke.Arguments{"state": "snoozed"}, Archived: true}},
 		{actionItemNoun, ochazuke.ListQuery{Args: ochazuke.Arguments{"state": "archived"}, Archived: true}},

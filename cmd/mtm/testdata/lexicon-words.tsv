@@ -877,6 +877,7 @@ timeout	prop	seed
 title	prop	seed	
 to	action+prop	seed	
 todos	noun	seed	plural
+token	action	yes	the standard noun.token reads its store's change token
 toggle	action	seed	
 toggle-fast	action	seed	
 toggle-pin-column	action	seed	

@@ -45,7 +45,7 @@ func (a *App) defineContextPicker() {
 		"window": {Type: "string", Required: true, Description: "The pane's window id"},
 		"turn":   {Type: "string", Required: true, Description: "The turn's id (its prompt entry, as history lists it)"},
 	})
-	a.r.Define(contextPicker).Kind(ochazuke.NounKindPart).
+	a.r.Define(contextPicker).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("open", a.pickerOpen, "Open the highlighted item with the default app").
 		Verb("reveal", a.pickerReveal, "Reveal the highlighted file or dir in Finder").
 		Mode("").

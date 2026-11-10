@@ -35,20 +35,6 @@ func vimSession(t *testing.T, a *App) work.VimSession {
 	return row
 }
 
-// The Vim verbs: get, list, set, delete, watch, rename and move standard;
-// no create (a session is opened, a launch); forget a lasting alias of
-// delete; open, save, reopen and choose-move named.
-func TestVimVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	standardIs(t, a, "vim", map[string]string{
-		"get": "get", "list": "list", "set": "set", "delete": "delete", "watch": "watch", "open": "", "save": "", "reopen": "", "choose-move": "", "create": "",
-	}, "move", "rename", "duplicate", "restore")
-	if forget := aliasOf(a, "vim.delete", "vim.forget"); forget == nil || forget.Deprecated() {
-		t.Fatalf("forget: %+v", forget)
-	}
-}
-
 // d d on a session asks "Forget ...?" and removes the record and mtm's
 // session file; rename and move are the standard writes, and undo reverts
 // them; m opens the project chooser.

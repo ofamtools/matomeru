@@ -154,7 +154,8 @@ func (a *App) contextTableQuery() *tableQuery {
 		},
 		archive: "archived",
 		search:  []string{"text", "type"},
-		args: func(args ochazuke.Arguments) ([]store.QueryCond, bool) {
+		args: func(q ochazuke.ListQuery) ([]store.QueryCond, bool) {
+			args := q.Args
 			all, _ := args["all"].(bool)
 			if !all && a.pin != "" && !a.all {
 				return nil, false // the pin scopes by the derived project

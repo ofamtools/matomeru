@@ -148,8 +148,8 @@ redundant once these verbs are used: remove it; the existing `mtm` entry
 
 `mtm mcp instructions` prints ochazuke's generated guidance followed by mtm's
 own About and agent rules (`mtmAbout` and `mtmAgentRules` in
-`cmd/mtm/agent_declarations.go`, pinned by
-`cmd/mtm/testdata/mcp-instructions.golden`; ochazuke caps each at 60 tokens).
+`cmd/mtm/agent_declarations.go`; ochazuke caps each at 60 tokens).
+`TestMCPInstructionsBudget` checks the complete guidance and tool descriptions against the instruction budget.
 They say:
 
 - mtm is the only MCP server an agent needs. The mounted family tools are

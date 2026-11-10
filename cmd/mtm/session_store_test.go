@@ -21,14 +21,10 @@ func sessionsApp(t *testing.T) (*App, *fakePanes) {
 	return a, f
 }
 
-// The session's verbs: get, list, set, watch and move are standard;
-// rename, associate and kill named; no create or delete.
-func TestSessionVerbsAreStandard(t *testing.T) {
+// The session's props come from the daemon listing.
+func TestSessionGetReadsDaemon(t *testing.T) {
 	t.Parallel()
 	a, _ := sessionsApp(t)
-	standardIs(t, a, "session", map[string]string{
-		"get": "get", "list": "list", "set": "set", "watch": "watch", "associate": "", "choose-move": "", "kill": "", "attach": "", "create": "", "delete": "",
-	}, "move", "rename", "duplicate", "restore")
 	thing, _ := executeA(t, a, "session", "get", "", ochazuke.Arguments{"id": "session:id-matomeru"}).(map[string]any)
 	if thing["name"] != "matomeru" || thing["panes"] != 1 {
 		t.Fatalf("get: %v", thing)

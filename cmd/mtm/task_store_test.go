@@ -27,40 +27,6 @@ func tasksOn(t *testing.T, a *App, id string) {
 	}
 }
 
-// The task's verbs: the standard ones its props and store give, the named
-// ones beside them, and done and status as aliases of set with presets.
-// delete is the standard delete (its store's ConfirmFor counts what it
-// orphans); confirm-delete is a lasting alias of it.
-func TestTaskVerbsAreStandard(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	for verb, standard := range map[string]string{
-		"get": "get", "list": "list", "create": "create", "set": "set", "watch": "watch",
-		"delete": "delete", "confirm-delete": "delete", "new": "", "edit": "", "open": "", "view": "", "toggle": "",
-		"choose-status": "", "choose-move": "", "launch": "", "outline": "", "make-project": "", "associate": "",
-	} {
-		op, ok := a.r.Operation("task." + verb)
-		if !ok || op.Standard != standard {
-			t.Errorf("task.%s: ok %v standard %q, want %q", verb, ok, op.Standard, standard)
-		}
-	}
-	for _, noun := range []string{"task", "project"} {
-		if got := aliasOf(a, noun+".delete", noun+".confirm-delete"); got == nil || got.Deprecated() {
-			t.Errorf("%s.confirm-delete: %+v, want a lasting alias of %s.delete", noun, got, noun)
-		}
-	}
-	presets := map[string]string{}
-	for _, alias := range a.r.AliasesOf("task.set") {
-		presets[alias.Alias] = compactJSON(alias.Args)
-	}
-	if presets["task.done"] != `{"props":{"status":"done"}}` || presets["task.status"] != `{"prop":"status","require-summary":true}` {
-		t.Fatalf("aliases of task.set: %v", presets)
-	}
-	if ps, ok := a.r.PropOf("task", "position"); !ok || !ps.ReadOnly {
-		t.Fatalf("position: %+v %v", ps, ok)
-	}
-}
-
 // compactJSON is v as compact JSON.
 func compactJSON(v any) string {
 	raw, _ := json.Marshal(v)

@@ -1,5 +1,5 @@
 {
-  "name": "mtm: a purged verb typed in the palette names its replacement (dirs list says dirs.refresh; note associate says note set @owner, the removed row, not the markdown doc's note verb)",
+  "name": "mtm: the palette names the replacement for purged dirs list, while note associate now opens the generated relation form",
   "area": "settings",
   "fixture": "seeded",
   "width": 120,
@@ -10,6 +10,6 @@
   ],
   "expect": [
     {"after": 3, "contains": ["dirs.refresh"]},
-    {"contains": ["note associate was removed", "note set ID @owner=PROJECT"]}
+    {"contains": ["Run note.associate", "The other end, noun:key"], "lacks": ["note associate was removed"]}
   ]
 }
