@@ -111,8 +111,11 @@ func owner(row map[string]any) [2]string {
 // context item, an inbox item, directories (one the parent's too) and the
 // pin.
 func seedDemote(f fixture) {
-	f.must(f.w.PutProject(work.Project{ID: "parent", Name: "Parent", Status: "open", Created: 100, Trees: []work.Tree{{Kind: "directory", Path: "/src/shared"}}, DefaultTree: "/src/shared"}))
-	f.must(f.w.PutProject(work.Project{ID: "child", Name: "Child", Status: "open", Created: 200, Trees: []work.Tree{{Kind: "directory", Path: "/src/child"}, {Kind: "directory", Path: "/src/shared/"}}, DefaultTree: "/src/child"}))
+	f.must(f.w.PutProject(work.Project{ID: "parent", Name: "Parent", Status: "open", Created: 100}))
+	f.must(f.w.PutDirectory("parent", work.Tree{Kind: "directory", Path: "/src/shared"}, true, 0))
+	f.must(f.w.PutProject(work.Project{ID: "child", Name: "Child", Status: "open", Created: 200}))
+	f.must(f.w.PutDirectory("child", work.Tree{Kind: "directory", Path: "/src/child"}, true, 0))
+	f.must(f.w.PutDirectory("child", work.Tree{Kind: "directory", Path: "/src/shared/"}, false, 0))
 	f.must(f.w.PutTask(work.Task{ID: "p1", ProjectID: "parent", Title: "parent's", Position: 4}))
 	f.must(f.w.PutTask(work.Task{ID: "c1", ProjectID: "child", Title: "one", Position: 1}))
 	f.must(f.w.PutTask(work.Task{ID: "c2", ProjectID: "child", Title: "two", Position: 2}))
@@ -276,7 +279,8 @@ func TestUndoKeepsAnUnrelatedLaterEdit(t *testing.T) {
 // and the rows a task can own, with directories in every place the store
 // keeps one.
 func seedPromote(f fixture) {
-	f.must(f.w.PutProject(work.Project{ID: "a", Name: "A", Created: 100, Trees: []work.Tree{{Kind: "directory", Path: "/src/a"}}, DefaultTree: "/src/a"}))
+	f.must(f.w.PutProject(work.Project{ID: "a", Name: "A", Created: 100}))
+	f.must(f.w.PutDirectory("a", work.Tree{Kind: "directory", Path: "/src/a"}, true, 0))
 	f.must(f.w.PutProject(work.Project{ID: "b", Name: "B", Created: 300}))
 	f.must(f.w.PutTask(work.Task{ID: "t", ProjectID: "a", Title: "Big task", Position: 1}))
 	f.must(f.w.PutTask(work.Task{ID: "t1", ProjectID: "a", ParentID: "t", Title: "sub one", Position: 1}))
@@ -362,7 +366,8 @@ func TestPromoteTaskBecomesProjectWithItsDirectories(t *testing.T) {
 
 func TestPromoteWithoutDirectoriesAndDeepTaskRefused(t *testing.T) {
 	f := newFixture(t)
-	f.must(f.w.PutProject(work.Project{ID: "a", Created: 1, Trees: []work.Tree{{Path: "/src/a"}}}))
+	f.must(f.w.PutProject(work.Project{ID: "a", Created: 1}))
+	f.must(f.w.PutDirectory("a", work.Tree{Path: "/src/a"}, true, 0))
 	f.must(f.w.PutTask(work.Task{ID: "t", ProjectID: "a", Title: "bare"}))
 	f.must(f.w.PutTask(work.Task{ID: "deep", ProjectID: "a", ParentID: "t"}))
 	if _, err := f.w.PromoteTask("deep"); !errors.Is(err, work.ErrNotTopTask) {

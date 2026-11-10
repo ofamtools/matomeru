@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 
+	"ofam.dev/matomeru/internal/relations"
 	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
 )
 
 // A project becomes a task of the project above it (DemoteProject), and a
@@ -177,7 +180,7 @@ func sameJSON(a, b []byte) bool {
 // (a unit that never opened, such as action items in a narrow test, has
 // nothing to move).
 func (s *Store) convertTables() []string {
-	tables := []string{"projects", "tasks", "active"}
+	tables := []string{"projects", "tasks", "active", relations.Table}
 	for _, t := range append(slices.Clone(ownerTables), "history") {
 		if s.db.Declared(t) {
 			tables = append(tables, t)
@@ -391,9 +394,19 @@ func (s *Store) DemoteProject(id, parent string) (Conversion, error) {
 		if err := movePin(c, id, parent); err != nil {
 			return err
 		}
-		merged, added := mergeTrees(target, source)
-		conv.Directories = added
+		moved, err := c.moveDirectories(id, parent)
+		if err != nil {
+			return err
+		}
+		conv.Directories = moved
+		merged := target
+		if len(moved) > 0 {
+			merged = mergeRepo(target, source)
+		}
 		if err := c.put("projects", merged); err != nil {
+			return err
+		}
+		if err := c.detachRelations(ProjectRef(id)); err != nil {
 			return err
 		}
 		return c.delete("projects", byID[id])
@@ -433,40 +446,127 @@ func movePin(c *convertTx, from, to string) error {
 	return c.put("active", rowEntry{id: "singleton", before: raw, row: row})
 }
 
-// mergeTrees adds source's directories to target's, identical paths once;
-// target's default stays (with none, source's default becomes it). It
-// returns target's row and the paths it gained.
-func mergeTrees(target rowEntry, source Project) (rowEntry, []string) {
-	var trees []Tree
-	if raw, ok := target.row["trees"]; ok {
-		_ = json.Unmarshal(raw, &trees)
-	}
-	have := map[string]bool{}
-	for _, t := range trees {
-		have[filepath.Clean(t.Path)] = true
-	}
-	var added []string
-	for _, t := range source.Trees {
-		path := filepath.Clean(t.Path)
-		if t.Path == "" || have[path] {
-			continue
-		}
-		have[path] = true
-		t.Path = path
-		trees = append(trees, t)
-		added = append(added, path)
-	}
-	if len(added) == 0 {
-		return target, nil
-	}
-	target.row["trees"], _ = json.Marshal(trees)
-	if str(target.row, "default_tree") == "" && source.DefaultTree != "" {
-		setStr(target.row, "default_tree", filepath.Clean(source.DefaultTree))
-	}
+// mergeRepo gives target the source's repository when it has none.
+func mergeRepo(target rowEntry, source Project) rowEntry {
 	if str(target.row, "repo") == "" && source.Repo != "" {
 		setStr(target.row, "repo", source.Repo)
 	}
-	return target, added
+	return target
+}
+
+// relationRows are the stored relations, decoded, with their entries.
+func (c *convertTx) relationRows() ([]relations.Row, []rowEntry, error) {
+	entries, err := c.entries(relations.Table)
+	if err != nil {
+		return nil, nil, err
+	}
+	rows := make([]relations.Row, len(entries))
+	for i, e := range entries {
+		if err := json.Unmarshal(e.before, &rows[i]); err != nil {
+			return nil, nil, fmt.Errorf("relations/%s: %w", e.id, err)
+		}
+	}
+	return rows, entries, nil
+}
+
+// putRelation writes a relation row through the conversion (so its change
+// is recorded for undo).
+func (c *convertTx) putRelation(x ochazuke.Relation, created int64, before []byte) error {
+	row := relations.RowOf(x, Now())
+	if created != 0 {
+		row.Created = created
+	}
+	raw, _ := json.Marshal(row)
+	m := rowMap{}
+	_ = json.Unmarshal(raw, &m)
+	return c.put(relations.Table, rowEntry{id: row.ID, before: before, row: m})
+}
+
+// moveDirectories gives the target the source's live directories it lacks
+// (identical paths once), after its own, in the source's order; the
+// target's default stays, and with none the source's becomes it. It
+// removes the source's directory relations and answers the paths the
+// target gained.
+func (c *convertTx) moveDirectories(source, target string) ([]string, error) {
+	rows, entries, err := c.relationRows()
+	if err != nil {
+		return nil, err
+	}
+	have, hasDefault, last := map[string]int{}, false, 0
+	for i, r := range rows {
+		if r.Kind != DirectoryKind || r.From != ProjectRef(target) {
+			continue
+		}
+		have[r.To] = i
+		last = max(last, r.Position)
+		hasDefault = hasDefault || !r.Archived && r.Relation().Flag(DefaultFlag)
+	}
+	var added []string
+	for i, r := range rows {
+		if r.Kind != DirectoryKind || r.From != ProjectRef(source) {
+			continue
+		}
+		if err := c.delete(relations.Table, entries[i]); err != nil {
+			return nil, err
+		}
+		if r.Archived || r.To == "" {
+			continue
+		}
+		x := r.Relation()
+		if at, ok := have[r.To]; ok {
+			if rows[at].Archived {
+				back := rows[at].Relation()
+				back.Archived = false
+				if err := c.putRelation(back, rows[at].Created, entries[at].before); err != nil {
+					return nil, err
+				}
+			}
+			continue
+		}
+		last += 1024
+		x.From, x.Position, x.Archived = ProjectRef(target), last, false
+		if x.Flag(DefaultFlag) && hasDefault {
+			x.Data = maps.Clone(x.Data)
+			x.Data[DefaultFlag] = false
+		}
+		hasDefault = hasDefault || x.Flag(DefaultFlag)
+		have[r.To] = -1
+		_, path, _ := ochazuke.SplitAnyRef(r.To)
+		added = append(added, path)
+		if err := c.putRelation(x, 0, nil); err != nil {
+			return nil, err
+		}
+	}
+	return added, nil
+}
+
+// detachRelations is what deleting a thing does to its relations: every
+// relation with ref at an end keeps its row, the end moving to the former
+// end (record first; nothing is lost).
+func (c *convertTx) detachRelations(ref string) error {
+	rows, entries, err := c.relationRows()
+	if err != nil {
+		return err
+	}
+	for i, r := range rows {
+		if r.From != ref && r.To != ref {
+			continue
+		}
+		moved := r.Relation()
+		if r.From == ref {
+			moved.From, moved.FormerFrom = "", ref
+		}
+		if r.To == ref {
+			moved.To, moved.FormerTo = "", ref
+		}
+		if err := c.delete(relations.Table, entries[i]); err != nil {
+			return err
+		}
+		if err := c.putRelation(moved, r.Created, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PromoteTask turns a task directly under its project (or an unassociated
@@ -519,20 +619,24 @@ func (s *Store) PromoteTask(id string) (Conversion, error) {
 		if err != nil {
 			return err
 		}
-		p := Project{ID: NewID(), Name: task.Title, Theme: task.Theme, Status: "open", Trees: []Tree{}}
+		p := Project{ID: NewID(), Name: task.Title, Theme: task.Theme, Status: "open"}
 		p.Created = placeAfter(&p, projects, from)
-		for _, d := range dirs {
-			p.Trees = append(p.Trees, Tree{Kind: "directory", Path: d})
-		}
-		if len(dirs) > 0 {
-			p.DefaultTree = dirs[0]
-		}
 		conv.Project, conv.Directories = p.ID, dirs
 		raw, _ := json.Marshal(p)
 		newRow := rowMap{}
 		_ = json.Unmarshal(raw, &newRow)
 		if err := c.put("projects", rowEntry{id: p.ID, row: newRow}); err != nil {
 			return err
+		}
+		for i, d := range dirs {
+			data := map[string]any{"kind": "directory"}
+			if i == 0 {
+				data[DefaultFlag] = true
+			}
+			x := ochazuke.Relation{Kind: DirectoryKind, From: ProjectRef(p.ID), To: DirectoryRef(d), Data: data, Position: (i + 1) * 1024}
+			if err := c.putRelation(x, 0, nil); err != nil {
+				return err
+			}
 		}
 		var self rowEntry
 		for _, e := range idx.entries {

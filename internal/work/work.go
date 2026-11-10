@@ -14,25 +14,30 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/relations"
 	"ofam.dev/matomeru/store"
 )
 
 // Project is one row of the projects table.
 type Project struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Theme       Theme           `json:"theme"`
-	Status      string          `json:"status"`
-	Created     int64           `json:"created"`
-	Repo        string          `json:"repo"`
-	Trees       []Tree          `json:"trees"`
-	DefaultTree string          `json:"default_tree"`
-	Settings    ProjectSettings `json:"settings"`
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Theme    Theme           `json:"theme"`
+	Status   string          `json:"status"`
+	Created  int64           `json:"created"`
+	Repo     string          `json:"repo"`
+	Settings ProjectSettings `json:"settings"`
 	// Origin is the tool that created or adopted the project ("o-proj");
 	// rows written before it existed, and by mtm itself, leave it empty.
 	Origin string `json:"origin,omitempty"`
 	// Priority is one of Priorities (priority.go); empty reads none.
 	Priority string `json:"priority,omitempty"`
+	// Trees and DefaultTree are the project's directories as they read: the
+	// live "directory" relations from the project (relations table), in
+	// order, and the one whose data holds default. They are never stored in
+	// the row (directories.go loads them on every read).
+	Trees       []Tree `json:"-"`
+	DefaultTree string `json:"-"`
 }
 
 // Theme is the colour and glyph a project or task is drawn with.
@@ -42,11 +47,14 @@ type Theme struct {
 }
 
 // Tree is one checkout of a project: a plain directory, a clone or a worktree.
+// It is the data of a directory relation (directories.go): Kind, Repo and
+// Branch are in the relation's data, Text is the relation's free text.
 type Tree struct {
 	Kind   string `json:"kind"`
 	Path   string `json:"path"`
 	Repo   string `json:"repo,omitempty"`
 	Branch string `json:"branch,omitempty"`
+	Text   string `json:"text,omitempty"`
 }
 
 // ProjectSettings are the per-project launch defaults.
@@ -88,7 +96,7 @@ type Task struct {
 // Tables are the declarations this package owns; they match the persisted
 // metadata of matomeru-old, so Declare accepts an existing database.
 var Tables = []store.Table{
-	{Name: "projects", Owner: "work", Key: "id", Version: 1},
+	{Name: "projects", Owner: "work", Key: "id", Version: 2},
 	{Name: "tasks", Owner: "work", Key: "id", Version: 1},
 	{Name: "launch_state", Owner: "work", Key: "id", Version: 1},
 	{Name: "reviews", Owner: "work", Key: "id", Version: 1},
@@ -145,6 +153,14 @@ func Open(db *store.Store) (*Store, error) {
 	if err := db.Migrate(copiesTable, 1, 2, serverIDRewrite("source")); err != nil {
 		return nil, err
 	}
+	// The directories of a project are relations: the table exists before the
+	// projects rewrite moves trees into it (directories.go).
+	if err := relations.Declare(db); err != nil {
+		return nil, err
+	}
+	if err := migrateDirectories(db); err != nil {
+		return nil, err
+	}
 	for _, t := range Tables {
 		if err := db.Declare(t); err != nil {
 			return nil, err
@@ -171,6 +187,13 @@ func (s *Store) Projects() ([]Project, error) {
 	slices.SortFunc(out, func(a, b Project) int {
 		return cmp.Or(cmp.Compare(a.Created, b.Created), cmp.Compare(a.ID, b.ID))
 	})
+	dirs, err := s.projectTrees()
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].setTrees(dirs[out[i].ID])
+	}
 	return out, nil
 }
 
