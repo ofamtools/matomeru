@@ -62,6 +62,7 @@ type contextState struct {
 	query       *ochazuke.Input     // the page's search field
 	seen        string              // the query the list was last filtered by
 	list        *ochazuke.Collection
+	load        pageLoad // the items load on first need (lazy.go)
 	sys         systemActions
 	// cmds are commands a completion asks the loop to run (an OSC 52
 	// copy); contextUpdate hands them to Bubble Tea.
@@ -191,8 +192,15 @@ func (a *App) addContextPage() error {
 	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.RowNoun(contextNoun), ochazuke.Columns(contextColumns...)); err != nil {
 		return err
 	}
-	if _, err := a.r.AddPage(contextPage, "Context", a.renderContext, ochazuke.Focus(contextListID)); err != nil {
+	a.cx.load.load = a.loadContext
+	page, err := a.r.AddPage(contextPage, "Context", a.renderContext, ochazuke.Focus(contextListID))
+	if err != nil {
 		return err
+	}
+	page.OnOpen = func(*ochazuke.Runtime, string) {
+		if err := a.cx.load.ensure(); err != nil {
+			a.r.UI().Error("context: " + err.Error())
+		}
 	}
 	for _, row := range []struct {
 		keys    string
@@ -207,14 +215,19 @@ func (a *App) addContextPage() error {
 			return err
 		}
 	}
-	return a.reloadContext()
+	return nil
 }
 
-// reloadContext reads the items from the store and pushes the rows.
+// reloadContext refreshes the rows when the page has loaded them.
 func (a *App) reloadContext() error {
 	if a.cx == nil || a.cx.list == nil {
 		return nil
 	}
+	return a.cx.load.refresh()
+}
+
+// loadContext reads the items from the store and pushes the rows.
+func (a *App) loadContext() error {
 	items, err := a.contexts.All()
 	if err != nil {
 		return err
@@ -308,7 +321,7 @@ func (a *App) itemCell(it contextitems.Item) string {
 
 // refreshContext pushes the filtered rows; selection is kept by id.
 func (a *App) refreshContext() error {
-	if a.cx == nil || a.cx.list == nil {
+	if a.cx == nil || a.cx.list == nil || !a.cx.load.loaded {
 		return nil
 	}
 	a.cx.seen = string(a.cx.query.Text)
@@ -352,6 +365,9 @@ func (a *App) contextUpdate(msg tea.Msg) tea.Cmd {
 }
 
 func (a *App) renderContext(_ *ochazuke.Runtime, width, height int) ochazuke.Block {
+	if err := a.cx.load.ensure(); err != nil {
+		a.r.UI().Error(err.Error())
+	}
 	s := a.pageStyles()
 	kind := cmp.Or(a.cx.kind, "all")
 	head := fmt.Sprintf("context (%d) · kind %s (f)", a.cx.list.Len(), kind)

@@ -295,18 +295,12 @@ func smokeOptions(opts *Options, flags *flag.FlagSet) (func(), error) {
 
 // reveal loads the rows that hold id, so a CLI --target names a row
 // instance: a task id opens its project (project.open fills the tasks
-// stop), anything else reloads the pane list. Projects and reviews are
-// loaded at startup.
+// stop), a note, review or context item loads its page (lazy.go), anything
+// else reloads the pane list. Projects are loaded at startup.
 func (a *App) reveal(id string) error {
 	if a.cli {
 		a.all = true
 	} // An explicit CLI target may be outside the pin.
-	if err := a.refreshNotes(); err != nil {
-		return err
-	}
-	if err := a.refreshReviews(); err != nil {
-		return err
-	}
 	a.r.Changed("saved")
 	if err := a.refreshVim(); err != nil {
 		return err
@@ -324,6 +318,15 @@ func (a *App) reveal(id string) error {
 		}
 		_, err := a.r.Execute(ochazuke.Request{Verb: "open", Noun: "project", Target: t.ProjectID})
 		return err
+	}
+	// Pages that load on first need (lazy.go): only an id no row names yet.
+	for _, l := range []*pageLoad{&a.notesLoad, &a.reviewsLoad, &a.cx.load} {
+		if err := l.ensure(); err != nil {
+			return err
+		}
+		if a.r.Instances[id] != nil {
+			return nil
+		}
 	}
 	return a.reloadPanes()
 }
@@ -429,6 +432,8 @@ type App struct {
 	paneList    *ochazuke.Collection // the pane tree's rows (panes_tree.go)
 	pv          *paneUI              // the panes page's tree, detail tabs and timers
 	reviewList  *ochazuke.Collection
+	notesLoad   pageLoad                   // the Notes rows load on first need (lazy.go)
+	reviewsLoad pageLoad                   // the Review rows load on first need (lazy.go)
 	reviewTurns *ochazuke.Tree             // the opened review row's turns (reviews.go)
 	turnFills   map[string]*turnFill       // what each turns tree was filled with, for re-wrapping (turn_wrap.go)
 	mturns      map[string]*paneTurns      // window → its turns read from the agent's log or the shell (turns_model.go)
@@ -743,10 +748,6 @@ func New(opts Options) (*App, error) {
 	// which would tell an observer of the change from the default.
 	a.observeExtNounNames()
 	a.observeArchiveViews()
-	if err := a.refreshReviews(); err != nil {
-		db.Close()
-		return nil, err
-	}
 	if a.pin, err = a.work.Pin(); err != nil {
 		db.Close()
 		return nil, err
