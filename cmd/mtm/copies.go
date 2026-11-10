@@ -464,6 +464,9 @@ func (a *App) readCopiesNow(noun string, check func(ochazuke.Thing) error) {
 		if err := cn.local.hold(key, held); err != nil {
 			return nil, err
 		}
+		if err := a.refreshArchivedPanes(); err != nil {
+			return nil, err
+		}
 		return t, nil
 	}
 	if op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(noun + ".refresh"))); ok && op.AppHandler != nil {
@@ -610,6 +613,7 @@ func (a *App) copyPanes() error {
 		if !ok {
 			continue
 		}
+		a.panes[i].Archived, _ = t["archived"].(bool)
 		if !a.panes[i].copied {
 			a.panes[i].copied, a.panes[i].sourceName = true, a.panes[i].Name
 		}
@@ -628,7 +632,8 @@ func (a *App) copyPanes() error {
 func endedPane(t ochazuke.Thing) pane {
 	text := func(name string) string { s, _ := t[name].(string); return s }
 	starred, _ := t["starred"].(bool)
-	p := pane{Session: text("session"), Harness: text("harness"), Exited: true, ended: true, Starred: starred,
+	archived, _ := t["archived"].(bool)
+	p := pane{Session: text("session"), Harness: text("harness"), Exited: true, ended: true, Starred: starred, Archived: archived,
 		Pane: daemon.Pane{ID: text("id"), Name: text("name"), Title: text("title"), Cwd: text("cwd")}}
 	return p
 }
@@ -636,16 +641,21 @@ func endedPane(t ochazuke.Thing) pane {
 // shownPanes are the panes the page lists: the daemon's, then the ones
 // that ended when panes.show-ended is on.
 func (a *App) shownPanes() []pane {
+	out := make([]pane, 0, len(a.panes)+len(a.pv.ended))
+	for _, p := range a.panes {
+		if a.archiveVisible(p.Archived, a.pv.tree.List()) {
+			out = append(out, p)
+		}
+	}
 	if len(a.pv.ended) == 0 || !a.r.Settings().Bool(settingShowEnded) {
-		return a.panes
+		return out
 	}
 	listed := make(map[string]bool, len(a.panes))
 	for _, p := range a.panes {
 		listed[p.ID] = true
 	}
-	out := append([]pane(nil), a.panes...)
 	for _, p := range a.pv.ended {
-		if !listed[p.ID] {
+		if !listed[p.ID] && a.archiveVisible(p.Archived, a.pv.tree.List()) {
 			out = append(out, p)
 		}
 	}

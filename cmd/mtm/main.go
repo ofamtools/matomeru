@@ -695,7 +695,7 @@ func New(opts Options) (*App, error) {
 	if _, err := r.AddPage("work", "Work", a.renderWork); err != nil {
 		return nil, err
 	}
-	if a.detail.work, err = a.addDetailAbout(workDetailID, "work", a.workItem, nil, a.workTarget); err != nil {
+	if a.detail.work, err = a.addDetailShow(workDetailID, "work", a.workItem, nil, a.workTarget, a.workData); err != nil {
 		return nil, err
 	}
 	list, err := r.AddList("projects", nil, ochazuke.Parent("work"), ochazuke.Columns(projectColumns...))
@@ -842,6 +842,9 @@ func (a *App) refreshProjects() error {
 	home, _ := a.home()
 	items := make([]ochazuke.ListItem, 0, len(projects)+2)
 	for _, p := range projects {
+		if !a.archiveVisible(p.Archived, a.projectList) {
+			continue
+		}
 		label := projectLabel(p)
 		if marked[p.ID] {
 			label = "[draft] " + label

@@ -1197,6 +1197,15 @@ func (a *App) screenWindow(row, text, drawn string, width, height int) screenWin
 
 // tabBody is the selected pane's tab, or the both view's split.
 func (a *App) tabBody(row string, width, height int) ochazuke.Block {
+	if a.pv.tab == tabNotes {
+		return a.notesTabBody(width, height)
+	}
+	return a.detail.panes.under(func(w, h int) ochazuke.Block {
+		return a.paneTabContent(row, w, h)
+	}, width, height)
+}
+
+func (a *App) paneTabContent(row string, width, height int) ochazuke.Block {
 	if split, ok := a.splitShown(row); ok && width >= 2*minSplitColumn {
 		return a.splitBody(row, split, width, height)
 	}
@@ -1211,8 +1220,6 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 		return a.screenBody(row, width, height)
 	case tabTurns:
 		return a.turnsTabBody(row, width, height)
-	case tabNotes:
-		return a.notesTabBody(width, height)
 	}
 	p, err := a.paneAt(a.r.Instances[row])
 	if err != nil {
@@ -1232,6 +1239,9 @@ func (a *App) tabBody(row string, width, height int) ochazuke.Block {
 // notesTabBody is the Notes tab: the related sections of the selected pane
 // (notes about it first), scrolled as a whole by J and K from the list.
 func (a *App) notesTabBody(width, height int) ochazuke.Block {
+	if a.detail.panes.showingForm() {
+		return a.detail.panes.recordBlock("", width, height)
+	}
 	text := a.detail.panes.relatedText(width)
 	if text == "" {
 		a.detail.panes.hide()
@@ -1262,6 +1272,12 @@ func (a *App) paneTarget() (string, string) {
 		return "", ""
 	}
 	return "pane", p.ID // the pane's key (its window id), as the pane noun's verbs take it
+}
+
+func (a *App) paneData() string {
+	row, inst := a.selectedRow()
+	version, _ := a.db.Version("copies")
+	return row + "/" + version + "/" + fmt.Sprint(inst)
 }
 
 // turnsTabBody is the Turns tab of row's pane at width x height.

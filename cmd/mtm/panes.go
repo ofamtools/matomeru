@@ -110,9 +110,10 @@ type pane struct {
 	SideVim, SideTerm string
 	ShowVim, ShowTerm bool
 	SideFront         string
-	Exited            bool   `json:"exited,omitempty"`  // the window's process ended; TUIOS still lists it
-	Program           string `json:"program,omitempty"` // what mtm knows runs in a shell pane ("vim"), else ""
-	Starred           bool   `json:"starred,omitempty"` // pane.star (pane_stars.go)
+	Exited            bool   `json:"exited,omitempty"`   // the window's process ended; TUIOS still lists it
+	Program           string `json:"program,omitempty"`  // what mtm knows runs in a shell pane ("vim"), else ""
+	Starred           bool   `json:"starred,omitempty"`  // pane.star (pane_stars.go)
+	Archived          bool   `json:"archived,omitempty"` // local copy metadata, never daemon state
 	// copied: the pane has a copy in mtm (copies.go); sourceName is the
 	// name the daemon gives it (paneThing, the source's view, reads it)
 	// and named says Name is the copy's, not the daemon's. ended: the
@@ -452,14 +453,11 @@ func (a *App) addPanesPage() error {
 	}
 	// The detail is the selected row's tab; Screen, Activity and
 	// Transcript have the newest at the bottom.
-	a.detail.panes, err = a.addDetail(panesDetailID, panesPage, func() string {
+	a.detail.panes, err = a.addDetailShow(panesDetailID, panesPage, func() string {
 		row, _ := a.selectedRow()
 		return fmt.Sprintf("%s|%d", row, a.pv.tab)
-	}, func() bool { return a.pv.tab != tabTurns && a.pv.tab != tabNotes })
+	}, func() bool { return a.pv.tab != tabTurns && a.pv.tab != tabNotes }, a.paneTarget, a.paneData)
 	if err != nil {
-		return err
-	}
-	if err := a.addDetailRelated(a.detail.panes, a.paneTarget); err != nil {
 		return err
 	}
 	// A Notes tab turned off while shown leaves the pane on Turns.

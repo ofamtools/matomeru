@@ -35,6 +35,8 @@ type Project struct {
 	Origin string `json:"origin,omitempty"`
 	// Priority is one of Priorities (priority.go); empty reads none.
 	Priority string `json:"priority,omitempty"`
+	// Archived hides the project metadata without deleting tasks or directories.
+	Archived bool `json:"archived,omitempty"`
 	// Trees and DefaultTree are the project's directories as they read: the
 	// live "directory" relations from the project (relations table), in
 	// order, and the one whose data holds default. They are never stored in

@@ -35,6 +35,7 @@ func projectProps() []ochazuke.PropSpec {
 		{Name: "id", Key: true, Parameter: text("The project's key")},
 		{Name: "name", Role: ochazuke.RoleLabel, Fallback: "dir", Parameter: text("The project's name (empty: untitled, shown by its directory)")},
 		priorityProp("project"),
+		{Name: "archived", Role: ochazuke.RoleArchive, Default: false, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the project without deleting its tasks or directory relations"}},
 		{Name: "color", Parameter: text("The colour the project is drawn with")},
 		{Name: "glyph", Parameter: text("The glyph drawn before the project's name (empty: " + defaultProjectGlyph + ")")},
 		{Name: "harness", Parameter: ochazuke.Parameter{Type: "string", Source: "harness.names", Free: true,
@@ -104,6 +105,7 @@ func projectThing(p work.Project) ochazuke.Thing {
 		"id": p.ID, "name": p.Name, "color": p.Theme.Color, "glyph": p.Theme.Glyph,
 		"harness": p.Settings.Harness, "preset": p.Settings.Preset, "dir": projectDir(p),
 		"repo": p.Repo, "origin": p.Origin, "created": p.Created, "privacy": work.PrivacyOf(p), "priority": work.NormalPriority(p.Priority),
+		"archived": p.Archived,
 	}
 }
 
@@ -112,7 +114,7 @@ func projectThing(p work.Project) ochazuke.Thing {
 // a notice (record first: the launch falls back to the default).
 func (a *App) writeProjectProps(c ochazuke.Ctx, p *work.Project, values ochazuke.Thing) error {
 	props, err := thingOver(projectPatch{Name: p.Name, Color: p.Theme.Color, Glyph: p.Theme.Glyph,
-		Harness: p.Settings.Harness, Preset: p.Settings.Preset, Privacy: p.Settings.Privacy}, values)
+		Harness: p.Settings.Harness, Preset: p.Settings.Preset, Privacy: p.Settings.Privacy, Archived: p.Archived}, values)
 	if err != nil {
 		return err
 	}
@@ -120,6 +122,7 @@ func (a *App) writeProjectProps(c ochazuke.Ctx, p *work.Project, values ochazuke
 		p.Name = strings.TrimSpace(props.Name)
 	}
 	p.Theme.Color, p.Theme.Glyph, p.Settings.Preset = props.Color, props.Glyph, props.Preset
+	p.Archived = props.Archived
 	if _, named := values["harness"]; named && !a.knownHarness(props.Harness) {
 		c.Notify(fmt.Sprintf("unknown harness %s; saved, launches use the default until it is registered", props.Harness))
 	}
@@ -138,12 +141,13 @@ func (a *App) writeProjectProps(c ochazuke.Ctx, p *work.Project, values ochazuke
 // projectPatch are the project props a write sets onto the record
 // (thingOver); the harness, the name and the privacy take rules.
 type projectPatch struct {
-	Name    string `json:"name"`
-	Color   string `json:"color"`
-	Glyph   string `json:"glyph"`
-	Harness string `json:"harness"`
-	Preset  string `json:"preset"`
-	Privacy string `json:"privacy"`
+	Name     string `json:"name"`
+	Color    string `json:"color"`
+	Glyph    string `json:"glyph"`
+	Harness  string `json:"harness"`
+	Preset   string `json:"preset"`
+	Privacy  string `json:"privacy"`
+	Archived bool   `json:"archived"`
 }
 
 // createProject is the store's Create: a new open project from the props

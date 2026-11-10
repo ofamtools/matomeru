@@ -92,7 +92,7 @@ func (a *App) roleProp(noun, role string) string {
 }
 
 func (a *App) refreshArchiveViews() error {
-	for _, refresh := range []func() error{a.refreshTasks, a.refreshProjects, a.reloadOutline, a.notesLoad.refresh, a.reloadContext} {
+	for _, refresh := range []func() error{a.refreshTasks, a.refreshProjects, a.reloadOutline, a.notesLoad.refresh, a.reloadContext, a.refreshArchivedPanes} {
 		if err := refresh(); err != nil {
 			return err
 		}
@@ -100,11 +100,19 @@ func (a *App) refreshArchiveViews() error {
 	return nil
 }
 
+// Refresh copy metadata without asking the daemon for another listing.
+func (a *App) refreshArchivedPanes() error {
+	if err := a.copyPanes(); err != nil {
+		return err
+	}
+	return a.rebuildPanes()
+}
+
 func (a *App) observeArchiveViews() {
 	for _, row := range []struct {
 		list    *ochazuke.Collection
 		refresh func() error
-	}{{a.taskList, a.refreshTasks}} {
+	}{{a.taskList, a.refreshTasks}, {a.projectList, a.refreshProjects}, {a.pv.tree.List(), a.refreshArchivedPanes}} {
 		a.observeArchiveList(row.list, row.refresh)
 	}
 	a.r.Settings().Observe(settingHideArchived, func(string, any) {

@@ -1,5 +1,1 @@
 # scaffoldcheck baseline: noun<TAB>check, a failure accepted today; it only shrinks.
-pane	archive
-pane	restore
-project	archive
-project	restore

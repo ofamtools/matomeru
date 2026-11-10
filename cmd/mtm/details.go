@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -37,7 +38,9 @@ const detailEnd = 1 << 30
 
 // pageDetail is one page's detail and its tail state.
 type pageDetail struct {
-	d *ochazuke.Detail
+	d    *ochazuke.Detail
+	r    *ochazuke.Runtime
+	show *ochazuke.ShowForm
 	// rel is the stack of related sections about what the detail shows
 	// (notes about it, ...), nil when the detail has none.
 	rel *ochazuke.Related
@@ -56,7 +59,7 @@ func (a *App) addDetail(id, page string, item func() string, tail func() bool) (
 	if err != nil {
 		return nil, err
 	}
-	return &pageDetail{d: d, tail: tail}, nil
+	return &pageDetail{d: d, r: a.r, tail: tail}, nil
 }
 
 // The related stack of a detail: the sections of the things that name what
@@ -77,22 +80,91 @@ const (
 
 var (
 	relatedHiddenSetting = ochazuke.Setting{Name: settingRelatedHidden, Type: ochazuke.SettingList,
-		Default:     []string{"note.task", "pane.*", "task.*", "session.*", "review.*", "action-item.*", "schedule.*", "saved.*", "vim.*", "context-item.*", "ochazuke.*"},
-		Description: "Related sections kept out of mtm's details, as NOUN.PROP ids (a trailing * is a prefix). The default keeps the notes (note.about, note.project) and hides the rest and note.task, which note.about shows already; list fewer to show more. detail.related turns the stacks off"}
+		Default:     []string{"note.task", "pane.*", "task.*", "session.*", "review.*", "action-item.*", "schedule.*", "saved.*", "vim.*", "context-item.*"},
+		Description: "Related sections kept out of mtm's details, as NOUN.PROP ids (a trailing * is a prefix). The default keeps notes and history, hides note.task already shown by note.about, and hides other record and framework referrers; list fewer to show more. detail.related turns the stacks off"}
 	relatedEmptySetting = ochazuke.Setting{Name: settingRelatedEmpty, Type: ochazuke.SettingString, Default: ochazuke.RelatedEmptyHide,
 		Enum:        []string{ochazuke.RelatedEmptyHeader, ochazuke.RelatedEmptyHide, ochazuke.RelatedEmptyOpen},
 		Description: "What a related section with nothing in it shows in a detail: hide (nothing), header (its heading and count) or open (the heading and an empty row)"}
 )
 
+func (a *App) detailHiddenSetting() ochazuke.Setting {
+	setting := relatedHiddenSetting
+	hidden := append([]string(nil), setting.Default.([]string)...)
+	for _, ref := range a.r.Referrers("") {
+		if a.r.Noun(ref.Noun).Builtin {
+			hidden = append(hidden, ref.ID())
+		}
+	}
+	setting.Default = hidden
+	return setting
+}
+
 // addDetailRelated gives the detail p a related stack about the thing
 // target names now (noun and key; "" for none). The stack is a child of
 // the detail, so its sections are focus stops while the detail draws them.
 func (a *App) addDetailRelated(p *pageDetail, target func() (noun, key string)) error {
-	rel, err := a.r.AddRelated(p.d.ID()+"/related", ochazuke.RelatedSpec{
-		Target: target, Enabled: ochazuke.RelatedDetailSetting, Hidden: settingRelatedHidden, Empty: settingRelatedEmpty,
-	}, ochazuke.Parent(p.d.ID()))
+	rel, err := a.r.AddRelated(p.d.ID()+"/related", detailRelatedSpec(target), ochazuke.Parent(p.d.ID()))
 	p.rel = rel
 	return err
+}
+
+func detailRelatedSpec(target func() (noun, key string)) ochazuke.RelatedSpec {
+	return ochazuke.RelatedSpec{Target: target, Enabled: ochazuke.RelatedDetailSetting,
+		Hidden: settingRelatedHidden, Empty: settingRelatedEmpty}
+}
+
+// The show form owns the single related stack; the app supplies its visibility
+// settings and registered custom views instead of drawing a second stack.
+func (a *App) addDetailShow(id, page string, item func() string, tail func() bool, target func() (noun, key string), data func() string) (*pageDetail, error) {
+	p, err := a.addDetail(id, page, item, tail)
+	if err != nil {
+		return nil, err
+	}
+	// Once focus enters the record or its sections it no longer names a list
+	// row. Keep following the same selection until focus returns to the page.
+	var noun, key string
+	follow := func() (string, string) {
+		focus := a.r.BaseFocus()
+		inside := p.show != nil && p.show.Holds(focus)
+		if p.rel != nil {
+			inside = inside || slices.Contains(a.r.InstancePath(focus), p.rel.ID())
+		}
+		if !inside {
+			noun, key = target()
+		}
+		return noun, key
+	}
+	related := detailRelatedSpec(follow)
+	related.History = true
+	p.show, err = a.r.AddShowForm(id+"/show", ochazuke.ShowFormSpec{Target: follow, Data: data, Related: &related}, ochazuke.Parent(page))
+	if err != nil {
+		return nil, err
+	}
+	p.rel = p.show.Related()
+	return p, nil
+}
+
+func (p *pageDetail) showingForm() bool {
+	return p.show != nil && p.show.Form() != nil && p.r.Settings().Bool(ochazuke.DetailShowFormSetting)
+}
+
+func (p *pageDetail) recordBlock(text string, width, height int) ochazuke.Block {
+	if p.showingForm() {
+		p.hide()
+		return p.show.Block("", width, height)
+	}
+	return ochazuke.Text(p.lines(p.withRelated(text, width), width, width, height))
+}
+
+// Keep custom components intact, including their cursor and focus placement.
+func (p *pageDetail) under(render func(int, int) ochazuke.Block, width, height int) ochazuke.Block {
+	if !p.showingForm() {
+		return render(width, height)
+	}
+	top := max(1, height*2/5)
+	head := render(width, top)
+	tail := p.show.Block("", width, max(1, height-top-1))
+	return stackBlocks(head, top, tail)
 }
 
 // addDetailAbout is addDetail with the related stack about target.

@@ -16,7 +16,7 @@ func (a *App) defineProject() {
 	// Props and the store first: the standard verbs (get, list, create,
 	// set, watch, rename, duplicate) come from them (project_store.go);
 	// new and edit wrap create and set; the rest are mtm's own.
-	a.r.Define("project").Props(projectProps()...).Store(a.projectStore()).Columns(projectColumns...).
+	a.r.Define("project").Props(projectProps()...).Store(a.docStore("project", a.projectStore())).Columns(projectColumns...).
 		Verb("open", a.openProject, "View project and tasks").
 		Verb("view", a.openProject, "View project and tasks").
 		Verb("edit", a.editProject, "Edit name, theme and launch settings (standard set of those given); omit arguments for the editor").Positional("name").ShadowsStandard().
@@ -259,13 +259,17 @@ func (a *App) renderWorkDetail(width, height int) ochazuke.Block {
 	top := min(want(a.projectList), max(avail/2, avail-want(a.taskList)))
 	top = max(1, min(top, avail-1))
 	left := a.projectsHeading() + a.view(a.projectList, leftWidth, top)
-	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).Render(a.detail.work.fit(a.detail.work.withRelated(detail, rightWidth), rightWidth, rightWidth, top+1)))
-	return ochazuke.Text(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskTree, width, max(1, avail-top)))
+	body := a.detail.work.recordBlock(detail, rightWidth, top+1)
+	upper := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(leftWidth+2).Render(left), lipgloss.NewStyle().Width(rightWidth).Render(body.Text))
+	return body.Offset(leftWidth+2, 0).WithText(upper + "\n" + ansi.Truncate(a.tasksHeading(), width, "…") + "\n" + a.view(a.taskTree, width, max(1, avail-top)))
 }
 
 // workDetail is the detail of the highlighted task, else of the
 // highlighted (or open) project; isTask reports a task's.
 func (a *App) workDetail() (detail string, isTask bool) {
+	if a.detail.work.showingForm() {
+		return "", false
+	}
 	return a.workDetailOf(a.workSelected())
 }
 
@@ -318,6 +322,13 @@ func (a *App) workItem() string {
 	return "project:" + projectID
 }
 
+func (a *App) workData() string {
+	tasks, _ := a.db.Version("tasks")
+	projects, _ := a.db.Version("projects")
+	relations, _ := a.db.Version("relations")
+	return tasks + "/" + projects + "/" + relations
+}
+
 // workDetailOf is the detail text of task taskID, else of project
 // projectID.
 func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool) {
@@ -329,29 +340,23 @@ func (a *App) workDetailOf(taskID, projectID string) (detail string, isTask bool
 		}
 	}
 	if task != nil {
-		detail = fmt.Sprintf("%s\n\nstatus: %s\nproject: %s", taskLabel(*task), task.Status, a.ownerLabel(task.ProjectID))
+		detail = a.recordText("task", a.taskThingOf(*task))
 	} else if p, ok := a.project(projectID); ok {
-		detail = projectLabel(p) + "\n"
-		// Only the settings that are set; i edits them all.
-		for _, f := range [][2]string{{"color", p.Theme.Color}, {"harness", p.Settings.Harness}, {"preset", p.Settings.Preset}, {"origin", p.Origin}} {
-			if f[1] != "" {
-				detail += "\n" + f[0] + ": " + f[1]
-			}
-		}
-		detail += fmt.Sprintf("\n\ndirectories (%d)", len(p.Trees))
-		home, _ := a.home()
-		for _, tree := range p.Trees {
-			line := tildePath(tree.Path, home)
-			if marks := a.treeMarks(p, tree); len(marks) > 0 {
-				line += "  [" + strings.Join(marks, "] [") + "]"
-			}
-			if first, _, _ := strings.Cut(strings.TrimSpace(tree.Text), "\n"); first != "" {
-				line += "  " + first
-			}
-			detail += "\n" + line
-		}
+		detail = a.recordText("project", projectThing(p))
 	}
 	return detail, task != nil
+}
+
+// The opt-out still shows the record, from the same catalog prop order as the
+// form, without maintaining a second task/project field inventory.
+func (a *App) recordText(noun string, thing ochazuke.Thing) string {
+	var lines []string
+	for _, prop := range a.r.Noun(noun).Props {
+		if value, ok := thing[prop.Name]; ok && !prop.Secret {
+			lines = append(lines, prop.Name+": "+fmt.Sprint(value))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (a *App) defineProjectCreation() {

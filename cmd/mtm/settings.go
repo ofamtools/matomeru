@@ -93,7 +93,7 @@ func (a *App) declareSettings() error {
 			Description: "Show the selected task's notes as a filterable pane in the task outline"},
 		{Name: settingTaskImages, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Show image mentions as prompt-style chips and allow clipboard attachments in Tasks; off shows raw mentions. Applies when the outline opens"},
-		relatedHiddenSetting,
+		a.detailHiddenSetting(),
 		relatedEmptySetting,
 		panesNotesTabSetting,
 		contextNotesSetting,

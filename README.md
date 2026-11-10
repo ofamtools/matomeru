@@ -262,9 +262,15 @@ Each of these five nouns has a runtime index with a form over its props. The exi
 
 `context-item`, `action-item`, `note`, `saved`, `vim` and `schedule` also use the shared adapter. Context, Notes, Vim and Schedules now use `From` lists and declared prop cells instead of record-row builders. Saved already used `From`. Schedule labels can change without changing their stable keys or run history.
 
+`task`, `project`, and `pane` use the same document adapter. Their curated views remain: the task outline, Projects (including drafts and the unassociated row), and the daemon-fed Panes lists. Project archives persist without deleting tasks or directory relations. Pane archives are local-copy metadata, like session archives: they hide the record, survive daemon refreshes, and never kill its window. Restore reveals the existing record again.
+
+Panes and Work embed `AddShowForm` with the app's related-stack specification. `detail.show-form` defaults to **on**. Work shows the selected task or project's catalog fields; Panes keeps its screen, turns, prompt and split renderers above the form. Live terminals and copy mode keep their own full detail renderer. The Notes tab uses the same form and single related stack, not a second copy of the notes. With the setting off, Work shows a catalog-derived text summary and Panes keeps its previous tab bodies and Notes stack. Field edits commit on change and enter the record's history; `u` undoes a form edit.
+
+The existing `detail.related`, `notes.related-hidden` and `notes.related-empty` settings still govern those sections, including registered custom note views. History follows the related sections. The default hidden list hides actual framework referrers by their declared IDs rather than `ochazuke.*`, so it does not hide the synthetic history section. Explicit user patterns, including a namespace wildcard, are honored unchanged; empty history follows `notes.related-empty` (default `hide`).
+
 The curated Items page retains its grouped row builder. ochazuke v0.120.0's windowed list path drops grouping, so replacing that builder would lose the existing view. Its generated action-item index still uses the scaffold.
 
-`TestScaffold` checks the registry against `cmd/mtm/testdata/scaffoldcheck.txt`. These eleven nouns pass without baseline exceptions. The curated Directories page still scans filesystem paths and draws its project directories, known directories, and bases as separate views. In ochazuke v0.120.0, generated noun keys do not route on a completely empty index. The palette's create operation can still open its new-record form.
+`TestScaffold` checks all fourteen stored nouns against `cmd/mtm/testdata/scaffoldcheck.txt`, whose exception baseline is empty. The curated Directories page still scans filesystem paths and draws its project directories, known directories, and bases as separate views. In ochazuke v0.120.0, generated noun keys do not route on a completely empty index. The palette's create operation can still open its new-record form.
 
 ## Stories
 
