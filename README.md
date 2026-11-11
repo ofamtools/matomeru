@@ -117,6 +117,18 @@ mtm action-item add --source gh --url https://github.com/o/r/pull/7 --why "revie
 
 It prints the item as JSON (`id`, `new`, `state`, …). An item needs nothing: one with no project, task or pane is unassociated. `mtm action-item list`, `count`, `show`, `read`, `snooze --for 4h`, `archive`, `set ID @archive=false` (restore), `promote-task`, `associate --task ID` and `delete` are the rest.
 
+Context items (`context-item.open`, `o`), action-item URLs, live hint opens
+and the system-opener fallback for turn transcripts use ochazuke's
+`open.openers` table. User rows can choose a viewer, page, verb or reveal;
+without user rows the shipped link/path routes still use the OS opener.
+Unmatched context text follows `open.unmatched`, default `os`, or `none`
+to do nothing. A context item's kind no longer refuses an open request.
+OS open/reveal work stays off the UI loop; page and verb actions run on it.
+Pane signals without URLs still open their pane. An explicit pager action
+with an available pane still opens a pager there; only its system fallback
+uses the opener table.
+
+
 mtm's own panes feed the inbox too, while the TUI is open: an agent that waits for your input, a finished turn and an errored agent each become an item (source `mtm`, kind `needs-input`, `done` or `errored`), owned by the pane's task or project. A needs-input or errored item is archived once the pane moves on; a done item is marked read once you attach the pane. The settings `inbox.signal.needs-input`, `inbox.signal.done` and `inbox.signal.errored` turn each kind off.
 
 New unread Slack and GitHub items notify while an mtm TUI runs on **any page**, without opening Inbox or taking focus. The inbox checks at startup and every five seconds, with database claims and sender work off the UI loop. The first check stores a shared `notify-since` baseline in the database's existing app-state row and sends no old items. Later checks notify only items created after that baseline. More than five eligible items in one tick become one summary. Multiple TUIs on the same database share claims and receipts; the manual headless `action-item notify-due` uses the same code.

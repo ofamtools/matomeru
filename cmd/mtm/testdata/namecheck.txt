@@ -141,8 +141,6 @@ context.go	App.contextAt	compare	"context-item"	1
 context.go	App.itemCell	case	"command"	1
 context.go	App.itemCell	case	"dir"	1
 context.go	App.itemCell	case	"prompt"	1
-context.go	App.openContext	case	"dir"	1
-context.go	App.openContext	case	"link"	1
 context_extract.go	App.extractContext	compare	"pane"	1
 context_picker.go	App.pickContext	case	"prompt"	1
 context_picker.go	App.pickerOpen	case	"dir"	1
@@ -195,8 +193,6 @@ live_hints.go	App.endHints	compare	"hints"	1
 live_hints.go	App.hintTerminals	compare	"panes"	1
 live_hints.go	App.hintsUpdate	compare	"hints"	1
 live_hints.go	App.hintsUpdate	compare	"panes"	1
-live_hints.go	App.openHint	case	"dir"	1
-live_hints.go	App.openHint	case	"link"	1
 live_hints.go	App.startRowHints	compare	"pane"	1
 live_hints.go	var hintActions	table	"copy"	1
 live_hints.go	var hintActions	table	"open"	1

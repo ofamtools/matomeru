@@ -516,3 +516,29 @@ func TestCalmReadErrorKeepsOtherDaemonErrors(t *testing.T) {
 		t.Fatalf("not_found: %q", got)
 	}
 }
+
+func TestTurnPagerFallbackUsesOpenerTableAfterWrite(t *testing.T) {
+	t.Parallel()
+	a, sys := contextApp(t)
+	path := filepath.Join(t.TempDir(), "turn.txt")
+	var contents string
+	a.r.Define("viewer").Verb("show", func(c ochazuke.Ctx) ochazuke.Result {
+		data, err := os.ReadFile(ochazuke.StringArg(c.Args, "target", ""))
+		contents = string(data)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(nil)
+	}).Params(map[string]ochazuke.Parameter{"target": {Type: "path", Required: true}})
+	if err := a.r.Settings().Set(ochazuke.OpenOpenersSetting, `[{"ext":"txt","action":"viewer","to":"viewer.show"}]`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := ochazuke.Ctx{Runtime: a.r, Instance: a.r.Instances["app"]}
+	if _, err := a.r.Launch("app", "turn.copy", a.saveTurnText(turnRef{Window: "gone"}, path, "the saved answer", true), ctx); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, a.r.PendingCommands())
+	if contents != "the saved answer" || len(sys.opened) != 0 {
+		t.Fatalf("viewer read %q, OS opened %v", contents, sys.opened)
+	}
+}

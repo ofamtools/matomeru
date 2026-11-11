@@ -309,3 +309,36 @@ func TestContextItemAssociateFromARowAsks(t *testing.T) {
 		t.Fatalf("chosen: %+v", it)
 	}
 }
+
+func TestContextOpenUsesOpenerTable(t *testing.T) {
+	t.Parallel()
+	a, sys := contextApp(t)
+	if err := a.r.Settings().Set(ochazuke.OpenOpenersSetting, `[{"prefix":"/tmp/matomeru/","action":"page","to":"work"}]`); err != nil {
+		t.Fatal(err)
+	}
+	selectContext(t, a, "/tmp/matomeru/main.go")
+	settle(a, key(t, a, "o"))
+	if a.r.Page != "work" || len(sys.opened) != 0 {
+		t.Fatalf("opening a context path: page %q, OS opened %v", a.r.Page, sys.opened)
+	}
+}
+
+func TestContextOpenUnmatchedText(t *testing.T) {
+	t.Parallel()
+	a, sys := contextApp(t)
+	if err := a.r.Settings().Set(ochazuke.OpenUnmatchedSetting, ochazuke.OpenUnmatchedNone); err != nil {
+		t.Fatal(err)
+	}
+	selectContext(t, a, "1ba025f")
+	settle(a, key(t, a, "o"))
+	if a.m.Status != "" {
+		t.Fatalf("unmatched text must not refuse: %s", a.m.Status)
+	}
+	if err := a.r.Settings().Set(ochazuke.OpenUnmatchedSetting, ochazuke.OpenUnmatchedOS); err != nil {
+		t.Fatal(err)
+	}
+	settle(a, key(t, a, "o"))
+	if !slices.Equal(sys.opened, []string{"1ba025f"}) {
+		t.Fatalf("open.unmatched=os-open opened %v", sys.opened)
+	}
+}

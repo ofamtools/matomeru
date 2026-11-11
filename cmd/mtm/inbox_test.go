@@ -8,6 +8,7 @@ import (
 
 	"ofam.dev/matomeru/internal/actionitems"
 	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/ochazuke"
 )
 
 // inboxApp is the seeded app with a fixed inbox clock and a fake opener.
@@ -421,5 +422,19 @@ func TestSnoozeParsing(t *testing.T) {
 	rows := snoozeChoices(now)
 	if len(rows) != 4 || rows[3].ID != time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC).Format(time.RFC3339) {
 		t.Fatalf("choices %+v", rows)
+	}
+}
+
+func TestActionItemOpenUsesOpenerTable(t *testing.T) {
+	t.Parallel()
+	a, sys, _ := inboxApp(t)
+	it := addItem(t, a, actionitems.Spec{URL: "https://example.test/item", Title: "Review"})
+	if err := a.r.Settings().Set(ochazuke.OpenOpenersSetting, `[{"scheme":"https","action":"page","to":"context"}]`); err != nil {
+		t.Fatal(err)
+	}
+	mustCLI(t, a, "action-item", "open", it.ID)
+	stored, err := a.inbox.items.Get(it.ID)
+	if err != nil || !stored.Read() || a.r.Page != contextPage || len(sys.opened) != 0 {
+		t.Fatalf("opening an action item: read %v, page %q, OS opened %v, error %v", stored.Read(), a.r.Page, sys.opened, err)
 	}
 }
