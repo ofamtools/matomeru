@@ -1,0 +1,50 @@
+{
+  "name": "mtm: browse project directories, choose known and base walks, pin a nested folder and manage directory associations",
+  "area": "projects",
+  "fixture": "area-projects",
+  "width": 180,
+  "height": 36,
+  "files": ["cmd/mtm/main.go", "internal/work/", ".git/objects/", "node_modules/left-pad/", "docs/", "repo/.git/HEAD", "repo/cmd/", "plain/deep/"],
+  "config": {
+    "bindings.json": [
+      {"noun": "app", "mode": "normal", "keys": "ctrl+d", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "docs-site"}}}
+    ]
+  },
+  "script": [
+    "ctrl+j", "c", {"job": "picker.load"}, {"type": "cmd mtm"}, "esc",
+    ":", {"type": "setting set directory-chooser known"}, "enter", "c", "esc",
+    ":", {"type": "setting set path.walk false"}, "enter", "c", "esc",
+    ":", {"type": "setting set path.walk true"}, "enter",
+    ":", {"type": "setting set directory-chooser path"}, "enter",
+    ":", {"type": "dirs add-base"}, "enter", {"job": "dirs.refresh"}, "esc",
+    ":", {"type": "setting set pin.directory-walk project"}, "enter",
+    "P", {"type": "docs-site"}, "enter", "esc",
+    ":", {"type": "setting set pin.directory-walk wide"}, "enter",
+    "P", {"type": "billing-api"}, "enter", {"job": "picker.load"}, {"type": "plain deep"}, "enter", "P", "esc",
+    "ctrl+d",
+    ":", {"type": "project directory /srv/web"}, "enter",
+    ":", {"type": "project directory /srv/api"}, "enter",
+    ":", {"type": "project directory /srv/docs"}, "enter",
+    ":", {"type": "project default /srv/api"}, "enter",
+    ":", {"type": "project remove-directory /srv/api"}, "enter"
+  ],
+  "expect": [
+    {"after": 3, "modal": "dir-chooser", "contains": ["[walk ", "cmd/mtm/", "internal/work/", "docs/"], "lacks": [".git", "node_modules", "main.go"]},
+    {"after": 4, "contains": ["cmd/mtm/"], "lacks": ["internal/work/", "docs/"]},
+    {"after": 5, "page": "work", "modal": ""},
+    {"after": 9, "modal": "dir-chooser", "contains": ["[known"], "lacks": ["[walk"]},
+    {"after": 14, "modal": "dir-chooser", "contains": ["browse recent typed find [known"], "lacks": ["walk", "cmd/mtm/"]},
+    {"after": 24, "modal": "path-chooser", "contains": ["[parents]", "loading folders holding known directories"]},
+    {"after": 25, "modal": "path-chooser", "contains": ["[parents]", "known)"]},
+    {"after": 32, "modal": "dir-chooser", "contains": ["[known"], "lacks": ["[walk", "plain/deep/"]},
+    {"after": 40, "modal": "dir-chooser", "contains": ["[walk ", "repo/cmd/", "plain/deep/"]},
+    {"after": 41, "contains": ["plain/deep/"], "lacks": ["repo/cmd/"]},
+    {"after": 42, "modal": "", "contains": ["billing-api"]},
+    {"after": 43, "modal": "pin-picker", "contains": ["billing-api", "plain/deep"]},
+    {"after": 45, "page": "work", "contains": ["docs-site", "Write the quickstart for the CLI"]},
+    {"after": 48, "contains": ["/srv/web"], "lacks": ["Error:"]},
+    {"after": 54, "contains": ["/srv/web", "/srv/api", "/srv/docs"], "lacks": ["Error:"]},
+    {"after": 57, "contains": ["\"default_directory\": \"/srv/api\""], "lacks": ["Error:"]},
+    {"contains": ["\"directories\": [", "\"/srv/web\",", "\"/srv/docs\"", "\"default_directory\": \"/srv/web\"", "\"promoted\": \"/srv/web\"", "Removed /srv/api"], "lacks": ["\"/srv/api\"", "Error:"]}
+  ]
+}

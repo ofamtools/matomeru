@@ -1,0 +1,60 @@
+{
+  "name": "mtm: dismiss inbox summaries, triage read state, fold windowed groups and edit an item's live pane",
+  "area": "items",
+  "fixture": "area-items",
+  "width": 140,
+  "height": 36,
+  "seed": {
+    "panes": [
+      {"session": "acme-web", "window": "w1", "name": "claude", "screen": "claude is thinking"},
+      {"session": "billing-api", "window": "w2", "name": "shell", "screen": "$ go test ./..."}
+    ]
+  },
+  "config": {
+    "bindings.json": [
+      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "One", "key": "k1"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+y", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "Two", "key": "k2"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+t", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "Three", "key": "k3"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+g", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "Four", "key": "k4"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+u", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "Five", "key": "k5"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+v", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "Six", "key": "k6"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+n", "capture": true, "request": {"noun": "ochazuke.notice", "verb": "clear"}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+b", "request": {"noun": "ochazuke.collection", "verb": "group-fold", "args": {"id": "inbox/list"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+r", "request": {"noun": "action-item", "verb": "add", "args": {"source": "gh", "kind": "review-request", "key": "row-subject", "title": "row subject review", "window": "w1", "session": "acme-web"}}}
+    ]
+  },
+  "script": [
+    "ctrl+x", "ctrl+y", "ctrl+t", "ctrl+g", "ctrl+u", "ctrl+v", "ctrl+n",
+    "g", "n", ":", {"type": "action-item read"}, "enter", "u", "u",
+    "ctrl+r", "ctrl+n",
+    ":", {"type": "setting set inbox.group pane"}, "enter",
+    ":", {"type": "setting set collection.window 1"}, "enter",
+    "g", "g", "ctrl+b", "j", "k", "ctrl+b",
+    ":", {"type": "setting set collection.window 100"}, "enter",
+    ":", {"type": "setting set inbox.group none"}, "enter",
+    "/", {"type": "row subject review"}, "enter",
+    ":", {"type": "pane edit"}, "enter",
+    "ctrl+a", "ctrl+k", {"type": "review-pane"}, "esc",
+    {"job": "pane.set"}, {"job": "panes.refresh"}, "q"
+  ],
+  "expect": [
+    {"after": 1, "page": "panes", "contains": ["Inbox: slack · One"]},
+    {"after": 6, "contains": ["6 new action items"]},
+    {"after": 7, "lacks": ["new action items"]},
+    {"after": 9, "page": "inbox", "contains": ["6 unread", "One", "Two", "Three", "Four", "Five", "Six"]},
+    {"after": 12, "page": "inbox", "contains": ["5 unread", "inbox 5/6"], "lacks": ["Error:", "Inbox: 5 new", "Inbox: 6 new", "Inbox: "]},
+    {"after": 13, "contains": ["6 unread", "inbox 6/6"], "lacks": ["Inbox: "]},
+    {"after": 14, "contains": ["5 unread", "inbox 5/6"], "lacks": ["Inbox: "]},
+    {"after": 19, "contains": ["gh", "slack", "row subject review"], "lacks": ["Inbox: "]},
+    {"after": 24, "contains": ["page 1/7", "gh", "row subject review"], "lacks": ["Error:"]},
+    {"after": 25, "contains": ["page 1/7", "acme-web/claude"], "lacks": ["row subject review"]},
+    {"after": 26, "contains": ["page 2/7", "slack"], "lacks": ["row subject review"]},
+    {"after": 27, "contains": ["page 1/7", "acme-web/claude"], "lacks": ["row subject review"]},
+    {"after": 28, "contains": ["page 1/7", "gh", "row subject review"]},
+    {"after": 34, "page": "inbox", "contains": ["row subject review", "One", "Two", "Three", "Four", "Five", "Six"]},
+    {"after": 37, "page": "inbox", "contains": ["row subject review", "acme-web/claude"], "lacks": ["One", "Two", "Three", "Four", "Five", "Six"]},
+    {"after": 40, "focus": "edit-form/name", "modal": "edit-form", "contains": ["claude"]},
+    {"after": 44, "modal": "edit-form", "contains": ["review-pane"], "lacks": ["Error:"]},
+    {"page": "inbox", "modal": "", "mode": "normal", "contains": ["row subject review", "acme-web/review-pane"], "lacks": ["Error:", "Inbox: "]}
+  ]
+}
