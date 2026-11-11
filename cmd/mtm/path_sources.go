@@ -107,7 +107,7 @@ func (a *App) definePathSources() {
 							return ochazuke.Failed(err)
 						}
 					}
-					return ochazuke.Done([]ochazuke.PickerRow(nil))
+					return ochazuke.Done(a.knownDirectoryRows())
 				}
 				return ochazuke.Done(a.knownDirectoryRows())
 			},
@@ -269,9 +269,11 @@ func (a *App) walkRoots(pick ochazuke.PathPick) ochazuke.PathWalk {
 	if a.pathChooserOwn {
 		return walk
 	}
-	if bases, err := a.projectBases(); err == nil {
-		for _, base := range bases {
-			add(base.Path)
+	if rows, err := a.userDirectories(); err == nil {
+		for _, row := range rows {
+			if !row.Archived {
+				add(row.Path)
+			}
 		}
 	}
 	if a.directories.Ready {

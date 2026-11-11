@@ -295,7 +295,7 @@ func (a *App) jumpRow(page string, list *ochazuke.Collection, id string, refresh
 // jumpDirectory opens Directories on the directory's known row (the
 // search cleared when it hides it), else on the project's directory row.
 func (a *App) jumpDirectory(path string) error {
-	key := directoryKey(path)
+	key := a.dirKey(path)
 	// The jump chooses the row; the first visit's landing must not.
 	a.dirsVisited = true
 	if err := a.openPageNamed(directoriesPage); err != nil {
@@ -348,18 +348,13 @@ func (a *App) sameDir(x, y string) bool {
 	return a.dirKey(x) == a.dirKey(y)
 }
 
-// dirKey is directoryKey remembered: the details compare many paths every
-// update, and a symlink lookup each time would touch the disk per pane.
+// dirKey uses only off-loop scan results. An uninspected path remains lexical;
+// focus, rendering and startup must never resolve a potentially mounted path.
 func (a *App) dirKey(path string) string {
-	if a.dirKeys == nil {
-		a.dirKeys = map[string]string{}
-	}
 	if key, ok := a.dirKeys[path]; ok {
 		return key
 	}
-	key := directoryKey(path)
-	a.dirKeys[path] = key
-	return key
+	return a.expandPath(path)
 }
 
 // paneLink is the link to the tree row showing window: its own row, else

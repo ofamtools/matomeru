@@ -62,11 +62,10 @@ func (a *App) setHarnessChoices() {
 	}
 }
 
-// reloadDirsConfig checks dirs.json (the bases are read on every use) and,
-// in the TUI, shows the bases again and rescans when a scan had run. A bad
-// file leaves the lists and the last scan as they were.
+// reloadDirsConfig imports a legacy dirs.json edit into the shared list, then
+// reloads the page. A malformed file leaves stored records unchanged.
 func (a *App) reloadDirsConfig() []string {
-	if _, err := a.projectBases(); err != nil {
+	if err := a.importDirectoryBases(); err != nil {
 		return []string{err.Error()}
 	}
 	if a.cli || a.baseList == nil {

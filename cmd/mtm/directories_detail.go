@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 
 	"ofam.dev/ochazuke"
@@ -88,8 +87,8 @@ func (a *App) directoryFacts(key string) string {
 		repo = ""
 	}
 	onDisk := ""
-	if st, err := os.Stat(key); err != nil || !st.IsDir() {
-		onDisk = "missing"
+	if a.r.Settings().Bool(settingDirectoryStatus) {
+		onDisk = a.directories.Unavailable[key]
 	}
 	used := ""
 	if a.knownRow(key) != nil {

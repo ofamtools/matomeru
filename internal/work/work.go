@@ -111,6 +111,7 @@ var Tables = []store.Table{
 	{Name: "reviews", Owner: "work", Key: "id", Version: 1},
 	{Name: "dir_recent", Owner: "work", Key: "path", Version: 1},
 	{Name: "directories", Owner: "work", Key: "path", Version: 1},
+	{Name: "directory_state", Owner: "work", Key: "id", Version: 1},
 	{Name: "assignments", Owner: "work", Key: "window", Version: 1},
 	{Name: "active", Owner: "work", Key: "id", Version: 1},
 	{Name: "session_owners", Owner: "work", Key: "id", Version: 1},

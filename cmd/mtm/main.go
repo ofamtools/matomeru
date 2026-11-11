@@ -364,6 +364,7 @@ type App struct {
 	quick              *quickNote            // the open quick note (N), nil when closed
 	editorNouns        map[string]editorNoun // the editable nouns, one row each (editor.go)
 	directories        directoryCache
+	directoryIO        *directoryIO
 	pathChooserProject string // the project a directory path chooser is opened for (path_sources.go)
 	pathChooserOwn     bool   // that chooser walks only the project's own directories (pinDirectoryWalks; path_sources.go)
 	directoryList      *ochazuke.Collection
@@ -542,6 +543,7 @@ func New(opts Options) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	_, existingDirectories := db.TableVersion("projects")
 	w, err := work.Open(db)
 	if err != nil {
 		db.Close()
@@ -598,6 +600,7 @@ func New(opts Options) (*App, error) {
 	a.configDir = configDir
 	a.dataPath = opts.Data
 	a.opts = opts
+	a.directoryIO = newDirectoryIO()
 	a.configure(opts, configDir)
 	if err := a.openSchedules(configDir); err != nil {
 		db.Close()
@@ -660,7 +663,7 @@ func New(opts Options) (*App, error) {
 	a.defineConfigReload()
 	a.definePickers()
 	a.declareRelationKinds()
-	if err := a.declareSettings(); err != nil {
+	if err := a.configureDirectorySettings(existingDirectories); err != nil {
 		return nil, err
 	}
 	if err := a.migrateSettingAliases(settingWorkTasksFilter); err != nil {
@@ -759,6 +762,7 @@ func New(opts Options) (*App, error) {
 	}
 	a.defineCoreVerbs()
 	a.defineDocForms()
+	a.defineDirectoryCreation()
 	a.defineCommandRenames()
 	a.defineAgentDeclarations()
 	a.mountExtensions()
@@ -799,7 +803,7 @@ func New(opts Options) (*App, error) {
 	if err := r.OpenPage(panesPage); err != nil {
 		return nil, err
 	}
-	return a, r.SetFocus(paneListID)
+	return a, errors.Join(a.startDirectoryMigration(), r.SetFocus(paneListID))
 }
 
 // Close removes an attached terminal (releasing its stream) and closes the store.

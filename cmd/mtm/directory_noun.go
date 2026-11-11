@@ -1,47 +1,43 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
-	"strings"
 
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
 	"ofam.dev/ochazuke"
 )
 
-// A directory is a path with local metadata and project relations. Reading an
-// unrecorded path still works; create and set record its description and archive
-// state. These operations never change files on disk. The curated Dirs page
-// keeps its filesystem scan; the noun's index is the runtime scaffold.
-
+// Paths and scan bases are the same stored noun. Metadata never changes files
+// on disk. The runtime supplies CRUD, forms, archive, open/reveal and relations.
 func directoryProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
+	path := text("The directory's cleaned path; a missing path is recorded without creating it")
+	path.Required = true
 	return []ochazuke.PropSpec{
-		{Name: "path", Key: true, CreateOnly: true, Parameter: ochazuke.Parameter{Type: "string", Required: true, Description: "The directory's cleaned path (its key); metadata operations never change files on disk"}},
-		{Name: "name", Role: ochazuke.RoleLabel, ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropPath, Description: "The directory's path"}},
+		{Name: "path", Key: true, CreateOnly: true, Parameter: path},
+		{Name: "name", ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.PropPath, Path: ochazuke.PathDir, Description: "The directory's path"}},
+		{Name: "label", Role: ochazuke.RoleLabel, Parameter: text("An optional label; empty shows the path")},
+		{Name: "location", Parameter: dirParam("Retarget this record and its project associations; never moves files", true)},
+		{Name: "depth", Default: 0, Parameter: ochazuke.Parameter{Type: "integer", Description: "Zero: ordinary directory; positive: scan this base to that depth"}},
 		{Name: "description", Multiline: true, Parameter: text("Notes about this directory")},
-		{Name: "archived", Role: ochazuke.RoleArchive, Default: false, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the directory record; files and project attachments are kept"}},
-		{Name: "projects", ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.SettingList, Items: &ochazuke.Parameter{Type: "string", Noun: "project"},
-			Description: "The projects that have this directory (the inverse of a project's directories)"}},
-		{Name: "default-for", ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.SettingList, Items: &ochazuke.Parameter{Type: "string", Noun: "project"},
-			Description: "The projects this directory is the default of"}},
-		{Name: "repo", ReadOnly: true, Parameter: text("The repository the directory is in, from the data of its relations")},
+		{Name: "archived", Role: ochazuke.RoleArchive, Default: false, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the directory and stop scanning it; keep files and project attachments"}},
+		{Name: "source", ReadOnly: true, Parameter: text("saved, file (imported dirs.json), migrated, project or variable (MTM_PROJECT_BASE_DIRS override)")},
+		{Name: "projects", ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.SettingList, Items: &ochazuke.Parameter{Type: "string", Noun: "project"}, Description: "Projects associated with this directory"}},
+		{Name: "default-for", ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.SettingList, Items: &ochazuke.Parameter{Type: "string", Noun: "project"}, Description: "Projects using this directory as their default"}},
+		{Name: "repo", ReadOnly: true, Parameter: text("Repository from the directory's relations")},
 	}
 }
 
-// directoryThing is the directory at path with the projects that hold it,
-// read from its relations (one indexed read).
 func (a *App) directoryThing(path string) (ochazuke.Thing, error) {
-	path = filepath.Clean(path)
+	path = a.expandPath(path)
 	xs, err := a.r.RelationsOf(ochazuke.RelationQuery{Kind: work.DirectoryKind, To: work.DirectoryRef(path)})
 	if err != nil {
 		return nil, err
 	}
-	t := ochazuke.Thing{"path": path, "name": path, "description": "", "archived": false, "projects": []string{}, "default-for": []string{}, "repo": ""}
+	t := ochazuke.Thing{"path": path, "name": path, "label": "", "location": path, "depth": 0, "description": "", "archived": false, "source": "saved", "projects": []string{}, "default-for": []string{}, "repo": ""}
 	var meta ochazuke.Thing
 	if err := a.db.Get("directories", path, &meta); err == nil {
 		for k, v := range meta {
@@ -63,45 +59,22 @@ func (a *App) directoryThing(path string) (ochazuke.Thing, error) {
 	return t, nil
 }
 
-// directoryStore is the directory noun's store: get answers any path, list
-// the directories the projects hold, in path order.
 func (a *App) directoryStore() ochazuke.Store {
 	return ochazuke.Store{
 		Kind: ochazuke.KindCollection,
-		Get:  func(_ ochazuke.Ctx, key string) (ochazuke.Thing, error) { return a.directoryThing(a.expandPath(key)) },
+		Get:  func(_ ochazuke.Ctx, key string) (ochazuke.Thing, error) { return a.directoryThing(key) },
 		List: func(ochazuke.Ctx, ochazuke.ListQuery) ([]ochazuke.Thing, error) {
-			xs, err := a.r.RelationsOf(ochazuke.RelationQuery{Kind: work.DirectoryKind})
+			rows, err := a.userDirectories()
 			if err != nil {
 				return nil, err
 			}
-			var paths []string
-			for _, x := range xs {
-				if _, path, ok := ochazuke.SplitAnyRef(x.To); ok && !slices.Contains(paths, path) {
-					paths = append(paths, path)
-				}
-			}
-			records, err := a.db.All("directories")
-			if err != nil {
-				return nil, err
-			}
-			for _, raw := range records {
-				var record struct {
-					Path string `json:"path"`
-				}
-				if err := json.Unmarshal(raw, &record); err != nil {
-					return nil, err
-				}
-				if !slices.Contains(paths, record.Path) {
-					paths = append(paths, record.Path)
-				}
-			}
-			slices.SortFunc(paths, strings.Compare)
-			out := make([]ochazuke.Thing, 0, len(paths))
-			for _, p := range paths {
-				t, err := a.directoryThing(p)
+			out := make([]ochazuke.Thing, 0, len(rows))
+			for _, row := range rows {
+				t, err := a.directoryThing(row.Path)
 				if err != nil {
 					return nil, err
 				}
+				t["depth"], t["source"], t["archived"] = row.Depth, row.Source, row.Archived
 				out = append(out, t)
 			}
 			return out, nil
@@ -122,24 +95,131 @@ func (a *App) directoryStore() ochazuke.Store {
 			for k, v := range changes {
 				t[k] = v
 			}
+			location, _ := t["location"].(string)
+			if location != "" && a.expandPath(location) != path {
+				next := a.expandPath(location)
+				if err := a.retargetDirectory(path, next, t); err != nil {
+					return nil, err
+				}
+				return a.directoryThing(next)
+			}
 			if err := a.writeDirectory(path, t); err != nil {
 				return nil, err
 			}
 			return a.directoryThing(path)
 		},
 		Delete: func(_ ochazuke.Ctx, path string) error {
-			return a.db.Tx([]string{"directories"}, func(tx *store.Tx) error { return tx.Delete("directories", a.expandPath(path)) })
+			// Keep an archived tombstone while relations still name a path, so deleting
+			// a record cannot silently resurrect it as a project-derived directory.
+			row, err := a.savedDirectory(path)
+			if err != nil {
+				return err
+			}
+			row.Archived = true
+			if err := a.putDirectoryRecord(row); err != nil {
+				return err
+			}
+			a.directoryRecordChanged(row.Path)
+			return nil
 		},
 	}
 }
 
 func (a *App) writeDirectory(path string, t ochazuke.Thing) error {
-	meta := ochazuke.Thing{"path": path, "name": path, "description": t["description"], "archived": t["archived"]}
-	return a.db.Tx([]string{"directories"}, func(tx *store.Tx) error { return tx.Put("directories", path, meta) })
+	depth := ochazuke.IntArg(ochazuke.Arguments(t), "depth", 0)
+	if depth < 0 {
+		return errors.New("depth must be zero (directory) or positive (scan base)")
+	}
+	meta := ochazuke.Thing{}
+	if err := a.db.Get("directories", path, &meta); err != nil && !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	for _, key := range []string{"label", "description", "archived", "created", "updated"} {
+		if value, ok := t[key]; ok {
+			meta[key] = value
+		}
+	}
+	meta["path"], meta["depth"], meta["source"] = path, depth, "saved"
+	if err := a.db.Tx([]string{"directories"}, func(tx *store.Tx) error { return tx.Put("directories", path, meta) }); err != nil {
+		return err
+	}
+	a.directoryRecordChanged(path)
+	return nil
+}
+
+func (a *App) retargetDirectory(path, to string, t ochazuke.Thing) error {
+	if filepath.Clean(path) == filepath.Clean(to) {
+		return nil
+	}
+	// Refuse only a record collision; overwriting it would lose the other label
+	// and metadata. A missing target on disk is deliberately allowed.
+	var existing ochazuke.Thing
+	if err := a.db.Get("directories", to, &existing); err == nil {
+		return fmt.Errorf("directory %s is already recorded", to)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	xs, err := a.r.RelationsOf(ochazuke.RelationQuery{Kind: work.DirectoryKind, To: work.DirectoryRef(path)})
+	if err != nil {
+		return err
+	}
+	// The domain relation operation preserves order, description and default.
+	for _, x := range xs {
+		_, project, _ := ochazuke.SplitAnyRef(x.From)
+		if _, err := a.repointDirectory(ochazuke.Ctx{}, project, path, work.Tree{Kind: "directory", Path: to}); err != nil {
+			return err
+		}
+	}
+	t["location"] = to
+	if err := a.writeDirectory(to, t); err != nil {
+		return err
+	}
+	err = a.db.Tx([]string{"directories"}, func(tx *store.Tx) error {
+		return tx.Put("directories", path, directoryRecord{Path: path, Archived: true})
+	})
+	if err == nil {
+		a.directoryRecordChanged(to)
+	}
+	return err
 }
 
 func (a *App) defineDirectoryNoun() {
-	// The declared directory picker (pickers.go) is the one that chooses a
-	// directory for a project; the noun keeps out of the derived pickers.
-	a.r.Define(work.DirectoryNoun).Props(directoryProps()...).Store(a.docStore(work.DirectoryNoun, a.directoryStore())).NoPicker()
+	a.r.Define(work.DirectoryNoun).Props(directoryProps()...).Store(a.docStore(work.DirectoryNoun, a.directoryStore())).NoPicker().
+		Verb("attach", a.attachDirectoryRecord, "Associate this directory with a project; omit project to choose").
+		Verb("rescan", a.refreshDirectories, "Rescan the saved directory list off the UI loop").Fetch().
+		Verb("default", a.defaultDirectoryRecord, "Make this directory a project's default").
+		Mode("normal").Bind("enter", ochazuke.Do("directory.attach")).Bind("i", ochazuke.Do("directory.edit"))
+	a.parameters("directory.attach", map[string]ochazuke.Parameter{"path": {Type: "string", Noun: "directory", Free: true}, "project": {Type: "string", Noun: "project"}})
+	a.parameters("directory.default", map[string]ochazuke.Parameter{"path": {Type: "string", Noun: "directory", Free: true}, "project": {Type: "string", Noun: "project", Required: true}})
+}
+
+func (a *App) directoryPathAt(c ochazuke.Ctx) string {
+	if path := ochazuke.StringArg(c.Args, "path", ""); path != "" {
+		return a.expandPath(path)
+	}
+	if c.Instance != nil {
+		if path, ok := c.Instance.Data.(string); ok {
+			return a.expandPath(path)
+		}
+	}
+	return ""
+}
+func (a *App) attachDirectoryRecord(c ochazuke.Ctx) ochazuke.Result {
+	path := a.directoryPathAt(c)
+	if path == "" {
+		return ochazuke.Failed(errors.New("no directory is focused"))
+	}
+	if project := ochazuke.StringArg(c.Args, "project", ""); project != "" {
+		return a.attachDirectory(project, path)
+	}
+	return a.attachOrAsk(path)
+}
+func (a *App) defaultDirectoryRecord(c ochazuke.Ctx) ochazuke.Result {
+	path, project := a.directoryPathAt(c), ochazuke.StringArg(c.Args, "project", "")
+	p, err := a.defaultDirectory(c, project, path)
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	a.reloadDirectories()
+	return ochazuke.Done(viewOf(p))
 }
