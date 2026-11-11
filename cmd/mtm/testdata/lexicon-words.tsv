@@ -870,6 +870,7 @@ text-view	noun	seed
 theme	prop	seed	
 themes	noun	seed	plural
 thinking	noun	seed	
+thing	noun	ua11	the registered thing walk graph picker
 tier	prop	seed	
 time	prop	seed	
 timeline	noun	seed	
@@ -943,6 +944,7 @@ vocabulary	prop	seed
 voice	noun	seed	
 wait	action	seed	
 waiting	action	seed	
+walk	action	ua11	follow a thing's values and relations in a picker
 watch	action	seed	
 watched	filter	seed	
 when	prop	seed	
