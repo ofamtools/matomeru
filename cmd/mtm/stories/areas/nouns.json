@@ -47,10 +47,18 @@
     },
     "esc",
     "shift+tab",
-    "ctrl+d",
+    ":",
+    {
+      "type": "relation archive"
+    },
+    "enter",
     "z",
     "a",
-    "ctrl+u",
+    ":",
+    {
+      "type": "relation restore"
+    },
+    "enter",
     "ctrl+j",
     "ctrl+s",
     "ctrl+n",
@@ -61,8 +69,16 @@
       "type": "focus-room"
     },
     "esc",
-    "ctrl+a",
-    "ctrl+b",
+    ":",
+    {
+      "type": "session archive --id id-acme-web"
+    },
+    "enter",
+    ":",
+    {
+      "type": "session restore --id id-acme-web"
+    },
+    "enter",
     "ctrl+j",
     ":",
     {
@@ -146,7 +162,6 @@
       "after": 20
     },
     {
-      "after": 21,
       "page": "nouns/relation",
       "contains": [
         "summary",
@@ -157,40 +172,44 @@
         "archived",
         "project:acme-web",
         "scaffold relation"
-      ]
+      ],
+      "after": 21
     },
     {
-      "after": 27,
       "contains": [
         "edited relation"
-      ]
+      ],
+      "after": 27
     },
     {
-      "after": 29,
       "lacks": [
-        "edited relation"
-      ]
+        "edited relation",
+        "Error:"
+      ],
+      "after": 31
     },
     {
-      "after": 31,
       "contains": [
         "edited relation"
-      ]
+      ],
+      "after": 33
     },
     {
-      "after": 32,
       "contains": [
         "edited relation"
-      ]
+      ],
+      "lacks": [
+        "Error:"
+      ],
+      "after": 36
     },
     {
       "lacks": [
         "nouns/relation  "
       ],
-      "after": 33
+      "after": 37
     },
     {
-      "after": 34,
       "page": "nouns/session",
       "contains": [
         "name",
@@ -199,31 +218,36 @@
         "archived",
         "ended-at",
         "acme-web"
-      ]
+      ],
+      "after": 38
     },
     {
-      "after": 40,
       "contains": [
         "focus-room"
-      ]
+      ],
+      "after": 44
     },
     {
-      "after": 41,
       "lacks": [
-        "focus-room"
-      ]
+        "focus-room",
+        "Error:"
+      ],
+      "after": 47
     },
     {
-      "after": 42,
       "contains": [
         "focus-room"
-      ]
+      ],
+      "lacks": [
+        "Error:"
+      ],
+      "after": 50
     },
     {
       "lacks": [
         "nouns/session  "
       ],
-      "after": 43
+      "after": 51
     },
     {
       "page": "nouns/action-item",
@@ -234,7 +258,7 @@
       "lacks": [
         "nouns/action-item  "
       ],
-      "after": 47
+      "after": 55
     },
     {
       "page": "nouns/session",
@@ -307,29 +331,6 @@
       {
         "noun": "app",
         "mode": "normal",
-        "keys": "ctrl+d",
-        "request": {
-          "noun": "relation",
-          "verb": "archive"
-        }
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+u",
-        "request": {
-          "noun": "relation",
-          "verb": "set",
-          "args": {
-            "props": {
-              "archived": false
-            }
-          }
-        }
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
         "keys": "ctrl+s",
         "request": {
           "noun": "ochazuke.noun",
@@ -349,33 +350,6 @@
           "verb": "to",
           "args": {
             "id": "nouns/session/form/name"
-          }
-        }
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+a",
-        "request": {
-          "noun": "session",
-          "verb": "archive",
-          "args": {
-            "id": "id-acme-web"
-          }
-        }
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+b",
-        "request": {
-          "noun": "session",
-          "verb": "set",
-          "args": {
-            "id": "id-acme-web",
-            "props": {
-              "archived": false
-            }
           }
         }
       }

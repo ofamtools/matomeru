@@ -76,6 +76,7 @@
       "type": "panes sides"
     },
     "enter",
+    "esc",
     "q",
     ":",
     {
@@ -376,11 +377,16 @@
       "after": 61
     },
     {
+      "modal": "",
+      "mode": "normal",
+      "after": 63
+    },
+    {
       "page": "work",
       "contains": [
         "Checkout page: show the shipping estimate"
       ],
-      "after": 65
+      "after": 66
     },
     {
       "page": "panes",
@@ -388,21 +394,5 @@
         "acme-web/claude"
       ]
     }
-  ],
-  "config": {
-    "bindings.json": [
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+x",
-        "request": {
-          "noun": "ochazuke.page",
-          "verb": "open",
-          "args": {
-            "id": "panes"
-          }
-        }
-      }
-    ]
-  }
+  ]
 }

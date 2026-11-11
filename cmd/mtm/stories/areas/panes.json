@@ -34,7 +34,13 @@
     "enter",
     "esc",
     "q",
-    "ctrl+x",
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
+    "enter",
     ":",
     {
       "type": "pane view turns"
@@ -89,36 +95,45 @@
       "type": "action-item create --id surface-queue --source gh --kind review-request --title \"answer the pane\" --pane w1 --session acme-web"
     },
     "enter",
-    "ctrl+x",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
+    "enter",
     ":",
     {
       "type": "pane view turns"
     },
     "enter",
-    "ctrl+x",
     "]",
     "[",
     "i",
     "esc",
     "esc",
-    "ctrl+x",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
+    "enter",
     ":",
     {
       "type": "pane view turns"
     },
     "enter",
-    "ctrl+x",
     "]",
     "i",
     "esc",
     "esc",
-    "ctrl+x",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
+    "enter",
     ":",
     {
       "type": "pane view turns"
     },
     "enter",
-    "ctrl+x",
     "]",
     "]",
     "i",
@@ -129,7 +144,11 @@
     "o",
     "esc",
     "esc",
-    "ctrl+x",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
+    "enter",
     ":",
     {
       "type": "pane edit"
@@ -142,7 +161,11 @@
       "type": "action-item archive --id surface-queue"
     },
     "enter",
-    "ctrl+x",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
+    "enter",
     ":",
     {
       "type": "project set billing-api name=beta"
@@ -161,17 +184,34 @@
     "enter",
     "esc",
     "q",
-    "ctrl+d",
+    ":",
+    {
+      "type": "pane kill"
+    },
+    "enter",
     "y",
     {
       "job": "pane.kill"
     },
-    "ctrl+e",
+    ":",
+    {
+      "type": "focus to --id pane:billing-api/w2"
+    },
+    "enter",
+    ":",
+    {
+      "type": "pane kill"
+    },
+    "enter",
     "y",
     {
       "job": "pane.kill"
     },
-    "ctrl+g",
+    ":",
+    {
+      "type": "focus to --id panes/tree/list"
+    },
+    "enter",
     "V",
     "Y"
   ],
@@ -209,6 +249,16 @@
       "after": 21
     },
     {
+      "modal": "palette",
+      "mode": "insert",
+      "after": 23
+    },
+    {
+      "modal": "",
+      "mode": "normal",
+      "after": 25
+    },
+    {
       "page": "panes",
       "focus": "pane:acme-web/w1",
       "mode": "normal",
@@ -216,37 +266,37 @@
       "contains": [
         "[Turns]"
       ],
-      "after": 27
+      "after": 31
     },
     {
-      "after": 31,
+      "after": 35,
       "focus": "panes/copy",
       "mode": "copy",
       "badge": "COPY"
     },
     {
-      "after": 32,
+      "after": 36,
       "mode": "copy",
       "badge": "COPY"
     },
     {
-      "after": 33,
+      "after": 37,
       "mode": "visual",
       "badge": "VISUAL"
     },
     {
-      "after": 34,
+      "after": 38,
       "mode": "copy",
       "badge": "COPY"
     },
     {
-      "after": 35,
+      "after": 39,
       "focus": "panes/terminal",
       "mode": "terminal",
       "badge": "TERMINAL"
     },
     {
-      "after": 37,
+      "after": 41,
       "focus": "panes/copy",
       "mode": "copy",
       "badge": "COPY"
@@ -255,10 +305,10 @@
       "focus": "panes/terminal",
       "mode": "terminal",
       "badge": "TERMINAL",
-      "after": 38
+      "after": 42
     },
     {
-      "after": 40,
+      "after": 44,
       "mode": "copy",
       "badge": "COPY"
     },
@@ -266,24 +316,24 @@
       "mode": "terminal",
       "focus": "panes/terminal",
       "badge": "TERMINAL",
-      "after": 41
+      "after": 45
     },
     {
       "mode": "terminal",
       "contains": [
         "ctrl+a leader: v vim · t term · d close/detach"
       ],
-      "after": 41
+      "after": 45
     },
     {
       "mode": "leader_pending",
       "contains": [
         "d close/detach"
       ],
-      "after": 42
+      "after": 46
     },
     {
-      "after": 43,
+      "after": 47,
       "mode": "insert",
       "focus": "edit-form/name",
       "modal": "edit-form",
@@ -297,13 +347,13 @@
       "contains": [
         "reviewer"
       ],
-      "after": 47
+      "after": 51
     },
     {
       "contains": [
         "[Activity]"
       ],
-      "after": 54
+      "after": 58
     },
     {
       "mode": "insert",
@@ -316,7 +366,7 @@
         "Edit pane",
         "Error:"
       ],
-      "after": 57
+      "after": 61
     },
     {
       "page": "panes",
@@ -327,7 +377,7 @@
         "[Turns]",
         "answer the pane"
       ],
-      "after": 66
+      "after": 72
     },
     {
       "mode": "insert",
@@ -339,7 +389,7 @@
         "loading…",
         "Edit action-item"
       ],
-      "after": 70
+      "after": 75
     },
     {
       "mode": "insert",
@@ -351,10 +401,10 @@
         "loading…",
         "Edit action-item"
       ],
-      "after": 79
+      "after": 85
     },
     {
-      "after": 89,
+      "after": 96,
       "mode": "insert",
       "focus": "panes/prompt",
       "contains": [
@@ -380,7 +430,7 @@
         "COPY",
         "Kill pane"
       ],
-      "after": 94
+      "after": 101
     },
     {
       "focus": "edit-form/name",
@@ -391,7 +441,7 @@
       "lacks": [
         "Error:"
       ],
-      "after": 100
+      "after": 109
     },
     {
       "focus": "pane:acme-web/w1",
@@ -400,10 +450,10 @@
         "answer the pane",
         "Error:"
       ],
-      "after": 106
+      "after": 117
     },
     {
-      "after": 113,
+      "after": 124,
       "focus": "edit-form/project"
     },
     {
@@ -415,13 +465,13 @@
         "unknown project beta",
         "Edit pane"
       ],
-      "after": 118
+      "after": 129
     },
     {
       "lacks": [
         "Error:"
       ],
-      "after": 121
+      "after": 134
     },
     {
       "focus": "panes/tree/list",
@@ -433,7 +483,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 125
+      "after": 145
     },
     {
       "mode": "normal",
@@ -448,7 +498,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 126
+      "after": 146
     },
     {
       "mode": "normal",
@@ -478,58 +528,6 @@
         "window": "w2",
         "name": "shell",
         "screen": "$ go test ./..."
-      }
-    ]
-  },
-  "config": {
-    "bindings.json": [
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+x",
-        "request": {
-          "noun": "ochazuke.focus",
-          "verb": "to",
-          "args": {
-            "id": "pane:acme-web/w1"
-          }
-        },
-        "capture": true
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+g",
-        "request": {
-          "noun": "ochazuke.focus",
-          "verb": "to",
-          "args": {
-            "id": "panes/tree/list"
-          }
-        },
-        "capture": true
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+d",
-        "request": {
-          "noun": "pane",
-          "verb": "kill",
-          "target": "pane:acme-web/w1"
-        },
-        "capture": true
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+e",
-        "request": {
-          "noun": "pane",
-          "verb": "kill",
-          "target": "pane:billing-api/w2"
-        },
-        "capture": true
       }
     ]
   }

@@ -98,6 +98,7 @@
     "q",
     "x",
     "enter",
+    "esc",
     "q",
     "ctrl+r",
     "ctrl+u",
@@ -267,14 +268,17 @@
       "after": 77
     },
     {
+      "focus": "schedules/reminders/plants",
+      "modal": "",
+      "mode": "normal",
       "contains": [
         "☑ water the plants",
         "done"
       ],
-      "after": 79
+      "after": 80
     },
     {
-      "after": 80,
+      "after": 81,
       "contains": [
         "☐ water the plants",
         "! due",
@@ -413,7 +417,7 @@
         }
       },
       {
-        "noun": "app",
+        "noun": "reminder",
         "mode": "normal",
         "keys": "ctrl+u",
         "request": {

@@ -6,7 +6,6 @@
   "height": 40,
   "script": [
     "esc",
-    "ctrl+g",
     "]",
     "]",
     "i",
@@ -21,7 +20,11 @@
     "i",
     "esc",
     "esc",
-    "ctrl+x",
+    ":",
+    {
+      "type": "page open reviews"
+    },
+    "enter",
     ":",
     {
       "type": "review open"
@@ -31,7 +34,11 @@
       "job": "review.open"
     },
     "l",
-    "ctrl+r",
+    ":",
+    {
+      "type": "focus to --id reviews/list/checkout-review-record"
+    },
+    "enter",
     "i",
     {
       "type": "ship it"
@@ -51,7 +58,11 @@
     "esc",
     "i",
     "enter",
-    "ctrl+w"
+    ":",
+    {
+      "type": "page open work"
+    },
+    "enter"
   ],
   "expect": [
     {
@@ -71,13 +82,13 @@
       "after": 1
     },
     {
-      "after": 4,
+      "after": 3,
       "contains": [
         "[Activity]"
       ]
     },
     {
-      "after": 6,
+      "after": 5,
       "mode": "insert",
       "focus": "panes/prompt",
       "contains": [
@@ -90,7 +101,7 @@
       ]
     },
     {
-      "after": 11,
+      "after": 10,
       "contains": [
         "[Transcript]"
       ]
@@ -106,7 +117,7 @@
         "Edit pane",
         "Error:"
       ],
-      "after": 12
+      "after": 11
     },
     {
       "page": "reviews",
@@ -119,7 +130,7 @@
         "pending",
         "1 unreviewed"
       ],
-      "after": 15
+      "after": 16
     },
     {
       "page": "reviews",
@@ -130,13 +141,13 @@
       "lacks": [
         "1 unreviewed"
       ],
-      "after": 20
+      "after": 21
     },
     {
       "focus": "reviews/list/checkout-review-record",
       "mode": "normal",
       "modal": "",
-      "after": 21
+      "after": 24
     },
     {
       "mode": "normal",
@@ -144,28 +155,28 @@
         "ship it",
         "answered"
       ],
-      "after": 24
+      "after": 27
     },
     {
       "contains": [
         "accepted",
         "ship it"
       ],
-      "after": 25
+      "after": 28
     },
     {
       "contains": [
         "rejected",
         "ship it"
       ],
-      "after": 28
+      "after": 31
     },
     {
       "mode": "normal",
       "contains": [
         "draft"
       ],
-      "after": 32
+      "after": 35
     },
     {
       "focus": "reviews/answer",
@@ -173,7 +184,7 @@
       "contains": [
         "ship it after checking mobile"
       ],
-      "after": 33
+      "after": 36
     },
     {
       "page": "work",
@@ -391,62 +402,6 @@
             "durationMs": 4000
           }
         ]
-      }
-    ]
-  },
-  "config": {
-    "bindings.json": [
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+x",
-        "request": {
-          "noun": "ochazuke.page",
-          "verb": "open",
-          "args": {
-            "id": "reviews"
-          }
-        },
-        "capture": true
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+w",
-        "request": {
-          "noun": "ochazuke.page",
-          "verb": "open",
-          "args": {
-            "id": "work"
-          }
-        },
-        "capture": true
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+r",
-        "request": {
-          "noun": "ochazuke.focus",
-          "verb": "to",
-          "args": {
-            "id": "reviews/list/checkout-review-record"
-          }
-        },
-        "capture": true
-      },
-      {
-        "noun": "app",
-        "mode": "normal",
-        "keys": "ctrl+g",
-        "request": {
-          "noun": "ochazuke.focus",
-          "verb": "to",
-          "args": {
-            "id": "pane:acme-web/w1"
-          }
-        },
-        "capture": true
       }
     ]
   }
