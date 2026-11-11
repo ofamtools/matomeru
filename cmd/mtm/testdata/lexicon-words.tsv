@@ -40,6 +40,7 @@ append	action	seed
 applied	action	seed	
 apply	action	seed	
 archive	action	seed	
+archive-task	action	yes	outline-task.archive-task: the task noun's archive over an outline row (a part noun cannot name a verb archive)
 archived	prop	seed	
 archived-at	prop	seed	
 args	action+prop	seed	
@@ -719,6 +720,7 @@ resolved	prop	seed
 respond	action	seed	
 restart	action	seed	
 restore	action	seed	
+restore-task	action	yes	outline-task.restore-task: the task noun's restore over an outline row
 restored	prop	seed	
 result	prop	seed	
 resume	action	seed	

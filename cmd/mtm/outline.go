@@ -149,8 +149,8 @@ func (a *App) defineOutline() {
 	a.r.Define(outlineTaskNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
 		Verb("choose-move", a.outlineChooseMove, "Choose the project to move the task to, its subtasks with it, as m does on the Work page's tasks").
-		Verb("archive", a.outlineTaskStandard("archive"), "Archive the task and its subtasks: kept, and hidden from the default views (the archive filter shows them); over a visual selection, every selected task").Many().
-		Verb("restore", a.outlineTaskStandard("restore"), "Bring an archived task back into the default views, as task.restore does; over a visual selection, every selected task").Many().
+		Verb("archive-task", a.outlineTaskStandard("archive"), "Archive the task and its subtasks: kept, and hidden from the default views (the archive filter shows them); over a visual selection, every selected task").Many().
+		Verb("restore-task", a.outlineTaskStandard("restore"), "Bring an archived task back into the default views, as task.restore does; over a visual selection, every selected task").Many().
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
 		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
 		Mode("normal").
@@ -159,8 +159,8 @@ func (a *App) defineOutline() {
 		Bind("enter", ochazuke.Do("outline.fold")).
 		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project")).
 		Bind("m", ochazuke.Do(outlineTaskNoun+".choose-move").Hinted("move")).
-		Bind("A", ochazuke.Do(outlineTaskNoun+".archive").Hinted("archive")).
-		Bind("X", ochazuke.Do(outlineTaskNoun+".restore").Hinted("restore"))
+		Bind("A", ochazuke.Do(outlineTaskNoun+".archive-task").Hinted("archive")).
+		Bind("X", ochazuke.Do(outlineTaskNoun+".restore-task").Hinted("restore"))
 	a.parameters(outlineTaskNoun+".status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: work.Statuses}})
 	a.defineOutlineAttachments()
 	a.outlineView("Tasks")
@@ -921,7 +921,7 @@ func (a *App) outlineTaskOf(row *ochazuke.Instance) (*outlineState, work.Task, e
 // the task's project, its subtasks with it, which reloads the open
 // outline: a task that left the project's outline is gone from it.
 func (a *App) outlineChooseMove(ctx ochazuke.Ctx) ochazuke.Result {
-	if ctx.Instance == nil || ctx.Instance.Noun != outlineTaskNoun {
+	if ctx.Instance == nil {
 		return ochazuke.Failed(errors.New("select a task to move"))
 	}
 	// The task is named by id, not as the target: the chooser opens from
@@ -931,13 +931,15 @@ func (a *App) outlineChooseMove(ctx ochazuke.Ctx) ochazuke.Result {
 	return resultOf(a.r.Execute(q))
 }
 
-// outlineTaskStandard is outline-task.archive and outline-task.restore:
+// outlineTaskStandard is outline-task.archive-task and .restore-task (named
+// as outline-project.delete-project is: a part noun has no store, so no
+// verb of its own takes a core verb's name):
 // the task noun's standard verb of that name over the rows (their tasks:
 // defineTaskSubjects adapts the subject), named by the outline row so the
 // verb acts from inside the outline modal.
 func (a *App) outlineTaskStandard(verb string) ochazuke.AppHandler {
 	return func(ctx ochazuke.Ctx) ochazuke.Result {
-		if ctx.Instance == nil || ctx.Instance.Noun != outlineTaskNoun {
+		if ctx.Instance == nil {
 			return ochazuke.Failed(fmt.Errorf("select a task to %s", verb))
 		}
 		q := ochazuke.Request{Noun: "task", Verb: verb, Target: ctx.Instance.ID}
