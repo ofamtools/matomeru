@@ -324,9 +324,11 @@ can re-apply the parallel default after branches merge without duplicating calls
 Use per-app environment/clock seams and temporary fixtures in new tests.
 The shared app fixture copies a closed, migrated seed database into each test's
 temporary directory and starts with an empty `dirs.json`; directory tests declare
-their own bases. Cleanup clears its captured app pointer so completed parallel
-tests cannot retain every runtime until the package ends. Command helpers settle
-on job completion, leaving timers to the fake clock rather than an idle tick.
+their own bases. A fixture without an explicit daemon uses a dead temporary socket,
+including for raw event subscriptions. Cleanup clears its captured app pointer so
+completed parallel tests cannot retain every runtime until the package ends.
+Command helpers settle on job completion, leaving timers to the fake clock rather
+than an idle tick.
 
 The tests run every story through `host.Test` in the tagged build (`cmd/mtm/stories_test.go`; `-update` rewrites goldens): `make story-test` (`go vet` and `go test -race` with `-tags monogatari`). A UI bug becomes a story before it is fixed; a known gap is a story with `"skip": "gap: ..."`. Editors need `-tags monogatari` in gopls's build flags to see the tagged files.
 

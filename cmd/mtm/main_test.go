@@ -105,7 +105,7 @@ var seededTemplate = sync.OnceValues(func() ([]byte, error) {
 	}
 	defer os.RemoveAll(dir)
 	path := filepath.Join(dir, "mtm.db")
-	app, err := New(Options{Data: path, lookupEnv: func(key string) (string, bool) {
+	app, err := New(Options{Data: path, Socket: filepath.Join(dir, "absent.sock"), lookupEnv: func(key string) (string, bool) {
 		value, ok := map[string]string{"HOME": dir, "MTM_O_PROJ": "none"}[key]
 		return value, ok
 	}})
@@ -157,6 +157,12 @@ func openWith(t *testing.T, opts Options) *App {
 	if opts.lookupEnv == nil {
 		env := map[string]string{"HOME": "/home/test", "MTM_O_PROJ": "none"}
 		opts.lookupEnv = func(k string) (string, bool) { v, ok := env[k]; return v, ok }
+	}
+	// Pane fakes do not replace the raw client used by event subscriptions.
+	// Never let a default fixture inherit the owner's daemon socket.
+	// Reopens of the same database must retain the same server identity.
+	if opts.Socket == "" && opts.Server == "" {
+		opts.Socket = filepath.Join(filepath.Dir(opts.Data), "absent.sock")
 	}
 	// A fixture has no project bases until a directory test declares them.
 	// In particular, do not stat the synthetic HOME (macOS automounts /home).
