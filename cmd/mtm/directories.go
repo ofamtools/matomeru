@@ -463,6 +463,12 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 		options.path = a.expandPath(path)
 	}
 	a.directories.Loading = true
+	landing := ""
+	if !a.directories.Ready && len(a.directories.Rows) == 0 && a.r.Page == directoriesPage {
+		if selected, ok := a.directoryList.Selected(); ok && a.r.FocusID() == selected.ID {
+			landing = selected.ID
+		}
+	}
 	a.refreshDirectoryRows()
 	return ochazuke.Pending(func(ctx context.Context) (any, error) {
 		return a.scanKnownDirectories(ctx, options)
@@ -500,23 +506,34 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 			ctx.Notify(loaded.Notice)
 		}
 		a.refreshDirectoryRows()
-		// A list that only had browse… lands on the first directory.
-		if selected, ok := a.directoryList.Selected(); ok && selected.ID == "directory:browse" {
-			if items := a.directoryList.Items(); len(items) > 1 {
-				_ = a.directoryList.Select(items[0].ID)
-			}
-		}
-		if want := a.directories.Want; want != "" {
-			a.directories.Want = ""
-			want = a.dirKey(want)
-			if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
-				if err := a.r.SetFocus("directory:" + want); err != nil {
-					ctx.Error(err.Error())
-				}
-			}
-		}
+		a.finishDirectoryLanding(ctx, landing)
 		a.refreshPathChoosers()
 	})
+}
+
+func (a *App) finishDirectoryLanding(ctx ochazuke.Ctx, landing string) {
+	// Saved bases precede the first scan. Land on its first result only
+	// while the initial focus is unchanged; explicit additions and jumps win.
+	if landing != "" && a.r.FocusID() == landing && a.directories.Want == "" && a.r.TopModal() == "" {
+		if items := a.directoryList.Items(); len(items) > 0 {
+			_ = a.directoryList.Select(items[0].ID)
+			_ = a.directoryList.Focus()
+		}
+	}
+	if selected, ok := a.directoryList.Selected(); ok && selected.ID == "directory:browse" {
+		if items := a.directoryList.Items(); len(items) > 1 {
+			_ = a.directoryList.Select(items[0].ID)
+		}
+	}
+	if want := a.directories.Want; want != "" {
+		a.directories.Want = ""
+		want = a.dirKey(want)
+		if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
+			if err := a.r.SetFocus("directory:" + want); err != nil {
+				ctx.Error(err.Error())
+			}
+		}
+	}
 }
 
 // refreshDirectoryRows pushes all three lists again from the cache and the
