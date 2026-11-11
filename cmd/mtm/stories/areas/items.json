@@ -34,7 +34,7 @@
     ":", {"type": "setting set inbox.group none"}, "enter",
     "/", {"type": "row subject review"}, "enter",
     ":", {"type": "pane edit"}, "enter",
-    "ctrl+a", "ctrl+k", {"type": "review-pane"}, "esc",
+    "i", "ctrl+a", "ctrl+k", {"type": "review-pane"}, "esc",
     {"job": "pane.set"}, {"job": "panes.refresh"}, "q"
   ],
   "expect": [
@@ -53,8 +53,9 @@
     {"after": 28, "contains": ["page 1/7", "gh", "row subject review"]},
     {"after": 34, "page": "inbox", "contains": ["row subject review", "One", "Two", "Three", "Four", "Five", "Six"]},
     {"after": 37, "page": "inbox", "contains": ["row subject review", "acme-web/claude"], "lacks": ["One", "Two", "Three", "Four", "Five", "Six"]},
-    {"after": 40, "focus": "edit-form/name", "modal": "edit-form", "contains": ["claude"]},
-    {"after": 44, "modal": "edit-form", "contains": ["review-pane"], "lacks": ["Error:"]},
+    {"after": 40, "focus": "edit-form/name", "modal": "edit-form", "mode": "normal", "contains": ["claude"]},
+    {"after": 41, "focus": "edit-form/name", "modal": "edit-form", "mode": "insert"},
+    {"after": 45, "modal": "edit-form", "contains": ["review-pane"], "lacks": ["Error:"]},
     {"page": "inbox", "modal": "", "mode": "normal", "contains": ["row subject review", "acme-web/review-pane"], "lacks": ["Error:", "Inbox: "]}
   ]
 }
