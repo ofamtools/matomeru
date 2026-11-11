@@ -44,7 +44,7 @@ func TestDirectoriesPageLoadsAndEditsProjectDirectories(t *testing.T) {
 	alpha, beta := directoryKey(filepath.Join(root, "alpha")), directoryKey(filepath.Join(root, "beta"))
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "matomeru"})
 	openDirectories(t, a)
-	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{"directory:" + alpha, "directory:" + beta, "directory:browse"}) {
+	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{"directory:" + alpha, "directory:" + beta, "directory:" + directoryKey(root)}) {
 		t.Fatalf("known rows %v", got)
 	}
 	if a.projectDirList.Len() != 0 || a.r.FocusID() != "directory:"+alpha {
@@ -109,7 +109,7 @@ func TestDirectoriesSearchIsReachable(t *testing.T) {
 	typeText(t, a, "bet")
 	press(t, a, "enter")
 	beta := "directory:" + directoryKey(filepath.Join(root, "beta"))
-	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{beta, "directory:browse"}) || a.r.FocusID() != beta || a.r.CurrentMode().Name != "normal" {
+	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{beta}) || a.r.FocusID() != beta || a.r.CurrentMode().Name != "normal" {
 		t.Fatalf("filtered %v focus %s mode %s", got, a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 	for range 4 {
@@ -145,9 +145,7 @@ func TestKnownDirectoryWithoutPinAsksForProject(t *testing.T) {
 	}
 }
 
-// n on the bases list offers the folders holding known directories; the
-// chosen one is written to dirs.json and scanned at once, so its repos
-// join the known directories; x on a base row stops scanning it.
+// Removing a base stops discovery; saved candidates and files remain.
 func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -169,9 +167,9 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	if err := a.baseList.Focus(); err != nil {
 		t.Fatal(err)
 	}
-	press(t, a, "n")
-	// dirs.add-base's path is declared (baseParam): n opens the path
-	// chooser on its declared start, the folders holding known directories.
+	press(t, a, ":")
+	typeText(t, a, "dirs add-base")
+	pressSettle(t, a, "enter")
 	c := a.r.Chooser(ochazuke.PathChooserKind)
 	if c == nil {
 		t.Fatalf("modal %q", a.r.TopModal())
@@ -212,8 +210,8 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	a.Update(keyMsg("d"))
 	_, cmd = a.Update(keyMsg("y"))
 	settle(a, cmd)
-	if slices.Contains(itemIDs(a.directoryList), delta) || slices.Contains(itemIDs(a.baseList), "base:"+directoryKey(second)) {
-		t.Fatalf("removed base still scanned: %v %v", itemIDs(a.directoryList), itemIDs(a.baseList))
+	if !slices.Contains(itemIDs(a.directoryList), delta) || slices.Contains(itemIDs(a.baseList), "base:"+directoryKey(second)) {
+		t.Fatalf("base removal lost saved candidates or retained its scan base: %v %v", itemIDs(a.directoryList), itemIDs(a.baseList))
 	}
 	if _, err := os.Stat(filepath.Join(second, "delta")); err != nil {
 		t.Fatal(err)

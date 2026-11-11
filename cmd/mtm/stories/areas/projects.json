@@ -21,7 +21,12 @@
     ":", {"type": "project directory /srv/api"}, "enter",
     ":", {"type": "project directory /srv/docs"}, "enter",
     ":", {"type": "project default /srv/api"}, "enter",
-    ":", {"type": "project remove-directory /srv/api"}, "enter"
+    ":", {"type": "project remove-directory /srv/api"}, "enter",
+    "esc", "q", "ctrl+j", "ctrl+j",
+    ":", {"type": "dirs refresh"}, "enter", {"job": "dirs.refresh"}, "q",
+    "n", "down", "enter", {"type": "/not-on-disk/saved-directory"}, {"job": "picker.load"}, "alt+enter",
+    {"job": "dirs.refresh"}, "esc", "q", {"job": "dirs.refresh"},
+    "d", "a", {"job": "dirs.refresh"}
   ],
   "expect": [
     {"after": 3, "modal": "dir-chooser", "contains": ["[walk ", "cmd/mtm/", "internal/work/", "docs/"], "lacks": [".git", "node_modules", "main.go"]},
@@ -46,6 +51,14 @@
     {"after": 58, "contains": ["/srv/web"], "lacks": ["Error:"]},
     {"after": 64, "contains": ["/srv/web", "/srv/api", "/srv/docs"], "lacks": ["Error:"]},
     {"after": 67, "contains": ["\"default_directory\": \"/srv/api\""], "lacks": ["Error:"]},
-    {"contains": ["\"directories\": [", "\"/srv/web\",", "\"/srv/docs\"", "\"default_directory\": \"/srv/web\"", "\"promoted\": \"/srv/web\"", "Removed /srv/api"], "lacks": ["\"/srv/api\"", "Error:"]}
+    {"after": 70, "contains": ["\"directories\": [", "\"/srv/web\",", "\"/srv/docs\"", "\"default_directory\": \"/srv/web\"", "\"promoted\": \"/srv/web\"", "Removed /srv/api"], "lacks": ["\"/srv/api\"", "Error:"]},
+    {"after": 74, "page": "directories", "modal": ""},
+    {"after": 79, "page": "directories", "modal": "", "mode": "normal", "contains": ["/srv/web", "/srv/docs"]},
+    {"after": 80, "modal": "add-kind", "contains": ["A directory", "A base directory to scan"]},
+    {"after": 82, "modal": "dir-chooser"},
+    {"after": 85, "modal": "directory-edit"},
+    {"after": 86, "modal": "directory-edit"},
+    {"after": 89, "page": "directories", "modal": "", "focus": "directory:/not-on-disk/saved-directory", "contains": ["unavailable"]},
+    {"page": "directories", "modal": "", "contains": ["/srv/web", "/srv/docs"], "lacks": ["Error:"]}
   ]
 }

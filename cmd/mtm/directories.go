@@ -28,23 +28,28 @@ type directoryConfig struct {
 }
 type knownDirectory struct {
 	work.Tree
-	LastUsed int64    `json:"last_used"`
-	Projects []string `json:"projects"`
+	LastUsed  int64    `json:"last_used"`
+	Projects  []string `json:"projects"`
+	Candidate bool     `json:"candidate,omitempty"`
 	// Common is the repository's shared git directory, the same for every
 	// worktree of one repository; "" outside a repository.
 	Common string `json:"common,omitempty"`
 }
 type directoryCache struct {
-	Rows      []knownDirectory
-	Footer    string
-	BaseErr   string // why the bases could not be read
-	Ready     bool   // the rows are a finished scan, not stale
-	Loading   bool   // a scan is running
-	Query     string
-	ProjectID string
-	Browse    string // what the open path field is for (browseAttach, browseEdit+path); "" when closed
-	Want      string // a directory a link opened before the scan listed it; the scan selects it
-	Subject   string // the directory the detail is about: the last one selected in a directory list
+	Rows         []knownDirectory
+	Footer       string
+	BaseErr      string // why the bases could not be read
+	Ready        bool   // the rows are a finished scan, not stale
+	Loading      bool   // a scan is running
+	Query        string
+	ProjectID    string
+	Browse       string // what the open path field is for (browseAttach, browseEdit+path); "" when closed
+	Want         string // a directory a link opened before the scan listed it; the scan selects it
+	Subject      string // the directory the detail is about: the last one selected in a directory list
+	Unavailable  map[string]string
+	Notice       string
+	Keys         map[string]string
+	ProbePending bool
 }
 
 // dirsConfigPath is dirs.json in the app's config directory.
@@ -70,57 +75,20 @@ func expandPathWithHome(path string, homeDir func() (string, error)) string {
 	}
 	return filepath.Clean(path)
 }
-func readDirectoryConfig(path string) (directoryConfig, error) {
-	var config directoryConfig
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return config, nil
-	}
-	if err != nil {
-		return config, err
-	}
-	err = json.Unmarshal(data, &config)
-	return config, err
-}
 
-// projectBases reads the bases from $MTM_PROJECT_BASE_DIRS, else the dirs.json
-// at path, else the default folders under the home directory.
+// projectBases is a projection of the one directory list; no folder is probed here.
 func (a *App) projectBases() ([]projectBase, error) {
-	path := a.dirsConfigPath()
-	if value, ok := a.opts.lookup("MTM_PROJECT_BASE_DIRS"); ok {
-		var out []projectBase
-		for _, path := range filepath.SplitList(value) {
-			if path != "" {
-				out = append(out, projectBase{a.expandPath(path), 1, "variable"})
-			}
-		}
-		return out, nil
-	}
-	config, err := readDirectoryConfig(path)
+	rows, err := a.userDirectories()
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(path); err == nil {
-		for i := range config.Bases {
-			config.Bases[i].Path = a.expandPath(config.Bases[i].Path)
-			if config.Bases[i].Depth == 0 {
-				config.Bases[i].Depth = 1
-			}
-			if config.Bases[i].Depth < 0 {
-				return nil, errors.New("project base depth must be positive")
-			}
-			config.Bases[i].Source = "file"
-		}
-		return config.Bases, nil
-	}
-	var out []projectBase
-	for _, name := range []string{"proj", "projects", "src", "code", "dev"} {
-		path := a.expandPath("~/" + name)
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			out = append(out, projectBase{path, 1, "default"})
+	var bases []projectBase
+	for _, row := range rows {
+		if !row.Archived && row.Depth > 0 {
+			bases = append(bases, projectBase{Path: row.Path, Depth: row.Depth, Source: row.Source})
 		}
 	}
-	return out, nil
+	return bases, nil
 }
 func inspectDirectory(path string) work.Tree {
 	tree := work.Tree{Kind: "directory", Path: filepath.Clean(path)}
@@ -240,97 +208,89 @@ func (a *App) manifestDirs(ctx context.Context) ([]string, error) {
 
 // knownDirs runs only in a background refresh, never during rendering or typing.
 func (a *App) knownDirs(ctx context.Context) ([]knownDirectory, string, error) {
-	projects, err := a.work.Projects()
+	loaded, err := a.scanKnownDirectories(ctx, a.directoryScanOptions())
+	return loaded.Rows, loaded.Footer, err
+}
+
+func (a *App) scanKnownDirectories(ctx context.Context, options directoryScanOptions) (directoryCache, error) {
+	loaded := directoryCache{Ready: true, Unavailable: map[string]string{}, Keys: map[string]string{}}
+	notice, err := a.migrateDirectoryProbe(ctx, options.timeout)
 	if err != nil {
-		return nil, "", err
+		return loaded, err
 	}
-	bases, err := a.projectBases()
+	loaded.Notice = notice
+	records, err := a.userDirectories()
 	if err != nil {
-		return nil, "", err
+		return loaded, err
 	}
-	paths, missing := scanBases(bases, a.r.PathAutoListable)
-	manifest, manifestErr := a.manifestDirs(ctx)
-	paths = append(paths, manifest...)
-	sessions, daemonErr := a.daemon.Sessions(ctx)
-	seeds := map[string]int64{}
-	for _, session := range sessions {
-		lastActive := session.LastActive
-		if lastActive > 0 && lastActive < 1_000_000_000_000 {
-			lastActive *= 1000
-		}
-		// Some daemon versions expose only a display basename in dir.
-		// Actual pane cwd supplies the path on those versions.
-		if filepath.IsAbs(session.Dir) || strings.HasPrefix(session.Dir, "~/") {
-			paths = append(paths, session.Dir)
-			seeds[session.Dir] = max(seeds[session.Dir], lastActive)
-		}
-		panes, err := a.daemon.Panes(ctx, session.Name)
+	if options.path != "" {
+		records = slices.DeleteFunc(records, func(row directoryRecord) bool {
+			return row.Path != options.path && (row.Depth > 0 || !strings.HasPrefix(row.Path, strings.TrimSuffix(options.path, "/")+"/"))
+		})
+	}
+	bases, paths, archived := directoryScanInputs(records)
+	if len(bases) == 0 && options.probe && options.path == "" {
+		bases = a.probeDirectoryDefaults(ctx, options.timeout)
+	}
+	discovered, unavailable, keys := a.scanDirectoryBases(ctx, bases, options.listable, options.timeout)
+	loaded.Unavailable, loaded.Keys = unavailable, keys
+	if len(records) == 0 && len(bases) == 0 {
+		return loaded, nil
+	}
+	var footer []string
+	if options.path == "" {
+		external, notes, err := a.externalDirectoryPaths(ctx)
 		if err != nil {
-			daemonErr = err
-			continue
+			return loaded, err
 		}
-		for _, pane := range panes {
-			if pane.Cwd != "" {
-				paths = append(paths, pane.Cwd)
-				seeds[pane.Cwd] = max(seeds[pane.Cwd], lastActive)
-			}
-		}
+		paths, footer = append(paths, external...), notes
 	}
-	var seedRows []work.DirRecent
-	for path, last := range seeds {
-		seedRows = append(seedRows, work.DirRecent{Path: path, LastUsed: last})
-	}
-	if err := a.work.SeedDirs(seedRows); err != nil {
-		return nil, "", err
-	}
+	paths = append(paths, discovered...)
 	recent, err := a.work.RecentDirs()
 	if err != nil {
-		return nil, "", err
+		return loaded, err
 	}
 	recency := map[string]int64{}
 	for _, row := range recent {
-		key := directoryKey(row.Path)
+		key := row.Path
+		resolved := ""
+		if err := a.directoryIO.run(ctx, options.timeout, func() { resolved = directoryKey(row.Path) }); err == nil {
+			key = resolved
+		}
 		recency[key] = max(recency[key], row.LastUsed)
+	}
+	projects, err := a.work.Projects()
+	if err != nil {
+		return loaded, err
 	}
 	owners := map[string][]string{}
 	for _, p := range projects {
 		for _, tree := range p.Trees {
-			path := directoryKey(tree.Path)
-			paths = append(paths, path)
-			owners[path] = append(owners[path], projectName(p))
+			owners[tree.Path] = append(owners[tree.Path], projectName(p))
 		}
 	}
 	unique := map[string]bool{}
-	var rows []knownDirectory
 	for _, path := range paths {
-		if path == "" {
+		if path == "" || unique[path] || archived[path] {
 			continue
 		}
-		path = directoryKey(path)
-		if unique[path] {
+		row, why := a.inspectKnownDirectory(ctx, path, options)
+		loaded.Keys[path] = row.Path
+		if why != "" {
+			loaded.Unavailable[row.Path] = why
+		}
+		if unique[row.Path] {
 			continue
 		}
-		unique[path] = true
-		row := knownDirectory{Tree: inspectDirectory(path), LastUsed: recency[path], Projects: owners[path]}
-		if row.Kind == "repo" {
-			row.Common = gitCommonDir(path)
-		}
-		rows = append(rows, row)
+		unique[row.Path] = true
+		row.LastUsed, row.Projects = max(recency[path], recency[row.Path]), owners[path]
+		loaded.Rows = append(loaded.Rows, row)
 	}
-	slices.SortFunc(rows, func(a, b knownDirectory) int {
+	slices.SortFunc(loaded.Rows, func(a, b knownDirectory) int {
 		return cmp.Or(cmp.Compare(b.LastUsed, a.LastUsed), cmp.Compare(a.Path, b.Path))
 	})
-	var footer []string
-	if len(missing) > 0 {
-		footer = append(footer, "missing bases: "+strings.Join(missing, ", "))
-	}
-	if daemonErr != nil {
-		footer = append(footer, "TUIOS unavailable; its sessions were not scanned")
-	}
-	if manifestErr != nil {
-		footer = append(footer, manifestErr.Error())
-	}
-	return rows, strings.Join(footer, "; "), nil
+	loaded.Footer = directoryScanFooter(loaded.Unavailable, footer)
+	return loaded, nil
 }
 
 // The Directories page, top to bottom: the target project's directories
@@ -358,6 +318,9 @@ var knownDirectoryColumns = []ochazuke.Column{
 	{Title: "branch", Priority: 4},
 	{Title: "last used", Priority: 2},
 	{Title: "projects", Priority: 1},
+	{Title: "source", Priority: 1},
+	{Title: "label", Priority: 2},
+	{Title: "status", Priority: 1},
 }
 
 // projectDirColumns are a project's own directories: the path, its branch
@@ -384,7 +347,8 @@ type dirRow struct {
 }
 
 func (a *App) defineDirectories() {
-	a.r.Define("dirs").Verb("refresh", a.refreshDirectories, "Refresh directory cache").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
+	a.r.Define("dirs").Verb("scan", a.refreshDirectories, "Scan the saved bases for Git repository candidates").Fetch().
+		Verb("refresh", a.refreshDirectories, "Scan the saved bases for Git repository candidates").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
 		bases, err := a.projectBases()
 		if err != nil {
 			return ochazuke.Failed(err)
@@ -409,9 +373,11 @@ func (a *App) defineDirectories() {
 		Verb("retarget", a.editDirRow, "Point this directory at another path").
 		Mode("normal").Bind("enter", ochazuke.Do("project-dir.default")).Bind("d d", ochazuke.Do("project-dir.remove")).Bind("i", ochazuke.Do("project-dir.retarget"))
 	a.r.Define("project-base").Kind(ochazuke.NounKindPart).DefaultKeys(false).Columns(baseColumns...).
+		Verb("scan", a.refreshDirectories, "Scan this base for Git repository candidates").Fetch().
 		Verb("remove", a.removeBaseRow, "Stop scanning this base (disk untouched)").Confirm("Stop scanning {{label}}? Nothing on disk changes.").
-		Mode("normal").Bind("d d", ochazuke.Do("project-base.remove"))
+		Mode("normal").Bind("d d", ochazuke.Do("project-base.remove")).Bind("s", ochazuke.Do("project-base.scan"))
 	a.r.Define("directory-browse").Kind(ochazuke.NounKindPart).DefaultKeys(false).Verb("open", a.browseDirectory, "Browse for a directory").Mode("normal").Bind("enter", ochazuke.Do("directory-browse.open"))
+	a.parameters("project-base.scan", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true, From: "row:path"}})
 	a.r.Define("directory-path").Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("attach", a.attachBrowsedDirectory, "Use the typed or picked directory").
 		Verb("cancel", a.cancelBrowse, "Stop browsing").
@@ -439,7 +405,7 @@ func (a *App) addDirectoriesPage() error {
 	if a.projectDirList, err = a.r.AddList(projectDirListID, nil, ochazuke.Parent(directoriesPage), ochazuke.Columns(projectDirColumns...)); err != nil {
 		return err
 	}
-	if a.directoryList, err = a.r.AddList(directoryListID, nil, ochazuke.Parent(directoriesPage), ochazuke.Columns(knownDirectoryColumns...)); err != nil {
+	if a.directoryList, err = a.r.AddList(directoryListID, nil, ochazuke.Parent(directoriesPage), ochazuke.RowNoun("directory"), ochazuke.Columns(knownDirectoryColumns...)); err != nil {
 		return err
 	}
 	if a.baseList, err = a.r.AddList(baseListID, nil, ochazuke.Parent(directoriesPage), ochazuke.Columns(baseColumns...)); err != nil {
@@ -454,14 +420,17 @@ func (a *App) addDirectoriesPage() error {
 	a.onOpen(directoriesPage, a.openedDirectories)
 	search := ochazuke.Do("dirs.search")
 	search.Instance, search.Mode, search.Keys = directoriesPage, "normal", "/"
-	add := ochazuke.Do("dirs.add-base")
-	add.Instance, add.Mode, add.Keys = baseListID, "normal", "n"
-	for _, row := range []ochazuke.Binding{search, add} {
+	add := ochazuke.Do("directory.create")
+	add.Instance, add.Mode, add.Keys = directoriesPage, "normal", "n"
+	scan := ochazuke.Do("dirs.scan")
+	scan.Instance, scan.Mode, scan.Keys = directoriesPage, "normal", "s"
+	for _, row := range []ochazuke.Binding{search, add, scan} {
 		if err := a.r.Bind(row); err != nil {
 			return err
 		}
 	}
 	a.refreshDirectoryRows()
+	a.observeDirectorySettings()
 	return nil
 }
 
@@ -489,10 +458,20 @@ func (a *App) openedDirectories() error {
 }
 
 func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
+	options := a.directoryScanOptions()
+	if path := ochazuke.StringArg(ctx.Args, "path", ""); path != "" {
+		options.path = a.expandPath(path)
+	}
 	a.directories.Loading = true
+	landing := ""
+	if !a.directories.Ready && len(a.directories.Rows) == 0 {
+		if selected, ok := a.directoryList.Selected(); ok && a.r.FocusID() == selected.ID {
+			landing = selected.ID
+		}
+	}
+	a.refreshDirectoryRows()
 	return ochazuke.Pending(func(ctx context.Context) (any, error) {
-		rows, footer, err := a.knownDirs(ctx)
-		return directoryCache{Rows: rows, Footer: footer, Ready: true}, err
+		return a.scanKnownDirectories(ctx, options)
 	}).ReplacingAt("app", "directories").Then(func(ctx ochazuke.Ctx, value any, err error) {
 		a.directories.Loading = false
 		if err != nil {
@@ -500,16 +479,38 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		loaded := value.(directoryCache)
-		a.directories.Rows, a.directories.Footer, a.directories.Ready = loaded.Rows, loaded.Footer, true
-		a.refreshDirectoryRows()
-		// A list that only had browse… lands on the first directory.
-		if selected, ok := a.directoryList.Selected(); ok && selected.ID == "directory:browse" {
-			if items := a.directoryList.Items(); len(items) > 1 {
-				_ = a.directoryList.Select(items[0].ID)
+		var candidates []string
+		if options.auto {
+			for _, row := range loaded.Rows {
+				if row.Candidate {
+					candidates = append(candidates, row.Path)
+				}
 			}
 		}
+		if options.path != "" {
+			mergeDirectoryScan(&loaded, a.directories, a.dirKeys, options.path)
+		}
+		a.directories.Rows, a.directories.Footer, a.directories.Ready = loaded.Rows, loaded.Footer, true
+		a.dirKeys = loaded.Keys
+		a.refreshProjectPrefixes()
+		a.rescopeExtensions()
+		a.directories.Unavailable = loaded.Unavailable
+		if err := a.saveDirectoryCandidates(loaded); err != nil {
+			ctx.Error(err.Error())
+		}
+		if options.auto {
+			if _, err := a.makeDirectoryProjects(ctx, candidates); err != nil {
+				ctx.Error(err.Error())
+			}
+		}
+		if loaded.Notice != "" {
+			ctx.Notify(loaded.Notice)
+		}
+		a.refreshDirectoryRows()
+		a.finishDirectoryLanding(landing)
 		if want := a.directories.Want; want != "" {
 			a.directories.Want = ""
+			want = a.dirKey(want)
 			if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
 				if err := a.r.SetFocus("directory:" + want); err != nil {
 					ctx.Error(err.Error())
@@ -518,6 +519,22 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		a.refreshPathChoosers()
 	})
+}
+
+func (a *App) finishDirectoryLanding(landing string) {
+	// Saved bases precede the first scan. Land on its first result only
+	// while the initial focus is unchanged; explicit additions and jumps win.
+	if landing != "" && a.r.FocusID() == landing && a.directories.Want == "" && a.r.TopModal() == "" {
+		if items := a.directoryList.Items(); len(items) > 0 {
+			_ = a.directoryList.Select(items[0].ID)
+			_ = a.directoryList.Focus()
+		}
+	}
+	if selected, ok := a.directoryList.Selected(); ok && selected.ID == "directory:browse" {
+		if items := a.directoryList.Items(); len(items) > 1 {
+			_ = a.directoryList.Select(items[0].ID)
+		}
+	}
 }
 
 // refreshDirectoryRows pushes all three lists again from the cache and the
@@ -548,7 +565,7 @@ func (a *App) directoryOwners() map[string][]string {
 	owners := map[string][]string{}
 	for _, p := range a.projects {
 		for _, tree := range p.Trees {
-			key := directoryKey(tree.Path)
+			key := a.dirKey(tree.Path)
 			owners[key] = append(owners[key], projectName(p))
 		}
 	}
@@ -613,17 +630,7 @@ func (a *App) filterDirectories() {
 		return
 	}
 	a.directories.Query = query
-	owners := a.directoryOwners()
-	home, _ := a.home()
-	now := a.now()
-	var items []ochazuke.ListItem
-	for _, row := range a.directories.Rows {
-		cells := knownCells(row, owners[row.Path], home, now)
-		if wordsMatch(query, strings.Join(cells, " ")) {
-			items = append(items, ochazuke.ListItem{ID: "directory:" + row.Path, Noun: "known-directory", Label: cells[0], Data: row.Path, Cells: cells})
-		}
-	}
-	items = append(items, ochazuke.ListItem{ID: "directory:browse", Noun: "directory-browse", Label: "browse…", Cells: []string{"browse…"}})
+	items := a.managedDirectoryItems(query)
 	if err := a.directoryList.SetItems(items); err != nil {
 		a.r.UI().Error(err.Error())
 	}
@@ -648,17 +655,17 @@ func (a *App) treeMarks(p work.Project, tree work.Tree) []string {
 	if filepath.Clean(tree.Path) == filepath.Clean(p.DefaultTree) {
 		marks = append(marks, "default")
 	}
-	if st, err := os.Stat(tree.Path); err != nil || !st.IsDir() {
-		marks = append(marks, "missing")
+	if a.r.Settings().Bool(settingDirectoryStatus) && a.directories.Unavailable[a.dirKey(tree.Path)] != "" {
+		marks = append(marks, "unavailable")
 	}
 	var shared []string
-	key := directoryKey(tree.Path)
+	key := a.dirKey(tree.Path)
 	for _, other := range a.projects {
 		if other.ID == p.ID {
 			continue
 		}
 		for _, t := range other.Trees {
-			if directoryKey(t.Path) == key {
+			if a.dirKey(t.Path) == key {
 				shared = append(shared, projectName(other))
 				break
 			}
@@ -699,10 +706,13 @@ func (a *App) refreshBases() {
 	for _, base := range bases {
 		// Counts read the cached rows; … only while a scan is running or
 		// none has landed yet (a stale cache still counts, test pass R14).
-		known := "…"
+		known := ""
+		if a.r.Settings().Bool(settingDirectoryStatus) {
+			known = "…"
+		}
 		if !a.directories.Loading && (a.directories.Ready || len(a.directories.Rows) > 0) {
 			n := 0
-			prefix := strings.TrimSuffix(directoryKey(base.Path), "/") + "/"
+			prefix := strings.TrimSuffix(a.dirKey(base.Path), "/") + "/"
 			for _, row := range a.directories.Rows {
 				if strings.HasPrefix(row.Path, prefix) {
 					n++
@@ -740,8 +750,9 @@ func (a *App) knownDirectoryChoices() []ochazuke.Choice {
 	owners := a.directoryOwners()
 	home, _ := a.home()
 	now := a.now()
-	choices := make([]ochazuke.Choice, 0, len(a.directories.Rows))
-	for _, row := range a.directories.Rows {
+	rows, _ := a.directoryViewRows()
+	choices := make([]ochazuke.Choice, 0, len(rows))
+	for _, row := range rows {
 		cells := directoryCells(row, owners[row.Path], home, now)
 		choices = append(choices, ochazuke.Choice{ID: "directory:" + row.Path, Label: strings.Join(slices.DeleteFunc(slices.Clone(cells), func(c string) bool { return c == "" }), "  "), Data: row.Path, Cells: cells})
 	}
@@ -853,7 +864,7 @@ func (a *App) attachDirectory(projectID, path string) ochazuke.Result {
 // rememberDirectory puts a newly attached path at the top of the cached
 // known directories, so it shows before the next scan.
 func (a *App) rememberDirectory(tree work.Tree) {
-	key := directoryKey(tree.Path)
+	key := a.dirKey(tree.Path)
 	for _, row := range a.directories.Rows {
 		if row.Path == key {
 			return
@@ -1014,7 +1025,7 @@ func (a *App) baseChoices() []ochazuke.Choice {
 	bases, _ := a.projectBases()
 	taken := map[string]bool{}
 	for _, base := range bases {
-		taken[directoryKey(base.Path)] = true
+		taken[a.dirKey(base.Path)] = true
 	}
 	counts := map[string]int{}
 	for _, row := range a.directories.Rows {
@@ -1057,7 +1068,7 @@ func (a *App) addBasePath(path string, depth int) ochazuke.Result {
 	home, _ := a.home()
 	msg := "Scanning " + tildePath(a.expandPath(path), home) + " for repos"
 	if _, ok := a.opts.lookup("MTM_PROJECT_BASE_DIRS"); ok {
-		msg = "Saved; MTM_PROJECT_BASE_DIRS overrides dirs.json while it is set"
+		msg = "Saved; MTM_PROJECT_BASE_DIRS overrides saved scan bases while it is set"
 	}
 	result := a.rescan(bases, msg)
 	// The new base is the selected row (test pass R14).
@@ -1157,7 +1168,7 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 		}
 	}
 
-	known := fmt.Sprintf("known directories (%d)", len(a.directories.Rows))
+	known := fmt.Sprintf("known directories (%d)", a.directoryList.Len())
 	switch {
 	case a.shownFocused(directoryQueryID):
 		prefix := known + "  / "
@@ -1169,24 +1180,27 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 	default:
 		head(known + "  / searches")
 	}
-	if !a.directories.Ready && len(a.directories.Rows) == 0 {
-		add(a.fill("loading known directories…", knownRows))
+	if a.directoryList.Len() == 0 {
+		add(a.fill("No directories yet; "+a.keySentence(directoryListID, keyAction{"directory.create", "adds a directory or base to scan", nil}), knownRows))
 	} else {
 		add(a.view(a.directoryList, width, knownRows))
 	}
 
 	head(fmt.Sprintf("project base dirs (%d)", a.baseList.Len()))
 	if a.baseList.Len() == 0 {
-		add(a.fill("none; "+a.keySentence(baseListID, keyAction{"dirs.add-base", "adds one", nil}), baseBlock))
+		add(a.fill("none; "+a.keySentence(directoryListID, keyAction{"directory.create", "adds one", nil}), baseBlock))
 	} else {
 		add(a.view(a.baseList, width, baseBlock))
 	}
 
 	footer := a.directories.Footer
+	if !a.r.Settings().Bool(settingDirectoryStatus) {
+		footer = ""
+	}
 	if a.directories.BaseErr != "" {
 		footer = strings.TrimPrefix(footer+"; "+a.directories.BaseErr, "; ")
 	}
-	if a.directories.Loading {
+	if a.directories.Loading && a.r.Settings().Bool(settingDirectoryStatus) {
 		footer = strings.TrimPrefix("scanning…; "+footer, "; ")
 		footer = strings.TrimSuffix(footer, "; ")
 	}
@@ -1214,59 +1228,25 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 	return ochazuke.Text(text)
 }
 
-// changeBase writes dirs.json with path added (at depth) or removed. The
-// first edit writes the effective default bases too; an environment
-// override is never written.
+// changeBase keeps the legacy verbs over the shared directory store.
 func (a *App) changeBase(path string, depth int, add bool) ([]projectBase, error) {
-	config, err := readDirectoryConfig(a.dirsConfigPath())
+	path = a.expandPath(path)
+	row, err := a.savedDirectory(path)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(a.dirsConfigPath()); errors.Is(err, os.ErrNotExist) {
-		home, _ := a.home()
-		for _, name := range []string{"proj", "projects", "src", "code", "dev"} {
-			path := filepath.Join(home, name)
-			if info, err := os.Stat(path); err == nil && info.IsDir() {
-				config.Bases = append(config.Bases, projectBase{Path: path, Depth: 1})
-			}
-		}
+	if add && depth < 1 {
+		return nil, errors.New("depth must be positive")
 	}
-	out := config.Bases[:0]
-	for _, base := range config.Bases {
-		if a.expandPath(base.Path) != path {
-			base.Source = ""
-			out = append(out, base)
-		}
-	}
-	config.Bases = out
-	if add {
-		if depth < 1 {
-			return nil, errors.New("depth must be positive")
-		}
-		config.Bases = append(config.Bases, projectBase{Path: path, Depth: depth})
-	}
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
+	row.Depth, row.Archived, row.Source = depth, !add, "saved"
+	if err := a.putDirectoryRecord(row); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(a.configDir, 0700); err != nil {
-		return nil, err
-	}
-	temp, err := os.CreateTemp(a.configDir, "dirs-*.json")
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(temp.Name())
-	if _, err = temp.Write(data); err == nil {
-		err = temp.Sync()
-	}
-	err = errors.Join(err, temp.Close())
-	if err == nil {
-		err = os.Rename(temp.Name(), a.dirsConfigPath())
-	}
-	return config.Bases, err
+	return a.projectBases()
 }
 
+// directoryKey resolves identity only in filesystem jobs and explicit actions.
+// Rendering and focus use dirKey, whose cache is filled by the background scan.
 func directoryKey(path string) string {
 	path = expandPath(path)
 	if real, err := filepath.EvalSymlinks(path); err == nil {

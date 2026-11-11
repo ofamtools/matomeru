@@ -166,7 +166,6 @@ detail_links.go	App.followLink	case	"project"	1
 detail_links.go	App.followLink	case	"saved"	1
 detail_links.go	App.followLink	case	"vim"	1
 directories.go	App.endBrowse	compare	"directories"	1
-directories.go	App.knownDirs	compare	"repo"	1
 directories.go	App.refreshDirectories	compare	"directories"	1
 directories_detail.go	App.directoryFacts	compare	"repo"	1
 extension_autorefresh.go	App.autoRefreshCatalogs	compare	"stale"	1

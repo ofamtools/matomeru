@@ -66,8 +66,8 @@ type Options struct {
 	// (harness.Load); "" is the built-ins alone. run defaults it to
 	// <config>/harnesses.json.
 	Harnesses string
-	// Config is the directory holding mtm's config files (dirs.json,
-	// harnesses.json); "" is ConfigDir's rule.
+	// Config holds settings, bindings and harness definitions; legacy dirs.json
+	// is imported once into populated data. Empty uses ConfigDir's rule.
 	Config string
 }
 
@@ -198,7 +198,7 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
 	flags.StringVar(&opts.Socket, "socket", "", "daemon socket; when set it wins over -server (MTM_SOCKET or TUIOS_SOCKET alone does not)")
-	flags.StringVar(&opts.Config, "config", "", "Config directory for dirs.json and harnesses.json (env MTM_CONFIG_DIR); default: beside a non-default -data, else $XDG_CONFIG_HOME/matomeru or ~/.config/matomeru")
+	flags.StringVar(&opts.Config, "config", "", "Config directory for settings, bindings and harnesses (env MTM_CONFIG_DIR); default: beside a non-default -data, else $XDG_CONFIG_HOME/matomeru or ~/.config/matomeru")
 	flags.StringVar(&opts.Harnesses, "harnesses", "", "Harness definitions (JSON array) merged by name over the built-ins claude, omp and codex; default <config>/harnesses.json; a missing file is the built-ins")
 	flags.StringVar(&opts.Server, "server", defaultServer(), "server mtm runs on, started when missing (env MTM_SERVER); \""+DefaultDaemon+"\" is your own daemon (MTM_SOCKET, TUIOS_SOCKET or the runtime dir), never started")
 	words := []string{"help"} // -h and --help list the commands after the flags
@@ -364,6 +364,7 @@ type App struct {
 	quick              *quickNote            // the open quick note (N), nil when closed
 	editorNouns        map[string]editorNoun // the editable nouns, one row each (editor.go)
 	directories        directoryCache
+	directoryIO        *directoryIO
 	pathChooserProject string // the project a directory path chooser is opened for (path_sources.go)
 	pathChooserOwn     bool   // that chooser walks only the project's own directories (pinDirectoryWalks; path_sources.go)
 	directoryList      *ochazuke.Collection
@@ -495,7 +496,7 @@ type App struct {
 	writeVerb string
 	vimAll    []work.VimSession // every Vim session as last read
 	vimDir    string
-	configDir string // dirs.json and harnesses.json live here (Options.ConfigDir)
+	configDir string // settings, bindings and harnesses (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
 	// extBare is the bare noun names mtm gave mounted extension nouns,
@@ -598,6 +599,7 @@ func New(opts Options) (*App, error) {
 	a.configDir = configDir
 	a.dataPath = opts.Data
 	a.opts = opts
+	a.directoryIO = newDirectoryIO()
 	a.configure(opts, configDir)
 	if err := a.openSchedules(configDir); err != nil {
 		db.Close()
@@ -660,7 +662,7 @@ func New(opts Options) (*App, error) {
 	a.defineConfigReload()
 	a.definePickers()
 	a.declareRelationKinds()
-	if err := a.declareSettings(); err != nil {
+	if err := a.configureDirectorySettings(); err != nil {
 		return nil, err
 	}
 	if err := a.migrateSettingAliases(settingWorkTasksFilter); err != nil {
@@ -759,6 +761,7 @@ func New(opts Options) (*App, error) {
 	}
 	a.defineCoreVerbs()
 	a.defineDocForms()
+	a.defineDirectoryCreation()
 	a.defineCommandRenames()
 	a.defineAgentDeclarations()
 	a.mountExtensions()
@@ -799,7 +802,7 @@ func New(opts Options) (*App, error) {
 	if err := r.OpenPage(panesPage); err != nil {
 		return nil, err
 	}
-	return a, r.SetFocus(paneListID)
+	return a, errors.Join(a.startDirectoryMigration(), r.SetFocus(paneListID))
 }
 
 // Close removes an attached terminal (releasing its stream) and closes the store.

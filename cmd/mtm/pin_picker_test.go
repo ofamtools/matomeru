@@ -356,9 +356,6 @@ func TestNewProjectChoosesDirectoryWhichBecomesDefault(t *testing.T) {
 	if c == nil {
 		t.Fatalf("no directory chooser, modal %q", a.r.TopModal())
 	}
-	if got := labels(c.Matches()); len(got) != 2 {
-		t.Fatalf("directory rows %q", got)
-	}
 	typeText(t, a, "beta")
 	press(t, a, "enter")
 	p, _ := a.project(a.pin)

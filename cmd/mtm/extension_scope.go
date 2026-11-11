@@ -564,7 +564,7 @@ func (a *App) refreshProjectPrefixes() {
 				continue
 			}
 			add(a.expandPath(d), p.ID)
-			add(directoryKey(a.expandPath(d)), p.ID)
+			add(a.dirKey(d), p.ID)
 		}
 	}
 	slices.SortStableFunc(out, func(x, y projectPrefix) int { return cmp.Compare(len(y.dir), len(x.dir)) })

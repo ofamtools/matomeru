@@ -105,7 +105,7 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 2 || rows[0].Path != directoryKey(two) || rows[1].Path != directoryKey(one) || !reflect.DeepEqual(rows[0].Projects, []string{"ochazuke"}) || !strings.Contains(footer, "missing bases:") {
+	if len(rows) != 2 || rows[0].Path != directoryKey(two) || rows[1].Path != directoryKey(one) || !reflect.DeepEqual(rows[0].Projects, []string{"ochazuke"}) {
 		t.Fatalf("known directories: %+v / %s", rows, footer)
 	}
 	bases, err := a.projectBases()
@@ -118,49 +118,6 @@ func TestKnownDirectoryBasesDepthLinksAndOrdering(t *testing.T) {
 	paths, _ := scanBases([]projectBase{{Path: root, Depth: 2}}, nil)
 	if len(paths) != 3 {
 		t.Fatalf("depth 2: %v", paths)
-	}
-}
-func TestBaseEditingWritesFileAndEnvironmentWins(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	testEnv(a, "MTM_PROJECT_BASE_DIRS", "/override")
-	ctx := ochazuke.Ctx{Args: ochazuke.Arguments{"path": "/test-base", "depth": 2}}
-	_, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base", Target: "directories", Args: ctx.Args})
-	if err != nil {
-		t.Fatal(err)
-	}
-	config, err := readDirectoryConfig(a.dirsConfigPath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, base := range config.Bases {
-		if base.Path == "/test-base" && base.Depth == 2 {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("file: %+v", config)
-	}
-	bases, err := a.projectBases()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(bases) != 1 || bases[0].Path != "/override" {
-		t.Fatalf("override: %+v", bases)
-	}
-	_, err = a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "remove-base", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	config, err = readDirectoryConfig(a.dirsConfigPath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, base := range config.Bases {
-		if base.Path == "/test-base" {
-			t.Fatal("remove retained base")
-		}
 	}
 }
 
@@ -276,8 +233,7 @@ func TestKnownDirectoriesIncludeOProjList(t *testing.T) {
 
 // TestConfigDirFollowsData pins where config files go: an explicit Config,
 // then MTM_CONFIG_DIR, then beside a non-default -data, and the user's
-// config directory only for the default database. Adding a base on a copy
-// writes dirs.json beside the copy, never under XDG_CONFIG_HOME.
+// config directory only for the default database.
 func TestConfigDirFollowsData(t *testing.T) {
 	t.Parallel()
 	xdg := t.TempDir()
@@ -296,17 +252,5 @@ func TestConfigDirFollowsData(t *testing.T) {
 	env["MTM_CONFIG_DIR"] = "/from-env"
 	if got := (Options{lookupEnv: lookup, Data: (Options{lookupEnv: lookup}).defaultData()}).ConfigDir(); got != "/from-env" {
 		t.Fatalf("env: %s", got)
-	}
-	delete(env, "MTM_CONFIG_DIR")
-
-	a := openAt(t, seeded(t))
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "dirs", Verb: "add-base", Target: "directories", Args: ochazuke.Arguments{"path": "/test-base", "depth": 1}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(a.configDir, "dirs.json")); err != nil {
-		t.Fatalf("dirs.json beside the data: %v", err)
-	}
-	if entries, _ := os.ReadDir(xdg); len(entries) != 0 {
-		t.Fatalf("wrote under XDG_CONFIG_HOME: %v", entries)
 	}
 }

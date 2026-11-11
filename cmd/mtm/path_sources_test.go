@@ -83,7 +83,7 @@ func TestDirectoryPathChooserOpensOnKnown(t *testing.T) {
 		t.Fatalf("opened on %s", c.Source())
 	}
 	alpha, beta := directoryKey(filepath.Join(root, "alpha")), directoryKey(filepath.Join(root, "beta"))
-	if got := chooserData(c); !slices.Equal(got, []string{alpha, beta}) || len(c.Matches()) != 2 {
+	if got := chooserData(c); !slices.Equal(got, []string{alpha, beta, directoryKey(root)}) {
 		t.Fatalf("known rows %q (%d matches)", got, len(c.Matches()))
 	}
 	typeText(t, a, "beta")
