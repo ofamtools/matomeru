@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"sync"
 
 	"ofam.dev/ochazuke"
@@ -60,4 +61,27 @@ func defaultStatusNames() []string {
 		out[i] = r.Name
 	}
 	return out
+}
+
+// syncStatusEnums makes the choices of every status parameter and prop the
+// live table's names (tasks.statuses), so a status the owner adds is taken
+// by outline-task.status, task.edit and task set status=NAME. It runs when
+// the setting is declared and each time it changes.
+func (a *App) syncStatusEnums() {
+	names := a.statusNames()
+	for _, key := range []string{outlineTaskNoun + ".status", "task.edit"} {
+		op := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(key)))
+		if p, ok := op.Parameters["status"]; ok {
+			p.Enum = slices.Clone(names)
+			a.parameters(key, map[string]ochazuke.Parameter{"status": p})
+		}
+	}
+	if n := a.r.Nouns["task"]; n != nil {
+		for i := range n.Props {
+			if n.Props[i].Name == "status" {
+				n.Props[i].Enum = slices.Clone(names)
+			}
+		}
+	}
+	a.r.Operations.Invalidate()
 }

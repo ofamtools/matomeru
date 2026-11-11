@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -989,24 +990,26 @@ func (a *App) outlineChooseMove(ctx ochazuke.Ctx) ochazuke.Result {
 	for _, row := range rows {
 		ids = append(ids, taskOf(row))
 	}
-	title, current, single := "Move "+ctx.Instance.Label+" to", "", len(ids) == 1
-	if single {
-		if t, err := a.work.Task(ids[0]); err == nil {
-			current = t.ProjectID
-		}
-	} else {
-		title = fmt.Sprintf("Move %d tasks to", len(ids))
+	// A project is offered unless every selected task is already in it;
+	// unassociated is offered unless every one is already unassociated.
+	inProject := map[string]int{}
+	var names []string
+	for _, t := range a.taskRows(ids) {
+		inProject[t.ProjectID]++
+		names = append(names, cmp.Or(t.Title, "untitled"))
 	}
+	title := "Move to · " + strings.Join(names, ", ")
+	allIn := func(project string) bool { return inProject[project] == len(ids) }
 	var choices []ochazuke.Choice
 	for _, p := range a.projectsByRecency() {
-		if single && p.ID == current {
-			continue // moving to where it already is does nothing
+		if allIn(p.ID) {
+			continue
 		}
 		c := plainChoice(p.ID, projectName(p))
 		c.Data = p.ID
 		choices = append(choices, c)
 	}
-	if !single || current != "" {
+	if !allIn("") {
 		choices = append(choices, ochazuke.Choice{ID: "unassociated", Label: "unassociated", Data: "", RowFlags: ochazuke.RowFlags{Trailing: true, Bare: true}})
 	}
 	data := dataByID(choices)

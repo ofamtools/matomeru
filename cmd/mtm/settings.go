@@ -166,6 +166,8 @@ func (a *App) declareSettings() error {
 		return err
 	}
 	a.work.SetStatusSource(a.statusSource())
+	a.syncStatusEnums()
+	a.r.Settings().Observe(settingTaskStatuses, func(string, any) { a.syncStatusEnums() })
 	for _, key := range []string{settingInboxNotify, settingInboxSources, settingInboxInApp} {
 		a.r.Settings().Observe(key, func(string, any) { a.syncInboxNotices() })
 	}

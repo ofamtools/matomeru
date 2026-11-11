@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"ofam.dev/ochazuke"
 )
 
 // One key per status sets it on the focused row and, over a visual
@@ -44,5 +46,26 @@ func TestOutlineStatusKeys(t *testing.T) {
 	press(t, app, "w")
 	if got := app.work.StatusGlyph("waiting"); got != "[W]" {
 		t.Fatalf("glyph %q", got)
+	}
+}
+
+// A status added to tasks.statuses is accepted by the verbs that take a
+// status (the parameter's choices are the live table), and draws its glyph.
+func TestOutlineStatusAddedInTheSetting(t *testing.T) {
+	t.Parallel()
+	app := open(t)
+	rows := `[{"name":"todo","glyph":" "},{"name":"done","glyph":"x","closed":true},{"name":"later","glyph":"L"}]`
+	if _, err := app.r.Settings().SetSession(settingTaskStatuses, rows); err != nil {
+		t.Fatal(err)
+	}
+	press(t, app, "j", "O")
+	focusRow(t, app, outlineNode("t1"))
+	executeA(t, app, outlineTaskNoun, "status", outlineNode("t1"), ochazuke.Arguments{"status": "later"})
+	if got := stored(t, app, "t1").Status; got != "later" || !strings.Contains(frame(app), "[L]") {
+		t.Fatalf("status %q\n%s", got, frame(app))
+	}
+	executeA(t, app, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"status": "later"}})
+	if got := stored(t, app, "t2").Status; got != "later" {
+		t.Fatalf("task set: %q", got)
 	}
 }

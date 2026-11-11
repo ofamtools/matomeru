@@ -74,6 +74,9 @@ func TestServerPrecedence(t *testing.T) {
 // serial: exercises daemon process environment and the package serverStart hook.
 func TestRunEnsuresOnlyOutsideSmoke(t *testing.T) {
 	_, starts := isolate(t)
+	// serverStart is the tuios runner's start; the default runner is self
+	// (daemon_runner.go defaultDaemonRunner), which never reaches the hook.
+	t.Setenv(envDaemonRunner, runnerTuios)
 	data := filepath.Join(t.TempDir(), "mtm.db")
 	var out, errOut bytes.Buffer
 	if err := run([]string{"--data", data, "--smoke"}, strings.NewReader(""), &out, &errOut); err != nil || *starts != 0 {
