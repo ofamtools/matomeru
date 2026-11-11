@@ -464,7 +464,7 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	a.directories.Loading = true
 	landing := ""
-	if !a.directories.Ready && len(a.directories.Rows) == 0 && a.r.Page == directoriesPage {
+	if !a.directories.Ready && len(a.directories.Rows) == 0 {
 		if selected, ok := a.directoryList.Selected(); ok && a.r.FocusID() == selected.ID {
 			landing = selected.ID
 		}
@@ -507,12 +507,21 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 			ctx.Notify(loaded.Notice)
 		}
 		a.refreshDirectoryRows()
-		a.finishDirectoryLanding(ctx, landing)
+		a.finishDirectoryLanding(landing)
+		if want := a.directories.Want; want != "" {
+			a.directories.Want = ""
+			want = a.dirKey(want)
+			if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
+				if err := a.r.SetFocus("directory:" + want); err != nil {
+					ctx.Error(err.Error())
+				}
+			}
+		}
 		a.refreshPathChoosers()
 	})
 }
 
-func (a *App) finishDirectoryLanding(ctx ochazuke.Ctx, landing string) {
+func (a *App) finishDirectoryLanding(landing string) {
 	// Saved bases precede the first scan. Land on its first result only
 	// while the initial focus is unchanged; explicit additions and jumps win.
 	if landing != "" && a.r.FocusID() == landing && a.directories.Want == "" && a.r.TopModal() == "" {
@@ -524,15 +533,6 @@ func (a *App) finishDirectoryLanding(ctx ochazuke.Ctx, landing string) {
 	if selected, ok := a.directoryList.Selected(); ok && selected.ID == "directory:browse" {
 		if items := a.directoryList.Items(); len(items) > 1 {
 			_ = a.directoryList.Select(items[0].ID)
-		}
-	}
-	if want := a.directories.Want; want != "" {
-		a.directories.Want = ""
-		want = a.dirKey(want)
-		if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
-			if err := a.r.SetFocus("directory:" + want); err != nil {
-				ctx.Error(err.Error())
-			}
 		}
 	}
 }
