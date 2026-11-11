@@ -106,6 +106,7 @@ func (a *App) declareSettings() error {
 		paneGroupSetting,
 		workTasksLayoutSetting,
 		taskStatusSetting,
+		outlineHintLinesSetting,
 		taskPickerPathSetting,
 		afterSubmitSetting,
 		afterSubmitModeSetting,

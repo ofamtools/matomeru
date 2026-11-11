@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"ofam.dev/ochazuke"
 
 	"ofam.dev/matomeru/internal/work"
@@ -154,9 +156,9 @@ func (a *App) defineOutline() {
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
 		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
 		Mode("normal").
-		Bind("x", ochazuke.Do(outlineTaskNoun+".toggle")).
-		Bind("s", ochazuke.Do(outlineTaskNoun+".status")).
-		Bind("enter", ochazuke.Do("outline.fold")).
+		Bind("x", ochazuke.Do(outlineTaskNoun+".toggle").Hinted("done")).
+		Bind("s", ochazuke.Do(outlineTaskNoun+".status").Hinted("status")).
+		Bind("enter", ochazuke.Do("outline.fold").Hinted("fold")).
 		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project")).
 		Bind("m", ochazuke.Do(outlineTaskNoun+".choose-move").Hinted("move")).
 		Bind("A", ochazuke.Do(outlineTaskNoun+".archive-task").Hinted("archive")).
@@ -276,6 +278,9 @@ func (a *App) outlineView(title string) {
 		if a.outline != nil && a.outline.scope.all {
 			head = outlineAllHints
 		}
+		if lines := a.r.Settings().Int(settingOutlineHintLines); lines > 0 {
+			head = wrapHints(ochazuke.HintCells(r, r.FocusID()), w, lines)
+		}
 		if t.List().Len() == 0 {
 			r.Placed(outlineTree + "/list")
 			return ochazuke.Text(head + "\n\nno tasks yet: o adds one")
@@ -387,6 +392,41 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Done(scope.project)
+}
+
+// settingOutlineHintLines is how many lines under the outline's title list
+// the focused row's keys, taken from its binding rows (wrapHints); 0 keeps
+// the fixed intro text (outlineHints).
+const settingOutlineHintLines = "tasks.outline-hint-lines"
+
+var outlineHintLinesSetting = ochazuke.Setting{Name: settingOutlineHintLines, Type: ochazuke.SettingInteger, Default: 4,
+	Description: "Lines under the task outline's title that list the focused row's keys, from its binding rows (a rebound key shows as bound); 0 shows the fixed intro text instead. Hints that do not fit end the list with an ellipsis"}
+
+// wrapHints lays hint cells out in at most lines lines of width w, whole
+// hints only, "…" ending the last line when some are left out.
+func wrapHints(cells []ochazuke.HintCell, w, lines int) string {
+	var out []string
+	cur := ""
+	for _, c := range cells {
+		text := c.String()
+		next := text
+		if cur != "" {
+			next = cur + " · " + text
+		}
+		if cur != "" && ansi.StringWidth(next) > w {
+			out = append(out, cur)
+			if len(out) == lines {
+				out[lines-1] += " …"
+				return strings.Join(out, "\n")
+			}
+			next = text
+		}
+		cur = next
+	}
+	if cur != "" {
+		out = append(out, cur)
+	}
+	return strings.Join(out, "\n")
 }
 
 // outlineHints is the line under a project's outline title; outlineAllHints
