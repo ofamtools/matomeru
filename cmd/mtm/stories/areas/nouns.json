@@ -5,6 +5,32 @@
   "width": 160,
   "height": 52,
   "script": [
+    ":",
+    {
+      "type": "page open ext/alpha"
+    },
+    "enter",
+    {
+      "job": "catalog-load"
+    },
+    "enter",
+    {
+      "job": "alpha.item.output"
+    },
+    "q",
+    "H",
+    {
+      "job": "alpha.item.history"
+    },
+    "q",
+    "g",
+    "s",
+    {
+      "job": "beta.doc.send"
+    },
+    "d",
+    "d",
+    "n",
     "ctrl+x",
     "n",
     {
@@ -44,138 +70,9 @@
     },
     "enter",
     "enter",
-    ":",
-    {
-      "type": "page open ext/alpha"
-    },
-    "enter",
-    {
-      "job": "catalog-load"
-    },
-    "enter",
-    {
-      "job": "alpha.item.output"
-    },
-    "q",
-    "H",
-    {
-      "job": "alpha.item.history"
-    },
-    "q",
-    "g",
-    "s",
-    {
-      "job": "beta.doc.send"
-    },
-    "d",
-    "d",
-    "n"
+    "ctrl+s"
   ],
   "expect": [
-    {
-      "after": 2,
-      "focus": "args-form/text",
-      "modal": "args-form"
-    },
-    {
-      "page": "nouns/context-item",
-      "modal": "",
-      "contains": [
-        "first generated context"
-      ],
-      "after": 4
-    },
-    {
-      "after": 5,
-      "page": "nouns/relation",
-      "contains": [
-        "summary",
-        "kind",
-        "from",
-        "to",
-        "text",
-        "archived",
-        "project:acme-web",
-        "scaffold relation"
-      ]
-    },
-    {
-      "after": 11,
-      "contains": [
-        "edited relation"
-      ]
-    },
-    {
-      "after": 13,
-      "lacks": [
-        "edited relation"
-      ]
-    },
-    {
-      "after": 15,
-      "contains": [
-        "edited relation"
-      ]
-    },
-    {
-      "after": 16,
-      "contains": [
-        "edited relation"
-      ]
-    },
-    {
-      "lacks": [
-        "nouns/relation  "
-      ],
-      "after": 17
-    },
-    {
-      "after": 18,
-      "page": "nouns/session",
-      "contains": [
-        "name",
-        "project",
-        "panes",
-        "archived",
-        "ended-at",
-        "acme-web"
-      ]
-    },
-    {
-      "after": 24,
-      "contains": [
-        "focus-room"
-      ]
-    },
-    {
-      "after": 25,
-      "lacks": [
-        "focus-room"
-      ]
-    },
-    {
-      "after": 26,
-      "contains": [
-        "focus-room"
-      ]
-    },
-    {
-      "lacks": [
-        "nouns/session  "
-      ],
-      "after": 27
-    },
-    {
-      "page": "nouns/action-item",
-      "contains": [
-        "review requested",
-        "mentioned"
-      ],
-      "lacks": [
-        "nouns/action-item  "
-      ],
-      "after": 31
-    },
     {
       "page": "ext/alpha",
       "contains": [
@@ -183,7 +80,7 @@
         "Notes (",
         "Source row needs a rerun"
       ],
-      "after": 35
+      "after": 4
     },
     {
       "modal": "text-view",
@@ -194,7 +91,7 @@
       "lacks": [
         "item output:"
       ],
-      "after": 37
+      "after": 6
     },
     {
       "modal": "palette-results",
@@ -205,7 +102,7 @@
       "lacks": [
         "item history:"
       ],
-      "after": 40
+      "after": 9
     },
     {
       "contains": [
@@ -215,10 +112,10 @@
       "lacks": [
         "no such verb"
       ],
-      "after": 44
+      "after": 13
     },
     {
-      "after": 46,
+      "after": 15,
       "contains": [
         "Remove machine sandbox?"
       ],
@@ -233,7 +130,121 @@
       "lacks": [
         "Remove machine sandbox?"
       ],
+      "after": 16
+    },
+    {
+      "after": 18,
+      "focus": "args-form/text",
+      "modal": "args-form"
+    },
+    {
+      "page": "nouns/context-item",
+      "modal": "",
+      "contains": [
+        "first generated context"
+      ],
+      "after": 20
+    },
+    {
+      "after": 21,
+      "page": "nouns/relation",
+      "contains": [
+        "summary",
+        "kind",
+        "from",
+        "to",
+        "text",
+        "archived",
+        "project:acme-web",
+        "scaffold relation"
+      ]
+    },
+    {
+      "after": 27,
+      "contains": [
+        "edited relation"
+      ]
+    },
+    {
+      "after": 29,
+      "lacks": [
+        "edited relation"
+      ]
+    },
+    {
+      "after": 31,
+      "contains": [
+        "edited relation"
+      ]
+    },
+    {
+      "after": 32,
+      "contains": [
+        "edited relation"
+      ]
+    },
+    {
+      "lacks": [
+        "nouns/relation  "
+      ],
+      "after": 33
+    },
+    {
+      "after": 34,
+      "page": "nouns/session",
+      "contains": [
+        "name",
+        "project",
+        "panes",
+        "archived",
+        "ended-at",
+        "acme-web"
+      ]
+    },
+    {
+      "after": 40,
+      "contains": [
+        "focus-room"
+      ]
+    },
+    {
+      "after": 41,
+      "lacks": [
+        "focus-room"
+      ]
+    },
+    {
+      "after": 42,
+      "contains": [
+        "focus-room"
+      ]
+    },
+    {
+      "lacks": [
+        "nouns/session  "
+      ],
+      "after": 43
+    },
+    {
+      "page": "nouns/action-item",
+      "contains": [
+        "review requested",
+        "mentioned"
+      ],
+      "lacks": [
+        "nouns/action-item  "
+      ],
       "after": 47
+    },
+    {
+      "page": "nouns/session",
+      "contains": [
+        "focus-room"
+      ],
+      "lacks": [
+        "nouns/session  ",
+        "Error:"
+      ]
     }
   ],
   "seed": {

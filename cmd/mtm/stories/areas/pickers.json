@@ -386,8 +386,7 @@
       "page": "panes",
       "contains": [
         "acme-web/claude"
-      ],
-      "after": 68
+      ]
     }
   ],
   "config": {

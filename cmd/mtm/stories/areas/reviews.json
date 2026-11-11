@@ -5,6 +5,7 @@
   "width": 200,
   "height": 40,
   "script": [
+    "esc",
     "ctrl+g",
     "]",
     "]",
@@ -21,6 +22,10 @@
     "esc",
     "esc",
     "ctrl+x",
+    ":",
+    {
+      "type": "review open"
+    },
     "enter",
     {
       "job": "review.open"
@@ -63,16 +68,16 @@
         "Re-walk UX findings",
         "✓ done"
       ],
-      "after": 0
+      "after": 1
     },
     {
-      "after": 3,
+      "after": 4,
       "contains": [
         "[Activity]"
       ]
     },
     {
-      "after": 5,
+      "after": 6,
       "mode": "insert",
       "focus": "panes/prompt",
       "contains": [
@@ -85,7 +90,7 @@
       ]
     },
     {
-      "after": 10,
+      "after": 11,
       "contains": [
         "[Transcript]"
       ]
@@ -101,17 +106,20 @@
         "Edit pane",
         "Error:"
       ],
-      "after": 11
+      "after": 12
     },
     {
       "page": "reviews",
+      "focus": "reviews/list/checkout-review-record",
+      "mode": "normal",
+      "modal": "",
       "contains": [
         "reviews (1)",
         "Review checkout",
         "pending",
         "1 unreviewed"
       ],
-      "after": 14
+      "after": 15
     },
     {
       "page": "reviews",
@@ -122,7 +130,13 @@
       "lacks": [
         "1 unreviewed"
       ],
-      "after": 17
+      "after": 20
+    },
+    {
+      "focus": "reviews/list/checkout-review-record",
+      "mode": "normal",
+      "modal": "",
+      "after": 21
     },
     {
       "mode": "normal",
@@ -130,28 +144,28 @@
         "ship it",
         "answered"
       ],
-      "after": 21
+      "after": 24
     },
     {
       "contains": [
         "accepted",
         "ship it"
       ],
-      "after": 22
+      "after": 25
     },
     {
       "contains": [
         "rejected",
         "ship it"
       ],
-      "after": 25
+      "after": 28
     },
     {
       "mode": "normal",
       "contains": [
         "draft"
       ],
-      "after": 29
+      "after": 32
     },
     {
       "focus": "reviews/answer",
@@ -159,15 +173,14 @@
       "contains": [
         "ship it after checking mobile"
       ],
-      "after": 30
+      "after": 33
     },
     {
       "page": "work",
       "contains": [
         "Checkout page: show the shipping estimate",
         "active"
-      ],
-      "after": 32
+      ]
     }
   ],
   "seed": {
@@ -393,7 +406,8 @@
           "args": {
             "id": "reviews"
           }
-        }
+        },
+        "capture": true
       },
       {
         "noun": "app",
@@ -405,7 +419,8 @@
           "args": {
             "id": "work"
           }
-        }
+        },
+        "capture": true
       },
       {
         "noun": "app",
@@ -415,9 +430,10 @@
           "noun": "ochazuke.focus",
           "verb": "to",
           "args": {
-            "id": "reviews/list"
+            "id": "reviews/list/checkout-review-record"
           }
-        }
+        },
+        "capture": true
       },
       {
         "noun": "app",
@@ -429,7 +445,8 @@
           "args": {
             "id": "pane:acme-web/w1"
           }
-        }
+        },
+        "capture": true
       }
     ]
   }
