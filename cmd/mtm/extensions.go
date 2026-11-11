@@ -733,10 +733,23 @@ func (a *App) mountExtension(name string, e extEntry) {
 			v.History = kind
 		}
 	}
+	canonicalKeys := map[string]string{}
 	mounted := ocli.MountCatalog(a.r, doc, ocli.HostMount{
 		Local: func(noun string) string { return naming.local(ns, noun) },
 		Param: extParameter,
 		Proxy: func(noun string, v ocli.CatalogVerb) any { return a.extProxy(x, noun, v.Name, v.OpensPage) },
+		CanonicalKey: func(noun, selector, key string) error {
+			cache := noun + "\x00" + selector
+			if selector == key || canonicalKeys[cache] == key {
+				return nil
+			}
+			canonicalKeys[cache] = key
+			if err := a.rekeyExtensionReferences(x, noun, selector, key); err != nil {
+				delete(canonicalKeys, cache)
+				return err
+			}
+			return nil
+		},
 	})
 	x.nouns = mounted.Nouns
 	for _, warning := range mounted.Warnings {
@@ -762,6 +775,17 @@ func (a *App) mountExtension(name string, e extEntry) {
 		},
 		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
 			return execExt(c, x.bin, x.loadEnv(nil), noun, verb, "--json", "{}")
+		},
+		FetchRecord: func(c context.Context, noun, key string) ([]byte, error) {
+			field := extensionKeyProp(x.doc, noun)
+			if field == "" {
+				return nil, fmt.Errorf("%s has no key prop", noun)
+			}
+			args, err := json.Marshal(ochazuke.Arguments{field: key})
+			if err != nil {
+				return nil, err
+			}
+			return execExt(c, x.bin, x.loadEnv(nil), noun, "get", "--json", string(args))
 		},
 		// The state verb asks for what changed since the rows the page
 		// holds (ochazuke's state deltas), when the catalog declares
@@ -996,6 +1020,14 @@ func (a *App) extProxy(x *extension, noun, verb, opensPage string) ochazuke.AppH
 		// own terminal program, with no terminal behind a job.
 		if opensPage != "" && !a.cli {
 			if id := extPageID(x.name, opensPage); a.r.PageOf(id) != nil {
+				_, view := a.extViewOf(id)
+				key := extensionSubjectKey(x.doc, noun, c.Args, a.extTarget(x, noun, c.Instance))
+				if view != nil && key != "" {
+					if err := view.OpenRow(noun, key); err != nil {
+						return ochazuke.Failed(err)
+					}
+					return ochazuke.Done(nil)
+				}
 				if err := a.r.OpenPage(id); err != nil {
 					return ochazuke.Failed(err)
 				}
@@ -1107,10 +1139,35 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		}
 		return ochazuke.Done(extDecoded(out))
 	}
-	return ocli.RunMounted(spec, ocli.ProxyCommand{
+	var before map[string]any
+	var preflight func(context.Context) error
+	key := extensionSubjectKey(x.doc, noun, args, target)
+	if op.Standard == "" && op.HistoryKind == ochazuke.HistoryChange && !op.Creates && !spec.Foreground && key != "" && extensionHasHumanProp(x.doc, noun) {
+		preflight = func(ctx context.Context) error {
+			js, err := json.Marshal(ochazuke.Arguments{extensionKeyProp(x.doc, noun): key})
+			if err != nil {
+				return err
+			}
+			raw, err := execExt(ctx, bin, env, noun, "get", "--json", string(js))
+			if err != nil {
+				return err
+			}
+			return json.Unmarshal(raw, &before)
+		}
+	}
+	result := ocli.RunMounted(spec, ocli.ProxyCommand{
 		Bin: bin, Args: words, Env: extensionExecEnv(env, false),
-		Timeout: extExecTimeout, WaitDelay: extWaitDelay,
-	}).Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
+		Timeout: extExecTimeout, WaitDelay: extWaitDelay, Before: preflight,
+	})
+	if preflight != nil {
+		result = result.Continue(func(value any, err error) (func(context.Context) (any, error), any, error) {
+			if err == nil {
+				_, err = a.r.CanonicalThingKey(ochazuke.Ctx{Runtime: a.r}, x.nouns[noun], key, ochazuke.Thing(before))
+			}
+			return nil, value, err
+		})
+	}
+	return result.Label(x.name).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if err == nil {
 			a.recordExtOwners(x, noun, verb, target, project, v)
 		}

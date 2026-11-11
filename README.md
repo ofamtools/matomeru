@@ -18,8 +18,9 @@ The current adoption targets ochazuke **v0.122.0**, the released module in
 `go.mod`. It includes `ShowFormSpec.Related` and wrapping in the Work task tree
 and modal outlines, with continuation lines aligned under the title after
 nesting and glyphs. `tree.wrap` defaults to `true`; `false` restores single-line
-clipping. No unreleased API, local replace or workspace is required for a
-standalone build.
+clipping. The mounted-record work below uses new, unreleased library APIs;
+release ochazuke and update the module pin before building that work without a
+development modfile. No local replace or workspace is committed.
 
 Unreleased: the Panes page reuses panel layout and column composition when
 their content, cursor, size and styles match. An unchanged listing retains
@@ -83,6 +84,16 @@ by default. `extensions.host-call-rights=caller` is a protected owner-only
 opt-out; it inherits the detected caller, never promotes an agent to owner.
 `extensions.host-call-depth` defaults to 4, preserving depth and chain across
 each proxy. `extension.register` remains agent-never.
+
+Unreleased mounted record actions: native `open` selects its explicit document
+on the mounted page, even when it lies outside the pinned project's listing.
+The requested row remains visible across reloads without changing the pin.
+Only the selected record's detail is fetched; listing documents need not read
+every file. Typed path props still supply reveal, yank-path and open-with.
+Current mutable path selectors resolve to durable keys. On resolution, mtm
+migrates legacy note references, relation ends and row-owner assignments;
+custom change actions read the record before the command can move its path.
+Unknown references stay stored unchanged. No stale old-path alias is retained.
 
 The v0.88.0 bump adds standard edit forms on stored rows without an app-specific
 edit key, including action items, context, saved panes, Vim sessions and session

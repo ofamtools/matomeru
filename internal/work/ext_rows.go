@@ -1,6 +1,8 @@
 package work
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"ofam.dev/matomeru/store"
@@ -31,6 +33,39 @@ func ExtRowKey(extension, noun, row string) string {
 func (s *Store) SetExtRowOwner(o ExtRowOwner) error {
 	o.ID = ExtRowKey(o.Extension, o.Noun, o.Row)
 	return s.db.Tx([]string{"ext_rows"}, func(tx *store.Tx) error { return tx.Put("ext_rows", o.ID, o) })
+}
+
+// RekeyExtRowOwner moves a legacy selector's assignment to its durable row
+// key in one transaction. A conflicting assignment is retained and reported.
+func (s *Store) RekeyExtRowOwner(extension, noun, old, key string) error {
+	if old == key {
+		return nil
+	}
+	return s.db.Tx([]string{"ext_rows"}, func(tx *store.Tx) error {
+		before := ExtRowKey(extension, noun, old)
+		var owner ExtRowOwner
+		if err := tx.Get("ext_rows", before, &owner); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil
+			}
+			return err
+		}
+		after := ExtRowKey(extension, noun, key)
+		var current ExtRowOwner
+		if err := tx.Get("ext_rows", after, &current); err == nil {
+			if current.ProjectID != owner.ProjectID || current.FormerProjectID != owner.FormerProjectID {
+				return fmt.Errorf("conflicting extension row owners for %s and %s", old, key)
+			}
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
+		} else {
+			owner.ID, owner.Row = after, key
+			if err := tx.Put("ext_rows", after, owner); err != nil {
+				return err
+			}
+		}
+		return tx.Delete("ext_rows", before)
+	})
 }
 
 // ExtRowOwners is every recorded extension row owner, by ID.

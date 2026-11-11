@@ -457,7 +457,7 @@ func (a *App) scopeExtList(x *extension, id string, st *extListState) {
 		item.Label = row.Label
 		if scoped {
 			project, how := a.extRowOwner(x.name, noun, row)
-			if how != ownerNone && !a.inScope(project) {
+			if how != ownerNone && !a.inScope(project) && item.ID != st.view.RevealedRow() {
 				continue
 			}
 			cells := slices.Clone(item.Cells)
