@@ -50,7 +50,7 @@ var reverseVerbs = []string{"associate", "attach"}
 // reverseVerb is the verb of noun that relates a thing to it.
 func (a *App) reverseVerb(noun string) string {
 	for _, verb := range reverseVerbs {
-		if a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(noun + "." + verb))).Noun() != "" {
+		if a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(noun+"."+verb))).Noun() != "" {
 			return verb
 		}
 	}
