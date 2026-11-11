@@ -62,10 +62,25 @@ func (a *App) managedDirectoryItems(query string) []ochazuke.ListItem {
 	owners := a.directoryOwners()
 	home, _ := a.home()
 	now := a.now()
+	managed := a.r.Settings().Bool(settingDirectoryManaged)
+	columns := knownDirectoryColumns
+	if !managed {
+		columns = columns[:5]
+	}
+	a.directoryList.SetColumns(columns...)
 	items := make([]ochazuke.ListItem, 0, len(rows))
 	for _, row := range rows {
 		record := meta[row.Path]
 		cells := knownCells(row, owners[row.Path], home, now)
+		if !managed {
+			if a.knownRow(row.Path) == nil {
+				continue
+			}
+			if wordsMatch(query, strings.Join(cells, " ")) {
+				items = append(items, ochazuke.ListItem{ID: "directory:" + row.Path, Noun: "known-directory", Label: cells[0], Data: row.Path, Cells: cells})
+			}
+			continue
+		}
 		status := ""
 		if a.r.Settings().Bool(settingDirectoryStatus) {
 			if why := a.directories.Unavailable[row.Path]; why != "" {
@@ -80,6 +95,9 @@ func (a *App) managedDirectoryItems(query string) []ochazuke.ListItem {
 		}
 		items = append(items, ochazuke.ListItem{ID: "directory:" + row.Path, Noun: work.DirectoryNoun, Label: directoryLabel(record), Data: record.Path,
 			Props: ochazuke.Thing{"path": record.Path, "label": record.Label, "location": record.Path, "depth": record.Depth, "description": record.Description, "source": record.Source}, Cells: cells})
+	}
+	if !managed {
+		items = append(items, ochazuke.ListItem{ID: "directory:browse", Noun: "directory-browse", Label: "browse…", Cells: []string{"browse…"}})
 	}
 	return items
 }

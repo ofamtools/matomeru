@@ -74,18 +74,6 @@ func expandPathWithHome(path string, homeDir func() (string, error)) string {
 	}
 	return filepath.Clean(path)
 }
-func readDirectoryConfig(path string) (directoryConfig, error) {
-	var config directoryConfig
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return config, nil
-	}
-	if err != nil {
-		return config, err
-	}
-	err = json.Unmarshal(data, &config)
-	return config, err
-}
 
 // projectBases is a projection of the one directory list; no folder is probed here.
 func (a *App) projectBases() ([]projectBase, error) {
@@ -428,6 +416,7 @@ func (a *App) addDirectoriesPage() error {
 		}
 	}
 	a.refreshDirectoryRows()
+	a.observeDirectorySettings()
 	return nil
 }
 
@@ -469,6 +458,7 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 		loaded := value.(directoryCache)
 		a.directories.Rows, a.directories.Footer, a.directories.Ready = loaded.Rows, loaded.Footer, true
 		a.dirKeys = loaded.Keys
+		a.rescopeExtensions()
 		a.directories.Unavailable = loaded.Unavailable
 		if loaded.Notice != "" {
 			ctx.Notify(loaded.Notice)
@@ -482,6 +472,7 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		if want := a.directories.Want; want != "" {
 			a.directories.Want = ""
+			want = a.dirKey(want)
 			if a.r.Page == directoriesPage && a.directoryList.Select("directory:"+want) == nil {
 				if err := a.r.SetFocus("directory:" + want); err != nil {
 					ctx.Error(err.Error())
@@ -661,7 +652,10 @@ func (a *App) refreshBases() {
 	for _, base := range bases {
 		// Counts read the cached rows; … only while a scan is running or
 		// none has landed yet (a stale cache still counts, test pass R14).
-		known := "…"
+		known := ""
+		if a.r.Settings().Bool(settingDirectoryStatus) {
+			known = "…"
+		}
 		if !a.directories.Loading && (a.directories.Ready || len(a.directories.Rows) > 0) {
 			n := 0
 			prefix := strings.TrimSuffix(a.dirKey(base.Path), "/") + "/"
@@ -1120,7 +1114,7 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 		}
 	}
 
-	known := fmt.Sprintf("known directories (%d)", len(a.directories.Rows))
+	known := fmt.Sprintf("known directories (%d)", a.directoryList.Len())
 	switch {
 	case a.shownFocused(directoryQueryID):
 		prefix := known + "  / "
@@ -1146,6 +1140,9 @@ func (a *App) renderDirectoryLists(width, height int) ochazuke.Block {
 	}
 
 	footer := a.directories.Footer
+	if !a.r.Settings().Bool(settingDirectoryStatus) {
+		footer = ""
+	}
 	if a.directories.BaseErr != "" {
 		footer = strings.TrimPrefix(footer+"; "+a.directories.BaseErr, "; ")
 	}

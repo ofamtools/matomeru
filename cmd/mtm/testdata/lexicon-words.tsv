@@ -708,6 +708,7 @@ report	action	seed
 request	noun+prop	seed	
 require	action	seed	
 rerun	action	seed	
+rescan	action	directory scan
 reset	action	seed	
 reset-all	action	seed	
 reset-columns	action	seed	

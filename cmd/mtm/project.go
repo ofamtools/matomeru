@@ -21,7 +21,7 @@ func (a *App) defineProject() {
 		Verb("view", a.openProject, "View project and tasks").
 		Verb("edit", a.editProject, "Edit name, theme and launch settings (standard set of those given); omit arguments for the editor").Positional("name").ShadowsStandard().
 		Verb("launch", a.launchRecord, "Launch an agent into this project's session").
-		Verb("directory", a.addProjectDirectory, "Attach directory; omit path to choose").Positional("path").
+		Verb("directory", a.associateDirectory, "Attach directory; omit path to choose").Positional("path").
 		Verb("default", a.defaultProjectDirectory, "Set default directory").Positional("path").
 		Verb("remove-directory", a.removeProjectDirectory, "Detach a directory (never touches disk); removing the default promotes the next").Positional("path").
 		Renamed("directory.remove", oldNamesSince, oldNamesRemoveAfter).
@@ -52,7 +52,9 @@ func (a *App) defineProject() {
 			return a.projectList.Focus()
 		},
 	}
-	a.parameters("project.directory", map[string]ochazuke.Parameter{"path": dirParam("The directory to attach (a missing one is attached and flagged); omitted, a chooser asks", true),
+	directory := dirParam("The directory to attach (a missing one is attached and flagged); omitted, a chooser asks", true)
+	directory.Noun, directory.Free = work.DirectoryNoun, true
+	a.parameters("project.directory", map[string]ochazuke.Parameter{"path": directory,
 		"text": {Type: "string", Description: "Free text kept with the directory's relation (relation set changes it later)"},
 		"data": {Type: ochazuke.PropObject, Description: "A JSON object kept with the directory's relation; a key set to null is removed"}})
 	a.parameters("project.default", map[string]ochazuke.Parameter{"path": {Type: "string"}})
@@ -94,18 +96,30 @@ func (a *App) storedProject(id string) ochazuke.Result {
 	return ochazuke.Done(viewOf(p))
 }
 
-func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.work.Project(ctx.Instance.ID)
+// associateDirectory is shared by both nouns; their declarations supply which
+// side is focused. A directory path can still be typed or picked without limits.
+func (a *App) associateDirectory(ctx ochazuke.Ctx) ochazuke.Result {
+	projectID := ochazuke.StringArg(ctx.Args, "project", "")
+	if projectID == "" && ctx.Instance != nil {
+		if p, ok := a.project(ctx.Instance.ID); ok {
+			projectID = p.ID
+		}
+	}
+	path := a.directoryPathAt(ctx)
+	if path == "" {
+		if _, ok := a.project(projectID); !ok {
+			return ochazuke.Failed(errors.New("focus a project or supply a directory path"))
+		}
+		return resultError(a.openDirectoryChooser(projectID))
+	}
+	if projectID == "" {
+		return a.attachOrAsk(path)
+	}
+	p, err := a.work.Project(projectID)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	path, present := ctx.Args["path"]
-	if !present {
-		// The chooser opens over the current page; a stale cache loads
-		// behind it.
-		return resultError(a.openDirectoryChooser(p.ID))
-	}
-	tree := inspectDirectory(a.expandPath(path.(string)))
+	tree := inspectDirectory(path)
 	tree.Text = ochazuke.StringArg(ctx.Args, "text", "")
 	if raw, ok := ctx.Args["data"]; ok && raw != nil {
 		data, ok := raw.(map[string]any)
@@ -122,6 +136,9 @@ func (a *App) addProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	a.directories.Ready = false
+	a.directories.ProjectID = p.ID
+	a.rememberDirectory(tree)
+	a.refreshDirectoryRows()
 	return ochazuke.Done(viewOf(p))
 }
 

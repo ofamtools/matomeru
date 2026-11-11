@@ -128,10 +128,9 @@ func (a *App) editDirectoryFields(path, field string) error {
 		a.directoryRecordChanged(current)
 		if a.r.Settings().Bool(settingDirectorySelect) && a.r.Page == a.r.Instances[directoryListID].Parent {
 			_ = a.directoryList.Focus()
+			a.directories.Want = current
 		}
-		if !a.directories.Loading {
-			_ = a.loadDirectories()
-		}
+		_ = a.loadDirectories()
 	}
 	_, err = a.r.OpenRecordEditor("directory-edit", spec)
 	return err

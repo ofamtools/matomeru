@@ -3,9 +3,6 @@
 package main
 
 import (
-	"encoding/json"
-	"os"
-
 	"ofam.dev/monogatari"
 )
 
@@ -26,10 +23,7 @@ func buildAreaProjects(env monogatari.Env) (monogatari.Built, error) {
 	}
 	a := built.Program.(*App)
 	// The same tree is acme-web's directory and the base for other projects.
-	config, err := json.Marshal(directoryConfig{Bases: []projectBase{{Path: env.FilesDir, Depth: 1}}})
-	if err == nil {
-		err = os.WriteFile(a.dirsConfigPath(), config, 0o600)
-	}
+	_, err = a.changeBase(env.FilesDir, 1, true)
 	if err != nil {
 		built.Close()
 		return monogatari.Built{}, err

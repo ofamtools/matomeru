@@ -48,6 +48,7 @@ var mtmAgentDeclarations = []struct {
 	{"setup.install", ochazuke.AgentAllow, false}, {"setup.uninstall", ochazuke.AgentAllow, false},
 	{"project-dir.remove", ochazuke.AgentAllow, false}, {"project-base.remove", ochazuke.AgentAllow, false}, {"dirs.remove-base", ochazuke.AgentAllow, false},
 	{"dirs.add-base", ochazuke.AgentAllow, false}, {"project-dir.default", ochazuke.AgentAllow, false}, {"project-dir.retarget", ochazuke.AgentAllow, false},
+	{"directory.attach", ochazuke.AgentAllow, false}, {"directory.default", ochazuke.AgentAllow, false},
 	{"schedule.add", ochazuke.AgentAllow, false}, {"schedule.create", ochazuke.AgentAllow, false}, {"schedule.set", ochazuke.AgentAllow, false}, {"schedule.edit", ochazuke.AgentAllow, false}, {"schedule.duplicate", ochazuke.AgentAllow, false}, {"schedule.delete", "", true}, {"schedule.toggle", ochazuke.AgentAllow, false}, {"schedule.set-interval", ochazuke.AgentAllow, false}, {"schedule.reset", ochazuke.AgentAllow, false},
 	{"reminder.check", ochazuke.AgentAllow, false}, {"reminder.uncheck", ochazuke.AgentAllow, false}, {"reminder.toggle", ochazuke.AgentAllow, false},
 	{"reminder.delete", "", true},
@@ -60,7 +61,7 @@ func (a *App) defineAgentDeclarations() {
 		"pane":             "A TUIOS terminal window and its task assignment, launch recipe and agent progress.",
 		"note":             "Short jots, closing lines and evidence, associated with a task or project, or unassociated. Longer findings belong in a document.",
 		relationNoun:       "Anything pointing to anything: noun:key ends, a kind (any word), text, a JSON data object, an order. A project's directories are relations of kind directory; unrelate archives first.",
-		work.DirectoryNoun: "A directory path, the end of a project's directory relation.",
+		work.DirectoryNoun: "The saved directory list: ordinary paths and scan bases, metadata and project associations. Operations never create, move or remove files.",
 		contextNoun:        "Links, files, directories, commits, prompts and commands kept from a pane or supplied text.",
 	} {
 		a.r.Define(noun).About(about)

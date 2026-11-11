@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ type directoryRecord struct {
 type directoryState struct {
 	ID           string `json:"id"`
 	ProbePending bool   `json:"probe_pending,omitempty"`
+	ConfigHash   string `json:"config_hash,omitempty"`
 }
 
 const directoryStateID = "list"
@@ -106,11 +108,10 @@ func (a *App) initializeDirectoryList(existing bool) (bool, error) {
 			return false, err
 		}
 	}
-	records, err := a.db.All("directories")
-	if err != nil {
-		return false, err
+	state = directoryState{ID: directoryStateID, ProbePending: existing && missing}
+	if !missing {
+		state.ConfigHash = directoryConfigHash(data)
 	}
-	state = directoryState{ID: directoryStateID, ProbePending: existing && missing && len(records) == 0}
 	err = a.db.Tx([]string{"directories", "directory_state"}, func(tx *store.Tx) error {
 		for _, base := range config.Bases {
 			if base.Depth == 0 {
@@ -137,16 +138,31 @@ func (a *App) initializeDirectoryList(existing bool) (bool, error) {
 // importDirectoryBases is the explicit config.reload compatibility path. Once
 // imported, runtime consumers only read userDirectories, never dirs.json.
 func (a *App) importDirectoryBases() error {
-	config, err := readDirectoryConfig(a.dirsConfigPath())
+	data, err := os.ReadFile(a.dirsConfigPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
+	var config directoryConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return err
+	}
+	digest := directoryConfigHash(data)
 	for _, base := range config.Bases {
 		if base.Depth < 0 {
 			return errors.New("project base depth must be positive")
 		}
 	}
-	return a.db.Tx([]string{"directories"}, func(tx *store.Tx) error {
+	return a.db.Tx([]string{"directories", "directory_state"}, func(tx *store.Tx) error {
+		var state directoryState
+		if err := tx.Get("directory_state", directoryStateID, &state); err != nil {
+			return err
+		}
+		if state.ConfigHash == digest {
+			return nil
+		}
 		raws, err := tx.All("directories")
 		if err != nil {
 			return err
@@ -175,9 +191,12 @@ func (a *App) importDirectoryBases() error {
 				return err
 			}
 		}
-		return nil
+		state.ConfigHash, state.ProbePending = digest, false
+		return tx.Put("directory_state", directoryStateID, state)
 	})
 }
+
+func directoryConfigHash(data []byte) string { return fmt.Sprintf("%x", sha256.Sum256(data)) }
 
 func (a *App) putDirectoryRecord(row directoryRecord) error {
 	if row.Depth < 0 {
@@ -239,4 +258,10 @@ func (a *App) startDirectoryMigration() error {
 		return nil
 	}
 	return a.loadDirectories()
+}
+
+func (a *App) observeDirectorySettings() {
+	for _, name := range []string{settingDirectoryManaged, settingDirectoryStatus} {
+		a.r.Settings().Observe(name, func(string, any) { a.refreshDirectoryRows() })
+	}
 }

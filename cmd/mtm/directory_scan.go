@@ -17,6 +17,7 @@ import (
 const (
 	settingDirectoryProbe     = "directories.probe-defaults"
 	settingDirectoryAddChoice = "directories.add-choice"
+	settingDirectoryManaged   = "directories.managed-rows"
 	settingDirectoryStatus    = "directories.show-status"
 	settingDirectorySelect    = "directories.select-added"
 	settingDirectoryTimeout   = "directories.scan-timeout"
@@ -26,6 +27,7 @@ func directorySettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
 		{Name: settingDirectoryProbe, Type: ochazuke.SettingBoolean, Default: false, Description: "Opt in to probing ~/proj, ~/projects, ~/src, ~/code and ~/dev when no scan bases are saved; existing users' legacy bases are imported once regardless"},
 		{Name: settingDirectoryAddChoice, Type: ochazuke.SettingBoolean, Default: true, Description: "Ask what to add before the directory picker: an ordinary directory or a base to scan; off keeps the standard create form"},
+		{Name: settingDirectoryManaged, Type: ochazuke.SettingBoolean, Default: true, Description: "Show saved paths and bases with metadata and generated directory actions; off keeps the discovered-only table and legacy browse row"},
 		{Name: settingDirectoryStatus, Type: ochazuke.SettingBoolean, Default: true, Description: "Show scan progress and unavailable paths on directory rows"},
 		{Name: settingDirectorySelect, Type: ochazuke.SettingBoolean, Default: true, Description: "Select a newly added directory on the Directories page"},
 		{Name: settingDirectoryTimeout, Type: ochazuke.SettingDuration, Default: 750 * time.Millisecond, Description: "Maximum wait for one filesystem scan or directory inspection; a slow path is unavailable, never a startup dependency"},
@@ -128,17 +130,24 @@ func (a *App) migrateDirectoryProbe(ctx context.Context, timeout time.Duration) 
 		if !state.ProbePending {
 			return nil
 		}
-		records, err := tx.All("directories")
-		if err != nil {
-			return err
-		}
-		if len(records) == 0 {
-			for _, base := range bases {
-				if err := tx.Put("directories", base.Path, directoryRecord{Path: base.Path, Depth: 1, Source: "migrated"}); err != nil {
-					return err
-				}
-				imported = append(imported, base.Path)
+		for _, base := range bases {
+			row := ochazuke.Thing{}
+			if err := tx.Get("directories", base.Path, &row); err != nil && !errors.Is(err, store.ErrNotFound) {
+				return err
 			}
+			// An explicit edit made in this version wins over the in-flight
+			// migration. Old descriptions and unknown metadata stay intact.
+			if source, _ := row["source"].(string); source != "" {
+				continue
+			}
+			if archived, _ := row["archived"].(bool); archived {
+				continue
+			}
+			row["path"], row["depth"], row["source"] = base.Path, 1, "migrated"
+			if err := tx.Put("directories", base.Path, row); err != nil {
+				return err
+			}
+			imported = append(imported, base.Path)
 		}
 		state.ProbePending = false
 		return tx.Put("directory_state", state.ID, state)

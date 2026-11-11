@@ -295,10 +295,7 @@ func buildProjectBases(env monogatari.Env) (monogatari.Built, error) {
 		return built, err
 	}
 	a := built.Program.(*App)
-	config, err := json.Marshal(directoryConfig{Bases: []projectBase{{Path: env.FilesDir, Depth: 1}}})
-	if err == nil {
-		err = os.WriteFile(a.dirsConfigPath(), config, 0o600)
-	}
+	_, err = a.changeBase(env.FilesDir, 1, true)
 	if err != nil {
 		built.Close()
 		return monogatari.Built{}, err

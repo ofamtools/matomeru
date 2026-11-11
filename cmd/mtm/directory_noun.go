@@ -109,18 +109,12 @@ func (a *App) directoryStore() ochazuke.Store {
 			return a.directoryThing(path)
 		},
 		Delete: func(_ ochazuke.Ctx, path string) error {
-			// Keep an archived tombstone while relations still name a path, so deleting
-			// a record cannot silently resurrect it as a project-derived directory.
-			row, err := a.savedDirectory(path)
-			if err != nil {
-				return err
+			path = a.expandPath(path)
+			err := a.db.Tx([]string{"directories"}, func(tx *store.Tx) error { return tx.Delete("directories", path) })
+			if err == nil {
+				a.directoryRecordChanged(path)
 			}
-			row.Archived = true
-			if err := a.putDirectoryRecord(row); err != nil {
-				return err
-			}
-			a.directoryRecordChanged(row.Path)
-			return nil
+			return err
 		},
 	}
 }
@@ -134,6 +128,9 @@ func (a *App) writeDirectory(path string, t ochazuke.Thing) error {
 	if err := a.db.Get("directories", path, &meta); err != nil && !errors.Is(err, store.ErrNotFound) {
 		return err
 	}
+	oldArchived, _ := meta["archived"].(bool)
+	archived, _ := t["archived"].(bool)
+	scanChanged := len(meta) == 0 || ochazuke.IntArg(ochazuke.Arguments(meta), "depth", 0) != depth || oldArchived != archived
 	for _, key := range []string{"label", "description", "archived", "created", "updated"} {
 		if value, ok := t[key]; ok {
 			meta[key] = value
@@ -144,6 +141,9 @@ func (a *App) writeDirectory(path string, t ochazuke.Thing) error {
 		return err
 	}
 	a.directoryRecordChanged(path)
+	if scanChanged && !a.cli && a.directoryList != nil {
+		return a.loadDirectories()
+	}
 	return nil
 }
 
@@ -185,7 +185,7 @@ func (a *App) retargetDirectory(path, to string, t ochazuke.Thing) error {
 
 func (a *App) defineDirectoryNoun() {
 	a.r.Define(work.DirectoryNoun).Props(directoryProps()...).Store(a.docStore(work.DirectoryNoun, a.directoryStore())).NoPicker().
-		Verb("attach", a.attachDirectoryRecord, "Associate this directory with a project; omit project to choose").
+		Verb("attach", a.associateDirectory, "Associate this directory with a project; omit project to choose").Positional("path").
 		Verb("rescan", a.refreshDirectories, "Rescan the saved directory list off the UI loop").Fetch().
 		Verb("default", a.defaultDirectoryRecord, "Make this directory a project's default").
 		Mode("normal").Bind("enter", ochazuke.Do("directory.attach")).Bind("i", ochazuke.Do("directory.edit"))
@@ -203,16 +203,6 @@ func (a *App) directoryPathAt(c ochazuke.Ctx) string {
 		}
 	}
 	return ""
-}
-func (a *App) attachDirectoryRecord(c ochazuke.Ctx) ochazuke.Result {
-	path := a.directoryPathAt(c)
-	if path == "" {
-		return ochazuke.Failed(errors.New("no directory is focused"))
-	}
-	if project := ochazuke.StringArg(c.Args, "project", ""); project != "" {
-		return a.attachDirectory(project, path)
-	}
-	return a.attachOrAsk(path)
 }
 func (a *App) defaultDirectoryRecord(c ochazuke.Ctx) ochazuke.Result {
 	path, project := a.directoryPathAt(c), ochazuke.StringArg(c.Args, "project", "")

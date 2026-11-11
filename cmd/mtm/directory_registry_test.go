@@ -207,3 +207,174 @@ func TestDirectoryUnavailableWorkersDoNotHoldThePage(t *testing.T) {
 		t.Fatal("status opt-out ignored")
 	}
 }
+
+func TestDirectoryBaseCreationAsksDepthAndScans(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	root := t.TempDir()
+	child := filepath.Join(root, "nested", "repo")
+	if err := os.MkdirAll(filepath.Join(child, ".git"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	openDirectories(t, a)
+	press(t, a, "n", "down", "enter")
+	c := a.r.Chooser(dirChooser)
+	if c == nil {
+		t.Fatalf("picker: %q", a.r.TopModal())
+	}
+	toSource(t, a, c, ochazuke.PathSourceTyped)
+	if a.r.CurrentMode().Name == "normal" {
+		press(t, a, "/")
+	}
+	typeText(t, a, root[:len(root)-1])
+	pressSettle(t, a, root[len(root)-1:])
+	press(t, a, "alt+enter")
+	if a.r.TopModal() != "directory-edit" {
+		t.Fatalf("depth form: %q", a.r.TopModal())
+	}
+	if a.r.CurrentMode().Name == "normal" {
+		press(t, a, "i")
+	}
+	press(t, a, "ctrl+a", "ctrl+k")
+	typeText(t, a, "2")
+	press(t, a, "esc")
+	pressSettle(t, a, "q")
+	record, err := a.savedDirectory(root)
+	if err != nil || record.Depth != 2 {
+		t.Fatalf("depth %+v: %v", record, err)
+	}
+	if a.knownRow(directoryKey(child)) == nil {
+		t.Fatalf("depth two failed to discover %s: %+v", child, a.directories.Rows)
+	}
+	selected, _ := a.directoryList.Selected()
+	if selected.ID != "directory:"+directoryKey(root) {
+		t.Fatalf("new base selection %q", selected.ID)
+	}
+}
+
+func TestDirectoryRetargetKeepsMetadataAndProjectDefaults(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	old, next := filepath.Join(t.TempDir(), "old"), filepath.Join(t.TempDir(), "next")
+	executeA(t, a, "directory", "create", "work", ochazuke.Arguments{"path": old, "depth": 2, "label": "Source", "description": "Keep this"})
+	executeA(t, a, "directory", "attach", "work", ochazuke.Arguments{"path": old, "project": "matomeru"})
+	executeA(t, a, "project", "directory", "ochazuke", ochazuke.Arguments{"path": old})
+	executeA(t, a, "directory", "edit", "work", ochazuke.Arguments{"path": old, "location": next, "label": "Moved", "description": "Still here", "depth": 3})
+	record, err := a.savedDirectory(next)
+	if err != nil || record.Label != "Moved" || record.Description != "Still here" || record.Depth != 3 {
+		t.Fatalf("retarget metadata %+v: %v", record, err)
+	}
+	for _, id := range []string{"matomeru", "ochazuke"} {
+		p, err := a.work.Project(id)
+		if err != nil || p.DefaultTree != next || len(p.Trees) != 1 {
+			t.Fatalf("retarget project %+v: %v", p, err)
+		}
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "directory", Verb: "set", Args: ochazuke.Arguments{"path": next, "props": map[string]any{"depth": -1}}}); err == nil {
+		t.Fatal("negative scan depth accepted")
+	}
+	record, _ = a.savedDirectory(next)
+	if record.Depth != 3 {
+		t.Fatalf("invalid edit lost depth: %+v", record)
+	}
+}
+
+func TestDirectoryManagedRowsAndCreationCanBeDisabled(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	path := filepath.Join(t.TempDir(), "saved")
+	executeA(t, a, "directory", "create", "work", ochazuke.Arguments{"path": path})
+	if err := a.r.Settings().Set(settingDirectoryManaged, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := itemIDs(a.directoryList); !slices.Equal(got, []string{"directory:browse"}) {
+		t.Fatalf("legacy rows %v", got)
+	}
+	if err := a.r.Settings().Set(settingDirectoryAddChoice, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.r.OpenPage(directoriesPage); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "n")
+	if a.r.TopModal() != ochazuke.ArgsFormID {
+		t.Fatalf("standard create form: %q", a.r.TopModal())
+	}
+}
+
+func TestDirectoryMigrationKeepsExistingMetadata(t *testing.T) {
+	t.Parallel()
+	opts := directoryTestOptions(t)
+	path := filepath.Join(opts.getenv("HOME"), "proj")
+	db, err := store.Open(opts.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := work.Open(db); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Tx([]string{"directories"}, func(tx *store.Tx) error {
+		return tx.Put("directories", path, map[string]any{"path": path, "description": "Existing notes", "custom": "Keep me"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if _, err := a.scanKnownDirectories(context.Background(), a.directoryScanOptions()); err != nil {
+		t.Fatal(err)
+	}
+	var row map[string]any
+	if err := a.db.Get("directories", path, &row); err != nil {
+		t.Fatal(err)
+	}
+	if row["description"] != "Existing notes" || row["custom"] != "Keep me" || row["depth"] != float64(1) {
+		t.Fatalf("migration lost metadata: %v", row)
+	}
+}
+
+func TestDirectoryReloadDoesNotRestoreUnchangedLegacyBases(t *testing.T) {
+	t.Parallel()
+	opts := directoryTestOptions(t)
+	if err := os.MkdirAll(opts.Config, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(opts.getenv("HOME"), "proj")
+	file := filepath.Join(opts.Config, "dirs.json")
+	initial := []byte(`{"project_base_dirs":[{"path":"` + path + `","depth":1}]}`)
+	if err := os.WriteFile(file, initial, 0600); err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	a.cli = true
+	if _, err := a.changeBase(path, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	if problems := a.reloadDirsConfig(); len(problems) != 0 {
+		t.Fatal(problems)
+	}
+	bases, err := a.projectBases()
+	if err != nil || len(bases) != 0 {
+		t.Fatalf("unchanged legacy file restored archived base: %v %v", bases, err)
+	}
+	changed := []byte(`{"project_base_dirs":[{"path":"` + path + `","depth":3}]}`)
+	if err := os.WriteFile(file, changed, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if problems := a.reloadDirsConfig(); len(problems) != 0 {
+		t.Fatal(problems)
+	}
+	bases, err = a.projectBases()
+	if err != nil || len(bases) != 1 || bases[0].Depth != 3 {
+		t.Fatalf("edited legacy file did not import: %v %v", bases, err)
+	}
+}

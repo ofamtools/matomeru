@@ -68,10 +68,11 @@ func (a *App) reloadDirsConfig() []string {
 	if err := a.importDirectoryBases(); err != nil {
 		return []string{err.Error()}
 	}
+	a.r.Changed("directory")
 	if a.cli || a.baseList == nil {
 		return nil
 	}
-	a.refreshBases()
+	a.refreshDirectoryRows()
 	if !a.directories.Ready && !a.directories.Loading && len(a.directories.Rows) == 0 {
 		return nil
 	}
