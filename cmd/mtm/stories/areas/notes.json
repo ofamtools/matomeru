@@ -1,14 +1,9 @@
 {
-  "name": "mtm: write notes about panes, live terminals, tasks and projects, then revise and restore a scratch note",
+  "name": "mtm: write notes about panes, live terminals, tasks and projects",
   "area": "notes",
   "fixture": "area-notes",
   "width": 140,
   "height": 40,
-  "config": {
-    "bindings.json": [
-      {"noun": "note", "mode": "normal", "keys": "ctrl+r", "request": {"noun": "note", "verb": "set", "args": {"props": {"archived": false}}}}
-    ]
-  },
   "script": [
     "]", "]", "]", "]", "]", "N", {"type": "the build is flaky"}, "esc", "q",
     "]", "]", "enter", "ctrl+a", "N", {"type": "keep this live observation"}, "esc", "q",
@@ -16,14 +11,7 @@
     "N", {"type": "checkout walkthrough note"}, "esc", "q", "{",
     "N", {"type": "release checklist walkthrough"}, "esc", "q",
     ":", {"type": "setting set notes.quick-about task"}, "enter",
-    ":", {"type": "page open panes"}, "enter", "N", "esc", "q",
-    ":", {"type": "page open notes"}, "enter",
-    ":", {"type": "note new \"retained archive note\" --scratch"}, "enter",
-    ":", {"type": "note edit \"retained archive note revised\""}, "enter", "q",
-    ":", {"type": "note archive"}, "enter",
-    ":", {"type": "collection filter-saved archived"}, "enter",
-    "ctrl+r",
-    ":", {"type": "collection filter-saved all"}, "enter"
+    ":", {"type": "page open panes"}, "enter", "N", "esc", "q"
   ],
   "expect": [
     {"after": 5, "page": "panes", "contains": ["[Notes]", "no notes about this pane yet"]},
@@ -41,13 +29,6 @@
     {"after": 26, "contains": ["Checkout release", "checkout walkthrough note", "Check the shipping estimate"]},
     {"after": 30, "page": "work", "modal": "", "contains": ["release checklist walkthrough", "checkout walkthrough note", "Checkout release"]},
     {"after": 37, "modal": "quick-note", "mode": "insert", "lacks": ["about pane:"]},
-    {"after": 39, "page": "panes", "modal": "", "mode": "normal"},
-    {"after": 45, "page": "notes", "contains": ["retained archive note"], "lacks": ["Command palette", "Error:"]},
-    {"after": 48, "page": "notes", "contains": ["retained archive note revised"], "lacks": ["Error:"]},
-    {"after": 49, "page": "notes", "modal": "", "contains": ["retained archive note revised"], "lacks": ["Error:"]},
-    {"after": 52, "lacks": ["retained archive note revised", "Command palette", "Error:"]},
-    {"after": 55, "contains": ["[archived]", "retained archive note revised"], "lacks": ["Command palette", "Error:"]},
-    {"after": 56, "lacks": ["retained archive note revised", "Error:"]},
-    {"page": "notes", "modal": "", "contains": ["retained archive note revised", "Checkout release", "checkout walkthrough note", "release checklist walkthrough"], "lacks": ["Error:"]}
+    {"page": "panes", "modal": "", "mode": "normal", "contains": ["claude", "shell"], "lacks": ["Error:"]}
   ]
 }

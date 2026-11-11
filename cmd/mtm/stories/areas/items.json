@@ -19,8 +19,8 @@
       {"noun": "app", "mode": "normal", "keys": "ctrl+u", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "Five", "key": "k5"}}},
       {"noun": "app", "mode": "normal", "keys": "ctrl+v", "capture": true, "request": {"noun": "action-item", "verb": "add", "args": {"source": "slack", "title": "Six", "key": "k6"}}},
       {"noun": "app", "mode": "normal", "keys": "ctrl+n", "capture": true, "request": {"noun": "ochazuke.notice", "verb": "clear"}},
-      {"noun": "app", "mode": "normal", "keys": "ctrl+b", "request": {"noun": "ochazuke.collection", "verb": "group-fold", "args": {"id": "inbox/list"}}},
-      {"noun": "app", "mode": "normal", "keys": "ctrl+r", "request": {"noun": "action-item", "verb": "add", "args": {"source": "gh", "kind": "review-request", "key": "row-subject", "title": "row subject review", "window": "w1", "session": "acme-web"}}}
+      {"noun": "app", "mode": "normal", "keys": "ctrl+b", "capture": true, "request": {"noun": "ochazuke.collection", "verb": "group-fold", "args": {"id": "inbox/list"}}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+r", "request": {"noun": "action-item", "verb": "add", "args": {"source": "gh", "kind": "review-request", "key": "row-subject", "title": "row subject review", "pane": "w1", "session": "acme-web"}}}
     ]
   },
   "script": [
@@ -38,7 +38,7 @@
     {"job": "pane.set"}, {"job": "panes.refresh"}, "q"
   ],
   "expect": [
-    {"after": 1, "page": "panes", "contains": ["Inbox: slack · One"]},
+    {"after": 1, "page": "panes", "contains": ["One", "inbox 1/1"]},
     {"after": 6, "contains": ["6 new action items"]},
     {"after": 7, "lacks": ["new action items"]},
     {"after": 9, "page": "inbox", "contains": ["6 unread", "One", "Two", "Three", "Four", "Five", "Six"]},

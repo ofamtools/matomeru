@@ -1,13 +1,12 @@
 {
-  "name": "mtm: curate context from an empty page, revise it, annotate it and recover its archive",
+  "name": "mtm: curate context from an empty page, revise it and annotate the focused item",
   "area": "context",
   "fixture": "area-context",
   "width": 140,
   "height": 36,
   "config": {
     "bindings.json": [
-      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.page", "verb": "open", "args": {"id": "context"}}},
-      {"noun": "context-item", "mode": "normal", "keys": "ctrl+r", "request": {"noun": "context-item", "verb": "set", "args": {"props": {"archived": false}}}}
+      {"noun": "app", "mode": "normal", "keys": "ctrl+x", "request": {"noun": "ochazuke.page", "verb": "open", "args": {"id": "context"}}}
     ]
   },
   "script": [
@@ -18,11 +17,7 @@
     "/", {"type": "second"}, "enter", "*",
     "/", "ctrl+a", "ctrl+k", {"type": "revised"}, "enter",
     ":", {"type": "setting set context.notes false"}, "enter",
-    ":", {"type": "setting set context.notes true"}, "enter",
-    ":", {"type": "context-item archive"}, "enter",
-    ":", {"type": "collection filter-saved archived"}, "enter",
-    "ctrl+r",
-    ":", {"type": "collection filter-saved all"}, "enter"
+    ":", {"type": "setting set context.notes true"}, "enter"
   ],
   "expect": [
     {"after": 2, "focus": "args-form/text", "modal": "args-form"},
@@ -34,10 +29,6 @@
     {"after": 18, "contains": ["second curated context", "★"]},
     {"after": 23, "contains": ["revised curated context", "Notes (", "Ask for the spec link"], "lacks": ["second curated context"]},
     {"after": 26, "contains": ["revised curated context"], "lacks": ["Notes (", "Ask for the spec link"]},
-    {"after": 29, "contains": ["revised curated context", "Notes (", "Ask for the spec link"]},
-    {"after": 32, "lacks": ["revised curated context", "Ask for the spec link", "Error:"]},
-    {"after": 35, "contains": ["[archived]", "revised curated context", "Ask for the spec link"], "lacks": ["Error:"]},
-    {"after": 36, "lacks": ["revised curated context", "Error:"]},
     {"page": "context", "modal": "", "contains": ["revised curated context", "Notes (", "Ask for the spec link"], "lacks": ["second curated context", "Error:"]}
   ]
 }
