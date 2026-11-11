@@ -87,6 +87,11 @@
     {
       "type": "page open panes"
     },
+    "enter",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
     "enter"
   ],
   "expect": [
@@ -390,6 +395,13 @@
     },
     {
       "page": "panes",
+      "mode": "normal",
+      "modal": "",
+      "after": 69
+    },
+    {
+      "page": "panes",
+      "focus": "pane:acme-web/w1",
       "contains": [
         "acme-web/claude"
       ]

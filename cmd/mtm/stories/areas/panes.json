@@ -92,7 +92,7 @@
     "esc",
     ":",
     {
-      "type": "action-item create --id surface-queue --source gh --kind review-request --title \"answer the pane\" --pane w1 --session acme-web"
+      "type": "action-item create --id surface-queue --source gh --kind review-request --title \"queue ask\" --pane w1 --session acme-web"
     },
     "enter",
     ":",
@@ -212,6 +212,7 @@
       "type": "focus to --id panes/tree/list"
     },
     "enter",
+    "ctrl+n",
     "V",
     "Y"
   ],
@@ -375,7 +376,8 @@
       "modal": "",
       "contains": [
         "[Turns]",
-        "answer the pane"
+        "queue ask",
+        "Needs you (3)"
       ],
       "after": 72
     },
@@ -447,7 +449,7 @@
       "focus": "pane:acme-web/w1",
       "mode": "normal",
       "lacks": [
-        "answer the pane",
+        "queue ask",
         "Error:"
       ],
       "after": 117
@@ -483,7 +485,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 145
+      "after": 146
     },
     {
       "mode": "normal",
@@ -498,7 +500,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 146
+      "after": 147
     },
     {
       "mode": "normal",
@@ -528,6 +530,20 @@
         "window": "w2",
         "name": "shell",
         "screen": "$ go test ./..."
+      }
+    ]
+  },
+  "config": {
+    "bindings.json": [
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+n",
+        "request": {
+          "noun": "ochazuke.notice",
+          "verb": "clear"
+        },
+        "capture": true
       }
     ]
   }

@@ -128,7 +128,7 @@
         "reviews (1)",
         "Review checkout",
         "pending",
-        "1 unreviewed"
+        "acme-web/claude    1  Review checkout"
       ],
       "after": 16
     },
@@ -136,7 +136,16 @@
       "page": "reviews",
       "contains": [
         "Review checkout",
-        "Shipping estimate is ready"
+        "turns: acme-web/claude · 1 unreviewed turn"
+      ],
+      "after": 20
+    },
+    {
+      "page": "reviews",
+      "contains": [
+        "Review checkout",
+        "Shipping estimate is ready",
+        "turns: acme-web/claude · 0 unreviewed turns"
       ],
       "lacks": [
         "1 unreviewed"
