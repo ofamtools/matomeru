@@ -241,6 +241,9 @@ func TestAllViewNAddsATaskInTheProject(t *testing.T) {
 func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 	t.Parallel()
 	a := pinned(t)
+	if _, err := a.r.Settings().SetSession(settingOutlineHintLines, 0); err != nil {
+		t.Fatal(err)
+	}
 	press(t, a, "T")
 	if a.r.FocusID() != outlineNode("t1") {
 		t.Fatalf("focus %s", a.r.FocusID())

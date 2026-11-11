@@ -153,6 +153,8 @@ func (a *App) defineOutline() {
 		Verb("choose-move", a.outlineChooseMove, "Choose the project to move the task to, its subtasks with it, as m does on the Work page's tasks; over a visual selection, every selected task, as one undo step").Many().
 		Verb("archive-task", a.outlineTaskStandard("archive"), "Archive the task and its subtasks: kept, and hidden from the default views (the archive filter shows them); over a visual selection, every selected task").Many().
 		Verb("restore-task", a.outlineTaskStandard("restore"), "Bring an archived task back into the default views, as task.restore does; over a visual selection, every selected task").Many().
+		Verb("attach", a.outlineAssociate, "Attach a thing to this task (--pane, --action-item or --context-item ID): task.associate on the row's task").
+		Verb("attach-context", a.outlineAttachContext, "Choose a context item (the task's project's and the unassociated ones; S for every project's) and attach it to the task: its task becomes this one").
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
 		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
 		Mode("normal").
@@ -162,7 +164,8 @@ func (a *App) defineOutline() {
 		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project")).
 		Bind("m", ochazuke.Do(outlineTaskNoun+".choose-move").Hinted("move")).
 		Bind("A", ochazuke.Do(outlineTaskNoun+".archive-task").Hinted("archive")).
-		Bind("X", ochazuke.Do(outlineTaskNoun+".restore-task").Hinted("restore"))
+		Bind("X", ochazuke.Do(outlineTaskNoun+".restore-task").Hinted("restore")).
+		Bind("C", ochazuke.Do(outlineTaskNoun+".attach-context").Hinted("context"))
 	// One key per status (statusKeyRows): the same verb with the status
 	// named, so over a visual selection it sets every selected task, as one
 	// undo step. Rebind or add one in bindings.json with the same action.
@@ -279,7 +282,9 @@ func (a *App) outlineView(title string) {
 			head = outlineAllHints
 		}
 		if lines := a.r.Settings().Int(settingOutlineHintLines); lines > 0 {
-			head = wrapHints(ochazuke.HintCells(r, r.FocusID()), w, lines)
+			// A short terminal keeps its rows: at most one hint line per four
+			// rows the modal has beyond its own six.
+			head = wrapHints(ochazuke.HintCells(r, r.FocusID()), w, min(lines, max(1, (h-6)/4)))
 		}
 		if t.List().Len() == 0 {
 			r.Placed(outlineTree + "/list")

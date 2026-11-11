@@ -36,10 +36,25 @@ type relation struct {
 // read (one per call).
 func (a *App) relations() []relation {
 	return []relation{
-		{noun: actionItemNoun, on: []string{"task", "pane", "project"}, param: inboxRelateParam, relate: a.relateActionItemTo},
-		{noun: contextNoun, on: []string{"task", "project"}, param: contextRelateParam, relate: a.relateContextItemTo},
-		{noun: "pane", on: []string{"task", "project"}, param: paneRelateParam, relate: a.relatePaneTo},
+		{noun: actionItemNoun, on: []string{"task", outlineTaskNoun, "pane", "project"}, param: inboxRelateParam, relate: a.relateActionItemTo},
+		{noun: contextNoun, on: []string{"task", outlineTaskNoun, "project"}, param: contextRelateParam, relate: a.relateContextItemTo},
+		{noun: "pane", on: []string{"task", outlineTaskNoun, "project"}, param: paneRelateParam, relate: a.relatePaneTo},
 	}
+}
+
+// reverseVerbs are the names a noun's reverse verb may have, first found
+// first: a part noun (a row of an outline) takes no core verb's name, so
+// its verb is attach.
+var reverseVerbs = []string{"associate", "attach"}
+
+// reverseVerb is the verb of noun that relates a thing to it.
+func (a *App) reverseVerb(noun string) string {
+	for _, verb := range reverseVerbs {
+		if a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(noun + "." + verb))).Noun() != "" {
+			return verb
+		}
+	}
+	return reverseVerbs[0]
 }
 
 // defineRelations gives every reverse verb its relations' parameters and
@@ -53,7 +68,7 @@ func (a *App) defineRelations() {
 	a.r.Define("project").Verb("associate", a.associateProject, "Associate a thing with this project: "+strings.Join(names, " or ")+" ID")
 	for _, rel := range a.relations() {
 		for _, noun := range rel.on {
-			key := a.r.CanonicalKey(noun + ".associate")
+			key := a.r.CanonicalKey(noun + "." + a.reverseVerb(noun))
 			op := a.r.Operations.At(ochazuke.Key(key))
 			if op.Parameters == nil {
 				op.Parameters = map[string]ochazuke.Parameter{}
