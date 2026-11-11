@@ -150,7 +150,7 @@ func (a *App) defineOutline() {
 	// palette and for the rows that are not tasks, which they refuse.
 	a.r.Define(outlineTaskNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
-		Verb("choose-move", a.outlineChooseMove, "Choose the project to move the task to, its subtasks with it, as m does on the Work page's tasks").
+		Verb("choose-move", a.outlineChooseMove, "Choose the project to move the task to, its subtasks with it, as m does on the Work page's tasks; over a visual selection, every selected task, as one undo step").Many().
 		Verb("archive-task", a.outlineTaskStandard("archive"), "Archive the task and its subtasks: kept, and hidden from the default views (the archive filter shows them); over a visual selection, every selected task").Many().
 		Verb("restore-task", a.outlineTaskStandard("restore"), "Bring an archived task back into the default views, as task.restore does; over a visual selection, every selected task").Many().
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
@@ -962,19 +962,112 @@ func (a *App) outlineTaskOf(row *ochazuke.Instance) (*outlineState, work.Task, e
 }
 
 // outlineChooseMove is outline-task.choose-move (m on a task row): what m
-// does on the Work page's task rows, task.edit on the project (@owner)
-// over the stored task the row stands for. The choice is the standard set of
-// the task's project, its subtasks with it, which reloads the open
-// outline: a task that left the project's outline is gone from it.
+// does on the Work page's task rows, over the stored tasks the rows stand
+// for (the chooser asks once; over a visual selection its choice moves
+// every selected task). The choice is task.set on @owner, its subtasks with
+// it, which reloads the open outline: a task that left the project's
+// outline is gone from it. The move is put on the outline's undo stack as
+// one step (outlineMoved): u brings the tasks back, ctrl+r moves them again.
 func (a *App) outlineChooseMove(ctx ochazuke.Ctx) ochazuke.Result {
+	o := a.outline
+	if o == nil || a.r.Tree(outlineTree) != o.tree {
+		return ochazuke.Failed(errors.New("the outline is not open"))
+	}
 	if ctx.Instance == nil {
 		return ochazuke.Failed(errors.New("select a task to move"))
 	}
-	// The task is named by id, not as the target: the chooser opens from
-	// the outline row (a target on the Work page below the outline modal
-	// would be acting from beneath it).
-	q := ochazuke.Request{Noun: "task", Verb: "edit", Args: ochazuke.Arguments{"field": "@owner", "id": taskOf(ctx.Instance.ID)}}
-	return resultOf(a.r.Execute(q))
+	rows := ctx.SubjectIDs()
+	if len(rows) == 0 {
+		rows = []string{ctx.Instance.ID}
+	}
+	var ids []string
+	for _, row := range rows {
+		ids = append(ids, taskOf(row))
+	}
+	title, current, single := "Move "+ctx.Instance.Label+" to", "", len(ids) == 1
+	if single {
+		if t, err := a.work.Task(ids[0]); err == nil {
+			current = t.ProjectID
+		}
+	} else {
+		title = fmt.Sprintf("Move %d tasks to", len(ids))
+	}
+	var choices []ochazuke.Choice
+	for _, p := range a.projectsByRecency() {
+		if single && p.ID == current {
+			continue // moving to where it already is does nothing
+		}
+		c := plainChoice(p.ID, projectName(p))
+		c.Data = p.ID
+		choices = append(choices, c)
+	}
+	if !single || current != "" {
+		choices = append(choices, ochazuke.Choice{ID: "unassociated", Label: "unassociated", Data: "", RowFlags: ochazuke.RowFlags{Trailing: true, Bare: true}})
+	}
+	data := dataByID(choices)
+	_, err := a.choose(pickSpec{Kind: moveChooser, Title: title, Choices: choices, Filter: pickFilterTrailing, Pick: func(id string) ochazuke.Result {
+		before := a.taskRows(ids)
+		q := ochazuke.Request{Noun: "task", Verb: "set", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"props": map[string]any{"@owner": data[id].(string)}}}
+		if len(rows) > 1 {
+			q.Subjects = rows
+		}
+		value, err := a.r.Execute(q)
+		if err != nil {
+			return ochazuke.Failed(err)
+		}
+		if err := a.outlineMoved(o, before, a.taskRows(ids)); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(value)
+	}})
+	if err != nil {
+		return ochazuke.Failed(err)
+	}
+	return ochazuke.Done(nil)
+}
+
+// taskRows are the stored tasks with these ids, as they are now.
+func (a *App) taskRows(ids []string) []work.Task {
+	var out []work.Task
+	for _, id := range ids {
+		if t, err := a.work.Task(id); err == nil {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// outlineMoved puts a move to another project on the outline's undo stack:
+// the tasks as they were and as they are, written back (their subtasks
+// with them) by u and again by ctrl+r, as one step. Nothing is recorded
+// when no task changed place.
+func (a *App) outlineMoved(o *outlineState, before, after []work.Task) error {
+	if len(before) == 0 || len(before) != len(after) {
+		return nil
+	}
+	changed := false
+	for i := range before {
+		changed = changed || before[i].ProjectID != after[i].ProjectID || before[i].ParentID != after[i].ParentID
+	}
+	if !changed {
+		return nil
+	}
+	put := func(tasks []work.Task, reverse bool) func() error {
+		return func() error {
+			order := slices.Clone(tasks)
+			if reverse {
+				slices.Reverse(order)
+			}
+			for _, t := range order {
+				t.Updated = work.Now()
+				if _, err := a.work.PutTaskSubtree(t); err != nil {
+					return err
+				}
+			}
+			return errors.Join(a.refreshScope(), a.reloadOutline())
+		}
+	}
+	return o.tree.Record(ochazuke.TreeAction{ID: outlineNode(before[0].ID), Label: "move " + before[0].ID, Undo: put(before, true), Redo: put(after, false)})
 }
 
 // outlineTaskStandard is outline-task.archive-task and .restore-task (named

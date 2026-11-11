@@ -18,7 +18,7 @@ func TestOutlineMoveTaskToAnotherProject(t *testing.T) {
 		t.Fatalf("modal %q focus %s", app.r.TopModal(), app.r.FocusID())
 	}
 	press(t, app, "m")
-	if app.r.Chooser(ochazuke.EditChooserKind) == nil {
+	if app.r.Chooser(moveChooser) == nil {
 		t.Fatalf("m opened %q\n%s", app.r.TopModal(), frame(app))
 	}
 	pickOwner(t, app, "ochaz")
@@ -27,6 +27,37 @@ func TestOutlineMoveTaskToAnotherProject(t *testing.T) {
 	}
 	if app.r.TopModal() != outlineModal || strings.Contains(frame(app), "write the brief") {
 		t.Fatalf("the moved task stays in the outline (modal %q):\n%s", app.r.TopModal(), frame(app))
+	}
+	// u undoes the move and ctrl+r makes it again.
+	press(t, app, "u")
+	if got := stored(t, app, "t1").ProjectID; got != "matomeru" || !strings.Contains(frame(app), "write the brief") {
+		t.Fatalf("u after m: project %q\n%s", got, frame(app))
+	}
+	press(t, app, "ctrl+r")
+	if got := stored(t, app, "t1").ProjectID; got != "ochazuke" {
+		t.Fatalf("ctrl+r after u: project %q", got)
+	}
+}
+
+// m over a visual selection moves every selected task, and one u brings
+// them all back.
+func TestOutlineMoveSelectedTasks(t *testing.T) {
+	t.Parallel()
+	app := open(t)
+	press(t, app, "j", "O")
+	focusRow(t, app, outlineNode("t1"))
+	press(t, app, "V", "j", "m")
+	pickOwner(t, app, "ochaz")
+	for _, id := range []string{"t1", "t2"} {
+		if got := stored(t, app, id).ProjectID; got != "ochazuke" {
+			t.Fatalf("V j m: %s is in %q", id, got)
+		}
+	}
+	press(t, app, "u")
+	for _, id := range []string{"t1", "t2"} {
+		if got := stored(t, app, id).ProjectID; got != "matomeru" {
+			t.Fatalf("one u: %s is in %q", id, got)
+		}
 	}
 }
 
