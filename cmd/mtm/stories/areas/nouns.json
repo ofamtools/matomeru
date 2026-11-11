@@ -1,0 +1,373 @@
+{
+  "name": "Noun indexes: create, edit, archive and use mounted results",
+  "area": "areas",
+  "fixture": "area-nouns",
+  "width": 160,
+  "height": 52,
+  "script": [
+    "ctrl+x",
+    "n",
+    {
+      "type": "first generated context"
+    },
+    "enter",
+    "ctrl+l",
+    "ctrl+t",
+    "i",
+    "ctrl+a",
+    "ctrl+k",
+    {
+      "type": "edited relation"
+    },
+    "esc",
+    "shift+tab",
+    "ctrl+d",
+    "z",
+    "a",
+    "ctrl+u",
+    "ctrl+j",
+    "ctrl+s",
+    "ctrl+n",
+    "i",
+    "ctrl+a",
+    "ctrl+k",
+    {
+      "type": "focus-room"
+    },
+    "esc",
+    "ctrl+a",
+    "ctrl+b",
+    "ctrl+j",
+    ":",
+    {
+      "type": "page open __nouns"
+    },
+    "enter",
+    "enter",
+    ":",
+    {
+      "type": "page open ext/alpha"
+    },
+    "enter",
+    {
+      "job": "catalog-load"
+    },
+    "enter",
+    {
+      "job": "alpha.item.output"
+    },
+    "q",
+    "H",
+    {
+      "job": "alpha.item.history"
+    },
+    "q",
+    "g",
+    "s",
+    {
+      "job": "beta.doc.send"
+    },
+    "d",
+    "d",
+    "n"
+  ],
+  "expect": [
+    {
+      "after": 2,
+      "focus": "args-form/text",
+      "modal": "args-form"
+    },
+    {
+      "page": "nouns/context-item",
+      "modal": "",
+      "contains": [
+        "first generated context"
+      ],
+      "after": 4
+    },
+    {
+      "after": 5,
+      "page": "nouns/relation",
+      "contains": [
+        "summary",
+        "kind",
+        "from",
+        "to",
+        "text",
+        "archived",
+        "project:acme-web",
+        "scaffold relation"
+      ]
+    },
+    {
+      "after": 11,
+      "contains": [
+        "edited relation"
+      ]
+    },
+    {
+      "after": 13,
+      "lacks": [
+        "edited relation"
+      ]
+    },
+    {
+      "after": 15,
+      "contains": [
+        "edited relation"
+      ]
+    },
+    {
+      "after": 16,
+      "contains": [
+        "edited relation"
+      ]
+    },
+    {
+      "lacks": [
+        "nouns/relation  "
+      ],
+      "after": 17
+    },
+    {
+      "after": 18,
+      "page": "nouns/session",
+      "contains": [
+        "name",
+        "project",
+        "panes",
+        "archived",
+        "ended-at",
+        "acme-web"
+      ]
+    },
+    {
+      "after": 24,
+      "contains": [
+        "focus-room"
+      ]
+    },
+    {
+      "after": 25,
+      "lacks": [
+        "focus-room"
+      ]
+    },
+    {
+      "after": 26,
+      "contains": [
+        "focus-room"
+      ]
+    },
+    {
+      "lacks": [
+        "nouns/session  "
+      ],
+      "after": 27
+    },
+    {
+      "page": "nouns/action-item",
+      "contains": [
+        "review requested",
+        "mentioned"
+      ],
+      "lacks": [
+        "nouns/action-item  "
+      ],
+      "after": 31
+    },
+    {
+      "page": "ext/alpha",
+      "contains": [
+        "Source row",
+        "Notes (",
+        "Source row needs a rerun"
+      ],
+      "after": 35
+    },
+    {
+      "modal": "text-view",
+      "contains": [
+        "hello-out",
+        "exit 0"
+      ],
+      "lacks": [
+        "item output:"
+      ],
+      "after": 37
+    },
+    {
+      "modal": "palette-results",
+      "contains": [
+        "build",
+        "failed"
+      ],
+      "lacks": [
+        "item history:"
+      ],
+      "after": 40
+    },
+    {
+      "contains": [
+        "Source row",
+        "doc send --target doc-7"
+      ],
+      "lacks": [
+        "no such verb"
+      ],
+      "after": 44
+    },
+    {
+      "after": 46,
+      "contains": [
+        "Remove machine sandbox?"
+      ],
+      "lacks": [
+        "{{name}}"
+      ]
+    },
+    {
+      "contains": [
+        "Source row"
+      ],
+      "lacks": [
+        "Remove machine sandbox?"
+      ],
+      "after": 47
+    }
+  ],
+  "seed": {
+    "panes": [
+      {
+        "session": "acme-web",
+        "sessionId": "id-acme-web",
+        "window": "w1",
+        "name": "claude"
+      },
+      {
+        "session": "billing-api",
+        "sessionId": "id-billing-api",
+        "window": "w2",
+        "name": "shell"
+      }
+    ]
+  },
+  "config": {
+    "settings.json": {
+      "collection.filter-linger": "0"
+    },
+    "bindings.json": [
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+x",
+        "request": {
+          "noun": "ochazuke.noun",
+          "verb": "show",
+          "args": {
+            "noun": "context-item"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+l",
+        "request": {
+          "noun": "ochazuke.noun",
+          "verb": "show",
+          "args": {
+            "noun": "relation"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+t",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "nouns/relation/form/text"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+d",
+        "request": {
+          "noun": "relation",
+          "verb": "archive"
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+u",
+        "request": {
+          "noun": "relation",
+          "verb": "set",
+          "args": {
+            "props": {
+              "archived": false
+            }
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+s",
+        "request": {
+          "noun": "ochazuke.noun",
+          "verb": "show",
+          "args": {
+            "noun": "session",
+            "key": "id-acme-web"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+n",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "nouns/session/form/name"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+a",
+        "request": {
+          "noun": "session",
+          "verb": "archive",
+          "args": {
+            "id": "id-acme-web"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+b",
+        "request": {
+          "noun": "session",
+          "verb": "set",
+          "args": {
+            "id": "id-acme-web",
+            "props": {
+              "archived": false
+            }
+          }
+        }
+      }
+    ]
+  }
+}

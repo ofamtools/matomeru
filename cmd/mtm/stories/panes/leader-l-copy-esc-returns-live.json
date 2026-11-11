@@ -1,3 +1,0 @@
-{"name":"ux: ctrl+a l enters copy from live and esc returns to the live terminal, as ctrl+a [ does","area":"panes","fixture":"seeded","width":120,"height":30,
- "script":["enter","ctrl+a","l","esc"],
- "expect":[{"after":3,"mode":"copy","badge":"COPY"},{"mode":"terminal","focus":"panes/terminal","badge":"TERMINAL"}]}

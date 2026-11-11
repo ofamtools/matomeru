@@ -1,3 +1,0 @@
-{"name":"ux: task archive on the outline's selected task archives it","area":"tasks","fixture":"nested","width":120,"height":30,
- "script":["ctrl+j","O",":",{"type":"task archive"},"enter"],
- "expect":[{"lacks":["Error:","no task is focused"]}]}

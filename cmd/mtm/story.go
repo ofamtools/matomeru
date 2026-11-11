@@ -83,32 +83,9 @@ func storyConfig() host.Config {
 // empty, with faked panes.
 func mtmApp() monogatari.App {
 	return monogatari.App{
-		Name:    "mtm",
-		Summary: "mtm on a temp database and a faked daemon (seed panes: the fake panes)",
-		Fixtures: []monogatari.Fixture{
-			{Name: "seeded", Summary: "docs/vhs/seed.sh's projects, tasks and notes (acme-web, billing-api, docs-site), two inbox items and two fake panes; opens on Panes", Build: buildSeeded},
-			{Name: "reference", Summary: "seeded, with checkout, webhook and quickstart notes associated with their tasks", Build: buildReference},
-			{Name: "nested", Summary: "seeded, plus subtasks under acme-web's Checkout page task (two children, one with a child of its own)", Build: buildNested},
-			{Name: "makers", Summary: "seeded, with acme-web's cart drawer task made by an agent (claude) and its flaky-test task private", Build: buildMakers},
-			{Name: "context-picker", Summary: "seeded, with context from this pane, its project and no project, plus a journaled prompt", Build: buildContextPicker},
-			{Name: "empty", Summary: "a fresh database and no panes, as a first start opens", Build: buildEmpty},
-			{Name: "project-tree", Summary: "seeded, with the story's file tree (files) attached to acme-web as its default directory", Build: buildProjectTree},
-			{Name: "project-bases", Summary: "seeded, with the story's file tree configured as a project base and no attached directories", Build: buildProjectBases},
-			{Name: "scoped-lanes", Summary: "seeded, with a fake Lanes extension exposing direct, inherited and unassociated project rows", Build: buildScopedLanes},
-			{Name: "peer-rows", Summary: "Two sandbox extensions with a cross-extension row key", Build: buildPeerRows},
-			{Name: "nouns", Summary: "peer-rows (alpha.item, beta.doc) with the Nouns page registered last, as Model.Init does", Build: buildNouns},
-			{Name: "scaffold", Summary: "seeded panes and one relation between projects, for the runtime noun indexes", Build: buildScaffold},
-			{Name: "peer-rows-missing", Summary: "A sandbox extension whose peer is not registered", Build: buildMissingPeerRows},
-			{Name: "detail-notes", Summary: "mounted-results (an alpha extension page) plus a context item, each with a note about it, and a context item and an alpha row without", Build: buildDetailNotes},
-			{Name: "mounted-results", Summary: "A sandbox extension whose text verb (enter) and rows verb (H) answer, as o-cmds run and history do", Build: buildMountedResults},
-			{Name: "peer-delete-name", Summary: "A sandbox extension whose delete confirmation names a row field", Build: buildNamedDeleteRows},
-			{Name: "pane-lifecycle", Summary: "Seeded panes with a sandbox control for an outside window close", Build: buildPaneLifecycle},
-			{Name: "pane-restart", Summary: "Seeded panes with sandbox controls for a daemon restart that forgets every rename (story-daemon restart) and a window retitled, renamed or closed outside mtm (story-daemon retitle|rename|close WINDOW VALUE)", Build: buildPaneRestart},
-			{Name: "lanes-doc-notes", Summary: "Captured o-lane catalog sends its mounted lane row's doc notes through o-md", Build: buildLaneDocNotes},
-			{Name: "reminders-rollover", Summary: "A checked reminder, missed prior days and an injected next-local-day clock (ctrl+u)", Build: buildReminderRollover},
-			{Name: "inbox-notice", Summary: "An established notification baseline with fake senders, on an empty database", Build: buildInboxNotice},
-			{Name: "schedule-references", Summary: "Two projects with opaque ids and distinct readable labels", Build: buildScheduleReferences},
-		},
+		Name:     "mtm",
+		Summary:  "mtm on a temp database and a faked daemon (seed panes: the fake panes)",
+		Fixtures: append(areaFixturesCore(), areaFixturesSurface()...),
 		Expected: storyExpected,
 	}
 }

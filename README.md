@@ -184,7 +184,7 @@ Tasks have saved prop filters on the Work tree and the tasks outline (`T`): `min
 
 A note is about a thing of any noun: its `about` prop holds `noun:key` (`pane:W12`, `lane.lane:X`, `task:ID`; a key may hold colons). `note new TEXT --about pane:W12` (and MCP `task_note_add`'s `about` or `owner {kind, id}` of any kind) files it; its project is the thing's owner, else none. A task's note is about the task and keeps `task` and its project in step both ways (`about=task:X` sets the task, `task=X` sets the about); a row written before `about` existed reads its task as about on read and is never rewritten, and deleting the task moves the about to `former_about` (the note stays). An about not found is saved as written. The Notes page has an `about` column (the task has its own). Every detail that draws a related stack (the Work detail for a task or project, the Panes Notes tab, the Saved, Vim, Directories, Inbox, Runs and Schedules details, the Review detail) shows the notes about the selected thing as a Notes section, with the stack's own keys (`n` new, `a` associate, `d u` unassociate); the quick note `N` is about the focused thing. Every other detail shows the notes about its selected thing the same way and nothing while it has none: the Notes page (notes about a note), the Extensions page (about a tool), the Context page (a region under the table, setting `context.notes`, default `true`) and every mounted extension page's detail (any `noun:key` row, whatever the tool declared; `detail.related` turns all of these off). Settings: `detail.related` (ochazuke, default `true`; off draws no stack), `notes.related-hidden` (sections kept out; default keeps to the notes and hides `note.task`, which `note.about` shows already, and the other nouns' sections), `notes.related-empty` (`hide`, the default, `header` or `open`: what a section with nothing in it shows), `panes.notes-tab` (default `true`; off leaves the four Panes tabs) and `notes.quick-about` (`thing`, the default, or `task`: the earlier rule, the selected task else the pin).
 
-The tasks outline shows the selected task's notes in a list beneath the task tree. `ctrl+w w` walks the panes. Vertical motion stays inside a modal list in ochazuke v0.65.0; a skipped story records the framework spill gap. Focus the notes to cycle their filters with `z ]` / `z [`; each list keeps its own filter through refreshes. Note rows keep their usual view, edit, move, rename, duplicate and delete actions. `notes.task-pane=false` hides the new pane (default `true`). The standard `note list --filter mine` (or `agents` / `all`) uses the same definitions; framework `collection.filter-strip` and `collection.filter-cycle` also apply to notes.
+The tasks outline shows the selected task's notes in a list beneath the task tree. `ctrl+w w` walks the panes. Vertical motion stays inside a modal list in ochazuke v0.65.0. Focus the notes to cycle their filters with `z ]` / `z [`; each list keeps its own filter through refreshes. Note rows keep their usual view, edit, move, rename, duplicate and delete actions. `notes.task-pane=false` hides the new pane (default `true`). The standard `note list --filter mine` (or `agents` / `all`) uses the same definitions; framework `collection.filter-strip` and `collection.filter-cycle` also apply to notes.
 
 Compared with Vim:
 
@@ -294,25 +294,25 @@ On an empty generated index or curated `From` list, `n` opens that noun's declar
 
 ## Stories
 
-mtm's interactions are [monogatari](https://github.com/ofamtools/monogatari) stories: JSON keystroke scripts under `cmd/mtm/stories/<area>/` (areas `panes`, `inbox`, `tasks`, `pin`, `directories`), played headless against the real App with expectations on what the screen shows. They run in a separate tester build (build tag `monogatari`), `mtm-story`, never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
+mtm's interactions are [monogatari](https://github.com/ofamtools/monogatari) stories: ten area walkthroughs under `cmd/mtm/stories/areas/`, played headless against the real App. They cover work/tasks and outline, panes/live, context, items/inbox, notes, schedules/reminders, reviews/turns, projects/directories, noun indexes and mounted pages, and pickers/palette. Each keeps one app through its workflow and checks intermediate state, visible text or small screen regions rather than full-screen goldens. The tester build uses the `monogatari` tag and is never installed over `mtm`; a normal build links none of it (`make split-check`: `mtm: 0 monogatari symbols`).
 
-Each session is the real App on a temp database, a temp config directory and a socket nothing listens on, with a faked daemon, launcher, clipboard and opener (`cmd/mtm/storyfakes.go`), so a story never reaches your data, daemon or tuios session. Fixtures: `seeded` (docs/vhs/seed.sh's projects, tasks and notes, two inbox items and two fake panes; a story's `"seed": {"panes": [...]}` replaces the panes) and `empty`. `story` runs before any database opens and ignores `--data`, `--socket` and `--server`. The host keeps its own state under `mtm-story` (user stories in `$XDG_CONFIG_HOME/mtm-story/stories`, recordings in `$XDG_DATA_HOME/mtm-story`), so point those at a temp dir too:
+Each session is the real App on a temp database, a temp config directory and a socket nothing listens on, with a faked daemon, launcher, clipboard and opener (`cmd/mtm/storyfakes.go`), so a story never reaches your data, daemon or tuios session. The ten matching `area-*` fixtures reuse the existing builders and combine initial state only where a walkthrough needs it. A story's `"seed": {"panes": [...]}` supplies its fake panes. `story` runs before any database opens and ignores `--data`, `--socket` and `--server`. The host keeps its own state under `mtm-story` (user stories in `$XDG_CONFIG_HOME/mtm-story/stories`, recordings in `$XDG_DATA_HOME/mtm-story`), so point those at a temp dir too:
 
 ```sh
 make story-bin                                   # bin/mtm-story (make story-bin STORY_BIN=/tmp/x/mtm-story elsewhere)
 D=$(mktemp -d) && export HOME=$D XDG_CONFIG_HOME=$D/config XDG_DATA_HOME=$D/data XDG_STATE_HOME=$D/state
 unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_SOCKET
 bin/mtm-story story list                         # the stories by area
-bin/mtm-story story run panes                    # headless; non-zero exit on failure
-bin/mtm-story story open panes/rename-a-pane     # live, in the real chrome (a name prefix works too)
-bin/mtm-story story explore panes --steps 50     # the state explorer, headless
-bin/mtm-story story explore panes --watch --delay 500ms   # the explorer's watch page; q stops watching (the runs then finish headless)
+bin/mtm-story story run areas/panes              # headless; non-zero exit on failure
+bin/mtm-story story open areas/panes             # live, in the real chrome
+bin/mtm-story story explore area-panes --steps 50 # the fixture's state explorer, headless
+bin/mtm-story story explore area-panes --watch --delay 500ms # q stops watching; runs then finish headless
 bin/mtm-story story help                         # every command: history, keep, replay, trim, verbs, catalog
 ```
 
 The release check is `make gate`: an untagged gofmt check, `go vet ./...`, and
 `go test -race ./...`, followed by the tagged stories only
-(`STORY_PACKAGES=./cmd/mtm STORY_TEST_FLAGS='-race -run ^TestStories'`),
+(`go test -tags monogatari -run '^TestStories$' -count=1 ./cmd/mtm`, without race),
 `make split-check`, and `make states-test`. Each step prints its elapsed seconds,
 and a failed step stops the gate. This runs the app suite once and keeps the
 race pass on the untagged build that ships. `GOWORK=off` is set by the Makefile.
@@ -330,9 +330,9 @@ completed parallel tests cannot retain every runtime until the package ends.
 Command helpers settle on job completion, leaving timers to the fake clock rather
 than an idle tick.
 
-The tests run every story through `host.Test` in the tagged build (`cmd/mtm/stories_test.go`; `-update` rewrites goldens): `make story-test` (`go vet` and `go test -race` with `-tags monogatari`). A UI bug becomes a story before it is fixed; a known gap is a story with `"skip": "gap: ..."`. Editors need `-tags monogatari` in gopls's build flags to see the tagged files.
+The tests run every area story through `host.Test` in the tagged build (`cmd/mtm/stories_test.go`). `make story-test` keeps tagged strict vet and runs only `./cmd/mtm`'s exact `TestStories`, once and without `-race`; `make story-run` runs that test without vet. The untagged release gate owns the race pass. Extend the relevant area composite when a UI regression needs an end-to-end checkpoint, or add an ordinary Go test for a smaller or timing-dependent case. Do not add a separate story per bug, full-screen goldens or skipped gap stories. Editors need `-tags monogatari` in gopls's build flags to see the tagged files.
 
-Extension stories must deliver the page's row load before using a row binding. Chooser loads share the `catalog-load` job name and may finish first. The lane doc-notes regression holds the row completion until every chooser has landed, then checks that the row binding sends the correct doc and pane.
+Extension walkthroughs must deliver the page's row load before using a row binding. Chooser loads share the `catalog-load` job name and may finish first. The ordinary tagged `TestLaneDocNotesWaitsForRowAfterChoices` holds the row completion until every chooser has landed, then checks that the row binding sends the correct doc and pane. It uses its own explicit fixture and inline recipe, not an extra embedded story.
 
 ## Daemon runner
 

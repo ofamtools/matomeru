@@ -1,0 +1,427 @@
+{
+  "name": "Schedules: harness models, project chooser, clear and reminder history",
+  "area": "areas",
+  "fixture": "area-schedules",
+  "width": 140,
+  "height": 40,
+  "script": [
+    "ctrl+x",
+    "n",
+    "esc",
+    "ctrl+h",
+    "enter",
+    "j",
+    "j",
+    "enter",
+    "ctrl+o",
+    "enter",
+    "esc",
+    "q",
+    "ctrl+h",
+    "enter",
+    "k",
+    "enter",
+    "ctrl+o",
+    "enter",
+    "esc",
+    "q",
+    "q",
+    ":",
+    {
+      "type": "schedule add --name chooser-check --prompt inspect --when never --project 6f7a9d1c0b2245f6a8e30d4c5b219076 --pane nightly-agent"
+    },
+    "enter",
+    "ctrl+x",
+    "ctrl+z",
+    ":",
+    {
+      "type": "schedule edit chooser-check"
+    },
+    "enter",
+    "esc",
+    "ctrl+y",
+    "i",
+    "ctrl+u",
+    "b",
+    "e",
+    "t",
+    "a",
+    "enter",
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "schedule edit gh-signals --catch-up once"
+    },
+    "enter",
+    "q",
+    ":",
+    {
+      "type": "schedule edit gh-signals"
+    },
+    "enter",
+    "esc",
+    "ctrl+c",
+    "i",
+    "ctrl+u",
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "schedule get gh-signals"
+    },
+    "enter",
+    "q",
+    "ctrl+x",
+    "ctrl+r",
+    "n",
+    {
+      "type": "stretch break"
+    },
+    "esc",
+    "ctrl+t",
+    "i",
+    "ctrl+a",
+    "ctrl+k",
+    {
+      "type": "10:30"
+    },
+    "esc",
+    "ctrl+d",
+    "i",
+    "ctrl+a",
+    "ctrl+k",
+    {
+      "type": "mon,wed,fri"
+    },
+    "esc",
+    "q",
+    "x",
+    "enter",
+    "q",
+    "ctrl+r",
+    "ctrl+u",
+    "enter"
+  ],
+  "expect": [
+    {
+      "after": 10,
+      "modal": "form-suggestions",
+      "contains": [
+        "openai/sol",
+        "openai/terra"
+      ],
+      "lacks": [
+        "sonnet",
+        "haiku"
+      ]
+    },
+    {
+      "after": 18,
+      "modal": "form-suggestions",
+      "contains": [
+        "opus",
+        "sonnet",
+        "haiku"
+      ],
+      "lacks": [
+        "openai/sol",
+        "openai/terra"
+      ]
+    },
+    {
+      "after": 26,
+      "page": "schedules",
+      "contains": [
+        "chooser-check",
+        "alpha",
+        "nightly-agent"
+      ],
+      "lacks": [
+        "6f7a9d1c0b2245f6a8e30d4c5b219076"
+      ]
+    },
+    {
+      "after": 31,
+      "modal": "schedule-form",
+      "focus": "schedule-form/project",
+      "contains": [
+        "alpha"
+      ],
+      "lacks": [
+        "6f7a9d1c0b2245f6a8e30d4c5b219076"
+      ]
+    },
+    {
+      "after": 32,
+      "modal": "form-suggestions",
+      "contains": [
+        "alpha",
+        "beta",
+        "(none)"
+      ],
+      "lacks": [
+        "unknown project"
+      ]
+    },
+    {
+      "after": 33,
+      "modal": "form-suggestions",
+      "contains": [
+        "alpha",
+        "beta"
+      ],
+      "lacks": [
+        "unknown project"
+      ]
+    },
+    {
+      "after": 34,
+      "modal": "form-suggestions",
+      "contains": [
+        "beta"
+      ],
+      "lacks": [
+        "unknown project"
+      ]
+    },
+    {
+      "after": 37,
+      "modal": "form-suggestions",
+      "contains": [
+        "beta"
+      ],
+      "lacks": [
+        "unknown project"
+      ]
+    },
+    {
+      "page": "schedules",
+      "modal": "",
+      "contains": [
+        "chooser-check",
+        "beta",
+        "nightly-agent"
+      ],
+      "lacks": [
+        "unknown project",
+        "a9e25f04781c46bda30f6d529b8170ce",
+        "6f7a9d1c0b2245f6a8e30d4c5b219076"
+      ],
+      "after": 40
+    },
+    {
+      "after": 47,
+      "modal": "schedule-form",
+      "contains": [
+        "Edit schedule gh-signals"
+      ]
+    },
+    {
+      "after": 52,
+      "modal": "schedule-form",
+      "focus": "schedule-form/catch-up",
+      "lacks": [
+        "must be one of",
+        "is one of"
+      ]
+    },
+    {
+      "contains": [
+        "catch-up         none"
+      ],
+      "lacks": [
+        "catch-up         once"
+      ],
+      "after": 56
+    },
+    {
+      "after": 60,
+      "contains": [
+        "New reminder",
+        "title",
+        "time",
+        "days"
+      ]
+    },
+    {
+      "after": 75,
+      "contains": [
+        "stretch break",
+        "10:30",
+        "mon,wed,fri"
+      ]
+    },
+    {
+      "after": 76,
+      "contains": [
+        "☑ stretch break"
+      ]
+    },
+    {
+      "contains": [
+        "Reminder history",
+        "2026-10-28",
+        "done"
+      ],
+      "after": 77
+    },
+    {
+      "contains": [
+        "☑ water the plants",
+        "done"
+      ],
+      "after": 79
+    },
+    {
+      "after": 80,
+      "contains": [
+        "☐ water the plants",
+        "! due",
+        "2026-10-28"
+      ]
+    },
+    {
+      "contains": [
+        "Reminder history",
+        "2026-10-29 · missed",
+        "2026-10-28 · done",
+        "2026-10-27 · missed"
+      ],
+      "after": 81
+    }
+  ],
+  "config": {
+    "harnesses.json": [
+      {
+        "name": "omp",
+        "models": [
+          "openai/sol",
+          "openai/terra"
+        ]
+      }
+    ],
+    "settings.json": {
+      "results.show-data": false
+    },
+    "bindings.json": [
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+x",
+        "request": {
+          "noun": "ochazuke.page",
+          "verb": "open",
+          "args": {
+            "id": "schedules"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+h",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "schedule-form/harness"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+o",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "schedule-form/model"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+y",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "schedule-form/project"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+z",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "schedules/list/chooser-check"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+c",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "schedule-form/catch-up"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+t",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "reminder-form/time"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+d",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "reminder-form/days"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+r",
+        "request": {
+          "noun": "ochazuke.focus",
+          "verb": "to",
+          "args": {
+            "id": "schedules/reminders/plants"
+          }
+        }
+      },
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+u",
+        "request": {
+          "noun": "story-clock",
+          "verb": "tomorrow"
+        }
+      }
+    ]
+  }
+}

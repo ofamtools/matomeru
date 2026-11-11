@@ -1,0 +1,409 @@
+{
+  "name": "Pickers and palette: matching, scopes, filtering and page transitions",
+  "area": "areas",
+  "fixture": "area-pickers",
+  "width": 140,
+  "height": 35,
+  "script": [
+    "\\",
+    {
+      "type": "acme"
+    },
+    "tab",
+    "tab",
+    "shift+tab",
+    "esc",
+    "q",
+    "t",
+    "alt+s",
+    "alt+s",
+    "alt+s",
+    "esc",
+    "S",
+    "q",
+    "enter",
+    "ctrl+a",
+    "c",
+    "alt+s",
+    "alt+s",
+    "esc",
+    "q",
+    "ctrl+a",
+    "c",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+]",
+    "alt+[",
+    "alt+backspace",
+    "ctrl+f",
+    "s",
+    "c",
+    "o",
+    "p",
+    "e",
+    "enter",
+    "esc",
+    "space",
+    "enter",
+    "esc",
+    "q",
+    {
+      "type": "review"
+    },
+    "alt+backspace",
+    "esc",
+    "q",
+    "ctrl+a",
+    "d",
+    ":",
+    {
+      "type": "picker open pickers"
+    },
+    "enter",
+    {
+      "type": "harness"
+    },
+    "enter",
+    "esc",
+    "q",
+    ":",
+    {
+      "type": "panes sides"
+    },
+    "enter",
+    "q",
+    ":",
+    {
+      "type": "page open work"
+    },
+    "enter",
+    ":",
+    {
+      "type": "page open panes"
+    },
+    "enter"
+  ],
+  "expect": [
+    {
+      "after": 2,
+      "modal": "pane-picker",
+      "contains": [
+        "› acme",
+        "fuzzy",
+        "acme-web"
+      ],
+      "lacks": [
+        "billing-api"
+      ]
+    },
+    {
+      "after": 3,
+      "contains": [
+        "› acme",
+        "regex",
+        "acme-web"
+      ]
+    },
+    {
+      "after": 4,
+      "contains": [
+        "› acme",
+        "substr",
+        "acme-web"
+      ]
+    },
+    {
+      "after": 5,
+      "contains": [
+        "regex"
+      ]
+    },
+    {
+      "modal": "",
+      "after": 7
+    },
+    {
+      "after": 8,
+      "contains": [
+        "Task for acme-web/claude",
+        "open │"
+      ]
+    },
+    {
+      "after": 9,
+      "contains": [
+        "all │"
+      ],
+      "lacks": [
+        "open │"
+      ]
+    },
+    {
+      "after": 10,
+      "contains": [
+        "archived │"
+      ]
+    },
+    {
+      "after": 11,
+      "contains": [
+        "open │"
+      ]
+    },
+    {
+      "contains": [
+        "all │"
+      ],
+      "lacks": [
+        "Scope: all projects"
+      ],
+      "after": 13
+    },
+    {
+      "after": 17,
+      "contains": [
+        "project · 1 more in all"
+      ]
+    },
+    {
+      "contains": [
+        "all  substr"
+      ],
+      "lacks": [
+        "more in all"
+      ],
+      "after": 18
+    },
+    {
+      "after": 24,
+      "contains": [
+        "[context]",
+        "project-branch",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "review picker prompt"
+      ]
+    },
+    {
+      "after": 25,
+      "contains": [
+        "[prompts]",
+        "review picker prompt"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command",
+        "https://example.com/pane"
+      ]
+    },
+    {
+      "after": 26,
+      "contains": [
+        "[this-pane]",
+        "review picker prompt",
+        "https://example.com/pane"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 27,
+      "contains": [
+        "[project]",
+        "project-branch"
+      ],
+      "lacks": [
+        "review picker prompt",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 28,
+      "contains": [
+        "[none]",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "review picker prompt",
+        "project-branch"
+      ]
+    },
+    {
+      "after": 29,
+      "contains": [
+        "[conversation]",
+        "review picker prompt",
+        "https://example.com/pane"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 30,
+      "contains": [
+        "[tools]",
+        "project-branch",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "review picker prompt",
+        "https://example.com/pane"
+      ]
+    },
+    {
+      "after": 31,
+      "contains": [
+        "[all]",
+        "review picker prompt",
+        "project-branch",
+        "unassociated-command"
+      ],
+      "lacks": [
+        "https://example.com/other-project"
+      ]
+    },
+    {
+      "after": 32,
+      "contains": [
+        "[tools]",
+        "project-branch",
+        "unassociated-command"
+      ]
+    },
+    {
+      "after": 33,
+      "contains": [
+        "review picker prompt",
+        "project-branch"
+      ],
+      "lacks": [
+        "[none]"
+      ]
+    },
+    {
+      "after": 34,
+      "modal": "list-filter-form",
+      "contains": [
+        "Sort by",
+        "Field",
+        "Active conditions"
+      ]
+    },
+    {
+      "after": 43,
+      "modal": "list-filter-form",
+      "contains": [
+        "scope = pane"
+      ]
+    },
+    {
+      "after": 45,
+      "modal": "context-picker",
+      "contains": [
+        "[scope = pane]",
+        "review picker prompt",
+        "https://example.com/pane"
+      ],
+      "lacks": [
+        "project-branch",
+        "unassociated-command"
+      ]
+    },
+    {
+      "contains": [
+        "› review",
+        "review picker prompt"
+      ],
+      "lacks": [
+        "[scope = pane]",
+        "project-branch",
+        "unassociated-command"
+      ],
+      "after": 47
+    },
+    {
+      "after": 54,
+      "modal": "picker-pickers",
+      "contains": [
+        "Pickers",
+        "pane",
+        "pin",
+        "pane-task",
+        "context",
+        "directory",
+        "side",
+        "harness",
+        "Launch an agent"
+      ]
+    },
+    {
+      "after": 55,
+      "modal": "picker-pickers",
+      "contains": [
+        "harness",
+        "Launch an agent"
+      ],
+      "lacks": [
+        "Pin project"
+      ]
+    },
+    {
+      "after": 56,
+      "modal": "agent-chooser",
+      "contains": [
+        "Launch an agent in"
+      ]
+    },
+    {
+      "modal": "",
+      "after": 58
+    },
+    {
+      "contains": [
+        "Side panes",
+        "no side panes are open"
+      ],
+      "after": 61
+    },
+    {
+      "page": "work",
+      "contains": [
+        "Checkout page: show the shipping estimate"
+      ],
+      "after": 65
+    },
+    {
+      "page": "panes",
+      "contains": [
+        "acme-web/claude"
+      ],
+      "after": 68
+    }
+  ],
+  "config": {
+    "bindings.json": [
+      {
+        "noun": "app",
+        "mode": "normal",
+        "keys": "ctrl+x",
+        "request": {
+          "noun": "ochazuke.page",
+          "verb": "open",
+          "args": {
+            "id": "panes"
+          }
+        }
+      }
+    ]
+  }
+}

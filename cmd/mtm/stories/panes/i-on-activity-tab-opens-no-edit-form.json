@@ -1,9 +1,0 @@
-{
-  "name":"ux: i on Activity writes to the shell on Screen, never edits the pane",
-  "area":"panes","fixture":"seeded","width":120,"height":34,
-  "script":["g","p","]","]","i",{"job":"pane.prompt"},{"type":"shell draft"}],
-  "expect":[
-    {"after":4,"contains":["[Activity]"]},
-    {"mode":"insert","focus":"panes/prompt","contains":["[Screen]","shell draft"],"lacks":["Edit pane","Error:"]}
-  ]
-}

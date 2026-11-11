@@ -31,10 +31,10 @@ STORY_BIN ?= bin/mtm-story
 story-bin:
 	go build -trimpath -tags monogatari -o $(STORY_BIN) ./cmd/mtm
 
-# The standalone tagged vet/race suite includes all tests and stories.
-# make gate narrows the tagged run to TestStories after the untagged race pass.
-STORY_PACKAGES ?= ./...
-STORY_TEST_FLAGS ?= -race -count=1
+# Run only the area walkthroughs; the shipping build owns the race pass.
+# Tagged strict vet stays available through story-vet and story-test.
+STORY_PACKAGES ?= ./cmd/mtm
+STORY_TEST_FLAGS ?= -run '^TestStories$$' -count=1
 story-vet:
 	go vet -tags monogatari,ochazuke_strict $(STORY_PACKAGES)
 story-run:

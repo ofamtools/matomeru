@@ -11,17 +11,30 @@ import (
 	ocli "ofam.dev/ochazuke/cli"
 )
 
-func TestStoriesLaneDocNotesWaitsForRowAfterChoices(t *testing.T) {
+func TestLaneDocNotesWaitsForRowAfterChoices(t *testing.T) {
 	t.Parallel()
-	data, err := storyFiles.ReadFile("stories/extensions/lanes-doc-send-notes.json")
+	story, err := monogatari.Parse([]byte(`{
+		"name": "lane doc notes waits for page rows",
+		"fixture": "lane-doc-notes",
+		"width": 140,
+		"height": 36,
+		"script": [
+			":", {"type": "page open ext/lane"}, "enter",
+			{"job": "catalog-load"}, {"job": "catalog-load"},
+			{"job": "catalog-load"}, {"job": "catalog-load"},
+			{"job": "catalog-load"}, {"job": "catalog-load"},
+			{"job": "catalog-load"}, "g", "s", {"job": "md.doc.send-notes"}
+		],
+		"expect": [{
+			"contains": ["Implementation", "doc send-notes --target /docs/review.md", "--json {\\\"pane\\\":\\\"w1\\\"}"],
+			"lacks": ["name a doc", "no such verb"]
+		}]
+	}`), "lane-doc-notes-inline")
 	if err != nil {
 		t.Fatal(err)
 	}
-	story, err := monogatari.Parse(data, "stories/extensions/lanes-doc-send-notes.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ss, err := (monogatari.Library{Apps: []monogatari.App{mtmApp()}}).Build(story, monogatari.Options{Mono: true})
+	app := monogatari.App{Name: "mtm", Fixtures: []monogatari.Fixture{{Name: "lane-doc-notes", Build: buildLaneDocNotes}}, Expected: storyExpected}
+	ss, err := (monogatari.Library{Apps: []monogatari.App{app}}).Build(story, monogatari.Options{Mono: true})
 	if err != nil {
 		t.Fatal(err)
 	}
