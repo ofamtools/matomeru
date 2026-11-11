@@ -50,7 +50,7 @@
     {"after": 28, "contains": ["Checkout page: show the shipping estimate"], "lacks": ["Shipping estimate: API client", "Mock the carrier API"]},
     {"after": 31, "contains": ["[archived]", "Shipping estimate: API client", "Mock the carrier API"], "lacks": ["Error:"]},
     {"after": 37, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API", "Move the cart drawer"]},
-    {"after": 38, "modal": "task-outline", "contains": ["Move the cart drawer"]},
+    {"after": 38, "modal": "task-outline", "focus": "outline:project:", "mode": "normal"},
     {"after": 39, "modal": "task-outline", "focus": "outline:t1", "mode": "normal", "contains": ["Checkout page: show the shipping estimate", "Move the cart drawer"]},
     {"after": 42, "modal": "task-outline", "contains": ["Move the cart drawer"], "lacks": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API", "Error:", "no task is focused"]},
     {"after": 45, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},
