@@ -110,3 +110,46 @@ func TestSelfRunnerRacingStartersConvergeOnOneDaemon(t *testing.T) {
 		t.Fatalf("still running after stop: %+v", info)
 	}
 }
+
+// The mirror of TestRunEnsuresOnlyOutsideSmoke for the default (self)
+// runner: a CLI command on a fresh start ensures mtm's server by starting
+// the linked daemon, and --smoke starts nothing.
+// serial: starts a real daemon (this test binary behind daemonWord) and sets process environment.
+func TestSelfRunnerCLIEnsuresTheDaemonOnAFreshStart(t *testing.T) {
+	root, err := os.MkdirTemp("/tmp", "mtmens")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	for _, d := range []string{"home", "run", "config", "state", "data"} {
+		os.MkdirAll(filepath.Join(root, d), 0o700)
+	}
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(root, "run"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("MTM_DAEMON_RUNNER", "") // the default: self
+	for _, k := range []string{"TUIOS_SOCKET", "TUIOS_SERVER", "MTM_SOCKET"} {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
+	t.Setenv("MTM_SERVER", "selfensure")
+	data := filepath.Join(root, "mtm.db")
+	var out, errOut bytes.Buffer
+	if err := run([]string{"--data", data, "--smoke"}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("smoke: %v", err)
+	}
+	if info := daemonStatusRow(t, data); info.Running {
+		t.Fatalf("--smoke started a daemon: %+v", info)
+	}
+	if err := run([]string{"--data", data, "binding", "list"}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("cli: %v %s", err, errOut.String())
+	}
+	info := daemonStatusRow(t, data)
+	if !info.Running || info.Runner != runnerSelf {
+		t.Fatalf("a CLI command did not start the self daemon: %+v", info)
+	}
+	t.Cleanup(func() { syscall.Kill(info.PID, syscall.SIGTERM) })
+}
