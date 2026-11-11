@@ -25,7 +25,7 @@
   },
   "script": [
     "ctrl+x", "ctrl+y", "ctrl+t", "ctrl+g", "ctrl+u", "ctrl+v", "ctrl+n",
-    ":", {"type": "page open inbox"}, "enter",
+    ":", {"type": "page open Items"}, "enter",
     ":", {"type": "action-item read"}, "enter", "u", "u",
     "ctrl+r", "ctrl+n",
     ":", {"type": "setting set inbox.group pane"}, "enter",

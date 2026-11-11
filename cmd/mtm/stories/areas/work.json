@@ -29,10 +29,11 @@
     ":", {"type": "collection filter-saved archived"}, "enter",
     ":", {"type": "collection filter-saved all"}, "enter",
     ":", {"type": "task set t13 @archive=false"}, "enter",
-    "T", "T", "g", "g",
-    "j", "j", "j", "j", "j", "j", "j", "j", "j",
-    "i", "tab", {"type": "!"}, "esc", "h", "l", "u", "u",
-    "g", "g", "j", "i", "shift+tab", {"type": "!"}, "esc", "u", "u", "T"
+    "T", "T",
+    ":", {"type": "focus to --id outline:project:billing-api"}, "enter",
+    "i", "ctrl+e", "tab", {"type": "!"}, "esc", "h", "l", "u", "u",
+    ":", {"type": "focus to --id outline:t1"}, "enter",
+    "i", "ctrl+e", "shift+tab", {"type": "!"}, "esc", "u", "u", "T"
   ],
   "expect": [
     {"after": 1, "page": "work", "contains": ["▾ [>] Checkout page: show the shipping estimate", "    ▾ [ ] Shipping estimate: API client", "        [>] Mock the carrier API", "    [x] Shipping estimate: copy", "  [ ] Move the cart drawer to the new design tokens"]},
@@ -57,15 +58,17 @@
     {"after": 48, "contains": ["Checkout page: show the shipping estimate", "Move the cart drawer"], "lacks": ["Shipping estimate: API client", "Mock the carrier API"]},
     {"after": 51, "modal": "task-outline", "contains": ["[archived]", "Shipping estimate: API client", "Mock the carrier API"], "lacks": ["Error:"]},
     {"after": 57, "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"]},
-    {"after": 72, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["Now a task of acme-web"], "order": ["acme-web", "Dark mode for the order history", "billing-api", "Retry failed webhooks", "docs-site"]},
-    {"after": 73, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["billing-api!"]},
-    {"after": 75, "mode": "normal", "contains": ["billing-api!", "docs-site"], "lacks": ["Retry failed webhooks", "Invoice PDF", "Rate limit the refunds", "Drop the legacy"]},
-    {"after": 76, "order": ["Dark mode for the order history", "billing-api!", "Retry failed webhooks", "Invoice PDF", "Rate limit the refunds", "Drop the legacy", "docs-site"]},
-    {"after": 77, "order": ["Dark mode for the order history", "billing-api", "Retry failed webhooks", "docs-site"], "lacks": ["billing-api!"]},
-    {"after": 78, "mode": "normal", "focus": "outline:project:billing-api", "order": ["acme-web", "Dark mode for the order history", "billing-api", "Retry failed webhooks", "docs-site"]},
-    {"after": 83, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["Now the project Checkout page"], "order": ["▾ acme-web", "[ ] Move the cart drawer", "Checkout page: show the shipping estimate", "▾ billing-api"]},
-    {"after": 84, "mode": "insert", "contains": ["Checkout page: show the shipping estimate!"]},
-    {"after": 87, "mode": "normal", "order": ["▾ acme-web", "[>] Checkout page: show the shipping estimate", "[ ] Move the cart drawer", "▾ billing-api"], "lacks": ["estimate!"]},
+    {"after": 62, "modal": "task-outline", "focus": "outline:project:billing-api", "mode": "normal"},
+    {"after": 65, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["Now a task of acme-web"], "order": ["acme-web", "Dark mode for the order history", "billing-api", "Retry failed webhooks", "docs-site"]},
+    {"after": 66, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["billing-api!"]},
+    {"after": 68, "mode": "normal", "contains": ["billing-api!", "docs-site"], "lacks": ["Retry failed webhooks", "Invoice PDF", "Rate limit the refunds", "Drop the legacy"]},
+    {"after": 69, "order": ["Dark mode for the order history", "billing-api!", "Retry failed webhooks", "Invoice PDF", "Rate limit the refunds", "Drop the legacy", "docs-site"]},
+    {"after": 70, "order": ["Dark mode for the order history", "billing-api", "Retry failed webhooks", "docs-site"], "lacks": ["billing-api!"]},
+    {"after": 71, "mode": "normal", "focus": "outline:project:billing-api", "order": ["acme-web", "Dark mode for the order history", "billing-api", "Retry failed webhooks", "docs-site"]},
+    {"after": 74, "modal": "task-outline", "focus": "outline:t1", "mode": "normal"},
+    {"after": 77, "mode": "insert", "focus": "task-outline/tree/line", "contains": ["Now the project Checkout page"], "order": ["▾ acme-web", "[ ] Move the cart drawer", "Checkout page: show the shipping estimate", "▾ billing-api"]},
+    {"after": 78, "mode": "insert", "contains": ["Checkout page: show the shipping estimate!"]},
+    {"after": 81, "mode": "normal", "order": ["▾ acme-web", "[>] Checkout page: show the shipping estimate", "[ ] Move the cart drawer", "▾ billing-api"], "lacks": ["estimate!"]},
     {"page": "work", "modal": "", "contains": ["Checkout page: show the shipping estimate", "Shipping estimate: API client", "Mock the carrier API"], "lacks": ["Error:"]}
   ]
 }
