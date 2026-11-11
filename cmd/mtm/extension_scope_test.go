@@ -137,15 +137,21 @@ func TestPathProjectPinThenLongest(t *testing.T) {
 	if err := os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
-	a := &App{projects: []work.Project{
+	a := openWith(t, Options{Data: filepath.Join(root, "mtm.db")})
+	a.projects = []work.Project{
 		{ID: "outer", DefaultTree: "/a"},
 		{ID: "inner", Trees: []work.Tree{{Kind: "dir", Path: "/a/inner/"}}},
 		{ID: "foo", DefaultTree: "/x/foo"},
 		{ID: "tilde", DefaultTree: "~/proj/h"},
 		{ID: "linked", Trees: []work.Tree{{Kind: "dir", Path: link}}},
-	}}
+	}
 	a.home = func() (string, error) { return home, nil }
 	a.refreshProjectPrefixes()
+	testEnv(a, "MTM_PROJECT_BASE_DIRS", link)
+	// Symlinks resolve in background scans, not while building prefixes on
+	// the UI loop. A targeted scan must update path ownership when it lands.
+	executeA(t, a, "directory", "scan", directoriesPage, ochazuke.Arguments{"path": link})
+	driveCommands(a, a.r.PendingCommands(), true, true)
 	resolved, err := filepath.EvalSymlinks(real)
 	if err != nil {
 		t.Fatal(err)

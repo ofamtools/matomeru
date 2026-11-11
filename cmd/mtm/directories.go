@@ -492,6 +492,7 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		a.directories.Rows, a.directories.Footer, a.directories.Ready = loaded.Rows, loaded.Footer, true
 		a.dirKeys = loaded.Keys
+		a.refreshProjectPrefixes()
 		a.rescopeExtensions()
 		a.directories.Unavailable = loaded.Unavailable
 		if err := a.saveDirectoryCandidates(loaded); err != nil {
