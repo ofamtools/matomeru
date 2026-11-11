@@ -340,3 +340,5 @@ vim.go	App.vimAt	compare	"vim"	1
 wire_verbs.go	var wireVerbs	table	"dry_run"	1	the daemon's parameter name in a row's AgentArgs (purge always dry-runs for an agent); data in the row, no branch
 wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch
 task_statuses.go	App.syncStatusEnums	compare	"status"	1	finds the one prop the tasks.statuses table fills in; the prop is the status prop by definition, nothing else shares the name
+../../internal/contextitems/origins.go	var sourceOrigins	table	"manual"	1	context item origin vocabulary (the source kinds the extractor records: prompt, response, manual, mcp...), data of the context store, not an mtm noun
+context_origins.go	extractsFrom	compare	"manual"	1	context item origin vocabulary (the source kinds the extractor records: prompt, response, manual, mcp...), data of the context store, not an mtm noun
