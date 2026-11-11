@@ -556,7 +556,8 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	if _, archived := changes["archived"]; archived {
 		err = a.refreshArchiveViews()
 	} else if owned {
-		err = a.refreshScope()
+		// A task that changed project leaves (or joins) an open outline.
+		err = errors.Join(a.refreshScope(), a.reloadOutline())
 	} else {
 		err = a.refreshTasks()
 	}

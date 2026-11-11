@@ -148,13 +148,19 @@ func (a *App) defineOutline() {
 	// palette and for the rows that are not tasks, which they refuse.
 	a.r.Define(outlineTaskNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
+		Verb("choose-move", a.outlineChooseMove, "Choose the project to move the task to, its subtasks with it, as m does on the Work page's tasks").
+		Verb("archive", a.outlineTaskStandard("archive"), "Archive the task and its subtasks: kept, and hidden from the default views (the archive filter shows them); over a visual selection, every selected task").Many().
+		Verb("restore", a.outlineTaskStandard("restore"), "Bring an archived task back into the default views, as task.restore does; over a visual selection, every selected task").Many().
 		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
 		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
 		Mode("normal").
 		Bind("x", ochazuke.Do(outlineTaskNoun+".toggle")).
 		Bind("s", ochazuke.Do(outlineTaskNoun+".status")).
 		Bind("enter", ochazuke.Do("outline.fold")).
-		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project"))
+		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project")).
+		Bind("m", ochazuke.Do(outlineTaskNoun+".choose-move").Hinted("move")).
+		Bind("A", ochazuke.Do(outlineTaskNoun+".archive").Hinted("archive")).
+		Bind("X", ochazuke.Do(outlineTaskNoun+".restore").Hinted("restore"))
 	a.parameters(outlineTaskNoun+".status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: work.Statuses}})
 	a.defineOutlineAttachments()
 	a.outlineView("Tasks")
@@ -353,6 +359,15 @@ func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
 	// its project's level: a task stays under a project, never at the top.
 	tree.OrphanParent = func(n ochazuke.TreeNode) string { return rootOf(tree, n.ID) }
 	tree.OnChange = func(c ochazuke.TreeChange) error { return a.writeOutline(state, c) }
+	// A task never becomes a top-level row (those are projects): refused
+	// before it is made, so a move that would spill out of a project's row
+	// (J at its last task, K at its first) stops there quietly.
+	tree.Refuse = func(node ochazuke.TreeNode, c ochazuke.TreeChange) error {
+		if c.Op == ochazuke.TreeMove && c.Parent == "" && !a.isProjectRow(c.ID) {
+			return fmt.Errorf("A task stays under a project: %w", ochazuke.ErrTreeRefused)
+		}
+		return nil
+	}
 	a.observeArchiveList(tree.List(), a.reloadOutline)
 	if focus != "" {
 		_ = tree.Select(outlineNode(focus))
@@ -898,6 +913,39 @@ func (a *App) outlineTaskOf(row *ochazuke.Instance) (*outlineState, work.Task, e
 	}
 	t, err := a.work.Task(taskOf(row.ID))
 	return o, t, err
+}
+
+// outlineChooseMove is outline-task.choose-move (m on a task row): what m
+// does on the Work page's task rows, task.edit on the project (@owner)
+// over the stored task the row stands for. The choice is the standard set of
+// the task's project, its subtasks with it, which reloads the open
+// outline: a task that left the project's outline is gone from it.
+func (a *App) outlineChooseMove(ctx ochazuke.Ctx) ochazuke.Result {
+	if ctx.Instance == nil || ctx.Instance.Noun != outlineTaskNoun {
+		return ochazuke.Failed(errors.New("select a task to move"))
+	}
+	// The task is named by id, not as the target: the chooser opens from
+	// the outline row (a target on the Work page below the outline modal
+	// would be acting from beneath it).
+	q := ochazuke.Request{Noun: "task", Verb: "edit", Args: ochazuke.Arguments{"field": "@owner", "id": taskOf(ctx.Instance.ID)}}
+	return resultOf(a.r.Execute(q))
+}
+
+// outlineTaskStandard is outline-task.archive and outline-task.restore:
+// the task noun's standard verb of that name over the rows (their tasks:
+// defineTaskSubjects adapts the subject), named by the outline row so the
+// verb acts from inside the outline modal.
+func (a *App) outlineTaskStandard(verb string) ochazuke.AppHandler {
+	return func(ctx ochazuke.Ctx) ochazuke.Result {
+		if ctx.Instance == nil || ctx.Instance.Noun != outlineTaskNoun {
+			return ochazuke.Failed(fmt.Errorf("select a task to %s", verb))
+		}
+		q := ochazuke.Request{Noun: "task", Verb: verb, Target: ctx.Instance.ID}
+		if len(ctx.Subjects) > 1 {
+			q.Subjects = ctx.SubjectIDs()
+		}
+		return resultOf(a.r.Execute(q))
+	}
 }
 
 // outlineTaskToggle is outline-task.toggle (x on a task row).
