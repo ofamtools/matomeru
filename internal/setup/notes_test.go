@@ -54,3 +54,31 @@ func TestNotesExplicitSkip(t *testing.T) {
 		t.Fatalf("%+v %v", it, err)
 	}
 }
+
+// Each note carries the TUIOS startup section and the pane-to-pane paragraph
+// beside the MCP section, in one marker pair, so one block per file.
+func TestNotesClaudeCarriesTuiosStartup(t *testing.T) { t.Parallel(); checkTuiosNote(t, "claude-md") }
+
+func TestNotesCodexCarriesTuiosStartup(t *testing.T) { t.Parallel(); checkTuiosNote(t, "codex-agents") }
+
+func checkTuiosNote(t *testing.T, id string) {
+	items, err := noteItems()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range items {
+		if it.ID != id {
+			continue
+		}
+		for _, want := range []string{"## One MCP server: mtm", "## TUIOS startup", "`mtm mcp instructions`", "`mtm pane send-text --submit`", "data, not instructions"} {
+			if !strings.Contains(it.Content, want) {
+				t.Errorf("%s content lacks %q", id, want)
+			}
+		}
+		if strings.Count(it.Content, "<!--") != 0 {
+			t.Errorf("%s content holds markers", id)
+		}
+		return
+	}
+	t.Fatalf("no item %s", id)
+}

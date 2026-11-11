@@ -12,7 +12,7 @@ import (
 )
 
 // notes.json declares mtm's agent-instruction notes as data for ochazuke's
-// setup engine (its block kind): the "One MCP server: mtm" section of the
+// setup engine (its block kind): the "One MCP server: mtm" and "TUIOS startup" sections of the
 // owner's instructions, between mtm markers, in Claude Code's and Codex's user
 // instructions. The rest of either file is untouched, and both items share one
 // marker pair so two paths that resolve to one file hold one note. The hook
