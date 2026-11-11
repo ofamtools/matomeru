@@ -22,7 +22,8 @@ func recordExtension(t *testing.T) string {
 		Patch: func(ochazuke.Ctx, string, ochazuke.Thing) (ochazuke.Thing, error) { return nil, nil },
 	}).Verb("open", func(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(nil) }).OpensPage("things")
 	op, _ := r.Operation("item.open")
-	op.Parameters = map[string]ochazuke.Parameter{"id": {Type: "string", Noun: "item", Free: true}}
+	op.Parameters = map[string]ochazuke.Parameter{"id": {Type: "string", Noun: "item", Free: true}, "path": {Type: ochazuke.PropPath, Path: "file"}}
+	op.Positional = []string{"path"}
 	r.Operations.Set(op)
 	raw, err := ocli.Catalog(r, "fixture", "1")
 	if err != nil {
@@ -108,5 +109,35 @@ func TestExtensionCanonicalGetMigratesUncachedLegacyReferences(t *testing.T) {
 	}
 	if len(owners) != 1 || owners[work.ExtRowKey("recordfixture", "item", "i2")].ProjectID != "ochazuke" {
 		t.Fatalf("owners: %+v", owners)
+	}
+}
+
+func TestExtensionNativeOpenUsesDeclaredPathBeforeSelectedRow(t *testing.T) {
+	t.Parallel()
+	bin := recordExtension(t)
+	a := registered(t, seeded(t), "recordfixture", bin)
+	mono(t, a)
+	openExtPage(t, a, "ext/recordfixture/things")
+	if err := a.r.SetFocus("ext/recordfixture/things/items/i1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "recordfixture.item", Verb: "open", Args: ochazuke.Arguments{"path": "/fixture/current"}}); err != nil {
+		t.Fatal(err)
+	}
+	settleJobs(t, a, a.r.PendingCommands())
+	if got := readFile(t, filepath.Join(filepath.Dir(bin), "calls.log")); !strings.Contains(got, `item get --json {"id":"/fixture/current"}`) {
+		t.Fatalf("declared input was not resolved: %s", got)
+	}
+	if !strings.HasSuffix(a.r.FocusID(), "/i2") {
+		t.Fatalf("old selection won: %s", a.r.FocusID())
+	}
+}
+
+func TestExtensionCollectionCallDoesNotInheritRowTarget(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	op := ochazuke.Operation{Subject: ochazuke.SubjectCollection}
+	if got := a.rowTargetUnlessSubjectGiven(op, nil, "selected-document"); got != "" {
+		t.Fatalf("collection inherited row %q", got)
 	}
 }

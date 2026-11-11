@@ -1021,7 +1021,7 @@ func (a *App) extProxy(x *extension, noun, verb, opensPage string) ochazuke.AppH
 		if opensPage != "" && !a.cli {
 			if id := extPageID(x.name, opensPage); a.r.PageOf(id) != nil {
 				_, view := a.extViewOf(id)
-				key := extensionSubjectKey(x.doc, noun, c.Args, a.extTarget(x, noun, c.Instance))
+				key := extensionOpenSubject(x.doc, noun, verb, c.Args, a.extTarget(x, noun, c.Instance))
 				if view != nil && key != "" {
 					if err := view.OpenRow(noun, key); err != nil {
 						return ochazuke.Failed(err)
@@ -1060,6 +1060,9 @@ func (a *App) extProxy(x *extension, noun, verb, opensPage string) ochazuke.AppH
 // tool resolves its own --target only when it reveals the row, so sending
 // both makes it refuse an id it never needed.
 func (a *App) rowTargetUnlessSubjectGiven(op ochazuke.Operation, args map[string]any, target string) string {
+	if op.Subject == ochazuke.SubjectCollection {
+		return ""
+	}
 	if target == "" {
 		return target
 	}
