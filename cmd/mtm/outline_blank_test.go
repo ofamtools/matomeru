@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // A new row left blank is removed however it was indented: o shift+tab esc
 // on a project's outline makes a project row and leaves no project with an
@@ -36,5 +39,19 @@ func TestAllViewNewRowLeftBlankIsRemoved(t *testing.T) {
 		if got := len(tasksOf(t, a, "matomeru")); got != tasks {
 			t.Fatalf("%v left %d tasks, want %d", keys, got, tasks)
 		}
+	}
+}
+
+// A new blank row draws its box at the row's indent, before the open line
+// (ochazuke tree: a blank row's whole first cell is its prefix; needs the
+// ochazuke release after v0.125.0).
+func TestOutlineBlankRowBoxIsAtTheIndent(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	press(t, a, "j", "O")
+	focusRow(t, a, outlineNode("t1"))
+	press(t, a, "o", "x")
+	if f := frame(a); !strings.Contains(f, "│     [ ] x ") {
+		t.Fatalf("the box is not at the indent:\n%s", f)
 	}
 }
