@@ -135,8 +135,11 @@ func TestExtensionNativeOpenUsesDeclaredPathBeforeSelectedRow(t *testing.T) {
 
 func TestExtensionCollectionCallDoesNotInheritRowTarget(t *testing.T) {
 	t.Parallel()
-	a := open(t)
-	op := ochazuke.Operation{Subject: ochazuke.SubjectCollection}
+	a := registered(t, seeded(t), "recordfixture", recordExtension(t))
+	op, ok := a.r.Operation("recordfixture.item.list")
+	if !ok {
+		t.Fatal("generated mounted list is missing")
+	}
 	if got := a.rowTargetUnlessSubjectGiven(op, nil, "selected-document"); got != "" {
 		t.Fatalf("collection inherited row %q", got)
 	}
