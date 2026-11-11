@@ -1145,7 +1145,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	var before map[string]any
 	var preflight func(context.Context) error
 	key := extensionSubjectKey(x.doc, noun, args, target)
-	if op.Standard == "" && op.HistoryKind == ochazuke.HistoryChange && !op.Creates && !spec.Foreground && key != "" && extensionHasHumanProp(x.doc, noun) {
+	if extensionNeedsCanonicalPreflight(op, x.doc, noun, key) {
 		preflight = func(ctx context.Context) error {
 			js, err := json.Marshal(ochazuke.Arguments{extensionKeyProp(x.doc, noun): key})
 			if err != nil {

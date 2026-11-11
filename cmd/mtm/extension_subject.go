@@ -45,7 +45,7 @@ func extensionOpenSubject(doc ocli.CatalogDoc, noun, verb string, args ochazuke.
 			}
 			pathArg := func(name string) string {
 				p := v.Params[name]
-				if p.Type == ochazuke.PropPath && p.Path != "dir" {
+				if p.Type == ochazuke.PropPath {
 					if value, ok := args[name].(string); ok {
 						return value
 					}
@@ -78,4 +78,8 @@ func extensionHasHumanProp(doc ocli.CatalogDoc, noun string) bool {
 		}
 	}
 	return false
+}
+
+func extensionNeedsCanonicalPreflight(op ochazuke.Operation, doc ocli.CatalogDoc, noun, key string) bool {
+	return op.Standard == "" && op.HistoryKind == ochazuke.HistoryChange && !op.Creates && !op.Foreground && key != "" && extensionHasHumanProp(doc, noun)
 }
