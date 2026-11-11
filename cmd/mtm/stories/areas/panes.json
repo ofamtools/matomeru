@@ -92,7 +92,7 @@
     "esc",
     ":",
     {
-      "type": "action-item create --id surface-queue --source gh --kind review-request --title \"queue ask\" --pane w1 --session acme-web"
+      "type": "action-item create --source gh --kind review-request --title \"queue ask\" --pane w1 --session acme-web"
     },
     "enter",
     ":",
@@ -156,11 +156,8 @@
     "enter",
     "esc",
     "q",
-    ":",
-    {
-      "type": "action-item archive --id surface-queue"
-    },
-    "enter",
+    "j",
+    "x",
     ":",
     {
       "type": "focus to --id pane:acme-web/w1"
@@ -446,16 +443,34 @@
       "after": 109
     },
     {
+      "highlightedText": "queue ask",
+      "mode": "normal",
+      "modal": "",
+      "after": 112
+    },
+    {
+      "mode": "normal",
+      "modal": "",
+      "contains": [
+        "Needs you (2)"
+      ],
+      "lacks": [
+        "queue ask",
+        "Error:"
+      ],
+      "after": 113
+    },
+    {
       "focus": "pane:acme-web/w1",
       "mode": "normal",
       "lacks": [
         "queue ask",
         "Error:"
       ],
-      "after": 117
+      "after": 116
     },
     {
-      "after": 124,
+      "after": 123,
       "focus": "edit-form/project"
     },
     {
@@ -467,13 +482,13 @@
         "unknown project beta",
         "Edit pane"
       ],
-      "after": 129
+      "after": 128
     },
     {
       "lacks": [
         "Error:"
       ],
-      "after": 134
+      "after": 133
     },
     {
       "focus": "panes/tree/list",
@@ -485,7 +500,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 146
+      "after": 145
     },
     {
       "mode": "normal",
@@ -500,7 +515,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 147
+      "after": 146
     },
     {
       "mode": "normal",
