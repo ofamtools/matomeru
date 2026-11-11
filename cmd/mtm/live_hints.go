@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -605,19 +604,10 @@ func (a *App) sendText(p pane, text string) ochazuke.Result {
 	})
 }
 
-// openHint opens an item with the default app, off the loop, as the
-// Context page's open does; a branch or commit has nothing to open.
+// openHint uses the same opener table as the Context page and Open line.
 func (a *App) openHint(ctx ochazuke.Ctx, it contextitems.Item) ochazuke.Result {
-	switch it.Kind {
-	case "file", "dir", "link", "pr":
-	default:
-		ctx.Info(fmt.Sprintf("a %s has nothing to open; its label copies it", it.Kind))
-		return ochazuke.Done(nil)
-	}
-	sys, target := a.cx.sys, contextitems.Target(it)
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		return target, sys.Open(c, target)
-	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
+	target := contextitems.Target(it)
+	return a.openTarget(target, a.cx.sys).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
 			ctx.Notify("opened " + oneLine(target))
 		}

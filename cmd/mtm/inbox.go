@@ -2,7 +2,6 @@ package main
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -102,7 +101,7 @@ func (a *App) defineInbox() {
 		Verb("add", a.addActionItem, "Record an action item; the same source and --key (else --url) refreshes its row instead of adding one. Prints the item; new is true when a row was added").
 		Verb("notify-due", a.notifyActionItems, "Send newly created action items once; shares the running TUI's baseline and claims").Agent(ochazuke.AgentAllow).
 		Verb("count", a.countActionItems, "Count the open action items and the unread ones among them").Fetch().
-		Verb("open", a.openActionItem, "Open the item's URL in the browser and mark it read").Positional("id").
+		Verb("open", a.openActionItem, "Open the item's URL through open.openers and mark it read").Positional("id").
 		Verb("snooze", a.snoozeActionItem, "Hide the item until --until (a time) or for --for (90m, 4h, 2d, 1w), the standard set of snoozed-until; omitted, a chooser asks").Positional("id").Many().
 		Verb("promote-todo", a.promoteTodo, "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated); the item is archived and points at it").Positional("id").
 		Verb("promote-task", a.promoteTask, "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo").Positional("id").
@@ -607,10 +606,7 @@ func (a *App) openActionItem(ctx ochazuke.Ctx) ochazuke.Result {
 	if it.URL == "" {
 		return ochazuke.Failed(fmt.Errorf("%s has no URL to open; it is marked read", it.Label()))
 	}
-	sys, url := a.inbox.sys, it.URL
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		return url, sys.Open(c, url)
-	})
+	return a.openTarget(it.URL, a.inbox.sys)
 }
 
 // snoozeTimes is snooze-time.list, the until parameter's pick list.

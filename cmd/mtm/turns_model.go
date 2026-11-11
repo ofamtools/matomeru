@@ -1247,6 +1247,7 @@ func (a *App) saveTurnText(ref turnRef, path, text string, pager bool) ochazuke.
 	sys := a.cx.sys
 	opener, _ := a.panesd.(pagerOpener)
 	p, perr := a.paneByWindow(ref.Window)
+	fallback := pager && (opener == nil || perr != nil)
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		if err := writeTurnFile(path, text); err != nil {
 			return nil, err
@@ -1257,7 +1258,16 @@ func (a *App) saveTurnText(ref turnRef, path, text string, pager bool) ochazuke.
 		if opener != nil && perr == nil {
 			return path, opener.OpenPager(c, p, path)
 		}
-		return path, sys.Open(c, path)
+		return path, nil
+	}).Continue(func(value any, err error) (func(context.Context) (any, error), any, error) {
+		if err != nil || !fallback {
+			return nil, value, err
+		}
+		fallback = false
+		// The write landed; a viewer may now read the file. Resolve and
+		// run runtime actions on the loop, system work off the loop.
+		result := a.openTarget(path, sys)
+		return result.Await, nil, nil
 	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err != nil {
 			return

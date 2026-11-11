@@ -699,12 +699,15 @@ func (a *App) openAgentTranscript(_ ochazuke.Ctx, ag *turns.Agent) ochazuke.Resu
 	if row := a.r.Instances[a.pv.turnsFor]; row != nil {
 		p, perr = a.paneAt(row)
 	}
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		if opener != nil && perr == nil {
+	var result ochazuke.Result
+	if opener != nil && perr == nil {
+		result = ochazuke.Pending(func(c context.Context) (any, error) {
 			return nil, opener.OpenPager(c, p, path)
-		}
-		return nil, sys.Open(c, path)
-	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
+		})
+	} else {
+		result = a.openTarget(path, sys)
+	}
+	return result.Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
 			ctx.Notify("opened " + tildePath(path, homeDir()))
 		}

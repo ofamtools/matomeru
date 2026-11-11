@@ -104,6 +104,34 @@ func (s osSystem) Open(_ context.Context, target string) error { return s.rt.Ope
 
 func (s osSystem) Reveal(_ context.Context, path string) error { return s.rt.Opener().Reveal(path) }
 
+// openTarget resolves on the runtime's loop. Only the system calls run
+// off it; a page or verb action must keep the runtime's single owner.
+func (a *App) openTarget(target string, sys systemActions) ochazuke.Result {
+	_, action, _ := a.r.ResolveOpen(target)
+	open, reveal := sys.Open, sys.Reveal
+	if _, native := sys.(osSystem); native {
+		// Capture the native runner before handing work to a goroutine.
+		opener := a.r.Opener()
+		open = func(_ context.Context, text string) error { return opener.Open(text) }
+		reveal = func(_ context.Context, text string) error { return opener.Reveal(text) }
+	}
+	switch action.Kind {
+	case ochazuke.OpenActionOS:
+		return ochazuke.Pending(func(c context.Context) (any, error) {
+			return target, open(c, action.Arg)
+		})
+	case ochazuke.OpenActionReveal:
+		return ochazuke.Pending(func(c context.Context) (any, error) {
+			return target, reveal(c, action.Arg)
+		})
+	default:
+		if _, err := a.r.Open(target); err != nil {
+			return ochazuke.Failed(err)
+		}
+		return ochazuke.Done(target)
+	}
+}
+
 // osc52 is the terminal's clipboard sequence for text.
 func osc52(text string) string {
 	return "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\x07"
@@ -117,7 +145,7 @@ func (a *App) defineContext() {
 	// associate run set and move; the rest are mtm's own.
 	a.r.Define(contextNoun).Filters(contextFilters()...).Props(a.contextProps()...).Store(a.docStore(contextNoun, a.contextStore())).Columns(contextColumns...).
 		Verb("copy", a.copyContext, "Copy the item's text to the clipboard (OSC 52 when no clipboard program serves the session)").Positional("id").
-		Verb("open", a.openContext, "Open the item with the default app: a URL or PR in the browser, a path in its app").Positional("id").
+		Verb("open", a.openContext, "Open the item's target through open.openers; unmatched text follows open.unmatched").Positional("id").
 		Verb("reveal", a.revealContext, "Reveal a file or dir item in Finder").Positional("id").
 		Verb("associate", a.associateContext, "Choose the project to move the item to (omit the owner); --task, --project and --scratch are the deprecated forms of set task and move").Positional("id").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
@@ -481,21 +509,14 @@ func (a *App) copyOSC52(text string) error {
 	return err
 }
 
-// openContext is context-item.open (o): the default app, off the loop.
+// openContext opens the item's text through the same table as the Open line.
 func (a *App) openContext(ctx ochazuke.Ctx) ochazuke.Result {
 	it, err := a.contextAt(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	switch it.Kind {
-	case "file", "dir", "link", "pr":
-	default:
-		return ochazuke.Failed(fmt.Errorf("a %s has nothing to open; y copies it", it.Kind))
-	}
-	sys, target := a.cx.sys, contextitems.Target(it)
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		return target, sys.Open(c, target)
-	}).Then(func(ctx ochazuke.Ctx, _ any, err error) {
+	target := contextitems.Target(it)
+	return a.openTarget(target, a.cx.sys).Then(func(ctx ochazuke.Ctx, _ any, err error) {
 		if err == nil {
 			ctx.Notify("opened " + oneLine(target))
 		}
