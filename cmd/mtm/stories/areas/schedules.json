@@ -1,6 +1,6 @@
 {
   "name": "Schedules: harness models, project chooser, clear and reminder history",
-  "area": "areas",
+  "area": "schedules",
   "fixture": "area-schedules",
   "width": 140,
   "height": 40,

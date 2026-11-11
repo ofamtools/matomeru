@@ -1,6 +1,6 @@
 {
   "name": "Noun indexes: create, edit, archive and use mounted results",
-  "area": "areas",
+  "area": "nouns",
   "fixture": "area-nouns",
   "width": 160,
   "height": 52,

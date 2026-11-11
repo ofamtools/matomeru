@@ -1,6 +1,6 @@
 {
   "name": "Reviews: running agents, pane turns and answering a completed turn",
-  "area": "areas",
+  "area": "reviews",
   "fixture": "area-reviews",
   "width": 200,
   "height": 40,

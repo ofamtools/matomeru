@@ -1,6 +1,6 @@
 {
   "name": "Pickers and palette: matching, scopes, filtering and page transitions",
-  "area": "areas",
+  "area": "pickers",
   "fixture": "area-pickers",
   "width": 140,
   "height": 35,

@@ -1,6 +1,6 @@
 {
   "name": "Panes: edit, queue prompts, live copy and closure",
-  "area": "areas",
+  "area": "panes",
   "fixture": "area-panes",
   "width": 120,
   "height": 34,
