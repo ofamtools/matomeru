@@ -89,7 +89,6 @@
 ../../internal/schedules/when.go	ParseWhen	compare	"on"	1	words of the schedule time grammar, not noun or verb names
 ../../internal/turns/activity.go	activityParser.feed	case	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
 ../../internal/turns/activity.go	activityParser.feed	cyclo	"-"	27
-../../internal/turns/activity.go	activityStatus	case	"done"	1
 ../../internal/turns/agent.go	parseNotification	case	"status"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
 ../../internal/turns/agent.go	parseNotification	case	"summary"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
 ../../internal/turns/claude.go	ClaudeParser.assistant	case	"text"	1	content-block and event type names of the agent transcript format, not mtm vocabulary
@@ -106,7 +105,6 @@
 ../../internal/turns/settings.go	Live.feedClaude	case	"permission-mode"	1
 ../../internal/turns/settings.go	Live.feedOmp	case	"message"	1
 ../../internal/turns/settings.go	Live.feedOmp	cyclo	"-"	27
-../../internal/turns/turn.go	Turn.Response	compare	"text"	1
 ../../internal/work/actor.go	Actor.IsAgent	compare	"agent"	1
 ../../internal/work/actor.go	Actor.String	compare	"agent"	1
 ../../internal/work/actor.go	Actor.kind	case	"agent"	1
@@ -326,14 +324,9 @@ task_store.go	App.taskStore	compare	"all"	2
 tasks.go	App.task	compare	"task"	1
 tasks.go	App.toggleTask	compare	"done"	1
 tasks.go	App.visibleTaskColumns	compare	"project"	1	moved from refreshTasks unchanged
-turn_agents.go	App.agentBody	compare	"done"	1
-turn_agents.go	App.agentNodes	compare	"text"	1
-turn_agents.go	App.agentSteps	compare	"text"	1
-turn_cards.go	App.modelStepsIn	case	"text"	1
 turn_cards.go	App.noticeCard	compare	"answer"	1
 turn_cards.go	App.turnCards	compare	"tree"	1
 turn_cards.go	App.turnStyleChanged	compare	"turn"	1
-turn_cards.go	finalStep	compare	"text"	1
 turn_status.go	App.meta	case	"all"	1
 turn_status.go	var turnStatuses	table	"done"	1
 turn_status.go	var turnStatuses	table	"waiting"	1
@@ -341,8 +334,6 @@ turn_wrap.go	App.selectNewestTurn	compare	"turn"	1
 turn_wrap.go	App.setTurnNodes	compare	"turn-line"	2
 turns.go	App.turnAt	compare	"turn"	1
 turns.go	App.turnClosed	compare	"turn"	1
-turns_model.go	App.modelTurnNodes	case	"text"	1
-turns_model.go	App.modelTurnNodes	compare	"text"	2
 turns_model.go	App.modelTurnNodes	cyclo	"-"	29
 turns_model.go	App.readLogTurns	cyclo	"-"	27
 turns_model.go	App.refillModelTurns	compare	"turn"	1
