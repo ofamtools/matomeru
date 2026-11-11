@@ -8,14 +8,14 @@ import (
 	"ofam.dev/monogatari/host"
 )
 
-// mtm's stories (cmd/mtm/stories) through monogatari's host: each story's
-// fixture (seeded, empty) builds the real App on a temp database with the
-// story fakes (storyfakes.go). A story with a skip ("gap: ...") runs but
-// cannot fail. Stories run in parallel: a session shares nothing with
-// another (the race detector checks it under -race).
+// TestStories runs the ten area walkthroughs through monogatari's host.
+// Each area fixture builds the real App on a temp database with story fakes.
+// Sessions share no state and run in parallel. The default story target runs
+// this test once without race; the untagged release gate owns the race pass.
+// Extend an area walkthrough or add an ordinary test instead of a skipped gap.
 func TestStories(t *testing.T) {
 	t.Parallel()
 	cfg := storyConfig()
-	cfg.Dir, cfg.Update = "stories", *updateGolden // -update (turn_wrap_test.go) rewrites these goldens too
+	cfg.Dir, cfg.Update = "stories", *updateGolden
 	host.Test(t, cfg)
 }

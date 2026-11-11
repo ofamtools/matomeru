@@ -79,12 +79,12 @@ func storyConfig() host.Config {
 	return host.Config{Prog: storyProg, Apps: []monogatari.App{mtmApp()}, Stories: stories}
 }
 
-// mtmApp is mtm for stories: the real App on a temp database, seeded or
-// empty, with faked panes.
+// mtmApp registers the ten area fixtures, each running the real App on a temp
+// database with sandboxed panes and the initial state its walkthrough needs.
 func mtmApp() monogatari.App {
 	return monogatari.App{
 		Name:     "mtm",
-		Summary:  "mtm on a temp database and a faked daemon (seed panes: the fake panes)",
+		Summary:  "Ten area walkthroughs of the real mtm App on temporary data and a faked daemon",
 		Fixtures: append(areaFixturesCore(), areaFixturesSurface()...),
 		Expected: storyExpected,
 	}
