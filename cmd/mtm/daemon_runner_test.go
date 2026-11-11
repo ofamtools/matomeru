@@ -76,7 +76,8 @@ func daemonStatusRow(t *testing.T, data string) daemonInfo {
 func TestAbsentDaemonStatusStopAndLogsStartNothing(t *testing.T) {
 	_, starts := isolate(t)
 	data := filepath.Join(t.TempDir(), "mtm.db")
-	t.Setenv("MTM_DAEMON_RUNNER", "")
+	// The tuios runner starts through the serverStart hook this test counts.
+	t.Setenv("MTM_DAEMON_RUNNER", runnerTuios)
 	if info := daemonStatusRow(t, data); info.Running || info.Runner != runnerTuios {
 		t.Fatalf("status = %+v", info)
 	}
@@ -96,11 +97,11 @@ func TestAbsentDaemonStatusStopAndLogsStartNothing(t *testing.T) {
 }
 
 // serial: exercises daemon process environment and the package serverStart hook.
-func TestDaemonRunnerIsChosenByEnvironmentThenSetting(t *testing.T) {
+func TestDaemonRunnerSelfIsTheDefaultAndSettingValue(t *testing.T) {
 	_, _ = isolate(t)
 	data := filepath.Join(t.TempDir(), "mtm.db")
 	t.Setenv("MTM_DAEMON_RUNNER", "")
-	if got := daemonStatusRow(t, data).Runner; got != runnerTuios {
+	if got := daemonStatusRow(t, data).Runner; got != runnerSelf {
 		t.Fatalf("default runner = %q", got)
 	}
 	cfg := filepath.Join(filepath.Dir(data), "settings.json")
@@ -109,6 +110,23 @@ func TestDaemonRunnerIsChosenByEnvironmentThenSetting(t *testing.T) {
 	}
 	if got := daemonStatusRow(t, data).Runner; got != runnerSelf {
 		t.Fatalf("runner from settings.json = %q", got)
+	}
+}
+
+// serial: exercises daemon process environment and the package serverStart hook.
+func TestDaemonRunnerTuiosIsChosenBySettingOrEnvironment(t *testing.T) {
+	_, _ = isolate(t)
+	data := filepath.Join(t.TempDir(), "mtm.db")
+	t.Setenv("MTM_DAEMON_RUNNER", "")
+	cfg := filepath.Join(filepath.Dir(data), "settings.json")
+	if err := os.WriteFile(cfg, []byte(`{"daemon.runner":"tuios"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := daemonStatusRow(t, data).Runner; got != runnerTuios {
+		t.Fatalf("runner from settings.json = %q", got)
+	}
+	if err := os.WriteFile(cfg, []byte(`{"daemon.runner":"self"}`), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	t.Setenv("MTM_DAEMON_RUNNER", runnerTuios)
 	if got := daemonStatusRow(t, data).Runner; got != runnerTuios {
@@ -132,7 +150,7 @@ func TestUnknownDaemonRunnerNamesTheChoices(t *testing.T) {
 func TestDaemonPathsFollowTheRunnerThenEnvironmentThenSetting(t *testing.T) {
 	dir, _ := isolate(t)
 	data := filepath.Join(t.TempDir(), "mtm.db")
-	t.Setenv("MTM_DAEMON_RUNNER", "")
+	t.Setenv("MTM_DAEMON_RUNNER", runnerTuios)
 	sock := func(layout string) string {
 		l, err := daemon.LayoutNamed(layout)
 		if err != nil {
@@ -150,6 +168,7 @@ func TestDaemonPathsFollowTheRunnerThenEnvironmentThenSetting(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	t.Setenv("MTM_DAEMON_RUNNER", "")
 	write(`{"daemon.runner":"self"}`)
 	info := daemonStatusRow(t, data)
 	if info.Paths != "mtm" || info.Socket != sock("mtm") || !strings.HasSuffix(info.StateDir, filepath.Join("mtm", "servers", MtmServer)) {

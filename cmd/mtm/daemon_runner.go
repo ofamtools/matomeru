@@ -35,6 +35,16 @@ const (
 	runnerSelf  = "self"
 )
 
+// defaultDaemonRunner is the runner when neither the environment nor the
+// setting names one: the linked daemon, or tuios in a -tags nodaemon build
+// that has no daemon to run.
+func defaultDaemonRunner() string {
+	if daemonBuilt {
+		return runnerSelf
+	}
+	return runnerTuios
+}
+
 // daemonRunner is one way to start the server mtm runs on. The setting
 // daemon.runner (or MTM_DAEMON_RUNNER for one run) names a row; nothing
 // branches on a name.
@@ -73,8 +83,8 @@ func daemonRunnerNames() []string {
 
 func daemonSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
-		{Name: settingDaemonRunner, Type: ochazuke.SettingString, Default: runnerTuios, Enum: daemonRunnerNames(),
-			Description: "How mtm starts its TUIOS server: tuios (the tuios on PATH) or self (the daemon linked into mtm, no tuios needed). " + envDaemonRunner + " overrides for one run"},
+		{Name: settingDaemonRunner, Type: ochazuke.SettingString, Default: defaultDaemonRunner(), Enum: daemonRunnerNames(),
+			Description: "How mtm starts its pane server: self (the daemon linked into mtm; the default, and tuios is not needed) or tuios (the tuios on PATH; the default in a -tags nodaemon build). " + envDaemonRunner + " overrides for one run"},
 		{Name: settingDaemonPaths, Type: ochazuke.SettingString, Default: daemon.Layouts[0].Name, Enum: daemon.LayoutNames(),
 			Description: "The names the self daemon gives its socket, state and config folders: mtm (socket <runtime>/mtm/servers/NAME/mtm.sock, state <state home>/mtm/servers/NAME; a server's tuios-named state moves there once, on start) or tuios (the folders from before the rename). " + daemon.EnvPaths + " overrides for one run. The tuios runner always uses tuios's"},
 		{Name: settingDaemonPin, Type: ochazuke.SettingBoolean, Default: true,
@@ -90,7 +100,7 @@ func (a *App) runnerName() string {
 	if name := a.r.Settings().String(settingDaemonRunner); name != "" {
 		return name
 	}
-	return runnerTuios
+	return defaultDaemonRunner()
 }
 
 // runner is the chosen row, or an error naming what is available.

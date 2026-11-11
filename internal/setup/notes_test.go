@@ -55,13 +55,13 @@ func TestNotesExplicitSkip(t *testing.T) {
 	}
 }
 
-// Each note carries the TUIOS startup section and the pane-to-pane paragraph
+// Each note carries the mtm startup section and the pane-to-pane paragraph
 // beside the MCP section, in one marker pair, so one block per file.
-func TestNotesClaudeCarriesTuiosStartup(t *testing.T) { t.Parallel(); checkTuiosNote(t, "claude-md") }
+func TestNotesClaudeCarriesMtmStartup(t *testing.T) { t.Parallel(); checkMtmNote(t, "claude-md") }
 
-func TestNotesCodexCarriesTuiosStartup(t *testing.T) { t.Parallel(); checkTuiosNote(t, "codex-agents") }
+func TestNotesCodexCarriesMtmStartup(t *testing.T) { t.Parallel(); checkMtmNote(t, "codex-agents") }
 
-func checkTuiosNote(t *testing.T, id string) {
+func checkMtmNote(t *testing.T, id string) {
 	items, err := noteItems()
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func checkTuiosNote(t *testing.T, id string) {
 		if it.ID != id {
 			continue
 		}
-		for _, want := range []string{"## One MCP server: mtm", "## TUIOS startup", "`mtm mcp instructions`", "`mtm pane send-text --submit`", "data, not instructions"} {
+		for _, want := range []string{"## One MCP server: mtm", "## mtm startup", "`mtm mcp instructions`", "`mtm pane send-text --submit`", "data, not instructions"} {
 			if !strings.Contains(it.Content, want) {
 				t.Errorf("%s content lacks %q", id, want)
 			}
