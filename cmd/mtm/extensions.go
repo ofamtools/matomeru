@@ -959,14 +959,16 @@ func isPrefixCancel(b ochazuke.Binding) bool {
 // mode: the same keys, or one sequence a prefix of the other (an extension
 // "g" would make mtm's "g g" wait, and its "g g x" would shadow "g g").
 // Sequences that only share a prefix ("g s" beside "g g") do not clash.
-// Pattern rows and generated prefix cancels are not compared.
+// Pattern rows and generated prefix cancels are not compared. Uncaptured
+// framework actions on the root are fallbacks; navigation stays reserved.
 func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 	if row.Keys == "" {
 		return false
 	}
 	keys := strings.Fields(row.Keys)
 	for _, id := range a.r.Ancestry(list) {
-		n := a.r.Noun(a.r.Instances[id].Noun)
+		inst := a.r.Instances[id]
+		n := a.r.Noun(inst.Noun)
 		if n == nil {
 			continue
 		}
@@ -975,6 +977,12 @@ func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 				continue
 			}
 			for _, b := range bindings {
+				if inst.Parent == "" && !b.Capture {
+					op, _ := a.r.Operation(b.Request.Key())
+					if op.Builtin && !op.Motion {
+						continue
+					}
+				}
 				if b.Keys != "" && !isPrefixCancel(b) && keysClash(keys, strings.Fields(b.Keys)) {
 					return true
 				}

@@ -25,6 +25,7 @@ func TestMountedAnswersPresentedByDeclaredKind(t *testing.T) {
 		`{"name":"ping","kind":"application","result":"JSON value"}]}],` +
 		`"bindings":[` +
 		`{"noun":"item","mode":"normal","keys":"g o","request":{"noun":"item","verb":"output"}},` +
+		`{"noun":"item","mode":"normal","keys":"g .","request":{"noun":"item","verb":"notes"}},` +
 		`{"noun":"item","mode":"normal","keys":"g n","request":{"noun":"item","verb":"notes"}},` +
 		`{"noun":"item","mode":"normal","keys":"g h","request":{"noun":"item","verb":"history"}},` +
 		`{"noun":"item","mode":"normal","keys":"g p","request":{"noun":"item","verb":"ping"}}],"pages":[]}`
@@ -38,6 +39,7 @@ func TestMountedAnswersPresentedByDeclaredKind(t *testing.T) {
 	}{
 		{name: "text", key: "o", modal: ochazuke.TextViewID, contains: "hello-out"},
 		{name: "markdown", key: "n", modal: "markdown-view", contains: "body text"},
+		{name: "focused actions fallback", key: ".", modal: "markdown-view", contains: "body text"},
 		{name: "rows", key: "h", modal: "palette-results", contains: "failed"},
 		{name: "status", key: "p", status: `item ping: {"ok":true}`},
 		{name: "text off", key: "o", off: ochazuke.KeyTextResultsSetting, status: `item output: "hello-out\nexit 0"`},
@@ -71,7 +73,7 @@ func TestMountedAnswersPresentedByDeclaredKind(t *testing.T) {
 			if tc.status != "" && !strings.Contains(f, tc.status[:min(len(tc.status), 30)]) {
 				t.Fatalf("status %q missing:\n%s", tc.status, f)
 			}
-			if tc.modal != "" && strings.Contains(f, "item "+map[string]string{"o": "output", "n": "notes", "h": "history"}[tc.key]+": ") {
+			if tc.modal != "" && strings.Contains(f, "item "+map[string]string{"o": "output", "n": "notes", ".": "notes", "h": "history"}[tc.key]+": ") {
 				t.Fatalf("answer flattened to a status line under its viewer:\n%s", f)
 			}
 		})
