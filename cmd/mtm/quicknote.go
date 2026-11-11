@@ -172,7 +172,7 @@ func (a *App) quickNoteScope(owner Owner, about string) string {
 	}
 	if owner.TaskID != "" {
 		if t, err := a.work.Task(owner.TaskID); err == nil {
-			label += " · " + taskLabel(t)
+			label += " · " + a.taskLabel(t)
 		}
 	}
 	if noun, _, ok := ochazuke.SplitAnyRef(about); ok && ownerSlotArg(noun) == "" {

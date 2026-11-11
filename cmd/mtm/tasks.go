@@ -50,7 +50,7 @@ func (a *App) defineTask() {
 			panic(err)
 		}
 	}
-	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string", Enum: work.Statuses}})
+	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string", Enum: defaultStatusNames()}})
 	a.parameters("task.new", map[string]ochazuke.Parameter{
 		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"}, "parent": {Type: "string"},
 	})
@@ -90,7 +90,7 @@ func (a *App) saveTaskRecord(record editRecord, values ochazuke.Record) (any, er
 		return nil, err
 	}
 	t.Title = strings.TrimSpace(record.Text)
-	if status := values["status"]; work.ValidStatus(status) {
+	if status := values["status"]; a.work.ValidStatus(status) {
 		t.Status = status
 	}
 	t.Updated = work.Now()
@@ -131,7 +131,7 @@ func (a *App) refreshTasks() error {
 	// Active first, then todo, blocked, other values and done; board
 	// order within a status. The tree keeps this order among the
 	// children of each parent.
-	slices.SortStableFunc(tasks, func(x, y work.Task) int { return work.StatusRank(x.Status) - work.StatusRank(y.Status) })
+	slices.SortStableFunc(tasks, func(x, y work.Task) int { return a.work.StatusRank(x.Status) - a.work.StatusRank(y.Status) })
 	a.tasks = tasks
 	drafts, err := a.draftRecords("task")
 	if err != nil {
@@ -287,7 +287,7 @@ func privateTasks(tasks []work.Task) map[string]bool {
 // taskCells are a task row's cells in taskColumns order, the project
 // column left out unless the list shows all projects.
 func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
-	box := work.StatusGlyph(t.Status) + " " + a.taskGlyphs(t, a.taskPrivate[t.ID])
+	box := a.work.StatusGlyph(t.Status) + " " + a.taskGlyphs(t, a.taskPrivate[t.ID])
 	title := t.Title
 	if title == "" {
 		title = "untitled"
@@ -313,8 +313,8 @@ func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
 	return append(cells, updated)
 }
 
-func taskLabel(t work.Task) string {
-	box := work.StatusGlyph(t.Status) + " "
+func (a *App) taskLabel(t work.Task) string {
+	box := a.work.StatusGlyph(t.Status) + " "
 	title := t.Title
 	if title == "" {
 		title = "untitled"
@@ -323,7 +323,7 @@ func taskLabel(t work.Task) string {
 	if t.ProjectID == "" {
 		label += " (unassociated)"
 	}
-	if !work.ValidStatus(work.NormalStatus(t.Status)) {
+	if !a.work.ValidStatus(work.NormalStatus(t.Status)) {
 		label += "  (" + t.Status + ")"
 	}
 	return label
@@ -527,7 +527,7 @@ func (a *App) taskStatuses(ctx ochazuke.Ctx) ([]ochazuke.Choice, error) {
 			current = t.Status
 		}
 	}
-	return statusChoices(work.Statuses, current, work.StatusGlyph), nil
+	return statusChoices(a.statusNames(), current, a.work.StatusGlyph), nil
 }
 
 // statusChoices are statuses as choices, the current one marked; glyph,

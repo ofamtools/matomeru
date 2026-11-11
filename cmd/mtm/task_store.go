@@ -45,8 +45,8 @@ func taskProps() []ochazuke.PropSpec {
 	return []ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The task's key")},
 		{Name: "title", Role: ochazuke.RoleLabel, Parameter: text("The task's title")},
-		{Name: "status", Default: work.StatusTodo, Parameter: ochazuke.Parameter{Type: "string", Enum: work.Statuses,
-			Description: "The task's status: todo, active, blocked or done (a value from an older mtm reads as it is)"}},
+		{Name: "status", Default: work.StatusTodo, Parameter: ochazuke.Parameter{Type: "string", Enum: defaultStatusNames(),
+			Description: "The task's status: a name from the tasks.statuses table (todo, active, waiting, blocked, done, cancelled by default; a value from an older mtm reads as it is)"}},
 		priorityProp("task"),
 		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the task belongs to (empty: unassociated); one not found is saved unassociated with a notice; a move to another project takes the task to its top level, its subtasks with it"}},

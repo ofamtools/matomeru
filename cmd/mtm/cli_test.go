@@ -279,7 +279,7 @@ func TestCLITaskStatusBadValueNamesTheStatuses(t *testing.T) {
 	executeA(t, app, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
 	mustCLI(t, app, "project", "open", "--target", "matomeru")
 	_, _, err := cli(app, "", "task", "status", "t1", "bogus")
-	if err == nil || err.Error() != "status must be one of todo, active, blocked, done" {
+	if err == nil || err.Error() != "status must be one of todo, active, waiting, blocked, done, cancelled" {
 		t.Fatalf("bad status: %v", err)
 	}
 }

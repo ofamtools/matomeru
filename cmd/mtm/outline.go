@@ -161,7 +161,13 @@ func (a *App) defineOutline() {
 		Bind("m", ochazuke.Do(outlineTaskNoun+".choose-move").Hinted("move")).
 		Bind("A", ochazuke.Do(outlineTaskNoun+".archive-task").Hinted("archive")).
 		Bind("X", ochazuke.Do(outlineTaskNoun+".restore-task").Hinted("restore"))
-	a.parameters(outlineTaskNoun+".status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: work.Statuses}})
+	// One key per status (statusKeyRows): the same verb with the status
+	// named, so over a visual selection it sets every selected task, as one
+	// undo step. Rebind or add one in bindings.json with the same action.
+	for _, k := range statusKeyRows {
+		a.r.Define(outlineTaskNoun).Mode("normal").Bind(k.key, ochazuke.Do(outlineTaskNoun+".status", ochazuke.Arguments{"status": k.status}).Hinted(k.status))
+	}
+	a.parameters(outlineTaskNoun+".status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: defaultStatusNames()}})
 	a.defineOutlineAttachments()
 	a.outlineView("Tasks")
 }
@@ -619,7 +625,7 @@ func taskIDs(tasks []work.Task) map[string]bool {
 // (tasks.columns). title is the row's text, t the task as stored (zero
 // for a row not written yet).
 func (a *App) outlineCells(title string, t work.Task, private bool) []string {
-	cells := []string{work.StatusGlyph(t.Status) + " " + a.taskGlyphs(t, private) + title, work.NormalStatus(t.Status)}
+	cells := []string{a.work.StatusGlyph(t.Status) + " " + a.taskGlyphs(t, private) + title, work.NormalStatus(t.Status)}
 	if a.showByColumn() {
 		by := ""
 		if t.ID != "" {

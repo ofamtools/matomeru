@@ -153,6 +153,9 @@ type Store struct {
 	trees   treeCache
 	actor   Actor              // who writes run as (actor.go); zero is the owner
 	policy  func() AgentPolicy // what an agent may change; nil is the default
+	// statuses is the task status table (settings tasks.statuses); nil is
+	// DefaultStatuses (statuses.go).
+	statuses func() []StatusDef
 }
 
 // Open declares the tables and returns the unit.
@@ -282,9 +285,6 @@ const (
 	StatusDone    = "done"
 )
 
-// Statuses are the statuses a task can be set to, in table order.
-var Statuses = []string{StatusTodo, StatusActive, StatusBlocked, StatusDone}
-
 // NormalStatus is a stored status as it reads: legacy "open" and "" are
 // todo; every other value is kept.
 func NormalStatus(status string) string {
@@ -292,41 +292,6 @@ func NormalStatus(status string) string {
 		return StatusTodo
 	}
 	return status
-}
-
-// ValidStatus reports whether status is one a task can be set to.
-func ValidStatus(status string) bool { return slices.Contains(Statuses, status) }
-
-// StatusGlyph is a status's checkbox: [ ] todo, [>] active, [!] blocked,
-// [x] done, [?] a value this unit does not write.
-func StatusGlyph(status string) string {
-	switch NormalStatus(status) {
-	case StatusTodo:
-		return "[ ]"
-	case StatusActive:
-		return "[>]"
-	case StatusBlocked:
-		return "[!]"
-	case StatusDone:
-		return "[x]"
-	}
-	return "[?]"
-}
-
-// StatusRank orders statuses for the task tables: active, todo, blocked,
-// any other value, done.
-func StatusRank(status string) int {
-	switch NormalStatus(status) {
-	case StatusActive:
-		return 0
-	case StatusTodo:
-		return 1
-	case StatusBlocked:
-		return 2
-	case StatusDone:
-		return 4
-	}
-	return 3
 }
 
 // Task reads one task row by id, its status normalized (NormalStatus).
@@ -375,10 +340,10 @@ func (s *Store) ToggleDone(id string) (Task, error) {
 	})
 }
 
-// SetStatus sets a task's status to one of Statuses.
+// SetStatus sets a task's status to one of the status table's names.
 func (s *Store) SetStatus(id, status string) (Task, error) {
-	if !ValidStatus(status) {
-		return Task{}, fmt.Errorf("status %q is not one of %s", status, strings.Join(Statuses, ", "))
+	if !s.ValidStatus(status) {
+		return Task{}, fmt.Errorf("status %q is not one of %s", status, strings.Join(s.StatusNames(), ", "))
 	}
 	return s.patchTask(id, func(t *Task) { t.Status = status })
 }

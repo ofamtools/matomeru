@@ -180,12 +180,12 @@ func TestTaskFieldKeyboardFocusAndSave(t *testing.T) {
 		t.Fatalf("a highlighted status was written: %+v", got)
 	}
 	press(t, a, "j", "enter")
-	if got := stored(t, a, "t1"); got.Status != "done" {
+	if got := stored(t, a, "t1"); got.Status != "blocked" {
 		t.Fatalf("chosen status not written: %+v", got)
 	}
 	press(t, a, "q")
 	task := stored(t, a, "t1")
-	if task.Title != "write the brief keyboard" || task.Status != "done" {
+	if task.Title != "write the brief keyboard" || task.Status != "blocked" {
 		t.Fatalf("keyboard save: %+v", task)
 	}
 	for _, id := range []string{recordEditorID, recordEditorID + "/title", recordEditorID + "/status"} {

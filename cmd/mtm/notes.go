@@ -145,7 +145,7 @@ func (a *App) noteOwnerLabel(note work.Note) string {
 	if note.TaskID != "" {
 		task := note.TaskID
 		if t, err := a.work.Task(note.TaskID); err == nil {
-			task = taskLabel(t)
+			task = a.taskLabel(t)
 		}
 		label += " · " + task
 	}

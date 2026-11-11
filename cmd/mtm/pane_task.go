@@ -234,7 +234,7 @@ func (a *App) archivedTaskChoices(tasks []work.Task) []ochazuke.Choice {
 	slices.SortStableFunc(tasks, func(x, y work.Task) int { return cmp.Compare(y.Updated, x.Updated) })
 	rows := make([]ochazuke.Choice, 0, len(tasks))
 	for _, t := range tasks {
-		label := taskLabel(t)
+		label := a.taskLabel(t)
 		if t.ProjectID != "" {
 			label += " · " + a.ownerLabel(t.ProjectID)
 		}
@@ -264,9 +264,9 @@ func (a *App) taskPickerChoices(owner work.Assignment, scope taskScope) []ochazu
 	}
 	withPath := a.r.Settings().Bool(settingTaskPickerPath)
 	taskRow := func(t work.Task, current bool) ochazuke.Choice {
-		label, tones := taskLabel(t), []ochazuke.ToneSpan(nil)
+		label, tones := a.taskLabel(t), []ochazuke.ToneSpan(nil)
 		if withPath {
-			label, tones = taskPathLabel(t, byID)
+			label, tones = a.taskPathLabel(t, byID)
 		}
 		if t.ProjectID != "" {
 			label += " · " + a.ownerLabel(t.ProjectID)
@@ -293,7 +293,7 @@ func (a *App) taskPickerChoices(owner work.Assignment, scope taskScope) []ochazu
 		rows = append(rows, projectRow(p, true))
 	}
 	tasks = slices.DeleteFunc(tasks, func(t work.Task) bool {
-		return t.ID == owner.TaskID || t.Status == work.StatusDone && !scope.withDone
+		return t.ID == owner.TaskID || a.work.StatusClosed(t.Status) && !scope.withDone
 	})
 	home := cmp.Or(owner.ProjectID, a.pin)
 	slices.SortStableFunc(tasks, func(x, y work.Task) int {
@@ -380,13 +380,13 @@ func (a *App) declareTaskTones() {
 // taskPathLabel is taskLabel with t's ancestors before its title,
 // "[ ] parent › child", and the tone that draws the ancestors and their
 // separators ("parent › ") in toneTaskPath; no tone without ancestors.
-func taskPathLabel(t work.Task, byID map[string]work.Task) (string, []ochazuke.ToneSpan) {
+func (a *App) taskPathLabel(t work.Task, byID map[string]work.Task) (string, []ochazuke.ToneSpan) {
 	path := taskPath(t, byID)
 	if len(path) == 0 {
-		return taskLabel(t), nil
+		return a.taskLabel(t), nil
 	}
 	prefix := strings.Join(path, taskPathSep) + taskPathSep
-	from := utf8.RuneCountInString(work.StatusGlyph(t.Status) + " ")
+	from := utf8.RuneCountInString(a.work.StatusGlyph(t.Status) + " ")
 	t.Title = prefix + cmp.Or(t.Title, "untitled")
-	return taskLabel(t), []ochazuke.ToneSpan{ochazuke.SpanTone(0, from, from+utf8.RuneCountInString(prefix), toneTaskPath)}
+	return a.taskLabel(t), []ochazuke.ToneSpan{ochazuke.SpanTone(0, from, from+utf8.RuneCountInString(prefix), toneTaskPath)}
 }

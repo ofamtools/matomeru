@@ -82,7 +82,7 @@ func (a *App) openPinPicker(*ochazuke.Runtime, string) (*ochazuke.Chooser, error
 	tasks = a.liveTasks(tasks)
 	open := map[string]int{}
 	for _, t := range tasks {
-		if t.Status != work.StatusDone {
+		if !a.work.StatusClosed(t.Status) {
 			open[t.ProjectID]++
 		}
 	}

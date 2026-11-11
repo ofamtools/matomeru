@@ -121,8 +121,6 @@
 ../../internal/work/delete.go	Store.deleteRecord	cyclo	"-"	38
 ../../internal/work/reviews.go	Store.SetReviewStatus	case	"pending"	1
 ../../internal/work/work.go	NormalStatus	compare	"open"	1
-../../internal/work/work.go	StatusGlyph	case	"done"	1
-../../internal/work/work.go	StatusRank	case	"done"	1
 ../../internal/work/work.go	Store.ToggleDone	compare	"done"	1
 action_item_store.go	App.listActionItemThings	compare	"all"	1
 actor.go	App.taskGlyphs	compare	"agent"	1
@@ -194,7 +192,6 @@ live_hints.go	App.startRowHints	compare	"pane"	1
 live_hints.go	var hintActions	table	"copy"	1
 live_hints.go	var hintActions	table	"open"	1
 live_hints.go	var hintActions	table	"type"	1
-main.go	App.refreshProjects	compare	"done"	1
 main.go	New	compare	"all"	1
 main.go	New	cyclo	"-"	42
 main.go	Options.client	compare	"default"	1
@@ -228,7 +225,6 @@ pane_settings.go	var settingVerbs	table	"effort"	1
 pane_settings.go	var settingVerbs	table	"fast"	1
 pane_settings.go	var settingVerbs	table	"model"	1
 pane_settings.go	var settingVerbs	table	"permission-mode"	1
-pane_task.go	App.taskPickerChoices	compare	"done"	1
 pane_view.go	App.setPaneView	compare	"default"	1
 pane_view.go	viewTab	compare	"terminal"	1
 panekeys.go	paneKey	cyclo	"-"	28
@@ -261,7 +257,6 @@ panes_tree.go	stateTone	compare	"done"	1
 path_sources.go	App.offersPathSource	case	"project"	1
 path_sources.go	var directoryChooserStarts	table	"path"	1	the directory-chooser setting's values mapped to start sources as data
 path_sources.go	var pinDirectoryWalks	table	"project"	1	the pin.directory-walk setting's values mapped to whether the walk reaches beyond the project as data
-pin.go	App.openPinPicker	compare	"done"	1
 pin.go	App.pinProject	compare	"project"	1
 pin.go	App.refreshScope	compare	"project"	1
 project.go	App.followProject	case	"project"	1

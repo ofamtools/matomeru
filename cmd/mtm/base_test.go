@@ -238,10 +238,10 @@ func TestEditorNeverWritesAnUnknownStatusOrHarness(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "edit", Target: "t1"}); err != nil {
 		t.Fatal(err)
 	}
-	if f := frame(a); !strings.Contains(f, "status · not written: one of todo, active, blocked, done") {
+	if f := frame(a); !strings.Contains(f, "status · not written: one of todo, active, waiting, blocked, done, cancelled") {
 		t.Fatalf("no reason shown:\n%s", f)
 	}
-	press(t, a, "esc", "}", "i", "j", "j", "j", "enter")
+	press(t, a, "esc", "}", "i", "j", "j", "j", "j", "enter")
 	if got := stored(t, a, "t1").Status; got != "done" {
 		t.Fatalf("chosen status not written: %q", got)
 	}

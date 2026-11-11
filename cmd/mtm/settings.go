@@ -105,6 +105,7 @@ func (a *App) declareSettings() error {
 		pinDirectoryWalkSetting,
 		paneGroupSetting,
 		workTasksLayoutSetting,
+		taskStatusSetting,
 		taskPickerPathSetting,
 		afterSubmitSetting,
 		afterSubmitModeSetting,
@@ -163,6 +164,7 @@ func (a *App) declareSettings() error {
 	if err := a.r.DeclareSetting(settings...); err != nil {
 		return err
 	}
+	a.work.SetStatusSource(a.statusSource())
 	for _, key := range []string{settingInboxNotify, settingInboxSources, settingInboxInApp} {
 		a.r.Settings().Observe(key, func(string, any) { a.syncInboxNotices() })
 	}
