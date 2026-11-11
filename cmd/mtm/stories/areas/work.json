@@ -3,7 +3,7 @@
   "area": "work",
   "fixture": "area-work",
   "width": 140,
-  "height": 44,
+  "height": 56,
   "values": {"rename.select": false},
   "config": {
     "bindings.json": [
