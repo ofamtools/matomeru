@@ -24,10 +24,11 @@ func directoryProps() []ochazuke.PropSpec {
 		{Name: "depth", Default: 0, Parameter: ochazuke.Parameter{Type: "integer", Description: "Zero: ordinary directory; positive: scan this base to that depth"}},
 		{Name: "description", Multiline: true, Parameter: text("Notes about this directory")},
 		{Name: "archived", Role: ochazuke.RoleArchive, Default: false, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the directory and stop scanning it; keep files and project attachments"}},
-		{Name: "source", ReadOnly: true, Parameter: text("saved, file (imported dirs.json), migrated, project or variable (MTM_PROJECT_BASE_DIRS override)")},
+		{Name: "source", ReadOnly: true, Parameter: text("saved, scan, file (one-time dirs.json import), migrated, project or variable (MTM_PROJECT_BASE_DIRS override)")},
 		{Name: "projects", ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.SettingList, Items: &ochazuke.Parameter{Type: "string", Noun: "project"}, Description: "Projects associated with this directory"}},
 		{Name: "default-for", ReadOnly: true, Parameter: ochazuke.Parameter{Type: ochazuke.SettingList, Items: &ochazuke.Parameter{Type: "string", Noun: "project"}, Description: "Projects using this directory as their default"}},
 		{Name: "repo", ReadOnly: true, Parameter: text("Repository from the directory's relations")},
+		{Name: "candidate", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "A scan found a .git entry in this directory; directory.make-project promotes it"}},
 	}
 }
 
@@ -37,7 +38,7 @@ func (a *App) directoryThing(path string) (ochazuke.Thing, error) {
 	if err != nil {
 		return nil, err
 	}
-	t := ochazuke.Thing{"path": path, "name": path, "label": "", "location": path, "depth": 0, "description": "", "archived": false, "source": "saved", "projects": []string{}, "default-for": []string{}, "repo": ""}
+	t := ochazuke.Thing{"path": path, "name": path, "label": "", "location": path, "depth": 0, "description": "", "archived": false, "source": "saved", "projects": []string{}, "default-for": []string{}, "repo": "", "candidate": false}
 	var meta ochazuke.Thing
 	if err := a.db.Get("directories", path, &meta); err == nil {
 		for k, v := range meta {
@@ -187,10 +188,15 @@ func (a *App) defineDirectoryNoun() {
 	a.r.Define(work.DirectoryNoun).Props(directoryProps()...).Store(a.docStore(work.DirectoryNoun, a.directoryStore())).NoPicker().
 		Verb("attach", a.associateDirectory, "Associate this directory with a project; omit project to choose").Positional("path").
 		Verb("rescan", a.refreshDirectories, "Rescan the saved directory list off the UI loop").Fetch().
+		Verb("scan", a.refreshDirectories, "Scan this directory or base for Git repository candidates").Fetch().Positional("path").
+		Verb("make-project", a.makeDirectoryProject, "Make selected or marked Git repository candidates projects; existing projects are reused").Many().Positional("path").
 		Verb("default", a.defaultDirectoryRecord, "Make this directory a project's default").
-		Mode("normal").Bind("enter", ochazuke.Do("directory.attach")).Bind("i", ochazuke.Do("directory.edit"))
+		Mode("normal").Bind("enter", ochazuke.Do("directory.attach")).Bind("i", ochazuke.Do("directory.edit")).
+		Bind("m", ochazuke.Do("ochazuke.collection.apply", ochazuke.Arguments{"verb": "make-project"}).Hinted("make-project"))
 	a.parameters("directory.attach", map[string]ochazuke.Parameter{"path": {Type: "string", Noun: "directory", Free: true}, "project": {Type: "string", Noun: "project"}})
 	a.parameters("directory.default", map[string]ochazuke.Parameter{"path": {Type: "string", Noun: "directory", Free: true}, "project": {Type: "string", Noun: "project", Required: true}})
+	a.parameters("directory.scan", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true, From: "row:path"}})
+	a.parameters("directory.make-project", map[string]ochazuke.Parameter{"path": {Type: "string", From: "row:path"}})
 }
 
 func (a *App) directoryPathAt(c ochazuke.Ctx) string {
@@ -212,4 +218,77 @@ func (a *App) defaultDirectoryRecord(c ochazuke.Ctx) ochazuke.Result {
 	}
 	a.reloadDirectories()
 	return ochazuke.Done(viewOf(p))
+}
+
+func (a *App) makeDirectoryProject(ctx ochazuke.Ctx) ochazuke.Result {
+	var paths []string
+	for _, subject := range ctx.Subjects {
+		if path := a.directoryPathAt(ochazuke.Ctx{Instance: subject}); path != "" {
+			paths = append(paths, path)
+		}
+	}
+	if len(paths) == 0 {
+		paths = append(paths, a.directoryPathAt(ctx))
+	}
+	return resultOf(a.makeDirectoryProjects(ctx, paths))
+}
+
+// Explicit promotion and scan-creates-projects share this data-only path.
+// Inspection already ran off-loop; project creation never stats a directory.
+func (a *App) makeDirectoryProjects(ctx ochazuke.Ctx, paths []string) ([]projectView, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	projects, err := a.work.Projects()
+	if err != nil {
+		return nil, err
+	}
+	existing := map[string]work.Project{}
+	for _, p := range projects {
+		for _, tree := range p.Trees {
+			existing[a.dirKey(tree.Path)] = p
+		}
+	}
+	rows, _ := a.directoryViewRows()
+	candidates := map[string]work.Tree{}
+	for _, row := range rows {
+		if row.Candidate {
+			tree := row.Tree
+			if tree.Repo == "" {
+				tree.Kind, tree.Repo = "repo", tree.Path
+			}
+			candidates[row.Path] = tree
+		}
+	}
+	for _, path := range paths {
+		key := a.dirKey(path)
+		if _, ok := existing[key]; !ok {
+			if _, candidate := candidates[key]; !candidate {
+				return nil, fmt.Errorf("%s is not a scanned Git repository candidate", path)
+			}
+		}
+	}
+	out := make([]projectView, 0, len(paths))
+	for _, path := range paths {
+		key := a.dirKey(path)
+		p, ok := existing[key]
+		if !ok {
+			p, err = a.work.AddProject(filepath.Base(key))
+			if err != nil {
+				return nil, err
+			}
+			p, err = a.relateDirectory(ctx, p.ID, candidates[key])
+			if err != nil {
+				return nil, err
+			}
+			existing[key] = p
+		}
+		out = append(out, viewOf(p))
+	}
+	a.r.Changed("project")
+	if err := a.refreshProjects(); err != nil {
+		return nil, err
+	}
+	a.refreshDirectoryRows()
+	return out, nil
 }

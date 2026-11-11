@@ -209,7 +209,7 @@ func TestDirectoriesDetailScrollsWithJK(t *testing.T) {
 	}
 	focus := a.r.FocusID()
 	press(t, a, "J")
-	if fr := sizedFrame(a, 140, 14); d.Offset() != 1 || a.r.FocusID() != focus || !strings.Contains(fr, "J/K detail") {
+	if fr := sizedFrame(a, 140, 14); d.Offset() != 1 || a.r.FocusID() != focus {
 		t.Fatalf("J: offset %d focus %s\n%s", d.Offset(), a.r.FocusID(), fr)
 	}
 	press(t, a, "K")

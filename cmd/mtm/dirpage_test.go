@@ -145,8 +145,7 @@ func TestKnownDirectoryWithoutPinAsksForProject(t *testing.T) {
 	}
 }
 
-// The legacy dirs.add-base verb still offers parent folders and scans the saved
-// base. Removing it stops discovery without touching files.
+// Removing a base stops discovery; saved candidates and files remain.
 func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -211,8 +210,8 @@ func TestBaseAddScansAndRemoveFromThePage(t *testing.T) {
 	a.Update(keyMsg("d"))
 	_, cmd = a.Update(keyMsg("y"))
 	settle(a, cmd)
-	if slices.Contains(itemIDs(a.directoryList), delta) || slices.Contains(itemIDs(a.baseList), "base:"+directoryKey(second)) {
-		t.Fatalf("removed base still scanned: %v %v", itemIDs(a.directoryList), itemIDs(a.baseList))
+	if !slices.Contains(itemIDs(a.directoryList), delta) || slices.Contains(itemIDs(a.baseList), "base:"+directoryKey(second)) {
+		t.Fatalf("base removal lost saved candidates or retained its scan base: %v %v", itemIDs(a.directoryList), itemIDs(a.baseList))
 	}
 	if _, err := os.Stat(filepath.Join(second, "delta")); err != nil {
 		t.Fatal(err)

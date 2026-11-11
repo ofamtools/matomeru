@@ -11,8 +11,9 @@ import (
 
 // mtm's own configuration files join ochazuke's config.reload (`mtm config
 // reload`, the palette's config.reload): after themes.json, settings.json,
-// actions.json and bindings.json, it reads harnesses.json, dirs.json and sides.json
-// again. A file that does not read is a problem naming it; the old
+// actions.json and bindings.json, it reads harnesses.json and sides.json
+// again. Legacy dirs.json is a one-time data import, not live configuration.
+// A file that does not read is a problem naming it; the old
 // configuration stays. Not hooked: the extension registry (extensions/ in
 // the data directory) is state the extension verbs write, synced already
 // whenever a page opens; `mtm extension refresh` reads catalogs again.
@@ -23,7 +24,6 @@ var harnessOps = []string{"agent.launch", "agent.start", "project.launch", "task
 // defineConfigReload hooks mtm's files into config.reload.
 func (a *App) defineConfigReload() {
 	a.r.OnConfigReload(filepath.Base(a.opts.Harnesses), a.reloadHarnesses)
-	a.r.OnConfigReload("dirs.json", a.reloadDirsConfig)
 	a.r.OnConfigReload(sidesFile, a.reloadSides)
 }
 
@@ -60,25 +60,4 @@ func (a *App) setHarnessChoices() {
 		op.Parameters["harness"] = p
 		a.r.Operations.Set(op)
 	}
-}
-
-// reloadDirsConfig imports a legacy dirs.json edit into the shared list, then
-// reloads the page. A malformed file leaves stored records unchanged.
-func (a *App) reloadDirsConfig() []string {
-	if err := a.importDirectoryBases(); err != nil {
-		return []string{err.Error()}
-	}
-	a.r.Changed("directory")
-	if a.cli || a.baseList == nil {
-		return nil
-	}
-	a.refreshDirectoryRows()
-	if !a.directories.Ready && !a.directories.Loading && len(a.directories.Rows) == 0 {
-		return nil
-	}
-	a.directories.Ready = false
-	if err := a.loadDirectories(); err != nil {
-		return []string{err.Error()}
-	}
-	return nil
 }

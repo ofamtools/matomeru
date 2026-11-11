@@ -68,7 +68,11 @@ func TestDirectoryLegacyProbeImportsOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := work.Open(db); err != nil {
+	w, err := work.Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.AddProject("Existing installation"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -338,43 +342,109 @@ func TestDirectoryMigrationKeepsExistingMetadata(t *testing.T) {
 	}
 }
 
-func TestDirectoryReloadDoesNotRestoreUnchangedLegacyBases(t *testing.T) {
+func TestDirectoryLegacyImportIsOnceAndDataScoped(t *testing.T) {
 	t.Parallel()
 	opts := directoryTestOptions(t)
-	if err := os.MkdirAll(opts.Config, 0700); err != nil {
+	db, err := store.Open(opts.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := work.Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.AddProject("Existing installation"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(opts.getenv("HOME"), "proj")
+	if err := os.MkdirAll(opts.Config, 0700); err != nil {
+		t.Fatal(err)
+	}
 	file := filepath.Join(opts.Config, "dirs.json")
-	initial := []byte(`{"project_base_dirs":[{"path":"` + path + `","depth":1}]}`)
-	if err := os.WriteFile(file, initial, 0600); err != nil {
+	initial := `{"project_base_dirs":[{"path":"` + path + `","depth":1}]}`
+	rewrite(t, file, initial)
+	a, err := New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := a.savedDirectory(path)
+	if err != nil || record.Depth != 1 || record.Source != "file" {
+		t.Fatalf("import %+v: %v", record, err)
+	}
+	if contents, err := os.ReadFile(file); err != nil || string(contents) != initial {
+		t.Fatalf("import modified legacy file: %q %v", contents, err)
+	}
+	record.Depth, record.Label, record.Description, record.Archived = 3, "Sources", "Keep these notes", true
+	if err := a.putDirectoryRecord(record); err != nil {
+		t.Fatal(err)
+	}
+	a.Close()
+	changed := `{"project_base_dirs":[{"path":"` + path + `","depth":5}]}`
+	rewrite(t, file, changed)
+	a, err = New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if got, err := a.savedDirectory(path); err != nil || got != record {
+		t.Fatalf("restart replaced saved metadata: %+v want %+v: %v", got, record, err)
+	}
+	if problems := reloadConfig(t, a); len(problems) != 0 {
+		t.Fatal(problems)
+	}
+	if got, _ := a.savedDirectory(path); got != record {
+		t.Fatalf("config reload replaced saved metadata: %+v", got)
+	}
+	if contents, err := os.ReadFile(file); err != nil || string(contents) != changed {
+		t.Fatalf("restart modified legacy file: %q %v", contents, err)
+	}
+	opts.Data = filepath.Join(t.TempDir(), "fresh.db")
+	fresh, err := New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	openDirectories(t, fresh)
+	if got, err := fresh.userDirectories(); err != nil || len(got) != 0 || fresh.directoryList.Len() != 0 {
+		t.Fatalf("fresh data inherited config: %+v %v", got, err)
+	}
+}
+
+func TestDirectoryEmptySchemaIsNotAnExistingInstallation(t *testing.T) {
+	t.Parallel()
+	opts := directoryTestOptions(t)
+	db, err := store.Open(opts.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := work.Open(db); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
 	a, err := New(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
+	openDirectories(t, a)
+	if a.directoryList.Len() != 0 || a.directories.ProbePending {
+		t.Fatalf("empty schema guessed directories: %+v", a.directories)
+	}
+	if _, err := a.work.AddProject("Added after first run"); err != nil {
+		t.Fatal(err)
+	}
+	a.Close()
+	a, err = New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer a.Close()
-	a.cli = true
-	if _, err := a.changeBase(path, 0, false); err != nil {
-		t.Fatal(err)
-	}
-	if problems := a.reloadDirsConfig(); len(problems) != 0 {
-		t.Fatal(problems)
-	}
-	bases, err := a.projectBases()
-	if err != nil || len(bases) != 0 {
-		t.Fatalf("unchanged legacy file restored archived base: %v %v", bases, err)
-	}
-	changed := []byte(`{"project_base_dirs":[{"path":"` + path + `","depth":3}]}`)
-	if err := os.WriteFile(file, changed, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if problems := a.reloadDirsConfig(); len(problems) != 0 {
-		t.Fatal(problems)
-	}
-	bases, err = a.projectBases()
-	if err != nil || len(bases) != 1 || bases[0].Depth != 3 {
-		t.Fatalf("edited legacy file did not import: %v %v", bases, err)
+	openDirectories(t, a)
+	if a.directoryList.Len() != 0 || a.directories.ProbePending {
+		t.Fatalf("restart guessed directories after first run: %+v", a.directories)
 	}
 }

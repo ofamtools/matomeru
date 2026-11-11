@@ -28,8 +28,9 @@ type directoryConfig struct {
 }
 type knownDirectory struct {
 	work.Tree
-	LastUsed int64    `json:"last_used"`
-	Projects []string `json:"projects"`
+	LastUsed  int64    `json:"last_used"`
+	Projects  []string `json:"projects"`
+	Candidate bool     `json:"candidate,omitempty"`
 	// Common is the repository's shared git directory, the same for every
 	// worktree of one repository; "" outside a repository.
 	Common string `json:"common,omitempty"`
@@ -222,8 +223,13 @@ func (a *App) scanKnownDirectories(ctx context.Context, options directoryScanOpt
 	if err != nil {
 		return loaded, err
 	}
+	if options.path != "" {
+		records = slices.DeleteFunc(records, func(row directoryRecord) bool {
+			return row.Path != options.path && (row.Depth > 0 || !strings.HasPrefix(row.Path, strings.TrimSuffix(options.path, "/")+"/"))
+		})
+	}
 	bases, paths, archived := directoryScanInputs(records)
-	if len(bases) == 0 && options.probe {
+	if len(bases) == 0 && options.probe && options.path == "" {
 		bases = a.probeDirectoryDefaults(ctx, options.timeout)
 	}
 	discovered, unavailable, keys := a.scanDirectoryBases(ctx, bases, options.listable, options.timeout)
@@ -231,12 +237,15 @@ func (a *App) scanKnownDirectories(ctx context.Context, options directoryScanOpt
 	if len(records) == 0 && len(bases) == 0 {
 		return loaded, nil
 	}
-	external, footer, err := a.externalDirectoryPaths(ctx)
-	if err != nil {
-		return loaded, err
+	var footer []string
+	if options.path == "" {
+		external, notes, err := a.externalDirectoryPaths(ctx)
+		if err != nil {
+			return loaded, err
+		}
+		paths, footer = append(paths, external...), notes
 	}
 	paths = append(paths, discovered...)
-	paths = append(paths, external...)
 	recent, err := a.work.RecentDirs()
 	if err != nil {
 		return loaded, err
@@ -338,7 +347,8 @@ type dirRow struct {
 }
 
 func (a *App) defineDirectories() {
-	a.r.Define("dirs").Verb("refresh", a.refreshDirectories, "Refresh directory cache").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
+	a.r.Define("dirs").Verb("scan", a.refreshDirectories, "Scan the saved bases for Git repository candidates").Fetch().
+		Verb("refresh", a.refreshDirectories, "Scan the saved bases for Git repository candidates").Fetch().Verb("bases", func(ochazuke.Ctx) ochazuke.Result {
 		bases, err := a.projectBases()
 		if err != nil {
 			return ochazuke.Failed(err)
@@ -363,9 +373,11 @@ func (a *App) defineDirectories() {
 		Verb("retarget", a.editDirRow, "Point this directory at another path").
 		Mode("normal").Bind("enter", ochazuke.Do("project-dir.default")).Bind("d d", ochazuke.Do("project-dir.remove")).Bind("i", ochazuke.Do("project-dir.retarget"))
 	a.r.Define("project-base").Kind(ochazuke.NounKindPart).DefaultKeys(false).Columns(baseColumns...).
+		Verb("scan", a.refreshDirectories, "Scan this base for Git repository candidates").Fetch().
 		Verb("remove", a.removeBaseRow, "Stop scanning this base (disk untouched)").Confirm("Stop scanning {{label}}? Nothing on disk changes.").
-		Mode("normal").Bind("d d", ochazuke.Do("project-base.remove"))
+		Mode("normal").Bind("d d", ochazuke.Do("project-base.remove")).Bind("s", ochazuke.Do("project-base.scan"))
 	a.r.Define("directory-browse").Kind(ochazuke.NounKindPart).DefaultKeys(false).Verb("open", a.browseDirectory, "Browse for a directory").Mode("normal").Bind("enter", ochazuke.Do("directory-browse.open"))
+	a.parameters("project-base.scan", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true, From: "row:path"}})
 	a.r.Define("directory-path").Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("attach", a.attachBrowsedDirectory, "Use the typed or picked directory").
 		Verb("cancel", a.cancelBrowse, "Stop browsing").
@@ -410,7 +422,9 @@ func (a *App) addDirectoriesPage() error {
 	search.Instance, search.Mode, search.Keys = directoriesPage, "normal", "/"
 	add := ochazuke.Do("directory.create")
 	add.Instance, add.Mode, add.Keys = directoriesPage, "normal", "n"
-	for _, row := range []ochazuke.Binding{search, add} {
+	scan := ochazuke.Do("dirs.scan")
+	scan.Instance, scan.Mode, scan.Keys = directoriesPage, "normal", "s"
+	for _, row := range []ochazuke.Binding{search, add, scan} {
 		if err := a.r.Bind(row); err != nil {
 			return err
 		}
@@ -445,6 +459,9 @@ func (a *App) openedDirectories() error {
 
 func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 	options := a.directoryScanOptions()
+	if path := ochazuke.StringArg(ctx.Args, "path", ""); path != "" {
+		options.path = a.expandPath(path)
+	}
 	a.directories.Loading = true
 	a.refreshDirectoryRows()
 	return ochazuke.Pending(func(ctx context.Context) (any, error) {
@@ -456,10 +473,29 @@ func (a *App) refreshDirectories(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		loaded := value.(directoryCache)
+		var candidates []string
+		if options.auto {
+			for _, row := range loaded.Rows {
+				if row.Candidate {
+					candidates = append(candidates, row.Path)
+				}
+			}
+		}
+		if options.path != "" {
+			mergeDirectoryScan(&loaded, a.directories, a.dirKeys, options.path)
+		}
 		a.directories.Rows, a.directories.Footer, a.directories.Ready = loaded.Rows, loaded.Footer, true
 		a.dirKeys = loaded.Keys
 		a.rescopeExtensions()
 		a.directories.Unavailable = loaded.Unavailable
+		if err := a.saveDirectoryCandidates(loaded); err != nil {
+			ctx.Error(err.Error())
+		}
+		if options.auto {
+			if _, err := a.makeDirectoryProjects(ctx, candidates); err != nil {
+				ctx.Error(err.Error())
+			}
+		}
 		if loaded.Notice != "" {
 			ctx.Notify(loaded.Notice)
 		}
@@ -1014,7 +1050,7 @@ func (a *App) addBasePath(path string, depth int) ochazuke.Result {
 	home, _ := a.home()
 	msg := "Scanning " + tildePath(a.expandPath(path), home) + " for repos"
 	if _, ok := a.opts.lookup("MTM_PROJECT_BASE_DIRS"); ok {
-		msg = "Saved; MTM_PROJECT_BASE_DIRS overrides dirs.json while it is set"
+		msg = "Saved; MTM_PROJECT_BASE_DIRS overrides saved scan bases while it is set"
 	}
 	result := a.rescan(bases, msg)
 	// The new base is the selected row (test pass R14).

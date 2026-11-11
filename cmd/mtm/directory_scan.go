@@ -21,6 +21,7 @@ const (
 	settingDirectoryStatus    = "directories.show-status"
 	settingDirectorySelect    = "directories.select-added"
 	settingDirectoryTimeout   = "directories.scan-timeout"
+	settingDirectoryAuto      = "directories.scan-creates-projects"
 )
 
 func directorySettings() []ochazuke.Setting {
@@ -28,9 +29,10 @@ func directorySettings() []ochazuke.Setting {
 		{Name: settingDirectoryProbe, Type: ochazuke.SettingBoolean, Default: false, Description: "Opt in to probing ~/proj, ~/projects, ~/src, ~/code and ~/dev when no scan bases are saved; existing users' legacy bases are imported once regardless"},
 		{Name: settingDirectoryAddChoice, Type: ochazuke.SettingBoolean, Default: true, Description: "Ask what to add before the directory picker: an ordinary directory or a base to scan; off keeps the standard create form"},
 		{Name: settingDirectoryManaged, Type: ochazuke.SettingBoolean, Default: true, Description: "Show saved paths and bases with metadata and generated directory actions; off keeps the discovered-only table and legacy browse row"},
-		{Name: settingDirectoryStatus, Type: ochazuke.SettingBoolean, Default: true, Description: "Show scan progress and unavailable paths on directory rows"},
+		{Name: settingDirectoryStatus, Type: ochazuke.SettingBoolean, Default: true, Description: "Show scan progress, repository candidates and unavailable paths on directory rows"},
 		{Name: settingDirectorySelect, Type: ochazuke.SettingBoolean, Default: true, Description: "Select a newly added directory on the Directories page"},
 		{Name: settingDirectoryTimeout, Type: ochazuke.SettingDuration, Default: 750 * time.Millisecond, Description: "Maximum wait for one filesystem scan or directory inspection; a slow path is unavailable, never a startup dependency"},
+		{Name: settingDirectoryAuto, Type: ochazuke.SettingBoolean, Default: false, Description: "Make scanned Git repository candidates projects automatically, with each directory as its default; off requires directory.make-project"},
 	}
 }
 
@@ -163,6 +165,8 @@ func (a *App) migrateDirectoryProbe(ctx context.Context, timeout time.Duration) 
 type directoryScanOptions struct {
 	timeout  time.Duration
 	probe    bool
+	path     string
+	auto     bool
 	listable func(string) bool
 }
 
@@ -171,6 +175,7 @@ func (a *App) directoryScanOptions() directoryScanOptions {
 	return directoryScanOptions{
 		timeout: positive(a.r.Settings().Duration(settingDirectoryTimeout), 750*time.Millisecond),
 		probe:   a.r.Settings().Bool(settingDirectoryProbe),
+		auto:    a.r.Settings().Bool(settingDirectoryAuto),
 		listable: func(path string) bool {
 			path = filepath.Clean(path)
 			for _, prefix := range prefixes {
@@ -215,6 +220,8 @@ func (a *App) inspectKnownDirectory(ctx context.Context, path string, options di
 		if !missing {
 			result.Tree = inspectDirectory(path)
 			result.Path = directoryKey(path)
+			_, gitErr := os.Stat(filepath.Join(path, ".git"))
+			result.Candidate = gitErr == nil
 			if result.Repo != "" {
 				result.Common = gitCommonDir(path)
 			}
@@ -280,4 +287,27 @@ func directoryScanFooter(unavailable map[string]string, footer []string) string 
 		footer = append(footer, "unavailable paths: "+strings.Join(paths, ", "))
 	}
 	return strings.Join(footer, "; ")
+}
+
+// A targeted scan replaces matching rows without discarding other bases' results.
+func mergeDirectoryScan(loaded *directoryCache, previous directoryCache, keys map[string]string, path string) {
+	found := map[string]bool{}
+	for _, row := range loaded.Rows {
+		found[row.Path] = true
+	}
+	for _, row := range previous.Rows {
+		if !found[row.Path] {
+			loaded.Rows = append(loaded.Rows, row)
+		}
+	}
+	for alias, key := range keys {
+		if _, ok := loaded.Keys[alias]; !ok {
+			loaded.Keys[alias] = key
+		}
+	}
+	for unavailable, why := range previous.Unavailable {
+		if unavailable != path && !strings.HasPrefix(unavailable, strings.TrimSuffix(path, "/")+"/") {
+			loaded.Unavailable[unavailable] = why
+		}
+	}
 }

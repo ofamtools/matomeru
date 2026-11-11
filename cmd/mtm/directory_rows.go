@@ -29,7 +29,11 @@ func (a *App) directoryViewRows() ([]knownDirectory, map[string]directoryRecord)
 			continue
 		}
 		if _, ok := rows[key]; !ok {
-			rows[key] = knownDirectory{Tree: work.Tree{Kind: "directory", Path: key}}
+			row := knownDirectory{Tree: work.Tree{Kind: "directory", Path: key}, Candidate: record.Candidate}
+			if row.Candidate {
+				row.Kind, row.Repo = "repo", key
+			}
+			rows[key] = row
 		}
 	}
 	out := make([]knownDirectory, 0, len(rows))
@@ -87,6 +91,8 @@ func (a *App) managedDirectoryItems(query string) []ochazuke.ListItem {
 				status = "unavailable: " + why
 			} else if a.directories.Loading {
 				status = "scanning…"
+			} else if row.Candidate && len(owners[row.Path]) == 0 {
+				status = "candidate project"
 			}
 		}
 		cells = append(cells, directorySource(record), record.Label, status)
@@ -94,7 +100,7 @@ func (a *App) managedDirectoryItems(query string) []ochazuke.ListItem {
 			continue
 		}
 		items = append(items, ochazuke.ListItem{ID: "directory:" + row.Path, Noun: work.DirectoryNoun, Label: directoryLabel(record), Data: record.Path,
-			Props: ochazuke.Thing{"path": record.Path, "label": record.Label, "location": record.Path, "depth": record.Depth, "description": record.Description, "source": record.Source}, Cells: cells})
+			Props: ochazuke.Thing{"path": record.Path, "label": record.Label, "location": record.Path, "depth": record.Depth, "description": record.Description, "source": record.Source, "candidate": row.Candidate}, Cells: cells})
 	}
 	if !managed {
 		items = append(items, ochazuke.ListItem{ID: "directory:browse", Noun: "directory-browse", Label: "browse…", Cells: []string{"browse…"}})

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,12 +21,12 @@ type directoryRecord struct {
 	Depth       int    `json:"depth,omitempty"`
 	Archived    bool   `json:"archived,omitempty"`
 	Source      string `json:"source,omitempty"`
+	Candidate   bool   `json:"candidate,omitempty"`
 }
 
 type directoryState struct {
 	ID           string `json:"id"`
 	ProbePending bool   `json:"probe_pending,omitempty"`
-	ConfigHash   string `json:"config_hash,omitempty"`
 }
 
 const directoryStateID = "list"
@@ -88,31 +87,36 @@ func (a *App) userDirectories() ([]directoryRecord, error) {
 	return out, nil
 }
 
-// initializeDirectoryList never touches a user's folders. An existing database
-// without dirs.json gets a pending one-time probe, performed by dirs.refresh.
-func (a *App) initializeDirectoryList(existing bool) (bool, error) {
+// initializeDirectoryList imports legacy configuration only for populated data.
+// The marker belongs to this store: a fresh --data never inherits shared config.
+func (a *App) initializeDirectoryList() (bool, error) {
 	var state directoryState
 	if err := a.db.Get("directory_state", directoryStateID, &state); err == nil {
 		return state.ProbePending, nil
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return false, err
 	}
-	data, err := os.ReadFile(a.dirsConfigPath())
-	missing := errors.Is(err, os.ErrNotExist)
-	if err != nil && !missing {
-		return false, err
+	existing := false
+	for _, table := range []string{"projects", "directories"} {
+		rows, err := a.db.All(table)
+		if err != nil {
+			return false, err
+		}
+		existing = existing || len(rows) > 0
 	}
 	var config directoryConfig
-	if !missing {
-		if err := json.Unmarshal(data, &config); err != nil {
+	state = directoryState{ID: directoryStateID}
+	if existing {
+		data, err := os.ReadFile(a.dirsConfigPath())
+		if errors.Is(err, os.ErrNotExist) {
+			state.ProbePending = true
+		} else if err != nil {
+			return false, err
+		} else if err := json.Unmarshal(data, &config); err != nil {
 			return false, err
 		}
 	}
-	state = directoryState{ID: directoryStateID, ProbePending: existing && missing}
-	if !missing {
-		state.ConfigHash = directoryConfigHash(data)
-	}
-	err = a.db.Tx([]string{"directories", "directory_state"}, func(tx *store.Tx) error {
+	err := a.db.Tx([]string{"directories", "directory_state"}, func(tx *store.Tx) error {
 		for _, base := range config.Bases {
 			if base.Depth == 0 {
 				base.Depth = 1
@@ -121,11 +125,11 @@ func (a *App) initializeDirectoryList(existing bool) (bool, error) {
 				return errors.New("project base depth must be positive")
 			}
 			path := a.expandPath(base.Path)
-			var row directoryRecord
+			row := map[string]any{}
 			if err := tx.Get("directories", path, &row); err != nil && !errors.Is(err, store.ErrNotFound) {
 				return err
 			}
-			row.Path, row.Depth, row.Source = path, base.Depth, "file"
+			row["path"], row["depth"], row["source"] = path, base.Depth, "file"
 			if err := tx.Put("directories", path, row); err != nil {
 				return err
 			}
@@ -135,68 +139,51 @@ func (a *App) initializeDirectoryList(existing bool) (bool, error) {
 	return state.ProbePending, err
 }
 
-// importDirectoryBases is the explicit config.reload compatibility path. Once
-// imported, runtime consumers only read userDirectories, never dirs.json.
-func (a *App) importDirectoryBases() error {
-	data, err := os.ReadFile(a.dirsConfigPath())
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
+// saveDirectoryCandidates records discoveries with the selected data store.
+// Completion owns these writes; going through CRUD would schedule another scan.
+func (a *App) saveDirectoryCandidates(loaded directoryCache) error {
+	records, err := a.userDirectories()
 	if err != nil {
 		return err
 	}
-	var config directoryConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return err
+	saved := map[string]string{}
+	for _, record := range records {
+		saved[a.dirKey(record.Path)] = record.Path
 	}
-	digest := directoryConfigHash(data)
-	for _, base := range config.Bases {
-		if base.Depth < 0 {
-			return errors.New("project base depth must be positive")
-		}
-	}
-	return a.db.Tx([]string{"directories", "directory_state"}, func(tx *store.Tx) error {
-		var state directoryState
-		if err := tx.Get("directory_state", directoryStateID, &state); err != nil {
-			return err
-		}
-		if state.ConfigHash == digest {
-			return nil
-		}
-		raws, err := tx.All("directories")
-		if err != nil {
-			return err
-		}
-		for _, raw := range raws {
-			var row directoryRecord
-			if err := json.Unmarshal(raw, &row); err != nil {
+	err = a.db.Tx([]string{"directories"}, func(tx *store.Tx) error {
+		for _, row := range loaded.Rows {
+			if loaded.Unavailable[row.Path] != "" {
+				continue
+			}
+			path := saved[row.Path]
+			if path == "" {
+				path = row.Path
+			}
+			meta := map[string]any{}
+			err := tx.Get("directories", path, &meta)
+			if err != nil && !errors.Is(err, store.ErrNotFound) {
 				return err
 			}
-			if row.Source == "file" {
-				row.Depth = 0
-				row.Source = "saved"
-				if err := tx.Put("directories", row.Path, row); err != nil {
-					return err
-				}
+			old, _ := meta["candidate"].(bool)
+			archived, _ := meta["archived"].(bool)
+			if archived || old == row.Candidate {
+				continue
 			}
-		}
-		for _, base := range config.Bases {
-			path := a.expandPath(base.Path)
-			var row directoryRecord
-			if err := tx.Get("directories", path, &row); err != nil && !errors.Is(err, store.ErrNotFound) {
-				return err
+			if len(meta) == 0 {
+				meta["path"], meta["source"] = path, "scan"
 			}
-			row.Path, row.Depth, row.Source, row.Archived = path, max(1, base.Depth), "file", false
-			if err := tx.Put("directories", path, row); err != nil {
+			meta["candidate"] = row.Candidate
+			if err := tx.Put("directories", path, meta); err != nil {
 				return err
 			}
 		}
-		state.ConfigHash, state.ProbePending = digest, false
-		return tx.Put("directory_state", directoryStateID, state)
+		return nil
 	})
+	if err == nil {
+		a.r.Changed(work.DirectoryNoun)
+	}
+	return err
 }
-
-func directoryConfigHash(data []byte) string { return fmt.Sprintf("%x", sha256.Sum256(data)) }
 
 func (a *App) putDirectoryRecord(row directoryRecord) error {
 	if row.Depth < 0 {
@@ -244,11 +231,11 @@ func directorySource(row directoryRecord) string {
 	return row.Source
 }
 
-func (a *App) configureDirectorySettings(existing bool) error {
+func (a *App) configureDirectorySettings() error {
 	if err := a.declareSettings(); err != nil {
 		return err
 	}
-	pending, err := a.initializeDirectoryList(existing)
+	pending, err := a.initializeDirectoryList()
 	a.directories.ProbePending = pending
 	return err
 }

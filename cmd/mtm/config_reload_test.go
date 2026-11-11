@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -89,35 +88,20 @@ func TestConfigReloadReadsTheHarnessFileAgain(t *testing.T) {
 	}
 }
 
-// config.reload reads dirs.json again: the bases list shows the file's
-// bases; a bad file is a problem naming it and the list keeps its rows.
-func TestConfigReloadReadsDirsJSONAgain(t *testing.T) {
+// Legacy directory files are imports, never a second source of live data.
+func TestConfigReloadDoesNotImportDirsJSON(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	base := filepath.Join(t.TempDir(), "base")
-	data, _ := json.Marshal(directoryConfig{Bases: []projectBase{{Path: base, Depth: 2}}})
-	rewrite(t, a.dirsConfigPath(), string(data))
-	if p := reloadConfig(t, a); len(p) != 0 {
-		t.Fatalf("problems %q", p)
+	rewrite(t, a.dirsConfigPath(), `{"project_base_dirs":[{"path":"/not-imported","depth":2}]}`)
+	if problems := reloadConfig(t, a); len(problems) != 0 {
+		t.Fatalf("problems %q", problems)
 	}
-	hasBase := func() bool {
-		for _, it := range a.baseList.Items() {
-			if it.ID == "base:"+base {
-				return true
-			}
-		}
-		return false
+	rewrite(t, a.dirsConfigPath(), `{`)
+	if problems := reloadConfig(t, a); len(problems) != 0 {
+		t.Fatalf("legacy file was read again: %q", problems)
 	}
-	if !hasBase() {
-		t.Fatalf("bases list %+v", a.baseList.Items())
-	}
-	rewrite(t, a.dirsConfigPath(), `{"project_base_dirs": [`)
-	p := reloadConfig(t, a)
-	if len(p) != 1 || !strings.HasPrefix(p[0], "dirs.json: ") {
-		t.Fatalf("bad file problems %q", p)
-	}
-	if !hasBase() {
-		t.Fatalf("a bad file dropped the bases list %+v", a.baseList.Items())
+	if bases, err := a.projectBases(); err != nil || len(bases) != 0 {
+		t.Fatalf("config reload imported bases: %+v %v", bases, err)
 	}
 }
 
@@ -136,7 +120,7 @@ func TestCLIConfigReloadReturnsTheProblems(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &problems); err != nil {
 		t.Fatalf("output %q: %v", out, err)
 	}
-	if len(problems) != 2 || !strings.HasPrefix(problems[0], "harnesses.json: ") || !strings.HasPrefix(problems[1], "dirs.json: ") {
+	if len(problems) != 1 || !strings.HasPrefix(problems[0], "harnesses.json: ") {
 		t.Fatalf("problems %q", problems)
 	}
 }
