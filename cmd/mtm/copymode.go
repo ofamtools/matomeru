@@ -82,12 +82,13 @@ type copyMode struct {
 	buf        copyBuf
 	active     bool
 	pane       pane
-	source     string   // the terminal whose screen is the buffer's tail; "" reads the capture's
-	returnLive string   // terminal focused at entry; empty when entered from the list
-	history    []string // the capture's history, capped; styled when copy.colors is on
-	screen     []string // likewise
-	base       int      // the daemon's line number of the buffer's first line
-	loaded     bool     // a scrollback capture has landed since entering
+	source     string      // the terminal whose screen is the buffer's tail; "" reads the capture's
+	returnLive string      // terminal focused at entry; empty when entered from the list
+	pending    *copyScroll // a scroll waiting for the scrollback to load (terminal.scroll)
+	history    []string    // the capture's history, capped; styled when copy.colors is on
+	screen     []string    // likewise
+	base       int         // the daemon's line number of the buffer's first line
+	loaded     bool        // a scrollback capture has landed since entering
 	frame      string
 	err        string            // why the last scrollback load failed
 	r          *ochazuke.Runtime // asked for a mode's selection shape
@@ -239,9 +240,7 @@ func (a *App) defineCopy() {
 			return c.buf.repeatFind(boolArg(args, "reverse", false), ochazuke.IntArg(args, "steps", 1))
 		}), "Repeat the last f, F, t or T (reverse: the other way)").Motion().
 		Verb("scroll", a.copyOp(func(c *copyMode, _ *ochazuke.Runtime, args ochazuke.Arguments) error {
-			h := max(1, c.buf.height)
-			n := map[string]int{"half": max(1, h/2), "page": max(1, h-2), "line": 1}[ochazuke.StringArg(args, "by", "line")]
-			lines := n * ochazuke.IntArg(args, "steps", 1) * ochazuke.IntArg(args, "dir", 1)
+			lines := scrollSteps(ochazuke.StringArg(args, "by", "line"), c.buf.height) * ochazuke.IntArg(args, "steps", 1) * ochazuke.IntArg(args, "dir", 1)
 			c.buf.scroll(lines, ochazuke.StringArg(args, "by", "line") != "line")
 			return nil
 		}), "Scroll the copy view by half a page, a page or a line (dir 1 down, -1 up)").Motion().
@@ -484,23 +483,28 @@ func (a *App) paneCopy(ctx ochazuke.Ctx) ochazuke.Result {
 
 // terminalCopy is terminal.copy (ctrl+a [): copy mode on the focused
 // terminal's pane, which stays attached.
-func (a *App) terminalCopy(ctx ochazuke.Ctx) ochazuke.Result {
+func (a *App) terminalCopy(ochazuke.Ctx) ochazuke.Result {
+	return resultError(a.enterTerminalCopy())
+}
+
+// enterTerminalCopy is terminalCopy's work, also terminal.scroll's.
+func (a *App) enterTerminalCopy() error {
 	id := a.r.FocusID()
 	if a.r.Terminal(id) == nil {
 		id = paneTermID
 	}
 	if a.r.Terminal(id) == nil {
-		return ochazuke.Failed(errors.New("no pane is attached"))
+		return errors.New("no pane is attached")
 	}
 	p := a.attached
 	if id == sideTermID {
 		p, _ = a.r.Instances[sideTermID].Data.(pane)
 	}
 	if err := a.enterCopy(p, id); err != nil {
-		return ochazuke.Failed(err)
+		return err
 	}
 	a.copy.returnLive = id
-	return ochazuke.Done(nil)
+	return nil
 }
 
 // copyLoad is copy.load: the pane's scrollback, off the loop; a newer load
@@ -528,12 +532,13 @@ func (a *App) copyLoad(ctx ochazuke.Ctx) ochazuke.Result {
 			return
 		}
 		if err != nil {
-			c.err = err.Error()
+			c.err, c.pending = err.Error(), nil
 			return
 		}
 		c.err = ""
 		if back, ok := v.(scrollback); ok {
 			c.apply(back)
+			c.takePendingScroll()
 		}
 	})
 }
