@@ -12,6 +12,7 @@ import (
 type panePanelCache struct {
 	valid         bool
 	title, tone   string
+	hue           string
 	width, height int
 	focused       bool
 	styles        ochazuke.Styles
@@ -30,12 +31,12 @@ func samePaneBlock(a, b ochazuke.Block) bool {
 	return a.Text == b.Text && (a.Cursor == nil && b.Cursor == nil || a.Cursor != nil && b.Cursor != nil && *a.Cursor == *b.Cursor)
 }
 
-func (a *App) cachedPanePanel(c *panePanelCache, l ochazuke.Layout, title, tone string, body ochazuke.Block, width, height int, focused bool) ochazuke.Block {
-	if a.r.Settings().Int(ochazuke.RenderMaxFPSSetting) > 0 && c.valid && c.title == title && c.tone == tone && c.width == width && c.height == height && c.focused == focused && samePaneBlock(c.body, body) && reflect.DeepEqual(c.styles, l.Styles) {
+func (a *App) cachedPanePanel(c *panePanelCache, l ochazuke.Layout, title, tone, hue string, body ochazuke.Block, width, height int, focused bool) ochazuke.Block {
+	if a.r.Settings().Int(ochazuke.RenderMaxFPSSetting) > 0 && c.valid && c.title == title && c.tone == tone && c.hue == hue && c.width == width && c.height == height && c.focused == focused && samePaneBlock(c.body, body) && reflect.DeepEqual(c.styles, l.Styles) {
 		return copyPaneBlock(c.block)
 	}
-	out := l.WithPanelTone(tone).PanelBlock(title, body, width, height, focused)
-	*c = panePanelCache{valid: true, title: title, tone: tone, width: width, height: height, focused: focused, styles: l.Styles, body: copyPaneBlock(body), block: copyPaneBlock(out)}
+	out := a.r.WithHue(l.WithPanelTone(tone), hue).PanelBlock(title, body, width, height, focused)
+	*c = panePanelCache{valid: true, title: title, tone: tone, hue: hue, width: width, height: height, focused: focused, styles: l.Styles, body: copyPaneBlock(body), block: copyPaneBlock(out)}
 	return out
 }
 

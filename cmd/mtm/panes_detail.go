@@ -993,6 +993,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	var body ochazuke.Block
 	focused := false
 	tone := "" // the shown pane's border tone (panes.status-border)
+	hue := ""  // its project's colour (panel.hue)
 	if live || a.copyShown(paneTermID) || !a.frontsPane(inst) {
 		a.detail.panes.hide() // tabBody windows the detail when it draws
 	}
@@ -1003,10 +1004,12 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		body = a.copyBlock(cw, ch)
 		focused = true
 		tone = a.paneBorderTone(a.copy.pane)
+		hue = a.paneHue(a.copy.pane)
 	case live:
 		title = a.streamTitle(paneTermID, a.attached.label())
 		header = a.paneHeader(a.attached)
 		tone = a.paneBorderTone(a.attached)
+		hue = a.paneHue(a.attached)
 		if e := term.Err(); e != "" {
 			title += ": " + e
 		}
@@ -1022,6 +1025,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 		title = p.label()
 		header = a.paneHeader(p)
 		tone = a.paneBorderTone(p)
+		hue = a.paneHue(p)
 		if a.pv.tab == tabScreen {
 			a.r.Placed(copyID) // l, } and tab reach copy mode from the list
 		}
@@ -1042,7 +1046,7 @@ func (a *App) parentDetailBlock(layout ochazuke.Layout, width, height int) ochaz
 	case live || inst == nil || a.frontsPane(inst):
 		body = body.Offset(0, 1).WithText(tabs + "\n" + body.Text)
 	}
-	return a.cachedPanePanel(&a.pv.detailPanel, layout, ansi.Truncate(title, max(1, width-6), "…"), tone, body, width, height, focused)
+	return a.cachedPanePanel(&a.pv.detailPanel, layout, ansi.Truncate(title, max(1, width-6), "…"), tone, hue, body, width, height, focused)
 }
 
 // tabLine names the tabs, the shown one marked; "enter live" only while

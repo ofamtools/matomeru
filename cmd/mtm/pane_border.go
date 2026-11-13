@@ -43,7 +43,12 @@ func (a *App) paneBorderTone(p pane) string {
 	return tone
 }
 
-// panePanel is layout with p's border tone.
-func (a *App) panePanel(layout ochazuke.Layout, p pane) ochazuke.Layout {
+// paneBorderLayout is layout with p's border tone alone.
+func (a *App) paneBorderLayout(layout ochazuke.Layout, p pane) ochazuke.Layout {
 	return layout.WithPanelTone(a.paneBorderTone(p))
+}
+
+// panePanel is layout with p's border tone and its project's hue.
+func (a *App) panePanel(layout ochazuke.Layout, p pane) ochazuke.Layout {
+	return a.r.WithHue(a.paneBorderLayout(layout, p), a.paneHue(p))
 }

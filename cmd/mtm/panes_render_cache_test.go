@@ -22,7 +22,7 @@ func TestPanePanelCacheMatchesComposition(t *testing.T) {
 		tone    string
 	}{{60, 12, false, ""}, {60, 12, true, "state.working"}, {35, 8, true, "state.waiting"}, {2, 2, false, ""}} {
 		for range 2 {
-			got := a.cachedPanePanel(c, l, "title", test.tone, body, test.w, test.h, test.focused)
+			got := a.cachedPanePanel(c, l, "title", test.tone, "", body, test.w, test.h, test.focused)
 			want := l.WithPanelTone(test.tone).PanelBlock("title", body, test.w, test.h, test.focused)
 			if !reflect.DeepEqual(got, want) {
 				t.Fatal("cached panel differs")
@@ -33,12 +33,12 @@ func TestPanePanelCacheMatchesComposition(t *testing.T) {
 		}
 	}
 	body.Text = "changed body"
-	got := a.cachedPanePanel(c, l, "new title", "", body, 60, 12, false)
+	got := a.cachedPanePanel(c, l, "new title", "", "", body, 60, 12, false)
 	if want := l.PanelBlock("new title", body, 60, 12, false); !reflect.DeepEqual(got, want) {
 		t.Fatal("content mutation missed")
 	}
 	l.Styles.Muted = l.Styles.Muted.Bold(true)
-	got = a.cachedPanePanel(c, l, "new title", "", body, 60, 12, false)
+	got = a.cachedPanePanel(c, l, "new title", "", "", body, 60, 12, false)
 	if want := l.PanelBlock("new title", body, 60, 12, false); !reflect.DeepEqual(got, want) {
 		t.Fatal("style mutation missed")
 	}

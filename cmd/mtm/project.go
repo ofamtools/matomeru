@@ -13,6 +13,7 @@ import (
 const unassociatedID = "no-project"
 
 func (a *App) defineProject() {
+	a.registerProjectHue()
 	// Props and the store first: the standard verbs (get, list, create,
 	// set, watch, rename, duplicate) come from them (project_store.go);
 	// new and edit wrap create and set; the rest are mtm's own.
