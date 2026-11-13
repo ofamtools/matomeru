@@ -26,9 +26,9 @@ func focusLabels(t *testing.T, a *App, args ...string) []string {
 	return out
 }
 
-// F opens the focus picker: enter focuses the highlighted task and stays
+// Z opens the focus picker: enter focuses the highlighted task and stays
 // open, a typed title that matches nothing focuses a new task, and
-// focus-item list answers the three in order. + on a task row toggles its
+// focus-item list answers the three in order. = on a task row toggles its
 // focus. A task done today stays in today's list; with the clock a day
 // on, focus.carry unfinished keeps the unfinished ones and none shows none.
 func TestFocusPickerAndDayChange(t *testing.T) {
@@ -36,10 +36,10 @@ func TestFocusPickerAndDayChange(t *testing.T) {
 	a := open(t)
 	now := time.Date(2026, 11, 13, 10, 0, 0, 0, time.UTC)
 	a.loc, a.clock = time.UTC, func() time.Time { return now }
-	press(t, a, "F")
+	press(t, a, "Z")
 	ch := a.r.Chooser(focusPickerName)
 	if ch == nil {
-		t.Fatalf("F opened %q", a.r.TopModal())
+		t.Fatalf("Z opened %q", a.r.TopModal())
 	}
 	rows := ch.Matches()
 	if len(rows) < 2 {
@@ -89,11 +89,11 @@ func TestFocusPickerAndDayChange(t *testing.T) {
 	}
 	listed := func() bool { _, ok, _ := a.focusAt(a.focusToday(), "task:"+row.ID); return ok }
 	was := listed()
-	press(t, a, "+")
+	press(t, a, "=")
 	if listed() == was {
 		t.Fatalf("+ left task %s focused=%v", row.ID, was)
 	}
-	press(t, a, "+")
+	press(t, a, "=")
 	if listed() != was {
 		t.Fatalf("+ twice changed task %s", row.ID)
 	}
@@ -126,7 +126,7 @@ func TestFocusPickerAndDayChange(t *testing.T) {
 	}
 }
 
-// ctrl+a F in live view falls through to F (leader.fall-through): the
+// ctrl+a Z in live view falls through to Z (leader.fall-through): the
 // focus picker opens over the live pane.
 func TestFocusPickerFromLive(t *testing.T) {
 	t.Parallel()
@@ -135,8 +135,8 @@ func TestFocusPickerFromLive(t *testing.T) {
 	if a.r.CurrentMode().Name != "terminal" {
 		t.Fatalf("not live: %s", a.r.CurrentMode().Name)
 	}
-	press(t, a, "ctrl+a", "F")
+	press(t, a, "ctrl+a", "Z")
 	if a.r.Chooser(focusPickerName) == nil {
-		t.Fatalf("ctrl+a F opened %q", a.r.TopModal())
+		t.Fatalf("ctrl+a Z opened %q", a.r.TopModal())
 	}
 }

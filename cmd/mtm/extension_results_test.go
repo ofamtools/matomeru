@@ -85,13 +85,13 @@ func TestExtensionUserRowKeepsGuard(t *testing.T) {
 	bin, _ := fakeExtension(t, catalog, `"item read") printf '%s\n' '"full answer"' ;;`)
 	a := registered(t, seeded(t), "fake", bin)
 	openExtPage(t, a, "ext/fake")
-	if _, err := a.r.LoadBindings([]byte(`[{"noun":"fake.item","mode":"normal","keys":"Z","when":"input","request":{"noun":"fake.item","verb":"read"}}]`)); err != nil {
+	if _, err := a.r.LoadBindings([]byte(`[{"noun":"fake.item","mode":"normal","keys":"&","when":"input","request":{"noun":"fake.item","verb":"read"}}]`)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.r.LoadBindings([]byte(`[{"noun":"fake.item","mode":"normal","keys":"Q","when":"no-such-guard","request":{"noun":"fake.item","verb":"read"}}]`)); err == nil {
 		t.Fatal("unknown user guard was erased")
 	}
-	pressJob(t, a, "Z")
+	pressJob(t, a, "&")
 	if a.r.TopModal() != "" {
 		t.Fatal("host guard did not prevent the key")
 	}

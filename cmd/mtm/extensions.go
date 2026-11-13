@@ -992,9 +992,9 @@ func isPrefixCancel(b ochazuke.Binding) bool {
 // Sequences that only share a prefix ("g s" beside "g g") do not clash.
 // Pattern rows and generated prefix cancels are not compared. Uncaptured
 // actions on the root (app) are fallbacks, mtm's own as the framework's:
-// keys resolve nearest first, so an app-wide key (F, the focus picker)
+// keys resolve nearest first, so an app-wide key (Z, the focus picker)
 // answers where no nearer row binds it, and a tool's row key on its own
-// rows (F, fetch or refresh across the family) is nearer. Root motions
+// rows (say F, fetch or refresh across the family) is nearer. Root motions
 // and captured rows stay reserved.
 func (a *App) keyTaken(list string, row ochazuke.Binding) bool {
 	if row.Keys == "" {

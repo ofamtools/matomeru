@@ -14,7 +14,7 @@ import (
 func TestOutlineHintLinesComeFromBindings(t *testing.T) {
 	t.Parallel()
 	app := open(t)
-	// Five lines: the row's own keys (with + focus) fill the default four
+	// Five lines: the row's own keys (with = focus) fill the default four
 	// before the outline's run starts a line under its noun.
 	if _, err := app.r.Settings().SetSession(settingOutlineHintLines, 5); err != nil {
 		t.Fatal(err)
@@ -23,7 +23,7 @@ func TestOutlineHintLinesComeFromBindings(t *testing.T) {
 	focusRow(t, app, outlineNode("t1"))
 	tall := func() string { app.m.Width, app.m.Height = 120, 40; return ansi.Strip(frameView(app).Content) }
 	f := tall()
-	for _, want := range []string{"J move down", "K move up", "g J move to last", "t todo", "w waiting", "+ focus", "outline: d d delete"} {
+	for _, want := range []string{"J move down", "K move up", "g J move to last", "t todo", "w waiting", "= focus", "outline: d d delete"} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("no %q under the title:\n%s", want, f)
 		}
