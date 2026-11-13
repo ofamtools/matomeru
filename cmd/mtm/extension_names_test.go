@@ -74,6 +74,16 @@ func TestExtensionBareNounNeedsAUniqueName(t *testing.T) {
 	if out, errOut, err := mtm(a, t.TempDir(), "item", "list"); oden.ExitCode(err) != 1 || out != "" || !strings.Contains(errOut, `"item list" is ambiguous: fake.item list, zzz.item list`) {
 		t.Fatalf("shared item: out %q, stderr %q, error %v", out, errOut, err)
 	}
+	// cli.ambiguous first-registered gives the shared word to the noun
+	// mounted first; back to host, it is refused again.
+	for _, step := range []struct{ value, want string }{{ochazuke.CLIAmbiguousFirst, "fake.item"}, {ochazuke.CLIAmbiguousHost, "item"}} {
+		if err := a.r.Settings().Set(ochazuke.CLIAmbiguousSetting, step.value); err != nil {
+			t.Fatal(err)
+		}
+		if got := a.r.CanonicalNoun("item"); got != step.want {
+			t.Fatalf("cli.ambiguous %s: item names %q, want %q", step.value, got, step.want)
+		}
+	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "extension", Verb: "remove", Args: ochazuke.Arguments{"name": "zzz"}, Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}

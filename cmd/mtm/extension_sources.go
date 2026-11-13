@@ -131,7 +131,7 @@ func (a *App) loadSources(x *extension) error {
 	}
 	slices.Sort(keys)
 	owner := x.views[0].Page()
-	bin, env := x.bin, a.loadExtEnv(x.name)
+	bin, env, pool := x.bin, a.loadExtEnv(x.name), x.pool.Load()
 	var errs []error
 	for _, key := range keys {
 		src := x.sources[key]
@@ -143,12 +143,13 @@ func (a *App) loadSources(x *extension) error {
 					args = string(raw)
 				}
 			}
-			out, err := execExt(ctx, bin, env, noun, verb, "--json", args)
+			out, err := pool.read(ctx, bin, env, noun, verb, "--json", args)
 			if err != nil {
 				return nil, err
 			}
 			return extDecoded(out), nil
 		}).Replacing("choices " + key).Label(key).Then(func(_ ochazuke.Ctx, v any, err error) {
+			a.extPoolEvents(x)
 			var choices []ochazuke.Choice
 			if err == nil {
 				choices, err = extChoices(v)

@@ -141,6 +141,7 @@ func (a *App) declareSettings() error {
 	settings = append(settings, agentSettings()...)
 	settings = append(settings, extPeerSettings...)
 	settings = append(settings, extHostSettings...)
+	settings = append(settings, extPoolSettings...)
 	settings = append(settings, taskViewSettings()...)
 	settings = append(settings, scrollKeySettings()...)
 	settings = append(settings, turnStatusSettings()...)

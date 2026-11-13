@@ -55,6 +55,12 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	if a.getenv("OCHAZUKE_CALLER") != "" {
 		sh.Actor = nil
 	}
+	// A callback runtime's environment is the callback's, not this
+	// process's, which the shell would read: it draws the boundary itself.
+	if a.callback {
+		bound, err := a.callbackActor()
+		sh.Actor, actorErr = &bound, err
+	}
 	a.stdin = stdin
 	a.notify.output = stdout
 	sh.Usage = cliUsage
@@ -70,6 +76,9 @@ func (a *App) shell(stdin io.Reader, stdout, stderr io.Writer) *ocli.Shell {
 	sh.Prepare = func(ctx context.Context) error {
 		a.cli = true
 		if actorErr != nil {
+			if a.callback {
+				return actorErr // past the host-call depth: refused, as the shell refuses it
+			}
 			fmt.Fprintln(stderr, "mtm:", actorErr)
 		}
 		a.setActor(act)

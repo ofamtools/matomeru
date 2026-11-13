@@ -29,7 +29,7 @@ func TestAmbiguousExtensionNounCLI(t *testing.T) {
 	mustCLI(t, openAt(t, path), "extension", "register", "md", "--bin", bin)
 	mustCLI(t, openAt(t, path), "extension", "register", "json", "--bin", bin)
 	a := openAt(t, path)
-	want := "doc is ambiguous: json.doc or md.doc (use mtm json doc ... or mtm md doc ...)"
+	want := `"doc" is ambiguous: json.doc, md.doc (write one in full, or set cli.ambiguous to first-registered)`
 	// The bare noun is mtm's own exact command; with an action word the
 	// reader (ochazuke v0.103.0) names the pairs the words read as.
 	wantWords := "is ambiguous: "

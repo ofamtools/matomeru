@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 
 	"ofam.dev/ochazuke"
 	ocli "ofam.dev/ochazuke/cli"
@@ -137,12 +136,14 @@ func (a *App) unmountNounNames(x *extension) {
 }
 
 // syncBareNounNames gives each mounted extension noun its bare name when
-// its naming asks for one and the name is free: no other mounted
-// extension has a noun of that name (ochazuke's palette offers the full
-// names of an ambiguous tail, palette.noun-tails), it is no extension's
-// namespace, and mtm or the framework does not own it. A bare name that
-// stopped being free is removed. Shared names are kept for the CLI's
-// exact ambiguity commands. Call it after every mount and unmount.
+// its naming asks for one and the name is free: it is no extension's
+// namespace, mtm or the framework does not own it, and either no other
+// mounted extension has a noun of that name or the setting cli.ambiguous
+// gives the shared word to one of them (Runtime.SharedNoun, the rule the
+// palette's tails and the CLI reader share). A bare name that stopped
+// being free is removed. Shared names no rule gives away are kept for the
+// CLI's exact ambiguity commands. Call it after every mount and unmount,
+// and when cli.ambiguous changes (observeExtNounNames).
 func (a *App) syncBareNounNames() {
 	owners := map[string][]string{} // a catalog noun -> the mtm nouns of that name
 	namespaces := map[string]bool{}
@@ -156,10 +157,17 @@ func (a *App) syncBareNounNames() {
 		}
 	}
 	want := map[string]string{}
+	refused := map[string]error{}
 	for n, locals := range owners {
-		if len(locals) == 1 && !namespaces[n] {
-			want[n] = locals[0]
+		if namespaces[n] {
+			continue
 		}
+		noun, err := a.r.SharedNoun(n, locals)
+		if err != nil {
+			refused[n] = err
+			continue
+		}
+		want[n] = noun
 	}
 	for alias, noun := range a.extBare {
 		if want[alias] != noun {
@@ -179,11 +187,10 @@ func (a *App) syncBareNounNames() {
 			a.extBare[alias] = noun
 		}
 	}
-	a.extAmbiguous = map[string][]string{}
-	for n, locals := range owners {
-		if len(locals) > 1 && !namespaces[n] && a.r.Noun(n) == nil && a.r.CanonicalNoun(n) == n {
-			slices.Sort(locals)
-			a.extAmbiguous[n] = locals
+	a.extAmbiguous = map[string]error{}
+	for n, err := range refused {
+		if a.r.Noun(n) == nil && a.r.CanonicalNoun(n) == n {
+			a.extAmbiguous[n] = err
 		}
 	}
 }
@@ -194,12 +201,7 @@ func (a *App) syncBareNounNames() {
 // Real host commands are registered first and keep their exact names.
 func (a *App) mountAmbiguousNounNames(app *oden.App) {
 	for _, name := range slices.Sorted(maps.Keys(a.extAmbiguous)) {
-		owners := a.extAmbiguous[name]
-		uses := make([]string, len(owners))
-		for i, noun := range owners {
-			uses[i] = "mtm " + strings.ReplaceAll(noun, ".", " ") + " ..."
-		}
-		err := fmt.Errorf("%s is ambiguous: %s (use %s)", name, strings.Join(owners, " or "), strings.Join(uses, " or "))
+		err := a.extAmbiguous[name] // *ochazuke.AmbiguousNounError: each noun in full
 		app.Add(oden.Command{Name: name, Summary: err.Error(), Source: "extensions",
 			Run: func(context.Context, []string) error { return err },
 		})
@@ -210,6 +212,13 @@ func (a *App) mountAmbiguousNounNames(app *oden.App) {
 // from the one they mounted with (a reload that reads the same value
 // remounts nothing).
 func (a *App) observeExtNounNames() {
+	shared := a.r.Settings().String(ochazuke.CLIAmbiguousSetting)
+	a.r.Settings().Observe(ochazuke.CLIAmbiguousSetting, func(_ string, v any) {
+		if now, _ := v.(string); now != shared {
+			shared = now
+			a.syncBareNounNames()
+		}
+	})
 	mounted := a.r.Settings().String(settingExtNounNames)
 	a.r.Settings().Observe(settingExtNounNames, func(_ string, v any) {
 		if now, _ := v.(string); now != mounted {

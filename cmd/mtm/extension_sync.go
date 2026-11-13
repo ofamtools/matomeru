@@ -75,6 +75,7 @@ func (a *App) unmountExtension(x *extension) error {
 		delete(a.owners, local)
 	}
 	x.nouns = map[string]string{}
+	x.resetPool(nil)
 	a.syncBareNounNames()
 	return errors.Join(errs...)
 }

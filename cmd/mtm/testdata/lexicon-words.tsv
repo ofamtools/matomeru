@@ -279,6 +279,7 @@ expand	action	seed
 export	action	seed	
 exported	prop	seed	
 extension	noun	seed	
+extension-connection	noun	yes	the kept processes of an extension (persistent connections)
 extra	prop	seed	
 extract	action	seed	
 failures	prop	seed	
@@ -679,6 +680,7 @@ reason	prop	seed
 rebase	action	seed	
 recall	action	seed	
 recheck	action	seed	
+reconnect	action	yes	
 record	action	seed	
 redo	action	seed	
 ref	prop	seed	

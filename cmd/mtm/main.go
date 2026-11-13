@@ -55,6 +55,10 @@ func main() {
 // talk to. Empty values resolve to the defaults below.
 type Options struct {
 	lookupEnv func(string) (string, bool) // nil reads the process environment
+	// callback is the runtime that answers kept tools' calls back to mtm
+	// (extension_callbacks.go): it reads its environment per callback and
+	// its own extension calls exec.
+	callback bool
 	// Headless is a command or the MCP gateway: no frame is drawn, so the
 	// rows only a screen shows (the Inbox) load when something asks for them.
 	Headless bool
@@ -522,9 +526,14 @@ type App struct {
 	// extBare is the bare noun names mtm gave mounted extension nouns,
 	// alias -> noun (extension_names.go).
 	extBare map[string]string
-	// extAmbiguous keeps the owners of shared, otherwise unclaimed noun
-	// names, so the CLI can reserve each exact word (extension_names.go).
-	extAmbiguous map[string][]string
+	// extAmbiguous keeps the refusal (naming each noun in full) of shared
+	// noun names cli.ambiguous gives to none, so the CLI can reserve each
+	// exact word (extension_names.go).
+	extAmbiguous map[string]error
+	// callback is set on a callback runtime (Options.callback); callbacks
+	// answers kept tools' calls back to this process (extension_callbacks.go).
+	callback  bool
+	callbacks *hostCallbacks
 	// extSyncDue asks the next update to mount the registry as it is now
 	// (extension_sync.go); extErrsSeen are the registry errors shown.
 	extSyncDue  bool
@@ -619,6 +628,8 @@ func New(opts Options) (*App, error) {
 	a.configDir = configDir
 	a.dataPath = opts.Data
 	a.opts = opts
+	a.callback = opts.callback
+	a.callbacks = &hostCallbacks{turn: make(chan struct{}, 1)}
 	a.directoryIO = newDirectoryIO()
 	a.configure(opts, configDir)
 	if err := a.openSchedules(configDir); err != nil {
@@ -791,6 +802,7 @@ func New(opts Options) (*App, error) {
 	// After the first mount: its read of the naming loads settings.json,
 	// which would tell an observer of the change from the default.
 	a.observeExtNounNames()
+	a.observeExtPools()
 	a.observeArchiveViews()
 	a.hookLazyPages()
 	if a.pin, err = a.work.Pin(); err != nil {
@@ -834,7 +846,7 @@ func New(opts Options) (*App, error) {
 func (a *App) Close() error {
 	a.quitting = true
 	a.stopSchedules()
-	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.db.Close())
+	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.closeExtPools(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.

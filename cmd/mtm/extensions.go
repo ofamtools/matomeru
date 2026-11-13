@@ -195,13 +195,19 @@ func execExt(ctx context.Context, bin string, env []string, args ...string) ([]b
 	var out, errOut bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errOut
 	if err := cmd.Run(); err != nil {
-		words := filepath.Base(bin) + " " + strings.Join(args[:min(2, len(args))], " ")
-		if msg := strings.TrimSpace(errOut.String()); msg != "" {
-			return nil, fmt.Errorf("%s failed: %w: %s", words, err, msg)
-		}
-		return nil, fmt.Errorf("%s failed: %w", words, err)
+		return nil, extFailed(bin, args, err, errOut.Bytes())
 	}
 	return out.Bytes(), nil
+}
+
+// extFailed is a failed call of an extension: the command's first words,
+// the error and its stderr, the same whether it ran by exec or served.
+func extFailed(bin string, args []string, err error, stderr []byte) error {
+	words := filepath.Base(bin) + " " + strings.Join(args[:min(2, len(args))], " ")
+	if msg := strings.TrimSpace(string(stderr)); msg != "" {
+		return fmt.Errorf("%s failed: %w: %s", words, err, msg)
+	}
+	return fmt.Errorf("%s failed: %w", words, err)
 }
 
 // execExtWatch runs `BIN NOUN watch --json {...}` until stop is called:
@@ -210,26 +216,12 @@ func execExt(ctx context.Context, bin string, env []string, args ...string) ([]b
 // since). A line that is not an event is skipped; the call ending (the
 // tool exits) ends the stream. stop kills the call and waits for it.
 func execExtWatch(bin string, env []string, keyProp, noun string, q ochazuke.WatchQuery, emit func(ochazuke.WatchEvent)) (func(), error) {
-	args := map[string]any{}
-	if q.Key != "" && keyProp != "" {
-		args[keyProp] = q.Key
-	}
-	if len(q.Where) > 0 {
-		pairs := make([]string, 0, len(q.Where))
-		for _, k := range slices.Sorted(maps.Keys(q.Where)) {
-			pairs = append(pairs, k+"="+fmt.Sprint(q.Where[k]))
-		}
-		args["where"] = strings.Join(pairs, ",")
-	}
-	if q.Since != "" {
-		args["since"] = q.Since
-	}
-	js, err := json.Marshal(args)
+	words, err := extWatchWords(keyProp, noun, q)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, bin, noun, "watch", "--json", string(js))
+	cmd := exec.CommandContext(ctx, bin, words...)
 	cmd.WaitDelay = extWaitDelay
 	cmd.Env = extensionExecEnv(env, false)
 	out, err := cmd.StdoutPipe()
@@ -264,6 +256,30 @@ func execExtWatch(bin string, env []string, keyProp, noun string, q ochazuke.Wat
 			<-done
 		})
 	}, nil
+}
+
+// extWatchWords are the words of a noun's watch call: q becomes the verb's
+// arguments (the key prop, where as prop=value pairs, since).
+func extWatchWords(keyProp, noun string, q ochazuke.WatchQuery) ([]string, error) {
+	args := map[string]any{}
+	if q.Key != "" && keyProp != "" {
+		args[keyProp] = q.Key
+	}
+	if len(q.Where) > 0 {
+		pairs := make([]string, 0, len(q.Where))
+		for _, k := range slices.Sorted(maps.Keys(q.Where)) {
+			pairs = append(pairs, k+"="+fmt.Sprint(q.Where[k]))
+		}
+		args["where"] = strings.Join(pairs, ",")
+	}
+	if q.Since != "" {
+		args["since"] = q.Since
+	}
+	js, err := json.Marshal(args)
+	if err != nil {
+		return nil, err
+	}
+	return []string{noun, "watch", "--json", string(js)}, nil
 }
 
 // parseExtCatalog decodes and checks a catalog answer.
@@ -412,6 +428,12 @@ type extension struct {
 	// lists are its mounted lists' rows as filed, scoped by project
 	// (extension_scope.go).
 	lists map[string]*extListState
+	// pool keeps the tool running when its catalog serves (nil: exec);
+	// poolStale and poolNotice are what it said off the loop
+	// (extension_pool.go).
+	pool       atomic.Pointer[extPool]
+	poolStale  atomic.Bool
+	poolNotice atomic.Pointer[string]
 }
 
 // extPageID is the page of an extension (a synthesized page) or of one of
@@ -434,7 +456,7 @@ func (a *App) extEnv(name string) []string {
 // baseExtEnv snapshots the active request's actor and host policy on the loop.
 func (a *App) baseExtEnv(name string) []string {
 	env := []string{"MTM_DATA=" + a.dataDir(), "MTM_EXTENSION=" + name, actorEnv + "=" + a.actorEnvValue(), "OCHAZUKE_EXTENSION=" + name}
-	return append(env, a.hostEnv()...)
+	return append(append(env, a.hostEnv()...), a.callbackEnv()...)
 }
 
 // dataDir is mtm's data directory: the directory of its database.
@@ -455,6 +477,7 @@ func (a *App) defineExtensions() {
 		Verb("available", a.availableExtensions, "List the family tools on PATH (o-NAME answering catalog) and the registered extensions, each available, registered, stale or missing").Fetch().Quiet().
 		Verb("refresh", a.refreshExtension, "Read a registered extension's catalog again (every extension when NAME is omitted)").Positional("name").
 		Verb("remove", a.removeExtension, "Unregister an extension; --purge also deletes its data file").Positional("name").Confirm("Remove extension {{label}}? Its data file stays (mtm extension remove NAME --purge deletes it).")
+	a.defineExtConnections()
 	a.parameters("extension.peers", map[string]ochazuke.Parameter{"name": {Type: "string", Description: "Only this registered extension"}})
 	a.parameters("extension.register", map[string]ochazuke.Parameter{
 		"name": {Type: "string", Description: "The extension's name: its tab and the prefix of its nouns (lowercase letters, digits, dashes); on an Extensions row, the row's"},
@@ -812,7 +835,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 		// (md.doc.watch, inventory.daily.watch): the host's standard watch
 		// runs over the stream.
 		Watch: func(noun string, q ochazuke.WatchQuery, emit func(ochazuke.WatchEvent)) (func(), error) {
-			return execExtWatch(x.bin, a.extEnv(x.name), extensionKeyProp(x.doc, noun), noun, q, emit)
+			return a.extWatch(x, noun, q, emit)
 		},
 		CanonicalKey: func(noun, selector, key string) error {
 			cache := noun + "\x00" + selector
@@ -837,6 +860,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 		}
 		return
 	}
+	x.resetPool(a.newExtPool(x))
 	a.mountOldNounNames(x, notify)
 	a.mountSources(x, plan)
 	a.syncFetchEnv(x)
@@ -850,7 +874,7 @@ func (a *App) mountExtension(name string, e extEntry) {
 			return naming.local(ns, n)
 		},
 		Fetch: func(c context.Context, noun, verb string) ([]byte, error) {
-			return execExt(c, x.bin, x.loadEnv(nil), noun, verb, "--json", "{}")
+			return x.read(c, x.loadEnv(nil), noun, verb, "--json", "{}")
 		},
 		FetchRecord: func(c context.Context, noun, key string) ([]byte, error) {
 			field := extensionKeyProp(x.doc, noun)
@@ -861,16 +885,19 @@ func (a *App) mountExtension(name string, e extEntry) {
 			if err != nil {
 				return nil, err
 			}
-			return execExt(c, x.bin, x.loadEnv(nil), noun, "get", "--json", string(args))
+			return x.read(c, x.loadEnv(nil), noun, "get", "--json", string(args))
 		},
 		// The state verb asks for what changed since the rows the page
 		// holds (ochazuke's state deltas), when the catalog declares
 		// stateDelta; an older tool keeps full answers through Fetch.
 		FetchFlags: func(c context.Context, noun, verb string, flags []string) ([]byte, error) {
-			return execExt(c, x.bin, x.loadEnv(nil), append([]string{noun, verb, "--json", "{}"}, flags...)...)
+			return x.read(c, x.loadEnv(nil), append([]string{noun, verb, "--json", "{}"}, flags...)...)
 		},
 		// Rows that land are scoped by project (extension_scope.go).
-		OnRows: func(list string, rows []ocli.Row) { a.extRowsLanded(x, list, rows) },
+		OnRows: func(list string, rows []ocli.Row) {
+			a.extRowsLanded(x, list, rows)
+			a.extPoolEvents(x)
+		},
 		// Every page's detail shows the notes about the selected row (the
 		// same stack as mtm's own details: notes.related-hidden keeps to
 		// them, notes.related-empty hides it while there are none).
@@ -1229,6 +1256,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		}
 		return ochazuke.Done(extDecoded(out))
 	}
+	pool := x.pool.Load()
 	var before map[string]any
 	var preflight func(context.Context) error
 	key := extensionSubjectKey(x.doc, noun, args, target)
@@ -1238,7 +1266,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 			if err != nil {
 				return err
 			}
-			raw, err := execExt(ctx, bin, env, noun, "get", "--json", string(js))
+			raw, err := pool.read(ctx, bin, env, noun, "get", "--json", string(js))
 			if err != nil {
 				return err
 			}
@@ -1247,7 +1275,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	}
 	result := ocli.RunMounted(spec, ocli.ProxyCommand{
 		Bin: bin, Args: words, Env: extensionExecEnv(env, false),
-		Timeout: extExecTimeout, WaitDelay: extWaitDelay, Before: preflight,
+		Timeout: extExecTimeout, WaitDelay: extWaitDelay, Before: preflight, Pool: x.poolOf(),
 	})
 	if preflight != nil {
 		result = result.Continue(func(value any, err error) (func(context.Context) (any, error), any, error) {
@@ -1271,6 +1299,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 		if a.r.Settings().Bool(settingExtPeerStatus) && currentView != nil && !slices.Contains(x.views, currentView) {
 			currentView.SetStatus(line)
 		}
+		a.extPoolEvents(x)
 		if !a.cli {
 			a.reloadExtension(x)
 		}

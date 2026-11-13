@@ -44,6 +44,9 @@ func TestMain(m *testing.M) {
 	os.Setenv("PATH", testPath())
 	code := m.Run()
 	os.RemoveAll(dir)
+	if serveToolDir != "" {
+		os.RemoveAll(serveToolDir)
+	}
 	if hostBuilt.host != "" {
 		os.RemoveAll(filepath.Dir(hostBuilt.host))
 	}
