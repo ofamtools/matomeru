@@ -204,3 +204,47 @@ func TestExecExtWatchStreamsLines(t *testing.T) {
 		t.Fatalf("called with %q, want %q", strings.TrimSpace(string(data)), want)
 	}
 }
+
+// watchCatalog is a tool whose item noun has a store and its own watch.
+const watchCatalog = `{"schema":1,"name":"o-fake","version":"1","nouns":[
+ {"name":"item","store":{"get":true,"list":true},
+  "props":[{"name":"id","type":"string","key":true},{"name":"label","type":"string","role":"label"}],
+  "verbs":[{"name":"list","kind":"application","standard":"list"},
+   {"name":"get","kind":"application","standard":"get","params":{"id":{"type":"string","noun":"item"}}},
+   {"name":"watch","kind":"application","standard":"watch","params":{"id":{"type":"string","noun":"item"},"since":{"type":"string"},"where":{"type":"string","free":true,"pairs":true}}}]}],
+ "pages":[]}`
+
+// A registered tool's watch verb serves the host's standard watch of its
+// noun: the host's watch gets the tool's streamed events.
+func TestMountedWatchStreamsFromTheTool(t *testing.T) {
+	t.Parallel()
+	bin, _ := fakeExtension(t, watchCatalog, `"item watch") echo '{"type":"added","id":"i9","hash":"h1"}'; exec sleep 30 ;;`)
+	a := registered(t, filepath.Join(t.TempDir(), "mtm.db"), "fake", bin)
+	var noun string
+	for _, x := range a.exts {
+		noun = x.nouns["item"]
+	}
+	if op, ok := a.r.Operation(noun + ".watch"); !ok || op.CatalogProxy || op.Standard != "watch" {
+		t.Fatalf("%s.watch: ok %v proxy %v standard %q", noun, ok, op.CatalogProxy, op.Standard)
+	}
+	w, err := a.r.Watch(noun, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cmd := a.r.PendingCommands(); cmd != nil {
+			if _, err := a.r.Deliver(cmd()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := w.Take(); len(got) > 0 {
+			if got[0].ID != "i9" {
+				t.Fatalf("events %+v", got)
+			}
+			return
+		}
+	}
+	t.Fatal("no event streamed")
+}
