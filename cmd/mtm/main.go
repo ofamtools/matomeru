@@ -397,7 +397,8 @@ type App struct {
 	home                func() (string, error) // where a launch with no project starts; tests replace it
 
 	projects       []work.Project
-	current        string // the open project's id; its tasks fill the tasks stop
+	hues           map[string]string // project id → its hue (setProjectHues)
+	current        string            // the open project's id; its tasks fill the tasks stop
 	tasksOpen      bool
 	workFocus      string            // the focus followProject last saw, to tell a spill from a move
 	dirsVisited    bool              // the Directories page has been opened once
@@ -821,6 +822,7 @@ func (a *App) refreshProjects() error {
 		return err
 	}
 	a.projects = projects
+	a.setProjectHues()
 	a.refreshProjectPrefixes()
 	a.extRowOwners = nil // read again: a deleted project leaves its rows unassociated
 	drafts, err := a.draftRecords("project")
