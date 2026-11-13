@@ -55,5 +55,7 @@ func daemonOptions(l daemon.Layout, legacy bool) serve.Options {
 	}
 	names.Env = serve.MTMEnv
 	names.DropUpstream = !legacy
-	return serve.Options{SelfCommand: []string{"", daemonWord}, Version: daemonVersion(), Names: &names}
+	// tuios first until the owner's per-host cutover (tuios purge plan O2):
+	// a remote host whose row names no command keeps answering as tuios.
+	return serve.Options{SelfCommand: []string{"", daemonWord}, Version: daemonVersion(), Names: &names, RemotePrograms: []string{"tuios", "mtm"}}
 }
