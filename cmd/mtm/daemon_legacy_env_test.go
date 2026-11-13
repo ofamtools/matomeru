@@ -11,6 +11,7 @@ import (
 // daemon.legacy-env: off (the default) the daemon exports only MTM_ names to
 // children; on it exports the TUIOS_ ones beside them.
 func TestDaemonLegacyEnvSettingSetsDropUpstream(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		value string
 		drop  bool
