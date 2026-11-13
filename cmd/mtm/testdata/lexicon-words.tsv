@@ -977,3 +977,5 @@ zoom	action	seed
 zoom-in	action	seed	
 zoom-out	action	seed	
 zoom-reset	action	seed	
+look	action	yes	och-rail-focus: ochazuke.rail.look sets the rail's look (rail.look: full or float)
+rail	noun	yes	och-rail-focus: the rail region beside a page's main area (ochazuke.rail)

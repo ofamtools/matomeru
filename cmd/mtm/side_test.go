@@ -309,6 +309,7 @@ func TestNewSideWindowFitsItsRegion(t *testing.T) {
 	t.Parallel()
 	a, driver := shellApp(t)
 	a.cli = true
+	railOff(t, a) // the side's region in the whole detail
 	a.renderPanes(a.r, 240, 30) // the detail is 167x30; a side would get 83 columns
 	p := driver.panes.panes[0]
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "side", Target: p.rowID(), Args: ochazuke.Arguments{"kind": "term"}}); err != nil {

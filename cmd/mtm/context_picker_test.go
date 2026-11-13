@@ -300,6 +300,7 @@ func TestChooserPreviewNeedsTheWidth(t *testing.T) {
 func TestTheLeaderFollowsTheTerminalLeaderSetting(t *testing.T) {
 	t.Parallel()
 	a, _, _, _ := liveContextApp(t)
+	railOff(t, a) // at 120 columns the rail floats over the tab line's hint
 	if a.r.TerminalLeader() != "ctrl+a" {
 		t.Fatalf("default leader %q", a.r.TerminalLeader())
 	}
