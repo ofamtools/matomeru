@@ -13,6 +13,19 @@ import (
 	"ofam.dev/matomeru/internal/panesignals"
 )
 
+// raiseWaiting records the needs-input item a live TUI raises for a
+// waiting pane (Needs you holds rows by their items, not by agent state).
+func raiseWaiting(t *testing.T, a *App, window, session string) {
+	t.Helper()
+	if _, _, err := a.inbox.items.Add(actionitems.Spec{Source: panesignals.Source, Kind: panesignals.NeedsInput,
+		Key: panesignals.Key(panesignals.NeedsInput, window, 0), Window: window, Session: session}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.inboxLoad.refresh(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // needsYouHead is the header's "N need you" count, 0 when it is absent.
 func needsYouHead(a *App) int {
 	n := 0

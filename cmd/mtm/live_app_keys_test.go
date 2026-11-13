@@ -175,6 +175,7 @@ func TestLeaderPaneKeysStayLive(t *testing.T) {
 		}
 	}
 	reload(t, app)
+	raiseWaiting(t, app, "w1", "matomeru")
 	settle(app, key(t, app, "ctrl+a"))
 	settle(app, key(t, app, "W"))
 	if app.attached.ID != "w1" {

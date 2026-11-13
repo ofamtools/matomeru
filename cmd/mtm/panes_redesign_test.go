@@ -43,18 +43,19 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	}
 	f.panes[1].Harness, f.panes[1].AgentState = "claude", "needs_input"
 	reload(t, app)
+	raiseWaiting(t, app, "w2", "ochazuke")
 	if n := countRows(app, "pane"); n != 2 {
 		t.Fatalf("after: %d pane rows, want 2: %+v", n, app.paneList.Items())
 	}
 	if got := cells(app, row); !strings.Contains(got, "? claude") || !strings.Contains(got, "| needs input") {
 		t.Fatalf("agent row cells %q", got)
 	}
-	// Needs input sorts first and the header counts it; W jumps to it.
+	// Its needs-input item puts it in Needs you and the header counts it; W jumps to it.
 	if fr := frame(app); !strings.Contains(fr, "1 need you · W next") {
 		t.Fatalf("header:\n%s", fr)
 	}
-	if items := app.paneList.Items(); items[2].ID != row {
-		t.Fatalf("needs input is not first: %+v", items)
+	if got := sectionOfRow(app, row); got != sectionQueue {
+		t.Fatalf("the waiting agent is in %q, not Needs you", got)
 	}
 	press(t, app, "W")
 	if app.r.FocusID() != row {
