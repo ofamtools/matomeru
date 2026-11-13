@@ -12,34 +12,60 @@ import (
 // own); forward sends the key to the program as the terminal's `any` row
 // does. A harnesses.json row sets it for any harness, also through
 // "extends". No guard: the pane's data decides.
+//
+// The shift rows carry always: they enter copy mode a page back from any
+// live pane whatever its harness says, unless the program is on the
+// alternate screen (which has no history; TUIOS forwards there too). The
+// setting terminal.shift-scroll turns that off.
 
 // settingTerminalScrollKeys is the opt-out: off, terminal.scroll forwards
 // every key whatever the harness says.
 const settingTerminalScrollKeys = "terminal.scroll-keys"
 
+// settingTerminalShiftScroll is the opt-out of the always rows.
+const settingTerminalShiftScroll = "terminal.shift-scroll"
+
 // scrollKeySettings is the setting of the scroll rows.
 func scrollKeySettings() []ochazuke.Setting {
 	return []ochazuke.Setting{{Name: settingTerminalScrollKeys, Type: ochazuke.SettingBoolean, Default: true,
-		Description: "Let a live pane's PageUp follow its harness's scroll field (omp: copy mode a page back; the others pass the key to the program); off passes every scroll key to the program"}}
+		Description: "Let a live pane's PageUp follow its harness's scroll field (omp: copy mode a page back; the others pass the key to the program); off passes every scroll key to the program"},
+		{Name: settingTerminalShiftScroll, Type: ochazuke.SettingBoolean, Default: true,
+			Description: "shift+PageUp in a live pane opens copy mode a page back whatever its harness says, as TUIOS does (a pane on the alternate screen still gets the key); off leaves shift+PageUp to the harness's scroll field like PageUp"}}
 }
 
 // defineLiveScroll registers terminal.scroll and the live-terminal rows.
 func (a *App) defineLiveScroll() {
-	row := func(dir int) ochazuke.Binding {
-		return ochazuke.Do("terminal.scroll", ochazuke.Arguments{"dir": dir, "by": "page"}).FromKey("keys").Hide()
+	row := func(dir int, always bool) ochazuke.Binding {
+		return ochazuke.Do("terminal.scroll", ochazuke.Arguments{"dir": dir, "by": "page", "always": always}).FromKey("keys").Hide()
 	}
 	a.r.Define("terminal").
 		Verb("scroll", a.terminalScroll, "Scroll a live pane by its harness's scroll field: copy enters copy mode a page back (dir -1; forward from live does nothing), forward sends the key (keys) to the program; the terminal.scroll-keys setting off always sends it").
 		Mode("terminal").
-		Bind("pgup", row(-1)).
-		Bind("shift+pgup", row(-1)).
-		Bind("pgdown", row(1)).
-		Bind("shift+pgdown", row(1))
+		Bind("pgup", row(-1, false)).
+		Bind("shift+pgup", row(-1, true)).
+		Bind("pgdown", row(1, false)).
+		Bind("shift+pgdown", row(1, true))
 	a.parameters("terminal.scroll", map[string]ochazuke.Parameter{
-		"dir":  {Type: "integer", Description: "-1 back into the history (default), 1 forward"},
-		"by":   {Type: "string", Enum: []string{"page", "half", "line"}, Description: "How far: a page (default), half a page or a line"},
-		"keys": {Type: "string", Description: "The key that was pressed: sent to the program when the pane's harness forwards"},
+		"dir":    {Type: "integer", Description: "-1 back into the history (default), 1 forward"},
+		"by":     {Type: "string", Enum: []string{"page", "half", "line"}, Description: "How far: a page (default), half a page or a line"},
+		"always": {Type: "boolean", Description: "Enter copy mode whatever the harness's scroll field says (the terminal.shift-scroll setting allows it; not on the alternate screen)"},
+		"keys":   {Type: "string", Description: "The key that was pressed: sent to the program when the pane's harness forwards"},
 	})
+}
+
+// liveScrollEntersCopy reports whether a scroll key up in the focused live
+// terminal enters copy mode: the harness's scroll field with
+// terminal.scroll-keys on, or an always row with terminal.shift-scroll on
+// and the program off the alternate screen.
+func (a *App) liveScrollEntersCopy(always bool) bool {
+	id := a.r.FocusID()
+	if a.r.Settings().Bool(settingTerminalScrollKeys) && a.paneScrollsInCopy(id) {
+		return true
+	}
+	if t := a.r.Terminal(id); always && t != nil && a.r.Settings().Bool(settingTerminalShiftScroll) {
+		return !t.Frame().AltScreen
+	}
+	return false
 }
 
 // paneScrollsInCopy reports whether the scroll keys of the pane the live
@@ -106,10 +132,11 @@ func (a *App) terminalScroll(ctx ochazuke.Ctx) ochazuke.Result {
 	by := ochazuke.StringArg(ctx.Args, "by", "page")
 	dir := ochazuke.IntArg(ctx.Args, "dir", -1)
 	if c := a.copy; c.active {
+		before := c.buf.place()
 		c.buf.scrollBy(by, dir)
-		return ochazuke.Done(nil)
+		return resultError(a.copyScrolled(before, by, dir))
 	}
-	if dir < 0 && a.paneScrollsInCopy(a.r.FocusID()) && a.r.Settings().Bool(settingTerminalScrollKeys) {
+	if dir < 0 && a.liveScrollEntersCopy(boolArg(ctx.Args, "always", false)) {
 		if err := a.enterTerminalCopy(); err != nil {
 			return ochazuke.Failed(err)
 		}
