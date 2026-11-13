@@ -156,7 +156,19 @@ type Store struct {
 	// statuses is the task status table (settings tasks.statuses); nil is
 	// DefaultStatuses (statuses.go).
 	statuses func() []StatusDef
+	// colorPicker chooses the colour of a new project that names none, from
+	// the colours the live projects hold (SetColorPicker); nil leaves it
+	// empty.
+	colorPicker ColorPicker
 }
+
+// ColorPicker chooses a colour for a new project given the colours the
+// non-archived projects hold.
+type ColorPicker func(taken []string) string
+
+// SetColorPicker sets how a new project with no colour gets one: PutProject,
+// the one write every way of creating a project ends in, asks it.
+func (s *Store) SetColorPicker(f ColorPicker) { s.colorPicker = f }
 
 // Open declares the tables and returns the unit.
 func Open(db *store.Store) (*Store, error) {
@@ -250,15 +262,50 @@ func (s *Store) PutProject(p Project) error {
 		if err := s.mayShareProject(tx, p); err != nil {
 			return err
 		}
+		if err := s.colorNewProject(tx, &p); err != nil {
+			return err
+		}
 		return tx.Put("projects", p.ID, p)
 	})
+}
+
+// colorNewProject gives a project that is not stored yet and has no colour
+// the colour the picker chooses among the live projects' colours. A stored
+// project, or one with a colour of any value, is never changed.
+func (s *Store) colorNewProject(tx *store.Tx, p *Project) error {
+	if s.colorPicker == nil || p.Theme.Color != "" {
+		return nil
+	}
+	var old Project
+	if err := tx.Get("projects", p.ID, &old); err == nil && old.ID != "" {
+		return nil
+	}
+	rows, err := tx.All("projects")
+	if err != nil {
+		return err
+	}
+	var taken []string
+	for _, raw := range rows {
+		var o Project
+		if err := json.Unmarshal(raw, &o); err != nil {
+			return err
+		}
+		if !o.Archived && o.Theme.Color != "" {
+			taken = append(taken, o.Theme.Color)
+		}
+	}
+	p.Theme.Color = s.colorPicker(taken)
+	return nil
 }
 
 // AddProject creates an open project with a name and nothing else.
 func (s *Store) AddProject(name string) (Project, error) {
 	name = strings.TrimSpace(name)
 	p := Project{ID: NewID(), Name: name, Status: "open", Created: Now()}
-	return p, s.PutProject(p)
+	if err := s.PutProject(p); err != nil {
+		return p, err
+	}
+	return s.Project(p.ID)
 }
 
 // PutTask writes a task row, as the store's actor (putTask: the rights

@@ -36,10 +36,11 @@ func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
 	}
 	a.m.Width, a.m.Height = 100, 30
 	frameView(a)
+	start, _ := a.work.Project("matomeru") // the palette tone it was given
 	press(t, a, "}", "i")
 	typeText(t, a, "blue")
 	pauseRecord(t, a)
-	if p, _ := a.work.Project("matomeru"); p.Theme.Color != "blue" {
+	if p, _ := a.work.Project("matomeru"); p.Theme.Color != start.Theme.Color+"blue" {
 		t.Fatalf("field not written after the pause: %+v", p.Theme)
 	}
 	press(t, a, "esc", "q")
@@ -50,7 +51,7 @@ func TestProjectEditCommitsOnChangeAndKeepsDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Name != "matomeru renamed" || p.Theme.Color != "blue" || p.DefaultTree != "/shared" || len(p.Trees) != 1 || p.Theme.Glyph != "◆" {
+	if p.Name != "matomeru renamed" || p.Theme.Color != start.Theme.Color+"blue" || p.DefaultTree != "/shared" || len(p.Trees) != 1 || p.Theme.Glyph != "◆" {
 		t.Fatalf("leave lost changes or metadata: %+v", p)
 	}
 }

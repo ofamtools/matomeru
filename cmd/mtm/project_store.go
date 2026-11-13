@@ -170,12 +170,15 @@ func (a *App) createProject(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thi
 	if err := a.work.PutProject(p); err != nil {
 		return nil, err
 	}
+	var err error
+	if p, err = a.work.Project(p.ID); err != nil { // with the colour the store gave it
+		return nil, err
+	}
 	if dir, _ := thingString(values, "dir"); strings.TrimSpace(dir) != "" {
 		tree := inspectDirectory(a.expandPath(dir))
 		if _, err := a.relateDirectory(c, p.ID, tree); err != nil {
 			return nil, err
 		}
-		var err error
 		if p, err = a.defaultDirectory(c, p.ID, tree.Path); err != nil {
 			return nil, err
 		}
@@ -264,5 +267,8 @@ func (a *App) saveProjectRecord(record editRecord, values ochazuke.Record) (any,
 		harness = p.Settings.Harness
 	}
 	p.Settings.Harness, p.Settings.Preset = harness, values["preset"] // the privacy stays
-	return p, a.work.PutProject(p)
+	if err := a.work.PutProject(p); err != nil {
+		return nil, err
+	}
+	return a.work.Project(p.ID) // with the colour the store gave a new one
 }

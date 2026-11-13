@@ -261,6 +261,9 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		if err := app.inboxLoad.ensure(); err != nil { // an explicit tui word ran New headless
 			return err
 		}
+		if err := app.assignProjectColors(); err != nil { // once: a project with no colour gets one
+			return err
+		}
 		_, err := tea.NewProgram(app).Run()
 		return err
 	}
@@ -398,6 +401,7 @@ type App struct {
 
 	projects       []work.Project
 	hues           map[string]string // project id → its hue (setProjectHues)
+	colorRand      func(n int) int   // random source of pickProjectColor (tests seed it)
 	current        string            // the open project's id; its tasks fill the tasks stop
 	tasksOpen      bool
 	workFocus      string            // the focus followProject last saw, to tell a spill from a move
@@ -586,7 +590,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
+	a := &App{colorRand: colorRandom, db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
 	hub.changed = a.relationChanged
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
@@ -712,6 +716,7 @@ func New(opts Options) (*App, error) {
 	a.taskList = a.taskTree.List()
 	a.observeTasksLayout()
 	a.observeTaskView()
+	a.work.SetColorPicker(a.pickProjectColor)
 	a.declareTaskTones()
 	row := ochazuke.Do("project.new")
 	row.Instance, row.Mode, row.Keys = "projects", "normal", "n"

@@ -25,6 +25,7 @@ func projectsOn(t *testing.T, a *App, id string) {
 func TestProjectSetRenameAndUndo(t *testing.T) {
 	t.Parallel()
 	a := open(t)
+	start, _ := a.work.Project("matomeru") // a new project holds the palette tone it was given
 	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "props": map[string]any{"@label": "Matomeru"}})
 	executeA(t, a, "project", "set", "", ochazuke.Arguments{"id": "matomeru", "props": map[string]any{"color": "blue", "preset": "fast"}})
 	p, _ := a.work.Project("matomeru")
@@ -43,7 +44,7 @@ func TestProjectSetRenameAndUndo(t *testing.T) {
 		t.Fatalf("undo of the harness: %+v", p)
 	}
 	executeA(t, a, "history-entry", "undo", "", nil)
-	if p, _ := a.work.Project("matomeru"); p.Theme.Color != "" || p.Settings.Preset != "" || p.Name != "Matomeru" {
+	if p, _ := a.work.Project("matomeru"); p.Theme.Color != start.Theme.Color || p.Settings.Preset != "" || p.Name != "Matomeru" {
 		t.Fatalf("undo of the set: %+v", p)
 	}
 	// project edit with arguments is the standard set of those given (and
