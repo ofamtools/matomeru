@@ -163,6 +163,12 @@ func (a *App) createProject(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thi
 	if id == "" {
 		id = work.NewID()
 	}
+	// A colour counts only when the request named it: a copy (project
+	// duplicate) carries its source's colour in values, and a project that
+	// looks like another defeats the colour, so the store picks a fresh one.
+	if _, named := c.Args["color"]; !named {
+		delete(values, "color")
+	}
 	p := work.Project{ID: id, Status: "open", Created: work.Now()}
 	if err := a.writeProjectProps(c, &p, values); err != nil {
 		return nil, err

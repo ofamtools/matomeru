@@ -124,14 +124,20 @@ func TestAssignProjectColorsOnLoad(t *testing.T) {
 		}
 	}
 	a.work.SetColorPicker(a.pickProjectColor)
+	ps, _ := a.work.Projects()
+	held := map[string]bool{}
+	for _, p := range ps {
+		held[p.Theme.Color] = true
+	}
 	if err := a.assignProjectColors(); err != nil {
 		t.Fatal(err)
 	}
 	got := []string{storedColor(t, a, "q0"), storedColor(t, a, "q1"), storedColor(t, a, "q2"), storedColor(t, a, "q3")}
-	want := []string{ochazuke.PaletteToneAt(0), "#7FB685", ochazuke.PaletteToneAt(1), "garbage"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("colours = %v, want %v", got, want)
+	// Colourless ones take unheld tones, oldest first; the others stay.
+	if !ochazuke.ValidHue(got[0]) || held[got[0]] || !ochazuke.ValidHue(got[2]) || held[got[2]] || got[0] == got[2] || got[1] != "#7FB685" || got[3] != "garbage" {
+		t.Fatalf("colours = %v (already held %v)", got, held)
 	}
+	want := got
 	if err := a.assignProjectColors(); err != nil {
 		t.Fatal(err)
 	}
@@ -246,5 +252,41 @@ func TestPaneHueOverState(t *testing.T) {
 		if got != want {
 			t.Errorf("over=%v: the border is not the %s's", over, map[bool]string{true: "hue", false: "state tone"}[over])
 		}
+	}
+}
+
+// A duplicated project gets a colour of its own by the pick rule, not its
+// source's; a colour named in the request wins.
+func TestProjectDuplicateGetsFreshColor(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	firstColor(a)
+	src := storedColor(t, a, "matomeru")
+	if !ochazuke.ValidHue(src) {
+		t.Fatalf("source has colour %q", src)
+	}
+	known := map[string]bool{}
+	newest := func() work.Project {
+		ps, err := a.work.Projects()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out work.Project
+		for _, p := range ps {
+			if !known[p.ID] {
+				out = p
+			}
+			known[p.ID] = true
+		}
+		return out
+	}
+	newest()
+	executeA(t, a, "project", "duplicate", "matomeru", nil)
+	if got := newest().Theme.Color; !ochazuke.ValidHue(got) || got == src {
+		t.Fatalf("duplicate colour = %q, source %q", got, src)
+	}
+	executeA(t, a, "project", "duplicate", "matomeru", ochazuke.Arguments{"color": "#7FB685"})
+	if got := newest().Theme.Color; got != "#7FB685" {
+		t.Fatalf("a colour named in the request lost: %q", got)
 	}
 }
