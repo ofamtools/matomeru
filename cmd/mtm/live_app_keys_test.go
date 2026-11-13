@@ -287,64 +287,58 @@ func TestLiveFocusSurvivesFrames(t *testing.T) {
 	live(t, a, "palette closed over the parent")
 }
 
-// A live pane's scroll keys follow its agent: OMP's PageUp enters copy mode
-// a page back (the scrollback loads, then the view moves), another harness's
-// reaches the program, and the pane-agent guard is unmet with no pane; the
-// terminal.scroll-keys setting off sends OMP's key through too.
-func TestLiveScrollKeysFollowTheAgent(t *testing.T) {
+// A live pane's scroll keys follow its harness row's scroll field: copy
+// (omp) enters copy mode a page back once the scrollback loads, forward
+// (claude, codex) and a pane with no harness send the key to the program,
+// and the terminal.scroll-keys setting off forwards omp's key too.
+func TestLiveScrollKeysFollowTheHarness(t *testing.T) {
 	t.Parallel()
 	history := make([]string, 60)
 	for i := range history {
 		history[i] = fmt.Sprintf("h%02d", i)
 	}
-	setup := func(t *testing.T, harness string) (*App, *fakeStream) {
-		app, f := panesApp(t)
-		f.screens["w1"] = "$ "
-		f.backs = map[string]scrollback{"w1": {Text: strings.Join(history, "\n") + "\n$ ", History: len(history)}}
-		app.m.Width, app.m.Height = 140, 40
-		settle(app, follow(app))
-		plainView(app)
-		cmd := key(t, app, "enter")
-		s := f.streams[len(f.streams)-1]
-		s.frames <- ochazuke.TerminalFrame{Lines: padRows("$ "), Cursor: ochazuke.Pos{X: 2, Y: 0}}
-		runOnce(app, cmd)
-		live(t, app, "enter")
-		app.attached.Harness = harness
-		return app, s
+	cases := []struct {
+		name, harness string
+		off           bool
+		copyMode      bool
+	}{
+		{"omp copies", "omp", false, true},
+		{"claude forwards", "claude", false, false},
+		{"codex forwards", "codex", false, false},
+		{"no harness forwards", "", false, false},
+		{"setting off forwards omp", "omp", true, false},
 	}
-	guard := func(a *App, name string) bool {
-		holds, known := a.r.GuardHolds(paneAgentGuard+name, paneTermID)
-		return holds && known
-	}
-
-	a, s := setup(t, "omp")
-	if !guard(a, "omp") || guard(a, "claude") {
-		t.Fatalf("guard: omp %v claude %v", guard(a, "omp"), guard(a, "claude"))
-	}
-	settle(a, key(t, a, "pgup"))
-	if a.r.FocusID() != copyID || !a.copy.active || len(s.sent) != 0 {
-		t.Fatalf("omp pgup: focus %s copy %v sent %v", a.r.FocusID(), a.copy.active, s.sent)
-	}
-	if a.copy.pending != nil || a.copy.buf.top >= len(a.copy.buf.lines)-a.copy.buf.height {
-		t.Fatalf("omp pgup did not scroll back: pending %v top %d of %d", a.copy.pending, a.copy.buf.top, len(a.copy.buf.lines))
-	}
-
-	a, s = setup(t, "claude")
-	press(t, a, "pgup")
-	if a.copy.active || len(s.sent) != 1 || s.sent[0][0] != "pgup" {
-		t.Fatalf("claude pgup: copy %v sent %v", a.copy.active, s.sent)
-	}
-	a.attached.Harness = ""
-	if guard(a, "omp") {
-		t.Fatal("pane-agent:omp holds for a pane with no harness")
-	}
-
-	a, s = setup(t, "omp")
-	if err := a.r.Settings().Set(settingTerminalScrollKeys, false); err != nil {
-		t.Fatal(err)
-	}
-	press(t, a, "pgup")
-	if a.copy.active || len(s.sent) != 1 || s.sent[0][0] != "pgup" {
-		t.Fatalf("setting off, omp pgup: copy %v sent %v", a.copy.active, s.sent)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a, f := panesApp(t)
+			f.screens["w1"] = "$ "
+			f.backs = map[string]scrollback{"w1": {Text: strings.Join(history, "\n") + "\n$ ", History: len(history)}}
+			a.m.Width, a.m.Height = 140, 40
+			settle(a, follow(a))
+			plainView(a)
+			cmd := key(t, a, "enter")
+			s := f.streams[len(f.streams)-1]
+			s.frames <- ochazuke.TerminalFrame{Lines: padRows("$ "), Cursor: ochazuke.Pos{X: 2, Y: 0}}
+			runOnce(a, cmd)
+			live(t, a, "enter")
+			a.attached.Harness = c.harness
+			if c.off {
+				if err := a.r.Settings().Set(settingTerminalScrollKeys, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			settle(a, key(t, a, "pgup"))
+			if a.copy.active != c.copyMode {
+				t.Fatalf("copy mode %v, want %v", a.copy.active, c.copyMode)
+			}
+			if c.copyMode {
+				b := a.copy.buf
+				if len(s.sent) != 0 || a.copy.pending != nil || b.top >= len(b.lines)-b.height {
+					t.Fatalf("not scrolled back: sent %v pending %v top %d of %d", s.sent, a.copy.pending, b.top, len(b.lines))
+				}
+			} else if len(s.sent) != 1 || s.sent[0][0] != "pgup" {
+				t.Fatalf("pgup did not reach the program: %v", s.sent)
+			}
+		})
 	}
 }

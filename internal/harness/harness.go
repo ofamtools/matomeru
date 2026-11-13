@@ -96,6 +96,11 @@ type Harness struct {
 	// Empty, or a format mtm has no reader for: the pane's log is not
 	// read (its turns are mtm's journal, it shows no subagents).
 	Log string `json:"log,omitempty"`
+	// Scroll is what the scroll keys (PageUp and the like) do in the
+	// harness's live pane: ScrollCopy enters mtm's copy mode scrolled by a
+	// page (for an agent that draws inline and has no scroll of its own),
+	// ScrollForward or empty sends the key to the program.
+	Scroll ScrollMode `json:"scroll,omitempty"`
 	// Compose is what the prompt box completes from in the harness's
 	// panes (compose.go); nil: files only. A file's compose object
 	// merges by field into the built-in's; null removes it.
@@ -234,6 +239,34 @@ const (
 	LogCodex  = "codex"
 )
 
+// ScrollMode is a value of Harness.Scroll: a scroll behaviour, a domain of
+// its own (not a verb or mode name).
+type ScrollMode string
+
+// Scroll behaviours (Harness.Scroll).
+const (
+	ScrollCopy    ScrollMode = "copy"
+	ScrollForward ScrollMode = "forward"
+)
+
+// ScrollBehaviour is what a ScrollMode means.
+type ScrollBehaviour struct {
+	// EntersCopy: a scroll key in the live pane enters mtm's copy mode,
+	// scrolled; else the key goes to the program.
+	EntersCopy bool
+}
+
+// ScrollModes is every scroll value a harness row may name and what it
+// means; the empty value forwards.
+var ScrollModes = map[ScrollMode]ScrollBehaviour{
+	"":            {},
+	ScrollForward: {},
+	ScrollCopy:    {EntersCopy: true},
+}
+
+// ScrollEntersCopy reports whether the harness's scroll keys enter copy mode.
+func (h Harness) ScrollEntersCopy() bool { return ScrollModes[h.Scroll].EntersCopy }
+
 // Validate reports what makes a definition unusable.
 func (h Harness) Validate() error {
 	if strings.TrimSpace(h.Name) == "" {
@@ -251,6 +284,9 @@ func (h Harness) Validate() error {
 	case "", AttachMention, AttachPaste:
 	default:
 		return fmt.Errorf("harness %s: attach %q is not an attach mode; use %q or %q", h.Name, h.Attach, AttachMention, AttachPaste)
+	}
+	if _, ok := ScrollModes[h.Scroll]; !ok {
+		return fmt.Errorf("harness %s: scroll %q is not a scroll behaviour; use %q or %q", h.Name, h.Scroll, ScrollCopy, ScrollForward)
 	}
 	if len(h.Models) > 0 && h.ModelFlag == "" {
 		return fmt.Errorf("harness %s: models are listed but modelFlag is empty", h.Name)

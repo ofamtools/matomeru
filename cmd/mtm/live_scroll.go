@@ -1,109 +1,127 @@
 package main
 
 import (
-	"strings"
-
 	"ofam.dev/ochazuke"
 )
 
-// Scroll keys in a live pane belong to the agent that runs in it. Every
-// key goes to the program through the terminal's `any` row, so a harness
-// whose screen cannot scroll its own history (OMP draws inline, with no
-// transcript scroll mode) gets mtm's: a row in the terminal mode, guarded
-// by the pane's agent, runs terminal.scroll, which enters copy mode and
-// scrolls one page back. A harness with no such row keeps the key. The
-// rows are data (the user's bindings.json adds, changes or unbinds them
-// for any harness); the one mechanism is the pane-agent guard.
+// Scroll keys in a live pane follow the pane's harness, as data: the
+// harness row's "scroll" field (harness.ScrollCopy or ScrollForward; empty
+// forwards). One set of rows in the terminal mode calls terminal.scroll;
+// the verb reads the focused pane's harness row. copy enters mtm's copy
+// mode a page back (OMP draws inline and has no transcript scroll of its
+// own); forward sends the key to the program as the terminal's `any` row
+// does. A harnesses.json row sets it for any harness, also through
+// "extends". No guard: the pane's data decides.
 
-const (
-	// settingTerminalScrollKeys turns terminal.scroll off: while it is off the
-	// verb is unavailable, so every scroll row stands aside and the key
-	// reaches the program.
-	settingTerminalScrollKeys = "terminal.scroll-keys"
-	// paneAgentGuard is the guard family "pane-agent:<harness>": it holds
-	// while the focused live terminal's pane runs that harness (the harness
-	// row's name, as the harness picker lists it); it is unmet for a pane of
-	// another harness, one that records none, and when no pane is focused.
-	paneAgentGuard = "pane-agent:"
-)
+// settingTerminalScrollKeys is the opt-out: off, terminal.scroll forwards
+// every key whatever the harness says.
+const settingTerminalScrollKeys = "terminal.scroll-keys"
 
-// scrollKeySettings is the setting of the default scroll rows.
+// scrollKeySettings is the setting of the scroll rows.
 func scrollKeySettings() []ochazuke.Setting {
 	return []ochazuke.Setting{{Name: settingTerminalScrollKeys, Type: ochazuke.SettingBoolean, Default: true,
-		Description: "Let mtm scroll a live pane for the agent bindings.json names (terminal.scroll rows; by default OMP's PageUp enters copy mode a page back); off sends every scroll key to the program"}}
+		Description: "Let a live pane's PageUp follow its harness's scroll field (omp: copy mode a page back; the others pass the key to the program); off passes every scroll key to the program"}}
 }
 
-// defineLiveScroll registers the verb, the guards and the default rows.
+// defineLiveScroll registers terminal.scroll and the live-terminal rows.
 func (a *App) defineLiveScroll() {
+	row := func(dir int) ochazuke.Binding {
+		return ochazuke.Do("terminal.scroll", ochazuke.Arguments{"dir": dir, "by": "page"}).FromKey("keys").Hide()
+	}
 	a.r.Define("terminal").
-		Verb("scroll", a.terminalScroll, "Scroll the live pane's history in copy mode: enters it, a page (or half, line) back with dir -1 or forward with 1; the terminal.scroll-keys setting off makes it unavailable, so the key reaches the program").
-		When("setting:"+settingTerminalScrollKeys).
+		Verb("scroll", a.terminalScroll, "Scroll a live pane by its harness's scroll field: copy enters copy mode a page back (dir -1; forward from live does nothing), forward sends the key (keys) to the program; the terminal.scroll-keys setting off always sends it").
 		Mode("terminal").
-		Bind("pgup", ochazuke.Do("terminal.scroll", ochazuke.Arguments{"dir": -1, "by": "page"}).Guard(paneAgentGuard+"omp").Hide()).
-		Bind("shift+pgup", ochazuke.Do("terminal.scroll", ochazuke.Arguments{"dir": -1, "by": "page"}).Guard(paneAgentGuard+"omp").Hide())
+		Bind("pgup", row(-1)).
+		Bind("shift+pgup", row(-1)).
+		Bind("pgdown", row(1)).
+		Bind("shift+pgdown", row(1))
 	a.parameters("terminal.scroll", map[string]ochazuke.Parameter{
-		"dir": {Type: "integer", Description: "-1 back into the history (default), 1 forward"},
-		"by":  {Type: "string", Enum: []string{"page", "half", "line"}, Description: "How far: a page (default), half a page or a line"},
+		"dir":  {Type: "integer", Description: "-1 back into the history (default), 1 forward"},
+		"by":   {Type: "string", Enum: []string{"page", "half", "line"}, Description: "How far: a page (default), half a page or a line"},
+		"keys": {Type: "string", Description: "The key that was pressed: sent to the program when the pane's harness forwards"},
 	})
-	a.defineAgentGuards()
 }
 
-// defineAgentGuards registers pane-agent:<name> for every harness of the
-// registry (the built-ins and harnesses.json); a reload registers the new
-// names. ochazuke resolves a guard by its exact name, so the family is
-// enumerated from data rather than parsed.
-func (a *App) defineAgentGuards() {
-	if a.harnesses == nil {
-		return
-	}
-	for _, name := range a.harnesses.Names() {
-		a.r.DefineGuard(paneAgentGuard+name, func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
-			return a.paneAgentIs(ev.Focus, name)
-		})
-	}
-}
-
-// paneAgentIs reports whether the live terminal id shows a pane whose
-// harness row is named name.
-func (a *App) paneAgentIs(id, name string) bool {
+// paneScrollsInCopy reports whether the scroll keys of the pane the live
+// terminal id shows enter copy mode: its harness row's scroll field (a
+// pane that records no harness forwards).
+func (a *App) paneScrollsInCopy(id string) bool {
 	var p pane
 	switch id {
 	case paneTermID:
 		p = a.attached
 	case sideTermID:
 		p, _ = a.r.Instances[sideTermID].Data.(pane)
-	default:
-		return false
 	}
 	if p.ID == "" {
 		return false
 	}
-	h, ok := paneHarness(a.harnesses, p)
-	return ok && strings.EqualFold(h.Name, name)
+	h, _ := paneHarness(a.harnesses, p)
+	return h.ScrollEntersCopy()
+}
+
+// scrollUnit is a unit of copy-mode scrolling (the by parameter).
+type scrollUnit string
+
+const (
+	unitHalf scrollUnit = "half"
+	unitPage scrollUnit = "page"
+	unitLine scrollUnit = "line"
+)
+
+// scrollSpan is what a unit moves: its lines in a view h rows tall, and
+// whether the cursor goes with the view (a line scroll leaves it).
+type scrollSpan struct {
+	lines  func(h int) int
+	cursor bool
+}
+
+// scrollUnits is every unit by names.
+var scrollUnits = map[scrollUnit]scrollSpan{
+	unitHalf: {func(h int) int { return max(1, h/2) }, true},
+	unitPage: {func(h int) int { return max(1, h-2) }, true},
+	unitLine: {func(int) int { return 1 }, false},
 }
 
 // scrollSteps is how many lines a copy-mode scroll by moves in a view h
-// rows tall.
+// rows tall (none for a unit that does not exist).
 func scrollSteps(by string, h int) int {
-	h = max(1, h)
-	return map[string]int{"half": max(1, h/2), "page": max(1, h-2), "line": 1}[by]
+	if span := scrollUnits[scrollUnit(by)]; span.lines != nil {
+		return span.lines(max(1, h))
+	}
+	return 0
 }
 
-// terminalScroll is terminal.scroll: from a live pane, copy mode with the
-// view scrolled by a page once the scrollback has loaded; in copy mode,
-// the scroll itself.
+// scrollBy scrolls the copy view by dir units of by.
+func (b *copyBuf) scrollBy(by string, dir int) {
+	b.scroll(scrollSteps(by, b.height)*dir, scrollUnits[scrollUnit(by)].cursor)
+}
+
+// terminalScroll is terminal.scroll. In copy mode it scrolls the view. From
+// a live pane whose harness says copy (and the setting is on) it enters
+// copy mode and scrolls once the scrollback has loaded; scrolling forward
+// from live has nowhere to go, so that key is forwarded. Otherwise the key
+// goes to the program.
 func (a *App) terminalScroll(ctx ochazuke.Ctx) ochazuke.Result {
 	by := ochazuke.StringArg(ctx.Args, "by", "page")
 	dir := ochazuke.IntArg(ctx.Args, "dir", -1)
 	if c := a.copy; c.active {
-		c.buf.scroll(scrollSteps(by, c.buf.height)*dir, by != "line")
+		c.buf.scrollBy(by, dir)
 		return ochazuke.Done(nil)
 	}
-	if err := a.enterTerminalCopy(); err != nil {
-		return ochazuke.Failed(err)
+	if dir < 0 && a.paneScrollsInCopy(a.r.FocusID()) && a.r.Settings().Bool(settingTerminalScrollKeys) {
+		if err := a.enterTerminalCopy(); err != nil {
+			return ochazuke.Failed(err)
+		}
+		a.copy.pending = &copyScroll{by: by, dir: dir}
+		return ochazuke.Done(nil)
 	}
-	a.copy.pending = &copyScroll{by: by, dir: dir}
-	return ochazuke.Done(nil)
+	keys := ochazuke.StringArg(ctx.Args, "keys", "")
+	if keys == "" {
+		return ochazuke.Done(nil)
+	}
+	_, err := a.r.Execute(ochazuke.Request{Verb: "send", Noun: "terminal", Args: ochazuke.Arguments{"keys": keys}})
+	return resultError(err)
 }
 
 // copyScroll is a scroll that waits for the scrollback of the copy mode a
@@ -120,5 +138,5 @@ func (c *copyMode) takePendingScroll() {
 		return
 	}
 	c.pending = nil
-	c.buf.scroll(scrollSteps(p.by, c.buf.height)*p.dir, p.by != "line")
+	c.buf.scrollBy(p.by, p.dir)
 }
