@@ -211,7 +211,7 @@ func (a *App) raisePaneSignals(panes []pane) {
 	}
 	list, kinds := signalPanes(panes), a.signalKinds()
 	shells, rule, boot := signalShells(panes), a.commandRule(), a.signals.bootID()
-	sig := signalSig(list, kinds, shells, rule, boot, a.attached.ID)
+	sig := a.r.Settings().String(settingNeedsYouRule) + "|" + signalSig(list, kinds, shells, rule, boot, a.attached.ID)
 	if sig == a.signals.sig {
 		return
 	}
@@ -228,9 +228,22 @@ func (a *App) applyPaneSignals(list []panesignals.Pane, kinds map[string]bool, s
 	if err != nil {
 		return a.signals.marks, err
 	}
-	plan := panesignals.Reconcile(list, items, kinds, a.attached.ID)
-	commands, marks := panesignals.ReconcileCommands(shells, items, rule, a.signals.marks, boot, a.attached.ID)
+	watching := a.attached.ID
+	one := a.oneRule()
+	if one {
+		watching = "" // the one rule's watch clear reads every kind instead (WatchRead)
+	}
+	plan := panesignals.Reconcile(list, items, kinds, watching)
+	commands, marks := panesignals.ReconcileCommands(shells, items, rule, a.signals.marks, boot, watching)
 	plan = plan.Merge(commands)
+	if one {
+		windows := make([]string, 0, len(list))
+		for _, p := range list {
+			windows = append(windows, p.Window)
+		}
+		plan = panesignals.ClearGone(plan, windows, items)
+		plan = panesignals.WatchRead(plan, items, a.attached.ID, a.inbox.items.Now())
+	}
 	if plan.Empty() {
 		return marks, nil
 	}

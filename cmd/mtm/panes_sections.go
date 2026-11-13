@@ -506,7 +506,7 @@ type queuedItem struct {
 // window's open items give it, hasItem the windows an item of the queue
 // names. An item of another source raises the outside signal only while it
 // is unread, and only where items are the pane's child rows.
-func (a *App) queueItems(nowMs int64, ranks map[string]int, childItems bool) (items []queuedItem, fromItems map[string]string, hasItem map[string]bool) {
+func (a *App) queueItems(nowMs int64, ranks map[string]int, childItems, one bool) (items []queuedItem, fromItems map[string]string, hasItem map[string]bool) {
 	fromItems, hasItem = map[string]string{}, map[string]bool{}
 	if a.inbox == nil {
 		return nil, fromItems, hasItem
@@ -515,8 +515,8 @@ func (a *App) queueItems(nowMs int64, ranks map[string]int, childItems bool) (it
 		if !it.Open(nowMs) {
 			continue
 		}
-		c := itemCategory(it)
-		if r := slices.Index(signalRank, c); r >= 0 && it.Window != "" && (c != queueOutside || childItems && !it.Read()) {
+		c := a.needsYouCategory(it, one)
+		if r := slices.Index(signalRank, c); r >= 0 && it.Window != "" && (one || c != queueOutside || childItems && !it.Read()) {
 			if was, ok := fromItems[it.Window]; !ok || r < slices.Index(signalRank, was) {
 				fromItems[it.Window] = c
 			}
@@ -560,7 +560,8 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	if childItems {
 		a.pv.kidItems, a.pv.kidCounts = a.paneKidItems(nowMs)
 	}
-	items, fromItems, hasItem := a.queueItems(nowMs, ranks, childItems)
+	one := a.oneRule()
+	items, fromItems, hasItem := a.queueItems(nowMs, ranks, childItems, one)
 	cur := ""
 	if s := a.activeSection(); s != nil && a.holdsRows() {
 		if n, ok := s.tree.Selected(); ok {
@@ -639,9 +640,12 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	for _, q := range items {
 		it := q.it
 		p, listed := byWindow[it.Window]
-		if childItems && listed {
+		clock := a.itemClock(it, p, listed, nowMs)
+		if childItems && listed && (section[p.ID] == sectionQueue || !one) {
 			// The pane's row carries the item as a child row; in the queue it
-			// takes the rank and time of its best item.
+			// takes the rank and time of its best item. (Legacy drops an
+			// item whose pane is in another list from the queue; the one
+			// rule gives it a row of its own, naming the pane.)
 			if section[p.ID] == sectionQueue {
 				b, ok := best[p.ID]
 				if !ok {
@@ -650,8 +654,8 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 					queueAt[p.ID] = len(queue)
 					queue = append(queue, row{node: a.flatPaneNode(p, names[p.ID], now), pane: true})
 				}
-				if r := ranks[q.category]; !ok || r < b.rank || r == b.rank && it.Created < b.at {
-					best[p.ID] = bestItem{rank: r, at: it.Created}
+				if r := ranks[q.category]; !ok || r < b.rank || r == b.rank && clock < b.at {
+					best[p.ID] = bestItem{rank: r, at: clock}
 				}
 			}
 			continue
@@ -661,15 +665,14 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		if standsFor {
 			id, stands[p.ID] = p.rowID(), true
 		}
-		at := place(id, sectionQueue, ranks[q.category], it.Created)
+		at := place(id, sectionQueue, ranks[q.category], clock)
 		node := ochazuke.TreeNode{ID: id, Label: it.Label(), Noun: actionItemNoun, Data: it,
 			Props: ochazuke.Thing{"id": it.ID, "pane": it.Window, "session": it.Session, "task": it.TaskID, "project": it.ProjectID}}
 		if listed {
 			node.Cells, node.Tones = a.flatPaneCells(p, names[p.ID], now)
 			view.usage = view.usage || p.usageCell() != ""
 		} else {
-			cell := inboxGlyph(it, nowMs) + " " + it.Label()
-			node.Cells = []string{cell, cmp.Or(it.Why, it.Kind), it.Source}
+			node.Cells = ownItemCells(it, nowMs, one)
 		}
 		queue = append(queue, row{node: node, at: at, pane: standsFor})
 	}
@@ -707,7 +710,9 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	var order []string
 	children := func(r row) []ochazuke.TreeNode { return a.rowChildren(r, byWindow, now) }
 	ss[0].kids, ss[2].kids = 0, 0
+	view.needsYou = nil
 	for _, r := range queue {
+		view.needsYou = append(view.needsYou, r.node.ID)
 		ss[0].nodes = append(ss[0].nodes, r.node)
 		kids := children(r)
 		ss[0].kids += countActivities(kids)
@@ -728,6 +733,15 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	view.order = order
 	view.queued, view.working = len(queue), len(bottom)
 	view.nodes = slices.Concat(ss[0].nodes, ss[1].nodes, ss[2].nodes)
+	a.countPanes(&view, panes, section, one)
+	return view
+}
+
+// countPanes sets the view's pane and waiting counts. By the one rule the
+// waiting count is the panel's rows (read by its title, the header and
+// W); legacy counts every pane that needs input and adds one with no row
+// to the queued count.
+func (a *App) countPanes(view *paneView, panes []pane, section map[string]string, one bool) {
 	displayed := ""
 	if a.r.Page == panesPage {
 		displayed = a.displayedRow()
@@ -740,14 +754,27 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		if section[p.ID] != sectionPanes || a.inScope(view.owners[p.ID]) || p.OwnerUnsaved || a.attached.ID == p.ID || p.rowID() == displayed {
 			view.panes++
 		}
-		if p.needsInput() {
+		if p.needsInput() && !one {
 			view.waiting++
 			if section[p.ID] != sectionQueue {
 				view.queued++ // it needs you too, though no item shows it
 			}
 		}
 	}
-	return view
+	if one {
+		view.waiting = len(view.needsYou)
+	}
+}
+
+// ownItemCells are the cells of an item's own row whose pane is not
+// listed: its glyph and label, why, and source; by the one rule the source
+// cell also names the pane it is about, closed or hidden.
+func ownItemCells(it actionitems.Item, nowMs int64, one bool) []string {
+	use := it.Source
+	if one && it.PaneLabel != "" && it.PaneLabel != it.Label() {
+		use += " · " + it.PaneLabel
+	}
+	return []string{inboxGlyph(it, nowMs) + " " + it.Label(), cmp.Or(it.Why, it.Kind), use}
 }
 
 // flatPaneNode is a pane's row in the top or bottom list.

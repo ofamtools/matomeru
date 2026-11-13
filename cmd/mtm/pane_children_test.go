@@ -118,20 +118,18 @@ func TestPaneItemsStayWithTheirPaneWhenRead(t *testing.T) {
 }
 
 // panes.children without items is the old shape: each item its own row in
-// the top list, the first one standing for its pane.
+// the top list, the first one standing for its pane (an unread item brings
+// its pane into Needs you, as with child rows).
 func TestPaneChildrenWithoutItemsKeepsQueueRows(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
 	setting(t, a, settingPaneChildren, []string{childKindSubagents})
 	one := addItem(t, a, actionitems.Spec{Source: "gh", Key: "idler-1", Title: "ask one", Window: "widle", Session: "s"})
-	if _, ok := rowNode(a, "queue:"+one.ID); !ok {
-		t.Fatal("the item is not a row of its own with panes.children without items")
+	if node, ok := rowNode(a, "pane:s/widle"); !ok || node.Noun != actionItemNoun || sectionOfRow(a, "pane:s/widle") != sectionQueue {
+		t.Fatal("the item does not stand for its pane in the queue with panes.children without items")
 	}
 	if _, ok := rowNode(a, itemRowStart+one.ID); ok {
 		t.Fatal("an item child row with items left out of panes.children")
-	}
-	if got := sectionOfRow(a, "pane:s/widle"); got != sectionPanes {
-		t.Fatalf("the pane moved to %q", got)
 	}
 }
 

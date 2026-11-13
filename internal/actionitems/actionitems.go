@@ -77,8 +77,11 @@ type Item struct {
 	Session string `json:"session,omitempty"`
 	// PaneLabel is the pane's name when the item last named it, so a pane
 	// that has closed still reads by name.
-	PaneLabel         string `json:"pane_label,omitempty"`
-	SnoozedUntil      int64  `json:"snoozed_until,omitempty"`
+	PaneLabel    string `json:"pane_label,omitempty"`
+	SnoozedUntil int64  `json:"snoozed_until,omitempty"`
+	// Reopened is when the item last became open and unread again (marked
+	// unread, restored, or reopened by its source); 0 when it never was.
+	Reopened          int64  `json:"reopened_at,omitempty"`
 	Notify            bool   `json:"notify,omitempty"`
 	NotifiedAt        int64  `json:"notified_at,omitempty"`
 	NotifyClaim       string `json:"notify_claim,omitempty"`
@@ -99,6 +102,16 @@ func (it Item) State(now int64) string {
 
 // Open reports whether the item is open (not archived or snoozed) at now.
 func (it Item) Open(now int64) bool { return it.ArchivedAt == 0 && it.SnoozedUntil <= now }
+
+// Entered is when the item last became open: raised, reopened, or woken
+// from a snooze (Unix ms, at now).
+func (it Item) Entered(now int64) int64 {
+	at := max(it.Created, it.Reopened)
+	if it.SnoozedUntil > 0 && it.SnoozedUntil <= now {
+		at = max(at, it.SnoozedUntil)
+	}
+	return at
+}
 
 // Read reports whether the item has been read.
 func (it Item) Read() bool { return it.ReadAt > 0 }
@@ -210,6 +223,9 @@ func (s *Store) Add(spec Spec) (Item, bool, error) {
 			if spec.Reopen {
 				if it.ArchivedAt > 0 || it.SnoozedUntil > now {
 					it.NotifiedAt, it.NoticeDismissedAt = 0, 0
+				}
+				if it.ArchivedAt > 0 || it.SnoozedUntil > now || it.ReadAt > 0 {
+					it.Reopened = now
 				}
 				it.ArchivedAt, it.ReadAt, it.SnoozedUntil = 0, 0, 0
 			}
@@ -356,6 +372,9 @@ func (s *Store) SetRead(id string, read bool) (Item, error) {
 	return s.Update(id, func(it *Item) error {
 		switch {
 		case !read:
+			if it.ReadAt > 0 {
+				it.Reopened = s.now()
+			}
 			it.ReadAt = 0
 		case it.ReadAt == 0:
 			it.ReadAt = s.now()
@@ -380,6 +399,9 @@ func (s *Store) Archive(id string) (Item, error) {
 // any promotion are kept.
 func (s *Store) Restore(id string) (Item, error) {
 	return s.Update(id, func(it *Item) error {
+		if now := s.now(); it.ArchivedAt > 0 || it.SnoozedUntil > now {
+			it.Reopened = now
+		}
 		it.ArchivedAt, it.SnoozedUntil = 0, 0
 		return nil
 	})

@@ -136,7 +136,8 @@ func (a *App) paneKidItems(nowMs int64) (map[string][]actionitems.Item, map[stri
 		}
 		state := it.State(nowMs)
 		opened := it.Open(nowMs)
-		if _, ok := ranks[itemCategory(it)]; !ok || itemCategory(it) == "" {
+		c := a.childCategory(it)
+		if _, ok := ranks[c]; !ok || c == "" {
 			continue
 		}
 		if opened {

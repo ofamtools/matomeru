@@ -186,7 +186,8 @@ func TestPaneSectionsDefaultAssignment(t *testing.T) {
 
 // panes.sections and panes.queue-order are data: a waiting pane sent to
 // panes stays in the middle while its item still shows in the queue (by
-// its own id), and a category left out of the order leaves the queue.
+// its own id, naming the pane: the one rule), and a category left out of
+// the order leaves the queue.
 func TestPaneSectionsFromSettings(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
@@ -205,8 +206,8 @@ func TestPaneSectionsFromSettings(t *testing.T) {
 	}
 	wait := itemByKey(t, a, "w")
 	// The waiting item's pane stays in Panes (no waiting=queue), so the item
-	// is a child row of that pane there.
-	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"pane:s/werr"}) {
+	// is a child row of that pane there, and a row of its own in the queue.
+	if got := sectionIDs(a, 0); !slices.Equal(got, []string{queueRowStart + wait.ID, "pane:s/werr"}) {
 		t.Fatalf("queue %v", got)
 	}
 	if !slices.ContainsFunc(a.pv.sections[1].tree.Nodes(), func(n ochazuke.TreeNode) bool { return n.ID == itemRowStart+wait.ID && n.Parent == "pane:s/wwait" }) {

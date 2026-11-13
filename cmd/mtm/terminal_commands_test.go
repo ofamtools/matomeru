@@ -105,10 +105,12 @@ func TestTerminalCommandsReachTheInbox(t *testing.T) {
 	if it, _ := a.inbox.items.Get(items[1].ID); !it.Read() || it.State(a.inbox.items.Now()) != actionitems.StateOpen {
 		t.Fatalf("attached: %+v", it)
 	}
-	// A failure while the pane is watched is raised read and archived.
+	// A failure while the pane is watched is raised read (the one rule:
+	// watching is looking; read takes it out of Needs you, nothing is
+	// archived for it).
 	a.setPanes([]pane{shellPane("w1", 7, "false", exitCode(1), 5), other}, nil)
 	items = commandItems(t, a)
-	if len(items) != 3 || !items[2].Read() || items[2].State(a.inbox.items.Now()) != actionitems.StateArchived {
+	if len(items) != 3 || !items[2].Read() || items[2].State(a.inbox.items.Now()) != actionitems.StateOpen {
 		t.Fatalf("watched failure %+v", items)
 	}
 }

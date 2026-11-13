@@ -256,9 +256,13 @@ func (a *App) paneTab(ctx ochazuke.Ctx) ochazuke.Result {
 	return ochazuke.Done(tabNames[a.pv.tab])
 }
 
-// nextWaiting is panes.waiting: select the next pane that needs input,
-// after the selected one, wrapping once.
+// nextWaiting is panes.waiting: the next Needs-you row by the one rule
+// (nextNeedsYou); legacy selects the next pane that needs input, after the
+// selected one, wrapping once.
 func (a *App) nextWaiting(ochazuke.Ctx) ochazuke.Result {
+	if a.oneRule() {
+		return a.nextNeedsYou()
+	}
 	row, _ := a.selectedRow()
 	id := a.waitingAfter(row)
 	if id == "" {
@@ -291,6 +295,9 @@ func (a *App) waitingAfter(row string) string {
 func (a *App) cycleWaiting(ctx ochazuke.Ctx) ochazuke.Result {
 	if !a.inLive() {
 		return a.nextWaiting(ctx)
+	}
+	if a.oneRule() {
+		return a.cycleNeedsYou()
 	}
 	id := a.waitingAfter(a.attached.rowID())
 	if id == "" || id == a.attached.rowID() {
@@ -632,7 +639,7 @@ var leaderWords = []struct{ key, text string }{
 	{"S", "all projects, or back to the pin's"},
 	{"[", "copy mode: scroll back, search, select and yank; i goes live again"},
 	{"`", "next starred pane, live (` on the Panes page)"},
-	{"W", "next pane that needs input, live (W on the Panes page)"},
+	{"W", "next Needs-you row, its pane live (W on the Panes page)"},
 	{"*", "star or unstar the live pane (* on a pane row)"},
 	{"\\", "pick a pane, as p (\\ outside live)"},
 	{"P", "pick a project to pin (P outside live)"},

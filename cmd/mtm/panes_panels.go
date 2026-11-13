@@ -107,7 +107,7 @@ func panesPanelSettings() []ochazuke.Setting {
 		{Name: settingStickyRows, Type: ochazuke.SettingBoolean, Default: false,
 			Description: "Keep the row under the cursor in its list when its pane changes section, until the cursor moves off it"},
 		{Name: settingStableOrder, Type: ochazuke.SettingBoolean, Default: true,
-			Description: "A row keeps the place it entered its list with until it leaves (off: each refresh sorts by the current state time)"},
+			Description: "A row keeps the rank and time it entered its list with until it leaves (off: each refresh sorts again by the category rank and the panes.sort-clock time)"},
 		words(settingWorkingStates, defaultWorkingStates, "Agent states that put a pane in Working"),
 		words(settingWaitingStates, defaultWaitingStates, "Agent states that mean the agent waits on you (needs input)"),
 		words(settingErroredStates, defaultErroredStates, "Agent states that mean the agent stopped on an error"),

@@ -364,7 +364,7 @@ func (a *App) definePanes() {
 	r.Define("panes").Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").FocusBound().
-		Verb("waiting", a.nextWaiting, "Select the next pane that needs input").
+		Verb("waiting", a.nextWaiting, "Go to the next Needs-you row, wrapping: select it (a pane row its pane, an item row its item); the leader's W in live view is the same action, attaching the row's pane (inbox.needs-you-rule legacy: the next pane whose agent needs input)").
 		Verb("read-activities", a.readActivities, "Read every agent pane's running subagents for the rows under its pane (panes.subagents)").Fetch().Quiet().
 		Verb("focus-section", a.focusSection, "Move the focus to one of the page's lists: queue (Needs you), panes or working")
 	a.parameters("panes.refresh", map[string]ochazuke.Parameter{"reconcile": {Type: "boolean", Description: "Reconcile side links and probe exited processes (default true)"}})
@@ -966,6 +966,9 @@ func (a *App) attachLive(p pane, returnTo string) error {
 	}
 	if err := a.r.SetFocus(paneTermID); err != nil {
 		return err
+	}
+	if err := a.readAttachedItems(p.ID); err != nil {
+		a.r.UI().Notify("needs you: " + err.Error())
 	}
 	return a.syncSideView()
 }

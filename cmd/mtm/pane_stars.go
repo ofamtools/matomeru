@@ -50,7 +50,7 @@ func (a *App) definePaneStars() {
 	a.r.Define("terminal").
 		Verb("starred", a.cycleStarred, "Attach the next starred pane (wrapping), live; outside live, select it").
 		Verb("star", a.starLive, "Star or unstar the attached pane (toggles without --value), as pane.star on its row").
-		Verb("waiting", a.cycleWaiting, "Attach the next pane that needs input (wrapping), live; outside live, select it")
+		Verb("waiting", a.cycleWaiting, "Go to the next Needs-you row, wrapping, as W does: in live view the shown pane is the selected one, so going to a pane attaches it (panes.waiting-live-attach off leaves live and selects); outside live it selects it")
 	a.parameters("terminal.star", map[string]ochazuke.Parameter{
 		"value":   {Type: "boolean", Description: "Set instead of toggling"},
 		"starred": {Type: "boolean", Description: "Deprecated (" + starredSince + ", removed after " + starredRemoveAfter + "): --value"}})

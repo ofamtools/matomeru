@@ -305,6 +305,9 @@ type paneView struct {
 	usage   bool              // some pane row has a usage cell (the "use" column)
 	queued  int               // rows of the top list (waiting, review, outside items)
 	working int               // rows of the bottom list
+	// needsYou are the top list's rows in drawing order (not their child
+	// rows): what W visits by the one rule (needs_you.go).
+	needsYou []string
 }
 
 // columns are the tree's columns for this view: the "use" column only

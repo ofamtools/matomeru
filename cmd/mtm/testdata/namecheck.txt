@@ -30,6 +30,7 @@
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"command"	1
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"create"	1
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"history"	1
+../../internal/contextitems/origins.go	var sourceOrigins	table	"manual"	1	context item origin vocabulary (the source kinds the extractor records: prompt, response, manual, mcp...), data of the context store, not an mtm noun
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"prompt"	1
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"response"	1
 ../../internal/contextitems/origins.go	var sourceOrigins	table	"transcript"	1
@@ -138,6 +139,7 @@ context.go	App.itemCell	case	"command"	1
 context.go	App.itemCell	case	"dir"	1
 context.go	App.itemCell	case	"prompt"	1
 context_extract.go	App.extractContext	compare	"pane"	1
+context_origins.go	extractsFrom	compare	"manual"	1	context item origin vocabulary (the source kinds the extractor records: prompt, response, manual, mcp...), data of the context store, not an mtm noun
 context_picker.go	App.pickContext	case	"prompt"	1
 context_picker.go	App.pickerOpen	case	"dir"	1
 context_picker.go	App.pickerOpen	case	"link"	1
@@ -243,8 +245,8 @@ panes_leader.go	App.paneNear	compare	"pane"	1
 panes_panels.go	App.focusSection	compare	"panes"	1
 panes_panels.go	App.panelSizes	compare	"hide"	1	existing panel empty-mode value (emptyHide), flagged because v0.110.0 made hide a verb; not a name branch
 panes_panels.go	var panelTexts	table	"panes"	1
-panes_sections.go	App.buildPaneSections	compare	"panes"	2
-panes_sections.go	App.buildPaneSections	cyclo	"-"	61
+panes_sections.go	App.buildPaneSections	cyclo	"-"	53
+panes_sections.go	App.countPanes	compare	"panes"	2
 panes_sections.go	App.firstPaneRow	compare	"pane"	1
 panes_sections.go	App.focusOpenList	compare	"panes"	1
 panes_sections.go	App.sectionNeed	compare	"panes"	1
@@ -311,6 +313,7 @@ sides_config.go	App.setSideChoices	compare	"pane.side"	1
 sides_config.go	validateSideRow	compare	"list"	1
 store_tables.go	App.showStoreTable	compare	"store-table"	1
 task_notes.go	App.syncOutlineNotes	compare	"outline-task"	1
+task_statuses.go	App.syncStatusEnums	compare	"status"	1	finds the one prop the tasks.statuses table fills in; the prop is the status prop by definition, nothing else shares the name
 task_store.go	App.defineTaskSubjects	compare	"outline-task"	1
 task_store.go	App.defineTaskSubjects	compare	"task"	1
 task_store.go	App.patchTask	compare	"task"	1
@@ -339,6 +342,3 @@ vim.go	App.vimAt	compare	"pane"	1
 vim.go	App.vimAt	compare	"vim"	1
 wire_verbs.go	var wireVerbs	table	"dry_run"	1	the daemon's parameter name in a row's AgentArgs (purge always dry-runs for an agent); data in the row, no branch
 wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch
-task_statuses.go	App.syncStatusEnums	compare	"status"	1	finds the one prop the tasks.statuses table fills in; the prop is the status prop by definition, nothing else shares the name
-../../internal/contextitems/origins.go	var sourceOrigins	table	"manual"	1	context item origin vocabulary (the source kinds the extractor records: prompt, response, manual, mcp...), data of the context store, not an mtm noun
-context_origins.go	extractsFrom	compare	"manual"	1	context item origin vocabulary (the source kinds the extractor records: prompt, response, manual, mcp...), data of the context store, not an mtm noun
