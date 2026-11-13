@@ -376,6 +376,15 @@ func TestCopyModeScrollsByPages(t *testing.T) {
 	if b := app.copy.buf; b.top != h-2 {
 		t.Fatalf("ctrl+b: top %d", b.top)
 	}
+	// pgdown and pgup are ctrl+f and ctrl+b, in copy mode.
+	press(t, app, "pgdown")
+	if b := app.copy.buf; b.top != 2*(h-2) {
+		t.Fatalf("pgdown: top %d, height %d", b.top, h)
+	}
+	press(t, app, "pgup")
+	if b := app.copy.buf; b.top != h-2 {
+		t.Fatalf("pgup: top %d", b.top)
+	}
 	top := app.copy.buf.top
 	press(t, app, "3", "ctrl+e")
 	if b := app.copy.buf; b.top != top+3 || b.row < b.top {
@@ -559,7 +568,7 @@ func TestCopyModeLoadsOlderLinesInChunks(t *testing.T) {
 		t.Fatal(err)
 	}
 	enterCopyMode(t, app)
-	if len(f.windows) != 1 || f.windows[0] != (scrollWindow{Tail: 1000}) {
+	if len(f.windows) != 1 || f.windows[0] != (scrollWindow{Tail: 1000, Styled: true}) {
 		t.Fatalf("entering read %v, want one tail chunk", f.windows)
 	}
 	if b := app.copy.buf; len(b.lines) != 1000 || b.lines[0] != "4001" || app.copy.base != 4001 {
@@ -799,4 +808,33 @@ func TestCopyModeParagraphsEndAtEmptyLinesOnly(t *testing.T) {
 	keysAt(t, app, "g g", 0, 0)
 	keysAt(t, app, "}", 3, 0)
 	keysAt(t, app, "{", 0, 0)
+}
+
+// copy.colors on draws the pane's styles under the selection; off draws
+// plain text. A yank is plain text either way.
+func TestCopyModeColors(t *testing.T) {
+	t.Parallel()
+	red := "\x1b[31m"
+	for _, on := range []bool{true, false} {
+		app, _, _ := copyApp(t, nil, []string{red + "red line" + "\x1b[0m", "plain"})
+		if err := app.r.Settings().Set(settingCopyColors, on); err != nil {
+			t.Fatal(err)
+		}
+		enterCopyMode(t, app)
+		pressAll(t, app, "g", "g", "0", "v", "3", "l")
+		block := app.copyBlock(20, 4).Text
+		if got := strings.Contains(block, red); got != on {
+			t.Fatalf("colors %v: red in the drawn copy view = %v: %q", on, got, block)
+		}
+		if !strings.Contains(block, "\x1b[7m") {
+			t.Fatalf("colors %v: selection not drawn in reverse: %q", on, block)
+		}
+		if ansi.Strip(block) != strings.Join([]string{"red line" + strings.Repeat(" ", 12), "plain" + strings.Repeat(" ", 15), strings.Repeat(" ", 20), strings.Repeat(" ", 20)}, "\n") {
+			t.Fatalf("colors %v: text changed: %q", on, ansi.Strip(block))
+		}
+		pressAll(t, app, "y")
+		if y, err := app.r.ReadYank("0"); err != nil || y.Text != "red " {
+			t.Fatalf("colors %v: yank %+v, %v", on, y, err)
+		}
+	}
 }

@@ -31,8 +31,10 @@ const (
 	// cursor nears the top of what is loaded.
 	settingCopyMaxLines = "copy.max-lines"
 	settingCopyChunk    = "copy.chunk-lines"
-	defaultCopyMax      = 100000
-	defaultCopyChunk    = 2000
+	// settingCopyColors keeps the pane's colours in the copy view.
+	settingCopyColors = "copy.colors"
+	defaultCopyMax    = 100000
+	defaultCopyChunk  = 2000
 )
 
 // copyModeSettings are copy mode's settings.
@@ -50,8 +52,13 @@ func copyModeSettings() []ochazuke.Setting {
 			Description: "The most lines copy mode holds of a pane's scrollback and screen. Older lines load as you scroll up, a chunk at a time, until this many are loaded; a pane's whole log is never read at once"},
 		{Name: settingCopyChunk, Section: ochazuke.SettingsGeneralSection, Group: "Copy mode", Type: ochazuke.SettingInteger, Default: defaultCopyChunk, Validate: atLeast(50),
 			Description: "How many lines one read of a pane's scrollback brings: the first when copy mode opens, then each older one as the cursor nears the top of what is loaded"},
+		{Name: settingCopyColors, Section: ochazuke.SettingsGeneralSection, Group: "Copy mode", Type: ochazuke.SettingBoolean, Default: true,
+			Description: "Copy mode shows the pane's colours and styles. Cursor and selection still draw on top, and a yank is plain text either way; off shows plain text"},
 	}
 }
+
+// colors reports whether copy mode keeps the pane's styles.
+func (c *copyMode) colors() bool { return c.r.Settings().Bool(settingCopyColors) }
 
 // maxLines and chunkLines are the settings, read when used.
 func (c *copyMode) maxLines() int   { return max(100, c.r.Settings().Int(settingCopyMaxLines)) }
@@ -77,10 +84,10 @@ type copyMode struct {
 	pane       pane
 	source     string   // the terminal whose screen is the buffer's tail; "" reads the capture's
 	returnLive string   // terminal focused at entry; empty when entered from the list
-	history    []string // the capture's history, capped
-	screen     []string
-	base       int  // the daemon's line number of the buffer's first line
-	loaded     bool // a scrollback capture has landed since entering
+	history    []string // the capture's history, capped; styled when copy.colors is on
+	screen     []string // likewise
+	base       int      // the daemon's line number of the buffer's first line
+	loaded     bool     // a scrollback capture has landed since entering
 	frame      string
 	err        string            // why the last scrollback load failed
 	r          *ochazuke.Runtime // asked for a mode's selection shape
@@ -122,11 +129,17 @@ func plainLines(lines []string) []string {
 // rebuild joins history and screen under the cap; shift is how many lines
 // now sit above the old first line.
 func (c *copyMode) rebuild(shift int) {
-	lines := append(append([]string(nil), c.history...), c.screen...)
-	if len(lines) == 0 {
-		lines = []string{""}
+	raw := append(append([]string(nil), c.history...), c.screen...)
+	if len(raw) == 0 {
+		raw = []string{""}
 	}
-	c.buf.setLines(lines, shift)
+	c.buf.setLines(plainLines(raw), shift)
+	// The plain text drives motions, search and yank; the styled copy,
+	// aligned line for line, is only drawn.
+	c.buf.styled = nil
+	if c.colors() {
+		c.buf.styled = raw
+	}
 }
 
 // mergeHistory joins a window of history lines (first line numbered from)
@@ -158,7 +171,6 @@ func (c *copyMode) apply(back scrollback) {
 	for len(lines) < back.Want {
 		lines = append(lines, "")
 	}
-	lines = plainLines(lines)
 	hist := min(max(0, back.History-back.From), len(lines))
 	window, screen := lines[:hist], lines[hist:]
 	if c.source == "" && len(screen) > 0 {
@@ -195,7 +207,7 @@ func (c *copyMode) followSource(r *ochazuke.Runtime) bool {
 	if text == c.frame {
 		return false
 	}
-	c.frame, c.screen = text, plainLines(f.Lines)
+	c.frame, c.screen = text, append([]string(nil), f.Lines...)
 	c.rebuild(0)
 	return true
 }
@@ -300,6 +312,11 @@ func (a *App) defineCopy() {
 		{"ctrl+d", scroll("half", 1)}, {"ctrl+u", scroll("half", -1)},
 		{"ctrl+f", scroll("page", 1)}, {"ctrl+b", scroll("page", -1)},
 		{"ctrl+e", scroll("line", 1)}, {"ctrl+y", scroll("line", -1)},
+		// The navigation keys answer like their Vim counterparts, over the
+		// app-level pgup/pgdown rows (which scroll the page, not the buffer).
+		{"pgdown", scroll("page", 1)}, {"pgup", scroll("page", -1)},
+		{"home", mv("line-start")}, {"end", mv("line-end")},
+		{"ctrl+home", line("first-line")}, {"ctrl+end", line("last-line")},
 		{"n", ochazuke.Do(copyNoun+".next").FromPayload("steps", ochazuke.SourceCount)},
 		{"N", ochazuke.Do(copyNoun+".next", ochazuke.Arguments{"reverse": true}).FromPayload("steps", ochazuke.SourceCount)},
 		{"/", ochazuke.Do(copyNoun + ".search").Hinted("search")},
@@ -405,14 +422,14 @@ func (a *App) enterCopy(p pane, source string) error {
 	cursor := copyPos{-1, 0}
 	if t := a.r.Terminal(source); source != "" && t != nil {
 		f := t.Frame()
-		c.frame, c.screen = strings.Join(f.Lines, "\n"), plainLines(f.Lines)
+		c.frame, c.screen = strings.Join(f.Lines, "\n"), append([]string(nil), f.Lines...)
 		cursor = copyPos{f.Cursor.Y, f.Cursor.X}
 	} else if a.preview.Pane == p.rowID() {
-		c.screen = plainLines(strings.Split(strings.TrimRight(a.preview.Text, "\n"), "\n"))
+		c.screen = strings.Split(strings.TrimRight(a.preview.Text, "\n"), "\n")
 	}
 	if cursor.row < 0 {
 		cursor.row = 0
-		for i, l := range c.screen {
+		for i, l := range plainLines(c.screen) {
 			if strings.TrimSpace(l) != "" {
 				cursor.row = i
 			}
@@ -497,12 +514,12 @@ func (a *App) copyLoad(ctx ochazuke.Ctx) ochazuke.Result {
 	p := c.pane
 	// The first read and each refresh bring the last chunk of lines; the
 	// older argument brings the chunk before what is loaded, within the cap.
-	win := scrollWindow{Tail: c.chunkLines()}
+	win := scrollWindow{Tail: c.chunkLines(), Styled: c.colors()}
 	if boolArg(ctx.Args, "older", false) {
 		if !c.loaded || c.base <= 0 || c.roomAbove() <= 0 {
 			return ochazuke.Done(nil)
 		}
-		win = scrollWindow{Before: c.base, Count: min(c.chunkLines(), c.roomAbove())}
+		win = scrollWindow{Before: c.base, Count: min(c.chunkLines(), c.roomAbove()), Styled: c.colors()}
 	}
 	return ochazuke.Pending(func(ctx context.Context) (any, error) {
 		return d.ScrollbackWindow(ctx, p, win)
@@ -736,6 +753,10 @@ func (a *App) copyBlock(width, height int) ochazuke.Block {
 		}
 		l := b.line(r)
 		lo, hi, sel := b.selected(shape, r)
+		if len(b.styled) == len(b.lines) {
+			rows[i] = styledRow(b.styled[r], l, left, width, lo, hi, sel)
+			continue
+		}
 		var out strings.Builder
 		cells := 0
 		for col := left; cells < width; col++ {
@@ -787,4 +808,28 @@ func boolArg(args ochazuke.Arguments, name string, fallback bool) bool {
 		return v == "true"
 	}
 	return fallback
+}
+
+// styledRow draws one line from its styled text, width cells from cell
+// left. The plain runes l fix the line's width and map the selection's rune
+// columns lo..hi to cells; the selection is reverse video over the pane's
+// own styles (re-asserted after any reset inside it).
+func styledRow(styled string, l []rune, left, width, lo, hi int, sel bool) string {
+	plainW := ansi.StringWidth(string(l))
+	cell := func(col int) int {
+		return ansi.StringWidth(string(l[:min(col, len(l))])) + max(0, col-len(l))
+	}
+	styled = ansi.Truncate(styled, plainW, "")
+	right := left + width
+	var out string
+	if !sel {
+		out = ansi.Cut(styled, left, right)
+	} else {
+		a, z := min(max(cell(lo), left), right), min(max(cell(hi), left), right)
+		mid := ansi.Cut(styled, a, z)
+		mid += strings.Repeat(" ", max(0, z-a-ansi.StringWidth(mid)))
+		mid = strings.NewReplacer("\x1b[0m", "\x1b[0m\x1b[7m", "\x1b[m", "\x1b[m\x1b[7m").Replace(mid)
+		out = ansi.Cut(styled, left, a) + "\x1b[7m" + mid + "\x1b[27m" + ansi.Cut(styled, z, right)
+	}
+	return out + strings.Repeat(" ", max(0, width-ansi.StringWidth(out)))
 }
