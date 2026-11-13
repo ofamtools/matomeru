@@ -26,7 +26,7 @@ func focusLabels(t *testing.T, a *App, args ...string) []string {
 	return out
 }
 
-// Z opens the focus picker: enter focuses the highlighted task and stays
+// # opens the focus picker: enter focuses the highlighted task and stays
 // open, a typed title that matches nothing focuses a new task, and
 // focus-item list answers the three in order. = on a task row toggles its
 // focus. A task done today stays in today's list; with the clock a day
@@ -36,10 +36,10 @@ func TestFocusPickerAndDayChange(t *testing.T) {
 	a := open(t)
 	now := time.Date(2026, 11, 13, 10, 0, 0, 0, time.UTC)
 	a.loc, a.clock = time.UTC, func() time.Time { return now }
-	press(t, a, "Z")
+	press(t, a, "#")
 	ch := a.r.Chooser(focusPickerName)
 	if ch == nil {
-		t.Fatalf("Z opened %q", a.r.TopModal())
+		t.Fatalf("# opened %q", a.r.TopModal())
 	}
 	rows := ch.Matches()
 	if len(rows) < 2 {
@@ -126,7 +126,7 @@ func TestFocusPickerAndDayChange(t *testing.T) {
 	}
 }
 
-// ctrl+a Z in live view falls through to Z (leader.fall-through): the
+// ctrl+a # in live view falls through to # (leader.fall-through): the
 // focus picker opens over the live pane.
 func TestFocusPickerFromLive(t *testing.T) {
 	t.Parallel()
@@ -135,8 +135,8 @@ func TestFocusPickerFromLive(t *testing.T) {
 	if a.r.CurrentMode().Name != "terminal" {
 		t.Fatalf("not live: %s", a.r.CurrentMode().Name)
 	}
-	press(t, a, "ctrl+a", "Z")
+	press(t, a, "ctrl+a", "#")
 	if a.r.Chooser(focusPickerName) == nil {
-		t.Fatalf("ctrl+a Z opened %q", a.r.TopModal())
+		t.Fatalf("ctrl+a # opened %q", a.r.TopModal())
 	}
 }

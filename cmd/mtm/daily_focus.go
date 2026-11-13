@@ -15,7 +15,7 @@ import (
 
 // The day's focus (daily-focus plan, lane focus-2-mtm; owner decisions of
 // 2026-11-13: the rail only, no ticker; carry unfinished; its own mark,
-// status untouched; = on a task row and Z for the picker; a finished focus
+// status untouched; = on a task row and # for the picker; a finished focus
 // stays in today's list, flagged). A focus is a focus-item row naming a
 // thing (noun:key) and the local day it was picked for (work.FocusItem).
 // Today's list is computed on read (work.FocusDay): nothing runs at
@@ -344,8 +344,8 @@ func (a *App) defineFocus() {
 	}
 	n := focusItemNoun
 	a.r.Define(n).Props(focusProps()...).Store(a.docStore(n, a.focusStore())).Columns(focusColumns...).
-		About("The things picked as the day's focus (= on a task row, Z for the picker); today's list is computed on read, with focus.carry").
-		Verb("add", a.focusAdd, "Focus a thing for the day (--date, default today), last in its list; with no thing, open the focus picker (Z)").Positional("thing").
+		About("The things picked as the day's focus (= on a task row, # for the picker); today's list is computed on read, with focus.carry").
+		Verb("add", a.focusAdd, "Focus a thing for the day (--date, default today), last in its list; with no thing, open the focus picker (#)").Positional("thing").
 		Verb("remove", a.focusRemove, "Unfocus a thing: archive its focus for the day and the earlier days it carried from (undo restores it)").Positional("thing").
 		Verb("new", a.focusNew, "Add a task (under the pin, else unassociated) and focus it, as task.new --focus").Positional("title").
 		Verb("move", a.focusMove, "Move a thing in the day's list: +N or -N places (+1 down, -1 up), or to place N from 1 (past the end is last)").Positional("thing", "to").
@@ -376,7 +376,7 @@ func (a *App) defineFocus() {
 			panic(err)
 		}
 	}
-	a.r.Define("app").Mode("normal").Bind("Z", ochazuke.Do(n+".add").Hinted("focus"))
+	a.r.Define("app").Mode("normal").Bind("#", ochazuke.Do(n+".add").Hinted("focus"))
 }
 
 // focusAt is the list entry of thing on day, if listed.
@@ -408,7 +408,7 @@ func (a *App) focusAdd(c ochazuke.Ctx) ochazuke.Result {
 	thing := normalThing(ochazuke.StringArg(c.Args, "thing", ""))
 	if thing == "" {
 		if a.cli {
-			return ochazuke.Failed(&ochazuke.ArgumentError{Err: errors.New("name a thing (task:ID); Z opens the focus picker")})
+			return ochazuke.Failed(&ochazuke.ArgumentError{Err: errors.New("name a thing (task:ID); # opens the focus picker")})
 		}
 		return a.openNamedPicker(focusPickerName)
 	}
@@ -633,7 +633,7 @@ func (a *App) focusOpen(c ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 		if !ok {
-			a.r.UI().Info("nothing is focused today: = on a task row or Z focuses one")
+			a.r.UI().Info("nothing is focused today: = on a task row or # focuses one")
 			return ochazuke.Done(nil)
 		}
 		thing = e.Thing
@@ -647,7 +647,7 @@ func (a *App) focusOpen(c ochazuke.Ctx) ochazuke.Result {
 	return resultOf(a.r.Execute(ochazuke.Request{Noun: noun, Verb: verb, Target: key}))
 }
 
-// openFocusPicker is the focus picker (Z): today's focus first (marked),
+// openFocusPicker is the focus picker (#): today's focus first (marked),
 // then the open tasks (the pinned project's first); enter toggles the
 // highlighted task's focus and stays open; a typed title that matches
 // nothing offers "+ focus new task".
