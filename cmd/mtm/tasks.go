@@ -19,7 +19,7 @@ func (a *App) defineTask() {
 	// set, watch, rename, move, duplicate) come from them (task_store.go);
 	// new and edit wrap create and set; done and status are aliases of
 	// set; the rest are mtm's own.
-	r.Define("task").Filters(taskFilters()...).Props(taskProps()...).Store(a.docStore("task", a.taskStore())).Columns(taskColumns...).
+	r.Define("task").Filters(append(taskFilters(), focusFilter())...).Props(append(taskProps(), focusTaskProps()...)...).Store(a.docStore("task", a.taskStore())).Columns(taskColumns...).
 		Verb("open", a.openTask, "View task without editing").
 		Verb("show", a.openTask, "View task without editing").Renamed("view", "the next mtm release (ochazuke v0.120.0)", "the following mtm release").
 		Verb("edit", a.editTask, "Edit title and status (standard set of those given); omit arguments for the editor").Positional("title").Many().ShadowsStandard().
@@ -53,6 +53,7 @@ func (a *App) defineTask() {
 	a.parameters("task.edit", map[string]ochazuke.Parameter{"title": {Type: "string"}, "status": {Type: "string", Enum: defaultStatusNames()}})
 	a.parameters("task.new", map[string]ochazuke.Parameter{
 		"title": {Type: "string"}, "project": {Type: "string"}, "task": {Type: "string"}, "scratch": {Type: "boolean"}, "parent": {Type: "string"},
+		"focus": {Type: "boolean", Description: "Also focus the new task for today (focus-item.new)"},
 	})
 	// With no explicit CLI target, resolve the task from the pane's current
 	// assignment, rather than the one task a pinned UI happens to have loaded.
@@ -605,7 +606,14 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	if a.inScope(t.ProjectID) {
+	if err := a.focusNewTask(ctx, t.ID); err != nil {
+		return ochazuke.Failed(err)
+	}
+	switch {
+	case a.r.TopModal() != "":
+		// Made from inside a modal (the focus picker's create row): the
+		// modal stays; the Work page shows the task when it is next open.
+	case a.inScope(t.ProjectID):
 		if err := a.r.OpenPage("work"); err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -615,7 +623,7 @@ func (a *App) newTask(ctx ochazuke.Ctx) ochazuke.Result {
 		if err := a.taskList.Focus(); err != nil {
 			return ochazuke.Failed(err)
 		}
-	} else {
+	default:
 		ctx.Notify("Task saved outside pin: " + a.ownerLabel(t.ProjectID))
 	}
 	return ochazuke.Done(struct {

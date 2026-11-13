@@ -127,6 +127,9 @@ var Tables = []store.Table{
 	// copies: mtm's copies of the things a source holds (copies.go); an
 	// existing database gains the table on its next open.
 	{Name: copiesTable, Owner: "work", Key: "id", Version: 2},
+	// focus_items: the day's focus marks (focus.go); an existing database
+	// gains the table on its next open.
+	{Name: focusTable, Owner: "work", Key: "id", Version: 1},
 }
 
 // serverIDRewrite maps the socket path in a row's field to its server id.

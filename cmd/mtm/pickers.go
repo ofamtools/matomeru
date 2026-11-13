@@ -55,6 +55,8 @@ func (a *App) pickerDefs() []ochazuke.PickerDef {
 			About: "Every open side across every pane; pick one to attach its pane, show the side and focus it"},
 		{Name: harnessPickerName, Title: "Launch an agent", Verb: "agent.choose", Open: a.openHarnessPicker,
 			About: "The harnesses, the pinned project's own first; pick one to launch an agent in the pinned project"},
+		{Name: focusPickerName, Title: "Focus today", Verb: focusItemNoun + ".add", Open: a.openFocusPicker,
+			About: "Today's focus first, then the open tasks (the pinned project's first); enter focuses or unfocuses the task and stays open; a typed title focuses a new task"},
 	}
 }
 
@@ -132,9 +134,11 @@ type pickSpec struct {
 	Kind, Title, Empty, Plural string
 	// Noun is the rows' noun (prop filters); Match the match mode.
 	Noun, Match string
-	// Keep names the columns cut last; NoSort keeps the source order.
+	// Keep names the columns cut last; NoSort keeps the source order;
+	// Stay keeps the picker open after a pick (a toggle per row).
 	Keep   []int
 	NoSort bool
+	Stay   bool
 	Filter pickFilter
 	// Choices are the rows: the source's answer.
 	Choices []ochazuke.Choice
@@ -201,7 +205,7 @@ func dataByID(choices []ochazuke.Choice) map[string]any {
 func (a *App) choose(s pickSpec) (*ochazuke.Chooser, error) {
 	spec := ochazuke.PickerSpec{
 		Kind: s.Kind, Noun: s.Noun, Title: s.Title, Match: s.Match, Rows: s.rows(),
-		Empty: cmp.Or(s.Empty, s.Notice), Plural: s.Plural, Keep: s.Keep, NoSort: s.NoSort,
+		Empty: cmp.Or(s.Empty, s.Notice), Plural: s.Plural, Keep: s.Keep, NoSort: s.NoSort, Stay: s.Stay,
 		Choose: func(row ochazuke.PickerRow) ochazuke.Result { return s.Pick(row.ID) },
 	}
 	switch s.Filter {

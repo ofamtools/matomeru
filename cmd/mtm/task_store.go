@@ -165,7 +165,7 @@ func (a *App) taskStore() ochazuke.Store {
 			if err != nil {
 				return nil, err
 			}
-			return a.taskThingOf(t), nil
+			return markFocus(a.taskThingOf(t), a.focusOrders([]work.Task{t})), nil
 		},
 		List: func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
 			scope := *a
@@ -191,12 +191,13 @@ func (a *App) taskStore() ochazuke.Store {
 				}
 			}
 			out := make([]ochazuke.Thing, 0, len(tasks))
+			orders := a.focusOrders(tasks)
 			for _, t := range tasks {
 				if scope.inScope(t.ProjectID) && (ochazuke.StringArg(q.Args, "status", "") == "" || t.Status == ochazuke.StringArg(q.Args, "status", "")) {
 					if !inLane(t) {
 						continue
 					}
-					out = append(out, taskThing(t, exported[t.ID]))
+					out = append(out, markFocus(taskThing(t, exported[t.ID]), orders))
 				}
 			}
 			return out, nil

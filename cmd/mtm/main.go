@@ -481,6 +481,9 @@ type App struct {
 	// clock is the time the Turns tab's retries are timed by (now); tests
 	// replace it.
 	clock func() time.Time
+	// focusCursor is the current place in today's focus
+	// (focus-item.next, previous and open).
+	focusCursor int
 	// ompSessions is omp's sessions directory (turns.OmpSessions); tests
 	// point it at a temporary directory.
 	ompSessions string
@@ -676,6 +679,7 @@ func New(opts Options) (*App, error) {
 	a.defineLicense()
 	a.defineShellNoun()
 	a.defineConfigReload()
+	a.defineFocus()
 	a.definePickers()
 	a.declareRelationKinds()
 	if err := a.configureDirectorySettings(); err != nil {

@@ -325,6 +325,7 @@ fit-columns	action	seed
 flags	prop	seed	
 flush-lingering	action	seed	
 focus	action+noun+prop	seed	singular
+focus-item	noun	yes	the day's focus marks (daily focus, owner 2026-11-13: the word is focus, the noun focus-item)
 focus-pane	action	seed	
 focus-section	action	seed	
 focusBound	prop	seed	
@@ -812,6 +813,7 @@ setup-status	prop	seed
 setup-undo	action	seed	
 sha	prop	seed	
 shape	prop	seed	
+shell	noun	yes	the shell a pane runs; shell.init is the CLI's shell-init as a verb
 short_sha	prop	seed	
 show	action	seed	
 show-archived	action	seed	
