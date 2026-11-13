@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"ofam.dev/matomeru/internal/contextitems"
 	"slices"
 	"strings"
 	"testing"
@@ -16,7 +17,6 @@ import (
 func sideViewApp(t *testing.T) (*App, *fakePanes) {
 	t.Helper()
 	a, f := panesApp(t)
-	railOff(t, a) // the side's geometry, with the whole detail
 	cmd := key(t, a, "enter")
 	f.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"PARENT SCREEN"}, Cursor: ochazuke.Pos{X: 1, Y: 1}}
 	runOnce(a, cmd)
@@ -233,6 +233,7 @@ func TestSideStreamOpensAtItsRegion(t *testing.T) {
 func TestSideLayoutFlipResizesBoth(t *testing.T) {
 	t.Parallel()
 	a, f := sideViewApp(t)
+	railOff(t, a) // the flipped regions at the whole detail's width
 	if err := a.showSide(a.attached, "vim"); err != nil {
 		t.Fatal(err)
 	}
@@ -474,6 +475,27 @@ func TestSideZoomAsksForTheZoomedSize(t *testing.T) {
 	}
 	if got, want := lastFit(), fmt.Sprintf("%s %dx%d", a.attached.ID, zw, zh); got != want {
 		t.Fatalf("parent zoom: last fit %q, want %q", got, want)
+	}
+}
+
+// With the rail on, a side stays beside its parent: the rail floats
+// rather than narrow the detail under the width that keeps it beside.
+func TestRailKeepsTheSideBesideItsParent(t *testing.T) {
+	t.Parallel()
+	a, _ := sideViewApp(t)
+	if err := a.showSide(a.attached, "vim"); err != nil {
+		t.Fatal(err)
+	}
+	shown, key := a.railTarget() // the side, while its terminal holds the focus
+	if _, _, err := a.contexts.Merge([]contextitems.Item{{Kind: "link", Text: "https://example.com/beside", Window: key}}, contextitems.Owner{}, 1); err != nil || shown != "pane" {
+		t.Fatalf("seeding the rail's pane %q: %v", key, err) // something to list, so the rail is drawn
+	}
+	a.renderPanes(a.r, 240, 50)
+	if area := a.sideArea(a.pv.detailW, a.pv.detailH); !area.beside {
+		t.Fatalf("side below its parent at a %dx%d detail", a.pv.detailW, a.pv.detailH)
+	}
+	if !strings.Contains(railText(a, 240, 50), "─ rail") {
+		t.Fatal("no rail drawn")
 	}
 }
 

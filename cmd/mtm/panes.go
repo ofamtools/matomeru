@@ -261,6 +261,9 @@ type paneUI struct {
 	// detailW and detailH are the detail area the last frame drew, so a
 	// side's stream and new window get its region before it is drawn.
 	detailW, detailH int
+	// areaW is the detail's width before the rail takes its share: the
+	// width the side's place (beside or below) is decided from.
+	areaW int
 	// screen is what the Screen tab drew of a row's preview last frame,
 	// which f on the row labels (live_hints.go).
 	screen screenWindow

@@ -103,12 +103,18 @@ func (a *App) railTarget() (string, string) {
 // withRail draws main (drawn by draw at the size it is given) with the
 // rail beside or over it in an area of width x height, in z's look (""
 // for rail.look; not shown: no rail). The main is drawn at the size the
-// rail leaves it, so a live terminal in it is sized to that.
-func (a *App) withRail(layout ochazuke.Layout, width, height int, z railZoom, draw func(w, h int) ochazuke.Block) ochazuke.Block {
+// rail leaves it, so a live terminal in it is sized to that. least is the
+// width the main needs to keep the layout it has at the whole width (a
+// side beside its parent): a column that would leave less steps down to
+// the float, so the rail never changes the main's layout.
+func (a *App) withRail(layout ochazuke.Layout, width, height, least int, z railZoom, draw func(w, h int) ochazuke.Block) ochazuke.Block {
 	if a.rail == nil || !z.shown {
 		return draw(width, height)
 	}
 	fit := a.rail.FitWith(width, height, z.look)
+	if fit.Look == ochazuke.RailLookFull && fit.MainWidth < least {
+		fit = a.rail.FitWith(width, height, ochazuke.RailLookFloat)
+	}
 	// A float with nothing to list covers the main for nothing; the full
 	// column stays, so a live terminal is not resized as sections come and
 	// go. (App-side workaround: upstream, FitRail could leave out an empty

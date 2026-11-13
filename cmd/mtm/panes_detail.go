@@ -807,7 +807,7 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 		title := a.streamTitle(term.ID(), p.label()) + " · zoomed · " + a.r.TerminalLeader() + " z restores"
 		// The rail over a zoomed pane follows rail.zoom (a float by
 		// default, so the terminal keeps its width).
-		return a.withRail(layout, width, height, railZooms[a.r.Settings().String(settingRailZoom)], func(width, height int) ochazuke.Block {
+		return a.withRail(layout, width, height, 0, railZooms[a.r.Settings().String(settingRailZoom)], func(width, height int) ochazuke.Block {
 			cw, ch := ochazuke.PanelContentSize(width, height)
 			if a.copy.active {
 				return a.panePanel(layout, a.copy.pane).PanelBlock(a.copyTitle()+" · zoomed", a.copyBlock(cw, ch), width, height, true)
@@ -834,7 +834,8 @@ func (a *App) renderPanes(_ *ochazuke.Runtime, width, height int) ochazuke.Block
 	left := a.paneListBlock(listW, listH)
 	// The rail sits right of the detail (or over it): the detail, and a
 	// live terminal in it, get the width the rail leaves.
-	detail := a.withRail(layout, detailW, max(3, detailH), railZoom{shown: true}, func(w, h int) ochazuke.Block { return a.detailBlock(layout, w, h) })
+	a.pv.areaW = detailW
+	detail := a.withRail(layout, detailW, max(3, detailH), a.detailLeast(detailW, max(3, detailH)), railZoom{shown: true}, func(w, h int) ochazuke.Block { return a.detailBlock(layout, w, h) })
 	headLine := s.Muted.Render(a.panesHead(listW))
 	if side {
 		cache := &a.pv.columnsFrame

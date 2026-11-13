@@ -215,14 +215,32 @@ func (a *App) sideLayout() string {
 	return sideAuto
 }
 
-func (a *App) sideArea(width, height int) sideArea {
-	beside := width >= sideSplit
+// sideBesideFrom is the least detail width that puts the side beside its
+// parent under the side-layout setting; below puts it under at any width.
+func (a *App) sideBesideFrom() (int, bool) {
 	switch a.sideLayout() {
 	case sideBeside:
-		beside = width >= 2*sideBesideMin+1
+		return 2*sideBesideMin + 1, true
 	case sideBelow:
-		beside = false
+		return 0, false
 	}
+	return sideSplit, true
+}
+
+// detailLeast is the least width the detail keeps its layout in at width:
+// with a live side beside its parent, the width that keeps it beside; else
+// none. The rail beside the detail takes its column only above this.
+func (a *App) detailLeast(width, height int) int {
+	if !a.liveShown() || a.r.Terminal(sideTermID) == nil || !a.sideArea(width, height).beside {
+		return 0
+	}
+	from, _ := a.sideBesideFrom()
+	return from
+}
+
+func (a *App) sideArea(width, height int) sideArea {
+	from, can := a.sideBesideFrom()
+	beside := can && width >= from
 	if beside {
 		leftWidth := (width - 1) / 2
 		return sideArea{beside: true, parentW: leftWidth, parentH: height, sideW: width - leftWidth - 1, sideH: height}
@@ -258,7 +276,7 @@ func (a *App) flipLayout(ctx ochazuke.Ctx) ochazuke.Result {
 	case sideBeside:
 		next = sideBelow
 	case sideAuto:
-		if a.pv.detailW >= sideSplit {
+		if a.layoutWidth() >= sideSplit {
 			next = sideBelow
 		}
 	}
@@ -275,8 +293,21 @@ func (a *App) sideContentSize() (cols, rows int) {
 	if a.pv.detailW <= 0 || a.pv.detailH <= 0 {
 		return 0, 0
 	}
-	area := a.sideArea(a.pv.detailW, a.pv.detailH)
+	area := a.sideArea(a.layoutWidth(), a.pv.detailH)
+	if !area.beside {
+		area = a.sideArea(a.pv.detailW, a.pv.detailH)
+	}
 	return ochazuke.PanelContentSize(area.sideW, area.sideH)
+}
+
+// layoutWidth is the width the side's place is decided from: the detail's
+// before the rail takes its share (the rail steps down rather than move a
+// side from beside its parent), else the drawn detail's.
+func (a *App) layoutWidth() int {
+	if a.pv.areaW > 0 {
+		return a.pv.areaW
+	}
+	return a.pv.detailW
 }
 
 // detailBlock keeps both live terminals inside the page's detail area.
