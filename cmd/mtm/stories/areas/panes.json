@@ -171,6 +171,56 @@
     "enter",
     ":",
     {
+      "type": "action-item create --source mtm --kind done --title \"turn done\" --pane w2 --session billing-api"
+    },
+    "enter",
+    ":",
+    {
+      "type": "action-item create --source mtm --kind errored --title \"agent broke\""
+    },
+    "enter",
+    ":",
+    {
+      "type": "action-item create --source mtm --kind command --title \"long build\""
+    },
+    "enter",
+    ":",
+    {
+      "type": "action-item create --source ci --kind mention --title \"ext ping\""
+    },
+    "enter",
+    "g",
+    "n",
+    "g",
+    "g",
+    "W",
+    "W",
+    "W",
+    "W",
+    "W",
+    "u",
+    ":",
+    {
+      "type": "focus to --id pane:billing-api/w2"
+    },
+    "enter",
+    "enter",
+    "ctrl+a",
+    "d",
+    "W",
+    "u",
+    "g",
+    "n",
+    "g",
+    "g",
+    "u",
+    ":",
+    {
+      "type": "focus to --id pane:acme-web/w1"
+    },
+    "enter",
+    ":",
+    {
       "type": "project set billing-api name=beta"
     },
     "enter",
@@ -380,7 +430,7 @@
       "contains": [
         "[Turns]",
         "queue ask",
-        "Needs you (3)"
+        "Needs you (2)"
       ],
       "after": 72
     },
@@ -496,7 +546,7 @@
       "mode": "normal",
       "modal": "",
       "contains": [
-        "Needs you (2)"
+        "Needs you (1)"
       ],
       "lacks": [
         "queue ask",
@@ -514,7 +564,83 @@
       "after": 122
     },
     {
-      "after": 129,
+      "after": 138,
+      "mode": "normal",
+      "modal": "",
+      "highlightedText": "agent broke",
+      "contains": [
+        "Needs you (5)",
+        "5 need you"
+      ]
+    },
+    {
+      "after": 143,
+      "highlightedText": "agent broke"
+    },
+    {
+      "after": 144,
+      "contains": [
+        "Needs you (4)",
+        "4 need you"
+      ],
+      "lacks": [
+        "agent broke",
+        "Error:"
+      ]
+    },
+    {
+      "after": 147,
+      "focus": "pane:billing-api/w2"
+    },
+    {
+      "after": 148,
+      "mode": "terminal",
+      "focus": "panes/terminal"
+    },
+    {
+      "after": 150,
+      "mode": "normal",
+      "contains": [
+        "Needs you (3)",
+        "3 need you"
+      ],
+      "lacks": [
+        "Error:"
+      ]
+    },
+    {
+      "after": 151,
+      "highlightedText": "long build"
+    },
+    {
+      "after": 152,
+      "contains": [
+        "Needs you (2)",
+        "2 need you"
+      ],
+      "lacks": [
+        "long build",
+        "Error:"
+      ]
+    },
+    {
+      "after": 157,
+      "contains": [
+        "Needs you (1)",
+        "1 need you"
+      ],
+      "lacks": [
+        "Error:"
+      ]
+    },
+    {
+      "after": 160,
+      "focus": "pane:acme-web/w1",
+      "mode": "normal",
+      "modal": ""
+    },
+    {
+      "after": 167,
       "focus": "edit-form/project"
     },
     {
@@ -526,13 +652,13 @@
         "unknown project beta",
         "Edit pane"
       ],
-      "after": 134
+      "after": 172
     },
     {
       "lacks": [
         "Error:"
       ],
-      "after": 139
+      "after": 177
     },
     {
       "focus": "panes/tree/list",
@@ -544,7 +670,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 151
+      "after": 189
     },
     {
       "mode": "normal",
@@ -559,7 +685,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 152
+      "after": 190
     },
     {
       "mode": "normal",

@@ -398,7 +398,7 @@
             "noun": "panes"
           },
           "action": "panes.waiting",
-          "label": "Select the next pane that needs input"
+          "label": "Go to the next Needs-you row, wrapping: select it (a pane row its pane, an item row its item); the leader's W in live view is the same action, attaching the row's pane (inbox.needs-you-rule legacy: the next pane whose agent needs input)"
         },
         {
           "mode": "normal",
@@ -11801,7 +11801,7 @@
             "noun": "panes"
           },
           "action": "panes.waiting",
-          "label": "Select the next pane that needs input"
+          "label": "Go to the next Needs-you row, wrapping: select it (a pane row its pane, an item row its item); the leader's W in live view is the same action, attaching the row's pane (inbox.needs-you-rule legacy: the next pane whose agent needs input)"
         },
         {
           "mode": "normal",
@@ -13423,7 +13423,7 @@
             "noun": "panes"
           },
           "action": "panes.waiting",
-          "label": "Select the next pane that needs input"
+          "label": "Go to the next Needs-you row, wrapping: select it (a pane row its pane, an item row its item); the leader's W in live view is the same action, attaching the row's pane (inbox.needs-you-rule legacy: the next pane whose agent needs input)"
         },
         {
           "mode": "normal",
@@ -44528,7 +44528,7 @@
             "noun": "panes"
           },
           "action": "panes.waiting",
-          "label": "Select the next pane that needs input"
+          "label": "Go to the next Needs-you row, wrapping: select it (a pane row its pane, an item row its item); the leader's W in live view is the same action, attaching the row's pane (inbox.needs-you-rule legacy: the next pane whose agent needs input)"
         },
         {
           "mode": "normal",
@@ -60604,7 +60604,7 @@
             "noun": "panes"
           },
           "action": "panes.waiting",
-          "label": "Select the next pane that needs input"
+          "label": "Go to the next Needs-you row, wrapping: select it (a pane row its pane, an item row its item); the leader's W in live view is the same action, attaching the row's pane (inbox.needs-you-rule legacy: the next pane whose agent needs input)"
         },
         {
           "mode": "normal",
