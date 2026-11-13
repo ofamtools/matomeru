@@ -83,6 +83,7 @@ type copyMode struct {
 	active     bool
 	pane       pane
 	source     string      // the terminal whose screen is the buffer's tail; "" reads the capture's
+	altScreen  bool        // the source terminal is on the alternate screen
 	returnLive string      // terminal focused at entry; empty when entered from the list
 	pending    *copyScroll // a scroll waiting for the scrollback to load (terminal.scroll)
 	history    []string    // the capture's history, capped; styled when copy.colors is on
@@ -208,7 +209,7 @@ func (c *copyMode) followSource(r *ochazuke.Runtime) bool {
 	if text == c.frame {
 		return false
 	}
-	c.frame, c.screen = text, append([]string(nil), f.Lines...)
+	c.frame, c.screen, c.altScreen = text, append([]string(nil), f.Lines...), f.AltScreen
 	c.rebuild(0)
 	return true
 }
@@ -225,7 +226,11 @@ func (a *App) defineCopy() {
 	a.copy = &copyMode{buf: copyBuf{goal: -1}, r: r}
 	r.Define(copyNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Focusable().
 		Verb("move", a.copyOp(func(c *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
-			return c.buf.move(ochazuke.StringArg(args, "motion", ""), ochazuke.IntArg(args, "steps", 1), ochazuke.IntArg(args, "line", 0), r.SelectionShape(r.BaseMode()) == ochazuke.SelectionBlock)
+			motion, before := ochazuke.StringArg(args, "motion", ""), c.buf.place()
+			if err := c.buf.move(motion, ochazuke.IntArg(args, "steps", 1), ochazuke.IntArg(args, "line", 0), r.SelectionShape(r.BaseMode()) == ochazuke.SelectionBlock); err != nil {
+				return err
+			}
+			return a.forwardStuck(before, forwardKeys.move[moveMotion(motion)])
 		}), "Move the copy cursor (Vim motions: left, word-forward, line-end, first-line, screen-top, paragraph-forward, match, ...)").Motion().
 		Verb("find", a.copyOp(func(c *copyMode, _ *ochazuke.Runtime, args ochazuke.Arguments) error {
 			char, err := keyChar(ochazuke.StringArg(args, "char", ""))
@@ -240,9 +245,9 @@ func (a *App) defineCopy() {
 			return c.buf.repeatFind(boolArg(args, "reverse", false), ochazuke.IntArg(args, "steps", 1))
 		}), "Repeat the last f, F, t or T (reverse: the other way)").Motion().
 		Verb("scroll", a.copyOp(func(c *copyMode, _ *ochazuke.Runtime, args ochazuke.Arguments) error {
-			lines := scrollSteps(ochazuke.StringArg(args, "by", "line"), c.buf.height) * ochazuke.IntArg(args, "steps", 1) * ochazuke.IntArg(args, "dir", 1)
-			c.buf.scroll(lines, ochazuke.StringArg(args, "by", "line") != "line")
-			return nil
+			by, dir, before := ochazuke.StringArg(args, "by", "line"), ochazuke.IntArg(args, "dir", 1), c.buf.place()
+			c.buf.scroll(scrollSteps(by, c.buf.height)*ochazuke.IntArg(args, "steps", 1)*dir, by != "line")
+			return a.copyScrolled(before, by, dir)
 		}), "Scroll the copy view by half a page, a page or a line (dir 1 down, -1 up)").Motion().
 		Verb("next", a.copyOp(func(c *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
 			return c.buf.searchFrom(r.CaseFor(c.buf.search), c.buf.search, c.buf.back != boolArg(args, "reverse", false), ochazuke.IntArg(args, "steps", 1))
@@ -414,14 +419,14 @@ func (a *App) addCopy() {
 func (a *App) enterCopy(p pane, source string) error {
 	c := a.copy
 	c.active, c.pane, c.source, c.loaded, c.err = true, p, source, false, ""
-	c.history, c.screen, c.frame, c.base = nil, nil, "", 0
+	c.history, c.screen, c.frame, c.base, c.altScreen = nil, nil, "", 0, false
 	c.returnLive = ""
 	keep := c.buf
 	c.buf = copyBuf{goal: -1, search: keep.search, back: keep.back, find: keep.find}
 	cursor := copyPos{-1, 0}
 	if t := a.r.Terminal(source); source != "" && t != nil {
 		f := t.Frame()
-		c.frame, c.screen = strings.Join(f.Lines, "\n"), append([]string(nil), f.Lines...)
+		c.frame, c.screen, c.altScreen = strings.Join(f.Lines, "\n"), append([]string(nil), f.Lines...), f.AltScreen
 		cursor = copyPos{f.Cursor.Y, f.Cursor.X}
 	} else if a.preview.Pane == p.rowID() {
 		c.screen = strings.Split(strings.TrimRight(a.preview.Text, "\n"), "\n")

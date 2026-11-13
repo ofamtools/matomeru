@@ -250,6 +250,7 @@
       "sessionPattern": "_([0-9A-Za-z-]+)\\.jsonl$"
     },
     "log": "omp",
+    "scroll": "copy",
     "compose": {
       "oai": "omp",
       "config": "{ompDir}/config.yml",

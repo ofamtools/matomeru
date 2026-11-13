@@ -45,9 +45,19 @@ import (
 
 // Decisions a held prompt can end with, the same words the daemon uses.
 const (
-	DecisionOnce   = "once"
-	DecisionAlways = "always"
-	DecisionDeny   = "deny"
+	DecisionOnce   = string(decisionOnce)
+	DecisionAlways = string(decisionAlways)
+	DecisionDeny   = string(decisionDeny)
+)
+
+// decisionKind is the decisions as a type of their own, so the answer
+// builders switch on a decision, not on a name of the runtime's vocabulary.
+type decisionKind string
+
+const (
+	decisionOnce   decisionKind = "once"
+	decisionAlways decisionKind = "always"
+	decisionDeny   decisionKind = "deny"
 )
 
 // ApprovalHookTimeout is the limit, in seconds, the Claude Code integration
@@ -159,16 +169,16 @@ func (a *Approval) Answer(harness, decision, message string) (string, bool) {
 // updatedPermissions to add rules on an allow and message on a deny.
 func claudeAnswer(decision, message string, suggestions json.RawMessage) (string, bool) {
 	inner := map[string]any{}
-	switch decision {
-	case DecisionOnce:
+	switch decisionKind(decision) {
+	case decisionOnce:
 		inner["behavior"] = "allow"
-	case DecisionAlways:
+	case decisionAlways:
 		if len(suggestions) == 0 {
 			return "", false
 		}
 		inner["behavior"] = "allow"
 		inner["updatedPermissions"] = suggestions
-	case DecisionDeny:
+	case decisionDeny:
 		inner["behavior"] = "deny"
 		if strings.TrimSpace(message) == "" {
 			message = DefaultDenyMessage
@@ -208,20 +218,20 @@ func permissionRequestOutput(inner map[string]any) (string, bool) {
 // mode to acceptEdits, built here rather than copied from the request.
 func claudePlanAnswer(decision, message string, input json.RawMessage, acceptEdits bool) (string, bool) {
 	inner := map[string]any{}
-	switch decision {
-	case DecisionOnce, DecisionAlways:
+	switch decisionKind(decision) {
+	case decisionOnce, decisionAlways:
 		if len(input) == 0 {
 			return "", false
 		}
 		inner["behavior"] = "allow"
 		inner["updatedInput"] = input
-		if decision == DecisionAlways {
+		if decisionKind(decision) == decisionAlways {
 			if !acceptEdits {
 				return "", false
 			}
 			inner["updatedPermissions"] = []map[string]any{{"type": "setMode", "mode": "acceptEdits", "destination": "session"}}
 		}
-	case DecisionDeny:
+	case decisionDeny:
 		inner["behavior"] = "deny"
 		if strings.TrimSpace(message) == "" {
 			message = DefaultPlanDenyMessage
@@ -237,10 +247,10 @@ func claudePlanAnswer(decision, message string, input json.RawMessage, acceptEdi
 // plugin posts to opencode's permission route, once, always or reject.
 func openCodeAnswer(decision, message string) (string, bool) {
 	reply := map[string]string{}
-	switch decision {
-	case DecisionOnce, DecisionAlways:
+	switch decisionKind(decision) {
+	case decisionOnce, decisionAlways:
 		reply["reply"] = decision
-	case DecisionDeny:
+	case decisionDeny:
 		reply["reply"] = "reject"
 		if strings.TrimSpace(message) == "" {
 			message = DefaultDenyMessage
