@@ -41,6 +41,7 @@ func (a *App) reloadHarnesses() []string {
 		a.locator.Set(reg.List())
 	}
 	a.setHarnessChoices()
+	a.defineAgentGuards()
 	return nil
 }
 

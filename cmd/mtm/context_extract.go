@@ -39,14 +39,15 @@ type scrollback struct {
 type scrollWindow struct {
 	Tail          int
 	Before, Count int
+	Styled        bool // keep the pane's SGR styling in the text
 }
 
-// ScrollbackWindow reads a window of the pane's recent buffer, unstyled: the
+// ScrollbackWindow reads a window of the pane's recent buffer (styled on request): the
 // daemon cuts it, so a pane with a long log costs the window, not the log.
 func (t tuios) ScrollbackWindow(ctx context.Context, p pane, w scrollWindow) (scrollback, error) {
 	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
 	defer cancel()
-	params := daemon.CaptureParams{Session: p.Session, Window: p.ID, Source: "recent"}
+	params := daemon.CaptureParams{Session: p.Session, Window: p.ID, Source: "recent", Styled: w.Styled}
 	from, want := 0, 0
 	if w.Count > 0 {
 		start := max(0, w.Before-w.Count)

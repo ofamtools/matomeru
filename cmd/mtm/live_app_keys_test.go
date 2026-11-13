@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -284,4 +285,66 @@ func TestLiveFocusSurvivesFrames(t *testing.T) {
 		plainView(a)
 	}
 	live(t, a, "palette closed over the parent")
+}
+
+// A live pane's scroll keys follow its agent: OMP's PageUp enters copy mode
+// a page back (the scrollback loads, then the view moves), another harness's
+// reaches the program, and the pane-agent guard is unmet with no pane; the
+// terminal.scroll-keys setting off sends OMP's key through too.
+func TestLiveScrollKeysFollowTheAgent(t *testing.T) {
+	t.Parallel()
+	history := make([]string, 60)
+	for i := range history {
+		history[i] = fmt.Sprintf("h%02d", i)
+	}
+	setup := func(t *testing.T, harness string) (*App, *fakeStream) {
+		app, f := panesApp(t)
+		f.screens["w1"] = "$ "
+		f.backs = map[string]scrollback{"w1": {Text: strings.Join(history, "\n") + "\n$ ", History: len(history)}}
+		app.m.Width, app.m.Height = 140, 40
+		settle(app, follow(app))
+		plainView(app)
+		cmd := key(t, app, "enter")
+		s := f.streams[len(f.streams)-1]
+		s.frames <- ochazuke.TerminalFrame{Lines: padRows("$ "), Cursor: ochazuke.Pos{X: 2, Y: 0}}
+		runOnce(app, cmd)
+		live(t, app, "enter")
+		app.attached.Harness = harness
+		return app, s
+	}
+	guard := func(a *App, name string) bool {
+		holds, known := a.r.GuardHolds(paneAgentGuard+name, paneTermID)
+		return holds && known
+	}
+
+	a, s := setup(t, "omp")
+	if !guard(a, "omp") || guard(a, "claude") {
+		t.Fatalf("guard: omp %v claude %v", guard(a, "omp"), guard(a, "claude"))
+	}
+	settle(a, key(t, a, "pgup"))
+	if a.r.FocusID() != copyID || !a.copy.active || len(s.sent) != 0 {
+		t.Fatalf("omp pgup: focus %s copy %v sent %v", a.r.FocusID(), a.copy.active, s.sent)
+	}
+	if a.copy.pending != nil || a.copy.buf.top >= len(a.copy.buf.lines)-a.copy.buf.height {
+		t.Fatalf("omp pgup did not scroll back: pending %v top %d of %d", a.copy.pending, a.copy.buf.top, len(a.copy.buf.lines))
+	}
+
+	a, s = setup(t, "claude")
+	press(t, a, "pgup")
+	if a.copy.active || len(s.sent) != 1 || s.sent[0][0] != "pgup" {
+		t.Fatalf("claude pgup: copy %v sent %v", a.copy.active, s.sent)
+	}
+	a.attached.Harness = ""
+	if guard(a, "omp") {
+		t.Fatal("pane-agent:omp holds for a pane with no harness")
+	}
+
+	a, s = setup(t, "omp")
+	if err := a.r.Settings().Set(settingTerminalScrollKeys, false); err != nil {
+		t.Fatal(err)
+	}
+	press(t, a, "pgup")
+	if a.copy.active || len(s.sent) != 1 || s.sent[0][0] != "pgup" {
+		t.Fatalf("setting off, omp pgup: copy %v sent %v", a.copy.active, s.sent)
+	}
 }

@@ -599,6 +599,7 @@ func (a *App) defineLiveKeys() {
 		Bind("ctrl+j", ochazuke.Do("ochazuke.page.next")).
 		Bind("ctrl+k", ochazuke.Do("ochazuke.page.previous")).
 		Bind("?", ochazuke.Do("ochazuke.binding.help"))
+	a.defineLiveScroll()
 	a.defineLiveHints()
 	a.leaderView()
 	a.parameters("terminal.cycle", map[string]ochazuke.Parameter{"delta": {Type: "integer", Required: true}})

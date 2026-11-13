@@ -18,6 +18,7 @@ import (
 // which visual shape is active.
 type copyBuf struct {
 	lines    []string
+	styled   []string // the lines with the pane's SGR styling, aligned with lines; nil draws plain
 	row, col int
 	goal     int // the column j and k aim for, in cells; -1 is the cursor's own
 	top      int // the first line on screen
