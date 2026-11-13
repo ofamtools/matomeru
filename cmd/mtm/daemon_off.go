@@ -10,4 +10,4 @@ func daemonShell([]string) (int, bool) { return 0, false }
 
 // daemonForeground runs nothing without the daemon; mtm daemon serve checks
 // daemonBuilt first.
-func daemonForeground(string, string) int { return 2 }
+func daemonForeground(string, string, bool) int { return 2 }

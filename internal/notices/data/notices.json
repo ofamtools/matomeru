@@ -934,7 +934,7 @@
   },
   {
    "path": "ofam.dev/mtmd",
-   "version": "v0.4.1",
+   "version": "v0.4.3",
    "daemonOnly": true,
    "files": [
     {

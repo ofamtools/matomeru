@@ -3,6 +3,8 @@
 package main
 
 import (
+	"os"
+
 	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/mtmd/serve"
 )
@@ -24,13 +26,13 @@ func daemonShell(words []string) (code int, handled bool) {
 	if len(words) == 0 || words[0] != daemonWord {
 		return 0, false
 	}
-	return serve.Main(words[1:], daemonOptions(daemon.PreferredLayout())), true
+	return serve.Main(words[1:], daemonOptions(daemon.PreferredLayout(), daemon.LegacyEnvOn(os.Getenv(daemon.EnvLegacy)))), true
 }
 
 // daemonForeground runs the daemon of server in this process until it is
 // stopped (mtm daemon serve), under the named layout. An empty server is the
 // default name.
-func daemonForeground(server, paths string) int {
+func daemonForeground(server, paths string, legacyEnv bool) int {
 	args := []string{"daemon"}
 	if server != "" {
 		args = append([]string{"--server", server}, args...)
@@ -39,18 +41,19 @@ func daemonForeground(server, paths string) int {
 	if err != nil {
 		l = daemon.PreferredLayout()
 	}
-	return serve.Main(args, daemonOptions(l))
+	return serve.Main(args, daemonOptions(l, legacyEnv))
 }
 
 // daemonOptions are the daemon's options under layout l: its folder and
-// socket names, and every pane variable under mtm's name beside TUIOS_'s.
-func daemonOptions(l daemon.Layout) serve.Options {
+// socket names, and the library's table of MTM_ pane variables; with legacy
+// (setting daemon.legacy-env) the TUIOS_ names are exported beside them, else
+// children carry only the MTM_ ones.
+func daemonOptions(l daemon.Layout, legacy bool) serve.Options {
 	names := serve.Names{
 		SocketApp: l.SocketApp, SocketTmp: l.SocketTmp, SocketFile: l.SocketFile,
 		StateApp: l.StateApp, StateServers: l.StateServers, ServerApp: l.ServerApp, ConfigApp: l.ConfigApp,
 	}
-	for _, e := range daemon.EnvNames {
-		names.Env = append(names.Env, serve.EnvName{Name: e.Name, Upstream: e.Upstream})
-	}
+	names.Env = serve.MTMEnv
+	names.DropUpstream = !legacy
 	return serve.Options{SelfCommand: []string{"", daemonWord}, Version: daemonVersion(), Names: &names}
 }

@@ -82,6 +82,6 @@ require (
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	ofam.dev/mtmd v0.4.1
+	ofam.dev/mtmd v0.4.3
 	ofam.dev/oden v0.5.1
 )

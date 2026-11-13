@@ -27,8 +27,8 @@ type Identity struct {
 }
 
 // IdentityFromEnv reads the pane the server was started in from getenv
-// (os.Getenv when nil). The daemon sets MTM_SESSION and MTM_PANE_ID (and
-// TUIOS_SESSION and TUIOS_PANE_ID, for one release) on every pane, and a
+// (os.Getenv when nil). The daemon sets MTM_SESSION and MTM_PANE_ID (the
+// TUIOS_ names only with daemon.legacy-env, or from an older daemon) on every pane, and a
 // harness passes them on to the MCP servers it starts; MTM_WINDOW overrides
 // the pane for tests and explicit bridges, as in matomeru-old.
 func IdentityFromEnv(getenv func(string) string) Identity {

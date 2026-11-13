@@ -29,6 +29,7 @@ const (
 	settingDaemonRunner = "daemon.runner"
 	settingDaemonPin    = "daemon.pin-binary"
 	settingDaemonPaths  = "daemon.paths"
+	settingDaemonLegacy = "daemon.legacy-env"
 	envDaemonRunner     = "MTM_DAEMON_RUNNER"
 
 	runnerTuios = "tuios"
@@ -87,6 +88,8 @@ func daemonSettings() []ochazuke.Setting {
 			Description: "How mtm starts its pane server: self (the daemon linked into mtm; the default, and tuios is not needed) or tuios (the tuios on PATH; the default in a -tags nodaemon build). " + envDaemonRunner + " overrides for one run"},
 		{Name: settingDaemonPaths, Type: ochazuke.SettingString, Default: daemon.Layouts[0].Name, Enum: daemon.LayoutNames(),
 			Description: "The names the self daemon gives its socket, state and config folders: mtm (socket <runtime>/mtm/servers/NAME/mtm.sock, state <state home>/mtm/servers/NAME; a server's tuios-named state moves there once, on start) or tuios (the folders from before the rename). " + daemon.EnvPaths + " overrides for one run. The tuios runner always uses tuios's"},
+		{Name: settingDaemonLegacy, Type: ochazuke.SettingBoolean, Default: false,
+			Description: "Also give panes, hooks and plugins the TUIOS_ variable names (TUIOS_PANE_ID, ...) beside the MTM_ ones, for a machine with an old tool that reads them. Off (the default) exports only the MTM_ names. Takes effect when the daemon is restarted. " + daemon.EnvLegacy + " overrides for one run"},
 		{Name: settingDaemonPin, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Run the self daemon from a pinned copy of the mtm binary under the state directory (daemon-bin), so overwriting the installed mtm cannot kill it. Off runs the installed binary"},
 	}
@@ -137,6 +140,15 @@ func (a *App) daemonLayout() daemon.Layout {
 	return daemon.Layouts[0]
 }
 
+// daemonLegacyEnv is whether the daemon mtm starts also exports the TUIOS_
+// names: MTM_DAEMON_LEGACY_ENV, else the daemon.legacy-env setting.
+func (a *App) daemonLegacyEnv() bool {
+	if v := a.getenv(daemon.EnvLegacy); v != "" {
+		return daemon.LegacyEnvOn(v)
+	}
+	return a.r.Settings().Bool(settingDaemonLegacy)
+}
+
 // resolveDaemonSocket aims the client of a named server at its socket under
 // the daemon's layout, once the settings are read (the client was made
 // before them, under PreferredLayout). An explicit -socket and the default
@@ -170,7 +182,7 @@ func (a *App) serverReady(ctx context.Context) error {
 // selfStart is the self runner's starter: this binary, the hidden word, and
 // the pinned copy under the state directory (daemon.pin-binary).
 func (a *App) selfStart() daemon.SelfStart {
-	s := daemon.SelfStart{Word: daemonWord, Label: daemonVersion(), Environ: os.Environ, Paths: a.daemonLayout().Name}
+	s := daemon.SelfStart{Word: daemonWord, Label: daemonVersion(), Environ: os.Environ, Paths: a.daemonLayout().Name, LegacyEnv: a.daemonLegacyEnv()}
 	if a.r.Settings().Bool(settingDaemonPin) {
 		s.PinDir = a.daemonBinDir()
 	}
@@ -441,7 +453,7 @@ func (a *App) daemonServeVerb(ochazuke.Ctx) ochazuke.Result {
 	if a.daemon.Server == "" {
 		return ochazuke.Failed(errors.New("daemon.serve needs a named server (-server NAME), not -socket or -server default"))
 	}
-	if code := daemonForeground(a.daemon.Server, a.daemonLayout().Name); code != 0 {
+	if code := daemonForeground(a.daemon.Server, a.daemonLayout().Name, a.daemonLegacyEnv()); code != 0 {
 		return ochazuke.Failed(fmt.Errorf("daemon exited with status %d", code))
 	}
 	return ochazuke.Done(nil)

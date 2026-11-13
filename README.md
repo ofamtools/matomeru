@@ -327,7 +327,7 @@ Each session is the real App on a temp database, a temp config directory and a s
 ```sh
 make story-bin                                   # bin/mtm-story (make story-bin STORY_BIN=/tmp/x/mtm-story elsewhere)
 D=$(mktemp -d) && export HOME=$D XDG_CONFIG_HOME=$D/config XDG_DATA_HOME=$D/data XDG_STATE_HOME=$D/state
-unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_SOCKET
+unset MTM_ENV MTM_SESSION MTM_PANE_ID MTM_SOCKET TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_SOCKET
 bin/mtm-story story list                         # the stories by area
 bin/mtm-story story run areas/panes              # headless; non-zero exit on failure
 bin/mtm-story story open areas/panes             # live, in the real chrome
@@ -383,7 +383,7 @@ The self daemon gives its folders mtm's names, chosen by the setting `daemon.pat
 
 On its first start under `mtm`, a named server's daemon moves its state (saved sessions, scrollback cold logs, log) from the tuios folder into the mtm one and leaves `MOVED-TO` there, and copies `config.toml` when mtm has none (the old file stays). It refuses, and does not start, while a daemon still answers on the old socket. `mtm __mtmd --server NAME migrate-paths [--dry-run] [--rollback]` runs the move alone (JSON report); the rollback renames back while no daemon runs. A client reaches a daemon still listening under the other names until that daemon restarts.
 
-Panes get every pane variable under both names for one release: `MTM_ENV`, `MTM_SESSION`, `MTM_PANE_ID`, `MTM_WINDOW_ID`, `MTM_SOCKET`, `MTM_SERVER` (and the rest of `daemon.EnvNames`) beside `TUIOS_ENV`, `TUIOS_SESSION`, ... mtm, `mtm-hook` and the installed hooks read the `MTM_` name first.
+Panes, hooks and plugins carry only `MTM_*` variables (`MTM_ENV`, `MTM_SESSION`, `MTM_PANE_ID`, `MTM_WINDOW_ID`, `MTM_SOCKET`, `MTM_SERVER`, `MTM_PANE_TOKEN`, ...: the table is `serve.MTMEnv` from mtmd, every `TUIOS_X` paired with `MTM_X`). To also export the `TUIOS_*` names for a machine with an old tool that still reads them, turn on the setting `daemon.legacy-env` (default off; `MTM_DAEMON_LEGACY_ENV=1` for one run); it takes effect when the daemon is restarted. mtm, `mtm-hook` and the installed hooks read the `MTM_` name first and fall back to `TUIOS_` for a pane of an older daemon.
 
 The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and commits, skew, runner, paths and state folder, binary; skew compares the builds' VCS revisions, not their version labels), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
 

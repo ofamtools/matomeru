@@ -123,7 +123,7 @@ inside a pane.
 The tuios server reached only the session of its own pane, its fan group and
 the sessions its fans started. mtm keeps that as data. A request made by an
 agent first restricts its daemon connection to the daemon's scope own
-(`restrict-connection`, with `TUIOS_PANE_TOKEN` for a pane the kernel cannot
+(`restrict-connection`, with `MTM_PANE_TOKEN` (`TUIOS_PANE_TOKEN` from an older daemon) for a pane the kernel cannot
 place), so the daemon refuses every other session; the owner is never
 restricted. The `agents.pane-scope` setting (`own`, the default, or `all`) is
 the opt-out; it is protected, so an agent cannot widen its own reach. An
@@ -216,9 +216,9 @@ not editor-buffer deletes.
 ## Which pane am I
 
 The pane comes from the server's environment, never from tool arguments:
-`TUIOS_SESSION` and `TUIOS_PANE_ID`, which TUIOS sets in every pane and the
-harness passes to the MCP servers it starts (`MTM_SESSION` and `MTM_WINDOW`
-override them). Each call resolves the pane again:
+`MTM_SESSION` and `MTM_PANE_ID`, which the daemon sets in every pane and the
+harness passes to the MCP servers it starts (`MTM_WINDOW` overrides the pane;
+`TUIOS_SESSION` and `TUIOS_PANE_ID` are read when only an older daemon set them). Each call resolves the pane again:
 
 - task and project: the pane's assignment, else the owner of its session
   (looked up by name), the rule the history journal uses;

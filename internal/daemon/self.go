@@ -27,6 +27,9 @@ type SelfStart struct {
 	// Paths is the layout the daemon uses (a Layouts row), handed to it as
 	// EnvPaths; "" leaves the daemon's default (mtm's names).
 	Paths string
+	// LegacyEnv is handed to the daemon as EnvLegacy: its children also
+	// carry the TUIOS_ names. Off carries only the MTM_ ones.
+	LegacyEnv bool
 }
 
 // Start is a StartFunc: it runs "<binary> Word --server NAME start-server"
@@ -57,6 +60,11 @@ func (s SelfStart) Start(_ context.Context, name string) (<-chan error, error) {
 	if s.Paths != "" {
 		cmd.Env = append(withoutKey(cmd.Env, EnvPaths), EnvPaths+"="+s.Paths)
 	}
+	legacy := "0"
+	if s.LegacyEnv {
+		legacy = "1"
+	}
+	cmd.Env = append(withoutKey(cmd.Env, EnvLegacy), EnvLegacy+"="+legacy)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("%s: %w", what, err)

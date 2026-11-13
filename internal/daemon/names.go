@@ -176,15 +176,27 @@ func answers(socket string) bool {
 	return true
 }
 
-// EnvName is one pane variable under both names: the daemon exports Name
-// (mtm's) beside Upstream (TUIOS_) for one release, and readers try Name
-// first.
+// EnvLegacy is handed to the daemon start (SelfStart.LegacyEnv) as "1" or
+// "0": whether its children also carry the TUIOS_ names (setting
+// daemon.legacy-env). Unset means off.
+const EnvLegacy = "MTM_DAEMON_LEGACY_ENV"
+
+// LegacyEnvOn reads a value of EnvLegacy or of the setting.
+func LegacyEnvOn(v string) bool {
+	on, _ := strconv.ParseBool(strings.TrimSpace(v))
+	return on
+}
+
+// EnvName is one pane variable under both names, as a reader's constant: mtm
+// reads Name (MTM_) first, then Upstream (TUIOS_, for a pane of an old
+// daemon). The names the daemon exports are the library's table
+// (serve.MTMEnv, cmd/mtm/daemon_shell.go); this one is only what mtm reads.
 type EnvName struct {
 	Name     string
 	Upstream string
 }
 
-// The pane variables mtm reads, and the daemon exports under both names.
+// The pane variables mtm reads.
 var (
 	EnvMarker     = EnvName{"MTM_ENV", "TUIOS_ENV"}
 	EnvSession    = EnvName{"MTM_SESSION", "TUIOS_SESSION"}
@@ -202,7 +214,7 @@ var (
 	EnvAgent      = EnvName{"MTM_AGENT", "TUIOS_AGENT"}
 )
 
-// EnvNames is every pair, the table the daemon exports from.
+// EnvNames is the readers' constants as a list (ScrubEnv drops them).
 var EnvNames = []EnvName{
 	EnvMarker, EnvSession, EnvSessionID, EnvPaneID, EnvWindowID, EnvWindowName, EnvSocket,
 	EnvServer, EnvHost, EnvPaneToken, EnvPaneGrants, EnvPaneTTY, EnvRestored, EnvAgent,
