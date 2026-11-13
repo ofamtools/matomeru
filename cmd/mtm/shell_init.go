@@ -65,10 +65,6 @@ func shellInitShell(words []string, stdout, stderr io.Writer) (code int, handled
 			return 0, true
 		}
 	}
-	if len(words) == 1 && (words[0] == "-h" || words[0] == "--help" || words[0] == "help") {
-		fmt.Fprint(stdout, shellInitHelp)
-		return 0, true
-	}
 	fmt.Fprint(stderr, shellInitHelp)
 	return 2, true
 }

@@ -125,8 +125,9 @@ func TestShellInitMarks(t *testing.T) {
 			if n := len(exits); n < 2 || !reflect.DeepEqual(exits[n-2:], []int{0, 1}) {
 				t.Errorf("finished exits %v, want ...[0 1]\n%q", exits, once)
 			}
-			if strings.Count(marks, "A") != strings.Count(marks, "B") || strings.Count(marks, "D") > strings.Count(marks, "C")+1 {
-				t.Errorf("marks %q: A/B must pair and D only follows a command", marks)
+			// readline may redraw a prompt, so B can repeat; every prompt still ends with one.
+			if strings.Count(marks, "A") > strings.Count(marks, "B") || strings.Count(marks, "D") > strings.Count(marks, "C")+1 {
+				t.Errorf("marks %q: every A needs a B and D only follows a command", marks)
 			}
 			if _, marks2 := shellInitFinished(t, twice); marks2 != marks {
 				t.Errorf("sourcing twice changed the marks:\nonce  %q\ntwice %q", marks, marks2)
