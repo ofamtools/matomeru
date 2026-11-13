@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"ofam.dev/ochazuke"
 )
 
 var osc133 = regexp.MustCompile(`\x1b\]133;([ABCD])(?:;(\d+))?\x07`)
@@ -58,11 +60,6 @@ func TestShellInitSnippets(t *testing.T) {
 		}
 		if !strings.Contains(s, "MTM_ENV == 1") || strings.Contains(s, "TUIOS") {
 			t.Errorf("%s snippet must be guarded by MTM_ENV only", shell)
-		}
-		var again bytes.Buffer
-		shellInitShell([]string{"shell", "init", shell}, &again, &errOut)
-		if again.String() != s {
-			t.Errorf("%s: shell init and shell-init differ", shell)
 		}
 	}
 	var out, errOut bytes.Buffer
@@ -136,5 +133,21 @@ func TestShellInitMarks(t *testing.T) {
 				t.Errorf("marks without MTM_ENV=1: %q", got)
 			}
 		})
+	}
+}
+
+// shell.init is the CLI's shell-init as a verb (palette, MCP, bindings):
+// it answers the same snippet for each shell and refuses another.
+func TestShellInitVerb(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	for name, want := range shellInitSnippets {
+		v, err := a.r.Execute(ochazuke.Request{Noun: "shell", Verb: "init", Args: ochazuke.Arguments{"name": name}})
+		if err != nil || v != want {
+			t.Fatalf("shell.init %s: err %v, same snippet %v", name, err, v == want)
+		}
+	}
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "shell", Verb: "init", Args: ochazuke.Arguments{"name": "fish"}}); err == nil {
+		t.Fatal("shell.init fish answered")
 	}
 }

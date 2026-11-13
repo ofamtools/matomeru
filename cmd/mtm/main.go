@@ -674,6 +674,7 @@ func New(opts Options) (*App, error) {
 	a.defineExtensionSetup()
 	a.defineAbout()
 	a.defineLicense()
+	a.defineShellNoun()
 	a.defineConfigReload()
 	a.definePickers()
 	a.declareRelationKinds()
