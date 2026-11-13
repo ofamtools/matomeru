@@ -47,6 +47,7 @@ func (a *App) commands(args []string, stdin io.Reader, stdout, stderr io.Writer,
 	}
 	ocli.Mount(app, sh)                            // binding and history-entry are framework nouns: Mount adds their groups
 	a.defineMCPCommand(app, stdin, stdout, stderr) // mtm mcp (mcp.go)
+	app.Add(shellInitCommand(stdout, stderr))
 	// Mount also mounts the framework's binding noun, which made "bind" an
 	// ambiguous prefix; bind stays the short spelling of binding.
 	app.Add(oden.Command{Name: "bind", Summary: "binding (short spelling)", Source: "alias", Run: func(ctx context.Context, args []string) error {

@@ -223,6 +223,13 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		}
 		return nil
 	}
+	// shell-init prints an rc-file snippet and opens nothing (shell_init.go).
+	if code, handled := shellInitShell(words, stdout, stderr); handled {
+		if code != 0 {
+			return daemonExit(code)
+		}
+		return nil
+	}
 	// So do the agent hook, status line and state commands (agent_hook_shell.go).
 	if code, handled := agentShell(words, opts, stdin, stdout, stderr); handled {
 		if code != 0 {

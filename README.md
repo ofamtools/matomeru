@@ -393,6 +393,21 @@ The daemon in mtm (the `self` runner above) is [tuios](https://github.com/Gaurav
 
 Every binary carries the licence and notice text of everything it links: the tuios MIT licence and its copied notices (Charmbracelet MIT, the Go BSD-3 text, Alec Thomas's chroma MIT, herdr's Apache-2.0 and the Arimo OFL notice), Charm's libraries, chroma, the Go standard library and the rest of `go.mod`. Read them with `mtm license all` (every linked module and its licences) and `mtm license show [MODULE]` (the texts; the output is JSON, so `mtm license show | jq -r .` prints it as text). A `-tags nodaemon` binary lists fewer modules, since it does not link the daemon. The data is generated into `internal/notices/data` (`make licenses`); `go test ./internal/notices` fails on a licence it cannot name, on one outside the allowed set, and on data older than `go.mod`.
 
+## Shell marks (`mtm shell-init`)
+
+`pane run`, the terminal-command inbox items and a shell pane's turns read the OSC 133 marks a shell sends (A prompt start, B prompt end, C command start, D;exit command end). mtm panes carry `MTM_ENV=1`, and `mtm shell-init` prints the rc-file snippet that makes zsh or bash (4.4 or newer) send them. The snippet does nothing outside an mtm pane (no `MTM_ENV=1`), keeps your prompt and existing hooks, and sourcing it twice changes nothing. It replaces sourcing another tool's OSC 133 script.
+
+```sh
+eval "$(mtm shell-init zsh)"        # ~/.zshrc; bash: eval "$(mtm shell-init bash)" in ~/.bashrc
+```
+
+The line runs mtm at every shell start. The output is the same bytes for one mtm version, so cache it in a file instead and regenerate it after upgrading mtm:
+
+```sh
+mtm shell-init zsh > ~/.mtm-init.zsh                # once, and after each mtm upgrade
+[[ -r ~/.mtm-init.zsh ]] && source ~/.mtm-init.zsh  # ~/.zshrc
+```
+
 ## Live shell keys
 
 In a live pane every key goes to the program in it, except the `terminal-leader` setting (default `ctrl+a`). After the leader, the app's own normal-mode keys do what they do outside live: the same verb, and the same guard. The palette, settings and pickers open over the pane; closing them (`esc`) gives the pane its keys again.
