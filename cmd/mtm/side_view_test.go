@@ -16,6 +16,7 @@ import (
 func sideViewApp(t *testing.T) (*App, *fakePanes) {
 	t.Helper()
 	a, f := panesApp(t)
+	railOff(t, a) // the side's geometry, with the whole detail
 	cmd := key(t, a, "enter")
 	f.streams[0].frames <- ochazuke.TerminalFrame{Lines: []string{"PARENT SCREEN"}, Cursor: ochazuke.Pos{X: 1, Y: 1}}
 	runOnce(a, cmd)
@@ -473,5 +474,14 @@ func TestSideZoomAsksForTheZoomedSize(t *testing.T) {
 	}
 	if got, want := lastFit(), fmt.Sprintf("%s %dx%d", a.attached.ID, zw, zh); got != want {
 		t.Fatalf("parent zoom: last fit %q, want %q", got, want)
+	}
+}
+
+// railOff turns the Panes page's rail off, for a test of the detail's own
+// geometry at its full width.
+func railOff(t *testing.T, a *App) {
+	t.Helper()
+	if err := a.r.Settings().Set(ochazuke.RailShowSetting, false); err != nil {
+		t.Fatal(err)
 	}
 }

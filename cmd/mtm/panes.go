@@ -469,6 +469,9 @@ func (a *App) addPanesPage() error {
 			a.pv.followed = ""
 		}
 	})
+	if err := a.addPaneRail(); err != nil {
+		return err
+	}
 	return a.guardLiveVerbs()
 }
 

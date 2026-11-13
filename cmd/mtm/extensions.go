@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"cmp"
 	"context"
@@ -201,6 +202,68 @@ func execExt(ctx context.Context, bin string, env []string, args ...string) ([]b
 		return nil, fmt.Errorf("%s failed: %w", words, err)
 	}
 	return out.Bytes(), nil
+}
+
+// execExtWatch runs `BIN NOUN watch --json {...}` until stop is called:
+// each JSON line it prints is a WatchEvent, passed to emit as it comes. q
+// becomes the verb's arguments (the key prop, where as prop=value pairs,
+// since). A line that is not an event is skipped; the call ending (the
+// tool exits) ends the stream. stop kills the call and waits for it.
+func execExtWatch(bin string, env []string, keyProp, noun string, q ochazuke.WatchQuery, emit func(ochazuke.WatchEvent)) (func(), error) {
+	args := map[string]any{}
+	if q.Key != "" && keyProp != "" {
+		args[keyProp] = q.Key
+	}
+	if len(q.Where) > 0 {
+		pairs := make([]string, 0, len(q.Where))
+		for _, k := range slices.Sorted(maps.Keys(q.Where)) {
+			pairs = append(pairs, k+"="+fmt.Sprint(q.Where[k]))
+		}
+		args["where"] = strings.Join(pairs, ",")
+	}
+	if q.Since != "" {
+		args["since"] = q.Since
+	}
+	js, err := json.Marshal(args)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, bin, noun, "watch", "--json", string(js))
+	cmd.WaitDelay = extWaitDelay
+	cmd.Env = extensionExecEnv(env, false)
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("%s %s watch: %w", filepath.Base(bin), noun, err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		lines := bufio.NewReader(out)
+		for {
+			line, err := lines.ReadBytes('\n')
+			var e ochazuke.WatchEvent
+			if len(bytes.TrimSpace(line)) > 0 && json.Unmarshal(line, &e) == nil && e.Type != "" {
+				emit(e) // a line that is not an event is skipped
+			}
+			if err != nil {
+				break // the tool ended (EOF) or was stopped
+			}
+		}
+		_ = cmd.Wait()
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			cancel()
+			<-done
+		})
+	}, nil
 }
 
 // parseExtCatalog decodes and checks a catalog answer.
@@ -745,6 +808,12 @@ func (a *App) mountExtension(name string, e extEntry) {
 		Local: func(noun string) string { return naming.local(ns, noun) },
 		Param: extParameter,
 		Proxy: func(noun string, v ocli.CatalogVerb) any { return a.extProxy(x, noun, v.Name, v.OpensPage) },
+		// A noun whose catalog has a watch verb streams it from the tool
+		// (md.doc.watch, inventory.daily.watch): the host's standard watch
+		// runs over the stream.
+		Watch: func(noun string, q ochazuke.WatchQuery, emit func(ochazuke.WatchEvent)) (func(), error) {
+			return execExtWatch(x.bin, a.extEnv(x.name), extensionKeyProp(x.doc, noun), noun, q, emit)
+		},
 		CanonicalKey: func(noun, selector, key string) error {
 			cache := noun + "\x00" + selector
 			if selector == key || canonicalKeys[cache] == key {

@@ -31,6 +31,10 @@ const (
 type tableColumn struct {
 	Fields []string
 	Kind   columnKind
+	// Match, when set, is the condition of an equality filter on a prop
+	// whose meaning is not one field (a derived reference: the context
+	// items of a pane's project); its other operators are not pushed.
+	Match func(value string) (store.QueryCond, bool)
 }
 
 // tableQuery is one table-backed noun's ochazuke Store.Query: the
@@ -134,7 +138,7 @@ func (t *tableQuery) translate(q ochazuke.ListQuery) (store.Query, bool) {
 		sq.Search = q.Text
 		for _, p := range t.search {
 			col, ok := t.columns[p]
-			if !ok {
+			if !ok || len(col.Fields) == 0 {
 				return sq, false
 			}
 			sq.SearchIn = append(sq.SearchIn, col.Fields)
@@ -166,7 +170,7 @@ func (t *tableQuery) arrange(q ochazuke.ListQuery, sq *store.Query) bool {
 	}{{q.Sort, &sq.Sort}, {q.GroupSort, &sq.GroupSort}} {
 		for _, k := range pair.from {
 			col, ok := t.columns[k.Field]
-			if !ok {
+			if !ok || len(col.Fields) == 0 {
 				return false
 			}
 			*pair.to = append(*pair.to, store.QuerySort{Fields: col.Fields, Desc: k.Desc, Text: col.Kind == columnText})
@@ -174,7 +178,7 @@ func (t *tableQuery) arrange(q ochazuke.ListQuery, sq *store.Query) bool {
 	}
 	for _, field := range q.GroupBy {
 		col, ok := t.columns[field]
-		if !ok || col.Kind == columnStamp {
+		if !ok || col.Kind == columnStamp || len(col.Fields) == 0 {
 			return false
 		}
 		sq.GroupBy = append(sq.GroupBy, store.QuerySort{Fields: col.Fields, Text: col.Kind == columnText})
@@ -214,6 +218,12 @@ func (t *tableQuery) condition(f ochazuke.PropFilter) (store.QueryCond, bool) {
 	col, ok := t.columns[f.Prop]
 	if !ok {
 		return store.QueryCond{}, false
+	}
+	if col.Match != nil {
+		if f.Op != "" && f.Op != "=" {
+			return store.QueryCond{}, false
+		}
+		return col.Match(fmt.Sprint(f.Value))
 	}
 	op, not := f.Op, false
 	switch op {

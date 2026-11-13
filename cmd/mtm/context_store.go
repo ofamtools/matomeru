@@ -78,7 +78,15 @@ func (a *App) contextProps() []ochazuke.PropSpec {
 			}},
 		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the item's sightings and provenance and hide it from default views"}},
 		{Name: "session", ReadOnly: true, Parameter: text("The session the item was first seen in")},
-		{Name: "window", ReadOnly: true, Parameter: text("The pane (window id) the item was first seen in")},
+		// window names the pane: a pane's related stacks (its rail, its
+		// Notes tab) list the items it printed first.
+		{Name: "window", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "pane", Description: "The pane (window id) the item was first seen in"}},
+		// project-pane is a filter, not a field: the items of a pane's
+		// project that the pane did not print first (the rail's project
+		// section, after the pane's own; rail.hidden context-item.project-pane
+		// leaves it out).
+		{Name: contextProjectPane, ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "pane",
+			Description: "Filter only (--where project-pane=PANE): the items of that pane's project that it did not print first"}},
 		{Name: "pane", ReadOnly: true, Parameter: text("The name of the pane the item was first seen in")},
 		{Name: "exists", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether a file or dir item's path existed when it was last seen (absent for other kinds)"}},
 		{Name: "source", ReadOnly: true, Parameter: text("The first recorded session and pane"),
@@ -169,6 +177,7 @@ func (a *App) contextTableQuery() *tableQuery {
 			"session": text("session"), "window": text("window"), "pane": text("pane"),
 			"starred": flag("starred"), "archived": flag("archived"),
 			"created": num("created"), "seen": num("last_seen", "created"),
+			contextProjectPane: {Match: a.projectPaneCond},
 		},
 		archive: "archived",
 		search:  []string{"text", "type"},
@@ -209,7 +218,9 @@ func (a *App) contextTableQuery() *tableQuery {
 			}
 		},
 		list: func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
-			return a.contextStore().List(c, q)
+			things, err := a.contextStore().List(c, q)
+			a.markProjectPane(things, q.Filters)
+			return things, err
 		},
 	}
 }
@@ -430,4 +441,69 @@ func (a *App) relateContextItemTo(id string, o relOwner) ochazuke.Result {
 		changes = map[string]any{"task": o.TaskID}
 	}
 	return resultOf(a.r.Execute(ochazuke.Request{Noun: contextNoun, Verb: "set", Args: ochazuke.Arguments{"id": id, "props": changes}}))
+}
+
+// contextProjectPane is the context item's filter-only prop of a pane's
+// project's items (projectPaneCond).
+const contextProjectPane = "project-pane"
+
+// windowProject is the project of the pane whose window id is window: its
+// saved owner (pane, else session); "" when it has none.
+func (a *App) windowProject(window string) string {
+	session := ""
+	if i := slices.IndexFunc(a.panes, func(p pane) bool { return p.ID == window }); i >= 0 {
+		session = a.panes[i].SessionID
+	}
+	o, err := a.work.PaneOwner(window, session)
+	if err != nil {
+		return ""
+	}
+	return o.ProjectID
+}
+
+// projectPaneCond is the condition of project-pane = window: items owned by
+// the pane's project (their own project, else their task's) that another
+// pane printed first. A pane with no project matches nothing.
+func (a *App) projectPaneCond(window string) (store.QueryCond, bool) {
+	project := a.windowProject(window)
+	if project == "" {
+		return store.QueryCond{Fields: []string{"id"}, Op: store.OpEq, Value: ""}, true
+	}
+	var tasks []string
+	for id, p := range a.contextProjects() {
+		if p == project {
+			tasks = append(tasks, id)
+		}
+	}
+	return store.QueryCond{All: []store.QueryCond{
+		{Any: []store.QueryCond{
+			{Fields: []string{"project_id"}, Op: store.OpEq, Value: project},
+			{All: []store.QueryCond{
+				{Fields: []string{"project_id"}, Op: store.OpEq, Value: ""},
+				{Fields: []string{"task_id"}, Op: store.OpIn, Value: tasks},
+			}},
+		}},
+		{Fields: []string{"window"}, Op: store.OpEq, Value: window, Not: true},
+	}}, true
+}
+
+// markProjectPane gives the listed things the project-pane value of each
+// project-pane filter they meet, so a request that is not pushed (the
+// store's List and queryAll) answers what the pushed condition does.
+func (a *App) markProjectPane(things []ochazuke.Thing, filters []ochazuke.PropFilter) {
+	for _, f := range filters {
+		if f.Prop != contextProjectPane || f.Op != "" && f.Op != "=" {
+			continue
+		}
+		window := fmt.Sprint(f.Value)
+		project := a.windowProject(window)
+		if project == "" {
+			continue
+		}
+		for _, t := range things {
+			if t["project"] == project && t["window"] != window {
+				t[contextProjectPane] = window
+			}
+		}
+	}
 }

@@ -151,6 +151,7 @@ func (a *App) declareSettings() error {
 	settings = append(settings, paneActivitySettings()...)
 	settings = append(settings, paneChildSettings()...)
 	settings = append(settings, panesPanelSettings()...)
+	settings = append(settings, railSettings()...)
 	settings = append(settings, a.signalSettings()...)
 	settings = append(settings, commandSettings()...)
 	settings = append(settings, a.scheduleSettings()...)
