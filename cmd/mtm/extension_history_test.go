@@ -76,7 +76,7 @@ func TestExtensionVerbsKeepTheCatalogHistory(t *testing.T) {
 // A catalog that marks builtin verbs (ochazuke v0.8.0 and later) is
 // mounted from its AppNouns: a builtin verb never mounts, even one this
 // mtm's framework does not register (a newer tool's), and a nonbuiltin
-// application verb mounts. A catalog that marks none falls back to the
+// verb mounts whatever its kind (item focus is an interaction verb). A catalog that marks none falls back to the
 // keys a fresh runtime registers.
 func TestExtPlanMountsTheCatalogsAppNouns(t *testing.T) {
 	t.Parallel()
@@ -96,7 +96,7 @@ func TestExtPlanMountsTheCatalogsAppNouns(t *testing.T) {
 		}
 		return out
 	}
-	if got, want := keys(extPlan(marked)), []string{"history.capture-hook", "item.list"}; !slices.Equal(got, want) {
+	if got, want := keys(extPlan(marked)), []string{"history.capture-hook", "item.list", "item.focus"}; !slices.Equal(got, want) {
 		t.Fatalf("marked catalog mounts %v, want %v", got, want)
 	}
 	old := ocli.CatalogDoc{Nouns: []ocli.CatalogNoun{
