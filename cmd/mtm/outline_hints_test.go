@@ -8,8 +8,9 @@ import (
 )
 
 // The lines under the outline's title are the focused row's binding
-// hints, so the reorder and status keys show; tasks.outline-hint-lines 0
-// brings the fixed intro back.
+// hints, so the reorder and status keys show, a run of one noun's hints
+// under the noun once (hints.group, as every hint line);
+// tasks.outline-hint-lines 0 brings the fixed intro back.
 func TestOutlineHintLinesComeFromBindings(t *testing.T) {
 	t.Parallel()
 	app := open(t)
@@ -17,7 +18,7 @@ func TestOutlineHintLinesComeFromBindings(t *testing.T) {
 	focusRow(t, app, outlineNode("t1"))
 	tall := func() string { app.m.Width, app.m.Height = 120, 40; return ansi.Strip(frameView(app).Content) }
 	f := tall()
-	for _, want := range []string{"J move down", "K move up", "g J move to last", "t todo", "w waiting"} {
+	for _, want := range []string{"J move down", "K move up", "g J move to last", "t todo", "w waiting", "outline: i edit"} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("no %q under the title:\n%s", want, f)
 		}

@@ -409,28 +409,26 @@ var outlineHintLinesSetting = ochazuke.Setting{Name: settingOutlineHintLines, Ty
 	Description: "Lines under the task outline's title that list the focused row's keys, from its binding rows (a rebound key shows as bound); 0 shows the fixed intro text instead. Hints that do not fit end the list with an ellipsis"}
 
 // wrapHints lays hint cells out in at most lines lines of width w, whole
-// hints only, "…" ending the last line when some are left out.
+// hints only, "…" ending the last line when some are left out. Each line
+// is drawn as ochazuke draws a hint line (HintText): a run of one noun's
+// hints under the noun once, per hints.group.
 func wrapHints(cells []ochazuke.HintCell, w, lines int) string {
 	var out []string
-	cur := ""
+	var cur []ochazuke.HintCell
 	for _, c := range cells {
-		text := c.String()
-		next := text
-		if cur != "" {
-			next = cur + " · " + text
-		}
-		if cur != "" && ansi.StringWidth(next) > w {
-			out = append(out, cur)
+		next := append(slices.Clone(cur), c)
+		if len(cur) > 0 && ansi.StringWidth(ochazuke.HintText("", next, 0)) > w {
+			out = append(out, ochazuke.HintText("", cur, 0))
 			if len(out) == lines {
 				out[lines-1] += " …"
 				return strings.Join(out, "\n")
 			}
-			next = text
+			next = []ochazuke.HintCell{c}
 		}
 		cur = next
 	}
-	if cur != "" {
-		out = append(out, cur)
+	if len(cur) > 0 {
+		out = append(out, ochazuke.HintText("", cur, 0))
 	}
 	return strings.Join(out, "\n")
 }
