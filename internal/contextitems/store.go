@@ -118,6 +118,8 @@ func Open(db *store.Store) (*Store, error) {
 	// The index Merge looks items up by. A read-only file cannot make it;
 	// Merge then still finds the rows, by a scan that decodes none.
 	_ = db.Index(Table.Name, indexName, keyFields...)
+	// A task's detail lists its items on every move (its related section).
+	_ = db.Index(Table.Name, "task", "task_id")
 	return &Store{db: db}, nil
 }
 

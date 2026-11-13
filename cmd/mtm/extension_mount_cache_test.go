@@ -169,15 +169,24 @@ func TestMountBatchReloadsOnce(t *testing.T) {
 	}
 }
 
-// A headless New leaves the Inbox rows unloaded; a row lookup or the TUI
-// start loads them.
+// A headless New leaves the Inbox rows unloaded and does not add the
+// store-fed Inbox and Context lists (each would read its store as it is
+// added); a row lookup or the TUI start builds and loads them.
 func TestHeadlessNewDoesNotLoadInbox(t *testing.T) {
 	t.Parallel()
 	a := newUnloaded(t, seeded(t))
 	if a.inboxLoad.count != 0 || a.inboxLoad.loaded {
 		t.Fatalf("New loaded the inbox: %d", a.inboxLoad.count)
 	}
-	if err := a.loadPagesFor("no-such-row"); err != nil || a.inboxLoad.count != 1 {
+	for _, id := range []string{inboxListID, contextListID} {
+		if a.r.Instances[id] != nil {
+			t.Fatalf("a headless New added %s", id)
+		}
+	}
+	if err := a.loadPagesFor("no-such-row"); err != nil || a.inboxLoad.count != 1 || a.inbox.list == nil || a.cx.list == nil {
 		t.Fatalf("a lookup miss loads the inbox: %v %d", err, a.inboxLoad.count)
+	}
+	if p := a.r.PageOf(inboxPage); p.Focus != inboxListID {
+		t.Fatalf("the built Inbox starts on %q", p.Focus)
 	}
 }

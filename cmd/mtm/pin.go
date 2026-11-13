@@ -277,8 +277,10 @@ func (a *App) refreshScope() error {
 	if err := a.vimList.Refill(); err != nil {
 		return err
 	}
-	if err := a.cx.list.Refill(); err != nil {
-		return err
+	if a.cx.list != nil { // a headless call builds it on first need (lazy.go)
+		if err := a.cx.list.Refill(); err != nil {
+			return err
+		}
 	}
 	// The listing again under the new pin, never a listing of its own:
 	// before any (the CLI, a page not loaded yet) it claims none (copies.go).

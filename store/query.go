@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -45,10 +46,23 @@ type QuerySort struct {
 
 // QueryProjection adds a caller-owned SQL expression to the JSON row before
 // filtering and arranging it. Values remain bound arguments, never SQL text.
+// Tables are lookup tables the expression may read by name (a lookup by
+// key, in place of a search of a JSON argument for each row).
 type QueryProjection struct {
-	Field string
-	SQL   string
-	Args  []any
+	Field  string
+	SQL    string
+	Args   []any
+	Tables []QueryTable
+}
+
+// QueryTable is a caller-owned table a projection reads: Name, its columns
+// (Columns), and the SELECT (or VALUES) that fills it with Args bound. It
+// is built once per statement, before any row is projected.
+type QueryTable struct {
+	Name    string
+	Columns []string
+	SQL     string
+	Args    []any
 }
 
 // Query is one read of a table that SQLite answers: the rows meeting every
@@ -200,7 +214,9 @@ func (c QueryCond) test() (string, []any, error) {
 			}
 			return not + "(COALESCE(" + expr + ", ?) = ?)", []any{zero, v}, nil
 		}
-		return not + "(COALESCE(" + expr + " = ?, 0))", []any{v}, nil
+		// IS: never NULL, so the test negates as it reads, and an index
+		// over the field answers it (COALESCE around = hides the index).
+		return not + "(" + expr + " IS ?)", []any{v}, nil
 	case OpIn:
 		vals := listOf(c.Value)
 		if len(vals) == 0 {
@@ -294,18 +310,54 @@ func (q Query) source(table string) (string, string, []any, error) {
 		return "", quote(table), nil, nil
 	}
 	parts := []string{"source.row"}
-	var args []any
+	var ctes []string
+	var args, targs []any
+	named := map[string]bool{"projected": true}
 	for _, p := range q.Projections {
 		if _, err := fieldExpr(p.Field); err != nil {
 			return "", "", nil, err
+		}
+		for _, t := range p.Tables {
+			if !sqlName.MatchString(t.Name) || named[t.Name] || len(t.Columns) == 0 {
+				return "", "", nil, fmt.Errorf("store: invalid projection table %q", t.Name)
+			}
+			named[t.Name] = true
+			for _, c := range t.Columns {
+				if !sqlName.MatchString(c) {
+					return "", "", nil, fmt.Errorf("store: invalid column %q of %s", c, t.Name)
+				}
+			}
+			ctes = append(ctes, t.Name+"("+strings.Join(t.Columns, ", ")+") AS MATERIALIZED ("+t.SQL+")")
+			targs = append(targs, t.Args...)
 		}
 		parts = append(parts, "?, "+p.SQL)
 		args = append(args, "$."+p.Field)
 		args = append(args, p.Args...)
 	}
-	prefix := "WITH projected AS (SELECT source.rowid, json_set(" + strings.Join(parts, ", ") + ") AS row FROM " + quote(table) + " AS source) "
-	return prefix, "projected", args, nil
+	// The page reads row many times (conditions, order, groups), so it
+	// materializes the projection: an inlined CTE would project each row
+	// again for every read (Query swaps the marker). The count reads only
+	// what its conditions name, inlined.
+	// The projected row is JSONB: the conditions and the order read it
+	// without parsing it again; the page's rows leave as text (json(row)).
+	ctes = append(ctes, "projected AS "+projectedMarker+"(SELECT source.rowid, jsonb_set("+strings.Join(parts, ", ")+") AS row FROM "+quote(table)+" AS source)")
+	return "WITH " + strings.Join(ctes, ", ") + " ", "projected", append(targs, args...), nil
 }
+
+// rowOut is the page's row column: the projected rows are JSONB, read
+// out as JSON text.
+func rowOut(source string) string {
+	if source == "projected" {
+		return "json(row)"
+	}
+	return "row"
+}
+
+// projectedMarker stands where the page's statement says MATERIALIZED.
+const projectedMarker = "/*projected*/ "
+
+// sqlName is a projection table's or column's name: a plain identifier.
+var sqlName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // grouped gathers rows by the first sorted occurrence of each group, retaining
 // their order within it. The final LIMIT/OFFSET is applied only to this result.
@@ -343,7 +395,7 @@ func (q Query) grouped(source, where, order string) (string, error) {
 		parts = append(parts, value)
 	}
 	parts = append(parts, "MIN(position) OVER (PARTITION BY "+partition+")", "position")
-	return "SELECT row FROM (WITH matched AS (SELECT row, rowid FROM " + source + where + ") SELECT row, ROW_NUMBER() OVER (" + order + ") AS position FROM matched) ORDER BY " + strings.Join(parts, ", "), nil
+	return "SELECT " + rowOut(source) + " FROM (WITH matched AS (SELECT row, rowid FROM " + source + where + ") SELECT row, ROW_NUMBER() OVER (" + order + ") AS position FROM matched) ORDER BY " + strings.Join(parts, ", "), nil
 }
 
 // Query runs q on a declared table (see Query). The count and the page are
@@ -373,14 +425,14 @@ func (s *Store) Query(table string, q Query) (QueryResult, error) {
 	if err != nil {
 		return QueryResult{}, err
 	}
-	sql := `SELECT row FROM ` + source + where + order
+	sql := `SELECT ` + rowOut(source) + ` FROM ` + source + where + order
 	if len(q.GroupBy) > 0 {
 		sql, err = q.grouped(source, where, order)
 		if err != nil {
 			return QueryResult{}, err
 		}
 	}
-	sql = prefix + sql
+	sql = strings.Replace(prefix, projectedMarker, "MATERIALIZED ", 1) + sql
 	args := append(countArgs, oargs...)
 	if q.Limit > 0 {
 		sql += ` LIMIT ? OFFSET ?`

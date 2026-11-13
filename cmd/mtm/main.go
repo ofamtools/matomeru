@@ -265,7 +265,10 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		if err := app.ensureDaemon(); err != nil {
 			return err
 		}
-		if err := app.inboxLoad.ensure(); err != nil { // an explicit tui word ran New headless
+		if err := app.buildPages(); err != nil { // an explicit tui word ran New headless
+			return err
+		}
+		if err := app.inboxLoad.ensure(); err != nil {
 			return err
 		}
 		if err := app.assignProjectColors(); err != nil { // once: a project with no colour gets one

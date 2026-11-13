@@ -103,10 +103,8 @@ func (a *App) actionItemProps() []ochazuke.PropSpec {
 // row back as it was (AcceptsKey, forgotten).
 func (a *App) actionItemStore() ochazuke.Store {
 	return ochazuke.Store{
-		ChangeToken: func(ochazuke.Ctx) (string, error) {
-			token, err := a.inbox.items.Version()
-			return fmt.Sprintf("%s/%d/%s/%s", token, a.inbox.items.Now()/inboxEvery.Milliseconds(), a.inboxGroupSig(a.inbox.all), a.workData()), err
-		},
+		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.inboxChangeToken() },
+
 		Kind: ochazuke.KindCollection,
 		Undo: true, AcceptsKey: true,
 		Confirm: map[string]string{"delete": "Delete {{label}}? x archives it instead."},

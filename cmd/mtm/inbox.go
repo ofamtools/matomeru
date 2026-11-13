@@ -176,21 +176,16 @@ var inboxRelateParam = ochazuke.Parameter{Type: "string", Noun: actionItemNoun, 
 
 func (a *App) addInboxPage() error {
 	a.r.Instance(inboxPage, ochazuke.Kind("page"))
-	var err error
-	if a.inbox.list, err = a.r.AddList(inboxListID, nil, ochazuke.Parent(inboxPage), ochazuke.From(actionItemNoun), ochazuke.Columns(inboxColumns...)); err != nil {
-		return err
-	}
-	a.inbox.list.SetShowArchived(true)
-	if err := a.syncInboxGrouping(); err != nil {
-		return err
-	}
-	if a.inbox.detail, err = a.addLinkedDetail(inboxDetailID, inboxPage, func() *ochazuke.Collection { return a.inbox.list }, a.inboxSubject); err != nil {
+	// The list and its detail: at once for the TUI, on the first load for
+	// a headless call (lazy.go).
+	focus, err := a.deferBuild(&a.inboxLoad, inboxPage, inboxListID, a.buildInboxList)
+	if err != nil {
 		return err
 	}
 	// Items: every action item in every state. The Panes page, titled
 	// Inbox, holds the open queue; this page stays for the archived and
 	// snoozed items and the whole list.
-	if _, err = a.r.AddPage(inboxPage, inboxTitle, a.renderInbox, ochazuke.Focus(inboxListID)); err != nil {
+	if _, err := a.r.AddPage(inboxPage, inboxTitle, a.renderInbox, focus...); err != nil {
 		return err
 	}
 	// Outside tools add items from other processes.
@@ -208,6 +203,23 @@ func (a *App) addInboxPage() error {
 	return a.inboxLoad.reload()
 }
 
+// buildInboxList adds the Items list, fed by the action-item store, and
+// its detail.
+func (a *App) buildInboxList() error {
+	var err error
+	if a.inbox.list, err = a.r.AddList(inboxListID, nil, ochazuke.Parent(inboxPage), ochazuke.From(actionItemNoun), ochazuke.Columns(inboxColumns...)); err != nil {
+		return err
+	}
+	a.inbox.list.SetShowArchived(true)
+	if err := a.syncInboxGrouping(); err != nil {
+		return err
+	}
+	if a.inbox.detail, err = a.addLinkedDetail(inboxDetailID, inboxPage, func() *ochazuke.Collection { return a.inbox.list }, a.inboxSubject); err != nil {
+		return err
+	}
+	return a.bindInboxSchedules()
+}
+
 // inboxTick starts the reload timer.
 func (a *App) inboxTick() tea.Cmd {
 	if a.inbox == nil || a.inbox.after == nil {
@@ -222,6 +234,9 @@ func (a *App) inboxUpdate(msg tea.Msg) tea.Cmd {
 		return a.inboxNotificationsUpdate(msg)
 	}
 	if err := a.reloadInbox(); err != nil {
+		a.r.UI().Error(err.Error())
+	}
+	if err := a.redrawInboxClock(); err != nil {
 		a.r.UI().Error(err.Error())
 	}
 	a.syncInboxNotices()

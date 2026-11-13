@@ -196,20 +196,14 @@ func (a *App) addContextPage() error {
 		return err
 	}
 	a.r.Instances[contextQueryID].Unfocusable = true
-	var err error
-	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.From(contextNoun), ochazuke.Columns(contextColumns...)); err != nil {
-		return err
-	}
-	// The focused item's notes, in a region under the table that exists
-	// only while it has some (contextNotes).
-	if a.detail.context, err = a.addDetailAbout(contextDetailID, contextPage, func() string {
-		item, _ := a.cx.list.Selected()
-		return savedRowKey(a.r.Instances[item.ID])
-	}, nil, a.r.SelectionTarget(func() *ochazuke.Collection { return a.cx.list })); err != nil {
+	// The table and its notes: at once for the TUI, on the first load for
+	// a headless call (lazy.go).
+	focus, err := a.deferBuild(&a.cx.load, contextPage, contextListID, a.buildContextList)
+	if err != nil {
 		return err
 	}
 	a.cx.load.load = a.loadContext
-	page, err := a.r.AddPage(contextPage, "Context", a.renderContext, ochazuke.Focus(contextListID))
+	page, err := a.r.AddPage(contextPage, "Context", a.renderContext, focus...)
 	if err != nil {
 		return err
 	}
@@ -230,6 +224,26 @@ func (a *App) addContextPage() error {
 		if err := a.r.Bind(req); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// buildContextList adds the table, fed by the context-item store, and the
+// focused item's notes, in a region under the table that exists only while
+// it has some (contextNotes).
+func (a *App) buildContextList() error {
+	var err error
+	if a.cx.list, err = a.r.AddList(contextListID, nil, ochazuke.Parent(contextPage), ochazuke.From(contextNoun), ochazuke.Columns(contextColumns...)); err != nil {
+		return err
+	}
+	if a.detail.context, err = a.addDetailAbout(contextDetailID, contextPage, func() string {
+		item, _ := a.cx.list.Selected()
+		return savedRowKey(a.r.Instances[item.ID])
+	}, nil, a.r.SelectionTarget(func() *ochazuke.Collection { return a.cx.list })); err != nil {
+		return err
+	}
+	if a.cx.kind != "" || len(a.cx.query.Text) > 0 { // controls set before the build
+		return a.syncContextView()
 	}
 	return nil
 }
@@ -301,6 +315,9 @@ func (a *App) itemCell(it contextitems.Item) string {
 
 // syncContextView applies the curated kind and search controls to the index.
 func (a *App) syncContextView() error {
+	if a.cx.list == nil {
+		return nil // not built yet: its build applies the controls
+	}
 	a.cx.seen = string(a.cx.query.Text)
 	a.cx.list.SetFilter(a.cx.seen)
 	condition := ochazuke.PropFilter{Prop: "type"}
@@ -568,6 +585,9 @@ func (a *App) searchContext(ochazuke.Ctx) ochazuke.Result {
 // leaveContextSearch is context-search.done: the filter stays, the focus
 // goes to the first match.
 func (a *App) leaveContextSearch(ochazuke.Ctx) ochazuke.Result {
+	if err := a.cx.load.ensure(); err != nil {
+		return ochazuke.Failed(err)
+	}
 	a.filterContext()
 	if items := a.cx.list.Items(); len(items) > 0 {
 		if err := a.cx.list.Select(items[0].ID); err != nil {

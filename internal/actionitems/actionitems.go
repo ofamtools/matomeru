@@ -150,6 +150,9 @@ func Open(db *store.Store) (*Store, error) {
 	if err := db.Declare(Table); err != nil {
 		return nil, err
 	}
+	// A task's detail lists its items on every move (its related
+	// section). A read-only file cannot make it; the read then scans.
+	_ = db.Index(Table.Name, "task", "task_id")
 	return &Store{db: db, now: work.Now}, nil
 }
 

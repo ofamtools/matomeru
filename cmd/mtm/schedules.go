@@ -289,14 +289,15 @@ func (a *App) addSchedulesPage() error {
 		return err
 	}
 	a.onOpen(schedulesPage, a.refillSchedules)
-	// S on the Inbox's list (empty or not) opens the Schedules page: what
-	// feeds the inbox.
+	return a.refillSchedules()
+}
+
+// bindInboxSchedules binds S on the Inbox's list (empty or not) to open the
+// Schedules page: what feeds the inbox. The list's build binds it (lazy.go).
+func (a *App) bindInboxSchedules() error {
 	row := ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": schedulesPage}).Hinted("schedules")
 	row.Instance, row.Mode, row.Keys = inboxListID, "normal", "S"
-	if err := a.r.Bind(row); err != nil {
-		return err
-	}
-	return a.refillSchedules()
+	return a.r.Bind(row)
 }
 
 // scheduleView is a schedule as list, show and the rows answer it.

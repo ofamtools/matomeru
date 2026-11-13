@@ -2,11 +2,16 @@ package main
 
 import (
 	"cmp"
+	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
+	"ofam.dev/ochazuke"
+
 	"ofam.dev/matomeru/internal/actionitems"
+	"ofam.dev/matomeru/store"
 )
 
 // inboxSections are the Inbox rows' ids under each group header, in
@@ -138,4 +143,79 @@ func TestInboxGroupSettingValidates(t *testing.T) {
 	if err := a.r.Settings().Set(settingInboxGroup, "bogus"); err == nil {
 		t.Fatal("inbox.group took an unknown value")
 	}
+}
+
+// The group projection reads pane and project names from lookup tables;
+// every grouping gives the rows, order, labels and classes the earlier
+// per-row JSON lookups gave (jsonLookupGroupProjection, kept here as the
+// reference).
+func TestInboxGroupSQLMatchesJSONLookups(t *testing.T) {
+	t.Parallel()
+	a, _ := groupApp(t)
+	addItem(t, a, actionitems.Spec{Source: "gh", Key: "gone-project", Title: "gone-project", ProjectID: "no-such-project"})
+	addItem(t, a, actionitems.Spec{Source: "gh", Key: "gone-task", Title: "gone-task", TaskID: "no-such-task"})
+	for _, mode := range inboxGroupNames() {
+		setting(t, a, settingInboxGroup, mode)
+		q := ochazuke.ListQuery{Archived: true, GroupBy: []string{inboxGroupProp}, Sort: []ochazuke.SortKey{{Field: inboxGroupClassProp}}, Page: 1, PerPage: 1000}
+		rows := func(project func() []store.QueryProjection) []string {
+			tq := a.actionTableQuery()
+			tq.projections[inboxGroupField] = project
+			page, err := tq.Query(ochazuke.Ctx{}, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out []string
+			for _, th := range page.Items {
+				out = append(out, fmt.Sprint(th["id"], "|", th[inboxGroupProp], "|", th[inboxGroupClassProp]))
+			}
+			return out
+		}
+		got, want := rows(a.inboxGroupProjection), rows(func() []store.QueryProjection { return jsonLookupGroupProjection(a) })
+		if len(want) < 9 || !slices.Equal(got, want) {
+			t.Errorf("inbox.group %s:\n got %q\nwant %q", mode, got, want)
+		}
+	}
+}
+
+// jsonLookupGroupProjection is the group projection as it was before the
+// lookup tables: names searched in one JSON argument for each row.
+func jsonLookupGroupProjection(a *App) []store.QueryProjection {
+	panes, projects := map[string]string{}, map[string]string{}
+	for _, p := range a.panes {
+		panes[p.ID] = p.label()
+	}
+	for _, p := range a.projects {
+		projects[p.ID] = projectName(p)
+	}
+	names, _ := json.Marshal(map[string]any{
+		"panes": panes, "projects": projects,
+		"known": len(a.panes) > 0 && a.paneErr == "", "now": a.inbox.items.Now(),
+	})
+	label := func(id string) string {
+		return `CASE WHEN ` + id + ` = '' THEN 'unassociated' ELSE COALESCE((SELECT value FROM json_each(metadata, '$.projects') WHERE key = ` + id + `), ` + id + `) END`
+	}
+	g := a.inboxGrouping()
+	expr := `json((SELECT json_object('label', ` + g.labelSQL + `, 'class', ` + g.classSQL + `) FROM (
+SELECT *,
+ CASE WHEN pane != '' THEN pane WHEN known THEN 'closed pane ' || COALESCE(NULLIF(pane_label, ''), window) ELSE 'pane ' || COALESCE(NULLIF(pane_label, ''), window) END AS pane_name,
+ ` + label("effective_project") + ` AS project_name
+FROM (
+ SELECT *, COALESCE(NULLIF(project_id, ''), json_extract(task_row, '$.project_id'), '') AS effective_project,
+ ` + label("project_id") + ` AS project,
+ CASE WHEN task_row IS NULL THEN 'task ' || task_id ELSE ` + label("COALESCE(json_extract(task_row, '$.project_id'), '')") + ` || ' › ' || json_extract(task_row, '$.title') END AS task
+ FROM (
+  SELECT item, metadata,
+   COALESCE(json_extract(item, '$.window'), '') AS window,
+   COALESCE(json_extract(item, '$.pane_label'), '') AS pane_label,
+   COALESCE(json_extract(item, '$.task_id'), '') AS task_id,
+   COALESCE(json_extract(item, '$.project_id'), '') AS project_id,
+   (SELECT t.row FROM tasks AS t WHERE t.id = json_extract(item, '$.task_id')) AS task_row,
+   COALESCE((SELECT value FROM json_each(metadata, '$.panes') WHERE key = json_extract(item, '$.window')), '') AS pane,
+   json_extract(metadata, '$.known') AS known,
+   CASE WHEN COALESCE(json_extract(item, '$.dismissed_at'), 0) > 0 THEN 'archived' WHEN COALESCE(json_extract(item, '$.snoozed_until'), 0) > json_extract(metadata, '$.now') THEN 'snoozed' ELSE 'open' END AS state
+  FROM (SELECT source.row AS item, ? AS metadata)
+ )
+)
+)))`
+	return []store.QueryProjection{{Field: inboxGroupField, SQL: expr, Args: []any{string(names)}}}
 }

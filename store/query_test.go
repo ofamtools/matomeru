@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -136,5 +137,32 @@ func TestQueryGroupsBeforeOffsetAndLimit(t *testing.T) {
 	}
 	if db.FullReads("things") != reads {
 		t.Fatal("grouping performed a whole-table decode")
+	}
+}
+
+// An equality condition on an indexed field reads the index, and its
+// negation keeps rows that lack the field.
+func TestQueryEqualityReadsIndex(t *testing.T) {
+	t.Parallel()
+	db := queryFixture(t)
+	if err := db.Index("things", "n", "n"); err != nil {
+		t.Fatal(err)
+	}
+	q := Query{Where: []QueryCond{{Fields: []string{"n"}, Op: OpEq, Value: 42}}}
+	where, args, err := q.where()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id, parent, unused int
+	var plan string
+	if err := db.db.QueryRow(`EXPLAIN QUERY PLAN SELECT row FROM things`+where, args...).Scan(&id, &parent, &unused, &plan); err != nil || !strings.Contains(plan, "idx_things_n") {
+		t.Fatalf("plan %q %v", plan, err)
+	}
+	if page, err := db.Query("things", q); err != nil || fmt.Sprint(ids(t, page)) != "[t042]" {
+		t.Fatalf("n = 42: %v %v", ids(t, page), err)
+	}
+	q.Where = []QueryCond{{Fields: []string{"last_seen"}, Op: OpEq, Value: 1000, Not: true}}
+	if page, err := db.Query("things", q); err != nil || page.Total != 99 {
+		t.Fatalf("not last_seen = 1000 keeps rows without it: %d %v", page.Total, err)
 	}
 }
