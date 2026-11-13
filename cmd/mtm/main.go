@@ -426,6 +426,7 @@ type App struct {
 	preview        preview                              // the last captured screen, shown while no terminal is attached
 	attached       pane                                 // the pane the attached terminal streams
 	rail           *ochazuke.Rail                       // the Panes page's rail (pane_rail.go)
+	railDecor      map[string]railDecor                 // the rail row labels decorateRail drew (rail_icons.go)
 	recent         paneVisits                           // when each pane was last attached (pane_picker.go)
 	held           heldStream                           // the attached pane's stream, parked after detach
 	sideRows       []sideRow

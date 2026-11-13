@@ -49,13 +49,13 @@ func (a *App) actionItemProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
 	integer := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "integer", Description: desc} }
 	boolean := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "boolean", Description: desc} }
-	return []ochazuke.PropSpec{
+	return append([]ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The item's key")},
 		{Name: "title", Role: ochazuke.RoleLabel, Fallback: "summary", Parameter: text("The thing: a PR title, a message's first line; empty shows the summary")},
 		{Name: "item", ReadOnly: true, Parameter: text("The item's label and read state"),
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
 				it, _ := t["_item"].(actionitems.Item)
-				return inboxGlyph(it, a.inbox.items.Now()) + " " + it.Label()
+				return inboxGlyph(it, a.inbox.items.Now()) + " " + a.actionLabel(it)
 			}},
 		{Name: "for", ReadOnly: true, Parameter: text("The item's task, project or pane"),
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
@@ -95,7 +95,7 @@ func (a *App) actionItemProps() []ochazuke.PropSpec {
 		{Name: "archived-at", ReadOnly: true, Parameter: integer("When the item was archived (Unix ms; 0 not archived)")},
 		{Name: inboxGroupProp, ReadOnly: true, Parameter: text("The Items group label selected by inbox.group")},
 		{Name: inboxGroupClassProp, ReadOnly: true, Parameter: integer("The Items group class; equal classes retain first-seen order")},
-	}
+	}, actionRailProps()...)
 }
 
 // actionItemStore is the action-item noun's store over the inbox's items.
@@ -163,7 +163,7 @@ func (a *App) actionTableQuery() *tableQuery {
 	stamp := func(f string) tableColumn { return tableColumn{Fields: []string{f}, Kind: columnStamp} }
 	return &tableQuery{
 		app: a, noun: actionItemNoun, table: actionitems.Table.Name,
-		columns: map[string]tableColumn{
+		columns: withColumns(map[string]tableColumn{
 			"id": text("id"), "title": text("title"), "why": text("why"), "text": text("text"), "url": text("source_url"),
 			"kind": text("action_type"), "source": text("service"), "key": text("key"), "task": text("task_id"),
 			"pane": text("window"), "session": text("session"), "pane-label": text("pane_label"),
@@ -173,7 +173,7 @@ func (a *App) actionTableQuery() *tableQuery {
 			"state":             {Fields: []string{"_state"}, Kind: columnText},
 			inboxGroupProp:      {Fields: []string{inboxGroupField + ".label"}, Kind: columnText},
 			inboxGroupClassProp: {Fields: []string{inboxGroupField + ".class"}, Kind: columnNumber},
-		},
+		}, actionRailColumns()),
 		projections: map[string]func() []store.QueryProjection{
 			inboxGroupField: a.inboxGroupProjection,
 			"_state": func() []store.QueryProjection {
@@ -231,7 +231,7 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 	}
 	group := a.inboxItemGroup(it)
 	return ochazuke.Thing{
-		"id": it.ID, "title": it.Title, "summary": it.Label(), "why": it.Why, "text": it.Text, "url": it.URL, "kind": it.Kind,
+		"id": it.ID, "title": it.Title, "summary": a.actionLabel(it), "why": it.Why, "text": it.Text, "url": it.URL, "kind": it.Kind,
 		"source": it.Source, "key": it.Key, "project": it.ProjectID, "task": it.TaskID, "pane": it.Window, "pane-label": it.PaneLabel, "session": it.Session,
 		"read": it.Read(), "archived": it.ArchivedAt > 0, "snoozed-until": it.SnoozedUntil, "state": it.State(a.inbox.items.Now()),
 		"notify": it.Notify, "notified-at": it.NotifiedAt,
@@ -246,6 +246,9 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 // (--state snoozed, archived or all), of one source, of one project (by id
 // or name; an item on a task counts as its task's project's).
 func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
+	if things, ok, err := a.actionRailThings(q); ok {
+		return things, err
+	}
 	items, err := a.inbox.items.All()
 	if err != nil {
 		return nil, err

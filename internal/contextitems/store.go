@@ -32,21 +32,27 @@ var Kinds = []string{"file", "dir", "link", "pr", "branch", "commit", "command",
 // and keep its JSON names; LastSeen and Exists are new and omitted when
 // unset, so an old row read and written back keeps every field it had.
 type Item struct {
-	ID         string     `json:"id"`
-	Kind       string     `json:"kind"`
-	Text       string     `json:"text"`
-	Session    string     `json:"session"`
-	Window     string     `json:"window"`
-	Pane       string     `json:"pane"`
-	ProjectID  string     `json:"project_id"`
-	TaskID     string     `json:"task_id"`
-	Starred    bool       `json:"starred"`
-	Pinned     bool       `json:"pinned"`
-	Archived   bool       `json:"archived,omitempty"`
-	Created    int64      `json:"created"`
-	Sources    []Source   `json:"sources"`
-	Group      string     `json:"group,omitempty"`
-	Provenance Provenance `json:"provenance"`
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Text      string `json:"text"`
+	Session   string `json:"session"`
+	Window    string `json:"window"`
+	Pane      string `json:"pane"`
+	ProjectID string `json:"project_id"`
+	TaskID    string `json:"task_id"`
+	Starred   bool   `json:"starred"`
+	Pinned    bool   `json:"pinned"`
+	Archived  bool   `json:"archived,omitempty"`
+	// Dismissed is the item triaged away: kept and listed, left out of a
+	// pane's rail (rail.dismissed); a star keeps it on the rail anyway.
+	Dismissed bool `json:"dismissed,omitempty"`
+	// DismissedAt is when it was dismissed (ms; 0 never): every item of one
+	// bulk dismissal holds the same stamp, so that batch can be undismissed.
+	DismissedAt int64      `json:"dismissed_at,omitempty"`
+	Created     int64      `json:"created"`
+	Sources     []Source   `json:"sources"`
+	Group       string     `json:"group,omitempty"`
+	Provenance  Provenance `json:"provenance"`
 	// LastSeen is when the item was last printed (ms); 0 on old rows,
 	// which read Created instead (Seen).
 	LastSeen int64 `json:"last_seen,omitempty"`
@@ -311,6 +317,32 @@ func (s *Store) Update(id string, change func(*Item)) (Item, error) {
 		return tx.Put(Table.Name, id, it)
 	})
 	return it, err
+}
+
+// UpdateAll changes every item of ids in one transaction (a bulk
+// dismissal): one write, however many items. Ids not found are skipped;
+// the count is the items written.
+func (s *Store) UpdateAll(ids []string, change func(*Item)) (int, error) {
+	n := 0
+	err := s.db.Tx([]string{Table.Name}, func(tx *store.Tx) error {
+		for _, id := range ids {
+			var it Item
+			if err := tx.Get(Table.Name, id, &it); err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					continue
+				}
+				return err
+			}
+			change(&it)
+			it.ID = id
+			if err := tx.Put(Table.Name, id, it); err != nil {
+				return err
+			}
+			n++
+		}
+		return nil
+	})
+	return n, err
 }
 
 // Put writes one item as it is, under its id (a new row, or one put back

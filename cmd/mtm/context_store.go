@@ -46,7 +46,7 @@ const contextCreateSource = "create"
 // noun is a verb or a prop, never both.
 func (a *App) contextProps() []ochazuke.PropSpec {
 	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
-	return []ochazuke.PropSpec{
+	return append([]ochazuke.PropSpec{
 		{Name: "id", Key: true, Parameter: text("The item's key")},
 		{Name: "category", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: []string{"context", "prompt"}, Description: "A kept context item or a journaled prompt in the context picker"}},
 		{Name: "origin", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Enum: contextitems.Origins, Description: "Most conversational recorded origin (prompt, then response); origins keeps every sighting kind"}},
@@ -77,6 +77,7 @@ func (a *App) contextProps() []ochazuke.PropSpec {
 				return ""
 			}},
 		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the item's sightings and provenance and hide it from default views"}},
+		{Name: "dismissed", Parameter: ochazuke.Parameter{Type: "boolean", Description: "Triaged away: still listed (--where dismissed=true), left out of a pane's rail (rail.dismissed); a star keeps it there"}},
 		{Name: "session", ReadOnly: true, Parameter: text("The session the item was first seen in")},
 		// window names the pane: a pane's related stacks (its rail, its
 		// Notes tab) list the items it printed first.
@@ -86,7 +87,7 @@ func (a *App) contextProps() []ochazuke.PropSpec {
 		// section, after the pane's own; rail.hidden context-item.project-pane
 		// leaves it out).
 		{Name: contextProjectPane, ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "pane",
-			Description: "Filter only (--where project-pane=PANE): the items of that pane's project that it did not print first"}},
+			Description: "Filter only (--where project-pane=PANE): the items of that pane's project that it did not print first, not dismissed (or starred)"}},
 		{Name: "pane", ReadOnly: true, Parameter: text("The name of the pane the item was first seen in")},
 		{Name: "exists", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether a file or dir item's path existed when it was last seen (absent for other kinds)"}},
 		{Name: "source", ReadOnly: true, Parameter: text("The first recorded session and pane"),
@@ -100,7 +101,7 @@ func (a *App) contextProps() []ochazuke.PropSpec {
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the item was first kept (Unix ms)"}},
 		{Name: "seen", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the item was last seen (Unix ms)"},
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { return sinceUse(thingInt(t["seen"]), a.now()) }},
-	}
+	}, contextTriageProps()...)
 }
 
 // contextFilters are catalog declarations on context-item, scoped to its
@@ -175,9 +176,13 @@ func (a *App) contextTableQuery() *tableQuery {
 		columns: map[string]tableColumn{
 			"id": text("id"), "type": text("kind"), "text": text("text"), "task": text("task_id"),
 			"session": text("session"), "window": text("window"), "pane": text("pane"),
-			"starred": flag("starred"), "archived": flag("archived"),
+			"starred": flag("starred"), "archived": flag("archived"), "dismissed": flag("dismissed"), "dismissed-at": num("dismissed_at"),
 			"created": num("created"), "seen": num("last_seen", "created"),
 			contextProjectPane: {Match: a.projectPaneCond},
+			contextKeptPane:    {Match: a.triageCond(contextKeptPane)},
+			contextNewPane:     {Match: a.triageCond(contextNewPane)},
+			contextStarredPane: {Match: a.triageCond(contextStarredPane)},
+			contextDismissPane: {Match: a.triageCond(contextDismissPane)},
 		},
 		archive: "archived",
 		search:  []string{"text", "type"},
@@ -220,6 +225,7 @@ func (a *App) contextTableQuery() *tableQuery {
 		list: func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
 			things, err := a.contextStore().List(c, q)
 			a.markProjectPane(things, q.Filters)
+			a.markTriage(things, q.Filters)
 			return things, err
 		},
 	}
@@ -246,7 +252,7 @@ func contextThing(it contextitems.Item, tasks map[string]string) ochazuke.Thing 
 		"id": it.ID, "category": "context", "type": it.Kind, "text": it.Text, "project": itemProject(it, tasks), "task": it.TaskID,
 		"origin": it.Origin(), "origins": it.Origins(), "starred": it.Starred, "session": it.Session, "window": it.Window, "pane": it.Pane,
 		"created": it.Created, "seen": it.Seen(),
-		"archived": it.Archived,
+		"archived": it.Archived, "dismissed": it.Dismissed, "dismissed-at": it.DismissedAt,
 	}
 	if it.Exists != nil {
 		t["exists"] = *it.Exists
@@ -321,11 +327,11 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 	if owner, ok := a.contextOwnerOf(c, contextitems.Item{}, values); ok {
 		it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
 	}
-	props, err := thingOver(contextPatch{Starred: it.Starred, Archived: it.Archived}, values)
+	props, err := thingOver(contextPatch{Starred: it.Starred, Archived: it.Archived, Dismissed: it.Dismissed}, values)
 	if err != nil {
 		return nil, err
 	}
-	it.Starred, it.Archived = props.Starred, props.Archived
+	it.Starred, it.Archived, it.Dismissed = props.Starred, props.Archived, props.Dismissed
 	if err := a.contexts.Put(it); err != nil {
 		return nil, err
 	}
@@ -342,10 +348,11 @@ func (a *App) createContextItem(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke
 // contextPatch are the context item props a write sets straight onto the
 // item (thingOver); the owner takes rules of its own.
 type contextPatch struct {
-	Text     string `json:"text"`
-	Type     string `json:"type"`
-	Starred  bool   `json:"starred"`
-	Archived bool   `json:"archived"`
+	Text      string `json:"text"`
+	Type      string `json:"type"`
+	Starred   bool   `json:"starred"`
+	Archived  bool   `json:"archived"`
+	Dismissed bool   `json:"dismissed"`
 }
 
 // patchContextItem edits the record without changing its sightings or provenance.
@@ -355,7 +362,7 @@ func (a *App) patchContextItem(c ochazuke.Ctx, id string, changes ochazuke.Thing
 		return nil, err
 	}
 	owner, owned := a.contextOwnerOf(c, it, changes)
-	props, err := thingOver(contextPatch{Text: it.Text, Type: it.Kind, Starred: it.Starred, Archived: it.Archived}, changes)
+	props, err := thingOver(contextPatch{Text: it.Text, Type: it.Kind, Starred: it.Starred, Archived: it.Archived, Dismissed: it.Dismissed}, changes)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +371,13 @@ func (a *App) patchContextItem(c ochazuke.Ctx, id string, changes ochazuke.Thing
 		if owned {
 			it.ProjectID, it.TaskID = owner.ProjectID, owner.TaskID
 		}
-		it.Starred, it.Archived = props.Starred, props.Archived
+		if it.Dismissed != props.Dismissed {
+			it.DismissedAt = 0
+			if props.Dismissed {
+				it.DismissedAt = a.now().UnixMilli()
+			}
+		}
+		it.Starred, it.Archived, it.Dismissed = props.Starred, props.Archived, props.Dismissed
 	})
 	if err != nil {
 		return nil, err
@@ -484,6 +497,7 @@ func (a *App) projectPaneCond(window string) (store.QueryCond, bool) {
 			}},
 		}},
 		{Fields: []string{"window"}, Op: store.OpEq, Value: window, Not: true},
+		railKept,
 	}}, true
 }
 
@@ -501,7 +515,7 @@ func (a *App) markProjectPane(things []ochazuke.Thing, filters []ochazuke.PropFi
 			continue
 		}
 		for _, t := range things {
-			if t["project"] == project && t["window"] != window {
+			if t["project"] == project && t["window"] != window && (t["dismissed"] != true || t["starred"] == true) {
 				t[contextProjectPane] = window
 			}
 		}

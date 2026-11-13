@@ -154,11 +154,15 @@ func (a *App) defineContext() {
 		Verb("follow", a.followPanes, "Read the panes that printed since the last read and keep what is new (runs by itself, see context.follow-interval)").Quiet().
 		Verb("kind", a.cycleContextKind, "Show one kind at a time: all, then each kind in turn").
 		Verb("search", a.searchContext, "Filter the context items by words").
+		Verb("dismiss", a.triageContext(true), "Dismiss the item (the selected rows; or every item with --before, --filter or --all, in one write): it leaves the pane's rail, a star keeps it there; still listed by --where dismissed=true").Positional("id").Many().
+		Verb("undismiss", a.triageContext(false), "Undismiss the item (the selected rows; or every item with --before, --filter or --all, in one write): back on the pane's rail, New unless starred").Positional("id").Many().
 		Mode("normal").
 		Bind("y", ochazuke.Do(contextNoun+".copy")).
 		Bind("o", ochazuke.Do(contextNoun+".open")).
 		Bind("R", ochazuke.Do(contextNoun+".reveal")).
 		Bind("*", ochazuke.Do(contextNoun+".star")).
+		Bind("-", ochazuke.Do(contextNoun+".dismiss").Hinted("dismiss")).
+		Bind("+", ochazuke.Do(contextNoun+".undismiss").Hinted("undismiss")).
 		Bind("m", ochazuke.Do(contextNoun+".edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	// forget is the noun's own word for delete (the record only), kept as
 	// a lasting alias: context-item forget ID works as before. star is the
@@ -179,6 +183,9 @@ func (a *App) defineContext() {
 		"task":    {Type: "string", Noun: "task", Description: "Deprecated: context-item set ID task=TASK (its project follows)"},
 		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "Deprecated: context-item set ID @owner=PROJECT; one not found is left out with a notice"},
 		"scratch": {Type: "boolean", Description: "Deprecated: context-item set ID @owner= (unassociate it)"}})
+	for _, verb := range []string{"dismiss", "undismiss"} {
+		a.parameters(contextNoun+"."+verb, contextTriageParams())
+	}
 	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
 	a.r.Define("context-search").Kind(ochazuke.NounKindPart).DefaultKeys(false).Pin("insert").
 		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").

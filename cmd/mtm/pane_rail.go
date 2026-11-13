@@ -49,30 +49,36 @@ func railSettings() []ochazuke.Setting {
 		s.Section, s.Owner = "rail", ochazuke.OwnerFramework
 		return s
 	}
-	return []ochazuke.Setting{
-		framework(ochazuke.Setting{Name: ochazuke.RailCollapsedSetting, Type: ochazuke.SettingList, Default: []string{"*", "!needs-you", "!focus"},
-			Description: "Section ids that start folded to their heading and count (* every one: a picker of kinds first; !ID keeps one open). Default: Needs you and Focus today open, the rest folded"}),
+	return append([]ochazuke.Setting{
+		framework(ochazuke.Setting{Name: ochazuke.RailCollapsedSetting, Type: ochazuke.SettingList, Default: []string{"*", "!needs-you", "!focus", "!new", "!starred"},
+			Description: "Section ids that start folded to their heading and count (* every one: a picker of kinds first; !ID keeps one open). Default: Focus today, New, Needs you and Starred open, the rest folded"}),
+		framework(ochazuke.Setting{Name: ochazuke.RailHiddenSetting, Type: ochazuke.SettingList, Default: []string{contextNoun + ".window", actionItemNoun + ".pane"},
+			Description: "Section ids the rail leaves out (a trailing * is a prefix; !ID takes one back out of an earlier pattern). Default: the pane's every context item and every action item, which New, the kinds, Needs you and Resolved list triaged"}),
 		framework(ochazuke.Setting{Name: ochazuke.RailGroupsSetting, Type: ochazuke.SettingList,
 			Default: []string{
-				"needs-you = action-item, question.decision, question.question, cmd.cmd",
+				"new = context-item." + contextNewPane,
+				"needs-you = action-item." + actionNeedsPane + ", question.decision, question.question, cmd.cmd",
+				"starred = context-item." + contextStarredPane,
 				"this-project = context-item.project-pane",
+				"resolved = action-item." + actionResolvedPane,
+				"dismissed = context-item." + contextDismissPane,
 			},
-			Description: "Headings that draw several sections under one, as ID = MEMBER, MEMBER (a member is a section id or a noun). needs-you is what waits on you; this-project is the rest of the pane's project's context (add it to rail.hidden for the pane's own alone)"}),
+			Description: "Headings that draw several sections under one, as ID = MEMBER, MEMBER (a member is a section id or a noun). new is the pane's context items neither starred nor dismissed; needs-you is what waits on you (open, oldest first); starred the starred items; this-project the rest of the pane's project's context (add it to rail.hidden for the pane's own alone); resolved the read and archived action items; dismissed the dismissed items (rail.dismissed collapsed)"}),
 		framework(ochazuke.Setting{Name: ochazuke.RailOrderSetting, Type: ochazuke.SettingList,
-			Default: []string{"focus", "needs-you",
+			Default: []string{"focus", "new", "needs-you", "starred",
 				"context-item.type=link", "context-item.type=file", "context-item.type=dir", "context-item.type=pr",
-				"context-item.type=branch", "context-item.type=commit", "context-item.type=command", "this-project"},
+				"context-item.type=branch", "context-item.type=commit", "context-item.type=command", "this-project", "resolved", "dismissed"},
 			Description: "Section ids (NOUN.PROP, a group's or a list section's id) the rail draws first, in this order; the others follow"}),
 		{Name: settingRailZoom, Section: "rail", Type: ochazuke.SettingString, Default: railZoomFloat, Enum: []string{railZoomFloat, railZoomFull, railZoomNone},
 			Description: "The rail over a zoomed live pane: float (a panel over its top-right corner; the terminal keeps its width), full (a column; the terminal narrows) or hidden (no rail until unzoomed)"},
-	}
+	}, railTriageSettings()...)
 }
 
 // addPaneRail registers the Panes page's rail and binds Z to its toggle.
 func (a *App) addPaneRail() error {
 	rail, err := a.r.AddRail(paneRailID, ochazuke.RailSpec{Stack: ochazuke.RelatedSpec{
 		Target:  a.railTarget,
-		GroupBy: map[string]string{contextNoun + ".window": "type"},
+		GroupBy: map[string]string{contextNoun + "." + contextKeptPane: "type"},
 		Lists:   []ochazuke.RelatedList{{ID: "focus", Noun: "task", Filter: focusFilterName, Label: "Focus today", New: focusItemNoun + ".new"}},
 	}}, ochazuke.Parent(panesPage))
 	if err != nil {
@@ -124,5 +130,7 @@ func (a *App) withRail(layout ochazuke.Layout, width, height, least int, z railZ
 		return draw(width, height)
 	}
 	layout.Width, layout.Height = width, height
-	return a.rail.Compose(layout, fit, draw(fit.MainWidth, fit.MainHeight))
+	main := draw(fit.MainWidth, fit.MainHeight)
+	a.decorateRail() // after the main, whose draw may refill a section
+	return a.rail.Compose(layout, fit, main)
 }

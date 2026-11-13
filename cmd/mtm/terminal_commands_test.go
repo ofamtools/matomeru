@@ -125,7 +125,8 @@ func TestTerminalCommandShowsInTheInbox(t *testing.T) {
 	a.setPanes([]pane{shellPane("w1", 2, "go test ./...", exitCode(1), 3*minute)}, nil)
 	toPage(t, a, inboxPage)
 	f := frameAt(a, 120)
-	for _, want := range []string{"● work/w1", "`go test ./...` exited 1 after 3m", "mtm"} {
+	// The item reads by what it asks, not by its pane's name (the for column).
+	for _, want := range []string{"● `go test", "`go test ./...` exited 1 after 3m", "mtm", "work/w1"} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("inbox lacks %q:\n%s", want, f)
 		}

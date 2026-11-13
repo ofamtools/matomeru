@@ -18,21 +18,23 @@ func railText(a *App, width, height int) string {
 	return ansi.Strip(a.renderPanes(a.r, width, height).Text)
 }
 
-// The rail of a live pane lists what it printed, split by kind with
-// counts and folded at first (a picker of kinds), then the rest of its
-// project's under one heading; another project's and unowned items are
+// The rail of a live pane lists what it printed: the new items flat, then
+// split by kind with counts and folded at first (a picker of kinds), then
+// the rest of its project's under one heading; another project's and unowned items are
 // left out. Drawing reads nothing: the context store is read when the
 // pane changes or a section opens, never per frame.
 func TestPaneRailListsThePanesThingsByKind(t *testing.T) {
 	t.Parallel()
 	a, _, _, _ := liveContextApp(t)
 	text := railText(a, 240, 40)
-	for _, want := range []string{"─ rail ", "▸ Links (1)", "▸ Files (1)", "▸ This project (1)"} {
+	// New (open) lists the pane's untriaged items flat, each with its
+	// kind's glyph; the kind sections fold.
+	for _, want := range []string{"─ rail ", "▾ New (2)", "↗ https://example.com/older-here", "▸ Links (1)", "▸ Files (1)", "▸ This project (1)"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("rail misses %q:\n%s", want, text)
 		}
 	}
-	for _, not := range []string{"Commits", "ochazuke", "older-here"} {
+	for _, not := range []string{"Commits", "ochazuke"} {
 		if strings.Contains(text, not) {
 			t.Fatalf("rail shows %q:\n%s", not, text)
 		}

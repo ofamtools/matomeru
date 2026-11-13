@@ -1,0 +1,92 @@
+{
+ "": {
+  "letter": "*",
+  "nerd": "",
+  "symbol": "•"
+ },
+ "action-item": {
+  "letter": "!",
+  "nerd": "",
+  "symbol": "!"
+ },
+ "cmd.cmd": {
+  "letter": "x",
+  "nerd": "",
+  "symbol": "»"
+ },
+ "context-item:branch": {
+  "letter": "b",
+  "nerd": "",
+  "symbol": "⑂"
+ },
+ "context-item:command": {
+  "letter": "$",
+  "nerd": "",
+  "symbol": "$"
+ },
+ "context-item:commit": {
+  "letter": "c",
+  "nerd": "",
+  "symbol": "●"
+ },
+ "context-item:dir": {
+  "letter": "d",
+  "nerd": "",
+  "symbol": "□"
+ },
+ "context-item:file": {
+  "letter": "f",
+  "nerd": "",
+  "symbol": "≡"
+ },
+ "context-item:link": {
+  "letter": "l",
+  "nerd": "",
+  "symbol": "↗"
+ },
+ "context-item:pr": {
+  "letter": "p",
+  "nerd": "",
+  "symbol": "⇄"
+ },
+ "context-item:prompt": {
+  "letter": ">",
+  "nerd": "",
+  "symbol": "›"
+ },
+ "lane.lane": {
+  "letter": "L",
+  "nerd": "",
+  "symbol": "≈"
+ },
+ "md.doc": {
+  "letter": "m",
+  "nerd": "",
+  "symbol": "¶"
+ },
+ "note": {
+  "letter": "n",
+  "nerd": "",
+  "symbol": "✎"
+ },
+ "question.decision": {
+  "letter": "D",
+  "nerd": "",
+  "symbol": "◆"
+ },
+ "question.question": {
+  "letter": "q",
+  "nerd": "",
+  "symbol": "?"
+ },
+ "relation": {
+  "letter": "r",
+  "nerd": "",
+  "symbol": "∞"
+ },
+ "task": {
+  "letter": "t",
+  "nerd": "",
+  "symbol": "▢"
+ }
+}
