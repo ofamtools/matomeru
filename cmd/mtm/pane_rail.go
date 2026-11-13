@@ -24,8 +24,22 @@ const (
 	settingRailZoom = "rail.zoom"
 	railZoomFloat   = "float"
 	railZoomFull    = "full"
-	railZoomHidden  = "hidden"
+	railZoomNone    = "none"
 )
+
+// railZoom is how a rail.zoom value draws the rail over a zoomed pane: in
+// which look, or not at all.
+type railZoom struct {
+	look  string
+	shown bool
+}
+
+// railZooms are the rail.zoom values.
+var railZooms = map[string]railZoom{
+	railZoomFloat: {look: ochazuke.RailLookFloat, shown: true},
+	railZoomFull:  {look: ochazuke.RailLookFull, shown: true},
+	railZoomNone:  {},
+}
 
 // railSettings are the rail settings mtm declares before AddRail: its own
 // defaults for three of ochazuke's rows (AddRail keeps a row the
@@ -49,7 +63,7 @@ func railSettings() []ochazuke.Setting {
 				"context-item.type=link", "context-item.type=file", "context-item.type=dir", "context-item.type=pr",
 				"context-item.type=branch", "context-item.type=commit", "context-item.type=command", "this-project"},
 			Description: "Section ids (NOUN.PROP, a group's or a list section's id) the rail draws first, in this order; the others follow"}),
-		{Name: settingRailZoom, Section: "rail", Type: ochazuke.SettingString, Default: railZoomFloat, Enum: []string{railZoomFloat, railZoomFull, railZoomHidden},
+		{Name: settingRailZoom, Section: "rail", Type: ochazuke.SettingString, Default: railZoomFloat, Enum: []string{railZoomFloat, railZoomFull, railZoomNone},
 			Description: "The rail over a zoomed live pane: float (a panel over its top-right corner; the terminal keeps its width), full (a column; the terminal narrows) or hidden (no rail until unzoomed)"},
 	}
 }
@@ -87,14 +101,14 @@ func (a *App) railTarget() (string, string) {
 }
 
 // withRail draws main (drawn by draw at the size it is given) with the
-// rail beside or over it in an area of width x height, in look ("" for
-// rail.look). The main is drawn at the size the rail leaves it, so a live
-// terminal in it is sized to that.
-func (a *App) withRail(layout ochazuke.Layout, width, height int, look string, draw func(w, h int) ochazuke.Block) ochazuke.Block {
-	if a.rail == nil || look == railZoomHidden {
+// rail beside or over it in an area of width x height, in z's look (""
+// for rail.look; not shown: no rail). The main is drawn at the size the
+// rail leaves it, so a live terminal in it is sized to that.
+func (a *App) withRail(layout ochazuke.Layout, width, height int, z railZoom, draw func(w, h int) ochazuke.Block) ochazuke.Block {
+	if a.rail == nil || !z.shown {
 		return draw(width, height)
 	}
-	fit := a.rail.FitWith(width, height, look)
+	fit := a.rail.FitWith(width, height, z.look)
 	// A float with nothing to list covers the main for nothing; the full
 	// column stays, so a live terminal is not resized as sections come and
 	// go. (App-side workaround: upstream, FitRail could leave out an empty

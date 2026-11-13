@@ -105,6 +105,12 @@
       "type": "pane view turns"
     },
     "enter",
+    "#",
+    "enter",
+    "esc",
+    "q",
+    "Z",
+    "Z",
     "]",
     "[",
     "i",
@@ -379,16 +385,42 @@
       "after": 72
     },
     {
-      "mode": "insert",
-      "focus": "panes/prompt",
+      "after": 74,
+      "modal": "focus",
       "contains": [
-        "[send]"
+        "◎"
+      ]
+    },
+    {
+      "after": 76,
+      "page": "panes",
+      "mode": "normal",
+      "modal": "",
+      "contains": [
+        "─ rail",
+        "Focus today (1)"
       ],
       "lacks": [
-        "loading…",
-        "Edit action-item"
-      ],
-      "after": 75
+        "Error:"
+      ]
+    },
+    {
+      "after": 77,
+      "mode": "normal",
+      "modal": "",
+      "lacks": [
+        "─ rail",
+        "Focus today"
+      ]
+    },
+    {
+      "after": 78,
+      "mode": "normal",
+      "modal": "",
+      "contains": [
+        "─ rail",
+        "Focus today (1)"
+      ]
     },
     {
       "mode": "insert",
@@ -400,10 +432,22 @@
         "loading…",
         "Edit action-item"
       ],
-      "after": 85
+      "after": 81
     },
     {
-      "after": 96,
+      "mode": "insert",
+      "focus": "panes/prompt",
+      "contains": [
+        "[send]"
+      ],
+      "lacks": [
+        "loading…",
+        "Edit action-item"
+      ],
+      "after": 91
+    },
+    {
+      "after": 102,
       "mode": "insert",
       "focus": "panes/prompt",
       "contains": [
@@ -429,7 +473,7 @@
         "COPY",
         "Kill pane"
       ],
-      "after": 101
+      "after": 107
     },
     {
       "focus": "edit-form/name",
@@ -440,13 +484,13 @@
       "lacks": [
         "Error:"
       ],
-      "after": 109
+      "after": 115
     },
     {
       "highlightedText": "queue ask",
       "mode": "normal",
       "modal": "",
-      "after": 112
+      "after": 118
     },
     {
       "mode": "normal",
@@ -458,7 +502,7 @@
         "queue ask",
         "Error:"
       ],
-      "after": 113
+      "after": 119
     },
     {
       "focus": "pane:acme-web/w1",
@@ -467,10 +511,10 @@
         "queue ask",
         "Error:"
       ],
-      "after": 116
+      "after": 122
     },
     {
-      "after": 123,
+      "after": 129,
       "focus": "edit-form/project"
     },
     {
@@ -482,13 +526,13 @@
         "unknown project beta",
         "Edit pane"
       ],
-      "after": 128
+      "after": 134
     },
     {
       "lacks": [
         "Error:"
       ],
-      "after": 133
+      "after": 139
     },
     {
       "focus": "panes/tree/list",
@@ -500,7 +544,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 145
+      "after": 151
     },
     {
       "mode": "normal",
@@ -515,7 +559,7 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 146
+      "after": 152
     },
     {
       "mode": "normal",

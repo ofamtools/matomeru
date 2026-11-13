@@ -97,7 +97,7 @@ func TestPaneRailOverAZoomedPane(t *testing.T) {
 		look  string
 		rail  bool
 		whole bool
-	}{{railZoomFloat, true, true}, {railZoomFull, true, false}, {railZoomHidden, false, true}} {
+	}{{railZoomFloat, true, true}, {railZoomFull, true, false}, {railZoomNone, false, true}} {
 		if err := a.r.Settings().Set(settingRailZoom, tt.look); err != nil {
 			t.Fatal(err)
 		}
