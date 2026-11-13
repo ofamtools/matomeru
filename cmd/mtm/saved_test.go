@@ -217,10 +217,12 @@ func TestSavedAndVimShowHomePathsWithTilde(t *testing.T) {
 }
 
 // A record created from the CLI shows on the page with no explicit refresh:
-// the list is the saved store's view.
+// the list is the saved store's view. The page is showing: a hidden page's
+// list is marked stale and read when shown (ochazuke refresh.hidden).
 func TestSavedCreateShowsWithoutRefresh(t *testing.T) {
 	t.Parallel()
 	a := open(t)
+	toPage(t, a, savedPage)
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "saved", Verb: "create", Args: ochazuke.Arguments{"name": "fresh", "cwd": "/tmp/x"}}); err != nil {
 		t.Fatal(err)
 	}
