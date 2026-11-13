@@ -131,6 +131,7 @@ func (a *App) withRail(layout ochazuke.Layout, width, height, least int, z railZ
 	}
 	layout.Width, layout.Height = width, height
 	main := draw(fit.MainWidth, fit.MainHeight)
+	a.syncRailArchived()
 	a.decorateRail() // after the main, whose draw may refill a section
 	return a.rail.Compose(layout, fit, main)
 }

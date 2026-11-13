@@ -49,6 +49,8 @@ func groupApp(t *testing.T) (*App, map[string]actionitems.Item) {
 	add("live2", actionitems.Spec{Window: "widle", Session: "s", ProjectID: "matomeru"})
 	add("closed", actionitems.Spec{Window: "wgone", Session: "s", PaneLabel: "old box"})
 	add("closed-task", actionitems.Spec{Window: "wgone", Session: "s", TaskID: task.ID, ProjectID: "matomeru"})
+	// These tests are about the owner grouping (needs-you is the default).
+	setting(t, a, settingInboxGroup, groupOwner)
 	return a, items
 }
 

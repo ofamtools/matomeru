@@ -13,10 +13,11 @@ import (
 	"ofam.dev/matomeru/internal/panesignals"
 )
 
-// The rail's Needs you lists the pane's open items oldest first, each
-// labelled by what it asks (never the pane's name alone), with 100 copies
-// of one finished turn folded to one row with its count; the read ones
-// sit under Resolved below.
+// The rail's Needs you lists the pane's Needs-you items (the panel's
+// rule) oldest first, each labelled by what it asks (never the pane's
+// name alone), with 100 copies of one finished turn folded to one row
+// with its count; the read and archived ones sit under Resolved below.
+// The Items page draws the same two tables.
 func TestRailNeedsYouFoldsByLabelOldestFirst(t *testing.T) {
 	t.Parallel()
 	a, _, live, _ := liveContextApp(t)
@@ -41,6 +42,10 @@ func TestRailNeedsYouFoldsByLabelOldestFirst(t *testing.T) {
 		add(fmt.Sprintf("done-%d", i), panesignals.Done, panesignals.Why(panesignals.Done), false)
 	}
 	add("seen", panesignals.Errored, panesignals.Why(panesignals.Errored), true)
+	add("old", panesignals.Command, "`make` exited 2 after 1s", false)
+	if _, err := a.inbox.items.Archive(lastItemID(t, a)); err != nil {
+		t.Fatal(err)
+	}
 	a.rail.Stack().Refill()
 	text := railText(a, 240, 50)
 	input := strings.Index(text, "! waits for your input · ")
@@ -51,10 +56,39 @@ func TestRailNeedsYouFoldsByLabelOldestFirst(t *testing.T) {
 	if strings.Count(text, "turn finished") != 1 {
 		t.Fatalf("the 100 finished turns are not one row:\n%s", text)
 	}
-	resolved := strings.Index(text, "Resolved (1)")
+	// Resolved counts the read item and the archived one (rail.archived).
+	resolved := strings.Index(text, "Resolved (2)")
 	if resolved < done || strings.Contains(text, "agent errored") {
-		t.Fatalf("the read item is not folded under Resolved below Needs you:\n%s", text)
+		t.Fatalf("the read and archived items are not folded under Resolved below Needs you:\n%s", text)
 	}
+
+	// The Items page draws the same two tables, by the same rule.
+	press(t, a, "ctrl+a", "d")
+	toPage(t, a, inboxPage)
+	if err := a.reloadInbox(); err != nil {
+		t.Fatal(err)
+	}
+	page := frameAt(a, 160)
+	needs, input2, done2, res := strings.Index(page, "Needs you ("), strings.Index(page, "● waits for your input"), strings.Index(page, "● turn finished ×100"), strings.Index(page, "Resolved (")
+	if needs < 0 || input2 < needs || done2 < input2 || res < done2 || strings.Count(page, "● turn finished") != 1 {
+		t.Fatalf("the Items page is not Needs you (oldest first, folded) over Resolved:\n%s", page)
+	}
+}
+
+// lastItemID is the newest action item's id.
+func lastItemID(t *testing.T, a *App) string {
+	t.Helper()
+	all, err := a.inbox.items.All()
+	if err != nil || len(all) == 0 {
+		t.Fatalf("no items: %v", err)
+	}
+	last := all[0]
+	for _, it := range all {
+		if it.Created > last.Created {
+			last = it
+		}
+	}
+	return last.ID
 }
 
 // Starred items stay on the rail; dismissed ones leave it (rail.dismissed

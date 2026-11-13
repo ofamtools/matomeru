@@ -55,7 +55,11 @@ func (a *App) actionItemProps() []ochazuke.PropSpec {
 		{Name: "item", ReadOnly: true, Parameter: text("The item's label and read state"),
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
 				it, _ := t["_item"].(actionitems.Item)
-				return inboxGlyph(it, a.inbox.items.Now()) + " " + a.actionLabel(it)
+				label := inboxGlyph(it, a.inbox.items.Now()) + " " + a.actionLabel(it)
+				if n := thingInt(t["folded"]); n > 1 {
+					label += fmt.Sprintf(" ×%d", n)
+				}
+				return label
 			}},
 		{Name: "for", ReadOnly: true, Parameter: text("The item's task, project or pane"),
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
@@ -186,7 +190,7 @@ func (a *App) actionTableQuery() *tableQuery {
 		search:  []string{"title", "why", "text", "url"},
 		args: func(q ochazuke.ListQuery) ([]store.QueryCond, bool) {
 			args := q.Args
-			if ochazuke.StringArg(args, "project", "") != "" {
+			if ochazuke.StringArg(args, "project", "") != "" || a.inboxFolds(q) {
 				return nil, false
 			}
 			now := a.inbox.items.Now()
@@ -249,7 +253,7 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 	if things, ok, err := a.actionRailThings(q); ok {
 		return things, err
 	}
-	items, err := a.inbox.items.All()
+	items, err := a.inboxItems(a.inboxFolds(q))
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +266,7 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 		}
 	}
 	now := a.inbox.items.Now()
-	out := []ochazuke.Thing{}
+	var kept []actionitems.Item
 	for _, it := range items {
 		if state != actionStateAll && it.State(now) != state || source != "" && it.Source != source {
 			continue
@@ -270,6 +274,19 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 		if project != "" && cmp.Or(it.ProjectID, a.taskProject(it.TaskID)) != project {
 			continue
 		}
+		kept = append(kept, it)
+	}
+	out := []ochazuke.Thing{}
+	if a.inboxFolds(q) {
+		needs, resolved := a.needsYouTables(kept)
+		for i, f := range append(needs, resolved...) {
+			t := a.foldThing(f, now)
+			t[inboxGroupOrderProp] = i
+			out = append(out, t)
+		}
+		return out, nil
+	}
+	for _, it := range kept {
 		out = append(out, a.actionItemThing(it))
 	}
 	return out, nil

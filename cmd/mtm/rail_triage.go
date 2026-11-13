@@ -48,6 +48,7 @@ const (
 	settingRailDismissed = "rail.dismissed"
 	railDismissedHide    = "hide"
 	railDismissedFold    = "collapsed"
+	settingRailArchived  = "rail.archived"
 	settingRailIcons     = "rail.icons"
 	railIconsSymbols     = "symbols"
 	railIconsNerd        = "nerd"
@@ -60,6 +61,8 @@ func railTriageSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
 		{Name: settingRailDismissed, Section: "rail", Type: ochazuke.SettingString, Default: railDismissedHide, Enum: []string{railDismissedHide, railDismissedFold},
 			Description: "Dismissed context items on a pane's rail: hide (left out; context-item list --where dismissed=true still lists them) or collapsed (one folded Dismissed (N) heading at the end)"},
+		{Name: settingRailArchived, Section: "rail", Type: ochazuke.SettingList, Default: []string{"action-item." + actionResolvedPane},
+			Description: "Rail section ids (NOUN.PROP) that list archived things too, whatever collection.hide-archived says for other lists. Default: Resolved, so old items stay visible below Needs you"},
 		{Name: settingRailIcons, Section: "rail", Type: ochazuke.SettingString, Default: railIconsSymbols, Enum: []string{railIconsSymbols, railIconsNerd, railIconsLetters, railIconsOff},
 			Description: "The one-cell glyph each rail row starts with, by its kind: symbols (plain Unicode), nerd (Nerd Font glyphs), letters (f d l ...) or off"},
 	}
@@ -307,24 +310,34 @@ func (a *App) triageIDs(q triageQuery) ([]string, error) {
 
 // Needs you -----------------------------------------------------------------
 
-// actionRail is one action-item section of the rail: which of the pane's
-// items it holds and in which order.
+// An item is in Needs you by the panel's one membership rule
+// (needsYouItem: needsYouCategory, an open item in a queue category);
+// every other item is resolved. Both the rail and the Items page draw the
+// two as two tables: Needs you oldest first (panes.sort-clock), resolved
+// newest first, near-duplicates folded to one row with a count.
+
+// needsYouItem reports whether the item is a Needs-you row: open and in a
+// category panes.queue-order lists, as the panel counts it.
+func (a *App) needsYouItem(it actionitems.Item, now int64, ranks map[string]int) bool {
+	if !it.Open(now) {
+		return false
+	}
+	c := a.needsYouCategory(it, a.oneRule())
+	_, ok := ranks[c]
+	return c != "" && ok
+}
+
+// actionRail is one action-item section of the rail: the pane's Needs-you
+// items (needs) or the rest (resolved).
 type actionRail struct {
 	prop, desc string
-	keeps      func(it actionitems.Item, now int64) bool
-	newest     bool // newest first; else oldest first
+	needs      bool
 }
 
 // actionRails are the rail's action-item sections.
 var actionRails = []actionRail{
-	{prop: actionNeedsPane, desc: "its open, unread items, oldest first, near-duplicates folded: the rail's Needs you",
-		keeps: func(it actionitems.Item, now int64) bool {
-			return it.ArchivedAt == 0 && it.SnoozedUntil <= now && !it.Read()
-		}},
-	{prop: actionResolvedPane, desc: "its read and archived items, newest first, near-duplicates folded: the rail's Resolved",
-		keeps: func(it actionitems.Item, now int64) bool {
-			return it.ArchivedAt > 0 || it.SnoozedUntil <= now && it.Read()
-		}, newest: true},
+	{prop: actionNeedsPane, desc: "its Needs-you items (the panel's rule), oldest first, near-duplicates folded: the rail's Needs you", needs: true},
+	{prop: actionResolvedPane, desc: "its other items (read, archived, snoozed), newest first, near-duplicates folded: the rail's Resolved"},
 }
 
 func actionRailOf(prop string) (actionRail, bool) {
@@ -335,15 +348,19 @@ func actionRailOf(prop string) (actionRail, bool) {
 	return actionRails[i], true
 }
 
-// actionRailProps are the filter-only props of actionRails.
+// actionRailProps are the filter-only props of actionRails and the fold
+// count.
 func actionRailProps() []ochazuke.PropSpec {
 	var out []ochazuke.PropSpec
 	for _, r := range actionRails {
 		out = append(out, ochazuke.PropSpec{Name: r.prop, ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "pane",
 			Description: "Filter only (--where " + r.prop + "=PANE): " + r.desc}})
 	}
-	out = append(out, ochazuke.PropSpec{Name: "folded", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer",
-		Description: "On a rail row: how many near-duplicate items (same pane, kind and label) the row stands for"}})
+	out = append(out,
+		ochazuke.PropSpec{Name: "folded", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer",
+			Description: "On a folded row (the rail, the Items page grouped by needs-you): how many near-duplicate items (same pane, source, kind and label) it stands for"}},
+		ochazuke.PropSpec{Name: inboxGroupOrderProp, ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer",
+			Description: "The row's place in its Items group when the grouping orders its rows (needs-you: oldest first, then newest first)"}})
 	return out
 }
 
@@ -357,9 +374,34 @@ func actionRailColumns() map[string]tableColumn {
 	return out
 }
 
+// needsYouTables splits items into the Needs-you rows and the resolved
+// rows, each folded and ordered.
+func (a *App) needsYouTables(items []actionitems.Item) (needs, resolved []actionFold) {
+	now, ranks := a.inbox.items.Now(), a.queueRanks()
+	var in, out []actionitems.Item
+	for _, it := range items {
+		if a.needsYouItem(it, now, ranks) {
+			in = append(in, it)
+		} else {
+			out = append(out, it)
+		}
+	}
+	clock := func(it actionitems.Item) int64 { return a.itemClock(it, pane{}, false, now) }
+	return foldActionItems(in, a.actionLabel, clock, false), foldActionItems(out, a.actionLabel, func(it actionitems.Item) int64 { return it.Created }, true)
+}
+
+// foldThing is a fold as its row: the newest item's thing with the count
+// and the folded label.
+func (a *App) foldThing(f actionFold, now int64) ochazuke.Thing {
+	t := a.actionItemThing(f.item)
+	t["folded"] = f.count
+	t["title"] = a.railActionTitle(f, now)
+	return t
+}
+
 // actionRailThings answers a list request that names a rail prop: the
-// pane's items the section keeps, folded and ordered; false when the
-// request names none.
+// pane's items of that table, folded and ordered; false when the request
+// names none.
 func (a *App) actionRailThings(q ochazuke.ListQuery) ([]ochazuke.Thing, bool, error) {
 	var rail actionRail
 	window := ""
@@ -372,67 +414,76 @@ func (a *App) actionRailThings(q ochazuke.ListQuery) ([]ochazuke.Thing, bool, er
 	if rail.prop == "" {
 		return nil, false, nil
 	}
-	items, err := a.inbox.items.All()
+	// The store, not the cache: the rail reads on a change, which may come
+	// before the cache reloads.
+	items, err := a.inboxItems(false)
 	if err != nil {
 		return nil, true, err
 	}
-	now := a.inbox.items.Now()
-	var kept []actionitems.Item
-	for _, it := range items {
-		if it.Window == window && rail.keeps(it, now) {
-			kept = append(kept, it)
-		}
+	items = slices.DeleteFunc(slices.Clone(items), func(it actionitems.Item) bool { return it.Window != window })
+	needs, resolved := a.needsYouTables(items)
+	folds := resolved
+	if rail.needs {
+		folds = needs
 	}
+	now := a.inbox.items.Now()
 	var out []ochazuke.Thing
-	for _, fold := range foldActionItems(kept, a.actionLabel, rail.newest) {
-		t := a.actionItemThing(fold.item)
+	for _, f := range folds {
+		t := a.foldThing(f, now)
 		t[rail.prop] = window
-		t["folded"] = fold.count
-		t["title"] = a.railActionTitle(fold, now)
 		out = append(out, t)
 	}
 	return out, true, nil
 }
 
 // actionFold is a row of near-duplicate items: the newest stands for them
-// (its verbs act on it), oldest is when the first arrived.
+// (its verbs act on it); at is the time the row sorts by (its first
+// item's when oldest first, its newest's when newest first).
 type actionFold struct {
 	item   actionitems.Item
 	oldest int64
+	at     int64
 	count  int
 }
 
-// foldActionItems folds items of the same kind, source and label into one
-// row each, oldest first by their first arrival (newest first when newest).
-func foldActionItems(items []actionitems.Item, label func(actionitems.Item) string, newest bool) []actionFold {
+// foldActionItems folds items of the same pane, source, kind and label
+// into one row each, ordered by clock: oldest first by each row's first
+// item, or newest first by its newest.
+func foldActionItems(items []actionitems.Item, label func(actionitems.Item) string, clock func(actionitems.Item) int64, newest bool) []actionFold {
 	var folds []actionFold
 	at := map[string]int{}
 	for _, it := range items {
-		key := it.Source + "\x00" + it.Kind + "\x00" + label(it)
+		key := it.Window + "\x00" + it.Source + "\x00" + it.Kind + "\x00" + label(it)
+		c := clock(it)
 		i, ok := at[key]
 		if !ok {
 			at[key] = len(folds)
-			folds = append(folds, actionFold{item: it, oldest: it.Created, count: 1})
+			folds = append(folds, actionFold{item: it, oldest: it.Created, at: c, count: 1})
 			continue
 		}
 		f := &folds[i]
 		f.count++
 		f.oldest = min(f.oldest, it.Created)
+		if newest {
+			f.at = max(f.at, c)
+		} else {
+			f.at = min(f.at, c)
+		}
 		if it.Created > f.item.Created || it.Created == f.item.Created && it.ID > f.item.ID {
 			f.item = it
 		}
 	}
 	slices.SortStableFunc(folds, func(x, y actionFold) int {
 		if newest {
-			return cmp.Compare(y.item.Created, x.item.Created)
+			return cmp.Compare(y.at, x.at)
 		}
-		return cmp.Compare(x.oldest, y.oldest)
+		return cmp.Compare(x.at, y.at)
 	})
 	return folds
 }
 
-// railActionTitle is a rail row's label: what the item asks, the count of
-// the items it folds, and its age (the first one's, when folded).
+// railActionTitle is a folded row's label: what the item asks, the count
+// of the items it folds, and its age (the first one's, when folded).
 func (a *App) railActionTitle(f actionFold, now int64) string {
 	label := a.actionLabel(f.item)
 	if f.count > 1 {
@@ -469,4 +520,21 @@ func withColumns(cols, more map[string]tableColumn) map[string]tableColumn {
 		cols[k] = v
 	}
 	return cols
+}
+
+// inboxFolds reports whether a list request is grouped by an Items
+// grouping that folds (inbox.group needs-you): the store's List answers
+// it, folded and ordered.
+func (a *App) inboxFolds(q ochazuke.ListQuery) bool {
+	return a.inboxGrouping().fold && slices.Contains(q.GroupBy, inboxGroupProp)
+}
+
+// inboxItems are every action item: with cached, the inbox's domain cache
+// (read once per write, reloadInbox) when it is loaded, so a folded list
+// reads no table; else the store.
+func (a *App) inboxItems(cached bool) ([]actionitems.Item, error) {
+	if cached && a.inbox.all != nil {
+		return a.inbox.all, nil
+	}
+	return a.inbox.items.All()
 }

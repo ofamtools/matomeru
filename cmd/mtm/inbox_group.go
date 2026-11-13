@@ -23,10 +23,15 @@ import (
 //   - project: the item's project (its task's when it has one), then none.
 //   - source: where the item came from.
 //   - state: open, snoozed, archived.
+//   - needs-you (the default): two tables, Needs you (the panel's rule:
+//     open items in a queue category, oldest first by panes.sort-clock)
+//     over Resolved (every other item, newest first), near-duplicates
+//     folded to one row with a count (fold: the store's List answers).
 
 const (
 	settingInboxGroup = "inbox.group"
 	groupOwner        = "owner"
+	groupNeedsYou     = "needs-you"
 	groupNone         = "none"
 )
 
@@ -42,9 +47,15 @@ type inboxGrouping struct {
 	name               string
 	of                 func(a *App, it actionitems.Item, now int64) itemGroup
 	labelSQL, classSQL string
+	// fold answers the grouped list from the store's List, folded and in
+	// the group's own row order (inboxGroupOrderProp).
+	fold bool
 }
 
 var inboxGroupTable = []inboxGrouping{
+	{name: groupNeedsYou, of: (*App).groupByNeedsYou, fold: true,
+		labelSQL: `CASE WHEN state = 'open' AND COALESCE(json_extract(item, '$.seen_at'), 0) = 0 THEN 'Needs you' ELSE 'Resolved' END`,
+		classSQL: `CASE WHEN state = 'open' AND COALESCE(json_extract(item, '$.seen_at'), 0) = 0 THEN 0 ELSE 1 END`},
 	{name: groupOwner, of: (*App).groupByOwner,
 		labelSQL: `CASE WHEN window != '' AND (pane != '' OR NOT known) THEN pane_name WHEN task_id != '' THEN task WHEN project_id != '' THEN project WHEN window != '' THEN pane_name ELSE 'unassociated' END`,
 		classSQL: `CASE WHEN window != '' AND (pane != '' OR NOT known) THEN 0 WHEN task_id != '' THEN 1 WHEN project_id != '' THEN 2 WHEN window != '' THEN 3 ELSE 4 END`},
@@ -69,8 +80,8 @@ func inboxGroupNames() []string {
 
 func inboxGroupSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
-		{Name: settingInboxGroup, Type: ochazuke.SettingString, Default: groupOwner, Enum: inboxGroupNames(),
-			Description: "How the Inbox page's rows are grouped under headers: owner (pane, else task, else project, else unassociated), pane, project, source, state, or none for one flat table"},
+		{Name: settingInboxGroup, Type: ochazuke.SettingString, Default: groupNeedsYou, Enum: inboxGroupNames(),
+			Description: "How the Inbox page's rows are grouped under headers: needs-you (Needs you, oldest first, over Resolved, newest first, near-duplicates folded with a count), owner (pane, else task, else project, else unassociated), pane, project, source, state, or none for one flat table"},
 	}
 }
 
@@ -114,6 +125,15 @@ func (a *App) groupByOwner(it actionitems.Item, _ int64) itemGroup {
 	return itemGroup{"unassociated", 4}
 }
 
+// groupByNeedsYou is Needs you (class 0) or Resolved (1), by the panel's
+// membership rule.
+func (a *App) groupByNeedsYou(it actionitems.Item, now int64) itemGroup {
+	if a.needsYouItem(it, now, a.queueRanks()) {
+		return itemGroup{"Needs you", 0}
+	}
+	return itemGroup{"Resolved", 1}
+}
+
 func (a *App) groupByPane(it actionitems.Item, _ int64) itemGroup {
 	if it.Window == "" {
 		return itemGroup{"no pane", 2}
@@ -152,9 +172,12 @@ func (a *App) inboxGrouping() inboxGrouping {
 func (a *App) syncInboxGrouping() error {
 	var by []string
 	var sort []ochazuke.SortKey
-	if a.inboxGrouping().of != nil {
+	if g := a.inboxGrouping(); g.of != nil {
 		by = []string{inboxGroupProp}
 		sort = []ochazuke.SortKey{{Field: inboxGroupClassProp}}
+		if g.fold {
+			sort = append(sort, ochazuke.SortKey{Field: inboxGroupOrderProp})
+		}
 	}
 	view := a.inbox.list.ListView()
 	if !slices.Equal(view.Sort, sort) {

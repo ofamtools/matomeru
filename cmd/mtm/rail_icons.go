@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"ofam.dev/ochazuke"
@@ -114,5 +115,32 @@ func (a *App) decorateRail() {
 				a.r.UI().Error(fmt.Sprintf("rail icons: %v", err))
 			}
 		}
+	}
+}
+
+// syncRailArchived shows the archived things of the sections rail.archived
+// names (each section list's own view state, as a list's archived toggle
+// is) and reads the stack again when one changed.
+func (a *App) syncRailArchived() {
+	if a.rail == nil {
+		return
+	}
+	stack := a.rail.Stack()
+	stack.Key()
+	named := a.r.Settings().Strings(settingRailArchived)
+	changed := false
+	for _, section := range a.r.Children(stack.ID()) {
+		list := a.r.List(section.ID + "/list")
+		if list == nil {
+			continue
+		}
+		want := slices.Contains(named, strings.TrimPrefix(section.ID, stack.ID()+"/"))
+		if list.ShowsArchived() != want {
+			list.SetShowArchived(want)
+			changed = true
+		}
+	}
+	if changed {
+		stack.Refill()
 	}
 }

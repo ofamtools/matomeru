@@ -10,6 +10,7 @@ import (
 const (
 	inboxGroupProp      = "group"
 	inboxGroupClassProp = "group-class"
+	inboxGroupOrderProp = "group-order"
 	inboxGroupField     = "_group"
 )
 
