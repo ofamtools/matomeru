@@ -17,7 +17,7 @@ func TestProjectHueByRank(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	var ps []work.Project
-	for i := range ochazuke.PaletteSize {
+	for i := range ochazuke.PaletteSize() {
 		ps = append(ps, work.Project{ID: fmt.Sprintf("p%02d", i), Created: int64(100 + i)})
 	}
 	a.projects = ps
@@ -40,7 +40,7 @@ func TestProjectHueByRank(t *testing.T) {
 		}
 	}
 	if a.projectHue("late") != before["p00"] {
-		t.Fatalf("project %d does not rotate to the first tone", ochazuke.PaletteSize)
+		t.Fatalf("project %d does not rotate to the first tone", ochazuke.PaletteSize())
 	}
 	// Archiving keeps every colour.
 	a.projects[3].Archived = true
