@@ -20,5 +20,5 @@
   │                                │ │ › write to the agent                                                          │  
   ╰────────────────────────────────╯ ╰───────────────────────────────────────────────────────────────────────────────╯  
   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
-  enter live · d d pane.kill · m move · f hints · * pane.set · n pane.new · w saved.save · l copy mode · i prompt · s…  
+  enter live │ pane: d d kill · m move · f hints · * set · n new │ w saved.save · l copy mode · i prompt · space coll…  
                                                                                                                         

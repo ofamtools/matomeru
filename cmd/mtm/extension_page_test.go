@@ -182,7 +182,7 @@ func TestExtensionsPageFrame(t *testing.T) {
 	for _, want := range []string{"name", "status", "bin", "tabs", "nouns", "verbs", "registered",
 		"changed since registered (L refreshes)", "version 1.0 → 1.1", "+ verb item.archive",
 		"nouns and verbs", "item  list, archive, done, rename", "pages", "beta (from its nouns: item)",
-		"L extension.refresh", "d d extension.remove", "enter extension.open"} {
+		"extension: L refresh · d d remove · enter open"} {
 		if !strings.Contains(f, want) {
 			t.Errorf("frame lacks %q", want)
 		}

@@ -77,8 +77,8 @@ func TestExtensionCatalogAutoRefreshOptOut(t *testing.T) {
 	if err := a.r.SetFocus(extListID + "/fake"); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(frame(a), "extension.refresh") {
-		t.Fatal("stale row offers no refresh verb")
+	if f := frame(a); !strings.Contains(f, "extension: L refresh") {
+		t.Fatal("stale row offers no refresh verb\n" + f)
 	}
 	pressJob(t, a, "L")
 	if !hasOp(a, "fake.item.archive") || extStatus(a, "fake") != statusRegistered {

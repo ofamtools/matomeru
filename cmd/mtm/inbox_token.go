@@ -87,11 +87,11 @@ func (a *App) redrawInboxClock() error {
 	c := ochazuke.Ctx{Runtime: a.r}
 	for i := range items {
 		th, ok := items[i].Data.(ochazuke.Thing)
-		if !ok || items[i].Noun != actionItemNoun {
+		if !ok {
 			continue
 		}
 		if _, ok := th["_item"].(actionitems.Item); !ok {
-			continue
+			continue // a row that holds no item (a group's heading)
 		}
 		for col, p := range cols {
 			if col < len(items[i].Cells) {
