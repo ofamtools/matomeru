@@ -27,6 +27,9 @@ import (
 // item with no listed pane, the session tree) and both real extension
 // catalogs mounted (o-ai's quota catalog and o-lane's), so the vocabulary
 // and the lexicon read the full registry.
+//
+// serial: the checks pass RULECHECK_UPDATE on with t.Setenv, which a
+// parallel test cannot.
 func TestRules(t *testing.T) {
 	path := seeded(t)
 	for _, ext := range []struct{ name, catalog string }{
