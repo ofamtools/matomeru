@@ -96,6 +96,10 @@ panes/tree/list	session	visual-line	i	pane	1
 panes/tree/list	session	visual-line	l	pane	1
 panes/tree/list	session	visual-line	t	pane	1
 panes/tree/list	session	visual-line	w	pane	1
+panes/working/list	action-item	visual-line	y	subagent	1
+panes/working/list	action-item	visual-line	y esc	subagent	1
+panes/working/list	pane	visual-line	y	subagent	1
+panes/working/list	pane	visual-line	y esc	subagent	1
 projects	unassociated	normal	L	project	1
 projects	unassociated	normal	O	project	1
 projects	unassociated	normal	R	project	1
