@@ -230,7 +230,8 @@ func TestNeedsYouLeaderWInLive(t *testing.T) {
 // The keys on a Needs-you row reach what the row stands for, through mtm's
 // default key-redirect rows (bindings/rows.json), whatever the row's kind:
 // u on a pane row reads its first item and x archives it, so the row
-// leaves at once; * on an item row drawn under a pane stars the pane.
+// leaves at once; * on an item row drawn under a pane stars the pane,
+// while its own d d still deletes the item.
 // With the pane's redirect unbound in bindings.json, u is app undo again.
 func TestNeedsYouRowKeysReachItsItemAndPane(t *testing.T) {
 	t.Parallel()
@@ -256,6 +257,15 @@ func TestNeedsYouRowKeysReachItsItemAndPane(t *testing.T) {
 	keyAt(itemRowStart+itemByKey(t, a, "w").ID, "*")
 	if _, ok := starred(t, a)["wwait"]; !ok {
 		t.Fatalf("* on the item row: stars %+v", starred(t, a))
+	}
+	// The item row's own keys stay its own: d d deletes the item.
+	for _, b := range a.r.ListBindings(a.r.FocusID()) {
+		if b.Keys == "d d" {
+			if b.Request.Key() != actionItemNoun+".delete" {
+				t.Fatalf("d d on the item row: %s", b.Request.Key())
+			}
+			break
+		}
 	}
 	if _, err := a.r.LoadBindings([]byte(`{"bindings": [{"context": "pane/normal", "bindings": [{"key": "unbound", "unbind": true}]}]}`)); err != nil {
 		t.Fatal(err)
