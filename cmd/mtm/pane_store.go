@@ -226,10 +226,8 @@ func (a *App) paneCopyKey(key string) string {
 	for k := range a.copyFacts["pane"] {
 		ids = append(ids, k)
 	}
-	if copies, err := a.work.Copies("pane"); err == nil {
-		for _, c := range copies {
-			ids = append(ids, c.Key)
-		}
+	if keys, err := a.work.CopyKeys("pane"); err == nil {
+		ids = append(ids, keys...)
 	}
 	return uniqueID(id, ids)
 }

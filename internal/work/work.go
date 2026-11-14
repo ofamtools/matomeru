@@ -154,8 +154,11 @@ type Store struct {
 	// file and this process's relation writes are unchanged.
 	treesMu sync.Mutex
 	trees   treeCache
-	actor   Actor              // who writes run as (actor.go); zero is the owner
-	policy  func() AgentPolicy // what an agent may change; nil is the default
+	// copies are the copy rows as last read, kept while the copies table's
+	// version is unchanged (copies.go).
+	copies copyCache
+	actor  Actor              // who writes run as (actor.go); zero is the owner
+	policy func() AgentPolicy // what an agent may change; nil is the default
 	// statuses is the task status table (settings tasks.statuses); nil is
 	// DefaultStatuses (statuses.go).
 	statuses func() []StatusDef

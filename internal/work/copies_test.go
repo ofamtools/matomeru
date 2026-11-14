@@ -103,3 +103,69 @@ func TestCopiesPutListDelete(t *testing.T) {
 		t.Fatal("a noun with | was written")
 	}
 }
+
+// Reads of unchanged copies answer from the last whole read: no table read
+// until a copy is written, here or by another connection to the file, and
+// a caller's change to a returned copy never reaches the next read.
+func TestCopiesReadOncePerChange(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mtm.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.PutCopy("pane", "w1", "sock", map[string]any{"id": "w1", "name": "a", "tags": []any{"x"}}); err != nil {
+		t.Fatal(err)
+	}
+	reads := func() int64 { return db.FullReads(copiesTable) }
+	first, _ := w.Copies("pane")
+	before := reads()
+	for range 5 {
+		got, err := w.Copies("pane")
+		if err != nil || len(got) != 1 || got[0].Props["name"] != "a" {
+			t.Fatalf("copies: %+v %v", got, err)
+		}
+		if c, ok, _ := w.Copy("pane", "w1"); !ok || c.Props["name"] != "a" {
+			t.Fatalf("copy: %+v", c)
+		}
+		if keys, _ := w.CopyKeys("pane"); len(keys) != 1 || keys[0] != "w1" {
+			t.Fatalf("keys: %v", keys)
+		}
+	}
+	if got := reads() - before; got != 0 {
+		t.Fatalf("unchanged copies read the table %d times", got)
+	}
+	first[0].Props["name"] = "changed"
+	first[0].Props["tags"].([]any)[0] = "y"
+	if c, _, _ := w.Copy("pane", "w1"); c.Props["name"] != "a" || c.Props["tags"].([]any)[0] != "x" {
+		t.Fatalf("a caller's change reached the cache: %+v", c)
+	}
+	if err := w.PutCopy("pane", "w1", "sock", map[string]any{"id": "w1", "name": "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := w.Copies("pane"); got[0].Props["name"] != "b" {
+		t.Fatalf("after a write: %+v", got)
+	}
+	other, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	ow, err := Open(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ow.PutCopy("pane", "w2", "sock", map[string]any{"id": "w2"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := w.Copies("pane"); len(got) != 2 {
+		t.Fatalf("another connection's write was not seen: %+v", got)
+	}
+	if _, ok, _ := w.Copy("pane", "w2"); !ok {
+		t.Fatal("copy of another connection's write")
+	}
+}

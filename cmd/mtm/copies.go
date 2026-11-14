@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"time"
 
@@ -253,6 +254,21 @@ type copiedNoun struct {
 	// check, when set, refuses a write no copy can hold (a session with
 	// no name): the one refusal a copy keeps, before anything is written.
 	check func(changes ochazuke.Thing) error
+	// synced is what the last sync brought the copies to (syncCopies).
+	synced copySync
+}
+
+// copySync is the inputs a sync last ran on and the copies' version once
+// it had written: a sync with the same inputs over the same copies would
+// write nothing (it is idempotent), so it skips the per-copy pass.
+type copySync struct {
+	ver, here, holdNames string
+	sources              map[string]ochazuke.Thing
+}
+
+// same reports whether a sync with these inputs would repeat the last one.
+func (s copySync) same(ver, here, holdNames string, sources map[string]ochazuke.Thing) bool {
+	return s.sources != nil && s.ver == ver && s.here == here && s.holdNames == holdNames && reflect.DeepEqual(s.sources, sources)
 }
 
 // keep is what a copy row stores of t: the key, the ended props, the
@@ -523,11 +539,15 @@ func (a *App) syncCopies(c ochazuke.Ctx, cn *copiedNoun) ochazuke.Ctx {
 		a.copyFacts = map[string]map[string]ochazuke.Thing{}
 	}
 	a.copyFacts[cn.noun] = sources
+	here, holdNames := a.server(), cn.r.Settings().String(settingHoldNames)
+	if ver, err := a.work.CopiesVersion(); err == nil && cn.synced.same(ver, here, holdNames, sources) {
+		return c
+	}
 	copies, err := a.work.Copies(cn.noun)
 	if err != nil {
 		return c
 	}
-	here := a.server()
+	failed := false
 	for _, cp := range copies {
 		if cp.Source != here {
 			continue
@@ -558,8 +578,17 @@ func (a *App) syncCopies(c ochazuke.Ctx, cn *copiedNoun) ochazuke.Ctx {
 			continue
 		}
 		if err := a.work.PutCopy(cn.noun, cp.Key, cp.Source, next); err != nil {
+			failed = true
 			c.Error(fmt.Sprintf("%s %s: the copy was not updated: %v", cn.noun, cp.Key, err))
 		}
+	}
+	cn.synced = copySync{}
+	if ver, err := a.work.CopiesVersion(); err == nil && !failed {
+		kept := make(map[string]ochazuke.Thing, len(sources))
+		for k, t := range sources {
+			kept[k] = maps.Clone(t)
+		}
+		cn.synced = copySync{ver: ver, here: here, holdNames: holdNames, sources: kept}
 	}
 	return c
 }

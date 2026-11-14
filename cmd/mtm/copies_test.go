@@ -371,3 +371,36 @@ func TestPaneSetByWindowIDFromTheCLI(t *testing.T) {
 		t.Fatalf("the copy: %+v %v %v", c.Props, ok, err)
 	}
 }
+
+// The pane store's reads (each one syncs the copies) read the copies
+// table once per change, not once per call: a frame asks many times.
+func TestPaneReadsDoNotRereadUnchangedCopies(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	s := a.r.Noun("pane").Store
+	c := ochazuke.Ctx{Runtime: a.r}
+	read := func() {
+		if _, err := s.Get(c, "w1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.List(c, ochazuke.ListQuery{Args: ochazuke.Arguments{"all": true}}); err != nil {
+			t.Fatal(err)
+		}
+		a.paneCopyKey("w1")
+	}
+	read() // the first read may bring the copies to the listing
+	before := a.db.FullReads("copies")
+	for range 5 {
+		read()
+	}
+	if got := a.db.FullReads("copies") - before; got != 0 {
+		t.Fatalf("unchanged copies were read %d times", got)
+	}
+	if err := a.work.PutCopy("pane", "w9", a.server(), map[string]any{"id": "w9"}); err != nil {
+		t.Fatal(err)
+	}
+	read()
+	if a.db.FullReads("copies") == before {
+		t.Fatal("a written copy was not read again")
+	}
+}
