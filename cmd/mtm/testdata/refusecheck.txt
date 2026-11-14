@@ -1,0 +1,1159 @@
+# refusecheck baseline: file, function, class, template, count, reason (tab separated).
+# A row with a reason (E1..E5: rights, loses, failure, declaration, cancel) is a legitimate refusal that stays.
+# A row without one is debt that may only shrink: REFUSECHECK_UPDATE=1 removes rows and lowers counts, never adds.
+# Adding a row is a reviewed edit.
+cmd/mtm/action_item_store.go	App.actionItemProps	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/action_item_store.go	App.actionItemStore	K11	"Confirm: <expr> without Loses"	1
+cmd/mtm/action_item_store.go	App.actionItemStore	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/actor.go	App.cliActor	K14	"%s: %w; using the pane's actor"	1	failure
+cmd/mtm/actor.go	agentSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/agent_declarations.go	App.bindCatalogActors	K15	"Failed(…)"	1
+cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K15	"Failed(…)"	2
+cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K15	"task %s is at version %d, not %d; re-read it"	1
+cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K3	"summary is required to mark a task done"	1
+cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K3	"task id is required: the pane has no task"	1
+cmd/mtm/agent_verbs.go	App.documentReport	K15	"Failed(…)"	6
+cmd/mtm/agent_verbs.go	App.documentReport	K15	"path must be a regular file"	1
+cmd/mtm/agent_verbs.go	App.documentReport	K3	"path is required"	1
+cmd/mtm/agent_verbs.go	App.documentReport	K3	"path must name a .md or .html file"	1
+cmd/mtm/agent_verbs.go	App.documentReport	K4	"path must be absolute: the pane has no cwd"	1
+cmd/mtm/agent_verbs.go	App.paneWhoami	K15	"Failed(…)"	1
+cmd/mtm/capture.go	App.captureHook	K14	"read the hook payload: %w"	1	failure
+cmd/mtm/capture.go	App.captureHook	K15	"Failed(…)"	3
+cmd/mtm/capture.go	App.captureTurn	K14	"read the turn from stdin: %w"	1	failure
+cmd/mtm/capture.go	App.captureTurn	K14	"turn record: %w"	1	failure
+cmd/mtm/capture.go	App.captureTurn	K15	"Failed(…)"	2
+cmd/mtm/capture.go	App.defineCapture	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/clipboard.go	macClipboard.Read	K14	"the clipboard reader answered %q: %w"	1	failure
+cmd/mtm/clipboard.go	macClipboard.Read	K15	"errors.New(…)"	1
+cmd/mtm/clipboard.go	macClipboard.Read	K15	"reading images from the clipboard is macOS only (%s)"	1
+cmd/mtm/colors.go	pinColorsSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/context.go	App.contextAt	K5	"specify a context item id or select a row"	1
+cmd/mtm/context.go	App.copyContext	K15	"Failed(…)"	1
+cmd/mtm/context.go	App.copyOSC52	K14	"no clipboard: pbcopy is not available and there is no terminal for OSC 52: %w"	1	failure
+cmd/mtm/context.go	App.cycleContextKind	K15	"Failed(…)"	1
+cmd/mtm/context.go	App.leaveContextSearch	K15	"Failed(…)"	2
+cmd/mtm/context.go	App.leaveContextSearch	K15	"resultError(…)"	1
+cmd/mtm/context.go	App.openContext	K15	"Failed(…)"	1
+cmd/mtm/context.go	App.openTarget	K15	"Failed(…)"	1
+cmd/mtm/context.go	App.revealContext	K15	"Failed(…)"	1
+cmd/mtm/context.go	App.revealContext	K15	"reveal shows files and directories; this is a %s (o opens it, y copies it)"	1
+cmd/mtm/context.go	App.searchContext	K15	"Failed(…)"	1
+cmd/mtm/context.go	App.searchContext	K15	"resultError(…)"	1
+cmd/mtm/context.go	osSystem.Copy	K14	"pbcopy: %w: %s"	1	failure
+cmd/mtm/context_extract.go	App.extractContext	K10	"context extraction needs the TUIOS daemon"	1
+cmd/mtm/context_extract.go	App.extractContext	K14	"capture %s: %w"	1	failure
+cmd/mtm/context_extract.go	App.extractContext	K15	"Failed(…)"	1
+cmd/mtm/context_extract.go	App.extractContext	K15	"no pane %q"	1
+cmd/mtm/context_extract.go	App.extractContext	K3	"name the pane: --target pane:SESSION/WINDOW or --pane WINDOW"	1
+cmd/mtm/context_origins.go	var contextExtractSetting	K2	"unknown context origin %q"	1
+cmd/mtm/context_picker.go	App.copyPrompt	K15	"Failed(…)"	1
+cmd/mtm/context_picker.go	App.copyPrompt	K4	"no turn %s in window %s"	1
+cmd/mtm/context_picker.go	App.defineContextPicker	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/context_picker.go	App.openPromptTurn	K15	"Failed(…)"	7
+cmd/mtm/context_picker.go	App.openPromptTurn	K4	"the pane list has no %s"	1
+cmd/mtm/context_picker.go	App.pickContext	K15	"Failed(…)"	1
+cmd/mtm/context_picker.go	App.pickContext	K15	"no picker delivery %q (%s)"	1
+cmd/mtm/context_picker.go	App.pickContext	K15	"resultError(…)"	1
+cmd/mtm/context_picker.go	App.pickedPane	K15	"%v c works in a live pane"	1
+cmd/mtm/context_picker.go	App.pickerItem	K15	"no item is highlighted"	1
+cmd/mtm/context_picker.go	App.pickerItem	K9	"the context picker is not open"	1
+cmd/mtm/context_picker.go	App.pickerOpen	K15	"Failed(…)"	3
+cmd/mtm/context_picker.go	App.pickerOpen	K5	"a %s has nothing to open; enter copies it"	1
+cmd/mtm/context_picker.go	App.pickerReveal	K15	"Failed(…)"	2
+cmd/mtm/context_picker.go	App.pickerReveal	K15	"ctrl+r reveals files and directories; this is a %s (ctrl+o opens it, enter copies it)"	1
+cmd/mtm/context_picker.go	App.pickerReveal	K15	"ctrl+r reveals files and directories; this is a prompt (ctrl+o opens its turn, enter copies it)"	1
+cmd/mtm/context_picker.go	App.runOnItem	K15	"Failed(…)"	1
+cmd/mtm/context_picker.go	App.runOnPrompt	K15	"Failed(…)"	1
+cmd/mtm/context_picker.go	closeChooser	K15	"the chooser is not the top modal"	1
+cmd/mtm/context_store.go	App.associateContextOne	K15	"Failed(…)"	1
+cmd/mtm/context_store.go	App.contextProps	K2	"Enum without Accept: <expr>"	4
+cmd/mtm/context_store.go	App.contextStore	K11	"Confirm: <expr> without Loses"	1
+cmd/mtm/context_store.go	App.contextStore	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/context_store.go	App.createContextItem	K2	"type is required: one of %s"	1
+cmd/mtm/convert.go	App.converted	K15	"Failed(…)"	1
+cmd/mtm/convert.go	App.makeProject	K5	"select a task"	1
+cmd/mtm/convert.go	App.makeTask	K5	"select a project"	1
+cmd/mtm/convert.go	App.outlineDemote	K15	"Failed(…)"	1
+cmd/mtm/convert.go	App.outlinePromote	K3	"Name the task first: a project made here leaves this outline"	1
+cmd/mtm/convert.go	App.outlinePromote	K5	"select a task"	1
+cmd/mtm/copies.go	copySettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/copy_edges.go	copyEdgeSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/copybuf.go	copyBuf.findChar	K15	"%q is not on this line"	1
+cmd/mtm/copybuf.go	copyBuf.move	K15	"no bracket on this line"	1
+cmd/mtm/copybuf.go	copyBuf.move	K2	"unknown copy motion %q"	1
+cmd/mtm/copybuf.go	copyBuf.repeatFind	K15	"no f, F, t or T to repeat"	1
+cmd/mtm/copybuf.go	copyBuf.searchFrom	K15	"no search pattern"	1
+cmd/mtm/copybuf.go	copyBuf.searchFrom	K4	"pattern not found: %s"	1
+cmd/mtm/copymode.go	App.copyLeave	K15	"Failed(…)"	2
+cmd/mtm/copymode.go	App.copyLeave	K15	"resultError(…)"	3
+cmd/mtm/copymode.go	App.copyLive	K15	"copy mode is not on"	1
+cmd/mtm/copymode.go	App.copyLive	K15	"resultError(…)"	2
+cmd/mtm/copymode.go	App.copyOp	K15	"copy mode is not on"	1
+cmd/mtm/copymode.go	App.copySearch	K15	"copy mode is not on"	1
+cmd/mtm/copymode.go	App.copySearch	K15	"resultError(…)"	2
+cmd/mtm/copymode.go	App.copyYank	K15	"Failed(…)"	2
+cmd/mtm/copymode.go	App.copyYank	K15	"copy mode is not on"	1
+cmd/mtm/copymode.go	App.defineCopy	K15	"shape must be char, line or block"	1
+cmd/mtm/copymode.go	App.defineCopy	K2	"Enum without Accept: <expr>"	3
+cmd/mtm/copymode.go	App.enterTerminalCopy	K5	"no pane is attached"	1
+cmd/mtm/copymode.go	App.paneCopy	K15	"Failed(…)"	2
+cmd/mtm/copymode.go	App.paneCopy	K15	"resultError(…)"	1
+cmd/mtm/copymode.go	App.terminalCopy	K15	"resultError(…)"	1
+cmd/mtm/copymode.go	copyModeSettings	K15	"at least %d"	1
+cmd/mtm/copymode.go	keyChar	K8	"%s is not a character"	1
+cmd/mtm/daemon_import.go	App.daemonImportStateVerb	K15	"Failed(…)"	1
+cmd/mtm/daemon_import.go	App.importOptions	K3	"daemon.import-state needs a named mtm server (-server NAME), not -socket or -server default: it imports into that server's state"	1
+cmd/mtm/daemon_runner.go	App.daemonServeVerb	K1	"this mtm is built with -tags nodaemon: no daemon to serve"	1
+cmd/mtm/daemon_runner.go	App.daemonServeVerb	K15	"daemon exited with status %d"	1
+cmd/mtm/daemon_runner.go	App.daemonServeVerb	K3	"daemon.serve needs a named server (-server NAME), not -socket or -server default"	1
+cmd/mtm/daemon_runner.go	App.runner	K1	"daemon runner %q is not built into this mtm (-tags nodaemon); use %s"	1
+cmd/mtm/daemon_runner.go	App.runner	K15	"unknown daemon runner %q (%s)"	1
+cmd/mtm/daemon_runner.go	App.stopDaemon	K15	"the daemon reported no pid"	1
+cmd/mtm/daemon_runner.go	daemonSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/daily_focus.go	App.focusAdd	K15	"Failed(…)"	1
+cmd/mtm/daily_focus.go	App.focusAdd	K3	"name a thing (task:ID); # opens the focus picker"	1
+cmd/mtm/daily_focus.go	App.focusClear	K15	"Failed(…)"	4
+cmd/mtm/daily_focus.go	App.focusDate	K15	"date %q is not YYYY-MM-DD"	1
+cmd/mtm/daily_focus.go	App.focusMove	K15	"%s is not in the focus of %s"	1
+cmd/mtm/daily_focus.go	App.focusMove	K15	"Failed(…)"	4
+cmd/mtm/daily_focus.go	App.focusOpen	K15	"Failed(…)"	1
+cmd/mtm/daily_focus.go	App.focusOpen	K4	"%s has no open verb"	1
+cmd/mtm/daily_focus.go	App.focusRemove	K15	"Failed(…)"	1
+cmd/mtm/daily_focus.go	App.focusRemove	K3	"name a thing (task:ID); on a focus row, archive unfocuses it"	1
+cmd/mtm/daily_focus.go	App.focusRow	K15	"Failed(…)"	2
+cmd/mtm/daily_focus.go	App.focusRow	K5	"no %s is selected"	1
+cmd/mtm/daily_focus.go	App.focusStore	K15	"no focus %q"	2
+cmd/mtm/daily_focus.go	App.focusStore	K3	"a focus needs a thing (noun:key)"	1
+cmd/mtm/daily_focus.go	App.openFocusPicker	K15	"resultError(…)"	2
+cmd/mtm/daily_focus.go	focusPlace	K15	"to %q is not +N, -N or a place N"	1
+cmd/mtm/daily_focus.go	focusSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/detail_links.go	App.followLink	K15	"resultError(…)"	5
+cmd/mtm/detail_links.go	App.followLink	K15	"unknown link kind %q"	1
+cmd/mtm/detail_links.go	App.followLink	K8	"%s is not a link"	1
+cmd/mtm/detail_links.go	App.jumpDirectory	K8	"%s is not a known directory"	1
+cmd/mtm/detail_links.go	App.jumpPane	K4	"the pane list has no %s"	1
+cmd/mtm/detail_links.go	App.jumpProject	K15	"no project %s"	1
+cmd/mtm/detail_links.go	App.jumpRow	K15	"%s is not on the %s page (outside the pin?)"	1
+cmd/mtm/details.go	var relatedHiddenSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/directories.go	App.addBase	K3	"path is required"	1
+cmd/mtm/directories.go	App.addBasePath	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.attachBrowsedDirectory	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.attachBrowsedDirectory	K15	"type or pick a directory"	1
+cmd/mtm/directories.go	App.attachDefaultDirectory	K15	"Failed(…)"	2
+cmd/mtm/directories.go	App.attachDirectory	K15	"Failed(…)"	2
+cmd/mtm/directories.go	App.attachOrAsk	K15	"Failed(…)"	2
+cmd/mtm/directories.go	App.attachOrAsk	K15	"resultError(…)"	1
+cmd/mtm/directories.go	App.browseFor	K15	"Failed(…)"	2
+cmd/mtm/directories.go	App.browseFor	K15	"resultError(…)"	1
+cmd/mtm/directories.go	App.cancelBrowse	K15	"resultError(…)"	1
+cmd/mtm/directories.go	App.changeBase	K15	"depth must be positive"	1
+cmd/mtm/directories.go	App.chooseDirectory	K5	"no directory selected"	1
+cmd/mtm/directories.go	App.defaultDirRow	K15	"Failed(…)"	3
+cmd/mtm/directories.go	App.defineDirectories	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.dirRowAt	K5	"no directory selected"	2
+cmd/mtm/directories.go	App.editDirRow	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.editDirRow	K15	"resultError(…)"	1
+cmd/mtm/directories.go	App.leaveDirectorySearch	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.leaveDirectorySearch	K15	"resultError(…)"	1
+cmd/mtm/directories.go	App.manifestDirs	K14	"o-proj list: %w"	2	failure
+cmd/mtm/directories.go	App.removeBase	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.removeBaseRow	K15	"this base comes from MTM_PROJECT_BASE_DIRS; unset it to edit bases here"	1
+cmd/mtm/directories.go	App.removeBaseRow	K5	"no base selected"	1
+cmd/mtm/directories.go	App.removeDirRow	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.rescan	K15	"resultError(…)"	1
+cmd/mtm/directories.go	App.scanKnownDirectories	K1	"Unavailable: <expr>"	1
+cmd/mtm/directories.go	App.searchDirectories	K15	"Failed(…)"	1
+cmd/mtm/directories.go	App.searchDirectories	K15	"resultError(…)"	1
+cmd/mtm/directory_add.go	App.chooseCreation	K15	"Failed(…)"	1
+cmd/mtm/directory_add.go	App.chooseCreation	K15	"resultError(…)"	3
+cmd/mtm/directory_add.go	App.defineDirectoryCreation	K15	"resultError(…)"	1
+cmd/mtm/directory_add.go	App.editDirectoryFields	K15	"Failed(…)"	2
+cmd/mtm/directory_noun.go	App.defaultDirectoryRecord	K15	"Failed(…)"	1
+cmd/mtm/directory_noun.go	App.makeDirectoryProjects	K8	"%s is not a scanned Git repository candidate"	1
+cmd/mtm/directory_noun.go	App.retargetDirectory	K9	"directory %s is already recorded"	1
+cmd/mtm/directory_noun.go	App.writeDirectory	K15	"depth must be zero (directory) or positive (scan base)"	1
+cmd/mtm/directory_registry.go	App.initializeDirectoryList	K15	"project base depth must be positive"	1
+cmd/mtm/directory_registry.go	App.putDirectoryRecord	K15	"depth must be zero (directory) or positive (scan base)"	1
+cmd/mtm/directory_scan.go	directoryIO.run	K15	"filesystem timed out"	1
+cmd/mtm/directory_scan.go	directoryIO.run	K15	"filesystem workers busy"	1
+cmd/mtm/doc_forms.go	App.defineDocForms	K15	"resultError(…)"	1
+cmd/mtm/editor.go	App.openDraft	K15	"resultError(…)"	1
+cmd/mtm/editor.go	App.openDraft	K4	"%s %s has no draft"	1
+cmd/mtm/editor.go	App.openDraft	K5	"no draft selected"	1
+cmd/mtm/editor.go	App.openEditor	K15	"resultError(…)"	1
+cmd/mtm/editor.go	App.recordValues	K15	"unknown editor noun %v"	1
+cmd/mtm/editor.go	App.storeRecord	K15	"unknown editor noun %v"	1
+cmd/mtm/editor.go	resultError	K15	"Failed(…)"	1
+cmd/mtm/extension_callbacks.go	App.callbackActor	K14	"invalid OCHAZUKE_HOST_CHAIN: %w"	1	failure
+cmd/mtm/extension_callbacks.go	App.callbackActor	K15	"host call depth %d > %d: %s"	1
+cmd/mtm/extension_callbacks.go	App.callbackActor	K15	"invalid OCHAZUKE_HOST_DEPTH %q"	1
+cmd/mtm/extension_callbacks.go	App.runCallback	K4	"a host callback has no terminal"	1
+cmd/mtm/extension_context.go	App.askNounParam	K15	"resultError(…)"	1
+cmd/mtm/extension_discover.go	extProbe.answer	K15	"errors.New(…)"	1
+cmd/mtm/extension_host.go	var extHostSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/extension_names.go	App.extNamingFor	K15	"namespace of %q is %q"	1
+cmd/mtm/extension_names.go	App.extNamingFor	K15	"nouns keep the %s spelling: %v"	1
+cmd/mtm/extension_names.go	var extNounNamesSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/extension_page.go	App.openExtension	K15	"Failed(…)"	1
+cmd/mtm/extension_page.go	App.openExtension	K4	"extension %s has no tab: register it first"	1
+cmd/mtm/extension_peers.go	var extPeerSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/extension_pool.go	App.closeExtPools	K15	"mtm is closing"	1
+cmd/mtm/extension_pool.go	App.findConnection	K15	"no connection %s (extension-connection all lists them)"	1
+cmd/mtm/extension_pool.go	App.findConnection	K3	"name a connection (extension-connection show EXTENSION/PID) or select its row"	1
+cmd/mtm/extension_pool.go	App.restartExtConnections	K13	"%s keeps no processes (its catalog declares no serve protocol, or extensions.transport is exec)"	1	declaration
+cmd/mtm/extension_pool.go	App.restartExtConnections	K15	"Failed(…)"	1
+cmd/mtm/extension_pool.go	App.showExtConnection	K15	"Failed(…)"	1
+cmd/mtm/extension_pool.go	App.yankExtConnection	K15	"Failed(…)"	2
+cmd/mtm/extension_pool.go	atLeastOne	K15	"must be 1 or more"	1
+cmd/mtm/extension_pool.go	extPool.read	K15	"exit status %d"	1
+cmd/mtm/extension_pool.go	var extPoolSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/extension_scope.go	App.declareExtScope	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/extension_setup.go	App.extensionSetupPlan	K15	"Failed(…)"	1
+cmd/mtm/extension_setup.go	App.extensionSetupStatus	K15	"Failed(…)"	1
+cmd/mtm/extension_setup.go	App.runSetup	K15	"Failed(…)"	1
+cmd/mtm/extension_setup.go	App.setupTargetOf	K13	"extension %s declares no setup"	1	declaration
+cmd/mtm/extension_setup.go	App.setupTargetOf	K15	"extension %s: give NAME"	1
+cmd/mtm/extension_setup.go	parseSetupPlan	K14	"setup plan: %w"	1	failure
+cmd/mtm/extensions.go	App.extProxy	K15	"Failed(…)"	2
+cmd/mtm/extensions.go	App.extRun	K15	"Failed(…)"	2
+cmd/mtm/extensions.go	App.listExtensions	K15	"Failed(…)"	1
+cmd/mtm/extensions.go	App.mountExtension	K4	"%s has no key prop"	1
+cmd/mtm/extensions.go	App.refreshExtension	K14	"%s: %w"	1	failure
+cmd/mtm/extensions.go	App.refreshExtension	K15	"Failed(…)"	2
+cmd/mtm/extensions.go	App.refreshExtension	K15	"no catalog"	1
+cmd/mtm/extensions.go	App.registerExtension	K15	"Failed(…)"	1
+cmd/mtm/extensions.go	App.registerExtension	K7	"extension name %q: use lowercase letters, digits and dashes"	1
+cmd/mtm/extensions.go	App.removeExtension	K15	"Failed(…)"	4
+cmd/mtm/extensions.go	App.removeExtension	K15	"extension remove: give NAME"	1
+cmd/mtm/extensions.go	execExtWatch	K14	"%s %s watch: %w"	1	failure
+cmd/mtm/extensions.go	extFailed	K14	"%s failed: %w"	1	failure
+cmd/mtm/extensions.go	extFailed	K14	"%s failed: %w: %s"	1	failure
+cmd/mtm/extensions.go	extHistoryKind	K15	"declares history %q, not action, change or fetch; recording it as a change"	1
+cmd/mtm/extensions.go	extRegistry.Read	K14	"%s: %w"	1	failure
+cmd/mtm/extensions.go	extRegistry.Read	K15	"extension %s is not registered"	1
+cmd/mtm/extensions.go	extRegistry.remove	K15	"extension %s is not registered"	1
+cmd/mtm/extensions.go	parseExtCatalog	K14	"%s catalog: %w"	1	failure
+cmd/mtm/extensions.go	parseExtCatalog	K14	"%s catalog: not a JSON object: %w"	1	failure
+cmd/mtm/extensions.go	parseExtCatalog	K15	"%s catalog: schema %d, mtm reads schema %d"	1
+cmd/mtm/extensions.go	parseExtCatalog	K3	"%s catalog: missing required field %q"	1
+cmd/mtm/extensions.go	parseExtCatalog	K4	"%s catalog: noun %s verbs[%d] has no name"	1
+cmd/mtm/extensions.go	parseExtCatalog	K4	"%s catalog: nouns[%d] has no name"	1
+cmd/mtm/extensions.go	resolveExtBin	K14	"bin %s: %w"	1	failure
+cmd/mtm/guide.go	App.agentGuide	K15	"guide topic %v: %v"	1
+cmd/mtm/guide.go	App.agentGuide	K15	"no guide topic %q; topics: %s"	1
+cmd/mtm/guide.go	App.defineGuideVerb	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/inbox.go	App.actionItemAt	K5	"specify an action item id or select an inbox row"	1
+cmd/mtm/inbox.go	App.addActionItem	K15	"Failed(…)"	2
+cmd/mtm/inbox.go	App.associateActionItemOne	K15	"Failed(…)"	2
+cmd/mtm/inbox.go	App.countActionItems	K15	"Failed(…)"	1
+cmd/mtm/inbox.go	App.inboxChanged	K15	"Failed(…)"	1
+cmd/mtm/inbox.go	App.openActionItem	K15	"Failed(…)"	2
+cmd/mtm/inbox.go	App.openActionItem	K4	"%s has no URL to open; it is marked read"	1
+cmd/mtm/inbox.go	App.promoteActionItem	K14	"parent task %s: %w"	1	failure
+cmd/mtm/inbox.go	App.promoteActionItem	K15	"%s was already promoted (task %s)"	1
+cmd/mtm/inbox.go	App.promoteActionItem	K15	"Failed(…)"	4
+cmd/mtm/inbox.go	App.snoozeActionItem	K15	"Failed(…)"	2
+cmd/mtm/inbox.go	App.snoozeOne	K15	"Failed(…)"	3
+cmd/mtm/inbox.go	App.snoozeOne	K15	"snooze needs --for (90m, 4h, 2d, 1w) or --until (a time)"	1
+cmd/mtm/inbox.go	parseSpan	K15	"--for %q: want 90m, 4h, 2d or 1w"	2
+cmd/mtm/inbox.go	parseUntil	K15	"--until %q: want RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"	1
+cmd/mtm/inbox_group.go	inboxGroupSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/inbox_notify.go	App.notifyActionItems	K15	"Failed(…)"	1
+cmd/mtm/inbox_notify.go	inboxNotifySettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/launch.go	App.defineLaunch	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/launch.go	App.execHarness	K14	"task %s: %w"	1	failure
+cmd/mtm/launch.go	App.launch	K15	"Failed(…)"	2
+cmd/mtm/launch.go	App.launchRecord	K15	"Failed(…)"	1
+cmd/mtm/launch.go	App.launchRecord	K15	"resultError(…)"	1
+cmd/mtm/launch.go	App.listModels	K15	"Failed(…)"	1
+cmd/mtm/launch.go	App.newPane	K15	"Failed(…)"	1
+cmd/mtm/launch.go	App.projectDirectories	K15	"Failed(…)"	1
+cmd/mtm/launch.go	App.shellIn	K15	"Failed(…)"	1
+cmd/mtm/launch.go	App.start	K15	"Failed(…)"	1
+cmd/mtm/launch.go	App.startAgent	K14	"launch %s: %w"	1	failure
+cmd/mtm/launch.go	App.startAgent	K14	"launch: %w"	2	failure
+cmd/mtm/launch.go	App.startAgent	K14	"task %s: %w"	1	failure
+cmd/mtm/launch.go	App.startProject	K15	"project %s is not loaded"	1
+cmd/mtm/launch.go	App.startShell	K14	"new pane: %w"	1	failure
+cmd/mtm/launch.go	var driveParam	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/launch_owner.go	App.launchJob	K14	"launch %s into %s: %w"	1	failure
+cmd/mtm/launch_owner.go	App.launchJob	K14	"new pane in %s: %w"	1	failure
+cmd/mtm/launch_owner.go	App.launchJob	K14	"pane %s is open; listing panes failed: %w"	1	failure
+cmd/mtm/launch_owner.go	creationRecorder.Call	K14	"session %s exists but owner was not saved; associate it: %w"	1	failure
+cmd/mtm/launch_owner.go	recordingDriver.OpenWindow	K14	"directory recency: %w"	1	failure
+cmd/mtm/launch_owner.go	recordingDriver.OpenWindow	K14	"pane %s is open but owner was not saved; associate it: %w"	1	failure
+cmd/mtm/licenses.go	App.licenseAll	K15	"Failed(…)"	1
+cmd/mtm/licenses.go	App.licenseShow	K14	"%s %s: %w"	1	failure
+cmd/mtm/licenses.go	App.licenseShow	K15	"Failed(…)"	1
+cmd/mtm/licenses.go	App.licenseShow	K4	"no linked module matches %q (license.all lists them)"	1
+cmd/mtm/licenses.go	linkedNotices	K14	"licence data: %w"	1	failure
+cmd/mtm/live_hints.go	App.beginHints	K15	"Failed(…)"	1
+cmd/mtm/live_hints.go	App.defineLiveHints	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/live_hints.go	App.hintTerminal	K15	"%v f works in a live pane"	1
+cmd/mtm/live_hints.go	App.pressHint	K15	"resultError(…)"	1
+cmd/mtm/live_hints.go	App.rowHints	K15	"Failed(…)"	1
+cmd/mtm/live_hints.go	App.startHints	K15	"Failed(…)"	1
+cmd/mtm/live_hints.go	App.startRowHints	K15	"Failed(…)"	2
+cmd/mtm/live_hints.go	App.startRowHints	K5	"f works on a pane row"	1
+cmd/mtm/live_scroll.go	App.defineLiveScroll	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/live_scroll.go	App.terminalScroll	K15	"Failed(…)"	1
+cmd/mtm/live_scroll.go	App.terminalScroll	K15	"resultError(…)"	2
+cmd/mtm/livescreen.go	liveScreen.apply	K15	"terminal emulator: %v"	1
+cmd/mtm/main.go	App.openProject	K15	"Failed(…)"	3
+cmd/mtm/main.go	App.openProject	K15	"project %s is not loaded"	1
+cmd/mtm/main.go	New	K14	"harnesses: %w"	1	failure
+cmd/mtm/main.go	Options.home	K15	"HOME is not set"	1
+cmd/mtm/mcp.go	App.defineMCPCommand	K15	"%v"	1
+cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp %s (unexpected %q)"	1
+cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp config [HARNESS]"	1
+cmd/mtm/mcp_ops.go	App.addContextText	K15	"Failed(…)"	3
+cmd/mtm/mcp_ops.go	App.addContextText	K3	"text is required"	1
+cmd/mtm/mcp_ops.go	App.defineMCPOperations	K2	"Enum without Accept: <expr>"	3
+cmd/mtm/mcp_ops.go	App.paneArgs	K15	"%s is bound to this agent's startup pane; ask the owner or coordinator to act for another pane"	1
+cmd/mtm/mcp_ops.go	App.paneProgress	K10	"pane progress needs the TUIOS daemon"	1
+cmd/mtm/mcp_ops.go	App.paneProgress	K14	"set-agent-state %s: %w"	1	failure
+cmd/mtm/mcp_ops.go	App.paneProgress	K15	"Failed(…)"	1
+cmd/mtm/mcp_ops.go	App.paneProgress	K3	"message is required"	1
+cmd/mtm/mcp_ops.go	App.paneProgress	K3	"name the pane: --window WINDOW, or run in a TUIOS pane"	1
+cmd/mtm/needs_you.go	App.cycleNeedsYou	K15	"Failed(…)"	6
+cmd/mtm/needs_you.go	App.nextNeedsYou	K15	"Failed(…)"	1
+cmd/mtm/needs_you.go	needsYouSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/note_store.go	App.noteStore	K15	"no note %q"	1
+cmd/mtm/note_store.go	App.patchNote	K15	"no note %q"	1
+cmd/mtm/note_store.go	App.removeNote	K15	"no note %q"	1
+cmd/mtm/notes.go	App.chooseMove	K5	"select a row to move"	1
+cmd/mtm/notes.go	App.editNote	K15	"Failed(…)"	4
+cmd/mtm/notes.go	App.newNote	K15	"Failed(…)"	6
+cmd/mtm/notes.go	App.selectedNote	K5	"no note selected"	1
+cmd/mtm/notes.go	App.viewNote	K15	"Failed(…)"	5
+cmd/mtm/notify.go	App.notificationSender	K15	"errors.New(…)"	2
+cmd/mtm/notify.go	App.notificationSender	K5	"no terminal output is attached"	1
+cmd/mtm/notify.go	notifySettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/outline.go	App.defineOutline	K1	"When(\"outline-top-task\") without Fallback"	1
+cmd/mtm/outline.go	App.defineOutline	K15	"Projects keep their creation order"	2
+cmd/mtm/outline.go	App.defineOutline	K15	"errors.New(…)"	1
+cmd/mtm/outline.go	App.defineOutline	K15	"no project stays at the top level"	1
+cmd/mtm/outline.go	App.defineOutline	K15	"no project stays last"	2
+cmd/mtm/outline.go	App.defineOutline	K15	"resultError(…)"	1
+cmd/mtm/outline.go	App.defineOutline	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot be deleted"	1
+cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot be renamed"	1
+cmd/mtm/outline.go	App.openOutline	K15	"Failed(…)"	1
+cmd/mtm/outline.go	App.openOutline	K4	"unknown project %s"	1
+cmd/mtm/outline.go	App.openOutline	K5	"select a project or task"	1
+cmd/mtm/outline.go	App.openTodos	K15	"Failed(…)"	1
+cmd/mtm/outline.go	App.openTodos	K15	"resultError(…)"	1
+cmd/mtm/outline.go	App.openTodos	K15	"the outline is open under another modal"	1
+cmd/mtm/outline.go	App.outlineChooseMove	K15	"Failed(…)"	3
+cmd/mtm/outline.go	App.outlineChooseMove	K5	"select a task to move"	1
+cmd/mtm/outline.go	App.outlineChooseMove	K9	"the outline is not open"	1
+cmd/mtm/outline.go	App.outlineConfirmDeleteProject	K15	"Failed(…)"	2
+cmd/mtm/outline.go	App.outlineDeleteProject	K15	"Failed(…)"	3
+cmd/mtm/outline.go	App.outlineProject	K4	"unknown project %s"	1
+cmd/mtm/outline.go	App.outlineProject	K5	"select a project"	1
+cmd/mtm/outline.go	App.outlineStatus	K15	"Failed(…)"	1
+cmd/mtm/outline.go	App.outlineStatus	K15	"resultError(…)"	1
+cmd/mtm/outline.go	App.outlineTask	K5	"select a task: x and s set a task's status"	1
+cmd/mtm/outline.go	App.outlineTask	K9	"the outline is not open"	1
+cmd/mtm/outline.go	App.outlineTaskOf	K5	"select a task: x and s set a task's status"	1
+cmd/mtm/outline.go	App.outlineTaskOf	K9	"the outline is not open"	1
+cmd/mtm/outline.go	App.outlineTaskStandard	K5	"select a task to %s"	1
+cmd/mtm/outline.go	App.outlineTaskStatus	K15	"Failed(…)"	4
+cmd/mtm/outline.go	App.outlineTaskStatus	K15	"resultError(…)"	2
+cmd/mtm/outline.go	App.outlineTaskToggle	K15	"Failed(…)"	1
+cmd/mtm/outline.go	App.outlineToggle	K15	"Failed(…)"	1
+cmd/mtm/outline.go	App.showOutline	K14	"A task stays under a project: %w"	1	failure
+cmd/mtm/outline.go	App.showOutline	K15	"Failed(…)"	5
+cmd/mtm/outline.go	App.toggleOutlineTask	K15	"Failed(…)"	3
+cmd/mtm/outline.go	App.writeProjectRow	K14	"A task stays under a project: %w"	1	failure
+cmd/mtm/outline.go	App.writeProjectRow	K4	"unknown project %s"	1
+cmd/mtm/outline_attach.go	App.defineOutlineAttachments	K1	"When(\"task-image-input\") without Fallback"	2
+cmd/mtm/outline_attach.go	App.detachTaskImage	K15	"Failed(…)"	1
+cmd/mtm/outline_attach.go	App.detachTaskImage	K15	"edit a task to remove an image"	1
+cmd/mtm/outline_attach.go	App.detachTaskImage	K15	"no image %d in the task"	1
+cmd/mtm/outline_attach.go	App.detachTaskImage	K15	"resultError(…)"	1
+cmd/mtm/outline_attach.go	App.detachTaskImage	K4	"the task has no attachments"	1
+cmd/mtm/outline_attach.go	App.detachTaskImage	K9	"the task editor has closed"	1
+cmd/mtm/outline_attach.go	App.pasteTaskImage	K15	"edit a task to attach an image"	1
+cmd/mtm/outline_attach.go	App.pasteTaskImage	K15	"no clipboard reader"	1
+cmd/mtm/outline_attach.go	App.taskAttachments	K15	"edit a task to remove an image"	1
+cmd/mtm/outline_relate.go	App.outlineAssociate	K3	"name the thing to associate (%v); C chooses a context item"	1
+cmd/mtm/outline_relate.go	App.outlineAssociate	K5	"select a task"	1
+cmd/mtm/outline_relate.go	App.outlineAttachContext	K15	"Failed(…)"	3
+cmd/mtm/outline_relate.go	App.outlineAttachContext	K5	"select a task to attach context to"	1
+cmd/mtm/owners.go	App.associateTaskOne	K15	"Failed(…)"	2
+cmd/mtm/pane_activity.go	App.copyActivity	K15	"Failed(…)"	1
+cmd/mtm/pane_activity.go	App.openActivity	K15	"Failed(…)"	1
+cmd/mtm/pane_activity.go	activityAt	K5	"no subagent selected"	1
+cmd/mtm/pane_activity.go	paneActivitySettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pane_border.go	paneBorderSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pane_children.go	paneChildSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/pane_children.go	paneChildSettings	K2	"child %q: one of %s"	1
+cmd/mtm/pane_hue.go	App.assignProjectColors	K14	"color project %s: %w"	1	failure
+cmd/mtm/pane_picker.go	App.openPanePicker	K15	"Failed(…)"	1
+cmd/mtm/pane_rail.go	railSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pane_settings.go	App.applySetting	K10	"changing a setting needs the TUIOS daemon"	1
+cmd/mtm/pane_settings.go	App.applySetting	K15	"%s takes %s: %s"	1
+cmd/mtm/pane_settings.go	App.applySetting	K15	"Failed(…)"	1
+cmd/mtm/pane_settings.go	App.applySetting	K15	"the agent is working: %s steps with %s, which would act on the running turn; change it once the agent rests"	1
+cmd/mtm/pane_settings.go	App.applySetting	K15	"the agent waits on you: answer it first (enter on its row attaches it), then change the setting"	1
+cmd/mtm/pane_settings.go	App.applySetting	K9	"%s has exited"	1
+cmd/mtm/pane_settings.go	App.changePaneSetting	K15	"%s is read from the session; nothing changes it here"	1
+cmd/mtm/pane_settings.go	App.confirmSetting	K15	"Failed(…)"	1
+cmd/mtm/pane_settings.go	App.focusPaneSettings	K15	"Failed(…)"	3
+cmd/mtm/pane_settings.go	App.focusPaneSettings	K15	"the pane shows no settings"	1
+cmd/mtm/pane_settings.go	App.openSettingChooser	K15	"resultError(…)"	1
+cmd/mtm/pane_settings.go	App.readCodexSettings	K15	"Failed(…)"	1
+cmd/mtm/pane_settings.go	App.setPaneSetting	K15	"Failed(…)"	2
+cmd/mtm/pane_settings.go	App.settingOf	K15	"mtm knows no harness profile for %s"	1
+cmd/mtm/pane_settings.go	App.settingOf	K4	"%s has no in-session command for %s: set it at launch, or add a settings row for it in harnesses.json"	1
+cmd/mtm/pane_settings.go	App.settingsBack	K15	"Failed(…)"	1
+cmd/mtm/pane_settings.go	App.showPaneSettings	K15	"Failed(…)"	1
+cmd/mtm/pane_settings.go	App.stepSetting	K10	"changing a setting needs the TUIOS daemon"	1
+cmd/mtm/pane_settings.go	App.stepSetting	K15	"%s never showed %s %s after a round of %s: the session does not offer it"	1
+cmd/mtm/pane_settings.go	App.stepSetting	K15	"Failed(…)"	1
+cmd/mtm/pane_settings.go	App.togglePaneFast	K15	"Failed(…)"	1
+cmd/mtm/pane_signals.go	commandSettings	K15	"at least 1 minute"	1
+cmd/mtm/pane_signals.go	commandSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pane_stars.go	App.cycleStarred	K15	"Failed(…)"	3
+cmd/mtm/pane_stars.go	App.nextStarred	K15	"Failed(…)"	1
+cmd/mtm/pane_stars.go	App.starLive	K5	"no pane attached"	1
+cmd/mtm/pane_store.go	App.associatePaneOne	K15	"Failed(…)"	1
+cmd/mtm/pane_store.go	App.paneStore	K4	"unknown pane %q"	1
+cmd/mtm/pane_store.go	App.patchPane	K15	"pane %s is no longer listed by the daemon"	1
+cmd/mtm/pane_store.go	App.patchPane	K15	"the daemon no longer lists it"	1
+cmd/mtm/pane_store.go	App.patchPane	K3	"name the pane (its row id or window id)"	1
+cmd/mtm/pane_store.go	App.patchPane	K5	"pane %s is not listed: name it by its row id (pane:SESSION/WINDOW) to rename it"	1
+cmd/mtm/pane_store.go	App.relatePane	K3	"name the pane (its row id or window id)"	1
+cmd/mtm/pane_store.go	App.renameWindow	K15	"pane %s is no longer available; name not saved"	1
+cmd/mtm/pane_task.go	App.openTaskPicker	K15	"Failed(…)"	3
+cmd/mtm/pane_task.go	App.openTaskPicker	K15	"type the new task's title"	1
+cmd/mtm/pane_task.go	App.pickPaneTask	K15	"Failed(…)"	1
+cmd/mtm/pane_task.go	App.pickPaneTask	K15	"resultError(…)"	1
+cmd/mtm/pane_task.go	var afterSubmitModeSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pane_task.go	var afterSubmitSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pane_view.go	App.definePaneView	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pane_view.go	App.setPaneView	K15	"Failed(…)"	4
+cmd/mtm/pane_view.go	App.setPaneView	K3	"give a view: %s or %s"	1
+cmd/mtm/pane_view.go	agentViewSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/panes.go	App.attachPane	K15	"Failed(…)"	3
+cmd/mtm/panes.go	App.attachPane	K15	"no pane's turns are shown"	1
+cmd/mtm/panes.go	App.attachPane	K5	"select a pane"	1
+cmd/mtm/panes.go	App.capturePreview	K14	"preview %s: %w"	1	failure
+cmd/mtm/panes.go	App.definePanes	K1	"When(\"pane-ended\") without Fallback"	1
+cmd/mtm/panes.go	App.definePanes	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/panes.go	App.killBlocked	K15	"Failed(…)"	1
+cmd/mtm/panes.go	App.killBlocked	K15	"close the %s of %s before killing it"	1
+cmd/mtm/panes.go	App.killPane	K14	"kill %s: %w"	1	failure
+cmd/mtm/panes.go	App.killPane	K15	"Failed(…)"	1
+cmd/mtm/panes.go	App.killPane	K15	"wait for side panes to finish opening before killing the parent"	1
+cmd/mtm/panes.go	App.land	K4	"the pane list has no %s"	1
+cmd/mtm/panes.go	App.paneAt	K15	"%s ended"	1
+cmd/mtm/panes.go	App.paneAt	K15	"no pane at %s"	1
+cmd/mtm/panes.go	App.paneAt	K5	"no pane selected"	1
+cmd/mtm/panes.go	App.paneEnded	K15	"the pane has not ended"	1
+cmd/mtm/panes.go	App.previewPane	K15	"Failed(…)"	1
+cmd/mtm/panes.go	frameErr	K15	"pane stream rejected a frame"	1
+cmd/mtm/panes.go	frameErr	K9	"pane stream ended: %s"	1
+cmd/mtm/panes.go	liveStream.Next	K14	"capture %s: %w"	1	failure
+cmd/mtm/panes.go	liveStream.open	K14	"attach %s: %w"	1	failure
+cmd/mtm/panes.go	tuios.ListPanes	K14	"list windows of %s: %w"	1	failure
+cmd/mtm/panes_detail.go	App.attachSession	K15	"Failed(…)"	1
+cmd/mtm/panes_detail.go	App.attachSession	K4	"the session has no pane; n opens a shell"	1
+cmd/mtm/panes_detail.go	App.attachSession	K5	"select a session"	1
+cmd/mtm/panes_detail.go	App.cyclePane	K15	"Failed(…)"	3
+cmd/mtm/panes_detail.go	App.cycleWaiting	K15	"Failed(…)"	3
+cmd/mtm/panes_detail.go	App.killSession	K14	"kill session %s: %w"	1	failure
+cmd/mtm/panes_detail.go	App.killSession	K15	"Failed(…)"	1
+cmd/mtm/panes_detail.go	App.leaderKeys	K15	"Failed(…)"	2
+cmd/mtm/panes_detail.go	App.leaderKeys	K15	"resultError(…)"	1
+cmd/mtm/panes_detail.go	App.moveTo	K15	"Failed(…)"	2
+cmd/mtm/panes_detail.go	App.moveTo	K5	"select a %s"	1
+cmd/mtm/panes_detail.go	App.nextWaiting	K15	"Failed(…)"	1
+cmd/mtm/panes_detail.go	App.paneText	K15	"Failed(…)"	1
+cmd/mtm/panes_detail.go	App.toggleZoom	K5	"no pane is attached"	1
+cmd/mtm/panes_group.go	App.cyclePaneGroup	K15	"Failed(…)"	1
+cmd/mtm/panes_group.go	App.definePaneGroups	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/panes_group.go	App.setPaneGroup	K15	"Failed(…)"	1
+cmd/mtm/panes_group.go	App.setPaneGroup	K2	"group %q: one of %s"	1
+cmd/mtm/panes_group.go	var paneGroupSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/panes_leader.go	App.selectPane	K15	"Failed(…)"	1
+cmd/mtm/panes_panels.go	App.focusSection	K15	"Failed(…)"	2
+cmd/mtm/panes_panels.go	App.focusSection	K2	"section %q: one of %s"	1
+cmd/mtm/panes_panels.go	App.focusSection	K4	"unknown row %q"	1
+cmd/mtm/panes_panels.go	panesPanelSettings	K15	"an empty state word"	1
+cmd/mtm/panes_panels.go	panesPanelSettings	K15	"lines from %d to 100"	1
+cmd/mtm/panes_panels.go	panesPanelSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/panes_sections.go	App.openItemPane	K15	"Failed(…)"	3
+cmd/mtm/panes_sections.go	App.selectPaneRowMoving	K4	"unknown tree node %q"	1
+cmd/mtm/panes_sections.go	paneSectionSettings	K15	"a percent from 0 to 100"	1
+cmd/mtm/panes_sections.go	paneSectionSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/panes_sections.go	paneSectionSettings	K2	"category %q: one of %s"	1
+cmd/mtm/panes_sections.go	validatePaneSections	K15	"%q: signal=section, signals %s, sections %s%s"	1
+cmd/mtm/path_sources.go	App.definePathSources	K15	"Failed(…)"	2
+cmd/mtm/path_sources.go	var directoryChooserSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/path_sources.go	var pinDirectoryWalkSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/pickers.go	App.askParameter	K2	"unknown operation %v"	1
+cmd/mtm/pickers.go	App.defineChoiceSources	K15	"Failed(…)"	1
+cmd/mtm/pickers.go	App.defineChoiceSources	K15	"unknown choice set"	1
+cmd/mtm/pickers.go	App.openNamedPicker	K15	"resultError(…)"	1
+cmd/mtm/pickers.go	var errNoProjectForDirectory	K15	"focus a project or pin one to choose its directory"	1
+cmd/mtm/pin.go	App.createPinnedProject	K15	"Failed(…)"	2
+cmd/mtm/pin.go	App.pinAndAskDirectory	K15	"Failed(…)"	1
+cmd/mtm/pin.go	App.setPin	K15	"Failed(…)"	4
+cmd/mtm/pin.go	App.setPin	K4	"unknown project %s"	1
+cmd/mtm/pin.go	App.toggleAll	K15	"Failed(…)"	2
+cmd/mtm/pin.go	var pinStartScopeSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/project.go	App.associateDirectory	K15	"Failed(…)"	3
+cmd/mtm/project.go	App.associateDirectory	K15	"data is a JSON object"	1
+cmd/mtm/project.go	App.associateDirectory	K15	"focus a project or supply a directory path"	1
+cmd/mtm/project.go	App.associateDirectory	K15	"resultError(…)"	1
+cmd/mtm/project.go	App.defaultProjectDirectory	K15	"Failed(…)"	2
+cmd/mtm/project.go	App.detachDirectory	K15	"Failed(…)"	2
+cmd/mtm/project.go	App.editProject	K15	"Failed(…)"	2
+cmd/mtm/project.go	App.editProject	K15	"resultError(…)"	1
+cmd/mtm/project.go	App.newProject	K15	"Failed(…)"	1
+cmd/mtm/project.go	App.newProject	K15	"resultError(…)"	1
+cmd/mtm/project.go	App.openUnassociated	K15	"Failed(…)"	2
+cmd/mtm/project.go	App.openUnassociated	K15	"resultError(…)"	1
+cmd/mtm/project.go	App.replaceDirectory	K15	"Failed(…)"	2
+cmd/mtm/project.go	App.replaceDirectory	K3	"to is required"	1
+cmd/mtm/project.go	App.storedProject	K15	"Failed(…)"	1
+cmd/mtm/project_store.go	App.projectByID	K15	"no project %q"	1
+cmd/mtm/project_store.go	projectProps	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/prompt.go	App.commitPrompt	K15	"Failed(…)"	2
+cmd/mtm/prompt.go	App.commitPrompt	K15	"no prompt is open"	1
+cmd/mtm/prompt.go	App.leavePrompt	K15	"Failed(…)"	1
+cmd/mtm/prompt.go	App.leavePrompt	K15	"no prompt is open"	1
+cmd/mtm/prompt.go	App.prompt	K15	"a prompt is already open"	1
+cmd/mtm/prompt_attach.go	App.detach	K15	"Failed(…)"	2
+cmd/mtm/prompt_attach.go	App.detachPrompt	K15	"no image %d in the prompt"	1
+cmd/mtm/prompt_attach.go	App.detachPrompt	K15	"resultError(…)"	1
+cmd/mtm/prompt_attach.go	App.detachPrompt	K4	"the prompt has no attachments"	1
+cmd/mtm/prompt_attach.go	App.pastePrompt	K15	"Failed(…)"	1
+cmd/mtm/prompt_attach.go	App.pastePrompt	K15	"no clipboard reader"	1
+cmd/mtm/prompt_box.go	App.addPromptBox	K1	"When(\"pane-prompt\") without Fallback"	1
+cmd/mtm/prompt_box.go	App.addPromptBox	K1	"When(\"prompt-modes\") without Fallback"	1
+cmd/mtm/prompt_box.go	App.addPromptBox	K1	"When(\"queue-pane-prompt\") without Fallback"	1
+cmd/mtm/prompt_box.go	App.addPromptBox	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/prompt_box.go	App.cyclePromptMode	K15	"no prompt mode %q (%s)"	1
+cmd/mtm/prompt_box.go	App.focusPrompt	K15	"Failed(…)"	5
+cmd/mtm/prompt_box.go	App.pickIntoPrompt	K15	"Failed(…)"	2
+cmd/mtm/prompt_box.go	App.pickIntoPrompt	K15	"resultError(…)"	1
+cmd/mtm/prompt_box.go	App.promptBack	K15	"Failed(…)"	1
+cmd/mtm/prompt_box.go	App.sendPrompt	K10	"sending needs the TUIOS daemon"	1
+cmd/mtm/prompt_box.go	App.sendPrompt	K15	"Failed(…)"	1
+cmd/mtm/prompt_box.go	App.sendPrompt	K15	"the agent waits on you: answer it live (turn-prompt.live from here, enter on its row), or queue the prompt (ctrl+t)"	1
+cmd/mtm/prompt_box.go	App.sendPrompt	K15	"the pane's queue is full (tuios keeps %d prompts a pane): wait for the agent to rest, or drop one with tuios queue rm"	1
+cmd/mtm/prompt_box.go	App.sendPrompt	K3	"nothing to send: type a prompt"	1
+cmd/mtm/prompt_box.go	App.sendPrompt	K7	"a queued prompt is at most %d KiB; this one is %d KiB (send it instead)"	1
+cmd/mtm/prompt_box.go	var errNoPromptBox	K15	"no prompt box here: it writes to a live pane, below the Turns or Screen tab"	1
+cmd/mtm/quicknote.go	App.closeQuickNote	K15	"no quick note is open"	1
+cmd/mtm/quicknote.go	App.closeQuickNote	K15	"resultError(…)"	1
+cmd/mtm/quicknote.go	App.listQuickNote	K15	"Failed(…)"	4
+cmd/mtm/quicknote.go	App.listQuickNote	K15	"no quick note is open"	1
+cmd/mtm/quicknote.go	App.listQuickNote	K15	"resultError(…)"	2
+cmd/mtm/quicknote.go	App.openQuickNote	K15	"Failed(…)"	3
+cmd/mtm/quicknote.go	App.openQuickNote	K15	"resultError(…)"	1
+cmd/mtm/quicknote.go	App.openQuickNote	K15	"the quick note is a TUI modal; use note new TEXT"	1
+cmd/mtm/quicknote.go	var quickAboutSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/rail_triage.go	App.triageContext	K15	"name an item (--id), or every item with --before, --filter or --all"	1
+cmd/mtm/rail_triage.go	App.triageIDs	K14	"context-item list: %w"	1	failure
+cmd/mtm/rail_triage.go	App.triageWhere	K15	"--before: not a time (2026-11-14, 2026-11-14T09:00, RFC 3339 or Unix ms)"	1
+cmd/mtm/rail_triage.go	App.triageWhere	K15	"Failed(…)"	3
+cmd/mtm/rail_triage.go	railTriageSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/relation_noun.go	App.createRelation	K15	"data is a JSON object"	1
+cmd/mtm/relation_noun.go	App.defineRelation	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/relation_noun.go	App.followRelation	K15	"%q is not noun:key"	1
+cmd/mtm/relation_noun.go	App.followRelation	K15	"Failed(…)"	1
+cmd/mtm/relation_noun.go	App.followRelation	K15	"resultError(…)"	1
+cmd/mtm/relation_noun.go	App.followRelation	K15	"that end is gone: the thing was deleted (see former-from, former-to)"	1
+cmd/mtm/relation_noun.go	App.moveRelation	K15	"Failed(…)"	4
+cmd/mtm/relation_noun.go	App.moveRelation	K15	"only a live relation with a from thing is moved"	1
+cmd/mtm/relation_noun.go	App.moveRelation	K15	"resultError(…)"	1
+cmd/mtm/relation_noun.go	App.patchRelation	K15	"data is a JSON object"	1
+cmd/mtm/relation_noun.go	App.relationRow	K15	"no relation %q"	1
+cmd/mtm/relation_noun.go	App.yankRelation	K15	"Failed(…)"	2
+cmd/mtm/relation_noun.go	App.yankRelation	K15	"that end is gone"	1
+cmd/mtm/relation_noun.go	App.yankRelation	K15	"yank key, from or to, not %q"	1
+cmd/mtm/relation_noun.go	movePlace	K15	"to is first, last, up, down or a place from 1, not %q"	1
+cmd/mtm/relations.go	App.associatePaneRelated	K15	"Failed(…)"	1
+cmd/mtm/relations.go	App.associateProject	K15	"target a project row"	1
+cmd/mtm/relations.go	App.associateProject	K3	"name the thing to associate (%s)"	1
+cmd/mtm/relations.go	App.associateTaskRelated	K15	"Failed(…)"	1
+cmd/mtm/reminder_notify.go	App.notificationWork	K15	"local date changed before delivery; retry on the next tick"	1
+cmd/mtm/reminder_notify.go	App.notifyReminders	K15	"Failed(…)"	1
+cmd/mtm/reminder_notify.go	reminderNotifySettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/reminders.go	App.addReminder	K15	"Failed(…)"	5
+cmd/mtm/reminders.go	App.addReminder	K15	"resultError(…)"	1
+cmd/mtm/reminders.go	App.addReminder	K15	"use reminder create TITLE --time HH:MM --days mon,wed,fri"	1
+cmd/mtm/reminders.go	App.checkReminder	K15	"Failed(…)"	2
+cmd/mtm/reminders.go	App.editReminder	K15	"Failed(…)"	1
+cmd/mtm/reminders.go	App.editReminder	K15	"resultError(…)"	1
+cmd/mtm/reminders.go	App.editReminder	K15	"use reminder set --id ID time=10:30 days=mon,wed,fri"	1
+cmd/mtm/reminders.go	App.reminderAt	K5	"select a reminder or give its title/id"	1
+cmd/mtm/reminders.go	App.reminderHistory	K13	"limit must not be negative"	1	declaration
+cmd/mtm/reminders.go	App.reminderHistory	K15	"Failed(…)"	3
+cmd/mtm/reminders.go	App.reminderNamed	K15	"no reminder %q; reminder list shows ids"	1
+cmd/mtm/reminders.go	App.reminderNamed	K15	"several reminders named %q; use the id from reminder list"	1
+cmd/mtm/rename.go	App.sessionAt	K5	"no session selected"	1
+cmd/mtm/review_store.go	App.paneReviewOf	K14	"review %s: %w"	1	failure
+cmd/mtm/review_store.go	App.reviewProps	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/reviews.go	App.cancelAnswerArea	K15	"Failed(…)"	3
+cmd/mtm/reviews.go	App.chooseReviewStatus	K15	"Failed(…)"	1
+cmd/mtm/reviews.go	App.chooseReviewStatus	K15	"resultError(…)"	1
+cmd/mtm/reviews.go	App.leaveAnswerArea	K15	"Failed(…)"	2
+cmd/mtm/reviews.go	App.leaveAnswerArea	K15	"resultError(…)"	1
+cmd/mtm/reviews.go	App.openReview	K14	"capture %s: %w"	1	failure
+cmd/mtm/reviews.go	App.openReview	K15	"Failed(…)"	5
+cmd/mtm/reviews.go	App.review	K14	"review %s: %w"	1	failure
+cmd/mtm/reviews.go	App.review	K5	"no review is selected"	1
+cmd/mtm/reviews.go	App.saveAnswer	K15	"Failed(…)"	3
+cmd/mtm/reviews.go	App.saveAnswerArea	K15	"Failed(…)"	2
+cmd/mtm/reviews.go	App.saveAnswerArea	K15	"open a review first (enter on a review row)"	1
+cmd/mtm/reviews.go	App.setReviewStatus	K15	"Failed(…)"	1
+cmd/mtm/runs.go	App.defineRuns	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/runs.go	App.forgetRun	K15	"%v is running; run.stop stops it first"	1
+cmd/mtm/runs.go	App.forgetRun	K15	"Failed(…)"	2
+cmd/mtm/runs.go	App.rerunRun	K15	"Failed(…)"	1
+cmd/mtm/runs.go	App.runAt	K15	"no run %s (the Runs page keeps this TUI's last %d)"	1
+cmd/mtm/runs.go	App.runAt	K5	"specify a run id or select a run row"	1
+cmd/mtm/runs.go	App.runCommandVerb	K15	"Failed(…)"	1
+cmd/mtm/runs.go	App.runCommandVerb	K15	"give the command line to run"	1
+cmd/mtm/runs.go	App.showRun	K15	"Failed(…)"	1
+cmd/mtm/runs.go	App.startRun	K15	"Failed(…)"	1
+cmd/mtm/runs.go	App.stopRun	K15	"Failed(…)"	1
+cmd/mtm/saved.go	App.reopenSaved	K14	"pane %s is open but saved reference failed: %w"	1	failure
+cmd/mtm/saved.go	App.reopenSaved	K14	"pane %s: star not moved: %w"	1	failure
+cmd/mtm/saved.go	App.reopenSaved	K15	"Failed(…)"	1
+cmd/mtm/saved.go	App.savePane	K15	"Failed(…)"	2
+cmd/mtm/saved.go	App.savePane	K15	"specify a live pane id or target a pane row"	1
+cmd/mtm/saved.go	App.savePane	K4	"live pane %s not found"	1
+cmd/mtm/saved.go	App.savedAt	K5	"specify a saved id or select a saved row"	1
+cmd/mtm/saved.go	externalRecipe	K15	"daemon does not expose this external pane's exact launch argv/cwd; save a pane launched by mtm instead"	1
+cmd/mtm/saved.go	externalRecipe	K15	"no confirmed launch recipe for this external pane"	1
+cmd/mtm/saved_store.go	App.associateSavedOne	K15	"Failed(…)"	1
+cmd/mtm/saved_store.go	App.savedStore	K11	"Confirm: <expr> without Loses"	1
+cmd/mtm/schedule_edit.go	App.addSchedule	K1	"When(…) without Fallback"	1
+cmd/mtm/schedule_edit.go	App.addSchedule	K13	"a schedule named %s exists: schedule edit %s changes it, schedule duplicate %s copies it"	1	declaration
+cmd/mtm/schedule_edit.go	App.addSchedule	K15	"Failed(…)"	3
+cmd/mtm/schedule_edit.go	App.applyScheduleArgs	K14	"%s: %w"	1	failure
+cmd/mtm/schedule_edit.go	App.applyScheduleField	K15	"errors.New(…)"	1
+cmd/mtm/schedule_edit.go	App.applyScheduleField	K15	"schedules have no field %q"	1
+cmd/mtm/schedule_edit.go	App.applyScheduleField	K2	"%s is one of %s"	1
+cmd/mtm/schedule_edit.go	App.duplicateSchedule	K15	"Failed(…)"	2
+cmd/mtm/schedule_edit.go	App.duplicateSchedule	K8	"a schedule named %s exists"	1
+cmd/mtm/schedule_edit.go	App.editSchedule	K15	"Failed(…)"	1
+cmd/mtm/schedule_edit.go	App.editSchedule	K15	"give the fields to change: --%s …"	1
+cmd/mtm/schedule_edit.go	App.editSchedule	K15	"resultError(…)"	1
+cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"Failed(…)"	1
+cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"a schedule form is already open"	1
+cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"schedule %s is gone"	1
+cmd/mtm/schedule_edit.go	App.scheduleParams	K2	"Enum without Accept: <expr>"	5
+cmd/mtm/schedule_edit.go	getWhen	K1	"When(…) without Fallback"	2
+cmd/mtm/schedule_edit.go	setTimeout	K15	"timeout %q: a duration such as 2m"	1
+cmd/mtm/schedule_prompts.go	App.runPromptSchedule	K15	"mtm has not read its harnesses yet"	1
+cmd/mtm/schedule_prompts.go	App.runPromptSchedule	K15	"pane %s opened but the prompt was not sent: %s"	1
+cmd/mtm/schedule_prompts.go	App.sendToNamedPane	K10	"sending to a pane needs the TUIOS daemon"	1
+cmd/mtm/schedule_prompts.go	App.sendToNamedPane	K14	"listing panes to find %s: %w"	1	failure
+cmd/mtm/schedule_prompts.go	App.sendToNamedPane	K14	"queueing in %s: %w"	1	failure
+cmd/mtm/schedule_store.go	App.applyScheduleValues	K14	"%s: %w"	1	failure
+cmd/mtm/schedule_store.go	App.newSchedule	K1	"When(…) without Fallback"	1
+cmd/mtm/schedule_store.go	App.newSchedule	K2	"enabled is one of %s"	1
+cmd/mtm/schedule_store.go	App.removeSchedule	K15	"%s is %s (%s): schedule disable %s turns it off"	1
+cmd/mtm/schedule_store.go	App.scheduleEnable	K2	"enabled is one of %s"	1
+cmd/mtm/schedule_store.go	App.scheduleEvery	K1	"When(…) without Fallback"	1
+cmd/mtm/schedule_store.go	App.scheduleEvery	K15	"an interval is at least 1m"	1
+cmd/mtm/schedule_store.go	App.scheduleThing	K1	"When(…) without Fallback"	2
+cmd/mtm/schedule_store.go	scheduleInterval	K14	"interval %q: %w"	1	failure
+cmd/mtm/schedules.go	App.defineSchedules	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/schedules.go	App.resetSchedule	K15	"Failed(…)"	2
+cmd/mtm/schedules.go	App.runScheduleNow	K15	"Failed(…)"	2
+cmd/mtm/schedules.go	App.scheduleAnswer	K15	"Failed(…)"	1
+cmd/mtm/schedules.go	App.scheduleAt	K2	"unknown schedule %q; known: %s"	1
+cmd/mtm/schedules.go	App.scheduleAt	K5	"specify a schedule name or select a schedule row"	1
+cmd/mtm/schedules.go	App.scheduleDefs	K1	"When(…) without Fallback"	1
+cmd/mtm/schedules.go	App.scheduleHistory	K15	"Failed(…)"	2
+cmd/mtm/schedules.go	App.scheduleSettings	K15	"an interval is at least 1m"	1
+cmd/mtm/schedules.go	App.scheduleSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/schedules.go	App.schedulesUpdate	K15	"Failed(…)"	1
+cmd/mtm/schedules.go	App.setScheduleInterval	K14	"interval %q: %w"	1	failure
+cmd/mtm/schedules.go	App.setScheduleInterval	K15	"Failed(…)"	2
+cmd/mtm/schedules.go	App.setScheduleInterval	K15	"set-interval needs --interval (1m, 5m, 1h, …)"	1
+cmd/mtm/schedules.go	App.toggleSchedule	K15	"Failed(…)"	1
+cmd/mtm/schedules.go	App.viewSchedule	K1	"When(…) without Fallback"	1
+cmd/mtm/schedules.go	App.viewSchedule	K1	"When: <expr> without Fallback"	1
+cmd/mtm/session_store.go	App.associateSessionOne	K15	"Failed(…)"	1
+cmd/mtm/session_store.go	App.patchSession	K4	"session %s has no id in the daemon yet: list the panes again, then move it"	1
+cmd/mtm/session_store.go	App.sessionPaneOf	K4	"unknown session %q"	1
+cmd/mtm/session_store.go	App.sessionStore	K4	"unknown session %q"	1
+cmd/mtm/session_store.go	checkSessionName	K3	"a session needs a name"	1
+cmd/mtm/settings.go	App.declareSettings	K2	"Enum without Accept: <expr>"	2
+cmd/mtm/setup.go	App.defineSetup	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/setup.go	App.setupEach	K15	"Failed(…)"	2
+cmd/mtm/shell_init.go	App.defineShellNoun	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/shell_init.go	App.shellInit	K15	"no snippet for shell %q (%s)"	1
+cmd/mtm/side.go	App.companionCheck	K14	"cannot verify side panes: %w"	1	failure
+cmd/mtm/side.go	App.companionCheck	K15	"close the side panes first: %v"	1
+cmd/mtm/side.go	App.sidePane	K15	"Failed(…)"	2
+cmd/mtm/side.go	App.sidePane	K15	"a side pane cannot have side panes"	1
+cmd/mtm/side.go	App.sidePane	K15	"mtm is quitting"	1
+cmd/mtm/side.go	App.sidePane	K15	"side pane is still opening"	1
+cmd/mtm/side.go	App.sidePane	K15	"unknown side %q"	1
+cmd/mtm/side.go	App.sidePane	K3	"side %s: expanded executable is empty"	1
+cmd/mtm/side.go	App.sidePane	K5	"no parent pane selected: pass --pane WINDOW_ID or --target pane:SESSION/WINDOW"	1
+cmd/mtm/side.go	App.sidePane	K9	"parent pane has exited"	1
+cmd/mtm/side.go	sideDriver.OpenWindow	K14	"side pane %s is open but its link could not be saved: %w"	1	failure
+cmd/mtm/side.go	sideDriver.OpenWindow	K14	"side pane not opened: its link could not be saved: %w"	1	failure
+cmd/mtm/side.go	sideDriver.OpenWindow	K14	"side pane resize: %w"	1	failure
+cmd/mtm/side.go	sideDriver.OpenWindow	K15	"side launch returned no pane id"	1
+cmd/mtm/side.go	sideListing	K14	"close exited pane %s: %w"	1	failure
+cmd/mtm/side_view.go	App.flipLayout	K15	"Failed(…)"	1
+cmd/mtm/side_view.go	App.focusOther	K15	"Failed(…)"	1
+cmd/mtm/side_view.go	App.openSidePicker	K15	"Failed(…)"	1
+cmd/mtm/side_view.go	App.openSidePicker	K15	"no pane %s"	1
+cmd/mtm/side_view.go	App.showSide	K15	"attach the parent pane before opening its side"	1
+cmd/mtm/side_view.go	App.showSide	K15	"side %s is no longer running"	1
+cmd/mtm/side_view.go	App.sideDetach	K15	"Failed(…)"	3
+cmd/mtm/sides_config.go	loadSidePatches	K14	"%s: %w"	1	failure
+cmd/mtm/sides_config.go	loadSidePatches	K15	"%s: expected one JSON array"	1
+cmd/mtm/sides_config.go	loadSidePatches	K2	"%s: expected a JSON array"	1
+cmd/mtm/sides_config.go	validateSideRow	K13	"side name list is reserved for pane.side kind=list"	1	declaration
+cmd/mtm/sides_config.go	validateSideRow	K15	"side %s: function keys are not bound"	1
+cmd/mtm/store_tables.go	App.showStoreTable	K15	"no table %s (store-table list names them)"	1
+cmd/mtm/store_tables.go	App.showStoreTable	K3	"name a table (store-table show NAME) or select a store-table row"	1
+cmd/mtm/story.go	buildPaneLifecycle	K15	"Failed(…)"	1
+cmd/mtm/story.go	buildPaneRestart	K15	"Failed(…)"	1
+cmd/mtm/story.go	buildStory	K14	"seed the database: %w"	1	failure
+cmd/mtm/story.go	sandboxStory	K15	"stories run no foreground programs"	1
+cmd/mtm/story.go	sandboxStory	K15	"stories run no notification commands"	1
+cmd/mtm/story.go	sandboxStory	K15	"stories run no real commands"	1
+cmd/mtm/story.go	seedOf	K14	"seed: %w"	1	failure
+cmd/mtm/story_peers.go	buildDetailNotes	K15	"context item not added"	1
+cmd/mtm/storyfakes.go	var errStoryDaemon	K15	"story daemon: not supported in a story session"	1
+cmd/mtm/table_query.go	tableQuery.Query	K14	"%s: %w"	1	failure
+cmd/mtm/task_store.go	App.patchTask	K8	"task %s cannot be under %s: it is that task or above it"	1
+cmd/mtm/task_store.go	App.taskByID	K15	"no task %q"	1
+cmd/mtm/task_store.go	App.taskStore	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/task_store.go	priorityChange	K2	"priority %q is not one of %s"	1
+cmd/mtm/task_store.go	priorityProp	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/task_store.go	taskMakerProp	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/task_store.go	taskProps	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/tasks.go	App.chooseStatus	K15	"Failed(…)"	1
+cmd/mtm/tasks.go	App.chooseStatus	K15	"resultError(…)"	1
+cmd/mtm/tasks.go	App.defineTask	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/tasks.go	App.editTask	K15	"Failed(…)"	1
+cmd/mtm/tasks.go	App.editTask	K15	"resultError(…)"	1
+cmd/mtm/tasks.go	App.newTask	K14	"parent task %s: %w"	1	failure
+cmd/mtm/tasks.go	App.newTask	K15	"Failed(…)"	8
+cmd/mtm/tasks.go	App.openStatusChooser	K15	"Failed(…)"	2
+cmd/mtm/tasks.go	App.openTask	K15	"Failed(…)"	2
+cmd/mtm/tasks.go	App.task	K14	"task %s: %w"	1	failure
+cmd/mtm/tasks.go	App.task	K5	"no task is selected"	1
+cmd/mtm/tasks.go	App.toggleTask	K15	"Failed(…)"	1
+cmd/mtm/tasks.go	resultOf	K15	"Failed(…)"	1
+cmd/mtm/tasks.go	var workTasksLayoutSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/turn_agents.go	App.addAgentVerbs	K1	"When(\"on-agent\") without Fallback"	3
+cmd/mtm/turn_agents.go	App.agentHandler	K15	"not on a subagent's step"	1
+cmd/mtm/turn_agents.go	App.copyAgentText	K4	"the agent has no %s yet"	1
+cmd/mtm/turn_agents.go	App.openAgentTranscript	K15	"no pane"	1
+cmd/mtm/turn_agents.go	App.openAgentTranscript	K15	"this agent's transcript is inside the session's own log"	1
+cmd/mtm/turn_agents.go	App.openAgentTranscript	K15	"transcript missing"	1
+cmd/mtm/turn_cards.go	App.copyStep	K15	"Failed(…)"	1
+cmd/mtm/turn_cards.go	App.copyStepTurn	K15	"Failed(…)"	1
+cmd/mtm/turn_cards.go	App.copyStepTurn	K15	"not inside a turn"	1
+cmd/mtm/turn_cards.go	App.openTurnCard	K15	"Failed(…)"	1
+cmd/mtm/turn_cards.go	App.openTurnCard	K15	"no timeline holds %s"	1
+cmd/mtm/turn_cards.go	App.reviewTurnCard	K15	"Failed(…)"	2
+cmd/mtm/turn_cards.go	App.scrollTurns	K15	"Failed(…)"	1
+cmd/mtm/turn_cards.go	App.scrollTurns	K15	"no turns shown"	1
+cmd/mtm/turn_status.go	turnStatusSettings	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/turns.go	App.addTurns	K1	"When(\"pane-turn-cards\") without Fallback"	1
+cmd/mtm/turns.go	App.addTurns	K1	"When(\"turn-closed\") without Fallback"	1
+cmd/mtm/turns.go	App.addTurns	K1	"When(\"turn-open\") without Fallback"	1
+cmd/mtm/turns.go	App.closeTurn	K15	"no timeline holds %s"	1
+cmd/mtm/turns.go	App.closeTurn	K15	"resultError(…)"	2
+cmd/mtm/turns.go	App.closeTurn	K4	"no tree holds %s"	1
+cmd/mtm/turns.go	App.closeTurn	K5	"select a turn"	1
+cmd/mtm/turns.go	App.focusTurns	K15	"Failed(…)"	2
+cmd/mtm/turns.go	App.focusTurns	K15	"no turns recorded yet"	1
+cmd/mtm/turns.go	App.focusTurns	K5	"select a pane"	1
+cmd/mtm/turns.go	App.openTurn	K15	"Failed(…)"	3
+cmd/mtm/turns.go	App.openTurn	K15	"resultError(…)"	1
+cmd/mtm/turns.go	App.openTurn	K5	"select a turn"	1
+cmd/mtm/turns.go	App.reviewTurn	K15	"resultError(…)"	1
+cmd/mtm/turns.go	App.reviewTurn	K5	"select a turn"	1
+cmd/mtm/turns.go	App.turnsBack	K15	"Failed(…)"	1
+cmd/mtm/turns_model.go	App.copyTurn	K15	"Failed(…)"	1
+cmd/mtm/turns_model.go	App.copyTurn	K5	"select a turn"	1
+cmd/mtm/turns_model.go	App.loadTurnOutput	K15	"Failed(…)"	1
+cmd/mtm/turns_model.go	App.offerTurnSave	K15	"Failed(…)"	1
+cmd/mtm/turns_model.go	App.openModelTurn	K15	"Failed(…)"	2
+cmd/mtm/turns_model.go	App.paneByWindow	K15	"no pane %s"	1
+cmd/mtm/turns_model.go	App.readPaneTurns	K15	"Failed(…)"	1
+cmd/mtm/turns_model.go	App.readPaneTurns	K15	"shell turns need the TUIOS daemon"	1
+cmd/mtm/turns_model.go	App.turnText	K10	"shell output needs the TUIOS daemon"	1
+cmd/mtm/turns_model.go	App.turnText	K15	"no turns read for %s"	1
+cmd/mtm/turns_model.go	App.turnText	K4	"no turn %s"	2
+cmd/mtm/turns_model.go	readShellOutput	K15	"the command is still running"	1
+cmd/mtm/turns_refresh.go	App.refreshPaneTurns	K15	"Failed(…)"	1
+cmd/mtm/turns_refresh.go	App.refreshPaneTurns	K15	"no pane's turns are shown"	1
+cmd/mtm/turns_refresh.go	App.refreshPaneTurns	K5	"select a pane"	1
+cmd/mtm/vim.go	App.openVim	K15	"Failed(…)"	4
+cmd/mtm/vim.go	App.reopenVim	K15	"Failed(…)"	2
+cmd/mtm/vim.go	App.saveVim	K15	"Failed(…)"	2
+cmd/mtm/vim.go	App.saveVim	K9	"Vim pane is closed; reopen before saving"	1
+cmd/mtm/vim.go	App.vimAt	K5	"select a Vim session or supply --id (save also accepts --pane)"	1
+cmd/mtm/vim.go	forgetVimFile	K15	"invalid Vim session id"	1
+cmd/mtm/vim.go	forgetVimFile	K15	"refusing to remove Vim session file outside mtm storage"	1
+cmd/mtm/vim.go	launchVimJob	K10	"Neovim executable nvim is not on PATH; install Neovim to open a session"	1
+cmd/mtm/vim.go	launchVimJob	K14	"Vim pane %s exists but its session link was not saved: %w"	1	failure
+cmd/mtm/vim.go	launchVimJob	K14	"Vim pane %s is open; listing panes failed: %w"	1	failure
+cmd/mtm/vim.go	launchVimJob	K14	"check live Vim pane before reopening: %w"	1	failure
+cmd/mtm/vim.go	launchVimJob	K14	"saved Vim session %s: %w"	1	failure
+cmd/mtm/vim.go	launchVimJob	K15	"Neovim launch returned no pane id; inspect the daemon before retrying"	1
+cmd/mtm/vim.go	launchVimJob	K8	"saved Vim session is not a regular file"	1
+cmd/mtm/vim.go	waitVimRPC	K14	"Neovim RPC did not become ready: %w"	1	failure
+cmd/mtm/vim.go	writeVimSession	K14	"Neovim reported save success but session file is unavailable: %w"	1	failure
+cmd/mtm/vim.go	writeVimSession	K14	"Neovim save response: %w: %s"	1	failure
+cmd/mtm/vim.go	writeVimSession	K14	"Neovim session save: %w: %s"	1	failure
+cmd/mtm/vim.go	writeVimSession	K15	"Neovim :mksession: %s"	1
+cmd/mtm/vim.go	writeVimSession	K8	"Neovim session output is not a regular file"	1
+cmd/mtm/vim.go	writeVimSession	K9	"legacy Vim pane has no RPC address; close it and reopen its saved session to enable saving"	1
+cmd/mtm/vim_store.go	App.vimProps	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/vim_store.go	App.vimStore	K11	"Confirm: <expr> without Loses"	1
+cmd/mtm/wire_verbs.go	App.defineWireVerbs	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/wire_verbs.go	App.sessionEvents	K10	"session.events needs the daemon"	1
+cmd/mtm/wire_verbs.go	App.wireHandler	K10	"%v needs the daemon"	1
+cmd/mtm/wire_verbs.go	App.wireHandler	K14	"%s: %w"	1	failure
+cmd/mtm/wire_verbs.go	App.wireHandler	K3	"%s is required"	1
+cmd/mtm/wire_verbs.go	paneScopeSetting	K2	"Enum without Accept: <expr>"	1
+cmd/mtm/wire_verbs.go	var wireVerbs	K2	"Enum without Accept: direction"	1
+cmd/mtm/wire_verbs.go	var wireVerbs	K2	"Enum without Accept: relative"	1
+cmd/mtm/wire_verbs.go	var wireVerbs	K2	"Enum without Accept: state"	1
+internal/actionitems/actionitems.go	Store.All	K14	"action item: %w"	1	failure
+internal/actionitems/actionitems.go	Store.Delete	K14	"action item %s: %w"	1	failure
+internal/actionitems/actionitems.go	Store.Get	K14	"action item %s: %w"	1	failure
+internal/actionitems/actionitems.go	Store.Update	K14	"action item %s: %w"	1	failure
+internal/actionitems/actionitems.go	duplicate	K14	"action item: %w"	1	failure
+internal/actionitems/notify.go	Store.NotifyDue	K15	"no notification sender succeeded"	1
+internal/actionitems/notify.go	Store.finishNotifications	K9	"action item notification claim expired or was replaced"	1
+internal/agenthook/cmd_agent_hook.go	reportHook	K1	"the daemon predates if_state, so a conditional report was not sent"	1
+internal/agenthook/cmd_agent_hook.go	reportHook	K14	"could not ask the daemon what set-agent-state takes: %w"	1	failure
+internal/agenthook/cmd_agent_hook.go	reportHookActivity	K1	"the running daemon predates report-agent-activity, so the %v was not reported. It works once the daemon restarts"	1
+internal/agenthook/cmd_agent_hook.go	reportHookSession	K1	"the running daemon predates set-agent-session, so the session was not reported. It works once the daemon restarts"	1
+internal/agenthook/cmd_agent_hook.go	reportHookSession	K14	"could not ask the daemon whether it has set-agent-session: %w"	1	failure
+internal/agenthook/cmd_agent_hook.go	requireIfState	K1	"the running daemon predates --if-state, so the report was not sent. It works once the daemon restarts"	1
+internal/agenthook/cmd_agent_hook.go	requireIfState	K14	"could not ask the daemon whether it supports --if-state: %w"	1	failure
+internal/agenthook/cmd_agent_hook.go	resolveHookPane	K14	"no pane: MTM_PANE_ID (TUIOS_PANE_ID) is unset and %w"	1	failure
+internal/agenthook/cmd_agent_hook.go	resolveHookPane	K15	"no pane: MTM_PANE_ID (TUIOS_PANE_ID) is unset"	1
+internal/agenthook/cmd_agent_hook.go	var errConditionUnsupported	K1	"the daemon predates if_subagent_id, so the subagent's report was not sent. It works once the daemon restarts"	1
+internal/agenthook/run.go	dialer	K10	"no daemon socket"	1
+internal/agenthook/run.go	dialer	K14	"no daemon: %w"	1	failure
+internal/agenthook/run.go	setState	K14	"failed to parse response: %w"	1	failure
+internal/agenthook/statusline_parse.go	ParseStatusLine	K14	"payload is not a JSON object: %w"	1	failure
+internal/agenthook/statusline_parse.go	ParseStatusLine	K15	"no status line feed for %s. Available: %s"	1
+internal/agenthook/statusline_parse.go	ParseStatusLine	K8	"payload is not a JSON object"	1
+internal/contextitems/extract.go	var ErrNotLocal	K15	"path not checked on this machine"	1
+internal/contextitems/store.go	Store.All	K14	"context item: %w"	1	failure
+internal/contextitems/store.go	Store.Associate	K14	"context item %s: %w"	1	failure
+internal/contextitems/store.go	Store.Forget	K4	"context item %s: not found"	1
+internal/contextitems/store.go	Store.Get	K14	"context item %s: %w"	1	failure
+internal/contextitems/store.go	Store.Put	K15	"context item: no id"	1
+internal/contextitems/store.go	Store.SetStarred	K14	"context item %s: %w"	1	failure
+internal/contextitems/store.go	Store.Update	K14	"context item %s: %w"	1	failure
+internal/daemon/client.go	Client.Call	K15	"contextError(…)"	2
+internal/daemon/client.go	Client.Presence	K15	"contextError(…)"	2
+internal/daemon/client.go	Client.Subscribe	K15	"contextError(…)"	2
+internal/daemon/client.go	Client.Subscribe	K15	"subscribe reply ID mismatch"	1
+internal/daemon/client.go	Client.dial	K10	"daemon socket is unresolved; supply -socket PATH or MTM_SOCKET"	1
+internal/daemon/client.go	Client.dial	K14	"connect daemon %s (set -socket PATH): %w"	1	failure
+internal/daemon/client.go	Client.dial	K15	"contextError(…)"	1
+internal/daemon/client.go	decodeEvent	K3	"daemon event is missing type"	1
+internal/daemon/client.go	exchange	K14	"decode %s reply: %w"	1	failure
+internal/daemon/client.go	exchange	K15	"daemon %s reply ID mismatch"	1
+internal/daemon/client.go	exchange	K4	"daemon %s reply has no result"	1
+internal/daemon/client.go	readLine	K7	"daemon JSON line exceeds 32 MiB"	1
+internal/daemon/hosts.go	routeParams	K15	"destination identities name different hosts"	1
+internal/daemon/importstate.go	ImportState	K14	"%w (%s); nothing was copied"	1	failure
+internal/daemon/importstate.go	ImportState	K14	"%w: the source changed while it was copied, so something wrote to it"	1	failure
+internal/daemon/importstate.go	ImportState	K14	"%w; nothing was left in %s"	1	failure
+internal/daemon/importstate.go	ImportState	K14	"copy %s: %w"	1	failure
+internal/daemon/importstate.go	PlanImport	K14	"%w: %s"	1	failure
+internal/daemon/importstate.go	guardClash	K14	"%w: %s; nothing was copied (overwrite archives them first)"	1	failure
+internal/daemon/importstate.go	planEndpoints	K14	"%w (%s)"	1	failure
+internal/daemon/importstate.go	planEndpoints	K14	"%w (%s): stop it first (mtm daemon stop); nothing was copied"	1	failure
+internal/daemon/importstate.go	planEndpoints	K14	"%w (%s): stop it first (tuios kill-server%s); nothing was copied"	1	failure
+internal/daemon/importstate.go	planEndpoints	K14	"%w: %s does not exist"	1	failure
+internal/daemon/importstate.go	readSession	K13	"%s.json names the session %q"	1	declaration
+internal/daemon/importstate.go	readSession	K15	"%s.json is not readable JSON (%v)"	1
+internal/daemon/importstate.go	readSession	K15	"%s.json is saved-state version %d, newer than the %d this daemon reads"	1
+internal/daemon/importstate.go	readSessions	K14	"%w: %s; nothing was copied"	1	failure
+internal/daemon/importstate.go	validServerName	K15	"server name %q is longer than 14 characters"	1
+internal/daemon/importstate.go	validServerName	K15	"server name %q may only contain letters, digits, '-' and '_'"	1
+internal/daemon/importstate.go	var ErrSourceLive	K15	"saved state this build cannot read"	1
+internal/daemon/importstate.go	var ErrSourceLive	K15	"the source holds nothing to import"	1
+internal/daemon/importstate.go	var ErrSourceLive	K15	"the source server has a daemon running"	1
+internal/daemon/importstate.go	var ErrSourceLive	K15	"the target server has a daemon running"	1
+internal/daemon/importstate.go	var ErrSourceLive	K8	"the target already holds saved state of the same names"	1
+internal/daemon/importstate.go	var ErrSourceLive	K9	"the source and the target are the same server"	1
+internal/daemon/launch.go	LaunchWorkspace	K15	"new pane requested %d rows; at least %d rows are needed for a usable terminal, agent or Vim pane"	1
+internal/daemon/launch.go	LaunchWorkspace	K15	"session %q is only %d rows high; a usable new pane needs at least %d rows plus borders"	1
+internal/daemon/launch.go	LaunchWorkspace	K4	"session %q has no empty workspace for a usable new pane (minimum %d rows); free a workspace or choose another session"	1
+internal/daemon/names.go	LayoutNamed	K15	"unknown daemon paths %q (%s)"	1
+internal/daemon/self.go	SelfStart.Start	K14	"%s: %w"	2	failure
+internal/daemon/self.go	SelfStart.Start	K14	"mtm executable: %w"	1	failure
+internal/daemon/server.go	Client.Ensure	K14	"%s accepts connections but the daemon was not ready within %s (%w)"	1	failure
+internal/daemon/server.go	Client.Ensure	K15	"started, but %s did not answer within %s"	1
+internal/daemon/server.go	Client.answers	K14	"%w: %v"	1	failure
+internal/daemon/server.go	Client.notRunning	K14	"daemon %s not running: %w"	1	failure
+internal/daemon/server.go	StartServer	K14	"tuios --server %s start-server: %w"	2	failure
+internal/daemon/server.go	StartServer	K14	"tuios is not on PATH: %w"	1	failure
+internal/daemon/server.go	var errNotReady	K15	"daemon is not ready"	1
+internal/daemon/stream.go	Client.StreamPane	K15	"contextError(…)"	2
+internal/daemon/stream.go	Client.StreamPane	K3	"stream-pane requires an explicit window"	1
+internal/daemon/stream.go	Client.StreamPane	K8	"lease requires both columns and rows"	1
+internal/daemon/stream.go	PaneStream.Input	K7	"pane input exceeds 64 KiB"	1
+internal/daemon/stream.go	PaneStream.Lease	K8	"lease requires both columns and rows"	1
+internal/daemon/stream.go	PaneStream.ReadFrame	K15	"invalid %c frame length"	1
+internal/daemon/stream.go	PaneStream.ReadFrame	K15	"invalid output frame length"	1
+internal/daemon/stream.go	PaneStream.ReadFrame	K7	"pane frame exceeds 32 MiB"	1
+internal/daemon/verbs.go	Client.HelloReady	K4	"hello names no protocol (%+v)"	1
+internal/daemon/verbs.go	Client.QueuePrompt	K3	"queue-prompt requires an explicit window"	1
+internal/daemon/verbs.go	Client.SendKeys	K3	"send-keys requires an explicit window"	1
+internal/daemon/verbs.go	Client.SendText	K3	"send-text requires an explicit window"	1
+internal/draft/draft.go	Store.List	K15	"invalid draft noun %q"	1
+internal/draft/draft.go	Store.path	K15	"invalid draft noun or id: %q/%q"	1
+internal/drive/drive.go	Available	K14	"drive api is %w: the API pane (o-agentd) is not built; use drive terminal or exec"	1	failure
+internal/drive/drive.go	Check	K8	"drive %q is not a drive; use %s"	1
+internal/drive/drive.go	Stream	K10	"%s: not on PATH"	1
+internal/drive/drive.go	Stream	K15	"folder %s: not a directory"	1
+internal/drive/drive.go	Stream	K3	"the command is empty"	1
+internal/drive/drive.go	var ErrNotAvailable	K1	"not available yet"	1
+internal/harness/compose.go	Compose.validate	K14	"harness %s: compose.%s[%d]: %w"	1	failure
+internal/harness/compose.go	Dir.validate	K14	"up[%d]: %w"	1	failure
+internal/harness/compose.go	Dir.validate	K15	"an empty if condition"	1
+internal/harness/compose.go	Dir.validate	K15	"an up group inside an up group"	1
+internal/harness/compose.go	Dir.validate	K15	"path %q in an up group must be relative"	1
+internal/harness/compose.go	Dir.validate	K15	"path %q must start with ~, {claudeDir}, {ompDir} or /; put a relative one in an up group"	1
+internal/harness/compose.go	Dir.validate	K15	"plugins needs path, the folder inside each plugin"	1
+internal/harness/compose.go	Dir.validate	K15	"up[%d]: an up entry is a relative path"	1
+internal/harness/compose.go	Dir.validate	K3	"give one of path, up, plugins (with path) or list"	1
+internal/harness/compose.go	Dir.validate	K3	"scope is empty"	1
+internal/harness/harness.go	Harness.Model	K15	"harness %s takes no model (no modelFlag); leave model empty"	1
+internal/harness/harness.go	Harness.Model	K2	"model %q is not one of %s's models: %s"	1
+internal/harness/harness.go	Harness.Validate	K15	"harness %s: ready.timeoutMs is negative"	1
+internal/harness/harness.go	Harness.Validate	K2	"harness %s: unknown setting %q; known: %s"	1
+internal/harness/harness.go	Harness.Validate	K3	"harness %s: command is empty; give the argv, e.g. [%q]"	1
+internal/harness/harness.go	Harness.Validate	K3	"harness %s: models are listed but modelFlag is empty"	1
+internal/harness/harness.go	Harness.Validate	K4	"harness has no name"	1
+internal/harness/harness.go	Harness.Validate	K8	"harness %s: attach %q is not an attach mode; use %q or %q"	1
+internal/harness/harness.go	Harness.Validate	K8	"harness %s: prompt %q is not a prompt mode; use %q or %q"	1
+internal/harness/harness.go	Harness.Validate	K8	"harness %s: scroll %q is not a scroll behaviour; use %q or %q"	1
+internal/harness/harness.go	Harness.validateParts	K14	"harness %s: %w"	1	failure
+internal/harness/harness.go	Harness.validateParts	K15	"harness %s: contextWindows %q: a glob and a token count ≥ 0"	1
+internal/harness/harness.go	Harness.validateParts	K15	"harness %s: ids %q: a glob of the id tuios reports"	1
+internal/harness/harness.go	Load	K14	"%s: %w"	2	failure
+internal/harness/harness.go	Merge	K14	"entry %d: %w"	1	failure
+internal/harness/harness.go	Merge	K14	"harness %s: %w"	1	failure
+internal/harness/harness.go	Merge	K14	"harness file must be a JSON array of harness objects: %w"	1	failure
+internal/harness/harness.go	Merge	K15	"harness %s: extends is for an entry that adds a harness; %s exists, so the entry changes it"	1
+internal/harness/harness.go	Merge	K4	"entry %d has no name"	1
+internal/harness/harness.go	Merge	K8	"harness %s: extends %q, which is not a harness defined before it"	1
+internal/harness/harness.go	NewRegistry	K13	"harness %s is defined twice"	1	declaration
+internal/harness/harness.go	Registry.Lookup	K2	"unknown harness %q; known: %s"	1
+internal/harness/hooks.go	HookFileContent	K15	"no hook file %q"	1
+internal/harness/launch.go	Launcher.Launch	K14	"pane %s is open but %q was not typed: %w"	1	failure
+internal/harness/promptbox.go	PromptBox.validate	K8	"harness %s: promptBox.deliver %q is not a delivery; use %q or %q"	1
+internal/harness/promptbox.go	PromptBox.validate	K8	"harness %s: promptBox.submit %q is not a submit; use %q or %q"	1
+internal/harness/session.go	SessionSource.validate	K15	"harness %s: session: %v"	1
+internal/harness/settings.go	Harness.LaunchSettings	K15	"%s takes %s: %s"	1
+internal/harness/settings.go	Setting.Steps	K8	"%q is not in the cycle %s"	1
+internal/harness/settings.go	Setting.Steps	K8	"the current value %q is not in the cycle %s"	1
+internal/harness/settings.go	Setting.validate	K15	"harness %s: setting %s flags %q have no %s"	1
+internal/harness/settings.go	Setting.validate	K4	"harness %s: setting %s command %q has no %s"	1
+internal/harness/settings.go	Setting.validate	K8	"harness %s: setting %s gives both command and key; use one"	1
+internal/harness/settings.go	Setting.validate	K8	"harness %s: setting %s screen names %q, which is not in its cycle"	1
+internal/harness/settings.go	Setting.validate	K8	"harness %s: setting %s steps with key %q but its cycle has fewer than two values"	1
+internal/harness/settings.go	var ErrNoWindow	K15	"no context window known"	1
+internal/harness/view.go	CheckSplit	K15	"split %d is outside %d..%d (percent of the width the turns take)"	1
+internal/harness/view.go	CheckView	K8	"view %q is not a view; use %s"	1
+internal/harness/view.go	View.validate	K14	"harness %s: view.%w"	1	failure
+internal/harness/view.go	View.validate	K14	"harness %s: view.open: %w"	1	failure
+internal/history/history.go	Journal.snapshot	K14	"decode history: %w"	1	failure
+internal/history/marks.go	Journal.MarkReviewed	K3	"review id is required"	1
+internal/history/turns.go	Journal.Capture	K15	"a response requires completed_at"	1
+internal/history/turns.go	Journal.Capture	K15	"capture the turn start before its completion"	1
+internal/history/turns.go	Journal.Capture	K15	"id, session, window, harness and conversation_id are required"	1
+internal/history/turns.go	Journal.Capture	K15	"turn ID already records different content"	1
+internal/history/turns.go	Journal.Capture	K15	"turn start timestamp differs from the recorded request"	1
+internal/history/turns.go	Journal.Capture	K15	"turn timestamps must be Unix milliseconds, with completion at or after start"	1
+internal/mcp/harness.go	ConfigAs	K14	"%w %q (known: %s)"	1	failure
+internal/mcp/harness.go	var ErrUnknownHarness	K15	"mcp: no configuration known for harness"	1
+internal/notices/gen/main.go	collect	K15	"go list (%s %s): %v\n%s"	1
+internal/notices/gen/main.go	run	K14	"%s: %w"	1	failure
+internal/notices/gen/main.go	run	K15	"the Go licence is in neither %s nor %s"	1
+internal/notices/gen/main.go	write	K15	"the notices data is out of date (make licenses):\n%s"	1
+internal/notify/notify.go	Commands	K10	"%s: each sender needs an executable"	1
+internal/notify/notify.go	Commands	K14	"%s: want a JSON array of argv arrays: %w"	1	failure
+internal/notify/notify.go	Commands	K15	"%s: an argument contains NUL"	1
+internal/notify/notify.go	Commands	K15	"%s: use [] for no extra senders, not null"	1
+internal/notify/notify.go	Sender.Send	K14	"%s: %w: %s"	1	failure
+internal/notify/notify.go	Sender.Send	K14	"terminal: %w"	1	failure
+internal/notify/notify.go	Sender.Send	K15	"no notification sender succeeded"	1
+internal/panesignals/commands.go	CommandExtra	K15	"Failed(…)"	1
+internal/panesignals/commands.go	CommandRule.Raises	K15	"Failed(…)"	2
+internal/panesignals/commands.go	CommandWhy	K15	"Failed(…)"	1
+internal/panesignals/commands.go	ReconcileCommands	K15	"Failed(…)"	1
+internal/reminders/notify.go	Store.Finish	K9	"notification claim expired or was replaced"	1
+internal/reminders/notify.go	Store.NotifyDue	K14	"reminder %q: %w"	1	failure
+internal/reminders/notify.go	Store.NotifyDue	K15	"no notification sender succeeded"	1
+internal/reminders/store.go	CheckTime	K15	"time %q: use local HH:MM (00:00 through 23:59)"	1
+internal/reminders/store.go	ParseDays	K2	"unknown day %q: use sun,mon,tue,wed,thu,fri,sat"	1
+internal/reminders/store.go	Store.Check	K15	"check date must be between the reminder's first day and today"	1
+internal/reminders/store.go	Store.Check	K15	"date %q: use YYYY-MM-DD"	1
+internal/reminders/store.go	Store.Check	K15	"unknown check action %q"	1
+internal/schedules/defs.go	Runner.Delete	K14	"%s: %w"	1	failure
+internal/schedules/defs.go	Runner.Save	K14	"schedule %s: %w"	1	failure
+internal/schedules/defs.go	Runner.Save	K7	"name %q: use letters, digits and dashes"	1
+internal/schedules/defs.go	var ErrNotStored	K15	"not a stored schedule"	1
+internal/schedules/schedules.go	Def.Check	K1	"When(…) without Fallback"	2
+internal/schedules/schedules.go	Def.Check	K15	"a command schedule needs an interval, days/at or cron"	1
+internal/schedules/schedules.go	Def.Check	K2	"agent target is one of %s"	1
+internal/schedules/schedules.go	Def.Check	K2	"catch_up is one of %s"	1
+internal/schedules/schedules.go	Def.Check	K2	"enabled is one of %s"	1
+internal/schedules/schedules.go	Def.Check	K2	"interval_from is one of %s"	1
+internal/schedules/schedules.go	Def.Check	K3	"command is required (an argv array)"	1
+internal/schedules/schedules.go	Def.Occurrence	K1	"When(…) without Fallback"	2
+internal/schedules/schedules.go	Def.after	K1	"When(…) without Fallback"	1
+internal/schedules/schedules.go	Duration.UnmarshalJSON	K14	"a duration is a string such as \"5m\": %w"	1	failure
+internal/schedules/schedules.go	Load	K14	"%s: %w"	1	failure
+internal/schedules/schedules.go	Merge	K14	"entry %d: %w"	1	failure
+internal/schedules/schedules.go	Merge	K14	"schedule %s: %w"	2	failure
+internal/schedules/schedules.go	Merge	K14	"the schedules file is a JSON array of schedule objects: %w"	1	failure
+internal/schedules/schedules.go	Merge	K7	"entry %d: name %q: use letters, digits and dashes"	1
+internal/schedules/schedules.go	New	K14	"schedules: importing matomeru-old's prompt schedules: %w"	1	failure
+internal/schedules/schedules.go	Runner.execute	K14	"timed out after %s: %w"	1	failure
+internal/schedules/schedules.go	Runner.execute	K15	"mtm runs no %q schedules"	1
+internal/schedules/schedules.go	Runner.record	K15	"Failed(…)"	1
+internal/schedules/schedules.go	Runner.runCommand	K14	"%s %w"	1	failure
+internal/schedules/schedules.go	Runner.runCommand	K15	"drive %s: mtm runs no %s command rows here"	1
+internal/schedules/schedules.go	Runner.runCommand	K4	"the schedule has no command"	1
+internal/schedules/schedules.go	var ErrMissing	K10	"not on PATH"	1
+internal/schedules/schedules.go	var ErrRunning	K15	"the schedule is already running"	1
+internal/schedules/when.go	ParseBound	K8	"%q is not a date: write 2026-11-01 or 2026-11-01T09:00:00Z"	1
+internal/schedules/when.go	ParseWhen	K8	"%q is not a day, a time (09:00, 5:30pm) or an interval (30m); write e.g. \"every 30m\", \"mon,fri 09:00\" or \"cron 0 9 * * 1-5\""	1
+internal/schedules/when.go	When.Check	K15	"give an interval or days/at/cron, not both"	1
+internal/schedules/when.go	When.Check	K15	"give cron or days/at, not both"	1
+internal/schedules/when.go	When.Check	K15	"interval is at least 1m"	1
+internal/schedules/when.go	clockTime	K8	"%q is not a time of day: write 09:00, 17:30 or 5:30pm"	1
+internal/schedules/when.go	cronField	K15	"%q is not %d-%d"	1
+internal/schedules/when.go	cronField	K15	"range %q runs backwards"	1
+internal/schedules/when.go	cronField	K15	"step %q"	1
+internal/schedules/when.go	normalDays	K8	"%q is not a day: use mon … sun, weekdays, weekends or daily"	1
+internal/schedules/when.go	parseCron	K14	"cron %q: %s: %w"	1	failure
+internal/schedules/when.go	parseCron	K15	"cron %q: five fields: minute hour day-of-month month day-of-week"	1
+internal/setup/hooks.go	editHooks	K14	"hooks.%s is not a list: %w"	1	failure
+internal/setup/hooks.go	editHooks	K14	"hooks.%s: %w"	1	failure
+internal/setup/hooks.go	groupHooks	K14	"a hook group's hooks is not a list: %w"	1	failure
+internal/setup/hooks.go	hooksOf	K14	"hooks is not an object: %w"	1	failure
+internal/setup/hooks.go	parseObject	K15	"not a JSON object"	1
+internal/setup/setup.go	Options.Install	K15	"refusing to overwrite %s: mtm does not own it"	1
+internal/setup/setup.go	Options.Plan	K14	"%s: %w"	1	failure
+internal/setup/setup.go	Options.Uninstall	K15	"refusing to remove %s: mtm does not own it"	1
+internal/setup/setup.go	Options.path	K15	"unknown setup item %q"	1
+internal/setup/setup.go	definition	K15	"unknown setup item %q (one of %s)"	1
+internal/setup/setup.go	read	K8	"%s is not a regular file"	1
+internal/turns/claude.go	LogChain.Read	K14	"session %s: %w"	1	failure
+internal/turns/claude.go	var ErrNoLog	K15	"no session log"	1
+internal/turns/omp.go	FindOmpLog	K14	"%w: no omp session %s"	1	failure
+internal/turns/shell.go	var ErrLeftHistory	K15	"output left the history"	1
+internal/work/actor.go	MayChangeTask	K15	"%v, not %v"	1
+internal/work/actor.go	MayChangeTask	K15	"%v; an agent may not delete or rewrite it"	1
+internal/work/actor.go	MayChangeTask	K15	"agents.write-scope is %v"	1
+internal/work/actor.go	ParseActor	K15	"actor %q is not owner, agent, unknown or an actor as JSON ({\"kind\":\"agent\",...})"	1
+internal/work/companions.go	Store.PutCompanion	K13	"companion kind must be nonempty"	1	declaration
+internal/work/companions.go	Store.PutCompanion	K13	"companion requires distinct nonempty window and parent ids"	1	declaration
+internal/work/companions.go	companionConflict	K15	"pane %s already has a side %s"	1
+internal/work/convert.go	Store.DemoteProject	K4	"unknown project %s"	2
+internal/work/convert.go	Store.DemoteProject	K8	"a project cannot become a task of itself"	1
+internal/work/convert.go	Store.PromoteTask	K4	"unknown task %s"	1
+internal/work/convert.go	Store.replay	K14	"%s/%s: %w"	1	failure
+internal/work/convert.go	convertTx.entries	K14	"%s/%s: %w"	1	failure
+internal/work/convert.go	convertTx.relationRows	K14	"relations/%s: %w"	1	failure
+internal/work/convert.go	var ErrNoProjectAbove	K4	"the first project has no project above it to become a task of"	1
+internal/work/convert.go	var ErrNotTopTask	K15	"only a task directly under its project becomes a project; a deeper task outdents one level"	1
+internal/work/copies.go	Store.PutCopy	K3	"a copy requires a noun (one word) and a key"	1
+internal/work/delete.go	Store.deleteRecord	K15	"cannot delete %s"	1
+internal/work/directories.go	migrateDirectories	K14	"projects 1 -> 2: backup before moving directories to relations: %w"	1	failure
+internal/work/directories.go	var ErrNotAttached	K15	"directory is not attached to this project"	1
+internal/work/ext_rows.go	Store.RekeyExtRowOwner	K15	"conflicting extension row owners for %s and %s"	1
+internal/work/focus.go	Store.PutFocusItems	K3	"a focus needs a thing and a day"	1
+internal/work/privacy_store.go	Store.SetProjectPrivacy	K2	"privacy %q is not one of private, family"	1
+internal/work/restore.go	Store.RestoreTask	K15	"nothing to restore"	1
+internal/work/reviews.go	Store.AddReview	K3	"a review needs a session and a window"	1
+internal/work/reviews.go	Store.EnsureReview	K15	"a review needs an id, a session and a window"	1
+internal/work/reviews.go	Store.SetReviewStatus	K15	"unknown review status %q"	1
+internal/work/saved.go	Store.ForgetSavedPane	K14	"saved pane %s: %w"	1	failure
+internal/work/saved.go	Store.PutPaneRecipe	K3	"recipe requires a pane id"	1
+internal/work/sessions.go	Store.AddPaneSession	K3	"a pane session requires a pane id and a session id"	1
+internal/work/stars.go	Store.SetPaneStar	K3	"a star requires a pane id"	1
+internal/work/statuses.go	ParseStatuses	K13	"tasks.statuses: %q glyph %q is %d characters: use one"	1	declaration
+internal/work/statuses.go	ParseStatuses	K13	"tasks.statuses: %q is listed twice"	1	declaration
+internal/work/statuses.go	ParseStatuses	K13	"tasks.statuses: row %d needs a name"	1	declaration
+internal/work/statuses.go	ParseStatuses	K13	"tasks.statuses: the %q row is needed (x toggles between todo and done)"	1	declaration
+internal/work/statuses.go	ParseStatuses	K14	"tasks.statuses: %w"	1	failure
+internal/work/views.go	Store.SetPaneView	K3	"a pane view requires a pane id"	1
+internal/work/work.go	Store.SetStatus	K2	"status %q is not one of %s"	1
+store/append.go	Store.After	K13	"store: %q is not append-only"	1	declaration
+store/extension.go	ExtensionPath	K13	"store: invalid extension name %q (lowercase letters, digits and dashes)"	1	declaration
+store/extension.go	ExtensionPath	K13	"store: the data directory is required"	1	declaration
+store/extension.go	Store.claim	K13	"store: %s already holds %d tables that are not extension %q's; an extension never opens mtm's database"	1	declaration
+store/extension.go	Store.claim	K13	"store: %s is not extension %q's database (it belongs to %q)"	1	declaration
+store/extension.go	Store.claim	K14	"mark extension database: %w"	2	failure
+store/extension.go	ownerAllowed	K13	"store: extension %q's database cannot hold table %q owned by %q"	1	declaration
+store/index.go	Store.Backup	K13	"store: an in-memory database has no file to back up"	1	declaration
+store/index.go	Store.Backup	K13	"store: backup %s exists"	1	declaration
+store/index.go	Store.Backup	K14	"store: backup: %w"	1	failure
+store/index.go	Store.Index	K13	"store: index %s.%s needs a field"	1	declaration
+store/index.go	Store.Index	K13	"store: invalid index name %q"	1	declaration
+store/index.go	Store.Index	K14	"store: index %s.%s: %w"	1	failure
+store/index.go	fieldExpr	K13	"store: invalid field %q"	1	declaration
+store/migrate.go	Store.Migrate	K13	"store: migrate %q: append-only table refuses row rewrites (%s)"	1	declaration
+store/migrate.go	Store.Migrate	K13	"store: migrate %q: table is at version %d, migration starts at %d"	1	declaration
+store/migrate.go	Store.Migrate	K13	"store: migrate %q: versions must rise from a positive version (%d -> %d)"	1	declaration
+store/migrate.go	Store.Migrate	K14	"migrate %s/%s v%d -> v%d: %w"	1	failure
+store/migrate.go	Store.Migrate	K14	"migrate %s/%s: %w"	1	failure
+store/migrate.go	Store.Migrate	K14	"migrate %s/%s: encode: %w"	1	failure
+store/migrate.go	Store.Migrate	K14	"migrate %s: %w"	2	failure
+store/migrate.go	declaredTables	K14	"store tables: %w"	1	failure
+store/query.go	Query.source	K13	"store: invalid column %q of %s"	1	declaration
+store/query.go	Query.source	K13	"store: invalid projection table %q"	1	declaration
+store/query.go	Query.where	K13	"store: search needs fields to search in"	1	declaration
+store/query.go	QueryCond.test	K13	"store: unknown query operator %q"	1	declaration
+store/query.go	Store.Query	K13	"store: query limit %d offset %d"	1	declaration
+store/query.go	valueExpr	K13	"store: query needs a field"	1	declaration
+store/store.go	Open	K13	"store: database path is required"	1	declaration
+store/store.go	Open	K14	"initialize store: %w"	1	failure
+store/store.go	Open	K14	"store directory: %w"	1	failure
+store/store.go	Open	K14	"store path: %w"	1	failure
+store/store.go	OpenReadOnly	K13	"store: a read-only store needs a database file"	1	declaration
+store/store.go	OpenReadOnly	K14	"open store: %w"	3	failure
+store/store.go	OpenReadOnly	K14	"store path: %w"	1	failure
+store/store.go	Store.Declare	K13	"store: invalid table name %q"	1	declaration
+store/store.go	Store.Declare	K13	"store: table %q declaration conflicts with persisted metadata"	1	declaration
+store/store.go	Store.Declare	K13	"store: table owner, key, and positive version are required"	1	declaration
+store/store.go	Store.Declare	K14	"declare %s: %w"	1	failure
+store/store.go	Store.Declare	K14	"protect %s: %w"	1	failure
+store/store.go	Store.Tables	K14	"count %s: %w"	1	failure
+store/store.go	Store.Tables	K14	"store tables: %w"	1	failure
+store/store.go	Store.declared	K14	"store: table %q is unavailable: %w"	1	failure
+store/store.go	Store.run	K14	"store: table %q is unavailable: %w"	1	failure
+store/store.go	Tx.Delete	K13	"store: delete inside a read-only view"	1	declaration
+store/store.go	Tx.Delete	K13	"store: table %q is append-only"	1	declaration
+store/store.go	Tx.Put	K13	"store: put inside a read-only view"	1	declaration
+store/store.go	Tx.Put	K13	"store: row id is required"	1	declaration
+store/store.go	Tx.Put	K14	"encode %s row: %w"	1	failure
+store/store.go	Tx.Put	K14	"put %s/%s: %w"	1	failure
+store/store.go	Tx.allowed	K13	"store: table %q is outside transaction scope"	1	declaration

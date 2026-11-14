@@ -79,12 +79,19 @@ func TestPaneWithoutABoxIgnoresInsertKey(t *testing.T) {
 	}
 }
 
-func TestLiveLeaderInsertStillReachesTheProgram(t *testing.T) {
+// Leader i is the framework's live-only row into the nested terminal mode
+// (ochazuke v0.137): nothing is sent, then every key, the leader included,
+// goes to the program until the escape key.
+func TestLiveLeaderInsertEntersNestedMode(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
 	press(t, app, "enter", "ctrl+a", "i")
-	if app.r.FocusID() != paneTermID || app.r.BaseMode() != "terminal" || !reflect.DeepEqual(f.streams[0].sent, [][]string{{"ctrl+a"}, {"i"}}) {
+	if app.r.FocusID() != paneTermID || app.r.BaseMode() != "nested" || len(f.streams[0].sent) != 0 {
 		t.Fatalf("leader i: %s sent %v", where(app), f.streams[0].sent)
+	}
+	press(t, app, "ctrl+a", "i")
+	if !reflect.DeepEqual(f.streams[0].sent, [][]string{{"ctrl+a"}, {"i"}}) {
+		t.Fatalf("nested: sent %v", f.streams[0].sent)
 	}
 }
 

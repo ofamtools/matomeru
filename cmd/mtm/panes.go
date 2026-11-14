@@ -309,6 +309,12 @@ type paneEventsDue struct{}
 // noun (refresh).
 func (a *App) definePanes() {
 	r := a.r
+	// "live" is how a person says the attached terminal place; typing it in
+	// the ? -> p picker finds ochazuke.terminal (picker keywords). A word a
+	// noun already owns keeps its meaning (the alias is skipped).
+	if r.Noun("live") == nil {
+		_ = r.AddNounAlias(ochazuke.NounAlias{Alias: "live", Noun: "ochazuke.terminal", NoDisplay: true})
+	}
 	r.Define("ochazuke.terminal").Props(ochazuke.PropSpec{
 		Name: "pane", ReadOnly: true, Association: true,
 		Parameter: ochazuke.Parameter{Type: "string", Noun: "pane", Description: "The pane this terminal shows"},

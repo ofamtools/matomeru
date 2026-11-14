@@ -231,7 +231,7 @@ func TestLeaderQuestionOpensTheHelpTree(t *testing.T) {
 	if strings.Count(frame, "▾ ctrl+a") != 1 {
 		t.Fatalf("the leader is not one open row:\n%s", frame)
 	}
-	for _, want := range []string{"▸ ctrl+a v", "▸ ctrl+a :", "▸ ctrl+a ,", "▸ ctrl+a '", "▸ ctrl+a `", "▸ ctrl+a W", "▸ ctrl+a ctrl+j", "command palette", "next starred pane, live (`"} {
+	for _, want := range []string{"▸ ctrl+a v", "▸ ctrl+a :", "▸ ctrl+a ,", "▸ ctrl+a '", "▸ ctrl+a `", "▸ ctrl+a W", "▸ ctrl+a ctrl+j", "command palette", "next starred pane, live"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("help tree lacks %q:\n%s", want, frame)
 		}

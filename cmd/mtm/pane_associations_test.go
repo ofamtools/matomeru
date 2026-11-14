@@ -81,7 +81,7 @@ func TestLiveRenameOptOutAndNestedLeader(t *testing.T) {
 
 func TestLiveFocusBoundOutsideKeysStayLive(t *testing.T) {
 	t.Parallel()
-	for _, k := range []string{"enter", "]", "i"} {
+	for _, k := range []string{"enter", "]"} {
 		t.Run(k, func(t *testing.T) {
 			t.Parallel()
 			a, f := panesApp(t)

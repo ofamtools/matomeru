@@ -34,7 +34,7 @@ func focusLabels(t *testing.T, a *App, args ...string) []string {
 func TestFocusPickerAndDayChange(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	now := time.Date(2026, 11, 13, 10, 0, 0, 0, time.UTC)
+	now := time.Now().UTC().Truncate(24 * time.Hour).Add(10 * time.Hour) // the store stamps done with the real clock: the fake day is the real UTC day
 	a.loc, a.clock = time.UTC, func() time.Time { return now }
 	press(t, a, "#")
 	ch := a.r.Chooser(focusPickerName)
