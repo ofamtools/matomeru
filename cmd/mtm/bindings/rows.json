@@ -1,0 +1,17 @@
+// mtm's default rows that are data rather than Go Bind chains (ochazuke
+// LoadDefaultBindings). Key redirects: a row drawn under a pane (a subagent,
+// an item) answers the keys it does not bind as its pane does; a pane row
+// answers the keys it does not bind as its first item does (u reads it, x
+// archives it, s snoozes it). Override or unbind any row in bindings.json
+// ({"key": "unbound", "unbind": true}).
+{"bindings": [
+  {"context": "subagent/normal", "bindings": [
+    {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "parent"}, "hidden": true, "help": "a key the subagent row does not bind is its pane's"}
+  ]},
+  {"context": "action-item/normal", "bindings": [
+    {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "parent"}, "hidden": true, "help": "a key an item row under a pane does not bind is the pane's"}
+  ]},
+  {"context": "pane/normal", "bindings": [
+    {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "child", "of": "action-item"}, "hidden": true, "help": "a key the pane row does not bind is its first item's (u read, x archive, s snooze)"}
+  ]}
+]}

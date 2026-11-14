@@ -586,7 +586,6 @@ pages	prop	seed
 pair-files	action	seed	
 palette	noun	seed	
 pane	noun+prop	seed	
-pane-child	noun	seed	
 pane-setting	noun	seed	
 pane_count	prop	seed	
 panes	noun+prop	seed	
@@ -683,6 +682,7 @@ recheck	action	seed
 reconnect	action	yes	
 record	action	seed	
 redo	action	seed	
+redirect	action	seed	
 ref	prop	seed	
 referrer	noun	seed	
 refresh	action	seed	
@@ -860,6 +860,7 @@ store	noun	seed
 store-table	noun	seed	
 story	noun	seed	
 structure	prop	seed	
+subagent	noun	seed	
 subject	prop	seed	
 suggest	action	seed	
 summary	prop	seed	

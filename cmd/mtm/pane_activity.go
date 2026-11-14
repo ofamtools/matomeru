@@ -33,10 +33,11 @@ import (
 // The sources follow each agent pane's current session log off the loop
 // on every listing (panes.read-activities), reading only the spawn calls,
 // their results and the task notifications, from where the last read
-// stopped. A row is the pane-child noun (a pane's child row: any harness's activity): j/k pass through it, its
-// selection shows its pane's detail, enter (pane-child.open) puts the
-// detail on the pane's Turns tab with the card of the call that started
-// it selected, without moving the focus.
+// stopped. A row is the subagent noun (any harness's spawned agent): j/k
+// pass through it, its selection shows its pane's detail, enter
+// (subagent.open) puts the detail on the pane's Turns tab with the card
+// of the call that started it selected, without moving the focus; a key
+// it does not bind is its pane's (bindings/rows.json).
 //
 // Settings: panes.subagents (active, the default, or off: no rows and no
 // reads) and panes.subagents-linger (default 30s; 0 drops a bad end at
@@ -51,7 +52,7 @@ const (
 	settingSectionAgentCount    = "panes.section-agent-count"
 	subagentsActive             = "active"
 	subagentsOff                = "off"
-	activityNoun                = "pane-child"
+	subagentNoun                = "subagent"
 	activityRowStart            = "child:"
 )
 
@@ -98,12 +99,12 @@ type activityRead struct {
 }
 
 func (a *App) definePaneActivities() {
-	a.r.Define(activityNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
+	a.r.Define(subagentNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("open", a.openActivity, "Show the subagent's pane on its Turns tab, at the card of the call that started it").
 		Verb("copy", a.copyActivity, "Copy the subagent's description, type and id").
 		Mode("normal").
-		Bind("enter", ochazuke.Do(activityNoun+".open")).
-		Bind("y", ochazuke.Do(activityNoun+".copy"))
+		Bind("enter", ochazuke.Do(subagentNoun+".open")).
+		Bind("y", ochazuke.Do(subagentNoun+".copy"))
 }
 
 // subagentsOn reports whether panes.subagents shows the rows.
@@ -357,7 +358,7 @@ func (a *App) activityNodes(p pane, parent string, now time.Time) []ochazuke.Tre
 			ID:     activityRowStart + p.ID + "/" + act.ID,
 			Parent: parent,
 			Label:  "subagent " + title,
-			Noun:   activityNoun,
+			Noun:   subagentNoun,
 			Data:   activityRow{Window: p.ID, Row: p.rowID(), Activity: act},
 			Props:  ochazuke.Thing{"pane": p.ID, "session": cmp.Or(p.SessionID, p.Session)},
 			Cells:  []string{name, state, ""},
@@ -377,7 +378,7 @@ func activityAt(inst *ochazuke.Instance) (activityRow, error) {
 	return activityRow{}, errors.New("no subagent selected")
 }
 
-// openActivity is pane-child.open: the detail on the pane's Turns
+// openActivity is subagent.open: the detail on the pane's Turns
 // tab, the card of the turn whose call started the subagent selected
 // when the pane's turns are read. The focus stays on the list.
 func (a *App) openActivity(ctx ochazuke.Ctx) ochazuke.Result {
@@ -397,7 +398,7 @@ func (a *App) openActivity(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // selectWantedCall selects, in its pane's timeline, the card of the turn
-// that made the call pane-child.open asked for, once the pane's turns
+// that made the call subagent.open asked for, once the pane's turns
 // hold it.
 func (a *App) selectWantedCall() {
 	window, call, ok := strings.Cut(a.pv.wantCall, "\x00")
@@ -424,7 +425,7 @@ func (a *App) selectWantedCall() {
 	}
 }
 
-// copyActivity is pane-child.copy.
+// copyActivity is subagent.copy.
 func (a *App) copyActivity(ctx ochazuke.Ctx) ochazuke.Result {
 	r, err := activityAt(ctx.Instance)
 	if err != nil {

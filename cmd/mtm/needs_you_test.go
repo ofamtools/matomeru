@@ -226,3 +226,42 @@ func TestNeedsYouLeaderWInLive(t *testing.T) {
 		})
 	}
 }
+
+// The keys on a Needs-you row reach what the row stands for, through mtm's
+// default key-redirect rows (bindings/rows.json), whatever the row's kind:
+// u on a pane row reads its first item and x archives it, so the row
+// leaves at once; * on an item row drawn under a pane stars the pane.
+// With the pane's redirect unbound in bindings.json, u is app undo again.
+func TestNeedsYouRowKeysReachItsItemAndPane(t *testing.T) {
+	t.Parallel()
+	a, _ := sectionsApp(t)
+	keyAt := func(row, key string) {
+		t.Helper()
+		if err := a.selectPaneRow(row); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.r.SetFocus(row); err != nil {
+			t.Fatal(err)
+		}
+		a.Update(keyMsg(key))
+	}
+	keyAt("pane:s/wdone", "u")
+	if it, _ := a.inbox.items.Get(itemByKey(t, a, "u").ID); !it.Read() || slices.Contains(sectionIDs(a, 0), "pane:s/wdone") {
+		t.Fatalf("u on the pane row: read %v, queue %v", it.Read(), sectionIDs(a, 0))
+	}
+	keyAt("pane:s/werr", "x")
+	if it, _ := a.inbox.items.Get(itemByKey(t, a, "e").ID); it.ArchivedAt == 0 || slices.Contains(sectionIDs(a, 0), "pane:s/werr") {
+		t.Fatalf("x on the pane row: archived %d, queue %v", it.ArchivedAt, sectionIDs(a, 0))
+	}
+	keyAt(itemRowStart+itemByKey(t, a, "w").ID, "*")
+	if _, ok := starred(t, a)["wwait"]; !ok {
+		t.Fatalf("* on the item row: stars %+v", starred(t, a))
+	}
+	if _, err := a.r.LoadBindings([]byte(`{"bindings": [{"context": "pane/normal", "bindings": [{"key": "unbound", "unbind": true}]}]}`)); err != nil {
+		t.Fatal(err)
+	}
+	keyAt("pane:s/wwait", "u")
+	if it, _ := a.inbox.items.Get(itemByKey(t, a, "w").ID); it.Read() {
+		t.Fatal("u read the item with the pane's redirect unbound")
+	}
+}

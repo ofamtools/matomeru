@@ -14,6 +14,7 @@
 ../../internal/agenthook/cmd_agent_statusline.go	reportStatusLine	cyclo	"-"	32	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
 ../../internal/agenthook/hook.go	StateActivity	case	"prompt"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook.go	var harnessAliases	table	"cursor"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_claude.go	claudeBackgroundTasks	compare	"subagent"	1	Claude's hook payload type value (a background task that is a subagent), not the subagent noun
 ../../internal/agenthook/hook_claude.go	translateClaude	cyclo	"-"	33	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
 ../../internal/agenthook/hook_cursor.go	translateCursor	case	"stop"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"idle"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names

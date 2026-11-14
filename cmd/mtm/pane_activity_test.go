@@ -53,7 +53,7 @@ func subagentsApp(t *testing.T) *App {
 func activityRows(app *App) map[string]string {
 	out := map[string]string{}
 	for _, it := range sectionItems(app) {
-		if it.Noun == activityNoun {
+		if it.Noun == subagentNoun {
 			out[it.ID] = strings.TrimSpace(strings.Join(it.Cells, " | ")) // the tree's indent off
 		}
 	}
@@ -90,7 +90,7 @@ func TestPaneListShowsActiveSubagentsUnderTheirPane(t *testing.T) {
 		nodes = append(nodes, sec.tree.Nodes()...)
 	}
 	for _, n := range nodes {
-		if n.Noun != activityNoun {
+		if n.Noun != subagentNoun {
 			continue
 		}
 		if n.Parent != parent {
@@ -137,10 +137,10 @@ func TestPaneListShowsActiveSubagentsUnderTheirPane(t *testing.T) {
 }
 
 // j and k pass through the child rows (drawing order); a selected child
-// row shows its pane's detail; enter (pane-child.open) puts the detail on
+// row shows its pane's detail; enter (subagent.open) puts the detail on
 // the Turns tab with the card of the turn that started the subagent
-// selected, the focus kept on the list; a child row that drops off leaves
-// the cursor on its pane.
+// selected, the focus kept on the list; a key the row does not bind is
+// its pane's; a child row that drops off leaves the cursor on its pane.
 func TestSubagentRowsAreSelectableAndOpenTheirCard(t *testing.T) {
 	t.Parallel()
 	app := subagentsApp(t)
@@ -174,6 +174,12 @@ func TestSubagentRowsAreSelectableAndOpenTheirCard(t *testing.T) {
 	}
 	if sel := tl.SelectedID(); sel != turnCardID("w1", "u2") {
 		t.Fatalf("selected card %q, want the audit turn's:\n%s", sel, frameWH(app, 140, 40))
+	}
+	// A key the subagent row does not bind is its pane's (the default
+	// redirect row, bindings/rows.json): * stars the pane, the focus stays.
+	press(t, app, "*")
+	if _, ok := starred(t, app)["w1"]; !ok || app.r.FocusID() != focus {
+		t.Fatalf("* on the subagent row: stars %+v, focus %s", starred(t, app), app.r.FocusID())
 	}
 	// The killed agent's row is selected when the linger ends.
 	if err := app.selectPaneRow("child:w1/toolu_k"); err != nil {

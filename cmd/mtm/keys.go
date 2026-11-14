@@ -35,7 +35,10 @@ func (a *App) defineKeyMap() error {
 	// open and quitting took two ctrl+c (test pass R18).
 	paletteQuit := ochazuke.Do("app.quit").Hide()
 	paletteQuit.Noun, paletteQuit.Mode, paletteQuit.Keys = "palette", "", "ctrl+c"
-	return a.r.Bind(paletteQuit)
+	if err := a.r.Bind(paletteQuit); err != nil {
+		return err
+	}
+	return a.loadDefaultRows()
 }
 
 // keyFor is the key that runs op at focus, as ? help lists it ("" when no
