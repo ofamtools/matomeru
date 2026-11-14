@@ -20,7 +20,18 @@ import (
 // finished.
 func subagentsApp(t *testing.T) *App {
 	t.Helper()
-	app, f := panesApp(t)
+	return subagentsAppAt(t, seeded(t))
+}
+
+// subagentsAppAt is subagentsApp on the database at path.
+func subagentsAppAt(t *testing.T, path string) *App {
+	t.Helper()
+	app := openWith(t, Options{Data: path})
+	f := app.panesd.(*fakePanes)
+	if err := app.reloadPanes(); err != nil {
+		t.Fatal(err)
+	}
+	settle(app, app.r.PendingCommands())
 	groupBy(t, app, groupProjectSessionPane)
 	f.panes[0].Harness, f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].Cwd = "claude-code", "working", "s1", "/w/proj"
 	dir := filepath.Join(app.claudeProjects, turns.ClaudeProjectDir("/w/proj"))

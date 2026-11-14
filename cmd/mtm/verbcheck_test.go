@@ -1,20 +1,12 @@
 package main
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"ofam.dev/ochazuke/namecheck"
-	"ofam.dev/ochazuke/nouncheck"
 )
-
-// Every mtm thing noun (a noun with a Store) has the seven core verbs and
-// a key prop, and no mtm command noun has a verb named like a core verb
-// (Runtime.ValidateNouns). There is no baseline: every noun follows the
-// rules, so any new break fails.
-func TestNouns(t *testing.T) {
-	t.Parallel()
-	nouncheck.Check(t, open(t).r, nouncheck.Config{})
-}
 
 // Every tracked Go, JSON and Markdown file of mtm (cmd, internal, store,
 // docs, README, stories) names only verbs mtm's runtime has, with real
@@ -52,4 +44,26 @@ func TestVerbReferences(t *testing.T) {
 		// the purged thing verbs.
 		Allow: []string{"fake.item.rename", "fake.item.move"},
 	})
+}
+
+// vocabApps are the test app and an app with each real extension catalog
+// mounted (o-ai's quota catalog and o-lane's): the full vocabulary mtm's
+// checks read.
+func vocabApps(t *testing.T) []*App {
+	t.Helper()
+	apps := []*App{open(t)}
+	for _, ext := range []struct{ name, catalog string }{
+		{"ai", "testdata/o-ai-quota-catalog.json"},
+		{"lane", "testdata/o-lane-catalog.json"},
+	} {
+		catalog, err := os.ReadFile(ext.catalog)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bin, _ := fakeExtension(t, strings.TrimSpace(string(catalog)), "")
+		path := seeded(t)
+		mustCLI(t, openAt(t, path), "extension", "register", ext.name, "--bin", bin)
+		apps = append(apps, openAt(t, path))
+	}
+	return apps
 }
