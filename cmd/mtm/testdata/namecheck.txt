@@ -7,7 +7,6 @@
 ../../internal/agenthook/approval.go	Approval.IsPlan	compare	"plan"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/approval.go	claudeAcceptEdits	compare	"session"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/approval.go	var claudeDestinations	table	"session"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
-../../internal/agenthook/approval.go	var openCodeWholeTools	table	"read"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/cmd_agent_hook.go	flushAtTurnEnd	compare	"done"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/cmd_agent_hook.go	reportHookSession	compare	"transcript_leaf"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/cmd_agent_hook.go	reportHookSession	compare	"transcript_path"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
@@ -18,7 +17,6 @@
 ../../internal/agenthook/hook_claude.go	translateClaude	cyclo	"-"	33	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
 ../../internal/agenthook/hook_cursor.go	translateCursor	case	"stop"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"idle"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
-../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"pending"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	piTurnStart	case	"session_start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translateAmp	case	"agent.start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translateAmp	case	"done"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
@@ -41,10 +39,7 @@
 ../../internal/daemon/client.go	decodeEvent	case	"at"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"boot_id"	1	wire field names of the daemon event JSON, not mtm vocabulary (boot_id became a word with session.events)
 ../../internal/daemon/client.go	decodeEvent	case	"data"	1	wire field names of the daemon event JSON, not mtm vocabulary (data became a word with the relation noun's data prop)
-../../internal/daemon/client.go	decodeEvent	case	"seq"	1	wire field names of the daemon event JSON, not mtm vocabulary (seq became a word with ochazuke R1's history noun)
 ../../internal/daemon/client.go	decodeEvent	case	"session"	1	wire field names of the daemon event JSON, not mtm vocabulary
-../../internal/daemon/client.go	decodeEvent	case	"time"	1	wire field names of the daemon event JSON, not mtm vocabulary
-../../internal/daemon/client.go	decodeEvent	case	"type"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/client.go	decodeEvent	case	"window"	1	wire field names of the daemon event JSON, not mtm vocabulary
 ../../internal/daemon/importstate.go	guardClash	compare	"replace"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
 ../../internal/daemon/importstate.go	normalServer	compare	"default"	1	saved-state import: tuios server and import-mode words, not mtm runtime names
@@ -121,7 +116,6 @@
 ../../internal/work/delete.go	Store.deleteRecord	compare	"project"	2
 ../../internal/work/delete.go	Store.deleteRecord	compare	"task"	3
 ../../internal/work/delete.go	Store.deleteRecord	cyclo	"-"	38
-../../internal/work/reviews.go	Store.SetReviewStatus	case	"pending"	1
 ../../internal/work/work.go	NormalStatus	compare	"open"	1
 ../../internal/work/work.go	Store.ToggleDone	compare	"done"	1
 action_item_store.go	App.listActionItemThings	compare	"all"	1
@@ -194,7 +188,6 @@ live_hints.go	App.hintsUpdate	compare	"panes"	1
 live_hints.go	App.startRowHints	compare	"pane"	1
 live_hints.go	var hintActions	table	"copy"	1
 live_hints.go	var hintActions	table	"open"	1
-live_hints.go	var hintActions	table	"type"	1
 main.go	New	compare	"all"	1
 main.go	New	cyclo	"-"	42
 main.go	Options.client	compare	"default"	1

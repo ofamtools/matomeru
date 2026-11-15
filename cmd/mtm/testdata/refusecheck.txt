@@ -2,11 +2,8 @@
 # A row with a reason (E1..E5: rights, loses, failure, declaration, cancel) is a legitimate refusal that stays.
 # A row without one is debt that may only shrink: REFUSECHECK_UPDATE=1 removes rows and lowers counts, never adds.
 # Adding a row is a reviewed edit.
-cmd/mtm/action_item_store.go	App.actionItemProps	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/action_item_store.go	App.actionItemStore	K11	"Confirm: <expr> without Loses"	1
-cmd/mtm/action_item_store.go	App.actionItemStore	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/actor.go	App.cliActor	K14	"%s: %w; using the pane's actor"	1	failure
-cmd/mtm/actor.go	agentSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/agent_declarations.go	App.bindCatalogActors	K15	"Failed(…)"	1
 cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K15	"Failed(…)"	2
 cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K15	"task %s is at version %d, not %d; re-read it"	1
@@ -23,11 +20,9 @@ cmd/mtm/capture.go	App.captureHook	K15	"Failed(…)"	3
 cmd/mtm/capture.go	App.captureTurn	K14	"read the turn from stdin: %w"	1	failure
 cmd/mtm/capture.go	App.captureTurn	K14	"turn record: %w"	1	failure
 cmd/mtm/capture.go	App.captureTurn	K15	"Failed(…)"	2
-cmd/mtm/capture.go	App.defineCapture	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/clipboard.go	macClipboard.Read	K14	"the clipboard reader answered %q: %w"	1	failure
 cmd/mtm/clipboard.go	macClipboard.Read	K15	"errors.New(…)"	1
 cmd/mtm/clipboard.go	macClipboard.Read	K15	"reading images from the clipboard is macOS only (%s)"	1
-cmd/mtm/colors.go	pinColorsSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/context.go	App.contextAt	K5	"specify a context item id or select a row"	1
 cmd/mtm/context.go	App.copyContext	K15	"Failed(…)"	1
 cmd/mtm/context.go	App.copyOSC52	K14	"no clipboard: pbcopy is not available and there is no terminal for OSC 52: %w"	1	failure
@@ -49,7 +44,6 @@ cmd/mtm/context_extract.go	App.extractContext	K3	"name the pane: --target pane:S
 cmd/mtm/context_origins.go	var contextExtractSetting	K2	"unknown context origin %q"	1
 cmd/mtm/context_picker.go	App.copyPrompt	K15	"Failed(…)"	1
 cmd/mtm/context_picker.go	App.copyPrompt	K4	"no turn %s in window %s"	1
-cmd/mtm/context_picker.go	App.defineContextPicker	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/context_picker.go	App.openPromptTurn	K15	"Failed(…)"	7
 cmd/mtm/context_picker.go	App.openPromptTurn	K4	"the pane list has no %s"	1
 cmd/mtm/context_picker.go	App.pickContext	K15	"Failed(…)"	1
@@ -67,9 +61,7 @@ cmd/mtm/context_picker.go	App.runOnItem	K15	"Failed(…)"	1
 cmd/mtm/context_picker.go	App.runOnPrompt	K15	"Failed(…)"	1
 cmd/mtm/context_picker.go	closeChooser	K15	"the chooser is not the top modal"	1
 cmd/mtm/context_store.go	App.associateContextOne	K15	"Failed(…)"	1
-cmd/mtm/context_store.go	App.contextProps	K2	"Enum without Accept: <expr>"	4
 cmd/mtm/context_store.go	App.contextStore	K11	"Confirm: <expr> without Loses"	1
-cmd/mtm/context_store.go	App.contextStore	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/context_store.go	App.createContextItem	K2	"type is required: one of %s"	1
 cmd/mtm/convert.go	App.converted	K15	"Failed(…)"	1
 cmd/mtm/convert.go	App.makeProject	K5	"select a task"	1
@@ -77,8 +69,6 @@ cmd/mtm/convert.go	App.makeTask	K5	"select a project"	1
 cmd/mtm/convert.go	App.outlineDemote	K15	"Failed(…)"	1
 cmd/mtm/convert.go	App.outlinePromote	K3	"Name the task first: a project made here leaves this outline"	1
 cmd/mtm/convert.go	App.outlinePromote	K5	"select a task"	1
-cmd/mtm/copies.go	copySettings	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/copy_edges.go	copyEdgeSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/copybuf.go	copyBuf.findChar	K15	"%q is not on this line"	1
 cmd/mtm/copybuf.go	copyBuf.move	K15	"no bracket on this line"	1
 cmd/mtm/copybuf.go	copyBuf.move	K2	"unknown copy motion %q"	1
@@ -95,7 +85,6 @@ cmd/mtm/copymode.go	App.copySearch	K15	"resultError(…)"	2
 cmd/mtm/copymode.go	App.copyYank	K15	"Failed(…)"	2
 cmd/mtm/copymode.go	App.copyYank	K15	"copy mode is not on"	1
 cmd/mtm/copymode.go	App.defineCopy	K15	"shape must be char, line or block"	1
-cmd/mtm/copymode.go	App.defineCopy	K2	"Enum without Accept: <expr>"	3
 cmd/mtm/copymode.go	App.enterTerminalCopy	K5	"no pane is attached"	1
 cmd/mtm/copymode.go	App.paneCopy	K15	"Failed(…)"	2
 cmd/mtm/copymode.go	App.paneCopy	K15	"resultError(…)"	1
@@ -110,7 +99,6 @@ cmd/mtm/daemon_runner.go	App.daemonServeVerb	K3	"daemon.serve needs a named serv
 cmd/mtm/daemon_runner.go	App.runner	K1	"daemon runner %q is not built into this mtm (-tags nodaemon); use %s"	1
 cmd/mtm/daemon_runner.go	App.runner	K15	"unknown daemon runner %q (%s)"	1
 cmd/mtm/daemon_runner.go	App.stopDaemon	K15	"the daemon reported no pid"	1
-cmd/mtm/daemon_runner.go	daemonSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/daily_focus.go	App.focusAdd	K15	"Failed(…)"	1
 cmd/mtm/daily_focus.go	App.focusAdd	K3	"name a thing (task:ID); # opens the focus picker"	1
 cmd/mtm/daily_focus.go	App.focusClear	K15	"Failed(…)"	4
@@ -127,7 +115,6 @@ cmd/mtm/daily_focus.go	App.focusStore	K15	"no focus %q"	2
 cmd/mtm/daily_focus.go	App.focusStore	K3	"a focus needs a thing (noun:key)"	1
 cmd/mtm/daily_focus.go	App.openFocusPicker	K15	"resultError(…)"	2
 cmd/mtm/daily_focus.go	focusPlace	K15	"to %q is not +N, -N or a place N"	1
-cmd/mtm/daily_focus.go	focusSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/detail_links.go	App.followLink	K15	"resultError(…)"	5
 cmd/mtm/detail_links.go	App.followLink	K15	"unknown link kind %q"	1
 cmd/mtm/detail_links.go	App.followLink	K8	"%s is not a link"	1
@@ -135,7 +122,6 @@ cmd/mtm/detail_links.go	App.jumpDirectory	K8	"%s is not a known directory"	1
 cmd/mtm/detail_links.go	App.jumpPane	K4	"the pane list has no %s"	1
 cmd/mtm/detail_links.go	App.jumpProject	K15	"no project %s"	1
 cmd/mtm/detail_links.go	App.jumpRow	K15	"%s is not on the %s page (outside the pin?)"	1
-cmd/mtm/details.go	var relatedHiddenSetting	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/directories.go	App.addBase	K3	"path is required"	1
 cmd/mtm/directories.go	App.addBasePath	K15	"Failed(…)"	1
 cmd/mtm/directories.go	App.attachBrowsedDirectory	K15	"Failed(…)"	1
@@ -191,13 +177,10 @@ cmd/mtm/extension_callbacks.go	App.callbackActor	K15	"invalid OCHAZUKE_HOST_DEPT
 cmd/mtm/extension_callbacks.go	App.runCallback	K4	"a host callback has no terminal"	1
 cmd/mtm/extension_context.go	App.askNounParam	K15	"resultError(…)"	1
 cmd/mtm/extension_discover.go	extProbe.answer	K15	"errors.New(…)"	1
-cmd/mtm/extension_host.go	var extHostSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/extension_names.go	App.extNamingFor	K15	"namespace of %q is %q"	1
 cmd/mtm/extension_names.go	App.extNamingFor	K15	"nouns keep the %s spelling: %v"	1
-cmd/mtm/extension_names.go	var extNounNamesSetting	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/extension_page.go	App.openExtension	K15	"Failed(…)"	1
 cmd/mtm/extension_page.go	App.openExtension	K4	"extension %s has no tab: register it first"	1
-cmd/mtm/extension_peers.go	var extPeerSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/extension_pool.go	App.closeExtPools	K15	"mtm is closing"	1
 cmd/mtm/extension_pool.go	App.findConnection	K15	"no connection %s (extension-connection all lists them)"	1
 cmd/mtm/extension_pool.go	App.findConnection	K3	"name a connection (extension-connection show EXTENSION/PID) or select its row"	1
@@ -207,7 +190,6 @@ cmd/mtm/extension_pool.go	App.showExtConnection	K15	"Failed(…)"	1
 cmd/mtm/extension_pool.go	App.yankExtConnection	K15	"Failed(…)"	2
 cmd/mtm/extension_pool.go	atLeastOne	K15	"must be 1 or more"	1
 cmd/mtm/extension_pool.go	extPool.read	K15	"exit status %d"	1
-cmd/mtm/extension_pool.go	var extPoolSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/extension_setup.go	App.extensionSetupPlan	K15	"Failed(…)"	1
 cmd/mtm/extension_setup.go	App.extensionSetupStatus	K15	"Failed(…)"	1
 cmd/mtm/extension_setup.go	App.runSetup	K15	"Failed(…)"	1

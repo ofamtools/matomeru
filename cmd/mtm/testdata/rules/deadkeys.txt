@@ -84,8 +84,6 @@ panes/tree/list	pane-project	normal	r	session	1
 panes/tree/list	pane-project	normal	t	pane	1
 panes/tree/list	pane-project	normal	u	pane	1
 panes/tree/list	pane-project	normal	u	session	1
-panes/tree/list	pane-project	normal	v	pane	1
-panes/tree/list	pane-project	normal	v	session	1
 panes/tree/list	pane-project	normal	w	pane	1
 panes/tree/list	pane-project	normal	w	session	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
 panes/tree/list	pane-project	normal	y esc	pane	1
@@ -186,8 +184,6 @@ panes/tree/list	pane-project	visual-line	r	session	1
 panes/tree/list	pane-project	visual-line	t	pane	1
 panes/tree/list	pane-project	visual-line	u	pane	1
 panes/tree/list	pane-project	visual-line	u	session	1
-panes/tree/list	pane-project	visual-line	v	pane	1
-panes/tree/list	pane-project	visual-line	v	session	1
 panes/tree/list	pane-project	visual-line	w	pane	1
 panes/tree/list	pane-project	visual-line	w	session	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
 panes/tree/list	pane-project	visual-line	z A	pane	1
@@ -313,7 +309,6 @@ projects	unassociated	normal	r	project	1
 projects	unassociated	normal	s	project	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
 projects	unassociated	normal	t	project	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
 projects	unassociated	normal	u	project	1
-projects	unassociated	normal	v	project	1
 projects	unassociated	normal	w	project	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
 projects	unassociated	normal	y esc	project	1
 projects	unassociated	normal	y p	project	1
