@@ -208,7 +208,6 @@ cmd/mtm/extension_pool.go	App.yankExtConnection	K15	"Failed(…)"	2
 cmd/mtm/extension_pool.go	atLeastOne	K15	"must be 1 or more"	1
 cmd/mtm/extension_pool.go	extPool.read	K15	"exit status %d"	1
 cmd/mtm/extension_pool.go	var extPoolSettings	K2	"Enum without Accept: <expr>"	2
-cmd/mtm/extension_scope.go	App.declareExtScope	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/extension_setup.go	App.extensionSetupPlan	K15	"Failed(…)"	1
 cmd/mtm/extension_setup.go	App.extensionSetupStatus	K15	"Failed(…)"	1
 cmd/mtm/extension_setup.go	App.runSetup	K15	"Failed(…)"	1
@@ -242,7 +241,6 @@ cmd/mtm/extensions.go	parseExtCatalog	K4	"%s catalog: nouns[%d] has no name"	1
 cmd/mtm/extensions.go	resolveExtBin	K14	"bin %s: %w"	1	failure
 cmd/mtm/guide.go	App.agentGuide	K15	"guide topic %v: %v"	1
 cmd/mtm/guide.go	App.agentGuide	K15	"no guide topic %q; topics: %s"	1
-cmd/mtm/guide.go	App.defineGuideVerb	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/inbox.go	App.actionItemAt	K5	"specify an action item id or select an inbox row"	1
 cmd/mtm/inbox.go	App.addActionItem	K15	"Failed(…)"	2
 cmd/mtm/inbox.go	App.associateActionItemOne	K15	"Failed(…)"	2
@@ -258,10 +256,7 @@ cmd/mtm/inbox.go	App.snoozeOne	K15	"Failed(…)"	3
 cmd/mtm/inbox.go	App.snoozeOne	K15	"snooze needs --for (90m, 4h, 2d, 1w) or --until (a time)"	1
 cmd/mtm/inbox.go	parseSpan	K15	"--for %q: want 90m, 4h, 2d or 1w"	2
 cmd/mtm/inbox.go	parseUntil	K15	"--until %q: want RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"	1
-cmd/mtm/inbox_group.go	inboxGroupSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/inbox_notify.go	App.notifyActionItems	K15	"Failed(…)"	1
-cmd/mtm/inbox_notify.go	inboxNotifySettings	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/launch.go	App.defineLaunch	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/launch.go	App.execHarness	K14	"task %s: %w"	1	failure
 cmd/mtm/launch.go	App.launch	K15	"Failed(…)"	2
 cmd/mtm/launch.go	App.launchRecord	K15	"Failed(…)"	1
@@ -276,7 +271,6 @@ cmd/mtm/launch.go	App.startAgent	K14	"launch: %w"	2	failure
 cmd/mtm/launch.go	App.startAgent	K14	"task %s: %w"	1	failure
 cmd/mtm/launch.go	App.startProject	K15	"project %s is not loaded"	1
 cmd/mtm/launch.go	App.startShell	K14	"new pane: %w"	1	failure
-cmd/mtm/launch.go	var driveParam	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/launch_owner.go	App.launchJob	K14	"launch %s into %s: %w"	1	failure
 cmd/mtm/launch_owner.go	App.launchJob	K14	"new pane in %s: %w"	1	failure
 cmd/mtm/launch_owner.go	App.launchJob	K14	"pane %s is open; listing panes failed: %w"	1	failure
@@ -289,14 +283,12 @@ cmd/mtm/licenses.go	App.licenseShow	K15	"Failed(…)"	1
 cmd/mtm/licenses.go	App.licenseShow	K4	"no linked module matches %q (license.all lists them)"	1
 cmd/mtm/licenses.go	linkedNotices	K14	"licence data: %w"	1	failure
 cmd/mtm/live_hints.go	App.beginHints	K15	"Failed(…)"	1
-cmd/mtm/live_hints.go	App.defineLiveHints	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/live_hints.go	App.hintTerminal	K15	"%v f works in a live pane"	1
 cmd/mtm/live_hints.go	App.pressHint	K15	"resultError(…)"	1
 cmd/mtm/live_hints.go	App.rowHints	K15	"Failed(…)"	1
 cmd/mtm/live_hints.go	App.startHints	K15	"Failed(…)"	1
 cmd/mtm/live_hints.go	App.startRowHints	K15	"Failed(…)"	2
 cmd/mtm/live_hints.go	App.startRowHints	K5	"f works on a pane row"	1
-cmd/mtm/live_scroll.go	App.defineLiveScroll	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/live_scroll.go	App.terminalScroll	K15	"Failed(…)"	1
 cmd/mtm/live_scroll.go	App.terminalScroll	K15	"resultError(…)"	2
 cmd/mtm/livescreen.go	liveScreen.apply	K15	"terminal emulator: %v"	1
@@ -309,7 +301,6 @@ cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp %s (unexpected %q)"	1
 cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp config [HARNESS]"	1
 cmd/mtm/mcp_ops.go	App.addContextText	K15	"Failed(…)"	3
 cmd/mtm/mcp_ops.go	App.addContextText	K3	"text is required"	1
-cmd/mtm/mcp_ops.go	App.defineMCPOperations	K2	"Enum without Accept: <expr>"	3
 cmd/mtm/mcp_ops.go	App.paneArgs	K15	"%s is bound to this agent's startup pane; ask the owner or coordinator to act for another pane"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K10	"pane progress needs the TUIOS daemon"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K14	"set-agent-state %s: %w"	1	failure
@@ -318,7 +309,6 @@ cmd/mtm/mcp_ops.go	App.paneProgress	K3	"message is required"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K3	"name the pane: --window WINDOW, or run in a TUIOS pane"	1
 cmd/mtm/needs_you.go	App.cycleNeedsYou	K15	"Failed(…)"	6
 cmd/mtm/needs_you.go	App.nextNeedsYou	K15	"Failed(…)"	1
-cmd/mtm/needs_you.go	needsYouSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/note_store.go	App.noteStore	K15	"no note %q"	1
 cmd/mtm/note_store.go	App.patchNote	K15	"no note %q"	1
 cmd/mtm/note_store.go	App.removeNote	K15	"no note %q"	1
@@ -329,14 +319,12 @@ cmd/mtm/notes.go	App.selectedNote	K5	"no note selected"	1
 cmd/mtm/notes.go	App.viewNote	K15	"Failed(…)"	5
 cmd/mtm/notify.go	App.notificationSender	K15	"errors.New(…)"	2
 cmd/mtm/notify.go	App.notificationSender	K5	"no terminal output is attached"	1
-cmd/mtm/notify.go	notifySettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/outline.go	App.defineOutline	K1	"When(\"outline-top-task\") without Fallback"	1
 cmd/mtm/outline.go	App.defineOutline	K15	"Projects keep their creation order"	2
 cmd/mtm/outline.go	App.defineOutline	K15	"errors.New(…)"	1
 cmd/mtm/outline.go	App.defineOutline	K15	"no project stays at the top level"	1
 cmd/mtm/outline.go	App.defineOutline	K15	"no project stays last"	2
 cmd/mtm/outline.go	App.defineOutline	K15	"resultError(…)"	1
-cmd/mtm/outline.go	App.defineOutline	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot be deleted"	1
 cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot be renamed"	1
 cmd/mtm/outline.go	App.openOutline	K15	"Failed(…)"	1
@@ -386,13 +374,9 @@ cmd/mtm/owners.go	App.associateTaskOne	K15	"Failed(…)"	2
 cmd/mtm/pane_activity.go	App.copyActivity	K15	"Failed(…)"	1
 cmd/mtm/pane_activity.go	App.openActivity	K15	"Failed(…)"	1
 cmd/mtm/pane_activity.go	activityAt	K5	"no subagent selected"	1
-cmd/mtm/pane_activity.go	paneActivitySettings	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/pane_border.go	paneBorderSettings	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/pane_children.go	paneChildSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/pane_children.go	paneChildSettings	K2	"child %q: one of %s"	1
 cmd/mtm/pane_hue.go	App.assignProjectColors	K14	"color project %s: %w"	1	failure
 cmd/mtm/pane_picker.go	App.openPanePicker	K15	"Failed(…)"	1
-cmd/mtm/pane_rail.go	railSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/pane_settings.go	App.applySetting	K10	"changing a setting needs the TUIOS daemon"	1
 cmd/mtm/pane_settings.go	App.applySetting	K15	"%s takes %s: %s"	1
 cmd/mtm/pane_settings.go	App.applySetting	K15	"Failed(…)"	1
@@ -415,7 +399,6 @@ cmd/mtm/pane_settings.go	App.stepSetting	K15	"%s never showed %s %s after a roun
 cmd/mtm/pane_settings.go	App.stepSetting	K15	"Failed(…)"	1
 cmd/mtm/pane_settings.go	App.togglePaneFast	K15	"Failed(…)"	1
 cmd/mtm/pane_signals.go	commandSettings	K15	"at least 1 minute"	1
-cmd/mtm/pane_signals.go	commandSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/pane_stars.go	App.cycleStarred	K15	"Failed(…)"	3
 cmd/mtm/pane_stars.go	App.nextStarred	K15	"Failed(…)"	1
 cmd/mtm/pane_stars.go	App.starLive	K5	"no pane attached"	1
@@ -431,18 +414,13 @@ cmd/mtm/pane_task.go	App.openTaskPicker	K15	"Failed(…)"	3
 cmd/mtm/pane_task.go	App.openTaskPicker	K15	"type the new task's title"	1
 cmd/mtm/pane_task.go	App.pickPaneTask	K15	"Failed(…)"	1
 cmd/mtm/pane_task.go	App.pickPaneTask	K15	"resultError(…)"	1
-cmd/mtm/pane_task.go	var afterSubmitModeSetting	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/pane_task.go	var afterSubmitSetting	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/pane_view.go	App.definePaneView	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/pane_view.go	App.setPaneView	K15	"Failed(…)"	4
 cmd/mtm/pane_view.go	App.setPaneView	K3	"give a view: %s or %s"	1
-cmd/mtm/pane_view.go	agentViewSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/panes.go	App.attachPane	K15	"Failed(…)"	3
 cmd/mtm/panes.go	App.attachPane	K15	"no pane's turns are shown"	1
 cmd/mtm/panes.go	App.attachPane	K5	"select a pane"	1
 cmd/mtm/panes.go	App.capturePreview	K14	"preview %s: %w"	1	failure
 cmd/mtm/panes.go	App.definePanes	K1	"When(\"pane-ended\") without Fallback"	1
-cmd/mtm/panes.go	App.definePanes	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/panes.go	App.killBlocked	K15	"Failed(…)"	1
 cmd/mtm/panes.go	App.killBlocked	K15	"close the %s of %s before killing it"	1
 cmd/mtm/panes.go	App.killPane	K14	"kill %s: %w"	1	failure
@@ -474,26 +452,20 @@ cmd/mtm/panes_detail.go	App.nextWaiting	K15	"Failed(…)"	1
 cmd/mtm/panes_detail.go	App.paneText	K15	"Failed(…)"	1
 cmd/mtm/panes_detail.go	App.toggleZoom	K5	"no pane is attached"	1
 cmd/mtm/panes_group.go	App.cyclePaneGroup	K15	"Failed(…)"	1
-cmd/mtm/panes_group.go	App.definePaneGroups	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/panes_group.go	App.setPaneGroup	K15	"Failed(…)"	1
 cmd/mtm/panes_group.go	App.setPaneGroup	K2	"group %q: one of %s"	1
-cmd/mtm/panes_group.go	var paneGroupSetting	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/panes_leader.go	App.selectPane	K15	"Failed(…)"	1
 cmd/mtm/panes_panels.go	App.focusSection	K15	"Failed(…)"	2
 cmd/mtm/panes_panels.go	App.focusSection	K2	"section %q: one of %s"	1
 cmd/mtm/panes_panels.go	App.focusSection	K4	"unknown row %q"	1
 cmd/mtm/panes_panels.go	panesPanelSettings	K15	"an empty state word"	1
 cmd/mtm/panes_panels.go	panesPanelSettings	K15	"lines from %d to 100"	1
-cmd/mtm/panes_panels.go	panesPanelSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/panes_sections.go	App.openItemPane	K15	"Failed(…)"	3
 cmd/mtm/panes_sections.go	App.selectPaneRowMoving	K4	"unknown tree node %q"	1
 cmd/mtm/panes_sections.go	paneSectionSettings	K15	"a percent from 0 to 100"	1
-cmd/mtm/panes_sections.go	paneSectionSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/panes_sections.go	paneSectionSettings	K2	"category %q: one of %s"	1
 cmd/mtm/panes_sections.go	validatePaneSections	K15	"%q: signal=section, signals %s, sections %s%s"	1
 cmd/mtm/path_sources.go	App.definePathSources	K15	"Failed(…)"	2
-cmd/mtm/path_sources.go	var directoryChooserSetting	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/path_sources.go	var pinDirectoryWalkSetting	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/pickers.go	App.askParameter	K2	"unknown operation %v"	1
 cmd/mtm/pickers.go	App.defineChoiceSources	K15	"Failed(…)"	1
 cmd/mtm/pickers.go	App.defineChoiceSources	K15	"unknown choice set"	1
@@ -504,7 +476,6 @@ cmd/mtm/pin.go	App.pinAndAskDirectory	K15	"Failed(…)"	1
 cmd/mtm/pin.go	App.setPin	K15	"Failed(…)"	4
 cmd/mtm/pin.go	App.setPin	K4	"unknown project %s"	1
 cmd/mtm/pin.go	App.toggleAll	K15	"Failed(…)"	2
-cmd/mtm/pin.go	var pinStartScopeSetting	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/project.go	App.associateDirectory	K15	"Failed(…)"	3
 cmd/mtm/project.go	App.associateDirectory	K15	"data is a JSON object"	1
 cmd/mtm/project.go	App.associateDirectory	K15	"focus a project or supply a directory path"	1
@@ -521,7 +492,6 @@ cmd/mtm/project.go	App.replaceDirectory	K15	"Failed(…)"	2
 cmd/mtm/project.go	App.replaceDirectory	K3	"to is required"	1
 cmd/mtm/project.go	App.storedProject	K15	"Failed(…)"	1
 cmd/mtm/project_store.go	App.projectByID	K15	"no project %q"	1
-cmd/mtm/project_store.go	projectProps	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/prompt.go	App.commitPrompt	K15	"Failed(…)"	2
 cmd/mtm/prompt.go	App.commitPrompt	K15	"no prompt is open"	1
 cmd/mtm/prompt.go	App.leavePrompt	K15	"Failed(…)"	1
@@ -536,7 +506,6 @@ cmd/mtm/prompt_attach.go	App.pastePrompt	K15	"no clipboard reader"	1
 cmd/mtm/prompt_box.go	App.addPromptBox	K1	"When(\"pane-prompt\") without Fallback"	1
 cmd/mtm/prompt_box.go	App.addPromptBox	K1	"When(\"prompt-modes\") without Fallback"	1
 cmd/mtm/prompt_box.go	App.addPromptBox	K1	"When(\"queue-pane-prompt\") without Fallback"	1
-cmd/mtm/prompt_box.go	App.addPromptBox	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/prompt_box.go	App.cyclePromptMode	K15	"no prompt mode %q (%s)"	1
 cmd/mtm/prompt_box.go	App.focusPrompt	K15	"Failed(…)"	5
 cmd/mtm/prompt_box.go	App.pickIntoPrompt	K15	"Failed(…)"	2
@@ -557,14 +526,11 @@ cmd/mtm/quicknote.go	App.listQuickNote	K15	"resultError(…)"	2
 cmd/mtm/quicknote.go	App.openQuickNote	K15	"Failed(…)"	3
 cmd/mtm/quicknote.go	App.openQuickNote	K15	"resultError(…)"	1
 cmd/mtm/quicknote.go	App.openQuickNote	K15	"the quick note is a TUI modal; use note new TEXT"	1
-cmd/mtm/quicknote.go	var quickAboutSetting	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/rail_triage.go	App.triageContext	K15	"name an item (--id), or every item with --before, --filter or --all"	1
 cmd/mtm/rail_triage.go	App.triageIDs	K14	"context-item list: %w"	1	failure
 cmd/mtm/rail_triage.go	App.triageWhere	K15	"--before: not a time (2026-11-14, 2026-11-14T09:00, RFC 3339 or Unix ms)"	1
 cmd/mtm/rail_triage.go	App.triageWhere	K15	"Failed(…)"	3
-cmd/mtm/rail_triage.go	railTriageSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/relation_noun.go	App.createRelation	K15	"data is a JSON object"	1
-cmd/mtm/relation_noun.go	App.defineRelation	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/relation_noun.go	App.followRelation	K15	"%q is not noun:key"	1
 cmd/mtm/relation_noun.go	App.followRelation	K15	"Failed(…)"	1
 cmd/mtm/relation_noun.go	App.followRelation	K15	"resultError(…)"	1
@@ -584,7 +550,6 @@ cmd/mtm/relations.go	App.associateProject	K3	"name the thing to associate (%s)"	
 cmd/mtm/relations.go	App.associateTaskRelated	K15	"Failed(…)"	1
 cmd/mtm/reminder_notify.go	App.notificationWork	K15	"local date changed before delivery; retry on the next tick"	1
 cmd/mtm/reminder_notify.go	App.notifyReminders	K15	"Failed(…)"	1
-cmd/mtm/reminder_notify.go	reminderNotifySettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/reminders.go	App.addReminder	K15	"Failed(…)"	5
 cmd/mtm/reminders.go	App.addReminder	K15	"resultError(…)"	1
 cmd/mtm/reminders.go	App.addReminder	K15	"use reminder create TITLE --time HH:MM --days mon,wed,fri"	1
@@ -599,7 +564,6 @@ cmd/mtm/reminders.go	App.reminderNamed	K15	"no reminder %q; reminder list shows 
 cmd/mtm/reminders.go	App.reminderNamed	K15	"several reminders named %q; use the id from reminder list"	1
 cmd/mtm/rename.go	App.sessionAt	K5	"no session selected"	1
 cmd/mtm/review_store.go	App.paneReviewOf	K14	"review %s: %w"	1	failure
-cmd/mtm/review_store.go	App.reviewProps	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/reviews.go	App.cancelAnswerArea	K15	"Failed(…)"	3
 cmd/mtm/reviews.go	App.chooseReviewStatus	K15	"Failed(…)"	1
 cmd/mtm/reviews.go	App.chooseReviewStatus	K15	"resultError(…)"	1
@@ -613,7 +577,6 @@ cmd/mtm/reviews.go	App.saveAnswer	K15	"Failed(…)"	3
 cmd/mtm/reviews.go	App.saveAnswerArea	K15	"Failed(…)"	2
 cmd/mtm/reviews.go	App.saveAnswerArea	K15	"open a review first (enter on a review row)"	1
 cmd/mtm/reviews.go	App.setReviewStatus	K15	"Failed(…)"	1
-cmd/mtm/runs.go	App.defineRuns	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/runs.go	App.forgetRun	K15	"%v is running; run.stop stops it first"	1
 cmd/mtm/runs.go	App.forgetRun	K15	"Failed(…)"	2
 cmd/mtm/runs.go	App.rerunRun	K15	"Failed(…)"	1
@@ -650,7 +613,6 @@ cmd/mtm/schedule_edit.go	App.editSchedule	K15	"resultError(…)"	1
 cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"Failed(…)"	1
 cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"a schedule form is already open"	1
 cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"schedule %s is gone"	1
-cmd/mtm/schedule_edit.go	App.scheduleParams	K2	"Enum without Accept: <expr>"	5
 cmd/mtm/schedule_edit.go	getWhen	K1	"When(…) without Fallback"	2
 cmd/mtm/schedule_edit.go	setTimeout	K15	"timeout %q: a duration such as 2m"	1
 cmd/mtm/schedule_prompts.go	App.runPromptSchedule	K15	"mtm has not read its harnesses yet"	1
@@ -667,7 +629,6 @@ cmd/mtm/schedule_store.go	App.scheduleEvery	K1	"When(…) without Fallback"	1
 cmd/mtm/schedule_store.go	App.scheduleEvery	K15	"an interval is at least 1m"	1
 cmd/mtm/schedule_store.go	App.scheduleThing	K1	"When(…) without Fallback"	2
 cmd/mtm/schedule_store.go	scheduleInterval	K14	"interval %q: %w"	1	failure
-cmd/mtm/schedules.go	App.defineSchedules	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/schedules.go	App.resetSchedule	K15	"Failed(…)"	2
 cmd/mtm/schedules.go	App.runScheduleNow	K15	"Failed(…)"	2
 cmd/mtm/schedules.go	App.scheduleAnswer	K15	"Failed(…)"	1
@@ -676,7 +637,6 @@ cmd/mtm/schedules.go	App.scheduleAt	K5	"specify a schedule name or select a sche
 cmd/mtm/schedules.go	App.scheduleDefs	K1	"When(…) without Fallback"	1
 cmd/mtm/schedules.go	App.scheduleHistory	K15	"Failed(…)"	2
 cmd/mtm/schedules.go	App.scheduleSettings	K15	"an interval is at least 1m"	1
-cmd/mtm/schedules.go	App.scheduleSettings	K2	"Enum without Accept: <expr>"	2
 cmd/mtm/schedules.go	App.schedulesUpdate	K15	"Failed(…)"	1
 cmd/mtm/schedules.go	App.setScheduleInterval	K14	"interval %q: %w"	1	failure
 cmd/mtm/schedules.go	App.setScheduleInterval	K15	"Failed(…)"	2
@@ -689,10 +649,7 @@ cmd/mtm/session_store.go	App.patchSession	K4	"session %s has no id in the daemon
 cmd/mtm/session_store.go	App.sessionPaneOf	K4	"unknown session %q"	1
 cmd/mtm/session_store.go	App.sessionStore	K4	"unknown session %q"	1
 cmd/mtm/session_store.go	checkSessionName	K3	"a session needs a name"	1
-cmd/mtm/settings.go	App.declareSettings	K2	"Enum without Accept: <expr>"	2
-cmd/mtm/setup.go	App.defineSetup	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/setup.go	App.setupEach	K15	"Failed(…)"	2
-cmd/mtm/shell_init.go	App.defineShellNoun	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/shell_init.go	App.shellInit	K15	"no snippet for shell %q (%s)"	1
 cmd/mtm/side.go	App.companionCheck	K14	"cannot verify side panes: %w"	1	failure
 cmd/mtm/side.go	App.companionCheck	K15	"close the side panes first: %v"	1
@@ -735,14 +692,9 @@ cmd/mtm/storyfakes.go	var errStoryDaemon	K15	"story daemon: not supported in a s
 cmd/mtm/table_query.go	tableQuery.Query	K14	"%s: %w"	1	failure
 cmd/mtm/task_store.go	App.patchTask	K8	"task %s cannot be under %s: it is that task or above it"	1
 cmd/mtm/task_store.go	App.taskByID	K15	"no task %q"	1
-cmd/mtm/task_store.go	App.taskStore	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/task_store.go	priorityChange	K2	"priority %q is not one of %s"	1
-cmd/mtm/task_store.go	priorityProp	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/task_store.go	taskMakerProp	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/task_store.go	taskProps	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/tasks.go	App.chooseStatus	K15	"Failed(…)"	1
 cmd/mtm/tasks.go	App.chooseStatus	K15	"resultError(…)"	1
-cmd/mtm/tasks.go	App.defineTask	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/tasks.go	App.editTask	K15	"Failed(…)"	1
 cmd/mtm/tasks.go	App.editTask	K15	"resultError(…)"	1
 cmd/mtm/tasks.go	App.newTask	K14	"parent task %s: %w"	1	failure
@@ -753,7 +705,6 @@ cmd/mtm/tasks.go	App.task	K14	"task %s: %w"	1	failure
 cmd/mtm/tasks.go	App.task	K5	"no task is selected"	1
 cmd/mtm/tasks.go	App.toggleTask	K15	"Failed(…)"	1
 cmd/mtm/tasks.go	resultOf	K15	"Failed(…)"	1
-cmd/mtm/tasks.go	var workTasksLayoutSetting	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/turn_agents.go	App.addAgentVerbs	K1	"When(\"on-agent\") without Fallback"	3
 cmd/mtm/turn_agents.go	App.agentHandler	K15	"not on a subagent's step"	1
 cmd/mtm/turn_agents.go	App.copyAgentText	K4	"the agent has no %s yet"	1
@@ -768,7 +719,6 @@ cmd/mtm/turn_cards.go	App.openTurnCard	K15	"no timeline holds %s"	1
 cmd/mtm/turn_cards.go	App.reviewTurnCard	K15	"Failed(…)"	2
 cmd/mtm/turn_cards.go	App.scrollTurns	K15	"Failed(…)"	1
 cmd/mtm/turn_cards.go	App.scrollTurns	K15	"no turns shown"	1
-cmd/mtm/turn_status.go	turnStatusSettings	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/turns.go	App.addTurns	K1	"When(\"pane-turn-cards\") without Fallback"	1
 cmd/mtm/turns.go	App.addTurns	K1	"When(\"turn-closed\") without Fallback"	1
 cmd/mtm/turns.go	App.addTurns	K1	"When(\"turn-open\") without Fallback"	1
@@ -821,17 +771,11 @@ cmd/mtm/vim.go	writeVimSession	K14	"Neovim session save: %w: %s"	1	failure
 cmd/mtm/vim.go	writeVimSession	K15	"Neovim :mksession: %s"	1
 cmd/mtm/vim.go	writeVimSession	K8	"Neovim session output is not a regular file"	1
 cmd/mtm/vim.go	writeVimSession	K9	"legacy Vim pane has no RPC address; close it and reopen its saved session to enable saving"	1
-cmd/mtm/vim_store.go	App.vimProps	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/vim_store.go	App.vimStore	K11	"Confirm: <expr> without Loses"	1
-cmd/mtm/wire_verbs.go	App.defineWireVerbs	K2	"Enum without Accept: <expr>"	1
 cmd/mtm/wire_verbs.go	App.sessionEvents	K10	"session.events needs the daemon"	1
 cmd/mtm/wire_verbs.go	App.wireHandler	K10	"%v needs the daemon"	1
 cmd/mtm/wire_verbs.go	App.wireHandler	K14	"%s: %w"	1	failure
 cmd/mtm/wire_verbs.go	App.wireHandler	K3	"%s is required"	1
-cmd/mtm/wire_verbs.go	paneScopeSetting	K2	"Enum without Accept: <expr>"	1
-cmd/mtm/wire_verbs.go	var wireVerbs	K2	"Enum without Accept: direction"	1
-cmd/mtm/wire_verbs.go	var wireVerbs	K2	"Enum without Accept: relative"	1
-cmd/mtm/wire_verbs.go	var wireVerbs	K2	"Enum without Accept: state"	1
 internal/actionitems/actionitems.go	Store.All	K14	"action item: %w"	1	failure
 internal/actionitems/actionitems.go	Store.Delete	K14	"action item %s: %w"	1	failure
 internal/actionitems/actionitems.go	Store.Get	K14	"action item %s: %w"	1	failure
