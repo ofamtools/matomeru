@@ -38,7 +38,7 @@ func (a *App) defineKeyMap() error {
 	if err := a.r.Bind(paletteQuit); err != nil {
 		return err
 	}
-	return a.loadDefaultRows()
+	return nil
 }
 
 // keyFor is the key that runs op at focus, as ? help lists it ("" when no

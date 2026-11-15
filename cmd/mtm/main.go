@@ -798,6 +798,11 @@ func New(opts Options) (*App, error) {
 	a.defineDirectoryCreation()
 	a.defineCommandRenames()
 	a.defineAgentDeclarations()
+	// The default rows (bindings/rows.json) name verbs the pages above and
+	// the declarations just registered (the pane's settings and turns, a
+	// directory path's cancel): they are checked once every verb of mtm's
+	// own exists, so a row may name any of them.
+	a.defineDefaultRows()
 	a.mountExtensions()
 	// After the first mount: its read of the naming loads settings.json,
 	// which would tell an observer of the change from the default.
