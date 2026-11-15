@@ -214,15 +214,16 @@ func TestLiveLeaderUnknownKeyFollowsSequenceUnknown(t *testing.T) {
 	if err := app.r.Settings().Set(ochazuke.SequenceUnknownSetting, ochazuke.SequenceSwallow); err != nil {
 		t.Fatal(err)
 	}
-	press(t, app, "ctrl+a", "ctrl+o")
+	free := unboundKey(t, app)
+	press(t, app, "ctrl+a", free)
 	if got := f.streams[0].sent[before:]; len(got) != 0 || app.r.CurrentMode().Name != "terminal" || app.r.FocusID() != live {
 		t.Fatalf("swallow: sent %v mode %s focus %s", got, app.r.CurrentMode().Name, app.r.FocusID())
 	}
 	if err := app.r.Settings().Set(ochazuke.SequenceUnknownSetting, ochazuke.SequencePass); err != nil {
 		t.Fatal(err)
 	}
-	press(t, app, "ctrl+a", "ctrl+o")
-	if got := f.streams[0].sent[before:]; len(got) != 2 || got[0][0] != "ctrl+a" || got[1][0] != "ctrl+o" {
+	press(t, app, "ctrl+a", free)
+	if got := f.streams[0].sent[before:]; len(got) != 2 || got[0][0] != "ctrl+a" || got[1][0] != free {
 		t.Fatalf("pass: sent %v", got)
 	}
 }

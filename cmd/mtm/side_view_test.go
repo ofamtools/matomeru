@@ -419,27 +419,7 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 	}
 	press(t, a, "q")
 	before := len(f.streams[0].sent)
-	// A key no row answers anywhere on the app's stops, found from the data
-	// (a row may bind any given key); the leader then the key passes through.
-	bound := map[string]bool{}
-	for _, stop := range a.r.StopBindings() {
-		for _, b := range stop.Bindings {
-			for _, k := range strings.Fields(b.Keys) {
-				bound[k] = true
-			}
-		}
-	}
-	free := ""
-	for _, mod := range []string{"ctrl+", "alt+"} {
-		for c := 'a'; c <= 'z' && free == ""; c++ {
-			if k := mod + string(c); k != "ctrl+a" && !bound[k] {
-				free = k
-			}
-		}
-	}
-	if free == "" {
-		t.Fatal("every ctrl and alt letter is bound on some stop: no unbound key to pass through")
-	}
+	free := unboundKey(t, a)
 	press(t, a, "ctrl+a", free)
 	// sequence-unknown pass: the leader, then the key alone.
 	if got := f.streams[0].sent[before:]; len(got) != 2 || !slices.Equal(got[0], []string{"ctrl+a"}) || !slices.Equal(got[1], []string{free}) {
@@ -527,4 +507,28 @@ func railOff(t *testing.T, a *App) {
 	if err := a.r.Settings().Set(ochazuke.RailShowSetting, false); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// unboundKey is a ctrl or alt letter no stop of the app binds, found from the
+// data (a row may bind any given key), so a test of the leader's pass-through
+// need not name one.
+func unboundKey(t *testing.T, a *App) string {
+	t.Helper()
+	bound := map[string]bool{}
+	for _, stop := range a.r.StopBindings() {
+		for _, b := range stop.Bindings {
+			for _, k := range strings.Fields(b.Keys) {
+				bound[k] = true
+			}
+		}
+	}
+	for _, mod := range []string{"ctrl+", "alt+"} {
+		for c := 'a'; c <= 'z'; c++ {
+			if k := mod + string(c); k != "ctrl+a" && !bound[k] {
+				return k
+			}
+		}
+	}
+	t.Fatal("every ctrl and alt letter is bound on some stop: no unbound key to pass through")
+	return ""
 }
