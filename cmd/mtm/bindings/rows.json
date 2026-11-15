@@ -53,7 +53,16 @@
     {"key": "alt+k", "action": "pane.view", "hidden": true},
     {"key": "alt+l", "action": "pane.wait", "hidden": true},
     {"key": "alt+m", "action": "pane.watch", "hidden": true},
-    {"key": "alt+n", "action": "pane.whoami", "hidden": true}
+    {"key": "alt+n", "action": "pane.whoami", "hidden": true},
+    {"key": "ctrl+n", "action": "pane.read-settings", "hidden": true},
+    {"key": "ctrl+x", "action": "pane.set-effort", "hidden": true},
+    {"key": "ctrl+z", "action": "pane.set-fast", "hidden": true},
+    {"key": "alt+a", "action": "pane.set-model", "hidden": true},
+    {"key": "alt+b", "action": "pane.set-permission-mode", "hidden": true},
+    {"key": "alt+c", "action": "pane.settings", "hidden": true},
+    {"key": "alt+d", "action": "pane.settings-line", "hidden": true},
+    {"key": "alt+f", "action": "pane.start", "hidden": true},
+    {"key": "alt+h", "action": "pane.toggle-fast", "hidden": true}
   ]},
   {"context": "app/normal", "bindings": [
     {"key": "h", "action": "app.close", "hidden": true}
@@ -207,7 +216,20 @@
     {"key": "alt+p", "action": "pane.watch", "hidden": true},
     {"key": "alt+q", "action": "pane.whoami", "hidden": true},
     {"key": "alt+r", "action": "pane.yank", "hidden": true},
-    {"key": "alt+s", "action": "pane.yank-path", "hidden": true}
+    {"key": "alt+s", "action": "pane.yank-path", "hidden": true},
+    {"key": "ctrl+h", "action": "pane.prompt", "hidden": true},
+    {"key": "ctrl+i", "action": "pane.read-settings", "hidden": true},
+    {"key": "ctrl+o", "action": "pane.refresh-turns", "hidden": true},
+    {"key": "ctrl+t", "action": "pane.scroll-turns", "hidden": true},
+    {"key": "ctrl+z", "action": "pane.set-effort", "hidden": true},
+    {"key": "alt+a", "action": "pane.set-fast", "hidden": true},
+    {"key": "alt+b", "action": "pane.set-model", "hidden": true},
+    {"key": "alt+c", "action": "pane.set-permission-mode", "hidden": true},
+    {"key": "alt+d", "action": "pane.settings", "hidden": true},
+    {"key": "alt+e", "action": "pane.settings-line", "hidden": true},
+    {"key": "alt+h", "action": "pane.start", "hidden": true},
+    {"key": "alt+j", "action": "pane.toggle-fast", "hidden": true},
+    {"key": "alt+l", "action": "pane.turns", "hidden": true}
   ]},
   {"context": "project/normal", "bindings": [
     {"key": "g n", "action": "project.annotate", "hidden": true},
@@ -348,5 +370,19 @@
   ]},
   {"context": "session/visual-line", "bindings": [
     {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "child"}, "hidden": true}
+  ]},
+  {"context": "directory-path/insert", "bindings": [
+    {"key": "ctrl+a", "action": "directory-path.cancel", "hidden": true}
+  ]},
+  {"context": "turn-prompt/normal", "bindings": [
+    {"key": "a", "action": "turn-prompt.detach", "hidden": true},
+    {"key": "c", "action": "turn-prompt.live", "hidden": true},
+    {"key": "p", "action": "turn-prompt.paste", "hidden": true}
+  ]},
+  {"context": "turn/normal", "bindings": [
+    {"key": "a", "action": "turn.copy-brief", "hidden": true},
+    {"key": "b", "action": "turn.copy-result", "hidden": true},
+    {"key": "c", "action": "turn.live", "hidden": true},
+    {"key": "f", "action": "turn.review", "hidden": true}
   ]}
 ]}
