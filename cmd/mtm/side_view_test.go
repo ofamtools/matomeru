@@ -419,10 +419,31 @@ func TestLeaderHintAndKeysListTheSideKeys(t *testing.T) {
 	}
 	press(t, a, "q")
 	before := len(f.streams[0].sent)
-	press(t, a, "ctrl+a", "ctrl+o")
+	// A key no row answers anywhere on the app's stops, found from the data
+	// (a row may bind any given key); the leader then the key passes through.
+	bound := map[string]bool{}
+	for _, stop := range a.r.StopBindings() {
+		for _, b := range stop.Bindings {
+			for _, k := range strings.Fields(b.Keys) {
+				bound[k] = true
+			}
+		}
+	}
+	free := ""
+	for _, mod := range []string{"ctrl+", "alt+"} {
+		for c := 'a'; c <= 'z' && free == ""; c++ {
+			if k := mod + string(c); k != "ctrl+a" && !bound[k] {
+				free = k
+			}
+		}
+	}
+	if free == "" {
+		t.Fatal("every ctrl and alt letter is bound on some stop: no unbound key to pass through")
+	}
+	press(t, a, "ctrl+a", free)
 	// sequence-unknown pass: the leader, then the key alone.
-	if got := f.streams[0].sent[before:]; len(got) != 2 || !slices.Equal(got[0], []string{"ctrl+a"}) || !slices.Equal(got[1], []string{"ctrl+o"}) {
-		t.Fatalf("leader ctrl+o sent %v", got)
+	if got := f.streams[0].sent[before:]; len(got) != 2 || !slices.Equal(got[0], []string{"ctrl+a"}) || !slices.Equal(got[1], []string{free}) {
+		t.Fatalf("leader %s sent %v", free, got)
 	}
 }
 

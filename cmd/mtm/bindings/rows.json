@@ -305,7 +305,8 @@
     {"key": "F", "action": "session.refresh", "hidden": true},
     {"key": "*", "action": "session.set", "hidden": true},
     {"key": "alt+j", "action": "session.unrelate", "hidden": true},
-    {"key": "w", "action": "session.watch", "hidden": true}
+    {"key": "w", "action": "session.watch", "hidden": true},
+    {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "child"}, "hidden": true}
   ]},
   {"context": "task-outline/insert", "bindings": [
     {"key": "ctrl+a", "action": "task-outline.close", "hidden": true}
@@ -338,5 +339,14 @@
     {"key": "*", "action": "vim.set", "hidden": true},
     {"key": "alt+j", "action": "vim.unrelate", "hidden": true},
     {"key": "alt+m", "action": "vim.watch", "hidden": true}
+  ]},
+  {"context": "pane-project/normal", "bindings": [
+    {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "child"}, "hidden": true}
+  ]},
+  {"context": "pane-project/visual-line", "bindings": [
+    {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "child"}, "hidden": true}
+  ]},
+  {"context": "session/visual-line", "bindings": [
+    {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "child"}, "hidden": true}
   ]}
 ]}
