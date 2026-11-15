@@ -30,3 +30,20 @@ projects	unassociated	normal	y p	project	1
 projects	unassociated	normal	y y	project	1
 projects	unassociated	normal	z A	project	1
 projects	unassociated	normal	z esc	project	1
+panes/tree/list	pane	normal	c	pane-project	1	a table takes one redirect row and the pane's is used for its child item
+panes/tree/list	pane	normal	c	session	1	a table takes one redirect row and the pane's is used for its child item
+projects	unassociated	normal	*	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	H	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	M	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	alt+j	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	alt+m	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	ctrl+g	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	g n	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	g v	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	m	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	o	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	p	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	q	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	s	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	t	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
+projects	unassociated	normal	w	project	1	the unassociated row is a stand-in row with no parent or child relation for a redirect; it goes when stand-in nouns are consolidated (owner decision 16, 2026-11-14)
