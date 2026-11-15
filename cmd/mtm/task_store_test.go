@@ -49,8 +49,8 @@ func TestTaskAliasesWithPresets(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "status", Args: ochazuke.Arguments{"id": "t2", "value": "open"}}); err != nil {
 		t.Fatalf("status open was refused: %v", err) // a value outside the choices is kept (ochazuke v0.142.0)
 	}
-	if got := stored(t, a, "t2").Status; got != "open" {
-		t.Fatalf("status open stored as %q", got)
+	if got := stored(t, a, "t2").Status; got != work.StatusTodo {
+		t.Fatalf("status open stored as %q, want todo", got)
 	}
 	executeA(t, a, "task", "status", "", ochazuke.Arguments{"id": "t2", "value": "blocked"})
 	thing, _ := executeA(t, a, "task", "get", "", ochazuke.Arguments{"id": "t1"}).(map[string]any)
