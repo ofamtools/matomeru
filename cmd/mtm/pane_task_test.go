@@ -202,8 +202,8 @@ func TestPaneTaskAfterSubmitSetting(t *testing.T) {
 	if len(f.prompts) != 3 {
 		t.Fatalf("sends %q", f.prompts)
 	}
-	if err := a.r.Settings().Set(settingAfterSubmit, "sometimes"); err == nil {
-		t.Fatal("an unknown value was taken")
+	if err := a.r.Settings().Set(settingAfterSubmit, "sometimes"); err != nil {
+		t.Fatalf("an unknown value was refused: %v", err)
 	}
 }
 
@@ -302,7 +302,10 @@ func TestPromptAfterSubmitMode(t *testing.T) {
 	if got := a.r.Settings().String(settingAfterSubmitMode); got != afterSubmitModeNormal {
 		t.Fatalf("default %q", got)
 	}
-	if err := a.r.Settings().Set(settingAfterSubmitMode, "visual"); err == nil {
-		t.Fatal("an unknown mode was taken")
+	if err := a.r.Settings().Set(settingAfterSubmitMode, "visual"); err != nil {
+		t.Fatalf("an unknown mode was refused: %v", err)
+	}
+	if got := a.r.Settings().String(settingAfterSubmitMode); got != afterSubmitModeNormal {
+		t.Fatalf("an unknown value answered %q, want the default", got)
 	}
 }

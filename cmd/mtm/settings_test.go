@@ -41,8 +41,12 @@ func TestSettingsDefaultToTheOldConstantsAndReadTheFile(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(filepath.Dir(a.dataPath), ochazuke.SettingsFile)); err != nil {
 		t.Fatalf("settings.json not written: %v", err)
 	}
-	if _, _, err := cli(a, "", "setting", "set", settingDefaultHarness, "nope", "--scope", "file", "-y"); err == nil {
-		t.Fatal("an unknown harness was accepted")
+	// A value outside the choices is kept as given (ochazuke v0.142.0, accept); the typed getter answers a known harness.
+	if _, _, err := cli(a, "", "setting", "set", settingDefaultHarness, "nope", "--scope", "file", "-y"); err != nil {
+		t.Fatalf("an unknown harness was refused: %v", err)
+	}
+	if got := a.launchHarness(); got == "nope" {
+		t.Fatalf("launchHarness answered the unknown value %q", got)
 	}
 	mustCLI(t, a, "setting", "set", settingRefresh, "0s", "--scope", "file", "-y")
 	if a.refreshInterval() != refreshEvery {

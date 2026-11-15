@@ -692,8 +692,8 @@ func TestExtScopeSettingDeclaredPerExtension(t *testing.T) {
 	if s.Value != extScopeAuto || !slices.Equal(s.Enum, []string{extScopeAuto, extScopeOff}) {
 		t.Fatalf("ext.md.scope %+v", s)
 	}
-	if err := a.r.Settings().Set("ext.md.scope", "sometimes"); err == nil {
-		t.Fatal("a value outside auto and off was taken")
+	if err := a.r.Settings().Set("ext.md.scope", "sometimes"); err != nil {
+		t.Fatalf("a value outside auto and off was refused: %v", err)
 	}
 }
 

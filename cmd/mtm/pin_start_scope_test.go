@@ -59,8 +59,8 @@ func TestPinStartScopeSetting(t *testing.T) {
 			if b.all != !all || b.pin != "matomeru" {
 				t.Fatalf("next startup: pin %q all %v", b.pin, b.all)
 			}
-			if _, _, err := cli(a, "", "setting", "set", "pin.start-scope", "last", "--scope", "file", "-y"); err == nil {
-				t.Fatal("unsupported scope accepted")
+			if _, _, err := cli(a, "", "setting", "set", "pin.start-scope", "last", "--scope", "file", "-y"); err != nil {
+				t.Fatalf("unsupported scope refused: %v", err)
 			}
 			if _, err := a.r.ValidateBindings(); err != nil {
 				t.Fatal(err)

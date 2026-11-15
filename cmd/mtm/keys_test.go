@@ -11,6 +11,7 @@ import (
 func TestQClosesAndCapitalQRecordsAMacro(t *testing.T) {
 	t.Parallel()
 	app := open(t)
+	helpModal(t, app)
 	press(t, app, "q")
 	if app.r.CurrentMode().Name != "normal" {
 		t.Fatalf("q on a page: mode %s", app.r.CurrentMode().Name)
@@ -157,6 +158,7 @@ func TestMMovesATaskThroughTheProjectChooser(t *testing.T) {
 func TestPDoesNotStackThePickerOverAModal(t *testing.T) {
 	t.Parallel()
 	app := open(t)
+	helpModal(t, app)
 	press(t, app, "?", "P")
 	if app.r.TopModal() != "bindings-help" {
 		t.Fatalf("P in the help: top modal %q", app.r.TopModal())

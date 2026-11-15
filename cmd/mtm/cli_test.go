@@ -202,7 +202,7 @@ func TestCLIErrorsExitNonZero(t *testing.T) {
 		{[]string{"task", "launch", "--target", "t99"}, `unknown target "t99"`},
 		{[]string{"task", "launch", "--target", "t1", "--colour", "red"}, `task.launch has no parameter "colour"`},
 		{[]string{"task", "launch", "--model", "gpt"}, `model "gpt" is not one of claude's models: opus, sonnet, haiku`},
-		{[]string{"task", "launch", "--harness", "nope"}, "harness must be one of claude, omp, codex"},
+		{[]string{"task", "launch", "--harness", "nope"}, `unknown harness "nope"; known: claude, omp, codex`},
 		{[]string{"task"}, "usage: mtm"},
 	} {
 		if _, _, err := cli(app, "", c.args...); err == nil || !strings.Contains(err.Error(), c.want) {
@@ -273,15 +273,16 @@ func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
 }
 
 // Test pass R12: a bad status names the statuses and no --target rows.
-func TestCLITaskStatusBadValueNamesTheStatuses(t *testing.T) {
+func TestCLITaskStatusKeepsAValueOutsideTheChoices(t *testing.T) {
 	t.Parallel()
 	app, _ := cliApp(t)
 	executeA(t, app, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
 	mustCLI(t, app, "project", "open", "--target", "matomeru")
-	_, _, err := cli(app, "", "task", "status", "t1", "bogus")
-	if err == nil || err.Error() != "status must be one of todo, active, waiting, blocked, done, cancelled" {
+	// A status outside the choices is kept as given (ochazuke v0.142.0), not refused.
+	if _, _, err := cli(app, "", "task", "status", "t1", "bogus"); err != nil {
 		t.Fatalf("bad status: %v", err)
 	}
+	mustCLI(t, app, "task", "status", "t1", "todo")
 }
 
 // A CLI word naming a verb mtm or ochazuke purged in R1 says what to write

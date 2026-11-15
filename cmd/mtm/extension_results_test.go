@@ -81,7 +81,7 @@ func TestExtensionResultPresentation(t *testing.T) {
 
 func TestExtensionUserRowKeepsGuard(t *testing.T) {
 	t.Parallel()
-	const catalog = `{"schema":1,"name":"o-fake","version":"1","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application"},{"name":"read","kind":"application","result":"text"}]}],"bindings":[{"noun":"item","mode":"normal","keys":"v","when":"remote-only","request":{"noun":"item","verb":"read"}}]}`
+	const catalog = `{"schema":1,"name":"o-fake","version":"1","nouns":[{"name":"item","verbs":[{"name":"list","kind":"application"},{"name":"read","kind":"application","result":"text"}]}],"bindings":[{"noun":"item","mode":"normal","keys":"Z","when":"remote-only","request":{"noun":"item","verb":"read"}}]}`
 	bin, _ := fakeExtension(t, catalog, `"item read") printf '%s\n' '"full answer"' ;;`)
 	a := registered(t, seeded(t), "fake", bin)
 	openExtPage(t, a, "ext/fake")
@@ -95,7 +95,9 @@ func TestExtensionUserRowKeepsGuard(t *testing.T) {
 	if a.r.TopModal() != "" {
 		t.Fatal("host guard did not prevent the key")
 	}
-	pressJob(t, a, "v")
+	// Z, not v: v is a hidden ochazuke.page row since ochazuke v0.143.0, and mtm
+	// drops a catalog row whose key a noun on the list's path binds.
+	pressJob(t, a, "Z")
 	if a.r.TopModal() != ochazuke.TextViewID {
 		t.Fatal("catalog guard was evaluated in the host")
 	}

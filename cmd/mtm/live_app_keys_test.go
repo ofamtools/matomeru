@@ -58,6 +58,7 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 				if err := a.r.Settings().Set(ochazuke.TerminalLeaderSetting, leader); err != nil {
 					t.Fatal(err)
 				}
+				helpModal(t, a)
 				leaderKey(t, a, leader, c.key)
 				plainView(a)
 				if !c.opened(a) {
@@ -209,6 +210,7 @@ func TestResizeAndRepeatAreNotLeaderKeys(t *testing.T) {
 func TestLeaderQuestionOpensTheHelpTree(t *testing.T) {
 	t.Parallel()
 	app, _ := liveApp(t)
+	helpModal(t, app)
 	var hint string
 	for _, b := range app.r.Noun("terminal").Bindings["terminal"] {
 		if b.Keys == "ctrl+a" {

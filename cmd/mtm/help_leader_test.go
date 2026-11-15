@@ -15,6 +15,7 @@ import (
 func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 	t.Parallel()
 	app, _ := liveApp(t)
+	helpModal(t, app)
 	check := func(leader string) {
 		t.Helper()
 		rows := ochazuke.BindingHelp(app.r, paneTermID)

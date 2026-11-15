@@ -145,7 +145,7 @@ func TestUnknownHarnessesAndBadModelsFailClearly(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"agent", "launch", "--target", "t1", "--harness", "aider"}, "harness must be one of claude, omp, codex"},
+		{[]string{"agent", "launch", "--target", "t1", "--harness", "aider"}, `unknown harness "aider"; known: claude, omp, codex`},
 		{[]string{"agent", "launch", "--target", "t1", "--model", "gpt"}, `model "gpt" is not one of claude's models: opus, sonnet, haiku`},
 	} {
 		if _, _, err := cli(app, "", c.args...); err == nil || !strings.Contains(err.Error(), c.want) {

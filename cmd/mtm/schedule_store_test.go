@@ -122,9 +122,6 @@ func TestScheduleOptionalEnumFieldsClearAndKeepTheirErrors(t *testing.T) {
 				t.Fatalf("%s %s stored %q", verb, tc.field, got)
 			}
 			want := tc.msg
-			if verb == "edit" && tc.field == "into" {
-				want = "into must be one of new, pane" // edit's own (non-free) parameter enum, as before
-			}
 			err := set(tc.bad)
 			if err == nil || !strings.Contains(err.Error(), want) {
 				t.Fatalf("%s %s=%s: %v, want %q", verb, tc.field, tc.bad, err, want)

@@ -130,9 +130,10 @@ func TestCLITaskStatusDoneAndParent(t *testing.T) {
 	if got := stored(t, app, "t1").Status; got != work.StatusBlocked {
 		t.Fatalf("status: %s", got)
 	}
-	if _, _, err := cli(app, "", "task", "status", "t1", "open"); err == nil {
-		t.Fatal("status open succeeded")
+	if _, _, err := cli(app, "", "task", "status", "t1", "open"); err != nil {
+		t.Fatalf("status open was refused: %v", err) // a value outside the choices is kept (ochazuke v0.142.0)
 	}
+	mustCLI(t, app, "task", "status", "t1", "blocked")
 	mustCLI(t, app, "task", "done", "t2")
 	if got := stored(t, app, "t2").Status; got != work.StatusDone {
 		t.Fatalf("done: %s", got)

@@ -142,8 +142,8 @@ func TestInboxGroupFollowsSettingAndPaneNames(t *testing.T) {
 func TestInboxGroupSettingValidates(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	if err := a.r.Settings().Set(settingInboxGroup, "bogus"); err == nil {
-		t.Fatal("inbox.group took an unknown value")
+	if err := a.r.Settings().Set(settingInboxGroup, "bogus"); err != nil {
+		t.Fatalf("inbox.group refused an unknown value: %v", err)
 	}
 }
 

@@ -302,8 +302,8 @@ func TestTurnsStyleSwitchesLive(t *testing.T) {
 	if fr := frame(app); app.r.FocusID() != turnCardID("w1", "u1") || !strings.Contains(fr, "╭") || app.pv.turns.List().Len() != 0 {
 		t.Fatalf("cards: %s tree rows %d\n%s", where(app), app.pv.turns.List().Len(), fr)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": "compact", "scope": "file"}}); err == nil {
-		t.Fatal("turns.style took a value it does not offer")
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "setting", Verb: "set", Args: ochazuke.Arguments{"name": settingTurnsStyle, "value": "compact", "scope": "file"}}); err != nil {
+		t.Fatalf("turns.style refused a value it does not offer: %v", err)
 	}
 }
 

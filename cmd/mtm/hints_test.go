@@ -62,9 +62,19 @@ func TestTerminalFooterExposesPassthroughLeader(t *testing.T) {
 
 }
 
+// helpModal sets help.style modal: for the tests of the ? modal, which ?
+// opens as a page by default since ochazuke v0.143.0.
+func helpModal(t *testing.T, a *App) {
+	t.Helper()
+	if err := a.r.Settings().Set(ochazuke.HelpStyleSetting, ochazuke.HelpStyleModal); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHelpOnATaskRowReturnsToItsTask(t *testing.T) {
 	t.Parallel()
 	app := open(t)
+	helpModal(t, app)
 	press(t, app, "j", "enter", "?")
 	if app.r.TopModal() != "bindings-help" {
 		t.Fatalf("help modal: %q", app.r.TopModal())
