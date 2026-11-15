@@ -173,6 +173,7 @@ cwd_status	prop	seed
 cycle	action	seed	
 cycle-group	action	seed	
 cycle-match	action	seed	
+cycle-mode	action	seed	
 daemon	noun	seed	
 daily	noun	seed	
 dark	prop	seed	
@@ -235,6 +236,7 @@ done_when	prop	seed
 downloading	filter	seed	
 draft	noun	seed	
 drive	prop	seed	
+drop	action	seed	
 due-today	prop	seed	
 duplicate	action	seed	
 easy	prop	seed	
@@ -276,6 +278,8 @@ exists	prop	seed
 exit_code	prop	seed	
 exited	prop	seed	
 expand	action	seed	
+explain	action	seed	
+explain-key	action	seed	
 export	action	seed	
 exported	prop	seed	
 extension	noun	seed	
@@ -367,6 +371,9 @@ harvest	action	seed
 hash	prop	seed	
 head	prop	seed	
 help	action	seed	
+help-node	noun	seed	
+help-page	noun	seed	
+help-row	noun	seed	
 helptext	prop	seed	
 hidden	prop	seed	
 hide	action	seed	
@@ -424,6 +431,7 @@ job	noun+prop	seed
 jobs	prop	seed	
 json	namespace+prop	seed	
 json-node	noun	seed	
+jump	action	seed	
 keep	action	yes	exempt an orphaned history log from the grace period
 key	noun+prop	seed	
 keys	action+prop	seed	
@@ -509,6 +517,7 @@ msg	prop	seed
 multiply	action	seed	
 name	prop	seed	
 names	action+prop	seed	
+narrow	action	seed	
 new	action	seed	
 next	action	seed	
 next-block	action	seed	
@@ -573,6 +582,7 @@ outline-root	noun	seed
 outline-row	noun	seed	
 outline-task	noun	seed	
 output	prop	seed	
+overlay	noun	seed	
 overview	prop	seed	
 owner	prop	seed	
 owners	prop	seed	
@@ -685,6 +695,7 @@ redo	action	seed
 redirect	action	seed	
 ref	prop	seed	
 referrer	noun	seed	
+refocus	action	seed	
 refresh	action	seed	
 refresh-turns	action	seed	
 refuse	action	seed	
