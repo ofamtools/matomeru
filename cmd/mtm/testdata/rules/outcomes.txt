@@ -1,0 +1,60 @@
+# rulecheck outcomes baseline: kind, subject, detail, count, reason (tab separated).
+# Kinds: "failed" (subject: an offered request, noun.verb with its arguments; detail: the outcome's cause): a dry run
+# (Runtime.CheckRequestAt) of a verb offered at a place answered failed, which no caller can change; make it ask
+# (Ctx.Need, MissingParameterError, a ChoiceAnswer), answer nothing (Nothing, KeptError) or run.
+# "unwalked" (subject: a noun; detail "no place"): a noun that can be focused (Focusable, or with key rows of its own)
+# stands at no place the walk read (live instances, recorded places), so no check saw it where it is used: record a place
+# (the runtime's placements, Config.Places) or give a reason.
+# "unknown-noun" (subject: a noun name; detail "not registered"): a recorded place names a noun no runtime has (renamed or
+# not built here): rename it in the places file, or give a reason.
+# A row with a reason is a reviewed exception; a row without one is debt that only shrinks (RULECHECK_UPDATE=1).
+unknown-noun	nouns/pane/show	not registered	1	the Nouns page's index page for one noun (ochazuke IndexPagePrefix nouns/NOUN/show) recorded with its page id as the noun: an instance with no noun of its own, never focused alone; the noun's rows are walked at its own places
+unknown-noun	nouns/project/show	not registered	1	the Nouns page's index page for one noun (ochazuke IndexPagePrefix nouns/NOUN/show) recorded with its page id as the noun: an instance with no noun of its own, never focused alone; the noun's rows are walked at its own places
+unknown-noun	nouns/relation/show	not registered	1	the Nouns page's index page for one noun (ochazuke IndexPagePrefix nouns/NOUN/show) recorded with its page id as the noun: an instance with no noun of its own, never focused alone; the noun's rows are walked at its own places
+unknown-noun	nouns/reminder/show	not registered	1	the Nouns page's index page for one noun (ochazuke IndexPagePrefix nouns/NOUN/show) recorded with its page id as the noun: an instance with no noun of its own, never focused alone; the noun's rows are walked at its own places
+unknown-noun	nouns/review/show	not registered	1	the Nouns page's index page for one noun (ochazuke IndexPagePrefix nouns/NOUN/show) recorded with its page id as the noun: an instance with no noun of its own, never focused alone; the noun's rows are walked at its own places
+unknown-noun	nouns/saved/show	not registered	1	the Nouns page's index page for one noun (ochazuke IndexPagePrefix nouns/NOUN/show) recorded with its page id as the noun: an instance with no noun of its own, never focused alone; the noun's rows are walked at its own places
+unknown-noun	nouns/session/show	not registered	1	the Nouns page's index page for one noun (ochazuke IndexPagePrefix nouns/NOUN/show) recorded with its page id as the noun: an instance with no noun of its own, never focused alone; the noun's rows are walked at its own places
+unknown-noun	ochazuke.detail-row	not registered	1	registered by ochazuke cli's catalog detail view (cli/detail_kind.go) when an extension thing's detail opens; the TestRules runtime opens none (ochazuke's baseline holds the same row)
+unknown-noun	ochazuke.help-page-state	not registered	1	an instance kind with no noun: the help page's state holder (ochazuke help_page.go), never focused (ochazuke's baseline holds the same row)
+unknown-noun	ochazuke.json-node	not registered	1	registered by ochazuke cli's catalog detail view (cli/detail_json.go) when an extension thing's JSON detail opens; the TestRules runtime opens none (ochazuke's baseline holds the same row)
+unknown-noun	page-picker	not registered	1	a modal's instance id recorded as the noun of its own place (the page picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	palette-result-row	not registered	1	a palette results row as an older mtm recorded it: no noun has this name in ochazuke v0.146.0 or matomeru (rg), so the rename is not certain; the results modal's rows are walked as ochazuke.collection
+unknown-noun	palette-results	not registered	1	a modal's instance id recorded as the noun of its own place (the palette's results modal): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.collection at the same modal
+unknown-noun	pane-picker	not registered	1	a modal's instance id recorded as the noun of its own place (the pane picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	pane-setting-effort	not registered	1	a modal's instance id recorded as the noun of its own place (the pane setting picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	pane-setting-fast	not registered	1	a modal's instance id recorded as the noun of its own place (the pane setting picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	pane-setting-permission-mode	not registered	1	a modal's instance id recorded as the noun of its own place (the pane setting picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	pin-picker	not registered	1	a modal's instance id recorded as the noun of its own place (the pin picker, pin.go pinPicker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	proj.project	not registered	1	the noun of a tool (o-proj) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	qbt.app	not registered	1	the noun of a tool (o-qbt) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	qbt.category	not registered	1	the noun of a tool (o-qbt) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	qbt.config	not registered	1	the noun of a tool (o-qbt) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	qbt.guard	not registered	1	the noun of a tool (o-qbt) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	qbt.torrent	not registered	1	the noun of a tool (o-qbt) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	qbt.transfer	not registered	1	the noun of a tool (o-qbt) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	question.blocker	not registered	1	the noun of a tool (o-questions) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	question.decision	not registered	1	the noun of a tool (o-questions) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	question.question	not registered	1	the noun of a tool (o-questions) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	question.review	not registered	1	the noun of a tool (o-questions) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	reminder-history	not registered	1	a modal's instance id recorded as the noun of its own place (reminder.history's picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	service.endpoint	not registered	1	the noun of a tool (o-services) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	setting-prompt	not registered	1	a modal's instance id recorded as the noun of its own place (the setting prompt): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.setting-value at the same modal
+unknown-noun	side-chooser	not registered	1	a modal's instance id recorded as the noun of its own place (the side-pane picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	status-chooser	not registered	1	a modal's instance id recorded as the noun of its own place (the status picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	story.application	not registered	1	the noun of a tool (o-story) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	story.edge	not registered	1	the noun of a tool (o-story) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	story.fixture	not registered	1	the noun of a tool (o-story) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	story.recording	not registered	1	the noun of a tool (o-story) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	story.story	not registered	1	the noun of a tool (o-story) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	story.verb	not registered	1	the noun of a tool (o-story) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	task-picker	not registered	1	a modal's instance id recorded as the noun of its own place (the task picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unwalked	focus-item	no place	1
+unwalked	ochazuke.bindings-help	no place	1
+unwalked	ochazuke.find-line	no place	1
+unwalked	ochazuke.outline-row	no place	1
+unwalked	ochazuke.overlay	no place	1
+unwalked	ochazuke.setting-change	no place	1
+unwalked	ochazuke.settings-review	no place	1
+unwalked	scope	no place	1
+unwalked	turn-step	no place	1
