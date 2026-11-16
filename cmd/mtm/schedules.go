@@ -690,7 +690,7 @@ func (a *App) setScheduleInterval(ctx ochazuke.Ctx) ochazuke.Result {
 		return a.scheduleSet(d.Name, map[string]any{scheduleIntervalProp: every})
 	}
 	if a.cli {
-		return ochazuke.Failed(errors.New("set-interval needs --interval (1m, 5m, 1h, …)"))
+		return ochazuke.Failed(ctx.Need("interval", "1m, 5m, 1h, …"))
 	}
 	_, err = a.askParameter(scheduleNoun+".set-interval", "interval", ochazuke.Arguments{"name": d.Name}, pickSpec{
 		Kind:  "interval-chooser",

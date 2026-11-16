@@ -232,7 +232,7 @@ func (a *App) checkReminder(verb string) ochazuke.AppHandler {
 
 func (a *App) addReminder(c ochazuke.Ctx) ochazuke.Result {
 	if a.cli {
-		return ochazuke.Failed(errors.New("use reminder create TITLE --time HH:MM --days mon,wed,fri"))
+		return ochazuke.Nothing(ochazuke.CauseNotHere, "use reminder create TITLE --time HH:MM --days mon,wed,fri")
 	}
 	out, err := a.r.Execute(ochazuke.Request{Noun: reminderNoun, Verb: "create", Args: ochazuke.Arguments{"title": ""}})
 	if err != nil {
@@ -256,7 +256,7 @@ func (a *App) addReminder(c ochazuke.Ctx) ochazuke.Result {
 }
 func (a *App) editReminder(c ochazuke.Ctx) ochazuke.Result {
 	if a.cli {
-		return ochazuke.Failed(errors.New("use reminder set --id ID time=10:30 days=mon,wed,fri"))
+		return ochazuke.Nothing(ochazuke.CauseNotHere, "use reminder set --id ID time=10:30 days=mon,wed,fri")
 	}
 	r, err := a.reminderAt(c)
 	if err != nil {

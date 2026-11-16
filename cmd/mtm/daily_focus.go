@@ -408,7 +408,7 @@ func (a *App) focusAdd(c ochazuke.Ctx) ochazuke.Result {
 	thing := normalThing(ochazuke.StringArg(c.Args, "thing", ""))
 	if thing == "" {
 		if a.cli {
-			return ochazuke.Failed(&ochazuke.ArgumentError{Err: errors.New("name a thing (task:ID); # opens the focus picker")})
+			return ochazuke.Failed(c.Need("thing", "name a thing (task:ID); # opens the focus picker"))
 		}
 		return a.openNamedPicker(focusPickerName)
 	}

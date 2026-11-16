@@ -100,7 +100,6 @@ cmd/mtm/daemon_runner.go	App.runner	K1	"daemon runner %q is not built into this 
 cmd/mtm/daemon_runner.go	App.runner	K15	"unknown daemon runner %q (%s)"	1
 cmd/mtm/daemon_runner.go	App.stopDaemon	K15	"the daemon reported no pid"	1
 cmd/mtm/daily_focus.go	App.focusAdd	K15	"Failed(…)"	1
-cmd/mtm/daily_focus.go	App.focusAdd	K3	"name a thing (task:ID); # opens the focus picker"	1
 cmd/mtm/daily_focus.go	App.focusClear	K15	"Failed(…)"	4
 cmd/mtm/daily_focus.go	App.focusDate	K15	"date %q is not YYYY-MM-DD"	1
 cmd/mtm/daily_focus.go	App.focusMove	K15	"%s is not in the focus of %s"	1
@@ -509,7 +508,6 @@ cmd/mtm/quicknote.go	App.listQuickNote	K15	"no quick note is open"	1
 cmd/mtm/quicknote.go	App.listQuickNote	K15	"resultError(…)"	2
 cmd/mtm/quicknote.go	App.openQuickNote	K15	"Failed(…)"	3
 cmd/mtm/quicknote.go	App.openQuickNote	K15	"resultError(…)"	1
-cmd/mtm/quicknote.go	App.openQuickNote	K15	"the quick note is a TUI modal; use note new TEXT"	1
 cmd/mtm/rail_triage.go	App.triageContext	K15	"name an item (--id), or every item with --before, --filter or --all"	1
 cmd/mtm/rail_triage.go	App.triageIDs	K14	"context-item list: %w"	1	failure
 cmd/mtm/rail_triage.go	App.triageWhere	K15	"--before: not a time (2026-11-14, 2026-11-14T09:00, RFC 3339 or Unix ms)"	1
@@ -536,11 +534,9 @@ cmd/mtm/reminder_notify.go	App.notificationWork	K15	"local date changed before d
 cmd/mtm/reminder_notify.go	App.notifyReminders	K15	"Failed(…)"	1
 cmd/mtm/reminders.go	App.addReminder	K15	"Failed(…)"	5
 cmd/mtm/reminders.go	App.addReminder	K15	"resultError(…)"	1
-cmd/mtm/reminders.go	App.addReminder	K15	"use reminder create TITLE --time HH:MM --days mon,wed,fri"	1
 cmd/mtm/reminders.go	App.checkReminder	K15	"Failed(…)"	2
 cmd/mtm/reminders.go	App.editReminder	K15	"Failed(…)"	1
 cmd/mtm/reminders.go	App.editReminder	K15	"resultError(…)"	1
-cmd/mtm/reminders.go	App.editReminder	K15	"use reminder set --id ID time=10:30 days=mon,wed,fri"	1
 cmd/mtm/reminders.go	App.reminderAt	K5	"select a reminder or give its title/id"	1
 cmd/mtm/reminders.go	App.reminderHistory	K13	"limit must not be negative"	1	declaration
 cmd/mtm/reminders.go	App.reminderHistory	K15	"Failed(…)"	3
@@ -592,7 +588,6 @@ cmd/mtm/schedule_edit.go	App.applyScheduleField	K2	"%s is one of %s"	1
 cmd/mtm/schedule_edit.go	App.duplicateSchedule	K15	"Failed(…)"	2
 cmd/mtm/schedule_edit.go	App.duplicateSchedule	K8	"a schedule named %s exists"	1
 cmd/mtm/schedule_edit.go	App.editSchedule	K15	"Failed(…)"	1
-cmd/mtm/schedule_edit.go	App.editSchedule	K15	"give the fields to change: --%s …"	1
 cmd/mtm/schedule_edit.go	App.editSchedule	K15	"resultError(…)"	1
 cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"Failed(…)"	1
 cmd/mtm/schedule_edit.go	App.openScheduleForm	K15	"a schedule form is already open"	1
@@ -624,7 +619,6 @@ cmd/mtm/schedules.go	App.scheduleSettings	K15	"an interval is at least 1m"	1
 cmd/mtm/schedules.go	App.schedulesUpdate	K15	"Failed(…)"	1
 cmd/mtm/schedules.go	App.setScheduleInterval	K14	"interval %q: %w"	1	failure
 cmd/mtm/schedules.go	App.setScheduleInterval	K15	"Failed(…)"	2
-cmd/mtm/schedules.go	App.setScheduleInterval	K15	"set-interval needs --interval (1m, 5m, 1h, …)"	1
 cmd/mtm/schedules.go	App.toggleSchedule	K15	"Failed(…)"	1
 cmd/mtm/schedules.go	App.viewSchedule	K1	"When(…) without Fallback"	1
 cmd/mtm/schedules.go	App.viewSchedule	K1	"When: <expr> without Fallback"	1

@@ -140,7 +140,7 @@ func (a *App) quickNoteOwner() (Owner, string, error) {
 // not stored until something is typed.
 func (a *App) openQuickNote(ochazuke.Ctx) ochazuke.Result {
 	if a.cli {
-		return ochazuke.Failed(errors.New("the quick note is a TUI modal; use note new TEXT"))
+		return ochazuke.Nothing(ochazuke.CauseNotHere, "the quick note is a TUI modal; use note new TEXT")
 	}
 	if a.quick != nil {
 		return resultError(a.flushQuickNote(true))

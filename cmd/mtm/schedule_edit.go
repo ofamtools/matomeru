@@ -375,7 +375,7 @@ func (a *App) editSchedule(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	if len(givenFields(ctx.Args)) == 0 {
 		if a.cli {
-			return ochazuke.Failed(fmt.Errorf("give the fields to change: --%s …", strings.Join(scheduleFields[:4], ", --")))
+			return ochazuke.Failed(ctx.Need(scheduleFields[0], fmt.Sprintf("give the fields to change: --%s …", strings.Join(scheduleFields[:4], ", --"))))
 		}
 		return resultError(a.openScheduleForm(d.Name, "Edit schedule "+d.Name))
 	}
