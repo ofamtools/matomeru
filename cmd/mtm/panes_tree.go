@@ -415,7 +415,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 	})
 	needsInputFirst := func(x, y pane) int { return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput())) }
 	addPane := func(p pane, parent string) {
-		name := markerGutter(p) + " " + names[p.ID] + a.itemMark(p)
+		name := markerGutter(p) + " " + names[p.ID] + a.rowMarks(p, now)
 		if p.Queued > 0 {
 			name += " " + queuedMarker
 		}

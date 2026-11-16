@@ -107,7 +107,12 @@ func (a *App) childKinds() []childKind {
 
 // childNodes are the child rows of the pane's row parent: each kind's, in
 // order.
+// With panes.section-rows panes no child rows are drawn: the counts after
+// the pane's name stand for them (rowMarks).
 func (a *App) childNodes(p pane, parent string, now time.Time) []ochazuke.TreeNode {
+	if !a.sectionRowMode().children {
+		return nil
+	}
 	var out []ochazuke.TreeNode
 	for _, k := range a.childKinds() {
 		out = append(out, k.nodes(a, p, parent, now)...)
@@ -177,6 +182,16 @@ func (a *App) itemMark(p pane) string {
 		return fmt.Sprintf(" %s%d", itemCountMark, n)
 	}
 	return ""
+}
+
+// rowMarks are the counts after a pane's name: its open items (itemMark)
+// and, while child rows are not drawn (panes.section-rows panes), its
+// subagents.
+func (a *App) rowMarks(p pane, now time.Time) string {
+	if a.sectionRowMode().children {
+		return a.itemMark(p)
+	}
+	return a.itemMark(p) + agentMark(a.subagentRows(p, now))
 }
 
 // foldItemRows sets the first fold of each pane row that has item rows
@@ -288,7 +303,7 @@ func (a *App) groupSettingChanged() {
 // childSettingChanged redraws the Panes page's lists with the new child
 // rows; a new first fold (panes.items-open) applies to every row again.
 func (a *App) childSettingChanged(name string) {
-	if name == settingItemsOpen {
+	if name == settingItemsOpen || name == settingSectionRows {
 		a.pv.foldedIn = nil
 	}
 	if err := a.rebuildPanes(); err != nil {

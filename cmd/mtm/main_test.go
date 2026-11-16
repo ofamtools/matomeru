@@ -235,6 +235,12 @@ func openWith(t *testing.T, opts Options) *App {
 		t.Fatal(err)
 	}
 	app.pv.viewApplied = "terminal"
+	// The Inbox lists' tests, written when a pane's items and subagents were
+	// child rows, start with them (panes.section-rows items); the tests of
+	// the panes default set it (section_rows_test.go).
+	if err := app.r.Settings().Set(settingSectionRows, sectionRowsItems); err != nil {
+		t.Fatal(err)
+	}
 	app.runs.after = nil // no redraw timers
 	// No test runs a real schedule: no timers, and a command a test did
 	// not fake fails at once.

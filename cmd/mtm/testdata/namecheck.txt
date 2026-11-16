@@ -239,7 +239,7 @@ panes_leader.go	App.paneNear	compare	"pane"	1
 panes_panels.go	App.focusSection	compare	"panes"	1
 panes_panels.go	App.panelSizes	compare	"hide"	1	existing panel empty-mode value (emptyHide), flagged because v0.110.0 made hide a verb; not a name branch
 panes_panels.go	var panelTexts	table	"panes"	1
-panes_sections.go	App.buildPaneSections	cyclo	"-"	53
+panes_sections.go	App.buildPaneSections	cyclo	"-"	51
 panes_sections.go	App.countPanes	compare	"panes"	2
 panes_sections.go	App.firstPaneRow	compare	"pane"	1
 panes_sections.go	App.focusOpenList	compare	"panes"	1

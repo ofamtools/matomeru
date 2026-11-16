@@ -239,3 +239,7 @@ panes/tree/list	session	normal	w	pane	1	new hidden default key on a sibling noun
 panes/tree/list	session	visual-line	*	pane	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
 panes/tree/list	session	visual-line	M	pane	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
 panes/tree/list	session	visual-line	w	pane	1	new hidden default key on a sibling noun (owner 2026-11-15: every verb starts bound); this row's noun has no verb for that key
+panes/tree/list	pane-project	normal	x	pane	1	a heading groups panes and has no items of its own; x archives one pane's items (pane.archive-items), never a whole heading's at a key
+panes/tree/list	pane-project	visual-line	x	pane	1	a heading groups panes and has no items of its own; x archives one pane's items (pane.archive-items), never a whole heading's at a key
+panes/tree/list	session	normal	x	pane	1	a heading groups panes and has no items of its own; x archives one pane's items (pane.archive-items), never a whole heading's at a key
+panes/tree/list	session	visual-line	x	pane	1	a heading groups panes and has no items of its own; x archives one pane's items (pane.archive-items), never a whole heading's at a key

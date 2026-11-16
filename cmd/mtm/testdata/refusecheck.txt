@@ -358,6 +358,9 @@ cmd/mtm/pane_activity.go	App.openActivity	K15	"Failed(…)"	1
 cmd/mtm/pane_activity.go	activityAt	K5	"no subagent selected"	1
 cmd/mtm/pane_children.go	paneChildSettings	K2	"child %q: one of %s"	1
 cmd/mtm/pane_hue.go	App.assignProjectColors	K14	"color project %s: %w"	1	failure
+cmd/mtm/pane_items.go	App.applyPaneItems	K15	"Failed(…)"	1	failure
+cmd/mtm/pane_items.go	App.runPaneItems	K15	"Failed(…)"	1	failure
+cmd/mtm/pane_items.go	App.runPaneItems	K15	"resultError(…)"	1	failure
 cmd/mtm/pane_picker.go	App.openPanePicker	K15	"Failed(…)"	1
 cmd/mtm/pane_settings.go	App.applySetting	K10	"changing a setting needs the TUIOS daemon"	1
 cmd/mtm/pane_settings.go	App.applySetting	K15	"%s takes %s: %s"	1

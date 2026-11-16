@@ -41,6 +41,7 @@ append	action	seed
 applied	action	seed	
 apply	action	seed	
 archive	action	seed	
+archive-items	action	yes	pane.archive-items: action-item.archive on every open item of the pane (one Inbox row per pane)
 archive-task	action	yes	outline-task.archive-task: the task noun's archive over an outline row (a part noun cannot name a verb archive)
 archived	prop	seed	
 archived-at	prop	seed	
@@ -691,6 +692,7 @@ ratio	prop	seed
 read	prop	seed	
 read-activities	prop	seed	
 read-at	prop	seed	
+read-items	action	yes	pane.read-items: action-item.read on every open unread item of the pane
 read-settings	prop	seed	
 read-turns	prop	seed	
 reason	prop	seed	
@@ -853,6 +855,7 @@ skill	noun	seed
 slot	prop	seed	
 snapshot	noun	lx4	
 snooze	action	seed	
+snooze-items	action	yes	pane.snooze-items: action-item.snooze on every open item of the pane
 snoozed-until	prop	seed	
 sort	action	seed	
 sort-clear	action	seed	

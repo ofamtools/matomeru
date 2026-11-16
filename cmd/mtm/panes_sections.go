@@ -555,7 +555,8 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		}
 	}
 	kinds := a.childKinds()
-	childItems := slices.ContainsFunc(kinds, func(k childKind) bool { return k.name == childKindItems })
+	mode := a.sectionRowMode()
+	childItems := mode.itemsUnderPanes(kinds)
 	a.pv.kidItems, a.pv.kidCounts = nil, nil
 	if childItems {
 		a.pv.kidItems, a.pv.kidCounts = a.paneKidItems(nowMs)
@@ -637,15 +638,18 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	}
 	best := map[string]bestItem{} // window → the item that places its pane's row in the queue
 	queueAt := map[string]int{}   // window → index of its pane's row in queue
+	items = a.queueRowItems(items, mode, byWindow, section, names)
+	foldElsewhere := mode.foldsElsewhere(one)
 	for _, q := range items {
 		it := q.it
 		p, listed := byWindow[it.Window]
 		clock := a.itemClock(it, p, listed, nowMs)
-		if childItems && listed && (section[p.ID] == sectionQueue || !one) {
+		if childItems && listed && (section[p.ID] == sectionQueue || foldElsewhere) {
 			// The pane's row carries the item as a child row; in the queue it
-			// takes the rank and time of its best item. (Legacy drops an
-			// item whose pane is in another list from the queue; the one
-			// rule gives it a row of its own, naming the pane.)
+			// takes the rank and time of its best item. (Legacy, and every
+			// row a pane's, leave an item whose pane is in another list to
+			// that row's count; the one rule with item rows gives it a row of
+			// its own, naming the pane.)
 			if section[p.ID] == sectionQueue {
 				b, ok := best[p.ID]
 				if !ok {
@@ -676,10 +680,9 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		}
 		queue = append(queue, row{node: node, at: at, pane: standsFor})
 	}
-	for _, p := range panes {
-		if b, ok := best[p.ID]; ok && p.ID != "" {
-			queue[queueAt[p.ID]].at = place(p.rowID(), sectionQueue, b.rank, b.at)
-		}
+	// Every pane row of the queue by its best item, a closed pane's too.
+	for w, b := range best {
+		queue[queueAt[w]].at = place(byWindow[w].rowID(), sectionQueue, b.rank, b.at)
 	}
 	for _, p := range heldQueue {
 		at := place(p.rowID(), sectionQueue, len(queueCategories), nowMs)
@@ -709,13 +712,14 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	ss[2].nodes, ss[2].rows = nil, len(bottom)
 	var order []string
 	children := func(r row) []ochazuke.TreeNode { return a.rowChildren(r, byWindow, now) }
+	agents := func(r row, kids []ochazuke.TreeNode) int { return a.rowAgents(r, kids, mode, now) }
 	ss[0].kids, ss[2].kids = 0, 0
 	view.needsYou = nil
 	for _, r := range queue {
 		view.needsYou = append(view.needsYou, r.node.ID)
 		ss[0].nodes = append(ss[0].nodes, r.node)
 		kids := children(r)
-		ss[0].kids += countActivities(kids)
+		ss[0].kids += agents(r, kids)
 		ss[0].nodes = append(ss[0].nodes, kids...)
 		if r.pane {
 			order = append(order, r.node.ID)
@@ -725,7 +729,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	for _, r := range bottom {
 		ss[2].nodes = append(ss[2].nodes, r.node)
 		kids := children(r)
-		ss[2].kids += countActivities(kids)
+		ss[2].kids += agents(r, kids)
 		ss[2].nodes = append(ss[2].nodes, kids...)
 		order = append(order, r.node.ID)
 		view.usage = view.usage || r.node.Cells[2] != ""
@@ -788,7 +792,7 @@ func (a *App) flatPaneNode(p pane, name string, now time.Time) ochazuke.TreeNode
 // with its project after it, since these lists hold every project's
 // panes, and its use.
 func (a *App) flatPaneCells(p pane, name string, now time.Time) ([]string, []ochazuke.ToneSpan) {
-	name = markerGutter(p) + " " + name + a.itemMark(p)
+	name = markerGutter(p) + " " + name + a.rowMarks(p, now)
 	if p.Queued > 0 {
 		name += " " + queuedMarker
 	}

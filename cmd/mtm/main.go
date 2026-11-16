@@ -672,6 +672,7 @@ func New(opts Options) (*App, error) {
 	a.defineOwners()
 	a.defineInbox()
 	a.definePaneTask()
+	a.definePaneItems()
 	a.defineSchedules()
 	a.defineReminders()
 	a.defineReminderNotifications()

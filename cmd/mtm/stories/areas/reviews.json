@@ -70,14 +70,14 @@
       "contains": [
         "Working (1 · 3 agents)",
         "waiting on 3 agents",
-        "Lane och-name-guard",
-        "Lane och-parse-once",
-        "Review diff · auditor"
+        "claude ◐3"
       ],
       "lacks": [
         "ofam-lane",
         "Re-walk UX findings",
-        "✓ done"
+        "✓ done",
+        "Lane och-name-guard",
+        "Review diff · auditor"
       ],
       "after": 1
     },

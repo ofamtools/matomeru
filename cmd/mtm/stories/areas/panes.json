@@ -719,6 +719,9 @@
     ]
   },
   "config": {
+    "settings.json": {
+      "panes.section-rows": "items"
+    },
     "bindings.json": [
       {
         "noun": "app",

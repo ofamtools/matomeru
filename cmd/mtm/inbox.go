@@ -194,7 +194,7 @@ func (a *App) addInboxPage() error {
 	// A change of how the rows are grouped, or of how a pane's items are
 	// drawn, shows at once.
 	a.r.Settings().Observe(settingInboxGroup, func(string, any) { a.groupSettingChanged() })
-	for _, name := range []string{settingPaneChildren, settingChildItems, settingItemCount, settingItemsOpen} {
+	for _, name := range []string{settingPaneChildren, settingChildItems, settingItemCount, settingItemsOpen, settingSectionRows} {
 		a.r.Settings().Observe(name, func(n string, _ any) { a.childSettingChanged(n) })
 	}
 	if a.headless {
