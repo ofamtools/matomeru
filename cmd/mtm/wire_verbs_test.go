@@ -78,7 +78,7 @@ func TestEveryTuiosMCPToolHasAGatewayVerb(t *testing.T) {
 	}
 	// Reads are allowed, never left to confirmation.
 	for _, w := range wireVerbs {
-		if op, _ := app.r.Operation(w.key()); w.Fetch && op.Agent != ochazuke.AgentAllow {
+		if op, _ := app.r.Operation(w.key()); op.HistoryKind == ochazuke.HistoryFetch && op.Agent != ochazuke.AgentAllow {
 			t.Errorf("%s reads and must be allowed, is %q", w.key(), op.Agent)
 		}
 	}

@@ -58,44 +58,14 @@ const (
 // props, in the settings line's names.
 var paneSettingProps = []string{harness.SettingModel, harness.SettingEffort, harness.SettingFast, harness.SettingPermission}
 
-// paneProps are a pane's props: the key (the window id); its name, the
-// label (the display name shown when it is empty); its owner (project,
-// move writes it) and task; its star; and read-only state.
-func paneProps() []ochazuke.PropSpec { return specsOf(paneCopiedProps()) }
-
-// paneCopiedProps are paneProps with what a pane's copy row keeps of each
-// (copies.go), beside its key and when it ended: its name (held once mtm
-// writes it), and the last seen facts that show and find an ended pane.
-// Nothing else is stored: the daemon's live facts (title, state, exited,
-// the agent's settings) are read from it each time, and the owner and the
-// star are mtm's own records in their own stores (paneRecords).
-func paneCopiedProps() []copiedProp {
-	text := func(desc string) ochazuke.Parameter { return ochazuke.Parameter{Type: "string", Description: desc} }
-	ro := func(name, desc string) ochazuke.PropSpec {
-		return ochazuke.PropSpec{Name: name, ReadOnly: true, Parameter: text(desc)}
-	}
-	props := []copiedProp{
-		{PropSpec: ochazuke.PropSpec{Name: "id", Key: true, Parameter: text("The pane's window id (or its row id, pane:SESSION/WINDOW)")}},
-		{PropSpec: ochazuke.PropSpec{Name: "name", Role: ochazuke.RoleLabel, Fallback: "display", Through: true, Parameter: text("The pane's name: mtm's copy's once renamed in mtm, sent on to the daemon's window, else the daemon's; empty falls back to the shell's title")}, Copy: copyHeld},
-		{PropSpec: ro("display", "The pane as lists show it: session/name, or the program when the window has its default name")},
-		{PropSpec: ro("session", "The session the pane is in"), Copy: copySeen},
-		{PropSpec: ochazuke.PropSpec{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
-			Description: "The project the pane belongs to (empty: unassociated); one not found is saved unassociated with a notice"}}},
-		{PropSpec: ochazuke.PropSpec{Name: "task", Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the pane works on; its project wins over project"}}},
-		{PropSpec: ochazuke.PropSpec{Name: "starred", Through: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the pane is starred (` and the leader's s go to the next starred pane)"}}},
-		{PropSpec: ochazuke.PropSpec{Name: "archived", Role: ochazuke.RoleArchive, Default: false, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the local pane record without closing its daemon window"}}, Copy: copyOwn},
-		{PropSpec: ro("title", "The shell's title for the window")},
-		{PropSpec: asDir(ro("cwd", "The pane's working directory")), Copy: copySeen},
-		{PropSpec: ro("state", "The agent's state in tuios (working, idle, needs_input…), empty for a shell")},
-		{PropSpec: ro("harness", "The agent's harness, as tuios reports it or mtm launched it"), Copy: copySeen},
-		{PropSpec: ochazuke.PropSpec{Name: "exited", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Whether the window's process has ended"}}},
-	}
-	props = append(props, endedProps("pane")...)
-	for _, name := range paneSettingProps {
-		props = append(props, copiedProp{PropSpec: ro(name, "The agent's "+name+" as the settings line reads it (its session's log, tuios, else the launch flags); pane.set-"+strings.TrimSuffix(name, "-mode")+"… changes it in the session")})
-	}
-	return props
-}
+// paneCopyRoles are what a pane's copy row keeps of its props (copies.go),
+// beside its key and when it ended: its name (held once mtm writes it),
+// and the last seen facts that show and find an ended pane. Nothing else
+// is stored: the daemon's live facts (title, state, exited, the agent's
+// settings) are read from it each time, and the owner and the star are
+// mtm's own records in their own stores (paneRecords). The props
+// themselves are declared in nouns/pane.json.
+var paneCopyRoles = propCopies{{"name", copyHeld}, {"session", copySeen}, {"archived", copyOwn}, {"cwd", copySeen}, {"harness", copySeen}}
 
 // paneRecords are mtm's own records of a pane its copy t stands for when
 // the daemon does not list it: its owner and star, read from their stores,

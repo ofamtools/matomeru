@@ -120,23 +120,7 @@ func (t tuios) SendKey(ctx context.Context, p pane, key string) error {
 // addPaneSettings adds the line's list, the pane-setting noun and the
 // pane's setting verbs.
 func (a *App) addPaneSettings() error {
-	a.r.Define("pane").
-		Verb("settings", a.showPaneSettings, "The agent's settings as the line shows them, each with where its value comes from (the session's log, tuios, or the launch flags)").Fetch().
-		Verb("set-model", a.setPaneSetting(harness.SettingModel), "Switch the agent's model in its session, with the harness's own command; no model opens a chooser of the harness's models").
-		Verb("set-effort", a.setPaneSetting(harness.SettingEffort), "Set the agent's thinking effort in its session; no level opens a chooser").
-		Verb("set-fast", a.setPaneSetting(harness.SettingFast), "Turn the agent's fast mode on or off in its session; no value opens a chooser").
-		Verb("toggle-fast", a.togglePaneFast, "Turn the agent's fast mode the other way").
-		Verb("set-permission-mode", a.setPaneSetting(harness.SettingPermission), "Set the agent's permission mode in its session; no mode opens a chooser").
-		Verb("settings-line", a.focusPaneSettings, "Focus the settings line at the top of the Turns tab").
-		Verb("read-settings", a.readCodexSettings, "Read a Codex pane's settings from the end of its session rollout").Fetch()
-	for name, verb := range settingVerbs {
-		arg := settingArgs[name]
-		a.parameters("pane."+verb, map[string]ochazuke.Parameter{
-			arg:         {Type: "string", Description: "The value; none opens a chooser of the values the harness takes"},
-			"confirmed": {Type: "boolean", Description: "Send even though the prompt box holds a draft for the pane"},
-		})
-	}
-	a.parameters("pane.toggle-fast", map[string]ochazuke.Parameter{"confirmed": {Type: "boolean", Description: "Send even though the prompt box holds a draft for the pane"}})
+	// The pane's setting verbs and their parameters are in nouns/pane.json.
 	// A field of the line: enter changes it, h and l walk the line, j and
 	// k leave it for the stop drawn below or above, esc goes back to the
 	// pane row.

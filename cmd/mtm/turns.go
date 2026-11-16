@@ -42,19 +42,13 @@ func (a *App) addTurns() error {
 		Verb("live", a.attachPane, "Attach the pane the turns are of live; ctrl+a d comes back to this turn")
 	// l on a pane row while the Turns tab shows moves into the turns, as
 	// } does (on the Screen tab it is copy mode, copymode.go).
-	a.r.Define("pane").
-		Verb("turns", a.focusTurns, "Focus the Turns tab's turns").
-		Mode("normal").
-		Bind("l", ochazuke.Do("pane.turns").Guard("pane-tab-turns").Hinted("turns"))
+	// pane.turns and its l are in nouns/pane.json.
 	a.r.DefineGuard("pane-tab-turns", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool { return a.pv.tab == tabTurns })
 	// R finds the pane's logs again from nothing (turns_refresh.go): on the
 	// pane row while the Turns tab shows, and on any row of the turns, for
 	// the pane they are of (one handler). The pane row's footer hints it;
 	// the turn rows' footer is full, so there it is only in ? and the palette.
-	a.r.Define("pane").
-		Verb("refresh-turns", a.refreshPaneTurns, "Find the pane's session log again (a transcript written after the first read) and reread its turns into the Turns tab").Fetch().
-		Mode("normal").
-		Bind("R", ochazuke.Do("pane.refresh-turns").Guard("pane-tab-turns").Hinted("refresh turns"))
+	// pane.refresh-turns and its R are in nouns/pane.json.
 	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {
 		a.r.Define(noun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 			Verb("refresh-turns", a.refreshPaneTurns, "Find the log of the pane the turns are of again and reread its turns").Fetch().
@@ -130,15 +124,7 @@ func (a *App) addTurns() error {
 	a.r.DefineGuard("pane-turn-cards", func(_ *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		return a.pv.tab == tabTurns && a.turnCards() && a.pv.cards != nil && a.pv.turnsFor == ev.Focus && a.pv.cards.List().Len() > 0
 	})
-	a.r.Define("pane").
-		Verb("scroll-turns", a.scrollTurns, "Scroll the Turns tab's cards by lines times count; the pane row keeps the focus; up stops following the newest").Motion().When("pane-turn-cards").
-		Mode("normal").
-		Bind("J", ochazuke.Do("pane.scroll-turns", ochazuke.Arguments{"lines": 1}).FromPayload("count", ochazuke.SourceCount).Guard("pane-turn-cards").Hide()).
-		Bind("K", ochazuke.Do("pane.scroll-turns", ochazuke.Arguments{"lines": -1}).FromPayload("count", ochazuke.SourceCount).Guard("pane-turn-cards").Hide())
-	a.parameters("pane.scroll-turns", map[string]ochazuke.Parameter{
-		"lines": {Type: "integer", Description: "Lines to move, down when positive (default 1)"},
-		"count": {Type: "integer", Description: "Repeat count (default 1)"},
-	})
+	// pane.scroll-turns, its parameters and J and K are in nouns/pane.json.
 	// NoSpill, as the cards: j on the last turn stays; the prompt box
 	// below is reached by i, } or tab.
 	tree, err := a.r.AddTree(turnsTreeID, nil, ochazuke.Parent(panesPage), ochazuke.NoSpill())

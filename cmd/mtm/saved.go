@@ -38,7 +38,7 @@ func (a *App) defineSaved() {
 		Note: "the record only; its pane keeps running"}); err != nil {
 		panic(err)
 	}
-	a.r.Define("pane").Mode("normal").Bind("w", ochazuke.Do("saved.save"))
+	// w on a pane row is in nouns/pane.json.
 	a.parameters("saved.save", map[string]ochazuke.Parameter{"pane": {Type: "string"}, "name": {Type: "string"}, "session": {Type: "string"}})
 	for _, verb := range []string{"reopen", "associate"} {
 		params := map[string]ochazuke.Parameter{"id": {Type: "string", Source: "saved.list"}}

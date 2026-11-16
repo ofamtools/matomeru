@@ -395,6 +395,7 @@ history	action+noun+prop	seed
 history-entry	noun	lx4	
 history-log	noun	yes	a pane's cold scrollback on disk, live or orphaned
 historyKind	prop	seed	
+handler	noun	yes	ochazuke.handler, the name table's entries
 hook	noun	lx4	
 hooks	noun	seed	plural
 host	noun+prop	seed	

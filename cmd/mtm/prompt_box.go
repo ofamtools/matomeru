@@ -265,7 +265,8 @@ func (a *App) addPromptBox() error {
 		p := a.promptPane()
 		return p == nil || a.promptBoxOf(*p).Deliver == harness.DeliverQueue
 	})
-	for _, noun := range []string{"pane", "turn", "turn-line", "turn-step", "turn-separator"} {
+	// pane.prompt and its i are in nouns/pane.json (the handler is the same).
+	for _, noun := range []string{"turn", "turn-line", "turn-step", "turn-separator"} {
 		a.r.Define(noun).
 			Verb("prompt", a.focusPrompt, "Write to the pane: focus the prompt box below its turns or its screen, in insert mode").FocusBound().When("pane-prompt").
 			Mode("normal").

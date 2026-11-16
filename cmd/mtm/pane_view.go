@@ -143,16 +143,6 @@ func (a *App) splitBody(row string, split, width, height int) ochazuke.Block {
 	return withText(left, joinColumns(left.Text, leftW, strings.Join(rule, "\n"), height))
 }
 
-// definePaneView adds pane.view.
-func (a *App) definePaneView() {
-	a.r.Define("pane").
-		Verb("view", a.setPaneView, "Open the pane on a view: turns (the Turns tab), terminal (the live Screen) or both (side by side, --split percent to the turns); default drops the pane's own view").Positional("view")
-	a.parameters("pane.view", map[string]ochazuke.Parameter{
-		"view":  {Type: "string", Enum: append(append([]string{}, harness.ViewValues...), viewDefault), Description: "turns, terminal or both; default: the harness profile's view, else agent.view"},
-		"split": {Type: "integer", Description: fmt.Sprintf("In both, the percent of the width the turns take (%d..%d); 0 or omitted: the profile's, else agent.view-split", harness.MinSplit, harness.MaxSplit)},
-	})
-}
-
 // setPaneView is pane.view: the pane's own view recorded and applied now.
 func (a *App) setPaneView(ctx ochazuke.Ctx) ochazuke.Result {
 	p, err := a.paneAt(ctx.Instance)

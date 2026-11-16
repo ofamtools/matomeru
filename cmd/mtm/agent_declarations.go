@@ -36,9 +36,12 @@ var mtmAgentDeclarations = []struct {
 	{"daemon.show-log", ochazuke.AgentAllow, false},
 	{"daemon.stop", ochazuke.AgentNever, false}, {"daemon.restart", ochazuke.AgentNever, false}, {"daemon.serve", ochazuke.AgentNever, false}, {"daemon.import-state", ochazuke.AgentNever, false},
 	{"context-item.delete", "", true},
-	{"pane.kill", ochazuke.AgentConfirm, false}, {"session.kill", ochazuke.AgentConfirm, false},
+	// pane.kill, session.associate and session.choose-move declare theirs
+	// in their noun files; session.kill's stays here, set after the
+	// standard session.delete is made from it.
+	{"session.kill", ochazuke.AgentConfirm, false},
 	{"pane.delete", ochazuke.AgentConfirm, false}, {"session.delete", "", true},
-	{"session.set", ochazuke.AgentAllow, false}, {"session.associate", ochazuke.AgentAllow, false}, {"session.choose-move", ochazuke.AgentAllow, false},
+	{"session.set", ochazuke.AgentAllow, false},
 	{"saved.delete", "", true}, {"vim.delete", "", true}, {"run.forget", "", true},
 	{"extension.register", ochazuke.AgentNever, false}, {"extension.refresh", ochazuke.AgentAllow, false}, {"extension.remove", ochazuke.AgentNever, true},
 	{"extension.peer-rows", ochazuke.AgentAllow, false},
@@ -58,7 +61,6 @@ func (a *App) defineAgentDeclarations() {
 	for noun, about := range map[string]string{
 		"project":          "A work context with a repository, directories, launch settings and privacy.",
 		"task":             "A nested unit of work, with status, maker and last writer. Agent writes follow its lane and record policy.",
-		"pane":             "A TUIOS terminal window and its task assignment, launch recipe and agent progress.",
 		"note":             "Short jots, closing lines and evidence, associated with a task or project, or unassociated. Longer findings belong in a document.",
 		relationNoun:       "Anything pointing to anything: noun:key ends, a kind (any word), text, a JSON data object, an order. A project's directories are relations of kind directory; unrelate archives first.",
 		work.DirectoryNoun: "The saved directory list: ordinary paths and scan bases, metadata and project associations. Operations never create, move or remove files.",

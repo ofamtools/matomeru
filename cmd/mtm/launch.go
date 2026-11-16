@@ -369,7 +369,7 @@ func (a *App) projectChoices() []ochazuke.Choice {
 // harness list, session list and pane list in one process, as JSON Lines
 // tagged by those nouns. Session and pane rows carry their ids as the
 // panes page's row instances (pane:SESSION/WINDOW, session:ID, what
-// --target takes) and cells in paneColumns order; they need the daemon, so
+// --target takes) and cells in the pane columns' order; they need the daemon, so
 // the answer is pending work, and a daemon that does not answer leaves
 // them out rather than failing the other lists.
 func (a *App) state(ochazuke.Ctx) ochazuke.Result {
@@ -610,22 +610,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 // pane.new is a row of the pane noun and of the pane list itself, so it
 // answers on a pane row and on an empty list alike.
 func (a *App) defineShell() error {
-	a.r.Define("pane").
-		Verb("new", a.newPane, "Open a shell pane in the inferred project's session ("+mtmOnlySession+" when nothing is inferred)").
-		Verb("start", a.startShell, "Open a shell pane in a project's session, off the loop; new and into fill it (no confirm: d d kills a shell)").
-		Mode("normal").
-		Bind("n", ochazuke.Do("pane.new"))
-	a.parameters("pane.start", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, the shell runs in no project (cwd: the home directory)"},
-		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
-		"task":    {Type: "string"},
-		"notice":  {Type: "string"},
-	})
-	a.parameters("pane.new", map[string]ochazuke.Parameter{
-		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true},
-		"task":    {Type: "string"},
-		"scratch": {Type: "boolean", Description: "Launch unassociated in mtm-only"},
-	})
+	// pane.new, pane.start and n are in nouns/pane.json.
 	// Every list of the Panes page (panes_sections.go), so n answers on
 	// an item row of the top list too.
 	lists := a.sectionListIDs()

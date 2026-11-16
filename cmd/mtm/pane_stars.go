@@ -44,7 +44,7 @@ func starAlias(noun string) ochazuke.ActionAlias {
 
 func (a *App) definePaneStars() {
 	// pane.star itself is the alias defineOwners adds with the pane's store.
-	a.r.Define("pane").Mode("normal").Bind("*", ochazuke.Do("pane.star"))
+	// * on a pane row is in nouns/pane.json.
 	a.r.Define("panes").Verb("starred", a.nextStarred, "Select the next starred pane (wrapping)")
 	a.r.Define("terminal").
 		Verb("starred", a.cycleStarred, "Attach the next starred pane (wrapping), live; outside live, select it").

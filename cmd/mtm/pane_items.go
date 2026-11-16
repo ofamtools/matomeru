@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 
 	"ofam.dev/ochazuke"
 
@@ -21,19 +22,19 @@ import (
 // verb it runs on each, which open items it takes, the parameters it
 // passes on, and the one a chooser asks for when none of them is given.
 type paneItemsVerb struct {
-	verb, run, about string
-	takes            func(it actionitems.Item) bool
-	params           map[string]ochazuke.Parameter
-	chooser          pickSpec
-	asks             string
+	verb, run string
+	takes     func(it actionitems.Item) bool
+	params    map[string]ochazuke.Parameter
+	chooser   pickSpec
+	asks      string
 }
 
 var paneItemsVerbs = []paneItemsVerb{
-	{verb: "archive-items", run: "archive", about: "Archive every open action item of the pane (action-item.archive on each); they stay on the Items page under archived",
+	{verb: "archive-items", run: "archive",
 		takes: func(actionitems.Item) bool { return true }},
-	{verb: "read-items", run: "read", about: "Mark every open, unread action item of the pane read (action-item.read on each), as attaching it does",
+	{verb: "read-items", run: "read",
 		takes: func(it actionitems.Item) bool { return !it.Read() }},
-	{verb: "snooze-items", run: "snooze", about: "Snooze every open action item of the pane until --until or for --for (action-item.snooze on each); omitted, a chooser asks",
+	{verb: "snooze-items", run: "snooze",
 		takes: func(actionitems.Item) bool { return true },
 		params: map[string]ochazuke.Parameter{
 			"until": {Type: "string", Description: "When they come back: RFC 3339, 2006-01-02 15:04, 2006-01-02 or tomorrow"},
@@ -43,21 +44,14 @@ var paneItemsVerbs = []paneItemsVerb{
 
 var panePaneParam = ochazuke.Parameter{Type: "string", Noun: "pane", Source: "pane.list", Free: true, Description: "The pane (its row id or window id); omitted, the selected pane"}
 
-func (a *App) definePaneItems() {
-	d := a.r.Define("pane")
-	for _, v := range paneItemsVerbs {
-		d = d.Verb(v.verb, a.runPaneItems(v), v.about)
-	}
-	// x archives on an item row; on a pane row it archives the pane's
-	// items. Off the footer, which is full (as t); ? help lists it.
-	d.Mode("normal").Bind("x", ochazuke.Do("pane.archive-items").Hinted("archive items").Hide())
-	for _, v := range paneItemsVerbs {
-		params := map[string]ochazuke.Parameter{"pane": panePaneParam}
-		for k, p := range v.params {
-			params[k] = p
-		}
-		a.parameters("pane."+v.verb, params)
-	}
+// parameters are the verb's: the pane and those it passes on. The verbs'
+// rows and x (on a pane row it archives the pane's items; off the footer,
+// which is full, as t) are in nouns/pane.json; the handlers take these
+// (nouns.go).
+func (v paneItemsVerb) parameters() map[string]ochazuke.Parameter {
+	params := map[string]ochazuke.Parameter{"pane": panePaneParam}
+	maps.Copy(params, v.params)
+	return params
 }
 
 // paneItemsWindow is the window a pane-items verb acts on: --pane, else

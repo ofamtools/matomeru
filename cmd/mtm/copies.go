@@ -74,53 +74,28 @@ const (
 	holdAll          = "all"
 )
 
-func copySettings() []ochazuke.Setting {
-	return []ochazuke.Setting{
-		{Name: settingShowEnded, Type: ochazuke.SettingBoolean, Default: false,
-			Description: "Show the panes that ended on the Panes page (mtm keeps a copy of every pane it saw; pane list shows them with ended=true); false shows only the daemon's panes"},
-		{Name: settingHoldNames, Section: "panes", Type: ochazuke.SettingString, Default: holdWritten, Enum: []string{holdWritten, holdAll},
-			Description: "Which pane and session names mtm's copies hold: written (only a name renamed in mtm; the others follow the daemon) or all (every name from first sight, so a rename made outside mtm shows only in refresh)"},
-	}
+// propCopy is what a copy row keeps of one prop (its role): rows, in the
+// props' order, of a noun whose props are declared in its noun file.
+type propCopy struct {
+	prop string
+	role copyRole
 }
 
-// copiedProp is a copy noun's prop with what its copy row keeps of it:
-// nothing (0: read from the source or mtm's records each time), the last
-// seen value, or a held one.
-type copiedProp struct {
-	ochazuke.PropSpec
-	Copy copyRole
-}
+// propCopies are a noun's propCopy rows.
+type propCopies []propCopy
 
-// specsOf are the props' specs.
-func specsOf(props []copiedProp) []ochazuke.PropSpec {
-	out := make([]ochazuke.PropSpec, len(props))
-	for i, p := range props {
-		out[i] = p.PropSpec
+// roles are the rows by prop, as copyStore takes them.
+func (c propCopies) roles() map[string]copyRole {
+	out := make(map[string]copyRole, len(c))
+	for _, p := range c {
+		out[p.prop] = p.role
 	}
 	return out
 }
 
-// rolesOf is what a copy row keeps, by prop.
-func rolesOf(props []copiedProp) map[string]copyRole {
-	out := map[string]copyRole{}
-	for _, p := range props {
-		if p.Copy != 0 {
-			out[p.Name] = p.Copy
-		}
-	}
-	return out
-}
-
-// endedProps are endedProp and endedAtProp, which every copy row keeps
-// (copiedNoun.keep).
-func endedProps(noun string) []copiedProp {
-	return []copiedProp{
-		{PropSpec: ochazuke.PropSpec{Name: endedProp, ReadOnly: true, Parameter: ochazuke.Parameter{Type: "boolean",
-			Description: "The daemon no longer lists the " + noun + ": mtm keeps its copy (what was last seen of it)"}}},
-		{PropSpec: ochazuke.PropSpec{Name: endedAtProp, ReadOnly: true, Parameter: ochazuke.Parameter{Type: "string",
-			Description: "When mtm saw the " + noun + " end (RFC 3339), empty while the daemon lists it"}}},
-	}
-}
+// The copy settings, panes.show-ended and copies.hold-names, are declared
+// in nouns/pane.json (decision 48: kept, declared there before copies.go
+// goes).
 
 // copyLocal is ochazuke's LocalStore for one noun over the work store's
 // copies table. canon makes a key the one the source lists the thing by

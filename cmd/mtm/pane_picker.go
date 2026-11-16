@@ -50,7 +50,7 @@ func (v *paneVisits) visit(row string) {
 }
 
 func (a *App) definePanePicker() {
-	a.r.Define("pane").Verb("pick", a.pickPane, "Choose a pane to attach live: panes attached before most recent first, the attached one last")
+	// pane.pick is in nouns/pane.json.
 	a.r.Define("app").Mode("normal").Bind(panePickerKey, ochazuke.Do("pane.pick").Guard("no-modal"))
 	a.r.Define("terminal").Mode("leader_pending").Bind("p", ochazuke.Do("pane.pick").Hinted("pick pane"))
 }

@@ -46,17 +46,9 @@ func (a *App) defineMCPOperations() {
 		"task_id": {Type: "string", Description: "Compatibility argument; ownership comes from the pane"},
 		"cwd":     {Type: "string", Description: "The directory relative paths resolve against"},
 	})
-	a.r.Define("pane").
-		Verb("whoami", a.paneWhoami, "Show this pane's current task, project and launch recipe").Fetch().Agent(ochazuke.AgentAllow).
-		Verb("progress", a.paneProgress, "Report what the pane's agent is doing: its agent state (working unless --state) with a short message")
+	// pane.whoami and pane.progress are in nouns/pane.json.
 	a.parameters(contextNoun+".report", map[string]ochazuke.Parameter{
 		"path": {Type: "string", Required: true}, "title": {Type: "string"}, "kind": {Type: "string", Enum: []string{"report", "plan", "review"}}, "summary": {Type: "string"},
-	})
-	a.parameters("pane.progress", map[string]ochazuke.Parameter{
-		"message": {Type: "string", Required: true, Description: "What the agent is doing right now"},
-		"state":   {Type: "string", Enum: progressStates, Description: "The agent state (default working)"},
-		"session": {Type: "string", Description: "The pane's session name (default MTM_SESSION or TUIOS_SESSION)"},
-		"window":  {Type: "string", Description: "The pane's window id (default MTM_PANE_ID or TUIOS_PANE_ID)"},
 	})
 }
 

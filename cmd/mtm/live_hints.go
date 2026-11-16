@@ -103,12 +103,9 @@ func (a *App) defineLiveHints() {
 		Verb("hints-ignore", func(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(nil) }, "Swallow a key while the labels are up").
 		Mode("leader_pending").
 		Bind("f", ochazuke.Do("terminal.hints").Hinted("hints"))
-	a.r.Define("pane").
-		Verb("hints", a.startRowHints, "Label the items on the Screen tab (the live panes, else the captured screen) without leaving the row, switching to it from another tab: a label copies, ctrl+label opens, a capital types it into its pane").
-		Mode("normal").
-		Bind("f", ochazuke.Do("pane.hints").Hinted("hints"))
+	// pane.hints, its f and the pane's hints-mode rows (the same as the
+	// terminal's below) are in nouns/pane.json.
 	a.hintRows(a.r.Define("terminal").Mode(hintsMode))
-	a.hintRows(a.r.Define("pane").Mode(hintsMode))
 	a.parameters("terminal.hint", map[string]ochazuke.Parameter{
 		"label":  {Type: "string", Description: "One letter of a label"},
 		"action": {Type: "string", Enum: []string{"copy", "type", "open"}, Description: "What a whole label does: copy, type into the pane, or open"},

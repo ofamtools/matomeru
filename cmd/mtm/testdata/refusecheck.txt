@@ -379,7 +379,6 @@ cmd/mtm/pane_view.go	App.setPaneView	K3	"give a view: %s or %s"	1
 cmd/mtm/panes.go	App.attachPane	K15	"Failed(…)"	3
 cmd/mtm/panes.go	App.attachPane	K15	"no pane's turns are shown"	1
 cmd/mtm/panes.go	App.capturePreview	K14	"preview %s: %w"	1	failure
-cmd/mtm/panes.go	App.definePanes	K1	"When(\"pane-ended\") without Fallback"	1
 cmd/mtm/panes.go	App.killBlocked	K15	"Failed(…)"	1
 cmd/mtm/panes.go	App.killBlocked	K15	"close the %s of %s before killing it"	1
 cmd/mtm/panes.go	App.killPane	K14	"kill %s: %w"	1	failure
@@ -660,7 +659,6 @@ cmd/mtm/turn_cards.go	App.openTurnCard	K15	"no timeline holds %s"	1
 cmd/mtm/turn_cards.go	App.reviewTurnCard	K15	"Failed(…)"	2
 cmd/mtm/turn_cards.go	App.scrollTurns	K15	"Failed(…)"	1
 cmd/mtm/turn_cards.go	App.scrollTurns	K15	"no turns shown"	1
-cmd/mtm/turns.go	App.addTurns	K1	"When(\"pane-turn-cards\") without Fallback"	1
 cmd/mtm/turns.go	App.addTurns	K1	"When(\"turn-closed\") without Fallback"	1
 cmd/mtm/turns.go	App.addTurns	K1	"When(\"turn-open\") without Fallback"	1
 cmd/mtm/turns.go	App.closeTurn	K15	"no timeline holds %s"	1

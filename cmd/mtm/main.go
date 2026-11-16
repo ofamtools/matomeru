@@ -364,6 +364,7 @@ func (a *App) reveal(id string) error {
 // App owns domain state (the store, the daemon client, the rows); the
 // runtime owns interaction state.
 type App struct {
+	nouns              *ocli.NounFiles  // the noun files (nouns.go), read once
 	procs              *extProcs        // the gate every extension call passes (extension_procs.go)
 	relStore           *relations.Store // the relations table (project_directories.go)
 	db                 *store.Store
@@ -676,6 +677,10 @@ func New(opts Options) (*App, error) {
 	a.definePrivacyVerbs()
 	a.defineProjectCreation()
 	a.defineRecordEditor()
+	// The nouns declared as data (nouns/*.json), before the code that adds
+	// to them; after task, so the project page's related sections keep their
+	// order (Runtime.Referrers: by the order nouns were made).
+	a.declareNouns()
 	a.defineLaunch()
 	a.definePanes()
 	a.definePanePicker()
@@ -684,7 +689,6 @@ func New(opts Options) (*App, error) {
 	a.defineOwners()
 	a.defineInbox()
 	a.definePaneTask()
-	a.definePaneItems()
 	a.defineSchedules()
 	a.defineReminders()
 	a.defineReminderNotifications()
@@ -826,6 +830,7 @@ func New(opts Options) (*App, error) {
 	// the declarations just registered (the pane's settings and turns, a
 	// directory path's cancel): they are checked once every verb of mtm's
 	// own exists, so a row may name any of them.
+	a.bindNouns()
 	a.defineDefaultRows()
 	a.mountExtensions()
 	// After the first mount: its read of the naming loads settings.json,

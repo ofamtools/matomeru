@@ -27,25 +27,12 @@ const (
 	sessionAssociateRemoveAfter = "the next mtm release"
 )
 
-// sessionProps are a session's props: the key (the daemon's session id,
-// else its name), the name (the label), the owning project, and how many
-// panes it holds.
-func sessionProps() []ochazuke.PropSpec { return specsOf(sessionCopiedProps()) }
-
-// sessionCopiedProps are sessionProps with what a session's copy row keeps
-// of each (copies.go), beside its key and when it ended: its name (held
-// once mtm writes it). The project is mtm's session owner record
-// (sessionRecords), the pane count the daemon's.
-func sessionCopiedProps() []copiedProp {
-	return append([]copiedProp{
-		{PropSpec: ochazuke.PropSpec{Name: "id", Key: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's id (or its row id, session:ID)"}}},
-		{PropSpec: ochazuke.PropSpec{Name: "name", Role: ochazuke.RoleLabel, Through: true, Parameter: ochazuke.Parameter{Type: "string", Description: "The session's name: mtm's copy's once renamed in mtm, sent on to the daemon, else the daemon's (never empty)"}}, Copy: copyHeld},
-		{PropSpec: ochazuke.PropSpec{Name: "project", Role: ochazuke.RoleOwner, Through: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
-			Description: "The project the session belongs to (empty: unassociated); panes with their own owner keep it"}}},
-		{PropSpec: ochazuke.PropSpec{Name: "panes", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "How many panes the session holds"}}},
-		{PropSpec: ochazuke.PropSpec{Name: "archived", Role: ochazuke.RoleArchive, Default: false, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Hide the local session record without closing the daemon session"}}, Copy: copyOwn},
-	}, endedProps("session")...)
-}
+// sessionCopyRoles are what a session's copy row keeps of its props
+// (copies.go), beside its key and when it ended: its name (held once mtm
+// writes it). The project is mtm's session owner record (sessionRecords),
+// the pane count the daemon's. The props are declared in
+// nouns/session.json.
+var sessionCopyRoles = propCopies{{"name", copyHeld}, {"archived", copyOwn}}
 
 // sessionRecords are mtm's own records of a session its copy t stands for
 // when the daemon does not list it: its project.

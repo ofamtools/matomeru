@@ -76,11 +76,9 @@ func (a *App) definePaneTask() {
 		Note: "the standard set of the owner to no project: the pane is left with no task or project"}); err != nil {
 		panic(err)
 	}
-	a.r.Define("pane").
-		Verb("pick-task", a.pickPaneTask, "Choose the pane's task or project: its current one first (enter keeps it), open tasks, new task in its project; esc changes nothing").
-		// t (task) was free on pane rows; m stays the project chooser. Off
-		// the footer, which is full; ? help and bindings list show it.
-		Mode("normal").Bind("t", ochazuke.Do("pane.pick-task").Hide())
+	// pane.pick-task and t are in nouns/pane.json: t (task) was free on pane
+	// rows; m stays the project chooser. Off the footer, which is full; ?
+	// help and bindings list show it.
 }
 
 // paneRef is a pane named by its row id (pane:session/window) or its

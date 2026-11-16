@@ -41,29 +41,22 @@ const (
 	panesTitle    = "Inbox"
 	paneListID    = paneTreeID + "/list"
 	paneTermID    = "panes/terminal"
-	killConfirm   = "Kill pane {{label}}?"
 	daemonTimeout = 5 * time.Second
 )
 
-// paneColumns are the pane noun's table (the catalog's columns, so a host
-// mounting pane rows draws them too): the pane, its project, the agent
-// state and the working directory; narrow, project drops first, then cwd,
-// then state, and the pane keeps at least 16 cells. Session rows fill pane
-// and project.
-var paneColumns = []ochazuke.Column{
-	{Title: "pane", Min: 16},
-	{Title: "project", Priority: 3},
-	{Title: "state", Priority: 1},
-	{Title: "cwd", Min: 12, Priority: 2},
-}
+// The pane noun's table columns (the catalog's, so a host mounting pane
+// rows draws them too) are in nouns/pane.json: the pane, its project, the
+// agent state and the working directory; narrow, project drops first,
+// then cwd, then state, and the pane keeps at least 16 cells. Session rows
+// fill pane and project.
 
-// paneCells is a pane row's cells in paneColumns order; home shortens the
+// paneCells is a pane row's cells in the pane columns' order; home shortens the
 // cwd to ~.
 func paneCells(p pane, owner, home string) []string {
 	return []string{p.label(), owner, p.AgentState, tildePath(p.Cwd, home)}
 }
 
-// sessionCells is a session row's cells in paneColumns order.
+// sessionCells is a session row's cells in the pane columns' order.
 func sessionCells(p pane, owner string) []string {
 	return []string{"session " + shortSession(p.Session), owner, "", ""}
 }
@@ -322,45 +315,19 @@ func (a *App) definePanes() {
 	a.pv = &paneUI{tab: tabTurns, text: map[string]string{}, lastState: map[string]string{}, after: func(d time.Duration, msg tea.Msg) tea.Cmd {
 		return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 	}}
-	r.Define("pane").
-		Columns(paneColumns...).
-		Verb("attach", a.attachPane, "Attach the pane live in the detail panel; ctrl+a d detaches back to the tab it left, ctrl+a z zooms").FocusBound().
-		Verb("preview", a.previewPane, "Capture the pane's screen into the detail's Screen tab").Fetch().Quiet().
-		Verb("kill", a.killPane, "Close the pane's window").Confirm(killConfirm).
-		Verb("killBlocked", a.killBlocked, "Say which side panes must close before the pane can be killed").
-		Verb("activity", a.paneActivity, "Read what the agent in the pane has been doing into the Activity tab").Fetch().Quiet().
-		Verb("transcript", a.paneTranscript, "Read the agent's transcript into the Transcript tab").Fetch().Quiet().
-		Verb("gone", a.paneEnded, "Say that the pane ended (enter and d d on an ended row): its window is gone, mtm keeps its copy").When("pane-ended").
-		Verb("read-turns", a.readPaneTurns, "Read the pane's turns from the agent's session log or the shell's commands into the Turns tab").Fetch().Quiet().
-		Mode("normal").
-		// On an ended row (panes.show-ended) enter and d d say it ended:
-		// no verb that needs the window is available there (pane-live).
-		Bind("enter", ochazuke.Do("pane.gone").Guard("pane-ended").Hide()).
-		Bind("d d", ochazuke.Do("pane.gone").Guard("pane-ended").Hide()).
-		Bind("enter", ochazuke.Do("pane.attach").Hinted("live")).
-		Bind("d d", ochazuke.Do("pane.kill").Guard("pane-no-sides")).
-		Bind("d d", ochazuke.Do("pane.killBlocked").Hide()).
-		Bind("m", ochazuke.Do("pane.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
-	// In visual-line (V) d kills the selected panes, as the list's d deletes
-	// rows: the pane's visual-line table reads its normal rows after its
-	// own, and the normal d d no longer waits over it (ochazuke's
-	// sequence-inherit).
-	r.Define("pane").Mode("visual-line").Extends("normal").
-		Bind("d", ochazuke.Do("pane.gone").Guard("pane-ended").Hide()).
-		Bind("d", ochazuke.Do("pane.kill").Guard("pane-no-sides").Hinted("kill")).
-		Bind("d", ochazuke.Do("pane.killBlocked").Hide())
+	// The pane and session nouns, their verbs and keys are in
+	// nouns/pane.json and nouns/session.json: on an ended row
+	// (panes.show-ended) enter and d d say it ended (no verb that needs the
+	// window is available there, pane-live); in visual-line (V) d kills the
+	// selected panes, as the list's d deletes rows (the pane's visual-line
+	// table reads its normal rows after its own, and the normal d d no
+	// longer waits over it: ochazuke's sequence-inherit).
 	// d d asks to kill only a pane with no side pane open; with one, it says
 	// which to close instead of confirming and then refusing.
 	a.r.DefineGuard("pane-no-sides", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		p, err := a.paneAt(r.Instances[ev.Focus])
 		return err != nil || len(p.SideWindows) == 0
 	})
-	r.Define("session").
-		Verb("attach", a.attachSession, "Attach the session's first pane").
-		Verb("kill", a.killSession, "Close the session and every pane in it").Confirm("Kill {{label}} and its panes?").
-		Mode("normal").
-		Bind("enter", ochazuke.Do("session.attach").Guard("session-has-pane")).
-		Bind("m", ochazuke.Do("session.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	// enter attaches a session only when it has a pane to attach.
 	a.r.DefineGuard("session-has-pane", func(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 		return a.sessionPane(ev.Focus) != ""
@@ -381,7 +348,6 @@ func (a *App) definePanes() {
 	a.defineDaemon(r)
 	a.defineLiveKeys()
 	a.definePaneStars()
-	a.definePaneView()
 	a.definePaneGroups()
 	a.definePaneActivities()
 	a.ownedBy("panes", paneListID)
@@ -400,7 +366,10 @@ func (a *App) addPanesPage() error {
 	if err := a.r.DeclareSetting(eventLoadSettings()...); err != nil {
 		return err
 	}
-	if err := a.r.DeclareSetting(append(append(copySettings(), copyModeSettings()...), copyEdgeSettings()...)...); err != nil {
+	// The noun files' settings (panes.show-ended, copies.hold-names) first,
+	// where the copy settings always were.
+	a.reportNounProblems(a.nouns.DeclareSettings(a.r))
+	if err := a.r.DeclareSetting(append(copyModeSettings(), copyEdgeSettings()...)...); err != nil {
 		return err
 	}
 	a.r.Instance(panesPage, ochazuke.Kind("page"))

@@ -25,12 +25,8 @@ func (a *App) defineSides() {
 	a.sides = make(map[string]sideState)
 	a.companionPanes = make(map[string]pane)
 	a.sideStarting = make(map[string]bool)
-	a.r.Define("pane").Verb("side", a.sidePane, "Open or list this pane's sides").Positional("kind")
+	// pane.side is in nouns/pane.json.
 	a.r.Define("panes").Verb("sides", a.chooseSide, "Choose any open side: attach its pane, show the side and focus it")
-	a.parameters("pane.side", map[string]ochazuke.Parameter{
-		"kind": {Type: "string", Required: true},
-		"pane": {Type: "string", Description: "The parent's window id (as pane list prints it), instead of --target pane:SESSION/WINDOW"},
-	})
 	a.r.Define("side").Verb("all", a.listSideRows, "List the loaded side definitions and their sources").Rows("side").Fetch().
 		Verb("show", a.showSideRow, "Open or focus a named side beside its parent").Positional("name").
 		Verb("restart", a.restartSideRow, "Reopen a side in its parent's current folder (default: front side)").Positional("name")

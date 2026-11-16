@@ -15,10 +15,8 @@ func (a *App) defineOwners() {
 	// relation forms and the deprecated owner forms.
 	// Their stores are copies of the daemon's (copies.go): the name is the
 	// copy's own, sent on to the daemon (Through, as are the owner and the
-	// star, which are mtm's records).
-	a.r.Define("pane").EditKey(false).Props(paneProps()...).Store(a.copyStore("pane", a.paneStore(), a.paneCopyKey, rolesOf(paneCopiedProps()), a.paneRecords)).
-		Verb("associate", a.associatePane, "Choose the project to move the pane to (omit the owner); --action-item and --context-item relate those to it; --project, --task and --scratch are the deprecated forms of move and set").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the pane to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
+	// star, which are mtm's records). The nouns, their props, stores and
+	// verbs are declared in nouns/pane.json and nouns/session.json.
 	// Keep the standard editor (i, r is edit of @label, m of @owner),
 	// resolving its record subject from the row (a session row, a side
 	// pane's) or, through the association, the live pane (ctrl+a r).
@@ -32,9 +30,6 @@ func (a *App) defineOwners() {
 	a.readCopiesNow("pane", nil)
 	paneNoun := a.r.Noun("pane")
 	*paneNoun.Store = a.docStore("pane", *paneNoun.Store)
-	a.r.Define("session").Props(sessionProps()...).Store(a.copyStore("session", a.sessionStore(), a.sessionCopyKey, rolesOf(sessionCopiedProps()), a.sessionRecords)).
-		Verb("associate", a.associateSession, "Choose the project to move the session to (omit it); --project and --scratch are the deprecated form of move; panes with their own owner keep it").Many().
-		Verb("choose-move", a.chooseMove, "Choose the project to move the session to (most recent first, unassociated last); the choice is the standard set of @owner").Many()
 	a.readCopiesNow("session", checkSessionName)
 	session := a.r.Noun("session")
 	*session.Store = a.docStore("session", *session.Store)
@@ -48,9 +43,8 @@ func (a *App) defineOwners() {
 	// (--project, --task, --scratch) runs the standard set of @owner and is
 	// deprecated (m is task.choose-move).
 	a.r.Define("task").Verb("associate", a.associateTask, "Associate a thing with this task (--pane, --action-item or --context-item ID); --project, --task or --scratch is the deprecated form of task set ID @owner=PROJECT").Many()
-	for _, noun := range []string{"pane", "session", "task"} {
-		a.parameters(noun+".associate", map[string]ochazuke.Parameter{"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
-	}
+	// pane.associate's and session.associate's are in their noun files.
+	a.parameters("task.associate", map[string]ochazuke.Parameter{"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, a chooser asks"}, "task": {Type: "string"}, "scratch": {Type: "boolean", Description: "Unassociate it"}})
 	for _, noun := range []string{"review"} {
 		op := a.r.Operations.At(ochazuke.Key(a.r.CanonicalKey(noun + ".list")))
 		if op.Parameters == nil {
