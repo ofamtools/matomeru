@@ -672,25 +672,27 @@ func (a *App) agentAt(focus string) *turns.Agent {
 	return nil
 }
 
-// agentHandler runs do on the focused subagent.
+// agentHandler runs do on the focused subagent; asked by name off a
+// subagent's step it does nothing and says so.
 func (a *App) agentHandler(do func(ochazuke.Ctx, *turns.Agent) ochazuke.Result) ochazuke.AppHandler {
 	return func(ctx ochazuke.Ctx) ochazuke.Result {
 		ag := a.focusedAgent()
 		if ag == nil {
-			return ochazuke.Failed(errors.New("not on a subagent's step"))
+			return ochazuke.Nothing(ochazuke.CauseNotHere, "not on a subagent's step")
 		}
 		return do(ctx, ag)
 	}
 }
 
 // openAgentTranscript opens the subagent's own log in a pager (a new pane
-// of the turns' pane's session; else the system's opener).
+// of the turns' pane's session; else the system's opener). A subagent
+// with no file of its own opens nothing and says why.
 func (a *App) openAgentTranscript(_ ochazuke.Ctx, ag *turns.Agent) ochazuke.Result {
 	if ag.Transcript == "" {
 		if len(ag.Inline) > 0 {
-			return ochazuke.Failed(errors.New("this agent's transcript is inside the session's own log"))
+			return ochazuke.Nothing(ochazuke.CauseNotHere, "this agent's transcript is inside the session's own log")
 		}
-		return ochazuke.Failed(errors.New("transcript missing"))
+		return ochazuke.Nothing(ochazuke.CauseNotHere, "this agent has no transcript file")
 	}
 	path, sys := ag.Transcript, a.cx.sys
 	opener, _ := a.panesd.(pagerOpener)

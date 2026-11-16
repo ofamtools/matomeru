@@ -823,10 +823,11 @@ func (a *App) paneRowOf(inst *ochazuke.Instance) *ochazuke.Instance {
 
 // paneEnded is pane.gone: enter and d d on an ended row say the pane
 // ended (no verb that needs its window is offered there: pane-live).
+// Asked by name on a live row it does nothing and says so.
 func (a *App) paneEnded(ctx ochazuke.Ctx) ochazuke.Result {
 	p, ok := a.endedAt(ctx.Instance)
 	if !ok {
-		return ochazuke.Failed(errors.New("the pane has not ended"))
+		return ochazuke.Nothing(ochazuke.CauseNotHere, "the pane has not ended")
 	}
 	ctx.Notify(p.label() + " ended")
 	return ochazuke.Done(nil)

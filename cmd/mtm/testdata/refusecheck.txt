@@ -415,7 +415,6 @@ cmd/mtm/panes.go	App.land	K4	"the pane list has no %s"	1
 cmd/mtm/panes.go	App.paneAt	K15	"%s ended"	1
 cmd/mtm/panes.go	App.paneAt	K15	"no pane at %s"	1
 cmd/mtm/panes.go	App.paneAt	K5	"no pane selected"	1
-cmd/mtm/panes.go	App.paneEnded	K15	"the pane has not ended"	1
 cmd/mtm/panes.go	App.previewPane	K15	"Failed(…)"	1
 cmd/mtm/panes.go	frameErr	K15	"pane stream rejected a frame"	1
 cmd/mtm/panes.go	frameErr	K9	"pane stream ended: %s"	1
@@ -691,11 +690,8 @@ cmd/mtm/tasks.go	App.task	K5	"no task is selected"	1
 cmd/mtm/tasks.go	App.toggleTask	K15	"Failed(…)"	1
 cmd/mtm/tasks.go	resultOf	K15	"Failed(…)"	1
 cmd/mtm/turn_agents.go	App.addAgentVerbs	K1	"When(\"on-agent\") without Fallback"	3
-cmd/mtm/turn_agents.go	App.agentHandler	K15	"not on a subagent's step"	1
 cmd/mtm/turn_agents.go	App.copyAgentText	K4	"the agent has no %s yet"	1
 cmd/mtm/turn_agents.go	App.openAgentTranscript	K15	"no pane"	1
-cmd/mtm/turn_agents.go	App.openAgentTranscript	K15	"this agent's transcript is inside the session's own log"	1
-cmd/mtm/turn_agents.go	App.openAgentTranscript	K15	"transcript missing"	1
 cmd/mtm/turn_cards.go	App.copyStep	K15	"Failed(…)"	1
 cmd/mtm/turn_cards.go	App.copyStepTurn	K15	"Failed(…)"	1
 cmd/mtm/turn_cards.go	App.copyStepTurn	K15	"not inside a turn"	1

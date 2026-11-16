@@ -366,6 +366,27 @@ func TestTurnOpenByNameOnAnOpenTurn(t *testing.T) {
 	}
 }
 
+// Asked by name where they do nothing, pane.gone on a live pane's row and
+// turn.open-transcript off a subagent's step change nothing and say so on
+// the status line (outcome nothing), not as an error.
+func TestPaneGoneAndOpenTranscriptSayWhereTheyDoNothing(t *testing.T) {
+	t.Parallel()
+	app := journalTurnsApp(t)
+	sink := &ochazuke.RecordingSink{}
+	app.r.UI().Attach(sink)
+	for _, q := range []ochazuke.Request{
+		{Noun: "pane", Verb: "gone", Target: "pane:matomeru/w1"},
+		{Noun: "turn", Verb: "open-transcript", Target: app.r.FocusID()},
+	} {
+		if _, err := app.r.Execute(q); err != nil {
+			t.Fatalf("%s.%s: %v", q.Noun, q.Verb, err)
+		}
+	}
+	if e := sink.LastError(); e != "" || !infoSaid(sink, "the pane has not ended") || !infoSaid(sink, "not on a subagent's step") {
+		t.Fatalf("error %q messages %+v", e, sink.Messages())
+	}
+}
+
 // Narrow, the detail stacks under the tree; both widths draw the tree,
 // the tabs and the counts.
 func TestPanesRenderAt80And120(t *testing.T) {
