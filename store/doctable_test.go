@@ -194,16 +194,16 @@ func TestDocTableMatchesMemDocTable(t *testing.T) {
 	}
 }
 
-// Put merges: a field no prop declares survives a write of the thing, a
-// declared prop the thing leaves out is cleared, and Merge writes only
-// what it is given.
+// Put merges (ochazuke v0.146.4's DocTable contract): a field given as nil
+// is removed, every field the thing leaves out is kept, declared prop or
+// not, and a set's cleared prop reaches it as nil.
 func TestDocTablePutKeepsUndeclaredFields(t *testing.T) {
 	t.Parallel()
 	r := ochazuke.NewRuntime()
 	r.Config().Disable()
 	db, d := docFixture(t, r, doctest.Noun)
-	// owner is a renamed prop (PropSpec.Field): stored as owner_id, which
-	// Put clears by its field; a stored field named owner is no prop's.
+	// owner is a renamed prop (PropSpec.Field): stored as owner_id, which a
+	// set clears by its field; a stored field named owner is no prop's.
 	props := append(slices.Clone(doctest.Props), ochazuke.PropSpec{Name: "owner", Field: "owner_id"})
 	r.Define(doctest.Noun).Props(props...).Store(ochazuke.DocStore(d, doctest.Noun))
 	if err := db.Tx([]string{"docs"}, func(tx *Tx) error {
@@ -225,11 +225,17 @@ func TestDocTablePutKeepsUndeclaredFields(t *testing.T) {
 	if m := stored(); m["title"] != "renamed" || m["status"] != "todo" || m["position"] != 4.0 || m["created_by"] != "me" || m["owner_id"] != "ann" {
 		t.Fatalf("after set: %v", m)
 	}
-	if err := d.Put("a", ochazuke.Thing{"id": "a", "title": "again"}); err != nil {
+	if _, err := r.Execute(ochazuke.Request{Noun: doctest.Noun, Verb: "set", Args: ochazuke.Arguments{"id": "a", "props": map[string]any{"owner": nil}}}); err != nil {
 		t.Fatal(err)
 	}
-	if m := stored(); m["title"] != "again" || m["status"] != nil || m["owner_id"] != nil || m["owner"] != "kept" || m["position"] != 4.0 || m["created_by"] != "me" {
-		t.Fatalf("a put clears the props it leaves out (by stored field) and keeps the rest: %v", m)
+	if m := stored(); m["owner_id"] != nil || m["owner"] != "kept" || m["title"] != "renamed" {
+		t.Fatalf("a set clears a prop by its stored field: %v", m)
+	}
+	if err := d.Put("a", ochazuke.Thing{"id": "a", "title": "again", "status": nil}); err != nil {
+		t.Fatal(err)
+	}
+	if m := stored(); m["title"] != "again" || m["status"] != nil || m["owner"] != "kept" || m["position"] != 4.0 || m["created_by"] != "me" {
+		t.Fatalf("a put removes the nil fields and keeps the ones it leaves out: %v", m)
 	}
 	if err := d.Merge("a", ochazuke.Thing{"created_by": nil, "size": 2}); err != nil {
 		t.Fatal(err)
@@ -242,6 +248,35 @@ func TestDocTablePutKeepsUndeclaredFields(t *testing.T) {
 	}
 	if got, ok, err := d.Get("new"); err != nil || !ok || len(got) != 2 || got["title"] != "made" {
 		t.Fatalf("merge on a new key creates it with the given values: %v %v %v", got, ok, err)
+	}
+}
+
+// NextKey is one SQL query: the largest whole number after the prefix,
+// ignoring keys whose rest is not a number, and no document is decoded.
+func TestDocTableNextKeyQueriesTheLargestNumber(t *testing.T) {
+	t.Parallel()
+	db, d := docFixture(t, nil, doctest.Noun)
+	if next, err := d.NextKey("d"); err != nil || next != "d1" {
+		t.Fatalf("empty: %q %v", next, err)
+	}
+	if err := db.Tx([]string{"docs"}, func(tx *Tx) error {
+		for _, k := range []string{"d2", "d10", "d9x", "d", "e40", "dé5"} {
+			if err := tx.Put("docs", k, map[string]any{"id": k}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if next, err := d.NextKey("d"); err != nil || next != "d11" {
+		t.Fatalf("NextKey(d): %q %v", next, err)
+	}
+	if next, err := d.NextKey("dé"); err != nil || next != "dé6" {
+		t.Fatalf("NextKey(dé): %q %v", next, err)
+	}
+	if d.Reads() != 0 || d.Queries() != 0 {
+		t.Fatalf("reads %d queries %d", d.Reads(), d.Queries())
 	}
 }
 

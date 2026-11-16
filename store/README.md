@@ -77,11 +77,15 @@ table, so `ochazuke.DocStore(db.DocTable("notes", r, "note"), "note")` is a
 noun's whole store. It keeps ochazuke's contract (`doctest.Run`) and answers
 what `MemDocTable` answers:
 
-- `Put` merges into the stored row: given fields are set (nil removes one), a
-  declared prop the thing leaves out is cleared (by its stored field:
-  `PropSpec.Field`, else its name), and every field no prop declares is
-  kept. `Merge` writes only the fields it is given. Both run in
-  one `Tx`, so `Version` moves as for any write.
+- `Put` merges into the stored row: a field given with a value is set, a
+  field given as nil is removed, and every field it is not given is kept
+  (ochazuke v0.146.4's contract: DocStore hands it the whole document, with
+  nil for a prop a set cleared, under its stored field `PropSpec.Field`,
+  else its name). `Merge` is `Put`. Both run in one `Tx`, so `Version` moves
+  as for any write.
+- `NextKey(prefix)` (ochazuke's `DocKeyTable`) answers a create's next key,
+  `prefix` and one past the largest whole number after it among the keys,
+  from one SQL query; no document is read.
 - `Query` runs the conditions, the archive hiding, the text search, the sort,
   the groups and the page in SQLite (functions `ofam_doc_*` order values by
   ochazuke's rules) and decodes only the page. An equality repeats an

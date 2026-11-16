@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"strconv"
 	"sync/atomic"
+	"unicode/utf8"
 
 	"ofam.dev/ochazuke"
 )
@@ -23,9 +25,9 @@ import (
 //     float64; a list prop's strings as []string).
 //   - Put writes inside one transaction of the store (Tx), so the table's
 //     Version moves and every reader of it sees the change as for any
-//     other write. It keeps every field of the stored row that no declared
-//     prop names and the thing does not give (see Put).
-//   - Merge is a write of only the given fields.
+//     other write. It merges: a field given as nil is removed, every field
+//     not given is kept (see Put). Merge is Put.
+//   - NextKey answers a create's next numbered key with one SQL query.
 //   - Delete removes the row; Version is Store.Version.
 //   - Query runs in SQLite: the conditions, the archive hiding, the text
 //     search, the sort keys, the groups and the page, with the count of
@@ -129,35 +131,19 @@ func (d *DocTable) Get(key string) (ochazuke.Thing, bool, error) {
 	return t, true, nil
 }
 
-// Put writes t as the document under key, in one transaction of the store.
-//
-// A new key stores t's fields (a field given as nil is left out). On a key
-// the table holds, the stored row is merged, never replaced:
-//
-//   - a field t gives with a value is set to it;
-//   - a field t gives as nil is removed;
-//   - a field that holds a declared prop of the noun (the prop's stored
-//     field, PropSpec.Field, else its name; a derived prop is never
-//     stored) and that t does not give is removed: DocStore hands Put the
-//     whole thing as its stored document, so a prop it left out is one it
-//     cleared (a set to nothing, an undo);
-//   - every other field of the row (one no prop declares, written by other
-//     code) is kept: the same JSON value it was stored as.
-//
-// Merge writes only the fields it is given.
+// Put writes t into the document under key, in one transaction of the
+// store, as ochazuke's DocTable contract asks: a field t gives with a value
+// is set to it, a field t gives as nil is removed, and every field t does
+// not give is kept (DocStore hands Put the whole document, with nil for a
+// cleared prop). A new key stores t's fields that have a value.
 func (d *DocTable) Put(key string, t ochazuke.Thing) error {
-	return d.write(key, t, true)
+	return d.Merge(key, t)
 }
 
 // Merge writes the given fields into the document under key (creating it
 // when the table has none): a field with a value is set, a field given as
-// nil is removed, and every field it is not given is kept, declared prop
-// or not.
+// nil is removed, and every field it is not given is kept. It is Put.
 func (d *DocTable) Merge(key string, fields ochazuke.Thing) error {
-	return d.write(key, fields, false)
-}
-
-func (d *DocTable) write(key string, t ochazuke.Thing, clearProps bool) error {
 	return d.s.Tx([]string{d.table}, func(tx *Tx) error {
 		stored, err := tx.Raw(d.table, key)
 		if err != nil {
@@ -169,21 +155,7 @@ func (d *DocTable) write(key string, t ochazuke.Thing, clearProps bool) error {
 				return err
 			}
 		}
-		if clearProps {
-			if n := d.nounOf(); n != nil {
-				for i := range n.Props {
-					p := &n.Props[i]
-					if p.Derivation != nil {
-						continue // computed on every read, never stored
-					}
-					f := storedField(p)
-					if _, given := t[f]; !given {
-						delete(doc, f)
-					}
-				}
-			}
-		}
-		for k, v := range t {
+		for k, v := range fields {
 			if v == nil {
 				delete(doc, k)
 				continue
@@ -196,6 +168,24 @@ func (d *DocTable) write(key string, t ochazuke.Thing, clearProps bool) error {
 		}
 		return tx.Put(d.table, key, doc)
 	})
+}
+
+// NextKey is ochazuke's DocKeyTable: prefix and one past the largest whole
+// number N of a key prefix+N the table holds (prefix+"1" when it holds
+// none), from one max query in SQLite, never a read of the documents.
+func (d *DocTable) NextKey(prefix string) (string, error) {
+	if err := d.s.declared(d.table); err != nil {
+		return "", err
+	}
+	n := utf8.RuneCountInString(prefix) // SQLite's substr counts characters
+	var most sql.NullInt64
+	err := d.s.db.QueryRow(`SELECT max(CAST(substr(id, ?) AS INTEGER)) FROM `+quote(d.table)+
+		` WHERE substr(id, 1, ?) = ? AND length(id) > ? AND substr(id, ?) NOT GLOB '*[^0-9]*'`,
+		n+1, n, prefix, n, n+1).Scan(&most)
+	if err != nil {
+		return "", err
+	}
+	return prefix + strconv.FormatInt(most.Int64+1, 10), nil
 }
 
 // Delete removes the document under key; a key the table does not hold is
