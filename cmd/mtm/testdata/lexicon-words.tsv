@@ -16,6 +16,7 @@ activeRegister	prop	seed
 activity	prop	seed	
 add	action	seed	
 add-base	action	seed	
+add-key	action	seed	
 added	prop	seed	
 added_on	prop	seed	
 address	prop	seed	
@@ -71,6 +72,7 @@ binary	prop	seed
 bind	action	seed	
 bind-key	action	seed	
 binding	noun	seed	
+binding-file	noun	seed	
 bindings	noun+prop	seed	
 bindings-help	noun	seed	
 branch	noun+prop	seed	
@@ -82,7 +84,12 @@ calls	relation	seed
 cancel	action	seed	
 cancel-edit	action	seed	
 capture	prop	seed	
+capture-apply	action	seed	
+capture-cancel	action	seed	
+capture-drop	action	seed	
 capture-hook	action	seed	
+capture-key	action	seed	
+capture-literal	action	seed	
 capture-turn	action	seed	
 captured	prop	seed	
 catalog	noun	seed	
@@ -245,6 +252,7 @@ edge	action+noun	seed
 edit	action	seed	
 edit-condition	action	seed	
 edit-directory	action	seed	
+edit-fields	action	seed	
 edit-stdin	action	seed	
 editor	noun	seed	
 effective_project	prop	seed	
@@ -687,6 +695,7 @@ read-settings	prop	seed
 read-turns	prop	seed	
 reason	prop	seed	
 rebase	action	seed	
+rebind	action	seed	
 recall	action	seed	
 recheck	action	seed	
 reconnect	action	yes	
@@ -830,6 +839,7 @@ shell	noun	yes	the shell a pane runs; shell.init is the CLI's shell-init as a ve
 short_sha	prop	seed	
 show	action	seed	
 show-archived	action	seed	
+show-file	action	seed	
 show-log	action	yes	the daemon log tail; show is the action, log what it shows
 show-section	action	seed	
 show-tab	action	seed	
@@ -934,6 +944,7 @@ uncheck	action	seed
 undecide	action	seed	
 undismiss	action	seed	
 undo	action	seed	
+unify	action	seed	
 unignore	action	seed	
 uninstall	action	seed	
 unkeep	action	yes	put a kept history log back under the grace period
