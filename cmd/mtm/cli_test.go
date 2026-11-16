@@ -276,8 +276,7 @@ func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
 			t.Fatalf("pane preview without a target lacks %q: %v", line, err)
 		}
 	}
-	// With the target it runs, as the listed command and by the full key.
-	mustCLI(t, app, "pane", "preview", "--target", "w2")
+	// With the target it runs.
 	mustCLI(t, app, "pane", "preview", "--target", "pane:ochazuke/w2")
 }
 

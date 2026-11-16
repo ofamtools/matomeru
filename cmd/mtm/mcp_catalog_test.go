@@ -202,7 +202,7 @@ func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
 	}
 	// ochazuke v0.146.0: refused for rights (cause rights), the reason the
 	// outcome's one wording.
-	if got := reply.(map[string]any); got["status"] != "refused" || got["cause"] != "rights" || !strings.Contains(fmt.Sprint(got["reason"]), "agents.rights") {
+	if got := reply.(map[string]any); got["status"] != "refused" || fmt.Sprint(got["cause"]) != "rights" || !strings.Contains(fmt.Sprint(got["reason"]), "agents.rights") {
 		t.Fatalf("agent policy write: %v", reply)
 	}
 	if got := a.r.Settings().String(ochazuke.AgentRightsSetting); got != "[]" {
