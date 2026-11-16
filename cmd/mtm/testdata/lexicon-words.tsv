@@ -364,6 +364,7 @@ from	prop	seed
 get	action	seed	
 gh	namespace	seed	
 git	namespace	seed	
+glance	action	seed	
 glyph	prop	seed	
 glyphs	noun	seed	plural
 gone	action+prop	seed	

@@ -285,7 +285,6 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 			return err
 		}
 		app.wireRestart()
-		app.hostUIRelay()
 		stopSignals()
 		defer app.stopExtOnSignals(syscall.SIGHUP)()
 		_, err := tea.NewProgram(app).Run()
@@ -450,7 +449,6 @@ type App struct {
 	sides          map[string]sideState
 	companionPanes map[string]pane
 	sideStarting   map[string]bool
-	quitAfterSides bool // app.quit waits for sideStarting to empty
 	sideLock       string
 	landErr        string // why the last finished launch or pane.new did not reach the screen
 	notices        noticeTimer
@@ -572,9 +570,6 @@ type App struct {
 	// restart runs while main waits for the program to return.
 	closed   bool
 	closeErr error
-	// relay runs the UI-process verbs (relay.go) in the running TUIs of
-	// this database; its host is set only in the TUI process.
-	relay *uiRelay
 
 	outline *outlineState // the task outline last opened (outline.go)
 	copy    *copyMode     // copy mode on the panes page (copymode.go)
@@ -824,7 +819,6 @@ func New(opts Options) (*App, error) {
 	a.defineDirectoryCreation()
 	a.defineCommandRenames()
 	a.defineRestart()
-	a.defineUIRelay()
 	a.defineAgentDeclarations()
 	// The default rows (bindings/rows.json) name verbs the pages above and
 	// the declarations just registered (the pane's settings and turns, a
@@ -888,7 +882,6 @@ func (a *App) Close() error {
 
 func (a *App) close() error {
 	a.quitting = true
-	a.leaveUIRelay()
 	a.stopSchedules()
 	flushed := errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal())
 	// The runtime's jobs and store watches end first (ochazuke's Shutdown);

@@ -88,7 +88,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.startNotifications(), a.startInboxNotifications(), a.startSchedules(), a.startReminderNotifications(), a.refreshStaleExtensions(), a.setupCheckAtStart(), a.uiRelayTick())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.startNotifications(), a.startInboxNotifications(), a.startSchedules(), a.startReminderNotifications(), a.refreshStaleExtensions(), a.setupCheckAtStart())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
@@ -138,9 +138,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, c)
 	}
 	if c := a.inboxUpdate(msg); c != nil {
-		cmd = tea.Batch(cmd, c)
-	}
-	if c := a.uiRelayUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
 	if c := a.schedulesUpdate(msg); c != nil {
