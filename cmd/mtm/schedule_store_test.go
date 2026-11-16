@@ -139,6 +139,29 @@ func TestScheduleOptionalEnumFieldsClearAndKeepTheirErrors(t *testing.T) {
 	}
 }
 
+// A kind outside prompt and command, by edit and by set, is never stored
+// (no row the runner cannot run): the kind is left empty, so the row runs
+// as what it holds (its command), with an info line and no error.
+func TestScheduleKindOutsideTheChoicesFollowsTheRow(t *testing.T) {
+	t.Parallel()
+	a, _, _ := scheduleApp(t)
+	if _, _, err := cli(a, "", "schedule", "add", "--name", "kind-check", "--command", "echo hi", "--when", "every 30m"); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"schedule", "edit", "kind-check", "--kind", "bogus"},
+		{"schedule", "set", "--name", "kind-check", "kind=bogus"},
+	} {
+		_, errOut, err := cli(a, "", args...)
+		if err != nil || !strings.Contains(errOut, `kind "bogus" is not one of prompt, command`) || strings.Contains(errOut, "error:") {
+			t.Fatalf("%v: %v\n%s", args, err, errOut)
+		}
+		if d := mustSchedule(t, a, "kind-check"); d.Kind != "" || d.KindOf() != schedules.KindCommand {
+			t.Fatalf("%v stored kind %q (runs as %q)", args, d.Kind, d.KindOf())
+		}
+	}
+}
+
 func mustSchedule(t *testing.T, a *App, name string) schedules.Def {
 	t.Helper()
 	d, err := a.scheduleNamed(name)

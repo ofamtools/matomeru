@@ -120,6 +120,17 @@ func setProject(a *App, d *schedules.Def, v string) error {
 
 func getProject(d schedules.Def) string { return d.Agent.Project }
 
+// setKind is the kind field: prompt or command, the kinds the runner
+// runs; empty, or any other text (closedChoice, with an info line), is
+// no kind of its own, so the row's kind follows what it runs (KindOf).
+func setKind(a *App, d *schedules.Def, v string) error {
+	d.Kind = closedChoice(a.say, "kind", v, []string{schedules.KindPrompt, schedules.KindCommand}, "",
+		"the schedule's kind follows what it runs (a prompt, or a command)")
+	return nil
+}
+
+func getKind(d schedules.Def) string { return d.Kind }
+
 func setCommand(_ *App, d *schedules.Def, v string) error { d.Command = strings.Fields(v); return nil }
 
 func getCommand(d schedules.Def) string { return strings.Join(d.Command, " ") }
@@ -166,7 +177,7 @@ var scheduleSpecs = []scheduleFieldSpec{
 	{name: "catch-up", str: func(d *schedules.Def) *string { return &d.CatchUp }, choices: schedules.CatchUpValues},
 	{name: "interval-from", str: func(d *schedules.Def) *string { return &d.IntervalFrom }, choices: schedules.IntervalFromValues},
 	{name: "description", str: func(d *schedules.Def) *string { return &d.Description }},
-	{name: "kind", str: func(d *schedules.Def) *string { return &d.Kind }},
+	{name: "kind", set: setKind, get: getKind},
 	{name: "command", set: setCommand, get: getCommand},
 	{name: "drive", str: func(d *schedules.Def) *string { return &d.Drive }, check: checkDrive},
 	{name: "timeout", set: setTimeout, get: getTimeout},

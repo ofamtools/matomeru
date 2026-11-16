@@ -30,3 +30,11 @@ func closedChoice(say func(string), prop, value string, choices []string, fallba
 	}
 	return fallback
 }
+
+// say is an info line on the status line (a "status:" line on the CLI),
+// for a write that has no Ctx at hand; nothing without a runtime.
+func (a *App) say(text string) {
+	if a.r != nil {
+		a.r.UI().Info(text)
+	}
+}
