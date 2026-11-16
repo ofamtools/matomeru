@@ -1,0 +1,39 @@
+# rulecheck modeexits baseline: place (noun chain outside in, ">" joined; "@modal" when in a modal), mode, kind, count, reason (tab separated).
+# A row says: MODE can be entered at PLACE (a row on the walk enters or switches to it, the noun pins it, or the noun's own
+# table binds rows in it) and no key there leaves it: no row switches to another mode, no row's verb declares that it
+# leaves the mode or closes the modal (Operation.Exits), a pending mode has no row that ends it, and no leader key reached
+# from the mode leads out. kind "no-exit": nothing on the walk could leave it; kind "exit-not-declared": rows answer there
+# whose verbs may change the mode in Go with nothing declared: declare the one that leaves (Operation.Exits), or bind a
+# key to a verb that does. Fix it by adding a way out; a row with a reason is a reviewed exception, one without is debt
+# that only shrinks (RULECHECK_UPDATE=1).
+completion	insert	exit-not-declared	1
+context-search	insert	exit-not-declared	1
+copy	copy	exit-not-declared	1
+copy	visual	exit-not-declared	1
+dir-search	insert	exit-not-declared	1
+directory-path	insert	exit-not-declared	1
+ochazuke.bindings-help	help_bind_literal	exit-not-declared	1
+ochazuke.completion	insert	exit-not-declared	1
+ochazuke.index>ochazuke.collection>pane	hints	exit-not-declared	1
+ochazuke.index>ochazuke.related>ochazuke.related-section>ochazuke.collection>pane	hints	exit-not-declared	1
+ochazuke.page>context-search	insert	exit-not-declared	1
+ochazuke.page>copy	copy	exit-not-declared	1
+ochazuke.page>copy	visual	exit-not-declared	1
+ochazuke.page>dir-search	insert	exit-not-declared	1
+ochazuke.page>directory-path	insert	exit-not-declared	1
+ochazuke.page>ochazuke.detail>ochazuke.related>ochazuke.related-section>ochazuke.collection>pane	hints	exit-not-declared	1
+ochazuke.page>ochazuke.outline>ochazuke.collection>pane	hints	exit-not-declared	1
+ochazuke.page>ochazuke.outline>ochazuke.list>pane	hints	exit-not-declared	1
+ochazuke.page>ochazuke.outline>ochazuke.list>pane	visual-line	exit-not-declared	1
+ochazuke.page>ochazuke.related>ochazuke.related-section>ochazuke.collection>pane	hints	exit-not-declared	1
+ochazuke.page>ochazuke.terminal	hints	exit-not-declared	1
+ochazuke.terminal	hints	exit-not-declared	1
+page>context-search	insert	exit-not-declared	1
+page>copy	copy	exit-not-declared	1
+page>copy	visual	exit-not-declared	1
+page>dir-search	insert	exit-not-declared	1
+page>outline>list>pane	hints	exit-not-declared	1
+page>outline>list>pane	visual-line	exit-not-declared	1
+page>terminal	hints	exit-not-declared	1
+pane	hints	exit-not-declared	1
+pane	visual-line	exit-not-declared	1

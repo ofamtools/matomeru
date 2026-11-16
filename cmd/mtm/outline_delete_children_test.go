@@ -90,16 +90,20 @@ func TestOutlineDeleteChildrenSetting(t *testing.T) {
 
 // A move refused in a delete plan stops it: nothing is deleted, the rows
 // are the store's, and u has nothing to undo. The kid would go to the top
-// level, which a task may not.
+// level, which a task may not. Since ochazuke v0.145.0 a store refusal
+// (ErrTreeRefused) answers nothing / kept: no error line, the reason as
+// an info line.
 func TestOutlineRefusedOrphanMoveStopsTheDelete(t *testing.T) {
 	t.Parallel()
 	a := withKid(t, "orphan")
 	a.outline.tree.OrphanParent = func(ochazuke.TreeNode) string { return "" }
-	a.m.Status = ""
-	a.Update(keyMsg("d")) // the refusal is the key's error: press would fail on it
-	a.Update(keyMsg("d"))
-	if !strings.Contains(a.m.Status, "A task stays under a project") {
-		t.Fatalf("status %q does not say why", a.m.Status)
+	a.m.Status, a.m.Info = "", ""
+	press(t, a, "d", "d")
+	if a.m.Status != "" {
+		t.Fatalf("the refusal is an error line %q, want an info line", a.m.Status)
+	}
+	if !strings.Contains(a.m.Info, "A task stays under a project") {
+		t.Fatalf("info %q does not say why", a.m.Info)
 	}
 	if _, err := a.work.Task("t1"); err != nil {
 		t.Fatalf("the delete went through: %v", err)
