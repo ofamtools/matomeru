@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"unicode/utf8"
@@ -40,6 +41,9 @@ type DocTable struct {
 	table string
 	r     *ochazuke.Runtime
 	noun  string
+	// ties are the fields that order documents a request's sort keys leave
+	// tied (OrderedBy); rowid comes last.
+	ties []string
 
 	reads, queries, fallbacks atomic.Int64
 	// trace, when set (a test), hears every statement Query runs.
@@ -51,6 +55,18 @@ type DocTable struct {
 // values). The table is checked on each call, so it may be declared later.
 func (s *Store) DocTable(table string, r *ochazuke.Runtime, noun string) *DocTable {
 	return &DocTable{s: s, table: table, r: r, noun: noun}
+}
+
+// OrderedBy makes fields the order of the documents a request's sort keys
+// leave tied, or of every document when it sorts on nothing: each field as
+// SQLite holds it (numbers by value, text by bytes, a missing field
+// first), then the order they were stored in. A noun whose list read its
+// documents in an order of its own (created, then id) keeps that order,
+// in the query, paged. A field name that is not one a DocTable puts into
+// SQL is left out. It answers d.
+func (d *DocTable) OrderedBy(fields ...string) *DocTable {
+	d.ties = slices.Clone(fields)
+	return d
 }
 
 // Reads is how many documents Query has decoded in all, Queries how many

@@ -1,6 +1,7 @@
 package work
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
 	"errors"
@@ -89,19 +90,53 @@ func (s *Store) PutNote(note Note) error {
 		err := tx.Get("notes", note.ID, &old)
 		switch {
 		case err == nil:
-			// Keep legacy unknown makers unknown too. Editing is not authorship.
-			if s.Actor().IsAgent() || note.CreatedBy.Kind == "" {
-				note.CreatedBy = old.CreatedBy
-			}
+			note.CreatedBy = s.NoteMaker(&old, note)
 		case errors.Is(err, store.ErrNotFound):
-			if s.Actor().IsAgent() || note.CreatedBy.Kind == "" {
-				note.CreatedBy = s.Actor()
-			}
+			note.CreatedBy = s.NoteMaker(nil, note)
 		default:
 			return err
 		}
 		return tx.Put("notes", note.ID, note)
 	})
+}
+
+// NoteMaker is the maker a write of note records: old is the note as
+// stored (nil for a new one). A write by an agent, or one that names no
+// maker, keeps the stored maker (editing is not authorship; a legacy
+// unknown maker stays unknown), and a new note's is the actor's.
+func (s *Store) NoteMaker(old *Note, note Note) Actor {
+	if !s.Actor().IsAgent() && note.CreatedBy.Kind != "" {
+		return note.CreatedBy
+	}
+	if old != nil {
+		return old.CreatedBy
+	}
+	return s.Actor()
+}
+
+// NoteDoc is the note as its stored document: the fields PutNote writes
+// for it (its legacy extras too), by field name, numbers as int64.
+func NoteDoc(note Note) (map[string]any, error) {
+	raw, err := json.Marshal(note)
+	if err != nil {
+		return nil, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var doc map[string]any
+	if err := dec.Decode(&doc); err != nil {
+		return nil, err
+	}
+	for k, v := range doc {
+		if n, ok := v.(json.Number); ok {
+			if i, err := n.Int64(); err == nil {
+				doc[k] = i
+			} else if f, err := n.Float64(); err == nil {
+				doc[k] = f
+			}
+		}
+	}
+	return doc, nil
 }
 
 func (s *Store) AddNote(projectID, taskID, text string) (Note, error) {

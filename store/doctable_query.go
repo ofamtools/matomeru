@@ -434,21 +434,34 @@ func and(where string) string {
 }
 
 // orderBy is the ORDER BY terms of the sort keys, insertion order last.
-func orderBy(keys []docKey) (string, []any) {
-	terms := make([]string, 0, len(keys)+1)
+func (d *DocTable) orderBy(keys []docKey) (string, []any) {
+	terms := make([]string, 0, len(keys)+len(d.ties)+1)
 	var args []any
 	for _, k := range keys {
 		e, a := k.expr()
 		terms = append(terms, e)
 		args = append(args, a...)
 	}
-	return strings.Join(append(terms, "rowid"), ", "), args
+	return strings.Join(append(terms, d.tieTerms()...), ", "), args
+}
+
+// tieTerms are the terms that order documents the sort keys leave tied:
+// the OrderedBy fields as SQLite holds them (numbers by value, text by
+// bytes, a missing field first), then rowid.
+func (d *DocTable) tieTerms() []string {
+	out := make([]string, 0, len(d.ties)+1)
+	for _, f := range d.ties {
+		if path, err := d.path(f); err == nil {
+			out = append(out, "json_extract(row, "+path+")")
+		}
+	}
+	return append(out, "rowid")
 }
 
 // orderedSQL numbers the matching documents in sort order (pos) and
 // labels each with its group (g).
 func (d *DocTable) orderedSQL(w docWhere, sorts []docKey, groups []string) (string, []any) {
-	order, oargs := orderBy(sorts)
+	order, oargs := d.orderBy(sorts)
 	labels := make([]string, len(groups))
 	for i, path := range groups {
 		labels[i] = "ofam_doc_label(row -> " + path + ")"
@@ -460,7 +473,7 @@ func (d *DocTable) orderedSQL(w docWhere, sorts []docKey, groups []string) (stri
 // pageSQL is the statement answering the page's documents, before LIMIT.
 func (d *DocTable) pageSQL(w docWhere, sorts []docKey, groups []string, gsorts []docKey) (string, []any) {
 	if len(groups) == 0 {
-		order, oargs := orderBy(sorts)
+		order, oargs := d.orderBy(sorts)
 		return `SELECT row FROM ` + quote(d.table) + w.sql + ` ORDER BY ` + order, append(append([]any{}, w.args...), oargs...)
 	}
 	ordered, args := d.orderedSQL(w, sorts, groups)
@@ -524,7 +537,7 @@ func (d *DocTable) readPage(page ochazuke.ListPage, stmt string, args []any, gro
 // request runs over them in Go.
 func (d *DocTable) fallback(q ochazuke.DocQuery, w docWhere) (ochazuke.ListPage, error) {
 	d.fallbacks.Add(1)
-	page, err := d.readPage(ochazuke.ListPage{Items: []ochazuke.Thing{}}, `SELECT row FROM `+quote(d.table)+w.sql+` ORDER BY rowid`, w.args, false)
+	page, err := d.readPage(ochazuke.ListPage{Items: []ochazuke.Thing{}}, `SELECT row FROM `+quote(d.table)+w.sql+` ORDER BY `+strings.Join(d.tieTerms(), ", "), w.args, false)
 	if err != nil {
 		return ochazuke.ListPage{}, err
 	}
