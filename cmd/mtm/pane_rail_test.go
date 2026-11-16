@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -170,7 +171,7 @@ func TestExecExtWatchStreamsLines(t *testing.T) {
 	}
 	var mu sync.Mutex
 	var got []string
-	stop, err := execExtWatch(bin, nil, "id", "doc", ochazuke.WatchQuery{Where: map[string]any{"root": "notes"}, Since: "h0"}, func(e ochazuke.WatchEvent) {
+	stop, err := execExtWatch(context.Background(), bin, nil, "id", "doc", ochazuke.WatchQuery{Where: map[string]any{"root": "notes"}, Since: "h0"}, func(e ochazuke.WatchEvent) {
 		mu.Lock()
 		got = append(got, e.Type+" "+e.ID)
 		mu.Unlock()

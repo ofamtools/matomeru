@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -260,6 +261,11 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		return nil
 	}
 	app.cliWords = words
+	// A signal that ends mtm stops its extension processes first
+	// (extension_procs.go); the TUI hands SIGINT and SIGTERM to Bubble Tea,
+	// which quits through Close.
+	stopSignals := app.stopExtOnSignals(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
 	if len(words) > 0 {
 		app.refreshChangedBins() // a command or the MCP gateway: no TUI check follows
 	}
@@ -278,6 +284,8 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		if err := app.assignProjectColors(); err != nil { // once: a project with no colour gets one
 			return err
 		}
+		stopSignals()
+		defer app.stopExtOnSignals(syscall.SIGHUP)()
 		_, err := tea.NewProgram(app).Run()
 		return err
 	}
@@ -354,6 +362,7 @@ func (a *App) reveal(id string) error {
 // App owns domain state (the store, the daemon client, the rows); the
 // runtime owns interaction state.
 type App struct {
+	procs              *extProcs        // the gate every extension call passes (extension_procs.go)
 	relStore           *relations.Store // the relations table (project_directories.go)
 	db                 *store.Store
 	work               *work.Store
@@ -614,7 +623,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{colorRand: colorRandom, db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless}
+	a := &App{colorRand: colorRandom, db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless, procs: newExtProcs(extMaxProcessesDefault)}
 	hub.changed = a.relationChanged
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
@@ -808,6 +817,7 @@ func New(opts Options) (*App, error) {
 	// which would tell an observer of the change from the default.
 	a.observeExtNounNames()
 	a.observeExtPools()
+	a.observeExtProcs()
 	a.observeArchiveViews()
 	a.hookLazyPages()
 	if a.pin, err = a.work.Pin(); err != nil {
@@ -851,7 +861,7 @@ func New(opts Options) (*App, error) {
 func (a *App) Close() error {
 	a.quitting = true
 	a.stopSchedules()
-	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.closeExtPools(), a.db.Close())
+	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.closeExtProcs(), a.closeExtPools(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.

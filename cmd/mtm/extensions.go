@@ -191,6 +191,7 @@ func execExt(ctx context.Context, bin string, env []string, args ...string) ([]b
 	// A killed tool's children may hold its output open: stop waiting
 	// for them shortly after the kill.
 	cmd.WaitDelay = extWaitDelay
+	defer extGroup(cmd)()
 	cmd.Env = extensionExecEnv(env, len(args) > 0 && args[0] == "catalog")
 	var out, errOut bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errOut
@@ -215,14 +216,16 @@ func extFailed(bin string, args []string, err error, stderr []byte) error {
 // becomes the verb's arguments (the key prop, where as prop=value pairs,
 // since). A line that is not an event is skipped; the call ending (the
 // tool exits) ends the stream. stop kills the call and waits for it.
-func execExtWatch(bin string, env []string, keyProp, noun string, q ochazuke.WatchQuery, emit func(ochazuke.WatchEvent)) (func(), error) {
+func execExtWatch(life context.Context, bin string, env []string, keyProp, noun string, q ochazuke.WatchQuery, emit func(ochazuke.WatchEvent)) (func(), error) {
 	words, err := extWatchWords(keyProp, noun, q)
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	// life ends with mtm (extProcs.close): the watch ends with it.
+	ctx, cancel := context.WithCancel(life)
 	cmd := exec.CommandContext(ctx, bin, words...)
 	cmd.WaitDelay = extWaitDelay
+	endGroup := extGroup(cmd)
 	cmd.Env = extensionExecEnv(env, false)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -248,6 +251,7 @@ func execExtWatch(bin string, env []string, keyProp, noun string, q ochazuke.Wat
 			}
 		}
 		_ = cmd.Wait()
+		endGroup()
 	}()
 	var once sync.Once
 	return func() {
@@ -403,6 +407,7 @@ func extHistoryKind(v ocli.CatalogVerb) (string, error) {
 
 // extension is one mounted extension.
 type extension struct {
+	procs *extProcs // the App's gate (extension_procs.go)
 	name  string
 	ns    string // the namespace its nouns mount under (extNamespace)
 	bin   string
@@ -528,7 +533,7 @@ func (a *App) registerExtension(ctx ochazuke.Ctx) ochazuke.Result {
 	a.extFetchStart(name)
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		stamp := binStamp(path) // before the exec: a rebuild during it reads again
-		out, err := execExt(c, path, env, "catalog")
+		out, err := a.procs.exec(c, false, path, env, "catalog")
 		if err != nil {
 			return nil, err
 		}
@@ -639,7 +644,7 @@ func (a *App) refreshExtension(ctx ochazuke.Ctx) ochazuke.Result {
 		for _, name := range names {
 			bin := entries[name].Bin
 			stamp := binStamp(bin)
-			answer, err := execExt(c, bin, envs[name], "catalog")
+			answer, err := a.procs.exec(c, false, bin, envs[name], "catalog")
 			var doc ocli.CatalogDoc
 			if err == nil {
 				doc, err = parseExtCatalog(filepath.Base(bin), answer)
@@ -794,7 +799,7 @@ func (a *App) reloadMounted() {
 func (a *App) mountExtension(name string, e extEntry) {
 	notify := func(format string, args ...any) { a.r.UI().Notify(name + ": " + fmt.Sprintf(format, args...)) }
 	ns, nsErr := extNamespace(name, e.Bin, e.Catalog)
-	x := &extension{name: name, ns: ns, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
+	x := &extension{procs: a.procs, name: name, ns: ns, bin: e.Bin, doc: e.Catalog, nouns: map[string]string{}, entry: entryJSON(e)}
 	defer func() {
 		a.exts = append(a.exts, x)
 		// Mounting replaces the noun's verbs and key rows; the user's
@@ -1250,7 +1255,7 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 	}
 	if a.quitting && !spec.Foreground {
 		// mtm is closing: no job would run, so the last write runs here.
-		out, err := execExt(context.Background(), bin, env, words...)
+		out, err := a.procs.exec(context.Background(), true, bin, env, words...)
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -1266,17 +1271,22 @@ func (a *App) extRun(x *extension, noun, verb, target string, args map[string]an
 			if err != nil {
 				return err
 			}
-			raw, err := pool.read(ctx, bin, env, noun, "get", "--json", string(js))
+			raw, err := pool.read(ctx, x.procs, bin, env, noun, "get", "--json", string(js))
 			if err != nil {
 				return err
 			}
 			return json.Unmarshal(raw, &before)
 		}
 	}
+	// The preflight (a read, through the gate itself) runs before the
+	// verb takes its slot, so one call never holds two.
 	result := ocli.RunMounted(spec, ocli.ProxyCommand{
 		Bin: bin, Args: words, Env: extensionExecEnv(env, false),
-		Timeout: extExecTimeout, WaitDelay: extWaitDelay, Before: preflight, Pool: x.poolOf(),
+		Timeout: extExecTimeout, WaitDelay: extWaitDelay, Pool: x.poolOf(),
 	})
+	if !spec.Foreground {
+		result = x.procs.result(result, op.HistoryKindOf() != ochazuke.HistoryFetch, preflight)
+	}
 	if preflight != nil {
 		result = result.Continue(func(value any, err error) (func(context.Context) (any, error), any, error) {
 			if err == nil {

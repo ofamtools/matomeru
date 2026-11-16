@@ -143,7 +143,7 @@ func (a *App) loadSources(x *extension) error {
 					args = string(raw)
 				}
 			}
-			out, err := pool.read(ctx, bin, env, noun, verb, "--json", args)
+			out, err := pool.read(ctx, x.procs, bin, env, noun, verb, "--json", args)
 			if err != nil {
 				return nil, err
 			}

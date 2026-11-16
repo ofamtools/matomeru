@@ -87,6 +87,7 @@ type extDiscovery struct {
 	self           string // mtm's own executable, never listed
 	reg            extRegistry
 	env            func(name string) []string
+	procs          *extProcs // the App's gate (nil: none)
 	timeout        time.Duration
 	registeredOnly bool
 	names          []string // registered names to check; nil checks all
@@ -107,6 +108,7 @@ func (a *App) discovery() extDiscovery {
 			return []string{"MTM_DATA=" + dataDir, "MTM_EXTENSION=" + name}
 		},
 		timeout: extDiscoverTimeout,
+		procs:   a.procs,
 	}
 }
 
@@ -375,7 +377,7 @@ func (d extDiscovery) askAll(ctx context.Context, ask map[string]string) map[str
 			defer func() { <-sem }()
 			c, cancel := context.WithTimeout(ctx, d.timeout)
 			defer cancel()
-			data, err := execExt(c, bin, d.env(name), "catalog")
+			data, err := d.procs.exec(c, false, bin, d.env(name), "catalog")
 			var doc ocli.CatalogDoc
 			if err == nil {
 				doc, err = parseExtCatalog(filepath.Base(bin), data)

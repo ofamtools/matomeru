@@ -126,7 +126,7 @@ func (a *App) refreshChangedBin(reg extRegistry, name string, e extEntry) extEnt
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), extStampRefreshTimeout)
 	defer cancel()
-	out, err := execExt(ctx, e.Bin, a.extEnv(name), "catalog")
+	out, err := a.procs.exec(ctx, false, e.Bin, a.extEnv(name), "catalog")
 	var doc ocli.CatalogDoc
 	if err == nil {
 		doc, err = parseExtCatalog(filepath.Base(e.Bin), out)

@@ -131,14 +131,21 @@ func (x *extension) resetPool(p *extPool) {
 // read is one read call of the tool (its stdout, or the error execExt
 // would give): served when x has a pool, else by exec. A read is retried
 // once by exec when its process breaks under it.
-func (p *extPool) read(ctx context.Context, bin string, env []string, args ...string) ([]byte, error) {
+func (p *extPool) read(ctx context.Context, procs *extProcs, bin string, env []string, args ...string) ([]byte, error) {
 	if p == nil {
-		return execExt(ctx, bin, env, args...)
+		return procs.exec(ctx, false, bin, env, args...)
 	}
-	ctx, cancel := context.WithTimeout(ctx, extExecTimeout)
-	defer cancel()
-	defer p.take(ctx)()
-	answer, err := p.pool.Run(ctx, ocli.ServeCall{Argv: args, Env: extensionExecEnv(env, false)}, true)
+	// The read holds a slot of the gate while it runs on the pool (where
+	// it may start a kept process, or exec).
+	var answer ocli.ServeAnswer
+	err := procs.call(ctx, false, func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, extExecTimeout)
+		defer cancel()
+		defer p.take(ctx)()
+		var err error
+		answer, err = p.pool.Run(ctx, ocli.ServeCall{Argv: args, Env: extensionExecEnv(env, false)}, true)
+		return err
+	})
 	if err == nil && answer.Exit != 0 {
 		err = fmt.Errorf("exit status %d", answer.Exit)
 	}
@@ -168,7 +175,7 @@ func (p *extPool) take(ctx context.Context) func() {
 
 // extRead is a read of x's tool through its pool now.
 func (x *extension) read(ctx context.Context, env []string, args ...string) ([]byte, error) {
-	return x.pool.Load().read(ctx, x.bin, env, args...)
+	return x.pool.Load().read(ctx, x.procs, x.bin, env, args...)
 }
 
 // extWatch is a noun's watch: on a kept process when x has a pool
@@ -178,7 +185,9 @@ func (a *App) extWatch(x *extension, noun string, q ochazuke.WatchQuery, emit fu
 	keyProp := extensionKeyProp(x.doc, noun)
 	pool := x.poolOf()
 	if pool == nil {
-		return execExtWatch(x.bin, env, keyProp, noun, q, emit)
+		return a.procs.watch(func(life context.Context) (func(), error) {
+			return execExtWatch(life, x.bin, env, keyProp, noun, q, emit)
+		})
 	}
 	words, err := extWatchWords(keyProp, noun, q)
 	if err != nil {

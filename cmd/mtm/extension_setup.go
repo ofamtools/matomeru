@@ -155,6 +155,7 @@ type extSetupTarget struct {
 	name, bin string
 	env       []string
 	has       bool
+	procs     *extProcs // the App's gate
 }
 
 // extSetupTargets reads names from the registry (every registered
@@ -173,7 +174,7 @@ func (a *App) extSetupTargets(names ...string) ([]extSetupTarget, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, extSetupTarget{name: name, bin: e.Bin, env: a.extEnv(name), has: extHasSetup(e.Catalog)})
+		out = append(out, extSetupTarget{name: name, bin: e.Bin, env: a.extEnv(name), has: extHasSetup(e.Catalog), procs: a.procs})
 	}
 	return out, nil
 }
@@ -192,7 +193,7 @@ func probeSetup(ctx context.Context, t extSetupTarget) extSetupInfo {
 	if !t.has {
 		return extSetupInfo{Name: t.name, State: setupNone, CheckedAt: time.Now()}
 	}
-	out, err := execExt(ctx, t.bin, t.env, extSetupNoun, "install", "--json", extSetupDryRun)
+	out, err := t.procs.exec(ctx, false, t.bin, t.env, extSetupNoun, "install", "--json", extSetupDryRun)
 	var plan osetup.Plan
 	if err == nil {
 		plan, err = parseSetupPlan(out)
@@ -411,7 +412,7 @@ func (a *App) runSetup(ctx ochazuke.Ctx, verb, group string) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		out, err := execExt(c, t.bin, t.env, extSetupNoun, verb, "--json", setupArgs(group), "--yes")
+		out, err := t.procs.exec(c, true, t.bin, t.env, extSetupNoun, verb, "--json", setupArgs(group), "--yes")
 		if err != nil {
 			return nil, err
 		}
@@ -451,7 +452,7 @@ func (a *App) extensionSetupPlan(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	group := ochazuke.StringArg(ctx.Args, "group", "")
 	return ochazuke.Pending(func(c context.Context) (any, error) {
-		out, err := execExt(c, t.bin, t.env, extSetupNoun, "install", "--json", extSetupDryRun)
+		out, err := t.procs.exec(c, false, t.bin, t.env, extSetupNoun, "install", "--json", extSetupDryRun)
 		if err != nil {
 			return nil, err
 		}
