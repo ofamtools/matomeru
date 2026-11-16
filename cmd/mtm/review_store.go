@@ -1,7 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
 
@@ -110,9 +112,9 @@ func (a *App) reviewStore() ochazuke.Store {
 			return out, nil
 		},
 		Patch: a.patchReview,
-		Create: func(_ ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
+		Create: func(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
 			rv := work.Review{ID: work.NewID(), Pane: "unassociated", Status: work.ReviewPending, Created: a.now().UnixMilli(), Updated: a.now().UnixMilli()}
-			rv.Status = ochazuke.StringArg(ochazuke.Arguments(values), "status", rv.Status)
+			rv.Status = closedChoice(c.Info, "status", ochazuke.StringArg(ochazuke.Arguments(values), "status", ""), reviewStatuses, work.ReviewPending, "the review is pending")
 			rv.Answer = ochazuke.StringArg(ochazuke.Arguments(values), "answer", "")
 			rv.Archived, _ = values["archived"].(bool)
 			err := a.db.Tx([]string{"reviews"}, func(tx *store.Tx) error { return tx.Put("reviews", rv.ID, rv) })
@@ -170,9 +172,11 @@ func (a *App) paneReviewOf(id string) (paneReview, error) {
 
 // patchReview is the store's Patch: the status and the answer, on the
 // review record, written first for a pane mtm did not launch (record
-// first). A saved answer drops the answer area's draft and, on the opened
-// review, shows in the area.
-func (a *App) patchReview(_ ochazuke.Ctx, id string, changes ochazuke.Thing) (ochazuke.Thing, error) {
+// first). A status outside pending, accepted and rejected keeps the
+// review's, with an info line (closedChoice); create makes it pending. A
+// saved answer drops the answer area's draft and, on the opened review,
+// shows in the area.
+func (a *App) patchReview(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochazuke.Thing, error) {
 	row, err := a.paneReviewOf(id)
 	if err != nil {
 		return nil, err
@@ -184,6 +188,8 @@ func (a *App) patchReview(_ ochazuke.Ctx, id string, changes ochazuke.Thing) (oc
 	}
 	rv := row.Review
 	if v, ok := thingString(changes, "status"); ok {
+		keep := cmp.Or(rv.Status, work.ReviewPending)
+		v = closedChoice(c.Info, "status", v, reviewStatuses, keep, "kept "+keep)
 		if rv, err = a.work.SetReviewStatus(id, v); err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -90,5 +91,32 @@ func TestReviewCreatePreservesManualAnswer(t *testing.T) {
 	got := storedReview(t, other, id)
 	if got.Answer != "manual review" || got.Status != work.ReviewAccepted || got.Pane != "unassociated" || got.Window != "" {
 		t.Fatalf("manual review after restart: %+v", got)
+	}
+}
+
+// A review status outside pending, accepted and rejected, asked for by
+// name, is never stored: create makes the review pending and set keeps its
+// status, each with an info line and no error.
+func TestReviewStatusOutsideTheChoicesIsNotStored(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	out, errOut, err := cli(a, "", "review", "create", "--answer", "a note", "--status", "banana")
+	if err != nil || !strings.Contains(errOut, `status "banana" is not one of`) || strings.Contains(errOut, "error:") {
+		t.Fatalf("create status banana: %v\n%s", err, errOut)
+	}
+	var made map[string]any
+	if err := json.Unmarshal([]byte(out), &made); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	id := made["id"].(string)
+	if got := storedReview(t, a, id); got.Status != work.ReviewPending || got.Answer != "a note" {
+		t.Fatalf("created %+v", got)
+	}
+	executeA(t, a, "review", "set", "", ochazuke.Arguments{"id": id, "props": map[string]any{"status": "accepted"}})
+	if _, errOut, err := cli(a, "", "review", "set", "--id", id, "status=banana"); err != nil || !strings.Contains(errOut, "kept accepted") {
+		t.Fatalf("set status banana: %v\n%s", err, errOut)
+	}
+	if got := storedReview(t, a, id); got.Status != work.ReviewAccepted {
+		t.Fatalf("set stored %q", got.Status)
 	}
 }
