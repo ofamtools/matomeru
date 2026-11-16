@@ -119,6 +119,8 @@ unknown-noun	story.story	not registered	1	the noun of a tool (o-story) recorded 
 unknown-noun	story.verb	not registered	1	the noun of a tool (o-story) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
 unknown-noun	task-picker	not registered	1	a modal's instance id recorded as the noun of its own place (the task picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
 unwalked	focus-item	no place	1
+unwalked	lane.agent	no place	1	fixture catalog testdata/o-lane-catalog.json declares no delete for agent, so since ochazuke v0.146.4 the overlay supplies it and mtm binds d d (extension_core_keys.go); its things are listed in pickers and the CLI, at no place recorded in places.json (the real o-lane has its own delete)
+unwalked	lane.project	no place	1	fixture catalog testdata/o-lane-catalog.json declares no delete for project, so since ochazuke v0.146.4 the overlay supplies it and mtm binds d d (extension_core_keys.go); its things are listed in pickers and the CLI, at no place recorded in places.json (the real o-lane has its own delete)
 unwalked	ochazuke.bindings-help	no place	1
 unwalked	ochazuke.find-line	no place	1
 unwalked	ochazuke.outline-row	no place	1
