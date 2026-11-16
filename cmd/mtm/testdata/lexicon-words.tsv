@@ -643,6 +643,7 @@ port	prop	seed
 pose	action	seed	
 position	prop	seed	
 positional	prop	seed	
+post	action	yes	put a request before the person (restart-request.post)
 pr	noun	seed	
 prefs	prop	seed	
 prepend	action	seed	
@@ -750,6 +751,8 @@ resolve	action	seed
 resolved	prop	seed	
 respond	action	seed	
 restart	action	seed	
+restart-request	noun	yes	a pending request to restart the application (restart-request.post|show|dismiss)
+restart-state	noun	yes	the runtime's restart state component (the request, the hook)
 restore	action	seed	
 restore-task	action	yes	outline-task.restore-task: the task noun's restore over an outline row
 restored	prop	seed	

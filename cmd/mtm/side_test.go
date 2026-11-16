@@ -86,6 +86,7 @@ func TestRestartedSidesLetQuitButBlockKillThenOrphan(t *testing.T) {
 		t.Fatalf("restart state: %+v", b.panes)
 	}
 	// Quit leaves the restarted side running: no refusal, no kill.
+	quitAsksNever(t, b)
 	if _, err := b.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
 		t.Fatal(err)
 	}
@@ -216,6 +217,7 @@ func TestQuitKeepsSidesAndRestartReattachesThem(t *testing.T) {
 	}
 	vim, term := a.attached.SideVim, a.attached.SideTerm
 
+	quitAsksNever(t, a)
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
 		t.Fatal(err)
 	}
@@ -286,6 +288,7 @@ func TestQuitWaitsForAnOpeningSide(t *testing.T) {
 	if !a.sideStarting["w1/term"] {
 		t.Fatal("side not starting")
 	}
+	quitAsksNever(t, a)
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
 		t.Fatal(err)
 	}
@@ -323,5 +326,14 @@ func TestNewSideWindowFitsItsRegion(t *testing.T) {
 	cw, ch := ochazuke.PanelContentSize(83, 30)
 	if want := []string{fmt.Sprintf("%s %dx%d", links[0].Window, cw, ch)}; !slices.Equal(driver.panes.fits, want) {
 		t.Fatalf("fits %v, want %v", driver.panes.fits, want)
+	}
+}
+
+// quitAsksNever turns off the quit question (quit.confirm never) for a test
+// about what quitting does, not whether it asks (TestQuitAsksFirst).
+func quitAsksNever(t *testing.T, a *App) {
+	t.Helper()
+	if _, err := a.r.Settings().SetSession(ochazuke.QuitConfirmSetting, "never"); err != nil {
+		t.Fatal(err)
 	}
 }

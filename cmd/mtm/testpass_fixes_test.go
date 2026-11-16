@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
@@ -192,8 +193,10 @@ func TestSideListTakesPaneWindowID(t *testing.T) {
 	}
 }
 
-// Test pass R18: ctrl+c quits from the palette at once: on an empty line,
-// on a typed line, and after esc cleared the typed line.
+// Test pass R18, with the quit question (ochazuke v0.146.5, quit.confirm
+// always): ctrl+c from the palette asks "Quit mtm?" on an empty line, on a
+// typed line, and after esc cleared the typed line; a second ctrl+c (asking
+// again is yes) quits.
 func TestCtrlCQuitsFromThePalette(t *testing.T) {
 	t.Parallel()
 	for _, keys := range [][]string{{":"}, {":", "p", "a"}, {":", "p", "a", "esc"}} {
@@ -203,8 +206,12 @@ func TestCtrlCQuitsFromThePalette(t *testing.T) {
 			t.Fatalf("%v: modal %q", keys, app.r.TopModal())
 		}
 		press(t, app, "ctrl+c")
+		if app.r.Quit || app.r.TopModal() != "confirm" || !strings.Contains(ansi.Strip(frameView(app).Content), "Quit mtm?") {
+			t.Fatalf("%v then ctrl+c: quit %v modal %q, want the quit question", keys, app.r.Quit, app.r.TopModal())
+		}
+		press(t, app, "ctrl+c")
 		if !app.r.Quit {
-			t.Fatalf("%v then ctrl+c: not quit, modal %q", keys, app.r.TopModal())
+			t.Fatalf("%v then ctrl+c twice: not quit, modal %q", keys, app.r.TopModal())
 		}
 	}
 }
