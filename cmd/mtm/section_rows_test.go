@@ -57,6 +57,17 @@ func TestSectionRows(t *testing.T) {
 		if !slices.Equal(queue, want) || a.pv.sections[0].rows != len(want) || needsYouHead(a) != len(want) {
 			t.Fatalf("queue %v (title %d, head %q), want %v", queue, a.pv.sections[0].rows, a.pv.view.sectionsHead(), want)
 		}
+		// The row says what the pane needs: its newest reason and the count.
+		for _, n := range a.pv.sections[0].tree.Nodes() {
+			if n.ID == "pane:s/wdone" && !strings.HasSuffix(n.Cells[2], " ×6") {
+				t.Fatalf("finisher's row cells %q", n.Cells)
+			}
+		}
+		// The closed pane's row is an ended pane's: enter says it ended
+		// (pane.gone), never attaching another pane.
+		if _, ended := a.endedAt(a.r.Instances["pane:s/wgone"]); !ended {
+			t.Fatal("the closed pane's row is not an ended row")
+		}
 		fr := frameWH(a, 120, 40)
 		left := strings.Join(leftColumn(t, fr), "\n")
 		if strings.Count(left, "finisher") != 1 || !strings.Contains(left, "finisher "+itemCountMark+"6") ||

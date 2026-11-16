@@ -803,6 +803,11 @@ func (a *App) endedAt(inst *ochazuke.Instance) (pane, bool) {
 			return p, true
 		}
 	}
+	// A row whose own pane ended (a closed pane's Needs-you row,
+	// panes.section-rows panes) is one too.
+	if p, ok := inst.Data.(pane); ok && p.ended && p.rowID() == inst.ID {
+		return p, true
+	}
 	return pane{}, false
 }
 

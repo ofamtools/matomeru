@@ -639,6 +639,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	best := map[string]bestItem{} // window → the item that places its pane's row in the queue
 	queueAt := map[string]int{}   // window → index of its pane's row in queue
 	items = a.queueRowItems(items, mode, byWindow, section, names)
+	needs := mode.queueNeeds(items, nowMs)
 	foldElsewhere := mode.foldsElsewhere(one)
 	for _, q := range items {
 		it := q.it
@@ -656,7 +657,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 					// The row sits where its first item would, so ties keep
 					// the order the items came in; its place is set below.
 					queueAt[p.ID] = len(queue)
-					queue = append(queue, row{node: a.flatPaneNode(p, names[p.ID], now), pane: true})
+					queue = append(queue, row{node: needs.onRow(a.flatPaneNode(p, names[p.ID], now)), pane: true})
 				}
 				if r := ranks[q.category]; !ok || r < b.rank || r == b.rank && clock < b.at {
 					best[p.ID] = bestItem{rank: r, at: clock}

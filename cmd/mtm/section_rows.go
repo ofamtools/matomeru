@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"ofam.dev/ochazuke"
@@ -114,6 +115,52 @@ func (a *App) queueRowItems(items []queuedItem, m sectionRowMode, byWindow map[s
 		out = append(out, q)
 	}
 	return out
+}
+
+// paneNeeds is, by window, what a pane's queue row says it needs: the why
+// of its newest item in the queue and how many it has there.
+type paneNeeds map[string]paneNeed
+
+type paneNeed struct {
+	why string
+	at  int64
+	n   int
+}
+
+// queueNeeds is what each pane's queue items need, when every row is a
+// pane's (none otherwise: an item row says its own).
+func (m sectionRowMode) queueNeeds(items []queuedItem, nowMs int64) paneNeeds {
+	out := paneNeeds{}
+	if !m.paneRows {
+		return out
+	}
+	for _, q := range items {
+		was := out[q.it.Window]
+		was.n++
+		if at := q.it.Entered(nowMs); at >= was.at {
+			was.why, was.at = cmp.Or(q.it.Why, q.it.Kind), at
+		}
+		out[q.it.Window] = was
+	}
+	return out
+}
+
+// onRow puts what the pane needs in its row's last cell, after its use:
+// the newest reason, with the count when it has more ("turn finished
+// ×7").
+func (needs paneNeeds) onRow(node ochazuke.TreeNode) ochazuke.TreeNode {
+	p, _ := node.Data.(pane)
+	need, ok := needs[p.ID]
+	if !ok || len(node.Cells) < 3 {
+		return node
+	}
+	text := need.why
+	if need.n > 1 {
+		text += fmt.Sprintf(" ×%d", need.n)
+	}
+	node.Cells = slices.Clone(node.Cells)
+	node.Cells[2] = strings.TrimPrefix(node.Cells[2]+" · "+text, " · ")
+	return node
 }
 
 // rowAgents counts a row's subagents for its list's title: its subagent
