@@ -284,6 +284,8 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		if err := app.assignProjectColors(); err != nil { // once: a project with no colour gets one
 			return err
 		}
+		app.wireRestart()
+		app.hostUIRelay()
 		stopSignals()
 		defer app.stopExtOnSignals(syscall.SIGHUP)()
 		_, err := tea.NewProgram(app).Run()
@@ -563,6 +565,15 @@ type App struct {
 	extRowOwners map[string]work.ExtRowOwner
 	// quitting is set by Close: an extension's last write runs at once.
 	quitting bool
+	// closed makes Close idempotent: a restart runs it before the exec
+	// (restart.go) and main's deferred Close runs it again when the exec
+	// failed; closeErr is the first run's answer. The two never overlap: the
+	// restart runs while main waits for the program to return.
+	closed   bool
+	closeErr error
+	// relay runs the UI-process verbs (relay.go) in the running TUIs of
+	// this database; its host is set only in the TUI process.
+	relay *uiRelay
 
 	outline *outlineState // the task outline last opened (outline.go)
 	copy    *copyMode     // copy mode on the panes page (copymode.go)
@@ -808,6 +819,8 @@ func New(opts Options) (*App, error) {
 	a.defineDocForms()
 	a.defineDirectoryCreation()
 	a.defineCommandRenames()
+	a.defineRestart()
+	a.defineUIRelay()
 	a.defineAgentDeclarations()
 	// The default rows (bindings/rows.json) name verbs the pages above and
 	// the declarations just registered (the pane's settings and turns, a
@@ -861,7 +874,16 @@ func New(opts Options) (*App, error) {
 // Close writes the open record's and quick note's last change, then
 // closes the terminal and the store.
 func (a *App) Close() error {
+	if !a.closed {
+		a.closed = true
+		a.closeErr = a.close()
+	}
+	return a.closeErr
+}
+
+func (a *App) close() error {
 	a.quitting = true
+	a.leaveUIRelay()
 	a.stopSchedules()
 	flushed := errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal())
 	// The runtime's jobs and store watches end first (ochazuke's Shutdown);

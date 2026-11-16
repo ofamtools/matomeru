@@ -35,6 +35,13 @@ func buildStamp() refdoc.Stamp { return refdoc.BuildStamp("mtm") }
 // writeVersion prints the --version line: tool, version, commit and the
 // ochazuke version it carries.
 func writeVersion(w io.Writer, s refdoc.Stamp) error {
+	_, err := fmt.Fprintln(w, versionLine(s))
+	return err
+}
+
+// versionLine is the one line --version prints; the restart dialog's
+// running build is the same line (restart.go).
+func versionLine(s refdoc.Stamp) string {
 	v := s.Version
 	if v == "" {
 		v = "devel"
@@ -46,6 +53,5 @@ func writeVersion(w io.Writer, s refdoc.Stamp) error {
 	if s.Ochazuke != "" {
 		line += ", ochazuke " + s.Ochazuke
 	}
-	_, err := fmt.Fprintln(w, line+")")
-	return err
+	return line + ")"
 }
