@@ -78,8 +78,9 @@ noun's whole store. It keeps ochazuke's contract (`doctest.Run`) and answers
 what `MemDocTable` answers:
 
 - `Put` merges into the stored row: given fields are set (nil removes one), a
-  declared prop the thing leaves out is cleared, and every field no prop
-  declares is kept. `Merge` writes only the fields it is given. Both run in
+  declared prop the thing leaves out is cleared (by its stored field:
+  `PropSpec.Field`, else its name), and every field no prop declares is
+  kept. `Merge` writes only the fields it is given. Both run in
   one `Tx`, so `Version` moves as for any write.
 - `Query` runs the conditions, the archive hiding, the text search, the sort,
   the groups and the page in SQLite (functions `ofam_doc_*` order values by
