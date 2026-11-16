@@ -319,6 +319,53 @@ func TestTurnsFromTheJournal(t *testing.T) {
 	}
 }
 
+// journalTurnsApp is TestTurnsFromTheJournal's start: w1's two finished
+// turns on the Panes page's Turns tab (tree style), the focus on the
+// newest.
+func journalTurnsApp(t *testing.T) *App {
+	t.Helper()
+	path := seeded(t)
+	capturedTurns(t, path, "first answer", "second answer")
+	app := openWith(t, Options{Data: path})
+	f := app.panesd.(*fakePanes)
+	f.panes[0].Harness, f.panes[0].AgentState = "claude-code", "idle"
+	reload(t, app)
+	useTurnStyle(t, app, turnsStyleTree)
+	settle(app, key(t, app, "["))
+	press(t, app, "}")
+	if !strings.HasPrefix(app.r.FocusID(), "turn:") {
+		t.Fatalf("focus %s", app.r.FocusID())
+	}
+	return app
+}
+
+// turn.open asked by name on a turn that is already open (its key there
+// is turn.close; the palette, the CLI and MCP still reach it) leaves the
+// turn open and reviewed once, its own mark (opening a turn is reading
+// it), with no error. Not a fault: markTurn marks only a finished turn
+// not yet reviewed, so a second open writes nothing.
+func TestTurnOpenByNameOnAnOpenTurn(t *testing.T) {
+	t.Parallel()
+	app := journalTurnsApp(t)
+	id := app.r.FocusID()
+	var mark int64
+	for i := range 2 {
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "turn", Verb: "open", Target: id}); err != nil {
+			t.Fatalf("open %d: %v", i+1, err)
+		}
+		turns, err := app.hist.Turns("w1")
+		if err != nil || len(turns) != 2 {
+			t.Fatalf("turns %+v %v", turns, err)
+		}
+		if i == 0 {
+			mark = turns[1].ReviewedAt
+		}
+		if app.turnClosed(id) || mark == 0 || turns[1].ReviewedAt != mark || turns[0].ReviewedAt != 0 {
+			t.Fatalf("open %d: closed %v, marks %d %d (first %d)", i+1, app.turnClosed(id), turns[0].ReviewedAt, turns[1].ReviewedAt, mark)
+		}
+	}
+}
+
 // Narrow, the detail stacks under the tree; both widths draw the tree,
 // the tabs and the counts.
 func TestPanesRenderAt80And120(t *testing.T) {
