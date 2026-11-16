@@ -69,3 +69,24 @@ read (`FullReads` does not count it).
 `db.Backup(dest)` writes a consistent copy (`VACUUM INTO`) and refuses an
 existing file; a unit calls it before a migration that rewrites rows for good.
 `db.TableVersion(table)` tells a file that still has to migrate.
+
+## Documents for ochazuke (DocTable)
+
+`db.DocTable(table, runtime, noun)` is ochazuke's `DocTable` over a declared
+table, so `ochazuke.DocStore(db.DocTable("notes", r, "note"), "note")` is a
+noun's whole store. It keeps ochazuke's contract (`doctest.Run`) and answers
+what `MemDocTable` answers:
+
+- `Put` merges into the stored row: given fields are set (nil removes one), a
+  declared prop the thing leaves out is cleared, and every field no prop
+  declares is kept. `Merge` writes only the fields it is given. Both run in
+  one `Tx`, so `Version` moves as for any write.
+- `Query` runs the conditions, the archive hiding, the text search, the sort,
+  the groups and the page in SQLite (functions `ofam_doc_*` order values by
+  ochazuke's rules) and decodes only the page. An equality repeats an
+  `Index` expression, so call `db.Index(table, name, field)` after `Declare`
+  for a field a list filters on often. A condition SQL cannot run exactly (an
+  equality on a list, time, object or duration prop) runs in Go over the rows
+  that meet the rest (`Fallbacks`).
+- A field name outside letters, digits, `_` and `-` is a `FieldNameError`
+  before any statement runs.
