@@ -8,6 +8,35 @@
 # "unknown-noun" (subject: a noun name; detail "not registered"): a recorded place names a noun no runtime has (renamed or
 # not built here): rename it in the places file, or give a reason.
 # A row with a reason is a reviewed exception; a row without one is debt that only shrinks (RULECHECK_UPDATE=1).
+unknown-noun	__catalog-detail-fields	not registered	1	a modal's instance id recorded as the noun of its own place (ochazuke cli's catalog detail fields modal): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.collection and ochazuke.detail-field at the same modal
+unknown-noun	__record-writes	not registered	1	an internal instance id recorded as the noun of its own place: an instance kind with no noun, never focused
+unknown-noun	agent-chooser	not registered	1	a modal's instance id recorded as the noun of its own place (the agent picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	ai.agent	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.harness	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.inventory	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.mcp	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.mcp-tool	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.model	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.provider	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.setting	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.settings	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.skill	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	ai.thinking	not registered	1	the noun of o-ai's full catalog recorded in a running mtm; TestRules mounts only o-ai's quota catalog (ai.quota)
+unknown-noun	animation.slide	not registered	1	the noun of a tool (the animation tool) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	bindings-help-mode	not registered	1	a modal's instance id recorded as the noun of its own place (the bindings help's mode picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	bindings-help-noun	not registered	1	a modal's instance id recorded as the noun of its own place (the bindings help's noun picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	bindings-help-place	not registered	1	a modal's instance id recorded as the noun of its own place (the bindings help's place picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	cmd.cmd	not registered	1	the noun of a tool (o-cmds) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	csv.ochazuke.selection	not registered	1	the noun of a tool (o-csv) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	df.culprit	not registered	1	the noun of a tool (o-df) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	dotfiles.command	not registered	1	the noun of a tool (o-dotfiles) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	ext-pane	not registered	1	a modal's instance id recorded as the noun of its own place (an extension's pane picker): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	form-choose	not registered	1	a modal's instance id recorded as the noun of its own place (ochazuke's form choice list (record_editor.go formChooseID)): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.collection and ochazuke.form-option at the same modal
+unknown-noun	form-suggestions	not registered	1	a modal's instance id recorded as the noun of its own place (ochazuke's form suggestions picker (FormSuggestionsKind)): an instance kind with no noun, never focused alone; its rows are walked as ochazuke.picker at the same modal
+unknown-noun	gh.pr	not registered	1	the noun of a tool (o-gh) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	git.branch	not registered	1	the noun of a tool (o-git) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	git.repo	not registered	1	the noun of a tool (o-git) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
+unknown-noun	git.worktree	not registered	1	the noun of a tool (o-git) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
 unknown-noun	inventory.binding	not registered	1	the noun of a tool (o-inventory) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
 unknown-noun	inventory.change	not registered	1	the noun of a tool (o-inventory) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
 unknown-noun	inventory.daily	not registered	1	the noun of a tool (o-inventory) recorded in a running mtm that had it registered; TestRules mounts only o-ai's and o-lane's catalogs
