@@ -393,6 +393,18 @@ Panes, hooks and plugins carry only `MTM_*` variables (`MTM_ENV`, `MTM_SESSION`,
 
 The self runner waits for a compatible `hello`, not a bare connect, and two starters at once end with one daemon (the daemon's own start lock picks the winner). The `daemon` noun: `ensure`/`start`, `status` (pid, versions and commits, skew, runner, paths and state folder, binary; skew compares the builds' VCS revisions, not their version labels), `show-log`, `stop`, `restart` (both confirm; agents never), and `serve` (the daemon in the foreground, CLI). `status`, `show-log`, `stop`, `restart` and `serve` never start a daemon first. Only `cmd/mtm/daemon_shell.go` (and `daemon_off.go`) import the module (`TestDaemonImportBoundary`).
 
+## Restarting mtm in place
+
+An agent that installed a new mtm asks for a restart:
+
+```sh
+mtm restart-request post "installed v0.18.0" --version "$(mtm --version)"
+```
+
+ochazuke's restart-request verbs (`post`, `show`, `dismiss`) act on what the running TUI holds in memory, so from a command or the MCP gateway they run in every mtm TUI open on the same database (`relay.go`, `uiProcessVerbs`): the caller writes the request to `ui_calls`; each TUI, listed in `ui_hosts` while it runs, looks for requests once a second through the store's change token, runs them on its loop as the caller's actor and answers in `ui_answers`; the caller waits up to 3 s and prints the first answer, or exits 0 with "no mtm is running on DATA" when no TUI runs. They never start a daemon. The TUI shows **RESTART REQUESTED** at the left of the title row (`restart.badge`).
+
+`&` (`app.restart`) asks with the running build (the `--version` line) and the installed one (`os.Executable`'s path, asked `--version`), then closes mtm as a quit does (`App.Close`, idempotent: the editor's and quick note's last change, the attached terminal, schedules, extension processes and pools, the relay host row, the database, the daemon presence) and execs the installed binary with the same arguments and environment. The daemon and its panes keep running; mtm comes back on the Panes page with what the database holds. `quit.confirm` (`always`, `when-busy`, `never`) decides when a quit asks.
+
 ## Credits and licences
 
 The daemon in mtm (the `self` runner above) is [tuios](https://github.com/Gaurav-Gosain/tuios) by Gaurav Gosain, MIT, Copyright (c) 2025 Gaurav Gosain. mtm links a trimmed fork of it (`ofam.dev/mtmd`, kept by the mtm authors) and the `tuios.dev/*` modules it uses (`vt`, `sketch`, `loom`, ...), all under the same licence, and mtm itself is a separate project from tuios. Thank you, Gaurav, for tuios.
