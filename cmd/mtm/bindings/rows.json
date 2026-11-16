@@ -10,49 +10,25 @@
   ]},
   {"context": "action-item/normal", "bindings": [
     {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "parent"}, "hidden": true, "help": "a key an item row under a pane does not bind is the pane's"},
-    {"key": "A", "action": "action-item.annotate", "hidden": true},
-    {"key": "B", "action": "action-item.associate", "hidden": true},
-    {"key": "D", "action": "action-item.choose-move", "hidden": true},
-    {"key": "b", "action": "action-item.count", "hidden": true},
-    {"key": "F", "action": "action-item.create", "hidden": true},
-    {"key": "H", "action": "action-item.follow", "hidden": true},
-    {"key": "M", "action": "action-item.get", "hidden": true},
     {"key": "U", "action": "action-item.history", "hidden": true},
-    {"key": "ctrl+g", "action": "action-item.list", "hidden": true},
-    {"key": "C", "action": "action-item.token", "hidden": true},
     {"key": "alt+j", "action": "action-item.unrelate", "hidden": true},
     {"key": "alt+m", "action": "action-item.watch", "hidden": true}
   ]},
   {"context": "pane/normal", "bindings": [
     {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "child", "of": "action-item"}, "hidden": true, "help": "a key the pane row does not bind is its first item's (u read, x archive, s snooze)"},
-    {"key": "b", "action": "pane.activity", "hidden": true},
-    {"key": "A", "action": "pane.annotate", "hidden": true},
-    {"key": "B", "action": "pane.associate", "hidden": true},
-    {"key": "C", "action": "pane.capture", "hidden": true},
-    {"key": "D", "action": "pane.choose-move", "hidden": true},
-    {"key": "E", "action": "pane.close", "hidden": true},
-    {"key": "F", "action": "pane.create", "hidden": true},
-    {"key": "d D", "action": "pane.delete", "hidden": true},
-    {"key": "H", "action": "pane.follow", "hidden": true},
     {"key": "M", "action": "pane.get", "hidden": true},
     {"key": "U", "action": "pane.history", "hidden": true},
-    {"key": "ctrl+g", "action": "pane.list", "hidden": true},
-    {"key": "ctrl+h", "action": "pane.preview", "hidden": true},
     {"key": "ctrl+l", "action": "pane.progress", "hidden": true},
-    {"key": "ctrl+n", "action": "pane.read-settings", "hidden": true},
     {"key": "ctrl+o", "action": "pane.read-turns", "hidden": true},
-    {"key": "g r", "action": "pane.refresh", "hidden": true},
     {"key": "ctrl+s", "action": "pane.resize", "hidden": true},
     {"key": "ctrl+t", "action": "pane.send-keys", "hidden": true},
     {"key": "ctrl+v", "action": "pane.send-text", "hidden": true},
-    {"key": "ctrl+x", "action": "pane.set-effort", "hidden": true},
     {"key": "ctrl+z", "action": "pane.set-fast", "hidden": true},
     {"key": "alt+a", "action": "pane.set-model", "hidden": true},
     {"key": "alt+b", "action": "pane.set-permission-mode", "hidden": true},
     {"key": "alt+c", "action": "pane.settings", "hidden": true},
     {"key": "alt+d", "action": "pane.settings-line", "hidden": true},
     {"key": "alt+e", "action": "pane.side", "hidden": true},
-    {"key": "alt+f", "action": "pane.start", "hidden": true},
     {"key": "alt+g", "action": "pane.switch", "hidden": true},
     {"key": "alt+h", "action": "pane.toggle-fast", "hidden": true},
     {"key": "alt+i", "action": "pane.transcript", "hidden": true},
@@ -63,26 +39,18 @@
     {"key": "alt+n", "action": "pane.whoami", "hidden": true}
   ]},
   {"context": "app/normal", "bindings": [
-    {"key": "h", "action": "app.close", "hidden": true}
   ]},
   {"context": "app/visual", "bindings": [
-    {"key": "a", "action": "app.close", "hidden": true}
   ]},
   {"context": "context-item/normal", "bindings": [
-    {"key": "b", "action": "context-item.add", "hidden": true},
     {"key": "A", "action": "context-item.annotate", "hidden": true},
     {"key": "B", "action": "context-item.associate", "hidden": true},
     {"key": "D", "action": "context-item.choose-move", "hidden": true},
-    {"key": "p", "action": "context-item.copy-prompt", "hidden": true},
     {"key": "x", "action": "context-item.extract", "hidden": true},
-    {"key": "H", "action": "context-item.follow", "hidden": true},
     {"key": "M", "action": "context-item.get", "hidden": true},
     {"key": "U", "action": "context-item.history", "hidden": true},
-    {"key": "ctrl+g", "action": "context-item.list", "hidden": true},
-    {"key": "s", "action": "context-item.pick", "hidden": true},
     {"key": "t", "action": "context-item.report", "hidden": true},
     {"key": "C", "action": "context-item.token", "hidden": true},
-    {"key": "w", "action": "context-item.turns", "hidden": true},
     {"key": "alt+j", "action": "context-item.unrelate", "hidden": true},
     {"key": "alt+m", "action": "context-item.watch", "hidden": true}
   ]},
@@ -116,15 +84,8 @@
   ]},
   {"context": "directory/normal", "bindings": [
     {"key": "g n", "action": "directory.annotate", "hidden": true},
-    {"key": "o", "action": "directory.default", "hidden": true},
     {"key": "M", "action": "directory.get", "hidden": true},
-    {"key": "H", "action": "directory.history", "hidden": true},
-    {"key": "ctrl+g", "action": "directory.list", "hidden": true},
-    {"key": "b", "action": "directory.rescan", "hidden": true},
-    {"key": "c", "action": "directory.scan", "hidden": true},
-    {"key": "*", "action": "directory.set", "hidden": true},
-    {"key": "alt+j", "action": "directory.unrelate", "hidden": true},
-    {"key": "w", "action": "directory.watch", "hidden": true}
+    {"key": "alt+j", "action": "directory.unrelate", "hidden": true}
   ]},
   {"context": "extension/normal", "bindings": [
     {"key": "a", "action": "extension.all", "hidden": true},
@@ -156,13 +117,9 @@
   {"context": "note/normal", "bindings": [
     {"key": "A", "action": "note.annotate", "hidden": true},
     {"key": "D", "action": "note.choose-move", "hidden": true},
-    {"key": "H", "action": "note.follow", "hidden": true},
     {"key": "M", "action": "note.get", "hidden": true},
     {"key": "U", "action": "note.history", "hidden": true},
-    {"key": "ctrl+g", "action": "note.list", "hidden": true},
-    {"key": "*", "action": "note.set", "hidden": true},
-    {"key": "alt+j", "action": "note.unrelate", "hidden": true},
-    {"key": "w", "action": "note.watch", "hidden": true}
+    {"key": "alt+j", "action": "note.unrelate", "hidden": true}
   ]},
   {"context": "ochazuke.markdown/normal", "bindings": [
     {"key": "U", "action": "ochazuke.markdown.after-heading", "hidden": true},
@@ -228,58 +185,32 @@
     {"key": "m", "action": "ochazuke.timeline-body.copy-result", "hidden": true}
   ]},
   {"context": "outline-project/normal", "bindings": [
-    {"key": "d a", "action": "outline-project.confirm-delete", "hidden": true}
   ]},
   {"context": "outline-root/normal", "bindings": [
-    {"key": "d a", "action": "outline-root.confirm-delete", "hidden": true}
   ]},
   {"context": "outline-task/normal", "bindings": [
-    {"key": "f", "action": "outline-task.attach", "hidden": true},
-    {"key": "B", "action": "outline-task.promote", "hidden": true}
+    {"key": "f", "action": "outline-task.attach", "hidden": true}
   ]},
   {"context": "pane/visual-line", "bindings": [
-    {"key": "b", "action": "pane.activity", "hidden": true},
-    {"key": "f", "action": "pane.adopt-history", "hidden": true},
-    {"key": "o", "action": "pane.annotate", "hidden": true},
-    {"key": "p", "action": "pane.archive", "hidden": true},
-    {"key": "w", "action": "pane.attach", "hidden": true},
-    {"key": "A", "action": "pane.capture", "hidden": true},
-    {"key": "B", "action": "pane.choose-move", "hidden": true},
-    {"key": "C", "action": "pane.close", "hidden": true},
-    {"key": "D", "action": "pane.copy", "hidden": true},
-    {"key": "E", "action": "pane.create", "hidden": true},
-    {"key": "F", "action": "pane.duplicate", "hidden": true},
-    {"key": "H", "action": "pane.edit", "hidden": true},
-    {"key": "I", "action": "pane.follow", "hidden": true},
     {"key": "M", "action": "pane.get", "hidden": true},
     {"key": "N", "action": "pane.hints", "hidden": true},
-    {"key": "P", "action": "pane.history", "hidden": true},
-    {"key": "S", "action": "pane.list", "hidden": true},
     {"key": "T", "action": "pane.open", "hidden": true},
     {"key": "U", "action": "pane.open-with", "hidden": true},
     {"key": "Z", "action": "pane.pick-task", "hidden": true},
     {"key": "ctrl+e", "action": "pane.preview", "hidden": true},
-    {"key": "ctrl+g", "action": "pane.progress", "hidden": true},
-    {"key": "ctrl+h", "action": "pane.prompt", "hidden": true},
     {"key": "ctrl+i", "action": "pane.read-settings", "hidden": true},
     {"key": "ctrl+j", "action": "pane.read-turns", "hidden": true},
-    {"key": "ctrl+n", "action": "pane.refresh", "hidden": true},
     {"key": "ctrl+o", "action": "pane.refresh-turns", "hidden": true},
-    {"key": "ctrl+p", "action": "pane.relate", "hidden": true},
-    {"key": "ctrl+q", "action": "pane.resize", "hidden": true},
     {"key": "ctrl+r", "action": "pane.restore", "hidden": true},
     {"key": "ctrl+s", "action": "pane.reveal", "hidden": true},
     {"key": "ctrl+t", "action": "pane.scroll-turns", "hidden": true},
     {"key": "ctrl+v", "action": "pane.send-keys", "hidden": true},
-    {"key": "ctrl+x", "action": "pane.send-text", "hidden": true},
-    {"key": "ctrl+y", "action": "pane.set", "hidden": true},
     {"key": "ctrl+z", "action": "pane.set-effort", "hidden": true},
     {"key": "alt+a", "action": "pane.set-fast", "hidden": true},
     {"key": "alt+b", "action": "pane.set-model", "hidden": true},
     {"key": "alt+c", "action": "pane.set-permission-mode", "hidden": true},
     {"key": "alt+d", "action": "pane.settings", "hidden": true},
     {"key": "alt+e", "action": "pane.settings-line", "hidden": true},
-    {"key": "alt+f", "action": "pane.show", "hidden": true},
     {"key": "alt+g", "action": "pane.side", "hidden": true},
     {"key": "alt+h", "action": "pane.start", "hidden": true},
     {"key": "alt+i", "action": "pane.switch", "hidden": true},
@@ -289,9 +220,7 @@
     {"key": "alt+m", "action": "pane.unrelate", "hidden": true},
     {"key": "alt+n", "action": "pane.view", "hidden": true},
     {"key": "alt+o", "action": "pane.wait", "hidden": true},
-    {"key": "alt+p", "action": "pane.watch", "hidden": true},
     {"key": "alt+q", "action": "pane.whoami", "hidden": true},
-    {"key": "alt+r", "action": "pane.yank", "hidden": true},
     {"key": "alt+s", "action": "pane.yank-path", "hidden": true}
   ]},
   {"context": "project/normal", "bindings": [
@@ -301,7 +230,6 @@
     {"key": "p", "action": "project.edit-directory", "hidden": true},
     {"key": "M", "action": "project.get", "hidden": true},
     {"key": "H", "action": "project.history", "hidden": true},
-    {"key": "ctrl+g", "action": "project.list", "hidden": true},
     {"key": "s", "action": "project.pin", "hidden": true},
     {"key": "t", "action": "project.remove-directory", "hidden": true},
     {"key": "*", "action": "project.set", "hidden": true},
@@ -312,23 +240,16 @@
   ]},
   {"context": "relation/normal", "bindings": [
     {"key": "g n", "action": "relation.annotate", "hidden": true},
-    {"key": "r", "action": "relation.edit", "hidden": true},
-    {"key": "H", "action": "relation.follow", "hidden": true},
     {"key": "M", "action": "relation.get", "hidden": true},
     {"key": "U", "action": "relation.history", "hidden": true},
-    {"key": "ctrl+g", "action": "relation.list", "hidden": true},
     {"key": "g J", "action": "relation.move", "hidden": true},
-    {"key": "*", "action": "relation.set", "hidden": true},
-    {"key": "alt+j", "action": "relation.unrelate", "hidden": true},
-    {"key": "w", "action": "relation.watch", "hidden": true}
+    {"key": "alt+j", "action": "relation.unrelate", "hidden": true}
   ]},
   {"context": "reminder/normal", "bindings": [
     {"key": "g n", "action": "reminder.annotate", "hidden": true},
     {"key": "b", "action": "reminder.check", "hidden": true},
     {"key": "F", "action": "reminder.create", "hidden": true},
-    {"key": "d D", "action": "reminder.delete", "hidden": true},
     {"key": "M", "action": "reminder.get", "hidden": true},
-    {"key": "ctrl+g", "action": "reminder.list", "hidden": true},
     {"key": "f", "action": "reminder.notify-due", "hidden": true},
     {"key": "c", "action": "reminder.notify-status", "hidden": true},
     {"key": "*", "action": "reminder.set", "hidden": true},
@@ -338,14 +259,9 @@
   ]},
   {"context": "review/normal", "bindings": [
     {"key": "g n", "action": "review.annotate", "hidden": true},
-    {"key": "H", "action": "review.follow", "hidden": true},
     {"key": "M", "action": "review.get", "hidden": true},
     {"key": "U", "action": "review.history", "hidden": true},
-    {"key": "ctrl+g", "action": "review.list", "hidden": true},
-    {"key": "b", "action": "review.reject", "hidden": true},
-    {"key": "*", "action": "review.set", "hidden": true},
-    {"key": "alt+j", "action": "review.unrelate", "hidden": true},
-    {"key": "w", "action": "review.watch", "hidden": true}
+    {"key": "alt+j", "action": "review.unrelate", "hidden": true}
   ]},
   {"context": "run/normal", "bindings": [
     {"key": "a", "action": "run.all", "hidden": true},
@@ -355,11 +271,8 @@
     {"key": "g n", "action": "saved.annotate", "hidden": true},
     {"key": "B", "action": "saved.associate", "hidden": true},
     {"key": "D", "action": "saved.choose-move", "hidden": true},
-    {"key": "H", "action": "saved.follow", "hidden": true},
     {"key": "M", "action": "saved.get", "hidden": true},
     {"key": "U", "action": "saved.history", "hidden": true},
-    {"key": "ctrl+g", "action": "saved.list", "hidden": true},
-    {"key": "*", "action": "saved.set", "hidden": true},
     {"key": "alt+j", "action": "saved.unrelate", "hidden": true},
     {"key": "alt+m", "action": "saved.watch", "hidden": true}
   ]},
@@ -368,68 +281,36 @@
     {"key": "F", "action": "schedule.create", "hidden": true},
     {"key": "H", "action": "schedule.follow", "hidden": true},
     {"key": "U", "action": "schedule.history", "hidden": true},
-    {"key": "ctrl+g", "action": "schedule.list", "hidden": true},
     {"key": "backspace", "action": "schedule.reset", "hidden": true},
     {"key": "*", "action": "schedule.set", "hidden": true},
     {"key": "alt+j", "action": "schedule.unrelate", "hidden": true},
     {"key": "w", "action": "schedule.watch", "hidden": true}
   ]},
   {"context": "session/normal", "bindings": [
-    {"key": "A", "action": "session.annotate", "hidden": true},
-    {"key": "B", "action": "session.associate", "hidden": true},
-    {"key": "D", "action": "session.choose-move", "hidden": true},
-    {"key": "b", "action": "session.events", "hidden": true},
-    {"key": "H", "action": "session.follow", "hidden": true},
-    {"key": "M", "action": "session.get", "hidden": true},
     {"key": "U", "action": "session.history", "hidden": true},
-    {"key": "c", "action": "session.kill", "hidden": true},
-    {"key": "ctrl+g", "action": "session.list", "hidden": true},
     {"key": "f", "action": "session.list-panes", "hidden": true},
-    {"key": "F", "action": "session.refresh", "hidden": true},
-    {"key": "*", "action": "session.set", "hidden": true},
-    {"key": "alt+j", "action": "session.unrelate", "hidden": true},
-    {"key": "w", "action": "session.watch", "hidden": true}
+    {"key": "alt+j", "action": "session.unrelate", "hidden": true}
   ]},
   {"context": "task-outline/insert", "bindings": [
     {"key": "ctrl+a", "action": "task-outline.close", "hidden": true}
   ]},
   {"context": "task-outline/normal", "bindings": [
-    {"key": "a", "action": "task-outline.detach", "hidden": true},
-    {"key": "p", "action": "task-outline.paste", "hidden": true},
-    {"key": "b", "action": "task-outline.refuse", "hidden": true}
   ]},
   {"context": "task/normal", "bindings": [
     {"key": "g n", "action": "task.annotate", "hidden": true},
-    {"key": "B", "action": "task.associate", "hidden": true},
-    {"key": "D", "action": "task.choose-move", "hidden": true},
-    {"key": "H", "action": "task.follow", "hidden": true},
-    {"key": "M", "action": "task.get", "hidden": true},
     {"key": "U", "action": "task.history", "hidden": true},
-    {"key": "ctrl+g", "action": "task.list", "hidden": true},
-    {"key": "b", "action": "task.make-project", "hidden": true},
-    {"key": "*", "action": "task.set", "hidden": true},
-    {"key": "alt+j", "action": "task.unrelate", "hidden": true},
-    {"key": "w", "action": "task.watch", "hidden": true}
+    {"key": "alt+j", "action": "task.unrelate", "hidden": true}
   ]},
   {"context": "turn-prompt/normal", "bindings": [
-    {"key": "a", "action": "turn-prompt.detach", "hidden": true},
-    {"key": "c", "action": "turn-prompt.live", "hidden": true},
-    {"key": "p", "action": "turn-prompt.paste", "hidden": true}
   ]},
   {"context": "turn/normal", "bindings": [
-    {"key": "a", "action": "turn.copy-brief", "hidden": true},
-    {"key": "b", "action": "turn.copy-result", "hidden": true},
-    {"key": "c", "action": "turn.live", "hidden": true},
     {"key": "f", "action": "turn.review", "hidden": true}
   ]},
   {"context": "vim/normal", "bindings": [
     {"key": "g n", "action": "vim.annotate", "hidden": true},
     {"key": "D", "action": "vim.choose-move", "hidden": true},
-    {"key": "H", "action": "vim.follow", "hidden": true},
     {"key": "M", "action": "vim.get", "hidden": true},
     {"key": "U", "action": "vim.history", "hidden": true},
-    {"key": "ctrl+g", "action": "vim.list", "hidden": true},
-    {"key": "*", "action": "vim.set", "hidden": true},
     {"key": "alt+j", "action": "vim.unrelate", "hidden": true},
     {"key": "alt+m", "action": "vim.watch", "hidden": true}
   ]}

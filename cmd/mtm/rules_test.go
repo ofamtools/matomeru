@@ -15,7 +15,12 @@ import (
 )
 
 // mtm holds itself to the family's rule checks (ochazuke's rulecheck), as
-// subtests: deadkeys (testdata/rules/deadkeys.txt), names
+// subtests: deadkeys (testdata/rules/deadkeys.txt), hiddenkeys
+// (testdata/rules/hiddenkeys.txt; it also walks testdata/rules/places.json,
+// the places of matomeru's, the mounted tools' and the framework's nouns as
+// a running mtm recorded them, reduced to noun, ancestors and modal, so the
+// pages, rails, trees, forms and pickers the fixture does not build are
+// walked too), names
 // (testdata/namecheck.txt), refusals (testdata/refusecheck.txt), lexicon
 // (testdata/lexicon-baseline.txt, words lexicon-words.tsv) and nouns (no
 // baseline). Every baseline only shrinks (RULECHECK_UPDATE=1). This test
@@ -61,8 +66,13 @@ func TestRules(t *testing.T) {
 	for _, it := range sectionItems(a) {
 		t.Logf("fixture row %s %s", it.Noun, it.ID)
 	}
+	places, err := rulecheck.LoadPlaces("testdata/rules/places.json")
+	if err != nil {
+		t.Fatal(err)
+	}
 	rulecheck.Check(t, rulecheck.Config{
 		Runtime: a.r,
+		Places:  places,
 		Root:    "../..",
 		Names: namecheck.Config{
 			Dirs: []string{".", "../../internal/...", "../../store/..."},
