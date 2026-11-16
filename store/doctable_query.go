@@ -121,6 +121,14 @@ func propOf(n *ochazuke.Noun, name string) *ochazuke.PropSpec {
 		return nil
 	}
 	role, isRole := strings.CutPrefix(name, "@")
+	if !isRole {
+		// DocStore names a renamed prop by its stored field.
+		for i := range n.Props {
+			if p := &n.Props[i]; p.Field != "" && p.Field == name && p.Derivation == nil {
+				return p
+			}
+		}
+	}
 	for i := range n.Props {
 		p := &n.Props[i]
 		if isRole && p.Role == role || !isRole && (p.Name == name || slices.Contains(p.Aliases, name)) {
@@ -130,12 +138,22 @@ func propOf(n *ochazuke.Noun, name string) *ochazuke.PropSpec {
 	return nil
 }
 
-// fieldOf is the stored field a name reads: its prop's name, else the name.
+// fieldOf is the stored field a name reads: its prop's stored field
+// (storedField), else the name.
 func fieldOf(n *ochazuke.Noun, name string) (string, *ochazuke.PropSpec) {
 	if p := propOf(n, name); p != nil {
-		return p.Name, p
+		return storedField(p), p
 	}
 	return name, nil
+}
+
+// storedField is the document field that holds p: PropSpec.Field, else
+// the prop's name.
+func storedField(p *ochazuke.PropSpec) string {
+	if p.Field != "" {
+		return p.Field
+	}
+	return p.Name
 }
 
 func (d *DocTable) keysOf(n *ochazuke.Noun, keys []ochazuke.SortKey) ([]docKey, error) {

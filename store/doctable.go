@@ -136,9 +136,11 @@ func (d *DocTable) Get(key string) (ochazuke.Thing, bool, error) {
 //
 //   - a field t gives with a value is set to it;
 //   - a field t gives as nil is removed;
-//   - a field that is a declared prop of the noun (its name) and that t
-//     does not give is removed: DocStore hands Put the whole thing, so a
-//     prop it left out is one it cleared (a set to nothing, an undo);
+//   - a field that holds a declared prop of the noun (the prop's stored
+//     field, PropSpec.Field, else its name; a derived prop is never
+//     stored) and that t does not give is removed: DocStore hands Put the
+//     whole thing as its stored document, so a prop it left out is one it
+//     cleared (a set to nothing, an undo);
 //   - every other field of the row (one no prop declares, written by other
 //     code) is kept: the same JSON value it was stored as.
 //
@@ -169,9 +171,14 @@ func (d *DocTable) write(key string, t ochazuke.Thing, clearProps bool) error {
 		}
 		if clearProps {
 			if n := d.nounOf(); n != nil {
-				for _, p := range n.Props {
-					if _, given := t[p.Name]; !given {
-						delete(doc, p.Name)
+				for i := range n.Props {
+					p := &n.Props[i]
+					if p.Derivation != nil {
+						continue // computed on every read, never stored
+					}
+					f := storedField(p)
+					if _, given := t[f]; !given {
+						delete(doc, f)
 					}
 				}
 			}
@@ -210,7 +217,7 @@ func (d *DocTable) Delete(key string) error {
 func (d *DocTable) Version() (string, error) { return d.s.Version(d.table) }
 
 // decodeDoc reads a stored row as a Thing, typing each declared prop's
-// value as the prop reads it (docValue).
+// value (under its stored field) as the prop reads it (docValue).
 func decodeDoc(raw []byte, n *ochazuke.Noun) (ochazuke.Thing, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
@@ -220,8 +227,8 @@ func decodeDoc(raw []byte, n *ochazuke.Noun) (ochazuke.Thing, error) {
 	}
 	types := map[string]string{}
 	if n != nil {
-		for _, p := range n.Props {
-			types[p.Name] = p.Type
+		for i := range n.Props {
+			types[storedField(&n.Props[i])] = n.Props[i].Type
 		}
 	}
 	t := make(ochazuke.Thing, len(m))

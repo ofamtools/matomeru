@@ -197,9 +197,12 @@ func TestDocTablePutKeepsUndeclaredFields(t *testing.T) {
 	r := ochazuke.NewRuntime()
 	r.Config().Disable()
 	db, d := docFixture(t, r, doctest.Noun)
-	r.Define(doctest.Noun).Props(doctest.Props...).Store(ochazuke.DocStore(d, doctest.Noun))
+	// owner is a renamed prop (PropSpec.Field): stored as owner_id, which
+	// Put clears by its field; a stored field named owner is no prop's.
+	props := append(slices.Clone(doctest.Props), ochazuke.PropSpec{Name: "owner", Field: "owner_id"})
+	r.Define(doctest.Noun).Props(props...).Store(ochazuke.DocStore(d, doctest.Noun))
 	if err := db.Tx([]string{"docs"}, func(tx *Tx) error {
-		return tx.Put("docs", "a", map[string]any{"id": "a", "title": "first", "status": "todo", "position": 4, "created_by": "me"})
+		return tx.Put("docs", "a", map[string]any{"id": "a", "title": "first", "status": "todo", "position": 4, "created_by": "me", "owner_id": "ann", "owner": "kept"})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -214,14 +217,14 @@ func TestDocTablePutKeepsUndeclaredFields(t *testing.T) {
 	if _, err := r.Execute(ochazuke.Request{Noun: doctest.Noun, Verb: "set", Args: ochazuke.Arguments{"id": "a", "props": map[string]any{"title": "renamed"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if m := stored(); m["title"] != "renamed" || m["status"] != "todo" || m["position"] != 4.0 || m["created_by"] != "me" {
+	if m := stored(); m["title"] != "renamed" || m["status"] != "todo" || m["position"] != 4.0 || m["created_by"] != "me" || m["owner_id"] != "ann" {
 		t.Fatalf("after set: %v", m)
 	}
 	if err := d.Put("a", ochazuke.Thing{"id": "a", "title": "again"}); err != nil {
 		t.Fatal(err)
 	}
-	if m := stored(); m["title"] != "again" || m["status"] != nil || m["position"] != 4.0 || m["created_by"] != "me" {
-		t.Fatalf("a put clears the props it leaves out and keeps the rest: %v", m)
+	if m := stored(); m["title"] != "again" || m["status"] != nil || m["owner_id"] != nil || m["owner"] != "kept" || m["position"] != 4.0 || m["created_by"] != "me" {
+		t.Fatalf("a put clears the props it leaves out (by stored field) and keeps the rest: %v", m)
 	}
 	if err := d.Merge("a", ochazuke.Thing{"created_by": nil, "size": 2}); err != nil {
 		t.Fatal(err)
