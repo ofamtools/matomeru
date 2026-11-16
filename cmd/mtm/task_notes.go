@@ -51,7 +51,11 @@ func (a *App) syncOutlineNotes(force bool) error {
 		if task == "" || n.TaskID != task || n.Archived && !showArchived {
 			continue
 		}
-		rows = append(rows, a.modalNoteRow(n))
+		row, err := a.modalNoteRow(n)
+		if err != nil {
+			return err
+		}
+		rows = append(rows, row)
 	}
 	if err := o.notes.SetItems(rows); err != nil {
 		return err
@@ -60,7 +64,10 @@ func (a *App) syncOutlineNotes(force bool) error {
 	return nil
 }
 
-func (a *App) modalNoteRow(n work.Note) ochazuke.ListItem {
-	thing := a.noteThing(n)
-	return ochazuke.ListItem{ID: outlineNotesList + ":" + n.ID, Noun: "note", Label: noteTitle(n), Data: thing, Props: thing}
+func (a *App) modalNoteRow(n work.Note) (ochazuke.ListItem, error) {
+	thing, err := a.noteThingOf(n.ID)
+	if err != nil {
+		return ochazuke.ListItem{}, err
+	}
+	return ochazuke.ListItem{ID: outlineNotesList + ":" + n.ID, Noun: "note", Label: noteTitle(n), Data: thing, Props: thing}, nil
 }

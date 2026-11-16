@@ -18,7 +18,7 @@ func (a *App) defineNotes() {
 	// set, delete, watch, rename, move, duplicate) come from them
 	// (note_store.go); new and edit wrap create and set, show and
 	// choose-move are mtm's own.
-	a.r.Define("note").Filters(taskFilters()...).Props(a.noteProps()...).Store(a.docStore("note", a.noteStore())).Columns(noteColumns...).
+	a.r.Define("note").Filters(taskFilters()...).Props(a.noteProps()...).Store(a.noteStore()).Columns(noteColumns...).
 		Verb("new", a.newNote, "Create a note (standard create, its owner inferred as before: the selected task or project, or --task/--project; scratch for none); omit text to open the editor, which writes as you type").Positional("text").
 		Verb("show", a.viewNote, "View the saved note without editing").Renamed("view", "the next mtm release (ochazuke v0.120.0)", "the following mtm release").
 		Verb("edit", a.editNote, "Edit a note in the right panel; with text, write it (standard set of text)").Positional("text").Many().ShadowsStandard().
@@ -109,24 +109,6 @@ func (a *App) addNotesPage() error {
 		return err
 	}
 	return nil
-}
-
-func (a *App) scopedNotes() ([]work.Note, error) {
-	notes, err := a.work.Notes()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]work.Note, 0, len(notes))
-	for _, note := range notes {
-		project, err := a.work.NoteProject(note)
-		if err != nil {
-			return nil, err
-		}
-		if a.inScope(project) {
-			out = append(out, note)
-		}
-	}
-	return out, nil
 }
 
 func (a *App) noteOwnerLabel(note work.Note) string {

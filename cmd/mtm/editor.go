@@ -462,6 +462,15 @@ func (a *App) leaveEditor() error {
 	return err
 }
 
+// leaveEditorOn is leaveEditor when the editor is open on that thing (a
+// write to it is taking over), else nothing.
+func (a *App) leaveEditorOn(noun, key string) error {
+	if a.editor == nil || a.editor.Record.Noun != noun || a.editor.Record.ID != key {
+		return nil
+	}
+	return a.leaveEditor()
+}
+
 // flushEditor writes the open record's pending change (on quit).
 func (a *App) flushEditor() error {
 	if a.editor == nil {

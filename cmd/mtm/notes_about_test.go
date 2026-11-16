@@ -51,11 +51,14 @@ func TestNoteLegacyRowsReadTaskAsAbout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := a.noteThing(legacy)["about"]; got != "task:t1" {
-		t.Fatalf("legacy about = %v", got)
-	}
-	if got := a.noteThing(loose)["about"]; got != "" {
-		t.Fatalf("project-only about = %v", got)
+	for id, want := range map[string]string{legacy.ID: "task:t1", loose.ID: ""} {
+		thing, err := a.noteThingOf(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := thing["about"]; got != want {
+			t.Fatalf("about of %s = %v, want %q", id, got, want)
+		}
 	}
 	stored, err := a.work.Note(legacy.ID)
 	if err != nil {

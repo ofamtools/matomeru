@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"reflect"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 	"strings"
 	"testing"
 
+	"ofam.dev/matomeru/store"
 	"ofam.dev/ochazuke"
 )
 
@@ -175,6 +180,104 @@ func TestNoteUndo(t *testing.T) {
 	executeA(t, a, "history-entry", "undo", "", nil)
 	if got, err := a.work.Note(n.ID); err != nil || got.Text != "undo me" || got.ProjectID != "matomeru" {
 		t.Fatalf("delete undone: %+v %v", got, err)
+	}
+	// An undone delete puts the stored note back whole: a field no prop
+	// declares, the stamps and an unknown maker as they were.
+	legacy := map[string]any{"id": "legacy", "text": "kept", "project_id": "matomeru", "task_id": "", "created": 5, "updated": 6, "former_task_id": "gone"}
+	putNoteDoc(t, a, legacy)
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "note", Verb: "delete", Target: "legacy", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	executeA(t, a, "history-entry", "undo", "", nil)
+	if got := noteDoc(t, a, "legacy"); !reflect.DeepEqual(got, legacy) {
+		t.Fatalf("delete undone: stored %v, want %v", got, legacy)
+	}
+}
+
+// putNoteDoc stores a note's document as it is (a row an older mtm wrote).
+func putNoteDoc(t *testing.T, a *App, doc map[string]any) {
+	t.Helper()
+	if err := a.db.Tx([]string{"notes"}, func(tx *store.Tx) error { return tx.Put("notes", doc["id"].(string), doc) }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// noteDoc is a note's stored document, numbers as int.
+func noteDoc(t *testing.T, a *App, id string) map[string]any {
+	t.Helper()
+	var raw json.RawMessage
+	if err := a.db.Get("notes", id, &raw); err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var doc map[string]any
+	if err := dec.Decode(&doc); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range doc {
+		if n, ok := v.(json.Number); ok {
+			i, _ := n.Int64()
+			doc[k] = int(i)
+		}
+	}
+	return doc
+}
+
+// The note is a declaration over the notes table: rows an older mtm wrote
+// (no title, no archived, no maker, a task and no about) read as the hand-
+// written store read them; the list keeps created-then-id order and the
+// pinned scope (a task's project wins); a set rewrites the document in the
+// shape note writes always had (its own project_id kept, a field no prop
+// declares too).
+func TestNoteDeclarationReadsTheStoredRows(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	long := strings.Repeat("x", 80)
+	putNoteDoc(t, a, map[string]any{"id": "n-b", "text": "\nsecond", "project_id": "matomeru", "task_id": "", "created": 2, "updated": 2})
+	putNoteDoc(t, a, map[string]any{"id": "n-a", "text": long, "project_id": "ochazuke", "task_id": "t1", "created": 2, "updated": 3, "former_task_id": "gone"})
+	putNoteDoc(t, a, map[string]any{"id": "n-c", "text": "first", "project_id": "ochazuke", "task_id": "", "created": 1, "updated": 1})
+	ids := func(args ochazuke.Arguments) []string {
+		raw, err := json.Marshal(executeA(t, a, "note", "list", "", args))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page struct {
+			Items []struct{ ID string } `json:"items"`
+		}
+		if err := json.Unmarshal(raw, &page); err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, row := range page.Items {
+			out = append(out, row.ID)
+		}
+		return out
+	}
+	a.pin = "matomeru"
+	if got := ids(ochazuke.Arguments{"all": true}); !slices.Equal(got, []string{"n-c", "n-a", "n-b"}) {
+		t.Fatalf("all: %v", got)
+	}
+	if got := ids(nil); !slices.Equal(got, []string{"n-a", "n-b"}) {
+		t.Fatalf("pinned: %v", got)
+	}
+	got := executeA(t, a, "note", "get", "n-a", nil).(map[string]any)
+	want := map[string]any{"id": "n-a", "title": "", "summary": strings.Repeat("x", 69) + "…", "note": strings.Repeat("x", 69) + "…", "text": long,
+		"project": "matomeru", "task": "t1", "about": "task:t1", "archived": false, "made-by": "unknown", "created": 2, "updated": 3}
+	if by := got["created-by"]; fmt.Sprint(by) != "unknown" {
+		t.Fatalf("created-by: %v", by)
+	}
+	delete(got, "created-by")
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("get:\n got %v\nwant %v", got, want)
+	}
+	if got := executeA(t, a, "note", "get", "n-b", ochazuke.Arguments{"prop": "summary"}); got != "untitled" {
+		t.Fatalf("blank first line: %v", got)
+	}
+	executeA(t, a, "note", "set", "n-a", ochazuke.Arguments{"props": map[string]any{"title": "Titled"}})
+	doc := noteDoc(t, a, "n-a")
+	if doc["title"] != "Titled" || doc["former_task_id"] != "gone" || doc["about"] != nil || doc["archived"] != nil || doc["project_id"] != "ochazuke" || !reflect.DeepEqual(doc["created_by"], map[string]any{"kind": ""}) {
+		t.Fatalf("stored after set: %v", doc)
 	}
 }
 

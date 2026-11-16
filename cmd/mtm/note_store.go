@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -11,12 +12,17 @@ import (
 	"ofam.dev/ochazuke"
 )
 
-// The note noun's record side (standard verbs phase 1, lane M1): its props
-// and its store, so note get, list, create, set, delete, archive, edit
-// and watch are ochazuke's standard verbs over the work store, with no
-// verb handler of mtm's own. note new and note edit wrap create and set
-// (notes.go); show and choose-move stay named; the old associate alias is
-// purged (removed_verbs.go).
+// The note noun is a declaration over the generic store: its props over
+// the notes table (ochazuke.DocStore over store.DocTable), so note get,
+// list, create, set, delete, archive, edit and watch are ochazuke's
+// standard verbs with no store code of mtm's own. What stays here is the
+// note's own rules, as DocStore hooks: the owner a write resolves
+// (noteLinks: a task wins, an owner not found is saved unassociated), the
+// stamps and maker a write records, the editor and drafts a write touches,
+// and the props no ochazuke derivation computes as the note showed them
+// (noteReads). note new and note edit wrap create and set (notes.go); show
+// and choose-move stay named; the old associate alias is purged
+// (removed_verbs.go).
 
 // settingNotesTitleField says whether the note editor shows the title
 // field above the body (the UI opt-out for the stored title).
@@ -38,11 +44,15 @@ func (a *App) noteProps() []ochazuke.PropSpec {
 		{Name: "note", ReadOnly: true, Parameter: text("The note as a table shows it: its title, else its first line"),
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { s, _ := t["note"].(string); return s }},
 		{Name: "text", Multiline: true, Parameter: text("The note's body")},
-		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true,
-			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { id, _ := t["project"].(string); return a.ownerLabel(id) },
+		// The task's project wins over the note's own (a note filed under a
+		// task moves with it); a note with no task, or a task not found,
+		// shows its own.
+		{Name: "project", Field: "project_id", Role: ochazuke.RoleOwner, FromFocus: true,
+			Derivation: &ochazuke.Derivation{Of: "first", Reads: []string{"task.project", "project"}},
+			Cell:       func(_ ochazuke.Ctx, t ochazuke.Thing) string { id, _ := t["project"].(string); return a.ownerLabel(id) },
 			Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 				Description: "The project the note belongs to (empty: unassociated); one not found is saved unassociated with a notice"}},
-		{Name: "task", FromFocus: true,
+		{Name: "task", Field: "task_id", FromFocus: true,
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string {
 				id, _ := t["task"].(string)
 				if task, err := a.work.Task(id); err == nil && id != "" {
@@ -61,65 +71,286 @@ func (a *App) noteProps() []ochazuke.PropSpec {
 				Description: "The thing the note is about, noun:key (pane:W12, lane.lane:X, task:ID); a task's or project's note keeps its task and project in step. One not found is saved as written"}},
 		{Name: "archived", Role: ochazuke.RoleArchive, Parameter: ochazuke.Parameter{Type: "boolean", Description: "Keep the note and hide it from default views"}},
 		taskMakerProp(),
-		{Name: "created-by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "object", Description: "The note's recorded maker and agent identity"}},
+		{Name: "created-by", Field: "created_by", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "object", Description: "The note's recorded maker and agent identity"}},
 		{Name: "created", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note was created (Unix ms)"}},
 		{Name: "updated", ReadOnly: true, Parameter: ochazuke.Parameter{Type: "integer", Description: "When the note last changed (Unix ms)"},
 			Cell: func(_ ochazuke.Ctx, t ochazuke.Thing) string { return sinceUse(thingInt(t["updated"]), a.now()) }},
 	}
 }
 
-// noteStore is the note noun's store over the work store. history.undo
-// may revert its writes (Undo), and a deleted note is restored under its
-// old key (AcceptsKey).
+// noteDocs is the note noun's table and, by key, the stored documents of
+// the notes this runtime deleted (an undo of the delete puts one back
+// whole, fields no prop declares included).
+type noteDocs struct {
+	table *store.DocTable
+	gone  map[string]ochazuke.Thing
+}
+
+// noteStore is the note noun's store: DocStore over the notes table,
+// ordered as the notes always listed (created, then id) where a request's
+// sort leaves them tied, scoped to the pinned project unless all (or the
+// current scope is every project), with the note's hooks and reads.
 func (a *App) noteStore() ochazuke.Store {
-	return ochazuke.Store{
-		Kind: ochazuke.KindCollection,
-		Undo: true, AcceptsKey: true,
-		ListParams: map[string]ochazuke.Parameter{"all": {Type: "boolean", Description: "Every note, not only those in the current scope"}},
-		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
-			note, err := a.work.Note(id)
-			if errors.Is(err, store.ErrNotFound) {
-				return nil, fmt.Errorf("no note %q", id)
+	a.notes = noteDocs{table: a.db.DocTable("notes", a.r, "note").OrderedBy("created", "id"), gone: map[string]ochazuke.Thing{}}
+	s := ochazuke.DocStore(a.notes.table, "note", ochazuke.DocHooks{
+		BeforeWrite:  a.noteBeforeWrite,
+		AfterWrite:   a.noteAfterWrite,
+		BeforeDelete: a.noteBeforeDelete,
+	})
+	s.ListParams = map[string]ochazuke.Parameter{"all": {Type: "boolean", Description: "Every note, not only those in the current scope"}}
+	s.ListScope = []ochazuke.ListScope{{Prop: "project", Value: "pinned", Unless: "all"}}
+	s.ScopeValue = a.scopeValue
+	return withDocReads(a.r, "note", s, noteReads, a.scopeToken)
+}
+
+// scopeValue is a ListScope value mtm holds: pinned is the pinned project
+// while the scope is the pin (none while it is every project).
+func (a *App) scopeValue(_ ochazuke.Ctx, name string) any {
+	if name != "pinned" || a.all {
+		return nil
+	}
+	return a.pin
+}
+
+// scopeToken is a store's change token keyed by the scope its lists read
+// (the pin, all, archive hiding), so a scope change moves it.
+func (a *App) scopeToken(token string) string {
+	return fmt.Sprintf("%s/%s/%t/%t", token, a.pin, a.all, a.r.Settings().Bool(settingHideArchived))
+}
+
+// noteReads are the note's props computed on read (docRead), each as the
+// note showed it: no ochazuke derivation computes them exactly.
+var noteReads = []docRead{
+	// work.Note leaves an empty title and a false archived out of the
+	// document (omitempty); the note reads them as empty, as it always did.
+	zeroRead("title", ""),
+	zeroRead("archived", false),
+	{prop: "summary", read: noteSummaryRead},
+	{prop: "note", read: noteShownRead},
+	{prop: "about", read: noteAboutRead},
+	{prop: "created-by", read: noteMakerRead},
+	{prop: "made-by", read: noteMadeByRead},
+}
+
+// noteSummaryRead is the summary: the text's first line cut to 70
+// characters, "untitled" when it is blank (first-line would take the first
+// line that is not blank, whole).
+func noteSummaryRead(t ochazuke.Thing) any {
+	text, _ := t["text"].(string)
+	return noteLabel(text)
+}
+
+// noteShownRead is the note as a table shows it (noteTitle): the title
+// trimmed, else the summary (first of title and summary would keep a
+// title of spaces).
+func noteShownRead(t ochazuke.Thing) any {
+	title, _ := t["title"].(string)
+	text, _ := t["text"].(string)
+	return noteTitle(work.Note{Title: title, Text: text})
+}
+
+// noteAboutRead is what the note is about: its about, else (a row written
+// before about existed) its task as task:ID (work.Note.AboutRef); reading
+// never rewrites the row.
+func noteAboutRead(t ochazuke.Thing) any {
+	about, _ := t["about"].(string)
+	task, _ := t["task"].(string)
+	return work.Note{About: about, TaskID: task}.AboutRef()
+}
+
+// noteMakerRead is the recorded maker, unknown for a note that records
+// none (work.Note.Maker).
+func noteMakerRead(t ochazuke.Thing) any { return noteMade(t).Maker() }
+
+// noteMadeByRead is the maker's kind, flat (work.Note.MadeBy).
+func noteMadeByRead(t ochazuke.Thing) any { return noteMade(t).MadeBy() }
+
+// noteMade is a note holding only the maker a thing holds (created-by as
+// stored, or as a read already made it).
+func noteMade(t ochazuke.Thing) work.Note {
+	var n work.Note
+	if v := t["created-by"]; v != nil {
+		n.CreatedBy, _ = thingActor(v)
+	}
+	return n
+}
+
+// noteBeforeWrite is the note's write rule (DocHooks.BeforeWrite): the
+// write becomes the whole stored note as note writes always stored it
+// (work.Note's fields, a field it no longer holds removed), so the
+// document's shape never changes.
+func (a *App) noteBeforeWrite(c ochazuke.Ctx, w *ochazuke.DocWrite) error {
+	if w.Old == nil {
+		return a.noteCreate(c, w)
+	}
+	return a.notePatch(c, w)
+}
+
+// noteCreate makes a new note from the props given: under a new random id
+// (work.NewID) unless the key given is free, its owner resolved
+// (noteLinks), stamped now and made by the actor. A create under the key
+// of a note this runtime deleted (an undo of the delete: only an undo
+// gives a key) puts that note's stored document back whole.
+func (a *App) noteCreate(c ochazuke.Ctx, w *ochazuke.DocWrite) error {
+	if doc, ok := a.notes.gone[w.Key]; ok && w.Key != "" {
+		delete(a.notes.gone, w.Key)
+		w.Changes = maps.Clone(doc)
+		return nil
+	}
+	values := w.Changes
+	id, _ := thingString(values, "id")
+	if id != "" {
+		if _, err := a.work.Note(id); err == nil {
+			id = ""
+		}
+	}
+	if id == "" {
+		id = work.NewID()
+	}
+	project, hasProject := thingString(values, "project")
+	task, hasTask := thingString(values, "task")
+	about, hasAbout := thingString(values, "about")
+	now := work.Now()
+	note := work.Note{ID: id, Created: now, Updated: now}
+	// Undo restores the recorded maker; a normal create omits the
+	// read-only prop and is stamped with the caller (NoteMaker).
+	if v, ok := values["created-by"]; ok && v != nil {
+		by, err := thingActor(v)
+		if err != nil {
+			return err
+		}
+		note.CreatedBy = by
+	}
+	note.ProjectID, note.TaskID, note.About = a.noteLinks(c, work.Note{}, aboutWrite{about, hasAbout, project, hasProject, task, hasTask})
+	props, err := thingOver(notePatch{}, values)
+	if err != nil {
+		return err
+	}
+	note.Title, note.Text = props.Title, props.Text
+	note.Archived, _ = values["archived"].(bool)
+	note.CreatedBy = a.work.NoteMaker(nil, note)
+	return a.noteWrite(w, note)
+}
+
+// notePatch writes the changed props onto the note as stored. A task
+// brings its project; a new project drops a task of another project (the
+// task's project would win on read). An editor open on the note writes
+// its last change and closes first, so it never writes its old values
+// over the set.
+func (a *App) notePatch(c ochazuke.Ctx, w *ochazuke.DocWrite) error {
+	if err := a.leaveEditorOn("note", w.Key); err != nil {
+		return err
+	}
+	old, err := a.work.Note(w.Key)
+	if err != nil {
+		return err
+	}
+	note := old
+	changes := w.Changes
+	props, err := thingOver(notePatch{Title: note.Title, Text: note.Text, Archived: note.Archived}, changes)
+	if err != nil {
+		return err
+	}
+	note.Title, note.Text, note.Archived = props.Title, props.Text, props.Archived
+	project, hasProject := thingString(changes, "project")
+	task, hasTask := thingString(changes, "task")
+	about, hasAbout := thingString(changes, "about")
+	if hasProject || hasTask || hasAbout {
+		note.ProjectID, note.TaskID, note.About = a.noteLinks(c, note, aboutWrite{about, hasAbout, project, hasProject, task, hasTask})
+		note.FormerAbout = ""
+	}
+	note.Updated = work.Now()
+	note.CreatedBy = a.work.NoteMaker(&old, note)
+	return a.noteWrite(w, note)
+}
+
+// noteWrite makes w write the note's whole stored document: every field
+// work.Note stores for it, and nil for a field the stored document holds
+// that the note no longer does (an empty title, a cleared about).
+func (a *App) noteWrite(w *ochazuke.DocWrite, note work.Note) error {
+	doc, err := work.NoteDoc(note)
+	if err != nil {
+		return err
+	}
+	changes := ochazuke.Thing{}
+	if w.Key != "" {
+		stored, ok, err := a.notes.table.Get(w.Key)
+		if err != nil {
+			return err
+		}
+		if ok {
+			for field := range stored {
+				changes[field] = nil
 			}
-			if err != nil {
-				return nil, err
-			}
-			return a.noteThing(note), nil
-		},
-		List: func(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
-			previous := a.all
-			if all, _ := q.Args["all"].(bool); all {
-				a.all = true
-			}
-			defer func() { a.all = previous }()
-			notes, err := a.scopedNotes()
-			if err != nil {
-				return nil, err
-			}
-			out := make([]ochazuke.Thing, len(notes))
-			for i, n := range notes {
-				out[i] = a.noteThing(n)
-			}
-			return out, nil
-		},
-		Create: a.createNote,
-		Patch:  a.patchNote,
-		Delete: a.removeNote,
+		}
+	}
+	maps.Copy(changes, doc)
+	w.Changes = changes
+	return nil
+}
+
+// noteAfterWrite follows a stored write (DocHooks.AfterWrite): the Notes
+// page reloads; a set moves the owner of an unfinished draft with the note
+// (never its text); a delete clears the draft and says which note went.
+func (a *App) noteAfterWrite(c ochazuke.Ctx, key string, t ochazuke.Thing) {
+	if err := a.noteFollow(c, key, t); err != nil {
+		c.Notify(err.Error())
 	}
 }
 
-// noteThing is a note as its props.
-func (a *App) noteThing(n work.Note) ochazuke.Thing {
-	project, err := a.work.NoteProject(n)
+func (a *App) noteFollow(c ochazuke.Ctx, key string, t ochazuke.Thing) error {
+	if t == nil {
+		if err := a.drafts.Clear("note", key); err != nil {
+			return err
+		}
+		if err := a.notesLoad.refresh(); err != nil {
+			return err
+		}
+		var gone work.Note
+		if doc := a.notes.gone[key]; doc != nil {
+			gone.Title, _ = doc["title"].(string)
+			gone.Text, _ = doc["text"].(string)
+		}
+		c.Notify("Deleted note " + noteTitle(gone))
+		return nil
+	}
+	var d editRecord
+	switch err := a.drafts.Load("note", key, &d); {
+	case err == nil:
+		project, _ := t["project"].(string)
+		task, _ := t["task"].(string)
+		if d.ProjectID != project || d.TaskID != task {
+			d.ProjectID, d.TaskID = project, task
+			if err := a.drafts.Save("note", key, d); err != nil {
+				return err
+			}
+		}
+	case !errors.Is(err, os.ErrNotExist):
+		return err
+	}
+	return a.notesLoad.refresh()
+}
+
+// noteBeforeDelete readies a delete (DocHooks.BeforeDelete): an editor
+// open on the note closes, and the stored document is kept for an undo.
+// Nothing references a note, so nothing is orphaned.
+func (a *App) noteBeforeDelete(_ ochazuke.Ctx, key string) error {
+	if err := a.leaveEditorOn("note", key); err != nil {
+		return err
+	}
+	doc, ok, err := a.notes.table.Get(key)
 	if err != nil {
-		project = n.ProjectID
+		return err
 	}
-	return ochazuke.Thing{
-		"id": n.ID, "title": n.Title, "note": noteTitle(n), "summary": noteLabel(n.Text), "text": n.Text,
-		"project": project, "task": n.TaskID, "about": n.AboutRef(), "created": n.Created, "updated": n.Updated,
-		"made-by": n.MadeBy(), "created-by": n.Maker(),
-		"archived": n.Archived,
+	if ok {
+		a.notes.gone[key] = doc
 	}
+	return nil
+}
+
+// noteThingOf is a note as its noun's store reads it (its props).
+func (a *App) noteThingOf(id string) (ochazuke.Thing, error) {
+	return a.r.Noun("note").Store.Get(ochazuke.Ctx{Runtime: a.r, Noun: "note"}, id)
 }
 
 // noteTitle is how a note is shown: its title, else its summary.
@@ -306,143 +537,12 @@ func (a *App) aboutProject(noun, key string) string {
 	return owner.ProjectID
 }
 
-// createNote is the store's Create: a new note from the props given, under
-// the key given when it is free (an undone delete).
-func (a *App) createNote(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing, error) {
-	id, _ := thingString(values, "id")
-	if id != "" {
-		if _, err := a.work.Note(id); err == nil {
-			id = ""
-		}
-	}
-	if id == "" {
-		id = work.NewID()
-	}
-	project, hasProject := thingString(values, "project")
-	task, hasTask := thingString(values, "task")
-	about, hasAbout := thingString(values, "about")
-	now := work.Now()
-	note := work.Note{ID: id, Created: now, Updated: now}
-	// Undo restores the recorded maker. Normal create omits the read-only
-	// prop; the work store stamps the caller and ignores agent overrides.
-	if v, ok := values["created-by"]; ok && v != nil {
-		by, err := thingActor(v)
-		if err != nil {
-			return nil, err
-		}
-		note.CreatedBy = by
-	}
-	note.ProjectID, note.TaskID, note.About = a.noteLinks(c, work.Note{}, aboutWrite{about, hasAbout, project, hasProject, task, hasTask})
-	props, err := thingOver(notePatch{}, values)
-	if err != nil {
-		return nil, err
-	}
-	note.Title, note.Text = props.Title, props.Text
-	note.Archived, _ = values["archived"].(bool)
-	if err := a.work.PutNote(note); err != nil {
-		return nil, err
-	}
-	if err := a.notesLoad.refresh(); err != nil {
-		return nil, err
-	}
-	stored, err := a.work.Note(note.ID)
-	if err != nil {
-		return nil, err
-	}
-	return a.noteThing(stored), nil
-}
-
 // notePatch are the note props a write sets straight onto the record
 // (thingOver); the owner takes rules of its own.
 type notePatch struct {
 	Title    string `json:"title"`
 	Text     string `json:"text"`
 	Archived bool   `json:"archived"`
-}
-
-// patchNote is the store's Patch: it writes the changed props. A task
-// brings its project; a new project drops a task of another project (the
-// task's project would win on read); the owner of an unfinished draft
-// moves with the note, never its text. An editor open on the note writes
-// its last change and closes first, so it never writes its old values
-// over the patch.
-func (a *App) patchNote(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochazuke.Thing, error) {
-	note, err := a.work.Note(id)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, fmt.Errorf("no note %q", id)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if a.editor != nil && a.editor.Record.Noun == "note" && a.editor.Record.ID == id {
-		if err := a.leaveEditor(); err != nil {
-			return nil, err
-		}
-		if note, err = a.work.Note(id); err != nil {
-			return nil, err
-		}
-	}
-	props, err := thingOver(notePatch{Title: note.Title, Text: note.Text, Archived: note.Archived}, changes)
-	if err != nil {
-		return nil, err
-	}
-	note.Title, note.Text, note.Archived = props.Title, props.Text, props.Archived
-	project, hasProject := thingString(changes, "project")
-	task, hasTask := thingString(changes, "task")
-	about, hasAbout := thingString(changes, "about")
-	owned := hasProject || hasTask || hasAbout
-	if owned {
-		note.ProjectID, note.TaskID, note.About = a.noteLinks(c, note, aboutWrite{about, hasAbout, project, hasProject, task, hasTask})
-		note.FormerAbout = ""
-	}
-	note.Updated = work.Now()
-	if err := a.work.PutNote(note); err != nil {
-		return nil, err
-	}
-	if owned {
-		var d editRecord
-		if err := a.drafts.Load("note", note.ID, &d); err == nil {
-			d.ProjectID, d.TaskID = note.ProjectID, note.TaskID
-			if err := a.drafts.Save("note", note.ID, d); err != nil {
-				return nil, err
-			}
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-	}
-	if err := a.notesLoad.refresh(); err != nil {
-		return nil, err
-	}
-	return a.noteThing(note), nil
-}
-
-// removeNote is the store's Delete (the standard delete asks first): the
-// note row and any draft of it go; an open editor on it closes. Nothing
-// references a note, so nothing is orphaned.
-func (a *App) removeNote(c ochazuke.Ctx, id string) error {
-	note, err := a.work.Note(id)
-	if errors.Is(err, store.ErrNotFound) {
-		return fmt.Errorf("no note %q", id)
-	}
-	if err != nil {
-		return err
-	}
-	if a.editor != nil && a.editor.Record.Noun == "note" && a.editor.Record.ID == note.ID {
-		if err := a.leaveEditor(); err != nil {
-			return err
-		}
-	}
-	if err := a.work.DeleteNote(note.ID); err != nil {
-		return err
-	}
-	if err := a.drafts.Clear("note", note.ID); err != nil {
-		return err
-	}
-	if err := a.notesLoad.refresh(); err != nil {
-		return err
-	}
-	c.Notify("Deleted note " + noteTitle(note))
-	return nil
 }
 
 // noteFields are the note editor's fields, read from the note's props:

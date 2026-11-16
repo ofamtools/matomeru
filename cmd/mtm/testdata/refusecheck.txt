@@ -276,9 +276,6 @@ cmd/mtm/mcp_ops.go	App.paneProgress	K15	"Failed(…)"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K3	"name the pane: --window WINDOW, or run in a TUIOS pane"	1
 cmd/mtm/needs_you.go	App.cycleNeedsYou	K15	"Failed(…)"	6
 cmd/mtm/needs_you.go	App.nextNeedsYou	K15	"Failed(…)"	1
-cmd/mtm/note_store.go	App.noteStore	K15	"no note %q"	1
-cmd/mtm/note_store.go	App.patchNote	K15	"no note %q"	1
-cmd/mtm/note_store.go	App.removeNote	K15	"no note %q"	1
 cmd/mtm/notes.go	App.editNote	K15	"Failed(…)"	4
 cmd/mtm/notes.go	App.newNote	K15	"Failed(…)"	6
 cmd/mtm/notes.go	App.viewNote	K15	"Failed(…)"	5

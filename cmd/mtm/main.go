@@ -365,6 +365,7 @@ type App struct {
 	procs              *extProcs        // the gate every extension call passes (extension_procs.go)
 	relStore           *relations.Store // the relations table (project_directories.go)
 	db                 *store.Store
+	notes              noteDocs // the note noun's table and the documents of the notes it deleted (note_store.go)
 	work               *work.Store
 	contexts           *contextitems.Store // the context_items table (context.go)
 	inbox              *inboxState         // the action_items table and the Inbox page (inbox.go)
