@@ -79,6 +79,9 @@ type outlineState struct {
 	// rows), by id, so an undone delete (or a put of the rows) brings it
 	// back exactly (work.RestoreTask).
 	deleted map[string]work.DeletedTask
+	// deletedProjects is the same for each deleted top-level project row
+	// (work.RestoreProject), by project id.
+	deletedProjects map[string]work.DeletedProject
 }
 
 // defineOutline adds project.outline and task.outline (O), todos.open (T
@@ -829,6 +832,17 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 	var refused error
 	switch {
 	case c.Op == ochazuke.TreeAdd:
+		if snap, ok := o.deletedProjects[project]; ok {
+			// An undone delete comes back as it was, with what it held.
+			if _, err := a.work.RestoreProject(snap, strings.TrimSpace(c.Text)); err != nil {
+				return true, err
+			}
+			delete(o.deletedProjects, project)
+			if err := a.refreshProjects(); err != nil {
+				return true, err
+			}
+			return true, a.outlineChanged(o)
+		}
 		// AddProject's row with the outline's id (the row is named first).
 		p := work.Project{ID: project, Name: strings.TrimSpace(c.Text), Status: "open", Created: work.Now()}
 		if err := a.work.PutProject(p); err != nil {
@@ -852,6 +866,12 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 			return true, err
 		}
 		if len(tasks) == 0 {
+			if snap, err := a.work.SnapshotProject(project); err == nil {
+				if o.deletedProjects == nil {
+					o.deletedProjects = map[string]work.DeletedProject{}
+				}
+				o.deletedProjects[project] = snap
+			}
 			if _, err := a.work.Delete("project", project); err != nil {
 				return true, err
 			}
