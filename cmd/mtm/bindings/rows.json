@@ -74,6 +74,7 @@
     {"key": "B", "action": "context-item.associate", "hidden": true},
     {"key": "D", "action": "context-item.choose-move", "hidden": true},
     {"key": "p", "action": "context-item.copy-prompt", "hidden": true},
+    {"key": "x", "action": "context-item.extract", "hidden": true},
     {"key": "H", "action": "context-item.follow", "hidden": true},
     {"key": "M", "action": "context-item.get", "hidden": true},
     {"key": "U", "action": "context-item.history", "hidden": true},
@@ -143,6 +144,7 @@
     {"key": "H", "action": "focus-item.history", "hidden": true},
     {"key": "ctrl+g", "action": "focus-item.list", "hidden": true},
     {"key": "[", "action": "focus-item.move", "hidden": true},
+    {"key": "e", "action": "focus-item.new", "hidden": true},
     {"key": "] ]", "action": "focus-item.next", "hidden": true},
     {"key": "g F", "action": "focus-item.open", "hidden": true},
     {"key": "B", "action": "focus-item.previous", "hidden": true},
@@ -161,6 +163,85 @@
     {"key": "*", "action": "note.set", "hidden": true},
     {"key": "alt+j", "action": "note.unrelate", "hidden": true},
     {"key": "w", "action": "note.watch", "hidden": true}
+  ]},
+  {"context": "ochazuke.markdown/normal", "bindings": [
+    {"key": "U", "action": "ochazuke.markdown.after-heading", "hidden": true},
+    {"key": "X", "action": "ochazuke.markdown.cell", "hidden": true},
+    {"key": "ctrl+h", "action": "ochazuke.markdown.continue-item", "hidden": true},
+    {"key": "ctrl+l", "action": "ochazuke.markdown.done-hide", "hidden": true},
+    {"key": "ctrl+n", "action": "ochazuke.markdown.done-show", "hidden": true},
+    {"key": "ctrl+o", "action": "ochazuke.markdown.end-list", "hidden": true},
+    {"key": "alt+x", "action": "ochazuke.markdown.indent", "hidden": true},
+    {"key": "alt+y", "action": "ochazuke.markdown.insert-block", "hidden": true},
+    {"key": "alt+z", "action": "ochazuke.markdown.leave", "hidden": true}
+  ]},
+  {"context": "ochazuke.noun/normal", "bindings": [
+    {"key": "g n", "action": "ochazuke.noun.annotate", "hidden": true},
+    {"key": "ctrl+l", "action": "ochazuke.noun.relate", "hidden": true},
+    {"key": "alt+j", "action": "ochazuke.noun.unrelate", "hidden": true}
+  ]},
+  {"context": "ochazuke.outline/normal", "bindings": [
+    {"key": "X", "action": "ochazuke.outline.annotate", "hidden": true},
+    {"key": "alt+x", "action": "ochazuke.outline.relate", "hidden": true}
+  ]},
+  {"context": "ochazuke.outline/visual-line", "bindings": [
+    {"key": "X", "action": "ochazuke.outline.annotate", "hidden": true},
+    {"key": "ctrl+h", "action": "ochazuke.outline.relate", "hidden": true},
+    {"key": "ctrl+j", "action": "ochazuke.outline.unrelate", "hidden": true}
+  ]},
+  {"context": "ochazuke.overlay/normal", "bindings": [
+    {"key": "g n", "action": "ochazuke.overlay.annotate", "hidden": true},
+    {"key": "r", "action": "ochazuke.overlay.edit", "hidden": true},
+    {"key": "M", "action": "ochazuke.overlay.get", "hidden": true},
+    {"key": "U", "action": "ochazuke.overlay.history", "hidden": true},
+    {"key": "m", "action": "ochazuke.overlay.list", "hidden": true},
+    {"key": "*", "action": "ochazuke.overlay.set", "hidden": true},
+    {"key": "alt+j", "action": "ochazuke.overlay.unrelate", "hidden": true},
+    {"key": "w", "action": "ochazuke.overlay.watch", "hidden": true}
+  ]},
+  {"context": "ochazuke.picker/normal", "bindings": [
+    {"key": "X", "action": "ochazuke.picker.annotate", "hidden": true}
+  ]},
+  {"context": "ochazuke.register/normal", "bindings": [
+    {"key": "g n", "action": "ochazuke.register.annotate", "hidden": true},
+    {"key": "alt+j", "action": "ochazuke.register.unrelate", "hidden": true}
+  ]},
+  {"context": "ochazuke.related-section/normal", "bindings": [
+    {"key": "U", "action": "ochazuke.related-section.annotate", "hidden": true},
+    {"key": "ctrl+l", "action": "ochazuke.related-section.relate", "hidden": true},
+    {"key": "ctrl+o", "action": "ochazuke.related-section.unrelate", "hidden": true}
+  ]},
+  {"context": "ochazuke.setting-item/normal", "bindings": [
+    {"key": "g n", "action": "ochazuke.setting-item.annotate", "hidden": true},
+    {"key": "alt+j", "action": "ochazuke.setting-item.unrelate", "hidden": true}
+  ]},
+  {"context": "ochazuke.setting/normal", "bindings": [
+    {"key": "g n", "action": "ochazuke.setting.annotate", "hidden": true},
+    {"key": "ctrl+l", "action": "ochazuke.setting.relate", "hidden": true},
+    {"key": "alt+j", "action": "ochazuke.setting.unrelate", "hidden": true}
+  ]},
+  {"context": "ochazuke.snapshot/normal", "bindings": [
+    {"key": "g n", "action": "ochazuke.snapshot.annotate", "hidden": true}
+  ]},
+  {"context": "ochazuke.terminal/normal", "bindings": [
+    {"key": "c", "action": "ochazuke.terminal.copy", "hidden": true},
+    {"key": "d", "action": "ochazuke.terminal.hint", "hidden": true},
+    {"key": "f", "action": "ochazuke.terminal.hints", "hidden": true},
+    {"key": "j", "action": "ochazuke.terminal.hints-cancel", "hidden": true},
+    {"key": "k", "action": "ochazuke.terminal.hints-erase", "hidden": true},
+    {"key": "o", "action": "ochazuke.terminal.hints-ignore", "hidden": true},
+    {"key": "s", "action": "ochazuke.terminal.keys", "hidden": true},
+    {"key": "t", "action": "ochazuke.terminal.layout", "hidden": true},
+    {"key": "v", "action": "ochazuke.terminal.scroll", "hidden": true},
+    {"key": "w", "action": "ochazuke.terminal.side", "hidden": true},
+    {"key": "z", "action": "ochazuke.terminal.sideDetach", "hidden": true},
+    {"key": "R", "action": "ochazuke.terminal.star", "hidden": true},
+    {"key": "g a", "action": "ochazuke.terminal.waiting", "hidden": true},
+    {"key": "g b", "action": "ochazuke.terminal.zoom", "hidden": true}
+  ]},
+  {"context": "ochazuke.timeline-body/normal", "bindings": [
+    {"key": "f", "action": "ochazuke.timeline-body.copy-brief", "hidden": true},
+    {"key": "m", "action": "ochazuke.timeline-body.copy-result", "hidden": true}
   ]},
   {"context": "outline-project/normal", "bindings": [
     {"key": "d a", "action": "outline-project.confirm-delete", "hidden": true}
@@ -264,6 +345,7 @@
     {"key": "d D", "action": "reminder.delete", "hidden": true},
     {"key": "M", "action": "reminder.get", "hidden": true},
     {"key": "ctrl+g", "action": "reminder.list", "hidden": true},
+    {"key": "f", "action": "reminder.notify-due", "hidden": true},
     {"key": "c", "action": "reminder.notify-status", "hidden": true},
     {"key": "*", "action": "reminder.set", "hidden": true},
     {"key": "e", "action": "reminder.uncheck", "hidden": true},
