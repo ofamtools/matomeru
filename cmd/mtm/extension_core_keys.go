@@ -20,17 +20,47 @@ import (
 // (ochazuke's i row). A noun mounted without a store keeps the verbs it
 // mounted; one of them named create or delete gets the same key. No other
 // verb name is guessed at.
+//
+// A core verb the framework's overlay runs (ochazuke v0.146.4: the tool has
+// no call for it, so create makes a thing of your own and delete hides the
+// tool's thing) takes mtm's key only where the tool's catalog binds nothing
+// on that key for the noun: a tool's own row (gh's d d ignore, git's d d
+// remove, csv's n next) keeps its key, and the overlay's verb stays on the
+// palette, the CLI and a bindings.json row.
 
-// coreKeyVerbs are the core verbs that take mtm's keys on a mounted noun.
-type coreKeyVerbs struct{ Create, Delete bool }
+// coreKeyVerbs are the core verbs that take mtm's keys on a mounted noun,
+// and which of them the overlay runs (Runtime.OverlayFills).
+type coreKeyVerbs struct{ Create, Delete, CreateOverlay, DeleteOverlay bool }
 
 // coreKeysOf reads which of create and delete the mounted noun can run.
 func (a *App) coreKeysOf(local string) coreKeyVerbs {
-	has := func(verb string) bool {
+	has := func(verb string) (bool, bool) {
 		op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(local + "." + verb)))
-		return ok && op.Unavailable == ""
+		if !ok || op.Unavailable != "" {
+			return false, false
+		}
+		return true, a.r.OverlayFills(op)
 	}
-	return coreKeyVerbs{Create: has("create"), Delete: has("delete")}
+	var v coreKeyVerbs
+	v.Create, v.CreateOverlay = has("create")
+	v.Delete, v.DeleteOverlay = has("delete")
+	return v
+}
+
+// catalogBindsKey reports whether the tool's catalog binds a row on the
+// catalog noun, in any mode, whose keys clash with keys
+// (the same, or one a prefix of the other), other than a prefix's cancel
+// row and the noun's plain delete row (mtm's d d takes that one).
+func (x *extension) catalogBindsKey(noun, keys string) bool {
+	for _, row := range x.doc.Bindings {
+		if row.Noun != noun || row.Keys == "" || isPrefixCancel(row) || catalogDeleteRow(row, noun) {
+			continue
+		}
+		if keysClash(strings.Fields(keys), strings.Fields(row.Keys)) {
+			return true
+		}
+	}
+	return false
 }
 
 // catalogDeleteRow reports whether a catalog row is the noun's plain
@@ -53,7 +83,10 @@ func (a *App) mountCRUD(x *extension, plan []ocli.CatalogNoun, pages []ocli.Cata
 	taken := map[string][]string{}
 	for _, n := range plan {
 		local, ok := x.nouns[n.Name]
-		if !ok || !a.coreKeysOf(local).Delete {
+		if !ok {
+			continue
+		}
+		if v := a.coreKeysOf(local); !v.Delete || (v.DeleteOverlay && x.catalogBindsKey(n.Name, "d d")) {
 			continue
 		}
 		key := a.r.CanonicalKey(local + ".delete")
@@ -115,7 +148,10 @@ func (x *extension) newNounOf(l ocli.CatalogList, a *App) string {
 		rows = r
 	}
 	for _, n := range []string{rows, l.Noun} {
-		if x.nouns[n] != "" && a.coreKeysOf(x.nouns[n]).Create {
+		if x.nouns[n] == "" {
+			continue
+		}
+		if v := a.coreKeysOf(x.nouns[n]); v.Create && !(v.CreateOverlay && (x.catalogBindsKey(rows, "n") || x.catalogBindsKey(l.Noun, "n"))) {
 			return n
 		}
 	}
