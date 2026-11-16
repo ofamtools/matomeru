@@ -346,7 +346,6 @@
     {"key": "R", "action": "task.get", "hidden": true},
     {"key": "W", "action": "task.list", "hidden": true},
     {"key": "ctrl+s", "action": "task.make-project", "hidden": true},
-    {"key": "ctrl+t", "action": "task.set", "hidden": true},
     {"key": "alt+m", "action": "task.watch", "hidden": true}
   ]},
   {"context": "turn-prompt/normal", "bindings": [
