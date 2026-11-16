@@ -623,7 +623,7 @@ func New(opts Options) (*App, error) {
 	}
 	client := opts.client()
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
-	a := &App{colorRand: colorRandom, db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless, procs: newExtProcs(extMaxProcessesDefault)}
+	a := &App{colorRand: colorRandom, db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless, procs: newExtProcs(r.Lifetime(), extMaxProcessesDefault)}
 	hub.changed = a.relationChanged
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
@@ -861,7 +861,12 @@ func New(opts Options) (*App, error) {
 func (a *App) Close() error {
 	a.quitting = true
 	a.stopSchedules()
-	return errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal(), a.closeExtProcs(), a.closeExtPools(), a.db.Close())
+	flushed := errors.Join(a.flushEditor(), a.flushQuickNote(false), a.closeTerminal())
+	// The runtime's jobs and store watches end first (ochazuke's Shutdown);
+	// the extension gate's life is under the runtime's, so its calls end
+	// with them, and closing the gate then waits for their processes.
+	a.r.Shutdown()
+	return errors.Join(flushed, a.closeExtProcs(), a.closeExtPools(), a.db.Close())
 }
 
 // refreshProjects reloads the project rows and pushes them to the list.

@@ -21,7 +21,7 @@ import (
 func TestExtProcsLimit(t *testing.T) {
 	t.Parallel()
 	burst := func(limit, calls int) (peak, done int) {
-		p := newExtProcs(limit)
+		p := newExtProcs(context.Background(), limit)
 		var mu sync.Mutex
 		now := 0
 		var wg sync.WaitGroup
@@ -57,7 +57,7 @@ func TestExtProcsLimit(t *testing.T) {
 	}
 
 	// Order: one slot held; two reads then a change wait; the change runs first.
-	p := newExtProcs(1)
+	p := newExtProcs(context.Background(), 1)
 	release, err := p.acquire(context.Background(), false)
 	if err != nil {
 		t.Fatal(err)
@@ -108,8 +108,8 @@ func TestExtProcsLimit(t *testing.T) {
 }
 
 // TestExtProcsStop: a long-running tool (and its own child) started through
-// the gate ends when its job is cancelled and when mtm closes; so does a
-// watch process.
+// the gate ends when its job is cancelled, when mtm closes and when the
+// runtime the gate lives under shuts down; so does a watch process.
 func TestExtProcsStop(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -152,14 +152,14 @@ func TestExtProcsStop(t *testing.T) {
 	}
 
 	// A cancelled job: its mounted verb's process group ends.
-	p := newExtProcs(2)
+	p := newExtProcs(context.Background(), 2)
 	ctx, cancel := context.WithCancel(context.Background())
 	pids := start("cancel", func(env []string) { mounted(p, ctx, env) })
 	cancel()
 	gone("cancelled job", pids)
 
 	// mtm closes: a mounted verb, an exec read and a watch all end.
-	p = newExtProcs(2)
+	p = newExtProcs(context.Background(), 2)
 	verb := start("close-verb", func(env []string) { mounted(p, context.Background(), env) })
 	read := start("close-read", func(env []string) { _, _ = p.exec(context.Background(), false, tool, env, "thing", "list") })
 	watch := start("close-watch", func(env []string) {
@@ -174,4 +174,12 @@ func TestExtProcsStop(t *testing.T) {
 	gone("closed mtm, mounted verb", verb)
 	gone("closed mtm, exec read", read)
 	gone("closed mtm, watch", watch)
+
+	// The runtime shuts down: the gate's life is under its Lifetime, so a
+	// call in flight ends without the gate being closed.
+	life, shutdown := context.WithCancel(context.Background())
+	p = newExtProcs(life, 2)
+	read = start("shutdown-read", func(env []string) { _, _ = p.exec(context.Background(), false, tool, env, "thing", "list") })
+	shutdown()
+	gone("runtime shutdown, exec read", read)
 }

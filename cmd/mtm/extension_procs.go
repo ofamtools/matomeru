@@ -23,11 +23,12 @@ import (
 // arrival order. A call never fails because of the limit, and the time it
 // waits does not count against its own deadline.
 //
-// The gate also ends what mtm started: closing it (App.Close, or SIGHUP and
-// SIGTERM) cancels every call in flight, which stops its process (and the
-// process group a mounted verb runs in), stops every watch process, and
-// waits a moment for them to end. A cancelled job's call stops the same
-// way: its context is the job's.
+// The gate also ends what mtm started. Its life is under the runtime's
+// (Runtime.Lifetime), so the runtime's Shutdown (App.Close, or SIGHUP and
+// SIGTERM) ends it; closing it cancels every call in flight, which stops
+// its process (and the process group a mounted verb runs in), stops every
+// watch process, and waits a moment for them to end. A cancelled job's
+// call stops the same way: its context is the job's.
 
 const settingExtMaxProcesses = "extensions.max-processes"
 
@@ -62,8 +63,10 @@ type extWaiter struct {
 // extWatchStop is one running watch's stop.
 type extWatchStop struct{ stop func() }
 
-func newExtProcs(limit int) *extProcs {
-	life, end := context.WithCancelCause(context.Background())
+// newExtProcs makes a gate whose life is under parent (the runtime's
+// Lifetime): the runtime's Shutdown ends the gate's calls and watches too.
+func newExtProcs(parent context.Context, limit int) *extProcs {
+	life, end := context.WithCancelCause(parent)
 	return &extProcs{limit: limit, life: life, end: end, watches: map[*extWatchStop]struct{}{}}
 }
 
