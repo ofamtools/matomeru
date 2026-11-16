@@ -107,8 +107,18 @@ func TestMCPRefusalsAreErrorsAndDoNotWrite(t *testing.T) {
 		toolCall(4, "task_status", map[string]any{"status": "done"}),
 		toolCall(5, "task_status", map[string]any{"status": "active", "expected_version": 999}),
 	)
-	for _, reply := range replies {
+	for i, reply := range replies {
 		result, ok := reply["result"].(map[string]any)
+		if i == 2 {
+			// pane.kill takes no "id": an unknown parameter is a needs /
+			// choice outcome since ochazuke v0.146.0 (MCP status choose,
+			// not an error), and nothing runs.
+			content, _ := result["structuredContent"].(map[string]any)
+			if !ok || result["isError"] == true || content["status"] != "choose" {
+				t.Fatalf("unknown parameter: %v", reply)
+			}
+			continue
+		}
 		if !ok || result["isError"] != true {
 			t.Fatalf("refusal: %v", reply)
 		}
@@ -190,7 +200,9 @@ func TestMCPAgentConfigWritesAndOwnerRightsOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := reply.(map[string]any); got["status"] != "refused" || !strings.Contains(fmt.Sprint(got["reason"]), "protected setting") {
+	// ochazuke v0.146.0: refused for rights (cause rights), the reason the
+	// outcome's one wording.
+	if got := reply.(map[string]any); got["status"] != "refused" || got["cause"] != "rights" || !strings.Contains(fmt.Sprint(got["reason"]), "agents.rights") {
 		t.Fatalf("agent policy write: %v", reply)
 	}
 	if got := a.r.Settings().String(ochazuke.AgentRightsSetting); got != "[]" {

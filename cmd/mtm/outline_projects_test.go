@@ -204,15 +204,16 @@ func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 	// picker on top), never an error line; closing the ask changes nothing.
 	focusRow(t, a, projectNode("ochazuke"))
 	a.m.Status = ""
+	under := a.r.TopModal()
 	a.Update(keyMsg("x"))
-	if strings.Contains(a.m.Status, "Error") || a.r.TopModal() == "" {
-		t.Fatalf("x on a project row: status %q, top modal %q, want an ask", a.m.Status, a.r.TopModal())
+	if strings.Contains(a.m.Status, "Error") || a.r.TopModal() == under {
+		t.Fatalf("x on a project row: status %q, top modal %q over %q, want an ask", a.m.Status, a.r.TopModal(), under)
 	}
-	for i := 0; i < 4 && a.r.TopModal() != ""; i++ {
+	for i := 0; i < 4 && a.r.TopModal() != under; i++ {
 		a.Update(keyMsg("esc"))
 	}
-	if top := a.r.TopModal(); top != "" {
-		t.Fatalf("the ask did not close: %q", top)
+	if top := a.r.TopModal(); top != under {
+		t.Fatalf("the ask did not close: %q over %q", top, under)
 	}
 	a.m.Status = ""
 	// A nested task still outdents as before.

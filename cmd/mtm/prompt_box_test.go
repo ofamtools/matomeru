@@ -99,10 +99,13 @@ func TestPromptBoxSendsAndClears(t *testing.T) {
 	if len(app.pb.input.Text) != 0 || app.r.FocusID() != promptID || app.r.BaseMode() != "normal" {
 		t.Fatalf("after send: %q focus %s %s", string(app.pb.input.Text), app.r.FocusID(), app.r.BaseMode())
 	}
-	// Nothing to send is refused, and nothing reaches the pane.
+	// Nothing to send is an info line (outcome nothing, outcome.nothing
+	// info), not an error, and nothing reaches the pane.
+	sink := &ochazuke.RecordingSink{}
+	app.r.UI().Attach(sink)
 	app.Update(keyMsg("enter"))
-	if !strings.Contains(app.m.Status, "nothing to send") || len(f.prompts) != 1 {
-		t.Fatalf("empty: %q %q", app.m.Status, f.prompts)
+	if e := sink.LastError(); e != "" || !infoSaid(sink, "nothing to send") || len(f.prompts) != 1 {
+		t.Fatalf("empty: error %q messages %+v prompts %q", e, sink.Messages(), f.prompts)
 	}
 }
 

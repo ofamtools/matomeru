@@ -264,11 +264,20 @@ func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
+	// ochazuke v0.146.0: the failed command lists the ranked candidates,
+	// each with the --target command that runs it, then the command that
+	// lists every one (no 10-id list).
 	_, _, err := cli(app, "", "pane", "preview")
-	if err == nil || !strings.Contains(err.Error(), "pass --target, one of: pane:matomeru/w1, pane:ochazuke/w2") {
-		t.Fatalf("pane preview without a target: %v", err)
+	if err == nil {
+		t.Fatal("pane preview without a target ran")
 	}
-	// With the target it runs.
+	for _, line := range []string{"pane preview --target w1", "pane preview --target w2", "pane list"} {
+		if !strings.Contains(err.Error(), line) {
+			t.Fatalf("pane preview without a target lacks %q: %v", line, err)
+		}
+	}
+	// With the target it runs, as the listed command and by the full key.
+	mustCLI(t, app, "pane", "preview", "--target", "w2")
 	mustCLI(t, app, "pane", "preview", "--target", "pane:ochazuke/w2")
 }
 
