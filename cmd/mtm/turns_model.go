@@ -1154,7 +1154,7 @@ type copyOutcome struct {
 func (a *App) copyTurn(all bool) ochazuke.AppHandler {
 	return func(ctx ochazuke.Ctx) ochazuke.Result {
 		if ctx.Instance == nil {
-			return ochazuke.Failed(errors.New("select a turn"))
+			return ochazuke.Failed(ctx.NeedTarget("target", ""))
 		}
 		ref, _ := ctx.Instance.Data.(turnRef)
 		load, what, err := a.turnText(ref, all)

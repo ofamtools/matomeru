@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"strings"
@@ -229,7 +228,7 @@ func (a *App) selectedNote(ctx ochazuke.Ctx) (work.Note, error) {
 		return a.work.Note(a.noteDocNote)
 	}
 	if ctx.Instance == nil || ctx.Instance.Noun != "note" {
-		return work.Note{}, errors.New("no note selected")
+		return work.Note{}, ctx.NeedTarget("target", "")
 	}
 	id := ctx.Instance.ID
 	if thing, ok := ctx.Instance.Data.(ochazuke.Thing); ok {
@@ -447,7 +446,7 @@ func (a *App) saveNoteRecord(record editRecord, values ochazuke.Record) (work.No
 // (moveTo), whose choice runs the noun's move.
 func (a *App) chooseMove(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a row to move"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	return a.moveTo(ctx, ctx.Instance.Noun)
 }

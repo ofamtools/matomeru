@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"slices"
 
 	"ofam.dev/ochazuke"
@@ -62,7 +61,7 @@ func (a *App) definePaneStars() {
 func (a *App) starLive(ctx ochazuke.Ctx) ochazuke.Result {
 	row := a.r.Instances[a.attached.rowID()]
 	if a.attached.ID == "" || row == nil {
-		return ochazuke.Failed(errors.New("no pane attached"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	args := ochazuke.Arguments{}
 	for _, name := range []string{"starred", "value"} {

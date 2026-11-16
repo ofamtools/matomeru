@@ -11,7 +11,6 @@ cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K3	"summary is required to mark a 
 cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K3	"task id is required: the pane has no task"	1
 cmd/mtm/agent_verbs.go	App.documentReport	K15	"Failed(…)"	6
 cmd/mtm/agent_verbs.go	App.documentReport	K15	"path must be a regular file"	1
-cmd/mtm/agent_verbs.go	App.documentReport	K3	"path is required"	1
 cmd/mtm/agent_verbs.go	App.documentReport	K3	"path must name a .md or .html file"	1
 cmd/mtm/agent_verbs.go	App.documentReport	K4	"path must be absolute: the pane has no cwd"	1
 cmd/mtm/agent_verbs.go	App.paneWhoami	K15	"Failed(…)"	1
@@ -23,7 +22,6 @@ cmd/mtm/capture.go	App.captureTurn	K15	"Failed(…)"	2
 cmd/mtm/clipboard.go	macClipboard.Read	K14	"the clipboard reader answered %q: %w"	1	failure
 cmd/mtm/clipboard.go	macClipboard.Read	K15	"errors.New(…)"	1
 cmd/mtm/clipboard.go	macClipboard.Read	K15	"reading images from the clipboard is macOS only (%s)"	1
-cmd/mtm/context.go	App.contextAt	K5	"specify a context item id or select a row"	1
 cmd/mtm/context.go	App.copyContext	K15	"Failed(…)"	1
 cmd/mtm/context.go	App.copyOSC52	K14	"no clipboard: pbcopy is not available and there is no terminal for OSC 52: %w"	1	failure
 cmd/mtm/context.go	App.cycleContextKind	K15	"Failed(…)"	1
@@ -64,11 +62,8 @@ cmd/mtm/context_store.go	App.associateContextOne	K15	"Failed(…)"	1
 cmd/mtm/context_store.go	App.contextStore	K11	"Confirm: <expr> without Loses"	1
 cmd/mtm/context_store.go	App.createContextItem	K2	"type is required: one of %s"	1
 cmd/mtm/convert.go	App.converted	K15	"Failed(…)"	1
-cmd/mtm/convert.go	App.makeProject	K5	"select a task"	1
-cmd/mtm/convert.go	App.makeTask	K5	"select a project"	1
 cmd/mtm/convert.go	App.outlineDemote	K15	"Failed(…)"	1
 cmd/mtm/convert.go	App.outlinePromote	K3	"Name the task first: a project made here leaves this outline"	1
-cmd/mtm/convert.go	App.outlinePromote	K5	"select a task"	1
 cmd/mtm/copybuf.go	copyBuf.findChar	K15	"%q is not on this line"	1
 cmd/mtm/copybuf.go	copyBuf.move	K15	"no bracket on this line"	1
 cmd/mtm/copybuf.go	copyBuf.move	K2	"unknown copy motion %q"	1
@@ -121,7 +116,6 @@ cmd/mtm/detail_links.go	App.jumpDirectory	K8	"%s is not a known directory"	1
 cmd/mtm/detail_links.go	App.jumpPane	K4	"the pane list has no %s"	1
 cmd/mtm/detail_links.go	App.jumpProject	K15	"no project %s"	1
 cmd/mtm/detail_links.go	App.jumpRow	K15	"%s is not on the %s page (outside the pin?)"	1
-cmd/mtm/directories.go	App.addBase	K3	"path is required"	1
 cmd/mtm/directories.go	App.addBasePath	K15	"Failed(…)"	1
 cmd/mtm/directories.go	App.attachBrowsedDirectory	K15	"Failed(…)"	1
 cmd/mtm/directories.go	App.attachBrowsedDirectory	K15	"type or pick a directory"	1
@@ -133,10 +127,8 @@ cmd/mtm/directories.go	App.browseFor	K15	"Failed(…)"	2
 cmd/mtm/directories.go	App.browseFor	K15	"resultError(…)"	1
 cmd/mtm/directories.go	App.cancelBrowse	K15	"resultError(…)"	1
 cmd/mtm/directories.go	App.changeBase	K15	"depth must be positive"	1
-cmd/mtm/directories.go	App.chooseDirectory	K5	"no directory selected"	1
 cmd/mtm/directories.go	App.defaultDirRow	K15	"Failed(…)"	3
 cmd/mtm/directories.go	App.defineDirectories	K15	"Failed(…)"	1
-cmd/mtm/directories.go	App.dirRowAt	K5	"no directory selected"	2
 cmd/mtm/directories.go	App.editDirRow	K15	"Failed(…)"	1
 cmd/mtm/directories.go	App.editDirRow	K15	"resultError(…)"	1
 cmd/mtm/directories.go	App.leaveDirectorySearch	K15	"Failed(…)"	1
@@ -144,7 +136,6 @@ cmd/mtm/directories.go	App.leaveDirectorySearch	K15	"resultError(…)"	1
 cmd/mtm/directories.go	App.manifestDirs	K14	"o-proj list: %w"	2	failure
 cmd/mtm/directories.go	App.removeBase	K15	"Failed(…)"	1
 cmd/mtm/directories.go	App.removeBaseRow	K15	"this base comes from MTM_PROJECT_BASE_DIRS; unset it to edit bases here"	1
-cmd/mtm/directories.go	App.removeBaseRow	K5	"no base selected"	1
 cmd/mtm/directories.go	App.removeDirRow	K15	"Failed(…)"	1
 cmd/mtm/directories.go	App.rescan	K15	"resultError(…)"	1
 cmd/mtm/directories.go	App.scanKnownDirectories	K1	"Unavailable: <expr>"	1
@@ -165,7 +156,6 @@ cmd/mtm/directory_scan.go	directoryIO.run	K15	"filesystem workers busy"	1
 cmd/mtm/doc_forms.go	App.defineDocForms	K15	"resultError(…)"	1
 cmd/mtm/editor.go	App.openDraft	K15	"resultError(…)"	1
 cmd/mtm/editor.go	App.openDraft	K4	"%s %s has no draft"	1
-cmd/mtm/editor.go	App.openDraft	K5	"no draft selected"	1
 cmd/mtm/editor.go	App.openEditor	K15	"resultError(…)"	1
 cmd/mtm/editor.go	App.recordValues	K15	"unknown editor noun %v"	1
 cmd/mtm/editor.go	App.storeRecord	K15	"unknown editor noun %v"	1
@@ -222,7 +212,6 @@ cmd/mtm/extensions.go	parseExtCatalog	K4	"%s catalog: nouns[%d] has no name"	1
 cmd/mtm/extensions.go	resolveExtBin	K14	"bin %s: %w"	1	failure
 cmd/mtm/guide.go	App.agentGuide	K15	"guide topic %v: %v"	1
 cmd/mtm/guide.go	App.agentGuide	K15	"no guide topic %q; topics: %s"	1
-cmd/mtm/inbox.go	App.actionItemAt	K5	"specify an action item id or select an inbox row"	1
 cmd/mtm/inbox.go	App.addActionItem	K15	"Failed(…)"	2
 cmd/mtm/inbox.go	App.associateActionItemOne	K15	"Failed(…)"	2
 cmd/mtm/inbox.go	App.countActionItems	K15	"Failed(…)"	1
@@ -269,7 +258,6 @@ cmd/mtm/live_hints.go	App.pressHint	K15	"resultError(…)"	1
 cmd/mtm/live_hints.go	App.rowHints	K15	"Failed(…)"	1
 cmd/mtm/live_hints.go	App.startHints	K15	"Failed(…)"	1
 cmd/mtm/live_hints.go	App.startRowHints	K15	"Failed(…)"	2
-cmd/mtm/live_hints.go	App.startRowHints	K5	"f works on a pane row"	1
 cmd/mtm/live_scroll.go	App.terminalScroll	K15	"Failed(…)"	1
 cmd/mtm/live_scroll.go	App.terminalScroll	K15	"resultError(…)"	2
 cmd/mtm/livescreen.go	liveScreen.apply	K15	"terminal emulator: %v"	1
@@ -281,22 +269,18 @@ cmd/mtm/mcp.go	App.defineMCPCommand	K15	"%v"	1
 cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp %s (unexpected %q)"	1
 cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp config [HARNESS]"	1
 cmd/mtm/mcp_ops.go	App.addContextText	K15	"Failed(…)"	3
-cmd/mtm/mcp_ops.go	App.addContextText	K3	"text is required"	1
 cmd/mtm/mcp_ops.go	App.paneArgs	K15	"%s is bound to this agent's startup pane; ask the owner or coordinator to act for another pane"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K10	"pane progress needs the TUIOS daemon"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K14	"set-agent-state %s: %w"	1	failure
 cmd/mtm/mcp_ops.go	App.paneProgress	K15	"Failed(…)"	1
-cmd/mtm/mcp_ops.go	App.paneProgress	K3	"message is required"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K3	"name the pane: --window WINDOW, or run in a TUIOS pane"	1
 cmd/mtm/needs_you.go	App.cycleNeedsYou	K15	"Failed(…)"	6
 cmd/mtm/needs_you.go	App.nextNeedsYou	K15	"Failed(…)"	1
 cmd/mtm/note_store.go	App.noteStore	K15	"no note %q"	1
 cmd/mtm/note_store.go	App.patchNote	K15	"no note %q"	1
 cmd/mtm/note_store.go	App.removeNote	K15	"no note %q"	1
-cmd/mtm/notes.go	App.chooseMove	K5	"select a row to move"	1
 cmd/mtm/notes.go	App.editNote	K15	"Failed(…)"	4
 cmd/mtm/notes.go	App.newNote	K15	"Failed(…)"	6
-cmd/mtm/notes.go	App.selectedNote	K5	"no note selected"	1
 cmd/mtm/notes.go	App.viewNote	K15	"Failed(…)"	5
 cmd/mtm/notify.go	App.notificationSender	K15	"errors.New(…)"	2
 cmd/mtm/notify.go	App.notificationSender	K5	"no terminal output is attached"	1
@@ -310,12 +294,10 @@ cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot 
 cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot be renamed"	1
 cmd/mtm/outline.go	App.openOutline	K15	"Failed(…)"	1
 cmd/mtm/outline.go	App.openOutline	K4	"unknown project %s"	1
-cmd/mtm/outline.go	App.openOutline	K5	"select a project or task"	1
 cmd/mtm/outline.go	App.openTodos	K15	"Failed(…)"	1
 cmd/mtm/outline.go	App.openTodos	K15	"resultError(…)"	1
 cmd/mtm/outline.go	App.openTodos	K15	"the outline is open under another modal"	1
 cmd/mtm/outline.go	App.outlineChooseMove	K15	"Failed(…)"	3
-cmd/mtm/outline.go	App.outlineChooseMove	K5	"select a task to move"	1
 cmd/mtm/outline.go	App.outlineChooseMove	K9	"the outline is not open"	1
 cmd/mtm/outline.go	App.outlineConfirmDeleteProject	K15	"Failed(…)"	2
 cmd/mtm/outline.go	App.outlineDeleteProject	K15	"Failed(…)"	3
@@ -348,9 +330,7 @@ cmd/mtm/outline_attach.go	App.pasteTaskImage	K15	"edit a task to attach an image
 cmd/mtm/outline_attach.go	App.pasteTaskImage	K15	"no clipboard reader"	1
 cmd/mtm/outline_attach.go	App.taskAttachments	K15	"edit a task to remove an image"	1
 cmd/mtm/outline_relate.go	App.outlineAssociate	K3	"name the thing to associate (%v); C chooses a context item"	1
-cmd/mtm/outline_relate.go	App.outlineAssociate	K5	"select a task"	1
 cmd/mtm/outline_relate.go	App.outlineAttachContext	K15	"Failed(…)"	3
-cmd/mtm/outline_relate.go	App.outlineAttachContext	K5	"select a task to attach context to"	1
 cmd/mtm/owners.go	App.associateTaskOne	K15	"Failed(…)"	2
 cmd/mtm/pane_activity.go	App.copyActivity	K15	"Failed(…)"	1
 cmd/mtm/pane_activity.go	App.openActivity	K15	"Failed(…)"	1
@@ -385,7 +365,6 @@ cmd/mtm/pane_settings.go	App.togglePaneFast	K15	"Failed(…)"	1
 cmd/mtm/pane_signals.go	commandSettings	K15	"at least 1 minute"	1
 cmd/mtm/pane_stars.go	App.cycleStarred	K15	"Failed(…)"	3
 cmd/mtm/pane_stars.go	App.nextStarred	K15	"Failed(…)"	1
-cmd/mtm/pane_stars.go	App.starLive	K5	"no pane attached"	1
 cmd/mtm/pane_store.go	App.associatePaneOne	K15	"Failed(…)"	1
 cmd/mtm/pane_store.go	App.paneStore	K4	"unknown pane %q"	1
 cmd/mtm/pane_store.go	App.patchPane	K15	"pane %s is no longer listed by the daemon"	1
@@ -402,7 +381,6 @@ cmd/mtm/pane_view.go	App.setPaneView	K15	"Failed(…)"	4
 cmd/mtm/pane_view.go	App.setPaneView	K3	"give a view: %s or %s"	1
 cmd/mtm/panes.go	App.attachPane	K15	"Failed(…)"	3
 cmd/mtm/panes.go	App.attachPane	K15	"no pane's turns are shown"	1
-cmd/mtm/panes.go	App.attachPane	K5	"select a pane"	1
 cmd/mtm/panes.go	App.capturePreview	K14	"preview %s: %w"	1	failure
 cmd/mtm/panes.go	App.definePanes	K1	"When(\"pane-ended\") without Fallback"	1
 cmd/mtm/panes.go	App.killBlocked	K15	"Failed(…)"	1
@@ -422,7 +400,6 @@ cmd/mtm/panes.go	liveStream.open	K14	"attach %s: %w"	1	failure
 cmd/mtm/panes.go	tuios.ListPanes	K14	"list windows of %s: %w"	1	failure
 cmd/mtm/panes_detail.go	App.attachSession	K15	"Failed(…)"	1
 cmd/mtm/panes_detail.go	App.attachSession	K4	"the session has no pane; n opens a shell"	1
-cmd/mtm/panes_detail.go	App.attachSession	K5	"select a session"	1
 cmd/mtm/panes_detail.go	App.cyclePane	K15	"Failed(…)"	3
 cmd/mtm/panes_detail.go	App.cycleWaiting	K15	"Failed(…)"	3
 cmd/mtm/panes_detail.go	App.killSession	K14	"kill session %s: %w"	1	failure
@@ -498,7 +475,6 @@ cmd/mtm/prompt_box.go	App.sendPrompt	K10	"sending needs the TUIOS daemon"	1
 cmd/mtm/prompt_box.go	App.sendPrompt	K15	"Failed(…)"	1
 cmd/mtm/prompt_box.go	App.sendPrompt	K15	"the agent waits on you: answer it live (turn-prompt.live from here, enter on its row), or queue the prompt (ctrl+t)"	1
 cmd/mtm/prompt_box.go	App.sendPrompt	K15	"the pane's queue is full (tuios keeps %d prompts a pane): wait for the agent to rest, or drop one with tuios queue rm"	1
-cmd/mtm/prompt_box.go	App.sendPrompt	K3	"nothing to send: type a prompt"	1
 cmd/mtm/prompt_box.go	App.sendPrompt	K7	"a queued prompt is at most %d KiB; this one is %d KiB (send it instead)"	1
 cmd/mtm/prompt_box.go	var errNoPromptBox	K15	"no prompt box here: it writes to a live pane, below the Turns or Screen tab"	1
 cmd/mtm/quicknote.go	App.closeQuickNote	K15	"no quick note is open"	1
@@ -537,7 +513,6 @@ cmd/mtm/reminders.go	App.addReminder	K15	"resultError(…)"	1
 cmd/mtm/reminders.go	App.checkReminder	K15	"Failed(…)"	2
 cmd/mtm/reminders.go	App.editReminder	K15	"Failed(…)"	1
 cmd/mtm/reminders.go	App.editReminder	K15	"resultError(…)"	1
-cmd/mtm/reminders.go	App.reminderAt	K5	"select a reminder or give its title/id"	1
 cmd/mtm/reminders.go	App.reminderHistory	K13	"limit must not be negative"	1	declaration
 cmd/mtm/reminders.go	App.reminderHistory	K15	"Failed(…)"	3
 cmd/mtm/reminders.go	App.reminderNamed	K15	"no reminder %q; reminder list shows ids"	1
@@ -552,7 +527,6 @@ cmd/mtm/reviews.go	App.leaveAnswerArea	K15	"resultError(…)"	1
 cmd/mtm/reviews.go	App.openReview	K14	"capture %s: %w"	1	failure
 cmd/mtm/reviews.go	App.openReview	K15	"Failed(…)"	5
 cmd/mtm/reviews.go	App.review	K14	"review %s: %w"	1	failure
-cmd/mtm/reviews.go	App.review	K5	"no review is selected"	1
 cmd/mtm/reviews.go	App.saveAnswer	K15	"Failed(…)"	3
 cmd/mtm/reviews.go	App.saveAnswerArea	K15	"Failed(…)"	2
 cmd/mtm/reviews.go	App.saveAnswerArea	K15	"open a review first (enter on a review row)"	1
@@ -561,7 +535,6 @@ cmd/mtm/runs.go	App.forgetRun	K15	"%v is running; run.stop stops it first"	1
 cmd/mtm/runs.go	App.forgetRun	K15	"Failed(…)"	2
 cmd/mtm/runs.go	App.rerunRun	K15	"Failed(…)"	1
 cmd/mtm/runs.go	App.runAt	K15	"no run %s (the Runs page keeps this TUI's last %d)"	1
-cmd/mtm/runs.go	App.runAt	K5	"specify a run id or select a run row"	1
 cmd/mtm/runs.go	App.runCommandVerb	K15	"Failed(…)"	1
 cmd/mtm/runs.go	App.runCommandVerb	K15	"give the command line to run"	1
 cmd/mtm/runs.go	App.showRun	K15	"Failed(…)"	1
@@ -573,7 +546,6 @@ cmd/mtm/saved.go	App.reopenSaved	K15	"Failed(…)"	1
 cmd/mtm/saved.go	App.savePane	K15	"Failed(…)"	2
 cmd/mtm/saved.go	App.savePane	K15	"specify a live pane id or target a pane row"	1
 cmd/mtm/saved.go	App.savePane	K4	"live pane %s not found"	1
-cmd/mtm/saved.go	App.savedAt	K5	"specify a saved id or select a saved row"	1
 cmd/mtm/saved.go	externalRecipe	K15	"daemon does not expose this external pane's exact launch argv/cwd; save a pane launched by mtm instead"	1
 cmd/mtm/saved.go	externalRecipe	K15	"no confirmed launch recipe for this external pane"	1
 cmd/mtm/saved_store.go	App.associateSavedOne	K15	"Failed(…)"	1
@@ -612,7 +584,6 @@ cmd/mtm/schedules.go	App.resetSchedule	K15	"Failed(…)"	2
 cmd/mtm/schedules.go	App.runScheduleNow	K15	"Failed(…)"	2
 cmd/mtm/schedules.go	App.scheduleAnswer	K15	"Failed(…)"	1
 cmd/mtm/schedules.go	App.scheduleAt	K2	"unknown schedule %q; known: %s"	1
-cmd/mtm/schedules.go	App.scheduleAt	K5	"specify a schedule name or select a schedule row"	1
 cmd/mtm/schedules.go	App.scheduleDefs	K1	"When(…) without Fallback"	1
 cmd/mtm/schedules.go	App.scheduleHistory	K15	"Failed(…)"	2
 cmd/mtm/schedules.go	App.scheduleSettings	K15	"an interval is at least 1m"	1
@@ -637,7 +608,6 @@ cmd/mtm/side.go	App.sidePane	K15	"mtm is quitting"	1
 cmd/mtm/side.go	App.sidePane	K15	"side pane is still opening"	1
 cmd/mtm/side.go	App.sidePane	K15	"unknown side %q"	1
 cmd/mtm/side.go	App.sidePane	K3	"side %s: expanded executable is empty"	1
-cmd/mtm/side.go	App.sidePane	K5	"no parent pane selected: pass --pane WINDOW_ID or --target pane:SESSION/WINDOW"	1
 cmd/mtm/side.go	App.sidePane	K9	"parent pane has exited"	1
 cmd/mtm/side.go	sideDriver.OpenWindow	K14	"side pane %s is open but its link could not be saved: %w"	1	failure
 cmd/mtm/side.go	sideDriver.OpenWindow	K14	"side pane not opened: its link could not be saved: %w"	1	failure
@@ -680,7 +650,6 @@ cmd/mtm/tasks.go	App.newTask	K15	"Failed(…)"	8
 cmd/mtm/tasks.go	App.openStatusChooser	K15	"Failed(…)"	2
 cmd/mtm/tasks.go	App.openTask	K15	"Failed(…)"	2
 cmd/mtm/tasks.go	App.task	K14	"task %s: %w"	1	failure
-cmd/mtm/tasks.go	App.task	K5	"no task is selected"	1
 cmd/mtm/tasks.go	App.toggleTask	K15	"Failed(…)"	1
 cmd/mtm/tasks.go	resultOf	K15	"Failed(…)"	1
 cmd/mtm/turn_agents.go	App.addAgentVerbs	K1	"When(\"on-agent\") without Fallback"	3
@@ -700,18 +669,13 @@ cmd/mtm/turns.go	App.addTurns	K1	"When(\"turn-open\") without Fallback"	1
 cmd/mtm/turns.go	App.closeTurn	K15	"no timeline holds %s"	1
 cmd/mtm/turns.go	App.closeTurn	K15	"resultError(…)"	2
 cmd/mtm/turns.go	App.closeTurn	K4	"no tree holds %s"	1
-cmd/mtm/turns.go	App.closeTurn	K5	"select a turn"	1
 cmd/mtm/turns.go	App.focusTurns	K15	"Failed(…)"	2
 cmd/mtm/turns.go	App.focusTurns	K15	"no turns recorded yet"	1
-cmd/mtm/turns.go	App.focusTurns	K5	"select a pane"	1
 cmd/mtm/turns.go	App.openTurn	K15	"Failed(…)"	3
 cmd/mtm/turns.go	App.openTurn	K15	"resultError(…)"	1
-cmd/mtm/turns.go	App.openTurn	K5	"select a turn"	1
 cmd/mtm/turns.go	App.reviewTurn	K15	"resultError(…)"	1
-cmd/mtm/turns.go	App.reviewTurn	K5	"select a turn"	1
 cmd/mtm/turns.go	App.turnsBack	K15	"Failed(…)"	1
 cmd/mtm/turns_model.go	App.copyTurn	K15	"Failed(…)"	1
-cmd/mtm/turns_model.go	App.copyTurn	K5	"select a turn"	1
 cmd/mtm/turns_model.go	App.loadTurnOutput	K15	"Failed(…)"	1
 cmd/mtm/turns_model.go	App.offerTurnSave	K15	"Failed(…)"	1
 cmd/mtm/turns_model.go	App.openModelTurn	K15	"Failed(…)"	2
@@ -724,12 +688,10 @@ cmd/mtm/turns_model.go	App.turnText	K4	"no turn %s"	2
 cmd/mtm/turns_model.go	readShellOutput	K15	"the command is still running"	1
 cmd/mtm/turns_refresh.go	App.refreshPaneTurns	K15	"Failed(…)"	1
 cmd/mtm/turns_refresh.go	App.refreshPaneTurns	K15	"no pane's turns are shown"	1
-cmd/mtm/turns_refresh.go	App.refreshPaneTurns	K5	"select a pane"	1
 cmd/mtm/vim.go	App.openVim	K15	"Failed(…)"	4
 cmd/mtm/vim.go	App.reopenVim	K15	"Failed(…)"	2
 cmd/mtm/vim.go	App.saveVim	K15	"Failed(…)"	2
 cmd/mtm/vim.go	App.saveVim	K9	"Vim pane is closed; reopen before saving"	1
-cmd/mtm/vim.go	App.vimAt	K5	"select a Vim session or supply --id (save also accepts --pane)"	1
 cmd/mtm/vim.go	forgetVimFile	K15	"invalid Vim session id"	1
 cmd/mtm/vim.go	forgetVimFile	K15	"refusing to remove Vim session file outside mtm storage"	1
 cmd/mtm/vim.go	launchVimJob	K10	"Neovim executable nvim is not on PATH; install Neovim to open a session"	1

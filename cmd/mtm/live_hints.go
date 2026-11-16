@@ -221,7 +221,7 @@ func (a *App) startHints(ctx ochazuke.Ctx) ochazuke.Result {
 // in. No screen yet says so and stays put.
 func (a *App) startRowHints(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil || ctx.Instance.Noun != "pane" {
-		return ochazuke.Failed(errors.New("f works on a pane row"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	row := ctx.Instance.ID
 	switched, err := a.toScreen(row)

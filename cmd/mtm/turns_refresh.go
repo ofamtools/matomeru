@@ -117,7 +117,7 @@ func (r resolutions) of(p pane) string {
 func (a *App) refreshPaneTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	row := ctx.Instance
 	if row == nil {
-		return ochazuke.Failed(errors.New("select a pane"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	if row.Noun != "pane" {
 		if row = a.r.Instances[a.pv.turnsFor]; row == nil {

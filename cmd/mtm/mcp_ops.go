@@ -78,7 +78,7 @@ func (a *App) paneArgs(args ochazuke.Arguments) (session, window string, err err
 func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 	body := strings.TrimSpace(ochazuke.StringArg(ctx.Args, "text", ""))
 	if body == "" {
-		return ochazuke.Failed(errors.New("text is required"))
+		return ochazuke.Failed(ctx.Need("text", ""))
 	}
 	// A kind outside contextitems.Kinds would keep the whole text as an
 	// item no filter or kind column shows: it is no kind, every item the
@@ -137,7 +137,7 @@ type agentStateCaller interface {
 func (a *App) paneProgress(ctx ochazuke.Ctx) ochazuke.Result {
 	message := strings.TrimSpace(ochazuke.StringArg(ctx.Args, "message", ""))
 	if message == "" {
-		return ochazuke.Failed(errors.New("message is required"))
+		return ochazuke.Failed(ctx.Need("message", ""))
 	}
 	session, window, err := a.paneArgs(ctx.Args)
 	if err != nil {

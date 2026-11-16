@@ -487,7 +487,7 @@ func (a *App) actionItemAt(ctx ochazuke.Ctx) (actionitems.Item, error) {
 		}
 	}
 	if id == "" {
-		return actionitems.Item{}, errors.New("specify an action item id or select an inbox row")
+		return actionitems.Item{}, ctx.NeedTarget("target", "")
 	}
 	return a.inbox.items.Get(id)
 }

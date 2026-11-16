@@ -33,7 +33,7 @@ func (a *App) defineConversions() {
 // makeTask is project.make-task.
 func (a *App) makeTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a project"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	parent := ochazuke.StringArg(ctx.Args, "parent", "")
 	if id, ok := a.projectNamed(parent); parent != "" && ok {
@@ -46,7 +46,7 @@ func (a *App) makeTask(ctx ochazuke.Ctx) ochazuke.Result {
 // makeProject is task.make-project.
 func (a *App) makeProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a task"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	conv, err := a.taskToProject(taskOf(ctx.Instance.ID))
 	return a.converted(ctx, conv, err)
@@ -99,7 +99,7 @@ func (a *App) projectRowAbove(row string) string {
 // (outline-task.outdent, guarded) and outline-task.promote.
 func (a *App) outlinePromote(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a task"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	// A project made in a project's outline leaves it (the outline shows
 	// one project), so a task with no title yet would become a project

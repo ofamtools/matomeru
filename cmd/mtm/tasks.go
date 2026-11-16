@@ -332,7 +332,7 @@ func (a *App) taskLabel(t work.Task) string {
 
 func (a *App) task(ctx ochazuke.Ctx) (work.Task, error) {
 	if ctx.Instance == nil || ctx.Instance.Noun != "task" {
-		return work.Task{}, errors.New("no task is selected")
+		return work.Task{}, ctx.NeedTarget("target", "")
 	}
 	t, err := a.work.Task(ctx.Instance.ID)
 	if err != nil {

@@ -132,7 +132,7 @@ func (a *App) scheduleStore() ochazuke.Store {
 
 // scheduleNamed is the row of that name as it is now.
 func (a *App) scheduleNamed(name string) (schedules.Def, error) {
-	return a.scheduleAt(ochazuke.Ctx{Args: ochazuke.Arguments{"name": name}})
+	return a.scheduleAt(ochazuke.Ctx{Runtime: a.r, Args: ochazuke.Arguments{"name": name}})
 }
 
 // recordsAsList is runs as a list prop's value: each record its JSON

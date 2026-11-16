@@ -407,7 +407,7 @@ func (a *App) killSession(ctx ochazuke.Ctx) ochazuke.Result {
 // attachSession is session.attach: its first pane, live.
 func (a *App) attachSession(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a session"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	id := a.sessionPane(ctx.Instance.ID)
 	if id == "" {

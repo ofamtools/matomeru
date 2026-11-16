@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -463,7 +462,7 @@ func (a *App) contextAt(ctx ochazuke.Ctx) (contextitems.Item, error) {
 		id = savedRowKey(ctx.Instance)
 	}
 	if id == "" {
-		return contextitems.Item{}, errors.New("specify a context item id or select a row")
+		return contextitems.Item{}, ctx.NeedTarget("target", "")
 	}
 	return a.contexts.Get(id)
 }

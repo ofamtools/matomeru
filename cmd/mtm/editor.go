@@ -324,7 +324,7 @@ func (a *App) fail(err error) {
 // once and opened in the editor.
 func (a *App) openDraft(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("no draft selected"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	record, ok := ctx.Instance.Data.(editRecord)
 	if !ok {

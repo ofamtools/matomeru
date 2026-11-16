@@ -338,7 +338,7 @@ func (a *App) recordReview(projectID, taskID string, started harness.Result) {
 // write is false (opening a row writes nothing).
 func (a *App) review(ctx ochazuke.Ctx, write ...bool) (work.Review, error) {
 	if ctx.Instance == nil || ctx.Instance.Noun != "review" {
-		return work.Review{}, errors.New("no review is selected")
+		return work.Review{}, ctx.NeedTarget("target", "")
 	}
 	id := savedRowKey(ctx.Instance)
 	if id == "" {

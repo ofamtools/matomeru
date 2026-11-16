@@ -123,7 +123,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		p = pane{Pane: daemon.Pane{ID: id}}
 	}
 	if p.ID == "" {
-		return ochazuke.Failed(errors.New("no parent pane selected: pass --pane WINDOW_ID or --target pane:SESSION/WINDOW"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	key := p.ID + "/" + kind
 	if a.quitAfterSides {

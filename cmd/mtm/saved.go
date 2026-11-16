@@ -89,7 +89,7 @@ func (a *App) savedAt(ctx ochazuke.Ctx) (work.SavedPane, error) {
 		id = savedRowKey(ctx.Instance)
 	}
 	if id == "" {
-		return work.SavedPane{}, errors.New("specify a saved id or select a saved row")
+		return work.SavedPane{}, ctx.NeedTarget("target", "")
 	}
 	return a.work.SavedPane(id)
 }

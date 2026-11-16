@@ -801,7 +801,7 @@ func (a *App) attachDefaultDirectory(projectID, path string) ochazuke.Result {
 func (a *App) chooseDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 	path, ok := ctx.Instance.Data.(string)
 	if !ok {
-		return ochazuke.Failed(errors.New("no directory selected"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	return a.attachOrAsk(path)
 }
@@ -959,11 +959,11 @@ func (a *App) leaveDirectorySearch(ochazuke.Ctx) ochazuke.Result {
 
 func (a *App) dirRowAt(ctx ochazuke.Ctx) (dirRow, error) {
 	if ctx.Instance == nil {
-		return dirRow{}, errors.New("no directory selected")
+		return dirRow{}, ctx.NeedTarget("target", "")
 	}
 	row, ok := ctx.Instance.Data.(dirRow)
 	if !ok {
-		return dirRow{}, errors.New("no directory selected")
+		return dirRow{}, ctx.NeedTarget("target", "")
 	}
 	return row, nil
 }
@@ -1053,7 +1053,7 @@ func (a *App) baseChoices() []ochazuke.Choice {
 func (a *App) addBase(ctx ochazuke.Ctx) ochazuke.Result {
 	path := ochazuke.StringArg(ctx.Args, "path", "")
 	if path == "" {
-		return ochazuke.Failed(errors.New("path is required"))
+		return ochazuke.Failed(ctx.Need("path", ""))
 	}
 	return a.addBasePath(path, ochazuke.IntArg(ctx.Args, "depth", 1))
 }
@@ -1093,7 +1093,7 @@ func (a *App) removeBase(ctx ochazuke.Ctx) ochazuke.Result {
 func (a *App) removeBaseRow(ctx ochazuke.Ctx) ochazuke.Result {
 	base, ok := ctx.Instance.Data.(projectBase)
 	if !ok {
-		return ochazuke.Failed(errors.New("no base selected"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	if base.Source == "variable" {
 		return ochazuke.Failed(errors.New("this base comes from MTM_PROJECT_BASE_DIRS; unset it to edit bases here"))

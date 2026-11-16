@@ -915,7 +915,7 @@ func (a *App) toScreen(row string) (bool, error) {
 // once; the turn; the box), on the tab it left.
 func (a *App) attachPane(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a pane"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	row := a.paneRowOf(ctx.Instance)
 	if row == nil {

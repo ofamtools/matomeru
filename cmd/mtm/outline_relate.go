@@ -25,7 +25,7 @@ func (a *App) outlineAssociate(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("name the thing to associate (" + a.relatedNames(outlineTaskNoun) + "); C chooses a context item"))
 	}
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a task"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	row := *ctx.Instance
 	row.Noun, row.ID = "task", taskOf(row.ID)
@@ -40,7 +40,7 @@ func (a *App) outlineAssociate(ctx ochazuke.Ctx) ochazuke.Result {
 // outline-task.attach --context-item does.
 func (a *App) outlineAttachContext(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a task to attach context to"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	t, err := a.work.Task(taskOf(ctx.Instance.ID))
 	if err != nil {

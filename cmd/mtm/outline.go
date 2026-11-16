@@ -336,7 +336,7 @@ func (a *App) openTodos(ochazuke.Ctx) ochazuke.Result {
 // openOutline is project.outline and task.outline.
 func (a *App) openOutline(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a project or task"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	projectID := ctx.Instance.ID
 	focus := ""
@@ -998,7 +998,7 @@ func (a *App) outlineChooseMove(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("the outline is not open"))
 	}
 	if ctx.Instance == nil {
-		return ochazuke.Failed(errors.New("select a task to move"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	rows := ctx.SubjectIDs()
 	if len(rows) == 0 {

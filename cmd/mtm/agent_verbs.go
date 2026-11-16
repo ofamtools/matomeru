@@ -148,7 +148,7 @@ func (a *App) documentReport(c ochazuke.Ctx) ochazuke.Result {
 	}
 	path := strings.TrimSpace(ochazuke.StringArg(c.Args, "path", ""))
 	if path == "" {
-		return ochazuke.Failed(errors.New("path is required"))
+		return ochazuke.Failed(c.Need("path", ""))
 	}
 	if !filepath.IsAbs(path) {
 		if id.Cwd == "" {

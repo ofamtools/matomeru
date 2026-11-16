@@ -566,7 +566,7 @@ func (a *App) sendPrompt(ctx ochazuke.Ctx) ochazuke.Result {
 	text := strings.TrimRight(string(a.pb.input.Text), " \t\r\n")
 	text = strings.TrimLeft(text, "\r\n")
 	if strings.TrimSpace(text) == "" {
-		return ochazuke.Failed(errors.New("nothing to send: type a prompt"))
+		return ochazuke.Nothing(ochazuke.CauseEmpty, "nothing to send: type a prompt")
 	}
 	d, ok := a.panesd.(promptDaemon)
 	if !ok {

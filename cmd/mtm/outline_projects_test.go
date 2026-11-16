@@ -199,9 +199,22 @@ func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 	if after := rootRows(a); !slices.Equal(before, after) {
 		t.Fatalf("roots changed: %v -> %v", before, after)
 	}
-	// x and s are a task's: on a project row they are refused.
+	// x and s are a task's: on a project row x asks for the task (a needs /
+	// target outcome, ochazuke v0.146.0: the args form with the task
+	// picker on top), never an error line; closing the ask changes nothing.
 	focusRow(t, a, projectNode("ochazuke"))
-	refused(t, a, "x", "select a task")
+	a.m.Status = ""
+	a.Update(keyMsg("x"))
+	if strings.Contains(a.m.Status, "Error") || a.r.TopModal() == "" {
+		t.Fatalf("x on a project row: status %q, top modal %q, want an ask", a.m.Status, a.r.TopModal())
+	}
+	for i := 0; i < 4 && a.r.TopModal() != ""; i++ {
+		a.Update(keyMsg("esc"))
+	}
+	if top := a.r.TopModal(); top != "" {
+		t.Fatalf("the ask did not close: %q", top)
+	}
+	a.m.Status = ""
 	// A nested task still outdents as before.
 	focusRow(t, a, outlineNode("t2"))
 	press(t, a, "tab")

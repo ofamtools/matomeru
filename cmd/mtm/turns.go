@@ -289,7 +289,7 @@ func (a *App) showTurns(row string) error {
 // selected row.
 func (a *App) focusTurns(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(fmt.Errorf("select a pane"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	if a.pv.turnsFor != ctx.Instance.ID {
 		if err := a.showTurns(ctx.Instance.ID); err != nil {
@@ -372,7 +372,7 @@ func (a *App) turnAt(focus string) string {
 // closeTurn is turn.close: collapse the row, or close the card.
 func (a *App) closeTurn(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(fmt.Errorf("select a turn"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	ref, _ := ctx.Instance.Data.(turnRef)
 	if ref.Card {
@@ -396,7 +396,7 @@ func (a *App) closeTurn(ctx ochazuke.Ctx) ochazuke.Result {
 // turn's output (what opening it does, without opening it).
 func (a *App) reviewTurn(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(fmt.Errorf("select a turn"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	ref, _ := ctx.Instance.Data.(turnRef)
 	if ref.Card {
@@ -411,7 +411,7 @@ func (a *App) reviewTurn(ctx ochazuke.Ctx) ochazuke.Result {
 // openTurn is turn.open: expand the row and mark a finished turn reviewed.
 func (a *App) openTurn(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
-		return ochazuke.Failed(fmt.Errorf("select a turn"))
+		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	ref, _ := ctx.Instance.Data.(turnRef)
 	if ref.Card {

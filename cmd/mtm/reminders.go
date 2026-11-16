@@ -207,7 +207,7 @@ func (a *App) reminderAt(c ochazuke.Ctx) (reminders.Reminder, error) {
 		name = savedRowKey(c.Instance)
 	}
 	if name == "" {
-		return reminders.Reminder{}, errors.New("select a reminder or give its title/id")
+		return reminders.Reminder{}, c.NeedTarget("target", "")
 	}
 	return a.reminderNamed(name)
 }

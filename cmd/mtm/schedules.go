@@ -586,7 +586,7 @@ func (a *App) scheduleAt(ctx ochazuke.Ctx) (schedules.Def, error) {
 		name, _ = ctx.Instance.Data.(ochazuke.Thing)["name"].(string)
 	}
 	if name == "" {
-		return schedules.Def{}, errors.New("specify a schedule name or select a schedule row")
+		return schedules.Def{}, ctx.NeedTarget("target", "")
 	}
 	d, ok := a.scheduleDef(name)
 	if !ok {

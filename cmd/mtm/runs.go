@@ -387,7 +387,7 @@ func (a *App) runAt(ctx ochazuke.Ctx) (*commandRun, error) {
 		id = ctx.Instance.ID
 	}
 	if id == "" {
-		return nil, errors.New("specify a run id or select a run row")
+		return nil, ctx.NeedTarget("target", "")
 	}
 	if !strings.HasPrefix(id, "run:") {
 		id = "run:" + id

@@ -121,7 +121,7 @@ func (a *App) vimAt(ctx ochazuke.Ctx) (work.VimSession, error) {
 			}
 		}
 	}
-	return work.VimSession{}, errors.New("select a Vim session or supply --id (save also accepts --pane)")
+	return work.VimSession{}, ctx.NeedTarget("target", "")
 }
 
 func (a *App) openVim(ctx ochazuke.Ctx) ochazuke.Result {
