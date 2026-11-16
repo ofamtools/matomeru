@@ -315,3 +315,8 @@ projects	unassociated	normal	y p	project	1
 projects	unassociated	normal	y y	project	1
 projects	unassociated	normal	z A	project	1
 projects	unassociated	normal	z esc	project	1
+panes/tree/list	pane-project	normal	v	pane	1
+panes/tree/list	pane-project	normal	v	session	1
+panes/tree/list	pane-project	visual-line	v	pane	1
+panes/tree/list	pane-project	visual-line	v	session	1
+projects	unassociated	normal	v	project	1
