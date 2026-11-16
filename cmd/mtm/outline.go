@@ -1125,8 +1125,9 @@ func (a *App) outlineTaskToggle(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 // outlineTaskStatus is outline-task.status (s on a task row): the status
-// given sets it on every subject, each change on the undo stack (one
-// step over a selection); without one, one chooser for every subject.
+// given (one the table lacks is added to it: admitStatus) sets it on
+// every subject, each change on the undo stack (one step over a
+// selection); without one, one chooser for every subject.
 func (a *App) outlineTaskStatus(ctx ochazuke.Ctx) ochazuke.Result {
 	if status, ok := ctx.Args["status"].(string); ok {
 		return ctx.Each(func(one ochazuke.Ctx) ochazuke.Result {
@@ -1135,7 +1136,7 @@ func (a *App) outlineTaskStatus(ctx ochazuke.Ctx) ochazuke.Result {
 				return ochazuke.Failed(err)
 			}
 			before := t.Status
-			if t, err = a.work.SetStatus(t.ID, status); err != nil {
+			if t, err = a.work.SetStatus(t.ID, a.admitStatus(one.Info, status)); err != nil {
 				return ochazuke.Failed(err)
 			}
 			if err := a.outlineChanged(o); err != nil {

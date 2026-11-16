@@ -439,7 +439,7 @@ func (a *App) createTask(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 	title, _ := thingString(values, "title")
 	t.Title = strings.TrimSpace(title)
 	if status, ok := thingString(values, "status"); ok && status != "" {
-		t.Status = status
+		t.Status = a.admitStatus(c.Info, status)
 	}
 	if easy, ok := values["easy"].(bool); ok {
 		t.Easy = easy
@@ -492,8 +492,9 @@ func (a *App) createTask(c ochazuke.Ctx, values ochazuke.Thing) (ochazuke.Thing,
 // level (the parent belonged to the old project) and its subtasks with it
 // (work.PutTaskSubtree, one write); a parent that would be
 // the task itself or under it is refused (a loop, not a missing owner). A
-// status is written as given (an undo puts back a legacy value as it was;
-// set has checked a new one). An editor open on the task writes its last
+// status the table lacks is added to it (admitStatus), so the task never
+// shows [?] (an undo that puts back a legacy value adds it the same way).
+// An editor open on the task writes its last
 // change and closes first, so it never writes its old values over the
 // patch.
 func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochazuke.Thing, error) {
@@ -518,7 +519,7 @@ func (a *App) patchTask(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		t.Title = strings.TrimSpace(props.Title)
 	}
 	if props.Status != t.Status {
-		t.Status = work.NormalStatus(props.Status)
+		t.Status = a.admitStatus(c.Info, props.Status)
 	}
 	t.Easy, t.SnoozedUntil, t.Private, t.Archived = props.Easy, int64(props.SnoozedUntil), props.Private, props.Archived
 	t.CreatedBy = work.Actor{} // the store keeps the stored maker

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -102,6 +103,41 @@ func TestTaskStatusWritesMany(t *testing.T) {
 			t.Fatalf("undo %s: %s, want %s", id, got, want)
 		}
 	}
+}
+
+// A status the table lacks, asked for by name, is added to tasks.statuses
+// (the statuses are the owner's list): the task stores it, draws its own
+// checkbox (not [?]) and stays open, with an info line and no error; a
+// name in another case is the table's row.
+func TestTaskStatusOutsideTheTableIsAdded(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	sink := &ochazuke.RecordingSink{}
+	a.r.UI().Attach(sink)
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": "t1", "props": map[string]any{"status": "banana"}}}); err != nil {
+		t.Fatalf("status banana: %v", err)
+	}
+	if got := stored(t, a, "t1").Status; got != "banana" {
+		t.Fatalf("stored %q", got)
+	}
+	if g := a.work.StatusGlyph("banana"); g != "[b]" || a.work.StatusClosed("banana") || !a.work.ValidStatus("banana") {
+		t.Fatalf("banana reads as %s (closed %v); table %v", g, a.work.StatusClosed("banana"), a.work.StatusNames())
+	}
+	if e := sink.LastError(); e != "" || !infoSaid(sink, "added to tasks.statuses") {
+		t.Fatalf("error %q messages %+v", e, sink.Messages())
+	}
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t2", "props": map[string]any{"status": "Waiting"}})
+	if got := stored(t, a, "t2").Status; got != "waiting" || slices.Contains(a.work.StatusNames(), "Waiting") {
+		t.Fatalf("Waiting stored %q; table %v", got, a.work.StatusNames())
+	}
+}
+
+// infoSaid reports whether an info line (Ctx.Info, a nothing outcome)
+// holding text was recorded.
+func infoSaid(sink *ochazuke.RecordingSink, text string) bool {
+	return slices.ContainsFunc(sink.Messages(), func(m ochazuke.UIMessage) bool {
+		return m.Kind == ochazuke.UIInfo && strings.Contains(m.Text, text)
+	})
 }
 
 // Targeted keys: x marks done and back (each one undoable), s over a

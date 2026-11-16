@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"slices"
+	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"ofam.dev/ochazuke"
 
@@ -47,6 +51,40 @@ func (a *App) statusSource() func() []work.StatusDef {
 		}
 		return rows
 	}
+}
+
+// admitStatus is the status a write stores for the one asked for. The
+// statuses are a configurable list (tasks.statuses), so a name the table
+// lacks is added to it as a row of its own, the way the owner adds one:
+// its glyph its first character, rank 3 (where an unlisted status sorted),
+// open; the status line says so and every reader (checkbox, rank, closed)
+// shows it. A name the table has in another case is that row's name, and
+// "open" or "" is todo (NormalStatus). Nothing is refused: a table that
+// cannot be written keeps the name as given.
+func (a *App) admitStatus(say func(string), status string) string {
+	status = work.NormalStatus(strings.TrimSpace(status))
+	if a.work.ValidStatus(status) {
+		return status
+	}
+	rows := a.work.StatusTable()
+	for _, r := range rows {
+		if strings.EqualFold(r.Name, status) {
+			return r.Name
+		}
+	}
+	s := a.r.Settings()
+	glyph, _ := utf8.DecodeRuneInString(status)
+	row := work.StatusDef{Name: status, Glyph: string(glyph), Rank: 3}
+	text, err := json.Marshal(append(slices.Clone(rows), row))
+	if err == nil {
+		err = s.Set(settingTaskStatuses, string(text))
+	}
+	if err != nil {
+		say(fmt.Sprintf("status %q is not in %s and could not be added (%v): stored as given", status, settingTaskStatuses, err))
+		return status
+	}
+	say(fmt.Sprintf("status %q added to %s as [%s]", status, settingTaskStatuses, row.Glyph))
+	return status
 }
 
 // statusNames are the status table's names, for parameter enums and pickers.
