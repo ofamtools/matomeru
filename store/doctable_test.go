@@ -106,15 +106,20 @@ func TestDocTableMatchesMemDocTable(t *testing.T) {
 	mem := ochazuke.NewMemDocTable(r, "doc")
 	r.Define("doc").Props(parityProps...).Store(ochazuke.DocStore(mem, "doc"))
 	db, d := docFixture(t, r, "doc")
-	// The rows are written as JSON as they are (nulls included), the way
-	// other code writes a table's rows.
+	// The rows are written as JSON, the way other code writes a table's
+	// rows, as MemDocTable holds them: since ochazuke v0.146.4 its Put
+	// removes a field given as nil, so neither table holds a null.
 	if err := db.Tx([]string{"docs"}, func(tx *Tx) error {
 		for _, doc := range parityDocs(80) {
 			id := fmt.Sprint(doc["id"])
 			if err := mem.Put(id, doc); err != nil {
 				return err
 			}
-			if err := tx.Put("docs", id, doc); err != nil {
+			held, _, err := mem.Get(id)
+			if err != nil {
+				return err
+			}
+			if err := tx.Put("docs", id, held); err != nil {
 				return err
 			}
 		}
