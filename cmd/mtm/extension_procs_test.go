@@ -17,7 +17,8 @@ import (
 
 // TestExtProcsLimit: with a limit of N, more than N calls run at most N at
 // once and every one completes; 0 runs them all at once; a waiting change
-// goes before the waiting reads; the wait does not use up a call's deadline.
+// goes before the waiting reads, and a read someone waits for before the
+// background reads; the wait does not use up a call's deadline.
 func TestExtProcsLimit(t *testing.T) {
 	t.Parallel()
 	burst := func(limit, calls int) (peak, done int) {
@@ -58,7 +59,7 @@ func TestExtProcsLimit(t *testing.T) {
 
 	// Order: one slot held; two reads then a change wait; the change runs first.
 	p := newExtProcs(context.Background(), 1)
-	release, err := p.acquire(context.Background(), false)
+	release, err := p.acquire(context.Background(), extTierRead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,12 +67,12 @@ func TestExtProcsLimit(t *testing.T) {
 	var order []string
 	var wg sync.WaitGroup
 	var names []string
-	queue := func(name string, write bool) {
+	queueIn := func(ctx context.Context, name string, write bool) {
 		names = append(names, name)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = p.call(context.Background(), write, func(context.Context) error {
+			_ = p.call(ctx, write, func(context.Context) error {
 				mu.Lock()
 				order = append(order, name)
 				mu.Unlock()
@@ -84,6 +85,7 @@ func TestExtProcsLimit(t *testing.T) {
 			return len(p.queue) == len(names)
 		})
 	}
+	queue := func(name string, write bool) { queueIn(context.Background(), name, write) }
 	queue("read1", false)
 	queue("read2", false)
 	queue("change", true)
@@ -104,6 +106,30 @@ func TestExtProcsLimit(t *testing.T) {
 	}
 	if late != nil {
 		t.Fatalf("a call that waited past its caller's deadline ran with %v", late)
+	}
+
+	// Who asked: with the limit full and background reads waiting (a job
+	// the runtime launched for itself), a later read someone waits for
+	// runs before them; the background reads still run.
+	r := ochazuke.NewRuntime()
+	restore := r.Sourced(string(ochazuke.RequestFromBackground))
+	_, background, err := r.Issue("app", "count", "", ochazuke.Ctx{})
+	restore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p = newExtProcs(context.Background(), 1)
+	if release, err = p.acquire(context.Background(), extTierRead); err != nil {
+		t.Fatal(err)
+	}
+	order, names = nil, nil
+	queueIn(background, "background1", false)
+	queueIn(background, "background2", false)
+	queue("asked", false)
+	release()
+	wg.Wait()
+	if got := strings.Join(order, ","); got != "asked,background1,background2" {
+		t.Fatalf("order %s, want asked,background1,background2", got)
 	}
 }
 

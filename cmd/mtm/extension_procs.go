@@ -18,10 +18,13 @@ import (
 // through one gate per App (extProcs): a mounted verb (by exec or on a kept
 // process), its preflight, a page's loads, a parameter's choices, a store's
 // calls (the Nouns page's counts among them), catalogs and setup. At most
-// extensions.max-processes calls run at once; the rest wait in a queue, a
-// change (a call whose verb is not a read) ahead of the reads, each kind in
-// arrival order. A call never fails because of the limit, and the time it
-// waits does not count against its own deadline.
+// extensions.max-processes calls run at once; the rest wait in a queue in
+// three tiers (extTier), each in arrival order: changes (a call whose verb
+// is not a read), then the reads a person or an agent waits for, then the
+// background reads (the runtime's own refreshes and counts, told by the
+// request source the call's context carries, ochazuke.RequestSourceOf). A
+// call never fails because of the limit, a background read still runs, and
+// the time a call waits does not count against its own deadline.
 //
 // The gate also ends what mtm started. Its life is under the runtime's
 // (Runtime.Lifetime), so the runtime's Shutdown (App.Close, or SIGHUP and
@@ -37,7 +40,7 @@ const extMaxProcessesDefault = 4
 
 var extProcSettings = []ochazuke.Setting{
 	{Name: settingExtMaxProcesses, Owner: extensionsOwner, Section: ochazuke.SettingsGeneralSection, Type: ochazuke.SettingInteger, Default: extMaxProcessesDefault,
-		Description: "The most extension calls (each a process, or a kept process busy with it) mtm runs at once; more wait their turn in arrival order, a change before reads, and never fail for it; 0 (or less): no limit"},
+		Description: "The most extension calls (each a process, or a kept process busy with it) mtm runs at once; more wait their turn in arrival order, changes first, then reads someone waits for, then background reads, and never fail for it; 0 (or less): no limit"},
 }
 
 // extProcs is the gate. A nil gate runs every call at once and tracks
@@ -57,7 +60,28 @@ type extProcs struct {
 
 type extWaiter struct {
 	ready chan struct{}
-	write bool
+	tier  extTier
+}
+
+// extTier is a waiting call's place in the queue: a lower tier goes first.
+type extTier int
+
+const (
+	extTierChange     extTier = iota // a change
+	extTierRead                      // a read a person or an agent waits for
+	extTierBackground                // a read nobody waits for
+)
+
+// extTierOf is the tier of a call made with ctx: a change, else a read by
+// who asked for it (the request source of the job ctx belongs to).
+func extTierOf(ctx context.Context, write bool) extTier {
+	switch {
+	case write:
+		return extTierChange
+	case ochazuke.RequestSourceOf(ctx).Background():
+		return extTierBackground
+	}
+	return extTierRead
 }
 
 // extWatchStop is one running watch's stop.
@@ -99,21 +123,18 @@ func (p *extProcs) take() {
 
 // acquire waits for a slot; the answer gives it back. It fails only when
 // ctx ends first.
-func (p *extProcs) acquire(ctx context.Context, write bool) (func(), error) {
+func (p *extProcs) acquire(ctx context.Context, tier extTier) (func(), error) {
 	p.mu.Lock()
 	if len(p.queue) == 0 && (p.limit == 0 || p.running < p.limit) {
 		p.take()
 		p.mu.Unlock()
 		return p.releaser(), nil
 	}
-	w := &extWaiter{ready: make(chan struct{}), write: write}
-	at := len(p.queue)
-	if write {
-		// A change goes after the changes already waiting, before the reads.
-		at = slices.IndexFunc(p.queue, func(q *extWaiter) bool { return !q.write })
-		if at < 0 {
-			at = len(p.queue)
-		}
+	w := &extWaiter{ready: make(chan struct{}), tier: tier}
+	// After the calls of its tier and the tiers before it, before the rest.
+	at := slices.IndexFunc(p.queue, func(q *extWaiter) bool { return q.tier > tier })
+	if at < 0 {
+		at = len(p.queue)
 	}
 	p.queue = slices.Insert(p.queue, at, w)
 	p.mu.Unlock()
@@ -175,7 +196,7 @@ func (p *extProcs) call(ctx context.Context, write bool, fn func(context.Context
 	defer stopCaller()
 	stopLife := context.AfterFunc(p.life, func() { cancel(context.Cause(p.life)) })
 	defer stopLife()
-	release, err := p.acquire(run, write)
+	release, err := p.acquire(run, extTierOf(ctx, write))
 	if err != nil {
 		return err
 	}
