@@ -362,7 +362,7 @@ func (a *App) defineDirectories() {
 	a.parameters("dirs.add-base", map[string]ochazuke.Parameter{"path": baseParam, "depth": {Type: "integer"}})
 	a.parameters("dirs.remove-base", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true}})
 	a.r.Define("dir-search").Kind(ochazuke.NounKindPart).DefaultKeys(false).Pin("insert").
-		Verb("done", a.leaveDirectorySearch, "Keep the filter and return to the known directories").
+		Verb("done", a.leaveDirectorySearch, "Keep the filter and return to the known directories").Exits(ochazuke.ExitsMode).
 		Mode("insert").Bind("enter", ochazuke.Do("dir-search.done")).Bind("esc", ochazuke.Do("dir-search.done")).Bind("down", ochazuke.Do("dir-search.done"))
 	a.r.Define("known-directory").Kind(ochazuke.NounKindPart).DefaultKeys(false).Columns(knownDirectoryColumns...).
 		Verb("attach", a.chooseDirectory, "Attach to the pinned project, else choose one").
@@ -380,7 +380,7 @@ func (a *App) defineDirectories() {
 	a.parameters("project-base.scan", map[string]ochazuke.Parameter{"path": {Type: "string", Required: true, From: "row:path"}})
 	a.r.Define("directory-path").Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("attach", a.attachBrowsedDirectory, "Use the typed or picked directory").
-		Verb("cancel", a.cancelBrowse, "Stop browsing").
+		Verb("cancel", a.cancelBrowse, "Stop browsing").Exits(ochazuke.ExitsClose).
 		Mode("insert").Bind("enter", ochazuke.Do("directory-path.attach")).Bind("ctrl+o", ochazuke.Do("picker.open", ochazuke.Arguments{"filter": "dir"})).
 		Mode("normal").Bind("enter", ochazuke.Do("directory-path.attach")).Bind("esc", ochazuke.Do("directory-path.cancel"))
 	a.ownedBy("dirs", directoriesPage)

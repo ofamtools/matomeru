@@ -188,7 +188,7 @@ func (a *App) defineContext() {
 	}
 	a.parameters(contextNoun+".extract", map[string]ochazuke.Parameter{"pane": {Type: "string", Description: "The window id or name; or --target a pane row"}})
 	a.r.Define("context-search").Kind(ochazuke.NounKindPart).DefaultKeys(false).Pin("insert").
-		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").
+		Verb("done", a.leaveContextSearch, "Keep the filter and return to the items").Exits(ochazuke.ExitsMode).
 		Mode("insert").Bind("enter", ochazuke.Do("context-search.done")).Bind("esc", ochazuke.Do("context-search.done")).Bind("down", ochazuke.Do("context-search.done"))
 	a.ownedBy(contextNoun, contextListID)
 	a.defineContextPicker()

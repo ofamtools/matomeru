@@ -64,7 +64,7 @@ func (a *App) addTurns() error {
 	// the note body's esc goes back to the notes list.
 	backNouns := []string{"turn", "turn-line", "turn-step", "turn-separator"}
 	for _, noun := range backNouns {
-		a.r.Define(noun).Verb("back", a.turnsBack, "Go back to the pane row the turns belong to")
+		a.r.Define(noun).Verb("back", a.turnsBack, "Go back to the pane row the turns belong to").Exits(ochazuke.ExitsClose)
 	}
 	// l opens a closed turn and on an open card steps inside it, onto the
 	// prompt (ochazuke's timeline.enter); enter opens a closed turn and

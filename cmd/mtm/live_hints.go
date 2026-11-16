@@ -99,7 +99,7 @@ func (a *App) defineLiveHints() {
 		Verb("hints", a.startHints, "Label the items on the live panes' screens (URLs, PRs, paths, branches, commits): a label copies, ctrl+label opens, a capital types it into its pane").
 		Verb("hint", a.pressHint, "Take one letter of a label; a whole label copies, opens or types its item and leaves hints").
 		Verb("hints-erase", a.eraseHint, "Take back the last letter typed").
-		Verb("hints-cancel", a.cancelHints, "Clear the labels and go back to the pane or the row").
+		Verb("hints-cancel", a.cancelHints, "Clear the labels and go back to the pane or the row").Exits(ochazuke.ExitsMode).
 		Verb("hints-ignore", func(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(nil) }, "Swallow a key while the labels are up").
 		Mode("leader_pending").
 		Bind("f", ochazuke.Do("terminal.hints").Hinted("hints"))

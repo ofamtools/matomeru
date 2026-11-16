@@ -97,7 +97,7 @@ func (a *App) defineOutline() {
 		}, "Refuse a key that does not apply to the row and say why (projects keep their creation order; no project is not a project)").
 		Verb("toggle", a.outlineToggle, "Mark the task done, or a done task todo").
 		Verb("status", a.outlineStatus, "Choose the task's status: todo, active, blocked or done").
-		Verb("close", func(ochazuke.Ctx) ochazuke.Result { return resultError(a.r.Pop()) }, "Close the outline; every change is already written").
+		Verb("close", func(ochazuke.Ctx) ochazuke.Result { return resultError(a.r.Pop()) }, "Close the outline; every change is already written").Exits(ochazuke.ExitsClose).
 		Mode("normal").
 		Bind("x", ochazuke.Do(outlineModal+".toggle")).
 		Bind("s", ochazuke.Do(outlineModal+".status")).

@@ -273,7 +273,7 @@ func (a *App) defineCopy() {
 		}), "Exchange the selection's ends").
 		Verb("yank", a.copyYank, "Yank the selection (or count lines) into the registers and the clipboard; copy mode stays").
 		Verb("live", a.copyLive, "Go live: keys go to the pane again").
-		Verb("leave", a.copyLeave, "Return to the entry state: live terminal or pane list").
+		Verb("leave", a.copyLeave, "Return to the entry state: live terminal or pane list").Exits(ochazuke.ExitsClose).
 		Verb("load", a.copyLoad, "Read the pane's scrollback into the copy buffer").Quiet()
 	a.parameters(copyNoun+".load", map[string]ochazuke.Parameter{"older": {Type: "boolean", Description: "Read the chunk of lines before the loaded ones instead of the latest"}})
 	a.parameters(copyNoun+".move", map[string]ochazuke.Parameter{"motion": {Type: "string", Required: true}, "steps": {Type: "integer"}, "line": {Type: "integer"}})

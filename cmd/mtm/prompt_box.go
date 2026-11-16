@@ -209,7 +209,7 @@ func (a *App) addPromptBox() error {
 	a.r.Define(promptNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("send", a.sendPrompt, "Send the prompt to the pane: to an agent in the box's mode, send (a steer while it works), queue (typed when it rests) or interrupt (Escape, then send); to a terminal typed, then Enter unless its profile's promptBox.submit is none").
 		Verb("mode", a.cyclePromptMode, "Switch the prompt box's mode: send, queue, interrupt (or the one named); an agent's box only").When("prompt-modes").
-		Verb("back", a.promptBack, "Go back to the turns, else the pane row").
+		Verb("back", a.promptBack, "Go back to the turns, else the pane row").Exits(ochazuke.ExitsClose).
 		Verb("context", a.promptContext, "Choose a context item or prompt of the box's pane, its project or no project, and write it at the cursor (a file as @path)").
 		Verb("paste", a.pastePrompt, "Paste from the clipboard into the prompt: an image (or a copied image file) is attached as [image N], another copied file goes in as @path, text as text").
 		// pane.attach's handler on the box's pane (no key: enter sends);

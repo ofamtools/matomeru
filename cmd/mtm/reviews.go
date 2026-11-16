@@ -79,8 +79,8 @@ func (a *App) defineReviews() {
 	// as a draft; esc leaves insert and keeps the text.
 	r.Define("answer").Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("save", a.saveAnswerArea, "Save the answer area as the opened review's answer").
-		Verb("leave", a.leaveAnswerArea, "Return to the review list; the typed answer stays as a draft").
-		Verb("cancel", a.cancelAnswerArea, "Drop the draft: restore the saved answer and return to the list").
+		Verb("leave", a.leaveAnswerArea, "Return to the review list; the typed answer stays as a draft").Exits(ochazuke.ExitsClose).
+		Verb("cancel", a.cancelAnswerArea, "Drop the draft: restore the saved answer and return to the list").Exits(ochazuke.ExitsClose).
 		Mode("insert").
 		Bind("enter", ochazuke.Do("answer.save")).
 		Mode("normal").

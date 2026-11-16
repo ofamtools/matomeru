@@ -142,7 +142,7 @@ func (a *App) addPaneSettings() error {
 	// pane row.
 	a.r.Define(settingNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("change", a.changePaneSetting, "Change this setting: a chooser of the values the harness takes, the current one marked").
-		Verb("back", a.settingsBack, "Go back to the pane row").
+		Verb("back", a.settingsBack, "Go back to the pane row").Exits(ochazuke.ExitsClose).
 		Mode("normal").
 		Bind("enter", ochazuke.Do(settingNoun+".change").Hinted("change")).
 		Bind("h", ochazuke.Do("ochazuke.collection.move", ochazuke.Arguments{"delta": -1}).Hide()).
