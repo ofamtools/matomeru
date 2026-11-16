@@ -203,6 +203,27 @@ func TestContextKindFilterAndSearch(t *testing.T) {
 	}
 }
 
+// context-item add with a kind outside contextitems.Kinds stores no item
+// of that kind (no filter or kind column would show it): the text is
+// kept as the items it gives (here the whole text as a prompt), with an
+// info line and no error.
+func TestContextAddKindOutsideTheKindsKeepsTheText(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	_, errOut, err := cli(a, "", contextNoun, "add", "--text", "just words", "--kind", "bogus")
+	if err != nil || !strings.Contains(errOut, `kind "bogus" is not one of`) || strings.Contains(errOut, "error:") {
+		t.Fatalf("add kind bogus: %v\n%s", err, errOut)
+	}
+	items, err := a.contexts.All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(items, func(it contextitems.Item) bool { return it.Text == "just words" })
+	if i < 0 || items[i].Kind != "prompt" {
+		t.Fatalf("items %+v", items)
+	}
+}
+
 func TestContextRowActionsUseTheSystem(t *testing.T) {
 	t.Parallel()
 	a, sys := contextApp(t)

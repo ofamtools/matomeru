@@ -80,7 +80,10 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 	if body == "" {
 		return ochazuke.Failed(errors.New("text is required"))
 	}
-	kind := ochazuke.StringArg(ctx.Args, "kind", "")
+	// A kind outside contextitems.Kinds would keep the whole text as an
+	// item no filter or kind column shows: it is no kind, every item the
+	// text gives is kept, and the status line says so.
+	kind := closedChoice(ctx.Info, "kind", ochazuke.StringArg(ctx.Args, "kind", ""), contextitems.Kinds, "", "kept every item the text gives")
 	session, window, err := a.paneArgs(ctx.Args)
 	if err != nil {
 		return ochazuke.Failed(err)
