@@ -292,8 +292,9 @@ func TestQuitWaitsForAnOpeningSide(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "app", Verb: "quit"}); err != nil {
 		t.Fatal(err)
 	}
-	if a.r.Quit || !slices.Contains(a.m.Notices, "quitting once the side pane finishes opening") {
-		t.Fatalf("quit during an opening side: quit %v notices %q", a.r.Quit, a.m.Notices)
+	// The quit is under way and the sides quit hook holds it.
+	if !a.r.Quit || a.sidesOpening(a.r) != "quitting once the side pane finishes opening" {
+		t.Fatalf("quit during an opening side: quit %v hook %q", a.r.Quit, a.sidesOpening(a.r))
 	}
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "side", Target: a.attached.rowID(), Args: ochazuke.Arguments{"kind": "vim"}}); err == nil || err.Error() != "mtm is quitting" {
 		t.Fatalf("side vim while quitting: %v", err)
@@ -301,8 +302,8 @@ func TestQuitWaitsForAnOpeningSide(t *testing.T) {
 	runOnce(a, side)
 	t.Logf("jobs %+v", a.r.Jobs())
 	links, err := a.work.Companions()
-	if !a.r.Quit || err != nil || len(links) != 1 || links[0].Kind != "term" {
-		t.Fatalf("after the side opened: quit %v links %+v %v", a.r.Quit, links, err)
+	if a.sidesOpening(a.r) != "" || err != nil || len(links) != 1 || links[0].Kind != "term" {
+		t.Fatalf("after the side opened: hook %q links %+v %v", a.sidesOpening(a.r), links, err)
 	}
 }
 

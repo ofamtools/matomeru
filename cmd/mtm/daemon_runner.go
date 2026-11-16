@@ -529,6 +529,19 @@ func (a *App) localVerb(n *ochazuke.NounBuilder, noun, name string, h any, about
 	return n.Verb(name, h, about)
 }
 
+// localNoun declares every verb of noun registered now local: a noun
+// whose state is the store, never the daemon (the restart request).
+func (a *App) localNoun(noun string) {
+	if a.localVerbs == nil {
+		a.localVerbs = map[string]bool{}
+	}
+	for _, op := range a.r.Operations.Entries() {
+		if op.Noun() == noun {
+			a.localVerbs[noun+"."+op.Name()] = true
+		}
+	}
+}
+
 // startsNoDaemon is true when this run's command resolves to a verb declared
 // local. It resolves the typed words the way the shell does (an abbreviated
 // noun or verb included), so the answer is about the verb, not the spelling.

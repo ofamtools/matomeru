@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 
 	"ofam.dev/ochazuke"
+
+	"ofam.dev/matomeru/store"
 )
 
 // Restarting in place (ochazuke's app.restart, key &). mtm gives the
@@ -18,8 +20,19 @@ import (
 // (the pinned project, tasks, notes, the inbox, history) and the config.
 // What it loses: what this process held in memory alone. mtm starts on the
 // Panes page as on any start, so the current page and focus are not kept;
-// nor are open modals and forms, the palette's line, the restart request
-// itself, jobs that were running, or an attached pane's live view.
+// nor are open modals and forms, the palette's line, jobs that were
+// running, or an attached pane's live view.
+//
+// The restart request (ochazuke.restart-request) is stored in mtm.db
+// (restartTable), so an agent's post from its own mtm process, a command
+// or the MCP gateway, reaches every TUI open on the database: each reads
+// it through the table's change token (ochazuke's badge segment). The
+// restarted TUI started after the request, so it shows none. The old
+// relay's tables (ui_hosts, ui_calls, ui_answers) are no longer declared;
+// their rows stay in the file, unread.
+
+// restartTable holds the one restart request.
+var restartTable = store.Table{Name: "restart_requests", Owner: "restart", Key: "id", Version: 1}
 
 // restartHook is mtm's hook: name and running build always; the installed
 // binary's path and the cleanup only in the TUI (tui true).
@@ -32,16 +45,30 @@ func (a *App) restartHook(tui bool) ochazuke.RestartHook {
 	}
 	if tui {
 		h.Path = a.installedPath
-		h.BeforeExec = a.beforeRestart
 	}
 	return h
 }
 
-// defineRestart gives the runtime the hook every process shares.
-func (a *App) defineRestart() { a.r.SetRestart(a.restartHook(false)) }
+// defineRestart gives the runtime the hook every process shares and the
+// table the request is stored in; its verbs never start a daemon. Where
+// the table cannot be declared the request stays in this process's
+// memory and the failure is said.
+func (a *App) defineRestart() {
+	a.r.SetRestart(a.restartHook(false))
+	a.localNoun(ochazuke.RestartRequestNoun)
+	if err := a.db.Declare(restartTable); err != nil {
+		a.r.UI().Error("restart request: " + err.Error())
+		return
+	}
+	a.r.SetRestartTable(a.db.DocTable(restartTable.Name, a.r, ochazuke.RestartRequestNoun))
+}
 
-// wireRestart is the TUI's hook: app.restart can start the installed build.
-func (a *App) wireRestart() { a.r.SetRestart(a.restartHook(true)) }
+// wireRestart is the TUI's hook: app.restart can start the installed
+// build, after mtm's cleanup (a quit hook's Close).
+func (a *App) wireRestart() {
+	a.r.SetRestart(a.restartHook(true))
+	a.r.AddQuitHook(ochazuke.QuitHook{Name: "close", Close: a.beforeRestart})
+}
 
 // installedPath is the binary a restart starts: this process's executable
 // by its path (an install replaces ~/bin/mtm by rename, so the path names
@@ -68,8 +95,8 @@ func (a *App) installedPath() string {
 // beforeRestart is what main does after the program returns, run once the
 // terminal is released and before the exec: Close (the editor's and quick
 // note's last change, the attached terminal's stream, the schedules, the
-// runtime's jobs, extension processes and pools, this TUI's relay host
-// row, the database), then the daemon presence this client holds. The
+// runtime's jobs, extension processes and pools, the database), then the
+// daemon presence this client holds. The
 // daemon itself and its panes are untouched. Close is idempotent, so
 // main's deferred Close after a failed exec does nothing more.
 func (a *App) beforeRestart() error {

@@ -46,12 +46,12 @@ func (a *App) defineSides() {
 		a.r.UI().Notify(err.Error())
 	}
 	a.refreshSides()
-	a.r.Define("app").
-		// Quiet: the wait for an opening side is one footer line, not a ticker row too.
-		Verb("close", a.quitApp, "Exit; side panes keep running and come back on the next start").Quiet().
-		Verb("quit", func(r *ochazuke.Runtime, _ ochazuke.Context, _ ochazuke.Arguments) (any, error) {
-			return r.Execute(ochazuke.Request{Noun: "app", Verb: "close", Target: "app"})
-		})
+	// Quitting is ochazuke's one app.quit; a side still opening holds it
+	// (a quit hook), and app.close is its old name here.
+	a.r.AddQuitHook(ochazuke.QuitHook{Name: "sides", Wait: a.sidesOpening})
+	if err := a.r.AliasAction("app.close", "app.quit"); err != nil {
+		panic(err)
+	}
 }
 
 func (a *App) mergeCompanions(panes []pane) ([]pane, error) {
@@ -126,7 +126,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
 	key := p.ID + "/" + kind
-	if a.quitAfterSides {
+	if a.r.Quit {
 		return ochazuke.Failed(errors.New("mtm is quitting"))
 	}
 	if a.sideStarting[key] {
@@ -414,26 +414,19 @@ func (a *App) companionCheck() func(context.Context, string) error {
 	}
 }
 
-// quitApp is app.close: mtm exits and the side panes keep running; their
-// saved links reattach them to their parents on the next start. A side
-// still opening may not have saved its link yet, so quit waits for it.
-func (a *App) quitApp(ctx ochazuke.Ctx) ochazuke.Result {
+// sidesOpening is the sides quit hook: mtm exits and the side panes keep
+// running; their saved links reattach them to their parents on the next
+// start. A side still opening may not have saved its link yet, so the
+// quit waits for it.
+func (a *App) sidesOpening(*ochazuke.Runtime) string {
 	if len(a.sideStarting) > 0 {
-		a.quitAfterSides = true
-		ctx.Notify("quitting once the side pane finishes opening")
-		return ochazuke.Done(false)
+		return "quitting once the side pane finishes opening"
 	}
-	a.r.Quit = true
-	return ochazuke.Done(true)
+	return ""
 }
 
-// sideSettled ends a side launch, and the quit that waited for it.
-func (a *App) sideSettled(key string) {
-	delete(a.sideStarting, key)
-	if a.quitAfterSides && len(a.sideStarting) == 0 {
-		a.r.Quit = true
-	}
-}
+// sideSettled ends a side launch (a quit waiting for it then goes on).
+func (a *App) sideSettled(key string) { delete(a.sideStarting, key) }
 
 // The lock covers the daemon creation and the link write across CLI processes.
 func (a *App) withSideLock(fn func(context.Context) (any, error)) func(context.Context) (any, error) {

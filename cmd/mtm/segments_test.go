@@ -33,7 +33,14 @@ func TestSegmentsOnByDefaultWithOptOuts(t *testing.T) {
 		}
 		return out
 	}
-	got := r.Segments()
+	// The status rule's rows: ochazuke's lead row (the restart badge) is
+	// covered by restart_test.go.
+	var got []ochazuke.SegmentState
+	for _, s := range r.Segments() {
+		if s.Placement != ochazuke.SegmentPlaceLead {
+			got = append(got, s)
+		}
+	}
 	if len(got) != 4 || got[0].ID != "cpu" || got[1].ID != "proc" || got[2].ID != "ram" || got[3].ID != "disk" {
 		t.Fatalf("segments = %+v", got)
 	}
