@@ -223,22 +223,6 @@
   {"context": "ochazuke.snapshot/normal", "bindings": [
     {"key": "g n", "action": "ochazuke.snapshot.annotate", "hidden": true}
   ]},
-  {"context": "ochazuke.terminal/normal", "bindings": [
-    {"key": "c", "action": "ochazuke.terminal.copy", "hidden": true},
-    {"key": "d", "action": "ochazuke.terminal.hint", "hidden": true},
-    {"key": "f", "action": "ochazuke.terminal.hints", "hidden": true},
-    {"key": "j", "action": "ochazuke.terminal.hints-cancel", "hidden": true},
-    {"key": "k", "action": "ochazuke.terminal.hints-erase", "hidden": true},
-    {"key": "o", "action": "ochazuke.terminal.hints-ignore", "hidden": true},
-    {"key": "s", "action": "ochazuke.terminal.keys", "hidden": true},
-    {"key": "t", "action": "ochazuke.terminal.layout", "hidden": true},
-    {"key": "v", "action": "ochazuke.terminal.scroll", "hidden": true},
-    {"key": "w", "action": "ochazuke.terminal.side", "hidden": true},
-    {"key": "z", "action": "ochazuke.terminal.sideDetach", "hidden": true},
-    {"key": "R", "action": "ochazuke.terminal.star", "hidden": true},
-    {"key": "g a", "action": "ochazuke.terminal.waiting", "hidden": true},
-    {"key": "g b", "action": "ochazuke.terminal.zoom", "hidden": true}
-  ]},
   {"context": "ochazuke.timeline-body/normal", "bindings": [
     {"key": "f", "action": "ochazuke.timeline-body.copy-brief", "hidden": true},
     {"key": "m", "action": "ochazuke.timeline-body.copy-result", "hidden": true}
