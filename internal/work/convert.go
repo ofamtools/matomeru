@@ -68,8 +68,9 @@ var ErrNoProjectAbove = errors.New("the first project has no project above it to
 var ErrNotTopTask = errors.New("only a task directly under its project becomes a project; a deeper task outdents one level")
 
 // ownerTables are the tables whose rows name a project or task owner, in
-// the order a conversion rewrites them. ext_rows rows name a project only.
-var ownerTables = []string{"notes", "assignments", "session_owners", "reviews", "saved_panes", "pane_recipes", "vim_sessions", "ext_rows", "context_items", "action_items", "launch_state"}
+// the order a conversion rewrites them. Changes rows name a project only,
+// under their props (ownerPaths).
+var ownerTables = []string{"notes", "assignments", "session_owners", "reviews", "saved_panes", "pane_recipes", "vim_sessions", ChangesTable, "context_items", "action_items", "launch_state"}
 
 // convertFault, when set (tests), fails a write so the rollback is seen.
 var convertFault func(table, id string) error
@@ -373,17 +374,15 @@ func (s *Store) DemoteProject(id, parent string) (Conversion, error) {
 				return err
 			}
 			for _, e := range rows {
-				project, owner := str(e.row, "project_id"), str(e.row, "task_id")
+				project, owner := ownerOfRaw(table, e.row, "project_id"), ownerOfRaw(table, e.row, "task_id")
 				switch {
 				case owner != "" && inSource[owner]:
 					if project == id {
-						setStr(e.row, "project_id", parent)
+						setOwnerRaw(table, e.row, "project_id", parent)
 					}
 				case project == id:
-					setStr(e.row, "project_id", parent)
-					if table != "ext_rows" {
-						setStr(e.row, "task_id", task.ID)
-					}
+					setOwnerRaw(table, e.row, "project_id", parent)
+					setOwnerRaw(table, e.row, "task_id", task.ID) // a table whose rows name no task keeps none
 				default:
 					continue
 				}
@@ -683,13 +682,13 @@ func (s *Store) PromoteTask(id string) (Conversion, error) {
 				return err
 			}
 			for _, e := range rows {
-				owner := str(e.row, "task_id")
+				owner := ownerOfRaw(table, e.row, "task_id")
 				switch {
 				case owner == id:
-					setStr(e.row, "project_id", p.ID)
-					setStr(e.row, "task_id", "")
+					setOwnerRaw(table, e.row, "project_id", p.ID)
+					setOwnerRaw(table, e.row, "task_id", "")
 				case owner != "" && subtree[owner]:
-					setStr(e.row, "project_id", p.ID)
+					setOwnerRaw(table, e.row, "project_id", p.ID)
 				default:
 					continue
 				}

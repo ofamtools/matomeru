@@ -36,7 +36,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 	if noun != "project" && noun != "task" {
 		return counts, fmt.Errorf("cannot delete %s", noun)
 	}
-	tables := []string{"projects", "tasks", "notes", "assignments", "session_owners", "reviews", "active", "saved_panes", "pane_recipes", "vim_sessions", "ext_rows"}
+	tables := []string{"projects", "tasks", "notes", "assignments", "session_owners", "reviews", "active", "saved_panes", "pane_recipes", "vim_sessions", ChangesTable}
 	run := s.db.View
 	if apply {
 		run = s.db.Tx
@@ -88,7 +88,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 			{"assignments", "window", &counts.Assignments}, {"session_owners", "id", &counts.Sessions},
 			{"reviews", "id", &counts.Reviews}, {"active", "id", nil},
 			{"saved_panes", "id", &counts.Saved}, {"pane_recipes", "window", nil},
-			{"vim_sessions", "id", &counts.Vim}, {"ext_rows", "id", nil},
+			{"vim_sessions", "id", &counts.Vim}, {ChangesTable, "id", nil},
 		} {
 			rows, err := tx.All(child.name)
 			if err != nil {
@@ -106,8 +106,7 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 				if child.name == table && key == id {
 					continue
 				}
-				project, _ := row["project_id"].(string)
-				task, _ := row["task_id"].(string)
+				project, task := ownerOf(child.name, row, "project_id"), ownerOf(child.name, row, "task_id")
 				parent, _ := row["parent_id"].(string)
 				if project == "" {
 					if child.name == "tasks" {
@@ -118,7 +117,8 @@ func (s *Store) deleteRecord(noun, id string, apply bool) (DeleteCounts, error) 
 				}
 				changed := false
 				if noun == "project" && project == id {
-					row["project_id"], row["former_project_id"] = "", id
+					setOwner(child.name, row, "project_id", "")
+					setOwner(child.name, row, "former_project_id", id)
 					changed = true
 				}
 				if noun == "task" && (task == id || (child.name == "tasks" && parent == id)) {

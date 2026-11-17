@@ -464,6 +464,31 @@ func (t *Tx) Delete(table, id string) error {
 	return err
 }
 
+// Rename gives a declared table in the transaction's scope a new name: its
+// rows, its declaration (owner, key, version) and its indexes go with it,
+// so nothing is dropped; the old name is free afterwards (a later Declare
+// of it makes a new, empty table). A one-time move of a table's rows
+// elsewhere renames the old table instead of dropping it.
+func (t *Tx) Rename(table, to string) error {
+	if t.readOnly {
+		return errors.New("store: rename inside a read-only view")
+	}
+	if _, err := t.allowed(table); err != nil {
+		return err
+	}
+	if !tableName.MatchString(to) || strings.HasPrefix(to, "sqlite_") {
+		return fmt.Errorf("store: invalid table name %q", to)
+	}
+	if _, err := t.tx.Exec(`ALTER TABLE ` + quote(table) + ` RENAME TO ` + quote(to)); err != nil {
+		return fmt.Errorf("rename %s: %w", table, err)
+	}
+	if _, err := t.tx.Exec(`UPDATE __deck_tables SET name = ? WHERE name = ?`, to, table); err != nil {
+		return err
+	}
+	t.note(table)
+	return nil
+}
+
 func (t *Tx) note(table string) {
 	if t.wrote == nil {
 		t.wrote = map[string]bool{}

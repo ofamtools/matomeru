@@ -28,7 +28,7 @@ type DetachedRow struct {
 var taskLinked = []struct{ table, key string }{
 	{"notes", "id"}, {"assignments", "window"}, {"session_owners", "id"},
 	{"reviews", "id"}, {"saved_panes", "id"}, {"pane_recipes", "window"},
-	{"vim_sessions", "id"}, {"ext_rows", "id"},
+	{"vim_sessions", "id"}, {ChangesTable, "id"},
 }
 
 // SnapshotTask reads the task and every row that names it, before it is
@@ -116,7 +116,7 @@ func linkedRows(tx *store.Tx, field, id string) ([]DetachedRow, error) {
 			if err := json.Unmarshal(raw, &row); err != nil {
 				return nil, err
 			}
-			if v, _ := row[field].(string); v != id {
+			if ownerOf(l.table, row, field) != id {
 				continue
 			}
 			key, _ := row[l.key].(string)
@@ -162,21 +162,21 @@ func reattach(tx *store.Tx, rows []DetachedRow, kind, id string) error {
 			}
 			return err
 		}
-		if v, _ := now[field].(string); v != "" {
+		if ownerOf(r.Table, now, field) != "" {
 			continue
 		}
-		if v, _ := now[former].(string); v != id {
+		if ownerOf(r.Table, now, former) != id {
 			continue
 		}
 		was := map[string]any{}
 		if err := json.Unmarshal(r.Row, &was); err != nil {
 			return err
 		}
-		now[field] = id
-		if v, ok := was[former]; ok {
-			now[former] = v
+		setOwner(r.Table, now, field, id)
+		if v, ok := ownerHeld(r.Table, was, former); ok {
+			setOwner(r.Table, now, former, v)
 		} else {
-			delete(now, former)
+			clearOwner(r.Table, now, former)
 		}
 		if err := tx.Put(r.Table, r.Key, now); err != nil {
 			return err

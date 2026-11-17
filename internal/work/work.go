@@ -123,7 +123,9 @@ var Tables = []store.Table{
 	{Name: "pane_views", Owner: "work", Key: "window", Version: 1},
 	{Name: "pane_sessions", Owner: "work", Key: "window", Version: 1},
 	{Name: "vim_sessions", Owner: "vim", Key: "id", Version: 1},
-	{Name: "ext_rows", Owner: "work", Key: "id", Version: 1},
+	// changes: the owner's changes a source cannot hold (changes.go, run
+	// plan 5.4a); ext_rows is folded into it once (FoldChanges) and renamed.
+	{Name: ChangesTable, Owner: "work", Key: "id", Version: 1},
 	// copies: mtm's copies of the things a source holds (copies.go); an
 	// existing database gains the table on its next open.
 	{Name: copiesTable, Owner: "work", Key: "id", Version: 3},

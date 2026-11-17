@@ -199,7 +199,7 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	flags := flag.NewFlagSet("mtm", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	showVersion := flags.Bool("version", false, "Print the version, the commit and the ochazuke version, and exit")
-	migrateDry := flags.Bool("migrate-dry-run", false, "Print what the one-time data migrations (session names to ids) would change in -data, change nothing, and exit")
+	migrateDry := flags.Bool("migrate-dry-run", false, "Print what the one-time data migrations (session names to ids; ext_rows and overlay.json into the changes table) would change in -data, change nothing, and exit")
 	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit; uses a fresh temp database unless -data is given, and never reaches the daemon")
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
@@ -217,7 +217,10 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		return writeVersion(stdout, buildStamp())
 	}
 	if *migrateDry {
-		return migrationDryRun(opts.Data, stdout)
+		if err := migrationDryRun(opts.Data, stdout); err != nil {
+			return err
+		}
+		return changesDryRun(opts.Data, opts.ConfigDir(), stdout)
 	}
 	// The tester's story command (-tags monogatari, story.go) runs before
 	// any database opens; a normal build handles nothing here.
@@ -567,9 +570,6 @@ type App struct {
 	// scope settings' observer is registered (extension_scope.go).
 	projectPrefixes  []projectPrefix
 	extScopeObserved bool
-	// extRowOwners are the recorded owners of extension rows, by
-	// work.ExtRowKey; nil until read (extension_scope.go).
-	extRowOwners map[string]work.ExtRowOwner
 	// quitting is set by Close: an extension's last write runs at once.
 	quitting bool
 	// closed makes Close idempotent: a restart runs it before the exec
@@ -643,6 +643,7 @@ func New(opts Options) (*App, error) {
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
 	a := &App{colorRand: colorRandom, db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless, procs: newExtProcs(r.Lifetime(), extMaxProcessesDefault)}
 	hub.changed = a.relationChanged
+	a.useChangesTable() // before anything reads the owner's changes
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()
@@ -918,7 +919,7 @@ func (a *App) refreshProjects() error {
 	a.projects = projects
 	a.setProjectHues()
 	a.refreshProjectPrefixes()
-	a.extRowOwners = nil // read again: a deleted project leaves its rows unassociated
+	a.reloadExtRowOwners() // read again: a deleted project leaves its rows unassociated
 	drafts, err := a.draftRecords("project")
 	if err != nil {
 		return err

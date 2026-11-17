@@ -749,6 +749,7 @@ func (a *App) extension(name string) *extension {
 // that cannot be read or mounted is a notice, never a failed start.
 func (a *App) mountExtensions() {
 	names, entries, errs := a.orderedForMount()
+	a.foldChanges(entries)
 	if a.cli {
 		a.startRegistry = &registrySnapshot{names, entries}
 	}

@@ -86,9 +86,7 @@ func TestExtensionCanonicalGetMigratesUncachedLegacyReferences(t *testing.T) {
 	if _, err := a.r.Relate(ochazuke.Ctx{Runtime: a.r}, ochazuke.Relation{From: "project:matomeru", To: old, Text: "keep"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "recordfixture", Noun: "item", Row: "/fixture/current", ProjectID: "ochazuke"}); err != nil {
-		t.Fatal(err)
-	}
+	setExtOwner(t, a, "recordfixture", "item", "/fixture/current", "ochazuke")
 	a.pin = "matomeru"
 	// No mounted page was opened and no row cache exists.
 	mustCLI(t, a, "recordfixture.item", "get", "--id", "/fixture/current")
@@ -103,11 +101,8 @@ func TestExtensionCanonicalGetMigratesUncachedLegacyReferences(t *testing.T) {
 	if err != nil || len(rels) != 1 || rels[0].Text != "keep" {
 		t.Fatalf("relations: %+v %v", rels, err)
 	}
-	owners, err := a.work.ExtRowOwners()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(owners) != 1 || owners[work.ExtRowKey("recordfixture", "item", "i2")].ProjectID != "ochazuke" {
+	owners := a.r.OverlayRows(a.extHostNoun("recordfixture", "item"))
+	if len(owners) != 1 || owners["i2"] == nil || owners["i2"].Props[work.ExtProjectProp] != "ochazuke" {
 		t.Fatalf("owners: %+v", owners)
 	}
 }

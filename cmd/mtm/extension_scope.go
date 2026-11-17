@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
@@ -15,7 +16,8 @@ import (
 // Extension rows belong to projects. A mounted row's project is the first
 // of (extRowOwner):
 //
-//  1. its recorded owner (ext_rows, work.ExtRowOwner): the context project
+//  1. its recorded owner (the changes row's project, work.ExtProjectProp,
+//     read through the overlay; ext_rows before run plan 5.4a): the context project
 //     when one of the extension's verbs made the row (it answered a row
 //     whose id the lists did not hold) or first acted on it (its target;
 //     from the row itself that is the row's derived project, not the pin).
@@ -207,32 +209,34 @@ func (a *App) projectEnvOf(id string) []string {
 	}
 }
 
-// extRowProject is the recorded owner of an extension's row, "" for none.
+// extRowProject is the recorded owner of an extension's row, "" for none:
+// the project prop of the row's changes (work.ExtProjectProp), kept by the
+// overlay beside the thing in the changes table (run plan 5.4a, OV2b).
 func (a *App) extRowProject(ext, noun, row string) string {
-	a.loadExtRowOwners()
-	return a.extRowOwners[work.ExtRowKey(ext, noun, row)].ProjectID
+	if a.r == nil || row == "" {
+		return ""
+	}
+	held := a.r.OverlayRow(a.extHostNoun(ext, noun), row)
+	if held == nil {
+		return ""
+	}
+	project, _ := held.Props[work.ExtProjectProp].(string)
+	return project
 }
 
-// loadExtRowOwners reads the recorded owners once; later records update
-// the map as they are written.
-func (a *App) loadExtRowOwners() {
-	if a.extRowOwners != nil {
-		return
+// extHostNoun is mtm's noun of an extension's catalog noun: the mounted
+// extension's, else the one it would mount as now.
+func (a *App) extHostNoun(ext, noun string) string {
+	if x := a.extension(ext); x != nil && x.naming.local != nil {
+		return x.naming.local(x.ns, noun)
 	}
-	owners, err := a.work.ExtRowOwners()
-	if err != nil {
-		a.r.UI().Notify("extension row owners: " + err.Error())
-		owners = map[string]work.ExtRowOwner{}
-	}
-	a.extRowOwners = owners
+	return a.extNoun(ext, noun)
 }
 
-// reloadExtRowOwners reads the recorded owners again (a project deleted
-// leaves its rows unassociated).
-func (a *App) reloadExtRowOwners() {
-	a.extRowOwners = nil
-	a.loadExtRowOwners()
-}
+// reloadExtRowOwners reads the recorded owners again, with every change of
+// the owner's (a project deleted leaves its rows unassociated: the work
+// store rewrote their changes rows).
+func (a *App) reloadExtRowOwners() { a.r.ReloadOverlay() }
 
 // recordExtOwners records the owners a verb's success gives: the row it
 // acted on (target) when it has none yet, and a new row it answered.
@@ -249,13 +253,21 @@ func (a *App) recordExtOwner(x *extension, noun, row, project string) {
 	if project == "" || row == "" || !a.extScoped(x) || a.extRowProject(x.name, noun, row) != "" {
 		return
 	}
-	o := work.ExtRowOwner{Extension: x.name, Noun: noun, Row: row, ProjectID: project, AssignedAt: work.Now()}
-	if err := a.work.SetExtRowOwner(o); err != nil {
+	by, at := a.r.Actor(), time.Now().UTC()
+	_, err := a.r.ChangeOverlay(x.naming.local(x.ns, noun), row, func(o *ochazuke.OverlayRow) bool {
+		if o.Props == nil {
+			o.Props = map[string]any{}
+		}
+		if o.Changes == nil {
+			o.Changes = map[string]*ochazuke.PropChange{}
+		}
+		o.Props[work.ExtProjectProp] = project
+		o.Changes[work.ExtProjectProp] = &ochazuke.PropChange{By: &by, At: at}
+		return true
+	})
+	if err != nil {
 		a.r.UI().Notify(x.name + ": record owner: " + err.Error())
-		return
 	}
-	o.ID = work.ExtRowKey(o.Extension, o.Noun, o.Row)
-	a.extRowOwners[o.ID] = o
 }
 
 // recordExtCreate records the owner of a row a verb answered when it is
@@ -484,7 +496,7 @@ func (a *App) scopeExtList(x *extension, id string, st *extListState) {
 // How a row's owner was told (extRowOwner).
 const (
 	ownerNone      = iota // no record, project string field or path: never filtered
-	ownerRecorded         // ext_rows holds it
+	ownerRecorded         // the changes table holds it (work.ExtProjectProp)
 	ownerByProject        // a project field (unassociated when unknown)
 	ownerByPath           // derived from its path (unassociated when no project holds it)
 )

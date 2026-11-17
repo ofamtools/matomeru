@@ -108,7 +108,8 @@
 ../../internal/work/actor.go	MayChangeTask	case	"project"	1
 ../../internal/work/actor.go	ParseActor	case	"agent"	1
 ../../internal/work/actor.go	ParseActor	case	"owner"	1
-../../internal/work/convert.go	Store.DemoteProject	cyclo	"-"	31
+../../internal/work/changes.go	var ownerPaths	table	"changes"	1	data: where a table's rows hold their owner references (the changes table keeps a tool row's project under props), one row per table read by one mechanism (ownerOf, setOwner)
+../../internal/work/convert.go	Store.DemoteProject	cyclo	"-"	30
 ../../internal/work/convert.go	Store.PromoteTask	cyclo	"-"	26
 ../../internal/work/convert.go	taskDirectories	compare	"dir"	1
 ../../internal/work/convert.go	taskDirectories	cyclo	"-"	31

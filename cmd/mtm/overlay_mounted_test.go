@@ -59,8 +59,8 @@ func writes(t *testing.T, log string, n int) []string {
 }
 
 // A set on a mounted thing whose tool has no set (ochazuke v0.146.4: the
-// overlay fills remote stores) lands in the config directory's
-// overlay.json, reads back through get and list, and asks the tool for
+// overlay fills remote stores) lands in the changes table (run plan
+// 5.4a; overlay.json before), reads back through get and list, and asks the tool for
 // nothing but reads: a CLI get reads the thing twice (its target, then the
 // get, as before v0.146.4), a set once more (the thing it answers).
 func TestOverlaySetOnAMountedThingStaysBesideTheTool(t *testing.T) {
@@ -77,9 +77,12 @@ func TestOverlaySetOnAMountedThingStaysBesideTheTool(t *testing.T) {
 	if got := writes(t, log, 0); len(got) != 0 {
 		t.Fatalf("the tool was asked to write: %q", got)
 	}
-	kept, err := os.ReadFile(filepath.Join(config, ochazuke.OverlayFile))
-	if err != nil || !strings.Contains(string(kept), "kept-by-mtm") {
-		t.Fatalf("%s: %q, %v", ochazuke.OverlayFile, kept, err)
+	rows, err := a.work.ChangesBackend().Rows()
+	if err != nil || rows[noun]["i1"] == nil || rows[noun]["i1"].Props["note"] != "kept-by-mtm" {
+		t.Fatalf("the changes table: %+v, %v", rows[noun], err)
+	}
+	if _, err := os.Stat(filepath.Join(config, ochazuke.OverlayFile)); err == nil {
+		t.Fatalf("%s written beside settings.json", ochazuke.OverlayFile)
 	}
 	if out := mustCLI(t, a, noun, "get", "i1"); !strings.Contains(out, "kept-by-mtm") {
 		t.Fatalf("get:\n%s", out)

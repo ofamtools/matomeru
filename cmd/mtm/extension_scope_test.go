@@ -18,8 +18,8 @@ func TestExtRowOwnerProjectFields(t *testing.T) {
 	a := &App{projects: []work.Project{
 		{ID: "other", Name: "mine"}, // a name must not shadow an id
 		{ID: "mine", Name: "My Project"},
-	}, extRowOwners: map[string]work.ExtRowOwner{}, projectPrefixes: []projectPrefix{{dir: "/repo", project: "other"}}}
-	a.extRowOwners[work.ExtRowKey("fake", "item", "recorded")] = work.ExtRowOwner{ProjectID: "other"}
+	}, r: ochazuke.NewRuntime(), projectPrefixes: []projectPrefix{{dir: "/repo", project: "other"}}}
+	setExtOwner(t, a, "fake", "item", "recorded", "other")
 	for _, tc := range []struct {
 		name, id string
 		data     any
@@ -378,9 +378,7 @@ func TestContextProjectWalksTheFocusStack(t *testing.T) {
 	pin(t, a, "")
 
 	// An extension row with a recorded owner.
-	if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: "loose", ProjectID: "matomeru"}); err != nil {
-		t.Fatal(err)
-	}
+	setExtOwner(t, a, "md", "doc", "loose", "matomeru")
 	if err := a.refreshProjects(); err != nil { // owners read again
 		t.Fatal(err)
 	}
@@ -553,9 +551,7 @@ func TestDocsRowsFollowThePinnedProject(t *testing.T) {
 	t.Parallel()
 	a, _, root := scopeApp(t)
 	// theirs sits in ochazuke's directory but was recorded as matomeru's.
-	if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: "theirs", ProjectID: "matomeru"}); err != nil {
-		t.Fatal(err)
-	}
+	setExtOwner(t, a, "md", "doc", "theirs", "matomeru")
 	if err := a.refreshProjects(); err != nil {
 		t.Fatal(err)
 	}
@@ -659,13 +655,26 @@ func TestDocsRowsFollowThePinnedProject(t *testing.T) {
 	}
 }
 
+// setExtOwner records project as the owner of an extension's row, as
+// recordExtOwner does: the project prop of the row's changes.
+func setExtOwner(t *testing.T, a *App, ext, noun, row, project string) {
+	t.Helper()
+	if _, err := a.r.ChangeOverlay(a.extHostNoun(ext, noun), row, func(o *ochazuke.OverlayRow) bool {
+		if o.Props == nil {
+			o.Props = map[string]any{}
+		}
+		o.Props[work.ExtProjectProp] = project
+		return true
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // A deleted project leaves the rows recorded as its own unassociated.
 func TestExtRowOwnerClearedWithItsProject(t *testing.T) {
 	t.Parallel()
 	a, _, _ := scopeApp(t)
-	if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: "loose", ProjectID: "ochazuke"}); err != nil {
-		t.Fatal(err)
-	}
+	setExtOwner(t, a, "md", "doc", "loose", "ochazuke")
 	if _, err := a.work.Delete("project", "ochazuke"); err != nil {
 		t.Fatal(err)
 	}
@@ -675,7 +684,7 @@ func TestExtRowOwnerClearedWithItsProject(t *testing.T) {
 	if got := a.extRowProject("md", "doc", "loose"); got != "" {
 		t.Fatalf("owner after delete %q", got)
 	}
-	if got := a.extRowOwners[work.ExtRowKey("md", "doc", "loose")].FormerProjectID; got != "ochazuke" {
+	if got := a.r.OverlayRow(a.extHostNoun("md", "doc"), "loose").Props[work.ExtFormerProjectProp]; got != "ochazuke" {
 		t.Fatalf("former project %q", got)
 	}
 }
@@ -716,9 +725,7 @@ func TestDocsReloadIgnoresTheCursor(t *testing.T) {
 	t.Parallel()
 	a, log, root := scopeApp(t)
 	for row, project := range map[string]string{"mine": "matomeru", "theirs": "ochazuke"} {
-		if err := a.work.SetExtRowOwner(work.ExtRowOwner{Extension: "md", Noun: "doc", Row: row, ProjectID: project}); err != nil {
-			t.Fatal(err)
-		}
+		setExtOwner(t, a, "md", "doc", row, project)
 	}
 	if err := a.refreshProjects(); err != nil {
 		t.Fatal(err)

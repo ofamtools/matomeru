@@ -59,7 +59,12 @@ var extNounNamesSetting = ochazuke.Setting{Name: settingExtNounNames, Owner: ext
 // framework's short names, app, ochazuke: cli.ExtensionNamespace) keeps
 // the dashed spelling, with why.
 func (a *App) extNamingFor(ext string) (extNounNaming, error) {
-	naming, ok := extNounNamings[a.r.Settings().String(settingExtNounNames)]
+	return extNamingOf(a.r.Settings().String(settingExtNounNames), ext)
+}
+
+// extNamingOf is extNamingFor under the extensions.noun-names value given.
+func extNamingOf(value, ext string) (extNounNaming, error) {
+	naming, ok := extNounNamings[value]
 	if !ok {
 		naming = extNounNamings[extNounNamesNamespaced]
 	}
