@@ -83,24 +83,33 @@ func (a *App) defineAgentDeclarations() {
 	a.bindCatalogActors()
 }
 
-// A transport's actor becomes Runtime.Actor only while the request executes.
-// Map it at that boundary, including standard verbs, undo and mounted proxies;
-// the pane stays bound while its current lane is looked up for every request.
+// A transport's actor becomes Runtime.Actor only while the request executes
+// (ochazuke scopes it, and restores a job's own actor around its
+// callbacks). The work store reads it through requestActor, never a
+// store-wide copy, so it ends with the request: the owner's next key,
+// refresh or editor write is the owner's again. Each operation, including
+// standard verbs, undo and mounted proxies, maps the actor once at its
+// boundary (the pane's current lane looked up for every request) and keeps
+// that mapping for the request's duration only.
 func (a *App) bindCatalogActors() {
 	for _, op := range a.r.Operations.Entries() {
 		if handler := op.AppHandler; handler != nil {
 			op.AppHandler = func(c ochazuke.Ctx) ochazuke.Result {
-				if err := a.useRequestActor(c.Actor()); err != nil {
+				restore, err := a.useRequestActor(c.Actor())
+				if err != nil {
 					return ochazuke.Failed(err)
 				}
+				defer restore()
 				return handler(c)
 			}
 		} else {
 			handler := op.Run
 			op.Run = func(r *ochazuke.Runtime, c ochazuke.Context, args ochazuke.Arguments) (any, error) {
-				if err := a.useRequestActor(r.Actor()); err != nil {
+				restore, err := a.useRequestActor(r.Actor())
+				if err != nil {
 					return nil, err
 				}
+				defer restore()
 				return handler(r, c, args)
 			}
 		}
@@ -108,15 +117,53 @@ func (a *App) bindCatalogActors() {
 	}
 }
 
-func (a *App) useRequestActor(actor ochazuke.Actor) error {
-	act := work.Actor{Kind: actor.Kind, Harness: actor.Harness, Pane: actor.Pane, Session: actor.Session, Model: actor.Model}
-	if actor.IsAgent() {
-		var err error
-		act.Task, _, err = journalOwner(a.walk, a.work)(a.resolveSession(act.Session), act.Pane)
-		if err != nil {
-			return err
-		}
+// requestScope is the running operation's actor as the work store sees it.
+type requestScope struct {
+	from ochazuke.Actor // the runtime's actor it was mapped from
+	act  work.Actor
+	set  bool
+}
+
+// useRequestActor maps actor for the operation that is starting and
+// answers the restore its caller defers (so an error or a panic in the
+// handler cannot leave it set).
+func (a *App) useRequestActor(actor ochazuke.Actor) (restore func(), err error) {
+	act, err := a.workActor(actor)
+	if err != nil {
+		return nil, err
 	}
-	a.setActor(act)
-	return nil
+	before := a.request
+	a.request = requestScope{from: actor, act: act, set: true}
+	return func() { a.request = before }, nil
+}
+
+// workActor is a runtime actor as the work store's: an agent's lane task
+// is its pane's current lane.
+// On an error it answers the actor without its lane.
+func (a *App) workActor(actor ochazuke.Actor) (work.Actor, error) {
+	act := work.Actor{Kind: actor.Kind, Harness: actor.Harness, Pane: actor.Pane, Session: actor.Session, Model: actor.Model}
+	if !actor.IsAgent() {
+		return act, nil
+	}
+	task, _, err := journalOwner(a.walk, a.work)(a.resolveSession(act.Session), act.Pane)
+	act.Task = task
+	return act, err
+}
+
+// requestActor is the work store's actor source (work.SetActorSource): the
+// running operation's mapping while the runtime's actor is still the one
+// it mapped; else an agent the runtime names outside an operation (a job
+// callback ochazuke runs as the agent that started the job); else none,
+// and the store uses the process's actor (setActor: the TUI's owner, a CLI
+// or MCP server's agent). It only reads.
+func (a *App) requestActor() (work.Actor, bool) {
+	current := a.r.Actor()
+	if a.request.set && a.request.from == current {
+		return a.request.act, true
+	}
+	if !current.IsAgent() {
+		return work.Actor{}, false
+	}
+	act, _ := a.workActor(current) // a lane that cannot be read: still this agent
+	return act, true
 }

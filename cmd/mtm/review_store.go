@@ -148,10 +148,12 @@ func (a *App) paneReviewOf(id string) (paneReview, error) {
 	if row, ok := a.reviewRows[id]; ok {
 		return row, nil
 	}
-	previous := a.all
-	a.all = true
-	rows, err := a.paneReviews()
-	a.all = previous
+	rows, err := func() ([]paneReview, error) {
+		previous := a.all
+		a.all = true
+		defer func() { a.all = previous }() // restored even if the read panics
+		return a.paneReviews()
+	}()
 	if err != nil {
 		return paneReview{}, err
 	}

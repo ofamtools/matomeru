@@ -618,7 +618,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	version := a.pinVersion
 	// The job is named after its harness: the ticker and the CLI's job
 	// line read "agent.launch claude running".
-	return ochazuke.Pending(a.launchJob(owner, h, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
+	return ochazuke.Pending(a.launchJob(a.work.Actor(), owner, h, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.recordReview(p.ID, task, done.Pane)
 			a.finishLaunch(done, owner, version)
@@ -687,7 +687,7 @@ func (a *App) startShell(ctx ochazuke.Ctx) ochazuke.Result {
 	spec := harness.Spec{Session: ochazuke.StringArg(ctx.Args, "session", sessionFor(p)), Name: shellName, Cwd: a.startCwd(p)}
 	owner := Owner{ProjectID: p.ID, TaskID: ochazuke.StringArg(ctx.Args, "task", ""), Notice: ochazuke.StringArg(ctx.Args, "notice", "")}
 	version := a.pinVersion
-	return ochazuke.Pending(a.launchJob(owner, harness.Harness{}, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
+	return ochazuke.Pending(a.launchJob(a.work.Actor(), owner, harness.Harness{}, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.finishLaunch(done, owner, version)
 		}

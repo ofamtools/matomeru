@@ -411,6 +411,7 @@ type App struct {
 	detailTask         string
 	cli                bool
 	actorSet           bool            // the actor was set before the CLI's Prepare (the MCP server's; actor.go)
+	request            requestScope    // the running operation's actor (agent_declarations.go)
 	taskPrivate        map[string]bool // the Work page's private tasks, for their glyph (tasks.go)
 	taskFilterApplied  bool            // Work's startup default has been applied; cycling stays session state
 	pin                string
@@ -653,7 +654,8 @@ func New(opts Options) (*App, error) {
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()
-	w.SetAgentPolicy(a.agentPolicy) // what an agent may change: the agents.* settings (actor.go)
+	w.SetAgentPolicy(a.agentPolicy)  // what an agent may change: the agents.* settings (actor.go)
+	w.SetActorSource(a.requestActor) // who the running request is (agent_declarations.go)
 	a.claudeProjects = turns.ClaudeProjects()
 	a.agentStarted = processAgentStart
 	a.starts = &agentStarts{now: a.now}

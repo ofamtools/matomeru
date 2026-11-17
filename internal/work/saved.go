@@ -45,7 +45,11 @@ func (s *Store) PaneRecipe(window string) (PaneRecipe, error) {
 	return recipe, err
 }
 
-func (s *Store) PutPaneRecipe(recipe PaneRecipe) error {
+func (s *Store) PutPaneRecipe(recipe PaneRecipe) error { return s.PutPaneRecipeAs(s.Actor(), recipe) }
+
+// PutPaneRecipeAs is PutPaneRecipe as me (see SetPaneOwnerAs): an agent's
+// pane recipe records it as the launcher (LaunchedBy).
+func (s *Store) PutPaneRecipeAs(me Actor, recipe PaneRecipe) error {
 	if recipe.Window == "" {
 		return errors.New("recipe requires a pane id")
 	}
@@ -53,7 +57,7 @@ func (s *Store) PutPaneRecipe(recipe PaneRecipe) error {
 		recipe.Created = Now()
 	}
 	recipe.Updated = Now()
-	if me := s.Actor(); recipe.LaunchedBy == "" && me.IsAgent() && me.Pane != recipe.Window {
+	if recipe.LaunchedBy == "" && me.IsAgent() && me.Pane != recipe.Window {
 		recipe.LaunchedBy = me.Pane
 	}
 	return s.db.Tx([]string{"pane_recipes"}, func(tx *store.Tx) error { return tx.Put("pane_recipes", recipe.Window, recipe) })

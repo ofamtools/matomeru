@@ -129,7 +129,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(errors.New("side pane is still opening"))
 	}
 	a.sideStarting[key] = true
-	pd, ws, launcher, dir, server, projects, started, resolved, reg := a.panesd, a.work, a.launcher, a.vimDir, a.server(), a.claudeProjects, a.agentStartedFunc(), a.resolvedSessions(), a.harnesses
+	pd, ws, launcher, dir, server, projects, started, resolved, reg, me := a.panesd, a.work, a.launcher, a.vimDir, a.server(), a.claudeProjects, a.agentStartedFunc(), a.resolvedSessions(), a.harnesses, a.work.Actor()
 	fit := a.sideFit()
 	result := ochazuke.Pending(a.withSideLock(func(c context.Context) (any, error) {
 		panes, err := sideListing(c, pd, ws, server)
@@ -189,7 +189,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 			kill: func(c context.Context, id string) error {
 				return pd.KillPane(c, pane{Pane: daemon.Pane{ID: id}, Session: parent.Session})
 			}}
-		driver := &recordingDriver{Driver: side, work: ws, owner: owner}
+		driver := &recordingDriver{Driver: side, work: ws, actor: me, owner: owner}
 		side.note = driver.note
 		var command []string
 		if row.Launch == "command" {

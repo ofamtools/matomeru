@@ -138,7 +138,8 @@ func mcpActor(id mcp.Identity) work.Actor {
 	return work.Actor{Kind: work.ActorAgent, Harness: id.Harness, Pane: id.Window, Session: id.Session, Task: id.TaskID, Model: id.Model}
 }
 
-// setActor makes the app's writes run as act from now on.
+// setActor makes act the process's actor: who the app's writes run as when
+// no request names one (the request's own actor wins: requestActor).
 func (a *App) setActor(act work.Actor) { a.work.SetActor(act) }
 
 // actorEnvValue is MTM_ACTOR for an extension: the actor as JSON.

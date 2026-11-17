@@ -113,7 +113,7 @@ func (a *App) runPromptSchedule(ctx context.Context, def schedules.Def, rec *sch
 	}
 	spec := harness.Spec{Session: session, Name: name, Cwd: cwd, Model: model, Prompt: prompt, Settings: settings}
 	owner := Owner{ProjectID: out.Project, TaskID: out.Task}
-	v, err := a.launchJob(owner, h, spec)(ctx)
+	v, err := a.launchJob(work.Owner(), owner, h, spec)(ctx) // a schedule runs as the owner
 	if err != nil {
 		return err
 	}

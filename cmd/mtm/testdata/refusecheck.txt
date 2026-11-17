@@ -973,7 +973,7 @@ internal/work/reviews.go	Store.AddReview	K3	"a review needs a session and a wind
 internal/work/reviews.go	Store.EnsureReview	K15	"a review needs an id, a session and a window"	1
 internal/work/reviews.go	Store.SetReviewStatus	K15	"unknown review status %q"	1
 internal/work/saved.go	Store.ForgetSavedPane	K14	"saved pane %s: %w"	1	failure
-internal/work/saved.go	Store.PutPaneRecipe	K3	"recipe requires a pane id"	1
+internal/work/saved.go	Store.PutPaneRecipeAs	K3	"recipe requires a pane id"	1
 internal/work/sessions.go	Store.AddPaneSession	K3	"a pane session requires a pane id and a session id"	1
 internal/work/stars.go	Store.SetPaneStar	K3	"a star requires a pane id"	1
 internal/work/statuses.go	ParseStatuses	K13	"tasks.statuses: %q glyph %q is %d characters: use one"	1	declaration

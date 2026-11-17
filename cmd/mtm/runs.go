@@ -16,6 +16,7 @@ import (
 	"ofam.dev/matomeru/internal/drive"
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/schedules"
+	"ofam.dev/matomeru/internal/work"
 )
 
 // Runs: a command run by its drive (internal/drive). command.run runs a
@@ -177,7 +178,7 @@ func (a *App) runInPane(ctx ochazuke.Ctx, title string, argv []string, dir strin
 	spec := harness.Spec{Session: mtmOnlySession, Name: shellName, Cwd: dir}
 	owner := Owner{}
 	version := a.pinVersion
-	return ochazuke.Pending(a.launchJob(owner, h, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
+	return ochazuke.Pending(a.launchJob(a.work.Actor(), owner, h, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.finishLaunch(done, owner, version)
 		}
@@ -489,7 +490,7 @@ func (a *App) runTerminalCommand(ctx context.Context, def schedules.Def, rec *sc
 	home, _ := a.home()
 	h := harness.Harness{Name: def.Name, Command: def.Command}
 	spec := harness.Spec{Session: noProjectSession, Name: def.Name, Cwd: home}
-	v, err := a.launchJob(Owner{}, h, spec)(ctx)
+	v, err := a.launchJob(work.Owner(), Owner{}, h, spec)(ctx) // a schedule runs as the owner
 	if err != nil {
 		return err
 	}

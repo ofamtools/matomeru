@@ -208,7 +208,7 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	owner := Owner{ProjectID: row.ProjectID, TaskID: row.TaskID}
 	version := a.pinVersion
-	db, panesd, driver := a.work, a.panesd, a.launcher
+	db, panesd, driver, me := a.work, a.panesd, a.launcher, a.work.Actor()
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		panes, err := panesd.ListPanes(c)
 		if err != nil {
@@ -230,7 +230,7 @@ func (a *App) reopenSaved(ctx ochazuke.Ctx) ochazuke.Result {
 				return nil, err
 			}
 		}
-		d := &recordingDriver{Driver: driver, work: db, owner: owner, harness: row.Harness, model: row.Model}
+		d := &recordingDriver{Driver: driver, work: db, actor: me, owner: owner, harness: row.Harness, model: row.Model}
 		id, err := d.OpenWindow(c, harness.Window{Session: session, Name: row.Name, Cwd: row.Cwd, Command: savedCommand(row.PaneRecipe)})
 		if err != nil {
 			return nil, err

@@ -34,8 +34,13 @@ type SessionOwner struct {
 
 // SetPaneOwner associates a pane; an agent reaches only the panes its
 // associate scope allows (mayChangePane).
-func (s *Store) SetPaneOwner(a Assignment) error {
-	if err := s.mayChangePane(a.Window); err != nil {
+func (s *Store) SetPaneOwner(a Assignment) error { return s.SetPaneOwnerAs(s.Actor(), a) }
+
+// SetPaneOwnerAs is SetPaneOwner as me: for work off the app's loop (a
+// launch job), which names the actor that started it rather than reading
+// whichever request is running when it writes.
+func (s *Store) SetPaneOwnerAs(me Actor, a Assignment) error {
+	if err := s.mayChangePane(me, a.Window); err != nil {
 		return err
 	}
 	return s.db.Tx([]string{"assignments"}, func(tx *store.Tx) error { return tx.Put("assignments", a.Window, a) })

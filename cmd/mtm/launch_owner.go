@@ -14,7 +14,11 @@ import (
 // A failed write must not hide a successfully created pane or start a second one.
 type recordingDriver struct {
 	harness.Driver
-	work    *work.Store
+	work *work.Store
+	// actor is who started the launch, taken on the loop when the job
+	// starts: the driver writes off the loop, where the running request
+	// (if any) is someone else's.
+	actor   work.Actor
 	owner   Owner
 	harness string
 	model   string
@@ -56,8 +60,8 @@ func (d *recordingDriver) OpenWindow(ctx context.Context, w harness.Window) (str
 	}
 	// The recipe first: it records the agent that launched the pane
 	// (LaunchedBy), which lets that agent associate its child pane.
-	d.note(d.work.PutPaneRecipe(recipe))
-	if err := d.work.SetPaneOwner(work.Assignment{Window: id, Session: d.sessions[w.Session], ProjectID: d.owner.ProjectID, TaskID: d.owner.TaskID, AssignedAt: work.Now()}); err != nil {
+	d.note(d.work.PutPaneRecipeAs(d.actor, recipe))
+	if err := d.work.SetPaneOwnerAs(d.actor, work.Assignment{Window: id, Session: d.sessions[w.Session], ProjectID: d.owner.ProjectID, TaskID: d.owner.TaskID, AssignedAt: work.Now()}); err != nil {
 		d.unrecorded = true
 		d.note(fmt.Errorf("pane %s is open but owner was not saved; associate it: %w", id, err))
 	}
@@ -93,9 +97,11 @@ func (c creationRecorder) Call(ctx context.Context, verb string, params, out any
 	return nil
 }
 
-func (a *App) launchJob(owner Owner, h harness.Harness, spec harness.Spec) func(context.Context) (any, error) {
+// launchJob launches as me (the request's actor, or the owner for a
+// schedule's run).
+func (a *App) launchJob(me work.Actor, owner Owner, h harness.Harness, spec harness.Spec) func(context.Context) (any, error) {
 	spec.Flags = append(spec.Flags, a.hookFlags(h)...)
-	d := &recordingDriver{Driver: a.launcher, work: a.work, owner: owner, harness: h.Name, model: spec.Model}
+	d := &recordingDriver{Driver: a.launcher, work: a.work, actor: me, owner: owner, harness: h.Name, model: spec.Model}
 	l := &harness.Launcher{Driver: d, Delay: a.promptDelay, Sleep: a.sleep}
 	panes := a.panesd
 	return func(ctx context.Context) (any, error) {

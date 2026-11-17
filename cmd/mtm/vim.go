@@ -203,7 +203,7 @@ func (a *App) startVim(session work.VimSession, owner Owner, path string, reopen
 }
 
 func (a *App) vimLaunchJob(session work.VimSession, owner Owner, path string, reopen bool) func(context.Context) (any, error) {
-	driver := &recordingDriver{Driver: a.launcher, work: a.work, owner: owner}
+	driver := &recordingDriver{Driver: a.launcher, work: a.work, actor: a.work.Actor(), owner: owner}
 	panesd, workStore, dir := a.panesd, a.work, a.vimDir
 	destination := mtmOnlySession
 	if project, ok := a.project(owner.ProjectID); ok {

@@ -9,7 +9,9 @@ import (
 // The work store's side of actor.go: who its writes run as, the policy it
 // reads, and the decisions applied inside its transactions.
 
-// SetActor makes every later write run as a; a zero actor is the owner.
+// SetActor sets who writes run as when no request is running (the
+// process's actor: the TUI's owner, a CLI or MCP server's agent); a zero
+// actor is the owner.
 func (s *Store) SetActor(a Actor) {
 	if a.Kind == "" {
 		a = Owner()
@@ -17,8 +19,20 @@ func (s *Store) SetActor(a Actor) {
 	s.actor = a
 }
 
-// Actor is who the store's writes run as.
+// SetActorSource sets where the store reads the running request's actor
+// (the app maps its runtime's request actor): a request's actor lasts as
+// long as the request, so nothing has to restore it. An answer of false
+// (no request names one) is SetActor's; nil always is.
+func (s *Store) SetActorSource(current func() (Actor, bool)) { s.current = current }
+
+// Actor is who the store's writes run as: the running request's actor,
+// else SetActor's.
 func (s *Store) Actor() Actor {
+	if s.current != nil {
+		if a, ok := s.current(); ok && a.Kind != "" {
+			return a
+		}
+	}
 	if s.actor.Kind == "" {
 		return Owner()
 	}
@@ -77,10 +91,9 @@ func (s *Store) putTask(tx *store.Tx, t *Task) error {
 	return tx.Put("tasks", t.ID, *t)
 }
 
-// mayChangePane is MayChangePane with what the store knows of the pane:
-// its recipe's LaunchedBy and its companion parent.
-func (s *Store) mayChangePane(window string) error {
-	me := s.Actor()
+// mayChangePane is MayChangePane for me with what the store knows of the
+// pane: its recipe's LaunchedBy and its companion parent.
+func (s *Store) mayChangePane(me Actor, window string) error {
 	if !me.IsAgent() {
 		return nil
 	}
