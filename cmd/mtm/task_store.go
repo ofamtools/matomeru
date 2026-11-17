@@ -168,9 +168,8 @@ func (a *App) taskStore() ochazuke.Store {
 			return markFocus(a.taskThingOf(t), a.focusOrders([]work.Task{t})), nil
 		},
 		List: func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
-			scope := *a
-			// scope pin is the pane's lane, which stands in for the pin.
-			if all, _ := q.Args["all"].(bool); all || ochazuke.StringArg(q.Args, "scope", "") != "" {
+			scope, named := *a, ochazuke.StringArg(q.Args, "scope", "")
+			if all, _ := q.Args["all"].(bool); all || named != "" { // pin: the lane stands in for the pin
 				scope.all = true
 			}
 			tasks, err := a.work.Tasks("")
@@ -185,7 +184,7 @@ func (a *App) taskStore() ochazuke.Store {
 				return nil, err
 			}
 			inLane := func(work.Task) bool { return true }
-			if ochazuke.StringArg(q.Args, "scope", "") == "pin" {
+			if named != "" && named != "all" {
 				inLane, err = a.paneLane(tasks)
 				if err != nil {
 					return nil, err
