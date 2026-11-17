@@ -1,0 +1,22 @@
+# rulecheck storeliterals baseline: file, function, count, reason (tab separated).
+# A row says: FUNCTION in FILE writes an ochazuke.Store literal (spine S6 rule 1: a noun's store is its declaration's store row,
+# one of the four kinds ochazuke fills, plus named hooks; no application writes a Store by hand). Fix it by declaring the
+# store in the noun file (doc, facts, proxy or instances) with the hooks it needs registered by name (AddHook, AddSource).
+# A row with a reason is a reviewed exception (ochazuke building a store kind); a row without one is debt that only shrinks
+# (RULECHECK_UPDATE=1 removes and lowers rows, never adds one).
+# Seeded 2026-11-17 by run plan 5.4a: the rows without a reason are the Store literals present that day; the overlay plan's
+# ST2 to ST4 in run plan 5.4 (pane, session) and 6b, 6f (the other nouns' stores) remove them.
+cmd/mtm/action_item_store.go	App.actionItemStore	1
+cmd/mtm/context_store.go	App.contextStore	1
+cmd/mtm/daily_focus.go	App.focusStore	1
+cmd/mtm/directory_noun.go	App.directoryStore	1
+cmd/mtm/pane_store.go	App.paneStore	1
+cmd/mtm/project_store.go	App.projectStore	1
+cmd/mtm/relation_noun.go	App.relationStore	1
+cmd/mtm/reminders.go	App.reminderStore	1
+cmd/mtm/review_store.go	App.reviewStore	1
+cmd/mtm/saved_store.go	App.savedStore	1
+cmd/mtm/schedule_store.go	App.scheduleStore	1
+cmd/mtm/session_store.go	App.sessionStore	1
+cmd/mtm/task_store.go	App.taskStore	1
+cmd/mtm/vim_store.go	App.vimStore	1

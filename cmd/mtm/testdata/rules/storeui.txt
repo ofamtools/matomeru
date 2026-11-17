@@ -1,0 +1,14 @@
+# rulecheck storeui baseline: file, function, role (Store.FIELD, DocHooks.FIELD, AddSource or AddHook), UI field read (FIELD, or "via FUNC: FIELD" one call down), count, reason (tab separated).
+# A row says: a store function or hook reads a UI field: a field of the package whose type is a page's UI state or the
+# model (its type name ends in UI, View, Page or Model: *paneUI, *ochazuke.Page, *ochazuke.Model), directly or in a
+# function of the package it calls (spine S6 rule 2: a store never touches UI state; it emits a change, pages listen, and
+# scope arrives in the ListQuery). Fields are matched by name, without types. Fix it by moving the UI work to a listener of
+# the store's change event. A row with a reason is a reviewed exception; a row without one is debt that only shrinks
+# (RULECHECK_UPDATE=1).
+# Seeded 2026-11-17 by run plan 5.4a: the rows without a reason are present that day; the store moves of run plan 5.4
+# and 6b, 6f remove them.
+cmd/mtm/pane_store.go	App.paneStore	Store.List	via App.livePanes: pv	1
+cmd/mtm/pane_store.go	App.patchPane	Store.Patch	via App.listedNow: pv	1
+cmd/mtm/pane_store.go	App.patchPane	Store.Patch	via App.rebuildPanes: pv	1
+cmd/mtm/pane_store.go	App.patchPane	Store.Patch	via App.rebuildPanes: view	1
+cmd/mtm/vim_store.go	App.patchVim	Store.Patch	via App.vimState: pv	1

@@ -22,8 +22,14 @@ import (
 // pages, rails, trees, forms and pickers the fixture does not build are
 // walked too), names
 // (testdata/namecheck.txt), refusals (testdata/refusecheck.txt), lexicon
-// (testdata/lexicon-baseline.txt, words lexicon-words.tsv) and nouns (no
-// baseline). Every baseline only shrinks (RULECHECK_UPDATE=1). This test
+// (testdata/lexicon-baseline.txt, words lexicon-words.tsv), nouns (no
+// baseline), and the restructure's syntax checks over the whole repo
+// (seeded 2026-11-17, run plan 5.4a; each testdata/rules/<id>.txt):
+// declarations (Define outside the noun-file loader), gokeys (Go Bind
+// rows), stringids (ids glued or cut in strings outside Ref),
+// storeliterals, storeui and hookrefusal (spine S6 rules 1 to 3) and
+// nounlines (the Go lines naming each stored noun, which may only fall).
+// Every baseline only shrinks (RULECHECK_UPDATE=1). This test
 // replaces TestNoNewNameBranches, TestNoNewRefusals, TestLexicon and
 // TestNouns.
 //

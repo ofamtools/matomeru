@@ -1,0 +1,7 @@
+# rulecheck hookrefusal baseline: file, function, role (DocHooks.FIELD, Store.ConfirmFor or AddHook), answer (the refusal it builds, or "via FUNC: ANSWER" one call down), count, reason (tab separated).
+# A row says: a store hook answers a refusal (Refuse, a RefusedError, ReadOnlyError, NotApplicableError, DeclinedError), a
+# Nothing (Nothing, NothingErr, KeptError) or a Need (Ctx.Need, NeedTarget, MissingParameterError) in place of doing its
+# side effect or failing (spine S6 rule 3: a hook does domain side effects only; an error from a hook is failed). Fix it by
+# doing the side effect, failing with a plain error, or moving the question to the verb. A row with a reason is a reviewed
+# exception; a row without one is debt that only shrinks (RULECHECK_UPDATE=1).
+# Seeded 2026-11-17 by run plan 5.4a, where the changes table's hooks are written.

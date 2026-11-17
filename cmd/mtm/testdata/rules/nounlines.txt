@@ -1,0 +1,28 @@
+# rulecheck nounlines baseline: noun, count (the Go lines that name it), reason (tab separated).
+# Rule: a function or method counts whole (its declaration, doc comment excluded) for a noun when it names the noun: a string literal NOUN or NOUN followed by . : / (a verb key, a row id, a key table), a package-level constant holding one, or an identifier NOUN[s] alone or followed by [A-Z0-9_] (case of the first letter free: pane, paneRow, PaneCopy, panes; panesd does not); a function naming several nouns counts for each; non-test, non-generated .go files of the scanned directories.
+# The nouns are the runtimes' stored nouns (record, singleton, facts, instances: those with a store).
+# A row says: NOUN is named by COUNT lines of Go (spine S12: code stays only where data cannot say it; moving a store's logic
+# into a hooks file must not count as removing it). Every count may only fall: RULECHECK_UPDATE=1 lowers it, never raises it;
+# a step that adds a noun's lines raises its row as a reviewed edit with a reason. Seeded 2026-11-17 by run plan 5.4a; every
+# step that removes a store or page file reports these numbers before and after.
+action-item	723
+context-item	765
+directory	2401
+focus-item	132
+note	4818
+ochazuke.binding	53
+ochazuke.mode	3
+ochazuke.notice	21
+ochazuke.page	142
+ochazuke.relation-kind	22
+ochazuke.setting	53
+pane	14379
+project	12332
+relation	1331
+reminder	1067
+review	1585
+saved	1612
+schedule	1892
+session	8976
+task	9259
+vim	1566
