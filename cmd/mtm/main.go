@@ -726,6 +726,7 @@ func New(opts Options) (*App, error) {
 	a.defineGuideVerb()
 	a.defineSetup()
 	a.defineStore()
+	a.defineDatabase()
 	a.defineExtensions()
 	a.defineExtensionRows()
 	a.defineExtensionSetup()

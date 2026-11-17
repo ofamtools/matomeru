@@ -183,14 +183,14 @@ type legacyProject struct {
 // steps of 1024), data kind, repo and branch as stored, the default flag on
 // the path default_tree names (a default_tree no tree lists is kept as a
 // relation of its own: no row is lost), then the row without trees and
-// default_tree. A file about to migrate is copied beside itself first
-// (mtm.db.bak-<time>); a fresh file and a migrated one do nothing.
+// default_tree. A file about to migrate is copied first
+// (backups/mtm.db.bak-<time>-projects-v2, store.BackupCopy); a fresh file and a migrated one do nothing.
 func migrateDirectories(db *store.Store) error {
 	if v, ok := db.TableVersion("projects"); !ok || v != 1 {
 		return nil
 	}
 	if path := db.Path(); path != "" && path != ":memory:" {
-		if err := db.Backup(path + ".bak-" + time.Now().UTC().Format("20060102T150405Z")); err != nil {
+		if _, err := db.BackupCopy("projects-v2", time.Now()); err != nil {
 			return fmt.Errorf("projects 1 -> 2: backup before moving directories to relations: %w", err)
 		}
 	}

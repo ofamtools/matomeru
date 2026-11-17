@@ -187,6 +187,7 @@ daemon	noun	seed
 daily	noun	seed	
 dark	prop	seed	
 data	prop	seed	
+database	noun	yes	mtm's database file: its size, tables' shares and copies (database.show|backup|tables)
 date	prop	seed	
 days	prop	seed	
 decide	action	seed	
@@ -763,6 +764,7 @@ restored	prop	seed
 result	prop	seed	
 resume	action	seed	
 retarget	action	seed	
+retention-rule	noun	yes	a declared retention rule (ochazuke): what a program keeps of its files or things and what it would remove now
 reveal	action	seed	
 reversed	prop	seed	
 revert	action	seed	

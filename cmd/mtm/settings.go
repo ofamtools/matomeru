@@ -66,6 +66,11 @@ const (
 func (a *App) configure(opts Options, configDir string) {
 	c := a.r.Config()
 	c.App, c.Dir = "matomeru", configDir
+	// {data} of the retention rows (database-copies) is the database's
+	// folder, whatever --data names.
+	if opts.Data != "" && opts.Data != ":memory:" {
+		c.DataDir = filepath.Dir(opts.Data)
+	}
 	if opts.Data != "" && !samePath(opts.Data, opts.defaultData()) {
 		c.StateDir = filepath.Dir(opts.Data)
 	}

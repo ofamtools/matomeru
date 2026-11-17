@@ -67,7 +67,11 @@ matches a row that never wrote it). It decodes only the page and is not a full
 read (`FullReads` does not count it).
 
 `db.Backup(dest)` writes a consistent copy (`VACUUM INTO`) and refuses an
-existing file; a unit calls it before a migration that rewrites rows for good.
+existing file. `db.BackupCopy(label, now)` is the one way mtm copies its
+database: it writes `backups/<file>.bak-<UTC time>[-label]` beside the file
+through `Backup` and answers the path; a unit calls it before a migration
+that rewrites rows for good, and `database backup` calls it. `db.TableBytes()`
+reads each table's and index's bytes (SQLite `dbstat`), writing nothing.
 `db.TableVersion(table)` tells a file that still has to migrate.
 
 ## Documents for ochazuke (DocTable)

@@ -680,10 +680,10 @@ func PlanChangesFold(db *store.Store, names NounNames, overlayPath string) (Chan
 }
 
 // FoldChanges makes the move once: a backup of the file first
-// (mtm.db.bak-<time>-changes), then, in one transaction, the changes rows
-// (each merged with the row the table holds, read inside it) and the
-// rename of ext_rows; then the rename of the file. A file with neither
-// source does nothing.
+// (backups/mtm.db.bak-<time>-changes, store.BackupCopy), then, in one
+// transaction, the changes rows (each merged with the row the table holds,
+// read inside it) and the rename of ext_rows; then the rename of the file.
+// A file with neither source does nothing.
 func (s *Store) FoldChanges(names NounNames, overlayPath string) (ChangesFold, error) {
 	return foldChanges(s.db, names, overlayPath, true)
 }
@@ -714,11 +714,7 @@ func foldChanges(db *store.Store, names NounNames, overlayPath string, apply boo
 		return fold, err
 	}
 	if path := db.Path(); path != "" && path != ":memory:" {
-		fold.Backup = path + ".bak-" + stamp + "-changes"
-		for i := 2; fileExists(fold.Backup); i++ { // a second move in the same second
-			fold.Backup = fmt.Sprintf("%s.bak-%s-changes-%d", path, stamp, i)
-		}
-		if err := db.Backup(fold.Backup); err != nil {
+		if fold.Backup, err = db.BackupCopy("changes", time.Now()); err != nil {
 			return fold, err
 		}
 	}
@@ -802,9 +798,4 @@ func foldMerge(rows []ChangeRow, read func(id string, row *ChangeRow) error, put
 		}
 	}
 	return notes, nil
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

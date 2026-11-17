@@ -297,7 +297,8 @@ func PlanSessionIDs(db *store.Store) (SessionIDPlan, error) {
 }
 
 // migrateSessionIDs runs the steps once: a file with a table still at its
-// old version is copied beside itself first (mtm.db.bak-<time>), then each
+// old version is copied first (backups/mtm.db.bak-<time>-session-ids,
+// store.BackupCopy), then each
 // table moves a version in its own transaction (store.Migrate). A fresh
 // file and a migrated one do nothing.
 func migrateSessionIDs(db *store.Store) (SessionIDPlan, error) {
@@ -316,7 +317,7 @@ func migrateSessionIDs(db *store.Store) (SessionIDPlan, error) {
 		return plan, err
 	}
 	if path := db.Path(); path != "" && path != ":memory:" {
-		if err := db.Backup(path + ".bak-" + time.Now().UTC().Format("20060102T150405Z")); err != nil {
+		if _, err := db.BackupCopy("session-ids", time.Now()); err != nil {
 			return plan, err
 		}
 	}
