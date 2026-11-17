@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"ofam.dev/ochazuke"
 
 	"ofam.dev/matomeru/internal/daemon"
@@ -115,62 +116,49 @@ func TestPaneAndSessionChangeTokens(t *testing.T) {
 	}
 }
 
-// The palette keeps what it computed at open across a panes.refresh whose
-// listing is the same (the stores' change tokens say nothing changed): the
-// next key runs no guard and reads no store. After a listing that changed,
-// the next key runs the guards again over the new listing (ochazuke's
-// TestPaletteRedrawReadsNoStore, over mtm's stores). The fixture's verb's
-// guard reads the first pane's title from the pane store.
-func TestPaletteKeepsItsMemoAcrossAnUnchangedRefresh(t *testing.T) {
+// An unchanged panes.refresh re-reads nothing for the pane index (g I):
+// its notify watches stay silent while the stores' change tokens hold; a
+// changed listing reads it again. And the palette, which keeps an argument
+// step's values across opens while the store's token holds, shows a pane
+// renamed by the daemon on the next open.
+func TestUnchangedRefreshRereadsNothing(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	listAgain(t, a, func(*fakePanes) {})
-	window, title := a.panes[0].ID, a.panes[0].Title
-	guards, titled := 0, false
-	a.r.DefineGuard("zz-pane-titled", func(r *ochazuke.Runtime, _ ochazuke.KeyEvent) bool {
-		guards++
-		thing, err := r.Noun("pane").Store.Get(ochazuke.Ctx{Runtime: r}, window)
-		titled = err == nil && thing["title"] == title
-		return titled
-	})
-	a.r.Define("zzprobe").Verb("zztour", func(ochazuke.Ctx) ochazuke.Result { return ochazuke.Done(nil) }, "A verb offered while the first pane keeps its title").When("zz-pane-titled")
-	reads := 0
-	for _, n := range a.r.Nouns {
-		if n == nil || n.Store == nil {
-			continue
-		}
-		if get := n.Store.Get; get != nil {
-			n.Store.Get = func(c ochazuke.Ctx, key string) (ochazuke.Thing, error) { reads++; return get(c, key) }
-		}
-		if list := n.Store.List; list != nil {
-			n.Store.List = func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) { reads++; return list(c, q) }
-		}
-		if query := n.Store.Query; query != nil {
-			n.Store.Query = func(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListPage, error) { reads++; return query(c, q) }
-		}
-	}
-	key := func(k string) (ran, read int) {
-		t.Helper()
-		g, r := guards, reads
-		a.Update(keyMsg(k))
-		a.View()
-		return guards - g, reads - r
-	}
-	if ran, _ := key(":"); ran == 0 || !titled {
-		t.Fatal("opening the palette ran no guard: the fixture proves nothing")
-	}
-	// The palette's first reads copy the panes and sessions in (a copy
-	// store's backfill writes the copies): the refresh after them sees the
-	// copies changed. From then on a refresh changes nothing.
+	press(t, a, "g", "I")
+	settle(a, a.r.PendingCommands())
+	listAgain(t, a, func(*fakePanes) {}) // every watch's first telling
+	queries := 0
+	store := a.r.Noun("pane").Store
+	query := store.Query
+	store.Query = func(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListPage, error) { queries++; return query(c, q) }
 	listAgain(t, a, func(*fakePanes) {})
-	key("z")
-	listAgain(t, a, func(*fakePanes) {})
-	if ran, read := key("z"); ran != 0 || read != 0 {
-		t.Fatalf("the key after an unchanged refresh ran %d guards and read the stores %d times", ran, read)
+	if queries != 0 {
+		t.Fatalf("an unchanged refresh read the pane index again (%d queries)", queries)
 	}
 	listAgain(t, a, func(f *fakePanes) { f.panes[0].Title = "retitled" })
-	if ran, _ := key("t"); ran == 0 || titled {
-		t.Fatalf("the key after a changed listing ran %d guards (the guard saw the old title: %v)", ran, titled)
+	if queries == 0 {
+		t.Fatal("a changed listing did not read the pane index again")
+	}
+	values := func() string {
+		t.Helper()
+		a.Update(keyMsg(":"))
+		settle(a, a.r.PendingCommands())
+		typeText(t, a, "pane get --id ")
+		settle(a, a.r.PendingCommands())
+		view := ansi.Strip(a.View().Content)
+		a.m.Palette.Close()
+		for i := 0; a.r.TopModal() != "" && i < 5; i++ {
+			a.r.Pop()
+		}
+		return view
+	}
+	if view := values(); !strings.Contains(view, a.panes[0].label()[strings.Index(a.panes[0].label(), "/")+1:]) {
+		t.Fatalf("the values do not show the first pane:\n%s", view)
+	}
+	listAgain(t, a, func(f *fakePanes) { f.panes[0].Name = "fresh-name" })
+	if view := values(); !strings.Contains(view, "fresh-name") {
+		t.Fatalf("the next open's values do not show the renamed pane:\n%s", view)
 	}
 }
 
