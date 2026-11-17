@@ -382,8 +382,8 @@ func (a *App) narrowCopies(cn *copiedNoun) error {
 
 // readCopiesNow makes noun's reads sync its copies from the source first
 // (syncCopies): get, list and set answer the thing as it is now, a list
-// keeps only this source's copies and only the scope's (list --all
-// every project's), and set on a thing with no copy that the
+// keeps only this source's copies and, for an ended thing, the scope's
+// (list --all every project's), and set on a thing with no copy that the
 // source does not list writes the source alone (a pane mtm has not listed
 // yet still takes a star or an owner: record first, never refuse). A set
 // that writes a held prop marks it the copy's own (copyLocal.hold). Called
@@ -420,11 +420,10 @@ func (a *App) readCopiesNow(noun string, check func(ochazuke.Thing) error) {
 			if !mine[fmt.Sprint(t[cn.local.keyProp])] {
 				continue
 			}
-			// The scope holds for every copy a list shows: an ended thing's,
-			// and a live thing's the source left out of its scoped answer
-			// (a copy a read made, the walk to a pane's session included).
-			if !all && !a.inScope(a.inherited(a.work, cn.noun, t, "project")) {
-				continue
+			if ended, _ := t[endedProp].(bool); ended && !all {
+				if project, _ := t["project"].(string); !a.inScope(project) {
+					continue
+				}
 			}
 			out = append(out, t)
 		}
@@ -493,7 +492,9 @@ func (a *App) copiesOf(cn *copiedNoun) (map[string]bool, error) {
 // copies to it: a listed thing's kept props take the source's values (a
 // held one stays), and it is not ended; a thing the listing lacks is
 // ended, with when mtm saw it end. Nothing is written unless something
-// changed, nothing is copied in (the copy store's first read does that),
+// changed, nothing at all for a read another noun's derived prop makes
+// (ochazuke.Ctx.ReadOnly: the walk to a pane's session), nothing is
+// copied in (the copy store's first read does that),
 // and nothing changes when the read knows nothing of the source (a cached
 // read before any listing, a listing that failed, a process that never
 // listed the daemon: copyListing.known). It answers c with the listing in
@@ -517,6 +518,9 @@ func (a *App) syncCopies(c ochazuke.Ctx, cn *copiedNoun) ochazuke.Ctx {
 	}
 	a.copyFacts[cn.noun] = sources
 	here, holdNames := a.server(), cn.r.Settings().String(settingHoldNames)
+	if c.ReadOnly() {
+		return c // a read for another noun's derived prop writes nothing (spine S6)
+	}
 	if ver, err := a.work.CopiesVersion(); err == nil && cn.synced.same(ver, here, holdNames, sources) {
 		return c
 	}

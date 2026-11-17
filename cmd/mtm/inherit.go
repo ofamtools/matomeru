@@ -86,14 +86,30 @@ func newOwnerWalk(r *ochazuke.Runtime) ownerWalk {
 // through the declarations over the records in w ("" when nothing sets
 // it). Safe off the loop.
 func (h *ownerWalk) value(w *work.Store, noun string, t ochazuke.Thing, prop string) string {
+	return h.values(w, noun, t, prop)[0]
+}
+
+// values are the props of t as a read shows them, walked as value walks
+// one, each record on the way read once for them all.
+func (h *ownerWalk) values(w *work.Store, noun string, t ochazuke.Thing, props ...string) []string {
+	got := map[string]ochazuke.Thing{}
 	read := func(noun, key string) ochazuke.Thing {
-		if rec := h.records[noun]; rec != nil {
-			return rec(w, key)
+		id := noun + "\x00" + key
+		if rec, ok := got[id]; ok {
+			return rec
 		}
-		return nil
+		var rec ochazuke.Thing
+		if fn := h.records[noun]; fn != nil {
+			rec = fn(w, key)
+		}
+		got[id] = rec
+		return rec
 	}
-	v, _ := h.decl.Value(noun, t, prop, read).(string)
-	return v
+	out := make([]string, len(props))
+	for i, prop := range props {
+		out[i], _ = h.decl.Value(noun, t, prop, read).(string)
+	}
+	return out
 }
 
 // record is the record of noun's thing key in w (its record hook), nil
@@ -120,7 +136,8 @@ func paneOwnerWalk(h *ownerWalk, w *work.Store, window, session string) (work.As
 	if session != "" {
 		as.Session = session
 	}
-	as.ProjectID, as.TaskID = h.value(w, "pane", t, "project"), h.value(w, "pane", t, "task")
+	v := h.values(w, "pane", t, "project", "task")
+	as.ProjectID, as.TaskID = v[0], v[1]
 	return as, err
 }
 
