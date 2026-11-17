@@ -37,7 +37,7 @@ func TestPaneIndexPageOpensOnGI(t *testing.T) {
 // The daemon's own changes reach the pane index: a listing panes.refresh
 // loads (a pane opened) fills the shown tree again, as the Panes page
 // follows it (panes.refresh declares the stores it loads, Writes), and
-// a starred pane shows its mark ((the star-mark prop, a mark derivation)).
+// a starred pane shows its mark (the gutter column, pane.gutter).
 func TestPaneIndexFollowsTheDaemonListing(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -62,7 +62,7 @@ func TestPaneIndexFollowsTheDaemonListing(t *testing.T) {
 	if _, ok := cells["w3"]; !ok {
 		t.Fatalf("the listing did not reach the tree: %v", cells)
 	}
-	if !strings.Contains(cells["w1"], "|★|") || strings.Contains(cells["w2"], "★") {
+	if !strings.Contains(cells["w1"], "|★") || strings.Contains(cells["w2"], "★") {
 		t.Fatalf("star marks: w1 %q, w2 %q", cells["w1"], cells["w2"])
 	}
 }
@@ -102,9 +102,9 @@ func TestPaneIndexGoesLiveInPlace(t *testing.T) {
 	}
 }
 
-// The index shows the Panes page's gutter marks as columns (the side pane
-// mark and the state glyph, from the same functions); panes.index-marks
-// off leaves them empty.
+// The index shows the Panes page's gutter as a column (star, side pane,
+// state glyph, from the same function); panes.index-marks off leaves it
+// empty.
 func TestPaneIndexGutterMarks(t *testing.T) {
 	t.Parallel()
 	for _, on := range []bool{true, false} {
@@ -129,7 +129,7 @@ func TestPaneIndexGutterMarks(t *testing.T) {
 		for _, n := range a.r.Instances["pane-index/panes"].Component.(*ochazuke.Tree).Nodes() {
 			cells[strings.TrimPrefix(n.ID, "pane-index/panes/")] = strings.Join(n.Cells, "|")
 		}
-		marked := strings.Contains(cells["w1"], "|◧|●|")
+		marked := strings.Contains(cells["w1"], "◧●")
 		if marked != on || strings.Contains(cells["w2"], "◧") {
 			t.Fatalf("marks %v: w1 %q, w2 %q", on, cells["w1"], cells["w2"])
 		}
