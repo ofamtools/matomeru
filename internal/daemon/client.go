@@ -69,7 +69,15 @@ type Error struct {
 	Hint    map[string]any `json:"hint,omitempty"`
 }
 
-func (e *Error) Error() string { return e.Code + ": " + e.Message }
+// Error is the code and message, followed by the hint's detail sentence when
+// the daemon attached one, for every verb alike.
+func (e *Error) Error() string {
+	msg := e.Code + ": " + e.Message
+	if detail, _ := e.Hint["detail"].(string); detail != "" && !strings.Contains(e.Message, detail) {
+		msg += " (" + detail + ")"
+	}
+	return msg
+}
 
 type response struct {
 	ID     string          `json:"id"`

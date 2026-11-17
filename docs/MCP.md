@@ -121,12 +121,12 @@ inside a pane.
 ### Scope and rights
 
 The tuios server reached only the session of its own pane, its fan group and
-the sessions its fans started. mtm keeps that as data. A request made by an
+the sessions its fans started. mtm keeps that as data. Under `own`, a request made by an
 agent first restricts its daemon connection to the daemon's scope own
 (`restrict-connection`, with `MTM_PANE_TOKEN` (`TUIOS_PANE_TOKEN` from an older daemon) for a pane the kernel cannot
 place), so the daemon refuses every other session; the owner is never
-restricted. The `agents.pane-scope` setting (`own`, the default, or `all`) is
-the opt-out; it is protected, so an agent cannot widen its own reach. An
+restricted. The `agents.pane-scope` setting (`all`, the default, or `own`) is
+the opt-in narrowing: under `own` an agent's connection is restricted as above. The setting is protected, so an agent cannot widen its own reach. An
 agent outside every pane reaches no session at all (the restriction fails
 closed).
 

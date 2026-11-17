@@ -22,10 +22,11 @@ import (
 // key), so no second server is needed. One table holds them; one handler runs
 // every row, so a new daemon verb is a row, never a branch.
 //
-// Scope is data, not code: an agent actor's calls first restrict their
-// connection to the daemon's scope own (its session, its fan group and the
-// sessions its fans started) unless agents.pane-scope is all. The owner's
-// calls are never restricted. The daemon refuses what is out of scope.
+// Scope is data, not code: agents.pane-scope defaults to all, so an agent's
+// calls reach every session and remote host. Set to own, an agent's calls first
+// restrict their connection to the daemon's scope own (its session, its fan
+// group and the sessions its fans started). The owner's calls are never
+// restricted. The daemon refuses what is out of scope.
 
 const (
 	// settingAgentsPaneScope is the scope of an agent's calls to the daemon.
@@ -92,7 +93,7 @@ type wireVerb struct {
 // wireMargin is added to a call's blocking parameters.
 const wireMargin = 10 * time.Second
 
-var sessionParam = wireParam{Name: "session", Type: "string", Ref: []string{"session"}, Desc: "The session's id or name (sent to the daemon as its id). Omit for your own; an agent reaches its own session, its fan group and the sessions its fans started (agents.pane-scope)"}
+var sessionParam = wireParam{Name: "session", Type: "string", Ref: []string{"session"}, Desc: "The session's id or name (sent to the daemon as its id). Omit for your own; an agent reaches every session by default, or only its own session, its fan group and the sessions its fans started when agents.pane-scope is own"}
 
 var logParam = wireParam{Name: "log", Type: "string", Desc: "The log's id, session/window, as history-log.all gives it", Required: true}
 
@@ -287,8 +288,8 @@ func (w wireVerb) key() string { return w.Noun + "." + w.Verb }
 // paneScopeSetting is agents.pane-scope. It is protected: an agent cannot
 // widen its own reach.
 func paneScopeSetting() ochazuke.Setting {
-	return ochazuke.Setting{Name: settingAgentsPaneScope, Type: ochazuke.SettingString, Default: paneScopeOwn, Enum: []string{paneScopeOwn, paneScopeAll}, Protected: true,
-		Description: "Which sessions an agent's pane calls (session list-panes, pane send-text, agent ask, and the like) reach: own (its session, its fan group and the sessions its fans started) or all; the owner is never limited"}
+	return ochazuke.Setting{Name: settingAgentsPaneScope, Type: ochazuke.SettingString, Default: paneScopeAll, Enum: []string{paneScopeOwn, paneScopeAll}, Protected: true,
+		Description: "Which sessions an agent's pane calls (session list-panes, pane send-text, agent ask, and the like) reach: all (the default: every session and remote host) or own (its session, its fan group and the sessions its fans started); the owner is never limited"}
 }
 
 func (a *App) defineWireVerbs() {
@@ -333,7 +334,7 @@ var defaultEventTypes = []string{
 	"session-created", "session-closed", "command-finished",
 }
 
-// wireScope is the scope this request's daemon calls carry: an agent's under
+// wireScope is the scope this request's daemon calls carry: an agent's only under
 // agents.pane-scope own, none for the owner. It reads the actor, so it runs
 // while the request executes.
 func (a *App) wireScope() (daemon.Scope, bool) {
