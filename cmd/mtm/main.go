@@ -663,8 +663,6 @@ func New(opts Options) (*App, error) {
 	a.callbacks = &hostCallbacks{turn: make(chan struct{}, 1)}
 	a.directoryIO = newDirectoryIO()
 	a.configure(opts, configDir)
-	a.useChangesTable() // before anything reads the owner's changes
-	a.foldChanges()     // ext_rows and overlay.json into the changes table, once
 	if err := a.openSchedules(configDir); err != nil {
 		db.Close()
 		return nil, err

@@ -69,6 +69,11 @@ func (a *App) configure(opts Options, configDir string) {
 	if opts.Data != "" && !samePath(opts.Data, opts.defaultData()) {
 		c.StateDir = filepath.Dir(opts.Data)
 	}
+	// The owner's changes: the changes table is the overlay's backend
+	// before anything reads them, and ext_rows and overlay.json move into
+	// it once (changes.go).
+	a.useChangesTable()
+	a.foldChanges()
 }
 
 // declareSettings declares mtm's settings: only knobs that were constants.
