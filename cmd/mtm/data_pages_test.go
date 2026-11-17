@@ -135,3 +135,19 @@ func TestPaneIndexGutterMarks(t *testing.T) {
 		}
 	}
 }
+
+// A retitle the daemon reports (no listing) reaches the pane index at once,
+// as it reaches the Panes page's rows.
+func TestPaneIndexShowsARetitleInPlace(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	press(t, a, "g", "I")
+	settle(a, a.r.PendingCommands())
+	a.Update(daemonChanged{events: []daemon.Event{{Type: "window-retitled", Window: "w1", Data: map[string]any{"title": "renamed"}}}})
+	frame(a)
+	for _, n := range a.r.Instances["pane-index/panes"].Component.(*ochazuke.Tree).Nodes() {
+		if n.ID == "pane-index/panes/w1" && (len(n.Cells) == 0 || n.Cells[0] != "renamed") {
+			t.Fatalf("w1 reads %v", n.Cells)
+		}
+	}
+}

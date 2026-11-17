@@ -131,6 +131,7 @@ func (a *App) applyPaneEvents(events []daemon.Event) bool {
 			}
 			if changed != nil {
 				a.printPanes()
+				a.r.Changed("pane") // the pane index (pages/pane-index.json) shows a retitle without a listing
 				retitled = true
 				if a.paneRefreshRunning() {
 					if a.pv.titles == nil {
