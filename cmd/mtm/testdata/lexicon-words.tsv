@@ -214,6 +214,7 @@ detached	prop	seed
 detail	noun+prop	seed	
 detail-field	noun	seed	
 detail-link	noun	seed	
+detail-row	noun	yes	ochazuke cli: a data page detail kind's row (pane-index's record-form)
 diff	action	seed	
 dir	prop	seed	
 dir-search	noun	seed	

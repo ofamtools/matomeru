@@ -822,6 +822,8 @@ func New(opts Options) (*App, error) {
 	if err := a.addRunsPage(); err != nil {
 		return nil, err
 	}
+	// mtm's pages declared as data (pages/*.json), after its own tabs.
+	a.mountDataPages()
 	// The Extensions page is mtm's last tab; the registered extensions'
 	// pages follow it.
 	if err := a.addExtensionsPage(); err != nil {
