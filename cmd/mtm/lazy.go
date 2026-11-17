@@ -1,9 +1,6 @@
 package main
 
 import (
-	"maps"
-	"slices"
-
 	"ofam.dev/ochazuke"
 )
 
@@ -128,16 +125,24 @@ func (a *App) hookLazyPages() {
 			return target, nil
 		}
 		// From scopes a row's ID as LIST/KEY; explicit targets keep
-		// naming the record key, independent of which list shows it.
-		for _, id := range slices.Sorted(maps.Keys(a.r.Instances)) {
-			list := a.r.List(id)
-			if list == nil || list.From() == "" {
+		// naming the record key, independent of which list shows it. The
+		// first such list by ID wins; one pass keeps the smallest instead of
+		// sorting every instance ID on each resolve (a palette open resolves
+		// many).
+		best := ""
+		for id := range a.r.Instances {
+			if best != "" && id >= best {
 				continue
 			}
-			row := id + "/" + target
-			if a.r.Instances[row] != nil {
-				return row, nil
+			if a.r.Instances[id+"/"+target] == nil {
+				continue
 			}
+			if list := a.r.List(id); list != nil && list.From() != "" {
+				best = id
+			}
+		}
+		if best != "" {
+			return best + "/" + target, nil
 		}
 		return "", nil
 	}
