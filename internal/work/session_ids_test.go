@@ -78,8 +78,8 @@ func TestSessionNamesBecomeIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if baks, _ := filepath.Glob(path + ".bak-*"); len(baks) != 1 {
-		t.Fatalf("one backup beside the file: %v", baks)
+	if baks, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "backups", filepath.Base(path)+".bak-*-session-ids")); len(baks) != 1 {
+		t.Fatalf("one backup in the backups folder: %v", baks)
 	}
 	session := func(window string) string {
 		var a Assignment
