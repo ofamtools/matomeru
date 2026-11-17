@@ -40,7 +40,9 @@ offers it. `pane.kill` and `session.kill` require owner confirmation, while
 `extension.register` and `extension.remove` remain owner-only. An explicit
 owner row in `agents.rights` overrides a verb's default, including deletes.
 Agents cannot change `agents.rights`, `agents.rights-gate` or
-`agents.confirm-attribution`; those protected settings belong to the owner.
+`extensions.host-call-rights` (which can bypass `agents.rights`); those
+protected settings belong to the owner. Every other setting, including
+`agents.pane-scope` and `agents.widen-privacy`, an agent may change.
 For a mounted verb, both the host and extension gates apply: opening the
 host's gate does not override the child's settings.
 
@@ -127,7 +129,7 @@ agent first restricts its daemon connection to the daemon's scope own
 (`restrict-connection`, with `MTM_PANE_TOKEN` (`TUIOS_PANE_TOKEN` from an older daemon) for a pane the kernel cannot
 place), so the daemon refuses every other session; the owner is never
 restricted. The `agents.pane-scope` setting (`all`, the default, or `own`) is
-the opt-in narrowing: under `own` an agent's connection is restricted as above. The setting is protected, so an agent cannot widen its own reach. An
+the opt-in narrowing: under `own` an agent's connection is restricted as above. The setting is not protected: like any other setting an agent may change it. An
 agent outside every pane reaches no session at all (the restriction fails
 closed).
 

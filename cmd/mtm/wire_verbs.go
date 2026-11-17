@@ -282,7 +282,7 @@ func (w wireVerb) key() string { return w.Noun + "." + w.Verb }
 // paneScopeSetting is agents.pane-scope. It is protected: an agent cannot
 // widen its own reach.
 func paneScopeSetting() ochazuke.Setting {
-	return ochazuke.Setting{Name: settingAgentsPaneScope, Type: ochazuke.SettingString, Default: paneScopeAll, Enum: []string{paneScopeOwn, paneScopeAll}, Protected: true,
+	return ochazuke.Setting{Name: settingAgentsPaneScope, Type: ochazuke.SettingString, Default: paneScopeAll, Enum: []string{paneScopeOwn, paneScopeAll},
 		Description: "Which sessions an agent's pane calls (session list-panes, pane send-text, agent ask, and the like) reach: all (the default: every session and remote host) or own (its session, its fan group and the sessions its fans started); the owner is never limited"}
 }
 
