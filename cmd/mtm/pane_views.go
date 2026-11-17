@@ -35,11 +35,10 @@ func (a *App) paneViews() {
 		About: "The Panes page's gutter: ★ starred, ◧ a side pane open, the agent's state glyph (? waiting on you, ● working, ✓ done, ✗ errored, ○ idle, × exited)",
 		Type:  "string",
 		Derive: func(c ochazuke.Ctx, _ ochazuke.Derivation, t ochazuke.Thing) (any, bool) {
-			p, ok := a.paneOfThing(t)
-			if !r.Settings().Bool(settingIndexMarks) || !ok {
+			if !r.Settings().Bool(settingIndexMarks) {
 				return nil, false
 			}
-			if g := markerGutter(a.sideFields(p)); strings.TrimSpace(g) != "" {
+			if g := markerGutter(a.sideFields(a.paneOfThing(t))); strings.TrimSpace(g) != "" {
 				return g, true
 			}
 			return nil, false
@@ -48,25 +47,17 @@ func (a *App) paneViews() {
 }
 
 // paneOfThing is the pane a pane thing stands for: the listed one (with
-// what only the listing holds: sides, subagents, needs you), else the
-// thing's own props (a read before the Panes page listed; an ended pane's
-// copy, as the Panes page shows it).
-func (a *App) paneOfThing(t ochazuke.Thing) (pane, bool) {
+// what only the listing holds: sides, subagents, needs you), else what the
+// thing holds (a read before the Panes page listed; an ended pane's copy).
+func (a *App) paneOfThing(t ochazuke.Thing) pane {
 	id, _ := t["id"].(string)
-	if ended, _ := t[endedProp].(bool); !ended {
-		if p, err := a.paneByWindow(id); err == nil {
-			return p, true
-		}
-	}
-	if id == "" {
-		return pane{}, false
+	ended, _ := t[endedProp].(bool)
+	if p, err := a.paneByWindow(id); err == nil && !ended {
+		return p
 	}
 	p := endedPane(t)
-	p.Starred, _ = t["starred"].(bool)
 	p.AgentState, _ = t["state"].(string)
 	p.Exited, _ = t["exited"].(bool)
-	if ended, _ := t[endedProp].(bool); ended {
-		p.Exited = true
-	}
-	return p, true
+	p.Exited = p.Exited || ended
+	return p
 }
