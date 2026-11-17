@@ -345,3 +345,22 @@ func TestLiveScrollKeysFollowTheHarness(t *testing.T) {
 		})
 	}
 }
+
+// ctrl+a ; falls through to the normal-mode ; (agent.ask-new) from a live
+// terminal: the ask form opens with the question text area in insert.
+func TestLeaderSemicolonOpensTheAskFormFromLive(t *testing.T) {
+	t.Parallel()
+	a, s, _ := hintsApp(t, padRows("$ "))
+	leaderKey(t, a, "ctrl+a", ";")
+	plainView(a)
+	e := a.r.RecordEditor(askFormID)
+	if e == nil {
+		t.Fatalf("ctrl+a ; opened no ask form; top modal %q", a.r.TopModal())
+	}
+	if a.r.FocusID() != e.FocusTarget() || a.r.Mode.Name != "insert" {
+		t.Fatalf("focus %q (want %q) mode %q, want the question field in insert", a.r.FocusID(), e.FocusTarget(), a.r.Mode.Name)
+	}
+	if len(s.sent) != 0 || len(s.pasted) != 0 {
+		t.Fatalf("keys reached the pane: sent %v pasted %v", s.sent, s.pasted)
+	}
+}

@@ -40,6 +40,7 @@
   ]},
   {"context": "app/normal", "bindings": [
     {"key": "g q", "action": "agent.ask-new", "help": "ask a new agent a question: the ask form, the question first"},
+    {"key": ";", "action": "agent.ask-new", "help": "ask a new agent a question: the ask form, the question first (also reachable live as ctrl+a ;, since ctrl+a g is the side diff)"},
     {"key": "g I", "action": "ochazuke.page.open", "args": {"id": "pane-index"}, "hint": "pane index", "help": "open the pane index (pages/pane-index.json): the panes as a tree by session beside the focused pane's props and relations; I opens Panes"}
   ]},
   {"context": "app/visual", "bindings": [
