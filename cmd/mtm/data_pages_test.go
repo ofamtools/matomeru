@@ -34,7 +34,7 @@ func TestPaneIndexPageOpensOnGI(t *testing.T) {
 
 // The daemon's own changes reach the pane index: a listing panes.refresh
 // loads (a pane opened) fills the shown tree again, as the Panes page
-// follows it (panes.refresh declares the stores it loads, storeLoads), and
+// follows it (panes.refresh declares the stores it loads, Writes), and
 // a starred pane shows its mark ((the star-mark prop, a mark derivation)).
 func TestPaneIndexFollowsTheDaemonListing(t *testing.T) {
 	t.Parallel()

@@ -346,7 +346,7 @@ func (a *App) definePanes() {
 	r.Define("pane-project").DefaultKeys(false).Mode("normal").Bind("enter", ochazuke.Do("outline.fold"))
 	// List reloads are bookkeeping: Quiet keeps them off the jobs ticker.
 	r.Define("panes").Kind(ochazuke.NounKindPart).DefaultKeys(false).
-		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().
+		Verb("refresh", a.refreshPanes, "Reload the pane list from the daemon").Fetch().Quiet().Writes("pane", "session").
 		Verb("tab", a.paneTab, "Show the next (delta 1) or previous (-1) detail tab: Screen, Activity, Transcript, Turns").FocusBound().
 		Verb("waiting", a.nextWaiting, "Go to the next Needs-you row, wrapping: select it (a pane row its pane, an item row its item); the leader's W in live view is the same action, attaching the row's pane (inbox.needs-you-rule legacy: the next pane whose agent needs input)").
 		Verb("read-activities", a.readActivities, "Read every agent pane's running subagents for the rows under its pane (panes.subagents)").Fetch().Quiet().
@@ -613,6 +613,7 @@ func (a *App) showPanes(panes []pane, err error) {
 	a.panes = panes
 	a.refreshInboxPaneNames()
 	a.applyPaneCopies(err)
+	a.printPanes()
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {
 			return p.ID == a.attached.ID && !p.Exited

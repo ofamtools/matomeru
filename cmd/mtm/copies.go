@@ -357,7 +357,26 @@ func (a *App) copyStore(noun string, src ochazuke.Store, canon func(string) stri
 	a.copies[noun] = cn
 	s := ochazuke.CopyStore(src, cn.local)
 	s.ListParams = src.ListParams
+	if src.ChangeToken != nil {
+		s.ChangeToken = func(c ochazuke.Ctx) (string, error) { return a.copyChangeToken(c, src) }
+	}
 	return s
+}
+
+// copyChangeToken is a copy store's change token: its source's, joined
+// with what a read adds to it, the copies (work.CopiesWriteCount), the
+// source they are kept for and whether names are held
+// (settingHoldNames); unknown ("") while the source's is.
+func (a *App) copyChangeToken(c ochazuke.Ctx, src ochazuke.Store) (string, error) {
+	own, err := src.ChangeToken(c)
+	if err != nil || own == "" {
+		return own, err
+	}
+	copies, err := a.work.CopiesWriteCount()
+	if err != nil {
+		return "", err
+	}
+	return own + "|" + copies + "|" + a.server() + "|" + a.r.Settings().String(settingHoldNames), nil
 }
 
 // narrowCopies rewrites noun's stored copies to what the noun keeps
@@ -599,6 +618,7 @@ func (a *App) applyPaneCopies(listErr error) {
 
 // copyPanes is applyPaneCopies after a listing.
 func (a *App) copyPanes() error {
+	defer a.printPanes() // the copies' names are on the listed panes now
 	n := a.r.Noun("pane")
 	if n == nil || n.Store == nil || a.copies["pane"] == nil {
 		return nil

@@ -100,7 +100,10 @@ func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 	if source.ChangeToken != nil {
 		out.ChangeToken = func(c ochazuke.Ctx) (string, error) {
 			token, err := source.ChangeToken(c)
-			return fmt.Sprintf("%s/%s/%t/%t", token, a.pin, a.all, a.r.Settings().Bool(settingHideArchived)), err
+			if err != nil || token == "" {
+				return token, err // unknown stays unknown: every read lists
+			}
+			return fmt.Sprintf("%s/%s/%t/%t", token, a.pin, a.all, a.r.Settings().Bool(settingHideArchived)), nil
 		}
 	}
 	out.Get = func(c ochazuke.Ctx, key string) (ochazuke.Thing, error) {

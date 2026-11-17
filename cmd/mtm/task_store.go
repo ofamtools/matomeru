@@ -202,10 +202,30 @@ func (a *App) taskStore() ochazuke.Store {
 			}
 			return out, nil
 		},
-		Create: a.createTask,
-		Patch:  a.patchTask,
-		Delete: a.removeTask,
+		Create:      a.createTask,
+		Patch:       a.patchTask,
+		Delete:      a.removeTask,
+		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.taskChangeToken() },
 	}
+}
+
+// taskChangeToken is the task store's change token (ochazuke
+// Store.ChangeToken), read without reading a task: the records a read
+// answers from (tasks, projects, focus rows: work.TaskRecordsVersion),
+// today (a focus carries over by day), and the settings a read applies
+// (focus.carry, tasks.statuses: which statuses close a task); docStore
+// adds the scope and the archive setting. An agent's list keeps its lane
+// (paneLane, read from its pane), so its token is unknown ("").
+func (a *App) taskChangeToken() (string, error) {
+	if a.work.Actor().IsAgent() {
+		return "", nil
+	}
+	records, err := a.work.TaskRecordsVersion()
+	if err != nil {
+		return "", err
+	}
+	s := a.r.Settings()
+	return records + "|" + a.focusToday() + "|" + s.String(settingFocusCarry) + "|" + s.String(settingTaskStatuses), nil
 }
 
 // taskByID is the stored task with that id, "no task" when there is none.

@@ -86,8 +86,26 @@ func (a *App) sessionStore() ochazuke.Store {
 			}
 			return out, nil
 		},
-		Patch: a.patchSession,
+		Patch:       a.patchSession,
+		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.sessionChangeToken() },
 	}
+}
+
+// sessionChangeToken is the session store's change token (ochazuke
+// Store.ChangeToken), read without reading a session: the listing's print
+// and the scope (listingToken) and the records a read merges in (session
+// owners, the tasks an owner reaches: work.SessionRecordsVersion). Unknown
+// ("") before the listing is known.
+func (a *App) sessionChangeToken() (string, error) {
+	listing, ok := a.listingToken()
+	if !ok {
+		return "", nil
+	}
+	records, err := a.work.SessionRecordsVersion()
+	if err != nil {
+		return "", err
+	}
+	return listing + "|" + records, nil
 }
 
 // sessionKeyOf is the session key a key or a session row's id names.

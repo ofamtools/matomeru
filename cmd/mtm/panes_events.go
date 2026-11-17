@@ -130,6 +130,7 @@ func (a *App) applyPaneEvents(events []daemon.Event) bool {
 				retitlePane(&a.attached, title, rename)
 			}
 			if changed != nil {
+				a.printPanes()
 				retitled = true
 				if a.paneRefreshRunning() {
 					if a.pv.titles == nil {

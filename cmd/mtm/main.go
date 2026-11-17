@@ -447,6 +447,7 @@ type App struct {
 	askedDir       map[string]bool   // projects the pin picker already asked for a directory
 	tasks          []work.Task
 	panes          []pane                               // every pane the daemon reports; launches and kills reload it
+	panesPrint     string                               // what pane and session reads take from panes, hashed where panes change (printPanes)
 	copies         map[string]*copiedNoun               // the nouns whose stores are copies of the daemon's things (copies.go)
 	copyFacts      map[string]map[string]ochazuke.Thing // each copy noun's things as the last known listing read them, by key (copies.go)
 	paneErr        string                               // why the last listing failed (the daemon is not reachable)
@@ -823,9 +824,7 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	// mtm's pages declared as data (pages/*.json), out of the tabs
-	// unless they say otherwise, before Schedules and Runs. The verbs that
-	// load what their stores answer say so first (storeLoads).
-	a.declareStoreLoads()
+	// unless they say otherwise, before Schedules and Runs.
 	a.mountDataPages()
 	if err := a.addSchedulesPage(); err != nil {
 		return nil, err

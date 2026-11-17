@@ -86,6 +86,9 @@ func (a *App) projectStore() ochazuke.Store {
 		Create: a.createProject,
 		Patch:  a.patchProject,
 		Delete: a.removeProject,
+		// What a read answers from: the projects and their trees
+		// (projectThing reads nothing else).
+		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.work.ProjectRecordsVersion() },
 	}
 }
 

@@ -194,7 +194,6 @@ main.go	Options.client	compare	"default"	1
 mcp.go	App.defineMCPCommand	compare	"done"	1
 mcp_ops.go	App.addContextText	compare	"command"	1
 mcp_ops.go	App.addContextText	compare	"prompt"	1
-nouns.go	var storeLoads	table	"panes.refresh"	1	the Writes declaration of panes.refresh (run plan 5.6): it belongs on the verb at panes.go (Fetch().Quiet().Writes("pane", "session")), which this step may not edit while the Panes page stays; move it there when that page's files may change
 notes.go	App.renderNotes	compare	"note"	1
 notes.go	App.selectedNote	compare	"note"	2
 notes_doc.go	App.syncNoteDoc	compare	"note"	1

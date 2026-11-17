@@ -5,7 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"slices"
+	"strconv"
 	"strings"
 
 	"ofam.dev/ochazuke"
@@ -116,7 +119,70 @@ func (a *App) paneStore() ochazuke.Store {
 			}
 			return out, nil
 		},
-		Patch: a.patchPane,
+		Patch:       a.patchPane,
+		ChangeToken: func(ochazuke.Ctx) (string, error) { return a.paneChangeToken() },
+	}
+}
+
+// paneChangeToken is the pane store's change token (ochazuke
+// Store.ChangeToken), read without reading a pane: the listing's print and
+// the scope (listingToken), the records a read merges in (owners, stars,
+// the tasks an owner reaches: work.PaneRecordsVersion), and each listed
+// pane's agent settings as mtm holds them now (settingFields, from the
+// session logs already read). Unknown ("") before the listing is known: a
+// read then asks the daemon itself.
+func (a *App) paneChangeToken() (string, error) {
+	listing, ok := a.listingToken()
+	if !ok {
+		return "", nil
+	}
+	records, err := a.work.PaneRecordsVersion()
+	if err != nil {
+		return "", err
+	}
+	h := fnv.New64a()
+	for _, p := range a.panes {
+		if p.ID == "" {
+			continue
+		}
+		writeParts(h, p.ID)
+		for _, f := range a.settingFields(p) {
+			writeParts(h, f.Name, f.Value)
+		}
+	}
+	return listing + "|" + records + "|" + strconv.FormatUint(h.Sum64(), 36), nil
+}
+
+// listingToken is what the pane and session stores take from the listing
+// as a token: its print (printPanes), whether the last listing failed, and
+// the scope a list keeps (the pin);
+// ok is false while reads ask the daemon (livePanes: no listing yet).
+func (a *App) listingToken() (string, bool) {
+	if a.pv == nil || !a.pv.listed {
+		return "", false
+	}
+	return a.panesPrint + "|" + strconv.FormatBool(a.pv.listErr == nil) + "|" + a.pin + "|" + strconv.FormatBool(a.all), true
+}
+
+// printPanes hashes what pane and session reads take from the listing
+// (paneThing, sessionThings), in its order, into panesPrint: run where
+// the listing lands and where a listed pane changes in place, so the
+// stores' change tokens never hash the listing per call.
+func (a *App) printPanes() {
+	h := fnv.New64a()
+	for _, p := range a.panes {
+		writeParts(h, p.ID, p.givenName(), p.label(), p.SessionID, p.Session, strconv.FormatBool(p.Starred),
+			p.Title, p.Cwd, p.AgentState, p.Harness, p.LaunchHarness, strconv.FormatBool(p.Exited))
+	}
+	a.panesPrint = strconv.Itoa(len(a.panes)) + "." + strconv.FormatUint(h.Sum64(), 36)
+}
+
+// writeParts writes each part and a separator, so ("ab", "c") and ("a",
+// "bc") hash apart.
+func writeParts(h hash.Hash64, parts ...string) {
+	for _, p := range parts {
+		h.Write([]byte(p))
+		h.Write([]byte{0})
 	}
 }
 
@@ -321,6 +387,7 @@ func (a *App) updatePane(window string, apply func(*pane)) {
 			apply(&a.panes[i])
 		}
 	}
+	a.printPanes()
 }
 
 // launchWindowRename renames the window in the daemon as a job of the
