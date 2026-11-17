@@ -67,7 +67,7 @@ func (d *domainDocs) Version() (string, error) {
 func (d *domainDocs) Query(q ochazuke.DocQuery) (ochazuke.ListPage, error) {
 	// Preserve domain list semantics (including inherited archive state) before
 	// DocStore applies the catalog filters, sort and window.
-	things, err := d.source.List(d.ctx, d.query)
+	things, err := d.source.List(d.ctx, d.a.keyedQuery(d.noun, d.source, d.query))
 	if err != nil {
 		return ochazuke.ListPage{}, err
 	}
@@ -106,12 +106,23 @@ func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 			return fmt.Sprintf("%s/%s/%t/%t", token, a.pin, a.all, a.r.Settings().Bool(settingHideArchived)), nil
 		}
 	}
+	// Each read holds the work store's versions (work.Store.HoldReads):
+	// the records it merges in per thing (owners, copies) are answered
+	// from their row caches, the database asked once for the read.
+	if source.List != nil {
+		out.List = func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
+			defer a.work.HoldReads()()
+			return source.List(c, q)
+		}
+	}
 	out.Get = func(c ochazuke.Ctx, key string) (ochazuke.Thing, error) {
+		defer a.work.HoldReads()()
 		c.Runtime = a.r
 		defer d.with(c)()
 		return doc.Get(c, key)
 	}
 	out.Query = func(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListPage, error) {
+		defer a.work.HoldReads()()
 		c.Runtime = a.r
 		c.Args = q.Args
 		if source.Query != nil {
@@ -135,4 +146,44 @@ func (a *App) docStore(noun string, source ochazuke.Store) ochazuke.Store {
 	}
 	out.Delete = func(c ochazuke.Ctx, key string) error { c.Runtime = a.r; defer d.with(c)(); return doc.Delete(c, key) }
 	return out
+}
+
+// keyedQuery is q as the store lists it: a read by key (ochazuke's batch
+// read of the things references name: Every, with a filter on the key
+// prop) is not a scoped list, so it asks with the store's widening list
+// parameter (all) when the store declares one, and answers every key
+// named, as a Get of each would, whatever the pin. Any other request is
+// as it is.
+func (a *App) keyedQuery(noun string, source ochazuke.Store, q ochazuke.ListQuery) ochazuke.ListQuery {
+	if !q.Every || q.Args["all"] == true {
+		return q
+	}
+	if _, ok := source.ListParams["all"]; !ok {
+		return q
+	}
+	n := a.r.Noun(noun)
+	if n == nil {
+		return q
+	}
+	keyed := false
+	for _, p := range n.Props {
+		if !p.Key {
+			continue
+		}
+		for _, f := range q.Filters {
+			if f.Prop == p.Name && (f.Op == "in" || f.Op == "=" || f.Op == "") {
+				keyed = true
+			}
+		}
+	}
+	if !keyed {
+		return q
+	}
+	args := maps.Clone(q.Args)
+	if args == nil {
+		args = ochazuke.Arguments{}
+	}
+	args["all"] = true
+	q.Args = args
+	return q
 }

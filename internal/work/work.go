@@ -159,6 +159,10 @@ type Store struct {
 	// copies are the copy rows as last read, kept while the copies table's
 	// version is unchanged (copies.go).
 	copies copyCache
+	// rows are the row caches of the tables a list reads once per thing
+	// (row_cache.go: assignments, session owners, projects, stars).
+	rowsMu sync.Mutex
+	rows   map[string]*rowCache
 	actor  Actor // who writes run as outside a request (actor.go); zero is the owner
 	// current is the running request's actor (SetActorSource); nil or
 	// false falls back to actor.

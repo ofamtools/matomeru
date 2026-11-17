@@ -52,7 +52,7 @@ func (s *Store) SetSessionOwner(o SessionOwner) error {
 
 func (s *Store) SessionOwner(id string) (SessionOwner, error) {
 	var o SessionOwner
-	err := s.db.Get("session_owners", id, &o)
+	err := s.cachedGet("session_owners", id, &o)
 	if errors.Is(err, store.ErrNotFound) {
 		return SessionOwner{ID: id}, nil
 	}
@@ -64,7 +64,7 @@ func (s *Store) SessionOwner(id string) (SessionOwner, error) {
 // noun declares reads that).
 func (s *Store) PaneAssignment(window string) (Assignment, error) {
 	var a Assignment
-	err := s.db.Get("assignments", window, &a)
+	err := s.cachedGet("assignments", window, &a)
 	if errors.Is(err, store.ErrNotFound) {
 		return Assignment{Window: window}, nil
 	}

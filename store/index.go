@@ -244,8 +244,23 @@ func (s *Store) Path() string { return s.path }
 // connection (another process) commits, not for this store's own commits. A
 // reader that caches rows validates the cache with it, and with its own
 // write counter for what this process writes.
+//
+// While a HoldVersions is open it is read once and reused.
 func (s *Store) DataVersion() (int64, error) {
+	s.mu.Lock()
+	held := s.held
+	s.mu.Unlock()
+	if held != nil {
+		return *held, nil
+	}
 	var v int64
-	err := s.db.QueryRow(`PRAGMA data_version`).Scan(&v)
-	return v, err
+	if err := s.db.QueryRow(`PRAGMA data_version`).Scan(&v); err != nil {
+		return v, err
+	}
+	s.mu.Lock()
+	if s.holds > 0 && s.held == nil {
+		s.held = &v
+	}
+	s.mu.Unlock()
+	return v, nil
 }

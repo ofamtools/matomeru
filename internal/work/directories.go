@@ -155,23 +155,18 @@ func sortRows(xs []dirRow) {
 
 // Project is the project with that id, its directories loaded.
 func (s *Store) Project(id string) (Project, error) {
+	// The row from the projects' row cache and the directories from the
+	// trees every project read shares (projectTrees): a read of many
+	// things' projects reads neither table per project.
 	var p Project
-	if err := s.db.Get("projects", id, &p); err != nil {
+	if err := s.cachedGet("projects", id, &p); err != nil {
 		return p, err
 	}
-	raws, err := s.db.MatchOrdered(relations.Table, store.JSONMatch{Field: "from", Value: ProjectRef(id)}, store.JSONMatch{Field: "kind", Value: DirectoryKind})
+	dirs, err := s.projectTrees()
 	if err != nil {
 		return p, err
 	}
-	var xs []dirRow
-	for _, raw := range raws {
-		var r dirRow
-		if json.Unmarshal(raw, &r) == nil && r.live() {
-			xs = append(xs, r)
-		}
-	}
-	sortRows(xs)
-	p.setTrees(xs)
+	p.setTrees(dirs[id])
 	return p, nil
 }
 

@@ -43,6 +43,14 @@ type Store struct {
 	// that wrote it (Version).
 	mu     sync.Mutex
 	writes map[string]uint64
+	// holds counts the open HoldVersions calls; while it is above zero,
+	// Version reads data_version once (held) and reuses it.
+	holds int
+	held  *int64
+	// declaredTables are the tables declared() found: a declaration is
+	// never removed, so one found stays found (one not found is asked
+	// again).
+	declaredTables sync.Map // table name → struct{}
 	// fullReads counts whole-table reads (All, Entries), so a test can show
 	// a path reads no table.
 	fullReads sync.Map // table name → *atomic.Int64
@@ -51,6 +59,14 @@ type Store struct {
 // FullReads is how many whole-table reads (All, Tx.All, Tx.Entries) of the
 // table this store has made.
 func (s *Store) FullReads(table string) int64 { return s.counter(table).Load() }
+
+// RowReads is how many single-row reads (Get) of the table this store
+// has made, so a test can show a list reads no row per thing.
+func (s *Store) RowReads(table string) int64 { return s.counter(rowReadsPrefix + table).Load() }
+
+// rowReadsPrefix keeps RowReads' counters apart from FullReads' (a table
+// name is one word).
+const rowReadsPrefix = "row "
 
 func (s *Store) counter(table string) *atomic.Int64 {
 	c, _ := s.fullReads.LoadOrStore(table, new(atomic.Int64))
@@ -363,12 +379,17 @@ func (t *Tx) WriteCount(table string) (int64, error) {
 // table: coarse, never missing a write). The store holds one connection, so
 // its own commits never move data_version, only the counter. Equal tokens
 // cost a counter read and one pragma, far below reading the table.
+//
+// While a HoldVersions is open, data_version is read once and reused: the
+// tokens then see this process's writes (the counter) and not another
+// process's until the hold is released, as a read made at the hold's
+// start would.
 func (s *Store) Version(table string) (string, error) {
 	if err := s.declared(table); err != nil {
 		return "", err
 	}
-	var dv int64
-	if err := s.db.QueryRow(`PRAGMA data_version`).Scan(&dv); err != nil {
+	dv, err := s.DataVersion()
+	if err != nil {
 		return "", err
 	}
 	s.mu.Lock()
@@ -377,10 +398,32 @@ func (s *Store) Version(table string) (string, error) {
 	return strconv.FormatUint(n, 10) + "." + strconv.FormatInt(dv, 10), nil
 }
 
+// HoldVersions makes Version read data_version once until release is
+// called (holds nest): one read of many things (a list and the records
+// each of its things merges in) checks the other processes' writes once,
+// not once per thing, and answers as of its start. This process's own
+// writes still move Version at once.
+func (s *Store) HoldVersions() (release func()) {
+	s.mu.Lock()
+	s.holds++
+	s.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			s.mu.Lock()
+			if s.holds--; s.holds == 0 {
+				s.held = nil
+			}
+			s.mu.Unlock()
+		})
+	}
+}
+
 func (s *Store) Get(table, id string, dst any) error {
 	if err := s.declared(table); err != nil {
 		return err
 	}
+	s.counter(rowReadsPrefix + table).Add(1)
 	return decodeRow(s.db.QueryRow(`SELECT row FROM `+quote(table)+` WHERE id = ?`, id), dst)
 }
 
@@ -394,10 +437,14 @@ func (s *Store) All(table string) ([]json.RawMessage, error) {
 }
 
 func (s *Store) declared(table string) error {
+	if _, ok := s.declaredTables.Load(table); ok {
+		return nil
+	}
 	var name string
 	if err := s.db.QueryRow(`SELECT name FROM __deck_tables WHERE name = ?`, table).Scan(&name); err != nil {
 		return fmt.Errorf("store: table %q is unavailable: %w", table, err)
 	}
+	s.declaredTables.Store(table, struct{}{})
 	return nil
 }
 
@@ -423,6 +470,29 @@ func (t *Tx) All(table string) ([]json.RawMessage, error) {
 type Entry struct {
 	ID  string
 	Row json.RawMessage
+}
+
+// Entries returns a table's rows with their ids, in insertion order.
+func (s *Store) Entries(table string) ([]Entry, error) {
+	if err := s.declared(table); err != nil {
+		return nil, err
+	}
+	s.counter(table).Add(1)
+	rows, err := s.db.Query(`SELECT id, row FROM ` + quote(table) + ` ORDER BY rowid`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]Entry, 0)
+	for rows.Next() {
+		var id string
+		var data []byte
+		if err := rows.Scan(&id, &data); err != nil {
+			return nil, err
+		}
+		out = append(out, Entry{ID: id, Row: json.RawMessage(data)})
+	}
+	return out, rows.Err()
 }
 
 // Entries returns a table's rows with their ids, in insertion order.
