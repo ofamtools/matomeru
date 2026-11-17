@@ -1,6 +1,7 @@
 {
   "id": "pane-index",
   "title": "Pane index",
+  "defaultHidden": true,
   "layout": "split",
   "lists": [
     {"id": "pane-index/panes", "noun": "pane", "kind": "index", "tree": true, "title": "panes"}

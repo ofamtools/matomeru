@@ -16,8 +16,11 @@ import (
 // one ochazuke cli.CatalogPage each, mounted over mtm's own nouns with no
 // Go code of the page's: an index list draws its noun's store (a tree by
 // the noun's declared parent when it says "tree"), a record-form detail
-// the selected thing's props and its relations. pane-index is the first.
-// A page is hidden like any other (page.hide); its key is a bindings row.
+// the selected thing's props and its relations. pane-index is the first:
+// out of the tabs by default (defaultHidden: g I, the page picker and the
+// palette open it; page show pane-index puts it in the tabs, page hide
+// takes it out), so the tab row and the Panes page look as before. Its key
+// is a bindings row.
 //
 //go:embed pages/*.json
 var pageFiles embed.FS
