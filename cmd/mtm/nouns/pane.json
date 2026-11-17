@@ -82,6 +82,27 @@
       "derivation": {"of": "mark", "reads": ["starred", "★"]}
     },
     {
+      "name": "side-mark",
+      "aliases": ["◧"],
+      "description": "◧ while the pane has a side pane open (leader v, t), as the Panes page's gutter shows it; nothing otherwise",
+      "readOnly": true,
+      "derivation": {"of": "pane.side-mark", "reads": ["id"]}
+    },
+    {
+      "name": "state-mark",
+      "aliases": ["●"],
+      "description": "The agent's state as the Panes page's gutter glyph (? waiting on you, ● working, ✓ done, ✗ errored, ○ idle, × exited); nothing for a shell",
+      "readOnly": true,
+      "derivation": {"of": "pane.state-glyph", "reads": ["id"]}
+    },
+    {
+      "name": "live",
+      "type": "string",
+      "description": "The pane's terminal, live in its show page: enter there opens it and keys go to the pane until the leader's d comes back to the row",
+      "readOnly": true,
+      "view": {"kind": "terminal", "hook": "pane.terminal"}
+    },
+    {
       "name": "archived",
       "type": "boolean",
       "description": "Hide the local pane record without closing its daemon window",
@@ -625,6 +646,7 @@
       "bindings": [
         {"key": "enter", "action": "pane.gone", "when": "pane-ended", "hidden": true},
         {"key": "d d", "action": "pane.gone", "when": "pane-ended", "hidden": true},
+        {"key": "enter", "action": "ochazuke.detail.attach", "when": "detail-live", "hint": "live"},
         {"key": "enter", "action": "pane.attach", "hint": "live"},
         {"key": "d d", "action": "pane.kill", "when": "pane-no-sides"},
         {"key": "d d", "action": "pane.killBlocked", "hidden": true},
@@ -654,6 +676,12 @@
     }
   ],
   "settings": [
+    {
+      "name": "panes.index-marks",
+      "type": "boolean",
+      "default": true,
+      "description": "Show the Panes page's gutter marks on the pane index (g I): the side pane mark ◧ and the agent's state glyph as columns; false leaves those columns empty"
+    },
     {
       "name": "panes.show-ended",
       "type": "boolean",

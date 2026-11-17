@@ -48,6 +48,7 @@ func (a *App) nounHandlers() {
 	r.AddSource("pane.store", func() ochazuke.Store {
 		return a.copyStore("pane", a.paneStore(), a.paneCopyKey, paneCopyRoles.roles(), a.paneRecords)
 	})
+	a.paneViews() // the pane index's hook and derivations (pane_views.go)
 	r.AddSource("session.store", func() ochazuke.Store {
 		return a.copyStore("session", a.sessionStore(), a.sessionCopyKey, sessionCopyRoles.roles(), a.sessionRecords)
 	})

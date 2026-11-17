@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
 	"ofam.dev/matomeru/internal/daemon"
+	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
 )
 
@@ -62,5 +64,74 @@ func TestPaneIndexFollowsTheDaemonListing(t *testing.T) {
 	}
 	if !strings.Contains(cells["w1"], "|★|") || strings.Contains(cells["w2"], "★") {
 		t.Fatalf("star marks: w1 %q, w2 %q", cells["w1"], cells["w2"])
+	}
+}
+
+// enter on a pane row of the pane index shows the pane live in the page's
+// show side (the prop live, view terminal; the hook pane.terminal), not on
+// the Panes page: keys go to the pane, the leader's d releases the stream
+// and lands back on the row.
+func TestPaneIndexGoesLiveInPlace(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	press(t, a, "g", "I")
+	settle(a, a.r.PendingCommands())
+	press(t, a, "j")
+	frame(a)
+	row := a.r.FocusID()
+	if row != "pane-index/panes/w1" {
+		t.Fatalf("focus %q", row)
+	}
+	press(t, a, "enter")
+	frame(a)
+	f := a.panesd.(*fakePanes)
+	f.mu.Lock()
+	streams := slices.Clone(f.streams)
+	f.mu.Unlock()
+	if a.r.Page != "pane-index" || !strings.HasSuffix(a.r.FocusID(), "/live") || a.r.Mode.Name != "terminal" || len(streams) != 1 || streams[0].pane.ID != "w1" {
+		t.Fatalf("live: page %q focus %q mode %q streams %d", a.r.Page, a.r.FocusID(), a.r.Mode.Name, len(streams))
+	}
+	if a.r.Instances[paneTermID] != nil {
+		t.Fatal("the Panes page's live view opened")
+	}
+	press(t, a, "x")
+	press(t, a, "ctrl+a", "d")
+	frame(a)
+	if a.r.FocusID() != row || !streams[0].released || fmt.Sprint(streams[0].sent) != "[[x]]" {
+		t.Fatalf("after detach: focus %q released %v sent %v", a.r.FocusID(), streams[0].released, streams[0].sent)
+	}
+}
+
+// The index shows the Panes page's gutter marks as columns (the side pane
+// mark and the state glyph, from the same functions); panes.index-marks
+// off leaves them empty.
+func TestPaneIndexGutterMarks(t *testing.T) {
+	t.Parallel()
+	for _, on := range []bool{true, false} {
+		a := open(t)
+		if err := a.r.Settings().Set(settingIndexMarks, on); err != nil {
+			t.Fatal(err)
+		}
+		f := a.panesd.(*fakePanes)
+		f.mu.Lock()
+		f.panes[0].Harness, f.panes[0].AgentState = "claude", "working"
+		f.panes = append(f.panes, pane{Session: f.panes[0].Session, SessionID: f.panes[0].SessionID, Pane: daemon.Pane{ID: "w9", Name: "side"}})
+		f.mu.Unlock()
+		if err := a.work.PutCompanion(work.Companion{Parent: "w1", Kind: "vim", Window: "w9"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.reloadPanes(); err != nil {
+			t.Fatal(err)
+		}
+		press(t, a, "g", "I")
+		settle(a, a.r.PendingCommands())
+		cells := map[string]string{}
+		for _, n := range a.r.Instances["pane-index/panes"].Component.(*ochazuke.Tree).Nodes() {
+			cells[strings.TrimPrefix(n.ID, "pane-index/panes/")] = strings.Join(n.Cells, "|")
+		}
+		marked := strings.Contains(cells["w1"], "|◧|●|")
+		if marked != on || strings.Contains(cells["w2"], "◧") {
+			t.Fatalf("marks %v: w1 %q, w2 %q", on, cells["w1"], cells["w2"])
+		}
 	}
 }

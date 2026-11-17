@@ -157,22 +157,29 @@ func (a *App) syncSideView() error {
 }
 
 // sideDetach hides the front side, returns to its predecessor, then detaches.
+// A terminal that is neither the attached pane nor its side (a show page's
+// live view, ochazuke.detail.attach) has no sides here: it detaches itself.
 func (a *App) sideDetach(ochazuke.Ctx) ochazuke.Result {
-	p := a.sideFields(a.attached)
-	s := a.sides[p.ID].initialized()
-	if s.front() != "" {
-		s.Shown[s.Front] = false
-		s.front()
-		a.sides[p.ID] = s
-		if err := a.syncSideView(); err != nil {
+	id := paneTermID
+	if focus := a.r.FocusID(); focus != paneTermID && focus != sideTermID && a.r.Terminal(focus) != nil {
+		id = focus
+	} else {
+		p := a.sideFields(a.attached)
+		s := a.sides[p.ID].initialized()
+		if s.front() != "" {
+			s.Shown[s.Front] = false
+			s.front()
+			a.sides[p.ID] = s
+			if err := a.syncSideView(); err != nil {
+				return ochazuke.Failed(err)
+			}
+			return ochazuke.Done(s.Front)
+		}
+		if err := a.closeSideTerminal(); err != nil {
 			return ochazuke.Failed(err)
 		}
-		return ochazuke.Done(s.Front)
 	}
-	if err := a.closeSideTerminal(); err != nil {
-		return ochazuke.Failed(err)
-	}
-	out, err := a.r.Execute(ochazuke.Request{Noun: "terminal", Verb: "detach", Args: ochazuke.Arguments{"id": paneTermID}})
+	out, err := a.r.Execute(ochazuke.Request{Noun: "terminal", Verb: "detach", Args: ochazuke.Arguments{"id": id}})
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
