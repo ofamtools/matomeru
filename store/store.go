@@ -47,10 +47,10 @@ type Store struct {
 	// Version reads data_version once (held) and reuses it.
 	holds int
 	held  *int64
-	// declaredTables are the tables declared() found: a declaration is
-	// never removed, so one found stays found (one not found is asked
-	// again).
-	declaredTables sync.Map // table name → struct{}
+	// declaredHeld are the tables declared() found while a hold is open:
+	// a hold answers as of its start, and a commit of this process (a
+	// rename among them) or the hold's release forgets them.
+	declaredHeld map[string]bool
 	// fullReads counts whole-table reads (All, Entries), so a test can show
 	// a path reads no table.
 	fullReads sync.Map // table name → *atomic.Int64
@@ -332,6 +332,7 @@ func (s *Store) noteWrites(tables map[string]bool) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.declaredHeld = nil // a commit may rename a table
 	if s.writes == nil {
 		s.writes = map[string]uint64{}
 	}
@@ -399,10 +400,11 @@ func (s *Store) Version(table string) (string, error) {
 }
 
 // HoldVersions makes Version read data_version once until release is
-// called (holds nest): one read of many things (a list and the records
-// each of its things merges in) checks the other processes' writes once,
-// not once per thing, and answers as of its start. This process's own
-// writes still move Version at once.
+// called (holds nest), and keeps the tables it finds declared: one read
+// of many things (a list and the records each of its things merges in)
+// checks the other processes' writes once, not once per thing, and
+// answers as of its start. This process's own writes still move Version
+// at once.
 func (s *Store) HoldVersions() (release func()) {
 	s.mu.Lock()
 	s.holds++
@@ -412,7 +414,7 @@ func (s *Store) HoldVersions() (release func()) {
 		once.Do(func() {
 			s.mu.Lock()
 			if s.holds--; s.holds == 0 {
-				s.held = nil
+				s.held, s.declaredHeld = nil, nil
 			}
 			s.mu.Unlock()
 		})
@@ -437,14 +439,26 @@ func (s *Store) All(table string) ([]json.RawMessage, error) {
 }
 
 func (s *Store) declared(table string) error {
-	if _, ok := s.declaredTables.Load(table); ok {
+	s.mu.Lock()
+	known, holding := s.declaredHeld[table], s.holds > 0
+	s.mu.Unlock()
+	if known {
 		return nil
 	}
 	var name string
 	if err := s.db.QueryRow(`SELECT name FROM __deck_tables WHERE name = ?`, table).Scan(&name); err != nil {
 		return fmt.Errorf("store: table %q is unavailable: %w", table, err)
 	}
-	s.declaredTables.Store(table, struct{}{})
+	if holding {
+		s.mu.Lock()
+		if s.holds > 0 {
+			if s.declaredHeld == nil {
+				s.declaredHeld = map[string]bool{}
+			}
+			s.declaredHeld[table] = true
+		}
+		s.mu.Unlock()
+	}
 	return nil
 }
 
