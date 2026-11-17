@@ -39,15 +39,10 @@ func (s *Store) PaneStars() (map[string]PaneStar, error) {
 	return out, nil
 }
 
-// PaneStarred reports whether the pane with that window id is starred,
-// from the stars' row cache (a list asks it once per pane).
-func (s *Store) PaneStarred(window string) (bool, error) {
-	var star PaneStar
-	err := s.cachedGet("pane_stars", window, &star)
-	if errors.Is(err, store.ErrNotFound) {
-		return false, nil
-	}
-	return err == nil, err
+// Starred reports whether the window is starred, from the stars' row
+// cache (a list asks it once per thing it lists).
+func (s *Store) Starred(window string) (bool, error) {
+	return s.cachedHas("pane_stars", window)
 }
 
 // SetPaneStar stars (or unstars) a pane.

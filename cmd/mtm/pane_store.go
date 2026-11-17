@@ -76,10 +76,9 @@ var paneCopyRoles = propCopies{{"name", copyHeld}, {"session", copySeen}, {"arch
 func (a *App) paneRecords(t ochazuke.Thing) ochazuke.Thing {
 	p := endedPane(t)
 	owner := a.paneOwner(p)
-	starred, _ := a.work.PaneStarred(p.ID)
-	p.Starred = starred
+	p.Starred, _ = a.work.Starred(p.ID)
 	return ochazuke.Thing{"owner": ownerRef(owner.ProjectID, owner.TaskID), "former_owner": ownerRef(owner.FormerProjectID, owner.FormerTaskID),
-		"project": owner.ProjectID, "task": owner.TaskID, "starred": starred, "display": p.label()}
+		"project": owner.ProjectID, "task": owner.TaskID, "starred": p.Starred, "display": p.label()}
 }
 
 // paneStore is the pane noun's store over the listed panes.
@@ -253,11 +252,10 @@ func uniqueID(id string, ids []string) string {
 
 // paneCopyKey is the key a pane's copy is kept under (copies.go) for any
 // form of its key: its row id or window id, or a unique prefix of a window
-// id the listing or the copies have.
+// id the listing or the copies have. An id the copies' view has is its own
+// key (as uniqueID answers it), read without listing every key.
 func (a *App) paneCopyKey(key string) string {
 	id := a.paneRef(key).ID
-	// An id the listing or the copies' view has is its own key (uniqueID
-	// answers it as it is): no list of every key is built for it.
 	if _, ok := a.copyFacts["pane"][id]; ok && id != "" {
 		return id
 	}

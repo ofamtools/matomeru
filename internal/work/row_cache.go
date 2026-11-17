@@ -2,6 +2,7 @@ package work
 
 import (
 	"encoding/json"
+	"errors"
 
 	"ofam.dev/matomeru/store"
 )
@@ -15,6 +16,16 @@ import (
 type rowCache struct {
 	ver  string
 	rows map[string]json.RawMessage
+}
+
+// cachedHas reports whether table holds a row id, from its rowCache.
+func (s *Store) cachedHas(table, id string) (bool, error) {
+	var row json.RawMessage
+	err := s.cachedGet(table, id, &row)
+	if errors.Is(err, store.ErrNotFound) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // cachedGet is store.Get of table's row id into dst, answered from the
