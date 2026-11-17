@@ -96,6 +96,7 @@ func TestPaneAndSessionChangeTokens(t *testing.T) {
 		{"star", func() {
 			run(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": a.panes[0].ID, "props": map[string]any{"starred": true}}})
 		}, true, false},
+		{"page error", func() { a.paneErr = "read owner: busy" }, true, true}, // the daemon-down guard reads it
 		{"copy", func() {
 			if err := a.work.PutCopy("pane", "gone", a.server(), map[string]any{"id": "gone", "name": "gone"}); err != nil {
 				t.Fatal(err)
@@ -177,7 +178,7 @@ func TestPaletteKeepsItsMemoAcrossAnUnchangedRefresh(t *testing.T) {
 // session's join, their owners reading through them) move on what a read
 // answers from: a task's or a project's write, a focus row, the day, and
 // the settings a task read applies. A store whose own token is unknown
-// stays unknown through docStore's scope.
+// stays unknown through docStore's scope and withDocReads.
 func TestTaskAndProjectChangeTokens(t *testing.T) {
 	t.Parallel()
 	a := open(t)
@@ -242,6 +243,11 @@ func TestTaskAndProjectChangeTokens(t *testing.T) {
 	unknown := a.docStore("zz", ochazuke.Store{Kind: ochazuke.KindCollection, ChangeToken: func(ochazuke.Ctx) (string, error) { return "", nil }})
 	if token, err := unknown.ChangeToken(ochazuke.Ctx{Runtime: a.r}); token != "" || err != nil {
 		t.Fatalf("an unknown token answers %q (%v) through docStore", token, err)
+	}
+	reads := withDocReads(a.r, "zz", ochazuke.Store{Kind: ochazuke.KindCollection, ChangeToken: func(ochazuke.Ctx) (string, error) { return "", nil }},
+		nil, func(string) string { return "scoped" })
+	if token, err := reads.ChangeToken(ochazuke.Ctx{Runtime: a.r}); token != "" || err != nil {
+		t.Fatalf("an unknown token answers %q (%v) through withDocReads", token, err)
 	}
 }
 

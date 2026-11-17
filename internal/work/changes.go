@@ -175,7 +175,7 @@ func (b changesBackend) Change(noun, key string, change func(*ochazuke.OverlayRo
 func (b changesBackend) ChangeVersioned(noun, key string, change func(*ochazuke.OverlayRow) bool) (*ochazuke.OverlayRow, string, string, error) {
 	ext, catalogNoun := b.names.Identity(noun)
 	var after *ochazuke.OverlayRow
-	var n int64
+	var n, m int64
 	err := b.db.Tx([]string{ChangesTable}, func(tx *store.Tx) error {
 		after = nil
 		var err error
@@ -196,16 +196,20 @@ func (b changesBackend) ChangeVersioned(noun, key string, change func(*ochazuke.
 		} else {
 			row.setOverlayPart(nil)
 		}
-		return putChange(tx, row)
+		if err := putChange(tx, row); err != nil {
+			return err
+		}
+		m, err = tx.WriteCount(ChangesTable) // the write is counted as it happens
+		return err
 	})
 	if err != nil {
 		return nil, "", "", err
 	}
-	return after, strconv.FormatInt(n, 10), strconv.FormatInt(n+1, 10), nil
+	return after, strconv.FormatInt(n, 10), strconv.FormatInt(m, 10), nil
 }
 
 // Version is the table's write count (store.WriteCount): it moves only
-// when a transaction in any process wrote the changes table.
+// when a row of the changes table is written, by any writer of the file.
 func (b changesBackend) Version() (string, error) {
 	n, err := b.db.WriteCount(ChangesTable)
 	return strconv.FormatInt(n, 10), err

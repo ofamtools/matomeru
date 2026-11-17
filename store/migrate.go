@@ -49,8 +49,9 @@ func (s *Store) Migrate(table string, from, to int, rewrite Rewrite) error {
 	if current.Version != from {
 		return fmt.Errorf("store: migrate %q: table is at version %d, migration starts at %d", table, current.Version, from)
 	}
+	var scope *Tx
 	if rewrite != nil {
-		scope := &Tx{tx: tx, tables: declared}
+		scope = &Tx{tx: tx, tables: declared}
 		rows, err := tx.Query(`SELECT id, row FROM ` + quote(table) + ` ORDER BY rowid`)
 		if err != nil {
 			return fmt.Errorf("migrate %s: %w", table, err)
@@ -98,7 +99,16 @@ func (s *Store) Migrate(table string, from, to int, rewrite Rewrite) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	s.noteWrites(map[string]bool{table: true})
+	// The rows it rewrote moved the write counts (writeTriggers); this
+	// process's Version counter learns of the table and of what the
+	// rewrites wrote elsewhere.
+	wrote := map[string]bool{table: true}
+	if scope != nil {
+		for name := range scope.wrote {
+			wrote[name] = true
+		}
+	}
+	s.noteWrites(wrote)
 	return nil
 }
 

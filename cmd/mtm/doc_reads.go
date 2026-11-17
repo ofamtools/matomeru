@@ -58,7 +58,10 @@ func withDocReads(r *ochazuke.Runtime, noun string, s ochazuke.Store, reads []do
 		own := s.ChangeToken
 		s.ChangeToken = func(c ochazuke.Ctx) (string, error) {
 			t, err := own(c)
-			return token(t), err
+			if err != nil || t == "" {
+				return t, err // unknown stays unknown: every read lists
+			}
+			return token(t), nil
 		}
 	}
 	return s

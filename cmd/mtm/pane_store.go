@@ -154,14 +154,16 @@ func (a *App) paneChangeToken() (string, error) {
 }
 
 // listingToken is what the pane and session stores take from the listing
-// as a token: its print (printPanes), whether the last listing failed, and
-// the scope a list keeps (the pin);
+// as a token: its print (printPanes), whether the last listing failed, the
+// error the page shows (paneErr: a failed listing, a side link or an owner
+// that could not be read; the daemon-down guard reads it), and the scope a
+// list keeps (the pin);
 // ok is false while reads ask the daemon (livePanes: no listing yet).
 func (a *App) listingToken() (string, bool) {
 	if a.pv == nil || !a.pv.listed {
 		return "", false
 	}
-	return a.panesPrint + "|" + strconv.FormatBool(a.pv.listErr == nil) + "|" + a.pin + "|" + strconv.FormatBool(a.all), true
+	return a.panesPrint + "|" + strconv.FormatBool(a.pv.listErr == nil) + "|" + a.paneErr + "|" + a.pin + "|" + strconv.FormatBool(a.all), true
 }
 
 // printPanes hashes what pane and session reads take from the listing

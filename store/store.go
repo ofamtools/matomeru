@@ -129,9 +129,13 @@ func initialize(dsn string) (*sql.DB, error) {
 		append_only INTEGER NOT NULL CHECK (append_only IN (0, 1))
 	)`)
 	if err == nil {
-		// writes counts the transactions that wrote each table, bumped in
-		// the writing transaction itself (WriteCount).
+		// writes counts the row writes of each declared table, bumped by
+		// the table's triggers in the writing statement itself, whoever
+		// writes the file (WriteCount, writeTriggers).
 		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS __deck_writes (name TEXT PRIMARY KEY, n INTEGER NOT NULL)`)
+	}
+	if err == nil {
+		err = ensureWriteTriggers(db)
 	}
 	if err != nil {
 		db.Close()
@@ -261,6 +265,9 @@ func (s *Store) Declare(table Table) error {
 			}
 		}
 	}
+	if err := createWriteTriggers(tx, table.Name); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`INSERT INTO __deck_tables (name, owner, key, version, append_only) VALUES (?, ?, ?, ?, ?)`, table.Name, table.Owner, table.Key, table.Version, table.AppendOnly); err != nil {
 		return err
 	}
@@ -295,11 +302,7 @@ func (s *Store) run(tables []string, readOnly bool, fn func(*Tx) error) error {
 	if err := fn(scope); err != nil {
 		return err
 	}
-	for name := range scope.wrote {
-		if _, err := tx.Exec(`INSERT INTO __deck_writes (name, n) VALUES (?, 1) ON CONFLICT(name) DO UPDATE SET n = n + 1`, name); err != nil {
-			return err
-		}
-	}
+	// The write counts moved with each row written (writeTriggers).
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -325,10 +328,12 @@ func (s *Store) noteWrites(tables map[string]bool) {
 // a test can show a path reads a version once, not per row.
 const writeCountReads = "__deck_writes"
 
-// WriteCount is how many transactions have written a table, in any
-// process: one indexed read, moved only by that table's writes (Version
-// moves on any table's). 0 for a table never written since the count
-// began.
+// WriteCount is how many rows have been written to a table (inserted,
+// updated or deleted), by any writer of the file: a process of any build,
+// a migration, a raw SQL statement, since the table's write triggers count
+// in SQLite itself (writeTriggers). One indexed read, moved only by that
+// table's writes (Version moves on any table's); 0 for a table never
+// written since the count began.
 func (s *Store) WriteCount(table string) (int64, error) {
 	s.counter(writeCountReads).Add(1)
 	var n int64
@@ -339,8 +344,8 @@ func (s *Store) WriteCount(table string) (int64, error) {
 	return n, err
 }
 
-// WriteCount is Store.WriteCount read inside the transaction: before its
-// own writes are counted (they are counted at its commit).
+// WriteCount is Store.WriteCount read inside the transaction: the
+// transaction's own writes so far are counted.
 func (t *Tx) WriteCount(table string) (int64, error) {
 	var n int64
 	err := t.tx.QueryRow(`SELECT n FROM __deck_writes WHERE name = ?`, table).Scan(&n)
@@ -532,7 +537,21 @@ func (t *Tx) Rename(table, to string) error {
 	if _, err := t.tx.Exec(`UPDATE __deck_tables SET name = ? WHERE name = ?`, to, table); err != nil {
 		return err
 	}
-	t.note(table)
+	// The renamed table's triggers count under its new name, and both
+	// names' readers are told: the old name lost its rows, the new one
+	// gained them.
+	if err := dropWriteTriggers(t.tx, table); err != nil {
+		return err
+	}
+	if err := createWriteTriggers(t.tx, to); err != nil {
+		return err
+	}
+	for _, name := range []string{table, to} {
+		if _, err := t.tx.Exec(bumpWrites, name); err != nil {
+			return err
+		}
+		t.note(name)
+	}
 	return nil
 }
 
