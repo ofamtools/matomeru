@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"ofam.dev/ochazuke"
 )
 
@@ -65,5 +66,34 @@ func TestAgentAskRecordsThenStartsTheChosenHarness(t *testing.T) {
 	rels := relationsOf(t, a, ochazuke.RelationQuery{Kind: aboutRelationKind, Thing: "pane:" + w.ID})
 	if !slices.ContainsFunc(rels, func(r ochazuke.Relation) bool { return r.To == "question.question:q-1" }) {
 		t.Fatalf("pane %s not related to the question: %+v", w.ID, rels)
+	}
+}
+
+// A stray word left in a free launch field (the owner's "but" in fast) does
+// not stop the ask form's agent: it starts with the harness's default for
+// that setting, and a notice says the value was not applied.
+func TestAskFormStartsTheAgentPastAValueTheHarnessDoesNotTake(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	d := &fakeDaemon{panes: a.panesd.(*fakePanes)}
+	a.launcher = d
+	press(t, a, "g", "q")
+	typeText(t, a, "why")
+	for a.r.FocusID() != askFormID+"/fast" {
+		press(t, a, "tab")
+	}
+	press(t, a, "i")
+	typeText(t, a, "but")
+	press(t, a, "esc")
+	_, cmd := a.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModAlt}) // form.run
+	settle(a, cmd)
+	if len(d.launches) != 1 {
+		t.Fatalf("launches %d, want 1; notices %q", len(d.launches), a.m.Notices)
+	}
+	if got := strings.Join(d.launches[0].Command, " "); strings.Contains(got, "fast") {
+		t.Fatalf("argv %q carries the stray fast", got)
+	}
+	if !slices.ContainsFunc(a.m.Notices, func(n string) bool { return strings.Contains(n, `fast="but" not applied`) }) {
+		t.Fatalf("no notice for the stray fast: %q", a.m.Notices)
 	}
 }

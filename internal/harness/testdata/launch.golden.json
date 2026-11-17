@@ -155,7 +155,24 @@
     "settings": {
       "effort": "minimal"
     },
-    "error": "claude takes effort: low, medium, high, xhigh, max, auto"
+    "result": {
+      "session": "s",
+      "window": "w7",
+      "name": "n",
+      "harness": "claude",
+      "argv": [
+        "claude",
+        "--model",
+        "opus"
+      ],
+      "prompt": "sent",
+      "note": "claude takes effort low, medium, high, xhigh, max, auto; effort=\"minimal\" not applied (its default instead)"
+    },
+    "calls": [
+      "open s n /src [claude --model opus]",
+      "wait s/w7 idle,done",
+      "send s/w7 go"
+    ]
   },
   {
     "harness": "omp",

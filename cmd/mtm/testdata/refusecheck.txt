@@ -846,7 +846,6 @@ internal/harness/launch.go	Launcher.Launch	K14	"pane %s is open but %q was not t
 internal/harness/promptbox.go	PromptBox.validate	K8	"harness %s: promptBox.deliver %q is not a delivery; use %q or %q"	1
 internal/harness/promptbox.go	PromptBox.validate	K8	"harness %s: promptBox.submit %q is not a submit; use %q or %q"	1
 internal/harness/session.go	SessionSource.validate	K15	"harness %s: session: %v"	1
-internal/harness/settings.go	Harness.LaunchSettings	K15	"%s takes %s: %s"	1
 internal/harness/settings.go	Setting.Steps	K8	"%q is not in the cycle %s"	1
 internal/harness/settings.go	Setting.Steps	K8	"the current value %q is not in the cycle %s"	1
 internal/harness/settings.go	Setting.validate	K15	"harness %s: setting %s flags %q have no %s"	1

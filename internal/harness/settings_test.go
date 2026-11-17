@@ -144,8 +144,8 @@ func TestContextWindowMostSpecificWins(t *testing.T) {
 }
 
 // A launch sets each setting the way its row says: flags in the argv, a
-// command typed before the prompt, a note for a setting with neither; a
-// value outside the choices is refused.
+// command typed before the prompt, a note for a setting with neither (a
+// value outside the choices: launch.golden.json, claude effort minimal).
 func TestLaunchSettings(t *testing.T) {
 	var claude, codex Harness
 	for _, h := range Builtins() {
@@ -159,9 +159,6 @@ func TestLaunchSettings(t *testing.T) {
 	flags, typed, notes, err := claude.LaunchSettings(map[string]string{SettingEffort: "high", SettingFast: "on", SettingPermission: "plan"})
 	if err != nil || strings.Join(flags, " ") != "--permission-mode plan" || strings.Join(typed, "|") != "/effort high|/fast on" || len(notes) != 0 {
 		t.Fatalf("claude: %q %q %q %v", flags, typed, notes, err)
-	}
-	if _, _, _, err := claude.LaunchSettings(map[string]string{SettingEffort: "huge"}); err == nil {
-		t.Fatal("an effort claude does not take was taken")
 	}
 	// Codex sets effort only at launch, as a config override flag.
 	if flags, _, notes, err := codex.LaunchSettings(map[string]string{SettingEffort: "high", SettingFast: "on"}); err != nil || strings.Join(flags, " ") != "-c model_reasoning_effort=high" || len(notes) != 1 {

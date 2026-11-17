@@ -107,6 +107,11 @@ func (a *App) launchJob(owner Owner, h harness.Harness, spec harness.Spec) func(
 			return nil, fmt.Errorf("launch %s into %s: %w", h.Name, spec.Session, err)
 		}
 		d.note(err)
+		// The launch's own notes (a setting not applied) are told with the
+		// pane; a prompt not sent tells its note as "prompt not sent".
+		if started.Note != "" && started.Prompt != harness.PromptNotSent {
+			d.notes = append(d.notes, started.Note)
+		}
 		rows, listErr := panes.ListPanes(ctx)
 		if listErr != nil {
 			d.note(fmt.Errorf("pane %s is open; listing panes failed: %w", started.Window, listErr))

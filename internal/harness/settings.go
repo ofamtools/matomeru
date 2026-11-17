@@ -177,8 +177,11 @@ func (h Harness) ContextWindow(model string) (int64, error) {
 // permission-mode; the model has its own flag): the argv words of the
 // rows with Flags, the commands to type once the pane is ready for the
 // rows with only a Command, and a note for each setting the harness has
-// no way to set at launch. A value outside the setting's choices is an
-// error. Settings are taken in LaunchSettingNames order.
+// no way to set at launch. A value outside the setting's choices is not
+// applied and gets a note: the launch goes on with the harness's default
+// for it (no refusals: a stray word typed into a form's free field, or
+// another harness's value, never stops the agent starting). Settings are
+// taken in LaunchSettingNames order.
 func (h Harness) LaunchSettings(values map[string]string) (flags, typed, notes []string, err error) {
 	for _, name := range LaunchSettingNames {
 		v := strings.TrimSpace(values[name])
@@ -186,7 +189,8 @@ func (h Harness) LaunchSettings(values map[string]string) (flags, typed, notes [
 			continue
 		}
 		if choices := h.Choices(name); len(choices) > 0 && !slices.Contains(choices, v) {
-			return nil, nil, nil, fmt.Errorf("%s takes %s: %s", h.Name, name, strings.Join(choices, ", "))
+			notes = append(notes, fmt.Sprintf("%s takes %s %s; %s=%q not applied (its default instead)", h.Name, name, strings.Join(choices, ", "), name, v))
+			continue
 		}
 		s := h.Settings[name]
 		switch {
