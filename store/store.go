@@ -153,6 +153,9 @@ func initialize(dsn string) (*sql.DB, error) {
 	if err == nil {
 		err = ensureWriteTriggers(db)
 	}
+	if err == nil {
+		err = ensureExpiry(db)
+	}
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -275,8 +278,11 @@ func (s *Store) Declare(table Table) error {
 			if operation == "INSERT" {
 				guard = ` WHEN EXISTS (SELECT 1 FROM ` + name + ` WHERE id = NEW.id)`
 			}
-			trigger := quote("__deck_" + table.Name + "_" + strings.ToLower(operation))
-			if _, err := tx.Exec(`CREATE TRIGGER ` + trigger + ` BEFORE ` + operation + ` ON ` + name + guard + ` BEGIN SELECT RAISE(ABORT, 'append-only table'); END`); err != nil {
+			trigger := `CREATE TRIGGER ` + quote(guardName(table.Name, operation)) + ` BEFORE ` + operation + ` ON ` + name + guard + ` BEGIN SELECT RAISE(ABORT, 'append-only table'); END`
+			if operation == "DELETE" {
+				trigger = guardDelete(table.Name) // only Expire's grant passes (expire.go)
+			}
+			if _, err := tx.Exec(trigger); err != nil {
 				return fmt.Errorf("protect %s: %w", table.Name, err)
 			}
 		}
