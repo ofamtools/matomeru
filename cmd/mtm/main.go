@@ -546,9 +546,11 @@ type App struct {
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
 	// extRowOwners are mtm's part of the extension rows (work.ExtOwners)
-	// as read at the changes table's version extOwnerVersion; nil until read.
+	// as read at the changes table's write count extOwnerVersion, checked
+	// once per read pass (extOwnerPass); nil until read.
 	extRowOwners    map[work.ExtRow]work.ExtOwner
-	extOwnerVersion string
+	extOwnerVersion int64
+	extOwnerPass    uint64
 	// extBare is the bare noun names mtm gave mounted extension nouns,
 	// alias -> noun (extension_names.go).
 	extBare map[string]string

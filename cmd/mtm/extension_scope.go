@@ -221,13 +221,18 @@ func (a *App) extOwner(ext, noun, row string) work.ExtOwner {
 	if a.work == nil || row == "" {
 		return work.ExtOwner{}
 	}
-	if v, err := a.work.ChangesVersion(); err != nil || v != a.extOwnerVersion || a.extRowOwners == nil {
-		owners, err := a.work.ExtOwners()
-		if err != nil {
-			a.r.UI().Notify("extension row owners: " + err.Error())
-			owners = map[work.ExtRow]work.ExtOwner{}
+	// The table's write count is read once per read pass (a request, a
+	// watch round), never per row.
+	if pass := a.r.ReadPass(); a.extRowOwners == nil || pass != a.extOwnerPass {
+		a.extOwnerPass = pass
+		if v, err := a.work.ChangesVersion(); err != nil || v != a.extOwnerVersion || a.extRowOwners == nil {
+			owners, err := a.work.ExtOwners()
+			if err != nil {
+				a.r.UI().Notify("extension row owners: " + err.Error())
+				owners = map[work.ExtRow]work.ExtOwner{}
+			}
+			a.extRowOwners, a.extOwnerVersion = owners, v
 		}
-		a.extRowOwners, a.extOwnerVersion = owners, v
 	}
 	return a.extRowOwners[work.ExtRow{Extension: ext, Noun: noun, Row: row}]
 }

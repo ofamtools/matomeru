@@ -790,7 +790,9 @@ func (a *App) reloadMounted() {
 	a.r.ReloadUserActions()
 	a.r.ReloadUserBindings()
 	// The owner's changes of mounted things are read again under the names
-	// they mount as now (changeNames).
+	// they mount as now (changeNames), after the rows a fold kept under a
+	// noun an extension now mounts move to it.
+	a.rekeyOwnNouns()
 	a.r.ReloadOverlay()
 }
 

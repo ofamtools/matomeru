@@ -128,6 +128,11 @@ func initialize(dsn string) (*sql.DB, error) {
 		version INTEGER NOT NULL CHECK (version > 0),
 		append_only INTEGER NOT NULL CHECK (append_only IN (0, 1))
 	)`)
+	if err == nil {
+		// writes counts the transactions that wrote each table, bumped in
+		// the writing transaction itself (WriteCount).
+		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS __deck_writes (name TEXT PRIMARY KEY, n INTEGER NOT NULL)`)
+	}
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -290,6 +295,11 @@ func (s *Store) run(tables []string, readOnly bool, fn func(*Tx) error) error {
 	if err := fn(scope); err != nil {
 		return err
 	}
+	for name := range scope.wrote {
+		if _, err := tx.Exec(`INSERT INTO __deck_writes (name, n) VALUES (?, 1) ON CONFLICT(name) DO UPDATE SET n = n + 1`, name); err != nil {
+			return err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -309,6 +319,35 @@ func (s *Store) noteWrites(tables map[string]bool) {
 	for name := range tables {
 		s.writes[name]++
 	}
+}
+
+// writeCountReads is the FullReads name that counts WriteCount's reads, so
+// a test can show a path reads a version once, not per row.
+const writeCountReads = "__deck_writes"
+
+// WriteCount is how many transactions have written a table, in any
+// process: one indexed read, moved only by that table's writes (Version
+// moves on any table's). 0 for a table never written since the count
+// began.
+func (s *Store) WriteCount(table string) (int64, error) {
+	s.counter(writeCountReads).Add(1)
+	var n int64
+	err := s.db.QueryRow(`SELECT n FROM __deck_writes WHERE name = ?`, table).Scan(&n)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return n, err
+}
+
+// WriteCount is Store.WriteCount read inside the transaction: before its
+// own writes are counted (they are counted at its commit).
+func (t *Tx) WriteCount(table string) (int64, error) {
+	var n int64
+	err := t.tx.QueryRow(`SELECT n FROM __deck_writes WHERE name = ?`, table).Scan(&n)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return n, err
 }
 
 // Version is a cheap token for a table's rows as they are now: two equal
@@ -417,6 +456,14 @@ func (t *Tx) Raw(table, id string) (json.RawMessage, error) {
 		return nil, nil
 	}
 	return json.RawMessage(data), err
+}
+
+// TableExists reports whether the file holds a table of that name,
+// declared or not (a renamed one).
+func (s *Store) TableExists(name string) bool {
+	var n int
+	err := s.db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&n)
+	return err == nil && n > 0
 }
 
 // Declared reports whether a table has been declared.

@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -124,8 +125,8 @@ func (OwnNames) Identity(noun string) (string, string) { return "", noun }
 
 // ChangesBackend is the changes table as ochazuke's overlay backend: each
 // change is one transaction on the table, the row read inside it (its
-// write lock is the backend's lock), and Version tells another process's
-// write cheaply (store.Version).
+// write lock is the backend's lock), and Version is the table's write
+// count (store.WriteCount), which the overlay reads once per read pass.
 func (s *Store) ChangesBackend(names NounNames) ochazuke.OverlayBackend {
 	if names == nil {
 		names = OwnNames{}
@@ -165,10 +166,22 @@ func (b changesBackend) Rows() (map[string]map[string]*ochazuke.OverlayRow, erro
 // Change changes the overlay's part of one thing's row in one
 // transaction; mtm's part of the row stays.
 func (b changesBackend) Change(noun, key string, change func(*ochazuke.OverlayRow) bool) (*ochazuke.OverlayRow, map[string]map[string]*ochazuke.OverlayRow, error) {
+	row, _, _, err := b.ChangeVersioned(noun, key, change)
+	return row, nil, err
+}
+
+// ChangeVersioned is Change answering the table's write count read inside
+// the transaction, before the write and after it.
+func (b changesBackend) ChangeVersioned(noun, key string, change func(*ochazuke.OverlayRow) bool) (*ochazuke.OverlayRow, string, string, error) {
 	ext, catalogNoun := b.names.Identity(noun)
 	var after *ochazuke.OverlayRow
+	var n int64
 	err := b.db.Tx([]string{ChangesTable}, func(tx *store.Tx) error {
 		after = nil
+		var err error
+		if n, err = tx.WriteCount(ChangesTable); err != nil {
+			return err
+		}
 		row := ChangeRow{Extension: ext, Noun: catalogNoun, Key: key}
 		if err := tx.Get(ChangesTable, row.id(), &row); err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
@@ -186,14 +199,17 @@ func (b changesBackend) Change(noun, key string, change func(*ochazuke.OverlayRo
 		return putChange(tx, row)
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, "", "", err
 	}
-	return after, nil, nil
+	return after, strconv.FormatInt(n, 10), strconv.FormatInt(n+1, 10), nil
 }
 
-// Version moves when anything wrote the table (this process, or another
-// one: store.Version).
-func (b changesBackend) Version() (string, error) { return b.db.Version(ChangesTable) }
+// Version is the table's write count (store.WriteCount): it moves only
+// when a transaction in any process wrote the changes table.
+func (b changesBackend) Version() (string, error) {
+	n, err := b.db.WriteCount(ChangesTable)
+	return strconv.FormatInt(n, 10), err
+}
 
 // putChange writes a changes row, or removes it when it keeps nothing.
 func putChange(tx *store.Tx, row ChangeRow) error {
@@ -214,9 +230,10 @@ type ExtOwner struct {
 	At              int64
 }
 
-// ChangesVersion moves when anything wrote the changes table: a reader of
-// ExtOwners reads them again when it moved.
-func (s *Store) ChangesVersion() (string, error) { return s.db.Version(ChangesTable) }
+// ChangesVersion is the changes table's write count: a reader of ExtOwners
+// reads them again when it moved (a transaction in any process wrote the
+// table, and no other table's write moves it).
+func (s *Store) ChangesVersion() (int64, error) { return s.db.WriteCount(ChangesTable) }
 
 // ExtOwners are mtm's part of every tool row that has one.
 func (s *Store) ExtOwners() (map[ExtRow]ExtOwner, error) {
@@ -400,9 +417,10 @@ func setOwnerRaw(table string, row rowMap, field, value string) {
 // overlay.json beside settings.json (the overlay's part, under the
 // identity NounNames gives each noun). ext_rows moves whenever it is
 // declared; the file whenever it is present and given. A thing the table
-// already holds a value of keeps the newer of the two (PropChange.At, the
-// owner's time; the table's on a tie); each value not taken is in the
-// move's notes. The old table is renamed (ext_rows_folded_<time>) and the
+// already holds a prop of keeps the newer of the two (PropChange.At; the
+// table's on a tie), and one it already holds an owner of keeps it (a
+// record is never overwritten); each value not taken is in the move's
+// notes. The old table is renamed (ext_rows_folded_<time>) and the
 // file too (overlay.json.folded-<time>), never dropped; a file that does
 // not read is moved aside (overlay.json.bad-<time>) and the table moves
 // anyway.
@@ -536,9 +554,9 @@ func changedAt(changes map[string]*ochazuke.PropChange, name string) time.Time {
 }
 
 // foldInto merges a source row into the row the table holds for the thing
-// (held: nil for none): of a prop or an owner both hold, the newer one
-// stays (PropChange.At, OwnerAt; the table's on a tie); each value not
-// taken is a note.
+// (held: nil for none): of a prop both hold, the newer one stays
+// (PropChange.At; the table's on a tie); of an owner, the table's record
+// stays (a record is never overwritten); each value not taken is a note.
 func foldInto(held *ChangeRow, in ChangeRow) (ChangeRow, []string) {
 	if held == nil {
 		return in, nil
@@ -570,21 +588,84 @@ func foldInto(held *ChangeRow, in ChangeRow) (ChangeRow, []string) {
 		}
 	}
 	if in.Owner != nil || in.FormerOwner != nil {
-		heldOwner := out.Owner != nil || out.FormerOwner != nil
-		differ := refKey(out.Owner) != refKey(in.Owner) || refKey(out.FormerOwner) != refKey(in.FormerOwner)
+		// An owner is never overwritten (recorded rows never move): the
+		// table's record stays, whatever its time; the other is a note.
 		switch {
-		case !heldOwner || in.OwnerAt > out.OwnerAt:
-			if heldOwner && differ {
-				notes = append(notes, fmt.Sprintf("%s project: took %q (newer), not %q", thingName(in), refKey(in.Owner), refKey(out.Owner)))
-			}
+		case out.Owner == nil && out.FormerOwner == nil:
 			out.Owner, out.OwnerAt, out.FormerOwner = in.Owner, in.OwnerAt, in.FormerOwner
-		case differ:
-			notes = append(notes, fmt.Sprintf("%s project: kept %q, not %q", thingName(in), refKey(out.Owner), refKey(in.Owner)))
+		case refKey(out.Owner) != refKey(in.Owner) || refKey(out.FormerOwner) != refKey(in.FormerOwner):
+			notes = append(notes, fmt.Sprintf("%s project: kept the recorded %q, not %q", thingName(in), refKey(out.Owner), refKey(in.Owner)))
 		}
 	}
 	out.Created = out.Created || in.Created
 	out.Archived = out.Archived || in.Archived
 	return out, notes
+}
+
+// RekeyOwnNouns moves the changes rows kept under one of mtm's own nouns
+// (extension "") whose noun names now identify an extension's thing (an
+// overlay.json row folded before its extension was registered) to that
+// identity, in one transaction: of a prop both rows hold the newer stays,
+// an owner the target holds stays; the values not taken are notes. One
+// read of the table when there is nothing to move.
+func (s *Store) RekeyOwnNouns(names NounNames) (moved int, notes []string, err error) {
+	rows, err := all[ChangeRow](s.db, ChangesTable)
+	if err != nil {
+		return 0, nil, err
+	}
+	var move []ChangeRow
+	for _, c := range rows {
+		if c.Extension != "" {
+			continue
+		}
+		if ext, _ := names.Identity(c.Noun); ext != "" {
+			move = append(move, c)
+		}
+	}
+	if len(move) == 0 {
+		return 0, nil, nil
+	}
+	err = s.db.Tx([]string{ChangesTable}, func(tx *store.Tx) error {
+		moved, notes = 0, nil
+		for _, old := range move {
+			ext, catalogNoun := names.Identity(old.Noun)
+			in := old
+			in.Extension, in.Noun = ext, catalogNoun
+			var held *ChangeRow
+			var row ChangeRow
+			switch err := tx.Get(ChangesTable, in.id(), &row); {
+			case err == nil:
+				held = &row
+			case !errors.Is(err, store.ErrNotFound):
+				return err
+			}
+			out, more := foldInto(held, in)
+			notes = append(notes, more...)
+			if err := tx.Delete(ChangesTable, old.id()); err != nil {
+				return err
+			}
+			if err := putChange(tx, out); err != nil {
+				return err
+			}
+			moved++
+		}
+		return nil
+	})
+	return moved, notes, err
+}
+
+// FoldPending reports whether the move has anything to do: ext_rows is
+// declared, or the file at overlayPath is there (one metadata query and
+// one stat; the caller reads the registry only then).
+func (s *Store) FoldPending(overlayPath string) bool {
+	if s.db.Declared(extRowsTable) {
+		return true
+	}
+	if overlayPath == "" {
+		return false
+	}
+	_, err := os.Stat(overlayPath)
+	return err == nil
 }
 
 // PlanChangesFold is the move's dry run over the file db (opened, no table
@@ -613,6 +694,10 @@ func foldChanges(db *store.Store, names NounNames, overlayPath string, apply boo
 	}
 	stamp := time.Now().UTC().Format("20060102T150405Z")
 	fold, tableTo, fileTo := planFold(src, overlayPath, stamp)
+	for i := 2; src.hasExt && db.TableExists(tableTo); i++ { // a second move in the same second
+		tableTo = fmt.Sprintf("%s_folded_%s_%d", extRowsTable, strings.ToLower(strings.NewReplacer("T", "_", "Z", "").Replace(stamp)), i)
+		fold.Renamed[0] = extRowsTable + " -> " + tableTo
+	}
 	if !apply {
 		read := func(id string, row *ChangeRow) error {
 			if !db.Declared(ChangesTable) {
@@ -626,6 +711,9 @@ func foldChanges(db *store.Store, names NounNames, overlayPath string, apply boo
 	}
 	if path := db.Path(); path != "" && path != ":memory:" {
 		fold.Backup = path + ".bak-" + stamp + "-changes"
+		for i := 2; fileExists(fold.Backup); i++ { // a second move in the same second
+			fold.Backup = fmt.Sprintf("%s.bak-%s-changes-%d", path, stamp, i)
+		}
 		if err := db.Backup(fold.Backup); err != nil {
 			return fold, err
 		}
@@ -710,4 +798,9 @@ func foldMerge(rows []ChangeRow, read func(id string, row *ChangeRow) error, put
 		}
 	}
 	return notes, nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

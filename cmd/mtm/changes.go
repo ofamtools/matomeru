@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/internal/work"
@@ -32,13 +34,36 @@ type changeNames struct{ a *App }
 
 func (n changeNames) Mounted(ext, noun string) string { return n.a.extHostNoun(ext, noun) }
 
+// Identity is the first extension, in name order, that mounts noun (two
+// may under some naming value; registryNames takes the same one).
 func (n changeNames) Identity(noun string) (string, string) {
+	ext, catalog := "", ""
 	for _, x := range n.a.exts {
-		if catalog := x.catalogNoun(noun); catalog != "" {
-			return x.name, catalog
+		if c := x.catalogNoun(noun); c != "" && (ext == "" || x.name < ext) {
+			ext, catalog = x.name, c
 		}
 	}
-	return "", noun
+	if ext == "" {
+		return "", noun
+	}
+	return ext, catalog
+}
+
+// rekeyOwnNouns moves the changes rows a fold kept under a noun of mtm's
+// own that an extension now mounts (work.RekeyOwnNouns), once the
+// extensions have mounted; what it moved is a notice.
+func (a *App) rekeyOwnNouns() {
+	moved, notes, err := a.work.RekeyOwnNouns(changeNames{a})
+	switch {
+	case err != nil:
+		a.r.UI().Notify("your changes: " + err.Error())
+	case moved > 0:
+		text := fmt.Sprintf("your changes: %d moved to the extension that now holds their noun", moved)
+		if len(notes) > 0 {
+			text += "; " + strings.Join(notes, "; ")
+		}
+		a.r.UI().Notify(text)
+	}
 }
 
 // useChangesTable makes the changes table the overlay's backend
@@ -63,8 +88,13 @@ func (a *App) foldChanges() {
 	if a.r.Settings().String(ochazuke.OverlayStoreSetting) == work.ChangesBackendName {
 		path = a.r.Config().Path(ochazuke.OverlayFile)
 	}
+	if !a.work.FoldPending(path) {
+		return // the common start: nothing to move, no registry read
+	}
 	_, entries, _ := a.extRegistry().OrderedSlim(false)
-	fold, err := a.work.FoldChanges(registryNames(entries, a.r.Settings().String(settingExtNounNames)), path)
+	names := registryNames(entries, a.r.Settings().String(settingExtNounNames))
+	fold, err := a.work.FoldChanges(names, path)
+	fold.Notes = append(names.clashes, fold.Notes...)
 	if err != nil {
 		a.r.UI().Notify("your changes: moving them into the changes table: " + err.Error())
 		return
@@ -82,24 +112,32 @@ func (a *App) foldChanges() {
 
 // registryNames are the changes table's names as the registry entries
 // mount the extensions under the naming value (extensions.noun-names).
-func registryNames(entries map[string]extEntry, value string) work.NounNames {
-	mounted := map[[2]string]string{}
-	identity := map[string][2]string{}
-	for name, e := range entries {
+// Entries are read in name order and the first to mount a name keeps it
+// (as changeNames does); a name two entries mount is a clash, named in
+// the fold's notice.
+func registryNames(entries map[string]extEntry, value string) tableNames {
+	t := tableNames{mounted: map[[2]string]string{}, identity: map[string][2]string{}}
+	for _, name := range slices.Sorted(maps.Keys(entries)) {
+		e := entries[name]
 		ns, _ := extNamespace(name, e.Bin, e.Catalog)
 		naming, _ := extNamingOf(value, ns)
 		for _, n := range e.Catalog.Nouns {
 			local := naming.local(ns, n.Name)
-			mounted[[2]string{name, n.Name}] = local
-			identity[local] = [2]string{name, n.Name}
+			t.mounted[[2]string{name, n.Name}] = local
+			if held, ok := t.identity[local]; ok {
+				t.clashes = append(t.clashes, fmt.Sprintf("%s is mounted by %s and %s: kept as %s's", local, held[0], name, held[0]))
+				continue
+			}
+			t.identity[local] = [2]string{name, n.Name}
 		}
 	}
-	return tableNames{mounted, identity}
+	return t
 }
 
 type tableNames struct {
 	mounted  map[[2]string]string
 	identity map[string][2]string
+	clashes  []string
 }
 
 func (t tableNames) Mounted(ext, noun string) string {
@@ -139,10 +177,12 @@ func changesDryRun(path, configDir string, stdout io.Writer) error {
 		overlay = filepath.Join(configDir, ochazuke.OverlayFile)
 	}
 	_, entries, _ := extRegistry{Dir: filepath.Join(filepath.Dir(path), extensionsDir)}.Ordered()
-	fold, err := work.PlanChangesFold(db, registryNames(entries, value), overlay)
+	names := registryNames(entries, value)
+	fold, err := work.PlanChangesFold(db, names, overlay)
 	if err != nil {
 		return err
 	}
+	fold.Notes = append(names.clashes, fold.Notes...)
 	_, err = io.WriteString(stdout, fold.String())
 	return err
 }

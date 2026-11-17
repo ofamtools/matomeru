@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/ochazuke"
 )
 
@@ -77,4 +79,34 @@ func TestChangesFollowTheNounNaming(t *testing.T) {
 		}
 	}
 	_ = ochazuke.OverlayFile
+}
+
+// The scope of 1,000 tool rows read in one read pass reads the changes
+// table's version once and the table once; a row another process records
+// shows in the next pass.
+func TestExtOwnersReadOncePerPass(t *testing.T) {
+	t.Parallel()
+	a, x, _ := scopedApp(t)
+	a.recordExtOwner(x, "item", "i1", "mine")
+	a.extRowProject("fake", "item", "i1") // the pass's one read
+	versions, reads := a.db.FullReads("__deck_writes"), a.db.FullReads("changes")
+	for i := range 1000 {
+		a.extRowProject("fake", "item", fmt.Sprint("row-", i))
+	}
+	if got := a.db.FullReads("__deck_writes") - versions; got != 0 {
+		t.Fatalf("1,000 rows read the version %d more times", got)
+	}
+	if got := a.db.FullReads("changes") - reads; got != 0 {
+		t.Fatalf("1,000 rows read the table %d more times", got)
+	}
+	if _, err := a.work.RecordExtOwner(work.ExtRow{Extension: "fake", Noun: "item", Row: "i2"}, "other", 1); err != nil {
+		t.Fatal(err) // as another process would
+	}
+	if got := a.extRowProject("fake", "item", "i2"); got != "" {
+		t.Fatalf("read again inside the pass: %q", got)
+	}
+	mustCLI(t, a, x.nouns["item"], "get", "i1") // the next request
+	if got := a.extRowProject("fake", "item", "i2"); got != "other" {
+		t.Fatalf("the next pass: %q", got)
+	}
 }

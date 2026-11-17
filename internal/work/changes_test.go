@@ -5,8 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"ofam.dev/matomeru/store"
+	"ofam.dev/ochazuke"
 )
 
 // oldFile is a database as an mtm before the changes table left it: an
@@ -117,3 +119,64 @@ func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// After a rollback (an older mtm recreated ext_rows and recorded another
+// project), the move keeps the project the table recorded first, however
+// new the other is, and names the other in a note.
+func TestFoldKeepsTheRecordedOwner(t *testing.T) {
+	t.Parallel()
+	db, w, overlay := oldFile(t, `{}`)
+	if _, err := w.FoldChanges(toolNames{}, overlay); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Declare(store.Table{Name: extRowsTable, Owner: "work", Key: "id", Version: 1}); err != nil {
+		t.Fatal(err)
+	}
+	newer := ExtRowOwner{Extension: "tool", Noun: "doc", Row: "d1", ProjectID: "p2", AssignedAt: 99}
+	newer.ID = ExtRowKey(newer.Extension, newer.Noun, newer.Row)
+	if err := db.Tx([]string{extRowsTable}, func(tx *store.Tx) error { return tx.Put(extRowsTable, newer.ID, newer) }); err != nil {
+		t.Fatal(err)
+	}
+	fold, err := w.FoldChanges(toolNames{}, "")
+	if err != nil || len(fold.Notes) != 1 || !strings.Contains(fold.Notes[0], `"p2"`) {
+		t.Fatalf("fold: %+v %v", fold, err)
+	}
+	if owners, _ := w.ExtOwners(); owners[ExtRow{"tool", "doc", "d1"}].Project != "p1" {
+		t.Fatalf("owner moved: %+v", owners)
+	}
+}
+
+// A row folded under a noun of mtm's own that an extension mounts later
+// moves to the extension's identity, merged with the row there (the
+// newer prop stays).
+func TestRekeyOwnNouns(t *testing.T) {
+	t.Parallel()
+	_, w, overlay := oldFile(t, `{"tool.doc": {"d1": {"props": {"title": "old", "note": "kept"}}}}`)
+	if _, err := w.FoldChanges(OwnNames{}, overlay); err != nil { // the tool not registered yet
+		t.Fatal(err)
+	}
+	b := w.ChangesBackend(toolNames{})
+	if _, _, err := b.Change("tool.doc", "d1", func(o *ochazukeRow) bool {
+		o.Props = map[string]any{"title": "new"}
+		o.Changes = map[string]*ochazukeChange{"title": {At: time.Now()}}
+		return true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	moved, _, err := w.RekeyOwnNouns(toolNames{})
+	if err != nil || moved != 1 {
+		t.Fatalf("moved %d %v", moved, err)
+	}
+	rows, _ := b.Rows()
+	if d := rows["tool.doc"]["d1"]; len(rows) != 1 || d.Props["title"] != "new" || d.Props["note"] != "kept" {
+		t.Fatalf("rows: %+v", rows)
+	}
+	if moved, _, _ := w.RekeyOwnNouns(toolNames{}); moved != 0 {
+		t.Fatalf("a second run moved %d", moved)
+	}
+}
+
+type (
+	ochazukeRow    = ochazuke.OverlayRow
+	ochazukeChange = ochazuke.PropChange
+)
