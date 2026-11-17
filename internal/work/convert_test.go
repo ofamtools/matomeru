@@ -169,10 +169,11 @@ func TestDemoteProjectMovesEverythingThenDeletesIt(t *testing.T) {
 	if got := owner(f.get("notes", "n-task")); got != [2]string{"parent", "c2"} {
 		t.Fatalf("task note owner = %v", got)
 	}
-	pane, err := f.w.PaneOwner("w2", "s1") // no assignment: inherits the session
+	// w2 has no record: it follows s1, whose owner the conversion moved.
+	session, err := f.w.SessionOwner("s1")
 	f.must(err)
-	if pane.ProjectID != "parent" || pane.TaskID != conv.Task {
-		t.Fatalf("inherited owner = %+v", pane)
+	if session.ProjectID != "parent" || session.TaskID != conv.Task {
+		t.Fatalf("session owner = %+v", session)
 	}
 	p, err := f.w.Project("parent")
 	f.must(err)

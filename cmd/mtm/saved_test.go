@@ -69,7 +69,7 @@ func TestSavedRelaunchUsesRecordedArgvNotChangedHarnessDefaults(t *testing.T) {
 	if !reflect.DeepEqual(got.Command, recipe.Command) || got.Cwd != recipe.Cwd || got.Session != "matomeru" {
 		t.Fatalf("relaunch changed recipe: %+v", got)
 	}
-	owner, err := a.work.PaneOwner(got.ID, "")
+	owner, err := a.paneOwnerIn(a.work, got.ID, "")
 	if err != nil || owner.ProjectID != "matomeru" {
 		t.Fatalf("owner not immediately persisted: %+v %v", owner, err)
 	}
@@ -131,7 +131,7 @@ func TestSavedScratchRelaunchLeavesFormerProjectSession(t *testing.T) {
 	if len(f.shells) != 1 || f.shells[0].Session != mtmOnlySession {
 		t.Fatalf("scratch destination: %+v", f.shells)
 	}
-	owner, err := a.work.PaneOwner(f.shells[0].ID, "")
+	owner, err := a.paneOwnerIn(a.work, f.shells[0].ID, "")
 	if err != nil || owner.ProjectID != "" {
 		t.Fatalf("scratch owner: %+v %v", owner, err)
 	}

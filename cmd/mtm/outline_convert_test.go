@@ -32,7 +32,7 @@ func seedConvert(t *testing.T, a *App) {
 
 func paneOwnerOf(t *testing.T, a *App, window string) [2]string {
 	t.Helper()
-	o, err := a.work.PaneOwner(window, "")
+	o, err := a.paneOwnerIn(a.work, window, "")
 	if err != nil {
 		t.Fatal(err)
 	}

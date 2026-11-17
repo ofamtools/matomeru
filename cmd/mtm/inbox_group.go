@@ -142,7 +142,7 @@ func (a *App) groupByPane(it actionitems.Item, _ int64) itemGroup {
 }
 
 func (a *App) groupByProject(it actionitems.Item, _ int64) itemGroup {
-	if id := cmp.Or(it.ProjectID, a.taskProject(it.TaskID)); id != "" {
+	if id := a.itemProject(it.ProjectID, it.TaskID); id != "" {
 		return itemGroup{a.ownerLabel(id), 0}
 	}
 	return itemGroup{"no project", 1}

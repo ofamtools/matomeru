@@ -61,10 +61,12 @@ func TestOwnerImportAndExplicitUnassociation(t *testing.T) {
 	if err := db.Get("assignments", "legacy", &raw); err != nil || string(raw) != string(legacy) {
 		t.Fatalf("legacy changed: %s %v", raw, err)
 	}
-	if got, err := w.PaneOwner("legacy", ""); err != nil || got.ProjectID != "A" || got.TaskID != "child" {
+	// The record as stored: the task's project is the pane noun's walk
+	// (owner task:child, the task's project up its parents), not the store's.
+	if got, err := w.PaneAssignment("legacy"); err != nil || got.ProjectID != "" || got.TaskID != "child" {
 		t.Fatalf("legacy owner %+v %v", got, err)
 	}
-	if got, err := w.PaneOwner("imported", ""); err != nil || got.ProjectID != "B" {
+	if got, err := w.PaneAssignment("imported"); err != nil || got.ProjectID != "B" {
 		t.Fatalf("import %+v %v", got, err)
 	}
 	if err := w.SetSessionOwner(SessionOwner{ID: "session-id", Name: "arbitrary", ProjectID: "A"}); err != nil {
@@ -100,8 +102,10 @@ func TestOwnerImportAndExplicitUnassociation(t *testing.T) {
 	if pin, err := w.Pin(); err != nil || pin != "" {
 		t.Fatalf("unpin did not survive %q %v", pin, err)
 	}
-	for window, want := range map[string]string{"inherited": "B", "explicit": "A", "scratch": "", "imported": ""} {
-		got, err := w.PaneOwner(window, "session-id")
+	// Own records only: "inherited" has none (its session's owner is the
+	// pane noun's walk, cmd/mtm).
+	for window, want := range map[string]string{"inherited": "", "explicit": "A", "scratch": "", "imported": ""} {
+		got, err := w.PaneAssignment(window)
 		if err != nil || got.ProjectID != want {
 			t.Errorf("%s owner %+v %v; want %s", window, got, err, want)
 		}

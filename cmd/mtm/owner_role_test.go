@@ -44,7 +44,7 @@ func TestOwnerOfPaneRowMatchesTheListing(t *testing.T) {
 	}
 	w1 := pane{Session: "work", SessionID: "s1", Pane: daemon.Pane{ID: "w1", Name: "Terminal 1a2b3c4d"}}
 	a.setPanes([]pane{w1}, nil)
-	want, err := a.work.PaneOwner(w1.ID, w1.SessionID)
+	want, err := a.paneOwnerIn(a.work, w1.ID, w1.SessionID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -94,7 +94,7 @@ func TestSessionNamesBecomeIDs(t *testing.T) {
 		}
 	}
 	for window, project := range map[string]string{"w1": "p1", "w2": "p2", "w4": "p4", "w5": "p5"} {
-		if o, _ := w.PaneOwner(window, ""); o.ProjectID != project {
+		if o, _ := w.PaneAssignment(window); o.ProjectID != project {
 			t.Errorf("%s: owner %+v, want %s", window, o, project)
 		}
 	}

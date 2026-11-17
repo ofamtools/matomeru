@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -78,7 +77,7 @@ func (a *App) actionItemProps() []ochazuke.PropSpec {
 		{Name: "kind", Parameter: text("The item's type: review-request, mention, ci-failed, …")},
 		{Name: "source", CreateOnly: true, Parameter: text("The tool or service: gh, slack, ci, agent, … (default manual)")},
 		{Name: "key", ReadOnly: true, Parameter: text("The de-duplication key add matches, unique per source")},
-		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
+		{Name: "project", Role: ochazuke.RoleOwner, FromFocus: true, Inherit: "task", Parameter: ochazuke.Parameter{Type: "string", Noun: "project", Source: "projects.all", Free: true,
 			Description: "The project the item is for (empty: unassociated); one not found is saved unassociated with a notice"}},
 		{Name: "task", FromFocus: true, Parameter: ochazuke.Parameter{Type: "string", Noun: "task", Description: "The task the item is for; its project wins over project"}},
 		{Name: "pane", Parameter: ochazuke.Parameter{Type: "string", Noun: "pane", Description: "The pane (window id) the item is about: open attaches it when the item has no URL"}},
@@ -271,7 +270,7 @@ func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ocha
 		if state != actionStateAll && it.State(now) != state || source != "" && it.Source != source {
 			continue
 		}
-		if project != "" && cmp.Or(it.ProjectID, a.taskProject(it.TaskID)) != project {
+		if project != "" && a.itemProject(it.ProjectID, it.TaskID) != project {
 			continue
 		}
 		kept = append(kept, it)
@@ -413,7 +412,7 @@ func (a *App) patchActionItem(c ochazuke.Ctx, id string, changes ochazuke.Thing)
 	if err != nil {
 		return nil, err
 	}
-	project, task, owned := a.ownerWrite(c, cmp.Or(cur.ProjectID, a.taskProject(cur.TaskID)), cur.TaskID, changes)
+	project, task, owned := a.ownerWrite(c, a.itemProject(cur.ProjectID, cur.TaskID), cur.TaskID, changes)
 	now := a.inbox.items.Now()
 	it, err := a.inbox.items.Update(id, func(it *actionitems.Item) error {
 		was := it.Window

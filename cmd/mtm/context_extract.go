@@ -137,7 +137,7 @@ func (a *App) extractContext(ctx ochazuke.Ctx) ochazuke.Result {
 				return nil, fmt.Errorf("no pane %q", name)
 			}
 		}
-		owner, err := ws.PaneOwner(p.ID, p.SessionID)
+		owner, err := a.paneOwnerIn(ws, p.ID, p.SessionID)
 		if err != nil {
 			return nil, err
 		}

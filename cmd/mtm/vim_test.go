@@ -92,7 +92,7 @@ func TestVimRealSaveRestoreRestartAndForget(t *testing.T) {
 	if _, err := os.Stat(sessionPath); err != nil {
 		t.Fatal(err)
 	}
-	owner, err := a.work.PaneOwner(session.WindowID, "")
+	owner, err := a.paneOwnerIn(a.work, session.WindowID, "")
 	if err != nil || owner.AssignedAt == 0 || owner.ProjectID != "" {
 		t.Fatalf("immediate scratch ownership: %+v, %v", owner, err)
 	}

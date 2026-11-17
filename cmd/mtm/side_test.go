@@ -51,7 +51,7 @@ func TestSideTerminalUsesCurrentContextAndReusesWindow(t *testing.T) {
 	if err != nil || len(links) != 1 {
 		t.Fatalf("links: %+v %v", links, err)
 	}
-	owner, err := a.work.PaneOwner(links[0].Window, "")
+	owner, err := a.paneOwnerIn(a.work, links[0].Window, "")
 	if err != nil || owner.ProjectID != "matomeru" {
 		t.Fatalf("owner: %+v %v", owner, err)
 	}
@@ -110,7 +110,7 @@ func TestRestartedSidesLetQuitButBlockKillThenOrphan(t *testing.T) {
 	if len(b.panes) != 1 || b.panes[0].ID != side.ID {
 		t.Fatalf("orphan not visible: %+v", b.panes)
 	}
-	owner, err := b.work.PaneOwner(side.ID, "")
+	owner, err := b.work.PaneAssignment(side.ID)
 	if err != nil || owner.ProjectID != "owner" {
 		t.Fatalf("lost orphan owner: %+v %v", owner, err)
 	}

@@ -112,7 +112,7 @@ func (a *App) useRequestActor(actor ochazuke.Actor) error {
 	act := work.Actor{Kind: actor.Kind, Harness: actor.Harness, Pane: actor.Pane, Session: actor.Session, Model: actor.Model}
 	if actor.IsAgent() {
 		var err error
-		act.Task, _, err = journalOwner(a.work)(a.resolveSession(act.Session), act.Pane)
+		act.Task, _, err = journalOwner(a.walk, a.work)(a.resolveSession(act.Session), act.Pane)
 		if err != nil {
 			return err
 		}

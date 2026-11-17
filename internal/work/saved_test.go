@@ -71,7 +71,7 @@ func TestSavedRecipeSurvivesRestartAndForgetPreservesRecipeAndOwner(t *testing.T
 	if err != nil || !reflect.DeepEqual(kept.Command, recipe.Command) || !reflect.DeepEqual(kept.Env, recipe.Env) {
 		t.Fatalf("forget lost recipe: %+v, %v", kept, err)
 	}
-	owner, err := w.PaneOwner(recipe.Window, "")
+	owner, err := w.PaneAssignment(recipe.Window)
 	if err != nil || owner.Window != recipe.Window {
 		t.Fatalf("forget changed pane ownership: %+v, %v", owner, err)
 	}

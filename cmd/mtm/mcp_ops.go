@@ -100,7 +100,7 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 	if project, task, explicit := a.ownerWrite(ctx, "", "", ochazuke.Thing(ctx.Args)); explicit {
 		owner = contextitems.Owner{ProjectID: project, TaskID: task}
 	} else if window != "" {
-		task, project, err := journalOwner(a.work)(a.resolveSession(session), window)
+		task, project, err := journalOwner(a.walk, a.work)(a.resolveSession(session), window)
 		if err != nil {
 			return ochazuke.Failed(err)
 		}

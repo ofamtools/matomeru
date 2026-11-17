@@ -520,7 +520,7 @@ func (a *App) moveOwner(inst *ochazuke.Instance, noun string) (string, bool) {
 	if err != nil || !found {
 		return "", false
 	}
-	return cmp.Or(o.ProjectID, a.taskProject(o.TaskID)), true
+	return a.inherited(a.work, noun, ochazuke.Thing{"owner": ownerRef(o.ProjectID, o.TaskID), "project": o.ProjectID, "task": o.TaskID}, "project"), true
 }
 
 // projectsByRecency is the projects, the one whose directories were used

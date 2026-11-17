@@ -69,7 +69,7 @@ func TestPromptScheduleLaunchesWithItsAgentConfig(t *testing.T) {
 	if l.Target != schedules.TargetNew || l.Pane != "pane:"+w.ID || l.Task != "t1" || l.Project != "matomeru" || l.Prompt != "sent" || l.Model != "sonnet" {
 		t.Fatalf("launched record %+v", l)
 	}
-	if o, err := a.work.PaneOwner(w.ID, ""); err != nil || o.TaskID != "t1" || o.ProjectID != "matomeru" {
+	if o, err := a.paneOwnerIn(a.work, w.ID, ""); err != nil || o.TaskID != "t1" || o.ProjectID != "matomeru" {
 		t.Fatalf("pane owner %+v %v", o, err)
 	}
 	var runs []schedules.Record

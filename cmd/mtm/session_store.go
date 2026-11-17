@@ -41,7 +41,7 @@ func (a *App) sessionRecords(t ochazuke.Thing) ochazuke.Thing {
 	if err != nil {
 		return ochazuke.Thing{"panes": 0}
 	}
-	return ochazuke.Thing{"project": o.ProjectID, "panes": 0}
+	return ochazuke.Thing{"owner": ownerRef(o.ProjectID, o.TaskID), "former_owner": ownerRef(o.FormerProjectID, ""), "project": o.ProjectID, "panes": 0}
 }
 
 // sessionStore is the session noun's store over the listed panes'
@@ -79,7 +79,8 @@ func (a *App) sessionStore() ochazuke.Store {
 			all, _ := q.Args["all"].(bool)
 			out := []ochazuke.Thing{}
 			for _, t := range things {
-				if project, _ := t["project"].(string); all || a.inScope(project) {
+				owner, _ := t["owner"].(string)
+				if all || a.inScope(a.inherited(a.work, "session", ochazuke.Thing{"owner": owner}, "project")) {
 					out = append(out, t)
 				}
 			}
@@ -115,17 +116,16 @@ func (a *App) sessionThings(c ochazuke.Ctx) ([]ochazuke.Thing, error) {
 		}
 		i, seen := at[id]
 		if !seen {
-			project := ""
-			if p.SessionID != "" {
-				o, err := a.work.SessionOwner(p.SessionID)
-				if err != nil {
-					return nil, err
-				}
-				project = o.ProjectID
+			o, err := a.work.SessionOwner(p.SessionID)
+			if err != nil {
+				return nil, err
 			}
 			i = len(out)
 			at[id] = i
-			out = append(out, ochazuke.Thing{"id": id, "name": p.Session, "project": project, "panes": 0})
+			// The owner as stored; project (and task) read through it
+			// (nouns/session.json: inherit owner).
+			out = append(out, ochazuke.Thing{"id": id, "name": p.Session, "owner": ownerRef(o.ProjectID, o.TaskID),
+				"former_owner": ownerRef(o.FormerProjectID, ""), "project": "", "panes": 0})
 		}
 		if p.ID != "" {
 			out[i]["panes"] = out[i]["panes"].(int) + 1
@@ -171,18 +171,23 @@ func (a *App) patchSession(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 		}
 		t["name"] = to
 	}
+	changes = a.ownerChanges("session", changes)
+	if task, ok := thingString(changes, "task"); ok && task != "" {
+		changes["project"] = a.taskProject(task) // a session owned by a task is in the task's project
+	}
 	if project, ok := thingString(changes, "project"); ok {
 		if p.SessionID == "" {
 			return nil, fmt.Errorf("session %s has no id in the daemon yet: list the panes again, then move it", p.Session)
 		}
 		project, _ = a.noteOwner(c, project, true, "", false)
-		if err := a.work.SetSessionOwner(work.SessionOwner{ID: p.SessionID, Name: p.Session, ProjectID: project}); err != nil {
+		task, _ := thingString(changes, "task")
+		if err := a.work.SetSessionOwner(work.SessionOwner{ID: p.SessionID, Name: p.Session, ProjectID: project, TaskID: task}); err != nil {
 			return nil, err
 		}
 		if err := a.refreshScope(); err != nil {
 			return nil, err
 		}
-		t["project"] = project
+		t["owner"], t["project"] = ownerRef(project, task), ""
 	}
 	return t, nil
 }

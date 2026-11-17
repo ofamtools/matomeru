@@ -81,8 +81,10 @@ func (a *App) editSubject(noun string, resolve func(*ochazuke.Instance) (id, lab
 	a.r.Operations.Set(op)
 }
 
+// paneOwner is the pane's owner as it reads (paneOwnerIn), from the UI's
+// database.
 func (a *App) paneOwner(p pane) work.Assignment {
-	o, err := a.work.PaneOwner(p.ID, p.SessionID)
+	o, err := a.paneOwnerIn(a.work, p.ID, p.SessionID)
 	if err != nil {
 		a.paneErr = "read owner: " + err.Error()
 	}

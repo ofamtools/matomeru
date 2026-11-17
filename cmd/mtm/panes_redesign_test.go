@@ -94,7 +94,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 		t.Fatalf("detach: focus %s", app.r.FocusID())
 	}
 	executeA(t, app, "pane", "associate", row, ochazuke.Arguments{"project": "matomeru"})
-	if o, _ := app.work.PaneOwner("w2", ""); o.ProjectID != "matomeru" {
+	if o, _ := app.work.PaneAssignment("w2"); o.ProjectID != "matomeru" {
 		t.Fatalf("move: owner %+v", o)
 	}
 	press(t, app, "d", "d")
@@ -124,7 +124,7 @@ func TestMoveUsesTheProjectChooser(t *testing.T) {
 	}
 	typeText(t, app, "mato")
 	settle(app, key(t, app, "enter"))
-	if o, _ := app.work.PaneOwner("w1", ""); o.ProjectID != "matomeru" {
+	if o, _ := app.work.PaneAssignment("w1"); o.ProjectID != "matomeru" {
 		t.Fatalf("owner %+v", o)
 	}
 	if app.r.TopModal() != "" {
@@ -218,7 +218,7 @@ func capturedTurns(t *testing.T, path string, answers ...string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	j, err := history.Open(db, journalOwner(w))
+	j, err := history.Open(db, journalOwner(&ownerWalk{}, w))
 	if err != nil {
 		t.Fatal(err)
 	}

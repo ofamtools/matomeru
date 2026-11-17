@@ -664,7 +664,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 	}
 	if opened {
 		detail = "output: " + rv.Pane + " [" + rv.Status + "]"
-		owner, err := a.work.PaneOwner(rv.Window, "")
+		owner, err := a.paneOwnerIn(a.work, rv.Window, "")
 		if err == nil {
 			for _, p := range a.panes {
 				if p.ID == rv.Window {
@@ -684,7 +684,7 @@ func (a *App) renderReviews(_ *ochazuke.Runtime, width, height int) ochazuke.Blo
 		if row := a.reviewRows[rv.ID]; len(row.Turns) > 0 {
 			// The pane's turns are the detail; its screen only without them.
 			detail = fmt.Sprintf("turns: %s · %s", rv.Pane, plural(row.unread(), "unreviewed turn"))
-			if owner, err := a.work.PaneOwner(rv.Window, ""); err == nil {
+			if owner, err := a.paneOwnerIn(a.work, rv.Window, ""); err == nil {
 				detail += " · current owner: " + a.ownerLabel(owner.ProjectID)
 			}
 			if a.captureErr == paneGoneNote {

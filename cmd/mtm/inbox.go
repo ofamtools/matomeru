@@ -414,24 +414,13 @@ func (a *App) inboxSubject() (string, string, []link) {
 		return "", "", nil
 	}
 	var links []link
-	if l, ok := a.projectLink(cmp.Or(it.ProjectID, a.taskProject(it.TaskID))); ok {
+	if l, ok := a.projectLink(a.itemProject(it.ProjectID, it.TaskID)); ok {
 		links = append(links, l)
 	}
 	if l, ok := a.paneLink(it.Window); ok {
 		links = append(links, l)
 	}
 	return it.ID, a.inboxFacts(it), links
-}
-
-func (a *App) taskProject(id string) string {
-	if id == "" {
-		return ""
-	}
-	t, err := a.work.Task(id)
-	if err != nil {
-		return ""
-	}
-	return t.ProjectID
 }
 
 func (a *App) inboxFacts(it actionitems.Item) string {
@@ -537,7 +526,7 @@ func (a *App) actionOwner(args ochazuke.Arguments) (actionitems.Owner, string, e
 		o.Window, o.Session = pane, ochazuke.StringArg(args, "session", "")
 		o.PaneLabel = a.paneLabelOf(pane)
 		if o.ProjectID == "" && o.TaskID == "" {
-			owner, err := a.work.PaneOwner(pane, "")
+			owner, err := a.paneOwnerIn(a.work, pane, "")
 			if err == nil {
 				o.ProjectID, o.TaskID = owner.ProjectID, owner.TaskID
 			} else if !isNotFound(err) {
@@ -792,7 +781,7 @@ func (a *App) promoteActionItem(ctx ochazuke.Ctx, to string) ochazuke.Result {
 			return ochazuke.Failed(err)
 		}
 	} else {
-		project = cmp.Or(project, it.ProjectID, a.taskProject(it.TaskID), a.pin)
+		project = cmp.Or(project, a.itemProject(it.ProjectID, it.TaskID), a.pin)
 		if t, err = a.work.AddTask(project, title); err != nil {
 			return ochazuke.Failed(err)
 		}

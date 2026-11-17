@@ -422,7 +422,7 @@ func (a *App) liveRows() func(context.Context) ocli.Lines {
 			if p.ID == "" {
 				continue
 			}
-			if o, err := w.PaneOwner(p.ID, p.SessionID); err == nil && scope.inScope(o.ProjectID) {
+			if o, err := a.paneOwnerIn(w, p.ID, p.SessionID); err == nil && scope.inScope(o.ProjectID) {
 				owner := scope.ownerLabel(o.ProjectID)
 				out = append(out, ocli.Row{Noun: "pane", ID: p.rowID(), Label: p.label() + " · " + owner, Cells: paneCells(p, owner, home)})
 			}

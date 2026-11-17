@@ -175,7 +175,7 @@ func (a *App) sidePane(ctx ochazuke.Ctx) ochazuke.Result {
 		if kind == "list" {
 			return sideOpened{Parent: parent, Panes: panes, Links: selected}, nil
 		}
-		assignment, err := ws.PaneOwner(parent.ID, parent.SessionID)
+		assignment, err := a.paneOwnerIn(ws, parent.ID, parent.SessionID)
 		if err != nil {
 			return nil, err
 		}

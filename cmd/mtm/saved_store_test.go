@@ -78,7 +78,7 @@ func TestSavedMoveRenameCreate(t *testing.T) {
 	a := open(t)
 	row := savedRecord(t, a)
 	executeA(t, a, "saved", "set", "", ochazuke.Arguments{"id": row.ID, "props": map[string]any{"@owner": "matomeru"}})
-	if o, _ := a.work.PaneOwner("w2", ""); o.ProjectID != "matomeru" {
+	if o, _ := a.paneOwnerIn(a.work, "w2", ""); o.ProjectID != "matomeru" {
 		t.Fatalf("the pane did not follow: %+v", o)
 	}
 	executeA(t, a, "saved", "set", "", ochazuke.Arguments{"id": row.ID, "props": map[string]any{"@label": "unit"}})

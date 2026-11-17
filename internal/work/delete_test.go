@@ -66,7 +66,7 @@ func TestDeleteOrphansWithoutLosingRecords(t *testing.T) {
 	if note.ProjectID != "" || note.FormerProjectID != "a" || note.FormerTaskID != "task" {
 		t.Fatalf("orphan = %+v", note)
 	}
-	owner, err := w.PaneOwner("pane", "session")
+	owner, err := w.PaneAssignment("pane")
 	must(err)
 	if owner.ProjectID != "" || owner.TaskID != "" || owner.FormerProjectID != "a" || owner.FormerTaskID != "task" {
 		t.Fatalf("pane = %+v", owner)

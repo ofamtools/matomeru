@@ -133,7 +133,7 @@ func (a *App) associatePaneRelated(ctx ochazuke.Ctx, rel relation, id string) oc
 		return ochazuke.Failed(err)
 	}
 	o := relOwner{Window: p.ID, Session: p.Session}
-	if owner, err := a.work.PaneOwner(p.ID, p.SessionID); err == nil {
+	if owner, err := a.paneOwnerIn(a.work, p.ID, p.SessionID); err == nil {
 		o.ProjectID, o.TaskID = owner.ProjectID, owner.TaskID
 	}
 	return rel.relate(id, o)

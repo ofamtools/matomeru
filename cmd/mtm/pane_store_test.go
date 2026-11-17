@@ -79,11 +79,40 @@ func TestPaneMoveKeyAndUnassociate(t *testing.T) {
 		t.Fatalf("m opened %q", a.r.TopModal())
 	}
 	pickOwner(t, a, "ochaz")
-	if o, _ := a.work.PaneOwner("w1", ""); o.ProjectID != "ochazuke" {
+	if o, _ := a.paneOwnerIn(a.work, "w1", ""); o.ProjectID != "ochazuke" {
 		t.Fatalf("m: %+v", o)
 	}
 	executeA(t, a, "pane", "unassociate", "", ochazuke.Arguments{"id": row})
-	if o, _ := a.work.PaneOwner("w1", ""); o.ProjectID != "" || o.TaskID != "" {
+	if o, _ := a.paneOwnerIn(a.work, "w1", ""); o.ProjectID != "" || o.TaskID != "" {
 		t.Fatalf("unassociate: %+v", o)
+	}
+}
+
+// A pane's owner is one polymorphic reference that inherits its session's
+// (nouns/pane.json: owner inherit session; decision 40): a pane whose owner
+// was cleared reads its session's and follows it when the session moves;
+// project and task, aliases of owner, read through it and writing one sets
+// it; a pane with an owner of its own keeps it.
+func TestPaneEmptyOwnerFollowsItsSession(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	get := func() map[string]any {
+		thing, _ := executeA(t, a, "pane", "get", "", ochazuke.Arguments{"id": "w2"}).(map[string]any)
+		return thing
+	}
+	executeA(t, a, "pane", "set", "", ochazuke.Arguments{"id": "w2", "props": map[string]any{"owner": ""}})
+	for _, project := range []string{"matomeru", "ochazuke"} {
+		executeA(t, a, "session", "set", "", ochazuke.Arguments{"id": "id-ochazuke", "props": map[string]any{"owner": project}})
+		if got := get(); got["owner"] != "project:"+project || got["project"] != project || got["task"] != "" {
+			t.Fatalf("session moved to %s: pane %v", project, got)
+		}
+	}
+	executeA(t, a, "pane", "set", "", ochazuke.Arguments{"id": "w2", "props": map[string]any{"project": "matomeru"}})
+	executeA(t, a, "session", "set", "", ochazuke.Arguments{"id": "id-ochazuke", "props": map[string]any{"project": ""}})
+	if got := get(); got["owner"] != "project:matomeru" || got["project"] != "matomeru" {
+		t.Fatalf("own owner: %v", got)
+	}
+	if o, _ := a.work.PaneAssignment("w2"); o.ProjectID != "matomeru" {
+		t.Fatalf("stored: %+v", o)
 	}
 }

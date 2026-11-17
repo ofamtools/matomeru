@@ -16,17 +16,31 @@
       "through": true
     },
     {
-      "name": "project",
-      "type": "string",
-      "description": "The project the session belongs to (empty: unassociated); panes with their own owner keep it",
-      "source": "projects.all",
-      "free": true,
-      "noun": "project",
+      "name": "owner",
+      "description": "What the session belongs to: a project or a task (project:ID or task:ID; empty: unassociated); its panes with an owner of their own keep theirs",
+      "ref": ["project", "task"],
       "role": "owner",
-      "through": true,
-      "ref": [
-        "project"
-      ]
+      "through": true
+    },
+    {
+      "name": "former_owner",
+      "description": "What the session belonged to before it was last unassociated (project:ID or task:ID)",
+      "ref": ["project", "task"],
+      "readOnly": true
+    },
+    {
+      "name": "project",
+      "description": "The project the session's owner reaches (an alias of owner for one release: writing it sets owner)",
+      "ref": ["project"],
+      "inherit": "owner",
+      "through": true
+    },
+    {
+      "name": "task",
+      "description": "The task the session's owner is, when it is one (an alias of owner for one release: writing it sets owner)",
+      "ref": ["task"],
+      "inherit": "owner",
+      "through": true
     },
     {
       "name": "panes",
@@ -54,12 +68,6 @@
       "readOnly": true
     }
   ],
-  "owner": {
-    "prop": "project",
-    "nouns": [
-      "project"
-    ]
-  },
   "store": {
     "source": "session.store"
   },

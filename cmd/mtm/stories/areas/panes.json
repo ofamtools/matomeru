@@ -641,7 +641,7 @@
     },
     {
       "after": 167,
-      "focus": "edit-form/project"
+      "focus": "edit-form/owner"
     },
     {
       "mode": "normal",

@@ -25,7 +25,7 @@ func shownPane(t *testing.T, a *App, id string) pane {
 // ownerOf is the pane's stored owner.
 func ownerOf(t *testing.T, a *App, p pane) work.Assignment {
 	t.Helper()
-	o, err := a.work.PaneOwner(p.ID, p.SessionID)
+	o, err := a.paneOwnerIn(a.work, p.ID, p.SessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestPaneTaskAssociateBothWays(t *testing.T) {
 	}
 	// A pane mtm has not listed is still recorded (record first).
 	mustCLI(t, a, "task", "associate", "--target", "t1", "--pane", "pane:w9")
-	if o, _ := a.work.PaneOwner("w9", ""); o.TaskID != "t1" || o.Session != "" {
+	if o, _ := a.paneOwnerIn(a.work, "w9", ""); o.TaskID != "t1" || o.Session != "" {
 		t.Fatalf("unlisted pane: %+v", o)
 	}
 	for _, key := range []string{"task.associate", "project.associate"} {

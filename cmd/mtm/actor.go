@@ -115,7 +115,7 @@ func (a *App) paneAgent(act work.Actor) work.Actor {
 		act.Session = daemon.EnvSession.Get(a.getenv)
 	}
 	if act.Task == "" && act.Pane != "" {
-		act.Task, _, _ = journalOwner(a.work)(a.resolveSession(act.Session), act.Pane)
+		act.Task, _, _ = journalOwner(a.walk, a.work)(a.resolveSession(act.Session), act.Pane)
 	}
 	if act.Harness == "" || act.Model == "" {
 		if r, err := a.work.PaneRecipe(act.Pane); err == nil {

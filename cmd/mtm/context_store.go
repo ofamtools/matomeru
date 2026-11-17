@@ -467,7 +467,7 @@ func (a *App) windowProject(window string) string {
 	if i := slices.IndexFunc(a.panes, func(p pane) bool { return p.ID == window }); i >= 0 {
 		session = a.panes[i].SessionID
 	}
-	o, err := a.work.PaneOwner(window, session)
+	o, err := a.paneOwnerIn(a.work, window, session)
 	if err != nil {
 		return ""
 	}

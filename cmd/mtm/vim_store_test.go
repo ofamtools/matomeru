@@ -47,7 +47,7 @@ func TestVimKeysAndWrites(t *testing.T) {
 	if got, _ := a.work.VimSession(row.ID); got.Name != "plans" || got.ProjectID != "ochazuke" {
 		t.Fatalf("rename, move: %+v", got)
 	}
-	if o, err := a.work.PaneOwner("w9", ""); err == nil && o.ProjectID == "ochazuke" {
+	if o, err := a.paneOwnerIn(a.work, "w9", ""); err == nil && o.ProjectID == "ochazuke" {
 		t.Fatal("a closed session's stale window was given the owner")
 	}
 	executeA(t, a, "history-entry", "undo", "", nil)

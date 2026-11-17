@@ -78,7 +78,8 @@ func (a *App) paneRecords(t ochazuke.Thing) ochazuke.Thing {
 		_, starred = stars[p.ID]
 	}
 	p.Starred = starred
-	return ochazuke.Thing{"project": owner.ProjectID, "task": owner.TaskID, "starred": starred, "display": p.label()}
+	return ochazuke.Thing{"owner": ownerRef(owner.ProjectID, owner.TaskID), "former_owner": ownerRef(owner.FormerProjectID, owner.FormerTaskID),
+		"project": owner.ProjectID, "task": owner.TaskID, "starred": starred, "display": p.label()}
 }
 
 // paneStore is the pane noun's store over the listed panes.
@@ -107,9 +108,10 @@ func (a *App) paneStore() ochazuke.Store {
 				if p.ID == "" {
 					continue
 				}
-				t := a.paneThing(p)
-				if project, _ := t["project"].(string); all || a.inScope(project) {
-					out = append(out, t)
+				// The scope reads the project as get shows it (its session's
+				// when the pane has no owner of its own).
+				if all || a.inScope(a.paneOwner(p).ProjectID) {
+					out = append(out, a.paneThing(p))
 				}
 			}
 			return out, nil
@@ -202,16 +204,22 @@ func (a *App) paneCopyKey(key string) string {
 	return uniqueID(id, ids)
 }
 
-// paneThing is a pane as its props.
+// paneThing is a pane as its store holds its props: its own owner (empty
+// when it has none of its own; a read shows its session's, the inheritance
+// nouns/pane.json declares) and the project and task read through it.
 func (a *App) paneThing(p pane) ochazuke.Thing {
-	owner := a.paneOwner(p)
+	owner, err := a.work.PaneAssignment(p.ID)
+	if err != nil {
+		a.paneErr = "read owner: " + err.Error()
+	}
 	h := p.Harness
 	if h == "" {
 		h = p.LaunchHarness
 	}
 	t := ochazuke.Thing{
 		"id": p.ID, "name": p.givenName(), "display": p.label(), "session": p.SessionID,
-		"project": owner.ProjectID, "task": owner.TaskID, "starred": p.Starred,
+		"owner": ownerRef(owner.ProjectID, owner.TaskID), "former_owner": ownerRef(owner.FormerProjectID, owner.FormerTaskID),
+		"project": "", "task": "", "starred": p.Starred,
 		"title": p.Title, "cwd": p.Cwd, "state": p.AgentState, "harness": h, "exited": p.Exited,
 	}
 	for _, f := range a.settingFields(p) {
@@ -292,7 +300,7 @@ func (a *App) patchPane(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 		}
 	}
 	cur := a.paneOwner(p)
-	if project, task, ok := a.ownerWrite(c, cur.ProjectID, cur.TaskID, changes); ok {
+	if project, task, ok := a.ownerWrite(c, cur.ProjectID, cur.TaskID, a.ownerChanges("pane", changes)); ok {
 		row := work.Assignment{Window: p.ID, Session: p.SessionID, ProjectID: project, TaskID: task, AssignedAt: work.Now()}
 		if err := a.work.SetPaneOwner(row); err != nil {
 			return nil, err

@@ -411,8 +411,12 @@ type App struct {
 	taskPrivate        map[string]bool // the Work page's private tasks, for their glyph (tasks.go)
 	taskFilterApplied  bool            // Work's startup default has been applied; cycling stays session state
 	pin                string
-	all                bool
-	pinVersion         uint64
+	// walk is the nouns' inheritance declarations and record hooks,
+	// copied once they are defined (inherit.go), so walks off the loop
+	// read no runtime.
+	walk       *ownerWalk
+	all        bool
+	pinVersion uint64
 	// titleHead and titleDir are the title row before fitting; see fitTitle.
 	titleHead, titleDir string
 	daemon              *daemon.Client
@@ -609,7 +613,8 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	feed := newJournalFeed()
-	hist, err := history.Open(db, entryOwner(w, feed))
+	walk := &ownerWalk{} // filled once the nouns are defined, below
+	hist, err := history.Open(db, entryOwner(walk, w, feed))
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -687,6 +692,7 @@ func New(opts Options) (*App, error) {
 	a.defineReviews()
 	a.definePin()
 	a.defineOwners()
+	a.defineRecords()
 	a.defineInbox()
 	a.definePaneTask()
 	a.defineSchedules()
@@ -720,6 +726,8 @@ func New(opts Options) (*App, error) {
 	a.defineConfigReload()
 	a.defineFocus()
 	a.definePickers()
+	*walk = newOwnerWalk(r)
+	a.walk = walk
 	a.declareRelationKinds()
 	if err := a.configureDirectorySettings(); err != nil {
 		return nil, err

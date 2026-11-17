@@ -331,13 +331,13 @@ func (a *App) turnsHistoryActive() bool {
 	return !a.r.Settings().Bool(settingHistoryVisible) || a.r.Page == panesPage && a.pv.tab == tabTurns && !a.liveShown() && !a.copyShown(paneTermID)
 }
 
-// journalOwner is the owner the journal gives an entry: the pane's own
-// assignment, else its session's owner. session is the session's key (its
-// id): a caller holding a name reads it at the edge (resolveSession). It
-// reads the store only, so it is safe off the loop.
-func journalOwner(w *work.Store) history.Owner {
+// journalOwner is the owner the journal gives an entry: the pane's owner
+// as it reads (its own, else its session's: paneOwnerOf). session is the
+// session's key (its id): a caller holding a name reads it at the edge
+// (resolveSession). It reads the store only, so it is safe off the loop.
+func journalOwner(h *ownerWalk, w *work.Store) history.Owner {
 	return func(session, window string) (string, string, error) {
-		o, err := w.PaneOwner(window, session)
+		o, err := paneOwnerWalk(h, w, window, session)
 		return o.TaskID, o.ProjectID, err
 	}
 }
@@ -345,8 +345,8 @@ func journalOwner(w *work.Store) history.Owner {
 // entryOwner is the journal's owner for an entry the daemon names by
 // window (and its session by name): the session the listing last gave the
 // window, by id. It is safe off the loop (the feed's lock).
-func entryOwner(w *work.Store, f *journalFeed) history.Owner {
-	owner := journalOwner(w)
+func entryOwner(h *ownerWalk, w *work.Store, f *journalFeed) history.Owner {
+	owner := journalOwner(h, w)
 	return func(_, window string) (string, string, error) {
 		return owner(f.sessionOf(window), window)
 	}

@@ -7,7 +7,11 @@ import (
 	"ofam.dev/matomeru/store"
 )
 
-// Assignment's presence, even with empty ownership, overrides session inheritance.
+// Assignment is a pane's own owner record: the pane's owner prop as
+// stored (a project, a task with its project, or none). It is the pane's
+// own value only; an empty one is not set, so the pane follows its
+// session's owner (decision 40), which the pane noun declares
+// (nouns/pane.json: owner inherit session) and ochazuke walks.
 type Assignment struct {
 	Window          string `json:"window"`
 	Session         string `json:"session"`
@@ -50,21 +54,16 @@ func (s *Store) SessionOwner(id string) (SessionOwner, error) {
 	return o, err
 }
 
-func (s *Store) PaneOwner(window, sessionID string) (Assignment, error) {
+// PaneAssignment is the pane's own owner record, its window set and
+// nothing else when it has none: never its session's (the walk the pane
+// noun declares reads that).
+func (s *Store) PaneAssignment(window string) (Assignment, error) {
 	var a Assignment
 	err := s.db.Get("assignments", window, &a)
-	if err == nil {
-		// Old assignments to tasks stored no project; follow their parent chain.
-		if a.ProjectID == "" && a.TaskID != "" {
-			a.ProjectID, err = s.taskProject(a.TaskID)
-		}
-		return a, err
+	if errors.Is(err, store.ErrNotFound) {
+		return Assignment{Window: window}, nil
 	}
-	if !errors.Is(err, store.ErrNotFound) {
-		return a, err
-	}
-	o, err := s.SessionOwner(sessionID)
-	return Assignment{Window: window, Session: sessionID, ProjectID: o.ProjectID, TaskID: o.TaskID, FormerProjectID: o.FormerProjectID}, err
+	return a, err
 }
 
 func (s *Store) taskProject(id string) (string, error) {

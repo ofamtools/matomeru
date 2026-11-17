@@ -41,28 +41,32 @@
       ]
     },
     {
-      "name": "project",
-      "type": "string",
-      "description": "The project the pane belongs to (empty: unassociated); one not found is saved unassociated with a notice",
-      "source": "projects.all",
-      "free": true,
-      "noun": "project",
+      "name": "owner",
+      "description": "What the pane belongs to: a project or a task (project:ID or task:ID; a name or an id given here is read once). Empty: it follows its session's owner (decision 40); one not found is saved as written with a notice",
+      "ref": ["project", "task"],
       "role": "owner",
-      "through": true,
-      "ref": [
-        "project"
-      ],
-      "inherit": "session"
+      "inherit": "session",
+      "through": true
+    },
+    {
+      "name": "former_owner",
+      "description": "What the pane belonged to before it was last unassociated (project:ID or task:ID)",
+      "ref": ["project", "task"],
+      "readOnly": true
+    },
+    {
+      "name": "project",
+      "description": "The project the pane's owner reaches: the owner when it is a project, the owner task's project otherwise (an alias of owner for one release: writing it sets owner)",
+      "ref": ["project"],
+      "inherit": "owner",
+      "through": true
     },
     {
       "name": "task",
-      "type": "string",
-      "description": "The task the pane works on; its project wins over project",
-      "noun": "task",
-      "through": true,
-      "ref": [
-        "task"
-      ]
+      "description": "The task the pane works on: the owner when it is a task (an alias of owner for one release: writing it sets owner)",
+      "ref": ["task"],
+      "inherit": "owner",
+      "through": true
     },
     {
       "name": "starred",
@@ -145,12 +149,6 @@
       "readOnly": true
     }
   ],
-  "owner": {
-    "prop": "project",
-    "nouns": [
-      "project"
-    ]
-  },
   "store": {
     "source": "pane.store"
   },

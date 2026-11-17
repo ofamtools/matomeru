@@ -132,7 +132,7 @@ func (a *App) savePane(ctx ochazuke.Ctx) ochazuke.Result {
 			if err != nil {
 				return nil, err
 			}
-			owner, err := db.PaneOwner(p.ID, p.SessionID)
+			owner, err := a.paneOwnerIn(db, p.ID, p.SessionID)
 			if err != nil {
 				return nil, err
 			}

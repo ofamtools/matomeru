@@ -90,6 +90,20 @@ var ownerSlots = []struct {
 	{"task", "task", func(o *Owner) *string { return &o.TaskID }},
 }
 
+// ownerSlotOf is the slot a value of slot i's prop fills, and the key it
+// holds: for a polymorphic reference (owner project:ID, task:ID) the slot
+// of the noun it names and its key, else slot i and the value.
+func ownerSlotOf(i int, v string) (int, string) {
+	if ref, ok := ochazuke.ParseRef(v); ok {
+		for j, s := range ownerSlots {
+			if s.noun == ref.Noun {
+				return j, ref.Key
+			}
+		}
+	}
+	return i, v
+}
+
 // ownerSlotArg is the argument that names a thing of noun as an owner
 // ("" when noun is not an owner's field).
 func ownerSlotArg(noun string) string {
@@ -162,7 +176,8 @@ func (a *App) instanceOwner(inst *ochazuke.Instance, noun string) (Owner, bool, 
 	}
 	for i, name := range props {
 		if v, _ := thing[name].(string); v != "" {
-			*ownerSlots[i].field(&owner) = v
+			j, key := ownerSlotOf(i, v)
+			*ownerSlots[j].field(&owner) = key
 		}
 	}
 	return owner, true, nil

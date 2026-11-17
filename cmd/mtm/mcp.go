@@ -188,7 +188,7 @@ func mtmVersion() string {
 // did not launch has no recipe: its cwd is the server's, which the
 // harness started in its own directory.
 func (a *App) identifyPane(id mcp.Identity) (mcp.Identity, error) {
-	task, project, err := journalOwner(a.work)(a.resolveSession(id.Session), id.Window)
+	task, project, err := journalOwner(a.walk, a.work)(a.resolveSession(id.Session), id.Window)
 	if err != nil {
 		return id, err
 	}

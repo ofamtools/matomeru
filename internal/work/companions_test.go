@@ -188,7 +188,7 @@ func TestReconcileCompanionsRemovesDeadLinksAndPreservesOwners(t *testing.T) {
 		t.Fatalf("persisted reconciled links: %+v, %v", rows, err)
 	}
 	for _, window := range []string{"vim", "dead-term", "orphan", "both-dead"} {
-		owner, err := w.PaneOwner(window, "session")
+		owner, err := w.PaneAssignment(window)
 		wantOwner := Assignment{Window: window, Session: "session", ProjectID: "project", TaskID: "task", AssignedAt: 42}
 		if err != nil || owner != wantOwner {
 			t.Fatalf("reconciliation changed owner of %s: %+v, %v", window, owner, err)

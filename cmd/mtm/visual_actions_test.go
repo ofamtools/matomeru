@@ -232,7 +232,7 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 	if app.r.Chooser(ochazuke.EditChooserKind) == nil {
 		t.Fatalf("V j m: modal %q", app.r.TopModal())
 	}
-	if f := frameAt(app, 160); !strings.Contains(f, "Edit 2 panes project") {
+	if f := frameAt(app, 160); !strings.Contains(f, "Edit 2 panes owner") {
 		t.Fatalf("V j m: the chooser does not count both panes:\n%s", f)
 	}
 	// ochazuke v0.93.1: esc resumes the selection (visual-line, same rows).

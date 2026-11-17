@@ -60,18 +60,20 @@ func TestPinFiltersAndAllPreservesPin(t *testing.T) {
 		t.Fatalf("unassociated is not last: %+v", items)
 	}
 	executeA(t, a, "session", "associate", "session:sa", ochazuke.Arguments{"project": "ochazuke"})
-	if got, _ := a.work.PaneOwner("wa", "sa"); got.ProjectID != "ochazuke" {
+	if got, _ := a.paneOwnerIn(a.work, "wa", "sa"); got.ProjectID != "ochazuke" {
 		t.Fatalf("inherited %+v", got)
 	}
 	executeA(t, a, "session", "associate", "session:sa", ochazuke.Arguments{"project": "matomeru"})
-	if got, _ := a.work.PaneOwner("wb", "sa"); got.ProjectID != "ochazuke" {
+	if got, _ := a.paneOwnerIn(a.work, "wb", "sa"); got.ProjectID != "ochazuke" {
 		t.Fatalf("explicit moved %+v", got)
 	}
 	executeA(t, a, "pane", "associate", panes[2].rowID(), ochazuke.Arguments{"project": "matomeru"})
 	executeA(t, a, "pane", "associate", panes[2].rowID(), ochazuke.Arguments{"project": "ochazuke"})
 	executeA(t, a, "pane", "associate", panes[2].rowID(), ochazuke.Arguments{"scratch": true})
-	if got, _ := a.work.PaneOwner("wu", "sa"); got.ProjectID != "" {
-		t.Fatalf("scratch inherited %+v", got)
+	// Decision 40: a pane made unassociated follows its session (sa is
+	// matomeru's now).
+	if got, _ := a.paneOwnerIn(a.work, "wu", "sa"); got.ProjectID != "matomeru" {
+		t.Fatalf("scratch did not follow its session %+v", got)
 	}
 }
 
@@ -107,7 +109,7 @@ func TestLaunchUsesPinWhileBrowsingAndScratchOverrides(t *testing.T) {
 		} else {
 			w = d.launches[len(d.launches)-1]
 		}
-		o, err := a.work.PaneOwner(w.ID, "")
+		o, err := a.paneOwnerIn(a.work, w.ID, "")
 		if err != nil || w.Session != c.session || o.ProjectID != c.owner || a.pin != "matomeru" {
 			t.Fatalf("%v pane %+v owner %+v pin %s err %v", c.args, w, o, a.pin, err)
 		}
@@ -137,7 +139,7 @@ func TestOwnerWrittenBeforeReadinessAndLateLaunchDoesNotNavigate(t *testing.T) {
 	messages := make(chan any, 1)
 	go func() { messages <- cmd() }()
 	<-d.entered
-	if owner, err := a.work.PaneOwner("a1", ""); err != nil || owner.ProjectID != "matomeru" || owner.TaskID != "t1" {
+	if owner, err := a.paneOwnerIn(a.work, "a1", ""); err != nil || owner.ProjectID != "matomeru" || owner.TaskID != "t1" {
 		t.Fatalf("owner not persisted before ready %+v %v", owner, err)
 	}
 	executeA(t, a, "project", "pin", "work", ochazuke.Arguments{"project": "ochazuke"})
@@ -146,7 +148,7 @@ func TestOwnerWrittenBeforeReadinessAndLateLaunchDoesNotNavigate(t *testing.T) {
 	if a.r.Page != "work" || a.r.Terminal(paneTermID) != nil {
 		t.Fatalf("late launch navigated: %s", a.r.Page)
 	}
-	if owner, _ := a.work.PaneOwner("a1", ""); owner.ProjectID != "matomeru" {
+	if owner, _ := a.paneOwnerIn(a.work, "a1", ""); owner.ProjectID != "matomeru" {
 		t.Fatalf("late owner %+v", owner)
 	}
 	reviews, err := a.work.Reviews()
@@ -162,7 +164,7 @@ func TestListingFailureKeepsCreatedPaneAndOwner(t *testing.T) {
 	a.launcher = &fakeDaemon{}
 	executeA(t, a, "pane", "start", panesPage, ochazuke.Arguments{"project": "matomeru", "session": "unrelated"})
 	runOnce(a, a.r.PendingCommands())
-	if owner, err := a.work.PaneOwner("s1", ""); err != nil || owner.ProjectID != "matomeru" {
+	if owner, err := a.paneOwnerIn(a.work, "s1", ""); err != nil || owner.ProjectID != "matomeru" {
 		t.Fatalf("lost owner %+v %v", owner, err)
 	}
 	if a.r.Instances["pane:s1"] == nil || !strings.Contains(a.landErr, "listing panes failed") {
