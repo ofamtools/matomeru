@@ -25,6 +25,11 @@ const (
 // SettingNames are the settings mtm knows, in the order it draws them.
 var SettingNames = []string{SettingModel, SettingEffort, SettingFast, SettingPermission}
 
+// LaunchSettingNames are the settings a launch sets through the settings
+// rows (LaunchSettings): every setting but the model, which has its own
+// flag (ModelFlag).
+var LaunchSettingNames = []string{SettingEffort, SettingFast, SettingPermission}
+
 // ValuePlaceholder is where a Setting's Command takes the chosen value.
 const ValuePlaceholder = "{value}"
 
@@ -173,11 +178,11 @@ func (h Harness) ContextWindow(model string) (int64, error) {
 // rows with Flags, the commands to type once the pane is ready for the
 // rows with only a Command, and a note for each setting the harness has
 // no way to set at launch. A value outside the setting's choices is an
-// error. Settings are taken in SettingNames order.
+// error. Settings are taken in LaunchSettingNames order.
 func (h Harness) LaunchSettings(values map[string]string) (flags, typed, notes []string, err error) {
-	for _, name := range SettingNames {
+	for _, name := range LaunchSettingNames {
 		v := strings.TrimSpace(values[name])
-		if v == "" || name == SettingModel {
+		if v == "" {
 			continue
 		}
 		if choices := h.Choices(name); len(choices) > 0 && !slices.Contains(choices, v) {

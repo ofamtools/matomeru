@@ -424,13 +424,14 @@
       "name": "n",
       "harness": "codex",
       "argv": [
-        "codex"
+        "codex",
+        "-c",
+        "model_reasoning_effort=high"
       ],
-      "prompt": "sent",
-      "note": "codex has no launch flag or command for effort; effort=high not applied (add a settings row in harnesses.json)"
+      "prompt": "sent"
     },
     "calls": [
-      "open s n /src [codex]",
+      "open s n /src [codex -c model_reasoning_effort=high]",
       "wait s/w7 idle,done",
       "send s/w7 go"
     ]
@@ -491,13 +492,14 @@
       "name": "n",
       "harness": "codex",
       "argv": [
-        "codex"
+        "codex",
+        "-c",
+        "model_reasoning_effort=minimal"
       ],
-      "prompt": "sent",
-      "note": "codex has no launch flag or command for effort; effort=minimal not applied (add a settings row in harnesses.json)"
+      "prompt": "sent"
     },
     "calls": [
-      "open s n /src [codex]",
+      "open s n /src [codex -c model_reasoning_effort=minimal]",
       "wait s/w7 idle,done",
       "send s/w7 go"
     ]

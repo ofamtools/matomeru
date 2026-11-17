@@ -187,7 +187,8 @@ func (a *App) defineLaunch() {
 	r.DefineOwn("agent").
 		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
 		Verb("start", a.startAgent, "Start an agent in a project's session, off the loop; launch and into fill it").
-		Verb("choose", a.chooseAgent, "Launch an agent into the pin's project: a chooser of harnesses, the project's own first")
+		Verb("choose", a.chooseAgent, "Launch an agent into the pin's project: a chooser of harnesses, the project's own first").
+		Verb("ask-new", a.askAgent, "Ask a new agent a question: record it verbatim in o-questions (question.question.ask), then start an agent (agent.start) told to answer it there; without a question, a form whose first field is the question")
 	// L launches an agent on every page; a project or task row's own L
 	// launches on that record.
 	a.r.Define("app").Mode("normal").Bind("L", ochazuke.Do("agent.choose"))
@@ -198,14 +199,14 @@ func (a *App) defineLaunch() {
 	agent := ochazuke.Parameter{Type: "string", Enum: a.harnesses.Names(), Description: "Harness to start (default: the project's harness setting, else the default-harness setting, " + defaultHarness + " unless set)"}
 	a.parameters("harness.models", map[string]ochazuke.Parameter{"harness": {Type: "string", Description: "Only this harness's models; empty: every harness"}})
 	task := ochazuke.Parameter{Type: "string", Description: "Task id; its title is the agent's first prompt"}
-	a.parameters("agent.launch", map[string]ochazuke.Parameter{
+	launchParams := map[string]ochazuke.Parameter{
 		"harness": agent,
 		"model":   model,
 		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omit to infer it"},
 		"task":    task,
 		"scratch": {Type: "boolean", Description: "Launch unassociated in no-project"},
-	})
-	a.parameters("agent.start", map[string]ochazuke.Parameter{
+	}
+	startParams := map[string]ochazuke.Parameter{
 		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name; omitted, the agent runs in no project (cwd: the home directory)"},
 		"session": {Type: "string", Required: true, Description: "The session the shell opens in"},
 		"harness": agent,
@@ -213,7 +214,13 @@ func (a *App) defineLaunch() {
 		"task":    task,
 		"notice":  {Type: "string"},
 		"drive":   driveParam,
-	})
+	}
+	for name, p := range a.launchExtraParams() {
+		launchParams[name], startParams[name] = p, p
+	}
+	a.parameters("agent.launch", launchParams)
+	a.parameters("agent.start", startParams)
+	a.parameters("agent.ask-new", a.askParams(agent, model))
 	a.parameters("project.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model, "drive": driveParam})
 	a.parameters("task.launch", map[string]ochazuke.Parameter{"harness": agent, "model": model, "drive": driveParam})
 }
@@ -276,6 +283,9 @@ func (a *App) execHarness(ctx ochazuke.Ctx, h harness.Harness, model string, p w
 			return ochazuke.Failed(fmt.Errorf("task %s: %w", id, err))
 		}
 		prompt = t.Title
+	}
+	if text := ochazuke.StringArg(ctx.Args, "prompt", ""); text != "" {
+		prompt = text
 	}
 	run := &commandRun{Title: h.Name + " (exec)", Argv: h.Argv(model, prompt), Dir: a.startCwd(p), Drive: drive.Exec}
 	if h.Prompt != harness.PromptArg {
@@ -551,6 +561,11 @@ func (a *App) start(ctx ochazuke.Ctx, to target, harnessName, model string) ocha
 	if d := ochazuke.StringArg(ctx.Args, "drive", ""); d != "" {
 		args["drive"] = d
 	}
+	for name := range a.launchExtraParams() {
+		if v := ochazuke.StringArg(ctx.Args, name, ""); v != "" {
+			args[name] = v
+		}
+	}
 	out, err := ctx.Runtime.Execute(ochazuke.Request{Verb: "start", Noun: "agent", Target: "work", Args: args})
 	if err != nil {
 		return ochazuke.Failed(err)
@@ -593,6 +608,11 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 		}
 		spec.Name, spec.Prompt = t.Title, t.Title
 	}
+	if text := ochazuke.StringArg(ctx.Args, "prompt", ""); text != "" {
+		spec.Prompt = text
+	}
+	spec.Settings = launchSettingsOf(ctx.Args)
+	about := ochazuke.StringArg(ctx.Args, "about", "")
 	task := ochazuke.StringArg(ctx.Args, "task", "")
 	owner := Owner{ProjectID: p.ID, TaskID: task, Notice: ochazuke.StringArg(ctx.Args, "notice", "")}
 	version := a.pinVersion
@@ -602,6 +622,7 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 		if done, ok := v.(launched); ok && err == nil {
 			a.recordReview(p.ID, task, done.Pane)
 			a.finishLaunch(done, owner, version)
+			a.relateAbout(done.Pane.Window, about)
 		}
 	}).Label(h.Name)
 }

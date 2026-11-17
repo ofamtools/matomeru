@@ -240,6 +240,12 @@
     "command": ["codex"],
     "ids": ["codex*"],
     "modelFlag": "--model",
+    "settings": {
+      "effort": {
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"],
+        "flags": ["-c", "model_reasoning_effort={value}"]
+      }
+    },
     "prompt": "send-text",
     "ready": {
       "state": "idle,done",

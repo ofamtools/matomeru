@@ -163,8 +163,9 @@ func TestLaunchSettings(t *testing.T) {
 	if _, _, _, err := claude.LaunchSettings(map[string]string{SettingEffort: "huge"}); err == nil {
 		t.Fatal("an effort claude does not take was taken")
 	}
-	if _, _, notes, err := codex.LaunchSettings(map[string]string{SettingEffort: "high"}); err != nil || len(notes) != 1 {
-		t.Fatalf("codex: %q %v", notes, err)
+	// Codex sets effort only at launch, as a config override flag.
+	if flags, _, notes, err := codex.LaunchSettings(map[string]string{SettingEffort: "high", SettingFast: "on"}); err != nil || strings.Join(flags, " ") != "-c model_reasoning_effort=high" || len(notes) != 1 {
+		t.Fatalf("codex: %q %q %v", flags, notes, err)
 	}
 	if got := strings.Join(claude.ArgvWith("sonnet", "", []string{"--permission-mode", "plan"}), " "); got != "claude --model sonnet --permission-mode plan" {
 		t.Fatalf("argv %q", got)

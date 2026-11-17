@@ -48,6 +48,7 @@ archived-at	prop	seed
 args	action+prop	seed	
 ask	action	seed	
 ask-back	action	seed	
+ask-new	action	yes	agent.ask-new asks a new agent; agent.ask asks an open one
 asked_at	prop	seed	
 associate	action	seed	
 association	noun	seed	

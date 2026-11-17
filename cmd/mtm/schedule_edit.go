@@ -26,17 +26,7 @@ const scheduleFormID = "schedule-form"
 
 // scheduleParams are add's and edit's parameters (edit's name is the row's).
 func (a *App) scheduleParams() map[string]ochazuke.Parameter {
-	settingChoices := func(name string) []string {
-		var out []string
-		for _, h := range a.harnesses.List() {
-			for _, v := range h.Choices(name) {
-				if !slices.Contains(out, v) {
-					out = append(out, v)
-				}
-			}
-		}
-		return out
-	}
+	settingChoices := a.launchSettingChoices
 	return map[string]ochazuke.Parameter{
 		"prompt":          {Type: "string", Description: "The prompt the agent is given each run (a prompt schedule)"},
 		"when":            {Type: "string", Description: "When it runs: every 30m, daily 09:00, mon,wed,fri 09:00,17:30, weekdays 8:30, cron 0 9 * * 1-5, or never"},

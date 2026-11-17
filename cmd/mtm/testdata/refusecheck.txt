@@ -4,6 +4,8 @@
 # Adding a row is a reviewed edit.
 cmd/mtm/action_item_store.go	App.actionItemStore	K11	"Confirm: <expr> without Loses"	1
 cmd/mtm/actor.go	App.cliActor	K14	"%s: %w; using the pane's actor"	1	failure
+cmd/mtm/agent_ask.go	App.askAgent	K15	"agent ask-new needs the question: mtm agent ask-new --question TEXT"	1	declaration
+cmd/mtm/agent_ask.go	App.askAgent	K15	"resultError(…)"	2	failure
 cmd/mtm/agent_declarations.go	App.bindCatalogActors	K15	"Failed(…)"	1
 cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K15	"Failed(…)"	2
 cmd/mtm/agent_verbs.go	App.defineTaskEvidence	K15	"task %s is at version %d, not %d; re-read it"	1

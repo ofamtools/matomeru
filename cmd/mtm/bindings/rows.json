@@ -39,6 +39,7 @@
     {"key": "alt+n", "action": "pane.whoami", "hidden": true}
   ]},
   {"context": "app/normal", "bindings": [
+    {"key": "g q", "action": "agent.ask-new", "help": "ask a new agent a question: the ask form, the question first"}
   ]},
   {"context": "app/visual", "bindings": [
   ]},

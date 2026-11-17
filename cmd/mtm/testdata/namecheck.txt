@@ -53,7 +53,6 @@
 ../../internal/harness/promptbox.go	PromptBox.validate	case	"send"	1
 ../../internal/harness/session.go	SessionSource.validate	case	"lines"	1
 ../../internal/harness/settings.go	Harness.Choices	compare	"model"	1
-../../internal/harness/settings.go	Harness.LaunchSettings	compare	"model"	1
 ../../internal/harness/settings.go	Setting.validate	compare	"fast"	2
 ../../internal/history/history.go	FromActivity	compare	"prompt"	1
 ../../internal/history/project.go	project	case	"session_start"	1	wire field of the agent-state report, not mtm vocabulary (session_start became a word with agent.set-status)

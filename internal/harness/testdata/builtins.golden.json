@@ -440,6 +440,22 @@
       "timeoutMs": 15000
     },
     "attach": "paste",
+    "settings": {
+      "effort": {
+        "values": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "flags": [
+          "-c",
+          "model_reasoning_effort={value}"
+        ]
+      }
+    },
     "log": "codex",
     "compose": {
       "oai": "codex",
