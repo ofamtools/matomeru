@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -107,6 +108,12 @@ func (a *App) applyChoices(src *extSource) {
 		p.Free = true
 		op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(sp.op)))
 		if !ok {
+			continue
+		}
+		if have, ok := op.Parameters[sp.name]; ok && reflect.DeepEqual(have, p) {
+			// The same choices as loaded before: setting the operation
+			// again would only drop every operation index (the palette's
+			// line index among them) for nothing.
 			continue
 		}
 		params := make(map[string]ochazuke.Parameter, len(op.Parameters))
