@@ -975,6 +975,7 @@ untracked	prop	seed
 unwatch	action	seed	
 up	action	seed	
 updated	prop	seed	
+upgrade	action	yes	daemon.upgrade: a live upgrade of the daemon to the installed mtm
 upspeed	prop	seed	
 upstream	prop	seed	
 url	prop	seed	

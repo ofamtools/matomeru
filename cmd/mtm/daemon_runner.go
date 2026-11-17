@@ -83,7 +83,7 @@ func daemonRunnerNames() []string {
 }
 
 func daemonSettings() []ochazuke.Setting {
-	return []ochazuke.Setting{
+	return append([]ochazuke.Setting{
 		{Name: settingDaemonRunner, Type: ochazuke.SettingString, Default: defaultDaemonRunner(), Enum: daemonRunnerNames(),
 			Description: "How mtm starts its pane server: self (the daemon linked into mtm; the default, and tuios is not needed) or tuios (the tuios on PATH; the default in a -tags nodaemon build). " + envDaemonRunner + " overrides for one run"},
 		{Name: settingDaemonPaths, Type: ochazuke.SettingString, Default: daemon.Layouts[0].Name, Enum: daemon.LayoutNames(),
@@ -92,7 +92,7 @@ func daemonSettings() []ochazuke.Setting {
 			Description: "Also give panes, hooks and plugins the TUIOS_ variable names (TUIOS_PANE_ID, ...) beside the MTM_ ones, for a machine with an old tool that reads them. Off (the default) exports only the MTM_ names. Takes effect when the daemon is restarted. " + daemon.EnvLegacy + " overrides for one run"},
 		{Name: settingDaemonPin, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Run the self daemon from a pinned copy of the mtm binary under the state directory (daemon-bin), so overwriting the installed mtm cannot kill it. Off runs the installed binary"},
-	}
+	}, restartSettings()...)
 }
 
 // runnerName is the runner now chosen: the environment, else the setting.
@@ -425,25 +425,6 @@ func (a *App) daemonStopVerb(ochazuke.Ctx) ochazuke.Result {
 	})
 }
 
-// daemonRestartVerb stops the daemon, then ensures one (restoring saved
-// state, as the daemon does on its own start).
-func (a *App) daemonRestartVerb(ochazuke.Ctx) ochazuke.Result {
-	ensure := a.ensure
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		if _, err := a.stopDaemon(c); err != nil {
-			return nil, err
-		}
-		if err := ensure(c); err != nil {
-			return nil, err
-		}
-		return a.daemonStatus(c), nil
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
-		if err == nil {
-			_ = a.reloadPanes()
-		}
-	})
-}
-
 // daemonServeVerb runs the daemon in the foreground of this process (CLI
 // only; it returns when the daemon stops).
 func (a *App) daemonServeVerb(ochazuke.Ctx) ochazuke.Result {
@@ -511,7 +492,8 @@ func (a *App) defineDaemon(r *ochazuke.Runtime) {
 	verb("status", true, a.daemonStatusVerb, "Whether the daemon runs: pid, its version beside this client's, runner, socket, binary and version skew. Never starts one").Fetch().Quiet()
 	verb("show-log", true, a.daemonLogsVerb, "Tail the daemon log (lines, default 50). Never starts a daemon").Fetch().Quiet()
 	verb("stop", true, a.daemonStopVerb, "Stop the daemon; its panes die. A daemon that is not running is left alone").Confirm("Stop the daemon? Its panes end.")
-	verb("restart", true, a.daemonRestartVerb, "Stop the daemon, then start it again (it restores its saved state)").Confirm("Restart the daemon? Panes end and are restored from saved state.")
+	verb("restart", true, a.daemonRestartVerb, "Restart the daemon on the installed mtm, live: the same handoff as daemon.upgrade, so every pane keeps its program. When the live handoff cannot run it changes nothing and says why. hard stops the daemon and starts it again, which ends the programs in its panes (they are restored from saved state with new shells)").Confirm("Restart the daemon? Panes keep running (with hard, they end and are restored from saved state).")
+	a.defineDaemonUpgrade(verb)
 	verb("import-state", true, a.daemonImportStateVerb, daemonImportAbout)
 	a.defineDaemonImportParameters()
 	verb("serve", true, a.daemonServeVerb, "Run the daemon in this process until it is stopped (CLI)")

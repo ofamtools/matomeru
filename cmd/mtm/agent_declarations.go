@@ -34,7 +34,7 @@ var mtmAgentDeclarations = []struct {
 	{"note.delete", "", true},
 	{"daemon.ensure", ochazuke.AgentAllow, false}, {"daemon.start", ochazuke.AgentAllow, false}, {"daemon.status", ochazuke.AgentAllow, false},
 	{"daemon.show-log", ochazuke.AgentAllow, false},
-	{"daemon.stop", ochazuke.AgentNever, false}, {"daemon.restart", ochazuke.AgentNever, false}, {"daemon.serve", ochazuke.AgentNever, false}, {"daemon.import-state", ochazuke.AgentNever, false},
+	{"daemon.stop", ochazuke.AgentNever, false}, {"daemon.restart", ochazuke.AgentNever, false}, {"daemon.upgrade", ochazuke.AgentConfirm, false}, {"daemon.serve", ochazuke.AgentNever, false}, {"daemon.import-state", ochazuke.AgentNever, false},
 	{"context-item.delete", "", true},
 	// pane.kill, session.associate and session.choose-move declare theirs
 	// in their noun files; session.kill's stays here, set after the

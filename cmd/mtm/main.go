@@ -437,6 +437,10 @@ type App struct {
 	renamer             renamer                // renames sessions and windows (the daemon); tests replace it
 	home                func() (string, error) // where a launch with no project starts; tests replace it
 
+	// runUpgrade runs mtmd's daemon upgrade (execUpgrade when nil); tests
+	// replace it (daemon_upgrade.go).
+	runUpgrade func(ctx context.Context, argv, env []string) ([]byte, error)
+
 	projects       []work.Project
 	hues           map[string]string // project id → its hue (setProjectHues)
 	colorRand      func(n int) int   // random source of pickProjectColor (tests seed it)

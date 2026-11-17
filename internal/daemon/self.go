@@ -50,21 +50,9 @@ func (s SelfStart) Start(_ context.Context, name string) (<-chan error, error) {
 			exe = pinned
 		}
 	}
-	env := os.Environ
-	if s.Environ != nil {
-		env = s.Environ
-	}
 	what := fmt.Sprintf("%s %s --server %s start-server", filepath.Base(exe), s.Word, name)
 	cmd := exec.Command(exe, s.Word, "--server", name, "start-server")
-	cmd.Env = ScrubEnv(env())
-	if s.Paths != "" {
-		cmd.Env = append(withoutKey(cmd.Env, EnvPaths), EnvPaths+"="+s.Paths)
-	}
-	legacy := "0"
-	if s.LegacyEnv {
-		legacy = "1"
-	}
-	cmd.Env = append(withoutKey(cmd.Env, EnvLegacy), EnvLegacy+"="+legacy)
+	cmd.Env = s.Env()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("%s: %w", what, err)
@@ -78,6 +66,26 @@ func (s SelfStart) Start(_ context.Context, name string) (<-chan error, error) {
 		exited <- err
 	}()
 	return exited, nil
+}
+
+// Env is the environment the daemon's own command lines run with: Environ
+// without the enclosing multiplexer's and agent's variables (ScrubEnv), with
+// the layout (EnvPaths) and EnvLegacy set. A live upgrade runs the facade
+// under it too, so it finds the daemon start-server made.
+func (s SelfStart) Env() []string {
+	env := os.Environ
+	if s.Environ != nil {
+		env = s.Environ
+	}
+	out := ScrubEnv(env())
+	if s.Paths != "" {
+		out = append(withoutKey(out, EnvPaths), EnvPaths+"="+s.Paths)
+	}
+	legacy := "0"
+	if s.LegacyEnv {
+		legacy = "1"
+	}
+	return append(withoutKey(out, EnvLegacy), EnvLegacy+"="+legacy)
 }
 
 // The variables of an enclosing multiplexer or agent session; a daemon

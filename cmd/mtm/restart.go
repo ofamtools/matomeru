@@ -45,6 +45,9 @@ func (a *App) restartHook(tui bool) ochazuke.RestartHook {
 	}
 	if tui {
 		h.Path = a.installedPath
+		// The new TUI knows it was restarted, and upgrades the daemon
+		// (restart.upgrade-daemon, daemon_upgrade.go).
+		h.Env = restartEnv
 	}
 	return h
 }
@@ -64,10 +67,12 @@ func (a *App) defineRestart() {
 }
 
 // wireRestart is the TUI's hook: app.restart can start the installed
-// build, after mtm's cleanup (a quit hook's Close).
+// build, after mtm's cleanup (a quit hook's Close). A TUI that app.restart
+// started also upgrades the daemon (upgradeAfterRestart).
 func (a *App) wireRestart() {
 	a.r.SetRestart(a.restartHook(true))
 	a.r.AddQuitHook(ochazuke.QuitHook{Name: "close", Close: a.beforeRestart})
+	a.upgradeAfterRestart()
 }
 
 // installedPath is the binary a restart starts: this process's executable

@@ -96,6 +96,7 @@ cmd/mtm/daemon_runner.go	App.daemonServeVerb	K3	"daemon.serve needs a named serv
 cmd/mtm/daemon_runner.go	App.runner	K1	"daemon runner %q is not built into this mtm (-tags nodaemon); use %s"	1
 cmd/mtm/daemon_runner.go	App.runner	K15	"unknown daemon runner %q (%s)"	1
 cmd/mtm/daemon_runner.go	App.stopDaemon	K15	"the daemon reported no pid"	1
+cmd/mtm/daemon_upgrade.go	App.handOff	K15	"daemon upgrade %s: %s"	1	failure
 cmd/mtm/daily_focus.go	App.focusAdd	K15	"Failed(…)"	1
 cmd/mtm/daily_focus.go	App.focusClear	K15	"Failed(…)"	4
 cmd/mtm/daily_focus.go	App.focusDate	K15	"date %q is not YYYY-MM-DD"	1
