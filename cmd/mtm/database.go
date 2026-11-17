@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"ofam.dev/ochazuke"
+	"ofam.dev/ochazuke/retain"
 
 	"ofam.dev/matomeru/store"
 )
@@ -57,13 +59,119 @@ func (a *App) defineDatabase() {
 	a.localVerb(n, databaseNoun, "show", a.databaseShow, "Show the database file: path, size (with its -wal and -shm), each table's share, and its copies with their sizes and times, and what the database-copies rule would remove now (read-only)").Fetch()
 	a.localVerb(n, databaseNoun, "backup", a.databaseBackup, "Write a consistent copy of the database (VACUUM INTO) into backups/ beside it, named mtm.db.bak-<UTC time>[-label], then apply the database-copies retention rule as after a write (retention-rule apply --after-write: a first large removal waits for you)").
 		Params(map[string]ochazuke.Parameter{"label": {Type: "string", Description: "A word for the copy's name (pre-v0.51.0); characters a file name cannot hold become -"}}).Positional("label")
+	a.localVerb(n, databaseNoun, "compact", a.databaseCompact, "Give the file's free pages (the space removed rows left, such as expired activity) back to the disk: the first time a copy (database backup pre-compact), then one VACUUM that rewrites the whole file and switches it to incremental auto-vacuum (about half a second after the activity rule, other mtm processes' writes wait for it); afterwards short incremental steps").History(ochazuke.HistoryChange)
 	a.localVerb(n, databaseNoun, "tables", a.storeTables, "List every declared table with its owner, key, version, append-only flag and row count (read-only; store tables)").Rows(storeTableNoun)
 	if a.dataPath == "" || a.dataPath == ":memory:" {
 		return
 	}
-	if err := a.r.DeclareRetention(databaseCopiesRetention(a.dataPath)); err != nil {
+	if err := a.r.DeclareRetention(databaseCopiesRetention(a.dataPath), a.activityRetention()); err != nil {
 		a.r.UI().Notify("database: " + err.Error())
 	}
+	if err := a.r.DeclareSetting(ochazuke.Setting{Name: activityCompactSetting, Type: ochazuke.SettingBoolean, Default: true, Section: "data",
+		Description: "After the activity rule removes entries, give their space back to the disk (database compact: the first time a copy and one whole rewrite of the file, then short steps); off, the space stays inside the file and later writes reuse it"}); err != nil {
+		a.r.UI().Notify("database: " + err.Error())
+	}
+}
+
+// The activity row (data-retention plan, lane R9): the history journal's
+// entries (what the agents and you did: turns, reviews and the context
+// picker read it) older than 7 days go, through the store's one expiry
+// path (store.Expire; the table stays append-only for everything else).
+// The owner asked for the clearing itself, so the row is declared approved
+// with his words: its first automatic run removes at once.
+const (
+	activityRetentionRow   = "activity"
+	activityCompactSetting = "retention.activity.compact"
+	activityDecision       = `owner 2026-11-17: "clear up activity history that is older than 7 days old"`
+)
+
+func (a *App) activityRetention() ochazuke.RetentionRow {
+	return ochazuke.RetentionRow{
+		Name:        activityRetentionRow,
+		Description: "Activity history (the journal turns, reviews and the context picker read): entries older than 7 days, never the newest",
+		Days:        7,
+		MinKeep:     1,
+		Approved:    activityDecision,
+		Expire:      a.expireActivity,
+	}
+}
+
+// expireActivity is the activity row's cut: a count (the dry run, a read)
+// or the removal; after a removal, with retention.activity.compact on, the
+// file gives the space back (databaseCompact's routine).
+func (a *App) expireActivity(cut ochazuke.RetentionCut) (ochazuke.RetentionCount, error) {
+	if a.hist == nil {
+		return ochazuke.RetentionCount{}, nil // no journal here: nothing to remove
+	}
+	var before int64
+	if !cut.Before.IsZero() {
+		before = cut.Before.UnixMilli()
+	}
+	a.hist.SetHorizon(before)
+	got, err := a.hist.Expire(before, cut.Keep, cut.MinKeep, cut.DryRun)
+	out := ochazuke.RetentionCount{Count: got.Rows, Bytes: got.Bytes, Remove: got.Remove, RemoveBytes: got.RemoveBytes}
+	if err != nil || got.Remove == 0 {
+		return out, err
+	}
+	if cut.DryRun {
+		out.What = fmt.Sprintf("%d activity entries from %s to %s", got.Remove, dayOf(got.Oldest), dayOf(got.Newest))
+		return out, nil
+	}
+	out.What = fmt.Sprintf("%d activity entries in %d batches (longest write lock %s, %s)", got.Remove, got.Batches, got.LongestHold.Round(time.Millisecond), got.Took.Round(time.Millisecond))
+	if a.r.Settings().Bool(activityCompactSetting) {
+		done, err := a.compact("pre-compact")
+		if err != nil {
+			return out, err
+		}
+		out.What += "; " + done.line()
+	}
+	return out, nil
+}
+
+func dayOf(ms int64) string { return time.UnixMilli(ms).UTC().Format(time.DateOnly) }
+
+// compacted is database compact's answer: the copy made before a switch,
+// and what the store did.
+type compacted struct {
+	store.Compacted
+	Copy string `json:"copy,omitempty"`
+}
+
+func (c compacted) line() string {
+	what := "file " + retain.Size(c.Before) + " -> " + retain.Size(c.After)
+	if c.Switched {
+		what += " (switched to incremental auto-vacuum, copy " + filepath.Base(c.Copy) + ")"
+	}
+	return what
+}
+
+// compact is database compact's routine: a copy first when the file is
+// still to be switched (the one whole rewrite), then store.Compact.
+func (a *App) compact(label string) (compacted, error) {
+	var out compacted
+	if a.dataPath == "" || a.dataPath == ":memory:" {
+		return out, nil
+	}
+	sp, err := a.db.Space()
+	if err != nil {
+		return out, err
+	}
+	if sp.FreePages == 0 {
+		out.Before, out.After = sp.Pages*sp.PageSize, sp.Pages*sp.PageSize
+		return out, nil
+	}
+	if sp.AutoVacuum != "incremental" {
+		if out.Copy, err = a.db.BackupCopy(label, a.now()); err != nil {
+			return out, err
+		}
+	}
+	out.Compacted, err = a.db.Compact()
+	return out, err
+}
+
+// databaseCompact is database.compact.
+func (a *App) databaseCompact(r *ochazuke.Runtime, c ochazuke.Context, args ochazuke.Arguments) (any, error) {
+	return a.compact("pre-compact")
 }
 
 // databaseFile is one file of the database or of a copy.
@@ -98,6 +206,9 @@ type databaseInfo struct {
 	Copies      []databaseCopy  `json:"copies"`
 	CopiesBytes int64           `json:"copies_bytes"`
 	Rule        ochazuke.Thing  `json:"rule,omitempty"`
+	// Space is the file's pages: free pages are space removed rows left
+	// inside it (database compact gives it back).
+	Space *store.Space `json:"space,omitempty"`
 }
 
 // databaseShow is database.show: the rule's plan is read on the loop (the
@@ -127,6 +238,9 @@ func readDatabase(path string, db *store.Store, rule ochazuke.Thing) (databaseIn
 		}
 	}
 	info.Tables = tableShares(path, db)
+	if sp, err := db.Space(); err == nil {
+		info.Space = &sp
+	}
 	base := filepath.Base(path) + ".bak-*"
 	dir := filepath.Dir(path)
 	info.Copies = databaseCopies(filepath.Join(dir, store.BackupsDir, base), filepath.Join(dir, base))

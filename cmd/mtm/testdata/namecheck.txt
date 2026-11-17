@@ -333,3 +333,6 @@ turns_refresh.go	App.refreshPaneTurns	compare	"pane"	1
 vim.go	App.vimAt	compare	"pane"	1
 vim.go	App.vimAt	compare	"vim"	1
 wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch
+../../internal/agenthook/hook_claude.go	translateClaude	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb
+../../internal/agenthook/hook_codex.go	translateCodex	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb
+../../internal/agenthook/hook_qwen.go	translateQwen	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb

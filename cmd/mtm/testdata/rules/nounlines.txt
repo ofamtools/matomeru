@@ -9,7 +9,7 @@ action-item	723
 context-item	765
 directory	2401
 focus-item	132
-note	4818
+note	4819
 ochazuke.binding	53
 ochazuke.mode	3
 ochazuke.notice	21

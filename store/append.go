@@ -40,6 +40,15 @@ func (s *Store) After(table string, sequence int64) ([]SequencedRow, error) {
 	return out, rows.Err()
 }
 
+// First is the sequence of the oldest row of an append-only table (0 when
+// it is empty): it grows only when rows are expired (Expire), so a reader
+// that cached the rows from an older first knows to read them again.
+func (s *Store) First(table string) (int64, error) {
+	var first int64
+	err := s.db.QueryRow(`SELECT coalesce(min(rowid), 0) FROM ` + quote(table)).Scan(&first)
+	return first, err
+}
+
 // JSONMatch selects rows by a JSON string field; Prefix compares a literal
 // prefix (no LIKE wildcards), otherwise the whole value must match. Values,
 // when given, replaces Value: the field must equal one of them (Match and

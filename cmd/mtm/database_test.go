@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"ofam.dev/ochazuke"
+
+	"ofam.dev/matomeru/internal/history"
 )
 
 // realCopyNames are the names (after mtm.db.bak-) of the database copies
@@ -174,6 +177,52 @@ func TestDatabaseBackupKeepsFive(t *testing.T) {
 		}
 		if !slices.Equal(asked, want) || got.Rule == nil || got.Rule.Held {
 			t.Fatalf("keep %d: removed %v, rule %+v", keep, asked, got.Rule)
+		}
+	}
+}
+
+// TestActivityRetention: the activity row, one case per value of its
+// settings. days 7: the entries ten days old go (the row is approved by
+// the owner's decision, so the automatic run does not hold it) and the
+// recent one stays; with retention.activity.compact on the file is then
+// compacted (a copy first, switched to incremental auto-vacuum), off it is
+// not. days 0: the row is off and removes nothing.
+func TestActivityRetention(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		days    int
+		compact bool
+	}{{7, true}, {7, false}, {0, true}} {
+		app := openWith(t, Options{Data: seeded(t)})
+		now := time.Now().UnixMilli()
+		// 200 old entries of 1 KB fill pages that the removal frees.
+		entries := []history.Entry{}
+		for n := range 200 {
+			entries = append(entries, history.Entry{ID: fmt.Sprintf("old%d", n), Kind: "tool", At: now - 10*24*3600*1000 + int64(n), Detail: strings.Repeat("x", 1024)})
+		}
+		if _, err := app.hist.Append(append(entries, history.Entry{ID: "new", Kind: "tool", At: now})...); err != nil {
+			t.Fatal(err)
+		}
+		for name, v := range map[string]any{"retention.activity.days": c.days, activityCompactSetting: c.compact} {
+			if err := app.r.Settings().Set(name, v); err != nil {
+				t.Fatal(err)
+			}
+		}
+		runs := app.r.RetentionDue()
+		i := slices.IndexFunc(runs, func(r ochazuke.RetentionRun) bool { return r.Name == activityRetentionRow })
+		_, oldErr := app.hist.Get("old0")
+		_, newErr := app.hist.Get("new")
+		sp, err := app.db.Space()
+		if err != nil || i < 0 || newErr != nil {
+			t.Fatalf("days %d: the row runs and the recent entry stays: %+v %v %v", c.days, runs, err, newErr)
+		}
+		switch {
+		case c.days == 0 && (oldErr != nil || runs[i].Removed != 0):
+			t.Fatalf("days 0: the row is off: %+v", runs[i])
+		case c.days == 7 && (oldErr == nil || runs[i].Removed != 200 || runs[i].Held):
+			t.Fatalf("days 7: the old entry goes at once: %+v", runs[i])
+		case c.days == 7 && (sp.AutoVacuum == "incremental") != c.compact:
+			t.Fatalf("compact %v: the file is %s", c.compact, sp.AutoVacuum)
 		}
 	}
 }

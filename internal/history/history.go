@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ofam.dev/matomeru/store"
@@ -81,7 +82,50 @@ type Journal struct {
 	owner    Owner
 	mu       sync.Mutex
 	sequence int64
-	entries  []Entry
+	// first is the sequence of the oldest row the cache holds: a smaller
+	// first row in the table later means rows were expired (here or in
+	// another process) and the cache is read again.
+	first   int64
+	entries []Entry
+	// horizon is the oldest time (Unix milliseconds) the journal keeps,
+	// the activity rule's cutoff (SetHorizon, Expire): Append leaves out
+	// an entry older than it (a daemon ring read again after its rows were
+	// expired), so what the rule removed does not come back.
+	horizon atomic.Int64
+}
+
+// SetHorizon moves the oldest time the journal keeps forward to at (Unix
+// milliseconds); it never moves back.
+func (j *Journal) SetHorizon(at int64) {
+	for {
+		old := j.horizon.Load()
+		if at <= old || j.horizon.CompareAndSwap(old, at) {
+			return
+		}
+	}
+}
+
+// AtField is the entry field the journal's expiry reads (Entry.At).
+const AtField = "at"
+
+// Expire removes the entries older than before (Unix milliseconds; 0: no
+// age limit) or beyond the newest keep (0: no count limit), never the
+// newest minKeep (the store keeps the newest row whatever its age), through
+// the store's one expiry path (store.Expire); dry only counts. The cache is
+// read again after rows went.
+func (j *Journal) Expire(before int64, keep, minKeep int, dry bool) (store.Expired, error) {
+	e := store.Expiry{Field: AtField, Before: before, Keep: keep, MinKeep: minKeep}
+	if dry {
+		return j.db.ExpireCount(Table.Name, e)
+	}
+	got, err := j.db.Expire(Table.Name, e)
+	j.SetHorizon(before)
+	if got.Remove > 0 {
+		j.mu.Lock()
+		j.sequence, j.first, j.entries = 0, 0, nil
+		j.mu.Unlock()
+	}
+	return got, err
 }
 
 // Open declares the journal and the review marks (marks.go) and returns
@@ -104,6 +148,9 @@ var Now = func() int64 { return time.Now().UnixMilli() }
 // the pane's owner now.
 func (j *Journal) Append(entries ...Entry) ([]string, error) {
 	var ids []string
+	if horizon := j.horizon.Load(); horizon > 0 {
+		entries = slices.DeleteFunc(slices.Clone(entries), func(e Entry) bool { return e.At < horizon })
+	}
 	for i := range entries {
 		j.own(&entries[i])
 	}
@@ -170,6 +217,11 @@ func (j *Journal) All() ([]Entry, error) {
 func (j *Journal) snapshot() ([]Entry, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	if j.sequence > 0 {
+		if first, err := j.db.First(Table.Name); err == nil && first > j.first {
+			j.sequence, j.first, j.entries = 0, 0, nil // rows were expired
+		}
+	}
 	rows, err := j.db.After(Table.Name, j.sequence)
 	if err != nil {
 		return nil, err
@@ -184,6 +236,9 @@ func (j *Journal) snapshot() ([]Entry, error) {
 	}
 	if len(rows) == 0 {
 		return j.entries, nil
+	}
+	if j.sequence == 0 {
+		j.first = rows[0].Sequence
 	}
 	j.sequence = rows[len(rows)-1].Sequence
 	slices.SortStableFunc(fresh, compareEntries)

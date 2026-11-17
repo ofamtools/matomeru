@@ -65,6 +65,7 @@ author	prop	seed
 available	filter+prop	seed	
 back	action	seed	
 backup	action	seed	
+compact	action	yes	
 bare	prop	seed	
 base	prop	seed	
 bases	relation	seed	

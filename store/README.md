@@ -40,6 +40,16 @@ return db.Declare(store.Table{Name: "ai_pins", Owner: "mtm-ai", Key: "id", Versi
   an older step of a chain are no-ops, so the same startup code runs on every
   launch. An append-only table may move its version but refuses a rewrite that
   changes a row; a nil rewrite moves the version alone.
+- An append-only table refuses every UPDATE and DELETE in the file itself
+  (triggers), from any process or a sqlite3 shell. The one way rows leave it
+  is `Expire(table, Expiry{Field, Before, Keep, MinKeep})`: rows whose field
+  is older than `Before` (or beyond the newest `Keep`), never the newest row,
+  in transactions of `ExpireBatch` rows with a pause between; each holds an
+  expiry grant (`__deck_expiry`) that only this package's registered SQL
+  function lets it write. `ExpireCount` is the read-only dry run.
+- `Space()` reads the free pages; `Compact()` gives them back (the first time
+  one VACUUM that switches the file to incremental auto-vacuum, then short
+  `incremental_vacuum` steps).
 - Purging is removing `ExtensionPath(dataDir, name)`.
 - Inspecting without writing: `OpenReadOnly(path)` and `Tables()`.
 

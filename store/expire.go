@@ -7,7 +7,6 @@ import (
 	"database/sql/driver"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -136,7 +135,7 @@ func ensureExpiry(db *sql.DB) error {
 			return err
 		}
 		if _, err := tx.Exec(guardDelete(t)); err != nil {
-			return fmt.Errorf("protect %s: %w", t, err)
+			return err
 		}
 	}
 	return tx.Commit()
@@ -205,24 +204,10 @@ func (e Expiry) bounds(q interface {
 	return below, upto, err
 }
 
-func (s *Store) appendOnly(table string) error {
-	var appendOnly bool
-	if err := s.db.QueryRow(`SELECT append_only FROM __deck_tables WHERE name = ?`, table).Scan(&appendOnly); err != nil {
-		return fmt.Errorf("store: table %q is unavailable: %w", table, err)
-	}
-	if !appendOnly {
-		return fmt.Errorf("store: %q is not append-only (its rows are deleted one by one)", table)
-	}
-	return nil
-}
-
 // ExpireCount is what Expire would remove now, read in a read transaction:
 // it writes nothing.
 func (s *Store) ExpireCount(table string, e Expiry) (Expired, error) {
 	var out Expired
-	if err := s.appendOnly(table); err != nil {
-		return out, err
-	}
 	tx, err := s.db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return out, err
@@ -257,8 +242,8 @@ func (s *Store) ExpireCount(table string, e Expiry) (Expired, error) {
 func (s *Store) Expire(table string, e Expiry) (out Expired, err error) {
 	start := time.Now()
 	defer func() { out.Took = time.Since(start) }()
-	if err := s.appendOnly(table); err != nil || e.off() {
-		return out, err
+	if e.off() {
+		return out, nil
 	}
 	batch := orDefault(e.Batch, ExpireBatch)
 	pause := e.Pause
@@ -294,11 +279,11 @@ func (s *Store) Expire(table string, e Expiry) (out Expired, err error) {
 				return 0, 0, err
 			}
 			if _, err := tx.Exec(`INSERT INTO `+expiryTable+` (name, token, field, before, below, upto) VALUES (?, ?, ?, ?, ?, ?)`, table, grant, field, e.Before, below, upto); err != nil {
-				return 0, 0, fmt.Errorf("expire %s: %w", table, err)
+				return 0, 0, err
 			}
 			res, err := tx.Exec(`DELETE FROM `+name+` WHERE rowid > ? AND rowid <= ? AND `+expiryCondition, cursor, end.Int64, upto, e.Before, field, e.Before, below)
 			if err != nil {
-				return 0, 0, fmt.Errorf("expire %s: %w", table, err)
+				return 0, 0, err
 			}
 			n, _ := res.RowsAffected()
 			if _, err := tx.Exec(`DELETE FROM `+expiryTable+` WHERE name = ?`, table); err != nil {
@@ -318,13 +303,16 @@ func (s *Store) Expire(table string, e Expiry) (out Expired, err error) {
 		out.Batches++
 		out.LongestHold = max(out.LongestHold, held)
 		out.Remove += removed
-		s.noteWrites(map[string]bool{table: true})
+		s.expired(table)
 		cursor = end
 		if pause > 0 {
 			time.Sleep(pause)
 		}
 	}
 }
+
+// expired tells this process's Version counter of a batch's commit.
+func (s *Store) expired(table string) { s.noteWrites(map[string]bool{table: true}) }
 
 // orDefault is n, or def when n is not positive.
 func orDefault(n, def int) int {
