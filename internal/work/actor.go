@@ -119,6 +119,10 @@ type AgentPolicy struct {
 	WriteMakers    []string
 	OwnerTaskProps []string
 	AssociateScope string
+	// WidenPrivacy lets an agent make a private task shared again or a
+	// project family (setting agents.widen-privacy); off, privacy only
+	// tightens without the owner (Owner decision 6).
+	WidenPrivacy bool
 }
 
 // Write and associate scopes.
@@ -295,16 +299,16 @@ func MayChangeTask(me Actor, p AgentPolicy, old Task, new *Task, get TaskLookup)
 // StampTask sets the stamps of a write by me of t over old (nil for a new
 // task). CreatedBy is set once: the maker of a new row is me; an existing
 // row keeps its maker unless the owner writes one (how the owner claims
-// or restores a task). ChangedBy is me. An agent may make a task private
-// but never makes one shared again (Owner decision 6: privacy only
-// tightens without the owner).
-func StampTask(me Actor, t *Task, old *Task) error {
+// or restores a task). ChangedBy is me. An agent may make a task private;
+// it makes one shared again only when p.WidenPrivacy is on (Owner
+// decision 6: privacy only tightens without the owner, by default).
+func StampTask(me Actor, p AgentPolicy, t *Task, old *Task) error {
 	if old != nil {
 		if me.IsAgent() || t.CreatedBy.Kind == "" {
 			t.CreatedBy = old.CreatedBy
 		}
-		if me.IsAgent() && old.Private && !t.Private {
-			return &RefusedError{What: fmt.Sprintf("task %s %q back to shared", t.ID, t.Title), Setting: "only the owner shares a private task", Ask: "the owner"}
+		if me.IsAgent() && !p.WidenPrivacy && old.Private && !t.Private {
+			return &RefusedError{What: fmt.Sprintf("task %s %q back to shared", t.ID, t.Title), Setting: "agents.widen-privacy is off", Ask: "the owner"}
 		}
 	} else if me.IsAgent() || t.CreatedBy.Kind == "" {
 		t.CreatedBy = me
@@ -342,15 +346,15 @@ func MayChangePane(me Actor, p AgentPolicy, window string, rel PaneRelation) err
 	return refuse
 }
 
-// MayShareProject refuses an agent making a project family (shared): a
-// project becomes shared only by the owner (Owner decision 6). old is the
-// stored privacy ("" for a new project); making one private is always
-// allowed.
-func MayShareProject(me Actor, p Project, old string) error {
-	if !me.IsAgent() || p.Settings.Privacy != PrivacyFamily || old == PrivacyFamily {
+// MayShareProject refuses an agent making a project family (shared)
+// unless policy.WidenPrivacy is on: by default a project becomes shared
+// only by the owner (Owner decision 6). old is the stored privacy ("" for
+// a new project); making one private is always allowed.
+func MayShareProject(me Actor, policy AgentPolicy, p Project, old string) error {
+	if !me.IsAgent() || policy.WidenPrivacy || p.Settings.Privacy != PrivacyFamily || old == PrivacyFamily {
 		return nil
 	}
-	return &RefusedError{What: fmt.Sprintf("project %q to family", p.Name), Setting: "only the owner shares a project", Ask: "the owner"}
+	return &RefusedError{What: fmt.Sprintf("project %q to family", p.Name), Setting: "agents.widen-privacy is off", Ask: "the owner"}
 }
 
 // MergePolicy is p over the defaults: an empty field keeps the default.
@@ -368,5 +372,6 @@ func MergePolicy(p AgentPolicy) AgentPolicy {
 	if p.AssociateScope != "" {
 		out.AssociateScope = p.AssociateScope
 	}
+	out.WidenPrivacy = p.WidenPrivacy // false is the default
 	return out
 }

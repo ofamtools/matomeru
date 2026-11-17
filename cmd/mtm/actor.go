@@ -34,6 +34,7 @@ const (
 	settingAgentsWriteMakers    = "agents.write-makers"
 	settingAgentsOwnerTaskProps = "agents.owner-task-props"
 	settingAgentsAssociateScope = "agents.associate-scope"
+	settingAgentsWidenPrivacy   = "agents.widen-privacy"
 )
 
 // agentSettings are the agents.* settings.
@@ -49,6 +50,8 @@ func agentSettings() []ochazuke.Setting {
 			Description: "The props an agent may change on a task inside agents.write-scope that the owner made (or that is unknown): status and archived by default; title, project, parent, position, easy, snoozed-until, private and theme can be added; a refused agent is told to ask the owner or the coordinator"},
 		{Name: settingAgentsAssociateScope, Type: ochazuke.SettingString, Default: def.AssociateScope, Enum: work.AssociateScopes,
 			Description: "Which panes an agent may associate with a task or project: own-pane (its own and the panes it launched or opened beside it), any-pane or none"},
+		{Name: settingAgentsWidenPrivacy, Type: ochazuke.SettingBoolean, Default: def.WidenPrivacy,
+			Description: "Whether an agent may make a private task shared again or a project family; off (the default), privacy only tightens without the owner. Making a thing private is always allowed"},
 	}
 }
 
@@ -60,6 +63,7 @@ func (a *App) agentPolicy() work.AgentPolicy {
 		WriteMakers:    s.Strings(settingAgentsWriteMakers),
 		OwnerTaskProps: s.Strings(settingAgentsOwnerTaskProps),
 		AssociateScope: s.String(settingAgentsAssociateScope),
+		WidenPrivacy:   s.Bool(settingAgentsWidenPrivacy),
 	}
 }
 

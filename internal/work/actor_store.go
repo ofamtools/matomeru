@@ -78,11 +78,11 @@ func (s *Store) putTask(tx *store.Tx, t *Task) error {
 		if err := s.mayChangeTask(tx, old, t); err != nil {
 			return err
 		}
-		if err := StampTask(me, t, &old); err != nil {
+		if err := StampTask(me, s.agentPolicy(), t, &old); err != nil {
 			return err
 		}
 	case errors.Is(err, store.ErrNotFound):
-		if err := StampTask(me, t, nil); err != nil {
+		if err := StampTask(me, s.agentPolicy(), t, nil); err != nil {
 			return err
 		}
 	default:
@@ -113,5 +113,5 @@ func (s *Store) mayChangePane(me Actor, window string) error {
 func (s *Store) mayShareProject(tx *store.Tx, p Project) error {
 	var old Project
 	_ = tx.Get("projects", p.ID, &old)
-	return MayShareProject(s.Actor(), p, old.Settings.Privacy)
+	return MayShareProject(s.Actor(), s.agentPolicy(), p, old.Settings.Privacy)
 }

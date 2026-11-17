@@ -85,21 +85,25 @@ func TestMayChangeTaskDecisions(t *testing.T) {
 
 func TestStampTask(t *testing.T) {
 	agent := Actor{Kind: ActorAgent, Pane: "w1"}
+	def, widen := DefaultAgentPolicy(), AgentPolicy{WidenPrivacy: true}
 	var fresh Task
-	if err := StampTask(agent, &fresh, nil); err != nil || fresh.CreatedBy != agent || fresh.ChangedBy != agent {
+	if err := StampTask(agent, def, &fresh, nil); err != nil || fresh.CreatedBy != agent || fresh.ChangedBy != agent {
 		t.Fatalf("new: %+v %v", fresh, err)
 	}
 	old := Task{CreatedBy: Owner(), Private: true}
 	forged := Task{CreatedBy: agent, Private: true}
-	if err := StampTask(agent, &forged, &old); err != nil || forged.CreatedBy != Owner() {
+	if err := StampTask(agent, def, &forged, &old); err != nil || forged.CreatedBy != Owner() {
 		t.Fatalf("agent kept its forged maker: %+v %v", forged, err)
 	}
 	shared := Task{}
-	if err := StampTask(agent, &shared, &old); !IsRefused(err) {
+	if err := StampTask(agent, def, &shared, &old); !IsRefused(err) {
 		t.Fatalf("agent shared a private task: %v", err)
 	}
+	if err := StampTask(agent, widen, &shared, &old); err != nil {
+		t.Fatalf("agents.widen-privacy on: %v", err)
+	}
 	claim := Task{CreatedBy: Owner()}
-	if err := StampTask(Owner(), &claim, &Task{}); err != nil || claim.CreatedBy != Owner() || claim.ChangedBy != Owner() {
+	if err := StampTask(Owner(), def, &claim, &Task{}); err != nil || claim.CreatedBy != Owner() || claim.ChangedBy != Owner() {
 		t.Fatalf("owner's claim: %+v %v", claim, err)
 	}
 }
@@ -117,7 +121,10 @@ func TestMayChangePaneAndShareProject(t *testing.T) {
 		t.Fatal("owner refused")
 	}
 	fam := Project{Settings: ProjectSettings{Privacy: PrivacyFamily}}
-	if !IsRefused(MayShareProject(me, fam, "")) || MayShareProject(me, fam, PrivacyFamily) != nil || MayShareProject(Owner(), fam, "") != nil {
+	if !IsRefused(MayShareProject(me, def, fam, "")) || MayShareProject(me, def, fam, PrivacyFamily) != nil || MayShareProject(Owner(), def, fam, "") != nil {
 		t.Fatal("share project decisions")
+	}
+	if MayShareProject(me, AgentPolicy{WidenPrivacy: true}, fam, "") != nil {
+		t.Fatal("agents.widen-privacy on: project share refused")
 	}
 }
