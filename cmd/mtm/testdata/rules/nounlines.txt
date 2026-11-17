@@ -16,7 +16,7 @@ ochazuke.notice	21
 ochazuke.page	142
 ochazuke.relation-kind	22
 ochazuke.setting	53
-pane	14368
+pane	14367
 project	12329
 relation	1331
 reminder	1067

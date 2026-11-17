@@ -332,5 +332,4 @@ turns_model.go	turnsNeedBuild	compare	"turn"	1
 turns_refresh.go	App.refreshPaneTurns	compare	"pane"	1
 vim.go	App.vimAt	compare	"pane"	1
 vim.go	App.vimAt	compare	"vim"	1
-wire_verbs.go	var wireVerbs	table	"dry_run"	1	the daemon's parameter name in a row's AgentArgs (purge always dry-runs for an agent); data in the row, no branch
 wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch

@@ -682,7 +682,7 @@ protected	prop	seed
 provenance_status	prop	seed	
 provider	noun+prop	seed	
 prunable	prop	seed	
-purge	action	yes	delete orphaned history logs (an agent's call is always a dry run)
+purge	action	yes	delete orphaned history logs (an agent's call asks the owner)
 push	action	seed	
 put	action	seed	
 qbt	namespace	seed	

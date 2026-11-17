@@ -98,19 +98,13 @@ func TestHistoryLogVerbsRunAgainstASelfDaemon(t *testing.T) {
 		t.Fatalf("unkeep: %v", un)
 	}
 
-	// An agent's purge is always a dry run, even when it asks for the real one.
-	dry := resultMap(t, rpc(t, app, runVerb(6, "history-log.purge", map[string]any{"all_orphaned": true, "dry_run": false}))[0])
-	if dry["dry_run"] != true || dry["confirm"] == "" || historyLogs(t, ctx, client)[id] == nil {
-		t.Fatalf("an agent's purge was not a dry run, or deleted: %v", dry)
-	}
-	// Even with the token a dry run printed.
-	tok, _ := dry["confirm"].(string)
-	again := resultMap(t, rpc(t, app, runVerb(7, "history-log.purge", map[string]any{"all_orphaned": true, "confirm": tok}))[0])
-	if again["dry_run"] != true || historyLogs(t, ctx, client)[id] == nil {
-		t.Fatalf("an agent purged with the token: %v", again)
+	// An agent's purge asks the owner first (right confirm, no forced dry
+	// run): headless, it does not run and nothing is deleted.
+	if p := payload(rpc(t, app, runVerb(6, "history-log.purge", map[string]any{"all_orphaned": true}))[0]); p["status"] == "done" || historyLogs(t, ctx, client)[id] == nil {
+		t.Fatalf("an agent's purge ran without the owner: %v", p)
 	}
 
-	for verb, want := range map[string]string{"history-log.adopt": ochazuke.AgentConfirm, "pane.adopt-history": ochazuke.AgentConfirm, "history-log.all": ochazuke.AgentAllow} {
+	for verb, want := range map[string]string{"history-log.purge": ochazuke.AgentConfirm, "history-log.adopt": ochazuke.AgentConfirm, "pane.adopt-history": ochazuke.AgentConfirm, "history-log.all": ochazuke.AgentAllow} {
 		if op, ok := app.r.Operation(verb); !ok || op.Agent != want {
 			t.Errorf("%s: agent right %q, want %q", verb, op.Agent, want)
 		}
@@ -130,8 +124,13 @@ func TestHistoryLogVerbsRunAgainstASelfDaemon(t *testing.T) {
 		}
 	}
 
-	// The owner (not an agent) deletes by the token, through the daemon.
+	// The owner (not an agent) dry-runs, then deletes by the token, through
+	// the daemon.
 	var res map[string]any
+	if err := client.Call(ctx, "purge-history-logs", map[string]any{"all_orphaned": true, "dry_run": true}, &res); err != nil {
+		t.Fatal(err)
+	}
+	tok, _ := res["confirm"].(string)
 	if err := client.Call(ctx, "purge-history-logs", map[string]any{"all_orphaned": true, "confirm": tok}, &res); err != nil {
 		t.Fatal(err)
 	}

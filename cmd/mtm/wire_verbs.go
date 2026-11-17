@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -80,10 +79,6 @@ type wireVerb struct {
 	// NoTuios marks a verb with no counterpart in the tuios MCP server or CLI
 	// (the history-log verbs are mtm's own).
 	NoTuios bool
-	// AgentArgs are arguments an agent's call always carries, whatever it
-	// passed: a row's way of limiting an agent to the safe form of a verb
-	// (purge to dry_run). The owner's calls are not touched.
-	AgentArgs map[string]any
 	// Rows names the reply's list of rows, and Label the fields (first
 	// non-empty wins) that give each row a human label beside its id.
 	Rows  string
@@ -231,8 +226,7 @@ var wireVerbs = []wireVerb{
 		Params: []wireParam{logParam, sessionParam, windowParam("The pane's window id; omit for the one that is focused")}},
 	{Noun: "pane", Verb: "adopt-history", Wire: "adopt-history", NoTuios: true,
 		Params: []wireParam{logParam, sessionParam, windowParam("The pane's window id; omit for the one that is focused")}},
-	{Noun: "history-log", Verb: "purge", Wire: "purge-history-logs", Desc: "Delete orphaned logs: one (log), those closed more than older_than_days ago, or every one not kept (all_orphaned); name exactly one. Kept and live logs are never deleted. dry_run lists what would go with a confirm token; the owner deletes by passing that token as confirm. An agent's call is always a dry run", Right: ochazuke.AgentAllow, NoTuios: true,
-		AgentArgs: map[string]any{"dry_run": true},
+	{Noun: "history-log", Verb: "purge", Wire: "purge-history-logs", Desc: "Delete orphaned logs: one (log), those closed more than older_than_days ago, or every one not kept (all_orphaned); name exactly one. Kept and live logs are never deleted. dry_run lists what would go with a confirm token; a delete passes that token as confirm. An agent's call asks the owner first (right confirm; an agents.rights row can change it)", Right: ochazuke.AgentConfirm, NoTuios: true,
 		Params: []wireParam{{Name: "log", Type: "string", Desc: "One orphaned log's id"}, {Name: "older_than_days", Type: "integer", Desc: "Orphans closed more than this many days ago"}, {Name: "all_orphaned", Type: "boolean", Desc: "Every orphan not kept"},
 			{Name: "dry_run", Type: "boolean", Desc: "Only list what would be deleted, with the confirm token"}, {Name: "confirm", Type: "string", Desc: "The token a dry run printed"}}},
 	{Noun: "session", Verb: "new", Wire: "new-session",
@@ -366,9 +360,6 @@ func (a *App) wireHandler(w wireVerb) func(ochazuke.Ctx) ochazuke.Result {
 			if v, ok := ctx.Args[p.Name]; ok && v != nil {
 				params[p.Name] = p.wireValue(v)
 			}
-		}
-		if a.work.Actor().IsAgent() {
-			maps.Copy(params, w.AgentArgs)
 		}
 		for _, name := range w.Self {
 			if _, ok := params[name]; !ok {
