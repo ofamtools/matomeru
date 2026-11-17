@@ -68,6 +68,9 @@ func (a *App) defineMCPCommand(app *oden.App, stdin io.Reader, stdout, stderr io
 				return err
 			}
 			a.r.EnsureHistory()
+			// The retention rules due today, as ochazuke's own mcp serve
+			// runs them (retention.auto; database-copies).
+			a.r.RetentionDue()
 			defer a.r.Config().Flush()
 			return s.Serve(ctx, stdin, stdout)
 		}},
