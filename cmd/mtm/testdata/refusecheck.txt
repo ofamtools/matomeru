@@ -270,11 +270,9 @@ cmd/mtm/main.go	Options.home	K15	"HOME is not set"	1
 cmd/mtm/mcp.go	App.defineMCPCommand	K15	"%v"	1
 cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp %s (unexpected %q)"	1
 cmd/mtm/mcp.go	App.defineMCPCommand	K15	"usage: mtm mcp config [HARNESS]"	1
-cmd/mtm/mcp_ops.go	App.addContextText	K15	"Failed(…)"	3
-cmd/mtm/mcp_ops.go	App.paneArgs	K15	"%s is bound to this agent's startup pane; ask the owner or coordinator to act for another pane"	1
+cmd/mtm/mcp_ops.go	App.addContextText	K15	"Failed(…)"	2
 cmd/mtm/mcp_ops.go	App.paneProgress	K10	"pane progress needs the TUIOS daemon"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K14	"set-agent-state %s: %w"	1	failure
-cmd/mtm/mcp_ops.go	App.paneProgress	K15	"Failed(…)"	1
 cmd/mtm/mcp_ops.go	App.paneProgress	K3	"name the pane: --window WINDOW, or run in a TUIOS pane"	1
 cmd/mtm/needs_you.go	App.cycleNeedsYou	K15	"Failed(…)"	6
 cmd/mtm/needs_you.go	App.nextNeedsYou	K15	"Failed(…)"	1

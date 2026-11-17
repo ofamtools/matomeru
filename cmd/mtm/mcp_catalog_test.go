@@ -352,8 +352,9 @@ func TestMCPActorStaysBoundAndLaneAssignmentRefreshes(t *testing.T) {
 	if task.ChangedBy.Pane != "w1" || task.ChangedBy.Task != "t2" {
 		t.Fatalf("writer after reassign: %s", compactJSON(task.ChangedBy))
 	}
+	// An agent may name any pane: --window wins over the startup pane.
 	for _, verb := range []string{"pane.progress", "context-item.add"} {
-		args := map[string]any{"window": "w9", "message": "stolen", "text": "https://example.com"}
+		args := map[string]any{"window": "w9", "message": "for another pane", "text": "https://example.com"}
 		// Only the verb's declared parameters are given; both share paneArgs.
 		if verb == "pane.progress" {
 			delete(args, "text")
@@ -364,12 +365,14 @@ func TestMCPActorStaysBoundAndLaneAssignmentRefreshes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if m := reply.(map[string]any); m["status"] != "failed" || !strings.Contains(m["reason"].(string), "startup pane") {
-			t.Fatalf("pane override: %v", reply)
+		if m := reply.(map[string]any); m["status"] != "done" {
+			t.Fatalf("%s for another pane: %v", verb, reply)
 		}
 	}
-	if len(rec.calls) != 0 {
-		t.Fatalf("refused progress reached daemon: %v", rec.calls)
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.calls) != 1 || rec.calls[0]["window"] != "w9" {
+		t.Fatalf("progress for another pane did not reach it: %v", rec.calls)
 	}
 }
 

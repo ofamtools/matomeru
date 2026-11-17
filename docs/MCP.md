@@ -227,8 +227,8 @@ harness passes to the MCP servers it starts (`MTM_WINDOW` overrides the pane;
 
 The actor is bound from the startup pane and harness, even when
 `MTM_ACTOR=owner` is present. A run cannot replace it with tool arguments.
-An agent cannot give another session or window to pane progress or context
-capture. A missing task must be named for a task update; findings with no
+Pane progress and context capture default to the startup pane; any caller,
+agent or owner, may name another with `--session`/`--window`. A missing task must be named for a task update; findings with no
 known owner are saved unassociated.
 
 ## Errors

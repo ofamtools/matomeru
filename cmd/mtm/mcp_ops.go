@@ -52,18 +52,14 @@ func (a *App) defineMCPOperations() {
 	})
 }
 
-// paneArgs are --session and --window, else the pane this runs in.
-func (a *App) paneArgs(args ochazuke.Arguments) (session, window string, err error) {
-	if actor := a.work.Actor(); actor.IsAgent() {
-		for _, field := range []struct{ name, bound string }{{"session", actor.Session}, {"window", actor.Pane}} {
-			if given := ochazuke.StringArg(args, field.name, ""); given != "" && given != field.bound {
-				return "", "", fmt.Errorf("%s is bound to this agent's startup pane; ask the owner or coordinator to act for another pane", field.name)
-			}
-		}
-		return actor.Session, actor.Pane, nil
-	}
+// paneArgs are --session and --window, else the pane this runs in (an
+// agent's startup pane, else the environment). Anyone may name any pane.
+func (a *App) paneArgs(args ochazuke.Arguments) (session, window string) {
 	id := mcp.IdentityFromEnv(a.getenv)
-	return ochazuke.StringArg(args, "session", id.Session), ochazuke.StringArg(args, "window", id.Window), nil
+	if actor := a.work.Actor(); actor.IsAgent() {
+		id.Session, id.Window = actor.Session, actor.Pane
+	}
+	return ochazuke.StringArg(args, "session", id.Session), ochazuke.StringArg(args, "window", id.Window)
 }
 
 // addContextText is context-item.add.
@@ -76,10 +72,7 @@ func (a *App) addContextText(ctx ochazuke.Ctx) ochazuke.Result {
 	// item no filter or kind column shows: it is no kind, every item the
 	// text gives is kept, and the status line says so.
 	kind := closedChoice(ctx.Info, "kind", ochazuke.StringArg(ctx.Args, "kind", ""), contextitems.Kinds, "", "kept every item the text gives")
-	session, window, err := a.paneArgs(ctx.Args)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
+	session, window := a.paneArgs(ctx.Args)
 	now := work.Now()
 	src := contextitems.Source{Kind: mcpContextSource, Session: session, Window: window, At: now, Cwd: ochazuke.StringArg(ctx.Args, "cwd", "")}
 	if kind == "prompt" || kind == "command" {
@@ -131,10 +124,7 @@ func (a *App) paneProgress(ctx ochazuke.Ctx) ochazuke.Result {
 	if message == "" {
 		return ochazuke.Failed(ctx.Need("message", ""))
 	}
-	session, window, err := a.paneArgs(ctx.Args)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
+	session, window := a.paneArgs(ctx.Args)
 	if window == "" {
 		return ochazuke.Failed(errors.New("name the pane: --window WINDOW, or run in a TUIOS pane"))
 	}
