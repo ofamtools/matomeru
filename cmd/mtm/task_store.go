@@ -157,7 +157,7 @@ func (a *App) taskStore() ochazuke.Store {
 		ConfirmFor: a.deletionConfirm("task"),
 		ListParams: map[string]ochazuke.Parameter{
 			"all":    {Type: "boolean", Description: "Every task, not only those in the current scope"},
-			"scope":  {Type: "string", Enum: []string{"pin", "all"}, Description: "pin: only the calling pane's lane (its task subtree, else its project); all: every project's tasks; omitted: the pinned project's tasks, as the owner sees them"},
+			"scope":  {Type: "string", Enum: []string{"pin", "all"}, Description: "pin: only the calling pane's lane; all: every task; omitted: the owner's pinned scope, for agents too"},
 			"status": {Type: "string", Description: "Only tasks with this status"},
 		},
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
