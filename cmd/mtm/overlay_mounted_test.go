@@ -77,7 +77,7 @@ func TestOverlaySetOnAMountedThingStaysBesideTheTool(t *testing.T) {
 	if got := writes(t, log, 0); len(got) != 0 {
 		t.Fatalf("the tool was asked to write: %q", got)
 	}
-	rows, err := a.work.ChangesBackend().Rows()
+	rows, err := a.work.ChangesBackend(changeNames{a}).Rows()
 	if err != nil || rows[noun]["i1"] == nil || rows[noun]["i1"].Props["note"] != "kept-by-mtm" {
 		t.Fatalf("the changes table: %+v, %v", rows[noun], err)
 	}

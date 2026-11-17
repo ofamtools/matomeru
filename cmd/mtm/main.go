@@ -545,6 +545,10 @@ type App struct {
 	configDir string // settings, bindings and harnesses (Options.ConfigDir)
 
 	exts []*extension // the mounted extensions, in tab order (extensions.go)
+	// extRowOwners are mtm's part of the extension rows (work.ExtOwners)
+	// as read at the changes table's version extOwnerVersion; nil until read.
+	extRowOwners    map[work.ExtRow]work.ExtOwner
+	extOwnerVersion string
 	// extBare is the bare noun names mtm gave mounted extension nouns,
 	// alias -> noun (extension_names.go).
 	extBare map[string]string
@@ -643,7 +647,6 @@ func New(opts Options) (*App, error) {
 	locator := locate.New(harnesses.List(), locate.PS{}, nil, "")
 	a := &App{colorRand: colorRandom, db: db, work: w, relStore: w.Relations(), contexts: contexts, hist: hist, daemon: client, ensure: client.Ensure, launcher: tuios{Client: client}, renamer: client, harnesses: harnesses, promptDelay: harness.DefaultDelay, executable: os.Executable, sleep: harness.Sleep, panesd: tuios{Client: client, locate: locator}, locator: locator, home: opts.home, getenv: opts.getenv, owners: map[string]string{}, r: r, m: ochazuke.NewModel(r), inbox: &inboxState{items: items}, headless: opts.Headless, procs: newExtProcs(r.Lifetime(), extMaxProcessesDefault)}
 	hub.changed = a.relationChanged
-	a.useChangesTable() // before anything reads the owner's changes
 	a.wireDaemonStart(client)
 	a.notify = newNotifications()
 	a.trackNotices()
@@ -660,6 +663,8 @@ func New(opts Options) (*App, error) {
 	a.callbacks = &hostCallbacks{turn: make(chan struct{}, 1)}
 	a.directoryIO = newDirectoryIO()
 	a.configure(opts, configDir)
+	a.useChangesTable() // before anything reads the owner's changes
+	a.foldChanges()     // ext_rows and overlay.json into the changes table, once
 	if err := a.openSchedules(configDir); err != nil {
 		db.Close()
 		return nil, err

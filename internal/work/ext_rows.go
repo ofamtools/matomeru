@@ -4,10 +4,10 @@ import "strings"
 
 // ExtRowOwner is a row of the ext_rows table, the project an extension's
 // row was created in before the changes table held it (run plan 5.4a,
-// OV2b): FoldChanges reads them once into changes rows (prop
-// ExtProjectProp of the row's noun and key, the former project as
-// ExtFormerProjectProp, AssignedAt as the change's time) and renames the
-// table. Nothing else reads or writes it.
+// OV2b): FoldChanges reads them once into changes rows (mtm's part of the
+// row: the owner and former owner references, AssignedAt as OwnerAt, keyed
+// by the same extension, catalog noun and row) and renames the table.
+// Nothing else reads or writes it.
 type ExtRowOwner struct {
 	ID              string `json:"id"` // ExtRowKey(Extension, Noun, Row)
 	Extension       string `json:"extension"`

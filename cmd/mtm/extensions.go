@@ -749,7 +749,6 @@ func (a *App) extension(name string) *extension {
 // that cannot be read or mounted is a notice, never a failed start.
 func (a *App) mountExtensions() {
 	names, entries, errs := a.orderedForMount()
-	a.foldChanges(entries)
 	if a.cli {
 		a.startRegistry = &registrySnapshot{names, entries}
 	}
@@ -790,6 +789,9 @@ func (a *App) reloadMounted() {
 	a.refreshSides()
 	a.r.ReloadUserActions()
 	a.r.ReloadUserBindings()
+	// The owner's changes of mounted things are read again under the names
+	// they mount as now (changeNames).
+	a.r.ReloadOverlay()
 }
 
 // mountExtension adds one extension: a proxy verb on mtm's noun for every

@@ -44,7 +44,7 @@ func TestOverlayStoreInMtm(t *testing.T) {
 		kept, _ := os.ReadFile(filepath.Join(config, ochazuke.OverlayFile))
 		inDB := a.r.OverlayRow("ochazuke.setting", marker) != nil
 		if value == work.ChangesBackendName {
-			rows, err := a.work.ChangesBackend().Rows()
+			rows, err := a.work.ChangesBackend(changeNames{a}).Rows()
 			inDB = err == nil && rows["ochazuke.setting"][marker] != nil
 		}
 		if inFile := bytes.Contains(kept, []byte(marker)); inFile != (value == ochazuke.OverlayStoreApp) || inDB != true {

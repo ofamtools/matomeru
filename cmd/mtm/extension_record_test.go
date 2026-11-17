@@ -101,8 +101,11 @@ func TestExtensionCanonicalGetMigratesUncachedLegacyReferences(t *testing.T) {
 	if err != nil || len(rels) != 1 || rels[0].Text != "keep" {
 		t.Fatalf("relations: %+v %v", rels, err)
 	}
-	owners := a.r.OverlayRows(a.extHostNoun("recordfixture", "item"))
-	if len(owners) != 1 || owners["i2"] == nil || owners["i2"].Props[work.ExtProjectProp] != "ochazuke" {
+	owners, err := a.work.ExtOwners()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(owners) != 1 || owners[work.ExtRow{Extension: "recordfixture", Noun: "item", Row: "i2"}].Project != "ochazuke" {
 		t.Fatalf("owners: %+v", owners)
 	}
 }

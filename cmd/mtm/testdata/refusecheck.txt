@@ -181,7 +181,6 @@ cmd/mtm/extension_pool.go	App.showExtConnection	K15	"Failed(…)"	1
 cmd/mtm/extension_pool.go	App.yankExtConnection	K15	"Failed(…)"	2
 cmd/mtm/extension_pool.go	atLeastOne	K15	"must be 1 or more"	1
 cmd/mtm/extension_pool.go	extPool.read	K15	"exit status %d"	1
-cmd/mtm/extension_references.go	App.rekeyChanges	K15	"conflicting changes of %s for %s and %s (%s)"	1
 cmd/mtm/extension_setup.go	App.extensionSetupPlan	K15	"Failed(…)"	1
 cmd/mtm/extension_setup.go	App.extensionSetupStatus	K15	"Failed(…)"	1
 cmd/mtm/extension_setup.go	App.runSetup	K15	"Failed(…)"	1
@@ -952,7 +951,7 @@ internal/work/actor.go	MayChangeTask	K15	"%v, not %v"	1
 internal/work/actor.go	MayChangeTask	K15	"%v; an agent may not delete or rewrite it"	1
 internal/work/actor.go	MayChangeTask	K15	"agents.write-scope is %v"	1
 internal/work/actor.go	ParseActor	K15	"actor %q is not owner, agent, unknown or an actor as JSON ({\"kind\":\"agent\",...})"	1
-internal/work/changes.go	foldSources	K14	"%s: %w (not moved; fix or move it aside)"	1	failure
+internal/work/changes.go	Store.RekeyExtOwner	K15	"conflicting extension row owners for %s and %s"	1
 internal/work/companions.go	Store.PutCompanion	K13	"companion kind must be nonempty"	1	declaration
 internal/work/companions.go	Store.PutCompanion	K13	"companion requires distinct nonempty window and parent ids"	1	declaration
 internal/work/companions.go	companionConflict	K15	"pane %s already has a side %s"	1

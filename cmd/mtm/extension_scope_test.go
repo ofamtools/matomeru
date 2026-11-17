@@ -9,6 +9,7 @@ import (
 
 	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/work"
+	"ofam.dev/matomeru/store"
 	"ofam.dev/ochazuke"
 	ocli "ofam.dev/ochazuke/cli"
 )
@@ -18,7 +19,7 @@ func TestExtRowOwnerProjectFields(t *testing.T) {
 	a := &App{projects: []work.Project{
 		{ID: "other", Name: "mine"}, // a name must not shadow an id
 		{ID: "mine", Name: "My Project"},
-	}, r: ochazuke.NewRuntime(), projectPrefixes: []projectPrefix{{dir: "/repo", project: "other"}}}
+	}, r: ochazuke.NewRuntime(), work: openWork(t), projectPrefixes: []projectPrefix{{dir: "/repo", project: "other"}}}
 	setExtOwner(t, a, "fake", "item", "recorded", "other")
 	for _, tc := range []struct {
 		name, id string
@@ -656,18 +657,13 @@ func TestDocsRowsFollowThePinnedProject(t *testing.T) {
 }
 
 // setExtOwner records project as the owner of an extension's row, as
-// recordExtOwner does: the project prop of the row's changes.
+// recordExtOwner does (mtm's part of the row's changes row).
 func setExtOwner(t *testing.T, a *App, ext, noun, row, project string) {
 	t.Helper()
-	if _, err := a.r.ChangeOverlay(a.extHostNoun(ext, noun), row, func(o *ochazuke.OverlayRow) bool {
-		if o.Props == nil {
-			o.Props = map[string]any{}
-		}
-		o.Props[work.ExtProjectProp] = project
-		return true
-	}); err != nil {
+	if _, err := a.work.RecordExtOwner(work.ExtRow{Extension: ext, Noun: noun, Row: row}, project, work.Now()); err != nil {
 		t.Fatal(err)
 	}
+	a.reloadExtRowOwners()
 }
 
 // A deleted project leaves the rows recorded as its own unassociated.
@@ -684,7 +680,7 @@ func TestExtRowOwnerClearedWithItsProject(t *testing.T) {
 	if got := a.extRowProject("md", "doc", "loose"); got != "" {
 		t.Fatalf("owner after delete %q", got)
 	}
-	if got := a.r.OverlayRow(a.extHostNoun("md", "doc"), "loose").Props[work.ExtFormerProjectProp]; got != "ochazuke" {
+	if got := a.extOwner("md", "doc", "loose").Former; got != "ochazuke" {
 		t.Fatalf("former project %q", got)
 	}
 }
@@ -795,4 +791,20 @@ func TestActingOnADerivedDocRecordsItsPathProject(t *testing.T) {
 	if got := projectCell(t, a, "theirs"); got != "ochazuke" {
 		t.Fatalf("theirs now reads %q (recorded: no mark)", got)
 	}
+}
+
+// openWork is a work store over a fresh database, for an App built by
+// hand.
+func openWork(t *testing.T) *work.Store {
+	t.Helper()
+	db, err := store.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	w, err := work.Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w
 }
