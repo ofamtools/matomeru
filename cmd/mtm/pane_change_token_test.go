@@ -1,6 +1,8 @@
 package main
 
 import (
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -240,5 +242,56 @@ func TestTaskAndProjectChangeTokens(t *testing.T) {
 	unknown := a.docStore("zz", ochazuke.Store{Kind: ochazuke.KindCollection, ChangeToken: func(ochazuke.Ctx) (string, error) { return "", nil }})
 	if token, err := unknown.ChangeToken(ochazuke.Ctx{Runtime: a.r}); token != "" || err != nil {
 		t.Fatalf("an unknown token answers %q (%v) through docStore", token, err)
+	}
+}
+
+// Both pane pages follow the daemon's listing as before the stores kept
+// change tokens: with the Panes page's tree and the pane index (g I) open,
+// a pane opened, one retitled and one changing state each show on both
+// after the refresh that lists it, and one closed leaves the Panes page.
+func TestPanePagesFollowTheListingWithTokens(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	listAgain(t, a, func(*fakePanes) {})
+	press(t, a, "g", "I")
+	settle(a, a.r.PendingCommands())
+	rows := func() (index, panes string) {
+		t.Helper()
+		var b strings.Builder
+		for _, n := range a.r.Instances["pane-index/panes"].Component.(*ochazuke.Tree).Nodes() {
+			b.WriteString(strings.TrimPrefix(n.ID, "pane-index/panes/") + "=" + strings.Join(n.Cells, "|") + "\n")
+		}
+		var p strings.Builder
+		for _, n := range a.pv.tree.Nodes() {
+			if q, ok := n.Data.(pane); ok {
+				p.WriteString(q.ID + "=" + q.Title + "|" + q.AgentState + "|" + q.label() + "\n")
+			}
+		}
+		return b.String(), p.String()
+	}
+	for _, c := range []struct {
+		name       string
+		edit       func(f *fakePanes)
+		want, gone string // a row text both pages show, or no longer show
+	}{
+		{"opened", func(f *fakePanes) {
+			f.panes = append(f.panes, pane{Session: f.panes[0].Session, SessionID: f.panes[0].SessionID, Pane: daemon.Pane{ID: "w7", Name: "seventh"}})
+		}, "seventh", ""},
+		{"retitled", func(f *fakePanes) { f.panes[0].Name, f.panes[0].Title = "", "fresh-title" }, "fresh-title", ""},
+		{"state", func(f *fakePanes) { f.panes[0].AgentState = "needs_input" }, "needs", ""},
+		{"closed", func(f *fakePanes) { f.panes = slices.DeleteFunc(f.panes, func(p pane) bool { return p.ID == "w7" }) }, "", "seventh"},
+	} {
+		listAgain(t, a, c.edit)
+		index, panes := rows()
+		for page, text := range map[string]string{"pane index": index, "Panes page": panes} {
+			if c.want != "" && !strings.Contains(text, c.want) {
+				t.Errorf("%s: the %s does not show %q:\n%s", c.name, page, c.want, text)
+			}
+		}
+		// The index keeps a closed pane's row (its copy outlives it, as
+		// before the tokens); the Panes page drops it.
+		if c.gone != "" && strings.Contains(panes, c.gone) {
+			t.Errorf("%s: the Panes page still shows %q:\n%s", c.name, c.gone, panes)
+		}
 	}
 }
