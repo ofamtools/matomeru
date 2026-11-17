@@ -53,19 +53,19 @@ func TestSectionRows(t *testing.T) {
 			}
 		}
 		queue := sectionIDs(a, 0)
-		want := []string{"pane:s/wwait", "pane:s/werr", "pane:s/wdone", "pane:s/wgone"}
+		want := []string{"pane:wwait", "pane:werr", "pane:wdone", "pane:wgone"}
 		if !slices.Equal(queue, want) || a.pv.sections[0].rows != len(want) || needsYouHead(a) != len(want) {
 			t.Fatalf("queue %v (title %d, head %q), want %v", queue, a.pv.sections[0].rows, a.pv.view.sectionsHead(), want)
 		}
 		// The row says what the pane needs: its newest reason and the count.
 		for _, n := range a.pv.sections[0].tree.Nodes() {
-			if n.ID == "pane:s/wdone" && !strings.HasSuffix(n.Cells[2], " ×6") {
+			if n.ID == "pane:wdone" && !strings.HasSuffix(n.Cells[2], " ×6") {
 				t.Fatalf("finisher's row cells %q", n.Cells)
 			}
 		}
 		// The closed pane's row is an ended pane's: enter says it ended
 		// (pane.gone), never attaching another pane.
-		if _, ended := a.endedAt(a.r.Instances["pane:s/wgone"]); !ended {
+		if _, ended := a.endedAt(a.r.Instances["pane:wgone"]); !ended {
 			t.Fatal("the closed pane's row is not an ended row")
 		}
 		fr := frameWH(a, 120, 40)
@@ -78,7 +78,7 @@ func TestSectionRows(t *testing.T) {
 	t.Run(sectionRowsItems, func(t *testing.T) {
 		t.Parallel()
 		a := sectionRowsApp(t, sectionRowsItems)
-		if kids := childrenOf(a, "pane:s/wdone"); len(kids) != 6 {
+		if kids := childrenOf(a, "pane:wdone"); len(kids) != 6 {
 			t.Fatalf("finisher's child rows %v", kids)
 		}
 		own := 0
@@ -100,17 +100,17 @@ func TestSectionRows(t *testing.T) {
 func TestPaneArchiveItems(t *testing.T) {
 	t.Parallel()
 	a := sectionRowsApp(t, sectionRowsPanes)
-	if err := a.selectPaneRow("pane:s/wdone"); err != nil {
+	if err := a.selectPaneRow("pane:wdone"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.r.SetFocus("pane:s/wdone"); err != nil {
+	if err := a.r.SetFocus("pane:wdone"); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "x")
 	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
-	if slices.Contains(sectionIDs(a, 0), "pane:s/wdone") {
+	if slices.Contains(sectionIDs(a, 0), "pane:wdone") {
 		t.Fatalf("the finisher is still in Needs you: %v", sectionIDs(a, 0))
 	}
 	all, err := a.inbox.items.All()

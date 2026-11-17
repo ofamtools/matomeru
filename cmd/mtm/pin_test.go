@@ -165,7 +165,7 @@ func TestListingFailureKeepsCreatedPaneAndOwner(t *testing.T) {
 	if owner, err := a.work.PaneOwner("s1", ""); err != nil || owner.ProjectID != "matomeru" {
 		t.Fatalf("lost owner %+v %v", owner, err)
 	}
-	if a.r.Instances["pane:unrelated/s1"] == nil || !strings.Contains(a.landErr, "listing panes failed") {
+	if a.r.Instances["pane:s1"] == nil || !strings.Contains(a.landErr, "listing panes failed") {
 		t.Fatalf("lost pane or warning: %+v %q", a.panes, a.landErr)
 	}
 }

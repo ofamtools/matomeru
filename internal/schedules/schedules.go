@@ -573,7 +573,7 @@ type Launched struct {
 	Session  string            `json:"session,omitempty"`
 	Window   string            `json:"window,omitempty"`
 	Name     string            `json:"name,omitempty"`
-	Pane     string            `json:"pane,omitempty"` // the pane row: pane:SESSION/WINDOW
+	Pane     string            `json:"pane,omitempty"` // the pane row: pane:WINDOW (an older run: pane:SESSION/WINDOW)
 	Harness  string            `json:"harness,omitempty"`
 	Model    string            `json:"model,omitempty"`
 	Settings map[string]string `json:"settings,omitempty"`

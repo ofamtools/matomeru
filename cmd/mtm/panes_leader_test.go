@@ -26,18 +26,18 @@ func TestLeaderCyclesPanesOutsideLive(t *testing.T) {
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
 	settle(app, follow(app))
-	selectedNotLive(t, app, "start", "pane:matomeru/w1")
+	selectedNotLive(t, app, "start", "pane:w1")
 	press(t, app, "ctrl+a", "k") // the first pane: a quiet edge
-	selectedNotLive(t, app, "ctrl+a k at the start", "pane:matomeru/w1")
+	selectedNotLive(t, app, "ctrl+a k at the start", "pane:w1")
 	press(t, app, "ctrl+a", "j")
-	selectedNotLive(t, app, "ctrl+a j", "pane:ochazuke/w2")
+	selectedNotLive(t, app, "ctrl+a j", "pane:w2")
 	if len(f.streams) != 0 || app.pv.tab != tabScreen {
 		t.Fatalf("ctrl+a j: streams %d tab %d", len(f.streams), app.pv.tab)
 	}
 	press(t, app, "ctrl+a", "j") // the last pane: a quiet edge
-	selectedNotLive(t, app, "ctrl+a j at the end", "pane:ochazuke/w2")
+	selectedNotLive(t, app, "ctrl+a j at the end", "pane:w2")
 	press(t, app, "ctrl+a", "k")
-	selectedNotLive(t, app, "ctrl+a k", "pane:matomeru/w1")
+	selectedNotLive(t, app, "ctrl+a k", "pane:w1")
 
 	// The tab stays as it was.
 	press(t, app, "]")
@@ -55,20 +55,20 @@ func TestLeaderCyclesPanesOutsideLive(t *testing.T) {
 	}
 	session := app.r.FocusID()
 	press(t, app, "ctrl+a", "j")
-	selectedNotLive(t, app, "ctrl+a j from a session", "pane:ochazuke/w2")
+	selectedNotLive(t, app, "ctrl+a j from a session", "pane:w2")
 	press(t, app, "k")
 	if app.r.FocusID() != session {
 		t.Fatalf("k back: focus %s", app.r.FocusID())
 	}
 	press(t, app, "ctrl+a", "k")
-	selectedNotLive(t, app, "ctrl+a k from a session", "pane:matomeru/w1")
+	selectedNotLive(t, app, "ctrl+a k from a session", "pane:w1")
 
 	// From the detail, the selection moves and the detail keeps the focus.
 	if err := app.r.SetFocus(panesDetailID); err != nil {
 		t.Fatal(err)
 	}
 	press(t, app, "ctrl+a", "j")
-	if row, _ := app.selectedRow(); row != "pane:ochazuke/w2" {
+	if row, _ := app.selectedRow(); row != "pane:w2" {
 		t.Fatalf("ctrl+a j from the detail: row %s", row)
 	}
 	selectedNotLive(t, app, "ctrl+a j from the detail", panesDetailID)
@@ -85,17 +85,17 @@ func TestLeaderSelectsStarredOutsideLive(t *testing.T) {
 	if !strings.Contains(app.m.Info, noStarredPanes) {
 		t.Fatalf("none starred: status %q", app.m.Info)
 	}
-	selectedNotLive(t, app, "none starred", "pane:matomeru/w1")
+	selectedNotLive(t, app, "none starred", "pane:w1")
 	app.m.Info = ""
-	for _, row := range []string{"pane:matomeru/w1", "pane:ochazuke/w2"} {
+	for _, row := range []string{"pane:w1", "pane:w2"} {
 		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	press(t, app, "ctrl+a", "s")
-	selectedNotLive(t, app, "ctrl+a s", "pane:ochazuke/w2")
+	selectedNotLive(t, app, "ctrl+a s", "pane:w2")
 	press(t, app, "ctrl+a", "s")
-	selectedNotLive(t, app, "ctrl+a s wraps", "pane:matomeru/w1")
+	selectedNotLive(t, app, "ctrl+a s wraps", "pane:w1")
 	if len(f.streams) != 0 {
 		t.Fatalf("streams %d", len(f.streams))
 	}
@@ -120,7 +120,7 @@ func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 		t.Fatal(err)
 	}
 	press(t, app, "ctrl+b", "j")
-	selectedNotLive(t, app, "ctrl+b j", "pane:ochazuke/w2")
+	selectedNotLive(t, app, "ctrl+b j", "pane:w2")
 	for _, b := range app.r.Instances[panesPage].Bindings {
 		if strings.HasPrefix(b.Keys, "ctrl+a") {
 			t.Errorf("old leader row %q left", b.Keys)
@@ -131,7 +131,7 @@ func TestPageLeaderRowsFollowTheSetting(t *testing.T) {
 	}
 	// Every stop of the page lists the rows, and no other normal-mode (or
 	// every-mode) row starts with the leader.
-	for _, target := range []string{"pane:matomeru/w1", paneListID, panesDetailID} {
+	for _, target := range []string{"pane:w1", paneListID, panesDetailID} {
 		var rows []ochazuke.Binding
 		cliRows(t, app, &rows, "binding", "list", "--target", target)
 		listed := map[string]string{}

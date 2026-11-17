@@ -182,12 +182,13 @@ func mtmVersion() string {
 }
 
 // Identify is whoami's lookup, the journal's rule (journalOwner): the
-// pane's assignment, else its session's owner by name; then the recipe
+// pane's assignment, else its session's owner (the session named by
+// resolveSession); then the recipe
 // the pane was launched with for its cwd, harness and model. A pane mtm
 // did not launch has no recipe: its cwd is the server's, which the
 // harness started in its own directory.
 func (a *App) identifyPane(id mcp.Identity) (mcp.Identity, error) {
-	task, project, err := journalOwner(a.work)(id.Session, id.Window)
+	task, project, err := journalOwner(a.work)(a.resolveSession(id.Session), id.Window)
 	if err != nil {
 		return id, err
 	}

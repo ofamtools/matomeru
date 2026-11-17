@@ -44,7 +44,7 @@ func TestScaffoldPaneArchiveIsLocalAcrossListingsAndReopen(t *testing.T) {
 	f := a.panesd.(*fakePanes)
 	a.setPanes(f.panes, nil)
 	executeA(t, a, "pane", "archive", "", ochazuke.Arguments{"id": "w1"})
-	if a.sectionOf("pane:matomeru/w1") >= 0 {
+	if a.sectionOf("pane:w1") >= 0 {
 		t.Fatal("archived pane remains in the curated Panes lists")
 	}
 	a.setPanes(f.panes, nil)
@@ -53,7 +53,7 @@ func TestScaffoldPaneArchiveIsLocalAcrossListingsAndReopen(t *testing.T) {
 		t.Fatalf("archive changed daemon state or was overwritten: %v, killed %v", got, f.killed)
 	}
 	executeA(t, a, "ochazuke.collection", "filter-saved", paneListID, ochazuke.Arguments{"name": "archived"})
-	if err := a.pv.tree.Select("pane:matomeru/w1"); err != nil {
+	if err := a.pv.tree.Select("pane:w1"); err != nil {
 		t.Fatalf("archived pane filter omitted the retained copy: %v", err)
 	}
 	executeA(t, a, "ochazuke.collection", "filter-props-clear", paneListID, nil)
@@ -65,7 +65,7 @@ func TestScaffoldPaneArchiveIsLocalAcrossListingsAndReopen(t *testing.T) {
 		t.Fatalf("archive lost on reopen: %v", got)
 	}
 	executeA(t, other, "pane", "restore", "", ochazuke.Arguments{"id": "w1"})
-	if other.sectionOf("pane:matomeru/w1") < 0 || len(fresh.killed) != 0 {
+	if other.sectionOf("pane:w1") < 0 || len(fresh.killed) != 0 {
 		t.Fatal("restore failed to reveal the existing daemon pane")
 	}
 }
@@ -180,12 +180,12 @@ func TestScaffoldFormOptOutKeepsCuratedViews(t *testing.T) {
 			t.Parallel()
 			a, f := panesApp(t)
 			setting(t, a, ochazuke.DetailShowFormSetting, on)
-			if err := a.selectPaneRow("pane:matomeru/w1"); err != nil {
+			if err := a.selectPaneRow("pane:w1"); err != nil {
 				t.Fatal(err)
 			}
 			a.detail.panes.show.Sync()
 			a.pv.tab = tabScreen
-			a.preview = preview{Pane: "pane:matomeru/w1", Text: "preserved screen"}
+			a.preview = preview{Pane: "pane:w1", Text: "preserved screen"}
 			if text := frameWH(a, 160, 60); !strings.Contains(text, "preserved screen") {
 				t.Fatalf("screen lost with form=%v:\n%s", on, text)
 			}
@@ -202,7 +202,7 @@ func TestScaffoldFormOptOutKeepsCuratedViews(t *testing.T) {
 					t.Fatalf("focused metadata lost the selected name or screen:\n%s", text)
 				}
 			}
-			executeA(t, a, "pane", "attach", "pane:matomeru/w1", nil)
+			executeA(t, a, "pane", "attach", "pane:w1", nil)
 			if frameWH(a, 160, 60); a.r.Terminal(paneTermID) == nil || len(f.streams) == 0 {
 				t.Fatal("show form replaced the live terminal")
 			}
@@ -394,7 +394,7 @@ func TestScaffoldPaneNotesStayVisibleAtNormalHeight(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
 	executeA(t, a, "note", "create", "", ochazuke.Arguments{"text": "reachable pane note", "about": "pane:w1"})
-	if err := a.selectPaneRow("pane:matomeru/w1"); err != nil {
+	if err := a.selectPaneRow("pane:w1"); err != nil {
 		t.Fatal(err)
 	}
 	a.pv.tab = tabNotes

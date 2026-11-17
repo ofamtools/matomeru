@@ -29,7 +29,7 @@ func shellApp(t *testing.T) (*App, *fakeDaemon) {
 	}
 	settle(app, app.r.PendingCommands())
 	press(t, app, "ctrl+k") // Panes is the tab before Work
-	if app.r.Page != panesPage || app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.Page != panesPage || app.r.FocusID() != "pane:w1" {
 		t.Fatalf("page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	return app, f
@@ -76,7 +76,7 @@ func TestNewPaneOpensAShellAndReloadsTheList(t *testing.T) {
 	if len(f.launches) != 0 {
 		t.Fatalf("pane.new started an agent: %+v", f.launches)
 	}
-	if len(app.panes) != 3 || app.r.Instances["pane:matomeru/s1"] == nil {
+	if len(app.panes) != 3 || app.r.Instances["pane:s1"] == nil {
 		t.Fatalf("panes = %+v", app.panes)
 	}
 	if jobs := jobsOf(app, "pane.start"); len(jobs) != 1 || jobs[0].Status != ochazuke.JobDone {
@@ -124,7 +124,7 @@ func TestAFailingNewPaneShowsInTheRail(t *testing.T) {
 	}
 	// The app keeps working: j walks the tree, the next session's row first.
 	press(t, app, "j", "j")
-	if app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.FocusID() != "pane:w2" {
 		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 }
@@ -143,7 +143,7 @@ func TestNewPaneWithNothingInferredGoesToMtmOnly(t *testing.T) {
 	if len(f.shells) != 1 || f.shells[0].Session != "mtm-only" || f.shells[0].Cwd != "/home/test" {
 		t.Fatalf("shells = %+v", f.shells)
 	}
-	if app.r.Instances["pane:mtm-only/s1"] == nil {
+	if app.r.Instances["pane:s1"] == nil {
 		t.Fatalf("the list lacks the new pane: %+v", app.panes)
 	}
 }
@@ -171,7 +171,7 @@ func TestCLIPaneNew(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &landed); err != nil || landed.Pane.Window != "s1" {
 		t.Fatalf("stdout = %q (%v)", out, err)
 	}
-	if app.r.Instances["pane:ochazuke/s1"] == nil {
+	if app.r.Instances["pane:s1"] == nil {
 		t.Fatalf("the list lacks the new pane: %+v", app.panes)
 	}
 }

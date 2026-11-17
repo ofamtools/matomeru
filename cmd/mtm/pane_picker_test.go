@@ -48,7 +48,7 @@ func TestLeaderPOpensThePanePicker(t *testing.T) {
 		t.Fatalf("attach: focus %s", app.r.FocusID())
 	}
 	press(t, app, "ctrl+a", "p")
-	want := []string{"pane:ochazuke/w2", "pane:nabe/w3", "pane:matomeru/w1"}
+	want := []string{"pane:w2", "pane:w3", "pane:w1"}
 	if got := pickerIDs(t, app); !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows %v, want %v", got, want)
 	}
@@ -90,11 +90,11 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 	// query whole leads; shift+tab steps back to substring, which keeps
 	// only it (ochazuke.search.cycle-match, as in every chooser).
 	c := app.r.Chooser(panePickerKind)
-	if got := pickerIDs(t, app); c.MatchMode() != ochazuke.MatchFuzzy || len(got) == 0 || got[0] != "pane:nabe/w3" {
+	if got := pickerIDs(t, app); c.MatchMode() != ochazuke.MatchFuzzy || len(got) == 0 || got[0] != "pane:w3" {
 		t.Fatalf("fuzzy rows %v (mode %s)", got, c.MatchMode())
 	}
 	press(t, app, "shift+tab")
-	if got := pickerIDs(t, app); c.MatchMode() != ochazuke.MatchSubstring || !reflect.DeepEqual(got, []string{"pane:nabe/w3"}) {
+	if got := pickerIDs(t, app); c.MatchMode() != ochazuke.MatchSubstring || !reflect.DeepEqual(got, []string{"pane:w3"}) {
 		t.Fatalf("substring rows %v (mode %s)", got, c.MatchMode())
 	}
 	press(t, app, "enter")
@@ -104,11 +104,11 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 	if n := len(f.streams); n != 2 || f.streams[1].pane.ID != "w3" || !f.streams[0].released {
 		t.Fatalf("streams after the pick: %d", n)
 	}
-	if sel, _ := app.selectedRow(); sel != "pane:nabe/w3" {
+	if sel, _ := app.selectedRow(); sel != "pane:w3" {
 		t.Fatalf("tree selects %s", sel)
 	}
 	press(t, app, "ctrl+a", "p")
-	want := []string{"pane:matomeru/w1", "pane:ochazuke/w2", "pane:nabe/w3"}
+	want := []string{"pane:w1", "pane:w2", "pane:w3"}
 	if got := pickerIDs(t, app); !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows %v, want %v", got, want)
 	}
@@ -120,7 +120,7 @@ func TestPanePickerFiltersAttachesAndOrdersByRecency(t *testing.T) {
 		t.Fatalf("enter on the first row: attached %s focus %s", app.attached.ID, app.r.FocusID())
 	}
 	press(t, app, "ctrl+a", "p")
-	want = []string{"pane:nabe/w3", "pane:ochazuke/w2", "pane:matomeru/w1"}
+	want = []string{"pane:w3", "pane:w2", "pane:w1"}
 	if got := pickerIDs(t, app); !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows %v, want %v", got, want)
 	}
@@ -136,7 +136,7 @@ func TestPanePickerKeyFromAnotherPage(t *testing.T) {
 		t.Fatal("ctrl+j stayed on Panes")
 	}
 	press(t, app, `\`)
-	if got := pickerIDs(t, app); len(got) != 3 || got[0] != "pane:matomeru/w1" {
+	if got := pickerIDs(t, app); len(got) != 3 || got[0] != "pane:w1" {
 		t.Fatalf("rows %v", got)
 	}
 	press(t, app, "down", "enter")
@@ -158,7 +158,7 @@ func TestPanePickerKeyFromAnotherPage(t *testing.T) {
 func TestPanePickerPreview(t *testing.T) {
 	t.Parallel()
 	app, _ := pickerApp(t)
-	app.preview = preview{Pane: "pane:matomeru/w1", Text: "claude is thinking\n\n"}
+	app.preview = preview{Pane: "pane:w1", Text: "claude is thinking\n\n"}
 	press(t, app, `\`)
 	rows := app.r.Chooser(panePickerKind).Matches()
 	if got := app.panePreview(rows[0].ID); got != "claude is thinking" {

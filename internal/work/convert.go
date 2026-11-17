@@ -556,7 +556,8 @@ func (c *convertTx) moveRelations(source, target, kind string) ([]string, error)
 		}
 		hasDefault = hasDefault || x.Flag(DefaultFlag)
 		have[r.To] = -1
-		_, path, _ := ochazuke.SplitAnyRef(r.To)
+		pathRef, _ := ochazuke.ParseRef(r.To)
+		path := pathRef.Key
 		added = append(added, path)
 		if err := c.putRelation(x, 0, nil); err != nil {
 			return nil, err

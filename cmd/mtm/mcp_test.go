@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/internal/contextitems"
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/work"
 	"ofam.dev/matomeru/store"
 )
@@ -308,7 +309,9 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 func TestMCPWhoamiReadsTheTUIOSEnvironment(t *testing.T) {
 	t.Parallel()
 	// The session owns the project; the pane has no assignment of its own.
-	app, _, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "work", "TUIOS_PANE_ID": "w7"})
+	app, rec, _ := mcpApp(t, map[string]string{"TUIOS_SESSION": "work", "TUIOS_PANE_ID": "w7"})
+	// The hook names the session; the listing gives its id.
+	rec.panes = append(rec.panes, pane{Session: "work", SessionID: "sid-1", Pane: daemon.Pane{ID: "w7"}})
 	if err := app.work.SetSessionOwner(work.SessionOwner{ID: "sid-1", Name: "work", ProjectID: "ochazuke"}); err != nil {
 		t.Fatal(err)
 	}

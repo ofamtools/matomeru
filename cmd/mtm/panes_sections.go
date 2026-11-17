@@ -978,6 +978,13 @@ func (a *App) listedPane(window string) (pane, bool) {
 	return pane{}, false
 }
 
+// windowSession is the id of the session the listing gives window, "" when
+// it is not listed: an assignment names its session by id.
+func (a *App) windowSession(window string) string {
+	p, _ := a.listedPane(window)
+	return p.SessionID
+}
+
 // openItemPane is action-item.open on a pane's signal: the pane attached
 // live on the Panes page, detach returning to its row.
 func (a *App) openItemPane(ctx ochazuke.Ctx, p pane) ochazuke.Result {

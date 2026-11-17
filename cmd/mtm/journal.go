@@ -44,22 +44,25 @@ type historyDue struct{}
 // them over after each listing) and the panes whose ring it still has to
 // read under the current boot.
 type journalFeed struct {
-	mu      sync.Mutex
-	panes   map[string]history.Pane // window → the pane, from the last listing
-	agents  map[string]bool         // windows with an agent: their ring is read
-	read    map[string]bool         // windows whose ring was read under boot
-	boot    string
-	wake    chan struct{}
-	changed chan struct{}
-	started bool
-	pending bool // owned by the UI loop, not the background reader
+	mu    sync.Mutex
+	panes map[string]history.Pane // window → the pane, from the last listing
+	// sessions is window → the session id the last listing gave it: the
+	// journal's owner reads a session by its key, never its name.
+	sessions map[string]string
+	agents   map[string]bool // windows with an agent: their ring is read
+	read     map[string]bool // windows whose ring was read under boot
+	boot     string
+	wake     chan struct{}
+	changed  chan struct{}
+	started  bool
+	pending  bool // owned by the UI loop, not the background reader
 	// contextAdded says a burst may have added items or source provenance: the loop reloads the
 	// Context page and the picker with the journal views.
 	contextAdded atomic.Bool
 }
 
 func newJournalFeed() *journalFeed {
-	return &journalFeed{panes: map[string]history.Pane{}, agents: map[string]bool{}, read: map[string]bool{},
+	return &journalFeed{panes: map[string]history.Pane{}, sessions: map[string]string{}, agents: map[string]bool{}, read: map[string]bool{},
 		wake: make(chan struct{}, 1), changed: make(chan struct{}, 1)}
 }
 
@@ -73,6 +76,7 @@ func (f *journalFeed) setPanes(panes []pane) {
 			continue
 		}
 		f.panes[p.ID] = history.Pane{Session: p.Session, Window: p.ID, Name: p.label(), Harness: p.Harness, Cwd: p.Cwd}
+		f.sessions[p.ID] = p.SessionID
 		if p.isAgent() {
 			f.agents[p.ID] = true
 		}
@@ -92,6 +96,13 @@ func (f *journalFeed) pane(session, window string) history.Pane {
 		return p
 	}
 	return history.Pane{Session: session, Window: window}
+}
+
+// sessionOf is the session id the last listing gave window, "" when none.
+func (f *journalFeed) sessionOf(window string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sessions[window]
 }
 
 // signal says the journal changed; one pending signal covers a burst.
@@ -321,16 +332,22 @@ func (a *App) turnsHistoryActive() bool {
 }
 
 // journalOwner is the owner the journal gives an entry: the pane's own
-// assignment, else its session's owner (looked up by name, since a
-// capture hook knows only the session's name). It reads the store only,
-// so it is safe off the loop.
+// assignment, else its session's owner. session is the session's key (its
+// id): a caller holding a name reads it at the edge (resolveSession). It
+// reads the store only, so it is safe off the loop.
 func journalOwner(w *work.Store) history.Owner {
 	return func(session, window string) (string, string, error) {
-		s, err := w.SessionOwnerNamed(session)
-		if err != nil {
-			return "", "", err
-		}
-		o, err := w.PaneOwner(window, s.ID)
+		o, err := w.PaneOwner(window, session)
 		return o.TaskID, o.ProjectID, err
+	}
+}
+
+// entryOwner is the journal's owner for an entry the daemon names by
+// window (and its session by name): the session the listing last gave the
+// window, by id. It is safe off the loop (the feed's lock).
+func entryOwner(w *work.Store, f *journalFeed) history.Owner {
+	owner := journalOwner(w)
+	return func(_, window string) (string, string, error) {
+		return owner(f.sessionOf(window), window)
 	}
 }

@@ -62,7 +62,7 @@ func TestExternalQueueRowSharesThePanesDraft(t *testing.T) {
 	pressSettle(t, a, "i")
 	typeText(t, a, "same pane draft")
 	press(t, a, "esc", "esc")
-	if err := a.r.SetFocus("pane:matomeru/w1"); err != nil {
+	if err := a.r.SetFocus("pane:w1"); err != nil {
 		t.Fatal(err)
 	}
 	settle(a, follow(a))
@@ -71,7 +71,7 @@ func TestExternalQueueRowSharesThePanesDraft(t *testing.T) {
 		t.Fatalf("pane draft = %q, owner %q", string(a.pb.input.Text), a.pb.owner)
 	}
 	press(t, a, "esc", "esc")
-	if err := a.r.SetFocus("pane:ochazuke/w2"); err != nil {
+	if err := a.r.SetFocus("pane:w2"); err != nil {
 		t.Fatal(err)
 	}
 	settle(a, follow(a))

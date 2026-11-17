@@ -34,7 +34,7 @@
     {
       "name": "session",
       "type": "string",
-      "description": "The session the pane is in",
+      "description": "The session the pane is in, by its id (a name given here is read as that session's id)",
       "readOnly": true,
       "ref": [
         "session"

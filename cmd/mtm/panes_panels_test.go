@@ -180,7 +180,7 @@ func TestPanesPanelsLayout(t *testing.T) {
 	// The goldens are the layout of one row per queue entry; panes.children
 	// without items keeps item rows out of the panes' children.
 	setting(t, a, settingPaneChildren, []string{childKindSubagents})
-	if err := a.r.SetFocus("pane:s/widle"); err != nil {
+	if err := a.r.SetFocus("pane:widle"); err != nil {
 		t.Fatal(err)
 	}
 	for _, height := range []int{24, 40, 60} {
@@ -232,7 +232,7 @@ func golden(t *testing.T, name, fr string) {
 func TestPanesPanelsGrowToTheCap(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
-	if err := a.r.SetFocus("pane:s/widle"); err != nil {
+	if err := a.r.SetFocus("pane:widle"); err != nil {
 		t.Fatal(err)
 	}
 	before := leftColumn(t, frameWH(a, 120, 40))
@@ -292,7 +292,7 @@ func TestPanesPanelsEmpty(t *testing.T) {
 func TestPanesPanelsBorderFollowsTheFocus(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
-	if err := a.r.SetFocus("pane:s/wold"); err != nil {
+	if err := a.r.SetFocus("pane:wold"); err != nil {
 		t.Fatal(err)
 	}
 	col := leftColumn(t, frameWH(a, 120, 30))
@@ -344,22 +344,22 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 	a, panes := sectionsApp(t)
 	frameWH(a, 120, 40)
 	press(t, a, "g", "w")
-	if a.r.FocusID() != "pane:s/wold" {
+	if a.r.FocusID() != "pane:wold" {
 		t.Fatalf("g w: focus %s", a.r.FocusID())
 	}
 	press(t, a, "j", "g", "w") // again: it stays on Working's selected row
-	if a.r.FocusID() != "pane:s/wnew" {
+	if a.r.FocusID() != "pane:wnew" {
 		t.Fatalf("g w again: focus %s", a.r.FocusID())
 	}
 	press(t, a, "g", "n")
-	if a.r.FocusID() != "pane:s/wwait" {
+	if a.r.FocusID() != "pane:wwait" {
 		t.Fatalf("g n: focus %s", a.r.FocusID())
 	}
 	press(t, a, "g", "p")
-	if a.r.FocusID() != "pane:s/widle" {
+	if a.r.FocusID() != "pane:widle" {
 		t.Fatalf("g p: focus %s", a.r.FocusID())
 	}
-	if row, _ := a.selectedRow(); row != "pane:s/widle" {
+	if row, _ := a.selectedRow(); row != "pane:widle" {
 		t.Fatalf("the detail follows %s", row)
 	}
 	// Nothing working: g w says so, the focus stays.
@@ -370,7 +370,7 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 	}
 	a.setPanes(panes, nil)
 	v, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "focus-section", Args: ochazuke.Arguments{"section": sectionWorking}})
-	if err != nil || v != "No agent is working" || a.r.FocusID() != "pane:s/widle" {
+	if err != nil || v != "No agent is working" || a.r.FocusID() != "pane:widle" {
 		t.Fatalf("empty Working: %v %v focus %s", v, err, a.r.FocusID())
 	}
 	// From another page, the verb opens Panes.
@@ -380,7 +380,7 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "focus-section", Args: ochazuke.Arguments{"section": sectionQueue}}); err != nil {
 		t.Fatal(err)
 	}
-	if a.r.Page != panesPage || a.r.FocusID() != "pane:s/wwait" {
+	if a.r.Page != panesPage || a.r.FocusID() != "pane:wwait" {
 		t.Fatalf("from Work: page %s focus %s", a.r.Page, a.r.FocusID())
 	}
 	// The keys are binding rows on the page, so hints and help read them.
@@ -394,7 +394,7 @@ func TestPanesFocusSectionKeys(t *testing.T) {
 func TestPanesRowsMoveWithoutSticky(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
-	row := "pane:s/wold"
+	row := "pane:wold"
 	if err := a.r.SetFocus(row); err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +426,7 @@ func TestPanesStickyRowsHoldOnlyUnderTheCursor(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
 	setting(t, a, settingStickyRows, true)
-	row := "pane:s/wold"
+	row := "pane:wold"
 	if err := a.r.SetFocus(row); err != nil {
 		t.Fatal(err)
 	}
@@ -451,16 +451,16 @@ func TestPanesStickyRowsHoldOnlyUnderTheCursor(t *testing.T) {
 func TestPanesWorkingStatesSetting(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
-	if err := a.r.SetFocus("pane:s/wterm"); err != nil {
+	if err := a.r.SetFocus("pane:wterm"); err != nil {
 		t.Fatal(err)
 	}
 	panes[5].AgentState = "active"
 	a.setPanes(panes, nil)
-	if slices.Contains(sectionIDs(a, 2), "pane:s/widle") {
+	if slices.Contains(sectionIDs(a, 2), "pane:widle") {
 		t.Fatalf("active in Working by default: %v", sectionIDs(a, 2))
 	}
 	setting(t, a, settingWorkingStates, []string{"working", "active"})
-	if !slices.Contains(sectionIDs(a, 2), "pane:s/widle") {
+	if !slices.Contains(sectionIDs(a, 2), "pane:widle") {
 		t.Fatalf("active not in Working: %v", sectionIDs(a, 2))
 	}
 	p := a.panes[5]
@@ -498,16 +498,16 @@ func TestPanesClearedSessionLeavesWorking(t *testing.T) {
 		{Session: "s", SessionID: "s", Pane: daemon.Pane{ID: "wt", Name: "term"}},
 	}
 	reload(t, a)
-	if err := a.r.SetFocus("pane:s/wa"); err != nil {
+	if err := a.r.SetFocus("pane:wa"); err != nil {
 		t.Fatal(err)
 	}
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wa", "pane:s/wb"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:wa", "pane:wb"}) {
 		t.Fatalf("working %v", got)
 	}
 	// /clear: tuios answers idle with a new session and a fresh time.
 	f.panes[0].AgentState, f.panes[0].AgentSession, f.panes[0].StateAt = "idle", "new", 300
 	reload(t, a)
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wb"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:wb"}) {
 		t.Fatalf("after the clear: working %v", got)
 	}
 	if !strings.Contains(strings.Join(leftColumn(t, frameWH(a, 120, 40)), "\n"), "alpha") {
@@ -516,18 +516,18 @@ func TestPanesClearedSessionLeavesWorking(t *testing.T) {
 	// It works again: placed by its new time, after beta.
 	f.panes[0].AgentState, f.panes[0].StateAt = "working", 400
 	reload(t, a)
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wb", "pane:s/wa"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:wb", "pane:wa"}) {
 		t.Fatalf("working again %v", got)
 	}
 	// A state time reset while it stays working keeps its place (stable
 	// order); with panes.stable-order off it sorts by the new time.
 	f.panes[0].StateAt = 50
 	reload(t, a)
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wb", "pane:s/wa"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:wb", "pane:wa"}) {
 		t.Fatalf("stable: %v", got)
 	}
 	setting(t, a, settingStableOrder, false)
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wa", "pane:s/wb"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:wa", "pane:wb"}) {
 		t.Fatalf("unstable: %v", got)
 	}
 }

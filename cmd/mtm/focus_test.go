@@ -39,7 +39,7 @@ func TestThePanesPageAnswersPreviewAtOnce(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
 	settle(app, follow(app))
-	if len(f.captured) != 1 || app.preview.Pane != "pane:matomeru/w1" {
+	if len(f.captured) != 1 || app.preview.Pane != "pane:w1" {
 		t.Fatalf("captured %v preview %+v", f.captured, app.preview)
 	}
 }

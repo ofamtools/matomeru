@@ -311,7 +311,8 @@ func (a *App) followRelation(ctx ochazuke.Ctx) ochazuke.Result {
 	if ref == "" {
 		return ochazuke.Failed(errors.New("that end is gone: the thing was deleted (see former-from, former-to)"))
 	}
-	noun, key, ok := ochazuke.SplitAnyRef(ref)
+	thing, ok := ochazuke.ParseRef(ref)
+	noun, key := thing.Noun, thing.Key
 	if !ok {
 		return ochazuke.Failed(fmt.Errorf("%q is not noun:key", ref))
 	}
@@ -328,7 +329,7 @@ func (a *App) yankRelation(ctx ochazuke.Ctx) ochazuke.Result {
 		return ochazuke.Failed(err)
 	}
 	what := ochazuke.StringArg(ctx.Args, "what", "key")
-	text, ok := map[string]string{"key": ochazuke.AnyRef(relationNoun, r.Key), "from": r.From, "to": r.To}[what]
+	text, ok := map[string]string{"key": ochazuke.Ref{Noun: relationNoun, Key: r.Key}.String(), "from": r.From, "to": r.To}[what]
 	if !ok {
 		return ochazuke.Failed(fmt.Errorf("yank key, from or to, not %q", what))
 	}

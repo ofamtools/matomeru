@@ -37,7 +37,7 @@ func TestAShellThatRunsAnAgentBecomesOneAgentRow(t *testing.T) {
 	f.panes[1].Name = "Terminal 0e90e60d"
 	forgetCopies(t, app) // the fixture recast the window: first seen now
 	reload(t, app)
-	row := "pane:ochazuke/w2"
+	row := "pane:w2"
 	if n := countRows(app, "pane"); n != 2 || !strings.Contains(cells(app, row), "shell") {
 		t.Fatalf("before: %d pane rows, %q", n, cells(app, row))
 	}
@@ -150,7 +150,7 @@ func TestSessionRowVerbs(t *testing.T) {
 	if f.panes[0].Session != "mtm" {
 		t.Fatalf("rename: %+v", f.panes)
 	}
-	if err := app.pv.tree.Select("session:mtm"); err != nil {
+	if err := app.pv.tree.Select("session:id-matomeru"); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.paneList.Focus(); err != nil {
@@ -161,7 +161,7 @@ func TestSessionRowVerbs(t *testing.T) {
 		t.Fatalf("enter on a session attached %q", app.attached.ID)
 	}
 	press(t, app, "ctrl+a", "d")
-	if err := app.pv.tree.Select("session:mtm"); err != nil {
+	if err := app.pv.tree.Select("session:id-matomeru"); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.paneList.Focus(); err != nil {
@@ -306,7 +306,7 @@ func TestTurnsFromTheJournal(t *testing.T) {
 	}
 	// esc goes back up to the pane list, from a turn and from a turn's line.
 	press(t, app, "esc")
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("esc from a turn: focus %s", app.r.FocusID())
 	}
 	press(t, app, "}", "j")
@@ -314,7 +314,7 @@ func TestTurnsFromTheJournal(t *testing.T) {
 		t.Fatalf("j into the turn's lines: focus %s", app.r.FocusID())
 	}
 	press(t, app, "esc")
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("esc from a turn line: focus %s", app.r.FocusID())
 	}
 }
@@ -375,7 +375,7 @@ func TestPaneGoneAndOpenTranscriptSayWhereTheyDoNothing(t *testing.T) {
 	sink := &ochazuke.RecordingSink{}
 	app.r.UI().Attach(sink)
 	for _, q := range []ochazuke.Request{
-		{Noun: "pane", Verb: "gone", Target: "pane:matomeru/w1"},
+		{Noun: "pane", Verb: "gone", Target: "pane:w1"},
 		{Noun: "turn", Verb: "open-transcript", Target: app.r.FocusID()},
 	} {
 		if _, err := app.r.Execute(q); err != nil {
@@ -439,7 +439,7 @@ func TestPluralCounts(t *testing.T) {
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
 	press(t, app, "k") // the claude pane's session row
-	if app.r.FocusID() != "session:matomeru" {
+	if app.r.FocusID() != "session:id-matomeru" {
 		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	settle(app, follow(app))
@@ -455,7 +455,7 @@ func TestNestedSessionRowsSaySession(t *testing.T) {
 	app, _ := panesApp(t)
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
-	if got := cells(app, "session:matomeru"); !strings.Contains(got, "▾ session matomeru (1)") {
+	if got := cells(app, "session:id-matomeru"); !strings.Contains(got, "▾ session matomeru (1)") {
 		t.Fatalf("session cells %q", got)
 	}
 	if got := cells(app, "project:"); strings.Contains(got, "session") {
@@ -482,7 +482,7 @@ func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
 	frame(app)
 	press(t, app, "esc")
 	frame(app)
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("esc from a turn: focus %s", app.r.FocusID())
 	}
 	for range 2 {
@@ -499,7 +499,7 @@ func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
 	settle(app, key(t, app, "]")) // Activity
 	frame(app)
 	press(t, app, "l")
-	if app.r.FocusID() != "pane:matomeru/w1" || app.pv.tab != tabActivity || app.copy.active {
+	if app.r.FocusID() != "pane:w1" || app.pv.tab != tabActivity || app.copy.active {
 		t.Fatalf("l on the pane row with Activity: focus %s tab %d copy %v", app.r.FocusID(), app.pv.tab, app.copy.active)
 	}
 }
@@ -510,7 +510,7 @@ func TestLOnAPaneRowWithTheTurnsTabFocusesTheTurns(t *testing.T) {
 // tab, and }, tab and l reach its content, never terminal mode.
 func TestAnAttachedTerminalIsReenteredOnlyFromTheScreenTab(t *testing.T) {
 	t.Parallel()
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	attachedThenLeft := func(t *testing.T) *App {
 		path := seeded(t)
 		capturedTurns(t, path, "first answer", "second answer")

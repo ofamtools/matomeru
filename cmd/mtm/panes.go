@@ -133,15 +133,26 @@ type pane struct {
 	daemon.Pane
 }
 
-// rowID is the pane's list row instance id; window ids are uuids, the
-// prefix keeps them apart from project and task rows.
-func (p pane) rowID() string { return "pane:" + p.Session + "/" + p.ID }
+// rowID is the pane's list row instance id: the text of the pane's Ref
+// (its window id alone identifies it), which keeps it apart from project,
+// session and task rows (spine S5 rule 5).
+func (p pane) rowID() string { return ochazuke.Ref{Noun: "pane", Key: p.ID}.String() }
+
+// isPaneNode reports a tree row that stands for a pane (its Data is one).
+func isPaneNode(n ochazuke.TreeNode) bool {
+	_, ok := n.Data.(pane)
+	return ok
+}
+
+// sessionRef is the reference to the pane's session, by its id (never its
+// name: a name is the session's label).
+func (p pane) sessionRef() ochazuke.Ref { return ochazuke.Ref{Noun: "session", Key: p.SessionID} }
 
 // keyProps are the pane row's key prop (its window id) beside the pane
 // it carries as Data, whose JSON names the window window_id: the standard
 // verbs read a row's thing by its key prop, never by the row id.
 func (p pane) keyProps() ochazuke.Thing {
-	return ochazuke.Thing{"id": p.ID, "pane": p.ID, "session": cmp.Or(p.SessionID, p.Session), "archived": p.Archived}
+	return ochazuke.Thing{"id": p.ID, "pane": p.ID, "session": p.SessionID, "archived": p.Archived}
 }
 
 // label is the row text, the panel title and the {{label}} a confirm
@@ -625,7 +636,7 @@ func (a *App) showPanes(panes []pane, err error) {
 	}
 	// The middle list starts on its first pane, not on the group rows
 	// above it.
-	if after, ok := a.pv.tree.Selected(); ok && (!hadRow || before.ID != after.ID) && !strings.HasPrefix(after.ID, "pane:") {
+	if after, ok := a.pv.tree.Selected(); ok && (!hadRow || before.ID != after.ID) && !isPaneNode(after) {
 		if first := a.firstPaneRow(); first != "" {
 			if err := a.pv.tree.Select(first); err != nil {
 				a.paneErr = err.Error()

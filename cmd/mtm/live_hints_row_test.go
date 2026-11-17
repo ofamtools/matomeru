@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	rowW1     = "pane:matomeru/w1"
+	rowW1     = "pane:w1"
 	rowURL    = "https://example.com/preview"
 	rowShared = "https://example.com/again"
 )
@@ -140,7 +140,7 @@ func TestRowHintsSwallowAndCancel(t *testing.T) {
 	}
 	// A focus change from outside the keys ends them too.
 	startRowHints(t, app)
-	if err := app.r.SetFocus("pane:ochazuke/w2"); err != nil {
+	if err := app.r.SetFocus("pane:w2"); err != nil {
 		t.Fatal(err)
 	}
 	app.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
@@ -157,7 +157,7 @@ func TestRowHintsWithNoScreen(t *testing.T) {
 	// This test reads the session rows (project → session → pane).
 	groupBy(t, app, groupProjectSessionPane)
 	pressAll(t, app, "j", "j") // the ochazuke session's shell; no follow yet
-	if app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.FocusID() != "pane:w2" {
 		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	plainView(app)

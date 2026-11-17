@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"fmt"
 
 	"ofam.dev/matomeru/internal/work"
@@ -35,8 +34,7 @@ func (a *App) defineOwners() {
 	*session.Store = a.docStore("session", *session.Store)
 	a.editSubject("session", func(inst *ochazuke.Instance) (string, string, any, error) {
 		p, err := a.sessionAt(inst)
-		key := cmp.Or(p.SessionID, p.Session)
-		return "session:" + key, p.Session, ochazuke.Thing{"id": key}, err
+		return p.sessionRef().String(), p.Session, ochazuke.Thing{"id": p.SessionID}, err
 	})
 	// task.associate is the reverse of the relations (--pane,
 	// --action-item, --context-item: relations.go); its move form

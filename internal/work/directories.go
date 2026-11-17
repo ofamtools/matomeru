@@ -33,11 +33,11 @@ const (
 )
 
 // ProjectRef is the relation end of a project.
-func ProjectRef(id string) string { return ochazuke.AnyRef("project", id) }
+func ProjectRef(id string) string { return ochazuke.Ref{Noun: "project", Key: id}.String() }
 
 // DirectoryRef is the relation end of a directory (its cleaned path).
 func DirectoryRef(path string) string {
-	return ochazuke.AnyRef(DirectoryNoun, filepath.Clean(path))
+	return ochazuke.Ref{Noun: DirectoryNoun, Key: filepath.Clean(path)}.String()
 }
 
 // DirectoryData is the data a tree carries into its relation.
@@ -62,7 +62,8 @@ func DirectoryData(t Tree) map[string]any {
 func (p *Project) setTrees(xs []dirRow) {
 	p.Trees, p.DefaultTree = nil, ""
 	for _, x := range xs {
-		_, path, _ := ochazuke.SplitAnyRef(x.To)
+		pathRef, _ := ochazuke.ParseRef(x.To)
+		path := pathRef.Key
 		kind := x.Data.Kind
 		if kind == "" {
 			kind = "directory" // a relation made by set directories+= has not been inspected
@@ -133,7 +134,8 @@ func (s *Store) readProjectTrees() (map[string][]dirRow, error) {
 		if json.Unmarshal(raw, &r) != nil || !r.live() {
 			continue
 		}
-		_, id, _ := ochazuke.SplitAnyRef(r.From)
+		idRef, _ := ochazuke.ParseRef(r.From)
+		id := idRef.Key
 		out[id] = append(out[id], r)
 	}
 	for _, xs := range out {

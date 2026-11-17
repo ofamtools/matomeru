@@ -13,7 +13,7 @@ func TestPaneGetAndReadOnlySettings(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
 	thing, _ := executeA(t, a, "pane", "get", "", ochazuke.Arguments{"id": "w1"}).(map[string]any)
-	if thing["name"] != "claude" || thing["session"] != "matomeru" || thing["display"] != "matomeru/claude" {
+	if thing["name"] != "claude" || thing["session"] != "id-matomeru" || thing["display"] != "matomeru/claude" {
 		t.Fatalf("get: %v", thing)
 	}
 	_, err := a.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Args: ochazuke.Arguments{"id": "w1", "props": map[string]any{"model": "opus"}}})
@@ -31,7 +31,7 @@ func TestPaneGetAndReadOnlySettings(t *testing.T) {
 func TestPaneStarKeyAndUndo(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	if err := a.selectPaneRow(row); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestPaneRenameIsSetAndUndoes(t *testing.T) {
 	a, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	a.renamer = fr
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	executeA(t, a, "pane", "set", row, ochazuke.Arguments{"props": map[string]any{"@label": "fixer"}})
 	settle(a, a.r.PendingCommands())
 	if len(jobsOf(a, "pane.set")) != 1 {
@@ -70,7 +70,7 @@ func TestPaneRenameIsSetAndUndoes(t *testing.T) {
 func TestPaneMoveKeyAndUnassociate(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	if err := a.selectPaneRow(row); err != nil {
 		t.Fatal(err)
 	}

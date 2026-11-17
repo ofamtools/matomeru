@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -604,10 +605,16 @@ func (a *App) copyPanes() error {
 	}
 	byID := map[string]ochazuke.Thing{}
 	a.pv.ended = nil
+	var names map[string]string
 	for _, t := range things {
 		id, _ := t["id"].(string)
 		if ended, _ := t[endedProp].(bool); ended {
-			a.pv.ended = append(a.pv.ended, endedPane(t))
+			if names == nil {
+				names = a.sessionNames()
+			}
+			p := endedPane(t)
+			p.Session = cmp.Or(names[p.SessionID], p.Session)
+			a.pv.ended = append(a.pv.ended, p)
 			continue
 		}
 		byID[id] = t
@@ -637,9 +644,30 @@ func endedPane(t ochazuke.Thing) pane {
 	text := func(name string) string { s, _ := t[name].(string); return s }
 	starred, _ := t["starred"].(bool)
 	archived, _ := t["archived"].(bool)
-	p := pane{Session: text("session"), Harness: text("harness"), Exited: true, ended: true, Starred: starred, Archived: archived,
+	// The copy holds the session's key (its id; a name an older copy kept,
+	// session_ids.go); its name is the caller's to read (sessionNames).
+	p := pane{Session: text("session"), SessionID: text("session"), Harness: text("harness"), Exited: true, ended: true, Starred: starred, Archived: archived,
 		Pane: daemon.Pane{ID: text("id"), Name: text("name"), Title: text("title"), Cwd: text("cwd")}}
 	return p
+}
+
+// sessionNames are the sessions' names by id: the listing's, then those
+// of the sessions mtm keeps copies of (sessions that ended).
+func (a *App) sessionNames() map[string]string {
+	out := map[string]string{}
+	if copies, err := a.work.Copies("session"); err == nil {
+		for _, c := range copies {
+			if name, _ := c.Props["name"].(string); name != "" {
+				out[c.Key] = name
+			}
+		}
+	}
+	for _, p := range a.panes {
+		if p.SessionID != "" && p.Session != "" {
+			out[p.SessionID] = p.Session
+		}
+	}
+	return out
 }
 
 // shownPanes are the panes the page lists: the daemon's, then the ones

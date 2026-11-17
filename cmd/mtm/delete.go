@@ -86,7 +86,7 @@ func (a *App) deleteThing(ctx ochazuke.Ctx, noun, id string) (work.DeleteCounts,
 	// The relations of the deleted thing stay, the end it was moving to
 	// the former end (record first); history.undo of the delete puts it
 	// back.
-	if _, err := a.r.DetachRelations(ochazuke.AnyRef(noun, id)); err != nil {
+	if _, err := a.r.DetachRelations(ochazuke.Ref{Noun: noun, Key: id}.String()); err != nil {
 		return counts, err
 	}
 	if err := a.leaveEditor(); err != nil {

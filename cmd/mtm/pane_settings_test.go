@@ -55,7 +55,7 @@ func settingsApp(t *testing.T) (*App, *fakePanes, string) {
 // readTurnsNow reads the shown pane's log again, as a listing does.
 func readTurnsNow(t *testing.T, a *App) {
 	t.Helper()
-	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: "pane:matomeru/w1"}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: "pane:w1"}); err != nil {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())
@@ -113,7 +113,7 @@ func TestSettingsFieldSources(t *testing.T) {
 		}
 	}
 	// pane.settings prints them with their sources.
-	res, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "settings", Target: "pane:matomeru/w1"})
+	res, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "settings", Target: "pane:w1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,15 +207,15 @@ func TestSettingsLineIsAStopAndItsFieldsAreRows(t *testing.T) {
 		t.Fatalf("focus %s, want the box", app.r.FocusID())
 	}
 	press(t, app, "j") // the box's last line: down to the line under it
-	if want := settingRowID("pane:matomeru/w1", harness.SettingModel); app.r.FocusID() != want {
+	if want := settingRowID("pane:w1", harness.SettingModel); app.r.FocusID() != want {
 		t.Fatalf("} after the box: %s, want %s", app.r.FocusID(), want)
 	}
 	press(t, app, "l", "l")
-	if want := settingRowID("pane:matomeru/w1", harness.SettingFast); app.r.FocusID() != want {
+	if want := settingRowID("pane:w1", harness.SettingFast); app.r.FocusID() != want {
 		t.Fatalf("l l: %s", app.r.FocusID())
 	}
 	press(t, app, "l", "l", "l", "l") // clamps at the last field
-	if want := settingRowID("pane:matomeru/w1", fieldCost); app.r.FocusID() != want {
+	if want := settingRowID("pane:w1", fieldCost); app.r.FocusID() != want {
 		t.Fatalf("past the end: %s", app.r.FocusID())
 	}
 	press(t, app, "h", "h", "h", "h") // back to effort
@@ -226,7 +226,7 @@ func TestSettingsLineIsAStopAndItsFieldsAreRows(t *testing.T) {
 	}
 	press(t, app, "esc", "q")
 	press(t, app, "esc", "q")
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("esc: %s", app.r.FocusID())
 	}
 	press(t, app, "}", "}", "j", "k")
@@ -242,7 +242,7 @@ func TestSettingChoosersListTheConfiguredValues(t *testing.T) {
 	app, _, _ := settingsApp(t)
 	open := func(verb string) []ochazuke.PickerRow {
 		t.Helper()
-		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: verb, Target: "pane:matomeru/w1"}); err != nil {
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: verb, Target: "pane:w1"}); err != nil {
 			t.Fatal(err)
 		}
 		name := strings.TrimPrefix(verb, "set-")
@@ -296,7 +296,7 @@ func TestSettingChangeTypesTheCommandWhenIdle(t *testing.T) {
 	defer app.r.UI().Attach(prev)
 	// The harness's reply is in the log by the time mtm reads it again.
 	writeLog(t, log, logRecord(t, map[string]any{"type": "system", "subtype": "local_command", "timestamp": "2026-10-27T10:01:00Z", "content": "<local-command-stdout>Effort level set to high</local-command-stdout>"}))
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"level": "high"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:w1", Args: ochazuke.Arguments{"level": "high"}}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
@@ -308,11 +308,11 @@ func TestSettingChangeTypesTheCommandWhenIdle(t *testing.T) {
 	}
 	// A value the harness does not take is refused, nothing sent.
 	f.prompts = nil
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"level": "turbo"}}); err == nil || !strings.Contains(err.Error(), "claude takes effort: low, medium") {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:w1", Args: ochazuke.Arguments{"level": "turbo"}}); err == nil || !strings.Contains(err.Error(), "claude takes effort: low, medium") {
 		t.Fatalf("bad value: %v", err)
 	}
 	// toggle-fast flips what the log says (off → on).
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "toggle-fast", Target: "pane:matomeru/w1"}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "toggle-fast", Target: "pane:w1"}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
@@ -322,7 +322,7 @@ func TestSettingChangeTypesTheCommandWhenIdle(t *testing.T) {
 	// Model: the reply names the new model before the next answer does.
 	f.prompts = nil
 	writeLog(t, log, logRecord(t, map[string]any{"type": "user", "uuid": "u8", "timestamp": "2026-10-27T10:02:00Z", "message": map[string]any{"role": "user", "content": "<local-command-stdout>Set model to `Fable 5.1` and saved as your default for new sessions</local-command-stdout>"}}))
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-model", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"model": "fable"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-model", Target: "pane:w1", Args: ochazuke.Arguments{"model": "fable"}}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
@@ -341,7 +341,7 @@ func TestSettingChangeQueuesOrRefusesWhenBusy(t *testing.T) {
 	defer app.r.UI().Attach(prev)
 	f.panes[0].AgentState = "working"
 	reload(t, app)
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"level": "max"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:w1", Args: ochazuke.Arguments{"level": "max"}}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
@@ -352,12 +352,12 @@ func TestSettingChangeQueuesOrRefusesWhenBusy(t *testing.T) {
 		t.Fatalf("notices %q", got)
 	}
 	f.prompts = nil
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-permission-mode", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"mode": "plan"}}); err == nil || !strings.Contains(err.Error(), "the agent is working") {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-permission-mode", Target: "pane:w1", Args: ochazuke.Arguments{"mode": "plan"}}); err == nil || !strings.Contains(err.Error(), "the agent is working") {
 		t.Fatalf("a key while working: %v", err)
 	}
 	f.panes[0].AgentState = "needs_input"
 	reload(t, app)
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"level": "max"}}); err == nil || !strings.Contains(err.Error(), "waits on you") {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:w1", Args: ochazuke.Arguments{"level": "max"}}); err == nil || !strings.Contains(err.Error(), "waits on you") {
 		t.Fatalf("needs input: %v", err)
 	}
 	if len(f.prompts) != 0 {
@@ -373,7 +373,7 @@ func TestSettingChangeAsksOverADraft(t *testing.T) {
 	press(t, app, "i")
 	typeText(t, app, "half a thought")
 	press(t, app, "esc")
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"level": "low"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-effort", Target: "pane:w1", Args: ochazuke.Arguments{"level": "low"}}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
@@ -403,7 +403,7 @@ func TestPermissionModeStepsUntilTheScreenShowsIt(t *testing.T) {
 		at = (at + 1) % len(offered)
 		f.screens[window] = "> \n" + offered[at]
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-permission-mode", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"mode": "plan"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-permission-mode", Target: "pane:w1", Args: ochazuke.Arguments{"mode": "plan"}}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())
@@ -416,7 +416,7 @@ func TestPermissionModeStepsUntilTheScreenShowsIt(t *testing.T) {
 	// A mode the session never shows stops after one round.
 	f.prompts = nil
 	app.r.UI().Attach(prev)
-	_, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-permission-mode", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"mode": "auto"}})
+	_, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-permission-mode", Target: "pane:w1", Args: ochazuke.Arguments{"mode": "auto"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func TestSettingWithoutARowIsRefused(t *testing.T) {
 	app, f, _ := settingsApp(t)
 	f.panes[0].Harness = "codex"
 	reload(t, app)
-	_, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-model", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"model": "gpt-6"}})
+	_, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set-model", Target: "pane:w1", Args: ochazuke.Arguments{"model": "gpt-6"}})
 	if err == nil || !strings.Contains(err.Error(), "codex has no in-session command for model") {
 		t.Fatalf("codex: %v", err)
 	}
@@ -458,7 +458,7 @@ func TestCodexSettingsFromItsRollout(t *testing.T) {
 		t.Fatal(err)
 	}
 	reload(t, app)
-	if _, err := app.r.Execute(ochazuke.Request{Verb: "read-settings", Noun: "pane", Target: "pane:matomeru/w1"}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Verb: "read-settings", Noun: "pane", Target: "pane:w1"}); err != nil {
 		t.Fatal(err)
 	}
 	settle(app, app.r.PendingCommands())

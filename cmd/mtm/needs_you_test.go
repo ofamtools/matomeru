@@ -63,7 +63,7 @@ func TestNeedsYouRuleMembershipAndCount(t *testing.T) {
 			pr := "queue:" + itemByKey(t, a, "pr-1").ID
 			hasPrivacy := slices.Contains(queue, "queue:"+privacy.ID)
 			if rule == needsYouOne {
-				if slices.Contains(queue, pr) || !hasPrivacy || slices.Contains(queue, "pane:s/wwait") {
+				if slices.Contains(queue, pr) || !hasPrivacy || slices.Contains(queue, "pane:wwait") {
 					t.Fatalf("one rule queue %v", queue)
 				}
 				if needsYouHead(a) != len(queue) || a.pv.sections[0].rows != len(queue) {
@@ -128,11 +128,11 @@ func TestNeedsYouAttachReadsThePanesItems(t *testing.T) {
 			a, panes := sectionsApp(t)
 			setting(t, a, settingNeedsYouRule, rule)
 			gh := addItem(t, a, actionitems.Spec{Source: "gh", Key: "pr-w", Title: "about the waiter", Window: "wwait", Session: "s"})
-			if err := a.attachLive(panes[0], "pane:s/wwait"); err != nil {
+			if err := a.attachLive(panes[0], "pane:wwait"); err != nil {
 				t.Fatal(err)
 			}
 			read := func(id string) bool { it, _ := a.inbox.items.Get(id); return it.Read() }
-			inQueue := slices.Contains(sectionIDs(a, 0), "pane:s/wwait")
+			inQueue := slices.Contains(sectionIDs(a, 0), "pane:wwait")
 			if rule == needsYouOne {
 				if !read(itemByKey(t, a, "w").ID) || !read(gh.ID) || inQueue {
 					t.Fatalf("one rule attach: queue %v", sectionIDs(a, 0))
@@ -190,7 +190,7 @@ func TestPanesSortClock(t *testing.T) {
 			}
 			var got []string
 			for _, id := range sectionIDs(a, 0) {
-				got = append(got, strings.TrimPrefix(id, "pane:s/w"))
+				got = append(got, strings.TrimPrefix(id, "pane:w"))
 			}
 			if !slices.Equal(got, tc.want) {
 				t.Fatalf("order %v (%v), want %v", got, sectionIDs(a, 0), tc.want)
@@ -208,7 +208,7 @@ func TestNeedsYouLeaderWInLive(t *testing.T) {
 			t.Parallel()
 			a, panes := sectionsApp(t)
 			setting(t, a, settingWaitingLiveAttach, attach)
-			if err := a.attachLive(panes[4], "pane:s/wold"); err != nil {
+			if err := a.attachLive(panes[4], "pane:wold"); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := a.r.Execute(ochazuke.Request{Noun: "terminal", Verb: "waiting"}); err != nil {
@@ -220,7 +220,7 @@ func TestNeedsYouLeaderWInLive(t *testing.T) {
 				}
 				return
 			}
-			if a.r.Terminal(paneTermID) != nil || a.r.FocusID() != "pane:s/wwait" {
+			if a.r.Terminal(paneTermID) != nil || a.r.FocusID() != "pane:wwait" {
 				t.Fatalf("still live, or focus %q", a.r.FocusID())
 			}
 		})
@@ -246,12 +246,12 @@ func TestNeedsYouRowKeysReachItsItemAndPane(t *testing.T) {
 		}
 		a.Update(keyMsg(key))
 	}
-	keyAt("pane:s/wdone", "u")
-	if it, _ := a.inbox.items.Get(itemByKey(t, a, "u").ID); !it.Read() || slices.Contains(sectionIDs(a, 0), "pane:s/wdone") {
+	keyAt("pane:wdone", "u")
+	if it, _ := a.inbox.items.Get(itemByKey(t, a, "u").ID); !it.Read() || slices.Contains(sectionIDs(a, 0), "pane:wdone") {
 		t.Fatalf("u on the pane row: read %v, queue %v", it.Read(), sectionIDs(a, 0))
 	}
-	keyAt("pane:s/werr", "x")
-	if it, _ := a.inbox.items.Get(itemByKey(t, a, "e").ID); it.ArchivedAt == 0 || slices.Contains(sectionIDs(a, 0), "pane:s/werr") {
+	keyAt("pane:werr", "x")
+	if it, _ := a.inbox.items.Get(itemByKey(t, a, "e").ID); it.ArchivedAt == 0 || slices.Contains(sectionIDs(a, 0), "pane:werr") {
 		t.Fatalf("x on the pane row: archived %d, queue %v", it.ArchivedAt, sectionIDs(a, 0))
 	}
 	keyAt(itemRowStart+itemByKey(t, a, "w").ID, "*")
@@ -270,7 +270,7 @@ func TestNeedsYouRowKeysReachItsItemAndPane(t *testing.T) {
 	if _, err := a.r.LoadBindings([]byte(`{"bindings": [{"context": "pane/normal", "bindings": [{"key": "unbound", "unbind": true}]}]}`)); err != nil {
 		t.Fatal(err)
 	}
-	keyAt("pane:s/wwait", "u")
+	keyAt("pane:wwait", "u")
 	if it, _ := a.inbox.items.Get(itemByKey(t, a, "w").ID); it.Read() {
 		t.Fatal("u read the item with the pane's redirect unbound")
 	}

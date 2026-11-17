@@ -46,15 +46,15 @@ func highlightApp(t *testing.T) (*App, []pane) {
 func TestPaneHighlightLeaderCycleMovesStandout(t *testing.T) {
 	t.Parallel()
 	a, panes := highlightApp(t)
-	if err := a.r.SetFocus("pane:s/wold"); err != nil {
+	if err := a.r.SetFocus("pane:wold"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.attachLive(panes[4], "pane:s/wold"); err != nil {
+	if err := a.attachLive(panes[4], "pane:wold"); err != nil {
 		t.Fatal(err)
 	}
 	oneStandout(t, a, "oldest", "attached")
 	order := append([]string(nil), a.pv.view.order...)
-	names := map[string]string{"pane:s/wwait": "waiter", "pane:s/werr": "errs", "pane:s/wdone": "finisher", "pane:s/wnew": "newest", "pane:s/wold": "oldest", "pane:s/widle": "idler", "pane:s/wterm": "term"}
+	names := map[string]string{"pane:wwait": "waiter", "pane:werr": "errs", "pane:wdone": "finisher", "pane:wnew": "newest", "pane:wold": "oldest", "pane:widle": "idler", "pane:wterm": "term"}
 	for _, step := range []string{"j", "k", "k", "k", "k", "k", "k", "j", "j"} {
 		i := indexOf(order, a.attached.rowID())
 		delta := 1
@@ -99,14 +99,14 @@ func indexOf(s []string, v string) int {
 func TestPaneHighlightLeaderWaitingMovesStandout(t *testing.T) {
 	t.Parallel()
 	a, panes := highlightApp(t)
-	if err := a.r.SetFocus("pane:s/wold"); err != nil {
+	if err := a.r.SetFocus("pane:wold"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.attachLive(panes[4], "pane:s/wold"); err != nil {
+	if err := a.attachLive(panes[4], "pane:wold"); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "ctrl+a", "W")
-	if got := a.displayedRow(); got != "pane:s/wwait" {
+	if got := a.displayedRow(); got != "pane:wwait" {
 		t.Fatalf("leader W displayed %q", got)
 	}
 	oneStandout(t, a, "waiter", "after leader W")
@@ -163,7 +163,7 @@ func TestPaneHighlightSideFocusMarksParent(t *testing.T) {
 func TestPaneHighlightBrowsingKeepsOneCursor(t *testing.T) {
 	t.Parallel()
 	a, _ := highlightApp(t)
-	if err := a.r.SetFocus("pane:s/widle"); err != nil {
+	if err := a.r.SetFocus("pane:widle"); err != nil {
 		t.Fatal(err)
 	}
 	oneStandout(t, a, "idler", "focused middle row")
@@ -209,7 +209,7 @@ func TestPaneHighlightBrowsingKeepsOneCursor(t *testing.T) {
 func TestPaneHighlightRememberedOptOutKeepsAllCursors(t *testing.T) {
 	t.Parallel()
 	a, _ := highlightApp(t)
-	if err := a.r.SetFocus("pane:s/widle"); err != nil {
+	if err := a.r.SetFocus("pane:widle"); err != nil {
 		t.Fatal(err)
 	}
 	setting(t, a, settingRememberedHighlights, true)

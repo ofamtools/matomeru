@@ -307,10 +307,10 @@ func shellTurnsApp(t *testing.T, big int) (*App, *fakeTurnPanes) {
 	}
 	app.cx.sys = &fakeSystem{}
 	reload(t, app)
-	for i := 0; i < 4 && app.r.FocusID() != "pane:ochazuke/w2"; i++ {
+	for i := 0; i < 4 && app.r.FocusID() != "pane:w2"; i++ {
 		press(t, app, "j") // down to the shell's row
 	}
-	if app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.FocusID() != "pane:w2" {
 		t.Fatalf("focus %s", app.r.FocusID())
 	}
 	settle(app, key(t, app, "["))

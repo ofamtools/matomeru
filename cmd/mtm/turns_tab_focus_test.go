@@ -14,10 +14,10 @@ func TestTabSwitchLeavesNoHiddenFocus(t *testing.T) {
 				walk  []string
 				focus string
 			}{
-				{[]string{"}", "]"}, "pane:matomeru/w1"},
-				{[]string{"}", "["}, "pane:matomeru/w1"},
+				{[]string{"}", "]"}, "pane:w1"},
+				{[]string{"}", "["}, "pane:w1"},
 				{[]string{"i", "esc", "]"}, promptID},
-				{[]string{"i", "esc", "{", "]"}, "pane:matomeru/w1"},
+				{[]string{"i", "esc", "{", "]"}, "pane:w1"},
 			} {
 				walk := c.walk
 				app, _, _ := claudeTurnsApp(t)

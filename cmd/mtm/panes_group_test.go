@@ -58,11 +58,11 @@ func TestPanesGroupLevels(t *testing.T) {
 	t.Parallel()
 	a, _ := groupedApp(t)
 	for _, c := range []struct{ group, want string }{
-		{"", "project:matomeru\n  pane:work/wa\nproject:ochazuke\n  pane:work/wb\nproject:\n  pane:outside/wu"},
-		{groupProjectSessionPane, "project:matomeru\n  session:sa\n    pane:work/wa\nproject:ochazuke\n  session:sa@ochazuke\n    pane:work/wb\nproject:\n  session:su\n    pane:outside/wu"},
-		{groupSessionPane, "session:sa\n  pane:work/wa\n  pane:work/wb\nsession:su\n  pane:outside/wu"},
-		{groupFlat, "pane:work/wa\npane:work/wb\npane:outside/wu"},
-		{groupProjectPane, "project:matomeru\n  pane:work/wa\nproject:ochazuke\n  pane:work/wb\nproject:\n  pane:outside/wu"},
+		{"", "project:matomeru\n  pane:wa\nproject:ochazuke\n  pane:wb\nproject:\n  pane:wu"},
+		{groupProjectSessionPane, "project:matomeru\n  session:sa\n    pane:wa\nproject:ochazuke\n  session:sa@ochazuke\n    pane:wb\nproject:\n  session:su\n    pane:wu"},
+		{groupSessionPane, "session:sa\n  pane:wa\n  pane:wb\nsession:su\n  pane:wu"},
+		{groupFlat, "pane:wa\npane:wb\npane:wu"},
+		{groupProjectPane, "project:matomeru\n  pane:wa\nproject:ochazuke\n  pane:wb\nproject:\n  pane:wu"},
 	} {
 		if c.group != "" {
 			groupBy(t, a, c.group) // the setting's observer regroups
@@ -83,15 +83,15 @@ func TestPanesGroupKeepsNeedsInputFirst(t *testing.T) {
 	app, f := panesApp(t)
 	f.panes[1].Harness, f.panes[1].AgentState = "claude", "needs_input"
 	reload(t, app)
-	if got, want := treeShape(app), "project:\n  pane:ochazuke/w2\n  pane:matomeru/w1"; got != want {
+	if got, want := treeShape(app), "project:\n  pane:w2\n  pane:w1"; got != want {
 		t.Fatalf("project-pane:\n%s", got)
 	}
 	groupBy(t, app, groupFlat)
-	if got, want := treeShape(app), "pane:ochazuke/w2\npane:matomeru/w1"; got != want {
+	if got, want := treeShape(app), "pane:w2\npane:w1"; got != want {
 		t.Fatalf("flat:\n%s", got)
 	}
 	groupBy(t, app, groupProjectSessionPane)
-	if got, want := treeShape(app), "project:\n  session:ochazuke\n    pane:ochazuke/w2\n  session:matomeru\n    pane:matomeru/w1"; got != want {
+	if got, want := treeShape(app), "project:\n  session:id-ochazuke\n    pane:w2\n  session:id-matomeru\n    pane:w1"; got != want {
 		t.Fatalf("project-session-pane:\n%s", got)
 	}
 }
@@ -110,10 +110,10 @@ func TestPanesGroupWhilePinned(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range []struct{ group, want string }{
-		{groupProjectPane, "pane:work/wa\noutside-pin\n  pane:outside/wu"},
-		{groupProjectSessionPane, "session:sa\n  pane:work/wa\noutside-pin\n  session:su@outside-pin\n    pane:outside/wu"},
-		{groupSessionPane, "session:sa\n  pane:work/wa\noutside-pin\n  session:su@outside-pin\n    pane:outside/wu"},
-		{groupFlat, "pane:work/wa\noutside-pin\n  pane:outside/wu"},
+		{groupProjectPane, "pane:wa\noutside-pin\n  pane:wu"},
+		{groupProjectSessionPane, "session:sa\n  pane:wa\noutside-pin\n  session:su@outside-pin\n    pane:wu"},
+		{groupSessionPane, "session:sa\n  pane:wa\noutside-pin\n  session:su@outside-pin\n    pane:wu"},
+		{groupFlat, "pane:wa\noutside-pin\n  pane:wu"},
 	} {
 		groupBy(t, a, c.group)
 		if got := treeShape(a); got != c.want {
@@ -148,7 +148,7 @@ func TestPanesGroupVerbs(t *testing.T) {
 		t.Fatalf("cycle back: %s", got)
 	}
 	// The focused pane stays focused through a regroup.
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("focus after regrouping: %s", app.r.FocusID())
 	}
 }

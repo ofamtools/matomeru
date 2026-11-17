@@ -360,7 +360,7 @@ func (a *App) activityNodes(p pane, parent string, now time.Time) []ochazuke.Tre
 			Label:  "subagent " + title,
 			Noun:   subagentNoun,
 			Data:   activityRow{Window: p.ID, Row: p.rowID(), Activity: act},
-			Props:  ochazuke.Thing{"pane": p.ID, "session": cmp.Or(p.SessionID, p.Session)},
+			Props:  ochazuke.Thing{"pane": p.ID, "session": p.SessionID},
 			Cells:  []string{name, state, ""},
 			Tones:  tones,
 		})

@@ -147,7 +147,7 @@ var noteColumns = []ochazuke.Column{
 // aboutCell is a stored about as a table cell: empty for a task (the task
 // column says so).
 func aboutCell(about string) string {
-	if noun, _, ok := ochazuke.SplitAnyRef(about); ok && ownerSlotArg(noun) != "" {
+	if ref, ok := ochazuke.ParseRef(about); ok && ownerSlotArg(ref.Noun) != "" {
 		return ""
 	}
 	return about
@@ -343,7 +343,7 @@ func (a *App) newNoteOwner(ctx ochazuke.Ctx) (Owner, string, error) {
 		case ownerSlotArg(kind) == ownerSlots[0].arg:
 			ctx.Args["scratch"] = true
 		case ownerSlotArg(kind) == "" && id != "":
-			ctx.Args["about"] = ochazuke.AnyRef(kind, id)
+			ctx.Args["about"] = ochazuke.Ref{Noun: kind, Key: id}.String()
 		}
 	}
 	about := ochazuke.StringArg(ctx.Args, "about", "")

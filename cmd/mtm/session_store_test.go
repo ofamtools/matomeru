@@ -49,9 +49,17 @@ func TestSessionMoveRenameAndUndo(t *testing.T) {
 	if _, err := a.r.Execute(ochazuke.Request{Noun: "session", Verb: "set", Args: ochazuke.Arguments{"id": "id-matomeru", "props": map[string]any{"name": " "}}}); err == nil {
 		t.Fatal("an empty session name was written")
 	}
+	// The session is named by its id, so a rename keeps its panes' project.
+	executeA(t, a, "session", "set", "", ochazuke.Arguments{"id": "matomeru", "props": map[string]any{"@owner": "ochazuke"}})
 	executeA(t, a, "session", "set", "session:id-matomeru", ochazuke.Arguments{"props": map[string]any{"@label": "mtm"}})
 	settle(a, a.r.PendingCommands())
 	if len(fr.calls) != 1 || fr.calls[0] != "session matomeru mtm" || len(jobsOf(a, "session.set")) != 1 {
 		t.Fatalf("calls %v jobs %+v", fr.calls, a.r.Jobs())
+	}
+	if err := a.reloadPanes(); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := executeA(t, a, "pane", "get", "", ochazuke.Arguments{"id": "w1"}).(map[string]any); p["project"] != "ochazuke" || p["session"] != "id-matomeru" {
+		t.Fatalf("after the rename the pane reads %v", p)
 	}
 }

@@ -61,7 +61,7 @@ func TestTerminalCommandsReachTheInbox(t *testing.T) {
 	if err := a.r.OpenPage(panesPage); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.pv.sections[1].tree.Select("pane:work/w2"); err != nil {
+	if err := a.pv.sections[1].tree.Select("pane:w2"); err != nil {
 		t.Fatal(err)
 	}
 	a.setPanes([]pane{shellPane("w1", 4, "go test ./...", exitCode(1), 12*minute+3_000), other}, nil)
@@ -79,7 +79,7 @@ func TestTerminalCommandsReachTheInbox(t *testing.T) {
 	if c := itemCategory(failed); c != signalErrored {
 		t.Fatalf("category %q", c)
 	}
-	if q := sectionIDs(a, 0); !slices.Contains(q, "pane:work/w1") {
+	if q := sectionIDs(a, 0); !slices.Contains(q, "pane:w1") {
 		t.Fatalf("queue %v: the failed terminal is not there", q)
 	}
 	// A short success: nothing raised, and the failure is archived.
@@ -90,7 +90,7 @@ func TestTerminalCommandsReachTheInbox(t *testing.T) {
 	if it, _ := a.inbox.items.Get(failed.ID); it.State(a.inbox.items.Now()) != actionitems.StateArchived {
 		t.Fatalf("failed item not archived: %+v", it)
 	}
-	if q := sectionIDs(a, 0); slices.Contains(q, "pane:work/w1") {
+	if q := sectionIDs(a, 0); slices.Contains(q, "pane:w1") {
 		t.Fatalf("queue %v still holds the terminal", q)
 	}
 	// A long success: unread, then read once the pane is attached.

@@ -113,7 +113,7 @@ func TestCLIExtractReadsAPaneOnDemand(t *testing.T) {
 	}
 	f.print("w1", "see https://github.com/unixsuperhero/matomeru/pull/9", "On branch lane/context")
 	f.commands["w1"] = []daemon.CommandEntry{{Cmdline: "go test ./...", At: 5}}
-	out := mustCLI(t, a, contextNoun, "extract", "--target", "pane:matomeru/w1")
+	out := mustCLI(t, a, contextNoun, "extract", "--target", "pane:w1")
 	if !strings.Contains(out, `"new": 3`) && !strings.Contains(out, `"new":3`) {
 		t.Fatalf("extract:\n%s", out)
 	}

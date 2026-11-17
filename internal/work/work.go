@@ -112,11 +112,11 @@ var Tables = []store.Table{
 	{Name: "dir_recent", Owner: "work", Key: "path", Version: 1},
 	{Name: "directories", Owner: "work", Key: "path", Version: 1},
 	{Name: "directory_state", Owner: "work", Key: "id", Version: 1},
-	{Name: "assignments", Owner: "work", Key: "window", Version: 1},
+	{Name: "assignments", Owner: "work", Key: "window", Version: 2},
 	{Name: "active", Owner: "work", Key: "id", Version: 1},
-	{Name: "session_owners", Owner: "work", Key: "id", Version: 1},
+	{Name: "session_owners", Owner: "work", Key: "id", Version: 2},
 	{Name: "notes", Owner: "notes", Key: "id", Version: 2},
-	{Name: "saved_panes", Owner: "work", Key: "id", Version: 1},
+	{Name: "saved_panes", Owner: "work", Key: "id", Version: 2},
 	{Name: "pane_recipes", Owner: "work", Key: "window", Version: 1},
 	{Name: "companions", Owner: "work", Key: "window", Version: 2},
 	{Name: "pane_stars", Owner: "work", Key: "window", Version: 1},
@@ -126,7 +126,7 @@ var Tables = []store.Table{
 	{Name: "ext_rows", Owner: "work", Key: "id", Version: 1},
 	// copies: mtm's copies of the things a source holds (copies.go); an
 	// existing database gains the table on its next open.
-	{Name: copiesTable, Owner: "work", Key: "id", Version: 2},
+	{Name: copiesTable, Owner: "work", Key: "id", Version: 3},
 	// focus_items: the day's focus marks (focus.go); an existing database
 	// gains the table on its next open.
 	{Name: focusTable, Owner: "work", Key: "id", Version: 1},
@@ -196,6 +196,11 @@ func Open(db *store.Store) (*Store, error) {
 		return nil, err
 	}
 	if err := migrateDirectories(db); err != nil {
+		return nil, err
+	}
+	// A session is named by its id (session_ids.go): stored names are
+	// rewritten once, after a backup.
+	if _, err := migrateSessionIDs(db); err != nil {
 		return nil, err
 	}
 	for _, t := range Tables {

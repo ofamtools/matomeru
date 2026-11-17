@@ -14,10 +14,13 @@ import (
 // A failed write must not hide a successfully created pane or start a second one.
 type recordingDriver struct {
 	harness.Driver
-	work       *work.Store
-	owner      Owner
-	harness    string
-	model      string
+	work    *work.Store
+	owner   Owner
+	harness string
+	model   string
+	// sessions are the ids of the sessions this launch created, by the
+	// name it asked for: the pane's assignment names its session by id.
+	sessions   map[string]string
 	notes      []string
 	unrecorded bool
 }
@@ -54,7 +57,7 @@ func (d *recordingDriver) OpenWindow(ctx context.Context, w harness.Window) (str
 	// The recipe first: it records the agent that launched the pane
 	// (LaunchedBy), which lets that agent associate its child pane.
 	d.note(d.work.PutPaneRecipe(recipe))
-	if err := d.work.SetPaneOwner(work.Assignment{Window: id, Session: w.Session, ProjectID: d.owner.ProjectID, TaskID: d.owner.TaskID, AssignedAt: work.Now()}); err != nil {
+	if err := d.work.SetPaneOwner(work.Assignment{Window: id, Session: d.sessions[w.Session], ProjectID: d.owner.ProjectID, TaskID: d.owner.TaskID, AssignedAt: work.Now()}); err != nil {
 		d.unrecorded = true
 		d.note(fmt.Errorf("pane %s is open but owner was not saved; associate it: %w", id, err))
 	}
@@ -80,6 +83,10 @@ func (c creationRecorder) Call(ctx context.Context, verb string, params, out any
 	if err := c.Client.Call(ctx, verb, params, &created); err != nil {
 		return err
 	}
+	if c.driver.sessions == nil {
+		c.driver.sessions = map[string]string{}
+	}
+	c.driver.sessions[created.Name] = created.ID
 	if err := c.driver.work.SetSessionOwner(work.SessionOwner{ID: created.ID, Name: created.Name, ProjectID: c.driver.owner.ProjectID}); err != nil {
 		c.driver.note(fmt.Errorf("session %s exists but owner was not saved; associate it: %w", created.Name, err))
 	}

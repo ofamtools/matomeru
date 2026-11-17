@@ -67,7 +67,7 @@ func TestSideFocusReplacementAndDetachStack(t *testing.T) {
 		t.Fatalf("second close did not hide only sidebar: focus %s parent %+v", a.r.FocusID(), a.attached)
 	}
 	press(t, a, "ctrl+a", "d")
-	if !parent.parked || parent.released || a.r.Terminal(paneTermID) != nil || a.r.FocusID() != "pane:matomeru/w1" {
+	if !parent.parked || parent.released || a.r.Terminal(paneTermID) != nil || a.r.FocusID() != "pane:w1" {
 		t.Fatalf("final close did not detach parent: focus %s parked %v released %v", a.r.FocusID(), parent.parked, parent.released)
 	}
 	if len(f.killed) != 0 {
@@ -169,7 +169,7 @@ func TestSessionKillRefusesLiveCompanionsWithoutDetaching(t *testing.T) {
 	}
 	killSession := func() {
 		t.Helper()
-		if err := a.pv.tree.Select("session:matomeru"); err != nil {
+		if err := a.pv.tree.Select("session:id-matomeru"); err != nil {
 			t.Fatal(err)
 		}
 		if err := a.paneList.Focus(); err != nil {

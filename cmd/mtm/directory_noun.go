@@ -48,7 +48,8 @@ func (a *App) directoryThing(path string) (ochazuke.Thing, error) {
 		return nil, err
 	}
 	for _, x := range xs {
-		_, id, _ := ochazuke.SplitAnyRef(x.From)
+		idRef, _ := ochazuke.ParseRef(x.From)
+		id := idRef.Key
 		t["projects"] = append(t["projects"].([]string), id)
 		if x.Flag(work.DefaultFlag) {
 			t["default-for"] = append(t["default-for"].([]string), id)
@@ -166,7 +167,8 @@ func (a *App) retargetDirectory(path, to string, t ochazuke.Thing) error {
 	}
 	// The domain relation operation preserves order, description and default.
 	for _, x := range xs {
-		_, project, _ := ochazuke.SplitAnyRef(x.From)
+		projectRef, _ := ochazuke.ParseRef(x.From)
+		project := projectRef.Key
 		if _, err := a.repointDirectory(ochazuke.Ctx{}, project, path, work.Tree{Kind: "directory", Path: to}); err != nil {
 			return err
 		}

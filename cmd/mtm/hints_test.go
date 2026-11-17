@@ -130,13 +130,13 @@ func TestStaleHintsAreGone(t *testing.T) {
 	// one with a pane offers it.
 	f.panes = append(f.panes, pane{Session: "empty"})
 	reload(t, app)
-	if err := app.r.SetFocus("session:empty"); err != nil {
+	if err := app.r.SetFocus("session:id-empty"); err != nil {
 		t.Fatal(err)
 	}
 	if has("enter session.attach") {
 		t.Fatalf("empty session: %v", hintKeys(app))
 	}
-	if err := app.r.SetFocus("session:matomeru"); err != nil {
+	if err := app.r.SetFocus("session:id-matomeru"); err != nil {
 		t.Fatal(err)
 	}
 	if !has("enter session.attach") {

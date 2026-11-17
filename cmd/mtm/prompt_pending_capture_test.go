@@ -19,7 +19,7 @@ func TestActivityPromptCapturesKeysBeforePreviewCompletes(t *testing.T) {
 					t.Parallel()
 					a, f, row := externalQueuePromptApp(t, false, tab)
 					if !queue {
-						row = "pane:matomeru/w1"
+						row = "pane:w1"
 						if err := a.r.SetFocus(row); err != nil {
 							t.Fatal(err)
 						}

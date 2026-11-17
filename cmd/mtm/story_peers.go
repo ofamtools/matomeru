@@ -99,9 +99,9 @@ func buildDetailNotes(env monogatari.Env) (monogatari.Built, error) {
 		if err != nil || len(added) == 0 {
 			return fail(cmp.Or(err, errors.New("context item not added")))
 		}
-		about = append(about, ochazuke.AnyRef(contextNoun, added[0].ID))
+		about = append(about, ochazuke.Ref{Noun: contextNoun, Key: added[0].ID}.String())
 	}
-	about = append(about[:1], ochazuke.AnyRef("alpha.item", "i1"))
+	about = append(about[:1], ochazuke.Ref{Noun: "alpha.item", Key: "i1"}.String())
 	for i, ref := range about {
 		note := work.Note{ID: fmt.Sprintf("detail-note-%d", i), Text: []string{"Ask for the spec link", "Source row needs a rerun"}[i], About: ref, Created: int64(i + 20), Updated: int64(i + 20)}
 		if err := a.work.PutNote(note); err != nil {

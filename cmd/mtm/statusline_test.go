@@ -137,7 +137,7 @@ func TestStatusLineInTheHeaderAndTheTreeRow(t *testing.T) {
 	f.panes[0].Harness, f.panes[0].AgentState = "claude", "working"
 	f.panes[0].Meta = map[string]string{"model": "opus", "context": "42%", "cost": "$1.20"}
 	reload(t, app)
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	if got := cells(app, row); !strings.HasSuffix(got, "| 42% $1.20") {
 		t.Fatalf("tree row cells %q", got)
 	}

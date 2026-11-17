@@ -426,11 +426,11 @@ func (a *App) focusSection(ctx ochazuke.Ctx) ochazuke.Result {
 	if len(s.nodes) == 0 {
 		return ochazuke.Done(panelTexts[s.name].empty)
 	}
-	target := ""
+	target, onPane := "", false
 	if n, ok := s.tree.Selected(); ok {
-		target = n.ID
+		target, onPane = n.ID, isPaneNode(n)
 	}
-	if i == 1 && !strings.HasPrefix(target, "pane:") {
+	if i == 1 && !onPane {
 		target = cmp.Or(a.firstPaneRow(), target)
 	}
 	if target == "" {

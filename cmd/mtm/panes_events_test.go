@@ -61,7 +61,7 @@ func TestEventLoadRetitleInPlace(t *testing.T) {
 	if a.applyPaneEvents([]daemon.Event{retitleEvent("w1", "spinner")}) {
 		t.Fatal("retitle requested listing")
 	}
-	if a.panes[0].Title != "spinner" || a.r.Instances["pane:matomeru/w1"].Label != "matomeru/spinner" {
+	if a.panes[0].Title != "spinner" || a.r.Instances["pane:w1"].Label != "matomeru/spinner" {
 		t.Fatalf("title/row not updated: %+v", a.panes[0])
 	}
 	if len(jobsOf(a, "panes.refresh")) != before {

@@ -42,6 +42,11 @@ func newStoryPanes(panes []pane, screens map[string]string) *storyPanes {
 func (f *storyPanes) ListPanes(context.Context) ([]pane, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	for i := range f.panes { // the daemon gives every session its id, kept across renames
+		if f.panes[i].SessionID == "" && f.panes[i].Session != "" {
+			f.panes[i].SessionID = "id-" + f.panes[i].Session
+		}
+	}
 	return append([]pane(nil), f.panes...), nil
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"ofam.dev/ochazuke"
 
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/matomeru/internal/work"
 )
 
@@ -91,16 +92,7 @@ func (a *App) paneRef(ref string) pane {
 			return p
 		}
 	}
-	var p pane
-	if rest, ok := strings.CutPrefix(ref, "pane:"); ok {
-		if i := strings.LastIndex(rest, "/"); i >= 0 {
-			p.Session, p.ID = rest[:i], rest[i+1:]
-			return p
-		}
-		ref = rest
-	}
-	p.ID = ref
-	return p
+	return pane{Pane: daemon.Pane{ID: ochazuke.RefOf("pane", ref).Key}}
 }
 
 // relatePaneTo is the pane's relation: task and project associate
@@ -236,7 +228,7 @@ func (a *App) archivedTaskChoices(tasks []work.Task) []ochazuke.Choice {
 		if t.ProjectID != "" {
 			label += " · " + a.ownerLabel(t.ProjectID)
 		}
-		rows = append(rows, ochazuke.Choice{ID: "task:" + t.ID, Label: label, Data: ochazuke.Arguments{"task": t.ID}, RowFlags: ochazuke.RowFlags{Bare: true}})
+		rows = append(rows, ochazuke.Choice{ID: ochazuke.Ref{Noun: "task", Key: t.ID}.String(), Label: label, Data: ochazuke.Arguments{"task": t.ID}, RowFlags: ochazuke.RowFlags{Bare: true}})
 	}
 	return rows
 }
@@ -272,14 +264,14 @@ func (a *App) taskPickerChoices(owner work.Assignment, scope taskScope) []ochazu
 		if current {
 			label += " (current)"
 		}
-		return ochazuke.Choice{ID: "task:" + t.ID, Label: label, Tones: tones, Data: ochazuke.Arguments{"task": t.ID}, RowFlags: ochazuke.RowFlags{Bare: true}}
+		return ochazuke.Choice{ID: ochazuke.Ref{Noun: "task", Key: t.ID}.String(), Label: label, Tones: tones, Data: ochazuke.Arguments{"task": t.ID}, RowFlags: ochazuke.RowFlags{Bare: true}}
 	}
 	projectRow := func(p work.Project, current bool) ochazuke.Choice {
 		label := projectName(p) + " · no task"
 		if current {
 			label += " (current)"
 		}
-		c := plainChoice("project:"+p.ID, label)
+		c := plainChoice(ochazuke.Ref{Noun: "project", Key: p.ID}.String(), label)
 		c.Data = ochazuke.Arguments{"project": p.ID}
 		return c
 	}

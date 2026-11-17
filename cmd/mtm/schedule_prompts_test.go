@@ -66,7 +66,7 @@ func TestPromptScheduleLaunchesWithItsAgentConfig(t *testing.T) {
 		t.Fatalf("typed %q, want %q", f.sends, want)
 	}
 	l := rec.Launched
-	if l.Target != schedules.TargetNew || l.Pane != "pane:matomeru/"+w.ID || l.Task != "t1" || l.Project != "matomeru" || l.Prompt != "sent" || l.Model != "sonnet" {
+	if l.Target != schedules.TargetNew || l.Pane != "pane:"+w.ID || l.Task != "t1" || l.Project != "matomeru" || l.Prompt != "sent" || l.Model != "sonnet" {
 		t.Fatalf("launched record %+v", l)
 	}
 	if o, err := a.work.PaneOwner(w.ID, ""); err != nil || o.TaskID != "t1" || o.ProjectID != "matomeru" {

@@ -98,7 +98,7 @@ func TestLiveLeaderInsertEntersNestedMode(t *testing.T) {
 func TestExplicitPaneEditOnCLI(t *testing.T) {
 	t.Parallel()
 	app, _ := panesApp(t)
-	if _, _, err := cli(app, "", "pane", "edit", "--target", "pane:matomeru/w1", "--name", "renamed"); err != nil {
+	if _, _, err := cli(app, "", "pane", "edit", "--target", "pane:w1", "--name", "renamed"); err != nil {
 		t.Fatal(err)
 	}
 	if app.panesd.(*fakePanes).panes[0].Name != "renamed" {

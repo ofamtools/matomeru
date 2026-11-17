@@ -199,6 +199,7 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	flags := flag.NewFlagSet("mtm", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	showVersion := flags.Bool("version", false, "Print the version, the commit and the ochazuke version, and exit")
+	migrateDry := flags.Bool("migrate-dry-run", false, "Print what the one-time data migrations (session names to ids) would change in -data, change nothing, and exit")
 	smoke := flags.Bool("smoke", false, "Render one 80x24 frame to stdout and exit; uses a fresh temp database unless -data is given, and never reaches the daemon")
 	var opts Options
 	flags.StringVar(&opts.Data, "data", DefaultData(), "SQLite database path")
@@ -214,6 +215,9 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 	}
 	if *showVersion {
 		return writeVersion(stdout, buildStamp())
+	}
+	if *migrateDry {
+		return migrationDryRun(opts.Data, stdout)
 	}
 	// The tester's story command (-tags monogatari, story.go) runs before
 	// any database opens; a normal build handles nothing here.
@@ -604,7 +608,8 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
-	hist, err := history.Open(db, journalOwner(w))
+	feed := newJournalFeed()
+	hist, err := history.Open(db, entryOwner(w, feed))
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -657,7 +662,7 @@ func New(opts Options) (*App, error) {
 		db.Close()
 		return nil, err
 	}
-	a.feed, a.journalSrc = newJournalFeed(), client
+	a.feed, a.journalSrc = feed, client
 	a.sideLock = opts.Data + ".companions.lock"
 	a.drafts = draft.New(filepath.Dir(opts.Data))
 	a.vimDir = filepath.Join(filepath.Dir(opts.Data), "vim-sessions")
@@ -1045,4 +1050,24 @@ func (a *App) view(l viewer, width, height int) string {
 		lines = append(lines, "")
 	}
 	return strings.Join(lines[:height], "\n")
+}
+
+// migrationDryRun prints what the session-id migration would rewrite and
+// keep in the database at path (work.PlanSessionIDs); it opens the file
+// without declaring or migrating a table, so nothing changes.
+func migrationDryRun(path string, stdout io.Writer) error {
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	plan, err := work.PlanSessionIDs(db)
+	if err != nil {
+		return err
+	}
+	_, err = io.WriteString(stdout, plan.String())
+	return err
 }

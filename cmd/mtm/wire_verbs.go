@@ -46,6 +46,10 @@ type wireParam struct {
 	// (its Type is then the path type, whatever Type says): the library gives
 	// it the path picker and the open, reveal and yank-path verbs.
 	Path string
+	// Ref makes the parameter a reference to a thing of these nouns
+	// (ochazuke Parameter.Ref): a name given at the edge reaches the daemon
+	// as the thing's key (a session's id).
+	Ref []string
 }
 
 // wireVerb is one row of the table.
@@ -88,7 +92,7 @@ type wireVerb struct {
 // wireMargin is added to a call's blocking parameters.
 const wireMargin = 10 * time.Second
 
-var sessionParam = wireParam{Name: "session", Type: "string", Desc: "Session name. Omit for your own; an agent reaches its own session, its fan group and the sessions its fans started (agents.pane-scope)"}
+var sessionParam = wireParam{Name: "session", Type: "string", Ref: []string{"session"}, Desc: "The session's id or name (sent to the daemon as its id). Omit for your own; an agent reaches its own session, its fan group and the sessions its fans started (agents.pane-scope)"}
 
 var logParam = wireParam{Name: "log", Type: "string", Desc: "The log's id, session/window, as history-log.all gives it", Required: true}
 
@@ -312,7 +316,7 @@ func (w wireVerb) params() map[string]ochazuke.Parameter {
 		if slices.Contains(w.Self, p.Name) {
 			desc = "Omit: it is your own pane. " + desc
 		}
-		params[p.Name] = ochazuke.Parameter{Type: p.Type, Required: p.Required, Description: desc, Enum: p.Enum}
+		params[p.Name] = ochazuke.Parameter{Type: p.Type, Required: p.Required, Description: desc, Enum: p.Enum, Ref: p.Ref}
 		if p.Path != "" {
 			params[p.Name] = ochazuke.Parameter{Type: ochazuke.PathParameterType, Path: p.Path, Required: p.Required, Description: desc}
 		}

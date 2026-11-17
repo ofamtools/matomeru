@@ -22,7 +22,7 @@ func TestCopyModeFromLReturnsToTheRow(t *testing.T) {
 	enterCopyMode(t, app)
 	notLive(t, app, "l")
 	press(t, app, "q")
-	if app.r.FocusID() != "pane:matomeru/w1" || app.copy.active || app.r.Terminal(paneTermID) != nil {
+	if app.r.FocusID() != "pane:w1" || app.copy.active || app.r.Terminal(paneTermID) != nil {
 		t.Fatalf("q: focus %s copy %v attached %v", app.r.FocusID(), app.copy.active, app.r.Terminal(paneTermID) != nil)
 	}
 	notLive(t, app, "q")

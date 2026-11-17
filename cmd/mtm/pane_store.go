@@ -210,7 +210,7 @@ func (a *App) paneThing(p pane) ochazuke.Thing {
 		h = p.LaunchHarness
 	}
 	t := ochazuke.Thing{
-		"id": p.ID, "name": p.givenName(), "display": p.label(), "session": p.Session,
+		"id": p.ID, "name": p.givenName(), "display": p.label(), "session": p.SessionID,
 		"project": owner.ProjectID, "task": owner.TaskID, "starred": p.Starred,
 		"title": p.Title, "cwd": p.Cwd, "state": p.AgentState, "harness": h, "exited": p.Exited,
 	}
@@ -293,7 +293,7 @@ func (a *App) patchPane(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ocha
 	}
 	cur := a.paneOwner(p)
 	if project, task, ok := a.ownerWrite(c, cur.ProjectID, cur.TaskID, changes); ok {
-		row := work.Assignment{Window: p.ID, Session: p.Session, ProjectID: project, TaskID: task, AssignedAt: work.Now()}
+		row := work.Assignment{Window: p.ID, Session: p.SessionID, ProjectID: project, TaskID: task, AssignedAt: work.Now()}
 		if err := a.work.SetPaneOwner(row); err != nil {
 			return nil, err
 		}

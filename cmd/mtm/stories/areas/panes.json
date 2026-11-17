@@ -38,7 +38,7 @@
     "q",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter",
     ":",
@@ -97,7 +97,7 @@
     "enter",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter",
     ":",
@@ -118,7 +118,7 @@
     "esc",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter",
     ":",
@@ -132,7 +132,7 @@
     "esc",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter",
     ":",
@@ -152,7 +152,7 @@
     "esc",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter",
     ":",
@@ -166,7 +166,7 @@
     "x",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter",
     ":",
@@ -201,7 +201,7 @@
     "u",
     ":",
     {
-      "type": "focus to --id pane:billing-api/w2"
+      "type": "focus to --id pane:w2"
     },
     "enter",
     "enter",
@@ -216,7 +216,7 @@
     "u",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter",
     ":",
@@ -248,7 +248,7 @@
     },
     ":",
     {
-      "type": "focus to --id pane:billing-api/w2"
+      "type": "focus to --id pane:w2"
     },
     "enter",
     ":",
@@ -314,7 +314,7 @@
     },
     {
       "page": "panes",
-      "focus": "pane:acme-web/w1",
+      "focus": "pane:w1",
       "mode": "normal",
       "modal": "",
       "contains": [
@@ -424,7 +424,7 @@
     },
     {
       "page": "panes",
-      "focus": "pane:acme-web/w1",
+      "focus": "pane:w1",
       "mode": "normal",
       "modal": "",
       "contains": [
@@ -555,7 +555,7 @@
       "after": 119
     },
     {
-      "focus": "pane:acme-web/w1",
+      "focus": "pane:w1",
       "mode": "normal",
       "lacks": [
         "queue ask",
@@ -590,7 +590,7 @@
     },
     {
       "after": 147,
-      "focus": "pane:billing-api/w2"
+      "focus": "pane:w2"
     },
     {
       "after": 148,
@@ -635,7 +635,7 @@
     },
     {
       "after": 160,
-      "focus": "pane:acme-web/w1",
+      "focus": "pane:w1",
       "mode": "normal",
       "modal": ""
     },

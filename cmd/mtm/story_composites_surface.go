@@ -75,7 +75,7 @@ func buildAreaNouns(env monogatari.Env) (monogatari.Built, error) {
 		"kind": "links", "from": "project:acme-web", "to": "project:billing-api", "text": "scaffold relation",
 	}})
 	if err == nil {
-		err = a.work.PutNote(work.Note{ID: "surface-row-note", Text: "Source row needs a rerun", About: ochazuke.AnyRef("alpha.item", "i1"), Created: 20, Updated: 20})
+		err = a.work.PutNote(work.Note{ID: "surface-row-note", Text: "Source row needs a rerun", About: ochazuke.Ref{Noun: "alpha.item", Key: "i1"}.String(), Created: 20, Updated: 20})
 	}
 	if err == nil {
 		err = a.r.EnsureNounsPage()

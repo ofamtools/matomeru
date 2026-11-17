@@ -151,11 +151,11 @@ func TestCLIBindingsListShowsEveryAppKeyOncePerStop(t *testing.T) {
 		t.Fatalf("reviews = %+v, %v", reviews, err)
 	}
 	stops := map[string][]string{
-		"matomeru":         {"enter project.open", "l project.open", "L project.launch"},
-		"t1":               {"enter task.edit", "l task.open", "L task.launch", "i task.edit", "x task.toggle", "s task.choose-status", "m task.edit", "n task.new"},
-		"pane:matomeru/w1": {"enter pane.attach", "d d pane.kill", "r pane.edit", "m pane.edit", "n pane.new", "] panes.tab"},
-		paneListID:         {"n pane.new", "e daemon.ensure"},
-		reviews[0].ID:      {"enter review.open", "x review.accept", "s review.choose-status", "i review.saveAnswer"},
+		"matomeru":    {"enter project.open", "l project.open", "L project.launch"},
+		"t1":          {"enter task.edit", "l task.open", "L task.launch", "i task.edit", "x task.toggle", "s task.choose-status", "m task.edit", "n task.new"},
+		"pane:w1":     {"enter pane.attach", "d d pane.kill", "r pane.edit", "m pane.edit", "n pane.new", "] panes.tab"},
+		paneListID:    {"n pane.new", "e daemon.ensure"},
+		reviews[0].ID: {"enter review.open", "x review.accept", "s review.choose-status", "i review.saveAnswer"},
 	}
 	fkey := regexp.MustCompile(`(^|[ +])f\d+$`)
 	for target, want := range stops {
@@ -252,7 +252,7 @@ func TestCLIPanesRefreshTargetsTheOnlyPaneList(t *testing.T) {
 	}
 	// panes.refresh is quiet: its job prints no "job #N" line unless it
 	// fails (ochazuke v0.2.0).
-	if strings.Contains(errOut, "job #") || len(app.panes) != 3 || app.r.Instances["pane:matomeru/w3"] == nil {
+	if strings.Contains(errOut, "job #") || len(app.panes) != 3 || app.r.Instances["pane:w3"] == nil {
 		t.Fatalf("stderr %q, panes %+v", errOut, app.panes)
 	}
 }
@@ -278,7 +278,7 @@ func TestCLIAVerbOfManyRowsNamesThemWithoutATarget(t *testing.T) {
 		}
 	}
 	// With the target it runs.
-	mustCLI(t, app, "pane", "preview", "--target", "pane:ochazuke/w2")
+	mustCLI(t, app, "pane", "preview", "--target", "pane:w2")
 }
 
 // Test pass R12: a bad status names the statuses and no --target rows.

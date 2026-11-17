@@ -153,7 +153,7 @@ func TestCopyModeFromTheListIsFocusedNotLive(t *testing.T) {
 		t.Fatalf("after }: focus %s", app.r.FocusID())
 	}
 	press(t, app, "q")
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("after q: focus %s", app.r.FocusID())
 	}
 }
@@ -664,7 +664,7 @@ func TestCopyModeSelectionReturnsToCopy(t *testing.T) {
 					t.Fatalf("%s: mode %s active %v focus %s", end, app.r.CurrentMode().Name, app.copy.active, app.r.FocusID())
 				}
 				pressAll(t, app, "esc")
-				if app.r.CurrentMode().Name != "normal" || app.copy.active || app.r.FocusID() != "pane:matomeru/w1" {
+				if app.r.CurrentMode().Name != "normal" || app.copy.active || app.r.FocusID() != "pane:w1" {
 					t.Fatalf("esc out: mode %s active %v focus %s", app.r.CurrentMode().Name, app.copy.active, app.r.FocusID())
 				}
 			})

@@ -120,7 +120,19 @@ func (f *fakePanes) ListPanes(context.Context) ([]pane, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
+	giveSessionIDs(f.panes)
 	return locatePanes(append([]pane(nil), f.panes...), f.locate), nil
+}
+
+// giveSessionIDs gives each fake pane's session the id the daemon would
+// (the fakes name sessions only): "id-" and its name when first listed,
+// kept from then on, so a rename keeps the id as the daemon does.
+func giveSessionIDs(panes []pane) {
+	for i := range panes {
+		if panes[i].SessionID == "" && panes[i].Session != "" {
+			panes[i].SessionID = "id-" + panes[i].Session
+		}
+	}
 }
 
 func (f *fakePanes) CapturePane(_ context.Context, p pane) (string, error) {
@@ -380,7 +392,7 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 	// panels).
 	groupBy(t, app, groupProjectSessionPane)
 	setting(t, app, settingPanesLayout, layoutStacked)
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	f := frame(app)
@@ -394,7 +406,7 @@ func TestPanesPageListsTheDaemonsPanes(t *testing.T) {
 		t.Fatalf("ctrl+j: page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 	press(t, app, "ctrl+k")
-	if app.r.Page != panesPage || app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.Page != panesPage || app.r.FocusID() != "pane:w1" {
 		t.Fatalf("ctrl+k: page %s focus %s", app.r.Page, app.r.FocusID())
 	}
 }
@@ -411,7 +423,7 @@ func TestPreviewRunsInTheReplacingSlot(t *testing.T) {
 			jobs = append(jobs, j)
 		}
 	}
-	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Scope != panesPage || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].Status != ochazuke.JobRunning {
+	if len(jobs) != 1 || jobs[0].Slot != "preview" || jobs[0].Scope != panesPage || jobs[0].Owner != "pane:w1" || jobs[0].Status != ochazuke.JobRunning {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, cmd)
@@ -437,7 +449,7 @@ func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 	groupBy(t, app, groupProjectSessionPane)
 	first := follow(app)
 	press(t, app, "j", "j")
-	if app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.FocusID() != "pane:w2" {
 		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	second := follow(app)
@@ -449,12 +461,12 @@ func TestANewerPreviewCancelsTheOlder(t *testing.T) {
 	}
 	// Two rows asked; the page's slot keeps only the newest running.
 	if jobs := jobsOf(app, "pane.preview"); len(running) != 1 || len(jobs) != 2 || jobs[0].Status != ochazuke.JobCancelled ||
-		jobs[0].Owner != "pane:matomeru/w1" || running[0].Owner != "pane:ochazuke/w2" || running[0].Scope != panesPage {
+		jobs[0].Owner != "pane:w1" || running[0].Owner != "pane:w2" || running[0].Scope != panesPage {
 		t.Fatalf("preview jobs = %+v", jobs)
 	}
 	settle(app, second)
 	settle(app, first) // the cancelled capture lands late and is dropped
-	if len(f.captured) != 2 || app.preview.Pane != "pane:ochazuke/w2" {
+	if len(f.captured) != 2 || app.preview.Pane != "pane:w2" {
 		t.Fatalf("captured %v, preview %+v", f.captured, app.preview)
 	}
 	if fr := frame(app); !strings.Contains(fr, "$ go test ./...") || strings.Contains(fr, "claude is thinking") {
@@ -511,7 +523,7 @@ func TestAttachAndDetachThroughTheLeader(t *testing.T) {
 		t.Fatalf("detach should park the stream: released %v parked %v lease %v", s.released, s.parked, s.lease)
 	}
 	// Detach lands back on the row the attach came from.
-	if app.r.FocusID() != "pane:matomeru/w1" || app.r.CurrentMode().Name != "normal" {
+	if app.r.FocusID() != "pane:w1" || app.r.CurrentMode().Name != "normal" {
 		t.Fatalf("after detach: focus %s mode %s", app.r.FocusID(), app.r.CurrentMode().Name)
 	}
 	if fr := frame(app); strings.Contains(fr, "━ matomeru/claude ") {
@@ -545,7 +557,7 @@ func TestLeaderZoomAndNextPane(t *testing.T) {
 		t.Fatalf("unzoom:\n%s", frame(app))
 	}
 	press(t, app, "ctrl+a", "k", "ctrl+a", "d")
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("detach after ctrl+a k: focus %s", app.r.FocusID())
 	}
 	key(t, app, "enter")
@@ -564,13 +576,13 @@ func TestStopsMoveBetweenThePaneListAndTheTerminal(t *testing.T) {
 	groupBy(t, app, groupProjectSessionPane)
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("after detach: focus %s", app.r.FocusID())
 	}
 	press(t, app, "j", "j")
 	key(t, app, "enter")
 	press(t, app, "ctrl+a", "d")
-	if app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.FocusID() != "pane:w2" {
 		t.Fatalf("focus = %s", app.r.FocusID())
 	}
 	// The first pane's stream was dropped when the selection left its
@@ -597,7 +609,7 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	app, f := panesApp(t)
 	press(t, app, "d", "d")
 	settle(app, key(t, app, "n"))
-	if len(f.killed) != 0 || len(jobsOf(app, "pane.kill")) != 0 || app.r.FocusID() != "pane:matomeru/w1" {
+	if len(f.killed) != 0 || len(jobsOf(app, "pane.kill")) != 0 || app.r.FocusID() != "pane:w1" {
 		t.Fatalf("n: killed %v jobs %+v focus %s", f.killed, app.r.Jobs(), app.r.FocusID())
 	}
 	press(t, app, "d", "d")
@@ -605,11 +617,11 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	if !reflect.DeepEqual(f.killed, []string{"w1"}) {
 		t.Fatalf("killed = %v", f.killed)
 	}
-	if app.r.Instances["pane:matomeru/w1"] != nil || app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.Instances["pane:w1"] != nil || app.r.FocusID() != "pane:w2" {
 		t.Fatalf("after kill: focus %s", app.r.FocusID())
 	}
 	// The kill completed on its own row, which its completion removed.
-	if jobs := jobsOf(app, "pane.kill"); len(jobs) != 1 || jobs[0].Owner != "pane:matomeru/w1" || jobs[0].Status != ochazuke.JobDone {
+	if jobs := jobsOf(app, "pane.kill"); len(jobs) != 1 || jobs[0].Owner != "pane:w1" || jobs[0].Status != ochazuke.JobDone {
 		t.Fatalf("kill jobs = %+v", jobs)
 	}
 	if fr := frame(app); !strings.Contains(fr, "panes (1)") {
@@ -633,7 +645,7 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	app.m.Status = ""
 	fr := frame(app)
 	// Two short lines and the remedy; the whole error is a notice.
-	if !strings.Contains(fr, "is not running") || !strings.Contains(fr, "e starts it (daemon.ensure)") || strings.Contains(fr, "ochazuke/shell") || app.r.Instances["pane:matomeru/w1"] != nil {
+	if !strings.Contains(fr, "is not running") || !strings.Contains(fr, "e starts it (daemon.ensure)") || strings.Contains(fr, "ochazuke/shell") || app.r.Instances["pane:w1"] != nil {
 		t.Fatalf("frame with no daemon:\n%s", fr)
 	}
 	if len(app.m.Notices) != 1 || !strings.Contains(app.m.Notices[0], "no such file") {
@@ -645,7 +657,7 @@ func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	// e runs daemon.ensure from the empty list, and the panes come back.
 	f.err = nil
 	settle(app, key(t, app, "e"))
-	if app.paneErr != "" || app.r.Instances["pane:matomeru/w1"] == nil {
+	if app.paneErr != "" || app.r.Instances["pane:w1"] == nil {
 		t.Fatalf("after e: err %q", app.paneErr)
 	}
 	press(t, app, "ctrl+j", "j")
@@ -669,7 +681,7 @@ func TestPaneLabelShortensUUIDSessions(t *testing.T) {
 		}
 	}
 	p := pane{Session: "9332c352-fd31-49a0-bb93-6b18ed187d8d", Pane: daemon.Pane{ID: "w1"}}
-	if got := p.rowID(); got != "pane:9332c352-fd31-49a0-bb93-6b18ed187d8d/w1" {
+	if got := p.rowID(); got != "pane:w1" {
 		t.Errorf("rowID = %q", got)
 	}
 }
@@ -772,14 +784,14 @@ func TestPaneSearchEnterChoosesAndClears(t *testing.T) {
 	press(t, app, "/")
 	typeText(t, app, "shell") // both panes' harness is shell; the selection stays on claude
 	press(t, app, "down")
-	if app.paneList.Filter() != "shell" || app.paneList.Shown() != 2 || app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.paneList.Filter() != "shell" || app.paneList.Shown() != 2 || app.r.FocusID() != "pane:w2" {
 		t.Fatalf("search: query %q shown %d of %d focus %s", app.paneList.Filter(), app.paneList.Shown(), rows, app.r.FocusID())
 	}
 	press(t, app, "enter")
 	if app.r.CurrentMode().Name != "normal" || app.paneList.Filter() != "" || app.paneList.Shown() != rows {
 		t.Fatalf("enter: mode %s query %q shown %d of %d", app.r.CurrentMode().Name, app.paneList.Filter(), app.paneList.Shown(), rows)
 	}
-	if sel, ok := app.paneList.Selected(); !ok || sel.ID != "pane:ochazuke/w2" || app.r.FocusID() != "pane:ochazuke/w2" {
+	if sel, ok := app.paneList.Selected(); !ok || sel.ID != "pane:w2" || app.r.FocusID() != "pane:w2" {
 		t.Fatalf("enter: selected %v focus %s", sel.ID, app.r.FocusID())
 	}
 	if f := frame(app); !strings.Contains(f, "claude") || strings.Contains(f, "2 of 5") {
@@ -866,19 +878,19 @@ func TestSessionRowHLExpandsAndStepsIn(t *testing.T) {
 		// This test reads the session rows (project → session → pane).
 		groupBy(t, app, groupProjectSessionPane)
 		press(t, app, "k")
-		if app.r.FocusID() != "session:matomeru" {
+		if app.r.FocusID() != "session:id-matomeru" {
 			t.Fatalf("k: focus %s", app.r.FocusID())
 		}
 		press(t, app, "h")
-		if app.r.FocusID() != "session:matomeru" || cells(app, "pane:matomeru/w1") != "" {
-			t.Fatalf("h: focus %s, pane row %q", app.r.FocusID(), cells(app, "pane:matomeru/w1"))
+		if app.r.FocusID() != "session:id-matomeru" || cells(app, "pane:w1") != "" {
+			t.Fatalf("h: focus %s, pane row %q", app.r.FocusID(), cells(app, "pane:w1"))
 		}
 		press(t, app, right)
-		if app.r.FocusID() != "session:matomeru" || cells(app, "pane:matomeru/w1") == "" {
-			t.Fatalf("%s on a closed session: focus %s, pane row %q", right, app.r.FocusID(), cells(app, "pane:matomeru/w1"))
+		if app.r.FocusID() != "session:id-matomeru" || cells(app, "pane:w1") == "" {
+			t.Fatalf("%s on a closed session: focus %s, pane row %q", right, app.r.FocusID(), cells(app, "pane:w1"))
 		}
 		press(t, app, right)
-		if app.r.FocusID() != "pane:matomeru/w1" {
+		if app.r.FocusID() != "pane:w1" {
 			t.Fatalf("%s on an open session: focus %s, want its first pane", right, app.r.FocusID())
 		}
 	}

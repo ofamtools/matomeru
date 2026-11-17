@@ -58,7 +58,7 @@ func TestALaunchEndsWithThePaneOnScreen(t *testing.T) {
 		t.Fatalf("page = %s", app.r.Page)
 	}
 	runOnce(app, cmd)
-	assertLanded(t, app, f, "pane:matomeru/a1", "a1")
+	assertLanded(t, app, f, "pane:a1", "a1")
 	if len(app.panes) != 3 {
 		t.Fatalf("panes = %+v", app.panes)
 	}
@@ -68,7 +68,7 @@ func TestANewPaneEndsWithThePaneOnScreen(t *testing.T) {
 	t.Parallel()
 	app, d := shellApp(t)
 	runOnce(app, key(t, app, "n"))
-	assertLanded(t, app, d.panes, "pane:matomeru/s1", "s1")
+	assertLanded(t, app, d.panes, "pane:s1", "s1")
 }
 
 func TestALandingReplacesTheAttachedTerminal(t *testing.T) {
@@ -83,7 +83,7 @@ func TestALandingReplacesTheAttachedTerminal(t *testing.T) {
 	if !first.released {
 		t.Fatal("the earlier terminal's stream was not released")
 	}
-	assertLanded(t, app, d.panes, "pane:matomeru/s1", "s1")
+	assertLanded(t, app, d.panes, "pane:s1", "s1")
 }
 
 func TestALandingUnderAModalShowsWhyAndKeepsWorking(t *testing.T) {

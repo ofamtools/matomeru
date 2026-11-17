@@ -64,8 +64,8 @@ func TestPaneTaskAssociateBothWays(t *testing.T) {
 		t.Fatalf("pane.unassociate: %+v", o)
 	}
 	// A pane mtm has not listed is still recorded (record first).
-	mustCLI(t, a, "task", "associate", "--target", "t1", "--pane", "pane:elsewhere/w9")
-	if o, _ := a.work.PaneOwner("w9", ""); o.TaskID != "t1" || o.Session != "elsewhere" {
+	mustCLI(t, a, "task", "associate", "--target", "t1", "--pane", "pane:w9")
+	if o, _ := a.work.PaneOwner("w9", ""); o.TaskID != "t1" || o.Session != "" {
 		t.Fatalf("unlisted pane: %+v", o)
 	}
 	for _, key := range []string{"task.associate", "project.associate"} {

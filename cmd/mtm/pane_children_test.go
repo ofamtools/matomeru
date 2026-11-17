@@ -52,7 +52,7 @@ func TestPaneItemsAreChildRowsOfOnePaneRow(t *testing.T) {
 	a, _ := sectionsApp(t)
 	one := addItem(t, a, actionitems.Spec{Source: "gh", Key: "idler-1", Title: "ask one", Window: "widle", Session: "s"})
 	two := addItem(t, a, actionitems.Spec{Source: "gh", Key: "idler-2", Title: "ask two", Window: "widle", Session: "s"})
-	row := "pane:s/widle"
+	row := "pane:widle"
 	if got := sectionOfRow(a, row); got != sectionQueue {
 		t.Fatalf("a pane with an unread outside item is in %q, want the queue", got)
 	}
@@ -89,7 +89,7 @@ func TestPaneItemsStayWithTheirPaneWhenRead(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
 	it := addItem(t, a, actionitems.Spec{Source: "gh", Key: "idler-1", Title: "ask one", Window: "widle", Session: "s"})
-	row := "pane:s/widle"
+	row := "pane:widle"
 	if _, err := a.inbox.items.Update(it.ID, func(i *actionitems.Item) error { i.ReadAt = 1; return nil }); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestPaneChildrenWithoutItemsKeepsQueueRows(t *testing.T) {
 	a, _ := sectionsApp(t)
 	setting(t, a, settingPaneChildren, []string{childKindSubagents})
 	one := addItem(t, a, actionitems.Spec{Source: "gh", Key: "idler-1", Title: "ask one", Window: "widle", Session: "s"})
-	if node, ok := rowNode(a, "pane:s/widle"); !ok || node.Noun != actionItemNoun || sectionOfRow(a, "pane:s/widle") != sectionQueue {
+	if node, ok := rowNode(a, "pane:widle"); !ok || node.Noun != actionItemNoun || sectionOfRow(a, "pane:widle") != sectionQueue {
 		t.Fatal("the item does not stand for its pane in the queue with panes.children without items")
 	}
 	if _, ok := rowNode(a, itemRowStart+one.ID); ok {
@@ -141,7 +141,7 @@ func TestPaneItemCountSetting(t *testing.T) {
 	if err := a.rebuildPanes(); err != nil {
 		t.Fatal(err)
 	}
-	if node, _ := rowNode(a, "pane:s/widle"); strings.Contains(node.Cells[0], itemCountMark) {
+	if node, _ := rowNode(a, "pane:widle"); strings.Contains(node.Cells[0], itemCountMark) {
 		t.Fatalf("count shown with panes.item-count off: %q", node.Cells[0])
 	}
 }
@@ -157,7 +157,7 @@ func TestPaneChildItemsStates(t *testing.T) {
 	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
-	row := "pane:s/widle"
+	row := "pane:widle"
 	if kids := childrenOf(a, row); len(kids) != 0 {
 		t.Fatalf("a snoozed item is a child with panes.child-items open: %v", kids)
 	}

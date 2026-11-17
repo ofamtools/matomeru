@@ -149,10 +149,10 @@ func TestVisualPanesDKillsTheSelectionAtOnce(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
 	press(t, app, "V")
-	for i := 0; i < 4 && app.r.FocusID() != "pane:ochazuke/w2"; i++ {
+	for i := 0; i < 4 && app.r.FocusID() != "pane:w2"; i++ {
 		press(t, app, "j")
 	}
-	if app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.FocusID() != "pane:w2" {
 		t.Fatalf("V j: focus %s", app.r.FocusID())
 	}
 	if hints := ochazuke.BindingHints(app.r, app.r.FocusID()); strings.Contains(hints, "d d") || !strings.Contains(hints, "d kill") {
@@ -222,10 +222,10 @@ func TestVisualPanesIsAModeAndRowKeysActOnTheSelection(t *testing.T) {
 	if f := frameAt(app, 160); !strings.Contains(f, "VISUAL-LINE") {
 		t.Fatalf("V: no VISUAL-LINE badge:\n%s", f)
 	}
-	for i := 0; i < 4 && app.r.FocusID() != "pane:ochazuke/w2"; i++ {
+	for i := 0; i < 4 && app.r.FocusID() != "pane:w2"; i++ {
 		press(t, app, "j")
 	}
-	if app.r.FocusID() != "pane:ochazuke/w2" {
+	if app.r.FocusID() != "pane:w2" {
 		t.Fatalf("V j: focus %s", app.r.FocusID())
 	}
 	press(t, app, "m")
@@ -283,7 +283,7 @@ func TestVisualSurvivesATurnPoll(t *testing.T) {
 		t.Fatalf("V j: mode %q", mode)
 	}
 	before := len(a.m.Notices)
-	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: "pane:matomeru/w1"}); err != nil {
+	if _, err := a.r.Execute(ochazuke.Request{Verb: "read-turns", Noun: "pane", Target: "pane:w1"}); err != nil {
 		t.Fatal(err)
 	}
 	settle(a, a.r.PendingCommands())

@@ -81,7 +81,7 @@ func TestPaneListShowsActiveSubagentsUnderTheirPane(t *testing.T) {
 	t.Parallel()
 	app := subagentsApp(t)
 	rows := activityRows(app)
-	parent := "pane:matomeru/w1"
+	parent := "pane:w1"
 	want := map[string]string{
 		"child:w1/toolu_bg": "● Export bindings · general-purpose | running 4m",
 		"child:w1/toolu_fg": "● Audit the rail · general-purpose | running 2m",
@@ -155,7 +155,7 @@ func TestPaneListShowsActiveSubagentsUnderTheirPane(t *testing.T) {
 func TestSubagentRowsAreSelectableAndOpenTheirCard(t *testing.T) {
 	t.Parallel()
 	app := subagentsApp(t)
-	parent := "pane:matomeru/w1"
+	parent := "pane:w1"
 	if err := app.selectPaneRow(parent); err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func subagentsPaneApp(t *testing.T, lines ...string) *App {
 
 // inWorking reports whether the pane w1's row is in the Working list.
 func inWorking(app *App) bool {
-	return slices.Contains(sectionIDs(app, 2), "pane:matomeru/w1")
+	return slices.Contains(sectionIDs(app, 2), "pane:w1")
 }
 
 // A pane whose own state is idle or done belongs in Working while a
@@ -378,7 +378,7 @@ func TestPaneWorkingThroughSubagentEntersAtTheBottom(t *testing.T) {
 	reload(t, app)
 	setting(t, app, settingSubagentsWorking, true)
 	reload(t, app)
-	want := []string{"pane:ochazuke/w2", "pane:matomeru/w1"}
+	want := []string{"pane:w2", "pane:w1"}
 	for i := range 3 {
 		if got := sectionIDs(app, 2); !slices.Equal(got, want) {
 			t.Fatalf("rebuild %d: working order %v, want %v", i, got, want)
@@ -425,10 +425,10 @@ func workingRowApp(t *testing.T) *App {
 	if !inWorking(app) {
 		t.Fatal("w1 should be in Working")
 	}
-	if err := app.selectPaneRow("pane:matomeru/w1"); err != nil {
+	if err := app.selectPaneRow("pane:w1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.r.SetFocus("pane:matomeru/w1"); err != nil {
+	if err := app.r.SetFocus("pane:w1"); err != nil {
 		t.Fatal(err)
 	}
 	return app
@@ -467,7 +467,7 @@ func TestFocusLeavesAnEmptyListAfterTheFilterOrConfirmCloses(t *testing.T) {
 	t.Run("confirm", func(t *testing.T) {
 		t.Parallel()
 		app := workingRowApp(t)
-		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "kill", Target: "pane:matomeru/w1"}); err != nil {
+		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "kill", Target: "pane:w1"}); err != nil {
 			t.Fatal(err)
 		}
 		if app.r.TopModal() == "" {
@@ -489,11 +489,11 @@ func TestPaneWorkingThroughSubagentsSaysWaitingOnThem(t *testing.T) {
 	app := subagentsPaneApp(t)
 	row := sectionItems(app)[0]
 	for _, it := range sectionItems(app) {
-		if it.ID == "pane:matomeru/w1" {
+		if it.ID == "pane:w1" {
 			row = it
 		}
 	}
-	if row.ID != "pane:matomeru/w1" || !strings.Contains(row.Cells[1], "waiting on 1 agent") || strings.Contains(row.Cells[1], "done") ||
+	if row.ID != "pane:w1" || !strings.Contains(row.Cells[1], "waiting on 1 agent") || strings.Contains(row.Cells[1], "done") ||
 		!strings.Contains(row.Cells[0], "◐") {
 		t.Fatalf("row %v", row.Cells)
 	}

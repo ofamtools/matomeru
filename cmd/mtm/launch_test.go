@@ -385,7 +385,7 @@ func TestAcceptingATaskLaunchRunsAJob(t *testing.T) {
 	if got.Session != "matomeru" || got.Prompt != "write the brief" || strings.Join(got.Command, " ") != "claude --model opus" || len(got.Waits) != 1 || got.Waits[0].State != "idle,done" {
 		t.Fatalf("launch = %+v", got)
 	}
-	if len(app.panes) != 2 || app.panes[0].ID != "w1" || app.r.Instances["pane:matomeru/w1"] == nil {
+	if len(app.panes) != 2 || app.panes[0].ID != "w1" || app.r.Instances["pane:w1"] == nil {
 		t.Fatalf("panes = %+v", app.panes)
 	}
 	if !strings.Contains(frame(app), "agent.start claude done") {
@@ -573,7 +573,7 @@ func TestProjectsStateAnswersEveryList(t *testing.T) {
 	if count["projects"] != len(app.projects) || count["projects"] == 0 || count["harness"] != len(app.harnesses.List()) || count["pane"] != 2 {
 		t.Fatalf("state %v\n%s", count, out)
 	}
-	if first.ID != "pane:matomeru/w1" || !slices.Equal(first.Cells, []string{"matomeru/claude", "unassociated", "idle", "~/proj/matomeru"}) {
+	if first.ID != "pane:w1" || !slices.Equal(first.Cells, []string{"matomeru/claude", "unassociated", "idle", "~/proj/matomeru"}) {
 		t.Fatalf("pane row %+v", first)
 	}
 	data, err := ocli.Catalog(app.r, "mtm", "test")

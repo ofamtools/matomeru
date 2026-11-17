@@ -75,7 +75,7 @@ func TestPromptBoxTypesIntoAShell(t *testing.T) {
 	}
 	// esc esc goes back to the pane row (the Screen tab has no turns).
 	press(t, app, "esc", "esc")
-	if app.r.FocusID() != "pane:matomeru/w1" {
+	if app.r.FocusID() != "pane:w1" {
 		t.Fatalf("esc esc focused %s", where(app))
 	}
 }

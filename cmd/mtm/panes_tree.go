@@ -371,7 +371,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 			}
 			sessionOwner = o.ProjectID
 		}
-		sessionKey := "session:" + cmp.Or(p.SessionID, p.Session)
+		sessionKey := p.sessionRef().String()
 		if p.ID == "" {
 			if a.inScope(sessionOwner) {
 				group(bucket(sessionOwner), sessionKey, p)
@@ -439,7 +439,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		view.waiting += waiting
 		parent := ""
 		if tree || id == outsideNode {
-			parent = "project:" + id
+			parent = ochazuke.Ref{Noun: "project", Key: id}.String()
 			if id == outsideNode {
 				parent = outsideNode
 			}
@@ -466,7 +466,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 				// after its project read as the project twice (F22).
 				cell = "session " + label
 			}
-			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Props: ochazuke.Thing{"id": cmp.Or(g.session.SessionID, g.session.Session)}, Cells: []string{cell, waitingCell(w)}})
+			view.nodes = append(view.nodes, ochazuke.TreeNode{ID: g.id, Parent: parent, Label: "session " + label, Noun: "session", Data: g.session, Props: ochazuke.Thing{"id": g.session.SessionID}, Cells: []string{cell, waitingCell(w)}})
 			for _, p := range g.panes {
 				addPane(p, g.id)
 			}

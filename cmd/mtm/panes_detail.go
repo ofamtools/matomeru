@@ -422,7 +422,7 @@ func (a *App) attachSession(ctx ochazuke.Ctx) ochazuke.Result {
 // sessionPane is the first pane row under a session row, "" for none.
 func (a *App) sessionPane(session string) string {
 	for _, n := range a.pv.tree.Nodes() {
-		if n.Parent == session && strings.HasPrefix(n.ID, "pane:") {
+		if _, isPane := n.Data.(pane); isPane && n.Parent == session {
 			return n.ID
 		}
 	}

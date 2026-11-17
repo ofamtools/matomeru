@@ -173,7 +173,7 @@ func (a *App) patchVim(c ochazuke.Ctx, id string, changes ochazuke.Thing) (ochaz
 		return nil, err
 	}
 	if owned && row.WindowID != "" && a.vimState(row) == "running" {
-		if err := a.work.SetPaneOwner(work.Assignment{Window: row.WindowID, Session: row.Session, ProjectID: row.ProjectID, TaskID: row.TaskID, AssignedAt: work.Now()}); err != nil {
+		if err := a.work.SetPaneOwner(work.Assignment{Window: row.WindowID, Session: a.windowSession(row.WindowID), ProjectID: row.ProjectID, TaskID: row.TaskID, AssignedAt: work.Now()}); err != nil {
 			return nil, err
 		}
 		if err := a.refreshScope(); err != nil {

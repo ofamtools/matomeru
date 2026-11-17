@@ -269,7 +269,7 @@ func TestHintsClearOnFocusChangeAndDetach(t *testing.T) {
 	rows, _, _ := screenRows(t)
 	app, s, _ := hintsApp(t, rows)
 	startHints(t, app, s)
-	if err := app.r.SetFocus("pane:matomeru/w1"); err != nil {
+	if err := app.r.SetFocus("pane:w1"); err != nil {
 		t.Fatal(err)
 	}
 	app.Update(tea.WindowSizeMsg{Width: 140, Height: 40})

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"ofam.dev/ochazuke"
 )
@@ -23,7 +22,7 @@ func (a *App) sessionAt(inst *ochazuke.Instance) (pane, error) {
 		if p, ok := inst.Data.(pane); ok {
 			return p, nil
 		}
-		id := strings.TrimPrefix(inst.ID, "session:")
+		id := sessionKeyOf(inst.ID)
 		for _, p := range a.panes {
 			if p.SessionID == id {
 				return p, nil

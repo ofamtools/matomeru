@@ -109,7 +109,7 @@ func (a *App) focusedThing() (noun, key string) {
 func (a *App) quickNoteOwner() (Owner, string, error) {
 	if a.quickAboutFocus() {
 		if noun, key := a.focusedThing(); noun != "" {
-			project, task, about := a.noteLinks(ochazuke.Ctx{Runtime: a.r}, work.Note{}, aboutWrite{about: ochazuke.AnyRef(noun, key), hasAbout: true})
+			project, task, about := a.noteLinks(ochazuke.Ctx{Runtime: a.r}, work.Note{}, aboutWrite{about: ochazuke.Ref{Noun: noun, Key: key}.String(), hasAbout: true})
 			if project == "" && task == "" {
 				project = a.pin
 			}
@@ -126,7 +126,7 @@ func (a *App) quickNoteOwner() (Owner, string, error) {
 		}
 		if task != "" {
 			if t, err := a.work.Task(task); err == nil {
-				return Owner{ProjectID: t.ProjectID, TaskID: t.ID}, ochazuke.AnyRef("task", t.ID), nil
+				return Owner{ProjectID: t.ProjectID, TaskID: t.ID}, ochazuke.Ref{Noun: "task", Key: t.ID}.String(), nil
 			}
 		}
 	}
@@ -175,7 +175,7 @@ func (a *App) quickNoteScope(owner Owner, about string) string {
 			label += " · " + a.taskLabel(t)
 		}
 	}
-	if noun, _, ok := ochazuke.SplitAnyRef(about); ok && ownerSlotArg(noun) == "" {
+	if ref, ok := ochazuke.ParseRef(about); ok && ownerSlotArg(ref.Noun) == "" {
 		label += " · about " + about
 	}
 	return label

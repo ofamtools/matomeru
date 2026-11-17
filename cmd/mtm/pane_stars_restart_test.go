@@ -21,7 +21,7 @@ func TestPaneStarsSurviveARestartOnAnotherServer(t *testing.T) {
 	reload(t, app)
 	executeA(t, app, "project", "pin", "", ochazuke.Arguments{"project": "matomeru"})
 	executeA(t, app, "scope", "all", "", nil)
-	for _, row := range []string{"pane:matomeru/w1", "pane:ochazuke/w2"} { // inside and outside the pin
+	for _, row := range []string{"pane:w1", "pane:w2"} { // inside and outside the pin
 		if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "star", Target: row, Args: ochazuke.Arguments{"value": true}}); err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +60,7 @@ func TestPaneStarsSurviveARestartOnAnotherServer(t *testing.T) {
 	}
 	settle(again, again.r.PendingCommands())
 	executeA(t, again, "scope", "all", "", nil)
-	for _, row := range []string{"pane:matomeru/w1", "pane:ochazuke/w2"} {
+	for _, row := range []string{"pane:w1", "pane:w2"} {
 		if !strings.Contains(cells(again, row), "★") {
 			t.Fatalf("%s lost its star after the restart: %q (stars %+v)", row, cells(again, row), starred(t, again))
 		}

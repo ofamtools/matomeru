@@ -52,7 +52,7 @@ func TestOwnerOfPaneRowMatchesTheListing(t *testing.T) {
 	if err != nil || !found || o.ProjectID != want.ProjectID || o.TaskID != want.TaskID || o.ProjectID != "ochazuke" {
 		t.Fatalf("listed pane: %+v %v %v, want %+v", o, found, err, want)
 	}
-	o, found, err = a.instanceOwner(&ochazuke.Instance{ID: "pane:work/gone", Noun: "pane"}, "pane")
+	o, found, err = a.instanceOwner(&ochazuke.Instance{ID: "pane:gone", Noun: "pane"}, "pane")
 	if err != nil || !found || o != (Owner{}) {
 		t.Fatalf("unlisted pane: %+v %v %v", o, found, err)
 	}
@@ -70,7 +70,7 @@ func TestOwnerOfPaneRowNeverCallsTheDaemon(t *testing.T) {
 	a.panes = nil
 	calls := &listCounter{fakePanes: newFakePanes()}
 	a.panesd = calls
-	o, found, err := a.instanceOwner(&ochazuke.Instance{ID: "pane:work/w1", Noun: "pane"}, "pane")
+	o, found, err := a.instanceOwner(&ochazuke.Instance{ID: "pane:w1", Noun: "pane"}, "pane")
 	if err != nil || !found || o != (Owner{}) {
 		t.Fatalf("unlisted pane: %+v %v %v", o, found, err)
 	}

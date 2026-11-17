@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -90,8 +89,16 @@ func (a *App) sessionStore() ochazuke.Store {
 	}
 }
 
-// sessionKeyOf is a session key without its row prefix.
-func sessionKeyOf(key string) string { return strings.TrimPrefix(key, "session:") }
+// sessionKeyOf is the session key a key or a session row's id names.
+func sessionKeyOf(key string) string { return ochazuke.RefOf("session", key).Key }
+
+// resolveSession is the key (id) of the session text names: its id, or a
+// name read through the session noun's store once (ochazuke.ResolveRef,
+// the one reading of every session reference given at the edge).
+func (a *App) resolveSession(text string) string {
+	ref, _ := a.r.ResolveRef(ochazuke.Ctx{Runtime: a.r}, []string{"session"}, text)
+	return ref.Key
+}
 
 // sessionThings are the listed sessions, in listing order.
 func (a *App) sessionThings(c ochazuke.Ctx) ([]ochazuke.Thing, error) {
@@ -102,7 +109,7 @@ func (a *App) sessionThings(c ochazuke.Ctx) ([]ochazuke.Thing, error) {
 	var out []ochazuke.Thing
 	at := map[string]int{}
 	for _, p := range panes {
-		id := cmp.Or(p.SessionID, p.Session)
+		id := p.SessionID
 		if id == "" {
 			continue
 		}
@@ -150,7 +157,7 @@ func (a *App) patchSession(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 	if err != nil {
 		return nil, err
 	}
-	t, err := a.sessionStore().Get(c, cmp.Or(p.SessionID, p.Session))
+	t, err := a.sessionStore().Get(c, p.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +166,7 @@ func (a *App) patchSession(c ochazuke.Ctx, id string, changes ochazuke.Thing) (o
 	}
 	if to, ok := thingString(changes, "name"); ok {
 		to = strings.TrimSpace(to)
-		if err := a.launchSessionRename(c, "session:"+cmp.Or(p.SessionID, p.Session), p.Session, to); err != nil {
+		if err := a.launchSessionRename(c, p.sessionRef().String(), p.Session, to); err != nil {
 			return nil, err
 		}
 		t["name"] = to
@@ -211,7 +218,7 @@ func (a *App) sessionKey(inst *ochazuke.Instance) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return cmp.Or(p.SessionID, p.Session), nil
+	return p.SessionID, nil
 }
 
 // associateSession is session.associate: from a key or the palette with

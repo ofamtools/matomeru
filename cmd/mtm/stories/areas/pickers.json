@@ -90,7 +90,7 @@
     "enter",
     ":",
     {
-      "type": "focus to --id pane:acme-web/w1"
+      "type": "focus to --id pane:w1"
     },
     "enter"
   ],
@@ -401,7 +401,7 @@
     },
     {
       "page": "panes",
-      "focus": "pane:acme-web/w1",
+      "focus": "pane:w1",
       "contains": [
         "acme-web/claude"
       ]

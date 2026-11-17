@@ -13,13 +13,13 @@ import (
 func TestPaneFocusAttachSelectsDisplayedRow(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
-	if err := a.r.SetFocus("pane:s/wnew"); err != nil {
+	if err := a.r.SetFocus("pane:wnew"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.attachLive(panes[4], "pane:s/wold"); err != nil {
+	if err := a.attachLive(panes[4], "pane:wold"); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := a.selectedRow(); got != "pane:s/wold" {
+	if got, _ := a.selectedRow(); got != "pane:wold" {
 		t.Fatalf("displayed s/oldest but sidebar selects %q", got)
 	}
 	if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
@@ -27,7 +27,7 @@ func TestPaneFocusAttachSelectsDisplayedRow(t *testing.T) {
 	}
 	for range 2 {
 		a.Update(nil)
-		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
+		if got, _ := a.selectedRow(); got != "pane:wold" || a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
 			t.Fatalf("unchanged update: selected=%q focus=%q mode=%q", got, a.r.FocusID(), a.r.CurrentMode().Name)
 		}
 	}
@@ -38,7 +38,7 @@ func TestPaneFocusAttachSelectsDisplayedRow(t *testing.T) {
 	}
 	for range 2 {
 		a.Update(nil)
-		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.FocusID() != modalFocus {
+		if got, _ := a.selectedRow(); got != "pane:wold" || a.r.FocusID() != modalFocus {
 			t.Fatalf("modal update: selected=%q focus=%q, want %q", got, a.r.FocusID(), modalFocus)
 		}
 	}
@@ -59,7 +59,7 @@ func TestPaneFocusLiveAcrossCollapsedSections(t *testing.T) {
 			}
 		}
 	}
-	if err := a.r.SetFocus("pane:s/wold"); err != nil {
+	if err := a.r.SetFocus("pane:wold"); err != nil {
 		t.Fatal(err)
 	}
 	press(t, a, "enter")
@@ -69,7 +69,7 @@ func TestPaneFocusLiveAcrossCollapsedSections(t *testing.T) {
 		if a.paneErr != "" {
 			t.Fatal(a.paneErr)
 		}
-		if got, _ := a.selectedRow(); got != "pane:s/wold" {
+		if got, _ := a.selectedRow(); got != "pane:wold" {
 			t.Fatalf("%s: displayed s/oldest but sidebar selects %q", state, got)
 		}
 		if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
@@ -85,7 +85,7 @@ func TestPaneFocusLiveAcrossCollapsedSections(t *testing.T) {
 		t.Fatalf("terminal input lost: %+v", f.streams)
 	}
 	press(t, a, "ctrl+a", "d")
-	if a.r.FocusID() != "pane:s/wold" || a.r.CurrentMode().Name != "normal" {
+	if a.r.FocusID() != "pane:wold" || a.r.CurrentMode().Name != "normal" {
 		t.Fatalf("detach focus=%q mode=%q", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }
@@ -98,13 +98,13 @@ func TestPaneFocusOutsidePinSurvivesIdle(t *testing.T) {
 	}
 	a.pin = "matomeru"
 	a.setPanes(panes, nil)
-	if err := a.r.SetFocus("pane:s/wold"); err != nil {
+	if err := a.r.SetFocus("pane:wold"); err != nil {
 		t.Fatal(err)
 	}
 	for _, state := range []string{"idle", "working"} {
 		panes[4].AgentState = state
 		a.setPanes(panes, nil)
-		if got, _ := a.selectedRow(); got != "pane:s/wold" || a.r.FocusID() != "pane:s/wold" {
+		if got, _ := a.selectedRow(); got != "pane:wold" || a.r.FocusID() != "pane:wold" {
 			t.Fatalf("%s outside pin: selected=%q focus=%q", state, got, a.r.FocusID())
 		}
 		if state == "idle" && !strings.Contains(frameWH(a, 160, 40), "outside pin") {
@@ -116,13 +116,13 @@ func TestPaneFocusOutsidePinSurvivesIdle(t *testing.T) {
 func TestPaneFocusBrowsingLeavesAttachedScreen(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
-	if err := a.r.SetFocus("pane:s/wold"); err != nil {
+	if err := a.r.SetFocus("pane:wold"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.attachLive(panes[4], "pane:s/wold"); err != nil {
+	if err := a.attachLive(panes[4], "pane:wold"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.r.SetFocus("pane:s/wnew"); err != nil {
+	if err := a.r.SetFocus("pane:wnew"); err != nil {
 		t.Fatal(err)
 	}
 	a.Update(nil)
@@ -130,21 +130,21 @@ func TestPaneFocusBrowsingLeavesAttachedScreen(t *testing.T) {
 	if !strings.Contains(fr, "s/newest") || strings.Contains(fr, "s/oldest") {
 		t.Fatalf("browsing newest still displays the old attachment:\n%s", fr)
 	}
-	if a.r.FocusID() != "pane:s/wnew" || a.attached.ID != "wold" {
+	if a.r.FocusID() != "pane:wnew" || a.attached.ID != "wold" {
 		t.Fatalf("browsing changed input ownership: focus=%q attached=%q", a.r.FocusID(), a.attached.ID)
 	}
 	if err := a.r.SetFocus(paneTermID); err != nil {
 		t.Fatal(err)
 	}
 	a.Update(nil)
-	if got, _ := a.selectedRow(); got != "pane:s/wold" {
+	if got, _ := a.selectedRow(); got != "pane:wold" {
 		t.Fatalf("returning to the live terminal leaves sidebar on %q", got)
 	}
 	if fr := frameWH(a, 160, 40); !strings.Contains(fr, "s/oldest") || strings.Contains(fr, "s/newest") {
 		t.Fatalf("returning to the live terminal displays another pane:\n%s", fr)
 	}
 	press(t, a, "ctrl+a", "d")
-	if a.r.FocusID() != "pane:s/wold" || a.r.CurrentMode().Name != "normal" {
+	if a.r.FocusID() != "pane:wold" || a.r.CurrentMode().Name != "normal" {
 		t.Fatalf("detach after browsing: focus=%q mode=%q", a.r.FocusID(), a.r.CurrentMode().Name)
 	}
 }
@@ -153,10 +153,10 @@ func TestPaneFocusOnlyDisplayedBar(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
 	a.m.Appearance.Theme = "mono"
-	if err := a.r.SetFocus("pane:s/wnew"); err != nil {
+	if err := a.r.SetFocus("pane:wnew"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.attachLive(panes[3], "pane:s/wnew"); err != nil {
+	if err := a.attachLive(panes[3], "pane:wnew"); err != nil {
 		t.Fatal(err)
 	}
 	reverse := regexp.MustCompile(`\x1b\[(?:[0-9]+;)*7(?:;[0-9]+)*m`)

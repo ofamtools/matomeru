@@ -56,7 +56,7 @@ func TestRenameAPaneFromItsRow(t *testing.T) {
 	app, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	app.renamer = fr
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	if err := app.paneList.Select(row); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestRenameAPaneOpensTheNameSelected(t *testing.T) {
 	app, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	app.renamer = fr
-	if err := app.paneList.Select("pane:matomeru/w1"); err != nil {
+	if err := app.paneList.Select("pane:w1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.paneList.Focus(); err != nil {
@@ -154,7 +154,7 @@ func TestRenameEscKeepsTheTypedName(t *testing.T) {
 	app, f := panesApp(t)
 	fr := &fakeRenamer{panes: f}
 	app.renamer = fr
-	if err := app.paneList.Select("pane:matomeru/w1"); err != nil {
+	if err := app.paneList.Select("pane:w1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.paneList.Focus(); err != nil {
@@ -189,7 +189,7 @@ func TestRenamingAPaneRenamesItsSavedRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"props": map[string]any{"@label": "builder"}}})
+	_, err = app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "set", Target: "pane:w1", Args: ochazuke.Arguments{"props": map[string]any{"@label": "builder"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

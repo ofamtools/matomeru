@@ -36,7 +36,7 @@ func TestPaneRenameSurvivesADaemonRestart(t *testing.T) {
 	t.Parallel()
 	a, f := panesApp(t)
 	a.renamer = &fakeRenamer{panes: f}
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	executeA(t, a, "pane", "set", row, ochazuke.Arguments{"props": map[string]any{"@label": "fixer"}})
 	settle(a, a.r.PendingCommands())
 	if f.panes[0].Name != "fixer" {
@@ -48,7 +48,7 @@ func TestPaneRenameSurvivesADaemonRestart(t *testing.T) {
 		t.Fatalf("after a restart the row reads %q", got)
 	}
 	thing, _ := executeA(t, a, "pane", "get", "", ochazuke.Arguments{"id": "w1"}).(map[string]any)
-	if thing["name"] != "fixer" || thing["session"] != "matomeru" {
+	if thing["name"] != "fixer" || thing["session"] != "id-matomeru" {
 		t.Fatalf("get: %v", thing)
 	}
 	out := executeA(t, a, "pane", "refresh", "", ochazuke.Arguments{"id": "w1"})
@@ -99,7 +99,7 @@ func TestEndedPanesAndSessionsStay(t *testing.T) {
 	if len(sessions) != 2 || sessions[1]["name"] != "ochazuke" || sessions[1]["ended"] != true {
 		t.Fatalf("sessions: %v", sessions)
 	}
-	ended := "pane:ochazuke/w2"
+	ended := "pane:w2"
 	if a.r.Instances[ended] != nil {
 		t.Fatal("an ended pane is on the page with panes.show-ended off")
 	}
@@ -150,7 +150,7 @@ func endPane(t *testing.T, a *App, f *fakePanes) string {
 	}
 	f.panes = f.panes[:1]
 	reload(t, a)
-	row := "pane:ochazuke/w2"
+	row := "pane:w2"
 	if a.r.Instances[row] == nil {
 		t.Fatalf("no ended row %s", row)
 	}
@@ -188,7 +188,7 @@ func TestEndedRowOffersNoLiveVerb(t *testing.T) {
 		t.Fatal("pane.attach ran on an ended row")
 	}
 	// A live row still attaches.
-	live := "pane:matomeru/w1"
+	live := "pane:w1"
 	if !a.r.Available(ochazuke.Request{Noun: "pane", Verb: "attach"}, live, a.r.CurrentMode()) {
 		t.Fatal("pane.attach is unavailable on a live row")
 	}
@@ -298,7 +298,7 @@ func TestCopiesHoldOnlyNamesWrittenInMtm(t *testing.T) {
 	t.Parallel()
 	a, f := panesApp(t)
 	a.renamer = &fakeRenamer{panes: f}
-	row := "pane:matomeru/w1"
+	row := "pane:w1"
 	f.panes[0].Name, f.panes[0].Title = "fixer", "fixer" // named at creation
 	forgetCopies(t, a)
 	reload(t, a)
@@ -331,7 +331,7 @@ func TestCopiesHoldOnlyNamesWrittenInMtm(t *testing.T) {
 	}
 	f.panes[1].Name = "renamed-outside"
 	reload(t, a)
-	if got := cells(a, "pane:ochazuke/w2"); !strings.Contains(got, "shell") || strings.Contains(got, "renamed-outside") {
+	if got := cells(a, "pane:w2"); !strings.Contains(got, "shell") || strings.Contains(got, "renamed-outside") {
 		t.Fatalf("under all an outside rename shows: %q", got)
 	}
 }

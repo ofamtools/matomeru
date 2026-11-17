@@ -76,7 +76,7 @@ func TestAgentViewOpensEachLayout(t *testing.T) {
 			if err := app.r.Settings().Set(settingAgentView, c.view); err != nil {
 				t.Fatal(err)
 			}
-			fr := selectRow(t, app, "pane:matomeru/w1")
+			fr := selectRow(t, app, "pane:w1")
 			if !strings.Contains(fr, c.tab) {
 				t.Fatalf("agent.view %s: no %s\n%s", c.view, c.tab, fr)
 			}
@@ -94,16 +94,16 @@ func TestAgentViewOpensEachLayout(t *testing.T) {
 func TestPaneViewOverrideBeatsTheHarnessDefault(t *testing.T) {
 	t.Parallel()
 	app := viewApp(t, `[{"name": "claude", "view": {"open": "terminal"}}]`)
-	if fr := selectRow(t, app, "pane:matomeru/w1"); !strings.Contains(fr, "[Screen]") {
+	if fr := selectRow(t, app, "pane:w1"); !strings.Contains(fr, "[Screen]") {
 		t.Fatalf("profile view terminal: \n%s", fr)
 	}
-	if fr := selectRow(t, app, "pane:ochazuke/w2"); !strings.Contains(fr, "[Turns]") {
+	if fr := selectRow(t, app, "pane:w2"); !strings.Contains(fr, "[Turns]") {
 		t.Fatalf("the shell follows agent.view turns:\n%s", fr)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"view": "both", "split": 30}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:w1", Args: ochazuke.Arguments{"view": "both", "split": 30}}); err != nil {
 		t.Fatal(err)
 	}
-	fr := selectRow(t, app, "pane:matomeru/w1")
+	fr := selectRow(t, app, "pane:w1")
 	if !strings.Contains(fr, "[Turns]") || !splitDrawn(fr) {
 		t.Fatalf("pane.view both over the profile's terminal:\n%s", fr)
 	}
@@ -113,16 +113,16 @@ func TestPaneViewOverrideBeatsTheHarnessDefault(t *testing.T) {
 	}
 	// The override survives a relisting (it is stored by window id).
 	reload(t, app)
-	if p, _ := app.paneAt(app.r.Instances["pane:matomeru/w1"]); p.View != "both" {
+	if p, _ := app.paneAt(app.r.Instances["pane:w1"]); p.View != "both" {
 		t.Fatalf("after reload %+v", p)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"view": "default"}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:w1", Args: ochazuke.Arguments{"view": "default"}}); err != nil {
 		t.Fatal(err)
 	}
-	if fr := selectRow(t, app, "pane:matomeru/w1"); !strings.Contains(fr, "[Screen]") {
+	if fr := selectRow(t, app, "pane:w1"); !strings.Contains(fr, "[Screen]") {
 		t.Fatalf("pane.view default: back to the profile's terminal\n%s", fr)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"view": "sideways"}}); err == nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:w1", Args: ochazuke.Arguments{"view": "sideways"}}); err == nil {
 		t.Fatal("pane.view took a value that is no view")
 	}
 }
@@ -132,9 +132,9 @@ func TestPaneViewOverrideBeatsTheHarnessDefault(t *testing.T) {
 func TestTheChosenTabStaysAcrossPanesOfOneView(t *testing.T) {
 	t.Parallel()
 	app := viewApp(t, "")
-	selectRow(t, app, "pane:matomeru/w1")
+	selectRow(t, app, "pane:w1")
 	settle(app, key(t, app, "]")) // Screen
-	if fr := selectRow(t, app, "pane:ochazuke/w2"); !strings.Contains(fr, "[Screen]") {
+	if fr := selectRow(t, app, "pane:w2"); !strings.Contains(fr, "[Screen]") {
 		t.Fatalf("the tab did not stay:\n%s", fr)
 	}
 }
@@ -156,7 +156,7 @@ func TestTheSplitRatioApplies(t *testing.T) {
 		return 0, 0
 	}
 	app := viewApp(t, `[{"name": "claude", "view": {"open": "both"}}]`)
-	at, width := ruleAt(selectRow(t, app, "pane:matomeru/w1"))
+	at, width := ruleAt(selectRow(t, app, "pane:w1"))
 	if want := (width - 3) * 50 / 100; at < want-1 || at > want+1 {
 		t.Fatalf("default split: rule at %d of %d, want about %d", at, width, want)
 	}
@@ -166,7 +166,7 @@ func TestTheSplitRatioApplies(t *testing.T) {
 	if at, width = ruleAt(frame(app)); at < (width-3)*70/100-1 || at > (width-3)*70/100+1 {
 		t.Fatalf("agent.view-split 70: rule at %d of %d", at, width)
 	}
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"view": "both", "split": 25}}); err != nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:w1", Args: ochazuke.Arguments{"view": "both", "split": 25}}); err != nil {
 		t.Fatal(err)
 	}
 	fr := frame(app)
@@ -174,7 +174,7 @@ func TestTheSplitRatioApplies(t *testing.T) {
 		t.Fatalf("pane.view --split 25: rule at %d of %d", at, width)
 	}
 	t.Logf("both view, split 25:\n%s", fr)
-	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:matomeru/w1", Args: ochazuke.Arguments{"view": "both", "split": 95}}); err == nil {
+	if _, err := app.r.Execute(ochazuke.Request{Noun: "pane", Verb: "view", Target: "pane:w1", Args: ochazuke.Arguments{"view": "both", "split": 95}}); err == nil {
 		t.Fatal("split 95 was taken")
 	}
 }

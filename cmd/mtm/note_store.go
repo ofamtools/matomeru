@@ -425,7 +425,8 @@ func (a *App) noteLinks(c ochazuke.Ctx, cur work.Note, w aboutWrite) (projectID,
 // comes back (cur's when the write gives none).
 func (a *App) fillFromAbout(cur work.Note, w aboutWrite) (aboutWrite, string) {
 	ref := cur.About
-	noun, key, isRef := ochazuke.SplitAnyRef(w.about)
+	about, isRef := ochazuke.ParseRef(w.about)
+	noun, key := about.Noun, about.Key
 	slot := ownerSlotArg(noun)
 	switch {
 	case !w.hasAbout:
@@ -474,7 +475,7 @@ func (a *App) fillFromThing(cur work.Note, w aboutWrite, noun, key string) about
 
 // aboutIsTask reports whether the note is about its task.
 func (a *App) aboutIsTask(n work.Note) bool {
-	return n.TaskID != "" && n.AboutRef() == ochazuke.AnyRef("task", n.TaskID)
+	return n.TaskID != "" && n.AboutRef() == ochazuke.Ref{Noun: "task", Key: n.TaskID}.String()
 }
 
 // keepLinked keeps what a write leaves alone: a change of project alone
@@ -498,7 +499,7 @@ func (a *App) settleAbout(cur work.Note, w aboutWrite, taskID, ref string) strin
 	isSlot := ownerSlotArg(nounOf(ref)) != ""
 	switch {
 	case taskID != "" && (ref == "" || isSlot):
-		return ochazuke.AnyRef("task", taskID)
+		return ochazuke.Ref{Noun: "task", Key: taskID}.String()
 	case taskID == "" && w.hasTask && w.task == "" && cur.TaskID != "" && isSlot:
 		return ""
 	}
@@ -507,8 +508,8 @@ func (a *App) settleAbout(cur work.Note, w aboutWrite, taskID, ref string) strin
 
 // nounOf is the noun of a stored about ("" when it holds none).
 func nounOf(about string) string {
-	noun, _, _ := ochazuke.SplitAnyRef(about)
-	return noun
+	ref, _ := ochazuke.ParseRef(about)
+	return ref.Noun
 }
 
 // aboutProject is the owner project of a thing of any noun, "" for none: a

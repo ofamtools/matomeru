@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"ofam.dev/ochazuke"
+
 	"ofam.dev/matomeru/internal/harness"
 	"ofam.dev/matomeru/internal/schedules"
 	"ofam.dev/matomeru/internal/work"
@@ -118,7 +120,7 @@ func (a *App) runPromptSchedule(ctx context.Context, def schedules.Def, rec *sch
 	done, _ := v.(launched)
 	r := done.Pane
 	out.Session, out.Window, out.Name, out.Argv, out.Typed, out.Cwd = r.Session, r.Window, r.Name, r.Argv, r.Typed, cwd
-	out.Pane, out.Prompt = "pane:"+r.Session+"/"+r.Window, r.Prompt
+	out.Pane, out.Prompt = ochazuke.Ref{Noun: "pane", Key: r.Window}.String(), r.Prompt
 	notes = append(notes, splitNote(r.Note)...)
 	notes = append(notes, splitNote(done.Note)...)
 	rec.Window = r.Window

@@ -118,7 +118,7 @@ func TestKillRefusesBeforeConfirmWhileSidesAreOpen(t *testing.T) {
 	t.Parallel()
 	a, f := sideViewApp(t)
 	press(t, a, "ctrl+a", "d")
-	if a.r.FocusID() != "pane:matomeru/w1" {
+	if a.r.FocusID() != "pane:w1" {
 		t.Fatalf("focus %s", a.r.FocusID())
 	}
 	a.Update(keyMsg("d"))

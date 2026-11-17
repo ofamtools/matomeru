@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -238,7 +239,7 @@ func (a *App) patchSaved(c ochazuke.Ctx, id string, changes ochazuke.Thing) (och
 		return nil, err
 	}
 	if owned && row.Window != "" {
-		if err := a.work.SetPaneOwner(work.Assignment{Window: row.Window, Session: row.Session, ProjectID: row.ProjectID, TaskID: row.TaskID, AssignedAt: work.Now()}); err != nil {
+		if err := a.work.SetPaneOwner(work.Assignment{Window: row.Window, Session: cmp.Or(a.windowSession(row.Window), row.SessionID), ProjectID: row.ProjectID, TaskID: row.TaskID, AssignedAt: work.Now()}); err != nil {
 			return nil, err
 		}
 		if err := a.refreshScope(); err != nil {

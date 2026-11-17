@@ -40,7 +40,7 @@ func nameAt(a *App, id, name string) int {
 func TestPaneRowMarkerGutter(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
-	agent, shell := "pane:matomeru/w1", "pane:ochazuke/w2"
+	agent, shell := "pane:w1", "pane:w2"
 	f.panes[0].Harness, f.panes[0].AgentState = "claude", "idle"
 	reload(t, app)
 	if got := cell0(app, agent); !strings.HasSuffix(got, "  ○ claude") {
@@ -115,7 +115,7 @@ func tonesOf(a *App, id string) []ochazuke.ToneSpan {
 func TestPaneRowTones(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)
-	agent, shell := "pane:matomeru/w1", "pane:ochazuke/w2"
+	agent, shell := "pane:w1", "pane:w2"
 	for _, c := range []struct {
 		state  string
 		exited bool

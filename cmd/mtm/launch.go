@@ -406,7 +406,7 @@ func (a *App) liveRows() func(context.Context) ocli.Lines {
 				seen[p.SessionID] = true
 				if o, err := w.SessionOwner(p.SessionID); err == nil && scope.inScope(o.ProjectID) {
 					owner := scope.ownerLabel(o.ProjectID)
-					out = append(out, ocli.Row{Noun: "session", ID: "session:" + p.SessionID, Label: "session " + p.Session + " · " + owner, Cells: sessionCells(p, owner)})
+					out = append(out, ocli.Row{Noun: "session", ID: p.sessionRef().String(), Label: "session " + p.Session + " · " + owner, Cells: sessionCells(p, owner)})
 				}
 			}
 			if p.ID == "" {

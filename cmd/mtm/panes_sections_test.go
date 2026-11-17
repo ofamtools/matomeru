@@ -19,9 +19,9 @@ import (
 func TestPaneJobsAcrossSections(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ row, list string }{
-		{"pane:s/wwait", queueTreeID + "/list"},
-		{"pane:s/widle", paneListID},
-		{"pane:s/wold", workingTreeID + "/list"},
+		{"pane:wwait", queueTreeID + "/list"},
+		{"pane:widle", paneListID},
+		{"pane:wold", workingTreeID + "/list"},
 	} {
 		t.Run(tc.list, func(t *testing.T) {
 			t.Parallel()
@@ -157,20 +157,20 @@ func TestPaneSectionsDefaultAssignment(t *testing.T) {
 	a, _ := sectionsApp(t)
 	setting(t, a, settingPanesLayout, layoutStacked)
 	queue := sectionIDs(a, 0)
-	want := []string{"pane:s/wwait", "pane:s/werr", "pane:s/wdone", "queue:" + itemByKey(t, a, "pr-1").ID}
+	want := []string{"pane:wwait", "pane:werr", "pane:wdone", "queue:" + itemByKey(t, a, "pr-1").ID}
 	if !slices.Equal(queue, want) {
 		t.Fatalf("queue %v, want %v", queue, want)
 	}
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wold", "pane:s/wnew"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:wold", "pane:wnew"}) {
 		t.Fatalf("working %v", got)
 	}
 	middle := sectionIDs(a, 1)
-	if !slices.Equal(middle, []string{"pane:s/widle", "pane:s/wterm"}) {
+	if !slices.Equal(middle, []string{"pane:widle", "pane:wterm"}) {
 		t.Fatalf("middle %v", middle)
 	}
 	// A queue row of a pane's signal is the pane's row; its item is a child
 	// row that fronts the same pane.
-	inst := a.r.Instances["pane:s/wwait"]
+	inst := a.r.Instances["pane:wwait"]
 	if inst.Noun != "pane" {
 		t.Fatalf("noun %s", inst.Noun)
 	}
@@ -192,7 +192,7 @@ func TestPaneSectionsFromSettings(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
 	// The cursor off the queue, so no row is held in it.
-	if err := a.r.SetFocus("pane:s/widle"); err != nil {
+	if err := a.r.SetFocus("pane:widle"); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.r.Settings().Set(settingPaneSections, []string{"errored=queue", "working=working"}); err != nil {
@@ -207,14 +207,14 @@ func TestPaneSectionsFromSettings(t *testing.T) {
 	wait := itemByKey(t, a, "w")
 	// The waiting item's pane stays in Panes (no waiting=queue), so the item
 	// is a child row of that pane there, and a row of its own in the queue.
-	if got := sectionIDs(a, 0); !slices.Equal(got, []string{queueRowStart + wait.ID, "pane:s/werr"}) {
+	if got := sectionIDs(a, 0); !slices.Equal(got, []string{queueRowStart + wait.ID, "pane:werr"}) {
 		t.Fatalf("queue %v", got)
 	}
-	if !slices.ContainsFunc(a.pv.sections[1].tree.Nodes(), func(n ochazuke.TreeNode) bool { return n.ID == itemRowStart+wait.ID && n.Parent == "pane:s/wwait" }) {
+	if !slices.ContainsFunc(a.pv.sections[1].tree.Nodes(), func(n ochazuke.TreeNode) bool { return n.ID == itemRowStart+wait.ID && n.Parent == "pane:wwait" }) {
 		t.Fatalf("the waiting item is not a child row of its pane in Panes")
 	}
 	middle := sectionIDs(a, 1)
-	for _, id := range []string{"pane:s/wwait", "pane:s/wdone", "pane:s/wterm"} {
+	for _, id := range []string{"pane:wwait", "pane:wdone", "pane:wterm"} {
 		if !slices.Contains(middle, id) {
 			t.Fatalf("middle %v lacks %s", middle, id)
 		}
@@ -235,7 +235,7 @@ func TestPaneSectionsTerminalsStayInTheMiddle(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.setPanes(panes, nil)
-	if !slices.Contains(sectionIDs(a, 1), "pane:s/wterm") || slices.Contains(sectionIDs(a, 2), "pane:s/wterm") {
+	if !slices.Contains(sectionIDs(a, 1), "pane:wterm") || slices.Contains(sectionIDs(a, 2), "pane:wterm") {
 		t.Fatalf("terminal moved: middle %v working %v", sectionIDs(a, 1), sectionIDs(a, 2))
 	}
 }
@@ -252,13 +252,13 @@ func TestPaneSectionsOuterListsIgnoreThePin(t *testing.T) {
 	}
 	a.pin = "matomeru"
 	a.setPanes(panes, nil)
-	if !slices.Contains(sectionIDs(a, 0), "pane:s/wwait") {
+	if !slices.Contains(sectionIDs(a, 0), "pane:wwait") {
 		t.Fatalf("queue %v lacks the other project's waiting pane", sectionIDs(a, 0))
 	}
-	if !slices.Contains(sectionIDs(a, 2), "pane:s/wold") {
+	if !slices.Contains(sectionIDs(a, 2), "pane:wold") {
 		t.Fatalf("working %v lacks the other project's working pane", sectionIDs(a, 2))
 	}
-	if slices.Contains(sectionIDs(a, 1), "pane:s/widle") {
+	if slices.Contains(sectionIDs(a, 1), "pane:widle") {
 		t.Fatalf("middle %v shows a pane outside the pin", sectionIDs(a, 1))
 	}
 	if a.pv.view.hidden != 2 {
@@ -318,7 +318,7 @@ func TestPaneSectionsHoldTheRowUnderTheCursor(t *testing.T) {
 	t.Parallel()
 	a, panes := sectionsApp(t)
 	setting(t, a, settingStickyRows, true)
-	row := "pane:s/wold"
+	row := "pane:wold"
 	if err := a.selectPaneRow(row); err != nil {
 		t.Fatal(err)
 	}
@@ -334,14 +334,14 @@ func TestPaneSectionsHoldTheRowUnderTheCursor(t *testing.T) {
 	// A refresh with a newer state time does not reorder the others.
 	panes[3].StateAt = 5
 	a.setPanes(panes, nil)
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{row, "pane:s/wnew"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{row, "pane:wnew"}) {
 		t.Fatalf("working reordered: %v", got)
 	}
 	press(t, a, "j") // the cursor moves to wnew: wold may go now
-	if a.r.FocusID() != "pane:s/wnew" {
+	if a.r.FocusID() != "pane:wnew" {
 		t.Fatalf("focus %s", a.r.FocusID())
 	}
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:s/wnew"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:wnew"}) {
 		t.Fatalf("working after the move %v", got)
 	}
 	if !slices.Contains(sectionIDs(a, 1), row) {
@@ -439,7 +439,7 @@ func TestPaneSectionsQueueRowIsThePane(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
 	frame(a)
-	row := "pane:s/werr"
+	row := "pane:werr"
 	if err := a.r.SetFocus(row); err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +490,7 @@ func TestPaneSectionsLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The cursor rests on the terminal, so no agent's row is held.
-	if err := a.r.SetFocus("pane:rail/term"); err != nil {
+	if err := a.r.SetFocus("pane:term"); err != nil {
 		t.Fatal(err)
 	}
 	if len(sectionIDs(a, 0))+len(sectionIDs(a, 2)) != 0 {
@@ -500,10 +500,10 @@ func TestPaneSectionsLifecycle(t *testing.T) {
 	panes[2].AgentState, panes[2].StateAt = "working", 100
 	panes[1].AgentState, panes[1].StateAt = "working", 200
 	a.setPanes(panes, nil)
-	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:rail/gamma", "pane:rail/beta"}) {
+	if got := sectionIDs(a, 2); !slices.Equal(got, []string{"pane:gamma", "pane:beta"}) {
 		t.Fatalf("working %v", got)
 	}
-	if mid := sectionIDs(a, 1); !slices.Contains(mid, "pane:rail/alpha") || !slices.Contains(mid, "pane:rail/term") {
+	if mid := sectionIDs(a, 1); !slices.Contains(mid, "pane:alpha") || !slices.Contains(mid, "pane:term") {
 		t.Fatalf("middle %v", mid)
 	}
 	// Turns end in the order beta, gamma, alpha: each raises a done item.
@@ -517,7 +517,7 @@ func TestPaneSectionsLifecycle(t *testing.T) {
 	panes[0].AgentState = "working"
 	a.setPanes(panes, nil)
 	finish(0, "alpha")
-	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"pane:rail/beta", "pane:rail/gamma", "pane:rail/alpha"}) {
+	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"pane:beta", "pane:gamma", "pane:alpha"}) {
 		t.Fatalf("review order %v", got)
 	}
 	if len(sectionIDs(a, 2)) != 0 {
@@ -530,10 +530,10 @@ func TestPaneSectionsLifecycle(t *testing.T) {
 	if err := a.inboxLoad.refresh(); err != nil {
 		t.Fatal(err)
 	}
-	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"pane:rail/gamma", "pane:rail/alpha"}) {
+	if got := sectionIDs(a, 0); !slices.Equal(got, []string{"pane:gamma", "pane:alpha"}) {
 		t.Fatalf("after review %v", got)
 	}
-	if !slices.Contains(sectionIDs(a, 1), "pane:rail/beta") {
+	if !slices.Contains(sectionIDs(a, 1), "pane:beta") {
 		t.Fatalf("middle %v", sectionIDs(a, 1))
 	}
 }
@@ -552,10 +552,10 @@ func sectionItems(a *App) []ochazuke.ListItem {
 func TestPaneSectionsOpenOnTheQueue(t *testing.T) {
 	t.Parallel()
 	a, _ := sectionsApp(t)
-	if a.r.FocusID() != "pane:s/wwait" {
+	if a.r.FocusID() != "pane:wwait" {
 		t.Fatalf("first listing: focus %s, want the queue's first row", a.r.FocusID())
 	}
-	if err := a.r.SetFocus("pane:s/widle"); err != nil {
+	if err := a.r.SetFocus("pane:widle"); err != nil {
 		t.Fatal(err)
 	}
 	toPage(t, a, inboxPage)

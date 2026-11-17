@@ -497,6 +497,6 @@ func (a *App) runTerminalCommand(ctx context.Context, def schedules.Def, rec *sc
 	r := done.Pane
 	rec.Window = r.Window
 	rec.Launched = &schedules.Launched{Target: schedules.TargetNew, Session: r.Session, Window: r.Window, Name: r.Name,
-		Pane: "pane:" + r.Session + "/" + r.Window, Argv: r.Argv, Cwd: home, Note: done.Note}
+		Pane: ochazuke.Ref{Noun: "pane", Key: r.Window}.String(), Argv: r.Argv, Cwd: home, Note: done.Note}
 	return nil
 }

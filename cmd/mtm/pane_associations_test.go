@@ -28,7 +28,7 @@ func TestLiveRenameAssociation(t *testing.T) {
 			fr := &fakeRenamer{panes: f}
 			a.renamer = fr
 			// A different selected row must never steal the live subject.
-			if err := a.paneList.Select("pane:ochazuke/w2"); err != nil {
+			if err := a.paneList.Select("pane:w2"); err != nil {
 				t.Fatal(err)
 			}
 			press(t, a, "ctrl+a", "r")
