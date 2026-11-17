@@ -6,6 +6,7 @@
   "parent": "session",
   "columns": [
     {"title": "pane", "min": 16},
+    {"title": "★", "min": 1, "priority": 4},
     {"title": "project", "priority": 3},
     {"title": "state", "priority": 1},
     {"title": "cwd", "min": 12, "priority": 2}
@@ -73,6 +74,13 @@
       "type": "boolean",
       "description": "Whether the pane is starred (` and the leader's s go to the next starred pane)",
       "through": true
+    },
+    {
+      "name": "star-mark",
+      "aliases": ["★"],
+      "description": "The mark a list shows a starred pane with (★), nothing otherwise",
+      "readOnly": true,
+      "derivation": {"of": "mark", "reads": ["starred", "★"]}
     },
     {
       "name": "archived",

@@ -817,7 +817,9 @@ func New(opts Options) (*App, error) {
 		return nil, err
 	}
 	// mtm's pages declared as data (pages/*.json), out of the tabs
-	// unless they say otherwise, before Schedules and Runs.
+	// unless they say otherwise, before Schedules and Runs. The verbs that
+	// load what their stores answer say so first (storeLoads).
+	a.declareStoreLoads()
 	a.mountDataPages()
 	if err := a.addSchedulesPage(); err != nil {
 		return nil, err

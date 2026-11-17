@@ -41,6 +41,29 @@ func (a *App) reportNounProblems(problems []ochazuke.DeclProblem) {
 	}
 }
 
+// storeLoads are the fetch verbs that load what noun files' stores answer
+// (the daemon's listing read into the cache the pane and session stores
+// list from): each declares those nouns as the stores it writes
+// (ochazuke Operation.Writes), so once its job is done their watches, an
+// index tree's among them, read again, as after a change verb. A verb
+// declared in Go before its noun file existed says it here, beside the
+// sources, until its own declaration can carry it (panes.refresh: the
+// Panes page's files are not edited while that page stays, run plan 5.6).
+var storeLoads = map[string][]string{"panes.refresh": {"pane", "session"}}
+
+// declareStoreLoads writes storeLoads onto the verbs, once they are
+// declared.
+func (a *App) declareStoreLoads() {
+	for key, nouns := range storeLoads {
+		op, ok := a.r.Operations.Find(ochazuke.Key(a.r.CanonicalKey(key)))
+		if !ok {
+			continue
+		}
+		op.Writes = nouns
+		a.r.Operations.Set(op)
+	}
+}
+
 // nounHandlers registers the Go code the noun files cite: each verb row's
 // handler under NOUN.VERB, each store's source under NOUN.store.
 func (a *App) nounHandlers() {
