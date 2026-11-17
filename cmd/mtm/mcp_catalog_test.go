@@ -320,13 +320,22 @@ func TestMCPActorStaysBoundAndLaneAssignmentRefreshes(t *testing.T) {
 	a, rec, _ := mcpApp(t, env)
 	a.setPin("ochazuke")
 	s := mcpServerFor(t, a)
+	// An agent's default is the owner's (the pinned project, which holds
+	// none of the seeded tasks); scope pin narrows to its pane's lane.
 	list, err := s.Call(context.Background(), "task_list", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows := resultRows(list.(map[string]any)); len(rows) != 0 {
+		t.Fatalf("agent default differs from the owner's pinned scope: %v", list)
+	}
+	list, err = s.Call(context.Background(), "task_list", map[string]any{"scope": "pin"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rows := resultRows(list.(map[string]any))
 	if len(rows) != 1 || rows[0].(map[string]any)["id"] != "t1" {
-		t.Fatalf("owner pin leaked into agent lane: %v", list)
+		t.Fatalf("scope pin is the agent's lane: %v", list)
 	}
 	list, err = s.Call(context.Background(), "task_list", map[string]any{"scope": "all", "status": "todo"})
 	if err != nil {

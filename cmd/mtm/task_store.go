@@ -157,7 +157,7 @@ func (a *App) taskStore() ochazuke.Store {
 		ConfirmFor: a.deletionConfirm("task"),
 		ListParams: map[string]ochazuke.Parameter{
 			"all":    {Type: "boolean", Description: "Every task, not only those in the current scope"},
-			"scope":  {Type: "string", Enum: []string{"pin", "all"}, Description: "The agent pane's lane or all tasks"},
+			"scope":  {Type: "string", Enum: []string{"pin", "all"}, Description: "pin: only the calling pane's lane (its task subtree, else its project); all: every project's tasks; omitted: the pinned project's tasks, as the owner sees them"},
 			"status": {Type: "string", Description: "Only tasks with this status"},
 		},
 		Get: func(_ ochazuke.Ctx, id string) (ochazuke.Thing, error) {
@@ -169,7 +169,8 @@ func (a *App) taskStore() ochazuke.Store {
 		},
 		List: func(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
 			scope := *a
-			if all, _ := q.Args["all"].(bool); all || a.work.Actor().IsAgent() || ochazuke.StringArg(q.Args, "scope", "") == "all" {
+			// scope pin is the pane's lane, which stands in for the pin.
+			if all, _ := q.Args["all"].(bool); all || ochazuke.StringArg(q.Args, "scope", "") != "" {
 				scope.all = true
 			}
 			tasks, err := a.work.Tasks("")
@@ -184,7 +185,7 @@ func (a *App) taskStore() ochazuke.Store {
 				return nil, err
 			}
 			inLane := func(work.Task) bool { return true }
-			if a.work.Actor().IsAgent() && q.Args["all"] != true && ochazuke.StringArg(q.Args, "scope", "pin") != "all" {
+			if ochazuke.StringArg(q.Args, "scope", "") == "pin" {
 				inLane, err = a.paneLane(tasks)
 				if err != nil {
 					return nil, err
@@ -214,12 +215,10 @@ func (a *App) taskStore() ochazuke.Store {
 // answers from (tasks, projects, focus rows: work.TaskRecordsVersion),
 // today (a focus carries over by day), and the settings a read applies
 // (focus.carry, tasks.statuses: which statuses close a task); docStore
-// adds the scope and the archive setting. An agent's list keeps its lane
-// (paneLane, read from its pane), so its token is unknown ("").
+// adds the scope and the archive setting. Agents and the owner share it;
+// a list with scope pin also reads the pane's lane, which callers that
+// cache on the token (the TUI's lists) never ask for.
 func (a *App) taskChangeToken() (string, error) {
-	if a.work.Actor().IsAgent() {
-		return "", nil
-	}
 	records, err := a.work.TaskRecordsVersion()
 	if err != nil {
 		return "", err

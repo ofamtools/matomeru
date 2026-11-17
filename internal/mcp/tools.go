@@ -22,8 +22,8 @@ var taskStatuses = []string{"todo", "active", "blocked", "done"}
 func Aliases() []catalogmcp.Alias {
 	tools := []catalogmcp.Tool{
 		{Name: "whoami", Description: "Who am I: the pane, its task and project, cwd and harness. Call it first.", InputSchema: schema(map[string]any{})},
-		{Name: "task_list", Description: "List tasks: scope pin (the pane's task subtree, else its project's tasks; the default) or all; optional status filter.", InputSchema: schema(map[string]any{
-			"scope":  map[string]any{"type": "string", "enum": []string{"pin", "all"}, "description": "pin: tasks under the pane's task or project; all: every task"},
+		{Name: "task_list", Description: "List tasks as the owner sees them (the pinned project's); scope pin narrows to the pane's task subtree, else its project's tasks; scope all lists every project's; optional status filter.", InputSchema: schema(map[string]any{
+			"scope":  map[string]any{"type": "string", "enum": []string{"pin", "all"}, "description": "pin: tasks under the pane's task or project; all: every task; omitted: the pinned project's tasks"},
 			"status": str("Only tasks with this status"),
 		})},
 		{Name: "task_done", Description: "Mark a task done; the pane's task when task_id is empty. An optional note is attached to the task.", InputSchema: schema(map[string]any{

@@ -62,8 +62,9 @@ Alias calls return the catalog `run` envelope (`status`, `result`, messages,
 history entry and optional undo), so clients reading structured results
 should read `result` for the domain value. The stored effects are the same.
 
-Lane filtering belongs to `task.list` for agent callers (`scope: all` widens
-it); closing notes, evidence and optimistic version checking belong to
+`task.list` answers an agent as it answers the owner (the pinned project's
+tasks); `scope: pin` narrows it to the calling pane's lane and `scope: all`
+lists every project's; closing notes, evidence and optimistic version checking belong to
 `task.set`, so `task.done` and `task.status` keep their standard-set aliases.
 `task.status` requires a summary to set done. Evidence notes are append-only
 records and remain when the task status is undone. `context-item.report`

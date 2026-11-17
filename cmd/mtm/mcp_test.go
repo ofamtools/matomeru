@@ -177,7 +177,7 @@ func TestMCPServeRunsEveryToolAgainstTheDatabase(t *testing.T) {
 		map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"},
 		map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
 		toolCall(3, "whoami", nil),
-		toolCall(4, "task_list", nil),
+		toolCall(4, "task_list", map[string]any{"scope": "pin"}),
 		toolCall(5, "task_note_add", map[string]any{"text": "first finding"}),
 		toolCall(6, "task_status", map[string]any{"status": "active", "verification": "go test"}),
 		toolCall(7, "context_add", map[string]any{"text": "see https://github.com/unixsuperhero/matomeru/pull/7"}),
