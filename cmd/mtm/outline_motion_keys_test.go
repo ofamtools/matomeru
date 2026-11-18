@@ -55,8 +55,8 @@ func TestOutlineMotionKeysKeepTheirMeaning(t *testing.T) {
 	}
 }
 
-// } and { on the outline run ochazuke.outline.next-fold and previous-fold:
-// they land on the next or previous project row (from a task, its own
+// } and { on the outline run ochazuke.collection.next-class and
+// previous-class over the project rows: they land on the next or previous project row (from a task, its own
 // project first) and the modal and the tree keep focus; with the focus in
 // the notes section they return it to the tree's selected row.
 func TestOutlineFoldKeysJumpProjects(t *testing.T) {
@@ -120,6 +120,32 @@ func TestOutlineFoldKeysJumpProjects(t *testing.T) {
 	if want := projectOfTask(tree, task); a.r.FocusID() != want || a.r.TopModal() != outlineModal {
 		t.Fatalf("{ from a task: focus %q, want its project %q", a.r.FocusID(), want)
 	}
+	// in visual-line } extends the selection from the start row through the
+	// next project row
+	focusRow(t, a, task)
+	press(t, a, "V", "}")
+	next := projects[slices.Index(projects, projectOfTask(tree, task))+1]
+	var want []string
+	in := false
+	for _, n := range tree.Nodes() {
+		if n.ID == task {
+			in = true
+		}
+		if in {
+			want = append(want, n.ID)
+		}
+		if n.ID == next {
+			break
+		}
+	}
+	var marked []string
+	for _, m := range tree.List().Marked() {
+		marked = append(marked, m.ID)
+	}
+	if a.r.Mode.Name != "visual-line" || a.r.TopModal() != outlineModal || a.r.FocusID() != next || !slices.Equal(marked, want) {
+		t.Fatalf("V } from a task: mode %q, modal %q, focus %q (want %q), marked %v (want %v)", a.r.Mode.Name, a.r.TopModal(), a.r.FocusID(), next, marked, want)
+	}
+	press(t, a, "esc")
 	// a project created in the outline is walked too
 	focusRow(t, a, projects[0])
 	press(t, a, "o", "esc", "{")
