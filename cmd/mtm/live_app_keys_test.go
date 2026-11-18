@@ -230,7 +230,8 @@ func TestLeaderQuestionOpensTheHelpTree(t *testing.T) {
 		t.Fatalf("ctrl+a ?: modal %q", app.r.TopModal())
 	}
 	frame := ansi.Strip(frameView(app).Content)
-	if strings.Count(frame, "▾ ctrl+a") != 1 {
+	// Two spaces: the leader's own row, not the open ctrl+a _ row under it.
+	if strings.Count(frame, "▾ ctrl+a  ") != 1 {
 		t.Fatalf("the leader is not one open row:\n%s", frame)
 	}
 	for _, want := range []string{"▸ ctrl+a v", "▸ ctrl+a :", "▸ ctrl+a ,", "▸ ctrl+a '", "▸ ctrl+a `", "▸ ctrl+a W", "▸ ctrl+a ctrl+j", "command palette", "next starred pane, live"} {

@@ -62,7 +62,8 @@ func TestHelpOverALivePaneListsTheLeaderKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	frame := ansi.Strip(frameView(app).Content)
-	if strings.Count(frame, "▾ ctrl+a") != 1 || strings.Contains(frame, "▾ ctrl+a v") {
+	// Two spaces: the leader's own row, not the open ctrl+a _ row under it.
+	if strings.Count(frame, "▾ ctrl+a  ") != 1 || strings.Contains(frame, "▾ ctrl+a v") {
 		t.Fatalf("the leader is not one open row:\n%s", frame)
 	}
 	for _, want := range []string{"▸ ctrl+a v", "▸ ctrl+a t", "▸ ctrl+a d"} {
