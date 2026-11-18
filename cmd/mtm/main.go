@@ -294,7 +294,8 @@ func runWith(args []string, stdin io.Reader, stdout, stderr io.Writer, shellOpti
 		app.wireRestart()
 		stopSignals()
 		defer app.stopExtOnSignals(syscall.SIGHUP)()
-		_, err := tea.NewProgram(app).Run()
+		// TimingModel: debug.timing-log times App's whole Update and View.
+		_, err := tea.NewProgram(app.m.TimingModel(app)).Run()
 		return err
 	}
 	err = app.commands(words, stdin, stdout, stderr, tui, shellOptions...).Run(context.Background())
