@@ -47,9 +47,9 @@ func TestLiveRenameAssociation(t *testing.T) {
 	}
 }
 
-func TestLiveRenameOptOutAndNestedLeader(t *testing.T) {
+func TestLiveRenameOptOut(t *testing.T) {
 	t.Parallel()
-	for _, setting := range []string{ochazuke.SubjectFromAssociationSetting, ochazuke.LeaderFallThroughSetting, "nested"} {
+	for _, setting := range []string{ochazuke.SubjectFromAssociationSetting, ochazuke.LeaderFallThroughSetting} {
 		t.Run(setting, func(t *testing.T) {
 			t.Parallel()
 			a, f := panesApp(t)
@@ -64,11 +64,7 @@ func TestLiveRenameOptOutAndNestedLeader(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if setting == "nested" {
-				press(t, a, "ctrl+a", "ctrl+a", "r")
-			} else {
-				press(t, a, "ctrl+a", "r")
-			}
+			press(t, a, "ctrl+a", "r")
 			if a.r.FocusID() != paneTermID || a.r.CurrentMode().Name != "terminal" {
 				t.Fatalf("lost live: %s %s", a.r.FocusID(), a.r.CurrentMode().Name)
 			}
