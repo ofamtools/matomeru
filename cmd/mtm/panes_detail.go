@@ -565,7 +565,7 @@ func (a *App) defineLiveKeys() {
 		Verb("zoom", a.toggleZoom, "Zoom the attached pane to the page body, or back into the detail panel").
 		Verb("cycle", a.cyclePane, "Attach the next (delta 1) or previous (-1) pane of the list; outside live, select it").
 		Verb("side", a.sidePane, "Open or focus a named side beside this pane").
-		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").
+		Verb("sideDetach", a.sideDetach, "Hide the front side, fall back to the previous side, or detach").Exits(ochazuke.ExitsMode).
 		Verb("other", a.focusOther, "Move the focus to the other live terminal: the pane, then its side, wrapping").
 		Verb("layout", a.flipLayout, "Flip the side pane between beside and below its parent (the side-layout setting)").
 		Verb("keys", a.leaderKeys, "Show the leader keys (the terminal-leader setting, then one key) in a small modal").
