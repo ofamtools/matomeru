@@ -336,8 +336,14 @@
     {"key": "ctrl+a", "action": "task-outline.close", "hidden": true}
   ]},
   {"context": "task-outline/normal", "bindings": [
+    {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "next project"},
+    {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "previous project"},
     {"key": "m", "action": "task-outline.detach", "hidden": true},
     {"key": "ctrl+l", "action": "task-outline.paste", "hidden": true}
+  ]},
+  {"context": "task-outline/visual-line", "bindings": [
+    {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "next project"},
+    {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "previous project"}
   ]},
   {"context": "task/normal", "bindings": [
     {"key": "g n", "action": "task.annotate", "hidden": true},

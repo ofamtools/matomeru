@@ -46,6 +46,9 @@ import (
 const (
 	outlineModal = "task-outline"
 	outlineTree  = "task-outline/tree"
+	// outlineProjectClass marks the top-level rows (collection.next-class and
+	// previous-class walk them; rows.json binds } and { to them).
+	outlineProjectClass = "project-row"
 	// projectNodePrefix starts a project branch's row id in the all view
 	// ("outline:project:" alone is the no-project branch).
 	projectNodePrefix = "outline:project:"
@@ -549,7 +552,7 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 		return a.outlineTaskNodes(tasks, root, private, exported, archived, o)
 	}
 	root := func(id, label string) ochazuke.TreeNode {
-		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true, Fixed: []string{ochazuke.TreeRemoveEmpty}, PutInto: true}
+		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true, Fixed: []string{ochazuke.TreeRemoveEmpty}, PutInto: true, Classes: []string{outlineProjectClass}}
 	}
 	var nodes []ochazuke.TreeNode
 	if !scope.all {
@@ -940,14 +943,14 @@ func (a *App) outlineChanged(o *outlineState) error {
 		if n.Parent == "" {
 			nodes[i].Cells, nodes[i].Noun = a.rootCells(n.ID, n.Label), rootNoun(o.scope, n.ID)
 			nodes[i].Props = a.rootProps(n.ID)
-			nodes[i].SpaceAbove = true                          // a project added in the outline gets the gap too
-			nodes[i].Fixed = []string{ochazuke.TreeRemoveEmpty} // emptying a project name never deletes the project
-			nodes[i].PutInto = true                             // p on a project row puts tasks in it, never a new project
+			nodes[i].SpaceAbove = true                                               // a project added in the outline gets the gap too
+			nodes[i].Fixed = []string{ochazuke.TreeRemoveEmpty}                      // emptying a project name never deletes the project
+			nodes[i].PutInto, nodes[i].Classes = true, []string{outlineProjectClass} // p on a project row puts tasks in it, never a new project; } and { walk it
 			continue
 		}
 		t := byID[taskOf(n.ID)]
 		nodes[i].Cells, nodes[i].Noun = a.outlineCells(n.Label, t, private[t.ID]), outlineTaskNoun
-		nodes[i].Props = taskTreeThing(t, exported[t.ID], archived)
+		nodes[i].Props, nodes[i].Classes = taskTreeThing(t, exported[t.ID], archived), nil // the class follows the row's level
 	}
 	if err := o.tree.SetNodes(nodes); err != nil {
 		return err
