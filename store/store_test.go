@@ -94,11 +94,16 @@ func TestVersionMovesOnEveryWriteKindAndOnAnotherProcess(t *testing.T) {
 		t.Fatalf("a read moved the token: %v", err)
 	}
 	last := start
-	for name, f := range map[string]func(tx *Tx) error{
-		"put":    func(tx *Tx) error { return tx.Put("a_rows", "1", map[string]any{"id": "1"}) },
-		"update": func(tx *Tx) error { return tx.Put("a_rows", "1", map[string]any{"id": "1", "x": 2}) },
-		"delete": func(tx *Tx) error { return tx.Delete("a_rows", "1") },
+	// In order: a delete before the put has no row to remove.
+	for _, step := range []struct {
+		name string
+		f    func(tx *Tx) error
+	}{
+		{"put", func(tx *Tx) error { return tx.Put("a_rows", "1", map[string]any{"id": "1"}) }},
+		{"update", func(tx *Tx) error { return tx.Put("a_rows", "1", map[string]any{"id": "1", "x": 2}) }},
+		{"delete", func(tx *Tx) error { return tx.Delete("a_rows", "1") }},
 	} {
+		name, f := step.name, step.f
 		write(f)
 		if got := ver("a_rows"); got == last {
 			t.Fatalf("%s did not move the token", name)
