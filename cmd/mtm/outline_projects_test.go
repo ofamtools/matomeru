@@ -165,16 +165,45 @@ func TestAllViewDeletesAProjectThroughItsConfirm(t *testing.T) {
 	}
 }
 
-// Projects keep their creation order: J and K on a project row are
-// refused, as is tab on the first project (no project above it); no
-// project is not a project (i, d d, tab refused).
+// J and K on a project row reorder the projects: the order is stored
+// (every project list reads it), u puts it back, and "no project" stays
+// last.
+func TestOutlineJKReordersProjects(t *testing.T) {
+	t.Parallel()
+	a := allOutline(t, projectNode("ochazuke"))
+	order := func() []string {
+		all, err := a.work.Projects()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		for _, p := range all {
+			ids = append(ids, p.ID)
+		}
+		return ids
+	}
+	before := order()
+	press(t, a, "J")
+	moved := order()
+	want := []string{before[1], before[0]}
+	if !slices.Equal(moved, want) {
+		t.Fatalf("J on %s: order %v, want %v", before[0], moved, want)
+	}
+	if roots := rootRows(a); !slices.Equal(roots, []string{projectNode(want[0]), projectNode(want[1]), projectNode("")}) {
+		t.Fatalf("J: roots %v, stored %v", roots, moved)
+	}
+	press(t, a, "u")
+	if got := order(); !slices.Equal(got, before) {
+		t.Fatalf("u after J: order %v, want %v", got, before)
+	}
+}
+
+// tab on the first project is refused (no project above it); no project
+// is not a project (i, d d, tab refused).
 func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 	t.Parallel()
-	a := allOutline(t, projectNode("matomeru"))
+	a := allOutline(t, projectNode("ochazuke"))
 	before := rootRows(a)
-	refused(t, a, "J", "creation order")
-	refused(t, a, "K", "creation order")
-	focusRow(t, a, projectNode("ochazuke"))
 	refused(t, a, "tab", "no project above it")
 	focusRow(t, a, outlineNode("t1"))
 	// In the open line shift+tab is the row's own shift+tab: the task

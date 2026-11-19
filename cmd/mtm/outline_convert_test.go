@@ -239,17 +239,12 @@ func TestOutlineShiftTabMakesATopTaskAProject(t *testing.T) {
 	}
 }
 
-// J and K stay refused on a project row, and ? help still lists them.
-func TestOutlineProjectRefusalsStayInHelp(t *testing.T) {
+// J and K stay refused on "no project" (it stays last).
+func TestOutlineNoProjectStaysLast(t *testing.T) {
 	t.Parallel()
-	a := allOutline(t, projectNode("matomeru"))
-	refused(t, a, "J", "creation order")
-	refused(t, a, "K", "creation order")
-	press(t, a, "?")
-	help := frameAt(a, 160)
-	if !strings.Contains(help, "creation order") || !strings.Contains(help, "outline-project.demote") && !strings.Contains(help, "make task") {
-		t.Fatalf("help lacks the refusal or the demote row:\n%s", help)
-	}
+	a := allOutline(t, projectNode(""))
+	refused(t, a, "J", "stays last")
+	refused(t, a, "K", "stays last")
 }
 
 // project make-task and task make-project from the CLI.

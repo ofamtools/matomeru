@@ -14,10 +14,6 @@ outline-none/normal	K	task-outline.refuse {"reason":"no project stays last"}	1	b
 outline-none/normal	d d	task-outline.refuse {"reason":"no project is not a project: it cannot be deleted"}	1	before the key picker: the row kind cannot do what the tree's key does there, so the key says why instead of falling to the tree
 outline-none/normal	i	task-outline.refuse {"reason":"no project is not a project: it cannot be renamed"}	1	before the key picker: the row kind cannot do what the tree's key does there, so the key says why instead of falling to the tree
 outline-none/normal	tab	task-outline.refuse {"reason":"no project stays at the top level"}	1	before the key picker: the row kind cannot do what the tree's key does there, so the key says why instead of falling to the tree
-outline-project/normal	J	task-outline.refuse {"reason":"Projects keep their creation order"}	1	before the key picker: the row kind cannot do what the tree's key does there, so the key says why instead of falling to the tree
-outline-project/normal	K	task-outline.refuse {"reason":"Projects keep their creation order"}	1	before the key picker: the row kind cannot do what the tree's key does there, so the key says why instead of falling to the tree
-outline-root/normal	J	task-outline.refuse {"reason":"Projects keep their creation order"}	1	before the key picker: the row kind cannot do what the tree's key does there, so the key says why instead of falling to the tree
-outline-root/normal	K	task-outline.refuse {"reason":"Projects keep their creation order"}	1	before the key picker: the row kind cannot do what the tree's key does there, so the key says why instead of falling to the tree
 pane-setting/normal	down	ochazuke.focus.next	1	before the key picker: the pane's settings line walks its fields with h/l and leaves with j/k, not the list's moves
 pane-setting/normal	h	ochazuke.collection.move {"delta":-1}	1	before the key picker: the pane's settings line walks its fields with h/l and leaves with j/k, not the list's moves
 pane-setting/normal	j	ochazuke.focus.next	1	before the key picker: the pane's settings line walks its fields with h/l and leaves with j/k, not the list's moves

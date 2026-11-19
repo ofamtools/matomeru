@@ -31,8 +31,9 @@ import (
 // owned by nothing), a (and o on the one root) adds a task in it, typing
 // renames it through project.edit, d d is project.delete with its
 // confirm, tab makes it a task of the project above it
-// (outline-project.demote; refused on the first project); J/K, x and s
-// are refused (projects keep their creation order). shift+tab on a task
+// (outline-project.demote; refused on the first project); J/K reorder
+// the projects (work.ReorderProjects: the order every project list
+// shows); x and s are refused. shift+tab on a task
 // directly under its project makes it a project listed after it
 // (outline-task.promote). tab and shift+tab mean the same on an open line
 // (ochazuke.outline.row-key runs the row's own key and the line stays
@@ -105,7 +106,7 @@ func (a *App) defineOutline() {
 	a.r.Define(outlineModal).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("refuse", func(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(errors.New(ochazuke.StringArg(ctx.Args, "reason", "not on this row")))
-		}, "Refuse a key that does not apply to the row and say why (projects keep their creation order; no project is not a project)").
+		}, "Refuse a key that does not apply to the row and say why (no project is not a project)").
 		Verb("toggle", a.outlineToggle, "Mark the task done, or a done task todo").
 		Verb("status", a.outlineStatus, "Choose the task's status: todo, active, blocked or done").
 		Verb("close", func(ochazuke.Ctx) ochazuke.Result { return resultError(a.r.Pop()) }, "Close the outline; every change is already written").Exits(ochazuke.ExitsClose).
@@ -122,7 +123,8 @@ func (a *App) defineOutline() {
 	// A project row (every root of the all view, the one root of a
 	// project's outline): o/O add a project beside it (the outline's own
 	// rows), n adds a task in it, typing renames it, d d deletes it as
-	// project.delete does; it stays at the top level in creation order.
+	// project.delete does; J/K move it among the projects (the outline's
+	// own rows: writeProjectRow stores the order).
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
 		a.r.Define(noun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 			Verb("delete-project", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
@@ -131,9 +133,7 @@ func (a *App) defineOutline() {
 			Bind("enter", ochazuke.Do("outline.fold")).
 			Bind("n", addTask).
 			Bind("d d", ochazuke.Do(noun+".delete-project").Hinted("delete project")).
-			Bind("tab", ochazuke.Do(noun+".demote").Hinted("make task")).
-			Bind("J", refuse("Projects keep their creation order")).
-			Bind("K", refuse("Projects keep their creation order"))
+			Bind("tab", ochazuke.Do(noun+".demote").Hinted("make task"))
 	}
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
 		a.parameters(noun+".confirm-delete", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
@@ -838,7 +838,6 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 		return false, nil
 	}
 	project := projectOfRoot(c.ID)
-	var refused error
 	switch {
 	case c.Op == ochazuke.TreeAdd:
 		if snap, ok := o.deletedProjects[project]; ok {
@@ -887,14 +886,56 @@ func (a *App) writeProjectRow(o *outlineState, c ochazuke.TreeChange) (done bool
 			return true, a.refreshProjects()
 		}
 		a.r.UI().Notify("A project with tasks is deleted with d d on its row")
-	case c.Op == ochazuke.TreeMove && !a.isProjectRow(c.ID):
-		refused = fmt.Errorf("A task stays under a project: %w", ochazuke.ErrTreeRefused)
+	case c.Op == ochazuke.TreeMove:
+		return true, a.moveTopRow(o, c, projectOfRoot)
 	}
+	return true, a.reloadOutlineRows(o, nil)
+}
+
+// moveTopRow stores a move at the top level (writeProjectRow): a top
+// row's move (J/K, u and ctrl+r) is the stored order of the things the
+// rows show (thing: a row's id, "" for a row that is none, which belongs
+// last; work.ReorderProjects); any other row moved there is refused.
+// Either way the rows are reloaded unless they already show that order.
+func (a *App) moveTopRow(o *outlineState, c ochazuke.TreeChange, thing func(string) string) error {
+	if !a.isProjectRow(c.ID) {
+		return a.reloadOutlineRows(o, fmt.Errorf("A task stays under a project: %w", ochazuke.ErrTreeRefused))
+	}
+	var order []string
+	settled := true
+	var roots []string
+	for _, n := range o.tree.Nodes() {
+		if n.Parent == "" {
+			roots = append(roots, n.ID)
+		}
+	}
+	for i, id := range roots {
+		if key := thing(id); key != "" {
+			order = append(order, key)
+		} else if i != len(roots)-1 {
+			settled = false
+		}
+	}
+	if _, err := a.work.ReorderProjects(order); err != nil {
+		return err
+	}
+	if err := a.refreshProjects(); err != nil {
+		return err
+	}
+	if !settled {
+		return a.reloadOutlineRows(o, nil)
+	}
+	return a.outlineChanged(o)
+}
+
+// reloadOutlineRows reads the outline's rows again from the store,
+// joining refused (a change that was not stored) to any error.
+func (a *App) reloadOutlineRows(o *outlineState, refused error) error {
 	nodes, err := a.outlineNodes(o.scope, o)
 	if err != nil {
-		return true, err
+		return err
 	}
-	return true, errors.Join(refused, o.tree.SetNodes(nodes))
+	return errors.Join(refused, o.tree.SetNodes(nodes))
 }
 
 // projectGoing reports whether a task row is deleted along with its

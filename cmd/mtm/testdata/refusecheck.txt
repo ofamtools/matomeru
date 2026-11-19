@@ -283,7 +283,6 @@ cmd/mtm/notes.go	App.viewNote	K15	"Failed(…)"	5
 cmd/mtm/notify.go	App.notificationSender	K15	"errors.New(…)"	2
 cmd/mtm/notify.go	App.notificationSender	K5	"no terminal output is attached"	1
 cmd/mtm/outline.go	App.defineOutline	K1	"When(\"outline-top-task\") without Fallback"	1
-cmd/mtm/outline.go	App.defineOutline	K15	"Projects keep their creation order"	2
 cmd/mtm/outline.go	App.defineOutline	K15	"errors.New(…)"	1
 cmd/mtm/outline.go	App.defineOutline	K15	"no project stays at the top level"	1
 cmd/mtm/outline.go	App.defineOutline	K15	"no project stays last"	2
@@ -312,10 +311,10 @@ cmd/mtm/outline.go	App.outlineTaskStatus	K15	"Failed(…)"	4
 cmd/mtm/outline.go	App.outlineTaskStatus	K15	"resultError(…)"	2
 cmd/mtm/outline.go	App.outlineTaskToggle	K15	"Failed(…)"	1
 cmd/mtm/outline.go	App.outlineToggle	K15	"Failed(…)"	1
+cmd/mtm/outline.go	App.moveTopRow	K14	"A task stays under a project: %w"	1	failure
 cmd/mtm/outline.go	App.showOutline	K14	"A task stays under a project: %w"	1	failure
 cmd/mtm/outline.go	App.showOutline	K15	"Failed(…)"	5
 cmd/mtm/outline.go	App.toggleOutlineTask	K15	"Failed(…)"	3
-cmd/mtm/outline.go	App.writeProjectRow	K14	"A task stays under a project: %w"	1	failure
 cmd/mtm/outline.go	App.writeProjectRow	K4	"unknown project %s"	1
 cmd/mtm/outline_attach.go	App.defineOutlineAttachments	K1	"When(\"task-image-input\") without Fallback"	2
 cmd/mtm/outline_attach.go	App.detachTaskImage	K15	"Failed(…)"	1

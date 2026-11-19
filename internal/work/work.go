@@ -37,6 +37,10 @@ type Project struct {
 	Priority string `json:"priority,omitempty"`
 	// Archived hides the project metadata without deleting tasks or directories.
 	Archived bool `json:"archived,omitempty"`
+	// Position orders the projects (ReorderProjects writes it, J/K on the
+	// task outline's project rows); 0 is unordered: after every ordered
+	// project, in creation order.
+	Position int64 `json:"position,omitempty"`
 	// Trees and DefaultTree are the project's directories as they read: the
 	// live "directory" relations from the project (relations table), in
 	// order, and the one whose data holds default. They are never stored in
@@ -237,15 +241,14 @@ func Open(db *store.Store) (*Store, error) {
 // (Runtime.SetRelationStore).
 func (s *Store) Relations() *relations.Store { return s.rels }
 
-// Projects returns every project, oldest first.
+// Projects returns every project in its order: by Position, the
+// unordered ones (0) after the ordered, then oldest first.
 func (s *Store) Projects() ([]Project, error) {
 	out, err := all[Project](s.db, "projects")
 	if err != nil {
 		return nil, err
 	}
-	slices.SortFunc(out, func(a, b Project) int {
-		return cmp.Or(cmp.Compare(a.Created, b.Created), cmp.Compare(a.ID, b.ID))
-	})
+	slices.SortFunc(out, byPosition[Project])
 	dirs, err := s.projectTrees()
 	if err != nil {
 		return nil, err
@@ -255,6 +258,15 @@ func (s *Store) Projects() ([]Project, error) {
 	}
 	return out, nil
 }
+
+// ReorderProjects puts the projects named by ids in that order and
+// numbers every project's Position from 1 (reorderTable).
+func (s *Store) ReorderProjects(ids []string) (bool, error) {
+	return reorderTable[Project](s.db, "projects", ids)
+}
+
+func (p Project) orderKey() (int64, int64, string) { return p.Position, p.Created, p.ID }
+func (p *Project) setPosition(n int64)             { p.Position = n }
 
 // Tasks returns the tasks of one project in board order; an empty project id
 // returns every task.

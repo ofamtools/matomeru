@@ -94,8 +94,8 @@ cmd/mtm/notes_doc.go	App.defineNoteDoc	"esc"	1
 cmd/mtm/nouns.go	App.bindNouns	a.r	1	the noun-file loader binding the key rows it read (NounFiles.Bind), not a Go key row
 cmd/mtm/outline.go	App.defineOutline	"A"	1
 cmd/mtm/outline.go	App.defineOutline	"C"	1
-cmd/mtm/outline.go	App.defineOutline	"J"	2
-cmd/mtm/outline.go	App.defineOutline	"K"	2
+cmd/mtm/outline.go	App.defineOutline	"J"	1
+cmd/mtm/outline.go	App.defineOutline	"K"	1
 cmd/mtm/outline.go	App.defineOutline	"O"	2
 cmd/mtm/outline.go	App.defineOutline	"T"	2
 cmd/mtm/outline.go	App.defineOutline	"X"	1
