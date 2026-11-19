@@ -5,7 +5,7 @@
 # into a hooks file must not count as removing it). Every count may only fall: RULECHECK_UPDATE=1 lowers it, never raises it;
 # a step that adds a noun's lines raises its row as a reviewed edit with a reason. Seeded 2026-11-17 by run plan 5.4a; every
 # step that removes a store or page file reports these numbers before and after.
-action-item	723
+action-item	722
 context-item	765
 directory	2401
 focus-item	132
@@ -17,12 +17,12 @@ ochazuke.page	142
 ochazuke.relation-kind	22
 ochazuke.setting	53
 pane	14407
-project	12319
+project	12317
 relation	1331
 reminder	1067
 review	1585
 saved	1611
 schedule	1891
-session	8965
-task	9241
+session	8958
+task	9240
 vim	1566
