@@ -14,13 +14,16 @@
 ../../internal/agenthook/hook.go	StateActivity	case	"prompt"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook.go	var harnessAliases	table	"cursor"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_claude.go	claudeBackgroundTasks	compare	"subagent"	1	Claude's hook payload type value (a background task that is a subagent), not the subagent noun
+../../internal/agenthook/hook_claude.go	translateClaude	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb
 ../../internal/agenthook/hook_claude.go	translateClaude	cyclo	"-"	33	copied from tuios v0.12.1 verbatim so upstream fixes merge; a table-driven rewrite would diverge from it
+../../internal/agenthook/hook_codex.go	translateCodex	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb
 ../../internal/agenthook/hook_cursor.go	translateCursor	case	"stop"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_opencode.go	translateOpenCode	case	"idle"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	piTurnStart	case	"session_start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translateAmp	case	"agent.start"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translateAmp	case	"done"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/hook_plugins.go	translatePi	compare	"confirm"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
+../../internal/agenthook/hook_qwen.go	translateQwen	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb
 ../../internal/agenthook/proc.go	var launcherNames	table	"env"	1	harness protocol vocabulary (the hook event, field and tool names of the harness's own payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/agenthook/run.go	agentRefusalText	case	"if_state"	1	harness protocol vocabulary (the hook event, field and tool names of the harness payloads), copied from tuios v0.12.1; a word coincidence with mtm names
 ../../internal/compose/files.go	var skipDirs	table	"target"	1
@@ -265,8 +268,6 @@ project_store.go	App.patchProject	compare	"project"	1
 prompt.go	App.commitPrompt	compare	"field"	1
 prompt_box.go	App.addPromptBox	compare	"panes"	1
 prompt_box.go	App.promptMode	compare	"send"	1
-prompt_box.go	App.promptTargetFor	compare	"command"	1
-prompt_box.go	App.promptTargetFor	compare	"prompt"	1
 prompt_box.go	App.selectNewestTurnRow	compare	"turn"	1
 prompt_box.go	App.sendPrompt	compare	"paste"	1
 prompt_box.go	App.sendPrompt	cyclo	"-"	35
@@ -336,6 +337,3 @@ turns_refresh.go	App.refreshPaneTurns	compare	"pane"	1
 vim.go	App.vimAt	compare	"pane"	1
 vim.go	App.vimAt	compare	"vim"	1
 wire_verbs.go	var wireVerbs	table	"previous"	1	the daemon's own spelling of a parameter value (focus-window relative: prev); mtm's word maps to it as data in the row, no branch
-../../internal/agenthook/hook_claude.go	translateClaude	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb
-../../internal/agenthook/hook_codex.go	translateCodex	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb
-../../internal/agenthook/hook_qwen.go	translateQwen	compare	"compact"	1	the harness hook payload's session-start source value (a context compaction), not the database.compact verb

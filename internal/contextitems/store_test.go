@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"ofam.dev/matomeru/store"
@@ -196,5 +198,64 @@ func TestArchiveSurvivesRepeatedSightings(t *testing.T) {
 	restored, err := s.Update(id, func(it *Item) { it.Archived = false })
 	if err != nil || restored.Archived || len(restored.Sources) != 2 || restored.Text != before.Text {
 		t.Fatalf("restore lost sightings or text: %+v %v", restored, err)
+	}
+}
+
+// Recent's one bounded query answers what the prompt box kept by sorting
+// All: starred first, then newest sighting, the skipped kinds and the
+// empty or multi-line texts left out, the first limit of them.
+func TestRecentAnswersWhatSortingAllKept(t *testing.T) {
+	t.Parallel()
+	s, err := Open(legacyDB(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := []Item{
+		{ID: "a", Kind: "file", Text: "/a", Created: 10},
+		{ID: "b", Kind: "link", Text: "https://b", Created: 20, LastSeen: 90},
+		{ID: "c", Kind: "command", Text: "make", Created: 80},
+		{ID: "d", Kind: "file", Text: "two\nlines", Created: 70},
+		{ID: "e", Kind: "dir", Text: "", Created: 60},
+		{ID: "f", Kind: "branch", Text: "main", Created: 30, Starred: true},
+		{ID: "g", Kind: "prompt", Text: "hi", Created: 95, Starred: true},
+		{ID: "h", Kind: "commit", Text: "abc123", Created: 50},
+	}
+	for _, it := range rows {
+		if err := s.Put(it); err != nil {
+			t.Fatal(err)
+		}
+	}
+	skip := []string{"command", "prompt"}
+	all, err := s.All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.SortStableFunc(all, func(a, b Item) int {
+		if a.Starred != b.Starred {
+			if a.Starred {
+				return -1
+			}
+			return 1
+		}
+		return 0
+	})
+	var want []string
+	for _, it := range all {
+		if it.Text == "" || slices.Contains(skip, it.Kind) || strings.Contains(it.Text, "\n") {
+			continue
+		}
+		want = append(want, it.ID)
+	}
+	want = want[:4]
+	got, err := s.Recent(4, skip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, len(got))
+	for i, it := range got {
+		ids[i] = it.ID
+	}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("Recent %v, sorting All kept %v", ids, want)
 	}
 }

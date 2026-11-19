@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -401,8 +402,10 @@ func (a *App) foldThing(f actionFold, now int64) ochazuke.Thing {
 
 // actionRailThings answers a list request that names a rail prop: the
 // pane's items of that table, folded and ordered; false when the request
-// names none.
-func (a *App) actionRailThings(q ochazuke.ListQuery) ([]ochazuke.Thing, bool, error) {
+// names none. The table is read through Ctx.OffLoop, so a rail section's
+// read (a stepped run) makes it off the loop; the folding runs on the loop
+// after it.
+func (a *App) actionRailThings(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, bool, error) {
 	var rail actionRail
 	window := ""
 	for _, f := range q.Filters {
@@ -416,10 +419,14 @@ func (a *App) actionRailThings(q ochazuke.ListQuery) ([]ochazuke.Thing, bool, er
 	}
 	// The store, not the cache: the rail reads on a change, which may come
 	// before the cache reloads.
-	items, err := a.inboxItems(false)
+	store := a.inbox.items
+	got, err := c.OffLoop(ochazuke.StoreCall{Store: actionitems.Table.Name, Op: "all", Key: window}, func(context.Context) (any, error) {
+		return store.All()
+	})
 	if err != nil {
 		return nil, true, err
 	}
+	items, _ := got.([]actionitems.Item)
 	items = slices.DeleteFunc(slices.Clone(items), func(it actionitems.Item) bool { return it.Window != window })
 	needs, resolved := a.needsYouTables(items)
 	folds := resolved

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -95,10 +96,10 @@ func seeded(t *testing.T) string {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// Tests read the rail and detail stacks right after a key, whose
-	// commands press drops: their sections are read on the loop here
+	// Tests read the rail, the detail stacks and the lists right after a
+	// key, whose commands press drops: their stores are read on the loop here
 	// (ochazuke's own tests cover the reads off it).
-	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "settings.json"), []byte(`{"detail.related-background": false}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "settings.json"), []byte(`{"reads.background": false}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -157,6 +158,35 @@ func toWork(t *testing.T, app *App) {
 	}
 }
 
+// readsOnTheLoop writes reads.background false into the settings file at
+// path unless it names the setting itself: tests read the lists and stacks
+// right after a key, whose commands press drops, so their stores are read
+// on the loop (ochazuke's own tests cover the reads off it).
+func readsOnTheLoop(t *testing.T, path string) {
+	t.Helper()
+	values := map[string]any{}
+	raw, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		if json.Unmarshal(raw, &values) != nil {
+			return // a file the test wrote to be unreadable stays as it is
+		}
+	case !errors.Is(err, os.ErrNotExist):
+		t.Fatal(err)
+	}
+	if _, set := values[ochazuke.ReadsBackgroundSetting]; set {
+		return
+	}
+	values[ochazuke.ReadsBackgroundSetting] = false
+	out, err := json.Marshal(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // openWith builds the app with opts and the test fakes.
 func openWith(t *testing.T, opts Options) *App {
 	t.Helper()
@@ -184,6 +214,7 @@ func openWith(t *testing.T, opts Options) *App {
 	} else if !errors.Is(err, os.ErrExist) {
 		t.Fatal(err)
 	}
+	readsOnTheLoop(t, filepath.Join(opts.ConfigDir(), "settings.json"))
 	app, err := New(opts)
 	if err != nil {
 		t.Fatal(err)

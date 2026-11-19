@@ -415,7 +415,7 @@ func buildStory(env monogatari.Env, fill func(path string, now int64) error, pan
 }
 
 // storyApp is New over a story's config with what every story runs under:
-// related stacks read on the loop (detail.related-background off, unless
+// stores read on the loop (reads.background off, unless
 // the story's settings.json says otherwise), since a story delivers a job's
 // completion only when its script names it, and reads the screen right
 // after each step.
@@ -426,8 +426,8 @@ func storyApp(opts Options) (*App, error) {
 	if err == nil && json.Unmarshal(raw, &values) != nil {
 		return New(opts) // a file it cannot read as JSON stays as the story wrote it
 	}
-	if _, set := values[ochazuke.RelatedBackgroundSetting]; !set {
-		values[ochazuke.RelatedBackgroundSetting] = false
+	if _, set := values[ochazuke.ReadsBackgroundSetting]; !set {
+		values[ochazuke.ReadsBackgroundSetting] = false
 		raw, err := json.Marshal(values)
 		if err != nil {
 			return nil, err
@@ -446,7 +446,7 @@ func storySandbox(env monogatari.Env, a *App) error {
 	if err := env.Sandbox(a.m); err != nil {
 		return err
 	}
-	_, err := a.r.Settings().SetSession(ochazuke.RelatedBackgroundSetting, false)
+	_, err := a.r.Settings().SetSession(ochazuke.ReadsBackgroundSetting, false)
 	return err
 }
 

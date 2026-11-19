@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -118,6 +117,10 @@ type promptBox struct {
 	// drafts are the other panes' (prompt_drafts.go).
 	owner  string
 	drafts map[string]*promptDraft
+	// suggested is the context items' change token the @ suggestions
+	// were last read under ("" when none were): a box opened again with
+	// the table unchanged reads nothing.
+	suggested string
 }
 
 // promptTarget is what the completions search against, set on the loop
@@ -704,8 +707,8 @@ func (a *App) selectNewestTurnRow() {
 	}
 }
 
-// promptTargetFor points the completions at the pane and loads the
-// context items they offer (on the loop: the store is the loop's).
+// promptTargetFor points the completions at the pane and reads the context
+// items they offer (readSuggestions).
 func (a *App) promptTargetFor(p pane) {
 	// The completions follow the harness tuios reports, none before it
 	// reports one.
@@ -714,30 +717,62 @@ func (a *App) promptTargetFor(p pane) {
 		h, _ = a.harnesses.ForAgent(p.Harness, p.LaunchHarness)
 	}
 	a.pb.target.set(h, p.Cwd)
+	a.readSuggestions()
+}
+
+// readSuggestions reads the context items the @ list offers: one bounded
+// query (starred first, then the newest sighting), and none when the
+// table's change token is the one the last read saw. With reads.background
+// on (ochazuke's ReadsBackgroundSetting, the default) the query is a job:
+// the box opens at once and the @ list fills when it lands, a newer read
+// replacing an older one; off, it is read on the loop.
+func (a *App) readSuggestions() {
 	if a.contexts == nil {
 		return
 	}
-	items, err := a.contexts.All()
-	if err != nil {
+	token, _ := a.contexts.Version()
+	if token != "" && token == a.pb.suggested {
+		return // read under this token already (beginPrompt, then promptAfter)
+	}
+	a.pb.suggested = token
+	contexts := a.contexts
+	read := func(context.Context) (any, error) { return promptSuggestions(contexts) }
+	land := func(v any, err error) {
+		if err != nil {
+			a.pb.suggested = "" // read again on the next open
+			return
+		}
+		a.pb.target.setContext(v.([]contextSuggestion))
+	}
+	if !a.r.Settings().Bool(ochazuke.ReadsBackgroundSetting) {
+		land(read(context.Background()))
 		return
 	}
-	sort.SliceStable(items, func(i, j int) bool {
-		if items[i].Starred != items[j].Starred {
-			return items[i].Starred
-		}
-		return items[i].Seen() > items[j].Seen()
-	})
-	var out []contextSuggestion
-	for _, it := range items {
-		if strings.TrimSpace(it.Text) == "" || it.Kind == "command" || it.Kind == "prompt" || strings.ContainsAny(it.Text, "\n") {
-			continue
-		}
-		out = append(out, contextSuggestion{text: it.Text, kind: it.Kind})
-		if len(out) == 500 {
-			break
-		}
+	res := ochazuke.Pending(read).Replacing("prompt-suggestions").Then(func(_ ochazuke.Ctx, v any, err error) { land(v, err) })
+	if _, err := a.r.Launch("app", promptNoun+".context", res, ochazuke.Ctx{Runtime: a.r}); err != nil {
+		a.pb.suggested = ""
 	}
-	a.pb.target.setContext(out)
+}
+
+// promptSuggestionMax is how many context items the @ list searches.
+const promptSuggestionMax = 500
+
+// promptSkipKinds are the kinds the @ list does not offer: a command or a
+// prompt is something typed, not something to mention.
+var promptSkipKinds = []string{"command", "prompt"}
+
+// promptSuggestions reads the context items the @ list offers. It touches
+// only the store, so it may run off the loop.
+func promptSuggestions(contexts *contextitems.Store) ([]contextSuggestion, error) {
+	items, err := contexts.Recent(promptSuggestionMax, promptSkipKinds)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]contextSuggestion, 0, len(items))
+	for _, it := range items {
+		out = append(out, contextSuggestion{text: it.Text, kind: it.Kind})
+	}
+	return out, nil
 }
 
 // searchMentions answers @: the context items first, then the files under

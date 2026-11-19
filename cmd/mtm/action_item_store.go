@@ -248,8 +248,8 @@ func (a *App) actionItemThing(it actionitems.Item) ochazuke.Thing {
 // listActionItemThings is the store's List: the open items by default
 // (--state snoozed, archived or all), of one source, of one project (by id
 // or name; an item on a task counts as its task's project's).
-func (a *App) listActionItemThings(_ ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
-	if things, ok, err := a.actionRailThings(q); ok {
+func (a *App) listActionItemThings(c ochazuke.Ctx, q ochazuke.ListQuery) ([]ochazuke.Thing, error) {
+	if things, ok, err := a.actionRailThings(c, q); ok {
 		return things, err
 	}
 	items, err := a.inboxItems(a.inboxFolds(q))

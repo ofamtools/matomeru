@@ -168,6 +168,42 @@ func (s *Store) All() ([]Item, error) {
 	return out, nil
 }
 
+// Recent is up to limit items to offer as suggestions, read as one
+// bounded query: starred ones first, then by newest sighting (Seen), the
+// kinds in skip left out, and so is an item whose text is empty or spans
+// lines. It answers what sorting All and keeping the first limit of those
+// would, without decoding the whole table.
+func (s *Store) Recent(limit int, skip []string) ([]Item, error) {
+	q := store.Query{
+		Where: []store.QueryCond{
+			{Fields: []string{"kind"}, Op: store.OpIn, Value: skip, Not: true},
+			{Fields: []string{"text"}, Op: store.OpNe, Value: ""},
+			{Fields: []string{"text"}, Op: store.OpContains, Value: "\n", Not: true},
+		},
+		Sort:  []store.QuerySort{{Fields: []string{"starred"}, Desc: true}, {Fields: []string{"last_seen", "created"}, Desc: true}},
+		Limit: limit,
+	}
+	if len(skip) == 0 {
+		q.Where = q.Where[1:]
+	}
+	res, err := s.db.Query(Table.Name, q)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Item, 0, len(res.Rows))
+	for _, raw := range res.Rows {
+		var it Item
+		if err := json.Unmarshal(raw, &it); err != nil {
+			return nil, err // the @ list reads again on the next open
+		}
+		if strings.TrimSpace(it.Text) == "" {
+			continue // only blanks: the query kept it, the box never offers it
+		}
+		out = append(out, it)
+	}
+	return out, nil
+}
+
 // Version is a cheap token for the table: equal tokens mean no write of it
 // (by this process, or by another since the file was opened) in between.
 func (s *Store) Version() (string, error) { return s.db.Version(Table.Name) }
