@@ -836,6 +836,7 @@ set-status	action	seed
 setting	noun+prop	seed	
 setting-change	noun	seed	
 setting-item	noun	seed	
+setting-pick	noun	yes	the in-context settings modal (ochazuke setting.pick)
 setting-value	noun	seed	
 settings	noun+prop	seed	
 settings-line	action	seed	

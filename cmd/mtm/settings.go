@@ -1,11 +1,13 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"time"
 
 	"ofam.dev/ochazuke"
@@ -179,7 +181,7 @@ func (a *App) declareSettings() error {
 	if err := a.declareSettingLayout(); err != nil {
 		return err
 	}
-	if err := a.r.DeclareSetting(settings...); err != nil {
+	if err := a.r.DeclareSetting(withLayoutContexts(settings)...); err != nil {
 		return err
 	}
 	a.work.SetStatusSource(a.statusSource())
@@ -219,29 +221,7 @@ func (a *App) declareSettingLayout() error {
 		Description: "The mounted extensions: a section each, and the status segments they add"}); err != nil {
 		return err
 	}
-	app := func(id, title, desc string) ochazuke.SettingSection {
-		return ochazuke.SettingSection{Owner: ochazuke.OwnerApp, ID: id, Title: title, Description: desc}
-	}
-	return a.r.DeclareSettingSection(
-		app(ochazuke.SettingsGeneralSection, "General", "Editing, refresh, the default harness, the directory chooser and the side pane"),
-		app("work", "Work", "The Work page's task list (a tree or flat) and how the task picker names a subtask"),
-		app("tasks", "Tasks", "Who made each task: the by column and the agent and private marks"),
-		app("projects", "Projects", "Project privacy: the Inbox item for a new project that is private until marked family"),
-		app("agents", "Agents", "What an agent may change: tasks by where they are and who made them, and panes to associate; the owner is never limited"),
-		app("panes", "Panes", "The Panes page: grouping, its sections and panels, which states count as working, waiting or errored, and which pane borders take their state colour"),
-		app("prompt", "Prompt", "The prompt box: where it shows and what follows a submit"),
-		app("context", "Context", "Which sources extract context items"),
-		app("turns", "Turns", "A pane's Turns tab: cards or tree, thinking and tool calls, and when history views refresh"),
-		app("agent", "Agent", "The agent view of a pane"),
-		app("notes", "Notes", "The note editor"),
-		app("inbox", "Inbox", "Which pane signals and terminal commands make inbox items"),
-		app("schedules", "Schedules", "Missed runs, configured schedules, and daily reminders and their notifications"),
-		app("status", "Status bar", "mtm's status segments in the header rule: cpu, ram and disk"),
-		app("daemon", "Daemon", "How mtm starts its TUIOS server: the tuios on PATH or the daemon linked into mtm, and whether it runs from a pinned copy of the binary"),
-		app("pin", "Pin", "The startup scope and how the pin state (pinned, show all, no pin) colours the theme"),
-		ochazuke.SettingSection{Owner: extensionsOwner, ID: ochazuke.SettingsGeneralSection, Title: "General", Description: "How every extension mounts: catalog refresh and the names of its nouns"},
-		ochazuke.SettingSection{Owner: extensionsOwner, ID: "status", Title: "Status bar", Description: "The status segments the extensions add"},
-	)
+	return a.r.DeclareSettingSection(settingLayout().Sections...)
 }
 
 // editDebounce is the edit-debounce setting, editorDebounce when unset
@@ -270,3 +250,33 @@ func positive(d, fallback time.Duration) time.Duration {
 	}
 	return d
 }
+
+//go:embed settings_layout.json
+var settingLayoutJSON []byte
+
+// settingLayoutFile is settings_layout.json: mtm's sections in page order
+// (title, description and the contexts of their settings) and the
+// context points of the settings narrower than their section.
+type settingLayoutFile struct {
+	Sections []ochazuke.SettingSection `json:"sections"`
+	Settings map[string][]ochazuke.Ref `json:"settings"`
+}
+
+// withLayoutContexts gives each setting its own context points from
+// settings_layout.json.
+func withLayoutContexts(settings []ochazuke.Setting) []ochazuke.Setting {
+	for i := range settings {
+		settings[i].Contexts = settingLayout().Settings[settings[i].Name]
+	}
+	return settings
+}
+
+// settingLayout is settings_layout.json, read once; a file that does not
+// read is a build mistake the settings tests catch.
+var settingLayout = sync.OnceValue(func() settingLayoutFile {
+	var out settingLayoutFile
+	if err := ochazuke.DecodeJSONC(settingLayoutJSON, &out); err != nil {
+		panic("settings_layout.json: " + err.Error())
+	}
+	return out
+})

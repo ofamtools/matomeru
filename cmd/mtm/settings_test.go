@@ -76,24 +76,22 @@ func TestALaunchStartsTheDefaultHarnessSetting(t *testing.T) {
 	}
 }
 
-// , opens the framework's Settings page from a page, esc goes back to the
-// page it was opened from, and , does nothing inside a modal.
+// , opens the in-context settings and , , the framework's Settings page
+// from a page; q goes back to the page it was opened from.
 func TestCommaOpensTheSettingsEditor(t *testing.T) {
 	t.Parallel()
 	app := open(t)
 	from := app.r.Page
+	press(t, app, ",")
+	if app.r.TopModal() != settingPickModal {
+		t.Fatalf(", opened modal %q, want the in-context settings", app.r.TopModal())
+	}
 	press(t, app, ",")
 	if app.r.Page != ochazuke.SettingsPageID || app.r.TopModal() != "" {
 		t.Fatalf("page %q, top modal %q; want the Settings page", app.r.Page, app.r.TopModal())
 	}
 	press(t, app, "q")
 	if app.r.Page != from {
-		t.Fatalf("esc left page %q, want %q", app.r.Page, from)
-	}
-	press(t, app, "?")
-	top := app.r.TopModal()
-	press(t, app, ",")
-	if app.r.TopModal() != top {
-		t.Fatalf(", over %s opened %q", top, app.r.TopModal())
+		t.Fatalf("q left page %q, want %q", app.r.Page, from)
 	}
 }

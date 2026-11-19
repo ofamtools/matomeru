@@ -601,7 +601,7 @@ func (a *App) defineLiveKeys() {
 		Bind("I", ochazuke.Do("ochazuke.page.open", ochazuke.Arguments{"id": "inbox"})).
 		Bind(":", ochazuke.Do("ochazuke.palette.open")).
 		Bind("ctrl+space", ochazuke.Do("ochazuke.palette.open")).
-		Bind(",", ochazuke.Do("ochazuke.setting.open").Guard("no-modal")).
+		Bind(",", ochazuke.Do("ochazuke.setting.pick").Guard("no-modal")).
 		Bind("'", ochazuke.Do("ochazuke.page.pick").Guard("no-modal")).
 		Bind("ctrl+j", ochazuke.Do("ochazuke.page.next")).
 		Bind("ctrl+k", ochazuke.Do("ochazuke.page.previous")).

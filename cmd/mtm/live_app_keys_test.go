@@ -38,7 +38,7 @@ func TestLeaderRunsTheAppKeysFromLive(t *testing.T) {
 	}{
 		{":", func(a *App) bool { return a.m.Palette.IsActive() }, []string{"esc", "q"}},
 		{"ctrl+space", func(a *App) bool { return a.m.Palette.IsActive() }, []string{"esc", "q"}},
-		{",", func(a *App) bool { return a.r.Page == ochazuke.SettingsPageID }, []string{"esc", "q"}},
+		{",", func(a *App) bool { return a.r.TopModal() == "ochazuke.setting-pick" }, []string{"esc", "q"}},
 		{"'", func(a *App) bool { return a.r.TopModal() == "page-picker" }, []string{"esc", "q"}},
 		{"?", func(a *App) bool { return a.r.TopModal() == "bindings-help" }, []string{"esc", "q"}},
 		{"\\", func(a *App) bool { return a.r.TopModal() != "" }, []string{"esc", "q"}},

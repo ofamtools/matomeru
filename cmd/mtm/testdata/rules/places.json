@@ -293,6 +293,8 @@
 {"noun":"ochazuke.search-state","ancestors":[]},
 {"noun":"ochazuke.setting","ancestors":["ochazuke.settings-page","ochazuke.collection"]},
 {"noun":"ochazuke.setting-item","ancestors":["ochazuke.settings-page","ochazuke.collection"]},
+{"noun":"ochazuke.setting","ancestors":["ochazuke.setting-pick","ochazuke.collection"],"modal":"ochazuke.setting-pick"},
+{"noun":"ochazuke.setting-pick","ancestors":[],"modal":"ochazuke.setting-pick"},
 {"noun":"ochazuke.setting-value","ancestors":["setting-prompt"],"modal":"setting-prompt"},
 {"noun":"ochazuke.settings-page","ancestors":[]},
 {"noun":"ochazuke.settings-section","ancestors":["ochazuke.settings-page","ochazuke.collection"]},
