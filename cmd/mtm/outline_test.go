@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -74,5 +75,22 @@ func TestTaskOutlineWritesEveryChange(t *testing.T) {
 	press(t, app, "esc", "q")
 	if app.r.TopModal() != "" {
 		t.Fatalf("esc left %q open", app.r.TopModal())
+	}
+}
+
+// "task outline" is not a noun (owner, 2026-11-18): where the focus is
+// shown, the outline modal reads tasks and a row the noun of the thing it
+// draws (a task, a project), not the outline's own row nouns.
+func TestOutlineFocusDisplayNamesTheThings(t *testing.T) {
+	t.Parallel()
+	a := allOutline(t, projectNode("matomeru"))
+	if got := a.r.FocusPath(); !slices.Contains(got, "tasks") || slices.Contains(got, outlineModal) {
+		t.Fatalf("path %v: the modal level", got)
+	}
+	for row, want := range map[string]string{projectNode("matomeru"): "project", outlineNode("t1"): "task"} {
+		focusRow(t, a, row)
+		if got := a.r.FocusNoun(); got != want {
+			t.Fatalf("row %s: FocusNoun %q, want %q", row, got, want)
+		}
 	}
 }

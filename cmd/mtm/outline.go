@@ -94,7 +94,10 @@ type outlineState struct {
 }
 
 // defineOutline adds project.outline and task.outline (O), tasks.open (T
-// on every page) and the open outline's own rows: x, s, T and q.
+// on every page) and the open outline's own rows: x, s, T and q. The
+// outline is a view of tasks, not a noun of its own: where the focus is
+// shown (focus-display), the modal is named tasks and each row the noun
+// of the thing it draws (NounBuilder.Shows; focus-display.things).
 func (a *App) defineOutline() {
 	a.r.Define("project").Verb("outline", a.openOutline, "Edit the project's tasks and subtasks as an outline; every change is written as it is made").Mode("normal").Bind("O", ochazuke.Do("project.outline"))
 	a.r.Define("task").Verb("outline", a.openOutline, "Edit the task's project as an outline; every change is written as it is made").
@@ -103,7 +106,7 @@ func (a *App) defineOutline() {
 	a.r.Define("app").Mode("normal").Bind("T", ochazuke.Do("tasks.open"))
 	a.ownedBy("tasks", "work")
 	_ = a.r.AddNounAlias(ochazuke.NounAlias{Alias: "todos", Noun: "tasks", Since: taskNamesSince, RemoveAfter: oldNamesRemoveAfter})
-	a.r.Define(outlineModal).Kind(ochazuke.NounKindPart).DefaultKeys(false).
+	a.r.Define(outlineModal).Kind(ochazuke.NounKindPart).DefaultKeys(false).Shows("tasks").
 		Verb("refuse", func(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(errors.New(ochazuke.StringArg(ctx.Args, "reason", "not on this row")))
 		}, "Refuse a key that does not apply to the row and say why (no project is not a project)").
@@ -126,7 +129,7 @@ func (a *App) defineOutline() {
 	// project.delete does; J/K move it among the projects (the outline's
 	// own rows: writeProjectRow stores the order).
 	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
-		a.r.Define(noun).Kind(ochazuke.NounKindPart).DefaultKeys(false).
+		a.r.Define(noun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Shows("project").
 			Verb("delete-project", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
 			Verb("confirm-delete", a.outlineConfirmDeleteProject, "Confirm deleting the project: project.delete orphans its tasks and records").Confirm(projectDeleteConfirm).
 			Mode("normal").
@@ -142,7 +145,7 @@ func (a *App) defineOutline() {
 	// a task in it as n does.
 	a.r.Define(outlineRootNoun).Mode("normal").Bind("o", addTask)
 	// "no project" takes tasks only.
-	a.r.Define(outlineNoneNoun).DefaultKeys(false).Mode("normal").
+	a.r.Define(outlineNoneNoun).DefaultKeys(false).Shows("project").Mode("normal").
 		Bind("enter", ochazuke.Do("outline.fold")).
 		Bind("o", addTask).
 		Bind("n", addTask).
@@ -160,7 +163,7 @@ func (a *App) defineOutline() {
 	// selection (V) they act on every selected task, as one undo step;
 	// the outline's toggle and status (on the modal) stay for the
 	// palette and for the rows that are not tasks, which they refuse.
-	a.r.Define(outlineTaskNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
+	a.r.Define(outlineTaskNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Shows("task").Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
 		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
 		Verb("choose-move", a.outlineChooseMove, "Choose the project to move the task to, its subtasks with it, as m does on the Work page's tasks; over a visual selection, every selected task, as one undo step").Many().
 		Verb("archive-task", a.outlineTaskStandard("archive"), "Archive the task and its subtasks: kept, and hidden from the default views (the archive filter shows them); over a visual selection, every selected task").Many().
