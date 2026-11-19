@@ -126,6 +126,11 @@ func Open(db *store.Store) (*Store, error) {
 	_ = db.Index(Table.Name, indexName, keyFields...)
 	// A task's detail lists its items on every move (its related section).
 	_ = db.Index(Table.Name, "task", "task_id")
+	// A pane's rail lists its items on every move: the sections of the
+	// pane's window (new, starred, dismissed, kept) and their folded counts.
+	_ = db.Index(Table.Name, "window", "window")
+	// Its "this project" section reads the project's items by project.
+	_ = db.Index(Table.Name, "project", "project_id")
 	return &Store{db: db}, nil
 }
 

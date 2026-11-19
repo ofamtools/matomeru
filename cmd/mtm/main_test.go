@@ -95,6 +95,12 @@ func seeded(t *testing.T) string {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// Tests read the rail and detail stacks right after a key, whose
+	// commands press drops: their sections are read on the loop here
+	// (ochazuke's own tests cover the reads off it).
+	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "settings.json"), []byte(`{"detail.related-background": false}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return path
 }
 

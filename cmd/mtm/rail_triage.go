@@ -133,7 +133,7 @@ func (a *App) triageCond(prop string) func(string) (store.QueryCond, bool) {
 	return func(window string) (store.QueryCond, bool) {
 		t, _ := contextTriageOf(prop)
 		if !a.triageShown(t) {
-			return store.QueryCond{Fields: []string{"id"}, Op: store.OpEq, Value: ""}, true
+			return matchNothing, true
 		}
 		return store.QueryCond{All: append([]store.QueryCond{{Fields: []string{"window"}, Op: store.OpEq, Value: window}}, t.conds...)}, true
 	}

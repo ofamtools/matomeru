@@ -480,26 +480,36 @@ func (a *App) windowProject(window string) string {
 func (a *App) projectPaneCond(window string) (store.QueryCond, bool) {
 	project := a.windowProject(window)
 	if project == "" {
-		return store.QueryCond{Fields: []string{"id"}, Op: store.OpEq, Value: ""}, true
+		return matchNothing, true
 	}
+	// Own project, or no project and one of its tasks: written as the
+	// project or a task (one equality each, so the project_id and task_id
+	// indexes answer it), and the project or none.
+	owned := []store.QueryCond{{Fields: []string{"project_id"}, Op: store.OpEq, Value: project}}
 	var tasks []string
 	for id, p := range a.contextProjects() {
 		if p == project {
 			tasks = append(tasks, id)
 		}
 	}
+	slices.Sort(tasks)
+	for _, id := range tasks {
+		owned = append(owned, store.QueryCond{Fields: []string{"task_id"}, Op: store.OpEq, Value: id})
+	}
 	return store.QueryCond{All: []store.QueryCond{
+		{Any: owned},
 		{Any: []store.QueryCond{
 			{Fields: []string{"project_id"}, Op: store.OpEq, Value: project},
-			{All: []store.QueryCond{
-				{Fields: []string{"project_id"}, Op: store.OpEq, Value: ""},
-				{Fields: []string{"task_id"}, Op: store.OpIn, Value: tasks},
-			}},
+			{Fields: []string{"project_id"}, Op: store.OpEq, Value: ""},
 		}},
 		{Fields: []string{"window"}, Op: store.OpEq, Value: window, Not: true},
 		railKept,
 	}}, true
 }
+
+// matchNothing is the condition no row meets, which SQLite answers without
+// reading a row (an empty Any is false).
+var matchNothing = store.QueryCond{Any: []store.QueryCond{}}
 
 // markProjectPane gives the listed things the project-pane value of each
 // project-pane filter they meet, so a request that is not pushed (the

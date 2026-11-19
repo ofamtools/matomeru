@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -82,10 +83,15 @@ func (t *tableQuery) Query(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListP
 		}
 		return t.app.r.QueryAll(t.noun, things, q), nil
 	}
-	res, err := t.app.db.Query(t.table, sq)
+	// The SQLite read may run off the loop (a related section's read): the
+	// query is worked out here, the rows become things here, after it.
+	got, err := c.OffLoop(ochazuke.StoreCall{Store: t.noun, Op: "query", Key: t.table}, func(context.Context) (any, error) {
+		return t.app.db.Query(t.table, sq)
+	})
 	if err != nil {
 		return ochazuke.ListPage{}, err
 	}
+	res, _ := got.(store.QueryResult)
 	page := ochazuke.ListPage{Total: res.Total, Items: make([]ochazuke.Thing, 0, len(res.Rows))}
 	build := t.thing()
 	for _, raw := range res.Rows {
