@@ -36,6 +36,9 @@ func TestFocusPickerAndDayChange(t *testing.T) {
 	a := open(t)
 	now := time.Now().UTC().Truncate(24 * time.Hour).Add(10 * time.Hour) // the store stamps done with the real clock: the fake day is the real UTC day
 	a.loc, a.clock = time.UTC, func() time.Time { return now }
+	if err := a.r.Settings().Set(settingFocusSelector, focusSelectorPicker); err != nil {
+		t.Fatal(err)
+	}
 	press(t, a, "#")
 	ch := a.r.Chooser(focusPickerName)
 	if ch == nil {
@@ -127,7 +130,8 @@ func TestFocusPickerAndDayChange(t *testing.T) {
 }
 
 // ctrl+a # in live view falls through to # (leader.fall-through): the
-// focus picker opens over the live pane.
+// focus selector (focus.selector outline, the default) opens over the
+// live pane, the task outline in the focus-set mode.
 func TestFocusPickerFromLive(t *testing.T) {
 	t.Parallel()
 	a, _ := panesApp(t)
@@ -136,7 +140,71 @@ func TestFocusPickerFromLive(t *testing.T) {
 		t.Fatalf("not live: %s", a.r.CurrentMode().Name)
 	}
 	press(t, a, "ctrl+a", "#")
-	if a.r.Chooser(focusPickerName) == nil {
-		t.Fatalf("ctrl+a # opened %q", a.r.TopModal())
+	if a.r.TopModal() != outlineModal || a.r.CurrentMode().Name != focusSetMode {
+		t.Fatalf("ctrl+a # opened %q in %s", a.r.TopModal(), a.r.CurrentMode().Name)
+	}
+}
+
+// # opens the task outline in the focus-set mode, nested as O shows it:
+// enter on a task focuses it (the row gains the focus mark) and again
+// unfocuses it; the outline's editing keys do nothing there; esc closes.
+func TestFocusSelectorOutline(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	press(t, a, "#")
+	if a.r.TopModal() != outlineModal || a.r.CurrentMode().Name != focusSetMode {
+		t.Fatalf("# opened %q in %s", a.r.TopModal(), a.r.CurrentMode().Name)
+	}
+	if f := frame(a); !strings.Contains(f, focusSelectorTitle) {
+		t.Fatalf("title:\n%s", f)
+	}
+	// k walks up from "no project" (the all view's last branch) into the
+	// tasks above it: the outline's motions answer in the mode.
+	for i := 0; i < 20 && a.r.Instances[a.r.FocusID()].Noun != outlineTaskNoun; i++ {
+		press(t, a, "k")
+	}
+	row := a.r.FocusID()
+	if a.r.Instances[row].Noun != outlineTaskNoun {
+		t.Fatalf("no task row reached: %s", row)
+	}
+	thing := "task:" + taskOf(row)
+	listed := func() bool { _, ok, _ := a.focusAt(a.focusToday(), thing); return ok }
+	press(t, a, "enter")
+	if !listed() {
+		t.Fatalf("enter did not focus %s", thing)
+	}
+	marked := func() bool {
+		n, _ := a.outline.tree.Selected()
+		return strings.Contains(strings.Join(n.Cells, " "), focusGlyph)
+	}
+	if !marked() {
+		t.Fatal("no focus mark on the focused task")
+	}
+	setting(t, a, settingTasksFocusGlyph, false)
+	if marked() {
+		t.Fatal("tasks.focus-glyph off kept the mark")
+	}
+	setting(t, a, settingTasksFocusGlyph, true)
+	before, _ := json.Marshal(tasksOf(t, a, ""))
+	all := func() string {
+		b, _ := json.Marshal(tasksOf(t, a, ""))
+		return string(b)
+	}
+	for _, key := range []string{"x", "s", "i", "o", "O", "a", "n", "tab", "shift+tab", "J", "K", "d", "d", "y", "y", "p", "A", "X", "m", "C", "R", "b", "F", "v", "V", "d"} {
+		press(t, a, key)
+		if a.r.TopModal() != outlineModal || a.r.CurrentMode().Name != focusSetMode {
+			t.Fatalf("%s left %q in %s", key, a.r.TopModal(), a.r.CurrentMode().Name)
+		}
+	}
+	if got := all(); got != string(before) {
+		t.Fatalf("an editing key changed a task:\n%s\n%s", before, got)
+	}
+	press(t, a, "enter")
+	if listed() {
+		t.Fatalf("enter again did not unfocus %s", thing)
+	}
+	press(t, a, "esc")
+	if m := a.r.TopModal(); m != "" {
+		t.Fatalf("esc left %q open", m)
 	}
 }

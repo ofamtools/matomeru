@@ -3,8 +3,12 @@
 // an item) answers the keys it does not bind as its pane does; a pane row
 // answers the keys it does not bind as its first item does (u reads it, x
 // archives it, s snoozes it). Override or unbind any row in bindings.json
-// ({"key": "unbound", "unbind": true}).
-{"bindings": [
+// ({"key": "unbound", "unbind": true}). The focus-set mode is the focus
+// selector's (# with focus.selector outline): the task outline opened in
+// it reads the NOUN/focus-set rows below and, for a noun with none, the
+// noun's normal rows; the outline's editing rows have no focus-set row.
+{"modes": {"focus-set": {"extends": "normal"}},
+"bindings": [
   {"context": "subagent/normal", "bindings": [
     {"key": "unbound", "action": "ochazuke.key.redirect", "args": {"to": "parent"}, "hidden": true, "help": "a key the subagent row does not bind is its pane's"}
   ]},
@@ -37,6 +41,10 @@
     {"key": "alt+l", "action": "pane.wait", "hidden": true},
     {"key": "alt+m", "action": "pane.watch", "hidden": true},
     {"key": "alt+n", "action": "pane.whoami", "hidden": true}
+  ]},
+  {"context": "app/focus-set", "extends": "normal", "bindings": [
+    {"key": "esc", "action": "task-outline.close", "hint": "close"},
+    {"key": "q", "action": "task-outline.close", "hint": "close"}
   ]},
   {"context": "app/normal", "bindings": [
     {"key": "g q", "action": "agent.ask-new", "help": "ask a new agent a question: the ask form, the question first"},
@@ -137,6 +145,9 @@
     {"key": "C", "action": "note.set", "hidden": true},
     {"key": "alt+y", "action": "note.watch", "hidden": true}
   ]},
+  {"context": "ochazuke.collection/focus-set", "extends": "normal", "bindings": [
+    {"key": "V", "action": "ochazuke.collection.mark", "hint": "mark", "help": "the focus selector marks rows instead of entering visual-line (whose rows edit the outline); enter or = then acts on every marked task"}
+  ]},
   {"context": "ochazuke.markdown/normal", "bindings": [
     {"key": "U", "action": "ochazuke.markdown.after-heading", "hidden": true},
     {"key": "X", "action": "ochazuke.markdown.cell", "hidden": true},
@@ -159,6 +170,15 @@
     {"key": "g n", "action": "ochazuke.noun.annotate", "hidden": true},
     {"key": "ctrl+l", "action": "ochazuke.noun.relate", "hidden": true},
     {"key": "alt+j", "action": "ochazuke.noun.unrelate", "hidden": true}
+  ]},
+  {"context": "ochazuke.outline/focus-set", "bindings": [
+    {"key": "l", "action": "ochazuke.outline.expand"},
+    {"key": "right", "action": "ochazuke.outline.expand"},
+    {"key": "h", "action": "ochazuke.outline.collapse"},
+    {"key": "left", "action": "ochazuke.outline.collapse"},
+    {"key": "z +", "action": "ochazuke.outline.zoom-in", "hidden": true},
+    {"key": "z -", "action": "ochazuke.outline.zoom-out", "hidden": true},
+    {"key": "z 0", "action": "ochazuke.outline.zoom-reset", "hidden": true}
   ]},
   {"context": "ochazuke.outline/normal", "bindings": [
     {"key": "X", "action": "ochazuke.outline.annotate", "hidden": true},
@@ -207,11 +227,24 @@
     {"key": "f", "action": "ochazuke.timeline-body.copy-brief", "hidden": true},
     {"key": "m", "action": "ochazuke.timeline-body.copy-result", "hidden": true}
   ]},
+  {"context": "outline-none/focus-set", "bindings": [
+    {"key": "enter", "action": "ochazuke.outline.fold", "hint": "fold"}
+  ]},
+  {"context": "outline-project/focus-set", "bindings": [
+    {"key": "enter", "action": "ochazuke.outline.fold", "hint": "fold"}
+  ]},
   {"context": "outline-project/normal", "bindings": [
     {"key": "ctrl+g", "action": "outline-project.confirm-delete", "hidden": true}
   ]},
+  {"context": "outline-root/focus-set", "bindings": [
+    {"key": "enter", "action": "ochazuke.outline.fold", "hint": "fold"}
+  ]},
   {"context": "outline-root/normal", "bindings": [
     {"key": "ctrl+g", "action": "outline-root.confirm-delete", "hidden": true}
+  ]},
+  {"context": "outline-task/focus-set", "bindings": [
+    {"key": "enter", "action": "outline-task.focus", "hint": "focus"},
+    {"key": "=", "action": "outline-task.focus", "hint": "focus"}
   ]},
   {"context": "outline-task/normal", "bindings": [
     {"key": "f", "action": "outline-task.attach", "hidden": true},
@@ -331,6 +364,10 @@
     {"key": "U", "action": "session.history", "hidden": true},
     {"key": "f", "action": "session.list-panes", "hidden": true},
     {"key": "alt+j", "action": "session.unrelate", "hidden": true}
+  ]},
+  {"context": "task-outline/focus-set", "bindings": [
+    {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "hint": "next project"},
+    {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "hint": "previous project"}
   ]},
   {"context": "task-outline/insert", "bindings": [
     {"key": "ctrl+a", "action": "task-outline.close", "hidden": true}

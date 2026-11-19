@@ -72,6 +72,11 @@ type outlineScope struct {
 // opened on (S out of the all view returns to it) and its tree.
 type outlineState struct {
 	scope, base outlineScope
+	// label starts the modal's title (outlineOpen); focused is today's
+	// focus by key, read on the first row's mark (outlineFocusMark) and
+	// again after a focus change (nil).
+	label       string
+	focused     map[string]bool
 	tree        *ochazuke.Tree
 	notes       *ochazuke.Collection
 	notesTask   string
@@ -93,7 +98,7 @@ func (a *App) defineOutline() {
 	a.r.Define("project").Verb("outline", a.openOutline, "Edit the project's tasks and subtasks as an outline; every change is written as it is made").Mode("normal").Bind("O", ochazuke.Do("project.outline"))
 	a.r.Define("task").Verb("outline", a.openOutline, "Edit the task's project as an outline; every change is written as it is made").
 		Mode("normal").Bind("O", ochazuke.Do("task.outline"))
-	a.r.Define("tasks").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it")
+	a.r.Define("tasks").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it; --mode opens it in that mode (focus-set: the focus selector's keys)").Params(outlineOpenParams())
 	a.r.Define("app").Mode("normal").Bind("T", ochazuke.Do("tasks.open"))
 	a.ownedBy("tasks", "work")
 	_ = a.r.AddNounAlias(ochazuke.NounAlias{Alias: "todos", Noun: "tasks", Since: taskNamesSince, RemoveAfter: oldNamesRemoveAfter})
@@ -315,7 +320,7 @@ func (a *App) outlineView(title string) {
 // openTodos is tasks.open (T): the pin's outline, the unassociated tasks
 // with no pin, every project in the all view; on an open outline it
 // closes it.
-func (a *App) openTodos(ochazuke.Ctx) ochazuke.Result {
+func (a *App) openTodos(ctx ochazuke.Ctx) ochazuke.Result {
 	if a.r.Instances[outlineModal] != nil {
 		if a.r.TopModal() == outlineModal {
 			return resultError(a.r.Pop())
@@ -325,7 +330,7 @@ func (a *App) openTodos(ochazuke.Ctx) ochazuke.Result {
 	// No pin means all projects, on every list (2026-10-26): T with no pin
 	// opens the all view, on the no project branch, so o there adds an
 	// unassociated task as creating with no pin does everywhere.
-	res := a.showOutline(outlineScope{all: a.all || a.pin == "", project: a.pin}, "")
+	res := a.showOutline(outlineScope{all: a.all || a.pin == "", project: a.pin}, "", outlineOpenOf(ctx.Args))
 	if a.r.TopModal() == outlineModal && a.pin == "" && !a.all {
 		if tree := a.r.Tree(outlineTree); tree != nil && tree.Select(projectNode("")) == nil {
 			if err := a.r.SetFocus(projectNode("")); err != nil {
@@ -353,20 +358,20 @@ func (a *App) openOutline(ctx ochazuke.Ctx) ochazuke.Result {
 	if _, ok := a.project(projectID); !ok && projectID != "" {
 		return ochazuke.Failed(fmt.Errorf("unknown project %s", projectID))
 	}
-	return a.showOutline(outlineScope{project: projectID}, focus)
+	return a.showOutline(outlineScope{project: projectID}, focus, outlineOpen{})
 }
 
 // showOutline opens the outline modal on scope, the focus on a task when
-// given.
-func (a *App) showOutline(scope outlineScope, focus string) ochazuke.Result {
-	state := &outlineState{scope: scope, base: outlineScope{project: scope.project},
+// given, in open's mode and title.
+func (a *App) showOutline(scope outlineScope, focus string, open outlineOpen) ochazuke.Result {
+	state := &outlineState{scope: scope, base: outlineScope{project: scope.project}, label: open.title(),
 		images: a.r.Settings().Bool(settingTaskImages), attachments: make(map[string]*imageAttachments)}
 	nodes, err := a.outlineNodes(scope, state)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	a.outlineView(a.scopeTitle(scope))
-	if _, err := a.r.OpenModal(outlineModal, ochazuke.Payload{}, ochazuke.CloseWith(ochazuke.Request{Noun: outlineModal, Verb: "close"})); err != nil {
+	a.outlineView(a.scopeTitle(state.label, scope))
+	if err := a.openOutlineModal(open.mode); err != nil {
 		return ochazuke.Failed(err)
 	}
 	tree, err := a.r.AddTree(outlineTree, nodes, ochazuke.Parent(outlineModal), ochazuke.NoSpill(), ochazuke.Columns(a.outlineCols()...))
@@ -449,18 +454,19 @@ const (
 	outlineTaskHints = "tasks: o add · tab nest · shift+tab out (top: a project) · x done · s status"
 )
 
-// scopeTitle names a scope: the project, "no project" or "all projects".
-func (a *App) scopeTitle(scope outlineScope) string {
+// scopeTitle names a scope after label: the project, "no project" or
+// "all projects".
+func (a *App) scopeTitle(label string, scope outlineScope) string {
 	switch {
 	case scope.all:
-		return "Tasks · all projects"
+		return label + " · all projects"
 	case scope.project == "":
-		return "Tasks · no project"
+		return label + " · no project"
 	}
 	if p, ok := a.project(scope.project); ok {
-		return "Tasks · " + projectName(p)
+		return label + " · " + projectName(p)
 	}
-	return "Tasks · " + scope.project
+	return label + " · " + scope.project
 }
 
 // rescopeOutline follows the S all view on an open outline: all projects,
@@ -482,7 +488,7 @@ func (a *App) rescopeOutline() error {
 		return err
 	}
 	o.scope = scope
-	a.outlineView(a.scopeTitle(scope))
+	a.outlineView(a.scopeTitle(o.label, scope))
 	return o.tree.SetNodes(nodes)
 }
 
@@ -504,7 +510,7 @@ func (a *App) reloadOutline() error {
 	if err != nil {
 		return err
 	}
-	a.outlineView(a.scopeTitle(o.scope))
+	a.outlineView(a.scopeTitle(o.label, o.scope))
 	if err := o.tree.SetNodes(nodes); err != nil {
 		return err
 	}
@@ -605,7 +611,7 @@ func rootNoun(scope outlineScope, id string) string {
 func (a *App) outlineTaskNodes(tasks []work.Task, root string, private, exported, archived map[string]bool, o *outlineState) []ochazuke.TreeNode {
 	return taskTreeNodes(tasks, root, outlineNode, func(t work.Task) ochazuke.TreeNode {
 		label := o.imageLabel(t.ID, t.Title)
-		return ochazuke.TreeNode{Label: label, Noun: outlineTaskNoun, Props: taskTreeThing(t, exported[t.ID], archived), Cells: a.outlineCells(label, t, private[t.ID])}
+		return ochazuke.TreeNode{Label: label, Noun: outlineTaskNoun, Props: taskTreeThing(t, exported[t.ID], archived), Cells: a.outlineCells(label, t, private[t.ID], a.outlineFocusMark(o, t.ID))}
 	})
 }
 
@@ -670,12 +676,12 @@ func taskIDs(tasks []work.Task) map[string]bool {
 	return ids
 }
 
-// outlineCells are a task row's cells: the status glyph, the private and
-// agent marks (their settings) and title, then the status, then by
-// (tasks.columns). title is the row's text, t the task as stored (zero
-// for a row not written yet).
-func (a *App) outlineCells(title string, t work.Task, private bool) []string {
-	cells := []string{a.work.StatusGlyph(t.Status) + " " + a.taskGlyphs(t, private) + title, work.NormalStatus(t.Status)}
+// outlineCells are a task row's cells: the status glyph, the focus mark
+// (outlineFocusMark), the private and agent marks (their settings) and
+// title, then the status, then by (tasks.columns). title is the row's
+// text, t the task as stored (zero for a row not written yet).
+func (a *App) outlineCells(title string, t work.Task, private bool, focus string) []string {
+	cells := []string{a.work.StatusGlyph(t.Status) + " " + focus + a.taskGlyphs(t, private) + title, work.NormalStatus(t.Status)}
 	if a.showByColumn() {
 		by := ""
 		if t.ID != "" {
@@ -949,7 +955,7 @@ func (a *App) outlineChanged(o *outlineState) error {
 			continue
 		}
 		t := byID[taskOf(n.ID)]
-		nodes[i].Cells, nodes[i].Noun = a.outlineCells(n.Label, t, private[t.ID]), outlineTaskNoun
+		nodes[i].Cells, nodes[i].Noun = a.outlineCells(n.Label, t, private[t.ID], a.outlineFocusMark(o, t.ID)), outlineTaskNoun
 		nodes[i].Props, nodes[i].Classes = taskTreeThing(t, exported[t.ID], archived), nil // the class follows the row's level
 	}
 	if err := o.tree.SetNodes(nodes); err != nil {

@@ -287,7 +287,7 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 	if err := c.work.PutTask(work.Task{ID: "loose", Title: "loose end", Status: "open"}); err != nil {
 		t.Fatal(err)
 	}
-	c.showOutline(outlineScope{}, "")
+	c.showOutline(outlineScope{}, "", outlineOpen{})
 	if roots := rootRows(c); !slices.Equal(roots, []string{projectNode("")}) {
 		t.Fatalf("no project roots %v", roots)
 	}

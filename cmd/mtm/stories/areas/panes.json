@@ -106,9 +106,9 @@
     },
     "enter",
     "#",
+    "k",
     "enter",
     "esc",
-    "q",
     "Z",
     "Z",
     "]",
@@ -435,9 +435,11 @@
       "after": 72
     },
     {
-      "after": 74,
-      "modal": "focus",
+      "after": 75,
+      "modal": "task-outline",
+      "mode": "focus-set",
       "contains": [
+        "Focus today",
         "◎"
       ]
     },

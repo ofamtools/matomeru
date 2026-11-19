@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,14 +26,30 @@ import (
 const (
 	focusItemNoun     = "focus-item"
 	settingFocusCarry = "focus.carry"
-	focusPickerName   = "focus"
-	focusFilterName   = "focus"
+	// settingFocusSelector is what # (focus-item.add with no thing)
+	// opens: the task outline in focusSetMode, or the flat focus picker.
+	settingFocusSelector = "focus.selector"
+	focusSelectorOutline = "outline"
+	focusSelectorPicker  = "picker"
+	// focusSetMode is the base mode the focus selector's outline declares:
+	// its keys are the "NOUN/focus-set" rows of bindings/rows.json (enter
+	// and = focus a task, esc and q close), and every key without such a
+	// row is normal's; the outline's editing rows have none there.
+	focusSetMode = "focus-set"
+	// focusSelectorTitle starts the focus selector's outline title.
+	focusSelectorTitle = "Focus today"
+	focusPickerName    = "focus"
+	focusFilterName    = "focus"
 )
 
 // focusSettings are the focus.* settings.
 func focusSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{{Name: settingFocusCarry, Type: ochazuke.SettingString, Default: work.FocusCarryUnfinished, Enum: work.FocusCarries,
-		Description: "What an earlier day's focus does on a later day: unfinished (what you did not finish stays, after the day's own picks) or none (each day starts empty; earlier days stay readable with focus-item list --date)"}}
+		Description: "What an earlier day's focus does on a later day: unfinished (what you did not finish stays, after the day's own picks) or none (each day starts empty; earlier days stay readable with focus-item list --date)"},
+		{Name: settingFocusSelector, Type: ochazuke.SettingString, Default: focusSelectorOutline, Enum: slices.Sorted(maps.Keys(focusSelectors())),
+			Description: "What # opens to pick the day's focus: outline (the task outline, nested as O shows it, in the focus-set mode: enter or = focuses or unfocuses the task, esc or q closes, the editing keys do nothing) or picker (the flat focus picker: today's focus first, then the open tasks)"},
+		{Name: settingTasksFocusGlyph, Type: ochazuke.SettingBoolean, Default: true,
+			Description: "Mark the tasks in today's focus with " + focusGlyph + " before their title in the tasks outline (O, T, and the focus selector #)"}}
 }
 
 // focusable is a row noun whose things can be focused: the record noun
@@ -332,7 +349,7 @@ func (a *App) focusStore() ochazuke.Store {
 // focusChanged redraws what shows the focus: the task rows (focused and
 // focus-order are theirs) and every watch of either noun.
 func (a *App) focusChanged() {
-	if err := a.refreshTasks(); err != nil {
+	if err := a.refreshTaskRows(); err != nil {
 		a.r.UI().Notify("focus: " + err.Error())
 	}
 	a.r.Changed(focusItemNoun, "task")
@@ -344,8 +361,8 @@ func (a *App) defineFocus() {
 	}
 	n := focusItemNoun
 	a.r.Define(n).Props(focusProps()...).Store(a.docStore(n, a.focusStore())).Columns(focusColumns...).
-		About("The things picked as the day's focus (= on a task row, # for the picker); today's list is computed on read, with focus.carry").
-		Verb("add", a.focusAdd, "Focus a thing for the day (--date, default today), last in its list; with no thing, open the focus picker (#)").Positional("thing").
+		About("The things picked as the day's focus (= on a task row, # for the focus selector); today's list is computed on read, with focus.carry").
+		Verb("add", a.focusAdd, "Focus a thing for the day (--date, default today), last in its list; with no thing, open the focus selector (#; focus.selector: the task outline in focus-set mode, or the focus picker)").Positional("thing").
 		Verb("remove", a.focusRemove, "Unfocus a thing: archive its focus for the day and the earlier days it carried from (undo restores it)").Positional("thing").
 		Verb("new", a.focusNew, "Add a task (under the pin, else unassociated) and focus it, as task.new --focus").Positional("title").
 		Verb("move", a.focusMove, "Move a thing in the day's list: +N or -N places (+1 down, -1 up), or to place N from 1 (past the end is last)").Positional("thing", "to").
@@ -402,6 +419,27 @@ func normalThing(thing string) string {
 	return noun + ":" + key
 }
 
+// focusSelectors are what # opens, by focus.selector value: the request
+// each runs. outline is the task outline in focusSetMode; picker is the
+// flat focus picker (picker.open focus).
+func focusSelectors() map[string]ochazuke.Request {
+	return map[string]ochazuke.Request{
+		focusSelectorOutline: {Noun: "tasks", Verb: "open", Args: ochazuke.Arguments{"mode": focusSetMode, "title": focusSelectorTitle}},
+		focusSelectorPicker:  {Noun: "picker", Verb: "open", Args: ochazuke.Arguments{"name": focusPickerName}},
+	}
+}
+
+// openFocusSelector runs focus.selector's request (an unknown value is
+// the default's).
+func (a *App) openFocusSelector() ochazuke.Result {
+	selectors := focusSelectors()
+	req, ok := selectors[a.r.Settings().String(settingFocusSelector)]
+	if !ok {
+		req = selectors[focusSelectorOutline]
+	}
+	return resultOf(a.r.Execute(req))
+}
+
 // focusAdd is focus-item.add: a thing already in the day's list stays
 // where it is; with no thing, the focus picker opens (never "no target").
 func (a *App) focusAdd(c ochazuke.Ctx) ochazuke.Result {
@@ -410,7 +448,7 @@ func (a *App) focusAdd(c ochazuke.Ctx) ochazuke.Result {
 		if a.cli {
 			return ochazuke.Failed(c.Need("thing", "name a thing (task:ID); # opens the focus picker"))
 		}
-		return a.openNamedPicker(focusPickerName)
+		return a.openFocusSelector()
 	}
 	day, err := a.focusDate(c.Args)
 	if err != nil {

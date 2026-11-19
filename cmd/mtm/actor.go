@@ -161,6 +161,7 @@ const (
 	settingTasksColumns      = "tasks.columns"
 	settingTasksAgentGlyph   = "tasks.agent-glyph"
 	settingTasksPrivateGlyph = "tasks.private-glyph"
+	settingTasksFocusGlyph   = "tasks.focus-glyph"
 	settingTasksMadeBy       = "tasks.made-by"
 	settingWorkTasksFilter   = "work.tasks-filter"
 	settingPrivacyInbox      = "projects.privacy-inbox"
@@ -201,9 +202,9 @@ func (a *App) observeTaskView() {
 			a.r.UI().Notify(settingWorkTasksFilter + ": " + err.Error())
 		}
 	})
-	for _, name := range []string{settingTasksColumns, settingTasksAgentGlyph, settingTasksPrivateGlyph} {
+	for _, name := range []string{settingTasksColumns, settingTasksAgentGlyph, settingTasksPrivateGlyph, settingTasksFocusGlyph} {
 		a.r.Settings().Observe(name, func(string, any) {
-			if err := a.refreshTasks(); err != nil {
+			if err := a.refreshTaskRows(); err != nil {
 				a.r.UI().Notify(name + ": " + err.Error())
 			}
 		})
