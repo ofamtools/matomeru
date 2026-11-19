@@ -67,3 +67,31 @@ func TestOutlineUndoDeleteRestoresTheTask(t *testing.T) {
 		}
 	}
 }
+
+// A on a task archives it and its row leaves the outline; u brings it
+// back (the outline's undo walks the archive's history entry) and ctrl+r
+// archives it again.
+func TestOutlineUndoArchiveRestoresTheTask(t *testing.T) {
+	t.Parallel()
+	a, _, _ := outlineWithKept(t, work.StatusTodo, false, false)
+	archived := func() bool {
+		t.Helper()
+		got, err := a.work.Task("t1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Archived
+	}
+	press(t, a, "A")
+	if !archived() {
+		t.Fatal("A did not archive the task")
+	}
+	press(t, a, "u")
+	if archived() {
+		t.Fatal("u did not bring the archived task back")
+	}
+	press(t, a, "ctrl+r")
+	if !archived() {
+		t.Fatal("ctrl+r did not archive the task again")
+	}
+}
