@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"ofam.dev/ochazuke"
+	"os"
 	"strings"
 )
 
@@ -80,8 +82,49 @@ func (a *App) unmountExtension(x *extension) error {
 	return errors.Join(errs...)
 }
 
-// syncExtensions mounts the registry as it is now (see above).
-func (a *App) syncExtensions() { a.mountRegistry(false) }
+// syncExtensions mounts the registry as it is now (see above), unless
+// neither the registry files nor bindings.json (nor the peer-keys or mount-cache
+// setting) changed since the last sync: a page open then
+// costs a few stats, not a decode of every entry and a reload of the key
+// rows.
+func (a *App) syncExtensions() {
+	stamp := a.registryStamp()
+	if stamp != "" && stamp == a.extStamp {
+		return
+	}
+	a.mountRegistry(false)
+	a.extStamp = stamp
+}
+
+// registryStamp is what a sync depends on, cheap to read: each registry
+// file's name, size and mtime, bindings.json's, the peer-keys and mount-cache
+// settings. "" when it cannot be read, so the sync
+// runs.
+func (a *App) registryStamp() string {
+	var b strings.Builder
+	files, err := os.ReadDir(a.extRegistry().Dir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return ""
+	}
+	for _, f := range files {
+		name, ok := strings.CutSuffix(f.Name(), ".json")
+		if !ok || f.IsDir() || strings.HasPrefix(name, ".") {
+			continue
+		}
+		fi, err := f.Info()
+		if err != nil {
+			return ""
+		}
+		fmt.Fprintf(&b, "%s:%d:%d;", name, fi.Size(), fi.ModTime().UnixNano())
+	}
+	if c := a.r.Config(); c != nil {
+		if fi, err := os.Stat(c.Path(ochazuke.BindingsFile)); err == nil {
+			fmt.Fprintf(&b, "bindings:%d:%d;", fi.Size(), fi.ModTime().UnixNano())
+		}
+	}
+	fmt.Fprintf(&b, "peer-keys:%s;cache:%t", a.r.Settings().String(settingExtPeerKeys), a.r.Settings().Bool(settingExtMountCache))
+	return b.String()
+}
 
 // remountExtensions mounts every extension again (extensions.noun-names
 // changed how their nouns are named).

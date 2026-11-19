@@ -574,6 +574,7 @@ type App struct {
 	// extSyncDue asks the next update to mount the registry as it is now
 	// (extension_sync.go); extErrsSeen are the registry errors shown.
 	extSyncDue  bool
+	extStamp    string // registryStamp at the last sync
 	extErrsSeen map[string]bool
 
 	// extList is the Extensions page's table; extPage its discovery state

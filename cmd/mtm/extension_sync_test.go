@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"ofam.dev/ochazuke"
 )
@@ -140,5 +141,51 @@ func TestExtensionUserActionsSurviveRemount(t *testing.T) {
 	for range 2 {
 		a.remountExtensions()
 		assertUserAction()
+	}
+}
+
+// A sync runs only when the registry files or bindings.json changed: an
+// unchanged stamp skips it, an edited bindings.json is picked up.
+func TestExtensionSyncRunsOnlyOnChangedStamp(t *testing.T) {
+	t.Parallel()
+	bin, _ := fakeExtension(t, strings.Replace(fakeCatalog, "VERSION", "1.0", 1), "")
+	a := open(t)
+	mustCLI(t, a, "extension", "register", "fake", "--bin", bin)
+	path := a.r.Config().Path(ochazuke.BindingsFile)
+	row := func(keys string) string {
+		return `[{"noun":"task","mode":"normal","keys":"` + keys + `","request":{"noun":"task","verb":"history"}}]`
+	}
+	bound := func(keys string) bool {
+		for _, b := range a.r.BindingsDoc().Rows() {
+			if b.Keys == keys && b.Noun == "task" {
+				return true
+			}
+		}
+		return false
+	}
+	write := func(data string, at time.Time) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	at := time.Now().Add(-time.Hour)
+	write(row("ZQ"), at)
+	a.syncExtensions()
+	if !bound("ZQ") {
+		t.Fatal("bindings.json row not loaded by the first sync")
+	}
+	write(row("ZW"), at) // same size and mtime: the stamp did not move
+	a.syncExtensions()
+	if !bound("ZQ") || bound("ZW") {
+		t.Fatal("an unchanged stamp still reloaded bindings.json")
+	}
+	write(row("ZW"), at.Add(time.Minute))
+	a.syncExtensions()
+	if !bound("ZW") || bound("ZQ") {
+		t.Fatal("an edited bindings.json was not picked up")
 	}
 }
