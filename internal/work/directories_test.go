@@ -171,10 +171,10 @@ func TestMigrateTreesToRelations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v, _ := db.TableVersion("projects"); v != 2 {
+	if v, _ := db.TableVersion("projects"); v != 3 {
 		t.Fatalf("projects version %d", v)
 	}
-	if baks, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "backups", filepath.Base(path)+".bak-*")); len(baks) != 1 {
+	if baks, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "backups", filepath.Base(path)+".bak-*-projects-v2")); len(baks) != 1 {
 		t.Fatalf("one backup in the backups folder: %v", baks)
 	}
 	check := func(id string, want []string, def string) {
@@ -216,7 +216,7 @@ func TestMigrateTreesToRelations(t *testing.T) {
 	if len(before) != 4 || len(after) != len(before) {
 		t.Fatalf("relations before %d after %d", len(before), len(after))
 	}
-	if baks, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "backups", filepath.Base(path)+".bak-*")); len(baks) != 1 {
+	if baks, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "backups", filepath.Base(path)+".bak-*-projects-v2")); len(baks) != 1 {
 		t.Fatalf("a re-run backs up again: %v", baks)
 	}
 	check2, _ := w2.Project("p1")
@@ -226,11 +226,11 @@ func TestMigrateTreesToRelations(t *testing.T) {
 }
 
 // TestFreshFileNeedsNoMigration: a new database declares projects at
-// version 2 and makes no backup.
+// version 3 and makes no backup.
 func TestFreshFileNeedsNoMigration(t *testing.T) {
 	t.Parallel()
 	w, db := openWork(t)
-	if v, _ := db.TableVersion("projects"); v != 2 {
+	if v, _ := db.TableVersion("projects"); v != 3 {
 		t.Fatalf("version %d", v)
 	}
 	if baks, _ := filepath.Glob(filepath.Join(filepath.Dir(db.Path()), "backups", "*")); len(baks) != 0 {

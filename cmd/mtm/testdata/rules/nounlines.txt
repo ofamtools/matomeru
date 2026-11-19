@@ -17,12 +17,12 @@ ochazuke.page	142
 ochazuke.relation-kind	22
 ochazuke.setting	53
 pane	14384
-project	12317
+project	12311
 relation	1331
 reminder	1067
 review	1585
 saved	1611
 schedule	1891
 session	8958
-task	9240
+task	9236
 vim	1566

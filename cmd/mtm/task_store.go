@@ -71,11 +71,12 @@ func taskProps() []ochazuke.PropSpec {
 }
 
 // priorityProp is the priority prop of the task and project nouns. Its enum
-// is work.Priorities, lowest first, so sorting by priority ranks in that
-// order (descending puts urgent first) and --where priority=high filters.
+// is work.Priorities, P0 first and not set ("") last, so sorting by
+// priority ranks P0 first (not set, blank, sorts last either way), and
+// --where priority=P1 filters.
 func priorityProp(noun string) ochazuke.PropSpec {
-	return ochazuke.PropSpec{Name: "priority", Default: work.PriorityNone, Parameter: ochazuke.Parameter{Type: "string", Enum: work.Priorities,
-		Description: "How much the " + noun + " matters: none (unset), low, medium, high or urgent; a value from an older mtm reads as it is"}}
+	return ochazuke.PropSpec{Name: "priority", Default: work.PriorityNone, Parameter: ochazuke.Parameter{Type: "string", Enum: work.Priorities, EnumLabels: work.PriorityLabels(),
+		Description: "How much the " + noun + " matters: P0 (work on it now) to P5 (not so important), or not set (\"\", the default, blank; none also clears it); the old none, low, medium, high and urgent read as not set, P5, P3, P1 and P0"}}
 }
 
 // priorityChange reads a write's priority: the value to store, and whether
@@ -85,14 +86,11 @@ func priorityChange(values ochazuke.Thing) (string, bool, error) {
 	if !named {
 		return "", false, nil
 	}
-	v = strings.ToLower(strings.TrimSpace(v))
-	if v == "" {
-		v = work.PriorityNone
+	level, ok := work.PriorityOf(v)
+	if !ok {
+		return "", true, &ochazuke.ArgumentError{Err: fmt.Errorf("priority %q is not one of %s", v, strings.Join(work.PriorityNames(), ", "))}
 	}
-	if !work.ValidPriority(v) {
-		return "", true, &ochazuke.ArgumentError{Err: fmt.Errorf("priority %q is not one of %s", v, strings.Join(work.Priorities, ", "))}
-	}
-	return work.StoredPriority(v), true, nil
+	return level, true, nil
 }
 
 // patchProps reads a patch's plain props over t's, and applies the priority
@@ -241,7 +239,7 @@ func taskThing(t work.Task, exported bool) ochazuke.Thing {
 	thing := ochazuke.Thing{
 		"id": t.ID, "title": t.Title, "status": t.Status, "project": t.ProjectID, "parent": t.ParentID,
 		"easy": t.Easy, "snoozed-until": t.SnoozedUntil, "position": t.Position, "created": t.Created, "updated": t.Updated,
-		"archived": t.Archived, "priority": work.NormalPriority(t.Priority),
+		"archived": t.Archived, "priority": t.Priority,
 		"private": t.Private, "exported": exported, "created-by": t.Maker(), "made-by": t.MadeBy(), "changed-by": "",
 	}
 	if t.ChangedBy.Kind != "" {

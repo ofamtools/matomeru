@@ -301,13 +301,7 @@ func (a *App) taskCells(t work.Task, draft bool, now time.Time) []string {
 	if t.Updated != 0 {
 		updated = sinceUse(t.Updated, now)
 	}
-	cells := []string{box + title, status}
-	if a.showPriorityColumn() {
-		cells = append(cells, work.NormalPriority(t.Priority))
-	}
-	if a.showByColumn() {
-		cells = append(cells, byCell(t))
-	}
+	cells := append([]string{box + title, status}, a.shownCells(t)...)
 	if a.all {
 		cells = append(cells, a.ownerLabel(t.ProjectID))
 	}

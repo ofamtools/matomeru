@@ -181,7 +181,7 @@ const (
 func taskViewSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
 		{Name: settingTasksColumns, Type: ochazuke.SettingList, Default: []string{columnBy},
-			Description: "The extra columns of the Work page's tasks and the tasks outline: by (who made the task: me, the agent's harness, or ? for unknown), priority (none, low, medium, high or urgent; off by default, Work page only); [] shows none"},
+			Description: "The extra columns of the Work page's tasks and the tasks outline: by (who made the task: me, the agent's harness, or ? for unknown), priority (P0 to P5, blank when not set; off by default); [] shows none"},
 		{Name: settingTasksAgentGlyph, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Mark tasks an agent made with " + agentGlyph + " before their title (Work page and tasks outline)"},
 		{Name: settingTasksPrivateGlyph, Type: ochazuke.SettingBoolean, Default: true,
@@ -217,6 +217,33 @@ func (a *App) showByColumn() bool { return a.showsColumn(columnBy) }
 // showPriorityColumn reports whether the priority column shows (off unless
 // tasks.columns lists it).
 func (a *App) showPriorityColumn() bool { return a.showsColumn(columnPriority) }
+
+// taskColumnCells are the cells of the columns tasks.columns turns on, in
+// the order the Work page and the outline show them; a row with no task
+// (a draft line) leaves by blank.
+var taskColumnCells = []struct {
+	name string
+	cell func(work.Task) string
+}{
+	{columnPriority, func(t work.Task) string { return t.Priority }},
+	{columnBy, func(t work.Task) string {
+		if t.ID == "" {
+			return ""
+		}
+		return byCell(t)
+	}},
+}
+
+// shownCells are t's cells of the columns tasks.columns turns on.
+func (a *App) shownCells(t work.Task) []string {
+	var out []string
+	for _, c := range taskColumnCells {
+		if a.showsColumn(c.name) {
+			out = append(out, c.cell(t))
+		}
+	}
+	return out
+}
 
 func (a *App) showsColumn(name string) bool {
 	return slices.Contains(a.r.Settings().Strings(settingTasksColumns), name)

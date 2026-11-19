@@ -631,10 +631,13 @@ func (a *App) rootProps(id string) ochazuke.Thing {
 	return nil
 }
 
-// outlineCols are the outline's columns: outlineColumns, then by unless
-// tasks.columns leaves it out.
+// outlineCols are the outline's columns: outlineColumns, then priority
+// when tasks.columns lists it and by unless it leaves it out.
 func (a *App) outlineCols() []ochazuke.Column {
 	cols := slices.Clone(outlineColumns)
+	if a.showPriorityColumn() {
+		cols = append(cols, ochazuke.Column{Title: columnPriority, Priority: 3})
+	}
 	if a.showByColumn() {
 		cols = append(cols, ochazuke.Column{Title: columnBy, Priority: 2})
 	}
@@ -645,6 +648,9 @@ func (a *App) outlineCols() []ochazuke.Column {
 // empty.
 func (a *App) rootCells(id, label string) []string {
 	cells := []string{a.rootCell(id, label), ""}
+	if a.showPriorityColumn() {
+		cells = append(cells, "")
+	}
 	if a.showByColumn() {
 		cells = append(cells, "")
 	}
@@ -685,14 +691,7 @@ func taskIDs(tasks []work.Task) map[string]bool {
 // text, t the task as stored (zero for a row not written yet).
 func (a *App) outlineCells(title string, t work.Task, private bool, focus string) []string {
 	cells := []string{a.work.StatusGlyph(t.Status) + " " + focus + a.taskGlyphs(t, private) + title, work.NormalStatus(t.Status)}
-	if a.showByColumn() {
-		by := ""
-		if t.ID != "" {
-			by = byCell(t)
-		}
-		cells = append(cells, by)
-	}
-	return cells
+	return append(cells, a.shownCells(t)...)
 }
 
 // taskOrder lists tasks parents first, siblings in the order given (the

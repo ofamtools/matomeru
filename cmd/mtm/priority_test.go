@@ -32,126 +32,67 @@ func listIDs(t *testing.T, a *App, noun string, args ...string) []string {
 	return ids
 }
 
-// A task's priority is set and read through the standard verbs; a row
-// written before the field existed reads none; the stored row keeps nothing
-// for none; a value outside the set refuses the write.
+// A task's priority is set and read through the standard verbs: P0 to P5,
+// any case, or not set (""; none clears it too), which stores nothing; an
+// old value is read as its level; a value outside the scale refuses the
+// write.
 func TestTaskPrioritySetGet(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	if got := stored(t, a, "t1").Priority; got != "" {
-		t.Fatalf("a seeded task stores %q, want nothing", got)
-	}
 	thing, _ := executeA(t, a, "task", "get", "", ochazuke.Arguments{"id": "t1"}).(map[string]any)
 	if thing["priority"] != work.PriorityNone {
-		t.Fatalf("an unset priority reads %v, want none", thing["priority"])
+		t.Fatalf("an unset priority reads %v, want blank", thing["priority"])
 	}
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t1", "props": map[string]any{"priority": "high"}})
-	if got := stored(t, a, "t1").Priority; got != "high" {
-		t.Fatalf("stored priority %q", got)
+	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t1", "props": map[string]any{"priority": "p1"}})
+	if got := stored(t, a, "t1").Priority; got != "P1" {
+		t.Fatalf("p1 stored %q", got)
 	}
 	mustCLI(t, a, "task", "set", "t2", "priority=urgent")
-	if got := stored(t, a, "t2").Priority; got != "urgent" {
-		t.Fatalf("priority=urgent stored %q", got)
+	if got := stored(t, a, "t2").Priority; got != "P0" {
+		t.Fatalf("priority=urgent stored %q, want P0", got)
 	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": "t1", "props": map[string]any{"priority": "soon"}}}); err == nil {
-		t.Fatal("priority soon was written")
-	}
-	if got := stored(t, a, "t1").Priority; got != "high" {
-		t.Fatalf("a refused write changed the priority to %q", got)
-	}
-	// Other sets keep the priority; none clears it back to nothing stored.
-	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t1", "props": map[string]any{"status": "active"}})
-	if got := stored(t, a, "t1").Priority; got != "high" {
-		t.Fatalf("a status set lost the priority: %q", got)
+	if _, err := a.r.Execute(ochazuke.Request{Noun: "task", Verb: "set", Args: ochazuke.Arguments{"id": "t1", "props": map[string]any{"priority": "P6"}}}); err == nil {
+		t.Fatal("priority P6 was written")
 	}
 	executeA(t, a, "task", "set", "", ochazuke.Arguments{"id": "t1", "props": map[string]any{"priority": "none"}})
 	if got := stored(t, a, "t1").Priority; got != "" {
 		t.Fatalf("none stored %q, want nothing", got)
 	}
-	// One undo takes the last write back.
 	executeA(t, a, "history-entry", "undo", "", nil)
-	if got := stored(t, a, "t1").Priority; got != "high" {
+	if got := stored(t, a, "t1").Priority; got != "P1" {
 		t.Fatalf("undo: %q", got)
 	}
 }
 
-// A task can be created with a priority.
-func TestTaskCreateWithPriority(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	thing := map[string]any{}
-	if err := json.Unmarshal([]byte(mustCLI(t, a, "task", "create", "--json", `{"title":"first","project":"matomeru","priority":"low"}`)), &thing); err != nil {
-		t.Fatal(err)
-	}
-	id, _ := thing["id"].(string)
-	if got := stored(t, a, id).Priority; got != "low" {
-		t.Fatalf("created with priority %q", got)
-	}
-}
-
-// Sorting ranks priorities in enum order (descending puts urgent first),
-// and filtering keeps one value. The default order is untouched.
-func TestTaskPrioritySortAndFilter(t *testing.T) {
+// Sorting ranks P0 first and not set last (a P6 that shows blank), and
+// filtering keeps one level, for tasks and projects alike.
+func TestPrioritySortAndFilter(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	third, err := a.work.AddTask("matomeru", "third")
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustCLI(t, a, "task", "set", "t1", "priority=low")
-	mustCLI(t, a, "task", "set", "t2", "priority=urgent")
-	plain := listIDs(t, a, "task")
-	if want := []string{"t1", "t2", third.ID}; !slices.Equal(plain, want) {
-		t.Fatalf("default order %v, want %v", plain, want)
+	mustCLI(t, a, "task", "set", "t1", "priority=P5")
+	mustCLI(t, a, "task", "set", "t2", "priority=P0")
+	if got := listIDs(t, a, "task"); !slices.Equal(got, []string{"t1", "t2", third.ID}) {
+		t.Fatalf("default order %v", got)
 	}
-	if got := listIDs(t, a, "task", "--sort", "priority:desc"); !slices.Equal(got, []string{"t2", "t1", third.ID}) {
-		t.Fatalf("sort priority:desc %v", got)
+	if got := listIDs(t, a, "task", "--sort", "priority"); !slices.Equal(got, []string{"t2", "t1", third.ID}) {
+		t.Fatalf("sort priority %v, want P0, P5, not set", got)
 	}
-	if got := listIDs(t, a, "task", "--sort", "priority"); !slices.Equal(got, []string{third.ID, "t1", "t2"}) {
-		t.Fatalf("sort priority %v", got)
+	if got := listIDs(t, a, "task", "--sort", "priority:desc"); !slices.Equal(got, []string{"t1", "t2", third.ID}) {
+		t.Fatalf("sort priority:desc %v, want P5, P0, not set", got)
 	}
-	if got := listIDs(t, a, "task", "--where", "priority=urgent"); !slices.Equal(got, []string{"t2"}) {
-		t.Fatalf("where priority=urgent %v", got)
+	if got := listIDs(t, a, "task", "--where", "priority=P0"); !slices.Equal(got, []string{"t2"}) {
+		t.Fatalf("where priority=P0 %v", got)
 	}
-	if got := listIDs(t, a, "task", "--where", "priority=none"); !slices.Equal(got, []string{third.ID}) {
-		t.Fatalf("where priority=none %v", got)
+	mustCLI(t, a, "project", "set", "matomeru", "priority=P2")
+	if got := listIDs(t, a, "project", "--sort", "priority"); len(got) < 2 || got[0] != "matomeru" {
+		t.Fatalf("project sort priority %v", got)
 	}
-}
-
-// A project's priority: set, get, sort, filter, create; legacy rows read none.
-func TestProjectPriority(t *testing.T) {
-	t.Parallel()
-	a := open(t)
-	thing, _ := executeA(t, a, "project", "get", "", ochazuke.Arguments{"id": "ochazuke"}).(map[string]any)
-	if thing["priority"] != work.PriorityNone {
-		t.Fatalf("an unset project priority reads %v", thing["priority"])
-	}
-	mustCLI(t, a, "project", "set", "matomeru", "priority=high")
-	p, err := a.work.Project("matomeru")
-	if err != nil || p.Priority != "high" {
-		t.Fatalf("stored %q %v", p.Priority, err)
-	}
-	if _, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "set", Args: ochazuke.Arguments{"id": "matomeru", "props": map[string]any{"priority": "huge"}}}); err == nil {
-		t.Fatal("priority huge was written")
-	}
-	// A rename keeps it.
-	mustCLI(t, a, "project", "set", "matomeru", "name=mtm")
-	if p, _ = a.work.Project("matomeru"); p.Priority != "high" || p.Name != "mtm" {
-		t.Fatalf("after rename: %+v", p)
-	}
-	if got := listIDs(t, a, "project", "--sort", "priority:desc"); len(got) < 2 || got[0] != "matomeru" {
-		t.Fatalf("sort priority:desc %v", got)
-	}
-	if got := listIDs(t, a, "project", "--where", "priority=high"); !slices.Equal(got, []string{"matomeru"}) {
-		t.Fatalf("where priority=high %v", got)
-	}
-	made := map[string]any{}
-	if err := json.Unmarshal([]byte(mustCLI(t, a, "project", "create", "--json", `{"name":"new","priority":"medium"}`)), &made); err != nil {
-		t.Fatal(err)
-	}
-	id, _ := made["id"].(string)
-	if p, err = a.work.Project(id); err != nil || p.Priority != "medium" {
-		t.Fatalf("created %q %v", p.Priority, err)
+	if got := listIDs(t, a, "project", "--where", "priority=P2"); !slices.Equal(got, []string{"matomeru"}) {
+		t.Fatalf("project where priority=P2 %v", got)
 	}
 }
 
@@ -159,7 +100,7 @@ func TestProjectPriority(t *testing.T) {
 func TestTaskPriorityColumnIsOptIn(t *testing.T) {
 	t.Parallel()
 	a := open(t)
-	mustCLI(t, a, "task", "set", "t1", "priority=high")
+	mustCLI(t, a, "task", "set", "t1", "priority=P1")
 	has := func() bool {
 		tasksOn(t, a, "t1")
 		for _, c := range a.taskList.Columns() {
@@ -179,7 +120,7 @@ func TestTaskPriorityColumnIsOptIn(t *testing.T) {
 		t.Fatal("tasks.columns lists priority but the column is missing")
 	}
 	cells := a.taskCells(stored(t, a, "t1"), false, a.now())
-	if !slices.Contains(cells, "high") {
+	if !slices.Contains(cells, "P1") {
 		t.Fatalf("t1 cells %v lack its priority", cells)
 	}
 }

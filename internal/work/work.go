@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -33,7 +34,7 @@ type Project struct {
 	// Origin is the tool that created or adopted the project ("o-proj");
 	// rows written before it existed, and by mtm itself, leave it empty.
 	Origin string `json:"origin,omitempty"`
-	// Priority is one of Priorities (priority.go); empty reads none.
+	// Priority is one of Priorities (priority.go): P0 to P5, empty for not set.
 	Priority string `json:"priority,omitempty"`
 	// Archived hides the project metadata without deleting tasks or directories.
 	Archived bool `json:"archived,omitempty"`
@@ -97,7 +98,7 @@ type Task struct {
 	// Private keeps the task and every task under it out of exports,
 	// inside a family project too (privacy.go).
 	Private bool `json:"private,omitempty"`
-	// Priority is one of Priorities (priority.go); empty reads none.
+	// Priority is one of Priorities (priority.go): P0 to P5, empty for not set.
 	Priority string `json:"priority,omitempty"`
 	// CreatedBy is who made the task, stamped once; zero on a row written
 	// before mtm recorded it (it reads unknown). ChangedBy is who wrote it
@@ -109,8 +110,8 @@ type Task struct {
 // Tables are the declarations this package owns; they match the persisted
 // metadata of matomeru-old, so Declare accepts an existing database.
 var Tables = []store.Table{
-	{Name: "projects", Owner: "work", Key: "id", Version: 2},
-	{Name: "tasks", Owner: "work", Key: "id", Version: 1},
+	{Name: "projects", Owner: "work", Key: "id", Version: 3},
+	{Name: "tasks", Owner: "work", Key: "id", Version: 2},
 	{Name: "launch_state", Owner: "work", Key: "id", Version: 1},
 	{Name: "reviews", Owner: "work", Key: "id", Version: 1},
 	{Name: "dir_recent", Owner: "work", Key: "path", Version: 1},
@@ -197,19 +198,19 @@ func Open(db *store.Store) (*Store, error) {
 	}
 	// Server identities replace socket paths (daemon.ServerID): rows keep
 	// their place and every other field; a re-run does nothing.
-	if err := db.Migrate("companions", 1, 2, serverIDRewrite("server")); err != nil {
-		return nil, err
-	}
-	if err := db.Migrate(copiesTable, 1, 2, serverIDRewrite("source")); err != nil {
+	if err := errors.Join(db.Migrate("companions", 1, 2, serverIDRewrite("server")), db.Migrate(copiesTable, 1, 2, serverIDRewrite("source"))); err != nil {
 		return nil, err
 	}
 	// The directories of a project are relations: the table exists before the
-	// projects rewrite moves trees into it (directories.go).
+	// projects rewrite moves trees into it (directories.go); then priorities
+	// move to the P0 to P5 scale (priority.go), each after a backup.
 	if err := relations.Declare(db); err != nil {
 		return nil, err
 	}
-	if err := migrateDirectories(db); err != nil {
-		return nil, err
+	for _, migrate := range []func(*store.Store) error{migrateDirectories, migratePriorities} {
+		if err := migrate(db); err != nil {
+			return nil, err
+		}
 	}
 	// A session is named by its id (session_ids.go): stored names are
 	// rewritten once, after a backup.

@@ -107,7 +107,7 @@ func projectThing(p work.Project) ochazuke.Thing {
 	return ochazuke.Thing{
 		"id": p.ID, "name": p.Name, "color": p.Theme.Color, "glyph": p.Theme.Glyph,
 		"harness": p.Settings.Harness, "preset": p.Settings.Preset, "dir": projectDir(p),
-		"repo": p.Repo, "origin": p.Origin, "created": p.Created, "privacy": work.PrivacyOf(p), "priority": work.NormalPriority(p.Priority),
+		"repo": p.Repo, "origin": p.Origin, "created": p.Created, "privacy": work.PrivacyOf(p), "priority": p.Priority,
 		"archived": p.Archived,
 	}
 }

@@ -20,7 +20,7 @@ func TestOutlineUndoneProjectRowDeleteRestoresTheProject(t *testing.T) {
 		Theme:    work.Theme{Color: "palette.3", Glyph: "◇"},
 		Repo:     "/tmp/empty-repo",
 		Settings: work.ProjectSettings{Harness: "codex", Preset: "fast", Privacy: "family"},
-		Origin:   "o-proj", Priority: work.PriorityHigh,
+		Origin:   "o-proj", Priority: "P1",
 	}
 	if err := a.work.PutProject(was); err != nil {
 		t.Fatal(err)
