@@ -404,3 +404,40 @@ func TestPaneReadsDoNotRereadUnchangedCopies(t *testing.T) {
 		t.Fatal("a written copy was not read again")
 	}
 }
+
+// A pane's standard-row hints (r and m edit, * set) follow the doc store
+// owners.go puts in place after the noun's declaration: since ochazuke
+// v0.176.0 the binding walk over standard rows is cached, so the cached
+// hints must match a reading after the cache is dropped, and offer the
+// writes the doc store makes available.
+func TestPaneStandardHintsFollowItsDocStore(t *testing.T) {
+	t.Parallel()
+	a, _ := panesApp(t)
+	executeA(t, a, "pane", "list", "", ochazuke.Arguments{"all": true})
+	reload(t, a)
+	row := "pane:w1"
+	if err := a.r.SetFocus(row); err != nil {
+		t.Fatal(err)
+	}
+	keys := func() []string {
+		var out []string
+		for _, b := range ochazuke.HintBindings(a.r, row) {
+			out = append(out, b.Keys+" "+b.Request.Key())
+		}
+		return out
+	}
+	cached := keys()
+	a.r.InvalidateBindings()
+	if fresh := keys(); !slices.Equal(cached, fresh) {
+		t.Fatalf("cached hints %q differ from a fresh reading %q", cached, fresh)
+	}
+	for _, want := range []string{"pane.edit", "pane.set"} {
+		hinted := slices.ContainsFunc(cached, func(k string) bool { return strings.HasSuffix(k, " "+want) })
+		if avail := a.r.Available(ochazuke.Request{Noun: "pane", Verb: strings.TrimPrefix(want, "pane.")}, row, a.r.CurrentMode()); hinted != avail {
+			t.Errorf("%s hinted %v, available %v", want, hinted, avail)
+		}
+		if !hinted {
+			t.Errorf("the hints on a live pane offer no %s: %q", want, cached)
+		}
+	}
+}
