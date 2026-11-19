@@ -353,6 +353,25 @@
       "historyKind": "fetch"
     },
     {
+      "verb": "resume",
+      "handler": "pane.resume",
+      "description": "Resume the agent conversation recorded for the pane in its shell: the daemon types the harness's resume command (its manifest's [resume] argv, such as claude --resume ID) with the conversation id the agent reported, only while the pane's shell holds the terminal. For a pane a fresh daemon restart restored; daemon.resume-agents does it for every agent after one",
+      "parameters": {
+        "dry-run": {
+          "type": "boolean",
+          "description": "Only answer the command it would type"
+        },
+        "session": {
+          "type": "string",
+          "description": "The pane's session (default: the window's, else the pane at the focus)"
+        },
+        "window": {
+          "type": "string",
+          "description": "The pane's window id (default: the pane at the focus)"
+        }
+      }
+    },
+    {
       "verb": "progress",
       "handler": "pane.progress",
       "description": "Report what the pane's agent is doing: its agent state (working unless --state) with a short message",

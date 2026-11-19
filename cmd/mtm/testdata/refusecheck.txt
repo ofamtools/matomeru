@@ -90,6 +90,8 @@ cmd/mtm/copymode.go	copyModeSettings	K15	"at least %d"	1
 cmd/mtm/copymode.go	keyChar	K8	"%s is not a character"	1
 cmd/mtm/daemon_import.go	App.daemonImportStateVerb	K15	"Failed(…)"	1
 cmd/mtm/daemon_import.go	App.importOptions	K3	"daemon.import-state needs a named mtm server (-server NAME), not -socket or -server default: it imports into that server's state"	1
+cmd/mtm/daemon_resume.go	App.resumeAgentVerb	K15	"Failed(…)"	1	failure
+cmd/mtm/daemon_resume.go	App.resumeAgentVerb	K15	"errors.New(…)"	1	failure
 cmd/mtm/daemon_runner.go	App.daemonServeVerb	K1	"this mtm is built with -tags nodaemon: no daemon to serve"	1
 cmd/mtm/daemon_runner.go	App.daemonServeVerb	K15	"daemon exited with status %d"	1
 cmd/mtm/daemon_runner.go	App.daemonServeVerb	K3	"daemon.serve needs a named server (-server NAME), not -socket or -server default"	1

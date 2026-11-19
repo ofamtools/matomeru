@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"testing"
 
+	"ofam.dev/matomeru/internal/daemon"
 	"ofam.dev/ochazuke"
 )
 
@@ -25,7 +26,15 @@ func helloDaemon(t *testing.T, version string) (socket string, close func()) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
-	ln, err := net.Listen("unix", filepath.Join(dir, "d.sock"))
+	socket = filepath.Join(dir, "d.sock")
+	return socket, serveHello(t, socket, version, nil)
+}
+
+// serveHello serves helloDaemon's answers at socket; answer, when given,
+// answers the other verbs (nil: an empty result). The returned func stops it.
+func serveHello(t *testing.T, socket, version string, answer func(verb string, params json.RawMessage) map[string]any) func() {
+	t.Helper()
+	ln, err := net.Listen("unix", socket)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,20 +52,24 @@ func helloDaemon(t *testing.T, version string) (socket string, close func()) {
 				sc := bufio.NewScanner(conn)
 				for sc.Scan() {
 					var req struct {
-						ID   string `json:"id"`
-						Verb string `json:"verb"`
+						ID     string          `json:"id"`
+						Verb   string          `json:"verb"`
+						Params json.RawMessage `json:"params"`
 					}
 					_ = json.Unmarshal(sc.Bytes(), &req)
 					result := map[string]any{}
-					if req.Verb == "hello" {
+					switch {
+					case req.Verb == "hello":
 						result = map[string]any{"daemon_version": version, "pid": 4242, "protocol": 1}
+					case answer != nil:
+						result = answer(req.Verb, req.Params)
 					}
 					_ = json.NewEncoder(conn).Encode(map[string]any{"id": req.ID, "result": result})
 				}
 			}()
 		}
 	}()
-	return ln.Addr().String(), stop
+	return stop
 }
 
 // upgradeFake records the facade calls and answers outcome.
@@ -141,9 +154,10 @@ func TestRestartUpgradesTheDaemonOnlyOnAnotherBuild(t *testing.T) {
 }
 
 // daemon.restart hands off live and never stops the daemon; a daemon too
-// old to hand off is left running with a notice naming --hard; hard stops it.
+// old to hand off is left running with a notice naming --fresh; fresh stops
+// it.
 // serial: replaces the package killPID hook.
-func TestDaemonRestartIsLiveUnlessHard(t *testing.T) {
+func TestDaemonRestartIsLiveUnlessFresh(t *testing.T) {
 	var killed []int
 	old := killPID
 	t.Cleanup(func() { killPID = old })
@@ -163,7 +177,7 @@ func TestDaemonRestartIsLiveUnlessHard(t *testing.T) {
 		t.Fatalf("too-old daemon: %d upgrade runs, killed %v", fake.count(), killed)
 	}
 	if !slices.ContainsFunc(a.m.Notices, func(n string) bool {
-		return strings.Contains(n, "predates live upgrades") && strings.Contains(n, "mtm daemon restart --hard") && strings.Contains(n, "ends the programs")
+		return strings.Contains(n, "predates live upgrades") && strings.Contains(n, "mtm daemon restart --fresh") && strings.Contains(n, "ends the programs")
 	}) {
 		t.Fatalf("no too-old notice: %q", a.m.Notices)
 	}
@@ -174,8 +188,69 @@ func TestDaemonRestartIsLiveUnlessHard(t *testing.T) {
 		t.Fatalf("live restart: %d upgrade runs, killed %v", fake.count(), killed)
 	}
 
-	restart(ochazuke.Arguments{"hard": true})
+	restart(ochazuke.Arguments{"fresh": true})
 	if fake.count() != 2 || !slices.Equal(killed, []int{4242}) {
-		t.Fatalf("hard restart: %d upgrade runs, killed %v", fake.count(), killed)
+		t.Fatalf("fresh restart: %d upgrade runs, killed %v", fake.count(), killed)
+	}
+}
+
+// A fresh restart with daemon.resume-agents on asks the daemon to resume each
+// agent that ran before it with a recorded conversation, and skips one with
+// none; off, it asks nothing.
+// serial: replaces the package killPID hook.
+func TestFreshRestartResumesKnownAgents(t *testing.T) {
+	old := killPID
+	t.Cleanup(func() { killPID = old })
+	for _, on := range []bool{true, false} {
+		a, _, stop := upgradeApp(t, daemonVersion(), upgradedOutcome)
+		var mu sync.Mutex
+		var resumed []string
+		answer := func(verb string, params json.RawMessage) map[string]any {
+			if verb != "resume-agent" {
+				return map[string]any{}
+			}
+			var p struct{ Session, Window string }
+			_ = json.Unmarshal(params, &p)
+			mu.Lock()
+			resumed = append(resumed, p.Session+"/"+p.Window)
+			mu.Unlock()
+			return map[string]any{"window_id": p.Window, "harness": "claude-code", "agent_session_id": "s1",
+				"command": "claude --resume s1", "typed": true}
+		}
+		killPID = func(int, syscall.Signal) error { stop(); return nil }
+		a.ensure = func(context.Context) error {
+			stop = serveHello(t, a.daemon.Socket, daemonVersion(), answer)
+			return nil
+		}
+		a.panesd.(*fakePanes).panes = []pane{
+			{Session: "work", Harness: "claude-code", AgentSession: "s1", Pane: daemon.Pane{ID: "w1", Name: "lead"}},
+			{Session: "work", Harness: "claude-code", Pane: daemon.Pane{ID: "w2", Name: "fresh"}},
+			{Session: "work", Pane: daemon.Pane{ID: "w3", Name: "shell"}},
+		}
+		if err := a.r.Settings().Set(settingResumeAgents, on); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.r.Execute(ochazuke.Request{Noun: "daemon", Verb: "restart", Target: paneListID, Confirmed: true,
+			Args: ochazuke.Arguments{"fresh": true}}); err != nil {
+			t.Fatal(err)
+		}
+		settle(a, a.r.PendingCommands())
+		mu.Lock()
+		got := slices.Clone(resumed)
+		mu.Unlock()
+		if !on {
+			if len(got) != 0 {
+				t.Fatalf("setting off: resumed %v", got)
+			}
+			continue
+		}
+		if !slices.Equal(got, []string{"work/w1"}) {
+			t.Fatalf("resume-agent calls %v, want work/w1 only", got)
+		}
+		if !slices.ContainsFunc(a.m.Notices, func(n string) bool {
+			return strings.Contains(n, "resumed 1 agent(s): work/lead") && strings.Contains(n, "skipped 1: work/fresh: no conversation")
+		}) {
+			t.Fatalf("no resume notice: %q", a.m.Notices)
+		}
 	}
 }

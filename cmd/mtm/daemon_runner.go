@@ -92,7 +92,7 @@ func daemonSettings() []ochazuke.Setting {
 			Description: "Also give panes, hooks and plugins the TUIOS_ variable names (TUIOS_PANE_ID, ...) beside the MTM_ ones, for a machine with an old tool that reads them. Off (the default) exports only the MTM_ names. Takes effect when the daemon is restarted. " + daemon.EnvLegacy + " overrides for one run"},
 		{Name: settingDaemonPin, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Run the self daemon from a pinned copy of the mtm binary under the state directory (daemon-bin), so overwriting the installed mtm cannot kill it. Off runs the installed binary"},
-	}, restartSettings()...)
+	}, append(restartSettings(), resumeSettings()...)...)
 }
 
 // runnerName is the runner now chosen: the environment, else the setting.
@@ -492,7 +492,7 @@ func (a *App) defineDaemon(r *ochazuke.Runtime) {
 	verb("status", true, a.daemonStatusVerb, "Whether the daemon runs: pid, its version beside this client's, runner, socket, binary and version skew. Never starts one").Fetch().Quiet()
 	verb("show-log", true, a.daemonLogsVerb, "Tail the daemon log (lines, default 50). Never starts a daemon").Fetch().Quiet()
 	verb("stop", true, a.daemonStopVerb, "Stop the daemon; its panes die. A daemon that is not running is left alone").Confirm("Stop the daemon? Its panes end.")
-	verb("restart", true, a.daemonRestartVerb, "Restart the daemon on the installed mtm, live: the same handoff as daemon.upgrade, so every pane keeps its program. When the live handoff cannot run it changes nothing and says why. hard stops the daemon and starts it again, which ends the programs in its panes (they are restored from saved state with new shells)").Confirm("Restart the daemon? Panes keep running (with hard, they end and are restored from saved state).")
+	verb("restart", true, a.daemonRestartVerb, "Restart the daemon on the installed mtm, live: the same handoff as daemon.upgrade, so every pane keeps its program. When the live handoff cannot run it changes nothing and says why. fresh stops the daemon and starts it again, which ends the programs in its panes (they are restored from saved state with new shells, and their agents resumed with daemon.resume-agents on)").Confirm("Restart the daemon? Panes keep running (with fresh, they end and are restored from saved state).")
 	a.defineDaemonUpgrade(verb)
 	verb("import-state", true, a.daemonImportStateVerb, daemonImportAbout)
 	a.defineDaemonImportParameters()

@@ -14,8 +14,8 @@ import (
 	"ofam.dev/ochazuke"
 )
 
-// The live upgrade of the daemon (daemon.upgrade, and daemon.restart without
-// hard): the daemon execs another mtm in its own place and hands it every
+// The live upgrade of the daemon (daemon.upgrade and daemon.restart without
+// fresh): the daemon execs another mtm in its own place and hands it every
 // pane's terminal, so the programs in the panes keep running with their pids.
 // mtm runs the installed binary's facade word for it, "BIN __mtmd --server
 // NAME daemon upgrade --binary BIN --json" (mtmd serve/upgrade.go), which
@@ -24,7 +24,7 @@ import (
 // installed mtm pinned into daemon-bin (daemon.pin-binary), as the self
 // runner starts it, so the next install cannot pull the file from under the
 // daemon. A daemon from before live upgrades (mtm v0.53 and earlier) answers
-// that it cannot; mtm then changes nothing and says that a hard restart,
+// that it cannot; mtm then changes nothing and says that a fresh restart,
 // once, is needed.
 
 const (
@@ -39,7 +39,7 @@ const (
 func restartSettings() []ochazuke.Setting {
 	return []ochazuke.Setting{
 		{Name: settingRestartUpgradeDaemon, Type: ochazuke.SettingBoolean, Default: true, Section: "daemon",
-			Description: "After & restarts mtm in place, upgrade the daemon live to the new build when it runs another one (daemon.upgrade): every pane keeps its program. A daemon too old to hand its panes over is left running, and a notice says a one-time mtm daemon restart --hard is needed (it ends the programs in the panes). Off leaves the daemon on its build"},
+			Description: "After & restarts mtm in place, upgrade the daemon live to the new build when it runs another one (daemon.upgrade): every pane keeps its program. A daemon too old to hand its panes over is left running, and a notice says a one-time mtm daemon restart --fresh is needed (it ends the programs in the panes). Off leaves the daemon on its build"},
 	}
 }
 
@@ -57,6 +57,9 @@ type daemonHandoff struct {
 	Kept   bool   `json:"panes_kept"` // every pane's program still runs
 	Binary string `json:"binary,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	// Resumed is what a fresh restart did with each agent that ran before
+	// it (daemon.resume-agents).
+	Resumed []agentResume `json:"resumed,omitempty"`
 }
 
 // facadeOutcome is the JSON of mtmd's daemon upgrade (serve.UpgradeOutcome);
@@ -80,7 +83,7 @@ type handoffRefused struct{ reason string }
 
 func (e *handoffRefused) Error() string {
 	return "the daemon was not upgraded live: " + strings.TrimSuffix(e.reason, ".") +
-		". Nothing was changed and its panes keep running. A one-time `mtm daemon restart --hard` moves it to this build; it ends the programs in every pane"
+		". Nothing was changed and its panes keep running. A one-time `mtm daemon restart --fresh` moves it to this build; it ends the programs in every pane"
 }
 
 // execUpgrade runs the facade's command line; tests replace it (App.runUpgrade).
@@ -172,9 +175,15 @@ func (a *App) handOff(ctx context.Context, whenDifferent bool) (daemonHandoff, e
 	return res, fmt.Errorf("daemon upgrade %s: %s", o.Action, o.Error)
 }
 
-// hardRestart is the restart that ends pane programs: stop the daemon, start
-// one (it restores its saved sessions with new shells).
-func (a *App) hardRestart(ctx context.Context) (daemonHandoff, error) {
+// freshRestart is the restart that ends pane programs: stop the daemon, start
+// one on the installed mtm (it restores its saved sessions with new shells).
+// With daemon.resume-agents on, the agents running before the stop are
+// resumed in their restored panes afterwards (resumeAgents).
+func (a *App) freshRestart(ctx context.Context) (daemonHandoff, error) {
+	var live []pane
+	if a.r.Settings().Bool(settingResumeAgents) {
+		live = a.liveAgents(ctx)
+	}
 	before, err := a.stopDaemon(ctx)
 	if err != nil {
 		return daemonHandoff{Action: "failed"}, err
@@ -183,51 +192,73 @@ func (a *App) hardRestart(ctx context.Context) (daemonHandoff, error) {
 		return daemonHandoff{Action: "failed", From: before.Version}, err
 	}
 	now := a.daemonStatus(ctx)
-	return daemonHandoff{Action: "restarted", From: before.Version, To: now.Version, PID: now.PID}, nil
+	res := daemonHandoff{Action: "restarted", From: before.Version, To: now.Version, PID: now.PID}
+	res.Resumed = a.resumeAgents(ctx, live, resumeWait)
+	return res, nil
 }
 
 // handoffJob is the job of daemon.upgrade and daemon.restart: live, else with
-// orRestart the hard restart. A refusal is a notice as well as the job's error.
+// orRestart the fresh restart. A refusal is a notice as well as the job's
+// error.
 func (a *App) handoffJob(whenDifferent, orRestart bool) ochazuke.Result {
 	return ochazuke.Pending(func(c context.Context) (any, error) {
 		res, err := a.handOff(c, whenDifferent)
 		var refused *handoffRefused
 		if errors.As(err, &refused) && orRestart {
-			hard, herr := a.hardRestart(c)
-			hard.Reason = refused.reason
-			return hard, herr
+			fresh, ferr := a.freshRestart(c)
+			fresh.Reason = refused.reason
+			return fresh, ferr
 		}
 		return res, err
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
-		var refused *handoffRefused
-		if errors.As(err, &refused) {
-			a.r.UI().Notify(refused.Error())
-			return
+	}).Then(a.afterHandoff)
+}
+
+// freshJob is the job of daemon.restart and daemon.upgrade with fresh: stop
+// the daemon and start it on the installed mtm, which ends the programs in
+// its panes. whenDifferent leaves a daemon that runs this build alone.
+func (a *App) freshJob(whenDifferent bool) ochazuke.Result {
+	return ochazuke.Pending(func(c context.Context) (any, error) {
+		if whenDifferent {
+			if info := a.daemonStatus(c); info.Running && !info.Skew {
+				return daemonHandoff{Action: "unchanged", From: info.Version, To: info.Version, PID: info.PID, Kept: true}, nil
+			}
 		}
-		if err == nil {
-			_ = a.reloadPanes()
-		}
-	})
+		return a.freshRestart(c)
+	}).Then(a.afterHandoff)
+}
+
+// afterHandoff tells what a handoff or restart did: a refusal, the agents a
+// fresh restart resumed or skipped, and reloads the pane list.
+func (a *App) afterHandoff(_ ochazuke.Ctx, v any, err error) {
+	var refused *handoffRefused
+	if errors.As(err, &refused) {
+		a.r.UI().Notify(refused.Error())
+		return
+	}
+	if res, ok := v.(daemonHandoff); ok && len(res.Resumed) > 0 {
+		a.r.UI().Notify(resumeSummary(res.Resumed))
+	}
+	if err == nil {
+		_ = a.reloadPanes()
+	}
 }
 
 func (a *App) daemonUpgradeVerb(ctx ochazuke.Ctx) ochazuke.Result {
+	if boolArg(ctx.Args, "fresh", false) {
+		return a.freshJob(boolArg(ctx.Args, "when-different", false))
+	}
 	return a.handoffJob(boolArg(ctx.Args, "when-different", false), boolArg(ctx.Args, "or-restart", false))
 }
 
 // daemonRestartVerb hands the daemon off to the installed mtm live, keeping
-// every pane's program; hard stops it and starts it again (it restores its
-// saved state with new shells), as restart did before.
+// every pane's program; fresh stops it and starts it again (it restores its
+// saved state with new shells, and resumes its agents with
+// daemon.resume-agents on).
 func (a *App) daemonRestartVerb(ctx ochazuke.Ctx) ochazuke.Result {
-	if !boolArg(ctx.Args, "hard", false) {
-		return a.handoffJob(false, false)
+	if boolArg(ctx.Args, "fresh", false) {
+		return a.freshJob(false)
 	}
-	return ochazuke.Pending(func(c context.Context) (any, error) {
-		return a.hardRestart(c)
-	}).Then(func(_ ochazuke.Ctx, _ any, err error) {
-		if err == nil {
-			_ = a.reloadPanes()
-		}
-	})
+	return a.handoffJob(false, false)
 }
 
 // upgradeAfterRestart runs in the TUI app.restart started (envRestarted):
@@ -260,13 +291,14 @@ func restartEnv() []string {
 }
 
 func (a *App) defineDaemonUpgrade(verb func(name string, local bool, h any, about string) *ochazuke.NounBuilder) {
-	verb("upgrade", true, a.daemonUpgradeVerb, "Upgrade the daemon live to the installed mtm (pinned into daemon-bin): every pane keeps its program, and the daemon its pid. Answers the old and new versions and whether the panes were kept. A daemon too old to hand over is left as it is unless or-restart").
-		Confirm("Upgrade the daemon to the installed mtm? Panes keep running.")
+	verb("upgrade", true, a.daemonUpgradeVerb, "Upgrade the daemon live to the installed mtm (pinned into daemon-bin): every pane keeps its program, and the daemon its pid. Answers the old and new versions and whether the panes were kept. A daemon too old to hand over is left as it is unless or-restart. fresh stops it and starts it on the installed mtm instead, which ends the programs in its panes").
+		Confirm("Upgrade the daemon to the installed mtm? Panes keep running (with fresh, they end and are restored from saved state).")
 	a.parameters("daemon.upgrade", map[string]ochazuke.Parameter{
 		"or-restart":     {Type: "boolean", Description: "When the daemon cannot be upgraded live, restart it (stop, then start), which ends the programs in its panes"},
 		"when-different": {Type: "boolean", Description: "Do nothing when the daemon already runs this build"},
+		"fresh":          {Type: "boolean", Description: freshAbout},
 	})
 	a.parameters("daemon.restart", map[string]ochazuke.Parameter{
-		"hard": {Type: "boolean", Description: "Stop the daemon and start it again, which ends the programs in its panes (they are restored from saved state with new shells). Without it the restart is daemon.upgrade's live handoff"},
+		"fresh": {Type: "boolean", Description: freshAbout + ". Without it the restart is daemon.upgrade's live handoff"},
 	})
 }

@@ -71,6 +71,7 @@ func (a *App) nounHandlers() {
 		"pane.copy":                a.paneCopy,
 		"pane.whoami":              a.paneWhoami,
 		"pane.progress":            a.paneProgress,
+		"pane.resume":              a.resumeAgentVerb,
 		"pane.turns":               a.focusTurns,
 		"pane.refresh-turns":       a.refreshPaneTurns,
 		"pane.scroll-turns":        a.scrollTurns,
