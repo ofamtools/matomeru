@@ -131,3 +131,17 @@ func TestRestartHookAsksThenCleansUpOnce(t *testing.T) {
 		t.Fatalf("the cleanup reached the daemon %d times", n)
 	}
 }
+
+// An agent's pane reads by its name where a person sees who asked (the
+// restart dialog): mtm gives ochazuke the pane list's names.
+func TestActorLabelNamesTheListedPane(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	p := pane{Session: "hub", UniqueName: "orchestrator"}
+	p.ID = "6ef88c2f-b85f-4b63-998a-d81c812c30ef"
+	a.panes = []pane{p}
+	agent := ochazuke.Actor{Kind: ochazuke.ActorAgent, Name: "claude", Pane: a.panes[0].ID}
+	if got := a.r.ActorLabel(agent); got != "agent claude (pane hub/orchestrator)" {
+		t.Fatalf("label %q", got)
+	}
+}

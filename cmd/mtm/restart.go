@@ -58,6 +58,9 @@ func (a *App) restartHook(tui bool) ochazuke.RestartHook {
 // memory and the failure is said.
 func (a *App) defineRestart() {
 	a.r.SetRestart(a.restartHook(false))
+	// Who asked (the restart dialog, an agent's confirm, history rows)
+	// names an agent's pane as the pane list does, not by its window id.
+	a.r.SetActorLabels(ochazuke.ActorLabels{Pane: a.paneLabelOf})
 	a.localNoun(ochazuke.RestartRequestNoun)
 	if err := a.db.Declare(restartTable); err != nil {
 		a.r.UI().Error("restart request: " + err.Error())
