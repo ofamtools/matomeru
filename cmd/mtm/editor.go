@@ -247,7 +247,7 @@ func (a *App) openEditor(record editRecord, fromDraft bool) error {
 		Fields:   a.recordFields(record.Noun),
 		Start:    a.editorFor(record.Noun).start,
 		Debounce: a.editDebounce(),
-		Insert:   true,
+		Insert:   true, Subject: ochazuke.Ref{Noun: record.Noun, Key: record.ID}, // links #noun references on each write
 		Load: func() (ochazuke.Record, error) {
 			values, err := a.recordValues(e.Record)
 			if err != nil {
