@@ -69,12 +69,15 @@ func TestAgentAskRecordsThenStartsTheChosenHarness(t *testing.T) {
 	}
 }
 
-// A stray word left in a free launch field (the owner's "but" in fast) does
-// not stop the ask form's agent: it starts with the harness's default for
+// With launch.option-pickers off the launch fields are free text, and a
+// stray word left in one (the owner's "but" in fast) does not stop the ask form's agent: it starts with the harness's default for
 // that setting, and a notice says the value was not applied.
 func TestAskFormStartsTheAgentPastAValueTheHarnessDoesNotTake(t *testing.T) {
 	t.Parallel()
 	a := open(t)
+	if err := a.r.Settings().Set(settingLaunchPickers, "false"); err != nil {
+		t.Fatal(err)
+	}
 	d := &fakeDaemon{panes: a.panesd.(*fakePanes)}
 	a.launcher = d
 	press(t, a, "g", "q")

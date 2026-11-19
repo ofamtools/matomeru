@@ -425,14 +425,16 @@ type App struct {
 	// titleHead and titleDir are the title row before fitting; see fitTitle.
 	titleHead, titleDir string
 	daemon              *daemon.Client
-	localVerbs          map[string]bool             // verbs that start no daemon (daemon_runner.go)
-	cliWords            []string                    // the command words of this run (startsNoDaemon)
-	ensure              func(context.Context) error // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
-	launcher            harness.Driver              // opens panes, waits for readiness, types prompts (tuios); tests replace it
-	harnesses           *harness.Registry           // the built-ins merged with the harness file
-	locator             *locate.Locator             // the harnesses' session records (pane_locate.go); nil none
-	executable          func() (string, error)      // the mtm binary the per-launch hooks run (os.Executable; tests replace it)
-	promptDelay         time.Duration               // the wait before typing into a pane whose harness has no readiness probe
+	localVerbs          map[string]bool                       // verbs that start no daemon (daemon_runner.go)
+	cliWords            []string                              // the command words of this run (startsNoDaemon)
+	ensure              func(context.Context) error           // starts mtm's server when missing (daemon.Client.Ensure); tests replace it
+	launcher            harness.Driver                        // opens panes, waits for readiness, types prompts (tuios); tests replace it
+	harnesses           *harness.Registry                     // the built-ins merged with the harness file
+	launchOpts          *launchOptions                        // the launch forms' snapshot (launch_options.go)
+	launchRows          func(context.Context) ([]byte, error) // tests: o-ai's model rows
+	locator             *locate.Locator                       // the harnesses' session records (pane_locate.go); nil none
+	executable          func() (string, error)                // the mtm binary the per-launch hooks run (os.Executable; tests replace it)
+	promptDelay         time.Duration                         // the wait before typing into a pane whose harness has no readiness probe
 	sleep               func(context.Context, time.Duration) error
 	panesd              paneDaemon
 	renamer             renamer                // renames sessions and windows (the daemon); tests replace it

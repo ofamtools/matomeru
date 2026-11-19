@@ -88,7 +88,7 @@ func (a *App) editorPage(record editRecord) string {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.startNotifications(), a.startInboxNotifications(), a.startSchedules(), a.startReminderNotifications(), a.refreshStaleExtensions(), a.setupCheckAtStart())
+	return tea.Batch(a.m.Init(), a.subscribeEvents(), a.followContext(), a.journalEvents(), a.startNotifications(), a.startInboxNotifications(), a.startSchedules(), a.startReminderNotifications(), a.refreshStaleExtensions(), a.setupCheckAtStart(), a.startLaunchOptionChecks())
 }
 func (a *App) View() tea.View {
 	a.fitTitle()
@@ -140,7 +140,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if c := a.inboxUpdate(msg); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
-	if c := a.schedulesUpdate(msg); c != nil {
+	if c := a.withLaunchOptionsUpdate(msg, a.schedulesUpdate(msg)); c != nil {
 		cmd = tea.Batch(cmd, c)
 	}
 	if c := a.reminderNotificationsUpdate(msg); c != nil {

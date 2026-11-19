@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"errors"
 	"maps"
-	"slices"
 	"strings"
 
 	"ofam.dev/ochazuke"
@@ -75,22 +74,7 @@ var launchPromptParams = map[string]ochazuke.Parameter{
 func (a *App) launchSettingParams() map[string]ochazuke.Parameter {
 	out := map[string]ochazuke.Parameter{}
 	for _, name := range harness.LaunchSettingNames {
-		out[name] = ochazuke.Parameter{Type: "string", Enum: a.launchSettingChoices(name), Free: true,
-			Description: "The harness's " + name + " at launch (its settings row in harnesses.json); empty: the harness's default"}
-	}
-	return out
-}
-
-// launchSettingChoices are every harness's values of a launch setting, in
-// registry order, each once.
-func (a *App) launchSettingChoices(name string) []string {
-	var out []string
-	for _, h := range a.harnesses.List() {
-		for _, v := range h.Choices(name) {
-			if !slices.Contains(out, v) {
-				out = append(out, v)
-			}
-		}
+		out[name] = launchSettingParam(name, "The harness's "+name+" at launch (its settings row in harnesses.json); empty: the harness's default")
 	}
 	return out
 }

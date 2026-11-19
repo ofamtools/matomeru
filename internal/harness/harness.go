@@ -21,6 +21,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"ofam.dev/matomeru/internal/drive"
 )
@@ -65,6 +66,8 @@ const (
 //	 attach: "mention", promptBox: {deliver: "queue", submit: "enter"},
 //	 drive: "terminal", view: {open: "turns", split: 50}}
 type Harness struct {
+	// Listed are models known to work beyond Models (Registry.SetListedModels).
+	Listed  []string `json:"-"`
 	Name    string   `json:"name"`
 	Command []string `json:"command"` // argv; command[0] is looked up on PATH
 	// Ids are the harness ids tuios reports for a pane running the
@@ -366,7 +369,7 @@ func (h Harness) Model(model string) (string, error) {
 	if h.ModelFlag == "" {
 		return "", fmt.Errorf("harness %s takes no model (no modelFlag); leave model empty", h.Name)
 	}
-	if len(h.Models) > 0 && !slices.Contains(h.Models, model) {
+	if len(h.Models) > 0 && !slices.Contains(h.Models, model) && !slices.Contains(h.Listed, model) {
 		return "", fmt.Errorf("model %q is not one of %s's models: %s", model, h.Name, strings.Join(h.Models, ", "))
 	}
 	return model, nil
@@ -423,7 +426,14 @@ func (h Harness) HookFlags(mtm string) []string {
 
 // Registry is the loaded harnesses in order: the built-ins, then the
 // ones a file added.
-type Registry struct{ list []Harness }
+type Registry struct {
+	list   []Harness
+	listed atomic.Pointer[map[string][]string] // SetListedModels
+}
+
+// SetListedModels names models each harness is known to take beyond its
+// Models (by harness name): Get and Lookup carry them, so Model accepts them.
+func (r *Registry) SetListedModels(listed map[string][]string) { r.listed.Store(&listed) }
 
 // NewRegistry validates hs and keeps them in order; a later one with a
 // name already seen is an error.
@@ -502,6 +512,9 @@ func (r *Registry) ForAgent(id, first string) (Harness, bool) {
 func (r *Registry) Get(name string) (Harness, bool) {
 	for _, h := range r.list {
 		if h.Name == name {
+			if listed := r.listed.Load(); listed != nil {
+				h.Listed = (*listed)[name]
+			}
 			return h, true
 		}
 	}

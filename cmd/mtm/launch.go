@@ -182,7 +182,9 @@ func (a *App) defineLaunch() {
 	r.Define("harness").Columns(harnessColumns...).
 		Verb("all", a.listHarnesses, "Print the harness registry: the built-ins merged with harnesses.json").Fetch().
 		Verb("models", a.listModels, "List a harness's models as choices; without a harness, combine every harness's models").Fetch().
-		Verb("names", a.harnessNames, "List the harness names as choices (the project editor's harness field)").Fetch()
+		Verb("names", a.harnessNames, "List the harness names as choices (the project editor's harness field)").Fetch().
+		Verb("choices", a.listLaunchChoices, "List the values a launch setting takes for a harness and model, as choices").Fetch().Verb("refresh", a.checkOptionsVerb, "Ask o-ai now which models and settings each harness takes, and keep the answer for the launch forms")
+	a.defineLaunchOptions()
 	// Launches belong to mtm; ochazuke.agent owns framework rights inspection.
 	r.DefineOwn("agent").
 		Verb("launch", a.launch, "Launch an agent into the inferred project's session ("+noProjectSession+" when nothing is inferred)").
@@ -192,10 +194,8 @@ func (a *App) defineLaunch() {
 	// L launches an agent on every page; a project or task row's own L
 	// launches on that record.
 	a.r.Define("app").Mode("normal").Bind("L", ochazuke.Do("agent.choose"))
-	// The model is free text checked against the chosen harness's models
-	// (harness.Model). The pick list follows the selected harness; a
-	// harness that lists none takes any model.
-	model := ochazuke.Parameter{Type: "string", Source: "harness.models", SourceArgs: map[string]string{"harness": "harness"}, Free: true, Description: "Model for the harness's model flag; one of its models when it lists any (default: its first)"}
+	// A picker that follows the harness; the CLI and MCP may name another.
+	model := launchModelParam("Model for the harness's model flag; one of its models when it lists any (default: its first)")
 	agent := ochazuke.Parameter{Type: "string", Enum: a.harnesses.Names(), Description: "Harness to start (default: the project's harness setting, else the default-harness setting, " + defaultHarness + " unless set)"}
 	a.parameters("harness.models", map[string]ochazuke.Parameter{"harness": {Type: "string", Description: "Only this harness's models; empty: every harness"}})
 	task := ochazuke.Parameter{Type: "string", Description: "Task id; its title is the agent's first prompt"}
@@ -240,24 +240,24 @@ func (a *App) harnessNames(ochazuke.Ctx) ochazuke.Result {
 // selected harness's models, or every harness's when none is selected.
 // Each model appears once, labelled with the harnesses that list it.
 func (a *App) listModels(c ochazuke.Ctx) ochazuke.Result {
-	harnesses := a.harnesses.List()
-	if name := ochazuke.StringArg(c.Args, "harness", ""); name != "" {
-		h, err := a.harnesses.Lookup(name)
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		harnesses = []harness.Harness{h}
+	harnesses, err := a.choiceHarnesses(c)
+	if err != nil {
+		return ochazuke.Failed(err)
 	}
 	var out []ochazuke.Choice
 	at := map[string]int{}
 	for _, h := range harnesses {
-		for _, m := range h.Models {
+		for _, m := range a.modelIDs(h) {
 			if i, ok := at[m]; ok {
 				out[i].Label += ", " + h.Name
 				continue
 			}
 			at[m] = len(out)
-			out = append(out, ochazuke.Choice{ID: m, Label: m + " (" + h.Name})
+			label := m
+			if row, ok := a.launchOpts.model(h.Name, m); ok && row.Name != "" {
+				label = m + " · " + row.Name
+			}
+			out = append(out, ochazuke.Choice{ID: m, Label: label + " (" + h.Name})
 		}
 	}
 	for i := range out {

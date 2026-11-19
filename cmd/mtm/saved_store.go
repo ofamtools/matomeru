@@ -59,8 +59,7 @@ func (a *App) savedProps() []ochazuke.PropSpec {
 				return tildePath(cwd, home)
 			}},
 		{Name: "harness", CreateOnly: true, Parameter: text("The agent's harness, for an agent's record")},
-		{Name: "model", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "string", Source: "harness.models", SourceArgs: map[string]string{"harness": "harness"}, Free: true,
-			Description: "The agent's model, for an agent's record"}},
+		{Name: "model", CreateOnly: true, Parameter: launchModelParam("The agent's model, for an agent's record")},
 		{Name: "flags", CreateOnly: true, Parameter: ochazuke.Parameter{Type: "list", Description: "The harness flags the agent was launched with"}},
 		{Name: "window", ReadOnly: true, Parameter: text("The pane (window id) the record reopens: attached while it is live")},
 		{Name: "session", ReadOnly: true, Parameter: text("The session the pane was in")},

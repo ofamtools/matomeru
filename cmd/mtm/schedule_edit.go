@@ -26,16 +26,15 @@ const scheduleFormID = "schedule-form"
 
 // scheduleParams are add's and edit's parameters (edit's name is the row's).
 func (a *App) scheduleParams() map[string]ochazuke.Parameter {
-	settingChoices := a.launchSettingChoices
 	return map[string]ochazuke.Parameter{
 		"prompt":          {Type: "string", Description: "The prompt the agent is given each run (a prompt schedule)"},
 		"when":            {Type: "string", Description: "When it runs: every 30m, daily 09:00, mon,wed,fri 09:00,17:30, weekdays 8:30, cron 0 9 * * 1-5, or never"},
 		"enabled":         {Type: "string", Enum: scheduleChoices("enabled"), Description: "on, off, or auto (when its command is installed and its checks pass)"},
 		"harness":         {Type: "string", Enum: a.harnesses.Names(), Description: "The harness profile (harnesses.json); empty: the project's, else default-harness"},
-		"model":           {Type: "string", Source: "harness.models", SourceArgs: map[string]string{"harness": "harness"}, Free: true, Description: "The model; empty: the harness's first"},
-		"effort":          {Type: "string", Enum: settingChoices(harness.SettingEffort), Free: true, Description: "Thinking effort at launch (the harness's effort setting)"},
-		"fast":            {Type: "string", Enum: scheduleChoices("fast"), Free: true, Description: "Fast mode at launch: on or off"},
-		"permission-mode": {Type: "string", Enum: settingChoices(harness.SettingPermission), Free: true, Description: "Permission mode at launch (the harness's permission-mode setting)"},
+		"model":           launchModelParam("The model; empty: the harness's first"),
+		"effort":          launchSettingParam(harness.SettingEffort, "Thinking effort at launch (the harness's effort setting)"),
+		"fast":            launchSettingParam(harness.SettingFast, "Fast mode at launch: on or off"),
+		"permission-mode": launchSettingParam(harness.SettingPermission, "Permission mode at launch (the harness's permission-mode setting)"),
 		"project":         {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project the agent works in (its session and directory); empty: no project"},
 		"task":            {Type: "string", Free: true, Description: "A task id the pane is linked to (its title is the prompt when there is none)"},
 		"dir":             dirParam("The working folder; empty: the project's directory, else home", false),

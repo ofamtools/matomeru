@@ -37,6 +37,7 @@ func (a *App) reloadHarnesses() []string {
 		return []string{strings.TrimPrefix(err.Error(), a.opts.Harnesses+": ")}
 	}
 	a.harnesses = reg
+	a.shareLaunchModels()
 	if a.locator != nil {
 		a.locator.Set(reg.List())
 	}
