@@ -381,7 +381,7 @@ func buildStory(env monogatari.Env, fill func(path string, now int64) error, pan
 			return built, err
 		}
 	}
-	a, err := New(Options{Data: data, Config: config, Socket: filepath.Join(dir, storySocket)})
+	a, err := storyApp(Options{Data: data, Config: config, Socket: filepath.Join(dir, storySocket)})
 	if err != nil {
 		return built, err
 	}
@@ -412,6 +412,42 @@ func buildStory(env monogatari.Env, fill func(path string, now int64) error, pan
 		Program: a,
 		Close:   func() { a.Close(); os.RemoveAll(dir) },
 	}, nil
+}
+
+// storyApp is New over a story's config with what every story runs under:
+// related stacks read on the loop (detail.related-background off, unless
+// the story's settings.json says otherwise), since a story delivers a job's
+// completion only when its script names it, and reads the screen right
+// after each step.
+func storyApp(opts Options) (*App, error) {
+	path := filepath.Join(opts.Config, "settings.json")
+	values := map[string]any{}
+	raw, err := os.ReadFile(path)
+	if err == nil && json.Unmarshal(raw, &values) != nil {
+		return New(opts) // a file it cannot read as JSON stays as the story wrote it
+	}
+	if _, set := values[ochazuke.RelatedBackgroundSetting]; !set {
+		values[ochazuke.RelatedBackgroundSetting] = false
+		raw, err := json.Marshal(values)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, raw, 0o600); err != nil {
+			return nil, err
+		}
+	}
+	return New(opts)
+}
+
+// storySandbox is env.Sandbox (the story's settings and values, the config
+// it disables), then related stacks read on the loop again, as storyApp set
+// them before the first read.
+func storySandbox(env monogatari.Env, a *App) error {
+	if err := env.Sandbox(a.m); err != nil {
+		return err
+	}
+	_, err := a.r.Settings().SetSession(ochazuke.RelatedBackgroundSetting, false)
+	return err
 }
 
 // sandboxStory installs the fakes on a built App, after openWith's list
@@ -494,7 +530,7 @@ func sandboxStory(a *App, env monogatari.Env, now func() time.Time, dir string, 
 			return err
 		}
 	}
-	if err := env.Sandbox(a.m); err != nil {
+	if err := storySandbox(env, a); err != nil {
 		return err
 	}
 	if err := a.inboxLoad.reload(); err != nil { // its rows' times, on the story clock
