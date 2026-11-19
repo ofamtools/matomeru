@@ -36,8 +36,14 @@ type Table struct {
 }
 
 type Store struct {
-	db   *sql.DB
-	path string // the file Open was given (":memory:" for none)
+	db *sql.DB
+	// reads are the connections Query and All read through outside a
+	// transaction: in WAL mode they read beside db, the one connection
+	// that writes, so a slow read made off the UI loop (ochazuke's
+	// Ctx.OffLoop) never holds the connection the loop's next statement
+	// needs. A memory database has one connection: reads is db.
+	reads *sql.DB
+	path  string // the file Open was given (":memory:" for none)
 
 	// writes counts, per table, the committed transactions of this process
 	// that wrote it (Version).
@@ -122,8 +128,23 @@ func Open(path string) (*Store, error) {
 			delay *= 2
 		}
 	}
-	return &Store{db: db, path: path}, nil
+	reads := db
+	if path != ":memory:" {
+		pool, err := sql.Open("sqlite", dsn) // the DSN initialize just opened
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+		pool.SetMaxOpenConns(readConns)
+		pool.SetMaxIdleConns(readConns)
+		reads = pool
+	}
+	return &Store{db: db, reads: reads, path: path}, nil
 }
+
+// readConns is how many reads (Query, All) may run at once beside the
+// writing connection: the loop's own and a few off it.
+const readConns = 4
 
 func isBusy(err error) bool {
 	text := err.Error()
@@ -190,10 +211,15 @@ func OpenReadOnly(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("open store: %w", err)
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, reads: db}, nil
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error {
+	if s.reads != nil && s.reads != s.db {
+		s.reads.Close()
+	}
+	return s.db.Close()
+}
 
 // TableInfo is a declared table and how many rows it holds.
 type TableInfo struct {
@@ -452,7 +478,7 @@ func (s *Store) All(table string) ([]json.RawMessage, error) {
 		return nil, err
 	}
 	s.counter(table).Add(1)
-	return readRows(s.db.Query(`SELECT row FROM ` + quote(table) + ` ORDER BY rowid`))
+	return readRows(s.reads.Query(`SELECT row FROM ` + quote(table) + ` ORDER BY rowid`))
 }
 
 func (s *Store) declared(table string) error {

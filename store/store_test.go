@@ -1,10 +1,13 @@
 package store
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // Tables lists every declaration with its row count; a read-only store
@@ -157,5 +160,55 @@ func TestVersionMovesOnEveryWriteKindAndOnAnotherProcess(t *testing.T) {
 	}
 	if db.FullReads("a_rows") < 1 {
 		t.Fatal("full reads are counted")
+	}
+}
+
+// A read that holds every connection Query and All read through (a slow
+// read off the UI loop) leaves the writing connection free: a write and a
+// Get go on, and the next Query sees the write once a read connection is
+// free again.
+func TestReadsDoNotHoldTheWritingConnection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mtm.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	notes := Table{Name: "notes", Owner: "notes", Key: "id", Version: 1}
+	if err := db.Declare(notes); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	var held []*sql.Conn
+	for range readConns {
+		c, err := db.reads.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		held = append(held, c)
+	}
+	done := make(chan error, 1)
+	go func() {
+		err := db.Tx([]string{"notes"}, func(tx *Tx) error { return tx.Put("notes", "a", map[string]any{"id": "a"}) })
+		if err == nil {
+			var got map[string]any
+			err = db.Get("notes", "a", &got)
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the write waited for the read connections")
+	}
+	for _, c := range held {
+		c.Close()
+	}
+	res, err := db.Query("notes", Query{})
+	if err != nil || res.Total != 1 {
+		t.Fatalf("a read after the write: %+v %v", res, err)
 	}
 }

@@ -415,7 +415,7 @@ func (s *Store) Query(table string, q Query) (QueryResult, error) {
 		return QueryResult{}, err
 	}
 	countArgs := append(append([]any{}, pargs...), wargs...)
-	if err := s.db.QueryRow(prefix+`SELECT count(*) FROM `+source+where, countArgs...).Scan(&res.Total); err != nil {
+	if err := s.reads.QueryRow(prefix+`SELECT count(*) FROM `+source+where, countArgs...).Scan(&res.Total); err != nil {
 		return QueryResult{}, err
 	}
 	if q.Limit < 0 || q.Offset < 0 || q.Limit == 0 && q.Offset > 0 {
@@ -438,6 +438,6 @@ func (s *Store) Query(table string, q Query) (QueryResult, error) {
 		sql += ` LIMIT ? OFFSET ?`
 		args = append(args, q.Limit, q.Offset)
 	}
-	res.Rows, err = readRows(s.db.Query(sql, args...))
+	res.Rows, err = readRows(s.reads.Query(sql, args...))
 	return res, err
 }
