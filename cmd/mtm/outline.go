@@ -1164,79 +1164,20 @@ func (a *App) outlineTaskStandard(verb string) ochazuke.AppHandler {
 		if len(ctx.Subjects) > 1 {
 			q.Subjects = ctx.SubjectIDs()
 		}
-		since := a.lastHistorySeq()
-		v, err := a.r.Execute(q)
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		if o, _, oerr := a.outlineTaskOf(ctx.Instance); oerr == nil {
-			if err := a.recordHistorySteps(o, taskOf(ctx.Instance.ID), q, since); err != nil {
-				return ochazuke.Failed(err)
-			}
-		}
-		return ochazuke.Done(v)
+		return a.outlineRun(ctx.Instance, q)
 	}
 }
 
-// lastHistorySeq is the newest history entry's seq (0 for none).
-func (a *App) lastHistorySeq() uint64 {
-	if h := a.r.History(1); len(h) > 0 {
-		return h[len(h)-1].Seq
+// outlineRun runs q for an outline row; open, the outline puts the writes
+// q made on its undo stack (ochazuke Tree.RecordRequest), so u brings
+// back what the verb hid (A archives a task: its row leaves the outline)
+// and ctrl+r runs it again.
+func (a *App) outlineRun(row *ochazuke.Instance, q ochazuke.Request) ochazuke.Result {
+	o, _, err := a.outlineTaskOf(row)
+	if err != nil {
+		return resultOf(a.r.Execute(q))
 	}
-	return 0
-}
-
-// undoableSince are the newest-first seqs of the history entries after
-// since that wrote things (history-entry.undo reverts them), one per
-// group: undoing one entry of a group reverts the whole group.
-func (a *App) undoableSince(since uint64) []uint64 {
-	var out []uint64
-	groups := map[string]bool{}
-	h := a.r.History(0)
-	for i := len(h) - 1; i >= 0 && h[i].Seq > since; i-- {
-		e := h[i]
-		if len(e.Changes) == 0 || e.Restored {
-			continue
-		}
-		if e.Group != "" {
-			if groups[e.Group] {
-				continue
-			}
-			groups[e.Group] = true
-		}
-		out = append(out, e.Seq)
-	}
-	return out
-}
-
-// recordHistorySteps puts the standard writes q made from the outline
-// (the entries after since) on the outline's undo stack, in order with
-// its tree edits, so u brings back what the verb hid (A archives a task:
-// its row leaves the outline, and u restores it through
-// history-entry.undo) and ctrl+r runs q again. Nothing is recorded when q
-// wrote nothing.
-func (a *App) recordHistorySteps(o *outlineState, id string, q ochazuke.Request, since uint64) error {
-	seqs := a.undoableSince(since)
-	if len(seqs) == 0 {
-		return nil
-	}
-	undo := func() error {
-		for _, seq := range seqs {
-			if _, err := a.r.Execute(ochazuke.Request{Noun: "ochazuke.history-entry", Verb: "undo", Args: ochazuke.Arguments{"entry": int(seq)}}); err != nil {
-				return err
-			}
-		}
-		return a.outlineChanged(o)
-	}
-	redo := func() error {
-		mark := a.lastHistorySeq()
-		if _, err := a.r.Execute(q); err != nil {
-			return err
-		}
-		seqs = a.undoableSince(mark)
-		return a.outlineChanged(o)
-	}
-	return o.tree.Record(ochazuke.TreeAction{ID: outlineNode(id), Label: q.Key() + " " + id, Undo: undo, Redo: redo})
+	return resultOf(o.tree.RecordRequest(row.ID, q, func() error { return a.outlineChanged(o) }))
 }
 
 // outlineTaskToggle is outline-task.toggle (x on a task row).

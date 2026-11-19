@@ -3,6 +3,7 @@
   "name": "pane",
   "about": "A TUIOS terminal window and its task assignment, launch recipe and agent progress.",
   "noEditKey": true,
+  "actorPane": true,
   "parent": "session",
   "columns": [
     {"title": "pane", "min": 16},

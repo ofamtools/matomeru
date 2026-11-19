@@ -133,15 +133,17 @@ func TestRestartHookAsksThenCleansUpOnce(t *testing.T) {
 }
 
 // An agent's pane reads by its name where a person sees who asked (the
-// restart dialog): mtm gives ochazuke the pane list's names.
+// restart dialog): the pane noun declares actorPane, so ochazuke reads
+// the pane's label from its store.
 func TestActorLabelNamesTheListedPane(t *testing.T) {
 	t.Parallel()
 	a := open(t)
 	p := pane{Session: "hub", UniqueName: "orchestrator"}
 	p.ID = "6ef88c2f-b85f-4b63-998a-d81c812c30ef"
 	a.panes = []pane{p}
-	agent := ochazuke.Actor{Kind: ochazuke.ActorAgent, Name: "claude", Pane: a.panes[0].ID}
-	if got := a.r.ActorLabel(agent); got != "agent claude (pane hub/orchestrator)" {
+	a.pv = &paneUI{listed: true}
+	agent := ochazuke.Actor{Kind: ochazuke.ActorAgent, Name: "claude", Pane: p.ID}
+	if got := a.r.ActorLabel(agent); !strings.Contains(got, "orchestrator") || strings.Contains(got, p.ID) {
 		t.Fatalf("label %q", got)
 	}
 }
