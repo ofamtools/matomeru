@@ -142,6 +142,14 @@ func TestVersionMovesOnEveryWriteKindAndOnAnotherProcess(t *testing.T) {
 	if ver("a_rows") == before {
 		t.Fatal("another connection's write did not move the token")
 	}
+	// ...and another connection's write of another table does not.
+	before = ver("a_rows")
+	if err := other.Tx([]string{"b_rows"}, func(tx *Tx) error { return tx.Put("b_rows", "ext", map[string]any{"id": "ext"}) }); err != nil {
+		t.Fatal(err)
+	}
+	if ver("a_rows") != before {
+		t.Fatal("another connection's write of another table moved the token")
+	}
 	if db.FullReads("a_rows") < 1 {
 		t.Fatal("full reads are counted")
 	}

@@ -47,6 +47,8 @@ type Store struct {
 	// Version reads data_version once (held) and reuses it.
 	holds int
 	held  *int64
+	// heldCounts are the write counts Version read while a hold is open.
+	heldCounts map[string]int64
 	// declaredHeld are the tables declared() found while a hold is open:
 	// a hold answers as of its start, and a commit of this process (a
 	// rename among them) or the hold's release forgets them.
@@ -338,7 +340,7 @@ func (s *Store) noteWrites(tables map[string]bool) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.declaredHeld = nil // a commit may rename a table
+	s.declaredHeld, s.heldCounts = nil, nil // a commit may rename a table; a hold sees its own writes at once
 	if s.writes == nil {
 		s.writes = map[string]uint64{}
 	}
@@ -379,33 +381,42 @@ func (t *Tx) WriteCount(table string) (int64, error) {
 }
 
 // Version is a cheap token for a table's rows as they are now: two equal
-// answers mean nothing wrote the table between them. It combines a count of
-// this process's committed writes of the table (every write goes through
-// Tx.Put, Tx.Delete or Migrate) with SQLite's data_version, which moves
-// when another connection, in another process, commits to the file (any
-// table: coarse, never missing a write). The store holds one connection, so
-// its own commits never move data_version, only the counter. Equal tokens
-// cost a counter read and one pragma, far below reading the table.
+// answers mean nothing wrote the table between them. It is the table's
+// write count (WriteCount), which SQLite's own triggers move in the writing
+// statement, so it moves for a write of this process or of any other, and
+// only for a write of this table: another table's commit leaves it alone
+// (SQLite's data_version, which moves on any commit, would make every
+// token stale after any outside write). One indexed read.
 //
-// While a HoldVersions is open, data_version is read once and reused: the
-// tokens then see this process's writes (the counter) and not another
-// process's until the hold is released, as a read made at the hold's
-// start would.
+// While a HoldVersions is open each table's count is read once and
+// reused: the tokens then see this process's writes of the table and not
+// another process's until the hold is released, as a read made at the
+// hold's start would.
 func (s *Store) Version(table string) (string, error) {
 	if err := s.declared(table); err != nil {
 		return "", err
 	}
-	dv, err := s.DataVersion()
-	if err != nil {
-		return "", err
-	}
 	s.mu.Lock()
-	n := s.writes[table]
+	n, ok := s.heldCounts[table]
 	s.mu.Unlock()
-	return strconv.FormatUint(n, 10) + "." + strconv.FormatInt(dv, 10), nil
+	if !ok {
+		var err error
+		if n, err = s.WriteCount(table); err != nil {
+			return "", err
+		}
+		s.mu.Lock()
+		if s.holds > 0 {
+			if s.heldCounts == nil {
+				s.heldCounts = map[string]int64{}
+			}
+			s.heldCounts[table] = n
+		}
+		s.mu.Unlock()
+	}
+	return strconv.FormatInt(n, 10), nil
 }
 
-// HoldVersions makes Version read data_version once until release is
+// HoldVersions makes Version read each write count once until release is
 // called (holds nest), and keeps the tables it finds declared: one read
 // of many things (a list and the records each of its things merges in)
 // checks the other processes' writes once, not once per thing, and
@@ -420,7 +431,7 @@ func (s *Store) HoldVersions() (release func()) {
 		once.Do(func() {
 			s.mu.Lock()
 			if s.holds--; s.holds == 0 {
-				s.held, s.declaredHeld = nil, nil
+				s.held, s.heldCounts, s.declaredHeld = nil, nil, nil
 			}
 			s.mu.Unlock()
 		})
