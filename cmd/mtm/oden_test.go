@@ -157,10 +157,10 @@ func TestProjIsTheProjectNoun(t *testing.T) {
 func TestUnknownWordIsNotFoundWithSuggestions(t *testing.T) {
 	t.Parallel()
 	app, _ := cliApp(t)
-	out, errOut, err := mtm(app, t.TempDir(), "tasks")
+	out, errOut, err := mtm(app, t.TempDir(), "tsak")
 	if oden.ExitCode(err) != 1 || out != "" ||
-		errOut != "mtm: command \"tasks\" not found\ndid you mean: task\n(mtm --help lists every command)\n" {
-		t.Fatalf("mtm tasks: %v %q\n%s", err, out, errOut)
+		errOut != "mtm: command \"tsak\" not found\ndid you mean: task\n(mtm --help lists every command)\n" {
+		t.Fatalf("mtm tsak: %v %q\n%s", err, out, errOut)
 	}
 	out, errOut, err = mtm(app, t.TempDir(), "task", "frob")
 	if oden.ExitCode(err) != 1 || out != "" ||
