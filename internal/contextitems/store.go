@@ -126,12 +126,17 @@ func Open(db *store.Store) (*Store, error) {
 	_ = db.Index(Table.Name, indexName, keyFields...)
 	// A task's detail lists its items on every move (its related section).
 	_ = db.Index(Table.Name, "task", "task_id")
-	// A pane's rail lists its items on every move: the sections of the
-	// pane's window (new, starred, dismissed, kept) and their folded counts.
-	_ = db.Index(Table.Name, "window", "window")
-	// Its "this project" section reads the project's items by project.
-	_ = db.Index(Table.Name, "project", "project_id")
+	railIndexes(db)
 	return &Store{db: db}, nil
+}
+
+// railIndexes are the indexes a pane's rail reads through on every move:
+// its window's sections (new, starred, dismissed, kept) and their folded
+// counts by window, its owner's section by project_id.
+func railIndexes(db *store.Store) {
+	for _, field := range []string{"window", "project_id"} {
+		_ = db.Index(Table.Name, field, field)
+	}
 }
 
 // keyFields are the row fields a duplicate is looked up by (the owner is

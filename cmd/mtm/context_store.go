@@ -476,35 +476,35 @@ func (a *App) windowProject(window string) string {
 
 // projectPaneCond is the condition of project-pane = window: items owned by
 // the pane's project (their own project, else their task's) that another
-// pane printed first. A pane with no project matches nothing.
+// pane printed first. A pane with no project matches nothing. Each owner
+// is one equality per value, so the project_id and task_id indexes answer
+// it.
 func (a *App) projectPaneCond(window string) (store.QueryCond, bool) {
 	project := a.windowProject(window)
 	if project == "" {
 		return matchNothing, true
 	}
-	// Own project, or no project and one of its tasks: written as the
-	// project or a task (one equality each, so the project_id and task_id
-	// indexes answer it), and the project or none.
-	owned := []store.QueryCond{{Fields: []string{"project_id"}, Op: store.OpEq, Value: project}}
 	var tasks []string
 	for id, p := range a.contextProjects() {
 		if p == project {
 			tasks = append(tasks, id)
 		}
 	}
-	slices.Sort(tasks)
-	for _, id := range tasks {
-		owned = append(owned, store.QueryCond{Fields: []string{"task_id"}, Op: store.OpEq, Value: id})
-	}
 	return store.QueryCond{All: []store.QueryCond{
-		{Any: owned},
-		{Any: []store.QueryCond{
-			{Fields: []string{"project_id"}, Op: store.OpEq, Value: project},
-			{Fields: []string{"project_id"}, Op: store.OpEq, Value: ""},
-		}},
+		{Any: append(eqConds("project_id", project), eqConds("task_id", tasks...)...)},
+		{Any: eqConds("project_id", project, "")},
 		{Fields: []string{"window"}, Op: store.OpEq, Value: window, Not: true},
 		railKept,
 	}}, true
+}
+
+// eqConds are the equalities of field to each value, for an Any.
+func eqConds(field string, values ...string) []store.QueryCond {
+	out := make([]store.QueryCond, len(values))
+	for i, v := range values {
+		out[i] = store.QueryCond{Fields: []string{field}, Op: store.OpEq, Value: v}
+	}
+	return out
 }
 
 // matchNothing is the condition no row meets, which SQLite answers without

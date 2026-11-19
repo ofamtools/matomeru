@@ -83,15 +83,10 @@ func (t *tableQuery) Query(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListP
 		}
 		return t.app.r.QueryAll(t.noun, things, q), nil
 	}
-	// The SQLite read may run off the loop (a related section's read): the
-	// query is worked out here, the rows become things here, after it.
-	got, err := c.OffLoop(ochazuke.StoreCall{Store: t.noun, Op: "query", Key: t.table}, func(context.Context) (any, error) {
-		return t.app.db.Query(t.table, sq)
-	})
+	res, err := t.read(c, sq)
 	if err != nil {
 		return ochazuke.ListPage{}, err
 	}
-	res, _ := got.(store.QueryResult)
 	page := ochazuke.ListPage{Total: res.Total, Items: make([]ochazuke.Thing, 0, len(res.Rows))}
 	build := t.thing()
 	for _, raw := range res.Rows {
@@ -102,6 +97,17 @@ func (t *tableQuery) Query(c ochazuke.Ctx, q ochazuke.ListQuery) (ochazuke.ListP
 		page.Items = append(page.Items, th)
 	}
 	return page, nil
+}
+
+// read runs the SQLite query, off the loop when the caller's run allows it
+// (ochazuke's Ctx.OffLoop: a related section's read); sq is worked out on
+// the loop before it, and the rows become things on the loop after it.
+func (t *tableQuery) read(c ochazuke.Ctx, sq store.Query) (store.QueryResult, error) {
+	got, err := c.OffLoop(ochazuke.StoreCall{Store: t.noun, Op: "query", Key: t.table}, func(context.Context) (any, error) {
+		return t.app.db.Query(t.table, sq)
+	})
+	res, _ := got.(store.QueryResult)
+	return res, err
 }
 
 // translate is the store query for q, false when q needs more than SQLite

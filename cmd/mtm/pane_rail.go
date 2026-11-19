@@ -77,10 +77,9 @@ func railSettings() []ochazuke.Setting {
 // addPaneRail registers the Panes page's rail and binds Z to its toggle.
 func (a *App) addPaneRail() error {
 	rail, err := a.r.AddRail(paneRailID, ochazuke.RailSpec{Stack: ochazuke.RelatedSpec{
-		Target:   a.railTarget,
-		GroupBy:  map[string]string{contextNoun + "." + contextKeptPane: "type"},
-		Archived: settingRailArchived,
-		Lists:    []ochazuke.RelatedList{{ID: "focus", Noun: "task", Filter: focusFilterName, Label: "Focus today", New: focusItemNoun + ".new"}},
+		Target: a.railTarget, Archived: settingRailArchived,
+		GroupBy: map[string]string{contextNoun + "." + contextKeptPane: "type"},
+		Lists:   []ochazuke.RelatedList{{ID: "focus", Noun: "task", Filter: focusFilterName, Label: "Focus today", New: focusItemNoun + ".new"}},
 	}}, ochazuke.Parent(panesPage))
 	if err != nil {
 		return err
