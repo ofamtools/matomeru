@@ -629,6 +629,31 @@ func TestKillConfirmsWithThePaneLabel(t *testing.T) {
 	}
 }
 
+// Killing the only row of a section (the one working agent) leaves the
+// focus in the pane lists, on the row above, not on the emptied list.
+func TestKillingASectionsLastRowKeepsTheFocusInTheLists(t *testing.T) {
+	t.Parallel()
+	app, f := panesApp(t)
+	f.panes[0].Harness, f.panes[0].AgentState = "claude", "working"
+	if err := app.reloadPanes(); err != nil {
+		t.Fatal(err)
+	}
+	settle(app, app.r.PendingCommands())
+	if err := app.r.SetFocus("pane:w1"); err != nil {
+		t.Fatal(err)
+	}
+	if app.sectionOf("pane:w1") != 2 {
+		t.Fatalf("w1 is not the Working section's row: section %d", app.sectionOf("pane:w1"))
+	}
+	frame(app) // the TUI has drawn the lists, as always before a key
+	press(t, app, "d", "d")
+	settle(app, key(t, app, "y"))
+	settle(app, app.r.PendingCommands())
+	if app.r.FocusID() != "pane:w2" {
+		t.Fatalf("after killing the last working pane: focus %s", app.r.FocusID())
+	}
+}
+
 func TestAnUnreachableDaemonShowsAndTheAppKeepsWorking(t *testing.T) {
 	t.Parallel()
 	app, f := panesApp(t)

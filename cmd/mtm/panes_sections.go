@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -431,7 +432,7 @@ func (a *App) rebuildPanes() error {
 // ids are instances, held by one list at a time); then every list gets its
 // nodes, keeping its selection by id.
 func (a *App) applyPaneSections() error {
-	ss := a.pv.sections
+	ss, held := a.pv.sections, a.heldStop() // held: the focus's list before
 	goingTo := map[string]int{}
 	for i, s := range ss {
 		for _, n := range s.nodes {
@@ -472,7 +473,43 @@ func (a *App) applyPaneSections() error {
 			inst.Unfocusable = len(s.nodes) == 0 && !(empty && s.listID() == paneListID)
 		}
 	}
-	return a.foldItemRows()
+	return errors.Join(a.leaveEmptiedSection(held), a.foldItemRows())
+}
+
+// heldStop is the section list holding the focus while it is a stop
+// (it has rows), else "".
+func (a *App) heldStop() string {
+	for _, id := range a.sectionListIDs() {
+		if a.r.List(id).Focused() && !a.r.Instances[id].Unfocusable {
+			return id
+		}
+	}
+	return ""
+}
+
+// leaveEmptiedSection moves the focus off held, the section list that
+// held it before a rebuild, when the rebuild took its last row (a pane
+// killed, an item answered): it is no stop now, so the focus goes to the
+// next row down the sections, the first row of the next list with rows,
+// else the last row of the one above, as j and k walk them. A list the
+// focus was sent to while empty (focus.to) keeps it.
+func (a *App) leaveEmptiedSection(held string) error {
+	ids := a.sectionListIDs()
+	at := slices.Index(ids, held)
+	if at < 0 || a.r.FocusID() != held || !a.r.Instances[held].Unfocusable {
+		return nil
+	}
+	for _, id := range ids[at+1:] {
+		if items := a.r.List(id).Items(); len(items) > 0 {
+			return a.r.SetFocus(items[0].ID)
+		}
+	}
+	for _, id := range slices.Backward(ids[:at]) {
+		if items := a.r.List(id).Items(); len(items) > 0 {
+			return a.r.SetFocus(items[len(items)-1].ID)
+		}
+	}
+	return nil
 }
 
 // releaseHold rebuilds the lists once the cursor has left a row that was
@@ -621,7 +658,6 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		}
 	}
 	a.pv.held = held
-	names := uniqueNames(panes)
 	// The middle: the grouped tree, following the pin.
 	view := a.buildPaneTree(middle, now)
 	for _, p := range panes {
@@ -638,7 +674,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	}
 	best := map[string]bestItem{} // window → the item that places its pane's row in the queue
 	queueAt := map[string]int{}   // window → index of its pane's row in queue
-	items = a.queueRowItems(items, mode, byWindow, section, names)
+	items = a.queueRowItems(items, mode, byWindow, section)
 	needs := mode.queueNeeds(items, nowMs)
 	foldElsewhere := mode.foldsElsewhere(one)
 	for _, q := range items {
@@ -657,7 +693,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 					// The row sits where its first item would, so ties keep
 					// the order the items came in; its place is set below.
 					queueAt[p.ID] = len(queue)
-					queue = append(queue, row{node: needs.onRow(a.flatPaneNode(p, names[p.ID], now)), pane: true})
+					queue = append(queue, row{node: needs.onRow(a.flatPaneNode(p, p.shownName(), now)), pane: true})
 				}
 				if r := ranks[q.category]; !ok || r < b.rank || r == b.rank && clock < b.at {
 					best[p.ID] = bestItem{rank: r, at: clock}
@@ -674,7 +710,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 		node := ochazuke.TreeNode{ID: id, Label: it.Label(), Noun: actionItemNoun, Data: it,
 			Props: ochazuke.Thing{"id": it.ID, "pane": it.Window, "session": it.Session, "task": it.TaskID, "project": it.ProjectID}}
 		if listed {
-			node.Cells, node.Tones = a.flatPaneCells(p, names[p.ID], now)
+			node.Cells, node.Tones = a.flatPaneCells(p, p.shownName(), now)
 			view.usage = view.usage || p.usageCell() != ""
 		} else {
 			node.Cells = ownItemCells(it, nowMs, one)
@@ -687,7 +723,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 	}
 	for _, p := range heldQueue {
 		at := place(p.rowID(), sectionQueue, len(queueCategories), nowMs)
-		queue = append(queue, row{node: a.flatPaneNode(p, names[p.ID], now), at: at, pane: true})
+		queue = append(queue, row{node: a.flatPaneNode(p, p.shownName(), now), at: at, pane: true})
 	}
 	slices.SortStableFunc(queue, func(x, y row) int {
 		return cmp.Or(cmp.Compare(x.at.rank, y.at.rank), cmp.Compare(x.at.at, y.at.at))
@@ -703,7 +739,7 @@ func (a *App) buildPaneSections(panes []pane, now time.Time) paneView {
 			since = cmp.Or(p.StateAt, nowMs)
 		}
 		at := place(p.rowID(), sectionWorking, 0, since)
-		bottom = append(bottom, row{node: a.flatPaneNode(p, names[p.ID], now), at: at, pane: true})
+		bottom = append(bottom, row{node: a.flatPaneNode(p, p.shownName(), now), at: at, pane: true})
 	}
 	slices.SortStableFunc(bottom, func(x, y row) int { return cmp.Compare(x.at.at, y.at.at) })
 	a.pv.places = places

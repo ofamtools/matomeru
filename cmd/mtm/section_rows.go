@@ -93,10 +93,11 @@ func (m sectionRowMode) foldsElsewhere(one bool) bool {
 
 // queueRowItems are the queue's items as the mode lists them. When every
 // row is a pane's, an item whose pane the listing does not show takes that
-// pane's row (unlistedPane, recorded in byWindow, section and names) and
+// pane's row (unlistedPane, recorded in byWindow and section; its shownName is its
+// baseName) and
 // an item that names no pane has no row (the Items page and the rail list
 // it); otherwise items is unchanged.
-func (a *App) queueRowItems(items []queuedItem, m sectionRowMode, byWindow map[string]pane, section, names map[string]string) []queuedItem {
+func (a *App) queueRowItems(items []queuedItem, m sectionRowMode, byWindow map[string]pane, section map[string]string) []queuedItem {
 	if !m.paneRows {
 		return items
 	}
@@ -108,9 +109,6 @@ func (a *App) queueRowItems(items []queuedItem, m sectionRowMode, byWindow map[s
 		if _, listed := byWindow[q.it.Window]; !listed {
 			p := a.unlistedPane(q.it)
 			byWindow[p.ID], section[p.ID] = p, sectionQueue
-			if _, ok := names[p.ID]; !ok {
-				names[p.ID] = p.baseName()
-			}
 		}
 		out = append(out, q)
 	}

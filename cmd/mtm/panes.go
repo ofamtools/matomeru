@@ -114,6 +114,12 @@ type pane struct {
 	copied, named bool
 	sourceName    string
 	ended         bool
+	// UniqueName is the name the pane goes by everywhere: its baseName,
+	// numbered when its session holds another of that name (claude-2).
+	// stampPaneNames sets it on the listing, its ended copies and the
+	// attached pane, so the rail row, the live title, a confirm prompt and
+	// a picker never disagree.
+	UniqueName string `json:"-"`
 	// states are the state words panes.working-states and its siblings
 	// read the agent's state with (panes_panels.go); nil reads tuios's
 	// defaults.
@@ -158,14 +164,7 @@ func (p pane) keyProps() ochazuke.Thing {
 // label is the row text, the panel title and the {{label}} a confirm
 // prompt reads. A uuid-named session shows its first 8 characters.
 func (p pane) label() string {
-	name := p.Name
-	if name == "" || defaultWindowName.MatchString(name) {
-		name = p.baseName()
-	}
-	if name == "" {
-		name = p.ID
-	}
-	return shortSession(p.Session) + "/" + name
+	return shortSession(p.Session) + "/" + cmp.Or(p.shownName(), p.ID)
 }
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -611,9 +610,9 @@ func (a *App) showPanes(panes []pane, err error) {
 	a.markViews(panes)
 	a.stampStates(panes)
 	a.panes = panes
-	a.refreshInboxPaneNames()
 	a.applyPaneCopies(err)
-	a.printPanes()
+	a.printPanes() // stamps the names (stampPaneNames) the inbox's rows read
+	a.refreshInboxPaneNames()
 	if err == nil && a.attached.ID != "" {
 		live := slices.ContainsFunc(panes, func(p pane) bool {
 			return p.ID == a.attached.ID && !p.Exited

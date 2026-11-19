@@ -167,6 +167,7 @@ func (a *App) listingToken() (string, bool) {
 // the listing lands and where a listed pane changes in place, so the
 // stores' change tokens never hash the listing per call.
 func (a *App) printPanes() {
+	a.stampPaneNames()
 	h := fnv.New64a()
 	for _, p := range a.panes {
 		writeParts(h, p.ID, p.givenName(), p.label(), p.SessionID, p.Session, strconv.FormatBool(p.Starred),
@@ -207,6 +208,7 @@ func (a *App) livePanes(c ochazuke.Ctx) ([]pane, error) {
 	if merged, err := a.mergeCompanions(panes); err == nil {
 		panes = merged
 	}
+	stampNames(panes)
 	return panes, nil
 }
 

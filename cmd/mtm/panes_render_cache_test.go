@@ -59,6 +59,17 @@ func TestPaneTitleCacheKeepsDuplicateNamesInSync(t *testing.T) {
 				f.panes[1].AgentState = "working"
 			}
 			a.setPanes(f.panes, nil)
+			if !working {
+				// w2 live: its title is the name its row shows (shell-2), not
+				// the bare baseName.
+				if err := a.r.SetFocus(f.panes[1].rowID()); err != nil {
+					t.Fatal(err)
+				}
+				press(t, a, "enter")
+				if !a.liveShown() || a.attached.ID != "w2" {
+					t.Fatalf("enter on w2: live %v attached %q", a.liveShown(), a.attached.ID)
+				}
+			}
 			for _, test := range []struct{ title, want string }{{"shell", "shell-2"}, {"claude", "shell"}} {
 				a.applyPaneEvents([]daemon.Event{retitleEvent("w1", test.title)})
 				found := false
@@ -66,14 +77,17 @@ func TestPaneTitleCacheKeepsDuplicateNamesInSync(t *testing.T) {
 					for _, n := range s.tree.List().Items() {
 						if p, ok := n.Data.(pane); ok && p.ID == "w2" {
 							found = true
-							if len(n.Cells) == 0 || !strings.HasSuffix(n.Cells[0], " "+test.want) {
-								t.Fatalf("retitle %q left the other pane's cell %v; want %q", test.title, n.Cells, test.want)
+							if len(n.Cells) == 0 || !strings.HasSuffix(n.Cells[0], " "+test.want) || !strings.HasSuffix(n.Label, "fixture/"+test.want) {
+								t.Fatalf("retitle %q left the other pane's cell %v label %q; want %q", test.title, n.Cells, n.Label, test.want)
 							}
 						}
 					}
 				}
 				if !found {
 					t.Fatal("other pane vanished")
+				}
+				if fr := frameAt(a, 160); !working && !strings.Contains(fr, " fixture/"+test.want+" ━") {
+					t.Fatalf("retitle %q: the live title is not fixture/%s:\n%s", test.title, test.want, fr)
 				}
 			}
 		})

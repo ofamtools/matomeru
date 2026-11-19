@@ -163,7 +163,6 @@ func (a *App) applyPaneEvents(events []daemon.Event) bool {
 // pushPaneTitles pushes cached rows without reading owners, recipes, history,
 // command rings or side links. Keep ordering, selection and expanded children.
 func (a *App) pushPaneTitles() {
-	names := uniqueNames(a.panes)
 	byID := make(map[string]pane, len(a.panes))
 	for _, p := range a.panes {
 		byID[p.ID] = p
@@ -182,7 +181,7 @@ func (a *App) pushPaneTitles() {
 			n := &nodes[i]
 			name := ""
 			if len(n.Cells) > 0 {
-				name = markerGutter(p) + " " + names[p.ID]
+				name = markerGutter(p) + " " + p.shownName()
 				if p.Queued > 0 {
 					name += " " + queuedMarker
 				}

@@ -245,24 +245,42 @@ func age(d time.Duration) string {
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
-// uniqueNames names each pane of a session once: a second claude is
-// claude-2, a second shell shell-2.
-func uniqueNames(panes []pane) map[string]string {
-	out := map[string]string{}
-	count := map[string]int{}
-	for _, p := range panes {
-		if p.ID == "" {
-			continue
-		}
-		key := p.Session + "\x00" + p.baseName()
-		count[key]++
-		name := p.baseName()
-		if n := count[key]; n > 1 {
-			name = fmt.Sprintf("%s-%d", name, n)
-		}
-		out[p.ID] = name
+// shownName is the pane's name as every view shows it: its UniqueName
+// once stamped, else its baseName.
+func (p pane) shownName() string { return cmp.Or(p.UniqueName, p.baseName()) }
+
+// stampPaneNames gives the listing, its ended copies and the attached
+// pane their UniqueName: the one place a pane's shown name is decided.
+func (a *App) stampPaneNames() {
+	held := []pane{a.attached}
+	if a.pv != nil {
+		stampNames(a.panes, a.pv.ended, held)
+	} else {
+		stampNames(a.panes, held)
 	}
-	return out
+	a.attached = held[0]
+}
+
+// stampNames names each pane of lists once per session, in order: a
+// second claude is claude-2, a second shell shell-2; a pane met again (a
+// listing's ended copy, the attached pane) keeps its first name.
+func stampNames(lists ...[]pane) {
+	names, count := map[string]string{}, map[string]int{}
+	for _, ps := range lists {
+		for i := range ps {
+			p := &ps[i]
+			if name, seen := names[p.ID]; seen || p.ID == "" {
+				p.UniqueName = name
+				continue
+			}
+			key := p.Session + "\x00" + p.baseName()
+			p.UniqueName = p.baseName()
+			if count[key]++; count[key] > 1 {
+				p.UniqueName = fmt.Sprintf("%s-%d", p.UniqueName, count[key])
+			}
+			names[p.ID] = p.UniqueName
+		}
+	}
 }
 
 // paneGroup is one session's panes under one owner.
@@ -338,7 +356,6 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 		}
 		return ""
 	}
-	names := uniqueNames(panes)
 	projects := map[string]*paneProject{}
 	var order []string
 	group := func(owner, sessionKey string, session pane) *paneGroup {
@@ -415,7 +432,7 @@ func (a *App) buildPaneTree(panes []pane, now time.Time) paneView {
 	})
 	needsInputFirst := func(x, y pane) int { return -cmp.Compare(btoi(x.needsInput()), btoi(y.needsInput())) }
 	addPane := func(p pane, parent string) {
-		name := markerGutter(p) + " " + names[p.ID] + a.rowMarks(p, now)
+		name := markerGutter(p) + " " + p.shownName() + a.rowMarks(p, now)
 		if p.Queued > 0 {
 			name += " " + queuedMarker
 		}

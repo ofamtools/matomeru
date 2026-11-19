@@ -259,15 +259,7 @@
     "y",
     {
       "job": "pane.kill"
-    },
-    ":",
-    {
-      "type": "focus to --id panes/tree/list"
-    },
-    "enter",
-    "ctrl+n",
-    "V",
-    "Y"
+    }
   ],
   "expect": [
     {
@@ -663,7 +655,7 @@
       "after": 177
     },
     {
-      "focus": "panes/tree/list",
+      "focus": "queue:inbox-checkout",
       "mode": "normal",
       "modal": "",
       "contains": [
@@ -672,33 +664,15 @@
       "writes": [],
       "register": "",
       "noNotices": true,
-      "after": 189
+      "after": 185
     },
     {
+      "focus": "queue:inbox-checkout",
       "mode": "normal",
+      "modal": "",
       "contains": [
         "panes (0)"
       ],
-      "lacks": [
-        "list has no selected row",
-        "no row to copy"
-      ],
-      "modal": "",
-      "writes": [],
-      "register": "",
-      "noNotices": true,
-      "after": 190
-    },
-    {
-      "mode": "normal",
-      "contains": [
-        "panes (0)"
-      ],
-      "lacks": [
-        "list has no selected row",
-        "no row to copy"
-      ],
-      "modal": "",
       "writes": [],
       "register": "",
       "noNotices": true
