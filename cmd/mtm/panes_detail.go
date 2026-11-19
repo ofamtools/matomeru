@@ -585,7 +585,7 @@ func (a *App) defineLiveKeys() {
 		Bind("s", ochazuke.Do("terminal.starred").Hinted("next starred")).
 		Bind("N", ochazuke.Do(quickNoteModal+".open").Hinted("quick note")).
 		Bind("n", ochazuke.Do("task.new").Hinted("new task")).
-		Bind("T", ochazuke.Do("todos.open").Hinted("todos")).
+		Bind("T", ochazuke.Do("tasks.open").Hinted("tasks")).
 		Bind("S", ochazuke.Do("scope.all").Hinted("all projects")).
 		// The app's own normal-mode keys, after the leader: the same verb
 		// and guard as the row each copies (the app noun's normal rows, the
@@ -635,7 +635,7 @@ var leaderWords = []struct{ key, text string }{
 	{"f", "hints: label the URLs, paths, PRs, branches and commits drawn on the pane and its side when both show; a label copies, ctrl+label opens, a capital types it into its pane, esc or q cancels (f on a pane row labels its Screen tab)"},
 	{"N", "quick note for the selected task, else the pin"},
 	{"n", "new task under the pin"},
-	{"T", "todos: the pin's tasks as an outline"},
+	{"T", "tasks: the pin's tasks as an outline"},
 	{"S", "all projects, or back to the pin's"},
 	{"[", "copy mode: scroll back, search, select and yank; i goes live again"},
 	{"`", "next starred pane, live (` on the Panes page)"},

@@ -310,7 +310,7 @@ func (a *App) updateSideLeaderHint() error {
 		name := ochazuke.StringArg(b.Request.Args, "kind", "")
 		parts = append(parts, b.Keys+" "+a.sideHint(name))
 	}
-	parts = append(parts, "d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T todos · S all · : palette · , settings · ' pages · ? keys")
+	parts = append(parts, "d close/detach · z zoom · o other · R layout · w sides · j/k panes · p pick · s starred · ` starred · W waiting · * star · [ copy · c context · f hints · N note · n task · T tasks · S all · : palette · , settings · ' pages · ? keys")
 	for _, b := range a.r.RowsOf(a.r.CanonicalNoun("terminal"), "terminal") {
 		if b.Keys == "{terminal-leader}" || b.Keys == a.r.TerminalLeader() {
 			row := b.Binding

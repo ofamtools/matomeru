@@ -60,7 +60,7 @@ cmd/mtm/outline.go	App.defineOutline	"outline-task"	2
 cmd/mtm/outline.go	App.defineOutline	"project"	1
 cmd/mtm/outline.go	App.defineOutline	"task"	1
 cmd/mtm/outline.go	App.defineOutline	"task-outline"	1
-cmd/mtm/outline.go	App.defineOutline	"todos"	1
+cmd/mtm/outline.go	App.defineOutline	"tasks"	1
 cmd/mtm/outline.go	App.defineOutline	noun	1
 cmd/mtm/outline_attach.go	App.defineOutlineAttachments	"task-outline"	1
 cmd/mtm/owners.go	App.defineOwners	"task"	1

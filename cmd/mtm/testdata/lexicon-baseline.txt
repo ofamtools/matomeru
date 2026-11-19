@@ -20,8 +20,8 @@ noun-action	side
 noun-action	status
 pair	panes/pane
 pair	projects/project
+pair	tasks/task
 plural-noun	dirs
-plural-noun	todos
 unclassified	dir-chooser
 unclassified	outline-none
 unclassified	page-group

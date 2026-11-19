@@ -220,8 +220,13 @@ func TestCLIActionItemVerbs(t *testing.T) {
 	if promoted.Task.ParentID != "t1" || promoted.Task.Title != "PR 1" || promoted.PromotedTaskID != promoted.Task.ID || promoted.State != "archived" {
 		t.Fatalf("promote-task: %+v", promoted)
 	}
-	if _, _, err := cli(a, "", "action-item", "promote-todo", it.ID); err == nil {
+	_, _, errNew := cli(a, "", "action-item", "promote-top-task", it.ID)
+	if errNew == nil {
 		t.Fatal("promoted twice")
+	}
+	// The old name is an alias of the new one.
+	if _, _, errOld := cli(a, "", "action-item", "promote-todo", it.ID); errOld == nil || errOld.Error() != errNew.Error() {
+		t.Fatalf("promote-todo alias: %v, promote-top-task: %v", errOld, errNew)
 	}
 	if _, _, err := cli(a, "", "action-item", "delete", it.ID, "--yes"); err != nil {
 		t.Fatal(err)

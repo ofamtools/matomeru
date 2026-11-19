@@ -103,8 +103,8 @@ func (a *App) defineInbox() {
 		Verb("count", a.countActionItems, "Count the open action items and the unread ones among them").Fetch().
 		Verb("open", a.openActionItem, "Open the item's URL through open.openers and mark it read").Positional("id").
 		Verb("snooze", a.snoozeActionItem, "Hide the item until --until (a time) or for --for (90m, 4h, 2d, 1w), the standard set of snoozed-until; omitted, a chooser asks").Positional("id").Many().
-		Verb("promote-todo", a.promoteTodo, "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated); the item is archived and points at it").Positional("id").
-		Verb("promote-task", a.promoteTask, "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo").Positional("id").
+		Verb("promote-top-task", a.promoteTodo, "Promote the item to a task: a top-level task of its project (else the pin, else unassociated); the item is archived and points at it").Positional("id").Renamed("promote-todo", taskNamesSince, oldNamesRemoveAfter).
+		Verb("promote-task", a.promoteTask, "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-top-task").Positional("id").
 		Verb("associate", a.associateActionItem, "Choose the project to move the item to (omit the owner); --project, --task, --dir, --pane and --scratch are the deprecated forms of set").Positional("id").Many().
 		Verb("choose-move", a.chooseMove, "Choose the project to move the item to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Mode("normal").
@@ -113,7 +113,7 @@ func (a *App) defineInbox() {
 		Bind("x", ochazuke.Do(n+".archive")).
 		Bind("X", ochazuke.Do(n+".set", ochazuke.Arguments{"props": map[string]any{"@archive": false}}).Hinted("restore")).
 		Bind("s", ochazuke.Do(n+".snooze")).
-		Bind("t", ochazuke.Do(n+".promote-todo").Hinted("to todo")).
+		Bind("t", ochazuke.Do(n+".promote-top-task").Hinted("to task")).
 		Bind("c", ochazuke.Do(n+".promote-task").Hinted("to task")).
 		Bind("m", ochazuke.Do(n+".edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	// show is get under its old name; read, unread and toggle-read are the
@@ -156,7 +156,7 @@ func (a *App) defineInbox() {
 	promote := map[string]ochazuke.Parameter{"id": inboxIDParam,
 		"title":   {Type: "string", Description: "The task's title (default the item's)"},
 		"project": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project to add it to (id or name)"}}
-	a.parameters(n+".promote-todo", promote)
+	a.parameters(n+".promote-top-task", promote)
 	promoteTask := map[string]ochazuke.Parameter{"parent": {Type: "string", Noun: "task", Description: "The task to add it under"}}
 	for k, v := range promote {
 		promoteTask[k] = v
@@ -750,7 +750,7 @@ func (a *App) promoteTodo(ctx ochazuke.Ctx) ochazuke.Result { return a.promoteAc
 func (a *App) promoteTask(ctx ochazuke.Ctx) ochazuke.Result { return a.promoteActionItem(ctx, "task") }
 
 // promoteActionItem adds a task for the item and archives the item, which
-// then points at it. A todo is a top-level task (the outline's todos); a
+// then points at it. A top-level task (the outline's rows); a
 // task is a subtask of --parent or the item's task when there is one.
 // With no project anywhere the task is unassociated: never refused.
 func (a *App) promoteActionItem(ctx ochazuke.Ctx, to string) ochazuke.Result {

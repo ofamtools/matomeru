@@ -372,9 +372,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -2512,9 +2512,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -4051,9 +4051,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -5656,9 +5656,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -11775,9 +11775,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -11930,7 +11930,7 @@
           },
           "hint": "to task",
           "action": "action-item.promote-task",
-          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo"
+          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-top-task"
         },
         {
           "mode": "normal",
@@ -12782,12 +12782,12 @@
           "noun": "action-item",
           "keys": "t",
           "request": {
-            "verb": "promote-todo",
+            "verb": "promote-top-task",
             "noun": "action-item"
           },
-          "hint": "to todo",
-          "action": "action-item.promote-todo",
-          "label": "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated)"
+          "hint": "to task",
+          "action": "action-item.promote-top-task",
+          "label": "Promote the item to a task: a top-level task of its project (else the pin, else unassociated)"
         },
         {
           "mode": "normal",
@@ -13397,9 +13397,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -14721,9 +14721,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -15912,9 +15912,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -17043,9 +17043,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -18032,9 +18032,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -23247,9 +23247,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -24386,9 +24386,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -26188,9 +26188,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -27836,9 +27836,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -29518,9 +29518,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -30776,9 +30776,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -33059,9 +33059,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -40215,9 +40215,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -41386,7 +41386,7 @@
           },
           "hint": "to task",
           "action": "action-item.promote-task",
-          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo"
+          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-top-task"
         },
         {
           "mode": "normal",
@@ -41858,12 +41858,12 @@
           "noun": "action-item",
           "keys": "t",
           "request": {
-            "verb": "promote-todo",
+            "verb": "promote-top-task",
             "noun": "action-item"
           },
-          "hint": "to todo",
-          "action": "action-item.promote-todo",
-          "label": "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated)"
+          "hint": "to task",
+          "action": "action-item.promote-top-task",
+          "label": "Promote the item to a task: a top-level task of its project (else the pin, else unassociated)"
         },
         {
           "mode": "normal",
@@ -42547,9 +42547,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -44502,9 +44502,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -46069,9 +46069,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -47386,9 +47386,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -49305,9 +49305,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -50472,9 +50472,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -51415,9 +51415,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -53126,9 +53126,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -54069,9 +54069,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -58918,9 +58918,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -60576,9 +60576,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -62807,9 +62807,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -64111,9 +64111,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -64930,9 +64930,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -66184,9 +66184,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -68252,9 +68252,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -69713,9 +69713,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -70695,9 +70695,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -71675,9 +71675,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -73829,9 +73829,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -75130,9 +75130,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -82401,9 +82401,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -83506,9 +83506,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -86489,9 +86489,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -88668,9 +88668,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -93258,9 +93258,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -96517,9 +96517,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -99630,9 +99630,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -100807,9 +100807,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -101726,9 +101726,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -103162,9 +103162,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -104202,9 +104202,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -105861,9 +105861,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -110629,9 +110629,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -112072,9 +112072,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -117806,9 +117806,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -118880,9 +118880,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -122861,9 +122861,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -125292,9 +125292,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -126246,9 +126246,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -128889,9 +128889,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -129808,9 +129808,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -131671,9 +131671,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -134403,9 +134403,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -137399,9 +137399,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -138403,9 +138403,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -149733,9 +149733,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -150763,9 +150763,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -150851,7 +150851,7 @@
           },
           "hint": "to task",
           "action": "action-item.promote-task",
-          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo"
+          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-top-task"
         },
         {
           "mode": "normal",
@@ -151415,12 +151415,12 @@
           "noun": "action-item",
           "keys": "t",
           "request": {
-            "verb": "promote-todo",
+            "verb": "promote-top-task",
             "noun": "action-item"
           },
-          "hint": "to todo",
-          "action": "action-item.promote-todo",
-          "label": "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated)"
+          "hint": "to task",
+          "action": "action-item.promote-top-task",
+          "label": "Promote the item to a task: a top-level task of its project (else the pin, else unassociated)"
         },
         {
           "mode": "normal",
@@ -151924,9 +151924,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -154572,9 +154572,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -160367,9 +160367,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -161614,9 +161614,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -163198,9 +163198,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -164208,9 +164208,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -165125,9 +165125,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -168816,9 +168816,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -171601,9 +171601,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -172673,9 +172673,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -173847,9 +173847,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -175432,9 +175432,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -176162,9 +176162,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -177330,9 +177330,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -184707,9 +184707,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -187415,7 +187415,7 @@
           },
           "hint": "to task",
           "action": "action-item.promote-task",
-          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-todo"
+          "label": "Promote the item to a task: a subtask of --parent, else of the item's task, else a top-level task like promote-top-task"
         },
         {
           "mode": "normal",
@@ -187743,12 +187743,12 @@
           "noun": "action-item",
           "keys": "t",
           "request": {
-            "verb": "promote-todo",
+            "verb": "promote-top-task",
             "noun": "action-item"
           },
-          "hint": "to todo",
-          "action": "action-item.promote-todo",
-          "label": "Promote the item to a todo: a top-level task of its project (else the pin, else unassociated)"
+          "hint": "to task",
+          "action": "action-item.promote-top-task",
+          "label": "Promote the item to a task: a top-level task of its project (else the pin, else unassociated)"
         },
         {
           "mode": "normal",
@@ -188224,9 +188224,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -189137,9 +189137,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -190617,9 +190617,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -192791,9 +192791,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -198083,9 +198083,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -212261,9 +212261,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -213524,9 +213524,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -217457,9 +217457,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -220391,9 +220391,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -221395,9 +221395,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -233995,9 +233995,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -236602,9 +236602,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -238629,9 +238629,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -239471,9 +239471,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -241453,9 +241453,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -242675,9 +242675,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -250030,9 +250030,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -252546,9 +252546,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -253570,9 +253570,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -256992,9 +256992,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {
@@ -258215,9 +258215,9 @@
           "keys": "T",
           "request": {
             "verb": "open",
-            "noun": "todos"
+            "noun": "tasks"
           },
-          "action": "todos.open",
+          "action": "tasks.open",
           "label": "Open the pinned project's tasks as an outline (no pin or the S view: all projects)"
         },
         {

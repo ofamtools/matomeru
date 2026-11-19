@@ -61,7 +61,7 @@ func TestLeaderSCyclesTheStarredPanes(t *testing.T) {
 	live(t, app, "ctrl+a s again")
 }
 
-// The leader's N, T and n open the quick note, the todos outline and a new
+// The leader's N, T and n open the quick note, the tasks outline and a new
 // task's editor over the live pane; closing each gives the terminal its
 // keys again. S toggles all projects and stays live.
 func TestLeaderCaptureKeysReturnToTheLivePane(t *testing.T) {

@@ -111,10 +111,12 @@
 ../../internal/work/changes.go	var ownerPaths	table	"changes"	1	data: where a table's rows hold their owner references (the changes table keeps a tool row's project under props), one row per table read by one mechanism (ownerOf, setOwner)
 ../../internal/work/convert.go	Store.DemoteProject	cyclo	"-"	30
 ../../internal/work/convert.go	Store.PromoteTask	cyclo	"-"	26
+../../internal/work/convert.go	Store.convert	compare	"tasks"	1	table name of the work store, not the noun
 ../../internal/work/convert.go	taskDirectories	compare	"dir"	1
 ../../internal/work/convert.go	taskDirectories	cyclo	"-"	31
 ../../internal/work/delete.go	Store.deleteRecord	compare	"project"	2
 ../../internal/work/delete.go	Store.deleteRecord	compare	"task"	3
+../../internal/work/delete.go	Store.deleteRecord	compare	"tasks"	3	table name of the work store, not the noun
 ../../internal/work/delete.go	Store.deleteRecord	cyclo	"-"	38
 ../../internal/work/work.go	NormalStatus	compare	"open"	1
 ../../internal/work/work.go	Store.ToggleDone	compare	"done"	1
@@ -311,6 +313,7 @@ task_store.go	App.defineTaskSubjects	compare	"task"	1
 task_store.go	App.patchTask	compare	"task"	1
 task_store.go	App.patchTask	cyclo	"-"	28
 task_store.go	App.taskStore	compare	"all"	1
+tasks.go	App.isTaskList	compare	"tasks"	1	table name of the work store, not the noun
 tasks.go	App.task	compare	"task"	1
 tasks.go	App.toggleTask	compare	"done"	1
 tasks.go	App.visibleTaskColumns	compare	"project"	1	moved from refreshTasks unchanged

@@ -423,7 +423,7 @@ func (s *Store) Associate(id string, o Owner) (Item, error) {
 	})
 }
 
-// Promoted records the task an item was promoted to (as a todo or a task),
+// Promoted records the task an item was promoted to (as a top-level task or a subtask),
 // associates the item with it and archives the item.
 func (s *Store) Promoted(id, to string, t work.Task) (Item, error) {
 	return s.Update(id, func(it *Item) error {

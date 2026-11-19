@@ -7,7 +7,7 @@
   "values": {"rename.select": false},
   "config": {
     "bindings.json": [
-      {"noun": "app", "mode": "normal", "keys": "ctrl+t", "request": {"noun": "todos", "verb": "open"}},
+      {"noun": "app", "mode": "normal", "keys": "ctrl+t", "request": {"noun": "tasks", "verb": "open"}},
       {"noun": "app", "mode": "normal", "keys": "ctrl+y", "request": {"noun": "ochazuke.focus", "verb": "to", "args": {"id": "outline:t1"}}}
     ]
   },

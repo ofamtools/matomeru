@@ -269,7 +269,7 @@ These old tools need features the new mtm does not have:
 | `project_home_add`, `project_home_search`  | a project home page: answers and artifacts per project, with primary, support and byproduct levels, and a search over them, context and tasks |
 | `action_item_create`                       | action items (B-15): a table, a page and verbs |
 | `queue_add`, `queue_list`, `queue_claim`, `queue_finish`, `queue_release` | a work queue (B-39): items, batches by repository, claim, finish and release by a pane, the `queue.batch_size` setting |
-| `todo_list`, `todo_note_add`, `todo_claim` | todo items (B-13) as rows with notes and claims; the `todos` noun only opens the outline |
+| `todo_list`, `todo_note_add`, `todo_claim` | todo items (B-13) as rows with notes and claims; the `tasks` noun only opens the outline |
 
 matomeru-old's `mtm mcp install` (writing harness configs) and its automatic
 wiring of launched agents are not ported either: adding the entry is the

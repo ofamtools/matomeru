@@ -19,7 +19,7 @@ import (
 // its status glyph. The top level is always projects: T on any page opens
 // the pin's project as the one root row (no pin, or the S all view: every
 // project, then "no project", as the roots); O on a project or task row
-// opens that project. Todos are the project's tasks: there is no other
+// opens that project. The outline's rows are the project's tasks: there is no other
 // store.
 //
 // Every change is written as it is made. On a task row: o/O add a task
@@ -87,16 +87,16 @@ type outlineState struct {
 	deletedProjects map[string]work.DeletedProject
 }
 
-// defineOutline adds project.outline and task.outline (O), todos.open (T
+// defineOutline adds project.outline and task.outline (O), tasks.open (T
 // on every page) and the open outline's own rows: x, s, T and q.
 func (a *App) defineOutline() {
-	a.r.Define("project").Verb("outline", a.openOutline, "Edit the project's tasks and subtasks as an outline; every change is written as it is made").
-		Mode("normal").Bind("O", ochazuke.Do("project.outline"))
+	a.r.Define("project").Verb("outline", a.openOutline, "Edit the project's tasks and subtasks as an outline; every change is written as it is made").Mode("normal").Bind("O", ochazuke.Do("project.outline"))
 	a.r.Define("task").Verb("outline", a.openOutline, "Edit the task's project as an outline; every change is written as it is made").
 		Mode("normal").Bind("O", ochazuke.Do("task.outline"))
-	a.r.Define("todos").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it")
-	a.r.Define("app").Mode("normal").Bind("T", ochazuke.Do("todos.open"))
-	a.ownedBy("todos", "work")
+	a.r.Define("tasks").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it")
+	a.r.Define("app").Mode("normal").Bind("T", ochazuke.Do("tasks.open"))
+	a.ownedBy("tasks", "work")
+	_ = a.r.AddNounAlias(ochazuke.NounAlias{Alias: "todos", Noun: "tasks", Since: taskNamesSince, RemoveAfter: oldNamesRemoveAfter})
 	a.r.Define(outlineModal).Kind(ochazuke.NounKindPart).DefaultKeys(false).
 		Verb("refuse", func(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(errors.New(ochazuke.StringArg(ctx.Args, "reason", "not on this row")))
@@ -312,7 +312,7 @@ func (a *App) outlineView(title string) {
 	}}
 }
 
-// openTodos is todos.open (T): the pin's outline, the unassociated tasks
+// openTodos is tasks.open (T): the pin's outline, the unassociated tasks
 // with no pin, every project in the all view; on an open outline it
 // closes it.
 func (a *App) openTodos(ochazuke.Ctx) ochazuke.Result {
@@ -324,7 +324,7 @@ func (a *App) openTodos(ochazuke.Ctx) ochazuke.Result {
 	}
 	// No pin means all projects, on every list (2026-10-26): T with no pin
 	// opens the all view, on the no project branch, so o there adds an
-	// unassociated todo as creating with no pin does everywhere.
+	// unassociated task as creating with no pin does everywhere.
 	res := a.showOutline(outlineScope{all: a.all || a.pin == "", project: a.pin}, "")
 	if a.r.TopModal() == outlineModal && a.pin == "" && !a.all {
 		if tree := a.r.Tree(outlineTree); tree != nil && tree.Select(projectNode("")) == nil {

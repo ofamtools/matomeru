@@ -16,6 +16,8 @@ import (
 const (
 	oldNamesSince       = "mtm 5ed9521 (2026-10-27)"
 	oldNamesRemoveAfter = "the next mtm release"
+	// taskNamesSince dates the todos.open and promote-todo renames (a task is the only thing mtm stores).
+	taskNamesSince = "mtm v0.18.0 (2026-11-18)"
 )
 
 // projectDeleteConfirm is the delete confirm of a project's outline row:

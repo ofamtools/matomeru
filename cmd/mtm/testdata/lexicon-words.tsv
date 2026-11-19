@@ -676,8 +676,10 @@ projects	noun	seed
 promote	action	seed	
 promote-task	action	seed	
 promote-todo	action	seed	
+promote-top-task	action	seed	
 promoted-task	prop	seed	
 promoted-todo	prop	seed	
+promoted-top-task	prop	seed	
 prompt	action+prop	seed	
 protected	prop	seed	
 provenance_status	prop	seed	
@@ -926,6 +928,7 @@ timeline-card	noun	seed
 timeout	prop	seed	
 title	prop	seed	
 to	action+prop	seed	
+tasks	noun	seed	plural
 todos	noun	seed	plural
 token	action	yes	the standard noun.token reads its store's change token
 toggle	action	seed	
