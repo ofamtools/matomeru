@@ -214,6 +214,7 @@ func (a *App) defineLaunch() {
 		"task":    task,
 		"notice":  {Type: "string"},
 		"drive":   driveParam,
+		"name":    {Type: "string", Description: "The new pane's name (default: the task's title, else the harness's name)"},
 		"focus":   {Type: "boolean", Description: "Show the new pane (default true: the Panes page, attached); false leaves the page and focus where they are and a notice names the pane"},
 	}
 	for name, p := range a.launchExtraParams() {
@@ -611,6 +612,9 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	}
 	if text := ochazuke.StringArg(ctx.Args, "prompt", ""); text != "" {
 		spec.Prompt = text
+	}
+	if name := ochazuke.StringArg(ctx.Args, "name", ""); name != "" {
+		spec.Name = name
 	}
 	spec.Settings = launchSettingsOf(ctx.Args)
 	about := ochazuke.StringArg(ctx.Args, "about", "")

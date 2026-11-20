@@ -1244,10 +1244,14 @@ func transcriptError(err error, server string) error {
 }
 
 // oneLine is text on one line, cut at 200 runes.
-func oneLine(text string) string {
+func oneLine(text string) string { return oneLineCut(text, 200) }
+
+// oneLineCut is text on one line (whitespace runs, newlines included,
+// become one space), cut at n runes with an ellipsis.
+func oneLineCut(text string, n int) string {
 	text = strings.Join(strings.Fields(text), " ")
-	if r := []rune(text); len(r) > 200 {
-		return string(r[:200]) + "…"
+	if r := []rune(text); len(r) > n {
+		return strings.TrimSpace(string(r[:n])) + "…"
 	}
 	return text
 }

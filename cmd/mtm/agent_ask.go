@@ -55,6 +55,10 @@ const settingAskFollow = "ask.follow"
 var askFollowSetting = ochazuke.Setting{Name: settingAskFollow, Type: ochazuke.SettingBoolean, Default: false,
 	Description: "Open the new agent's pane once agent.ask-new (g q, ;) starts it; off keeps the page and focus you asked from and a notice names the new pane"}
 
+// askPaneNameRunes is how long the new agent's pane name, the question
+// on one line, may be before it is cut.
+const askPaneNameRunes = 40
+
 // settingAskEnterSends says whether enter sends the ask form: off (the
 // default) never sends, enter moves to the next field (a new line in the
 // question) and alt+enter sends from any field; on sends on enter once
@@ -169,6 +173,7 @@ func (a *App) startAsked(args ochazuke.Arguments, id string) error {
 		}
 	}
 	start["focus"] = a.r.Settings().Bool(settingAskFollow)
+	start["name"] = oneLineCut(ochazuke.StringArg(args, "question", ""), askPaneNameRunes)
 	start["prompt"] = askPrompt(cmp.Or(a.r.Settings().String(settingAskPrompt), defaultAskPrompt), ochazuke.StringArg(args, "question", ""), id)
 	if id != "" {
 		start["about"] = ochazuke.Ref{Noun: askQuestionNoun, Key: id}.String()

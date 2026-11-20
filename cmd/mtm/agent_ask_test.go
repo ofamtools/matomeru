@@ -195,6 +195,15 @@ func TestAskFollowSetting(t *testing.T) {
 			if len(d.launches) != 1 {
 				t.Fatalf("launches %d; notices %q", len(d.launches), a.m.Notices)
 			}
+			// Later steps (a pane list refresh after the launch) do not
+			// move the focus either.
+			if !follow {
+				_, err := a.r.Execute(ochazuke.Request{Noun: "panes", Verb: "refresh", Target: paneListID})
+				if err != nil {
+					t.Fatal(err)
+				}
+				settle(a, a.r.PendingCommands())
+			}
 			row := pane{Session: d.launches[0].Session, Pane: daemon.Pane{ID: d.launches[0].ID}}.rowID()
 			stayed := a.r.Page == page && a.r.FocusID() == focus
 			if !follow {
@@ -230,5 +239,20 @@ func TestAskEnterSendsSettingOn(t *testing.T) {
 	settle(a, cmd)
 	if len(d.launches) != 1 {
 		t.Fatalf("enter with ask.enter-sends on: launches %d", len(d.launches))
+	}
+}
+
+// The new agent's pane is named after the question, on one line and cut.
+func TestAskNamesThePaneAfterTheQuestion(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	d := &fakeDaemon{panes: a.panesd.(*fakePanes)}
+	a.launcher = d
+	mustCLI(t, a, "agent", "ask-new", "--question", "Why does the gate\nfail on vps2 but pass here every time?", "--yes")
+	if len(d.launches) != 1 {
+		t.Fatalf("launches %d", len(d.launches))
+	}
+	if got, want := d.launches[0].Name, "Why does the gate fail on vps2 but pass…"; got != want {
+		t.Fatalf("pane name %q, want %q", got, want)
 	}
 }
