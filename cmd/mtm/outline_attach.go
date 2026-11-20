@@ -83,17 +83,17 @@ func (o *outlineState) imageLabel(id, title string) string {
 	return out.String()
 }
 
-func (a *App) defineOutlineAttachments() {
+func (a *App) defineOutlineAttachments(tasks *ochazuke.NounBuilder) {
 	a.r.DefineGuard("task-image-input", func(*ochazuke.Runtime, ochazuke.KeyEvent) bool {
 		_, in := a.outlineImageInput()
 		return in != nil
 	})
-	a.r.Define(outlineModal).
+	tasks.
 		Verb("paste", a.pasteTaskImage, "Paste into the task being edited: images as [image N], other files as @path, text as text").When("task-image-input").
 		Verb("detach", a.detachTaskImage, "Remove an image from the task being edited: image n, the only one, else choose").When("task-image-input").
 		Mode("insert").
-		Bind("ctrl+v", ochazuke.Do(outlineModal+".paste").Hinted("paste/attach"))
-	a.parameters(outlineModal+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "Image number; omit to choose"}})
+		Bind("ctrl+v", ochazuke.Do(outlineNoun+".paste").Hinted("paste/attach"))
+	a.parameters(outlineNoun+".detach", map[string]ochazuke.Parameter{"n": {Type: "integer", Description: "Image number; omit to choose"}})
 }
 
 func (a *App) outlineImageInput() (string, *ochazuke.Input) {
@@ -183,7 +183,7 @@ func (a *App) detachTaskImage(ctx ochazuke.Ctx) ochazuke.Result {
 	if len(live) == 1 {
 		return detach(live[0])
 	}
-	_, err := a.askParameter(outlineModal+".detach", "n", nil, pickSpec{
+	_, err := a.askParameter(outlineNoun+".detach", "n", nil, pickSpec{
 		Kind: "task-attachments", Title: "Detach an attachment",
 		Pick: func(id string) ochazuke.Result { return detach(attachmentByID(live, id)) },
 	})

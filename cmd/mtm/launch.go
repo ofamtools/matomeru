@@ -450,7 +450,7 @@ func recordLaunchArgs(ctx ochazuke.Ctx) ochazuke.Arguments {
 		if arg := ownerSlotArg(ctx.Instance.Noun); arg != "" {
 			if _, explicit := args["project"]; !explicit {
 				if _, explicitTask := args["task"]; !explicitTask {
-					args[arg] = ctx.Instance.ID
+					args[arg] = ctx.Runtime.ThingKey(ctx.Instance)
 				}
 			}
 		}

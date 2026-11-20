@@ -1035,9 +1035,10 @@ func (a *App) project(id string) (work.Project, bool) {
 }
 
 func (a *App) openProject(ctx ochazuke.Ctx) ochazuke.Result {
-	p, ok := a.project(ctx.Instance.ID)
+	id := a.r.ThingKey(ctx.Instance)
+	p, ok := a.project(id)
 	if !ok {
-		return ochazuke.Failed(fmt.Errorf("project %s is not loaded", ctx.Instance.ID))
+		return ochazuke.Failed(fmt.Errorf("project %s is not loaded", id))
 	}
 	if err := a.leaveEditor(); err != nil {
 		return ochazuke.Failed(err)

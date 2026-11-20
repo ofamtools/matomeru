@@ -1,48 +1,25 @@
 package main
 
 import (
-	"errors"
 	"time"
 
 	"ofam.dev/ochazuke"
 )
 
-// The outline task row's relation verbs: task.associate (the reverse of
-// action-item, context-item and pane associate --task) over the stored
-// task a row stands for, and the chooser that picks the context item. The
-// relations table (relations.go) lists outline-task beside task, so a new
-// related noun reaches the outline row by its row there.
+// task.attach-context: the chooser that picks a context item for a task
+// (C on an outline task row), whose choice is task.associate
+// --context-item on it.
 
 // taskContextChooser is the kind of the chooser that picks a context item
 // for a task.
 const taskContextChooser = "task-context-chooser"
 
-// outlineAssociate is outline-task.attach: task.associate --<noun> ID on
-// the row's task, one handler (associateTaskRelated).
-func (a *App) outlineAssociate(ctx ochazuke.Ctx) ochazuke.Result {
-	rel, id, ok := a.related(ctx, outlineTaskNoun)
-	if !ok {
-		return ochazuke.Failed(errors.New("name the thing to associate (" + a.relatedNames(outlineTaskNoun) + "); C chooses a context item"))
-	}
-	if ctx.Instance == nil {
-		return ochazuke.Failed(ctx.NeedTarget("target", ""))
-	}
-	row := *ctx.Instance
-	row.Noun, row.ID = "task", taskOf(row.ID)
-	row.Data = row.ID
-	ctx.Instance = &row
-	return a.associateTaskRelated(ctx, rel, id)
-}
-
-// outlineAttachContext is outline-task.attach-context (C): the context
-// items of the task's project and the unassociated ones in a chooser (S
-// widens it to every project's); the choice is the item's task, as
-// outline-task.attach --context-item does.
+// outlineAttachContext is task.attach-context (C): the context items of the
+// task's project and the unassociated ones in a chooser (S widens it to
+// every project's); the choice is the item's task, as task.associate
+// --context-item does.
 func (a *App) outlineAttachContext(ctx ochazuke.Ctx) ochazuke.Result {
-	if ctx.Instance == nil {
-		return ochazuke.Failed(ctx.NeedTarget("target", ""))
-	}
-	t, err := a.work.Task(taskOf(ctx.Instance.ID))
+	t, err := a.task(ctx)
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -63,7 +40,7 @@ func (a *App) outlineAttachContext(ctx ochazuke.Ctx) ochazuke.Result {
 	data := dataByID(a.taskContextChoices(t.ProjectID, true))
 	spec.Preview = func(id string) string { return pickerPreview(data[id]) }
 	spec.Pick = func(id string) ochazuke.Result {
-		return resultOf(a.r.Execute(ochazuke.Request{Noun: outlineTaskNoun, Verb: "attach", Target: row, Args: ochazuke.Arguments{contextNoun: id}}))
+		return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "associate", Target: row, Args: ochazuke.Arguments{contextNoun: id}}))
 	}
 	if _, err := a.choose(spec); err != nil {
 		return ochazuke.Failed(err)

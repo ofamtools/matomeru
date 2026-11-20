@@ -118,11 +118,8 @@ func (a *App) quickNoteOwner() (Owner, string, error) {
 	}
 	if inst := a.r.Instances[a.r.FocusID()]; inst != nil {
 		task := ""
-		switch {
-		case inst.Noun == "task":
-			task = inst.ID
-		case strings.HasPrefix(inst.ID, "outline:") && !strings.HasPrefix(inst.ID, projectNodePrefix):
-			task = taskOf(inst.ID)
+		if inst.Noun == "task" {
+			task = a.r.ThingKey(inst) // an outline row's id is the outline's
 		}
 		if task != "" {
 			if t, err := a.work.Task(task); err == nil {

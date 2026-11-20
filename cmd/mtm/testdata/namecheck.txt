@@ -145,9 +145,6 @@ context_picker.go	App.pickerOpen	case	"dir"	1
 context_picker.go	App.pickerOpen	case	"link"	1
 context_store.go	App.associateContext	compare	"context-item"	1
 context_turns.go	transcriptEntryKind	compare	"text"	1
-convert.go	App.conversionReload	compare	"demote"	4
-convert.go	App.conversionReload	compare	"task-outline"	1
-convert.go	conversionNotice	case	"demote"	1
 copies.go	copiedNoun.holds	compare	"all"	1	copies.hold-names is an enum setting (written | all, owner decision F4): its value picks the hold rule
 copybuf.go	copyBuf.move	compare	"line-end"	1
 copymode.go	App.copyUpdate	compare	"panes"	1
@@ -203,9 +200,6 @@ notes.go	App.renderNotes	compare	"note"	1
 notes.go	App.selectedNote	compare	"note"	2
 notes_doc.go	App.syncNoteDoc	compare	"note"	1
 outline.go	App.openOutline	compare	"task"	1
-outline.go	App.openTodos	compare	"task-outline"	2
-outline.go	App.outlineTaskOf	compare	"outline-task"	1
-outline.go	App.reloadOutline	compare	"task-outline"	1
 pane_activity.go	App.pollActivities	compare	"panes"	1
 pane_settings.go	App.settingFields	compare	"launch"	1
 pane_settings.go	App.settingFields	compare	"log"	1	the settings source kind (sourceLog), a word coincidence with the history-log parameter named log
@@ -308,10 +302,7 @@ side.go	recordedEnvironment	compare	"env"	1
 sides_config.go	App.setSideChoices	compare	"pane.side"	1
 sides_config.go	validateSideRow	compare	"list"	1
 store_tables.go	App.showStoreTable	compare	"store-table"	1
-task_notes.go	App.syncOutlineNotes	compare	"outline-task"	1
 task_statuses.go	App.syncStatusEnums	compare	"status"	1	finds the one prop the tasks.statuses table fills in; the prop is the status prop by definition, nothing else shares the name
-task_store.go	App.defineTaskSubjects	compare	"outline-task"	1
-task_store.go	App.defineTaskSubjects	compare	"task"	1
 task_store.go	App.patchTask	compare	"task"	1
 task_store.go	App.patchTask	cyclo	"-"	28
 task_store.go	App.taskStore	compare	"all"	1

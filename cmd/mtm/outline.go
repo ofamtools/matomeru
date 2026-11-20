@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -30,19 +29,19 @@ import (
 // add a project in the all view (record first: written at once, empty,
 // owned by nothing), a (and o on the one root) adds a task in it, typing
 // renames it through project.edit, d d is project.delete with its
-// confirm, tab makes it a task of the project above it
-// (outline-project.demote; refused on the first project); J/K reorder
-// the projects (work.ReorderProjects: the order every project list
-// shows); x and s are refused. shift+tab on a task
-// directly under its project makes it a project listed after it
-// (outline-task.promote). tab and shift+tab mean the same on an open line
-// (ochazuke.outline.row-key runs the row's own key and the line stays
-// open). "no project" is not a project: it takes tasks
-// and nothing else. u and ctrl+r undo and redo every change as writes,
-// status and conversions included (Tree.Record); a project deleted
-// through its confirm is not undone, as
-// project.delete has no restore. There is no save key; esc leaves the
-// line, and esc or T closes the outline with everything already stored.
+// confirm, tab makes it a task of the project drawn above it
+// (project.make-task; refused on the first project); J/K reorder the
+// projects (work.ReorderProjects: the order every project list shows); x
+// and s are refused. shift+tab on a task directly under its project makes
+// it a project listed after it (task.make-project). tab and shift+tab mean
+// the same on an open line (ochazuke.outline.row-key runs the row's own
+// key and the line stays open). The rows are tasks and projects, and their
+// keys of the outline's own are rows on the outline (outline_rows.go).
+// "no project" is not a project: it takes tasks and nothing else. u and
+// ctrl+r undo and redo every change as writes, status, archive, moves,
+// conversions and a project's delete included (Tree.Record,
+// Tree.RecordWrites). There is no save key; esc leaves the line, and esc
+// or T closes the outline with everything already stored.
 
 const (
 	outlineModal = "task-outline"
@@ -95,113 +94,55 @@ type outlineState struct {
 
 // defineOutline adds project.outline and task.outline (O), tasks.open (T
 // on every page) and the open outline's own rows: x, s, T and q. The
-// outline is a view of tasks, not a noun of its own: where the focus is
-// shown (focus-display), the modal is named tasks and each row the noun
-// of the thing it draws (NounBuilder.Shows; focus-display.things).
+// outline is a view of tasks, not a noun of its own: the modal is the tasks
+// noun and each row the noun of the thing it draws (outline_rows.go).
 func (a *App) defineOutline() {
 	a.r.Define("project").Verb("outline", a.openOutline, "Edit the project's tasks and subtasks as an outline; every change is written as it is made").Mode("normal").Bind("O", ochazuke.Do("project.outline"))
 	a.r.Define("task").Verb("outline", a.openOutline, "Edit the task's project as an outline; every change is written as it is made").
 		Mode("normal").Bind("O", ochazuke.Do("task.outline"))
-	a.r.Define("tasks").Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it; --mode opens it in that mode (focus-set: the focus selector's keys)").Params(outlineOpenParams())
 	a.r.Define("app").Mode("normal").Bind("T", ochazuke.Do("tasks.open"))
 	a.ownedBy("tasks", "work")
 	_ = a.r.AddNounAlias(ochazuke.NounAlias{Alias: "todos", Noun: "tasks", Since: taskNamesSince, RemoveAfter: oldNamesRemoveAfter})
-	a.r.Define(outlineModal).Kind(ochazuke.NounKindPart).DefaultKeys(false).Shows("tasks").
+	// The modal is the tasks noun (its instance keeps the id task-outline,
+	// the old noun's name, so saved filters and no-spill rows that name its
+	// lists still hold).
+	tasks := a.r.Define(outlineNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false)
+	tasks.
+		Verb("open", a.openTodos, "Open the pinned project's tasks as an outline (no pin or the S view: all projects); T or q closes it; --mode opens it in that mode (focus-set: the focus selector's keys)").Params(outlineOpenParams()).
 		Verb("refuse", func(ctx ochazuke.Ctx) ochazuke.Result {
 			return ochazuke.Failed(errors.New(ochazuke.StringArg(ctx.Args, "reason", "not on this row")))
 		}, "Refuse a key that does not apply to the row and say why (no project is not a project)").
-		Verb("toggle", a.outlineToggle, "Mark the task done, or a done task todo").
-		Verb("status", a.outlineStatus, "Choose the task's status: todo, active, blocked or done").
+		Verb("toggle", a.outlineToggle, "Mark the selected task done, or a done task todo: task.toggle on it").
+		Verb("status", a.outlineStatus, "Choose the selected task's status: task.choose-status on it").
 		Verb("close", func(ochazuke.Ctx) ochazuke.Result { return resultError(a.r.Pop()) }, "Close the outline; every change is already written").Exits(ochazuke.ExitsClose).
 		Mode("normal").
-		Bind("x", ochazuke.Do(outlineModal+".toggle")).
-		Bind("s", ochazuke.Do(outlineModal+".status")).
-		Bind("T", ochazuke.Do(outlineModal+".close"))
-	a.parameters(outlineModal+".refuse", map[string]ochazuke.Parameter{"reason": {Type: "string", Required: true, Description: "What the row does not do, and why"}})
-	refuse := func(reason string) ochazuke.Binding {
-		return ochazuke.Do(outlineModal+".refuse", ochazuke.Arguments{"reason": reason}).Hide()
-	}
-	// n is the key map's new (a is retired): a task in the row's project.
-	addTask := ochazuke.Do("outline.add", ochazuke.Arguments{"where": "child"}).Hinted("new task")
-	// A project row (every root of the all view, the one root of a
-	// project's outline): o/O add a project beside it (the outline's own
-	// rows), n adds a task in it, typing renames it, d d deletes it as
-	// project.delete does; J/K move it among the projects (the outline's
-	// own rows: writeProjectRow stores the order).
-	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
-		a.r.Define(noun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Shows("project").
-			Verb("delete-project", a.outlineDeleteProject, "Delete the project as project.delete does: confirm first, naming what is orphaned; directories and panes are untouched").Many().
-			Verb("confirm-delete", a.outlineConfirmDeleteProject, "Confirm deleting the project: project.delete orphans its tasks and records").Confirm(projectDeleteConfirm).
-			Mode("normal").
-			Bind("enter", ochazuke.Do("outline.fold")).
-			Bind("n", addTask).
-			Bind("d d", ochazuke.Do(noun+".delete-project").Hinted("delete project")).
-			Bind("tab", ochazuke.Do(noun+".demote").Hinted("make task"))
-	}
-	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
-		a.parameters(noun+".confirm-delete", map[string]ochazuke.Parameter{"affected": {Type: "string"}})
-	}
-	// The one root of a project's outline shows no other project: o adds
-	// a task in it as n does.
-	a.r.Define(outlineRootNoun).Mode("normal").Bind("o", addTask)
-	// "no project" takes tasks only.
-	a.r.Define(outlineNoneNoun).DefaultKeys(false).Shows("project").Mode("normal").
-		Bind("enter", ochazuke.Do("outline.fold")).
-		Bind("o", addTask).
-		Bind("n", addTask).
-		Bind("i", refuse("no project is not a project: it cannot be renamed")).
-		Bind("d d", refuse("no project is not a project: it cannot be deleted")).
-		Bind("tab", refuse("no project stays at the top level")).
-		Bind("J", refuse("no project stays last")).
-		Bind("K", refuse("no project stays last"))
-	// shift+tab on a task directly under its project makes it a project
-	// (outline-task.promote); deeper tasks outdent as usual, the guard is
-	// off.
+		Bind("x", ochazuke.Do(outlineNoun+".toggle")).
+		Bind("s", ochazuke.Do(outlineNoun+".status")).
+		Bind("T", ochazuke.Do(outlineNoun+".close"))
+	a.parameters(outlineNoun+".refuse", map[string]ochazuke.Parameter{"reason": {Type: "string", Required: true, Description: "What the row does not do, and why"}})
+	a.defineOutlineRowGuards()
 	a.defineConversions()
 	a.r.DefineGuard("outline-top-task", a.outlineTopTask)
-	// x and s on a task row are the row's own verbs, so over a visual
-	// selection (V) they act on every selected task, as one undo step;
-	// the outline's toggle and status (on the modal) stay for the
-	// palette and for the rows that are not tasks, which they refuse.
-	a.r.Define(outlineTaskNoun).Kind(ochazuke.NounKindPart).DefaultKeys(false).Shows("task").Filters(taskFilters()...).Props(taskMakerProp(), taskArchiveProp()).
-		Verb("outdent", a.outlinePromote, "On a task directly under its project: make it a project listed after it, as outline-task.promote (deeper tasks outdent one level as usual)").When("outline-top-task").
-		Verb("choose-move", a.outlineChooseMove, "Choose the project to move the task to, its subtasks with it, as m does on the Work page's tasks; over a visual selection, every selected task, as one undo step").Many().
-		Verb("archive-task", a.outlineTaskStandard("archive"), "Archive the task and its subtasks: kept, and hidden from the default views (the archive filter shows them); over a visual selection, every selected task").Many().
-		Verb("restore-task", a.outlineTaskStandard("restore"), "Bring an archived task back into the default views, as task.restore does; over a visual selection, every selected task").Many().
-		Verb("attach", a.outlineAssociate, "Attach a thing to this task (--pane, --action-item or --context-item ID): task.associate on the row's task").
-		Verb("attach-context", a.outlineAttachContext, "Choose a context item (the task's project's and the unassociated ones; S for every project's) and attach it to the task: its task becomes this one").
-		Verb("toggle", a.outlineTaskToggle, "Mark the task done, or a done task todo; u undoes it").
-		Verb("status", a.outlineTaskStatus, "Set the task's status (todo, active, blocked, done); omit status to choose one; u undoes it").Many().
-		Mode("normal").
-		Bind("x", ochazuke.Do(outlineTaskNoun+".toggle").Hinted("done")).
-		Bind("s", ochazuke.Do(outlineTaskNoun+".status").Hinted("status")).
-		Bind("enter", ochazuke.Do("outline.fold").Hinted("fold")).
-		Bind("shift+tab", ochazuke.Do(outlineTaskNoun+".outdent").Hinted("make project")).
-		Bind("m", ochazuke.Do(outlineTaskNoun+".choose-move").Hinted("move")).
-		Bind("A", ochazuke.Do(outlineTaskNoun+".archive-task").Hinted("archive")).
-		Bind("X", ochazuke.Do(outlineTaskNoun+".restore-task").Hinted("restore")).
-		Bind("C", ochazuke.Do(outlineTaskNoun+".attach-context").Hinted("context"))
-	// One key per status (statusKeyRows): the same verb with the status
-	// named, so over a visual selection it sets every selected task, as one
-	// undo step. Rebind or add one in bindings.json with the same action.
-	for _, k := range statusKeyRows {
-		a.r.Define(outlineTaskNoun).Mode("normal").Bind(k.key, ochazuke.Do(outlineTaskNoun+".status", ochazuke.Arguments{"status": k.status}).Hinted(k.status))
-	}
-	a.parameters(outlineTaskNoun+".status", map[string]ochazuke.Parameter{"status": {Type: "string", Enum: defaultStatusNames()}})
-	a.defineOutlineAttachments()
+	a.defineOutlineAttachments(tasks)
+	a.renameOutlineNouns() // after every verb an old name's alias names
 	a.outlineView("Tasks")
 }
 
-// The outline's row nouns.
+// The outline's rows are the things they draw: a task's row is a task, a
+// project's a project (the root of a project's outline too), and "no
+// project", which is not a project, is a plain outline row
+// (ochazuke.TreeRowNoun). Its keys of its own bind on the outline
+// (ochazuke.outline) with a guard on the row (outlineRowGuards).
 const (
-	// outlineProjectNoun is a project's row in the all view.
-	outlineProjectNoun = "outline-project"
-	// outlineRootNoun is the project a project's outline shows, its root.
-	outlineRootNoun = "outline-root"
+	// outlineNoun is the outline modal's noun (its instance is outlineModal).
+	outlineNoun = "tasks"
+	// outlineProjectNoun is a project's row: a project of the all view, or
+	// the root of a project's outline.
+	outlineProjectNoun = "project"
 	// outlineNoneNoun is the "no project" row over the unassociated tasks.
-	outlineNoneNoun = "outline-none"
+	outlineNoneNoun = ochazuke.TreeRowNoun
 	// outlineTaskNoun is a task's row.
-	outlineTaskNoun = "outline-task"
+	outlineTaskNoun = "task"
 )
 
 // outlineTopTask is the outline-top-task guard: the focus is a task row
@@ -217,72 +158,6 @@ func (a *App) outlineTopTask(r *ochazuke.Runtime, ev ochazuke.KeyEvent) bool {
 	}
 	parent, ok := parents[ev.Focus]
 	return ok && parent != "" && parents[parent] == ""
-}
-
-// outlineDeleteProject is outline-project.delete-project (d d on a project row):
-// the delete's confirm, opened on the row (inside the outline: a confirm
-// for the Work page's project row would open beneath it), naming what
-// deleting every selected project orphans (deletionImpact, as
-// project.delete's prompt does). Its rows are not the project noun's, so
-// it keeps its own confirm-delete for the visual selection.
-func (a *App) outlineDeleteProject(ctx ochazuke.Ctx) ochazuke.Result {
-	subjects := ctx.Subjects
-	if len(subjects) == 0 {
-		subjects = []*ochazuke.Instance{ctx.Instance}
-	}
-	var ids []string
-	for _, inst := range subjects {
-		one := ctx
-		one.Instance = inst
-		id, err := a.outlineProject(one)
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		ids = append(ids, id)
-	}
-	total, err := a.deletionImpact("project", ids)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	q := ochazuke.Request{Noun: ctx.Instance.Noun, Verb: "confirm-delete", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"affected": orphanLines(total)}}
-	if len(ctx.Subjects) > 1 {
-		q.Subjects = ctx.SubjectIDs()
-	}
-	value, err := a.r.Execute(q)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(value)
-}
-
-// outlineConfirmDeleteProject is outline-project.confirm-delete (y on its
-// confirm): project.delete on the project, confirmed, so the delete, its
-// orphan cascade and its reloads are mtm's one delete (removeProject); it
-// reloads the outline (reloadOutline). Undo puts the project record back,
-// not what the delete orphaned.
-func (a *App) outlineConfirmDeleteProject(ctx ochazuke.Ctx) ochazuke.Result {
-	id, err := a.outlineProject(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	value, err := a.r.Execute(ochazuke.Request{Noun: "project", Verb: "delete", Args: ochazuke.Arguments{"id": id}, Confirmed: true})
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(value)
-}
-
-// outlineProject is the stored project of the outline's project row the
-// request acts on.
-func (a *App) outlineProject(ctx ochazuke.Ctx) (string, error) {
-	if ctx.Instance == nil {
-		return "", errors.New("select a project")
-	}
-	id := projectOfRoot(ctx.Instance.ID)
-	if _, ok := a.project(id); !ok {
-		return "", fmt.Errorf("unknown project %s", id)
-	}
-	return id, nil
 }
 
 // outlineView registers the modal's view under a title.
@@ -349,10 +224,10 @@ func (a *App) openOutline(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
-	projectID := ctx.Instance.ID
+	projectID := a.r.ThingKey(ctx.Instance)
 	focus := ""
 	if ctx.Instance.Noun == "task" {
-		t, err := a.work.Task(ctx.Instance.ID)
+		t, err := a.work.Task(projectID)
 		if err != nil {
 			return ochazuke.Failed(err)
 		}
@@ -386,6 +261,12 @@ func (a *App) showOutline(scope outlineScope, focus string, open outlineOpen) oc
 	a.outline = state
 	tree.NewID = func() string { return outlineNode(work.NewID()) }
 	tree.RowNoun = outlineTaskNoun
+	// The rows are tasks and projects: the outline's keys answer first on
+	// them, and a write through their verbs (task.toggle, task.archive) is
+	// a step of the outline's undo (outline_rows.go).
+	tree.RowKeysLast, tree.RecordWrites = true, true
+	a.r.Unoffer(outlineTree, outlineUnoffered...)
+	tree.Reload = func() error { return errors.Join(a.reloadOutline(), a.outlineChanged(state)) }
 	// tree.delete-children=orphan moves the children of a deleted row to
 	// its project's level: a task stays under a project, never at the top.
 	tree.OrphanParent = func(n ochazuke.TreeNode) string { return rootOf(tree, n.ID) }
@@ -561,7 +442,7 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 		return a.outlineTaskNodes(tasks, root, private, exported, archived, o)
 	}
 	root := func(id, label string) ochazuke.TreeNode {
-		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(scope, projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true, Fixed: []string{ochazuke.TreeRemoveEmpty}, PutInto: true, Classes: []string{outlineProjectClass}}
+		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true, Fixed: []string{ochazuke.TreeRemoveEmpty}, PutInto: true, Classes: []string{outlineProjectClass}}
 	}
 	var nodes []ochazuke.TreeNode
 	if !scope.all {
@@ -595,14 +476,12 @@ func (a *App) rootCell(id, label string) string {
 	return label
 }
 
-// rootNoun is the noun of a top-level row: no project, the one project of
-// a project's outline, or a project of the all view.
-func rootNoun(scope outlineScope, id string) string {
-	switch {
-	case id == projectNode(""):
+// rootNoun is the noun of a top-level row: a project's (the one project of
+// a project's outline, or a project of the all view), or no project's,
+// which is not a project.
+func rootNoun(id string) string {
+	if id == projectNode("") {
 		return outlineNoneNoun
-	case !scope.all:
-		return outlineRootNoun
 	}
 	return outlineProjectNoun
 }
@@ -990,7 +869,7 @@ func (a *App) outlineChanged(o *outlineState) error {
 	nodes := o.tree.Nodes()
 	for i, n := range nodes {
 		if n.Parent == "" {
-			nodes[i].Cells, nodes[i].Noun = a.rootCells(n.ID, n.Label), rootNoun(o.scope, n.ID)
+			nodes[i].Cells, nodes[i].Noun = a.rootCells(n.ID, n.Label), rootNoun(n.ID)
 			nodes[i].Props = a.rootProps(n.ID)
 			nodes[i].SpaceAbove = true                                               // a project added in the outline gets the gap too
 			nodes[i].Fixed = []string{ochazuke.TreeRemoveEmpty}                      // emptying a project name never deletes the project
@@ -1024,261 +903,26 @@ func (a *App) outlineTask() (*outlineState, work.Task, error) {
 	return o, t, err
 }
 
-// outlineTaskOf is the outline and the task of a task row.
-func (a *App) outlineTaskOf(row *ochazuke.Instance) (*outlineState, work.Task, error) {
-	o := a.outline
-	if o == nil || a.r.Tree(outlineTree) != o.tree {
-		return nil, work.Task{}, errors.New("the outline is not open")
-	}
-	if row == nil || row.Noun != outlineTaskNoun {
-		return nil, work.Task{}, errors.New("select a task: x and s set a task's status")
-	}
-	t, err := a.work.Task(taskOf(row.ID))
-	return o, t, err
-}
-
-// outlineChooseMove is outline-task.choose-move (m on a task row): what m
-// does on the Work page's task rows, over the stored tasks the rows stand
-// for (the chooser asks once; over a visual selection its choice moves
-// every selected task). The choice is task.set on @owner, its subtasks with
-// it, which reloads the open outline: a task that left the project's
-// outline is gone from it. The move is put on the outline's undo stack as
-// one step (outlineMoved): u brings the tasks back, ctrl+r moves them again.
-func (a *App) outlineChooseMove(ctx ochazuke.Ctx) ochazuke.Result {
-	o := a.outline
-	if o == nil || a.r.Tree(outlineTree) != o.tree {
-		return ochazuke.Failed(errors.New("the outline is not open"))
-	}
-	if ctx.Instance == nil {
-		return ochazuke.Failed(ctx.NeedTarget("target", ""))
-	}
-	rows := ctx.SubjectIDs()
-	if len(rows) == 0 {
-		rows = []string{ctx.Instance.ID}
-	}
-	var ids []string
-	for _, row := range rows {
-		ids = append(ids, taskOf(row))
-	}
-	// A project is offered unless every selected task is already in it;
-	// unassociated is offered unless every one is already unassociated.
-	inProject := map[string]int{}
-	var names []string
-	for _, t := range a.taskRows(ids) {
-		inProject[t.ProjectID]++
-		names = append(names, cmp.Or(t.Title, "untitled"))
-	}
-	title := "Move to · " + strings.Join(names, ", ")
-	allIn := func(project string) bool { return inProject[project] == len(ids) }
-	var choices []ochazuke.Choice
-	for _, p := range a.projectsByRecency() {
-		if allIn(p.ID) {
-			continue
-		}
-		c := plainChoice(p.ID, projectName(p))
-		c.Data = p.ID
-		choices = append(choices, c)
-	}
-	if !allIn("") {
-		choices = append(choices, ochazuke.Choice{ID: "unassociated", Label: "unassociated", Data: "", RowFlags: ochazuke.RowFlags{Trailing: true, Bare: true}})
-	}
-	data := dataByID(choices)
-	_, err := a.choose(pickSpec{Kind: moveChooser, Title: title, Choices: choices, Filter: pickFilterTrailing, Pick: func(id string) ochazuke.Result {
-		before := a.taskRows(ids)
-		q := ochazuke.Request{Noun: "task", Verb: "set", Target: ctx.Instance.ID, Args: ochazuke.Arguments{"props": map[string]any{"@owner": data[id].(string)}}}
-		if len(rows) > 1 {
-			q.Subjects = rows
-		}
-		value, err := a.r.Execute(q)
-		if err != nil {
-			return ochazuke.Failed(err)
-		}
-		if err := a.outlineMoved(o, before, a.taskRows(ids)); err != nil {
-			return ochazuke.Failed(err)
-		}
-		return ochazuke.Done(value)
-	}})
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(nil)
-}
-
-// taskRows are the stored tasks with these ids, as they are now.
-func (a *App) taskRows(ids []string) []work.Task {
-	var out []work.Task
-	for _, id := range ids {
-		if t, err := a.work.Task(id); err == nil {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// outlineMoved puts a move to another project on the outline's undo stack:
-// the tasks as they were and as they are, written back (their subtasks
-// with them) by u and again by ctrl+r, as one step. Nothing is recorded
-// when no task changed place.
-func (a *App) outlineMoved(o *outlineState, before, after []work.Task) error {
-	if len(before) == 0 || len(before) != len(after) {
-		return nil
-	}
-	changed := false
-	for i := range before {
-		changed = changed || before[i].ProjectID != after[i].ProjectID || before[i].ParentID != after[i].ParentID
-	}
-	if !changed {
-		return nil
-	}
-	put := func(tasks []work.Task, reverse bool) func() error {
-		return func() error {
-			order := slices.Clone(tasks)
-			if reverse {
-				slices.Reverse(order)
-			}
-			for _, t := range order {
-				t.Updated = work.Now()
-				if _, err := a.work.PutTaskSubtree(t); err != nil {
-					return err
-				}
-			}
-			return errors.Join(a.refreshScope(), a.reloadOutline())
-		}
-	}
-	return o.tree.Record(ochazuke.TreeAction{ID: outlineNode(before[0].ID), Label: "move " + before[0].ID, Undo: put(before, true), Redo: put(after, false)})
-}
-
-// outlineTaskStandard is outline-task.archive-task and .restore-task (named
-// as outline-project.delete-project is: a part noun has no store, so no
-// verb of its own takes a core verb's name):
-// the task noun's standard verb of that name over the rows (their tasks:
-// defineTaskSubjects adapts the subject), named by the outline row so the
-// verb acts from inside the outline modal.
-func (a *App) outlineTaskStandard(verb string) ochazuke.AppHandler {
-	return func(ctx ochazuke.Ctx) ochazuke.Result {
-		if ctx.Instance == nil {
-			return ochazuke.Failed(fmt.Errorf("select a task to %s", verb))
-		}
-		q := ochazuke.Request{Noun: "task", Verb: verb, Target: ctx.Instance.ID}
-		if len(ctx.Subjects) > 1 {
-			q.Subjects = ctx.SubjectIDs()
-		}
-		return a.outlineRun(ctx.Instance, q)
-	}
-}
-
-// outlineRun runs q for an outline row; open, the outline puts the writes
-// q made on its undo stack (ochazuke Tree.RecordRequest), so u brings
-// back what the verb hid (A archives a task: its row leaves the outline)
-// and ctrl+r runs it again.
-func (a *App) outlineRun(row *ochazuke.Instance, q ochazuke.Request) ochazuke.Result {
-	o, _, err := a.outlineTaskOf(row)
-	if err != nil {
-		return resultOf(a.r.Execute(q))
-	}
-	return resultOf(o.tree.RecordRequest(row.ID, q, func() error { return a.outlineChanged(o) }))
-}
-
-// outlineTaskToggle is outline-task.toggle (x on a task row).
-func (a *App) outlineTaskToggle(ctx ochazuke.Ctx) ochazuke.Result {
-	o, t, err := a.outlineTaskOf(ctx.Instance)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	return a.toggleOutlineTask(o, t)
-}
-
-// outlineTaskStatus is outline-task.status (s on a task row): the status
-// given (one the table lacks is added to it: admitStatus) sets it on
-// every subject, each change on the undo stack (one step over a
-// selection); without one, one chooser for every subject.
-func (a *App) outlineTaskStatus(ctx ochazuke.Ctx) ochazuke.Result {
-	if status, ok := ctx.Args["status"].(string); ok {
-		return ctx.Each(func(one ochazuke.Ctx) ochazuke.Result {
-			o, t, err := a.outlineTaskOf(one.Instance)
-			if err != nil {
-				return ochazuke.Failed(err)
-			}
-			before := t.Status
-			if t, err = a.work.SetStatus(t.ID, a.admitStatus(one.Info, status)); err != nil {
-				return ochazuke.Failed(err)
-			}
-			if err := a.outlineChanged(o); err != nil {
-				return ochazuke.Failed(err)
-			}
-			return resultError(a.recordStatus(o, t.ID, before, t.Status))
-		})
-	}
-	_, t, err := a.outlineTaskOf(ctx.Instance)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	q := ochazuke.Request{Noun: outlineTaskNoun, Verb: "status", Target: ctx.Instance.ID}
-	if len(ctx.Subjects) > 1 {
-		q.Subjects = ctx.SubjectIDs()
-	}
-	return resultError(a.openStatusChooserFor(t, len(ctx.Subjects), func(status string) ochazuke.Result {
-		q.Args = ochazuke.Arguments{"status": status}
-		return resultOf(a.r.Execute(q))
-	}))
-}
-
-// outlineToggle is x on the outline: done, or todo again.
+// outlineToggle is tasks.toggle (x where the row binds none, the
+// palette): task.toggle on the selected task; a row that is no task
+// refuses (x on a project row).
 func (a *App) outlineToggle(ochazuke.Ctx) ochazuke.Result {
-	o, t, err := a.outlineTask()
+	o, _, err := a.outlineTask()
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	return a.toggleOutlineTask(o, t)
+	n, _ := o.tree.Selected()
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "toggle", Target: n.ID}))
 }
 
-// toggleOutlineTask toggles t done and puts the change on the undo stack.
-func (a *App) toggleOutlineTask(o *outlineState, t work.Task) ochazuke.Result {
-	before := t.Status
-	var err error
-	if t, err = a.work.ToggleDone(t.ID); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.outlineChanged(o); err != nil {
-		return ochazuke.Failed(err)
-	}
-	if err := a.recordStatus(o, t.ID, before, t.Status); err != nil {
-		return ochazuke.Failed(err)
-	}
-	return ochazuke.Done(t)
-}
-
-// recordStatus puts a status change on the outline's undo stack, in order
-// with its tree edits: u writes the status back, ctrl+r writes it again.
-func (a *App) recordStatus(o *outlineState, id, before, after string) error {
-	set := func(status string) func() error {
-		return func() error {
-			if _, err := a.work.RestoreStatus(id, status); err != nil {
-				return err
-			}
-			return a.outlineChanged(o)
-		}
-	}
-	return o.tree.Record(ochazuke.TreeAction{ID: outlineNode(id), Label: "status " + id + " " + after, Undo: set(before), Redo: set(after)})
-}
-
-// outlineStatus is s on the outline: the status chooser on the task.
+// outlineStatus is tasks.status: task.choose-status on the selected task.
 func (a *App) outlineStatus(ochazuke.Ctx) ochazuke.Result {
-	o, t, err := a.outlineTask()
+	o, _, err := a.outlineTask()
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
-	before := t.Status
-	return resultError(a.openStatusChooser(t, func() error {
-		if err := a.outlineChanged(o); err != nil {
-			return err
-		}
-		got, err := a.work.Task(t.ID)
-		if err != nil || got.Status == before {
-			return err
-		}
-		return a.recordStatus(o, t.ID, before, got.Status)
-	}))
+	n, _ := o.tree.Selected()
+	return resultOf(a.r.Execute(ochazuke.Request{Noun: "task", Verb: "choose-status", Target: n.ID}))
 }
 
 // renumber writes the positions of a parent's children in outline order.

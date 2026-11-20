@@ -47,7 +47,7 @@ func (a *App) pinProject(ctx ochazuke.Ctx) ochazuke.Result {
 		return a.setPin(id)
 	}
 	if ctx.Instance != nil && ctx.Instance.Noun == "project" {
-		return a.setPin(ctx.Instance.ID)
+		return a.setPin(a.r.ThingKey(ctx.Instance))
 	}
 	return a.openNamedPicker(pinPickerName)
 }

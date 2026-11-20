@@ -284,7 +284,7 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 		t.Fatalf("root row or hint missing:\n%s", f)
 	}
 	press(t, a, "k")
-	if row := a.r.Instances[a.r.FocusID()]; a.r.FocusID() != projectNode("matomeru") || row.Noun != outlineRootNoun {
+	if row := a.r.Instances[a.r.FocusID()]; a.r.FocusID() != projectNode("matomeru") || row.Noun != outlineProjectNoun {
 		t.Fatalf("k: focus %s", a.r.FocusID())
 	}
 	press(t, a, "i", "end")

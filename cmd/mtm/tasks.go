@@ -28,12 +28,12 @@ func (a *App) defineTask() {
 		Verb("choose-move", a.chooseMove, "Choose the project to move the task to (most recent first, unassociated last); the choice is the standard set of @owner").Many().
 		Verb("new", a.newTask, "Add a task (standard create: under --parent, else the pin or no project); omit title to open the draft editor").Positional("title").
 		Verb("launch", a.launchRecord, "Launch an agent on the task").
+		Verb("attach-context", a.outlineAttachContext, "Choose a context item (the task's project's and the unassociated ones; S for every project's) and attach it to the task: its task becomes this one (C on the task outline)").
 		Mode("normal").
 		Bind("enter", ochazuke.Do("task.edit")).Bind("l", ochazuke.Do("task.open")).Bind("L", ochazuke.Do("task.launch")).
 		Bind("i", ochazuke.Do("task.edit")).Bind("x", ochazuke.Do("task.toggle")).Bind("s", ochazuke.Do("task.choose-status")).
 		Bind("m", ochazuke.Do("task.edit", ochazuke.Arguments{"field": "@owner"}).Hinted("move"))
 	a.defineTaskEvidence()
-	a.defineTaskSubjects()
 	// done and status are the standard set with the status preset (2.5:
 	// task.status shares the prop's name as its set); the old arguments
 	// are set's: task done ID, task status ID STATUS. The old --status
@@ -328,9 +328,10 @@ func (a *App) task(ctx ochazuke.Ctx) (work.Task, error) {
 	if ctx.Instance == nil || ctx.Instance.Noun != "task" {
 		return work.Task{}, ctx.NeedTarget("target", "")
 	}
-	t, err := a.work.Task(ctx.Instance.ID)
+	id := a.r.ThingKey(ctx.Instance) // an outline row's id is the outline's; its key is the task's
+	t, err := a.work.Task(id)
 	if err != nil {
-		return work.Task{}, fmt.Errorf("task %s: %w", ctx.Instance.ID, err)
+		return work.Task{}, fmt.Errorf("task %s: %w", id, err)
 	}
 	return t, nil
 }
@@ -462,7 +463,7 @@ func (a *App) chooseStatus(ctx ochazuke.Ctx) ochazuke.Result {
 		return resultOf(a.r.Execute(q))
 	}
 	if status := ochazuke.StringArg(ctx.Args, "status", ""); status != "" {
-		return set(status)
+		return set(a.admitStatus(ctx.Info, status)) // a status the table lacks is added (the outline's status keys)
 	}
 	return resultError(a.openStatusChooserFor(t, max(len(subjects), 1), set))
 }

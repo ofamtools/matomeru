@@ -11,10 +11,8 @@ cmd/mtm/context.go	App.defineContext	"context-item"	1
 cmd/mtm/context.go	App.defineContext	"context-search"	1
 cmd/mtm/context_picker.go	App.defineContextPicker	"context-item"	1
 cmd/mtm/context_picker.go	App.defineContextPicker	"context-picker"	1
-cmd/mtm/convert.go	App.defineConversions	"outline-task"	1
 cmd/mtm/convert.go	App.defineConversions	"project"	1
 cmd/mtm/convert.go	App.defineConversions	"task"	1
-cmd/mtm/convert.go	App.defineConversions	noun	1
 cmd/mtm/copymode.go	App.defineCopy	"copy"	2
 cmd/mtm/copymode.go	App.defineCopy	"terminal"	1
 cmd/mtm/daemon_runner.go	App.defineDaemon	"daemon"	1
@@ -54,15 +52,9 @@ cmd/mtm/notes.go	App.defineNotes	"note"	1
 cmd/mtm/notes.go	App.defineNotes	"note-body"	1
 cmd/mtm/notes_doc.go	App.defineNoteDoc	markdown.DocNoun	1
 cmd/mtm/outline.go	App.defineOutline	"app"	1
-cmd/mtm/outline.go	App.defineOutline	"outline-none"	1
-cmd/mtm/outline.go	App.defineOutline	"outline-root"	1
-cmd/mtm/outline.go	App.defineOutline	"outline-task"	2
 cmd/mtm/outline.go	App.defineOutline	"project"	1
 cmd/mtm/outline.go	App.defineOutline	"task"	1
-cmd/mtm/outline.go	App.defineOutline	"task-outline"	1
 cmd/mtm/outline.go	App.defineOutline	"tasks"	1
-cmd/mtm/outline.go	App.defineOutline	noun	1
-cmd/mtm/outline_attach.go	App.defineOutlineAttachments	"task-outline"	1
 cmd/mtm/owners.go	App.defineOwners	"task"	1
 cmd/mtm/pane_activity.go	App.definePaneActivities	"subagent"	1
 cmd/mtm/pane_picker.go	App.definePanePicker	"app"	1

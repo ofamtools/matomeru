@@ -43,8 +43,8 @@
     {"key": "alt+n", "action": "pane.whoami", "hidden": true}
   ]},
   {"context": "app/focus-set", "extends": "normal", "bindings": [
-    {"key": "esc", "action": "task-outline.close", "hint": "close"},
-    {"key": "q", "action": "task-outline.close", "hint": "close"}
+    {"key": "esc", "action": "tasks.close", "hint": "close"},
+    {"key": "q", "action": "tasks.close", "hint": "close"}
   ]},
   {"context": "app/normal", "bindings": [
     {"key": "g q", "action": "agent.ask-new", "help": "ask a new agent a question: the ask form, the question first"},
@@ -227,29 +227,6 @@
     {"key": "f", "action": "ochazuke.timeline-body.copy-brief", "hidden": true},
     {"key": "m", "action": "ochazuke.timeline-body.copy-result", "hidden": true}
   ]},
-  {"context": "outline-none/focus-set", "bindings": [
-    {"key": "enter", "action": "ochazuke.outline.fold", "hint": "fold"}
-  ]},
-  {"context": "outline-project/focus-set", "bindings": [
-    {"key": "enter", "action": "ochazuke.outline.fold", "hint": "fold"}
-  ]},
-  {"context": "outline-project/normal", "bindings": [
-    {"key": "ctrl+g", "action": "outline-project.confirm-delete", "hidden": true}
-  ]},
-  {"context": "outline-root/focus-set", "bindings": [
-    {"key": "enter", "action": "ochazuke.outline.fold", "hint": "fold"}
-  ]},
-  {"context": "outline-root/normal", "bindings": [
-    {"key": "ctrl+g", "action": "outline-root.confirm-delete", "hidden": true}
-  ]},
-  {"context": "outline-task/focus-set", "bindings": [
-    {"key": "enter", "action": "outline-task.focus", "hint": "focus"},
-    {"key": "=", "action": "outline-task.focus", "hint": "focus"}
-  ]},
-  {"context": "outline-task/normal", "bindings": [
-    {"key": "f", "action": "outline-task.attach", "hidden": true},
-    {"key": "R", "action": "outline-task.promote", "hidden": true}
-  ]},
   {"context": "pane/visual-line", "bindings": [
     {"key": "M", "action": "pane.get", "hidden": true},
     {"key": "N", "action": "pane.hints", "hidden": true},
@@ -360,27 +337,93 @@
     {"key": "w", "action": "schedule.watch", "hidden": true},
     {"key": "m", "action": "schedule.list", "hidden": true}
   ]},
+  {"context": "project/focus-set", "bindings": [
+    {"key": "enter", "action": "ochazuke.outline.fold", "hint": "fold"}
+  ]},
   {"context": "session/normal", "bindings": [
     {"key": "U", "action": "session.history", "hidden": true},
     {"key": "f", "action": "session.list-panes", "hidden": true},
     {"key": "alt+j", "action": "session.unrelate", "hidden": true}
   ]},
-  {"context": "task-outline/focus-set", "bindings": [
+  {"context": "tasks/normal", "bindings": [
+    {"key": "x", "action": "task.toggle", "when": "outline-task-row", "capture": true, "hint": "done"},
+    {"key": "s", "action": "task.choose-status", "when": "outline-task-row", "capture": true, "hint": "status"},
+    {"key": "enter", "action": "ochazuke.outline.fold", "when": "outline-task-row", "capture": true, "hint": "fold"},
+    {"key": "shift+tab", "action": "task.make-project", "when": "outline-top-task", "capture": true, "hint": "make project"},
+    {"key": "m", "action": "task.choose-move", "when": "outline-task-row", "capture": true, "hint": "move"},
+    {"key": "A", "action": "task.archive", "when": "outline-task-row", "capture": true, "hint": "archive"},
+    {"key": "X", "action": "task.restore", "when": "outline-task-row", "capture": true, "hint": "restore"},
+    {"key": "=", "action": "task.focus", "when": "outline-task-row", "capture": true, "hint": "focus"},
+    {"key": "C", "action": "task.attach-context", "when": "outline-task-row", "capture": true, "hint": "context"},
+    {"key": "f", "action": "task.associate", "when": "outline-task-row", "capture": true, "hidden": true},
+    {"key": "R", "action": "task.make-project", "when": "outline-task-row", "capture": true, "hidden": true},
+    {"key": "t", "action": "task.choose-status", "args": {"status": "todo"}, "when": "outline-task-row", "capture": true, "hint": "todo"},
+    {"key": "a", "action": "task.choose-status", "args": {"status": "active"}, "when": "outline-task-row", "capture": true, "hint": "active"},
+    {"key": "w", "action": "task.choose-status", "args": {"status": "waiting"}, "when": "outline-task-row", "capture": true, "hint": "waiting"},
+    {"key": "b", "action": "task.choose-status", "args": {"status": "blocked"}, "when": "outline-task-row", "capture": true, "hint": "blocked"},
+    {"key": "c", "action": "task.choose-status", "args": {"status": "cancelled"}, "when": "outline-task-row", "capture": true, "hint": "cancelled"},
+    {"key": "enter", "action": "ochazuke.outline.fold", "when": "outline-project-row", "capture": true, "hint": "fold"},
+    {"key": "n", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-project-row", "capture": true, "hint": "new task"},
+    {"key": "d d", "action": "project.delete", "when": "outline-project-row", "capture": true, "hint": "delete project"},
+    {"key": "tab", "action": "project.make-task", "when": "outline-project-row", "capture": true, "hint": "make task"},
+    {"key": "o", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-root-row", "capture": true, "hint": "new task"},
+    {"key": "enter", "action": "ochazuke.outline.fold", "when": "outline-none-row", "capture": true, "hint": "fold"},
+    {"key": "o", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-none-row", "capture": true, "hint": "new task"},
+    {"key": "n", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-none-row", "capture": true, "hint": "new task"},
+    {"key": "i", "action": "tasks.refuse", "args": {"reason": "no project is not a project: it cannot be renamed"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "d d", "action": "tasks.refuse", "args": {"reason": "no project is not a project: it cannot be deleted"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "tab", "action": "tasks.refuse", "args": {"reason": "no project stays at the top level"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "J", "action": "tasks.refuse", "args": {"reason": "no project stays last"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "K", "action": "tasks.refuse", "args": {"reason": "no project stays last"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "next project"},
+    {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "previous project"},
+    {"key": "m", "action": "tasks.detach", "hidden": true},
+    {"key": "ctrl+l", "action": "tasks.paste", "hidden": true}
+  ]},
+  {"context": "tasks/visual-line", "bindings": [
+    {"key": "x", "action": "task.toggle", "when": "outline-task-row", "capture": true, "hint": "done"},
+    {"key": "s", "action": "task.choose-status", "when": "outline-task-row", "capture": true, "hint": "status"},
+    {"key": "enter", "action": "ochazuke.outline.fold", "when": "outline-task-row", "capture": true, "hint": "fold"},
+    {"key": "shift+tab", "action": "task.make-project", "when": "outline-top-task", "capture": true, "hint": "make project"},
+    {"key": "m", "action": "task.choose-move", "when": "outline-task-row", "capture": true, "hint": "move"},
+    {"key": "A", "action": "task.archive", "when": "outline-task-row", "capture": true, "hint": "archive"},
+    {"key": "X", "action": "task.restore", "when": "outline-task-row", "capture": true, "hint": "restore"},
+    {"key": "=", "action": "task.focus", "when": "outline-task-row", "capture": true, "hint": "focus"},
+    {"key": "C", "action": "task.attach-context", "when": "outline-task-row", "capture": true, "hint": "context"},
+    {"key": "f", "action": "task.associate", "when": "outline-task-row", "capture": true, "hidden": true},
+    {"key": "R", "action": "task.make-project", "when": "outline-task-row", "capture": true, "hidden": true},
+    {"key": "t", "action": "task.choose-status", "args": {"status": "todo"}, "when": "outline-task-row", "capture": true, "hint": "todo"},
+    {"key": "a", "action": "task.choose-status", "args": {"status": "active"}, "when": "outline-task-row", "capture": true, "hint": "active"},
+    {"key": "w", "action": "task.choose-status", "args": {"status": "waiting"}, "when": "outline-task-row", "capture": true, "hint": "waiting"},
+    {"key": "b", "action": "task.choose-status", "args": {"status": "blocked"}, "when": "outline-task-row", "capture": true, "hint": "blocked"},
+    {"key": "c", "action": "task.choose-status", "args": {"status": "cancelled"}, "when": "outline-task-row", "capture": true, "hint": "cancelled"},
+    {"key": "enter", "action": "ochazuke.outline.fold", "when": "outline-project-row", "capture": true, "hint": "fold"},
+    {"key": "n", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-project-row", "capture": true, "hint": "new task"},
+    {"key": "d d", "action": "project.delete", "when": "outline-project-row", "capture": true, "hint": "delete project"},
+    {"key": "tab", "action": "project.make-task", "when": "outline-project-row", "capture": true, "hint": "make task"},
+    {"key": "o", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-root-row", "capture": true, "hint": "new task"},
+    {"key": "enter", "action": "ochazuke.outline.fold", "when": "outline-none-row", "capture": true, "hint": "fold"},
+    {"key": "o", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-none-row", "capture": true, "hint": "new task"},
+    {"key": "n", "action": "ochazuke.outline.add", "args": {"where": "child"}, "when": "outline-none-row", "capture": true, "hint": "new task"},
+    {"key": "i", "action": "tasks.refuse", "args": {"reason": "no project is not a project: it cannot be renamed"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "d d", "action": "tasks.refuse", "args": {"reason": "no project is not a project: it cannot be deleted"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "tab", "action": "tasks.refuse", "args": {"reason": "no project stays at the top level"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "J", "action": "tasks.refuse", "args": {"reason": "no project stays last"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "K", "action": "tasks.refuse", "args": {"reason": "no project stays last"}, "when": "outline-none-row", "capture": true, "hidden": true},
+    {"key": "u", "action": "ochazuke.outline.undo", "when": "outline-task-row", "capture": true, "hint": "undo", "help": "the outline's undo, as u outside visual-line; a task row's own u (history-entry.undo) would undo the app's newest change instead"},
+    {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "next project"},
+    {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "previous project"}
+  ]},
+  {"context": "tasks/focus-set", "bindings": [
     {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "hint": "next project"},
     {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "hint": "previous project"}
   ]},
-  {"context": "task-outline/insert", "bindings": [
-    {"key": "ctrl+a", "action": "task-outline.close", "hidden": true}
+  {"context": "tasks/insert", "bindings": [
+    {"key": "ctrl+a", "action": "tasks.close", "hidden": true}
   ]},
-  {"context": "task-outline/normal", "bindings": [
-    {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "next project"},
-    {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "previous project"},
-    {"key": "m", "action": "task-outline.detach", "hidden": true},
-    {"key": "ctrl+l", "action": "task-outline.paste", "hidden": true}
-  ]},
-  {"context": "task-outline/visual-line", "bindings": [
-    {"key": "}", "action": "ochazuke.collection.next-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "next project"},
-    {"key": "{", "action": "ochazuke.collection.previous-class", "args": {"class": "project-row"}, "from": {"steps": "count"}, "when": "tree-editable", "hint": "previous project"}
+  {"context": "task/focus-set", "bindings": [
+    {"key": "enter", "action": "task.focus", "hint": "focus"},
+    {"key": "=", "action": "task.focus", "hint": "focus"}
   ]},
   {"context": "task/normal", "bindings": [
     {"key": "g n", "action": "task.annotate", "hidden": true},

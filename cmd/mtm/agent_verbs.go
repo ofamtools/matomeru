@@ -84,7 +84,7 @@ func (a *App) defineTaskEvidence() {
 		}
 		id := ochazuke.StringArg(args, "id", "")
 		if id == "" && c.Instance != nil && c.Instance.Noun == "task" {
-			id = c.Instance.ID
+			id = a.r.ThingKey(c.Instance) // an outline row's id is the outline's
 		}
 		if id == "" {
 			pane, err := a.currentPaneIdentity()

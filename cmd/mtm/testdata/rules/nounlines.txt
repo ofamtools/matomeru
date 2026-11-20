@@ -6,7 +6,7 @@
 # a step that adds a noun's lines raises its row as a reviewed edit with a reason. Seeded 2026-11-17 by run plan 5.4a; every
 # step that removes a store or page file reports these numbers before and after.
 action-item	722
-context-item	765
+context-item	762
 directory	2401
 focus-item	132
 note	4830	ask form: enter never sends, the agent's pane opens in the background (lane ask-stays-put, 2026-11-19)

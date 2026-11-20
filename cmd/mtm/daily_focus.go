@@ -65,7 +65,6 @@ func focusables() []focusable {
 	same := func(id string) string { return id }
 	return []focusable{
 		{Noun: "task", Record: "task", Key: same},
-		{Noun: outlineTaskNoun, Record: "task", Key: taskOf},
 	}
 }
 
@@ -510,7 +509,7 @@ func (a *App) focusRow(f focusable) ochazuke.AppHandler {
 		return c.Each(func(one ochazuke.Ctx) ochazuke.Result {
 			id := ochazuke.StringArg(one.Args, "id", "")
 			if id == "" && one.Instance != nil {
-				id = one.Instance.ID
+				id = a.r.ThingKey(one.Instance) // an outline row's id is the outline's
 			}
 			if id == "" {
 				return ochazuke.Failed(&ochazuke.ArgumentError{Err: fmt.Errorf("no %s is selected", f.Noun)})

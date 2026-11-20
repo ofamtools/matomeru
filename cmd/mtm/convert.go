@@ -15,8 +15,8 @@ import (
 // work.PromoteTask). In the task outline tab on a project row and
 // shift+tab on a top-level task do it, each one step on the outline's
 // undo stack; project.make-task and task.make-project are the same from
-// the palette and the CLI (--target ID), and from the outline's rows
-// outline-project.demote and outline-task.promote.
+// the palette and the CLI (--target ID), and on the outline's rows (whose
+// nouns are project and task).
 
 // defineConversions adds the conversion verbs; the outline's keys are
 // bound in defineOutline.
@@ -24,13 +24,12 @@ func (a *App) defineConversions() {
 	a.r.Define("project").Verb("make-task", a.makeTask, "Turn the project into a task of the project above it (or --parent): its tasks become the task's subtasks, its notes, items, panes and sessions the task's, its directories the parent's, its pin the parent's")
 	a.parameters("project.make-task", map[string]ochazuke.Parameter{"parent": {Type: "string", Noun: "project", Source: "projects.all", Free: true, Description: "The project id or name it becomes a task of; omitted, the project listed above it"}})
 	a.r.Define("task").Verb("make-project", a.makeProject, "Turn a task directly under its project into a project listed after it: its subtasks become the project's tasks, its notes, items, panes and sessions the project's, and every directory its panes, Vim sessions and context items name the project's directories")
-	for _, noun := range []string{outlineProjectNoun, outlineRootNoun} {
-		a.r.Define(noun).Verb("demote", a.outlineDemote, "Turn the project into a task of the project above it (tab); u undoes it")
-	}
-	a.r.Define(outlineTaskNoun).Verb("promote", a.outlinePromote, "Turn a task directly under its project into a project listed after it (shift+tab); u undoes it")
 }
 
-// makeTask is project.make-task.
+// makeTask is project.make-task. With no parent, on an outline row (tab)
+// it becomes a task of the project row drawn above it (a project just
+// added with o sits under the row it was added below, not last as the
+// store lists it), else of the project the store lists above it.
 func (a *App) makeTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(ctx.NeedTarget("target", ""))
@@ -39,29 +38,10 @@ func (a *App) makeTask(ctx ochazuke.Ctx) ochazuke.Result {
 	if id, ok := a.projectNamed(parent); parent != "" && ok {
 		parent = id
 	}
-	conv, err := a.projectToTask(projectOfRoot(ctx.Instance.ID), parent)
-	return a.converted(ctx, conv, err)
-}
-
-// makeProject is task.make-project.
-func (a *App) makeProject(ctx ochazuke.Ctx) ochazuke.Result {
-	if ctx.Instance == nil {
-		return ochazuke.Failed(ctx.NeedTarget("target", ""))
+	if parent == "" {
+		parent = a.projectRowAbove(ctx.Instance.ID)
 	}
-	conv, err := a.taskToProject(taskOf(ctx.Instance.ID))
-	return a.converted(ctx, conv, err)
-}
-
-// outlineDemote is tab on an outline project row: it becomes a task of
-// the project row drawn above it (a project just added with o sits under
-// the row it was added below, not last as the store lists it), else of
-// the project the store lists above it.
-func (a *App) outlineDemote(ctx ochazuke.Ctx) ochazuke.Result {
-	id, err := a.outlineProject(ctx)
-	if err != nil {
-		return ochazuke.Failed(err)
-	}
-	conv, err := a.projectToTask(id, a.projectRowAbove(ctx.Instance.ID))
+	conv, err := a.projectToTask(a.r.ThingKey(ctx.Instance), parent)
 	return a.converted(ctx, conv, err)
 }
 
@@ -95,24 +75,32 @@ func (a *App) projectRowAbove(row string) string {
 	return ""
 }
 
-// outlinePromote is shift+tab on a task directly under its project
-// (outline-task.outdent, guarded) and outline-task.promote.
-func (a *App) outlinePromote(ctx ochazuke.Ctx) ochazuke.Result {
+// makeProject is task.make-project (shift+tab on a task directly under its
+// project in the outline).
+func (a *App) makeProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil {
 		return ochazuke.Failed(ctx.NeedTarget("target", ""))
 	}
-	// A project made in a project's outline leaves it (the outline shows
-	// one project), so a task with no title yet would become a project
-	// nobody sees and nothing names: it asks for a title first.
+	if res, refused := a.outlinePromote(ctx); refused {
+		return res
+	}
+	conv, err := a.taskToProject(a.r.ThingKey(ctx.Instance))
+	return a.converted(ctx, conv, err)
+}
+
+// outlinePromote is the outline's check before task.make-project on one of
+// its rows: a project made in a project's outline leaves it (the outline
+// shows one project), so a task with no title yet would become a project
+// nobody sees and nothing names; it asks for a title first.
+func (a *App) outlinePromote(ctx ochazuke.Ctx) (ochazuke.Result, bool) {
 	if o := a.outline; o != nil && !o.scope.all && o.tree != nil {
 		for _, n := range o.tree.Nodes() {
 			if n.ID == ctx.Instance.ID && strings.TrimSpace(n.Label) == "" {
-				return ochazuke.Failed(errors.New("Name the task first: a project made here leaves this outline"))
+				return ochazuke.Failed(errors.New("Name the task first: a project made here leaves this outline")), true
 			}
 		}
 	}
-	conv, err := a.taskToProject(taskOf(ctx.Instance.ID))
-	return a.converted(ctx, conv, err)
+	return ochazuke.Result{}, false
 }
 
 func (a *App) converted(ctx ochazuke.Ctx, conv work.Conversion, err error) ochazuke.Result {

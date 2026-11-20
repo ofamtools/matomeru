@@ -35,7 +35,7 @@ func (a *App) syncOutlineNotes(force bool) error {
 		a.observeArchiveList(list, func() error { return a.syncOutlineNotes(true) })
 	}
 	task := ""
-	if node, ok := o.tree.Selected(); ok && node.Noun == outlineTaskNoun {
+	if node, ok := o.tree.Selected(); ok && node.Parent != "" { // a task row: the top level is projects
 		task = taskOf(node.ID)
 	}
 	if !force && o.notesReady && task == o.notesTask {

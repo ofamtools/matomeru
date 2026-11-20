@@ -63,7 +63,6 @@ cmd/mtm/project.go	App.workData	join	/	2
 cmd/mtm/project.go	App.workItem	prefix-join	project:	1
 cmd/mtm/project.go	App.workItem	prefix-join	task:	1
 cmd/mtm/prompt_box.go	App.searchSkills	join	:	1
-cmd/mtm/quicknote.go	App.quickNoteOwner	prefix-split	outline:	1
 cmd/mtm/rail_icons.go	railGlyphFor	join	:	1
 cmd/mtm/rail_triage.go	App.actionLabel	join	/	1
 cmd/mtm/rail_triage.go	var paneTitledKinds	join	/	1

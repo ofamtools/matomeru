@@ -64,7 +64,6 @@ cmd/mtm/context_store.go	App.associateContextOne	K15	"Failed(…)"	1
 cmd/mtm/context_store.go	App.contextStore	K11	"Confirm: <expr> without Loses"	1
 cmd/mtm/context_store.go	App.createContextItem	K2	"type is required: one of %s"	1
 cmd/mtm/convert.go	App.converted	K15	"Failed(…)"	1
-cmd/mtm/convert.go	App.outlineDemote	K15	"Failed(…)"	1
 cmd/mtm/convert.go	App.outlinePromote	K3	"Name the task first: a project made here leaves this outline"	1
 cmd/mtm/copybuf.go	copyBuf.findChar	K15	"%q is not on this line"	1
 cmd/mtm/copybuf.go	copyBuf.move	K15	"no bracket on this line"	1
@@ -284,39 +283,20 @@ cmd/mtm/notes.go	App.newNote	K15	"Failed(…)"	6
 cmd/mtm/notes.go	App.viewNote	K15	"Failed(…)"	5
 cmd/mtm/notify.go	App.notificationSender	K15	"errors.New(…)"	2
 cmd/mtm/notify.go	App.notificationSender	K5	"no terminal output is attached"	1
-cmd/mtm/outline.go	App.defineOutline	K1	"When(\"outline-top-task\") without Fallback"	1
 cmd/mtm/outline.go	App.defineOutline	K15	"errors.New(…)"	1
-cmd/mtm/outline.go	App.defineOutline	K15	"no project stays at the top level"	1
-cmd/mtm/outline.go	App.defineOutline	K15	"no project stays last"	2
 cmd/mtm/outline.go	App.defineOutline	K15	"resultError(…)"	1
-cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot be deleted"	1
-cmd/mtm/outline.go	App.defineOutline	K6	"no project is not a project: it cannot be renamed"	1
+cmd/mtm/outline.go	App.moveTopRow	K14	"A task stays under a project: %w"	1	failure
 cmd/mtm/outline.go	App.openOutline	K15	"Failed(…)"	1
 cmd/mtm/outline.go	App.openOutline	K4	"unknown project %s"	1
 cmd/mtm/outline.go	App.openTodos	K15	"Failed(…)"	1
 cmd/mtm/outline.go	App.openTodos	K15	"resultError(…)"	1
 cmd/mtm/outline.go	App.openTodos	K15	"the outline is open under another modal"	1
-cmd/mtm/outline.go	App.outlineChooseMove	K15	"Failed(…)"	3
-cmd/mtm/outline.go	App.outlineChooseMove	K9	"the outline is not open"	1
-cmd/mtm/outline.go	App.outlineConfirmDeleteProject	K15	"Failed(…)"	2
-cmd/mtm/outline.go	App.outlineDeleteProject	K15	"Failed(…)"	3
-cmd/mtm/outline.go	App.outlineProject	K4	"unknown project %s"	1
-cmd/mtm/outline.go	App.outlineProject	K5	"select a project"	1
 cmd/mtm/outline.go	App.outlineStatus	K15	"Failed(…)"	1
-cmd/mtm/outline.go	App.outlineStatus	K15	"resultError(…)"	1
 cmd/mtm/outline.go	App.outlineTask	K5	"select a task: x and s set a task's status"	1
 cmd/mtm/outline.go	App.outlineTask	K9	"the outline is not open"	1
-cmd/mtm/outline.go	App.outlineTaskOf	K5	"select a task: x and s set a task's status"	1
-cmd/mtm/outline.go	App.outlineTaskOf	K9	"the outline is not open"	1
-cmd/mtm/outline.go	App.outlineTaskStandard	K5	"select a task to %s"	1
-cmd/mtm/outline.go	App.outlineTaskStatus	K15	"Failed(…)"	4
-cmd/mtm/outline.go	App.outlineTaskStatus	K15	"resultError(…)"	2
-cmd/mtm/outline.go	App.outlineTaskToggle	K15	"Failed(…)"	1
 cmd/mtm/outline.go	App.outlineToggle	K15	"Failed(…)"	1
-cmd/mtm/outline.go	App.moveTopRow	K14	"A task stays under a project: %w"	1	failure
 cmd/mtm/outline.go	App.showOutline	K14	"A task stays under a project: %w"	1	failure
 cmd/mtm/outline.go	App.showOutline	K15	"Failed(…)"	5
-cmd/mtm/outline.go	App.toggleOutlineTask	K15	"Failed(…)"	3
 cmd/mtm/outline.go	App.writeProjectRow	K4	"unknown project %s"	1
 cmd/mtm/outline_attach.go	App.defineOutlineAttachments	K1	"When(\"task-image-input\") without Fallback"	2
 cmd/mtm/outline_attach.go	App.detachTaskImage	K15	"Failed(…)"	1
@@ -328,7 +308,6 @@ cmd/mtm/outline_attach.go	App.detachTaskImage	K9	"the task editor has closed"	1
 cmd/mtm/outline_attach.go	App.pasteTaskImage	K15	"edit a task to attach an image"	1
 cmd/mtm/outline_attach.go	App.pasteTaskImage	K15	"no clipboard reader"	1
 cmd/mtm/outline_attach.go	App.taskAttachments	K15	"edit a task to remove an image"	1
-cmd/mtm/outline_relate.go	App.outlineAssociate	K3	"name the thing to associate (%v); C chooses a context item"	1
 cmd/mtm/outline_relate.go	App.outlineAttachContext	K15	"Failed(…)"	3
 cmd/mtm/owners.go	App.associateTaskOne	K15	"Failed(…)"	2
 cmd/mtm/pane_activity.go	App.copyActivity	K15	"Failed(…)"	1

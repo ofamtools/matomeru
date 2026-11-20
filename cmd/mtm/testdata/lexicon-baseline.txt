@@ -23,7 +23,6 @@ pair	projects/project
 pair	tasks/task
 plural-noun	dirs
 unclassified	dir-chooser
-unclassified	outline-none
 unclassified	page-group
 unclassified	pane-project
 unclassified	path-chooser

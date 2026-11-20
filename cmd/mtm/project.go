@@ -67,7 +67,7 @@ func (a *App) defineProject() {
 // the project; with name, color, glyph, harness or preset it is the
 // standard set of those given.
 func (a *App) editProject(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.projectByID(ctx.Instance.ID)
+	p, err := a.projectByID(a.r.ThingKey(ctx.Instance))
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -102,7 +102,7 @@ func (a *App) storedProject(id string) ochazuke.Result {
 func (a *App) associateDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 	projectID := ochazuke.StringArg(ctx.Args, "project", "")
 	if projectID == "" && ctx.Instance != nil {
-		if p, ok := a.project(ctx.Instance.ID); ok {
+		if p, ok := a.project(a.r.ThingKey(ctx.Instance)); ok {
 			projectID = p.ID
 		}
 	}
@@ -144,7 +144,7 @@ func (a *App) associateDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 }
 
 func (a *App) defaultProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	p, err := a.defaultDirectory(ctx, ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
+	p, err := a.defaultDirectory(ctx, a.r.ThingKey(ctx.Instance), a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
 	if err != nil {
 		return ochazuke.Failed(err)
 	}
@@ -158,7 +158,7 @@ func (a *App) defaultProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
 // this project only (other projects sharing it keep it, the disk is never
 // touched); removing the default promotes the next and says so.
 func (a *App) removeProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.detachDirectory(ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
+	return a.detachDirectory(a.r.ThingKey(ctx.Instance), a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")))
 }
 
 func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
@@ -189,7 +189,7 @@ func (a *App) detachDirectory(projectID, path string) ochazuke.Result {
 
 // editProjectDirectory is project.edit-directory: path is re-pointed at to.
 func (a *App) editProjectDirectory(ctx ochazuke.Ctx) ochazuke.Result {
-	return a.replaceDirectory(ctx.Instance.ID, a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")), ochazuke.StringArg(ctx.Args, "to", ""))
+	return a.replaceDirectory(a.r.ThingKey(ctx.Instance), a.expandPath(ochazuke.StringArg(ctx.Args, "path", "")), ochazuke.StringArg(ctx.Args, "to", ""))
 }
 
 func (a *App) replaceDirectory(projectID, path, to string) ochazuke.Result {

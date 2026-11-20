@@ -92,24 +92,10 @@ cmd/mtm/notes.go	App.defineNotes	"m"	1
 cmd/mtm/notes.go	App.defineNotes	"up"	1
 cmd/mtm/notes_doc.go	App.defineNoteDoc	"esc"	1
 cmd/mtm/nouns.go	App.bindNouns	a.r	1	the noun-file loader binding the key rows it read (NounFiles.Bind), not a Go key row
-cmd/mtm/outline.go	App.defineOutline	"A"	1
-cmd/mtm/outline.go	App.defineOutline	"C"	1
-cmd/mtm/outline.go	App.defineOutline	"J"	1
-cmd/mtm/outline.go	App.defineOutline	"K"	1
 cmd/mtm/outline.go	App.defineOutline	"O"	2
 cmd/mtm/outline.go	App.defineOutline	"T"	2
-cmd/mtm/outline.go	App.defineOutline	"X"	1
-cmd/mtm/outline.go	App.defineOutline	"d d"	2
-cmd/mtm/outline.go	App.defineOutline	"enter"	3
-cmd/mtm/outline.go	App.defineOutline	"i"	1
-cmd/mtm/outline.go	App.defineOutline	"m"	1
-cmd/mtm/outline.go	App.defineOutline	"n"	2
-cmd/mtm/outline.go	App.defineOutline	"o"	2
-cmd/mtm/outline.go	App.defineOutline	"s"	2
-cmd/mtm/outline.go	App.defineOutline	"shift+tab"	1
-cmd/mtm/outline.go	App.defineOutline	"tab"	2
-cmd/mtm/outline.go	App.defineOutline	"x"	2
-cmd/mtm/outline.go	App.defineOutline	k.key	1
+cmd/mtm/outline.go	App.defineOutline	"s"	1
+cmd/mtm/outline.go	App.defineOutline	"x"	1
 cmd/mtm/outline_attach.go	App.defineOutlineAttachments	"ctrl+v"	1
 cmd/mtm/pane_activity.go	App.definePaneActivities	"enter"	1
 cmd/mtm/pane_activity.go	App.definePaneActivities	"y"	1

@@ -36,9 +36,9 @@ type relation struct {
 // read (one per call).
 func (a *App) relations() []relation {
 	return []relation{
-		{noun: actionItemNoun, on: []string{"task", outlineTaskNoun, "pane", "project"}, param: inboxRelateParam, relate: a.relateActionItemTo},
-		{noun: contextNoun, on: []string{"task", outlineTaskNoun, "project"}, param: contextRelateParam, relate: a.relateContextItemTo},
-		{noun: "pane", on: []string{"task", outlineTaskNoun, "project"}, param: paneRelateParam, relate: a.relatePaneTo},
+		{noun: actionItemNoun, on: []string{"task", "pane", "project"}, param: inboxRelateParam, relate: a.relateActionItemTo},
+		{noun: contextNoun, on: []string{"task", "project"}, param: contextRelateParam, relate: a.relateContextItemTo},
+		{noun: "pane", on: []string{"task", "project"}, param: paneRelateParam, relate: a.relatePaneTo},
 	}
 }
 
@@ -114,7 +114,7 @@ func (a *App) associateProject(ctx ochazuke.Ctx) ochazuke.Result {
 	if ctx.Instance == nil || ctx.Instance.Noun != "project" {
 		return ochazuke.Failed(errors.New("target a project row"))
 	}
-	return rel.relate(id, relOwner{ProjectID: ctx.Instance.ID})
+	return rel.relate(id, relOwner{ProjectID: a.r.ThingKey(ctx.Instance)})
 }
 
 // associateTaskRelated is task.associate --<noun> ID.

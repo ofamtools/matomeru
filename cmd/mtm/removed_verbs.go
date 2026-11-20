@@ -16,8 +16,6 @@ var mtmRemovedVerbs = []namecheck.Removed{
 	purged("side", "list", "side.all"),
 	purged("store-table", "list", "store-table.all"),
 	purged("quick-note", "list", "quick-note.open-notes"),
-	purged("outline-project", "delete", "outline-project.delete-project"),
-	purged("outline-root", "delete", "outline-root.delete-project"),
 	purged("project-dir", "edit", "project-dir.retarget"),
 	purged("pane", "rename", `edit {field: "@label"} (r), or pane set ID @label=NAME`),
 	purged("session", "rename", `edit {field: "@label"} (r), or session set ID @label=NAME`),
