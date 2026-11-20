@@ -99,7 +99,7 @@ func (a *App) declareSettings() error {
 		ochazuke.Setting{Name: settingRefresh, Type: ochazuke.SettingDuration, Default: refreshEvery,
 			Description: "How often the Panes list reloads while the page is open"},
 		harnessSetting,
-		askPromptSetting, launchPickersSetting, launchCheckEverySetting,
+		askPromptSetting, askFollowSetting, askEnterSendsSetting, launchPickersSetting, launchCheckEverySetting,
 		ochazuke.Setting{Name: settingNotesTitleField, Type: ochazuke.SettingBoolean, Default: true,
 			Description: "Show the title field above the body in the note editor (a note's title is optional; empty, its first line stands in); the quick note is body-only either way"},
 		ochazuke.Setting{Name: settingTaskNotesPane, Type: ochazuke.SettingBoolean, Default: true,

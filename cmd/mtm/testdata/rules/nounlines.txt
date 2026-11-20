@@ -9,7 +9,7 @@ action-item	722
 context-item	765
 directory	2401
 focus-item	132
-note	4819
+note	4830	ask form: enter never sends, the agent's pane opens in the background (lane ask-stays-put, 2026-11-19)
 ochazuke.binding	53
 ochazuke.mode	3
 ochazuke.notice	21
@@ -17,12 +17,12 @@ ochazuke.page	142
 ochazuke.relation-kind	22
 ochazuke.setting	53
 pane	14463	daemon-fresh-resume 2026-11-19: fresh restart resumes agents (daemon_resume.go lists panes before the stop and resumes each in its window); +79 lines
-project	12311
+project	12321	ask form: enter never sends, the agent's pane opens in the background (lane ask-stays-put, 2026-11-19)
 relation	1331
 reminder	1067
 review	1585
 saved	1611
 schedule	1891
 session	9053	daemon-fresh-resume 2026-11-19: resume-agent takes the pane's session and window (daemon_resume.go); +95 lines
-task	9236
+task	9242	ask form: enter never sends, the agent's pane opens in the background (lane ask-stays-put, 2026-11-19)
 vim	1566

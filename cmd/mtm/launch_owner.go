@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -187,5 +188,20 @@ func (a *App) finishLaunch(done launched, owner Owner, version uint64) {
 	if done.Pane.Prompt == harness.PromptNotSent {
 		a.r.UI().Notify("prompt not sent: " + done.Pane.Note)
 		a.landErr = strings.TrimPrefix(a.landErr+"; prompt not sent: "+done.Pane.Note, "; ")
+	}
+}
+
+// finishLaunchInBackground ends a launch that leaves the view alone
+// (agent.start's focus false, ask.focus stay): the pane list takes the new
+// pane, the page and focus stay put, and a notice names the pane.
+func (a *App) finishLaunchInBackground(done launched) {
+	a.setPanes(done.Panes, nil)
+	name := cmp.Or(done.Pane.Name, done.Pane.Window)
+	a.r.UI().Notify("Agent started in pane " + name + " (" + done.Pane.Session + "); you stay here")
+	if done.Note != "" {
+		a.r.UI().Notify(done.Note)
+	}
+	if done.Pane.Prompt == harness.PromptNotSent {
+		a.r.UI().Notify("prompt not sent: " + done.Pane.Note)
 	}
 }

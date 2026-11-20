@@ -46,6 +46,24 @@ const defaultAskPrompt = "The owner asked this question (o-questions id {id}):\n
 	"Answer it. Then record your full answer on that question with question.question.answer " +
 	"(target {id}) through the mtm MCP gateway, or `mtm question.question answer --target {id} --answer TEXT`."
 
+// settingAskFollow says where the focus goes when agent.ask-new starts
+// its agent: off (the default) keeps the page and focus where they were
+// before the form opened and a notice names the new pane; on opens the
+// Panes page on the new pane, as agent.start does.
+const settingAskFollow = "ask.follow"
+
+var askFollowSetting = ochazuke.Setting{Name: settingAskFollow, Type: ochazuke.SettingBoolean, Default: false,
+	Description: "Open the new agent's pane once agent.ask-new (g q, ;) starts it; off keeps the page and focus you asked from and a notice names the new pane"}
+
+// settingAskEnterSends says whether enter sends the ask form: off (the
+// default) never sends, enter moves to the next field (a new line in the
+// question) and alt+enter sends from any field; on sends on enter once
+// the question has text, as any form's enter does.
+const settingAskEnterSends = "ask.enter-sends"
+
+var askEnterSendsSetting = ochazuke.Setting{Name: settingAskEnterSends, Type: ochazuke.SettingBoolean, Default: false,
+	Description: "Send the ask form (g q, ;) on enter once the question has text; off never sends on enter (a new line in the question, the next field elsewhere) and alt+enter sends"}
+
 var askPromptSetting = ochazuke.Setting{Name: settingAskPrompt, Type: ochazuke.SettingString, Default: defaultAskPrompt,
 	Description: "The first prompt agent.ask-new (g q) gives the new agent: {question} is the question as typed, {id} its o-questions id"}
 
@@ -150,6 +168,7 @@ func (a *App) startAsked(args ochazuke.Arguments, id string) error {
 			start[name] = v
 		}
 	}
+	start["focus"] = a.r.Settings().Bool(settingAskFollow)
 	start["prompt"] = askPrompt(cmp.Or(a.r.Settings().String(settingAskPrompt), defaultAskPrompt), ochazuke.StringArg(args, "question", ""), id)
 	if id != "" {
 		start["about"] = ochazuke.Ref{Noun: askQuestionNoun, Key: id}.String()
@@ -227,10 +246,11 @@ func (a *App) openAskForm(given ochazuke.Arguments) error {
 		}
 	}
 	_, err := a.r.OpenRecordEditor(askFormID, ochazuke.RecordSpec{
-		Title:  "Ask a new agent",
-		Fields: fields,
-		Insert: true,
-		Load:   func() (ochazuke.Record, error) { return values, nil },
+		Title:      "Ask a new agent",
+		Fields:     fields,
+		Insert:     true,
+		EnterMoves: !a.r.Settings().Bool(settingAskEnterSends),
+		Load:       func() (ochazuke.Record, error) { return values, nil },
 		Submit: func(rec ochazuke.Record) ochazuke.Result {
 			args := ochazuke.Arguments{}
 			for name, v := range rec {

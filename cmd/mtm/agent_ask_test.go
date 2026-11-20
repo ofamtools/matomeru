@@ -2,11 +2,14 @@ package main
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"ofam.dev/ochazuke"
+
+	"ofam.dev/matomeru/internal/daemon"
 )
 
 // g q opens the ask form with the question first: a multi-line text area,
@@ -98,5 +101,134 @@ func TestAskFormStartsTheAgentPastAValueTheHarnessDoesNotTake(t *testing.T) {
 	}
 	if !slices.ContainsFunc(a.m.Notices, func(n string) bool { return strings.Contains(n, `fast="but" not applied`) }) {
 		t.Fatalf("no notice for the stray fast: %q", a.m.Notices)
+	}
+}
+
+// altEnter presses alt+enter, the ask form's send key (form.run), and
+// lets the launch it starts finish.
+func altEnter(a *App) {
+	_, cmd := a.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
+	settle(a, cmd)
+}
+
+// askOpen opens the ask form over a fake launcher.
+func askOpen(t *testing.T) (*App, *fakeDaemon) {
+	t.Helper()
+	a := open(t)
+	d := &fakeDaemon{panes: a.panesd.(*fakePanes)}
+	a.launcher = d
+	press(t, a, "g", "q")
+	return a, d
+}
+
+// Typing in the question never sends it (the owner's 2026-11-19 report:
+// enter on the harness field sent the form): enter in the question is a
+// new line, and enter on any other field does that field's own thing (a
+// choice field opens its chooser, a text field moves on), never a send.
+func TestAskFormEnterNeverSends(t *testing.T) {
+	t.Parallel()
+	a, d := askOpen(t)
+	typeText(t, a, "one")
+	press(t, a, "enter")
+	typeText(t, a, "two")
+	for _, field := range askFields[1:] {
+		// Close a chooser enter opened: esc leaves its filter's insert,
+		// q closes it (esc is cooling down after leaving insert).
+		for _, key := range []string{"esc", "q"} {
+			if a.r.TopModal() != askFormID {
+				press(t, a, key)
+			}
+		}
+		for i := 0; a.r.FocusID() != askFormID+"/"+field; i++ {
+			if i > len(askFields) {
+				t.Fatalf("tab never reached %s: focus %q, top modal %q", field, a.r.FocusID(), a.r.TopModal())
+			}
+			press(t, a, "tab")
+		}
+		press(t, a, "enter")
+		if len(d.launches) != 0 || a.r.RecordEditor(askFormID) == nil {
+			t.Fatalf("enter on %s sent the form: launches %d, top modal %q", field, len(d.launches), a.r.TopModal())
+		}
+	}
+	if got := a.r.RecordEditor(askFormID).Values()["question"]; got != "one\ntwo" {
+		t.Fatalf("question %q, want two lines", got)
+	}
+}
+
+// alt+enter sends the ask form once from any field, in insert or normal.
+func TestAskFormAltEnterSendsOnceFromAnyField(t *testing.T) {
+	t.Parallel()
+	for _, field := range askFields {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			a, d := askOpen(t)
+			typeText(t, a, "why")
+			for a.r.FocusID() != askFormID+"/"+field {
+				press(t, a, "tab")
+			}
+			altEnter(a)
+			if len(d.launches) != 1 || a.r.TopModal() != "" {
+				t.Fatalf("from %s: launches %d, top modal %q; notices %q", field, len(d.launches), a.r.TopModal(), a.m.Notices)
+			}
+		})
+	}
+}
+
+// ask.follow off (the default) leaves the page and focus where they were
+// before the form opened, the new pane in the list unfocused, and a
+// notice names it; on opens the new pane, as agent.start does.
+func TestAskFollowSetting(t *testing.T) {
+	t.Parallel()
+	for _, follow := range []bool{false, true} {
+		t.Run(strconv.FormatBool(follow), func(t *testing.T) {
+			t.Parallel()
+			a := open(t)
+			if err := a.r.Settings().Set(settingAskFollow, strconv.FormatBool(follow)); err != nil {
+				t.Fatal(err)
+			}
+			d := &fakeDaemon{panes: a.panesd.(*fakePanes)}
+			a.launcher = d
+			page, focus := a.r.Page, a.r.FocusID()
+			press(t, a, "g", "q")
+			typeText(t, a, "why")
+			altEnter(a)
+			if len(d.launches) != 1 {
+				t.Fatalf("launches %d; notices %q", len(d.launches), a.m.Notices)
+			}
+			row := pane{Session: d.launches[0].Session, Pane: daemon.Pane{ID: d.launches[0].ID}}.rowID()
+			stayed := a.r.Page == page && a.r.FocusID() == focus
+			if !follow {
+				if !stayed || a.r.Instances[row] == nil {
+					t.Fatalf("stay: page %q focus %q (before %q %q), row %s listed %v", a.r.Page, a.r.FocusID(), page, focus, row, a.r.Instances[row] != nil)
+				}
+				if !slices.ContainsFunc(a.m.Notices, func(n string) bool { return strings.Contains(n, "Agent started in pane") }) {
+					t.Fatalf("no notice names the pane: %q", a.m.Notices)
+				}
+				return
+			}
+			if a.r.Page != panesPage || a.r.FocusID() == focus {
+				t.Fatalf("follow: page %q focus %q, want the new pane on %s", a.r.Page, a.r.FocusID(), panesPage)
+			}
+		})
+	}
+}
+
+// ask.enter-sends on brings back enter sending the form once the
+// question has text (here from the harness field).
+func TestAskEnterSendsSettingOn(t *testing.T) {
+	t.Parallel()
+	a := open(t)
+	if err := a.r.Settings().Set(settingAskEnterSends, "true"); err != nil {
+		t.Fatal(err)
+	}
+	d := &fakeDaemon{panes: a.panesd.(*fakePanes)}
+	a.launcher = d
+	press(t, a, "g", "q")
+	typeText(t, a, "why")
+	press(t, a, "tab")
+	_, cmd := a.Update(keyMsg("enter"))
+	settle(a, cmd)
+	if len(d.launches) != 1 {
+		t.Fatalf("enter with ask.enter-sends on: launches %d", len(d.launches))
 	}
 }

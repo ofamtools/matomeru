@@ -9,7 +9,7 @@ reads one pane's state with what blocks it.
 | Verb | Use it when | What it does |
 | --- | --- | --- |
 | `agent.ask` | You need the answer now | Waits until the agent is at rest, types the question, returns the answer. Refuses an agent on needs_input. |
-| `agent.ask-new` | The question needs a new agent | Records the question in o-questions, then starts an agent (`agent.start`) told to answer it there; the new pane is related to the question. With no question, the owner's form, on `g q` or `;` (`ctrl+a ;` from a live terminal, where `ctrl+a g` is the side diff). |
+| `agent.ask-new` | The question needs a new agent | Records the question in o-questions, then starts an agent (`agent.start`) told to answer it there; the new pane is related to the question. With no question, the owner's form, on `g q` or `;` (`ctrl+a ;` from a live terminal, where `ctrl+a g` is the side diff); enter never sends the form, `alt+enter` does (`ask.enter-sends`), and the new pane opens in the background (`ask.follow`; `agent.start --focus false`). |
 | `agent.enqueue` | You give a busy agent its next task | Types the text as a prompt when the agent next comes to rest. Returns its place in the queue. |
 | `pane.send-text` | The pane runs a shell or a program, not an agent | Types at once. Do not use it to talk to an agent. |
 | `agent.peek-prompt` | An agent is on needs_input | Reads the prompt without attaching. Only the person answers it. |

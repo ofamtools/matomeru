@@ -214,6 +214,7 @@ func (a *App) defineLaunch() {
 		"task":    task,
 		"notice":  {Type: "string"},
 		"drive":   driveParam,
+		"focus":   {Type: "boolean", Description: "Show the new pane (default true: the Panes page, attached); false leaves the page and focus where they are and a notice names the pane"},
 	}
 	for name, p := range a.launchExtraParams() {
 		launchParams[name], startParams[name] = p, p
@@ -616,12 +617,17 @@ func (a *App) startAgent(ctx ochazuke.Ctx) ochazuke.Result {
 	task := ochazuke.StringArg(ctx.Args, "task", "")
 	owner := Owner{ProjectID: p.ID, TaskID: task, Notice: ochazuke.StringArg(ctx.Args, "notice", "")}
 	version := a.pinVersion
+	follow := boolArg(ctx.Args, "focus", true)
 	// The job is named after its harness: the ticker and the CLI's job
 	// line read "agent.launch claude running".
 	return ochazuke.Pending(a.launchJob(a.work.Actor(), owner, h, spec)).Then(func(_ ochazuke.Ctx, v any, err error) {
 		if done, ok := v.(launched); ok && err == nil {
 			a.recordReview(p.ID, task, done.Pane)
-			a.finishLaunch(done, owner, version)
+			if follow {
+				a.finishLaunch(done, owner, version)
+			} else {
+				a.finishLaunchInBackground(done)
+			}
 			a.relateAbout(done.Pane.Window, about)
 		}
 	}).Label(h.Name)
