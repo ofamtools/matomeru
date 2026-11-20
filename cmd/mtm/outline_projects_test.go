@@ -220,11 +220,12 @@ func TestOutlineRefusesChangingTheTopLevel(t *testing.T) {
 	if got := stored(t, a, "t1"); got.ProjectID != "matomeru" || rootOf(a.r.Tree(outlineTree), outlineNode("t1")) != projectNode("matomeru") {
 		t.Fatalf("u after shift+tab in the line: %+v roots %v", got, rootRows(a))
 	}
-	focusRow(t, a, projectNode(""))
-	refused(t, a, "tab", "top level")
-	refused(t, a, "i", "not a project")
-	refused(t, a, "d", "")
-	refused(t, a, "d", "not a project")
+	// "no project" is fixed (rootFixed): tab, i, d d, J and K leave it
+	// as it is, last.
+	for _, keys := range [][]string{{"tab"}, {"i"}, {"d", "d"}, {"J"}, {"K"}} {
+		focusRow(t, a, projectNode(""))
+		press(t, a, keys...)
+	}
 	if after := rootRows(a); !slices.Equal(before, after) {
 		t.Fatalf("roots changed: %v -> %v", before, after)
 	}

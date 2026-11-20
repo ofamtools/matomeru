@@ -442,7 +442,7 @@ func (a *App) outlineNodes(scope outlineScope, o *outlineState) ([]ochazuke.Tree
 		return a.outlineTaskNodes(tasks, root, private, exported, archived, o)
 	}
 	root := func(id, label string) ochazuke.TreeNode {
-		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true, Fixed: []string{ochazuke.TreeRemoveEmpty}, PutInto: true, Classes: []string{outlineProjectClass}}
+		return ochazuke.TreeNode{ID: projectNode(id), Label: label, Noun: rootNoun(projectNode(id)), Props: a.rootProps(projectNode(id)), Cells: a.rootCells(projectNode(id), label), SpaceAbove: true, Fixed: rootFixed(id == ""), PutInto: true, Classes: []string{outlineProjectClass}}
 	}
 	var nodes []ochazuke.TreeNode
 	if !scope.all {
@@ -484,6 +484,18 @@ func rootNoun(id string) string {
 		return outlineNoneNoun
 	}
 	return outlineProjectNoun
+}
+
+// rootFixed is what a top-level row keeps itself from (TreeNode.Fixed): a
+// project's row never goes when its name is emptied; "no project" (none),
+// which is not a project, is never renamed, moved or deleted, so i, J, K,
+// tab and d d on it do nothing there and go on to the keys after the
+// outline's.
+func rootFixed(none bool) []string {
+	if none {
+		return []string{ochazuke.TreeRemoveEmpty, ochazuke.TreeRename, ochazuke.TreeMove, ochazuke.TreeDelete}
+	}
+	return []string{ochazuke.TreeRemoveEmpty}
 }
 
 // outlineTaskNodes are one project's tasks as rows under root; private
@@ -872,7 +884,7 @@ func (a *App) outlineChanged(o *outlineState) error {
 			nodes[i].Cells, nodes[i].Noun = a.rootCells(n.ID, n.Label), rootNoun(n.ID)
 			nodes[i].Props = a.rootProps(n.ID)
 			nodes[i].SpaceAbove = true                                               // a project added in the outline gets the gap too
-			nodes[i].Fixed = []string{ochazuke.TreeRemoveEmpty}                      // emptying a project name never deletes the project
+			nodes[i].Fixed = rootFixed(rootNoun(n.ID) == outlineNoneNoun)            // emptying a project name never deletes the project
 			nodes[i].PutInto, nodes[i].Classes = true, []string{outlineProjectClass} // p on a project row puts tasks in it, never a new project; } and { walk it
 			continue
 		}

@@ -239,14 +239,6 @@ func TestOutlineShiftTabMakesATopTaskAProject(t *testing.T) {
 	}
 }
 
-// J and K stay refused on "no project" (it stays last).
-func TestOutlineNoProjectStaysLast(t *testing.T) {
-	t.Parallel()
-	a := allOutline(t, projectNode(""))
-	refused(t, a, "J", "stays last")
-	refused(t, a, "K", "stays last")
-}
-
 // project make-task and task make-project from the CLI.
 func TestConversionsFromTheCLI(t *testing.T) {
 	t.Parallel()
