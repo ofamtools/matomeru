@@ -258,6 +258,7 @@ edit	action	seed
 edit-condition	action	seed	
 edit-directory	action	seed	
 edit-fields	action	seed	
+edit-here	action	yes	edit a noun page's thing in place, its form in the frame's body (ochazuke v0.178.0 pages.frame)
 edit-stdin	action	seed	
 editor	noun	seed	
 effective_project	prop	seed	
@@ -701,6 +702,7 @@ ratio	prop	seed
 read	prop	seed	
 read-activities	prop	seed	
 read-at	prop	seed	
+read-cache	noun	yes	a kept answer of a store: a list's rows or a count, with the change token it was read under (ochazuke v0.179.0 ochazuke.read-cache)
 read-items	action	yes	pane.read-items: action-item.read on every open unread item of the pane
 read-settings	prop	seed	
 read-turns	prop	seed	
