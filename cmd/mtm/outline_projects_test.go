@@ -322,7 +322,10 @@ func TestPinnedOutlineRootRenamesTheProject(t *testing.T) {
 		t.Fatalf("no project roots %v", roots)
 	}
 	focusRow(t, c, projectNode(""))
-	refused(t, c, "i", "not a project")
+	press(t, c, "i") // fixed (rootFixed): no line opens
+	if c.outline.tree.Editing() != "" {
+		t.Fatalf("i opened the no-project line")
+	}
 }
 
 // Emptying an existing project's name never deletes the project, even when

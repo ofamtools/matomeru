@@ -56,6 +56,9 @@ func TestSavedTaskFiltersCycleWorkAndModal(t *testing.T) {
 	}
 	assertMakerFrame(t, a, "agents")
 	executeA(t, a, "project", "outline", "matomeru", nil)
+	// The outline's rows are projects and tasks: its cycle starts with the
+	// project noun's archived filter, then the task noun's.
+	press(t, a, "z", "]")
 	for _, name := range []string{"mine", "agents", "all"} {
 		press(t, a, "z", "]")
 		assertMakerFrame(t, a, name)
