@@ -76,7 +76,7 @@ func (d *domainDocs) Query(q ochazuke.DocQuery) (ochazuke.ListPage, error) {
 		if archived, _ := t[q.Hide].(bool); q.Hide != "" && archived {
 			continue
 		}
-		if ochazuke.TextMatches(t, q.TextFields, q.Text) {
+		if ochazuke.TextMatchesMode(t, q.TextFields, q.Text, q.TextMatch, q.TextCase) {
 			out = append(out, t)
 		}
 	}

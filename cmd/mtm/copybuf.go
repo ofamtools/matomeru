@@ -399,31 +399,17 @@ func (b *copyBuf) scroll(lines int, moveCursor bool) {
 }
 
 // searchFrom finds text from the cursor, down (or up with back), wrapping
-// at the buffer's ends; cm says whether case counts (search.case, through
-// Runtime.CaseFor: smart ignores it until the pattern holds a capital).
-func (b *copyBuf) searchFrom(cm ochazuke.CaseMatch, text string, back bool, steps int) error {
+// at the buffer's ends, matching as m says (search.match and search.case).
+func (b *copyBuf) searchFrom(m ochazuke.Matcher, text string, back bool, steps int) error {
 	if text == "" {
 		return errors.New("no search pattern")
 	}
-	needle := []rune(text)
-	for i, r := range needle {
-		needle[i] = cm.Rune(r)
-	}
-	match := func(p copyPos) bool {
-		l := b.line(p.row)
-		if p.col < 0 || p.col+len(needle) > len(l) {
-			return false
-		}
-		for i, r := range needle {
-			if cm.Rune(l[p.col+i]) != r {
-				return false
-			}
-		}
-		return true
+	if err := m.Err(); err != nil {
+		return err
 	}
 	p := copyPos{b.row, b.col}
 	for range max(1, steps) {
-		q, ok := b.scanFrom(p, back, match)
+		q, ok := b.scanSpans(p, back, m)
 		if !ok {
 			return fmt.Errorf("pattern not found: %s", text)
 		}
@@ -434,39 +420,39 @@ func (b *copyBuf) searchFrom(cm ochazuke.CaseMatch, text string, back bool, step
 	return nil
 }
 
-// scanFrom visits every character after p (before it with back), wrapping
-// once around the buffer, and returns the first that match accepts.
-func (b *copyBuf) scanFrom(p copyPos, back bool, match func(copyPos) bool) (copyPos, bool) {
+// scanSpans visits every match of m after p (before it with back), wrapping
+// once around the buffer, and returns the first match start.
+func (b *copyBuf) scanSpans(p copyPos, back bool, m ochazuke.Matcher) (copyPos, bool) {
 	n := len(b.lines)
+	if n == 0 {
+		return p, false
+	}
 	for i := 0; i <= n; i++ {
 		row := (p.row + i) % n
 		if back {
 			row = ((p.row-i)%n + n) % n
 		}
-		l := b.line(row)
-		lo, hi := 0, len(l)-1
-		switch {
-		case i == 0 && !back:
-			lo = p.col + 1
-		case i == 0 && back:
-			hi = p.col - 1
-		case i == n && !back:
-			hi = p.col
-		case i == n && back:
-			lo = p.col
+		spans := m.Spans(b.lines[row])
+		if len(spans) == 0 {
+			continue
 		}
+		maxCol := max(0, len(b.line(row))-1)
 		if back {
-			for col := hi; col >= lo; col-- {
-				if match(copyPos{row, col}) {
-					return copyPos{row, col}, true
+			for j := len(spans) - 1; j >= 0; j-- {
+				col := min(spans[j][0], maxCol)
+				if i == 0 && col >= p.col || i == n && col < p.col {
+					continue
 				}
+				return copyPos{row, col}, true
 			}
 			continue
 		}
-		for col := lo; col <= hi; col++ {
-			if match(copyPos{row, col}) {
-				return copyPos{row, col}, true
+		for _, s := range spans {
+			col := min(s[0], maxCol)
+			if i == 0 && col <= p.col || i == n && col > p.col {
+				continue
 			}
+			return copyPos{row, col}, true
 		}
 	}
 	return p, false

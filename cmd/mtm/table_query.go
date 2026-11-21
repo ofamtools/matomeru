@@ -144,7 +144,14 @@ func (t *tableQuery) translate(q ochazuke.ListQuery) (store.Query, bool) {
 		return sq, false
 	}
 	if strings.TrimSpace(q.Text) != "" {
-		if len(t.search) == 0 {
+		if len(t.search) == 0 || q.TextMatch == ochazuke.MatchRegex || q.TextMatch == ochazuke.MatchFuzzy {
+			return sq, false
+		}
+		caseMode := q.TextCase
+		if caseMode == "" {
+			caseMode = ochazuke.SearchCaseIgnore
+		}
+		if !ochazuke.CaseFor(caseMode, q.Text).Fold() {
 			return sq, false
 		}
 		sq.Search = q.Text

@@ -838,3 +838,66 @@ func TestCopyModeColors(t *testing.T) {
 		}
 	}
 }
+
+// Copy mode search follows search.match (regex, fuzzy, substring) with exact
+// rune column offsets forward and backward, and reports invalid regexes cleanly.
+func TestCopyModeSearchRegex(t *testing.T) {
+	t.Parallel()
+	lines := []string{
+		"  intro line",
+		"search here and filter there",
+		"café 42 find 99",
+	}
+	app, _, _ := copyApp(t, nil, lines)
+	if err := app.r.Settings().Set(ochazuke.SearchMatchSetting, ochazuke.MatchRegex); err != nil {
+		t.Fatal(err)
+	}
+	enterCopyMode(t, app)
+	search := func(pattern string, back bool) error {
+		_, err := app.r.Execute(ochazuke.Request{
+			Verb:   "search",
+			Noun:   copyNoun,
+			Target: copyID,
+			Args:   ochazuke.Arguments{"pattern": pattern, "back": back},
+		})
+		return err
+	}
+	keysAt(t, app, "g g", 0, 2)
+	if err := search("search|filter|find", false); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, "/search|filter|find", 1, 0)
+	keysAt(t, app, "n", 1, 16)
+	keysAt(t, app, "n", 2, 8)
+	keysAt(t, app, "N", 1, 16)
+	keysAt(t, app, "2 N", 2, 8)
+	if err := search("search|filter|find", true); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, "?search|filter|find", 1, 16)
+	keysAt(t, app, "n", 1, 0)
+	keysAt(t, app, "N", 1, 16)
+
+	keysAt(t, app, "g g 0", 0, 0)
+	if err := search(`\S+`, false); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, `/\S+`, 0, 2)
+	keysAt(t, app, "n", 0, 8)
+	keysAt(t, app, "N", 0, 2)
+
+	if err := search(`[0-9]+`, false); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, `/[0-9]+`, 2, 5)
+	keysAt(t, app, "n", 2, 13)
+	if err := search(`[0-9]+`, true); err != nil {
+		t.Fatal(err)
+	}
+	at(t, app, `?[0-9]+`, 2, 5)
+
+	if err := search(`[unclosed`, false); err == nil || !strings.Contains(err.Error(), "regex:") {
+		t.Fatalf("invalid regex: %v", err)
+	}
+	at(t, app, "invalid regex keeps cursor", 2, 5)
+}

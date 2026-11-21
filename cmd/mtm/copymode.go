@@ -250,7 +250,7 @@ func (a *App) defineCopy() {
 			return a.copyScrolled(before, by, dir)
 		}), "Scroll the copy view by half a page, a page or a line (dir 1 down, -1 up)").Motion().
 		Verb("next", a.copyOp(func(c *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
-			return c.buf.searchFrom(r.CaseFor(c.buf.search), c.buf.search, c.buf.back != boolArg(args, "reverse", false), ochazuke.IntArg(args, "steps", 1))
+			return c.buf.searchFrom(r.Matcher(r.SearchMatch(), c.buf.search), c.buf.search, c.buf.back != boolArg(args, "reverse", false), ochazuke.IntArg(args, "steps", 1))
 		}), "Move to the next match of the last search (reverse: the previous)").Motion().
 		Verb("search", a.copySearch, "Search the copy buffer: down, or up with back; case as search.case says (smart: a pattern without a capital ignores it)").
 		Verb("select", a.copyOp(func(_ *copyMode, r *ochazuke.Runtime, args ochazuke.Arguments) error {
@@ -560,7 +560,7 @@ func (a *App) copySearch(ctx ochazuke.Ctx) ochazuke.Result {
 			return nil
 		}
 		c.buf.search, c.buf.back = text, back
-		return c.buf.searchFrom(a.r.CaseFor(text), text, back, 1)
+		return c.buf.searchFrom(a.r.Matcher(a.r.SearchMatch(), text), text, back, 1)
 	}
 	if text := ochazuke.StringArg(ctx.Args, "pattern", ""); text != "" {
 		return resultError(run(text))

@@ -208,14 +208,18 @@ func (d *DocTable) whereOf(n *ochazuke.Noun, q ochazuke.DocQuery) (docWhere, err
 		}
 		cells = append(cells, "COALESCE(instr(ofam_doc_cell(row -> "+path+"), ?), 0) > 0")
 	}
-	for _, word := range strings.Fields(strings.ToLower(q.Text)) {
-		if len(cells) == 0 {
-			conds = append(conds, "0")
-			continue
-		}
-		conds = append(conds, "("+strings.Join(cells, " OR ")+")")
-		for range cells {
-			w.args = append(w.args, word)
+	if textNeedsFallback(q) {
+		w.all = false
+	} else {
+		for _, word := range strings.Fields(strings.ToLower(q.Text)) {
+			if len(cells) == 0 {
+				conds = append(conds, "0")
+				continue
+			}
+			conds = append(conds, "("+strings.Join(cells, " OR ")+")")
+			for range cells {
+				w.args = append(w.args, word)
+			}
 		}
 	}
 	for _, f := range q.Filters {
@@ -532,6 +536,23 @@ func (d *DocTable) readPage(page ochazuke.ListPage, stmt string, args []any, gro
 	return page, rows.Err()
 }
 
+// textNeedsFallback reports whether q's text search needs ochazuke's Matcher
+// in Go (regex, fuzzy, or case-sensitive substring) rather than SQLite's
+// case-insensitive instr().
+func textNeedsFallback(q ochazuke.DocQuery) bool {
+	if strings.TrimSpace(q.Text) == "" {
+		return false
+	}
+	if q.TextMatch == ochazuke.MatchRegex || q.TextMatch == ochazuke.MatchFuzzy {
+		return true
+	}
+	caseMode := q.TextCase
+	if caseMode == "" {
+		caseMode = ochazuke.SearchCaseIgnore
+	}
+	return !ochazuke.CaseFor(caseMode, q.Text).Fold()
+}
+
 // fallback answers a request with a condition SQL cannot run exactly: the
 // documents meeting the rest are read, in insertion order, and the whole
 // request runs over them in Go.
@@ -541,5 +562,11 @@ func (d *DocTable) fallback(q ochazuke.DocQuery, w docWhere) (ochazuke.ListPage,
 	if err != nil {
 		return ochazuke.ListPage{}, err
 	}
-	return d.r.QueryAll(d.noun, page.Items, ochazuke.ListQuery{Filters: q.Filters, Sort: q.Sort, GroupBy: q.GroupBy, GroupSort: q.GroupSort, Page: q.Page, PerPage: q.PerPage, Archived: true}), nil
+	items := page.Items
+	if textNeedsFallback(q) {
+		items = slices.DeleteFunc(items, func(t ochazuke.Thing) bool {
+			return !ochazuke.TextMatchesMode(t, q.TextFields, q.Text, q.TextMatch, q.TextCase)
+		})
+	}
+	return d.r.QueryAll(d.noun, items, ochazuke.ListQuery{Filters: q.Filters, Sort: q.Sort, GroupBy: q.GroupBy, GroupSort: q.GroupSort, Page: q.Page, PerPage: q.PerPage, Archived: true}), nil
 }

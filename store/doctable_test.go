@@ -414,3 +414,64 @@ func TestDocTableRefusesUnsafeFieldNames(t *testing.T) {
 		t.Fatalf("dashed hide: %v %v", page, err)
 	}
 }
+
+// DocTable.Query matches MemDocTable for regex, fuzzy and case-sensitive
+// text queries (via Go fallback) while keeping ordinary case-insensitive
+// substring searches in SQLite.
+func TestDocTableQueryTextModes(t *testing.T) {
+	t.Parallel()
+	r := ochazuke.NewRuntime()
+	r.Config().Disable()
+	mem := ochazuke.NewMemDocTable(r, "doc")
+	r.Define("doc").Props(parityProps...).Store(ochazuke.DocStore(mem, "doc"))
+	_, d := docFixture(t, r, "doc")
+	docs := []ochazuke.Thing{
+		{"id": "d1", "title": "search engine 42", "kind": "Alpha"},
+		{"id": "d2", "title": "filter rows", "kind": "beta"},
+		{"id": "d3", "title": "find_item 99", "kind": "gamma"},
+		{"id": "d4", "title": "   ", "kind": "plain"},
+		{"id": "d5", "title": "UPPER case", "kind": "mixed"},
+	}
+	for _, doc := range docs {
+		id := fmt.Sprint(doc["id"])
+		if err := mem.Put(id, doc); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Put(id, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fields := []string{"id", "title", "kind"}
+	// Fast path: ordinary case-insensitive substring stays in SQLite.
+	fast, err := d.Query(ochazuke.DocQuery{Text: "search", TextFields: fields})
+	if err != nil || fast.Total != 1 || d.Fallbacks() != 0 {
+		t.Fatalf("fast substring: total %d err %v fallbacks %d", fast.Total, err, d.Fallbacks())
+	}
+	cases := []struct {
+		name      string
+		q         ochazuke.DocQuery
+		wantTotal int
+	}{
+		{"regex alternation", ochazuke.DocQuery{Text: `search|filter|find`, TextMatch: ochazuke.MatchRegex, TextFields: fields}, 3},
+		{"regex non-space", ochazuke.DocQuery{Text: `\S+`, TextMatch: ochazuke.MatchRegex, TextCase: ochazuke.SearchCaseSmart, TextFields: fields}, 5},
+		{"regex digits", ochazuke.DocQuery{Text: `[0-9]+`, TextMatch: ochazuke.MatchRegex, TextFields: []string{"title"}}, 2},
+		{"regex word-boundary chars", ochazuke.DocQuery{Text: `\w+_\w+`, TextMatch: ochazuke.MatchRegex, TextFields: []string{"title"}}, 1},
+		{"regex invalid", ochazuke.DocQuery{Text: `[unclosed`, TextMatch: ochazuke.MatchRegex, TextFields: fields}, 0},
+		{"fuzzy", ochazuke.DocQuery{Text: "fltr", TextMatch: ochazuke.MatchFuzzy, TextFields: []string{"title"}}, 1},
+		{"substring sensitive", ochazuke.DocQuery{Text: "UPPER", TextMatch: ochazuke.MatchSubstring, TextCase: ochazuke.SearchCaseSensitive, TextFields: []string{"title"}}, 1},
+		{"substring smart upper", ochazuke.DocQuery{Text: "Alpha", TextMatch: ochazuke.MatchSubstring, TextCase: ochazuke.SearchCaseSmart, TextFields: []string{"kind"}}, 1},
+	}
+	for _, tc := range cases {
+		want, err := mem.Query(tc.q)
+		if err != nil {
+			t.Fatalf("%s mem: %v", tc.name, err)
+		}
+		got, err := d.Query(tc.q)
+		if err != nil {
+			t.Fatalf("%s sqlite: %v", tc.name, err)
+		}
+		if got.Total != tc.wantTotal || pageOf(got) != pageOf(want) {
+			t.Errorf("%s:\n got %s\nwant %s (expected total %d)", tc.name, pageOf(got), pageOf(want), tc.wantTotal)
+		}
+	}
+}

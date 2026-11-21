@@ -192,4 +192,11 @@ func TestTableQueryTextMatchesWords(t *testing.T) {
 	if err != nil || page.Total != 10 { // item-4, item-40 to item-49, less the archived 40
 		t.Fatalf("context text: total %d err %v", page.Total, err)
 	}
+	// Regex text query falls back to QueryAll rather than pushing literal LIKE.
+	regexPage, err := a.r.Nouns[actionItemNoun].Store.Query(ochazuke.Ctx{}, ochazuke.ListQuery{
+		Text: `Item (12|25)$`, TextMatch: ochazuke.MatchRegex, Archived: true, Args: ochazuke.Arguments{"state": "all"},
+	})
+	if err != nil || regexPage.Total != 2 {
+		t.Fatalf("regex text: total %d err %v", regexPage.Total, err)
+	}
 }
