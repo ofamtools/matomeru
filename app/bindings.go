@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/widgets/form"
@@ -36,6 +37,12 @@ const (
 	CmdTermDetach     = "terminal.detach"
 	CmdTermInput      = "terminal.input"
 	CmdRunRerun       = "run.rerun"
+	CmdRunCancel      = "run.cancel"
+	CmdRunNew         = "run.new"
+	CmdExtRefresh     = "extension.refresh"
+	CmdExtRun         = "extension.run"
+	CmdTermPrefix     = "terminal.prefix"
+	CmdWake           = "app.wake"
 	CmdOutlineOpen    = "outline.open"
 	CmdOutlineJump    = "outline.jump"
 	CmdPagesPick      = "pages.pick"
@@ -130,6 +137,7 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(n, "terminal", "i", CmdTermAttach, "type in the pane")),
 		bind(n, "question", "enter", CmdAnswer, "answer"),
 		bind(n, "question", "a", CmdAnswer, "answer"),
+		bind(n, data.KindExtension, "enter", CmdExtRun, "run"),
 		bind(n, all, "enter", views.CmdOpen, "open"),
 		bind(n, SpaceWork, "backspace", CmdHistoryBack, "back"),
 		bind(n, SpaceWork, "H", CmdHistoryBack, "back"),
@@ -147,7 +155,11 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, all, "Z", views.CmdUnsnooze, "unsnooze"), "facts.snoozed"),
 		bind(n, all, "u", CmdUndo, "undo"),
 		bind(n, all, "ctrl+r", CmdRedo, "redo"),
-		bind(n, "run", "r", CmdRunRerun, "rerun"),
+		bind(n, data.KindRun, "r", CmdRunRerun, "rerun"),
+		bind(n, data.KindRun, "x", CmdRunCancel, "cancel"),
+		bind(n, SpaceRuns, "n", CmdRunNew, "run a command"),
+		bind(n, data.KindExtension, "r", CmdExtRun, "run"),
+		bind(n, SpaceExtensions, "R", CmdExtRefresh, "look for extensions"),
 
 		// Lists.
 		bind(n, all, "/", CmdFilterStart, "filter"),
@@ -173,6 +185,10 @@ func DefaultBindings() []core.Binding {
 		// Terminal: everything but the leader goes to the pane.
 		{Mode: ModeTerminal, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
 		bind(ModeTerminalLeader, all, "x", CmdTermDetach, "detach"),
+		with(bind(ModeTerminalLeader, all, "[", CmdTermPrefix, "copy mode"), map[string]any{"key": "["}),
+		with(bind(ModeTerminalLeader, all, "t", CmdTermPrefix, "side terminal"), map[string]any{"key": "t"}),
+		with(bind(ModeTerminalLeader, all, "v", CmdTermPrefix, "side vim"), map[string]any{"key": "v"}),
+		hidden(with(bind(ModeTerminalLeader, all, "ctrl+a", CmdTermPrefix, "send ctrl+a"), map[string]any{"key": "ctrl+a"})),
 
 		// Filter: typing narrows the list.
 		{Mode: ModeFilter, Class: core.ClassPrintable, Command: CmdFilterInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
@@ -212,6 +228,7 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(ModeForm, all, "g g", "motion.top", "first field")),
 		hidden(bind(ModeForm, all, "G", "motion.bottom", "last field")),
 		when(bind(ModeForm, all, "enter", form.CmdSubmit, "send answer"), "modal.id == \"answer\""),
+		when(bind(ModeForm, all, "enter", form.CmdSubmit, "run"), "modal.id == \"launch\""),
 		bind(ModeForm, all, "enter", CmdFormActivate, "change field"),
 		bind(ModeForm, all, "i", form.CmdEdit, "type"),
 		bind(ModeForm, all, "space", form.CmdToggle, "toggle"),
@@ -273,7 +290,14 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdTermAttach, "Type in the pane's terminal"),
 		spec(CmdTermDetach, "Leave the pane's terminal"),
 		{ID: CmdTermInput, Description: "Send a key to the pane", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}, {Name: "text", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		spec(CmdRunRerun, "Queue the focused run again", "editing"),
+		spec(CmdRunRerun, "Run the focused run again", "editing"),
+		spec(CmdRunCancel, "Cancel the focused run", "editing"),
+		spec(CmdRunNew, "Run a shell command as a run", "editing"),
+		spec(CmdExtRefresh, "Look for extensions and check their health", "editing"),
+		spec(CmdExtRun, "Run a command of the focused extension", "editing"),
+		{ID: CmdTermPrefix, Description: "The pane's prefix key and the key after it: [ copy mode, t side terminal, v side vim",
+			Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
+		{ID: CmdWake, Description: "Look at what changed off the UI goroutine", Meta: map[string]any{"internal": true}},
 		spec(CmdOutlineOpen, "Open the outline of every task"),
 		spec(CmdOutlineJump, "Open the selected task"),
 		spec(CmdPagesPick, "Pick a page of any pane"),

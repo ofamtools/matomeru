@@ -9,6 +9,8 @@
 //	mtm record undo
 //	mtm mcp tools
 //	mtm mcp call TOOL 'JSON'
+//	mtm mcp serve                            an MCP server (JSON-RPC 2.0) on stdin and stdout
+//	mtm migrate --from V1_DB [--dry-run | --apply]
 //
 // The CLI prints JSON; --format table prints records as a table.
 package main
@@ -20,9 +22,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 
 	tea "charm.land/bubbletea/v2"
@@ -30,6 +34,7 @@ import (
 	"ofam.dev/matomeru/app"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/migrate"
 	"ofam.dev/ochazuke/core"
 )
 
@@ -41,6 +46,10 @@ mtm record create KIND --title "..." [--field k=v ...]
 mtm record undo
 mtm mcp tools
 mtm mcp call TOOL 'JSON'
+mtm mcp serve                            MCP server on stdin/stdout (JSON-RPC 2.0, one message per line)
+mtm migrate --from V1_DB [--dry-run | --apply]
+                                         import a v1 mtm.db; prints a JSON report. The v1
+                                         file is only read. Nothing is written without --apply.
 
 --db PATH       the SQLite file (default: $MTM_DB, or the user data directory)
 --format table  print records as a table instead of JSON
@@ -50,12 +59,14 @@ mtm mcp call TOOL 'JSON'
 var cliActor = core.Actor{Kind: "user", ID: "cli", Label: "mtm CLI"}
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
 type options struct {
 	db, format, query, mode, title string
+	from                           string
 	seed, smoke, dump, help        bool
+	dryRun, apply                  bool
 	archived, starred              bool
 	fields                         []string
 	args                           []string
@@ -65,9 +76,9 @@ type options struct {
 // subcommand and its arguments.
 func parse(argv []string) (options, error) {
 	o := options{format: "json"}
-	text := map[string]*string{"--db": &o.db, "--format": &o.format, "--query": &o.query, "--mode": &o.mode, "--title": &o.title}
+	text := map[string]*string{"--db": &o.db, "--format": &o.format, "--query": &o.query, "--mode": &o.mode, "--title": &o.title, "--from": &o.from}
 	flags := map[string]*bool{"--seed-demo": &o.seed, "--smoke": &o.smoke, "--dump": &o.dump, "--help": &o.help, "-h": &o.help,
-		"--archived": &o.archived, "--starred": &o.starred}
+		"--archived": &o.archived, "--starred": &o.starred, "--dry-run": &o.dryRun, "--apply": &o.apply}
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
 		name, value, inline := strings.Cut(arg, "=")
@@ -148,10 +159,10 @@ func configDir() string {
 	return filepath.Join(home, ".config", "matomeru")
 }
 
-func run(argv []string, stdout, stderr io.Writer) int {
+func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	o, err := parse(argv)
 	if err == nil {
-		err = dispatch(o, stdout)
+		err = dispatch(o, stdin, stdout)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "mtm:", err)
@@ -160,13 +171,91 @@ func run(argv []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func dispatch(o options, stdout io.Writer) error {
+// samePath reports whether a and b name the same file.
+func samePath(a, b string) bool {
+	if x, err := filepath.Abs(a); err == nil {
+		a = x
+	}
+	if y, err := filepath.Abs(b); err == nil {
+		b = y
+	}
+	if a == b {
+		return true
+	}
+	ia, errA := os.Stat(a)
+	ib, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(ia, ib)
+}
+
+// runMigrate imports a v1 database into the v2 store and prints the report.
+// It is a dry run unless --apply is given. A dry run writes nothing: it reads
+// the v2 store when there is one (to tell new from unchanged) and does not
+// create it.
+func runMigrate(ctx context.Context, o options, stdout io.Writer) error {
+	const use = "usage: mtm migrate --from V1_DB [--dry-run | --apply]"
+	switch {
+	case len(o.args) != 1:
+		return errors.New(use)
+	case o.from == "":
+		return errors.New("migrate needs --from, the v1 mtm.db\n" + use)
+	case o.dryRun && o.apply:
+		return errors.New("--dry-run and --apply cannot both be given")
+	}
+	target := o.db
+	if target == "" {
+		var err error
+		if target, err = defaultDB(); err != nil {
+			return err
+		}
+	}
+	if samePath(o.from, target) {
+		return fmt.Errorf("--from %s is the v2 store itself; name the v1 mtm.db", o.from)
+	}
+	var store *data.Store
+	_, statErr := os.Stat(target)
+	if o.apply || statErr == nil || target == ":memory:" || strings.HasPrefix(target, "file:") {
+		var err error
+		if store, err = openStore(target); err != nil {
+			return err
+		}
+		defer store.Close()
+	}
+	rep, err := migrate.Import(ctx, store, migrate.Options{From: o.from, Apply: o.apply})
+	if err != nil {
+		return err
+	}
+	return printJSON(stdout, rep)
+}
+
+// runTUI opens the live app: commands run, extensions are found, panes have
+// real terminals and the store is watched for others' writes. Everything it
+// started is stopped when the program ends.
+func runTUI(store *data.Store) error {
+	a, err := app.New(store, app.Options{ConfigDir: configDir(), Live: true})
+	if err != nil {
+		return err
+	}
+	defer a.Close() // cancels runs, closes every pane session
+	p := tea.NewProgram(a.Shell)
+	stop := a.Start(p.Send)
+	_, err = p.Run()
+	stop()
+	return err
+}
+
+func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 	switch {
 	case o.help:
 		fmt.Fprint(stdout, usage)
 		return nil
 	case o.smoke:
 		return app.RunSmoke(stdout, o.dump)
+	case len(o.args) > 0 && o.args[0] == "migrate":
+		return runMigrate(ctx, o, stdout)
+	case o.from != "" || o.dryRun || o.apply:
+		return errors.New("--from, --dry-run and --apply belong to mtm migrate")
 	}
 	store, err := openStore(o.db)
 	if err != nil {
@@ -179,12 +268,8 @@ func dispatch(o options, stdout io.Writer) error {
 		}
 	}
 	if len(o.args) == 0 {
-		a, err := app.New(store, app.Options{ConfigDir: configDir()})
-		if err != nil {
-			return err
-		}
-		_, err = tea.NewProgram(a.Shell).Run()
-		return err
+		cancel() // the TUI reads ctrl+c itself
+		return runTUI(store)
 	}
 	sub := strings.Join(o.args[:min(2, len(o.args))], " ")
 	rest := o.args[min(2, len(o.args)):]
@@ -203,6 +288,15 @@ func dispatch(o options, stdout io.Writer) error {
 		return printJSON(stdout, cs)
 	case "mcp tools":
 		return printJSON(stdout, mcpui.New(store).ToolSpecs())
+	case "mcp serve":
+		if len(rest) != 0 {
+			return errors.New("usage: mtm mcp serve")
+		}
+		err := mcpui.ServeStdio(ctx, stdin, stdout, store, mcpui.New(store))
+		if errors.Is(err, context.Canceled) {
+			return nil // interrupted: a normal end for a server
+		}
+		return err
 	case "mcp call":
 		if len(rest) < 1 || len(rest) > 2 {
 			return errors.New("usage: mtm mcp call TOOL 'JSON'")
@@ -212,7 +306,7 @@ func dispatch(o options, stdout io.Writer) error {
 			raw = rest[1]
 		}
 		actor := core.Actor{Kind: "agent", ID: os.Getenv("MTM_PANE_ID"), Label: "mtm mcp call"}
-		out, err := mcpui.New(store).Call(context.Background(), actor, rest[0], json.RawMessage(raw))
+		out, err := mcpui.New(store).Call(ctx, actor, rest[0], json.RawMessage(raw))
 		if err != nil {
 			return err
 		}

@@ -719,3 +719,15 @@ func TestSnooze(t *testing.T) {
 		t.Fatalf("patch clearing snoozedUntil = %+v, %v", rec, err)
 	}
 }
+
+func TestLatestChangeSetNumber(t *testing.T) {
+	s := openTest(t)
+	if n, err := s.LatestChangeSetNumber(); err != nil || n != 0 {
+		t.Fatalf("empty store: %d, %v; want 0", n, err)
+	}
+	create(t, s, KindTask, map[string]any{"title": "a"})
+	rec := create(t, s, KindTask, map[string]any{"title": "b"})
+	if n, err := s.LatestChangeSetNumber(); err != nil || n != rec.ChangeSetNumber {
+		t.Fatalf("after two writes: %d, %v; want %d", n, err, rec.ChangeSetNumber)
+	}
+}

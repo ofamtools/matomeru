@@ -1157,6 +1157,15 @@ func (s *Store) ChangeSet(number int64) (*ChangeSet, error) {
 	return &cs, nil
 }
 
+// LatestChangeSetNumber returns the number of the newest change set, or 0
+// when nothing was written yet. A watcher compares it to tell that the store
+// changed.
+func (s *Store) LatestChangeSetNumber() (int64, error) {
+	var n int64
+	err := s.db.QueryRow("SELECT COALESCE(MAX(number), 0) FROM change_sets").Scan(&n)
+	return n, err
+}
+
 // History returns change sets, newest first: all of them (ref nil), the ones
 // that touched a noun (ref with an empty ID) or the ones that touched one
 // record. limit <= 0 means no limit.

@@ -8,6 +8,8 @@ charm.land/lipgloss/v2 v2.0.6 h1:EaGKeuA8FvF+v2BT5VmZd2LoYLaMZJXA5n34th8nCIQ=
 charm.land/lipgloss/v2 v2.0.6/go.mod h1:ipDDJNSGa1hlwDtSfW1s2/xR8Vdhbut4PXh2zEKZd0Q=
 charm.land/tone v0.1.0 h1:Zkt+57z72FFgEq03KcD44vkoP0nx/p9ZTKFNGcN94eQ=
 charm.land/tone v0.1.0/go.mod h1:NkPXXPADDO9RdGtE2eBtkeGYrjP8sH25PP8JeKUvyiI=
+github.com/Gaurav-Gosain/tuiffects v0.7.1 h1:B/oTfyZy0JEopXkeka93qOhlw8lel97YQteiBhQv6z0=
+github.com/Gaurav-Gosain/tuiffects v0.7.1/go.mod h1:nq3mjh/sHSS0wPWSJLHQV2kl6mm0kP1VhRrC9M8V4ak=
 github.com/adrg/xdg v0.5.3 h1:xRnxJXne7+oWDatRhR1JLnvuccuIeCoBu2rtuLqQB78=
 github.com/adrg/xdg v0.5.3/go.mod h1:nlTsY+NNiCBGCK2tpm09vRqfVzrc2fLmXGpBLF0zlTQ=
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=
@@ -66,8 +68,6 @@ github.com/ebitengine/purego v0.10.2 h1:W809HbnvzAxgdm+aOvlSekrM16wGCdT/e76+9tS7
 github.com/ebitengine/purego v0.10.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
-github.com/Gaurav-Gosain/tuiffects v0.7.1 h1:B/oTfyZy0JEopXkeka93qOhlw8lel97YQteiBhQv6z0=
-github.com/Gaurav-Gosain/tuiffects v0.7.1/go.mod h1:nq3mjh/sHSS0wPWSJLHQV2kl6mm0kP1VhRrC9M8V4ak=
 github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-ole/go-ole v1.3.0 h1:Dt6ye7+vXGIKZ7Xtk4s6/xVdGDQynvom7xCFEdWr6uE=
 github.com/go-ole/go-ole v1.3.0/go.mod h1:5LS6F96DhAwUc7C+1HLexzMXY1xGRSryjyPPKW6zv78=
@@ -206,6 +206,8 @@ tuios.dev/loom v0.2.3-0.20261031063707-452bfc53d580 h1:mVRRPZZa8B1X7+r95fMlY2vLy
 tuios.dev/loom v0.2.3-0.20261031063707-452bfc53d580/go.mod h1:E9+8RwfvUzPeDk4zokzyFOOAfgX9HShcQZMT4uGNSek=
 tuios.dev/plot v0.2.2-0.20261023124927-50c38920e301 h1:ICqI+4WFDSTIasBDN/uTOJEYufp0exgBl6+0KjE+PYs=
 tuios.dev/plot v0.2.2-0.20261023124927-50c38920e301/go.mod h1:YNjGUvsZUCEfRcs27dMp8Y09OYHMj7ahPdXN8jzXiKc=
+tuios.dev/progstatus v0.1.0 h1:6d/rQpXJvZzDK9uxNKhchb6lKVep/8eng0jyNVCaVTI=
+tuios.dev/progstatus v0.1.0/go.mod h1:T1xSzlBLLLwdTzerZcAq/SroDkLLCigxjxrxxy7U0Y0=
 tuios.dev/progstatus v0.1.2-0.20261030111253-c0f512aa3148 h1:QViiX2hALI5Eq0mBQgaDcp6FHOH+kmtFJwHY6CYyHW8=
 tuios.dev/progstatus v0.1.2-0.20261030111253-c0f512aa3148/go.mod h1:T1xSzlBLLLwdTzerZcAq/SroDkLLCigxjxrxxy7U0Y0=
 tuios.dev/shot v0.2.2-0.20261030111253-e3068c27991c h1:9MxsHHAy4r6pEgtb/VxyQFrkdMP7ODA5h6ySpO0ym10=

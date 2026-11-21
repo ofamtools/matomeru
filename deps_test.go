@@ -16,6 +16,9 @@ const (
 	sqlite   = "modernc.org/sqlite"
 	// bubbletea is allowed only in app and cmd/mtm.
 	bubbletea = "charm.land/bubbletea/v2"
+	// The PTY and the VT emulator are allowed only in ptyhost.
+	pty = "github.com/creack/pty"
+	vt  = "tuios.dev/vt"
 )
 
 type pkgError struct {
@@ -72,13 +75,16 @@ type policy struct {
 // foundation package, direct or transitive.
 var noTea = []string{"bubbletea", ochazuke + "/tea"}
 
+// noUI keeps a package free of every UI layer, not only Bubble Tea.
+var noUI = append([]string{"lipgloss", ochazuke + "/ui", ochazuke + "/widgets", ochazuke + "/buffer"}, noTea...)
+
 var policies = map[string]policy{
 	// The module root holds only this test.
 	mod: {},
 	// The Data API: no UI of any kind, direct or transitive.
 	mod + "/data": {
 		allow:      []string{sqlite, ochazuke + "/core"},
-		forbidDeps: append([]string{"lipgloss", ochazuke + "/ui", ochazuke + "/widgets", ochazuke + "/buffer"}, noTea...),
+		forbidDeps: noUI,
 	},
 	// MCP Open UI: ViewNode data over the store.
 	mod + "/mcpui": {
@@ -93,18 +99,41 @@ var policies = map[string]policy{
 		},
 		forbidDeps: noTea,
 	},
+	// Runs: the one place commands are executed, as run records in the store.
+	// No UI of any kind.
+	mod + "/runs": {
+		allow:      []string{mod + "/data", ochazuke + "/core"},
+		forbidDeps: noUI,
+	},
+	// Extensions: discovery over the store, execution only through runs.
+	mod + "/ext": {
+		allow:      []string{mod + "/data", mod + "/runs", ochazuke + "/core"},
+		forbidDeps: noUI,
+	},
+	// PTY sessions: a PTY, a VT emulator and the cursor type of Ochazuke's
+	// buffer. It knows nothing of the store, the views or the shell.
+	mod + "/ptyhost": {
+		allow:      []string{pty, vt, ochazuke + "/buffer"},
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke + "/ui", ochazuke + "/widgets"}, noTea...),
+	},
+	// The v1 importer: SQLite to read v1, the Data API to write v2. No UI.
+	mod + "/migrate": {
+		allow:      []string{sqlite, mod + "/data", ochazuke + "/core"},
+		forbidDeps: noUI,
+	},
 	// The application: the only package that wires the foundation onto the
 	// engine and its Bubble Tea shell.
 	mod + "/app": {
 		allow: []string{
-			mod + "/data", mod + "/mcpui", mod + "/views", bubbletea,
+			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", bubbletea,
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
 		},
 	},
-	// The binary: flags and JSON around app, data and mcpui. It builds no views.
+	// The binary: flags and JSON around app, data, mcpui and migrate. It builds
+	// no views, and reaches runs, ext and ptyhost only through app.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", ochazuke + "/core", bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", ochazuke + "/core", bubbletea},
 	},
 }
 
@@ -129,7 +158,7 @@ func TestDependencyBoundaries(t *testing.T) {
 		}
 		byPath[p.ImportPath] = p
 	}
-	for _, req := range []string{"data", "mcpui", "views", "app", "cmd/mtm"} {
+	for _, req := range []string{"data", "mcpui", "views", "runs", "ext", "ptyhost", "migrate", "app", "cmd/mtm"} {
 		if _, ok := byPath[mod+"/"+req]; !ok {
 			t.Fatalf("required package %q missing from go list ./...", mod+"/"+req)
 		}

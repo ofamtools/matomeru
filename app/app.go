@@ -9,6 +9,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +22,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/ext"
 	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/ptyhost"
+	"ofam.dev/matomeru/runs"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/config"
 	"ofam.dev/ochazuke/core"
@@ -77,6 +81,7 @@ const (
 	modalRef     = "ref"
 	modalForm    = "form"
 	modalAnswer  = "answer"
+	modalLaunch  = "launch"
 )
 
 // Actors. The owner's changes are theirs to undo; a page marked as viewed
@@ -97,6 +102,26 @@ type Options struct {
 	FS pathpicker.FS
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
+
+	// Live gives the app its real parts where none is set below: a Runner
+	// over the store, an extension Manager, a local PTY host and the store
+	// watcher. Without it (and them) the app is synthetic: runs are only
+	// recorded, the Screen records prompts, and nothing runs off the UI
+	// goroutine. The smoke run and most tests are synthetic.
+	Live bool
+	// Runner runs commands as run records (r, x and n in Runs, "!cmd" in the
+	// palette).
+	Runner *runs.Runner
+	// Extensions discovers and runs extensions (R, enter and r in Extensions).
+	Extensions *ext.Manager
+	// Host holds the panes' PTY sessions: the Screen, Copy Mode, side panes.
+	Host ptyhost.Host
+	// Watch is how often Start checks the store for others' writes; 0 does
+	// not check (Live uses DefaultWatch).
+	Watch time.Duration
+	// ExtensionDirs are searched for extensions before PATH, ahead of the
+	// "extensionDirs" setting.
+	ExtensionDirs []string
 }
 
 // DefaultSettings are the settings and their defaults.
@@ -108,6 +133,8 @@ func DefaultSettings() map[string]any {
 		"matchMode":    "substring",
 		"mouse":        true,
 		"maxFPS":       otea.DefaultMaxFPS,
+		// Directories searched for extensions before PATH.
+		"extensionDirs": []any{},
 	}
 }
 
@@ -123,6 +150,8 @@ type formState struct {
 	about *core.Ref // a new note is attached to this record
 	// For an answer: the page and card it answers.
 	pageID, cardID string
+	// For a launch form: what enter runs. It reports whether to close the form.
+	submit func(core.State, map[string]any) (core.State, bool)
 }
 
 type termBuf struct {
@@ -142,6 +171,14 @@ type App struct {
 	// Warnings are problems found in the user's configuration. The app runs
 	// without the part that could not be read.
 	Warnings []string
+
+	// The live parts; nil in a synthetic app. See Options.
+	Runner     *runs.Runner
+	Extensions *ext.Manager
+	Host       ptyhost.Host
+	// Term reads the keys typed into a pane's session; nil without a Host.
+	Term *ptyhost.Controller
+	live liveState
 
 	opts     Options
 	bindings []core.Binding
@@ -166,6 +203,7 @@ type App struct {
 	refField    string
 	form        *formState
 	answer      *formState
+	launch      *formState
 	lastFocus   map[string]string // region -> its last focused node
 	focusRegion string
 
@@ -224,6 +262,12 @@ func New(store *data.Store, opts Options) (*App, error) {
 			return core.CommandEvent{Command: core.Command{ID: CmdTermInput, Args: map[string]any{"key": e.Key, "text": e.Text}, Source: "terminal", Actor: User}}
 		}
 	}
+	a.Shell.OnCustom = func(e core.CustomEffect) tea.Cmd {
+		if text, ok := e.Data.(string); ok && e.Kind == effectClipboard {
+			return tea.SetClipboard(text)
+		}
+		return nil
+	}
 	a.Shell.OnEmit = func(c core.Command) tea.Cmd {
 		a.gen++
 		a.status = "no handler for " + c.ID
@@ -232,6 +276,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	if len(a.Warnings) > 0 {
 		a.status = "config: " + strings.Join(a.Warnings, "; ")
 	}
+	a.setupLive(opts)
 	return a, nil
 }
 
@@ -785,7 +830,7 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 		if a.path != nil {
 			a.path.HandleCommand(c)
 		}
-	case modalForm, modalAnswer:
+	case modalForm, modalAnswer, modalLaunch:
 		if fs := a.formOf(id); fs != nil {
 			fs.fm.HandleCommand(c)
 		}
@@ -801,7 +846,7 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 
 func (a *App) dropModals(s core.State) core.State {
 	s.Modals = nil
-	a.form, a.answer, a.path = nil, nil, nil
+	a.form, a.answer, a.launch, a.path = nil, nil, nil, nil
 	return s
 }
 
@@ -942,6 +987,10 @@ func (a *App) rerun(s core.State, c core.Command) core.StepResult {
 		a.fail("rerun", err)
 		return core.Next(s)
 	}
+	if a.Runner != nil {
+		rec, err := a.Runner.Rerun(context.Background(), ref.ID, runActor)
+		return core.Next(a.started(s, "ran "+old.Text("title")+" again", rec, err))
+	}
 	fields := map[string]any{"runStatus": "queued"}
 	for _, name := range []string{"title", "command", "cwd", "task"} {
 		if v, has := old.Value(name); has {
@@ -963,8 +1012,11 @@ func (a *App) rerun(s core.State, c core.Command) core.StepResult {
 // --- forms: edit, new, answer -----------------------------------------------------
 
 func (a *App) formOf(modal string) *formState {
-	if modal == modalAnswer {
+	switch modal {
+	case modalAnswer:
 		return a.answer
+	case modalLaunch:
+		return a.launch
 	}
 	return a.form
 }
@@ -1126,6 +1178,13 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 		a.answer = nil
 		a.say("answered %q · u undoes", fm.Title)
 		return core.Next(closeModal(s, modalAnswer))
+	case res.Submitted && modal == modalLaunch:
+		next, done := fs.submit(s, res.Values)
+		if done {
+			a.launch = nil
+			next = closeModal(next, modalLaunch)
+		}
+		return core.Next(next)
 	case len(res.ErrorFields) > 0:
 		a.say("still needed: %s", strings.Join(res.ErrorFields, ", "))
 	case res.Cancelled:
@@ -1308,6 +1367,14 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		pm.BackspaceQuery()
 		return core.Next(s)
 	}
+	if line, shell := strings.CutPrefix(pm.Query, "!"); shell && id == modalPalette && c.ID == picker.CmdConfirm {
+		// "!cmd" in the palette runs cmd as a run.
+		if line = strings.TrimSpace(line); line == "" {
+			a.say("type a shell command after !")
+			return core.Next(s)
+		}
+		return core.Next(a.startShell(closeModal(s, id), "", line, ""))
+	}
 	picked, _ := pm.HandleCommand(c)
 	if picked == nil {
 		return core.Next(s)
@@ -1382,8 +1449,7 @@ func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
 	if err != nil || page.Text("pageKind") == "screen" {
 		// The Screen: the live terminal. Enter goes straight into it.
 		a.activePage[pane.ID] = ref.ID
-		a.say("typing goes to the pane · ctrl+a x leaves")
-		return core.Next(withMode(withFocus(s, siteScreen), ModeTerminal))
+		return core.Next(a.enterScreen(withFocus(s, siteScreen), *pane))
 	}
 	s = a.openPage(s, pane.ID, *page)
 	a.gen++
@@ -1624,24 +1690,65 @@ func (a *App) termOf(pane string) *termBuf {
 	return a.term[pane]
 }
 
-// termInput takes one key typed into the pane. A submitted line is the
-// owner's prompt: it moves the pane's promptedAt, and with it the rail.
+// enterScreen goes into the pane's terminal, opening its live session first
+// when the app has a host.
+func (a *App) enterScreen(s core.State, pane data.Record) core.State {
+	if err := a.attach(pane); err != nil {
+		a.fail("open "+pane.Text("title"), err)
+		return s
+	}
+	a.say("typing goes to the pane · ctrl+a x leaves")
+	return withMode(s, ModeTerminal)
+}
+
+// termInput takes one key typed into the pane. With a live session the key
+// goes to its program (or to Copy Mode); without one it is only echoed. Either
+// way a submitted line is the owner's prompt: it moves the pane's promptedAt,
+// and with it the rail.
 func (a *App) termInput(s core.State, c core.Command) core.StepResult {
 	pane, ok := a.SelectedPane()
 	if !ok {
 		return core.Next(s)
 	}
+	key, text := c.Arg("key"), c.Arg("text")
+	if a.Term == nil || !a.hasSession(pane.ID) {
+		a.typed(*pane, key, text, true)
+		return core.Next(s)
+	}
+	if f := a.live.frames[pane.ID]; f.Exited && key == "enter" {
+		return core.Next(a.enterScreen(s, *pane)) // the program ended: start it again
+	}
+	action := a.Term.Key(pane.ID, key)
+	if _, unknown := action.(ptyhost.ActionUnhandled); unknown && text != "" {
+		action = ptyhost.ActionSent{Data: []byte(text)}
+		if err := a.Host.Write(pane.ID, []byte(text)); err != nil {
+			action = ptyhost.ActionError{Err: err}
+		}
+	}
+	next, effects, sent := a.act(s, *pane, action)
+	if sent {
+		a.typed(*pane, key, text, false)
+	}
+	return core.Next(next, effects...)
+}
+
+// typed keeps the line being typed into a pane and records a submitted one as
+// the owner's prompt. echo also keeps the lines, for the Screen of a pane with
+// no live session.
+func (a *App) typed(pane data.Record, key, text string, echo bool) {
 	buf := a.termOf(pane.ID)
-	switch key, text := c.Arg("key"), c.Arg("text"); {
+	switch {
 	case key == "enter":
-		buf.lines = append(buf.lines, "❯ "+buf.typed)
+		if echo {
+			buf.lines = append(buf.lines, "❯ "+buf.typed)
+			buf.lines = buf.lines[max(0, len(buf.lines)-200):]
+		}
 		if strings.TrimSpace(buf.typed) != "" {
 			if _, _, err := a.Store.RecordPaneInput(pane.Ref(), prompter); err != nil {
 				a.fail("prompt", err)
 			}
 		}
 		buf.typed = ""
-		buf.lines = buf.lines[max(0, len(buf.lines)-200):]
 	case key == "backspace":
 		if r := []rune(buf.typed); len(r) > 0 {
 			buf.typed = string(r[:len(r)-1])
@@ -1650,8 +1757,9 @@ func (a *App) termInput(s core.State, c core.Command) core.StepResult {
 		buf.typed += " "
 	case text != "":
 		buf.typed += text
+	case key == "ctrl+c" || key == "ctrl+u":
+		buf.typed = ""
 	}
-	return core.Next(s)
 }
 
 // --- registration ---------------------------------------------------------------
@@ -1665,6 +1773,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		out := fn(s, c)
 		a.gen++
 		out.State = a.settle(out.State)
+		a.markDrawn()
 		return out
 	})
 }
@@ -1678,6 +1787,8 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.form = nil
 	case modalAnswer:
 		a.answer = nil
+	case modalLaunch:
+		a.launch = nil
 	case modalPath:
 		a.path = nil
 	}
@@ -1733,6 +1844,13 @@ func (a *App) register() {
 	a.handle(CmdUndo, a.undo(false))
 	a.handle(CmdRedo, a.undo(true))
 	a.handle(CmdRunRerun, a.rerun)
+	a.handle(CmdRunCancel, a.runCancel)
+	a.handle(CmdRunNew, a.runNew)
+	a.handle(CmdExtRefresh, a.extRefresh)
+	a.handle(CmdExtRun, a.extRun)
+	a.handle(CmdTermPrefix, a.termPrefix)
+	// A wake-up is not a command of the owner's: it redraws only what changed.
+	a.Engine.Handle(CmdWake, a.wakeUp)
 
 	a.handle(CmdSiteFocus, a.siteFocus)
 	a.handle(CmdSitePageOpen, a.sitePageOpen)
@@ -1742,8 +1860,12 @@ func (a *App) register() {
 			a.say("no terminal is focused")
 			return core.Next(s)
 		}
-		a.say("typing goes to the pane · ctrl+a x leaves")
-		return core.Next(withMode(s, ModeTerminal))
+		pane, ok := a.SelectedPane()
+		if !ok {
+			a.say("no pane is selected")
+			return core.Next(s)
+		}
+		return core.Next(a.enterScreen(s, *pane))
 	})
 	a.handle(CmdTermDetach, func(s core.State, _ core.Command) core.StepResult {
 		if s.ActiveFrame().Mode == ModeTerminal {
@@ -1799,7 +1921,7 @@ func (a *App) register() {
 	})
 	a.handle(CmdPaletteOpen, func(s core.State, _ core.Command) core.StepResult {
 		pm := picker.New("Commands", a.paletteItems())
-		pm.Placeholder = "a command"
+		pm.Placeholder = "a command · !cmd runs a shell command"
 		return core.Next(a.openPicker(s, modalPalette, pm))
 	})
 	a.handle(CmdHelpOpen, func(s core.State, _ core.Command) core.StepResult {

@@ -4,8 +4,10 @@ go 1.26.0
 
 require (
 	charm.land/bubbletea/v2 v2.1.0
+	github.com/creack/pty v1.1.24
 	modernc.org/sqlite v1.60.1
 	ofam.dev/ochazuke v0.0.0
+	tuios.dev/vt v0.3.3-0.20261030005101-f3383d2005bd
 )
 
 require (
@@ -33,6 +35,7 @@ require (
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
+	tuios.dev/progstatus v0.1.0 // indirect
 )
 
 replace ofam.dev/ochazuke => ../ochazuke-next

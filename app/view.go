@@ -289,21 +289,28 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 			a.fail("read pages", err)
 		}
 		site = views.PaneSiteView(*pane, res.Items, a.activePage[pane.ID], a.tocFilter)
+		a.live.shown = ""
 		if screen := site.Find(siteScreen); screen != nil {
-			live := s.Pages[SpacePanes].Mode == ModeTerminal
-			screen.Props["lines"] = a.termLines(*pane, live)
+			if lines, cursor, badges, ok := a.liveScreen(*pane); ok {
+				screen.Props["lines"], screen.Props["cursor"] = lines, cursor
+				site.Find("site.content").Badges = badges
+			} else {
+				typing := s.Pages[SpacePanes].Mode == ModeTerminal
+				screen.Props["lines"] = a.termLines(*pane, typing)
+				site.Find("site.content").Badges = []ui.Badge{{Text: "not attached", Tone: "muted"}}
+			}
 		}
 	}
 	return ui.ViewNode{ID: "panes.split", Kind: ui.KindSplit, Ratio: 0.3, Gap: 1, Children: []ui.ViewNode{rail, site}}
 }
 
-// termLines is what the Screen page shows. This build records what is typed
-// as the owner's prompts; it does not attach a live terminal.
+// termLines is what the Screen page shows of a pane with no live session:
+// what is typed is recorded as the owner's prompts.
 func (a *App) termLines(pane data.Record, live bool) []string {
 	buf := a.termOf(pane.ID)
 	lines := []string{
 		fmt.Sprintf("%s · %s · %s", views.Title(a.schema(data.KindPane), pane), pane.Text("harness"), pane.Text("cwd")),
-		"No live terminal is attached in this build.",
+		a.noSession(),
 		"A line typed here is recorded as your prompt.",
 		"",
 	}
@@ -433,6 +440,13 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		ov := overlay(m.ID, panel.Title, 70, 0, panel.Children...)
 		ov.Scope, ov.Ref, ov.Badges, ov.Facts = panel.Scope, panel.Ref, panel.Badges, panel.Facts
 		return ov
+	case modalLaunch:
+		if a.launch == nil {
+			break
+		}
+		ov := overlay(m.ID, a.launch.fm.Title, 70, 0, a.launch.fm.View(modalLaunch+".form"))
+		ov.Scope = "launch"
+		return ov
 	case modalAnswer:
 		if a.answer == nil {
 			break
@@ -446,4 +460,12 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		}
 	}
 	return overlay(m.ID, m.ID, 40, 0, text("", "nothing to show", "muted"))
+}
+
+// noSession says why the Screen shows no live session.
+func (a *App) noSession() string {
+	if a.Host == nil {
+		return "No live terminal is attached in this build."
+	}
+	return "This pane has no live session yet. Enter starts one."
 }
