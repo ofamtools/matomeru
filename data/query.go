@@ -104,6 +104,11 @@ func fieldValue(rec Record, field string) any {
 		return rec.ArchiveStatus
 	case ColStarStatus:
 		return rec.StarStatus
+	case ColSnoozedUntil:
+		if rec.SnoozedUntil == nil {
+			return ""
+		}
+		return rec.SnoozedUntil.Format(TimeFormat)
 	case "createdAt":
 		return rec.CreatedAt.UnixNano()
 	case "updatedAt":

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS records (
 	created_at     INTEGER NOT NULL,
 	updated_at     INTEGER NOT NULL,
 	archived_at    INTEGER,
+	snoozed_until  INTEGER,
 	UNIQUE (kind, id)
 );
 CREATE INDEX IF NOT EXISTS records_kind_archive ON records (kind, archive_status, created_at);
@@ -131,7 +132,24 @@ func Open(dsn string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("data: create tables in %s: %w", dsn, err)
 	}
-	return &Store{db: db, reg: DefaultSchemas()}, nil
+	// A database made before snoozing gets the column added.
+	var hasSnooze int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('records') WHERE name = 'snoozed_until'").Scan(&hasSnooze); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("data: read columns of %s: %w", dsn, err)
+	}
+	if hasSnooze == 0 {
+		if _, err := db.Exec("ALTER TABLE records ADD COLUMN snoozed_until INTEGER"); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("data: add snoozed_until to %s: %w", dsn, err)
+		}
+	}
+	s := &Store{db: db, reg: DefaultSchemas()}
+	if err := s.ensureUniqueIndexes(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return s, nil
 }
 
 // Close closes the database.
@@ -142,8 +160,11 @@ func (s *Store) Close() error { return s.db.Close() }
 // kind without a schema is stored and read all the same.
 func (s *Store) Registry() *Registry { return s.reg }
 
-// SetRegistry replaces the schema registry.
-func (s *Store) SetRegistry(r *Registry) { s.reg = r }
+// SetRegistry replaces the schema registry and indexes its unique fields.
+func (s *Store) SetRegistry(r *Registry) {
+	s.reg = r
+	_ = s.ensureUniqueIndexes() // an index only speeds GetByField up
+}
 
 // JournalMode reports the database's journal mode ("wal" for files).
 func (s *Store) JournalMode() (string, error) {
@@ -225,7 +246,7 @@ func (s *Store) coerce(rec *Record) {
 	}
 }
 
-const recordCols = "kind, id, fields, read_only, archive_status, star_status, change_set, created_at, updated_at, archived_at"
+const recordCols = "kind, id, fields, read_only, archive_status, star_status, change_set, created_at, updated_at, archived_at, snoozed_until"
 
 func scanRecord(sc interface{ Scan(...any) error }) (Record, error) {
 	var (
@@ -233,8 +254,9 @@ func scanRecord(sc interface{ Scan(...any) error }) (Record, error) {
 		fields, readOnly string
 		created, updated int64
 		archived         sql.NullInt64
+		snoozed          sql.NullInt64
 	)
-	err := sc.Scan(&rec.Kind, &rec.ID, &fields, &readOnly, &rec.ArchiveStatus, &rec.StarStatus, &rec.ChangeSetNumber, &created, &updated, &archived)
+	err := sc.Scan(&rec.Kind, &rec.ID, &fields, &readOnly, &rec.ArchiveStatus, &rec.StarStatus, &rec.ChangeSetNumber, &created, &updated, &archived, &snoozed)
 	if err != nil {
 		return rec, err
 	}
@@ -253,6 +275,10 @@ func scanRecord(sc interface{ Scan(...any) error }) (Record, error) {
 	if archived.Valid {
 		t := fromNano(archived.Int64)
 		rec.ArchivedAt = &t
+	}
+	if snoozed.Valid {
+		t := fromNano(snoozed.Int64)
+		rec.SnoozedUntil = &t
 	}
 	return rec, nil
 }
@@ -439,12 +465,19 @@ func (t *txn) applyCreate(ch FieldChange) error {
 	if rec.ArchivedAt != nil {
 		archived = rec.ArchivedAt.UnixNano()
 	}
+	var snoozed any
+	if rec.SnoozedUntil != nil {
+		snoozed = rec.SnoozedUntil.UnixNano()
+	}
 	readOnly := rec.ReadOnly
 	if readOnly == nil {
 		readOnly = map[string]bool{}
 	}
-	_, err = t.tx.Exec("INSERT INTO records ("+recordCols+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		rec.Kind, rec.ID, toJSON(rec.Fields), toJSON(readOnly), rec.ArchiveStatus, rec.StarStatus, t.num, unixNano(rec.CreatedAt), unixNano(t.now), archived)
+	if err := t.checkUnique(rec.Ref(), rec.Kind, rec.Fields, nil); err != nil {
+		return err
+	}
+	_, err = t.tx.Exec("INSERT INTO records ("+recordCols+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		rec.Kind, rec.ID, toJSON(rec.Fields), toJSON(readOnly), rec.ArchiveStatus, rec.StarStatus, t.num, unixNano(rec.CreatedAt), unixNano(t.now), archived, snoozed)
 	if err != nil {
 		return err
 	}
@@ -503,6 +536,19 @@ func (t *txn) applyValue(ch FieldChange) error {
 			cur = rec.ArchiveStatus
 		case ColStarStatus:
 			cur = rec.StarStatus
+		case ColSnoozedUntil:
+			// Unlike the two statuses, a snooze may be absent.
+			had, ch.HasNew = rec.SnoozedUntil != nil, ch.New != nil && Text(ch.New) != ""
+			if had {
+				cur = rec.SnoozedUntil.Format(TimeFormat)
+			}
+			if ch.HasNew {
+				until, err := time.Parse(TimeFormat, Text(ch.New))
+				if err != nil {
+					return fmt.Errorf("data: %s must be a time like %s: %w", ColSnoozedUntil, TimeFormat, err)
+				}
+				ch.New = until.UTC().Format(TimeFormat)
+			}
 		default:
 			return fmt.Errorf("data: %q is not a universal status column", ch.Field)
 		}
@@ -522,6 +568,9 @@ func (t *txn) applyValue(ch FieldChange) error {
 	case OpField:
 		if ch.HasNew {
 			rec.Fields[ch.Field] = ch.New
+			if err := t.checkUnique(ch.Ref, rec.Kind, rec.Fields, []string{ch.Field}); err != nil {
+				return err
+			}
 		} else {
 			delete(rec.Fields, ch.Field)
 		}
@@ -537,6 +586,15 @@ func (t *txn) applyValue(ch FieldChange) error {
 		value := Text(ch.New)
 		if ch.Field == ColStarStatus {
 			_, err = t.tx.Exec("UPDATE records SET star_status = ? WHERE kind = ? AND id = ?", value, ch.Ref.Kind, ch.Ref.ID)
+			break
+		}
+		if ch.Field == ColSnoozedUntil {
+			var until any
+			if ch.HasNew {
+				parsed, _ := time.Parse(TimeFormat, value) // checked above
+				until = parsed.UnixNano()
+			}
+			_, err = t.tx.Exec("UPDATE records SET snoozed_until = ? WHERE kind = ? AND id = ?", until, ch.Ref.Kind, ch.Ref.ID)
 			break
 		}
 		// The archive status and its time are written together, so they never drift.
@@ -787,6 +845,8 @@ func (s *Store) Patch(in PatchInput, actor core.Actor) (*Record, *ChangeSet, err
 			}
 			ch := FieldChange{Ref: in.Ref, Op: OpField, Field: k, New: nv, HasNew: nv != nil}
 			switch {
+			case k == ColSnoozedUntil:
+				ch.Op = OpStatus
 			case k == ColArchiveStatus || k == ColStarStatus:
 				if nv == nil {
 					nv = map[string]any{ColArchiveStatus: ArchiveActive, ColStarStatus: StarUnstarred}[k]
@@ -869,6 +929,39 @@ func (s *Store) Star(ref core.Ref, actor core.Actor) (*Record, *ChangeSet, error
 // Unstar is the opposite of Star.
 func (s *Store) Unstar(ref core.Ref, actor core.Actor) (*Record, *ChangeSet, error) {
 	return s.setStatus("unstar", ColStarStatus, StarUnstarred, ref, actor)
+}
+
+// Snooze hides a record until the given time. It is written like a status:
+// the record's fields and UpdatedAt do not move, and one undo takes it back.
+func (s *Store) Snooze(ref core.Ref, until time.Time, actor core.Actor) (*Record, *ChangeSet, error) {
+	if until.IsZero() {
+		return nil, nil, errors.New("data: snooze needs a time")
+	}
+	return s.change("snooze", FieldChange{Ref: ref, Op: OpStatus, Field: ColSnoozedUntil, New: until.UTC().Format(TimeFormat), HasNew: true}, actor)
+}
+
+// Unsnooze is the opposite of Snooze.
+func (s *Store) Unsnooze(ref core.Ref, actor core.Actor) (*Record, *ChangeSet, error) {
+	return s.change("unsnooze", FieldChange{Ref: ref, Op: OpStatus, Field: ColSnoozedUntil}, actor)
+}
+
+// RecordPaneInput records that input was sent to a pane. Only the owner's
+// own prompt moves promptedAt, which orders the pane rail; input from an
+// agent or the system is kept apart in lastAgentInputAt and lastAgentBy, so
+// an agent's send-text never reorders the rail.
+func (s *Store) RecordPaneInput(pane core.Ref, actor core.Actor) (*Record, *ChangeSet, error) {
+	fields := map[string]any{"promptedAt": WriteTime{}}
+	if actor.Kind != "user" {
+		by := actor.ID
+		if by == "" {
+			by = actor.Label
+		}
+		if by == "" {
+			by = actor.Kind
+		}
+		fields = map[string]any{"lastAgentInputAt": WriteTime{}, "lastAgentBy": by}
+	}
+	return s.Patch(PatchInput{Ref: pane, Fields: fields, Summary: "input to " + RefText(pane)}, actor)
 }
 
 // SetLocalOverride lays a local value over a field without changing the
@@ -1145,6 +1238,76 @@ func (s *Store) Undo(changeSetNum int64, actor core.Actor) (*ChangeSet, error) {
 	return s.revert("undo", target, actor)
 }
 
+// undoState reads the newest change sets (up to a bound) and reports, for
+// each one that was undone, how many of its undos have not been redone.
+func (s *Store) undoState() ([]ChangeSet, map[int64]int, map[int64]bool, error) {
+	history, err := s.History(nil, 2000)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	undoTarget := map[int64]int64{} // undo change set -> the change set it undid
+	for _, cs := range history {
+		if cs.Action == "undo" {
+			undoTarget[cs.Number] = cs.UndoOf
+		}
+	}
+	undone := map[int64]int{}    // change set -> undos not redone
+	redone := map[int64]bool{}   // undo change set -> a redo took it back
+	for _, cs := range history { // newest first
+		switch cs.Action {
+		case "undo":
+			undone[cs.UndoOf]++
+		case "redo":
+			if target, ok := undoTarget[cs.UndoOf]; ok && !redone[cs.UndoOf] {
+				redone[cs.UndoOf] = true
+				undone[target]--
+			}
+		}
+	}
+	return history, undone, redone, nil
+}
+
+func sameActor(a, b core.Actor) bool { return a.Kind == b.Kind && a.ID == b.ID }
+
+// UndoLast takes back the actor's newest change set that is not itself an
+// undo or redo and is not already undone. Other actors' writes are left
+// alone. It reports ErrNotFound when the actor has nothing left to undo.
+func (s *Store) UndoLast(actor core.Actor) (*ChangeSet, error) {
+	history, undone, _, err := s.undoState()
+	if err != nil {
+		return nil, err
+	}
+	for _, cs := range history {
+		if cs.Action == "undo" || cs.Action == "redo" || !sameActor(cs.Actor, actor) || undone[cs.Number] > 0 {
+			continue
+		}
+		return s.Undo(cs.Number, actor)
+	}
+	return nil, fmt.Errorf("%w: nothing to undo", ErrNotFound)
+}
+
+// RedoLast re-applies the actor's newest undo that has not been redone. A
+// newer write by the actor ends the redo chain, as in an editor.
+func (s *Store) RedoLast(actor core.Actor) (*ChangeSet, error) {
+	history, _, redone, err := s.undoState()
+	if err != nil {
+		return nil, err
+	}
+	for _, cs := range history {
+		if !sameActor(cs.Actor, actor) {
+			continue
+		}
+		switch {
+		case cs.Action == "redo", cs.Action == "undo" && redone[cs.Number]:
+			continue
+		case cs.Action == "undo":
+			return s.Redo(cs.Number, actor)
+		}
+		break // a newer write of the actor's own
+	}
+	return nil, fmt.Errorf("%w: nothing to redo", ErrNotFound)
+}
+
 // Redo re-applies an undone change set by undoing its undo. changeSetNum is
 // either the undo's own number or the number of the change set it undid (its
 // latest undo is used).
@@ -1164,4 +1327,156 @@ func (s *Store) Redo(changeSetNum int64, actor core.Actor) (*ChangeSet, error) {
 		target = &undo
 	}
 	return s.revert("redo", target, actor)
+}
+
+// --- natural keys -----------------------------------------------------------
+
+// plainField reports whether name can be written into a JSON path as is.
+func plainField(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+func plainKind(kind string) string {
+	var b strings.Builder
+	for _, r := range kind {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	return b.String()
+}
+
+// ensureUniqueIndexes creates one expression index per unique field of the
+// registry's schemas, so GetByField does not scan the kind.
+func (s *Store) ensureUniqueIndexes() error {
+	for _, schema := range s.reg.List() {
+		for _, field := range schema.UniqueFields {
+			if !plainField(field) || strings.ContainsAny(schema.Kind, "'\"") {
+				continue
+			}
+			stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS records_by_%s_%s ON records (json_extract(fields, '$.%s')) WHERE kind = '%s'",
+				plainKind(schema.Kind), field, field, schema.Kind)
+			if _, err := s.db.Exec(stmt); err != nil {
+				return fmt.Errorf("data: index %s.%s: %w", schema.Kind, field, err)
+			}
+		}
+	}
+	return nil
+}
+
+func byField(q querier, kind, field, value string, scopeField string, scope *core.Ref) ([]Record, error) {
+	if !plainField(field) || (scopeField != "" && !plainField(scopeField)) {
+		return nil, fmt.Errorf("data: %q is not a field name GetByField can look up", field)
+	}
+	query := "SELECT " + recordCols + " FROM records WHERE kind = ? AND json_extract(fields, '$." + field + "') = ?"
+	args := []any{kind, value}
+	if scopeField != "" {
+		if scope == nil {
+			query += " AND json_extract(fields, '$." + scopeField + ".id') IS NULL"
+		} else {
+			query += " AND json_extract(fields, '$." + scopeField + ".kind') = ? AND json_extract(fields, '$." + scopeField + ".id') = ?"
+			args = append(args, scope.Kind, scope.ID)
+		}
+	}
+	rows, err := q.Query(query+" ORDER BY created_at, seq", args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Record
+	for rows.Next() {
+		rec, err := scanRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rec)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) finish(q querier, recs []Record, what string) (*Record, error) {
+	if len(recs) == 0 {
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, what)
+	}
+	// Prefer a record that is not archived; among those, the oldest.
+	pick := recs[0]
+	for _, rec := range recs {
+		if !rec.IsArchived() {
+			pick = rec
+			break
+		}
+	}
+	return s.loadRecord(q, pick.Ref())
+}
+
+// GetByField finds a record of kind by the text value of one of its fields:
+// an extension by name, a page by slug. IDs stay opaque and stable; this is
+// the lookup by natural key. When several records share the value, the
+// oldest unarchived one is returned. The fields a schema lists in
+// UniqueFields are indexed.
+func (s *Store) GetByField(kind, field, value string) (*Record, error) {
+	recs, err := byField(s.db, kind, field, value, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.finish(s.db, recs, kind+" with "+field+" "+value)
+}
+
+// GetByFieldIn is GetByField within one scope: the record whose scopeField
+// refers to scope (a page by slug within its pane).
+func (s *Store) GetByFieldIn(kind, field, value, scopeField string, scope core.Ref) (*Record, error) {
+	recs, err := byField(s.db, kind, field, value, scopeField, &scope)
+	if err != nil {
+		return nil, err
+	}
+	return s.finish(s.db, recs, kind+" with "+field+" "+value+" in "+RefText(scope))
+}
+
+// checkUnique records a conflict when a write gives a record a value of one
+// of its schema's unique fields that another unarchived record already has.
+// only narrows the check to the fields just written (nil checks them all).
+// The write goes ahead either way.
+func (t *txn) checkUnique(ref core.Ref, kind string, fields map[string]any, only []string) error {
+	schema, ok := t.s.reg.Get(kind)
+	if !ok || len(schema.UniqueFields) == 0 {
+		return nil
+	}
+	var scope *core.Ref
+	if schema.UniqueScope != "" {
+		if r, ok := AsRef(fields[schema.UniqueScope]); ok {
+			scope = &r
+		}
+	}
+	for _, field := range schema.UniqueFields {
+		if only != nil && !slices.Contains(only, field) && !slices.Contains(only, schema.UniqueScope) {
+			continue
+		}
+		value, isText := fields[field].(string)
+		if !isText || value == "" || !plainField(field) {
+			continue
+		}
+		others, err := byField(t.tx, kind, field, value, schema.UniqueScope, scope)
+		if err != nil {
+			return err
+		}
+		for _, other := range others {
+			if other.Ref() == ref || other.IsArchived() {
+				continue
+			}
+			t.conflict(Conflict{Kind: ConflictUnique, Ref: ref, Field: field, Actual: value,
+				Message: fmt.Sprintf("%s %q is already used by %s; written anyway", field, value, RefText(other.Ref()))})
+			break
+		}
+	}
+	return nil
 }

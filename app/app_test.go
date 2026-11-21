@@ -1,0 +1,313 @@
+package app
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"ofam.dev/matomeru/data"
+	"ofam.dev/ochazuke/core"
+)
+
+func demo(t *testing.T) (*App, *Driver) {
+	t.Helper()
+	a, err := NewDemo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a.Store.Close() })
+	return a, NewDriver(a, 120, 36)
+}
+
+func titled(t *testing.T, a *App, kind, title string) data.Record {
+	t.Helper()
+	rec, err := a.Store.GetByField(kind, "title", title)
+	if err != nil {
+		t.Fatalf("%s %q: %v", kind, title, err)
+	}
+	return *rec
+}
+
+// The whole scripted run: every space, the pane site, the terminal, Show
+// pages, forms, undo and the overlays.
+func TestSmoke(t *testing.T) {
+	var out bytes.Buffer
+	if err := RunSmoke(&out, false); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+}
+
+// Seeding twice changes nothing, and the demo has every noun the spaces show.
+func TestSeedDemo(t *testing.T) {
+	a, _ := demo(t)
+	count := func() map[string]int {
+		out := map[string]int{}
+		for _, s := range a.Store.Registry().List() {
+			res, err := a.Store.Query(data.Query{Kind: s.Kind})
+			if err != nil {
+				t.Fatal(err)
+			}
+			out[s.Kind] = res.Total
+		}
+		return out
+	}
+	before := count()
+	for kind, min := range map[string]int{data.KindTask: 10, data.KindPane: 2, data.KindPage: 3, data.KindNote: 3, data.KindDocument: 2,
+		data.KindSchedule: 2, data.KindOccurrence: 2, data.KindRun: 3, data.KindExtension: 3} {
+		if before[kind] < min {
+			t.Errorf("%d %s records, want at least %d", before[kind], kind, min)
+		}
+	}
+	roots, _ := a.Store.Query(data.Query{Kind: data.KindTask, Roots: true})
+	if roots.Total != 2 {
+		t.Fatalf("%d root tasks, want the 2 projects", roots.Total)
+	}
+	if err := SeedDemo(a.Store); err != nil {
+		t.Fatal(err)
+	}
+	for kind, n := range count() {
+		if n != before[kind] {
+			t.Errorf("seeding again changed %s: %d, was %d", kind, n, before[kind])
+		}
+	}
+}
+
+// The rail follows the owner's prompts and nothing else.
+func TestRailFollowsOwnerPrompts(t *testing.T) {
+	a, d := demo(t)
+	first := titled(t, a, data.KindPane, "claude: wave 5B")
+	second := titled(t, a, data.KindPane, "nvim: core/keymap.go")
+	order := func() []string {
+		var ids []string
+		for _, row := range a.rail().Rows {
+			ids = append(ids, row.Ref.ID)
+		}
+		return ids
+	}
+	if got := order(); got[0] != first.ID || got[1] != second.ID {
+		t.Fatalf("rail = %v, want the pane prompted last first", got)
+	}
+	if _, _, err := a.Store.RecordPaneInput(second.Ref(), core.Actor{Kind: "agent", ID: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := order(); got[0] != first.ID {
+		t.Fatal("an agent's input reordered the rail")
+	}
+	// The owner types a prompt into the second pane: it moves to the top,
+	// and stays the selected pane.
+	d.Keys("j", "enter", "enter")
+	if a.Mode() != ModeTerminal {
+		t.Fatalf("mode = %s, want terminal", a.Mode())
+	}
+	d.Type("go on")
+	d.Keys("enter", "ctrl+a", "x")
+	sel, _ := a.SelectedPane()
+	if got := order(); got[0] != second.ID || sel == nil || sel.ID != second.ID || a.Mode() != ModeNormal {
+		t.Fatalf("after the owner's prompt: rail %v, selected %v, mode %s", got, sel, a.Mode())
+	}
+	// A prompt is not something "u" takes back.
+	d.Keys("u")
+	if now, _ := a.Store.Get(second.Ref()); now.Text("promptedAt") == second.Text("promptedAt") {
+		t.Fatal("undo took the prompt time back")
+	}
+}
+
+// N on a record writes a note about it; the note shows on its Show page.
+func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
+	a, d := demo(t)
+	task := titled(t, a, data.KindTask, "matomeru-v2")
+	d.Keys("2", "j", "N")
+	if a.Modal() != modalForm || !strings.Contains(d.Frame(), "New note") {
+		t.Fatalf("N did not open a new note form (modal %q)", a.Modal())
+	}
+	d.Keys("i")
+	d.Type("Ship it")
+	d.Keys("enter", "esc")
+	note := titled(t, a, data.KindNote, "Ship it")
+	about, err := a.Store.Related(note.Ref(), data.RelAbout, data.Outgoing)
+	if err != nil || len(about) != 1 || about[0].To != task.Ref() {
+		t.Fatalf("about relations = %v, %v", about, err)
+	}
+	if ref, ok := note.RefField("task"); !ok || ref != task.Ref() {
+		t.Fatalf("note.task = %v", ref)
+	}
+	d.Keys("enter")
+	root := a.View(a.State())
+	if shown, _ := a.Showing(); shown != task.Ref() || root.Find("show.sec.note.task."+data.RefText(note.Ref())) == nil {
+		t.Fatalf("Show page of %v does not list the note", shown)
+	}
+	// One undo removes the relation, the next the note.
+	d.Keys("u", "u")
+	if _, err := a.Store.Get(note.Ref()); err == nil {
+		t.Fatal("two undos left the note")
+	}
+}
+
+// A path field opens the path picker; the pick is written at once.
+func TestEditPathFieldUsesThePathPicker(t *testing.T) {
+	a, d := demo(t)
+	task := titled(t, a, data.KindTask, "ochazuke-v2")
+	d.Keys("2", "e", "j", "j", "j", "j", "j", "enter")
+	if a.Modal() != modalPath || a.pathField != "defaultDir" {
+		t.Fatalf("enter on defaultDir: modal %q, field %q", a.Modal(), a.pathField)
+	}
+	d.Keys("left")
+	d.Type("mato")
+	d.Keys("tab")
+	rec, _ := a.Store.Get(task.Ref())
+	if got := rec.Text("defaultDir"); got != "/home/owner/proj/matomeru-next" || a.Modal() != modalForm {
+		t.Fatalf("defaultDir = %q, modal %q", got, a.Modal())
+	}
+	// A reference field opens a picker over the records it may point at.
+	d.Keys("k", "enter")
+	if a.Modal() != modalRef || a.refField != "parent" {
+		t.Fatalf("enter on parent: modal %q, field %q", a.Modal(), a.refField)
+	}
+	d.Type("matomeru-v2")
+	d.Keys("enter")
+	rec, _ = a.Store.Get(task.Ref())
+	parent, _ := rec.RefField("parent")
+	if want := titled(t, a, data.KindTask, "matomeru-v2").Ref(); parent != want || a.Modal() != modalForm {
+		t.Fatalf("parent = %v, want %v (modal %q)", parent, want, a.Modal())
+	}
+	// A field that does not parse is not written, and says why.
+	run := titled(t, a, data.KindRun, "gate: views")
+	d.Keys("esc", "3", "j", "e", "j", "j", "j", "j", "i")
+	d.Type("x")
+	d.Keys("enter")
+	if now, _ := a.Store.Get(run.Ref()); now.Text("exitCode") != "1" || !strings.Contains(a.Status(), "not written") {
+		t.Fatalf("exitCode = %q, status %q", now.Text("exitCode"), a.Status())
+	}
+}
+
+// A table filters, sorts and groups on any field, shown or not.
+func TestListsWorkOnAnyField(t *testing.T) {
+	a, d := demo(t)
+	d.Keys("2")
+	tbl := func() string { return a.tables[workTable].GroupField }
+	seen := map[string]bool{}
+	for i := 0; i < 40 && !seen[""]; i++ {
+		d.Keys("B")
+		seen[tbl()] = true
+	}
+	for _, field := range []string{"title", "workStatus", "priority", "parent", "repo", "defaultHarness", "id", "createdAt", data.ColStarStatus, data.ColSnoozedUntil} {
+		if !seen[field] {
+			t.Errorf("B never grouped by %s", field)
+		}
+	}
+	for a.tables[workTable].GroupField != "repo" {
+		d.Keys("B")
+	}
+	if frame := d.Frame(); !strings.Contains(frame, "▾ ochazuke (1)") || !strings.Contains(frame, "▾ matomeru (1)") {
+		t.Fatalf("grouped by a column that is not shown:\n%s", frame)
+	}
+	d.Keys("space")
+	if !a.tables[workTable].Collapsed["ochazuke"] {
+		t.Fatal("space did not fold the focused group")
+	}
+	for a.tables[workTable].GroupField != "" {
+		d.Keys("B")
+	}
+	// Regex over every field; an invalid one is reported and matched as text.
+	d.Keys("/", "tab", "tab")
+	d.Type("wave 5[ab]: ")
+	if got := len(a.tables[workTable].Filtered()); got != 2 || a.tables[workTable].MatchMode != "regex" {
+		t.Fatalf("regex filter matched %d rows in mode %s", got, a.tables[workTable].MatchMode)
+	}
+	// One field: the regex is anchored to that field's text.
+	d.Keys("ctrl+u", "ctrl+t")
+	d.Type("^tier [01]")
+	if got := len(a.tables[workTable].Filtered()); got != 2 || a.tables[workTable].FilterField != "title" {
+		t.Fatalf("regex on %s matched %d rows", a.tables[workTable].FilterField, got)
+	}
+	d.Keys("ctrl+u")
+	d.Type("[")
+	if a.tables[workTable].Filtered(); a.tables[workTable].FilterErr == "" || !strings.Contains(d.Frame(), "invalid regex") {
+		t.Fatal("an invalid regex is not reported")
+	}
+	d.Keys("esc", "f")
+	if got := a.tables[workTable].FilterField; got != "workStatus" {
+		t.Fatalf("f filters on %q, want the next column", got)
+	}
+	// The pane's pages filter too.
+	d.Keys("1", "enter", "/")
+	d.Type("arch")
+	d.Keys("enter")
+	if frame := d.Frame(); !strings.Contains(frame, "/arch") || strings.Contains(frame, "Questions") || !strings.HasPrefix(a.Focus(), tocPrefix) {
+		t.Fatalf("pages filter (focus %s):\n%s", a.Focus(), frame)
+	}
+}
+
+// The user's JSONC files are laid over the defaults; a broken one is a
+// warning, never a reason not to start.
+func TestUserConfig(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("settings.json", `{
+		// start on Work, snooze for a week
+		"startSpace": "work", "snoozeHours": 168,
+	}`)
+	write("bindings.json", `[
+		{"mode": "normal", "keys": ["X"], "command": "record.star", "hint": "star"}, // a new key
+		{"mode": "normal", "keys": ["s"], "unbind": true},
+	]`)
+	write("themes.json", `{"name": "mine", "roles": {"accent": "#ff8800"}}`)
+	store, err := data.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := SeedDemo(store); err != nil {
+		t.Fatal(err)
+	}
+	fixed := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+	a, err := New(store, Options{ConfigDir: dir, FS: smokeFS(), Now: func() time.Time { return fixed }})
+	if err != nil || len(a.Warnings) != 0 {
+		t.Fatalf("New: %v, warnings %v", err, a.Warnings)
+	}
+	d := NewDriver(a, 120, 36)
+	task := titled(t, a, data.KindTask, "ochazuke-v2")
+	if a.Space() != SpaceWork || a.Shell.Theme.Name != "mine" || a.Shell.Theme.Roles["accent"] != "#ff8800" {
+		t.Fatalf("space %s, theme %s", a.Space(), a.Shell.Theme.Name)
+	}
+	d.Keys("s")
+	if rec, _ := store.Get(task.Ref()); rec.IsStarred() {
+		t.Fatal("the unbound key still stars")
+	}
+	d.Keys("X", "Z")
+	rec, _ := store.Get(task.Ref())
+	if !rec.IsStarred() || rec.SnoozedUntil == nil || !rec.SnoozedUntil.Equal(fixed.Add(168*time.Hour)) {
+		t.Fatalf("starred %v, snoozed until %v", rec.IsStarred(), rec.SnoozedUntil)
+	}
+
+	write("settings.json", `{"startSpace": `)
+	write("bindings.json", `[{"mode": "nope", "keys": ["X"], "command": "no.such.command"}]`)
+	b, err := New(store, Options{ConfigDir: dir})
+	if err != nil || len(b.Warnings) < 2 || b.Space() != SpacePanes || !strings.Contains(b.Status(), "settings.json") {
+		t.Fatalf("broken config: err %v, warnings %v, space %s", err, b.Warnings, b.Space())
+	}
+}
+
+// Every default binding names a known mode and a registered command.
+func TestDefaultBindingsAreValid(t *testing.T) {
+	a, _ := demo(t)
+	for i, b := range DefaultBindings() {
+		if b.Command == "" {
+			continue
+		}
+		if _, ok := a.Keymap.Commands.Lookup(b.Command); !ok {
+			t.Errorf("binding %d (%s %v): command %q has no spec", i, b.Mode, b.Keys, b.Command)
+		}
+	}
+	if len(a.Warnings) != 0 {
+		t.Fatalf("the default keymap has problems: %v", a.Warnings)
+	}
+}

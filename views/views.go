@@ -10,7 +10,10 @@ package views
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"ofam.dev/matomeru/data"
@@ -31,7 +34,19 @@ const (
 	CmdRestore = "record.restore"
 	CmdOpen    = "record.open"
 	CmdNew     = "record.new"
+	// One key runs CmdSnooze when facts.snoozed is false and CmdUnsnooze when
+	// it is true.
+	CmdSnooze   = "record.snooze"
+	CmdUnsnooze = "record.unsnooze"
 )
+
+// AnyField is the cell every table row carries with the text of all its
+// fields, shown or not: filtering on it matches any field.
+const AnyField = "*"
+
+// FlagsField is the cell (and last column) marking a row unread (●),
+// starred (★), snoozed (z) or archived (▣).
+const FlagsField = "flags"
 
 // Scopes of the views themselves. A focused record always adds its own kind
 // as the innermost scope.
@@ -147,13 +162,18 @@ func StatusBadges(schema data.Schema, rec data.Record) []ui.Badge {
 	if rec.IsArchived() {
 		out = append(out, ui.Badge{Text: "archived"})
 	}
+	if rec.IsSnoozed(time.Now()) {
+		out = append(out, ui.Badge{Text: "snoozed until " + rec.SnoozedUntil.Local().Format(timeLayout)})
+	}
 	return out
 }
 
 // statusFacts exposes every status column to bindings (Binding.When and
-// status overlays).
+// status overlays), and whether the record is snoozed right now, so one key
+// can snooze when "!facts.snoozed" and unsnooze when "facts.snoozed".
 func statusFacts(schema data.Schema, rec data.Record) map[string]any {
-	facts := map[string]any{data.ColArchiveStatus: rec.ArchiveStatus, data.ColStarStatus: rec.StarStatus}
+	facts := map[string]any{data.ColArchiveStatus: rec.ArchiveStatus, data.ColStarStatus: rec.StarStatus,
+		"snoozed": rec.IsSnoozed(time.Now())}
 	for _, col := range schema.StatusColumns {
 		facts[col.Name] = rec.Text(col.Name)
 	}
@@ -170,7 +190,7 @@ func firstLine(s string, limit int) string {
 
 // summaryOf is the one-line text shown under a record's title.
 func summaryOf(schema data.Schema, rec data.Record) string {
-	for _, field := range []string{"description", "summary", "body", "command", "filePath", "cwd"} {
+	for _, field := range []string{"description", "summary", "body", "command", "filePath", "cwd", "cron", "outcomeStatus"} {
 		if field == schema.SummaryField {
 			continue
 		}
@@ -229,7 +249,8 @@ func cell(v any) any {
 // (every field when it names none), one row per record carrying the record's
 // Ref, scope, badges and status facts. Every field is a cell, shown or not,
 // together with id, createdAt, updatedAt, archiveStatus and starStatus, so
-// the table filters, sorts and groups on any of them.
+// the table filters, sorts and groups on any of them. The AnyField cell holds
+// the text of every field, for a filter over all of them.
 func TableFromRecords(schema data.Schema, recs []data.Record) *table.Model {
 	names := schema.DefaultColumns
 	if len(names) == 0 {
@@ -247,6 +268,9 @@ func TableFromRecords(schema data.Schema, recs []data.Record) *table.Model {
 			cols[i].Align = "right"
 		}
 	}
+	// The last column says at a glance what is starred, snoozed or archived.
+	cols = append(cols, table.Column{Key: FlagsField, Title: "Flags", Width: 5})
+	now := time.Now()
 	rows := make([]table.Row, len(recs))
 	for i, rec := range recs {
 		ref := rec.Ref()
@@ -254,10 +278,28 @@ func TableFromRecords(schema data.Schema, recs []data.Record) *table.Model {
 			"id": rec.ID, "kind": rec.Kind,
 			"createdAt": rec.CreatedAt.Format(timeLayout), "updatedAt": rec.UpdatedAt.Format(timeLayout),
 			data.ColArchiveStatus: rec.ArchiveStatus, data.ColStarStatus: rec.StarStatus,
+			data.ColSnoozedUntil: "",
 		}
-		for name, v := range rec.MergedFields() {
-			cells[name] = cell(v)
+		if rec.SnoozedUntil != nil {
+			cells[data.ColSnoozedUntil] = rec.SnoozedUntil.Local().Format(timeLayout)
 		}
+		all := []string{rec.ID}
+		merged := rec.MergedFields()
+		for _, name := range slices.Sorted(maps.Keys(merged)) {
+			cells[name] = cell(merged[name])
+			all = append(all, data.Text(merged[name]))
+		}
+		cells[AnyField] = strings.Join(all, "\n")
+		var flags []string
+		for _, f := range []struct {
+			on   bool
+			mark string
+		}{{rec.Kind == data.KindPage && rec.IsUnread(), "●"}, {rec.IsStarred(), "★"}, {rec.IsSnoozed(now), "z"}, {rec.IsArchived(), "▣"}} {
+			if f.on {
+				flags = append(flags, f.mark)
+			}
+		}
+		cells[FlagsField] = strings.Join(flags, "")
 		rows[i] = table.Row{
 			ID: data.RefText(ref), Ref: &ref, Scope: rec.Kind, Cells: cells,
 			Badges: StatusBadges(schema, rec), Facts: statusFacts(schema, rec),
@@ -288,7 +330,7 @@ func IndexView(schema data.Schema, tbl *table.Model, id string) ui.ViewNode {
 			mode = table.MatchSubstring
 		}
 		filter := "/" + tbl.Query
-		if tbl.FilterField != "" {
+		if tbl.FilterField != "" && tbl.FilterField != AnyField {
 			filter = tbl.FilterField + " " + filter
 		}
 		badges = append(badges, ui.Badge{Text: filter + " (" + string(mode) + ")", Tone: "accent"})
@@ -315,6 +357,7 @@ func IndexView(schema data.Schema, tbl *table.Model, id string) ui.ViewNode {
 			{Key: "e", Label: "edit", Command: CmdEdit},
 			{Key: "s", Label: "star", Command: CmdStar},
 			{Key: "a", Label: "archive", Command: CmdArchive},
+			{Key: "Z", Label: "snooze", Command: CmdSnooze},
 		},
 		Children: []ui.ViewNode{node},
 	}

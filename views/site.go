@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/ui"
@@ -92,7 +93,8 @@ func PaneSiteView(pane data.Record, pages []data.Record, activePageID string, to
 			ID: "site.toc." + page.ID, Kind: ui.KindCard, Scope: data.KindPage, Ref: &ref, Focusable: true, Border: true,
 			Title: title, Unread: isUnread,
 			Facts: map[string]any{"pageKind": page.Text("pageKind"), "unread": isUnread, "active": page.ID == active.ID,
-				"pinned": page.Bool("pinned"), data.ColArchiveStatus: page.ArchiveStatus, data.ColStarStatus: page.StarStatus},
+				"pinned": page.Bool("pinned"), data.ColArchiveStatus: page.ArchiveStatus, data.ColStarStatus: page.StarStatus,
+				"snoozed": page.IsSnoozed(time.Now())},
 		}
 		if page.ID == active.ID {
 			entry.Tone = "accent"

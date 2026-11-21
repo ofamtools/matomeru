@@ -4,7 +4,9 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
+	"time"
 
 	"ofam.dev/ochazuke/core"
 )
@@ -50,7 +52,7 @@ func TestDefaultSchemas(t *testing.T) {
 	for _, s := range reg.List() {
 		kinds = append(kinds, s.Kind)
 	}
-	if want := []string{"task", "pane", "ui.page", "document", "run", "extension"}; !reflect.DeepEqual(kinds, want) {
+	if want := []string{"task", "pane", "ui.page", "document", "note", "schedule", "schedule.occurrence", "run", "extension"}; !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("kinds = %v, want %v (there is no project noun)", kinds, want)
 	}
 	task, _ := reg.Get(KindTask)
@@ -61,6 +63,41 @@ func TestDefaultSchemas(t *testing.T) {
 	parent, _ := task.Field("parent")
 	if parent.Type != core.ParamRef || !reflect.DeepEqual(parent.RefKinds, []string{"task"}) {
 		t.Fatalf("task.parent = %+v", parent)
+	}
+	// A note and a document are separate nouns; only the note is "about" things.
+	note, _ := reg.Get(KindNote)
+	doc, _ := reg.Get(KindDocument)
+	about := func(s Schema) bool {
+		return slices.ContainsFunc(s.Relations, func(r RelationSpec) bool { return r.Kind == RelAbout && r.Direction == DirectionOutgoing })
+	}
+	if !about(note) || about(doc) {
+		t.Fatalf("about relation: note %v, document %v", about(note), about(doc))
+	}
+	if f, ok := doc.Field("filePath"); !ok || f.Type != core.ParamPath {
+		t.Fatalf("document.filePath = %+v", f)
+	}
+	if _, ok := doc.Field("summary"); !ok {
+		t.Fatal("document has no summary")
+	}
+	// Reminders are schedules; vim is a pane, not a noun.
+	sched, _ := reg.Get(KindSchedule)
+	if f, _ := sched.Field("scheduleKind"); !reflect.DeepEqual(f.Enum, []string{"remind", "run", "check"}) {
+		t.Fatalf("scheduleKind = %+v", f)
+	}
+	occ, _ := reg.Get(KindOccurrence)
+	if col, ok := occ.StatusColumn("outcomeStatus"); !ok || !reflect.DeepEqual(col.Names(), []string{"pending", "done", "skipped", "failed"}) {
+		t.Fatalf("outcomeStatus = %+v", col)
+	}
+	if f, _ := occ.Field("schedule"); !reflect.DeepEqual(f.RefKinds, []string{KindSchedule}) {
+		t.Fatalf("occurrence.schedule = %+v", f)
+	}
+	if _, ok := reg.Get("vim"); ok {
+		t.Fatal("there is a vim noun")
+	}
+	ext, _ := reg.Get(KindExtension)
+	page, _ := reg.Get(KindPage)
+	if !reflect.DeepEqual(ext.UniqueFields, []string{"name"}) || !reflect.DeepEqual(page.UniqueFields, []string{"slug"}) || page.UniqueScope != "pane" {
+		t.Fatalf("unique fields: extension %v, page %v in %q", ext.UniqueFields, page.UniqueFields, page.UniqueScope)
 	}
 	for _, s := range reg.List() {
 		for _, col := range []string{ColArchiveStatus, ColStarStatus} {
@@ -546,5 +583,139 @@ func TestQuery(t *testing.T) {
 	literal, _ := s.Query(Query{Kind: KindTask, Query: "[", MatchMode: MatchRegex})
 	if literal.FilterErr == "" || literal.Total != 0 {
 		t.Fatalf("invalid regex as text: %+v", literal)
+	}
+}
+
+// IDs stay opaque; a record is found by its natural key.
+func TestGetByField(t *testing.T) {
+	s := openTest(t)
+	git := create(t, s, KindExtension, map[string]any{"name": "o-git"})
+	create(t, s, KindExtension, map[string]any{"name": "o-csv"})
+	if git.ID == "o-git" {
+		t.Fatal("the ID is the name, not an opaque ID")
+	}
+	got, err := s.GetByField(KindExtension, "name", "o-git")
+	if err != nil || got.ID != git.ID {
+		t.Fatalf("GetByField = %v, %v", got, err)
+	}
+	// Renaming keeps the ID; the old name finds nothing.
+	if _, _, err := s.Patch(PatchInput{Ref: git.Ref(), Fields: map[string]any{"name": "o-git2"}}, owner); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.GetByField(KindExtension, "name", "o-git2"); err != nil || got.ID != git.ID {
+		t.Fatalf("after rename = %v, %v", got, err)
+	}
+	if _, err := s.GetByField(KindExtension, "name", "o-git"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("old name: err = %v", err)
+	}
+	// A repeated natural key is written and recorded as a conflict, never refused.
+	dup, cs, err := s.Create(CreateInput{Kind: KindExtension, Fields: map[string]any{"name": "o-csv"}}, owner)
+	if err != nil || dup == nil || len(cs.Conflicts) != 1 || cs.Conflicts[0].Kind != ConflictUnique || cs.Conflicts[0].Field != "name" {
+		t.Fatalf("duplicate create = %v, %+v, %v", dup, cs, err)
+	}
+	_, cs, err = s.Patch(PatchInput{Ref: git.Ref(), Fields: map[string]any{"name": "o-csv"}}, owner)
+	if err != nil || len(cs.Conflicts) != 1 || cs.Conflicts[0].Kind != ConflictUnique {
+		t.Fatalf("duplicate patch = %+v, %v", cs, err)
+	}
+
+	// A page's slug is unique within its pane, not across panes.
+	p1, p2 := core.Ref{Kind: KindPane, ID: "p1"}, core.Ref{Kind: KindPane, ID: "p2"}
+	q1 := create(t, s, KindPage, map[string]any{"title": "Questions", "slug": "questions", "pane": p1})
+	q2, cs, err := s.Create(CreateInput{Kind: KindPage, Fields: map[string]any{"title": "Questions", "slug": "questions", "pane": p2}}, owner)
+	if err != nil || len(cs.Conflicts) != 0 {
+		t.Fatalf("same slug in another pane: %+v, %v", cs, err)
+	}
+	for pane, want := range map[core.Ref]string{p1: q1.ID, p2: q2.ID} {
+		if got, err := s.GetByFieldIn(KindPage, "slug", "questions", "pane", pane); err != nil || got.ID != want {
+			t.Fatalf("questions page of %v = %v, %v", pane, got, err)
+		}
+	}
+	if _, cs, _ := s.Create(CreateInput{Kind: KindPage, Fields: map[string]any{"title": "Again", "slug": "questions", "pane": p1}}, owner); len(cs.Conflicts) != 1 {
+		t.Fatalf("same slug in the same pane: %+v", cs.Conflicts)
+	}
+}
+
+// Only the owner's own prompt moves promptedAt; agent input is tracked apart.
+func TestPaneInputTracking(t *testing.T) {
+	s := openTest(t)
+	pane := create(t, s, KindPane, map[string]any{"title": "claude"})
+	prompted, _, err := s.RecordPaneInput(pane.Ref(), owner)
+	if err != nil || prompted.Time("promptedAt").IsZero() || prompted.Text("lastAgentInputAt") != "" {
+		t.Fatalf("after the owner's prompt: %v, %v", prompted.Fields, err)
+	}
+	after, _, err := s.RecordPaneInput(pane.Ref(), core.Actor{Kind: "agent", ID: "w7"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Text("promptedAt") != prompted.Text("promptedAt") {
+		t.Fatal("agent input moved promptedAt")
+	}
+	if after.Text("lastAgentBy") != "w7" || !after.Time("lastAgentInputAt").After(prompted.Time("promptedAt")) {
+		t.Fatalf("agent input not tracked: %v", after.Fields)
+	}
+}
+
+func TestSnooze(t *testing.T) {
+	s := openTest(t)
+	task := create(t, s, KindTask, map[string]any{"title": "later"})
+	now := time.Now()
+	if task.IsSnoozed(now) {
+		t.Fatal("a new record is snoozed")
+	}
+	until := now.Add(2 * time.Hour)
+	snoozed, cs, err := s.Snooze(task.Ref(), until, owner)
+	if err != nil || cs == nil || !snoozed.IsSnoozed(now) || snoozed.IsSnoozed(until.Add(time.Second)) {
+		t.Fatalf("Snooze = %+v, %v", snoozed, err)
+	}
+	if !snoozed.UpdatedAt.Equal(task.UpdatedAt) || !reflect.DeepEqual(snoozed.Fields, task.Fields) {
+		t.Fatal("snoozing changed the record's content or UpdatedAt")
+	}
+	if !snoozed.SnoozedUntil.Equal(until) {
+		t.Fatalf("SnoozedUntil = %v, want %v", snoozed.SnoozedUntil, until)
+	}
+	awake, _, err := s.Unsnooze(task.Ref(), owner)
+	if err != nil || awake.SnoozedUntil != nil || awake.IsSnoozed(now) {
+		t.Fatalf("Unsnooze = %+v, %v", awake, err)
+	}
+	// Undo and redo walk the actor's own writes: unsnooze, snooze, and back.
+	if _, err := s.UndoLast(owner); err != nil {
+		t.Fatal(err)
+	}
+	if rec, _ := s.Get(task.Ref()); !rec.IsSnoozed(now) {
+		t.Fatal("undoing the unsnooze did not snooze again")
+	}
+	if _, err := s.UndoLast(owner); err != nil {
+		t.Fatal(err)
+	}
+	if rec, _ := s.Get(task.Ref()); rec.SnoozedUntil != nil {
+		t.Fatal("undoing the snooze left it snoozed")
+	}
+	if _, err := s.RedoLast(owner); err != nil {
+		t.Fatal(err)
+	}
+	if rec, _ := s.Get(task.Ref()); !rec.IsSnoozed(now) {
+		t.Fatal("redo did not snooze again")
+	}
+	// Another actor's write is not the user's to undo, and ends no redo chain.
+	other := core.Actor{Kind: "agent", ID: "w7"}
+	if _, _, err := s.Patch(PatchInput{Ref: task.Ref(), Fields: map[string]any{"title": "agent's"}}, other); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RedoLast(owner); err != nil {
+		t.Fatal(err)
+	}
+	if rec, _ := s.Get(task.Ref()); rec.SnoozedUntil != nil || rec.Text("title") != "agent's" {
+		t.Fatalf("after the second redo: snoozed %v, title %q", rec.SnoozedUntil, rec.Text("title"))
+	}
+	if _, err := s.RedoLast(owner); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("redo with nothing left: %v", err)
+	}
+	// A patch may set and clear the snooze like any other column.
+	rec, _, err := s.Patch(PatchInput{Ref: task.Ref(), Fields: map[string]any{ColSnoozedUntil: until.UTC().Format(TimeFormat)}}, owner)
+	if err != nil || !rec.IsSnoozed(now) {
+		t.Fatalf("patch snoozedUntil = %+v, %v", rec, err)
+	}
+	if rec, _, err = s.Patch(PatchInput{Ref: task.Ref(), Fields: map[string]any{ColSnoozedUntil: nil}}, owner); err != nil || rec.SnoozedUntil != nil {
+		t.Fatalf("patch clearing snoozedUntil = %+v, %v", rec, err)
 	}
 }

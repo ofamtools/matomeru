@@ -44,6 +44,8 @@ type Record struct {
 	CreatedAt       time.Time  `json:"createdAt"`
 	UpdatedAt       time.Time  `json:"updatedAt"` // moves when Fields change
 	ArchivedAt      *time.Time `json:"archivedAt,omitempty"`
+	// SnoozedUntil hides the record until then. Setting it never moves UpdatedAt.
+	SnoozedUntil *time.Time `json:"snoozedUntil,omitempty"`
 }
 
 // Ref returns the record's identity.
@@ -104,6 +106,11 @@ func (r Record) IsArchived() bool { return r.ArchiveStatus == ArchiveArchived }
 
 // IsStarred reports whether the record is starred.
 func (r Record) IsStarred() bool { return r.StarStatus == StarStarred }
+
+// IsSnoozed reports whether the record is snoozed at now.
+func (r Record) IsSnoozed(now time.Time) bool {
+	return r.SnoozedUntil != nil && now.Before(*r.SnoozedUntil)
+}
 
 // IsUnread reports whether the record changed after it was last viewed: its
 // viewedAt field is empty or earlier than UpdatedAt. It is meant for ui.page.
@@ -211,7 +218,7 @@ const (
 	OpDelete   = "delete"   // Old holds the whole Record
 	OpField    = "field"    // one source field
 	OpLocal    = "local"    // one local override
-	OpStatus   = "status"   // archiveStatus or starStatus
+	OpStatus   = "status"   // archiveStatus, starStatus or snoozedUntil
 	OpRelate   = "relate"   // New holds the Relation
 	OpUnrelate = "unrelate" // Old holds the Relation
 )
@@ -232,6 +239,7 @@ const (
 	ConflictRevision = "revision" // a write named a revision that was no longer current
 	ConflictUndo     = "undo"     // an undo or redo found a value changed since
 	ConflictMissing  = "missing"  // an undo or redo found its target gone, or already there
+	ConflictUnique   = "unique"   // a write repeated a value of one of the schema's UniqueFields
 )
 
 // Conflict records that a write went ahead over something its caller had not

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
@@ -84,6 +85,14 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 			}
 			seen[other] = true
 			sec.cards = append(sec.cards, card(sec.key, other))
+		}
+		// A relation section named like an earlier one joins it: a task's
+		// notes by reference and its notes by "about" are one "Notes" list.
+		for i := range out {
+			if out[i].title == sec.title {
+				out[i].cards = append(out[i].cards, sec.cards...)
+				return nil
+			}
 		}
 		if sec.always || len(sec.cards) > 0 {
 			out = append(out, sec)
@@ -247,13 +256,18 @@ func ShowView(store *data.Store, ref core.Ref, focusID string) (ui.ViewNode, err
 	if rec.IsArchived() {
 		archive = ui.ActionHint{Key: "a", Label: "restore", Command: CmdRestore}
 	}
+	snooze := ui.ActionHint{Key: "Z", Label: "snooze", Command: CmdSnooze}
+	if rec.IsSnoozed(time.Now()) {
+		snooze = ui.ActionHint{Key: "Z", Label: "unsnooze", Command: CmdUnsnooze}
+	}
 	open := ui.ActionHint{Key: "enter", Label: "open focused relation", Command: CmdOpen}
 	if focused := body.Find(focusID); focused != nil && focused.Ref != nil && *focused.Ref != ref {
 		open.Label = "open " + firstLine(focused.Title, 32)
 		open.Args = map[string]any{"ref": map[string]any{"kind": focused.Ref.Kind, "id": focused.Ref.ID}}
 	}
-	header := ui.ViewNode{ID: "show.header", Kind: ui.KindCard, Border: true, Title: Title(schema, *rec), Badges: badges,
-		Actions: []ui.ActionHint{{Key: "e", Label: "edit", Command: CmdEdit}, star, archive, open}}
+	// The header takes focus: with it focused, the subject is the page's own record.
+	header := ui.ViewNode{ID: "show.header", Kind: ui.KindCard, Border: true, Focusable: true, Title: Title(schema, *rec), Badges: badges,
+		Actions: []ui.ActionHint{{Key: "e", Label: "edit", Command: CmdEdit}, star, archive, snooze, open}}
 	if s := summaryOf(schema, *rec); s != "" {
 		header.Props = map[string]any{"summary": s}
 	}

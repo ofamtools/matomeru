@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
@@ -45,7 +46,7 @@ func build(t *testing.T) *world {
 	w.pane = mk(data.KindPane, "w12", map[string]any{"title": "claude: views", "cwd": "/proj/matomeru-next", "pid": 4242,
 		"harness": "claude", "runStatus": "waiting", "task": w.project.Ref()})
 	w.note = mk(data.KindDocument, "note1", map[string]any{"title": "Design note", "body": "Tasks all the way down.", "task": w.project.Ref()})
-	w.about = mk(data.KindDocument, "note2", map[string]any{"title": "Loose jot", "body": "Attached by about."})
+	w.about = mk(data.KindNote, "note2", map[string]any{"title": "Loose jot", "body": "Attached by about."})
 	w.run = mk(data.KindRun, "run1", map[string]any{"title": "gate", "command": "go test ./...", "runStatus": "failed", "exitCode": 1, "task": w.project.Ref()})
 	w.page = mk(data.KindPage, "page1", map[string]any{"title": "Compare architectures", "slug": "compare", "pageKind": "response",
 		"pane": w.pane.Ref(), "task": w.project.Ref(), "viewedAt": data.WriteTime{},
@@ -181,7 +182,8 @@ func TestIndexView(t *testing.T) {
 	for kind, wants := range map[string][]string{
 		data.KindPane:     {"Panes", "claude: views", "waiting", "task:proj"},
 		data.KindRun:      {"Runs", "gate", "failed", "go test ./..."},
-		data.KindDocument: {"Documents", "Design note", "Loose jot"},
+		data.KindDocument: {"Documents", "Design note"},
+		data.KindNote:     {"Notes", "Loose jot", "Attached by about."},
 		data.KindPage:     {"Pages", "Questions", "Compare architectures"},
 	} {
 		s := w.schema(kind)
@@ -226,7 +228,7 @@ func TestProjectShowPage(t *testing.T) {
 		"show.sec.ui.page.task.ui.page:page2":   w.asks.Ref(),
 		"show.sec.document.task.document:note1": w.note.Ref(),
 		"show.sec.run.task.run:run1":            w.run.Ref(),
-		"show.sec.rel.about.in.document:note2":  w.about.Ref(),
+		"show.sec.rel.about.in.note:note2":      w.about.Ref(),
 		"show.sec.rel.tag.out.tag:v2":           {Kind: data.KindTag, ID: "v2"},
 	} {
 		node := root.Find(id)
@@ -452,4 +454,82 @@ func TestOutlineView(t *testing.T) {
 	}
 	wantChain(t, OutlineView(nodes, "gone", "outline"), "outline.tree", w.project.Ref(), "task", "outline", "app")
 	wantText(t, frame(t, OutlineView(nil, "", "outline"), "outline.tree", 60, 6), "0 projects")
+}
+
+// One key snoozes and unsnoozes: every card, table row, outline row, site
+// entry and Show page says in facts.snoozed which of the two applies.
+func TestSnoozedFact(t *testing.T) {
+	w := build(t)
+	schema := w.schema(data.KindTask)
+	facts := func() (card, row, show, header map[string]any) {
+		t.Helper()
+		rec, err := w.store.Get(w.sub1.Ref())
+		if err != nil {
+			t.Fatal(err)
+		}
+		tbl := TableFromRecords(schema, []data.Record{*rec})
+		root, err := ShowView(w.store, rec.Ref(), "show.header")
+		if err != nil {
+			t.Fatal(err)
+		}
+		actions := map[string]any{}
+		for _, a := range root.Find("show.header").Actions {
+			actions[a.Key] = a.Command
+		}
+		index := IndexView(schema, tbl, "idx")
+		return RecordCard(schema, *rec, "c").Facts, index.Find("idx.table").Facts,
+			ui.ContextChain(root, "show.header", nil)[0].Facts, actions
+	}
+	card, row, show, header := facts()
+	if card["snoozed"] != false || row["snoozed"] != false || show["snoozed"] != false || header["Z"] != CmdSnooze {
+		t.Fatalf("unsnoozed facts: card %v row %v show %v header %v", card["snoozed"], row["snoozed"], show["snoozed"], header["Z"])
+	}
+	if _, _, err := w.store.Snooze(w.sub1.Ref(), time.Now().Add(time.Hour), owner); err != nil {
+		t.Fatal(err)
+	}
+	card, row, show, header = facts()
+	if card["snoozed"] != true || row["snoozed"] != true || show["snoozed"] != true || header["Z"] != CmdUnsnooze {
+		t.Fatalf("snoozed facts: card %v row %v show %v header %v", card["snoozed"], row["snoozed"], show["snoozed"], header["Z"])
+	}
+	// A snooze that has run out reads as not snoozed, with nothing to clean up.
+	if _, _, err := w.store.Snooze(w.sub1.Ref(), time.Now().Add(-time.Minute), owner); err != nil {
+		t.Fatal(err)
+	}
+	if card, _, _, _ = facts(); card["snoozed"] != false {
+		t.Fatal("a snooze in the past still reads as snoozed")
+	}
+	// The pane site's entries and the outline carry the fact too.
+	if _, _, err := w.store.Snooze(w.asks.Ref(), time.Now().Add(time.Hour), owner); err != nil {
+		t.Fatal(err)
+	}
+	site := PaneSiteView(w.pane, w.all(t, data.KindPage), "", "")
+	if site.Find("site.toc.page2").Facts["snoozed"] != true || site.Find("site.toc.page1").Facts["snoozed"] != false {
+		t.Fatal("site entries do not say which page is snoozed")
+	}
+	nodes, err := w.store.TaskTree(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outline := OutlineView(nodes, "proj", "o")
+	if got := outline.Find("o.tree").Facts["snoozed"]; got != false {
+		t.Fatalf("outline snoozed fact = %v", got)
+	}
+}
+
+// A note is its own noun: it shows under the record it is about, and its own
+// Show page says what it is about.
+func TestNoteShowsWhatItIsAbout(t *testing.T) {
+	w := build(t)
+	root, err := ShowView(w.store, w.about.Ref(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantText(t, frame(t, root, "", 150, 40), "Loose jot", "note:note2", "About", "Matomeru v2")
+	wantChain(t, root, "show.sec.rel.about.out.task:proj", w.project.Ref(), "task", "note", "show", "app")
+	// The filter over every field finds a record by a field no column shows.
+	tbl := TableFromRecords(w.schema(data.KindTask), w.all(t, data.KindTask))
+	tbl.Query, tbl.FilterField = "rebuild on ochazuke", AnyField
+	if rows := tbl.Filtered(); len(rows) != 1 || rows[0].ID != "task:proj" {
+		t.Fatalf("filter on any field = %v", rows)
+	}
 }

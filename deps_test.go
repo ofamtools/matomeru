@@ -14,6 +14,8 @@ const (
 	mod      = "ofam.dev/matomeru"
 	ochazuke = "ofam.dev/ochazuke"
 	sqlite   = "modernc.org/sqlite"
+	// bubbletea is allowed only in app and cmd/mtm.
+	bubbletea = "charm.land/bubbletea/v2"
 )
 
 type pkgError struct {
@@ -91,6 +93,19 @@ var policies = map[string]policy{
 		},
 		forbidDeps: noTea,
 	},
+	// The application: the only package that wires the foundation onto the
+	// engine and its Bubble Tea shell.
+	mod + "/app": {
+		allow: []string{
+			mod + "/data", mod + "/mcpui", mod + "/views", bubbletea,
+			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea",
+			ochazuke + "/widgets/table", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
+		},
+	},
+	// The binary: flags and JSON around app, data and mcpui. It builds no views.
+	mod + "/cmd/mtm": {
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", ochazuke + "/core", bubbletea},
+	},
 }
 
 func TestDependencyBoundaries(t *testing.T) {
@@ -114,7 +129,7 @@ func TestDependencyBoundaries(t *testing.T) {
 		}
 		byPath[p.ImportPath] = p
 	}
-	for _, req := range []string{"data", "mcpui", "views"} {
+	for _, req := range []string{"data", "mcpui", "views", "app", "cmd/mtm"} {
 		if _, ok := byPath[mod+"/"+req]; !ok {
 			t.Fatalf("required package %q missing from go list ./...", mod+"/"+req)
 		}

@@ -17,6 +17,9 @@ import (
 const (
 	ColArchiveStatus = "archiveStatus"
 	ColStarStatus    = "starStatus"
+	// ColSnoozedUntil is the universal snooze column: a time (TimeFormat) or
+	// nothing. It is written like a status, so snoozing never moves UpdatedAt.
+	ColSnoozedUntil = "snoozedUntil"
 
 	ArchiveActive   = "active"
 	ArchiveArchived = "archived"
@@ -44,14 +47,18 @@ const (
 
 // Record kinds of the core schemas.
 const (
-	KindTask      = "task"
-	KindPane      = "pane"
-	KindPage      = "ui.page"
-	KindDocument  = "document"
-	KindRun       = "run"
-	KindExtension = "extension"
-	KindTag       = "tag"
-	KindWorkspace = "workspace"
+	KindTask     = "task"
+	KindPane     = "pane"
+	KindPage     = "ui.page"
+	KindDocument = "document"
+	KindNote     = "note"
+	KindSchedule = "schedule"
+	// KindOccurrence is one due time of a schedule.
+	KindOccurrence = "schedule.occurrence"
+	KindRun        = "run"
+	KindExtension  = "extension"
+	KindTag        = "tag"
+	KindWorkspace  = "workspace"
 )
 
 // StatusValue is one value of a status column.
@@ -113,6 +120,15 @@ type Schema struct {
 	DefaultColumns []string         `json:"defaultColumns,omitempty"`
 	Relations      []RelationSpec   `json:"relations,omitempty"`
 	SummaryField   string           `json:"summaryField,omitempty"`
+
+	// UniqueFields names the natural keys of the noun (an extension's name, a
+	// page's slug). A record's ID stays opaque and stable; Store.GetByField
+	// finds a record by one of these. UniqueScope, when set, names the
+	// reference field a value is unique within (a page's slug is unique per
+	// pane). A write that repeats a value is not refused: it is recorded as
+	// a Conflict of kind ConflictUnique on its change set.
+	UniqueFields []string `json:"uniqueFields,omitempty"`
+	UniqueScope  string   `json:"uniqueScope,omitempty"`
 }
 
 // Field returns the declared field named name.
@@ -255,6 +271,12 @@ func DefaultSchemas() *Registry {
 		{Name: "degraded", Label: "Degraded", Tone: "warning", Position: 1, Open: true},
 		{Name: "offline", Label: "Offline", Tone: "muted", Position: 2, Ends: true},
 	}}
+	outcome := StatusColumn{Name: "outcomeStatus", Title: "Outcome", Default: "pending", Values: []StatusValue{
+		{Name: "pending", Label: "Pending", Tone: "warning", Position: 0, Open: true},
+		{Name: "done", Label: "Done", Tone: "state.done", Position: 1, Ends: true},
+		{Name: "skipped", Label: "Skipped", Tone: "muted", Position: 2, Ends: true},
+		{Name: "failed", Label: "Failed", Tone: "state.errored", Position: 3, Ends: true},
+	}}
 
 	r := NewRegistry()
 	r.Register(
@@ -284,7 +306,9 @@ func DefaultSchemas() *Registry {
 				{Name: "pid", Type: core.ParamInt, Description: "PID of the current process"},
 				str("harness", "agent harness or shell running in the pane"),
 				statusField(paneRun, "observed terminal state"),
-				str("promptedAt", "when the owner last submitted a prompt (RFC 3339)"),
+				str("promptedAt", "when the owner last submitted a prompt (RFC 3339); human prompts only, never agent input"),
+				str("lastAgentInputAt", "when an agent last sent input to the pane (RFC 3339)"),
+				str("lastAgentBy", "which agent last sent input to the pane"),
 				refTo("task", KindTask, "task the pane works on"),
 			},
 			StatusColumns:  []StatusColumn{paneRun},
@@ -306,20 +330,61 @@ func DefaultSchemas() *Registry {
 			},
 			DefaultColumns: []string{"title", "pageKind", "pinned", "pane", "task"},
 			Relations:      universalRelations(),
+			UniqueFields:   []string{"slug"}, UniqueScope: "pane",
 		},
 		Schema{
+			// A document is the larger, static, usually file-backed text.
 			Kind: KindDocument, Title: "Document", Plural: "Documents", SummaryField: "title",
 			Fields: []core.ParamSpec{
 				str("title", "document title"),
-				str("body", "Markdown body of an inline note"),
-				{Name: "filePath", Type: core.ParamPath, Description: "file on disk; empty for an inline note"},
+				{Name: "filePath", Type: core.ParamPath, Description: "file on disk"},
+				str("summary", "what the document covers"),
+				str("body", "Markdown body, when the document is kept inline"),
 				refTo("task", KindTask, "task the document belongs to"),
 			},
-			DefaultColumns: []string{"title", "filePath", "task"},
-			// A document is the note: it shows what it is about and the notes about it.
+			DefaultColumns: []string{"title", "filePath", "summary", "task"},
+			Relations:      universalRelations(),
+		},
+		Schema{
+			// A note is small and changes often. It attaches to any record by
+			// an "about" relation from the note to that record.
+			Kind: KindNote, Title: "Note", Plural: "Notes", SummaryField: "title",
+			Fields: []core.ParamSpec{
+				str("title", "note title"),
+				str("body", "the note"),
+				refTo("task", KindTask, "task the note belongs to"),
+			},
+			DefaultColumns: []string{"title", "body", "task"},
 			Relations: universalRelations(
 				RelationSpec{Kind: RelAbout, Title: "About", Direction: DirectionOutgoing},
 			),
+		},
+		Schema{
+			// A schedule is a reminder, a command to run or a check, on a cron
+			// expression. Reminders are schedules of kind "remind".
+			Kind: KindSchedule, Title: "Schedule", Plural: "Schedules", SummaryField: "title",
+			Fields: []core.ParamSpec{
+				{Name: "title", Type: core.ParamString, Required: true, Description: "what the schedule is for"},
+				{Name: "scheduleKind", Type: core.ParamString, Enum: []string{"remind", "run", "check"}, Default: "remind", Description: "remind the owner, run a command, or check something"},
+				str("cron", "cron expression"),
+				str("command", "command line, for run and check"),
+				str("nextDueAt", "when it is next due (RFC 3339)"),
+				refTo("task", KindTask, "task the schedule belongs to"),
+			},
+			DefaultColumns: []string{"title", "scheduleKind", "cron", "nextDueAt", "task"},
+			Relations:      universalRelations(),
+		},
+		Schema{
+			Kind: KindOccurrence, Title: "Occurrence", Plural: "Occurrences", SummaryField: "dueAt",
+			Fields: []core.ParamSpec{
+				refTo("schedule", KindSchedule, "schedule this is one due time of"),
+				str("dueAt", "when it was due (RFC 3339)"),
+				statusField(outcome, "what came of it"),
+				str("checkedAt", "when the outcome was recorded (RFC 3339)"),
+			},
+			StatusColumns:  []StatusColumn{outcome},
+			DefaultColumns: []string{"dueAt", "outcomeStatus", "checkedAt", "schedule"},
+			Relations:      universalRelations(),
 		},
 		Schema{
 			Kind: KindRun, Title: "Run", Plural: "Runs", SummaryField: "title",
@@ -343,11 +408,13 @@ func DefaultSchemas() *Registry {
 				str("binary", "binary that serves the extension"),
 				statusField(extRun, "observed health"),
 				str("summary", "what the extension adds"),
+				{Name: "capabilities", Type: core.ParamList, Description: "what the extension can do (nouns, pages, MCP tools)"},
 				{Name: "commands", Type: core.ParamList, Description: "extension-specific commands, such as setup"},
 			},
 			StatusColumns:  []StatusColumn{extRun},
 			DefaultColumns: []string{"name", "runStatus", "binary", "summary"},
 			Relations:      universalRelations(),
+			UniqueFields:   []string{"name"},
 		},
 	)
 	return r
