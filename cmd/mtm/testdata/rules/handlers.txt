@@ -1,1 +1,0 @@
-# rulecheck handlers baseline: kind (missing, unused, params), name (the handler, hook or source), row (the declaration row; "" for unused), count, reason (tab separated).
