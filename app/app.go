@@ -24,6 +24,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
+	"ofam.dev/matomeru/handlers"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/runs"
@@ -34,6 +35,7 @@ import (
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/markdown"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
@@ -90,6 +92,17 @@ const (
 	modalNouns    = "nouns"
 	modalField    = "field"
 	modalAssign   = "assign"
+
+	modalYank          = "yank"
+	modalRecordActions = "record.actions"
+	modalOpenWith      = "openwith"
+	modalReader        = "reader"
+	modalInspect       = "inspect"
+	modalScratch       = "scratch"
+
+	readerNode    = "reader.md"
+	scratchScreen = "scratch.screen"
+	inspectPrefix = "inspect:" // a row of the noun browser that opens an inspector
 )
 
 // Actors. The owner's changes are theirs to undo; a page marked as viewed
@@ -130,6 +143,12 @@ type Options struct {
 	// ExtensionDirs are searched for extensions before PATH, ahead of the
 	// "extensionDirs" setting.
 	ExtensionDirs []string
+	// DataDir is where the app keeps its own files (the scratch editor's
+	// scratch.md). Empty is $XDG_DATA_HOME/matomeru-next, or
+	// ~/.local/share/matomeru-next.
+	DataDir string
+	// ReadFile reads a file for the Markdown reader; nil is os.ReadFile.
+	ReadFile func(path string) ([]byte, error)
 }
 
 type historyEntry struct {
@@ -165,6 +184,12 @@ type App struct {
 	// Warnings are problems found in the user's configuration. The app runs
 	// without the part that could not be read.
 	Warnings []string
+
+	// Registers is the app's one register bank and Macros its macro recorder.
+	Registers core.Registers
+	Macros    core.MacroRecorder
+	// Handlers decides what opens a file, a directory or a URL.
+	Handlers *handlers.Registry
 
 	// The live parts; nil in a synthetic app. See Options.
 	Runner     *runs.Runner
@@ -224,6 +249,16 @@ type App struct {
 	zoom       bool      // the Panes space shows only the pane's page
 	escapes    int       // escapes sent to panes with ctrl+a esc
 
+	effects     []core.Effect // effects of the command being handled
+	replaying   int           // macros being replayed, one inside another
+	yankRef     *core.Ref     // the record the yank picker is open on
+	actionRef   *core.Ref     // the record the record-actions picker is open on
+	opening     *openTarget   // what "open with" is choosing a handler for
+	reader      *readerState  // the Markdown reader, while it is open
+	inspecting  string        // the registry the inspector shows
+	scratch     string        // the pane of the global scratch that is shown
+	scratchRole string
+
 	gen     uint64
 	memoKey string
 	memo    ui.ViewNode
@@ -246,6 +281,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	if dir := opts.ConfigDir; dir != "" {
 		a.loadConfig(dir)
 	}
+	a.loadHandlers(opts.ConfigDir)
 	theme := a.theme()
 	if err := a.rebuildKeymap(); err != nil {
 		if a.Keymap == nil {
@@ -269,7 +305,10 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.Shell = otea.New(a.Engine, initial, a.View, theme)
 	a.Shell.MaxFPS = a.Settings.Int("maxFPS", otea.DefaultMaxFPS)
 	a.Shell.DisableMouse = !a.Settings.Bool("mouse", true)
-	a.Shell.AppFacts = func(s core.State) map[string]any { return map[string]any{"space": s.ActivePage} }
+	a.Shell.AppFacts = func(s core.State) map[string]any {
+		_, recording := a.Macros.Recording()
+		return map[string]any{"space": s.ActivePage, "recording": recording}
+	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {
 		if e.Mouse != nil || e.Key == "" {
 			return nil
@@ -567,6 +606,11 @@ func (a *App) records(id, kind string) *table.Model {
 			fresh.Rows[i].Cells[f.Name] = names[ref]
 		}
 	}
+	for i, rec := range res.Items {
+		if a.openable(rec) {
+			fresh.Rows[i].Facts[factOpenable] = true // "o" opens it; a row without the fact sorts
+		}
+	}
 	for _, sp := range spaces {
 		if sp.table == id && sp.columns != nil {
 			fresh.Columns = sp.columns
@@ -617,6 +661,9 @@ func (a *App) rail() *table.Model {
 			mark, row.Unread = "● ", true
 		}
 		row.Cells["rail"] = mark + views.Title(a.schema(data.KindPane), panes[i])
+		if a.openable(panes[i]) {
+			row.Facts[factOpenable] = true
+		}
 	}
 	tbl := keep(a.tables[railTable], fresh)
 	a.pageSize(tbl, railTable)
@@ -831,6 +878,10 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 		if fs := a.formOf(id); fs != nil {
 			fs.fm.HandleCommand(c)
 		}
+	case modalReader:
+		if a.reader != nil {
+			a.reader.md.HandleCommand(c)
+		}
 	case modalBindings:
 		if a.bindEd != nil {
 			a.bindEd.HandleCommand(c)
@@ -849,6 +900,7 @@ func (a *App) dropModals(s core.State) core.State {
 	s.Modals = nil
 	a.form, a.answer, a.launch, a.path = nil, nil, nil, nil
 	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
+	a.reader, a.opening, a.yankRef, a.actionRef, a.scratch = nil, nil, nil, nil, ""
 	return s
 }
 
@@ -1051,12 +1103,40 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 	}
 	schema := a.schema(kind)
 	fs := &formState{kind: kind, fm: views.FormForRecordWith(schema, nil, a.editOptions())}
+	if ownerRef, ok := c.Args["ownerRef"].(core.Ref); ok && ownerRef.ID != "" {
+		if field, _ := c.Args["ownerField"].(string); field != "" {
+			if _, hasField := schema.Field(field); hasField {
+				fs.fm.SetValue(field, ownerRef)
+			}
+		}
+		if rel, _ := c.Args["ownerRel"].(string); rel == data.RelAbout {
+			r := ownerRef
+			fs.about = &r
+		}
+		if _, hasTask := schema.Field("task"); hasTask && fs.fm.Values["task"] == nil {
+			task := ownerRef
+			if ownerRef.Kind != data.KindTask {
+				if rec, err := a.Store.Get(ownerRef); err == nil {
+					task, _ = rec.RefField("task")
+				}
+			}
+			if task.Kind == data.KindTask && task.ID != "" {
+				fs.fm.SetValue("task", task)
+			}
+		}
+		fs.fm.Dirty = false
+		a.form = fs
+		a.say("new %s · it is created with the first field you fill in", strings.ToLower(schema.Title))
+		return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
+	}
 	subject, has := a.subject(s, c)
 	switch {
 	case kind == data.KindTask:
-		// On a task's Show page a new task is its subtask.
+		// On a task's Show page (or when targeting a task directly) a new task is its subtask.
 		if cur, ok := a.Showing(); ok && cur.Kind == data.KindTask && s.ActivePage == SpaceWork {
 			fs.fm.SetValue("parent", cur)
+		} else if c.Target != nil && c.Target.Kind == data.KindTask && c.Target.ID != "" {
+			fs.fm.SetValue("parent", *c.Target)
 		}
 	case has:
 		// A note (or anything else with a task) belongs to the focused
@@ -1394,13 +1474,27 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		}
 		return core.Next(a.startShell(closeModal(s, id), "", line, ""))
 	}
+	if id == modalInspect && c.ID == picker.CmdConfirm {
+		// The inspector lists; enter only ends the typing of its filter.
+		a.say("")
+		return core.Next(withMode(s, ModeInspect))
+	}
 	picked, _ := pm.HandleCommand(c)
 	if picked == nil {
 		return core.Next(s)
 	}
 	s = closeModal(s, id)
 	switch id {
+	case modalYank:
+		text, _ := picked.Data.(string)
+		a.yankRef = nil
+		a.yank(text, picked.ID)
+	case modalOpenWith:
+		return core.Next(a.openWithPicked(s, picked))
 	case modalNouns:
+		if what, ok := strings.CutPrefix(picked.ID, inspectPrefix); ok {
+			return a.inspectOpen(s, core.Command{Args: map[string]any{"what": what}})
+		}
 		return core.Next(a.browse(s, picked.ID))
 	case modalField:
 		a.fieldPicked(picked.ID)
@@ -1416,9 +1510,21 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 			}
 			a.commit()
 		}
+	case modalRecordActions:
+		ref := a.actionRef
+		a.actionRef = nil
+		var args map[string]any
+		if p, ok := picked.Data.(recordActionPayload); ok {
+			args = p.args
+		}
+		cmd := core.Command{ID: picked.ID, Target: ref, Args: args, Source: "record.actions", Actor: User}
+		a.Registers.SetSpecial(core.RegCommand, picked.Title)
+		a.gen++
+		return a.Engine.Step(s, ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s)), core.CommandEvent{Command: cmd})
 	case modalPalette:
 		cmd := core.Command{ID: picked.ID, Source: "palette", Actor: User}
 		cmd.Args, _ = picked.Data.(map[string]any)
+		a.Registers.SetSpecial(core.RegCommand, picked.Title)
 		a.gen++
 		res := a.Engine.Step(s, ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s)), core.CommandEvent{Command: cmd})
 		return res
@@ -1525,6 +1631,11 @@ func (a *App) paletteItems() []picker.Item {
 			}
 		}
 		items = append(items, item)
+	}
+	// The registries: "inspect actions", "inspect modes".
+	for _, what := range []string{InspectActions, InspectModes} {
+		items = append(items, picker.Item{ID: CmdInspectOpen, Title: "inspect " + what, Subtitle: "Look at the " + what + " the app runs on",
+			Data: map[string]any{"what": what}})
 	}
 	// A space is a page.open with its ID: one palette row each.
 	for i, sp := range spaces {
@@ -1642,6 +1753,16 @@ func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 			tbl.SelectedIdx, tbl.Offset = 0, 0
 		}
 	}
+	if c.ID == CmdFilterAccept {
+		// "/ keeps the last filter that was kept.
+		query := a.tocFilter
+		if tbl, _ := a.filterTable(s); a.filterTarget != "toc" && tbl != nil {
+			query = tbl.Query
+		}
+		if query != "" {
+			a.Registers.SetSpecial(core.RegSearch, query)
+		}
+	}
 	if c.ID == CmdFilterAccept || c.ID == CmdFilterCancel {
 		a.filterTarget = ""
 		a.say("")
@@ -1731,7 +1852,7 @@ func (a *App) enterScreen(s core.State, pane data.Record) core.State {
 // way a submitted line is the owner's prompt: it moves the pane's promptedAt,
 // and with it the rail.
 func (a *App) termInput(s core.State, c core.Command) core.StepResult {
-	pane, ok := a.SelectedPane()
+	pane, ok := a.termPane(s)
 	if !ok {
 		return core.Next(s)
 	}
@@ -1798,6 +1919,11 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		out := fn(s, c)
 		a.gen++
 		out.State = a.settle(out.State)
+		a.syncPath(out.State)
+		if len(a.effects) > 0 {
+			out.Effects = append(out.Effects, a.effects...)
+			a.effects = nil
+		}
 		a.markDrawn()
 		return out
 	})
@@ -1820,6 +1946,16 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.settings = nil
 	case modalBindings:
 		a.bindCapturing = false // the editor's model stays: its undo history survives closing it
+	case modalReader:
+		a.reader = nil
+	case modalYank:
+		a.yankRef = nil
+	case modalRecordActions:
+		a.actionRef = nil
+	case modalOpenWith:
+		a.opening = nil
+	case modalScratch:
+		a.scratch = ""
 	}
 	a.say("")
 	return core.Next(closeModal(s, id))
@@ -1844,6 +1980,12 @@ func (a *App) register() {
 				return core.Next(s)
 			}
 		}
+		if topModal(s) == "" {
+			if chain := ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, nil); len(chain) > 0 && chain[0].Facts["empty"] == true {
+				a.say("empty section · press n to add")
+				return core.Next(s)
+			}
+		}
 		ref, ok := a.subject(s, c)
 		if !ok {
 			a.say("nothing here to open")
@@ -1862,6 +2004,33 @@ func (a *App) register() {
 	a.handle(views.CmdEdit, a.edit)
 	a.handle(views.CmdNew, a.create)
 	a.handle(CmdNewHere, func(s core.State, c core.Command) core.StepResult {
+		// On a Show page, focus on or inside a related section creates (or
+		// attaches) one of that section's kind linked to the shown record.
+		if cur, showing := a.Showing(); showing && s.ActivePage == SpaceWork {
+			for _, f := range ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, nil) {
+				if rel, _ := f.Facts["relationKind"].(string); rel == data.RelDirectory {
+					target := cur
+					var start any
+					if rec, err := a.Store.Get(cur); err == nil {
+						start, _ = rec.Value("defaultDir")
+					}
+					return core.Next(a.openPath(s, "", &target, start))
+				}
+				if kind, _ := f.Facts["sectionKind"].(string); kind != "" {
+					if _, known := a.Store.Registry().Get(kind); known {
+						args := map[string]any{"kind": kind, "ownerRef": cur}
+						if field, _ := f.Facts["sectionField"].(string); field != "" {
+							args["ownerField"] = field
+						}
+						if rel, _ := f.Facts["relationKind"].(string); rel != "" {
+							args["ownerRel"] = rel
+						}
+						c.Args = args
+						return a.create(s, c)
+					}
+				}
+			}
+		}
 		// In Work, "new" makes a record of the noun the index lists.
 		c.Args = map[string]any{"kind": a.workKind()}
 		return a.create(s, c)
@@ -1918,6 +2087,12 @@ func (a *App) register() {
 		return core.Next(a.enterScreen(s, *pane))
 	})
 	a.handle(CmdTermDetach, func(s core.State, _ core.Command) core.StepResult {
+		if topModal(s) == modalScratch {
+			// Detaching from a scratch hides it: what was under it is as it was.
+			a.scratch = ""
+			a.say("scratch hidden")
+			return core.Next(closeModal(s, modalScratch))
+		}
 		if s.ActiveFrame().Mode == ModeTerminal {
 			a.say("left the pane")
 			s = withMode(s, ModeNormal)
@@ -1969,6 +2144,7 @@ func (a *App) register() {
 		pm.Placeholder = "a page of any pane"
 		return core.Next(a.openPicker(s, modalPages, pm))
 	})
+	a.handle(CmdRecordActions, a.recordActionsOpen)
 	a.handle(CmdPaletteOpen, func(s core.State, _ core.Command) core.StepResult {
 		pm := picker.New("Commands", a.paletteItems())
 		pm.Placeholder = "a command · !cmd runs a shell command"
@@ -2021,6 +2197,23 @@ func (a *App) register() {
 	for _, id := range []string{CmdFilterMode, CmdFilterField, CmdSortCycle, CmdSortField, CmdGroupField, CmdGroupToggle, CmdMarkToggle} {
 		a.handle(id, a.tableCommand)
 	}
+	a.handle(CmdYankPick, a.yankPick)
+	a.handle(CmdYankPrimary, a.yankPrimary)
+	a.handle(CmdMacroRecord, a.macroRecord)
+	a.handle(CmdMacroStop, a.macroStop)
+	a.handle(CmdMacroReplay, a.macroReplay)
+	a.handle(CmdOpenTarget, a.openTargetCmd)
+	a.handle(CmdOpenWith, a.openWith)
+	for _, id := range []string{markdown.CmdTOCToggle, markdown.CmdTOCNext, markdown.CmdTOCPrev, markdown.CmdHeadingJump, markdown.CmdLinkNext,
+		markdown.CmdLinkPrev, markdown.CmdLinkOpen, markdown.CmdCodeYank, CmdReaderBack, CmdReaderHeadingNext, CmdReaderHeadingPrev} {
+		a.handle(id, a.readerCommand)
+	}
+	a.handle(CmdScratchToggle, a.scratchToggle)
+	a.handle(CmdInspectOpen, a.inspectOpen)
+	a.handle(CmdInspectFilter, a.inspectCommand)
+	a.handle(CmdInspectBind, a.inspectCommand)
+	a.handle(CmdTriageRule, a.ruleFromSignal)
+
 	a.handle(CmdArchivedToggle, func(s core.State, _ core.Command) core.StepResult {
 		a.showArchived = !a.showArchived
 		a.say("archived records are %s", map[bool]string{true: "shown", false: "hidden"}[a.showArchived])

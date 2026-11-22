@@ -1,6 +1,6 @@
 # Matomeru v2 tutorial
 
-Run `mtm --tutorial`. It opens a workspace kept in memory: nothing you do there touches your own data or configuration, and it is gone when you quit (`q`).
+Run `mtm --tutorial`. It opens a workspace kept in memory: nothing you do there touches your own data or configuration, and it is gone when you quit (`Q`).
 
 The workspace is the lesson. The project **Learn Matomeru** in Work has one subtask per step below; mark each done as you go (`e`, move to the status, `l`).
 

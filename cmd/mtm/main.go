@@ -5,6 +5,7 @@
 //	mtm --tutorial                           the TUI on a tutorial workspace kept in memory
 //	mtm --smoke [--dump]                     a scripted run with no terminal; exits 0 when every check holds
 //	mtm config export [--jsonl]              the settings and bindings in effect
+//	mtm inspect actions|bindings|modes|schemas [--json]
 //	mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
 //	mtm record get KIND ID
 //	mtm record create KIND --title "..." [--field k=v ...]
@@ -47,6 +48,9 @@ mtm --smoke [--dump]                     scripted run, no terminal needed
                                          (with --tutorial: a scripted walk of the tutorial)
 mtm config export [--jsonl]              print the settings and bindings in effect, as JSON or
                                          as JSON lines (settings first, then bindings)
+mtm inspect actions|bindings|modes|schemas [--json]
+                                         the registries the app runs on, as a table or as JSON:
+                                         every action with its keys, the keymap, the modes, the nouns
 mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
 mtm record get KIND ID
 mtm record create KIND --title "..." [--field k=v ...]
@@ -59,8 +63,9 @@ mtm migrate --from V1_DB [--dry-run | --apply]
                                          file is only read. Nothing is written without --apply.
 
 --db PATH       the SQLite file (default: $MTM_DB, or the user data directory)
-config          settings.json, bindings.json and themes.json are read from $MTM_CONFIG_DIR,
-                or ~/.config/matomeru-next. S and B in the TUI change and save them.
+config          settings.json, bindings.json, themes.json and handlers.json are read from
+                $MTM_CONFIG_DIR, or ~/.config/matomeru-next. S and B in the TUI change and
+                save the first two; handlers.json says what opens which file (o and O).
 --format table  print records as a table instead of JSON
 `
 
@@ -75,7 +80,7 @@ type options struct {
 	db, format, query, mode, title string
 	from                           string
 	seed, smoke, dump, help        bool
-	tutorial, jsonl                bool
+	tutorial, jsonl, json          bool
 	dryRun, apply                  bool
 	archived, starred              bool
 	fields                         []string
@@ -89,7 +94,7 @@ func parse(argv []string) (options, error) {
 	text := map[string]*string{"--db": &o.db, "--format": &o.format, "--query": &o.query, "--mode": &o.mode, "--title": &o.title, "--from": &o.from}
 	flags := map[string]*bool{"--seed-demo": &o.seed, "--smoke": &o.smoke, "--dump": &o.dump, "--help": &o.help, "-h": &o.help,
 		"--archived": &o.archived, "--starred": &o.starred, "--dry-run": &o.dryRun, "--apply": &o.apply,
-		"--tutorial": &o.tutorial, "--jsonl": &o.jsonl}
+		"--tutorial": &o.tutorial, "--jsonl": &o.jsonl, "--json": &o.json}
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
 		name, value, inline := strings.Cut(arg, "=")
@@ -266,7 +271,7 @@ func runTutorial() error {
 
 func runApp(a *app.App) error {
 	defer a.Close() // cancels runs, closes every pane session
-	p := tea.NewProgram(a.Shell)
+	p := tea.NewProgram(a.Program())
 	stop := a.Start(p.Send)
 	_, err := p.Run()
 	stop()
@@ -299,6 +304,19 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 			return err
 		}
 		_, err = stdout.Write(out)
+		return err
+	case len(o.args) > 0 && o.args[0] == "inspect":
+		if len(o.args) != 2 {
+			return errors.New("usage: mtm inspect actions|bindings|modes|schemas [--json]")
+		}
+		v, err := app.Inspect(o.args[1], configDir())
+		if err != nil {
+			return fmt.Errorf("%w\nusage: mtm inspect actions|bindings|modes|schemas [--json]", err)
+		}
+		if o.json {
+			return printJSON(stdout, v)
+		}
+		_, err = io.WriteString(stdout, app.InspectText(v))
 		return err
 	case len(o.args) > 0 && o.args[0] == "migrate":
 		return runMigrate(ctx, o, stdout)

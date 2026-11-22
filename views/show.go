@@ -14,6 +14,9 @@ import (
 // section is one related section of a Show page.
 type section struct {
 	key, title string
+	targetKind string // schema kind of records in this section, when known
+	field      string // reference field linking those records to the Show page's record
+	relKind    string // relation kind for relation-backed sections
 	cards      []ui.ViewNode
 	always     bool // shown even when empty
 }
@@ -53,7 +56,7 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 			if err != nil {
 				return nil, err
 			}
-			sec := section{key: src.Kind + "." + f.Name, title: src.Plural, always: true}
+			sec := section{key: src.Kind + "." + f.Name, title: src.Plural, targetKind: src.Kind, field: f.Name, always: true}
 			if src.Kind == ref.Kind {
 				sec.title = "Sub" + strings.ToLower(src.Plural)
 			}
@@ -115,7 +118,11 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 		if dir == data.Both {
 			declared[relKey{spec.Kind, data.Outgoing}], declared[relKey{spec.Kind, data.Incoming}] = true, true
 		}
-		if err := addRelations(section{key: "rel." + spec.Kind + "." + suffix, title: title, always: true}, spec.Kind, dir); err != nil {
+		var targetKind string
+		if len(spec.TargetKinds) == 1 {
+			targetKind = spec.TargetKinds[0]
+		}
+		if err := addRelations(section{key: "rel." + spec.Kind + "." + suffix, title: title, targetKind: targetKind, relKind: spec.Kind, always: true}, spec.Kind, dir); err != nil {
 			return nil, err
 		}
 	}
@@ -132,7 +139,7 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 			continue
 		}
 		declared[key] = true
-		if err := addRelations(section{key: "rel." + rel.Kind + "." + suffix, title: title}, rel.Kind, key.dir); err != nil {
+		if err := addRelations(section{key: "rel." + rel.Kind + "." + suffix, title: title, relKind: rel.Kind}, rel.Kind, key.dir); err != nil {
 			return nil, err
 		}
 	}
@@ -248,17 +255,49 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 		}
 		panels = append(panels, timeline)
 	}
+	reg := store.Registry()
 	for _, sec := range sections {
 		if len(sec.cards) == 0 && !opts.ShowEmptyRelations {
 			continue
 		}
-		body := sec.cards
-		if len(body) == 0 {
-			body = []ui.ViewNode{text("", "none", "muted")}
+		secFacts := map[string]any{"sectionTitle": sec.title}
+		if sec.targetKind != "" {
+			secFacts["sectionKind"] = sec.targetKind
 		}
-		panels = append(panels, ui.ViewNode{ID: "show.sec." + sec.key, Kind: ui.KindPanel, Title: sec.title, Border: true,
-			Badges:   []ui.Badge{{Text: fmt.Sprintf("%d", len(sec.cards))}},
-			Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: body}}})
+		if sec.field != "" {
+			secFacts["sectionField"] = sec.field
+		}
+		if sec.relKind != "" {
+			secFacts["relationKind"] = sec.relKind
+		}
+		body := sec.cards
+		panel := ui.ViewNode{
+			ID:     "show.sec." + sec.key,
+			Kind:   ui.KindPanel,
+			Title:  sec.title,
+			Border: true,
+			Badges: []ui.Badge{{Text: fmt.Sprintf("%d", len(sec.cards))}},
+			Facts:  secFacts,
+		}
+		if len(body) == 0 {
+			secFacts["empty"] = true
+			panel.Focusable = true
+			if sec.targetKind != "" {
+				panel.Scope = sec.targetKind
+				t := core.Ref{Kind: sec.targetKind}
+				panel.Ref = &t
+			} else if sec.relKind != "" {
+				panel.Scope = sec.relKind
+			}
+			_, creatable := reg.Get(sec.targetKind)
+			hint := "none"
+			if creatable || sec.relKind == data.RelDirectory {
+				hint = "none · n adds"
+			}
+			body = []ui.ViewNode{text("", hint, "muted")}
+		}
+		panel.Children = []ui.ViewNode{{Kind: ui.KindVStack, Children: body}}
+		panels = append(panels, panel)
 	}
 	body := ui.ViewNode{ID: "show.body", Kind: ui.KindSplit, Ratio: 0.42, Gap: 1, Children: []ui.ViewNode{
 		propsPanel(store, schema, *rec, opts),
@@ -294,7 +333,7 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 		snooze = ui.ActionHint{Key: "Z", Label: "unsnooze", Command: CmdUnsnooze}
 	}
 	open := ui.ActionHint{Key: "enter", Label: "open focused relation", Command: CmdOpen}
-	if focused := body.Find(focusID); focused != nil && focused.Ref != nil && *focused.Ref != ref {
+	if focused := body.Find(focusID); focused != nil && focused.Ref != nil && focused.Ref.ID != "" && *focused.Ref != ref {
 		open.Label = "open " + firstLine(focused.Title, 32)
 		open.Args = map[string]any{"ref": map[string]any{"kind": focused.Ref.Kind, "id": focused.Ref.ID}}
 	}

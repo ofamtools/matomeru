@@ -399,3 +399,90 @@ func TestLaneToolsFromCLI(t *testing.T) {
 		t.Fatalf("notes = %+v", notes)
 	}
 }
+
+// mtm inspect prints the registries the app runs on, without opening the
+// store: every action with its keys, the keymap, the modes and the nouns.
+func TestInspect(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("MTM_CONFIG_DIR", dir)
+	c := cli{t: t, db: filepath.Join(dir, "never-made", "mtm.db")}
+
+	type action struct {
+		ID    string   `json:"id"`
+		Keys  []string `json:"keys"`
+		Bound bool     `json:"bound"`
+	}
+	actions := decode[[]action](t, c.ok("inspect", "actions", "--json"))
+	byID := map[string]action{}
+	for _, a := range actions {
+		byID[a.ID] = a
+	}
+	if a := byID["record.star"]; !a.Bound || len(a.Keys) != 1 || a.Keys[0] != "s" {
+		t.Fatalf("record.star = %+v", a)
+	}
+	if a, ok := byID["table.group.field.cycle"]; !ok || a.Bound || a.Keys == nil {
+		t.Fatalf("table.group.field.cycle = %+v (%v)", a, ok)
+	}
+	for _, id := range []string{"yank.pick", "open.target", "scratch.toggle", "triage.rule.from-signal"} {
+		if !byID[id].Bound {
+			t.Errorf("%s is not bound", id)
+		}
+	}
+	table := c.ok("inspect", "actions")
+	if !strings.HasPrefix(table, "ACTION") || !strings.Contains(table, "(unbound)") || !strings.Contains(table, "record.star") {
+		t.Fatalf("the actions table:\n%s", table)
+	}
+
+	type mode struct {
+		Name        string `json:"name"`
+		Base        string `json:"base"`
+		Passthrough bool   `json:"passthrough"`
+		Bindings    int    `json:"bindings"`
+	}
+	modes := decode[[]mode](t, c.ok("inspect", "modes", "--json"))
+	found := map[string]mode{}
+	for _, m := range modes {
+		found[m.Name] = m
+	}
+	if !found["terminal"].Passthrough || found["outline"].Base != "normal" || found["normal"].Bindings == 0 || found["reader"].Bindings == 0 {
+		t.Fatalf("modes = %+v", modes)
+	}
+
+	// The user's bindings are part of what is inspected.
+	if err := os.WriteFile(filepath.Join(dir, "bindings.json"), []byte(`[{"mode":"normal","keys":["b"],"command":"table.group.field.cycle"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bindings := decode[[]map[string]any](t, c.ok("inspect", "bindings", "--json"))
+	if len(bindings) < 100 || bindings[0]["command"] != "table.group.field.cycle" {
+		t.Fatalf("%d bindings, first %v", len(bindings), bindings[0])
+	}
+	shown := false
+	for _, line := range strings.Split(c.ok("inspect", "actions"), "\n") {
+		if f := strings.Fields(line); len(f) > 1 && f[0] == "table.group.field.cycle" && f[1] == "b" {
+			shown = true
+		}
+	}
+	if !shown {
+		t.Fatal("the user's binding does not show on its action")
+	}
+	schemas := decode[[]map[string]any](t, c.ok("inspect", "schemas", "--json"))
+	var kinds []string
+	for _, s := range schemas {
+		kinds = append(kinds, s["kind"].(string))
+	}
+	if joined := strings.Join(kinds, " "); !strings.Contains(joined, "task") || !strings.Contains(joined, "signal") || !strings.Contains(joined, "triage.rule") {
+		t.Fatalf("schemas = %v", kinds)
+	}
+	if !strings.HasPrefix(c.ok("inspect", "schemas"), "KIND") || !strings.HasPrefix(c.ok("inspect", "bindings"), "MODE") || !strings.HasPrefix(c.ok("inspect", "modes"), "MODE") {
+		t.Fatal("a table has no header")
+	}
+	if msg := c.fails("inspect", "nope"); !strings.Contains(msg, "usage: mtm inspect") {
+		t.Fatalf("inspect nope: %s", msg)
+	}
+	if msg := c.fails("inspect"); !strings.Contains(msg, "usage: mtm inspect") {
+		t.Fatalf("inspect: %s", msg)
+	}
+	if _, err := os.Stat(filepath.Dir(c.db)); err == nil {
+		t.Fatal("inspect opened the store")
+	}
+}

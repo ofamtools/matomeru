@@ -77,10 +77,65 @@ A lane's Show page leads with a timeline: the notes logged about it and its chan
 | `g n` | browse any noun: pick one and its index opens here |
 | `/`, `M` | filter the list, change how the filter matches |
 | `f`, `g s`, `g b` | pick the field to filter on, sort by or group by, from every field of the rows |
-| `o`, `O` | cycle the sort (ascending, descending, off), sort by the next column |
+| `o`, `O` | on a record with a file, a URL or a directory: open it, open it with (see below). On any other row: cycle the sort (ascending, descending, off), sort by the next column. |
+| `y`, `y y` | yank: pick any value of the record, or copy its main one at once |
 | `A` | show or hide archived records |
 
-`g n` lists every registered schema with a live count: tasks, lanes, panes, pages, documents, notes, schedules, occurrences, runs, extensions, and any schema an extension or your own code registered. Every index works the same way.
+`g n` lists every registered schema with a live count: tasks, lanes, panes, pages, documents, notes, schedules, occurrences, runs, extensions, signals, triage rules, and any schema an extension or your own code registered. Every index works the same way. Its last two rows, Actions and Modes, open the inspector.
+
+## Every day
+
+### Yank, registers and macros
+
+`y` opens a picker over every value of the focused record: each field that has a value, then `ref`, `id`, `json` and a `markdown` summary. The list comes from the record's schema and fields, so it is the same key on a task, a pane or a noun an extension added. Each row shows the text it copies. `y y` copies the main value (the title, else the URL, else the file) without the picker. A yank goes to the system clipboard and to the registers:
+
+| Register | Holds |
+| --- | --- |
+| `""`, `"0` | the last yank |
+| `"+` | the system clipboard |
+| `"%` | the focused record: its file when it has one, else its reference |
+| `"/` | the last filter you kept |
+| `":` | the last command you ran from the palette |
+
+`q` and a letter records the keys you press into that letter; `q` stops. `@` and the letter replays them, and `@ @` replays the last one. A macro runs through the keymap, so it does what the keys do. Quit is `Q` (or `ctrl+c`).
+
+### Opening things
+
+`o` opens what the focused record points at: its `filePath`, its `url`, its `cwd`, or, for a document or note kept inline, its own text. `O` lists every handler that matches, and Copy Path. Which handler opens what is a list of rules:
+
+| Match | Opens with |
+| --- | --- |
+| `*.csv`, `*.tsv` | `o-csv2`, in a pane of its own |
+| `*.json`, `*.jsonl` | `o-json2`, in a pane of its own |
+| `*.md` | the built-in reader; second choice, an editor in a side pane |
+| a directory | the path picker; second choice, a new pane there |
+| `http://*`, `https://*` | the system's opener |
+
+`handlers.json` in the configuration directory is laid over these (JSON with comments). A rule is `{"name", "match", "kind", "command", "priority"}`: `match` is a glob on the file name, a URL pattern or `dir`; a rule with a `command` runs it in a pane (`{target}` is the file); the highest `priority` is what `o` uses.
+
+The reader shows Markdown with its contents beside it: `j`/`k` scroll, `}`/`{` and `]`/`[` move by heading, `t` shows or hides the contents, `tab` moves between links, `enter` opens the link (through the same rules: another Markdown file opens in the reader, `backspace` goes back), and `y` yanks the code block in view.
+
+### Two scratches
+
+`ctrl+a S` shows a scratch terminal and `ctrl+a V` a scratch editor on `~/.local/share/matomeru-next/scratch.md`, from any space. Each opens over what you were looking at and the same keys hide it: the space and its focus are where you left them. They are pane records like any other, with `role` `scratch-term` and `scratch-vim`, made the first time you ask. The side panes of `ctrl+a t` and `ctrl+a v` carry `role` `side-term` or `side-vim` and the `parentPane` they were opened beside.
+
+### Panes that outlive the app
+
+With `"terminal.daemon": true` in `settings.json`, panes run in a daemon (`mtmd` or `tuios` on `PATH`) when one answers, and in the app's own process otherwise. `ptyhost.DaemonHost` drives the daemon through its command line (`new-pane`, `send-keys`, `capture-pane`, `resize-pane`, `kill-pane`, `list-panes`), with a binary and a server name you can set, so several daemons can run side by side.
+
+### Signals and triage rules
+
+A signal is something that happened elsewhere: a mention, a review request, a failed build. An agent or a hook records one with the `triage.ingest` tool. A triage rule is a record too: a `when` expression over the signal's fields (`source == "github" && author == "dependabot[bot]"`), an `action` (`mark_noise`, `mark_actionable`, `snooze`, `tag`, `relate_task`), a `priority` and an `enabled` switch.
+
+On a signal, `R` opens a three-line form with a rule drafted from it. `enter` makes the rule and runs every rule over the signals still unreviewed, and the status line says how many were cleaned up. `u` takes the rule back.
+
+### Looking at the app itself
+
+`:` then `inspect actions` lists every action with the keys it is on; an action with none shows `(unbound)`, and `a` binds it to the first free key and saves the row to `bindings.json`. `inspect modes` lists the modes with their base, whether they pass keys through, and how many bindings name them. Both are in `g n` too.
+
+```sh
+mtm inspect actions|bindings|modes|schemas [--json]
+```
 
 ## Settings and bindings
 
@@ -91,6 +146,7 @@ Configuration lives in `$MTM_CONFIG_DIR`, or `~/.config/matomeru-next`. Version 
 | `settings.json` | the settings you changed |
 | `bindings.json` | your binding rows, laid over the defaults |
 | `themes.json` | colour roles and tones laid over the chosen theme |
+| `handlers.json` | rules for what opens which file, laid over the defaults |
 
 `S` opens the settings as a form. A change applies at once and is saved.
 
@@ -132,6 +188,7 @@ The Status column names conflicts (duplicate, shadowed, prefix collision, same k
 | `lane.start`, `lane.update`, `lane.log`, `lane.attach` | the lane an agent works in |
 | `data.schemas`, `data.query`, `data.get`, `data.related`, `data.task_tree`, `data.history` | reads |
 | `data.create_note`, `data.record_agent_input` | two writes that add and never overwrite |
+| `triage.ingest`, `triage.evaluate` | record a signal and run the triage rules on it; run them again on one signal or on all that are unreviewed |
 
 An agent started inside a pane does not have to say where it is. `lane.start` takes its task from `MTM_TASK_ID` and is claimed by the pane in `MTM_PANE_ID`; `ui.create_page`, `ui.update_page` and `ui.ask` use the same pane when none is given. `lane.log` adds a timestamped note (`milestone`, `decision`, `blocker`, `verification` or any word) to the lane's timeline. `lane.attach` relates a document, page, run or plan to the lane.
 
@@ -162,7 +219,7 @@ go run ./examples/extension-api --smoke
 go run ./examples/custom-schema --smoke
 ```
 
-The Extensions space reads the probe today and runs an extension's commands as runs. It does not yet call `catalog`, `query` or `open` itself: the example shows the protocol and proves that what it prints is accepted by the store and by `ui.create_page`.
+The Extensions space reads the probe today and runs an extension's commands as runs. It does not yet call `catalog`, `query` or `open` itself. The library side is there: `ext.LoadCatalog` reads a tool's manifest (schemas, commands, bindings, views), `ext.MountCatalog` registers its nouns, and `ext.QueryExternal` returns the tool's records with your star, archive, snooze and changed fields laid over them. Those live in a shadow record in Matomeru's store (`ext.Shadow`), so the tool's own data is never written. `data.ReadCache` keeps the last answer of such a query and fetches the next one off the UI loop.
 
 ## Packages
 
@@ -171,12 +228,14 @@ The Extensions space reads the probe today and runs an extension's commands as r
 | `data` | schemas, records, relations, change sets and the SQLite store. No UI. |
 | `mcpui` | the MCP tools and the stdio server |
 | `views` | generators of `ui.ViewNode` trees: Index, Show, Edit, the pane site, the lane bar |
-| `runs`, `ext`, `ptyhost` | commands as run records, extension discovery, PTY sessions |
+| `runs`, `ext`, `ptyhost` | commands as run records; extension discovery and the catalog protocol; PTY sessions, local or in a daemon |
+| `handlers` | rules for what opens a file, a directory or a URL. Standard library only. |
+| `triage` | triage rules over signals. No UI. |
 | `migrate` | the version 1 importer |
 | `app` | the four spaces, the overlays and the keymap, on the Ochazuke engine |
 | `cmd/mtm` | the binary |
 
-`data`, `mcpui` and `views` never import Bubble Tea; `deps_test.go` holds every package to its allowed imports.
+`data`, `mcpui`, `views`, `handlers` and `triage` never import Bubble Tea; `deps_test.go` holds every package to its allowed imports.
 
 ## Checks
 

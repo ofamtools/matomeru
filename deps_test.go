@@ -90,7 +90,7 @@ var policies = map[string]policy{
 	},
 	// MCP Open UI: ViewNode data over the store.
 	mod + "/mcpui": {
-		allow:      []string{mod + "/data", ochazuke + "/core", ochazuke + "/ui"},
+		allow:      []string{mod + "/data", mod + "/triage", ochazuke + "/core", ochazuke + "/ui"},
 		forbidDeps: noTea,
 	},
 	// ViewNode generators.
@@ -107,9 +107,22 @@ var policies = map[string]policy{
 		allow:      []string{mod + "/data", ochazuke + "/core"},
 		forbidDeps: noUI,
 	},
-	// Extensions: discovery over the store, execution only through runs.
+	// Extensions: discovery over the store, execution only through runs. A
+	// catalog's views are ViewNode data, so ext reads ui's types; it draws
+	// nothing and stays free of Bubble Tea.
 	mod + "/ext": {
-		allow:      []string{mod + "/data", mod + "/runs", ochazuke + "/core"},
+		allow:      []string{mod + "/data", mod + "/runs", ochazuke + "/core", ochazuke + "/ui"},
+		forbidDeps: noTea,
+	},
+	// File handlers: rules as data and the matching of a target to them.
+	// Standard library only.
+	mod + "/handlers": {
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
+	},
+	// Triage: rules over signals, through the Data API and the expression
+	// language. No UI of any kind.
+	mod + "/triage": {
+		allow:      []string{mod + "/data", ochazuke + "/core", ochazuke + "/expr"},
 		forbidDeps: noUI,
 	},
 	// PTY sessions: a PTY, a VT emulator and the cursor type of Ochazuke's
@@ -127,10 +140,10 @@ var policies = map[string]policy{
 	// engine and its Bubble Tea shell.
 	mod + "/app": {
 		allow: []string{
-			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", bubbletea,
+			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", mod + "/handlers", mod + "/triage", bubbletea,
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
-			ochazuke + "/widgets/bindings",
+			ochazuke + "/widgets/bindings", ochazuke + "/widgets/markdown",
 		},
 	},
 	// The binary: flags and JSON around app, data, mcpui and migrate. It builds
@@ -161,7 +174,7 @@ func TestDependencyBoundaries(t *testing.T) {
 		}
 		byPath[p.ImportPath] = p
 	}
-	for _, req := range []string{"data", "mcpui", "views", "runs", "ext", "ptyhost", "migrate", "app", "cmd/mtm",
+	for _, req := range []string{"data", "mcpui", "views", "runs", "ext", "ptyhost", "migrate", "handlers", "triage", "app", "cmd/mtm",
 		"examples/mcp-agent", "examples/extension-api", "examples/custom-schema"} {
 		if _, ok := byPath[mod+"/"+req]; !ok {
 			t.Fatalf("required package %q missing from go list ./...", mod+"/"+req)

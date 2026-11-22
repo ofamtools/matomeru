@@ -68,7 +68,7 @@ func TutorialSteps() []TutorialStep {
 func TutorialMarkdown() string {
 	var b strings.Builder
 	b.WriteString("# Matomeru v2 tutorial\n\n")
-	b.WriteString("Run `mtm --tutorial`. It opens a workspace kept in memory: nothing you do there touches your own data or configuration, and it is gone when you quit (`q`).\n\n")
+	b.WriteString("Run `mtm --tutorial`. It opens a workspace kept in memory: nothing you do there touches your own data or configuration, and it is gone when you quit (`Q`).\n\n")
 	b.WriteString("The workspace is the lesson. The project **Learn Matomeru** in Work has one subtask per step below; mark each done as you go (`e`, move to the status, `l`).\n\n")
 	for i, st := range TutorialSteps() {
 		fmt.Fprintf(&b, "## %d. %s\n\nKeys: `%s`\n\n%s\n\n", i+1, st.Title, st.Keys, st.Body)

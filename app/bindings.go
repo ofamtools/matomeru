@@ -8,6 +8,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/markdown"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
 )
@@ -26,6 +27,9 @@ const (
 	ModeBindings        = "bindings"         // the binding editor: moving between rows
 	ModeBindingsFilter  = "bindings-filter"  // typing the editor's filter
 	ModeBindingsCapture = "bindings-capture" // pressing the new keys of a binding
+
+	ModeReader  = "reader"  // the Markdown reader
+	ModeInspect = "inspect" // the actions and modes inspector
 )
 
 // Commands the app adds to core's built-ins and the widgets' own.
@@ -93,6 +97,23 @@ const (
 	CmdBindingsCaptureDone   = "bindings.rebind.done"
 	CmdBindingsCaptureCancel = "bindings.rebind.cancel"
 	CmdBindingsMatchMode     = "bindings.filter.mode.cycle"
+
+	CmdYankPick          = "yank.pick"
+	CmdYankPrimary       = "yank.primary"
+	CmdMacroRecord       = "macro.start"
+	CmdMacroStop         = "macro.stop"
+	CmdMacroReplay       = "macro.replay"
+	CmdOpenTarget        = "open.target"
+	CmdOpenWith          = "open.with"
+	CmdReaderBack        = "reader.back"
+	CmdReaderHeadingNext = "reader.heading.next"
+	CmdReaderHeadingPrev = "reader.heading.prev"
+	CmdScratchToggle     = "scratch.toggle"
+	CmdInspectOpen       = "inspect.open"
+	CmdInspectFilter     = "inspect.filter.start"
+	CmdInspectBind       = "inspect.bind"
+	CmdTriageRule        = "triage.rule.from-signal"
+	CmdRecordActions     = "record.actions"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -111,6 +132,8 @@ func Modes() []core.Mode {
 		{Name: ModeBindings},
 		{Name: ModeBindingsFilter},
 		{Name: ModeBindingsCapture},
+		{Name: ModeReader},
+		{Name: ModeInspect},
 	}
 }
 
@@ -191,6 +214,13 @@ func DefaultBindings() []core.Binding {
 		bind(n, SpaceRuns, "n", CmdRunNew, "run a command"),
 		bind(n, data.KindExtension, "r", CmdExtRun, "run"),
 		bind(n, SpaceExtensions, "R", CmdExtRefresh, "look for extensions"),
+		bind(n, data.KindSignal, "R", CmdTriageRule, "rule from this signal"),
+
+		// Yank: y lists every value of the record, y y copies its main one.
+		bind(n, all, "y", CmdYankPick, "yank"),
+		// Open: what the record points at, with the handler its rule names.
+		when(bind(n, all, "o", CmdOpenTarget, "open"), "facts.openable"),
+		when(bind(n, all, "O", CmdOpenWith, "open with"), "facts.openable"),
 
 		// Lists.
 		bind(n, all, "/", CmdFilterStart, "filter"),
@@ -208,6 +238,7 @@ func DefaultBindings() []core.Binding {
 		// Overlays, from anywhere.
 		bind(n, all, "T", CmdOutlineOpen, "outline"),
 		bind(n, all, "'", CmdPagesPick, "pages"),
+		bind(n, all, ";", CmdRecordActions, "record actions"),
 		bind(n, all, ":", CmdPaletteOpen, "commands"),
 		bind(n, all, "?", CmdHelpOpen, "bindings"),
 		bind(n, all, "ctrl+o", CmdPathOpen, "path"),
@@ -215,7 +246,7 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "B", CmdBindingsOpen, "edit bindings"),
 		bind(n, all, "W", CmdPaneAttention, "next pane that wants you"),
 		{Mode: n, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
-		bind(n, all, "q", core.CmdAppQuit, "quit"),
+		bind(n, all, "Q", core.CmdAppQuit, "quit"),
 		hidden(bind(n, all, "ctrl+c", core.CmdAppQuit, "quit")),
 
 		// Terminal: everything but the leader goes to the pane.
@@ -228,6 +259,8 @@ func DefaultBindings() []core.Binding {
 		with(bind(ModeTerminalLeader, all, "t", CmdTermPrefix, "side terminal"), map[string]any{"key": "t"}),
 		with(bind(ModeTerminalLeader, all, "v", CmdTermPrefix, "side vim"), map[string]any{"key": "v"}),
 		hidden(with(bind(ModeTerminalLeader, all, "ctrl+a", CmdTermPrefix, "send ctrl+a"), map[string]any{"key": "ctrl+a"})),
+		with(bind(ModeTerminalLeader, all, "S", CmdScratchToggle, "scratch terminal"), map[string]any{"role": data.RoleScratchTerm}),
+		with(bind(ModeTerminalLeader, all, "V", CmdScratchToggle, "scratch notes"), map[string]any{"role": data.RoleScratchVim}),
 
 		// Filter: typing narrows the list.
 		{Mode: ModeFilter, Class: core.ClassPrintable, Command: CmdFilterInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
@@ -242,6 +275,8 @@ func DefaultBindings() []core.Binding {
 		// Pickers.
 		{Mode: ModePicker, Class: core.ClassPrintable, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
 		{Mode: ModePicker, Class: core.ClassPaste, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		// In the yank picker a second y, before anything is typed, copies the main value.
+		when(bind(ModePicker, all, "y", CmdYankPrimary, "yank the main value"), "modal.id == \"yank\" && facts.query == \"\""),
 		bind(ModePicker, all, "backspace", CmdPickerBack, "erase"),
 		bind(ModePicker, all, "enter", picker.CmdConfirm, "choose"),
 		bind(ModePicker, all, "esc", CmdModalCancel, "close"),
@@ -313,12 +348,54 @@ func DefaultBindings() []core.Binding {
 		bind(ModeBindingsCapture, all, "enter", CmdBindingsCaptureDone, "set these keys"),
 		bind(ModeBindingsCapture, all, "esc", CmdBindingsCaptureCancel, "cancel"),
 
+		// The Markdown reader.
+		bind(ModeReader, all, "j", "motion.down", "down"),
+		bind(ModeReader, all, "k", "motion.up", "up"),
+		hidden(bind(ModeReader, all, "down", "motion.down", "down")),
+		hidden(bind(ModeReader, all, "up", "motion.up", "up")),
+		bind(ModeReader, all, "g g", "motion.top", "top"),
+		bind(ModeReader, all, "G", "motion.bottom", "bottom"),
+		bind(ModeReader, all, "ctrl+d", "motion.half.down", "half page down"),
+		bind(ModeReader, all, "ctrl+u", "motion.half.up", "half page up"),
+		bind(ModeReader, all, "ctrl+f", "motion.page.down", "page down"),
+		bind(ModeReader, all, "ctrl+b", "motion.page.up", "page up"),
+		hidden(bind(ModeReader, all, "space", "motion.page.down", "page down")),
+		bind(ModeReader, all, "}", "motion.block.next", "next heading"),
+		bind(ModeReader, all, "{", "motion.block.prev", "previous heading"),
+		bind(ModeReader, all, "t", markdown.CmdTOCToggle, "contents"),
+		bind(ModeReader, all, "]", CmdReaderHeadingNext, "next in contents"),
+		bind(ModeReader, all, "[", CmdReaderHeadingPrev, "previous in contents"),
+		bind(ModeReader, all, "tab", markdown.CmdLinkNext, "next link"),
+		bind(ModeReader, all, "shift+tab", markdown.CmdLinkPrev, "previous link"),
+		bind(ModeReader, all, "enter", markdown.CmdLinkOpen, "open link"),
+		hidden(bind(ModeReader, all, "o", markdown.CmdLinkOpen, "open link")),
+		bind(ModeReader, all, "y", markdown.CmdCodeYank, "yank code block"),
+		bind(ModeReader, all, "backspace", CmdReaderBack, "back"),
+		hidden(bind(ModeReader, all, "H", CmdReaderBack, "back")),
+		bind(ModeReader, all, "esc", CmdModalCancel, "close"),
+		bind(ModeReader, all, "q", CmdModalCancel, "close"),
+
+		// The inspector: actions and modes.
+		bind(ModeInspect, all, "j", "motion.down", "down"),
+		bind(ModeInspect, all, "k", "motion.up", "up"),
+		hidden(bind(ModeInspect, all, "down", "motion.down", "down")),
+		hidden(bind(ModeInspect, all, "up", "motion.up", "up")),
+		bind(ModeInspect, all, "g g", "motion.top", "top"),
+		bind(ModeInspect, all, "G", "motion.bottom", "bottom"),
+		bind(ModeInspect, all, "ctrl+d", "motion.half.down", "half page down"),
+		bind(ModeInspect, all, "ctrl+u", "motion.half.up", "half page up"),
+		bind(ModeInspect, all, "/", CmdInspectFilter, "filter"),
+		when(bind(ModeInspect, all, "a", CmdInspectBind, "bind to a free key"), "facts.inspecting == \"actions\""),
+		bind(ModeInspect, all, "esc", CmdModalCancel, "close"),
+		bind(ModeInspect, all, "q", CmdModalCancel, "close"),
+
 		// Outline: the normal keys work on the selected task.
 		bind(ModeOutline, all, "enter", CmdOutlineJump, "open task"),
 		bind(ModeOutline, all, "esc", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
 	}
+	out = append(out, macroBindings()...)
 	// Motions and space switches work everywhere; the footer leaves them out
 	// (the help overlay lists them).
 	for i, b := range out {
@@ -333,21 +410,32 @@ func spec(id, desc string, tags ...string) core.CommandSpec {
 	return core.CommandSpec{ID: id, Description: desc, Tags: tags}
 }
 
+func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string) core.CommandSpec {
+	meta := map[string]any{"record": true}
+	if len(kinds) > 0 {
+		meta["kinds"] = kinds
+	}
+	if whenExpr != "" {
+		meta["when"] = whenExpr
+	}
+	return core.CommandSpec{ID: id, Description: desc, Tags: tags, Meta: meta}
+}
+
 // CommandSpecs returns the specs of every command the app handles beyond
 // core's built-ins. Commands that change a record are tagged "editing", so
 // the terminal's leader layer leaves them out.
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
-	return []core.CommandSpec{
-		spec(views.CmdOpen, "Open the focused record's Show page"),
-		spec(views.CmdEdit, "Edit the focused record", "editing"),
+	return append(readerSpecs(), []core.CommandSpec{
+		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
+		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
 		{ID: views.CmdNew, Description: "Create a record", Tags: []string{"editing"}, Params: []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: "task"}}},
-		spec(views.CmdStar, "Star the focused record", "editing"),
-		spec(views.CmdUnstar, "Unstar the focused record", "editing"),
-		spec(views.CmdArchive, "Archive the focused record", "editing"),
-		spec(views.CmdRestore, "Restore the focused record", "editing"),
-		spec(views.CmdSnooze, "Snooze the focused record", "editing"),
-		spec(views.CmdUnsnooze, "Unsnooze the focused record", "editing"),
+		recordSpec(views.CmdStar, "Star the focused record", nil, "facts.starStatus != \"starred\"", "editing"),
+		recordSpec(views.CmdUnstar, "Unstar the focused record", nil, "facts.starStatus == \"starred\"", "editing"),
+		recordSpec(views.CmdArchive, "Archive the focused record", nil, "facts.archiveStatus != \"archived\"", "editing"),
+		recordSpec(views.CmdRestore, "Restore the focused record", nil, "facts.archiveStatus == \"archived\"", "editing"),
+		recordSpec(views.CmdSnooze, "Snooze the focused record", nil, "!facts.snoozed", "editing"),
+		recordSpec(views.CmdUnsnooze, "Unsnooze the focused record", nil, "facts.snoozed", "editing"),
 		spec(CmdUndo, "Undo my last change", "editing"),
 		spec(CmdRedo, "Redo my last undone change", "editing"),
 		spec(CmdHistoryBack, "Go back to the previous Show page"),
@@ -358,20 +446,21 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdTermAttach, "Type in the pane's terminal"),
 		spec(CmdTermDetach, "Leave the pane's terminal"),
 		{ID: CmdTermInput, Description: "Send a key to the pane", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}, {Name: "text", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		spec(CmdRunRerun, "Run the focused run again", "editing"),
-		spec(CmdRunCancel, "Cancel the focused run", "editing"),
+		recordSpec(CmdRunRerun, "Run the focused run again", []string{data.KindRun}, "", "editing"),
+		recordSpec(CmdRunCancel, "Cancel the focused run", []string{data.KindRun}, "", "editing"),
 		spec(CmdRunNew, "Run a shell command as a run", "editing"),
 		spec(CmdExtRefresh, "Look for extensions and check their health", "editing"),
-		spec(CmdExtRun, "Run a command of the focused extension", "editing"),
+		recordSpec(CmdExtRun, "Run a command of the focused extension", []string{data.KindExtension}, "", "editing"),
 		{ID: CmdTermPrefix, Description: "The pane's prefix key and the key after it: [ copy mode, t side terminal, v side vim",
 			Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
 		{ID: CmdWake, Description: "Look at what changed off the UI goroutine", Meta: map[string]any{"internal": true}},
 		spec(CmdOutlineOpen, "Open the outline of every task"),
 		spec(CmdOutlineJump, "Open the selected task"),
 		spec(CmdPagesPick, "Pick a page of any pane"),
+		spec(CmdRecordActions, "Pick an action for the focused record"),
 		spec(CmdPaletteOpen, "Pick a command to run"),
 		spec(CmdHelpOpen, "List the bindings that work here"),
-		spec(CmdPathOpen, "Pick a directory or file"),
+		recordSpec(CmdPathOpen, "Attach a directory or file to the focused record", nil, ""),
 		spec(CmdModalCancel, "Close the overlay"),
 		spec(CmdFilterStart, "Filter the focused list"),
 		{ID: CmdFilterInsert, Description: "Type into the filter", Params: text, Meta: map[string]any{"internal": true}},
@@ -388,7 +477,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdMarkToggle, "Mark the focused row"),
 		spec(CmdArchivedToggle, "Show or hide archived records"),
 		spec(CmdNewHere, "Create a record of the noun the Work index lists", "editing"),
-		spec(CmdAssign, "Move the focused record to a task (a task: under another task, or to the root)", "editing"),
+		recordSpec(CmdAssign, "Move the focused record to a task (a task: under another task, or to the root)", nil, "", "editing"),
 		spec(CmdNounsPick, "Browse any noun: pick one and its index opens in Work"),
 		spec(CmdFilterFieldPick, "Pick the field the filter matches, from every field of the rows"),
 		spec(CmdSortFieldPick, "Pick the field to sort by, from every field of the rows"),
@@ -397,7 +486,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdBindingsOpen, "Browse, filter, rebind, unbind and reset the key bindings"),
 		spec(CmdPaneZoom, "Zoom the pane: hide the rail and the pages, or bring them back"),
 		spec(CmdPaneAttention, "Go to the next pane with an unread question or a waiting program"),
-		spec(CmdLaneShow, "Open the Show page of the pane's active lane"),
+		recordSpec(CmdLaneShow, "Open the Show page of the pane's active lane", []string{data.KindPane, data.KindLane}, ""),
 		{ID: CmdTermEscape, Description: "Send a literal escape to the pane", Meta: map[string]any{"internal": true}},
 		{ID: CmdBindingsFilter, Description: "Type the binding editor's filter", Meta: map[string]any{"internal": true}},
 		{ID: CmdBindingsFilterDone, Description: "Keep the binding editor's filter", Meta: map[string]any{"internal": true}},
@@ -413,6 +502,23 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: "bindings.redo", Description: "Redo the last undone binding change", Meta: map[string]any{"internal": true}},
 		{ID: "bindings.filter.append", Description: "Type into the binding editor's filter", Params: text, Meta: map[string]any{"internal": true}},
 		{ID: "bindings.filter.backspace", Description: "Erase the last character of the binding editor's filter", Meta: map[string]any{"internal": true}},
+		recordSpec(CmdYankPick, "Yank from the focused record: pick any of its values, each shown as it will be copied", nil, ""),
+		recordSpec(CmdYankPrimary, "Yank the focused record's main value (its title, URL or file) at once", nil, ""),
+		{ID: CmdMacroRecord, Description: "Record the keys pressed into a register (q then a letter)", Params: []core.ParamSpec{{Name: "reg", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
+		{ID: CmdMacroStop, Description: "Stop recording the macro", Meta: map[string]any{"internal": true}},
+		{ID: CmdMacroReplay, Description: "Replay a recorded macro (@ then its letter; @ @ the last one)", Params: []core.ParamSpec{{Name: "reg", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
+		recordSpec(CmdOpenTarget, "Open what the focused record points at (file, URL, directory or its own text) with the first matching handler", nil, "facts.openable"),
+		recordSpec(CmdOpenWith, "Open with: pick among every handler that matches, or copy the path", nil, "facts.openable"),
+		{ID: CmdReaderBack, Description: "Go back to the document a link was followed from", Meta: map[string]any{"internal": true}},
+		{ID: CmdReaderHeadingNext, Description: "Go to the next heading of the contents", Meta: map[string]any{"internal": true}},
+		{ID: CmdReaderHeadingPrev, Description: "Go to the previous heading of the contents", Meta: map[string]any{"internal": true}},
+		{ID: CmdScratchToggle, Description: "Show or hide a global scratch over the current space: the terminal, or the notes editor",
+			Params: []core.ParamSpec{{Name: "role", Type: core.ParamString, Enum: []string{data.RoleScratchTerm, data.RoleScratchVim}, Default: data.RoleScratchTerm}}},
+		{ID: CmdInspectOpen, Description: "Inspect a registry the app runs on: actions or modes",
+			Params: []core.ParamSpec{{Name: "what", Type: core.ParamString, Enum: []string{InspectActions, InspectModes}, Default: InspectActions}}, Meta: map[string]any{"internal": true}},
+		{ID: CmdInspectFilter, Description: "Type the inspector's filter", Meta: map[string]any{"internal": true}},
+		{ID: CmdInspectBind, Description: "Bind the focused action to a free key", Meta: map[string]any{"internal": true}},
+		recordSpec(CmdTriageRule, "Make a triage rule from the focused signal and apply it to the signals still unreviewed", []string{data.KindSignal}, "", "editing"),
 		{ID: CmdPickerInsert, Description: "Type into the picker", Params: text, Meta: map[string]any{"internal": true}},
 		{ID: CmdPickerBack, Description: "Erase the last character of the picker's query", Meta: map[string]any{"internal": true}},
 		{ID: picker.CmdConfirm, Description: "Choose the highlighted item", Meta: map[string]any{"internal": true}},
@@ -430,7 +536,17 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: form.CmdInsert, Description: "Type into the active field", Params: text, Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: form.CmdBackspace, Description: "Erase the last character of the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: form.CmdPick, Description: "Pick a value for the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
+	}...)
+}
+
+// readerSpecs are the Markdown widget's own commands. They only make sense
+// in the reader, so the palette leaves them out.
+func readerSpecs() []core.CommandSpec {
+	specs := markdown.Specs()
+	for i := range specs {
+		specs[i].Meta = map[string]any{"internal": true}
 	}
+	return specs
 }
 
 // internal reports whether a command only makes sense from its own key (typing

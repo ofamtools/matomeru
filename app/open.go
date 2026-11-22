@@ -1,0 +1,475 @@
+package app
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"unicode"
+
+	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/handlers"
+	"ofam.dev/matomeru/views"
+	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/markdown"
+	"ofam.dev/ochazuke/widgets/picker"
+)
+
+// Opening things. "o" opens what the focused record points at (its file,
+// its URL, its directory, or its own text) with the first handler whose rule
+// matches; "O" offers every handler that matches. Which handler opens what
+// is data: handlers.DefaultRules with the user's handlers.json laid over it.
+
+const (
+	handlersFileName = "handlers.json"
+	maxReadBytes     = 4 << 20
+	copyPathID       = "copy-path"
+)
+
+// openTarget is what a record gives a handler to open.
+type openTarget struct {
+	path  string // a file, a directory or a URL; "" for inline text
+	title string
+	body  string    // Markdown kept in the record itself
+	from  *core.Ref // the record it came from
+	rules []handlers.Rule
+}
+
+// loadHandlers reads the user's handlers.json over the default rules.
+func (a *App) loadHandlers(dir string) {
+	a.Handlers = handlers.Default()
+	if dir == "" {
+		return
+	}
+	b, err := os.ReadFile(filepath.Join(dir, handlersFileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	if err == nil {
+		err = a.Handlers.LoadJSONC(b)
+	}
+	if err != nil {
+		a.warn("%s: %v", handlersFileName, err)
+	}
+}
+
+// targetFields are the fields a record names something to open with.
+var targetFields = []string{"filePath", "url", "cwd"}
+
+// targetOf is what "open" opens for a record: the first of its file, URL
+// and directory, or, for a document or a note kept inline, its own text.
+func (a *App) targetOf(rec data.Record) (openTarget, bool) {
+	ref := rec.Ref()
+	t := openTarget{title: views.Title(a.schema(rec.Kind), rec), from: &ref}
+	for _, field := range targetFields {
+		if v := strings.TrimSpace(rec.Text(field)); v != "" {
+			t.path = v
+			if !handlers.IsURL(v) {
+				t.path = expandHome(v)
+			}
+			t.rules = a.Handlers.Match(t.path)
+			return t, true
+		}
+	}
+	if body := rec.Text("body"); body != "" && (rec.Kind == data.KindDocument || rec.Kind == data.KindNote) {
+		t.body = body
+		// Inline text has no path: only the reader can show it.
+		for _, rule := range a.Handlers.Match("inline.md") {
+			if rule.Kind == handlers.KindBuiltin && rule.Name == handlers.MarkdownReader {
+				t.rules = append(t.rules, rule)
+			}
+		}
+		if len(t.rules) == 0 {
+			t.rules = []handlers.Rule{{Name: handlers.MarkdownReader, Match: "*.md", Kind: handlers.KindBuiltin}}
+		}
+		return t, true
+	}
+	return t, false
+}
+
+// openable reports whether "o" has something to open on a record.
+func (a *App) openable(rec data.Record) bool {
+	_, ok := a.targetOf(rec)
+	return ok
+}
+
+func (a *App) focusedTarget(s core.State, c core.Command) (openTarget, bool) {
+	ref, ok := a.subject(s, c)
+	if !ok {
+		a.say("nothing here to open")
+		return openTarget{}, false
+	}
+	rec, err := a.Store.Get(ref)
+	if err != nil {
+		a.fail("open", err)
+		return openTarget{}, false
+	}
+	t, ok := a.targetOf(*rec)
+	if !ok {
+		a.say("%s has no file, URL or directory to open", a.title(ref))
+		return openTarget{}, false
+	}
+	return t, true
+}
+
+// openTargetCmd is "o": the first matching handler opens the target.
+func (a *App) openTargetCmd(s core.State, c core.Command) core.StepResult {
+	t, ok := a.focusedTarget(s, c)
+	if !ok {
+		return core.Next(s)
+	}
+	if len(t.rules) == 0 {
+		a.say("no handler opens %s · O copies its path · %s adds one", t.path, handlersFileName)
+		return core.Next(s)
+	}
+	return core.Next(a.runHandler(s, t.rules[0], t))
+}
+
+// openWith is "O": a picker over every handler that matches, and Copy Path.
+func (a *App) openWith(s core.State, c core.Command) core.StepResult {
+	t, ok := a.focusedTarget(s, c)
+	if !ok {
+		return core.Next(s)
+	}
+	var items []picker.Item
+	for i, rule := range t.rules {
+		item := picker.Item{ID: fmt.Sprint(i), Title: rule.Name, Subtitle: rule.Match, Keywords: []string{rule.Kind}}
+		if rule.Kind == handlers.KindExec {
+			item.Subtitle = rule.CommandLine(t.path)
+		}
+		if i == 0 {
+			item.Badges = []ui.Badge{{Text: "o", Tone: "accent"}}
+		}
+		items = append(items, item)
+	}
+	if t.path != "" {
+		items = append(items, picker.Item{ID: copyPathID, Title: "Copy Path", Subtitle: t.path})
+	}
+	what := t.path
+	if what == "" {
+		what = t.title
+	}
+	pm := picker.New("Open "+what+" with", items)
+	pm.Placeholder = "a handler"
+	a.opening = &t
+	return core.Next(a.openPicker(s, modalOpenWith, pm))
+}
+
+// openWithPicked carries out the row picked in "open with".
+func (a *App) openWithPicked(s core.State, picked *picker.Item) core.State {
+	t := a.opening
+	a.opening = nil
+	if t == nil {
+		return s
+	}
+	if picked.ID == copyPathID {
+		a.yank(t.path, "path")
+		return s
+	}
+	var i int
+	if _, err := fmt.Sscan(picked.ID, &i); err != nil || i < 0 || i >= len(t.rules) {
+		return s
+	}
+	return a.runHandler(s, t.rules[i], *t)
+}
+
+func editorCommand() string {
+	if ed := strings.TrimSpace(os.Getenv("EDITOR")); ed != "" {
+		return ed
+	}
+	return "vim"
+}
+
+func systemOpener() string {
+	if runtime.GOOS == "darwin" {
+		return "open"
+	}
+	return "xdg-open"
+}
+
+// runHandler carries out one rule for a target.
+func (a *App) runHandler(s core.State, rule handlers.Rule, t openTarget) core.State {
+	needPath := func() bool {
+		if t.path == "" {
+			a.say("%s needs a file: %s is kept inline", rule.Name, t.title)
+		}
+		return t.path != ""
+	}
+	base := filepath.Base(t.path)
+	if rule.Kind == handlers.KindExec {
+		if !needPath() {
+			return s
+		}
+		// A tool with a screen of its own: it gets a pane.
+		return a.newPane(s, t.from, rule.Name+": "+base, rule.CommandLine(t.path), filepath.Dir(t.path), data.RoleNormal)
+	}
+	switch rule.Name {
+	case handlers.MarkdownReader:
+		return a.openReader(s, t)
+	case handlers.SideVim:
+		if !needPath() {
+			return s
+		}
+		return a.newPane(s, t.from, "vim: "+base, editorCommand()+" "+handlers.Quote(t.path), filepath.Dir(t.path), data.RoleSideVim)
+	case handlers.PathPicker:
+		return a.openPath(closeModal(s, modalOpenWith), "", t.from, t.path)
+	case handlers.NewPane:
+		if !needPath() {
+			return s
+		}
+		return a.newPane(s, t.from, base, "", t.path, data.RoleNormal)
+	case handlers.SystemOpen:
+		if !needPath() {
+			return s
+		}
+		return a.startShell(s, "open "+t.path, systemOpener()+" "+handlers.Quote(t.path), "")
+	}
+	a.say("no handler is named %s · the built-in ones are %s", rule.Name,
+		strings.Join([]string{handlers.MarkdownReader, handlers.SideVim, handlers.PathPicker, handlers.NewPane, handlers.SystemOpen}, ", "))
+	return s
+}
+
+// newPane records a pane running command ("" is the shell) in dir, selects
+// it and goes into its terminal. A side pane keeps the pane it was opened
+// beside as its parentPane, and the task of what it was opened from.
+func (a *App) newPane(s core.State, from *core.Ref, title, command, dir, role string) core.State {
+	fields := map[string]any{"title": title, "runStatus": "running", "role": role}
+	harness := command
+	if harness == "" {
+		harness = "shell"
+		if sh := os.Getenv("SHELL"); sh != "" {
+			harness = filepath.Base(sh)
+		}
+	}
+	fields["harness"], _, _ = strings.Cut(harness, " ")
+	if dir != "" && dir != "." {
+		fields["cwd"] = dir
+	}
+	if command != "" {
+		fields["command"] = command
+	}
+	what := "opened " + title
+	if from != nil {
+		if rec, err := a.Store.Get(*from); err == nil {
+			if from.Kind == data.KindPane {
+				fields["parentPane"] = *from
+				what += " beside " + a.title(*from)
+			}
+			if task, ok := rec.RefField("task"); ok {
+				fields["task"] = task
+			} else if from.Kind == data.KindTask {
+				fields["task"] = *from
+			}
+		}
+	}
+	rec, cs, err := a.Store.Create(data.CreateInput{Kind: data.KindPane, Fields: fields}, User)
+	if err != nil {
+		a.fail("open pane", err)
+		return s
+	}
+	s = a.dropModals(s)
+	rail := a.rail()
+	if !selectRow(rail, data.RefText(rec.Ref())) {
+		rail.Query = ""
+		selectRow(rail, data.RefText(rec.Ref()))
+	}
+	a.activePage[rec.ID] = views.ScreenPageID
+	s.ActivePage = SpacePanes
+	if err := a.attach(*rec); err != nil {
+		a.fail("open "+title, err)
+		return withPage(s, SpacePanes, siteScreen, ModeNormal)
+	}
+	a.wrote(what, cs, nil)
+	return withPage(s, SpacePanes, siteScreen, ModeTerminal)
+}
+
+// --- the Markdown reader ----------------------------------------------------------
+
+// readerState is the open reader: its document, the file it was read from
+// (links are relative to it) and the documents left behind by following links.
+type readerState struct {
+	md   *markdown.Model
+	path string
+	back []readerPage
+}
+
+type readerPage struct {
+	title, source, path string
+	offset              int
+}
+
+func (a *App) readFile(path string) (string, error) {
+	read := a.opts.ReadFile
+	if read == nil {
+		read = os.ReadFile
+	}
+	b, err := read(path)
+	if err != nil {
+		return "", err
+	}
+	if len(b) > maxReadBytes {
+		return "", fmt.Errorf("%s is %d MB: too large for the reader", path, len(b)>>20)
+	}
+	return string(b), nil
+}
+
+// openReader shows a target's Markdown in the reader: its inline text, or
+// its file.
+func (a *App) openReader(s core.State, t openTarget) core.State {
+	source, title := t.body, t.title
+	if t.path != "" {
+		text, err := a.readFile(t.path)
+		if err != nil {
+			a.fail("read "+t.path, err)
+			return s
+		}
+		source, title = text, filepath.Base(t.path)
+	}
+	md := markdown.New(title, source)
+	md.ShowTOC = len(md.Headings) > 1
+	a.reader = &readerState{md: md, path: t.path}
+	a.say("j/k scroll · ]/[ headings · t contents · tab links · enter opens · y yanks code · q closes")
+	return openModal(closeModal(s, modalOpenWith), modalReader, ModeReader, readerNode)
+}
+
+func slug(text string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(text)) {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-':
+			b.WriteRune(r)
+		case unicode.IsSpace(r):
+			b.WriteRune('-')
+		}
+	}
+	return b.String()
+}
+
+// jumpToAnchor scrolls the reader to the heading a "#fragment" names.
+func (rs *readerState) jumpToAnchor(frag string) bool {
+	want := slug(strings.TrimPrefix(frag, "#"))
+	for i, h := range rs.md.Headings {
+		if slug(h.Text) == want {
+			rs.md.HandleCommand(core.Command{ID: markdown.CmdHeadingJump, Args: map[string]any{"index": i}})
+			return true
+		}
+	}
+	return false
+}
+
+// followLink opens a link of the reader's document through the handlers: a
+// heading of this document, another Markdown file in the reader itself, and
+// anything else with the handler its rule names.
+func (a *App) followLink(s core.State, href string) core.State {
+	rs := a.reader
+	if strings.HasPrefix(href, "#") {
+		if !rs.jumpToAnchor(href) {
+			a.say("no heading %s in this document", href)
+		}
+		return s
+	}
+	target, frag := href, ""
+	if !handlers.IsURL(href) {
+		target, frag, _ = strings.Cut(href, "#")
+		target = expandHome(target)
+		if !filepath.IsAbs(target) {
+			if rs.path == "" {
+				a.say("%s is relative, and this text has no file to be relative to", href)
+				return s
+			}
+			target = filepath.Join(filepath.Dir(rs.path), target)
+		}
+	}
+	rules := a.Handlers.Match(target)
+	if len(rules) == 0 {
+		a.say("no handler opens %s", target)
+		return s
+	}
+	if rules[0].Kind == handlers.KindBuiltin && rules[0].Name == handlers.MarkdownReader {
+		text, err := a.readFile(target)
+		if err != nil {
+			a.fail("read "+target, err)
+			return s
+		}
+		rs.back = append(rs.back, readerPage{title: rs.md.Title, source: rs.md.Source, path: rs.path, offset: rs.md.Offset})
+		rs.md.Title, rs.path = filepath.Base(target), target
+		rs.md.SetSource(text)
+		rs.md.Offset, rs.md.ActiveLinkIdx = 0, 0
+		if frag != "" {
+			rs.jumpToAnchor(frag)
+		}
+		a.say("%s · backspace goes back", rs.md.Title)
+		return s
+	}
+	return a.runHandler(s, rules[0], openTarget{path: target, title: filepath.Base(target)})
+}
+
+// readerCommand runs the reader's own commands: contents, headings, links
+// and the code-block yank.
+func (a *App) readerCommand(s core.State, c core.Command) core.StepResult {
+	rs := a.reader
+	if rs == nil || topModal(s) != modalReader {
+		return core.Next(s)
+	}
+	switch c.ID {
+	case CmdReaderBack:
+		if len(rs.back) == 0 {
+			a.say("this is the first document")
+			return core.Next(s)
+		}
+		last := rs.back[len(rs.back)-1]
+		rs.back = rs.back[:len(rs.back)-1]
+		rs.md.Title, rs.path = last.title, last.path
+		rs.md.SetSource(last.source)
+		rs.md.Offset = last.offset
+		a.say("%s", last.title)
+		return core.Next(s)
+	case CmdReaderHeadingNext, CmdReaderHeadingPrev:
+		// Select the next heading of the contents and go to it.
+		step := markdown.CmdTOCNext
+		if c.ID == CmdReaderHeadingPrev {
+			step = markdown.CmdTOCPrev
+		}
+		rs.md.HandleCommand(core.Command{ID: step, Count: c.Count})
+		rs.md.HandleCommand(core.Command{ID: markdown.CmdHeadingJump})
+		return core.Next(s)
+	}
+	action, _ := rs.md.HandleCommand(c)
+	switch action.Kind {
+	case markdown.ActionOpen:
+		return core.Next(a.followLink(s, action.Target))
+	case markdown.ActionYank:
+		a.yank(action.Text, "code block")
+	default:
+		switch c.ID {
+		case markdown.CmdLinkOpen:
+			a.say("no link here to open")
+		case markdown.CmdCodeYank:
+			a.say("no code block in this document")
+		}
+	}
+	return core.Next(s)
+}
+
+// readerModal draws the reader.
+func (a *App) readerModal() ui.ViewNode {
+	rs := a.reader
+	if a.Shell != nil && a.Shell.H > 12 {
+		rs.md.PageSize = a.Shell.H*85/100 - 6
+	}
+	body := rs.md.View(readerNode)
+	ov := overlay(modalReader, rs.md.Title, 92, 90, body)
+	ov.Scope = "reader"
+	ov.Badges = []ui.Badge{{Text: fmt.Sprintf("%d headings", len(rs.md.Headings))}, {Text: fmt.Sprintf("%d links", len(rs.md.Links))},
+		{Text: fmt.Sprintf("%d code", len(rs.md.CodeBlocks))}}
+	if rs.path != "" {
+		ov.Badges = append(ov.Badges, ui.Badge{Text: rs.path, Tone: "muted"})
+	}
+	if n := len(rs.back); n > 0 {
+		ov.Badges = append(ov.Badges, ui.Badge{Text: fmt.Sprintf("%d back", n), Tone: "accent"})
+	}
+	return ov
+}

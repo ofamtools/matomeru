@@ -35,19 +35,21 @@ const (
 )
 
 // Tools returns every tool the MCP server lists: the four Open UI tools,
-// the lane tools, then the data tools.
+// the lane tools, the data tools, then the triage tools.
 func Tools(router *Router, dataTools *DataTools) []ToolSpec {
 	out := append(router.ToolSpecs(), NewLaneTools(nil).ToolSpecs()...)
-	return append(out, dataTools.ToolSpecs()...)
+	out = append(out, dataTools.ToolSpecs()...)
+	return append(out, NewTriageTools(nil).ToolSpecs()...)
 }
 
-// Toolbox is every tool over one store: the Open UI tools, the lane tools
-// and the data tools, behind one Call. The MCP server and the CLI both run
+// Toolbox is every tool over one store: the Open UI tools, the lane tools,
+// the data tools and the triage tools, behind one Call. The MCP server and the CLI both run
 // tools through it. Getenv reads the environment (nil is os.Getenv).
 type Toolbox struct {
 	Router *Router
 	Lanes  *LaneTools
 	Data   *DataTools
+	Triage *TriageTools
 	Getenv func(string) string
 }
 
@@ -56,13 +58,17 @@ func NewToolbox(store *data.Store, router *Router) *Toolbox {
 	if router == nil {
 		router = New(store)
 	}
-	return &Toolbox{Router: router, Lanes: NewLaneTools(store), Data: NewDataTools(store)}
+	return &Toolbox{Router: router, Lanes: NewLaneTools(store), Data: NewDataTools(store), Triage: NewTriageTools(store)}
 }
 
 // ToolSpecs lists every tool.
 func (b *Toolbox) ToolSpecs() []ToolSpec {
 	out := append(b.Router.ToolSpecs(), b.Lanes.ToolSpecs()...)
-	return append(out, b.Data.ToolSpecs()...)
+	out = append(out, b.Data.ToolSpecs()...)
+	if b.Triage != nil {
+		out = append(out, b.Triage.ToolSpecs()...)
+	}
+	return out
 }
 
 // HasTool reports whether name is a tool of the toolbox.
@@ -124,6 +130,8 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return b.Data.Call(ctx, actor, name, raw)
 	case lanes.HasTool(name):
 		return lanes.Call(ctx, actor, name, raw)
+	case b.Triage != nil && b.Triage.HasTool(name):
+		return b.Triage.Call(ctx, actor, name, raw)
 	}
 	return b.Router.Call(ctx, actor, name, b.envDefaults(name, raw))
 }

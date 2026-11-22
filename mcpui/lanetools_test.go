@@ -147,3 +147,45 @@ func TestEnvDefaultsForPages(t *testing.T) {
 		t.Fatal("a pane appeared from nowhere")
 	}
 }
+
+// triage.ingest records a signal and runs the rules on it; triage.evaluate
+// runs them again, on one signal or on all that are unreviewed.
+func TestTriageTools(t *testing.T) {
+	store, box, _ := laneStore(t)
+	if !box.HasTool(ToolTriageIngest) || !box.HasTool(ToolTriageEvaluate) {
+		t.Fatal("the toolbox does not list the triage tools")
+	}
+	quiet := callAs[TriageResult](t, box, ToolTriageIngest, map[string]any{"source": "github", "eventKind": "pull_request", "author": "dependabot[bot]", "title": "Bump x", "task": "t1"})
+	if s := quiet.Signal; s == nil || s.Kind != data.KindSignal || s.Text("triageState") != data.TriageUnreviewed || quiet.Matched != 0 || quiet.Evaluated != 1 {
+		t.Fatalf("ingest with no rules = %+v", quiet)
+	}
+	if task, _ := quiet.Signal.RefField("task"); task != taskRef("t1") {
+		t.Fatalf("task = %v", task)
+	}
+	if _, _, err := store.Create(data.CreateInput{Kind: data.KindTriageRule, Fields: map[string]any{
+		"title": "bots", "when": `author == "dependabot[bot]"`, "action": data.ActionMarkNoise}}, core.Actor{Kind: "user", ID: "owner"}); err != nil {
+		t.Fatal(err)
+	}
+	one := callAs[TriageResult](t, box, ToolTriageEvaluate, map[string]any{"signal": quiet.Signal.ID})
+	if one.Matched != 1 || one.Signal.Text("triageState") != data.TriageNoise || !one.Signal.IsArchived() || one.Applied[0].Action != data.ActionMarkNoise {
+		t.Fatalf("evaluate one = %+v", one)
+	}
+	noisy := callAs[TriageResult](t, box, ToolTriageIngest, map[string]any{"source": "github", "author": "dependabot[bot]", "title": "Bump y"})
+	if noisy.Matched != 1 || !noisy.Signal.IsArchived() {
+		t.Fatalf("ingest with a rule = %+v", noisy)
+	}
+	callAs[TriageResult](t, box, ToolTriageIngest, map[string]any{"source": "slack", "author": "kmo", "title": "ping"})
+	all := callAs[TriageResult](t, box, ToolTriageEvaluate, map[string]any{})
+	if all.Signal != nil || all.Evaluated != 1 || all.Matched != 0 {
+		t.Fatalf("evaluate all = %+v", all)
+	}
+	// The writes are an agent's, never the owner's.
+	noisyRef := noisy.Signal.Ref()
+	history, err := store.History(&noisyRef, 10)
+	if err != nil || len(history) == 0 || history[0].Actor.Kind != "agent" {
+		t.Fatalf("history actor = %+v, %v", history, err)
+	}
+	if _, err := box.Call(context.Background(), core.Actor{}, ToolTriageEvaluate, json.RawMessage(`{"signal": "nope"}`)); err == nil {
+		t.Fatal("evaluating a signal that is not there succeeded")
+	}
+}

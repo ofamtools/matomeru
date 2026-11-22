@@ -65,7 +65,40 @@ const (
 	KindExtension  = "extension"
 	KindTag        = "tag"
 	KindWorkspace  = "workspace"
+	// KindSignal is one event from outside (a notification, a mention, a CI
+	// result) waiting to be triaged; KindTriageRule is a rule that triages them.
+	KindSignal     = "signal"
+	KindTriageRule = "triage.rule"
 )
+
+// Pane roles. A pane with no role is a normal one.
+const (
+	RoleNormal      = "normal"
+	RoleScratchTerm = "scratch-term" // the one global scratch terminal
+	RoleScratchVim  = "scratch-vim"  // the one global scratch editor
+	RoleSideTerm    = "side-term"    // a terminal opened beside parentPane
+	RoleSideVim     = "side-vim"     // an editor opened beside parentPane
+)
+
+// PaneRoles lists the pane roles.
+var PaneRoles = []string{RoleNormal, RoleScratchTerm, RoleScratchVim, RoleSideTerm, RoleSideVim}
+
+// Triage states of a signal and actions of a triage rule.
+const (
+	TriageUnreviewed = "unreviewed"
+	TriageActionable = "actionable"
+	TriageNoise      = "noise"
+	TriageDone       = "done"
+
+	ActionMarkNoise      = "mark_noise"
+	ActionMarkActionable = "mark_actionable"
+	ActionSnooze         = "snooze"
+	ActionTag            = "tag"
+	ActionRelateTask     = "relate_task"
+)
+
+// TriageActions lists what a triage rule can do to a signal it matches.
+var TriageActions = []string{ActionMarkNoise, ActionMarkActionable, ActionSnooze, ActionTag, ActionRelateTask}
 
 // StatusValue is one value of a status column.
 type StatusValue struct {
@@ -245,7 +278,7 @@ func statusField(col StatusColumn, desc string) core.ParamSpec {
 // universalRelations are the relation sections every core noun shows.
 func universalRelations(extra ...RelationSpec) []RelationSpec {
 	return append(extra,
-		RelationSpec{Kind: RelAbout, Title: "Notes", Direction: DirectionIncoming},
+		RelationSpec{Kind: RelAbout, Title: "Notes", TargetKinds: []string{KindNote}, Direction: DirectionIncoming},
 		RelationSpec{Kind: RelContext, Title: "Context", Direction: DirectionOutgoing},
 		RelationSpec{Kind: RelTag, Title: "Tags", TargetKinds: []string{KindTag}, Direction: DirectionOutgoing},
 	)
@@ -292,6 +325,13 @@ func DefaultSchemas() *Registry {
 		{Name: "done", Label: "Done", Tone: "state.done", Position: 4, Ends: true},
 		{Name: "parked", Label: "Parked", Tone: "muted", Position: 5, Open: true},
 		{Name: "cancelled", Label: "Cancelled", Tone: "dim", Position: 6, Ends: true},
+	}}
+
+	triage := StatusColumn{Name: "triageState", Title: "Triage", Default: TriageUnreviewed, Values: []StatusValue{
+		{Name: TriageUnreviewed, Label: "Unreviewed", Tone: "warning", Position: 0, Open: true},
+		{Name: TriageActionable, Label: "Actionable", Tone: "state.working", Position: 1, Starts: true, Open: true},
+		{Name: TriageNoise, Label: "Noise", Tone: "muted", Position: 2, Ends: true},
+		{Name: TriageDone, Label: "Done", Tone: "state.done", Position: 3, Ends: true},
 	}}
 
 	r := NewRegistry()
@@ -355,6 +395,8 @@ func DefaultSchemas() *Registry {
 				str("lastAgentBy", "which agent last sent input to the pane"),
 				refTo("task", KindTask, "task the pane works on"),
 				str("command", "command line a live session of the pane runs; empty runs $SHELL"),
+				{Name: "role", Type: core.ParamString, Enum: PaneRoles, Description: "what the pane is for: a normal pane, a global scratch, or a side pane of parentPane; empty is normal"},
+				refTo("parentPane", KindPane, "pane a side pane was opened beside"),
 			},
 			StatusColumns:  []StatusColumn{paneRun},
 			DefaultColumns: []string{"title", "runStatus", "harness", "cwd", "task"},
@@ -466,6 +508,41 @@ func DefaultSchemas() *Registry {
 			DefaultColumns: []string{"name", "runStatus", "binary", "summary"},
 			Relations:      universalRelations(),
 			UniqueFields:   []string{"name"},
+		},
+		Schema{
+			// A signal is something that happened elsewhere and may want the
+			// owner: triage rules sort the noise from what is actionable.
+			Kind: KindSignal, Title: "Signal", Plural: "Signals", SummaryField: "title",
+			Fields: []core.ParamSpec{
+				str("title", "what happened"),
+				str("source", "where it came from: github, slack, ci, mail"),
+				str("eventKind", "what kind of event it is: mention, review_request, failure"),
+				str("author", "who or what caused it"),
+				str("container", "where it happened: a repository, a channel, a thread"),
+				str("body", "the text of the event"),
+				str("url", "link to the event"),
+				str("occurredAt", "when it happened (RFC 3339)"),
+				statusField(triage, "where the signal stands in triage"),
+				refTo("task", KindTask, "task the signal belongs to"),
+			},
+			StatusColumns:  []StatusColumn{triage},
+			DefaultColumns: []string{"title", "source", "author", "triageState", "task"},
+			Relations:      universalRelations(),
+		},
+		Schema{
+			// A triage rule is an expression over a signal's fields and what
+			// to do with the signals it holds for.
+			Kind: KindTriageRule, Title: "Triage rule", Plural: "Triage rules", SummaryField: "title",
+			Fields: []core.ParamSpec{
+				{Name: "title", Type: core.ParamString, Required: true, Description: "what the rule is for"},
+				str("when", "expression over the signal's fields: source == \"github\" && author == \"dependabot[bot]\""),
+				{Name: "action", Type: core.ParamString, Enum: TriageActions, Default: ActionMarkNoise, Description: "what to do with a signal the rule matches"},
+				str("actionValue", "the tag to add, the task ID to relate, or how long to snooze (24h)"),
+				{Name: "priority", Type: core.ParamInt, Default: 0, Description: "rules run from the highest priority to the lowest"},
+				{Name: "enabled", Type: core.ParamBool, Default: true, Description: "a rule that is off is kept and never runs"},
+			},
+			DefaultColumns: []string{"title", "when", "action", "actionValue", "priority", "enabled"},
+			Relations:      universalRelations(),
 		},
 	)
 	return r

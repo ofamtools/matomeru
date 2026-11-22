@@ -19,20 +19,25 @@ import (
 // The declared settings: each has a spec, so the Settings overlay (S) is a
 // form over them and a change applies at once.
 const (
-	SetTheme          = "ui.theme"
-	SetDensity        = "ui.density"
-	SetBorderStyle    = "ui.borderStyle"
-	SetShowMetadata   = "show.metadata"
-	SetShowEmpty      = "show.emptyRelations"
-	SetFlagsColumn    = "index.flagsColumn"
-	SetMatchMode      = "index.defaultMatchMode"
-	SetEditUniversal  = "edit.showUniversalFields"
-	SetEditExtra      = "edit.showExtraFields"
-	SetLaneBar        = "panes.laneProgressBar"
-	SetRailAutoWiden  = "panes.railAutoWiden"
-	defaultThemeName  = "ochazuke-dark"
-	settingsFileName  = "settings.json"
-	bindingsFileName  = "bindings.json"
+	SetTheme         = "ui.theme"
+	SetDensity       = "ui.density"
+	SetBorderStyle   = "ui.borderStyle"
+	SetShowMetadata  = "show.metadata"
+	SetShowEmpty     = "show.emptyRelations"
+	SetFlagsColumn   = "index.flagsColumn"
+	SetMatchMode     = "index.defaultMatchMode"
+	SetEditUniversal = "edit.showUniversalFields"
+	SetEditExtra     = "edit.showExtraFields"
+	SetLaneBar       = "panes.laneProgressBar"
+	SetRailAutoWiden = "panes.railAutoWiden"
+	defaultThemeName = "ochazuke-dark"
+	settingsFileName = "settings.json"
+	bindingsFileName = "bindings.json"
+	// setTerminalDaemon is read from settings.json only (it has no row in
+	// the settings form): panes run in a daemon when one is reachable.
+	setTerminalDaemon = "terminal.daemon"
+	// factOpenable is set on a row whose record "o" can open.
+	factOpenable      = "openable"
 	themesFileName    = "themes.json"
 	railRatio         = 0.3
 	railRatioWidened  = 0.42

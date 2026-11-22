@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -295,7 +296,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		site = views.PaneSiteViewWith(*pane, res.Items, a.activePage[pane.ID], a.tocFilter, opts)
 		a.live.shown = ""
 		if screen := site.Find(siteScreen); screen != nil {
-			if lines, cursor, badges, ok := a.liveScreen(*pane); ok {
+			if lines, cursor, badges, ok := a.liveScreen(*pane, siteScreen); ok {
 				screen.Props["lines"], screen.Props["cursor"] = lines, cursor
 				content := site.Find("site.content")
 				content.Badges = badges
@@ -353,11 +354,25 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 	for _, h := range a.history[:a.histPos+1] {
 		crumbs = append(crumbs, a.title(h.ref))
 	}
+	if len(crumbs) > 4 {
+		crumbs = []string{crumbs[0], "…", crumbs[len(crumbs)-2], crumbs[len(crumbs)-1]}
+	}
 	trail := " " + strings.Join(crumbs, " › ")
 	if n := len(a.history) - a.histPos - 1; n > 0 {
 		trail += fmt.Sprintf("   (%d forward)", n)
 	}
 	page, err := views.ShowViewWith(a.Store, ref, s.Pages[SpaceWork].FocusID, a.showOptions())
+	if header := page.Find(showHeader); err == nil && header != nil {
+		// The Show page's record opens with "o" as its row in a list does.
+		if rec, gerr := a.Store.Get(ref); gerr == nil && a.openable(*rec) {
+			facts := maps.Clone(header.Facts)
+			if facts == nil {
+				facts = map[string]any{}
+			}
+			facts[factOpenable] = true
+			header.Facts = facts
+		}
+	}
 	if err != nil {
 		page = ui.ViewNode{ID: "show", Kind: ui.KindPanel, Border: true, Title: data.RefText(ref), Children: []ui.ViewNode{
 			text("", "This record is not in the store any more ("+err.Error()+"). Backspace goes back.", "warning")}}
@@ -474,6 +489,29 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.bindingsModal()
+	case modalReader:
+		if a.reader == nil {
+			break
+		}
+		return a.readerModal()
+	case modalScratch:
+		if a.scratch == "" {
+			break
+		}
+		return a.scratchModal()
+	case modalInspect:
+		pm := a.pickers[m.ID]
+		if pm == nil {
+			break
+		}
+		ov := overlay(m.ID, "Inspect "+a.inspecting, 80, 80, pm.View(m.ID+".list"))
+		ov.Scope = "inspect"
+		ov.Facts = map[string]any{"inspecting": a.inspecting}
+		ov.Badges = []ui.Badge{{Text: fmt.Sprintf("%d of %d", len(pm.Filtered()), len(pm.Items))}}
+		if pm.Query != "" {
+			ov.Badges = append(ov.Badges, ui.Badge{Text: "/" + pm.Query, Tone: "accent"})
+		}
+		return ov
 	case modalLaunch:
 		if a.launch == nil {
 			break

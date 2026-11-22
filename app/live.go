@@ -82,7 +82,9 @@ func (a *App) setupLive(opts Options) {
 			a.Extensions = ext.New(ext.Options{})
 		}
 		if a.Host == nil {
-			a.Host = ptyhost.NewLocalHost()
+			// With the "terminal.daemon" setting on, panes live in a daemon
+			// (mtmd, tuios) when one answers, and so outlive the app.
+			a.Host = ptyhost.AutoHost(a.Settings.Bool(setTerminalDaemon, false))
 		}
 		if l.watch == 0 {
 			l.watch = DefaultWatch
@@ -467,6 +469,12 @@ func (a *App) screenSize() (int, int) {
 // pane's command (empty runs $SHELL) and directory, and one that exited is
 // opened again. Without a host there is nothing to open.
 func (a *App) attach(pane data.Record) error {
+	cols, rows := a.screenSize()
+	return a.attachSized(pane, cols, rows)
+}
+
+// attachSized is attach for a session shown somewhere other than the Screen.
+func (a *App) attachSized(pane data.Record, cols, rows int) error {
 	if a.Host == nil {
 		return nil
 	}
@@ -478,7 +486,6 @@ func (a *App) attach(pane data.Record) error {
 		a.Term.Forget(pane.ID)
 		delete(a.live.frames, pane.ID)
 	}
-	cols, rows := a.screenSize()
 	cmd, cwd := pane.Text("command"), expandHome(pane.Text("cwd"))
 	var err error
 	if host, ok := a.Host.(ptyhost.EnvOpener); ok {
@@ -529,7 +536,7 @@ func cursorProp(x, y int, shape any) map[string]any {
 // liveScreen is what the Screen shows of a pane's live session: its screen
 // with the hardware cursor, or Copy Mode's view of its history. It resizes
 // the session to the Screen when the two differ.
-func (a *App) liveScreen(pane data.Record) (lines []string, cursor map[string]any, badges []ui.Badge, ok bool) {
+func (a *App) liveScreen(pane data.Record, node string) (lines []string, cursor map[string]any, badges []ui.Badge, ok bool) {
 	if a.Host == nil {
 		return nil, nil, nil, false
 	}
@@ -546,7 +553,7 @@ func (a *App) liveScreen(pane data.Record) (lines []string, cursor map[string]an
 		return nil, nil, nil, false
 	}
 	if a.Shell != nil && !f.Exited {
-		if r, has := a.Shell.State.Layout.InnerRects[siteScreen]; has && r.W > 0 && r.H > 0 && (r.W != f.Cols || r.H != f.Rows) {
+		if r, has := a.Shell.State.Layout.InnerRects[node]; has && r.W > 0 && r.H > 0 && (r.W != f.Cols || r.H != f.Rows) {
 			if a.Host.Resize(pane.ID, r.W, r.H) == nil {
 				f.Cols, f.Rows = r.W, r.H
 				a.live.frames[pane.ID] = f
@@ -630,7 +637,7 @@ func (a *App) act(s core.State, pane data.Record, action ptyhost.Action) (core.S
 // termPrefix sends the session's prefix key and then key, so the leader's
 // t, v and [ (and ctrl+a ctrl+a) reach the Controller.
 func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
-	pane, ok := a.SelectedPane()
+	pane, ok := a.termPane(s)
 	switch key := c.Arg("key"); {
 	case !ok:
 		a.say("no pane is selected")
@@ -645,7 +652,7 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 		}
 		a.Term.Key(pane.ID, prefix)
 		next, effects, _ := a.act(s, *pane, a.Term.Key(pane.ID, key))
-		if a.Term.Mode(pane.ID) == ptyhost.ModeCopy {
+		if a.Term.Mode(pane.ID) == ptyhost.ModeCopy && topModal(s) != modalScratch {
 			// Copy Mode reads its keys on the Screen, wherever it was asked for.
 			a.activePage[pane.ID] = views.ScreenPageID
 			next.ActivePage = SpacePanes
@@ -657,42 +664,21 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 }
 
 // spawn opens a side pane beside from, in its directory and for its task,
-// running command ("" is the shell), and goes into it.
+// running command ("" is the shell), and goes into it. The pane's role says
+// what it is (a side terminal or a side editor) and its parentPane which
+// pane it was opened beside.
 func (a *App) spawn(s core.State, from data.Record, command string) core.State {
-	name := command
+	name, role := command, data.RoleSideVim
 	if name == "" {
-		name = "shell"
+		name, role = "shell", data.RoleSideTerm
 		if sh := os.Getenv("SHELL"); sh != "" {
 			name = filepath.Base(sh)
 		}
 	}
-	fields := map[string]any{"title": name, "harness": name, "runStatus": "running"}
-	if cwd := from.Text("cwd"); cwd != "" {
-		fields["cwd"] = cwd
-		fields["title"] = name + ": " + filepath.Base(cwd)
+	title, cwd := name, from.Text("cwd")
+	if cwd != "" {
+		title = name + ": " + filepath.Base(cwd)
 	}
-	if command != "" {
-		fields["command"] = command
-	}
-	if task, ok := from.RefField("task"); ok {
-		fields["task"] = task
-	}
-	rec, cs, err := a.Store.Create(data.CreateInput{Kind: data.KindPane, Fields: fields}, User)
-	if err != nil {
-		a.fail("side pane", err)
-		return s
-	}
-	rail := a.rail()
-	if !selectRow(rail, data.RefText(rec.Ref())) {
-		rail.Query = ""
-		selectRow(rail, data.RefText(rec.Ref()))
-	}
-	a.activePage[rec.ID] = views.ScreenPageID
-	if err := a.attach(*rec); err != nil {
-		a.fail("open "+rec.Text("title"), err)
-		return withPage(s, SpacePanes, siteScreen, ModeNormal)
-	}
-	a.wrote("opened "+rec.Text("title")+" beside "+from.Text("title"), cs, nil)
-	s.ActivePage = SpacePanes
-	return withPage(s, SpacePanes, siteScreen, ModeTerminal)
+	ref := from.Ref()
+	return a.newPane(s, &ref, title, command, cwd, role)
 }

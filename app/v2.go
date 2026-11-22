@@ -81,6 +81,12 @@ func (a *App) nounsPick(s core.State, _ core.Command) core.StepResult {
 		}
 		items = append(items, item)
 	}
+	// The registries the app runs on are browsed from here too.
+	for _, what := range []string{InspectActions, InspectModes} {
+		count := len(a.inspectItems(what))
+		items = append(items, picker.Item{ID: inspectPrefix + what, Title: strings.ToUpper(what[:1]) + what[1:], Subtitle: "inspect " + what,
+			Keywords: []string{"registry"}, Badges: []ui.Badge{{Text: fmt.Sprint(count)}, {Text: "inspect", Tone: "info"}}})
+	}
 	pm := picker.New("Nouns", items)
 	pm.Placeholder = "any noun: its index opens in Work"
 	return core.Next(a.openPicker(s, modalNouns, pm))
@@ -644,8 +650,9 @@ func (a *App) laneShow(s core.State, c core.Command) core.StepResult {
 // termEscape sends a literal escape to the pane: esc alone never leaves the
 // terminal, and after the leader it is not swallowed either.
 func (a *App) termEscape(s core.State, _ core.Command) core.StepResult {
-	pane, ok := a.SelectedPane()
-	if !ok || s.Pages[SpacePanes].Mode != ModeTerminal || s.ActivePage != SpacePanes {
+	pane, ok := a.termPane(s)
+	inScratch := topModal(s) == modalScratch
+	if !ok || (!inScratch && (s.Pages[SpacePanes].Mode != ModeTerminal || s.ActivePage != SpacePanes)) {
 		return core.Next(s)
 	}
 	if a.Host != nil && a.hasSession(pane.ID) {

@@ -446,7 +446,88 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("s")
 	k.check("s unstars", !starred())
 
-	k.section("9. the frame")
+	k.section("9. the daily driver: yank, macros, scratches, signals, the reader, the inspector")
+	k.Keys("2", "g", "g")
+	top, _ := a.tables[workTable].FocusedRow()
+	topTitle := a.title(*top.Ref)
+	k.Keys("y")
+	k.check("y lists every value of the focused record, each shown as it is copied", a.Modal() == modalYank && k.has("Yank from "+topTitle, "workStatus", "ref", "json", "markdown"))
+	k.keep("Yank picker")
+	k.Keys("y")
+	k.check("y y yanks the title into the registers and the clipboard", a.Modal() == "" && a.Register(core.RegUnnamed) == topTitle && a.Register(core.RegClipboard) == topTitle && a.live.clipboard == topTitle)
+	k.check("\"% is the focused record", a.Register(core.RegPath) == top.ID)
+	k.Keys("q", "a", "j", "q")
+	_, recording := a.Macros.Recording()
+	k.check("q a records the keys until q", !recording && a.tables[workTable].SelectedIdx == 1)
+	k.Keys("@", "a", "@", "@")
+	k.check("@ a and @ @ replay them", a.tables[workTable].SelectedIdx == 3)
+	k.Keys("g", "g", "ctrl+a", "S")
+	k.check("ctrl+a S shows the global scratch terminal over the space", a.Modal() == modalScratch && a.Mode() == ModeTerminal && a.Space() == SpaceWork && k.has("Scratch terminal", "global scratch"))
+	k.keep("Global scratch")
+	k.Type("ls")
+	k.Keys("enter", "ctrl+a", "V")
+	k.check("ctrl+a V switches to the scratch notes", a.Modal() == modalScratch && k.has("Scratch notes") && strings.HasSuffix(a.ScratchFile(), scratchFileName))
+	k.Keys("ctrl+a", "V")
+	k.check("ctrl+a V again hides it: the space and the focus are as they were", a.Modal() == "" && a.Space() == SpaceWork && a.Focus() == workTable && a.Mode() == ModeNormal)
+	scratches, _ := store.Query(data.Query{Kind: data.KindPane})
+	roles := 0
+	for _, p := range scratches.Items {
+		if r := p.Text("role"); r == data.RoleScratchTerm || r == data.RoleScratchVim {
+			roles++
+		}
+	}
+	k.check("the scratches are two pane records with a role, not a noun of their own", roles == 2)
+
+	for _, title := range []string{"Bump trie to 1.2", "Bump layout to 0.9"} {
+		if _, _, err := store.Create(data.CreateInput{Kind: data.KindSignal, Fields: map[string]any{"title": title, "source": "github", "author": "dependabot[bot]"}}, seedActor); err != nil {
+			return err
+		}
+	}
+	if _, _, err := store.Create(data.CreateInput{Kind: data.KindSignal, Fields: map[string]any{"title": "Review wanted", "source": "github", "author": "kmo"}}, seedActor); err != nil {
+		return err
+	}
+	k.Keys("g", "n")
+	k.Type("signals")
+	k.Keys("enter")
+	k.check("signals are a noun like any other", a.workKind() == data.KindSignal && k.has("Signals", "Bump trie to 1.2", "unreviewed", "R triage.rule.from-signal"))
+	k.Keys("R")
+	k.check("R drafts a rule from the focused signal", a.Modal() == modalLaunch && k.has("Rule from Bump trie to 1.2", "dependabot[bot]", data.ActionMarkNoise))
+	k.keep("Rule from a signal")
+	k.Keys("enter")
+	k.check("enter makes the rule and cleans up the signals like it", a.Modal() == "" && strings.Contains(a.Status(), "2 of 3 unreviewed signals cleaned up") && k.has("Review wanted") && !k.has2("Bump layout"))
+
+	guide, _, err := store.Create(data.CreateInput{Kind: data.KindNote, Fields: map[string]any{"title": "Reader guide",
+		"body": "# Reader guide\n\nA note opens here.\n\n## Keys\n\n```sh\nmtm inspect actions\n```\n\nSee [the site](https://ofam.dev/matomeru).\n"}}, seedActor)
+	if err != nil {
+		return err
+	}
+	k.Keys("g", "n")
+	k.Type("notes")
+	k.Keys("enter")
+	selectRow(a.tables[workTable], data.RefText(guide.Ref()))
+	a.gen++
+	k.Keys("o")
+	k.check("o opens the note's Markdown in the reader, with its contents", a.Modal() == modalReader && a.Mode() == ModeReader && k.has("Contents", "Reader guide", "Keys", "2 headings"))
+	k.keep("Markdown reader")
+	k.Keys("y")
+	k.check("y in the reader yanks the code block", a.Register(core.RegUnnamed) == "mtm inspect actions")
+	k.Keys("q", "O")
+	k.check("O offers the handlers that match", a.Modal() == modalOpenWith && k.has("markdown-reader"))
+	k.Keys("esc", ":")
+	k.Type("inspect actions")
+	k.Keys("enter")
+	k.check(": inspect actions lists every action with its keys", a.Modal() == modalInspect && a.Mode() == ModeInspect && k.has("Inspect actions", unboundBadge, "a inspect.bind"))
+	k.keep("Actions inspector")
+	k.Keys("esc", "g", "n")
+	k.Type("modes")
+	k.Keys("enter")
+	k.check("g n lists the modes too", a.Modal() == modalInspect && k.has("Inspect modes", "passthrough", "base normal"))
+	k.Keys("esc", "g", "n")
+	k.Type("tasks")
+	k.Keys("enter")
+	k.check("and back to the tasks", a.Modal() == "" && a.workKind() == data.KindTask && a.Focus() == workTable)
+
+	k.section("10. the frame")
 	k.Send(resize(120, 36)) // a clean re-render: cached subtrees are reused
 	frame := a.Shell.View()
 	rows := strings.Split(frame.Content, "\n")

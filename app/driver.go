@@ -24,7 +24,7 @@ func NewDriver(a *App, w, h int) *Driver {
 
 // Send delivers one message and whatever its commands send back.
 func (d *Driver) Send(msg tea.Msg) {
-	_, cmd := d.App.Shell.Update(msg)
+	_, cmd := d.App.Program().Update(msg)
 	d.pump(cmd)
 }
 

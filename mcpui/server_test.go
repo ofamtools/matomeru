@@ -155,7 +155,7 @@ func TestServeStdioSession(t *testing.T) {
 		names = append(names, spec["name"].(string))
 	}
 	want := []string{ToolCreatePage, ToolUpdatePage, ToolAsk, ToolListPages, ToolLaneStart, ToolLaneUpdate, ToolLaneLog, ToolLaneAttach, ToolSchemas, ToolQuery, ToolGet, ToolRelated,
-		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput}
+		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput, ToolTriageIngest, ToolTriageEvaluate}
 	if !slices.Equal(names, want) {
 		t.Fatalf("tools %v, want %v", names, want)
 	}
