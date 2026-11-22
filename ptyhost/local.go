@@ -3,8 +3,10 @@ package ptyhost
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -87,6 +89,14 @@ func (h *LocalHost) changesLocked() chan string {
 // arguments; any other cmd runs as /bin/sh -c cmd, so quoting, pipes and
 // arguments work as in a shell.
 func (h *LocalHost) Open(id, cmd, cwd string, cols, rows int) error {
+	return h.OpenWithEnv(id, cmd, cwd, cols, rows, nil)
+}
+
+// OpenWithEnv is Open with variables added to the session's environment
+// after the host's own Env, so they win: the app names the pane and its task
+// (MTM_PANE_ID, MTM_TASK_ID) to the program it starts. A variable set to ""
+// is left out.
+func (h *LocalHost) OpenWithEnv(id, cmd, cwd string, cols, rows int, env map[string]string) error {
 	cols, rows = max(cols, 1), max(rows, 1)
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -97,6 +107,11 @@ func (h *LocalHost) Open(id, cmd, cwd string, cols, rows int) error {
 	c.Dir = cwd
 	c.Env = append(withoutTERM(os.Environ()), "TERM=xterm-256color")
 	c.Env = append(c.Env, h.Env...)
+	for _, name := range slices.Sorted(maps.Keys(env)) {
+		if env[name] != "" {
+			c.Env = append(c.Env, name+"="+env[name])
+		}
+	}
 	ptmx, err := pty.StartWithSize(c, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
 		return fmt.Errorf("ptyhost: start %q: %w", c.Args, err)

@@ -365,10 +365,102 @@ func IndexView(schema data.Schema, tbl *table.Model, id string) ui.ViewNode {
 
 // --- Edit -----------------------------------------------------------------------
 
+// EditOptions choose which fields an Edit form offers beyond the schema's own.
+type EditOptions struct {
+	// ShowUniversalFields adds the fields every record has: starStatus,
+	// archiveStatus and snoozedUntil.
+	ShowUniversalFields bool
+	// ShowExtraFields adds the fields the record holds that its schema does
+	// not declare, in alphabetical order.
+	ShowExtraFields bool
+}
+
+// DefaultEditOptions offers every field.
+func DefaultEditOptions() EditOptions {
+	return EditOptions{ShowUniversalFields: true, ShowExtraFields: true}
+}
+
+// UniversalFields are the Edit form's specs of the fields every record has.
+// A host writes them through the store's own verbs (Star, Archive, Snooze),
+// not as a patch.
+func UniversalFields() []core.ParamSpec {
+	return []core.ParamSpec{
+		{Name: data.ColStarStatus, Type: core.ParamString, Enum: []string{data.StarUnstarred, data.StarStarred}, Default: data.StarUnstarred, Description: "starred or not"},
+		{Name: data.ColArchiveStatus, Type: core.ParamString, Enum: []string{data.ArchiveActive, data.ArchiveArchived}, Default: data.ArchiveActive, Description: "active or archived"},
+		{Name: data.ColSnoozedUntil, Type: core.ParamString, Description: "hidden until this time (RFC 3339); empty is not snoozed"},
+	}
+}
+
+// IsUniversalField reports whether name is one of UniversalFields.
+func IsUniversalField(name string) bool {
+	return name == data.ColStarStatus || name == data.ColArchiveStatus || name == data.ColSnoozedUntil
+}
+
+// inferType is the ParamType of a field no schema declares, from its value.
+func inferType(v any) core.ParamSpec {
+	switch x := v.(type) {
+	case bool:
+		return core.ParamSpec{Type: core.ParamBool}
+	case int, int64:
+		return core.ParamSpec{Type: core.ParamInt}
+	case float64:
+		if x == float64(int64(x)) {
+			return core.ParamSpec{Type: core.ParamInt}
+		}
+		return core.ParamSpec{Type: core.ParamFloat}
+	case []any, []string:
+		return core.ParamSpec{Type: core.ParamList}
+	case core.Ref:
+		return core.ParamSpec{Type: core.ParamRef, RefKinds: []string{x.Kind}}
+	case map[string]any:
+		if ref, ok := data.AsRef(x); ok && len(x) == 2 {
+			return core.ParamSpec{Type: core.ParamRef, RefKinds: []string{ref.Kind}}
+		}
+		return core.ParamSpec{Type: core.ParamObject}
+	}
+	return core.ParamSpec{Type: core.ParamString}
+}
+
+// EditFields lists the specs of a record's Edit form: every schema field,
+// then the universal fields, then the record's undeclared fields.
+func EditFields(schema data.Schema, rec *data.Record, opts EditOptions) []core.ParamSpec {
+	specs := slices.Clone(schema.Fields)
+	has := func(name string) bool {
+		return slices.ContainsFunc(specs, func(p core.ParamSpec) bool { return p.Name == name })
+	}
+	if opts.ShowUniversalFields {
+		for _, f := range UniversalFields() {
+			if !has(f.Name) {
+				specs = append(specs, f)
+			}
+		}
+	}
+	if opts.ShowExtraFields && rec != nil {
+		merged := rec.MergedFields()
+		for _, name := range slices.Sorted(maps.Keys(merged)) {
+			if has(name) || IsUniversalField(name) {
+				continue
+			}
+			spec := inferType(merged[name])
+			spec.Name, spec.Description = name, "not declared by the schema"
+			specs = append(specs, spec)
+		}
+	}
+	return specs
+}
+
 // FormForRecord builds the Edit form of a record from its schema's fields
 // alone: each field's widget is inferred from its ParamSpec. A nil record
-// gives the form for a new record, filled with the schema's defaults.
+// gives the form for a new record, filled with the schema's defaults. It
+// offers every field: see FormForRecordWith.
 func FormForRecord(schema data.Schema, rec *data.Record) *form.Model {
+	return FormForRecordWith(schema, rec, DefaultEditOptions())
+}
+
+// FormForRecordWith is FormForRecord with options: after the schema's fields
+// come the universal fields (star, archive, snooze) and the fields the record
+// holds that the schema does not declare.
+func FormForRecordWith(schema data.Schema, rec *data.Record, opts EditOptions) *form.Model {
 	title, initial := "New "+strings.ToLower(schema.Title), map[string]any{}
 	if rec != nil {
 		title = "Edit " + Title(schema, *rec)
@@ -378,8 +470,13 @@ func FormForRecord(schema data.Schema, rec *data.Record) *form.Model {
 			}
 			initial[name] = v
 		}
+		initial[data.ColStarStatus], initial[data.ColArchiveStatus] = rec.StarStatus, rec.ArchiveStatus
+		initial[data.ColSnoozedUntil] = ""
+		if rec.SnoozedUntil != nil {
+			initial[data.ColSnoozedUntil] = rec.SnoozedUntil.UTC().Format(time.RFC3339)
+		}
 	}
-	fm := form.New(title, schema.Fields, initial)
+	fm := form.New(title, EditFields(schema, rec, opts), initial)
 	fm.SubmitLabel = "Save"
 	return fm
 }

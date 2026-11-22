@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -357,14 +358,59 @@ func TestScreenIsALiveTerminal(t *testing.T) {
 	}
 	shows(editor.ID, "fake-editor")
 
-	d.Keys("ctrl+a", "x")
+	d.Keys("ctrl+a", "d")
 	if a.Mode() != ModeNormal {
-		t.Fatalf("ctrl+a x: %s", a.Mode())
+		t.Fatalf("ctrl+a d: %s", a.Mode())
 	}
 	a.Close()
 	for _, id := range []string{pane.ID, side.ID, editor.ID} {
 		if a.hasSession(id) {
 			t.Fatalf("session %s survived Close", id)
 		}
+	}
+}
+
+// A live pane's program is told which pane and task it is; the Screen's
+// title carries its PID; ctrl+a esc reaches it as a real escape; ctrl+a z
+// hides everything but the pane.
+func TestLivePaneEnvPIDEscapeZoom(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	a, d := liveApp(t, false, Options{Live: true})
+	pane, _, err := a.Store.Create(data.CreateInput{Kind: data.KindPane, Fields: map[string]any{
+		"title": "envpane", "command": `echo "env=$MTM_PANE_ID/$MTM_TASK_ID"; exec cat -v`, "cwd": t.TempDir(),
+		"task": core.Ref{Kind: data.KindTask, ID: "t77"}}}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	has := func(line string) func() bool {
+		return func() bool {
+			f, ok := a.Host.Snapshot(pane.ID)
+			return ok && slices.ContainsFunc(f.Plain, func(l string) bool { return strings.TrimSpace(l) == line })
+		}
+	}
+	wake(d)
+	d.Keys("1", "enter", "enter")
+	if a.Mode() != ModeTerminal {
+		t.Fatalf("not attached: %s, status %q", a.Mode(), a.Status())
+	}
+	eventually(t, "the pane's environment", has("env="+pane.ID+"/t77"))
+	wake(d)
+	f, _ := a.Host.Snapshot(pane.ID)
+	if want := fmt.Sprintf("Screen · pid %d", f.PID); f.PID <= 0 || !strings.Contains(d.Frame(), want) {
+		t.Fatalf("the Screen's title does not show %q:\n%s", want, d.Frame())
+	}
+	d.Keys("ctrl+a", "esc")
+	d.Keys("enter")
+	eventually(t, "the escape cat -v echoes", has("^["))
+	if a.escapes != 1 || a.Mode() != ModeTerminal {
+		t.Fatalf("escapes %d, mode %s", a.escapes, a.Mode())
+	}
+	d.Keys("ctrl+a", "z")
+	if frame := d.Frame(); !a.zoom || strings.Contains(frame, "Pages") || strings.Contains(frame, "envpane") || !strings.Contains(frame, "zoomed") || a.Focus() != siteScreen {
+		t.Fatalf("zoom (focus %s):\n%s", a.Focus(), frame)
+	}
+	d.Keys("ctrl+a", "z", "ctrl+a", "d")
+	if a.zoom || a.Mode() != ModeNormal || !strings.Contains(d.Frame(), "Pages") {
+		t.Fatalf("unzoom and detach: zoom %v mode %s", a.zoom, a.Mode())
 	}
 }

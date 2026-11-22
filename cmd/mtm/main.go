@@ -2,7 +2,9 @@
 // same store.
 //
 //	mtm [--db PATH] [--seed-demo]            the TUI
+//	mtm --tutorial                           the TUI on a tutorial workspace kept in memory
 //	mtm --smoke [--dump]                     a scripted run with no terminal; exits 0 when every check holds
+//	mtm config export [--jsonl]              the settings and bindings in effect
 //	mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
 //	mtm record get KIND ID
 //	mtm record create KIND --title "..." [--field k=v ...]
@@ -39,7 +41,12 @@ import (
 )
 
 const usage = `mtm [--db PATH] [--seed-demo]            open the TUI
+mtm --tutorial                           open the TUI on a tutorial workspace kept in memory:
+                                         nothing is read from or written to your data or config
 mtm --smoke [--dump]                     scripted run, no terminal needed
+                                         (with --tutorial: a scripted walk of the tutorial)
+mtm config export [--jsonl]              print the settings and bindings in effect, as JSON or
+                                         as JSON lines (settings first, then bindings)
 mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
 mtm record get KIND ID
 mtm record create KIND --title "..." [--field k=v ...]
@@ -52,6 +59,8 @@ mtm migrate --from V1_DB [--dry-run | --apply]
                                          file is only read. Nothing is written without --apply.
 
 --db PATH       the SQLite file (default: $MTM_DB, or the user data directory)
+config          settings.json, bindings.json and themes.json are read from $MTM_CONFIG_DIR,
+                or ~/.config/matomeru-next. S and B in the TUI change and save them.
 --format table  print records as a table instead of JSON
 `
 
@@ -66,6 +75,7 @@ type options struct {
 	db, format, query, mode, title string
 	from                           string
 	seed, smoke, dump, help        bool
+	tutorial, jsonl                bool
 	dryRun, apply                  bool
 	archived, starred              bool
 	fields                         []string
@@ -78,7 +88,8 @@ func parse(argv []string) (options, error) {
 	o := options{format: "json"}
 	text := map[string]*string{"--db": &o.db, "--format": &o.format, "--query": &o.query, "--mode": &o.mode, "--title": &o.title, "--from": &o.from}
 	flags := map[string]*bool{"--seed-demo": &o.seed, "--smoke": &o.smoke, "--dump": &o.dump, "--help": &o.help, "-h": &o.help,
-		"--archived": &o.archived, "--starred": &o.starred, "--dry-run": &o.dryRun, "--apply": &o.apply}
+		"--archived": &o.archived, "--starred": &o.starred, "--dry-run": &o.dryRun, "--apply": &o.apply,
+		"--tutorial": &o.tutorial, "--jsonl": &o.jsonl}
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
 		name, value, inline := strings.Cut(arg, "=")
@@ -145,18 +156,22 @@ func openStore(path string) (*data.Store, error) {
 	return data.Open(path)
 }
 
+// configDirName is v2's own directory: the bindings.json of the mtm it
+// replaces (~/.config/matomeru) is never read.
+const configDirName = "matomeru-next"
+
 func configDir() string {
 	if dir := os.Getenv("MTM_CONFIG_DIR"); dir != "" {
 		return dir
 	}
 	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
-		return filepath.Join(base, "matomeru")
+		return filepath.Join(base, configDirName)
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", "matomeru")
+	return filepath.Join(home, ".config", configDirName)
 }
 
 func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -235,10 +250,25 @@ func runTUI(store *data.Store) error {
 	if err != nil {
 		return err
 	}
+	return runApp(a)
+}
+
+// runTutorial opens the live app on the tutorial workspace: a store kept in
+// memory and no user configuration.
+func runTutorial() error {
+	a, err := app.NewTutorial(app.Options{Live: true})
+	if err != nil {
+		return err
+	}
+	defer a.Store.Close()
+	return runApp(a)
+}
+
+func runApp(a *app.App) error {
 	defer a.Close() // cancels runs, closes every pane session
 	p := tea.NewProgram(a.Shell)
 	stop := a.Start(p.Send)
-	_, err = p.Run()
+	_, err := p.Run()
 	stop()
 	return err
 }
@@ -250,8 +280,26 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 	case o.help:
 		fmt.Fprint(stdout, usage)
 		return nil
+	case o.smoke && o.tutorial:
+		return app.RunTutorialSmoke(stdout)
 	case o.smoke:
 		return app.RunSmoke(stdout, o.dump)
+	case o.tutorial:
+		if len(o.args) != 0 || o.db != "" || o.seed {
+			return errors.New("--tutorial opens its own workspace: it takes no command, --db or --seed-demo")
+		}
+		cancel() // the TUI reads ctrl+c itself
+		return runTutorial()
+	case len(o.args) > 0 && o.args[0] == "config":
+		if len(o.args) != 2 || o.args[1] != "export" {
+			return errors.New("usage: mtm config export [--jsonl]")
+		}
+		out, err := app.ExportConfig(configDir(), o.jsonl)
+		if err != nil {
+			return err
+		}
+		_, err = stdout.Write(out)
+		return err
 	case len(o.args) > 0 && o.args[0] == "migrate":
 		return runMigrate(ctx, o, stdout)
 	case o.from != "" || o.dryRun || o.apply:
@@ -287,7 +335,7 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 		}
 		return printJSON(stdout, cs)
 	case "mcp tools":
-		return printJSON(stdout, mcpui.New(store).ToolSpecs())
+		return printJSON(stdout, mcpui.NewToolbox(store, nil).ToolSpecs())
 	case "mcp serve":
 		if len(rest) != 0 {
 			return errors.New("usage: mtm mcp serve")
@@ -306,7 +354,7 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 			raw = rest[1]
 		}
 		actor := core.Actor{Kind: "agent", ID: os.Getenv("MTM_PANE_ID"), Label: "mtm mcp call"}
-		out, err := mcpui.New(store).Call(ctx, actor, rest[0], json.RawMessage(raw))
+		out, err := mcpui.NewToolbox(store, nil).Call(ctx, actor, rest[0], json.RawMessage(raw))
 		if err != nil {
 			return err
 		}

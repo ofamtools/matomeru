@@ -57,6 +57,27 @@ func tocRank(page data.Record) int {
 // or a screen page's ID). Focus anywhere in the site has the pane in its
 // context chain: page, then pane, then site, then app.
 func PaneSiteView(pane data.Record, pages []data.Record, activePageID string, tocFilter string) ui.ViewNode {
+	return PaneSiteViewWith(pane, pages, activePageID, tocFilter, SiteOptions{})
+}
+
+// SiteOptions are the optional parts of a pane's site.
+type SiteOptions struct {
+	// Store is read for the lane progress bar; nil shows none.
+	Store *data.Store
+	// ShowLaneBar puts the ambient lane progress bar (LaneBar) as one line
+	// above the site when the pane works in an active lane tree.
+	ShowLaneBar bool
+	// LaneHint names the key that opens the lane, shown at the end of the bar.
+	LaneHint string
+	// Width is the room the bar has, when known: 0 neither drops the hint
+	// nor clips.
+	Width int
+}
+
+// PaneSiteViewWith is PaneSiteView with options: the ambient lane progress
+// bar above the site. The bar is not a page and never appears in the table
+// of contents.
+func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string, tocFilter string, opts SiteOptions) ui.ViewNode {
 	paneRef := pane.Ref()
 	paneTitle := Title(data.Schema{SummaryField: "title"}, pane)
 
@@ -138,8 +159,15 @@ func PaneSiteView(pane data.Record, pages []data.Record, activePageID string, to
 		content.Children = []ui.ViewNode{root}
 	}
 
-	return ui.ViewNode{ID: "site", Kind: ui.KindVStack, Scope: ScopeSite,
+	site := ui.ViewNode{ID: "site", Kind: ui.KindVStack, Scope: ScopeSite,
 		Facts: map[string]any{"activePage": active.ID, "unread": unread, "pane": paneTitle},
 		Children: []ui.ViewNode{{ID: "site.pane", Kind: ui.KindSplit, Scope: data.KindPane, Ref: &paneRef, Ratio: 0.28, Gap: 1,
 			Children: []ui.ViewNode{toc, content}}}}
+	if opts.ShowLaneBar {
+		if bar, ok := LaneBar(opts.Store, pane, opts.LaneHint, opts.Width); ok {
+			site.Facts["lane"] = bar.Facts["lane"]
+			site.Children = append([]ui.ViewNode{bar}, site.Children...)
+		}
+	}
+	return site
 }

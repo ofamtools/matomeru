@@ -267,3 +267,16 @@ func TestCopyMode(t *testing.T) {
 		t.Fatalf("q = %#v, writes %q", a, fh.writes["p"])
 	}
 }
+
+// OpenWithEnv names the pane and its task to the program; an empty value is
+// left out, and the extra variables win over the host's own.
+func TestOpenWithEnv(t *testing.T) {
+	h := newHost(t)
+	h.Env = []string{"MTM_PANE_ID=from-host"}
+	env := map[string]string{"MTM_PANE_ID": "w7", "MTM_TASK_ID": "t1", "MTM_EMPTY": ""}
+	if err := h.OpenWithEnv("p", `printf "pane=%s task=%s empty=%s\n" "$MTM_PANE_ID" "$MTM_TASK_ID" "${MTM_EMPTY-unset}"`, "", 60, 5, env); err != nil {
+		t.Fatal(err)
+	}
+	waitFrame(t, h, "p", "the environment", func(f Frame) bool { return hasLine(f.Plain, "pane=w7 task=t1 empty=unset") })
+	var _ EnvOpener = h
+}

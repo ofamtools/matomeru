@@ -148,6 +148,13 @@ func SeedDemo(store *data.Store) error {
 	note("Why one Z key", "Snooze and unsnooze are one key: the binding's When reads facts.snoozed.", spacesTask, spacesTask)
 	note("PTY host", "Blocked on the host process; ask again after the wave.", matomeru, blocked)
 
+	// A lane tree: the work an agent does in the first pane, started, logged
+	// and attached through the lane tools exactly as an agent would. The pane
+	// claims the root lane, so its site shows the lane's progress.
+	if err := seedLanes(store, paneViews, spacesTask); err != nil && firstErr == nil {
+		firstErr = err
+	}
+
 	// Documents are larger and usually files.
 	mk(data.KindDocument, map[string]any{"title": "Matomeru v2 design", "filePath": "~/hub/o-plans/matomeru-v2.md",
 		"summary": "Schemas, the four spaces and the MCP Open UI tools.", "task": matomeru})
@@ -182,4 +189,36 @@ func SeedDemo(store *data.Store) error {
 	ext(seedMarker, "healthy", "Lanes: the work agents do for you, with live status.",
 		[]string{"nouns: lane.lane, lane.plan", "page: Lanes", "MCP: lane.lane.define, lane.lane.set"}, []string{"setup", "reconcile"})
 	return firstErr
+}
+
+// seedLanes adds one lane tree through the lane tools: a root lane claimed by
+// pane, child lanes in every state the progress bar counts, and a timeline.
+func seedLanes(store *data.Store, pane, task core.Ref) error {
+	lanes := mcpui.NewLaneTools(store)
+	lanes.Getenv = func(string) string { return "" } // the demo never reads the caller's environment
+	root, err := lanes.Start(seedAgent, mcpui.LaneStartArgs{Title: "Matomeru v2 Step 2", Status: "running", Task: task.ID, Pane: pane.ID,
+		Repo: "matomeru", Branch: "next", Harness: "claude", AgentModel: "opus", Summary: "Rich lanes, the progress bar, settings and the binding editor."})
+	if err != nil {
+		return fmt.Errorf("seed lane: %w", err)
+	}
+	for _, child := range []struct{ title, status string }{
+		{"lane-schema", "done"}, {"lane-tools", "merged"}, {"progress-bar", "done"},
+		{"settings-worker", "running"}, {"binding-editor", "planned"}, {"tutorial", "planned"},
+	} {
+		if _, err := lanes.Start(seedAgent, mcpui.LaneStartArgs{Title: child.title, Status: child.status, Task: task.ID, ParentLane: root.Lane.ID,
+			Branch: "next-" + child.title}); err != nil {
+			return fmt.Errorf("seed lane %s: %w", child.title, err)
+		}
+	}
+	for _, entry := range []struct{ kind, text string }{
+		{"decision", "lanes and panes are many to many: a claim is a relation"},
+		{"milestone", "lane schema and the four lane tools merged"},
+		{"verification", "go test -p 1 -race ./data ./mcpui passes"},
+		{"blocker", "the binding editor waits for the widget's leader mirror"},
+	} {
+		if _, err := lanes.Log(seedAgent, mcpui.LaneLogArgs{Lane: root.Lane.ID, Kind: entry.kind, Text: entry.text}); err != nil {
+			return fmt.Errorf("seed lane log: %w", err)
+		}
+	}
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -34,9 +35,97 @@ const (
 )
 
 // Tools returns every tool the MCP server lists: the four Open UI tools,
-// then the data tools.
+// the lane tools, then the data tools.
 func Tools(router *Router, dataTools *DataTools) []ToolSpec {
-	return append(router.ToolSpecs(), dataTools.ToolSpecs()...)
+	out := append(router.ToolSpecs(), NewLaneTools(nil).ToolSpecs()...)
+	return append(out, dataTools.ToolSpecs()...)
+}
+
+// Toolbox is every tool over one store: the Open UI tools, the lane tools
+// and the data tools, behind one Call. The MCP server and the CLI both run
+// tools through it. Getenv reads the environment (nil is os.Getenv).
+type Toolbox struct {
+	Router *Router
+	Lanes  *LaneTools
+	Data   *DataTools
+	Getenv func(string) string
+}
+
+// NewToolbox returns the toolbox over store. A nil router gets a new one.
+func NewToolbox(store *data.Store, router *Router) *Toolbox {
+	if router == nil {
+		router = New(store)
+	}
+	return &Toolbox{Router: router, Lanes: NewLaneTools(store), Data: NewDataTools(store)}
+}
+
+// ToolSpecs lists every tool.
+func (b *Toolbox) ToolSpecs() []ToolSpec {
+	out := append(b.Router.ToolSpecs(), b.Lanes.ToolSpecs()...)
+	return append(out, b.Data.ToolSpecs()...)
+}
+
+// HasTool reports whether name is a tool of the toolbox.
+func (b *Toolbox) HasTool(name string) bool {
+	return slices.ContainsFunc(b.ToolSpecs(), func(t ToolSpec) bool { return t.Name == name })
+}
+
+func (b *Toolbox) env(name string) string {
+	if b.Getenv != nil {
+		return b.Getenv(name)
+	}
+	return os.Getenv(name)
+}
+
+// envDefaults fills the pane (and, for a new page or question, the task) a
+// ui.* tool left out from the environment of the pane the agent runs in.
+func (b *Toolbox) envDefaults(name string, raw json.RawMessage) json.RawMessage {
+	var keys []string
+	switch name {
+	case ToolCreatePage, ToolAsk:
+		keys = []string{"pane", "task"}
+	case ToolUpdatePage:
+		keys = []string{"pane"}
+	default:
+		return raw
+	}
+	pane, task := b.env(EnvPaneID), b.env(EnvTaskID)
+	if pane == "" && task == "" {
+		return raw
+	}
+	args := map[string]json.RawMessage{}
+	if len(bytes.TrimSpace(raw)) > 0 {
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return raw // the tool reports what is wrong with them
+		}
+	}
+	for _, key := range keys {
+		value := map[string]string{"pane": pane, "task": task}[key]
+		if _, given := args[key]; given || value == "" {
+			continue
+		}
+		args[key], _ = json.Marshal(value)
+	}
+	out, err := json.Marshal(args)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+// Call runs one tool by name with JSON arguments.
+func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw json.RawMessage) (any, error) {
+	lanes := *b.Lanes
+	if lanes.Getenv == nil {
+		lanes.Getenv = b.Getenv
+	}
+	switch {
+	case b.Data.HasTool(name):
+		return b.Data.Call(ctx, actor, name, raw)
+	case lanes.HasTool(name):
+		return lanes.Call(ctx, actor, name, raw)
+	}
+	return b.Router.Call(ctx, actor, name, b.envDefaults(name, raw))
 }
 
 type rpcRequest struct {
@@ -69,9 +158,8 @@ func errorReply(id json.RawMessage, code int, format string, a ...any) *rpcRespo
 
 // server is one stdio session.
 type server struct {
-	router *Router
-	data   *DataTools
-	tools  []ToolSpec
+	box   *Toolbox
+	tools []ToolSpec
 
 	mu    sync.Mutex // guards actor
 	actor core.Actor
@@ -83,7 +171,8 @@ type server struct {
 
 // ServeStdio serves MCP over newline-delimited JSON-RPC 2.0: one message per
 // line on in, one reply per line on out. It lists and runs the Open UI tools
-// of router and the data tools over store. Writes made through it carry an
+// of router, the lane tools and the data tools over store. A ui.* call that
+// names no pane uses $MTM_PANE_ID (and $MTM_TASK_ID for its task). Writes made through it carry an
 // agent actor (ID "mcp" unless a tool's "by" names another; the label is the
 // client's name from initialize).
 //
@@ -96,9 +185,9 @@ func ServeStdio(ctx context.Context, in io.Reader, out io.Writer, store *data.St
 	if router == nil {
 		router = New(store)
 	}
-	s := &server{router: router, data: NewDataTools(store), out: out,
+	s := &server{box: NewToolbox(store, router), out: out,
 		actor: core.Actor{Kind: "agent", ID: DefaultAgentID, Label: ServerName}}
-	s.tools = Tools(s.router, s.data)
+	s.tools = s.box.ToolSpecs()
 
 	lines := make(chan []byte)
 	readErr := make(chan error, 1)
@@ -286,18 +375,10 @@ func (s *server) callTool(ctx context.Context, name string, args json.RawMessage
 	s.mu.Lock()
 	actor := s.actor
 	s.mu.Unlock()
-	var (
-		out any
-		err error
-	)
-	switch {
-	case s.data.HasTool(name):
-		out, err = s.data.Call(ctx, actor, name, args)
-	case slices.ContainsFunc(s.router.ToolSpecs(), func(t ToolSpec) bool { return t.Name == name }):
-		out, err = s.router.Call(ctx, actor, name, args)
-	default:
+	if !s.box.HasTool(name) {
 		return nil, invalidParams(fmt.Errorf("unknown tool %q", name))
 	}
+	out, err := s.box.Call(ctx, actor, name, args)
 	if err != nil {
 		return toolError(err), nil
 	}

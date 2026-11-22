@@ -65,3 +65,9 @@ func (f Frame) History() []string {
 	out = append(out, f.Scrollback...)
 	return append(out, f.Plain...)
 }
+
+// EnvOpener is a Host that can start a session with extra environment
+// variables. LocalHost is one.
+type EnvOpener interface {
+	OpenWithEnv(id, cmd, cwd string, cols, rows int, env map[string]string) error
+}

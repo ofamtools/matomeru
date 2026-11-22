@@ -15,6 +15,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
+	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/runs"
 	"ofam.dev/matomeru/views"
@@ -478,7 +479,20 @@ func (a *App) attach(pane data.Record) error {
 		delete(a.live.frames, pane.ID)
 	}
 	cols, rows := a.screenSize()
-	if err := a.Host.Open(pane.ID, pane.Text("command"), expandHome(pane.Text("cwd")), cols, rows); err != nil {
+	cmd, cwd := pane.Text("command"), expandHome(pane.Text("cwd"))
+	var err error
+	if host, ok := a.Host.(ptyhost.EnvOpener); ok {
+		// The program learns which pane it is in and which task it works on:
+		// the MCP tools read both as their defaults.
+		env := map[string]string{mcpui.EnvPaneID: pane.ID}
+		if task, has := pane.RefField("task"); has {
+			env[mcpui.EnvTaskID] = task.ID
+		}
+		err = host.OpenWithEnv(pane.ID, cmd, cwd, cols, rows, env)
+	} else {
+		err = a.Host.Open(pane.ID, cmd, cwd, cols, rows)
+	}
+	if err != nil {
 		return err
 	}
 	if f, ok := a.Host.Snapshot(pane.ID); ok {
@@ -599,7 +613,7 @@ func (a *App) act(s core.State, pane data.Record, action ptyhost.Action) (core.S
 		case ptyhost.ModeCopy:
 			a.say("copy mode · j/k move · v selects · y yanks · / searches · q leaves")
 		case ptyhost.ModePassthrough:
-			a.say("typing goes to the pane · ctrl+a x leaves")
+			a.say("typing goes to the pane · ctrl+a d leaves")
 		}
 	case ptyhost.ActionSpawn:
 		return a.spawn(s, pane, act.Command), nil, false

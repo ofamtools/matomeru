@@ -36,6 +36,11 @@ const (
 	RelDirectory = "directory"
 	RelContext   = "context"
 	RelPage      = "page"
+	// Lane relations: the panes working a lane, its plan, what it made and ran.
+	RelClaim   = "claim"
+	RelPlan    = "plan"
+	RelCreated = "created"
+	RelRun     = "run"
 )
 
 // Relation directions used by RelationSpec.Direction.
@@ -48,6 +53,7 @@ const (
 // Record kinds of the core schemas.
 const (
 	KindTask     = "task"
+	KindLane     = "lane"
 	KindPane     = "pane"
 	KindPage     = "ui.page"
 	KindDocument = "document"
@@ -278,6 +284,16 @@ func DefaultSchemas() *Registry {
 		{Name: "failed", Label: "Failed", Tone: "state.errored", Position: 3, Ends: true},
 	}}
 
+	laneStatus := StatusColumn{Name: "laneStatus", Title: "Status", Default: "planned", Values: []StatusValue{
+		{Name: "planned", Label: "Planned", Tone: "muted", Position: 0, Open: true},
+		{Name: "running", Label: "Running", Tone: "state.working", Position: 1, Starts: true, Open: true},
+		{Name: "review", Label: "Review", Tone: "warning", Position: 2, Open: true},
+		{Name: "merged", Label: "Merged", Tone: "state.done", Position: 3, Ends: true},
+		{Name: "done", Label: "Done", Tone: "state.done", Position: 4, Ends: true},
+		{Name: "parked", Label: "Parked", Tone: "muted", Position: 5, Open: true},
+		{Name: "cancelled", Label: "Cancelled", Tone: "dim", Position: 6, Ends: true},
+	}}
+
 	r := NewRegistry()
 	r.Register(
 		Schema{
@@ -296,6 +312,34 @@ func DefaultSchemas() *Registry {
 			DefaultColumns: []string{"title", "workStatus", "priority", "parent"},
 			Relations: universalRelations(
 				RelationSpec{Kind: RelDirectory, Title: "Directories", Direction: DirectionOutgoing},
+			),
+		},
+		Schema{
+			// A lane is one piece of work an agent does: what it is for, where
+			// it happens (repo, branch, worktree) and how far it got. Lanes nest
+			// by parentLane; any number of panes may claim one.
+			Kind: KindLane, Title: "Lane", Plural: "Lanes", SummaryField: "title",
+			Fields: []core.ParamSpec{
+				{Name: "title", Type: core.ParamString, Required: true, Description: "what the lane is for"},
+				statusField(laneStatus, "where the work stands"),
+				str("summary", "what happened so far"),
+				refTo("task", KindTask, "task the lane works on"),
+				refTo("parentLane", KindLane, "lane this is a part of; empty for a root lane"),
+				str("repo", "repository"),
+				str("branch", "branch the work is on"),
+				{Name: "worktree", Type: core.ParamPath, Description: "worktree directory"},
+				str("baseCommit", "commit the work started from"),
+				str("headCommit", "newest commit of the work"),
+				str("harness", "agent harness doing the work"),
+				str("agentModel", "model the agent runs"),
+			},
+			StatusColumns:  []StatusColumn{laneStatus},
+			DefaultColumns: []string{"title", "laneStatus", "branch", "task", "parentLane"},
+			Relations: universalRelations(
+				RelationSpec{Kind: RelClaim, Title: "Claimed by", TargetKinds: []string{KindPane}, Direction: DirectionOutgoing},
+				RelationSpec{Kind: RelPlan, Title: "Plan", TargetKinds: []string{KindDocument}, Direction: DirectionOutgoing},
+				RelationSpec{Kind: RelCreated, Title: "Created", TargetKinds: []string{KindDocument, KindPage}, Direction: DirectionOutgoing},
+				RelationSpec{Kind: RelRun, Title: "Runs", TargetKinds: []string{KindRun}, Direction: DirectionOutgoing},
 			),
 		},
 		Schema{

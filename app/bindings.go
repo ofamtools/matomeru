@@ -22,6 +22,10 @@ const (
 	ModeForm           = "form"            // a modal form: moving between fields
 	ModeFormEdit       = "form-edit"       // typing into a form field
 	ModeOutline        = "outline"         // the outline overlay; falls back to normal
+
+	ModeBindings        = "bindings"         // the binding editor: moving between rows
+	ModeBindingsFilter  = "bindings-filter"  // typing the editor's filter
+	ModeBindingsCapture = "bindings-capture" // pressing the new keys of a binding
 )
 
 // Commands the app adds to core's built-ins and the widgets' own.
@@ -67,6 +71,28 @@ const (
 	CmdPickerInsert   = "picker.insert"
 	CmdPickerBack     = "picker.backspace"
 	CmdFormActivate   = "form.activate"
+
+	CmdNewHere         = "record.new.here"
+	CmdAssign          = "record.assign"
+	CmdNounsPick       = "nouns.pick"
+	CmdFilterFieldPick = "table.filter.field.pick"
+	CmdSortFieldPick   = "table.sort.field.pick"
+	CmdGroupFieldPick  = "table.group.field.pick"
+	CmdSettingsOpen    = "settings.open"
+	CmdBindingsOpen    = "bindings.open"
+	CmdPaneZoom        = "pane.zoom"
+	CmdPaneAttention   = "pane.attention.next"
+	CmdLaneShow        = "lane.show"
+	CmdTermEscape      = "terminal.escape"
+
+	CmdBindingsFilter        = "bindings.filter.start"
+	CmdBindingsFilterDone    = "bindings.filter.done"
+	CmdBindingsFilterClear   = "bindings.filter.clear"
+	CmdBindingsRebind        = "bindings.rebind.start"
+	CmdBindingsCaptureKey    = "bindings.rebind.key"
+	CmdBindingsCaptureDone   = "bindings.rebind.done"
+	CmdBindingsCaptureCancel = "bindings.rebind.cancel"
+	CmdBindingsMatchMode     = "bindings.filter.mode.cycle"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -82,6 +108,9 @@ func Modes() []core.Mode {
 		{Name: ModeForm},
 		{Name: ModeFormEdit},
 		{Name: ModeOutline, Base: ModeNormal},
+		{Name: ModeBindings},
+		{Name: ModeBindingsFilter},
+		{Name: ModeBindingsCapture},
 	}
 }
 
@@ -146,6 +175,8 @@ func DefaultBindings() []core.Binding {
 		// Record actions, on whatever record is focused.
 		bind(n, all, "e", views.CmdEdit, "edit"),
 		with(bind(n, all, "n", views.CmdNew, "new task"), map[string]any{"kind": "task"}),
+		bind(n, SpaceWork, "n", CmdNewHere, "new"),
+		bind(n, all, "m", CmdAssign, "move to a task"),
 		with(bind(n, all, "N", views.CmdNew, "new note"), map[string]any{"kind": "note"}),
 		when(bind(n, all, "s", views.CmdStar, "star"), "facts.starStatus != \"starred\""),
 		when(bind(n, all, "s", views.CmdUnstar, "unstar"), "facts.starStatus == \"starred\""),
@@ -163,11 +194,13 @@ func DefaultBindings() []core.Binding {
 
 		// Lists.
 		bind(n, all, "/", CmdFilterStart, "filter"),
-		bind(n, all, "m", CmdFilterMode, "match mode"),
-		bind(n, all, "f", CmdFilterField, "filter field"),
+		bind(n, all, "M", CmdFilterMode, "match mode"),
+		bind(n, all, "f", CmdFilterFieldPick, "filter field"),
 		bind(n, all, "o", CmdSortCycle, "sort"),
 		bind(n, all, "O", CmdSortField, "sort column"),
-		bind(n, all, "B", CmdGroupField, "group by"),
+		bind(n, all, "g s", CmdSortFieldPick, "sort by any field"),
+		bind(n, all, "g b", CmdGroupFieldPick, "group by any field"),
+		bind(n, all, "g n", CmdNounsPick, "browse any noun"),
 		when(bind(n, all, "space", CmdGroupToggle, "fold group"), "facts.isGroupHeader"),
 		bind(n, all, "x", CmdMarkToggle, "mark"),
 		bind(n, all, "A", CmdArchivedToggle, "show archived"),
@@ -178,13 +211,19 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, ":", CmdPaletteOpen, "commands"),
 		bind(n, all, "?", CmdHelpOpen, "bindings"),
 		bind(n, all, "ctrl+o", CmdPathOpen, "path"),
+		bind(n, all, "S", CmdSettingsOpen, "settings"),
+		bind(n, all, "B", CmdBindingsOpen, "edit bindings"),
+		bind(n, all, "W", CmdPaneAttention, "next pane that wants you"),
 		{Mode: n, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
 		bind(n, all, "q", core.CmdAppQuit, "quit"),
 		hidden(bind(n, all, "ctrl+c", core.CmdAppQuit, "quit")),
 
 		// Terminal: everything but the leader goes to the pane.
 		{Mode: ModeTerminal, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
-		bind(ModeTerminalLeader, all, "x", CmdTermDetach, "detach"),
+		bind(ModeTerminalLeader, all, "d", CmdTermDetach, "detach"),
+		bind(ModeTerminalLeader, all, "z", CmdPaneZoom, "zoom the pane"),
+		bind(ModeTerminalLeader, all, "L", CmdLaneShow, "the pane's lane"),
+		bind(ModeTerminalLeader, all, "esc", CmdTermEscape, "send esc"),
 		with(bind(ModeTerminalLeader, all, "[", CmdTermPrefix, "copy mode"), map[string]any{"key": "["}),
 		with(bind(ModeTerminalLeader, all, "t", CmdTermPrefix, "side terminal"), map[string]any{"key": "t"}),
 		with(bind(ModeTerminalLeader, all, "v", CmdTermPrefix, "side vim"), map[string]any{"key": "v"}),
@@ -244,6 +283,35 @@ func DefaultBindings() []core.Binding {
 		bind(ModeFormEdit, all, "backspace", form.CmdBackspace, "erase"),
 		bind(ModeFormEdit, all, "enter", form.CmdStop, "done"),
 		bind(ModeFormEdit, all, "esc", form.CmdStop, "done"),
+
+		// The binding editor: every change is live and saved; there is no save key.
+		bind(ModeBindings, all, "j", "motion.down", "down"),
+		bind(ModeBindings, all, "k", "motion.up", "up"),
+		hidden(bind(ModeBindings, all, "down", "motion.down", "down")),
+		hidden(bind(ModeBindings, all, "up", "motion.up", "up")),
+		bind(ModeBindings, all, "g g", "motion.top", "top"),
+		bind(ModeBindings, all, "G", "motion.bottom", "bottom"),
+		bind(ModeBindings, all, "ctrl+d", "motion.half.down", "half page down"),
+		bind(ModeBindings, all, "ctrl+u", "motion.half.up", "half page up"),
+		bind(ModeBindings, all, "/", CmdBindingsFilter, "filter"),
+		bind(ModeBindings, all, "tab", CmdBindingsMatchMode, "match mode"),
+		bind(ModeBindings, all, "r", CmdBindingsRebind, "rebind"),
+		hidden(bind(ModeBindings, all, "enter", CmdBindingsRebind, "rebind")),
+		bind(ModeBindings, all, "x", "bindings.unbind", "unbind"),
+		bind(ModeBindings, all, "R", "bindings.reset", "reset"),
+		bind(ModeBindings, all, "u", "bindings.undo", "undo"),
+		bind(ModeBindings, all, "ctrl+r", "bindings.redo", "redo"),
+		bind(ModeBindings, all, "esc", CmdModalCancel, "close"),
+		hidden(bind(ModeBindings, all, "q", CmdModalCancel, "close")),
+		{Mode: ModeBindingsFilter, Class: core.ClassPrintable, Command: "bindings.filter.append", Args: map[string]any{"text": "$text"}, Hidden: true},
+		{Mode: ModeBindingsFilter, Class: core.ClassPaste, Command: "bindings.filter.append", Args: map[string]any{"text": "$text"}, Hidden: true},
+		bind(ModeBindingsFilter, all, "backspace", "bindings.filter.backspace", "erase"),
+		bind(ModeBindingsFilter, all, "enter", CmdBindingsFilterDone, "keep"),
+		bind(ModeBindingsFilter, all, "esc", CmdBindingsFilterClear, "clear"),
+		bind(ModeBindingsFilter, all, "tab", CmdBindingsMatchMode, "match mode"),
+		{Mode: ModeBindingsCapture, Class: core.ClassAny, Command: CmdBindingsCaptureKey, Args: map[string]any{"key": "$key"}, Hidden: true},
+		bind(ModeBindingsCapture, all, "enter", CmdBindingsCaptureDone, "set these keys"),
+		bind(ModeBindingsCapture, all, "esc", CmdBindingsCaptureCancel, "cancel"),
 
 		// Outline: the normal keys work on the selected task.
 		bind(ModeOutline, all, "enter", CmdOutlineJump, "open task"),
@@ -319,6 +387,32 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdGroupToggle, "Fold or unfold the focused group"),
 		spec(CmdMarkToggle, "Mark the focused row"),
 		spec(CmdArchivedToggle, "Show or hide archived records"),
+		spec(CmdNewHere, "Create a record of the noun the Work index lists", "editing"),
+		spec(CmdAssign, "Move the focused record to a task (a task: under another task, or to the root)", "editing"),
+		spec(CmdNounsPick, "Browse any noun: pick one and its index opens in Work"),
+		spec(CmdFilterFieldPick, "Pick the field the filter matches, from every field of the rows"),
+		spec(CmdSortFieldPick, "Pick the field to sort by, from every field of the rows"),
+		spec(CmdGroupFieldPick, "Pick the field to group by, from every field of the rows"),
+		spec(CmdSettingsOpen, "Change the settings; each change applies at once and is saved"),
+		spec(CmdBindingsOpen, "Browse, filter, rebind, unbind and reset the key bindings"),
+		spec(CmdPaneZoom, "Zoom the pane: hide the rail and the pages, or bring them back"),
+		spec(CmdPaneAttention, "Go to the next pane with an unread question or a waiting program"),
+		spec(CmdLaneShow, "Open the Show page of the pane's active lane"),
+		{ID: CmdTermEscape, Description: "Send a literal escape to the pane", Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsFilter, Description: "Type the binding editor's filter", Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsFilterDone, Description: "Keep the binding editor's filter", Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsFilterClear, Description: "Clear the binding editor's filter", Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsRebind, Description: "Press new keys for the focused binding", Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsCaptureKey, Description: "One key of the new sequence", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsCaptureDone, Description: "Set the keys pressed", Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsCaptureCancel, Description: "Leave the binding as it was", Meta: map[string]any{"internal": true}},
+		{ID: CmdBindingsMatchMode, Description: "Change how the binding editor's filter matches", Meta: map[string]any{"internal": true}},
+		{ID: "bindings.unbind", Description: "Unbind the focused binding", Meta: map[string]any{"internal": true}},
+		{ID: "bindings.reset", Description: "Reset the focused binding to what it was", Meta: map[string]any{"internal": true}},
+		{ID: "bindings.undo", Description: "Undo the last binding change", Meta: map[string]any{"internal": true}},
+		{ID: "bindings.redo", Description: "Redo the last undone binding change", Meta: map[string]any{"internal": true}},
+		{ID: "bindings.filter.append", Description: "Type into the binding editor's filter", Params: text, Meta: map[string]any{"internal": true}},
+		{ID: "bindings.filter.backspace", Description: "Erase the last character of the binding editor's filter", Meta: map[string]any{"internal": true}},
 		{ID: CmdPickerInsert, Description: "Type into the picker", Params: text, Meta: map[string]any{"internal": true}},
 		{ID: CmdPickerBack, Description: "Erase the last character of the picker's query", Meta: map[string]any{"internal": true}},
 		{ID: picker.CmdConfirm, Description: "Choose the highlighted item", Meta: map[string]any{"internal": true}},

@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/table"
 )
 
 func demo(t *testing.T) (*App, *Driver) {
@@ -103,7 +105,7 @@ func TestRailFollowsOwnerPrompts(t *testing.T) {
 		t.Fatalf("mode = %s, want terminal", a.Mode())
 	}
 	d.Type("go on")
-	d.Keys("enter", "ctrl+a", "x")
+	d.Keys("enter", "ctrl+a", "d")
 	sel, _ := a.SelectedPane()
 	if got := order(); got[0] != second.ID || sel == nil || sel.ID != second.ID || a.Mode() != ModeNormal {
 		t.Fatalf("after the owner's prompt: rail %v, selected %v, mode %s", got, sel, a.Mode())
@@ -187,29 +189,57 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 func TestListsWorkOnAnyField(t *testing.T) {
 	a, d := demo(t)
 	d.Keys("2")
-	tbl := func() string { return a.tables[workTable].GroupField }
-	seen := map[string]bool{}
-	for i := 0; i < 40 && !seen[""]; i++ {
-		d.Keys("B")
-		seen[tbl()] = true
+	// A record may hold a field no schema declares: it is offered too.
+	task := titled(t, a, data.KindTask, "ochazuke-v2")
+	if _, _, err := a.Store.Patch(data.PatchInput{Ref: task.Ref(), Fields: map[string]any{"sprint": "s42"}}, User); err != nil {
+		t.Fatal(err)
 	}
-	for _, field := range []string{"title", "workStatus", "priority", "parent", "repo", "defaultHarness", "id", "createdAt", data.ColStarStatus, data.ColSnoozedUntil} {
-		if !seen[field] {
-			t.Errorf("B never grouped by %s", field)
+	every := []string{"title", "workStatus", "priority", "parent", "repo", "defaultHarness", "id", "kind", "createdAt", "updatedAt",
+		data.ColStarStatus, data.ColArchiveStatus, data.ColSnoozedUntil, "sprint"}
+	for _, keys := range [][]string{{"f"}, {"g", "s"}, {"g", "b"}} {
+		d.Keys(keys...)
+		if a.Modal() != modalField {
+			t.Fatalf("%v did not open the field picker (modal %q)", keys, a.Modal())
+		}
+		var offered []string
+		for _, it := range a.pickers[modalField].Items {
+			offered = append(offered, it.ID)
+		}
+		for _, field := range every {
+			if !slices.Contains(offered, field) {
+				t.Errorf("%v does not offer %s (offers %v)", keys, field, offered)
+			}
+		}
+		d.Keys("esc")
+	}
+	pick := func(field string, keys ...string) {
+		t.Helper()
+		d.Keys(keys...)
+		d.Type(field)
+		d.Keys("enter")
+		if a.Modal() != "" {
+			t.Fatalf("picking %s left %q open", field, a.Modal())
 		}
 	}
-	for a.tables[workTable].GroupField != "repo" {
-		d.Keys("B")
-	}
-	if frame := d.Frame(); !strings.Contains(frame, "▾ ochazuke (1)") || !strings.Contains(frame, "▾ matomeru (1)") {
-		t.Fatalf("grouped by a column that is not shown:\n%s", frame)
+	pick("repo", "g", "b")
+	if frame := d.Frame(); a.tables[workTable].GroupField != "repo" || !strings.Contains(frame, "▾ ochazuke (1)") || !strings.Contains(frame, "▾ matomeru (1)") {
+		t.Fatalf("grouped by a column that is not shown (%q):\n%s", a.tables[workTable].GroupField, frame)
 	}
 	d.Keys("space")
 	if !a.tables[workTable].Collapsed["ochazuke"] {
 		t.Fatal("space did not fold the focused group")
 	}
-	for a.tables[workTable].GroupField != "" {
-		d.Keys("B")
+	d.Keys("g", "b", "enter") // the first row: not grouped
+	if a.tables[workTable].GroupField != "" {
+		t.Fatalf("still grouped by %q", a.tables[workTable].GroupField)
+	}
+	pick("sprint", "g", "s")
+	if tbl := a.tables[workTable]; tbl.SortField != "sprint" || tbl.SortDir != table.SortAsc {
+		t.Fatalf("sorted by %q (%v)", tbl.SortField, tbl.SortDir)
+	}
+	d.Keys("g", "s", "enter")
+	if a.tables[workTable].SortField != "" {
+		t.Fatalf("still sorted by %q", a.tables[workTable].SortField)
 	}
 	// Regex over every field; an invalid one is reported and matched as text.
 	d.Keys("/", "tab", "tab")
@@ -228,10 +258,14 @@ func TestListsWorkOnAnyField(t *testing.T) {
 	if a.tables[workTable].Filtered(); a.tables[workTable].FilterErr == "" || !strings.Contains(d.Frame(), "invalid regex") {
 		t.Fatal("an invalid regex is not reported")
 	}
-	d.Keys("esc", "f")
-	if got := a.tables[workTable].FilterField; got != "workStatus" {
-		t.Fatalf("f filters on %q, want the next column", got)
+	d.Keys("esc")
+	pick("sprint", "f")
+	d.Keys("/")
+	d.Type("s4")
+	if tbl := a.tables[workTable]; tbl.FilterField != "sprint" || len(tbl.Filtered()) != 1 {
+		t.Fatalf("f filters on %q: %d rows", tbl.FilterField, len(tbl.Filtered()))
 	}
+	d.Keys("esc")
 	// The pane's pages filter too.
 	d.Keys("1", "enter", "/")
 	d.Type("arch")

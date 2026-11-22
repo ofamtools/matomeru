@@ -16,6 +16,8 @@ const (
 	sqlite   = "modernc.org/sqlite"
 	// bubbletea is allowed only in app and cmd/mtm.
 	bubbletea = "charm.land/bubbletea/v2"
+	// examples/... are programs for readers: they may import anything.
+	examples = mod + "/examples/"
 	// The PTY and the VT emulator are allowed only in ptyhost.
 	pty = "github.com/creack/pty"
 	vt  = "tuios.dev/vt"
@@ -128,6 +130,7 @@ var policies = map[string]policy{
 			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", bubbletea,
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
+			ochazuke + "/widgets/bindings",
 		},
 	},
 	// The binary: flags and JSON around app, data, mcpui and migrate. It builds
@@ -158,7 +161,8 @@ func TestDependencyBoundaries(t *testing.T) {
 		}
 		byPath[p.ImportPath] = p
 	}
-	for _, req := range []string{"data", "mcpui", "views", "runs", "ext", "ptyhost", "migrate", "app", "cmd/mtm"} {
+	for _, req := range []string{"data", "mcpui", "views", "runs", "ext", "ptyhost", "migrate", "app", "cmd/mtm",
+		"examples/mcp-agent", "examples/extension-api", "examples/custom-schema"} {
 		if _, ok := byPath[mod+"/"+req]; !ok {
 			t.Fatalf("required package %q missing from go list ./...", mod+"/"+req)
 		}
@@ -166,6 +170,9 @@ func TestDependencyBoundaries(t *testing.T) {
 
 	for _, p := range pkgs {
 		pol, governed := policies[p.ImportPath]
+		if strings.HasPrefix(p.ImportPath, examples) {
+			continue // examples show the whole surface: they import what they like
+		}
 		if !governed {
 			t.Errorf("unexpected package %q: add a policy to deps_test.go", p.ImportPath)
 			continue

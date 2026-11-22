@@ -300,7 +300,7 @@ func TestProjectShowPage(t *testing.T) {
 func TestEditView(t *testing.T) {
 	w := build(t)
 	schema := w.schema(data.KindTask)
-	fm := FormForRecord(schema, &w.sub1)
+	fm := FormForRecordWith(schema, &w.sub1, EditOptions{})
 	root := EditView(schema, &w.sub1, fm, "edit")
 	wantText(t, frame(t, root, "edit.form", 100, 16),
 		"Edit Data layer", "task:sub1", "title", "Data layer", "workStatus", "(•) done", "priority", "(•) P1", "parent", "task:proj", "defaultDir", "save")
@@ -308,7 +308,7 @@ func TestEditView(t *testing.T) {
 	if chain[0].Facts["field"] != "title" || chain[0].Facts["fieldKind"] != "text" {
 		t.Fatalf("form facts = %v", chain[0].Facts)
 	}
-	// Every schema field is a form field, with the widget its type implies.
+	// With no options every schema field is a form field, and nothing else.
 	if len(fm.Specs) != len(schema.Fields) {
 		t.Fatalf("form has %d fields, schema %d", len(fm.Specs), len(schema.Fields))
 	}

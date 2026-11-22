@@ -124,7 +124,7 @@ func TestMCPCommands(t *testing.T) {
 			t.Errorf("%s has no input schema", tool.Name)
 		}
 	}
-	if got := strings.Join(names, " "); got != "ui.create_page ui.update_page ui.ask ui.list_pages" {
+	if got := strings.Join(names, " "); !strings.HasPrefix(got, "ui.create_page ui.update_page ui.ask ui.list_pages lane.start lane.update lane.log lane.attach data.schemas") {
 		t.Fatalf("tools = %s", got)
 	}
 
@@ -304,4 +304,98 @@ func TestMigrate(t *testing.T) {
 	c.fails("migrate", "--from", c.db, "--apply")
 	c.fails("migrate", "--from", filepath.Join(dir, "missing.db"))
 	c.fails("record", "list", "task", "--apply")
+}
+
+// v2 keeps its configuration in its own directory, and prints what is in
+// effect as JSON or JSON lines.
+func TestConfigDirAndExport(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("MTM_CONFIG_DIR", "")
+	if got, want := configDir(), filepath.Join(home, ".config", "matomeru-next"); got != want {
+		t.Fatalf("configDir = %s, want %s", got, want)
+	}
+	// The directory of the mtm it replaces is never read.
+	old := filepath.Join(home, ".config", "matomeru")
+	if err := os.MkdirAll(old, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(old, "bindings.json"), []byte(`[{"mode":"nope","keys":["q"],"command":"v1.only"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "cfg")
+	t.Setenv("MTM_CONFIG_DIR", dir)
+	if configDir() != dir {
+		t.Fatalf("MTM_CONFIG_DIR is not used: %s", configDir())
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"ui.theme": "ochazuke-light"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := cli{t: t, db: ":memory:"}
+	out := decode[struct {
+		ConfigDir    string           `json:"configDir"`
+		Settings     map[string]any   `json:"settings"`
+		Bindings     []map[string]any `json:"bindings"`
+		UserBindings []map[string]any `json:"userBindings"`
+		Warnings     []string         `json:"warnings"`
+	}](t, c.ok("config", "export"))
+	if out.ConfigDir != dir || out.Settings["ui.theme"] != "ochazuke-light" || out.Settings["ui.density"] != "balanced" ||
+		len(out.Bindings) < 100 || len(out.UserBindings) != 0 || len(out.Warnings) != 0 {
+		t.Fatalf("config export: dir %s, theme %v, %d bindings, %d user, warnings %v", out.ConfigDir, out.Settings["ui.theme"], len(out.Bindings), len(out.UserBindings), out.Warnings)
+	}
+	lines := strings.Split(strings.TrimSpace(c.ok("config", "export", "--jsonl")), "\n")
+	if len(lines) != len(out.Settings)+len(out.Bindings) || !strings.Contains(lines[0], `"key"`) || !json.Valid([]byte(lines[len(lines)-1])) {
+		t.Fatalf("config export --jsonl: %d lines, first %s", len(lines), lines[0])
+	}
+	c.fails("config")
+	c.fails("config", "import")
+}
+
+// --tutorial is its own workspace: it takes no store, and its scripted walk
+// passes.
+func TestTutorialFlag(t *testing.T) {
+	var out, errs bytes.Buffer
+	if code := run([]string{"--tutorial", "--smoke"}, strings.NewReader(""), &out, &errs); code != 0 || !strings.Contains(out.String(), "tutorial: all checks passed") {
+		t.Fatalf("--tutorial --smoke: exit %d\n%s%s", code, out.String(), errs.String())
+	}
+	for _, args := range [][]string{{"--tutorial", "--db", "x.db"}, {"--tutorial", "--seed-demo"}, {"--tutorial", "record", "list", "task"}} {
+		out.Reset()
+		errs.Reset()
+		if code := run(args, strings.NewReader(""), &out, &errs); code == 0 || !strings.Contains(errs.String(), "--tutorial opens its own workspace") {
+			t.Errorf("mtm %s: exit %d, %s", strings.Join(args, " "), code, errs.String())
+		}
+	}
+	if _, err := os.Stat("x.db"); err == nil {
+		t.Fatal("--tutorial --db made a store")
+	}
+}
+
+// The lane tools run from the CLI too, with the pane and task of the
+// environment as their defaults.
+func TestLaneToolsFromCLI(t *testing.T) {
+	t.Setenv("MTM_PANE_ID", "w7")
+	t.Setenv("MTM_TASK_ID", "t1")
+	c := cli{t: t, db: filepath.Join(t.TempDir(), "mtm.db")}
+	started := decode[struct {
+		Lane  record `json:"lane"`
+		Claim struct {
+			To struct{ ID string } `json:"to"`
+		} `json:"claim"`
+	}](t, c.ok("mcp", "call", "lane.start", `{"title": "From the CLI"}`))
+	if task, _ := started.Lane.Fields["task"].(map[string]any); started.Lane.Kind != "lane" || started.Claim.To.ID != "w7" || task["id"] != "t1" {
+		t.Fatalf("lane.start = %+v", started)
+	}
+	c.ok("mcp", "call", "lane.log", `{"lane": "`+started.Lane.ID+`", "kind": "milestone", "text": "started"}`)
+	page := decode[struct{ ID string }](t, c.ok("mcp", "call", "ui.create_page", `{"title": "No pane given", "root": {"kind": "vstack"}}`))
+	got := decode[record](t, c.ok("record", "get", "ui.page", page.ID))
+	if pane, _ := got.Fields["pane"].(map[string]any); pane["id"] != "w7" {
+		t.Fatalf("the page's pane = %v, want the environment's", got.Fields["pane"])
+	}
+	if notes := decode[[]record](t, c.ok("record", "list", "note")); len(notes) != 1 || notes[0].Fields["title"] != "milestone: started" {
+		t.Fatalf("notes = %+v", notes)
+	}
 }

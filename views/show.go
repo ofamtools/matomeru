@@ -141,7 +141,7 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 
 // propsPanel is the left side of a Show page: every schema field as a row,
 // then one focusable link card per reference field that points somewhere.
-func propsPanel(store *data.Store, schema data.Schema, rec data.Record) ui.ViewNode {
+func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts ShowOptions) ui.ViewNode {
 	merged := rec.MergedFields()
 	names := make([]string, 0, len(schema.Fields))
 	for _, f := range schema.Fields {
@@ -185,11 +185,13 @@ func propsPanel(store *data.Store, schema data.Schema, rec data.Record) ui.ViewN
 		}
 		rows = append(rows, []any{fieldTitle(schema, name), shown})
 	}
-	rows = append(rows,
-		[]any{"Created", rec.CreatedAt.Format(timeLayout)},
-		[]any{"Updated", rec.UpdatedAt.Format(timeLayout)},
-		[]any{"Revision", fmt.Sprintf("%d", rec.ChangeSetNumber)},
-	)
+	if opts.ShowMetadata {
+		rows = append(rows,
+			[]any{"Created", rec.CreatedAt.Format(timeLayout)},
+			[]any{"Updated", rec.UpdatedAt.Format(timeLayout)},
+			[]any{"Revision", fmt.Sprintf("%d", rec.ChangeSetNumber)},
+		)
+	}
 	tbl := fixed(ui.ViewNode{ID: "show.props.table", Kind: ui.KindTable, Props: map[string]any{
 		"columns": []any{map[string]any{"key": "field", "title": "Field", "width": 16}, map[string]any{"key": "value", "title": "Value"}},
 		"rows":    rows,
@@ -207,6 +209,27 @@ func propsPanel(store *data.Store, schema data.Schema, rec data.Record) ui.ViewN
 // to the app, and "enter" opens the focused record's own Show page.
 // focusID names the focused node; it is used to say what "enter" opens.
 func ShowView(store *data.Store, ref core.Ref, focusID string) (ui.ViewNode, error) {
+	return ShowViewWith(store, ref, focusID, DefaultShowOptions())
+}
+
+// ShowOptions choose what a Show page includes.
+type ShowOptions struct {
+	// ShowMetadata adds the Created, Updated and Revision rows to the props.
+	ShowMetadata bool
+	// ShowEmptyRelations keeps the declared relation sections that hold
+	// nothing, so every association has its place; false leaves them out.
+	ShowEmptyRelations bool
+}
+
+// DefaultShowOptions shows everything.
+func DefaultShowOptions() ShowOptions {
+	return ShowOptions{ShowMetadata: true, ShowEmptyRelations: true}
+}
+
+// ShowViewWith is ShowView with options. A lane's page leads its related
+// column with a Timeline: the notes logged about it and its change sets, in
+// the order they happened.
+func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOptions) (ui.ViewNode, error) {
 	rec, err := store.Get(ref)
 	if err != nil {
 		return ui.ViewNode{}, err
@@ -218,7 +241,17 @@ func ShowView(store *data.Store, ref core.Ref, focusID string) (ui.ViewNode, err
 	}
 
 	var panels []ui.ViewNode
+	if ref.Kind == data.KindLane {
+		timeline, err := timelinePanel(store, ref)
+		if err != nil {
+			return ui.ViewNode{}, err
+		}
+		panels = append(panels, timeline)
+	}
 	for _, sec := range sections {
+		if len(sec.cards) == 0 && !opts.ShowEmptyRelations {
+			continue
+		}
 		body := sec.cards
 		if len(body) == 0 {
 			body = []ui.ViewNode{text("", "none", "muted")}
@@ -228,7 +261,7 @@ func ShowView(store *data.Store, ref core.Ref, focusID string) (ui.ViewNode, err
 			Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: body}}})
 	}
 	body := ui.ViewNode{ID: "show.body", Kind: ui.KindSplit, Ratio: 0.42, Gap: 1, Children: []ui.ViewNode{
-		propsPanel(store, schema, *rec),
+		propsPanel(store, schema, *rec, opts),
 		{ID: "show.related", Kind: ui.KindScroll, Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: panels}}},
 	}}
 

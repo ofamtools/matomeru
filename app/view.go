@@ -288,12 +288,20 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		if err != nil {
 			a.fail("read pages", err)
 		}
-		site = views.PaneSiteView(*pane, res.Items, a.activePage[pane.ID], a.tocFilter)
+		opts := views.SiteOptions{Store: a.Store, ShowLaneBar: a.Settings.Bool(SetLaneBar, true), LaneHint: laneBarHint}
+		if a.Shell != nil {
+			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
+		}
+		site = views.PaneSiteViewWith(*pane, res.Items, a.activePage[pane.ID], a.tocFilter, opts)
 		a.live.shown = ""
 		if screen := site.Find(siteScreen); screen != nil {
 			if lines, cursor, badges, ok := a.liveScreen(*pane); ok {
 				screen.Props["lines"], screen.Props["cursor"] = lines, cursor
-				site.Find("site.content").Badges = badges
+				content := site.Find("site.content")
+				content.Badges = badges
+				if f := a.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
+					content.Title = fmt.Sprintf("Screen · pid %d", f.PID)
+				}
 			} else {
 				typing := s.Pages[SpacePanes].Mode == ModeTerminal
 				screen.Props["lines"] = a.termLines(*pane, typing)
@@ -301,7 +309,20 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 			}
 		}
 	}
-	return ui.ViewNode{ID: "panes.split", Kind: ui.KindSplit, Ratio: 0.3, Gap: 1, Children: []ui.ViewNode{rail, site}}
+	if a.zoom && site.ID == "site" {
+		// Zoomed: only the pane's page, still inside the pane's context chain.
+		if split, content := site.Find("site.pane"), site.Find("site.content"); split != nil && content != nil {
+			page := *content
+			page.Badges = append(slices.Clone(page.Badges), ui.Badge{Text: "zoomed", Tone: "accent"})
+			split.Kind, split.Ratio, split.Children = ui.KindVStack, 0, []ui.ViewNode{page}
+		}
+		return site
+	}
+	ratio := railRatio
+	if a.Settings.Bool(SetRailAutoWiden, false) && s.Pages[SpacePanes].FocusID == railTable {
+		ratio = railRatioWidened
+	}
+	return ui.ViewNode{ID: "panes.split", Kind: ui.KindSplit, Ratio: ratio, Gap: 1, Children: []ui.ViewNode{rail, site}}
 }
 
 // termLines is what the Screen page shows of a pane with no live session:
@@ -324,10 +345,11 @@ func (a *App) termLines(pane data.Record, live bool) []string {
 
 func (a *App) workSpace(s core.State) ui.ViewNode {
 	ref, showing := a.Showing()
+	kind := a.workKind()
 	if !showing {
-		return views.IndexView(a.schema(data.KindTask), a.records(workTable, data.KindTask), SpaceWork)
+		return views.IndexView(a.schema(kind), a.records(workTable, kind), SpaceWork)
 	}
-	crumbs := []string{"Tasks"}
+	crumbs := []string{a.schema(kind).Plural}
 	for _, h := range a.history[:a.histPos+1] {
 		crumbs = append(crumbs, a.title(h.ref))
 	}
@@ -335,7 +357,7 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 	if n := len(a.history) - a.histPos - 1; n > 0 {
 		trail += fmt.Sprintf("   (%d forward)", n)
 	}
-	page, err := views.ShowView(a.Store, ref, s.Pages[SpaceWork].FocusID)
+	page, err := views.ShowViewWith(a.Store, ref, s.Pages[SpaceWork].FocusID, a.showOptions())
 	if err != nil {
 		page = ui.ViewNode{ID: "show", Kind: ui.KindPanel, Border: true, Title: data.RefText(ref), Children: []ui.ViewNode{
 			text("", "This record is not in the store any more ("+err.Error()+"). Backspace goes back.", "warning")}}
@@ -440,6 +462,18 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		ov := overlay(m.ID, panel.Title, 70, 0, panel.Children...)
 		ov.Scope, ov.Ref, ov.Badges, ov.Facts = panel.Scope, panel.Ref, panel.Badges, panel.Facts
 		return ov
+	case modalSettings:
+		if a.settings == nil {
+			break
+		}
+		ov := overlay(m.ID, a.settings.fm.Title, 70, 0, a.settings.fm.View(modalSettings+".form"))
+		ov.Scope = "settings"
+		return ov
+	case modalBindings:
+		if a.bindEd == nil {
+			break
+		}
+		return a.bindingsModal()
 	case modalLaunch:
 		if a.launch == nil {
 			break

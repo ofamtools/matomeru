@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,6 +32,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	otea "ofam.dev/ochazuke/tea"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/bindings"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
@@ -82,6 +84,12 @@ const (
 	modalForm    = "form"
 	modalAnswer  = "answer"
 	modalLaunch  = "launch"
+
+	modalSettings = "settings"
+	modalBindings = "bindings"
+	modalNouns    = "nouns"
+	modalField    = "field"
+	modalAssign   = "assign"
 )
 
 // Actors. The owner's changes are theirs to undo; a page marked as viewed
@@ -122,20 +130,6 @@ type Options struct {
 	// ExtensionDirs are searched for extensions before PATH, ahead of the
 	// "extensionDirs" setting.
 	ExtensionDirs []string
-}
-
-// DefaultSettings are the settings and their defaults.
-func DefaultSettings() map[string]any {
-	return map[string]any{
-		"startSpace":   SpacePanes,
-		"snoozeHours":  24,
-		"showArchived": false,
-		"matchMode":    "substring",
-		"mouse":        true,
-		"maxFPS":       otea.DefaultMaxFPS,
-		// Directories searched for extensions before PATH.
-		"extensionDirs": []any{},
-	}
 }
 
 type historyEntry struct {
@@ -207,6 +201,29 @@ type App struct {
 	lastFocus   map[string]string // region -> its last focused node
 	focusRegion string
 
+	// The user's configuration as loaded and as changed here: the settings
+	// the user set, their theme file and their binding rows.
+	userSettings map[string]any
+	themeOverlay []byte
+	userBindings []core.Binding
+	settings     *formState
+
+	// The binding editor: its model, how many of its rows are the user's
+	// own, and the keys of a rebind being captured.
+	bindEd        *bindings.Model
+	bindUser      int
+	bindTarget    int
+	bindCapture   []string
+	bindCapturing bool
+
+	browseKind string    // the noun the Work index lists; "" = tasks
+	fieldWhat  string    // what the field picker sets: filter, sort or group
+	fieldTable string    // the table it sets it on
+	assignRef  *core.Ref // the record "m" moves
+	assignTo   string    // the reference field it writes
+	zoom       bool      // the Panes space shows only the pane's page
+	escapes    int       // escapes sent to panes with ctrl+a esc
+
 	gen     uint64
 	memoKey string
 	memo    ui.ViewNode
@@ -220,24 +237,23 @@ func New(store *data.Store, opts Options) (*App, error) {
 		Store: store, Router: mcpui.New(store), opts: opts,
 		tables: map[string]*table.Model{}, activePage: map[string]string{}, term: map[string]*termBuf{},
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
+		userSettings: map[string]any{},
 	}
-	theme := ui.DefaultDarkTheme()
 	a.specs = CommandSpecs()
 	a.bindings = DefaultBindings()
 	a.Settings, _ = config.LoadSettings(nil, DefaultSettings())
 
 	if dir := opts.ConfigDir; dir != "" {
-		a.loadConfig(dir, &theme)
+		a.loadConfig(dir)
 	}
-	km, err := core.NewKeymap(Modes(), a.bindings, a.specs...)
-	if err != nil {
-		if km == nil {
+	theme := a.theme()
+	if err := a.rebuildKeymap(); err != nil {
+		if a.Keymap == nil {
 			return nil, err
 		}
 		a.warn("bindings: %v", err) // the bindings that compiled still work
 	}
-	a.Keymap = km
-	a.Engine = core.NewEngine(km)
+	a.Engine = core.NewEngine(a.Keymap)
 	a.Engine.DefaultMode = ModeNormal
 	a.showArchived = a.Settings.Bool("showArchived", false)
 	a.register()
@@ -292,7 +308,7 @@ func (a *App) now() time.Time {
 }
 
 // loadConfig lays the user's JSONC files over the defaults.
-func (a *App) loadConfig(dir string, theme *ui.Theme) {
+func (a *App) loadConfig(dir string) {
 	read := func(name string) ([]byte, bool) {
 		b, err := os.ReadFile(filepath.Join(dir, name))
 		if errors.Is(err, os.ErrNotExist) {
@@ -307,15 +323,17 @@ func (a *App) loadConfig(dir string, theme *ui.Theme) {
 	if b, ok := read("settings.json"); ok {
 		if s, err := config.LoadSettings(b, DefaultSettings()); err != nil {
 			a.warn("settings.json: %v", err)
+		} else if user, err := readUserSettings(b); err != nil {
+			a.warn("settings.json: %v", err)
 		} else {
-			a.Settings = s
+			a.Settings, a.userSettings = s, user
 		}
 	}
 	if b, ok := read("themes.json"); ok {
-		if t, err := config.LoadTheme(b, *theme); err != nil {
+		if _, err := config.LoadTheme(b, ui.DefaultDarkTheme()); err != nil {
 			a.warn("themes.json: %v", err)
 		} else {
-			*theme = t
+			a.themeOverlay = b
 		}
 	}
 	if b, ok := read("bindings.json"); ok {
@@ -347,6 +365,7 @@ func (a *App) loadConfig(dir string, theme *ui.Theme) {
 		if len(bad) > 0 {
 			a.warn("bindings.json: %d of %d rows are not v2 bindings and were left out (%s)", len(bad), len(user), first)
 		}
+		a.userBindings = good
 		a.bindings = config.MergeBindings(a.bindings, good)
 	}
 }
@@ -553,9 +572,12 @@ func (a *App) records(id, kind string) *table.Model {
 			fresh.Columns = sp.columns
 		}
 	}
+	if !a.Settings.Bool(SetFlagsColumn, true) {
+		fresh.Columns = slices.DeleteFunc(slices.Clone(fresh.Columns), func(c table.Column) bool { return c.Key == views.FlagsField })
+	}
 	tbl := keep(a.tables[id], fresh)
 	if a.tables[id] == nil {
-		tbl.MatchMode = table.MatchMode(a.Settings.String("matchMode", "substring"))
+		tbl.MatchMode = a.matchMode()
 	}
 	a.pageSize(tbl, id)
 	a.tables[id] = tbl
@@ -612,31 +634,6 @@ func (a *App) spaceTable(space string) *table.Model {
 		}
 	}
 	return nil
-}
-
-// tableKeys lists every key a table can filter, sort and group on: its
-// columns, then every other field of its noun, then the universal columns.
-func (a *App) tableKeys(id string, tbl *table.Model) []string {
-	var out []string
-	add := func(k string) {
-		if k != "" && !slices.Contains(out, k) {
-			out = append(out, k)
-		}
-	}
-	for _, c := range tbl.Columns {
-		add(c.Key)
-	}
-	for _, sp := range spaces {
-		if sp.table == id {
-			for _, f := range a.schema(sp.kind).Fields {
-				add(f.Name)
-			}
-		}
-	}
-	for _, k := range []string{"id", "createdAt", "updatedAt", data.ColStarStatus, data.ColArchiveStatus, data.ColSnoozedUntil} {
-		add(k)
-	}
-	return out
 }
 
 func next(list []string, cur string) string {
@@ -830,9 +827,13 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 		if a.path != nil {
 			a.path.HandleCommand(c)
 		}
-	case modalForm, modalAnswer, modalLaunch:
+	case modalForm, modalAnswer, modalLaunch, modalSettings:
 		if fs := a.formOf(id); fs != nil {
 			fs.fm.HandleCommand(c)
+		}
+	case modalBindings:
+		if a.bindEd != nil {
+			a.bindEd.HandleCommand(c)
 		}
 	default:
 		if pm := a.pickers[id]; pm != nil {
@@ -847,6 +848,7 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 func (a *App) dropModals(s core.State) core.State {
 	s.Modals = nil
 	a.form, a.answer, a.launch, a.path = nil, nil, nil, nil
+	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
 	return s
 }
 
@@ -904,6 +906,9 @@ func (a *App) show(s core.State, ref core.Ref) core.State {
 
 func (a *App) travel(s core.State, delta int) core.State {
 	to := a.histPos + delta
+	if to < -1 && a.browseKind != "" {
+		return a.browse(s, data.KindTask) // back from another noun's index: tasks
+	}
 	if to < -1 || to >= len(a.history) {
 		if delta < 0 {
 			a.say("this is the first page")
@@ -917,7 +922,7 @@ func (a *App) travel(s core.State, delta int) core.State {
 	if ref, ok := a.Showing(); ok {
 		a.say("%s", a.title(ref))
 	} else {
-		a.say("tasks")
+		a.say("%s", strings.ToLower(a.schema(a.workKind()).Plural))
 	}
 	return a.arrive(s)
 }
@@ -1017,6 +1022,8 @@ func (a *App) formOf(modal string) *formState {
 		return a.answer
 	case modalLaunch:
 		return a.launch
+	case modalSettings:
+		return a.settings
 	}
 	return a.form
 }
@@ -1032,7 +1039,7 @@ func (a *App) edit(s core.State, c core.Command) core.StepResult {
 		a.fail("edit", err)
 		return core.Next(s)
 	}
-	a.form = &formState{kind: ref.Kind, ref: &ref, fm: views.FormForRecord(a.schema(ref.Kind), rec)}
+	a.form = &formState{kind: ref.Kind, ref: &ref, fm: views.FormForRecordWith(a.schema(ref.Kind), rec, a.editOptions())}
 	a.say("each change is written as you make it · u undoes")
 	return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
 }
@@ -1043,7 +1050,7 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		kind = data.KindTask
 	}
 	schema := a.schema(kind)
-	fs := &formState{kind: kind, fm: views.FormForRecord(schema, nil)}
+	fs := &formState{kind: kind, fm: views.FormForRecordWith(schema, nil, a.editOptions())}
 	subject, has := a.subject(s, c)
 	switch {
 	case kind == data.KindTask:
@@ -1084,8 +1091,8 @@ func (a *App) reloadForm() {
 		return
 	}
 	idx := fs.fm.ActiveIdx
-	fs.fm = views.FormForRecord(a.schema(fs.kind), rec)
-	fs.fm.ActiveIdx = idx
+	fs.fm = views.FormForRecordWith(a.schema(fs.kind), rec, a.editOptions())
+	fs.fm.ActiveIdx = min(idx, max(len(fs.fm.Specs)-1, 0))
 }
 
 // commit writes the active field of the edit form: a patch of that one field,
@@ -1106,10 +1113,13 @@ func (a *App) commit() {
 	values := fs.fm.TypedValues()
 	value, has := values[name]
 	schema := a.schema(fs.kind)
+	universal := views.IsUniversalField(name)
 	if fs.ref == nil {
-		if !has || value == "" {
+		if !has || value == "" || universal {
 			return // nothing to create a record from yet
 		}
+		// Star, archive and snooze are not fields: they are set once it exists.
+		maps.DeleteFunc(values, func(k string, _ any) bool { return views.IsUniversalField(k) })
 		rec, cs, err := a.Store.Create(data.CreateInput{Kind: fs.kind, Fields: values}, User)
 		if err != nil {
 			a.fail("create "+fs.kind, err)
@@ -1125,6 +1135,10 @@ func (a *App) commit() {
 			}
 		}
 		a.wrote("created "+strings.ToLower(schema.Title)+" "+views.Title(schema, *rec), cs, nil)
+		return
+	}
+	if universal {
+		a.commitUniversal(*fs.ref, name, value)
 		return
 	}
 	if !has {
@@ -1190,14 +1204,19 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 	case res.Cancelled:
 		return a.cancel(s, c)
 	}
+	write := func() {}
+	switch {
+	case record:
+		write = a.commit
+	case modal == modalSettings:
+		write = a.commitSetting
+	}
 	switch id {
 	case form.CmdToggle, form.CmdCycle:
-		if record {
-			a.commit()
-		}
+		write()
 	case form.CmdStop:
-		if record && wasEditing {
-			a.commit()
+		if wasEditing {
+			write()
 		}
 	}
 	mode := ModeForm
@@ -1381,6 +1400,12 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 	}
 	s = closeModal(s, id)
 	switch id {
+	case modalNouns:
+		return core.Next(a.browse(s, picked.ID))
+	case modalField:
+		a.fieldPicked(picked.ID)
+	case modalAssign:
+		a.assigned(picked)
 	case modalPages:
 		return core.Next(a.jumpToPage(s, picked.ID))
 	case modalRef:
@@ -1697,7 +1722,7 @@ func (a *App) enterScreen(s core.State, pane data.Record) core.State {
 		a.fail("open "+pane.Text("title"), err)
 		return s
 	}
-	a.say("typing goes to the pane · ctrl+a x leaves")
+	a.say("typing goes to the pane · ctrl+a d leaves")
 	return withMode(s, ModeTerminal)
 }
 
@@ -1791,6 +1816,10 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.launch = nil
 	case modalPath:
 		a.path = nil
+	case modalSettings:
+		a.settings = nil
+	case modalBindings:
+		a.bindCapturing = false // the editor's model stays: its undo history survives closing it
 	}
 	a.say("")
 	return core.Next(closeModal(s, id))
@@ -1832,6 +1861,27 @@ func (a *App) register() {
 
 	a.handle(views.CmdEdit, a.edit)
 	a.handle(views.CmdNew, a.create)
+	a.handle(CmdNewHere, func(s core.State, c core.Command) core.StepResult {
+		// In Work, "new" makes a record of the noun the index lists.
+		c.Args = map[string]any{"kind": a.workKind()}
+		return a.create(s, c)
+	})
+	a.handle(CmdAssign, a.assign)
+	a.handle(CmdNounsPick, a.nounsPick)
+	a.handle(CmdFilterFieldPick, a.fieldPick("filter"))
+	a.handle(CmdSortFieldPick, a.fieldPick("sort"))
+	a.handle(CmdGroupFieldPick, a.fieldPick("group"))
+	a.handle(CmdSettingsOpen, a.settingsOpen)
+	a.handle(CmdBindingsOpen, a.bindingsOpen)
+	for _, id := range []string{CmdBindingsFilter, CmdBindingsFilterDone, CmdBindingsFilterClear, CmdBindingsRebind, CmdBindingsCaptureKey,
+		CmdBindingsCaptureDone, CmdBindingsCaptureCancel, CmdBindingsMatchMode, "bindings.unbind", "bindings.reset", "bindings.undo", "bindings.redo",
+		"bindings.filter.append", "bindings.filter.backspace"} {
+		a.handle(id, a.bindingsCommand)
+	}
+	a.handle(CmdPaneZoom, a.paneZoom)
+	a.handle(CmdPaneAttention, a.nextAttention)
+	a.handle(CmdLaneShow, a.laneShow)
+	a.handle(CmdTermEscape, a.termEscape)
 	a.handle(views.CmdStar, a.onRecord("star", a.Store.Star))
 	a.handle(views.CmdUnstar, a.onRecord("unstar", a.Store.Unstar))
 	a.handle(views.CmdArchive, a.onRecord("archive", a.Store.Archive))
