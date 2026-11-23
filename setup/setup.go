@@ -1,7 +1,7 @@
 // Package setup configures a developer machine for the OFAM toolchain:
 // agent instruction files (AGENTS.md / GEMINI.md / CLAUDE.md), shared skills,
-// Claude Code hook integration, and MCP server registration. It uses only the
-// Go standard library.
+// multi-harness hook integration (Claude Code, Codex, Antigravity, Gemini CLI,
+// OMP), and MCP server registration. It uses only the Go standard library.
 package setup
 
 import (
@@ -18,6 +18,9 @@ var embeddedOFAMRules string
 
 //go:embed assets/skills/ofam-wave-release/SKILL.md
 var embeddedSkillsFS embed.FS
+
+//go:embed assets/extensions/mtm-omp-agent-state.ts
+var embeddedOMPExtension string
 
 // Action status values reported by machine setup and check operations.
 const (
@@ -101,7 +104,7 @@ func reportOK(actions []Action) bool {
 	return true
 }
 
-// RunMachine executes all machine setup steps (agents, skills, Claude hooks, MCP).
+// RunMachine executes all machine setup steps (agents, skills, hooks, MCP).
 func RunMachine(opts Options) (Report, error) {
 	rep := Report{
 		DryRun:  opts.DryRun,
@@ -121,7 +124,7 @@ func RunMachine(opts Options) (Report, error) {
 		return rep, err
 	}
 
-	hookActions, err := ConfigureClaudeHooks(opts)
+	hookActions, err := ConfigureHooks(opts)
 	rep.Actions = append(rep.Actions, hookActions...)
 	if err != nil {
 		return rep, err
@@ -174,9 +177,10 @@ func RunSkills(opts Options) (Report, error) {
 	return rep, err
 }
 
-// RunHooks runs only the Claude Code hook configurator and returns a Report.
+// RunHooks runs the multi-harness hook configurator across Claude Code, Codex,
+// Antigravity, Gemini CLI, and OMP and returns a Report.
 func RunHooks(opts Options) (Report, error) {
-	actions, err := ConfigureClaudeHooks(opts)
+	actions, err := ConfigureHooks(opts)
 	if actions == nil {
 		actions = []Action{}
 	}

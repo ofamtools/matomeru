@@ -94,7 +94,7 @@ func mtmSetupCommand() oden.Command {
 
 	return oden.Command{
 		Name:       "setup",
-		Summary:    "configure agent instructions, OFAM skills, Claude Code hooks, and MCP",
+		Summary:    "configure agent instructions, OFAM skills, harness hooks, and MCP",
 		Category:   "Configuration",
 		Usage:      "[machine|agents|skills|hooks|mcp|check] [--home DIR] [--dry-run] [--check] [--force] [--json]",
 		Parameters: params,
@@ -103,7 +103,7 @@ func mtmSetupCommand() oden.Command {
 			sub.Add(
 				oden.Command{
 					Name:       "machine",
-					Summary:    "configure agent instruction files, OFAM skills, Claude Code hooks, and MCP",
+					Summary:    "configure agent instruction files, OFAM skills, harness hooks, and MCP",
 					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("machine", false, false),
@@ -124,14 +124,14 @@ func mtmSetupCommand() oden.Command {
 				},
 				oden.Command{
 					Name:       "hooks",
-					Summary:    "merge mtm-hook and o-lane lifecycle hooks into Claude Code settings.json",
+					Summary:    "configure mtm-hook across Claude Code, Codex, Antigravity, Gemini CLI, and OMP",
 					Usage:      "[--home DIR] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("hooks", false, false),
 				},
 				oden.Command{
 					Name:       "mcp",
-					Summary:    "configure mtm mcp serve across Claude Code, Codex, and Antigravity",
+					Summary:    "configure mtm mcp serve across Claude Code, Codex, Antigravity, and Gemini CLI",
 					Usage:      "[--home DIR] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("mcp", false, false),

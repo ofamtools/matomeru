@@ -198,6 +198,14 @@ func RunWithEnv(args []string, getenv func(string) string, stdin io.Reader, stdo
 		return 0
 	}
 
+	isAntigravity := CanonicalHarness(cli.harness) == "antigravity"
+	emittedStdout := false
+	defer func() {
+		if isAntigravity && !emittedStdout {
+			_, _ = io.WriteString(stdout, "{}\n")
+		}
+	}()
+
 	sock := ResolveSocketPath(cli.socket, getenv)
 	if sock == "" {
 		explain("skipped: MTM_SOCKET is unset")
@@ -211,6 +219,9 @@ func RunWithEnv(args []string, getenv func(string) string, stdin io.Reader, stdo
 	}
 
 	res := Translate(cli.harness, cli.event, raw)
+	if CanonicalHarness(res.Event.Harness) == "antigravity" || (!isAntigravity && isAntigravityRaw(raw)) {
+		isAntigravity = true
+	}
 	if res.SkipReason != "" {
 		explain("skipped: %s", res.SkipReason)
 		return 0
@@ -242,6 +253,7 @@ func RunWithEnv(args []string, getenv func(string) string, stdin io.Reader, stdo
 		out, ok := FormatApprovalResponse(ev.Harness, resp.Decision, resp.Reason, ev.Payload)
 		if ok && resp.OK {
 			_, _ = io.WriteString(stdout, out)
+			emittedStdout = true
 			explain("approval %s -> %s", ev.RequestID, resp.Decision)
 		} else {
 			explain("approval %s produced no decision (ok=%v decision=%q)", ev.RequestID, resp.OK, resp.Decision)

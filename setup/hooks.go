@@ -88,36 +88,7 @@ func ConfigureClaudeHooks(opts Options) ([]Action, error) {
 		}
 	}
 
-	for i := range eventActions {
-		eventActions[i].Path = settingsPath
-		switch eventActions[i].Status {
-		case StatusCreated:
-			switch {
-			case opts.Check:
-				eventActions[i].Status = StatusMissing
-			case opts.DryRun:
-				if !exists {
-					eventActions[i].Status = StatusWouldCreate
-				} else {
-					eventActions[i].Status = StatusWouldUpdate
-				}
-			default:
-				if exists {
-					eventActions[i].Status = StatusUpdated
-					eventActions[i].Backup = backup
-				}
-			}
-		case StatusUpdated:
-			switch {
-			case opts.Check:
-				eventActions[i].Status = StatusOutdated
-			case opts.DryRun:
-				eventActions[i].Status = StatusWouldUpdate
-			default:
-				eventActions[i].Backup = backup
-			}
-		}
-	}
+	finalizeHookEventActions(eventActions, settingsPath, exists, backup, opts)
 	return eventActions, nil
 }
 
@@ -165,7 +136,7 @@ func mergeClaudeSettingsJSON(raw []byte, hookCmd, olaneHookCmd string, skipOLane
 	eventActions = make([]Action, 0, capHint)
 
 	for _, spec := range ClaudeHookEvents {
-		act, didChange, err := upsertClaudeHookEvent(hooksMap, spec, "claude/"+spec.Event, cmd, isMTMClaudeHookCommand, force)
+		act, didChange, err := upsertHookEvent(hooksMap, spec, "claude/"+spec.Event, cmd, "s", isMTMClaudeHookCommand, force)
 		if err != nil {
 			return nil, false, nil, err
 		}
@@ -177,7 +148,7 @@ func mergeClaudeSettingsJSON(raw []byte, hookCmd, olaneHookCmd string, skipOLane
 
 	if !skipOLane {
 		for _, spec := range OLaneClaudeHookEvents {
-			act, didChange, err := upsertClaudeHookEvent(hooksMap, spec, "claude/o-lane/"+spec.Event, olaneCmd, isOLaneHookCommand, force)
+			act, didChange, err := upsertHookEvent(hooksMap, spec, "claude/o-lane/"+spec.Event, olaneCmd, "s", isOLaneHookCommand, force)
 			if err != nil {
 				return nil, false, nil, err
 			}
@@ -201,11 +172,12 @@ func mergeClaudeSettingsJSON(raw []byte, hookCmd, olaneHookCmd string, skipOLane
 	return encoded, true, eventActions, nil
 }
 
-func upsertClaudeHookEvent(
+func upsertHookEvent(
 	hooksMap map[string]any,
 	spec ClaudeHookEventSpec,
 	targetName string,
 	cmd string,
+	timeoutUnit string,
 	matchFn func(existingCmd, desiredCmd string) bool,
 	force bool,
 ) (Action, bool, error) {
@@ -269,11 +241,11 @@ func upsertClaudeHookEvent(
 		})
 		hooksMap[spec.Event] = groups
 		act.Status = StatusCreated
-		act.Detail = fmt.Sprintf("%s (timeout %ds)", cmd, spec.Timeout)
+		act.Detail = fmt.Sprintf("%s (timeout %d%s)", cmd, spec.Timeout, timeoutUnit)
 		return act, true, nil
 	case updated:
 		act.Status = StatusUpdated
-		act.Detail = fmt.Sprintf("%s (timeout %ds)", cmd, spec.Timeout)
+		act.Detail = fmt.Sprintf("%s (timeout %d%s)", cmd, spec.Timeout, timeoutUnit)
 		return act, true, nil
 	default:
 		act.Status = StatusUnchanged

@@ -77,9 +77,13 @@ func TestCLISetup(t *testing.T) {
 		filepath.Join(".agents", "AGENTS.md"),
 		filepath.Join(".agents", "skills", "ofam-wave-release", "SKILL.md"),
 		filepath.Join(".claude", "settings.json"),
-		".claude.json",
+		filepath.Join(".codex", "hooks.json"),
 		filepath.Join(".codex", "config.toml"),
+		filepath.Join(".gemini", "config", "hooks.json"),
+		filepath.Join(".gemini", "config", "mcp_config.json"),
 		filepath.Join(".gemini", "settings.json"),
+		filepath.Join(".omp", "agent", "extensions", setup.OMPExtensionFilename),
+		".claude.json",
 	} {
 		if _, err := os.Stat(filepath.Join(home, rel)); err != nil {
 			t.Errorf("expected target %s to exist: %v", rel, err)
@@ -107,7 +111,7 @@ func TestCLISetup(t *testing.T) {
 		}
 	}
 
-	// 6. Standalone `mtm setup mcp` applies cleanly with custom --mcp-cmd and passes --check.
+	// 6. Standalone `mtm setup mcp` applies cleanly to all 4 harnesses with custom --mcp-cmd and passes --check.
 	mcpHome := t.TempDir()
 	code, out, errs = runMTM("setup", "mcp", "--home", mcpHome, "--mcp-cmd", "/custom/bin/mtm", "--json")
 	if code != 0 {
@@ -117,15 +121,55 @@ func TestCLISetup(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &mcpRep); err != nil {
 		t.Fatalf("setup mcp JSON: %v\n%s", err, out)
 	}
-	if !mcpRep.OK || len(mcpRep.Actions) != 3 {
+	if !mcpRep.OK || len(mcpRep.Actions) != 4 {
 		t.Fatalf("setup mcp report = %+v", mcpRep)
+	}
+	for _, rel := range []string{
+		".claude.json",
+		filepath.Join(".codex", "config.toml"),
+		filepath.Join(".gemini", "config", "mcp_config.json"),
+		filepath.Join(".gemini", "settings.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(mcpHome, rel)); err != nil {
+			t.Errorf("expected MCP target %s to exist: %v", rel, err)
+		}
 	}
 	code, out, errs = runMTM("setup", "mcp", "--home", mcpHome, "--check", "--json")
 	if code != 0 {
 		t.Fatalf("setup mcp --check exit %d: %s %s", code, out, errs)
 	}
 
-	// 7. Unknown subcommand fails with usage.
+	// 7. Standalone `mtm setup hooks` configures all 5 harnesses and passes --check.
+	hooksHome := t.TempDir()
+	code, out, errs = runMTM("setup", "hooks", "--home", hooksHome, "--json")
+	if code != 0 {
+		t.Fatalf("setup hooks exit %d: %s %s", code, out, errs)
+	}
+	var hooksRep setup.Report
+	if err := json.Unmarshal([]byte(out), &hooksRep); err != nil {
+		t.Fatalf("setup hooks JSON: %v\n%s", err, out)
+	}
+	if !hooksRep.OK {
+		t.Fatalf("setup hooks report = %+v", hooksRep)
+	}
+	for _, rel := range []string{
+		filepath.Join(".claude", "settings.json"),
+		filepath.Join(".codex", "hooks.json"),
+		filepath.Join(".codex", "config.toml"),
+		filepath.Join(".gemini", "config", "hooks.json"),
+		filepath.Join(".gemini", "settings.json"),
+		filepath.Join(".omp", "agent", "extensions", setup.OMPExtensionFilename),
+	} {
+		if _, err := os.Stat(filepath.Join(hooksHome, rel)); err != nil {
+			t.Errorf("expected hooks target %s to exist: %v", rel, err)
+		}
+	}
+	code, out, errs = runMTM("setup", "hooks", "--home", hooksHome, "--check", "--json")
+	if code != 0 {
+		t.Fatalf("setup hooks --check exit %d: %s %s", code, out, errs)
+	}
+
+	// 8. Unknown subcommand fails with usage.
 	code, _, errs = runMTM("setup", "bogus")
 	if code == 0 || !strings.Contains(errs, "usage: mtm setup") {
 		t.Fatalf("setup bogus: code=%d err=%s", code, errs)

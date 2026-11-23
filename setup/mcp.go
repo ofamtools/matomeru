@@ -16,7 +16,7 @@ const DefaultMCPCmd = "mtm"
 var mtmMCPArgs = []string{"mcp", "serve"}
 
 // ConfigureMCP configures the mtm MCP server ("mtm mcp serve") across Claude Code,
-// Codex, and Antigravity/Gemini idempotently, preserving all unrelated settings
+// Codex, Antigravity, and Gemini CLI idempotently, preserving all unrelated settings
 // and sibling MCP servers.
 func ConfigureMCP(opts Options) ([]Action, error) {
 	home, err := resolveHome(opts.Home)
@@ -29,7 +29,7 @@ func ConfigureMCP(opts Options) ([]Action, error) {
 		cmd = DefaultMCPCmd
 	}
 
-	actions := make([]Action, 0, 3)
+	actions := make([]Action, 0, 4)
 
 	claudeAct, err := configureJSONMCP(
 		"claude",
@@ -53,8 +53,20 @@ func ConfigureMCP(opts Options) ([]Action, error) {
 	}
 	actions = append(actions, codexAct)
 
-	geminiAct, err := configureJSONMCP(
+	antigravityAct, err := configureJSONMCP(
 		"antigravity",
+		filepath.Join(home, ".gemini", "config", "mcp_config.json"),
+		"",
+		cmd,
+		opts,
+	)
+	if err != nil {
+		return actions, err
+	}
+	actions = append(actions, antigravityAct)
+
+	geminiAct, err := configureJSONMCP(
+		"gemini",
 		filepath.Join(home, ".gemini", "settings.json"),
 		"",
 		cmd,

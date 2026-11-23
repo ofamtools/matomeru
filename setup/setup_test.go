@@ -691,13 +691,17 @@ func TestConfigureClaudeHooks_MergePreservesUserSettingsAndIdempotent(t *testing
 	}
 }
 
-func TestConfigureMCP_ClaudeCodexAntigravityIdempotent(t *testing.T) {
+func TestConfigureMCP_ClaudeCodexAntigravityGeminiIdempotent(t *testing.T) {
 	home := t.TempDir()
 	claudePath := filepath.Join(home, ".claude.json")
 	codexPath := filepath.Join(home, ".codex", "config.toml")
+	antigravityPath := filepath.Join(home, ".gemini", "config", "mcp_config.json")
 	geminiPath := filepath.Join(home, ".gemini", "settings.json")
 
 	if err := os.MkdirAll(filepath.Dir(codexPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(antigravityPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Dir(geminiPath), 0o755); err != nil {
@@ -719,6 +723,12 @@ model = "o3"
 command = "other-mcp"
 args = ["serve"]
 `
+	initialAntigravity := `{
+  "mcpServers": {
+    "agy-sibling": {"command": "agy-mcp", "args": ["run"]}
+  }
+}
+`
 	initialGemini := `{
   "selectedAuthType": "oauth",
   "mcpServers": {
@@ -732,6 +742,9 @@ args = ["serve"]
 	if err := os.WriteFile(codexPath, []byte(initialCodex), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(antigravityPath, []byte(initialAntigravity), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(geminiPath, []byte(initialGemini), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -741,8 +754,8 @@ args = ["serve"]
 	if err != nil {
 		t.Fatalf("ConfigureMCP check: %v", err)
 	}
-	if len(chk) != 3 {
-		t.Fatalf("got %d actions, want 3", len(chk))
+	if len(chk) != 4 {
+		t.Fatalf("got %d actions, want 4", len(chk))
 	}
 	for _, a := range chk {
 		if a.Status != StatusMissing {
@@ -764,10 +777,13 @@ args = ["serve"]
 		t.Fatalf("dry-run modified config.toml")
 	}
 
-	// 3. Apply writes all 3 atomically with .bak-YYYYMMDD backup (mode 0600).
+	// 3. Apply writes all 4 atomically with .bak-YYYYMMDD backup (mode 0600).
 	applied, err := ConfigureMCP(Options{Home: home, Now: fixedClock()})
 	if err != nil {
 		t.Fatalf("ConfigureMCP apply: %v", err)
+	}
+	if len(applied) != 4 {
+		t.Fatalf("apply got %d actions, want 4", len(applied))
 	}
 	for _, a := range applied {
 		if a.Status != StatusUpdated {
@@ -811,7 +827,20 @@ args = ["serve"]
 		t.Fatalf("config.toml mismatch:\ngot:\n%s\nwant:\n%s", string(codexRaw), wantCodex)
 	}
 
-	// Inspect Antigravity/Gemini .gemini/settings.json.
+	// Inspect Antigravity .gemini/config/mcp_config.json.
+	var agyObj map[string]any
+	if raw, err := os.ReadFile(antigravityPath); err != nil || json.Unmarshal(raw, &agyObj) != nil {
+		t.Fatalf("parse .gemini/config/mcp_config.json: err=%v", err)
+	}
+	aServers, _ := agyObj["mcpServers"].(map[string]any)
+	if _, ok := aServers["agy-sibling"]; !ok {
+		t.Errorf(".gemini/config/mcp_config.json lost sibling mcpServers.agy-sibling")
+	}
+	if !equalMCPServerEntry(aServers["mtm"], "", "mtm", []string{"mcp", "serve"}) {
+		t.Errorf(".gemini/config/mcp_config.json mcpServers.mtm = %#v", aServers["mtm"])
+	}
+
+	// Inspect Gemini CLI .gemini/settings.json.
 	var geminiObj map[string]any
 	if raw, err := os.ReadFile(geminiPath); err != nil || json.Unmarshal(raw, &geminiObj) != nil {
 		t.Fatalf("parse .gemini/settings.json: err=%v", err)
@@ -855,7 +884,7 @@ args = ["serve"]
 		t.Fatal(err)
 	}
 
-	// 6. --force updates all 3 entries while preserving sibling/trailing sections.
+	// 6. --force updates all 4 entries while preserving sibling/trailing sections.
 	forced, err := ConfigureMCP(Options{Home: home, MCPCmd: "/opt/bin/mtm", Force: true, Now: fixedClock()})
 	if err != nil {
 		t.Fatalf("ConfigureMCP --force: %v", err)
@@ -885,8 +914,8 @@ args = ["serve"]
 		}
 	}
 
-	// 7. Invalid JSON in .claude.json or .gemini/settings.json fails cleanly without writing.
-	for _, rel := range []string{".claude.json", filepath.Join(".gemini", "settings.json")} {
+	// 7. Invalid JSON in .claude.json, .gemini/config/mcp_config.json, or .gemini/settings.json fails cleanly without writing.
+	for _, rel := range []string{".claude.json", filepath.Join(".gemini", "config", "mcp_config.json"), filepath.Join(".gemini", "settings.json")} {
 		badHome := t.TempDir()
 		badPath := filepath.Join(badHome, rel)
 		if err := os.MkdirAll(filepath.Dir(badPath), 0o755); err != nil {
@@ -901,6 +930,324 @@ args = ["serve"]
 		if after, _ := os.ReadFile(badPath); string(after) != "{bad json" {
 			t.Errorf("invalid JSON file %s was modified", rel)
 		}
+	}
+}
+
+func TestConfigureHooks_AllFiveHarnesses(t *testing.T) {
+	home := t.TempDir()
+
+	// Seed existing configs with sibling entries for Codex, Antigravity, Gemini CLI, and OMP.
+	codexHooksPath := filepath.Join(home, ".codex", "hooks.json")
+	codexConfigPath := filepath.Join(home, ".codex", "config.toml")
+	agyHooksPath := filepath.Join(home, ".gemini", "config", "hooks.json")
+	geminiSettingsPath := filepath.Join(home, ".gemini", "settings.json")
+	ompExtPath := filepath.Join(home, ".omp", "agent", "extensions", OMPExtensionFilename)
+
+	for _, p := range []string{codexHooksPath, codexConfigPath, agyHooksPath, geminiSettingsPath, ompExtPath} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	initialCodexHooks := `{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|apply_patch",
+        "hooks": [{"type": "command", "command": "impeccable hook", "timeout": 5}]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [{"type": "command", "command": "bash herdr-agent-state.sh session", "timeout": 10}]
+      },
+      {
+        "hooks": [{"type": "command", "command": "sidecar agent report-session --kind codex", "timeout": 10}]
+      },
+      {
+        "hooks": [{"type": "command", "command": "mtm-hook codex --integration 1", "timeout": 5}]
+      }
+    ]
+  }
+}`
+	initialCodexTOML := `model = "gpt-5"
+
+[features]
+prevent_idle_sleep = true
+memories = true
+
+[tui]
+screen_reader_detection_done = true
+`
+	initialAgyHooks := `{
+  "herdr": {
+    "PreInvocation": [
+      {"type": "command", "command": "bash herdr-agent-state.sh session", "timeout": 10}
+    ]
+  },
+  "sidecar": {
+    "PreInvocation": [
+      {"type": "command", "command": "sidecar agent report-session --kind antigravity", "timeout": 10}
+    ]
+  }
+}`
+	initialGeminiSettings := `{
+  "security": {"auth": {"selectedType": "oauth-personal"}},
+  "mcpServers": {"tuios": {"command": "tuios", "args": ["mcp"]}},
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "tuios agent-hook gemini-cli --integration 1", "timeout": 5000}]},
+      {"hooks": [{"type": "command", "command": "/usr/local/bin/mtm-hook gemini-cli --integration 1", "timeout": 5000}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(codexHooksPath, []byte(initialCodexHooks), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(codexConfigPath, []byte(initialCodexTOML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(agyHooksPath, []byte(initialAgyHooks), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(geminiSettingsPath, []byte(initialGeminiSettings), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ompExtPath, []byte("// stale omp extension\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := Options{Home: home, Now: fixedClock()}
+
+	// 1. Check reports drift without modifying any files.
+	chkBefore, err := ConfigureHooks(Options{Home: home, Check: true, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureHooks check: %v", err)
+	}
+	if reportOK(chkBefore) {
+		t.Fatalf("expected drift before apply, got OK")
+	}
+
+	// 2. Apply configures all 5 harnesses cleanly.
+	actions, err := ConfigureHooks(opts)
+	if err != nil {
+		t.Fatalf("ConfigureHooks apply: %v", err)
+	}
+	byTarget := map[string]Action{}
+	for _, a := range actions {
+		byTarget[a.Target] = a
+	}
+
+	// Codex: existing SessionStart unchanged, remaining 9 added, features.hooks added with backup.
+	if byTarget["codex/SessionStart"].Status != StatusUnchanged {
+		t.Errorf("codex/SessionStart = %+v, want unchanged", byTarget["codex/SessionStart"])
+	}
+	if byTarget["codex/PermissionRequest"].Status != StatusUpdated || !strings.HasSuffix(byTarget["codex/PermissionRequest"].Backup, ".bak-20261123") {
+		t.Errorf("codex/PermissionRequest = %+v, want updated with backup", byTarget["codex/PermissionRequest"])
+	}
+	if byTarget["codex/features.hooks"].Status != StatusUpdated || !strings.HasSuffix(byTarget["codex/features.hooks"].Backup, ".bak-20261123") {
+		t.Errorf("codex/features.hooks = %+v, want updated with backup", byTarget["codex/features.hooks"])
+	}
+
+	// Verify Codex hooks.json content: all 10 events, zero duplicates, sibling hooks preserved, timeouts accurate.
+	var codexParsed map[string]any
+	if raw, err := os.ReadFile(codexHooksPath); err != nil || json.Unmarshal(raw, &codexParsed) != nil {
+		t.Fatalf("parse codex hooks.json: err=%v", err)
+	}
+	codexHooks := codexParsed["hooks"].(map[string]any)
+	if len(codexHooks["SessionStart"].([]any)) != 3 {
+		t.Errorf("codex SessionStart groups = %d, want 3 (no duplicate)", len(codexHooks["SessionStart"].([]any)))
+	}
+	if len(codexHooks["PostToolUse"].([]any)) != 2 {
+		t.Errorf("codex PostToolUse groups = %d, want 2 (impeccable + mtm)", len(codexHooks["PostToolUse"].([]any)))
+	}
+	for _, spec := range CodexHookEvents {
+		groups, ok := codexHooks[spec.Event].([]any)
+		if !ok || len(groups) == 0 {
+			t.Fatalf("codex missing event %s", spec.Event)
+		}
+		found := false
+		for _, g := range groups {
+			for _, h := range g.(map[string]any)["hooks"].([]any) {
+				hm := h.(map[string]any)
+				if isMTMHarnessHookCommand("codex")(hm["command"].(string), DefaultCodexHookCmd) {
+					found = true
+					if got, ok := numberToInt(hm["timeout"]); !ok || got != spec.Timeout {
+						t.Errorf("codex %s timeout = %v, want %d", spec.Event, hm["timeout"], spec.Timeout)
+					}
+				}
+			}
+		}
+		if !found {
+			t.Errorf("codex %s missing mtm-hook codex entry", spec.Event)
+		}
+	}
+
+	// Verify Codex config.toml preserved existing sections and inserted hooks = true under [features].
+	codexTOMLAfter, err := os.ReadFile(codexConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCodexTOML := `model = "gpt-5"
+
+[features]
+prevent_idle_sleep = true
+memories = true
+hooks = true
+
+[tui]
+screen_reader_detection_done = true
+`
+	if string(codexTOMLAfter) != wantCodexTOML {
+		t.Fatalf("codex config.toml mismatch:\ngot:\n%s\nwant:\n%s", string(codexTOMLAfter), wantCodexTOML)
+	}
+
+	// Verify Antigravity hooks.json: preserves herdr & sidecar, adds mtm-agent-state with flat/grouped shapes, NO PreToolUse.
+	var agyParsed map[string]any
+	if raw, err := os.ReadFile(agyHooksPath); err != nil || json.Unmarshal(raw, &agyParsed) != nil {
+		t.Fatalf("parse antigravity hooks.json: err=%v", err)
+	}
+	if _, ok := agyParsed["herdr"]; !ok {
+		t.Errorf("antigravity lost sibling key herdr")
+	}
+	if _, ok := agyParsed["sidecar"]; !ok {
+		t.Errorf("antigravity lost sibling key sidecar")
+	}
+	mtmAgy, ok := agyParsed[AntigravityHookKey].(map[string]any)
+	if !ok {
+		t.Fatalf("antigravity missing %q key: %#v", AntigravityHookKey, agyParsed)
+	}
+	if _, hasPreToolUse := mtmAgy["PreToolUse"]; hasPreToolUse {
+		t.Errorf("antigravity must NOT hook PreToolUse")
+	}
+	for _, flatEv := range []string{"SessionStart", "PreInvocation", "PostInvocation", "Stop"} {
+		arr, ok := mtmAgy[flatEv].([]any)
+		if !ok || len(arr) != 1 {
+			t.Fatalf("antigravity %s = %#v, want 1-element flat array", flatEv, mtmAgy[flatEv])
+		}
+		entry := arr[0].(map[string]any)
+		if entry["type"] != "command" || entry["command"] != DefaultAntigravityHookCmd {
+			t.Errorf("antigravity %s entry = %#v", flatEv, entry)
+		}
+		if got, ok := numberToInt(entry["timeout"]); !ok || got != 5 {
+			t.Errorf("antigravity %s timeout = %v, want 5", flatEv, entry["timeout"])
+		}
+	}
+	postToolArr, ok := mtmAgy["PostToolUse"].([]any)
+	if !ok || len(postToolArr) != 1 {
+		t.Fatalf("antigravity PostToolUse = %#v, want 1-element grouped array", mtmAgy["PostToolUse"])
+	}
+	postToolGroup := postToolArr[0].(map[string]any)
+	if postToolGroup["matcher"] != "*" {
+		t.Errorf("antigravity PostToolUse matcher = %v, want *", postToolGroup["matcher"])
+	}
+	postToolHooks := postToolGroup["hooks"].([]any)
+	if len(postToolHooks) != 1 || postToolHooks[0].(map[string]any)["command"] != DefaultAntigravityHookCmd {
+		t.Errorf("antigravity PostToolUse hooks = %#v", postToolHooks)
+	}
+
+	// Verify Gemini CLI settings.json: preserves security, mcpServers, tuios sibling, deduplicates SessionStart, 5000ms timeouts.
+	if byTarget["gemini/SessionStart"].Status != StatusUnchanged {
+		t.Errorf("gemini/SessionStart = %+v, want unchanged", byTarget["gemini/SessionStart"])
+	}
+	var geminiParsed map[string]any
+	if raw, err := os.ReadFile(geminiSettingsPath); err != nil || json.Unmarshal(raw, &geminiParsed) != nil {
+		t.Fatalf("parse gemini settings.json: err=%v", err)
+	}
+	if _, ok := geminiParsed["security"]; !ok {
+		t.Errorf("gemini lost security key")
+	}
+	if _, ok := geminiParsed["mcpServers"]; !ok {
+		t.Errorf("gemini lost mcpServers key")
+	}
+	geminiHooks := geminiParsed["hooks"].(map[string]any)
+	if len(geminiHooks["SessionStart"].([]any)) != 2 {
+		t.Errorf("gemini SessionStart groups = %d, want 2 (tuios + existing mtm, no duplicate)", len(geminiHooks["SessionStart"].([]any)))
+	}
+	for _, spec := range GeminiHookEvents {
+		groups, ok := geminiHooks[spec.Event].([]any)
+		if !ok || len(groups) == 0 {
+			t.Fatalf("gemini missing event %s", spec.Event)
+		}
+		found := false
+		for _, g := range groups {
+			for _, h := range g.(map[string]any)["hooks"].([]any) {
+				hm := h.(map[string]any)
+				if isMTMHarnessHookCommand("gemini")(hm["command"].(string), DefaultGeminiHookCmd) {
+					found = true
+					if got, ok := numberToInt(hm["timeout"]); !ok || got != 5000 {
+						t.Errorf("gemini %s timeout = %v, want 5000", spec.Event, hm["timeout"])
+					}
+				}
+			}
+		}
+		if !found {
+			t.Errorf("gemini %s missing mtm-hook gemini entry", spec.Event)
+		}
+	}
+
+	// Verify OMP extension installed with backup and contains env gate + all 9 events.
+	ompAct := byTarget["omp/"+OMPExtensionFilename]
+	if ompAct.Status != StatusUpdated || !strings.HasSuffix(ompAct.Backup, ".bak-20261123") {
+		t.Errorf("omp action = %+v, want updated with backup", ompAct)
+	}
+	ompRaw, err := os.ReadFile(ompExtPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ompContent := string(ompRaw)
+	for _, want := range []string{
+		"MTM_ENV",
+		"MTM_PANE_ID",
+		"TUIOS_ENV",
+		"TUIOS_AGENT",
+		"mtm-hook",
+		"session_start",
+		"agent_start",
+		"agent_end",
+		"tool_start",
+		"tool_end",
+		"tool_error",
+		"tool_approval_requested",
+		"tool_approval_resolved",
+		"session_end",
+	} {
+		if !strings.Contains(ompContent, want) {
+			t.Errorf("omp extension missing %q", want)
+		}
+	}
+
+	// 3. Re-run is 100% idempotent with zero backups across all 5 harnesses.
+	again, err := ConfigureHooks(opts)
+	if err != nil {
+		t.Fatalf("ConfigureHooks second run: %v", err)
+	}
+	for _, a := range again {
+		if a.Status != StatusUnchanged || a.Backup != "" {
+			t.Errorf("second run %s = %+v, want unchanged with no backup", a.Target, a)
+		}
+	}
+
+	// 4. Codex [features] hooks = false is detected as outdated and flipped to hooks = true.
+	falseHome := t.TempDir()
+	falseCfg := filepath.Join(falseHome, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(falseCfg), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(falseCfg, []byte("[features]\nhooks = false\nmemories = true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	chkFalse, err := configureCodexFeaturesHooks(falseCfg, Options{Home: falseHome, Check: true, Now: fixedClock()})
+	if err != nil || chkFalse.Status != StatusOutdated {
+		t.Fatalf("hooks=false check = %+v (err=%v), want outdated", chkFalse, err)
+	}
+	updFalse, err := configureCodexFeaturesHooks(falseCfg, Options{Home: falseHome, Now: fixedClock()})
+	if err != nil || updFalse.Status != StatusUpdated {
+		t.Fatalf("hooks=false apply = %+v (err=%v), want updated", updFalse, err)
+	}
+	gotFalse, _ := os.ReadFile(falseCfg)
+	if string(gotFalse) != "[features]\nhooks = true\nmemories = true\n" {
+		t.Fatalf("hooks=false after update = %q", string(gotFalse))
 	}
 }
 

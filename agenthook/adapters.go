@@ -61,6 +61,7 @@ func Translate(harness, eventOverride string, raw []byte) Result {
 	if evName == "" {
 		evName = firstNonEmpty(
 			strField(payload, "hook_event_name"),
+			strField(payload, "hookEventName"),
 			strField(payload, "event"),
 			strField(payload, "type"),
 		)
@@ -80,15 +81,17 @@ func Translate(harness, eventOverride string, raw []byte) Result {
 		return translateCodex(evName, payload)
 	case "omp":
 		return translateOMP(evName, payload)
-	case "gemini", "antigravity":
+	case "gemini":
 		return translateGemini(h, evName, payload)
+	case "antigravity":
+		return translateAntigravity(evName, payload)
 	default:
 		return translateGeneric(h, evName, payload)
 	}
 }
 
 func detectHarness(payload map[string]any) string {
-	if strField(payload, "conversationId") != "" {
+	if strField(payload, "conversationId") != "" || strField(payload, "hookEventName") != "" {
 		return "antigravity"
 	}
 	if strField(payload, "type") == "agent-turn-complete" || strField(payload, "thread-id") != "" {
@@ -567,7 +570,7 @@ func translateGemini(harness, evName string, payload map[string]any) Result {
 		})
 
 	case "BeforeAgent", "PreInvocation", "UserPromptSubmit":
-		prompt := strField(payload, "prompt")
+		prompt := firstNonEmpty(strField(payload, "prompt"), strField(payload, "lastUserInput"))
 		return okResult(HookEvent{
 			Harness: harness,
 			Kind:    KindState,
@@ -578,19 +581,18 @@ func translateGemini(harness, evName string, payload map[string]any) Result {
 		})
 
 	case "BeforeTool", "PreToolUse":
-		tool := strField(payload, "tool_name")
+		tool, input := antigravityToolName(payload), antigravityToolArgs(payload)
 		return okResult(HookEvent{
 			Harness: harness,
 			Kind:    KindActivity,
 			State:   StateRunning,
 			Tool:    tool,
-			Summary: toolSummary(tool, mapField(payload, "tool_input")),
+			Summary: toolSummary(tool, input),
 			Payload: sanitizePayload(payload),
 		})
 
 	case "AfterTool", "PostToolUse":
-		tool := strField(payload, "tool_name")
-		input := mapField(payload, "tool_input")
+		tool, input := antigravityToolName(payload), antigravityToolArgs(payload)
 		return okResult(HookEvent{
 			Harness: harness,
 			Kind:    KindActivity,
