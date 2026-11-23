@@ -207,7 +207,7 @@ func TestProjectShowPage(t *testing.T) {
 	}
 	// Tall enough for every section: each noun that refers to a task adds one
 	// (signals did), with no view code.
-	out := frame(t, root, paneCard, 150, 76)
+	out := frame(t, root, paneCard, 150, 88)
 	wantText(t, out, "Signals")
 	wantText(t, out,
 		// header: title, Ref badge, kind, status, star, pin, action hints

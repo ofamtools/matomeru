@@ -42,6 +42,7 @@ import (
 
 	"ofam.dev/matomeru/agenthook"
 	"ofam.dev/matomeru/app"
+	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/migrate"
@@ -50,7 +51,7 @@ import (
 	"ofam.dev/oden"
 )
 
-const mtmVersion = "2.0.0-next"
+var mtmVersion = daemon.Version
 
 const usage = `mtm [--db PATH] [--seed-demo]            open the TUI
 mtm --tutorial                           open the TUI on a tutorial workspace kept in memory:
@@ -330,10 +331,12 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 		},
 	}
 
+	versionFlag := len(args) > 0 && (args[0] == "--version" || args[0] == "-v")
 	a := ocli.NewApp(info, args,
 		oden.WithPrefixes("o"),
 		oden.WithStdio(stdin, stdout, stderr),
 		withCommands(
+			mtmVersionCommand(versionFlag),
 			mtmBindingCommand(),
 			mtmInspectCommand(),
 		),

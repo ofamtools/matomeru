@@ -124,12 +124,18 @@ type Response struct {
 	PaneCount int     `json:"paneCount,omitempty"`
 	Uptime    string  `json:"uptime,omitempty"`
 	UptimeSec float64 `json:"uptimeSec,omitempty"`
+	Version   string  `json:"version,omitempty"`
+	Commit    string  `json:"commit,omitempty"`
+	Dirty     bool    `json:"dirty,omitempty"`
+	BuiltAt   string  `json:"builtAt,omitempty"`
+	Binary    string  `json:"binary,omitempty"`
 
 	// snapshot / subscribe
 	PaneID              string         `json:"paneId,omitempty"`
 	Frame               *ptyhost.Frame `json:"frame,omitempty"`
 	Found               bool           `json:"found,omitempty"`
 	ScrollbackUnchanged bool           `json:"scrollbackUnchanged,omitempty"`
+	TelemetryChanged    bool           `json:"telemetryChanged,omitempty"`
 
 	// list
 	Panes []PaneInfo `json:"panes,omitempty"`
@@ -143,7 +149,7 @@ type Response struct {
 	PendingApprovals []*PendingApproval        `json:"pendingApprovals,omitempty"`
 }
 
-// StatusResult describes a running daemon's identity and health.
+// StatusResult describes a running daemon's identity, build version, and health.
 type StatusResult struct {
 	PID       int     `json:"pid"`
 	Socket    string  `json:"socket"`
@@ -151,6 +157,11 @@ type StatusResult struct {
 	PaneCount int     `json:"paneCount"`
 	Uptime    string  `json:"uptime"`
 	UptimeSec float64 `json:"uptimeSec"`
+	Version   string  `json:"version,omitempty"`
+	Commit    string  `json:"commit,omitempty"`
+	Dirty     bool    `json:"dirty,omitempty"`
+	BuiltAt   string  `json:"builtAt,omitempty"`
+	Binary    string  `json:"binary,omitempty"`
 }
 
 // OpenRequest describes a PTY pane to launch inside the daemon.

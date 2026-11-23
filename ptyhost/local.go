@@ -63,6 +63,9 @@ type session struct {
 	histLen  int
 	hist     []string
 	histOK   bool
+	frameRev uint64
+	frame    Frame
+	frameOK  bool
 	notified atomic.Bool // a change was sent on Changes and not yet read
 
 	readDone chan struct{}
@@ -257,7 +260,8 @@ func (h *LocalHost) Resize(id string, cols, rows int) error {
 	return nil
 }
 
-// Snapshot implements Host.
+// Snapshot implements Host. Rendered frames are cached per session revision so
+// repeated Snapshot calls between PTY writes do zero ANSI rendering or cell scans.
 func (h *LocalHost) Snapshot(id string) (Frame, bool) {
 	s, err := h.get(id)
 	if err != nil {
@@ -266,6 +270,9 @@ func (h *LocalHost) Snapshot(id string) (Frame, bool) {
 	s.notified.Store(false)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.frameOK && s.frameRev == s.rev {
+		return s.frame, true
+	}
 	e := s.emu
 	w, ht := e.Width(), e.Height()
 	f := Frame{
@@ -299,6 +306,9 @@ func (h *LocalHost) Snapshot(id string) (Frame, bool) {
 	}
 	pos := e.CursorPosition()
 	f.Cursor = buffer.Cursor{X: pos.X, Y: pos.Y, Shape: cursorShape(e)}
+	s.frame = f
+	s.frameRev = s.rev
+	s.frameOK = true
 	return f, true
 }
 

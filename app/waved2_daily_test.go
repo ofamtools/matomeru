@@ -13,6 +13,7 @@ import (
 	"ofam.dev/matomeru/ext"
 	"ofam.dev/matomeru/harness"
 	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/runs"
 	"ofam.dev/ochazuke/core"
 )
@@ -832,5 +833,72 @@ func TestAppReloadAndDaemonUpgradeActions(t *testing.T) {
 	d.Keys("g", "U")
 	if !a.WantReload() {
 		t.Fatal("g U did not set WantReload() = true")
+	}
+}
+
+func TestDeadPaneAutoDetachAndArchive(t *testing.T) {
+	store, err := data.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Auth Task"}}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pane, _, err := store.Create(data.CreateInput{Kind: data.KindPane, Fields: map[string]any{
+		"title":     "Short-lived Pane",
+		"runStatus": "running",
+		"task":      task.Ref(),
+	}}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	host := ptyhost.NewLocalHost()
+	t.Cleanup(host.CloseAll)
+	a, err := New(store, Options{Host: host})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.Close)
+
+	// Open a short-lived PTY that exits immediately with code 7.
+	if err := host.Open(pane.ID, "exit 7", "", 80, 20); err != nil {
+		t.Fatalf("host.Open: %v", err)
+	}
+	a.live.shown = pane.ID
+	a.live.frames[pane.ID] = ptyhost.Frame{ID: pane.ID, Cols: 80, Rows: 20, Exited: false, Revision: 0}
+
+	// Attach into ModeTerminal.
+	s := withMode(a.State(), ModeTerminal)
+
+	// Wait until the PTY exits in LocalHost.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if f, ok := host.Snapshot(pane.ID); ok && f.Exited {
+			break
+		}
+		time.Sleep(15 * time.Millisecond)
+	}
+
+	// Trigger wakeUp -> must detach from ModeTerminal, mark runStatus="dead", and archive pane!
+	res := a.wakeUp(s, core.Command{ID: CmdWake})
+	if res.State.ActiveFrame().Mode != ModeNormal {
+		t.Fatalf("mode after dead pane exit = %q, want %q", res.State.ActiveFrame().Mode, ModeNormal)
+	}
+	got, err := store.Get(pane.Ref())
+	if err != nil {
+		t.Fatalf("store.Get pane: %v", err)
+	}
+	if got.Text("runStatus") != "dead" {
+		t.Fatalf("dead pane runStatus = %q, want dead", got.Text("runStatus"))
+	}
+	if got.ArchiveStatus != data.ArchiveArchived {
+		t.Fatalf("dead pane archiveStatus = %q, want archived", got.ArchiveStatus)
+	}
+	if tr, ok := got.RefField("task"); !ok || tr != task.Ref() {
+		t.Fatalf("dead pane lost task association: %v (%v)", tr, ok)
 	}
 }

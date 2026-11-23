@@ -23,6 +23,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/toast"
 )
 
 // The live parts of the app: the Runner that runs commands as run records,
@@ -215,8 +216,11 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 			l.drawn, changed = n, true
 		}
 	}
-	if a.screenMoved() {
+	if moved, exitedID, exitCode := a.screenMoved(); moved {
 		changed = true
+		if exitedID != "" {
+			s = a.handlePaneExited(s, exitedID, exitCode)
+		}
 	}
 	if seq := l.telemetrySeq.Load(); seq != l.telemetryDrawn {
 		l.telemetryDrawn, changed = seq, true
@@ -569,26 +573,101 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 }
 
 // screenMoved re-reads the shown session and reports whether its revision or
-// size changed since it was last drawn.
-func (a *App) screenMoved() bool {
+// size changed since it was last drawn. When a live session transitions from
+// running to exited, it also returns the exited pane ID and exit code so wakeUp
+// can detach and auto-archive it cleanly.
+func (a *App) screenMoved() (moved bool, exitedID string, exitCode int) {
 	id := a.live.shown
 	if a.Host == nil || id == "" {
-		return false
+		return false, "", 0
 	}
 	old, had := a.live.frames[id]
 	f, ok := a.Host.Snapshot(id)
 	switch {
 	case !ok:
 		delete(a.live.frames, id)
-		return had
-	case had && f.Revision == old.Revision && f.Cols == old.Cols && f.Rows == old.Rows:
-		return false
+		return had, "", 0
+	case had && f.Revision == old.Revision && f.Cols == old.Cols && f.Rows == old.Rows && f.Exited == old.Exited:
+		return false, "", 0
 	}
 	a.live.frames[id] = f
-	if pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: id}); err == nil {
-		a.harvestScreenLines(*pane, f.Lines, f.Cols, f.Revision)
+	if f.Exited && (!had || !old.Exited) {
+		exitedID = id
+		exitCode = f.ExitCode
 	}
-	return true
+	if !a.opts.Live {
+		if pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: id}); err == nil {
+			a.harvestScreenLines(*pane, f.Lines, f.Cols, f.Revision)
+		}
+	} else if a.shouldHarvestScreen(id) {
+		if pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: id}); err == nil {
+			a.harvestScreenLines(*pane, f.Lines, f.Cols, f.Revision)
+		}
+	}
+	return true, exitedID, exitCode
+}
+
+func (a *App) shouldHarvestScreen(paneID string) bool {
+	idx := a.ensureContextIndex()
+	idx.mu.RLock()
+	lastAt := idx.screenHarvestAt[paneID]
+	idx.mu.RUnlock()
+	return lastAt.IsZero() || a.now().Sub(lastAt) >= liveScreenHarvestInterval
+}
+
+// handlePaneExited detaches from a dead live session, marks the pane dead in
+// the store (keeping its task link and all pages/questions/docs/context intact),
+// and auto-archives it when terminal.autoArchiveOnExit is enabled.
+func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.State {
+	if paneID == "" {
+		return s
+	}
+	// Always detach from live terminal mode so the user is never stuck in a dead PTY.
+	if s.ActiveFrame().Mode == ModeTerminal {
+		if pane, ok := a.termPane(s); !ok || pane.ID == paneID {
+			s = withMode(s, ModeNormal)
+		}
+	}
+	if a.Store == nil {
+		return s
+	}
+	ref := core.Ref{Kind: data.KindPane, ID: paneID}
+	rec, err := a.Store.Get(ref)
+	if err != nil {
+		return s
+	}
+	title := views.Title(a.schema(data.KindPane), *rec)
+	if rec.Text("runStatus") != "dead" {
+		_, _, _ = a.Store.Patch(data.PatchInput{
+			Ref: ref,
+			Fields: map[string]any{
+				"runStatus": "dead",
+				"exitCode":  exitCode,
+			},
+			Summary: "pane process exited",
+		}, daemonSyncActor)
+	}
+	if a.Settings.Bool(SetAutoArchiveExited, true) && rec.ArchiveStatus != data.ArchiveArchived {
+		_, _, _ = a.Store.Archive(ref, daemonSyncActor)
+		delete(a.live.frames, paneID)
+		if a.live.shown == paneID {
+			a.live.shown = ""
+		}
+		if a.Term != nil {
+			a.Term.Forget(paneID)
+		}
+		if a.Host != nil {
+			_ = a.Host.Close(paneID)
+		}
+		msg := fmt.Sprintf("pane %q exited (%d) · archived", title, exitCode)
+		a.say("%s", msg)
+		a.pushToast(msg, toast.Warn)
+	} else {
+		msg := fmt.Sprintf("pane %q exited (%d) · detached", title, exitCode)
+		a.say("%s", msg)
+		a.pushToast(msg, toast.Warn)
+	}
+	return s
 }
 
 func cursorProp(x, y int, shape any) map[string]any {

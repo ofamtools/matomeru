@@ -52,7 +52,8 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 			if f.Type != core.ParamRef || !slices.Contains(f.RefKinds, ref.Kind) {
 				continue
 			}
-			res, err := store.Query(data.Query{Kind: src.Kind, Parent: &ref, ParentField: f.Name})
+			includeArchived := src.Kind == data.KindPane && ref.Kind == data.KindTask
+			res, err := store.Query(data.Query{Kind: src.Kind, Parent: &ref, ParentField: f.Name, IncludeArchived: includeArchived})
 			if err != nil {
 				return nil, err
 			}

@@ -126,9 +126,16 @@ func Open(dsn string) (*Store, error) {
 	if memory {
 		// One connection: every query must see the same in-memory database.
 		db.SetMaxOpenConns(1)
-	} else if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("data: enable WAL on %s: %w", dsn, err)
+	} else {
+		// Bound connection pool and SQLite memory footprint; NORMAL sync avoids
+		// per-write full disk fsync stalls while preserving WAL crash safety.
+		db.SetMaxOpenConns(4)
+		db.SetMaxIdleConns(2)
+		db.SetConnMaxIdleTime(2 * time.Minute)
+		if _, err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-8000;"); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("data: enable WAL on %s: %w", dsn, err)
+		}
 	}
 	if _, err := db.Exec(ddl); err != nil {
 		db.Close()

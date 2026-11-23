@@ -107,6 +107,8 @@ func paneStatusIndicator(state string) (symbol, label, tone string) {
 		return "○", daemon.StateIdle, "muted"
 	case daemon.StateDone:
 		return "✓", daemon.StateDone, "success"
+	case "dead":
+		return "×", "dead", "danger"
 	case "exited":
 		return "×", "exited", "muted"
 	case "":

@@ -176,6 +176,11 @@ func (c *Client) Status(ctx context.Context) (*StatusResult, error) {
 		PaneCount: resp.PaneCount,
 		Uptime:    resp.Uptime,
 		UptimeSec: resp.UptimeSec,
+		Version:   resp.Version,
+		Commit:    resp.Commit,
+		Dirty:     resp.Dirty,
+		BuiltAt:   resp.BuiltAt,
+		Binary:    resp.Binary,
 	}, nil
 }
 

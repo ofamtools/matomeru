@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -44,24 +45,26 @@ type CollectedContextItem struct {
 var contextHarvestActor = core.Actor{Kind: "system", ID: "mtm.context", Label: "context"}
 
 type contextIndex struct {
-	mu           sync.RWMutex
-	items        map[string]*CollectedContextItem // paneID\x00canonKey -> item
-	starred      map[string]bool                  // canonKey -> starred
-	persisted    map[string]bool                  // paneID\x00canonKey -> persisted in SQLite
-	loadedStored bool
-	pageRevs     map[string]int64
-	docRevs      map[string]int64
-	screenRevs   map[string]uint64
+	mu              sync.RWMutex
+	items           map[string]*CollectedContextItem // paneID\x00canonKey -> item
+	starred         map[string]bool                  // canonKey -> starred
+	persisted       map[string]bool                  // paneID\x00canonKey -> persisted in SQLite
+	loadedStored    bool
+	pageRevs        map[string]int64
+	docRevs         map[string]int64
+	screenRevs      map[string]uint64
+	screenHarvestAt map[string]time.Time
 }
 
 func newContextIndex() *contextIndex {
 	return &contextIndex{
-		items:      map[string]*CollectedContextItem{},
-		starred:    map[string]bool{},
-		persisted:  map[string]bool{},
-		pageRevs:   map[string]int64{},
-		docRevs:    map[string]int64{},
-		screenRevs: map[string]uint64{},
+		items:           map[string]*CollectedContextItem{},
+		starred:         map[string]bool{},
+		persisted:       map[string]bool{},
+		pageRevs:        map[string]int64{},
+		docRevs:         map[string]int64{},
+		screenRevs:      map[string]uint64{},
+		screenHarvestAt: map[string]time.Time{},
 	}
 }
 
@@ -330,31 +333,57 @@ func (a *App) harvestPrompt(pane data.Record, text string) {
 	a.indexContextItems(&pane, "", "", items)
 }
 
+const liveScreenHarvestInterval = 2 * time.Second
+
 // harvestScreenLines extracts and indexes high-signal context items from
 // visible terminal screen lines (deduplicated per pane revision when rev > 0).
+// In live mode, harvesting is throttled per pane and executed asynchronously so
+// interactive typing and high-FPS terminal output never block on regex scans or
+// SQLite writes on the UI goroutine.
 func (a *App) harvestScreenLines(pane data.Record, lines []string, wrapWidth int, rev uint64) {
 	if len(lines) == 0 {
 		return
 	}
 	idx := a.ensureContextIndex()
-	if rev > 0 {
-		idx.mu.RLock()
-		last := idx.screenRevs[pane.ID]
-		idx.mu.RUnlock()
-		if last == rev {
-			return
-		}
+	now := a.now()
+	idx.mu.RLock()
+	lastRev := idx.screenRevs[pane.ID]
+	lastAt := idx.screenHarvestAt[pane.ID]
+	idx.mu.RUnlock()
+	if rev > 0 && lastRev == rev {
+		return
 	}
+	if a.opts.Live && !lastAt.IsZero() && now.Sub(lastAt) < liveScreenHarvestInterval {
+		return
+	}
+	idx.mu.Lock()
+	if rev > 0 {
+		idx.screenRevs[pane.ID] = rev
+	}
+	idx.screenHarvestAt[pane.ID] = now
+	idx.mu.Unlock()
+
+	if a.opts.Live {
+		paneCopy := pane
+		linesCopy := slices.Clone(lines)
+		a.background(func(_ context.Context) func(core.State) core.State {
+			items := contextitems.ExtractLines(linesCopy, contextitems.Options{
+				Source:    contextitems.SourceScreen,
+				WrapWidth: wrapWidth,
+			})
+			if len(items) > 0 {
+				a.indexContextItems(&paneCopy, "", "", items)
+			}
+			return nil
+		})
+		return
+	}
+
 	items := contextitems.ExtractLines(lines, contextitems.Options{
 		Source:    contextitems.SourceScreen,
 		WrapWidth: wrapWidth,
 	})
 	a.indexContextItems(&pane, "", "", items)
-	if rev > 0 {
-		idx.mu.Lock()
-		idx.screenRevs[pane.ID] = rev
-		idx.mu.Unlock()
-	}
 }
 
 // recordVisibleMatches records matches returned by contextitems.ExtractVisibleMatches

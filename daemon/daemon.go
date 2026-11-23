@@ -611,6 +611,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 		if up < 0 {
 			up = 0
 		}
+		bi := CurrentBuildInfo()
 		return Response{
 			OK:        true,
 			PID:       os.Getpid(),
@@ -619,6 +620,11 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			PaneCount: count,
 			Uptime:    up.Round(time.Millisecond).String(),
 			UptimeSec: up.Seconds(),
+			Version:   bi.Version,
+			Commit:    bi.Commit,
+			Dirty:     bi.Dirty,
+			BuiltAt:   bi.BuiltAt,
+			Binary:    bi.Binary,
 		}, false
 
 	case OpOpen:

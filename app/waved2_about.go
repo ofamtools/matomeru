@@ -210,7 +210,7 @@ func (a *App) BuildAboutInfo() AboutInfo {
 func buildAboutInfoWithCatalogs(store *data.Store, configDir string, client *daemon.Client, harnesses []harness.Entry, extCatalogs map[string]string) AboutInfo {
 	exe, _ := os.Executable()
 	build := AboutBuildInfo{
-		Version:     "v2-dev",
+		Version:     daemon.Version,
 		GoVersion:   runtime.Version(),
 		MTMHookPath: resolveMTMHookPath(exe),
 	}

@@ -38,6 +38,7 @@ const (
 	SetConfirmDaemonReset = "confirm.daemonReset"
 	SetTablePresets       = "table.presets"
 	SetWorkTasksLayout    = "work.tasksLayout"
+	SetAutoArchiveExited  = "terminal.autoArchiveOnExit"
 	WorkTasksLayoutTree   = "tree"
 	WorkTasksLayoutTable  = "table"
 	PanesGroupProjectPane = "project-pane"
@@ -93,6 +94,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetTreeGuides, true, "draw box-drawing guide lines in tree views"),
 		flag(SetConfirmQuit, true, "prompt before quitting Matomeru"),
 		flag(SetConfirmDaemonReset, true, "prompt before resetting the daemon and dropping all live panes"),
+		flag(SetAutoArchiveExited, true, "auto-detach and archive panes when their process exits"),
 		enum(SetWorkTasksLayout, WorkTasksLayoutTree, "how tasks are displayed in 2 Work (tree or table)", WorkTasksLayoutTree, WorkTasksLayoutTable),
 	}
 }

@@ -23,6 +23,10 @@ import (
 type daemonStatusOutput struct {
 	Running   bool    `json:"running"`
 	PID       int     `json:"pid,omitempty"`
+	Version   string  `json:"version,omitempty"`
+	Commit    string  `json:"commit,omitempty"`
+	Dirty     bool    `json:"dirty,omitempty"`
+	Match     bool    `json:"match,omitempty"`
 	Socket    string  `json:"socket"`
 	MCPURL    string  `json:"mcpURL,omitempty"`
 	PaneCount int     `json:"paneCount"`
@@ -125,9 +129,14 @@ func mtmDaemonCommand(g globalOpts) oden.Command {
 						_, werr := fmt.Fprintf(c.Stdout, "running:   false\nsocket:    %s\n", sock)
 						return werr
 					}
+					bi := daemon.CurrentBuildInfo()
 					out := daemonStatusOutput{
 						Running:   true,
 						PID:       st.PID,
+						Version:   st.Version,
+						Commit:    st.Commit,
+						Dirty:     st.Dirty,
+						Match:     bi.SameBuild(st),
 						Socket:    st.Socket,
 						MCPURL:    st.MCPURL,
 						PaneCount: st.PaneCount,
@@ -141,8 +150,23 @@ func mtmDaemonCommand(g globalOpts) oden.Command {
 					if mcpURL == "" {
 						mcpURL = "(disabled)"
 					}
-					_, werr := fmt.Fprintf(c.Stdout, "running:   true\npid:       %d\nsocket:    %s\nmcpURL:    %s\npaneCount: %d\nuptime:    %s\n",
-						out.PID, out.Socket, mcpURL, out.PaneCount, out.Uptime)
+					dVer := out.Version
+					if dVer == "" {
+						dVer = "unknown (pre-v1.2.1)"
+					}
+					dCommit := out.Commit
+					if len(dCommit) >= 7 {
+						dCommit = dCommit[:7]
+					}
+					if dCommit == "" {
+						dCommit = "unknown"
+					}
+					matchStr := "match"
+					if !out.Match {
+						matchStr = "MISMATCH (binary is " + bi.Version + " " + bi.ShortSHA + ")"
+					}
+					_, werr := fmt.Fprintf(c.Stdout, "running:   true\npid:       %d\nversion:   %s (%s) [%s]\nsocket:    %s\nmcpURL:    %s\npaneCount: %d\nuptime:    %s\n",
+						out.PID, dVer, dCommit, matchStr, out.Socket, mcpURL, out.PaneCount, out.Uptime)
 					return werr
 				},
 			},

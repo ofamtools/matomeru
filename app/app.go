@@ -342,10 +342,12 @@ type App struct {
 	associatePaneRef   *core.Ref
 	pickerCreate       map[string]refCreateSpec
 
-	gen        uint64
-	memoKey    string
-	memo       ui.ViewNode
-	wantReload bool
+	gen          uint64
+	memoKey      string
+	memo         ui.ViewNode
+	wantReload   bool
+	railCacheKey string
+	recCacheKeys map[string]string
 }
 
 // WantReload reports whether the user triggered app.reload so the binary
@@ -362,9 +364,10 @@ func New(store *data.Store, opts Options) (*App, error) {
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
 		userSettings: map[string]any{}, readCache: data.NewReadCache(),
 		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
-		drafts:      form.NewDraftStore(),
-		ctxIdx:      newContextIndex(),
-		userActions: map[string]actions.ActionDef{},
+		drafts:       form.NewDraftStore(),
+		ctxIdx:       newContextIndex(),
+		userActions:  map[string]actions.ActionDef{},
+		recCacheKeys: map[string]string{},
 	}
 	a.specs = CommandSpecs()
 	a.bindings = DefaultBindings()
@@ -679,8 +682,26 @@ func (a *App) pageSize(tbl *table.Model, id string) {
 }
 
 // records returns the table of a space's records, rebuilt from the store (or
-// from the async ReadCache for a mounted external extension noun).
+// from the async ReadCache for a mounted external extension noun). For internal
+// store kinds, the rebuilt table is memoized by (storeChangeSetNumber,
+// showArchived, flagsColumn) so high-frequency live terminal frames do zero
+// SQLite queries when the store has not changed.
 func (a *App) records(id, kind string) *table.Model {
+	if _, isExt := a.extCatalogs[kind]; !isExt && a.Store != nil {
+		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
+			key := fmt.Sprintf("%s|%d|%t|%t", kind, rev, a.showArchived, a.Settings.Bool(SetFlagsColumn, true))
+			if a.recCacheKeys != nil && a.recCacheKeys[id] == key && a.tables[id] != nil {
+				a.pageSize(a.tables[id], id)
+				return a.tables[id]
+			}
+			defer func() {
+				if a.recCacheKeys == nil {
+					a.recCacheKeys = map[string]string{}
+				}
+				a.recCacheKeys[id] = key
+			}()
+		}
+	}
 	var items []data.Record
 	if extItems, ok := a.externalRecords(kind); ok {
 		items = extItems
@@ -761,7 +782,32 @@ func (a *App) attention(pane string) bool {
 
 // rail returns the pane rail: panes by the owner's last prompt, newest
 // first. Agent input never reorders it, because it never moves promptedAt.
-func (a *App) rail() *table.Model { return a.buildRail() }
+// Memoized by store change set + telemetry sequence + rail display settings so
+// live terminal frames do zero SQLite queries when neither store nor telemetry
+// changed.
+func (a *App) rail() *table.Model {
+	if a.Store != nil {
+		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
+			key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t",
+				rev,
+				a.live.telemetrySeq.Load(),
+				a.showArchived,
+				a.panesGroupMode(),
+				a.railGroupSet,
+				a.railCustomGroup,
+				a.Settings.Bool(SetFlagsColumn, true),
+			)
+			if key == a.railCacheKey && a.tables[railTable] != nil {
+				a.pageSize(a.tables[railTable], railTable)
+				return a.tables[railTable]
+			}
+			tbl := a.buildRail()
+			a.railCacheKey = key
+			return tbl
+		}
+	}
+	return a.buildRail()
+}
 
 func (a *App) spaceTable(space string) *table.Model {
 	for _, sp := range spaces {
