@@ -74,7 +74,7 @@ mtm migrate --from V1_DB [--dry-run | --apply]
 
 --db PATH       the SQLite file (default: $MTM_DB, or the user data directory)
 config          settings.json, bindings.json, themes.json and handlers.json are read from
-                $MTM_CONFIG_DIR, or ~/.config/matomeru-next. S and B in the TUI change and
+                $MTM_CONFIG_DIR, or ~/.config/matomeru. S and B in the TUI change and
                 save the first two; handlers.json says what opens which file (o and O).
 --format table  print records as a table instead of JSON`
 
@@ -176,7 +176,7 @@ func defaultDB() (string, error) {
 		return "", err
 	}
 	// Its own directory: v2 never opens the data of the mtm it replaces.
-	return filepath.Join(dir, "matomeru-next", "mtm.db"), nil
+	return filepath.Join(dir, "matomeru", "mtm.db"), nil
 }
 
 func openStore(path string) (*data.Store, error) {
@@ -210,7 +210,7 @@ func openStoreWithSeed(g globalOpts) (*data.Store, error) {
 
 // configDirName is v2's own directory: the bindings.json of the mtm it
 // replaces (~/.config/matomeru) is never read.
-const configDirName = "matomeru-next"
+const configDirName = "matomeru"
 
 func configDir() string {
 	if dir := os.Getenv("MTM_CONFIG_DIR"); dir != "" {

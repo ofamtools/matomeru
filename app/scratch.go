@@ -19,7 +19,7 @@ import (
 
 const (
 	scratchFileName = "scratch.md"
-	dataDirName     = "matomeru-next"
+	dataDirName     = "matomeru"
 )
 
 // dataDir is where Matomeru keeps its own files.

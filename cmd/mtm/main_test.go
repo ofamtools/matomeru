@@ -313,7 +313,7 @@ func TestConfigDirAndExport(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("MTM_CONFIG_DIR", "")
-	if got, want := configDir(), filepath.Join(home, ".config", "matomeru-next"); got != want {
+	if got, want := configDir(), filepath.Join(home, ".config", "matomeru"); got != want {
 		t.Fatalf("configDir = %s, want %s", got, want)
 	}
 	// The directory of the mtm it replaces is never read.
