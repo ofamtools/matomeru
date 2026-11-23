@@ -174,7 +174,7 @@ func TestRunsAreLive(t *testing.T) {
 	}
 
 	d.Keys("3", "n")
-	if a.Modal() != modalLaunch || !strings.Contains(d.Frame(), "Run a command") {
+	if a.Modal() != "launch" || !strings.Contains(d.Frame(), "Run a command") {
 		t.Fatalf("n did not open the run form: modal %q\n%s", a.Modal(), d.Frame())
 	}
 	d.Keys("i")
@@ -244,7 +244,7 @@ esac
 	}
 
 	d.Keys("enter")
-	if a.Modal() != modalLaunch || !strings.Contains(d.Frame(), "Run o-git") || !strings.Contains(d.Frame(), "status") {
+	if a.Modal() != "launch" || !strings.Contains(d.Frame(), "Run o-git") || !strings.Contains(d.Frame(), "status") {
 		t.Fatalf("enter did not open the extension's run form: modal %q, focus %q\n%s", a.Modal(), a.Focus(), d.Frame())
 	}
 	d.Keys("ctrl+s")
@@ -264,7 +264,7 @@ esac
 		t.Fatalf("run = %v", run.Fields)
 	}
 	d.Keys("r")
-	if a.Modal() != modalLaunch {
+	if a.Modal() != "launch" {
 		t.Fatalf("r did not open the run form: %q", a.Status())
 	}
 }

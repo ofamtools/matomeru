@@ -86,36 +86,10 @@ const (
 	siteScreen = "site.screen"
 	tocPrefix  = "site.toc."
 
-	modalOutline = "outline"
-	modalRecents = "recents"
-	modalPages   = "pages"
-	modalPalette = "palette"
-	modalHelp    = "help"
-	modalPath    = "path"
-	modalRef     = "ref"
-	modalForm    = "form"
-	modalAnswer  = "answer"
-	modalLaunch  = "launch"
-
-	modalSettings = "settings"
-	modalBindings = "bindings"
-	modalNouns    = "nouns"
-	modalField    = "field"
-	modalAssign   = "assign"
-
-	modalYank          = "yank"
-	modalRecordActions = "record.actions"
-	modalOpenWith      = "openwith"
-	modalReader        = "reader"
-	modalInspect       = "inspect"
-	modalScratch       = "scratch"
-	modalCommandLine   = "commandline"
-	modalContext       = "context"
-	modalComposer      = "composer"
-	modalConfirm       = "confirm"
-	modalPresets       = "table.presets"
-	modalAbout         = "about"
-	modalPaneAssociate = "pane.associate"
+	outlineTree    = "outline.tree"
+	bindingsTable  = "bindings.table"
+	bindingsFilter = "bindings.filter"
+	composerInput  = "composer.input"
 
 	readerNode    = "reader.md"
 	scratchScreen = "scratch.screen"
@@ -223,7 +197,6 @@ type App struct {
 	tocFilter    string
 	filterTarget string // "toc" or a table's node ID, while filtering
 	filterLine   input.Line
-	bindLine     input.Line
 	history      []historyEntry
 	histPos      int // -1 = the Work index
 	indexFocus   string
@@ -245,25 +218,18 @@ type App struct {
 	userBindingsRaw []core.Binding
 	extBindings     []core.Binding
 
-	// The binding editor: its model, how many of its rows are the user's
-	// own, and the keys of a rebind being captured.
-	bindEd            *bindings.Model
-	bindUser          int
-	bindTarget        int
-	bindCapture       []string
-	bindCapturing     bool
-	bindConflicts     int
-	bindConflictsInit bool
+	// The binding editor: session-persistent model (keeps undo history across close/reopen)
+	// and count of user-owned rows.
+	bindEd   *bindings.Model
+	bindUser int
 
 	browseKind string // the noun the Work index lists; "" = tasks
 	zoom       bool   // the Panes space shows only the pane's page
 	escapes    int    // escapes sent to panes with ctrl+a esc
 
-	effects     []core.Effect // effects of the command being handled
-	replaying   int           // macros being replayed, one inside another
-	scratch     string        // the pane of the global scratch that is shown
-	scratchRole string
-	cmdline     *commandline.Model // persistent per-prefix history for !, |, r!
+	effects   []core.Effect      // effects of the command being handled
+	replaying int                // macros being replayed, one inside another
+	cmdline   *commandline.Model // persistent per-prefix history for !, |, r!
 
 	readCache   *data.ReadCache   // async cache for mounted external tool nouns
 	extCatalogs map[string]string // external noun kind -> tool binary
@@ -283,7 +249,6 @@ type App struct {
 
 	hints *hintsState
 
-	composer        *composerState
 	composerFilesMu sync.RWMutex
 	composerFiles   map[string]cachedFileList
 	aiSkillsMu      sync.RWMutex
@@ -520,15 +485,11 @@ func (a *App) Space() string { return a.Shell.State.ActivePage }
 
 // Modal is the ID of the top overlay, "" when none is open.
 func (a *App) Modal() string {
-	if a.Shell != nil {
-		if id := topModal(a.Shell.State); id != "" {
-			return id
-		}
+	if a.modals == nil {
+		return ""
 	}
-	if a.modals != nil {
-		if top := a.modals.Top(); top != nil {
-			return top.ID()
-		}
+	if top := a.modals.Top(); top != nil {
+		return top.ID()
 	}
 	return ""
 }
@@ -549,26 +510,6 @@ func (a *App) SelectedPane() (*data.Record, bool) {
 	}
 	rec, err := a.Store.Get(*row.Ref)
 	return rec, err == nil
-}
-
-func topModal(s core.State) string {
-	if n := len(s.Modals); n > 0 {
-		return s.Modals[n-1].ID
-	}
-	return ""
-}
-
-func openModal(s core.State, id, mode, focus string) core.State {
-	s = closeModal(s, id)
-	s.Modals = append(slices.Clone(s.Modals), core.Frame{ID: id, Kind: core.FrameModal, Mode: mode, FocusID: focus})
-	return s
-}
-
-func closeModal(s core.State, id string) core.State {
-	if i := slices.IndexFunc(s.Modals, func(f core.Frame) bool { return f.ID == id }); i >= 0 {
-		s.Modals = slices.Delete(slices.Clone(s.Modals), i, i+1)
-	}
-	return s
 }
 
 func withFocus(s core.State, id string) core.State {
@@ -968,13 +909,8 @@ func (a *App) edge(s core.State, last bool) core.State {
 }
 
 func (a *App) motion(s core.State, c core.Command) core.StepResult {
-	if id := topModal(s); id != "" {
-		if a.modals != nil {
-			if top := a.modals.Top(); top != nil && top.ID() == id {
-				return a.handleModal(s, c)
-			}
-		}
-		return core.Next(a.modalMotion(s, id, c))
+	if a.Modal() != "" {
+		return a.handleModal(s, c)
 	}
 	focus := s.ActiveFrame().FocusID
 	if focus == workTable && a.inWorkTree(s) && c.ID != "motion.left" && c.ID != "motion.right" {
@@ -1014,28 +950,13 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	return core.Next(s)
 }
 
-func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
-	switch id {
-	case modalOutline:
-		a.outlineTreeMove(c)
-	case modalBindings:
-		if a.bindEd != nil {
-			a.bindEd.HandleCommand(c)
-		}
-	}
-	return s
-}
-
 // --- spaces and history -----------------------------------------------------------
 
 func (a *App) dropModals(s core.State) core.State {
 	if a.modals != nil {
 		s = a.modals.DropAll(s)
 	}
-	s.Modals = nil
-	a.bindCapturing = false // the binding editor keeps its undo history
-	a.scratch = ""
-	a.composer, a.hints = nil, nil
+	a.hints = nil
 	a.trees.clearEdit()
 	return s
 }
@@ -1624,7 +1545,7 @@ func (a *App) filterTable(s core.State) (*table.Model, string) {
 }
 
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
-	if topModal(s) != "" {
+	if a.Modal() != "" {
 		a.say("close this overlay to filter the list under it")
 		return core.Next(s)
 	}
@@ -1654,7 +1575,7 @@ func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
 
 func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 	if a.modals != nil {
-		if top := a.modals.Top(); top != nil && top.ID() == topModal(s) {
+		if top := a.modals.Top(); top != nil {
 			res := top.Handle(c)
 			if res.Handled {
 				return a.applyModalResult(s, res)
@@ -1664,15 +1585,6 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 	switch a.Engine.Mode(s) {
 	case ModeFilter:
 		return a.filterEdit(s, c)
-	case ModeBindingsFilter:
-		if a.bindEd != nil && topModal(s) == modalBindings {
-			if changed, _ := a.bindLine.HandleCommand(c); changed {
-				a.bindEd.SetQuery(a.bindLine.Value())
-			}
-		}
-		return core.Next(s)
-	case ModeComposer:
-		return a.composerCommand(s, c)
 	case ModeOutlineEdit:
 		if tm, _, ok := a.activeEditTree(); ok {
 			tm.HandleEditCommand(c)
@@ -1728,7 +1640,7 @@ func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 
 func (a *App) tableCommand(s core.State, c core.Command) core.StepResult {
 	tbl, id := a.filterTable(s)
-	if topModal(s) != "" {
+	if a.Modal() != "" {
 		tbl = nil // the list is under an overlay
 	}
 	if tbl == nil {
@@ -1886,35 +1798,6 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 	})
 }
 
-func (a *App) cancel(s core.State, c core.Command) core.StepResult {
-	id := topModal(s)
-	if a.modals != nil {
-		if top := a.modals.Top(); top != nil && top.ID() == id {
-			c.ID = modal.CmdCancel
-			return a.handleModal(s, c)
-		}
-	}
-	switch id {
-	case "":
-		return core.Next(s)
-	case modalBindings:
-		a.bindCapturing = false // the editor's model stays: its undo history survives closing it
-	case modalScratch:
-		a.scratch = ""
-	case modalComposer:
-		saved := a.saveComposerDraft(a.composer)
-		a.composer = nil
-		if saved {
-			a.say("composer closed · draft saved (ctrl+p restores)")
-		} else {
-			a.say("composer closed")
-		}
-		return core.Next(closeModal(s, id))
-	}
-	a.say("")
-	return core.Next(closeModal(s, id))
-}
-
 func (a *App) register() {
 	for _, id := range []string{"motion.down", "motion.up", "motion.left", "motion.right", "motion.top", "motion.bottom",
 		"motion.half.down", "motion.half.up", "motion.page.down", "motion.page.up", "motion.block.next", "motion.block.prev",
@@ -1929,13 +1812,13 @@ func (a *App) register() {
 
 	a.handle(views.CmdOpen, func(s core.State, c core.Command) core.StepResult {
 		// On a group's header row, "open" unfolds or folds the group.
-		if tbl := a.tables[s.ActiveFrame().FocusID]; tbl != nil && topModal(s) == "" {
+		if tbl := a.tables[s.ActiveFrame().FocusID]; tbl != nil && a.Modal() == "" {
 			if it, ok := tbl.Focused(); ok && it.Header {
 				tbl.ToggleGroup()
 				return core.Next(s)
 			}
 		}
-		if topModal(s) == "" {
+		if a.Modal() == "" {
 			if chain := ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, nil); len(chain) > 0 && chain[0].Facts["empty"] == true {
 				a.say("empty section · press n to add")
 				return core.Next(s)
@@ -2004,7 +1887,7 @@ func (a *App) register() {
 	for _, id := range []string{CmdBindingsFilter, CmdBindingsFilterDone, CmdBindingsFilterClear, CmdBindingsRebind, CmdBindingsCaptureKey,
 		CmdBindingsCaptureDone, CmdBindingsCaptureCancel, CmdBindingsMatchMode, "bindings.unbind", "bindings.reset", "bindings.undo", "bindings.redo",
 		"bindings.filter.append", "bindings.filter.backspace"} {
-		a.handle(id, a.bindingsCommand)
+		a.handle(id, a.handleModal)
 	}
 	a.handle(CmdPaneZoom, a.paneZoom)
 	a.handle(CmdPaneAttention, a.nextAttention)
@@ -2053,12 +1936,9 @@ func (a *App) register() {
 		}
 		return core.Next(a.enterScreen(s, *pane))
 	})
-	a.handle(CmdTermDetach, func(s core.State, _ core.Command) core.StepResult {
-		if topModal(s) == modalScratch {
-			// Detaching from a scratch hides it: what was under it is as it was.
-			a.scratch = ""
-			a.say("scratch hidden")
-			return core.Next(closeModal(s, modalScratch))
+	a.handle(CmdTermDetach, func(s core.State, c core.Command) core.StepResult {
+		if a.Modal() == "scratch" {
+			return a.handleModal(s, c)
 		}
 		if s.ActiveFrame().Mode == ModeTerminal {
 			a.say("left the pane")
@@ -2070,22 +1950,14 @@ func (a *App) register() {
 
 	a.handle(CmdOutlineOpen, func(s core.State, c core.Command) core.StepResult {
 		tm := a.trees.outlineModel()
-		a.syncTreeModel(tm, data.KindTask, modalOutline+".tree")
+		a.syncTreeModel(tm, data.KindTask, outlineTree)
 		if ref, ok := a.subject(s, c); ok && ref.Kind == data.KindTask {
 			tm.Reveal(ref.ID)
 			a.trees.folded[data.KindTask] = tm.Folded
 		}
-		return core.Next(openModal(s, modalOutline, ModeOutline, modalOutline+".tree"))
+		return core.Next(a.pushModal(s, a.newOutlineModal()))
 	})
-	a.handle(CmdOutlineJump, func(s core.State, _ core.Command) core.StepResult {
-		tm := a.trees.outlineModel()
-		a.syncTreeModel(tm, data.KindTask, modalOutline+".tree")
-		row, ok := tm.Focused()
-		if !ok || row.Draft || row.ID == "" {
-			return core.Next(closeModal(s, modalOutline))
-		}
-		return core.Next(a.show(s, core.Ref{Kind: data.KindTask, ID: row.ID}))
-	})
+	a.handle(CmdOutlineJump, a.handleModal)
 	a.handle(CmdOutlineMoveDown, a.outlineMoveSibling(1))
 	a.handle(CmdOutlineMoveUp, a.outlineMoveSibling(-1))
 	a.handle(CmdOutlineIndent, a.outlineIndent)
@@ -2117,8 +1989,8 @@ func (a *App) register() {
 		pal.Picker.PageSize = 10
 		var pm *modal.PaletteModal
 		pm = modal.NewPaletteModal(pal, modal.PaletteOptions{
-			ID:               modalPalette,
-			Scope:            modalPalette,
+			ID:               "palette",
+			Scope:            "palette",
 			WidthPct:         70,
 			ExpandedWidthPct: 90,
 			HeightPct:        75,
@@ -2185,7 +2057,7 @@ func (a *App) register() {
 		a.handle(id, a.handleModal)
 	}
 	a.handle(CmdHelpOpen, func(s core.State, _ core.Command) core.StepResult {
-		active := a.activeBindings(s)
+		active := a.activeKeyBindings(s)
 		items := make([]picker.Item, len(active))
 		for i, b := range active {
 			items[i] = picker.Item{ID: fmt.Sprint(i), Title: fmt.Sprintf("%-12s %s", b.keys, b.command), Subtitle: b.hint, Keywords: []string{b.scope, b.mode}}
@@ -2196,7 +2068,7 @@ func (a *App) register() {
 		pm := picker.New("Bindings · "+a.Engine.Mode(s), items)
 		pm.Placeholder = "keys that work here"
 		m := modal.NewPickerModal(pm, modal.PickerOptions{
-			ID:       modalHelp,
+			ID:       "help",
 			PageSize: 10,
 			OnConfirm: func(_ picker.Item) modal.Result {
 				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
@@ -2220,7 +2092,7 @@ func (a *App) register() {
 		}
 		return core.Next(a.openPath(s, "", target, start))
 	})
-	a.handle(CmdModalCancel, a.cancel)
+	a.handle(CmdModalCancel, a.handleModal)
 
 	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdModeCycle} {
 		a.handle(id, a.handleModal)
@@ -2283,7 +2155,7 @@ func (a *App) register() {
 	for _, id := range []string{CmdComposerInsert, CmdComposerBackspace, CmdComposerEnter, CmdComposerSubmit,
 		CmdComposerCancel, CmdComposerModeCycle, CmdComposerComplete, CmdComposerUp, CmdComposerDown,
 		CmdComposerDraftPrev, CmdComposerDraftNext} {
-		a.handle(id, a.composerCommand)
+		a.handle(id, a.handleModal)
 	}
 	a.handle(CmdQuestionNext, a.questionStep(1))
 	a.handle(CmdQuestionPrev, a.questionStep(-1))

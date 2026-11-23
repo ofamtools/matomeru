@@ -117,7 +117,7 @@ esac
 
 	// Row 0 (ready=true): both actions visible in `;` Actions.
 	d.Keys(";")
-	ids := pickerIDs(a, modalRecordActions)
+	ids := pickerIDs(a, "record.actions")
 	if !slices.Contains(ids, "w.item.purge") || !slices.Contains(ids, "w.item.hidden-when-not-ready") {
 		t.Fatalf("expected both actions on ready item, got %v", ids)
 	}
@@ -125,12 +125,12 @@ esac
 
 	// Row 1 (ready=false): HideWhenFalse hides the second action; X refuses with expanded RefuseMessage.
 	d.Keys("j", ";")
-	ids2 := pickerIDs(a, modalRecordActions)
+	ids2 := pickerIDs(a, "record.actions")
 	if !slices.Contains(ids2, "w.item.purge") || slices.Contains(ids2, "w.item.hidden-when-not-ready") {
 		t.Fatalf("HideWhenFalse not respected on non-ready item: %v", ids2)
 	}
 	d.Keys("esc", "X")
-	if a.Modal() == modalConfirm {
+	if a.Modal() == "confirm" {
 		t.Fatal("guard refusal should not open confirm modal")
 	}
 	if !strings.Contains(a.Status(), "Widget beta is not ready") {
@@ -140,7 +140,7 @@ esac
 	// Row 0 (ready=true): X opens confirm modal with custom tone and expanded message, y runs & refreshes readCache.
 	d.Keys("k", "X")
 	cm := a.activeConfirm()
-	if a.Modal() != modalConfirm || cm == nil || cm.View(120, 36).Tone != "error" {
+	if a.Modal() != "confirm" || cm == nil || cm.View(120, 36).Tone != "error" {
 		t.Fatalf("confirm modal = %v (modal=%q)", cm, a.Modal())
 	}
 	if !strings.Contains(d.Frame(), "Drop 400 MB for alpha?") {

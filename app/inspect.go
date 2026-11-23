@@ -365,7 +365,7 @@ func (a *App) inspectOpen(s core.State, c core.Command) core.StepResult {
 	pm := picker.New(strings.ToUpper(what[:1])+what[1:], a.inspectItems(what))
 	var m *modal.PickerModal
 	m = modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:        modalInspect,
+		ID:        "inspect",
 		Scope:     "inspect",
 		Mode:      ModeInspect,
 		Title:     "Inspect " + what,

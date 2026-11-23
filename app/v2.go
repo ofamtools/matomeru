@@ -15,6 +15,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
+	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
@@ -91,7 +92,7 @@ func (a *App) nounsPick(s core.State, _ core.Command) core.StepResult {
 	pm := picker.New("Nouns", items)
 	pm.Placeholder = "any noun: its index opens in Work"
 	m := modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:       modalNouns,
+		ID:       "nouns",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {
 			if what, ok := strings.CutPrefix(picked.ID, inspectPrefix); ok {
@@ -182,7 +183,7 @@ func (a *App) tableKeys(id string, tbl *table.Model) []string {
 func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, _ core.Command) core.StepResult {
 		tbl, id := a.filterTable(s)
-		if topModal(s) != "" || tbl == nil {
+		if a.Modal() != "" || tbl == nil {
 			a.say("no list is focused")
 			return core.Next(s)
 		}
@@ -221,7 +222,7 @@ func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepRes
 		pm.Placeholder = "any field of these rows"
 		tableID := id
 		m := modal.NewPickerModal(pm, modal.PickerOptions{
-			ID:       modalField,
+			ID:       "field",
 			PageSize: 10,
 			OnConfirm: func(picked picker.Item) modal.Result {
 				a.fieldPicked(what, tableID, picked.ID)
@@ -328,7 +329,7 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 	pm.Placeholder = "a task (or type a new task title)"
 	targetRef := ref
 	m := modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:       modalAssign,
+		ID:       "assign",
 		PageSize: 10,
 		Create: a.pickerCreateHook(data.KindTask, func(rec data.Record) modal.Result {
 			r := rec.Ref()
@@ -399,24 +400,68 @@ func bindingOverrides(current, defaults []core.Binding, user int) []core.Binding
 	return out
 }
 
+// bindingsModal implements modal.Modal for the interactive keybinding editor.
+type bindingsModal struct {
+	a             *App
+	mode          string
+	target        int
+	capture       []string
+	capturing     bool
+	conflicts     int
+	conflictsInit bool
+	line          input.Line
+}
+
+var _ modal.Modal = (*bindingsModal)(nil)
+
+func (a *App) activeBindings() *bindingsModal {
+	if a.modals == nil {
+		return nil
+	}
+	m, _ := a.modals.Get("bindings").(*bindingsModal)
+	return m
+}
+
+func (m *bindingsModal) ID() string    { return "bindings" }
+func (m *bindingsModal) Scope() string { return "bindings" }
+
+func (m *bindingsModal) Mode() string {
+	if m.mode == "" {
+		return ModeBindings
+	}
+	return m.mode
+}
+
+func (m *bindingsModal) FocusID() string {
+	if m.mode == ModeBindingsFilter {
+		return bindingsFilter
+	}
+	return bindingsTable
+}
+
+func (m *bindingsModal) OnClose(modal.CloseReason) {
+	m.capturing = false
+	m.capture = nil
+}
+
 func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 	if a.bindEd == nil {
 		// Opened once per run: closing the editor keeps its undo history.
 		a.bindEd = bindings.New(Modes(), config.MergeBindings(a.baseBindings(), a.userBindings), a.specs...)
 		a.bindUser = len(a.userBindings)
-		a.bindConflictsInit = false
 	}
 	a.bindEd.SetQuery("")
-	a.bindCapture, a.bindCapturing = nil, false
 	a.say("/ filters (key: verb: mode: scope: conflict:) · r rebinds · x unbinds · R resets · u undoes · each change is live")
-	return core.Next(openModal(s, modalBindings, ModeBindings, modalBindings+".table"))
+	return core.Next(a.pushModal(s, &bindingsModal{a: a, mode: ModeBindings}))
 }
 
 // bindingsChanged makes the editor's state the live keymap and saves the
 // overrides.
 func (a *App) bindingsChanged(what string) {
 	ed := a.bindEd
-	a.bindConflictsInit = false
+	if bm := a.activeBindings(); bm != nil {
+		bm.conflictsInit = false
+	}
 	base := a.baseBindings()
 	a.userBindings = bindingOverrides(ed.Bindings(), base, a.bindUser)
 	a.bindings = config.MergeBindings(base, a.userBindings)
@@ -455,117 +500,159 @@ func (a *App) bindingName(idx int) string {
 	return keys + " " + name
 }
 
-func (a *App) bindingsCommand(s core.State, c core.Command) core.StepResult {
-	ed := a.bindEd
-	if ed == nil || topModal(s) != modalBindings {
-		return core.Next(s)
+func (m *bindingsModal) Handle(c core.Command) modal.Result {
+	ed := m.a.bindEd
+	if ed == nil {
+		if c.ID == modal.CmdCancel {
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseCancel}
+		}
+		return modal.Result{}
 	}
 	idx, focused := ed.Focused()
 	switch c.ID {
+	case modal.CmdCancel:
+		return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseCancel}
 	case CmdBindingsFilter:
-		a.say("type to filter · key: verb: mode: scope: when: conflict: narrow one column · enter keeps")
-		return core.Next(withMode(s, ModeBindingsFilter))
+		m.mode = ModeBindingsFilter
+		return modal.Result{
+			Handled:   true,
+			Mode:      m.Mode(),
+			FocusID:   m.FocusID(),
+			Status:    "type to filter · key: verb: mode: scope: when: conflict: narrow one column · enter keeps",
+			SetStatus: true,
+		}
 	case CmdBindingsFilterDone:
-		a.say("")
-		return core.Next(withMode(s, ModeBindings))
+		m.mode = ModeBindings
+		return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID(), Status: "", SetStatus: true}
 	case CmdBindingsFilterClear:
-		a.bindLine.Set("")
+		m.line.Set("")
 		ed.SetQuery("")
-		a.say("")
-		return core.Next(withMode(s, ModeBindings))
+		m.mode = ModeBindings
+		return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID(), Status: "", SetStatus: true}
 	case CmdBindingsRebind:
 		if !focused {
-			a.say("no binding here to rebind")
-			return core.Next(s)
+			return modal.Result{Handled: true, Status: "no binding here to rebind", SetStatus: true}
 		}
-		a.bindCapture, a.bindCapturing, a.bindTarget = nil, true, idx
-		a.say("press the new keys for %s · enter sets · esc cancels", a.bindingName(idx))
-		return core.Next(withMode(s, ModeBindingsCapture))
+		m.capture, m.capturing, m.target = nil, true, idx
+		m.mode = ModeBindingsCapture
+		return modal.Result{
+			Handled:   true,
+			Mode:      m.Mode(),
+			FocusID:   m.FocusID(),
+			Status:    fmt.Sprintf("press the new keys for %s · enter sets · esc cancels", m.a.bindingName(idx)),
+			SetStatus: true,
+		}
 	case CmdBindingsCaptureKey:
 		if key := c.Arg("key"); key != "" {
-			a.bindCapture = append(a.bindCapture, key)
+			m.capture = append(m.capture, key)
 		}
-		a.say("new keys: %s · enter sets · esc cancels", strings.Join(a.bindCapture, " "))
-		return core.Next(s)
+		return modal.Result{
+			Handled:   true,
+			Mode:      m.Mode(),
+			FocusID:   m.FocusID(),
+			Status:    fmt.Sprintf("new keys: %s · enter sets · esc cancels", strings.Join(m.capture, " ")),
+			SetStatus: true,
+		}
 	case CmdBindingsCaptureCancel:
-		a.bindCapture, a.bindCapturing = nil, false
-		a.say("not rebound")
-		return core.Next(withMode(s, ModeBindings))
+		m.capture, m.capturing = nil, false
+		m.mode = ModeBindings
+		return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID(), Status: "not rebound", SetStatus: true}
 	case CmdBindingsCaptureDone:
-		keys, target := a.bindCapture, a.bindTarget
-		a.bindCapture, a.bindCapturing = nil, false
-		s = withMode(s, ModeBindings)
+		keys, target := m.capture, m.target
+		m.capture, m.capturing = nil, false
+		m.mode = ModeBindings
 		switch {
 		case len(keys) == 0:
-			a.say("no keys pressed; not rebound")
+			return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID(), Status: "no keys pressed; not rebound", SetStatus: true}
 		case ed.Rebind(target, keys):
-			a.bindingsChanged("rebound " + a.bindingName(target))
+			m.a.bindingsChanged("rebound " + m.a.bindingName(target))
+			return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID()}
 		default:
-			a.say("already on %s", strings.Join(keys, " "))
+			return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID(), Status: fmt.Sprintf("already on %s", strings.Join(keys, " ")), SetStatus: true}
 		}
-		return core.Next(s)
 	case "bindings.unbind":
 		if focused && ed.HandleCommand(c) {
-			a.bindingsChanged("unbound " + a.bindingName(idx))
-		} else {
-			a.say("nothing to unbind")
+			m.a.bindingsChanged("unbound " + m.a.bindingName(idx))
+			return modal.Result{Handled: true}
 		}
+		return modal.Result{Handled: true, Status: "nothing to unbind", SetStatus: true}
 	case "bindings.reset":
-		name := a.bindingName(idx)
+		name := m.a.bindingName(idx)
 		if focused && ed.HandleCommand(c) {
-			a.bindingsChanged("reset " + name)
-		} else {
-			a.say("already as it was")
+			m.a.bindingsChanged("reset " + name)
+			return modal.Result{Handled: true}
 		}
+		return modal.Result{Handled: true, Status: "already as it was", SetStatus: true}
 	case "bindings.undo", "bindings.redo":
 		if ed.HandleCommand(c) {
-			a.bindingsChanged(map[string]string{"bindings.undo": "undid", "bindings.redo": "redid"}[c.ID] + " the last binding change")
-		} else {
-			a.say("nothing to %s", strings.TrimPrefix(c.ID, "bindings."))
+			m.a.bindingsChanged(map[string]string{"bindings.undo": "undid", "bindings.redo": "redid"}[c.ID] + " the last binding change")
+			return modal.Result{Handled: true}
 		}
+		return modal.Result{Handled: true, Status: fmt.Sprintf("nothing to %s", strings.TrimPrefix(c.ID, "bindings.")), SetStatus: true}
 	case CmdBindingsMatchMode:
 		ed.HandleCommand(core.Command{ID: "table.filter.mode.cycle"})
-		a.say("the filter's match mode changed")
+		return modal.Result{Handled: true, Status: "the filter's match mode changed", SetStatus: true}
 	case "bindings.filter.append":
-		if a.bindLine.Insert(c.Arg("text")) {
-			ed.SetQuery(a.bindLine.Value())
+		if m.line.Insert(c.Arg("text")) {
+			ed.SetQuery(m.line.Value())
 		}
+		return modal.Result{Handled: true}
 	case "bindings.filter.backspace":
-		if changed, _ := a.bindLine.HandleCommand(core.Command{ID: "input.backspace"}); changed {
-			ed.SetQuery(a.bindLine.Value())
+		if changed, _ := m.line.HandleCommand(core.Command{ID: "input.backspace"}); changed {
+			ed.SetQuery(m.line.Value())
 		}
+		return modal.Result{Handled: true}
 	default:
-		ed.HandleCommand(c) // filter text and motions
+		if m.mode == ModeBindingsFilter && input.IsReadlineCommand(c.ID) {
+			if changed, _ := m.line.HandleCommand(c); changed {
+				ed.SetQuery(m.line.Value())
+			}
+			return modal.Result{Handled: true}
+		}
+		if ed.HandleCommand(c) || strings.HasPrefix(c.ID, "motion.") {
+			return modal.Result{Handled: true}
+		}
+		return modal.Result{}
 	}
-	return core.Next(s)
 }
 
-// bindingsModal draws the editor: the widget, and what is being captured.
-func (a *App) bindingsModal() ui.ViewNode {
-	ed := a.bindEd
-	body := ed.View(modalBindings)
+// View draws the binding editor overlay and any key sequence being captured.
+func (m *bindingsModal) View(_, _ int) ui.ViewNode {
+	ed := m.a.bindEd
+	if ed == nil {
+		return modal.Overlay(modal.OverlaySpec{ID: "bindings", Scope: "bindings", Title: "Bindings", WidthPct: 90, HeightPct: 85})
+	}
+	body := ed.View("bindings")
 	rows := ed.Bindings()
-	if !a.bindConflictsInit {
+	if !m.conflictsInit {
 		conflicts := 0
-		for _, an := range bindings.AnalyzeBindings(Modes(), rows, nil, a.specs...) {
+		for _, an := range bindings.AnalyzeBindings(Modes(), rows, nil, m.a.specs...) {
 			if len(an.Conflicts) > 0 {
 				conflicts++
 			}
 		}
-		a.bindConflicts = conflicts
-		a.bindConflictsInit = true
+		m.conflicts = conflicts
+		m.conflictsInit = true
 	}
-	conflicts := a.bindConflicts
-	ov := overlay(modalBindings, "Bindings", 90, 85, body)
-	ov.Scope = "bindings"
-	ov.Badges = []ui.Badge{{Text: fmt.Sprintf("%d of %d", len(ed.Filtered()), len(rows))}, {Text: fmt.Sprintf("%d overrides", len(a.userBindings))}}
-	if conflicts > 0 {
-		ov.Badges = append(ov.Badges, ui.Badge{Text: fmt.Sprintf("%d with notes · conflict: filters", conflicts), Tone: "warning"})
+	badges := []ui.Badge{
+		{Text: fmt.Sprintf("%d of %d", len(ed.Filtered()), len(rows))},
+		{Text: fmt.Sprintf("%d overrides", len(m.a.userBindings))},
 	}
-	if a.bindCapturing {
-		ov.Badges = append(ov.Badges, ui.Badge{Text: "new keys: " + strings.Join(a.bindCapture, " ") + "▏", Tone: "accent"})
+	if m.conflicts > 0 {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d with notes · conflict: filters", m.conflicts), Tone: "warning"})
 	}
-	return ov
+	if m.capturing {
+		badges = append(badges, ui.Badge{Text: "new keys: " + strings.Join(m.capture, " ") + "▏", Tone: "accent"})
+	}
+	return modal.Overlay(modal.OverlaySpec{
+		ID:        "bindings",
+		Scope:     "bindings",
+		Title:     "Bindings",
+		WidthPct:  90,
+		HeightPct: 85,
+		Badges:    badges,
+		Children:  []ui.ViewNode{body},
+	})
 }
 
 // --- panes: zoom, attention, lanes, escape ------------------------------------------
@@ -677,7 +764,7 @@ func (a *App) laneShow(s core.State, c core.Command) core.StepResult {
 // terminal, and after the leader it is not swallowed either.
 func (a *App) termEscape(s core.State, _ core.Command) core.StepResult {
 	pane, ok := a.termPane(s)
-	inScratch := topModal(s) == modalScratch
+	inScratch := a.activeScratch() != nil
 	if !ok || (!inScratch && (s.Pages[SpacePanes].Mode != ModeTerminal || s.ActivePage != SpacePanes)) {
 		return core.Next(s)
 	}

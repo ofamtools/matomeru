@@ -283,8 +283,8 @@ func (a *App) settingsOpen(s core.State, _ core.Command) core.StepResult {
 	fm := form.New("Settings", SettingSpecs(), a.settingValues())
 	fm.SubmitLabel = "change · applied and saved as you go"
 	m := modal.NewFormModal(fm, modal.FormOptions{
-		ID:            modalSettings,
-		Scope:         modalSettings,
+		ID:            "settings",
+		Scope:         "settings",
 		DisableDrafts: true,
 		DisableSubmit: true,
 		OnChange: func(fm *form.Model, field string) modal.Result {

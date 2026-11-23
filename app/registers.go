@@ -209,11 +209,11 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 	pm.Placeholder = "a value · y copies the " + primary.Name
 	pm.PreviewFn = func(it picker.Item) *ui.ViewNode {
 		text, _ := it.Data.(string)
-		return &ui.ViewNode{ID: modalYank + ".preview.text", Kind: ui.KindText, Props: map[string]any{"text": text}}
+		return &ui.ViewNode{ID: "yank.preview.text", Kind: ui.KindText, Props: map[string]any{"text": text}}
 	}
 	yankTarget := ref
 	m := modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:       modalYank,
+		ID:       "yank",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {
 			text, _ := picked.Data.(string)
@@ -240,7 +240,7 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 // yankPrimary copies the primary value of the record the yank picker is
 // open on, or of the focused record, without a picker.
 func (a *App) yankPrimary(s core.State, c core.Command) core.StepResult {
-	if topModal(s) == modalYank {
+	if a.Modal() == "yank" {
 		return a.handleModal(s, c)
 	}
 	ref, ok := a.subject(s, c)

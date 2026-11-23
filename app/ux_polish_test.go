@@ -16,7 +16,7 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 
 	// Open palette and filter to record.new.
 	d.Keys(":")
-	if a.Modal() != modalPalette || a.Mode() != ModePicker {
+	if a.Modal() != "palette" || a.Mode() != ModePicker {
 		t.Fatalf(": did not open palette: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Type("record.new")
@@ -43,7 +43,7 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 
 	// Tab into the args form, cycle kind to pane, and press enter to open "New pane".
 	d.Keys("tab")
-	if a.Mode() != ModeForm || !pal.FocusForm || a.Focus() != pal.FocusID(modalPalette) {
+	if a.Mode() != ModeForm || !pal.FocusForm || a.Focus() != pal.FocusID("palette") {
 		t.Fatalf("tab did not focus args form: mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 	// Cycle with l until kind == "pane".
@@ -57,7 +57,7 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 		t.Fatalf("failed to cycle kind to pane, got %q", v)
 	}
 	d.Keys("enter")
-	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane || !strings.Contains(d.Frame(), "New pane") {
+	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || rf.kind != data.KindPane || !strings.Contains(d.Frame(), "New pane") {
 		t.Fatalf("enter in palette args form did not open New pane: modal=%q kind=%v\n%s", a.Modal(), rf, d.Frame())
 	}
 	d.Keys("esc")
@@ -111,7 +111,7 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 	d.Type(testCmd)
 	d.Keys("enter")
 	palModal := a.activePalette()
-	if a.Modal() != modalPalette || a.Mode() != ModeForm || palModal == nil || !palModal.Model().FocusForm {
+	if a.Modal() != "palette" || a.Mode() != ModeForm || palModal == nil || !palModal.Model().FocusForm {
 		t.Fatalf("smart enter on missing required param did not shift focus to form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	pal := palModal.Model()
@@ -132,11 +132,11 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 
 	// Move to path param and press p -> opens path picker; tab selects a path and fills the palette arg.
 	d.Keys("j", "p")
-	if a.Modal() != modalPath {
+	if a.Modal() != "path" {
 		t.Fatalf("p on path param did not open modalPath: modal=%q", a.Modal())
 	}
 	d.Keys("tab")
-	if a.Modal() != modalPalette || a.Mode() != ModeForm {
+	if a.Modal() != "palette" || a.Mode() != ModeForm {
 		t.Fatalf("selecting path did not return to palette form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	pickedDir, _ := pal.ActiveForm.Values["dir"].(string)
@@ -146,11 +146,11 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 
 	// Move to ref param and press p -> opens ref picker; enter selects a task and fills the palette arg.
 	d.Keys("j", "p")
-	if a.Modal() != modalRef {
+	if a.Modal() != "ref" {
 		t.Fatalf("p on ref param did not open modalRef: modal=%q", a.Modal())
 	}
 	d.Keys("enter")
-	if a.Modal() != modalPalette || a.Mode() != ModeForm {
+	if a.Modal() != "palette" || a.Mode() != ModeForm {
 		t.Fatalf("selecting ref did not return to palette form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	if ref, ok := pal.ActiveForm.TypedValues()["task"].(core.Ref); !ok || ref.Kind != data.KindTask || ref.ID == "" {
@@ -159,7 +159,7 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 
 	// Esc in form returns focus to command list (ModePicker), tab goes back to form.
 	d.Keys("esc")
-	if a.Modal() != modalPalette || a.Mode() != ModePicker || pal.FocusForm {
+	if a.Modal() != "palette" || a.Mode() != ModePicker || pal.FocusForm {
 		t.Fatalf("esc in palette form should return to command list: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("tab", "enter")
@@ -180,7 +180,7 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 func TestNewHereOnPanesOpensNewPaneForm(t *testing.T) {
 	a, d := demo(t)
 	d.Keys("1", "n")
-	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane {
+	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || rf.kind != data.KindPane {
 		t.Fatalf("n on 1 Panes opened modal=%q form=%+v, want kind=pane", a.Modal(), rf)
 	}
 	frame := d.Frame()
@@ -232,10 +232,10 @@ func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
 	selectRow(a.tables[workTable], data.RefText(guide.Ref()))
 	a.gen++
 	d.Keys("o")
-	if a.Modal() != modalReader || a.Mode() != ModeReader {
+	if a.Modal() != "reader" || a.Mode() != ModeReader {
 		t.Fatalf("o did not open Markdown reader: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
-	reader := a.activeMarkdown(modalReader)
+	reader := a.activeMarkdown("reader")
 	if reader == nil || !reader.Model().ShowTOC || !strings.Contains(d.Frame(), "Contents") {
 		t.Fatalf("reader TOC should be visible initially:\n%s", d.Frame())
 	}

@@ -355,8 +355,8 @@ func (a *App) newAnswerFormModal(fm *form.Model, am *answerFormModal) *answerFor
 	a.attachFormDrafts(fm, am.draftKey)
 	var mod *modal.FormModal
 	mod = modal.NewFormModal(fm, modal.FormOptions{
-		ID:          modalAnswer,
-		Scope:       modalAnswer,
+		ID:          "answer",
+		Scope:       "answer",
 		DraftBadges: true,
 		Badges: func(*form.Model) []ui.Badge {
 			if am.batch != nil && len(am.batch.cards) > 1 {
@@ -555,7 +555,7 @@ func (a *App) submitAnswerModal(am *answerFormModal, values map[string]any) bool
 // the Questions page via mcpui.Router.SubmitAnswers.
 func (a *App) questionSubmitAll(s core.State, _ core.Command) core.StepResult {
 	// If invoked while inside the answer modal, stage the current form first.
-	if am := a.activeAnswerForm(); topModal(s) == modalAnswer && am != nil && am.batch != nil {
+	if am := a.activeAnswerForm(); a.Modal() == "answer" && am != nil && am.batch != nil {
 		fm := am.Model()
 		if fm.Editing {
 			_, _ = fm.HandleCommand(core.Command{ID: form.CmdStop})

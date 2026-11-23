@@ -28,7 +28,7 @@ func TestWave4ConfirmationModalQuitAndDaemonReset(t *testing.T) {
 	// 1. confirm.quit = true (default) vs false.
 	a, d := demo(t)
 	d.Keys("Q")
-	if a.Modal() != modalConfirm || a.Mode() != ModeConfirm {
+	if a.Modal() != "confirm" || a.Mode() != ModeConfirm {
 		t.Fatalf("Q did not open confirm modal: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	frame := d.Frame()
@@ -42,7 +42,7 @@ func TestWave4ConfirmationModalQuitAndDaemonReset(t *testing.T) {
 
 	// Cancel via n, esc, q, ctrl+c.
 	for _, cancelKey := range []string{"n", "esc", "q", "ctrl+c"} {
-		if a.Modal() != modalConfirm {
+		if a.Modal() != "confirm" {
 			d.Keys("Q")
 		}
 		d.Keys(cancelKey)
@@ -104,7 +104,7 @@ func TestWave4ConfirmationModalQuitAndDaemonReset(t *testing.T) {
 	wake(dd)
 
 	dd.Keys("1", "g", "R")
-	if da.Modal() != modalConfirm || da.Mode() != ModeConfirm {
+	if da.Modal() != "confirm" || da.Mode() != ModeConfirm {
 		t.Fatalf("g R did not open confirm modal: modal=%q mode=%q status=%q", da.Modal(), da.Mode(), da.Status())
 	}
 	resetFrame := dd.Frame()
@@ -172,17 +172,17 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 
 	// Open presets picker (g v), press s to save current view as "tier-grouped".
 	d.Keys("g", "v")
-	if a.Modal() != modalPresets || a.Mode() != ModePicker {
+	if a.Modal() != "table.presets" || a.Mode() != ModePicker {
 		t.Fatalf("g v did not open presets picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("s")
-	if a.Modal() != modalLaunch || a.Mode() != ModeForm {
+	if a.Modal() != "launch" || a.Mode() != ModeForm {
 		t.Fatalf("s in presets picker did not open save form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("i")
 	d.Type("tier-grouped")
 	d.Keys("ctrl+s")
-	if a.Modal() != modalPresets {
+	if a.Modal() != "table.presets" {
 		t.Fatalf("saving preset should return to presets picker: modal=%q status=%q", a.Modal(), a.Status())
 	}
 
@@ -312,10 +312,10 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 		t.Fatal("expected a selected pane on 1 Panes")
 	}
 	d.Keys(";")
-	if a.Modal() != modalRecordActions {
+	if a.Modal() != "record.actions" {
 		t.Fatalf("; on pane did not open record actions: modal=%q", a.Modal())
 	}
-	paneIDs := pickerIDs(a, modalRecordActions)
+	paneIDs := pickerIDs(a, "record.actions")
 	paneIdx := slices.Index(paneIDs, "pane.inspect-custom")
 	recIdx := slices.IndexFunc(paneIDs, func(id string) bool { return strings.HasPrefix(id, "record.") })
 	if paneIdx < 0 || recIdx < 0 || paneIdx >= recIdx {
@@ -331,7 +331,7 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 	task := mkRec(t, a, data.KindTask, map[string]any{"title": "Ship Wave 4", "workStatus": "active"})
 	browseTo(t, a, d, task)
 	d.Keys(";")
-	taskIDs := pickerIDs(a, modalRecordActions)
+	taskIDs := pickerIDs(a, "record.actions")
 	taskShipIdx := slices.Index(taskIDs, "task.ship")
 	taskFgIdx := slices.Index(taskIDs, "task.fg-open")
 	taskRecIdx := slices.IndexFunc(taskIDs, func(id string) bool { return strings.HasPrefix(id, "record.") })
@@ -433,7 +433,7 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 
 	// 1. Tree guide lines: ui.treeGuides = true (default) vs false on Outline (T).
 	d.Keys("T")
-	if a.Modal() != modalOutline {
+	if a.Modal() != "outline" {
 		t.Fatalf("T did not open outline: modal=%q", a.Modal())
 	}
 	withGuides := d.Frame()

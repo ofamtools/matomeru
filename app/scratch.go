@@ -9,6 +9,7 @@ import (
 	"ofam.dev/matomeru/handlers"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 )
 
 // The two global scratches: one terminal and one editor on a file Matomeru
@@ -21,6 +22,86 @@ const (
 	scratchFileName = "scratch.md"
 	dataDirName     = "matomeru"
 )
+
+// scratchModal implements modal.Modal for the global scratch terminal/notes overlay.
+type scratchModal struct {
+	a      *App
+	paneID string
+	role   string
+}
+
+var _ modal.Modal = (*scratchModal)(nil)
+
+func (a *App) activeScratch() *scratchModal {
+	if a.modals == nil {
+		return nil
+	}
+	m, _ := a.modals.Get("scratch").(*scratchModal)
+	return m
+}
+
+func (m *scratchModal) ID() string      { return "scratch" }
+func (m *scratchModal) Scope() string   { return data.KindPane }
+func (m *scratchModal) Mode() string    { return ModeTerminal }
+func (m *scratchModal) FocusID() string { return scratchScreen }
+func (m *scratchModal) OnClose(modal.CloseReason) {
+}
+
+func (m *scratchModal) Handle(cmd core.Command) modal.Result {
+	switch cmd.ID {
+	case CmdTermDetach:
+		return modal.Result{
+			Handled:     true,
+			Close:       true,
+			CloseReason: modal.CloseSubmit,
+			Status:      "scratch hidden",
+			SetStatus:   true,
+		}
+	case modal.CmdCancel:
+		return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseCancel}
+	}
+	return modal.Result{}
+}
+
+// View draws the shown scratch: its live session, or, without one, the lines
+// typed into it.
+func (m *scratchModal) View(_, _ int) ui.ViewNode {
+	ref := core.Ref{Kind: data.KindPane, ID: m.paneID}
+	pane, err := m.a.Store.Get(ref)
+	if err != nil {
+		return modal.Overlay(modal.OverlaySpec{
+			ID:        "scratch",
+			Scope:     data.KindPane,
+			Title:     "Scratch",
+			WidthPct:  90,
+			HeightPct: 85,
+			Children:  []ui.ViewNode{text("", "The scratch pane is gone: "+err.Error(), "warning")},
+		})
+	}
+	screen := ui.ViewNode{ID: scratchScreen, Kind: ui.KindTerminal, Scope: "terminal", Focusable: true, Props: map[string]any{"streamId": pane.ID}}
+	badges := []ui.Badge{{Text: "not attached", Tone: "muted"}}
+	title := pane.Text("title")
+	if lines, cursor, live, ok := m.a.liveScreen(*pane, scratchScreen); ok {
+		screen.Props["lines"], screen.Props["cursor"] = lines, cursor
+		badges = live
+		if f := m.a.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
+			title = fmt.Sprintf("%s · pid %d", title, f.PID)
+		}
+	} else {
+		screen.Props["lines"] = m.a.termLines(*pane, true)
+	}
+	return modal.Overlay(modal.OverlaySpec{
+		ID:        "scratch",
+		Scope:     data.KindPane,
+		Title:     title,
+		WidthPct:  90,
+		HeightPct: 85,
+		Ref:       &ref,
+		Facts:     map[string]any{"role": pane.Text("role"), "scratch": true},
+		Badges:    append(badges, ui.Badge{Text: "global scratch", Tone: "accent"}),
+		Children:  []ui.ViewNode{screen},
+	})
+}
 
 // dataDir is where Matomeru keeps its own files.
 func (a *App) dataDir() string {
@@ -93,10 +174,9 @@ func (a *App) scratchToggle(s core.State, c core.Command) core.StepResult {
 	if role != data.RoleScratchVim {
 		role = data.RoleScratchTerm
 	}
-	if topModal(s) == modalScratch {
-		same := a.scratchRole == role
-		s = closeModal(s, modalScratch)
-		a.scratch = ""
+	if sm := a.activeScratch(); sm != nil {
+		same := sm.role == role
+		s, _ = a.modals.Close(s, "scratch", modal.CloseCancel)
 		if same {
 			a.say("scratch hidden")
 			return core.Next(s)
@@ -123,45 +203,17 @@ func (a *App) scratchToggle(s core.State, c core.Command) core.StepResult {
 		a.fail("open "+pane.Text("title"), err)
 		return core.Next(s)
 	}
-	a.scratch, a.scratchRole = pane.ID, role
 	key := map[string]string{data.RoleScratchTerm: "S", data.RoleScratchVim: "V"}[role]
 	a.say("%s · ctrl+a %s hides it", pane.Text("title"), key)
-	return core.Next(openModal(s, modalScratch, ModeTerminal, scratchScreen))
+	return core.Next(a.pushModal(s, &scratchModal{a: a, paneID: pane.ID, role: role}))
 }
 
 // termPane is the pane keys typed in terminal mode go to: the scratch that
 // is shown, or the pane the rail has selected.
 func (a *App) termPane(s core.State) (*data.Record, bool) {
-	if topModal(s) == modalScratch && a.scratch != "" {
-		rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: a.scratch})
+	if sm := a.activeScratch(); sm != nil && sm.paneID != "" {
+		rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: sm.paneID})
 		return rec, err == nil
 	}
 	return a.SelectedPane()
-}
-
-// scratchModal draws the shown scratch: its live session, or, without one,
-// the lines typed into it.
-func (a *App) scratchModal() ui.ViewNode {
-	ref := core.Ref{Kind: data.KindPane, ID: a.scratch}
-	pane, err := a.Store.Get(ref)
-	if err != nil {
-		return overlay(modalScratch, "Scratch", 90, 85, text("", "The scratch pane is gone: "+err.Error(), "warning"))
-	}
-	screen := ui.ViewNode{ID: scratchScreen, Kind: ui.KindTerminal, Scope: "terminal", Focusable: true, Props: map[string]any{"streamId": pane.ID}}
-	badges := []ui.Badge{{Text: "not attached", Tone: "muted"}}
-	title := pane.Text("title")
-	if lines, cursor, live, ok := a.liveScreen(*pane, scratchScreen); ok {
-		screen.Props["lines"], screen.Props["cursor"] = lines, cursor
-		badges = live
-		if f := a.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
-			title = fmt.Sprintf("%s · pid %d", title, f.PID)
-		}
-	} else {
-		screen.Props["lines"] = a.termLines(*pane, true)
-	}
-	ov := overlay(modalScratch, title, 90, 85, screen)
-	ov.Scope, ov.Ref = data.KindPane, &ref
-	ov.Facts = map[string]any{"role": pane.Text("role"), "scratch": true}
-	ov.Badges = append(badges, ui.Badge{Text: "global scratch", Tone: "accent"})
-	return ov
 }

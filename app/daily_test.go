@@ -69,10 +69,10 @@ func TestYankPicker(t *testing.T) {
 	browseTo(t, a, d, task)
 
 	d.Keys("y")
-	if a.Modal() != modalYank || a.Mode() != ModePicker {
+	if a.Modal() != "yank" || a.Mode() != ModePicker {
 		t.Fatalf("y did not open the yank picker (modal %q, mode %q)", a.Modal(), a.Mode())
 	}
-	ids := pickerIDs(a, modalYank)
+	ids := pickerIDs(a, "yank")
 	for _, want := range []string{"title", "defaultDir", "repo", "workStatus", "ref", "id", "json", "markdown"} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the yank picker of a task has no %q: %v", want, ids)
@@ -85,7 +85,7 @@ func TestYankPicker(t *testing.T) {
 		t.Fatalf("the picker does not show what it copies:\n%s", frame)
 	}
 	d.Type("repo")
-	if it, ok := a.activePicker(modalYank).Model().Focused(); !ok || it.ID != "repo" {
+	if it, ok := a.activePicker("yank").Model().Focused(); !ok || it.ID != "repo" {
 		t.Fatalf("typing repo focuses %+v", it)
 	}
 	// The preview is exactly the text that is copied.
@@ -122,7 +122,7 @@ func TestYankPicker(t *testing.T) {
 
 	// A pane: the same key, the pane's own values.
 	d.Keys("1", "y")
-	ids = pickerIDs(a, modalYank)
+	ids = pickerIDs(a, "yank")
 	for _, want := range []string{"title", "cwd", "pid", "ref"} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the yank picker of a pane has no %q: %v", want, ids)
@@ -214,14 +214,14 @@ func TestRegistersAndMacros(t *testing.T) {
 		t.Fatalf("q in the outline: modal %q, pending %v", a.Modal(), a.State().Input.Prefix)
 	}
 	// q is no longer quit: Q is. With confirm.quit=true (default) it prompts first.
-	if b := a.activeBindings(a.State()); !slices.ContainsFunc(b, func(x activeBinding) bool { return x.keys == "Q" && x.command == core.CmdAppQuit }) {
+	if b := a.activeKeyBindings(a.State()); !slices.ContainsFunc(b, func(x activeBinding) bool { return x.keys == "Q" && x.command == core.CmdAppQuit }) {
 		t.Fatal("Q does not quit")
 	}
 	hasQuit := func() bool {
 		return slices.ContainsFunc(a.Shell.LastEffects, func(e core.Effect) bool { _, ok := e.(core.QuitEffect); return ok })
 	}
 	d.Keys("Q")
-	if a.Modal() != modalConfirm || a.Mode() != ModeConfirm || hasQuit() {
+	if a.Modal() != "confirm" || a.Mode() != ModeConfirm || hasQuit() {
 		t.Fatalf("Q with confirm.quit=true did not open confirm modal: modal=%q mode=%q quit=%v", a.Modal(), a.Mode(), hasQuit())
 	}
 	d.Keys("n")
@@ -267,8 +267,8 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 
 	browseTo(t, a, d, doc)
 	d.Keys("o")
-	reader := a.activeMarkdown(modalReader)
-	if a.Modal() != modalReader || a.Mode() != ModeReader || reader == nil {
+	reader := a.activeMarkdown("reader")
+	if a.Modal() != "reader" || a.Mode() != ModeReader || reader == nil {
 		t.Fatalf("o on a document with a .md file did not open the reader (modal %q, status %q)", a.Modal(), a.Status())
 	}
 	md := reader.Model()
@@ -309,14 +309,14 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 		t.Fatalf("the URL link did not start %q: %v (status %q)", want, err, a.Status())
 	}
 	d.Keys("q")
-	if a.Modal() != "" || a.activeMarkdown(modalReader) != nil || a.Mode() != ModeNormal {
+	if a.Modal() != "" || a.activeMarkdown("reader") != nil || a.Mode() != ModeNormal {
 		t.Fatalf("q did not close the reader (modal %q)", a.Modal())
 	}
 
 	// O: every handler that matches, and Copy Path.
 	browseTo(t, a, d, doc)
 	d.Keys("O")
-	if ids := pickerIDs(a, modalOpenWith); a.Modal() != modalOpenWith || len(ids) != 3 || ids[2] != copyPathID {
+	if ids := pickerIDs(a, "openwith"); a.Modal() != "openwith" || len(ids) != 3 || ids[2] != copyPathID {
 		t.Fatalf("O offers %v (modal %q)", ids, a.Modal())
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "markdown-reader") || !strings.Contains(frame, "side-vim") || !strings.Contains(frame, "Copy Path") {
@@ -339,12 +339,12 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 	// A note kept inline opens in the reader too; it has no path to copy.
 	browseTo(t, a, d, note)
 	d.Keys("O")
-	if ids := pickerIDs(a, modalOpenWith); len(ids) != 1 {
+	if ids := pickerIDs(a, "openwith"); len(ids) != 1 {
 		t.Fatalf("O on an inline note offers %v", ids)
 	}
 	d.Keys("esc", "o")
-	inlineReader := a.activeMarkdown(modalReader)
-	if a.Modal() != modalReader || inlineReader == nil || inlineReader.Model().Title != "Inline" || !strings.Contains(d.Frame(), "Kept in the record.") {
+	inlineReader := a.activeMarkdown("reader")
+	if a.Modal() != "reader" || inlineReader == nil || inlineReader.Model().Title != "Inline" || !strings.Contains(d.Frame(), "Kept in the record.") {
 		t.Fatalf("o on a note (modal %q):\n%s", a.Modal(), d.Frame())
 	}
 	d.Keys("esc")
@@ -352,7 +352,7 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 	// A pane's directory goes to the path picker; a task, with nothing to
 	// open, keeps o for sorting.
 	d.Keys("1", "h", "h", "o")
-	if a.Modal() != modalPath {
+	if a.Modal() != "path" {
 		t.Fatalf("o on a pane with a directory: modal %q, status %q", a.Modal(), a.Status())
 	}
 	d.Keys("esc")
@@ -478,7 +478,7 @@ func TestGlobalScratches(t *testing.T) {
 	focus, row := a.Focus(), a.tables[workTable].SelectedIdx
 
 	d.Keys("ctrl+a", "S")
-	if a.Modal() != modalScratch || a.Mode() != ModeTerminal || a.Space() != SpaceWork {
+	if a.Modal() != "scratch" || a.Mode() != ModeTerminal || a.Space() != SpaceWork {
 		t.Fatalf("ctrl+a S: modal %q, mode %q, space %q, status %q", a.Modal(), a.Mode(), a.Space(), a.Status())
 	}
 	terms := panesWithRole(t, a, data.RoleScratchTerm)
@@ -501,8 +501,8 @@ func TestGlobalScratches(t *testing.T) {
 	d.Keys("ctrl+a", "V")
 	vims := panesWithRole(t, a, data.RoleScratchVim)
 	file := filepath.Join(dataDir, "scratch.md")
-	if a.Modal() != modalScratch || len(vims) != 1 || a.scratch != vims[0].ID || len(a.State().Modals) != 1 {
-		t.Fatalf("ctrl+a V: modal %q, scratch %q, vims %d", a.Modal(), a.scratch, len(vims))
+	if sm := a.activeScratch(); a.Modal() != "scratch" || len(vims) != 1 || sm == nil || sm.paneID != vims[0].ID || len(a.State().Modals) != 1 {
+		t.Fatalf("ctrl+a V: modal %q, scratch %+v, vims %d", a.Modal(), a.activeScratch(), len(vims))
 	}
 	if got := host.opened[vims[0].ID]; len(got) != 2 || got[0] != "vim "+file || got[1] != dataDir || vims[0].Text("filePath") != file {
 		t.Fatalf("the scratch editor runs %q on %q", got, vims[0].Text("filePath"))
@@ -517,8 +517,8 @@ func TestGlobalScratches(t *testing.T) {
 
 	// Asked for again, from another space: the same pane and the same session.
 	d.Keys("3", "ctrl+a", "S")
-	if again := panesWithRole(t, a, data.RoleScratchTerm); len(again) != 1 || a.scratch != term.ID || a.Space() != SpaceRuns {
-		t.Fatalf("a second scratch terminal was made: %d (shown %q)", len(again), a.scratch)
+	if again, sm := panesWithRole(t, a, data.RoleScratchTerm), a.activeScratch(); len(again) != 1 || sm == nil || sm.paneID != term.ID || a.Space() != SpaceRuns {
+		t.Fatalf("a second scratch terminal was made: %d (shown %+v)", len(again), sm)
 	}
 	if !strings.Contains(d.Frame(), "$ ls") {
 		t.Fatalf("the session did not survive hiding:\n%s", d.Frame())
@@ -565,13 +565,14 @@ func TestGlobalScratches(t *testing.T) {
 func TestScratchWithoutHost(t *testing.T) {
 	a, d := demo(t)
 	d.Keys("ctrl+a", "S")
-	if a.Modal() != modalScratch || a.Mode() != ModeTerminal {
+	if a.Modal() != "scratch" || a.Mode() != ModeTerminal {
 		t.Fatalf("modal %q, mode %q", a.Modal(), a.Mode())
 	}
 	d.Type("ls")
 	d.Keys("enter")
-	if !slices.Contains(a.termOf(a.scratch).lines, "❯ ls") || !strings.Contains(d.Frame(), "❯ ls") {
-		t.Fatalf("typed lines %v", a.termOf(a.scratch).lines)
+	sm := a.activeScratch()
+	if sm == nil || !slices.Contains(a.termOf(sm.paneID).lines, "❯ ls") || !strings.Contains(d.Frame(), "❯ ls") {
+		t.Fatalf("typed lines %v", a.termOf(sm.paneID).lines)
 	}
 	d.Keys("ctrl+a", "S")
 	if a.Modal() != "" || a.Space() != SpacePanes {
@@ -594,7 +595,7 @@ func TestRuleFromSignal(t *testing.T) {
 	}
 	d.Keys("R")
 	launchMod := a.activeLaunchForm()
-	if a.Modal() != modalLaunch || launchMod == nil || len(launchMod.Model().Specs) != 3 {
+	if a.Modal() != "launch" || launchMod == nil || len(launchMod.Model().Specs) != 3 {
 		t.Fatalf("R did not open the three-line form (modal %q, status %q)", a.Modal(), a.Status())
 	}
 	fm := launchMod.Model()
@@ -626,7 +627,7 @@ func TestRuleFromSignal(t *testing.T) {
 	}
 	// R anywhere else does nothing of the kind.
 	d.Keys("R")
-	if a.Modal() != modalLaunch {
+	if a.Modal() != "launch" {
 		t.Fatalf("R on the remaining signal: modal %q", a.Modal())
 	}
 	d.Keys("esc")
@@ -645,8 +646,8 @@ func TestInspectActionsAndModes(t *testing.T) {
 	d.Keys("2", ":")
 	d.Type("inspect actions")
 	d.Keys("enter")
-	inspectMod := a.activePicker(modalInspect)
-	if a.Modal() != modalInspect || a.Mode() != ModeInspect || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectActions {
+	inspectMod := a.activePicker("inspect")
+	if a.Modal() != "inspect" || a.Mode() != ModeInspect || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectActions {
 		t.Fatalf(": inspect actions: modal %q, mode %q", a.Modal(), a.Mode())
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "Inspect actions") || !strings.Contains(frame, unboundBadge) {
@@ -660,7 +661,7 @@ func TestInspectActionsAndModes(t *testing.T) {
 		t.Fatalf("%d rows for %d actions", len(pm.Items), len(ActionsOf(a.bindings, a.specs)))
 	}
 	item := func(id string) (found bool, unbound bool, keys string) {
-		for _, it := range a.activePicker(modalInspect).Model().Items {
+		for _, it := range a.activePicker("inspect").Model().Items {
 			if it.ID == id {
 				return true, it.Badges[0].Text == unboundBadge, it.Badges[0].Text
 			}
@@ -679,7 +680,7 @@ func TestInspectActionsAndModes(t *testing.T) {
 	}
 	d.Type(CmdGroupField)
 	d.Keys("enter")
-	if focused, _ := pm.Focused(); a.Mode() != ModeInspect || a.Modal() != modalInspect || focused.ID != CmdGroupField {
+	if focused, _ := pm.Focused(); a.Mode() != ModeInspect || a.Modal() != "inspect" || focused.ID != CmdGroupField {
 		t.Fatalf("the filter: mode %q, focused %q", a.Mode(), focused.ID)
 	}
 	d.Keys("a")
@@ -708,8 +709,8 @@ func TestInspectActionsAndModes(t *testing.T) {
 	d.Keys("g", "n")
 	d.Type("modes")
 	d.Keys("enter")
-	inspectMod = a.activePicker(modalInspect)
-	if a.Modal() != modalInspect || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectModes || len(inspectMod.Model().Items) != len(Modes()) {
+	inspectMod = a.activePicker("inspect")
+	if a.Modal() != "inspect" || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectModes || len(inspectMod.Model().Items) != len(Modes()) {
 		t.Fatalf("g n modes: modal %q", a.Modal())
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "Inspect modes") || !strings.Contains(frame, "passthrough") || !strings.Contains(frame, "base normal") {
@@ -723,8 +724,8 @@ func TestInspectActionsAndModes(t *testing.T) {
 	d.Keys("g", "n")
 	d.Type("actions")
 	d.Keys("enter")
-	inspectMod = a.activePicker(modalInspect)
-	if a.Modal() != modalInspect || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectActions {
+	inspectMod = a.activePicker("inspect")
+	if a.Modal() != "inspect" || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectActions {
 		t.Fatalf("g n actions: modal %q", a.Modal())
 	}
 
@@ -772,7 +773,7 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 	}
 	// n opens the New Schedule form pre-filled with task = this task.
 	d.Keys("n")
-	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || rf.kind != data.KindSchedule {
+	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || rf.kind != data.KindSchedule {
 		t.Fatalf("n on empty Schedules: modal=%q form=%+v", a.Modal(), rf)
 	}
 	if got, ok := data.AsRef(a.activeRecordForm().Model().TypedValues()["task"]); !ok || got != task.Ref() {
@@ -788,7 +789,7 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 		t.Fatalf("could not focus empty Directories section (landed on %q)", a.Focus())
 	}
 	d.Keys("n")
-	if a.Modal() != modalPath || a.activePathPicker() == nil {
+	if a.Modal() != "path" || a.activePathPicker() == nil {
 		t.Fatalf("n on empty Directories: modal=%q pathPicker=%v", a.Modal(), a.activePathPicker())
 	}
 	d.Keys("esc")
@@ -823,10 +824,10 @@ func TestRecordActionsPicker(t *testing.T) {
 
 	// ; opens a picker scoped strictly to commands for the focused task (no global graph commands).
 	d.Keys(";")
-	if a.Modal() != modalRecordActions || a.Mode() != ModePicker {
+	if a.Modal() != "record.actions" || a.Mode() != ModePicker {
 		t.Fatalf("; did not open record actions picker (modal %q, mode %q)", a.Modal(), a.Mode())
 	}
-	ids := pickerIDs(a, modalRecordActions)
+	ids := pickerIDs(a, "record.actions")
 	for _, want := range []string{views.CmdOpen, views.CmdEdit, views.CmdStar, views.CmdArchive, views.CmdSnooze, CmdAssign, CmdYankPick, CmdPathOpen} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("record actions on task missing %q: %v", want, ids)
@@ -847,7 +848,7 @@ func TestRecordActionsPicker(t *testing.T) {
 	}
 	// Re-opening ; now offers record.unstar instead of record.star.
 	d.Keys(";")
-	ids = pickerIDs(a, modalRecordActions)
+	ids = pickerIDs(a, "record.actions")
 	if !slices.Contains(ids, views.CmdUnstar) || slices.Contains(ids, views.CmdStar) {
 		t.Fatalf("after starring, record actions = %v", ids)
 	}
@@ -857,7 +858,7 @@ func TestRecordActionsPicker(t *testing.T) {
 	sig := mkRec(t, a, data.KindSignal, map[string]any{"title": "ci green", "source": "github"})
 	browseTo(t, a, d, sig)
 	d.Keys(";")
-	if ids := pickerIDs(a, modalRecordActions); !slices.Contains(ids, CmdTriageRule) || slices.Contains(ids, CmdRunRerun) {
+	if ids := pickerIDs(a, "record.actions"); !slices.Contains(ids, CmdTriageRule) || slices.Contains(ids, CmdRunRerun) {
 		t.Fatalf("signal record actions = %v", ids)
 	}
 	d.Keys("esc")
@@ -865,7 +866,7 @@ func TestRecordActionsPicker(t *testing.T) {
 	doc := mkRec(t, a, data.KindDocument, map[string]any{"title": "Spec", "filePath": "/tmp/spec.md"})
 	browseTo(t, a, d, doc)
 	d.Keys(";")
-	if ids := pickerIDs(a, modalRecordActions); !slices.Contains(ids, CmdOpenTarget) || !slices.Contains(ids, CmdOpenWith) {
+	if ids := pickerIDs(a, "record.actions"); !slices.Contains(ids, CmdOpenTarget) || !slices.Contains(ids, CmdOpenWith) {
 		t.Fatalf("openable document record actions = %v", ids)
 	}
 	d.Keys("esc")
@@ -935,11 +936,15 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	d.Keys("B", "/")
 	d.Type("verb:record.star extra")
 	d.Keys("ctrl+w")
-	if got := a.bindLine.Value(); got != "verb:record.star " {
+	bm := a.activeBindings()
+	if bm == nil {
+		t.Fatal("bindings modal not open")
+	}
+	if got := bm.line.Value(); got != "verb:record.star " {
 		t.Fatalf("bindings filter ctrl+w -> %q", got)
 	}
 	if len(a.bindEd.Filtered()) != 1 {
-		t.Fatalf("bindings filter did not apply query %q (got %d rows)", a.bindLine.Value(), len(a.bindEd.Filtered()))
+		t.Fatalf("bindings filter did not apply query %q (got %d rows)", bm.line.Value(), len(a.bindEd.Filtered()))
 	}
 	d.Keys("esc", "esc")
 

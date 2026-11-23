@@ -74,8 +74,8 @@ func (a *App) focusedTableForPreset(s core.State, c core.Command) (*table.Model,
 			return tbl, id
 		}
 	}
-	if topModal(s) == modalPresets {
-		if pm := a.activePicker(modalPresets); pm != nil {
+	if a.Modal() == "table.presets" {
+		if pm := a.activePicker("table.presets"); pm != nil {
 			if id, _ := pm.View(0, 0).Facts["table"].(string); id != "" {
 				if tbl := a.ensureTable(id); tbl != nil {
 					return tbl, id
@@ -174,7 +174,7 @@ func (a *App) presetPickerItems(tableID string) []picker.Item {
 }
 
 func (a *App) refreshPresetPicker(tableID string) {
-	if pm := a.activePicker(modalPresets); pm != nil {
+	if pm := a.activePicker("table.presets"); pm != nil {
 		pm.SetItems(a.presetPickerItems(tableID))
 	}
 }
@@ -195,7 +195,7 @@ func (a *App) tablePresetPick(s core.State, c core.Command) core.StepResult {
 	}
 	var m *modal.PickerModal
 	m = modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:       modalPresets,
+		ID:       "table.presets",
 		PageSize: 10,
 		Facts: func(*picker.Model) map[string]any {
 			return map[string]any{"table": tableID}

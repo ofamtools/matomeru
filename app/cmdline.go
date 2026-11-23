@@ -97,10 +97,10 @@ func (a *App) shellOpen(s core.State, c core.Command) core.StepResult {
 	}
 
 	m := modal.NewCommandLineModal(a.cmdline, modal.CommandLineOptions{
-		ID:          modalCommandLine,
-		Scope:       modalCommandLine,
+		ID:          "commandline",
+		Scope:       "commandline",
 		Mode:        ModeCommandLine,
-		FocusID:     modalCommandLine + ".input",
+		FocusID:     "commandline.input",
 		Title:       title,
 		TitleSuffix: titleSuffix,
 		WidthPct:    78,

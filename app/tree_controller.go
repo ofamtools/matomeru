@@ -11,6 +11,7 @@ import (
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/tree"
 )
 
@@ -83,6 +84,10 @@ func (tc *treeController) editing() bool {
 		return tm != nil && tm.Editing()
 	}
 	return tc.outline != nil && tc.outline.Editing()
+}
+
+func (tc *treeController) editingOutline() bool {
+	return tc != nil && tc.editMeta != nil && !tc.editMeta.isWorkTree && tc.outline != nil && tc.outline.Editing()
 }
 
 func (tc *treeController) activeEdit() *tree.EditState {
@@ -168,7 +173,7 @@ func (a *App) workTasksLayout() string {
 // hierarchy tree (true when the browsed noun resolves to tree layout and no
 // table filter, sort, or group is active).
 func (a *App) inWorkTree(s core.State) bool {
-	if s.ActivePage != SpaceWork || topModal(s) != "" || a.histPos >= 0 {
+	if s.ActivePage != SpaceWork || a.Modal() != "" || a.histPos >= 0 {
 		return false
 	}
 	if a.workLayoutFor(a.workKind()) != WorkTasksLayoutTree {
@@ -264,14 +269,129 @@ func (a *App) workTreeView() ui.ViewNode {
 
 func (a *App) outlineTreeView() ui.ViewNode {
 	tm := a.trees.outlineModel()
-	schema, _ := a.syncTreeModel(tm, data.KindTask, modalOutline+".tree")
+	schema, _ := a.syncTreeModel(tm, data.KindTask, outlineTree)
 	var extra []ui.Badge
 	if a.showArchived {
 		extra = append(extra, ui.Badge{Text: "archived", Tone: "muted"})
 	}
-	panel := views.TreeView(schema, tm, modalOutline, modalOutline+".tree", views.ScopeOutline, extra...)
+	panel := views.TreeView(schema, tm, "outline", outlineTree, views.ScopeOutline, extra...)
 	panel.Title = "Outline"
 	return panel
+}
+
+// outlineModal implements modal.Modal for the T task outline overlay.
+type outlineModal struct {
+	a *App
+}
+
+var _ modal.Modal = (*outlineModal)(nil)
+
+func (a *App) newOutlineModal() *outlineModal {
+	return &outlineModal{a: a}
+}
+
+func (a *App) activeOutline() *outlineModal {
+	if a.modals == nil {
+		return nil
+	}
+	m, _ := a.modals.Get("outline").(*outlineModal)
+	return m
+}
+
+func (m *outlineModal) ID() string      { return "outline" }
+func (m *outlineModal) Scope() string   { return views.ScopeOutline }
+func (m *outlineModal) FocusID() string { return outlineTree }
+
+func (m *outlineModal) Mode() string {
+	if m.a.trees.editingOutline() {
+		return ModeOutlineEdit
+	}
+	return ModeOutline
+}
+
+func (m *outlineModal) View(_, _ int) ui.ViewNode {
+	panel := m.a.outlineTreeView()
+	return modal.Overlay(modal.OverlaySpec{
+		ID:        "outline",
+		Scope:     views.ScopeOutline,
+		Title:     panel.Title,
+		WidthPct:  64,
+		HeightPct: 80,
+		Badges:    panel.Badges,
+		Facts:     panel.Facts,
+		Children:  panel.Children,
+	})
+}
+
+func (m *outlineModal) OnClose(modal.CloseReason) {
+	if m.a.trees.editingOutline() {
+		m.a.trees.clearEdit()
+	}
+}
+
+func (m *outlineModal) Handle(cmd core.Command) modal.Result {
+	switch cmd.ID {
+	case modal.CmdCancel:
+		return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseCancel}
+	case CmdOutlineJump:
+		tm := m.a.trees.outlineModel()
+		m.a.syncTreeModel(tm, data.KindTask, outlineTree)
+		row, ok := tm.Focused()
+		if !ok || row.Draft || row.ID == "" {
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		}
+		ref := core.Ref{Kind: data.KindTask, ID: row.ID}
+		m.a.afterModal(func(st core.State) core.State {
+			return m.a.show(st, ref)
+		})
+		return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+	case tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll:
+		m.a.runTreeFold(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, cmd.ID)
+		return modal.Result{Handled: true}
+	case CmdOutlineEditStart:
+		m.a.runTreeStartEdit(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, ModeOutline, false)
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditEnd:
+		m.a.runTreeStartEdit(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, ModeOutline, true)
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineAddBelow:
+		m.a.runTreeStartAdd(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, ModeOutline, false)
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineAddAbove:
+		m.a.runTreeStartAdd(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, ModeOutline, true)
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditInsert:
+		if tm, _, ok := m.a.activeEditTree(); ok {
+			tm.HandleEditCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": cmd.Arg("text")}})
+		}
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditBackspace:
+		if tm, _, ok := m.a.activeEditTree(); ok {
+			tm.HandleEditCommand(core.Command{ID: input.CmdBackspace})
+		}
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditIndent:
+		m.a.runOutlineEditIndent()
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditOutdent:
+		m.a.runOutlineEditOutdent()
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditCancel:
+		m.a.runOutlineEditCancel()
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditCommit:
+		m.a.runOutlineEditCommit()
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	}
+	if strings.HasPrefix(cmd.ID, "motion.") {
+		m.a.outlineTreeMove(cmd)
+		return modal.Result{Handled: true}
+	}
+	if m.a.trees.editingOutline() && input.IsReadlineCommand(cmd.ID) {
+		m.a.trees.outlineModel().HandleEditCommand(cmd)
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	}
+	return modal.Result{}
 }
 
 func (a *App) workTreeMove(c core.Command) {
@@ -285,14 +405,14 @@ func (a *App) workTreeMove(c core.Command) {
 
 func (a *App) outlineTreeMove(c core.Command) {
 	tm := a.trees.outlineModel()
-	a.syncTreeModel(tm, data.KindTask, modalOutline+".tree")
+	a.syncTreeModel(tm, data.KindTask, outlineTree)
 	tm.HandleCommand(c)
 	a.trees.folded[data.KindTask] = tm.Folded
 }
 
 func (a *App) activeTree(s core.State) (tm *tree.Model, kind, treeID string, isWorkTree bool, ok bool) {
-	if topModal(s) == modalOutline {
-		return a.trees.outlineModel(), data.KindTask, modalOutline + ".tree", false, true
+	if a.Modal() == "outline" {
+		return a.trees.outlineModel(), data.KindTask, outlineTree, false, true
 	}
 	if a.inWorkTree(s) {
 		k := a.workKind()
@@ -368,58 +488,66 @@ func (a *App) workLayoutToggle(s core.State, _ core.Command) core.StepResult {
 
 // --- folding --------------------------------------------------------------------
 
+func (a *App) runTreeFold(tm *tree.Model, kind, treeID string, isWork bool, cmdID string) {
+	a.syncTreeModel(tm, kind, treeID)
+	beforeRow, hasBefore := tm.Focused()
+	switch cmdID {
+	case tree.CmdFoldToggle:
+		if !tm.ToggleFold() {
+			if hasBefore && !beforeRow.Draft {
+				a.say("%s has no children to fold", a.title(core.Ref{Kind: kind, ID: beforeRow.ID}))
+			} else {
+				a.say("nothing to fold")
+			}
+			return
+		}
+		afterRow, _ := tm.Focused()
+		if tm.Folded[afterRow.ID] {
+			a.say("folded %s", a.title(core.Ref{Kind: kind, ID: afterRow.ID}))
+		} else {
+			a.say("unfolded %s", a.title(core.Ref{Kind: kind, ID: afterRow.ID}))
+		}
+	case tree.CmdFoldOpen:
+		if tm.Unfold() {
+			if row, has := tm.Focused(); has {
+				a.say("unfolded %s", a.title(core.Ref{Kind: kind, ID: row.ID}))
+			}
+		} else {
+			a.say("already unfolded")
+		}
+	case tree.CmdFoldClose:
+		if tm.Fold() {
+			if row, has := tm.Focused(); has {
+				a.say("folded %s", a.title(core.Ref{Kind: kind, ID: row.ID}))
+			}
+		} else {
+			a.say("nothing to fold")
+		}
+	case tree.CmdFoldOpenAll:
+		tm.UnfoldAll()
+		a.say("unfolded all")
+	case tree.CmdFoldCloseAll:
+		tm.FoldAll()
+		a.say("folded all")
+	}
+	a.trees.folded[kind] = tm.Folded
+	if isWork {
+		a.syncWorkTreeToTable(kind, tm)
+	}
+}
+
 func (a *App) treeFoldCommand(cmdID string) func(core.State, core.Command) core.StepResult {
-	return func(s core.State, _ core.Command) core.StepResult {
+	return func(s core.State, c core.Command) core.StepResult {
+		if a.Modal() == "outline" {
+			c.ID = cmdID
+			return a.handleModal(s, c)
+		}
 		tm, kind, treeID, isWork, ok := a.activeTree(s)
 		if !ok {
 			a.say("no tree is focused")
 			return core.Next(s)
 		}
-		a.syncTreeModel(tm, kind, treeID)
-		beforeRow, hasBefore := tm.Focused()
-		switch cmdID {
-		case tree.CmdFoldToggle:
-			if !tm.ToggleFold() {
-				if hasBefore && !beforeRow.Draft {
-					a.say("%s has no children to fold", a.title(core.Ref{Kind: kind, ID: beforeRow.ID}))
-				} else {
-					a.say("nothing to fold")
-				}
-				return core.Next(s)
-			}
-			afterRow, _ := tm.Focused()
-			if tm.Folded[afterRow.ID] {
-				a.say("folded %s", a.title(core.Ref{Kind: kind, ID: afterRow.ID}))
-			} else {
-				a.say("unfolded %s", a.title(core.Ref{Kind: kind, ID: afterRow.ID}))
-			}
-		case tree.CmdFoldOpen:
-			if tm.Unfold() {
-				if row, has := tm.Focused(); has {
-					a.say("unfolded %s", a.title(core.Ref{Kind: kind, ID: row.ID}))
-				}
-			} else {
-				a.say("already unfolded")
-			}
-		case tree.CmdFoldClose:
-			if tm.Fold() {
-				if row, has := tm.Focused(); has {
-					a.say("folded %s", a.title(core.Ref{Kind: kind, ID: row.ID}))
-				}
-			} else {
-				a.say("nothing to fold")
-			}
-		case tree.CmdFoldOpenAll:
-			tm.UnfoldAll()
-			a.say("unfolded all")
-		case tree.CmdFoldCloseAll:
-			tm.FoldAll()
-			a.say("folded all")
-		}
-		a.trees.folded[kind] = tm.Folded
-		if isWork {
-			a.syncWorkTreeToTable(kind, tm)
-		}
+		a.runTreeFold(tm, kind, treeID, isWork, cmdID)
 		return core.Next(s)
 	}
 }
@@ -463,68 +591,88 @@ func (a *App) defaultEditPrefix(schema data.Schema) string {
 	return ""
 }
 
+func (a *App) runTreeStartEdit(tm *tree.Model, kind, treeID string, isWork bool, returnMode string, atEnd bool) bool {
+	a.syncTreeModel(tm, kind, treeID)
+	row, has := tm.Focused()
+	if !has || row.Draft {
+		a.say("no item selected")
+		return false
+	}
+	prefix := ""
+	if row.Node.Icon != "" {
+		prefix = row.Node.Icon + " "
+	}
+	if !tm.StartRename(prefix) {
+		a.say("no item selected")
+		return false
+	}
+	if !atEnd {
+		tm.HandleEditCommand(core.Command{ID: input.CmdLineStart})
+	}
+	a.trees.editMeta = &treeEditMeta{
+		kind:       kind,
+		returnMode: returnMode,
+		isWorkTree: isWork,
+	}
+	a.say("inline edit · enter saves · esc cancels")
+	return true
+}
+
+func (a *App) runTreeStartAdd(tm *tree.Model, kind, treeID string, isWork bool, returnMode string, above bool) {
+	schema, _ := a.syncTreeModel(tm, kind, treeID)
+	editKind := tree.EditAddBelow
+	if above {
+		editKind = tree.EditAddAbove
+	}
+	tm.StartAdd(editKind, a.defaultEditPrefix(schema))
+	a.trees.editMeta = &treeEditMeta{
+		kind:       kind,
+		returnMode: returnMode,
+		isWorkTree: isWork,
+	}
+	noun := strings.ToLower(schema.Title)
+	if noun == "" {
+		noun = kind
+	}
+	a.say("new %s · tab indents · shift+tab outdents · enter saves · esc cancels", noun)
+}
+
 func (a *App) outlineStartEdit(atEnd bool) func(core.State, core.Command) core.StepResult {
-	return func(s core.State, _ core.Command) core.StepResult {
+	return func(s core.State, c core.Command) core.StepResult {
+		if a.Modal() == "outline" {
+			return a.handleModal(s, c)
+		}
 		tm, kind, treeID, isWork, ok := a.activeTree(s)
 		if !ok {
 			a.say("no tree is focused")
 			return core.Next(s)
 		}
-		a.syncTreeModel(tm, kind, treeID)
-		row, has := tm.Focused()
-		if !has || row.Draft {
-			a.say("no item selected")
+		if !a.runTreeStartEdit(tm, kind, treeID, isWork, s.ActiveFrame().Mode, atEnd) {
 			return core.Next(s)
 		}
-		prefix := ""
-		if row.Node.Icon != "" {
-			prefix = row.Node.Icon + " "
-		}
-		if !tm.StartRename(prefix) {
-			a.say("no item selected")
-			return core.Next(s)
-		}
-		if !atEnd {
-			tm.HandleEditCommand(core.Command{ID: input.CmdLineStart})
-		}
-		a.trees.editMeta = &treeEditMeta{
-			kind:       kind,
-			returnMode: s.ActiveFrame().Mode,
-			isWorkTree: isWork,
-		}
-		a.say("inline edit · enter saves · esc cancels")
 		return core.Next(withMode(s, ModeOutlineEdit))
 	}
 }
 
 func (a *App) outlineStartAdd(above bool) func(core.State, core.Command) core.StepResult {
-	return func(s core.State, _ core.Command) core.StepResult {
+	return func(s core.State, c core.Command) core.StepResult {
+		if a.Modal() == "outline" {
+			return a.handleModal(s, c)
+		}
 		tm, kind, treeID, isWork, ok := a.activeTree(s)
 		if !ok {
 			a.say("no tree is focused")
 			return core.Next(s)
 		}
-		schema, _ := a.syncTreeModel(tm, kind, treeID)
-		editKind := tree.EditAddBelow
-		if above {
-			editKind = tree.EditAddAbove
-		}
-		tm.StartAdd(editKind, a.defaultEditPrefix(schema))
-		a.trees.editMeta = &treeEditMeta{
-			kind:       kind,
-			returnMode: s.ActiveFrame().Mode,
-			isWorkTree: isWork,
-		}
-		noun := strings.ToLower(schema.Title)
-		if noun == "" {
-			noun = kind
-		}
-		a.say("new %s · tab indents · shift+tab outdents · enter saves · esc cancels", noun)
+		a.runTreeStartAdd(tm, kind, treeID, isWork, s.ActiveFrame().Mode, above)
 		return core.Next(withMode(s, ModeOutlineEdit))
 	}
 }
 
 func (a *App) outlineEditInsert(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
 	tm, _, ok := a.activeEditTree()
 	if !ok {
 		return core.Next(s)
@@ -533,7 +681,10 @@ func (a *App) outlineEditInsert(s core.State, c core.Command) core.StepResult {
 	return core.Next(s)
 }
 
-func (a *App) outlineEditBackspace(s core.State, _ core.Command) core.StepResult {
+func (a *App) outlineEditBackspace(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
 	tm, _, ok := a.activeEditTree()
 	if !ok {
 		return core.Next(s)
@@ -542,10 +693,10 @@ func (a *App) outlineEditBackspace(s core.State, _ core.Command) core.StepResult
 	return core.Next(s)
 }
 
-func (a *App) outlineEditIndent(s core.State, _ core.Command) core.StepResult {
+func (a *App) runOutlineEditIndent() {
 	tm, meta, ok := a.activeEditTree()
 	if !ok {
-		return core.Next(s)
+		return
 	}
 	if tm.EditIndent() {
 		a.trees.folded[meta.kind] = tm.Folded
@@ -555,13 +706,20 @@ func (a *App) outlineEditIndent(s core.State, _ core.Command) core.StepResult {
 	} else {
 		a.say("no item above to indent under")
 	}
+}
+
+func (a *App) outlineEditIndent(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
+	a.runOutlineEditIndent()
 	return core.Next(s)
 }
 
-func (a *App) outlineEditOutdent(s core.State, _ core.Command) core.StepResult {
+func (a *App) runOutlineEditOutdent() {
 	tm, meta, ok := a.activeEditTree()
 	if !ok {
-		return core.Next(s)
+		return
 	}
 	if tm.EditOutdent() {
 		if ed := tm.Edit(); ed != nil && ed.ParentID != "" {
@@ -572,13 +730,20 @@ func (a *App) outlineEditOutdent(s core.State, _ core.Command) core.StepResult {
 	} else {
 		a.say("already at top level")
 	}
+}
+
+func (a *App) outlineEditOutdent(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
+	a.runOutlineEditOutdent()
 	return core.Next(s)
 }
 
-func (a *App) outlineEditCancel(s core.State, _ core.Command) core.StepResult {
+func (a *App) runOutlineEditCancel() (string, bool) {
 	tm, meta, ok := a.activeEditTree()
 	if !ok {
-		return core.Next(s)
+		return "", false
 	}
 	ret := meta.returnMode
 	if ret == "" {
@@ -587,13 +752,23 @@ func (a *App) outlineEditCancel(s core.State, _ core.Command) core.StepResult {
 	tm.CancelEdit()
 	a.trees.editMeta = nil
 	a.say("")
-	return core.Next(withMode(s, ret))
+	return ret, true
 }
 
-func (a *App) outlineEditCommit(s core.State, _ core.Command) core.StepResult {
+func (a *App) outlineEditCancel(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
+	if ret, ok := a.runOutlineEditCancel(); ok {
+		return core.Next(withMode(s, ret))
+	}
+	return core.Next(s)
+}
+
+func (a *App) runOutlineEditCommit() (string, bool) {
 	tm, meta, ok := a.activeEditTree()
 	if !ok {
-		return core.Next(s)
+		return "", false
 	}
 	ret := meta.returnMode
 	if ret == "" {
@@ -602,7 +777,7 @@ func (a *App) outlineEditCommit(s core.State, _ core.Command) core.StepResult {
 	res, committed := tm.CommitEdit()
 	a.trees.editMeta = nil
 	if !committed {
-		return core.Next(withMode(s, ret))
+		return ret, true
 	}
 
 	title := strings.TrimSpace(res.Value)
@@ -612,7 +787,7 @@ func (a *App) outlineEditCommit(s core.State, _ core.Command) core.StepResult {
 	if res.Kind == tree.EditRename {
 		if title == "" {
 			a.say("title cannot be empty · cancelled")
-			return core.Next(withMode(s, ret))
+			return ret, true
 		}
 		ref := core.Ref{Kind: meta.kind, ID: res.TargetID}
 		_ = a.ensureShadow(ref)
@@ -622,12 +797,12 @@ func (a *App) outlineEditCommit(s core.State, _ core.Command) core.StepResult {
 			Summary: "rename " + title,
 		}, User)
 		a.wrote("renamed to "+title, cs, err)
-		return core.Next(withMode(s, ret))
+		return ret, true
 	}
 
 	if title == "" {
 		a.say("cancelled")
-		return core.Next(withMode(s, ret))
+		return ret, true
 	}
 
 	h := schema.EffectiveHierarchy()
@@ -638,7 +813,7 @@ func (a *App) outlineEditCommit(s core.State, _ core.Command) core.StepResult {
 	created, cs, err := a.Store.Create(data.CreateInput{Kind: meta.kind, Fields: fields}, User)
 	if err != nil {
 		a.fail("new "+strings.ToLower(schema.Title), err)
-		return core.Next(withMode(s, ret))
+		return ret, true
 	}
 
 	if h != nil && h.OrderField != "" {
@@ -647,7 +822,7 @@ func (a *App) outlineEditCommit(s core.State, _ core.Command) core.StepResult {
 		}
 	}
 
-	treeID := modalOutline + ".tree"
+	treeID := outlineTree
 	if meta.isWorkTree {
 		treeID = workTable
 	}
@@ -658,7 +833,17 @@ func (a *App) outlineEditCommit(s core.State, _ core.Command) core.StepResult {
 		a.syncWorkTreeToTable(meta.kind, tm)
 	}
 	a.wrote("created "+title, cs, nil)
-	return core.Next(withMode(s, ret))
+	return ret, true
+}
+
+func (a *App) outlineEditCommit(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
+	if ret, ok := a.runOutlineEditCommit(); ok {
+		return core.Next(withMode(s, ret))
+	}
+	return core.Next(s)
 }
 
 func findTreeChildren(nodes []data.TreeNode, parentID string) ([]data.TreeNode, bool) {

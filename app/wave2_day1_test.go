@@ -147,7 +147,7 @@ func TestWave2DaemonResetAndStartupReconciliation(t *testing.T) {
 
 	// Run daemon.reset via default binding (g R) and confirm via y.
 	bd.Keys("1", "g", "R")
-	if b.Modal() != modalConfirm || b.Mode() != ModeConfirm {
+	if b.Modal() != "confirm" || b.Mode() != ModeConfirm {
 		t.Fatalf("g R did not open confirmation modal: modal=%q mode=%q status=%q", b.Modal(), b.Mode(), b.Status())
 	}
 	bd.Keys("y")
@@ -268,7 +268,7 @@ func TestWave2HarnessDiscoveryFormChoicesAndLaunch(t *testing.T) {
 	// Open New Pane (n) on 1 Panes and verify dynamic harness choices.
 	d.Keys("1", "n")
 	rf := a.activeRecordForm()
-	if a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane {
+	if a.Modal() != "form" || rf == nil || rf.kind != data.KindPane {
 		t.Fatalf("n on 1 Panes did not open New pane form: modal=%q form=%+v", a.Modal(), rf)
 	}
 	var harnessSpec core.ParamSpec

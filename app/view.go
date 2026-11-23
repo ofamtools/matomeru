@@ -12,6 +12,7 @@ import (
 	"ofam.dev/ochazuke/expr"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/table"
 )
 
@@ -164,11 +165,11 @@ type activeBinding struct {
 	hidden                           bool // left out of the footer, listed by help
 }
 
-// activeBindings lists the bindings a key press would reach in this state:
+// activeKeyBindings lists the bindings a key press would reach in this state:
 // right mode, a scope on the context chain, a true When, and not shadowed by
 // an earlier binding on the same keys. In the terminal it also lists what
 // the leader reaches, with the leader's key in front.
-func (a *App) activeBindings(s core.State) []activeBinding {
+func (a *App) activeKeyBindings(s core.State) []activeBinding {
 	chain := ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s))
 	out := a.bindingsFor(s, chain, a.Keymap.ModeChain(a.Engine.Mode(s)), nil, "")
 	if a.Engine.Mode(s) == ModeTerminal {
@@ -193,9 +194,13 @@ func (a *App) bindingsFor(s core.State, chain []core.ContextFrame, modes, exclud
 			facts[i][k] = v
 		}
 	}
+	modalID := ""
+	if n := len(s.Modals); n > 0 {
+		modalID = s.Modals[n-1].ID
+	}
 	env := func(level int) map[string]any {
 		return map[string]any{"mode": a.Engine.Mode(s), "scope": chain[level].Scope, "facts": facts[level],
-			"modal": map[string]any{"open": len(s.Modals) > 0, "id": topModal(s)}, "count": nil, "layer": nil}
+			"modal": map[string]any{"open": len(s.Modals) > 0, "id": modalID}, "count": nil, "layer": nil}
 	}
 	var out []activeBinding
 	seen := map[string]bool{}
@@ -499,47 +504,15 @@ func (a *App) detail(sp spaceDef, schema data.Schema, rec data.Record) ui.ViewNo
 
 // --- overlays -------------------------------------------------------------------
 
-func overlay(id, title string, widthPct, heightPct int, children ...ui.ViewNode) ui.ViewNode {
-	props := map[string]any{"widthPct": widthPct}
-	if heightPct > 0 {
-		props["heightPct"] = heightPct
-	}
-	return ui.ViewNode{ID: "modal." + id, Kind: ui.KindOverlay, Scope: "modal", Title: title, Props: props, Children: children}
-}
-
 func (a *App) modal(m core.Frame) ui.ViewNode {
-	if a.modals != nil {
-		if mod := a.modals.Get(m.ID); mod != nil {
-			w, h := 0, 0
-			if a.Shell != nil {
-				w, h = a.Shell.W, a.Shell.H
-			}
-			return mod.View(w, h)
+	if mod := a.modals.Get(m.ID); mod != nil {
+		w, h := 0, 0
+		if a.Shell != nil {
+			w, h = a.Shell.W, a.Shell.H
 		}
+		return mod.View(w, h)
 	}
-	switch m.ID {
-	case modalOutline:
-		panel := a.outlineTreeView()
-		ov := overlay(m.ID, panel.Title, 64, 80, panel.Children...)
-		ov.Scope, ov.Badges, ov.Facts = panel.Scope, panel.Badges, panel.Facts
-		return ov
-	case modalBindings:
-		if a.bindEd == nil {
-			break
-		}
-		return a.bindingsModal()
-	case modalScratch:
-		if a.scratch == "" {
-			break
-		}
-		return a.scratchModal()
-	case modalComposer:
-		if a.composer == nil {
-			break
-		}
-		return a.composerModal()
-	}
-	return overlay(m.ID, m.ID, 40, 0, text("", "nothing to show", "muted"))
+	return modal.Overlay(modal.OverlaySpec{ID: m.ID, Title: m.ID, WidthPct: 40, Children: []ui.ViewNode{text("", "nothing to show", "muted")}})
 }
 
 // noSession says why the Screen shows no live session.

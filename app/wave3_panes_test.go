@@ -376,11 +376,11 @@ func TestWave3ContextHarvestingAndPicker(t *testing.T) {
 
 	// Open searchable Context Picker with g c.
 	d.Keys("g", "c")
-	if a.Modal() != modalContext || a.Mode() != ModePicker {
+	if a.Modal() != "context" || a.Mode() != ModePicker {
 		t.Fatalf("g c did not open context picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	// Test y (yank when query empty).
-	topItem := a.activePicker(modalContext).Model().Items[0].Title
+	topItem := a.activePicker("context").Model().Items[0].Title
 	d.Keys("y")
 	if a.Modal() != "" || a.Register(core.RegUnnamed) != topItem {
 		t.Fatalf("y in context picker: modal=%q reg=%q want=%q", a.Modal(), a.Register(core.RegUnnamed), topItem)
@@ -555,7 +555,7 @@ fi
 
 	// Open composer with `c` on 1 Panes, wait for async @file and o-ai discovery.
 	d.Keys("c")
-	if a.Modal() != modalComposer || a.Mode() != ModeComposer {
+	if a.Modal() != "composer" || a.Mode() != ModeComposer {
 		t.Fatalf("c did not open prompt composer: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	a.WaitBackground()
@@ -563,24 +563,25 @@ fi
 
 	// Test async @file completion + multi-line drafting + $skill completion.
 	d.Type("Inspect @rout")
-	if a.composer == nil || !a.composer.compOpen || !strings.Contains(d.Frame(), "@pkg/router.go") {
-		t.Fatalf("@file completion did not populate: comp=%+v\n%s", a.composer, d.Frame())
+	cm := a.activeComposer()
+	if cm == nil || !cm.compOpen || !strings.Contains(d.Frame(), "@pkg/router.go") {
+		t.Fatalf("@file completion did not populate: comp=%+v\n%s", cm, d.Frame())
 	}
 	d.Keys("tab") // accepts @pkg/router.go
 	d.Keys("enter")
 	d.Type("using $tdd")
-	if !a.composer.compOpen || !strings.Contains(d.Frame(), "$tdd-loop") {
-		t.Fatalf("$skill completion did not populate from o-ai: items=%+v\n%s", a.composer.compItems, d.Frame())
+	if !cm.compOpen || !strings.Contains(d.Frame(), "$tdd-loop") {
+		t.Fatalf("$skill completion did not populate from o-ai: items=%+v\n%s", cm.compItems, d.Frame())
 	}
 	d.Keys("tab") // accepts $tdd-loop
-	if !strings.Contains(a.composer.in.Value(), "@pkg/router.go") || !strings.Contains(a.composer.in.Value(), "\n") || !strings.Contains(a.composer.in.Value(), "$tdd-loop") {
-		t.Fatalf("composer value = %q", a.composer.in.Value())
+	if !strings.Contains(cm.in.Value(), "@pkg/router.go") || !strings.Contains(cm.in.Value(), "\n") || !strings.Contains(cm.in.Value(), "$tdd-loop") {
+		t.Fatalf("composer value = %q", cm.in.Value())
 	}
 
 	// Test /command completion too, then save as draft via esc!
 	d.Type("/comp")
-	if !a.composer.compOpen || !strings.Contains(d.Frame(), "/compact") {
-		t.Fatalf("/command completion did not populate: items=%+v", a.composer.compItems)
+	if !cm.compOpen || !strings.Contains(d.Frame(), "/compact") {
+		t.Fatalf("/command completion did not populate: items=%+v", cm.compItems)
 	}
 	d.Keys("esc") // closes completion popup first
 	d.Keys("esc") // closes composer and saves draft to drafts.json
@@ -593,8 +594,8 @@ fi
 
 	// Reopen composer and restore saved draft via ctrl+p, then deliver in `send` mode (ctrl+s).
 	d.Keys("c", "ctrl+p")
-	if !strings.Contains(a.composer.in.Value(), "@pkg/router.go") {
-		t.Fatalf("ctrl+p did not restore composer draft: value=%q", a.composer.in.Value())
+	if cm := a.activeComposer(); cm == nil || !strings.Contains(cm.in.Value(), "@pkg/router.go") {
+		t.Fatalf("ctrl+p did not restore composer draft: cm=%+v", cm)
 	}
 	d.Keys("ctrl+s")
 	if a.Modal() != "" {
@@ -613,8 +614,8 @@ fi
 	a.refreshTelemetry()
 
 	d.Keys("c", "shift+tab")
-	if a.composer.delivery != ComposerModeQueue {
-		t.Fatalf("shift+tab did not switch to queue mode: got %q", a.composer.delivery)
+	if cm := a.activeComposer(); cm == nil || cm.delivery != ComposerModeQueue {
+		t.Fatalf("shift+tab did not switch to queue mode: got %+v", cm)
 	}
 	d.Type("queued-followup-prompt")
 	d.Keys("ctrl+s")
@@ -641,8 +642,8 @@ fi
 	// Test `interrupt` mode: sends Esc (\x1b), brief pause, then bracketed paste!
 	writesBefore := len(host.allWrites(pane.ID))
 	d.Keys("c", "shift+tab", "shift+tab")
-	if a.composer.delivery != ComposerModeInterrupt {
-		t.Fatalf("two shift+tabs did not switch to interrupt mode: got %q", a.composer.delivery)
+	if cm := a.activeComposer(); cm == nil || cm.delivery != ComposerModeInterrupt {
+		t.Fatalf("two shift+tabs did not switch to interrupt mode: got %+v", cm)
 	}
 	d.Type("urgent-interrupt-prompt")
 	d.Keys("ctrl+s")
@@ -753,7 +754,7 @@ func TestWave3BatchedQuestionsUI(t *testing.T) {
 
 	// Answer Q2 inside modal (first l picks canary, second l picks bluegreen), then step directly to Q3 with ctrl+n, answer Q3, and Submit All with ctrl+s!
 	d.Keys("a", "l", "l", "ctrl+n") // picks bluegreen (second choice) and steps to Q3
-	if am := a.activeAnswerForm(); a.Modal() != modalAnswer || am == nil || am.cardID != "q-note" {
+	if am := a.activeAnswerForm(); a.Modal() != "answer" || am == nil || am.cardID != "q-note" {
 		t.Fatalf("ctrl+n in batch answer modal did not move to q-note: modal=%q answer=%+v", a.Modal(), am)
 	}
 	d.Keys("i")

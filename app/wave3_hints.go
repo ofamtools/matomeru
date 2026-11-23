@@ -56,7 +56,7 @@ func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
 		a.say("no pane is selected")
 		return core.Next(s)
 	}
-	inScratch := topModal(s) == modalScratch
+	inScratch := a.activeScratch() != nil
 	lines := a.paneVisibleLines(*pane, s.ActiveFrame().Mode == ModeTerminal)
 	matches := contextitems.ExtractVisibleMatches(lines)
 	a.recordVisibleMatches(*pane, matches)

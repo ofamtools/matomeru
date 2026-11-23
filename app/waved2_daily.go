@@ -189,7 +189,7 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 	pm := picker.New("Pages", items)
 	pm.Placeholder = "search [app], [pane], and [noun] pages"
 	m := modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:        modalPages,
+		ID:        "pages",
 		WidthPct:  76,
 		HeightPct: 80,
 		PageSize:  10,
@@ -219,8 +219,8 @@ func (a *App) jumpToUnifiedPage(s core.State, pickedID string) core.State {
 			return a.bindingsOpen(s, core.Command{}).State
 		case target == "outline":
 			tm := a.trees.outlineModel()
-			a.syncTreeModel(tm, data.KindTask, modalOutline+".tree")
-			return openModal(a.dropModals(s), modalOutline, ModeOutline, modalOutline+".tree")
+			a.syncTreeModel(tm, data.KindTask, outlineTree)
+			return a.pushModal(a.dropModals(s), a.newOutlineModal())
 		case target == "inspector":
 			return a.inspectOpen(s, core.Command{Args: map[string]any{"what": InspectActions}}).State
 		}
@@ -537,7 +537,7 @@ func (a *App) paneAssociate(s core.State, c core.Command) core.StepResult {
 	pm := picker.New("Associate "+a.title(paneRef)+" with task", items)
 	pm.Placeholder = "pick an existing task or type a new task title"
 	m := modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:       modalPaneAssociate,
+		ID:       "pane.associate",
 		PageSize: 10,
 		Create: a.pickerCreateHook(data.KindTask, func(rec data.Record) modal.Result {
 			a.associatePaneWithTask(paneRef, rec.Ref())

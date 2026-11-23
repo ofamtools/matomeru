@@ -77,7 +77,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	set := func(name string, keys ...string) {
 		t.Helper()
 		d.Keys("S")
-		if a.Modal() != modalSettings {
+		if a.Modal() != "settings" {
 			t.Fatalf("S did not open the settings (modal %q)", a.Modal())
 		}
 		for i := range specs {
@@ -119,7 +119,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	}
 	set(SetEditUniversal, "space")
 	d.Keys("e")
-	if a.Modal() != modalForm || slices.ContainsFunc(a.activeRecordForm().Model().Specs, func(p core.ParamSpec) bool { return views.IsUniversalField(p.Name) }) {
+	if a.Modal() != "form" || slices.ContainsFunc(a.activeRecordForm().Model().Specs, func(p core.ParamSpec) bool { return views.IsUniversalField(p.Name) }) {
 		t.Fatal("edit.showUniversalFields off still offers them")
 	}
 	d.Keys("esc")
@@ -190,7 +190,7 @@ func TestBindingEditor(t *testing.T) {
 		}
 	}
 	d.Keys("2", "B")
-	if a.Modal() != modalBindings || a.Mode() != ModeBindings || len(a.bindEd.Filtered()) != len(DefaultBindings()) {
+	if a.Modal() != "bindings" || a.Mode() != ModeBindings || len(a.bindEd.Filtered()) != len(DefaultBindings()) {
 		t.Fatalf("B: modal %q mode %s", a.Modal(), a.Mode())
 	}
 	filter("key:Z verb:record", 2)            // snooze and unsnooze
@@ -269,11 +269,11 @@ func TestBindingEditor(t *testing.T) {
 func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	a, d := demo(t)
 	d.Keys("g", "n")
-	if a.Modal() != modalNouns {
+	if a.Modal() != "nouns" {
 		t.Fatalf("g n: modal %q", a.Modal())
 	}
 	var kinds []string
-	for _, it := range a.activePicker(modalNouns).Model().Items {
+	for _, it := range a.activePicker("nouns").Model().Items {
 		kinds = append(kinds, it.ID)
 	}
 	for _, s := range a.Store.Registry().List() {
@@ -351,7 +351,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	d.Keys("i")
 	d.Type("x")
 	d.Keys("ctrl+s")
-	if !strings.Contains(a.Status(), "not written") || !rec().SnoozedUntil.Equal(want) || a.Modal() != modalForm {
+	if !strings.Contains(a.Status(), "not written") || !rec().SnoozedUntil.Equal(want) || a.Modal() != "form" {
 		t.Fatalf("a time that does not parse: status %q, modal %q", a.Status(), a.Modal())
 	}
 	d.Keys("esc", "e")
@@ -379,11 +379,11 @@ func TestAssign(t *testing.T) {
 	d.Keys("2", "/")
 	d.Type("Tier 1:")
 	d.Keys("enter", "m")
-	if a.Modal() != modalAssign {
+	if a.Modal() != "assign" {
 		t.Fatalf("m: modal %q, status %q", a.Modal(), a.Status())
 	}
 	var offered []string
-	for _, it := range a.activePicker(modalAssign).Model().Items {
+	for _, it := range a.activePicker("assign").Model().Items {
 		offered = append(offered, strings.TrimSpace(it.Title))
 	}
 	if offered[0] != "(None / root)" || slices.Contains(offered, "Tier 1: core, ui, tea") || slices.Contains(offered, "Leader layer falls through to normal") ||
@@ -412,7 +412,7 @@ func TestAssign(t *testing.T) {
 		d.Keys("g", "n")
 		d.Type(kind)
 		d.Keys("enter", "m")
-		if pm := a.activePicker(modalAssign); a.Modal() != modalAssign || pm == nil || len(pm.Model().Items) == 0 || pm.Model().Items[0].Subtitle != "no task" {
+		if pm := a.activePicker("assign"); a.Modal() != "assign" || pm == nil || len(pm.Model().Items) == 0 || pm.Model().Items[0].Subtitle != "no task" {
 			t.Fatalf("m on a %s: modal %q picker %v", kind, a.Modal(), pm)
 		}
 		d.Keys("esc")

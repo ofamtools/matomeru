@@ -255,12 +255,11 @@ func (a *App) execDaemonReset(s core.State) core.State {
 		}
 	}
 	a.activePage = map[string]string{}
-	a.scratch = ""
+	if a.activeScratch() != nil {
+		s, _ = a.modals.Close(s, "scratch", modal.CloseCancel)
+	}
 	if s.ActiveFrame().Mode == ModeTerminal {
 		s = withMode(s, ModeNormal)
-	}
-	if topModal(s) == modalScratch {
-		s = closeModal(s, modalScratch)
 	}
 	msg := fmt.Sprintf("daemon reset · %d pane(s) cleared", dropped)
 	a.say("%s", msg)

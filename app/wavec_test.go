@@ -49,7 +49,7 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 
 	// Open outline: First is selected.
 	d.Keys("T")
-	if om := a.trees.outlineModel(); a.Modal() != modalOutline || om.SelectedID != t1.ID {
+	if om := a.trees.outlineModel(); a.Modal() != "outline" || om.SelectedID != t1.ID {
 		t.Fatalf("modal=%q sel=%q, want outline/%s", a.Modal(), om.SelectedID, t1.ID)
 	}
 
@@ -117,7 +117,7 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 	// i enters in-place inline edit at the start of the title (no modal form).
 	d.Keys("i")
 	ed := a.trees.activeEdit()
-	if a.Modal() != modalOutline || a.Mode() != ModeOutlineEdit || ed == nil {
+	if a.Modal() != "outline" || a.Mode() != ModeOutlineEdit || ed == nil {
 		t.Fatalf("after i: modal=%q mode=%q edit=%v, want outline/outline-edit", a.Modal(), a.Mode(), ed != nil)
 	}
 	if ed.Cursor() != 0 {
@@ -155,10 +155,10 @@ func TestGlobalRecentsPicker(t *testing.T) {
 	d := NewDriver(a, 120, 36)
 
 	d.Keys("g", "r")
-	if a.Modal() != modalRecents {
-		t.Fatalf("modal = %q, want %q", a.Modal(), modalRecents)
+	if a.Modal() != "recents" {
+		t.Fatalf("modal = %q, want %q", a.Modal(), "recents")
 	}
-	mod := a.activePicker(modalRecents)
+	mod := a.activePicker("recents")
 	if mod == nil || len(mod.Model().Items) < 3 {
 		t.Fatalf("recents items = %v", mod)
 	}

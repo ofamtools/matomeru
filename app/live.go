@@ -788,7 +788,7 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 		}
 		a.Term.Key(pane.ID, prefix)
 		next, effects, _ := a.act(s, *pane, a.Term.Key(pane.ID, key))
-		if a.Term.Mode(pane.ID) == ptyhost.ModeCopy && topModal(s) != modalScratch {
+		if a.Term.Mode(pane.ID) == ptyhost.ModeCopy && a.activeScratch() == nil {
 			// Copy Mode reads its keys on the Screen, wherever it was asked for.
 			a.activePage[pane.ID] = views.ScreenPageID
 			next.ActivePage = SpacePanes

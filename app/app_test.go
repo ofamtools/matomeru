@@ -123,7 +123,7 @@ func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 	a, d := demo(t)
 	task := titled(t, a, data.KindTask, "matomeru-v2")
 	d.Keys("2", "z", "a", "j", "N")
-	if a.Modal() != modalForm || !strings.Contains(d.Frame(), "New note") {
+	if a.Modal() != "form" || !strings.Contains(d.Frame(), "New note") {
 		t.Fatalf("N did not open a new note form (modal %q)", a.Modal())
 	}
 	d.Keys("i")
@@ -154,23 +154,23 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	a, d := demo(t)
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
 	d.Keys("2", "e", "j", "j", "j", "j", "j", "enter")
-	if a.Modal() != modalPath || a.activePathPicker() == nil {
+	if a.Modal() != "path" || a.activePathPicker() == nil {
 		t.Fatalf("enter on defaultDir: modal %q, pathPicker %v", a.Modal(), a.activePathPicker())
 	}
 	d.Keys("left")
 	d.Type("mato")
 	d.Keys("tab")
-	if got := a.activeRecordForm().Model().Values["defaultDir"]; got != "/home/owner/proj/matomeru-next" || a.Modal() != modalForm {
+	if got := a.activeRecordForm().Model().Values["defaultDir"]; got != "/home/owner/proj/matomeru-next" || a.Modal() != "form" {
 		t.Fatalf("staged defaultDir = %v, modal %q", got, a.Modal())
 	}
 	// A reference field opens a picker over the records it may point at.
 	d.Keys("k", "enter")
-	if pm := a.activePicker(modalRef); a.Modal() != modalRef || pm == nil || pm.Model().Title != "Pick Parent" {
+	if pm := a.activePicker("ref"); a.Modal() != "ref" || pm == nil || pm.Model().Title != "Pick Parent" {
 		t.Fatalf("enter on parent: modal %q, picker %v", a.Modal(), pm)
 	}
 	d.Type("matomeru-v2")
 	d.Keys("enter")
-	if a.Modal() != modalForm {
+	if a.Modal() != "form" {
 		t.Fatalf("after ref pick: modal %q", a.Modal())
 	}
 	d.Keys("ctrl+s")
@@ -187,7 +187,7 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	d.Keys("3", "j", "e", "j", "j", "j", "j", "i")
 	d.Type("x")
 	d.Keys("ctrl+s")
-	if now, _ := a.Store.Get(run.Ref()); now.Text("exitCode") != "1" || a.Modal() != modalForm || !strings.Contains(a.Status(), "still needed: exitCode") {
+	if now, _ := a.Store.Get(run.Ref()); now.Text("exitCode") != "1" || a.Modal() != "form" || !strings.Contains(a.Status(), "still needed: exitCode") {
 		t.Fatalf("exitCode = %q, modal %q, status %q", now.Text("exitCode"), a.Modal(), a.Status())
 	}
 }
@@ -205,11 +205,11 @@ func TestListsWorkOnAnyField(t *testing.T) {
 		data.ColStarStatus, data.ColArchiveStatus, data.ColSnoozedUntil, "sprint"}
 	for _, keys := range [][]string{{"f"}, {"g", "s"}, {"g", "b"}} {
 		d.Keys(keys...)
-		if a.Modal() != modalField {
+		if a.Modal() != "field" {
 			t.Fatalf("%v did not open the field picker (modal %q)", keys, a.Modal())
 		}
 		var offered []string
-		for _, it := range a.activePicker(modalField).Model().Items {
+		for _, it := range a.activePicker("field").Model().Items {
 			offered = append(offered, it.ID)
 		}
 		for _, field := range every {

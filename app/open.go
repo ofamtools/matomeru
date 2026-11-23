@@ -170,7 +170,7 @@ func (a *App) openWith(s core.State, c core.Command) core.StepResult {
 	pm.Placeholder = "a handler"
 	target := t
 	m := modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:       modalOpenWith,
+		ID:       "openwith",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {
 			if picked.ID == copyPathID {
@@ -229,7 +229,8 @@ func (a *App) runHandler(s core.State, rule handlers.Rule, t openTarget) core.St
 		}
 		return a.newPane(s, t.from, "vim: "+base, editorCommand()+" "+handlers.Quote(t.path), filepath.Dir(t.path), data.RoleSideVim)
 	case handlers.PathPicker:
-		return a.openPath(closeModal(s, modalOpenWith), "", t.from, t.path)
+		s, _ = a.modals.Close(s, "openwith", modal.CloseSubmit)
+		return a.openPath(s, "", t.from, t.path)
 	case handlers.NewPane:
 		if !needPath() {
 			return s
@@ -333,8 +334,8 @@ func (a *App) openReader(s core.State, t openTarget) core.State {
 	md.ShowTOC = len(md.Headings) > 1
 	var rm *modal.MarkdownModal
 	rm = modal.NewMarkdownModal(md, modal.MarkdownOptions{
-		ID:              modalReader,
-		Scope:           modalReader,
+		ID:              "reader",
+		Scope:           "reader",
 		Mode:            ModeReader,
 		FocusID:         readerNode,
 		Path:            t.path,
@@ -368,7 +369,8 @@ func (a *App) openReader(s core.State, t openTarget) core.State {
 		},
 	})
 	a.say("j/k scroll · ]/[ headings · t contents · tab links · enter opens · y yanks code · q closes")
-	return a.pushModal(closeModal(s, modalOpenWith), rm)
+	s, _ = a.modals.Close(s, "openwith", modal.CloseSubmit)
+	return a.pushModal(s, rm)
 }
 
 func slug(text string) string {

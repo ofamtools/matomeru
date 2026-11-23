@@ -45,7 +45,7 @@ func (a *App) handleModal(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	top := a.modals.Top()
-	if top == nil || top.ID() != topModal(s) {
+	if top == nil {
 		return core.Next(s)
 	}
 	res := top.Handle(c)
@@ -110,7 +110,7 @@ func (a *App) activePathPicker() *modal.PathPickerModal {
 	if a.modals == nil {
 		return nil
 	}
-	m, _ := a.modals.Get(modalPath).(*modal.PathPickerModal)
+	m, _ := a.modals.Get("path").(*modal.PathPickerModal)
 	return m
 }
 
@@ -118,7 +118,7 @@ func (a *App) activePalette() *modal.PaletteModal {
 	if a.modals == nil {
 		return nil
 	}
-	m, _ := a.modals.Get(modalPalette).(*modal.PaletteModal)
+	m, _ := a.modals.Get("palette").(*modal.PaletteModal)
 	return m
 }
 
@@ -126,7 +126,7 @@ func (a *App) activeConfirm() *modal.ConfirmModal {
 	if a.modals == nil {
 		return nil
 	}
-	m, _ := a.modals.Get(modalConfirm).(*modal.ConfirmModal)
+	m, _ := a.modals.Get("confirm").(*modal.ConfirmModal)
 	return m
 }
 
@@ -134,7 +134,7 @@ func (a *App) activeCommandLine() *modal.CommandLineModal {
 	if a.modals == nil {
 		return nil
 	}
-	m, _ := a.modals.Get(modalCommandLine).(*modal.CommandLineModal)
+	m, _ := a.modals.Get("commandline").(*modal.CommandLineModal)
 	return m
 }
 
@@ -164,7 +164,7 @@ type recordFormModal struct {
 	isNew    bool
 }
 
-// answerFormModal wraps modal.FormModal with question/batch metadata for modalAnswer.
+// answerFormModal wraps modal.FormModal with question/batch metadata for the answer modal.
 type answerFormModal struct {
 	*modal.FormModal
 	ref        core.Ref // KindQuestion ref when answering a global KindQuestion record
@@ -195,7 +195,7 @@ func (a *App) activeRecordForm() *recordFormModal {
 	if a.modals == nil {
 		return nil
 	}
-	m, _ := a.modals.Get(modalForm).(*recordFormModal)
+	m, _ := a.modals.Get("form").(*recordFormModal)
 	return m
 }
 
@@ -203,16 +203,16 @@ func (a *App) activeAnswerForm() *answerFormModal {
 	if a.modals == nil {
 		return nil
 	}
-	m, _ := a.modals.Get(modalAnswer).(*answerFormModal)
+	m, _ := a.modals.Get("answer").(*answerFormModal)
 	return m
 }
 
 func (a *App) activeLaunchForm() *modal.FormModal {
-	return a.activeForm(modalLaunch)
+	return a.activeForm("launch")
 }
 
 func (a *App) activeSettingsForm() *modal.FormModal {
-	return a.activeForm(modalSettings)
+	return a.activeForm("settings")
 }
 
 // --- form modal builders --------------------------------------------------------
@@ -271,13 +271,17 @@ func (a *App) formDraftDiscard(draftKey string) func(int) modal.Result {
 
 func (a *App) formCancelDraftClose(getModel func() *form.Model, draftKey string) func(modal.CloseReason) {
 	return func(reason modal.CloseReason) {
-		if reason != modal.CloseCancel {
-			return
-		}
-		if draftKey != "" && a.saveFormDraft(getModel(), draftKey) {
-			a.say("closed · draft saved ([ restores)")
-		} else {
-			a.say("closed")
+		switch reason {
+		case modal.CloseCancel:
+			if draftKey != "" && a.saveFormDraft(getModel(), draftKey) {
+				a.say("closed · draft saved ([ restores)")
+			} else {
+				a.say("closed")
+			}
+		case modal.CloseDropAll:
+			if draftKey != "" {
+				a.saveFormDraft(getModel(), draftKey)
+			}
 		}
 	}
 }
@@ -311,7 +315,7 @@ func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Mod
 
 	var mod *modal.FormModal
 	mod = modal.NewFormModal(fm, modal.FormOptions{
-		ID:          modalForm,
+		ID:          "form",
 		Scope:       views.ScopeEdit,
 		DraftBadges: true,
 		RenderBody: func(m *form.Model, _ string) ui.ViewNode {
@@ -319,7 +323,7 @@ func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Mod
 			if rf.ref != nil {
 				rec, _ = a.Store.Get(*rf.ref)
 			}
-			panel := views.EditView(a.schema(rf.kind), rec, m, modalForm)
+			panel := views.EditView(a.schema(rf.kind), rec, m, "form")
 			if len(panel.Badges) > 0 {
 				badges := make([]ui.Badge, 0, len(panel.Badges))
 				for _, b := range panel.Badges {
@@ -359,8 +363,8 @@ func (a *App) newLaunchModal(title, submitLabel string, specs []core.ParamSpec, 
 	}
 	var mod *modal.FormModal
 	mod = modal.NewFormModal(fm, modal.FormOptions{
-		ID:             modalLaunch,
-		Scope:          modalLaunch,
+		ID:             "launch",
+		Scope:          "launch",
 		DraftBadges:    draftKey != "",
 		DisableDrafts:  draftKey == "",
 		OnPickPath:     a.formPickPath(func() *modal.FormModal { return mod }),
@@ -375,7 +379,7 @@ func (a *App) newLaunchModal(title, submitLabel string, specs []core.ParamSpec, 
 				next, done := onSubmit(st, vals)
 				if done {
 					a.clearSubmittedDraft(fm, draftKey)
-					next, _ = a.modals.Close(next, modalLaunch, modal.CloseSubmit)
+					next, _ = a.modals.Close(next, "launch", modal.CloseSubmit)
 				}
 				return next
 			})
@@ -439,7 +443,7 @@ func (a *App) newRefPickerModal(req form.RefRequest, onPick func(core.Ref)) *mod
 		}
 	}
 	return modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:       modalRef,
+		ID:       "ref",
 		PageSize: 10,
 		Create:   createHook,
 		OnConfirm: func(picked picker.Item) modal.Result {
@@ -456,7 +460,7 @@ func (a *App) newRefPickerModal(req form.RefRequest, onPick func(core.Ref)) *mod
 // openConfirm opens the shared confirmation overlay in ModeConfirm.
 func (a *App) openConfirm(s core.State, opts modal.ConfirmOptions) core.State {
 	if opts.ID == "" {
-		opts.ID = modalConfirm
+		opts.ID = "confirm"
 	}
 	if opts.Scope == "" {
 		opts.Scope = "confirm"
@@ -524,10 +528,10 @@ func (a *App) newPathPickerModal(start any, onPick func(entry pathpicker.DirEntr
 		return nil, false
 	}
 	return modal.NewPathPickerModal(pp, modal.PathPickerOptions{
-		ID:        modalPath,
-		Scope:     modalPath,
+		ID:        "path",
+		Scope:     "path",
 		Mode:      ModePicker,
-		FocusID:   modalPath,
+		FocusID:   "path",
 		WidthPct:  70,
 		HeightPct: 70,
 		OnPick: func(entry pathpicker.DirEntry) modal.Result {
@@ -557,7 +561,7 @@ func (a *App) openPath(s core.State, field string, target *core.Ref, start any) 
 		r := *target
 		targetCopy = &r
 	}
-	parentModal := topModal(s)
+	parentModal := a.Modal()
 	pm, ok := a.newPathPickerModal(start, func(entry pathpicker.DirEntry) modal.Result {
 		if field != "" {
 			if fm := a.activeForm(parentModal); fm != nil {

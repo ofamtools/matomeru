@@ -597,10 +597,10 @@ func (a *App) aboutOpen(s core.State, _ core.Command) core.StepResult {
 	md := markdown.New("About Matomeru", FormatAboutMarkdown(info))
 	md.ShowTOC = true
 	m := modal.NewMarkdownModal(md, modal.MarkdownOptions{
-		ID:              modalAbout,
-		Scope:           modalAbout,
+		ID:              "about",
+		Scope:           "about",
 		Mode:            ModeAbout,
-		FocusID:         modalAbout + ".md",
+		FocusID:         "about.md",
 		WidthPct:        88,
 		HeightPct:       88,
 		ShowStatsBadges: false,

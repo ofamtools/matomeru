@@ -44,10 +44,10 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	ed := NewDriver(ea, 120, 36)
 
 	ed.Keys("'")
-	if ea.Modal() != modalPages || ea.Mode() != ModePicker {
+	if ea.Modal() != "pages" || ea.Mode() != ModePicker {
 		t.Fatalf("' did not open modalPages on empty store: modal=%q mode=%q", ea.Modal(), ea.Mode())
 	}
-	mod := ea.activePicker(modalPages)
+	mod := ea.activePicker("pages")
 	if mod == nil || len(mod.Model().Items) == 0 {
 		t.Fatal("unified pages picker must never be empty")
 	}
@@ -72,7 +72,7 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	// Selecting [app] About opens modalAbout.
 	ed.Type("about")
 	ed.Keys("enter")
-	if ea.Modal() != modalAbout || ea.Mode() != ModeAbout {
+	if ea.Modal() != "about" || ea.Mode() != ModeAbout {
 		t.Fatalf("picking About from ' did not open About: modal=%q mode=%q", ea.Modal(), ea.Mode())
 	}
 	ed.Keys("esc")
@@ -91,7 +91,7 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	}
 
 	d.Keys("'")
-	pm = a.activePicker(modalPages).Model()
+	pm = a.activePicker("pages").Model()
 	var hasApp, hasPane, hasScreen, hasNoun, hasExt bool
 	for _, it := range pm.Items {
 		if strings.HasPrefix(it.ID, pagePickAppPrefix) {
@@ -179,7 +179,7 @@ func TestWaveD2AboutInfoAndOverlay(t *testing.T) {
 
 	// Open About via g A binding.
 	d.Keys("g", "A")
-	if a.Modal() != modalAbout || a.Mode() != ModeAbout {
+	if a.Modal() != "about" || a.Mode() != ModeAbout {
 		t.Fatalf("g A did not open modalAbout: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	frame := d.Frame()
@@ -231,7 +231,7 @@ func TestWaveD2QuestionAnswerFromWorkSyncsPanePage(t *testing.T) {
 	// Browse Questions in 2 Work and press `a` to answer it.
 	browseTo(t, a, d, *qRec)
 	d.Keys("a")
-	if a.Modal() != modalAnswer || a.Mode() != ModeForm {
+	if a.Modal() != "answer" || a.Mode() != ModeForm {
 		t.Fatalf("a on KindQuestion in 2 Work did not open modalAnswer: modal=%q mode=%q status=%q", a.Modal(), a.Mode(), a.Status())
 	}
 	d.Keys("ctrl+s")
@@ -300,10 +300,10 @@ func TestWaveD2CommandRunEditAndYank(t *testing.T) {
 
 	// 1. Yank: y y copies the literal command string, and scriptPath is in the yank picker.
 	d.Keys("y")
-	if a.Modal() != modalYank {
+	if a.Modal() != "yank" {
 		t.Fatalf("y did not open yank picker: %q", a.Modal())
 	}
-	yankIDs := pickerIDs(a, modalYank)
+	yankIDs := pickerIDs(a, "yank")
 	if len(yankIDs) == 0 || yankIDs[0] != "command" || !slices.Contains(yankIDs, "scriptPath") {
 		t.Fatalf("command yank picker expected command first + scriptPath: %v", yankIDs)
 	}
@@ -336,7 +336,7 @@ func TestWaveD2CommandRunEditAndYank(t *testing.T) {
 	// 3. Edit & Run via `e` -> opens launch form with command/args/cwd, runs tweaked command!
 	browseTo(t, a, d, *cmdRec)
 	d.Keys("e")
-	if a.Modal() != modalLaunch || a.Mode() != ModeForm {
+	if a.Modal() != "launch" || a.Mode() != ModeForm {
 		t.Fatalf("e on KindCommand did not open edit-run launch form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	// Move to args field (index 1) and add extra arg.
@@ -421,7 +421,7 @@ func TestWaveD2UnlinkedPaneWarningContextPersistAndAssociateBackfill(t *testing.
 
 	// Press L (`pane.associate`) -> pick matomeru-v2 -> sets pane.task AND backfills context/doc/cmd!
 	d.Keys("L")
-	if a.Modal() != modalPaneAssociate || a.Mode() != ModePicker {
+	if a.Modal() != "pane.associate" || a.Mode() != ModePicker {
 		t.Fatalf("L on 1 Panes did not open pane.associate picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Type("matomeru-v2")
@@ -557,10 +557,10 @@ esac
 
 	// Verify `;` Actions puts df.culprit.clean at the top!
 	d.Keys(";")
-	if a.Modal() != modalRecordActions {
+	if a.Modal() != "record.actions" {
 		t.Fatalf("; did not open record actions: %q", a.Modal())
 	}
-	actionIDs := pickerIDs(a, modalRecordActions)
+	actionIDs := pickerIDs(a, "record.actions")
 	if len(actionIDs) == 0 || actionIDs[0] != "df.culprit.clean" {
 		t.Fatalf("expected %q at top of ; Actions on df.culprit, got %v", "df.culprit.clean", actionIDs)
 	}
@@ -568,7 +568,7 @@ esac
 
 	// Row 0 is rebuildable ("go-build-cache"): X opens Wave 4 confirmation dialog.
 	d.Keys("X")
-	if a.Modal() != modalConfirm || a.Mode() != ModeConfirm {
+	if a.Modal() != "confirm" || a.Mode() != ModeConfirm {
 		t.Fatalf("X on rebuildable df.culprit did not open confirm modal: modal=%q mode=%q status=%q", a.Modal(), a.Mode(), a.Status())
 	}
 	if !strings.Contains(d.Frame(), "Free 1.2 GB from go-build-cache via o-df clean --yes?") {
@@ -585,7 +585,7 @@ esac
 
 	// Row 1 is NOT rebuildable ("postgres-data"): X refuses gracefully with toast and no confirm modal.
 	d.Keys("j", "X")
-	if a.Modal() == modalConfirm {
+	if a.Modal() == "confirm" {
 		t.Fatal("X on non-rebuildable culprit should not open confirm modal")
 	}
 	if !strings.Contains(a.Status(), "not rebuildable") {
@@ -614,7 +614,7 @@ esac
 	a2.Shell.Update(wakeMsg())
 	_ = d2.Frame()
 	d2.Keys("X")
-	if a2.Modal() == modalConfirm {
+	if a2.Modal() == "confirm" {
 		t.Fatal("user bindings.json override on X was shadowed by extension binding")
 	}
 	shadow, err := store.Get(core.Ref{Kind: "df.culprit", ID: "go-build-cache"})
@@ -819,7 +819,7 @@ func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
 	// Open New Pane form on 1 Panes.
 	d.Keys("1", "n")
 	rf := a.activeRecordForm()
-	if a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane {
+	if a.Modal() != "form" || rf == nil || rf.kind != data.KindPane {
 		t.Fatalf("1 n did not open New pane form: modal=%q", a.Modal())
 	}
 
@@ -844,7 +844,7 @@ func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
 		t.Fatal("could not locate task field on New pane form")
 	}
 	d.Keys("enter")
-	if a.Modal() != modalRef || a.Mode() != ModePicker {
+	if a.Modal() != "ref" || a.Mode() != ModePicker {
 		t.Fatalf("enter on task field did not open modalRef: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 
@@ -857,7 +857,7 @@ func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
 
 	// Confirm the dynamic row -> creates the Task record in Store and selects it into the form!
 	d.Keys("enter")
-	if a.Modal() != modalForm {
+	if a.Modal() != "form" {
 		t.Fatalf("confirming + Create new Task did not return to New pane form: modal=%q", a.Modal())
 	}
 	createdTask, err := a.Store.GetByField(data.KindTask, "title", "Fix auth flow")

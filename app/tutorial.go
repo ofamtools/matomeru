@@ -248,7 +248,7 @@ func RunTutorialSmoke(out io.Writer) error {
 	k.Keys("enter")
 	k.check("the project's page has one subtask per step", k.has("Subtasks", "1. Move between the four spaces") && len(TutorialSteps()) >= 10)
 	k.Keys("g", "n")
-	k.check("g n lists every noun", a.Modal() == modalNouns && k.has("Tasks", "Lanes", "Notes", "Runs"))
+	k.check("g n lists every noun", a.Modal() == "nouns" && k.has("Tasks", "Lanes", "Notes", "Runs"))
 	k.Keys("esc", "3")
 	k.check("Runs has runs to rerun", k.has("echo hello", "run me again (r)"))
 	if len(k.fails) > 0 {

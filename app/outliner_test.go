@@ -47,7 +47,7 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 
 	d := NewDriver(a, 100, 24)
 	d.Keys("T")
-	if a.Modal() != modalOutline || a.Mode() != ModeOutline {
+	if a.Modal() != "outline" || a.Mode() != ModeOutline {
 		t.Fatalf("T did not open outline: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 
@@ -184,7 +184,7 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 
 	// 10. `e` opens the full metadata form when explicitly wanted.
 	d.Keys("e")
-	if a.Modal() != modalForm || a.Mode() != ModeForm {
+	if a.Modal() != "form" || a.Mode() != ModeForm {
 		t.Fatalf("after e in outline: modal=%q mode=%q, want form/form", a.Modal(), a.Mode())
 	}
 	d.Keys("esc")

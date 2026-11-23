@@ -20,7 +20,7 @@ func TestExplicitSubmitNoPrematureWrites(t *testing.T) {
 
 	// 1. New record: editing fields does NOT create a record until submit.
 	d.Keys("n")
-	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || !rf.Model().SubmitRow || rf.Model().SubmitLabel != "Create task" {
+	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || !rf.Model().SubmitRow || rf.Model().SubmitLabel != "Create task" {
 		t.Fatalf("new task form = modal:%q form:%v", a.Modal(), rf)
 	}
 	d.Keys("i")
@@ -48,7 +48,7 @@ func TestExplicitSubmitNoPrematureWrites(t *testing.T) {
 
 	// 2. Edit record: changing multiple fields stages them without writing until ctrl+s.
 	d.Keys("g", "g", "e")
-	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || !rf.Model().SubmitRow || rf.Model().SubmitLabel != "Save task" {
+	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || !rf.Model().SubmitRow || rf.Model().SubmitLabel != "Save task" {
 		t.Fatalf("edit task form = modal:%q form:%v", a.Modal(), rf)
 	}
 	d.Keys("i")
@@ -232,11 +232,11 @@ func TestFormDraftsPersistAcrossRestart(t *testing.T) {
 func TestDraftKeysDoNotSwitchSpaces(t *testing.T) {
 	a, d := demo(t)
 	d.Keys("2", "n")
-	if a.Space() != SpaceWork || a.Modal() != modalForm {
+	if a.Space() != SpaceWork || a.Modal() != "form" {
 		t.Fatalf("setup: space=%q modal=%q", a.Space(), a.Modal())
 	}
 	d.Keys("[", "]", "[", "]")
-	if a.Space() != SpaceWork || a.Modal() != modalForm {
-		t.Fatalf("after [ / ] in ModeForm: space=%q modal=%q, want %q/%q", a.Space(), a.Modal(), SpaceWork, modalForm)
+	if a.Space() != SpaceWork || a.Modal() != "form" {
+		t.Fatalf("after [ / ] in ModeForm: space=%q modal=%q, want %q/%q", a.Space(), a.Modal(), SpaceWork, "form")
 	}
 }
