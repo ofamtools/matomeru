@@ -113,17 +113,29 @@ type AskForm struct {
 	SubmitLabel string           `json:"submitLabel,omitempty"`
 }
 
-// AskArgs are the arguments of ui.ask. Give a form, choices, or a whole card.
-type AskArgs struct {
-	Pane    string       `json:"pane,omitempty"`
-	Task    string       `json:"task,omitempty"`
-	Page    string       `json:"page,omitempty"` // page ID or slug; default "questions"
-	ID      string       `json:"id,omitempty"`   // card ID; generated when empty
+// AskQuestion is one question in a batched ui.ask call.
+type AskQuestion struct {
+	ID      string       `json:"id,omitempty"`
 	Title   string       `json:"title,omitempty"`
 	Details string       `json:"details,omitempty"`
 	Form    *AskForm     `json:"form,omitempty"`
 	Choices []Choice     `json:"choices,omitempty"`
 	Card    *ui.ViewNode `json:"card,omitempty"`
+}
+
+// AskArgs are the arguments of ui.ask. Give a single question (form, choices,
+// or card) OR a batch of questions in Questions.
+type AskArgs struct {
+	Pane      string        `json:"pane,omitempty"`
+	Task      string        `json:"task,omitempty"`
+	Page      string        `json:"page,omitempty"` // page ID or slug; default "questions"
+	ID        string        `json:"id,omitempty"`   // card ID (or batch ID when questions is set); generated when empty
+	Title     string        `json:"title,omitempty"`
+	Details   string        `json:"details,omitempty"`
+	Form      *AskForm      `json:"form,omitempty"`
+	Choices   []Choice      `json:"choices,omitempty"`
+	Card      *ui.ViewNode  `json:"card,omitempty"`
+	Questions []AskQuestion `json:"questions,omitempty"`
 }
 
 // ListPagesArgs are the arguments of ui.list_pages.
@@ -139,6 +151,8 @@ type PageResult struct {
 	Slug      string    `json:"slug"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	CardID    string    `json:"cardId,omitempty"`
+	CardIDs   []string  `json:"cardIds,omitempty"`
+	BatchID   string    `json:"batchId,omitempty"`
 }
 
 // QuestionState is the state of one question card on a page.
@@ -612,13 +626,71 @@ func questionCard(args AskArgs) (ui.ViewNode, error) {
 }
 
 // Ask is ui.ask: it finds or creates the pane's persistent questions page
-// (slug "questions", pinned) and prepends an unread question card to it.
-// The answer is read back with ui.list_pages.
+// (slug "questions", pinned) and prepends either one unread question card or a
+// batch of unread question cards (when Questions is non-empty) to it.
+// Answers are read back with ui.list_pages.
 func (r *Router) Ask(actor core.Actor, args AskArgs) (*PageResult, error) {
-	card, err := questionCard(args)
-	if err != nil {
-		return nil, err
+	var (
+		cards   []ui.ViewNode
+		batchID string
+	)
+	if len(args.Questions) > 0 {
+		if args.Form != nil || len(args.Choices) > 0 || args.Card != nil {
+			return nil, errors.New("cannot specify both questions and form, choices, or card")
+		}
+		batchID = args.ID
+		if batchID == "" {
+			batchID = "batch-" + fmt.Sprintf("%x", time.Now().UnixNano())
+		}
+		seen := map[string]bool{}
+		cards = make([]ui.ViewNode, 0, len(args.Questions))
+		for i, q := range args.Questions {
+			itemArgs := AskArgs{
+				ID:      q.ID,
+				Title:   q.Title,
+				Details: q.Details,
+				Form:    q.Form,
+				Choices: q.Choices,
+				Card:    q.Card,
+			}
+			if itemArgs.ID == "" && (itemArgs.Card == nil || itemArgs.Card.ID == "") {
+				itemArgs.ID = fmt.Sprintf("%s-q%d", batchID, i+1)
+			}
+			card, err := questionCard(itemArgs)
+			if err != nil {
+				return nil, fmt.Errorf("questions[%d]: %w", i, err)
+			}
+			if seen[card.ID] {
+				return nil, fmt.Errorf("questions[%d]: duplicate card id %q", i, card.ID)
+			}
+			seen[card.ID] = true
+			if card.Props == nil {
+				card.Props = map[string]any{}
+			}
+			card.Props["batchId"] = batchID
+			card.Props["batchIndex"] = i
+			card.Props["batchTotal"] = len(args.Questions)
+			if args.Title != "" {
+				card.Props["batchTitle"] = args.Title
+			}
+			if args.Details != "" {
+				if _, has := card.Props["batchDetails"]; !has {
+					card.Props["batchDetails"] = args.Details
+				}
+			}
+			card.Facts["batchId"] = batchID
+			card.Facts["batchIndex"] = i
+			card.Facts["batchTotal"] = len(args.Questions)
+			cards = append(cards, card)
+		}
+	} else {
+		card, err := questionCard(args)
+		if err != nil {
+			return nil, err
+		}
+		cards = []ui.ViewNode{card}
 	}
+
 	slug := args.Page
 	if slug == "" {
 		slug = QuestionsSlug
@@ -650,18 +722,31 @@ func (r *Router) Ask(actor core.Actor, args AskArgs) (*PageResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if root.Find(card.ID) != nil {
-		return nil, fmt.Errorf("the page already has a card with id %q", card.ID)
+	for _, card := range cards {
+		if root.Find(card.ID) != nil {
+			return nil, fmt.Errorf("the page already has a card with id %q", card.ID)
+		}
 	}
-	if err := insert(&root, card, ModePrepend, ""); err != nil {
-		return nil, err
+	// Prepend in reverse order so questions[0] lands at the very top, followed
+	// by questions[1..N-1], keeping natural top-to-bottom reading order.
+	for i := len(cards) - 1; i >= 0; i-- {
+		if err := insert(&root, cards[i], ModePrepend, ""); err != nil {
+			return nil, err
+		}
 	}
 	saved, err := r.savePage(page, root, nil, actor)
 	if err != nil {
 		return nil, err
 	}
 	res := result(saved)
-	res.CardID = card.ID
+	res.CardID = cards[0].ID
+	if batchID != "" {
+		res.BatchID = batchID
+		res.CardIDs = make([]string, len(cards))
+		for i, c := range cards {
+			res.CardIDs[i] = c.ID
+		}
+	}
 	return res, nil
 }
 
@@ -752,6 +837,15 @@ func (r *Router) MarkViewed(pageID string, actor core.Actor) (*data.Record, erro
 // values, which ui.list_pages hands back to the agent. Answering again
 // replaces the earlier answer.
 func (r *Router) SubmitAnswer(pageID, cardID string, values map[string]any, actor core.Actor) (*data.Record, error) {
+	return r.SubmitAnswers(pageID, map[string]map[string]any{cardID: values}, actor)
+}
+
+// SubmitAnswers stores structured answers for one or more question cards on a
+// page in a single write (supporting "Submit All" for batched ui.ask pages).
+func (r *Router) SubmitAnswers(pageID string, answers map[string]map[string]any, actor core.Actor) (*data.Record, error) {
+	if len(answers) == 0 {
+		return nil, errors.New("at least one answer is required")
+	}
 	page, err := r.store.Get(pageRef(pageID))
 	if err != nil {
 		return nil, err
@@ -760,34 +854,37 @@ func (r *Router) SubmitAnswer(pageID, cardID string, values map[string]any, acto
 	if err != nil {
 		return nil, err
 	}
-	card := root.Find(cardID)
-	if card == nil {
-		return nil, fmt.Errorf("%w: no card with id %q on page %s", data.ErrNotFound, cardID, pageID)
-	}
-	if values == nil {
-		values = map[string]any{}
-	}
-	card.Unread, card.Tone = false, "success"
-	card.Badges = slices.DeleteFunc(card.Badges, func(b ui.Badge) bool { return b.Text == badgeOpen || b.Text == badgeAnswered })
-	card.Badges = append(card.Badges, ui.Badge{Text: badgeAnswered, Tone: "success"})
-	if card.Facts == nil {
-		card.Facts = map[string]any{}
-	}
-	card.Facts["answered"] = true
-	if card.Props == nil {
-		card.Props = map[string]any{}
-	}
-	card.Props[propAnswer] = values
-	card.Props[propAnsweredAt] = time.Now().UTC().Format(data.TimeFormat)
-	card.Props[propAnsweredBy] = actor
-	walkNodes(card, func(n *ui.ViewNode) {
-		if n.Kind == ui.KindForm {
-			if n.Props == nil {
-				n.Props = map[string]any{}
-			}
-			n.Props["values"] = values
+	now := time.Now().UTC().Format(data.TimeFormat)
+	for cardID, values := range answers {
+		card := root.Find(cardID)
+		if card == nil {
+			return nil, fmt.Errorf("%w: no card with id %q on page %s", data.ErrNotFound, cardID, pageID)
 		}
-	})
+		if values == nil {
+			values = map[string]any{}
+		}
+		card.Unread, card.Tone = false, "success"
+		card.Badges = slices.DeleteFunc(card.Badges, func(b ui.Badge) bool { return b.Text == badgeOpen || b.Text == badgeAnswered })
+		card.Badges = append(card.Badges, ui.Badge{Text: badgeAnswered, Tone: "success"})
+		if card.Facts == nil {
+			card.Facts = map[string]any{}
+		}
+		card.Facts["answered"] = true
+		if card.Props == nil {
+			card.Props = map[string]any{}
+		}
+		card.Props[propAnswer] = values
+		card.Props[propAnsweredAt] = now
+		card.Props[propAnsweredBy] = actor
+		walkNodes(card, func(n *ui.ViewNode) {
+			if n.Kind == ui.KindForm {
+				if n.Props == nil {
+					n.Props = map[string]any{}
+				}
+				n.Props["values"] = values
+			}
+		})
+	}
 	// The owner is looking at the page while answering it.
 	return r.savePage(page, root, map[string]any{"viewedAt": data.WriteTime{}}, actor)
 }

@@ -174,7 +174,7 @@ func (l *LaneTools) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolLaneUpdate,
-			Description: "Update a lane: its status, summary, head commit or any other field. Only the fields given are written. Returns {lane}.",
+			Description: "Update a lane: its status, summary, head commit or any other field. Only the fields given are written. Prefer archive over delete (or set status to parked/cancelled) when retiring lanes. Returns {lane}.",
 			InputSchema: object([]string{"lane"}, fields(props{"lane": text("lane ID")})),
 		},
 		{

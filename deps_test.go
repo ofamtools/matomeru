@@ -137,21 +137,43 @@ var policies = map[string]policy{
 		allow:      []string{sqlite, mod + "/data", ochazuke + "/core"},
 		forbidDeps: noUI,
 	},
+	// Local self-hosted daemon: Unix-socket PTY persistence, HTTP MCP, and schedule ticker.
+	mod + "/daemon": {
+		allow:      []string{mod + "/data", mod + "/mcpui", mod + "/ptyhost", ochazuke + "/core"},
+		forbidDeps: noTea,
+	},
+	// Agent hook handler: pure stdlib wire client for the daemon Unix socket.
+	mod + "/agenthook": {
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
+	},
+	// Standalone fast hook binary: stdlib + agenthook only.
+	mod + "/cmd/mtm-hook": {
+		allow:      []string{mod + "/agenthook"},
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
+	},
+	// Harness registry and harnesses.json config: pure stdlib.
+	mod + "/harness": {
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
+	},
+	// High-signal context items extractor: pure stdlib.
+	mod + "/contextitems": {
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
+	},
 	// The application: the only package that wires the foundation onto the
 	// engine and its Bubble Tea shell.
 	mod + "/app": {
 		allow: []string{
-			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", mod + "/handlers", mod + "/triage", bubbletea,
+			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", mod + "/handlers", mod + "/triage",
+			mod + "/daemon", mod + "/harness", mod + "/contextitems", bubbletea,
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
 			ochazuke + "/widgets/bindings", ochazuke + "/widgets/markdown", ochazuke + "/widgets/input", ochazuke + "/widgets/commandline",
 			ochazuke + "/widgets/palette",
 		},
 	},
-	// The binary: oden + ochazuke/cli around app, data, mcpui and migrate. It builds
-	// no views, and reaches runs, ext and ptyhost only through app.
+	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness and migrate.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", ochazuke + "/core", ochazuke + "/cli", oden, bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", ochazuke + "/core", ochazuke + "/cli", oden, bubbletea},
 	},
 }
 

@@ -77,7 +77,7 @@ func (r *Router) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolUpdatePage,
-			Description: "Update a page: prepend or append a node, replace the whole tree, or patch one node by ID. The page becomes unread.",
+			Description: "Update a page: prepend or append a node, replace the whole tree, or patch one node by ID. The page becomes unread. Prefer archive over delete when retiring content or pages.",
 			InputSchema: object([]string{"page", "mode"}, props{
 				"pane":     text("pane ID; needed when page is a slug"),
 				"page":     text("page ID, or a slug within pane"),
@@ -91,13 +91,13 @@ func (r *Router) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolAsk,
-			Description: "Ask the owner a question: prepends an unread question card to the pane's pinned Questions page (created when missing). Give a form, choices, or a whole card. Returns {id, ref, slug, updatedAt, cardId}; read the answer with ui.list_pages.",
+			Description: "Ask the owner one question or a batch of questions: prepends unread question card(s) to the pane's pinned Questions page (created when missing). Give either a single question (form, choices, or card) or a questions array for a multi-question batch with Submit All. Returns {id, ref, slug, updatedAt, cardId, cardIds?, batchId?}; read answers with ui.list_pages.",
 			InputSchema: object([]string{}, props{
 				"pane":    pane,
 				"task":    text("task ID for a newly created questions page"),
 				"page":    text("page ID or slug to ask on; default questions"),
-				"id":      text("card ID; generated when omitted"),
-				"title":   text("the question; required unless card is given"),
+				"id":      text("card ID (or batch ID when questions is set); generated when omitted"),
+				"title":   text("the question (or batch title when questions is set); required for single questions unless card is given"),
 				"details": text("context shown under the question"),
 				"form": props{"type": "object", "required": []string{"fields"}, "additionalProperties": false, "properties": props{
 					"fields":      props{"type": "array", "items": paramSpecSchema()},
@@ -108,6 +108,21 @@ func (r *Router) ToolSpecs() []ToolSpec {
 						"id": text("value returned as the answer's choice"), "label": text("short label"), "description": text("what picking it does"),
 					}}},
 				"card": nodeSchema("a whole question card, in place of title/form/choices"),
+				"questions": props{"type": "array", "description": "batch of questions to ask together on the Questions page", "items": props{
+					"type": "object", "additionalProperties": false, "properties": props{
+						"id":      text("card ID; generated when omitted"),
+						"title":   text("the question; required unless card is given"),
+						"details": text("context shown under the question"),
+						"form": props{"type": "object", "required": []string{"fields"}, "additionalProperties": false, "properties": props{
+							"fields":      props{"type": "array", "items": paramSpecSchema()},
+							"submitLabel": text("label of the submit action"),
+						}},
+						"choices": props{"type": "array", "description": "pick-one options", "items": props{
+							"type": "object", "required": []string{"id"}, "additionalProperties": false, "properties": props{
+								"id": text("value returned as the answer's choice"), "label": text("short label"), "description": text("what picking it does"),
+							}}},
+						"card": nodeSchema("a whole question card, in place of title/form/choices"),
+					}}},
 			}),
 		},
 		{

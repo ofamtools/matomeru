@@ -76,26 +76,83 @@ func (b *Toolbox) HasTool(name string) bool {
 	return slices.ContainsFunc(b.ToolSpecs(), func(t ToolSpec) bool { return t.Name == name })
 }
 
-func (b *Toolbox) env(name string) string {
-	if b.Getenv != nil {
-		return b.Getenv(name)
+type contextKey string
+
+const (
+	ctxPaneID contextKey = "mtm_pane_id"
+	ctxTaskID contextKey = "mtm_task_id"
+)
+
+// WithPaneID binds an MTM_PANE_ID value into ctx so Toolbox.Call uses it as
+// the default pane without mutating the shared Toolbox or process environment.
+func WithPaneID(ctx context.Context, paneID string) context.Context {
+	if paneID == "" {
+		return ctx
 	}
-	return os.Getenv(name)
+	return context.WithValue(ctx, ctxPaneID, paneID)
+}
+
+// PaneIDFromContext returns the MTM_PANE_ID bound into ctx, if any.
+func PaneIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(ctxPaneID).(string)
+	return v
+}
+
+// WithTaskID binds an MTM_TASK_ID value into ctx so Toolbox.Call uses it as
+// the default task without mutating the shared Toolbox or process environment.
+func WithTaskID(ctx context.Context, taskID string) context.Context {
+	if taskID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxTaskID, taskID)
+}
+
+// TaskIDFromContext returns the MTM_TASK_ID bound into ctx, if any.
+func TaskIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(ctxTaskID).(string)
+	return v
+}
+
+func (b *Toolbox) envFunc(ctx context.Context) func(string) string {
+	ctxPane := PaneIDFromContext(ctx)
+	ctxTask := TaskIDFromContext(ctx)
+	return func(name string) string {
+		switch name {
+		case EnvPaneID:
+			if ctxPane != "" {
+				return ctxPane
+			}
+		case EnvTaskID:
+			if ctxTask != "" {
+				return ctxTask
+			}
+		}
+		if b.Getenv != nil {
+			return b.Getenv(name)
+		}
+		return os.Getenv(name)
+	}
 }
 
 // envDefaults fills the pane (and, for a new page or question, the task) a
-// ui.* tool left out from the environment of the pane the agent runs in.
-func (b *Toolbox) envDefaults(name string, raw json.RawMessage) json.RawMessage {
+// tool left out from the bound pane/task context or environment.
+func (b *Toolbox) envDefaults(getenv func(string) string, name string, raw json.RawMessage) json.RawMessage {
 	var keys []string
 	switch name {
 	case ToolCreatePage, ToolAsk:
 		keys = []string{"pane", "task"}
-	case ToolUpdatePage:
+	case ToolUpdatePage, ToolRecordAgentInput:
 		keys = []string{"pane"}
 	default:
 		return raw
 	}
-	pane, task := b.env(EnvPaneID), b.env(EnvTaskID)
+	pane, task := getenv(EnvPaneID), getenv(EnvTaskID)
 	if pane == "" && task == "" {
 		return raw
 	}
@@ -121,19 +178,35 @@ func (b *Toolbox) envDefaults(name string, raw json.RawMessage) json.RawMessage 
 
 // Call runs one tool by name with JSON arguments.
 func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw json.RawMessage) (any, error) {
+	getenv := b.envFunc(ctx)
 	lanes := *b.Lanes
 	if lanes.Getenv == nil {
-		lanes.Getenv = b.Getenv
+		lanes.Getenv = getenv
+	} else if PaneIDFromContext(ctx) != "" || TaskIDFromContext(ctx) != "" {
+		orig := lanes.Getenv
+		lanes.Getenv = func(k string) string {
+			if k == EnvPaneID {
+				if v := PaneIDFromContext(ctx); v != "" {
+					return v
+				}
+			}
+			if k == EnvTaskID {
+				if v := TaskIDFromContext(ctx); v != "" {
+					return v
+				}
+			}
+			return orig(k)
+		}
 	}
 	switch {
 	case b.Data.HasTool(name):
-		return b.Data.Call(ctx, actor, name, raw)
+		return b.Data.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 	case lanes.HasTool(name):
 		return lanes.Call(ctx, actor, name, raw)
 	case b.Triage != nil && b.Triage.HasTool(name):
 		return b.Triage.Call(ctx, actor, name, raw)
 	}
-	return b.Router.Call(ctx, actor, name, b.envDefaults(name, raw))
+	return b.Router.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 }
 
 type rpcRequest struct {
