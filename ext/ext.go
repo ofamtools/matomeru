@@ -47,15 +47,21 @@ const (
 // DefaultTools are the o-* tools Discover looks for, including side-by-side v2
 // binaries (tools not found on PATH produce no record).
 var DefaultTools = []string{
+	"o-ai", "o-ai2",
+	"o-cmds", "o-cmds2",
 	"o-csv", "o-csv2",
-	"o-git",
-	"o-lane", "o-lane2",
+	"o-df", "o-df2",
+	"o-fleet", "o-fleet2",
+	"o-gh", "o-gh2",
+	"o-git", "o-git2",
 	"o-json", "o-json2",
+	"o-lane", "o-lane2",
 	"o-links",
 	"o-md", "o-md2",
-	"o-cmds", "o-cmds2",
+	"o-mermaid", "o-mermaid2",
+	"o-proj", "o-proj2",
 	"o-questions", "o-questions2",
-	"o-df", "o-df2",
+	"o-services", "o-services2",
 }
 
 // Defaults for Options left zero.

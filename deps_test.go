@@ -13,6 +13,7 @@ import (
 const (
 	mod      = "ofam.dev/matomeru"
 	ochazuke = "ofam.dev/ochazuke"
+	oden     = "ofam.dev/oden"
 	sqlite   = "modernc.org/sqlite"
 	// bubbletea is allowed only in app and cmd/mtm.
 	bubbletea = "charm.land/bubbletea/v2"
@@ -147,10 +148,10 @@ var policies = map[string]policy{
 			ochazuke + "/widgets/palette",
 		},
 	},
-	// The binary: flags and JSON around app, data, mcpui and migrate. It builds
+	// The binary: oden + ochazuke/cli around app, data, mcpui and migrate. It builds
 	// no views, and reaches runs, ext and ptyhost only through app.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", ochazuke + "/core", bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", ochazuke + "/core", ochazuke + "/cli", oden, bubbletea},
 	},
 }
 

@@ -7,6 +7,7 @@ require (
 	github.com/creack/pty v1.1.24
 	modernc.org/sqlite v1.60.1
 	ofam.dev/ochazuke v0.0.0
+	ofam.dev/oden v0.5.1
 	tuios.dev/vt v0.3.3-0.20261030005101-f3383d2005bd
 )
 
@@ -39,3 +40,5 @@ require (
 )
 
 replace ofam.dev/ochazuke => ../ochazuke-next
+
+replace ofam.dev/oden => ../oden-next

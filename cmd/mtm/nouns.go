@@ -12,7 +12,29 @@ import (
 	"ofam.dev/matomeru/app"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/oden"
 )
+
+type nounSpec struct {
+	name    string
+	aliases []string
+	kind    string
+	summary string
+}
+
+var nounSpecs = []nounSpec{
+	{name: "task", aliases: []string{"tasks"}, kind: data.KindTask, summary: "manage tasks"},
+	{name: "pane", aliases: []string{"panes"}, kind: data.KindPane, summary: "manage terminal panes"},
+	{name: "note", aliases: []string{"notes"}, kind: data.KindNote, summary: "manage notes"},
+	{name: "document", aliases: []string{"documents", "doc", "docs"}, kind: data.KindDocument, summary: "manage documents"},
+	{name: "lane", aliases: []string{"lanes"}, kind: data.KindLane, summary: "manage work lanes"},
+	{name: "schedule", aliases: []string{"schedules"}, kind: data.KindSchedule, summary: "manage schedules"},
+	{name: "run", aliases: []string{"runs"}, kind: data.KindRun, summary: "manage command runs"},
+	{name: "signal", aliases: []string{"signals"}, kind: data.KindSignal, summary: "manage inbox signals"},
+	{name: "directory", aliases: []string{"directories", "dir", "dirs"}, kind: "directory", summary: "manage directories"},
+	{name: "extension", aliases: []string{"extensions"}, kind: data.KindExtension, summary: "manage and run o-* extensions"},
+	{name: "rule", aliases: []string{"rules"}, kind: data.KindTriageRule, summary: "manage triage rules"},
+}
 
 var nounAliases = map[string]string{
 	"task":        data.KindTask,
@@ -58,18 +80,18 @@ func bodyFieldName(schema data.Schema) string {
 	return "body"
 }
 
-func resolveBody(o options, stdin io.Reader) (string, bool, error) {
-	if !o.bodySet {
+func resolveBody(bodyVal string, bodySet bool, stdin io.Reader) (string, bool, error) {
+	if !bodySet {
 		return "", false, nil
 	}
-	if o.body == "-" {
+	if bodyVal == "-" {
 		b, err := io.ReadAll(stdin)
 		if err != nil {
 			return "", true, fmt.Errorf("read stdin for --body -: %w", err)
 		}
 		return string(b), true, nil
 	}
-	return o.body, true, nil
+	return bodyVal, true, nil
 }
 
 func parseFieldAssignments(schema data.Schema, pairs []string) (map[string]any, error) {
@@ -172,17 +194,17 @@ func managedCategoryFor(kind string) string {
 	}
 }
 
-func shouldWriteManaged(o options, kind string, existingPath, body string) bool {
+func shouldWriteManaged(managed bool, kind string, existingPath, body string) bool {
 	if body == "" {
 		return false
 	}
-	if o.managed {
+	if managed {
 		return true
 	}
 	return kind == data.KindDocument && existingPath == ""
 }
 
-func syncManagedCLI(store *data.Store, rec *data.Record, o options, body string) (*data.Record, error) {
+func syncManagedCLI(store *data.Store, rec *data.Record, managed bool, body string) (*data.Record, error) {
 	if rec == nil || body == "" {
 		return rec, nil
 	}
@@ -194,10 +216,10 @@ func syncManagedCLI(store *data.Store, rec *data.Record, o options, body string)
 	if existing == "" {
 		existing = rec.Text("path")
 	}
-	if existing != "" && !data.IsManagedPath(root, existing) && !o.managed {
+	if existing != "" && !data.IsManagedPath(root, existing) && !managed {
 		return rec, nil
 	}
-	if !shouldWriteManaged(o, rec.Kind, existing, body) && !data.IsManagedPath(root, existing) {
+	if !shouldWriteManaged(managed, rec.Kind, existing, body) && !data.IsManagedPath(root, existing) {
 		return rec, nil
 	}
 	p, err := data.WriteManagedFile(root, managedCategoryFor(rec.Kind), rec.ID, rec.Text("title"), ".md", body)
@@ -215,168 +237,435 @@ func syncManagedCLI(store *data.Store, rec *data.Record, o options, body string)
 	return updated, nil
 }
 
-func dispatchNoun(ctx context.Context, store *data.Store, kind string, o options, stdin io.Reader, stdout io.Writer) error {
-	if len(o.args) < 2 {
-		return fmt.Errorf("usage: mtm %s list|get|create|add|edit|set|patch|star|unstar|archive|restore|snooze|unsnooze|delete|relate|unrelate ...", o.args[0])
+func mtmNounCommands(g globalOpts) []oden.Command {
+	cmds := make([]oden.Command, 0, len(nounSpecs))
+	for _, spec := range nounSpecs {
+		cmds = append(cmds, buildNounCommand(spec, g))
 	}
-	verb := o.args[1]
-	rest := o.args[2:]
+	return cmds
+}
+
+func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
+	noun := spec.name
+	kind := spec.kind
+
+	listParams := []oden.Parameter{
+		{Name: "query", Type: "string", Description: "Filter query string"},
+		{Name: "mode", Type: "string", Default: "substring", Enum: []string{"substring", "fuzzy", "regex"}, Description: "Query match mode"},
+		{Name: "field", Type: "string", Repeatable: true, Description: "Filter by field value (name=value)"},
+		{Name: "archived", Type: "bool", Description: "Include archived records"},
+		{Name: "starred", Type: "bool", Description: "Show only starred records"},
+		paramFormatJSON,
+	}
+	formatOnly := []oden.Parameter{paramFormatJSON}
+	createParams := []oden.Parameter{
+		{Name: "title", Type: "string", Description: "Record title"},
+		{Name: "body", Type: "string", Description: "Body text (or - to read stdin)"},
+		{Name: "field", Type: "string", Repeatable: true, Description: "Field assignment (name=value)"},
+		{Name: "managed", Type: "bool", Description: "Write body to a managed file"},
+		paramFormatJSON,
+	}
+
+	statusVerb := func(name, summary string, fn func(*data.Store) func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error)) oden.Command {
+		return oden.Command{
+			Name:       name,
+			Summary:    summary,
+			Usage:      "[<id>] [--format json|table]",
+			Parameters: formatOnly,
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(formatOnly)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				use := fmt.Sprintf("usage: mtm %s %s <id>", noun, name)
+				if len(pos) > 1 {
+					return errors.New(use)
+				}
+				query := ""
+				if len(pos) == 1 {
+					query = pos[0]
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				id, err := resolveRecordID(c.Context, store, kind, query, c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				rec, _, err := fn(store)(core.Ref{Kind: kind, ID: id}, cliActor)
+				if err != nil {
+					return err
+				}
+				return printRecordOne(c.Stdout, store, kind, recordFormat(p), rec)
+			},
+		}
+	}
+
+	children := []oden.Command{
+		{
+			Name:       "list",
+			Summary:    fmt.Sprintf("list %s records", noun),
+			Usage:      "[--query Q] [--mode substring|fuzzy|regex] [--field k=v ...] [--archived] [--starred] [--format json|table]",
+			Parameters: listParams,
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(listParams)
+				if err != nil {
+					return err
+				}
+				if len(p.Positional()) != 0 {
+					return fmt.Errorf("usage: mtm %s list [--query Q] [--mode substring|fuzzy|regex] [--field k=v ...] [--archived] [--starred] [--format json|table]", noun)
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				return recordListParsed(store, kind, p, c.Stdout)
+			},
+		},
+		{
+			Name:       "get",
+			Summary:    fmt.Sprintf("get one %s by ID or title", noun),
+			Usage:      "[<id>] [--format json|table]",
+			Parameters: formatOnly,
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(formatOnly)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				use := fmt.Sprintf("usage: mtm %s get <id>", noun)
+				if len(pos) > 1 {
+					return errors.New(use)
+				}
+				query := ""
+				if len(pos) == 1 {
+					query = pos[0]
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				id, err := resolveRecordID(c.Context, store, kind, query, c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				rec, err := store.Get(core.Ref{Kind: kind, ID: id})
+				if err != nil {
+					return err
+				}
+				return printRecordOne(c.Stdout, store, kind, recordFormat(p), rec)
+			},
+		},
+		{
+			Name:       "create",
+			Aliases:    []string{"add"},
+			Summary:    fmt.Sprintf("create a new %s", noun),
+			Usage:      `--title "..." [--body "..."|-] [--field k=v ...] [--managed] [--format json|table]`,
+			Parameters: createParams,
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(createParams)
+				if err != nil {
+					return err
+				}
+				if len(p.Positional()) != 0 {
+					return fmt.Errorf(`usage: mtm %s create --title "..." [--body "..."|-] [--field k=v ...]`, noun)
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				return nounCreate(store, kind, p, c.Stdin, c.Stdout)
+			},
+		},
+		{
+			Name:       "edit",
+			Aliases:    []string{"set", "patch"},
+			Summary:    fmt.Sprintf("edit an existing %s", noun),
+			Usage:      `[<id>] [--title "..."] [--body "..."|-] [--field k=v ...] [--managed] [--format json|table]`,
+			Parameters: createParams,
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(createParams)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				use := fmt.Sprintf(`usage: mtm %s edit <id> [--title "..."] [--body "..."|-] [--field k=v ...]`, noun)
+				if len(pos) > 1 {
+					return errors.New(use)
+				}
+				query := ""
+				if len(pos) == 1 {
+					query = pos[0]
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				id, err := resolveRecordID(c.Context, store, kind, query, c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				return nounEdit(store, kind, id, p, c.Stdin, c.Stdout)
+			},
+		},
+		statusVerb("star", fmt.Sprintf("star a %s", noun), func(s *data.Store) func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error) {
+			return s.Star
+		}),
+		statusVerb("unstar", fmt.Sprintf("unstar a %s", noun), func(s *data.Store) func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error) {
+			return s.Unstar
+		}),
+		statusVerb("archive", fmt.Sprintf("archive a %s", noun), func(s *data.Store) func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error) {
+			return s.Archive
+		}),
+		statusVerb("restore", fmt.Sprintf("restore an archived %s", noun), func(s *data.Store) func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error) {
+			return s.Restore
+		}),
+		statusVerb("unsnooze", fmt.Sprintf("clear snooze on a %s", noun), func(s *data.Store) func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error) {
+			return s.Unsnooze
+		}),
+		{
+			Name:       "snooze",
+			Summary:    fmt.Sprintf("snooze a %s until a time or duration", noun),
+			Usage:      "[<id>] <when> [--format json|table]",
+			Parameters: formatOnly,
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(formatOnly)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				use := fmt.Sprintf("usage: mtm %s snooze <id> <when>", noun)
+				var query, whenStr string
+				switch len(pos) {
+				case 2:
+					query, whenStr = pos[0], pos[1]
+				case 1:
+					whenStr = pos[0]
+				default:
+					return errors.New(use)
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				id, err := resolveRecordID(c.Context, store, kind, query, c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				until, err := parseSnoozeWhen(whenStr, time.Now())
+				if err != nil {
+					return err
+				}
+				rec, _, err := store.Snooze(core.Ref{Kind: kind, ID: id}, until, cliActor)
+				if err != nil {
+					return err
+				}
+				return printRecordOne(c.Stdout, store, kind, recordFormat(p), rec)
+			},
+		},
+		{
+			Name:    "delete",
+			Summary: fmt.Sprintf("delete a %s", noun),
+			Usage:   "[<id>]",
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(nil)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				use := fmt.Sprintf("usage: mtm %s delete <id>", noun)
+				if len(pos) > 1 {
+					return errors.New(use)
+				}
+				query := ""
+				if len(pos) == 1 {
+					query = pos[0]
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				id, err := resolveRecordID(c.Context, store, kind, query, c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				cs, err := store.Delete(core.Ref{Kind: kind, ID: id}, cliActor)
+				if err != nil {
+					return err
+				}
+				return printJSON(c.Stdout, cs)
+			},
+		},
+		{
+			Name:    "relate",
+			Summary: fmt.Sprintf("relate a %s to another record", noun),
+			Usage:   "<id> <rel> <target-kind:target-id>",
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(nil)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				use := fmt.Sprintf("usage: mtm %s relate <id> <rel> <target-kind:target-id>", noun)
+				if len(pos) != 3 {
+					return errors.New(use)
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				fromID, err := resolveRecordID(c.Context, store, kind, pos[0], c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				to, err := resolveRefArg(c.Context, store, pos[2], c.Stdin)
+				if err != nil {
+					return err
+				}
+				rel, _, err := store.Relate(data.RelateInput{From: core.Ref{Kind: kind, ID: fromID}, Kind: pos[1], To: to}, cliActor)
+				if err != nil {
+					return err
+				}
+				return printJSON(c.Stdout, rel)
+			},
+		},
+		{
+			Name:    "unrelate",
+			Summary: fmt.Sprintf("remove a relation from a %s", noun),
+			Usage:   "<id> <rel> <target-kind:target-id>",
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(nil)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				use := fmt.Sprintf("usage: mtm %s unrelate <id> <rel> <target-kind:target-id>", noun)
+				if len(pos) != 3 {
+					return errors.New(use)
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				fromID, err := resolveRecordID(c.Context, store, kind, pos[0], c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				to, err := resolveRefArg(c.Context, store, pos[2], c.Stdin)
+				if err != nil {
+					return err
+				}
+				cs, err := store.Unrelate(core.Ref{Kind: kind, ID: fromID}, pos[1], to, cliActor)
+				if err != nil {
+					return err
+				}
+				return printJSON(c.Stdout, cs)
+			},
+		},
+	}
 
 	if kind == data.KindExtension {
-		switch verb {
-		case "discover":
-			if len(rest) != 0 {
-				return errors.New("usage: mtm extension discover [--dir DIR]")
-			}
-			res, err := app.DiscoverExtensions(ctx, store, o.dirs)
-			if err != nil {
-				return err
-			}
-			return printJSON(stdout, res)
-		case "run":
-			if len(rest) < 1 {
-				return errors.New("usage: mtm extension run <name> [args...]")
-			}
-			rec, err := app.RunExtension(ctx, store, rest[0], rest[1:], cliActor)
-			if err != nil {
-				return err
-			}
-			if o.format == "table" {
-				return printRecords(stdout, store, data.KindRun, o.format, []data.Record{*rec})
-			}
-			return printJSON(stdout, rec)
+		discoverParams := []oden.Parameter{
+			{Name: "dir", Type: "string", Repeatable: true, Description: "Directory to search before PATH"},
 		}
+		children = append(children,
+			oden.Command{
+				Name:       "discover",
+				Summary:    "discover installed o-* extensions",
+				Usage:      "[--dir DIR]",
+				Parameters: discoverParams,
+				Handle: func(c *oden.Ctx) error {
+					p, err := c.Parse(discoverParams)
+					if err != nil {
+						return err
+					}
+					if len(p.Positional()) != 0 {
+						return errors.New("usage: mtm extension discover [--dir DIR]")
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					res, err := app.DiscoverExtensions(c.Context, store, p.Strings("dir"))
+					if err != nil {
+						return err
+					}
+					return printJSON(c.Stdout, res)
+				},
+			},
+			oden.Command{
+				Name:    "run",
+				Summary: "run an extension command as a recorded run",
+				Usage:   "[--format json|table] <name> [args...]",
+				Handle: func(c *oden.Ctx) error {
+					format := "json"
+					rest := c.Args
+					for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
+						arg := rest[0]
+						if arg == "--" {
+							rest = rest[1:]
+							break
+						}
+						if arg == "--json" {
+							format = "json"
+							rest = rest[1:]
+							continue
+						}
+						if val, ok := strings.CutPrefix(arg, "--format="); ok {
+							if val != "json" && val != "table" {
+								return fmt.Errorf("--format %s is not json or table", val)
+							}
+							format = val
+							rest = rest[1:]
+							continue
+						}
+						if arg == "--format" && len(rest) >= 2 {
+							val := rest[1]
+							if val != "json" && val != "table" {
+								return fmt.Errorf("--format %s is not json or table", val)
+							}
+							format = val
+							rest = rest[2:]
+							continue
+						}
+						break
+					}
+					if len(rest) < 1 {
+						return errors.New("usage: mtm extension run <name> [args...]")
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					rec, err := app.RunExtension(c.Context, store, rest[0], rest[1:], cliActor)
+					if err != nil {
+						return err
+					}
+					return printRecordOne(c.Stdout, store, data.KindRun, format, rec)
+				},
+			},
+		)
 	}
 
-	switch verb {
-	case "list":
-		if len(rest) != 0 {
-			return fmt.Errorf("usage: mtm %s list [--query Q] [--mode substring|fuzzy|regex] [--field k=v ...] [--archived] [--starred] [--format json|table]", o.args[0])
-		}
-		return recordList(store, o, []string{kind}, stdout)
-	case "get":
-		use := fmt.Sprintf("usage: mtm %s get <id>", o.args[0])
-		if len(rest) > 1 {
-			return errors.New(use)
-		}
-		query := ""
-		if len(rest) == 1 {
-			query = rest[0]
-		}
-		id, err := resolveRecordID(store, kind, query, stdin, use)
-		if err != nil {
-			return err
-		}
-		return recordGet(store, o, []string{kind, id}, stdin, stdout)
-	case "create", "add":
-		if len(rest) != 0 {
-			return fmt.Errorf(`usage: mtm %s %s --title "..." [--body "..."|-] [--field k=v ...]`, o.args[0], verb)
-		}
-		return nounCreate(store, kind, o, stdin, stdout)
-	case "edit", "set", "patch":
-		use := fmt.Sprintf(`usage: mtm %s %s <id> [--title "..."] [--body "..."|-] [--field k=v ...]`, o.args[0], verb)
-		if len(rest) > 1 {
-			return errors.New(use)
-		}
-		query := ""
-		if len(rest) == 1 {
-			query = rest[0]
-		}
-		id, err := resolveRecordID(store, kind, query, stdin, use)
-		if err != nil {
-			return err
-		}
-		return nounEdit(store, kind, id, o, stdin, stdout)
-	case "star":
-		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Star)
-	case "unstar":
-		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Unstar)
-	case "archive":
-		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Archive)
-	case "restore":
-		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Restore)
-	case "unsnooze":
-		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Unsnooze)
-	case "delete":
-		use := fmt.Sprintf("usage: mtm %s delete <id>", o.args[0])
-		if len(rest) > 1 {
-			return errors.New(use)
-		}
-		query := ""
-		if len(rest) == 1 {
-			query = rest[0]
-		}
-		id, err := resolveRecordID(store, kind, query, stdin, use)
-		if err != nil {
-			return err
-		}
-		cs, err := store.Delete(core.Ref{Kind: kind, ID: id}, cliActor)
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, cs)
-	case "snooze":
-		use := fmt.Sprintf("usage: mtm %s snooze <id> <when>", o.args[0])
-		var query, whenStr string
-		switch len(rest) {
-		case 2:
-			query, whenStr = rest[0], rest[1]
-		case 1:
-			whenStr = rest[0]
-		default:
-			return errors.New(use)
-		}
-		id, err := resolveRecordID(store, kind, query, stdin, use)
-		if err != nil {
-			return err
-		}
-		until, err := parseSnoozeWhen(whenStr, time.Now())
-		if err != nil {
-			return err
-		}
-		rec, _, err := store.Snooze(core.Ref{Kind: kind, ID: id}, until, cliActor)
-		if err != nil {
-			return err
-		}
-		return printRecordOne(stdout, store, kind, o.format, rec)
-	case "relate":
-		use := fmt.Sprintf("usage: mtm %s relate <id> <rel> <target-kind:target-id>", o.args[0])
-		if len(rest) != 3 {
-			return errors.New(use)
-		}
-		fromID, err := resolveRecordID(store, kind, rest[0], stdin, use)
-		if err != nil {
-			return err
-		}
-		to, err := resolveRefArg(store, rest[2], stdin)
-		if err != nil {
-			return err
-		}
-		rel, _, err := store.Relate(data.RelateInput{From: core.Ref{Kind: kind, ID: fromID}, Kind: rest[1], To: to}, cliActor)
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, rel)
-	case "unrelate":
-		use := fmt.Sprintf("usage: mtm %s unrelate <id> <rel> <target-kind:target-id>", o.args[0])
-		if len(rest) != 3 {
-			return errors.New(use)
-		}
-		fromID, err := resolveRecordID(store, kind, rest[0], stdin, use)
-		if err != nil {
-			return err
-		}
-		to, err := resolveRefArg(store, rest[2], stdin)
-		if err != nil {
-			return err
-		}
-		cs, err := store.Unrelate(core.Ref{Kind: kind, ID: fromID}, rest[1], to, cliActor)
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, cs)
-	default:
-		return fmt.Errorf("unknown %s subcommand %q", o.args[0], verb)
+	return oden.Command{
+		Name:     spec.name,
+		Aliases:  spec.aliases,
+		Summary:  spec.summary,
+		Category: "Records",
+		Children: children,
 	}
 }
 
@@ -387,40 +676,20 @@ func printRecordOne(w io.Writer, store *data.Store, kind, format string, rec *da
 	return printJSON(w, rec)
 }
 
-func nounStatusOp(store *data.Store, kind string, rest []string, o options, stdin io.Reader, w io.Writer, fn func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error)) error {
-	use := fmt.Sprintf("usage: mtm %s %s <id>", o.args[0], o.args[1])
-	if len(rest) > 1 {
-		return errors.New(use)
-	}
-	query := ""
-	if len(rest) == 1 {
-		query = rest[0]
-	}
-	id, err := resolveRecordID(store, kind, query, stdin, use)
-	if err != nil {
-		return err
-	}
-	rec, _, err := fn(core.Ref{Kind: kind, ID: id}, cliActor)
-	if err != nil {
-		return err
-	}
-	return printRecordOne(w, store, kind, o.format, rec)
-}
-
-func nounCreate(store *data.Store, kind string, o options, stdin io.Reader, w io.Writer) error {
+func nounCreate(store *data.Store, kind string, p oden.Parsed, stdin io.Reader, w io.Writer) error {
 	schema := schemaOf(store, kind)
-	fields, err := parseFieldAssignments(schema, o.fields)
+	fields, err := parseFieldAssignments(schema, p.Strings("field"))
 	if err != nil {
 		return err
 	}
-	if o.title != "" {
+	if title := p.String("title"); title != "" {
 		name := "title"
 		if _, ok := schema.Field("title"); !ok && schema.SummaryField != "" {
 			name = schema.SummaryField
 		}
-		fields[name] = o.title
+		fields[name] = title
 	}
-	body, hasBody, err := resolveBody(o, stdin)
+	body, hasBody, err := resolveBody(p.String("body"), p.Has("body"), stdin)
 	if err != nil {
 		return err
 	}
@@ -432,35 +701,36 @@ func nounCreate(store *data.Store, kind string, o options, stdin io.Reader, w io
 		return err
 	}
 	if hasBody {
-		rec, err = syncManagedCLI(store, rec, o, body)
+		rec, err = syncManagedCLI(store, rec, p.Bool("managed"), body)
 		if err != nil {
 			return err
 		}
 	}
-	return printRecordOne(w, store, kind, o.format, rec)
+	return printRecordOne(w, store, kind, recordFormat(p), rec)
 }
 
-func nounEdit(store *data.Store, kind, id string, o options, stdin io.Reader, w io.Writer) error {
+func nounEdit(store *data.Store, kind, id string, p oden.Parsed, stdin io.Reader, w io.Writer) error {
 	schema := schemaOf(store, kind)
-	fields, err := parseFieldAssignments(schema, o.fields)
+	fields, err := parseFieldAssignments(schema, p.Strings("field"))
 	if err != nil {
 		return err
 	}
-	if o.title != "" {
+	if title := p.String("title"); title != "" {
 		name := "title"
 		if _, ok := schema.Field("title"); !ok && schema.SummaryField != "" {
 			name = schema.SummaryField
 		}
-		fields[name] = o.title
+		fields[name] = title
 	}
-	body, hasBody, err := resolveBody(o, stdin)
+	body, hasBody, err := resolveBody(p.String("body"), p.Has("body"), stdin)
 	if err != nil {
 		return err
 	}
 	if hasBody {
 		fields[bodyFieldName(schema)] = body
 	}
-	if len(fields) == 0 && !o.managed {
+	managed := p.Bool("managed")
+	if len(fields) == 0 && !managed {
 		return errors.New("edit needs at least one of --title, --body, --field, or --managed")
 	}
 	ref := core.Ref{Kind: kind, ID: id}
@@ -480,67 +750,103 @@ func nounEdit(store *data.Store, kind, id string, o options, stdin io.Reader, w 
 	if !hasBody {
 		effectiveBody = rec.Text(bodyFieldName(schema))
 	}
-	if hasBody || o.managed {
-		rec, err = syncManagedCLI(store, rec, o, effectiveBody)
+	if hasBody || managed {
+		rec, err = syncManagedCLI(store, rec, managed, effectiveBody)
 		if err != nil {
 			return err
 		}
 	}
-	return printRecordOne(w, store, kind, o.format, rec)
+	return printRecordOne(w, store, kind, recordFormat(p), rec)
 }
 
-func dispatchBinding(o options, stdout io.Writer) error {
-	if len(o.args) < 2 {
-		return errors.New("usage: mtm binding list [--all] [--json] | mtm binding check [--json]")
+func mtmBindingCommand() oden.Command {
+	listParams := []oden.Parameter{
+		{Name: "all", Type: "bool", Description: "Include hidden and class bindings"},
 	}
-	switch o.args[1] {
-	case "list":
-		if len(o.args) != 2 {
-			return errors.New("usage: mtm binding list [--all] [--json]")
-		}
-		v, err := app.Inspect(app.InspectBindings, configDir())
-		if err != nil {
-			return err
-		}
-		rows, _ := v.([]core.Binding)
-		if !o.all {
-			filtered := make([]core.Binding, 0, len(rows))
-			for _, b := range rows {
-				if b.Hidden || b.Class != "" {
-					continue
-				}
-				filtered = append(filtered, b)
+	return oden.Command{
+		Name:     "binding",
+		Aliases:  []string{"bindings"},
+		Summary:  "list and check key bindings",
+		Category: "Configuration",
+		Handle: func(c *oden.Ctx) error {
+			sub := c.Sub()
+			sub.Add(
+				oden.Command{
+					Name:       "list",
+					Summary:    "list effective key bindings",
+					Usage:      "[--all] [--json]",
+					Parameters: listParams,
+					Handle: func(sc *oden.Ctx) error {
+						p, err := sc.Parse(listParams)
+						if err != nil {
+							return err
+						}
+						if len(p.Positional()) != 0 {
+							return errors.New("usage: mtm binding list [--all] [--json]")
+						}
+						v, err := app.Inspect(app.InspectBindings, configDir())
+						if err != nil {
+							return err
+						}
+						rows, _ := v.([]core.Binding)
+						if !p.Bool("all") {
+							filtered := make([]core.Binding, 0, len(rows))
+							for _, b := range rows {
+								if b.Hidden || b.Class != "" {
+									continue
+								}
+								filtered = append(filtered, b)
+							}
+							rows = filtered
+						}
+						if p.Format() == "json" {
+							return printJSON(sc.Stdout, rows)
+						}
+						_, err = io.WriteString(sc.Stdout, app.InspectText(rows))
+						return err
+					},
+				},
+				oden.Command{
+					Name:    "check",
+					Summary: "validate key bindings and report errors",
+					Usage:   "[--json]",
+					Handle: func(sc *oden.Ctx) error {
+						p, err := sc.Parse(nil)
+						if err != nil {
+							return err
+						}
+						if len(p.Positional()) != 0 {
+							return errors.New("usage: mtm binding check [--json]")
+						}
+						rep, err := app.CheckBindings(configDir())
+						if err != nil {
+							return err
+						}
+						if p.Format() == "json" {
+							if err := printJSON(sc.Stdout, rep); err != nil {
+								return err
+							}
+						} else {
+							fmt.Fprintf(sc.Stdout, "bindings: %d total, %d errors, %d warnings\n", rep.Total, len(rep.Errors), len(rep.Warnings))
+							for _, e := range rep.Errors {
+								fmt.Fprintf(sc.Stdout, "ERROR [%s %s %s] %s: %s\n", e.Mode, e.Scope, e.Keys, e.Command, e.Message)
+							}
+						}
+						if len(rep.Errors) > 0 {
+							return fmt.Errorf("binding check found %d error(s)", len(rep.Errors))
+						}
+						return nil
+					},
+				},
+			)
+			if len(c.Args) == 1 && (c.Args[0] == "-h" || c.Args[0] == "--help") {
+				sub.Help(c.Stdout)
+				return nil
 			}
-			rows = filtered
-		}
-		if o.json {
-			return printJSON(stdout, rows)
-		}
-		_, err = io.WriteString(stdout, app.InspectText(rows))
-		return err
-	case "check":
-		if len(o.args) != 2 {
-			return errors.New("usage: mtm binding check [--json]")
-		}
-		rep, err := app.CheckBindings(configDir())
-		if err != nil {
-			return err
-		}
-		if o.json {
-			if err := printJSON(stdout, rep); err != nil {
-				return err
+			sub.Default = func(_ context.Context, _ []string) error {
+				return errors.New("usage: mtm binding list [--all] [--json] | mtm binding check [--json]")
 			}
-		} else {
-			fmt.Fprintf(stdout, "bindings: %d total, %d errors, %d warnings\n", rep.Total, len(rep.Errors), len(rep.Warnings))
-			for _, e := range rep.Errors {
-				fmt.Fprintf(stdout, "ERROR [%s %s %s] %s: %s\n", e.Mode, e.Scope, e.Keys, e.Command, e.Message)
-			}
-		}
-		if len(rep.Errors) > 0 {
-			return fmt.Errorf("binding check found %d error(s)", len(rep.Errors))
-		}
-		return nil
-	default:
-		return errors.New("usage: mtm binding list [--all] [--json] | mtm binding check [--json]")
+			return sub.Run(c.Context)
+		},
 	}
 }

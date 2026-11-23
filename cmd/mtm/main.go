@@ -1,5 +1,5 @@
-// Command mtm is Matomeru v2: the four-space TUI, and a small CLI over the
-// same store.
+// Command mtm is Matomeru v2: the four-space TUI, and an oden-unified CLI over
+// the same store.
 //
 //	mtm [--db PATH] [--seed-demo]            the TUI
 //	mtm --tutorial                           the TUI on a tutorial workspace kept in memory
@@ -9,13 +9,13 @@
 //	mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
 //	mtm record get KIND ID
 //	mtm record create KIND --title "..." [--field k=v ...]
-//	mtm record undo
+//	mtm record undo | redo
 //	mtm mcp tools
 //	mtm mcp call TOOL 'JSON'
 //	mtm mcp serve                            an MCP server (JSON-RPC 2.0) on stdin and stdout
 //	mtm migrate --from V1_DB [--dry-run | --apply]
 //
-// The CLI prints JSON; --format table prints records as a table.
+// Record commands print JSON; --format table prints records as a table.
 package main
 
 import (
@@ -38,7 +38,9 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/migrate"
+	ocli "ofam.dev/ochazuke/cli"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/oden"
 )
 
 const usage = `mtm [--db PATH] [--seed-demo]            open the TUI
@@ -74,82 +76,90 @@ mtm migrate --from V1_DB [--dry-run | --apply]
 config          settings.json, bindings.json, themes.json and handlers.json are read from
                 $MTM_CONFIG_DIR, or ~/.config/matomeru-next. S and B in the TUI change and
                 save the first two; handlers.json says what opens which file (o and O).
---format table  print records as a table instead of JSON
-`
+--format table  print records as a table instead of JSON`
 
 // cliActor is who the CLI writes as. "mtm record undo" undoes its changes.
 var cliActor = core.Actor{Kind: "user", ID: "cli", Label: "mtm CLI"}
+
+var paramFormatJSON = oden.Parameter{
+	Name:        "format",
+	Type:        "string",
+	Default:     "json",
+	Enum:        []string{"json", "table"},
+	Description: "Output format (json or table)",
+}
+
+func recordFormat(p oden.Parsed) string {
+	if p.Bool("json") {
+		return "json"
+	}
+	if f := p.String("format"); f != "" {
+		return f
+	}
+	return "json"
+}
+
+type globalOpts struct {
+	db       string
+	seed     bool
+	tutorial bool
+}
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-type options struct {
-	db, format, query, mode, title string
-	body                           string
-	bodySet                        bool
-	from                           string
-	seed, smoke, dump, help        bool
-	tutorial, jsonl, json          bool
-	dryRun, apply                  bool
-	archived, starred              bool
-	all, managed                   bool
-	fields                         []string
-	dirs                           []string
-	args                           []string
-}
-
-// parse reads flags from anywhere on the command line; the rest are the
-// subcommand and its arguments.
-func parse(argv []string) (options, error) {
-	o := options{format: "json"}
-	text := map[string]*string{"--db": &o.db, "--format": &o.format, "--query": &o.query, "--mode": &o.mode, "--title": &o.title, "--from": &o.from, "--body": &o.body}
-	flags := map[string]*bool{"--seed-demo": &o.seed, "--smoke": &o.smoke, "--dump": &o.dump, "--help": &o.help, "-h": &o.help,
-		"--archived": &o.archived, "--starred": &o.starred, "--dry-run": &o.dryRun, "--apply": &o.apply,
-		"--tutorial": &o.tutorial, "--jsonl": &o.jsonl, "--json": &o.json, "--all": &o.all, "--managed": &o.managed}
+// extractGlobalFlags peels root-level flags (--db, --seed-demo, --tutorial)
+// from argv so they work before or after any subcommand while leaving all
+// subcommand flags and extension run arguments untouched.
+func extractGlobalFlags(argv []string) (globalOpts, []string, error) {
+	var g globalOpts
+	rest := make([]string, 0, len(argv))
+	var words []string
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
 		// For `mtm extension run <name> [args...]`, pass everything after <name>
 		// verbatim to the extension binary so extension flags are not intercepted.
-		if len(o.args) >= 3 && (o.args[0] == "extension" || o.args[0] == "extensions") && o.args[1] == "run" {
-			o.args = append(o.args, argv[i:]...)
+		if len(words) >= 3 && (words[0] == "extension" || words[0] == "extensions") && words[1] == "run" {
+			rest = append(rest, argv[i:]...)
 			break
 		}
-		name, value, inline := strings.Cut(arg, "=")
-		switch {
-		case arg == "--":
-			o.args = append(o.args, argv[i+1:]...)
-			return o, nil
-		case flags[arg] != nil:
-			*flags[arg] = true
-		case text[name] != nil || name == "--field" || name == "--dir":
-			if !inline {
-				if i+1 >= len(argv) {
-					return o, fmt.Errorf("%s needs a value", name)
-				}
-				i++
-				value = argv[i]
-			}
-			switch name {
-			case "--field":
-				o.fields = append(o.fields, value)
-			case "--dir":
-				o.dirs = append(o.dirs, value)
-			case "--body":
-				o.body, o.bodySet = value, true
-			default:
-				*text[name] = value
-			}
-		case strings.HasPrefix(arg, "--"):
-			return o, fmt.Errorf("unknown flag %s", arg)
-		default:
-			o.args = append(o.args, arg)
+		if arg == "--" {
+			rest = append(rest, argv[i:]...)
+			break
 		}
+		if arg == "--seed-demo" {
+			g.seed = true
+			continue
+		}
+		if arg == "--tutorial" {
+			g.tutorial = true
+			continue
+		}
+		if val, ok := strings.CutPrefix(arg, "--db="); ok {
+			g.db = val
+			continue
+		}
+		if arg == "--db" {
+			if i+1 >= len(argv) {
+				return g, nil, errors.New("--db needs a value")
+			}
+			i++
+			g.db = argv[i]
+			continue
+		}
+		if !strings.HasPrefix(arg, "-") {
+			words = append(words, arg)
+		}
+		rest = append(rest, arg)
 	}
-	if o.format != "json" && o.format != "table" {
-		return o, fmt.Errorf("--format %s is not json or table", o.format)
+	return g, rest, nil
+}
+
+func withCommands(cmds ...oden.Command) oden.Option {
+	return func(a *oden.App) {
+		a.Add(cmds...)
 	}
-	return o, nil
 }
 
 func defaultDB() (string, error) {
@@ -184,6 +194,20 @@ func openStore(path string) (*data.Store, error) {
 	return data.Open(path)
 }
 
+func openStoreWithSeed(g globalOpts) (*data.Store, error) {
+	store, err := openStore(g.db)
+	if err != nil {
+		return nil, err
+	}
+	if g.seed {
+		if err := app.SeedDemo(store); err != nil {
+			store.Close()
+			return nil, err
+		}
+	}
+	return store, nil
+}
+
 // configDirName is v2's own directory: the bindings.json of the mtm it
 // replaces (~/.config/matomeru) is never read.
 const configDirName = "matomeru-next"
@@ -203,15 +227,484 @@ func configDir() string {
 }
 
 func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	o, err := parse(argv)
-	if err == nil {
-		err = dispatch(o, stdin, stdout)
-	}
+	g, args, err := extractGlobalFlags(argv)
 	if err != nil {
-		fmt.Fprintln(stderr, "mtm:", err)
-		return 1
+		return oden.Report(stderr, "mtm", err)
 	}
-	return 0
+	isSmoke := len(args) > 0 && (args[0] == "--smoke" || args[0] == "smoke")
+	if g.tutorial && !isSmoke && (len(args) != 0 || g.db != "" || g.seed) {
+		return oden.Report(stderr, "mtm", errors.New("--tutorial opens its own workspace: it takes no command, --db or --seed-demo"))
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	mtmApp := newCLIApp(g, args, cancel, stdin, stdout, stderr)
+	return oden.Report(stderr, "mtm", mtmApp.Run(ctx))
+}
+
+func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.Reader, stdout, stderr io.Writer) *oden.App {
+	info := ocli.AppInfo{
+		Name:     "mtm",
+		Version:  "2.0.0-next",
+		Summary:  "Matomeru v2 — four-space TUI and CLI over the unified store",
+		HelpText: usage,
+		Modes:    app.Modes,
+		Bindings: func() []core.Binding {
+			v, err := app.Inspect(app.InspectBindings, configDir())
+			if err != nil {
+				return app.DefaultBindings()
+			}
+			bs, _ := v.([]core.Binding)
+			return bs
+		},
+		Specs: app.CommandSpecs,
+		RunSmoke: func(out io.Writer, dump bool) error {
+			if g.tutorial {
+				return app.RunTutorialSmoke(out)
+			}
+			return app.RunSmoke(out, dump)
+		},
+		RunTUI: func(_ context.Context, rootArgs []string) error {
+			if len(rootArgs) > 0 {
+				return fmt.Errorf("unknown flag %s", rootArgs[0])
+			}
+			if g.tutorial {
+				cancel() // the TUI reads ctrl+c itself
+				return runTutorial()
+			}
+			store, err := openStoreWithSeed(g)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+			cancel() // the TUI reads ctrl+c itself
+			return runTUI(store)
+		},
+	}
+
+	a := ocli.NewApp(info, args,
+		oden.WithPrefixes("o"),
+		oden.WithStdio(stdin, stdout, stderr),
+		withCommands(
+			mtmBindingCommand(),
+			mtmInspectCommand(),
+		),
+	)
+
+	a.Add(
+		mtmConfigCommand(),
+		mtmRecordCommand(g),
+		mtmMCPCommand(g),
+		mtmMigrateCommand(g),
+		mtmUndoCommand(g),
+		mtmRedoCommand(g),
+	)
+	a.Add(mtmNounCommands(g)...)
+
+	baseDefault := a.Default
+	a.Default = func(ctx context.Context, rootArgs []string) error {
+		if len(rootArgs) > 0 && strings.EqualFold(rootArgs[0], data.KindTriageRule) {
+			if e := a.Catalog().Lookup("rule"); e != nil {
+				return a.RunEntry(ctx, e, rootArgs[1:])
+			}
+		}
+		return baseDefault(ctx, rootArgs)
+	}
+
+	return a
+}
+
+func mtmConfigCommand() oden.Command {
+	exportParams := []oden.Parameter{
+		{Name: "jsonl", Type: "bool", Description: "Emit configuration as JSON Lines"},
+	}
+	return oden.Command{
+		Name:     "config",
+		Summary:  "inspect and export configuration",
+		Category: "Configuration",
+		Handle: func(c *oden.Ctx) error {
+			sub := c.Sub()
+			sub.Add(oden.Command{
+				Name:       "export",
+				Summary:    "export effective settings and bindings as JSON or JSONL",
+				Usage:      "[--jsonl]",
+				Parameters: exportParams,
+				Handle: func(sc *oden.Ctx) error {
+					p, err := sc.Parse(exportParams)
+					if err != nil {
+						return err
+					}
+					if len(p.Positional()) != 0 {
+						return errors.New("usage: mtm config export [--jsonl]")
+					}
+					out, err := app.ExportConfig(configDir(), p.Bool("jsonl"))
+					if err != nil {
+						return err
+					}
+					_, err = sc.Stdout.Write(out)
+					return err
+				},
+			})
+			if len(c.Args) == 1 && (c.Args[0] == "-h" || c.Args[0] == "--help") {
+				sub.Help(c.Stdout)
+				return nil
+			}
+			sub.Default = func(_ context.Context, _ []string) error {
+				return errors.New("usage: mtm config export [--jsonl]")
+			}
+			return sub.Run(c.Context)
+		},
+	}
+}
+
+func mtmInspectCommand() oden.Command {
+	inspectLeaf := func(kind, summary string) oden.Command {
+		return oden.Command{
+			Name:    kind,
+			Summary: summary,
+			Usage:   "[--json]",
+			Handle: func(sc *oden.Ctx) error {
+				p, err := sc.Parse(nil)
+				if err != nil {
+					return err
+				}
+				if len(p.Positional()) != 0 {
+					return errors.New("usage: mtm inspect actions|bindings|modes|schemas [--json]")
+				}
+				v, err := app.Inspect(kind, configDir())
+				if err != nil {
+					return fmt.Errorf("%w\nusage: mtm inspect actions|bindings|modes|schemas [--json]", err)
+				}
+				if p.Format() == "json" {
+					return printJSON(sc.Stdout, v)
+				}
+				_, err = io.WriteString(sc.Stdout, app.InspectText(v))
+				return err
+			},
+		}
+	}
+	return oden.Command{
+		Name:     "inspect",
+		Summary:  "inspect actions, bindings, modes, and schemas",
+		Category: "Configuration",
+		Handle: func(c *oden.Ctx) error {
+			sub := c.Sub()
+			sub.Add(
+				inspectLeaf(app.InspectActions, "list every action with its bound keys"),
+				inspectLeaf(app.InspectBindings, "list all effective key bindings"),
+				inspectLeaf(app.InspectModes, "list registered input modes"),
+				inspectLeaf(app.InspectSchemas, "list registered record schemas"),
+			)
+			if len(c.Args) == 1 && (c.Args[0] == "-h" || c.Args[0] == "--help") {
+				sub.Help(c.Stdout)
+				return nil
+			}
+			sub.Default = func(_ context.Context, subArgs []string) error {
+				if len(subArgs) == 0 {
+					return errors.New("usage: mtm inspect actions|bindings|modes|schemas [--json]")
+				}
+				return fmt.Errorf("inspect %s: not one of %s\nusage: mtm inspect actions|bindings|modes|schemas [--json]", subArgs[0], strings.Join(app.InspectKinds, ", "))
+			}
+			return sub.Run(c.Context)
+		},
+	}
+}
+
+func mtmRecordCommand(g globalOpts) oden.Command {
+	listParams := []oden.Parameter{
+		{Name: "query", Type: "string", Description: "Filter query string"},
+		{Name: "mode", Type: "string", Default: "substring", Enum: []string{"substring", "fuzzy", "regex"}, Description: "Query match mode"},
+		{Name: "field", Type: "string", Repeatable: true, Description: "Filter by field value (name=value)"},
+		{Name: "archived", Type: "bool", Description: "Include archived records"},
+		{Name: "starred", Type: "bool", Description: "Show only starred records"},
+		paramFormatJSON,
+	}
+	getParams := []oden.Parameter{paramFormatJSON}
+	createParams := []oden.Parameter{
+		{Name: "title", Type: "string", Description: "Record title"},
+		{Name: "field", Type: "string", Repeatable: true, Description: "Field assignment (name=value)"},
+		paramFormatJSON,
+	}
+
+	return oden.Command{
+		Name:     "record",
+		Summary:  "low-level record operations across any schema kind",
+		Category: "Records",
+		Children: []oden.Command{
+			{
+				Name:       "list",
+				Summary:    "list records of a given kind",
+				Usage:      "KIND [--query Q] [--mode substring|fuzzy|regex] [--field k=v ...] [--archived] [--starred] [--format json|table]",
+				Parameters: listParams,
+				Handle: func(c *oden.Ctx) error {
+					p, err := c.Parse(listParams)
+					if err != nil {
+						return err
+					}
+					pos := p.Positional()
+					if len(pos) != 1 {
+						return errors.New("usage: mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]")
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					return recordListParsed(store, pos[0], p, c.Stdout)
+				},
+			},
+			{
+				Name:       "get",
+				Summary:    "get one record by kind and ID/title",
+				Usage:      "KIND [ID] [--format json|table]",
+				Parameters: getParams,
+				Handle: func(c *oden.Ctx) error {
+					p, err := c.Parse(getParams)
+					if err != nil {
+						return err
+					}
+					pos := p.Positional()
+					const use = "usage: mtm record get KIND ID"
+					if len(pos) < 1 || len(pos) > 2 {
+						return errors.New(use)
+					}
+					query := ""
+					if len(pos) == 2 {
+						query = pos[1]
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					id, err := resolveRecordID(c.Context, store, pos[0], query, c.Stdin, use)
+					if err != nil {
+						return err
+					}
+					rec, err := store.Get(core.Ref{Kind: pos[0], ID: id})
+					if err != nil {
+						return err
+					}
+					return printRecordOne(c.Stdout, store, pos[0], recordFormat(p), rec)
+				},
+			},
+			{
+				Name:       "create",
+				Summary:    "create a record of a given kind",
+				Usage:      `KIND --title "..." [--field k=v ...] [--format json|table]`,
+				Parameters: createParams,
+				Handle: func(c *oden.Ctx) error {
+					p, err := c.Parse(createParams)
+					if err != nil {
+						return err
+					}
+					pos := p.Positional()
+					if len(pos) != 1 {
+						return errors.New(`usage: mtm record create KIND --title "..." [--field k=v ...]`)
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					return recordCreateParsed(store, pos[0], p, c.Stdout)
+				},
+			},
+			{
+				Name:    "undo",
+				Summary: "undo the last CLI change",
+				Handle: func(c *oden.Ctx) error {
+					if _, err := c.Parse(nil); err != nil {
+						return err
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					cs, err := store.UndoLast(cliActor)
+					if err != nil {
+						return err
+					}
+					return printJSON(c.Stdout, cs)
+				},
+			},
+			{
+				Name:    "redo",
+				Summary: "redo the last undone CLI change",
+				Handle: func(c *oden.Ctx) error {
+					if _, err := c.Parse(nil); err != nil {
+						return err
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					cs, err := store.RedoLast(cliActor)
+					if err != nil {
+						return err
+					}
+					return printJSON(c.Stdout, cs)
+				},
+			},
+		},
+	}
+}
+
+func mtmMCPCommand(g globalOpts) oden.Command {
+	return oden.Command{
+		Name:     "mcp",
+		Summary:  "MCP server and tool calls over the store",
+		Category: "MCP",
+		Children: []oden.Command{
+			{
+				Name:    "tools",
+				Summary: "list available MCP tool specs as JSON",
+				Handle: func(c *oden.Ctx) error {
+					if _, err := c.Parse(nil); err != nil {
+						return err
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					return printJSON(c.Stdout, mcpui.NewToolbox(store, nil).ToolSpecs())
+				},
+			},
+			{
+				Name:    "call",
+				Summary: "invoke one MCP tool with JSON arguments",
+				Usage:   "TOOL ['JSON']",
+				Handle: func(c *oden.Ctx) error {
+					p, err := c.Parse(nil)
+					if err != nil {
+						return err
+					}
+					pos := p.Positional()
+					if len(pos) < 1 || len(pos) > 2 {
+						return errors.New("usage: mtm mcp call TOOL 'JSON'")
+					}
+					raw := "{}"
+					if len(pos) == 2 {
+						raw = pos[1]
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					actor := core.Actor{Kind: "agent", ID: os.Getenv("MTM_PANE_ID"), Label: "mtm mcp call"}
+					out, err := mcpui.NewToolbox(store, nil).Call(c.Context, actor, pos[0], json.RawMessage(raw))
+					if err != nil {
+						return err
+					}
+					return printJSON(c.Stdout, out)
+				},
+			},
+			{
+				Name:    "serve",
+				Summary: "run an MCP JSON-RPC 2.0 server on stdin/stdout",
+				Handle: func(c *oden.Ctx) error {
+					p, err := c.Parse(nil)
+					if err != nil {
+						return err
+					}
+					if len(p.Positional()) != 0 {
+						return errors.New("usage: mtm mcp serve")
+					}
+					store, err := openStoreWithSeed(g)
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					err = mcpui.ServeStdio(c.Context, c.Stdin, c.Stdout, store, mcpui.New(store))
+					if errors.Is(err, context.Canceled) {
+						return nil // interrupted: a normal end for a server
+					}
+					return err
+				},
+			},
+		},
+	}
+}
+
+func mtmMigrateCommand(g globalOpts) oden.Command {
+	params := []oden.Parameter{
+		{Name: "from", Type: "string", Description: "Path to v1 mtm.db"},
+		{Name: "dry-run", Type: "bool", Description: "Preview changes without writing"},
+		{Name: "apply", Type: "bool", Description: "Apply migration to the v2 store"},
+	}
+	return oden.Command{
+		Name:       "migrate",
+		Summary:    "import a v1 mtm.db into the v2 store",
+		Category:   "Data",
+		Usage:      "--from V1_DB [--dry-run | --apply]",
+		Parameters: params,
+		Handle: func(c *oden.Ctx) error {
+			p, err := c.Parse(params)
+			if err != nil {
+				return err
+			}
+			return runMigrate(c.Context, g, p, c.Stdout)
+		},
+	}
+}
+
+func mtmUndoCommand(g globalOpts) oden.Command {
+	return oden.Command{
+		Name:     "undo",
+		Summary:  "undo the last CLI change",
+		Category: "Records",
+		Handle: func(c *oden.Ctx) error {
+			p, err := c.Parse(nil)
+			if err != nil {
+				return err
+			}
+			if len(p.Positional()) != 0 {
+				return errors.New("usage: mtm undo")
+			}
+			store, err := openStoreWithSeed(g)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+			cs, err := store.UndoLast(cliActor)
+			if err != nil {
+				return err
+			}
+			return printJSON(c.Stdout, cs)
+		},
+	}
+}
+
+func mtmRedoCommand(g globalOpts) oden.Command {
+	return oden.Command{
+		Name:     "redo",
+		Summary:  "redo the last undone CLI change",
+		Category: "Records",
+		Handle: func(c *oden.Ctx) error {
+			p, err := c.Parse(nil)
+			if err != nil {
+				return err
+			}
+			if len(p.Positional()) != 0 {
+				return errors.New("usage: mtm redo")
+			}
+			store, err := openStoreWithSeed(g)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+			cs, err := store.RedoLast(cliActor)
+			if err != nil {
+				return err
+			}
+			return printJSON(c.Stdout, cs)
+		},
+	}
 }
 
 // samePath reports whether a and b name the same file.
@@ -234,36 +727,39 @@ func samePath(a, b string) bool {
 // It is a dry run unless --apply is given. A dry run writes nothing: it reads
 // the v2 store when there is one (to tell new from unchanged) and does not
 // create it.
-func runMigrate(ctx context.Context, o options, stdout io.Writer) error {
+func runMigrate(ctx context.Context, g globalOpts, p oden.Parsed, stdout io.Writer) error {
 	const use = "usage: mtm migrate --from V1_DB [--dry-run | --apply]"
+	from := p.String("from")
+	dryRun := p.Bool("dry-run")
+	apply := p.Bool("apply")
 	switch {
-	case len(o.args) != 1:
+	case len(p.Positional()) != 0:
 		return errors.New(use)
-	case o.from == "":
+	case from == "":
 		return errors.New("migrate needs --from, the v1 mtm.db\n" + use)
-	case o.dryRun && o.apply:
+	case dryRun && apply:
 		return errors.New("--dry-run and --apply cannot both be given")
 	}
-	target := o.db
+	target := g.db
 	if target == "" {
 		var err error
 		if target, err = defaultDB(); err != nil {
 			return err
 		}
 	}
-	if samePath(o.from, target) {
-		return fmt.Errorf("--from %s is the v2 store itself; name the v1 mtm.db", o.from)
+	if samePath(from, target) {
+		return fmt.Errorf("--from %s is the v2 store itself; name the v1 mtm.db", from)
 	}
 	var store *data.Store
 	_, statErr := os.Stat(target)
-	if o.apply || statErr == nil || target == ":memory:" || strings.HasPrefix(target, "file:") {
+	if apply || statErr == nil || target == ":memory:" || strings.HasPrefix(target, "file:") {
 		var err error
 		if store, err = openStore(target); err != nil {
 			return err
 		}
 		defer store.Close()
 	}
-	rep, err := migrate.Import(ctx, store, migrate.Options{From: o.from, Apply: o.apply})
+	rep, err := migrate.Import(ctx, store, migrate.Options{From: from, Apply: apply})
 	if err != nil {
 		return err
 	}
@@ -299,134 +795,6 @@ func runApp(a *app.App) error {
 	_, err := p.Run()
 	stop()
 	return err
-}
-
-func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	switch {
-	case o.help:
-		fmt.Fprint(stdout, usage)
-		return nil
-	case o.smoke && o.tutorial:
-		return app.RunTutorialSmoke(stdout)
-	case o.smoke:
-		return app.RunSmoke(stdout, o.dump)
-	case o.tutorial:
-		if len(o.args) != 0 || o.db != "" || o.seed {
-			return errors.New("--tutorial opens its own workspace: it takes no command, --db or --seed-demo")
-		}
-		cancel() // the TUI reads ctrl+c itself
-		return runTutorial()
-	case len(o.args) > 0 && o.args[0] == "config":
-		if len(o.args) != 2 || o.args[1] != "export" {
-			return errors.New("usage: mtm config export [--jsonl]")
-		}
-		out, err := app.ExportConfig(configDir(), o.jsonl)
-		if err != nil {
-			return err
-		}
-		_, err = stdout.Write(out)
-		return err
-	case len(o.args) > 0 && o.args[0] == "inspect":
-		if len(o.args) != 2 {
-			return errors.New("usage: mtm inspect actions|bindings|modes|schemas [--json]")
-		}
-		v, err := app.Inspect(o.args[1], configDir())
-		if err != nil {
-			return fmt.Errorf("%w\nusage: mtm inspect actions|bindings|modes|schemas [--json]", err)
-		}
-		if o.json {
-			return printJSON(stdout, v)
-		}
-		_, err = io.WriteString(stdout, app.InspectText(v))
-		return err
-	case len(o.args) > 0 && (o.args[0] == "binding" || o.args[0] == "bindings"):
-		return dispatchBinding(o, stdout)
-	case len(o.args) > 0 && o.args[0] == "migrate":
-		return runMigrate(ctx, o, stdout)
-	case o.from != "" || o.dryRun || o.apply:
-		return errors.New("--from, --dry-run and --apply belong to mtm migrate")
-	}
-	store, err := openStore(o.db)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	if o.seed {
-		if err := app.SeedDemo(store); err != nil {
-			return err
-		}
-	}
-	if len(o.args) == 0 {
-		cancel() // the TUI reads ctrl+c itself
-		return runTUI(store)
-	}
-	if len(o.args) == 1 && o.args[0] == "undo" {
-		cs, err := store.UndoLast(cliActor)
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, cs)
-	}
-	if len(o.args) == 1 && o.args[0] == "redo" {
-		cs, err := store.RedoLast(cliActor)
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, cs)
-	}
-	if kind, ok := resolveNoun(o.args[0]); ok {
-		return dispatchNoun(ctx, store, kind, o, stdin, stdout)
-	}
-	sub := strings.Join(o.args[:min(2, len(o.args))], " ")
-	rest := o.args[min(2, len(o.args)):]
-	switch sub {
-	case "record list":
-		return recordList(store, o, rest, stdout)
-	case "record get":
-		return recordGet(store, o, rest, stdin, stdout)
-	case "record create":
-		return recordCreate(store, o, rest, stdout)
-	case "record undo":
-		cs, err := store.UndoLast(cliActor)
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, cs)
-	case "record redo":
-		cs, err := store.RedoLast(cliActor)
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, cs)
-	case "mcp tools":
-		return printJSON(stdout, mcpui.NewToolbox(store, nil).ToolSpecs())
-	case "mcp serve":
-		if len(rest) != 0 {
-			return errors.New("usage: mtm mcp serve")
-		}
-		err := mcpui.ServeStdio(ctx, stdin, stdout, store, mcpui.New(store))
-		if errors.Is(err, context.Canceled) {
-			return nil // interrupted: a normal end for a server
-		}
-		return err
-	case "mcp call":
-		if len(rest) < 1 || len(rest) > 2 {
-			return errors.New("usage: mtm mcp call TOOL 'JSON'")
-		}
-		raw := "{}"
-		if len(rest) == 2 {
-			raw = rest[1]
-		}
-		actor := core.Actor{Kind: "agent", ID: os.Getenv("MTM_PANE_ID"), Label: "mtm mcp call"}
-		out, err := mcpui.NewToolbox(store, nil).Call(ctx, actor, rest[0], json.RawMessage(raw))
-		if err != nil {
-			return err
-		}
-		return printJSON(stdout, out)
-	}
-	return fmt.Errorf("unknown command %q\n\n%s", strings.Join(o.args, " "), usage)
 }
 
 func printJSON(w io.Writer, v any) error {
@@ -467,53 +835,33 @@ func printRecords(w io.Writer, store *data.Store, kind, format string, recs []da
 	return tw.Flush()
 }
 
-func recordList(store *data.Store, o options, rest []string, w io.Writer) error {
-	if len(rest) != 1 {
-		return errors.New("usage: mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]")
-	}
-	mode := data.MatchMode(o.mode)
+func recordListParsed(store *data.Store, kind string, p oden.Parsed, w io.Writer) error {
+	mode := data.MatchMode(p.String("mode"))
 	switch mode {
 	case "":
 		mode = data.MatchSubstring
 	case data.MatchSubstring, data.MatchFuzzy, data.MatchRegex:
 	default:
-		return fmt.Errorf("--mode %s is not substring, fuzzy or regex", o.mode)
+		return fmt.Errorf("--mode %s is not substring, fuzzy or regex", p.String("mode"))
 	}
-	res, err := store.Query(data.Query{Kind: rest[0], Query: o.query, MatchMode: mode, IncludeArchived: o.archived, StarredOnly: o.starred})
+	res, err := store.Query(data.Query{
+		Kind:            kind,
+		Query:           p.String("query"),
+		MatchMode:       mode,
+		IncludeArchived: p.Bool("archived"),
+		StarredOnly:     p.Bool("starred"),
+	})
 	if err != nil {
 		return err
 	}
 	if res.FilterErr != "" {
 		return fmt.Errorf("--query is not a regular expression: %s", res.FilterErr)
 	}
-	items, err := filterByFields(res.Items, o.fields)
+	items, err := filterByFields(res.Items, p.Strings("field"))
 	if err != nil {
 		return err
 	}
-	return printRecords(w, store, rest[0], o.format, items)
-}
-
-func recordGet(store *data.Store, o options, rest []string, stdin io.Reader, w io.Writer) error {
-	const use = "usage: mtm record get KIND ID"
-	if len(rest) < 1 || len(rest) > 2 {
-		return errors.New(use)
-	}
-	query := ""
-	if len(rest) == 2 {
-		query = rest[1]
-	}
-	id, err := resolveRecordID(store, rest[0], query, stdin, use)
-	if err != nil {
-		return err
-	}
-	rec, err := store.Get(core.Ref{Kind: rest[0], ID: id})
-	if err != nil {
-		return err
-	}
-	if o.format == "table" {
-		return printRecords(w, store, rest[0], o.format, []data.Record{*rec})
-	}
-	return printJSON(w, rec)
+	return printRecords(w, store, kind, recordFormat(p), items)
 }
 
 // fieldValue reads a --field value as the schema's type for that field: a
@@ -569,21 +917,18 @@ func fieldValue(schema data.Schema, name, text string) (any, error) {
 	return text, nil
 }
 
-func recordCreate(store *data.Store, o options, rest []string, w io.Writer) error {
-	if len(rest) != 1 {
-		return errors.New(`usage: mtm record create KIND --title "..." [--field k=v ...]`)
-	}
-	schema := schemaOf(store, rest[0])
+func recordCreateParsed(store *data.Store, kind string, p oden.Parsed, w io.Writer) error {
+	schema := schemaOf(store, kind)
 	fields := map[string]any{}
-	if o.title != "" {
+	if title := p.String("title"); title != "" {
 		// The title goes to the noun's summary field: an extension's is its name.
 		name := "title"
 		if _, ok := schema.Field("title"); !ok && schema.SummaryField != "" {
 			name = schema.SummaryField
 		}
-		fields[name] = o.title
+		fields[name] = title
 	}
-	for _, kv := range o.fields {
+	for _, kv := range p.Strings("field") {
 		name, text, ok := strings.Cut(kv, "=")
 		if !ok || name == "" {
 			return fmt.Errorf("--field %s: write it as name=value", kv)
@@ -594,12 +939,9 @@ func recordCreate(store *data.Store, o options, rest []string, w io.Writer) erro
 		}
 		fields[name] = v
 	}
-	rec, _, err := store.Create(data.CreateInput{Kind: rest[0], Fields: fields}, cliActor)
+	rec, _, err := store.Create(data.CreateInput{Kind: kind, Fields: fields}, cliActor)
 	if err != nil {
 		return err
 	}
-	if o.format == "table" {
-		return printRecords(w, store, rest[0], o.format, []data.Record{*rec})
-	}
-	return printJSON(w, rec)
+	return printRecordOne(w, store, kind, recordFormat(p), rec)
 }

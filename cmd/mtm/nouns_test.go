@@ -163,3 +163,45 @@ func TestBindingAndExtensionCLI(t *testing.T) {
 		t.Fatalf("extension run = %+v", ran)
 	}
 }
+
+func TestOdenUniquePrefixAndRichHelp(t *testing.T) {
+	t.Setenv("PATH", "")
+	dir := t.TempDir()
+	cfgDir := filepath.Join(dir, "cfg")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MTM_CONFIG_DIR", cfgDir)
+	c := cli{t: t, db: filepath.Join(dir, "mtm.db")}
+
+	// Unique prefix dispatch: "t c" -> task create, "t l" -> task list, "bi ch" -> binding check, "ins ac" -> inspect actions.
+	made := decode[record](t, c.ok("t", "c", "--title", "Prefix Task"))
+	if made.Kind != "task" || made.Fields["title"] != "Prefix Task" {
+		t.Fatalf("t c = %+v", made)
+	}
+	listed := decode[[]record](t, c.ok("t", "l"))
+	if len(listed) != 1 || listed[0].ID != made.ID {
+		t.Fatalf("t l = %+v", listed)
+	}
+	chk := c.ok("bi", "ch")
+	if !strings.Contains(chk, "0 errors") {
+		t.Fatalf("bi ch = %q", chk)
+	}
+	if tbl := c.ok("ins", "ac"); !strings.HasPrefix(tbl, "ACTION") {
+		t.Fatalf("ins ac = %q", tbl)
+	}
+
+	// Rich oden help & which.
+	if h := c.ok("help"); !strings.Contains(h, "Human commands:") || !strings.Contains(h, "task") {
+		t.Fatalf("help = %q", h)
+	}
+	if ha := c.ok("help", "--all"); !strings.Contains(ha, "Machine commands") || !strings.Contains(ha, "record") {
+		t.Fatalf("help --all = %q", ha)
+	}
+	if th := c.ok("task", "--help"); !strings.Contains(th, "usage: mtm task") || !strings.Contains(th, "list") || !strings.Contains(th, "--query") {
+		t.Fatalf("task --help = %q", th)
+	}
+	if w := c.ok("which", "task"); !strings.Contains(w, "task inline") {
+		t.Fatalf("which task = %q", w)
+	}
+}
