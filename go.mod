@@ -6,8 +6,8 @@ require (
 	charm.land/bubbletea/v2 v2.1.0
 	github.com/creack/pty v1.1.24
 	modernc.org/sqlite v1.60.1
-	ofam.dev/ochazuke v0.0.0
-	ofam.dev/oden v0.5.1
+	ofam.dev/ochazuke v1.0.0
+	ofam.dev/oden v1.0.0
 	tuios.dev/vt v0.3.3-0.20261030005101-f3383d2005bd
 )
 
@@ -31,6 +31,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
+	go.mitchellh.com/libghostty v0.0.0-20260920220152-31b65cdc24cf // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	modernc.org/libc v1.77.1 // indirect
@@ -38,7 +39,3 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 	tuios.dev/progstatus v0.1.0 // indirect
 )
-
-replace ofam.dev/ochazuke => ../ochazuke-next
-
-replace ofam.dev/oden => ../oden-next
