@@ -132,6 +132,8 @@ const (
 	SetPickerDefaultMode       = "ui.pickerDefaultMode"
 	SetViewCycle               = "ui.viewCycle"
 	SetFormReactiveFields      = "edit.reactiveFields"
+	SetSessionRecord           = "session.record"
+	SetSessionPromptSaveOnExit = "session.promptSaveOnExit"
 	PickerDefaultModeNormal    = "normal"
 	PickerDefaultModeAllNormal = "all-normal"
 	PickerDefaultModeFilter    = "filter"
@@ -203,6 +205,8 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetPickerDefaultMode, PickerDefaultModeNormal, "initial mode when opening pickers (normal, all-normal, or filter)", PickerDefaultModeNormal, PickerDefaultModeAllNormal, PickerDefaultModeFilter),
 		flag(SetViewCycle, true, "cycle focused component views, layouts, density, and saved presets with g V"),
 		flag(SetFormReactiveFields, true, "evaluate reactive VisibleWhen predicates in forms (false shows all fields)"),
+		flag(SetSessionRecord, true, "record session events into a bounded in-memory ring buffer"),
+		flag(SetSessionPromptSaveOnExit, false, "prompt to save the session recording before quitting"),
 	}
 }
 
@@ -248,6 +252,7 @@ func (a *App) reloadSettings() {
 		a.warn("settings: %v", err)
 	}
 	a.syncToastSetting()
+	a.syncSessionRecorder()
 }
 
 // theme builds the theme the settings ask for: the named preset, the
@@ -337,6 +342,7 @@ func (a *App) applySettings() {
 		theme.Version = a.Shell.Theme.Version + 1 // drops the renderer's caches
 		a.Shell.Theme = theme
 	}
+	a.syncSessionRecorder()
 	a.nav.recCacheKeys = map[string]string{}
 	a.panes.railCacheKey = ""
 	a.viewMemo.gen++

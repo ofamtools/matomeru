@@ -38,7 +38,7 @@ func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
 	base := append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...)
-	return append(base, []core.CommandSpec{
+	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
 		{ID: views.CmdNew, Description: "Create a record", Tags: []string{"editing"}, Params: []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: "task"}}},
@@ -266,7 +266,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(tree.CmdFoldOpenAll, "Unfold every node in the focused tree"),
 		spec(tree.CmdFoldCloseAll, "Fold every parent node in the focused tree"),
 		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
-	}...)
+	}...), sessionRecorderSpecs()...)
 }
 
 // readerSpecs are the Markdown widget's own commands. They only make sense

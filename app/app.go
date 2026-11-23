@@ -221,6 +221,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		initial.ActivePage = start
 	}
 	a.Shell = otea.New(a.Engine, initial, a.View, theme)
+	a.initSessionRecorder()
 	a.Shell.MaxFPS = a.cfg.Settings.Int("maxFPS", otea.DefaultMaxFPS)
 	a.Shell.DisableMouse = !a.cfg.Settings.Bool("mouse", true)
 	a.Shell.AppFacts = func(s core.State) map[string]any {
@@ -629,6 +630,10 @@ func (a *App) register() {
 	}
 	a.handle(CmdWorkLayoutToggle, a.workLayoutToggle)
 	a.handle(CmdViewCycle, a.viewCycle)
+	a.handle(CmdSessionRecordSave, a.sessionRecordSave)
+	a.handle(CmdSessionRecordToggle, a.sessionRecordToggle)
+	a.handle(CmdSessionRecordClear, a.sessionRecordClear)
+	a.handle(CmdSessionRecordStatus, a.sessionRecordStatus)
 	for id, spec := range a.ext.recordActions {
 		a.handle(id, a.runRecordAction(spec))
 	}

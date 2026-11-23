@@ -515,10 +515,15 @@ func (a *App) openConfirm(s core.State, opts modal.ConfirmOptions) core.State {
 	return a.pushModal(s, modal.NewConfirmModal(opts))
 }
 
-// appQuit handles core.CmdAppQuit (Q / ctrl+c): prompts with the shared
-// confirmation dialog when confirm.quit is enabled, otherwise quits at once.
+// appQuit handles core.CmdAppQuit (Q / ctrl+c): honors the 4-case matrix of
+// confirm.quit and session.promptSaveOnExit (when buffered events exist).
 func (a *App) appQuit(s core.State, _ core.Command) core.StepResult {
-	if !a.cfg.Settings.Bool(SetConfirmQuit, true) {
+	confirmQuit := a.cfg.Settings.Bool(SetConfirmQuit, true)
+	if !confirmQuit {
+		if a.shouldPromptSaveRecording() {
+			a.say("y/enter saves & quits · n/esc quits without saving")
+			return core.Next(a.pushModal(s, a.newSaveRecordingConfirmModal()))
+		}
 		return core.Next(s, core.QuitEffect{})
 	}
 	return core.Next(a.openConfirm(s, modal.ConfirmOptions{
@@ -526,6 +531,13 @@ func (a *App) appQuit(s core.State, _ core.Command) core.StepResult {
 		Message:      "Quit Matomeru? Your daemon panes will keep running in the background.",
 		ConfirmLabel: "Confirm",
 		OnConfirm: func() modal.Result {
+			if a.shouldPromptSaveRecording() {
+				return modal.Result{
+					Push:      a.newSaveRecordingConfirmModal(),
+					Status:    "y/enter saves & quits · n/esc quits without saving",
+					SetStatus: true,
+				}
+			}
 			return modal.Result{Effects: []core.Effect{core.QuitEffect{}}}
 		},
 	}))

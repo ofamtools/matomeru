@@ -58,7 +58,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetRowSemanticStyling: true, SetStatusIcons: true, SetTreeTopLevelGap: true,
 		SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree, SetWorkHierarchyLayout: WorkHierarchyLayoutAuto,
 		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal,
-		SetViewCycle: true, SetFormReactiveFields: true}
+		SetViewCycle: true, SetFormReactiveFields: true,
+		SetSessionRecord: true, SetSessionPromptSaveOnExit: false}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
