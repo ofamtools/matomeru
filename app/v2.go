@@ -359,7 +359,7 @@ func bindingOverrides(current, defaults []core.Binding, user int) []core.Binding
 func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 	if a.bindEd == nil {
 		// Opened once per run: closing the editor keeps its undo history.
-		a.bindEd = bindings.New(Modes(), config.MergeBindings(DefaultBindings(), a.userBindings), a.specs...)
+		a.bindEd = bindings.New(Modes(), config.MergeBindings(a.baseBindings(), a.userBindings), a.specs...)
 		a.bindUser = len(a.userBindings)
 		a.bindConflictsInit = false
 	}
@@ -374,8 +374,9 @@ func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 func (a *App) bindingsChanged(what string) {
 	ed := a.bindEd
 	a.bindConflictsInit = false
-	a.userBindings = bindingOverrides(ed.Bindings(), DefaultBindings(), a.bindUser)
-	a.bindings = config.MergeBindings(DefaultBindings(), a.userBindings)
+	base := a.baseBindings()
+	a.userBindings = bindingOverrides(ed.Bindings(), base, a.bindUser)
+	a.bindings = config.MergeBindings(base, a.userBindings)
 	if err := a.rebuildKeymap(); err != nil {
 		what += " · " + err.Error()
 	}

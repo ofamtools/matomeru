@@ -490,21 +490,58 @@ esac
 	t.Cleanup(func() { a.Close() })
 	d := NewDriver(a, 120, 36)
 
-	if err := a.MountCatalog(dfBin, ext.Manifest{
-		Name: "o-df",
-		Schemas: []data.Schema{{
-			Kind:           "df.culprit",
-			Title:          "Culprit",
-			Plural:         "Culprits",
-			SummaryField:   "name",
-			DefaultColumns: []string{"name", "sizeHuman", "rebuildable"},
-			Fields: []core.ParamSpec{
-				{Name: "name", Type: core.ParamString},
-				{Name: "sizeHuman", Type: core.ParamString},
-				{Name: "rebuildable", Type: core.ParamBool},
-			},
-		}},
-	}); err != nil {
+	manifestJSON := `{
+  "name": "o-df",
+  "version": "0.2.0",
+  "schemas": [{
+    "kind": "df.culprit",
+    "title": "Culprit",
+    "plural": "Culprits",
+    "summaryField": "name",
+    "defaultColumns": ["name", "sizeHuman", "rebuildable"],
+    "fields": [
+      {"name": "name", "type": "string"},
+      {"name": "sizeHuman", "type": "string"},
+      {"name": "rebuildable", "type": "bool"}
+    ],
+    "styleRules": [
+      {"when": "fields.rebuildable == false", "target": "rebuildable", "tone": "muted"}
+    ]
+  }],
+  "commands": [{
+    "id": "df.culprit.clean",
+    "description": "Free disk space for a rebuildable culprit via o-df clean --yes",
+    "kinds": ["df.culprit"],
+    "tags": ["o-df", "editing", "destructive"],
+    "key": "X",
+    "keyHint": "clean culprit",
+    "exec": {
+      "argv": ["{{binary}}", "clean", "{{name|title|id}}", "--yes"],
+      "title": "o-df clean {{name|title|id}}",
+      "refreshKinds": ["df.culprit"]
+    },
+    "guard": {
+      "when": "fields.rebuildable == true",
+      "refuseMessage": "Cannot clean {{name|title|id}}: culprit is not rebuildable"
+    },
+    "confirm": {
+      "title": "Clean {{name|title|id}}",
+      "message": "Free {{sizeHuman|size|'space'}} from {{name|title|id}} via o-df clean --yes?",
+      "label": "Clean",
+      "tone": "warning"
+    },
+    "feedback": {
+      "running": "Cleaning {{name|title|id}}...",
+      "success": "Freed {{sizeHuman|size|'space'}} from {{name|title|id}}",
+      "failure": "o-df clean {{name|title|id}} failed"
+    }
+  }]
+}`
+	manifest, err := ext.ParseManifest([]byte(manifestJSON))
+	if err != nil {
+		t.Fatalf("ParseManifest: %v", err)
+	}
+	if err := a.MountCatalog(dfBin, manifest); err != nil {
 		t.Fatal(err)
 	}
 
@@ -522,8 +559,8 @@ esac
 		t.Fatalf("; did not open record actions: %q", a.Modal())
 	}
 	actionIDs := pickerIDs(a, modalRecordActions)
-	if len(actionIDs) == 0 || actionIDs[0] != CmdDFCulpritClean {
-		t.Fatalf("expected %q at top of ; Actions on df.culprit, got %v", CmdDFCulpritClean, actionIDs)
+	if len(actionIDs) == 0 || actionIDs[0] != "df.culprit.clean" {
+		t.Fatalf("expected %q at top of ; Actions on df.culprit, got %v", "df.culprit.clean", actionIDs)
 	}
 	d.Keys("esc")
 
@@ -551,6 +588,36 @@ esac
 	}
 	if !strings.Contains(a.Status(), "not rebuildable") {
 		t.Fatalf("expected non-rebuildable refusal status, got %q", a.Status())
+	}
+
+	// User bindings.json MUST override the extension's default key "X" on df.culprit.
+	cfgDir := t.TempDir()
+	overrideJSON := `[{"mode":"normal","scope":"df.culprit","keys":["X"],"command":"record.star","hint":"star override"}]`
+	if err := os.WriteFile(filepath.Join(cfgDir, bindingsFileName), []byte(overrideJSON), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a2, err := New(store, Options{ConfigDir: cfgDir, Runner: runner, FS: smokeFS()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a2.Close() })
+	d2 := NewDriver(a2, 120, 36)
+	if err := a2.MountCatalog(dfBin, manifest); err != nil {
+		t.Fatal(err)
+	}
+	d2.Keys("g", "n")
+	d2.Type("culprits")
+	d2.Keys("enter")
+	a2.WaitBackground()
+	a2.Shell.Update(wakeMsg())
+	_ = d2.Frame()
+	d2.Keys("X")
+	if a2.Modal() == modalConfirm {
+		t.Fatal("user bindings.json override on X was shadowed by extension binding")
+	}
+	shadow, err := store.Get(core.Ref{Kind: "df.culprit", ID: "go-build-cache"})
+	if err != nil || !shadow.IsStarred() {
+		t.Fatalf("expected user bindings.json override X -> record.star to star culprit, got rec=%+v err=%v", shadow, err)
 	}
 }
 

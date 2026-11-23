@@ -97,7 +97,7 @@ var policies = map[string]policy{
 	// ViewNode generators.
 	mod + "/views": {
 		allow: []string{
-			mod + "/data", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout",
+			mod + "/data", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/form", ochazuke + "/widgets/picker",
 		},
 		forbidDeps: noTea,
@@ -112,7 +112,7 @@ var policies = map[string]policy{
 	// catalog's views are ViewNode data, so ext reads ui's types; it draws
 	// nothing and stays free of Bubble Tea.
 	mod + "/ext": {
-		allow:      []string{mod + "/data", mod + "/runs", ochazuke + "/core", ochazuke + "/ui"},
+		allow:      []string{mod + "/data", mod + "/runs", mod + "/actions", ochazuke + "/core", ochazuke + "/ui"},
 		forbidDeps: noTea,
 	},
 	// File handlers: rules as data and the matching of a target to them.

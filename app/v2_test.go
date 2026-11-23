@@ -55,7 +55,8 @@ func TestTutorial(t *testing.T) {
 func TestSettingsApplyAndPersist(t *testing.T) {
 	want := map[string]any{SetTheme: "ochazuke-dark", SetDensity: "balanced", SetBorderStyle: "rounded", SetShowMetadata: true, SetShowEmpty: true,
 		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true,
-		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree,
+		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetRowSemanticStyling: true, SetStatusIcons: true, SetTreeTopLevelGap: true,
+		SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree, SetWorkHierarchyLayout: WorkHierarchyLayoutAuto,
 		SetAutoArchiveExited: true, SetScrollOff: 5}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
@@ -285,7 +286,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	}
 	// A schema registered later is a noun like any other.
 	a.Store.Registry().Register(data.Schema{Kind: "link", Title: "Link", Plural: "Links", SummaryField: "title",
-		Fields: []core.ParamSpec{{Name: "title", Type: core.ParamString, Required: true}, {Name: "url", Type: core.ParamString}}})
+		Fields: []data.FieldSpec{{Name: "title", Type: core.ParamString, Required: true}, {Name: "url", Type: core.ParamString}}})
 	d.Keys("esc", "g", "n")
 	d.Type("links")
 	d.Keys("enter")

@@ -52,8 +52,7 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 			if f.Type != core.ParamRef || !slices.Contains(f.RefKinds, ref.Kind) {
 				continue
 			}
-			includeArchived := src.Kind == data.KindPane && ref.Kind == data.KindTask
-			res, err := store.Query(data.Query{Kind: src.Kind, Parent: &ref, ParentField: f.Name, IncludeArchived: includeArchived})
+			res, err := store.Query(data.Query{Kind: src.Kind, Parent: &ref, ParentField: f.Name, IncludeArchived: f.ShowIncludeArchived})
 			if err != nil {
 				return nil, err
 			}
@@ -249,7 +248,7 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 	}
 
 	var panels []ui.ViewNode
-	if ref.Kind == data.KindLane {
+	if schema.ShowTimeline {
 		timeline, err := timelinePanel(store, ref)
 		if err != nil {
 			return ui.ViewNode{}, err

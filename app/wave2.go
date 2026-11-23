@@ -17,6 +17,7 @@ import (
 	"ofam.dev/matomeru/handlers"
 	"ofam.dev/matomeru/harness"
 	"ofam.dev/matomeru/ptyhost"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
@@ -723,9 +724,37 @@ func (a *App) decorateRailRow(row *table.Row, pane data.Record) {
 		return
 	}
 	if state != "" {
-		row.Cells["runStatus"] = formatPaneStatusCell(state)
+		paneSchema := a.schema(data.KindPane)
+		icon, label, tone, rowTone := views.StatusIndicator(paneSchema, "runStatus", state)
+		styleOpts := a.styleOptions()
+		row.Cells["runStatus"] = label
 		row.Facts["hookState"] = state
-		row.Facts["statusTone"] = hookStateTone(state)
+		row.Facts["statusTone"] = tone
+		if styleOpts.StatusIcons && icon != "" {
+			if row.CellIcons == nil {
+				row.CellIcons = map[string]string{}
+			}
+			row.CellIcons["runStatus"] = icon
+		} else if row.CellIcons != nil {
+			delete(row.CellIcons, "runStatus")
+		}
+		if styleOpts.RowSemanticStyling {
+			if rowTone != "" && !pane.IsArchived() {
+				row.Tone = rowTone
+			}
+			if tone != "" {
+				if row.CellTones == nil {
+					row.CellTones = map[string]string{}
+				}
+				row.CellTones["runStatus"] = tone
+				if styleOpts.StatusIcons && icon != "" {
+					if row.IconTones == nil {
+						row.IconTones = map[string]string{}
+					}
+					row.IconTones["runStatus"] = tone
+				}
+			}
+		}
 	}
 	var extras []string
 	if pt != nil && pt.Tool != "" {
@@ -738,19 +767,6 @@ func (a *App) decorateRailRow(row *table.Row, pane data.Record) {
 		if cur, ok := row.Cells["rail"].(string); ok {
 			row.Cells["rail"] = cur + " [" + strings.Join(extras, " ") + "]"
 		}
-	}
-}
-
-func hookStateTone(state string) string {
-	switch state {
-	case daemon.StateNeedsYou:
-		return "warning"
-	case daemon.StateRunning:
-		return "accent"
-	case daemon.StateDone:
-		return "success"
-	default:
-		return "muted"
 	}
 }
 
@@ -778,7 +794,8 @@ func (a *App) paneHeaderStrip(pane data.Record) (ui.ViewNode, bool) {
 	if pt != nil && pt.Summary != "" {
 		parts = append(parts, pt.Summary)
 	}
-	return line("site.telemetry", " "+strings.Join(parts, " · "), hookStateTone(state)), true
+	_, _, tone, _ := views.StatusIndicator(a.schema(data.KindPane), "runStatus", state)
+	return line("site.telemetry", " "+strings.Join(parts, " · "), tone), true
 }
 
 func (a *App) paneApprovalBanner(pane data.Record) (ui.ViewNode, bool) {

@@ -338,7 +338,7 @@ func TestEditView(t *testing.T) {
 	paneSchema := w.schema(data.KindPane)
 	blank := FormForRecord(paneSchema, nil)
 	newRoot := EditView(paneSchema, nil, blank, "new")
-	wantText(t, frame(t, newRoot, "new.form", 100, 14), "New pane", "runStatus", "(•) unknown", "cwd", "pid")
+	wantText(t, frame(t, newRoot, "new.form", 130, 14), "New pane", "runStatus", "(•) unknown", "cwd", "pid")
 	wantChain(t, newRoot, "new.form", core.Ref{Kind: data.KindPane}, "form", "edit", "app")
 }
 
@@ -434,11 +434,11 @@ func TestOutlineView(t *testing.T) {
 	root := OutlineView(nodes, "leaf", "outline")
 	out := frame(t, root, "outline.tree", 90, 14)
 	wantText(t, out, "Outline", "2 projects", "5 tasks",
-		"[~] Matomeru v2", "project · active P0 ★",
-		"├─ ", "[x] Data layer", "done P1",
-		"└─ ", "[!] Show pages", "blocked",
-		"[ ] Link cards", "todo",
-		"[ ] Ochazuke v2", "project · todo")
+		"▶ Matomeru v2", "project · active P0 ★",
+		"├─ ", "✓ Data layer", "done P1",
+		"└─ ", "! Show pages", "blocked",
+		"○ Link cards", "todo",
+		"○ Ochazuke v2", "project · todo")
 	if strings.Index(out, "Show pages") > strings.Index(out, "Link cards") || strings.Index(out, "Link cards") > strings.Index(out, "Ochazuke v2") {
 		t.Fatalf("outline is not in tree order:\n%s", out)
 	}

@@ -433,13 +433,6 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 			if a.openable(*rec) {
 				facts[factOpenable] = true
 			}
-			if rec.Kind == data.KindSchedule {
-				paused := rec.Bool("paused")
-				facts["paused"] = paused
-				if paused {
-					header.Badges = append(header.Badges, ui.Badge{Text: "paused", Tone: "warning"})
-				}
-			}
 			header.Facts = facts
 		}
 	}

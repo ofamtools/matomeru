@@ -19,34 +19,41 @@ import (
 // The declared settings: each has a spec, so the Settings overlay (S) is a
 // form over them and a change applies at once.
 const (
-	SetTheme              = "ui.theme"
-	SetDensity            = "ui.density"
-	SetBorderStyle        = "ui.borderStyle"
-	SetShowMetadata       = "show.metadata"
-	SetShowEmpty          = "show.emptyRelations"
-	SetFlagsColumn        = "index.flagsColumn"
-	SetMatchMode          = "index.defaultMatchMode"
-	SetEditUniversal      = "edit.showUniversalFields"
-	SetEditExtra          = "edit.showExtraFields"
-	SetLaneBar            = "panes.laneProgressBar"
-	SetRailAutoWiden      = "panes.railAutoWiden"
-	SetShowTOC            = "panes.showTOC"
-	SetPanesGroup         = "panes.group"
-	SetToast              = "ui.toast"
-	SetTreeGuides         = "ui.treeGuides"
-	SetConfirmQuit        = "confirm.quit"
-	SetConfirmDaemonReset = "confirm.daemonReset"
-	SetTablePresets       = "table.presets"
-	SetWorkTasksLayout    = "work.tasksLayout"
-	SetAutoArchiveExited  = "terminal.autoArchiveOnExit"
-	SetScrollOff          = "ui.scrolloff"
-	WorkTasksLayoutTree   = "tree"
-	WorkTasksLayoutTable  = "table"
-	PanesGroupProjectPane = "project-pane"
-	PanesGroupFlat        = "flat"
-	defaultThemeName      = "ochazuke-dark"
-	settingsFileName      = "settings.json"
-	bindingsFileName      = "bindings.json"
+	SetTheme                 = "ui.theme"
+	SetDensity               = "ui.density"
+	SetBorderStyle           = "ui.borderStyle"
+	SetShowMetadata          = "show.metadata"
+	SetShowEmpty             = "show.emptyRelations"
+	SetFlagsColumn           = "index.flagsColumn"
+	SetMatchMode             = "index.defaultMatchMode"
+	SetEditUniversal         = "edit.showUniversalFields"
+	SetEditExtra             = "edit.showExtraFields"
+	SetLaneBar               = "panes.laneProgressBar"
+	SetRailAutoWiden         = "panes.railAutoWiden"
+	SetShowTOC               = "panes.showTOC"
+	SetPanesGroup            = "panes.group"
+	SetToast                 = "ui.toast"
+	SetTreeGuides            = "ui.treeGuides"
+	SetConfirmQuit           = "confirm.quit"
+	SetConfirmDaemonReset    = "confirm.daemonReset"
+	SetTablePresets          = "table.presets"
+	SetWorkTasksLayout       = "work.tasksLayout"
+	SetWorkHierarchyLayout   = "work.hierarchyLayout"
+	SetRowSemanticStyling    = "ui.rowSemanticStyling"
+	SetStatusIcons           = "ui.statusIcons"
+	SetTreeTopLevelGap       = "ui.treeTopLevelGap"
+	SetAutoArchiveExited     = "terminal.autoArchiveOnExit"
+	SetScrollOff             = "ui.scrolloff"
+	WorkTasksLayoutTree      = "tree"
+	WorkTasksLayoutTable     = "table"
+	WorkHierarchyLayoutAuto  = "auto"
+	WorkHierarchyLayoutTree  = "tree"
+	WorkHierarchyLayoutTable = "table"
+	PanesGroupProjectPane    = "project-pane"
+	PanesGroupFlat           = "flat"
+	defaultThemeName         = "ochazuke-dark"
+	settingsFileName         = "settings.json"
+	bindingsFileName         = "bindings.json"
 	// setTerminalDaemon is read from settings.json only (it has no row in
 	// the settings form): panes run in a daemon when one is reachable.
 	setTerminalDaemon = "terminal.daemon"
@@ -93,11 +100,15 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetPanesGroup, PanesGroupProjectPane, "how panes are grouped in the rail", PanesGroupProjectPane, PanesGroupFlat),
 		flag(SetToast, true, "show transient toast notifications"),
 		flag(SetTreeGuides, true, "draw box-drawing guide lines in tree views"),
+		flag(SetRowSemanticStyling, true, "apply semantic row and cell tones from schema rules"),
+		flag(SetStatusIcons, true, "show declarative status icons in tables, trees, and pickers"),
+		flag(SetTreeTopLevelGap, true, "draw a blank line between top-level items in tree views"),
 		flag(SetConfirmQuit, true, "prompt before quitting Matomeru"),
 		flag(SetConfirmDaemonReset, true, "prompt before resetting the daemon and dropping all live panes"),
 		flag(SetAutoArchiveExited, true, "auto-detach and archive panes when their process exits"),
 		{Name: SetScrollOff, Type: core.ParamInt, Default: 5, Description: "context lines kept above and below the cursor when scrolling"},
 		enum(SetWorkTasksLayout, WorkTasksLayoutTree, "how tasks are displayed in 2 Work (tree or table)", WorkTasksLayoutTree, WorkTasksLayoutTable),
+		enum(SetWorkHierarchyLayout, WorkHierarchyLayoutAuto, "how hierarchical nouns are displayed in 2 Work (auto, tree, or table)", WorkHierarchyLayoutAuto, WorkHierarchyLayoutTree, WorkHierarchyLayoutTable),
 	}
 }
 
@@ -177,6 +188,40 @@ func (a *App) editOptions() views.EditOptions {
 	return views.EditOptions{ShowUniversalFields: a.Settings.Bool(SetEditUniversal, true), ShowExtraFields: a.Settings.Bool(SetEditExtra, true)}
 }
 
+func (a *App) styleOptions() views.StyleOptions {
+	if a.Settings == nil {
+		return views.DefaultStyleOptions()
+	}
+	return views.StyleOptions{
+		RowSemanticStyling: a.Settings.Bool(SetRowSemanticStyling, true),
+		StatusIcons:        a.Settings.Bool(SetStatusIcons, true),
+	}
+}
+
+func (a *App) hierarchyLayout() string {
+	if a.Settings == nil {
+		return WorkHierarchyLayoutAuto
+	}
+	if v, ok := a.userSettings[SetWorkHierarchyLayout].(string); ok && v != "" {
+		switch v {
+		case WorkHierarchyLayoutAuto, WorkHierarchyLayoutTree, WorkHierarchyLayoutTable:
+			return v
+		}
+	}
+	if v, ok := a.userSettings[SetWorkTasksLayout].(string); ok && v != "" {
+		switch v {
+		case WorkTasksLayoutTree:
+			return WorkHierarchyLayoutTree
+		case WorkTasksLayoutTable:
+			return WorkHierarchyLayoutTable
+		}
+	}
+	if v := a.Settings.String(SetWorkHierarchyLayout, WorkHierarchyLayoutAuto); v != "" {
+		return v
+	}
+	return WorkHierarchyLayoutAuto
+}
+
 // matchMode is how a table's filter matches until the owner changes it.
 func (a *App) matchMode() table.MatchMode {
 	if v, ok := a.userSettings[legacyMatchModeID].(string); ok && v != "" {
@@ -195,6 +240,8 @@ func (a *App) applySettings() {
 		theme.Version = a.Shell.Theme.Version + 1 // drops the renderer's caches
 		a.Shell.Theme = theme
 	}
+	a.recCacheKeys = map[string]string{}
+	a.railCacheKey = ""
 	a.gen++
 }
 

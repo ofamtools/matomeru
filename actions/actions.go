@@ -12,7 +12,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -52,8 +51,6 @@ type ActionDef struct {
 	Dir         string            `json:"dir,omitempty"`
 	Env         map[string]string `json:"env,omitempty"`
 }
-
-var placeholderRe = regexp.MustCompile(`\{\{\s*([^{}\s]+)\s*\}\}`)
 
 // DefaultConfigPath returns ~/.config/matomeru/actions.json (honoring
 // $XDG_CONFIG_HOME when set).
@@ -169,60 +166,47 @@ func (a ActionDef) CommandName() string {
 	return noun + "." + verb
 }
 
-// ToCommandSpec converts a into a core.CommandSpec that registers directly
-// into core.Registry and integrates with `;` Actions, `:` Palette, and
-// bindings.json.
-func (a ActionDef) ToCommandSpec() core.CommandSpec {
+// ToRecordActionSpec converts a user ActionDef into the unified RecordActionSpec.
+func (a ActionDef) ToRecordActionSpec() RecordActionSpec {
 	norm := a.normalized()
 	id := norm.CommandName()
 	noun := norm.Noun
 	verb := norm.Verb
 
-	desc := norm.Description
-	if desc == "" && len(norm.Command) > 0 {
-		desc = strings.Join(norm.Command, " ")
-	}
-	title := desc
-	if title == "" {
-		title = id
-	}
-
 	tags := []string{"user", "action"}
 	if noun != "" && !slices.Contains(tags, noun) {
 		tags = append(tags, noun)
 	}
-
-	meta := map[string]any{
-		MetaRecord:     true,
-		MetaScope:      noun,
-		MetaNoun:       noun,
-		MetaVerb:       verb,
-		MetaTitle:      title,
-		MetaSource:     ActionsFile,
-		MetaUserAction: true,
-		MetaForeground: norm.Foreground,
-		MetaCommand:    slices.Clone(norm.Command),
-		MetaAction:     norm,
-	}
+	var kinds []string
 	if noun != "" && noun != "record" && noun != "*" {
-		meta[MetaKinds] = []string{noun}
+		kinds = []string{noun}
 	}
-	if norm.History != "" {
-		meta[MetaHistory] = norm.History
-	}
-	if norm.Dir != "" {
-		meta[MetaDir] = norm.Dir
-	}
-	if len(norm.Env) > 0 {
-		meta[MetaEnv] = maps.Clone(norm.Env)
-	}
-
-	return core.CommandSpec{
+	legacy := norm
+	return RecordActionSpec{
 		ID:          id,
-		Description: desc,
+		Description: norm.Description,
+		Noun:        noun,
+		Verb:        verb,
+		Kinds:       kinds,
 		Tags:        tags,
-		Meta:        meta,
+		Source:      ActionsFile,
+		History:     norm.History,
+		UserAction:  true,
+		LegacyDef:   &legacy,
+		Exec: ExecSpec{
+			Argv:       slices.Clone(norm.Command),
+			Dir:        norm.Dir,
+			Env:        maps.Clone(norm.Env),
+			Foreground: norm.Foreground,
+		},
 	}
+}
+
+// ToCommandSpec converts a into a core.CommandSpec that registers directly
+// into core.Registry and integrates with `;` Actions, `:` Palette, and
+// bindings.json.
+func (a ActionDef) ToCommandSpec() core.CommandSpec {
+	return a.ToRecordActionSpec().ToCommandSpec()
 }
 
 // ToCommandSpecs converts a slice of ActionDefs to core.CommandSpecs.
@@ -238,19 +222,12 @@ func ToCommandSpecs(defs []ActionDef) []core.CommandSpec {
 }
 
 // ExpandCommand substitutes {{label}}, {{data}}, {{id}}, {{title}}, and any
-// {{field}} placeholder in each argv element independently without shell
-// parsing or escaping surprises. Replacement is single-pass so substituted
-// values containing {{...}} are never re-expanded, and a.Command is never
-// mutated.
+// {{field}} or {{a|b|'fallback'}} placeholder in each argv element
+// independently without shell parsing or escaping surprises. Replacement is
+// single-pass so substituted values containing {{...}} are never re-expanded,
+// and a.Command is never mutated.
 func (a ActionDef) ExpandCommand(vars map[string]string) []string {
-	if len(a.Command) == 0 {
-		return nil
-	}
-	out := make([]string, len(a.Command))
-	for i, arg := range a.Command {
-		out[i] = a.expandString(arg, vars)
-	}
-	return out
+	return ExpandArgv(a.Command, a.withDefaultVars(vars))
 }
 
 // ExpandDir substitutes placeholders in a.Dir using the same rules as
@@ -259,68 +236,24 @@ func (a ActionDef) ExpandDir(vars map[string]string) string {
 	if a.Dir == "" {
 		return ""
 	}
-	return a.expandString(a.Dir, vars)
+	return ExpandTemplate(a.Dir, a.withDefaultVars(vars))
 }
 
 // ExpandEnv substitutes placeholders in a.Env values without mutating a.Env.
 func (a ActionDef) ExpandEnv(vars map[string]string) map[string]string {
-	if len(a.Env) == 0 {
-		return nil
+	return ExpandEnvMap(a.Env, a.withDefaultVars(vars))
+}
+
+func (a ActionDef) withDefaultVars(vars map[string]string) map[string]string {
+	out := make(map[string]string, len(vars)+2)
+	if noun := strings.TrimSpace(a.Noun); noun != "" {
+		out["noun"] = noun
 	}
-	out := make(map[string]string, len(a.Env))
-	for k, v := range a.Env {
-		out[k] = a.expandString(v, vars)
+	if verb := strings.TrimSpace(a.Verb); verb != "" {
+		out["verb"] = verb
 	}
+	maps.Copy(out, vars)
 	return out
-}
-
-func (a ActionDef) expandString(tpl string, vars map[string]string) string {
-	if !strings.Contains(tpl, "{{") {
-		return tpl
-	}
-	return placeholderRe.ReplaceAllStringFunc(tpl, func(match string) string {
-		sub := placeholderRe.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return ""
-		}
-		return a.lookupVar(sub[1], vars)
-	})
-}
-
-func (a ActionDef) lookupVar(key string, vars map[string]string) string {
-	if vars != nil {
-		if val, ok := vars[key]; ok {
-			return val
-		}
-	}
-	switch key {
-	case "label":
-		if vars != nil {
-			if val := vars["title"]; val != "" {
-				return val
-			}
-			if val := vars["id"]; val != "" {
-				return val
-			}
-		}
-	case "target":
-		if vars != nil {
-			if val := vars["id"]; val != "" {
-				return val
-			}
-		}
-	case "id":
-		if vars != nil {
-			if val := vars["target"]; val != "" {
-				return val
-			}
-		}
-	case "noun":
-		return strings.TrimSpace(a.Noun)
-	case "verb":
-		return strings.TrimSpace(a.Verb)
-	}
-	return ""
 }
 
 func (a ActionDef) normalized() ActionDef {

@@ -105,11 +105,67 @@ const (
 // TriageActions lists what a triage rule can do to a signal it matches.
 var TriageActions = []string{ActionMarkNoise, ActionMarkActionable, ActionSnooze, ActionTag, ActionRelateTask}
 
+// FieldSpec declares one field of a Schema. Its flat fields mirror
+// core.ParamSpec and carry declarative schema metadata such as
+// ShowIncludeArchived so views never branch on noun kinds.
+type FieldSpec struct {
+	Name                string         `json:"name"`
+	Type                core.ParamType `json:"type"`
+	Required            bool           `json:"required,omitempty"`
+	Default             any            `json:"default,omitempty"`
+	Enum                []string       `json:"enum,omitempty"`
+	RefKinds            []string       `json:"refKinds,omitempty"`
+	SourceQuery         string         `json:"sourceQuery,omitempty"`
+	Description         string         `json:"description,omitempty"`
+	ShowIncludeArchived bool           `json:"showIncludeArchived,omitempty"`
+}
+
+// ParamSpec converts f into its equivalent core.ParamSpec for forms and CLI flags.
+func (f FieldSpec) ParamSpec() core.ParamSpec {
+	return core.ParamSpec{
+		Name:        f.Name,
+		Type:        f.Type,
+		Required:    f.Required,
+		Default:     f.Default,
+		Enum:        slices.Clone(f.Enum),
+		RefKinds:    slices.Clone(f.RefKinds),
+		SourceQuery: f.SourceQuery,
+		Description: f.Description,
+	}
+}
+
+// HierarchySpec declares how records of a noun nest into a tree.
+type HierarchySpec struct {
+	ParentField string `json:"parentField"`
+	OrderField  string `json:"orderField,omitempty"`
+	RootTitle   string `json:"rootTitle,omitempty"`
+	DefaultView string `json:"defaultView,omitempty"` // "tree" or "table"
+}
+
+// StyleRule declaratively assigns row or cell tones/icons when an expression holds.
+type StyleRule struct {
+	When     string `json:"when"`
+	Target   string `json:"target"` // "row" or a field/column name
+	Tone     string `json:"tone,omitempty"`
+	Icon     string `json:"icon,omitempty"`
+	IconTone string `json:"iconTone,omitempty"`
+}
+
+// BadgeRule declaratively attaches a badge chip when an expression holds.
+type BadgeRule struct {
+	When string `json:"when"`
+	Text string `json:"text"`
+	Tone string `json:"tone,omitempty"`
+}
+
 // StatusValue is one value of a status column.
 type StatusValue struct {
 	Name     string `json:"name"`
 	Label    string `json:"label,omitempty"`
 	Tone     string `json:"tone,omitempty"`
+	RowTone  string `json:"rowTone,omitempty"`
+	Icon     string `json:"icon,omitempty"`
+	IconTone string `json:"iconTone,omitempty"`
 	Position int    `json:"position"`
 	Starts   bool   `json:"starts,omitempty"`
 	Ends     bool   `json:"ends,omitempty"`
@@ -119,10 +175,11 @@ type StatusValue struct {
 
 // StatusColumn is a stored field with a finite, declared set of values.
 type StatusColumn struct {
-	Name    string        `json:"name"`
-	Title   string        `json:"title,omitempty"`
-	Values  []StatusValue `json:"values"`
-	Default string        `json:"default,omitempty"`
+	Name            string        `json:"name"`
+	Title           string        `json:"title,omitempty"`
+	Values          []StatusValue `json:"values"`
+	Default         string        `json:"default,omitempty"`
+	PrimaryRowStyle bool          `json:"primaryRowStyle,omitempty"`
 }
 
 // Value returns the declared value named name.
@@ -156,14 +213,14 @@ type RelationSpec struct {
 
 // Schema declares one noun.
 type Schema struct {
-	Kind           string           `json:"kind"`
-	Title          string           `json:"title"`
-	Plural         string           `json:"plural"`
-	Fields         []core.ParamSpec `json:"fields"`
-	StatusColumns  []StatusColumn   `json:"statusColumns,omitempty"`
-	DefaultColumns []string         `json:"defaultColumns,omitempty"`
-	Relations      []RelationSpec   `json:"relations,omitempty"`
-	SummaryField   string           `json:"summaryField,omitempty"`
+	Kind           string         `json:"kind"`
+	Title          string         `json:"title"`
+	Plural         string         `json:"plural"`
+	Fields         []FieldSpec    `json:"fields"`
+	StatusColumns  []StatusColumn `json:"statusColumns,omitempty"`
+	DefaultColumns []string       `json:"defaultColumns,omitempty"`
+	Relations      []RelationSpec `json:"relations,omitempty"`
+	SummaryField   string         `json:"summaryField,omitempty"`
 
 	// UniqueFields names the natural keys of the noun (an extension's name, a
 	// page's slug). A record's ID stays opaque and stable; Store.GetByField
@@ -173,16 +230,54 @@ type Schema struct {
 	// a Conflict of kind ConflictUnique on its change set.
 	UniqueFields []string `json:"uniqueFields,omitempty"`
 	UniqueScope  string   `json:"uniqueScope,omitempty"`
+
+	// Declarative presenter and hierarchy metadata.
+	ShowTimeline bool           `json:"showTimeline,omitempty"`
+	UnreadField  string         `json:"unreadField,omitempty"`
+	FactFields   []string       `json:"factFields,omitempty"`
+	BadgeRules   []BadgeRule    `json:"badgeRules,omitempty"`
+	StyleRules   []StyleRule    `json:"styleRules,omitempty"`
+	Hierarchy    *HierarchySpec `json:"hierarchy,omitempty"`
 }
 
 // Field returns the declared field named name.
-func (s Schema) Field(name string) (core.ParamSpec, bool) {
+func (s Schema) Field(name string) (FieldSpec, bool) {
 	for _, f := range s.Fields {
 		if f.Name == name {
 			return f, true
 		}
 	}
-	return core.ParamSpec{}, false
+	return FieldSpec{}, false
+}
+
+// ParamSpecs returns the schema's fields converted to core.ParamSpec values.
+func (s Schema) ParamSpecs() []core.ParamSpec {
+	out := make([]core.ParamSpec, len(s.Fields))
+	for i, f := range s.Fields {
+		out[i] = f.ParamSpec()
+	}
+	return out
+}
+
+// EffectiveHierarchy returns the schema's explicit HierarchySpec, or infers one
+// when the schema declares a self-referencing ParamRef field.
+func (s Schema) EffectiveHierarchy() *HierarchySpec {
+	if s.Hierarchy != nil {
+		cp := *s.Hierarchy
+		return &cp
+	}
+	if s.Kind == "" {
+		return nil
+	}
+	for _, f := range s.Fields {
+		if f.Type == core.ParamRef && slices.Contains(f.RefKinds, s.Kind) {
+			return &HierarchySpec{
+				ParentField: f.Name,
+				DefaultView: "tree",
+			}
+		}
+	}
+	return nil
 }
 
 // StatusColumn returns the type's own or universal status column named name.
@@ -262,18 +357,18 @@ func (r *Registry) List() []Schema {
 	return out
 }
 
-func str(name, desc string) core.ParamSpec {
-	return core.ParamSpec{Name: name, Type: core.ParamString, Description: desc}
+func str(name, desc string) FieldSpec {
+	return FieldSpec{Name: name, Type: core.ParamString, Description: desc}
 }
 
-func refTo(name, kind, desc string) core.ParamSpec {
-	return core.ParamSpec{Name: name, Type: core.ParamRef, RefKinds: []string{kind}, Description: desc}
+func refTo(name, kind, desc string) FieldSpec {
+	return FieldSpec{Name: name, Type: core.ParamRef, RefKinds: []string{kind}, Description: desc}
 }
 
 // statusField is the field behind a status column: its enum and default come
 // from the column, so the two never drift.
-func statusField(col StatusColumn, desc string) core.ParamSpec {
-	f := core.ParamSpec{Name: col.Name, Type: core.ParamString, Enum: col.Names(), Description: desc}
+func statusField(col StatusColumn, desc string) FieldSpec {
+	f := FieldSpec{Name: col.Name, Type: core.ParamString, Enum: col.Names(), Description: desc}
 	if col.Default != "" {
 		f.Default = col.Default
 	}
@@ -291,71 +386,75 @@ func universalRelations(extra ...RelationSpec) []RelationSpec {
 
 // DefaultSchemas returns a registry holding Matomeru v2's core schemas.
 func DefaultSchemas() *Registry {
-	work := StatusColumn{Name: "workStatus", Title: "Status", Default: "todo", Values: []StatusValue{
-		{Name: "todo", Label: "Todo", Tone: "muted", Position: 0, Open: true},
-		{Name: "active", Label: "Active", Tone: "state.working", Position: 1, Starts: true, Open: true},
-		{Name: "blocked", Label: "Blocked", Tone: "warning", Position: 2, Open: true},
-		{Name: "done", Label: "Done", Tone: "state.done", Position: 3, Ends: true},
+	work := StatusColumn{Name: "workStatus", Title: "Status", Default: "todo", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "todo", Label: "Todo", Tone: "state.planned", RowTone: "row.muted", Icon: "○", IconTone: "state.planned", Position: 0, Open: true},
+		{Name: "active", Label: "Active", Tone: "state.working", RowTone: "row.active", Icon: "▶", IconTone: "state.working", Position: 1, Starts: true, Open: true},
+		{Name: "blocked", Label: "Blocked", Tone: "state.blocked", RowTone: "row.attention", Icon: "!", IconTone: "state.blocked", Position: 2, Open: true},
+		{Name: "done", Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 3, Ends: true},
 	}}
-	paneRun := StatusColumn{Name: "runStatus", Title: "State", Default: "unknown", Values: []StatusValue{
-		{Name: "running", Label: "Running", Tone: "state.working", Position: 0, Starts: true, Open: true},
-		{Name: "waiting", Label: "Waiting", Tone: "warning", Position: 1, Open: true},
-		{Name: "exited", Label: "Exited", Tone: "muted", Position: 2, Ends: true},
-		{Name: "unknown", Label: "Unknown", Tone: "dim", Position: 3, Open: true},
+	paneRun := StatusColumn{Name: "runStatus", Title: "State", Default: "unknown", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "needs_you", Label: "Needs you", Tone: "state.needs-input", RowTone: "row.attention", Icon: "◆", IconTone: "state.needs-input", Position: 0, Open: true},
+		{Name: "running", Label: "Running", Tone: "state.working", RowTone: "row.active", Icon: "▶", IconTone: "state.working", Position: 1, Starts: true, Open: true},
+		{Name: "waiting", Label: "Waiting", Tone: "warning", RowTone: "row.attention", Icon: "◔", IconTone: "warning", Position: 2, Open: true},
+		{Name: "idle", Label: "Idle", Tone: "muted", RowTone: "row.muted", Icon: "○", IconTone: "muted", Position: 3, Open: true},
+		{Name: "done", Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 4, Ends: true},
+		{Name: "dead", Label: "Dead", Tone: "state.errored", RowTone: "row.error", Icon: "×", IconTone: "state.errored", Position: 5, Ends: true},
+		{Name: "exited", Label: "Exited", Tone: "muted", RowTone: "row.dim", Icon: "×", IconTone: "muted", Position: 6, Ends: true},
+		{Name: "unknown", Label: "Unknown", Tone: "dim", RowTone: "row.muted", Icon: "·", IconTone: "dim", Position: 7, Open: true},
 	}}
-	jobRun := StatusColumn{Name: "runStatus", Title: "State", Default: "queued", Values: []StatusValue{
-		{Name: "queued", Label: "Queued", Tone: "muted", Position: 0, Open: true},
-		{Name: "running", Label: "Running", Tone: "state.working", Position: 1, Starts: true, Open: true},
-		{Name: "done", Label: "Done", Tone: "state.done", Position: 2, Ends: true},
-		{Name: "failed", Label: "Failed", Tone: "state.errored", Position: 3, Ends: true},
-		{Name: "cancelled", Label: "Cancelled", Tone: "muted", Position: 4, Ends: true},
+	jobRun := StatusColumn{Name: "runStatus", Title: "State", Default: "queued", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "queued", Label: "Queued", Tone: "state.planned", RowTone: "row.muted", Icon: "○", IconTone: "state.planned", Position: 0, Open: true},
+		{Name: "running", Label: "Running", Tone: "state.working", RowTone: "row.active", Icon: "▶", IconTone: "state.working", Position: 1, Starts: true, Open: true},
+		{Name: "done", Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 2, Ends: true},
+		{Name: "failed", Label: "Failed", Tone: "state.errored", RowTone: "row.error", Icon: "✕", IconTone: "state.errored", Position: 3, Ends: true},
+		{Name: "cancelled", Label: "Cancelled", Tone: "state.cancelled", RowTone: "row.cancelled", Icon: "✕", IconTone: "state.cancelled", Position: 4, Ends: true},
 	}}
-	extRun := StatusColumn{Name: "runStatus", Title: "Health", Default: "offline", Values: []StatusValue{
-		{Name: "healthy", Label: "Healthy", Tone: "state.done", Position: 0, Open: true},
-		{Name: "degraded", Label: "Degraded", Tone: "warning", Position: 1, Open: true},
-		{Name: "offline", Label: "Offline", Tone: "muted", Position: 2, Ends: true},
+	extRun := StatusColumn{Name: "runStatus", Title: "Health", Default: "offline", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "healthy", Label: "Healthy", Tone: "state.done", RowTone: "row.active", Icon: "●", IconTone: "state.done", Position: 0, Open: true},
+		{Name: "degraded", Label: "Degraded", Tone: "warning", RowTone: "row.attention", Icon: "◐", IconTone: "warning", Position: 1, Open: true},
+		{Name: "offline", Label: "Offline", Tone: "muted", RowTone: "row.muted", Icon: "○", IconTone: "muted", Position: 2, Ends: true},
 	}}
-	outcome := StatusColumn{Name: "outcomeStatus", Title: "Outcome", Default: "pending", Values: []StatusValue{
-		{Name: "pending", Label: "Pending", Tone: "warning", Position: 0, Open: true},
-		{Name: "done", Label: "Done", Tone: "state.done", Position: 1, Ends: true},
-		{Name: "skipped", Label: "Skipped", Tone: "muted", Position: 2, Ends: true},
-		{Name: "failed", Label: "Failed", Tone: "state.errored", Position: 3, Ends: true},
-	}}
-
-	laneStatus := StatusColumn{Name: "laneStatus", Title: "Status", Default: "planned", Values: []StatusValue{
-		{Name: "planned", Label: "Planned", Tone: "muted", Position: 0, Open: true},
-		{Name: "running", Label: "Running", Tone: "state.working", Position: 1, Starts: true, Open: true},
-		{Name: "review", Label: "Review", Tone: "warning", Position: 2, Open: true},
-		{Name: "merged", Label: "Merged", Tone: "state.done", Position: 3, Ends: true},
-		{Name: "done", Label: "Done", Tone: "state.done", Position: 4, Ends: true},
-		{Name: "parked", Label: "Parked", Tone: "muted", Position: 5, Open: true},
-		{Name: "cancelled", Label: "Cancelled", Tone: "dim", Position: 6, Ends: true},
+	outcome := StatusColumn{Name: "outcomeStatus", Title: "Outcome", Default: "pending", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "pending", Label: "Pending", Tone: "warning", RowTone: "row.attention", Icon: "○", IconTone: "warning", Position: 0, Open: true},
+		{Name: "done", Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 1, Ends: true},
+		{Name: "skipped", Label: "Skipped", Tone: "muted", RowTone: "row.muted", Icon: "–", IconTone: "muted", Position: 2, Ends: true},
+		{Name: "failed", Label: "Failed", Tone: "state.errored", RowTone: "row.error", Icon: "✕", IconTone: "state.errored", Position: 3, Ends: true},
 	}}
 
-	triage := StatusColumn{Name: "triageState", Title: "Triage", Default: TriageUnreviewed, Values: []StatusValue{
-		{Name: TriageUnreviewed, Label: "Unreviewed", Tone: "warning", Position: 0, Open: true},
-		{Name: TriageActionable, Label: "Actionable", Tone: "state.working", Position: 1, Starts: true, Open: true},
-		{Name: TriageNoise, Label: "Noise", Tone: "muted", Position: 2, Ends: true},
-		{Name: TriageDone, Label: "Done", Tone: "state.done", Position: 3, Ends: true},
+	laneStatus := StatusColumn{Name: "laneStatus", Title: "Status", Default: "planned", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "planned", Label: "Planned", Tone: "state.planned", RowTone: "row.muted", Icon: "○", IconTone: "state.planned", Position: 0, Open: true},
+		{Name: "running", Label: "Running", Tone: "state.working", RowTone: "row.active", Icon: "▶", IconTone: "state.working", Position: 1, Starts: true, Open: true},
+		{Name: "review", Label: "Review", Tone: "state.review", RowTone: "row.attention", Icon: "◉", IconTone: "state.review", Position: 2, Open: true},
+		{Name: "merged", Label: "Merged", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 3, Ends: true},
+		{Name: "done", Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 4, Ends: true},
+		{Name: "parked", Label: "Parked", Tone: "muted", RowTone: "row.muted", Icon: "⏸", IconTone: "muted", Position: 5, Open: true},
+		{Name: "cancelled", Label: "Cancelled", Tone: "state.cancelled", RowTone: "row.cancelled", Icon: "✕", IconTone: "state.cancelled", Position: 6, Ends: true},
 	}}
 
-	questionStatus := StatusColumn{Name: "status", Title: "Status", Default: "open", Values: []StatusValue{
-		{Name: "open", Label: "Open", Tone: "warning", Position: 0, Starts: true, Open: true},
-		{Name: "answered", Label: "Answered", Tone: "state.done", Position: 1, Ends: true},
-		{Name: "dismissed", Label: "Dismissed", Tone: "muted", Position: 2, Ends: true},
+	triage := StatusColumn{Name: "triageState", Title: "Triage", Default: TriageUnreviewed, PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: TriageUnreviewed, Label: "Unreviewed", Tone: "warning", RowTone: "row.attention", Icon: "●", IconTone: "warning", Position: 0, Open: true},
+		{Name: TriageActionable, Label: "Actionable", Tone: "state.working", RowTone: "row.active", Icon: "▶", IconTone: "state.working", Position: 1, Starts: true, Open: true},
+		{Name: TriageNoise, Label: "Noise", Tone: "muted", RowTone: "row.dim", Icon: "·", IconTone: "muted", Position: 2, Ends: true},
+		{Name: TriageDone, Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 3, Ends: true},
 	}}
 
-	commandStatus := StatusColumn{Name: "status", Title: "Status", Default: "pending", Values: []StatusValue{
-		{Name: "pending", Label: "Pending", Tone: "warning", Position: 0, Starts: true, Open: true},
-		{Name: "ran", Label: "Ran", Tone: "state.done", Position: 1, Ends: true},
-		{Name: "dismissed", Label: "Dismissed", Tone: "muted", Position: 2, Ends: true},
+	questionStatus := StatusColumn{Name: "status", Title: "Status", Default: "open", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "open", Label: "Open", Tone: "state.needs-input", RowTone: "row.attention", Icon: "?", IconTone: "state.needs-input", Position: 0, Starts: true, Open: true},
+		{Name: "answered", Label: "Answered", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 1, Ends: true},
+		{Name: "dismissed", Label: "Dismissed", Tone: "muted", RowTone: "row.muted", Icon: "✕", IconTone: "muted", Position: 2, Ends: true},
+	}}
+
+	commandStatus := StatusColumn{Name: "status", Title: "Status", Default: "pending", PrimaryRowStyle: true, Values: []StatusValue{
+		{Name: "pending", Label: "Pending", Tone: "warning", RowTone: "row.attention", Icon: "▶", IconTone: "warning", Position: 0, Starts: true, Open: true},
+		{Name: "ran", Label: "Ran", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 1, Ends: true},
+		{Name: "dismissed", Label: "Dismissed", Tone: "muted", RowTone: "row.muted", Icon: "✕", IconTone: "muted", Position: 2, Ends: true},
 	}}
 
 	r := NewRegistry()
 	r.Register(
 		Schema{
 			Kind: KindTask, Title: "Task", Plural: "Tasks", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what to do"},
 				str("description", "details"),
 				statusField(work, "one status set for every task, root or not"),
@@ -371,13 +470,18 @@ func DefaultSchemas() *Registry {
 			Relations: universalRelations(
 				RelationSpec{Kind: RelDirectory, Title: "Directories", Direction: DirectionOutgoing},
 			),
+			Hierarchy: &HierarchySpec{ParentField: "parent", OrderField: "order", RootTitle: "Project", DefaultView: "tree"},
+			StyleRules: []StyleRule{
+				{When: `fields.priority == "P0"`, Target: "priority", Tone: "error"},
+				{When: `fields.priority == "P1"`, Target: "priority", Tone: "warning"},
+			},
 		},
 		Schema{
 			// A lane is one piece of work an agent does: what it is for, where
 			// it happens (repo, branch, worktree) and how far it got. Lanes nest
 			// by parentLane; any number of panes may claim one.
 			Kind: KindLane, Title: "Lane", Plural: "Lanes", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the lane is for"},
 				str("ownerWords", "the owner's own wording of what this lane is for and why it matters"),
 				str("description", "detailed context, scope, and motivation"),
@@ -401,10 +505,12 @@ func DefaultSchemas() *Registry {
 				RelationSpec{Kind: RelCreated, Title: "Created", TargetKinds: []string{KindDocument, KindPage, KindQuestion, KindCommand, KindContext}, Direction: DirectionOutgoing},
 				RelationSpec{Kind: RelRun, Title: "Runs", TargetKinds: []string{KindRun}, Direction: DirectionOutgoing},
 			),
+			ShowTimeline: true,
+			Hierarchy:    &HierarchySpec{ParentField: "parentLane", DefaultView: "tree"},
 		},
 		Schema{
 			Kind: KindPane, Title: "Pane", Plural: "Panes", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				str("title", "pane title"),
 				{Name: "cwd", Type: core.ParamPath, Description: "working directory"},
 				{Name: "pid", Type: core.ParamInt, Description: "PID of the current process"},
@@ -413,7 +519,7 @@ func DefaultSchemas() *Registry {
 				str("promptedAt", "when the owner last submitted a prompt (RFC 3339); human prompts only, never agent input"),
 				str("lastAgentInputAt", "when an agent last sent input to the pane (RFC 3339)"),
 				str("lastAgentBy", "which agent last sent input to the pane"),
-				refTo("task", KindTask, "task the pane works on"),
+				{Name: "task", Type: core.ParamRef, RefKinds: []string{KindTask}, Description: "task the pane works on", ShowIncludeArchived: true},
 				str("command", "command line a live session of the pane runs; empty runs $SHELL"),
 				{Name: "role", Type: core.ParamString, Enum: PaneRoles, Description: "what the pane is for: a normal pane, a global scratch, or a side pane of parentPane; empty is normal"},
 				refTo("parentPane", KindPane, "pane a side pane was opened beside"),
@@ -421,10 +527,11 @@ func DefaultSchemas() *Registry {
 			StatusColumns:  []StatusColumn{paneRun},
 			DefaultColumns: []string{"title", "runStatus", "harness", "cwd", "task"},
 			Relations:      universalRelations(),
+			Hierarchy:      &HierarchySpec{ParentField: "parentPane", DefaultView: "table"},
 		},
 		Schema{
 			Kind: KindPage, Title: "Page", Plural: "Pages", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "page title"},
 				str("slug", "stable name within the pane's site"),
 				{Name: "pageKind", Type: core.ParamString, Default: "custom", Description: "what the page is for",
@@ -438,11 +545,12 @@ func DefaultSchemas() *Registry {
 			DefaultColumns: []string{"title", "pageKind", "pinned", "pane", "task"},
 			Relations:      universalRelations(),
 			UniqueFields:   []string{"slug"}, UniqueScope: "pane",
+			UnreadField: "viewedAt",
 		},
 		Schema{
 			// A document is the larger, static, usually file-backed text.
 			Kind: KindDocument, Title: "Document", Plural: "Documents", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				str("title", "document title"),
 				{Name: "filePath", Type: core.ParamPath, Description: "file on disk"},
 				str("summary", "what the document covers"),
@@ -456,7 +564,7 @@ func DefaultSchemas() *Registry {
 			// A note is small and changes often. It attaches to any record by
 			// an "about" relation from the note to that record.
 			Kind: KindNote, Title: "Note", Plural: "Notes", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				str("title", "note title"),
 				str("body", "the note"),
 				refTo("task", KindTask, "task the note belongs to"),
@@ -470,20 +578,28 @@ func DefaultSchemas() *Registry {
 			// A schedule is a reminder, a command to run or a check, on a cron
 			// expression. Reminders are schedules of kind "remind".
 			Kind: KindSchedule, Title: "Schedule", Plural: "Schedules", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the schedule is for"},
 				{Name: "scheduleKind", Type: core.ParamString, Enum: []string{"remind", "run", "check"}, Default: "remind", Description: "remind the owner, run a command, or check something"},
 				str("cron", "cron expression"),
 				str("command", "command line, for run and check"),
 				str("nextDueAt", "when it is next due (RFC 3339)"),
+				{Name: "paused", Type: core.ParamBool, Default: false, Description: "paused schedules do not fire"},
 				refTo("task", KindTask, "task the schedule belongs to"),
 			},
 			DefaultColumns: []string{"title", "scheduleKind", "cron", "nextDueAt", "task"},
 			Relations:      universalRelations(),
+			FactFields:     []string{"paused"},
+			BadgeRules: []BadgeRule{
+				{When: "fields.paused == true", Text: "paused", Tone: "warning"},
+			},
+			StyleRules: []StyleRule{
+				{When: "fields.paused == true", Target: "row", Tone: "row.muted"},
+			},
 		},
 		Schema{
 			Kind: KindOccurrence, Title: "Occurrence", Plural: "Occurrences", SummaryField: "dueAt",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				refTo("schedule", KindSchedule, "schedule this is one due time of"),
 				str("dueAt", "when it was due (RFC 3339)"),
 				statusField(outcome, "what came of it"),
@@ -495,7 +611,7 @@ func DefaultSchemas() *Registry {
 		},
 		Schema{
 			Kind: KindRun, Title: "Run", Plural: "Runs", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				str("title", "label"),
 				str("command", "command line"),
 				{Name: "cwd", Type: core.ParamPath, Description: "working directory"},
@@ -512,10 +628,13 @@ func DefaultSchemas() *Registry {
 			StatusColumns:  []StatusColumn{jobRun},
 			DefaultColumns: []string{"title", "runStatus", "exitCode", "command", "task"},
 			Relations:      universalRelations(),
+			StyleRules: []StyleRule{
+				{When: "fields.exitCode != 0 && fields.exitCode != null", Target: "exitCode", Tone: "error"},
+			},
 		},
 		Schema{
 			Kind: KindExtension, Title: "Extension", Plural: "Extensions", SummaryField: "name",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "name", Type: core.ParamString, Required: true, Description: "extension name"},
 				str("binary", "binary that serves the extension"),
 				statusField(extRun, "observed health"),
@@ -533,7 +652,7 @@ func DefaultSchemas() *Registry {
 			// A signal is something that happened elsewhere and may want the
 			// owner: triage rules sort the noise from what is actionable.
 			Kind: KindSignal, Title: "Signal", Plural: "Signals", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				str("title", "what happened"),
 				str("source", "where it came from: github, slack, ci, mail"),
 				str("eventKind", "what kind of event it is: mention, review_request, failure"),
@@ -553,7 +672,7 @@ func DefaultSchemas() *Registry {
 			// A triage rule is an expression over a signal's fields and what
 			// to do with the signals it holds for.
 			Kind: KindTriageRule, Title: "Triage rule", Plural: "Triage rules", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the rule is for"},
 				str("when", "expression over the signal's fields: source == \"github\" && author == \"dependabot[bot]\""),
 				{Name: "action", Type: core.ParamString, Enum: TriageActions, Default: ActionMarkNoise, Description: "what to do with a signal the rule matches"},
@@ -567,7 +686,7 @@ func DefaultSchemas() *Registry {
 		Schema{
 			// A question asked by an agent (decision) or a Q&A logged for the owner (qa).
 			Kind: KindQuestion, Title: "Question", Plural: "Questions", SummaryField: "prompt",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "prompt", Type: core.ParamString, Required: true, Description: "the question"},
 				{Name: "questionKind", Type: core.ParamString, Enum: []string{"qa", "decision"}, Default: "qa", Description: "qa (owner asked agent, answered) or decision (agent asked owner to decide)"},
 				str("details", "context shown under the question"),
@@ -587,7 +706,7 @@ func DefaultSchemas() *Registry {
 		Schema{
 			// A suggested shell command or script invocation to run.
 			Kind: KindCommand, Title: "Command", Plural: "Commands", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the command does"},
 				{Name: "command", Type: core.ParamString, Required: true, Description: "literal shell command or script invocation"},
 				{Name: "scriptPath", Type: core.ParamPath, Description: "optional script file path"},
@@ -605,7 +724,7 @@ func DefaultSchemas() *Registry {
 		Schema{
 			// A URL, PR reference, file or document linked as context to a pane/task.
 			Kind: KindContext, Title: "Context", Plural: "Context", SummaryField: "title",
-			Fields: []core.ParamSpec{
+			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "display label"},
 				{Name: "value", Type: core.ParamString, Required: true, Description: "URL, PR reference, or file path"},
 				{Name: "contextKind", Type: core.ParamString, Enum: []string{"url", "pr", "file", "doc"}, Default: "url", Description: "kind of context item"},

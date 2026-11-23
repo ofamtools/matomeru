@@ -520,3 +520,71 @@ func idsOfGrouped(grouped []GroupedAction) []string {
 	}
 	return out
 }
+
+func TestExpandTemplateFallbackChains(t *testing.T) {
+	vars := map[string]string{
+		"binary": "/usr/local/bin/o-df",
+		"name":   "go-build-cache",
+		"size":   "1.2 GB",
+		"id":     "rec-1",
+		"tricky": "{{id}}|'nope'",
+	}
+	cases := []struct {
+		tpl  string
+		want string
+	}{
+		{"{{sizeHuman|size|'space'}}", "1.2 GB"},
+		{"{{missing1|missing2|'space'}}", "space"},
+		{`{{missing1|"double fallback"}}`, "double fallback"},
+		{"{{name|title|id}}", "go-build-cache"},
+		{"{{missing|id}}", "rec-1"},
+		{"Free {{sizeHuman|size|'space'}} from {{name|title|id}} via o-df clean --yes?", "Free 1.2 GB from go-build-cache via o-df clean --yes?"},
+		// Single-pass: substituted values with {{...}} are never re-expanded.
+		{"{{tricky|'fallback'}}", "{{id}}|'nope'"},
+		// Whitespace around pipes and quoted literal containing pipe/braces.
+		{"{{ missing | 'a|b' }}", "a|b"},
+		{"{{missing|'keep}}braces'}}", "keep}}braces"},
+	}
+	for _, tc := range cases {
+		if got := ExpandTemplate(tc.tpl, vars); got != tc.want {
+			t.Errorf("ExpandTemplate(%q) = %q, want %q", tc.tpl, got, tc.want)
+		}
+	}
+
+	argv := ExpandArgv([]string{"{{binary}}", "clean", "{{name|title|id}}", "--yes"}, vars)
+	wantArgv := []string{"/usr/local/bin/o-df", "clean", "go-build-cache", "--yes"}
+	if !reflect.DeepEqual(argv, wantArgv) {
+		t.Fatalf("ExpandArgv = %#v, want %#v", argv, wantArgv)
+	}
+}
+
+func TestRecordActionSpecToCommandSpecGuardVisibility(t *testing.T) {
+	visible := RecordActionSpec{
+		ID:          "df.culprit.clean",
+		Description: "Clean culprit",
+		Kinds:       []string{"df.culprit"},
+		Source:      "o-df",
+		Binary:      "/bin/o-df",
+		Exec:        ExecSpec{Argv: []string{"{{binary}}", "clean", "{{name|title|id}}", "--yes"}},
+		Guard:       &GuardSpec{When: "fields.rebuildable == true", RefuseMessage: "not rebuildable"},
+	}.ToCommandSpec()
+	if _, hasWhen := visible.Meta["when"]; hasWhen {
+		t.Fatalf("HideWhenFalse=false should not set Meta[when]: %+v", visible.Meta)
+	}
+	if got, _ := visible.Meta["cli"].(string); got != "o-df clean {{name|title|id}} --yes" {
+		t.Fatalf("Meta[cli] = %q", got)
+	}
+	if kinds, _ := visible.Meta[MetaKinds].([]string); !reflect.DeepEqual(kinds, []string{"df.culprit"}) {
+		t.Fatalf("Meta[kinds] = %#v", visible.Meta[MetaKinds])
+	}
+
+	hidden := RecordActionSpec{
+		ID:    "df.culprit.hidden",
+		Kinds: []string{"df.culprit"},
+		Exec:  ExecSpec{Argv: []string{"echo", "ok"}},
+		Guard: &GuardSpec{When: "fields.rebuildable == true", HideWhenFalse: true},
+	}.ToCommandSpec()
+	if got, _ := hidden.Meta["when"].(string); got != "fields.rebuildable == true" {
+		t.Fatalf("HideWhenFalse=true Meta[when] = %q, want guard expression", got)
+	}
+}

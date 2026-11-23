@@ -36,7 +36,7 @@ func run() (lines []string, err error) {
 	read := data.StatusColumn{Name: "readStatus", Title: "Read", Default: "unread", Values: []data.StatusValue{
 		{Name: "unread", Tone: "warning", Position: 0, Open: true}, {Name: "read", Tone: "state.done", Position: 1, Ends: true}}}
 	link := data.Schema{Kind: "link", Title: "Link", Plural: "Links", SummaryField: "title",
-		Fields: []core.ParamSpec{
+		Fields: []data.FieldSpec{
 			{Name: "title", Type: core.ParamString, Required: true},
 			{Name: "url", Type: core.ParamString, Required: true},
 			{Name: "readStatus", Type: core.ParamString, Enum: read.Names(), Default: read.Default},

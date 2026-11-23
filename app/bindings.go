@@ -195,7 +195,6 @@ const (
 	CmdPaneAssociate  = "pane.associate"
 	CmdCommandRun     = "command.run"
 	CmdCommandEditRun = "command.edit_run"
-	CmdDFCulpritClean = "df.culprit.clean"
 	CmdExtSetup       = "extension.setup"
 	CmdTaskAddSibling = "task.add.sibling"
 	CmdTaskAddChild   = "task.add.child"
@@ -289,7 +288,6 @@ func DefaultBindings() []core.Binding {
 		bind(n, data.KindCommand, "enter", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "r", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "e", CmdCommandEditRun, "edit & run command"),
-		bind(n, "df.culprit", "X", CmdDFCulpritClean, "clean culprit"),
 		hidden(when(bind(n, data.KindTask, "i", CmdOutlineEditStart, "edit inline at start"), "facts.tasksTree")),
 		hidden(when(bind(n, data.KindTask, "a", CmdOutlineEditEnd, "edit inline at end"), "facts.tasksTree")),
 		hidden(when(bind(n, data.KindTask, "o", CmdOutlineAddBelow, "new task below"), "facts.tasksTree")),
@@ -896,7 +894,6 @@ func CommandSpecs() []core.CommandSpec {
 		recordSpec(CmdPaneAssociate, "Associate the selected pane with a task/project and backfill its records", []string{data.KindPane}, "", "editing"),
 		recordSpec(CmdCommandRun, "Run the suggested command in 3 Runs and record status and lastRun", []string{data.KindCommand}, "", "editing"),
 		recordSpec(CmdCommandEditRun, "Edit the suggested command, arguments, or working directory before running it", []string{data.KindCommand}, "", "editing"),
-		recordSpec(CmdDFCulpritClean, "Free disk space for a rebuildable o-df culprit via o-df clean --yes", []string{"df.culprit"}, "", "editing"),
 		recordSpec(CmdExtSetup, "Run setup for the focused extension if it advertises a setup command", []string{data.KindExtension}, "", "editing"),
 		spec(CmdTaskAddSibling, "Add a sibling task beside the focused task", "editing"),
 		spec(CmdTaskAddChild, "Add a child subtask under the focused task", "editing"),

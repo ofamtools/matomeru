@@ -7,12 +7,83 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/actions"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 )
+
+// CatalogCommand is one command declared by an extension manifest. It embeds
+// core.CommandSpec and carries optional declarative record-action metadata so
+// extensions declare record verbs, keys, guards, confirmation prompts, exec
+// argv, cache refreshes, and feedback toasts without hardcoded code in Matomeru.
+type CatalogCommand struct {
+	core.CommandSpec
+	Kinds    []string              `json:"kinds,omitempty"`
+	Key      string                `json:"key,omitempty"`
+	KeyHint  string                `json:"keyHint,omitempty"`
+	CLI      string                `json:"cli,omitempty"`
+	Exec     *actions.ExecSpec     `json:"exec,omitempty"`
+	Guard    *actions.GuardSpec    `json:"guard,omitempty"`
+	Confirm  *actions.ConfirmSpec  `json:"confirm,omitempty"`
+	Feedback *actions.FeedbackSpec `json:"feedback,omitempty"`
+}
+
+// ToRecordActionSpec converts a declarative CatalogCommand with an Exec.Argv
+// payload into an actions.RecordActionSpec bound to binary and source.
+func (c CatalogCommand) ToRecordActionSpec(binary, source string) (actions.RecordActionSpec, bool) {
+	if c.Exec == nil || len(c.Exec.Argv) == 0 || strings.TrimSpace(c.ID) == "" {
+		return actions.RecordActionSpec{}, false
+	}
+	noun := ""
+	if len(c.Kinds) == 1 {
+		noun = strings.TrimSpace(c.Kinds[0])
+	}
+	verb := ""
+	if i := strings.LastIndex(c.ID, "."); i >= 0 && i+1 < len(c.ID) {
+		verb = c.ID[i+1:]
+	}
+	execSpec := *c.Exec
+	execSpec.Argv = slices.Clone(c.Exec.Argv)
+	execSpec.RefreshKinds = slices.Clone(c.Exec.RefreshKinds)
+	var guard *actions.GuardSpec
+	if c.Guard != nil {
+		g := *c.Guard
+		guard = &g
+	}
+	var confirm *actions.ConfirmSpec
+	if c.Confirm != nil {
+		cf := *c.Confirm
+		confirm = &cf
+	}
+	var feedback *actions.FeedbackSpec
+	if c.Feedback != nil {
+		fb := *c.Feedback
+		feedback = &fb
+	}
+	return actions.RecordActionSpec{
+		ID:          strings.TrimSpace(c.ID),
+		Description: strings.TrimSpace(c.Description),
+		Noun:        noun,
+		Verb:        verb,
+		Kinds:       slices.Clone(c.Kinds),
+		Tags:        slices.Clone(c.Tags),
+		Params:      slices.Clone(c.Params),
+		Source:      strings.TrimSpace(source),
+		Binary:      strings.TrimSpace(binary),
+		CLI:         strings.TrimSpace(c.CLI),
+		Key:         strings.TrimSpace(c.Key),
+		KeyHint:     strings.TrimSpace(c.KeyHint),
+		ExtraMeta:   c.Meta,
+		Exec:        execSpec,
+		Guard:       guard,
+		Confirm:     confirm,
+		Feedback:    feedback,
+	}, true
+}
 
 // The catalog protocol. An extension that keeps its own store describes
 // itself with one JSON document and answers queries with another:
@@ -34,7 +105,7 @@ type Manifest struct {
 	Name     string                 `json:"name"`
 	Version  string                 `json:"version,omitempty"`
 	Schemas  []data.Schema          `json:"schemas,omitempty"`
-	Commands []core.CommandSpec     `json:"commands,omitempty"`
+	Commands []CatalogCommand       `json:"commands,omitempty"`
 	Bindings []core.Binding         `json:"bindings,omitempty"`
 	Views    map[string]ui.ViewNode `json:"views,omitempty"`
 }
@@ -46,7 +117,7 @@ func (m *Manifest) UnmarshalJSON(b []byte) error {
 		plain
 		Nouns []data.Schema `json:"nouns"`
 		Verbs []struct {
-			core.CommandSpec
+			CatalogCommand
 			Summary string `json:"summary"`
 		} `json:"verbs"`
 	}
@@ -56,7 +127,7 @@ func (m *Manifest) UnmarshalJSON(b []byte) error {
 	*m = Manifest(doc.plain)
 	m.Schemas = append(m.Schemas, doc.Nouns...)
 	for _, v := range doc.Verbs {
-		spec := v.CommandSpec
+		spec := v.CatalogCommand
 		if spec.Description == "" {
 			spec.Description = v.Summary
 		}

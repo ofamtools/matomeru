@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"os/exec"
 	"slices"
 	"strings"
 
@@ -585,32 +584,6 @@ func (a *App) updatePaneContextProject(paneID string) {
 	a.ctxIdx.mu.Unlock()
 }
 
-// --- 5. o-df direct free-space action (df.culprit.clean) --------------------------
-
-func (a *App) resolveDFBinary() string {
-	if bin := a.extCatalogs["df.culprit"]; bin != "" {
-		return bin
-	}
-	if a.Store != nil {
-		if rec, err := a.Store.GetByField(data.KindExtension, "name", "o-df"); err == nil && rec != nil {
-			if bin := strings.TrimSpace(rec.Text("binary")); bin != "" {
-				return bin
-			}
-		}
-	}
-	if p, err := exec.LookPath("o-df"); err == nil {
-		return p
-	}
-	return "o-df"
-}
-
-func recordBoolField(rec data.Record, name string) bool {
-	if rec.Bool(name) {
-		return true
-	}
-	return strings.EqualFold(strings.TrimSpace(rec.Text(name)), "true")
-}
-
 func recordIntField(rec data.Record, name string) int {
 	v, ok := rec.Value(name)
 	if !ok || v == nil {
@@ -629,109 +602,6 @@ func recordIntField(rec data.Record, name string) int {
 		return n
 	}
 	return 0
-}
-
-func (a *App) dfCulpritClean(s core.State, c core.Command) core.StepResult {
-	ref, ok := a.subject(s, c)
-	if !ok || ref.Kind != "df.culprit" {
-		a.say("no df.culprit focused")
-		return core.Next(s)
-	}
-	var rec data.Record
-	if r, err := a.Store.Get(ref); err == nil && r != nil {
-		rec = *r
-	} else if cached, found := a.cachedExternal(ref); found {
-		rec = cached
-	} else {
-		a.fail("clean culprit", data.ErrNotFound)
-		return core.Next(s)
-	}
-	name := strings.TrimSpace(rec.Text("name"))
-	if name == "" {
-		name = strings.TrimSpace(rec.Text("title"))
-	}
-	if name == "" {
-		name = rec.ID
-	}
-	if !recordBoolField(rec, "rebuildable") {
-		msg := fmt.Sprintf("Cannot clean %s: culprit is not rebuildable", name)
-		a.say("%s", msg)
-		a.pushToast(msg, toast.Warn)
-		return core.Next(s)
-	}
-	size := strings.TrimSpace(rec.Text("sizeHuman"))
-	if size == "" {
-		size = strings.TrimSpace(rec.Text("size"))
-	}
-	if size == "" {
-		size = "space"
-	}
-	bin := a.resolveDFBinary()
-	return core.Next(a.openConfirm(s, confirmState{
-		title:        "Clean " + name,
-		message:      fmt.Sprintf("Free %s from %s via o-df clean --yes?", size, name),
-		confirmLabel: "Clean",
-		onConfirm: func(st core.State) core.State {
-			argv := []string{bin, "clean", name, "--yes"}
-			cmdLine := shellJoin(argv)
-			title := "o-df clean " + name
-			if a.Runner != nil {
-				runRec, err := a.Runner.Start(context.Background(), runs.StartSpec{
-					Title:   title,
-					Command: cmdLine,
-					Args:    argv,
-					Actor:   runActor,
-				})
-				st = a.started(st, "cleaning "+name, runRec, err)
-				if err != nil {
-					a.pushToast("Clean failed: "+err.Error(), toast.Err)
-					return st
-				}
-				a.pushToast(fmt.Sprintf("Cleaning %s (%s)…", name, size), toast.Info)
-				doneCh := a.Runner.Done(runRec.ID)
-				runID := runRec.ID
-				a.background(func(ctx context.Context) func(core.State) core.State {
-					if doneCh != nil {
-						select {
-						case <-doneCh:
-						case <-ctx.Done():
-							return nil
-						}
-					}
-					var refreshed *data.QueryResult
-					if a.extCatalogs["df.culprit"] != "" {
-						if res, qerr := ext.QueryExternal(ctx, bin, "df.culprit", a.Store); qerr == nil {
-							refreshed = &res
-						}
-					}
-					finalRec, _ := a.Store.Get(core.Ref{Kind: data.KindRun, ID: runID})
-					return func(s2 core.State) core.State {
-						if a.readCache != nil {
-							a.readCache.MarkStale("df.culprit")
-							if refreshed != nil {
-								a.readCache.Put("df.culprit", refreshed.Items, refreshed.Total)
-							}
-						}
-						if finalRec != nil && finalRec.Text("runStatus") == "failed" {
-							a.pushToast(fmt.Sprintf("o-df clean %s failed", name), toast.Err)
-						} else {
-							a.pushToast(fmt.Sprintf("Freed %s from %s", size, name), toast.Ok)
-						}
-						a.gen++
-						return s2
-					}
-				})
-				return st
-			}
-			// Synthetic mode (no live Runner): record run and refresh cache state.
-			st = a.startShell(st, title, cmdLine, "")
-			if a.readCache != nil {
-				a.readCache.MarkStale("df.culprit")
-			}
-			a.pushToast(fmt.Sprintf("Queued clean for %s (%s)", name, size), toast.Ok)
-			return st
-		},
-	}))
 }
 
 // --- 6. extension.setup binding on 4 Extensions -----------------------------------
@@ -813,14 +683,21 @@ func (a *App) extSetup(s core.State, c core.Command) core.StepResult {
 // --- 7. Indented Tasks Tree in 2 Work + fold-aware Outline + o/O/z a --------------
 
 func (a *App) workTasksLayout() string {
-	if a.Settings != nil && a.Settings.String(SetWorkTasksLayout, WorkTasksLayoutTree) == WorkTasksLayoutTable {
+	switch a.hierarchyLayout() {
+	case WorkHierarchyLayoutTable:
 		return WorkTasksLayoutTable
+	case WorkHierarchyLayoutTree:
+		return WorkTasksLayoutTree
+	default:
+		if h := a.schema(data.KindTask).EffectiveHierarchy(); h != nil && h.DefaultView == WorkTasksLayoutTable {
+			return WorkTasksLayoutTable
+		}
+		return WorkTasksLayoutTree
 	}
-	return WorkTasksLayoutTree
 }
 
 // inWorkTaskTree reports whether 2 Work is currently rendering the indented
-// hierarchy Tasks Tree (true when browsing tasks with work.tasksLayout=="tree"
+// hierarchy Tasks Tree (true when browsing tasks with tree layout
 // and no active table filter, sort, or group).
 func (a *App) inWorkTaskTree(s core.State) bool {
 	if s.ActivePage != SpaceWork || topModal(s) != "" || a.histPos >= 0 || a.workKind() != data.KindTask {
@@ -833,18 +710,6 @@ func (a *App) inWorkTaskTree(s core.State) bool {
 		return false
 	}
 	return true
-}
-
-func taskStatusGlyph(status string) string {
-	switch status {
-	case "active":
-		return "[~]"
-	case "blocked":
-		return "[!]"
-	case "done":
-		return "[x]"
-	}
-	return "[ ]"
 }
 
 func (a *App) visibleTaskIDs() []string {
@@ -869,7 +734,16 @@ func (a *App) visibleTaskIDs() []string {
 
 func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset *int, panelID, treeID, title, panelScope string, isWorkTree bool) (ui.ViewNode, string) {
 	schema := a.schema(data.KindTask)
-	workCol, _ := schema.StatusColumn("workStatus")
+	styleOpts := a.styleOptions()
+	gapTopLevel := a.Settings == nil || a.Settings.Bool(SetTreeTopLevelGap, true)
+	defaultIcon, _, _, _ := views.StatusIndicator(schema, "workStatus", "todo")
+	if defaultIcon == "" {
+		defaultIcon = "○"
+	}
+	editPrefix := ""
+	if styleOpts.StatusIcons {
+		editPrefix = defaultIcon + " "
+	}
 
 	var activeEdit *outlineInlineEdit
 	if a.outlineEdit != nil && a.outlineEdit.isWorkTree == isWorkTree {
@@ -883,9 +757,9 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 	}
 	makeVirtualEditItem := func() map[string]any {
 		return map[string]any{
-			"label":      "[ ] " + activeEdit.line.Value(),
+			"label":      editPrefix + activeEdit.line.Value(),
 			"editing":    true,
-			"editPrefix": "[ ] ",
+			"editPrefix": editPrefix,
 			"editValue":  activeEdit.line.Value(),
 			"editCursor": activeEdit.line.Cursor,
 			"tone":       "accent",
@@ -901,7 +775,7 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 	build = func(ns []data.TaskNode, parentID string, depth int) []any {
 		out := make([]any, 0, len(ns)+1)
 		for i, n := range ns {
-			if depth == 0 && i > 0 {
+			if depth == 0 && i > 0 && gapTopLevel {
 				visRow++ // blank spacer row between top-level projects
 			}
 			if activeEdit != nil && activeEdit.kind == "above" && !virtualInserted && activeEdit.targetID == n.Record.ID && parentMatches(parentID, activeEdit.parentRef) {
@@ -911,7 +785,7 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 				visRow++
 				out = append(out, makeVirtualEditItem())
 				virtualInserted = true
-				if depth == 0 {
+				if depth == 0 && gapTopLevel {
 					visRow++ // next root gets its spacer after the new root item
 				}
 			}
@@ -926,11 +800,23 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 			flat = append(flat, n)
 			visRow++
 			status := n.Record.Text("workStatus")
-			glyph := taskStatusGlyph(status)
-			item := map[string]any{"label": glyph + " " + views.Title(schema, n.Record)}
+			st := views.ResolveRecordStyle(schema, n.Record, styleOpts)
+			prefix := ""
+			if styleOpts.StatusIcons {
+				icon := st.Icon
+				if icon == "" {
+					icon = defaultIcon
+				}
+				prefix = icon + " "
+			}
+			item := map[string]any{"label": prefix + views.Title(schema, n.Record)}
 			badge := status
-			if sv, ok := workCol.Value(status); ok {
-				item["tone"] = sv.Tone
+			if styleOpts.RowSemanticStyling {
+				if st.RowTone != "" {
+					item["tone"] = st.RowTone
+				} else if st.IconTone != "" {
+					item["tone"] = st.IconTone
+				}
 			}
 			if p := n.Record.Text("priority"); p != "" {
 				badge += " " + p
@@ -943,11 +829,13 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 			}
 			if n.Record.IsArchived() {
 				badge += " archived"
-				item["tone"] = "dim"
+				if styleOpts.RowSemanticStyling {
+					item["tone"] = "dim"
+				}
 			}
 			if activeEdit != nil && activeEdit.kind == "rename" && activeEdit.targetID == n.Record.ID {
 				item["editing"] = true
-				item["editPrefix"] = glyph + " "
+				item["editPrefix"] = prefix
 				item["editValue"] = activeEdit.line.Value()
 				item["editCursor"] = activeEdit.line.Cursor
 			}
@@ -981,7 +869,7 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 			}
 			out = append(out, item)
 			if activeEdit != nil && activeEdit.kind == "below" && !virtualInserted && activeEdit.targetID == n.Record.ID && parentMatches(parentID, activeEdit.parentRef) {
-				if depth == 0 {
+				if depth == 0 && gapTopLevel {
 					visRow++
 				}
 				selected = len(flat)
@@ -993,7 +881,7 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 			}
 		}
 		if activeEdit != nil && (activeEdit.kind == "below" || activeEdit.kind == "above") && !virtualInserted && parentMatches(parentID, activeEdit.parentRef) {
-			if depth == 0 && len(out) > 0 {
+			if depth == 0 && len(out) > 0 && gapTopLevel {
 				visRow++
 			}
 			selected = len(flat)
@@ -1017,7 +905,7 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 	if encoded, err := json.Marshal(items); err == nil {
 		_, _ = h.Write(encoded)
 	}
-	_, _ = fmt.Fprintf(h, "|sel:%d|off:%d|guides:%t|gap:true", selected, curOffset, a.Settings.Bool(SetTreeGuides, true))
+	_, _ = fmt.Fprintf(h, "|sel:%d|off:%d|guides:%t|gap:%t", selected, curOffset, a.Settings.Bool(SetTreeGuides, true), gapTopLevel)
 	cacheKey := h.Sum64()
 	if cacheKey == 0 {
 		cacheKey = 1
@@ -1032,7 +920,7 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset
 		Props: map[string]any{
 			"nodes":       items,
 			"guides":      true,
-			"gapTopLevel": true,
+			"gapTopLevel": gapTopLevel,
 			"selected":    selected,
 			"offset":      curOffset,
 		},

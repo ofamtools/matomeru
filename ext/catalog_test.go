@@ -143,3 +143,55 @@ func TestQueryExternalMergesLocalOverrides(t *testing.T) {
 		t.Fatal("a record with no id was shadowed")
 	}
 }
+
+func TestParseManifestDeclarativeCommandsAndStyleRules(t *testing.T) {
+	doc := `{
+  "name": "o-df",
+  "version": "0.2.0",
+  "schemas": [{
+    "kind": "df.culprit",
+    "title": "Culprit",
+    "plural": "Culprits",
+    "summaryField": "name",
+    "fields": [
+      {"name": "name", "type": "string", "required": true},
+      {"name": "rebuildable", "type": "bool"},
+      {"name": "recommend", "type": "string"}
+    ],
+    "styleRules": [
+      {"when": "fields.rebuildable == true && fields.recommend == \"delete\"", "target": "recommend", "tone": "success"}
+    ]
+  }],
+  "commands": [{
+    "id": "df.culprit.clean",
+    "description": "Free disk space",
+    "kinds": ["df.culprit"],
+    "key": "X",
+    "keyHint": "clean culprit",
+    "exec": {"argv": ["{{binary}}", "clean", "{{name|title|id}}", "--yes"], "refreshKinds": ["df.culprit"]},
+    "guard": {"when": "fields.rebuildable == true", "refuseMessage": "Cannot clean {{name}}"},
+    "confirm": {"title": "Clean {{name}}", "message": "Free {{sizeHuman|size|'space'}}?", "label": "Clean", "tone": "warning"},
+    "feedback": {"running": "Cleaning {{name}}...", "success": "Freed {{name}}", "failure": "Failed {{name}}"}
+  }]
+}`
+	m, err := ParseManifest([]byte(doc))
+	if err != nil {
+		t.Fatalf("ParseManifest: %v", err)
+	}
+	if len(m.Schemas) != 1 || len(m.Schemas[0].StyleRules) != 1 || m.Schemas[0].StyleRules[0].Target != "recommend" {
+		t.Fatalf("styleRules did not unmarshal: %+v", m.Schemas)
+	}
+	if len(m.Commands) != 1 {
+		t.Fatalf("commands len = %d", len(m.Commands))
+	}
+	spec, ok := m.Commands[0].ToRecordActionSpec("/usr/local/bin/o-df", m.Name)
+	if !ok {
+		t.Fatal("ToRecordActionSpec returned false")
+	}
+	if spec.ID != "df.culprit.clean" || spec.Binary != "/usr/local/bin/o-df" || spec.Key != "X" || spec.Guard == nil || spec.Confirm == nil || spec.Feedback == nil {
+		t.Fatalf("converted spec = %+v", spec)
+	}
+	if spec.Feedback.Running != "Cleaning {{name}}..." || spec.Feedback.Success != "Freed {{name}}" || spec.Feedback.Failure != "Failed {{name}}" {
+		t.Fatalf("feedback = %+v", spec.Feedback)
+	}
+}

@@ -13,6 +13,7 @@ type confirmState struct {
 	title        string
 	message      string
 	confirmLabel string
+	tone         string
 	onConfirm    func(core.State) core.State
 }
 
@@ -57,7 +58,10 @@ func (a *App) confirmModal() ui.ViewNode {
 	}
 	ov := overlay(modalConfirm, cs.title, 70, 0, body)
 	ov.Scope = "confirm"
-	ov.Tone = "warning"
+	ov.Tone = cs.tone
+	if ov.Tone == "" {
+		ov.Tone = "warning"
+	}
 	return ov
 }
 

@@ -68,16 +68,8 @@ func (a *App) recordFacts(s core.State, ref core.Ref) map[string]any {
 	}
 	if err == nil && rec != nil {
 		schema := a.schema(ref.Kind)
-		facts[data.ColArchiveStatus] = rec.ArchiveStatus
-		facts[data.ColStarStatus] = rec.StarStatus
-		for _, col := range schema.StatusColumns {
-			facts[col.Name] = rec.Text(col.Name)
-		}
-		facts["snoozed"] = rec.IsSnoozed(a.now())
+		maps.Copy(facts, views.RecordFacts(schema, *rec, a.now()))
 		facts[factOpenable] = a.openable(*rec)
-		if rec.Kind == data.KindSchedule {
-			facts["paused"] = rec.Bool("paused")
-		}
 		if rec.Kind == data.KindPane {
 			facts["hasPendingApproval"] = len(a.pendingApprovalsFor(rec.ID)) > 0
 		}
@@ -160,6 +152,14 @@ func (a *App) recordActionItems(s core.State, ref core.Ref) []picker.Item {
 		"modal": map[string]any{"open": false, "id": ""},
 		"count": nil,
 		"layer": nil,
+	}
+	if rec, ok := a.resolveRecord(ref); ok && rec != nil {
+		recEnv := views.RecordExprEnv(a.schema(ref.Kind), *rec, a.now())
+		env["fields"] = recEnv["fields"]
+		env["archived"] = recEnv["archived"]
+		env["starred"] = recEnv["starred"]
+		env["snoozed"] = recEnv["snoozed"]
+		env["unread"] = recEnv["unread"]
 	}
 
 	var candidates []core.CommandSpec

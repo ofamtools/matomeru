@@ -3,16 +3,18 @@ package app
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
+	"ofam.dev/ochazuke/config"
 	"ofam.dev/ochazuke/core"
 )
 
-// MountCatalog registers an extension's manifest schemas on the store's
-// registry and remembers binary as the live read-only source for those nouns.
-// Browsing any mounted noun serves from the async ReadCache and lays local
-// shadow overrides (star, archive, snooze, local edits) over what the tool prints.
+// MountCatalog registers an extension's manifest schemas, declarative record
+// action commands, and extension-scoped bindings, then rebuilds the live keymap
+// so user bindings.json always overrides extension bindings.
 func (a *App) MountCatalog(binary string, m ext.Manifest) error {
 	if err := ext.MountCatalog(a.Store.Registry(), m); err != nil {
 		return err
@@ -26,6 +28,67 @@ func (a *App) MountCatalog(binary string, m ext.Manifest) error {
 	for _, s := range m.Schemas {
 		a.extCatalogs[s.Kind] = binary
 		a.readCache.MarkStale(s.Kind)
+	}
+
+	var addedBindings []core.Binding
+	for _, cmd := range m.Commands {
+		spec, ok := cmd.ToRecordActionSpec(binary, m.Name)
+		if !ok {
+			continue
+		}
+		a.registerRecordAction(spec)
+		if spec.Key != "" {
+			keySeq := strings.Fields(spec.Key)
+			if len(keySeq) > 0 {
+				hint := spec.KeyHint
+				if hint == "" {
+					hint = spec.Description
+				}
+				if hint == "" {
+					hint = spec.ID
+				}
+				scopes := spec.Kinds
+				if len(scopes) == 0 {
+					scopes = []string{""}
+				}
+				for _, sc := range scopes {
+					addedBindings = append(addedBindings, core.Binding{
+						Mode:    ModeNormal,
+						Scope:   sc,
+						Keys:    keySeq,
+						Command: spec.ID,
+						Hint:    hint,
+					})
+				}
+			}
+		}
+	}
+	addedBindings = append(addedBindings, m.Bindings...)
+
+	for _, b := range addedBindings {
+		if b.Mode == "" {
+			b.Mode = ModeNormal
+		}
+		idx := slices.IndexFunc(a.extBindings, func(existing core.Binding) bool {
+			return existing.Mode == b.Mode && existing.Scope == b.Scope && existing.Command == b.Command && slices.Equal(existing.Keys, b.Keys)
+		})
+		if idx >= 0 {
+			a.extBindings[idx] = b
+		} else {
+			a.extBindings = append(a.extBindings, b)
+		}
+	}
+
+	// Re-validate raw user bindings now that mounted extension commands are in a.specs.
+	if len(a.userBindingsRaw) > 0 {
+		a.userBindings = filterValidUserBindings(a.userBindingsRaw, a.specs)
+	}
+	a.bindings = config.MergeBindings(a.baseBindings(), a.userBindings)
+	a.bindEd = nil
+	if a.Engine != nil {
+		if err := a.rebuildKeymap(); err != nil {
+			a.warn("ext bindings (%s): %v", m.Name, err)
+		}
 	}
 	a.gen++
 	return nil

@@ -17,28 +17,18 @@ func count(n int, noun string) string {
 	return itoa(n) + " " + noun + "s"
 }
 
-// statusGlyph is the checkbox shown before a task in the outline.
-func statusGlyph(status string) string {
-	switch status {
-	case "active":
-		return "[~]"
-	case "blocked":
-		return "[!]"
-	case "done":
-		return "[x]"
-	}
-	return "[ ]"
-}
-
 // OutlineView renders the recursive task outline as one tree with guide
-// lines: root tasks (projects) at the top level, each task with a status
-// checkbox and a badge of its status and priority. The tree node is
-// id+".tree"; it carries the selected task's Scope ("task") and Ref, so the
-// selected row is the subject of the context chain. An unknown or empty
-// selectedID selects the first row.
+// lines: root tasks (projects) at the top level, each task with its schema
+// status icon and a badge of its status and priority. The tree node is
+// id+".tree"; it carries the selected task's Scope and Ref, so the selected
+// row is the subject of the context chain. An unknown or empty selectedID
+// selects the first row.
 func OutlineView(nodes []data.TaskNode, selectedID string, id string) ui.ViewNode {
-	schema, _ := data.DefaultSchemas().Get(data.KindTask)
-	work, _ := schema.StatusColumn("workStatus")
+	kind := "task"
+	if len(nodes) > 0 && nodes[0].Record.Kind != "" {
+		kind = nodes[0].Record.Kind
+	}
+	schema, _ := data.DefaultSchemas().Get(kind)
 
 	var flat []data.TaskNode
 	selected := 0
@@ -51,10 +41,14 @@ func OutlineView(nodes []data.TaskNode, selectedID string, id string) ui.ViewNod
 			}
 			flat = append(flat, n)
 			status := n.Record.Text("workStatus")
-			item := map[string]any{"label": statusGlyph(status) + " " + Title(schema, n.Record)}
+			icon, _, tone, _ := StatusIndicator(schema, "workStatus", status)
+			if icon == "" {
+				icon = "○"
+			}
+			item := map[string]any{"label": icon + " " + Title(schema, n.Record)}
 			badge := status
-			if sv, ok := work.Value(status); ok {
-				item["tone"] = sv.Tone
+			if tone != "" {
+				item["tone"] = tone
 			}
 			if p := n.Record.Text("priority"); p != "" {
 				badge += " " + p
@@ -79,7 +73,7 @@ func OutlineView(nodes []data.TaskNode, selectedID string, id string) ui.ViewNod
 	}
 	items := build(nodes)
 
-	tree := ui.ViewNode{ID: id + ".tree", Kind: ui.KindTree, Scope: data.KindTask, Focusable: true,
+	tree := ui.ViewNode{ID: id + ".tree", Kind: ui.KindTree, Scope: kind, Focusable: true,
 		Props: map[string]any{"nodes": items, "guides": true, "selected": selected}}
 	if len(flat) > 0 {
 		cur := flat[selected]

@@ -260,10 +260,12 @@ type App struct {
 
 	// The user's configuration as loaded and as changed here: the settings
 	// the user set, their theme file and their binding rows.
-	userSettings map[string]any
-	themeOverlay []byte
-	userBindings []core.Binding
-	settings     *formState
+	userSettings    map[string]any
+	themeOverlay    []byte
+	userBindings    []core.Binding
+	userBindingsRaw []core.Binding
+	extBindings     []core.Binding
+	settings        *formState
 
 	// The binding editor: its model, how many of its rows are the user's
 	// own, and the keys of a rebind being captured.
@@ -327,12 +329,12 @@ type App struct {
 
 	stagedAnswers map[string]map[string]map[string]any
 
-	// Wave 4: confirmation modal, table presets, user actions, and toasts.
-	confirm     *confirmState
-	presets     *table.PresetStore
-	presetTable string
-	userActions map[string]actions.ActionDef
-	toasts      *toast.Model
+	// Wave 4: confirmation modal, table presets, declarative record actions, and toasts.
+	confirm       *confirmState
+	presets       *table.PresetStore
+	presetTable   string
+	recordActions map[string]actions.RecordActionSpec
+	toasts        *toast.Model
 
 	// Wave D2: About overlay, indented Work Tasks Tree, pane associate, and dynamic ref-picker create.
 	aboutMD            *markdown.Model
@@ -367,13 +369,13 @@ func New(store *data.Store, opts Options) (*App, error) {
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
 		userSettings: map[string]any{}, readCache: data.NewReadCache(),
 		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
-		drafts:       form.NewDraftStore(),
-		ctxIdx:       newContextIndex(),
-		userActions:  map[string]actions.ActionDef{},
-		recCacheKeys: map[string]string{},
+		drafts:        form.NewDraftStore(),
+		ctxIdx:        newContextIndex(),
+		recordActions: map[string]actions.RecordActionSpec{},
+		recCacheKeys:  map[string]string{},
 	}
 	a.specs = CommandSpecs()
-	a.bindings = DefaultBindings()
+	a.bindings = a.baseBindings()
 	a.Settings, _ = config.LoadSettings(nil, DefaultSettings())
 
 	if dir := opts.ConfigDir; dir != "" {
@@ -436,6 +438,36 @@ func New(store *data.Store, opts Options) (*App, error) {
 	}
 	a.setupLive(opts)
 	return a, nil
+}
+
+// baseBindings returns the default keymap followed by any mounted extension
+// bindings. User bindings.json rows are merged ahead of baseBindings so user
+// configuration always takes precedence.
+func (a *App) baseBindings() []core.Binding {
+	if len(a.extBindings) == 0 {
+		return DefaultBindings()
+	}
+	defs := DefaultBindings()
+	out := make([]core.Binding, 0, len(defs)+len(a.extBindings))
+	out = append(out, defs...)
+	out = append(out, a.extBindings...)
+	return out
+}
+
+func filterValidUserBindings(user []core.Binding, specs []core.CommandSpec) []core.Binding {
+	bad := map[int]bool{}
+	for _, d := range config.CheckBindings(Modes(), user, specs...) {
+		if d.Severity == config.SevError {
+			bad[d.Index] = true
+		}
+	}
+	var good []core.Binding
+	for i, row := range user {
+		if !bad[i] {
+			good = append(good, row)
+		}
+	}
+	return good
 }
 
 func (a *App) warn(format string, args ...any) {
@@ -507,8 +539,9 @@ func (a *App) loadConfig(dir string) {
 		if len(bad) > 0 {
 			a.warn("bindings.json: %d of %d rows are not v2 bindings and were left out (%s)", len(bad), len(user), first)
 		}
+		a.userBindingsRaw = slices.Clone(user)
 		a.userBindings = good
-		a.bindings = config.MergeBindings(a.bindings, good)
+		a.bindings = config.MergeBindings(a.baseBindings(), good)
 	}
 }
 
@@ -693,9 +726,10 @@ func (a *App) pageSize(tbl *table.Model, id string) {
 // showArchived, flagsColumn) so high-frequency live terminal frames do zero
 // SQLite queries when the store has not changed.
 func (a *App) records(id, kind string) *table.Model {
+	styleOpts := a.styleOptions()
 	if _, isExt := a.extCatalogs[kind]; !isExt && a.Store != nil {
 		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%s|%d|%t|%t", kind, rev, a.showArchived, a.Settings.Bool(SetFlagsColumn, true))
+			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t", kind, rev, a.showArchived, a.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons)
 			if a.recCacheKeys != nil && a.recCacheKeys[id] == key && a.tables[id] != nil {
 				a.pageSize(a.tables[id], id)
 				return a.tables[id]
@@ -719,7 +753,7 @@ func (a *App) records(id, kind string) *table.Model {
 		items = res.Items
 	}
 	schema := a.schema(kind)
-	fresh := views.TableFromRecords(schema, items)
+	fresh := views.TableFromRecordsWith(schema, items, styleOpts)
 	// A reference shows the record it points at, not its ID.
 	names := map[core.Ref]string{}
 	for _, f := range schema.Fields {
@@ -740,13 +774,6 @@ func (a *App) records(id, kind string) *table.Model {
 	for i, rec := range items {
 		if a.openable(rec) {
 			fresh.Rows[i].Facts[factOpenable] = true // "o" opens it; a row without the fact sorts
-		}
-		if rec.Kind == data.KindSchedule {
-			paused := rec.Bool("paused")
-			fresh.Rows[i].Facts["paused"] = paused
-			if paused {
-				fresh.Rows[i].Badges = append(fresh.Rows[i].Badges, ui.Badge{Text: "paused", Tone: "warning"})
-			}
 		}
 	}
 	for _, sp := range spaces {
@@ -1628,7 +1655,7 @@ func (a *App) openRef(s core.State, req *form.RefRequest) core.State {
 		recs = append(recs, res.Items...)
 	}
 	a.refField = req.Field
-	pm := views.PickerFromRecords(a.Store.Registry(), "Pick "+views.Label(req.Field), recs)
+	pm := views.PickerFromRecordsWith(a.Store.Registry(), "Pick "+views.Label(req.Field), recs, a.styleOptions())
 	if len(kinds) > 0 {
 		if _, known := a.Store.Registry().Get(kinds[0]); known {
 			a.enablePickerCreate(modalRef, kinds[0], pm)
@@ -2740,12 +2767,11 @@ func (a *App) register() {
 	a.handle(CmdPaneAssociate, a.paneAssociate)
 	a.handle(CmdCommandRun, a.commandRun)
 	a.handle(CmdCommandEditRun, a.commandEditRun)
-	a.handle(CmdDFCulpritClean, a.dfCulpritClean)
 	a.handle(CmdExtSetup, a.extSetup)
 	a.handle(CmdTaskAddSibling, a.taskAddRelative(false))
 	a.handle(CmdTaskAddChild, a.taskAddRelative(true))
 	a.handle(CmdTaskFoldToggle, a.taskFoldToggle)
-	for id, def := range a.userActions {
-		a.handle(id, a.runUserAction(def))
+	for id, spec := range a.recordActions {
+		a.handle(id, a.runRecordAction(spec))
 	}
 }

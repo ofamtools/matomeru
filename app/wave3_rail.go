@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 
-	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -92,37 +91,6 @@ func (a *App) resolvePaneProject(pane data.Record) (string, *core.Ref) {
 	return title, &ref
 }
 
-// paneStatusIndicator returns a clear visual symbol, normalized label, and
-// theme tone for a pane's runtime/hook state.
-func paneStatusIndicator(state string) (symbol, label, tone string) {
-	s := strings.ToLower(strings.TrimSpace(state))
-	switch s {
-	case daemon.StateNeedsYou:
-		return "◆", daemon.StateNeedsYou, "warning"
-	case daemon.StateRunning:
-		return "▶", daemon.StateRunning, "accent"
-	case "waiting":
-		return "◔", "waiting", "warning"
-	case daemon.StateIdle:
-		return "○", daemon.StateIdle, "muted"
-	case daemon.StateDone:
-		return "✓", daemon.StateDone, "success"
-	case "dead":
-		return "×", "dead", "danger"
-	case "exited":
-		return "×", "exited", "muted"
-	case "":
-		return "·", "unknown", "muted"
-	default:
-		return "·", s, "muted"
-	}
-}
-
-func formatPaneStatusCell(state string) string {
-	sym, lbl, _ := paneStatusIndicator(state)
-	return sym + " " + lbl
-}
-
 // selectGroupHeader moves the table cursor to the group header for groupName.
 func selectGroupHeader(tbl *table.Model, groupName string) bool {
 	if tbl == nil || groupName == "" {
@@ -154,7 +122,9 @@ func (a *App) buildRail() *table.Model {
 		return y.Time("promptedAt").Compare(x.Time("promptedAt"))
 	})
 
-	fresh := views.TableFromRecords(a.schema(data.KindPane), panes)
+	paneSchema := a.schema(data.KindPane)
+	styleOpts := a.styleOptions()
+	fresh := views.TableFromRecordsWith(paneSchema, panes, styleOpts)
 	fresh.Columns = []table.Column{
 		{Key: "rail", Title: "Pane"},
 		{Key: "runStatus", Title: "State", Width: 11},
@@ -162,7 +132,6 @@ func (a *App) buildRail() *table.Model {
 
 	projRefs := map[string]core.Ref{}
 	groupPanes := map[string][]data.Record{}
-	paneSchema := a.schema(data.KindPane)
 	for i := range fresh.Rows {
 		row := &fresh.Rows[i]
 		pane := panes[i]
@@ -182,8 +151,14 @@ func (a *App) buildRail() *table.Model {
 		row.Cells["rail"] = mark + views.Title(paneSchema, pane)
 
 		baseState := pane.Text("runStatus")
-		_, _, baseTone := paneStatusIndicator(baseState)
-		row.Cells["runStatus"] = formatPaneStatusCell(baseState)
+		icon, label, baseTone, _ := views.StatusIndicator(paneSchema, "runStatus", baseState)
+		row.Cells["runStatus"] = label
+		if styleOpts.StatusIcons && icon != "" {
+			if row.CellIcons == nil {
+				row.CellIcons = map[string]string{}
+			}
+			row.CellIcons["runStatus"] = icon
+		}
 		row.Facts["statusTone"] = baseTone
 		a.decorateRailRow(row, pane)
 		if _, hasTask := pane.RefField("task"); !hasTask {

@@ -107,7 +107,6 @@ var actionCLIMap = map[string]string{
 	"pane.associate":          "mtm pane set <id> --field task=<task-id>",
 	"lane.show":               "mtm lane get <id>",
 	"triage.rule.from-signal": "mtm rule create",
-	"df.culprit.clean":        "o-df clean <name> --yes",
 }
 
 var actionMCPMap = map[string]string{
@@ -416,7 +415,7 @@ func (a *App) bindAction(id string) {
 		return
 	}
 	a.userBindings = append(a.userBindings, row)
-	a.bindings = config.MergeBindings(DefaultBindings(), a.userBindings)
+	a.bindings = config.MergeBindings(a.baseBindings(), a.userBindings)
 	what := fmt.Sprintf("bound %s to %s", id, strings.Join(keys, " "))
 	if err := a.rebuildKeymap(); err != nil {
 		what += " · " + err.Error()

@@ -9,7 +9,7 @@ import (
 
 // Version is the Matomeru release version. Can be overridden at link time with
 // -ldflags "-X ofam.dev/matomeru/daemon.Version=...".
-var Version = "1.3.0"
+var Version = "1.4.0"
 
 // BuildCommit and BuildTime can optionally be injected at link time; when
 // empty, CurrentBuildInfo reads them from Go's embedded VCS metadata.

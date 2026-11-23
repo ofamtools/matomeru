@@ -340,7 +340,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 
 	k.section("7. overlays from anywhere")
 	k.Keys("T")
-	k.check("T opens the outline", a.Modal() == modalOutline && a.Mode() == ModeOutline && k.has("Outline", "2 projects", "[~] ochazuke-v2", "└─"))
+	k.check("T opens the outline", a.Modal() == modalOutline && a.Mode() == ModeOutline && k.has("Outline", "2 projects", "▶ ochazuke-v2", "└─"))
 	k.keep("Outline")
 	k.Keys("esc")
 	k.check("esc closes it", a.Modal() == "")

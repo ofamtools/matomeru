@@ -112,11 +112,21 @@ func (r Record) IsSnoozed(now time.Time) bool {
 	return r.SnoozedUntil != nil && now.Before(*r.SnoozedUntil)
 }
 
+// IsUnreadBy reports whether the record changed after the timestamp in field
+// (or field is unset). When field is empty, the noun has no unread state and
+// reports false.
+func (r Record) IsUnreadBy(field string) bool {
+	if field == "" {
+		return false
+	}
+	viewed := r.Time(field)
+	return viewed.IsZero() || r.UpdatedAt.After(viewed)
+}
+
 // IsUnread reports whether the record changed after it was last viewed: its
 // viewedAt field is empty or earlier than UpdatedAt. It is meant for ui.page.
 func (r Record) IsUnread() bool {
-	viewed := r.Time("viewedAt")
-	return viewed.IsZero() || r.UpdatedAt.After(viewed)
+	return r.IsUnreadBy("viewedAt")
 }
 
 // AsRef reads a single-valued reference: a core.Ref or its stored

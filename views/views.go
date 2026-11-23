@@ -101,11 +101,12 @@ func Title(schema data.Schema, rec data.Record) string {
 	return rec.ID
 }
 
-// KindLabel names what a record is. A root task displays as a project.
+// KindLabel names what a record is. A root record of a hierarchical schema with
+// RootTitle displays as that title (for example, a root task displays as a project).
 func KindLabel(schema data.Schema, rec data.Record) string {
-	if rec.Kind == data.KindTask {
-		if _, ok := rec.RefField("parent"); !ok {
-			return "Project"
+	if h := schema.EffectiveHierarchy(); h != nil && h.RootTitle != "" && h.ParentField != "" {
+		if _, ok := rec.RefField(h.ParentField); !ok {
+			return h.RootTitle
 		}
 	}
 	if schema.Title != "" {
@@ -126,21 +127,24 @@ func schemaOf(reg *data.Registry, kind string) data.Schema {
 // badgeTone maps a status tone to the tone of its badge chip.
 func badgeTone(tone string) string {
 	switch tone {
-	case "state.working":
+	case "state.working", "state.review":
 		return "accent"
-	case "state.done":
+	case "state.done", "state.done.dim":
 		return "success"
-	case "state.errored":
+	case "state.errored", "state.blocked":
 		return "error"
-	case "muted", "dim":
+	case "state.needs-input":
+		return "warning"
+	case "muted", "dim", "state.planned", "state.cancelled":
 		return ""
 	}
 	return tone
 }
 
 // StatusBadges returns one badge per status column value the record has,
-// plus its star and archive state when set.
+// plus declarative schema badge rules and its star, archive and snooze state.
 func StatusBadges(schema data.Schema, rec data.Record) []ui.Badge {
+	now := time.Now()
 	var out []ui.Badge
 	for _, col := range schema.StatusColumns {
 		value := rec.Text(col.Name)
@@ -156,28 +160,33 @@ func StatusBadges(schema data.Schema, rec data.Record) []ui.Badge {
 		}
 		out = append(out, b)
 	}
+	if len(schema.BadgeRules) > 0 {
+		env := RecordExprEnv(schema, rec, now)
+		for _, rule := range schema.BadgeRules {
+			if rule.Text == "" {
+				continue
+			}
+			if ok, err := EvalExpr(rule.When, env); err == nil && ok {
+				out = append(out, ui.Badge{Text: rule.Text, Tone: rule.Tone})
+			}
+		}
+	}
 	if rec.IsStarred() {
 		out = append(out, ui.Badge{Text: "★ starred", Tone: "warning"})
 	}
 	if rec.IsArchived() {
 		out = append(out, ui.Badge{Text: "archived"})
 	}
-	if rec.IsSnoozed(time.Now()) {
+	if rec.IsSnoozed(now) {
 		out = append(out, ui.Badge{Text: "snoozed until " + rec.SnoozedUntil.Local().Format(timeLayout)})
 	}
 	return out
 }
 
-// statusFacts exposes every status column to bindings (Binding.When and
-// status overlays), and whether the record is snoozed right now, so one key
-// can snooze when "!facts.snoozed" and unsnooze when "facts.snoozed".
+// statusFacts exposes every status column and declared fact field to bindings
+// and overlays.
 func statusFacts(schema data.Schema, rec data.Record) map[string]any {
-	facts := map[string]any{data.ColArchiveStatus: rec.ArchiveStatus, data.ColStarStatus: rec.StarStatus,
-		"snoozed": rec.IsSnoozed(time.Now())}
-	for _, col := range schema.StatusColumns {
-		facts[col.Name] = rec.Text(col.Name)
-	}
-	return facts
+	return RecordFacts(schema, rec, time.Now())
 }
 
 func firstLine(s string, limit int) string {
@@ -213,7 +222,7 @@ func RecordCard(schema data.Schema, rec data.Record, id string) ui.ViewNode {
 		Badges: append([]ui.Badge{{Text: strings.ToLower(KindLabel(schema, rec)), Tone: "info"}}, StatusBadges(schema, rec)...),
 		Facts:  statusFacts(schema, rec),
 	}
-	if rec.Kind == data.KindPage && rec.IsUnread() {
+	if rec.IsUnreadBy(schema.UnreadField) {
 		card.Unread = true
 		card.Badges = append(card.Badges, ui.Badge{Text: "unread", Tone: "warning"})
 	}
@@ -245,13 +254,20 @@ func cell(v any) any {
 	return data.Text(v)
 }
 
-// TableFromRecords builds the Index table of any schema: its default columns
-// (every field when it names none), one row per record carrying the record's
-// Ref, scope, badges and status facts. Every field is a cell, shown or not,
-// together with id, createdAt, updatedAt, archiveStatus and starStatus, so
-// the table filters, sorts and groups on any of them. The AnyField cell holds
-// the text of every field, for a filter over all of them.
+// TableFromRecords builds the Index table of any schema using default style
+// options. See TableFromRecordsWith.
 func TableFromRecords(schema data.Schema, recs []data.Record) *table.Model {
+	return TableFromRecordsWith(schema, recs, DefaultStyleOptions())
+}
+
+// TableFromRecordsWith builds the Index table of any schema: its default
+// columns (every field when it names none), one row per record carrying the
+// record's Ref, scope, badges, status facts, and declarative semantic tones
+// and status icons. Every field is a cell, shown or not, together with id,
+// createdAt, updatedAt, archiveStatus and starStatus, so the table filters,
+// sorts and groups on any of them. The AnyField cell holds the text of every
+// field, for a filter over all of them.
+func TableFromRecordsWith(schema data.Schema, recs []data.Record, opts StyleOptions) *table.Model {
 	names := schema.DefaultColumns
 	if len(names) == 0 {
 		for _, f := range schema.Fields {
@@ -290,11 +306,12 @@ func TableFromRecords(schema data.Schema, recs []data.Record) *table.Model {
 			all = append(all, data.Text(merged[name]))
 		}
 		cells[AnyField] = strings.Join(all, "\n")
+		st := ResolveRecordStyle(schema, rec, opts)
 		var flags []string
 		for _, f := range []struct {
 			on   bool
 			mark string
-		}{{rec.Kind == data.KindPage && rec.IsUnread(), "●"}, {rec.IsStarred(), "★"}, {rec.IsSnoozed(now), "z"}, {rec.IsArchived(), "▣"}} {
+		}{{st.Unread, "●"}, {st.Starred, "★"}, {rec.IsSnoozed(now), "z"}, {st.Archived, "▣"}} {
 			if f.on {
 				flags = append(flags, f.mark)
 			}
@@ -302,8 +319,12 @@ func TableFromRecords(schema data.Schema, recs []data.Record) *table.Model {
 		cells[FlagsField] = strings.Join(flags, "")
 		rows[i] = table.Row{
 			ID: data.RefText(ref), Ref: &ref, Scope: rec.Kind, Cells: cells,
-			Badges: StatusBadges(schema, rec), Facts: statusFacts(schema, rec),
-			Unread: rec.Kind == data.KindPage && rec.IsUnread(),
+			Badges: StatusBadges(schema, rec), Facts: RecordFacts(schema, rec, now),
+			Unread:    st.Unread,
+			Tone:      st.RowTone,
+			CellTones: st.CellTones,
+			CellIcons: st.CellIcons,
+			IconTones: st.IconTones,
 		}
 	}
 	return table.New(cols, rows)
@@ -424,7 +445,7 @@ func inferType(v any) core.ParamSpec {
 // EditFields lists the specs of a record's Edit form: every schema field,
 // then the universal fields, then the record's undeclared fields.
 func EditFields(schema data.Schema, rec *data.Record, opts EditOptions) []core.ParamSpec {
-	specs := slices.Clone(schema.Fields)
+	specs := schema.ParamSpecs()
 	has := func(name string) bool {
 		return slices.ContainsFunc(specs, func(p core.ParamSpec) bool { return p.Name == name })
 	}
@@ -512,17 +533,28 @@ func EditView(schema data.Schema, rec *data.Record, fm *form.Model, id string) u
 // --- pickers --------------------------------------------------------------------
 
 // PickerFromRecords builds a picker over records of any kinds (a pane's
-// pages, the tasks to move under), unread pages first. Each item carries its
-// record's Ref.
+// pages, the tasks to move under), unread items first, with default styling.
 func PickerFromRecords(reg *data.Registry, title string, recs []data.Record) *picker.Model {
+	return PickerFromRecordsWith(reg, title, recs, DefaultStyleOptions())
+}
+
+// PickerFromRecordsWith builds a picker over records of any kinds, unread
+// items first, prepending each record's declarative status icon when
+// opts.StatusIcons is enabled. Each item carries its record's Ref.
+func PickerFromRecordsWith(reg *data.Registry, title string, recs []data.Record, opts StyleOptions) *picker.Model {
 	items := make([]picker.Item, 0, len(recs))
 	var read []picker.Item
 	for _, rec := range recs {
 		schema := schemaOf(reg, rec.Kind)
 		ref := rec.Ref()
-		item := picker.Item{ID: data.RefText(ref), Title: Title(schema, rec), Subtitle: summaryOf(schema, rec), Ref: &ref,
+		st := ResolveRecordStyle(schema, rec, opts)
+		itemTitle := Title(schema, rec)
+		if opts.StatusIcons && st.Icon != "" {
+			itemTitle = st.Icon + " " + itemTitle
+		}
+		item := picker.Item{ID: data.RefText(ref), Title: itemTitle, Subtitle: summaryOf(schema, rec), Ref: &ref,
 			Scope: rec.Kind, Badges: StatusBadges(schema, rec)}
-		if rec.Kind == data.KindPage && rec.IsUnread() {
+		if st.Unread {
 			item.Unread = true
 			item.Badges = append(item.Badges, ui.Badge{Text: "unread", Tone: "warning"})
 			items = append(items, item)
