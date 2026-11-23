@@ -255,7 +255,8 @@ func (a *App) reloadForm() {
 		return
 	}
 	fm := rf.Model()
-	idx := fm.ActiveIdx
+	activeField := fm.ActiveFieldName()
+	onSubmit := fm.OnSubmitRow()
 	schema := a.schema(rf.kind)
 	fresh := views.FormForRecordWith(schema, rec, a.editOptions())
 	fresh.SubmitRow = true
@@ -271,8 +272,18 @@ func (a *App) reloadForm() {
 	fm.Editing = false
 	fm.SubmitRow = fresh.SubmitRow
 	fm.SubmitLabel = fresh.SubmitLabel
+	if a.cfg != nil && a.cfg.Settings != nil {
+		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
+	}
 	fm.SetDrafts(fresh.Drafts)
-	fm.ActiveIdx = min(idx, max(len(fm.Specs), 0))
+	if activeField != "" && fm.FocusField(activeField) {
+		return
+	}
+	if onSubmit {
+		fm.Bottom()
+	} else {
+		fm.Top()
+	}
 }
 
 // syncManagedFile writes a managed file for a document or note when it has a

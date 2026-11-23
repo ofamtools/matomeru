@@ -256,7 +256,9 @@ func (a *App) formPickPath(getForm func() *modal.FormModal) func(form.PathReques
 		pm, ok := a.newPathPickerModal(current, func(entry pathpicker.DirEntry) modal.Result {
 			if fm := getForm(); fm != nil {
 				fm.SetValue(field, entry.Path)
-				fm.FocusField(field)
+				if fm.Model().ActiveFieldName() != field {
+					fm.FocusField(field)
+				}
 			}
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
 		})
@@ -280,7 +282,9 @@ func (a *App) formPickRef(getForm func() *modal.FormModal) func(form.RefRequest)
 			Push: a.newRefPickerModal(req, func(r core.Ref) {
 				if fm := getForm(); fm != nil {
 					fm.SetValue(field, r)
-					fm.FocusField(field)
+					if fm.Model().ActiveFieldName() != field {
+						fm.FocusField(field)
+					}
 				}
 			}),
 		}
@@ -338,6 +342,9 @@ func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Mod
 	}
 	schema := a.schema(kind)
 	fm.SubmitRow = true
+	if a.cfg != nil && a.cfg.Settings != nil {
+		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
+	}
 	if rf.isNew {
 		fm.SubmitLabel = "Create " + strings.ToLower(schema.Title)
 	} else {
@@ -387,6 +394,9 @@ func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Mod
 func (a *App) newLaunchModal(title, submitLabel string, specs []core.ParamSpec, values map[string]any, draftKey string, onSubmit func(core.State, map[string]any) (core.State, bool)) *modal.FormModal {
 	fm := form.New(title, specs, values)
 	fm.SubmitRow = true
+	if a.cfg != nil && a.cfg.Settings != nil {
+		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
+	}
 	if submitLabel == "" {
 		submitLabel = "Run"
 	}

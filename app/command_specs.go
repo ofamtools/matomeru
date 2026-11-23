@@ -37,7 +37,7 @@ func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string
 // the terminal's leader layer leaves them out.
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
-	base := append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...)
+	base := append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...)
 	return append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
@@ -185,6 +185,8 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: form.CmdDraftPrev, Description: "Load the previous saved draft", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: form.CmdDraftNext, Description: "Step forward toward newer drafts or current edits", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: form.CmdDraftDiscard, Description: "Discard the currently loaded draft", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
+		{ID: form.CmdItemAdd, Description: "Add an item to the focused repeatable field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
+		{ID: form.CmdItemRemove, Description: "Remove the focused item from a repeatable field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: commandline.CmdInsert, Description: "Type into the shell command bar", Params: text, Meta: map[string]any{"internal": true}},
 		{ID: commandline.CmdSubmit, Description: "Run the shell command bar", Meta: map[string]any{"internal": true}},
 		{ID: commandline.CmdCancel, Description: "Close the shell command bar", Meta: map[string]any{"internal": true}},

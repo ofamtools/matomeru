@@ -579,13 +579,10 @@ func (a *App) outlineRename(s core.State, _ core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	fm := views.FormForRecordWith(schema, rec, a.editOptions())
-	field := summaryField(schema)
-	for i, sp := range fm.Specs {
-		if sp.Name == field {
-			fm.ActiveIdx = i
-			break
-		}
+	if a.cfg != nil && a.cfg.Settings != nil {
+		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
 	}
+	fm.FocusField(summaryField(schema))
 	_, _ = fm.HandleCommand(core.Command{ID: form.CmdEdit})
 	rf := a.newRecordFormModal(kind, &ref, nil, fm)
 	a.say("rename %s · ctrl+s saves · esc closes", a.title(ref))
@@ -634,13 +631,10 @@ func (a *App) taskAddRelative(child bool) func(core.State, core.Command) core.St
 			fm.SetValue(parentField, *parentRef)
 		}
 		fm.Dirty = false
-		field := summaryField(schema)
-		for i, sp := range fm.Specs {
-			if sp.Name == field {
-				fm.ActiveIdx = i
-				break
-			}
+		if a.cfg != nil && a.cfg.Settings != nil {
+			fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
 		}
+		fm.FocusField(summaryField(schema))
 		rf := a.newRecordFormModal(kind, nil, nil, fm)
 		noun := strings.ToLower(schema.Title)
 		if child {

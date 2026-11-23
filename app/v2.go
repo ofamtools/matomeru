@@ -127,6 +127,7 @@ func (a *App) browse(s core.State, kind string) core.State {
 	if kind != a.nav.browseKind {
 		a.nav.browseKind = kind
 		delete(a.nav.tables, workTable) // another noun: its own filter, sort and group
+		a.setActivePreset(workTable, "")
 		if a.trees != nil {
 			delete(a.trees.workTableRowID, a.workKind())
 		}

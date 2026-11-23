@@ -35,6 +35,7 @@ func (a *App) panesGroupToggle(s core.State, _ core.Command) core.StepResult {
 		nextMode = PanesGroupProjectPane
 	}
 	a.cfg.userSettings[SetPanesGroup] = nextMode
+	a.setActivePreset(railTable, "")
 	a.panes.railGroupSet = false
 	a.panes.railCustomGroup = ""
 	a.reloadSettings()

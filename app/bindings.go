@@ -707,6 +707,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeAbout, all, "q", CmdModalCancel, "close"),
 	}
 	out = append(out, macroBindings()...)
+	out = append(out, viewCycleBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)
 	}

@@ -130,6 +130,8 @@ const (
 	SetAutoArchiveExited       = "terminal.autoArchiveOnExit"
 	SetScrollOff               = "ui.scrolloff"
 	SetPickerDefaultMode       = "ui.pickerDefaultMode"
+	SetViewCycle               = "ui.viewCycle"
+	SetFormReactiveFields      = "edit.reactiveFields"
 	PickerDefaultModeNormal    = "normal"
 	PickerDefaultModeAllNormal = "all-normal"
 	PickerDefaultModeFilter    = "filter"
@@ -199,6 +201,8 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetWorkTasksLayout, WorkTasksLayoutTree, "how tasks are displayed in 2 Work (tree or table)", WorkTasksLayoutTree, WorkTasksLayoutTable),
 		enum(SetWorkHierarchyLayout, WorkHierarchyLayoutAuto, "how hierarchical nouns are displayed in 2 Work (auto, tree, or table)", WorkHierarchyLayoutAuto, WorkHierarchyLayoutTree, WorkHierarchyLayoutTable),
 		enum(SetPickerDefaultMode, PickerDefaultModeNormal, "initial mode when opening pickers (normal, all-normal, or filter)", PickerDefaultModeNormal, PickerDefaultModeAllNormal, PickerDefaultModeFilter),
+		flag(SetViewCycle, true, "cycle focused component views, layouts, density, and saved presets with g V"),
+		flag(SetFormReactiveFields, true, "evaluate reactive VisibleWhen predicates in forms (false shows all fields)"),
 	}
 }
 
@@ -271,6 +275,9 @@ func (a *App) theme() ui.Theme {
 }
 
 func (a *App) showOptions() views.ShowOptions {
+	if a.nav != nil && a.nav.showCompact {
+		return views.ShowOptions{ShowMetadata: false, ShowEmptyRelations: false}
+	}
 	return views.ShowOptions{ShowMetadata: a.cfg.Settings.Bool(SetShowMetadata, true), ShowEmptyRelations: a.cfg.Settings.Bool(SetShowEmpty, true)}
 }
 
@@ -395,10 +402,10 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 		return
 	}
 	if name == "" {
-		if fm.ActiveIdx >= len(fm.Specs) {
+		name = fm.ActiveFieldName()
+		if name == "" {
 			return
 		}
-		name = fm.Specs[fm.ActiveIdx].Name
 	}
 	value, has := fm.TypedValues()[name]
 	if !has {
@@ -434,6 +441,16 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 	}
 	if (name == SetWorkHierarchyLayout || name == SetWorkTasksLayout) && a.trees != nil {
 		clear(a.trees.layoutOverride)
+	}
+	if name == SetFormReactiveFields {
+		showAll := !a.cfg.Settings.Bool(SetFormReactiveFields, true)
+		fm.ShowAllFields = showAll
+		if rf := a.activeRecordForm(); rf != nil {
+			rf.Model().ShowAllFields = showAll
+		}
+		if lf := a.activeLaunchForm(); lf != nil {
+			lf.Model().ShowAllFields = showAll
+		}
 	}
 	saved, err := a.writeConfig(settingsFileName, a.cfg.userSettings)
 	switch {

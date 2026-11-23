@@ -58,6 +58,9 @@ func (a *App) applyDefaultPreset(tbl *table.Model, tableID string) bool {
 	if !a.nav.presets.ApplyDefault(tbl, tableID) {
 		return false
 	}
+	if def, ok := a.nav.presets.Default(tableID); ok {
+		a.setActivePreset(tableID, def.Name)
+	}
 	if tableID == railTable {
 		a.panes.railGroupSet = true
 		a.panes.railCustomGroup = tbl.GroupField
@@ -300,6 +303,7 @@ func (a *App) applyTablePreset(tableID, name string) bool {
 		a.say("no preset %q for %s", name, tableID)
 		return false
 	}
+	a.setActivePreset(tableID, name)
 	if tableID == railTable {
 		a.panes.railGroupSet = true
 		a.panes.railCustomGroup = tbl.GroupField
@@ -344,6 +348,9 @@ func (a *App) deleteTablePreset(tableID, name string) bool {
 	if a.nav.presets == nil || !a.nav.presets.Delete(tableID, name) {
 		a.say("no preset %q for %s", name, tableID)
 		return false
+	}
+	if a.nav.activePreset[tableID] == name {
+		a.setActivePreset(tableID, "")
 	}
 	saved, err := a.savePresets()
 	switch {

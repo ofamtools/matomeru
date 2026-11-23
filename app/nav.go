@@ -23,6 +23,8 @@ type NavController struct {
 	tables       map[string]*table.Model
 	recCacheKeys map[string]string
 	presets      *table.PresetStore
+	activePreset map[string]string
+	showCompact  bool
 	showArchived bool
 	browseKind   string
 	history      []historyEntry
@@ -43,6 +45,7 @@ func newNavController() *NavController {
 	return &NavController{
 		tables:       map[string]*table.Model{},
 		recCacheKeys: map[string]string{},
+		activePreset: map[string]string{},
 		lastFocus:    map[string]string{},
 		histPos:      -1,
 		indexFocus:   workTable,

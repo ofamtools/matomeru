@@ -57,7 +57,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true,
 		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetRowSemanticStyling: true, SetStatusIcons: true, SetTreeTopLevelGap: true,
 		SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree, SetWorkHierarchyLayout: WorkHierarchyLayoutAuto,
-		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal}
+		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal,
+		SetViewCycle: true, SetFormReactiveFields: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

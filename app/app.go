@@ -543,7 +543,8 @@ func (a *App) register() {
 		a.handle(id, a.handleModal)
 	}
 	for _, id := range []string{CmdFormActivate, form.CmdSubmit, form.CmdEdit, form.CmdStop, form.CmdToggle, form.CmdCycle,
-		form.CmdInsert, form.CmdBackspace, form.CmdPick, form.CmdDraftPrev, form.CmdDraftNext, form.CmdDraftDiscard} {
+		form.CmdInsert, form.CmdBackspace, form.CmdPick, form.CmdDraftPrev, form.CmdDraftNext, form.CmdDraftDiscard,
+		form.CmdItemAdd, form.CmdItemRemove} {
 		a.handle(id, a.handleModal)
 	}
 
@@ -627,6 +628,7 @@ func (a *App) register() {
 		a.handle(id, a.treeFoldCommand(id))
 	}
 	a.handle(CmdWorkLayoutToggle, a.workLayoutToggle)
+	a.handle(CmdViewCycle, a.viewCycle)
 	for id, spec := range a.ext.recordActions {
 		a.handle(id, a.runRecordAction(spec))
 	}

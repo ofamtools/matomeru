@@ -118,6 +118,9 @@ type FieldSpec struct {
 	SourceQuery         string         `json:"sourceQuery,omitempty"`
 	Description         string         `json:"description,omitempty"`
 	ShowIncludeArchived bool           `json:"showIncludeArchived,omitempty"`
+	VisibleWhen         string         `json:"visibleWhen,omitempty"`
+	Repeatable          bool           `json:"repeatable,omitempty"`
+	AddLabel            string         `json:"addLabel,omitempty"`
 }
 
 // ParamSpec converts f into its equivalent core.ParamSpec for forms and CLI flags.
@@ -131,6 +134,9 @@ func (f FieldSpec) ParamSpec() core.ParamSpec {
 		RefKinds:    slices.Clone(f.RefKinds),
 		SourceQuery: f.SourceQuery,
 		Description: f.Description,
+		VisibleWhen: f.VisibleWhen,
+		Repeatable:  f.Repeatable,
+		AddLabel:    f.AddLabel,
 	}
 }
 
