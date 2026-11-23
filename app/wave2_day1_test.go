@@ -267,12 +267,13 @@ func TestWave2HarnessDiscoveryFormChoicesAndLaunch(t *testing.T) {
 
 	// Open New Pane (n) on 1 Panes and verify dynamic harness choices.
 	d.Keys("1", "n")
-	if a.Modal() != modalForm || a.form == nil || a.form.kind != data.KindPane {
-		t.Fatalf("n on 1 Panes did not open New pane form: modal=%q form=%+v", a.Modal(), a.form)
+	rf := a.activeRecordForm()
+	if a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane {
+		t.Fatalf("n on 1 Panes did not open New pane form: modal=%q form=%+v", a.Modal(), rf)
 	}
 	var harnessSpec core.ParamSpec
 	found := false
-	for _, sp := range a.form.fm.Specs {
+	for _, sp := range rf.Model().Specs {
 		if sp.Name == "harness" {
 			harnessSpec = sp
 			found = true
@@ -282,7 +283,7 @@ func TestWave2HarnessDiscoveryFormChoicesAndLaunch(t *testing.T) {
 	if !found || !slices.Equal(harnessSpec.Enum, wantIDs) {
 		t.Fatalf("New pane harness enum = %v (found=%v), want %v", harnessSpec.Enum, found, wantIDs)
 	}
-	if gotDefault := data.Text(a.form.fm.Values["harness"]); gotDefault != "myagent" {
+	if gotDefault := data.Text(rf.Model().Values["harness"]); gotDefault != "myagent" {
 		t.Fatalf("New pane default harness = %q, want %q", gotDefault, "myagent")
 	}
 	d.Keys("esc")

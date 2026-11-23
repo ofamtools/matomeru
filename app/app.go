@@ -176,22 +176,6 @@ type historyEntry struct {
 	focus string // focus to restore when coming back to this page
 }
 
-type formState struct {
-	kind     string
-	ref      *core.Ref // nil for a new record
-	fm       *form.Model
-	about    *core.Ref // a new note is attached to this record
-	draftKey string
-	// For an answer: the page and card it answers, plus optional batch metadata,
-	// or questionID when answering a KindQuestion record directly from 2 Work.
-	pageID, cardID string
-	questionID     string
-	batch          *batchQuestionInfo
-	batchPos       int
-	// For a launch form: what submit runs. It reports whether to close the form.
-	submit func(core.State, map[string]any) (core.State, bool)
-}
-
 type termBuf struct {
 	lines []string
 	typed string
@@ -249,9 +233,6 @@ type App struct {
 	trees        *treeController
 	modals       *modal.Stack
 	pendingState []func(core.State) core.State
-	form         *formState
-	answer       *formState
-	launch       *formState
 	drafts       *form.DraftStore
 	lastFocus    map[string]string // region -> its last focused node
 	focusRegion  string
@@ -263,7 +244,6 @@ type App struct {
 	userBindings    []core.Binding
 	userBindingsRaw []core.Binding
 	extBindings     []core.Binding
-	settings        *formState
 
 	// The binding editor: its model, how many of its rows are the user's
 	// own, and the keys of a rebind being captured.
@@ -1038,10 +1018,6 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 	switch id {
 	case modalOutline:
 		a.outlineTreeMove(c)
-	case modalForm, modalAnswer, modalLaunch, modalSettings:
-		if fs := a.formOf(id); fs != nil {
-			fs.fm.HandleCommand(c)
-		}
 	case modalBindings:
 		if a.bindEd != nil {
 			a.bindEd.HandleCommand(c)
@@ -1057,8 +1033,7 @@ func (a *App) dropModals(s core.State) core.State {
 		s = a.modals.DropAll(s)
 	}
 	s.Modals = nil
-	a.form, a.answer, a.launch = nil, nil, nil
-	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
+	a.bindCapturing = false // the binding editor keeps its undo history
 	a.scratch = ""
 	a.composer, a.hints = nil, nil
 	a.trees.clearEdit()
@@ -1231,18 +1206,6 @@ func (a *App) rerun(s core.State, c core.Command) core.StepResult {
 
 // --- forms: edit, new, answer -----------------------------------------------------
 
-func (a *App) formOf(modal string) *formState {
-	switch modal {
-	case modalAnswer:
-		return a.answer
-	case modalLaunch:
-		return a.launch
-	case modalSettings:
-		return a.settings
-	}
-	return a.form
-}
-
 func (a *App) edit(s core.State, c core.Command) core.StepResult {
 	ref, ok := a.subject(s, c)
 	if !ok {
@@ -1255,12 +1218,9 @@ func (a *App) edit(s core.State, c core.Command) core.StepResult {
 		a.fail("edit", err)
 		return core.Next(s)
 	}
-	fs := &formState{kind: ref.Kind, ref: &ref, fm: views.FormForRecordWith(a.schema(ref.Kind), rec, a.editOptions())}
-	a.applyHarnessChoices(fs)
-	a.configureRecordForm(fs)
-	a.form = fs
+	rf := a.newRecordFormModal(ref.Kind, &ref, nil, views.FormForRecordWith(a.schema(ref.Kind), rec, a.editOptions()))
 	a.say("ctrl+s saves · esc closes (saves draft)")
-	return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
+	return core.Next(a.pushModal(s, rf))
 }
 
 func (a *App) create(s core.State, c core.Command) core.StepResult {
@@ -1269,18 +1229,19 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		kind = data.KindTask
 	}
 	schema := a.schema(kind)
-	fs := &formState{kind: kind, fm: views.FormForRecordWith(schema, nil, a.editOptions())}
+	fm := views.FormForRecordWith(schema, nil, a.editOptions())
+	var about *core.Ref
 	if ownerRef, ok := c.Args["ownerRef"].(core.Ref); ok && ownerRef.ID != "" {
 		if field, _ := c.Args["ownerField"].(string); field != "" {
 			if _, hasField := schema.Field(field); hasField {
-				fs.fm.SetValue(field, ownerRef)
+				fm.SetValue(field, ownerRef)
 			}
 		}
 		if rel, _ := c.Args["ownerRel"].(string); rel == data.RelAbout {
 			r := ownerRef
-			fs.about = &r
+			about = &r
 		}
-		if _, hasTask := schema.Field("task"); hasTask && fs.fm.Values["task"] == nil {
+		if _, hasTask := schema.Field("task"); hasTask && fm.Values["task"] == nil {
 			task := ownerRef
 			if ownerRef.Kind != data.KindTask {
 				if rec, err := a.Store.Get(ownerRef); err == nil {
@@ -1288,30 +1249,28 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 				}
 			}
 			if task.Kind == data.KindTask && task.ID != "" {
-				fs.fm.SetValue("task", task)
+				fm.SetValue("task", task)
 			}
 		}
-		fs.fm.Dirty = false
-		a.applyHarnessChoices(fs)
-		a.configureRecordForm(fs)
-		a.form = fs
+		fm.Dirty = false
+		rf := a.newRecordFormModal(kind, nil, about, fm)
 		a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
-		return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
+		return core.Next(a.pushModal(s, rf))
 	}
 	subject, has := a.subject(s, c)
 	switch {
 	case kind == data.KindTask:
 		// On a task's Show page (or when targeting a task directly) a new task is its subtask.
 		if cur, ok := a.Showing(); ok && cur.Kind == data.KindTask && s.ActivePage == SpaceWork {
-			fs.fm.SetValue("parent", cur)
+			fm.SetValue("parent", cur)
 		} else if c.Target != nil && c.Target.Kind == data.KindTask && c.Target.ID != "" {
-			fs.fm.SetValue("parent", *c.Target)
+			fm.SetValue("parent", *c.Target)
 		}
 	case has:
 		// A note (or anything else with a task) belongs to the focused
 		// record's task, and a note is about the focused record.
 		if kind == data.KindNote {
-			fs.about = &subject
+			about = &subject
 		}
 		task := subject
 		if subject.Kind != data.KindTask {
@@ -1320,32 +1279,44 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 			}
 		}
 		if _, ok := schema.Field("task"); ok && task.Kind == data.KindTask && task.ID != "" {
-			fs.fm.SetValue("task", task)
+			fm.SetValue("task", task)
 		}
 	}
-	fs.fm.Dirty = false
-	a.applyHarnessChoices(fs)
-	a.configureRecordForm(fs)
-	a.form = fs
+	fm.Dirty = false
+	rf := a.newRecordFormModal(kind, nil, about, fm)
 	a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
-	return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
+	return core.Next(a.pushModal(s, rf))
 }
 
 // reloadForm refreshes the open edit form from the store (after undo, redo).
 func (a *App) reloadForm() {
-	fs := a.form
-	if fs == nil || fs.ref == nil {
+	rf := a.activeRecordForm()
+	if rf == nil || rf.ref == nil {
 		return
 	}
-	rec, err := a.Store.Get(*fs.ref)
+	rec, err := a.Store.Get(*rf.ref)
 	if err != nil {
 		return
 	}
-	idx := fs.fm.ActiveIdx
-	fs.fm = views.FormForRecordWith(a.schema(fs.kind), rec, a.editOptions())
-	a.applyHarnessChoices(fs)
-	a.configureRecordForm(fs)
-	fs.fm.ActiveIdx = min(idx, max(len(fs.fm.Specs), 0))
+	fm := rf.Model()
+	idx := fm.ActiveIdx
+	schema := a.schema(rf.kind)
+	fresh := views.FormForRecordWith(schema, rec, a.editOptions())
+	fresh.SubmitRow = true
+	fresh.SubmitLabel = "Save " + strings.ToLower(schema.Title)
+	a.applyHarnessChoicesToForm(rf.kind, rf.ref, fresh)
+	a.attachFormDrafts(fresh, rf.draftKey)
+
+	fm.Title = fresh.Title
+	fm.Specs = fresh.Specs
+	fm.Values = fresh.Values
+	fm.Errors = fresh.Errors
+	fm.Dirty = fresh.Dirty
+	fm.Editing = false
+	fm.SubmitRow = fresh.SubmitRow
+	fm.SubmitLabel = fresh.SubmitLabel
+	fm.SetDrafts(fresh.Drafts)
+	fm.ActiveIdx = min(idx, max(len(fm.Specs), 0))
 }
 
 // syncManagedFile writes a managed file for a document or note when it has a
@@ -1384,122 +1355,6 @@ func (a *App) syncManagedFile(rec *data.Record) {
 			Summary: "record managed file path",
 		}, core.Actor{Kind: "system", ID: "mtm.files", Label: "managed files"})
 	}
-}
-
-func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
-	id := topModal(s)
-	if a.modals != nil {
-		if top := a.modals.Top(); top != nil && top.ID() == id {
-			return a.handleModal(s, c)
-		}
-	}
-	fs := a.formOf(id)
-	if fs == nil {
-		return core.Next(s)
-	}
-	fm := fs.fm
-	cmdID := c.ID
-	if id == modalSettings && (cmdID == form.CmdDraftPrev || cmdID == form.CmdDraftNext || cmdID == form.CmdDraftDiscard || cmdID == form.CmdSubmit) {
-		return core.Next(s)
-	}
-	if cmdID == CmdFormActivate {
-		if fm.OnSubmitRow() {
-			cmdID = form.CmdSubmit
-		} else {
-			var spec core.ParamSpec
-			if fm.ActiveIdx < len(fm.Specs) {
-				spec = fm.Specs[fm.ActiveIdx]
-			}
-			switch form.KindFor(spec) {
-			case form.KindBool, form.KindEnum:
-				cmdID = form.CmdToggle
-			case form.KindPath, form.KindRef:
-				cmdID = form.CmdPick
-			default:
-				cmdID = form.CmdEdit
-			}
-		}
-		c.ID = cmdID
-	}
-	wasEditing := fm.Editing
-	prevDraftIdx := fm.ActiveDraftIndex()
-	res, _ := fm.HandleCommand(c)
-	switch {
-	case res.PickPath != nil:
-		return core.Next(a.openPath(s, res.PickPath.Field, nil, fm.Values[res.PickPath.Field]))
-	case res.PickRef != nil:
-		parentModal := topModal(s)
-		field := res.PickRef.Field
-		rm := a.newRefPickerModal(*res.PickRef, func(ref core.Ref) {
-			if fs := a.formOf(parentModal); fs != nil {
-				fs.fm.SetValue(field, ref)
-				if i := slices.IndexFunc(fs.fm.Specs, func(p core.ParamSpec) bool { return p.Name == field }); i >= 0 {
-					fs.fm.ActiveIdx = i
-				}
-			}
-		})
-		return core.Next(a.pushModal(s, rm))
-	case res.HasDiscardedDraft:
-		if fs.draftKey != "" && a.drafts != nil {
-			a.drafts.Remove(fs.draftKey, res.DiscardedDraftIdx)
-			a.saveDrafts()
-		}
-		a.say("discarded draft")
-		return core.Next(withMode(s, ModeForm))
-	case res.Submitted && id == modalForm:
-		next := a.submitForm(s, fs, res.Values)
-		if topModal(next) == modalForm {
-			mode := ModeForm
-			if fm.Editing {
-				mode = ModeFormEdit
-			}
-			next = withMode(next, mode)
-		}
-		return core.Next(next)
-	case res.Submitted && id == modalAnswer:
-		return core.Next(a.submitAnswerModal(s, fs, res.Values))
-	case res.Submitted && id == modalLaunch:
-		next, done := fs.submit(s, res.Values)
-		if done {
-			a.clearSubmittedDraft(fs)
-			a.launch = nil
-			next = closeModal(next, modalLaunch)
-		}
-		return core.Next(next)
-	case len(res.ErrorFields) > 0:
-		a.say("still needed: %s", strings.Join(res.ErrorFields, ", "))
-	case res.Cancelled:
-		return a.cancel(s, c)
-	}
-	switch cmdID {
-	case form.CmdDraftPrev:
-		if idx := fm.ActiveDraftIndex(); idx >= 0 {
-			a.say("draft %d of %d", idx+1, fm.DraftCount())
-		} else if fm.DraftCount() == 0 {
-			a.say("no drafts saved")
-		}
-	case form.CmdDraftNext:
-		if idx := fm.ActiveDraftIndex(); idx >= 0 {
-			a.say("draft %d of %d", idx+1, fm.DraftCount())
-		} else if prevDraftIdx >= 0 {
-			a.say("back to current edits")
-		}
-	}
-	if id == modalSettings {
-		switch cmdID {
-		case form.CmdToggle, form.CmdCycle:
-			a.commitSetting()
-		case form.CmdStop:
-			if wasEditing {
-				a.commitSetting()
-			}
-		}
-	}
-	mode := ModeForm
-	if fm.Editing {
-		mode = ModeFormEdit
-	}
-	return core.Next(withMode(s, mode))
 }
 
 // answerQuestion opens the form of the focused question card (or submits a
@@ -1807,8 +1662,6 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 		}
 	}
 	switch a.Engine.Mode(s) {
-	case ModeFormEdit:
-		return a.formCommand(s, c)
 	case ModeFilter:
 		return a.filterEdit(s, c)
 	case ModeBindingsFilter:
@@ -2044,35 +1897,6 @@ func (a *App) cancel(s core.State, c core.Command) core.StepResult {
 	switch id {
 	case "":
 		return core.Next(s)
-	case modalForm:
-		saved := a.saveFormDraft(a.form)
-		a.form = nil
-		if saved {
-			a.say("closed · draft saved ([ restores)")
-		} else {
-			a.say("closed")
-		}
-		return core.Next(closeModal(s, id))
-	case modalAnswer:
-		saved := a.saveFormDraft(a.answer)
-		a.answer = nil
-		if saved {
-			a.say("closed · draft saved ([ restores)")
-		} else {
-			a.say("closed")
-		}
-		return core.Next(closeModal(s, id))
-	case modalLaunch:
-		saved := a.saveFormDraft(a.launch)
-		a.launch = nil
-		if saved {
-			a.say("closed · draft saved ([ restores)")
-		} else {
-			a.say("closed")
-		}
-		return core.Next(closeModal(s, id))
-	case modalSettings:
-		a.settings = nil
 	case modalBindings:
 		a.bindCapturing = false // the editor's model stays: its undo history survives closing it
 	case modalScratch:
@@ -2406,7 +2230,7 @@ func (a *App) register() {
 	}
 	for _, id := range []string{CmdFormActivate, form.CmdSubmit, form.CmdEdit, form.CmdStop, form.CmdToggle, form.CmdCycle,
 		form.CmdInsert, form.CmdBackspace, form.CmdPick, form.CmdDraftPrev, form.CmdDraftNext, form.CmdDraftDiscard} {
-		a.handle(id, a.formCommand)
+		a.handle(id, a.handleModal)
 	}
 
 	a.handle(CmdFilterStart, a.filterStart)
@@ -2464,8 +2288,8 @@ func (a *App) register() {
 	a.handle(CmdQuestionNext, a.questionStep(1))
 	a.handle(CmdQuestionPrev, a.questionStep(-1))
 	a.handle(CmdQuestionSubmitAll, a.questionSubmitAll)
-	a.handle(CmdAnswerBatchNext, a.answerBatchStep(1))
-	a.handle(CmdAnswerBatchPrev, a.answerBatchStep(-1))
+	a.handle(CmdAnswerBatchNext, a.handleModal)
+	a.handle(CmdAnswerBatchPrev, a.handleModal)
 
 	// Wave 4: confirmation modal, table presets, user actions, and focus jump hints.
 	a.handle(core.CmdAppQuit, a.appQuit)

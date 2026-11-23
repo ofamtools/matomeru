@@ -753,8 +753,8 @@ func TestWave3BatchedQuestionsUI(t *testing.T) {
 
 	// Answer Q2 inside modal (first l picks canary, second l picks bluegreen), then step directly to Q3 with ctrl+n, answer Q3, and Submit All with ctrl+s!
 	d.Keys("a", "l", "l", "ctrl+n") // picks bluegreen (second choice) and steps to Q3
-	if a.Modal() != modalAnswer || a.answer == nil || a.answer.cardID != "q-note" {
-		t.Fatalf("ctrl+n in batch answer modal did not move to q-note: modal=%q answer=%+v", a.Modal(), a.answer)
+	if am := a.activeAnswerForm(); a.Modal() != modalAnswer || am == nil || am.cardID != "q-note" {
+		t.Fatalf("ctrl+n in batch answer modal did not move to q-note: modal=%q answer=%+v", a.Modal(), am)
 	}
 	d.Keys("i")
 	d.Type("v2.3.0")

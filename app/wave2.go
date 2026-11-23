@@ -21,6 +21,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/table"
 	"ofam.dev/ochazuke/widgets/toast"
@@ -356,8 +357,8 @@ func (a *App) SetInstalledHarnesses(installed []harness.InstalledHarness) []harn
 	merged := harness.MergeInstalled(installed, a.harnessCfg)
 	a.harnessEntries = merged
 	a.harnessMu.Unlock()
-	if a.form != nil && a.form.kind == data.KindPane {
-		a.applyHarnessChoices(a.form)
+	if rf := a.activeRecordForm(); rf != nil && rf.kind == data.KindPane {
+		a.applyHarnessChoices(rf)
 	}
 	a.gen++
 	return slices.Clone(merged)
@@ -427,31 +428,38 @@ func (a *App) defaultDirForTask(taskRef core.Ref) string {
 	return ""
 }
 
-func (a *App) applyHarnessChoices(fs *formState) {
-	if fs == nil || fs.fm == nil || fs.kind != data.KindPane {
+func (a *App) applyHarnessChoices(rf *recordFormModal) {
+	if rf == nil {
 		return
 	}
-	wasDirty := fs.fm.Dirty
-	current := data.Text(fs.fm.Values["harness"])
+	a.applyHarnessChoicesToForm(rf.kind, rf.ref, rf.Model())
+}
+
+func (a *App) applyHarnessChoicesToForm(kind string, ref *core.Ref, fm *form.Model) {
+	if fm == nil || kind != data.KindPane {
+		return
+	}
+	wasDirty := fm.Dirty
+	current := data.Text(fm.Values["harness"])
 	choices := a.harnessChoices(current)
 	if len(choices) > 0 {
-		for i := range fs.fm.Specs {
-			if fs.fm.Specs[i].Name != "harness" {
+		for i := range fm.Specs {
+			if fm.Specs[i].Name != "harness" {
 				continue
 			}
-			fs.fm.Specs[i].Enum = choices
-			if fs.ref == nil && strings.TrimSpace(current) == "" {
-				fs.fm.Specs[i].Default = choices[0]
-				fs.fm.SetValue("harness", choices[0])
+			fm.Specs[i].Enum = choices
+			if ref == nil && strings.TrimSpace(current) == "" {
+				fm.Specs[i].Default = choices[0]
+				fm.SetValue("harness", choices[0])
 			}
 			break
 		}
 	}
 	// Pre-fill cwd on New Pane forms from the selected task/project's defaultDir,
 	// falling back to os.Getwd() so the user always sees the launch directory.
-	if fs.ref == nil && strings.TrimSpace(data.Text(fs.fm.Values["cwd"])) == "" {
+	if ref == nil && strings.TrimSpace(data.Text(fm.Values["cwd"])) == "" {
 		dir := ""
-		if taskRef, ok := data.AsRef(fs.fm.Values["task"]); ok {
+		if taskRef, ok := data.AsRef(fm.Values["task"]); ok {
 			dir = a.defaultDirForTask(taskRef)
 		}
 		if dir == "" {
@@ -460,10 +468,10 @@ func (a *App) applyHarnessChoices(fs *formState) {
 			}
 		}
 		if dir != "" {
-			fs.fm.SetValue("cwd", dir)
+			fm.SetValue("cwd", dir)
 		}
 	}
-	fs.fm.Dirty = wasDirty
+	fm.Dirty = wasDirty
 }
 
 func findOAIBinary(searchDirs []string, storeBinary string) string {
@@ -555,8 +563,8 @@ func (a *App) startHarnessDiscovery() {
 			a.harnessMu.Lock()
 			a.harnessEntries = merged
 			a.harnessMu.Unlock()
-			if a.form != nil && a.form.kind == data.KindPane {
-				a.applyHarnessChoices(a.form)
+			if rf := a.activeRecordForm(); rf != nil && rf.kind == data.KindPane {
+				a.applyHarnessChoices(rf)
 			}
 			a.gen++
 			return s

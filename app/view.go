@@ -523,34 +523,6 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		ov := overlay(m.ID, panel.Title, 64, 80, panel.Children...)
 		ov.Scope, ov.Badges, ov.Facts = panel.Scope, panel.Badges, panel.Facts
 		return ov
-	case modalForm:
-		fs := a.form
-		if fs == nil {
-			break
-		}
-		var rec *data.Record
-		if fs.ref != nil {
-			rec, _ = a.Store.Get(*fs.ref)
-		}
-		panel := views.EditView(a.schema(fs.kind), rec, fs.fm, modalForm)
-		badges := make([]ui.Badge, 0, len(panel.Badges)+2)
-		for _, b := range panel.Badges {
-			if b.Text == "changed" {
-				continue
-			}
-			badges = append(badges, b)
-		}
-		badges = append(badges, formBadges(fs.fm)...)
-		ov := overlay(m.ID, panel.Title, 70, 0, panel.Children...)
-		ov.Scope, ov.Ref, ov.Badges, ov.Facts = panel.Scope, panel.Ref, badges, panel.Facts
-		return ov
-	case modalSettings:
-		if a.settings == nil {
-			break
-		}
-		ov := overlay(m.ID, a.settings.fm.Title, 70, 0, a.settings.fm.View(modalSettings+".form"))
-		ov.Scope = "settings"
-		return ov
 	case modalBindings:
 		if a.bindEd == nil {
 			break
@@ -566,29 +538,6 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.composerModal()
-	case modalLaunch:
-		if a.launch == nil {
-			break
-		}
-		ov := overlay(m.ID, a.launch.fm.Title, 70, 0, a.launch.fm.View(modalLaunch+".form"))
-		ov.Scope = "launch"
-		ov.Badges = formBadges(a.launch.fm)
-		return ov
-	case modalAnswer:
-		if a.answer == nil {
-			break
-		}
-		ov := overlay(m.ID, a.answer.fm.Title, 70, 0, a.answer.fm.View(modalAnswer+".form"))
-		ov.Scope = "answer"
-		ov.Badges = formBadges(a.answer.fm)
-		if a.answer.batch != nil && len(a.answer.batch.cards) > 1 {
-			ov.Facts = map[string]any{"isBatch": true, "batchPos": a.answer.batchPos, "batchTotal": len(a.answer.batch.cards)}
-			ov.Badges = append([]ui.Badge{{
-				Text: fmt.Sprintf("Q %d/%d · ctrl+n/p", a.answer.batchPos+1, len(a.answer.batch.cards)),
-				Tone: "accent",
-			}}, ov.Badges...)
-		}
-		return ov
 	}
 	return overlay(m.ID, m.ID, 40, 0, text("", "nothing to show", "muted"))
 }

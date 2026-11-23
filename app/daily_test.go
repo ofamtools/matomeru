@@ -593,10 +593,11 @@ func TestRuleFromSignal(t *testing.T) {
 		t.Fatalf("the footer does not offer R on a signal:\n%s", d.Frame())
 	}
 	d.Keys("R")
-	if a.Modal() != modalLaunch || a.launch == nil || len(a.launch.fm.Specs) != 3 {
+	launchMod := a.activeLaunchForm()
+	if a.Modal() != modalLaunch || launchMod == nil || len(launchMod.Model().Specs) != 3 {
 		t.Fatalf("R did not open the three-line form (modal %q, status %q)", a.Modal(), a.Status())
 	}
-	fm := a.launch.fm
+	fm := launchMod.Model()
 	if fm.Values["when"] != `source == "github" && author == "dependabot[bot]"` || fm.Values["action"] != data.ActionMarkNoise {
 		t.Fatalf("the draft: %+v", fm.Values)
 	}
@@ -771,11 +772,11 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 	}
 	// n opens the New Schedule form pre-filled with task = this task.
 	d.Keys("n")
-	if a.Modal() != modalForm || a.form == nil || a.form.kind != data.KindSchedule {
-		t.Fatalf("n on empty Schedules: modal=%q form=%+v", a.Modal(), a.form)
+	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || rf.kind != data.KindSchedule {
+		t.Fatalf("n on empty Schedules: modal=%q form=%+v", a.Modal(), rf)
 	}
-	if got, ok := data.AsRef(a.form.fm.TypedValues()["task"]); !ok || got != task.Ref() {
-		t.Fatalf("pre-filled schedule task = %v, want %v", a.form.fm.TypedValues()["task"], task.Ref())
+	if got, ok := data.AsRef(a.activeRecordForm().Model().TypedValues()["task"]); !ok || got != task.Ref() {
+		t.Fatalf("pre-filled schedule task = %v, want %v", a.activeRecordForm().Model().TypedValues()["task"], task.Ref())
 	}
 	d.Keys("esc")
 
@@ -881,12 +882,12 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 		t.Fatalf("mode = %q, want %q", a.Mode(), ModeFormEdit)
 	}
 	d.Keys("ctrl+w") // kills "gamma"
-	if got := a.form.fm.Values["title"]; got != "alpha beta " {
+	if got := a.activeRecordForm().Model().Values["title"]; got != "alpha beta " {
 		t.Fatalf("form ctrl+w -> %q", got)
 	}
 	d.Keys("ctrl+a")
 	d.Type("top ")
-	if got := a.form.fm.Values["title"]; got != "top alpha beta " {
+	if got := a.activeRecordForm().Model().Values["title"]; got != "top alpha beta " {
 		t.Fatalf("form ctrl+a + type -> %q", got)
 	}
 	d.Keys("ctrl+e", "ctrl+y", "ctrl+s")

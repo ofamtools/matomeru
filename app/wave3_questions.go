@@ -13,6 +13,7 @@ import (
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/modal"
 )
 
 const questionBatchSubmitPrefix = "question.batch.submit."
@@ -350,7 +351,80 @@ func formSpecsAndValuesFromCard(card *ui.ViewNode) ([]core.ParamSpec, map[string
 	return specs, values
 }
 
-func (a *App) openAnswerFormForCard(s core.State, pageID string, card *ui.ViewNode, batch *batchQuestionInfo, batchPos int) core.State {
+func (a *App) newAnswerFormModal(fm *form.Model, am *answerFormModal) *answerFormModal {
+	a.attachFormDrafts(fm, am.draftKey)
+	var mod *modal.FormModal
+	mod = modal.NewFormModal(fm, modal.FormOptions{
+		ID:          modalAnswer,
+		Scope:       modalAnswer,
+		DraftBadges: true,
+		Badges: func(*form.Model) []ui.Badge {
+			if am.batch != nil && len(am.batch.cards) > 1 {
+				return []ui.Badge{{
+					Text: fmt.Sprintf("Q %d/%d · ctrl+n/p", am.batchPos+1, len(am.batch.cards)),
+					Tone: "accent",
+				}}
+			}
+			return nil
+		},
+		Facts: func(*form.Model) map[string]any {
+			if am.batch != nil && len(am.batch.cards) > 1 {
+				return map[string]any{
+					"isBatch":    true,
+					"batchPos":   am.batchPos,
+					"batchTotal": len(am.batch.cards),
+				}
+			}
+			return nil
+		},
+		OnPickPath:     a.formPickPath(func() *modal.FormModal { return mod }),
+		OnPickRef:      a.formPickRef(func() *modal.FormModal { return mod }),
+		OnDraftDiscard: a.formDraftDiscard(am.draftKey),
+		OnCommand: func(m *form.Model, cmd core.Command) (modal.Result, bool) {
+			var delta int
+			switch cmd.ID {
+			case CmdAnswerBatchNext:
+				delta = 1
+			case CmdAnswerBatchPrev:
+				delta = -1
+			default:
+				return modal.Result{}, false
+			}
+			if am.batch == nil || len(am.batch.cards) < 2 {
+				return modal.Result{Handled: true}, true
+			}
+			if m.Editing {
+				_, _ = m.HandleCommand(core.Command{ID: form.CmdStop})
+			}
+			vals := m.TypedValues()
+			if len(vals) > 0 && hasNonEmptyAnswer(vals) {
+				a.setStagedAnswer(am.pageID, am.cardID, vals)
+			}
+			nextPos := (am.batchPos + delta + len(am.batch.cards)) % len(am.batch.cards)
+			nextCard := am.batch.cards[nextPos]
+			nextMod, status := a.newAnswerCardModal(am.pageID, &nextCard, am.batch, nextPos)
+			return modal.Result{
+				Handled:     true,
+				Close:       true,
+				CloseReason: modal.CloseSubmit,
+				Push:        nextMod,
+				Status:      status,
+				SetStatus:   true,
+			}, true
+		},
+		OnSubmit: func(values map[string]any) modal.Result {
+			if a.submitAnswerModal(am, values) {
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			}
+			return modal.Result{Handled: true}
+		},
+		OnClose: a.formCancelDraftClose(func() *form.Model { return mod.Model() }, am.draftKey),
+	})
+	am.FormModal = mod
+	return am
+}
+
+func (a *App) newAnswerCardModal(pageID string, card *ui.ViewNode, batch *batchQuestionInfo, batchPos int) (*answerFormModal, string) {
 	specs, values := formSpecsAndValuesFromCard(card)
 	if staged, ok := a.stagedFor(pageID, card.ID); ok {
 		for k, v := range staged {
@@ -379,42 +453,25 @@ func (a *App) openAnswerFormForCard(s core.State, pageID string, card *ui.ViewNo
 	fm := form.New(title, specs, values)
 	fm.SubmitRow = true
 	fm.SubmitLabel = submitLabel
-	fs := &formState{
-		fm:       fm,
+	am := a.newAnswerFormModal(fm, &answerFormModal{
 		pageID:   pageID,
 		cardID:   card.ID,
 		batch:    batch,
 		batchPos: batchPos,
-	}
-	a.attachFormDrafts(fs, answerDraftKey(fs.pageID, fs.cardID))
-	a.answer = fs
+		draftKey: answerDraftKey(pageID, card.ID),
+	})
+	status := "space and h/l choose · i types · ctrl+s sends"
 	if batch != nil && len(batch.cards) > 1 {
-		a.say("question %d/%d · space/h/l choose · i types · ctrl+n/p next/prev · ctrl+s %s",
+		status = fmt.Sprintf("question %d/%d · space/h/l choose · i types · ctrl+n/p next/prev · ctrl+s %s",
 			batchPos+1, len(batch.cards), strings.ToLower(submitLabel))
-	} else {
-		a.say("space and h/l choose · i types · ctrl+s sends")
 	}
-	return openModal(s, modalAnswer, ModeForm, modalAnswer+".form")
+	return am, status
 }
 
-// answerBatchStep steps between questions inside the batch answer modal (ctrl+n / ctrl+p).
-func (a *App) answerBatchStep(delta int) func(core.State, core.Command) core.StepResult {
-	return func(s core.State, _ core.Command) core.StepResult {
-		fs := a.answer
-		if topModal(s) != modalAnswer || fs == nil || fs.batch == nil || len(fs.batch.cards) < 2 {
-			return core.Next(s)
-		}
-		if fs.fm.Editing {
-			_, _ = fs.fm.HandleCommand(core.Command{ID: form.CmdStop})
-		}
-		vals := fs.fm.TypedValues()
-		if len(vals) > 0 && hasNonEmptyAnswer(vals) {
-			a.setStagedAnswer(fs.pageID, fs.cardID, vals)
-		}
-		nextPos := (fs.batchPos + delta + len(fs.batch.cards)) % len(fs.batch.cards)
-		nextCard := fs.batch.cards[nextPos]
-		return core.Next(a.openAnswerFormForCard(s, fs.pageID, &nextCard, fs.batch, nextPos))
-	}
+func (a *App) openAnswerFormForCard(s core.State, pageID string, card *ui.ViewNode, batch *batchQuestionInfo, batchPos int) core.State {
+	am, status := a.newAnswerCardModal(pageID, card, batch, batchPos)
+	a.say("%s", status)
+	return a.pushModal(s, am)
 }
 
 func hasNonEmptyAnswer(values map[string]any) bool {
@@ -429,82 +486,84 @@ func hasNonEmptyAnswer(values map[string]any) bool {
 // submitAnswerModal handles form submission inside modalAnswer for global
 // KindQuestion records (synced via Router.AnswerQuestion), single page
 // questions (direct SubmitAnswer), and batched ui.ask questions (staging +
-// atomic SubmitAnswers when the batch is complete).
-func (a *App) submitAnswerModal(s core.State, fs *formState, values map[string]any) core.State {
-	if fs.questionID != "" {
-		answerText := formatQuestionAnswerValues(values)
-		if _, err := a.Router.AnswerQuestion(fs.questionID, answerText, User); err != nil {
-			a.fail("answer", err)
-			return s
-		}
-		a.clearSubmittedDraft(fs)
-		a.answer = nil
-		a.say("answered %q · synced to pane page · u undoes", fs.fm.Title)
-		return closeModal(s, modalAnswer)
+// atomic SubmitAnswers when the batch is complete). It reports whether the
+// modal should close.
+func (a *App) submitAnswerModal(am *answerFormModal, values map[string]any) bool {
+	if am == nil || am.Model() == nil {
+		return false
 	}
-	if fs.batch == nil || len(fs.batch.cards) < 2 {
-		_, err := a.Router.SubmitAnswer(fs.pageID, fs.cardID, values, User)
+	fm := am.Model()
+	if am.questionID != "" {
+		answerText := formatQuestionAnswerValues(values)
+		if _, err := a.Router.AnswerQuestion(am.questionID, answerText, User); err != nil {
+			a.fail("answer", err)
+			return false
+		}
+		a.clearSubmittedDraft(fm, am.draftKey)
+		a.say("answered %q · synced to pane page · u undoes", fm.Title)
+		return true
+	}
+	if am.batch == nil || len(am.batch.cards) < 2 {
+		_, err := a.Router.SubmitAnswer(am.pageID, am.cardID, values, User)
 		if err != nil {
 			a.fail("answer", err)
-			return s
+			return false
 		}
-		a.clearSubmittedDraft(fs)
-		a.answer = nil
-		a.say("answered %q · u undoes", fs.fm.Title)
-		return closeModal(s, modalAnswer)
+		a.clearSubmittedDraft(fm, am.draftKey)
+		a.say("answered %q · u undoes", fm.Title)
+		return true
 	}
 
 	// Batched question: stage this card's answer.
-	a.setStagedAnswer(fs.pageID, fs.cardID, values)
-	a.clearSubmittedDraft(fs)
+	a.setStagedAnswer(am.pageID, am.cardID, values)
+	a.clearSubmittedDraft(fm, am.draftKey)
 
 	// Check if every unanswered card in the batch now has a staged answer.
 	batchAnswers := map[string]map[string]any{}
 	var cardIDs []string
 	nextUnansweredID := ""
-	for _, c := range fs.batch.cards {
+	for _, c := range am.batch.cards {
 		cardIDs = append(cardIDs, c.ID)
-		if staged, ok := a.stagedFor(fs.pageID, c.ID); ok {
+		if staged, ok := a.stagedFor(am.pageID, c.ID); ok {
 			batchAnswers[c.ID] = staged
 		} else if !cardIsAnswered(&c) && nextUnansweredID == "" {
 			nextUnansweredID = c.ID
 		}
 	}
 	if nextUnansweredID == "" && len(batchAnswers) > 0 {
-		if _, err := a.Router.SubmitAnswers(fs.pageID, batchAnswers, User); err != nil {
+		if _, err := a.Router.SubmitAnswers(am.pageID, batchAnswers, User); err != nil {
 			a.fail("submit answers", err)
-			return s
+			return false
 		}
-		a.clearStagedAnswers(fs.pageID, cardIDs)
-		a.answer = nil
+		a.clearStagedAnswers(am.pageID, cardIDs)
 		a.say("submitted all %d answers · u undoes", len(batchAnswers))
-		return closeModal(s, modalAnswer)
+		return true
 	}
 
 	// Otherwise close modal and advance focus on the Questions page to the next unanswered question.
-	a.answer = nil
-	s = closeModal(s, modalAnswer)
 	if nextUnansweredID != "" {
-		s = withFocus(s, nextUnansweredID)
+		targetFocus := nextUnansweredID
+		a.afterModal(func(st core.State) core.State {
+			return withFocus(st, targetFocus)
+		})
 	}
-	a.say("staged %d/%d · answer next or ctrl+s to Submit All", len(batchAnswers), len(fs.batch.cards))
-	return s
+	a.say("staged %d/%d · answer next or ctrl+s to Submit All", len(batchAnswers), len(am.batch.cards))
+	return true
 }
 
 // questionSubmitAll submits all staged answers for the active question batch on
 // the Questions page via mcpui.Router.SubmitAnswers.
 func (a *App) questionSubmitAll(s core.State, _ core.Command) core.StepResult {
 	// If invoked while inside the answer modal, stage the current form first.
-	if topModal(s) == modalAnswer && a.answer != nil && a.answer.batch != nil {
-		fs := a.answer
-		if fs.fm.Editing {
-			_, _ = fs.fm.HandleCommand(core.Command{ID: form.CmdStop})
+	if am := a.activeAnswerForm(); topModal(s) == modalAnswer && am != nil && am.batch != nil {
+		fm := am.Model()
+		if fm.Editing {
+			_, _ = fm.HandleCommand(core.Command{ID: form.CmdStop})
 		}
-		if vals := fs.fm.TypedValues(); hasNonEmptyAnswer(vals) {
-			a.setStagedAnswer(fs.pageID, fs.cardID, vals)
+		if vals := fm.TypedValues(); hasNonEmptyAnswer(vals) {
+			a.setStagedAnswer(am.pageID, am.cardID, vals)
 		}
-		s = closeModal(s, modalAnswer)
-		a.answer = nil
+		s = a.popModal(s, modal.CloseSubmit)
 	}
 
 	pane, ok := a.SelectedPane()

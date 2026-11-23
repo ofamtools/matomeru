@@ -154,6 +154,238 @@ func (a *App) topPicker() *modal.PickerModal {
 	return m
 }
 
+// recordFormModal wraps modal.FormModal with record metadata for create/edit forms.
+type recordFormModal struct {
+	*modal.FormModal
+	kind     string
+	ref      *core.Ref // nil for a new record
+	about    *core.Ref // a new note is attached to this record
+	draftKey string
+	isNew    bool
+}
+
+// answerFormModal wraps modal.FormModal with question/batch metadata for modalAnswer.
+type answerFormModal struct {
+	*modal.FormModal
+	ref        core.Ref // KindQuestion ref when answering a global KindQuestion record
+	pageID     string
+	cardID     string
+	questionID string
+	batch      *batchQuestionInfo
+	batchPos   int
+	draftKey   string
+}
+
+func (a *App) activeForm(id string) *modal.FormModal {
+	if a.modals == nil {
+		return nil
+	}
+	switch m := a.modals.Get(id).(type) {
+	case *modal.FormModal:
+		return m
+	case *recordFormModal:
+		return m.FormModal
+	case *answerFormModal:
+		return m.FormModal
+	}
+	return nil
+}
+
+func (a *App) activeRecordForm() *recordFormModal {
+	if a.modals == nil {
+		return nil
+	}
+	m, _ := a.modals.Get(modalForm).(*recordFormModal)
+	return m
+}
+
+func (a *App) activeAnswerForm() *answerFormModal {
+	if a.modals == nil {
+		return nil
+	}
+	m, _ := a.modals.Get(modalAnswer).(*answerFormModal)
+	return m
+}
+
+func (a *App) activeLaunchForm() *modal.FormModal {
+	return a.activeForm(modalLaunch)
+}
+
+func (a *App) activeSettingsForm() *modal.FormModal {
+	return a.activeForm(modalSettings)
+}
+
+// --- form modal builders --------------------------------------------------------
+
+func (a *App) formPickPath(getForm func() *modal.FormModal) func(form.PathRequest, any) modal.Result {
+	return func(req form.PathRequest, current any) modal.Result {
+		field := req.Field
+		pm, ok := a.newPathPickerModal(current, func(entry pathpicker.DirEntry) modal.Result {
+			if fm := getForm(); fm != nil {
+				fm.SetValue(field, entry.Path)
+				fm.FocusField(field)
+			}
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		})
+		if !ok {
+			return modal.Result{Handled: true}
+		}
+		return modal.Result{
+			Handled:   true,
+			Push:      pm,
+			Status:    "enter opens · tab chooses · left goes up",
+			SetStatus: true,
+		}
+	}
+}
+
+func (a *App) formPickRef(getForm func() *modal.FormModal) func(form.RefRequest) modal.Result {
+	return func(req form.RefRequest) modal.Result {
+		field := req.Field
+		return modal.Result{
+			Handled: true,
+			Push: a.newRefPickerModal(req, func(r core.Ref) {
+				if fm := getForm(); fm != nil {
+					fm.SetValue(field, r)
+					fm.FocusField(field)
+				}
+			}),
+		}
+	}
+}
+
+func (a *App) formDraftDiscard(draftKey string) func(int) modal.Result {
+	return func(idx int) modal.Result {
+		if draftKey != "" && a.drafts != nil {
+			a.drafts.Remove(draftKey, idx)
+			a.saveDrafts()
+		}
+		return modal.Result{
+			Handled:   true,
+			Mode:      ModeForm,
+			Status:    "discarded draft",
+			SetStatus: true,
+		}
+	}
+}
+
+func (a *App) formCancelDraftClose(getModel func() *form.Model, draftKey string) func(modal.CloseReason) {
+	return func(reason modal.CloseReason) {
+		if reason != modal.CloseCancel {
+			return
+		}
+		if draftKey != "" && a.saveFormDraft(getModel(), draftKey) {
+			a.say("closed · draft saved ([ restores)")
+		} else {
+			a.say("closed")
+		}
+	}
+}
+
+func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Model) *recordFormModal {
+	var refCopy, aboutCopy *core.Ref
+	if ref != nil {
+		r := *ref
+		refCopy = &r
+	}
+	if about != nil {
+		r := *about
+		aboutCopy = &r
+	}
+	rf := &recordFormModal{
+		kind:     kind,
+		ref:      refCopy,
+		about:    aboutCopy,
+		draftKey: recordDraftKey(kind, refCopy),
+		isNew:    refCopy == nil,
+	}
+	schema := a.schema(kind)
+	fm.SubmitRow = true
+	if rf.isNew {
+		fm.SubmitLabel = "Create " + strings.ToLower(schema.Title)
+	} else {
+		fm.SubmitLabel = "Save " + strings.ToLower(schema.Title)
+	}
+	a.applyHarnessChoicesToForm(kind, refCopy, fm)
+	a.attachFormDrafts(fm, rf.draftKey)
+
+	var mod *modal.FormModal
+	mod = modal.NewFormModal(fm, modal.FormOptions{
+		ID:          modalForm,
+		Scope:       views.ScopeEdit,
+		DraftBadges: true,
+		RenderBody: func(m *form.Model, _ string) ui.ViewNode {
+			var rec *data.Record
+			if rf.ref != nil {
+				rec, _ = a.Store.Get(*rf.ref)
+			}
+			panel := views.EditView(a.schema(rf.kind), rec, m, modalForm)
+			if len(panel.Badges) > 0 {
+				badges := make([]ui.Badge, 0, len(panel.Badges))
+				for _, b := range panel.Badges {
+					if b.Text == "changed" {
+						continue
+					}
+					badges = append(badges, b)
+				}
+				panel.Badges = badges
+			}
+			return panel
+		},
+		OnPickPath:     a.formPickPath(func() *modal.FormModal { return mod }),
+		OnPickRef:      a.formPickRef(func() *modal.FormModal { return mod }),
+		OnDraftDiscard: a.formDraftDiscard(rf.draftKey),
+		OnSubmit: func(values map[string]any) modal.Result {
+			if a.submitForm(rf, values) {
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			}
+			return modal.Result{Handled: true}
+		},
+		OnClose: a.formCancelDraftClose(func() *form.Model { return mod.Model() }, rf.draftKey),
+	})
+	rf.FormModal = mod
+	return rf
+}
+
+func (a *App) newLaunchModal(title, submitLabel string, specs []core.ParamSpec, values map[string]any, draftKey string, onSubmit func(core.State, map[string]any) (core.State, bool)) *modal.FormModal {
+	fm := form.New(title, specs, values)
+	fm.SubmitRow = true
+	if submitLabel == "" {
+		submitLabel = "Run"
+	}
+	fm.SubmitLabel = submitLabel
+	if draftKey != "" {
+		a.attachFormDrafts(fm, draftKey)
+	}
+	var mod *modal.FormModal
+	mod = modal.NewFormModal(fm, modal.FormOptions{
+		ID:             modalLaunch,
+		Scope:          modalLaunch,
+		DraftBadges:    draftKey != "",
+		DisableDrafts:  draftKey == "",
+		OnPickPath:     a.formPickPath(func() *modal.FormModal { return mod }),
+		OnPickRef:      a.formPickRef(func() *modal.FormModal { return mod }),
+		OnDraftDiscard: a.formDraftDiscard(draftKey),
+		OnSubmit: func(vals map[string]any) modal.Result {
+			if onSubmit == nil {
+				a.clearSubmittedDraft(fm, draftKey)
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			}
+			a.afterModal(func(st core.State) core.State {
+				next, done := onSubmit(st, vals)
+				if done {
+					a.clearSubmittedDraft(fm, draftKey)
+					next, _ = a.modals.Close(next, modalLaunch, modal.CloseSubmit)
+				}
+				return next
+			})
+			return modal.Result{Handled: true}
+		},
+		OnClose: a.formCancelDraftClose(func() *form.Model { return mod.Model() }, draftKey),
+	})
+	return mod
+}
+
 // --- record reference picker modal ----------------------------------------------
 
 func (a *App) pickerCreateHook(kind string, onCreated func(rec data.Record) modal.Result) *modal.PickerCreateHook {
@@ -328,8 +560,8 @@ func (a *App) openPath(s core.State, field string, target *core.Ref, start any) 
 	parentModal := topModal(s)
 	pm, ok := a.newPathPickerModal(start, func(entry pathpicker.DirEntry) modal.Result {
 		if field != "" {
-			if fs := a.formOf(parentModal); fs != nil {
-				fs.fm.SetValue(field, entry.Path)
+			if fm := a.activeForm(parentModal); fm != nil {
+				fm.SetValue(field, entry.Path)
 			}
 			return modal.Result{}
 		}

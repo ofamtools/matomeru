@@ -22,7 +22,6 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
-	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/toast"
 )
 
@@ -379,15 +378,10 @@ func (a *App) runCancel(s core.State, c core.Command) core.StepResult {
 }
 
 // openLaunch opens a form whose submit runs something.
-func (a *App) openLaunch(s core.State, title string, specs []core.ParamSpec, values map[string]any, submit func(core.State, map[string]any) (core.State, bool)) core.State {
-	fm := form.New(title, specs, values)
-	fm.SubmitRow = true
-	fm.SubmitLabel = "Run"
-	fs := &formState{fm: fm, submit: submit}
-	a.attachFormDrafts(fs, launchDraftKey(title))
-	a.launch = fs
+func (a *App) openLaunch(s core.State, title, submitLabel string, specs []core.ParamSpec, values map[string]any, submit func(core.State, map[string]any) (core.State, bool)) core.State {
+	m := a.newLaunchModal(title, submitLabel, specs, values, launchDraftKey(title), submit)
 	a.say("i types · ctrl+s runs · esc closes")
-	return openModal(s, modalLaunch, ModeForm, modalLaunch+".form")
+	return a.pushModal(s, m)
 }
 
 func (a *App) runNew(s core.State, _ core.Command) core.StepResult {
@@ -396,7 +390,7 @@ func (a *App) runNew(s core.State, _ core.Command) core.StepResult {
 		{Name: "title", Type: core.ParamString, Description: "label; empty shows the command"},
 		{Name: "dir", Type: core.ParamPath, Description: "working directory; empty is mtm's"},
 	}
-	return core.Next(a.openLaunch(s, "Run a command", specs, nil, func(s core.State, v map[string]any) (core.State, bool) {
+	return core.Next(a.openLaunch(s, "Run a command", "Run", specs, nil, func(s core.State, v map[string]any) (core.State, bool) {
 		return a.startShell(s, data.Text(v["title"]), data.Text(v["command"]), data.Text(v["dir"])), true
 	}))
 }
@@ -491,7 +485,7 @@ func (a *App) extRun(s core.State, c core.Command) core.StepResult {
 	}
 	specs = append(specs, core.ParamSpec{Name: "args", Type: core.ParamString, Description: "arguments, split on spaces"})
 	mgr, runner := a.Extensions, a.Runner
-	return core.Next(a.openLaunch(s, "Run "+name, specs, values, func(s core.State, v map[string]any) (core.State, bool) {
+	return core.Next(a.openLaunch(s, "Run "+name, "Run", specs, values, func(s core.State, v map[string]any) (core.State, bool) {
 		var args []string
 		if cmd := data.Text(v["command"]); cmd != "" && v["command"] != nil {
 			args = append(args, cmd)

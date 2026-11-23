@@ -207,10 +207,12 @@ func (a *App) tablePresetPick(s core.State, c core.Command) core.StepResult {
 		OnCommand: func(p *picker.Model, cmd core.Command) (modal.Result, bool) {
 			switch cmd.ID {
 			case CmdPresetPickerSave:
-				a.afterModal(func(st core.State) core.State {
-					return a.openPresetSaveForm(st, tableID)
-				})
-				return modal.Result{Handled: true}, true
+				return modal.Result{
+					Handled:   true,
+					Push:      a.openPresetSaveForm(tableID),
+					Status:    "i types · ctrl+s runs · esc closes",
+					SetStatus: true,
+				}, true
 			case CmdPresetPickerDefault:
 				it, ok := p.Focused()
 				if !ok {
@@ -235,12 +237,13 @@ func (a *App) tablePresetPick(s core.State, c core.Command) core.StepResult {
 	return core.Next(a.pushModal(s, m))
 }
 
-func (a *App) openPresetSaveForm(s core.State, tableID string) core.State {
+func (a *App) openPresetSaveForm(tableID string) *modal.FormModal {
+	title := "Save preset · " + tableID
 	specs := []core.ParamSpec{
 		{Name: "name", Type: core.ParamString, Required: true, Description: "preset name for " + tableID},
 		{Name: "default", Type: core.ParamBool, Default: false, Description: "apply automatically when opening this table"},
 	}
-	return a.openLaunch(s, "Save preset · "+tableID, specs, map[string]any{"default": false}, func(st core.State, v map[string]any) (core.State, bool) {
+	return a.newLaunchModal(title, "Run", specs, map[string]any{"default": false}, launchDraftKey(title), func(st core.State, v map[string]any) (core.State, bool) {
 		name := strings.TrimSpace(fmt.Sprint(v["name"]))
 		if name == "" || v["name"] == nil {
 			a.say("preset name is required")
@@ -363,7 +366,8 @@ func (a *App) tablePresetSave(s core.State, c core.Command) core.StepResult {
 	}
 	name := strings.TrimSpace(c.Arg("name"))
 	if name == "" {
-		return core.Next(a.openPresetSaveForm(s, id))
+		a.say("i types · ctrl+s runs · esc closes")
+		return core.Next(a.pushModal(s, a.openPresetSaveForm(id)))
 	}
 	makeDef, _ := c.Args["default"].(bool)
 	a.saveTablePreset(id, name, makeDef)

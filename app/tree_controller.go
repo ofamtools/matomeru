@@ -965,11 +965,9 @@ func (a *App) outlineRename(s core.State, _ core.Command) core.StepResult {
 		}
 	}
 	_, _ = fm.HandleCommand(core.Command{ID: form.CmdEdit})
-	fs := &formState{kind: kind, ref: &ref, fm: fm}
-	a.configureRecordForm(fs)
-	a.form = fs
+	rf := a.newRecordFormModal(kind, &ref, nil, fm)
 	a.say("rename %s · ctrl+s saves · esc closes", a.title(ref))
-	return core.Next(openModal(s, modalForm, ModeFormEdit, modalForm+".form"))
+	return core.Next(a.pushModal(s, rf))
 }
 
 // taskAddRelative implements the kept task.add.sibling and task.add.child verbs
@@ -1021,9 +1019,7 @@ func (a *App) taskAddRelative(child bool) func(core.State, core.Command) core.St
 				break
 			}
 		}
-		fs := &formState{kind: kind, fm: fm}
-		a.configureRecordForm(fs)
-		a.form = fs
+		rf := a.newRecordFormModal(kind, nil, nil, fm)
 		noun := strings.ToLower(schema.Title)
 		if child {
 			a.say("new child %s under %s · i types · ctrl+s creates · esc closes", noun, a.title(ref))
@@ -1032,6 +1028,6 @@ func (a *App) taskAddRelative(child bool) func(core.State, core.Command) core.St
 		} else {
 			a.say("new root %s · i types · ctrl+s creates · esc closes", noun)
 		}
-		return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
+		return core.Next(a.pushModal(s, rf))
 	}
 }

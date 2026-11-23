@@ -57,8 +57,8 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 		t.Fatalf("failed to cycle kind to pane, got %q", v)
 	}
 	d.Keys("enter")
-	if a.Modal() != modalForm || a.form == nil || a.form.kind != data.KindPane || !strings.Contains(d.Frame(), "New pane") {
-		t.Fatalf("enter in palette args form did not open New pane: modal=%q kind=%v\n%s", a.Modal(), a.form, d.Frame())
+	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane || !strings.Contains(d.Frame(), "New pane") {
+		t.Fatalf("enter in palette args form did not open New pane: modal=%q kind=%v\n%s", a.Modal(), rf, d.Frame())
 	}
 	d.Keys("esc")
 
@@ -180,8 +180,8 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 func TestNewHereOnPanesOpensNewPaneForm(t *testing.T) {
 	a, d := demo(t)
 	d.Keys("1", "n")
-	if a.Modal() != modalForm || a.form == nil || a.form.kind != data.KindPane {
-		t.Fatalf("n on 1 Panes opened modal=%q form=%+v, want kind=pane", a.Modal(), a.form)
+	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane {
+		t.Fatalf("n on 1 Panes opened modal=%q form=%+v, want kind=pane", a.Modal(), rf)
 	}
 	frame := d.Frame()
 	if !strings.Contains(frame, "New pane") || strings.Contains(frame, "New task") {

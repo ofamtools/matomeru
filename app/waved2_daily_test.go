@@ -818,12 +818,13 @@ func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
 
 	// Open New Pane form on 1 Panes.
 	d.Keys("1", "n")
-	if a.Modal() != modalForm || a.form == nil || a.form.kind != data.KindPane {
+	rf := a.activeRecordForm()
+	if a.Modal() != modalForm || rf == nil || rf.kind != data.KindPane {
 		t.Fatalf("1 n did not open New pane form: modal=%q", a.Modal())
 	}
 
 	// Verify cwd is pre-filled with a non-empty default working directory (project defaultDir or os.Getwd()).
-	if cwd := strings.TrimSpace(data.Text(a.form.fm.Values["cwd"])); cwd == "" {
+	if cwd := strings.TrimSpace(data.Text(rf.Model().Values["cwd"])); cwd == "" {
 		t.Fatal("New pane form did not pre-fill cwd")
 	}
 
@@ -833,13 +834,13 @@ func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
 	d.Keys("enter")
 
 	// Navigate to the `task` ref field and open the record-reference picker.
-	for range len(a.form.fm.Specs) {
-		if a.form.fm.Specs[a.form.fm.ActiveIdx].Name == "task" {
+	for range len(rf.Model().Specs) {
+		if rf.Model().Specs[rf.Model().ActiveIdx].Name == "task" {
 			break
 		}
 		d.Keys("j")
 	}
-	if a.form.fm.Specs[a.form.fm.ActiveIdx].Name != "task" {
+	if rf.Model().Specs[rf.Model().ActiveIdx].Name != "task" {
 		t.Fatal("could not locate task field on New pane form")
 	}
 	d.Keys("enter")
@@ -863,8 +864,8 @@ func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
 	if err != nil || createdTask == nil {
 		t.Fatalf("task \"Fix auth flow\" was not created in store: err=%v", err)
 	}
-	if gotRef, ok := data.AsRef(a.form.fm.TypedValues()["task"]); !ok || gotRef != createdTask.Ref() {
-		t.Fatalf("form task field = %v, want %v", a.form.fm.TypedValues()["task"], createdTask.Ref())
+	if gotRef, ok := data.AsRef(a.activeRecordForm().Model().TypedValues()["task"]); !ok || gotRef != createdTask.Ref() {
+		t.Fatalf("form task field = %v, want %v", a.activeRecordForm().Model().TypedValues()["task"], createdTask.Ref())
 	}
 
 	// Submit New Pane form -> new pane is persisted with task pointing to "Fix auth flow"!

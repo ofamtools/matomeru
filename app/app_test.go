@@ -160,7 +160,7 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	d.Keys("left")
 	d.Type("mato")
 	d.Keys("tab")
-	if got := a.form.fm.Values["defaultDir"]; got != "/home/owner/proj/matomeru-next" || a.Modal() != modalForm {
+	if got := a.activeRecordForm().Model().Values["defaultDir"]; got != "/home/owner/proj/matomeru-next" || a.Modal() != modalForm {
 		t.Fatalf("staged defaultDir = %v, modal %q", got, a.Modal())
 	}
 	// A reference field opens a picker over the records it may point at.

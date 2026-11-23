@@ -119,7 +119,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	}
 	set(SetEditUniversal, "space")
 	d.Keys("e")
-	if a.Modal() != modalForm || slices.ContainsFunc(a.form.fm.Specs, func(p core.ParamSpec) bool { return views.IsUniversalField(p.Name) }) {
+	if a.Modal() != modalForm || slices.ContainsFunc(a.activeRecordForm().Model().Specs, func(p core.ParamSpec) bool { return views.IsUniversalField(p.Name) }) {
 		t.Fatal("edit.showUniversalFields off still offers them")
 	}
 	d.Keys("esc")
@@ -312,7 +312,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	d.Keys("enter", "e")
 	names := func() []string {
 		var out []string
-		for _, sp := range a.form.fm.Specs {
+		for _, sp := range a.activeRecordForm().Model().Specs {
 			out = append(out, sp.Name)
 		}
 		return out
@@ -320,7 +320,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	if got := strings.Join(names(), " "); got != "title body task starStatus archiveStatus snoozedUntil logKind loggedAt" {
 		t.Fatalf("a logged note's form fields = %q", got)
 	}
-	note := *a.form.ref
+	note := *a.activeRecordForm().ref
 	field := func(name string) {
 		t.Helper()
 		d.Keys("g", "g")

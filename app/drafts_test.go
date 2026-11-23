@@ -20,8 +20,8 @@ func TestExplicitSubmitNoPrematureWrites(t *testing.T) {
 
 	// 1. New record: editing fields does NOT create a record until submit.
 	d.Keys("n")
-	if a.Modal() != modalForm || a.form == nil || !a.form.fm.SubmitRow || a.form.fm.SubmitLabel != "Create task" {
-		t.Fatalf("new task form = modal:%q submitRow:%v label:%q", a.Modal(), a.form.fm.SubmitRow, a.form.fm.SubmitLabel)
+	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || !rf.Model().SubmitRow || rf.Model().SubmitLabel != "Create task" {
+		t.Fatalf("new task form = modal:%q form:%v", a.Modal(), rf)
 	}
 	d.Keys("i")
 	d.Type("Drafted task")
@@ -31,8 +31,8 @@ func TestExplicitSubmitNoPrematureWrites(t *testing.T) {
 	}
 	// Navigate to the focusable [ Submit ] row with G and press enter.
 	d.Keys("G")
-	if !a.form.fm.OnSubmitRow() {
-		t.Fatalf("G did not focus Submit row: activeIdx=%d specs=%d", a.form.fm.ActiveIdx, len(a.form.fm.Specs))
+	if fm := a.activeRecordForm().Model(); !fm.OnSubmitRow() {
+		t.Fatalf("G did not focus Submit row: activeIdx=%d specs=%d", fm.ActiveIdx, len(fm.Specs))
 	}
 	d.Keys("enter")
 	if a.Modal() != "" {
@@ -48,8 +48,8 @@ func TestExplicitSubmitNoPrematureWrites(t *testing.T) {
 
 	// 2. Edit record: changing multiple fields stages them without writing until ctrl+s.
 	d.Keys("g", "g", "e")
-	if a.Modal() != modalForm || a.form == nil || !a.form.fm.SubmitRow || a.form.fm.SubmitLabel != "Save task" {
-		t.Fatalf("edit task form = modal:%q submitRow:%v label:%q", a.Modal(), a.form.fm.SubmitRow, a.form.fm.SubmitLabel)
+	if rf := a.activeRecordForm(); a.Modal() != modalForm || rf == nil || !rf.Model().SubmitRow || rf.Model().SubmitLabel != "Save task" {
+		t.Fatalf("edit task form = modal:%q form:%v", a.Modal(), rf)
 	}
 	d.Keys("i")
 	d.Type(" updated")
@@ -119,8 +119,8 @@ func TestFormDraftsLifecycle(t *testing.T) {
 
 	// Reopen: starts fresh with 1 draft badge.
 	d.Keys("n")
-	if a.form.fm.ActiveDraftIndex() != -1 || a.form.fm.DraftCount() != 1 {
-		t.Fatalf("reopened form draft state: idx=%d count=%d", a.form.fm.ActiveDraftIndex(), a.form.fm.DraftCount())
+	if fm := a.activeRecordForm().Model(); fm.ActiveDraftIndex() != -1 || fm.DraftCount() != 1 {
+		t.Fatalf("reopened form draft state: idx=%d count=%d", fm.ActiveDraftIndex(), fm.DraftCount())
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "1 draft(s) · [ restores") {
 		t.Fatalf("missing draft count badge:\n%s", frame)
@@ -138,8 +138,8 @@ func TestFormDraftsLifecycle(t *testing.T) {
 
 	// First [ loads newest draft (Second draft title).
 	d.Keys("[")
-	if a.form.fm.ActiveDraftIndex() != 0 || a.form.fm.Values["title"] != "Second draft title" {
-		t.Fatalf("after [: idx=%d title=%v", a.form.fm.ActiveDraftIndex(), a.form.fm.Values["title"])
+	if fm := a.activeRecordForm().Model(); fm.ActiveDraftIndex() != 0 || fm.Values["title"] != "Second draft title" {
+		t.Fatalf("after [: idx=%d title=%v", fm.ActiveDraftIndex(), fm.Values["title"])
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "draft 1/2 · [ / ] · D discard") {
 		t.Fatalf("missing active draft badge:\n%s", frame)
@@ -147,18 +147,18 @@ func TestFormDraftsLifecycle(t *testing.T) {
 
 	// Second [ loads older draft (First draft title).
 	d.Keys("[")
-	if a.form.fm.ActiveDraftIndex() != 1 || a.form.fm.Values["title"] != "First draft title" {
-		t.Fatalf("after second [: idx=%d title=%v", a.form.fm.ActiveDraftIndex(), a.form.fm.Values["title"])
+	if fm := a.activeRecordForm().Model(); fm.ActiveDraftIndex() != 1 || fm.Values["title"] != "First draft title" {
+		t.Fatalf("after second [: idx=%d title=%v", fm.ActiveDraftIndex(), fm.Values["title"])
 	}
 
 	// ] steps back toward newer draft, then live edits.
 	d.Keys("]")
-	if a.form.fm.ActiveDraftIndex() != 0 || a.form.fm.Values["title"] != "Second draft title" {
-		t.Fatalf("after ]: idx=%d title=%v", a.form.fm.ActiveDraftIndex(), a.form.fm.Values["title"])
+	if fm := a.activeRecordForm().Model(); fm.ActiveDraftIndex() != 0 || fm.Values["title"] != "Second draft title" {
+		t.Fatalf("after ]: idx=%d title=%v", fm.ActiveDraftIndex(), fm.Values["title"])
 	}
 	d.Keys("]")
-	if a.form.fm.ActiveDraftIndex() != -1 || a.form.fm.Values["title"] != "Live working title" {
-		t.Fatalf("after second ]: idx=%d title=%v", a.form.fm.ActiveDraftIndex(), a.form.fm.Values["title"])
+	if fm := a.activeRecordForm().Model(); fm.ActiveDraftIndex() != -1 || fm.Values["title"] != "Live working title" {
+		t.Fatalf("after second ]: idx=%d title=%v", fm.ActiveDraftIndex(), fm.Values["title"])
 	}
 
 	// Discard the newest draft with [ then D.
@@ -166,8 +166,8 @@ func TestFormDraftsLifecycle(t *testing.T) {
 	if !strings.Contains(a.Status(), "discarded draft") {
 		t.Fatalf("status after D = %q, want discarded draft", a.Status())
 	}
-	if a.form.fm.DraftCount() != 1 || a.form.fm.Values["title"] != "First draft title" {
-		t.Fatalf("after D: count=%d title=%v", a.form.fm.DraftCount(), a.form.fm.Values["title"])
+	if fm := a.activeRecordForm().Model(); fm.DraftCount() != 1 || fm.Values["title"] != "First draft title" {
+		t.Fatalf("after D: count=%d title=%v", fm.DraftCount(), fm.Values["title"])
 	}
 
 	// Submitting the remaining loaded draft removes it from DraftStore.
@@ -218,11 +218,11 @@ func TestFormDraftsPersistAcrossRestart(t *testing.T) {
 	t.Cleanup(func() { a2.Close() })
 	d2 := NewDriver(a2, 120, 36)
 	d2.Keys("2", "n")
-	if a2.form.fm.DraftCount() != 1 {
-		t.Fatalf("restarted app loaded %d drafts, want 1", a2.form.fm.DraftCount())
+	if a2.activeRecordForm().Model().DraftCount() != 1 {
+		t.Fatalf("restarted app loaded %d drafts, want 1", a2.activeRecordForm().Model().DraftCount())
 	}
 	d2.Keys("[")
-	if got := a2.form.fm.Values["title"]; got != "Persisted draft" {
+	if got := a2.activeRecordForm().Model().Values["title"]; got != "Persisted draft" {
 		t.Fatalf("restored title after restart = %v, want %q", got, "Persisted draft")
 	}
 }

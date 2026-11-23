@@ -481,7 +481,7 @@ func (a *App) ruleFromSignal(s core.State, c core.Command) core.StepResult {
 		{Name: "actionValue", Type: core.ParamString, Description: "the tag, the task ID, or how long to snooze (24h)"},
 	}
 	title := data.Text(draft["title"])
-	next := a.openLaunch(s, "Rule from "+a.title(ref), specs, draft, func(s core.State, v map[string]any) (core.State, bool) {
+	next := a.openLaunch(s, "Rule from "+a.title(ref), "make the rule and apply it", specs, draft, func(s core.State, v map[string]any) (core.State, bool) {
 		fields := map[string]any{"title": title, "when": data.Text(v["when"]), "action": data.Text(v["action"]),
 			"actionValue": data.Text(v["actionValue"]), "priority": 0, "enabled": true}
 		if fields["action"] == "" {
@@ -504,7 +504,6 @@ func (a *App) ruleFromSignal(s core.State, c core.Command) core.StepResult {
 		a.say("%s", msg)
 		return s, true
 	})
-	a.launch.fm.SubmitLabel = "make the rule and apply it"
 	a.say("i types · h/l choose the action · ctrl+s makes the rule and applies it")
 	return core.Next(next)
 }

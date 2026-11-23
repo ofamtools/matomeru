@@ -14,7 +14,6 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
-	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 )
 
@@ -93,99 +92,62 @@ func launchDraftKey(title string) string {
 	return "launch:" + title
 }
 
-func (a *App) configureRecordForm(fs *formState) {
-	if fs == nil || fs.fm == nil {
+func (a *App) attachFormDrafts(fm *form.Model, key string) {
+	if fm == nil || key == "" {
 		return
 	}
-	schema := a.schema(fs.kind)
-	fs.fm.SubmitRow = true
-	if fs.ref == nil {
-		fs.fm.SubmitLabel = "Create " + strings.ToLower(schema.Title)
-	} else {
-		fs.fm.SubmitLabel = "Save " + strings.ToLower(schema.Title)
-	}
-	a.attachFormDrafts(fs, recordDraftKey(fs.kind, fs.ref))
-}
-
-func (a *App) attachFormDrafts(fs *formState, key string) {
-	if fs == nil || fs.fm == nil {
-		return
-	}
-	fs.draftKey = key
 	if a.drafts == nil {
 		a.drafts = form.NewDraftStore()
 	}
-	fs.fm.SetDrafts(a.drafts.List(key))
+	fm.SetDrafts(a.drafts.List(key))
 }
 
-func (a *App) clearSubmittedDraft(fs *formState) {
-	if fs == nil || fs.fm == nil || fs.draftKey == "" || a.drafts == nil {
+func (a *App) clearSubmittedDraft(fm *form.Model, draftKey string) {
+	if fm == nil || draftKey == "" || a.drafts == nil {
 		return
 	}
-	if idx := fs.fm.ActiveDraftIndex(); idx >= 0 {
-		if a.drafts.Remove(fs.draftKey, idx) {
+	if idx := fm.ActiveDraftIndex(); idx >= 0 {
+		if a.drafts.Remove(draftKey, idx) {
 			a.saveDrafts()
 		}
 	}
 }
 
-func draftLabel(fs *formState) string {
-	if fs == nil || fs.fm == nil {
+func draftLabel(fm *form.Model) string {
+	if fm == nil {
 		return ""
 	}
 	for _, field := range []string{"title", "name", "command", "answer", "when"} {
-		if s, ok := fs.fm.Values[field].(string); ok && strings.TrimSpace(s) != "" {
+		if s, ok := fm.Values[field].(string); ok && strings.TrimSpace(s) != "" {
 			return strings.TrimSpace(s)
 		}
 	}
-	return fs.fm.Title
+	return fm.Title
 }
 
 // saveFormDraft persists dirty form values into the draft ring on cancel/close.
 // It skips saving when the form is clean or when the user is viewing an
 // unmodified existing draft.
-func (a *App) saveFormDraft(fs *formState) bool {
-	if fs == nil || fs.fm == nil || fs.draftKey == "" || a.drafts == nil {
+func (a *App) saveFormDraft(fm *form.Model, draftKey string) bool {
+	if fm == nil || draftKey == "" || a.drafts == nil {
 		return false
 	}
-	if fs.fm.Editing {
-		_, _ = fs.fm.HandleCommand(core.Command{ID: form.CmdStop})
+	if fm.Editing {
+		_, _ = fm.HandleCommand(core.Command{ID: form.CmdStop})
 	}
-	if !fs.fm.Dirty {
+	if !fm.Dirty {
 		return false
 	}
-	if idx := fs.fm.ActiveDraftIndex(); idx >= 0 && idx < len(fs.fm.Drafts) {
-		if reflect.DeepEqual(fs.fm.Values, fs.fm.Drafts[idx].Values) {
+	if idx := fm.ActiveDraftIndex(); idx >= 0 && idx < len(fm.Drafts) {
+		if reflect.DeepEqual(fm.Values, fm.Drafts[idx].Values) {
 			return false
 		}
 	}
-	if !a.drafts.Save(fs.draftKey, fs.fm.Values, draftLabel(fs), a.now()) {
+	if !a.drafts.Save(draftKey, fm.Values, draftLabel(fm), a.now()) {
 		return false
 	}
 	a.saveDrafts()
 	return true
-}
-
-func formBadges(fm *form.Model) []ui.Badge {
-	if fm == nil {
-		return nil
-	}
-	var out []ui.Badge
-	if idx := fm.ActiveDraftIndex(); idx >= 0 {
-		out = append(out, ui.Badge{
-			Text: fmt.Sprintf("draft %d/%d · [ / ] · D discard", idx+1, fm.DraftCount()),
-			Tone: "warning",
-		})
-	} else if n := fm.DraftCount(); n > 0 {
-		out = append(out, ui.Badge{
-			Text: fmt.Sprintf("%d draft(s) · [ restores", n),
-			Tone: "info",
-		})
-	}
-	if fm.Dirty {
-		out = append(out, ui.Badge{Text: "unsaved · ctrl+s submits", Tone: "accent"})
-	}
-	return out
 }
 
 func parseSnoozeTime(text string) (time.Time, bool) {
@@ -253,12 +215,14 @@ func fieldValuesEqual(oldVal, newVal any) bool {
 	return reflect.DeepEqual(oldVal, newVal)
 }
 
-// submitForm atomically creates or patches the record represented by fs.
-func (a *App) submitForm(s core.State, fs *formState, values map[string]any) core.State {
-	if fs == nil || fs.fm == nil {
-		return s
+// submitForm atomically creates or patches the record represented by rf.
+// It reports whether the modal should close.
+func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
+	if rf == nil || rf.Model() == nil {
+		return false
 	}
-	schema := a.schema(fs.kind)
+	fm := rf.Model()
+	schema := a.schema(rf.kind)
 
 	// Validate snoozedUntil before performing any write.
 	var (
@@ -266,7 +230,7 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 		snoozeText    string
 		snoozeUntil   time.Time
 	)
-	for _, sp := range fs.fm.Specs {
+	for _, sp := range fm.Specs {
 		if sp.Name == data.ColSnoozedUntil {
 			hasSnoozeSpec = true
 			break
@@ -277,12 +241,12 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 		if snoozeText != "" {
 			t, ok := parseSnoozeTime(snoozeText)
 			if !ok {
-				if fs.fm.Errors == nil {
-					fs.fm.Errors = map[string]string{}
+				if fm.Errors == nil {
+					fm.Errors = map[string]string{}
 				}
-				fs.fm.Errors[data.ColSnoozedUntil] = "must be 2006-01-02 15:04 or RFC 3339"
+				fm.Errors[data.ColSnoozedUntil] = "must be 2006-01-02 15:04 or RFC 3339"
 				a.say("%s %q is not a time (2006-01-02 15:04 or RFC 3339); not written", data.ColSnoozedUntil, snoozeText)
-				return s
+				return false
 			}
 			snoozeUntil = t
 		}
@@ -294,16 +258,16 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 	}
 	maps.DeleteFunc(fields, func(k string, _ any) bool { return views.IsUniversalField(k) })
 
-	if fs.ref == nil {
-		rec, cs, err := a.Store.Create(data.CreateInput{Kind: fs.kind, Fields: fields}, User)
+	if rf.ref == nil {
+		rec, cs, err := a.Store.Create(data.CreateInput{Kind: rf.kind, Fields: fields}, User)
 		if err != nil {
-			a.fail("create "+fs.kind, err)
-			return s
+			a.fail("create "+rf.kind, err)
+			return false
 		}
 		ref := rec.Ref()
 		a.syncManagedFile(rec)
-		if fs.about != nil {
-			if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *fs.about}, User); err != nil {
+		if rf.about != nil {
+			if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *rf.about}, User); err != nil {
 				a.fail("attach note", err)
 			}
 		}
@@ -316,25 +280,30 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 		if snoozeText != "" {
 			_, _, _ = a.Store.Snooze(ref, snoozeUntil, User)
 		}
-		a.clearSubmittedDraft(fs)
-		a.form = nil
-		if fs.kind == data.KindPane && s.ActivePage == SpacePanes {
-			a.gen++
-			selectRow(a.rail(), data.RefText(ref))
+		a.clearSubmittedDraft(fm, rf.draftKey)
+		if rf.kind == data.KindPane {
+			createdRef := ref
+			a.afterModal(func(st core.State) core.State {
+				if st.ActivePage == SpacePanes {
+					a.gen++
+					selectRow(a.rail(), data.RefText(createdRef))
+				}
+				return st
+			})
 		}
 		a.wrote(fmt.Sprintf("created %s %q", strings.ToLower(schema.Title), views.Title(schema, *rec)), cs, nil)
-		return closeModal(s, modalForm)
+		return true
 	}
 
-	cur, err := a.Store.Get(*fs.ref)
+	cur, err := a.Store.Get(*rf.ref)
 	if err != nil {
-		a.fail("save "+fs.kind, err)
-		return s
+		a.fail("save "+rf.kind, err)
+		return false
 	}
 
 	diff := map[string]any{}
 	var hasStarSpec, hasArchiveSpec bool
-	for _, sp := range fs.fm.Specs {
+	for _, sp := range fm.Specs {
 		switch sp.Name {
 		case data.ColStarStatus:
 			hasStarSpec = true
@@ -383,18 +352,17 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 	}
 
 	if len(diff) == 0 && !starChanged && !archiveChanged && !snoozeChanged {
-		a.form = nil
 		a.say("no changes")
-		return closeModal(s, modalForm)
+		return true
 	}
 
 	rec := cur
 	var lastCS *data.ChangeSet
 	if len(diff) > 0 {
-		patched, pcs, err := a.Store.Patch(data.PatchInput{Ref: *fs.ref, Fields: diff}, User)
+		patched, pcs, err := a.Store.Patch(data.PatchInput{Ref: *rf.ref, Fields: diff}, User)
 		if err != nil {
-			a.fail("save "+fs.kind, err)
-			return s
+			a.fail("save "+rf.kind, err)
+			return false
 		}
 		rec, lastCS = patched, pcs
 		if _, hasBody := diff["body"]; hasBody {
@@ -407,13 +375,13 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 		var ucs *data.ChangeSet
 		var uerr error
 		if starVal == data.StarStarred {
-			_, ucs, uerr = a.Store.Star(*fs.ref, User)
+			_, ucs, uerr = a.Store.Star(*rf.ref, User)
 		} else {
-			_, ucs, uerr = a.Store.Unstar(*fs.ref, User)
+			_, ucs, uerr = a.Store.Unstar(*rf.ref, User)
 		}
 		if uerr != nil {
-			a.fail("star "+fs.kind, uerr)
-			return s
+			a.fail("star "+rf.kind, uerr)
+			return false
 		}
 		if ucs != nil {
 			lastCS = ucs
@@ -423,13 +391,13 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 		var ucs *data.ChangeSet
 		var uerr error
 		if archiveVal == data.ArchiveArchived {
-			_, ucs, uerr = a.Store.Archive(*fs.ref, User)
+			_, ucs, uerr = a.Store.Archive(*rf.ref, User)
 		} else {
-			_, ucs, uerr = a.Store.Restore(*fs.ref, User)
+			_, ucs, uerr = a.Store.Restore(*rf.ref, User)
 		}
 		if uerr != nil {
-			a.fail("archive "+fs.kind, uerr)
-			return s
+			a.fail("archive "+rf.kind, uerr)
+			return false
 		}
 		if ucs != nil {
 			lastCS = ucs
@@ -439,21 +407,20 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 		var ucs *data.ChangeSet
 		var uerr error
 		if snoozeText == "" {
-			_, ucs, uerr = a.Store.Unsnooze(*fs.ref, User)
+			_, ucs, uerr = a.Store.Unsnooze(*rf.ref, User)
 		} else {
-			_, ucs, uerr = a.Store.Snooze(*fs.ref, snoozeUntil, User)
+			_, ucs, uerr = a.Store.Snooze(*rf.ref, snoozeUntil, User)
 		}
 		if uerr != nil {
-			a.fail("snooze "+fs.kind, uerr)
-			return s
+			a.fail("snooze "+rf.kind, uerr)
+			return false
 		}
 		if ucs != nil {
 			lastCS = ucs
 		}
 	}
 
-	a.clearSubmittedDraft(fs)
-	a.form = nil
+	a.clearSubmittedDraft(fm, rf.draftKey)
 	a.wrote(fmt.Sprintf("saved %s %q", strings.ToLower(schema.Title), views.Title(schema, *rec)), lastCS, nil)
-	return closeModal(s, modalForm)
+	return true
 }

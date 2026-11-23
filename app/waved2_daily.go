@@ -318,14 +318,13 @@ func (a *App) openAnswerFormForQuestionRecord(s core.State, rec data.Record) cor
 	fm := form.New(promptTitle, specs, values)
 	fm.SubmitRow = true
 	fm.SubmitLabel = "Send answer"
-	fs := &formState{
-		fm:         fm,
+	am := a.newAnswerFormModal(fm, &answerFormModal{
+		ref:        rec.Ref(),
 		questionID: rec.ID,
-	}
-	a.attachFormDrafts(fs, "answer:question:"+rec.ID)
-	a.answer = fs
+		draftKey:   "answer:question:" + rec.ID,
+	})
 	a.say("space/h/l choose · i types · ctrl+s sends and syncs to pane")
-	return openModal(s, modalAnswer, ModeForm, modalAnswer+".form")
+	return a.pushModal(s, am)
 }
 
 func formatQuestionAnswerValues(values map[string]any) string {
@@ -465,7 +464,7 @@ func (a *App) commandEditRun(s core.State, c core.Command) core.StepResult {
 		"title":   rec.Text("title"),
 	}
 	recCopy := *rec
-	next := a.openLaunch(s, "Edit & Run · "+views.Title(a.schema(data.KindCommand), recCopy), specs, values, func(st core.State, v map[string]any) (core.State, bool) {
+	next := a.openLaunch(s, "Edit & Run · "+views.Title(a.schema(data.KindCommand), recCopy), "Run command", specs, values, func(st core.State, v map[string]any) (core.State, bool) {
 		full := strings.TrimSpace(data.Text(v["command"]))
 		if extra := strings.TrimSpace(data.Text(v["args"])); extra != "" {
 			full = full + " " + extra
@@ -478,7 +477,6 @@ func (a *App) commandEditRun(s core.State, c core.Command) core.StepResult {
 		title := strings.TrimSpace(data.Text(v["title"]))
 		return a.execSuggestedCommand(st, recCopy, full, dir, title), true
 	})
-	a.launch.fm.SubmitLabel = "Run command"
 	a.say("edit command/args/cwd · ctrl+s runs in 3 Runs")
 	return core.Next(next)
 }

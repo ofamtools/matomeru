@@ -13,6 +13,7 @@ import (
 	otea "ofam.dev/ochazuke/tea"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/table"
 )
 
@@ -281,23 +282,36 @@ func (a *App) settingValues() map[string]any {
 func (a *App) settingsOpen(s core.State, _ core.Command) core.StepResult {
 	fm := form.New("Settings", SettingSpecs(), a.settingValues())
 	fm.SubmitLabel = "change · applied and saved as you go"
-	a.settings = &formState{fm: fm}
+	m := modal.NewFormModal(fm, modal.FormOptions{
+		ID:            modalSettings,
+		Scope:         modalSettings,
+		DisableDrafts: true,
+		DisableSubmit: true,
+		OnChange: func(fm *form.Model, field string) modal.Result {
+			a.commitSetting(fm, field)
+			return modal.Result{Handled: true}
+		},
+	})
 	where := "not saved: this session has no configuration directory"
 	if dir := a.opts.ConfigDir; dir != "" {
 		where = "saved to " + filepath.Join(dir, settingsFileName)
 	}
 	a.say("space and h/l change · applied at once · %s", where)
-	return core.Next(openModal(s, modalSettings, ModeForm, modalSettings+".form"))
+	return core.Next(a.pushModal(s, m))
 }
 
-// commitSetting applies and saves the active field of the Settings form.
-func (a *App) commitSetting() {
-	fs := a.settings
-	if fs == nil || fs.fm.ActiveIdx >= len(fs.fm.Specs) {
+// commitSetting applies and saves the changed field of the Settings form.
+func (a *App) commitSetting(fm *form.Model, name string) {
+	if fm == nil {
 		return
 	}
-	name := fs.fm.Specs[fs.fm.ActiveIdx].Name
-	value, has := fs.fm.TypedValues()[name]
+	if name == "" {
+		if fm.ActiveIdx >= len(fm.Specs) {
+			return
+		}
+		name = fm.Specs[fm.ActiveIdx].Name
+	}
+	value, has := fm.TypedValues()[name]
 	if !has {
 		return
 	}
@@ -314,8 +328,8 @@ func (a *App) commitSetting() {
 	a.applySettings()
 	if name == SetTheme {
 		theme := a.theme()
-		fs.fm.SetValue(SetDensity, theme.EffectiveDensity())
-		fs.fm.SetValue(SetBorderStyle, theme.EffectiveBorderStyle())
+		fm.SetValue(SetDensity, theme.EffectiveDensity())
+		fm.SetValue(SetBorderStyle, theme.EffectiveBorderStyle())
 	}
 	if name == SetMatchMode {
 		for _, tbl := range a.tables {
