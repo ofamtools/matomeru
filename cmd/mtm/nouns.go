@@ -255,74 +255,122 @@ func dispatchNoun(ctx context.Context, store *data.Store, kind string, o options
 		}
 		return recordList(store, o, []string{kind}, stdout)
 	case "get":
-		if len(rest) != 1 {
-			return fmt.Errorf("usage: mtm %s get <id>", o.args[0])
+		use := fmt.Sprintf("usage: mtm %s get <id>", o.args[0])
+		if len(rest) > 1 {
+			return errors.New(use)
 		}
-		return recordGet(store, o, []string{kind, rest[0]}, stdout)
+		query := ""
+		if len(rest) == 1 {
+			query = rest[0]
+		}
+		id, err := resolveRecordID(store, kind, query, stdin, use)
+		if err != nil {
+			return err
+		}
+		return recordGet(store, o, []string{kind, id}, stdin, stdout)
 	case "create", "add":
 		if len(rest) != 0 {
 			return fmt.Errorf(`usage: mtm %s %s --title "..." [--body "..."|-] [--field k=v ...]`, o.args[0], verb)
 		}
 		return nounCreate(store, kind, o, stdin, stdout)
 	case "edit", "set", "patch":
-		if len(rest) != 1 {
-			return fmt.Errorf(`usage: mtm %s %s <id> [--title "..."] [--body "..."|-] [--field k=v ...]`, o.args[0], verb)
+		use := fmt.Sprintf(`usage: mtm %s %s <id> [--title "..."] [--body "..."|-] [--field k=v ...]`, o.args[0], verb)
+		if len(rest) > 1 {
+			return errors.New(use)
 		}
-		return nounEdit(store, kind, rest[0], o, stdin, stdout)
+		query := ""
+		if len(rest) == 1 {
+			query = rest[0]
+		}
+		id, err := resolveRecordID(store, kind, query, stdin, use)
+		if err != nil {
+			return err
+		}
+		return nounEdit(store, kind, id, o, stdin, stdout)
 	case "star":
-		return nounStatusOp(store, kind, rest, o, stdout, store.Star)
+		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Star)
 	case "unstar":
-		return nounStatusOp(store, kind, rest, o, stdout, store.Unstar)
+		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Unstar)
 	case "archive":
-		return nounStatusOp(store, kind, rest, o, stdout, store.Archive)
+		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Archive)
 	case "restore":
-		return nounStatusOp(store, kind, rest, o, stdout, store.Restore)
+		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Restore)
 	case "unsnooze":
-		return nounStatusOp(store, kind, rest, o, stdout, store.Unsnooze)
+		return nounStatusOp(store, kind, rest, o, stdin, stdout, store.Unsnooze)
 	case "delete":
-		if len(rest) != 1 {
-			return fmt.Errorf("usage: mtm %s delete <id>", o.args[0])
+		use := fmt.Sprintf("usage: mtm %s delete <id>", o.args[0])
+		if len(rest) > 1 {
+			return errors.New(use)
 		}
-		cs, err := store.Delete(core.Ref{Kind: kind, ID: rest[0]}, cliActor)
+		query := ""
+		if len(rest) == 1 {
+			query = rest[0]
+		}
+		id, err := resolveRecordID(store, kind, query, stdin, use)
+		if err != nil {
+			return err
+		}
+		cs, err := store.Delete(core.Ref{Kind: kind, ID: id}, cliActor)
 		if err != nil {
 			return err
 		}
 		return printJSON(stdout, cs)
 	case "snooze":
-		if len(rest) != 2 {
-			return fmt.Errorf("usage: mtm %s snooze <id> <when>", o.args[0])
+		use := fmt.Sprintf("usage: mtm %s snooze <id> <when>", o.args[0])
+		var query, whenStr string
+		switch len(rest) {
+		case 2:
+			query, whenStr = rest[0], rest[1]
+		case 1:
+			whenStr = rest[0]
+		default:
+			return errors.New(use)
 		}
-		until, err := parseSnoozeWhen(rest[1], time.Now())
+		id, err := resolveRecordID(store, kind, query, stdin, use)
 		if err != nil {
 			return err
 		}
-		rec, _, err := store.Snooze(core.Ref{Kind: kind, ID: rest[0]}, until, cliActor)
+		until, err := parseSnoozeWhen(whenStr, time.Now())
+		if err != nil {
+			return err
+		}
+		rec, _, err := store.Snooze(core.Ref{Kind: kind, ID: id}, until, cliActor)
 		if err != nil {
 			return err
 		}
 		return printRecordOne(stdout, store, kind, o.format, rec)
 	case "relate":
+		use := fmt.Sprintf("usage: mtm %s relate <id> <rel> <target-kind:target-id>", o.args[0])
 		if len(rest) != 3 {
-			return fmt.Errorf("usage: mtm %s relate <id> <rel> <target-kind:target-id>", o.args[0])
+			return errors.New(use)
 		}
-		to, err := parseRefArg(rest[2])
+		fromID, err := resolveRecordID(store, kind, rest[0], stdin, use)
 		if err != nil {
 			return err
 		}
-		rel, _, err := store.Relate(data.RelateInput{From: core.Ref{Kind: kind, ID: rest[0]}, Kind: rest[1], To: to}, cliActor)
+		to, err := resolveRefArg(store, rest[2], stdin)
+		if err != nil {
+			return err
+		}
+		rel, _, err := store.Relate(data.RelateInput{From: core.Ref{Kind: kind, ID: fromID}, Kind: rest[1], To: to}, cliActor)
 		if err != nil {
 			return err
 		}
 		return printJSON(stdout, rel)
 	case "unrelate":
+		use := fmt.Sprintf("usage: mtm %s unrelate <id> <rel> <target-kind:target-id>", o.args[0])
 		if len(rest) != 3 {
-			return fmt.Errorf("usage: mtm %s unrelate <id> <rel> <target-kind:target-id>", o.args[0])
+			return errors.New(use)
 		}
-		to, err := parseRefArg(rest[2])
+		fromID, err := resolveRecordID(store, kind, rest[0], stdin, use)
 		if err != nil {
 			return err
 		}
-		cs, err := store.Unrelate(core.Ref{Kind: kind, ID: rest[0]}, rest[1], to, cliActor)
+		to, err := resolveRefArg(store, rest[2], stdin)
+		if err != nil {
+			return err
+		}
+		cs, err := store.Unrelate(core.Ref{Kind: kind, ID: fromID}, rest[1], to, cliActor)
 		if err != nil {
 			return err
 		}
@@ -339,11 +387,20 @@ func printRecordOne(w io.Writer, store *data.Store, kind, format string, rec *da
 	return printJSON(w, rec)
 }
 
-func nounStatusOp(store *data.Store, kind string, rest []string, o options, w io.Writer, fn func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error)) error {
-	if len(rest) != 1 {
-		return fmt.Errorf("usage: mtm %s %s <id>", o.args[0], o.args[1])
+func nounStatusOp(store *data.Store, kind string, rest []string, o options, stdin io.Reader, w io.Writer, fn func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error)) error {
+	use := fmt.Sprintf("usage: mtm %s %s <id>", o.args[0], o.args[1])
+	if len(rest) > 1 {
+		return errors.New(use)
 	}
-	rec, _, err := fn(core.Ref{Kind: kind, ID: rest[0]}, cliActor)
+	query := ""
+	if len(rest) == 1 {
+		query = rest[0]
+	}
+	id, err := resolveRecordID(store, kind, query, stdin, use)
+	if err != nil {
+		return err
+	}
+	rec, _, err := fn(core.Ref{Kind: kind, ID: id}, cliActor)
 	if err != nil {
 		return err
 	}

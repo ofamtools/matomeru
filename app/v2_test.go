@@ -54,7 +54,7 @@ func TestTutorial(t *testing.T) {
 // once, is saved to settings.json, and is there on the next start.
 func TestSettingsApplyAndPersist(t *testing.T) {
 	want := map[string]any{SetTheme: "ochazuke-dark", SetDensity: "balanced", SetBorderStyle: "rounded", SetShowMetadata: true, SetShowEmpty: true,
-		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false}
+		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -372,7 +372,7 @@ func TestAssign(t *testing.T) {
 	a, d := demo(t)
 	tier := titled(t, a, data.KindTask, "Tier 1: core, ui, tea")
 	d.Keys("2", "/")
-	d.Type("Tier 1")
+	d.Type("Tier 1:")
 	d.Keys("enter", "m")
 	if a.Modal() != modalAssign {
 		t.Fatalf("m: modal %q, status %q", a.Modal(), a.Status())

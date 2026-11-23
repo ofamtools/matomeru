@@ -11,6 +11,7 @@ import (
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
+	"ofam.dev/ochazuke/widgets/palette"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
 )
@@ -43,6 +44,7 @@ const (
 	CmdRedo               = "store.redo"
 	CmdSiteFocus          = "site.focus"
 	CmdSitePageOpen       = "site.page.open"
+	CmdSiteTOCToggle      = "site.toc.toggle"
 	CmdAnswer             = "question.answer"
 	CmdTermAttach         = "terminal.attach"
 	CmdTermDetach         = "terminal.detach"
@@ -210,6 +212,8 @@ func DefaultBindings() []core.Binding {
 		// Record actions, on whatever record is focused.
 		bind(n, all, "e", views.CmdEdit, "edit"),
 		with(bind(n, all, "n", views.CmdNew, "new task"), map[string]any{"kind": "task"}),
+		bind(n, SpacePanes, "n", CmdNewHere, "new"),
+		when(bind(n, SpacePanes, "t", CmdSiteTOCToggle, "toggle pages"), "layer == nil"),
 		bind(n, SpaceWork, "n", CmdNewHere, "new"),
 		bind(n, all, "m", CmdAssign, "move to a task"),
 		with(bind(n, all, "N", views.CmdNew, "new note"), map[string]any{"kind": "note"}),
@@ -307,6 +311,8 @@ func DefaultBindings() []core.Binding {
 		when(bind(ModePicker, all, "left", pathpicker.CmdParent, "parent directory"), "modal.id == \"path\""),
 		when(bind(ModePicker, all, "right", pathpicker.CmdOpen, "enter directory"), "modal.id == \"path\""),
 		when(bind(ModePicker, all, "ctrl+t", pathpicker.CmdHiddenToggle, "hidden files"), "modal.id == \"path\""),
+		when(bind(ModePicker, all, "tab", palette.CmdFocusForm, "edit arguments"), "modal.id == \"palette\" && facts.hasArgs"),
+		when(bind(ModePicker, all, "right", palette.CmdFocusForm, "edit arguments"), "modal.id == \"palette\" && facts.hasArgs"),
 		bind(ModePicker, all, "tab", picker.CmdModeCycle, "match mode"),
 
 		// Forms: every change is written as it is made; there is no save key.
@@ -318,6 +324,9 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(ModeForm, all, "G", "motion.bottom", "last field")),
 		when(bind(ModeForm, all, "enter", form.CmdSubmit, "send answer"), "modal.id == \"answer\""),
 		when(bind(ModeForm, all, "enter", form.CmdSubmit, "run"), "modal.id == \"launch\""),
+		when(bind(ModeForm, all, "enter", form.CmdSubmit, "run"), "modal.id == \"palette\""),
+		when(bind(ModeForm, all, "shift+tab", palette.CmdFocusList, "back to commands"), "modal.id == \"palette\""),
+		when(bind(ModeForm, all, "esc", palette.CmdFocusList, "back to commands"), "modal.id == \"palette\""),
 		bind(ModeForm, all, "enter", CmdFormActivate, "change field"),
 		bind(ModeForm, all, "i", form.CmdEdit, "type"),
 		bind(ModeForm, all, "space", form.CmdToggle, "toggle"),
@@ -474,7 +483,8 @@ func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string
 // the terminal's leader layer leaves them out.
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
-	return append(append(readerSpecs(), readlineSpecs()...), []core.CommandSpec{
+	base := append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...)
+	return append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
 		{ID: views.CmdNew, Description: "Create a record", Tags: []string{"editing"}, Params: []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: "task"}}},
@@ -490,6 +500,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdHistoryForward, "Go forward again"),
 		spec(CmdSiteFocus, "Go to the selected pane's pages"),
 		spec(CmdSitePageOpen, "Open the focused page of the pane's site"),
+		spec(CmdSiteTOCToggle, "Show or hide the pane's Pages table of contents rail"),
 		spec(CmdAnswer, "Answer the focused question", "editing"),
 		spec(CmdTermAttach, "Type in the pane's terminal"),
 		spec(CmdTermDetach, "Leave the pane's terminal"),
@@ -533,7 +544,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdGroupToggle, "Fold or unfold the focused group"),
 		spec(CmdMarkToggle, "Mark the focused row"),
 		spec(CmdArchivedToggle, "Show or hide archived records"),
-		spec(CmdNewHere, "Create a record of the noun the Work index lists", "editing"),
+		spec(CmdNewHere, "Create a record for the current space or section", "editing"),
 		recordSpec(CmdAssign, "Move the focused record to a task (a task: under another task, or to the root)", nil, "", "editing"),
 		spec(CmdNounsPick, "Browse any noun: pick one and its index opens in Work"),
 		spec(CmdFilterFieldPick, "Pick the field the filter matches, from every field of the rows"),
@@ -618,6 +629,14 @@ func readerSpecs() []core.CommandSpec {
 // inspector while leaving them out of the normal-mode command palette.
 func readlineSpecs() []core.CommandSpec {
 	specs := input.ReadlineSpecs()
+	for i := range specs {
+		specs[i].Meta = map[string]any{"internal": true}
+	}
+	return specs
+}
+
+func paletteSpecs() []core.CommandSpec {
+	specs := palette.CommandSpecs()
 	for i := range specs {
 		specs[i].Meta = map[string]any{"internal": true}
 	}

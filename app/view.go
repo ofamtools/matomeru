@@ -296,7 +296,12 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		if err != nil {
 			a.fail("read pages", err)
 		}
-		opts := views.SiteOptions{Store: a.Store, ShowLaneBar: a.Settings.Bool(SetLaneBar, true), LaneHint: laneBarHint}
+		opts := views.SiteOptions{
+			Store:       a.Store,
+			ShowLaneBar: a.Settings.Bool(SetLaneBar, true),
+			HideTOC:     !a.Settings.Bool(SetShowTOC, true),
+			LaneHint:    laneBarHint,
+		}
 		if a.Shell != nil {
 			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
 		}
@@ -537,6 +542,19 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		}
 		ov := overlay(m.ID, a.answer.fm.Title, 70, 0, a.answer.fm.View(modalAnswer+".form"))
 		ov.Scope = "answer"
+		return ov
+	case modalPalette:
+		if a.palette == nil {
+			break
+		}
+		body := a.palette.View(modalPalette)
+		width := 70
+		if a.palette.ActiveForm != nil {
+			width = 90
+		}
+		ov := overlay(m.ID, a.palette.Title, width, 75, body)
+		ov.Scope = "palette"
+		ov.Facts = body.Facts
 		return ov
 	default:
 		if pm := a.pickers[m.ID]; pm != nil {

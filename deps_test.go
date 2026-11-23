@@ -144,6 +144,7 @@ var policies = map[string]policy{
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
 			ochazuke + "/widgets/bindings", ochazuke + "/widgets/markdown", ochazuke + "/widgets/input", ochazuke + "/widgets/commandline",
+			ochazuke + "/widgets/palette",
 		},
 	},
 	// The binary: flags and JSON around app, data, mcpui and migrate. It builds

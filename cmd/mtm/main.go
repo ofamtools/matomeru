@@ -385,7 +385,7 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 	case "record list":
 		return recordList(store, o, rest, stdout)
 	case "record get":
-		return recordGet(store, o, rest, stdout)
+		return recordGet(store, o, rest, stdin, stdout)
 	case "record create":
 		return recordCreate(store, o, rest, stdout)
 	case "record undo":
@@ -493,11 +493,20 @@ func recordList(store *data.Store, o options, rest []string, w io.Writer) error 
 	return printRecords(w, store, rest[0], o.format, items)
 }
 
-func recordGet(store *data.Store, o options, rest []string, w io.Writer) error {
-	if len(rest) != 2 {
-		return errors.New("usage: mtm record get KIND ID")
+func recordGet(store *data.Store, o options, rest []string, stdin io.Reader, w io.Writer) error {
+	const use = "usage: mtm record get KIND ID"
+	if len(rest) < 1 || len(rest) > 2 {
+		return errors.New(use)
 	}
-	rec, err := store.Get(core.Ref{Kind: rest[0], ID: rest[1]})
+	query := ""
+	if len(rest) == 2 {
+		query = rest[1]
+	}
+	id, err := resolveRecordID(store, rest[0], query, stdin, use)
+	if err != nil {
+		return err
+	}
+	rec, err := store.Get(core.Ref{Kind: rest[0], ID: id})
 	if err != nil {
 		return err
 	}

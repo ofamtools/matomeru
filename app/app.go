@@ -38,6 +38,7 @@ import (
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
+	"ofam.dev/ochazuke/widgets/palette"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
@@ -222,6 +223,7 @@ type App struct {
 
 	outlineSel  string
 	pickers     map[string]*picker.Model
+	palette     *palette.Model
 	path        *pathpicker.Model
 	pathField   string    // form field the path picker fills; "" = attach to pathTarget
 	pathTarget  *core.Ref // record a picked path is attached to
@@ -906,6 +908,10 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 		if a.bindEd != nil {
 			a.bindEd.HandleCommand(c)
 		}
+	case modalPalette:
+		if a.palette != nil {
+			a.palette.HandleCommand(c)
+		}
 	default:
 		if pm := a.pickers[id]; pm != nil {
 			pm.HandleCommand(c)
@@ -918,7 +924,8 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 
 func (a *App) dropModals(s core.State) core.State {
 	s.Modals = nil
-	a.form, a.answer, a.launch, a.path = nil, nil, nil, nil
+	a.form, a.answer, a.launch, a.path, a.palette = nil, nil, nil, nil, nil
+	delete(a.pickers, modalPalette)
 	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
 	a.reader, a.opening, a.yankRef, a.actionRef, a.cmdState, a.scratch = nil, nil, nil, nil, nil, ""
 	return s
@@ -1298,6 +1305,9 @@ func (a *App) syncManagedFile(rec *data.Record) {
 
 func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 	modal := topModal(s)
+	if modal == modalPalette && a.palette != nil {
+		return a.paletteCommand(s, c)
+	}
 	fs := a.formOf(modal)
 	if fs == nil {
 		return core.Next(s)
@@ -1474,8 +1484,14 @@ func (a *App) openPath(s core.State, field string, target *core.Ref, start any) 
 }
 
 func (a *App) openRef(s core.State, req *form.RefRequest) core.State {
+	kinds := req.RefKinds
+	if len(kinds) == 0 {
+		for _, sc := range a.Store.Registry().List() {
+			kinds = append(kinds, sc.Kind)
+		}
+	}
 	var recs []data.Record
-	for _, kind := range req.RefKinds {
+	for _, kind := range kinds {
 		res, err := a.Store.Query(data.Query{Kind: kind})
 		if err != nil {
 			a.fail("read "+kind, err)
@@ -1492,6 +1508,8 @@ func (a *App) pickPath(s core.State, picked *pathpicker.DirEntry) core.State {
 	field, target := a.pathField, a.pathTarget
 	a.path = nil
 	switch {
+	case field != "" && topModal(s) == modalPalette && a.palette != nil:
+		a.palette.SetPickedValue(field, picked.Path)
 	case field != "" && a.form != nil:
 		a.form.fm.SetValue(field, picked.Path)
 		a.commit()
@@ -1506,6 +1524,9 @@ func (a *App) pickPath(s core.State, picked *pathpicker.DirEntry) core.State {
 
 func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 	id := topModal(s)
+	if id == modalPalette && a.palette != nil {
+		return a.paletteCommand(s, c)
+	}
 	if id == modalPath && a.path != nil {
 		switch c.ID {
 		case CmdPickerInsert:
@@ -1572,12 +1593,16 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 			return core.Next(a.show(s, *picked.Ref))
 		}
 	case modalRef:
-		if a.form != nil && picked.Ref != nil {
-			a.form.fm.SetValue(a.refField, *picked.Ref)
-			if i := slices.IndexFunc(a.form.fm.Specs, func(p core.ParamSpec) bool { return p.Name == a.refField }); i >= 0 {
-				a.form.fm.ActiveIdx = i
+		if picked.Ref != nil {
+			if topModal(s) == modalPalette && a.palette != nil {
+				a.palette.SetPickedValue(a.refField, *picked.Ref)
+			} else if a.form != nil {
+				a.form.fm.SetValue(a.refField, *picked.Ref)
+				if i := slices.IndexFunc(a.form.fm.Specs, func(p core.ParamSpec) bool { return p.Name == a.refField }); i >= 0 {
+					a.form.fm.ActiveIdx = i
+				}
+				a.commit()
 			}
-			a.commit()
 		}
 	case modalRecordActions:
 		ref := a.actionRef
@@ -1674,15 +1699,74 @@ func (a *App) siteFocus(s core.State, _ core.Command) core.StepResult {
 	return core.Next(a.column(s, 1))
 }
 
-func (a *App) paletteItems() []picker.Item {
+func (a *App) siteTOCToggle(s core.State, _ core.Command) core.StepResult {
+	show := !a.Settings.Bool(SetShowTOC, true)
+	a.userSettings[SetShowTOC] = show
+	a.reloadSettings()
+	if !show && strings.HasPrefix(s.ActiveFrame().FocusID, tocPrefix) {
+		a.gen++
+		target := ""
+		nodes := a.focusables(s)
+		if slices.ContainsFunc(nodes, func(n fnode) bool { return n.id == siteScreen }) {
+			target = siteScreen
+		} else {
+			for _, n := range nodes {
+				if n.region == "site.content" {
+					target = n.id
+					break
+				}
+			}
+		}
+		if target != "" {
+			s = withFocus(s, target)
+		}
+	}
+	if show {
+		a.say("pages rail shown")
+	} else {
+		a.say("pages rail hidden · t brings it back")
+	}
+	return core.Next(s)
+}
+
+func (a *App) paletteEntries() []palette.Entry {
 	reg := core.DefaultRegistry()
 	reg.Register(a.specs...)
-	var items []picker.Item
+	schemas := a.Store.Registry().List()
+	nounKinds := make([]string, 0, len(schemas))
+	for _, sc := range schemas {
+		nounKinds = append(nounKinds, sc.Kind)
+	}
+	var entries []palette.Entry
+	inspectSpec := core.CommandSpec{ID: CmdInspectOpen, Description: "Inspect a registry the app runs on"}
 	for _, sp := range reg.List() {
+		if sp.ID == CmdInspectOpen {
+			inspectSpec = sp
+			if len(sp.Params) > 0 {
+				inspectSpec.Params = slices.Clone(sp.Params)
+			}
+		}
 		if internal(sp) {
 			continue
 		}
+		specCopy := sp
+		if len(sp.Params) > 0 {
+			specCopy.Params = slices.Clone(sp.Params)
+		}
+		if specCopy.ID == views.CmdNew {
+			if len(specCopy.Params) == 0 {
+				specCopy.Params = []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: data.KindTask}}
+			}
+			specCopy.Params[0].Enum = nounKinds
+			if specCopy.Params[0].Description == "" {
+				specCopy.Params[0].Description = "Noun kind to create"
+			}
+			if specCopy.Params[0].Default == nil {
+				specCopy.Params[0].Default = data.KindTask
+			}
+		}
 		item := picker.Item{ID: sp.ID, Title: sp.ID, Subtitle: sp.Description}
+		var defaults map[string]any
 		for _, b := range a.bindings {
 			if b.Command != sp.ID || len(b.Keys) == 0 {
 				continue
@@ -1694,24 +1778,109 @@ func (a *App) paletteItems() []picker.Item {
 				}
 			}
 			if !dynamic {
-				item.Data = b.Args
+				defaults = maps.Clone(b.Args)
+				item.Data = defaults
 				item.Badges = []ui.Badge{{Text: strings.Join(b.Keys, " ")}}
 				break
 			}
 		}
-		items = append(items, item)
+		entries = append(entries, palette.Entry{Spec: specCopy, Item: item, Defaults: defaults})
 	}
 	// The registries: "inspect actions", "inspect modes".
 	for _, what := range []string{InspectActions, InspectModes} {
-		items = append(items, picker.Item{ID: CmdInspectOpen, Title: "inspect " + what, Subtitle: "Look at the " + what + " the app runs on",
-			Data: map[string]any{"what": what}})
+		defaults := map[string]any{"what": what}
+		entries = append(entries, palette.Entry{
+			Spec:     inspectSpec,
+			Item:     picker.Item{ID: CmdInspectOpen + ":" + what, Title: "inspect " + what, Subtitle: "Look at the " + what + " the app runs on", Data: defaults},
+			Defaults: defaults,
+		})
 	}
 	// A space is a page.open with its ID: one palette row each.
 	for i, sp := range spaces {
-		items = append(items, picker.Item{ID: core.CmdPageOpen, Title: "space." + sp.id, Subtitle: "Go to the " + sp.title + " space",
-			Data: map[string]any{"id": sp.id}, Badges: []ui.Badge{{Text: fmt.Sprint(i + 1)}}})
+		defaults := map[string]any{"id": sp.id}
+		entries = append(entries, palette.Entry{
+			Spec: core.CommandSpec{ID: core.CmdPageOpen, Description: "Go to the " + sp.title + " space"},
+			Item: picker.Item{ID: "space." + sp.id, Title: "space." + sp.id, Subtitle: "Go to the " + sp.title + " space",
+				Data: defaults, Badges: []ui.Badge{{Text: fmt.Sprint(i + 1)}}},
+			Defaults: defaults,
+		})
 	}
-	return items
+	return entries
+}
+
+func (a *App) paletteCommand(s core.State, c core.Command) core.StepResult {
+	if topModal(s) != modalPalette || a.palette == nil {
+		return core.Next(s)
+	}
+	pal := a.palette
+	if !pal.FocusForm {
+		switch c.ID {
+		case CmdPickerInsert:
+			pal.Picker.AppendQuery(c.Arg("text"))
+			pal.Sync()
+			return core.Next(s)
+		case CmdPickerBack:
+			pal.Picker.BackspaceQuery()
+			pal.Sync()
+			return core.Next(s)
+		}
+		if line, shell := strings.CutPrefix(pal.Picker.Query, "!"); shell && c.ID == picker.CmdConfirm {
+			if line = strings.TrimSpace(line); line == "" {
+				a.say("type a shell command after !")
+				return core.Next(s)
+			}
+			a.palette = nil
+			delete(a.pickers, modalPalette)
+			return core.Next(a.startShell(closeModal(s, modalPalette), "", line, ""))
+		}
+	} else if c.ID == CmdFormActivate && pal.ActiveForm != nil {
+		fm := pal.ActiveForm
+		var spec core.ParamSpec
+		if fm.ActiveIdx < len(fm.Specs) {
+			spec = fm.Specs[fm.ActiveIdx]
+		}
+		switch form.KindFor(spec) {
+		case form.KindBool, form.KindEnum:
+			c.ID = form.CmdToggle
+		case form.KindPath, form.KindRef:
+			c.ID = form.CmdPick
+		default:
+			c.ID = form.CmdEdit
+		}
+	}
+	res, _ := pal.HandleCommand(c)
+	return a.paletteResult(s, res)
+}
+
+func (a *App) paletteResult(s core.State, res palette.Result) core.StepResult {
+	pal := a.palette
+	switch {
+	case res.PickPath != nil && pal != nil && pal.ActiveForm != nil:
+		return core.Next(a.openPath(s, res.PickPath.Field, nil, pal.ActiveForm.Values[res.PickPath.Field]))
+	case res.PickRef != nil:
+		return core.Next(a.openRef(s, res.PickRef))
+	case res.Submitted:
+		s = closeModal(s, modalPalette)
+		a.palette = nil
+		delete(a.pickers, modalPalette)
+		cmd := core.Command{ID: res.Entry.Spec.ID, Args: res.Args, Source: "palette", Actor: User}
+		a.Registers.SetSpecial(core.RegCommand, res.Entry.Item.Title)
+		a.gen++
+		return a.Engine.Step(s, ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s)), core.CommandEvent{Command: cmd})
+	case res.Cancelled:
+		return a.cancel(s, core.Command{})
+	}
+	if pal != nil {
+		mode := ModePicker
+		switch {
+		case pal.EditingForm():
+			mode = ModeFormEdit
+		case pal.FocusForm && pal.ActiveForm != nil:
+			mode = ModeForm
+		}
+		s = withMode(withFocus(s, pal.FocusID(modalPalette)), mode)
+	}
+	return core.Next(s)
 }
 
 // --- outline --------------------------------------------------------------------
@@ -2053,6 +2222,9 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.scratch = ""
 	case modalCommandLine:
 		a.cmdState = nil
+	case modalPalette:
+		a.palette = nil
+		delete(a.pickers, modalPalette)
 	}
 	a.say("")
 	return core.Next(closeModal(s, id))
@@ -2101,6 +2273,10 @@ func (a *App) register() {
 	a.handle(views.CmdEdit, a.edit)
 	a.handle(views.CmdNew, a.create)
 	a.handle(CmdNewHere, func(s core.State, c core.Command) core.StepResult {
+		if s.ActivePage == SpacePanes {
+			c.Args = map[string]any{"kind": data.KindPane}
+			return a.create(s, c)
+		}
 		// On a Show page, focus on or inside a related section creates (or
 		// attaches) one of that section's kind linked to the shown record.
 		if cur, showing := a.Showing(); showing && s.ActivePage == SpaceWork {
@@ -2170,6 +2346,7 @@ func (a *App) register() {
 
 	a.handle(CmdSiteFocus, a.siteFocus)
 	a.handle(CmdSitePageOpen, a.sitePageOpen)
+	a.handle(CmdSiteTOCToggle, a.siteTOCToggle)
 	a.handle(CmdAnswer, a.answerQuestion)
 	a.handle(CmdTermAttach, func(s core.State, _ core.Command) core.StepResult {
 		if s.ActiveFrame().FocusID != siteScreen {
@@ -2256,10 +2433,16 @@ func (a *App) register() {
 		a.handle(id, a.cmdlineCommand)
 	}
 	a.handle(CmdPaletteOpen, func(s core.State, _ core.Command) core.StepResult {
-		pm := picker.New("Commands", a.paletteItems())
-		pm.Placeholder = "a command · !cmd runs a shell command"
-		return core.Next(a.openPicker(s, modalPalette, pm))
+		pal := palette.New("Commands", a.paletteEntries())
+		pal.Placeholder = "a command · !cmd runs a shell command"
+		pal.Picker.PageSize = 10
+		a.palette = pal
+		a.pickers[modalPalette] = pal.Picker
+		return core.Next(openModal(s, modalPalette, ModePicker, pal.FocusID(modalPalette)))
 	})
+	for _, id := range []string{palette.CmdFocusForm, palette.CmdFocusList, palette.CmdToggleFocus} {
+		a.handle(id, a.paletteCommand)
+	}
 	a.handle(CmdHelpOpen, func(s core.State, _ core.Command) core.StepResult {
 		active := a.activeBindings(s)
 		items := make([]picker.Item, len(active))

@@ -2,17 +2,24 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
+
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
 	"ofam.dev/matomeru/runs"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/config"
 	"ofam.dev/ochazuke/core"
+	otea "ofam.dev/ochazuke/tea"
+	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
+	"ofam.dev/ochazuke/widgets/picker"
 )
 
 // BindingIssue is one problem reported by CheckBindings.
@@ -174,4 +181,110 @@ func RunExtension(ctx context.Context, store *data.Store, extName string, args [
 		}
 	}
 	return store.Get(rec.Ref())
+}
+
+// ErrCLISelectionCancelled is returned when the user cancels the interactive CLI picker.
+var ErrCLISelectionCancelled = errors.New("selection cancelled")
+
+type cliPickerModel struct {
+	pm        *picker.Model
+	w, h      int
+	pickedID  string
+	cancelled bool
+}
+
+func (m *cliPickerModel) Init() tea.Cmd { return nil }
+
+func (m *cliPickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch ev := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.w, m.h = ev.Width, ev.Height
+		if m.h > 6 {
+			m.pm.PageSize = min(m.h-6, 15)
+		}
+	case tea.KeyPressMsg:
+		k := tea.Key(ev)
+		name := otea.KeyName(k)
+		switch name {
+		case "esc", "ctrl+c":
+			m.cancelled = true
+			return m, tea.Quit
+		case "enter":
+			if picked, _ := m.pm.HandleCommand(core.Command{ID: picker.CmdConfirm}); picked != nil {
+				m.pickedID = picked.ID
+				return m, tea.Quit
+			}
+		case "up", "ctrl+p", "ctrl+k":
+			m.pm.HandleCommand(core.Command{ID: "motion.up"})
+		case "down", "ctrl+n", "ctrl+j":
+			m.pm.HandleCommand(core.Command{ID: "motion.down"})
+		case "ctrl+d":
+			m.pm.HandleCommand(core.Command{ID: "motion.half.down"})
+		case "ctrl+u":
+			m.pm.HandleCommand(core.Command{ID: "motion.half.up"})
+		case "tab":
+			m.pm.HandleCommand(core.Command{ID: picker.CmdModeCycle})
+		case "backspace":
+			m.pm.BackspaceQuery()
+		default:
+			if k.Text != "" {
+				m.pm.AppendQuery(k.Text)
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m *cliPickerModel) View() tea.View {
+	w, h := m.w, m.h
+	if w <= 0 {
+		w = 80
+	}
+	if h <= 0 {
+		h = 18
+	}
+	node := m.pm.View("cli.picker")
+	frame, _ := ui.Render(node, ui.DefaultDarkTheme(), "cli.picker", w, h)
+	v := tea.NewView(frame.ANSI)
+	v.AltScreen = true
+	return v
+}
+
+// PickRecordCLI runs a lightweight Bubble Tea program wrapping Ochazuke's
+// widgets/picker on stderr so interactive CLI commands can select a record
+// without polluting stdout.
+func PickRecordCLI(store *data.Store, kind string, candidates []data.Record, title string) (string, error) {
+	schema, ok := store.Registry().Get(kind)
+	if !ok {
+		schema = data.Schema{Kind: kind, Title: kind, Plural: kind}
+	}
+	items := make([]picker.Item, len(candidates))
+	for i, rec := range candidates {
+		ref := rec.Ref()
+		short := rec.ID
+		if len(short) > 8 {
+			short = short[:8]
+		}
+		items[i] = picker.Item{
+			ID:       rec.ID,
+			Title:    views.Title(schema, rec),
+			Subtitle: short,
+			Badges:   views.StatusBadges(schema, rec),
+			Ref:      &ref,
+			Scope:    kind,
+			Keywords: []string{rec.ID},
+		}
+	}
+	pm := picker.New(title, items)
+	pm.Placeholder = "type to filter · enter selects · esc cancels"
+	pm.PageSize = 12
+	m := &cliPickerModel{pm: pm}
+	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
+	if _, err := p.Run(); err != nil {
+		return "", err
+	}
+	if m.cancelled || m.pickedID == "" {
+		return "", ErrCLISelectionCancelled
+	}
+	return m.pickedID, nil
 }

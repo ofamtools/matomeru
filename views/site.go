@@ -72,6 +72,9 @@ type SiteOptions struct {
 	// Width is the room the bar has, when known: 0 neither drops the hint
 	// nor clips.
 	Width int
+	// HideTOC hides the left Pages table of contents rail and renders only the
+	// active page content inside site.pane.
+	HideTOC bool
 }
 
 // PaneSiteViewWith is PaneSiteView with options: the ambient lane progress
@@ -159,10 +162,15 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 		content.Children = []ui.ViewNode{root}
 	}
 
+	paneBody := ui.ViewNode{ID: "site.pane", Kind: ui.KindSplit, Scope: data.KindPane, Ref: &paneRef, Ratio: 0.28, Gap: 1,
+		Children: []ui.ViewNode{toc, content}}
+	if opts.HideTOC {
+		paneBody = ui.ViewNode{ID: "site.pane", Kind: ui.KindVStack, Scope: data.KindPane, Ref: &paneRef,
+			Children: []ui.ViewNode{content}}
+	}
 	site := ui.ViewNode{ID: "site", Kind: ui.KindVStack, Scope: ScopeSite,
-		Facts: map[string]any{"activePage": active.ID, "unread": unread, "pane": paneTitle},
-		Children: []ui.ViewNode{{ID: "site.pane", Kind: ui.KindSplit, Scope: data.KindPane, Ref: &paneRef, Ratio: 0.28, Gap: 1,
-			Children: []ui.ViewNode{toc, content}}}}
+		Facts:    map[string]any{"activePage": active.ID, "unread": unread, "pane": paneTitle},
+		Children: []ui.ViewNode{paneBody}}
 	if opts.ShowLaneBar {
 		if bar, ok := LaneBar(opts.Store, pane, opts.LaneHint, opts.Width); ok {
 			site.Facts["lane"] = bar.Facts["lane"]

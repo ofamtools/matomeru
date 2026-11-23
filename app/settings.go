@@ -30,6 +30,7 @@ const (
 	SetEditExtra     = "edit.showExtraFields"
 	SetLaneBar       = "panes.laneProgressBar"
 	SetRailAutoWiden = "panes.railAutoWiden"
+	SetShowTOC       = "panes.showTOC"
 	defaultThemeName = "ochazuke-dark"
 	settingsFileName = "settings.json"
 	bindingsFileName = "bindings.json"
@@ -75,6 +76,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetEditExtra, true, "Edit forms offer fields the schema does not declare"),
 		flag(SetLaneBar, true, "the lane progress bar above a pane's site"),
 		flag(SetRailAutoWiden, false, "the pane rail widens while it has the focus"),
+		flag(SetShowTOC, true, "the pane's Pages table of contents rail"),
 	}
 }
 
