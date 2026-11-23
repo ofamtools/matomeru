@@ -508,19 +508,20 @@ func overlay(id, title string, widthPct, heightPct int, children ...ui.ViewNode)
 }
 
 func (a *App) modal(m core.Frame) ui.ViewNode {
+	if a.modals != nil {
+		if mod := a.modals.Get(m.ID); mod != nil {
+			w, h := 0, 0
+			if a.Shell != nil {
+				w, h = a.Shell.W, a.Shell.H
+			}
+			return mod.View(w, h)
+		}
+	}
 	switch m.ID {
 	case modalOutline:
 		panel := a.outlineTreeView()
 		ov := overlay(m.ID, panel.Title, 64, 80, panel.Children...)
 		ov.Scope, ov.Badges, ov.Facts = panel.Scope, panel.Badges, panel.Facts
-		return ov
-	case modalPath:
-		if a.path == nil {
-			break
-		}
-		panel := a.path.View(modalPath)
-		ov := overlay(m.ID, panel.Title, 70, 70, panel.Children...)
-		ov.Badges = panel.Badges
 		return ov
 	case modalForm:
 		fs := a.form
@@ -555,33 +556,16 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.bindingsModal()
-	case modalReader:
-		if a.reader == nil {
-			break
-		}
-		return a.readerModal()
 	case modalScratch:
 		if a.scratch == "" {
 			break
 		}
 		return a.scratchModal()
-	case modalCommandLine:
-		if a.cmdState == nil {
-			break
-		}
-		return a.cmdlineModal()
 	case modalComposer:
 		if a.composer == nil {
 			break
 		}
 		return a.composerModal()
-	case modalConfirm:
-		if a.confirm == nil {
-			break
-		}
-		return a.confirmModal()
-	case modalAbout:
-		return a.aboutModal()
 	case modalPages:
 		if pm := a.pickers[m.ID]; pm != nil {
 			return overlay(m.ID, pm.Title, 76, 80, pm.View(m.ID+".list"))
@@ -621,19 +605,6 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 				Tone: "accent",
 			}}, ov.Badges...)
 		}
-		return ov
-	case modalPalette:
-		if a.palette == nil {
-			break
-		}
-		body := a.palette.View(modalPalette)
-		width := 70
-		if a.palette.ActiveForm != nil {
-			width = 90
-		}
-		ov := overlay(m.ID, a.palette.Title, width, 75, body)
-		ov.Scope = "palette"
-		ov.Facts = body.Facts
 		return ov
 	default:
 		if pm := a.pickers[m.ID]; pm != nil {

@@ -267,10 +267,11 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 
 	browseTo(t, a, d, doc)
 	d.Keys("o")
-	if a.Modal() != modalReader || a.Mode() != ModeReader || a.reader == nil {
+	reader := a.activeMarkdown(modalReader)
+	if a.Modal() != modalReader || a.Mode() != ModeReader || reader == nil {
 		t.Fatalf("o on a document with a .md file did not open the reader (modal %q, status %q)", a.Modal(), a.Status())
 	}
-	md := a.reader.md
+	md := reader.Model()
 	if len(md.Headings) != 3 || len(md.Links) != 2 || len(md.CodeBlocks) != 1 || !md.ShowTOC {
 		t.Fatalf("reader: %d headings, %d links, %d code blocks, toc %v", len(md.Headings), len(md.Links), len(md.CodeBlocks), md.ShowTOC)
 	}
@@ -291,15 +292,15 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 	}
 	// A link to another Markdown file opens in the reader, at its anchor.
 	d.Keys("enter")
-	if a.reader.md.Title != "other.md" || len(a.reader.back) != 1 {
-		t.Fatalf("enter on the first link: title %q, status %q", a.reader.md.Title, a.Status())
+	if reader.Model().Title != "other.md" || reader.BackLen() != 1 {
+		t.Fatalf("enter on the first link: title %q, status %q", reader.Model().Title, a.Status())
 	}
-	if h, _ := a.reader.md.CurrentHeading(); h.Text != "Second part" {
+	if h, _ := reader.Model().CurrentHeading(); h.Text != "Second part" {
 		t.Fatalf("the anchor went to %q", h.Text)
 	}
 	d.Keys("backspace")
-	if a.reader.md.Title != "guide.md" || len(a.reader.back) != 0 {
-		t.Fatalf("backspace: title %q", a.reader.md.Title)
+	if reader.Model().Title != "guide.md" || reader.BackLen() != 0 {
+		t.Fatalf("backspace: title %q", reader.Model().Title)
 	}
 	// A link to a URL goes to the handler of URLs: the system's opener, as a run.
 	d.Keys("tab", "enter")
@@ -308,7 +309,7 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 		t.Fatalf("the URL link did not start %q: %v (status %q)", want, err, a.Status())
 	}
 	d.Keys("q")
-	if a.Modal() != "" || a.reader != nil || a.Mode() != ModeNormal {
+	if a.Modal() != "" || a.activeMarkdown(modalReader) != nil || a.Mode() != ModeNormal {
 		t.Fatalf("q did not close the reader (modal %q)", a.Modal())
 	}
 
@@ -342,7 +343,8 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 		t.Fatalf("O on an inline note offers %v", ids)
 	}
 	d.Keys("esc", "o")
-	if a.Modal() != modalReader || a.reader.md.Title != "Inline" || !strings.Contains(d.Frame(), "Kept in the record.") {
+	inlineReader := a.activeMarkdown(modalReader)
+	if a.Modal() != modalReader || inlineReader == nil || inlineReader.Model().Title != "Inline" || !strings.Contains(d.Frame(), "Kept in the record.") {
 		t.Fatalf("o on a note (modal %q):\n%s", a.Modal(), d.Frame())
 	}
 	d.Keys("esc")
@@ -782,8 +784,8 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 		t.Fatalf("could not focus empty Directories section (landed on %q)", a.Focus())
 	}
 	d.Keys("n")
-	if a.Modal() != modalPath || a.pathTarget == nil || *a.pathTarget != task.Ref() {
-		t.Fatalf("n on empty Directories: modal=%q target=%v", a.Modal(), a.pathTarget)
+	if a.Modal() != modalPath || a.activePathPicker() == nil {
+		t.Fatalf("n on empty Directories: modal=%q pathPicker=%v", a.Modal(), a.activePathPicker())
 	}
 	d.Keys("esc")
 

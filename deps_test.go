@@ -173,7 +173,7 @@ var policies = map[string]policy{
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/tree", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
 			ochazuke + "/widgets/bindings", ochazuke + "/widgets/markdown", ochazuke + "/widgets/input", ochazuke + "/widgets/commandline",
-			ochazuke + "/widgets/palette", ochazuke + "/widgets/toast", ochazuke + "/widgets/hints",
+			ochazuke + "/widgets/palette", ochazuke + "/widgets/toast", ochazuke + "/widgets/hints", ochazuke + "/widgets/modal",
 		},
 	},
 	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness, ptyhost and migrate.

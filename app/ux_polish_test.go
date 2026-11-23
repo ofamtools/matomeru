@@ -24,15 +24,17 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 	if !strings.Contains(frame, "Arguments · record.new") || !strings.Contains(frame, "kind") {
 		t.Fatalf("highlighting record.new did not show live args form:\n%s", frame)
 	}
-	if a.Mode() != ModePicker || a.palette == nil || a.palette.FocusForm {
-		t.Fatalf("args form should start unfocused while browsing: mode=%q focusForm=%v", a.Mode(), a.palette.FocusForm)
+	palModal := a.activePalette()
+	if a.Mode() != ModePicker || palModal == nil || palModal.Model().FocusForm {
+		t.Fatalf("args form should start unfocused while browsing: mode=%q pal=%v", a.Mode(), palModal)
 	}
+	pal := palModal.Model()
 
 	// Verify record.new's kind param includes all registered noun kinds.
-	if a.palette.ActiveForm == nil || len(a.palette.ActiveForm.Specs) == 0 {
+	if pal.ActiveForm == nil || len(pal.ActiveForm.Specs) == 0 {
 		t.Fatal("record.new has no ActiveForm specs")
 	}
-	kindEnum := a.palette.ActiveForm.Specs[0].Enum
+	kindEnum := pal.ActiveForm.Specs[0].Enum
 	for _, want := range []string{data.KindTask, data.KindPane, data.KindNote, data.KindDocument, data.KindLane, data.KindSchedule, data.KindRun, data.KindSignal} {
 		if !slices.Contains(kindEnum, want) {
 			t.Fatalf("record.new kind enum %v missing %q", kindEnum, want)
@@ -41,17 +43,17 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 
 	// Tab into the args form, cycle kind to pane, and press enter to open "New pane".
 	d.Keys("tab")
-	if a.Mode() != ModeForm || !a.palette.FocusForm || a.Focus() != a.palette.FocusID(modalPalette) {
+	if a.Mode() != ModeForm || !pal.FocusForm || a.Focus() != pal.FocusID(modalPalette) {
 		t.Fatalf("tab did not focus args form: mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 	// Cycle with l until kind == "pane".
 	for range len(kindEnum) {
-		if v, _ := a.palette.ActiveForm.TypedValues()["kind"].(string); v == data.KindPane {
+		if v, _ := pal.ActiveForm.TypedValues()["kind"].(string); v == data.KindPane {
 			break
 		}
 		d.Keys("l")
 	}
-	if v, _ := a.palette.ActiveForm.TypedValues()["kind"].(string); v != data.KindPane {
+	if v, _ := pal.ActiveForm.TypedValues()["kind"].(string); v != data.KindPane {
 		t.Fatalf("failed to cycle kind to pane, got %q", v)
 	}
 	d.Keys("enter")
@@ -108,9 +110,11 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 	d.Keys(":")
 	d.Type(testCmd)
 	d.Keys("enter")
-	if a.Modal() != modalPalette || a.Mode() != ModeForm || !a.palette.FocusForm {
+	palModal := a.activePalette()
+	if a.Modal() != modalPalette || a.Mode() != ModeForm || palModal == nil || !palModal.Model().FocusForm {
 		t.Fatalf("smart enter on missing required param did not shift focus to form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
+	pal := palModal.Model()
 	if gotArgs != nil {
 		t.Fatalf("command executed prematurely with missing required param: %v", gotArgs)
 	}
@@ -135,7 +139,7 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 	if a.Modal() != modalPalette || a.Mode() != ModeForm {
 		t.Fatalf("selecting path did not return to palette form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
-	pickedDir, _ := a.palette.ActiveForm.Values["dir"].(string)
+	pickedDir, _ := pal.ActiveForm.Values["dir"].(string)
 	if pickedDir == "" {
 		t.Fatal("path picker did not populate dir arg in palette form")
 	}
@@ -149,13 +153,13 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 	if a.Modal() != modalPalette || a.Mode() != ModeForm {
 		t.Fatalf("selecting ref did not return to palette form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
-	if ref, ok := a.palette.ActiveForm.TypedValues()["task"].(core.Ref); !ok || ref.Kind != data.KindTask || ref.ID == "" {
-		t.Fatalf("ref picker did not populate task arg: raw=%#v typed=%#v", a.palette.ActiveForm.Values["task"], a.palette.ActiveForm.TypedValues()["task"])
+	if ref, ok := pal.ActiveForm.TypedValues()["task"].(core.Ref); !ok || ref.Kind != data.KindTask || ref.ID == "" {
+		t.Fatalf("ref picker did not populate task arg: raw=%#v typed=%#v", pal.ActiveForm.Values["task"], pal.ActiveForm.TypedValues()["task"])
 	}
 
 	// Esc in form returns focus to command list (ModePicker), tab goes back to form.
 	d.Keys("esc")
-	if a.Modal() != modalPalette || a.Mode() != ModePicker || a.palette.FocusForm {
+	if a.Modal() != modalPalette || a.Mode() != ModePicker || pal.FocusForm {
 		t.Fatalf("esc in palette form should return to command list: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("tab", "enter")
@@ -231,15 +235,16 @@ func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
 	if a.Modal() != modalReader || a.Mode() != ModeReader {
 		t.Fatalf("o did not open Markdown reader: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
-	if !a.reader.md.ShowTOC || !strings.Contains(d.Frame(), "Contents") {
+	reader := a.activeMarkdown(modalReader)
+	if reader == nil || !reader.Model().ShowTOC || !strings.Contains(d.Frame(), "Contents") {
 		t.Fatalf("reader TOC should be visible initially:\n%s", d.Frame())
 	}
 	d.Keys("t")
-	if a.reader.md.ShowTOC || strings.Contains(d.Frame(), "Contents") {
+	if reader.Model().ShowTOC || strings.Contains(d.Frame(), "Contents") {
 		t.Fatalf("t in ModeReader did not hide Markdown headings TOC:\n%s", d.Frame())
 	}
 	d.Keys("t")
-	if !a.reader.md.ShowTOC || !strings.Contains(d.Frame(), "Contents") {
+	if !reader.Model().ShowTOC || !strings.Contains(d.Frame(), "Contents") {
 		t.Fatalf("second t in ModeReader did not restore Markdown headings TOC:\n%s", d.Frame())
 	}
 }

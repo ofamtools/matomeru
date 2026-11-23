@@ -154,8 +154,8 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	a, d := demo(t)
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
 	d.Keys("2", "e", "j", "j", "j", "j", "j", "enter")
-	if a.Modal() != modalPath || a.pathField != "defaultDir" {
-		t.Fatalf("enter on defaultDir: modal %q, field %q", a.Modal(), a.pathField)
+	if a.Modal() != modalPath || a.activePathPicker() == nil {
+		t.Fatalf("enter on defaultDir: modal %q, pathPicker %v", a.Modal(), a.activePathPicker())
 	}
 	d.Keys("left")
 	d.Type("mato")

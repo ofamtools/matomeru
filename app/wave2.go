@@ -21,6 +21,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/table"
 	"ofam.dev/ochazuke/widgets/toast"
 )
@@ -185,12 +186,15 @@ func (a *App) daemonReset(s core.State, _ core.Command) core.StepResult {
 	}
 	if a.Settings.Bool(SetConfirmDaemonReset, true) {
 		liveCount := a.liveDaemonPaneCount(client)
-		return core.Next(a.openConfirm(s, confirmState{
-			title:        "Reset Daemon",
-			message:      fmt.Sprintf("Drop all %d live daemon panes and reset the daemon? This cannot be undone.", liveCount),
-			confirmLabel: "Confirm",
-			onConfirm: func(st core.State) core.State {
-				return a.execDaemonReset(st)
+		return core.Next(a.openConfirm(s, modal.ConfirmOptions{
+			Title:        "Reset Daemon",
+			Message:      fmt.Sprintf("Drop all %d live daemon panes and reset the daemon? This cannot be undone.", liveCount),
+			ConfirmLabel: "Confirm",
+			OnConfirm: func() modal.Result {
+				a.afterModal(func(st core.State) core.State {
+					return a.execDaemonReset(st)
+				})
+				return modal.Result{}
 			},
 		}))
 	}

@@ -14,6 +14,7 @@ import (
 	"ofam.dev/matomeru/runs"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/toast"
 )
 
@@ -191,12 +192,15 @@ func (a *App) runRecordAction(spec actions.RecordActionSpec) func(core.State, co
 			title := strings.TrimSpace(actions.ExpandTemplate(spec.Confirm.Title, vars))
 			msg := strings.TrimSpace(actions.ExpandTemplate(spec.Confirm.Message, vars))
 			label := strings.TrimSpace(actions.ExpandTemplate(spec.Confirm.Label, vars))
-			return core.Next(a.openConfirm(s, confirmState{
-				title:        title,
-				message:      msg,
-				confirmLabel: label,
-				tone:         strings.TrimSpace(spec.Confirm.Tone),
-				onConfirm:    execute,
+			return core.Next(a.openConfirm(s, modal.ConfirmOptions{
+				Title:        title,
+				Message:      msg,
+				ConfirmLabel: label,
+				Tone:         strings.TrimSpace(spec.Confirm.Tone),
+				OnConfirm: func() modal.Result {
+					a.afterModal(execute)
+					return modal.Result{}
+				},
 			}))
 		}
 

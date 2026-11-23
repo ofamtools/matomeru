@@ -11,8 +11,8 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
-	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/commandline"
+	"ofam.dev/ochazuke/widgets/modal"
 )
 
 // Shell I/O redirection via Ochazuke's widgets/commandline:
@@ -23,12 +23,6 @@ import (
 //
 // Inside the bar: full Readline editing, up/down per-prefix history, and
 // ctrl+r <reg> to insert any Vim register ("", "0, "%, "a-"z, "+, ":, "/).
-
-type cmdlineState struct {
-	model  *commandline.Model
-	target *core.Ref
-	dir    string
-}
 
 func (a *App) shellVars(ref *core.Ref) (vars map[string]string, dir string) {
 	vars = map[string]string{}
@@ -85,68 +79,40 @@ func (a *App) shellOpen(s core.State, c core.Command) core.StepResult {
 	}
 	vars, dir := a.shellVars(target)
 	a.cmdline.Vars = vars
-	a.cmdState = &cmdlineState{model: a.cmdline, target: target, dir: dir}
+
+	title := "Shell (!)"
 	switch prefix {
 	case commandline.PrefixPipe:
+		title = "Pipe focused record (|)"
 		a.say("pipe focused record into shell · ctrl+r reg pastes · enter runs")
 	case commandline.PrefixReadShell:
+		title = "Read shell into note (r!)"
 		a.say("read shell stdout into a new note · ctrl+r reg pastes · enter runs")
 	default:
 		a.say("run shell command · $REF $TITLE $FILE $DIR expand · ctrl+r reg pastes")
 	}
-	return core.Next(openModal(s, modalCommandLine, ModeCommandLine, modalCommandLine+".input"))
-}
+	titleSuffix := ""
+	if target != nil {
+		titleSuffix = a.title(*target)
+	}
 
-func (a *App) cmdlineModal() ui.ViewNode {
-	cs := a.cmdState
-	if cs == nil || cs.model == nil {
-		return overlay(modalCommandLine, "Shell", 76, 0, text("", "no command line", "muted"))
-	}
-	title := "Shell (!)"
-	switch cs.model.Prefix {
-	case commandline.PrefixPipe:
-		title = "Pipe focused record (|)"
-	case commandline.PrefixReadShell:
-		title = "Read shell into note (r!)"
-	}
-	if cs.target != nil {
-		title += " · " + a.title(*cs.target)
-	}
-	var hints []string
-	for _, k := range []string{"REF", "DIR", "FILE"} {
-		if v := cs.model.Vars[k]; v != "" {
-			hints = append(hints, fmt.Sprintf("$%s=%s", k, clip(v, 28)))
-		}
-	}
-	children := []ui.ViewNode{cs.model.View(modalCommandLine + ".input")}
-	if len(hints) > 0 {
-		children = append(children, line(modalCommandLine+".vars", " "+strings.Join(hints, "  "), "muted"))
-	}
-	ov := overlay(modalCommandLine, title, 78, 0, children...)
-	ov.Scope = "commandline"
-	return ov
-}
-
-func (a *App) cmdlineCommand(s core.State, c core.Command) core.StepResult {
-	cs := a.cmdState
-	if cs == nil || cs.model == nil || topModal(s) != modalCommandLine {
-		return core.Next(s)
-	}
-	sub, handled := cs.model.HandleCommand(c)
-	if !handled {
-		return core.Next(s)
-	}
-	switch c.ID {
-	case commandline.CmdCancel:
-		a.cmdState = nil
-		a.say("")
-		return core.Next(closeModal(s, modalCommandLine))
-	case commandline.CmdSubmit:
-		a.cmdState = nil
-		s = closeModal(s, modalCommandLine)
-		return core.Next(a.execShellSubmission(s, sub, cs.target, cs.dir))
-	}
-	return core.Next(s)
+	m := modal.NewCommandLineModal(a.cmdline, modal.CommandLineOptions{
+		ID:          modalCommandLine,
+		Scope:       modalCommandLine,
+		Mode:        ModeCommandLine,
+		FocusID:     modalCommandLine + ".input",
+		Title:       title,
+		TitleSuffix: titleSuffix,
+		WidthPct:    78,
+		VarHintKeys: []string{"REF", "DIR", "FILE"},
+		OnSubmit: func(sub commandline.Submission) modal.Result {
+			a.afterModal(func(st core.State) core.State {
+				return a.execShellSubmission(st, sub, target, dir)
+			})
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
 func (a *App) recordPayload(ref *core.Ref) string {

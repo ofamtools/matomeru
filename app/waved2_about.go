@@ -19,6 +19,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/markdown"
+	"ofam.dev/ochazuke/widgets/modal"
 )
 
 // AboutBuildInfo summarizes build metadata and key Go module dependencies.
@@ -595,22 +596,21 @@ func (a *App) aboutOpen(s core.State, _ core.Command) core.StepResult {
 	info := a.BuildAboutInfo()
 	md := markdown.New("About Matomeru", FormatAboutMarkdown(info))
 	md.ShowTOC = true
-	a.aboutMD = md
+	m := modal.NewMarkdownModal(md, modal.MarkdownOptions{
+		ID:              modalAbout,
+		Scope:           modalAbout,
+		Mode:            ModeAbout,
+		FocusID:         modalAbout + ".md",
+		WidthPct:        88,
+		HeightPct:       88,
+		ShowStatsBadges: false,
+		Badges: func(_ *markdown.Model, _ string, _ int) []ui.Badge {
+			return []ui.Badge{
+				{Text: "diagnostics", Tone: "accent"},
+				{Text: "g A", Tone: "muted"},
+			}
+		},
+	})
 	a.say("about matomeru · j/k scroll · esc/q closes")
-	return core.Next(openModal(s, modalAbout, ModeAbout, modalAbout+".md"))
-}
-
-func (a *App) aboutModal() ui.ViewNode {
-	md := a.aboutMD
-	if md == nil {
-		return overlay(modalAbout, "About Matomeru", 86, 86, text(modalAbout+".md", "About info unavailable.", "muted"))
-	}
-	if a.Shell != nil && a.Shell.H > 12 {
-		md.PageSize = a.Shell.H*85/100 - 6
-	}
-	body := md.View(modalAbout + ".md")
-	ov := overlay(modalAbout, "About Matomeru", 88, 88, body)
-	ov.Scope = "about"
-	ov.Badges = []ui.Badge{{Text: "diagnostics", Tone: "accent"}, {Text: "g A", Tone: "muted"}}
-	return ov
+	return core.Next(a.pushModal(s, m))
 }

@@ -139,8 +139,9 @@ esac
 
 	// Row 0 (ready=true): X opens confirm modal with custom tone and expanded message, y runs & refreshes readCache.
 	d.Keys("k", "X")
-	if a.Modal() != modalConfirm || a.confirm == nil || a.confirm.tone != "error" {
-		t.Fatalf("confirm modal state = %+v (modal=%q)", a.confirm, a.Modal())
+	cm := a.activeConfirm()
+	if a.Modal() != modalConfirm || cm == nil || cm.View(120, 36).Tone != "error" {
+		t.Fatalf("confirm modal = %v (modal=%q)", cm, a.Modal())
 	}
 	if !strings.Contains(d.Frame(), "Drop 400 MB for alpha?") {
 		t.Fatalf("confirm message missing:\n%s", d.Frame())

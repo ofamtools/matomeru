@@ -41,6 +41,7 @@ import (
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/palette"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
@@ -245,19 +246,17 @@ type App struct {
 	term         map[string]*termBuf
 	status       string
 
-	trees       *treeController
-	pickers     map[string]*picker.Model
-	palette     *palette.Model
-	path        *pathpicker.Model
-	pathField   string    // form field the path picker fills; "" = attach to pathTarget
-	pathTarget  *core.Ref // record a picked path is attached to
-	refField    string
-	form        *formState
-	answer      *formState
-	launch      *formState
-	drafts      *form.DraftStore
-	lastFocus   map[string]string // region -> its last focused node
-	focusRegion string
+	trees        *treeController
+	modals       *modal.Stack
+	pendingState []func(core.State) core.State
+	pickers      map[string]*picker.Model
+	refField     string
+	form         *formState
+	answer       *formState
+	launch       *formState
+	drafts       *form.DraftStore
+	lastFocus    map[string]string // region -> its last focused node
+	focusRegion  string
 
 	// The user's configuration as loaded and as changed here: the settings
 	// the user set, their theme file and their binding rows.
@@ -291,12 +290,10 @@ type App struct {
 	yankRef     *core.Ref     // the record the yank picker is open on
 	actionRef   *core.Ref     // the record the record-actions picker is open on
 	opening     *openTarget   // what "open with" is choosing a handler for
-	reader      *readerState  // the Markdown reader, while it is open
 	inspecting  string        // the registry the inspector shows
 	scratch     string        // the pane of the global scratch that is shown
 	scratchRole string
 	cmdline     *commandline.Model // persistent per-prefix history for !, |, r!
-	cmdState    *cmdlineState      // active shell I/O bar modal state
 
 	readCache   *data.ReadCache   // async cache for mounted external tool nouns
 	extCatalogs map[string]string // external noun kind -> tool binary
@@ -330,15 +327,13 @@ type App struct {
 
 	stagedAnswers map[string]map[string]map[string]any
 
-	// Wave 4: confirmation modal, table presets, declarative record actions, and toasts.
-	confirm       *confirmState
+	// Wave 4: table presets, declarative record actions, and toasts.
 	presets       *table.PresetStore
 	presetTable   string
 	recordActions map[string]actions.RecordActionSpec
 	toasts        *toast.Model
 
-	// Wave D2: About overlay, pane associate, and dynamic ref-picker create.
-	aboutMD          *markdown.Model
+	// Wave D2: pane associate and dynamic ref-picker create.
 	associatePaneRef *core.Ref
 	pickerCreate     map[string]refCreateSpec
 
@@ -362,6 +357,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		Store: store, Router: mcpui.New(store), opts: opts,
 		tables: map[string]*table.Model{}, activePage: map[string]string{}, term: map[string]*termBuf{},
 		trees:   newTreeController(),
+		modals:  modal.NewStack(),
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
 		userSettings: map[string]any{}, readCache: data.NewReadCache(),
 		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
@@ -559,7 +555,19 @@ func (a *App) Focus() string { return a.Shell.State.ActiveFrame().FocusID }
 func (a *App) Space() string { return a.Shell.State.ActivePage }
 
 // Modal is the ID of the top overlay, "" when none is open.
-func (a *App) Modal() string { return topModal(a.Shell.State) }
+func (a *App) Modal() string {
+	if a.Shell != nil {
+		if id := topModal(a.Shell.State); id != "" {
+			return id
+		}
+	}
+	if a.modals != nil {
+		if top := a.modals.Top(); top != nil {
+			return top.ID()
+		}
+	}
+	return ""
+}
 
 // Showing is the record whose Show page the Work space is on.
 func (a *App) Showing() (core.Ref, bool) {
@@ -997,6 +1005,11 @@ func (a *App) edge(s core.State, last bool) core.State {
 
 func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	if id := topModal(s); id != "" {
+		if a.modals != nil {
+			if top := a.modals.Top(); top != nil && top.ID() == id {
+				return a.handleModal(s, c)
+			}
+		}
 		return core.Next(a.modalMotion(s, id, c))
 	}
 	focus := s.ActiveFrame().FocusID
@@ -1041,29 +1054,13 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 	switch id {
 	case modalOutline:
 		a.outlineTreeMove(c)
-	case modalPath:
-		if a.path != nil {
-			a.path.HandleCommand(c)
-		}
 	case modalForm, modalAnswer, modalLaunch, modalSettings:
 		if fs := a.formOf(id); fs != nil {
 			fs.fm.HandleCommand(c)
 		}
-	case modalReader:
-		if a.reader != nil {
-			a.reader.md.HandleCommand(c)
-		}
-	case modalAbout:
-		if a.aboutMD != nil {
-			a.aboutMD.HandleCommand(c)
-		}
 	case modalBindings:
 		if a.bindEd != nil {
 			a.bindEd.HandleCommand(c)
-		}
-	case modalPalette:
-		if a.palette != nil {
-			a.palette.HandleCommand(c)
 		}
 	default:
 		if pm := a.pickers[id]; pm != nil {
@@ -1076,14 +1073,16 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 // --- spaces and history -----------------------------------------------------------
 
 func (a *App) dropModals(s core.State) core.State {
+	if a.modals != nil {
+		s = a.modals.DropAll(s)
+	}
 	s.Modals = nil
-	a.form, a.answer, a.launch, a.path, a.palette = nil, nil, nil, nil, nil
-	delete(a.pickers, modalPalette)
+	a.form, a.answer, a.launch = nil, nil, nil
 	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
-	a.reader, a.opening, a.yankRef, a.actionRef, a.cmdState, a.scratch = nil, nil, nil, nil, nil, ""
+	a.opening, a.yankRef, a.actionRef, a.scratch = nil, nil, nil, ""
 	a.contextTarget, a.composer, a.hints = nil, nil, nil
-	a.confirm, a.presetTable = nil, ""
-	a.aboutMD, a.associatePaneRef, a.pickerCreate = nil, nil, nil
+	a.presetTable = ""
+	a.associatePaneRef, a.pickerCreate = nil, nil
 	a.trees.clearEdit()
 	return s
 }
@@ -1410,22 +1409,24 @@ func (a *App) syncManagedFile(rec *data.Record) {
 }
 
 func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
-	modal := topModal(s)
-	if modal == modalPalette && a.palette != nil {
-		return a.paletteCommand(s, c)
+	id := topModal(s)
+	if a.modals != nil {
+		if top := a.modals.Top(); top != nil && top.ID() == id {
+			return a.handleModal(s, c)
+		}
 	}
-	fs := a.formOf(modal)
+	fs := a.formOf(id)
 	if fs == nil {
 		return core.Next(s)
 	}
 	fm := fs.fm
-	id := c.ID
-	if modal == modalSettings && (id == form.CmdDraftPrev || id == form.CmdDraftNext || id == form.CmdDraftDiscard || id == form.CmdSubmit) {
+	cmdID := c.ID
+	if id == modalSettings && (cmdID == form.CmdDraftPrev || cmdID == form.CmdDraftNext || cmdID == form.CmdDraftDiscard || cmdID == form.CmdSubmit) {
 		return core.Next(s)
 	}
-	if id == CmdFormActivate {
+	if cmdID == CmdFormActivate {
 		if fm.OnSubmitRow() {
-			id = form.CmdSubmit
+			cmdID = form.CmdSubmit
 		} else {
 			var spec core.ParamSpec
 			if fm.ActiveIdx < len(fm.Specs) {
@@ -1433,14 +1434,14 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 			}
 			switch form.KindFor(spec) {
 			case form.KindBool, form.KindEnum:
-				id = form.CmdToggle
+				cmdID = form.CmdToggle
 			case form.KindPath, form.KindRef:
-				id = form.CmdPick
+				cmdID = form.CmdPick
 			default:
-				id = form.CmdEdit
+				cmdID = form.CmdEdit
 			}
 		}
-		c.ID = id
+		c.ID = cmdID
 	}
 	wasEditing := fm.Editing
 	prevDraftIdx := fm.ActiveDraftIndex()
@@ -1457,7 +1458,7 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 		}
 		a.say("discarded draft")
 		return core.Next(withMode(s, ModeForm))
-	case res.Submitted && modal == modalForm:
+	case res.Submitted && id == modalForm:
 		next := a.submitForm(s, fs, res.Values)
 		if topModal(next) == modalForm {
 			mode := ModeForm
@@ -1467,9 +1468,9 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 			next = withMode(next, mode)
 		}
 		return core.Next(next)
-	case res.Submitted && modal == modalAnswer:
+	case res.Submitted && id == modalAnswer:
 		return core.Next(a.submitAnswerModal(s, fs, res.Values))
-	case res.Submitted && modal == modalLaunch:
+	case res.Submitted && id == modalLaunch:
 		next, done := fs.submit(s, res.Values)
 		if done {
 			a.clearSubmittedDraft(fs)
@@ -1482,7 +1483,7 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 	case res.Cancelled:
 		return a.cancel(s, c)
 	}
-	switch id {
+	switch cmdID {
 	case form.CmdDraftPrev:
 		if idx := fm.ActiveDraftIndex(); idx >= 0 {
 			a.say("draft %d of %d", idx+1, fm.DraftCount())
@@ -1496,8 +1497,8 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 			a.say("back to current edits")
 		}
 	}
-	if modal == modalSettings {
-		switch id {
+	if id == modalSettings {
+		switch cmdID {
 		case form.CmdToggle, form.CmdCycle:
 			a.commitSetting()
 		case form.CmdStop:
@@ -1590,50 +1591,6 @@ func (a *App) openPicker(s core.State, id string, pm *picker.Model) core.State {
 	return openModal(s, id, ModePicker, id+".list")
 }
 
-// openPath opens the path picker. With field set, the pick fills that field
-// of the open form; otherwise it is attached to target as a directory. It
-// starts in the first of these that can be read: the given path (or its
-// directory), the working directory, the home directory.
-func (a *App) openPath(s core.State, field string, target *core.Ref, start any) core.State {
-	fs := a.opts.FS
-	if fs == nil {
-		fs = pathpicker.OSFS{}
-	}
-	home, _ := fs.HomeDir()
-	var tries []string
-	if dir, _ := start.(string); dir != "" {
-		if rest, ok := strings.CutPrefix(dir, "~"); ok && home != "" {
-			dir = filepath.Join(home, rest)
-		}
-		if filepath.IsAbs(dir) {
-			tries = append(tries, dir, filepath.Dir(dir))
-		}
-	}
-	if a.opts.FS == nil {
-		if cwd, err := os.Getwd(); err == nil {
-			tries = append(tries, cwd)
-		}
-	}
-	tries = append(tries, home, string(filepath.Separator))
-	var pp *pathpicker.Model
-	for _, dir := range tries {
-		if dir == "" {
-			continue
-		}
-		var err error
-		if pp, err = pathpicker.New(fs, dir, pathpicker.PickAny); err == nil {
-			break
-		}
-	}
-	if pp == nil {
-		a.say("no directory could be read")
-		return s
-	}
-	a.path, a.pathField, a.pathTarget = pp, field, target
-	a.say("enter opens · tab chooses · left goes up")
-	return openModal(s, modalPath, ModePicker, modalPath)
-}
-
 func (a *App) openRef(s core.State, req *form.RefRequest) core.State {
 	kinds := req.RefKinds
 	if len(kinds) == 0 {
@@ -1660,41 +1617,12 @@ func (a *App) openRef(s core.State, req *form.RefRequest) core.State {
 	return a.openPicker(s, modalRef, pm)
 }
 
-func (a *App) pickPath(s core.State, picked *pathpicker.DirEntry) core.State {
-	s = closeModal(s, modalPath)
-	field, target := a.pathField, a.pathTarget
-	a.path = nil
-	switch {
-	case field != "" && topModal(s) == modalPalette && a.palette != nil:
-		a.palette.SetPickedValue(field, picked.Path)
-	case field != "" && a.formOf(topModal(s)) != nil:
-		a.formOf(topModal(s)).fm.SetValue(field, picked.Path)
-	case target != nil:
-		_, cs, err := a.Store.Relate(data.RelateInput{From: *target, Kind: data.RelDirectory, To: core.Ref{Kind: "directory", ID: picked.Path}}, User)
-		a.wrote(fmt.Sprintf("%s: directory %s", a.title(*target), picked.Path), cs, err)
-	default:
-		a.say("picked %s", picked.Path)
-	}
-	return s
-}
-
 func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 	id := topModal(s)
-	if id == modalPalette && a.palette != nil {
-		return a.paletteCommand(s, c)
-	}
-	if id == modalPath && a.path != nil {
-		switch c.ID {
-		case CmdPickerInsert:
-			a.path.AppendQuery(c.Arg("text"))
-		case CmdPickerBack:
-			a.path.BackspaceQuery()
-		default:
-			if picked, _ := a.path.HandleCommand(c); picked != nil {
-				return core.Next(a.pickPath(s, picked))
-			}
+	if a.modals != nil {
+		if top := a.modals.Top(); top != nil && top.ID() == id {
+			return a.handleModal(s, c)
 		}
-		return core.Next(s)
 	}
 	pm := a.pickers[id]
 	if pm == nil {
@@ -1709,14 +1637,6 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		pm.BackspaceQuery()
 		a.syncPickerCreateItem(id, pm)
 		return core.Next(s)
-	}
-	if line, shell := strings.CutPrefix(pm.Query, "!"); shell && id == modalPalette && c.ID == picker.CmdConfirm {
-		// "!cmd" in the palette runs cmd as a run.
-		if line = strings.TrimSpace(line); line == "" {
-			a.say("type a shell command after !")
-			return core.Next(s)
-		}
-		return core.Next(a.startShell(closeModal(s, id), "", line, ""))
 	}
 	if id == modalInspect && c.ID == picker.CmdConfirm {
 		// The inspector lists; enter only ends the typing of its filter.
@@ -1783,8 +1703,10 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		}
 	case modalRef:
 		if ref, ok := a.resolveOrCreatePick(picked); ok {
-			if topModal(s) == modalPalette && a.palette != nil {
-				a.palette.SetPickedValue(a.refField, ref)
+			if topModal(s) == modalPalette {
+				if pal := a.activePalette(); pal != nil {
+					pal.SetPickedValue(a.refField, ref)
+				}
 			} else if fs := a.formOf(topModal(s)); fs != nil {
 				fs.fm.SetValue(a.refField, ref)
 				if i := slices.IndexFunc(fs.fm.Specs, func(p core.ParamSpec) bool { return p.Name == a.refField }); i >= 0 {
@@ -1803,13 +1725,6 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		a.Registers.SetSpecial(core.RegCommand, picked.Title)
 		a.gen++
 		return a.Engine.Step(s, ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s)), core.CommandEvent{Command: cmd})
-	case modalPalette:
-		cmd := core.Command{ID: picked.ID, Source: "palette", Actor: User}
-		cmd.Args, _ = picked.Data.(map[string]any)
-		a.Registers.SetSpecial(core.RegCommand, picked.Title)
-		a.gen++
-		res := a.Engine.Step(s, ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s)), core.CommandEvent{Command: cmd})
-		return res
 	}
 	return core.Next(s)
 }
@@ -1999,81 +1914,6 @@ func (a *App) paletteEntries() []palette.Entry {
 	return entries
 }
 
-func (a *App) paletteCommand(s core.State, c core.Command) core.StepResult {
-	if topModal(s) != modalPalette || a.palette == nil {
-		return core.Next(s)
-	}
-	pal := a.palette
-	if !pal.FocusForm {
-		switch c.ID {
-		case CmdPickerInsert:
-			pal.Picker.AppendQuery(c.Arg("text"))
-			pal.Sync()
-			return core.Next(s)
-		case CmdPickerBack:
-			pal.Picker.BackspaceQuery()
-			pal.Sync()
-			return core.Next(s)
-		}
-		if line, shell := strings.CutPrefix(pal.Picker.Query, "!"); shell && c.ID == picker.CmdConfirm {
-			if line = strings.TrimSpace(line); line == "" {
-				a.say("type a shell command after !")
-				return core.Next(s)
-			}
-			a.palette = nil
-			delete(a.pickers, modalPalette)
-			return core.Next(a.startShell(closeModal(s, modalPalette), "", line, ""))
-		}
-	} else if c.ID == CmdFormActivate && pal.ActiveForm != nil {
-		fm := pal.ActiveForm
-		var spec core.ParamSpec
-		if fm.ActiveIdx < len(fm.Specs) {
-			spec = fm.Specs[fm.ActiveIdx]
-		}
-		switch form.KindFor(spec) {
-		case form.KindBool, form.KindEnum:
-			c.ID = form.CmdToggle
-		case form.KindPath, form.KindRef:
-			c.ID = form.CmdPick
-		default:
-			c.ID = form.CmdEdit
-		}
-	}
-	res, _ := pal.HandleCommand(c)
-	return a.paletteResult(s, res)
-}
-
-func (a *App) paletteResult(s core.State, res palette.Result) core.StepResult {
-	pal := a.palette
-	switch {
-	case res.PickPath != nil && pal != nil && pal.ActiveForm != nil:
-		return core.Next(a.openPath(s, res.PickPath.Field, nil, pal.ActiveForm.Values[res.PickPath.Field]))
-	case res.PickRef != nil:
-		return core.Next(a.openRef(s, res.PickRef))
-	case res.Submitted:
-		s = closeModal(s, modalPalette)
-		a.palette = nil
-		delete(a.pickers, modalPalette)
-		cmd := core.Command{ID: res.Entry.Spec.ID, Args: res.Args, Source: "palette", Actor: User}
-		a.Registers.SetSpecial(core.RegCommand, res.Entry.Item.Title)
-		a.gen++
-		return a.Engine.Step(s, ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s)), core.CommandEvent{Command: cmd})
-	case res.Cancelled:
-		return a.cancel(s, core.Command{})
-	}
-	if pal != nil {
-		mode := ModePicker
-		switch {
-		case pal.EditingForm():
-			mode = ModeFormEdit
-		case pal.FocusForm && pal.ActiveForm != nil:
-			mode = ModeForm
-		}
-		s = withMode(withFocus(s, pal.FocusID(modalPalette)), mode)
-	}
-	return core.Next(s)
-}
-
 // --- filter ---------------------------------------------------------------------
 
 // filterTable is the table the filter keys act on: the one being filtered,
@@ -2116,6 +1956,14 @@ func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
+	if a.modals != nil {
+		if top := a.modals.Top(); top != nil && top.ID() == topModal(s) {
+			res := top.Handle(c)
+			if res.Handled {
+				return a.applyModalResult(s, res)
+			}
+		}
+	}
 	switch a.Engine.Mode(s) {
 	case ModeFormEdit:
 		return a.formCommand(s, c)
@@ -2130,8 +1978,6 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 			}
 		}
 		return core.Next(s)
-	case ModeCommandLine:
-		return a.cmdlineCommand(s, c)
 	case ModeComposer:
 		return a.composerCommand(s, c)
 	case ModeOutlineEdit:
@@ -2347,8 +2193,14 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 	})
 }
 
-func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
+func (a *App) cancel(s core.State, c core.Command) core.StepResult {
 	id := topModal(s)
+	if a.modals != nil {
+		if top := a.modals.Top(); top != nil && top.ID() == id {
+			c.ID = modal.CmdCancel
+			return a.handleModal(s, c)
+		}
+	}
 	switch id {
 	case "":
 		return core.Next(s)
@@ -2379,14 +2231,10 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 			a.say("closed")
 		}
 		return core.Next(closeModal(s, id))
-	case modalPath:
-		a.path = nil
 	case modalSettings:
 		a.settings = nil
 	case modalBindings:
 		a.bindCapturing = false // the editor's model stays: its undo history survives closing it
-	case modalReader:
-		a.reader = nil
 	case modalYank:
 		a.yankRef = nil
 	case modalRecordActions:
@@ -2395,8 +2243,6 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.opening = nil
 	case modalScratch:
 		a.scratch = ""
-	case modalCommandLine:
-		a.cmdState = nil
 	case modalContext:
 		a.contextTarget = nil
 	case modalComposer:
@@ -2408,15 +2254,8 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 			a.say("composer closed")
 		}
 		return core.Next(closeModal(s, id))
-	case modalPalette:
-		a.palette = nil
-		delete(a.pickers, modalPalette)
-	case modalConfirm:
-		a.confirm = nil
 	case modalPresets:
 		a.presetTable = ""
-	case modalAbout:
-		a.aboutMD = nil
 	case modalPaneAssociate:
 		a.associatePaneRef = nil
 		delete(a.pickerCreate, modalPaneAssociate)
@@ -2621,18 +2460,78 @@ func (a *App) register() {
 	for _, id := range []string{commandline.CmdInsert, commandline.CmdSubmit, commandline.CmdCancel,
 		commandline.CmdRegister, commandline.CmdHistoryPrev, commandline.CmdHistoryNext,
 		commandline.CmdCompleteNext, commandline.CmdCompletePrev} {
-		a.handle(id, a.cmdlineCommand)
+		a.handle(id, a.handleModal)
 	}
 	a.handle(CmdPaletteOpen, func(s core.State, _ core.Command) core.StepResult {
 		pal := palette.New("Commands", a.paletteEntries())
 		pal.Placeholder = "a command · !cmd runs a shell command"
 		pal.Picker.PageSize = 10
-		a.palette = pal
-		a.pickers[modalPalette] = pal.Picker
-		return core.Next(openModal(s, modalPalette, ModePicker, pal.FocusID(modalPalette)))
+		var pm *modal.PaletteModal
+		pm = modal.NewPaletteModal(pal, modal.PaletteOptions{
+			ID:               modalPalette,
+			Scope:            modalPalette,
+			WidthPct:         70,
+			ExpandedWidthPct: 90,
+			HeightPct:        75,
+			PickerMode:       ModePicker,
+			FormMode:         ModeForm,
+			FormEditMode:     ModeFormEdit,
+			OnRawQuery: func(query string) (modal.Result, bool) {
+				line, shell := strings.CutPrefix(query, "!")
+				if !shell {
+					return modal.Result{}, false
+				}
+				line = strings.TrimSpace(line)
+				if line == "" {
+					return modal.Result{Handled: true, Status: "type a shell command after !", SetStatus: true}, true
+				}
+				a.afterModal(func(st core.State) core.State {
+					return a.startShell(st, "", line, "")
+				})
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
+			},
+			OnSubmit: func(entry palette.Entry, args map[string]any) modal.Result {
+				a.Registers.SetSpecial(core.RegCommand, entry.Item.Title)
+				return modal.Result{
+					Handled:     true,
+					Close:       true,
+					CloseReason: modal.CloseSubmit,
+					Emit: []core.Command{{
+						ID:     entry.Spec.ID,
+						Args:   args,
+						Source: "palette",
+						Actor:  User,
+					}},
+				}
+			},
+			OnPickPath: func(req form.PathRequest, current any) modal.Result {
+				field := req.Field
+				pathMod, ok := a.newPathPickerModal(current, func(entry pathpicker.DirEntry) modal.Result {
+					pm.SetPickedValue(field, entry.Path)
+					return modal.Result{}
+				})
+				if !ok {
+					return modal.Result{Handled: true}
+				}
+				return modal.Result{
+					Handled:   true,
+					Push:      pathMod,
+					Status:    "enter opens · tab chooses · left goes up",
+					SetStatus: true,
+				}
+			},
+			OnPickRef: func(req form.RefRequest) modal.Result {
+				reqCopy := req
+				a.afterModal(func(st core.State) core.State {
+					return a.openRef(st, &reqCopy)
+				})
+				return modal.Result{Handled: true}
+			},
+		})
+		return core.Next(a.pushModal(s, pm))
 	})
 	for _, id := range []string{palette.CmdFocusForm, palette.CmdFocusList, palette.CmdToggleFocus} {
-		a.handle(id, a.paletteCommand)
+		a.handle(id, a.handleModal)
 	}
 	a.handle(CmdHelpOpen, func(s core.State, _ core.Command) core.StepResult {
 		active := a.activeBindings(s)
@@ -2665,9 +2564,11 @@ func (a *App) register() {
 	})
 	a.handle(CmdModalCancel, a.cancel)
 
-	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdModeCycle,
-		pathpicker.CmdSelect, pathpicker.CmdParent, pathpicker.CmdOpen, pathpicker.CmdHiddenToggle} {
+	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdModeCycle} {
 		a.handle(id, a.pickerCommand)
+	}
+	for _, id := range []string{pathpicker.CmdSelect, pathpicker.CmdParent, pathpicker.CmdOpen, pathpicker.CmdHiddenToggle} {
+		a.handle(id, a.handleModal)
 	}
 	for _, id := range []string{CmdFormActivate, form.CmdSubmit, form.CmdEdit, form.CmdStop, form.CmdToggle, form.CmdCycle,
 		form.CmdInsert, form.CmdBackspace, form.CmdPick, form.CmdDraftPrev, form.CmdDraftNext, form.CmdDraftDiscard} {
@@ -2693,7 +2594,7 @@ func (a *App) register() {
 	a.handle(CmdOpenWith, a.openWith)
 	for _, id := range []string{markdown.CmdTOCToggle, markdown.CmdTOCNext, markdown.CmdTOCPrev, markdown.CmdHeadingJump, markdown.CmdLinkNext,
 		markdown.CmdLinkPrev, markdown.CmdLinkOpen, markdown.CmdCodeYank, CmdReaderBack, CmdReaderHeadingNext, CmdReaderHeadingPrev} {
-		a.handle(id, a.readerCommand)
+		a.handle(id, a.handleModal)
 	}
 	a.handle(CmdScratchToggle, a.scratchToggle)
 	a.handle(CmdInspectOpen, a.inspectOpen)
@@ -2734,8 +2635,8 @@ func (a *App) register() {
 
 	// Wave 4: confirmation modal, table presets, user actions, and focus jump hints.
 	a.handle(core.CmdAppQuit, a.appQuit)
-	a.handle(CmdConfirmAccept, a.confirmAccept)
-	a.handle(CmdConfirmCancel, a.confirmCancel)
+	a.handle(modal.CmdConfirmAccept, a.handleModal)
+	a.handle(modal.CmdConfirmCancel, a.handleModal)
 	a.handle(CmdTablePresetPick, a.tablePresetPick)
 	a.handle(CmdTablePresetSave, a.tablePresetSave)
 	a.handle(CmdTablePresetApply, a.tablePresetApply)

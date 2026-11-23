@@ -15,6 +15,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/markdown"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 )
 
@@ -301,19 +302,6 @@ func (a *App) newPane(s core.State, from *core.Ref, title, command, dir, role st
 
 // --- the Markdown reader ----------------------------------------------------------
 
-// readerState is the open reader: its document, the file it was read from
-// (links are relative to it) and the documents left behind by following links.
-type readerState struct {
-	md   *markdown.Model
-	path string
-	back []readerPage
-}
-
-type readerPage struct {
-	title, source, path string
-	offset              int
-}
-
 func (a *App) readFile(path string) (string, error) {
 	read := a.opts.ReadFile
 	if read == nil {
@@ -343,9 +331,44 @@ func (a *App) openReader(s core.State, t openTarget) core.State {
 	}
 	md := markdown.New(title, source)
 	md.ShowTOC = len(md.Headings) > 1
-	a.reader = &readerState{md: md, path: t.path}
+	var rm *modal.MarkdownModal
+	rm = modal.NewMarkdownModal(md, modal.MarkdownOptions{
+		ID:              modalReader,
+		Scope:           modalReader,
+		Mode:            ModeReader,
+		FocusID:         readerNode,
+		Path:            t.path,
+		WidthPct:        92,
+		HeightPct:       90,
+		ShowStatsBadges: true,
+		OnOpenLink: func(href string) modal.Result {
+			return a.followLink(rm, href)
+		},
+		OnYankCode: func(code string) modal.Result {
+			a.yank(code, "code block")
+			return modal.Result{Handled: true}
+		},
+		OnCommand: func(m *markdown.Model, cmd core.Command) (modal.Result, bool) {
+			switch cmd.ID {
+			case CmdReaderBack:
+				if !rm.Back() {
+					return modal.Result{Handled: true, Status: "this is the first document", SetStatus: true}, true
+				}
+				return modal.Result{Handled: true, Status: m.Title, SetStatus: true}, true
+			case CmdReaderHeadingNext, CmdReaderHeadingPrev:
+				step := markdown.CmdTOCNext
+				if cmd.ID == CmdReaderHeadingPrev {
+					step = markdown.CmdTOCPrev
+				}
+				m.HandleCommand(core.Command{ID: step, Count: cmd.Count})
+				m.HandleCommand(core.Command{ID: markdown.CmdHeadingJump})
+				return modal.Result{Handled: true}, true
+			}
+			return modal.Result{}, false
+		},
+	})
 	a.say("j/k scroll · ]/[ headings · t contents · tab links · enter opens · y yanks code · q closes")
-	return openModal(closeModal(s, modalOpenWith), modalReader, ModeReader, readerNode)
+	return a.pushModal(closeModal(s, modalOpenWith), rm)
 }
 
 func slug(text string) string {
@@ -361,12 +384,12 @@ func slug(text string) string {
 	return b.String()
 }
 
-// jumpToAnchor scrolls the reader to the heading a "#fragment" names.
-func (rs *readerState) jumpToAnchor(frag string) bool {
+// jumpToAnchor scrolls md to the heading a "#fragment" names.
+func jumpToAnchor(md *markdown.Model, frag string) bool {
 	want := slug(strings.TrimPrefix(frag, "#"))
-	for i, h := range rs.md.Headings {
+	for i, h := range md.Headings {
 		if slug(h.Text) == want {
-			rs.md.HandleCommand(core.Command{ID: markdown.CmdHeadingJump, Args: map[string]any{"index": i}})
+			md.HandleCommand(core.Command{ID: markdown.CmdHeadingJump, Args: map[string]any{"index": i}})
 			return true
 		}
 	}
@@ -376,113 +399,47 @@ func (rs *readerState) jumpToAnchor(frag string) bool {
 // followLink opens a link of the reader's document through the handlers: a
 // heading of this document, another Markdown file in the reader itself, and
 // anything else with the handler its rule names.
-func (a *App) followLink(s core.State, href string) core.State {
-	rs := a.reader
+func (a *App) followLink(rm *modal.MarkdownModal, href string) modal.Result {
+	if rm == nil {
+		return modal.Result{Handled: true}
+	}
+	md := rm.Model()
 	if strings.HasPrefix(href, "#") {
-		if !rs.jumpToAnchor(href) {
-			a.say("no heading %s in this document", href)
+		if !jumpToAnchor(md, href) {
+			return modal.Result{Handled: true, Status: fmt.Sprintf("no heading %s in this document", href), SetStatus: true}
 		}
-		return s
+		return modal.Result{Handled: true}
 	}
 	target, frag := href, ""
 	if !handlers.IsURL(href) {
 		target, frag, _ = strings.Cut(href, "#")
 		target = expandHome(target)
 		if !filepath.IsAbs(target) {
-			if rs.path == "" {
-				a.say("%s is relative, and this text has no file to be relative to", href)
-				return s
+			if rm.Path() == "" {
+				return modal.Result{Handled: true, Status: fmt.Sprintf("%s is relative, and this text has no file to be relative to", href), SetStatus: true}
 			}
-			target = filepath.Join(filepath.Dir(rs.path), target)
+			target = filepath.Join(filepath.Dir(rm.Path()), target)
 		}
 	}
 	rules := a.Handlers.Match(target)
 	if len(rules) == 0 {
-		a.say("no handler opens %s", target)
-		return s
+		return modal.Result{Handled: true, Status: fmt.Sprintf("no handler opens %s", target), SetStatus: true}
 	}
 	if rules[0].Kind == handlers.KindBuiltin && rules[0].Name == handlers.MarkdownReader {
 		text, err := a.readFile(target)
 		if err != nil {
 			a.fail("read "+target, err)
-			return s
+			return modal.Result{Handled: true}
 		}
-		rs.back = append(rs.back, readerPage{title: rs.md.Title, source: rs.md.Source, path: rs.path, offset: rs.md.Offset})
-		rs.md.Title, rs.path = filepath.Base(target), target
-		rs.md.SetSource(text)
-		rs.md.Offset, rs.md.ActiveLinkIdx = 0, 0
+		rm.Navigate(filepath.Base(target), text, target)
 		if frag != "" {
-			rs.jumpToAnchor(frag)
+			jumpToAnchor(md, frag)
 		}
-		a.say("%s · backspace goes back", rs.md.Title)
-		return s
+		return modal.Result{Handled: true, Status: fmt.Sprintf("%s · backspace goes back", md.Title), SetStatus: true}
 	}
-	return a.runHandler(s, rules[0], openTarget{path: target, title: filepath.Base(target)})
-}
-
-// readerCommand runs the reader's own commands: contents, headings, links
-// and the code-block yank.
-func (a *App) readerCommand(s core.State, c core.Command) core.StepResult {
-	rs := a.reader
-	if rs == nil || topModal(s) != modalReader {
-		return core.Next(s)
-	}
-	switch c.ID {
-	case CmdReaderBack:
-		if len(rs.back) == 0 {
-			a.say("this is the first document")
-			return core.Next(s)
-		}
-		last := rs.back[len(rs.back)-1]
-		rs.back = rs.back[:len(rs.back)-1]
-		rs.md.Title, rs.path = last.title, last.path
-		rs.md.SetSource(last.source)
-		rs.md.Offset = last.offset
-		a.say("%s", last.title)
-		return core.Next(s)
-	case CmdReaderHeadingNext, CmdReaderHeadingPrev:
-		// Select the next heading of the contents and go to it.
-		step := markdown.CmdTOCNext
-		if c.ID == CmdReaderHeadingPrev {
-			step = markdown.CmdTOCPrev
-		}
-		rs.md.HandleCommand(core.Command{ID: step, Count: c.Count})
-		rs.md.HandleCommand(core.Command{ID: markdown.CmdHeadingJump})
-		return core.Next(s)
-	}
-	action, _ := rs.md.HandleCommand(c)
-	switch action.Kind {
-	case markdown.ActionOpen:
-		return core.Next(a.followLink(s, action.Target))
-	case markdown.ActionYank:
-		a.yank(action.Text, "code block")
-	default:
-		switch c.ID {
-		case markdown.CmdLinkOpen:
-			a.say("no link here to open")
-		case markdown.CmdCodeYank:
-			a.say("no code block in this document")
-		}
-	}
-	return core.Next(s)
-}
-
-// readerModal draws the reader.
-func (a *App) readerModal() ui.ViewNode {
-	rs := a.reader
-	if a.Shell != nil && a.Shell.H > 12 {
-		rs.md.PageSize = a.Shell.H*85/100 - 6
-	}
-	body := rs.md.View(readerNode)
-	ov := overlay(modalReader, rs.md.Title, 92, 90, body)
-	ov.Scope = "reader"
-	ov.Badges = []ui.Badge{{Text: fmt.Sprintf("%d headings", len(rs.md.Headings))}, {Text: fmt.Sprintf("%d links", len(rs.md.Links))},
-		{Text: fmt.Sprintf("%d code", len(rs.md.CodeBlocks))}}
-	if rs.path != "" {
-		ov.Badges = append(ov.Badges, ui.Badge{Text: rs.path, Tone: "muted"})
-	}
-	if n := len(rs.back); n > 0 {
-		ov.Badges = append(ov.Badges, ui.Badge{Text: fmt.Sprintf("%d back", n), Tone: "accent"})
-	}
-	return ov
+	rule := rules[0]
+	a.afterModal(func(st core.State) core.State {
+		return a.runHandler(st, rule, openTarget{path: target, title: filepath.Base(target)})
+	})
+	return modal.Result{Handled: true}
 }
