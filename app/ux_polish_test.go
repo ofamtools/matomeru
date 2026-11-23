@@ -16,7 +16,7 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 
 	// Open palette and filter to record.new.
 	d.Keys(":")
-	if a.Modal() != "palette" || a.Mode() != ModePicker {
+	if a.Modal() != "palette" || a.Mode() != ModePickerFilter {
 		t.Fatalf(": did not open palette: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Type("record.new")
@@ -25,7 +25,7 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 		t.Fatalf("highlighting record.new did not show live args form:\n%s", frame)
 	}
 	palModal := a.activePalette()
-	if a.Mode() != ModePicker || palModal == nil || palModal.Model().FocusForm {
+	if a.Mode() != ModePickerFilter || palModal == nil || palModal.Model().FocusForm {
 		t.Fatalf("args form should start unfocused while browsing: mode=%q pal=%v", a.Mode(), palModal)
 	}
 	pal := palModal.Model()
@@ -157,9 +157,9 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 		t.Fatalf("ref picker did not populate task arg: raw=%#v typed=%#v", pal.ActiveForm.Values["task"], pal.ActiveForm.TypedValues()["task"])
 	}
 
-	// Esc in form returns focus to command list (ModePicker), tab goes back to form.
+	// Esc in form returns focus to command list (ModePickerFilter), tab goes back to form.
 	d.Keys("esc")
-	if a.Modal() != "palette" || a.Mode() != ModePicker || pal.FocusForm {
+	if a.Modal() != "palette" || a.Mode() != ModePickerFilter || pal.FocusForm {
 		t.Fatalf("esc in palette form should return to command list: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("tab", "enter")
@@ -226,7 +226,7 @@ func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("notes")
 	d.Keys("enter")
 	selectRow(a.nav.tables[workTable], data.RefText(guide.Ref()))

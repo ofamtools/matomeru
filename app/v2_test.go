@@ -57,7 +57,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true,
 		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetRowSemanticStyling: true, SetStatusIcons: true, SetTreeTopLevelGap: true,
 		SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree, SetWorkHierarchyLayout: WorkHierarchyLayoutAuto,
-		SetAutoArchiveExited: true, SetScrollOff: 5}
+		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -287,7 +287,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	// A schema registered later is a noun like any other.
 	a.Store.Registry().Register(data.Schema{Kind: "link", Title: "Link", Plural: "Links", SummaryField: "title",
 		Fields: []data.FieldSpec{{Name: "title", Type: core.ParamString, Required: true}, {Name: "url", Type: core.ParamString}}})
-	d.Keys("esc", "g", "n")
+	d.Keys("esc", "g", "n", "/")
 	d.Type("links")
 	d.Keys("enter")
 	if a.nav.browseKind != "link" || a.Space() != SpaceWork || !strings.Contains(d.Frame(), "Links") {
@@ -305,7 +305,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	}
 
 	// Notes: the edit form has the extra fields a lane.log note carries.
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("notes")
 	d.Keys("enter", "/")
 	d.Type("decision:")
@@ -400,7 +400,7 @@ func TestAssign(t *testing.T) {
 	}
 	// A run: its task changes.
 	run := titled(t, a, data.KindRun, "gate: data")
-	d.Keys("esc", "3", "g", "g", "m")
+	d.Keys("esc", "3", "g", "g", "m", "/")
 	d.Type("ochazuke-v2")
 	d.Keys("enter")
 	got, _ := a.Store.Get(run.Ref())
@@ -409,7 +409,7 @@ func TestAssign(t *testing.T) {
 	}
 	// The other nouns the key works on.
 	for _, kind := range []string{data.KindPane, data.KindNote, data.KindDocument, data.KindSchedule, data.KindLane} {
-		d.Keys("g", "n")
+		d.Keys("g", "n", "/")
 		d.Type(kind)
 		d.Keys("enter", "m")
 		if pm := a.activePicker("assign"); a.Modal() != "assign" || pm == nil || len(pm.Model().Items) == 0 || pm.Model().Items[0].Subtitle != "no task" {

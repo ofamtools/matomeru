@@ -524,7 +524,7 @@ func TestWave2SchedulePauseResumeMatchesDaemonScheduler(t *testing.T) {
 	d := NewDriver(a, 120, 36)
 
 	// Browse schedules in Work (g n -> schedules).
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("schedules")
 	d.Keys("enter")
 	if a.workKind() != data.KindSchedule {

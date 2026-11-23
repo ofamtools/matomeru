@@ -1,7 +1,6 @@
 package app
 
 import (
-	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/data"
@@ -11,6 +10,7 @@ import (
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/palette"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
@@ -23,11 +23,12 @@ const (
 	ModeTerminal       = "terminal"        // passthrough: keys go to the pane
 	ModeTerminalLeader = "terminal-leader" // reached only through the leader layer
 	ModeFilter         = "filter"          // typing narrows the focused list
-	ModePicker         = "picker"          // a modal picker: typing is the query
-	ModeForm           = "form"            // a modal form: moving between fields
-	ModeFormEdit       = "form-edit"       // typing into a form field
-	ModeOutline        = "outline"         // the outline overlay; falls back to normal
-	ModeOutlineEdit    = "outline-edit"    // in-place inline editing inside Outline / Tasks tree
+	ModePicker         = "picker"          // a modal picker in normal mode: j/k move, / filters
+	ModePickerFilter   = modal.ModePickerFilter
+	ModeForm           = "form"         // a modal form: moving between fields
+	ModeFormEdit       = "form-edit"    // typing into a form field
+	ModeOutline        = "outline"      // the outline overlay; falls back to normal
+	ModeOutlineEdit    = "outline-edit" // in-place inline editing inside Outline / Tasks tree
 
 	ModeBindings        = "bindings"         // the binding editor: moving between rows
 	ModeBindingsFilter  = "bindings-filter"  // typing the editor's filter
@@ -213,6 +214,7 @@ func Modes() []core.Mode {
 		{Name: ModeTerminalLeader},
 		{Name: ModeFilter},
 		{Name: ModePicker},
+		{Name: ModePickerFilter},
 		{Name: ModeForm},
 		{Name: ModeFormEdit},
 		{Name: ModeOutline, Base: ModeNormal},
@@ -421,34 +423,75 @@ func DefaultBindings() []core.Binding {
 		bind(ModeFilter, all, "tab", CmdFilterMode, "match mode"),
 		bind(ModeFilter, all, "ctrl+t", CmdFilterField, "filter field"),
 
-		// Pickers.
-		{Mode: ModePicker, Class: core.ClassPrintable, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
-		{Mode: ModePicker, Class: core.ClassPaste, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
-		// In the yank picker a second y, before anything is typed, copies the main value.
-		when(bind(ModePicker, "yank", "y", CmdYankPrimary, "yank the main value"), "facts.query == \"\""),
-		when(bind(ModePicker, "context", "y", CmdContextYank, "yank context item"), "facts.query == \"\""),
-		when(bind(ModePicker, "context", "a", CmdContextAttach, "attach context item"), "facts.query == \"\""),
-		when(bind(ModePicker, "table.presets", "s", CmdPresetPickerSave, "save current view as preset"), "facts.query == \"\""),
-		when(bind(ModePicker, "table.presets", "d", CmdPresetPickerDefault, "set default preset"), "facts.query == \"\""),
-		when(bind(ModePicker, "table.presets", "x", CmdPresetPickerDelete, "delete preset"), "facts.query == \"\""),
-		bind(ModePicker, all, "backspace", CmdPickerBack, "erase"),
-		bind(ModePicker, all, "enter", picker.CmdConfirm, "choose"),
-		bind(ModePicker, all, "esc", CmdModalCancel, "close"),
-		bind(ModePicker, all, "down", "motion.down", "down"),
-		bind(ModePicker, all, "up", "motion.up", "up"),
+		// Pickers: Normal Mode (j/k navigate, / or i enters filter mode).
+		bind(ModePicker, all, "j", "motion.down", "down"),
+		bind(ModePicker, all, "k", "motion.up", "up"),
+		hidden(bind(ModePicker, all, "down", "motion.down", "down")),
+		hidden(bind(ModePicker, all, "up", "motion.up", "up")),
 		hidden(bind(ModePicker, all, "ctrl+n", "motion.down", "down")),
 		hidden(bind(ModePicker, all, "ctrl+p", "motion.up", "up")),
 		hidden(bind(ModePicker, all, "ctrl+j", "motion.down", "down")),
 		hidden(bind(ModePicker, all, "ctrl+k", "motion.up", "up")),
+		bind(ModePicker, all, "g g", "motion.top", "top"),
+		bind(ModePicker, all, "G", "motion.bottom", "bottom"),
 		bind(ModePicker, all, "ctrl+d", "motion.half.down", "half page down"),
 		bind(ModePicker, all, "ctrl+u", "motion.half.up", "half page up"),
+		bind(ModePicker, all, "ctrl+f", "motion.page.down", "page down"),
+		bind(ModePicker, all, "ctrl+b", "motion.page.up", "page up"),
+		bind(ModePicker, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
+		bind(ModePicker, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
+		bind(ModePicker, all, "/", picker.CmdFilterStart, "filter"),
+		hidden(bind(ModePicker, all, "i", picker.CmdFilterStart, "filter")),
+		bind(ModePicker, "yank", "y", CmdYankPrimary, "yank the main value"),
+		bind(ModePicker, "context", "y", CmdContextYank, "yank context item"),
+		bind(ModePicker, "context", "a", CmdContextAttach, "attach context item"),
+		bind(ModePicker, "table.presets", "s", CmdPresetPickerSave, "save current view as preset"),
+		bind(ModePicker, "table.presets", "d", CmdPresetPickerDefault, "set default preset"),
+		bind(ModePicker, "table.presets", "x", CmdPresetPickerDelete, "delete preset"),
+		bind(ModePicker, "path", "h", pathpicker.CmdParent, "parent directory"),
+		hidden(bind(ModePicker, "path", "-", pathpicker.CmdParent, "parent directory")),
+		hidden(bind(ModePicker, "path", "left", pathpicker.CmdParent, "parent directory")),
+		bind(ModePicker, "path", "l", pathpicker.CmdOpen, "enter directory"),
+		hidden(bind(ModePicker, "path", "right", pathpicker.CmdOpen, "enter directory")),
 		bind(ModePicker, "path", "tab", pathpicker.CmdSelect, "choose this path"),
-		bind(ModePicker, "path", "left", pathpicker.CmdParent, "parent directory"),
-		bind(ModePicker, "path", "right", pathpicker.CmdOpen, "enter directory"),
-		bind(ModePicker, "path", "ctrl+t", pathpicker.CmdHiddenToggle, "hidden files"),
+		bind(ModePicker, "path", "enter", pathpicker.CmdSelect, "choose this path"),
+		bind(ModePicker, "path", "~", pathpicker.CmdHome, "home directory"),
+		bind(ModePicker, "path", ".", pathpicker.CmdHiddenToggle, "hidden files"),
+		hidden(bind(ModePicker, "path", "ctrl+t", pathpicker.CmdHiddenToggle, "hidden files")),
+		bind(ModePicker, "path", "p", pathpicker.CmdPreviewToggle, "preview"),
 		when(bind(ModePicker, "palette", "tab", palette.CmdFocusForm, "edit arguments"), "facts.hasArgs"),
 		when(bind(ModePicker, "palette", "right", palette.CmdFocusForm, "edit arguments"), "facts.hasArgs"),
+		hidden(when(bind(ModePicker, "palette", "l", palette.CmdFocusForm, "edit arguments"), "facts.hasArgs")),
+		bind(ModePicker, all, "enter", picker.CmdConfirm, "choose"),
 		bind(ModePicker, all, "tab", picker.CmdModeCycle, "match mode"),
+		bind(ModePicker, all, "esc", CmdModalCancel, "close"),
+		hidden(bind(ModePicker, all, "q", CmdModalCancel, "close")),
+
+		// Pickers: Filter Insert Mode (typing narrows the picker, esc returns to normal mode).
+		{Mode: ModePickerFilter, Class: core.ClassPrintable, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		{Mode: ModePickerFilter, Class: core.ClassPaste, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		when(bind(ModePickerFilter, "yank", "y", CmdYankPrimary, "yank the main value"), "facts.query == \"\""),
+		when(bind(ModePickerFilter, "context", "y", CmdContextYank, "yank context item"), "facts.query == \"\""),
+		when(bind(ModePickerFilter, "context", "a", CmdContextAttach, "attach context item"), "facts.query == \"\""),
+		when(bind(ModePickerFilter, "table.presets", "s", CmdPresetPickerSave, "save current view as preset"), "facts.query == \"\""),
+		when(bind(ModePickerFilter, "table.presets", "d", CmdPresetPickerDefault, "set default preset"), "facts.query == \"\""),
+		when(bind(ModePickerFilter, "table.presets", "x", CmdPresetPickerDelete, "delete preset"), "facts.query == \"\""),
+		bind(ModePickerFilter, all, "backspace", CmdPickerBack, "erase"),
+		bind(ModePickerFilter, all, "enter", picker.CmdConfirm, "choose"),
+		bind(ModePickerFilter, all, "esc", picker.CmdFilterStop, "normal mode"),
+		bind(ModePickerFilter, all, "down", "motion.down", "down"),
+		bind(ModePickerFilter, all, "up", "motion.up", "up"),
+		hidden(bind(ModePickerFilter, all, "ctrl+n", "motion.down", "down")),
+		hidden(bind(ModePickerFilter, all, "ctrl+p", "motion.up", "up")),
+		hidden(bind(ModePickerFilter, all, "ctrl+j", "motion.down", "down")),
+		hidden(bind(ModePickerFilter, all, "ctrl+k", "motion.up", "up")),
+		bind(ModePickerFilter, "path", "tab", pathpicker.CmdSelect, "choose this path"),
+		bind(ModePickerFilter, "path", "ctrl+t", pathpicker.CmdHiddenToggle, "hidden files"),
+		when(bind(ModePickerFilter, "path", "left", pathpicker.CmdParent, "parent directory"), "facts.query == \"\""),
+		when(bind(ModePickerFilter, "path", "right", pathpicker.CmdOpen, "enter directory"), "facts.query == \"\""),
+		when(bind(ModePickerFilter, "palette", "tab", palette.CmdFocusForm, "edit arguments"), "facts.hasArgs"),
+		when(bind(ModePickerFilter, "palette", "right", palette.CmdFocusForm, "edit arguments"), "facts.hasArgs"),
+		bind(ModePickerFilter, all, "tab", picker.CmdModeCycle, "match mode"),
 
 		// Forms: explicit submit (ctrl+s or [ Submit ] row); settings apply live.
 		bind(ModeForm, all, "j", "motion.down", "next field"),
@@ -664,7 +707,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeAbout, all, "q", CmdModalCancel, "close"),
 	}
 	out = append(out, macroBindings()...)
-	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
+	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)
 	}
 	// Motions and space switches work everywhere; the footer leaves them out
@@ -675,277 +718,6 @@ func DefaultBindings() []core.Binding {
 		}
 	}
 	return out
-}
-
-func spec(id, desc string, tags ...string) core.CommandSpec {
-	return core.CommandSpec{ID: id, Description: desc, Tags: tags}
-}
-
-func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string) core.CommandSpec {
-	meta := map[string]any{"record": true}
-	if len(kinds) > 0 {
-		meta["kinds"] = kinds
-	}
-	if whenExpr != "" {
-		meta["when"] = whenExpr
-	}
-	return core.CommandSpec{ID: id, Description: desc, Tags: tags, Meta: meta}
-}
-
-// CommandSpecs returns the specs of every command the app handles beyond
-// core's built-ins. Commands that change a record are tagged "editing", so
-// the terminal's leader layer leaves them out.
-func CommandSpecs() []core.CommandSpec {
-	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
-	base := append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...)
-	return append(base, []core.CommandSpec{
-		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
-		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
-		{ID: views.CmdNew, Description: "Create a record", Tags: []string{"editing"}, Params: []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: "task"}}},
-		recordSpec(views.CmdStar, "Star the focused record", nil, "facts.starStatus != \"starred\"", "editing"),
-		recordSpec(views.CmdUnstar, "Unstar the focused record", nil, "facts.starStatus == \"starred\"", "editing"),
-		recordSpec(views.CmdArchive, "Archive the focused record", nil, "facts.archiveStatus != \"archived\"", "editing"),
-		recordSpec(views.CmdRestore, "Restore the focused record", nil, "facts.archiveStatus == \"archived\"", "editing"),
-		recordSpec(views.CmdSnooze, "Snooze the focused record", nil, "!facts.snoozed", "editing"),
-		recordSpec(views.CmdUnsnooze, "Unsnooze the focused record", nil, "facts.snoozed", "editing"),
-		spec(CmdUndo, "Undo my last change", "editing"),
-		spec(CmdRedo, "Redo my last undone change", "editing"),
-		spec(CmdHistoryBack, "Go back to the previous Show page"),
-		spec(CmdHistoryForward, "Go forward again"),
-		spec(CmdSiteFocus, "Go to the selected pane's pages"),
-		spec(CmdSitePageOpen, "Open the focused page of the pane's site"),
-		spec(CmdSiteTOCToggle, "Show or hide the pane's Pages table of contents rail"),
-		recordSpec(CmdAnswer, "Answer the focused question", []string{data.KindQuestion}, "", "editing"),
-		spec(CmdTermAttach, "Type in the pane's terminal"),
-		spec(CmdTermDetach, "Leave the pane's terminal"),
-		{ID: CmdTermInput, Description: "Send a key to the pane", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}, {Name: "text", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		recordSpec(CmdRunRerun, "Run the focused run again", []string{data.KindRun}, "", "editing"),
-		recordSpec(CmdRunCancel, "Cancel the focused run", []string{data.KindRun}, "", "editing"),
-		spec(CmdRunNew, "Run a shell command as a run", "editing"),
-		spec(CmdExtRefresh, "Look for extensions and check their health", "editing"),
-		recordSpec(CmdExtRun, "Run a command of the focused extension", []string{data.KindExtension}, "", "editing"),
-		{ID: CmdTermPrefix, Description: "The pane's prefix key and the key after it: [ copy mode, t side terminal, v side vim",
-			Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		{ID: CmdWake, Description: "Look at what changed off the UI goroutine", Meta: map[string]any{"internal": true}},
-		spec(CmdOutlineOpen, "Open the outline of every task"),
-		spec(CmdOutlineJump, "Open the selected task"),
-		spec(CmdOutlineMoveDown, "Move the selected task down among its siblings", "editing"),
-		spec(CmdOutlineMoveUp, "Move the selected task up among its siblings", "editing"),
-		spec(CmdOutlineIndent, "Indent the selected task under its preceding sibling", "editing"),
-		spec(CmdOutlineOutdent, "Outdent the selected task to become a sibling of its parent", "editing"),
-		spec(CmdOutlineStatusCycle, "Cycle the selected task's workStatus", "editing"),
-		spec(CmdOutlineRename, "Rename the selected task via form", "editing"),
-		spec(CmdOutlineEditStart, "Edit the selected outline task title in place with cursor at start", "editing"),
-		spec(CmdOutlineEditEnd, "Edit the selected outline task title in place with cursor at end", "editing"),
-		spec(CmdOutlineAddBelow, "Insert a new outline task inline below at the same nesting level", "editing"),
-		spec(CmdOutlineAddAbove, "Insert a new outline task inline above at the same nesting level", "editing"),
-		{ID: CmdOutlineEditInsert, Description: "Insert text during inline outline edit", Meta: map[string]any{"internal": true}},
-		{ID: CmdOutlineEditBackspace, Description: "Erase character during inline outline edit", Meta: map[string]any{"internal": true}},
-		{ID: CmdOutlineEditIndent, Description: "Indent a new inline outline task under the item above", Meta: map[string]any{"internal": true}},
-		{ID: CmdOutlineEditOutdent, Description: "Outdent a new inline outline task one level", Meta: map[string]any{"internal": true}},
-		{ID: CmdOutlineEditCommit, Description: "Commit inline outline edit", Meta: map[string]any{"internal": true}},
-		{ID: CmdOutlineEditCancel, Description: "Cancel inline outline edit", Meta: map[string]any{"internal": true}},
-		spec(CmdRecentsPick, "Pick from recently updated records across all nouns"),
-		spec(CmdPagesPick, "Pick a page of any pane"),
-		spec(CmdRecordActions, "Pick an action for the focused record"),
-		{ID: CmdShellOpen, Description: "Open the shell I/O bar (! run, | pipe focused record, r! capture note)",
-			Params: []core.ParamSpec{{Name: "prefix", Type: core.ParamString, Enum: []string{"!", "|", "r!"}, Default: "!"}}},
-		spec(CmdPaletteOpen, "Pick a command to run"),
-		spec(CmdHelpOpen, "List the bindings that work here"),
-		recordSpec(CmdPathOpen, "Attach a directory or file to the focused record", nil, ""),
-		spec(CmdModalCancel, "Close the overlay"),
-		spec(CmdFilterStart, "Filter the focused list"),
-		{ID: CmdFilterInsert, Description: "Type into the filter", Params: text, Meta: map[string]any{"internal": true}},
-		{ID: CmdFilterBack, Description: "Erase the last character of the filter", Meta: map[string]any{"internal": true}},
-		{ID: CmdFilterAccept, Description: "Keep the filter and stop typing", Meta: map[string]any{"internal": true}},
-		{ID: CmdFilterCancel, Description: "Clear the filter and stop typing", Meta: map[string]any{"internal": true}},
-		spec(CmdFilterClear, "Empty the filter"),
-		spec(CmdFilterMode, "Change how the filter matches: substring, fuzzy, regex"),
-		spec(CmdFilterField, "Change which field the filter matches"),
-		spec(CmdSortCycle, "Sort the list: ascending, descending, off"),
-		spec(CmdSortField, "Sort by the next column"),
-		spec(CmdGroupField, "Group by the next column"),
-		spec(CmdGroupToggle, "Fold or unfold the focused group"),
-		spec(CmdMarkToggle, "Mark the focused row"),
-		spec(CmdArchivedToggle, "Show or hide archived records"),
-		spec(CmdNewHere, "Create a record for the current space or section", "editing"),
-		recordSpec(CmdAssign, "Move the focused record to a task (a task: under another task, or to the root)", nil, "", "editing"),
-		spec(CmdNounsPick, "Browse any noun: pick one and its index opens in Work"),
-		spec(CmdFilterFieldPick, "Pick the field the filter matches, from every field of the rows"),
-		spec(CmdSortFieldPick, "Pick the field to sort by, from every field of the rows"),
-		spec(CmdGroupFieldPick, "Pick the field to group by, from every field of the rows"),
-		spec(CmdSettingsOpen, "Change the settings; each change applies at once and is saved"),
-		spec(CmdBindingsOpen, "Browse, filter, rebind, unbind and reset the key bindings"),
-		spec(CmdPaneZoom, "Zoom the pane: hide the rail and the pages, or bring them back"),
-		spec(CmdPaneAttention, "Go to the next pane with an unread question or a waiting program"),
-		recordSpec(CmdPaneApprove, "Approve the selected pane's pending permission request", []string{data.KindPane}, "facts.hasPendingApproval"),
-		recordSpec(CmdPaneDeny, "Deny the selected pane's pending permission request", []string{data.KindPane}, "facts.hasPendingApproval"),
-		spec(CmdDaemonReset, "Reset the local daemon: close all live panes, clear telemetry and archive dropped panes"),
-		spec(CmdDaemonUpgrade, "Upgrade the local daemon binary in place without killing live panes or subagents"),
-		spec(CmdAppReload, "Reload the Matomeru TUI client binary in place without disturbing running daemon panes"),
-		recordSpec(CmdSchedulePause, "Pause the focused schedule so the daemon stops firing it", []string{data.KindSchedule}, "!facts.paused", "editing"),
-		recordSpec(CmdScheduleResume, "Resume the focused schedule so the daemon fires it again", []string{data.KindSchedule}, "facts.paused", "editing"),
-		recordSpec(CmdLaneShow, "Open the Show page of the pane's active lane", []string{data.KindPane, data.KindLane}, ""),
-		{ID: CmdTermEscape, Description: "Send a literal escape to the pane", Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsFilter, Description: "Type the binding editor's filter", Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsFilterDone, Description: "Keep the binding editor's filter", Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsFilterClear, Description: "Clear the binding editor's filter", Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsRebind, Description: "Press new keys for the focused binding", Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsCaptureKey, Description: "One key of the new sequence", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsCaptureDone, Description: "Set the keys pressed", Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsCaptureCancel, Description: "Leave the binding as it was", Meta: map[string]any{"internal": true}},
-		{ID: CmdBindingsMatchMode, Description: "Change how the binding editor's filter matches", Meta: map[string]any{"internal": true}},
-		{ID: "bindings.unbind", Description: "Unbind the focused binding", Meta: map[string]any{"internal": true}},
-		{ID: "bindings.reset", Description: "Reset the focused binding to what it was", Meta: map[string]any{"internal": true}},
-		{ID: "bindings.undo", Description: "Undo the last binding change", Meta: map[string]any{"internal": true}},
-		{ID: "bindings.redo", Description: "Redo the last undone binding change", Meta: map[string]any{"internal": true}},
-		{ID: "bindings.filter.append", Description: "Type into the binding editor's filter", Params: text, Meta: map[string]any{"internal": true}},
-		{ID: "bindings.filter.backspace", Description: "Erase the last character of the binding editor's filter", Meta: map[string]any{"internal": true}},
-		recordSpec(CmdYankPick, "Yank from the focused record: pick any of its values, each shown as it will be copied", nil, ""),
-		recordSpec(CmdYankPrimary, "Yank the focused record's main value (its title, URL or file) at once", nil, ""),
-		{ID: CmdMacroRecord, Description: "Record the keys pressed into a register (q then a letter)", Params: []core.ParamSpec{{Name: "reg", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		{ID: CmdMacroStop, Description: "Stop recording the macro", Meta: map[string]any{"internal": true}},
-		{ID: CmdMacroReplay, Description: "Replay a recorded macro (@ then its letter; @ @ the last one)", Params: []core.ParamSpec{{Name: "reg", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		recordSpec(CmdOpenTarget, "Open what the focused record points at (file, URL, directory or its own text) with the first matching handler", nil, "facts.openable"),
-		recordSpec(CmdOpenWith, "Open with: pick among every handler that matches, or copy the path", nil, "facts.openable"),
-		{ID: CmdReaderBack, Description: "Go back to the document a link was followed from", Meta: map[string]any{"internal": true}},
-		{ID: CmdReaderHeadingNext, Description: "Go to the next heading of the contents", Meta: map[string]any{"internal": true}},
-		{ID: CmdReaderHeadingPrev, Description: "Go to the previous heading of the contents", Meta: map[string]any{"internal": true}},
-		{ID: CmdScratchToggle, Description: "Show or hide a global scratch over the current space: the terminal, or the notes editor",
-			Params: []core.ParamSpec{{Name: "role", Type: core.ParamString, Enum: []string{data.RoleScratchTerm, data.RoleScratchVim}, Default: data.RoleScratchTerm}}},
-		{ID: CmdInspectOpen, Description: "Inspect a registry the app runs on: actions or modes",
-			Params: []core.ParamSpec{{Name: "what", Type: core.ParamString, Enum: []string{InspectActions, InspectModes}, Default: InspectActions}}, Meta: map[string]any{"internal": true}},
-		{ID: CmdInspectFilter, Description: "Type the inspector's filter", Meta: map[string]any{"internal": true}},
-		{ID: CmdInspectBind, Description: "Bind the focused action to a free key", Meta: map[string]any{"internal": true}},
-		recordSpec(CmdTriageRule, "Make a triage rule from the focused signal and apply it to the signals still unreviewed", []string{data.KindSignal}, "", "editing"),
-		{ID: CmdPickerInsert, Description: "Type into the picker", Params: text, Meta: map[string]any{"internal": true}},
-		{ID: CmdPickerBack, Description: "Erase the last character of the picker's query", Meta: map[string]any{"internal": true}},
-		{ID: picker.CmdConfirm, Description: "Choose the highlighted item", Meta: map[string]any{"internal": true}},
-		{ID: picker.CmdModeCycle, Description: "Change how the picker matches", Meta: map[string]any{"internal": true}},
-		{ID: pathpicker.CmdSelect, Description: "Choose the highlighted path", Meta: map[string]any{"internal": true}},
-		{ID: pathpicker.CmdParent, Description: "Go to the parent directory", Meta: map[string]any{"internal": true}},
-		{ID: pathpicker.CmdOpen, Description: "Enter the highlighted directory", Meta: map[string]any{"internal": true}},
-		{ID: pathpicker.CmdHiddenToggle, Description: "Show or hide hidden files", Meta: map[string]any{"internal": true}},
-		{ID: CmdFormActivate, Description: "Change the active field or submit on the Submit row", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdSubmit, Description: "Submit the form", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdEdit, Description: "Type into the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdStop, Description: "Stop typing into the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdToggle, Description: "Toggle the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdCycle, Description: "Pick the next choice of the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdInsert, Description: "Type into the active field", Params: text, Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdBackspace, Description: "Erase the last character of the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdPick, Description: "Pick a value for the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdDraftPrev, Description: "Load the previous saved draft", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdDraftNext, Description: "Step forward toward newer drafts or current edits", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: form.CmdDraftDiscard, Description: "Discard the currently loaded draft", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdInsert, Description: "Type into the shell command bar", Params: text, Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdSubmit, Description: "Run the shell command bar", Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdCancel, Description: "Close the shell command bar", Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdRegister, Description: "Paste a register into the shell command bar", Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdHistoryPrev, Description: "Older shell command from history", Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdHistoryNext, Description: "Newer shell command from history", Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdCompleteNext, Description: "Next completion in the shell command bar", Meta: map[string]any{"internal": true}},
-		{ID: commandline.CmdCompletePrev, Description: "Previous completion in the shell command bar", Meta: map[string]any{"internal": true}},
-		spec(CmdPanesGroupToggle, "Toggle pane rail grouping between project-pane and flat"),
-		spec(CmdContextPick, "Search and act on high-signal context items collected across panes"),
-		{ID: CmdContextYank, Description: "Yank the focused context item", Meta: map[string]any{"internal": true}},
-		{ID: CmdContextAttach, Description: "Attach the focused context item via context relation", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		spec(CmdProjectContextOpen, "Open the focused project context item with its matching handler"),
-		spec(CmdProjectContextYank, "Yank the focused project context item"),
-		spec(CmdProjectContextStar, "Star or unstar the focused project context item"),
-		spec(CmdProjectContextAttach, "Attach the focused project context item via context relation", "editing"),
-		spec(CmdPaneHints, "Show link/path/PR hint labels over the terminal screen"),
-		{ID: CmdHintsKey, Description: "Process a key in terminal hint mode", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}, {Name: "text", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		{ID: CmdHintsCancel, Description: "Cancel terminal hint mode", Meta: map[string]any{"internal": true}},
-		spec(CmdPaneCompose, "Open the multi-line prompt composer for the selected pane"),
-		{ID: CmdComposerInsert, Description: "Insert text into the prompt composer", Params: text, Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerBackspace, Description: "Erase before cursor in the prompt composer", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerEnter, Description: "Insert a newline or accept a completion in the prompt composer", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerSubmit, Description: "Deliver the composed prompt using the active delivery mode", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerCancel, Description: "Close the prompt composer and save a draft", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerModeCycle, Description: "Cycle prompt delivery mode (send, queue, interrupt)", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerComplete, Description: "Accept completion or cycle delivery mode in the prompt composer", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerUp, Description: "Move up in the prompt composer or completion list", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerDown, Description: "Move down in the prompt composer or completion list", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerDraftPrev, Description: "Load older draft or move up in completions", Meta: map[string]any{"internal": true}},
-		{ID: CmdComposerDraftNext, Description: "Load newer draft or move down in completions", Meta: map[string]any{"internal": true}},
-		spec(CmdQuestionNext, "Move to the next question on the Questions page"),
-		spec(CmdQuestionPrev, "Move to the previous question on the Questions page"),
-		spec(CmdQuestionSubmitAll, "Submit all staged answers for the active question batch", "editing"),
-		{ID: CmdAnswerBatchNext, Description: "Stage current answer and move to the next question in the batch", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-		{ID: CmdAnswerBatchPrev, Description: "Stage current answer and move to the previous question in the batch", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
-
-		{ID: CmdConfirmAccept, Description: "Confirm the active confirmation dialog", Meta: map[string]any{"internal": true}},
-		{ID: CmdConfirmCancel, Description: "Cancel the active confirmation dialog", Meta: map[string]any{"internal": true}},
-		spec(CmdTablePresetPick, "Pick, save, set default, or delete saved view presets for the focused table"),
-		{ID: CmdTablePresetSave, Description: "Save the focused table's filter, sort, and group as a named preset",
-			Params: []core.ParamSpec{
-				{Name: "name", Type: core.ParamString, Required: true, Description: "preset name"},
-				{Name: "default", Type: core.ParamBool, Default: false, Description: "make default for this table"},
-				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
-			}},
-		{ID: CmdTablePresetApply, Description: "Apply a saved preset to the focused table",
-			Params: []core.ParamSpec{
-				{Name: "name", Type: core.ParamString, Required: true, Description: "preset name"},
-				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
-			}},
-		{ID: CmdTablePresetDefault, Description: "Set (or clear) the default preset for the focused table",
-			Params: []core.ParamSpec{
-				{Name: "name", Type: core.ParamString, Description: "preset name (empty clears default)"},
-				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
-			}},
-		{ID: CmdTablePresetDelete, Description: "Delete a saved preset from the focused table",
-			Params: []core.ParamSpec{
-				{Name: "name", Type: core.ParamString, Required: true, Description: "preset name"},
-				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
-			}},
-		{ID: CmdPresetPickerSave, Description: "Save the current table view as a preset from the presets picker", Meta: map[string]any{"internal": true}},
-		{ID: CmdPresetPickerDefault, Description: "Set the highlighted preset as default for this table", Meta: map[string]any{"internal": true}},
-		{ID: CmdPresetPickerDelete, Description: "Delete the highlighted preset from this table", Meta: map[string]any{"internal": true}},
-		spec(CmdFocusHints, "Show focus-jump hint labels over visible focusable regions"),
-		spec(CmdAppAbout, "Show build versions, daemon status, live pane PIDs, storage paths, extensions, and harnesses"),
-		recordSpec(CmdPaneAssociate, "Associate the selected pane with a task/project and backfill its records", []string{data.KindPane}, "", "editing"),
-		recordSpec(CmdCommandRun, "Run the suggested command in 3 Runs and record status and lastRun", []string{data.KindCommand}, "", "editing"),
-		recordSpec(CmdCommandEditRun, "Edit the suggested command, arguments, or working directory before running it", []string{data.KindCommand}, "", "editing"),
-		recordSpec(CmdExtSetup, "Run setup for the focused extension if it advertises a setup command", []string{data.KindExtension}, "", "editing"),
-		spec(CmdTaskAddSibling, "Add a sibling task beside the focused task", "editing"),
-		spec(CmdTaskAddChild, "Add a child subtask under the focused task", "editing"),
-		spec(CmdTaskFoldToggle, "Fold or unfold the focused task subtree"),
-		spec(tree.CmdFoldToggle, "Fold or unfold the focused tree subtree"),
-		spec(tree.CmdFoldOpen, "Unfold the focused tree subtree"),
-		spec(tree.CmdFoldClose, "Fold the focused tree subtree"),
-		spec(tree.CmdFoldOpenAll, "Unfold every node in the focused tree"),
-		spec(tree.CmdFoldCloseAll, "Fold every parent node in the focused tree"),
-		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
-	}...)
-}
-
-// readerSpecs are the Markdown widget's own commands. They only make sense
-// in the reader, so the palette leaves them out.
-func readerSpecs() []core.CommandSpec {
-	specs := markdown.Specs()
-	for i := range specs {
-		specs[i].Meta = map[string]any{"internal": true}
-	}
-	return specs
-}
-
-// readlineSpecs exposes Ochazuke's Readline input actions in the registry and
-// inspector while leaving them out of the normal-mode command palette.
-func readlineSpecs() []core.CommandSpec {
-	specs := input.ReadlineSpecs()
-	for i := range specs {
-		specs[i].Meta = map[string]any{"internal": true}
-	}
-	return specs
-}
-
-func paletteSpecs() []core.CommandSpec {
-	specs := palette.CommandSpecs()
-	for i := range specs {
-		specs[i].Meta = map[string]any{"internal": true}
-	}
-	return specs
 }
 
 // appendReadlineBindings appends Ochazuke's default Readline bindings for
@@ -968,12 +740,4 @@ func appendReadlineBindings(out []core.Binding, mode, scope string) []core.Bindi
 		out = append(out, rb)
 	}
 	return out
-}
-
-// internal reports whether a command only makes sense from its own key (typing
-// into a filter, a picker's confirm), so the palette leaves it out.
-func internal(spec core.CommandSpec) bool {
-	on, _ := spec.Meta["internal"].(bool)
-	return on || strings.HasPrefix(spec.ID, "motion.") || (strings.HasPrefix(spec.ID, "focus.") && spec.ID != CmdFocusHints) ||
-		slices.Contains([]string{core.CmdModeSet, core.CmdModalOpen, core.CmdModalClose, core.CmdLayerPush, core.CmdLayerPop, core.CmdCountPush, core.CmdPageOpen}, spec.ID)
 }

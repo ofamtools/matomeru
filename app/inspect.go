@@ -365,13 +365,14 @@ func (a *App) inspectOpen(s core.State, c core.Command) core.StepResult {
 	pm := picker.New(strings.ToUpper(what[:1])+what[1:], a.inspectItems(what))
 	var m *modal.PickerModal
 	m = modal.NewPickerModal(pm, modal.PickerOptions{
-		ID:        "inspect",
-		Scope:     "inspect",
-		Mode:      ModeInspect,
-		Title:     "Inspect " + what,
-		WidthPct:  80,
-		HeightPct: 80,
-		PageSize:  12,
+		ID:         "inspect",
+		Scope:      "inspect",
+		Mode:       ModeInspect,
+		FilterMode: ModePickerFilter,
+		Title:      "Inspect " + what,
+		WidthPct:   80,
+		HeightPct:  80,
+		PageSize:   12,
 		Facts: func(*picker.Model) map[string]any {
 			return map[string]any{"inspecting": what}
 		},
@@ -385,16 +386,16 @@ func (a *App) inspectOpen(s core.State, c core.Command) core.StepResult {
 		OnCommand: func(p *picker.Model, cmd core.Command) (modal.Result, bool) {
 			switch cmd.ID {
 			case CmdInspectFilter:
-				m.SetMode(ModePicker)
+				p.Filtering = true
 				return modal.Result{
 					Handled:   true,
-					Mode:      ModePicker,
-					Status:    "type to filter · enter keeps · esc closes",
+					Mode:      ModePickerFilter,
+					Status:    "type to filter · enter keeps · esc returns",
 					SetStatus: true,
 				}, true
 			case picker.CmdConfirm:
 				// The inspector lists; enter only ends the typing of its filter.
-				m.SetMode(ModeInspect)
+				p.Filtering = false
 				return modal.Result{
 					Handled:   true,
 					Mode:      ModeInspect,

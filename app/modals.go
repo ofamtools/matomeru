@@ -220,6 +220,36 @@ func (a *App) activeSettingsForm() *modal.FormModal {
 
 // --- form modal builders --------------------------------------------------------
 
+const pathPickerStatus = "h/- up · l open · tab/enter choose · / filter"
+
+func (a *App) pickerStartInFilter(isPalette bool) bool {
+	mode := PickerDefaultModeNormal
+	if a != nil && a.cfg != nil && a.cfg.Settings != nil {
+		mode = a.cfg.Settings.String(SetPickerDefaultMode, PickerDefaultModeNormal)
+	}
+	switch mode {
+	case PickerDefaultModeFilter:
+		return true
+	case PickerDefaultModeAllNormal:
+		return false
+	default:
+		return isPalette
+	}
+}
+
+func (a *App) newPickerModal(pm *picker.Model, opts modal.PickerOptions) *modal.PickerModal {
+	if opts.Mode == "" {
+		opts.Mode = ModePicker
+	}
+	if opts.FilterMode == "" {
+		opts.FilterMode = ModePickerFilter
+	}
+	if !opts.StartInFilter {
+		opts.StartInFilter = a.pickerStartInFilter(false)
+	}
+	return modal.NewPickerModal(pm, opts)
+}
+
 func (a *App) formPickPath(getForm func() *modal.FormModal) func(form.PathRequest, any) modal.Result {
 	return func(req form.PathRequest, current any) modal.Result {
 		field := req.Field
@@ -236,7 +266,7 @@ func (a *App) formPickPath(getForm func() *modal.FormModal) func(form.PathReques
 		return modal.Result{
 			Handled:   true,
 			Push:      pm,
-			Status:    "enter opens · tab chooses · left goes up",
+			Status:    pathPickerStatus,
 			SetStatus: true,
 		}
 	}
@@ -445,7 +475,7 @@ func (a *App) newRefPickerModal(req form.RefRequest, onPick func(core.Ref)) *mod
 			})
 		}
 	}
-	return modal.NewPickerModal(pm, modal.PickerOptions{
+	return a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "ref",
 		PageSize: 10,
 		Create:   createHook,
@@ -531,12 +561,14 @@ func (a *App) newPathPickerModal(start any, onPick func(entry pathpicker.DirEntr
 		return nil, false
 	}
 	return modal.NewPathPickerModal(pp, modal.PathPickerOptions{
-		ID:        "path",
-		Scope:     "path",
-		Mode:      ModePicker,
-		FocusID:   "path",
-		WidthPct:  70,
-		HeightPct: 70,
+		ID:            "path",
+		Scope:         "path",
+		Mode:          ModePicker,
+		FilterMode:    ModePickerFilter,
+		StartInFilter: a.pickerStartInFilter(false),
+		FocusID:       "path",
+		WidthPct:      70,
+		HeightPct:     70,
 		OnPick: func(entry pathpicker.DirEntry) modal.Result {
 			if onPick != nil {
 				res := onPick(entry)
@@ -582,7 +614,7 @@ func (a *App) openPath(s core.State, field string, target *core.Ref, start any) 
 	if !ok {
 		return s
 	}
-	a.say("enter opens · tab chooses · left goes up")
+	a.say(pathPickerStatus)
 	return a.pushModal(s, pm)
 }
 
@@ -703,6 +735,8 @@ func (a *App) paletteOpen(s core.State, _ core.Command) core.StepResult {
 		ExpandedWidthPct: 90,
 		HeightPct:        75,
 		PickerMode:       ModePicker,
+		PickerFilterMode: ModePickerFilter,
+		StartInFilter:    a.pickerStartInFilter(true),
 		FormMode:         ModeForm,
 		FormEditMode:     ModeFormEdit,
 		OnRawQuery: func(query string) (modal.Result, bool) {
@@ -745,7 +779,7 @@ func (a *App) paletteOpen(s core.State, _ core.Command) core.StepResult {
 			return modal.Result{
 				Handled:   true,
 				Push:      pathMod,
-				Status:    "enter opens · tab chooses · left goes up",
+				Status:    pathPickerStatus,
 				SetStatus: true,
 			}
 		},
@@ -773,7 +807,7 @@ func (a *App) helpOpen(s core.State, _ core.Command) core.StepResult {
 	}
 	pm := picker.New("Bindings · "+a.Engine.Mode(s), items)
 	pm.Placeholder = "keys that work here"
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "help",
 		PageSize: 10,
 		OnConfirm: func(_ picker.Item) modal.Result {

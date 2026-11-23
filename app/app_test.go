@@ -157,7 +157,7 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	if a.Modal() != "path" || a.activePathPicker() == nil {
 		t.Fatalf("enter on defaultDir: modal %q, pathPicker %v", a.Modal(), a.activePathPicker())
 	}
-	d.Keys("left")
+	d.Keys("left", "/")
 	d.Type("mato")
 	d.Keys("tab")
 	if got := a.activeRecordForm().Model().Values["defaultDir"]; got != "/home/owner/proj/matomeru-next" || a.Modal() != "form" {
@@ -168,6 +168,7 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	if pm := a.activePicker("ref"); a.Modal() != "ref" || pm == nil || pm.Model().Title != "Pick Parent" {
 		t.Fatalf("enter on parent: modal %q, picker %v", a.Modal(), pm)
 	}
+	d.Keys("/")
 	d.Type("matomeru-v2")
 	d.Keys("enter")
 	if a.Modal() != "form" {
@@ -222,6 +223,7 @@ func TestListsWorkOnAnyField(t *testing.T) {
 	pick := func(field string, keys ...string) {
 		t.Helper()
 		d.Keys(keys...)
+		d.Keys("/")
 		d.Type(field)
 		d.Keys("enter")
 		if a.Modal() != "" {

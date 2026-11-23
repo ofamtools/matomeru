@@ -162,7 +162,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	d.Keys("2", "/")
 	d.Type("tier")
 	d.Keys("enter", "o") // sort title asc
-	d.Keys("g", "b")
+	d.Keys("g", "b", "/")
 	d.Type("workstatus")
 	d.Keys("enter")
 
@@ -215,7 +215,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	// Configure a completely separate preset on runs.table (proving tableID keying).
 	d.Keys("3", "/")
 	d.Type("gate")
-	d.Keys("enter", "g", "s")
+	d.Keys("enter", "g", "s", "/")
 	d.Type("title")
 	d.Keys("enter", "g", "v", "s", "i")
 	d.Type("gate-runs")
@@ -304,7 +304,7 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 	if !strings.Contains(d.Frame(), "task.ship") {
 		t.Fatalf("palette missing task.ship from actions.json:\n%s", d.Frame())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 1. Focus a PANE and open `;`: pane.* MUST sit strictly above record.* with visible headings.
 	d.Keys("1")
@@ -344,6 +344,7 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 	}
 
 	// Execute background action task.ship from `;` and verify template expansion in created run.
+	d.Keys("/")
 	d.Type("task.ship")
 	d.Keys("enter")
 	runsRes, err := a.Store.Query(data.Query{Kind: data.KindRun})
@@ -365,7 +366,7 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 	}
 
 	// Execute foreground action task.fg-open from `;` and verify core.ExecEffect.
-	d.Keys(";")
+	d.Keys(";", "/")
 	d.Type("task.fg-open")
 	d.Keys("enter")
 	var execEff *core.ExecEffect

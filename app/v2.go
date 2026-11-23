@@ -91,7 +91,7 @@ func (a *App) nounsPick(s core.State, _ core.Command) core.StepResult {
 	}
 	pm := picker.New("Nouns", items)
 	pm.Placeholder = "any noun: its index opens in Work"
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "nouns",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {
@@ -221,7 +221,7 @@ func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepRes
 		pm := picker.New(strings.ToUpper(what[:1])+what[1:]+" by", items)
 		pm.Placeholder = "any field of these rows"
 		tableID := id
-		m := modal.NewPickerModal(pm, modal.PickerOptions{
+		m := a.newPickerModal(pm, modal.PickerOptions{
 			ID:       "field",
 			PageSize: 10,
 			OnConfirm: func(picked picker.Item) modal.Result {
@@ -328,7 +328,7 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 	pm := picker.New("Move "+a.title(ref)+" to", items)
 	pm.Placeholder = "a task (or type a new task title)"
 	targetRef := ref
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "assign",
 		PageSize: 10,
 		Create: a.pickerCreateHook(data.KindTask, func(rec data.Record) modal.Result {

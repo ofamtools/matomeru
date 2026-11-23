@@ -534,10 +534,12 @@ func (a *App) register() {
 	a.handle(CmdPathOpen, a.pathOpen)
 	a.handle(CmdModalCancel, a.handleModal)
 
-	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdModeCycle} {
+	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdModeCycle,
+		picker.CmdFilterStart, picker.CmdFilterStop, picker.CmdFilterClear} {
 		a.handle(id, a.handleModal)
 	}
-	for _, id := range []string{pathpicker.CmdSelect, pathpicker.CmdParent, pathpicker.CmdOpen, pathpicker.CmdHiddenToggle} {
+	for _, id := range []string{pathpicker.CmdSelect, pathpicker.CmdParent, pathpicker.CmdOpen, pathpicker.CmdHiddenToggle,
+		pathpicker.CmdHome, pathpicker.CmdPreviewToggle, pathpicker.CmdSelectCurrent, pathpicker.CmdModeCycle} {
 		a.handle(id, a.handleModal)
 	}
 	for _, id := range []string{CmdFormActivate, form.CmdSubmit, form.CmdEdit, form.CmdStop, form.CmdToggle, form.CmdCycle,

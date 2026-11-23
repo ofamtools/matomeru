@@ -169,7 +169,7 @@ func (a *App) openWith(s core.State, c core.Command) core.StepResult {
 	pm := picker.New("Open "+what+" with", items)
 	pm.Placeholder = "a handler"
 	target := t
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "openwith",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {

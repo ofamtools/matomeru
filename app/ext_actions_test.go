@@ -108,7 +108,7 @@ esac
 		t.Fatal(err)
 	}
 
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("widgets")
 	d.Keys("enter")
 	a.WaitBackground()
@@ -162,7 +162,7 @@ esac
 
 func TestVisualSettingsOptOutRebuildsTablesImmediately(t *testing.T) {
 	a, d := demo(t)
-	d.Keys("2", "g", "n")
+	d.Keys("2", "g", "n", "/")
 	d.Type("lanes")
 	d.Keys("enter")
 	_ = d.Frame()

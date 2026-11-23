@@ -70,6 +70,7 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 		}
 	}
 	// Selecting [app] About opens modalAbout.
+	ed.Keys("/")
 	ed.Type("about")
 	ed.Keys("enter")
 	if ea.Modal() != "about" || ea.Mode() != ModeAbout {
@@ -115,6 +116,7 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	}
 
 	// Pick mounted extension noun -> jumps directly to 2 Work browsing df.culprit!
+	d.Keys("/")
 	d.Type("culprits")
 	d.Keys("enter")
 	if a.Modal() != "" || a.Space() != SpaceWork || a.workKind() != "df.culprit" {
@@ -122,7 +124,7 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	}
 
 	// Pick [pane] Screen -> jumps to 1 Panes on Screen.
-	d.Keys("'")
+	d.Keys("'", "/")
 	d.Type("screen claude")
 	d.Keys("enter")
 	if a.Space() != SpacePanes || a.Modal() != "" {
@@ -424,6 +426,7 @@ func TestWaveD2UnlinkedPaneWarningContextPersistAndAssociateBackfill(t *testing.
 	if a.Modal() != "pane.associate" || a.Mode() != ModePicker {
 		t.Fatalf("L on 1 Panes did not open pane.associate picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
+	d.Keys("/")
 	d.Type("matomeru-v2")
 	d.Keys("enter")
 	if a.Modal() != "" {
@@ -548,7 +551,7 @@ esac
 	}
 
 	// Open Culprits in 2 Work and wait for cache load.
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("culprits")
 	d.Keys("enter")
 	a.WaitBackground()
@@ -607,7 +610,7 @@ esac
 	if err := a2.MountCatalog(dfBin, manifest); err != nil {
 		t.Fatal(err)
 	}
-	d2.Keys("g", "n")
+	d2.Keys("g", "n", "/")
 	d2.Type("culprits")
 	d2.Keys("enter")
 	a2.WaitBackground()
@@ -849,6 +852,7 @@ func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
 	}
 
 	// Type a non-existent task title -> dynamic `+ Create new Task: "Fix auth flow"` row appears!
+	d.Keys("/")
 	d.Type("Fix auth flow")
 	frame := d.Frame()
 	if !strings.Contains(frame, `+ Create new Task: "Fix auth flow"`) {

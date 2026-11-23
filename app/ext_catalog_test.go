@@ -60,7 +60,7 @@ esac
 	}
 
 	// Browse the mounted external noun via g n -> triggers async ReadCache fetch.
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("bookmarks")
 	d.Keys("enter")
 	if a.workKind() != "links.bookmark" {

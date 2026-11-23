@@ -68,7 +68,7 @@ func (a *App) paneAssociate(s core.State, c core.Command) core.StepResult {
 	paneRef := pane.Ref()
 	pm := picker.New("Associate "+a.title(paneRef)+" with task", items)
 	pm.Placeholder = "pick an existing task or type a new task title"
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "pane.associate",
 		PageSize: 10,
 		Create: a.pickerCreateHook(data.KindTask, func(rec data.Record) modal.Result {

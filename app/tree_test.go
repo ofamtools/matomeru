@@ -59,7 +59,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 	d := NewDriver(a, 120, 32)
 
 	// 1. Browse Lanes in 2 Work -> defaults to tree view with guides, icons, and top-level gap.
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("lanes")
 	d.Keys("enter")
 	if !a.inWorkTree(a.State()) || a.workKind() != data.KindLane {
@@ -166,7 +166,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 	}
 
 	// 7. `g t` on a flat noun (Notes) refuses cleanly and stays in table view.
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("notes")
 	d.Keys("enter")
 	if a.inWorkTree(a.State()) || a.workKind() != data.KindNote {
@@ -178,7 +178,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 	}
 
 	// 8. Opt-outs: ui.treeTopLevelGap = false removes top-level blank lines; work.hierarchyLayout = "table" forces table.
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("lanes")
 	d.Keys("enter")
 	a.cfg.userSettings[SetTreeTopLevelGap] = false

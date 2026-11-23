@@ -394,7 +394,7 @@ func TestWave3ContextHarvestingAndPicker(t *testing.T) {
 	}
 
 	// Test search + enter (opens via handlers -> queues system-open run for URL).
-	d.Keys("g", "c")
+	d.Keys("g", "c", "/")
 	d.Type("docs.ofam.dev")
 	d.Keys("enter")
 	if a.Modal() != "" {

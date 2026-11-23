@@ -73,7 +73,7 @@ func (a *App) recentsPick(s core.State, _ core.Command) core.StepResult {
 	}
 	pm := picker.New("Recents", items)
 	pm.Placeholder = "recently updated records across all nouns"
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "recents",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {

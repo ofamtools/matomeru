@@ -212,7 +212,7 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 		return &ui.ViewNode{ID: "yank.preview.text", Kind: ui.KindText, Props: map[string]any{"text": text}}
 	}
 	yankTarget := ref
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "yank",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {

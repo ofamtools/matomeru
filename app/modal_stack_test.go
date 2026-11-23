@@ -121,7 +121,7 @@ func TestModalStackNestedFlows(t *testing.T) {
 	if _, ok := data.AsRef(pal.ActiveForm.TypedValues()["target"]); !ok {
 		t.Fatalf("palette target ref not set: %#v", pal.ActiveForm.TypedValues()["target"])
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 
 	// 3. Presets -> SaveForm -> Presets
 	d.Keys("2", "g", "v")
@@ -237,12 +237,13 @@ func TestModalStackScopeBindings(t *testing.T) {
 	if a.Modal() != "yank" {
 		t.Fatalf("y did not open yank picker: %q", a.Modal())
 	}
+	d.Keys("/")
 	d.Type("t")
 	d.Type("y") // query is non-empty, so y inserts into query rather than triggering CmdYankPrimary
 	if a.Modal() != "yank" || a.activePicker("yank").Model().Query != "ty" {
 		t.Fatalf("y with non-empty query should filter: modal=%q query=%q", a.Modal(), a.activePicker("yank").Model().Query)
 	}
-	d.Keys("esc", "y", "y") // second y with empty query yanks primary and closes
+	d.Keys("esc", "esc", "y", "y") // second y with empty query yanks primary and closes
 	if a.Modal() != "" || !strings.Contains(a.Status(), "yanked") {
 		t.Fatalf("y y in yank scope failed: modal=%q status=%q", a.Modal(), a.Status())
 	}
@@ -332,7 +333,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 		t.Fatalf("right in palette scope did not focus args form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("shift+tab")
-	if a.Modal() != "palette" || a.Mode() != ModePicker {
+	if a.Modal() != "palette" || a.Mode() != ModePickerFilter {
 		t.Fatalf("shift+tab in palette scope did not return to picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("tab")
@@ -340,7 +341,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 		t.Fatalf("tab in palette scope did not focus args form: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("esc")
-	if a.Modal() != "palette" || a.Mode() != ModePicker {
+	if a.Modal() != "palette" || a.Mode() != ModePickerFilter {
 		t.Fatalf("esc in palette form scope did not return to picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Keys("tab", "enter")
@@ -401,6 +402,7 @@ func TestModalStackPickerCreateHook(t *testing.T) {
 	if a.Modal() != "ref" {
 		t.Fatalf("expected ref picker, got %q", a.Modal())
 	}
+	d.Keys("/")
 	d.Type("Created Via Ref Hook")
 	d.Keys("enter")
 	if a.Modal() != "form" {
@@ -422,6 +424,7 @@ func TestModalStackPickerCreateHook(t *testing.T) {
 	if a.Modal() != "assign" {
 		t.Fatalf("expected assign picker, got %q", a.Modal())
 	}
+	d.Keys("/")
 	d.Type("Created Via Assign Hook")
 	d.Keys("enter")
 	if a.Modal() != "" {
@@ -452,6 +455,7 @@ func TestModalStackPickerCreateHook(t *testing.T) {
 	if a.Modal() != "pane.associate" {
 		t.Fatalf("expected pane.associate picker, got %q (status=%q)", a.Modal(), a.Status())
 	}
+	d.Keys("/")
 	d.Type("Created Via Pane Hook")
 	d.Keys("enter")
 	if a.Modal() != "" {

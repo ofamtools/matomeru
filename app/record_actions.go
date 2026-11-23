@@ -48,7 +48,7 @@ func (a *App) recordActionsOpen(s core.State, c core.Command) core.StepResult {
 	pm := picker.New("Actions · "+a.title(ref), items)
 	pm.Placeholder = "action for this " + strings.ToLower(schema.Title)
 	targetRef := ref
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "record.actions",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {

@@ -784,7 +784,7 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 	}
 	pm := picker.New("Context Items", items)
 	pm.Placeholder = "search URLs, files, PRs · enter open · y yank · a attach"
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "context",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {

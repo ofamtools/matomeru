@@ -181,7 +181,7 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 
 	pm := picker.New("Pages", items)
 	pm.Placeholder = "search [app], [pane], and [noun] pages"
-	m := modal.NewPickerModal(pm, modal.PickerOptions{
+	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:        "pages",
 		WidthPct:  76,
 		HeightPct: 80,

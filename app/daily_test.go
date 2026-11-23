@@ -20,7 +20,7 @@ import (
 // on the record, as "g n", the noun and j/k would.
 func browseTo(t *testing.T, a *App, d *Driver, rec data.Record) {
 	t.Helper()
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type(strings.ToLower(a.schema(rec.Kind).Plural))
 	d.Keys("enter")
 	if a.Modal() != "" || a.workKind() != rec.Kind {
@@ -84,6 +84,7 @@ func TestYankPicker(t *testing.T) {
 	if frame := d.Frame(); !strings.Contains(frame, "Yank from ochazuke-v2") || !strings.Contains(frame, "~/proj/ochazuke-next") {
 		t.Fatalf("the picker does not show what it copies:\n%s", frame)
 	}
+	d.Keys("/")
 	d.Type("repo")
 	if it, ok := a.activePicker("yank").Model().Focused(); !ok || it.ID != "repo" {
 		t.Fatalf("typing repo focuses %+v", it)
@@ -107,13 +108,13 @@ func TestYankPicker(t *testing.T) {
 	if a.Modal() != "" || a.Register(core.RegUnnamed) != "ochazuke-v2" || !strings.Contains(a.Status(), "yanked title") {
 		t.Fatalf("y y yanked %q (modal %q, status %q)", a.Register(core.RegUnnamed), a.Modal(), a.Status())
 	}
-	d.Keys("y")
+	d.Keys("y", "/")
 	d.Type("json")
 	d.Keys("enter")
 	if text := a.Register(core.RegUnnamed); !strings.Contains(text, `"kind": "task"`) || !strings.Contains(text, task.ID) {
 		t.Fatalf("json = %s", text)
 	}
-	d.Keys("y")
+	d.Keys("y", "/")
 	d.Type("markdown")
 	d.Keys("enter")
 	if text := a.Register(core.RegUnnamed); !strings.HasPrefix(text, "# ochazuke-v2\n") || !strings.Contains(text, "- repo: ochazuke") {
@@ -128,6 +129,7 @@ func TestYankPicker(t *testing.T) {
 			t.Errorf("the yank picker of a pane has no %q: %v", want, ids)
 		}
 	}
+	d.Keys("/")
 	d.Type("pid")
 	d.Keys("enter")
 	if a.Register(core.RegUnnamed) != "48211" {
@@ -322,12 +324,13 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 	if frame := d.Frame(); !strings.Contains(frame, "markdown-reader") || !strings.Contains(frame, "side-vim") || !strings.Contains(frame, "Copy Path") {
 		t.Fatalf("open with:\n%s", frame)
 	}
+	d.Keys("/")
 	d.Type("copy")
 	d.Keys("enter")
 	if a.Register(core.RegUnnamed) != guide || a.Modal() != "" {
 		t.Fatalf("Copy Path yanked %q", a.Register(core.RegUnnamed))
 	}
-	d.Keys("O")
+	d.Keys("O", "/")
 	d.Type("side")
 	d.Keys("enter")
 	side := panesWithRole(t, a, data.RoleSideVim)
@@ -675,7 +678,7 @@ func TestInspectActionsAndModes(t *testing.T) {
 		t.Fatalf("%s should start unbound", CmdGroupField)
 	}
 	d.Keys("j", "j", "/")
-	if a.Mode() != ModePicker {
+	if a.Mode() != ModePickerFilter {
 		t.Fatalf("/ in the inspector: mode %q", a.Mode())
 	}
 	d.Type(CmdGroupField)
@@ -706,7 +709,7 @@ func TestInspectActionsAndModes(t *testing.T) {
 	}
 
 	// Modes, from the noun browser.
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("modes")
 	d.Keys("enter")
 	inspectMod = a.activePicker("inspect")
@@ -721,7 +724,7 @@ func TestInspectActionsAndModes(t *testing.T) {
 	if len(a.bind.userBindings) != before || a.Modal() != "" {
 		t.Fatal("a bound something in the modes inspector, or q did not close it")
 	}
-	d.Keys("g", "n")
+	d.Keys("g", "n", "/")
 	d.Type("actions")
 	d.Keys("enter")
 	inspectMod = a.activePicker("inspect")
@@ -840,6 +843,7 @@ func TestRecordActionsPicker(t *testing.T) {
 		}
 	}
 	// Picking record.star runs it on the focused task.
+	d.Keys("/")
 	d.Type("record.star")
 	d.Keys("enter")
 	rec, err := a.Store.Get(task.Ref())
@@ -930,7 +934,7 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	if pal.Model().Picker.SelectedIdx == beforeSel {
 		t.Fatal("ctrl+n did not move selection in picker")
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 4. Binding editor filter mode: ctrl+w works on filter query.
 	d.Keys("B", "/")

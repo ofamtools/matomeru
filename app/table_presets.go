@@ -194,7 +194,7 @@ func (a *App) tablePresetPick(s core.State, c core.Command) core.StepResult {
 		pm.Placeholder = "enter applies · s saves · d default · x deletes"
 	}
 	var m *modal.PickerModal
-	m = modal.NewPickerModal(pm, modal.PickerOptions{
+	m = a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "table.presets",
 		PageSize: 10,
 		Facts: func(*picker.Model) map[string]any {
