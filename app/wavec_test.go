@@ -121,7 +121,7 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 	}
 	d.Keys("ctrl+u")
 	d.Type("Second Renamed")
-	d.Keys("enter", "esc")
+	d.Keys("ctrl+s")
 	if rec, _ := store.Get(t2.Ref()); rec.Text("title") != "Second Renamed" {
 		t.Fatalf("title after rename = %q, want Second Renamed", rec.Text("title"))
 	}

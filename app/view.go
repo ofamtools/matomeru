@@ -484,10 +484,17 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		if fs.ref != nil {
 			rec, _ = a.Store.Get(*fs.ref)
 		}
-		fs.fm.SubmitLabel = "change field · written as you go"
 		panel := views.EditView(a.schema(fs.kind), rec, fs.fm, modalForm)
+		badges := make([]ui.Badge, 0, len(panel.Badges)+2)
+		for _, b := range panel.Badges {
+			if b.Text == "changed" {
+				continue
+			}
+			badges = append(badges, b)
+		}
+		badges = append(badges, formBadges(fs.fm)...)
 		ov := overlay(m.ID, panel.Title, 70, 0, panel.Children...)
-		ov.Scope, ov.Ref, ov.Badges, ov.Facts = panel.Scope, panel.Ref, panel.Badges, panel.Facts
+		ov.Scope, ov.Ref, ov.Badges, ov.Facts = panel.Scope, panel.Ref, badges, panel.Facts
 		return ov
 	case modalSettings:
 		if a.settings == nil {
@@ -535,6 +542,7 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		}
 		ov := overlay(m.ID, a.launch.fm.Title, 70, 0, a.launch.fm.View(modalLaunch+".form"))
 		ov.Scope = "launch"
+		ov.Badges = formBadges(a.launch.fm)
 		return ov
 	case modalAnswer:
 		if a.answer == nil {
@@ -542,6 +550,7 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		}
 		ov := overlay(m.ID, a.answer.fm.Title, 70, 0, a.answer.fm.View(modalAnswer+".form"))
 		ov.Scope = "answer"
+		ov.Badges = formBadges(a.answer.fm)
 		return ov
 	case modalPalette:
 		if a.palette == nil {

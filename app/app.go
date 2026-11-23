@@ -162,13 +162,14 @@ type historyEntry struct {
 }
 
 type formState struct {
-	kind  string
-	ref   *core.Ref // nil until the new record is first written
-	fm    *form.Model
-	about *core.Ref // a new note is attached to this record
+	kind     string
+	ref      *core.Ref // nil for a new record
+	fm       *form.Model
+	about    *core.Ref // a new note is attached to this record
+	draftKey string
 	// For an answer: the page and card it answers.
 	pageID, cardID string
-	// For a launch form: what enter runs. It reports whether to close the form.
+	// For a launch form: what submit runs. It reports whether to close the form.
 	submit func(core.State, map[string]any) (core.State, bool)
 }
 
@@ -231,6 +232,7 @@ type App struct {
 	form        *formState
 	answer      *formState
 	launch      *formState
+	drafts      *form.DraftStore
 	lastFocus   map[string]string // region -> its last focused node
 	focusRegion string
 
@@ -288,6 +290,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
 		userSettings: map[string]any{}, readCache: data.NewReadCache(),
 		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
+		drafts: form.NewDraftStore(),
 	}
 	a.specs = CommandSpecs()
 	a.bindings = DefaultBindings()
@@ -295,6 +298,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 
 	if dir := opts.ConfigDir; dir != "" {
 		a.loadConfig(dir)
+		a.loadDrafts(dir)
 	}
 	a.loadHandlers(opts.ConfigDir)
 	theme := a.theme()
@@ -1121,8 +1125,10 @@ func (a *App) edit(s core.State, c core.Command) core.StepResult {
 		a.fail("edit", err)
 		return core.Next(s)
 	}
-	a.form = &formState{kind: ref.Kind, ref: &ref, fm: views.FormForRecordWith(a.schema(ref.Kind), rec, a.editOptions())}
-	a.say("each change is written as you make it · u undoes")
+	fs := &formState{kind: ref.Kind, ref: &ref, fm: views.FormForRecordWith(a.schema(ref.Kind), rec, a.editOptions())}
+	a.configureRecordForm(fs)
+	a.form = fs
+	a.say("ctrl+s saves · esc closes (saves draft)")
 	return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
 }
 
@@ -1155,8 +1161,9 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 			}
 		}
 		fs.fm.Dirty = false
+		a.configureRecordForm(fs)
 		a.form = fs
-		a.say("new %s · it is created with the first field you fill in", strings.ToLower(schema.Title))
+		a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
 		return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
 	}
 	subject, has := a.subject(s, c)
@@ -1185,8 +1192,9 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		}
 	}
 	fs.fm.Dirty = false
+	a.configureRecordForm(fs)
 	a.form = fs
-	a.say("new %s · it is created with the first field you fill in", strings.ToLower(schema.Title))
+	a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
 	return core.Next(openModal(s, modalForm, ModeForm, modalForm+".form"))
 }
 
@@ -1202,67 +1210,8 @@ func (a *App) reloadForm() {
 	}
 	idx := fs.fm.ActiveIdx
 	fs.fm = views.FormForRecordWith(a.schema(fs.kind), rec, a.editOptions())
-	fs.fm.ActiveIdx = min(idx, max(len(fs.fm.Specs)-1, 0))
-}
-
-// commit writes the active field of the edit form: a patch of that one field,
-// or, for a record that does not exist yet, its creation.
-func (a *App) commit() {
-	fs := a.form
-	if fs == nil || fs.fm.ActiveIdx >= len(fs.fm.Specs) {
-		return
-	}
-	name := fs.fm.Specs[fs.fm.ActiveIdx].Name
-	fs.fm.Validate()
-	if msg := fs.fm.Errors[name]; msg != "" && !(msg == "required" && fs.ref == nil) {
-		fs.fm.Errors = map[string]string{name: msg}
-		a.say("%s %s; not written", name, msg)
-		return
-	}
-	fs.fm.Errors = map[string]string{}
-	values := fs.fm.TypedValues()
-	value, has := values[name]
-	schema := a.schema(fs.kind)
-	universal := views.IsUniversalField(name)
-	if fs.ref == nil {
-		if !has || value == "" || universal {
-			return // nothing to create a record from yet
-		}
-		// Star, archive and snooze are not fields: they are set once it exists.
-		maps.DeleteFunc(values, func(k string, _ any) bool { return views.IsUniversalField(k) })
-		rec, cs, err := a.Store.Create(data.CreateInput{Kind: fs.kind, Fields: values}, User)
-		if err != nil {
-			a.fail("create "+fs.kind, err)
-			return
-		}
-		ref := rec.Ref()
-		fs.ref = &ref
-		fs.fm.Title = "Edit " + views.Title(schema, *rec)
-		a.syncManagedFile(rec)
-		if fs.about != nil {
-			if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *fs.about}, User); err != nil {
-				a.fail("attach note", err)
-				return
-			}
-		}
-		a.wrote("created "+strings.ToLower(schema.Title)+" "+views.Title(schema, *rec), cs, nil)
-		return
-	}
-	if universal {
-		a.commitUniversal(*fs.ref, name, value)
-		return
-	}
-	if !has {
-		value = nil // an emptied field is removed
-	}
-	rec, cs, err := a.Store.Patch(data.PatchInput{Ref: *fs.ref, Fields: map[string]any{name: value}}, User)
-	if err == nil && cs != nil {
-		fs.fm.Title = "Edit " + views.Title(schema, *rec)
-		if name == "body" || name == "title" {
-			a.syncManagedFile(rec)
-		}
-	}
-	a.wrote(fmt.Sprintf("%s %s = %s", a.title(*fs.ref), name, data.Text(value)), cs, err)
+	a.configureRecordForm(fs)
+	fs.fm.ActiveIdx = min(idx, max(len(fs.fm.Specs), 0))
 }
 
 // syncManagedFile writes a managed file for a document or note when it has a
@@ -1313,43 +1262,68 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	fm := fs.fm
-	record := modal == modalForm // an edit form writes each change
-	var spec core.ParamSpec
-	if fm.ActiveIdx < len(fm.Specs) {
-		spec = fm.Specs[fm.ActiveIdx]
-	}
-	kind := form.KindFor(spec)
 	id := c.ID
+	if modal == modalSettings && (id == form.CmdDraftPrev || id == form.CmdDraftNext || id == form.CmdDraftDiscard || id == form.CmdSubmit) {
+		return core.Next(s)
+	}
 	if id == CmdFormActivate {
-		switch kind {
-		case form.KindBool, form.KindEnum:
-			id = form.CmdToggle
-		case form.KindPath, form.KindRef:
-			id = form.CmdPick
-		default:
-			id = form.CmdEdit
+		if fm.OnSubmitRow() {
+			id = form.CmdSubmit
+		} else {
+			var spec core.ParamSpec
+			if fm.ActiveIdx < len(fm.Specs) {
+				spec = fm.Specs[fm.ActiveIdx]
+			}
+			switch form.KindFor(spec) {
+			case form.KindBool, form.KindEnum:
+				id = form.CmdToggle
+			case form.KindPath, form.KindRef:
+				id = form.CmdPick
+			default:
+				id = form.CmdEdit
+			}
 		}
 		c.ID = id
 	}
 	wasEditing := fm.Editing
+	prevDraftIdx := fm.ActiveDraftIndex()
 	res, _ := fm.HandleCommand(c)
 	switch {
 	case res.PickPath != nil:
 		return core.Next(a.openPath(s, res.PickPath.Field, nil, fm.Values[res.PickPath.Field]))
 	case res.PickRef != nil:
 		return core.Next(a.openRef(s, res.PickRef))
+	case res.HasDiscardedDraft:
+		if fs.draftKey != "" && a.drafts != nil {
+			a.drafts.Remove(fs.draftKey, res.DiscardedDraftIdx)
+			a.saveDrafts()
+		}
+		a.say("discarded draft")
+		return core.Next(withMode(s, ModeForm))
+	case res.Submitted && modal == modalForm:
+		next := a.submitForm(s, fs, res.Values)
+		if topModal(next) == modalForm {
+			mode := ModeForm
+			if fm.Editing {
+				mode = ModeFormEdit
+			}
+			next = withMode(next, mode)
+		}
+		return core.Next(next)
 	case res.Submitted && modal == modalAnswer:
 		_, err := a.Router.SubmitAnswer(fs.pageID, fs.cardID, res.Values, User)
 		if err != nil {
 			a.fail("answer", err)
 			return core.Next(s)
 		}
+		a.clearSubmittedDraft(fs)
 		a.answer = nil
 		a.say("answered %q · u undoes", fm.Title)
 		return core.Next(closeModal(s, modalAnswer))
 	case res.Submitted && modal == modalLaunch:
 		next, done := fs.submit(s, res.Values)
 		if done {
+			a.clearSubmittedDraft(fs)
 			a.launch = nil
 			next = closeModal(next, modalLaunch)
 		}
@@ -1359,19 +1333,28 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 	case res.Cancelled:
 		return a.cancel(s, c)
 	}
-	write := func() {}
-	switch {
-	case record:
-		write = a.commit
-	case modal == modalSettings:
-		write = a.commitSetting
-	}
 	switch id {
-	case form.CmdToggle, form.CmdCycle:
-		write()
-	case form.CmdStop:
-		if wasEditing {
-			write()
+	case form.CmdDraftPrev:
+		if idx := fm.ActiveDraftIndex(); idx >= 0 {
+			a.say("draft %d of %d", idx+1, fm.DraftCount())
+		} else if fm.DraftCount() == 0 {
+			a.say("no drafts saved")
+		}
+	case form.CmdDraftNext:
+		if idx := fm.ActiveDraftIndex(); idx >= 0 {
+			a.say("draft %d of %d", idx+1, fm.DraftCount())
+		} else if prevDraftIdx >= 0 {
+			a.say("back to current edits")
+		}
+	}
+	if modal == modalSettings {
+		switch id {
+		case form.CmdToggle, form.CmdCycle:
+			a.commitSetting()
+		case form.CmdStop:
+			if wasEditing {
+				a.commitSetting()
+			}
 		}
 	}
 	mode := ModeForm
@@ -1425,9 +1408,12 @@ func (a *App) answerQuestion(s core.State, _ core.Command) core.StepResult {
 		specs = []core.ParamSpec{{Name: "answer", Type: core.ParamString, Required: true}}
 	}
 	fm := form.New(card.Title, specs, values)
-	fm.SubmitLabel = "send answer"
-	a.answer = &formState{fm: fm, pageID: a.activePage[pane.ID], cardID: card.ID}
-	a.say("space and h/l choose · i types · enter sends")
+	fm.SubmitRow = true
+	fm.SubmitLabel = "Send answer"
+	fs := &formState{fm: fm, pageID: a.activePage[pane.ID], cardID: card.ID}
+	a.attachFormDrafts(fs, answerDraftKey(fs.pageID, fs.cardID))
+	a.answer = fs
+	a.say("space and h/l choose · i types · ctrl+s sends")
 	return core.Next(openModal(s, modalAnswer, ModeForm, modalAnswer+".form"))
 }
 
@@ -1510,9 +1496,8 @@ func (a *App) pickPath(s core.State, picked *pathpicker.DirEntry) core.State {
 	switch {
 	case field != "" && topModal(s) == modalPalette && a.palette != nil:
 		a.palette.SetPickedValue(field, picked.Path)
-	case field != "" && a.form != nil:
-		a.form.fm.SetValue(field, picked.Path)
-		a.commit()
+	case field != "" && a.formOf(topModal(s)) != nil:
+		a.formOf(topModal(s)).fm.SetValue(field, picked.Path)
 	case target != nil:
 		_, cs, err := a.Store.Relate(data.RelateInput{From: *target, Kind: data.RelDirectory, To: core.Ref{Kind: "directory", ID: picked.Path}}, User)
 		a.wrote(fmt.Sprintf("%s: directory %s", a.title(*target), picked.Path), cs, err)
@@ -1596,12 +1581,11 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		if picked.Ref != nil {
 			if topModal(s) == modalPalette && a.palette != nil {
 				a.palette.SetPickedValue(a.refField, *picked.Ref)
-			} else if a.form != nil {
-				a.form.fm.SetValue(a.refField, *picked.Ref)
-				if i := slices.IndexFunc(a.form.fm.Specs, func(p core.ParamSpec) bool { return p.Name == a.refField }); i >= 0 {
-					a.form.fm.ActiveIdx = i
+			} else if fs := a.formOf(topModal(s)); fs != nil {
+				fs.fm.SetValue(a.refField, *picked.Ref)
+				if i := slices.IndexFunc(fs.fm.Specs, func(p core.ParamSpec) bool { return p.Name == a.refField }); i >= 0 {
+					fs.fm.ActiveIdx = i
 				}
-				a.commit()
 			}
 		}
 	case modalRecordActions:
@@ -2199,11 +2183,32 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 	case "":
 		return core.Next(s)
 	case modalForm:
+		saved := a.saveFormDraft(a.form)
 		a.form = nil
+		if saved {
+			a.say("closed · draft saved ([ restores)")
+		} else {
+			a.say("closed")
+		}
+		return core.Next(closeModal(s, id))
 	case modalAnswer:
+		saved := a.saveFormDraft(a.answer)
 		a.answer = nil
+		if saved {
+			a.say("closed · draft saved ([ restores)")
+		} else {
+			a.say("closed")
+		}
+		return core.Next(closeModal(s, id))
 	case modalLaunch:
+		saved := a.saveFormDraft(a.launch)
 		a.launch = nil
+		if saved {
+			a.say("closed · draft saved ([ restores)")
+		} else {
+			a.say("closed")
+		}
+		return core.Next(closeModal(s, id))
 	case modalPath:
 		a.path = nil
 	case modalSettings:
@@ -2479,7 +2484,7 @@ func (a *App) register() {
 		a.handle(id, a.pickerCommand)
 	}
 	for _, id := range []string{CmdFormActivate, form.CmdSubmit, form.CmdEdit, form.CmdStop, form.CmdToggle, form.CmdCycle,
-		form.CmdInsert, form.CmdBackspace, form.CmdPick} {
+		form.CmdInsert, form.CmdBackspace, form.CmdPick, form.CmdDraftPrev, form.CmdDraftNext, form.CmdDraftDiscard} {
 		a.handle(id, a.formCommand)
 	}
 

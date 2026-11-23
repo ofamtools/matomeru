@@ -571,9 +571,9 @@ func TestRuleFromSignal(t *testing.T) {
 	if frame := d.Frame(); !strings.Contains(frame, "Rule from Bump b") || !strings.Contains(frame, "dependabot[bot]") {
 		t.Fatalf("the form:\n%s", frame)
 	}
-	d.Keys("enter")
+	d.Keys("ctrl+s")
 	if a.Modal() != "" || !strings.Contains(a.Status(), "3 of 4 unreviewed signals cleaned up") {
-		t.Fatalf("after enter: modal %q, status %q", a.Modal(), a.Status())
+		t.Fatalf("after ctrl+s: modal %q, status %q", a.Modal(), a.Status())
 	}
 	rules, err := a.Store.Query(data.Query{Kind: data.KindTriageRule})
 	if err != nil || rules.Total != 1 || rules.Items[0].Text("title") != "Noise: github dependabot[bot]" || !rules.Items[0].Bool("enabled") {
@@ -854,7 +854,7 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	if got := a.form.fm.Values["title"]; got != "top alpha beta " {
 		t.Fatalf("form ctrl+a + type -> %q", got)
 	}
-	d.Keys("ctrl+e", "ctrl+y", "enter", "esc")
+	d.Keys("ctrl+e", "ctrl+y", "ctrl+s")
 	rec, err := a.Store.Get(task.Ref())
 	if err != nil || rec.Text("title") != "top alpha beta gamma" {
 		t.Fatalf("form commit after readline = %q (err=%v)", rec.Text("title"), err)

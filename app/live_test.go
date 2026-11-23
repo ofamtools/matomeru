@@ -179,7 +179,7 @@ func TestRunsAreLive(t *testing.T) {
 	}
 	d.Keys("i")
 	d.Type("echo live-run-out")
-	d.Keys("enter", "enter")
+	d.Keys("ctrl+s")
 	if a.Modal() != "" {
 		t.Fatalf("the form stayed open: %s", a.Status())
 	}
@@ -247,7 +247,7 @@ esac
 	if a.Modal() != modalLaunch || !strings.Contains(d.Frame(), "Run o-git") || !strings.Contains(d.Frame(), "status") {
 		t.Fatalf("enter did not open the extension's run form: modal %q, focus %q\n%s", a.Modal(), a.Focus(), d.Frame())
 	}
-	d.Keys("enter")
+	d.Keys("ctrl+s")
 	a.WaitBackground()
 	wake(d)
 	run, err := a.Store.GetByField(data.KindRun, "title", "o-git status")

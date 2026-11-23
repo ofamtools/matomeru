@@ -292,7 +292,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	}
 	d.Keys("n", "i")
 	d.Type("Ochazuke")
-	d.Keys("enter", "esc")
+	d.Keys("ctrl+s")
 	link, err := a.Store.GetByField("link", "title", "Ochazuke")
 	if err != nil || !strings.Contains(d.Frame(), "Ochazuke") {
 		t.Fatalf("n did not make a link: %v\n%s", err, d.Frame())
@@ -335,7 +335,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	field(data.ColSnoozedUntil)
 	d.Keys("i")
 	d.Type("2099-01-02 03:04")
-	d.Keys("enter")
+	d.Keys("ctrl+s")
 	want := time.Date(2099, 1, 2, 3, 4, 0, 0, time.Local)
 	if r := rec(); !r.IsStarred() || r.SnoozedUntil == nil || !r.SnoozedUntil.Equal(want) {
 		t.Fatalf("starred %v, snoozed until %v, status %q", r.IsStarred(), r.SnoozedUntil, a.Status())
@@ -343,19 +343,21 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	if _, has := rec().Value(data.ColSnoozedUntil); has {
 		t.Fatal("snoozedUntil was patched in as a field")
 	}
+	d.Keys("e")
+	field(data.ColSnoozedUntil)
 	d.Keys("i")
 	d.Type("x")
-	d.Keys("enter")
-	if !strings.Contains(a.Status(), "not written") || !rec().SnoozedUntil.Equal(want) {
-		t.Fatalf("a time that does not parse: status %q", a.Status())
+	d.Keys("ctrl+s")
+	if !strings.Contains(a.Status(), "not written") || !rec().SnoozedUntil.Equal(want) || a.Modal() != modalForm {
+		t.Fatalf("a time that does not parse: status %q, modal %q", a.Status(), a.Modal())
 	}
-	d.Keys("u") // the form reloads from the store
+	d.Keys("esc", "e")
 	field(data.ColArchiveStatus)
-	d.Keys("l")
+	d.Keys("l", "ctrl+s")
 	if !rec().IsArchived() {
 		t.Fatal("archiveStatus in the form did not archive")
 	}
-	d.Keys("u", "u", "u", "esc")
+	d.Keys("u", "u", "u")
 	if r := rec(); r.IsArchived() || r.IsStarred() || r.SnoozedUntil != nil {
 		t.Fatalf("u did not undo them: archived %v starred %v snoozed %v", r.IsArchived(), r.IsStarred(), r.SnoozedUntil)
 	}
@@ -423,7 +425,7 @@ func TestAttentionAndLaneKeys(t *testing.T) {
 	if sel, _ := a.SelectedPane(); a.Space() != SpacePanes || sel == nil || sel.ID != pane.ID || a.Focus() != "q-live-terminal" {
 		t.Fatalf("W: space %s focus %s", a.Space(), a.Focus())
 	}
-	d.Keys("a", "space", "enter", "h", "h", "j") // answered; on to the other pane
+	d.Keys("a", "space", "ctrl+s", "h", "h", "j") // answered; on to the other pane
 	other, _ := a.SelectedPane()
 	if other == nil || other.ID == pane.ID {
 		t.Fatalf("not on the other pane: %v", other)

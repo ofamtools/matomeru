@@ -355,7 +355,7 @@ func (a *App) ruleFromSignal(s core.State, c core.Command) core.StepResult {
 		return s, true
 	})
 	a.launch.fm.SubmitLabel = "make the rule and apply it"
-	a.say("i types · h/l choose the action · enter makes the rule and applies it")
+	a.say("i types · h/l choose the action · ctrl+s makes the rule and applies it")
 	return core.Next(next)
 }
 

@@ -127,7 +127,7 @@ func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 	}
 	d.Keys("i")
 	d.Type("Ship it")
-	d.Keys("enter", "esc")
+	d.Keys("ctrl+s")
 	note := titled(t, a, data.KindNote, "Ship it")
 	about, err := a.Store.Related(note.Ref(), data.RelAbout, data.Outgoing)
 	if err != nil || len(about) != 1 || about[0].To != task.Ref() {
@@ -148,7 +148,7 @@ func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 	}
 }
 
-// A path field opens the path picker; the pick is written at once.
+// A path field opens the path picker; changes stage in the form until ctrl+s.
 func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	a, d := demo(t)
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
@@ -159,9 +159,8 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	d.Keys("left")
 	d.Type("mato")
 	d.Keys("tab")
-	rec, _ := a.Store.Get(task.Ref())
-	if got := rec.Text("defaultDir"); got != "/home/owner/proj/matomeru-next" || a.Modal() != modalForm {
-		t.Fatalf("defaultDir = %q, modal %q", got, a.Modal())
+	if got := a.form.fm.Values["defaultDir"]; got != "/home/owner/proj/matomeru-next" || a.Modal() != modalForm {
+		t.Fatalf("staged defaultDir = %v, modal %q", got, a.Modal())
 	}
 	// A reference field opens a picker over the records it may point at.
 	d.Keys("k", "enter")
@@ -170,18 +169,25 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	}
 	d.Type("matomeru-v2")
 	d.Keys("enter")
-	rec, _ = a.Store.Get(task.Ref())
-	parent, _ := rec.RefField("parent")
-	if want := titled(t, a, data.KindTask, "matomeru-v2").Ref(); parent != want || a.Modal() != modalForm {
-		t.Fatalf("parent = %v, want %v (modal %q)", parent, want, a.Modal())
+	if a.Modal() != modalForm {
+		t.Fatalf("after ref pick: modal %q", a.Modal())
 	}
-	// A field that does not parse is not written, and says why.
+	d.Keys("ctrl+s")
+	rec, _ := a.Store.Get(task.Ref())
+	parent, _ := rec.RefField("parent")
+	if got := rec.Text("defaultDir"); got != "/home/owner/proj/matomeru-next" || a.Modal() != "" {
+		t.Fatalf("defaultDir = %q, modal %q", got, a.Modal())
+	}
+	if want := titled(t, a, data.KindTask, "matomeru-v2").Ref(); parent != want {
+		t.Fatalf("parent = %v, want %v", parent, want)
+	}
+	// A field that does not parse is rejected on submit and not written.
 	run := titled(t, a, data.KindRun, "gate: views")
-	d.Keys("esc", "3", "j", "e", "j", "j", "j", "j", "i")
+	d.Keys("3", "j", "e", "j", "j", "j", "j", "i")
 	d.Type("x")
-	d.Keys("enter")
-	if now, _ := a.Store.Get(run.Ref()); now.Text("exitCode") != "1" || !strings.Contains(a.Status(), "not written") {
-		t.Fatalf("exitCode = %q, status %q", now.Text("exitCode"), a.Status())
+	d.Keys("ctrl+s")
+	if now, _ := a.Store.Get(run.Ref()); now.Text("exitCode") != "1" || a.Modal() != modalForm || !strings.Contains(a.Status(), "still needed: exitCode") {
+		t.Fatalf("exitCode = %q, modal %q, status %q", now.Text("exitCode"), a.Modal(), a.Status())
 	}
 }
 

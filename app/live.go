@@ -338,12 +338,15 @@ func (a *App) runCancel(s core.State, c core.Command) core.StepResult {
 	return core.Next(s)
 }
 
-// openLaunch opens a form whose enter runs something.
+// openLaunch opens a form whose submit runs something.
 func (a *App) openLaunch(s core.State, title string, specs []core.ParamSpec, values map[string]any, submit func(core.State, map[string]any) (core.State, bool)) core.State {
 	fm := form.New(title, specs, values)
-	fm.SubmitLabel = "run"
-	a.launch = &formState{fm: fm, submit: submit}
-	a.say("i types · enter runs · esc closes")
+	fm.SubmitRow = true
+	fm.SubmitLabel = "Run"
+	fs := &formState{fm: fm, submit: submit}
+	a.attachFormDrafts(fs, launchDraftKey(title))
+	a.launch = fs
+	a.say("i types · ctrl+s runs · esc closes")
 	return openModal(s, modalLaunch, ModeForm, modalLaunch+".form")
 }
 

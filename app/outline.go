@@ -204,8 +204,10 @@ func (a *App) outlineRename(s core.State, _ core.Command) core.StepResult {
 		}
 	}
 	_, _ = fm.HandleCommand(core.Command{ID: form.CmdEdit})
-	a.form = &formState{kind: data.KindTask, ref: &ref, fm: fm}
-	a.say("rename %s · enter commits · esc cancels", a.title(ref))
+	fs := &formState{kind: data.KindTask, ref: &ref, fm: fm}
+	a.configureRecordForm(fs)
+	a.form = fs
+	a.say("rename %s · ctrl+s saves · esc closes", a.title(ref))
 	return core.Next(openModal(s, modalForm, ModeFormEdit, modalForm+".form"))
 }
 

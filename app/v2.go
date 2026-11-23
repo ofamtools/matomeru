@@ -311,57 +311,6 @@ func (a *App) assigned(picked *picker.Item) {
 
 var snoozeLayouts = []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04", "2006-01-02T15:04", "2006-01-02"}
 
-// commitUniversal writes a universal field of the Edit form through the
-// store's own verb for it, so it is one undoable status change and never a
-// patched field.
-func (a *App) commitUniversal(ref core.Ref, name string, value any) {
-	text := strings.TrimSpace(data.Text(value))
-	var (
-		cs   *data.ChangeSet
-		err  error
-		what string
-	)
-	switch name {
-	case data.ColStarStatus:
-		if text == data.StarStarred {
-			what = "star"
-			_, cs, err = a.Store.Star(ref, User)
-		} else {
-			what = "unstar"
-			_, cs, err = a.Store.Unstar(ref, User)
-		}
-	case data.ColArchiveStatus:
-		if text == data.ArchiveArchived {
-			what = "archive"
-			_, cs, err = a.Store.Archive(ref, User)
-		} else {
-			what = "restore"
-			_, cs, err = a.Store.Restore(ref, User)
-		}
-	case data.ColSnoozedUntil:
-		if text == "" {
-			what = "unsnooze"
-			_, cs, err = a.Store.Unsnooze(ref, User)
-			break
-		}
-		var until time.Time
-		parsed := false
-		for _, layout := range snoozeLayouts {
-			if t, perr := time.ParseInLocation(layout, text, time.Local); perr == nil {
-				until, parsed = t, true
-				break
-			}
-		}
-		if !parsed {
-			a.say("%s %q is not a time (2006-01-02 15:04 or RFC 3339); not written", name, text)
-			return
-		}
-		what = "snooze"
-		_, cs, err = a.Store.Snooze(ref, until, User)
-	}
-	a.wrote(what+" "+a.title(ref), cs, err)
-}
-
 // --- the binding editor -------------------------------------------------------------
 
 func sameSelector(x, y core.Binding) bool {
