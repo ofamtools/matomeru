@@ -26,6 +26,7 @@ const (
 	ModeForm           = "form"            // a modal form: moving between fields
 	ModeFormEdit       = "form-edit"       // typing into a form field
 	ModeOutline        = "outline"         // the outline overlay; falls back to normal
+	ModeOutlineEdit    = "outline-edit"    // in-place inline editing inside Outline / Tasks tree
 
 	ModeBindings        = "bindings"         // the binding editor: moving between rows
 	ModeBindingsFilter  = "bindings-filter"  // typing the editor's filter
@@ -42,55 +43,65 @@ const (
 
 // Commands the app adds to core's built-ins and the widgets' own.
 const (
-	CmdHistoryBack        = "history.back"
-	CmdHistoryForward     = "history.forward"
-	CmdUndo               = "store.undo"
-	CmdRedo               = "store.redo"
-	CmdSiteFocus          = "site.focus"
-	CmdSitePageOpen       = "site.page.open"
-	CmdSiteTOCToggle      = "site.toc.toggle"
-	CmdAnswer             = "question.answer"
-	CmdTermAttach         = "terminal.attach"
-	CmdTermDetach         = "terminal.detach"
-	CmdTermInput          = "terminal.input"
-	CmdRunRerun           = "run.rerun"
-	CmdRunCancel          = "run.cancel"
-	CmdRunNew             = "run.new"
-	CmdExtRefresh         = "extension.refresh"
-	CmdExtRun             = "extension.run"
-	CmdTermPrefix         = "terminal.prefix"
-	CmdWake               = "app.wake"
-	CmdOutlineOpen        = "outline.open"
-	CmdOutlineJump        = "outline.jump"
-	CmdOutlineMoveDown    = "outline.move.down"
-	CmdOutlineMoveUp      = "outline.move.up"
-	CmdOutlineIndent      = "outline.indent"
-	CmdOutlineOutdent     = "outline.outdent"
-	CmdOutlineStatusCycle = "outline.status.cycle"
-	CmdOutlineRename      = "outline.rename"
-	CmdRecentsPick        = "recents.pick"
-	CmdPagesPick          = "pages.pick"
-	CmdPaletteOpen        = "palette.open"
-	CmdHelpOpen           = "help.open"
-	CmdPathOpen           = "path.open"
-	CmdModalCancel        = "modal.cancel"
-	CmdFilterStart        = "filter.start"
-	CmdFilterInsert       = "filter.insert"
-	CmdFilterBack         = "filter.backspace"
-	CmdFilterAccept       = "filter.accept"
-	CmdFilterCancel       = "filter.cancel"
-	CmdFilterClear        = "filter.clear"
-	CmdFilterMode         = "filter.mode.cycle"
-	CmdFilterField        = "filter.field.cycle"
-	CmdSortCycle          = "table.sort.cycle"
-	CmdSortField          = "table.sort.field.cycle"
-	CmdGroupField         = "table.group.field.cycle"
-	CmdGroupToggle        = "table.group.toggle"
-	CmdMarkToggle         = "table.mark.toggle"
-	CmdArchivedToggle     = "archived.toggle"
-	CmdPickerInsert       = "picker.insert"
-	CmdPickerBack         = "picker.backspace"
-	CmdFormActivate       = "form.activate"
+	CmdHistoryBack          = "history.back"
+	CmdHistoryForward       = "history.forward"
+	CmdUndo                 = "store.undo"
+	CmdRedo                 = "store.redo"
+	CmdSiteFocus            = "site.focus"
+	CmdSitePageOpen         = "site.page.open"
+	CmdSiteTOCToggle        = "site.toc.toggle"
+	CmdAnswer               = "question.answer"
+	CmdTermAttach           = "terminal.attach"
+	CmdTermDetach           = "terminal.detach"
+	CmdTermInput            = "terminal.input"
+	CmdRunRerun             = "run.rerun"
+	CmdRunCancel            = "run.cancel"
+	CmdRunNew               = "run.new"
+	CmdExtRefresh           = "extension.refresh"
+	CmdExtRun               = "extension.run"
+	CmdTermPrefix           = "terminal.prefix"
+	CmdWake                 = "app.wake"
+	CmdOutlineOpen          = "outline.open"
+	CmdOutlineJump          = "outline.jump"
+	CmdOutlineMoveDown      = "outline.move.down"
+	CmdOutlineMoveUp        = "outline.move.up"
+	CmdOutlineIndent        = "outline.indent"
+	CmdOutlineOutdent       = "outline.outdent"
+	CmdOutlineStatusCycle   = "outline.status.cycle"
+	CmdOutlineRename        = "outline.rename"
+	CmdOutlineEditStart     = "outline.edit.start"
+	CmdOutlineEditEnd       = "outline.edit.end"
+	CmdOutlineAddBelow      = "outline.add.below"
+	CmdOutlineAddAbove      = "outline.add.above"
+	CmdOutlineEditInsert    = "outline.edit.insert"
+	CmdOutlineEditBackspace = "outline.edit.backspace"
+	CmdOutlineEditIndent    = "outline.edit.indent"
+	CmdOutlineEditOutdent   = "outline.edit.outdent"
+	CmdOutlineEditCommit    = "outline.edit.commit"
+	CmdOutlineEditCancel    = "outline.edit.cancel"
+	CmdRecentsPick          = "recents.pick"
+	CmdPagesPick            = "pages.pick"
+	CmdPaletteOpen          = "palette.open"
+	CmdHelpOpen             = "help.open"
+	CmdPathOpen             = "path.open"
+	CmdModalCancel          = "modal.cancel"
+	CmdFilterStart          = "filter.start"
+	CmdFilterInsert         = "filter.insert"
+	CmdFilterBack           = "filter.backspace"
+	CmdFilterAccept         = "filter.accept"
+	CmdFilterCancel         = "filter.cancel"
+	CmdFilterClear          = "filter.clear"
+	CmdFilterMode           = "filter.mode.cycle"
+	CmdFilterField          = "filter.field.cycle"
+	CmdSortCycle            = "table.sort.cycle"
+	CmdSortField            = "table.sort.field.cycle"
+	CmdGroupField           = "table.group.field.cycle"
+	CmdGroupToggle          = "table.group.toggle"
+	CmdMarkToggle           = "table.mark.toggle"
+	CmdArchivedToggle       = "archived.toggle"
+	CmdPickerInsert         = "picker.insert"
+	CmdPickerBack           = "picker.backspace"
+	CmdFormActivate         = "form.activate"
 
 	CmdNewHere         = "record.new.here"
 	CmdAssign          = "record.assign"
@@ -204,6 +215,7 @@ func Modes() []core.Mode {
 		{Name: ModeForm},
 		{Name: ModeFormEdit},
 		{Name: ModeOutline, Base: ModeNormal},
+		{Name: ModeOutlineEdit},
 		{Name: ModeBindings},
 		{Name: ModeBindingsFilter},
 		{Name: ModeBindingsCapture},
@@ -257,6 +269,8 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "ctrl+u", "motion.half.up", "half page up"),
 		bind(n, all, "ctrl+f", "motion.page.down", "page down"),
 		bind(n, all, "ctrl+b", "motion.page.up", "page up"),
+		bind(n, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
+		bind(n, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		bind(n, all, "}", "motion.block.next", "next group"),
 		bind(n, all, "{", "motion.block.prev", "previous group"),
 		bind(n, all, "tab", core.CmdFocusNext, "next"),
@@ -276,8 +290,14 @@ func DefaultBindings() []core.Binding {
 		bind(n, data.KindCommand, "r", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "e", CmdCommandEditRun, "edit & run command"),
 		bind(n, "df.culprit", "X", CmdDFCulpritClean, "clean culprit"),
-		hidden(when(bind(n, data.KindTask, "o", CmdTaskAddSibling, "add sibling task"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "O", CmdTaskAddChild, "add child task"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "i", CmdOutlineEditStart, "edit inline at start"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "a", CmdOutlineEditEnd, "edit inline at end"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "o", CmdOutlineAddBelow, "new task below"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "O", CmdOutlineAddAbove, "new task above"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "d", views.CmdArchive, "archive"), "facts.tasksTree && facts.archiveStatus != \"archived\"")),
+		hidden(when(bind(n, data.KindTask, "d", views.CmdRestore, "restore"), "facts.tasksTree && facts.archiveStatus == \"archived\"")),
+		hidden(when(bind(n, data.KindTask, "tab", CmdOutlineIndent, "indent"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "shift+tab", CmdOutlineOutdent, "outdent"), "facts.tasksTree")),
 		hidden(when(bind(n, data.KindTask, "z a", CmdTaskFoldToggle, "fold/unfold subtree"), "facts.tasksTree")),
 		hidden(when(bind(n, data.KindTask, "space", CmdOutlineStatusCycle, "cycle status"), "facts.tasksTree")),
 		hidden(when(bind(n, data.KindTask, ">", CmdOutlineIndent, "indent"), "facts.tasksTree")),
@@ -467,6 +487,8 @@ func DefaultBindings() []core.Binding {
 		bind(ModeBindings, all, "G", "motion.bottom", "bottom"),
 		bind(ModeBindings, all, "ctrl+d", "motion.half.down", "half page down"),
 		bind(ModeBindings, all, "ctrl+u", "motion.half.up", "half page up"),
+		bind(ModeBindings, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
+		bind(ModeBindings, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		bind(ModeBindings, all, "/", CmdBindingsFilter, "filter"),
 		bind(ModeBindings, all, "tab", CmdBindingsMatchMode, "match mode"),
 		bind(ModeBindings, all, "r", CmdBindingsRebind, "rebind"),
@@ -498,6 +520,8 @@ func DefaultBindings() []core.Binding {
 		bind(ModeReader, all, "ctrl+u", "motion.half.up", "half page up"),
 		bind(ModeReader, all, "ctrl+f", "motion.page.down", "page down"),
 		bind(ModeReader, all, "ctrl+b", "motion.page.up", "page up"),
+		bind(ModeReader, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
+		bind(ModeReader, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		hidden(bind(ModeReader, all, "space", "motion.page.down", "page down")),
 		bind(ModeReader, all, "}", "motion.block.next", "next heading"),
 		bind(ModeReader, all, "{", "motion.block.prev", "previous heading"),
@@ -523,6 +547,8 @@ func DefaultBindings() []core.Binding {
 		bind(ModeInspect, all, "G", "motion.bottom", "bottom"),
 		bind(ModeInspect, all, "ctrl+d", "motion.half.down", "half page down"),
 		bind(ModeInspect, all, "ctrl+u", "motion.half.up", "half page up"),
+		bind(ModeInspect, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
+		bind(ModeInspect, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		bind(ModeInspect, all, "/", CmdInspectFilter, "filter"),
 		when(bind(ModeInspect, all, "a", CmdInspectBind, "bind to a free key"), "facts.inspecting == \"actions\""),
 		bind(ModeInspect, all, "esc", CmdModalCancel, "close"),
@@ -545,14 +571,28 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "K", CmdOutlineMoveUp, "move up"),
 		bind(ModeOutline, all, ">", CmdOutlineIndent, "indent"),
 		bind(ModeOutline, all, "<", CmdOutlineOutdent, "outdent"),
+		bind(ModeOutline, all, "tab", CmdOutlineIndent, "indent"),
+		bind(ModeOutline, all, "shift+tab", CmdOutlineOutdent, "outdent"),
 		bind(ModeOutline, all, "space", CmdOutlineStatusCycle, "cycle status"),
-		bind(ModeOutline, all, "i", CmdOutlineRename, "rename"),
-		bind(ModeOutline, all, "o", CmdTaskAddSibling, "add sibling task"),
-		bind(ModeOutline, all, "O", CmdTaskAddChild, "add child task"),
+		bind(ModeOutline, all, "i", CmdOutlineEditStart, "edit inline at start"),
+		bind(ModeOutline, all, "a", CmdOutlineEditEnd, "edit inline at end"),
+		bind(ModeOutline, all, "o", CmdOutlineAddBelow, "new item below"),
+		bind(ModeOutline, all, "O", CmdOutlineAddAbove, "new item above"),
+		when(bind(ModeOutline, all, "d", views.CmdArchive, "archive"), "facts.archiveStatus != \"archived\""),
+		when(bind(ModeOutline, all, "d", views.CmdRestore, "restore"), "facts.archiveStatus == \"archived\""),
 		bind(ModeOutline, all, "z a", CmdTaskFoldToggle, "fold/unfold subtree"),
 		bind(ModeOutline, all, "esc", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
+
+		// Inline Vim Outline edit mode (i, a, o, O in Outline or 2 Work Tasks Tree).
+		{Mode: ModeOutlineEdit, Class: core.ClassPrintable, Command: CmdOutlineEditInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		{Mode: ModeOutlineEdit, Class: core.ClassPaste, Command: CmdOutlineEditInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		bind(ModeOutlineEdit, all, "backspace", CmdOutlineEditBackspace, "erase"),
+		bind(ModeOutlineEdit, all, "tab", CmdOutlineEditIndent, "indent"),
+		bind(ModeOutlineEdit, all, "shift+tab", CmdOutlineEditOutdent, "outdent"),
+		bind(ModeOutlineEdit, all, "enter", CmdOutlineEditCommit, "save"),
+		bind(ModeOutlineEdit, all, "esc", CmdOutlineEditCancel, "cancel"),
 
 		// Command line: !, |, r! with Readline editing, history and ctrl+r register paste.
 		{Mode: ModeCommandLine, Class: core.ClassPrintable, Command: commandline.CmdInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
@@ -606,12 +646,14 @@ func DefaultBindings() []core.Binding {
 		bind(ModeAbout, all, "ctrl+u", "motion.half.up", "half page up"),
 		bind(ModeAbout, all, "ctrl+f", "motion.page.down", "page down"),
 		bind(ModeAbout, all, "ctrl+b", "motion.page.up", "page up"),
+		bind(ModeAbout, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
+		bind(ModeAbout, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		hidden(bind(ModeAbout, all, "space", "motion.page.down", "page down")),
 		bind(ModeAbout, all, "esc", CmdModalCancel, "close"),
 		bind(ModeAbout, all, "q", CmdModalCancel, "close"),
 	}
 	out = append(out, macroBindings()...)
-	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine, ModeComposer} {
+	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)
 	}
 	// Motions and space switches work everywhere; the footer leaves them out
@@ -681,7 +723,17 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdOutlineIndent, "Indent the selected task under its preceding sibling", "editing"),
 		spec(CmdOutlineOutdent, "Outdent the selected task to become a sibling of its parent", "editing"),
 		spec(CmdOutlineStatusCycle, "Cycle the selected task's workStatus", "editing"),
-		spec(CmdOutlineRename, "Rename the selected task", "editing"),
+		spec(CmdOutlineRename, "Rename the selected task via form", "editing"),
+		spec(CmdOutlineEditStart, "Edit the selected outline task title in place with cursor at start", "editing"),
+		spec(CmdOutlineEditEnd, "Edit the selected outline task title in place with cursor at end", "editing"),
+		spec(CmdOutlineAddBelow, "Insert a new outline task inline below at the same nesting level", "editing"),
+		spec(CmdOutlineAddAbove, "Insert a new outline task inline above at the same nesting level", "editing"),
+		{ID: CmdOutlineEditInsert, Description: "Insert text during inline outline edit", Meta: map[string]any{"internal": true}},
+		{ID: CmdOutlineEditBackspace, Description: "Erase character during inline outline edit", Meta: map[string]any{"internal": true}},
+		{ID: CmdOutlineEditIndent, Description: "Indent a new inline outline task under the item above", Meta: map[string]any{"internal": true}},
+		{ID: CmdOutlineEditOutdent, Description: "Outdent a new inline outline task one level", Meta: map[string]any{"internal": true}},
+		{ID: CmdOutlineEditCommit, Description: "Commit inline outline edit", Meta: map[string]any{"internal": true}},
+		{ID: CmdOutlineEditCancel, Description: "Cancel inline outline edit", Meta: map[string]any{"internal": true}},
 		spec(CmdRecentsPick, "Pick from recently updated records across all nouns"),
 		spec(CmdPagesPick, "Pick a page of any pane"),
 		spec(CmdRecordActions, "Pick an action for the focused record"),

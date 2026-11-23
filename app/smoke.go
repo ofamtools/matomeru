@@ -298,12 +298,16 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("s stars", starred())
 	k.Keys("s")
 	k.check("s unstars", !starred())
-	k.Keys("a")
+	if a.inWorkTaskTree(a.State()) {
+		k.Keys("d")
+	} else {
+		k.Keys("a")
+	}
 	archived := func() bool { rec, _ := store.Get(project.Ref()); return rec.IsArchived() }
 	listed := func() bool {
 		return slices.ContainsFunc(a.tables[workTable].Rows, func(r table.Row) bool { return r.ID == data.RefText(project.Ref()) })
 	}
-	k.check("a archives; the row leaves the list", archived() && !listed())
+	k.check("d/a archives; the row leaves the list", archived() && !listed())
 	k.Keys("u")
 	k.check("u brings it back", !archived() && listed())
 	k.Keys("/")
@@ -320,7 +324,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("g b enter ungroups", a.tables[workTable].GroupField == "")
 	if a.inWorkTaskTree(a.State()) {
 		k.Keys("o")
-		k.check("o in task tree opens non-destructive sibling task form", a.Modal() == modalForm && k.has("New task"))
+		k.check("o in task tree opens inline sibling row in place", a.Mode() == ModeOutlineEdit && a.outlineEdit != nil && a.Modal() == "")
 		k.Keys("esc", "g", "s")
 		k.Type("title")
 		k.Keys("enter")

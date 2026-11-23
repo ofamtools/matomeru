@@ -867,22 +867,67 @@ func (a *App) visibleTaskIDs() []string {
 	return ids
 }
 
-func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID, panelID, treeID, title, panelScope string, isWorkTree bool) (ui.ViewNode, string) {
+func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID string, offset *int, panelID, treeID, title, panelScope string, isWorkTree bool) (ui.ViewNode, string) {
 	schema := a.schema(data.KindTask)
 	workCol, _ := schema.StatusColumn("workStatus")
 
+	var activeEdit *outlineInlineEdit
+	if a.outlineEdit != nil && a.outlineEdit.isWorkTree == isWorkTree {
+		activeEdit = a.outlineEdit
+	}
+	parentMatches := func(parentID string, ref *core.Ref) bool {
+		if ref == nil {
+			return parentID == ""
+		}
+		return parentID == ref.ID
+	}
+	makeVirtualEditItem := func() map[string]any {
+		return map[string]any{
+			"label":      "[ ] " + activeEdit.line.Value(),
+			"editing":    true,
+			"editPrefix": "[ ] ",
+			"editValue":  activeEdit.line.Value(),
+			"editCursor": activeEdit.line.Cursor,
+			"tone":       "accent",
+		}
+	}
+
 	var flat []data.TaskNode
 	selected := 0
-	var build func(ns []data.TaskNode) []any
-	build = func(ns []data.TaskNode) []any {
-		out := make([]any, 0, len(ns))
-		for _, n := range ns {
-			if n.Record.ID == selectedID {
+	selectedVis := 0
+	visRow := 0
+	virtualInserted := false
+	var build func(ns []data.TaskNode, parentID string, depth int) []any
+	build = func(ns []data.TaskNode, parentID string, depth int) []any {
+		out := make([]any, 0, len(ns)+1)
+		for i, n := range ns {
+			if depth == 0 && i > 0 {
+				visRow++ // blank spacer row between top-level projects
+			}
+			if activeEdit != nil && activeEdit.kind == "above" && !virtualInserted && activeEdit.targetID == n.Record.ID && parentMatches(parentID, activeEdit.parentRef) {
 				selected = len(flat)
+				selectedVis = visRow
+				flat = append(flat, data.TaskNode{Depth: depth})
+				visRow++
+				out = append(out, makeVirtualEditItem())
+				virtualInserted = true
+				if depth == 0 {
+					visRow++ // next root gets its spacer after the new root item
+				}
+			}
+			if activeEdit == nil && n.Record.ID == selectedID {
+				selected = len(flat)
+				selectedVis = visRow
+			}
+			if activeEdit != nil && activeEdit.kind == "rename" && activeEdit.targetID == n.Record.ID {
+				selected = len(flat)
+				selectedVis = visRow
 			}
 			flat = append(flat, n)
+			visRow++
 			status := n.Record.Text("workStatus")
-			item := map[string]any{"label": taskStatusGlyph(status) + " " + views.Title(schema, n.Record)}
+			glyph := taskStatusGlyph(status)
+			item := map[string]any{"label": glyph + " " + views.Title(schema, n.Record)}
 			badge := status
 			if sv, ok := workCol.Value(status); ok {
 				item["tone"] = sv.Tone
@@ -900,31 +945,79 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID, panelID, tree
 				badge += " archived"
 				item["tone"] = "dim"
 			}
+			if activeEdit != nil && activeEdit.kind == "rename" && activeEdit.targetID == n.Record.ID {
+				item["editing"] = true
+				item["editPrefix"] = glyph + " "
+				item["editValue"] = activeEdit.line.Value()
+				item["editCursor"] = activeEdit.line.Cursor
+			}
 			folded := len(n.Children) > 0 && a.taskFolded[n.Record.ID]
-			if folded {
+			// Automatically show children if an inline add was indented under this node.
+			addingChildHere := activeEdit != nil && (activeEdit.kind == "below" || activeEdit.kind == "above") && !virtualInserted && activeEdit.parentRef != nil && activeEdit.parentRef.ID == n.Record.ID
+			if folded && !addingChildHere {
 				badge += fmt.Sprintf(" (+%d)", len(n.Children))
 				item["expanded"] = false
 			}
 			item["badge"] = badge
+			var kids []any
 			if len(n.Children) > 0 {
-				if folded {
+				if folded && !addingChildHere {
 					// Keep child placeholder so KindTree draws the ▸ collapsed marker.
-					item["children"] = []any{map[string]any{"label": ""}}
+					kids = []any{map[string]any{"label": ""}}
 				} else {
-					item["children"] = build(n.Children)
+					kids = build(n.Children, n.Record.ID, depth+1)
 				}
 			}
+			if addingChildHere && !virtualInserted {
+				selected = len(flat)
+				selectedVis = visRow
+				flat = append(flat, data.TaskNode{Depth: depth + 1})
+				visRow++
+				kids = append(kids, makeVirtualEditItem())
+				virtualInserted = true
+			}
+			if len(kids) > 0 {
+				item["children"] = kids
+			}
 			out = append(out, item)
+			if activeEdit != nil && activeEdit.kind == "below" && !virtualInserted && activeEdit.targetID == n.Record.ID && parentMatches(parentID, activeEdit.parentRef) {
+				if depth == 0 {
+					visRow++
+				}
+				selected = len(flat)
+				selectedVis = visRow
+				flat = append(flat, data.TaskNode{Depth: depth})
+				visRow++
+				out = append(out, makeVirtualEditItem())
+				virtualInserted = true
+			}
+		}
+		if activeEdit != nil && (activeEdit.kind == "below" || activeEdit.kind == "above") && !virtualInserted && parentMatches(parentID, activeEdit.parentRef) {
+			if depth == 0 && len(out) > 0 {
+				visRow++
+			}
+			selected = len(flat)
+			selectedVis = visRow
+			flat = append(flat, data.TaskNode{Depth: depth})
+			visRow++
+			out = append(out, makeVirtualEditItem())
+			virtualInserted = true
 		}
 		return out
 	}
-	items := build(nodes)
+	items := build(nodes, "", 0)
+
+	curOffset := 0
+	if offset != nil {
+		*offset = core.ViewportClamp(*offset, selectedVis, visRow, a.treeViewportHeight(treeID), a.scrollOff())
+		curOffset = *offset
+	}
 
 	h := fnv.New64a()
 	if encoded, err := json.Marshal(items); err == nil {
 		_, _ = h.Write(encoded)
 	}
-	_, _ = fmt.Fprintf(h, "|sel:%d|guides:%t", selected, a.Settings.Bool(SetTreeGuides, true))
+	_, _ = fmt.Fprintf(h, "|sel:%d|off:%d|guides:%t|gap:true", selected, curOffset, a.Settings.Bool(SetTreeGuides, true))
 	cacheKey := h.Sum64()
 	if cacheKey == 0 {
 		cacheKey = 1
@@ -936,10 +1029,16 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID, panelID, tree
 		Scope:     data.KindTask,
 		Focusable: true,
 		CacheKey:  cacheKey,
-		Props:     map[string]any{"nodes": items, "guides": true, "selected": selected},
+		Props: map[string]any{
+			"nodes":       items,
+			"guides":      true,
+			"gapTopLevel": true,
+			"selected":    selected,
+			"offset":      curOffset,
+		},
 	}
-	actualSel := ""
-	if len(flat) > 0 {
+	actualSel := selectedID
+	if len(flat) > 0 && selected < len(flat) && flat[selected].Record.ID != "" {
 		cur := flat[selected]
 		actualSel = cur.Record.ID
 		ref := cur.Record.Ref()
@@ -959,14 +1058,22 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID, panelID, tree
 			facts[factOpenable] = true
 		}
 		tree.Facts = facts
+	} else {
+		tree.Facts = map[string]any{"tasksTree": isWorkTree}
 	}
 
 	projLabel := fmt.Sprintf("%d projects", len(nodes))
 	if len(nodes) == 1 {
 		projLabel = "1 project"
 	}
-	taskLabel := fmt.Sprintf("%d tasks", len(flat))
-	if len(flat) == 1 {
+	realTasks := 0
+	for _, fn := range flat {
+		if fn.Record.ID != "" {
+			realTasks++
+		}
+	}
+	taskLabel := fmt.Sprintf("%d tasks", realTasks)
+	if realTasks == 1 {
 		taskLabel = "1 task"
 	}
 	badges := []ui.Badge{{Text: projLabel}, {Text: taskLabel}}
@@ -983,7 +1090,7 @@ func (a *App) buildTaskTreeView(nodes []data.TaskNode, selectedID, panelID, tree
 		Title:    title,
 		Border:   true,
 		Badges:   badges,
-		Facts:    map[string]any{"rowCount": len(flat), "tasksTree": isWorkTree},
+		Facts:    map[string]any{"rowCount": realTasks, "tasksTree": isWorkTree},
 		Children: []ui.ViewNode{tree},
 	}
 	return panel, actualSel
@@ -1001,7 +1108,7 @@ func (a *App) workTaskTreeView() ui.ViewNode {
 	if err != nil {
 		a.fail("tasks", err)
 	}
-	panel, selID := a.buildTaskTreeView(nodes, a.workTreeSel, SpaceWork, workTable, "Tasks", views.ScopeIndex, true)
+	panel, selID := a.buildTaskTreeView(nodes, a.workTreeSel, &a.workTreeOffset, SpaceWork, workTable, "Tasks", views.ScopeIndex, true)
 	a.workTreeSel = selID
 	if selID != "" {
 		refID := data.RefText(core.Ref{Kind: data.KindTask, ID: selID})
@@ -1017,37 +1124,14 @@ func (a *App) outlineTreeView() ui.ViewNode {
 	if err != nil {
 		a.fail("outline", err)
 	}
-	panel, selID := a.buildTaskTreeView(nodes, a.outlineSel, modalOutline, modalOutline+".tree", "Outline", views.ScopeOutline, false)
+	panel, selID := a.buildTaskTreeView(nodes, a.outlineSel, &a.outlineOffset, modalOutline, modalOutline+".tree", "Outline", views.ScopeOutline, false)
 	a.outlineSel = selID
 	return panel
 }
 
 func (a *App) workTreeMove(c core.Command) {
-	ids := a.visibleTaskIDs()
-	if len(ids) == 0 {
-		return
-	}
-	cur := max(slices.Index(ids, a.workTreeSel), 0)
-	switch c.ID {
-	case "motion.down":
-		cur += c.Times()
-	case "motion.up":
-		cur -= c.Times()
-	case "motion.half.down", "motion.block.next":
-		cur += 5 * c.Times()
-	case "motion.half.up", "motion.block.prev":
-		cur -= 5 * c.Times()
-	case "motion.page.down":
-		cur += 10 * c.Times()
-	case "motion.page.up":
-		cur -= 10 * c.Times()
-	case "motion.top":
-		cur = 0
-	case "motion.bottom":
-		cur = len(ids) - 1
-	}
-	a.workTreeSel = ids[min(max(cur, 0), len(ids)-1)]
-	if tbl := a.tables[workTable]; tbl != nil {
+	a.moveTreeViewport(workTable, &a.workTreeSel, &a.workTreeOffset, c)
+	if tbl := a.tables[workTable]; tbl != nil && a.workTreeSel != "" {
 		refID := data.RefText(core.Ref{Kind: data.KindTask, ID: a.workTreeSel})
 		if selectRow(tbl, refID) {
 			a.workTreeTableRowID = refID

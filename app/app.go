@@ -337,7 +337,10 @@ type App struct {
 	// Wave D2: About overlay, indented Work Tasks Tree, pane associate, and dynamic ref-picker create.
 	aboutMD            *markdown.Model
 	workTreeSel        string
+	workTreeOffset     int
 	workTreeTableRowID string
+	outlineOffset      int
+	outlineEdit        *outlineInlineEdit
 	taskFolded         map[string]bool
 	associatePaneRef   *core.Ref
 	pickerCreate       map[string]refCreateSpec
@@ -673,6 +676,9 @@ func selectRow(tbl *table.Model, id string) bool {
 }
 
 func (a *App) pageSize(tbl *table.Model, id string) {
+	if tbl != nil {
+		tbl.ScrollOff = a.scrollOff()
+	}
 	if a.Shell == nil {
 		return
 	}
@@ -1055,6 +1061,7 @@ func (a *App) dropModals(s core.State) core.State {
 	a.contextTarget, a.composer, a.hints = nil, nil, nil
 	a.confirm, a.presetTable = nil, ""
 	a.aboutMD, a.associatePaneRef, a.pickerCreate = nil, nil, nil
+	a.outlineEdit = nil
 	return s
 }
 
@@ -2058,30 +2065,7 @@ func (a *App) outlineIDs() []string {
 }
 
 func (a *App) outlineMove(c core.Command) {
-	ids := a.outlineIDs()
-	if len(ids) == 0 {
-		return
-	}
-	cur := max(slices.Index(ids, a.outlineSel), 0)
-	switch c.ID {
-	case "motion.down":
-		cur += c.Times()
-	case "motion.up":
-		cur -= c.Times()
-	case "motion.half.down", "motion.block.next":
-		cur += 5
-	case "motion.half.up", "motion.block.prev":
-		cur -= 5
-	case "motion.page.down":
-		cur += 10
-	case "motion.page.up":
-		cur -= 10
-	case "motion.top":
-		cur = 0
-	case "motion.bottom":
-		cur = len(ids) - 1
-	}
-	a.outlineSel = ids[min(max(cur, 0), len(ids)-1)]
+	a.moveTreeViewport(modalOutline+".tree", &a.outlineSel, &a.outlineOffset, c)
 }
 
 // --- filter ---------------------------------------------------------------------
@@ -2144,6 +2128,11 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 		return a.cmdlineCommand(s, c)
 	case ModeComposer:
 		return a.composerCommand(s, c)
+	case ModeOutlineEdit:
+		if a.outlineEdit != nil {
+			a.outlineEdit.line.HandleCommand(c)
+		}
+		return core.Next(s)
 	}
 	return core.Next(s)
 }
@@ -2434,7 +2423,8 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 
 func (a *App) register() {
 	for _, id := range []string{"motion.down", "motion.up", "motion.left", "motion.right", "motion.top", "motion.bottom",
-		"motion.half.down", "motion.half.up", "motion.page.down", "motion.page.up", "motion.block.next", "motion.block.prev"} {
+		"motion.half.down", "motion.half.up", "motion.page.down", "motion.page.up", "motion.block.next", "motion.block.prev",
+		"motion.scroll.down", "motion.scroll.up"} {
 		a.handle(id, a.motion)
 	}
 	a.handle(core.CmdFocusNext, func(s core.State, c core.Command) core.StepResult { return core.Next(a.step(s, c.Times())) })
@@ -2605,6 +2595,16 @@ func (a *App) register() {
 	a.handle(CmdOutlineOutdent, a.outlineOutdent)
 	a.handle(CmdOutlineStatusCycle, a.outlineStatusCycle)
 	a.handle(CmdOutlineRename, a.outlineRename)
+	a.handle(CmdOutlineEditStart, a.outlineStartEdit(false))
+	a.handle(CmdOutlineEditEnd, a.outlineStartEdit(true))
+	a.handle(CmdOutlineAddBelow, a.outlineStartAdd(false))
+	a.handle(CmdOutlineAddAbove, a.outlineStartAdd(true))
+	a.handle(CmdOutlineEditInsert, a.outlineEditInsert)
+	a.handle(CmdOutlineEditBackspace, a.outlineEditBackspace)
+	a.handle(CmdOutlineEditIndent, a.outlineEditIndent)
+	a.handle(CmdOutlineEditOutdent, a.outlineEditOutdent)
+	a.handle(CmdOutlineEditCommit, a.outlineEditCommit)
+	a.handle(CmdOutlineEditCancel, a.outlineEditCancel)
 	a.handle(CmdRecentsPick, a.recentsPick)
 	a.handle(CmdPagesPick, a.pagesPick)
 	a.handle(CmdRecordActions, a.recordActionsOpen)

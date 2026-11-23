@@ -114,16 +114,19 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 		t.Fatalf("workStatus after undo = %q, want done", rec.Text("workStatus"))
 	}
 
-	// i opens rename on title in ModeFormEdit.
+	// i enters in-place inline edit at the start of the title (no modal form).
 	d.Keys("i")
-	if a.Modal() != modalForm || a.Mode() != ModeFormEdit {
-		t.Fatalf("after i: modal=%q mode=%q, want form/form-edit", a.Modal(), a.Mode())
+	if a.Modal() != modalOutline || a.Mode() != ModeOutlineEdit || a.outlineEdit == nil {
+		t.Fatalf("after i: modal=%q mode=%q edit=%v, want outline/outline-edit", a.Modal(), a.Mode(), a.outlineEdit != nil)
 	}
-	d.Keys("ctrl+u")
+	if a.outlineEdit.line.Cursor != 0 {
+		t.Fatalf("cursor after i = %d, want 0", a.outlineEdit.line.Cursor)
+	}
+	d.Keys("ctrl+k")
 	d.Type("Second Renamed")
-	d.Keys("ctrl+s")
+	d.Keys("enter")
 	if rec, _ := store.Get(t2.Ref()); rec.Text("title") != "Second Renamed" {
-		t.Fatalf("title after rename = %q, want Second Renamed", rec.Text("title"))
+		t.Fatalf("title after inline rename = %q, want Second Renamed", rec.Text("title"))
 	}
 	_ = t3
 }

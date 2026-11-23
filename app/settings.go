@@ -39,6 +39,7 @@ const (
 	SetTablePresets       = "table.presets"
 	SetWorkTasksLayout    = "work.tasksLayout"
 	SetAutoArchiveExited  = "terminal.autoArchiveOnExit"
+	SetScrollOff          = "ui.scrolloff"
 	WorkTasksLayoutTree   = "tree"
 	WorkTasksLayoutTable  = "table"
 	PanesGroupProjectPane = "project-pane"
@@ -95,6 +96,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetConfirmQuit, true, "prompt before quitting Matomeru"),
 		flag(SetConfirmDaemonReset, true, "prompt before resetting the daemon and dropping all live panes"),
 		flag(SetAutoArchiveExited, true, "auto-detach and archive panes when their process exits"),
+		{Name: SetScrollOff, Type: core.ParamInt, Default: 5, Description: "context lines kept above and below the cursor when scrolling"},
 		enum(SetWorkTasksLayout, WorkTasksLayoutTree, "how tasks are displayed in 2 Work (tree or table)", WorkTasksLayoutTree, WorkTasksLayoutTable),
 	}
 }

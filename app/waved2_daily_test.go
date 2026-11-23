@@ -578,30 +578,33 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 		t.Fatal("second z a did not unfold ochazuke-v2 children")
 	}
 
-	// `O` (add child task) under ochazuke-v2 opens non-destructive New Task form with parent pre-filled.
+	// `o` opens an inline row below at the SAME indent level (root sibling); pressing Tab indents it under ochazuke-v2.
 	ochazuke := titled(t, a, data.KindTask, "ochazuke-v2")
-	d.Keys("O")
-	if a.Modal() != modalForm || a.form == nil || a.form.kind != data.KindTask {
-		t.Fatalf("O did not open New Task form: modal=%q", a.Modal())
+	d.Keys("o")
+	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil || a.Modal() != "" {
+		t.Fatalf("o did not enter inline outline edit: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
-	if parentRef, ok := data.AsRef(a.form.fm.TypedValues()["parent"]); !ok || parentRef != ochazuke.Ref() {
-		t.Fatalf("O child task parent = %v, want %v", a.form.fm.TypedValues()["parent"], ochazuke.Ref())
+	if a.outlineEdit.parentRef != nil {
+		t.Fatalf("o on root task should start at same top-level indent, got parent=%v", a.outlineEdit.parentRef)
 	}
-	d.Keys("i")
+	d.Keys("tab")
+	if a.outlineEdit.parentRef == nil || *a.outlineEdit.parentRef != ochazuke.Ref() {
+		t.Fatalf("tab during inline o should indent under %v, got %v", ochazuke.Ref(), a.outlineEdit.parentRef)
+	}
 	d.Type("Tree Child Task")
-	d.Keys("ctrl+s")
+	d.Keys("enter")
 	childRec := titled(t, a, data.KindTask, "Tree Child Task")
 	if p, ok := childRec.RefField("parent"); !ok || p != ochazuke.Ref() {
 		t.Fatalf("created child task parent = %v, want %v", p, ochazuke.Ref())
 	}
 
-	// `o` (add sibling task) on a subtask creates a sibling under the same parent.
-	d.Keys("j", "o")
-	if a.Modal() != modalForm || a.form == nil {
-		t.Fatalf("o did not open sibling task form: modal=%q", a.Modal())
+	// `o` on a subtask creates a sibling under the SAME parent (NOT a grandchild).
+	d.Keys("o")
+	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil {
+		t.Fatalf("o on subtask did not enter inline edit: mode=%q", a.Mode())
 	}
-	if parentRef, ok := data.AsRef(a.form.fm.TypedValues()["parent"]); !ok || parentRef != ochazuke.Ref() {
-		t.Fatalf("o sibling task parent = %v, want %v", a.form.fm.TypedValues()["parent"], ochazuke.Ref())
+	if a.outlineEdit.parentRef == nil || *a.outlineEdit.parentRef != ochazuke.Ref() {
+		t.Fatalf("o sibling task parent = %v, want %v", a.outlineEdit.parentRef, ochazuke.Ref())
 	}
 	d.Keys("esc")
 
@@ -620,8 +623,8 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 		t.Fatal("z a in T Outline did not fold ochazuke-v2")
 	}
 	d.Keys("z", "a", "O")
-	if a.Modal() != modalForm || a.form == nil {
-		t.Fatalf("O in T Outline did not open child task form: modal=%q", a.Modal())
+	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil || a.outlineEdit.kind != "above" {
+		t.Fatalf("O in T Outline did not start inline above row: mode=%q edit=%+v", a.Mode(), a.outlineEdit)
 	}
 	d.Keys("esc", "esc")
 
