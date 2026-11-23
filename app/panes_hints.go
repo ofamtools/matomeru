@@ -12,6 +12,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/hints"
 	"ofam.dev/ochazuke/widgets/toast"
 )
@@ -237,4 +238,38 @@ func (a *App) insertTextIntoPane(pane *data.Record, text string) {
 		a.termOf(pane.ID).typed += text
 	}
 	a.say("inserted %s into %s", clip(text, 44), views.Title(a.schema(data.KindPane), *pane))
+}
+
+// --- Focus jump hints (ochazuke/widgets/hints over layout.Solved.FocusOrder) -----
+
+// focusHints activates focus-jump hint mode over layout.Solved.FocusOrder using
+// the same shared ochazuke/widgets/hints engine and ModeHints as terminal hints.
+func (a *App) focusHints(s core.State, _ core.Command) core.StepResult {
+	solved := s.Layout
+	if len(solved.FocusOrder) == 0 && a.Shell != nil {
+		solved = a.Shell.State.Layout
+	}
+	if len(solved.FocusOrder) == 0 {
+		w, h := 120, 36
+		if a.Shell != nil && a.Shell.W > 0 && a.Shell.H > 0 {
+			w, h = a.Shell.W, a.Shell.H
+		}
+		_, solved = ui.Render(a.View(s), a.theme(), s.ActiveFrame().FocusID, w, h)
+	}
+	targets := hints.TargetsFromFocusOrder(solved)
+	if len(targets) == 0 {
+		a.say("no focusable regions on screen")
+		return core.Next(s)
+	}
+	sess := hints.NewSession(targets)
+	curFrame := s.ActiveFrame()
+	a.hints = &hintsState{
+		session:     sess,
+		focusJump:   true,
+		returnMode:  curFrame.Mode,
+		returnFocus: curFrame.FocusID,
+		returnPage:  s.ActivePage,
+	}
+	a.say("focus hints (%d) · type label to jump · esc/q cancels", len(targets))
+	return core.Next(withMode(s, ModeHints))
 }

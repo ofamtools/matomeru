@@ -15,6 +15,7 @@ import (
 	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
+	"ofam.dev/ochazuke/widgets/toast"
 )
 
 // --- modal stack plumbing -------------------------------------------------------
@@ -581,4 +582,28 @@ func (a *App) openPath(s core.State, field string, target *core.Ref, start any) 
 	}
 	a.say("enter opens · tab chooses · left goes up")
 	return a.pushModal(s, pm)
+}
+
+// createPickedRecord creates a new record of kind with title as its summary field
+// for PickerCreateHook callbacks and reports a toast on success.
+func (a *App) createPickedRecord(kind, title string) (data.Record, error) {
+	schema := a.schema(kind)
+	field := schema.SummaryField
+	if field == "" {
+		field = "title"
+	}
+	rec, _, err := a.Store.Create(data.CreateInput{
+		Kind:   kind,
+		Fields: map[string]any{field: title},
+	}, User)
+	if err != nil {
+		a.fail("create "+kind, err)
+		return data.Record{}, err
+	}
+	nounTitle := schema.Title
+	if nounTitle == "" {
+		nounTitle = kind
+	}
+	a.pushToast(fmt.Sprintf("Created %s %q", strings.ToLower(nounTitle), title), toast.Ok)
+	return *rec, nil
 }

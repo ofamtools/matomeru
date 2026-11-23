@@ -627,3 +627,100 @@ func (a *App) questionSubmitAll(s core.State, _ core.Command) core.StepResult {
 	a.say("submitted %d answers for %s · u undoes", len(batchAnswers), views.Title(a.schema(data.KindPane), *pane))
 	return core.Next(s)
 }
+
+// --- Global KindQuestion answering synced to pane ui.page ------------------------
+
+func parseQuestionChoices(rec data.Record) []string {
+	raw, has := rec.Value("choices")
+	if !has || raw == nil {
+		return nil
+	}
+	var out []string
+	switch v := raw.(type) {
+	case []string:
+		return slices.Clone(v)
+	case []any:
+		for _, elem := range v {
+			switch item := elem.(type) {
+			case string:
+				if s := strings.TrimSpace(item); s != "" {
+					out = append(out, s)
+				}
+			case map[string]any:
+				if id := strings.TrimSpace(data.Text(item["id"])); id != "" {
+					out = append(out, id)
+				} else if lbl := strings.TrimSpace(data.Text(item["label"])); lbl != "" {
+					out = append(out, lbl)
+				}
+			default:
+				if s := strings.TrimSpace(data.Text(elem)); s != "" {
+					out = append(out, s)
+				}
+			}
+		}
+	case string:
+		var parsed []any
+		if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+			recCopy := rec
+			recCopy.Fields = map[string]any{"choices": parsed}
+			return parseQuestionChoices(recCopy)
+		}
+	}
+	return out
+}
+
+func (a *App) openAnswerFormForQuestionRecord(s core.State, rec data.Record) core.State {
+	choices := parseQuestionChoices(rec)
+	var specs []core.ParamSpec
+	values := map[string]any{}
+	existing := strings.TrimSpace(rec.Text("answer"))
+	if len(choices) > 0 {
+		specs = []core.ParamSpec{
+			{Name: "choice", Type: core.ParamString, Required: true, Enum: choices, Default: choices[0], Description: "select an answer"},
+			{Name: "notes", Type: core.ParamString, Description: "optional notes"},
+		}
+		if existing != "" && slices.Contains(choices, existing) {
+			values["choice"] = existing
+		} else {
+			values["choice"] = choices[0]
+		}
+	} else {
+		specs = []core.ParamSpec{
+			{Name: "answer", Type: core.ParamString, Required: true, Description: "your answer"},
+		}
+		if existing != "" {
+			values["answer"] = existing
+		}
+	}
+	promptTitle := rec.Text("prompt")
+	if promptTitle == "" {
+		promptTitle = rec.ID
+	}
+	fm := form.New(promptTitle, specs, values)
+	fm.SubmitRow = true
+	fm.SubmitLabel = "Send answer"
+	am := a.newAnswerFormModal(fm, &answerFormModal{
+		ref:        rec.Ref(),
+		questionID: rec.ID,
+		draftKey:   "answer:question:" + rec.ID,
+	})
+	a.say("space/h/l choose · i types · ctrl+s sends and syncs to pane")
+	return a.pushModal(s, am)
+}
+
+func formatQuestionAnswerValues(values map[string]any) string {
+	if choice := strings.TrimSpace(data.Text(values["choice"])); choice != "" {
+		if notes := strings.TrimSpace(data.Text(values["notes"])); notes != "" {
+			return choice + " (" + notes + ")"
+		}
+		return choice
+	}
+	if ans := strings.TrimSpace(data.Text(values["answer"])); ans != "" {
+		return ans
+	}
+	b, err := json.Marshal(values)
+	if err != nil {
+		return data.Text(values)
+	}
+	return string(b)
+}

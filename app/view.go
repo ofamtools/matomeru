@@ -522,3 +522,21 @@ func (a *App) noSession() string {
 	}
 	return "This pane has no live session yet. Enter starts one."
 }
+
+// applyTreeGuides sets the "guides" prop on every ui.KindTree node in the view
+// tree from the ui.treeGuides setting (one general mechanism for Outline and
+// any tree view).
+func applyTreeGuides(n *ui.ViewNode, guides bool) {
+	if n == nil {
+		return
+	}
+	if n.Kind == ui.KindTree {
+		if n.Props == nil {
+			n.Props = map[string]any{}
+		}
+		n.Props["guides"] = guides
+	}
+	for i := range n.Children {
+		applyTreeGuides(&n.Children[i], guides)
+	}
+}

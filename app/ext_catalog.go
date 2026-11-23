@@ -3,13 +3,16 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
+	"ofam.dev/matomeru/runs"
 	"ofam.dev/ochazuke/config"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/toast"
 )
 
 // MountCatalog registers an extension's manifest schemas, declarative record
@@ -184,4 +187,80 @@ func (a *App) ensureShadow(ref core.Ref) error {
 	}
 	_, err := ext.Shadow(a.Store, rec, User)
 	return err
+}
+
+// --- extension.setup binding on 4 Extensions -------------------------------------
+
+func extensionAdvertisesSetup(rec data.Record) bool {
+	for _, field := range []string{"commands", "capabilities"} {
+		raw, ok := rec.Value(field)
+		if !ok || raw == nil {
+			continue
+		}
+		switch list := raw.(type) {
+		case []string:
+			for _, item := range list {
+				s := strings.ToLower(strings.TrimSpace(item))
+				if s == "setup" || strings.Contains(s, "setup") {
+					return true
+				}
+			}
+		case []any:
+			for _, item := range list {
+				s := strings.ToLower(strings.TrimSpace(data.Text(item)))
+				if s == "setup" || strings.Contains(s, "setup") {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (a *App) extSetup(s core.State, c core.Command) core.StepResult {
+	ref, ok := a.subject(s, c)
+	if !ok || ref.Kind != data.KindExtension {
+		a.say("no extension here to set up")
+		return core.Next(s)
+	}
+	rec, err := a.Store.Get(ref)
+	if err != nil {
+		a.fail("extension setup", err)
+		return core.Next(s)
+	}
+	name := rec.Text("name")
+	if !extensionAdvertisesSetup(*rec) {
+		msg := fmt.Sprintf("%s needs no setup (no setup command advertised)", name)
+		a.say("%s", msg)
+		a.pushToast(msg, toast.Info)
+		return core.Next(s)
+	}
+	bin := strings.TrimSpace(rec.Text("binary"))
+	if rec.Text("runStatus") == ext.StatusOffline || bin == "" {
+		msg := fmt.Sprintf("%s is offline · R looks again", name)
+		a.say("%s", msg)
+		a.pushToast(msg, toast.Warn)
+		return core.Next(s)
+	}
+	title := name + " setup"
+	argv := []string{bin, "setup"}
+	cmdLine := shellJoin(argv)
+	if a.Runner != nil {
+		runRec, err := a.Runner.Start(context.Background(), runs.StartSpec{
+			Title:   title,
+			Command: cmdLine,
+			Args:    argv,
+			Actor:   runActor,
+		})
+		s = a.started(s, "ran "+title, runRec, err)
+		if err != nil {
+			a.pushToast(title+" failed: "+err.Error(), toast.Err)
+		} else {
+			a.pushToast("Running "+title, toast.Ok)
+		}
+		return core.Next(s)
+	}
+	s = a.startShell(s, title, cmdLine, "")
+	a.pushToast("Queued "+title, toast.Ok)
+	return core.Next(s)
 }

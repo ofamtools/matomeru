@@ -2192,3 +2192,23 @@ func (a *App) register() {
 		a.handle(id, a.runRecordAction(spec))
 	}
 }
+
+func recordIntField(rec data.Record, name string) int {
+	v, ok := rec.Value(name)
+	if !ok || v == nil {
+		return 0
+	}
+	switch x := v.(type) {
+	case int:
+		return x
+	case int64:
+		return int(x)
+	case float64:
+		return int(x)
+	case string:
+		var n int
+		_, _ = fmt.Sscan(strings.TrimSpace(x), &n)
+		return n
+	}
+	return 0
+}
