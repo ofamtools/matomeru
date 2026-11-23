@@ -293,7 +293,9 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 
 	site := ui.ViewNode{ID: "panes.none", Kind: ui.KindPanel, Border: true, Title: "No pane",
 		Children: []ui.ViewNode{text("", "No pane is selected. Panes appear here as they are recorded.", "muted")}}
-	if pane, ok := a.SelectedPane(); ok {
+	if groupName, projRef, onProject := a.selectedRailProject(); onProject {
+		site = a.projectOverviewView(s, groupName, projRef)
+	} else if pane, ok := a.SelectedPane(); ok {
 		ref := pane.Ref()
 		res, err := a.Store.Query(data.Query{Kind: data.KindPage, Parent: &ref, ParentField: "pane", IncludeArchived: a.showArchived})
 		if err != nil {
@@ -309,6 +311,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
 		}
 		site = views.PaneSiteViewWith(*pane, res.Items, a.activePage[pane.ID], a.tocFilter, opts)
+		a.enhanceQuestionsSite(&site, *pane, res.Items)
 		var extraTop []ui.ViewNode
 		if strip, ok := a.paneHeaderStrip(*pane); ok {
 			extraTop = append(extraTop, strip)
@@ -325,7 +328,9 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		}
 		a.live.shown = ""
 		if screen := site.Find(siteScreen); screen != nil {
+			var shownLines []string
 			if lines, cursor, badges, ok := a.liveScreen(*pane, siteScreen); ok {
+				shownLines = lines
 				screen.Props["lines"], screen.Props["cursor"] = lines, cursor
 				content := site.Find("site.content")
 				content.Badges = badges
@@ -334,8 +339,19 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 				}
 			} else {
 				typing := s.Pages[SpacePanes].Mode == ModeTerminal
-				screen.Props["lines"] = a.termLines(*pane, typing)
+				shownLines = a.termLines(*pane, typing)
+				screen.Props["lines"] = shownLines
 				site.Find("site.content").Badges = []ui.Badge{{Text: "not attached", Tone: "muted"}}
+			}
+			if a.hints != nil && a.hints.session != nil && a.hints.session.Active() && a.hints.paneID == pane.ID {
+				w, h := a.screenSize()
+				screen.Props["lines"] = a.hintsRenderLines(shownLines, w, h)
+				delete(screen.Props, "cursor")
+				if content := site.Find("site.content"); content != nil {
+					content.Badges = append(slices.Clone(content.Badges),
+						ui.Badge{Text: fmt.Sprintf("hints %d", len(a.hints.session.Remaining())), Tone: "accent"})
+				}
+				site.Children = append(site.Children, a.hints.session.View("site.hints.bar"))
 			}
 		}
 	}
@@ -549,6 +565,11 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.cmdlineModal()
+	case modalComposer:
+		if a.composer == nil {
+			break
+		}
+		return a.composerModal()
 	case modalInspect:
 		pm := a.pickers[m.ID]
 		if pm == nil {
@@ -577,6 +598,13 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 		ov := overlay(m.ID, a.answer.fm.Title, 70, 0, a.answer.fm.View(modalAnswer+".form"))
 		ov.Scope = "answer"
 		ov.Badges = formBadges(a.answer.fm)
+		if a.answer.batch != nil && len(a.answer.batch.cards) > 1 {
+			ov.Facts = map[string]any{"isBatch": true, "batchPos": a.answer.batchPos, "batchTotal": len(a.answer.batch.cards)}
+			ov.Badges = append([]ui.Badge{{
+				Text: fmt.Sprintf("Q %d/%d · ctrl+n/p", a.answer.batchPos+1, len(a.answer.batch.cards)),
+				Tone: "accent",
+			}}, ov.Badges...)
+		}
 		return ov
 	case modalPalette:
 		if a.palette == nil {

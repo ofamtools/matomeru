@@ -114,6 +114,7 @@ func (a *App) setupLive(opts Options) {
 	}
 	if opts.Live {
 		a.startHarnessDiscovery()
+		a.ensureAICatalogAsync()
 	}
 	if a.tracking() {
 		if n, err := a.Store.LatestChangeSetNumber(); err == nil {
@@ -219,6 +220,9 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 	}
 	if seq := l.telemetrySeq.Load(); seq != l.telemetryDrawn {
 		l.telemetryDrawn, changed = seq, true
+		if a.flushAllQueuedPrompts() > 0 {
+			changed = true
+		}
 	}
 	if !changed {
 		return core.Next(s)
@@ -578,6 +582,9 @@ func (a *App) screenMoved() bool {
 		return false
 	}
 	a.live.frames[id] = f
+	if pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: id}); err == nil {
+		a.harvestScreenLines(*pane, f.Lines, f.Cols, f.Revision)
+	}
 	return true
 }
 
@@ -625,6 +632,7 @@ func (a *App) liveScreen(pane data.Record, node string) (lines []string, cursor 
 		}
 		return lines, cursor, []ui.Badge{badge}, true
 	}
+	a.harvestScreenLines(pane, f.Lines, f.Cols, f.Revision)
 	return f.Lines, cursorProp(f.Cursor.X, f.Cursor.Y, int(f.Cursor.Shape)), badges, true
 }
 

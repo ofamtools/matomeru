@@ -218,6 +218,9 @@ func (a *App) fieldPicked(key string) {
 	case "group":
 		tbl.GroupField, tbl.Collapsed = key, nil
 		tbl.SelectedIdx, tbl.Offset = 0, 0
+		if a.fieldTable == railTable {
+			a.railCustomGroup = key
+		}
 		if key == "" {
 			a.say("not grouped")
 		} else {

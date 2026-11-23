@@ -531,6 +531,7 @@ func (a *App) refreshTelemetry() {
 		return
 	}
 	a.setTelemetry(res, true)
+	a.flushAllQueuedPrompts()
 }
 
 func (a *App) paneTelemetry(paneID string) *daemon.PaneTelemetry {
@@ -589,8 +590,9 @@ func (a *App) decorateRailRow(row *table.Row, pane data.Record) {
 		return
 	}
 	if state != "" {
-		row.Cells["runStatus"] = state
+		row.Cells["runStatus"] = formatPaneStatusCell(state)
 		row.Facts["hookState"] = state
+		row.Facts["statusTone"] = hookStateTone(state)
 	}
 	var extras []string
 	if pt != nil && pt.Tool != "" {

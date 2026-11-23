@@ -99,8 +99,9 @@ func TestRailFollowsOwnerPrompts(t *testing.T) {
 		t.Fatal("an agent's input reordered the rail")
 	}
 	// The owner types a prompt into the second pane: it moves to the top,
-	// and stays the selected pane.
-	d.Keys("j", "enter", "enter")
+	// and stays the selected pane. (With project-pane grouping, j lands on the
+	// second project's header first, then j again selects its pane.)
+	d.Keys("j", "j", "enter", "enter")
 	if a.Mode() != ModeTerminal {
 		t.Fatalf("mode = %s, want terminal", a.Mode())
 	}

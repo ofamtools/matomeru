@@ -54,7 +54,8 @@ func TestTutorial(t *testing.T) {
 // once, is saved to settings.json, and is there on the next start.
 func TestSettingsApplyAndPersist(t *testing.T) {
 	want := map[string]any{SetTheme: "ochazuke-dark", SetDensity: "balanced", SetBorderStyle: "rounded", SetShowMetadata: true, SetShowEmpty: true,
-		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true}
+		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true,
+		SetPanesGroup: PanesGroupProjectPane}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -425,7 +426,7 @@ func TestAttentionAndLaneKeys(t *testing.T) {
 	if sel, _ := a.SelectedPane(); a.Space() != SpacePanes || sel == nil || sel.ID != pane.ID || a.Focus() != "q-live-terminal" {
 		t.Fatalf("W: space %s focus %s", a.Space(), a.Focus())
 	}
-	d.Keys("a", "space", "ctrl+s", "h", "h", "j") // answered; on to the other pane
+	d.Keys("a", "space", "ctrl+s", "h", "h", "j", "j") // answered; past second project header on to the other pane
 	other, _ := a.SelectedPane()
 	if other == nil || other.ID == pane.ID {
 		t.Fatalf("not on the other pane: %v", other)

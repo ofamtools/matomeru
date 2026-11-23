@@ -11,6 +11,8 @@ require (
 	tuios.dev/vt v0.3.3-0.20261030005101-f3383d2005bd
 )
 
+replace ofam.dev/ochazuke => ../ochazuke
+
 require (
 	charm.land/lipgloss/v2 v2.0.6 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect

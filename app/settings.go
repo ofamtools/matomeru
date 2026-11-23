@@ -19,28 +19,31 @@ import (
 // The declared settings: each has a spec, so the Settings overlay (S) is a
 // form over them and a change applies at once.
 const (
-	SetTheme         = "ui.theme"
-	SetDensity       = "ui.density"
-	SetBorderStyle   = "ui.borderStyle"
-	SetShowMetadata  = "show.metadata"
-	SetShowEmpty     = "show.emptyRelations"
-	SetFlagsColumn   = "index.flagsColumn"
-	SetMatchMode     = "index.defaultMatchMode"
-	SetEditUniversal = "edit.showUniversalFields"
-	SetEditExtra     = "edit.showExtraFields"
-	SetLaneBar       = "panes.laneProgressBar"
-	SetRailAutoWiden = "panes.railAutoWiden"
-	SetShowTOC       = "panes.showTOC"
-	defaultThemeName = "ochazuke-dark"
-	settingsFileName = "settings.json"
-	bindingsFileName = "bindings.json"
+	SetTheme              = "ui.theme"
+	SetDensity            = "ui.density"
+	SetBorderStyle        = "ui.borderStyle"
+	SetShowMetadata       = "show.metadata"
+	SetShowEmpty          = "show.emptyRelations"
+	SetFlagsColumn        = "index.flagsColumn"
+	SetMatchMode          = "index.defaultMatchMode"
+	SetEditUniversal      = "edit.showUniversalFields"
+	SetEditExtra          = "edit.showExtraFields"
+	SetLaneBar            = "panes.laneProgressBar"
+	SetRailAutoWiden      = "panes.railAutoWiden"
+	SetShowTOC            = "panes.showTOC"
+	SetPanesGroup         = "panes.group"
+	PanesGroupProjectPane = "project-pane"
+	PanesGroupFlat        = "flat"
+	defaultThemeName      = "ochazuke-dark"
+	settingsFileName      = "settings.json"
+	bindingsFileName      = "bindings.json"
 	// setTerminalDaemon is read from settings.json only (it has no row in
 	// the settings form): panes run in a daemon when one is reachable.
 	setTerminalDaemon = "terminal.daemon"
 	// factOpenable is set on a row whose record "o" can open.
 	factOpenable      = "openable"
 	themesFileName    = "themes.json"
-	railRatio         = 0.3
+	railRatio         = 0.33
 	railRatioWidened  = 0.42
 	laneBarHint       = "ctrl+a L"
 	legacyMatchModeID = "matchMode"
@@ -77,6 +80,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetLaneBar, true, "the lane progress bar above a pane's site"),
 		flag(SetRailAutoWiden, false, "the pane rail widens while it has the focus"),
 		flag(SetShowTOC, true, "the pane's Pages table of contents rail"),
+		enum(SetPanesGroup, PanesGroupProjectPane, "how panes are grouped in the rail", PanesGroupProjectPane, PanesGroupFlat),
 	}
 }
 
@@ -254,6 +258,10 @@ func (a *App) commitSetting() {
 				tbl.MatchMode = a.matchMode()
 			}
 		}
+	}
+	if name == SetPanesGroup {
+		a.railCustomGroup = ""
+		a.rail()
 	}
 	saved, err := a.writeConfig(settingsFileName, a.userSettings)
 	switch {

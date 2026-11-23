@@ -10,7 +10,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -107,6 +106,8 @@ const (
 	modalInspect       = "inspect"
 	modalScratch       = "scratch"
 	modalCommandLine   = "commandline"
+	modalContext       = "context"
+	modalComposer      = "composer"
 
 	readerNode    = "reader.md"
 	scratchScreen = "scratch.screen"
@@ -173,8 +174,10 @@ type formState struct {
 	fm       *form.Model
 	about    *core.Ref // a new note is attached to this record
 	draftKey string
-	// For an answer: the page and card it answers.
+	// For an answer: the page and card it answers, plus optional batch metadata.
 	pageID, cardID string
+	batch          *batchQuestionInfo
+	batchPos       int
 	// For a launch form: what submit runs. It reports whether to close the form.
 	submit func(core.State, map[string]any) (core.State, bool)
 }
@@ -286,6 +289,33 @@ type App struct {
 	extCatalogs map[string]string // external noun kind -> tool binary
 	extFetching map[string]bool   // external noun kinds with a fetch in flight
 
+	// Wave 3: project-pane rail, project overview context table, context items,
+	// live terminal hints, prompt composer, and batched questions.
+	railProjectRefs map[string]core.Ref
+	railGroupPanes  map[string][]data.Record
+	railCustomGroup string
+	projectCtxRows  map[string]CollectedContextItem
+	projectCtxGroup string
+	projectCtxRef   *core.Ref
+
+	ctxIdx        *contextIndex
+	contextTarget *core.Ref
+
+	hints *hintsState
+
+	composer        *composerState
+	composerFilesMu sync.RWMutex
+	composerFiles   map[string]cachedFileList
+	aiSkillsMu      sync.RWMutex
+	aiSkills        []composerCompletion
+	aiSkillsLoaded  bool
+	aiSkillsLoading bool
+	queuedMu        sync.Mutex
+	queuedPrompts   map[string][]string
+	interruptDelay  time.Duration
+
+	stagedAnswers map[string]map[string]map[string]any
+
 	gen     uint64
 	memoKey string
 	memo    ui.ViewNode
@@ -302,6 +332,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		userSettings: map[string]any{}, readCache: data.NewReadCache(),
 		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
 		drafts: form.NewDraftStore(),
+		ctxIdx: newContextIndex(),
 	}
 	a.specs = CommandSpecs()
 	a.bindings = DefaultBindings()
@@ -694,32 +725,7 @@ func (a *App) attention(pane string) bool {
 
 // rail returns the pane rail: panes by the owner's last prompt, newest
 // first. Agent input never reorders it, because it never moves promptedAt.
-func (a *App) rail() *table.Model {
-	res, err := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: a.showArchived})
-	if err != nil {
-		a.fail("read panes", err)
-	}
-	panes := res.Items
-	slices.SortStableFunc(panes, func(x, y data.Record) int { return y.Time("promptedAt").Compare(x.Time("promptedAt")) })
-	fresh := views.TableFromRecords(a.schema(data.KindPane), panes)
-	fresh.Columns = []table.Column{{Key: "rail", Title: "Pane"}, {Key: "runStatus", Title: "State", Width: 8}}
-	for i := range fresh.Rows {
-		row := &fresh.Rows[i]
-		mark := "  "
-		if a.attention(row.Ref.ID) {
-			mark, row.Unread = "● ", true
-		}
-		row.Cells["rail"] = mark + views.Title(a.schema(data.KindPane), panes[i])
-		a.decorateRailRow(row, panes[i])
-		if a.openable(panes[i]) {
-			row.Facts[factOpenable] = true
-		}
-	}
-	tbl := keep(a.tables[railTable], fresh)
-	a.pageSize(tbl, railTable)
-	a.tables[railTable] = tbl
-	return tbl
-}
+func (a *App) rail() *table.Model { return a.buildRail() }
 
 func (a *App) spaceTable(space string) *table.Model {
 	for _, sp := range spaces {
@@ -744,7 +750,7 @@ func next(list []string, cur string) string {
 
 // regionRoots are the nodes whose focusable descendants form one column: h
 // and l move between regions, j and k walk every focusable in drawing order.
-var regionRoots = []string{"panes.rail", "site.toc", "site.content", showHeader, "show.props", "show.related",
+var regionRoots = []string{"panes.rail", "project.overview", "site.toc", "site.content", showHeader, "show.props", "show.related",
 	SpaceWork, SpaceRuns, SpaceExtensions, "runs.detail", "extensions.detail"}
 
 type fnode struct{ id, region string }
@@ -956,6 +962,7 @@ func (a *App) dropModals(s core.State) core.State {
 	delete(a.pickers, modalPalette)
 	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
 	a.reader, a.opening, a.yankRef, a.actionRef, a.cmdState, a.scratch = nil, nil, nil, nil, nil, ""
+	a.contextTarget, a.composer, a.hints = nil, nil, nil
 	return s
 }
 
@@ -1339,15 +1346,7 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 		}
 		return core.Next(next)
 	case res.Submitted && modal == modalAnswer:
-		_, err := a.Router.SubmitAnswer(fs.pageID, fs.cardID, res.Values, User)
-		if err != nil {
-			a.fail("answer", err)
-			return core.Next(s)
-		}
-		a.clearSubmittedDraft(fs)
-		a.answer = nil
-		a.say("answered %q · u undoes", fm.Title)
-		return core.Next(closeModal(s, modalAnswer))
+		return core.Next(a.submitAnswerModal(s, fs, res.Values))
 	case res.Submitted && modal == modalLaunch:
 		next, done := fs.submit(s, res.Values)
 		if done {
@@ -1392,10 +1391,14 @@ func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
 	return core.Next(withMode(s, mode))
 }
 
-// answerQuestion opens the form of the focused question card.
-func (a *App) answerQuestion(s core.State, _ core.Command) core.StepResult {
+// answerQuestion opens the form of the focused question card (or submits a
+// batch when focused on the Submit All card).
+func (a *App) answerQuestion(s core.State, c core.Command) core.StepResult {
 	root := a.View(s)
 	focus := s.ActiveFrame().FocusID
+	if strings.HasPrefix(focus, questionBatchSubmitPrefix) {
+		return a.questionSubmitAll(s, c)
+	}
 	var card *ui.ViewNode
 	var walk func(n *ui.ViewNode, within *ui.ViewNode) bool
 	walk = func(n *ui.ViewNode, within *ui.ViewNode) bool {
@@ -1419,30 +1422,26 @@ func (a *App) answerQuestion(s core.State, _ core.Command) core.StepResult {
 		a.say("no question here to answer")
 		return core.Next(s)
 	}
-	var specs []core.ParamSpec
-	values := map[string]any{}
-	for i := range card.Children {
-		if fn := &card.Children[i]; fn.Kind == ui.KindForm {
-			if b, err := json.Marshal(fn.Props["fields"]); err == nil {
-				_ = json.Unmarshal(b, &specs)
+	if card.Facts != nil && card.Facts["batchSubmit"] == true {
+		return a.questionSubmitAll(s, c)
+	}
+	pageID := a.activePage[pane.ID]
+	if content := root.Find("site.content"); content != nil && content.Ref != nil && content.Ref.Kind == data.KindPage {
+		pageID = content.Ref.ID
+	}
+	var batch *batchQuestionInfo
+	batchPos := 0
+	if bid := cardBatchID(card); bid != "" {
+		if content := root.Find("site.content"); content != nil {
+			if batches := findQuestionBatches(content, pageID); batches[bid] != nil {
+				batch = batches[bid]
+				if idx := slices.IndexFunc(batch.cards, func(cn ui.ViewNode) bool { return cn.ID == card.ID }); idx >= 0 {
+					batchPos = idx
+				}
 			}
-			if b, err := json.Marshal(fn.Props["values"]); err == nil {
-				_ = json.Unmarshal(b, &values)
-			}
-			break
 		}
 	}
-	if len(specs) == 0 {
-		specs = []core.ParamSpec{{Name: "answer", Type: core.ParamString, Required: true}}
-	}
-	fm := form.New(card.Title, specs, values)
-	fm.SubmitRow = true
-	fm.SubmitLabel = "Send answer"
-	fs := &formState{fm: fm, pageID: a.activePage[pane.ID], cardID: card.ID}
-	a.attachFormDrafts(fs, answerDraftKey(fs.pageID, fs.cardID))
-	a.answer = fs
-	a.say("space and h/l choose · i types · ctrl+s sends")
-	return core.Next(openModal(s, modalAnswer, ModeForm, modalAnswer+".form"))
+	return core.Next(a.openAnswerFormForCard(s, pageID, card, batch, batchPos))
 }
 
 // --- pickers --------------------------------------------------------------------
@@ -1588,6 +1587,17 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		text, _ := picked.Data.(string)
 		a.yankRef = nil
 		a.yank(text, picked.ID)
+	case modalContext:
+		a.contextTarget = nil
+		if it, ok := picked.Data.(CollectedContextItem); ok {
+			var pane *data.Record
+			if it.PaneID != "" {
+				if rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: it.PaneID}); err == nil {
+					pane = rec
+				}
+			}
+			return a.openContextValue(s, it.Kind, it.Value, pane)
+		}
 	case modalOpenWith:
 		return core.Next(a.openWithPicked(s, picked))
 	case modalNouns:
@@ -1699,6 +1709,9 @@ func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
 }
 
 func (a *App) siteFocus(s core.State, _ core.Command) core.StepResult {
+	if _, _, onProj := a.selectedRailProject(); onProj {
+		return core.Next(withFocus(s, projectContextTable))
+	}
 	for _, n := range a.focusables(s) {
 		if !strings.HasPrefix(n.id, tocPrefix) {
 			continue
@@ -1999,6 +2012,8 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	case ModeCommandLine:
 		return a.cmdlineCommand(s, c)
+	case ModeComposer:
+		return a.composerCommand(s, c)
 	}
 	return core.Next(s)
 }
@@ -2166,6 +2181,7 @@ func (a *App) typed(pane data.Record, key, text string, echo bool) {
 			buf.lines = buf.lines[max(0, len(buf.lines)-200):]
 		}
 		if strings.TrimSpace(buf.typed) != "" {
+			a.harvestPrompt(pane, buf.typed)
 			if _, _, err := a.Store.RecordPaneInput(pane.Ref(), prompter); err != nil {
 				a.fail("prompt", err)
 			}
@@ -2255,6 +2271,17 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.scratch = ""
 	case modalCommandLine:
 		a.cmdState = nil
+	case modalContext:
+		a.contextTarget = nil
+	case modalComposer:
+		saved := a.saveComposerDraft(a.composer)
+		a.composer = nil
+		if saved {
+			a.say("composer closed · draft saved (ctrl+p restores)")
+		} else {
+			a.say("composer closed")
+		}
+		return core.Next(closeModal(s, id))
 	case modalPalette:
 		a.palette = nil
 		delete(a.pickers, modalPalette)
@@ -2553,4 +2580,29 @@ func (a *App) register() {
 		a.say("archived records are %s", map[bool]string{true: "shown", false: "hidden"}[a.showArchived])
 		return core.Next(s)
 	})
+
+	// Wave 3: project-pane rail, project context overview, context picker,
+	// terminal hints, prompt composer, and batched questions.
+	a.handle(CmdPanesGroupToggle, a.panesGroupToggle)
+	a.handle(CmdContextPick, a.contextPick)
+	a.handle(CmdContextYank, func(s core.State, _ core.Command) core.StepResult { return a.contextPickerAction(s, "yank") })
+	a.handle(CmdContextAttach, func(s core.State, _ core.Command) core.StepResult { return a.contextPickerAction(s, "attach") })
+	a.handle(CmdProjectContextOpen, a.projectContextOpen)
+	a.handle(CmdProjectContextYank, a.projectContextYank)
+	a.handle(CmdProjectContextStar, a.projectContextStar)
+	a.handle(CmdProjectContextAttach, a.projectContextAttach)
+	a.handle(CmdPaneHints, a.paneHints)
+	a.handle(CmdHintsKey, a.hintsKey)
+	a.handle(CmdHintsCancel, a.hintsCancel)
+	a.handle(CmdPaneCompose, a.paneCompose)
+	for _, id := range []string{CmdComposerInsert, CmdComposerBackspace, CmdComposerEnter, CmdComposerSubmit,
+		CmdComposerCancel, CmdComposerModeCycle, CmdComposerComplete, CmdComposerUp, CmdComposerDown,
+		CmdComposerDraftPrev, CmdComposerDraftNext} {
+		a.handle(id, a.composerCommand)
+	}
+	a.handle(CmdQuestionNext, a.questionStep(1))
+	a.handle(CmdQuestionPrev, a.questionStep(-1))
+	a.handle(CmdQuestionSubmitAll, a.questionSubmitAll)
+	a.handle(CmdAnswerBatchNext, a.answerBatchStep(1))
+	a.handle(CmdAnswerBatchPrev, a.answerBatchStep(-1))
 }

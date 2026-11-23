@@ -34,6 +34,8 @@ const (
 	ModeReader      = "reader"      // the Markdown reader
 	ModeInspect     = "inspect"     // the actions and modes inspector
 	ModeCommandLine = "commandline" // shell I/O command bar (!, |, r!)
+	ModeHints       = "hints"       // live terminal link/path hint labels
+	ModeComposer    = "composer"    // multi-line prompt composer overlay
 )
 
 // Commands the app adds to core's built-ins and the widgets' own.
@@ -132,6 +134,35 @@ const (
 	CmdTriageRule        = "triage.rule.from-signal"
 	CmdRecordActions     = "record.actions"
 	CmdShellOpen         = "shell.open"
+
+	CmdPanesGroupToggle     = "panes.group.toggle"
+	CmdContextPick          = "context.pick"
+	CmdContextYank          = "context.yank"
+	CmdContextAttach        = "context.attach"
+	CmdProjectContextOpen   = "project.context.open"
+	CmdProjectContextYank   = "project.context.yank"
+	CmdProjectContextStar   = "project.context.star"
+	CmdProjectContextAttach = "project.context.attach"
+	CmdPaneHints            = "pane.hints"
+	CmdHintsKey             = "hints.key"
+	CmdHintsCancel          = "hints.cancel"
+	CmdPaneCompose          = "pane.compose"
+	CmdComposerInsert       = "composer.insert"
+	CmdComposerBackspace    = "composer.backspace"
+	CmdComposerEnter        = "composer.enter"
+	CmdComposerSubmit       = "composer.submit"
+	CmdComposerCancel       = "composer.cancel"
+	CmdComposerModeCycle    = "composer.mode.cycle"
+	CmdComposerComplete     = "composer.complete"
+	CmdComposerUp           = "composer.up"
+	CmdComposerDown         = "composer.down"
+	CmdComposerDraftPrev    = "composer.draft.prev"
+	CmdComposerDraftNext    = "composer.draft.next"
+	CmdQuestionNext         = "question.next"
+	CmdQuestionPrev         = "question.prev"
+	CmdQuestionSubmitAll    = "question.submit_all"
+	CmdAnswerBatchNext      = "question.batch.next"
+	CmdAnswerBatchPrev      = "question.batch.prev"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -153,6 +184,8 @@ func Modes() []core.Mode {
 		{Name: ModeReader},
 		{Name: ModeInspect},
 		{Name: ModeCommandLine},
+		{Name: ModeHints},
+		{Name: ModeComposer},
 	}
 }
 
@@ -208,6 +241,19 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(n, "terminal", "i", CmdTermAttach, "type in the pane")),
 		bind(n, "question", "enter", CmdAnswer, "answer"),
 		bind(n, "question", "a", CmdAnswer, "answer"),
+		bind(n, "question", "n", CmdQuestionNext, "next question"),
+		bind(n, "question", "p", CmdQuestionPrev, "previous question"),
+		bind(n, "question", "ctrl+s", CmdQuestionSubmitAll, "submit all answers"),
+		bind(n, ScopeProjectContext, "enter", CmdProjectContextOpen, "open context item"),
+		bind(n, ScopeProjectContext, "y", CmdProjectContextYank, "yank context item"),
+		bind(n, ScopeProjectContext, "s", CmdProjectContextStar, "star context item"),
+		bind(n, ScopeProjectContext, "a", CmdProjectContextAttach, "attach context item"),
+		bind(n, SpacePanes, "g p", CmdPanesGroupToggle, "toggle rail grouping"),
+		bind(n, ScopeRail, "f", CmdPaneHints, "terminal hints"),
+		bind(n, "terminal", "f", CmdPaneHints, "terminal hints"),
+		bind(n, views.ScopeTOC, "f", CmdPaneHints, "terminal hints"),
+		bind(n, SpacePanes, "c", CmdPaneCompose, "compose prompt"),
+		bind(n, all, "g c", CmdContextPick, "context items"),
 		bind(n, data.KindExtension, "enter", CmdExtRun, "run"),
 		bind(n, all, "enter", views.CmdOpen, "open"),
 		bind(n, SpaceWork, "backspace", CmdHistoryBack, "back"),
@@ -283,6 +329,8 @@ func DefaultBindings() []core.Binding {
 		{Mode: ModeTerminal, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
 		bind(ModeTerminalLeader, all, "d", CmdTermDetach, "detach"),
 		bind(ModeTerminalLeader, all, "z", CmdPaneZoom, "zoom the pane"),
+		bind(ModeTerminalLeader, all, "f", CmdPaneHints, "terminal hints"),
+		bind(ModeTerminalLeader, all, "c", CmdPaneCompose, "compose prompt"),
 		bind(ModeTerminalLeader, all, "L", CmdLaneShow, "the pane's lane"),
 		bind(ModeTerminalLeader, all, "esc", CmdTermEscape, "send esc"),
 		with(bind(ModeTerminalLeader, all, "[", CmdTermPrefix, "copy mode"), map[string]any{"key": "["}),
@@ -306,6 +354,8 @@ func DefaultBindings() []core.Binding {
 		{Mode: ModePicker, Class: core.ClassPaste, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
 		// In the yank picker a second y, before anything is typed, copies the main value.
 		when(bind(ModePicker, all, "y", CmdYankPrimary, "yank the main value"), "modal.id == \"yank\" && facts.query == \"\""),
+		when(bind(ModePicker, all, "y", CmdContextYank, "yank context item"), "modal.id == \"context\" && facts.query == \"\""),
+		when(bind(ModePicker, all, "a", CmdContextAttach, "attach context item"), "modal.id == \"context\" && facts.query == \"\""),
 		bind(ModePicker, all, "backspace", CmdPickerBack, "erase"),
 		bind(ModePicker, all, "enter", picker.CmdConfirm, "choose"),
 		bind(ModePicker, all, "esc", CmdModalCancel, "close"),
@@ -335,6 +385,8 @@ func DefaultBindings() []core.Binding {
 		when(bind(ModeForm, all, "enter", form.CmdSubmit, "run"), "modal.id == \"palette\""),
 		when(bind(ModeForm, all, "shift+tab", palette.CmdFocusList, "back to commands"), "modal.id == \"palette\""),
 		when(bind(ModeForm, all, "esc", palette.CmdFocusList, "back to commands"), "modal.id == \"palette\""),
+		when(bind(ModeForm, all, "ctrl+n", CmdAnswerBatchNext, "next question"), "modal.id == \"answer\" && facts.isBatch"),
+		when(bind(ModeForm, all, "ctrl+p", CmdAnswerBatchPrev, "previous question"), "modal.id == \"answer\" && facts.isBatch"),
 		bind(ModeForm, all, "ctrl+s", form.CmdSubmit, "submit"),
 		hidden(bind(ModeForm, all, "ctrl+enter", form.CmdSubmit, "submit")),
 		bind(ModeForm, all, "enter", CmdFormActivate, "change field"),
@@ -463,9 +515,29 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(ModeCommandLine, all, "ctrl+n", commandline.CmdHistoryNext, "newer")),
 		bind(ModeCommandLine, all, "tab", commandline.CmdCompleteNext, "complete"),
 		hidden(bind(ModeCommandLine, all, "shift+tab", commandline.CmdCompletePrev, "previous completion")),
+
+		// Live terminal hints overlay.
+		{Mode: ModeHints, Class: core.ClassAny, Command: CmdHintsKey, Args: map[string]any{"key": "$key", "text": "$text"}, Hidden: true},
+		bind(ModeHints, all, "esc", CmdHintsCancel, "cancel hints"),
+		bind(ModeHints, all, "ctrl+c", CmdHintsCancel, "cancel hints"),
+
+		// Multi-line prompt composer overlay.
+		{Mode: ModeComposer, Class: core.ClassPrintable, Command: CmdComposerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		{Mode: ModeComposer, Class: core.ClassPaste, Command: CmdComposerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		bind(ModeComposer, all, "enter", CmdComposerEnter, "newline / accept"),
+		bind(ModeComposer, all, "esc", CmdComposerCancel, "close & save draft"),
+		bind(ModeComposer, all, "ctrl+s", CmdComposerSubmit, "submit prompt"),
+		hidden(bind(ModeComposer, all, "ctrl+enter", CmdComposerSubmit, "submit prompt")),
+		bind(ModeComposer, all, "tab", CmdComposerComplete, "complete / delivery mode"),
+		bind(ModeComposer, all, "shift+tab", CmdComposerModeCycle, "cycle delivery mode"),
+		bind(ModeComposer, all, "up", CmdComposerUp, "up"),
+		bind(ModeComposer, all, "down", CmdComposerDown, "down"),
+		bind(ModeComposer, all, "ctrl+p", CmdComposerDraftPrev, "previous draft / completion"),
+		bind(ModeComposer, all, "ctrl+n", CmdComposerDraftNext, "next draft / completion"),
+		bind(ModeComposer, all, "backspace", CmdComposerBackspace, "erase"),
 	}
 	out = append(out, macroBindings()...)
-	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine} {
+	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine, ModeComposer} {
 		out = appendReadlineBindings(out, mode, all)
 	}
 	// Motions and space switches work everywhere; the footer leaves them out
@@ -635,6 +707,34 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: commandline.CmdHistoryNext, Description: "Newer shell command from history", Meta: map[string]any{"internal": true}},
 		{ID: commandline.CmdCompleteNext, Description: "Next completion in the shell command bar", Meta: map[string]any{"internal": true}},
 		{ID: commandline.CmdCompletePrev, Description: "Previous completion in the shell command bar", Meta: map[string]any{"internal": true}},
+		spec(CmdPanesGroupToggle, "Toggle pane rail grouping between project-pane and flat"),
+		spec(CmdContextPick, "Search and act on high-signal context items collected across panes"),
+		{ID: CmdContextYank, Description: "Yank the focused context item", Meta: map[string]any{"internal": true}},
+		{ID: CmdContextAttach, Description: "Attach the focused context item via context relation", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
+		spec(CmdProjectContextOpen, "Open the focused project context item with its matching handler"),
+		spec(CmdProjectContextYank, "Yank the focused project context item"),
+		spec(CmdProjectContextStar, "Star or unstar the focused project context item"),
+		spec(CmdProjectContextAttach, "Attach the focused project context item via context relation", "editing"),
+		spec(CmdPaneHints, "Show link/path/PR hint labels over the terminal screen"),
+		{ID: CmdHintsKey, Description: "Process a key in terminal hint mode", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}, {Name: "text", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
+		{ID: CmdHintsCancel, Description: "Cancel terminal hint mode", Meta: map[string]any{"internal": true}},
+		spec(CmdPaneCompose, "Open the multi-line prompt composer for the selected pane"),
+		{ID: CmdComposerInsert, Description: "Insert text into the prompt composer", Params: text, Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerBackspace, Description: "Erase before cursor in the prompt composer", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerEnter, Description: "Insert a newline or accept a completion in the prompt composer", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerSubmit, Description: "Deliver the composed prompt using the active delivery mode", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerCancel, Description: "Close the prompt composer and save a draft", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerModeCycle, Description: "Cycle prompt delivery mode (send, queue, interrupt)", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerComplete, Description: "Accept completion or cycle delivery mode in the prompt composer", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerUp, Description: "Move up in the prompt composer or completion list", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerDown, Description: "Move down in the prompt composer or completion list", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerDraftPrev, Description: "Load older draft or move up in completions", Meta: map[string]any{"internal": true}},
+		{ID: CmdComposerDraftNext, Description: "Load newer draft or move down in completions", Meta: map[string]any{"internal": true}},
+		spec(CmdQuestionNext, "Move to the next question on the Questions page"),
+		spec(CmdQuestionPrev, "Move to the previous question on the Questions page"),
+		spec(CmdQuestionSubmitAll, "Submit all staged answers for the active question batch", "editing"),
+		{ID: CmdAnswerBatchNext, Description: "Stage current answer and move to the next question in the batch", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
+		{ID: CmdAnswerBatchPrev, Description: "Stage current answer and move to the previous question in the batch", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 	}...)
 }
 
